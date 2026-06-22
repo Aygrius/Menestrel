@@ -1487,26 +1487,24 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
         const fechar = () => setMenuPecaId(null);
         return (
           <ModalShell title={nome} lang={lang} size="sm" onClose={fechar}>
+              {(cat?.descricao || cat?.efeito) && (
+                <div className="det-desc">
+                  {cat.descricao && <p>{cat.descricao}</p>}
+                  {cat.efeito && <p className="det-efeito">{en ? 'Effect' : 'Efeito'}: {cat.efeito}</p>}
+                </div>
+              )}
               <div className="det-actions" style={{ marginTop: 0 }}>
                 <div className="det-act-row">
                   {isCont && (
                     <button className="det-act det-act-primary"
                       onClick={() => { setMenuPecaId(null); setContFichaId(it.instanceId); }}>
-                      <i className="ti ti-moneybag" aria-hidden="true" />
                       <span className="det-act-lbl">{en ? 'Open' : 'Abrir'}</span>
                     </button>
                   )}
                   <button className={'det-act' + (isCont ? '' : ' det-act-primary')}
                     onClick={() => { setMenuPecaId(null); desequiparFicha(it.instanceId); }}>
-                    <i className={'ti ' + despirIc} aria-hidden="true" />
                     <span className="det-act-lbl">{despirLbl}</span>
                   </button>
-                  {!isCont && (
-                    <button className="det-act" onClick={fechar}>
-                      <i className="ti ti-arrow-back-up" aria-hidden="true" />
-                      <span className="det-act-lbl">{en ? 'Cancel' : 'Cancelar'}</span>
-                    </button>
-                  )}
                 </div>
               </div>
           </ModalShell>

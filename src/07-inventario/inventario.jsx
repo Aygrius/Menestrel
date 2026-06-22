@@ -234,16 +234,17 @@ function normalizar(texto) {
 }
 
 const ICONE_POR_GRUPO = {
-  animais: 'ti-bat',
+  animais: 'ti-deer',
   armaduras: 'ti-shield',
-  armas: 'ti-sword',
+  armas: 'ti-swords',
   consumiveis: 'ti-bottle',
   instrumentos: 'ti-music',
   itens: 'ti-box',
+  moedas: 'ti-coins',
   minerais: 'ti-diamond',
-  propriedades: 'ti-building-bank',
+  propriedades: 'ti-tower',
   recipientes: 'ti-moneybag',
-  servicos: 'ti-shovel-pitchforks',
+  servicos: 'ti-building-circus',
   transportes: 'ti-ship',
   vestimentas: 'ti-shirt',
 };
@@ -1699,7 +1700,6 @@ function DetalhesItemModal({
                   instance.equipado ? (
                     <button className="det-act det-act-primary"
                       onClick={() => onDesequipar(instance.instanceId)}>
-                      <i className="ti ti-shield-off" aria-hidden="true" />
                       <span className="det-act-lbl">{en ? 'Unequip' : 'Desequipar'}</span>
                     </button>
                   ) : (
@@ -1707,7 +1707,6 @@ function DetalhesItemModal({
                       disabled={!podeEquipar}
                       onClick={() => onEquipar(instance.instanceId)}
                       title={bloqueioEquipar || ''}>
-                      <i className="ti ti-shield" aria-hidden="true" />
                       <span className="det-act-lbl">{en ? 'Equip' : 'Equipar'}</span>
                     </button>
                   )
@@ -1718,7 +1717,6 @@ function DetalhesItemModal({
                       if (temMultiplos) onUsar(instance.instanceId);
                       else setConfirmandoUsar(true);
                     }}>
-                    <i className="ti ti-hand-stop" aria-hidden="true" />
                     <span className="det-act-lbl">{en ? 'Use' : 'Usar'}</span>
                   </button>
                 )}
@@ -1745,7 +1743,6 @@ function DetalhesItemModal({
                   instance.vestido ? (
                     <button className="det-act det-act-primary"
                       onClick={() => onDespir(instance.instanceId)}>
-                      <i className="ti ti-shirt-off" aria-hidden="true" />
                       <span className="det-act-lbl">{en ? 'Take off' : 'Despir'}</span>
                     </button>
                   ) : (
@@ -1753,7 +1750,6 @@ function DetalhesItemModal({
                       disabled={!podeVestir}
                       onClick={() => onVestir(instance.instanceId)}
                       title={bloqueioVestir || ''}>
-                      <i className="ti ti-shirt" aria-hidden="true" />
                       <span className="det-act-lbl">{en ? 'Wear' : 'Vestir'}</span>
                     </button>
                   )
@@ -1762,7 +1758,6 @@ function DetalhesItemModal({
                 {/* Transferir */}
                 {acoesPesadas && pjsHistoria.length > 0 && !instance.vestido && (
                   <button className="det-act" onClick={() => { onTransferReset && onTransferReset(); setMostrarTransferir(true); }}>
-                    <i className="ti ti-moneybag-move" aria-hidden="true" />
                     <span className="det-act-lbl">{en ? 'Transfer' : 'Transferir'}</span>
                   </button>
                 )}
@@ -1775,7 +1770,6 @@ function DetalhesItemModal({
                     title={!temOndeArmazenar
                       ? (en ? 'No compatible container in inventory' : 'Nenhum recipiente compatível no inventário')
                       : ''}>
-                    <i className="ti ti-package-import" aria-hidden="true" />
                     <span className="det-act-lbl">{en ? 'Store' : 'Armazenar'}</span>
                   </button>
                 )}
@@ -1786,7 +1780,6 @@ function DetalhesItemModal({
                     if (temMultiplos) onDestruir(instance.instanceId);
                     else setConfirmandoDestruir(true);
                   }}>
-                  <i className="ti ti-hand-off" aria-hidden="true" />
                   <span className="det-act-lbl">{en ? 'Descart' : 'Descartar'}</span>
                 </button>
               </div>
