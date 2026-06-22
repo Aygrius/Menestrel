@@ -1,0 +1,6 @@
+/* Menestrel brand fonts — loaded at runtime from Google Fonts, exactly as the
+   app's index.html does. The compiled stylesheet references these families but
+   ships no @font-face (the app loads them via a <link>), so without this import
+   designs and previews fall back to system fonts. Imported into the styles.css
+   closure so every rendered design gets the real type. */
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Pirata+One&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=UnifrakturCook:wght@700&display=swap");

@@ -1,0 +1,28 @@
+{
+  "projectId": "4528c7c7-b984-4aef-b094-797f3e9eeb17",
+  "shape": "package",
+  "pkg": "menestrel",
+  "globalName": "MenestrelUI",
+  "srcDir": "src/components/ui",
+  "tsconfig": "tsconfig.app.json",
+  "cssEntry": "dist/assets/index-Ckjrput9.css",
+  "tokensPkg": "menestrel",
+  "tokensGlob": ".design-sync/menestrel-fonts.css",
+  "extraEntries": ["./.design-sync/menestrel-provider.tsx"],
+  "componentSrcMap": {
+    "AvatarImage": null,
+    "AvatarFallback": null,
+    "AvatarGroup": null,
+    "AvatarGroupCount": null,
+    "AvatarBadge": null,
+    "TableHeader": null,
+    "TableBody": null,
+    "TableFooter": null,
+    "TableHead": null,
+    "TableRow": null,
+    "TableCell": null,
+    "TableCaption": null
+  },
+  "provider": { "component": "MenestrelProvider" },
+  "readmeHeader": ".design-sync/conventions.md"
+}

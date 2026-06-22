@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "skipLibCheck": true,
+    "paths": { "@/*": ["./src/*"] },
+    "jsx": "react-jsx",
+    "noEmit": true
+  },
+  "exclude": [
+    "node_modules",
+    "eslint.config.js",
+    "vite.config.ts",
+    "dist"
+  ]
+}
