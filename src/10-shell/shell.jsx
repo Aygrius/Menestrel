@@ -39,6 +39,10 @@ function FantasyDatePicker({ value, onChange }) {
   const val = value || { dia: 1, mes: 1, ano: 0 };
   const maxDias = FANTASY_MONTHS[val.mes - 1]?.dias || 30;
   const diaSemana = calcDiaSemanaFantasy(val.ano, val.mes, val.dia);
+  const [diaOpen, setDiaOpen] = useState(false);
+  const [mesOpen, setMesOpen] = useState(false);
+  const diaRef = React.useRef(null);
+  const mesRef = React.useRef(null);
 
   const update = (k, v) => {
     const next = { ...val, [k]: Number(v) };
@@ -47,44 +51,122 @@ function FantasyDatePicker({ value, onChange }) {
     onChange(next);
   };
 
-  // Pele dos campos migrada (Pedra & Bronze) — substitui a classe legada .wiz-field.
-  const field = {
-    fontFamily: "'Lora', serif", fontSize: 15, color: '#E8DDC6',
-    background: '#181308', border: '1px solid rgba(106,85,48,0.40)', borderRadius: 6,
-    padding: '10px 12px', outline: 'none', width: '100%',
+  // Fecha ao clicar fora
+  useEffect(() => {
+    if (!diaOpen && !mesOpen) return undefined;
+    const handler = (e) => {
+      if (diaRef.current && !diaRef.current.contains(e.target)) setDiaOpen(false);
+      if (mesRef.current && !mesRef.current.contains(e.target)) setMesOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [diaOpen, mesOpen]);
+
+  // Pill — mesmo visual do seletor de mesa (sem borda, fundo escuro translúcido)
+  const pill = {
+    background: 'rgba(106, 85, 48, 0.12)',
+    border: 'none', borderRadius: 999, height: 32, outline: 'none',
+    fontFamily: "'Lora', serif", fontSize: 13, flexShrink: 0,
   };
+
+  // dropBtn — mesmo pill, mas com borda (padrão SelectPill/.select-pill-btn,
+  // ver campo "Arma" em batalha.jsx) já que dia/mês agora usam essa classe.
+  const dropBtn = {
+    ...pill,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%',
+    color: '#E8DDC6', textAlign: 'left', border: 'none',
+    padding: '0 12px 0 16px', cursor: 'pointer',
+  };
+
+  const dropList = {
+    position: 'absolute', top: 'calc(100% + 4px)', left: 0, minWidth: '100%',
+    background: 'rgba(18, 13, 6, 1)', border: 'none', borderRadius: 6,
+    padding: 4, margin: 0, listStyle: 'none', zIndex: 60,
+    maxHeight: 220, overflowY: 'auto',
+  };
+
+  const dropItem = (active) => ({
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '3px 8px', borderRadius: 6, cursor: 'pointer',
+    fontFamily: "'Lora', serif", fontSize: 13,
+    color: active ? '#C9A44E' : '#C8BCAA',
+    background: 'transparent',
+    whiteSpace: 'nowrap',
+  });
+
+  const chevron = (open) => (
+    <i className="ti ti-chevron-down" aria-hidden="true"
+       style={{ fontSize: 12, color: '#C9A44E', opacity: 0.7, flexShrink: 0,
+                transition: 'transform .15s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+  );
 
   return (
     <div className="menestrel-ui" style={{ display: 'grid', gridTemplateColumns: '70px 1fr 130px 80px', gap: 8 }}>
-      {/* Dia */}
-      <select value={val.dia} onChange={(e) => update('dia', e.target.value)} style={field}>
-        {Array.from({ length: maxDias }, (_, i) => i + 1).map((d) => (
-          <option key={d} value={d}>{d}</option>
-        ))}
-      </select>
 
-      {/* Mês */}
-      <select value={val.mes} onChange={(e) => update('mes', e.target.value)} style={field}>
-        {FANTASY_MONTHS.map((m) => (
-          <option key={m.n} value={m.n}>{m.nome}</option>
-        ))}
-      </select>
+      {/* Dia — dropdown customizado, mesmo tipo de seletor do SelectPill (ver "Arma") */}
+      <div ref={diaRef} style={{ position: 'relative' }}>
+        <button type="button" className="select-pill-btn" data-open={diaOpen ? 'true' : 'false'} style={dropBtn} onClick={() => { setDiaOpen((v) => !v); setMesOpen(false); }}>
+          <span>{val.dia}</span>
+          {chevron(diaOpen)}
+        </button>
+        {diaOpen && (
+          <ul className="fdp-drop" style={dropList}>
+            {Array.from({ length: maxDias }, (_, i) => i + 1).map((d) => (
+              <li key={d}
+                style={dropItem(d === val.dia)}
+                onMouseEnter={(e) => { if (d !== val.dia) e.currentTarget.style.background = 'rgba(106, 85, 48, 0.12);'; e.currentTarget.style.color = '#E8DDC6'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = d === val.dia ? '#C9A44E' : '#C8BCAA'; }}
+                onClick={() => { update('dia', d); setDiaOpen(false); }}
+              >
+                {d}
+                {d === val.dia && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Mês — dropdown customizado, mesmo tipo de seletor do SelectPill (ver "Arma") */}
+      <div ref={mesRef} style={{ position: 'relative' }}>
+        <button type="button" className="select-pill-btn" data-open={mesOpen ? 'true' : 'false'} style={dropBtn} onClick={() => { setMesOpen((v) => !v); setDiaOpen(false); }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {FANTASY_MONTHS[val.mes - 1]?.nome || ''}
+          </span>
+          {chevron(mesOpen)}
+        </button>
+        {mesOpen && (
+          <ul className="fdp-drop" style={dropList}>
+            {FANTASY_MONTHS.map((m) => (
+              <li key={m.n}
+                style={dropItem(m.n === val.mes)}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,164,78,0.10)'; e.currentTarget.style.color = '#E8DDC6'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = m.n === val.mes ? '#C9A44E' : '#C8BCAA'; }}
+                onClick={() => { update('mes', m.n); setMesOpen(false); }}
+              >
+                {m.nome}
+                {m.n === val.mes && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* Dia da semana */}
       <input
         type="text"
         readOnly
         value={`✦ ${diaSemana}`}
-        style={{ ...field, color: '#C9A44E', cursor: 'default', textAlign: 'left' }}
+        style={{ ...pill, border: 'none', color: '#C9A44E', cursor: 'default', padding: '0 16px', width: '100%' }}
       />
 
       {/* Ano */}
       <input
         type="number"
         min={0}
+        className="fdp-ano"
         value={val.ano}
         onChange={(e) => update('ano', e.target.value)}
-        style={field}
+        style={{ ...pill, border: 'none', color: '#E8DDC6', padding: '0 16px', width: '100%' }}
       />
     </div>
   );
@@ -110,14 +192,16 @@ const TI_cls = (tiClass) => ({ style, className, ...rest } = {}) => (
 
 const Icon = {
   // ── Menu lateral ────────────────────────────────────────────────────────────
-  Scroll:  TI_cls('ti-book-2'),          // Histórias
-  Crown:   TI_cls('ti-mail'),     // Personagens (mestre)
-  Compass: TI_cls('ti-user'),            // Personagens (jogador)
-  Tower:   TI_cls('ti-bat'),             // Criaturas
-  Chest:   TI_cls('ti-backpack'),        // Itens
-  Flame:   TI_cls('ti-meteor'),            // Magias
-  Sword:   TI_cls('ti-bow'),           // Técnicas
-  Shield:  TI_cls('ti-tools'),     // Habilidades
+  Scroll:   TI_cls('ti-book-2'),         // Histórias / Inventário
+  Crown:    TI_cls('ti-mail'),           // Convites
+  Compass:  TI_cls('ti-user'),          // Personagens (jogador)
+  Tower:    TI_cls('ti-bat'),           // Criaturas
+  Chest:    TI_cls('ti-backpack'),      // Itens
+  Flame:    TI_cls('ti-meteor'),        // Magias
+  Sword:    TI_cls('ti-bow'),           // Técnicas
+  Shield:   TI_cls('ti-tools'),         // Habilidades
+  Sheet:    TI_cls('ti-file-description'), // Loja / Itens (lista)
+  BookOpen: TI_cls('ti-book'),          // Aventuras (histórias do jogador)
 
   // ── Logo / cabeçalho ─────────────────────────────────────────────────────────
   Skull:   TI_cls('ti-id'),           // Logo ornamental
@@ -162,7 +246,7 @@ window.Icon = Icon;
 /* ============================== [10] Topbar (navbar branca · estilo EternaCloud · CTA ouro) ==============================
    Substitui a função Topbar existente em src/10-shell/shell.jsx.
    NÃO mexer no Object.assign(window, { ... Topbar ... }) do fim do arquivo — ele já exporta este nome.
-   Fontes (Cinzel + Plus Jakarta Sans) já vêm do projeto migrado; não precisa reimportar.
+   Fontes (Cinzel + Lora) já vêm do projeto migrado; não precisa reimportar.
    Tamanhos/cores ficam inline (regra de ouro); o <style> só cobre o que inline não faz: hover, ::after e responsivo.
 */
 function Topbar({ lang = 'pt', setLang, user, onSignup, onStart, onNavigate }) {
@@ -188,33 +272,11 @@ function Topbar({ lang = 'pt', setLang, user, onSignup, onStart, onNavigate }) {
     hair: 'rgba(24,18,8,0.05)', sep: 'rgba(24,18,8,0.18)',
     ctaGrad: 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
     ctaGlow: '0 12px 30px -10px rgba(201,164,78,0.45)',
-    fd: "'Cinzel',serif", fb: "'Plus Jakarta Sans',system-ui,sans-serif",
+    fd: "'Cinzel',serif", fb: "'Lora',serif",
   };
 
   return (
     <div className="menestrel-ui" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, display: 'flex', justifyContent: 'center', padding: '13px 24px' }}>
-      <style>{`
-        .mn-link{ position:relative; }
-        .mn-link::after{ content:""; position:absolute; left:0; right:100%; bottom:-2px; height:2px; border-radius:6px; background:#7A5E2A; transition:right .25s ease; }
-        .mn-link:hover{ color:#7A5E2A !important; }
-        .mn-link:hover::after{ right:0; }
-        .mn-cta{ transition:transform .18s ease, box-shadow .18s ease, filter .18s ease; }
-        .mn-cta:hover{ transform:translateY(-2px); filter:brightness(1.06); box-shadow:0 18px 34px -12px rgba(201,164,78,0.5); }
-        .mn-cta:active{ transform:translateY(0); }
-        .mn-lang button{ transition:color .2s ease; }
-        .mn-lang button:hover{ color:#7A5E2A !important; }
-        .mn-nav-desktop{ display:flex; }
-        .mn-burger{ display:none; }
-        @media (max-width:980px){
-          .mn-nav-desktop{ display:none; }
-          .mn-lang{ display:none; }
-          .mn-burger{ display:flex; }
-        }
-        @media (max-width:560px){
-          .mn-cta{ padding:14px 22px !important; font-size:16px !important; }
-        }
-      `}</style>
-
       <nav aria-label="Navegação principal" style={{
         position: 'relative', width: '100%', maxWidth: '1600px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
         background: C.white, borderRadius: '6px', padding: '5px 5px 5px 20px',
@@ -377,10 +439,6 @@ function FichasJogador({ ac, lang, currentUserId }) {
 
   return (
     <>
-      <style>{`
-        .fj-card { transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
-        .fj-card:hover { transform: translateY(-3px); border-color: rgba(201,164,78,0.40); box-shadow: 0 22px 50px -28px rgba(8,6,2,0.9); }
-      `}</style>
       {/* Grid de cards de ficha */}
       <div style={{
         display: 'grid',
@@ -672,7 +730,7 @@ function ModalShell({
 const MENU_ITEM_STYLE = {
   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
   padding: '7px 6px', borderRadius: 6, border: 'none', background: 'transparent',
-  color: '#E8DDC6', fontFamily: "'Plus Jakarta Sans',system-ui,sans-serif", fontSize: 13,
+  color: '#E8DDC6', fontFamily: "'Lora',serif", fontSize: 13,
   cursor: 'pointer', textAlign: 'left', transition: 'background .14s ease',
 };
 
@@ -761,36 +819,24 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
       // inteiro ao clicar em "Perfil"/"Idioma". Conter o clique na raiz do menu impede esse vazamento;
       // os onClick internos (que já dispararam antes na fase de bubble) seguem funcionando normalmente.
       onClick={(e) => e.stopPropagation()}
-      style={{
-        position: 'fixed', left: pos.left, bottom: pos.bottom, zIndex: 1000,
-        width: 250, borderRadius: 6, padding: 6,
-        background: '#1B1610', border: '1px solid rgba(201,164,78,0.22)',
-      }}
+      style={{ position: 'fixed', left: pos.left, bottom: pos.bottom, zIndex: 1000 }}
     >
-      <style>{`
-        .mc-usermenu hr { border:none; border-top:1px solid rgba(232,221,198,0.08); margin:6px 4px; }
-      `}</style>
-
       {/* ── Cabeçalho: avatar + nome/email ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px 12px', borderBottom: '1px solid rgba(232,221,198,0.08)', marginBottom: 6 }}>
+      <div className="mc-um-header">
         {avatarUrl ? (
           <img src={avatarUrl} alt={firstName || ''} referrerPolicy="no-referrer"
-            style={{ width: 36, height: 36, borderRadius: 999, objectFit: 'cover', border: '1px solid rgba(201,164,78,0.35)', flexShrink: 0 }} />
+            className="mc-um-avatar-img" />
         ) : (
-          <div style={{ width: 36, height: 36, borderRadius: 999, display: 'grid', placeItems: 'center', background: 'rgba(106,85,48,0.35)', border: '1px solid rgba(106,85,48,0.50)', color: '#E8DDC6', fontWeight: 400, fontSize: 14, flexShrink: 0 }}>
+          <div className="mc-um-avatar-initials">
             {(firstName || email || '?').charAt(0).toUpperCase()}
           </div>
         )}
-        <div style={{ minWidth: 0 }}>
+        <div className="mc-um-names">
           {fullName && fullName !== email && (
-            <div style={{ fontFamily: "'Plus Jakarta Sans',system-ui,sans-serif", fontSize: 14, color: '#E8DDC6', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {fullName}
-            </div>
+            <div className="mc-um-fullname">{fullName}</div>
           )}
           {email && (
-            <div style={{ fontFamily: "'Plus Jakarta Sans',system-ui,sans-serif", fontSize: 12, color: '#9C8F73', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {email}
-            </div>
+            <div className="mc-um-email">{email}</div>
           )}
         </div>
       </div>
@@ -800,16 +846,15 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
         <MenuRow onClick={() => { setRoleOpen((v) => !v); setLangOpen(false); }}>
           <Icon.Profile style={{ fontSize: 16, lineHeight: 1 }} />
           {t.roleLabel}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9C8F73' }}>{profile === 'master' ? t.master : t.player}</span>
           <i className="ti ti-chevron-down" style={{ fontSize: 14, opacity: 0.6, transition: 'transform .14s ease', transform: roleOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
         </MenuRow>
         {roleOpen && (
-          <div style={{ paddingLeft: 28, display: 'flex', flexDirection: 'column' }}>
+          <div className="mc-um-submenu">
             <MenuRow onClick={() => { onSetProfile('master'); setRoleOpen(false); }}>
-              {profile === 'master' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E' }} />} {t.master}
+              {t.master} {profile === 'master' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E', marginLeft: 'auto' }} />}
             </MenuRow>
             <MenuRow onClick={() => { onSetProfile('player'); setRoleOpen(false); }}>
-              {profile === 'player' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E' }} />} {t.player}
+              {t.player} {profile === 'player' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E', marginLeft: 'auto' }} />}
             </MenuRow>
           </div>
         )}
@@ -820,16 +865,15 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
         <MenuRow onClick={() => { setLangOpen((v) => !v); setRoleOpen(false); }}>
           <Icon.Language style={{ fontSize: 16, lineHeight: 1 }} />
           {t.language}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9C8F73' }}>{t.langLabel}</span>
           <i className="ti ti-chevron-down" style={{ fontSize: 14, opacity: 0.6, transition: 'transform .14s ease', transform: langOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
         </MenuRow>
         {langOpen && (
-          <div style={{ paddingLeft: 28, display: 'flex', flexDirection: 'column' }}>
+          <div className="mc-um-submenu">
             <MenuRow onClick={() => { setLang('pt'); setLangOpen(false); onClose(); }}>
-              {lang === 'pt' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E' }} />} Português (Brasil)
+              Português (Brasil) {lang === 'pt' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E', marginLeft: 'auto' }} />}
             </MenuRow>
             <MenuRow onClick={() => { setLang('en'); setLangOpen(false); onClose(); }}>
-              {lang === 'en' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E' }} />} English
+              English {lang === 'en' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E', marginLeft: 'auto' }} />}
             </MenuRow>
           </div>
         )}
@@ -841,7 +885,7 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
       <MenuRow disabled title={t.soon} extraStyle={{ opacity: 0.55 }}>
         <i className="ti ti-credit-card" style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true" />
         {t.planLabel}
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9C8F73' }}>{planoBadge}</span>
+        <span className="mc-um-plan-badge">{planoBadge}</span>
       </MenuRow>
 
       <MenuRow onClick={() => { onClose(); if (onHelp) onHelp(); }}>
@@ -860,6 +904,998 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
   );
 }
 
+// ── Tooltip local do AdminConsole ────────────────────────────────────────────
+// useTooltip e Tooltip são definidos em 01-core mas não ficam no window.
+// Como shell.jsx carrega antes de inventario/ficha, implementação local autônoma —
+// mesmo padrão visual (.mn-tip + .mn-tip-title/.mn-tip-desc), sem dependência externa.
+function useNavTooltip(delay) {
+  const [tip, setTip] = React.useState(null);
+  const timerRef = React.useRef(null);
+  const abrirTip = React.useCallback((e, content) => {
+    clearTimeout(timerRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    timerRef.current = setTimeout(() => {
+      setTip({ rect, content });
+    }, delay || 0);
+  }, [delay]);
+  const fecharTip = React.useCallback(() => {
+    clearTimeout(timerRef.current);
+    setTip(null);
+  }, []);
+  const manterTip = React.useCallback(() => {
+    clearTimeout(timerRef.current);
+  }, []);
+  return [tip, abrirTip, fecharTip, manterTip];
+}
+function NavTooltip({ tip, onEnter, onLeave }) {
+  if (!tip) return null;
+  const { rect, content } = tip;
+  const left = rect.right + 10;
+  const top  = rect.top + rect.height / 2;
+  // content pode ser string ou { title }
+  const label = typeof content === 'string' ? content : (content?.title || '');
+  if (!label) return null;
+  return ReactDOM.createPortal(
+    <div
+      style={{
+        position: 'fixed', left, top, transform: 'translateY(-50%)',
+        zIndex: 9999,
+        background: '#141009',
+        borderRadius: 6, padding: '12px 12px 12px 12px',
+        pointerEvents: 'none', whiteSpace: 'nowrap',
+        animation: 'fpItemTipIn .12s ease-out',
+        fontFamily: "'Lora', serif", fontSize: 12, color: '#E8DDC6',
+      }}
+    >
+      {/* seta apontando para a esquerda */}
+      <div style={{
+        position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)',
+        borderWidth: 5, borderStyle: 'solid',
+        borderColor: 'transparent #141009 transparent transparent',
+        width: 0, height: 0,
+      }} />
+      {label}
+    </div>,
+    document.body
+  );
+}
+
+/* ============================== [9] CentralMensagens — feed retrátil de eventos da mesa ==============================
+   Notifica TODOS na mesma mesa (Mestre + Jogadores) sobre avisos/ações
+   uns dos outros (ex.: "Victor usou Alfabetização (Médio) e obteve uma
+   falha."). Aparece em qualquer tela do AdminConsole, montada uma única
+   vez fora do switch de seções — para ambos os perfis (ver chamada no
+   fim do AdminConsole).
+
+   ESTADO ATUAL: dados reais via Supabase. Histórico vem de
+   listar_eventos_mesa(historiaId) (RPC, SECURITY DEFINER — já valida
+   que o usuário é Mestre da história ou tem PJ vinculado); eventos novos
+   chegam por Realtime (subscrição em mesa_log filtrada por historia_id).
+   Quem GRAVA evento usa registrar_evento_mesa (RPC) — ver
+   src/11-ficha/ficha.jsx (aoResolverTesteHabilidade) para o primeiro
+   produtor real (teste de habilidade).
+
+   Sem historiaId (Mestre sem mesa selecionada, ou Jogador sem PJ
+   vinculado a uma história) o componente não monta nada — não tem o
+   que mostrar.
+
+   Tipos de evento (`tipo`) — mesmo enum da tabela mesa_log:
+   magia, ataque, tecnica, item, teste, sistema, aviso.
+
+   Comportamento (compactado a pedido do usuário — ocupar pouco espaço):
+   - Retraído: botão circular flutuante (canto inferior direito) com
+     badge de não-lidas.
+   - Mensagem nova chega → abre a gaveta automaticamente, mostra, depois
+     retrai sozinha após alguns segundos.
+   - Gaveta SEM cabeçalho (só a lista) e com ALTURA FIXA pequena (ver
+     .cm-drawer no CSS) — mostra só algumas mensagens por vez, scroll
+     interno pra ver as mais antigas. Mais recente no topo.
+   - Exibe as últimas 20 mensagens (a tabela no banco não tem esse teto —
+     ver listar_eventos_mesa — só a UI mantém a janela de 20).
+*/
+const MSG_TIPO_ICON = {
+  magia: 'ti-meteor',
+  ataque: 'ti-bow',
+  tecnica: 'ti-sword',
+  item: 'ti-backpack',
+  teste: 'ti-dice',
+  sistema: 'ti-info-circle',
+  aviso: 'ti-bell',
+};
+
+function MensagemEvento({ msg }) {
+  const iconClass = MSG_TIPO_ICON[msg.tipo] || MSG_TIPO_ICON.sistema;
+  return (
+    <div className="cm-msg">
+      <div className="cm-msg-icon">
+        <i className={'ti ' + iconClass} aria-hidden="true" />
+      </div>
+      <div className="cm-msg-body">
+        {msg.hora && <span className="cm-msg-hora">{msg.hora}</span>}
+        <span className="cm-msg-texto">{msg.texto}</span>
+      </div>
+    </div>
+  );
+}
+
+// Converte uma linha de mesa_log (banco) pro formato de exibição da gaveta.
+function linhaParaMensagem(row, lang) {
+  const dt = new Date(row.created_at);
+  const locale = lang === 'en' ? 'en-US' : 'pt-BR';
+  const dataHora = dt.toLocaleString(locale, {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+  return {
+    id: 'db-' + row.id,
+    tipo: row.tipo,
+    texto: row.texto,
+    hora: dataHora,
+  };
+}
+
+function CentralMensagens({ lang, historiaId, sidebarLargura = 208 }) {
+  const [mensagens, setMensagens] = useState([]);
+  const [aberto, setAberto] = useState(false);
+  const [naoLidas, setNaoLidas] = useState(0);
+  const retrairTimeoutRef = React.useRef(null);
+  const vistosRef = React.useRef(new Set()); // ids já inseridos — evita duplicar entre carga inicial e Realtime
+  // AudioContext reutilizável. Criado (e desbloqueado) na primeira interação
+  // do usuário com o FAB — browsers bloqueiam AudioContext sem gesto prévio.
+  const audioCtxRef = React.useRef(null);
+
+  // Limpa timeout pendente ao desmontar.
+  useEffect(() => () => {
+    if (retrairTimeoutRef.current) clearTimeout(retrairTimeoutRef.current);
+    if (audioCtxRef.current) { try { audioCtxRef.current.close(); } catch (_) {} }
+  }, []);
+
+  // Desbloqueia o AudioContext no primeiro clique em qualquer lugar da página.
+  // Browsers exigem gesto do usuário — registrar no document garante que qualquer
+  // interação (não só o FAB) seja suficiente para liberar o contexto.
+  useEffect(() => {
+    const desbloquear = () => {
+      try {
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume();
+        }
+      } catch (_) {}
+      // Remove o listener após o primeiro clique — não precisa mais.
+      document.removeEventListener('click', desbloquear);
+    };
+    document.addEventListener('click', desbloquear);
+    return () => document.removeEventListener('click', desbloquear);
+  }, []);
+
+  // Toca dois beeps curtos estilo notificação de sistema (notebook).
+  // Beep 1: 1046 Hz (Dó5), Beep 2: 1318 Hz (Mi5) — intervalo de terça maior,
+  // mesmo padrão de alertas do Windows/macOS. Cada beep: attack 5ms, sustain
+  // 80ms, release 40ms. Volume baixo (0.14) para não assustar.
+  const tocarSino = () => {
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx || ctx.state !== 'running') return;
+      const beep = (freq, startTime) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.14, startTime + 0.005);
+        gain.gain.setValueAtTime(0.14, startTime + 0.085);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.125);
+        osc.start(startTime);
+        osc.stop(startTime + 0.13);
+      };
+      const t = ctx.currentTime;
+      beep(1046, t);        // Dó5 — primeiro beep
+      beep(1318, t + 0.16); // Mi5  — segundo beep (160ms depois)
+    } catch (_) {}
+  };
+
+  const abrirGaveta = (autoRetrair) => {
+    setAberto(true);
+    setNaoLidas(0);
+    if (retrairTimeoutRef.current) clearTimeout(retrairTimeoutRef.current);
+    if (autoRetrair) {
+      retrairTimeoutRef.current = setTimeout(() => setAberto(false), 6000);
+    }
+  };
+
+  const fecharGaveta = () => {
+    setAberto(false);
+    if (retrairTimeoutRef.current) { clearTimeout(retrairTimeoutRef.current); retrairTimeoutRef.current = null; }
+  };
+
+  // Carrega histórico (listar_eventos_mesa) e assina Realtime sempre que a
+  // mesa (historiaId) muda — troca de mesa do Mestre, ou troca de PJ ativo
+  // do Jogador. Limpa estado e desfaz a assinatura anterior antes de montar a nova.
+  useEffect(() => {
+    vistosRef.current = new Set();
+    setMensagens([]);
+    setNaoLidas(0);
+    setAberto(false);
+    if (!historiaId) return undefined;
+
+    let cancel = false;
+    (async () => {
+      const { data, error } = await supabaseClient.rpc('listar_eventos_mesa', { p_historia_id: historiaId });
+      if (cancel || error || !data) return;
+      const ordenado = [...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20);
+      ordenado.forEach((row) => vistosRef.current.add(row.id));
+      setMensagens(ordenado.map((row) => linhaParaMensagem(row, lang)));
+    })();
+
+    const channel = supabaseClient
+      .channel('mesa_log_' + historiaId)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'mesa_log',
+        filter: 'historia_id=eq.' + historiaId,
+      }, (payload) => {
+        const row = payload.new;
+        if (!row || vistosRef.current.has(row.id)) return;
+        vistosRef.current.add(row.id);
+        setMensagens((prev) => [linhaParaMensagem(row, lang), ...prev].slice(0, 20));
+        setNaoLidas((n) => n + 1);
+        tocarSino(); // sino suave — AudioContext já desbloqueado pelo FAB
+        abrirGaveta(true); // chegou mensagem nova -> expande e depois retrai sozinha
+      })
+      .subscribe();
+
+    return () => { cancel = true; supabaseClient.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historiaId, lang]);
+
+  if (!historiaId) return null; // sem mesa resolvida — nada pra acompanhar
+
+  return (
+    <div className="menestrel-ui cm-root">
+      {/* Botão flutuante — sempre visível, retraído ou não */}
+      <button
+        type="button"
+        className={'cm-fab' + (aberto ? ' is-active' : '')}
+        onClick={() => { aberto ? fecharGaveta() : abrirGaveta(false); }}
+        aria-label={lang === 'en' ? 'Table messages' : 'Mensagens da mesa'}
+        aria-expanded={aberto}
+      >
+        <i className="ti ti-bell" aria-hidden="true" />
+        {naoLidas > 0 && (
+          <span className="cm-fab-badge">{naoLidas > 9 ? '9+' : naoLidas}</span>
+        )}
+      </button>
+
+      {/* Gaveta — faixa fixa no rodapé, altura fixa pequena (ver CSS cm-drawer)
+          + scroll interno. Sem cabeçalho — só a lista de mensagens (decisão
+          combinada com o usuário pra ocupar menos espaço na tela). */}
+      <div
+        className={'cm-drawer' + (aberto ? ' is-open' : '')}
+        role="log"
+        aria-live="polite"
+        aria-label={lang === 'en' ? 'Table messages' : 'Mensagens da mesa'}
+      >
+        <div className="cm-drawer-body" style={{ paddingLeft: `calc(${sidebarLargura}px + max(20px, (100vw - ${sidebarLargura}px - 1060px) / 2))`, paddingRight: `max(20px, (100vw - ${sidebarLargura}px - 1060px) / 2)` }}>
+          {mensagens.length === 0 ? (
+            <div className="cm-empty">{lang === 'en' ? 'No messages yet.' : 'Nenhuma mensagem ainda.'}</div>
+          ) : (
+            mensagens.map((m) => <MensagemEvento key={m.id} msg={m} />)
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================== [9.5] CardDataJogoAtual — card flutuante com data/local atual da mesa ==============================
+   Mostra sempre (Mestre e Jogador) onde a aventura está agora — separado
+   da "data de início" (data_inicio/data_jogo, fixas, só editadas na criação
+   da história em NovaHistoriaModal). Este card lê/escreve historias.data_jogo_atual
+   (jsonb: { dia, mes, ano, local }), que avança manualmente conforme o Mestre
+   narra a passagem do tempo/viagem da mesa.
+
+   Fixo no TOPO da tela (barra), igual decisão combinada com o usuário —
+   diferente da CentralMensagens (FAB no rodapé). Convive bem com a Topbar
+   porque só aparece dentro do AdminConsole (sessão/mesa ativa resolvida),
+   nunca na landing.
+
+   Mestre: clique no card → vira formulário inline (FantasyDatePicker + input
+   de local) → Salvar grava direto em historias.data_jogo_atual (update
+   simples, sem RPC — mesmo padrão de campo solto que NovaHistoriaModal usa
+   pra data_inicio/data_jogo).
+   Jogador: mesmo card, somente leitura (sem affordance de clique).
+
+   Sem historiaId (mesa não resolvida) não monta nada — mesmo contrato da
+   CentralMensagens.
+*/
+function CardDataJogoAtual({ lang, historiaId, podeEditar, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, limiteFreeHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, limiteFreePersonagem, esconderBotaoPersonagem }) {
+  const [dataAtual, setDataAtual] = useState(null); // { dia, mes, ano, local } | null
+  const [carregando, setCarregando] = useState(true);
+  const [editando, setEditando] = useState(null); // null | 'data' | 'local'
+  const [rascunho, setRascunho] = useState({ dia: 1, mes: 1, ano: 0, local: '' });
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState(null);
+  const [mesaDropOpen, setMesaDropOpen] = useState(false);
+  const mesaDropRef = React.useRef(null);
+
+  // Fecha dropdown ao clicar fora
+  useEffect(() => {
+    if (!mesaDropOpen) return undefined;
+    const handler = (e) => {
+      if (mesaDropRef.current && !mesaDropRef.current.contains(e.target)) setMesaDropOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [mesaDropOpen]);
+
+  // Carrega data_jogo_atual sempre que a mesa ativa muda (troca de história do
+  // Mestre, ou troca de PJ ativo do Jogador) — mesmo gatilho de CentralMensagens.
+  useEffect(() => {
+    setEditando(null);
+    setErro(null);
+    if (!historiaId) { setDataAtual(null); setCarregando(false); return undefined; }
+    let cancel = false;
+    setCarregando(true);
+    (async () => {
+      const { data, error } = await supabaseClient
+        .from('historias').select('data_jogo_atual').eq('id', historiaId).maybeSingle();
+      if (cancel) return;
+      setCarregando(false);
+      if (error) { console.error('[data-jogo-atual] carga falhou:', error); return; }
+      setDataAtual(data && data.data_jogo_atual ? data.data_jogo_atual : null);
+    })();
+    return () => { cancel = true; };
+  }, [historiaId]);
+
+  const abrirEdicao = (modo) => {
+    if (!podeEditar) return;
+    setRascunho({
+      dia: (dataAtual && dataAtual.dia) || 1,
+      mes: (dataAtual && dataAtual.mes) || 1,
+      ano: (dataAtual && dataAtual.ano) || 0,
+      local: (dataAtual && dataAtual.local) || '',
+    });
+    setErro(null);
+    setEditando(modo);
+  };
+
+  const salvar = async () => {
+    setSalvando(true);
+    setErro(null);
+    const payload = { dia: rascunho.dia, mes: rascunho.mes, ano: rascunho.ano, local: rascunho.local.trim() };
+    const { error } = await supabaseClient
+      .from('historias').update({ data_jogo_atual: payload }).eq('id', historiaId);
+    setSalvando(false);
+    if (error) {
+      console.error('[data-jogo-atual] salvar falhou:', error);
+      setErro(error.hint || error.message);
+      return;
+    }
+    setDataAtual(payload);
+    setEditando(null);
+  };
+
+  // Carregando ainda bloqueia tudo (evita flash). Sem historiaId mas com
+  // onNovoPersonagem disponível, segue renderizando — é exatamente o caso de
+  // um Jogador sem nenhum PJ ainda (sem PJ não há história vinculada, então
+  // historiaId fica null), e o botão "Novo personagem" precisa aparecer pra
+  // ele poder criar o primeiro. Sem historiaId e sem onNovoPersonagem (ex.:
+  // outras abas, ou Mestre sem histórias), não há nada útil pra mostrar.
+  if (carregando) return null;
+  if (!historiaId && !onNovoPersonagem) return null;
+
+  const en = lang === 'en';
+  const mostrarSeletorMesa = profile === 'master' && minhasHistorias && minhasHistorias.length > 1 && setMesaAtivaId && !esconderSeletorEBotaoNovo;
+
+  return (
+    <div className="menestrel-ui cdj-root" style={{ left: sidebarLargura, transition: 'left .32s cubic-bezier(.4,0,.2,1)' }}>
+      {mostrarSeletorMesa && (() => {
+        const historiaAtiva = minhasHistorias.find((h) => h.id === mesaAtivaId);
+        return (
+          <div className="cdj-mesa-seletor" ref={mesaDropRef}>
+            <button
+              type="button"
+              className={'cdj-mesa-pill' + (mesaDropOpen ? ' is-open' : '')}
+              onClick={() => setMesaDropOpen((v) => !v)}
+              aria-haspopup="listbox"
+              aria-expanded={mesaDropOpen}
+              aria-label={en ? 'Active table' : 'Mesa ativa'}
+            >
+              <span className="cdj-mesa-titulo">{historiaAtiva ? historiaAtiva.titulo : '—'}</span>
+              <i className="ti ti-chevron-down cdj-mesa-chevron" aria-hidden="true" />
+            </button>
+            {mesaDropOpen && (
+              <ul className="cdj-mesa-lista" role="listbox">
+                {minhasHistorias.map((h) => (
+                  <li
+                    key={h.id}
+                    role="option"
+                    aria-selected={h.id === mesaAtivaId}
+                    className={'cdj-mesa-opcao' + (h.id === mesaAtivaId ? ' is-ativa' : '')}
+                    onClick={() => { setMesaAtivaId(h.id); setMesaDropOpen(false); }}
+                  >
+                    {h.titulo}
+                    {h.id === mesaAtivaId && <i className="ti ti-check" aria-hidden="true" />}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })()}
+      {editando === null ? (
+        historiaId && (
+          <>
+            <button
+              type="button"
+              className={'cdj-bar' + (podeEditar ? ' is-editavel' : '')}
+              onClick={() => abrirEdicao('data')}
+              disabled={!podeEditar}
+              aria-label={en ? 'Current in-game date' : 'Data atual do jogo'}
+            >
+              <i className="ti ti-calendar-event" aria-hidden="true" />
+              {dataAtual ? (
+                <span className="cdj-data">
+                  {(() => {
+                    const nomeMes = FANTASY_MONTHS[dataAtual.mes - 1]?.nome || '';
+                    const diaSemana = calcDiaSemanaFantasy(dataAtual.ano, dataAtual.mes, dataAtual.dia);
+                    const nomeMesShort = nomeMes.replace(/^Mês /, '');
+                    const diaSemanaCap = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1).toLowerCase();
+                    return `${diaSemanaCap}, ${dataAtual.dia} ${nomeMesShort} de ${dataAtual.ano}`;
+                  })()}
+                </span>
+              ) : (
+                <span className="cdj-vazio">
+                  {podeEditar
+                    ? (en ? 'Set the current date' : 'Definir data atual')
+                    : (en ? 'Date not set yet' : 'Data ainda não definida')}
+                </span>
+              )}
+            </button>
+            {dataAtual && dataAtual.local && (
+              <button
+                type="button"
+                className={'cdj-bar' + (podeEditar ? ' is-editavel' : '')}
+                onClick={() => abrirEdicao('local')}
+                disabled={!podeEditar}
+                aria-label={en ? 'Current in-game location' : 'Local atual do jogo'}
+              >
+                <i className="ti ti-map-pin" aria-hidden="true" />
+                <span className="cdj-local">{dataAtual.local}</span>
+              </button>
+            )}
+          </>
+        )
+      ) : editando === 'data' ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', pointerEvents: 'auto' }}>
+          <FantasyDatePicker
+            value={{ dia: rascunho.dia, mes: rascunho.mes, ano: rascunho.ano }}
+            onChange={(v) => setRascunho((r) => ({ ...r, ...v }))}
+            lang={lang}
+          />
+          {/* Cancelar — btn-ghost padrão do sistema */}
+          <button
+            type="button"
+            className="cdj-pill-btn"
+            onClick={() => setEditando(null)}
+            disabled={salvando}
+            style={{
+              background: 'rgba(106,85,48,0.12)',
+              border: 'none', borderRadius: 999, height: 32, outline: 'none',
+              fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
+              color: '#E8DDC6', padding: '0 20px', cursor: 'pointer', opacity: salvando ? 0.5 : 1,
+            }}
+          >
+            {en ? 'Cancel' : 'Cancelar'}
+          </button>
+          {/* Salvar — btn-primary padrão do sistema */}
+          <button
+            type="button"
+            className="cdj-pill-btn-salvar"
+            onClick={salvar}
+            disabled={salvando}
+            style={{
+              background: salvando ? 'rgba(201,164,78,0.5)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
+              border: 'none', borderRadius: 999, height: 32, outline: 'none',
+              fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
+              color: '#1C1407', padding: '0 20px', cursor: salvando ? 'default' : 'pointer',
+            }}
+          >
+            {salvando ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Save' : 'Salvar')}
+          </button>
+          {erro && (
+            <span style={{ color: '#E08A6F', fontFamily: "'Lora', serif", fontSize: 12, flexBasis: '100%' }}>
+              {erro}
+            </span>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', pointerEvents: 'auto' }}>
+          {/* Input local — pill escuro para edição */}
+          <input
+            type="text"
+            value={rascunho.local}
+            onChange={(e) => setRascunho((r) => ({ ...r, local: e.target.value }))}
+            placeholder={en ? 'Current location' : 'Local atual'}
+            autoFocus
+            style={{
+              background: 'rgba(24,17,8,0.92)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+              border: 'none', borderRadius: 999, height: 32, outline: 'none',
+              fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6',
+              padding: '0 16px', width: 160, flexShrink: 0,
+            }}
+          />
+          {/* Cancelar — btn-ghost padrão do sistema */}
+          <button
+            type="button"
+            className="cdj-pill-btn"
+            onClick={() => setEditando(null)}
+            disabled={salvando}
+            style={{
+              background: 'rgba(106,85,48,0.12)',
+              border: 'none', borderRadius: 999, height: 32, outline: 'none',
+              fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
+              color: '#E8DDC6', padding: '0 20px', cursor: 'pointer', opacity: salvando ? 0.5 : 1,
+            }}
+          >
+            {en ? 'Cancel' : 'Cancelar'}
+          </button>
+          {/* Salvar — btn-primary padrão do sistema */}
+          <button
+            type="button"
+            className="cdj-pill-btn-salvar"
+            onClick={salvar}
+            disabled={salvando}
+            style={{
+              background: salvando ? 'rgba(201,164,78,0.5)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
+              border: 'none', borderRadius: 999, height: 32, outline: 'none',
+              fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
+              color: '#1C1407', padding: '0 20px', cursor: salvando ? 'default' : 'pointer',
+            }}
+          >
+            {salvando ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Save' : 'Salvar')}
+          </button>
+          {erro && (
+            <span style={{ color: '#E08A6F', fontFamily: "'Lora', serif", fontSize: 12, flexBasis: '100%' }}>
+              {erro}
+            </span>
+          )}
+        </div>
+      )}
+      {profile === 'master' && onNovaHistoria && !editando && !esconderSeletorEBotaoNovo && (
+        <button
+          type="button"
+          className="cdj-pill-btn-salvar"
+          onClick={onNovaHistoria}
+          disabled={!!limiteFreeHistoria}
+          title={limiteFreeHistoria ? (en ? 'Free plan limit reached (2 stories)' : 'Limite do plano free atingido (2 histórias)') : undefined}
+          style={{
+            pointerEvents: 'auto',
+            background: limiteFreeHistoria ? 'rgba(201,164,78,0.25)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
+            border: 'none', borderRadius: 999, height: 32, outline: 'none',
+            fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
+            color: limiteFreeHistoria ? '#9C8F73' : '#1C1407',
+            padding: '0 18px 0 14px', cursor: limiteFreeHistoria ? 'help' : 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          {en ? 'New story' : 'Nova história'}
+        </button>
+      )}
+      {profile === 'player' && onNovoPersonagem && !editando && !esconderBotaoPersonagem && (
+        <button
+          type="button"
+          className="cdj-pill-btn-salvar"
+          onClick={onNovoPersonagem}
+          disabled={!!limiteFreePersonagem}
+          title={limiteFreePersonagem ? (en ? 'Free plan limit reached (3 characters)' : 'Limite do plano free atingido (3 personagens)') : undefined}
+          style={{
+            pointerEvents: 'auto',
+            background: limiteFreePersonagem ? 'rgba(201,164,78,0.25)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
+            border: 'none', borderRadius: 999, height: 32, outline: 'none',
+            fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
+            color: limiteFreePersonagem ? '#9C8F73' : '#1C1407',
+            padding: '0 18px 0 14px', cursor: limiteFreePersonagem ? 'help' : 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          {en ? 'New character' : 'Novo personagem'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ============================== [9.5] Dado d10 "Gema Facetada" (inline) ==============================
+   Dado de 10 faces (TRAPEZOEDRO PENTAGONAL — o formato real do d10, achatado
+   no centro) + overlay de rolagem livre. Irmão do DadoD20/RolagemD20Overlay.
+
+   Geometria derivada do sólido 3D correto: a amplitude do equador é
+   h = c·(1-cos36°)/(1+cos36°) (faces planas); o RAIO do equador é livre, então
+   foi alargado (R=1.20) para deixar o dado mais achatado/largo no meio.
+
+   Estilo: facetas bronze sombreadas por face-normal (igual ao D20), aresta
+   dourada e UM número na face-kite frontal central. 1 = brasa (falha crítica),
+   10 = ouro (crítico).
+
+   POR QUE INLINE: RolagemLivreFab precisa de window.RolagemD10Overlay; mantido
+   aqui, o global é garantido sem depender de import em main.tsx. Registrado no
+   window ao fim do bloco. */
+
+var MS_D10_KEYFRAMES =
+  ".ms-d10-svg{animation:msD10Float 5.5s ease-in-out infinite;transform-origin:center;will-change:transform}" +
+  ".ms-d10-svg.is-rolling{animation:msD10Tumble .76s cubic-bezier(.34,.16,.2,1)}" +
+  "@keyframes msD10Float{0%{transform:translateY(0) rotate(1.5deg)}50%{transform:translateY(-5px) rotate(-1.5deg)}100%{transform:translateY(0) rotate(1.5deg)}}" +
+  "@keyframes msD10Tumble{0%{transform:rotate(0) scale(1)}30%{transform:rotate(-220deg) scale(1.08)}70%{transform:rotate(-560deg) scale(.95)}100%{transform:rotate(-720deg) scale(1)}}" +
+  ".ms-d10-hit:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(201,164,78,0.6);border-radius:6px}" +
+  "@media (prefers-reduced-motion:reduce){.ms-d10-svg,.ms-d10-svg.is-rolling{animation:none!important}}";
+
+var DadoD10 = React.forwardRef(function DadoD10(props, ref) {
+  var size = props.size;
+  var disabled = !!props.disabled;
+  var className = props.className || "";
+  var initialValue = typeof props.initialValue === "number" ? props.initialValue : 10;
+
+  var valueState = useState(initialValue);
+  var value = valueState[0];
+  var setValue = valueState[1];
+
+  var rollingState = useState(false);
+  var rolling = rollingState[0];
+  var setRolling = rollingState[1];
+
+  var rollingRef = useRef(false);
+  var intervalRef = useRef(null);
+  var timeoutRef = useRef(null);
+  var onRollRef = useRef(props.onRoll);
+  onRollRef.current = props.onRoll;
+
+  useEffect(function () {
+    if (document.getElementById("ms-d10-style")) return;
+    var el = document.createElement("style");
+    el.id = "ms-d10-style";
+    el.textContent = MS_D10_KEYFRAMES;
+    document.head.appendChild(el);
+  }, []);
+
+  useEffect(function () {
+    return function () {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  var api = useRef({});
+  api.current.roll = function (forcado) {
+    if (rollingRef.current || disabled) return;
+    rollingRef.current = true;
+    setRolling(true);
+    var reduz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var assentar = function () {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      var v = typeof forcado === "number"
+        ? Math.max(1, Math.min(10, Math.round(forcado)))
+        : 1 + Math.floor(Math.random() * 10);
+      setValue(v);
+      setRolling(false);
+      rollingRef.current = false;
+      if (onRollRef.current) onRollRef.current(v);
+    };
+    if (reduz) { timeoutRef.current = setTimeout(assentar, 220); return; }
+    intervalRef.current = setInterval(function () { setValue(1 + Math.floor(Math.random() * 10)); }, 55);
+    timeoutRef.current = setTimeout(assentar, 760);
+  };
+
+  React.useImperativeHandle(ref, function () {
+    return {
+      roll: function (forcado) { api.current.roll(forcado); },
+      isRolling: function () { return rollingRef.current; },
+    };
+  }, []);
+
+  var crit = value === 1 ? "fail" : value === 10 ? "hit" : null;
+  var numFill = crit === "fail" ? "#F0997B" : crit === "hit" ? "#FBE9B8" : "var(--foreground)";
+  var glow =
+    crit === "hit"
+      ? "drop-shadow(0 10px 18px rgba(233,210,150,0.40))"
+      : crit === "fail"
+      ? "drop-shadow(0 10px 18px rgba(184,71,47,0.38))"
+      : "drop-shadow(0 10px 18px rgba(201,164,78,0.22))";
+  var haloBg =
+    crit === "hit"
+      ? "radial-gradient(circle, rgba(233,210,150,0.45), rgba(201,164,78,0) 70%)"
+      : crit === "fail"
+      ? "radial-gradient(circle, rgba(184,71,47,0.40), rgba(184,71,47,0) 70%)"
+      : "radial-gradient(circle, rgba(201,164,78,0.28), rgba(201,164,78,0) 68%)";
+
+  var dim = typeof size === "number" ? size + "px" : (size || "clamp(96px, 18vw, 150px)");
+
+  return (
+    <span
+      className={"menestrel-ui ms-d10 " + className}
+      style={{ display: "inline-block", width: dim, height: dim, lineHeight: 0 }}
+    >
+      <span
+        className="ms-d10-hit"
+        aria-hidden="true"
+        style={{
+          background: "none", border: "none", padding: 0, margin: 0,
+          width: "100%", height: "100%", position: "relative",
+          display: "grid", placeItems: "center", cursor: "default",
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute", zIndex: 0, width: "118%", height: "118%",
+            borderRadius: "50%", background: haloBg, filter: "blur(2px)",
+            pointerEvents: "none", transition: "background .4s",
+          }}
+        />
+        <svg
+          className={"ms-d10-svg" + (rolling ? " is-rolling" : "")}
+          viewBox="0 0 200 210"
+          width="100%"
+          height="100%"
+          role="img"
+          aria-hidden="true"
+          style={{ position: "relative", zIndex: 1, filter: glow, transition: "filter .25s" }}
+        >
+          {/* ── Trapezoedro pentagonal (formato real do d10, face no topo) ── */}
+          <polygon points="100.0,196.0 47.6,90.0 100.0,64.9 152.4,90.0" fill="rgba(66,49,21,0.12)" />
+          <polygon points="100.0,14.0 100.0,64.9 152.4,90.0 184.7,86.0" fill="rgba(66,49,21,0.12)" />
+          <polygon points="100.0,14.0 15.3,86.0 47.6,90.0 100.0,64.9" fill="rgba(66,49,21,0.14)" />
+          <polygon points="100.0,196.0 152.4,90.0 184.7,86.0 184.7,124.0" fill="rgba(66,49,21,0.12)" />
+          <polygon points="100.0,196.0 15.3,124.0 15.3,86.0 47.6,90.0" fill="rgba(66,49,21,0.12)" />
+          <polygon points="100.0,14.0 184.7,86.0 184.7,124.0 152.4,120.0" fill="rgba(174,106,43,0.32)" />
+          <polygon points="100.0,14.0 47.6,120.0 15.3,124.0 15.3,86.0" fill="rgba(240,196,93,0.30)" />
+          <polygon points="100.0,196.0 184.7,124.0 152.4,120.0 100.0,145.1" fill="rgba(128,78,32,0.20)" />
+          <polygon points="100.0,196.0 100.0,145.1 47.6,120.0 15.3,124.0" fill="rgba(143,116,55,0.24)" />
+          <polygon points="100.0,14.0 152.4,120.0 100.0,145.1 47.6,120.0" fill="rgba(255,255,189,0.38)" />
+
+          {/* Especular sutil na face frontal mais iluminada */}
+          <polygon points="100.0,14.0 152.4,120.0 100.0,145.1 47.6,120.0" fill="rgba(255,248,230,0.14)" />
+
+          {/* ── Arestas visíveis ── */}
+          <path
+            d="M100.0,14.0 L152.4,120.0 M152.4,120.0 L100.0,145.1 M100.0,145.1 L47.6,120.0 M47.6,120.0 L100.0,14.0 M47.6,120.0 L15.3,124.0 M15.3,124.0 L15.3,86.0 M15.3,86.0 L100.0,14.0 M184.7,86.0 L100.0,14.0 M184.7,86.0 L184.7,124.0 M184.7,124.0 L152.4,120.0 M100.0,196.0 L100.0,145.1 M15.3,124.0 L100.0,196.0 M184.7,124.0 L100.0,196.0"
+            fill="none"
+            stroke="rgba(233,214,160,0.42)"
+            strokeWidth="0.8"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+
+          {/* ── Número central (ícone Tabler ti-number-N-small) ── */}
+          <foreignObject x="40" y="70" width="120" height="70">
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{
+              width: "100%", height: "100%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <i
+                className={"ti ti-number-" + value + "-small"}
+                style={{
+                  fontSize: "clamp(48px, 12vw, 80px)",
+                  color: numFill,
+                  transition: "color .25s",
+                  filter: "drop-shadow(0 1px 2px rgba(28,20,7,0.55))",
+                  lineHeight: 1,
+                }}
+              />
+            </div>
+          </foreignObject>
+        </svg>
+      </span>
+    </span>
+  );
+});
+
+/* ================== [9.5] RolagemD10Overlay (dado no centro da tela) ================== */
+/* Overlay full-screen do D10, sempre em modo livre: rola sozinho ao abrir,
+   mostra Crítico/Falha Crítica no 10/1, e os botões Rolar de novo / Concluir.
+   PROPS: nome, lang, onClose, onResultado?({ d10 }). */
+function RolagemD10Overlay(props) {
+  var nome = props.nome;
+  var onClose = props.onClose;
+  var en = props.lang === "en";
+
+  var resultadoState = useState(null);
+  var resultado = resultadoState[0];
+  var setResultado = resultadoState[1];
+
+  var dadoRef = useRef(null);
+  var jaRolou = useRef(false);
+
+  useEffect(function () {
+    var onKey = function (e) { if (e.key === "Escape" && onClose) onClose(); };
+    document.addEventListener("keydown", onKey);
+    var prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return function () {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  useEffect(function () {
+    var t = setTimeout(function () {
+      if (dadoRef.current && !jaRolou.current) { jaRolou.current = true; dadoRef.current.roll(); }
+    }, 260);
+    return function () { clearTimeout(t); };
+  }, []);
+
+  function aoRolar(d10) {
+    var r = { d10: d10 };
+    setResultado(r);
+    if (props.onResultado) props.onResultado(r);
+  }
+  function rolarDeNovo() {
+    setResultado(null);
+    if (dadoRef.current) dadoRef.current.roll();
+  }
+
+  return (
+    <div
+      className="menestrel-ui"
+      role="dialog"
+      aria-modal="true"
+      aria-label={(en ? "Roll: " : "Rolagem: ") + (nome || "d10")}
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        display: "grid", placeItems: "center",
+        padding: "clamp(16px, 4vw, 40px)",
+        background: "rgba(8,6,2,0.66)",
+        backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", maxWidth: "min(92vw, 460px)" }}>
+        {nome && (
+          <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: "var(--foreground)", letterSpacing: ".01em", marginBottom: 2 }}>
+            {nome}
+          </div>
+        )}
+        <div style={{ fontSize: "clamp(11px, 2.5vw, 13px)", color: "var(--muted-foreground)", letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 4 }}>
+          d10
+        </div>
+
+        <DadoD10 ref={dadoRef} size="clamp(150px, 42vw, 208px)" onRoll={aoRolar} />
+
+        <div
+          aria-live="polite"
+          style={{
+            minHeight: 1, width: "100%",
+            opacity: resultado ? 1 : 0,
+            transform: resultado ? "translateY(0)" : "translateY(6px)",
+            transition: "opacity .35s ease, transform .35s ease",
+            pointerEvents: resultado ? "auto" : "none",
+          }}
+        >
+          {resultado && (resultado.d10 === 10 || resultado.d10 === 1) && (
+            <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: "clamp(20px, 4vw, 32px)", color: resultado.d10 === 10 ? "var(--gold)" : "var(--ember-bright, #B8472F)", letterSpacing: ".01em" }}>
+              {resultado.d10 === 10 ? (en ? "Critical!" : "Crítico!") : (en ? "Fumble!" : "Falha Crítica!")}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: "clamp(8px, 2vw, 12px)", flexWrap: "wrap", justifyContent: "center", marginTop: 10 }}>
+          <button type="button" className="btn-ghost" onClick={rolarDeNovo} disabled={!resultado}>
+            <i className="ti ti-refresh" aria-hidden="true" style={{ marginRight: 6, verticalAlign: "-2px" }} />
+            {en ? "Roll again" : "Rolar de novo"}
+          </button>
+          <button type="button" className="btn-primary" onClick={onClose}>
+            {en ? "Done" : "Concluir"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Registro global — RolagemLivreFab resolve via window.RolagemD10Overlay.
+Object.assign(window, { DadoD10, RolagemD10Overlay });
+
+/* ============================== [9.6] RolagemLivreFab — botões flutuantes D20 e D10 ==============================
+   Dois botões independentes no canto superior direito da tela:
+     - Fab principal (ícone ti-dice, .rl-fab) → D20 livre
+     - Fab secundário (label "D10", .rl-fab-d10) → D10 livre, posicionado
+       abaixo do principal com a mesma pele visual (vidro escuro + blur + dourado)
+
+   Cada botão abre seu próprio overlay. Ambos disparam registrar_evento_mesa
+   ao assentar (sem historiaId, notificação silenciosa — igual comportamento
+   anterior).
+
+   Globals defensivos (typeof + window) igual ficha.jsx:
+     - RolagemD20Overlay  (dado-d20.jsx, Fase 02)
+     - RolagemD10Overlay  (dado-d10.jsx, Fase 02) */
+function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
+  const [abertoD20, setAbertoD20] = useState(false);
+  const [abertoD10, setAbertoD10] = useState(false);
+  const en = lang === 'en';
+
+  const _RolagemD20Overlay = (typeof RolagemD20Overlay !== 'undefined' ? RolagemD20Overlay : null) || window.RolagemD20Overlay || null;
+  const _RolagemD10Overlay = (typeof RolagemD10Overlay !== 'undefined' ? RolagemD10Overlay : null) || window.RolagemD10Overlay || null;
+
+  const aoResultado = (res) => {
+    if (!historiaId) return;
+    const nome  = nomeUsuario || (en ? 'Someone' : 'Alguém');
+    const valor = res.d20 ?? res.d10;
+    const tipo  = res.d20 != null ? 'd20' : 'd10';
+    const texto = en
+      ? `${nome} made a free ${tipo} roll and got ${valor}.`
+      : `${nome} fez um rolamento livre de ${tipo} e obteve ${valor}.`;
+    supabaseClient
+      .rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId,
+        p_tipo: 'teste',
+        p_texto: texto,
+        p_meta: { [tipo]: valor, livre: true },
+      })
+      .then(({ error }) => {
+        if (error) console.error('[RolagemLivreFab] registrar_evento_mesa falhou:', error);
+      });
+  };
+
+  return (
+    <>
+      <div className="menestrel-ui rl-root">
+        {/* Fab D20 — .rl-fab garante pointer-events:auto */}
+        <button
+          type="button"
+          className="rl-fab"
+          onClick={() => setAbertoD20(true)}
+          aria-label={en ? 'Free roll D20' : 'Rolamento livre D20'}
+          title="D20"
+        >
+          <i className="ti ti-number-20-small" aria-hidden="true" />
+        </button>
+
+        {/* Fab D10 — também usa .rl-fab para herdar pointer-events:auto;
+            sobrescreve top para empilhar abaixo do D20 */}
+        <button
+          type="button"
+          className="rl-fab"
+          style={{ top: 76 }}
+          onClick={() => setAbertoD10(true)}
+          aria-label={en ? 'Free roll D10' : 'Rolamento livre D10'}
+          title="D10"
+        >
+          <i className="ti ti-number-10-small" aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* Overlay D20 */}
+      {abertoD20 && _RolagemD20Overlay && (() => {
+        const D20Overlay = _RolagemD20Overlay;
+        return (
+          <D20Overlay
+            nome={en ? 'Free Roll' : 'Rolamento Livre'}
+            livre
+            lang={lang}
+            onClose={() => setAbertoD20(false)}
+            onResultado={aoResultado}
+          />
+        );
+      })()}
+
+      {/* Overlay D10 */}
+      {abertoD10 && _RolagemD10Overlay && (() => {
+        const D10Overlay = _RolagemD10Overlay;
+        return (
+          <D10Overlay
+            nome={en ? 'Free Roll' : 'Rolamento Livre'}
+            lang={lang}
+            onClose={() => setAbertoD10(false)}
+            onResultado={aoResultado}
+          />
+        );
+      })()}
+    </>
+  );
+}
+
 /* ============================== [10] AdminConsole — moldura migrada (Grimório do dragão) ==============================
    Substitui a função AdminConsole inteira em src/10-shell/shell.jsx
    (de `function AdminConsole(...) {` até o `}` logo antes de `function App() {`).
@@ -870,17 +1906,33 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
    continuam idênticos — o conteúdo de cada aba segue no estilo legado, pra migrarmos um a um depois.
    `onViewLanding` continua disponível (hoje sem uso) caso queira um link "ver site" na sidebar.
 */
-function AdminConsole({ user, userProfile, onLogout, lang, setLang, onViewLanding }) {
+function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLanding }) {
   const ac = ADMIN_COPY[lang] || ADMIN_COPY.pt;
+  const [navTip, abrirNavTip, fecharNavTip, manterNavTip] = useNavTooltip(60);
 
-  // Perfil persistido. Padrão = master.
+  // Perfil persistido.
+  // Prioridade de restauração: Supabase (userProfile prop) > localStorage > 'player' (novo usuário).
   const [profile, setProfile] = useState(() => {
-    try { return localStorage.getItem('menestrel.profile') || 'master'; }
-    catch (e) { return 'master'; }
+    if (userProfile && typeof userProfile.perfil_tipo === 'string') return userProfile.perfil_tipo;
+    try { const s = localStorage.getItem('menestrel.profile'); if (s === 'master' || s === 'player') return s; }
+    catch (e) {}
+    return 'player'; // padrão para contas novas
   });
+
+  // Sincroniza com o Supabase na primeira chegada de userProfile (que carrega async após o login).
+  // Usa ref para garantir que a sincronização não sobrescreve uma troca manual feita pelo usuário
+  // na mesma sessão.
+  const _perfilSynced = React.useRef(false);
+  useEffect(() => {
+    if (!_perfilSynced.current && userProfile && typeof userProfile.perfil_tipo === 'string') {
+      _perfilSynced.current = true;
+      setProfile(userProfile.perfil_tipo);
+    }
+  }, [userProfile]);
+
   useEffect(() => {
     try { localStorage.setItem('menestrel.profile', profile); } catch (e) {}
-    // Persiste também no Supabase (ignora silenciosamente se a coluna não existir ainda)
+    // Persiste no Supabase para restaurar entre dispositivos/sessões
     if (user && user.id) {
       supabaseClient
         .from('profiles')
@@ -892,13 +1944,19 @@ function AdminConsole({ user, userProfile, onLogout, lang, setLang, onViewLandin
 
   // Seção atual também persiste. Se trocou de perfil e a seção não existe mais lá, cai na primeira.
   // "inventario" e "loja" foram removidos do menu lateral.
-  const SECTIONS_OCULTAS = ['inventario', 'loja'];
+  // "guia_personagem" é tratada como seção especial (fora do ADMIN_SECTIONS) — não aparece
+  // no menu lateral, só é acessada via onHelp. Por isso o useEffect de guarda não a reverte.
+  const SECTIONS_OCULTAS = ['inventario', 'loja', 'itens_campanha'];
+  const SECTIONS_ESPECIAIS = ['guia_personagem'];
   const sections = (ADMIN_SECTIONS[profile] || []).filter((s) => !SECTIONS_OCULTAS.includes(s.id));
   const [currentId, setCurrentId] = useState(() => {
     try { return localStorage.getItem('menestrel.section') || sections[0].id; }
     catch (e) { return sections[0].id; }
   });
   useEffect(() => {
+    // Não reverte seções especiais (guia_personagem etc.) — navegadas via onHelp,
+    // não precisam estar no ADMIN_SECTIONS.
+    if (SECTIONS_ESPECIAIS.includes(currentId)) return;
     if (!sections.find((s) => s.id === currentId)) {
       setCurrentId(sections[0].id);
     }
@@ -907,9 +1965,91 @@ function AdminConsole({ user, userProfile, onLogout, lang, setLang, onViewLandin
     try { localStorage.setItem('menestrel.section', currentId); } catch (e) {}
   }, [currentId]);
 
-  const current = sections.find((s) => s.id === currentId) || sections[0];
+  const current = sections.find((s) => s.id === currentId) || { id: currentId };
   const sectionMeta = ac.sections[current.id] || { label: current.id };
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
+
+  // ── Modal de convite (botão "Convites" na sidebar) ───────────
+  const [conviteModalAberto, setConviteModalAberto] = useState(false);
+  // Token que incrementa quando um convite é aceito — força AventurasJogador a recarregar.
+  const [aventurasReloadToken, setAventurasReloadToken] = useState(0);
+
+  // ── Mesa ativa (p/ Central de Mensagens) ────────────────────
+  // Jogador: a mesa é resolvida automaticamente pelo PJ ativo (1 PJ -> 1
+  // história via protagonista_ids), igual já faz a Ficha. Mestre pode ter
+  // N histórias simultâneas — minhasHistorias alimenta um seletor simples
+  // (dropdown) pra ele escolher qual mesa acompanhar agora. Persistido em
+  // localStorage só pra não perder a escolha ao trocar de aba (mesmo
+  // padrão de menestrel.profile/section/sidebarCollapsed acima).
+  const [minhasHistorias, setMinhasHistorias] = useState(null); // null = ainda não carregou; [] = carregou mas vazio; [{id, titulo}] = lista real
+  const [mesaAtivaId, setMesaAtivaId] = useState(() => {
+    try { const v = localStorage.getItem('menestrel.mesaAtivaId'); return v ? Number(v) : null; }
+    catch (e) { return null; }
+  });
+  // Ref pra abrir o modal "Nova história" de fora — o botão fica no pill do
+  // topo (CardDataJogoAtual), mas quem dono do modal continua sendo a
+  // HistoriasList (regra de limite do plano free fica encapsulada lá).
+  const abrirNovaHistoriaRef = React.useRef(null);
+  // Mesma regra de limite que a HistoriasList aplica internamente — calculada
+  // aqui também só pra decidir o estado visual (disabled + tooltip) do botão
+  // do pill, que vive fora da HistoriasList.
+  const limiteFreeHistorias = userProfile?.plano === 'free' && (minhasHistorias?.length ?? 0) >= 2;
+  // Quando a HistoriasList está dentro de um menu interno da aventura (loja,
+  // lore, batalhas, convites), o pill do topo inteiro (seletor de mesa +
+  // "Nova história") fica escondido — esses controles só existem na tela
+  // inicial de Histórias, pra nunca mostrar uma mesa no pill diferente da
+  // que está sendo gerenciada na tela abaixo.
+  const [historiasDentroDeMenu, setHistoriasDentroDeMenu] = useState(false);
+  // Mesmo padrão pra "Novo personagem" (visão Jogador, aba personagens_j):
+  // ref pra abrir o modal de fora, flag de "dentro da ficha" (esconde o
+  // botão) e flag de limite do plano free — calculadas dentro da própria
+  // PersonagensList (que tem os dados) e reportadas via callback, já que o
+  // AdminConsole não tem uma query própria de personagens.
+  const abrirNovoPersonagemRef = React.useRef(null);
+  const [personagensDentroDeMenu, setPersonagensDentroDeMenu] = useState(false);
+  const [limiteFreePersonagens, setLimiteFreePersonagens] = useState(false);
+  // true quando FichaPersonagem está montada (PersonagensList reporta via onFichaAberta)
+  const [fichaAtiva, setFichaAtiva] = useState(false);
+  // nome do PJ ativo (PersonagensList reporta via onNomePjAtivo) — usado na notificação de rolamento livre
+  const [nomePjAtivo, setNomePjAtivo] = useState(null);
+  useEffect(() => {
+    if (!user || !user.id) return;
+    let cancel = false;
+    (async () => {
+      if (profile === 'master') {
+        const { data, error } = await supabaseClient
+          .from('historias').select('id, titulo').eq('mestre_id', user.id)
+          .order('created_at', { ascending: false });
+        if (cancel) return;
+        setMinhasHistorias(error ? [] : (data || []));
+      } else {
+        // Jogador: resolve a história do PJ ativo (mesmo pj_ativo_id usado por FichaPersonagem).
+        const { data: prof } = await supabaseClient.from('profiles').select('pj_ativo_id').eq('id', user.id).maybeSingle();
+        if (cancel) return;
+        const pjAtivoId = prof && prof.pj_ativo_id;
+        if (!pjAtivoId) { setMinhasHistorias([]); return; }
+        const { data: hist, error } = await supabaseClient
+          .from('historias').select('id, titulo').contains('protagonista_ids', [pjAtivoId]).maybeSingle();
+        if (cancel) return;
+        setMinhasHistorias(!error && hist ? [hist] : []);
+      }
+    })();
+    return () => { cancel = true; };
+  }, [user, profile]);
+  // Auto-seleciona quando há exatamente 1 opção, ou quando a selecionada saiu da lista.
+  // Guard: minhasHistorias===null significa "ainda carregando" — não resetar o id salvo.
+  useEffect(() => {
+    if (minhasHistorias === null) return; // ainda carregando — preserva o id do localStorage
+    if (minhasHistorias.length === 0) { setMesaAtivaId(null); return; }
+    if (!minhasHistorias.find((h) => h.id === mesaAtivaId)) {
+      setMesaAtivaId(minhasHistorias[0].id);
+    }
+  }, [minhasHistorias, mesaAtivaId]);
+  useEffect(() => {
+    try {
+      if (mesaAtivaId) localStorage.setItem('menestrel.mesaAtivaId', String(mesaAtivaId));
+    } catch (e) {}
+  }, [mesaAtivaId]);
 
   // Sidebar retrátil ("collapse"). Estado persiste entre sessões, igual perfil/seção.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -931,66 +2071,33 @@ function AdminConsole({ user, userProfile, onLogout, lang, setLang, onViewLandin
 
   return (
     <>
-      <div className="menestrel-ui mc-root">
-        <style>{`
-          .mc-root { display:flex; height:100vh; width:100%; position:relative; overflow:hidden;
-            background: radial-gradient(120% 80% at 50% -10%, #2A1E10 0%, #15120C 48%, #100B05 100%);
-            color:#E8DDC6; font-family:'Plus Jakarta Sans',system-ui,sans-serif; }
-          .mc-glow { position:absolute; z-index:0; pointer-events:none; border-radius:6px; filter:blur(90px); }
-          .mc-sidebar { position:relative; z-index:2; flex:0 0 208px; height:100%;
-            display:flex; flex-direction:column; padding:16px 10px; overflow:hidden;
-            background:rgba(18,13,6,0.90); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-            border-right:1px solid rgba(106,85,48,0.20);
-            transition: flex-basis .32s cubic-bezier(.4,0,.2,1), padding .32s cubic-bezier(.4,0,.2,1),
-              opacity .2s ease, border-color .32s ease; }
-          .mc-sidebar.is-collapsed { flex-basis:64px; padding:16px 8px; align-items:center; }
-          .mc-sidebar-toggle { position:absolute; z-index:3; top:32px; left:192px; width:32px; height:32px;
-            display:grid; place-items:center; border-radius:50%; cursor:pointer;
-            background:#1B1610; border:1px solid rgba(201,164,78,0.35); color:#C9A44E;
-            transition:left .32s cubic-bezier(.4,0,.2,1), background .16s ease, border-color .16s ease; }
-          .mc-sidebar-toggle:hover { background:#241B0E; border-color:rgba(201,164,78,0.55); box-shadow:inset 0 0 0 999px rgba(201,164,78,0.16); }
-          .mc-sidebar-toggle.is-collapsed { left:48px; }
-          .mc-sidebar-toggle i { display:flex; align-items:center; justify-content:center; line-height:1; transition:transform .32s cubic-bezier(.4,0,.2,1); }
-          .mc-sidebar-toggle.is-collapsed i { transform:rotate(180deg); }
-          .mc-nav { display:flex; flex-direction:column; gap:2px; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
-            width:100%; padding-top:20px; }
-          .mc-nav::-webkit-scrollbar { width:0; }
-          .mc-navitem { position:relative; display:flex; align-items:center; gap:10px;
-            width:100%; padding:9px 10px; border-radius:6px; cursor:pointer;
-            border:none; background:transparent; color:#9C8F73;
-            font-family:'Plus Jakarta Sans',sans-serif; font-weight:500; font-size:13px; line-height:1.2;
-            white-space:nowrap; overflow:hidden;
-            transition:background .16s ease,color .16s ease; }
-          .mc-navitem:hover { background:rgba(232,221,198,0.06); color:#E8DDC6; }
-          .mc-navitem.is-active { background:rgba(201,164,78,0.12); color:#C9A44E; }
-          .mc-navitem.is-active::before { content:''; position:absolute; left:-10px; top:6px; bottom:6px; width:3px;
-            border-radius:0 3px 3px 0; background:#C9A44E; }
-          .mc-sidebar.is-collapsed .mc-navitem.is-active::before { left:-8px; }
-          .mc-navitem i { flex:0 0 auto; font-size:20px; line-height:1; }
-          .mc-navitem span { overflow:hidden; text-overflow:ellipsis; }
-          .mc-sidebar.is-collapsed .mc-navitem { justify-content:center; padding:9px; }
-          .mc-sidebar.is-collapsed .mc-navitem span { display:none; }
-          .mc-user { display:flex; align-items:center; gap:10px; width:100%; padding:9px 10px; margin-top:8px;
-            border-top:1px solid rgba(232,221,198,0.08); border-radius:6px; flex:0 0 auto; cursor:pointer;
-            background:transparent; transition:background .16s ease; }
-          .mc-user:hover { background:rgba(232,221,198,0.06); }
-          .mc-sidebar.is-collapsed .mc-user { justify-content:center; padding:9px; border-top:none; }
-          .mc-user-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-            font-size:13px; color:#E8DDC6; font-weight:500; }
-          .mc-sidebar.is-collapsed .mc-user-name { display:none; }
-          .mc-sidebar.is-collapsed .mc-user i.ti-chevron-right { display:none; }
-          .mc-main { position:relative; z-index:1; flex:1; width:0; height:100%; overflow-y:auto;
-            padding:32px clamp(20px,4vw,56px); }
-          .mc-content { margin:0 auto; width:100%; }
-        `}</style>
+      <div className="menestrel-ui mc-root" style={{ '--sidebar-w': sidebarCollapsed ? '64px' : '208px' }}>
 
-        {/* glows ambiente (fogo-e-gelo) */}
-        <div className="mc-glow" aria-hidden="true" style={{ left: '-12%', bottom: '-18%', width: '48vw', height: '48vw', opacity: 0.5, background: 'radial-gradient(circle at 50% 50%, rgba(106,85,48,0.85), rgba(106,85,48,0.30) 46%, transparent 70%)' }} />
-        <div className="mc-glow" aria-hidden="true" style={{ right: '-12%', top: '-16%', width: '42vw', height: '42vw', opacity: 0.4, background: 'radial-gradient(circle at 50% 50%, rgba(184,112,46,0.60), rgba(200,33,44,0.22) 46%, transparent 70%)' }} />
+        {/* ── Fundo animado — baseado em DarkGradientBg (paleta Pedra & Bronze) ── */}
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+
+          {/* Gradiente base: bronze escuro no canto superior esquerdo → preto */}
+          <div style={{
+            position: 'absolute', inset: 0, opacity: 1,
+            background: 'radial-gradient(100% 100% at 0% 0%, #000000 0%, #000000 100%)',
+            mask: 'radial-gradient(125% 100% at 0% 0%, #000 0%, rgba(0,0,0,0.22) 88%, transparent 100%)',
+          }} >
+
+            {/* Filetes inclinados — ouro translúcido em vez de ciano */}
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(201,164,78,1) 0%, rgba(201,164,78,0) 100%)', mask: 'linear-gradient(90deg, transparent 0%, #000 20%, transparent 36%, #000 55%, rgba(0,0,0,0.13) 67%, #000 78%, transparent 97%)', transform: 'skewX(45deg)' }} />
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(201,164,78,1) 0%, rgba(201,164,78,0) 100%)', mask: 'linear-gradient(90deg, transparent 11%, #000 25%, rgba(0,0,0,0.55) 41%, rgba(0,0,0,0.13) 67%, #000 78%, transparent 97%)', transform: 'skewX(45deg)' }} />
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(184,112,46,1) 0%, rgba(184,112,46,0) 100%)', mask: 'linear-gradient(90deg, transparent 9%, #000 20%, rgba(0,0,0,0.55) 28%, rgba(0,0,0,0.42) 40%, #000 48%, rgba(0,0,0,0.27) 54%, rgba(0,0,0,0.13) 78%, #000 88%, transparent 97%)', transform: 'skewX(45deg)' }} />
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(184,112,46,1) 0%, rgba(184,112,46,0) 100%)', mask: 'linear-gradient(90deg, transparent 0%, #000 17%, rgba(0,0,0,0.55) 26%, #000 35%, transparent 47%, rgba(0,0,0,0.13) 69%, #000 79%, transparent 97%)', transform: 'skewX(45deg)' }} />
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(184,112,46,1) 0%, rgba(184,112,46,0) 100%)', mask: 'linear-gradient(90deg, transparent 0%, #000 20%, rgba(0,0,0,0.55) 27%, #000 42%, transparent 48%, rgba(0,0,0,0.13) 67%, #000 74%, #000 82%, rgba(0,0,0,0.47) 88%, transparent 97%)', transform: 'skewX(45deg)' }} />
+          </div>
+
+          {/* Grade de pontos sutil */}
+          <div style={{ position: 'absolute', inset: 0, opacity: 0.1, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(201,164,78,0.6) 1px, transparent 0)', backgroundSize: '20px 20px' }} />
+        </div>
 
         {/* SIDEBAR */}
         <aside className={'mc-sidebar' + (sidebarCollapsed ? ' is-collapsed' : '')}>
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 4px' }}>
             <svg viewBox="0 0 44 44" width="32" height="32" aria-label="Menestrel">
               <defs>
                 <linearGradient id="mc-ring" x1="0" y1="0" x2="1" y2="1">
@@ -1006,16 +2113,41 @@ function AdminConsole({ user, userProfile, onLogout, lang, setLang, onViewLandin
             </svg>
           </div>
 
+          {/* Botão de recolher/expandir — dentro da sidebar, abaixo da logo */}
+          <button
+            className="mc-navitem"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            aria-label={sidebarCollapsed ? (lang === 'en' ? 'Expand menu' : 'Expandir menu') : (lang === 'en' ? 'Collapse menu' : 'Recolher menu')}
+            onMouseEnter={(e) => abrirNavTip(e, sidebarCollapsed ? (lang === 'en' ? 'Expand menu' : 'Expandir menu') : (lang === 'en' ? 'Collapse menu' : 'Recolher menu'))}
+            onMouseLeave={fecharNavTip}
+          >
+            <i className="ti ti-menu-2" style={{ fontSize: 20, lineHeight: 1, flex: '0 0 auto' }} aria-hidden="true" />
+            <span>{lang === 'en' ? 'Collapse' : 'Recolher'}</span>
+          </button>
+
           <nav className="mc-nav">
             {sections.map((s) => {
               const IconComp = Icon[s.icon] || Icon.Scroll;
               const meta = ac.sections[s.id] || { label: s.id };
+              // "convites" agora abre modal em vez de navegar para uma aba
+              const isConvites = s.id === 'convites';
               return (
                 <button
                   key={s.id}
-                  className={'mc-navitem' + (currentId === s.id ? ' is-active' : '')}
-                  onClick={() => setCurrentId(s.id)}
-                  title={meta.label}>
+                  className={'mc-navitem' + (!isConvites && currentId === s.id ? ' is-active' : '')}
+                  onClick={() => {
+                    if (isConvites) {
+                      setConviteModalAberto(true);
+                    } else {
+                      setCurrentId(s.id);
+                    }
+                  }}
+                  aria-label={meta.label}
+                  onMouseEnter={(e) => abrirNavTip(e, { title: meta.label })}
+                  onMouseLeave={fecharNavTip}
+                  onFocus={(e) => abrirNavTip(e, { title: meta.label })}
+                  onBlur={fecharNavTip}
+                >
                   <IconComp />
                   <span>{meta.label}</span>
                 </button>
@@ -1023,17 +2155,21 @@ function AdminConsole({ user, userProfile, onLogout, lang, setLang, onViewLandin
             })}
           </nav>
 
-          <div className="mc-user" style={{ position: 'relative' }} onClick={() => setUserMenuOpen((v) => !v)}>
+          <div
+            className="mc-user"
+            style={{ position: 'relative' }}
+            onClick={() => setUserMenuOpen((v) => !v)}
+            onMouseEnter={(e) => abrirNavTip(e, fullName || user.email)}
+            onMouseLeave={fecharNavTip}
+          >
             {avatarUrl ? (
               <img
                 ref={avatarRef}
                 src={avatarUrl} alt={firstName} referrerPolicy="no-referrer"
-                title={firstName}
                 style={{ width: 30, height: 30, borderRadius: 999, objectFit: 'cover', border: '1px solid rgba(201,164,78,0.35)', flexShrink: 0, cursor: 'pointer' }} />
             ) : (
               <div
                 ref={avatarRef}
-                title={firstName}
                 style={{ width: 30, height: 30, borderRadius: 999, display: 'grid', placeItems: 'center', background: 'rgba(106,85,48,0.35)', border: '1px solid rgba(106,85,48,0.50)', color: '#E8DDC6', fontWeight: 400, fontSize: 13, flexShrink: 0, cursor: 'pointer' }}>
                 {firstName.charAt(0).toUpperCase()}
               </div>
@@ -1054,6 +2190,7 @@ function AdminConsole({ user, userProfile, onLogout, lang, setLang, onViewLandin
                 onSetProfile={setProfile}
                 lang={lang}
                 setLang={setLang}
+                onHelp={() => { setUserMenuOpen(false); setCurrentId('guia_personagem'); }}
                 onLogout={onLogout}
                 onClose={() => setUserMenuOpen(false)}
               />
@@ -1061,25 +2198,18 @@ function AdminConsole({ user, userProfile, onLogout, lang, setLang, onViewLandin
           </div>
         </aside>
 
-        {/* Botão flutuante que retrai/expande a sidebar */}
-        <button
-          className={'mc-sidebar-toggle' + (sidebarCollapsed ? ' is-collapsed' : '')}
-          onClick={() => setSidebarCollapsed((v) => !v)}
-          title={sidebarCollapsed ? (lang === 'en' ? 'Expand menu' : 'Expandir menu') : (lang === 'en' ? 'Collapse menu' : 'Recolher menu')}
-          aria-label={sidebarCollapsed ? (lang === 'en' ? 'Expand menu' : 'Expandir menu') : (lang === 'en' ? 'Collapse menu' : 'Recolher menu')}
-        >
-          <Icon.ChevronLeft style={{ fontSize: 15, lineHeight: 1 }} />
-        </button>
+        {/* Tooltip do menu lateral */}
+        <NavTooltip tip={navTip} onEnter={manterNavTip} onLeave={fecharNavTip} />
 
         {/* CONTEÚDO (switch das abas — inalterado; estilo legado por enquanto) */}
         <main className="mc-main">
-          <div className="mc-content" style={{ maxWidth: isWide ? 'none' : 860 }}>
+          <div className="mc-content" style={{ maxWidth: isWide ? 'none' : 860, paddingBottom: 80 }}>
             {current.id === 'criaturas' ? (
               <CriaturasList ac={ac} lang={lang} />
             ) : current.id === 'personagens_j' ? (
-              <PersonagensList ac={ac} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} />
+              <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onLimiteFreeChange={setLimiteFreePersonagens} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo} />
             ) : current.id === 'personagens_m' ? (
-              <PersonagensList ac={ac} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} />
+              <PersonagensList ac={ac} t={t} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} />
             ) : current.id === 'fichas' ? (
               <FichasJogador ac={ac} lang={lang} currentUserId={user.id} />
             ) : current.id === 'magias' ? (
@@ -1090,15 +2220,74 @@ function AdminConsole({ user, userProfile, onLogout, lang, setLang, onViewLandin
               <TecnicasList ac={ac} lang={lang} />
             ) : current.id === 'itens' ? (
               <ItensList ac={ac} lang={lang} />
+            ) : current.id === 'itens_campanha' ? (
+              <ItensCampanhaManager ac={ac} lang={lang} />
             ) : current.id === 'historias' ? (
-              <HistoriasList ac={ac} lang={lang} currentUserId={user.id} userProfile={userProfile} />
-            ) : current.id === 'convites' ? (
-              <ConvitesJogador lang={lang} currentUserId={user.id} />
+              <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} />
+            ) : current.id === 'aventuras' ? (
+              <AventurasJogador t={t} lang={lang} currentUserId={user.id} reloadToken={aventurasReloadToken} />
+            ) : current.id === 'guia_personagem' ? (
+              <GuiaPersonagem lang={lang} />
             ) : (
               <AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />
             )}
           </div>
         </main>
+
+        {/* Card flutuante com data/local atuais do jogo — topo da tela.
+            A barra de data/local em si fica sempre visível. O seletor de
+            mesa (Mestre, >1 história) e o botão "Nova história" — que vivem
+            dentro do mesmo CardDataJogoAtual — desaparecem quando o Mestre
+            entra num menu interno da aventura (loja/lore/batalhas/convites),
+            via esconderSeletorEBotaoNovo: esses dois controles só existem na
+            tela inicial de Histórias, pra nunca mostrar uma mesa diferente da
+            que está sendo gerenciada na tela abaixo. Mesmo padrão pro botão
+            "Novo personagem" (visão Jogador, aba personagens_j): só existe na
+            view de lista — some quando o Jogador está vendo a ficha de um PJ
+            ativo (esconderBotaoPersonagem). */}
+        <CardDataJogoAtual
+          lang={lang}
+          historiaId={current.id === 'aventuras' || current.id === 'guia_personagem' ? null : mesaAtivaId}
+          podeEditar={profile === 'master'}
+          minhasHistorias={minhasHistorias}
+          mesaAtivaId={mesaAtivaId}
+          setMesaAtivaId={setMesaAtivaId}
+          profile={profile}
+          onNovaHistoria={current.id === 'historias' ? () => abrirNovaHistoriaRef.current && abrirNovaHistoriaRef.current() : null}
+          limiteFreeHistoria={limiteFreeHistorias}
+          esconderSeletorEBotaoNovo={current.id === 'historias' && historiasDentroDeMenu}
+          sidebarLargura={sidebarCollapsed ? 64 : 208}
+          onNovoPersonagem={current.id === 'personagens_j' ? () => abrirNovoPersonagemRef.current && abrirNovoPersonagemRef.current() : null}
+          limiteFreePersonagem={limiteFreePersonagens}
+          esconderBotaoPersonagem={current.id === 'personagens_j' && personagensDentroDeMenu}
+        />
+
+        {/* Central de mensagens da mesa — Mestre e Jogador.
+            Resolve a história via mesaAtivaId (Mestre: seletor acima;
+            Jogador: PJ ativo, automático). Sem mesa resolvida, o próprio
+            componente decide não montar nada. */}
+        <CentralMensagens lang={lang} historiaId={mesaAtivaId} sidebarLargura={sidebarCollapsed ? 64 : 208} />
+
+        {/* Botão de rolagem de d20 livre — só aparece quando a FichaPersonagem
+            está montada (fichaAtiva=true). O dado é vinculado ao PJ ativo, não
+            à conta — fora da ficha o botão não existe. */}
+        {fichaAtiva && (
+          <RolagemLivreFab lang={lang} historiaId={mesaAtivaId} nomeUsuario={nomePjAtivo || firstName} />
+        )}
+
+        {/* Modal de aceite de convite — abre via botão "Convites" na sidebar */}
+        {conviteModalAberto && typeof ConviteModal !== 'undefined' && (
+          <ConviteModal
+            t={t}
+            lang={lang}
+            currentUserId={user.id}
+            onClose={() => setConviteModalAberto(false)}
+            onAccepted={() => {
+              setAventurasReloadToken((n) => n + 1);
+              setConviteModalAberto(false);
+            }}
+          />
+        )}
       </div>
     </>
   );
@@ -1120,12 +2309,12 @@ function App() {
     if (!userId) { setProfile(null); return; }
     const { data, error } = await supabaseClient
       .from('profiles')
-      .select('plano, plano_escolhido_em, pj_ativo_id')
+      .select('plano, plano_escolhido_em, pj_ativo_id, perfil_tipo')
       .eq('id', userId)
       .maybeSingle();
     if (error) {
       console.error('[profile] carga falhou:', error);
-      setProfile({ plano: 'free', plano_escolhido_em: new Date().toISOString() });
+      setProfile({ plano: 'free', plano_escolhido_em: new Date().toISOString(), perfil_tipo: 'player' });
       return;
     }
     if (data) {
@@ -1141,12 +2330,13 @@ function App() {
         .upsert({
           id: userId,
           plano: 'free',
+          perfil_tipo: 'player',   // ← primeiro login sempre começa como jogador
           email: authUser.email || null,
           full_name: meta.full_name || meta.name || null,
           avatar_url: meta.avatar_url || meta.picture || null,
         }, { onConflict: 'id' });
       if (insErr) console.error('[profile] upsert fallback falhou:', insErr);
-      setProfile({ plano: 'free', plano_escolhido_em: null });
+      setProfile({ plano: 'free', plano_escolhido_em: null, perfil_tipo: 'player' });
     }
   };
 
@@ -1259,6 +2449,7 @@ function App() {
           user={user}
           userProfile={profile}
           onLogout={logout}
+          t={t}
           lang={lang}
           setLang={setLang}
           onViewLanding={() => setPreviewLanding(true)}
@@ -1270,7 +2461,6 @@ function App() {
             onChosen={() => carregarProfile(user)}
           />
         )}
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </>
     );
   }
@@ -1342,7 +2532,6 @@ function App() {
         </TweakSection>
       </TweaksPanel>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>);
 
 }
@@ -1350,4 +2539,5 @@ function App() {
 Object.assign(window, {
   ModalShell,
   FantasyDatePicker, Topbar, AdminEmpty, FichasJogador, AdminConsole, App,
+  CentralMensagens, CardDataJogoAtual, RolagemLivreFab,
 });

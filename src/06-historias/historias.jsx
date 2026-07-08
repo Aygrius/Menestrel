@@ -7,7 +7,7 @@
    - HistoriasList                  — lista e cria histórias do mestre
    - HistoriaCard                   — card individual com ações
    - ConfirmarExclusaoHistoriaModal — confirma deleção (input do título)
-   - GerenciarLojaModal             — edita estoque_loja JSONB
+   - GerenciarLojaView              — edita estoque_loja JSONB (página, não modal)
    - NovaHistoriaModal              — modal de criação/edição (multi-step)
 
    Depende de:
@@ -27,22 +27,34 @@
 
 
 /* ============================== [23] HistoriasList — Mestre cria/lista suas histórias ============================== */
-function HistoriasList({ ac, lang, currentUserId, userProfile = null }) {
+function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovaHistoriaRef, onDentroDeMenu }) {
+  const th = t.historias;
   const { data: histData, isLoading: histLoading, error: histError, refetch } =
     window.useHistoriasData(currentUserId);
   const historias = histLoading ? null : (histData?.historias ?? []);
   const personagens = histData?.personagens ?? [];
   const criaturas = histData?.criaturas ?? [];
   const error = histError ? histError.message : null;
-  
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState(null);       // história em edição (objeto) ou null
   const [excluindo, setExcluindo] = useState(null);     // história alvo do confirm de delete ou null
   const [deleteError, setDeleteError] = useState(null);
-  const [gerenciandoLoja, setGerenciandoLoja] = useState(null); // história sendo gerenciada na loja
+  const [lojaAberta, setLojaAberta] = useState(null);  // história com loja aberta como página
   const [gerenciandoLore, setGerenciandoLore] = useState(null); // história sendo gerenciada no diário/lore
   const [gerenciandoConvites, setGerenciandoConvites] = useState(null); // história gerenciando convites
   const [batalhando, setBatalhando] = useState(null); // história com console de batalha aberto
+
+  // Avisa o AdminConsole quando alguma view de página interna (loja/lore/
+  // batalha/convites) está aberta, pra ele esconder o pill do topo (seletor
+  // de mesa + "Nova história"). Esses controles só fazem sentido na tela
+  // inicial — dentro de um menu interno da aventura eles desapareceriam, daí
+  // não há mais risco de o pill mostrar uma mesa e o conteúdo abaixo mostrar
+  // outra.
+  const dentroDeMenu = !!(lojaAberta || gerenciandoLore || batalhando || gerenciandoConvites);
+  useEffect(() => {
+    if (onDentroDeMenu) onDentroDeMenu(dentroDeMenu);
+  }, [dentroDeMenu, onDentroDeMenu]);
 
   const confirmarExclusao = async () => {
     if (!excluindo) return;
@@ -57,42 +69,130 @@ function HistoriasList({ ac, lang, currentUserId, userProfile = null }) {
     }
   };
 
+  // Pausar/retomar: update direto client-side (RLS por mestre_id já permite),
+  // mesmo padrão de estoque_loja/lore_ids — sem RPC. refetch() sincroniza o
+  // valor com quem mais consumir historias (ex.: PersonagensList, que usa
+  // pausada pra bloquear os botões dos cards de personagem vinculados).
+  const togglePausar = async (h) => {
+    const { error } = await supabaseClient
+      .from('historias')
+      .update({ pausada: !h.pausada })
+      .eq('id', h.id);
+    if (error) {
+      console.error('[historias] pausar falhou:', error);
+    } else {
+      refetch();
+    }
+  };
+
+  // Limite do plano free (mesma regra que existia no botão flutuante antigo).
+  const limiteFree = userProfile?.plano === 'free' && (historias?.length ?? 0) >= 2;
+
+  // Expõe abrir() via ref pro botão "Nova história" do pill do topo (shell.jsx)
+  // acionar de fora — mesmo padrão de criarRef em batalha.jsx. Respeita o
+  // limite do plano free aqui dentro, então o chamador não precisa saber da regra.
+  useEffect(() => {
+    if (abrirNovaHistoriaRef) {
+      abrirNovaHistoriaRef.current = () => { if (!limiteFree) setModalOpen(true); };
+    }
+  }, [abrirNovaHistoriaRef, limiteFree]);
+
   if (historias === null) {
-    return <div className="admin-loading"><span>{lang === 'en' ? 'Loading stories…' : 'Abrindo os pergaminhos…'}</span></div>;
+    return <div className="admin-loading"><span>{th.lista.carregando}</span></div>;
   }
   if (error) {
     return (
       <div className="admin-error">
         <div className="err-msg">{error}</div>
         <div className="admin-error-hint">
-          {lang === 'en'
-            ? "Make sure the 'historias' table exists in Supabase."
-            : "Confira se a tabela 'historias' existe no Supabase."}
+          {th.lista.erroTabela}
         </div>
       </div>
     );
   }
 
+  // ── View de página: loja aberta substitui a lista inteira
+  if (lojaAberta) {
+    return (
+      <GerenciarLojaView
+        historia={lojaAberta}
+        t={t}
+        lang={lang}
+        onClose={() => setLojaAberta(null)}
+        onSaved={() => { setLojaAberta(null); refetch(); }}
+      />
+    );
+  }
+
+  // ── View de página: lore aberta substitui a lista inteira (mesmo padrão da loja)
+  if (gerenciandoLore) {
+    return (
+      <GerenciarLoreView
+        historia={gerenciandoLore}
+        lang={lang}
+        onClose={() => setGerenciandoLore(null)}
+        onChanged={() => refetch()}
+      />
+    );
+  }
+
+  // ── View de página: console de batalha substitui a lista inteira (mesmo padrão da loja)
+  if (batalhando) {
+    return (
+      <BatalhasHistoriaView
+        historia={batalhando}
+        personagens={personagens}
+        criaturas={criaturas}
+        lang={lang}
+        currentUserId={currentUserId}
+        onClose={() => setBatalhando(null)}
+      />
+    );
+  }
+
+  // ── View de página: convites abertos substitui a lista inteira (mesmo padrão da loja)
+  if (gerenciandoConvites) {
+    return (
+      <ConvitesHistoriaView
+        historia={gerenciandoConvites}
+        t={t}
+        lang={lang}
+        onClose={() => setGerenciandoConvites(null)}
+        onChanged={() => refetch()}
+      />
+    );
+  }
+
+  // Mostra apenas a história da mesa ativa (mesma fonte de mesaAtivaId usada
+  // no resto do app — pill do topo, PersonagensList, CentralMensagens etc.).
+  // Sem mesaAtivaId resolvido ainda (ex.: primeiro carregamento), mostra tudo
+  // pra não esconder histórias enquanto o id sincroniza.
+  const historiasFiltradas = mesaAtivaId
+    ? historias.filter((h) => h.id === mesaAtivaId)
+    : historias;
+
   return (
     <div className="hist">
-      {historias.length === 0 ? (
+      {historiasFiltradas.length === 0 ? (
         <div className="pjs-empty">
-          <p>{lang === 'en' ? 'Start a new adventure when you are ready' : 'Comece uma nova aventura quando estiver pronto'}</p>
+          <p>{th.lista.comecarAventura}</p>
         </div>
       ) : (
         <div className="hist-grid">
-          {historias.map((h) => (
+          {historiasFiltradas.map((h) => (
             <HistoriaCard
               key={h.id}
               h={h}
               personagens={personagens}
+              t={t}
               lang={lang}
               onEdit={() => setEditando(h)}
               onDelete={() => setExcluindo(h)}
-              onManageLoja={() => setGerenciandoLoja(h)}
+              onManageLoja={() => setLojaAberta(h)}
               onManageLore={() => setGerenciandoLore(h)}
               onManageConvites={() => setGerenciandoConvites(h)}
               onBatalhas={() => setBatalhando(h)}
+              onTogglePausar={() => togglePausar(h)}
             />
           ))}
         </div>
@@ -100,6 +200,7 @@ function HistoriasList({ ac, lang, currentUserId, userProfile = null }) {
 
       {modalOpen && (
         <NovaHistoriaModal
+          t={t}
           lang={lang}
           personagens={personagens}
           criaturas={criaturas}
@@ -111,6 +212,7 @@ function HistoriasList({ ac, lang, currentUserId, userProfile = null }) {
 
       {editando && (
         <NovaHistoriaModal
+          t={t}
           lang={lang}
           personagens={personagens}
           criaturas={criaturas}
@@ -124,6 +226,7 @@ function HistoriasList({ ac, lang, currentUserId, userProfile = null }) {
       {excluindo && (
         <ConfirmarExclusaoHistoriaModal
           historia={excluindo}
+          t={t}
           lang={lang}
           error={deleteError}
           onCancel={() => { setExcluindo(null); setDeleteError(null); }}
@@ -131,212 +234,126 @@ function HistoriasList({ ac, lang, currentUserId, userProfile = null }) {
         />
       )}
 
-      {gerenciandoLoja && (
-        <GerenciarLojaModal
-          historia={gerenciandoLoja}
-          lang={lang}
-          onClose={() => setGerenciandoLoja(null)}
-          onSaved={() => { setGerenciandoLoja(null); refetch(); }}
-        />
-      )}
-
-      {gerenciandoLore && (
-        <GerenciarLoreModal
-          historia={gerenciandoLore}
-          lang={lang}
-          onClose={() => setGerenciandoLore(null)}
-          onChanged={() => refetch()}
-        />
-      )}
-
-      {gerenciandoConvites && (
-        <ConvitesHistoriaModal
-          historia={gerenciandoConvites}
-          lang={lang}
-          onClose={() => setGerenciandoConvites(null)}
-          onChanged={() => refetch()}
-        />
-      )}
-
-      {batalhando && (
-        <BatalhasHistoriaModal
-          historia={batalhando}
-          personagens={personagens}
-          criaturas={criaturas}
-          lang={lang}
-          currentUserId={currentUserId}
-          onClose={() => setBatalhando(null)}
-        />
-      )}
-
-      <div style={{ position: 'fixed', bottom: 28, left: 'calc(50% + 132px)', transform: 'translateX(-50%)', zIndex: 40 }}>
-        {(() => {
-          const limiteFree = userProfile?.plano === 'free' && historias.length >= 2;
-          if (limiteFree) {
-            return (
-              <button
-                className="btn-ghost btn-sm limite-cta"
-                disabled
-                title={lang === 'en'
-                  ? 'You\'ve reached the story limit for the free plan — upgrade now.'
-                  : 'Você atingiu o limite de histórias do plano gratuito — faça um upgrade'}>
-                ✦ {lang === 'en' ? 'You\'ve reached the story limit for the free plan — upgrade now.' : 'Você atingiu o limite de histórias do plano gratuito — faça um upgrade'} ✦
-              </button>
-            );
-          }
-          return (
-            <button className="btn-primary btn-sm" onClick={() => setModalOpen(true)}>
-              {lang === 'en' ? 'New story' : 'Nova história'}
-            </button>
-          );
-        })()}
-      </div>
-
     </div>
   );
 }
 
-function HistoriaCard({ h, personagens, lang, onEdit, onDelete, onManageLoja, onManageLore, onManageConvites, onBatalhas }) {
+function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja, onManageLore, onManageConvites, onBatalhas, onTogglePausar }) {
+  const th = t.historias;
   const protags = (h.protagonista_ids || [])
     .map((id) => personagens.find((x) => x.id === id))
     .filter(Boolean)
     .map((p) => `${p.nome}${p.sobrenome ? ' ' + p.sobrenome : ''}`);
   const qtdLoja = Array.isArray(h.estoque_loja) ? h.estoque_loja.length : 0;
+  const en = lang === 'en';
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
+  // Antes era só um useState local (nunca persistia, resetava a cada render).
+  // Agora vem direto da coluna historias.pausada — refetch() no toggle mantém sincronizado.
+  const pausada = !!h.pausada;
   return (
     <article className="hist-card">
       <header className="hist-card-head">
-        <div className="hist-card-head-main">
-          <div className="hist-title">{h.titulo}</div>
-          {h.data_inicio && (
-            <div className="hist-date">
-              {new Date(h.data_inicio + 'T12:00:00').toLocaleDateString(
-                lang === 'en' ? 'en-US' : 'pt-BR',
-                { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }
-              )}
-            </div>
-          )}
-          {h.data_jogo && (
-            <div className="hist-date hist-date--jogo">
-              {(() => {
-                const dj = h.data_jogo;
-                const nomeMes = FANTASY_MONTHS[dj.mes - 1]?.nome || '';
-                const diaSemana = calcDiaSemanaFantasy(dj.ano, dj.mes, dj.dia);
-                const nomeMesShort = nomeMes.replace(/^Mês /, '').toLowerCase();
-                return `${diaSemana.toLowerCase()}, ${dj.dia} ${nomeMesShort} de ${dj.ano}`;
-              })()}
-            </div>
-          )}
-        </div>
-        {(onEdit || onDelete || onManageLoja || onManageLore || onManageConvites || onBatalhas) && (
+
+        {/* Botões de contexto (esquerda) */}
+        {(onBatalhas || onManageConvites || onManageLore || onManageLoja) && (
           <div className="hist-card-actions">
             {onBatalhas && (
-              <button
-                className="btn-icon btn-sm"
-                onClick={onBatalhas}
-                title={lang === 'en' ? 'Battles' : 'Batalhas'}
-                aria-label={lang === 'en' ? 'Battles' : 'Batalhas'}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14.5 17.5 L3 6 V3 h3 l11.5 11.5" />
-                  <path d="M13 19l6-6" /><path d="M16 16l4 4" /><path d="M19 21l2-2" />
-                  <path d="M9.5 17.5 L21 6 V3 h-3 L6.5 14.5" />
-                  <path d="M11 19l-6-6" /><path d="M8 16l-4 4" /><path d="M5 21l-2-2" />
-                </svg>
+              <button className="btn-icon btn-sm" onClick={onBatalhas} aria-label={th.card.batalhas}
+                onMouseEnter={(e) => abrirTip(e, th.card.batalhas)} onMouseLeave={fecharTip}>
+                <i className="ti ti-swords" />
               </button>
             )}
             {onManageConvites && (
-              <button
-                className="btn-icon btn-sm"
-                onClick={onManageConvites}
-                title={lang === 'en' ? 'Invites' : 'Convites'}
-                aria-label={lang === 'en' ? 'Invites' : 'Convites'}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="6" width="18" height="13" rx="2" />
-                  <path d="M3 8l9 6 9-6" />
-                </svg>
+              <button className="btn-icon btn-sm" onClick={onManageConvites} aria-label={th.card.convites}
+                onMouseEnter={(e) => abrirTip(e, th.card.convites)} onMouseLeave={fecharTip}>
+                <i className="ti ti-mail" />
               </button>
             )}
             {onManageLore && (
-              <button
-                className="btn-icon btn-sm"
-                onClick={onManageLore}
-                title={lang === 'en' ? 'Lore (NPCs, Kingdoms, Cities)' : 'Lore (NPCs, Reinos, Cidades)'}
-                aria-label={lang === 'en' ? 'Lore' : 'Lore'}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 7c-1.5-1.3-3.6-2-6-2v13c2.4 0 4.5.7 6 2 1.5-1.3 3.6-2 6-2V5c-2.4 0-4.5.7-6 2z" />
-                  <path d="M12 7v13" />
-                </svg>
+              <button className="btn-icon btn-sm" onClick={onManageLore} aria-label={th.card.lore}
+                onMouseEnter={(e) => abrirTip(e, th.card.loreTip)} onMouseLeave={fecharTip}>
+                <i className="ti ti-book" />
               </button>
             )}
             {onManageLoja && (
-              <button
-                className="btn-icon btn-sm"
-                onClick={onManageLoja}
-                title={lang === 'en' ? `Shop (${qtdLoja})` : `Loja (${qtdLoja})`}
-                aria-label={lang === 'en' ? 'Shop' : 'Loja'}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 9h18l-1.5 10a2 2 0 0 1-2 1.7H6.5a2 2 0 0 1-2-1.7L3 9z" />
-                  <path d="M8 9V6a4 4 0 0 1 8 0v3" />
-                </svg>
-              </button>
-            )}
-            {onEdit && (
-              <button
-                className="btn-icon btn-sm"
-                onClick={onEdit}
-                title={lang === 'en' ? 'Edit' : 'Editar'}
-                aria-label={lang === 'en' ? 'Edit' : 'Editar'}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
-                  <path d="M14.06 6.19l3.75 3.75" />
-                </svg>
-              </button>
-            )}
-            {onDelete && (
-              <button
-                className="btn-icon btn-danger btn-sm"
-                onClick={onDelete}
-                title={lang === 'en' ? 'Delete' : 'Excluir'}
-                aria-label={lang === 'en' ? 'Delete' : 'Excluir'}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18" />
-                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                </svg>
+              <button className="btn-icon btn-sm" onClick={onManageLoja} aria-label={th.card.loja}
+                onMouseEnter={(e) => abrirTip(e, interpolate(th.card.lojaTip, { qtd: qtdLoja }))} onMouseLeave={fecharTip}>
+                <i className="ti ti-shopping-bag" />
               </button>
             )}
           </div>
         )}
-      </header>
-      <div className="hist-protag">
-        <div className="hist-protag-eyebrow">{lang === 'en' ? 'Protagonists' : 'Protagonistas'}</div>
-        {protags.length === 0 ? (
-          <div className="hist-protag-empty">—</div>
-        ) : (
-          <ul>
-            {protags.map((nome, i) => <li key={i}>{nome}</li>)}
-          </ul>
+
+        {/* Título + protagonistas em linha (sem data, sem eyebrow) */}
+        <div className="hist-card-head-main">
+          <div className="hist-title">
+            {h.titulo}
+            {pausada && (
+              <span className="hist-pausada-badge">
+                {en ? 'Paused' : 'Pausada'}
+              </span>
+            )}
+          </div>
+          {protags.length > 0 && (
+            <div className="hist-card-protags">
+              {protags.join(' · ')}
+            </div>
+          )}
+          {h.introducao && (
+            <div className="hist-card-intro">
+              {h.introducao.split(/\n+/).map((par, i) => (
+                <p key={i}>{par}</p>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Ações à direita (topo direito absoluto): pausar/iniciar · editar · excluir */}
+        {(onEdit || onDelete) && (
+          <div className="hist-card-actions hist-card-actions--right">
+            {onEdit && onTogglePausar && (
+              <button className="btn-icon btn-sm" onClick={onTogglePausar}
+                aria-label={pausada ? (en ? 'Resume story' : 'Iniciar aventura') : (en ? 'Pause story' : 'Pausar aventura')}
+                onMouseEnter={(e) => abrirTip(e, pausada ? (en ? 'Resume' : 'Iniciar') : (en ? 'Pause' : 'Pausar'))} onMouseLeave={fecharTip}>
+                <i className={pausada ? 'ti ti-player-play' : 'ti ti-player-pause'} />
+              </button>
+            )}
+            {onEdit && (
+              <button className="btn-icon btn-sm" onClick={onEdit} aria-label={th.card.editar}
+                onMouseEnter={(e) => abrirTip(e, th.card.editar)} onMouseLeave={fecharTip}>
+                <i className="ti ti-pencil" />
+              </button>
+            )}
+            {onDelete && (
+              <button className="btn-icon btn-danger btn-sm" onClick={onDelete} aria-label={th.card.excluir}
+                onMouseEnter={(e) => abrirTip(e, th.card.excluir)} onMouseLeave={fecharTip}>
+                <i className="ti ti-trash" />
+              </button>
+            )}
+            <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+          </div>
         )}
-      </div>
+
+      </header>
     </article>
   );
 }
 
 // Modal de confirmação para excluir uma história
-function ConfirmarExclusaoHistoriaModal({ historia, lang, error, onCancel, onConfirm }) {
+function ConfirmarExclusaoHistoriaModal({ historia, t, lang, error, onCancel, onConfirm }) {
+  const th = t.historias;
   return (
     <ModalShell
-      title={lang === 'en' ? 'Delete?' : 'Excluir?'}
+      title={th.excluirModal.titulo}
       lang={lang}
       size="sm"
       onClose={onCancel}
       onCancel={onCancel}
       onConfirm={onConfirm}
-      confirmLabel={lang === 'en' ? 'Delete' : 'Excluir'}
+      confirmLabel={th.excluirModal.confirmar}
     >
       <p className="subhead">
-        {lang === 'en'
-          ? `The story "${historia.titulo}" will be permanently removed.`
-          : `A história "${historia.titulo}" será removida permanentemente.`}
+        {interpolate(th.excluirModal.aviso, { titulo: historia.titulo })}
       </p>
       {error && <div className="err-msg">{error}</div>}
     </ModalShell>
@@ -344,31 +361,227 @@ function ConfirmarExclusaoHistoriaModal({ historia, lang, error, onCancel, onCon
 }
 
 /* ============================== [24] Gerenciar Loja ============================== */
-function GerenciarLojaModal({ historia, lang, onClose, onSaved }) {
-  const [estoque, setEstoque] = useState(() => Array.isArray(historia.estoque_loja) ? [...historia.estoque_loja] : []);
+// Helpers locais (mesma implementação do bestiário — src/09-bestiario/bestiario.jsx —
+// copiados para evitar dependência de runtime entre fases; bestiario.jsx não expõe
+// essas funções no window). Mantém o padrão visual "Pedra & Bronze" (.best/.best-chip/
+// .best-table-wrap etc, CSS em index.css seção "BESTIÁRIO (09)") consistente entre as
+// duas telas. Qualquer ajuste nesse molde deve ser replicado nos dois arquivos.
+
+/* ── Tooltip de chip — aparece abaixo do elemento, padrão Pedra & Bronze ── */
+function useBestTip() {
+  const [tip, setTip] = useState(null);
+  const timerRef = useRef(null);
+  const show = React.useCallback((e, label) => {
+    clearTimeout(timerRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    timerRef.current = setTimeout(() => setTip({ rect, label }), 400);
+  }, []);
+  const hide = React.useCallback(() => { clearTimeout(timerRef.current); setTip(null); }, []);
+  return [tip, show, hide];
+}
+function BestTip({ tip }) {
+  if (!tip) return null;
+  const { rect, label } = tip;
+  const left = rect.left + rect.width / 2;
+  const top  = rect.bottom + 6;
+  return ReactDOM.createPortal(
+    <div style={{
+      position: 'fixed', left, top, transform: 'translateX(-50%)',
+      zIndex: 9999, pointerEvents: 'none', whiteSpace: 'nowrap',
+      background: '#141009', borderRadius: 6, padding: '6px 10px',
+      fontFamily: "'Lora', serif", fontSize: 12, color: '#E8DDC6',
+      animation: 'fpItemTipIn .12s ease-out',
+    }}>
+      <div style={{
+        position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+        borderWidth: 5, borderStyle: 'solid',
+        borderColor: 'transparent transparent #141009 transparent',
+        width: 0, height: 0,
+      }} />
+      {label}
+    </div>,
+    document.body
+  );
+}
+
+/* ── Mapa de ícones Tabler por grupo de item — mesmo mapa do bestiário (ItensList) ── */
+const LOJA_CHIP_ICON = {
+  all:           'ti-list',
+  Animais:       'ti-paw',
+  Armaduras:     'ti-shield',
+  Armas:         'ti-sword',
+  'Consumíveis': 'ti-bottle',
+  Diario:        'ti-notebook',
+  Instrumentos:  'ti-music',
+  Itens:         'ti-box',
+  Minerais:      'ti-gem',
+  Moedas:        'ti-coin',
+  Propriedades:  'ti-home',
+  Recipientes:   'ti-bucket',
+  'Serviços':    'ti-tools',
+  Transportes:   'ti-horse',
+  Vestimentas:   'ti-shirt',
+};
+
+/* ── ChipIcon — chip que mostra só ícone + tooltip abaixo ── */
+function ChipIcon({ value, label, active, onClick }) {
+  const [tip, showTip, hideTip] = useBestTip();
+  const icon = LOJA_CHIP_ICON[value] || 'ti-tag';
+  return (
+    <>
+      <button
+        type="button"
+        className={'best-chip best-chip--icon' + (active ? ' is-active' : '')}
+        onClick={onClick}
+        onMouseEnter={(e) => showTip(e, label)}
+        onMouseLeave={hideTip}
+        aria-label={label}
+        title="">
+        <i className={'ti ' + icon} aria-hidden="true" />
+      </button>
+      <BestTip tip={tip} />
+    </>
+  );
+}
+
+/* Ordenação por clique no cabeçalho — mesma lógica do bestiário (useSort). */
+function useLojaSort(data, fields) {
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+  const toggleSort = (key) => {
+    setSortKey((prev) => { if (prev === key) { setSortDir((d) => d === 'asc' ? 'desc' : 'asc'); return key; } setSortDir('asc'); return key; });
+  };
+  const sorted = useMemo(() => {
+    if (!sortKey || !data) return data || [];
+    return [...data].sort((a, b) => {
+      const get = fields && fields[sortKey] ? fields[sortKey] : (row) => row[sortKey];
+      const va = get(a) ?? '';
+      const vb = get(b) ?? '';
+      const cmp = typeof va === 'number' && typeof vb === 'number'
+        ? va - vb
+        : String(va).localeCompare(String(vb), 'pt-BR', { sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [data, sortKey, sortDir, fields]);
+  return { sorted, sortKey, sortDir, toggleSort };
+}
+
+/* Cabeçalho clicável com indicador de ordenação — mesmo visual do bestiário (SortHead). */
+function LojaSortHead({ col, sortKey, sortDir, toggleSort, children, ...rest }) {
+  const active = sortKey === col;
+  return (
+    <th onClick={() => toggleSort(col)} className="loja-sort-th" {...rest}>
+      <span>
+        {children}
+        <span className="loja-sort-indicator" style={{ opacity: active ? 1 : 0.3, color: active ? '#9A7B2E' : 'inherit' }}>
+          {active && sortDir === 'desc' ? '▼' : '▲'}
+        </span>
+      </span>
+    </th>
+  );
+}
+
+/* Quantas linhas cabem na altura visível (em vez de PAGE_SIZE fixo). */
+function useFitPageSize(wrapRef, opts) {
+  const o = opts || {};
+  const reserved = o.reserved != null ? o.reserved : 96;
+  const min = o.min || 3;
+  const fallbackRowH = o.rowH || 42;
+  const rowHRef = React.useRef(null);
+  const [size, setSize] = useState(o.fallback || 10);
+  const calc = () => {
+    const w = wrapRef.current;
+    if (!w) return null;
+    if (rowHRef.current == null) {
+      const r = w.querySelector('tbody tr:not(.best-detail)');
+      if (r) { const h = r.getBoundingClientRect().height; if (h > 0) rowHRef.current = h; }
+    }
+    const rowH = rowHRef.current || fallbackRowH;
+    const thead = w.querySelector('thead');
+    const headH = thead ? thead.getBoundingClientRect().height : 40;
+    const top = w.getBoundingClientRect().top;
+    const avail = window.innerHeight - top - reserved - headH;
+    return Math.max(min, Math.floor(avail / rowH));
+  };
+  useEffect(() => { const n = calc(); if (n != null && n !== size) setSize(n); });
+  useEffect(() => {
+    const onResize = () => { const n = calc(); if (n != null) setSize((prev) => prev === n ? prev : n); };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return size;
+}
+
+function LojaPagePagination({ page, safePage, totalPages, setPage, lang }) {
+  const en = lang === 'en';
+  const items = Array.from({ length: totalPages }, (_, i) => i + 1)
+    .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+    .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx - 1] > 1) acc.push('\u2026'); acc.push(p); return acc; }, []);
+  return (
+    <div className="best-pag">
+      <button className="best-page-btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1} title={en ? 'Previous' : 'Anterior'}>‹</button>
+      {items.map((p, idx) => p === '\u2026'
+        ? <span key={`ell-${idx}`} className="best-page-ellipsis">…</span>
+        : <button key={p} className={'best-page-btn' + (p === safePage ? ' is-active' : '')} onClick={() => setPage(p)}>{p}</button>)}
+      <button className="best-page-btn" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} title={en ? 'Next' : 'Pr\u00f3xima'}>›</button>
+    </div>
+  );
+}
+
+// Helper local: converte latões em texto por extenso (ex: "2 moedas de prata")
+// Usa latoesToMoedas de 01-core/inventario-helpers.jsx (global).
+function precoTextoLoja(latao, en) {
+  if (!latao || latao <= 0) return en ? 'Free' : 'Grátis';
+  const fn = typeof latoesToMoedas === 'function' ? latoesToMoedas : (typeof window.latoesToMoedas === 'function' ? window.latoesToMoedas : null);
+  if (!fn) return String(latao);
+  const m = fn(Math.round(latao));
+  const nomes = en
+    ? { ouro: 'gold coin', prata: 'silver coin', cobre: 'copper coin', latao: 'brass coin' }
+    : { ouro: 'moeda de ouro', prata: 'moeda de prata', cobre: 'moeda de cobre', latao: 'moeda de latão' };
+  const ordem = ['ouro', 'prata', 'cobre', 'latao'];
+  const parts = ordem.filter((t) => m[t] > 0).map((t) => {
+    const n = m[t];
+    const nome = en
+      ? (n > 1 ? nomes[t] + 's' : nomes[t])
+      : (n > 1 ? nomes[t].replace('moeda', 'moedas') : nomes[t]);
+    return `${n} ${nome}`;
+  });
+  if (!parts.length) return en ? 'Free' : 'Grátis';
+  if (parts.length === 1) return parts[0];
+  return parts.slice(0, -1).join(', ') + (en ? ' and ' : ' e ') + parts[parts.length - 1];
+}
+
+// v3 — redesenho completo como página (não modal).
+function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
+  const tl = tc.historias.loja;
+  const en = lang === 'en';
+  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } = (typeof UI !== 'undefined' ? UI : {});
+
+  const [estoque, setEstoque] = useState(() =>
+    Array.isArray(historia.estoque_loja) ? [...historia.estoque_loja] : []
+  );
   const [catalogo, setCatalogo] = useState(null);
   const [busca, setBusca] = useState('');
+  const [buscaEstoque, setBuscaEstoque] = useState('');
   const [grupoFiltro, setGrupoFiltro] = useState('');
-  const [escolhido, setEscolhido] = useState(null);
+  const [grupoFiltroEstoque, setGrupoFiltroEstoque] = useState('');
+  const [escolhido, setEscolhido] = useState(null);   // item do catálogo selecionado
   const [precoOverride, setPrecoOverride] = useState('');
   const [estoqueInicial, setEstoqueInicial] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [paginaCat, setPaginaCat] = useState(1);
+  const [abaLoja, setAbaLoja] = useState('catalogo'); // 'catalogo' | 'estoque'
+  const buscaRef = useRef(null);
   const catListRef = useRef(null);
-  const PAGE_SIZE_CAT = 10;
 
-  // ── Acessibilidade & lifecycle do modal já são responsabilidade do ModalShell.
+  // Paginação — estoque
+  const [pageEstoque, setPageEstoque] = useState(1);
+  const estoqueWrapRef = useRef(null);
+  // Paginação — catálogo
+  const [pageCat, setPageCat] = useState(1);
+  const catWrapRef = useRef(null);
 
-  // Reset paginação quando filtros mudam
-  useEffect(() => { setPaginaCat(1); }, [busca, grupoFiltro]);
-
-  // Volta scroll da lista pro topo a cada troca de página
-  useEffect(() => {
-    if (catListRef.current) catListRef.current.scrollTop = 0;
-  }, [paginaCat]);
-
-  // ── Carrega catálogo paginado
+  // Carrega catálogo completo uma vez
   useEffect(() => {
     (async () => {
       const { data, error } = await fetchCatalogoCompleto();
@@ -377,6 +590,35 @@ function GerenciarLojaModal({ historia, lang, onClose, onSaved }) {
     })();
   }, []);
 
+  // Foca busca assim que o catálogo carrega
+  useEffect(() => {
+    if (catalogo && buscaRef.current) buscaRef.current.focus();
+  }, [catalogo !== null]);
+
+  // Rola lista pro topo e reseta página quando filtro muda
+  useEffect(() => {
+    if (catListRef.current) catListRef.current.scrollTop = 0;
+    setPageCat(1);
+    setEscolhido(null);
+  }, [busca, grupoFiltro]);
+
+  // Reseta página do estoque quando a busca ou o filtro de grupo do estoque mudam
+  useEffect(() => {
+    setPageEstoque(1);
+  }, [buscaEstoque, grupoFiltroEstoque]);
+
+  // Fecha drawer ao trocar filtro — evita item "fantasma" selecionado
+  useEffect(() => {
+    setEscolhido(null);
+    setPrecoOverride('');
+    setEstoqueInicial('');
+  }, [grupoFiltro]);
+
+  // ── PAGE_SIZE dinâmico (quantas linhas cabem na altura visível)
+  // ── PAGE_SIZE fixo — 7 itens por página em ambos os lados
+  const PAGE_SIZE_ESTOQUE = 7;
+  const PAGE_SIZE_CAT     = 7;
+
   // ── Index do catálogo por slug
   const catalogoBySlug = useMemo(() => {
     const map = {};
@@ -384,26 +626,49 @@ function GerenciarLojaModal({ historia, lang, onClose, onSaved }) {
     return map;
   }, [catalogo]);
 
-  // ── Grupos pro dropdown
+  // ── Grupos pros chips de filtro (mesmo padrão do bestiário/ItensList)
   const grupos = useMemo(
-    () => catalogo ? Array.from(new Set(catalogo.map((i) => i.grupo).filter(Boolean))).sort() : [],
+    () => catalogo
+      ? Array.from(new Set(catalogo.map((i) => i.grupo).filter(Boolean))).sort()
+      : [],
     [catalogo]
   );
+
+  // ── Grupos presentes no estoque (só os grupos que têm pelo menos 1 item já adicionado)
+  const gruposEstoque = useMemo(
+    () => Array.from(new Set(
+      estoque.map((e) => catalogoBySlug[e.slug]?.grupo).filter(Boolean)
+    )).sort(),
+    [estoque, catalogoBySlug]
+  );
+
+  // ── Ordenação — estoque (campos resolvidos via catálogo, já que a entrada só guarda slug)
+  const {
+    sorted: estoqueSorted, sortKey: sortKeyEstoque, sortDir: sortDirEstoque, toggleSort: toggleSortEstoque,
+  } = useLojaSort(estoque, {
+    nome:    (e) => catalogoBySlug[e.slug]?.nome || e.slug,
+    preco:   (e) => e.preco_latao_override != null ? e.preco_latao_override : (catalogoBySlug[e.slug]?.valor_latao ?? 0),
+    estoque: (e) => e.estoque == null ? Infinity : e.estoque,
+  });
+
+  // ── Ordenação — catálogo
+  const {
+    sorted: catalogoSorted, sortKey: sortKeyCat, sortDir: sortDirCat, toggleSort: toggleSortCat,
+  } = useLojaSort(catalogo, { nome: (it) => it.nome, preco: (it) => it.valor_latao ?? 0 });
 
   // ── Normaliza string pra busca (lowercase + remove acentos)
   const normalize = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  // ── Termos da busca (split por espaços, AND entre eles)
-  const termos = useMemo(
-    () => normalize(busca).split(/\s+/).filter(Boolean),
-    [busca]
-  );
+  // ── Termos da busca (split por espaços, AND entre eles) — catálogo
+  const termos = useMemo(() => normalize(busca).split(/\s+/).filter(Boolean), [busca]);
 
-  // ── Filtro principal: nome + descricao + origem (TODOS os matches).
-  //    Itens já na loja CONTINUAM listados — pode adicionar de novo com outro preço.
-  const filtradosTotal = useMemo(() => {
-    if (!catalogo) return [];
-    return catalogo.filter((it) => {
+  // ── Termos da busca — estoque
+  const termosEstoque = useMemo(() => normalize(buscaEstoque).split(/\s+/).filter(Boolean), [buscaEstoque]);
+
+  // ── Filtro virtual completo — sem paginação, a lista rola
+  const filtrados = useMemo(() => {
+    if (!catalogoSorted) return [];
+    return catalogoSorted.filter((it) => {
       if (grupoFiltro && it.grupo !== grupoFiltro) return false;
       if (termos.length === 0) return true;
       const nome = normalize(it.nome);
@@ -411,27 +676,53 @@ function GerenciarLojaModal({ historia, lang, onClose, onSaved }) {
       const orig = normalize(it.origem || '');
       return termos.every((t) => nome.includes(t) || desc.includes(t) || orig.includes(t));
     });
-  }, [catalogo, grupoFiltro, termos]);
+  }, [catalogoSorted, grupoFiltro, termos]);
 
-  // ── Paginação: 10 itens por página
-  const totalPaginasCat = Math.max(1, Math.ceil(filtradosTotal.length / PAGE_SIZE_CAT));
-  const paginaCatSafe = Math.min(Math.max(1, paginaCat), totalPaginasCat);
-  const inicioCat = (paginaCatSafe - 1) * PAGE_SIZE_CAT;
-  const filtrados = filtradosTotal.slice(inicioCat, inicioCat + PAGE_SIZE_CAT);
+  // ── Filtro do estoque por nome do item (resolvido via catálogo) + grupo
+  const estoqueFiltrado = useMemo(() => {
+    return (estoqueSorted || []).filter((e) => {
+      const cat = catalogoBySlug[e.slug];
+      if (grupoFiltroEstoque && cat?.grupo !== grupoFiltroEstoque) return false;
+      if (termosEstoque.length === 0) return true;
+      const nome = normalize(cat?.nome || e.slug);
+      return termosEstoque.every((t) => nome.includes(t));
+    });
+  }, [estoqueSorted, termosEstoque, catalogoBySlug, grupoFiltroEstoque]);
 
-  // ── Indica de onde veio o match (pra chip "na descrição" / "na origem")
+  // ── Indica de onde veio o match (badge "na descrição" / "na origem")
   const matchCampo = (it) => {
     if (termos.length === 0) return null;
-    const nome = normalize(it.nome);
-    if (termos.every((t) => nome.includes(t))) return null;
-    const desc = normalize(it.descricao || '');
-    if (termos.every((t) => desc.includes(t))) return 'descricao';
-    const orig = normalize(it.origem || '');
-    if (termos.every((t) => orig.includes(t))) return 'origem';
+    if (termos.every((t) => normalize(it.nome).includes(t))) return null;
+    if (termos.every((t) => normalize(it.descricao || '').includes(t))) return 'descricao';
+    if (termos.every((t) => normalize(it.origem || '').includes(t))) return 'origem';
     return 'misto';
   };
 
-  // ── Ações
+  // ── Paginação — estoque
+  const totalPagesEstoque = Math.max(1, Math.ceil(estoqueFiltrado.length / PAGE_SIZE_ESTOQUE));
+  const safePageEstoque   = Math.min(pageEstoque, totalPagesEstoque);
+  const estoqueSlice      = estoqueFiltrado.slice((safePageEstoque - 1) * PAGE_SIZE_ESTOQUE, safePageEstoque * PAGE_SIZE_ESTOQUE);
+
+  // ── Paginação — catálogo
+  const totalPagesCat = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE_CAT));
+  const safePageCat   = Math.min(pageCat, totalPagesCat);
+  const filtradosSlice = filtrados.slice((safePageCat - 1) * PAGE_SIZE_CAT, safePageCat * PAGE_SIZE_CAT);
+
+  // ── Seleciona / deseleciona item do catálogo
+  const selecionarItem = (it) => {
+    if (escolhido?.slug === it.slug) {
+      // Segundo clique no mesmo = fechar drawer
+      setEscolhido(null);
+      setPrecoOverride('');
+      setEstoqueInicial('');
+    } else {
+      setEscolhido(it);
+      setPrecoOverride('');
+      setEstoqueInicial('');
+    }
+  };
+
+  // ── Adicionar ao estoque (a partir do drawer)
   const adicionarAoEstoque = () => {
     if (!escolhido) return;
     const novaEntrada = {
@@ -441,10 +732,10 @@ function GerenciarLojaModal({ historia, lang, onClose, onSaved }) {
       estoque: estoqueInicial === '' ? null : Math.max(0, parseInt(estoqueInicial, 10) || 0),
     };
     setEstoque((arr) => [...arr, novaEntrada]);
+    // Fecha drawer mas mantém busca — Mestre pode continuar adicionando variações
     setEscolhido(null);
     setPrecoOverride('');
     setEstoqueInicial('');
-    setBusca('');
   };
 
   const removerEntrada = (entryId) => {
@@ -467,284 +758,379 @@ function GerenciarLojaModal({ historia, lang, onClose, onSaved }) {
     }
   };
 
-  // ── Labels i18n
-  const t = {
-    shop: lang === 'en' ? 'Shop' : 'Loja',
-    shopSub: lang === 'en' ? `Items for sale to players of ${historia.titulo}.` : `Itens à venda para os jogadores de ${historia.titulo}.`,
-    catalog: lang === 'en' ? 'Catalog' : 'Catálogo',
-    catalogSub: lang === 'en' ? 'Search by name, description, or origin.' : 'Busque por nome, descrição ou origem.',
-    empty: lang === 'en' ? 'Pick from the catalog →' : 'Escolha um item no catálogo →',
-    none: lang === 'en' ? 'No items match.' : 'Nenhum item corresponde.',
-    loading: lang === 'en' ? 'Loading catalog…' : 'Abrindo o catálogo…',
-    price: lang === 'en' ? 'Price' : 'Preço',
-    stock: lang === 'en' ? 'Stock' : 'Estoque',
-    remove: lang === 'en' ? 'Remove' : 'Remover',
-    cancel: lang === 'en' ? 'Cancel' : 'Cancelar',
-    save: lang === 'en' ? 'Save' : 'Salvar',
-    saving: lang === 'en' ? 'Saving…' : 'Salvando…',
-    search: lang === 'en' ? 'Search by name, description, origin…' : 'Buscar por nome, descrição, origem…',
-    allGroups: lang === 'en' ? 'All groups' : 'Todos os grupos',
-    clear: lang === 'en' ? 'Clear' : 'Limpar',
-    inDesc: lang === 'en' ? 'in description' : 'na descrição',
-    inOrig: lang === 'en' ? 'in origin' : 'na origem',
-    inDetails: lang === 'en' ? 'in details' : 'nos detalhes',
-    catalogPrice: lang === 'en' ? 'Catalog price' : 'Preço do catálogo',
-    addToShop: lang === 'en' ? 'Add to shop' : 'Adicionar à loja',
-    origin: lang === 'en' ? 'Origin' : 'Origem',
-    liquid: lang === 'en' ? 'liquid' : 'líquido',
-    magic: lang === 'en' ? 'magic' : 'mágico',
-    inShop: (n) => lang === 'en'
-      ? `${n} ${n === 1 ? 'item' : 'items'} in shop`
-      : `${n} ${n === 1 ? 'item' : 'itens'} na loja`,
-    showing: (n, total) => lang === 'en'
-      ? `${n} of ${total}`
-      : `${n} de ${total}`,
-  };
+  // ── Kit shadcn (ui-bridge) não carregado — mesmo aviso amigável do bestiário
+  if (!Table) {
+    return (
+      <div className="fp-page">
+        <div className="fp-card loja-mng-v3-page">
+          <div className="fp-card-top">
+            <header className="ms-header loja-mng-v3-page-header">
+              <button type="button" className="btn-icon btn-sm" onClick={onClose} aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
+                <i className="ti ti-arrow-left" />
+              </button>
+              <h2 className="ms-title">{historia.titulo}</h2>
+            </header>
+          </div>
+          <div className="loja-mng-v3-fallback">
+            Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <ModalShell
-      title={t.shop}
-      lang={lang}
-      size="full"
-      extraClass="loja-mng-v2"
-      onClose={onClose}
-      onCancel={onClose}
-      cancelLabel={t.cancel}
-      onConfirm={salvar}
-      confirmLabel={saving ? t.saving : t.save}
-      confirmDisabled={saving}
-    >
-      <p className="subhead" style={{ marginBottom: 18 }}>{t.shopSub}</p>
-
-      {catalogo === null ? (
-        <div className="admin-loading">
-          <span>{t.loading}</span>
+    <div className="fp-page">
+      <div className="fp-card loja-mng-v3-page">
+        <div className="fp-card-top">
+          <header className="ms-header loja-mng-v3-page-header">
+        <button
+          type="button"
+          className="btn-icon btn-sm"
+          onClick={onClose}
+          aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
+          <i className="ti ti-arrow-left" />
+        </button>
+        <div className="loja-mng-v3-header-content">
+          <div className="loja-mng-v3-page-eyebrow">
+            <i className="ti ti-shopping-bag" aria-hidden="true" />
+            {historia.titulo}
+          </div>
+          <h2 className="ms-title">{tl.shop}</h2>
         </div>
-      ) : (
-        <div className="loja-mng-grid">
+        <button
+          type="button"
+          className="btn-primary btn-sm"
+          onClick={salvar}
+          disabled={saving}>
+          {saving ? tl.saving : tl.save}
+        </button>
+          </header>
+        </div>
+        <div className="loja-mng-v3-page-body">
+        {catalogo === null ? (
+          <div className="admin-loading"><span>{tl.loading}</span></div>
+        ) : (
+          <>
+            {/* ── Submenus (tabs) ── */}
+            <div className="loja-mng-v3-tabs">
+              <button
+                type="button"
+                className={'loja-mng-v3-tab' + (abaLoja === 'catalogo' ? ' is-active' : '')}
+                onClick={() => setAbaLoja('catalogo')}>
+                {en ? 'Catalogue' : 'Catálogo'}
+                <span className="loja-mng-v3-tab-badge">{filtrados.length}</span>
+              </button>
+              <button
+                type="button"
+                className={'loja-mng-v3-tab' + (abaLoja === 'estoque' ? ' is-active' : '')}
+                onClick={() => setAbaLoja('estoque')}>
+                {en ? 'Stock' : 'Estoque'}
+                <span className="loja-mng-v3-tab-badge">{estoque.length}</span>
+              </button>
+            </div>
 
-        {/* ═════════ COLUNA ESQUERDA: ESTOQUE DA LOJA ═════════ */}
-        <section className="loja-mng-panel">
-          <div className="loja-mng-panel-body">
-                {estoque.length === 0 ? (
-                  <div className="loja-mng-empty">
-                    <div className="loja-mng-empty-arrow" aria-hidden="true">→</div>
-                    <div>{t.empty}</div>
-                  </div>
-                ) : (
-                  <div className="loja-mng-list">
-                    {estoque.map((e) => {
-                      const cat = catalogoBySlug[e.slug];
-                      const precoCat = cat?.valor_latao ?? 0;
-                      const precoFinal = e.preco_latao_override != null ? e.preco_latao_override : precoCat;
-                      // Formata o preço como "1O 2P 3C 4L" mostrando só denominações > 0
-                      const m = latoesToMoedas(precoFinal);
-                      const partes = [];
-                      if (m.ouro)  partes.push(m.ouro  + (lang === 'en' ? 'g' : 'O'));
-                      if (m.prata) partes.push(m.prata + (lang === 'en' ? 's' : 'P'));
-                      if (m.cobre) partes.push(m.cobre + (lang === 'en' ? 'c' : 'C'));
-                      if (m.latao) partes.push(m.latao + (lang === 'en' ? 'b' : 'L'));
-                      const precoFmt = partes.length ? partes.join(' ') : (lang === 'en' ? 'free' : 'grátis');
-                      return (
-                        <div className="loja-mng-row" key={e.entryId}>
-                          <div className="loja-mng-row-nome">
-                            <small>{cat?.grupo || '—'}</small>
-                            {cat?.nome || `(? ${e.slug})`}
-                          </div>
-                          <div className="loja-mng-stat">
-                            <span className="loja-mng-stat-label">{t.price}</span>
-                            <span className="loja-mng-stat-value">{precoFmt}</span>
-                          </div>
-                          <div className="loja-mng-stat">
-                            <span className="loja-mng-stat-label">{t.stock}</span>
-                            <span className="loja-mng-stat-value">
-                              {e.estoque == null ? '∞' : e.estoque}
-                            </span>
-                          </div>
-                          <button
-                            className="loja-mng-remove"
-                            onClick={() => removerEntrada(e.entryId)}
-                            title={t.remove}
-                            aria-label={t.remove}>×</button>
-                        </div>
-                      );
-                    })}
-                  </div>
+          <div className="loja-mng-v3-grid">
+
+          {/* ══════ CATÁLOGO ══════ */}
+          <section className="loja-mng-v3-panel loja-mng-v3-panel--cat" style={{ display: abaLoja === 'catalogo' ? 'flex' : 'none' }}>
+
+            {/* Toolbar: busca + chips de grupo (mesmo padrão do bestiário/ItensList) */}
+            <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltro !== '' ? 20 : undefined }}>
+              <div className="loja-mng-v3-search">
+                <i className="ti ti-search" aria-hidden="true" />
+                <input
+                  ref={buscaRef}
+                  type="search"
+                  placeholder={tl.search}
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)} />
+                {busca && (
+                  <button
+                    type="button"
+                    className="loja-mng-v3-search-clear"
+                    onClick={() => setBusca('')}
+                    aria-label={tl.clear}>
+                    <i className="ti ti-x" aria-hidden="true" />
+                  </button>
                 )}
               </div>
-            </section>
-
-            {/* ═════════ COLUNA DIREITA: CATÁLOGO ═════════ */}
-            <section className="loja-mng-panel">
-              <div className="loja-mng-panel-head">
-                <div>
-                  <h3>{t.catalog}</h3>
-                  <p className="subhead">{t.catalogSub}</p>
-                </div>
-                <div className="loja-mng-counter">
-                  {t.showing(filtrados.length, filtradosTotal.length)}
-                </div>
+              <div className="best-chips loja-mng-v3-chips">
+                <ChipIcon value="all" label={tl.allGroups} active={grupoFiltro === ''} onClick={() => setGrupoFiltro('')} />
+                {grupos.map((g) => (
+                  <ChipIcon key={g} value={g} label={g} active={grupoFiltro === g} onClick={() => setGrupoFiltro(g)} />
+                ))}
               </div>
-
-              <div className="loja-mng-toolbar">
-                <div className="loja-mng-search">
-                  <span className="loja-mng-search-icon" aria-hidden="true">⌕</span>
-                  <input
-                    type="search"
-                    placeholder={t.search}
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)} />
-                  {busca && (
-                    <button
-                      type="button"
-                      className="loja-mng-search-clear"
-                      onClick={() => setBusca('')}
-                      aria-label={t.clear}>×</button>
-                  )}
-                </div>
-                <select
-                  className="loja-mng-select"
-                  value={grupoFiltro}
-                  onChange={(e) => setGrupoFiltro(e.target.value)}>
-                  <option value="">{t.allGroups}</option>
-                  {grupos.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
-
-              <div className="loja-mng-cat-list" ref={catListRef}>
-                {filtrados.length === 0 ? (
-                  <div className="loja-mng-empty">{t.none}</div>
-                ) : filtrados.map((it) => {
-                  const mc = matchCampo(it);
-                  const sel = escolhido?.slug === it.slug;
-                  return (
-                    <button
-                      key={it.slug}
-                      type="button"
-                      className={'loja-mng-cat-row' + (sel ? ' selected' : '')}
-                      onClick={() => setEscolhido(sel ? null : it)}>
-                      <div className="loja-mng-cat-row-main">
-                        <span className="loja-mng-cat-row-nome">{it.nome}</span>
-                        {mc && (
-                          <span className={'loja-mng-match loja-mng-match-' + mc}>
-                            {mc === 'descricao' ? t.inDesc : mc === 'origem' ? t.inOrig : t.inDetails}
-                          </span>
-                        )}
-                      </div>
-                      <span className="loja-mng-cat-row-tag">
-                        {it.tipo === 'L' && <span title={t.liquid}>✦</span>}
-                        {it.magico && <span title={t.magic} className="mag">✦</span>}
-                      </span>
-                      <span className="loja-mng-cat-row-preco">
-                        <CofreMoedas moedas={latoesToMoedas(it.valor_latao ?? 0)} lang={lang} mostrarGratis />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {filtradosTotal.length > PAGE_SIZE_CAT && (
-                <div className="bestiario-pagination">
-                  <button
-                    className="btn-icon btn-sm bestiario-page-btn"
-                    onClick={() => setPaginaCat(1)}
-                    disabled={paginaCatSafe === 1}
-                    title={lang === 'en' ? 'First page' : 'Primeira página'}>«</button>
-                  <button
-                    className="btn-icon btn-sm bestiario-page-btn"
-                    onClick={() => setPaginaCat((p) => Math.max(1, p - 1))}
-                    disabled={paginaCatSafe === 1}
-                    title={lang === 'en' ? 'Previous' : 'Anterior'}>‹</button>
-
-                  {Array.from({ length: totalPaginasCat }, (_, i) => i + 1)
-                    .filter((p) => p === 1 || p === totalPaginasCat || Math.abs(p - paginaCatSafe) <= 2)
-                    .reduce((acc, p, idx, arr) => {
-                      if (idx > 0 && p - arr[idx - 1] > 1) acc.push('…');
-                      acc.push(p);
-                      return acc;
-                    }, [])
-                    .map((p, idx) =>
-                      p === '…' ? (
-                        <span key={`elip-${idx}`} className="bestiario-page-ellipsis">…</span>
-                      ) : (
-                        <button
-                          key={p}
-                          className="btn-icon btn-sm bestiario-page-btn"
-                          data-on={p === paginaCatSafe ? 'true' : undefined}
-                          onClick={() => setPaginaCat(p)}>{p}</button>
-                      )
-                    )}
-
-                  <button
-                    className="btn-icon btn-sm bestiario-page-btn"
-                    onClick={() => setPaginaCat((p) => Math.min(totalPaginasCat, p + 1))}
-                    disabled={paginaCatSafe === totalPaginasCat}
-                    title={lang === 'en' ? 'Next' : 'Próxima'}>›</button>
-                  <button
-                    className="btn-icon btn-sm bestiario-page-btn"
-                    onClick={() => setPaginaCat(totalPaginasCat)}
-                    disabled={paginaCatSafe === totalPaginasCat}
-                    title={lang === 'en' ? 'Last page' : 'Última página'}>»</button>
-
-                  <span className="bestiario-page-info">
-                    {lang === 'en'
-                      ? `Page ${paginaCatSafe} of ${totalPaginasCat}`
-                      : `Página ${paginaCatSafe} de ${totalPaginasCat}`}
-                  </span>
-                </div>
-              )}
-
-              {escolhido && (
-                <div className="loja-mng-det">
-                  <div className="loja-mng-det-head">
-                    <div className="loja-mng-det-title">
-                      <div className="loja-mng-det-nome">{escolhido.nome} {escolhido.origem && (` (Item ${escolhido.origem})`)}</div>
-                    </div>
-                  </div>
-
-                  {escolhido.descricao && (
-                    <div className="loja-mng-det-desc">{escolhido.descricao}</div>
-                  )}
-
-                  <div className="loja-mng-det-actions">
-                    <label className="loja-mng-det-input">
-                      <span>{t.price}</span>
-                      <input
-                        type="number" min="0"
-                        placeholder={String(escolhido.valor_latao ?? 0)}
-                        value={precoOverride}
-                        onChange={(e) => setPrecoOverride(e.target.value)}
-                      />
-                    </label>
-                    <label className="loja-mng-det-input">
-                      <span>{t.stock}</span>
-                      <input
-                        type="number" min="0"
-                        placeholder="0"
-                        value={estoqueInicial}
-                        onChange={(e) => setEstoqueInicial(e.target.value)}
-                      />
-                    </label>
-                    <button className="btn-primary btn-sm" onClick={adicionarAoEstoque}>
-                      {t.addToShop}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </section>
-
             </div>
-          )}
-          {error && <div className="err-msg" style={{ marginTop: 14 }}>{error}</div>}
-    </ModalShell>
+
+            {/* Drawer inline — aparece acima da tabela quando item selecionado */}
+            {escolhido && (
+              <div className="loja-mng-v3-drawer" role="region" aria-label={en ? 'Add' : 'Adicionar'}>
+                {/* Info do item */}
+                <div className="loja-mng-v3-drawer-nome">
+                  {escolhido.nome}
+                  {escolhido.descricao && (
+                    <span className="loja-mng-v3-drawer-desc"> — {escolhido.descricao}</span>
+                  )}
+                </div>
+                {/* Campos + botões inline */}
+                <div className="loja-mng-v3-drawer-fields">
+                  <label className="loja-mng-v3-drawer-field">
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder={String(escolhido.valor_latao ?? 0)}
+                      value={precoOverride}
+                      onChange={(e) => setPrecoOverride(e.target.value)} />
+                  </label>
+                  <label className="loja-mng-v3-drawer-field">
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder={tl.stock || '∞'}
+                      value={estoqueInicial}
+                      onChange={(e) => setEstoqueInicial(e.target.value)} />
+                  </label>
+                  <div className="loja-mng-v3-drawer-actions">
+                    <button
+                      type="button"
+                      className="btn-ghost btn-sm"
+                      onClick={() => { setEscolhido(null); setPrecoOverride(''); setEstoqueInicial(''); }}>
+                      {tl.cancel || (en ? 'Cancel' : 'Cancelar')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-primary btn-sm"
+                      onClick={adicionarAoEstoque}>
+                      {tl.addToShop}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Catálogo paginado */}
+            <div className="loja-mng-v3-cat-list best best-auto" ref={catWrapRef} style={{ paddingBottom: totalPagesCat <= 1 ? 20 : 0 }}>
+              {filtrados.length === 0 ? (
+                <div className="best-empty">{tl.none}</div>
+              ) : (
+                <>
+                  <div className="best-table-wrap" ref={catListRef}>
+                    <Table>
+                      <TableHeader><TableRow>
+                        <LojaSortHead col="nome" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>
+                          {en ? 'Item' : 'Item'}
+                        </LojaSortHead>
+                        <LojaSortHead col="preco" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>
+                          {en ? 'Price' : 'Preço'}
+                        </LojaSortHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {filtradosSlice.map((it) => {
+                          const mc = matchCampo(it);
+                          const sel = escolhido?.slug === it.slug;
+                          return (
+                            <TableRow
+                              key={it.slug}
+                              className={sel ? 'on' : ''}
+                              onClick={() => selecionarItem(it)}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && selecionarItem(it)}>
+                              <TableCell className="loja-mng-v3-td--nome">
+                                <span className="loja-mng-v3-row-grupo">
+                                  {it.grupo || '—'}
+                                </span>
+                                <span className="best-name">
+                                  {it.nome}
+                                  {mc && (
+                                    <span className={'loja-mng-v3-match loja-mng-v3-match--' + mc}>
+                                      {' '}({mc === 'descricao' ? tl.inDesc : mc === 'origem' ? tl.inOrig : tl.inDetails})
+                                    </span>
+                                  )}
+                                </span>
+                              </TableCell>
+                              <TableCell className="loja-mng-v3-td--preco">
+                                {precoTextoLoja(it.valor_latao ?? 0, en)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {totalPagesCat > 1 && (
+                    <LojaPagePagination
+                      page={pageCat}
+                      safePage={safePageCat}
+                      totalPages={totalPagesCat}
+                      setPage={setPageCat}
+                      lang={lang}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+
+          </section>
+
+          {/* ══════ ESTOQUE ══════ */}
+          <section className="loja-mng-v3-panel" style={{ display: abaLoja === 'estoque' ? 'flex' : 'none' }}>
+
+            {/* Toolbar: busca + chips de grupo (mesmo padrão do catálogo) */}
+            <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltroEstoque !== '' ? 20 : undefined }}>
+              <div className="loja-mng-v3-search">
+                <i className="ti ti-search" aria-hidden="true" />
+                <input
+                  type="search"
+                  placeholder={en ? 'Search…' : 'Buscar…'}
+                  value={buscaEstoque}
+                  onChange={(e) => setBuscaEstoque(e.target.value)} />
+                {buscaEstoque && (
+                  <button
+                    type="button"
+                    className="loja-mng-v3-search-clear"
+                    onClick={() => setBuscaEstoque('')}
+                    aria-label={tl.clear}>
+                    <i className="ti ti-x" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+              {estoque.length > 0 && (
+                <div className="best-chips loja-mng-v3-chips">
+                  <ChipIcon value="all" label={tl.allGroups} active={grupoFiltroEstoque === ''} onClick={() => setGrupoFiltroEstoque('')} />
+                  {gruposEstoque.map((g) => (
+                    <ChipIcon key={g} value={g} label={g} active={grupoFiltroEstoque === g} onClick={() => setGrupoFiltroEstoque(g)} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="loja-mng-v3-estoque-body best best-auto" ref={estoqueWrapRef} style={{ paddingBottom: totalPagesEstoque <= 1 ? 20 : 0 }}>
+              {estoque.length === 0 ? (
+                <div className="loja-mng-v3-empty">
+                  <i className="ti ti-shopping-bag-x" aria-hidden="true" />
+                  <span>{tl.empty}</span>
+                </div>
+              ) : estoqueFiltrado.length === 0 ? (
+                <div className="best-empty">{tl.none}</div>
+              ) : (
+                <>
+                  <div className="best-table-wrap">
+                    <Table>
+                      <TableHeader><TableRow>
+                        <LojaSortHead col="nome" sortKey={sortKeyEstoque} sortDir={sortDirEstoque} toggleSort={toggleSortEstoque}>
+                          {en ? 'Item' : 'Item'}
+                        </LojaSortHead>
+                        <LojaSortHead col="preco" sortKey={sortKeyEstoque} sortDir={sortDirEstoque} toggleSort={toggleSortEstoque}>
+                          {en ? 'Price' : 'Preço'}
+                        </LojaSortHead>
+                        <LojaSortHead col="estoque" sortKey={sortKeyEstoque} sortDir={sortDirEstoque} toggleSort={toggleSortEstoque} title={en ? 'Stock' : 'Estoque'}>
+                          <i className="ti ti-packages" aria-hidden="true" />
+                        </LojaSortHead>
+                        <TableHead className="loja-mng-v3-th--action" />
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {estoqueSlice.map((e) => {
+                          const cat = catalogoBySlug[e.slug];
+                          const precoFinal = e.preco_latao_override != null
+                            ? e.preco_latao_override
+                            : (cat?.valor_latao ?? 0);
+                          const estoqueQtd = e.estoque == null ? '∞' : String(e.estoque);
+                          const semEstoque = e.estoque != null && e.estoque === 0;
+                          return (
+                            <TableRow key={e.entryId}>
+                              <TableCell className="loja-mng-v3-td--nome">
+                                <span className="loja-mng-v3-row-grupo">{cat?.grupo || '—'}</span>
+                                <span className="best-name">{cat?.nome || `(? ${e.slug})`}</span>
+                              </TableCell>
+                              <TableCell className="loja-mng-v3-td--preco">
+                                {precoTextoLoja(precoFinal, en)}
+                              </TableCell>
+                              <TableCell style={{ color: semEstoque ? '#E57373' : undefined }}>
+                                {estoqueQtd}
+                              </TableCell>
+                              <TableCell className="loja-mng-v3-td--action">
+                                <button
+                                  type="button"
+                                  className="loja-mng-v3-remove"
+                                  onClick={() => removerEntrada(e.entryId)}
+                                  title={tl.remove}
+                                  aria-label={`${tl.remove} ${cat?.nome || e.slug}`}>
+                                  <i className="ti ti-x" aria-hidden="true" />
+                                </button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {totalPagesEstoque > 1 && (
+                    <LojaPagePagination
+                      page={pageEstoque}
+                      safePage={safePageEstoque}
+                      totalPages={totalPagesEstoque}
+                      setPage={setPageEstoque}
+                      lang={lang}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          </section>
+
+          </div>
+          </>
+        )}
+
+        {error && <div className="err-msg" style={{ marginTop: 12 }}>{error}</div>}
+        </div>
+      </div>
+    </div>
   );
 }
 
-function NovaHistoriaModal({ lang, personagens, criaturas = [], currentUserId, onClose, onSaved, historiaExistente = null }) {
+function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSaved, historiaExistente = null }) {
+  const tn = t.historias.novaModal;
   const isEdit = !!historiaExistente;
+  const en = lang === 'en';
   const [titulo, setTitulo] = useState(isEdit ? (historiaExistente.titulo || '') : '');
   const [reino, setReino] = useState(isEdit ? (historiaExistente.reino || '') : '');
+  const [reinosDisponiveis, setReinosDisponiveis] = useState([]); // entradas tipo 'reino' do diário desta história (só edit — história nova ainda não tem id)
+  const [reinoOpen, setReinoOpen] = useState(false);
+  const reinoRef = React.useRef(null);
   const [introducao, setIntroducao] = useState(isEdit ? (historiaExistente.introducao || '') : '');
+
+  // Capítulos: array de { id, titulo, texto } — ordem é a ordem na array.
+  // Mestre pode adicionar quantos quiser; cada capítulo tem título e corpo livre.
+  const [capitulos, setCapitulos] = useState(() => {
+    if (isEdit && Array.isArray(historiaExistente.capitulos) && historiaExistente.capitulos.length > 0) {
+      return historiaExistente.capitulos.map((c, i) => ({ id: c.id ?? `cap-${Date.now()}-${i}`, titulo: c.titulo ?? '', texto: c.texto ?? '', data_capitulo: c.data_capitulo ?? null }));
+    }
+    return [];
+  });
+
+  const addCapitulo = () =>
+    setCapitulos((prev) => [...prev, { id: `cap-${Date.now()}-${prev.length}`, titulo: '', texto: '', data_capitulo: null }]);
+
+  const updateCapitulo = (id, field, value) =>
+    setCapitulos((prev) => prev.map((c) => c.id === id ? { ...c, [field]: value } : c));
+
+  const removeCapitulo = (id) =>
+    setCapitulos((prev) => prev.filter((c) => c.id !== id));
+
+  const moveCapitulo = (id, dir) =>
+    setCapitulos((prev) => {
+      const idx = prev.findIndex((c) => c.id === id);
+      if (idx < 0) return prev;
+      const next = [...prev];
+      const swap = idx + dir;
+      if (swap < 0 || swap >= next.length) return prev;
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      return next;
+    });
+
   const [dataInicio, setDataInicio] = useState(
     isEdit
       ? (historiaExistente.data_inicio || '')
@@ -755,30 +1141,55 @@ function NovaHistoriaModal({ lang, personagens, criaturas = [], currentUserId, o
       ? historiaExistente.data_jogo
       : { dia: 1, mes: 1, ano: 0 }
   );
-  const [criaturaSel, setCriaturaSel] = useState(
-    isEdit ? (historiaExistente.criatura_ids || []) : []
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [pagina, setPagina] = useState('historia'); // 'historia' | 'capitulos'
+
+  // Busca os reinos já cadastrados no diário desta história (RPC listar_lore_historia,
+  // igual ao GerenciarLoreModal em diario.jsx) pra oferecer como dropdown no campo Reino.
+  // Suposição: guardamos o NOME do reino escolhido em historias.reino, igual já era
+  // salvo com texto livre — não mudei o formato do dado, só o jeito de preencher.
+  useEffect(() => {
+    if (!isEdit || !historiaExistente?.id) return undefined;
+    let cancel = false;
+    (async () => {
+      const { data, error: err } = await supabaseClient.rpc('listar_lore_historia', { p_historia_id: historiaExistente.id });
+      if (cancel || err || !data || data.ok === false) return;
+      setReinosDisponiveis((data.entradas || []).filter((e) => e.tipo === 'reino'));
+    })();
+    return () => { cancel = true; };
+  }, [isEdit, historiaExistente?.id]);
+
+  // Fecha o dropdown de reino ao clicar fora.
+  useEffect(() => {
+    if (!reinoOpen) return undefined;
+    const handler = (e) => { if (reinoRef.current && !reinoRef.current.contains(e.target)) setReinoOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [reinoOpen]);
 
   // Escape e travamento de scroll já são responsabilidade do ModalShell — não duplicar aqui.
-
-  const toggleCriatura = (id) => {
-    setCriaturaSel((sel) => sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]);
-  };
+  // criatura_ids é gerenciado pelo Lore — não sobrescrever aqui.
 
   const valido = titulo.trim().length > 0;
 
   const salvar = async () => {
     setSaving(true);
     setError(null);
+    // Serializa capítulos: descarta id interno (gerado só pra key/React), guarda apenas titulo+texto.
+    // Capítulos completamente vazios (sem título e sem texto) são descartados — o mestre clicou "+"
+    // mas não digitou nada.
+    const capitulosPayload = capitulos
+      .map(({ titulo: t, texto, data_capitulo }) => ({ titulo: t.trim(), texto: texto.trim(), data_capitulo: data_capitulo || null }))
+      .filter(({ titulo: t, texto }) => t.length > 0 || texto.length > 0);
+
     const payload = {
       titulo: titulo.trim(),
       reino: reino.trim() || null,
       introducao: introducao.trim() || null,
       data_inicio: dataInicio || null,
       data_jogo: dataJogo || null,
-      criatura_ids: criaturaSel,
+      capitulos: capitulosPayload.length > 0 ? capitulosPayload : null,
     };
     let error;
     if (isEdit) {
@@ -806,76 +1217,187 @@ function NovaHistoriaModal({ lang, personagens, criaturas = [], currentUserId, o
 
   return (
     <ModalShell
-      title={isEdit
-        ? (lang === 'en' ? 'Edit story' : 'Editar história')
-        : (lang === 'en' ? 'New story' : 'Nova história')}
+      title={isEdit ? tn.editarTitulo : tn.novaTitulo}
       lang={lang}
       size="lg"
       onClose={onClose}
       onCancel={onClose}
       onConfirm={salvar}
-      confirmLabel={saving
-        ? (lang === 'en' ? 'Saving…' : 'Salvando…')
-        : (isEdit
-          ? (lang === 'en' ? 'Save' : 'Salvar')
-          : (lang === 'en' ? 'Create' : 'Criar'))}
+      confirmLabel={saving ? tn.salvando : (isEdit ? tn.salvar : tn.criar)}
       confirmDisabled={saving || !valido}
     >
-        <div className="wiz-row-2col">
+      {/* ── Tabs de navegação ── */}
+      <div className="hist-modal-tabs">
+        <button
+          type="button"
+          className={'hist-modal-tab' + (pagina === 'historia' ? ' is-active' : '')}
+          onClick={() => setPagina('historia')}>
+          {en ? 'Story' : 'História'}
+        </button>
+        <button
+          type="button"
+          className={'hist-modal-tab' + (pagina === 'capitulos' ? ' is-active' : '')}
+          onClick={() => setPagina('capitulos')}>
+          {en ? 'Chapters' : 'Capítulos'}
+          {capitulos.length > 0 && (
+            <span className="hist-modal-tab-badge">{capitulos.length}</span>
+          )}
+        </button>
+        {pagina === 'capitulos' && (
+          <button type="button" className="btn-ghost btn-sm hist-cap-add-btn hist-modal-tab-add" onClick={addCapitulo}>
+            <i className="ti ti-plus" aria-hidden="true" />
+            {en ? 'Add chapter' : 'Adicionar capítulo'}
+          </button>
+        )}
+      </div>
+
+      {/* ── Página 1: dados da história ── */}
+      {pagina === 'historia' && (
+        <>
+          <div className="wiz-row-2col">
             <label className="wiz-field">
-              <span>{lang === 'en' ? 'Title' : 'Título'}</span>
+              <span>{tn.titulo}</span>
               <input type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)}
-                placeholder={lang === 'en' ? 'The Shadow of Verrogar' : 'A Sombra de Verrogar'}
+                placeholder={tn.tituloPlaceholder}
                 autoFocus />
             </label>
-            <label className="wiz-field">
-              <span>{lang === 'en' ? 'Realm' : 'Reino'}</span>
-              <input type="text" value={reino} onChange={(e) => setReino(e.target.value)}
-                placeholder={lang === 'en' ? 'Kingdom of Verrogar' : 'Verrogar'} />
-            </label>
+            <div className="wiz-field">
+              <span>{tn.reino}</span>
+              {reinosDisponiveis.length > 0 ? (
+                <div ref={reinoRef} className="hist-reino-wrap">
+                  <button type="button" className="select-pill-btn"
+                    data-open={reinoOpen ? 'true' : 'false'}
+                    data-empty={!reino ? 'true' : 'false'}
+                    onClick={() => setReinoOpen((v) => !v)}>
+                    <span>
+                      {reino || tn.reinoPlaceholder}
+                    </span>
+                    <i className="ti ti-chevron-down select-pill-btn-chevron" aria-hidden="true"
+                      style={{ transform: reinoOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                  </button>
+                  {reinoOpen && (
+                    <ul className="select-pill-drop">
+                      {[{ nome: '', rotulo: tn.reinoPlaceholder }, ...reinosDisponiveis].map((r, i) => {
+                        const active = String(r.nome) === String(reino);
+                        return (
+                          <li key={r.id ?? `ph-${i}`}
+                            className={active ? 'is-active' : ''}
+                            onClick={() => { setReino(r.nome); setReinoOpen(false); }}>
+                            {active && <i className="ti ti-check" aria-hidden="true" />}
+                            {!active && <span className="select-pill-drop-spacer" />}
+                            {r.rotulo ?? r.nome}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <input type="text" value={reino} onChange={(e) => setReino(e.target.value)}
+                  placeholder={tn.reinoPlaceholder} />
+              )}
+            </div>
           </div>
           <div className="wiz-row-2col">
             <label className="wiz-field">
-              <span>{lang === 'en' ? 'Start date' : 'Data de início'}</span>
+              <span>{tn.dataInicio}</span>
               <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
             </label>
             <label className="wiz-field">
-              <span>{lang === 'en' ? 'Start in-game date' : 'Data de início no jogo'}</span>
-              <FantasyDatePicker value={dataJogo} onChange={setDataJogo} />
+              <span>{tn.dataInicioJogo}</span>
+              <FantasyDatePicker value={dataJogo} onChange={setDataJogo} lang={lang} />
             </label>
           </div>
-          <div className="wiz-field">
-            <span>{lang === 'en' ? 'Creatures' : 'Criaturas'} ({criaturaSel.length} {lang === 'en' ? 'selected' : 'selecionadas'})</span>
-            {criaturas.length === 0 ? (
-              <div className="hist-protag-empty" style={{ padding: '10px 0' }}>
-                {lang === 'en' ? 'No creatures in the bestiary yet' : 'Nenhuma criatura disponível no bestiário'}
+          <label className="wiz-field">
+            <span>{en ? 'Introduction' : 'Introdução'}</span>
+            <textarea rows={4} value={introducao} onChange={(e) => setIntroducao(e.target.value)}
+              placeholder={en ? 'Optional' : 'Opcional'} />
+          </label>
+        </>
+      )}
+
+      {/* ── Página 2: capítulos ── */}
+      {pagina === 'capitulos' && (
+        <>
+          {/* lista de capítulos */}
+          {capitulos.map((cap, idx) => (
+            <React.Fragment key={cap.id}>
+              <div className="hist-cap-row">
+
+                {/* Col esquerda: label "Título" (min-height 32px) + input */}
+                <div className="wiz-field">
+                  <span>{en ? 'Title' : 'Título'}</span>
+                  <input
+                    type="text"
+                    value={cap.titulo}
+                    onChange={(e) => updateCapitulo(cap.id, 'titulo', e.target.value)}
+                    placeholder={en ? 'Chapter title (optional)' : 'Título do capítulo (opcional)'}
+                  />
+                </div>
+
+                {/* Col direita: label acima; datepicker + botões na mesma linha abaixo */}
+                <div className="hist-cap-date-col">
+                  <span className="hist-cap-date-label">
+                    <i className="ti ti-calendar-event hist-cap-date-icon" aria-hidden="true" />
+                    {en ? 'Date (fantasy)' : 'Data (fantasia)'}
+                  </span>
+                  <div className="hist-cap-picker-row">
+                    <FantasyDatePicker
+                      value={cap.data_capitulo || { dia: 1, mes: 1, ano: 0 }}
+                      onChange={(v) => updateCapitulo(cap.id, 'data_capitulo', v)}
+                      lang={lang}
+                    />
+                    <div className="hist-cap-date-btns">
+                      <button type="button" className="btn-icon btn-sm" onClick={() => moveCapitulo(cap.id, -1)}
+                        disabled={idx === 0} title={en ? 'Move up' : 'Subir'}
+                        aria-label={en ? 'Move chapter up' : 'Mover capítulo para cima'}>
+                        <i className="ti ti-chevron-up" aria-hidden="true" />
+                      </button>
+                      <button type="button" className="btn-icon btn-sm" onClick={() => moveCapitulo(cap.id, 1)}
+                        disabled={idx === capitulos.length - 1} title={en ? 'Move down' : 'Descer'}
+                        aria-label={en ? 'Move chapter down' : 'Mover capítulo para baixo'}>
+                        <i className="ti ti-chevron-down" aria-hidden="true" />
+                      </button>
+                      <button type="button" className="btn-icon btn-sm btn-danger" onClick={() => removeCapitulo(cap.id)}
+                        title={en ? 'Remove chapter' : 'Remover capítulo'}
+                        aria-label={en ? 'Remove chapter' : 'Remover capítulo'}>
+                        <i className="ti ti-trash" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="hist-protag-list">
-                {criaturas.map((c) => {
-                  const on = criaturaSel.includes(c.id);
-                  return (
-                    <label key={c.id} className={'hist-protag-item' + (on ? ' on' : '')}>
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        onChange={() => toggleCriatura(c.id)}
-                      />
-                      <div className="hist-protag-name">{c.nome}</div>
-                      <div className="hist-protag-meta">{c.tipo || '—'}{c.estagio != null ? ` · ${c.estagio}` : ''}</div>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          {error && <div className="err-msg" style={{ marginTop: 14 }}>{error}</div>}
+
+              <label className="wiz-field">
+                <span>{en ? `Chapter ${idx + 1}` : `Capítulo ${idx + 1}`}</span>
+                <textarea
+                  rows={4}
+                  value={cap.texto}
+                  onChange={(e) => updateCapitulo(cap.id, 'texto', e.target.value)}
+                  placeholder={en ? 'Chapter content…' : 'Conteúdo do capítulo…'}
+                />
+              </label>
+            </React.Fragment>
+          ))}
+
+          {/* estado vazio */}
+          {capitulos.length === 0 && (
+            <p className="subhead hist-cap-empty">
+              {en
+                ? 'No chapters yet. Click "Add chapter" to start.'
+                : 'Nenhum capítulo ainda. Clique em "Adicionar capítulo" para começar.'}
+            </p>
+          )}
+        </>
+      )}
+
+      {error && <div className="err-msg" style={{ marginTop: 14 }}>{error}</div>}
     </ModalShell>
   );
 }
 
 Object.assign(window, {
   HistoriasList, HistoriaCard,
-  ConfirmarExclusaoHistoriaModal, GerenciarLojaModal,
+  ConfirmarExclusaoHistoriaModal, GerenciarLojaView,
   NovaHistoriaModal,
 });

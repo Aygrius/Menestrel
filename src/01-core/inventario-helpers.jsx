@@ -182,6 +182,7 @@ function gerarAtaques(p, catalogoBySlug, magiasByKey, atributos) {
       origem:  'arma',
       icone:   '⚔',
       nome:    cat.nome || it.slug,
+      slug:    it.slug,
       tipo:    it.slot === 'mao_d' ? 'mão direita' : 'mão esquerda',
       slot:    it.slot,
       alcance: cat.alcance || 0,

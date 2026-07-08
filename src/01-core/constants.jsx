@@ -54,6 +54,7 @@ const ADMIN_COPY = {
       personagens_m: { label: 'Personagens',  desc: 'Aliados, antagonistas e figurantes' },
       criaturas:     { label: 'Criaturas',    desc: 'Bestiário e ameaças do mundo' },
       itens:         { label: 'Itens',        desc: 'Objetos mundanos, mágicos e relíquias' },
+      itens_campanha:{ label: 'Itens da Campanha', desc: 'Itens que só existem na sua aventura' },
       magias:        { label: 'Magias',       desc: 'Feitiços, encantamentos e rituais' },
       tecnicas:      { label: 'Técnicas',     desc: 'Manobras, golpes especiais e talentos' },
       habilidades:   { label: 'Habilidades',  desc: 'Atributos, perícias e capacidades' },
@@ -61,6 +62,7 @@ const ADMIN_COPY = {
       inventario:    { label: 'Inventário',   desc: 'Itens que seus personagens carregam' },
       loja:          { label: 'Loja',         desc: 'Equipamentos e itens disponíveis pra compra' },
       convites:      { label: 'Convites',     desc: 'Aceite convites e veja suas mesas ativas' },
+      aventuras:     { label: 'Histórias',    desc: 'As aventuras vividas pelos seus personagens' },
     }
   },
   en: {
@@ -78,6 +80,7 @@ const ADMIN_COPY = {
       personagens_m: { label: 'Characters',  desc: 'Allied NPCs, antagonists and extras' },
       criaturas:     { label: 'Creatures',   desc: 'Bestiary and threats of the world' },
       itens:         { label: 'Items',       desc: 'Mundane objects, magical and relics' },
+      itens_campanha:{ label: 'Campaign Items', desc: 'Items that exist only in your adventure' },
       magias:        { label: 'Spells',      desc: 'Magic, enchantments and rituals' },
       tecnicas:      { label: 'Techniques',  desc: 'Maneuvers, special moves and feats' },
       habilidades:   { label: 'Abilities',   desc: 'Attributes, skills and capacities' },
@@ -85,6 +88,7 @@ const ADMIN_COPY = {
       inventario:    { label: 'Inventory',   desc: 'Items your characters carry' },
       loja:          { label: 'Shop',        desc: 'Gear and items available for purchase' },
       convites:      { label: 'Invites',     desc: 'Accept invites and see your active tables' },
+      aventuras:     { label: 'Stories',     desc: 'Adventures lived by your characters' },
     }
   }
 };
@@ -95,6 +99,7 @@ const ADMIN_SECTIONS = {
     { id: 'personagens_m', icon: 'Skull' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'itens',         icon: 'Sheet' },
+    { id: 'itens_campanha', icon: 'Chest' },
     { id: 'magias',        icon: 'Flame' },
     { id: 'tecnicas',      icon: 'Sword' },
     { id: 'habilidades',   icon: 'Shield' },
@@ -103,6 +108,7 @@ const ADMIN_SECTIONS = {
     { id: 'personagens_j', icon: 'Skull' },
     { id: 'inventario',    icon: 'Scroll' },
     { id: 'loja',          icon: 'Sheet' },
+    { id: 'aventuras',     icon: 'BookOpen' },
     { id: 'convites',      icon: 'Crown' },
   ],
 };

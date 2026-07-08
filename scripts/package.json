@@ -1,0 +1,19 @@
+{
+  "name": "menestrel-i18n-sync",
+  "version": "1.0.0",
+  "description": "Sincroniza COPY.en com COPY.pt em copy.jsx, traduzindo via API da Anthropic só o que mudou.",
+  "type": "commonjs",
+  "main": "sync-i18n.js",
+  "scripts": {
+    "sync-i18n": "node sync-i18n.js",
+    "sync-i18n:write": "node sync-i18n.js --write"
+  },
+  "keywords": ["i18n", "menestrel"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/parser": "^8.0.0",
+    "@babel/traverse": "^8.0.0",
+    "@babel/types": "^8.0.0"
+  }
+}

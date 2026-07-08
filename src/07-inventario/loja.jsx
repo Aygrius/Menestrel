@@ -29,7 +29,7 @@
 // Redesenho "balcão do mercador" (v2) + revisões (v3):
 // - Banner da mesa (eyebrow MESA + título Cinzel) com seletor de PJ em dropdown
 //   (substitui as inv-pj-tabs nesta aba; o inventário continua com as tabs).
-// - Fontes: Jakarta (--font-body) em todo o texto; Cinzel SÓ em títulos
+// - Fontes: Lora (--font-body) em todo o texto; Cinzel SÓ em títulos
 //   (título do banner e h3 do modal, que herda de `.modal h3`).
 // - Moedas do PJ: MoedasBoard PADRÃO (o mesmo trilho do inventário).
 // - Preço 0 latão = item gratuito ("Grátis"), no card e no modal.
@@ -207,18 +207,11 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
 
   return (
     <ModalShell
-      title={<><i className={'ti ' + invItemIcon(cat) + ' loja-ficha-h3ic'} aria-hidden="true" /> {cat.nome}</>}
+      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}</>}
       lang={lang}
-      size="sm"
+      size="md"
       extraClass="modal-loja"
       onClose={onClose}
-      onCancel={onClose}
-      cancelDisabled={!!comprando}
-      onConfirm={() => onConfirm(qtd, exigeRecip ? recipienteId : null)}
-      confirmDisabled={desabilitado}
-      confirmLabel={comprando
-        ? <i className="ti ti-loader" aria-hidden="true" />
-        : (en ? 'Buy' : 'Comprar')}
     >
           {(cat.descricao || cat.efeito) && (
             <p className="loja-ficha-desc">
@@ -228,30 +221,25 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
             </p>
           )}
 
-          {statsVis.length > 0 && (
-            <div className="loja-modal-meta">
-              {statsVis.map((s, i) => (
-                <span key={i} className="loja-modal-stat">{s.l} <b>{s.v}</b></span>
-              ))}
-            </div>
-          )}
+          {(cat.descricao || cat.efeito) && <hr className="det-sec-divider" />}
 
           <div className="loja-qtd-row">
             <span className="loja-qtd-lbl">{en ? 'Quantity' : 'Quantidade'}</span>
             <span className="loja-qtd-val-lbl">
-              {qtd} <span className="loja-qtd-val-lbl">{en ? 'of' : 'de'} {stockNull ? '∞' : maxByStock}</span>
+              {qtd} <span className="loja-qtd-max">{en ? 'of' : 'de'} {stockNull ? '∞' : maxByStock}</span>
             </span>
           </div>
           <div className="loja-qtd-ctrl">
             <button type="button" className="btn-icon btn-sm" onClick={dec} disabled={qtd <= 1} aria-label="−">−</button>
             <div
-              className={'loja-qtd-bar' + (stockNull ? ' is-infinito' : '')}
+              className={'loja-qtd-bar fp-bar-track' + (stockNull ? ' is-infinito' : '')}
               role="slider"
               aria-label={en ? 'Quantity' : 'Quantidade'}
               aria-valuemin={1}
               aria-valuemax={stockNull ? undefined : maxByStock}
               aria-valuenow={qtd}
               tabIndex={stockNull ? -1 : 0}
+              style={{ '--bar-c': '#C9A44E' }}
               onClick={(e) => {
                 if (stockNull) return;
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -265,7 +253,7 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
                 if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); dec(); }
               }}>
               {!stockNull && (
-                <div className="loja-qtd-bar-fill" style={{ width: `${maxByStock > 1 ? ((qtd - 1) / (maxByStock - 1)) * 100 : 100}%` }} />
+                <div className="loja-qtd-bar-fill fp-bar-fill" aria-hidden="true" style={{ width: `${maxByStock > 1 ? ((qtd - 1) / (maxByStock - 1)) * 100 : 100}%` }} />
               )}
             </div>
             <button type="button" className="btn-icon btn-sm" onClick={inc} disabled={qtd >= maxByStock} aria-label="+">+</button>
@@ -305,25 +293,19 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
           <div className="loja-resumo">
             <div className="loja-resumo-row">
               <span>{en ? 'Unit price' : 'Preço unitário'}</span>
-              <strong className={gratis ? 'sobra' : 'total'}>
-                <MoedaPills latao={preco} lang={lang} mostrarGratis tamanho="sm" />
-              </strong>
+              {gratis
+                ? <strong className="gratis">{en ? 'Free' : 'Gratuito'}</strong>
+                : <strong className="total"><MoedaPills latao={preco} lang={lang} tamanho="sm" /></strong>}
             </div>
             <div className="loja-resumo-row">
               <span>{en ? `Total (${qtd})` : `Total (${qtd})`}</span>
-              <strong className={gratis ? 'sobra' : 'total'}>
-                <MoedaPills latao={custoTotal} lang={lang} mostrarGratis tamanho="sm" />
-              </strong>
+              {gratis
+                ? <strong className="gratis">{en ? 'Free' : 'Gratuito'}</strong>
+                : <strong className="total"><MoedaPills latao={custoTotal} lang={lang} tamanho="sm" /></strong>}
             </div>
             <div className="loja-resumo-row">
               <span>{en ? 'You have' : 'Você tem'}</span>
               <strong><MoedaPills latao={totalLatao} lang={lang} mostrarGratis tamanho="sm" /></strong>
-            </div>
-            <div className="loja-resumo-row fim">
-              <span>{sobraLatao >= 0 ? (en ? 'Left over' : 'Sobram') : (en ? 'Missing' : 'Faltam')}</span>
-              <strong className={sobraLatao >= 0 ? 'sobra' : 'falta'}>
-                <MoedaPills latao={Math.abs(sobraLatao)} lang={lang} mostrarGratis tamanho="sm" />
-              </strong>
             </div>
           </div>
 
@@ -332,6 +314,15 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
               {erro ? motivoCompraLabel(erro.motivo, erro.info, lang) : motivos.join(' · ')}
             </div>
           )}
+
+          <div className="det-act-row">
+            <button type="button" className="btn-ghost" onClick={onClose} disabled={!!comprando}>
+              {en ? 'Cancel' : 'Cancelar'}
+            </button>
+            <button type="button" className="btn-primary" onClick={() => onConfirm(qtd, exigeRecip ? recipienteId : null)} disabled={desabilitado}>
+              {comprando ? <i className="ti ti-loader" aria-hidden="true" /> : (en ? 'Buy' : 'Comprar')}
+            </button>
+          </div>
     </ModalShell>
   );
 }
@@ -339,6 +330,7 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
 // Lista o estoque_loja da história em que o PJ é protagonista (via RPC).
 // Compra valida moedas e capacidade no servidor (RPC comprar_item).
 function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
+  const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const en = lang === 'en';
   const [pjs, setPjs] = useState(null);
   const [selectedId, setSelectedId] = useState(pjIdFixo || null);
@@ -351,6 +343,14 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
   const [erroCompra, setErroCompra] = useState(null);
   const [feedback, setFeedback] = useState(null);  // mensagem de sucesso temporária
   const [error, setError] = useState(null);
+  const [tip, abrirTip, fecharTip, manterTip] = (window.usePortalTooltip || useTooltip)(80);
+  // Mesmo hook do inventário (07-inventario/inventario.jsx carrega ANTES da loja,
+  // garantido pela ordem de import no main.tsx, então window.useGridDimensions
+  // sempre existe). Callback ref + medição contra .mc-main = comportamento
+  // idêntico ao inventário, robusto ao mount async do grid (após get_loja_pj).
+  const [setGridEl, lojaGridDims] = window.useGridDimensions();
+  const lojaGridCols  = lojaGridDims.cols;
+  const lojaGridTotal = lojaGridDims.totalSlots;
 
   // Carregar APENAS o personagem-alvo (a ficha aberta) + catálogo.
   // O alvo é pjIdFixo (loja aberta a partir de uma ficha) ou, na ausência
@@ -572,106 +572,105 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
   return (
     <div className="loja">
 
-      <div className="inv-divider">
-        <span className="inv-divider-ln" />
-        <span className="inv-divider-lbl">
-          <i className="ti ti-building-store" aria-hidden="true" />
-        </span>
-        <span className="inv-divider-ln" />
-      </div>
-
       {/* ── Peso + Moedas: MESMO padrão do inventário (sem título da mesa) ── */}
       <CabecalhoInvLoja moedas={moedas} carga={carga} lang={lang} />
 
       {feedback && <div className="loja-feedback">{feedback}</div>}
 
-      {capacidadeTotal === 0 && estoqueLoja.length > 0 && !semHistoria && (
-        <div className="loja-warn-empty">
-          <span>{en
-            ? 'Buy an item to carry your things (backpack, pouch, etc.) before.'
-            : 'Adquira um item para carregar suas coisas (mochila, bolsa, etc.) primeiro.'}</span>
-        </div>
-      )}
-
       {loja === null ? (
         <div className="admin-loading"><span>{en ? 'Opening the shop…' : 'Abrindo a loja…'}</span></div>
       ) : (semHistoria || estoqueLoja.length === 0) ? (
-        <div className="loja-empty">
-          <p>{en
+        <div className="loja-warn-empty">
+          <span>{en
             ? 'The Game Master has not listed any items yet'
-            : 'O mestre ainda não disponibilizou itens à venda'}</p>
+            : 'O mestre ainda não disponibilizou itens à venda'}</span>
         </div>
       ) : (
         <>
-          {/* ── Busca + chips de categoria ── */}
-          <div className="loja-toolbar">
-            <div className="loja-busca">
-              <i className="ti ti-search" aria-hidden="true" />
-              <input
-                type="text"
+          {/* ── Busca + chips de categoria — mesmo padrão best-toolbar do bestiário ── */}
+          <div className="best-toolbar">
+            <div className="best-search">
+              <Input
+                type="search"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder={en ? 'Search item…' : 'Buscar item…'}
+                placeholder={en ? 'Search' : 'Buscar…'}
               />
-              {busca && (
-                <button type="button" className="loja-busca-x" onClick={() => setBusca('')} aria-label={en ? 'Clear' : 'Limpar'}>
-                  <i className="ti ti-x" aria-hidden="true" />
-                </button>
-              )}
             </div>
-            <button
-              type="button"
-              className={'loja-chip' + (grupoSel === null ? ' on' : '')}
-              onClick={() => setGrupoSel(null)}>
-              {en ? 'All' : 'Todos'} · {entradas.length}
-            </button>
-            {grupos.map(([g, n]) => (
+            <div className="best-chips">
               <button
-                key={g}
                 type="button"
-                className={'loja-chip' + (grupoSel === g ? ' on' : '')}
-                onClick={() => setGrupoSel(grupoSel === g ? null : g)}>
-                {g} · {n}
+                className={'best-chip best-chip--icon' + (grupoSel === null ? ' is-active' : '')}
+                onClick={() => setGrupoSel(null)}
+                onMouseEnter={(e) => abrirTip(e, { desc: en ? 'All' : 'Todos' })}
+                onMouseLeave={fecharTip}
+                aria-label={en ? 'All' : 'Todos'}>
+                <i className="ti ti-layout-grid" aria-hidden="true" />
               </button>
-            ))}
+              {grupos.map(([g, n]) => (
+                <button
+                  key={g}
+                  type="button"
+                  className={'best-chip best-chip--icon' + (grupoSel === g ? ' is-active' : '')}
+                  onClick={() => setGrupoSel(grupoSel === g ? null : g)}
+                  onMouseEnter={(e) => abrirTip(e, { desc: g })}
+                  onMouseLeave={fecharTip}
+                  aria-label={g}>
+                  <i className={'ti ' + invItemIcon({ grupo: g })} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <div className="best-count">{visiveis.length} de {entradas.length}</div>
           </div>
 
-          {/* ── Vitrine ── */}
-          {visiveis.length === 0 ? (
-            <div className="loja-empty">
-              <p>{en ? 'No items match your search' : 'Nenhum item corresponde à busca'}</p>
-            </div>
-          ) : (
-            <div className="loja-grid">
-              {visiveis.map((entry) => {
-                const cat = catalogoBySlug[entry.slug];
-                const preco = entry.preco_latao_override != null ? Number(entry.preco_latao_override) : Number(cat.valor_latao || 0);
-                const stockNull = entry.estoque == null;
-                const stockNum = stockNull ? Infinity : Number(entry.estoque);
-                const esgotado = !stockNull && stockNum <= 0;
-                const semMoeda = !esgotado && totalLatao < preco;
-
-                return (
-                  <button
-                    key={entry.entryId}
-                    type="button"
-                    className={'loja-it' + (esgotado ? ' is-esgotado' : '') + (semMoeda ? ' sem-moeda' : '') + (cat?.magico ? ' loja-it--magico' : '')}
-                    disabled={esgotado}
-                    title={esgotado
-                      ? (en ? 'Out of stock' : 'Esgotado')
-                      : (en ? `Buy ${cat.nome}` : `Comprar ${cat.nome}`)}
-                    onClick={() => { setErroCompra(null); setCompraAberta(entry.entryId); }}>
-                    <span className="loja-it-head">
-                      <span className="loja-it-tile"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
-                      <span className="loja-it-nome">{cat.nome}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {/* ── Vitrine — grid com ref sempre montado (mesmo padrão do inventário) ── */}
+          {(() => {
+            const filled = visiveis.length;
+            const total  = Math.max(lojaGridTotal, Math.ceil(Math.max(filled, 1) / lojaGridCols) * lojaGridCols);
+            const ghosts = total - filled;
+            return (
+              <div
+                ref={setGridEl}
+                className="loja-grid loja-grid--slots rpg-grid--slots"
+                style={{ gridTemplateColumns: `repeat(${lojaGridCols}, 50px)` }}>
+                {visiveis.map((entry) => {
+                  const cat = catalogoBySlug[entry.slug];
+                  const preco = entry.preco_latao_override != null ? Number(entry.preco_latao_override) : Number(cat.valor_latao || 0);
+                  const stockNull = entry.estoque == null;
+                  const stockNum = stockNull ? Infinity : Number(entry.estoque);
+                  const esgotado = !stockNull && stockNum <= 0;
+                  const semMoeda = !esgotado && totalLatao < preco;
+                  const tipLoja = {
+                    title: cat.nome,
+                    hint: esgotado ? (en ? 'Out of stock' : 'Esgotado') : semMoeda ? (en ? 'Not enough coin' : 'Moedas insuficientes') : null,
+                  };
+                  return (
+                    <button
+                      key={entry.entryId}
+                      type="button"
+                      className={'loja-it' + (esgotado ? ' is-esgotado' : '') + (semMoeda ? ' sem-moeda' : '') + (cat?.magico ? ' loja-it--magico' : '')}
+                      disabled={esgotado}
+                      onMouseEnter={(e) => abrirTip(e, tipLoja)}
+                      onMouseLeave={fecharTip}
+                      onClick={() => { fecharTip(); setErroCompra(null); setCompraAberta(entry.entryId); }}>
+                      <span className="loja-it-head">
+                        <span className="loja-it-tile"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
+                      </span>
+                    </button>
+                  );
+                })}
+                {Array.from({ length: ghosts }).map((_, i) => (
+                  <span key={'ghost-' + i} className="inv-slot-ghost" aria-hidden="true" />
+                ))}
+              </div>
+            );
+          })()}
         </>
       )}
+
+      {window.PortalTooltip
+        ? <window.PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+        : <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />}
 
       {compraAberta && (() => {
         const entry = estoqueLoja.find((e) => e.entryId === compraAberta);

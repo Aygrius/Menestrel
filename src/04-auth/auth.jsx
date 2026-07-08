@@ -285,7 +285,7 @@ function SignupModal({ t, lang = 'pt', onClose, authCopy }) {
         {/* ══ TELA: aguardando redirect OAuth ══════════════════════════════ */}
         {step === 'redirecting' && (
           <div style={{ position: 'relative', textAlign: 'center', padding: '30px 0 18px' }}>
-            <div aria-hidden="true" style={{ width: 46, height: 46, margin: '0 auto', borderRadius: '50%', border: '3px solid rgba(255,255,255,0.12)', borderTopColor: AUTH_GOLD, animation: 'spin 0.9s linear infinite' }} />
+            <div aria-hidden="true" style={{ width: 46, height: 46, margin: '0 auto', borderRadius: 6, border: '3px solid rgba(255,255,255,0.12)', borderTopColor: AUTH_GOLD, animation: 'spin 0.9s linear infinite' }} />
             <h3 style={{ fontFamily: AUTH_FD, fontSize: 22, fontWeight: 400, color: AUTH_INK, margin: '20px 0 0' }}>Redirecionando…</h3>
             <p style={{ fontFamily: AUTH_FB, fontSize: 15, color: AUTH_MUTED, margin: '8px 0 0' }}>Aguarde um momento.</p>
           </div>
@@ -294,7 +294,7 @@ function SignupModal({ t, lang = 'pt', onClose, authCopy }) {
         {/* ══ TELA: e-mail de reset enviado ════════════════════════════════ */}
         {step === 'forgotSent' && (
           <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 8px' }}>
-            <div style={{ width: 52, height: 52, margin: '0 auto', borderRadius: '50%', border: `1px solid rgba(83, 66, 27, 0.35)`, background: 'rgba(201,164,78,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: AUTH_GOLD }}>
+            <div style={{ width: 52, height: 52, margin: '0 auto', borderRadius: 6, border: `1px solid rgba(83, 66, 27, 0.35)`, background: 'rgba(201,164,78,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: AUTH_GOLD }}>
               <MailIcon style={{ width: 24, height: 24 }} />
             </div>
             <h3 style={{ fontFamily: AUTH_FD, fontSize: 22, fontWeight: 700, color: AUTH_INK, margin: '18px 0 0' }}>E-mail enviado!</h3>
@@ -314,7 +314,7 @@ function SignupModal({ t, lang = 'pt', onClose, authCopy }) {
         {/* ══ TELA: cadastro enviado (confirm email ativo no Supabase) ════ */}
         {step === 'signupSent' && (
           <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 8px' }}>
-            <div style={{ width: 52, height: 52, margin: '0 auto', borderRadius: '50%', border: `1px solid rgba(83, 66, 27, 0.35)`, background: 'rgba(201,164,78,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: AUTH_GOLD }}>
+            <div style={{ width: 52, height: 52, margin: '0 auto', borderRadius: 6, border: `1px solid rgba(83, 66, 27, 0.35)`, background: 'rgba(201,164,78,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: AUTH_GOLD }}>
               <MailIcon style={{ width: 24, height: 24 }} />
             </div>
             <h3 style={{ fontFamily: AUTH_FD, fontSize: 22, fontWeight: 400, color: AUTH_INK, margin: '18px 0 0' }}>Confirme seu e-mail</h3>
@@ -481,7 +481,7 @@ function SignupModal({ t, lang = 'pt', onClose, authCopy }) {
               style={{ width: '100%', fontSize: 16, marginBottom: 18 }}
             >
               {loading && (
-                <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(0,0,0,0.2)', borderTopColor: '#15120C', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                <span style={{ width: 16, height: 16, borderRadius: 6, border: '2px solid rgba(0,0,0,0.2)', borderTopColor: '#15120C', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
               )}
               {mc.btn}
             </button>

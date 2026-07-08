@@ -25,18 +25,18 @@ const S = {
 };
 
 const Glow = ({ style }) => (
-  <div aria-hidden="true" style={{ position: 'absolute', pointerEvents: 'none', borderRadius: '50%', filter: 'blur(60px)', ...style }} />
+  <div aria-hidden="true" style={{ position: 'absolute', pointerEvents: 'none', borderRadius: 6, filter: 'blur(60px)', ...style }} />
 );
 
 const Card = ({ children, style, filete = true }) => (
-  <div style={{ position: 'relative', overflow: 'hidden', background: 'rgba(34,29,21,0.55)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, padding: 26, boxShadow: '0 24px 60px -30px rgba(0,0,0,.7)', ...style }}>
+  <div style={{ position: 'relative', overflow: 'hidden', background: 'rgba(34,29,21,0.55)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: 26, boxShadow: '0 24px 60px -30px rgba(0,0,0,.7)', ...style }}>
     {filete && <div aria-hidden="true" style={{ position: 'absolute', inset: '0 0 auto 0', height: 2, background: C.grad }} />}
     {children}
   </div>
 );
 
 const CheckDot = ({ size = 20, bg = C.gold, color = C.goldText, style }) => (
-  <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', width: size, height: size, borderRadius: '50%', background: bg, color, ...style }}>
+  <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', width: size, height: size, borderRadius: 6, background: bg, color, ...style }}>
     <Icon.Check style={{ width: Math.round(size * 0.58), height: Math.round(size * 0.58) }} />
   </span>
 );
@@ -149,7 +149,7 @@ function Solution({ t }) {
       <div style={S.page(1240)}>
         <div style={{ textAlign: 'center', maxWidth: 820, margin: '0 auto' }}>
           <span style={pill({ padding: '9px 18px', fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.04em' })}>
-            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: C.grad, flex: '0 0 auto' }} />
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 6, background: C.grad, flex: '0 0 auto' }} />
             {t.solution.eyebrow}
           </span>
           <h2 style={{ ...S.h2, color: INK, marginTop: 22 }}>{t.solution.h}</h2>
@@ -163,7 +163,7 @@ function Solution({ t }) {
               return (
                 <div key={i} style={{ marginTop: `min(${off * 36}px, ${off * 3}vw)` }}>
                   <span style={pill({ padding: '11px 19px', fontSize: 18 })}>
-                    <span aria-hidden="true" style={{ width: 13, height: 13, borderRadius: '50%', flex: '0 0 auto', border: '3px solid transparent', background: `linear-gradient(#fff,#fff) padding-box, ${C.grad} border-box` }} />
+                    <span aria-hidden="true" style={{ width: 13, height: 13, borderRadius: 6, flex: '0 0 auto', border: '3px solid transparent', background: `linear-gradient(#fff,#fff) padding-box, ${C.grad} border-box` }} />
                     {col.label}
                   </span>
                   <div style={{ position: 'relative', margin: '20px 0 0 18px', paddingLeft: 26 }}>
@@ -218,7 +218,7 @@ function Benefits({ t, onSignup }) {
                 {featured && <div aria-hidden="true" style={{ position: 'absolute', left: '-15%', right: '-15%', top: '-35%', height: '65%', background: 'radial-gradient(closest-side, rgba(201,164,78,0.20), rgba(106,85,48,0.18) 55%, transparent)', filter: 'blur(28px)', pointerEvents: 'none' }} />}
                 <div style={{ position: 'relative' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, borderRadius: 999, padding: '8px 15px', background: featured ? 'rgba(24,18,8,0.55)' : 'rgba(44,36,23,0.7)', border: '1px solid rgba(255,255,255,0.10)', fontFamily: FB, fontSize: 14.5, fontWeight: 600, color: 'var(--foreground)' }}>
-                    <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: '50%', flex: '0 0 auto', background: featured ? C.gold : '#A07A3A', boxShadow: featured ? '0 0 9px rgba(201,164,78,0.9)' : '0 0 9px rgba(106,85,48,0.9)' }} />
+                    <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: 6, flex: '0 0 auto', background: featured ? C.gold : '#A07A3A', boxShadow: featured ? '0 0 9px rgba(201,164,78,0.9)' : '0 0 9px rgba(106,85,48,0.9)' }} />
                     {st.badge}
                   </span>
                 </div>
@@ -331,7 +331,7 @@ function Scarcity({ t, onSignup, lang }) {
         <span style={S.eyebrow}>{t.scarcity.eyebrow}</span>
         <h2 style={{ ...S.h2, marginTop: 14, fontSize: 'clamp(32px,4.6vw,52px)' }}>{t.scarcity.h}</h2>
         <p style={{ ...S.lead, maxWidth: 580, margin: '18px auto 0', fontSize: 18 }}>{t.scarcity.p}</p>
-        <div style={{ height: 10, maxWidth: 520, margin: '32px auto 0', borderRadius: 999, overflow: 'hidden', background: '#2C2417' }}>
+        <div style={{ height: 10, maxWidth: 520, margin: '32px auto 0', borderRadius: 6, overflow: 'hidden', background: '#2C2417' }}>
           <div style={{ width: pct + '%', height: '100%', background: C.grad }} />
         </div>
         <div style={{ fontSize: 18, color: 'var(--muted-foreground)', marginTop: 12, fontFamily: FB }}>
@@ -381,7 +381,7 @@ function FAQ({ t }) {
           {t.faq.list.map((f, i) => {
             const isOpen = open === i;
             return (
-              <div key={i} style={{ borderRadius: 14, overflow: 'hidden', background: 'rgba(34,29,21,0.55)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: `1px solid ${isOpen ? C.gold : 'rgba(255,255,255,0.08)'}` }}>
+              <div key={i} style={{ borderRadius: 6, overflow: 'hidden', background: 'rgba(34,29,21,0.55)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', border: `1px solid ${isOpen ? C.gold : 'rgba(255,255,255,0.08)'}` }}>
                 <button onClick={() => setOpen(isOpen ? -1 : i)} style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: 16, background: 'transparent', border: 'none', padding: '18px 20px', textAlign: 'left', fontFamily: FD, fontSize: 22, fontWeight: 600, color: 'var(--foreground)', cursor: 'pointer' }}>
                   <span>{f.q}</span>
                   <span style={{ fontSize: 22, color: 'var(--gold)', transform: isOpen ? 'rotate(45deg)' : 'none', transition: 'transform .2s' }}>+</span>
@@ -424,7 +424,7 @@ function Foot({ t }) {
       <div style={{ ...S.page(), display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 32 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 12, border: '1px solid #4A3C26', background: '#2C2417', color: 'var(--gold)' }}><Icon.Skull style={{ width: 22, height: 22 }} /></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 6, border: '1px solid #4A3C26', background: '#2C2417', color: 'var(--gold)' }}><Icon.Skull style={{ width: 22, height: 22 }} /></div>
             <div>
               <div style={{ fontFamily: FD, fontSize: 22, fontWeight: 700, color: 'var(--foreground)' }}>Menestrel</div>
               <div style={{ fontSize: 18, color: 'var(--muted-foreground)', fontFamily: FB }}>RPG · {t.footer.tag}</div>

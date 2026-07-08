@@ -46,6 +46,65 @@
    [06] INVENTÁRIO
    ============================================================ */
 
+// ── PortalTooltip — tooltip standalone com createPortal ──────────────────────
+// Usado pelo EquipadoBoard e CabecalhoInvLoja como alternativa segura ao
+// Tooltip/useTooltip global (que pode não estar disponível ou ser bloqueado
+// por overflow:hidden/transform de ancestrais). Renderiza dentro do
+// .menestrel-ui ativo (fallback document.body), garantindo que o
+// seletor CSS #root .menestrel-ui .mn-tip case e position:fixed aplique.
+// Mesmo visual do padrão .mn-tip do projeto (Pedra & Bronze).
+function usePortalTooltip(delay) {
+  const [tip, setTip] = React.useState(null);
+  const timerRef = React.useRef(null);
+  const abrirTip = React.useCallback((e, content) => {
+    clearTimeout(timerRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    timerRef.current = setTimeout(() => setTip({ rect, content }), delay || 0);
+  }, [delay]);
+  const fecharTip = React.useCallback(() => { clearTimeout(timerRef.current); setTip(null); }, []);
+  const manterTip = React.useCallback(() => { clearTimeout(timerRef.current); }, []);
+  return [tip, abrirTip, fecharTip, manterTip];
+}
+function PortalTooltip({ tip, onEnter, onLeave }) {
+  if (!tip) return null;
+  const { rect, content } = tip;
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top;
+  const rich = content && typeof content === 'object' && !React.isValidElement(content);
+  // Precisa montar DENTRO de um ancestral .menestrel-ui real — o CSS
+  // (#root .menestrel-ui .mn-tip) exige .mn-tip como DESCENDENTE de
+  // .menestrel-ui, não no mesmo elemento. Sem isso, position:fixed nunca
+  // era aplicado: o tooltip ficava no fluxo normal no fim do <body>,
+  // aumentando scrollHeight e criando scroll fantasma no hover.
+  const portalTarget = document.querySelector('.menestrel-ui') || document.body;
+  return ReactDOM.createPortal(
+    <div
+      className="mn-tip"
+      style={{ left: cx, top: cy, zIndex: 9999 }}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
+      {rich ? (
+        <>
+          {content.title && <div className="mn-tip-title">{content.title}</div>}
+          {content.desc  && <p className={'mn-tip-desc' + (content.clamp ? ' mn-tip-desc--clamp' : '')}>{content.desc}</p>}
+          {content.stats?.length > 0 && (
+            <div className="mn-tip-stats">
+              {content.stats.map((s, i) => (
+                <span key={i} className="mn-tip-stat">{s.label}<b>{s.value}</b></span>
+              ))}
+            </div>
+          )}
+          {content.hint && <div className="mn-tip-hint">{content.hint}</div>}
+        </>
+      ) : (
+        <div className="mn-tip-title">{content}</div>
+      )}
+    </div>,
+    portalTarget
+  );
+}
+
 // fmtNum — formato amigável de número:
 // inteiros sem decimal ("3" e não "3.0"), fracionários com 1 casa ("1.5").
 // Usado em ocupa/armazena/usado/capacidade tanto em barras como em tabelas.
@@ -55,19 +114,29 @@ function fmtNum(n) {
   return Number.isInteger(x) ? String(x) : x.toFixed(1);
 }
 
+// Grupos cujos itens SOLTOS (sem container) acumulam num card único, somando a
+// quantidade e exibindo "×N" no card. Os demais grupos soltos continuam virando
+// uma instância por unidade. Chaves já normalizadas (minúsculas, sem acento) —
+// comparar sempre via normalizar(cat.grupo). Ajustar esta lista é o único ponto
+// pra incluir/excluir um grupo do empilhamento solto.
+const GRUPOS_ACUMULAVEIS = new Set(['consumiveis', 'minerais', 'itens', 'moedas', 'servicos']);
+
 // normalizarPilhas — política de pilhas do inventário:
-//   • Itens SOLTOS (sem containerId) NUNCA empilham: cada unidade vira uma
-//     instância separada (quantidade 1). Uma pilha quantidade>1 que esteja solta
-//     é "explodida" em N instâncias individuais (cada uma com instanceId próprio).
-//     Isso inclui RECIPIENTES vazios (Algibeira ×2 → duas Algibeiras). Um
-//     recipiente COM conteúdo nunca é dividido (quebraria as referências dos
-//     filhos); na prática um recipiente cheio já tem quantidade 1.
+//   • Itens SOLTOS (sem containerId):
+//       – grupos em GRUPOS_ACUMULAVEIS (Consumíveis/Minerais/Moedas/Serviços)
+//         FUNDEM por slug num card único (Poção ×5). Várias instâncias
+//         quantidade 1 do mesmo slug colapsam numa só, com a soma.
+//       – os demais grupos (equipáveis, instrumentos, transportes, recipientes…)
+//         NÃO empilham: cada unidade vira uma instância separada (quantidade 1),
+//         e uma pilha quantidade>1 é "explodida". Recipientes vazios também
+//         (Algibeira ×2 → duas Algibeiras); um recipiente COM conteúdo nunca é
+//         dividido (quebraria as referências dos filhos).
 //   • Itens DENTRO de armazenamento (containerId != null) continuam empilhando:
 //     itens de QUALQUER grupo com o mesmo slug no mesmo container viram uma pilha
 //     só, somando a quantidade (ex.: Água ×2 + Água ×5 → Água ×7).
-// Equipados/vestidos e equipáveis ficam sempre intactos (já são instâncias
-// únicas) e nunca empilham. Devolve o MESMO array quando nada muda (guarda
-// contra re-render/loop no efeito que dispara o autosave).
+// Equipados/vestidos ficam sempre intactos (instância única) e nunca empilham.
+// Devolve o MESMO array quando nada muda (guarda contra re-render/loop no efeito
+// que dispara o autosave).
 function normalizarPilhas(itens, catalogoBySlug) {
   if (!Array.isArray(itens)) return itens;
   // instanceIds que são "pais" de algum item (recipientes com conteúdo).
@@ -75,7 +144,8 @@ function normalizarPilhas(itens, catalogoBySlug) {
   for (const it of itens) if (it.containerId) comFilhos.add(it.containerId);
 
   const saida = [];
-  const idxPorChave = new Map();
+  const idxPorChave = new Map(); // pilhas dentro de container: slug|containerId
+  const idxLoose = new Map();    // pilhas soltas acumuláveis: por slug
   let mudou = false;
   for (const it of itens) {
     const cat = catalogoBySlug?.[it.slug];
@@ -100,12 +170,47 @@ function normalizarPilhas(itens, catalogoBySlug) {
       continue;
     }
 
-    // Solto → cada unidade separada: NADA empilha fora de container ("fora do
-    // armazenamento fica separado"). Equipáveis/vestíveis soltos em pilha (ex.:
-    // comprados em quantidade) são explodidos em instâncias únicas. Equipados/
-    // vestidos (já quantidade 1) ficam intactos.
+    // ── Item SOLTO (containerId null) — política depende do grupo ──
+    // Equipados/vestidos: instância única sempre, nunca empilham.
+    // Se a quantidade for > 1 (ex.: RPC comprar_item incrementou a pilha
+    // existente sem saber que estava equipada), mantém 1 unidade equipada
+    // e explode o excedente em instâncias soltas novas.
+    if (it.equipado || it.vestido) {
+      const qtdEq = it.quantidade || 1;
+      saida.push(qtdEq <= 1 ? it : { ...it, quantidade: 1 });
+      for (let k = 1; k < qtdEq; k++) {
+        saida.push({ ...it, instanceId: novoInstanceId() + '-eq' + k, quantidade: 1, equipado: false, vestido: false, slot: null, vesteSlot: null });
+        mudou = true;
+      }
+      continue;
+    }
+
+    const grupo = normalizar(cat?.grupo);
+
+    // Grupos acumuláveis (Consumíveis/Minerais/Moedas/Serviços) soltos FUNDEM
+    // por slug num card único, somando quantidade — mesmo vindo como várias
+    // instâncias quantidade 1 (colapsam numa só). Containers ficam de fora,
+    // mesmo que caíssem num desses grupos: renomear o instanceId orfanaria os
+    // filhos. Na 1ª carga após a regra, as instâncias antigas separadas se
+    // fundem e o autosave persiste o formato novo.
+    if (!container && GRUPOS_ACUMULAVEIS.has(grupo)) {
+      const chave = 'solto|' + it.slug;
+      if (idxLoose.has(chave)) {
+        const alvo = saida[idxLoose.get(chave)];
+        alvo.quantidade += (it.quantidade || 1);
+        if (!alvo.observacao && it.observacao) alvo.observacao = it.observacao;
+        mudou = true;
+      } else {
+        idxLoose.set(chave, saida.length);
+        saida.push({ ...it, quantidade: it.quantidade || 1 });
+      }
+      continue;
+    }
+
+    // Demais soltos (equipáveis, instrumentos, transportes, recipientes…): cada
+    // unidade é uma instância separada. Uma pilha quantidade>1 é explodida.
     const qtd = it.quantidade || 1;
-    if (it.equipado || it.vestido || qtd <= 1) { saida.push(it); continue; }
+    if (qtd <= 1) { saida.push(it); continue; }
 
     // Recipiente empilhado COM conteúdo dentro (ex.: comprou 2 cantis → pilha
     // quantidade:2 com 1 instanceId, e depois pôs água "no cantil" → a água
@@ -169,6 +274,7 @@ const VESTE_SLOTS = {
   peito:   { max: 1,  gastaSlot: true  }, // Peito
   maos:    { max: 2,  gastaSlot: true  }, // Mãos
   capa:    { max: 1,  gastaSlot: true  }, // Capa
+  roupa:   { max: 2,  gastaSlot: true  }, // Roupa (corpo, 2 compartimentos)
   cintura: { max: 1,  gastaSlot: true  }, // Cintura
   orelha:  { max: 1,  gastaSlot: true  }, // Brinco (orelha)
   brinco:  { max: 1,  gastaSlot: true  }, // alias de orelha (categoria_equip do banco)
@@ -193,6 +299,7 @@ function inferirSlotEquip(cat) {
   if (ce === 'colar' || ce === 'pescoco' || ce === 'pescoço') return 'colar';
   if (ce === 'joia' || ce === 'jóia' || ce === 'anel') return 'joia';
   if (ce === 'cintura' || ce === 'cinto' || ce === 'capa') return ce;
+  if (ce === 'roupa' || ce === 'veste' || ce === 'gandola' || ce === 'manto' || ce === 'tabardo' || ce === 'tunica' || ce === 'túnica') return 'roupa';
   // fallback por grupo e nome
   const g = (cat.grupo || '').toLowerCase();
   const n = (cat.nome || '').toLowerCase();
@@ -200,6 +307,7 @@ function inferirSlotEquip(cat) {
   if (g.includes('colar') || n.includes('colar') || g.includes('pescoc') || n.includes('pescoc') || g.includes('amuleto') || n.includes('amuleto')) return 'colar';
   if (g.includes('joia') || g.includes('jóia') || g.includes('anel') || n.includes('anel')) return 'joia';
   if (g.includes('cinto') || n.includes('cinto') || g.includes('cintura') || n.includes('cintura')) return 'cintura';
+  if (g.includes('manto') || g.includes('tabard') || g.includes('tunic') || n.includes('manto') || n.includes('gandola')) return 'roupa';
   return null;
 }
 // Detecção tolerante (igual ao invItemIcon): qualquer grupo cujo nome contenha
@@ -252,10 +360,20 @@ const ICONE_POR_GRUPO = {
 function invItemIcon(cat) {
   if (!cat) return 'ti-box';
 
+  // Containers mantêm glifo por tipo S/L (estado funcional, não estético) —
+  // tem prioridade até sobre o icone do banco.
   if (ehContainer(cat)) {
     return cat.tipo === 'L' ? 'ti-bottle' : 'ti-moneybag';
   }
 
+  // Ícone vindo do catálogo (coluna public.itens.icone, formato ti-*).
+  // É a fonte de verdade quando preenchido; o banco já valida o formato
+  // via constraint, mas guardamos contra valores legados malformados.
+  if (cat.icone && /^ti-[a-z0-9-]+$/.test(cat.icone)) {
+    return cat.icone;
+  }
+
+  // Fallback: ícone genérico do grupo, e por fim ti-box.
   const grupo = normalizar(cat.grupo);
 
   return ICONE_POR_GRUPO[grupo] || 'ti-box';
@@ -265,19 +383,20 @@ function invItemIcon(cat) {
    Medidor ÚNICO de "peso": o quanto o personagem está carregando, em % da
    capacidade. É independente do controle de armazenamento por container (esse
    continua intacto, via capacidadeContainer). Regras de peso:
-     • Capacidade base = 20 unidades, +10% por ponto de (forca_base + fisico_base)
+     • Capacidade base = 10 unidades, +10% por ponto de (forca_base + fisico_base)
        somados. Itens de armazenamento AUMENTAM a capacidade pelo tamanho de
        armazenamento de cada um (o `armazena` do container).
-     • Equipado (arma / escudo / armadura): pesa 50% do `ocupa`.
+     • Equipado (arma / escudo / armadura) OU vestido (vestimenta / joia):
+       pesa 50% do `ocupa` (PESO_FATOR_EQUIPADO).
      • Solto no inventário (sem containerId): pesa 100% do `ocupa`.
-     • Dentro de armazenamento (containerId != null): pesa 50% do `ocupa`.
+     • Dentro de armazenamento (containerId != null): pesa 75% do `ocupa`
+       (PESO_FATOR_EM_CONTAINER).
      • O próprio container pesa pelo `ocupa` conforme seu estado (equipado 50% /
-       solto 100% / vestido 0) e, em paralelo, soma capacidade.
-     • Vestimentas não pesam (sistema paralelo). */
+       solto 100%) e, em paralelo, soma capacidade. */
 const PESO_CAP_BASE = 10;            // capacidade base (antes de atributos/armazenamento)
 const PESO_GANHO_POR_PONTO = 0.10;   // +10% de capacidade por ponto de força+físico
-const PESO_FATOR_EQUIPADO = 0.75;     // equipado (arma/escudo/armadura) pesa 50% do ocupa
-const PESO_FATOR_EM_CONTAINER = 0.75; // dentro de armazenamento pesa 50% do ocupa
+const PESO_FATOR_EQUIPADO = 0.5;      // equipado (arma/escudo/armadura) OU vestido (vestimenta/joia) pesa 50% do ocupa
+const PESO_FATOR_EM_CONTAINER = 0.75; // dentro de armazenamento pesa 75% do ocupa
 
 // calcCarga — peso atual e capacidade do PJ → { peso, capacidade, pct, over }.
 function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
@@ -304,10 +423,10 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
       continue;
     }
 
-    if (it.vestido) continue;                                   // vestimenta não pesa
-
-    if (it.containerId) {
-      peso += ocupaUnit * qtd * PESO_FATOR_EM_CONTAINER;        // dentro de armazenamento → 50%
+    if (it.vestido) {
+      peso += ocupaUnit * qtd * PESO_FATOR_EQUIPADO;            // vestido → 50% (mesmo fator do equipado)
+    } else if (it.containerId) {
+      peso += ocupaUnit * qtd * PESO_FATOR_EM_CONTAINER;        // dentro de armazenamento → 75%
     } else if (it.equipado) {
       peso += ocupaUnit * qtd * PESO_FATOR_EQUIPADO;            // equipado → 50%
     } else {
@@ -340,33 +459,48 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // Nome da mesa (história) do PJ selecionado — mesma info exibida na Loja.
   // Fonte: RPC get_loja_pj (já retorna historia_titulo). Só leitura; estoque é ignorado aqui.
   const [mesaTitulo, setMesaTitulo] = useState(null);
+  // historia_id real do PJ selecionado — NÃO vem de get_loja_pj (schema não
+  // confirmado pra esse campo); resolvido pela mesma query reversa que
+  // src/11-ficha/ficha.jsx já usa (protagonista_ids @> [pjId]). Usado só
+  // pra notificar a Central de Mensagens da Mesa (registrar_evento_mesa).
+  const [historiaId, setHistoriaId] = useState(null);
+  // True quando auth.uid() === currentUserId, ou seja, o usuário logado
+  // é o dono dos PJs listados. False quando um Mestre está vendo o inventário
+  // de outro jogador — nesse caso a RPC usar_pergaminho_magia falha (auth.uid()
+  // ≠ user_id do PJ), então o botão "Aprender" deve ficar oculto.
+  const [authUserIsOwner, setAuthUserIsOwner] = useState(false);
 
   // Carregar PJs + catálogo
   useEffect(() => {
     if (!currentUserId) return;
     (async () => {
-      const [pjRes, itRes] = await Promise.all([
+      const [pjRes, itRes, authRes] = await Promise.all([
         supabaseClient.from('personagens').select('id,nome,sobrenome,raca,profissao,forca_base,fisico_base,inventario,estado_atual').eq('user_id', currentUserId).order('created_at', { ascending: true }),
         fetchCatalogoCompleto(),
+        supabaseClient.auth.getUser(),
       ]);
       if (pjRes.error) { setError(pjRes.error.message); setPjs([]); return; }
       if (itRes.error) { setError(itRes.error.message); setCatalogo([]); return; }
       setPjs(pjRes.data || []);
       setCatalogo(itRes.data || []);
       if (pjRes.data?.length > 0) setSelectedId(pjIdFixo || pjRes.data[0].id);
+      // Ownership: só o auth user real pode aprender magias — Mestre vendo PJ alheio não pode
+      setAuthUserIsOwner(!!(authRes.data?.user?.id && authRes.data.user.id === currentUserId));
     })();
   }, [currentUserId]);
 
   // Carregar PJs da mesma história (via RPC SECURITY DEFINER) + nome da mesa
   useEffect(() => {
-    if (!selectedId) { setPjsHistoria([]); setMesaTitulo(null); return; }
+    if (!selectedId) { setPjsHistoria([]); setMesaTitulo(null); setHistoriaId(null); return; }
     (async () => {
-      const [pjsRes, lojaRes] = await Promise.all([
+      const [pjsRes, lojaRes, histRes] = await Promise.all([
         supabaseClient.rpc('get_pjs_historia', { p_pj_id: selectedId }),
         supabaseClient.rpc('get_loja_pj', { p_pj_id: selectedId }),
+        supabaseClient.from('historias').select('id').contains('protagonista_ids', [selectedId]).maybeSingle(),
       ]);
       setPjsHistoria(pjsRes.data || []);
       setMesaTitulo(lojaRes.data?.ok ? (lojaRes.data.historia_titulo || null) : null);
+      setHistoriaId(!histRes.error && histRes.data ? histRes.data.id : null);
     })();
   }, [selectedId]);
 
@@ -637,6 +771,28 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }
   };
 
+  // ── Notificação na Central de Mensagens da Mesa ────────────────────
+  // Mesmo padrão de src/11-ficha/ficha.jsx (registrarEventoMesa): dispara
+  // a RPC registrar_evento_mesa (SECURITY DEFINER) — grava em mesa_log,
+  // Realtime distribui pra Mestre + outros Jogadores da história. Não
+  // bloqueia a UI: falha de rede aqui não deve travar o consumo do item,
+  // que já foi aplicado localmente (otimista) antes desta chamada.
+  const registrarEventoMesa = (tipo, texto, meta) => {
+    if (!historiaId) return; // PJ fora de uma história — nada pra notificar
+    supabaseClient
+      .rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId,
+        p_tipo: tipo,
+        p_texto: texto,
+        p_meta: meta || {},
+      })
+      .then(({ data, error }) => {
+        if (error || (data && data.ok === false)) {
+          console.error('registrar_evento_mesa falhou:', error || data);
+        }
+      });
+  };
+
   const usarItem = (instanceId, quantidade = 1) => {
     const it = inv?.itens.find((x) => x.instanceId === instanceId);
     const cat = it ? catalogoBySlug[it.slug] : null;
@@ -650,6 +806,17 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }));
     if (cat && (cat.efeito_positivo || cat.efeito_negativo)) {
       setEstadoAtual((cur) => aplicarEfeitosItem(cur, cat, quantidade, maximos));
+    }
+    // Notifica a mesa — só "Usar" gera notificação (Transferir/Armazenar/
+    // Descartar, não). Texto combinado: "Victor usou Água". Sem menção a
+    // quantidade/efeito por ora — só o nome do PJ e do item, como pedido.
+    if (cat) {
+      const pjAtual = (pjs || []).find((p) => p.id === selectedId);
+      const nomePj = pjAtual ? [pjAtual.nome, pjAtual.sobrenome].filter(Boolean).join(' ') : null;
+      if (nomePj) {
+        const texto = lang === 'en' ? `${nomePj} used ${cat.nome}` : `${nomePj} usou ${cat.nome}.`;
+        registrarEventoMesa('item', texto, { item: cat.nome, quantidade, instanceId });
+      }
     }
   };
 
@@ -855,15 +1022,6 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       </div>
     );
   }
-  if (pjs.length === 0) {
-    return (
-      <>
-        <div className="admin-empty-sub">
-          {lang === 'en' ? 'Create a character to manage your inventory' : 'Crie um personagem para gerenciar seu inventário'}
-        </div>
-      </>
-    );
-  }
 
   return (
     <div className="inv">
@@ -880,13 +1038,6 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
 
       {inv && (
         <>
-          <div className="inv-divider">
-            <span className="inv-divider-ln" />
-            <span className="inv-divider-lbl">
-              <i className="ti ti-backpack" aria-hidden="true" />
-            </span>
-            <span className="inv-divider-ln" />
-          </div>
           <CabecalhoInvLoja carga={carga} lang={lang} />
           <InvItemsTable
             itens={inv.itens}
@@ -895,6 +1046,27 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             onAbrirDetalhes={(id) => setDetalhesId(id)}
             onAbrirContainer={(id) => setContainerAberto(id)}
             lang={lang}
+            onReordenarItens={(novaOrdem) => {
+              // novaOrdem: array de instanceIds representando a nova sequência
+              // dos itens visíveis (soltos, não equipados, não em container).
+              // Reconstrói inv.itens preservando itens invisíveis (equipados,
+              // em container) na posição relativa entre si, inserindo os
+              // reordenados nos slots de itens visíveis.
+              setInv((prev) => {
+                if (!prev) return prev;
+                const visivelSet = new Set(
+                  prev.itens
+                    .filter((it) => !it.containerId && !it.slot && !it.vestido)
+                    .map((it) => it.instanceId)
+                );
+                const byId = Object.fromEntries(prev.itens.map((it) => [it.instanceId, it]));
+                // itens que NÃO fazem parte do grid visível (mantêm posição relativa)
+                const invisíveis = prev.itens.filter((it) => !visivelSet.has(it.instanceId));
+                // itens visíveis na nova ordem
+                const reordenados = novaOrdem.map((id) => byId[id]).filter(Boolean);
+                return { ...prev, itens: [...reordenados, ...invisíveis] };
+              });
+            }}
           />
         </>
       )}
@@ -921,7 +1093,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onVestir={vestir}
           onDespir={despir}
           onUsar={solicitarUsar}
-          onAprenderMagia={aprenderMagiaPergaminho}
+          onAprenderMagia={authUserIsOwner ? aprenderMagiaPergaminho : undefined}
           onDestruir={solicitarDestruir}
           onObservacao={setObservacao}
           onMoverParaContainer={solicitarMover}
@@ -1143,30 +1315,24 @@ function MoedasBoard({ moedas, lang, compacto }) {
 function CabecalhoInvLoja({ carga, lang }) {
   const en = lang === 'en';
   const pesoCls = carga.over ? ' over' : (carga.pct > 75 ? ' pesado' : '');
-  return (
-    <div>     
-      {/* Peso — 100% */}
-      <div className="inv-topo-peso" style={{ flex: '1 1 100%' }}>
-        <div className="inv-bag-grouphead">
-          <i className="ti ti-weight" aria-hidden="true" />
-          <span className="inv-bag-grp-name">{en ? 'Weight' : 'Peso'}</span>
-          <span className="inv-bag-grp-count">{Math.round(carga.pct)}%</span>
-        </div>
-        <div
-          className={'inv-summary-bar inv-summary-bar--peso' + pesoCls}
-          title={en
-            ? `Weight ${fmtNum(carga.peso)} of ${fmtNum(carga.capacidade)}`
-            : `Peso ${fmtNum(carga.peso)} de ${fmtNum(carga.capacidade)}`}
-          style={{ width: '100%'}}>
-          <div className="inv-summary-railbox">
-            <div className="inv-summary-progress" aria-hidden="true">
-              <div className="inv-summary-progress-fill" style={{ width: `${Math.min(100, carga.pct)}%` }} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(80);
+  const pesoTip = {
+    title: en ? 'Weight' : 'Peso',
+    stats: [
+      { label: en ? 'Carried' : 'Carregando', value: fmtNum(carga.peso) },
+      { label: en ? 'Capacity' : 'Capacidade', value: fmtNum(carga.capacidade) },
+    ],
+    desc: carga.over
+      ? (en ? 'Overloaded!' : 'Sobrecarregado!')
+      : carga.pct > 75
+        ? (en ? 'Heavy load' : 'Carga pesada')
+        : null,
+  };
+  // Cor da barra: vermelho (over) → ember/laranja (pesado) → musgo (normal)
+  const barColor = carga.over ? '#B8472F' : carga.pct > 75 ? '#C9892E' : '#7A9550';
+
+  // Barra de peso removida de inventário e loja (agora exibida na ficha do PJ).
+  return null;
 }
 
 // ── EquipadoBoard — quadro de slots equipados (paper-doll) ────────────────────
@@ -1177,6 +1343,8 @@ function EquipadoBoard({ itens, catalogoBySlug, lang, onAbrir }) {
   const slotLabels = SLOT_LABELS[en ? 'en' : 'pt'] || {};
   const bySlot = {};
   for (const it of (itens || [])) { if (it.slot) bySlot[it.slot] = it; }
+
+  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(80);
 
   return (
     <div className="inv-eq-board">
@@ -1198,25 +1366,34 @@ function EquipadoBoard({ itens, catalogoBySlug, lang, onAbrir }) {
           const cat = it ? catalogoBySlug[it.slug] : null;
           const filled = !!it;
           const nome = cat ? cat.nome : (it ? it.slug : '');
+          const slotLabel = slotLabels[slot] || slot;
+          const tipContent = filled && cat ? {
+            desc: [cat.descricao, cat.efeito ? `${en ? 'Effect' : 'Efeito'}: ${cat.efeito}` : null].filter(Boolean).join(' ') || null,
+            clamp: true,
+          } : <span style={{ fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6' }}>{slotLabel}</span>;   // slot vazio → React element com Lora
           return (
             <button
               key={slot}
               type="button"
               className={'inv-slot' + (filled ? ' filled' : ' empty')}
               onClick={filled ? () => onAbrir(it.instanceId) : undefined}
-              disabled={!filled}
-              title={filled ? nome : (slotLabels[slot] || slot)}>
+              style={!filled ? { cursor: 'default' } : undefined}
+              onMouseEnter={(e) => abrirTip(e, tipContent)}
+              onMouseLeave={fecharTip}
+              onFocus={(e) => abrirTip(e, tipContent)}
+              onBlur={fecharTip}>
               <span className="inv-slot-ic">
                 <i className={'ti ' + (filled ? invItemIcon(cat) : 'ti-shield-exclamation')} aria-hidden="true" />
               </span>
               <span className="inv-slot-meta">
-                <span className="inv-slot-lbl">{slotLabels[slot] || slot}</span>
+                <span className="inv-slot-lbl">{slotLabel}</span>
                 <span className="inv-slot-item">{filled ? nome : ''}</span>
               </span>
             </button>
           );
         })}
       </div>
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -1269,44 +1446,268 @@ function VestesBoard({ itens, catalogoBySlug, lang, onAbrir }) {
   );
 }
 
-// ── InvItemsTable — Modelo "Mochila Visual": grade de cards por categoria ──────
+// ── InvItemsTable — Mochila Visual: grid flat com busca + chips de categoria ───
 // Mantém o mesmo nome/props de antes (chamado por InventarioList e pela ficha).
 // A "bolsa" mostra só itens fora de container E não equipados — os equipados
 // vivem na ficha (Defesa/Vestes); os de dentro de container, no ContainerModal.
-function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirContainer, lang }) {
+// Layout flat (sem agrupamento por categoria) com busca + chips, igual à loja.
+// Hook que observa o tamanho do container ref e do scroll-container (.mc-main)
+// para calcular quantas colunas e linhas de slots cabem na área visível.
+// SLOT_SIZE = 50px de célula + 4px de gap = 54px por unidade.
+// Calibrado para 19 itens por linha.
+const SLOT_SIZE = 54;
+// Teto de colunas por linha — limita a grade para não gerar espaço desperdiçado.
+const MAX_GRID_COLS = 20;
+// offsetExtra: altura extra a descontar dentro do ref antes do grid
+// (ex: toolbar de busca ~48px na loja).
+// Teto de linhas da grade: o preenchimento com slots fantasmas para em
+// MAX_GRID_ROWS linhas em vez de descer pela viewport inteira. Itens reais
+// acima desse teto continuam renderizando (a grade cresce), só o "chão" de
+// células vazias é limitado. Compartilhado por Inventário e Loja (loja.jsx usa
+// window.useGridDimensions). O Diário tem cópia própria deste teto.
+const MAX_GRID_ROWS = 11;
+// useGridDimensions — calcula quantas colunas/linhas de slots (50px) cabem na
+// área visível, preenchendo todo o espaço do .mc-main (scroll container).
+//
+// Usa CALLBACK REF (setGridEl) em vez de useRef + useEffect[]. Isso é o que
+// torna o hook robusto e idêntico entre Inventário (grid monta sync) e Loja
+// (grid monta async, depois da RPC get_loja_pj): o ResizeObserver é anexado no
+// exato momento em que o elemento entra no DOM, qualquer que seja o timing.
+// Retorna [setGridEl, dims] — espalhe setGridEl como `ref` no <div> do grid.
+function useGridDimensions() {
+  const [dims, setDims] = React.useState({ cols: 7, rows: 4, totalSlots: 28 });
+  const elRef = React.useRef(null);
+  const roRef = React.useRef(null);
+
+  const calc = React.useCallback(() => {
+    const el = elRef.current;
+    if (!el) return;
+    // Largura: o grid tem width:100%, então clientWidth é a largura cheia do
+    // container. 8px = padding interno (4px de cada lado) da grade.
+    const w = el.clientWidth - 8;
+    // Altura: sobe o DOM até .mc-main (height:100%, overflow-y:auto). Medir
+    // contra ele (e não contra window.innerHeight) é o método robusto usado
+    // pelo inventário — funciona mesmo com scroll ou padding no shell.
+    let mcMain = el.parentElement;
+    while (mcMain && !mcMain.classList.contains('mc-main')) {
+      mcMain = mcMain.parentElement;
+    }
+    const containerH = mcMain ? mcMain.clientHeight : window.innerHeight;
+    const elTop = mcMain
+      ? (el.getBoundingClientRect().top - mcMain.getBoundingClientRect().top)
+      : el.getBoundingClientRect().top;
+    const h = Math.max(200, containerH - elTop - 8); // 8px de folga no fundo
+    const cols = Math.min(MAX_GRID_COLS, Math.max(3, Math.floor(w / SLOT_SIZE)));
+    const rows = Math.min(MAX_GRID_ROWS, Math.max(2, Math.floor(h / SLOT_SIZE)));
+    setDims((prev) =>
+      (prev.cols === cols && prev.rows === rows) ? prev : { cols, rows, totalSlots: cols * rows }
+    );
+  }, []);
+
+  // Callback ref: roda quando o nó do grid é anexado/removido do DOM.
+  const setGridEl = React.useCallback((node) => {
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+    elRef.current = node;
+    if (node) {
+      // mede no próximo frame (layout já assentou) e observa redimensionamento
+      requestAnimationFrame(calc);
+      const ro = new ResizeObserver(calc);
+      ro.observe(node);
+      roRef.current = ro;
+    }
+  }, [calc]);
+
+  // Recalcula em resize de janela
+  React.useEffect(() => {
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, [calc]);
+
+  return [setGridEl, dims];
+}
+
+function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirContainer, lang, onReordenarItens }) {
+  const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const en = lang === 'en';
+  const [busca, setBusca] = useState('');
+  const [grupoSel, setGrupoSel] = useState(null); // null = todos
+  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(80);
+  const [setGridEl, { cols, totalSlots }] = useGridDimensions();
+
+  // ── Drag-and-drop via Pointer Events ──────────────────────────────────────────
+  // Abordagem por pointer events (não HTML5 draggable): robusta contra os
+  // re-renders do React durante o arraste (que faziam o drop nativo "voltar" o
+  // item pro slot original) e funciona em toque (mobile) além de mouse.
+  //
+  // drag = { fromIdx, instanceId, x, y } enquanto um arraste está ativo (ou null).
+  //   x/y acompanham o ponteiro para posicionar o "fantasma" que segue o cursor.
+  // overIdx = índice do slot sob o ponteiro (destino do drop), ou null.
+  const [drag, setDrag] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
+
+  // Refs pra ler valores atuais dentro dos listeners globais sem closure stale.
+  const dragRef = React.useRef(null);
+  const overIdxRef = React.useRef(null);
+  const itensFiltradosRef = React.useRef([]);
+  // Guarda o ponto onde o ponteiro desceu + se o limiar de arraste foi cruzado.
+  // Enquanto não cruzar (~6px), tratamos como clique (abre detalhes).
+  const pointerStartRef = React.useRef(null);
+  // Sinaliza que o próximo 'click' (sintético, pós-arraste) deve ser ignorado.
+  const suppressClickRef = React.useRef(false);
+
+  // Evita que o tooltip apareça durante o arraste
+  const abrirTipSafe = React.useCallback((e, content) => {
+    if (dragRef.current) return;
+    abrirTip(e, content);
+  }, [abrirTip]);
+
+  // Descobre qual slot (índice) está sob um ponto da tela. Usa document
+  // .elementFromPoint e sobe até achar um [data-slot-idx]. Retorna número ou null.
+  const slotIdxFromPoint = React.useCallback((x, y) => {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const slot = el.closest('[data-slot-idx]');
+    if (!slot) return null;
+    const idx = Number(slot.getAttribute('data-slot-idx'));
+    return Number.isFinite(idx) ? idx : null;
+  }, []);
+
+  // Efetiva a reordenação a partir do índice de origem e destino.
+  const commitReorder = React.useCallback((fromIdx, targetIdx) => {
+    const currentFiltered = itensFiltradosRef.current;
+    if (fromIdx === null || targetIdx === null || fromIdx === targetIdx) return;
+    const arr = [...currentFiltered];
+    if (fromIdx < 0 || fromIdx >= arr.length) return;
+    const [moved] = arr.splice(fromIdx, 1);
+    const insertAt = Math.min(Math.max(targetIdx, 0), arr.length);
+    arr.splice(insertAt, 0, moved);
+    if (onReordenarItens) onReordenarItens(arr.map((it) => it.instanceId));
+  }, [onReordenarItens]);
+
+  // Handlers globais (montados só enquanto um arraste está ativo).
+  React.useEffect(() => {
+    if (!drag) return;
+
+    const onMove = (e) => {
+      const x = e.clientX, y = e.clientY;
+      dragRef.current = { ...dragRef.current, x, y };
+      setDrag((d) => (d ? { ...d, x, y } : d));
+      const idx = slotIdxFromPoint(x, y);
+      overIdxRef.current = idx;
+      setOverIdx(idx);
+      e.preventDefault();
+    };
+
+    const onUp = (e) => {
+      const d = dragRef.current;
+      const target = overIdxRef.current;
+      const houveArraste = !!d;
+      if (d) commitReorder(d.fromIdx, target);
+      dragRef.current = null;
+      overIdxRef.current = null;
+      setDrag(null);
+      setOverIdx(null);
+      try { e.target.releasePointerCapture?.(e.pointerId); } catch (_) {}
+      // Se houve arraste, o navegador ainda vai disparar um 'click' sintético no
+      // card logo em seguida — marcamos pra suprimi-lo (senão abre os detalhes).
+      // Limpamos pointerStartRef só no próximo tick, depois do click passar.
+      // Reset de segurança: se o click NÃO vier (alguns navegadores suprimem o
+      // click após setPointerCapture), zeramos a flag no tick seguinte pra não
+      // engolir o próximo clique legítimo.
+      if (houveArraste) {
+        suppressClickRef.current = true;
+        setTimeout(() => { suppressClickRef.current = false; }, 350);
+      }
+      setTimeout(() => { pointerStartRef.current = null; }, 0);
+    };
+
+    const onCancel = () => {
+      dragRef.current = null;
+      overIdxRef.current = null;
+      pointerStartRef.current = null;
+      setDrag(null);
+      setOverIdx(null);
+    };
+
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    };
+  }, [drag ? drag.instanceId : null, commitReorder, slotIdxFromPoint]);
+
+  // pointerdown num card: registra o ponto de partida. O arraste só COMEÇA de
+  // fato (setDrag) quando o ponteiro se move além do limiar — assim um clique
+  // simples continua abrindo os detalhes.
+  const onCardPointerDown = React.useCallback((e, idx, instanceId) => {
+    // Só botão esquerdo do mouse / toque primário
+    if (e.button != null && e.button !== 0) return;
+    pointerStartRef.current = { x: e.clientX, y: e.clientY, idx, instanceId, started: false };
+  }, []);
+
+  const onCardPointerMove = React.useCallback((e, idx, instanceId) => {
+    const st = pointerStartRef.current;
+    if (!st || st.started || dragRef.current) return;
+    const dx = e.clientX - st.x, dy = e.clientY - st.y;
+    if (Math.hypot(dx, dy) < 6) return; // limiar pra distinguir clique de arraste
+    st.started = true;
+    fecharTip();
+    const d = { fromIdx: idx, instanceId, x: e.clientX, y: e.clientY };
+    dragRef.current = d;
+    overIdxRef.current = idx;
+    setDrag(d);
+    setOverIdx(idx);
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch (_) {}
+  }, [fecharTip]);
+
+  // Clique abre detalhes. O click sintético pós-arraste é barrado antes daqui,
+  // na fase de captura do onClickCapture do .inv-grid-wrap (via suppressClickRef).
+  const onCardClick = React.useCallback((instanceId) => {
+    if (dragRef.current) return;
+    onAbrirDetalhes(instanceId);
+  }, [onAbrirDetalhes]);
+
   const itensVisiveis = (itens || []).filter((it) => !it.containerId && !it.slot && !it.vestido);
 
-  if (itensVisiveis.length === 0) {
-    return (
-      <div className="inv-bag">
-        <div className="inv-empty">
-          <p>{en ? 'Your bag is empty' : 'Sua bolsa está vazia'}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Agrupa por cat.grupo. Grupos com container vêm primeiro; depois ordem alfabética.
-  const grupos = (() => {
+  // Chips de categoria (grupos presentes na bolsa)
+  const grupos = useMemo(() => {
     const m = new Map();
     for (const it of itensVisiveis) {
       const cat = catalogoBySlug[it.slug];
       const g = cat?.grupo || (en ? 'Other' : 'Outros');
-      if (!m.has(g)) m.set(g, []);
-      m.get(g).push(it);
+      m.set(g, (m.get(g) || 0) + 1);
     }
-    const arr = Array.from(m.entries());
-    arr.sort((a, b) => {
-      const aHas = a[1].some((it) => ehContainer(catalogoBySlug[it.slug]));
-      const bHas = b[1].some((it) => ehContainer(catalogoBySlug[it.slug]));
-      if (aHas !== bHas) return aHas ? -1 : 1;
-      return a[0].localeCompare(b[0]);
-    });
-    return arr;
-  })();
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [itensVisiveis, catalogoBySlug, en]);
 
-  const renderContainerCard = (it, cat) => {
+  // Normalização para busca sem acento/case
+  const normTxt = (s) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  const q = normTxt(busca);
+
+  // Itens filtrados pela busca + chip de grupo
+  const itensFiltrados = useMemo(() => {
+    return itensVisiveis.filter((it) => {
+      const cat = catalogoBySlug[it.slug];
+      const g = cat?.grupo || (en ? 'Other' : 'Outros');
+      if (grupoSel && g !== grupoSel) return false;
+      if (q && !normTxt(cat?.nome || it.slug).includes(q)) return false;
+      return true;
+    });
+  }, [itensVisiveis, catalogoBySlug, grupoSel, q, en]);
+
+  // Mantém a ref sempre atualizada para o commitReorder ler sem closure stale.
+  itensFiltradosRef.current = itensFiltrados;
+
+  // Monta o content do tooltip para um item/container.
+  // Mostra apenas o NOME do item (a descrição vive no modal de detalhes).
+  const tipContent = (it, cat) => {
+    return { title: cat ? cat.nome : `(? ${it.slug})` };
+  };
+
+  const renderContainerCard = (it, cat, idx) => {
     const filhos = itens.filter((f) => f.containerId === it.instanceId);
     let usado = 0;
     for (const f of filhos) {
@@ -1316,17 +1717,28 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     const cap = Number(cat.armazena || 0);
     const pct = cap > 0 ? Math.min(100, (usado / cap) * 100) : 0;
     const liquido = cat.tipo === 'L';
+    const isBeingDragged = drag && drag.fromIdx === idx;
+    const isDropTarget = overIdx === idx && drag && drag.fromIdx !== idx;
     return (
       <button
         key={it.instanceId}
         type="button"
-        className={'inv-card' + (cat?.magico ? ' inv-card--magico' : '')}
-        onClick={() => onAbrirDetalhes(it.instanceId)}
-        title={en ? 'Details' : 'Detalhes'}>
+        data-slot-idx={idx}
+        className={
+          'inv-card'
+          + (cat?.magico ? ' inv-card--magico' : '')
+          + (isBeingDragged ? ' inv-card--dragging' : '')
+          + (isDropTarget ? ' inv-card--drop-target' : '')
+        }
+        style={{ touchAction: 'none' }}
+        onClick={() => onCardClick(it.instanceId)}
+        onMouseEnter={(e) => abrirTipSafe(e, tipContent(it, cat))}
+        onMouseLeave={fecharTip}
+        onPointerDown={(e) => onCardPointerDown(e, idx, it.instanceId)}
+        onPointerMove={(e) => onCardPointerMove(e, idx, it.instanceId)}>
         {it.quantidade > 1 && <span className="inv-card-qty">{it.quantidade}</span>}
         <span className="inv-card-head">
           <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
-          <span className="inv-card-name">{cat.nome}</span>
         </span>
         <span className="inv-cont-bar">
           <span style={{ width: pct + '%', background: liquido ? '#47aad8' : undefined }} />
@@ -1335,19 +1747,29 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     );
   };
 
-  const renderItemCard = (it, cat) => {
-    const nome = cat ? cat.nome : `(? ${it.slug})`;
+  const renderItemCard = (it, cat, idx) => {
+    const isBeingDragged = drag && drag.fromIdx === idx;
+    const isDropTarget = overIdx === idx && drag && drag.fromIdx !== idx;
     return (
       <button
         key={it.instanceId}
         type="button"
-        className={'inv-card' + (cat?.magico ? ' inv-card--magico' : '')}
-        onClick={() => onAbrirDetalhes(it.instanceId)}
-        title={en ? 'Details' : 'Detalhes'}>
+        data-slot-idx={idx}
+        className={
+          'inv-card'
+          + (cat?.magico ? ' inv-card--magico' : '')
+          + (isBeingDragged ? ' inv-card--dragging' : '')
+          + (isDropTarget ? ' inv-card--drop-target' : '')
+        }
+        style={{ touchAction: 'none' }}
+        onClick={() => onCardClick(it.instanceId)}
+        onMouseEnter={(e) => abrirTipSafe(e, tipContent(it, cat))}
+        onMouseLeave={fecharTip}
+        onPointerDown={(e) => onCardPointerDown(e, idx, it.instanceId)}
+        onPointerMove={(e) => onCardPointerMove(e, idx, it.instanceId)}>
         {it.quantidade > 1 && <span className="inv-card-qty">{it.quantidade}</span>}
         <span className="inv-card-head">
           <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
-          <span className="inv-card-name">{nome}</span>
         </span>
         <span className="inv-card-pills">
           {cat?.magico && (
@@ -1357,40 +1779,135 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
             <span className="inv-pill liq"><i className="ti ti-droplet" aria-hidden="true" /></span>
           )}
           {it.observacao && (
-            <span className="inv-pill nor" title={it.observacao}><i className="ti ti-feather" aria-hidden="true" /></span>
+            <span className="inv-pill nor"><i className="ti ti-feather" aria-hidden="true" /></span>
           )}
         </span>
       </button>
     );
   };
 
-  const renderCard = (it) => {
+  const renderCard = (it, idx) => {
     const cat = catalogoBySlug[it.slug];
-    return ehContainer(cat) ? renderContainerCard(it, cat) : renderItemCard(it, cat);
+    return ehContainer(cat)
+      ? renderContainerCard(it, cat, idx)
+      : renderItemCard(it, cat, idx);
   };
 
-  return (
-    <div className="inv-bag">
-      <div className="inv-bag-cols">
-      {grupos.map(([grupo, itensGrupo]) => {
-        const primeira = catalogoBySlug[itensGrupo[0]?.slug];
+  if (itensVisiveis.length === 0) {
+    return (
+      <div className="loja-warn-empty">
+        <span>{en ? 'You have no possessions.' : 'Você não tem nenhum pertence.'}</span>
+      </div>
+    );
+  }
 
-        // Fora do armazenamento NADA empilha: cada instância (já explodida pelo
-        // normalizarPilhas) vira seu próprio card. Sem reagrupar por slug.
+  return (
+    <div
+      className="inv-grid-wrap"
+      onClickCapture={(e) => {
+        // Reforço: bloqueia na fase de CAPTURA o click sintético disparado logo
+        // após um arraste, antes de chegar ao onClick do card. Cobre navegadores
+        // onde a flag no onClick do card não seria suficiente.
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false;
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }}>
+      {/* ── Busca + chips de categoria — mesmo padrão best-toolbar do bestiário ── */}
+      <div className="best-toolbar">
+        <div className="best-search">
+          <Input
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder={en ? 'Search' : 'Buscar…'}
+          />
+        </div>
+        <div className="best-chips">
+          <button
+            type="button"
+            className={'best-chip best-chip--icon' + (grupoSel === null ? ' is-active' : '')}
+            onClick={() => setGrupoSel(null)}
+            onMouseEnter={(e) => abrirTip(e, { desc: en ? 'All' : 'Todos' })}
+            onMouseLeave={fecharTip}
+            aria-label={en ? 'All' : 'Todos'}>
+            <i className="ti ti-layout-grid" aria-hidden="true" />
+          </button>
+          {grupos.map(([g, n]) => (
+            <button
+              key={g}
+              type="button"
+              className={'best-chip best-chip--icon' + (grupoSel === g ? ' is-active' : '')}
+              onClick={() => setGrupoSel(grupoSel === g ? null : g)}
+              onMouseEnter={(e) => abrirTip(e, { desc: g })}
+              onMouseLeave={fecharTip}
+              aria-label={g}>
+              <i className={'ti ' + (ICONE_POR_GRUPO[normalizar(g)] || 'ti-box')} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+        <div className="best-count">{itensFiltrados.length} de {itensVisiveis.length}</div>
+      </div>
+
+      {/* ── Grid flat com slots fantasmas (ref sempre montado para o ResizeObserver) ── */}
+      {itensFiltrados.length === 0 ? (
+        <div
+          ref={setGridEl}
+          className="inv-bag-grid inv-bag-grid--slots"
+          style={{ gridTemplateColumns: `repeat(${cols}, 50px)` }}>
+          {Array.from({ length: totalSlots }).map((_, i) => (
+            <span key={'ghost-' + i} className="inv-slot-ghost" aria-hidden="true" />
+          ))}
+        </div>
+      ) : (() => {
+        // Garante múltiplo de cols e pelo menos totalSlots (calculado pelo ResizeObserver)
+        const filled = itensFiltrados.length;
+        const total  = Math.max(totalSlots, Math.ceil(Math.max(filled, 1) / cols) * cols);
+        const ghosts = total - filled;
         return (
-          <div key={grupo} className="inv-bag-group">
-            <div className="inv-bag-grouphead">
-              <i className={'ti ' + invItemIcon(primeira)} aria-hidden="true" />
-              <span className="inv-bag-grp-name">{grupo}</span>
-              <span className="inv-bag-grp-count">{itensGrupo.length}</span>
-            </div>
-            <div className="inv-bag-grid">
-              {itensGrupo.map(renderCard)}
-            </div>
+          <div
+            ref={setGridEl}
+            className="inv-bag-grid inv-bag-grid--slots"
+            style={{ gridTemplateColumns: `repeat(${cols}, 50px)` }}>
+            {itensFiltrados.map((it, idx) => renderCard(it, idx))}
+            {Array.from({ length: ghosts }).map((_, i) => {
+              // O inventário é uma lista COMPACTA (itens preenchem do início, sem
+              // buracos). Qualquer célula vazia representa o mesmo destino: o FIM
+              // da lista (índice = filled). Por isso todos os fantasmas recebem
+              // data-slot-idx=filled e soltar em qualquer um move o item pro fim.
+              // O realce visual, porém, fica só no 1º vazio (onde o item cairá).
+              const isGhostTarget = i === 0 && overIdx === filled && drag && drag.fromIdx !== filled - 1;
+              return (
+                <span
+                  key={'ghost-' + i}
+                  data-slot-idx={filled}
+                  className={'inv-slot-ghost' + (isGhostTarget ? ' inv-slot-ghost--drop-target' : '')}
+                  aria-hidden="true"
+                />
+              );
+            })}
           </div>
         );
-      })}
-      </div>
+      })()}
+
+      {/* ── Fantasma que segue o cursor durante o arraste ── */}
+      {drag && (() => {
+        const it = itensFiltrados[drag.fromIdx];
+        if (!it) return null;
+        const cat = catalogoBySlug[it.slug];
+        return ReactDOM.createPortal(
+          <div
+            className="inv-drag-ghost"
+            style={{ left: drag.x, top: drag.y }}
+            aria-hidden="true">
+            <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
+          </div>,
+          document.body
+        );
+      })()}
+
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -1472,6 +1989,10 @@ function DetalhesItemModal({
   // Pergaminho de magia: catálogo declara magia (key) + nivel_magia (nível efetivo).
   const ehPergaminhoMagia = !!(cat.magia && cat.nivel_magia != null);
   const isContainer = ehContainer(cat);
+  // Pré-calcula conteúdo do container uma única vez; usado tanto para renderizar
+  // det-container-content como para suprimir o espaçamento quando vazio/ausente.
+  const containerData = isContainer ? capacidadeContainer(instance, todosItens, catalogoBySlug) : null;
+  const hasContainerContent = !!(containerData?.filhos?.length);
   const temMultiplos = instance.quantidade > 1;
 
   // Análise de equipar
@@ -1526,67 +2047,125 @@ function DetalhesItemModal({
 
   return (
     <ModalShell
-      title={cat.nome}
+      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}</>}
       lang={lang}
       size="md"
       extraClass="modal-detalhes"
       onClose={onClose}
     >
+        {/* ── Seção A: Atributos inline ──── */}
+        {(cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0) && (
+          <div className="det-sec-a">
+            {cat.ocupa != null && (
+              <span className="det-sec-chip">
+                <span className="det-sec-ic-box det-sec-ic--ocupa">
+                  <i className="ti ti-package-import" aria-hidden="true" />
+                </span>
+                <span className="det-sec-val">{fmtNum(cat.ocupa)}</span>
+              </span>
+            )}
+            {cat.armazena != null && (
+              <span className="det-sec-chip">
+                <span className="det-sec-ic-box det-sec-ic--armazena">
+                  <i className="ti ti-box" aria-hidden="true" />
+                </span>
+                <span className="det-sec-val">{fmtNum(cat.armazena)}</span>
+              </span>
+            )}
+            {Number(cat.absorcao) > 0 && (
+              <span className="det-sec-chip">
+                <span className="det-sec-ic-box">
+                  <i className="ti ti-shield-half" aria-hidden="true" />
+                </span>
+                <span className="det-sec-val">{cat.absorcao}</span>
+              </span>
+            )}
+            {cat.dano && (
+              <span className="det-sec-chip">
+                <span className="det-sec-ic-box">
+                  <i className="ti ti-sword" aria-hidden="true" />
+                </span>
+                <span className="det-sec-val">{cat.dano}</span>
+              </span>
+            )}
+            {cat.efeito_positivo && (
+              <span className="det-sec-chip">
+                <span className="det-sec-ic-box det-sec-ic--pos">
+                  <i className="ti ti-plus" aria-hidden="true" />
+                </span>
+                <span className="det-sec-val">{cat.efeito_positivo}</span>
+              </span>
+            )}
+            {cat.efeito_negativo && (
+              <span className="det-sec-chip">
+                <span className="det-sec-ic-box det-sec-ic--neg">
+                  <i className="ti ti-minus" aria-hidden="true" />
+                </span>
+                <span className="det-sec-val">{cat.efeito_negativo}</span>
+              </span>
+            )}
+            {(cat.magia || cat.nivel_magia != null) && (
+              <span className="det-sec-chip">
+                <span className="det-sec-ic-box">
+                  <i className="ti ti-sparkle" aria-hidden="true" />
+                </span>
+                {cat.magia && <span className="det-sec-val">{cat.magia} {cat.nivel_magia}</span>}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* ── Linha divisória ──────────────────────────────────── */}
+        {(cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0) &&
+         (cat.descricao || cat.efeito) && (
+          <hr className="det-sec-divider" />
+        )}
+
+        {/* ── Seção B: Descrição ───────────────────────────────── */}
         {(cat.descricao || cat.efeito) && (
-          <div className="det-desc">
-            {cat.descricao && <p>{cat.descricao}</p>}
-            {cat.efeito && <p className="det-efeito">{en ? 'Effect' : 'Efeito'}: {cat.efeito}</p>}
+          <div className="det-sec-b">
+            <span className="det-sec-desc-val">
+              {cat.descricao}
+              {cat.descricao && cat.efeito ? ' ' : ''}
+              {cat.efeito && <em>{en ? 'Effect' : 'Efeito'}: {cat.efeito}</em>}
+            </span>
           </div>
         )}
 
         {/* ── Conteúdo do container ────────────────────────────── */}
-        {isContainer && (() => {
-          const { armazena, usado, tipoAceito, filhos } = capacidadeContainer(instance, todosItens, catalogoBySlug);
-          const pct = armazena > 0 ? Math.min(100, (usado / armazena) * 100) : 0;
-          const tipoLabel = tipoAceito === 'L'
-            ? (en ? 'liters' : 'litros')
-            : (en ? 'kilos' : 'quilos');
-          return (
-            <div className="det-container-content">
-
-              <div className="cont-list">
-                {filhos.map((it) => {
-                  const fc = catalogoBySlug[it.slug];
-                  const presoNoContainer = fc?.grupo === 'Consumíveis' || fc?.grupo === 'Moedas';
-                  return (
-                    <div key={it.instanceId} className="cont-row">
-                      <div className="cont-row-info">
-                        <span className="cont-row-nome">{fc?.nome || it.slug}{fc?.magico && ' ✦'}</span>
-                        {it.quantidade > 1 && <span className="inv-card-qty">{it.quantidade}</span>}
-                      </div>
-                      <div className="cont-row-actions">
-                        <button className="btn-icon btn-sm inv-act-btn" onClick={() => onAbrirDetalhesFilho?.(it.instanceId)}
-                          title={en ? 'Details' : 'Detalhes'}
-                          aria-label={en ? 'Details' : 'Detalhes'}>
-                          <i className="ti ti-eye" aria-hidden="true" />
-                        </button>
-                        <button className="btn-icon btn-sm inv-act-btn" onClick={() => onRemoverDoContainer?.(it.instanceId)}
-                          disabled={presoNoContainer}
-                          title={presoNoContainer
-                            ? (en ? 'Consumables and coins cannot be removed from containers' : 'Consumíveis e moedas não podem ser retirados do container')
-                            : (en ? 'Remove from container' : 'Remover do container')}
-                          aria-label={en ? 'Remove from container' : 'Remover do container'}>
-                          <i className="ti ti-x" aria-hidden="true" />
-                        </button>
-                      </div>
+        {/* Só renderiza quando há itens dentro; container vazio = sem bloco,
+            sem espaçamento fantasma (o margin-top de det-actions abaixo fica 0). */}
+        {hasContainerContent && (
+          <div className="det-container-content">
+            <div className="cont-list">
+              {containerData.filhos.map((it) => {
+                const fc = catalogoBySlug[it.slug];
+                return (
+                  <div key={it.instanceId} className="cont-row">
+                    <div className="cont-row-info">
+                      <span className="cont-row-nome">{fc?.nome || it.slug}{fc?.magico && ' ✦'}</span>
+                      {it.quantidade > 1 && <span className="inv-card-qty">{it.quantidade}</span>}
                     </div>
-                  );
-                })}
-              </div>
-
+                    <div className="cont-row-actions">
+                      <button className="btn-icon btn-sm inv-act-btn" onClick={() => onAbrirDetalhesFilho?.(it.instanceId)}
+                        title={en ? 'Details' : 'Detalhes'}
+                        aria-label={en ? 'Details' : 'Detalhes'}>
+                        <i className="ti ti-eye" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })()}
+          </div>
+        )}
 
         {/* (Armazenar em container agora é uma ação na lista abaixo) */}
 
         {/* ── Ações do item — Modelo C: lista descritiva ───────────── */}
-        <div className="det-actions">
+        {/* margin-top só existe quando há conteúdo de container acima; caso
+            contrário o espaçamento vem apenas do margin-bottom do det-sec-b. */}
+        <div className="det-actions" style={!hasContainerContent ? { marginTop: 0 } : undefined}>
           {confirmandoDestruir ? (
             <div className="det-act-confirm">
               <div className="det-act-confirm-title">
@@ -1596,10 +2175,10 @@ function DetalhesItemModal({
                 {en ? 'Destroy this item permanently?' : 'Destruir este item permanentemente?'}
               </span>
               <div className="det-act-confirm-btns">
-                <button className="btn-ghost btn-sm" onClick={() => setConfirmandoDestruir(false)}>
+                <button className="btn-ghost" onClick={() => setConfirmandoDestruir(false)}>
                   {en ? 'Cancel' : 'Cancelar'}
                 </button>
-                <button className="btn-danger btn-sm"
+                <button className="btn-danger"
                   onClick={() => { onDestruir(instance.instanceId); onClose(); }}>
                   {en ? 'Yes, destroy' : 'Sim, destruir'}
                 </button>
@@ -1614,10 +2193,10 @@ function DetalhesItemModal({
                 {en ? 'Use this item?' : 'Usar este item?'}
               </span>
               <div className="det-act-confirm-btns">
-                <button className="btn-ghost btn-sm" onClick={() => setConfirmandoUsar(false)}>
+                <button className="btn-ghost" onClick={() => setConfirmandoUsar(false)}>
                   {en ? 'Cancel' : 'Cancelar'}
                 </button>
-                <button className="btn-primary btn-sm"
+                <button className="btn-primary"
                   onClick={() => { onUsar(instance.instanceId); onClose(); }}>
                   {en ? 'Yes, use' : 'Sim, usar'}
                 </button>
@@ -1625,9 +2204,6 @@ function DetalhesItemModal({
             </div>
           ) : mostrarTransferir ? (
             <div className="det-transf">
-              <label htmlFor={`transf-${instance.instanceId}`}>
-                {en ? 'Transfer to' : 'Transferir para'}
-              </label>
               <select
                 id={`transf-${instance.instanceId}`}
                 value={transfPjId}
@@ -1641,11 +2217,11 @@ function DetalhesItemModal({
               </select>
               {transferError && <div className="transf-error">{transferError}</div>}
               <div className="det-act-confirm-btns">
-                <button className="btn-ghost btn-sm" disabled={transferindo}
+                <button className="btn-ghost" disabled={transferindo}
                   onClick={() => { setMostrarTransferir(false); setTransfPjId(''); onTransferReset && onTransferReset(); }}>
                   {en ? 'Cancel' : 'Cancelar'}
                 </button>
-                <button className="btn-primary btn-sm" disabled={transferindo || !transfPjId}
+                <button className="btn-primary" disabled={transferindo || !transfPjId}
                   onClick={async () => {
                     setTransferindo(true);
                     const res = await onTransferir(transfPjId);
@@ -1658,9 +2234,6 @@ function DetalhesItemModal({
             </div>
           ) : mostrarArmazenar ? (
             <div className="det-armazenar">
-              <label htmlFor={`cont-${instance.instanceId}`}>
-                {en ? 'Store inside' : 'Armazenar em'}
-              </label>
               <select
                 id={`cont-${instance.instanceId}`}
                 value={armazContId}
@@ -1677,11 +2250,11 @@ function DetalhesItemModal({
                 })}
               </select>
               <div className="det-act-confirm-btns">
-                <button className="btn-ghost btn-sm"
+                <button className="btn-ghost"
                   onClick={() => { setMostrarArmazenar(false); setArmazContId(''); }}>
                   {en ? 'Cancel' : 'Cancelar'}
                 </button>
-                <button className="btn-primary btn-sm" disabled={!armazContId}
+                <button className="btn-primary" disabled={!armazContId}
                   onClick={() => {
                     handleContainerChange(armazContId);
                     setMostrarArmazenar(false);
@@ -1698,30 +2271,30 @@ function DetalhesItemModal({
                 {/* Equipar / Desequipar / Usar */}
                 {acoesPesadas && equipavel && (
                   instance.equipado ? (
-                    <button className="det-act det-act-primary"
+                    <button className="btn-primary"
                       onClick={() => onDesequipar(instance.instanceId)}>
-                      <span className="det-act-lbl">{en ? 'Unequip' : 'Desequipar'}</span>
+                      {en ? 'Unequip' : 'Desequipar'}
                     </button>
                   ) : (
-                    <button className="det-act det-act-primary"
+                    <button className="btn-primary"
                       disabled={!podeEquipar}
                       onClick={() => onEquipar(instance.instanceId)}
                       title={bloqueioEquipar || ''}>
-                      <span className="det-act-lbl">{en ? 'Equip' : 'Equipar'}</span>
+                      {en ? 'Equip' : 'Equipar'}
                     </button>
                   )
                 )}
                 {consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && (
-                  <button className="det-act det-act-primary"
+                  <button className="btn-primary"
                     onClick={() => {
                       if (temMultiplos) onUsar(instance.instanceId);
                       else setConfirmandoUsar(true);
                     }}>
-                    <span className="det-act-lbl">{en ? 'Use' : 'Usar'}</span>
+                    {en ? 'Use' : 'Usar'}
                   </button>
                 )}
-                {acoesPesadas && ehPergaminhoMagia && (
-                  <button className="det-act det-act-primary"
+                {acoesPesadas && ehPergaminhoMagia && onAprenderMagia && (
+                  <button className="btn-primary"
                     disabled={aprendendo}
                     onClick={async () => {
                       setAprendendo(true);
@@ -1731,56 +2304,53 @@ function DetalhesItemModal({
                       setAprendendo(false);
                       setAprenderErro(motivoAprenderLabel(r?.motivo, en));
                     }}>
-                    <i className="ti ti-sparkles" aria-hidden="true" />
-                    <span className="det-act-lbl">
-                      {aprendendo ? (en ? 'Learning…' : 'Aprendendo…') : (en ? 'Learn' : 'Aprender')}
-                    </span>
+                    {aprendendo ? (en ? 'Learning…' : 'Aprendendo…') : (en ? 'Learn' : 'Aprender')}
                   </button>
                 )}
 
                 {/* Vestir / Despir */}
                 {acoesPesadas && vestivel && (
                   instance.vestido ? (
-                    <button className="det-act det-act-primary"
+                    <button className="btn-primary"
                       onClick={() => onDespir(instance.instanceId)}>
-                      <span className="det-act-lbl">{en ? 'Take off' : 'Despir'}</span>
+                      {en ? 'Take off' : 'Despir'}
                     </button>
                   ) : (
-                    <button className="det-act det-act-primary"
+                    <button className="btn-primary"
                       disabled={!podeVestir}
                       onClick={() => onVestir(instance.instanceId)}
                       title={bloqueioVestir || ''}>
-                      <span className="det-act-lbl">{en ? 'Wear' : 'Vestir'}</span>
+                      {en ? 'Wear' : 'Vestir'}
                     </button>
                   )
                 )}
 
                 {/* Transferir */}
                 {acoesPesadas && pjsHistoria.length > 0 && !instance.vestido && (
-                  <button className="det-act" onClick={() => { onTransferReset && onTransferReset(); setMostrarTransferir(true); }}>
-                    <span className="det-act-lbl">{en ? 'Transfer' : 'Transferir'}</span>
+                  <button className="btn-ghost" onClick={() => { onTransferReset && onTransferReset(); setMostrarTransferir(true); }}>
+                    {en ? 'Transfer' : 'Transferir'}
                   </button>
                 )}
 
                 {/* Armazenar em */}
                 {acoesPesadas && !isContainer && !instance.equipado && !instance.vestido && (
-                  <button className="det-act"
+                  <button className="btn-ghost"
                     disabled={!temOndeArmazenar}
                     onClick={() => setMostrarArmazenar(true)}
                     title={!temOndeArmazenar
                       ? (en ? 'No compatible container in inventory' : 'Nenhum recipiente compatível no inventário')
                       : ''}>
-                    <span className="det-act-lbl">{en ? 'Store' : 'Armazenar'}</span>
+                    {en ? 'Store' : 'Armazenar'}
                   </button>
                 )}
 
                 {/* Descartar — mesma linha dos demais botões */}
-                <button className="det-act danger"
+                <button className="btn-danger"
                   onClick={() => {
                     if (temMultiplos) onDestruir(instance.instanceId);
                     else setConfirmandoDestruir(true);
                   }}>
-                  <span className="det-act-lbl">{en ? 'Descart' : 'Descartar'}</span>
+                  {en ? 'Descart' : 'Descartar'}
                 </button>
               </div>
 
@@ -1811,7 +2381,7 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
 
   return (
     <ModalShell
-      title={cat?.nome || containerInst?.slug}
+      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat?.nome || containerInst?.slug}</>}
       lang={lang}
       size="md"
       extraClass="modal-detalhes"
@@ -1842,14 +2412,6 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
                     <i className="ti ti-eye" aria-hidden="true" />
                   </button>
                   )}
-                  <button className="btn-icon btn-sm inv-act-btn" onClick={() => onRemoverDoContainer(it.instanceId)}
-                    disabled={presoNoContainer}
-                    title={presoNoContainer
-                      ? (en ? 'Consumables and coins cannot be removed from containers' : 'Consumíveis e moedas não podem ser retirados do container')
-                      : (en ? 'Remove from container' : 'Remover do container')}
-                    aria-label={en ? 'Remove from container' : 'Remover do container'}>
-                    <i className="ti ti-package-export" aria-hidden="true" />
-                  </button>
                 </div>
               </div>
             );
@@ -1862,18 +2424,36 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
 
 // ── QuantidadeModal ──────────────────────────────────────────────────────────
 // Pergunta quanto aplicar de uma ação (usar/destruir/mover) quando há mais de 1
-// em estoque. Stepper + input number + Confirmar/Cancelar.
+// em estoque. Stepper pill (−/valor/+) + chips de preset + aviso irreversível.
 function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel }) {
   const [qtd, setQtd] = useState(1);
   const en = lang === 'en';
-  // Escape já é responsabilidade do ModalShell. Mantemos só o atalho Enter=confirmar aqui.
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Enter') onConfirm(qtd); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [qtd, onConfirm]);
+
   const dec = () => setQtd((q) => Math.max(1, q - 1));
   const inc = () => setQtd((q) => Math.min(max, q + 1));
+  const bump = (n) => setQtd((q) => Math.min(max, Math.max(1, q + n)));
+
+  // Presets: valores fixos que façam sentido dentro do range disponível
+  const RAW_PRESETS = [1, 2, 5, 10, 15];
+  const presets = RAW_PRESETS.filter((n) => n <= max && n !== qtd);
+
+  const pillStyle = {
+    background: 'rgba(24,17,8,0.92)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+    border: '1px solid rgba(106,85,48,0.50)', borderRadius: 999, height: 40,
+    display: 'flex', alignItems: 'center', gap: 4, padding: '0 4px', width: '100%',
+  };
+  const btnStyle = (enabled) => ({
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 32, height: 32, flexShrink: 0, borderRadius: '50%', border: 'none',
+    background: 'transparent', color: enabled ? '#C9A44E' : 'rgba(201,164,78,0.30)',
+    cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
+  });
+
   return (
     <ModalShell
       title={titulo}
@@ -1884,29 +2464,115 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel }) {
       onConfirm={() => onConfirm(qtd)}
       confirmLabel={en ? 'Confirm' : 'Confirmar'}
     >
-        <div className="modal-qtd-stepper">
-          <button className="btn-icon btn-sm" onClick={dec} disabled={qtd <= 1} aria-label="−">−</button>
-          <input
-            type="number"
-            min="1"
-            max={max}
-            value={qtd}
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10);
-              if (Number.isNaN(v)) setQtd(1);
-              else setQtd(Math.max(1, Math.min(max, v)));
-            }}
-          />
-          <button className="btn-icon btn-sm" onClick={inc} disabled={qtd >= max} aria-label="+">+</button>
-          <span className="modal-qtd-max">{en ? 'of' : 'de'} {max}</span>
+      <p style={{
+        fontFamily: "'Lora', serif", fontSize: 13, fontStyle: 'italic',
+        color: 'var(--parchment-muted, #9C8F73)', marginBottom: 14,
+      }}>
+        {en ? 'Caution, this action is irreversible.' : 'Cuidado, essa ação é irreversível.'}
+      </p>
+
+      {/* stepper pill */}
+      <div style={pillStyle}>
+        <button type="button" style={btnStyle(qtd > 1)} disabled={qtd <= 1}
+          onMouseDown={(e) => e.preventDefault()} onClick={dec} aria-label="-"
+          onMouseEnter={(e) => { if (qtd > 1) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
+          <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 14 }} />
+        </button>
+        <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6', fontVariantNumeric: 'tabular-nums' }}>
+          {qtd} <span style={{ color: 'var(--parchment-muted, #9C8F73)', fontSize: 12 }}>{en ? `of ${max}` : `de ${max}`}</span>
+        </span>
+        <button type="button" style={btnStyle(qtd < max)} disabled={qtd >= max}
+          onMouseDown={(e) => e.preventDefault()} onClick={inc} aria-label="+"
+          onMouseEnter={(e) => { if (qtd < max) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
+          <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
+        </button>
+      </div>
+
+      {/* chips de preset */}
+      {presets.length > 0 && (
+        <div className="delta-stepper-chips" style={{ marginTop: 8 }}>
+          {presets.map((n) => (
+            <button type="button" key={n} className="delta-chip" onClick={() => setQtd(n)}>
+              {n}
+            </button>
+          ))}
+          {/* botão de máximo */}
+          {qtd < max && (
+            <button type="button" className="delta-chip" onClick={() => setQtd(max)}>
+              {en ? 'Max' : 'Máx'}
+            </button>
+          )}
+          {/* zerar para 1 */}
+          <button type="button" className="delta-chip delta-chip--reset" onClick={() => setQtd(1)} disabled={qtd <= 1} aria-label={en ? 'Reset' : 'Zerar'}>
+            <i className="ti ti-rotate" aria-hidden="true" />
+          </button>
         </div>
+      )}
     </ModalShell>
   );
 }
+
+// ── Estilos de Drag-and-Drop para o grid de inventário ───────────────────────
+// Injetados uma única vez; seguem a paleta "Pedra & Bronze" do projeto.
+(function injectInvDndStyles() {
+  const id = 'menestrel-inv-dnd-styles';
+  if (document.getElementById(id)) return;
+  const style = document.createElement('style');
+  style.id = id;
+  style.textContent = `
+    /* Card sendo arrastado: transparência + borda ouro tênue */
+    .inv-card--dragging {
+      opacity: 0.35;
+      outline: 2px dashed rgba(201,164,78,0.60);
+      outline-offset: -2px;
+    }
+    /* Slot alvo de drop: destaque ouro */
+    .inv-card--drop-target {
+      outline: 2px solid rgba(201,164,78,0.90);
+      outline-offset: -2px;
+      background: rgba(201,164,78,0.12) !important;
+      box-shadow: 0 0 10px rgba(201,164,78,0.25) !important;
+    }
+    /* Slot fantasma quando é alvo de drop */
+    .inv-slot-ghost--drop-target {
+      outline: 2px solid rgba(201,164,78,0.70);
+      outline-offset: -2px;
+      background: rgba(201,164,78,0.10) !important;
+      border-radius: 6px;
+    }
+    /* Cursor grab nos cards (arrasto via pointer events) */
+    .inv-card {
+      cursor: grab;
+    }
+    /* Fantasma que segue o cursor durante o arraste */
+    .inv-drag-ghost {
+      position: fixed;
+      z-index: 10000;
+      width: 50px;
+      height: 50px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: rgba(24,17,8,0.95);
+      border: 1px solid rgba(201,164,78,0.70);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.55), 0 0 12px rgba(201,164,78,0.30);
+      color: #C9A44E;
+      font-size: 22px;
+    }
+    .inv-drag-ghost .inv-card-ic { display: flex; }
+  `;
+  document.head.appendChild(style);
+})();
 
 Object.assign(window, {
   InventarioList, EquipadoBoard, VestesBoard, CofreMoedas, MoedasBoard, MoedaPills,
   CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, ContainerModal, QuantidadeModal,
   // ↓ expostos para a Loja (07-inventario/loja.jsx) consumir via window:
-  fmtNum, calcCarga, invItemIcon, recipienteAceitaSlug,
+  fmtNum, calcCarga, invItemIcon, recipienteAceitaSlug, usePortalTooltip, PortalTooltip,
+  useGridDimensions,
 });

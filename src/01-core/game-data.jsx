@@ -23,19 +23,82 @@ const GAME_DATA = {
   },
 
   reinos: [
-    'Abadom', 'Acordo', 'Âmien', 'Azanti', 'Calco', 'Cidades-Estado', 'Conti',
-    'Dantsen', 'Eredra', 'Filanti', 'Levânia', 'Ludgrim', 'Luna', 'Marana',
-    'Plana', 'Portis', 'Porto Livre', 'Verrogar',
+    'Abadom', 'Acordo', 'Âmien', 'Azanti', 'Calco', 'Cidades-Estado', 'Conti', 'Dantsen', 'Eredra', 'Filanti', 'Levânia', 'Ludgrim', 'Luna', 'Marana', 'Plana', 'Portis', 'Porto Livre', 'Verrogar',
   ],
 
   deuses: [
-    'Blator', 'Cambu', 'Crezir', 'Crizagom', 'Cruine', 'Ganis', 'Lena',
-    'Maira', 'Palier', 'Parom', 'Plandis', 'Selimon', 'Sevides',
+    'Blator', 'Cambu', 'Crezir', 'Crizagom', 'Cruine', 'Ganis', 'Lena', 'Maira', 'Palier', 'Parom', 'Plandis', 'Selimon', 'Sevides',
   ],
+
+  demonios: [
+    'Ricutatis', 'Mocna', 'Antredom', 'Diatrimis', 'Ekisis', 'Heldrom', 'Seinoniz', 'Vouxiz', 'Udoviom', 'Anasmadis', 'Branaxis', 'Fulvina',
+  ],  
 
   generos: [
     'Masculino', 'Feminino', 'Neutro'
   ],
+
+  // ----------------------------------------------------------
+  // CARACTERIZAÇÃO — traços opcionais de física/social/pessoal, comprados
+  // com um pool de "Pontos de Caracterização" (ver pontosCaracterizacaoTotal/
+  // gastoCaracterizacao no bloco [15]). Cada categoria tem 2 opções:
+  // escolher `opcaoConcede` DEVOLVE pontos ao pool (é a "desvantagem");
+  // escolher `opcaoCusta` GASTA pontos do pool (é a "vantagem"). Custo/ganho
+  // é fixo em 2 pra toda categoria — não varia linha a linha (regra do
+  // sistema, ver PONTOS_CARACTERIZACAO_BASE/CUSTO_CARACTERIZACAO/
+  // GANHO_CARACTERIZACAO no bloco [15]). Nenhuma categoria é obrigatória —
+  // ficar de fora do objeto `caracterizacao` salvo é sempre válido.
+  // ----------------------------------------------------------
+  caracterizacoes: {
+    fisica: [
+      { key: 'estatura',    nome: 'Estatura',    opcaoConcede: { key: 'baixinho',      nome: 'Baixinho'      }, opcaoCusta: { key: 'gigante',      nome: 'Gigante'      } },
+      { key: 'beleza',      nome: 'Beleza',      opcaoConcede: { key: 'feio',       nome: 'Feio'       }, opcaoCusta: { key: 'bonito',      nome: 'Bonito'      } },
+      { key: 'deficiencia', nome: 'Deficiência', opcaoConcede: { key: 'deficiente', nome: 'Deficiente' }, opcaoCusta: { key: 'perfeito',    nome: 'Perfeito'    } },
+      { key: 'dependencia', nome: 'Dependência', opcaoConcede: { key: 'dependente', nome: 'Dependente' }, opcaoCusta: { key: 'sobrio',      nome: 'Sóbrio'      } },
+      { key: 'porte', nome: 'Porte', opcaoConcede: { key: 'fragil',   nome: 'Frágil'   }, opcaoCusta: { key: 'forte',  nome: 'Forte'  } },
+      { key: 'saude',       nome: 'Saúde',       opcaoConcede: { key: 'alergico',   nome: 'Alérgico'   }, opcaoCusta: { key: 'superhumano', nome: 'Superhumano' } },
+    ],
+    social: [
+      { key: 'alianca',  nome: 'Aliança',  opcaoConcede: { key: 'inimigo',    nome: 'Inimigo'    }, opcaoCusta: { key: 'aliado', nome: 'Aliado' } },
+      { key: 'classe',   nome: 'Classe',   opcaoConcede: { key: 'pobre',     nome: 'Pobre'     }, opcaoCusta: { key: 'rico',    nome: 'Rico'    } },
+      { key: 'financas', nome: 'Finanças', opcaoConcede: { key: 'divida',    nome: 'Dívida'    }, opcaoCusta: { key: 'heranca', nome: 'Herança' } },
+      { key: 'fama',     nome: 'Fama',     opcaoConcede: { key: 'procurado', nome: 'Procurado' }, opcaoCusta: { key: 'afamado', nome: 'Afamado' } },
+      { key: 'religiao', nome: 'Religião', opcaoConcede: { key: 'ateu',    nome: 'Ateu'    }, opcaoCusta: { key: 'devoto',    nome: 'Devoto'    } },
+      { key: 'mestre',   nome: 'Mestre',   opcaoConcede: { key: 'odiado',    nome: 'Odiado'    }, opcaoCusta: { key: 'adorado', nome: 'Adorado' } },
+    ],
+    pessoal: [
+      { key: 'atencao',      nome: 'Atenção',      opcaoConcede: { key: 'distraido',  nome: 'Distraído'  }, opcaoCusta: { key: 'vigilante',   nome: 'Vigilante'   } },
+      { key: 'coragem',      nome: 'Coragem',      opcaoConcede: { key: 'covarde',    nome: 'Covarde'    }, opcaoCusta: { key: 'corajoso',    nome: 'Corajoso'    } },
+      { key: 'mentalidade',  nome: 'Mentalidade',  opcaoConcede: { key: 'compulsivo', nome: 'Compulsivo' }, opcaoCusta: { key: 'contido',     nome: 'Contido'     } },
+      { key: 'conduta',      nome: 'Conduta',      opcaoConcede: { key: 'desonrado',  nome: 'Desonrado'  }, opcaoCusta: { key: 'honrado',     nome: 'Honrado'     } },
+      { key: 'humor',        nome: 'Humor',        opcaoConcede: { key: 'ranzinza',   nome: 'Ranzinza'   }, opcaoCusta: { key: 'contagiante', nome: 'Contagiante' } },
+      { key: 'temperamento', nome: 'Temperamento', opcaoConcede: { key: 'esquentado', nome: 'Esquentado' }, opcaoCusta: { key: 'bonzinho',    nome: 'Bonzinho'    } },
+    ],
+  },
+
+  // Caracterização Histórica — 1 escolha SEM custo em pontos, entre 3 opções
+  // ligadas ao `reino` do personagem (chaves batem com GAME_DATA.reinos
+  // acima). O wizard só mostra a entrada do reino já escolhido pelo jogador.
+  caracterizacaoHistorica: {
+    'Abadom':         ['Dragonista', 'Escambista', 'Sobrevivente'],
+    'Acordo':         ['Carrancudo', 'Minerador', 'Comerciante'],
+    'Âmien':          ['Prestigiado', 'Abençoado', 'Sábio'],
+    'Azanti':         ['Inconformado', 'Armamentista', 'Preconceituoso'],
+    'Calco':          ['Letrado', 'Multicultural', 'Teórico'],
+    'Cidades-Estado': ['Carpinteiro', 'Abastado', 'Revoltado'],
+    'Conti':          ['Malandro', 'Mesquinho', 'Mateiro'],
+    'Dantsen':        ['Cavalariço', 'Desapropriado', 'Adestrador'],
+    'Eredra':         ['Rebelde', 'Supersticioso', 'Religioso'],
+    'Filanti':        ['Formal', 'Desconfiado', 'Mitomaníaco'],
+    'Levânia':        ['Artesão', 'Justo', 'Demonista'],
+    'Ludgrim':        ['Bilíngue', 'Tolerante', 'Alerta'],
+    'Luna':           ['Artista', 'Medroso', 'Doente'],
+    'Marana':         ['Retórico', 'Cozinheiro', 'Refinado'],
+    'Plana':          ['Negociador', 'Trapaceiro', 'Pacifista'],
+    'Portis':         ['Magista', 'Historiador', 'Xenófobo'],
+    'Porto Livre':    ['Boêmio', 'Procurado', 'Praiano'],
+    'Verrogar':       ['Belicoso', 'Treinado', 'Soldado'],
+  },
 
   // ----------------------------------------------------------
   // APRIMORAMENTOS (DATABASE_TAGMAR — LISTA_HABILIDADE)
@@ -220,48 +283,106 @@ function custoAtributo(v) {
 function pontosGastos(baseVals) {
   return ATRIBUTOS_KEYS.reduce((sum, k) => sum + custoAtributo(baseVals[k] ?? 0), 0);
 }
-function altura(raca) { return GAME_DATA.racas[raca]?.altura ?? 1.77; }
-function peso(raca) {
-  const h = altura(raca);
+// Modificador de gênero sobre física (altura/peso).
+// `genero` é string: 'Masculino' | 'Feminino' | 'Neutro' | undefined.
+// Masculino → +10% (×1.1); Feminino → −10% (×0.9); Neutro → sem modificador (×1).
+function _multGeneroFisico(genero) {
+  if (genero === 'Masculino') return 1.1;
+  if (genero === 'Feminino')  return 0.9;
+  return 1; // Neutro ou indefinido
+}
+
+function altura(raca, genero) {
+  const base = GAME_DATA.racas[raca]?.altura ?? 1.77;
+  return +(base * _multGeneroFisico(genero)).toFixed(2);
+}
+function peso(raca, genero) {
+  const h = altura(raca, genero);
   const fator = raca === 'Anão' ? 40 : 28;
   return Math.floor(h * h * fator);
 }
 
 // Calcula a ficha completa a partir dos campos editáveis.
 // Para os derivados, atributos negativos contam como 0 (não altera `atributos`).
-function calcularFicha(p, catalogoBySlug) {
+// condicoesAtuais (opcional): pj.estado_atual?.condicoes. Quando informado,
+// aplica CONDICOES_ATRIBUTO_MAP sobre os atributos ANTES de calcular EF/EH/
+// RF/RM/Karma/Velocidade — assim uma condição negativa/positiva cascateia
+// pros derivados e pros totais de habilidade/magia/técnica (que recebem
+// `atributos` como parâmetro). Omitido (chamadas antigas) → comportamento
+// idêntico ao de antes, atributos = atributosBase sem ajuste.
+function calcularFicha(p, catalogoBySlug, condicoesAtuais) {
   const racaData = GAME_DATA.racas[p.raca] || GAME_DATA.racas['Humano'];
   const profData = GAME_DATA.profissoes[p.profissao] || GAME_DATA.profissoes['Guerreiro'];
   const estagio = calcEstagio(p.experiencia ?? 0);
 
-  // Atributos finais (base + mod racial) — valor real, exibido ao jogador.
-  const atributos = {};
+  // Atributos finais — valor real, exibido ao jogador. O modificador
+  // racial NÃO é somado aqui: ele é o NÍVEL INICIAL do atributo, já
+  // embutido em `p[${k}_base]` desde a criação (wizard preenche X_base =
+  // mod racial quando a raça é escolhida; o jogador gasta pontos a partir
+  // dali, mesma tabela custoAtributo — sem ajuste — pra qualquer raça).
+  // CORRIGIDO (decisão confirmada com o usuário): a fórmula antiga somava
+  // o mod racial de novo em cima de um X_base que já podia representar o
+  // valor final, contando a raça duas vezes (ex.: Elfo-Dourado com
+  // fisico_base = -2 exibia -3 na ficha, quando -2 já era o valor certo).
+  // racaData.mods segue existindo em GAME_DATA e é usado pelo wizard
+  // (08-personagens/personagens.jsx) pra preencher X_base ao trocar de
+  // raça — não é lixo morto, só não entra mais nesta soma.
+  const atributosBase = {};
   ATRIBUTOS_KEYS.forEach((k) => {
-    atributos[k] = (p[`${k}_base`] ?? 0) + (racaData.mods[k] ?? 0);
+    atributosBase[k] = p[`${k}_base`] ?? 0;
   });
+  const atributos = condicoesAtuais
+    ? aplicarEfeitoCondicoesAtributos(atributosBase, condicoesAtuais)
+    : atributosBase;
 
-  // Versões clamped a 0 só para uso interno nas fórmulas derivadas.
+  // Versões usadas nas fórmulas derivadas (EF/EH/RF/RM/Karma/Velocidade).
+  // HÍBRIDO (decisão confirmada com o usuário): o piso (nunca conta como
+  // penalidade extra) absorve só o mod RACIAL/BASE — ex.: raça com fisico -1
+  // vira 0 pro derivado. A PARTIR daí, o delta de condição pesa em cima SEM
+  // piso novo: uma Saúde negativa tira 2 pontos de verdade, mesmo que o
+  // físico de raça já estivesse zerado (diferente do comportamento antigo,
+  // em que o piso "absorvia" a condição também quando o atributo já não
+  // era positivo). deltaCond isola só a parte da condição (0 quando
+  // condicoesAtuais não foi passado — preserva 100% o comportamento antigo
+  // pras chamadas sem o 3º argumento).
   const clamp0 = (n) => Math.max(0, n);
-  const fisicoC    = clamp0(atributos.fisico);
-  const auraC      = clamp0(atributos.aura);
-  const percepcaoC = clamp0(atributos.percepcao);
-  const agilC      = clamp0(atributos.agilidade);
+  const deltaCond = (k) => (atributos[k] ?? 0) - (atributosBase[k] ?? 0);
+  const fisicoC    = clamp0(atributosBase.fisico)    + deltaCond('fisico');
+  const auraC      = clamp0(atributosBase.aura)      + deltaCond('aura');
+  const percepcaoC = clamp0(atributosBase.percepcao) + deltaCond('percepcao');
+  const agilC      = clamp0(atributosBase.agilidade) + deltaCond('agilidade');
 
-  const h = racaData.altura;
-  const pesoVal = peso(p.raca);
+  // Modificador de gênero:
+  //   Masculino  → +10% de altura e peso; −10% no ehBase da profissão (arredondado pra baixo)
+  //   Feminino   → −10% de altura e peso; +10% no ehBase da profissão (arredondado pra baixo)
+  //   Neutro     → sem modificador em altura/peso nem no ehBase
+  const genero = p.genero;
+  const h = altura(p.raca, genero);
+  const pesoVal = peso(p.raca, genero);
 
+  // Os 6 derivados abaixo ganham Math.max(0, ...) — antes do híbrido isso
+  // era garantido de graça (fisicoC/auraC/percepcaoC/agilC nunca negativos);
+  // agora que a condição pode empurrar o derivado abaixo de 0 de propósito,
+  // o floor final evita pool de combate negativo (o resto do app — cascata
+  // de dano em batalha, barras de vitalidade — assume >= 0).
   // EF — 20% do peso + atributo físico
-  const ef = Math.floor(pesoVal / 5) + fisicoC;
+  const ef = Math.max(0, Math.floor(pesoVal / 5) + fisicoC);
   // EH — ((percepção + aura) × estágio) + EH-base da profissão
-  const eh = (percepcaoC) + (profData.ehBase || 0) * estagio;
+  // Masculino recebe −10% no ehBase; Feminino recebe +10%; Neutro usa o valor base.
+  const ehBaseMod = genero === 'Masculino'
+    ? Math.floor((profData.ehBase || 0) * 0.9)
+    : genero === 'Feminino'
+      ? Math.floor((profData.ehBase || 0) * 1.1)
+      : (profData.ehBase || 0);
+  const eh = Math.max(0, (percepcaoC) + ehBaseMod * estagio);
   // RF — estágio + atributo físico
-  const resFisica = estagio + fisicoC;
+  const resFisica = Math.max(0, estagio + fisicoC);
   // RM — estágio + atributo aura
-  const resMagica = estagio + auraC;
+  const resMagica = Math.max(0, estagio + auraC);
   // KA — (RM + 1) × (aura + 1). Sem karma se aura < 1.
-  const karma = atributos.aura < 1 ? 0 : (resMagica + 1) * (auraC + 1);
+  const karma = atributos.aura < 1 ? 0 : Math.max(0, (resMagica + 1) * (auraC + 1));
   // VB — (11 × altura) + agilidade
-  const veloc = Math.floor(h * 11) + agilC;
+  const veloc = Math.max(0, Math.floor(h * 11) + agilC);
 
   // AR     = soma das absorções dos equipamentos de defesa equipados.
   // Defesa = tipo do peitoral (slot 'peito') concatenado com AR. Ex: "L10".
@@ -295,6 +416,7 @@ function calcularFicha(p, catalogoBySlug) {
     altura: h,
     peso: pesoVal,
     atributos,
+    atributosBase,
     derivadas: {
       energiaFisica: ef,
       energiaHeroica: eh,
@@ -685,12 +807,104 @@ function resolverResistencia(ataque, defesa) {
   return Math.max(1, Math.min(21 - f, 15 - f + Math.floor(a / 2)));
 }
 
+/* ============================== [14.5] Efeito de CONDIÇÕES sobre atributos e habilidades ============================== */
+/* Escala de condição: -COND_LIMITE..+COND_LIMITE (COND_LIMITE em helpers.jsx),
+   0 = neutro. 7 das 8 condições mexem direto num atributo-base (Reputação é
+   a exceção — mexe em grupos de habilidade, ver modificadorGrupoPorReputacao).
+   negativo/positivo abaixo são os deltas aplicados quando a condição está
+   <0 ou >0 (não escala com a magnitude — é limiar, não proporcional). */
+const CONDICOES_ATRIBUTO_MAP = {
+  vitalidade:      { atributo: 'fisico',    negativo: -2, positivo: 1 },  // Saúde
+  animo:           { atributo: 'percepcao', negativo: -2, positivo: 1 },  // Sono
+  hidratacao:      { atributo: 'aura',      negativo: -2, positivo: 1 },  // Hidratação
+  nutricao:        { atributo: 'forca',     negativo: -2, positivo: 1 },  // Alimentação
+  termorregulacao: { atributo: 'agilidade', negativo: -2, positivo: 1 },  // Temperatura
+  euforia:         { atributo: 'intelecto', negativo: -2, positivo: 1 },  // Sobriedade
+  sanidade:        { atributo: 'carisma',   negativo: -2, positivo: 1 },  // Sanidade
+};
+
+// Aplica os deltas de CONDICOES_ATRIBUTO_MAP sobre um objeto de atributos
+// (mesmo shape de ATRIBUTOS_KEYS). Não muta o objeto recebido. condicoes
+// ausente/null → devolve atributosBase sem cópia (fast-path pros callers
+// que nunca passam condição, ex.: wizard de criação).
+function aplicarEfeitoCondicoesAtributos(atributosBase, condicoes) {
+  if (!condicoes) return atributosBase;
+  const out = { ...atributosBase };
+  Object.keys(CONDICOES_ATRIBUTO_MAP).forEach((condKey) => {
+    const v = Number(condicoes[condKey]);
+    if (!Number.isFinite(v) || v === 0) return;
+    const regra = CONDICOES_ATRIBUTO_MAP[condKey];
+    out[regra.atributo] = (out[regra.atributo] || 0) + (v < 0 ? regra.negativo : regra.positivo);
+  });
+  return out;
+}
+
+// Reputação: -25% no grupo Influência / +25% no grupo Subterfúgio quando
+// negativa; +25% Influência / -25% Subterfúgio quando positiva. Habilidade
+// fora desses 2 grupos (ou reputação em 0) não é afetada — retorna 1 (neutro).
+function modificadorGrupoPorReputacao(grupo, reputacao) {
+  const rep = Number(reputacao) || 0;
+  if (rep === 0 || (grupo !== 'Influência' && grupo !== 'Subterfúgio')) return 1;
+  const sinal = rep > 0 ? 1 : -1;
+  if (grupo === 'Influência') return 1 + sinal * 0.25;
+  return 1 - sinal * 0.25; // Subterfúgio (inverso de Influência)
+}
+
+// Wrapper de totalHabilidade que também aplica o modificador de grupo por
+// Reputação. `atributos` já deve vir com aplicarEfeitoCondicoesAtributos
+// aplicado (normalmente via calcularFicha(p, cat, condicoesAtuais)) — este
+// wrapper só cuida da parte de GRUPO, não duplica o efeito de atributo.
+function totalHabilidadeComCondicoes(habKey, habilidadesObj, atributos, bonusObj, habilidadesByKey, condicoes) {
+  const base = totalHabilidade(habKey, habilidadesObj, atributos, bonusObj, habilidadesByKey);
+  const h = habilidadesByKey?.[habKey];
+  const mult = modificadorGrupoPorReputacao(h?.grupo, condicoes?.reputacao);
+  return mult === 1 ? base : Math.round(base * mult);
+}
+
+/* ============================== [15] Helpers de CARACTERIZAÇÃO ============================== */
+// Regra fixa do sistema (ver PDF de especificação do usuário): toda
+// categoria de fisica/social/pessoal concede/custa exatamente 2 pontos,
+// não varia linha a linha. Pool começa em 4 e cresce 1:1 a cada
+// `opcaoConcede` escolhida — sem teto pra quantas "desvantagens"
+// (opcaoConcede) o personagem pode acumular.
+const PONTOS_CARACTERIZACAO_BASE = 4;
+const CUSTO_CARACTERIZACAO = 2;  // pontos que a opcaoCusta ("vantagem") consome
+const GANHO_CARACTERIZACAO = 2;  // pontos que a opcaoConcede ("desvantagem") devolve
+
+// `caracterizacao` é o objeto salvo no personagem: { fisica: {chave: 'baixo'|'grande'},
+// social: {...}, pessoal: {...}, historica: 'Dragonista' }. Chaves ausentes = não escolhido.
+function gastoCaracterizacao(caracterizacao) {
+  const c = caracterizacao || {};
+  let gasto = 0;
+  ['fisica', 'social', 'pessoal'].forEach((grupo) => {
+    const escolhas = c[grupo] || {};
+    (GAME_DATA.caracterizacoes[grupo] || []).forEach((cat) => {
+      if (escolhas[cat.key] === cat.opcaoCusta.key) gasto += CUSTO_CARACTERIZACAO;
+    });
+  });
+  return gasto;
+}
+
+function pontosCaracterizacaoTotal(caracterizacao) {
+  const c = caracterizacao || {};
+  let extra = 0;
+  ['fisica', 'social', 'pessoal'].forEach((grupo) => {
+    const escolhas = c[grupo] || {};
+    (GAME_DATA.caracterizacoes[grupo] || []).forEach((cat) => {
+      if (escolhas[cat.key] === cat.opcaoConcede.key) extra += GANHO_CARACTERIZACAO;
+    });
+  });
+  return PONTOS_CARACTERIZACAO_BASE + extra;
+}
+
 Object.assign(window, {
   GAME_DATA, GRUPOS_HABILIDADES_ORDEM, ATRIBUTOS_KEYS, ATRIBUTOS_LABEL,
   calcEstagio, pontosDisponiveis, custoAtributo, pontosGastos, altura, peso,
   calcularFicha, tituloDoPersonagem, pontosHabilidadesTotal, gastoHabilidades,
   qtdHabilidades, limiteQtdHabilidades, nivelHabilidade, totalHabilidade,
   calcBonusHabilidadesRacaReino,
+  CONDICOES_ATRIBUTO_MAP, aplicarEfeitoCondicoesAtributos,
+  modificadorGrupoPorReputacao, totalHabilidadeComCondicoes,
   MAGIAS_POR_PROFISSAO, profissaoUsaMagia, pontosMagiasTotal, gastoMagias,
   podeAcessarMagia, nivelMagiaEfetivo,
   TECNICAS_POR_PROFISSAO, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
@@ -700,4 +914,6 @@ Object.assign(window, {
   idiomasIniciais, slotsAprimoramento, opcoesAprimoramento,
   RESULTADOS_ACAO, RESOLUCAO_ROWS, ACAO_COL_MIN, ACAO_COL_MAX,
   resolverAcao, resolverResistencia,
+  pontosCaracterizacaoTotal, gastoCaracterizacao,
+  PONTOS_CARACTERIZACAO_BASE, CUSTO_CARACTERIZACAO, GANHO_CARACTERIZACAO,
 });

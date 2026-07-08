@@ -81,6 +81,9 @@ type PersonagensData = {
   personagens: PersonagemResumo[]
   profilesMap: Record<string, string | null | undefined>
   idsComMesa: string[] // Set vira array p/ serializar; a tela reconstrói o Set
+  // Modo master: a que história (id) cada personagem pertence — permite a
+  // tela filtrar pela mesa ativa (seletor do canto). Vazio no modo player.
+  historiaIdPorPersonagem: Record<string, number | string>
 }
 
 async function enriquecerProfiles(
@@ -111,14 +114,20 @@ function usePersonagensData(
       if (isMaster) {
         const { data: hist, error: errH } = await supabaseClient
           .from('historias')
-          .select('protagonista_ids')
+          .select('id, protagonista_ids')
           .eq('mestre_id', currentUserId)
         if (errH) throw new Error(errH.message)
+        const historiaIdPorPersonagem: Record<string, number | string> = {}
+        ;(hist || []).forEach((h: any) => {
+          (h.protagonista_ids || []).forEach((pid: string) => {
+            historiaIdPorPersonagem[pid] = h.id
+          })
+        })
         const ids = [
           ...new Set((hist || []).flatMap((h: any) => h.protagonista_ids || [])),
         ]
         if (ids.length === 0) {
-          return { personagens: [], profilesMap: {}, idsComMesa: [] }
+          return { personagens: [], profilesMap: {}, idsComMesa: [], historiaIdPorPersonagem: {} }
         }
         const { data, error } = await supabaseClient
           .from('personagens')
@@ -131,6 +140,7 @@ function usePersonagensData(
           personagens,
           profilesMap: await enriquecerProfiles(personagens),
           idsComMesa: [], // selo "sem mesa" é só do modo jogador
+          historiaIdPorPersonagem,
         }
       }
 
@@ -159,7 +169,7 @@ function usePersonagensData(
         /* selo é cosmético */
       }
 
-      return { personagens, profilesMap, idsComMesa }
+      return { personagens, profilesMap, idsComMesa, historiaIdPorPersonagem: {} }
     },
   })
 }
