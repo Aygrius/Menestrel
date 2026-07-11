@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "preinstall": "npx only-allow npm",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
@@ -44,5 +45,6 @@
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"
-  }
+  },
+  "packageManager": "npm@11.13.0"
 }
