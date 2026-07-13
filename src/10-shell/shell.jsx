@@ -35,6 +35,45 @@
 
 
 // ─── FantasyDatePicker ──────────────────────────────────────────────────────
+// FdpDrop — portal com position:fixed para não ser cortado por overflow do modal.
+// listRef é necessário: o portal vive fora do DOM do anchorRef, então o handler
+// de mousedown precisa checar AMBOS para não fechar antes do onClick do item.
+function FdpDrop({ anchorRef, children, onClose }) {
+  const [pos, setPos] = React.useState(null);
+  const listRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    setPos({ top: rect.bottom + 4, left: rect.left, minWidth: rect.width });
+  }, [anchorRef]);
+
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (anchorRef.current && anchorRef.current.contains(e.target)) return;
+      if (listRef.current && listRef.current.contains(e.target)) return;
+      onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [anchorRef, onClose]);
+
+  if (!pos) return null;
+  const portalTarget = document.querySelector('.menestrel-ui') || document.body;
+  return ReactDOM.createPortal(
+    <ul ref={listRef} className="fdp-drop" style={{
+      position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.minWidth,
+      background: 'rgba(18,13,6,1)', border: 'none', borderRadius: 6,
+      padding: 4, margin: 0, listStyle: 'none', zIndex: 9999,
+      maxHeight: 220, overflowY: 'auto',
+    }}>
+      {children}
+    </ul>,
+    portalTarget
+  );
+}
+
 function FantasyDatePicker({ value, onChange }) {
   const val = value || { dia: 1, mes: 1, ano: 0 };
   const maxDias = FANTASY_MONTHS[val.mes - 1]?.dias || 30;
@@ -51,17 +90,6 @@ function FantasyDatePicker({ value, onChange }) {
     onChange(next);
   };
 
-  // Fecha ao clicar fora
-  useEffect(() => {
-    if (!diaOpen && !mesOpen) return undefined;
-    const handler = (e) => {
-      if (diaRef.current && !diaRef.current.contains(e.target)) setDiaOpen(false);
-      if (mesRef.current && !mesRef.current.contains(e.target)) setMesOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [diaOpen, mesOpen]);
-
   // Pill — mesmo visual do seletor de mesa (sem borda, fundo escuro translúcido)
   const pill = {
     background: 'rgba(106, 85, 48, 0.12)',
@@ -76,13 +104,6 @@ function FantasyDatePicker({ value, onChange }) {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%',
     color: '#E8DDC6', textAlign: 'left', border: 'none',
     padding: '0 12px 0 16px', cursor: 'pointer',
-  };
-
-  const dropList = {
-    position: 'absolute', top: 'calc(100% + 4px)', left: 0, minWidth: '100%',
-    background: 'rgba(18, 13, 6, 1)', border: 'none', borderRadius: 6,
-    padding: 4, margin: 0, listStyle: 'none', zIndex: 60,
-    maxHeight: 220, overflowY: 'auto',
   };
 
   const dropItem = (active) => ({
@@ -104,17 +125,17 @@ function FantasyDatePicker({ value, onChange }) {
     <div className="menestrel-ui" style={{ display: 'grid', gridTemplateColumns: '70px 1fr 130px 80px', gap: 8 }}>
 
       {/* Dia — dropdown customizado, mesmo tipo de seletor do SelectPill (ver "Arma") */}
-      <div ref={diaRef} style={{ position: 'relative' }}>
+      <div ref={diaRef}>
         <button type="button" className="select-pill-btn" data-open={diaOpen ? 'true' : 'false'} style={dropBtn} onClick={() => { setDiaOpen((v) => !v); setMesOpen(false); }}>
           <span>{val.dia}</span>
           {chevron(diaOpen)}
         </button>
         {diaOpen && (
-          <ul className="fdp-drop" style={dropList}>
+          <FdpDrop anchorRef={diaRef} onClose={() => setDiaOpen(false)}>
             {Array.from({ length: maxDias }, (_, i) => i + 1).map((d) => (
               <li key={d}
                 style={dropItem(d === val.dia)}
-                onMouseEnter={(e) => { if (d !== val.dia) e.currentTarget.style.background = 'rgba(106, 85, 48, 0.12);'; e.currentTarget.style.color = '#E8DDC6'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(106,85,48,0.12)'; e.currentTarget.style.color = '#E8DDC6'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = d === val.dia ? '#C9A44E' : '#C8BCAA'; }}
                 onClick={() => { update('dia', d); setDiaOpen(false); }}
               >
@@ -122,12 +143,12 @@ function FantasyDatePicker({ value, onChange }) {
                 {d === val.dia && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
               </li>
             ))}
-          </ul>
+          </FdpDrop>
         )}
       </div>
 
       {/* Mês — dropdown customizado, mesmo tipo de seletor do SelectPill (ver "Arma") */}
-      <div ref={mesRef} style={{ position: 'relative' }}>
+      <div ref={mesRef}>
         <button type="button" className="select-pill-btn" data-open={mesOpen ? 'true' : 'false'} style={dropBtn} onClick={() => { setMesOpen((v) => !v); setDiaOpen(false); }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {FANTASY_MONTHS[val.mes - 1]?.nome || ''}
@@ -135,7 +156,7 @@ function FantasyDatePicker({ value, onChange }) {
           {chevron(mesOpen)}
         </button>
         {mesOpen && (
-          <ul className="fdp-drop" style={dropList}>
+          <FdpDrop anchorRef={mesRef} onClose={() => setMesOpen(false)}>
             {FANTASY_MONTHS.map((m) => (
               <li key={m.n}
                 style={dropItem(m.n === val.mes)}
@@ -147,7 +168,7 @@ function FantasyDatePicker({ value, onChange }) {
                 {m.n === val.mes && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
               </li>
             ))}
-          </ul>
+          </FdpDrop>
         )}
       </div>
 
@@ -1190,6 +1211,563 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208 }) {
   );
 }
 
+/* ============================== [9.4] Calendário Fantasy — feriados e visualizador ==============================
+   FERIADOS_FANTASY: lista fixa de feriados do calendário do mundo.
+   Formato: { dia, mes, nome }. Meses 1–12 são os meses normais; mês 13 é o
+   mês especial "Cruine" (1 dia). Espelha FANTASY_MONTHS de 01-core.
+*/
+const FERIADOS_FANTASY = [
+  { dia:  2, mes:  1, nome: 'Festival da Benção Militar' },
+  { dia: 12, mes:  1, nome: 'Amor da Deusa' },
+  { dia: 17, mes:  1, nome: 'Adoração a Maira Mon' },
+  { dia:  1, mes:  2, nome: 'Dia do Mar' },
+  { dia:  5, mes:  2, nome: 'Jejum da Piedade' },
+  { dia:  5, mes:  2, nome: 'Solstício de Verão' },
+  { dia: 11, mes:  2, nome: 'Festa da Carne' },
+  { dia: 19, mes:  2, nome: 'Culto à Elevação' },
+  { dia:  5, mes:  3, nome: 'Condecoração Póstuma' },
+  { dia:  9, mes:  3, nome: 'Vitória da Justiça' },
+  { dia: 15, mes:  3, nome: 'Festa da Prosperidade' },
+  { dia: 20, mes:  3, nome: 'Dia do Amor e Paz' },
+  { dia:  2, mes:  4, nome: 'Adoração a Maira Vet' },
+  { dia:  7, mes:  4, nome: 'Festa da Fertilidade' },
+  { dia: 13, mes:  4, nome: 'Festa da Purificação de Parom' },
+  { dia: 30, mes:  4, nome: 'Festa da Fartura' },
+  { dia:  1, mes:  5, nome: 'Festa da Fartura' },
+  { dia:  5, mes:  5, nome: 'Equinócio de Outono' },
+  { dia:  9, mes:  5, nome: 'Dia das Ilusões' },
+  { dia: 21, mes:  5, nome: 'Dia da Multiplicação' },
+  { dia: 20, mes:  6, nome: 'Jornada da Paz' },
+  { dia: 24, mes:  6, nome: 'Festa dos Artífices' },
+  { dia: 30, mes:  6, nome: 'Festa da Colheita' },
+  { dia:  1, mes:  7, nome: 'Noite dos Prazeres' },
+  { dia: 13, mes:  7, nome: 'Batismo de Fogo' },
+  { dia: 19, mes:  7, nome: 'Representação de Plandis' },
+  { dia:  3, mes:  8, nome: 'Festival de Renascimento de Maira' },
+  { dia:  5, mes:  8, nome: 'Solstício de Inverno' },
+  { dia:  9, mes:  8, nome: 'Festa da Iluminação' },
+  { dia: 23, mes:  8, nome: 'Oferenda de Sangue' },
+  { dia:  4, mes:  9, nome: 'Memorial dos Ancestrais' },
+  { dia:  6, mes:  9, nome: 'Dia da Magia' },
+  { dia: 20, mes:  9, nome: 'Adoração a Maira Nil e Prisão Dourada' },
+  { dia:  1, mes: 10, nome: 'Festa do Plantio' },
+  { dia: 12, mes: 10, nome: 'Festa dos Amantes' },
+  { dia: 27, mes: 10, nome: 'Festa da Vitória' },
+  { dia:  6, mes: 11, nome: 'Equinócio de Primavera' },
+  { dia: 13, mes: 11, nome: 'Culto à Tríade' },
+  { dia: 26, mes: 11, nome: 'Dia da Sobra' },
+  { dia: 16, mes: 12, nome: 'Festa dos Povos' },
+  { dia: 27, mes: 12, nome: 'Noite do Entendimento entre os Povos' },
+  { dia: 29, mes: 12, nome: 'Noite dos Justos' },
+  { dia:  1, mes: 13, nome: 'Dia de Cruine e Retorno da Escuridão' },
+];
+
+// Converte (dia, mes) em número sequencial dentro do ano fantasy.
+// Assume meses 1–12 com 30 dias cada + mês 13 com 1 dia = 361 dias/ano.
+// Usa FANTASY_MONTHS para dias reais se disponível (window global de 01-core).
+function _diaDaData(dia, mes) {
+  const meses = typeof FANTASY_MONTHS !== 'undefined' ? FANTASY_MONTHS : null;
+  let acc = 0;
+  for (let m = 1; m < mes; m++) {
+    acc += (meses ? (meses[m - 1]?.dias || 30) : 30);
+  }
+  return acc + dia;
+}
+
+// Retorna o próximo feriado a partir de (dia, mes) — exclusive, ou seja,
+// se hoje É feriado, retorna o PRÓXIMO (não o atual).
+// Volta ao início do ano se não houver feriado nos meses restantes.
+function proximoFeriado(dia, mes) {
+  const hoje = _diaDaData(dia, mes);
+  // Feriados ordenados por dia sequencial
+  const ordenados = [...FERIADOS_FANTASY].sort((a, b) => _diaDaData(a.dia, a.mes) - _diaDaData(b.dia, b.mes));
+  // Próximo estritamente depois de hoje
+  const proximo = ordenados.find((f) => _diaDaData(f.dia, f.mes) > hoje);
+  if (proximo) return proximo;
+  // Nenhum encontrado → retorna o primeiro do próximo ano (volta ao início)
+  return ordenados[0] || null;
+}
+
+// Retorna array com os nomes dos feriados de um dia/mês específico (pode haver mais de um)
+function feriadosDoDia(dia, mes) {
+  return FERIADOS_FANTASY.filter((f) => f.dia === dia && f.mes === mes).map((f) => f.nome);
+}
+
+// Modal de calendário fantasy — visão de todos os meses com feriados destacados.
+// Notas pessoais: armazenadas em historias.notas_calendario (JSONB) com chave "MES:DIA".
+// Carregadas ao montar / trocar de mês; salvas/apagadas inline via Supabase.
+function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEditar, userId, onDefinirDataAtual, onClose }) {
+  const en = lang === 'en';
+  const meses = typeof FANTASY_MONTHS !== 'undefined' ? FANTASY_MONTHS : null;
+  const totalMeses = meses ? meses.length : 13;
+
+  // Mês inicial: o mês atual da data do jogo, ou 1
+  const [mesFoco, setMesFoco] = useState(dataAtual ? dataAtual.mes : 1);
+  const [anoFoco, setAnoFoco] = useState(dataAtual?.ano ?? 0);
+
+  const mesAtual = meses ? meses[mesFoco - 1] : null;
+  const nomeMes = mesAtual?.nome || `Mês ${mesFoco}`;
+  const diasNoMes = mesAtual?.dias || (mesFoco === 13 ? 1 : 30);
+
+  // Aniversário do PJ neste mês (se dataNasc fornecida)
+  const ehMesAniversario = dataNasc && Number(dataNasc.mes) === mesFoco;
+  const diaAniversario = ehMesAniversario ? Number(dataNasc.dia) : null;
+
+  // Dias da semana do mês (para cabeçalho de grade)
+  // FANTASY_WEEKDAYS: ['Anaesi','Basvo','Calcato','Moldio','Saegaeti','Saverieto','Sivonte']
+  // Âncora: Dia 1, Mês 1, Ano 0 = Moldio (índice 3). Ano tem 361 dias (30×12 + 1 Dia de Cruine).
+  const _wd = typeof FANTASY_WEEKDAYS !== 'undefined' ? FANTASY_WEEKDAYS : ['Anaesi','Basvo','Calcato','Moldio','Saegaeti','Saverieto','Sivonte'];
+  const DIAS_SEMANA_FULL = _wd;
+  const primeiroDiaSemana = (() => {
+    const mesesArr = typeof FANTASY_MONTHS !== 'undefined' ? FANTASY_MONTHS : null;
+    let acc = anoFoco * 361;
+    for (let m = 1; m < mesFoco; m++) acc += (mesesArr ? (mesesArr[m - 1]?.dias || 30) : 30);
+    return (acc + 3) % 7;
+  })();
+
+  const feriadosPorDia = useMemo(() => {
+    const map = {};
+    FERIADOS_FANTASY.filter((f) => f.mes === mesFoco).forEach((f) => {
+      if (!map[f.dia]) map[f.dia] = [];
+      map[f.dia].push(f.nome);
+    });
+    return map;
+  }, [mesFoco]);
+
+  // ── Notas ────────────────────────────────────────────────────────────────────
+  // Mestre  → lê/escreve historias.notas_calendario  (JSONB { "mes:dia": texto })
+  // Jogador → lê historias.notas_calendario (só leitura, notas do mestre)
+  //          + lê/escreve profiles.notas_calendario  (JSONB { "historiaId:mes:dia": texto },
+  //            isolado por user via RLS — cada jogador vê só as próprias notas)
+  //
+  // notasMestre:  { [dia]: string } — notas do mestre para o mês atual (leitura para todos)
+  // notasProprias: { [dia]: string } — notas do jogador para o mês atual (só jogador)
+  // notasPorDia:  { [dia]: string } — merge para exibição (mestre tem prioridade visual)
+  const [notasMestre,   setNotasMestre]   = useState({});
+  const [notasProprias, setNotasProprias] = useState({});
+  const [todasMestre,   setTodasMestre]   = useState({}); // cache JSONB mestre
+  const [todasProprias, setTodasProprias] = useState({}); // cache JSONB jogador
+  const [carregandoNotas, setCarregandoNotas] = useState(false);
+
+  // notasPorDia: merge para grade e legenda — notas próprias do jogador sobrepõem as do mestre no mesmo dia
+  const notasPorDia = useMemo(() => ({ ...notasMestre, ...notasProprias }), [notasMestre, notasProprias]);
+
+  // Carrega notas ao montar e ao trocar de mês
+  useEffect(() => {
+    if (!historiaId) return;
+    let cancel = false;
+    setNotasMestre({});
+    setNotasProprias({});
+    setCarregandoNotas(true);
+    (async () => {
+      try {
+        // Notas do mestre — todos leem
+        const { data: hData } = await supabaseClient
+          .from('historias')
+          .select('notas_calendario')
+          .eq('id', historiaId)
+          .single();
+        if (cancel) return;
+        const todasM = hData?.notas_calendario || {};
+        setTodasMestre(todasM);
+        const mapM = {};
+        Object.entries(todasM).forEach(([k, v]) => {
+          const [m, d] = k.split(':').map(Number);
+          if (m === mesFoco) mapM[d] = v;
+        });
+        if (!cancel) setNotasMestre(mapM);
+
+        // Notas próprias do jogador — só jogador carrega
+        if (!podeEditar && userId) {
+          const { data: pData } = await supabaseClient
+            .from('profiles')
+            .select('notas_calendario')
+            .eq('id', userId)
+            .single();
+          if (cancel) return;
+          const todasP = pData?.notas_calendario || {};
+          setTodasProprias(todasP);
+          const prefixo = `${historiaId}:${mesFoco}:`;
+          const mapP = {};
+          Object.entries(todasP).forEach(([k, v]) => {
+            if (k.startsWith(prefixo)) {
+              const d = Number(k.replace(prefixo, ''));
+              if (d > 0) mapP[d] = v;
+            }
+          });
+          if (!cancel) setNotasProprias(mapP);
+        }
+      } catch (_) {}
+      if (!cancel) setCarregandoNotas(false);
+    })();
+    return () => { cancel = true; };
+  }, [mesFoco, historiaId, podeEditar, userId]);
+
+  // ── Dia selecionado + input de nota ─────────────────────────────────────────
+  const [diaFoco, setDiaFoco] = useState(null);
+  const [inputAtivo, setInputAtivo] = useState(false);
+  const [rascunho, setRascunho] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const inputRef = useRef(null);
+
+  // Ao focar um dia: preencher rascunho com nota própria existente (jogador) ou do mestre
+  const selecionarDia = (dia) => {
+    if (diaFoco === dia) { setDiaFoco(null); setInputAtivo(false); setRascunho(''); return; }
+    setDiaFoco(dia);
+    setInputAtivo(false);
+    setRascunho(podeEditar ? (notasMestre[dia] || '') : (notasProprias[dia] || ''));
+  };
+
+  // Ao trocar de mês: desselecionar dia
+  const trocarMes = (fn) => { setMesFoco(fn); setDiaFoco(null); setInputAtivo(false); setRascunho(''); };
+
+  // Abre o input e foca
+  const abrirInput = () => {
+    setInputAtivo(true);
+    setTimeout(() => inputRef.current?.focus(), 40);
+  };
+
+  // Salvar nota
+  const salvarNota = async () => {
+    if (!historiaId || diaFoco == null) return;
+    const texto = rascunho.trim().slice(0, 25);
+    setSalvando(true);
+    try {
+      if (podeEditar) {
+        // Mestre → grava em historias.notas_calendario
+        const chave = `${mesFoco}:${diaFoco}`;
+        const novasNotas = { ...todasMestre };
+        if (texto) novasNotas[chave] = texto;
+        else delete novasNotas[chave];
+        const { error } = await supabaseClient
+          .from('historias')
+          .update({ notas_calendario: novasNotas })
+          .eq('id', historiaId);
+        if (!error) {
+          setTodasMestre(novasNotas);
+          setNotasMestre((prev) => { const n = { ...prev }; if (texto) n[diaFoco] = texto; else delete n[diaFoco]; return n; });
+        }
+      } else if (userId) {
+        // Jogador → grava em profiles.notas_calendario
+        const chave = `${historiaId}:${mesFoco}:${diaFoco}`;
+        const novasNotas = { ...todasProprias };
+        if (texto) novasNotas[chave] = texto;
+        else delete novasNotas[chave];
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update({ notas_calendario: novasNotas })
+          .eq('id', userId);
+        if (!error) {
+          setTodasProprias(novasNotas);
+          setNotasProprias((prev) => { const n = { ...prev }; if (texto) n[diaFoco] = texto; else delete n[diaFoco]; return n; });
+        }
+      }
+    } catch (_) {}
+    setSalvando(false);
+    setInputAtivo(false);
+  };
+
+  // Apagar nota
+  const apagarNota = async () => {
+    if (!historiaId || diaFoco == null) return;
+    setSalvando(true);
+    try {
+      if (podeEditar) {
+        const chave = `${mesFoco}:${diaFoco}`;
+        const novasNotas = { ...todasMestre };
+        delete novasNotas[chave];
+        const { error } = await supabaseClient
+          .from('historias')
+          .update({ notas_calendario: novasNotas })
+          .eq('id', historiaId);
+        if (!error) {
+          setTodasMestre(novasNotas);
+          setNotasMestre((prev) => { const n = { ...prev }; delete n[diaFoco]; return n; });
+        }
+      } else if (userId) {
+        const chave = `${historiaId}:${mesFoco}:${diaFoco}`;
+        const novasNotas = { ...todasProprias };
+        delete novasNotas[chave];
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update({ notas_calendario: novasNotas })
+          .eq('id', userId);
+        if (!error) {
+          setTodasProprias(novasNotas);
+          setNotasProprias((prev) => { const n = { ...prev }; delete n[diaFoco]; return n; });
+        }
+      }
+    } catch (_) {}
+    setSalvando(false);
+    setRascunho('');
+    setInputAtivo(false);
+  };
+
+  // Definir a data atual da aventura (mestre) a partir do dia focado no calendário
+  const [definindoData, setDefinindoData] = useState(false);
+  const definirComoDataAtual = async () => {
+    if (!onDefinirDataAtual || diaFoco == null) return;
+    setDefinindoData(true);
+    try { await onDefinirDataAtual({ dia: diaFoco, mes: mesFoco, ano: anoFoco }); } catch (_) {}
+    setDefinindoData(false);
+  };
+
+  // Grade de dias: offset + dias
+  const celulas = Array(primeiroDiaSemana).fill(null).concat(
+    Array.from({ length: diasNoMes }, (_, i) => i + 1)
+  );
+
+  const hoje = dataAtual ? { dia: dataAtual.dia, mes: dataAtual.mes, ano: dataAtual.ano ?? 0 } : null;
+
+  // O painel aparece para qualquer dia selecionado — sempre há pelo menos o botão de nota
+  const temConteudoPainel = diaFoco != null;
+
+  return ReactDOM.createPortal(
+    <div
+      className="cal-overlay"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="menestrel-ui">
+      <div className="cal-modal">
+
+        {/* Header */}
+        <div className="cal-header">
+          <div className="cal-header-left">
+            <i className="ti ti-calendar-month cal-header-icon" aria-hidden="true" />
+            {podeEditar ? (
+              <div className="cal-header-ano-nav">
+                <button
+                  className="cal-ano-btn"
+                  onClick={() => setAnoFoco((a) => Math.max(0, a - 1))}
+                  disabled={anoFoco <= 0}
+                  aria-label={en ? 'Previous year' : 'Ano anterior'}
+                >‹</button>
+                <span className="cal-header-title">
+                  {en ? `Year ${anoFoco}` : `Ano ${anoFoco}`}
+                </span>
+                <button
+                  className="cal-ano-btn"
+                  onClick={() => setAnoFoco((a) => a + 1)}
+                  aria-label={en ? 'Next year' : 'Próximo ano'}
+                >›</button>
+              </div>
+            ) : (
+              <span className="cal-header-title">
+                {en ? `Year ${anoFoco}` : `Ano ${anoFoco}`}
+              </span>
+            )}
+          </div>
+          <button className="cal-header-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Navegação de mês */}
+        <div className="cal-nav">
+          <button
+            className="cal-nav-btn"
+            onClick={() => trocarMes((m) => Math.max(1, m - 1))}
+            disabled={mesFoco === 1}
+            aria-label={en ? 'Previous month' : 'Mês anterior'}
+          >‹</button>
+          <span className="cal-nav-mes">{nomeMes}</span>
+          <button
+            className="cal-nav-btn"
+            onClick={() => trocarMes((m) => Math.min(totalMeses, m + 1))}
+            disabled={mesFoco === totalMeses}
+            aria-label={en ? 'Next month' : 'Próximo mês'}
+          >›</button>
+        </div>
+
+        {/* Cabeçalho dos dias da semana */}
+        <div className="cal-weekdays">
+          {DIAS_SEMANA_FULL.map((d) => (
+            <div key={d} className="cal-weekday">{d}</div>
+          ))}
+        </div>
+
+        {/* Grade de dias */}
+        <div className="cal-grid">
+          {celulas.map((dia, idx) => {
+            if (dia === null) return <div key={`off-${idx}`} />;
+            const ehHoje   = hoje && hoje.ano === anoFoco && hoje.mes === mesFoco && hoje.dia === dia;
+            const feriados = feriadosPorDia[dia] || [];
+            const temFeriado = feriados.length > 0;
+            const ehAniv   = diaAniversario === dia;
+            const temNota  = !!notasPorDia[dia];
+            const focado   = diaFoco === dia;
+            const classes  = [
+              'cal-dia',
+              ehHoje   ? 'is-hoje'        : '',
+              ehAniv   ? 'is-aniversario' : '',
+              (!ehHoje && !ehAniv && focado) ? 'is-focado' : '',
+            ].filter(Boolean).join(' ');
+            return (
+              <button
+                key={dia}
+                className={classes}
+                onClick={() => selecionarDia(dia)}
+                aria-label={`${dia}${temFeriado ? ' — ' + feriados.join(', ') : ''}${ehAniv ? (en ? ' — Birthday' : ' — Aniversário') : ''}${temNota ? ' — ' + notasPorDia[dia] : ''}`}
+              >
+                <span>{dia}</span>
+                {(temFeriado || ehAniv || temNota) && (
+                  <div className="cal-dia-dots">
+                    {temFeriado && <span className="cal-dot cal-dot-feriado" />}
+                    {ehAniv     && <span className="cal-dot cal-dot-aniv" />}
+                    {temNota    && <span className="cal-dot cal-dot-nota" />}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Painel de detalhe do dia selecionado */}
+        {temConteudoPainel && (
+          <div className="cal-painel">
+            <div className="cal-painel-eyebrow">
+              <span className="cal-painel-dia-label">
+                {en ? `Day ${diaFoco}` : `Dia ${diaFoco}`}
+              </span>
+              <div className="cal-painel-acoes">
+                {podeEditar && onDefinirDataAtual && (
+                  (dataAtual && dataAtual.dia === diaFoco && dataAtual.mes === mesFoco && (dataAtual.ano ?? 0) === anoFoco) ? (
+                    <span className="cal-data-atual-tag">
+                      <i className="ti ti-map-pin-filled" aria-hidden="true" />
+                      {en ? 'Current date' : 'Data atual'}
+                    </span>
+                  ) : (
+                    <button
+                      className="cal-definir-data-btn"
+                      onClick={definirComoDataAtual}
+                      disabled={definindoData}
+                      title={en ? 'Set as current date' : 'Definir como data atual'}
+                    >
+                      <i className="ti ti-calendar-check" aria-hidden="true" />
+                      <span>{definindoData ? (en ? 'Setting…' : 'Definindo…') : (en ? 'Set as current' : 'Definir como atual')}</span>
+                    </button>
+                  )
+                )}
+                {!inputAtivo && (
+                  <button
+                    className="cal-nota-del"
+                    onClick={abrirInput}
+                    title={notasPorDia[diaFoco] ? (en ? 'Edit note' : 'Editar nota') : (en ? 'Add note' : 'Adicionar nota')}
+                    aria-label={notasPorDia[diaFoco] ? (en ? 'Edit note' : 'Editar nota') : (en ? 'Add note' : 'Adicionar nota')}
+                  >
+                    <i className={`ti ${notasPorDia[diaFoco] ? 'ti-pencil' : 'ti-plus'}`} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Aniversário */}
+            {diaFoco === diaAniversario && (
+              <div className="cal-evento cal-evento-aniv">
+                <i className="ti ti-cake" aria-hidden="true" />
+                <span>
+                  {en ? 'Birthday' : 'Aniversário do personagem'}
+                  {dataAtual?.ano && dataNasc?.ano ? ` (${Number(dataAtual.ano) - Number(dataNasc.ano)} ${en ? 'years' : 'anos'})` : ''}
+                </span>
+              </div>
+            )}
+
+            {/* Feriados */}
+            {(feriadosPorDia[diaFoco] || []).map((nome, i) => (
+              <div key={i} className="cal-evento cal-evento-feriado">
+                <i className="ti ti-sparkles" aria-hidden="true" />
+                <span>{nome}</span>
+              </div>
+            ))}
+
+            {/* Nota existente */}
+            {notasPorDia[diaFoco] && !inputAtivo && (
+              <div className="cal-nota-row">
+                <i className="ti ti-notebook" aria-hidden="true" />
+                <span className="cal-nota-texto">{notasPorDia[diaFoco]}</span>
+                <button
+                  className="cal-nota-del"
+                  onClick={apagarNota}
+                  disabled={salvando}
+                  aria-label={en ? 'Delete note' : 'Apagar nota'}
+                >
+                  <i className="ti ti-trash" aria-hidden="true" />
+                </button>
+              </div>
+            )}
+
+            {/* Input inline de nota */}
+            {inputAtivo && (
+              <div className="cal-input-row">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  className="cal-input"
+                  maxLength={25}
+                  value={rascunho}
+                  onChange={(e) => setRascunho(e.target.value.slice(0, 25))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter')  { e.preventDefault(); salvarNota(); }
+                    if (e.key === 'Escape') { setInputAtivo(false); setRascunho(notasPorDia[diaFoco] || ''); }
+                  }}
+                  placeholder={en ? 'Up to 25 characters…' : 'Até 25 caracteres…'}
+                />
+                <button
+                  className="cal-input-ok"
+                  onClick={salvarNota}
+                  disabled={salvando}
+                  aria-label={en ? 'Save' : 'Salvar'}
+                >
+                  {salvando ? '…' : (en ? 'Save' : 'Ok')}
+                </button>
+                <button
+                  className="cal-input-cancel"
+                  onClick={() => { setInputAtivo(false); setRascunho(notasPorDia[diaFoco] || ''); }}
+                  aria-label={en ? 'Cancel' : 'Cancelar'}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Legenda do mês — visível quando nenhum dia está selecionado */}
+        {!diaFoco && (() => {
+          // Mescla feriados, aniversário e notas numa lista plana ordenada por dia
+          const itens = [];
+          if (ehMesAniversario) itens.push({ dia: diaAniversario, tipo: 'aniv', texto: en ? 'Birthday' : 'Aniversário do personagem' });
+          Object.entries(feriadosPorDia).forEach(([dia, nomes]) =>
+            nomes.forEach((nome, i) => itens.push({ dia: Number(dia), tipo: 'feriado', texto: nome, i }))
+          );
+          Object.entries(notasPorDia).forEach(([dia, texto]) =>
+            itens.push({ dia: Number(dia), tipo: 'nota', texto })
+          );
+          itens.sort((a, b) => a.dia - b.dia);
+          if (itens.length === 0) return (
+            <div className="cal-vazio">
+              {en ? 'No holidays this month' : 'Nenhum feriado neste mês'}
+            </div>
+          );
+          return (
+            <div className="cal-legenda">
+              {itens.map((item, idx) => (
+                <div key={idx} className="cal-legenda-row">
+                  <span className={`cal-legenda-num-${item.tipo}`}>{item.dia}</span>
+                  <span className="cal-legenda-sep">·</span>
+                  <span className={`cal-legenda-nome-${item.tipo}`}>{item.texto}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>{/* cal-modal */}
+      </div>{/* menestrel-ui */}
+    </div>,
+    document.body
+  );
+}
+
 /* ============================== [9.5] CardDataJogoAtual — card flutuante com data/local atual da mesa ==============================
    Mostra sempre (Mestre e Jogador) onde a aventura está agora — separado
    da "data de início" (data_inicio/data_jogo, fixas, só editadas na criação
@@ -1211,7 +1789,7 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208 }) {
    Sem historiaId (mesa não resolvida) não monta nada — mesmo contrato da
    CentralMensagens.
 */
-function CardDataJogoAtual({ lang, historiaId, podeEditar, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, limiteFreeHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, limiteFreePersonagem, esconderBotaoPersonagem }) {
+function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, limiteFreeHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, limiteFreePersonagem, esconderBotaoPersonagem, dataNascPjAtivo = null }) {
   const [dataAtual, setDataAtual] = useState(null); // { dia, mes, ano, local } | null
   const [carregando, setCarregando] = useState(true);
   const [editando, setEditando] = useState(null); // null | 'data' | 'local'
@@ -1219,6 +1797,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, minhasHistorias, mesa
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState(null);
   const [mesaDropOpen, setMesaDropOpen] = useState(false);
+  const [calendarioAberto, setCalendarioAberto] = useState(false);
   const mesaDropRef = React.useRef(null);
 
   // Fecha dropdown ao clicar fora
@@ -1278,6 +1857,16 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, minhasHistorias, mesa
     setEditando(null);
   };
 
+  // Define a data atual da aventura a partir do calendário (mestre) — preserva o local
+  const definirDataAtual = async ({ dia, mes, ano }) => {
+    const payload = { dia, mes, ano, local: (dataAtual && dataAtual.local) || '' };
+    const { error } = await supabaseClient
+      .from('historias').update({ data_jogo_atual: payload }).eq('id', historiaId);
+    if (error) { console.error('[data-jogo-atual] definir data falhou:', error); return { error }; }
+    setDataAtual(payload);
+    return {};
+  };
+
   // Carregando ainda bloqueia tudo (evita flash). Sem historiaId mas com
   // onNovoPersonagem disponível, segue renderizando — é exatamente o caso de
   // um Jogador sem nenhum PJ ainda (sem PJ não há história vinculada, então
@@ -1331,9 +1920,9 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, minhasHistorias, mesa
           <>
             <button
               type="button"
-              className={'cdj-bar' + (podeEditar ? ' is-editavel' : '')}
-              onClick={() => abrirEdicao('data')}
-              disabled={!podeEditar}
+              className="cdj-bar is-editavel"
+              onClick={() => setCalendarioAberto(true)}
+              disabled={false}
               aria-label={en ? 'Current in-game date' : 'Data atual do jogo'}
             >
               <i className="ti ti-calendar-event" aria-hidden="true" />
@@ -1367,51 +1956,20 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, minhasHistorias, mesa
                 <span className="cdj-local">{dataAtual.local}</span>
               </button>
             )}
+            {calendarioAberto && (
+              <CalendarioFantasyModal
+                dataAtual={dataAtual}
+                dataNasc={dataNascPjAtivo}
+                lang={lang}
+                historiaId={historiaId}
+                podeEditar={podeEditar}
+                userId={podeEditar ? null : userId}
+                onDefinirDataAtual={definirDataAtual}
+                onClose={() => setCalendarioAberto(false)}
+              />
+            )}
           </>
         )
-      ) : editando === 'data' ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', pointerEvents: 'auto' }}>
-          <FantasyDatePicker
-            value={{ dia: rascunho.dia, mes: rascunho.mes, ano: rascunho.ano }}
-            onChange={(v) => setRascunho((r) => ({ ...r, ...v }))}
-            lang={lang}
-          />
-          {/* Cancelar — btn-ghost padrão do sistema */}
-          <button
-            type="button"
-            className="cdj-pill-btn"
-            onClick={() => setEditando(null)}
-            disabled={salvando}
-            style={{
-              background: 'rgba(106,85,48,0.12)',
-              border: 'none', borderRadius: 999, height: 32, outline: 'none',
-              fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
-              color: '#E8DDC6', padding: '0 20px', cursor: 'pointer', opacity: salvando ? 0.5 : 1,
-            }}
-          >
-            {en ? 'Cancel' : 'Cancelar'}
-          </button>
-          {/* Salvar — btn-primary padrão do sistema */}
-          <button
-            type="button"
-            className="cdj-pill-btn-salvar"
-            onClick={salvar}
-            disabled={salvando}
-            style={{
-              background: salvando ? 'rgba(201,164,78,0.5)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
-              border: 'none', borderRadius: 999, height: 32, outline: 'none',
-              fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
-              color: '#1C1407', padding: '0 20px', cursor: salvando ? 'default' : 'pointer',
-            }}
-          >
-            {salvando ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Save' : 'Salvar')}
-          </button>
-          {erro && (
-            <span style={{ color: '#E08A6F', fontFamily: "'Lora', serif", fontSize: 12, flexBasis: '100%' }}>
-              {erro}
-            </span>
-          )}
-        </div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', pointerEvents: 'auto' }}>
           {/* Input local — pill escuro para edição */}
@@ -1612,6 +2170,473 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
   );
 }
 
+/* ============================== [9.7] MusicaAmbiente — player com playlist ==============================
+   Toca música ambiente em loop enquanto o usuário está no console.
+   Usa iframe invisível do YouTube (youtube-nocookie.com) com autoplay + loop.
+
+   ARQUITETURA:
+   - usePlaylistState   → hook central; persiste em localStorage.
+   - MusicaPlayerFab    → mini-player flutuante (right:16, top:136, abaixo dos dados).
+                          FAB principal: play/pause. Expande em painel com prev/next/stop
+                          e nome da faixa. Tooltip via NavTooltip (padrão do shell).
+                          Botão de playlist (só master) navega para PlaylistMestre.
+   - PlaylistMestre     → página de gerenciamento (seção especial 'playlist').
+
+   REGRA DO NAVEGADOR: autoplay só funciona após a 1ª interação do usuário.
+   O iframe só monta após o 1.º clique/keydown na página.
+
+   HELPERS: extrairYtId(url) → aceita URL completa, youtu.be/ID e ID cru (11 chars). */
+
+const MUSICA_YT_ID_PADRAO = '67XRi2616YA';
+const MUSICA_FAIXA_PADRAO = { id: '__padrao__', nome: 'Trilha padrão', ytId: MUSICA_YT_ID_PADRAO };
+
+function extrairYtId(url) {
+  if (!url) return null;
+  url = url.trim();
+  const curto = url.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
+  if (curto) return curto[1];
+  const longo = url.match(/[?&/](?:v=|embed\/)([A-Za-z0-9_-]{11})/);
+  if (longo) return longo[1];
+  if (/^[A-Za-z0-9_-]{11}$/.test(url)) return url;
+  return null;
+}
+
+function ytEmbedUrl(ytId) {
+  return `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&loop=1&playlist=${ytId}&controls=0&mute=0&enablejsapi=0`;
+}
+
+// ── Hook central de estado da playlist ───────────────────────────────────────
+function usePlaylistState() {
+  const [playlist, setPlaylistRaw] = useState(() => {
+    try { const s = localStorage.getItem('menestrel.playlist'); return s ? JSON.parse(s) : []; }
+    catch (e) { return []; }
+  });
+  const [atualId, setAtualIdRaw] = useState(() => {
+    try { return localStorage.getItem('menestrel.playlistAtual') || null; }
+    catch (e) { return null; }
+  });
+  // tocando = true → reproduzindo; false → pausado/parado (iframe desmontado)
+  const [tocando, setTocandoRaw] = useState(() => {
+    try { const s = localStorage.getItem('menestrel.musica'); return s === null ? true : s === '1'; }
+    catch (e) { return true; }
+  });
+
+  const salvarPlaylist = (nova) => {
+    setPlaylistRaw(nova);
+    try { localStorage.setItem('menestrel.playlist', JSON.stringify(nova)); } catch (e) {}
+  };
+  const salvarAtual = (id) => {
+    setAtualIdRaw(id);
+    try {
+      if (id) localStorage.setItem('menestrel.playlistAtual', id);
+      else localStorage.removeItem('menestrel.playlistAtual');
+    } catch (e) {}
+  };
+  const salvarTocando = (v) => {
+    setTocandoRaw(v);
+    try { localStorage.setItem('menestrel.musica', v ? '1' : '0'); } catch (e) {}
+  };
+
+  // Faixa efetiva: selecionada → padrão
+  const faixaAtual = playlist.find((f) => f.id === atualId) || (playlist.length === 0 ? MUSICA_FAIXA_PADRAO : playlist[0]);
+  const ytIdAtivo = faixaAtual.ytId;
+
+  // Navegação prev/next dentro da lista real (ignora padrão)
+  const idxAtual = playlist.findIndex((f) => f.id === faixaAtual.id);
+  const irProxima = () => {
+    if (playlist.length === 0) return;
+    const prox = playlist[(idxAtual + 1) % playlist.length];
+    salvarAtual(prox.id);
+    salvarTocando(true);
+  };
+  const irAnterior = () => {
+    if (playlist.length === 0) return;
+    const ant = playlist[(idxAtual - 1 + playlist.length) % playlist.length];
+    salvarAtual(ant.id);
+    salvarTocando(true);
+  };
+
+  return {
+    playlist, atualId, tocando, faixaAtual, ytIdAtivo,
+    salvarPlaylist, salvarAtual, salvarTocando,
+    irProxima, irAnterior,
+  };
+}
+
+// ── Tooltip helper local (padrão NavTooltip do shell, mas posicionado acima) ─
+// Os FABs ficam no canto direito → tooltip aparece à esquerda deles.
+function useMaTip() {
+  const [tip, setTip] = useState(null);
+  const timer = React.useRef(null);
+  const abrir = React.useCallback((e, label) => {
+    clearTimeout(timer.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    timer.current = setTimeout(() => setTip({ rect, label }), 60);
+  }, []);
+  const fechar = React.useCallback(() => { clearTimeout(timer.current); setTip(null); }, []);
+  return [tip, abrir, fechar];
+}
+function MaTip({ tip }) {
+  if (!tip) return null;
+  const { rect, label } = tip;
+  // Posiciona à esquerda do botão, centralizado verticalmente
+  const left = rect.left - 10;
+  const top  = rect.top + rect.height / 2;
+  return ReactDOM.createPortal(
+    <div className="menestrel-ui" style={{
+      position: 'fixed', left, top,
+      transform: 'translate(-100%, -50%)',
+      zIndex: 9999, pointerEvents: 'none',
+      background: '#15120C', borderRadius: 6,
+      padding: '6px 10px', whiteSpace: 'nowrap',
+      fontFamily: "'Lora', serif", fontSize: 12, color: '#E8DDC6',
+      animation: 'fpTipFade .12s ease-out',
+    }}>
+      {/* seta apontando para a direita */}
+      <div style={{
+        position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)',
+        borderWidth: 5, borderStyle: 'solid',
+        borderColor: 'transparent transparent transparent #15120C',
+        width: 0, height: 0,
+      }} />
+      {label}
+    </div>,
+    document.body
+  );
+}
+
+// ── MusicaPlayerFab — mini-player flutuante ──────────────────────────────────
+// FAB principal (ícone de nota) fica em right:16, top:136 (abaixo de D20/D10).
+// Ao clicar expande um painel compacto à esquerda com: prev · play/pause · stop · next
+// e o nome da faixa. Botão de playlist no painel (só master).
+//
+// PAUSE REAL via YouTube IFrame API (postMessage):
+//   - O iframe fica SEMPRE montado após a 1ª interação (não desmonta no pause).
+//   - enablejsapi=1 permite enviar comandos via postMessage.
+//   - pauseVideo / playVideo são enviados ao contentWindow do iframe.
+//   - Quando muda de faixa (ytId novo), o iframe é desmontado+remontado via key.
+//   - Stop = pauseVideo + volta ao início (seekTo 0).
+//
+// ORIGEM DO postMessage: youtube-nocookie.com aceita mensagens com origin '*'
+// desde que o iframe já tenha carregado. Usamos ref para chamar após onLoad.
+function MusicaPlayerFab({ lang, profile, onAbrirPlaylist }) {
+  const en = lang === 'en';
+  const { playlist, atualId, tocando, faixaAtual, ytIdAtivo,
+          salvarTocando, salvarAtual, irProxima, irAnterior } = usePlaylistState();
+
+  // Autoplay: iframe só monta após 1ª interação
+  const [interagiu, setInteragiu] = useState(false);
+  useEffect(() => {
+    if (interagiu) return;
+    const handler = () => setInteragiu(true);
+    document.addEventListener('click', handler, { once: true });
+    document.addEventListener('keydown', handler, { once: true });
+    return () => {
+      document.removeEventListener('click', handler);
+      document.removeEventListener('keydown', handler);
+    };
+  }, [interagiu]);
+
+  const iframeRef = React.useRef(null);
+  const iframeProntoRef = React.useRef(false); // true após onLoad
+
+  // Envia comando para o iframe do YouTube via postMessage
+  const ytCmd = React.useCallback((func, args) => {
+    const win = iframeRef.current && iframeRef.current.contentWindow;
+    if (!win) return;
+    try {
+      win.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*');
+    } catch (e) {}
+  }, []);
+
+  // Quando o iframe carrega, marca como pronto.
+  // Se o estado já é "pausado", manda pausar imediatamente.
+  const onIframeLoad = React.useCallback(() => {
+    iframeProntoRef.current = true;
+    if (!tocando) {
+      // Pequeno delay pois o player ainda está inicializando
+      setTimeout(() => ytCmd('pauseVideo'), 300);
+    }
+  }, [tocando, ytCmd]);
+
+  // Reagir a mudanças de tocando APÓS iframe pronto
+  const tocandoRef = React.useRef(tocando);
+  useEffect(() => {
+    tocandoRef.current = tocando;
+    if (!iframeProntoRef.current) return;
+    if (tocando) {
+      ytCmd('playVideo');
+    } else {
+      ytCmd('pauseVideo');
+    }
+  }, [tocando, ytCmd]);
+
+  // Quando troca de faixa, reseta o flag de iframe pronto (vai remontar)
+  const ytIdAtivoRef = React.useRef(ytIdAtivo);
+  useEffect(() => {
+    if (ytIdAtivoRef.current !== ytIdAtivo) {
+      ytIdAtivoRef.current = ytIdAtivo;
+      iframeProntoRef.current = false;
+    }
+  }, [ytIdAtivo]);
+
+  const [expandido, setExpandido] = useState(false);
+  const panelRef = React.useRef(null);
+  const fabRef   = React.useRef(null);
+  const [tip, abrirTip, fecharTip] = useMaTip();
+
+  // Fecha ao clicar fora
+  useEffect(() => {
+    if (!expandido) return;
+    const handler = (e) => {
+      if (panelRef.current && panelRef.current.contains(e.target)) return;
+      if (fabRef.current   && fabRef.current.contains(e.target))   return;
+      setExpandido(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [expandido]);
+
+  // Stop = pausar + retroceder ao início
+  const stop = () => {
+    ytCmd('seekTo', [0, true]);
+    ytCmd('pauseVideo');
+    salvarTocando(false);
+  };
+
+  const temNavegacao = playlist.length > 1;
+  const labelFab = tocando
+    ? (en ? 'Ambient music — playing' : 'Música ambiente — tocando')
+    : (en ? 'Ambient music — paused'  : 'Música ambiente — pausada');
+
+  return (
+    <div className="menestrel-ui ma-root">
+      {/* Iframe — monta após 1ª interação e fica SEMPRE montado (key só muda quando troca faixa).
+          enablejsapi=1 habilita postMessage. autoplay=1 começa a tocar ao montar.
+          Pause/play são controlados via ytCmd, não por desmontagem. */}
+      {interagiu && (
+        <iframe
+          ref={iframeRef}
+          key={ytIdAtivo}
+          src={`https://www.youtube-nocookie.com/embed/${ytIdAtivo}?autoplay=1&loop=1&playlist=${ytIdAtivo}&controls=0&mute=0&enablejsapi=1`}
+          allow="autoplay"
+          onLoad={onIframeLoad}
+          style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', left: -9999, top: -9999 }}
+          title="Música ambiente Menestrel"
+          aria-hidden="true"
+          tabIndex={-1}
+        />
+      )}
+
+      {/* Painel expandido — aparece à esquerda do FAB */}
+      {expandido && (
+        <div ref={panelRef} className="ma-panel">
+          {/* Nome da faixa */}
+          <div className="ma-panel-track">
+            <i className={tocando ? 'ma-ic ma-ic-play' : 'ma-ic ma-ic-pause'}
+               style={{ fontSize: 13, flexShrink: 0 }} aria-hidden="true" />
+            <span className="ma-panel-nome">{faixaAtual.nome}</span>
+          </div>
+          {/* Controles */}
+          <div className="ma-panel-controls">
+            {/* Anterior */}
+            <button
+              className="ma-ctrl-btn"
+              onClick={irAnterior}
+              disabled={!temNavegacao}
+              aria-label={en ? 'Previous' : 'Anterior'}
+              onMouseEnter={(e) => abrirTip(e, en ? 'Previous' : 'Anterior')}
+              onMouseLeave={fecharTip}
+            >
+              <i className="ma-ic ma-ic-prev" aria-hidden="true" />
+            </button>
+            {/* Play / Pause */}
+            <button
+              className={'ma-ctrl-btn is-main' + (tocando ? ' is-playing' : '')}
+              onClick={() => salvarTocando(!tocando)}
+              aria-label={tocando ? (en ? 'Pause' : 'Pausar') : (en ? 'Play' : 'Tocar')}
+              onMouseEnter={(e) => abrirTip(e, tocando ? (en ? 'Pause' : 'Pausar') : (en ? 'Play' : 'Tocar'))}
+              onMouseLeave={fecharTip}
+            >
+              <i className={tocando ? 'ma-ic ma-ic-pause' : 'ma-ic ma-ic-play'} aria-hidden="true" />
+            </button>
+            {/* Stop */}
+            <button
+              className="ma-ctrl-btn"
+              onClick={stop}
+              disabled={!tocando}
+              aria-label={en ? 'Stop' : 'Parar'}
+              onMouseEnter={(e) => abrirTip(e, en ? 'Stop' : 'Parar')}
+              onMouseLeave={fecharTip}
+            >
+              <i className="ma-ic ma-ic-stop" aria-hidden="true" />
+            </button>
+            {/* Próxima */}
+            <button
+              className="ma-ctrl-btn"
+              onClick={irProxima}
+              disabled={!temNavegacao}
+              aria-label={en ? 'Next' : 'Próxima'}
+              onMouseEnter={(e) => abrirTip(e, en ? 'Next' : 'Próxima')}
+              onMouseLeave={fecharTip}
+            >
+              <i className="ma-ic ma-ic-next" aria-hidden="true" />
+            </button>
+            {/* Separador + botão playlist (só master) */}
+            {onAbrirPlaylist && (
+              <>
+                <div className="ma-ctrl-sep" />
+                <button
+                  className="ma-ctrl-btn"
+                  onClick={() => { setExpandido(false); onAbrirPlaylist(); }}
+                  aria-label={en ? 'Manage playlist' : 'Gerenciar playlist'}
+                  onMouseEnter={(e) => abrirTip(e, en ? 'Manage playlist' : 'Gerenciar playlist')}
+                  onMouseLeave={fecharTip}
+                >
+                  <i className="ti ti-playlist" aria-hidden="true" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* FAB principal */}
+      <button
+        ref={fabRef}
+        type="button"
+        className={'ma-fab' + (tocando ? ' is-on' : ' is-off') + (expandido ? ' is-expanded' : '')}
+        onClick={() => setExpandido((v) => !v)}
+        aria-label={labelFab}
+        onMouseEnter={(e) => { if (!expandido) abrirTip(e, labelFab); }}
+        onMouseLeave={fecharTip}
+      >
+        <i className={tocando ? 'ti ti-music' : 'ti ti-music-off'} aria-hidden="true" />
+      </button>
+
+      <MaTip tip={tip} />
+    </div>
+  );
+}
+
+// ── PlaylistMestre — tela de gerenciamento de playlist ──────────────────────
+// Padrão "página, não modal": header com seta de voltar, corpo solto.
+// Só acessível via botão playlist no painel do player (master).
+function PlaylistMestre({ lang, onVoltar }) {
+  const en = lang === 'en';
+  const { playlist, atualId, tocando, faixaAtual, salvarPlaylist, salvarAtual, salvarTocando } = usePlaylistState();
+
+  const [nome, setNome] = useState('');
+  const [url, setUrl] = useState('');
+  const [erro, setErro] = useState('');
+
+  const adicionarFaixa = () => {
+    const ytId = extrairYtId(url);
+    if (!ytId) { setErro(en ? 'Invalid YouTube URL or ID.' : 'URL ou ID do YouTube inválido.'); return; }
+    const nomeUsado = nome.trim() || (en ? 'Track ' + (playlist.length + 1) : 'Faixa ' + (playlist.length + 1));
+    const nova = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), nome: nomeUsado, ytId };
+    const novaLista = [...playlist, nova];
+    salvarPlaylist(novaLista);
+    if (playlist.length === 0) salvarAtual(nova.id); // primeira faixa → seleciona e toca
+    setNome(''); setUrl(''); setErro('');
+  };
+
+  const removerFaixa = (id) => {
+    const nova = playlist.filter((f) => f.id !== id);
+    salvarPlaylist(nova);
+    if (atualId === id) salvarAtual(nova.length > 0 ? nova[0].id : null);
+  };
+
+  const selecionarFaixa = (id) => { salvarAtual(id); salvarTocando(true); };
+
+  return (
+    <div className="plist-page">
+      <div className="plist-header">
+        <button className="plist-header-back" onClick={onVoltar} aria-label={en ? 'Back' : 'Voltar'}>
+          <i className="ti ti-arrow-left" style={{ fontSize: 16 }} aria-hidden="true" />
+        </button>
+        <div className="plist-header-info">
+          <p className="plist-eyebrow">{en ? 'Master Tools' : 'Ferramentas do Mestre'}</p>
+          <h2 className="plist-title">{en ? 'Ambient Playlist' : 'Playlist Ambiente'}</h2>
+        </div>
+        <button
+          className="btn-ghost btn-icon"
+          onClick={() => salvarTocando(!tocando)}
+          title={tocando ? (en ? 'Pause' : 'Pausar') : (en ? 'Play' : 'Tocar')}
+          style={{ color: tocando ? '#C9A44E' : '#7A6A4A', fontSize: 20 }}
+        >
+          <i className={tocando ? 'ma-ic ma-ic-pause' : 'ma-ic ma-ic-play'} aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="plist-body">
+        {/* Faixa tocando agora */}
+        <div className="plist-now-playing">
+          <i className={tocando ? 'ti ti-music' : 'ti ti-music-off'} aria-hidden="true" />
+          <span>
+            {tocando ? (en ? 'Now playing: ' : 'Tocando agora: ') : (en ? 'Paused: ' : 'Pausado: ')}
+            <strong>{faixaAtual.nome}</strong>
+          </span>
+        </div>
+
+        {/* Adicionar faixa */}
+        <div className="plist-add-block">
+          <p className="plist-add-label">{en ? 'Add track' : 'Adicionar faixa'}</p>
+          <input
+            className="plist-input"
+            placeholder={en ? 'Name (optional)' : 'Nome (opcional)'}
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+          />
+          <div className="plist-add-row">
+            <input
+              className="plist-input"
+              placeholder={en ? 'YouTube URL or ID' : 'URL ou ID do YouTube'}
+              value={url}
+              onChange={(e) => { setUrl(e.target.value); setErro(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') adicionarFaixa(); }}
+            />
+            <button className="btn-primary btn-sm" onClick={adicionarFaixa} style={{ whiteSpace: 'nowrap' }}>
+              <i className="ti ti-plus" aria-hidden="true" /> {en ? 'Add' : 'Adicionar'}
+            </button>
+          </div>
+          {erro && <p style={{ color: '#F0A6A0', fontFamily: "'Lora', serif", fontSize: 12, margin: 0 }}>{erro}</p>}
+        </div>
+
+        {/* Lista de faixas */}
+        <div className="plist-list">
+          {playlist.length === 0 && (
+            <p className="plist-empty">
+              {en ? 'No tracks yet. Add a YouTube link above.' : 'Nenhuma faixa ainda. Adicione um link do YouTube acima.'}
+            </p>
+          )}
+          {playlist.map((faixa) => {
+            const ativa = faixa.id === atualId;
+            return (
+              <div key={faixa.id} className={'plist-item' + (ativa ? ' is-playing' : '')} onClick={() => selecionarFaixa(faixa.id)}>
+                <div className="plist-item-icon">
+                  <i className={ativa && tocando ? 'ma-ic ma-ic-play' : 'ti ti-music'} aria-hidden="true" />
+                </div>
+                <div className="plist-item-info">
+                  <div className="plist-item-nome">{faixa.nome}</div>
+                  <div className="plist-item-url">youtube.com/watch?v={faixa.ytId}</div>
+                </div>
+                <button
+                  className="plist-item-del"
+                  onClick={(e) => { e.stopPropagation(); removerFaixa(faixa.id); }}
+                  aria-label={en ? 'Remove' : 'Remover'}
+                >
+                  <i className="ti ti-x" aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================== [10] AdminConsole — moldura migrada (Grimório do dragão) ==============================
    Substitui a função AdminConsole inteira em src/10-shell/shell.jsx
    (de `function AdminConsole(...) {` até o `}` logo antes de `function App() {`).
@@ -1662,8 +2687,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
   // "inventario" e "loja" foram removidos do menu lateral.
   // "guia_personagem" é tratada como seção especial (fora do ADMIN_SECTIONS) — não aparece
   // no menu lateral, só é acessada via onHelp. Por isso o useEffect de guarda não a reverte.
+  // "playlist" também é especial — acessada via clique longo no FAB de música (master only).
   const SECTIONS_OCULTAS = ['inventario', 'loja', 'itens_campanha'];
-  const SECTIONS_ESPECIAIS = ['guia_personagem'];
+  const SECTIONS_ESPECIAIS = ['guia_personagem', 'playlist'];
   const sections = (ADMIN_SECTIONS[profile] || []).filter((s) => !SECTIONS_OCULTAS.includes(s.id));
   const [currentId, setCurrentId] = useState(() => {
     try { return localStorage.getItem('menestrel.section') || sections[0].id; }
@@ -1683,7 +2709,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
 
   const current = sections.find((s) => s.id === currentId) || { id: currentId };
   const sectionMeta = ac.sections[current.id] || { label: current.id };
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'playlist'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
@@ -1728,6 +2754,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
   const [fichaAtiva, setFichaAtiva] = useState(false);
   // nome do PJ ativo (PersonagensList reporta via onNomePjAtivo) — usado na notificação de rolamento livre
   const [nomePjAtivo, setNomePjAtivo] = useState(null);
+  // data de nascimento do PJ ativo — passada ao CalendarioFantasyModal para marcar o aniversário
+  const [dataNascPjAtivo, setDataNascPjAtivo] = useState(null);
   useEffect(() => {
     if (!user || !user.id) return;
     let cancel = false;
@@ -1739,15 +2767,18 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
         if (cancel) return;
         setMinhasHistorias(error ? [] : (data || []));
       } else {
-        // Jogador: resolve a história do PJ ativo (mesmo pj_ativo_id usado por FichaPersonagem).
+        // Jogador: resolve a história do PJ ativo e busca data_nasc para o calendário.
         const { data: prof } = await supabaseClient.from('profiles').select('pj_ativo_id').eq('id', user.id).maybeSingle();
         if (cancel) return;
         const pjAtivoId = prof && prof.pj_ativo_id;
-        if (!pjAtivoId) { setMinhasHistorias([]); return; }
-        const { data: hist, error } = await supabaseClient
-          .from('historias').select('id, titulo').contains('protagonista_ids', [pjAtivoId]).maybeSingle();
+        if (!pjAtivoId) { setMinhasHistorias([]); setDataNascPjAtivo(null); return; }
+        const [histRes, pjRes] = await Promise.all([
+          supabaseClient.from('historias').select('id, titulo').contains('protagonista_ids', [pjAtivoId]).maybeSingle(),
+          supabaseClient.from('personagens').select('data_nasc').eq('id', pjAtivoId).maybeSingle(),
+        ]);
         if (cancel) return;
-        setMinhasHistorias(!error && hist ? [hist] : []);
+        setMinhasHistorias(!histRes.error && histRes.data ? [histRes.data] : []);
+        setDataNascPjAtivo(pjRes.data?.data_nasc ?? null);
       }
     })();
     return () => { cancel = true; };
@@ -1944,6 +2975,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
               <AventurasJogador t={t} lang={lang} currentUserId={user.id} reloadToken={aventurasReloadToken} />
             ) : current.id === 'guia_personagem' ? (
               <GuiaPersonagem lang={lang} />
+            ) : current.id === 'playlist' ? (
+              <PlaylistMestre lang={lang} onVoltar={() => setCurrentId(sections[0].id)} />
             ) : (
               <AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />
             )}
@@ -1965,6 +2998,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
           lang={lang}
           historiaId={current.id === 'aventuras' || current.id === 'guia_personagem' ? null : mesaAtivaId}
           podeEditar={profile === 'master'}
+          userId={user.id}
           minhasHistorias={minhasHistorias}
           mesaAtivaId={mesaAtivaId}
           setMesaAtivaId={setMesaAtivaId}
@@ -1976,6 +3010,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
           onNovoPersonagem={current.id === 'personagens_j' ? () => abrirNovoPersonagemRef.current && abrirNovoPersonagemRef.current() : null}
           limiteFreePersonagem={limiteFreePersonagens}
           esconderBotaoPersonagem={current.id === 'personagens_j' && personagensDentroDeMenu}
+          dataNascPjAtivo={dataNascPjAtivo}
         />
 
         {/* Central de mensagens da mesa — Mestre e Jogador.
@@ -1990,6 +3025,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
         {fichaAtiva && (
           <RolagemLivreFab lang={lang} historiaId={mesaAtivaId} nomeUsuario={nomePjAtivo || firstName} />
         )}
+
+        {/* Player de música ambiente — FAB flutuante (right:16, top:136, abaixo dos dados).
+            Clique abre mini-player com prev/play/pause/stop/next e nome da faixa.
+            Botão playlist no painel (só master) navega para PlaylistMestre. */}
+        <MusicaPlayerFab lang={lang} profile={profile} onAbrirPlaylist={profile === 'master' ? () => setCurrentId('playlist') : null} />
 
         {/* Modal de aceite de convite — abre via botão "Convites" na sidebar */}
         {conviteModalAberto && typeof ConviteModal !== 'undefined' && (
@@ -2056,49 +3096,18 @@ function App() {
     }
   };
 
-  // ── Tema
-  // Valor da preferência do usuário: 'dark' | 'light' | 'auto'
-  // Persiste em localStorage para sobreviver entre sessões.
-  const [theme, setThemePref] = useState(() => {
-    try {
-      const stored = localStorage.getItem('menestrel.theme');
-      if (stored === 'dark' || stored === 'light' || stored === 'auto') return stored;
-    } catch (e) {}
-    return tweaks.theme || 'dark';
-  });
-  const setTheme = (v) => {
-    setThemePref(v);
-    try { localStorage.setItem('menestrel.theme', v); } catch (e) {}
-  };
-  // Tema EFETIVO (resolvido): se for 'auto', escolhe baseado na hora local.
-  // 6h–17h59 → light (dia); demais horas → dark (noite).
-  const [effectiveTheme, setEffectiveTheme] = useState(() => {
-    if (theme !== 'auto') return theme;
-    const h = new Date().getHours();
-    return (h >= 6 && h < 18) ? 'light' : 'dark';
-  });
-  useEffect(() => {
-    const resolve = () => {
-      if (theme !== 'auto') { setEffectiveTheme(theme); return; }
-      const h = new Date().getHours();
-      setEffectiveTheme((h >= 6 && h < 18) ? 'light' : 'dark');
-    };
-    resolve();
-    if (theme !== 'auto') return undefined;
-    // Em modo auto, reavalia a cada 5 minutos para pegar a virada do dia/noite
-    const id = setInterval(resolve, 5 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [theme]);
-
+  // ── Tema: NÃO existe claro/escuro (decisão de 05-06/2026 — light removido
+  // do CSS). A máquina dark/light/auto que vivia aqui era código zumbi
+  // (Topbar nem aceitava as props) e foi removida em 07/2026. O único eixo
+  // visual vivo é o data-mode (grimoire/modern) abaixo.
   const lang = tweaks.lang || 'pt';
   const mode = tweaks.mode || 'grimoire';
   const t = COPY[lang] || COPY.pt;
 
   useEffect(() => {
     document.body.setAttribute('data-mode', mode);
-    document.body.setAttribute('data-theme', effectiveTheme);
     document.documentElement.lang = lang === 'en' ? 'en' : 'pt-BR';
-  }, [mode, lang, effectiveTheme]);
+  }, [mode, lang]);
 
   // Escutar sessão do Supabase
   useEffect(() => {
@@ -2184,7 +3193,7 @@ function App() {
   // Caso contrário, mostra a landing (logado em preview, ou deslogado)
   return (
     <>
-      <Topbar t={t} lang={lang} setLang={setLang} onSignup={openSignup} user={user} onLogout={logout} authCopy={authCopy} theme={theme} setTheme={setTheme} effectiveTheme={effectiveTheme} />
+      <Topbar t={t} lang={lang} setLang={setLang} onSignup={openSignup} user={user} onLogout={logout} authCopy={authCopy} />
       <Hero t={t} onSignup={openSignup} shader={tweaks.shader} shaderKind={tweaks.shaderKind} mode={mode} />
       <Opening t={t} />
       <HOrnament />
@@ -2255,5 +3264,5 @@ function App() {
 Object.assign(window, {
   ModalShell,
   FantasyDatePicker, Topbar, AdminEmpty, FichasJogador, AdminConsole, App,
-  CentralMensagens, CardDataJogoAtual, RolagemLivreFab,
+  CentralMensagens, CardDataJogoAtual, RolagemLivreFab, MusicaPlayerFab, PlaylistMestre,
 });

@@ -244,7 +244,14 @@ function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja,
     .map((id) => personagens.find((x) => x.id === id))
     .filter(Boolean)
     .map((p) => `${p.nome}${p.sobrenome ? ' ' + p.sobrenome : ''}`);
-  const qtdLoja = Array.isArray(h.estoque_loja) ? h.estoque_loja.length : 0;
+  const qtdLoja = (() => {
+    const el = h.estoque_loja;
+    if (!el) return 0;
+    if (Array.isArray(el)) return el.length;
+    if (el && Array.isArray(el.comercios))
+      return el.comercios.reduce((sum, c) => sum + (Array.isArray(c.itens) ? c.itens.length : 0), 0);
+    return 0;
+  })();
   const en = lang === 'en';
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   // Antes era só um useState local (nunca persistia, resetava a cada render).
@@ -551,35 +558,79 @@ function precoTextoLoja(latao, en) {
   return parts.slice(0, -1).join(', ') + (en ? ' and ' : ' e ') + parts[parts.length - 1];
 }
 
-// v3 — redesenho completo como página (não modal).
+// ── migrarEstoqueLoja — normaliza formato antigo (array flat) para o novo
+// (objeto com array de comércios). Idempotente.
+// Formato novo: { comercios: [{id, nome, ativo, itens:[{entryId,slug,...}]}] }
+function migrarEstoqueLoja(raw) {
+  if (!raw) return { comercios: [] };
+  // Já no formato novo
+  if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.comercios)) {
+    return raw;
+  }
+  // Formato legado: array flat de entradas → migra para 1 comércio padrão "Estoque"
+  const itens = Array.isArray(raw) ? raw : [];
+  return {
+    comercios: itens.length > 0
+      ? [{ id: novoInstanceId(), nome: 'Estoque', ativo: true, itens }]
+      : [],
+  };
+}
+
+// v4 — múltiplos comércios (barra lateral) + toggle habilitar/desabilitar.
 function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
   const tl = tc.historias.loja;
   const en = lang === 'en';
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } = (typeof UI !== 'undefined' ? UI : {});
 
-  const [estoque, setEstoque] = useState(() =>
-    Array.isArray(historia.estoque_loja) ? [...historia.estoque_loja] : []
-  );
+  // ── Estado principal: { comercios: [{id, nome, ativo, itens:[]}] }
+  const [lojaData, setLojaData] = useState(() => migrarEstoqueLoja(historia.estoque_loja));
+
+  // Comércio selecionado no sidebar
+  const [comercioSelId, setComercioSelId] = useState(() => {
+    const d = migrarEstoqueLoja(historia.estoque_loja);
+    return d.comercios.length > 0 ? d.comercios[0].id : null;
+  });
+
+  // Modal de criação/renomear comércio
+  const [modalComercio, setModalComercio] = useState(null); // null | 'criar' | {id, nome} (editar)
+  const [nomeComercioInput, setNomeComercioInput] = useState('');
+  // Modal de confirmação de remoção de comércio
+  const [confirmRemoverComercio, setConfirmRemoverComercio] = useState(null); // null | id
+
   const [catalogo, setCatalogo] = useState(null);
   const [busca, setBusca] = useState('');
   const [buscaEstoque, setBuscaEstoque] = useState('');
   const [grupoFiltro, setGrupoFiltro] = useState('');
   const [grupoFiltroEstoque, setGrupoFiltroEstoque] = useState('');
-  const [escolhido, setEscolhido] = useState(null);   // item do catálogo selecionado
+  const [escolhido, setEscolhido] = useState(null);
   const [precoOverride, setPrecoOverride] = useState('');
   const [estoqueInicial, setEstoqueInicial] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [abaLoja, setAbaLoja] = useState('catalogo'); // 'catalogo' | 'estoque'
+  const [abaLoja, setAbaLoja] = useState('catalogo');
   const buscaRef = useRef(null);
   const catListRef = useRef(null);
-
-  // Paginação — estoque
   const [pageEstoque, setPageEstoque] = useState(1);
   const estoqueWrapRef = useRef(null);
-  // Paginação — catálogo
   const [pageCat, setPageCat] = useState(1);
   const catWrapRef = useRef(null);
+
+  // ── Comércio atualmente selecionado (objeto)
+  const comercioSel = useMemo(
+    () => lojaData.comercios.find((c) => c.id === comercioSelId) || null,
+    [lojaData.comercios, comercioSelId]
+  );
+
+  // Itens do comércio selecionado
+  const estoque = comercioSel?.itens || [];
+
+  // ── Helpers para mutação do lojaData ──────────────────────────────────────────
+  const mutarComercio = (id, fn) => {
+    setLojaData((prev) => ({
+      ...prev,
+      comercios: prev.comercios.map((c) => c.id === id ? { ...c, ...fn(c) } : c),
+    }));
+  };
 
   // Carrega catálogo completo uma vez
   useEffect(() => {
@@ -590,43 +641,45 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     })();
   }, []);
 
-  // Foca busca assim que o catálogo carrega
   useEffect(() => {
     if (catalogo && buscaRef.current) buscaRef.current.focus();
   }, [catalogo !== null]);
 
-  // Rola lista pro topo e reseta página quando filtro muda
   useEffect(() => {
     if (catListRef.current) catListRef.current.scrollTop = 0;
     setPageCat(1);
     setEscolhido(null);
   }, [busca, grupoFiltro]);
 
-  // Reseta página do estoque quando a busca ou o filtro de grupo do estoque mudam
-  useEffect(() => {
-    setPageEstoque(1);
-  }, [buscaEstoque, grupoFiltroEstoque]);
+  useEffect(() => { setPageEstoque(1); }, [buscaEstoque, grupoFiltroEstoque]);
 
-  // Fecha drawer ao trocar filtro — evita item "fantasma" selecionado
   useEffect(() => {
     setEscolhido(null);
     setPrecoOverride('');
     setEstoqueInicial('');
   }, [grupoFiltro]);
 
-  // ── PAGE_SIZE dinâmico (quantas linhas cabem na altura visível)
-  // ── PAGE_SIZE fixo — 7 itens por página em ambos os lados
+  // Reseta busca e seleção ao trocar de comércio
+  useEffect(() => {
+    setBusca('');
+    setBuscaEstoque('');
+    setGrupoFiltro('');
+    setGrupoFiltroEstoque('');
+    setEscolhido(null);
+    setPageCat(1);
+    setPageEstoque(1);
+    setAbaLoja('catalogo');
+  }, [comercioSelId]);
+
   const PAGE_SIZE_ESTOQUE = 7;
   const PAGE_SIZE_CAT     = 7;
 
-  // ── Index do catálogo por slug
   const catalogoBySlug = useMemo(() => {
     const map = {};
     (catalogo || []).forEach((it) => { map[it.slug] = it; });
     return map;
   }, [catalogo]);
 
-  // ── Grupos pros chips de filtro (mesmo padrão do bestiário/ItensList)
   const grupos = useMemo(
     () => catalogo
       ? Array.from(new Set(catalogo.map((i) => i.grupo).filter(Boolean))).sort()
@@ -634,7 +687,6 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     [catalogo]
   );
 
-  // ── Grupos presentes no estoque (só os grupos que têm pelo menos 1 item já adicionado)
   const gruposEstoque = useMemo(
     () => Array.from(new Set(
       estoque.map((e) => catalogoBySlug[e.slug]?.grupo).filter(Boolean)
@@ -642,7 +694,6 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     [estoque, catalogoBySlug]
   );
 
-  // ── Ordenação — estoque (campos resolvidos via catálogo, já que a entrada só guarda slug)
   const {
     sorted: estoqueSorted, sortKey: sortKeyEstoque, sortDir: sortDirEstoque, toggleSort: toggleSortEstoque,
   } = useLojaSort(estoque, {
@@ -651,21 +702,14 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     estoque: (e) => e.estoque == null ? Infinity : e.estoque,
   });
 
-  // ── Ordenação — catálogo
   const {
     sorted: catalogoSorted, sortKey: sortKeyCat, sortDir: sortDirCat, toggleSort: toggleSortCat,
   } = useLojaSort(catalogo, { nome: (it) => it.nome, preco: (it) => it.valor_latao ?? 0 });
 
-  // ── Normaliza string pra busca (lowercase + remove acentos)
   const normalize = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-  // ── Termos da busca (split por espaços, AND entre eles) — catálogo
   const termos = useMemo(() => normalize(busca).split(/\s+/).filter(Boolean), [busca]);
-
-  // ── Termos da busca — estoque
   const termosEstoque = useMemo(() => normalize(buscaEstoque).split(/\s+/).filter(Boolean), [buscaEstoque]);
 
-  // ── Filtro virtual completo — sem paginação, a lista rola
   const filtrados = useMemo(() => {
     if (!catalogoSorted) return [];
     return catalogoSorted.filter((it) => {
@@ -678,7 +722,6 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     });
   }, [catalogoSorted, grupoFiltro, termos]);
 
-  // ── Filtro do estoque por nome do item (resolvido via catálogo) + grupo
   const estoqueFiltrado = useMemo(() => {
     return (estoqueSorted || []).filter((e) => {
       const cat = catalogoBySlug[e.slug];
@@ -689,7 +732,6 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     });
   }, [estoqueSorted, termosEstoque, catalogoBySlug, grupoFiltroEstoque]);
 
-  // ── Indica de onde veio o match (badge "na descrição" / "na origem")
   const matchCampo = (it) => {
     if (termos.length === 0) return null;
     if (termos.every((t) => normalize(it.nome).includes(t))) return null;
@@ -698,48 +740,83 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     return 'misto';
   };
 
-  // ── Paginação — estoque
   const totalPagesEstoque = Math.max(1, Math.ceil(estoqueFiltrado.length / PAGE_SIZE_ESTOQUE));
   const safePageEstoque   = Math.min(pageEstoque, totalPagesEstoque);
   const estoqueSlice      = estoqueFiltrado.slice((safePageEstoque - 1) * PAGE_SIZE_ESTOQUE, safePageEstoque * PAGE_SIZE_ESTOQUE);
+  const totalPagesCat     = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE_CAT));
+  const safePageCat       = Math.min(pageCat, totalPagesCat);
+  const filtradosSlice    = filtrados.slice((safePageCat - 1) * PAGE_SIZE_CAT, safePageCat * PAGE_SIZE_CAT);
 
-  // ── Paginação — catálogo
-  const totalPagesCat = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE_CAT));
-  const safePageCat   = Math.min(pageCat, totalPagesCat);
-  const filtradosSlice = filtrados.slice((safePageCat - 1) * PAGE_SIZE_CAT, safePageCat * PAGE_SIZE_CAT);
-
-  // ── Seleciona / deseleciona item do catálogo
   const selecionarItem = (it) => {
     if (escolhido?.slug === it.slug) {
-      // Segundo clique no mesmo = fechar drawer
-      setEscolhido(null);
-      setPrecoOverride('');
-      setEstoqueInicial('');
+      setEscolhido(null); setPrecoOverride(''); setEstoqueInicial('');
     } else {
-      setEscolhido(it);
-      setPrecoOverride('');
-      setEstoqueInicial('');
+      setEscolhido(it); setPrecoOverride(''); setEstoqueInicial('');
     }
   };
 
-  // ── Adicionar ao estoque (a partir do drawer)
+  // Adicionar item ao comércio selecionado
   const adicionarAoEstoque = () => {
-    if (!escolhido) return;
+    if (!escolhido || !comercioSelId) return;
     const novaEntrada = {
       entryId: novoInstanceId(),
       slug: escolhido.slug,
       preco_latao_override: precoOverride === '' ? null : Math.max(0, parseInt(precoOverride, 10) || 0),
       estoque: estoqueInicial === '' ? null : Math.max(0, parseInt(estoqueInicial, 10) || 0),
     };
-    setEstoque((arr) => [...arr, novaEntrada]);
-    // Fecha drawer mas mantém busca — Mestre pode continuar adicionando variações
-    setEscolhido(null);
-    setPrecoOverride('');
-    setEstoqueInicial('');
+    mutarComercio(comercioSelId, (c) => ({ itens: [...c.itens, novaEntrada] }));
+    setEscolhido(null); setPrecoOverride(''); setEstoqueInicial('');
   };
 
   const removerEntrada = (entryId) => {
-    setEstoque((arr) => arr.filter((e) => e.entryId !== entryId));
+    if (!comercioSelId) return;
+    mutarComercio(comercioSelId, (c) => ({ itens: c.itens.filter((e) => e.entryId !== entryId) }));
+  };
+
+  // Toggle habilitar/desabilitar comércio
+  const toggleAtivo = (id) => {
+    setLojaData((prev) => ({
+      ...prev,
+      comercios: prev.comercios.map((c) => c.id === id ? { ...c, ativo: !c.ativo } : c),
+    }));
+  };
+
+  // Criar comércio novo
+  const criarComercio = () => {
+    const nome = nomeComercioInput.trim();
+    if (!nome) return;
+    const novoId = novoInstanceId();
+    setLojaData((prev) => ({
+      ...prev,
+      comercios: [...prev.comercios, { id: novoId, nome, ativo: true, itens: [] }],
+    }));
+    setComercioSelId(novoId);
+    setModalComercio(null);
+    setNomeComercioInput('');
+  };
+
+  // Renomear comércio
+  const renomearComercio = () => {
+    const nome = nomeComercioInput.trim();
+    if (!nome || !modalComercio?.id) return;
+    mutarComercio(modalComercio.id, () => ({ nome }));
+    setModalComercio(null);
+    setNomeComercioInput('');
+  };
+
+  // Remover comércio (e seus itens)
+  const removerComercio = (id) => {
+    setLojaData((prev) => {
+      const restantes = prev.comercios.filter((c) => c.id !== id);
+      return { ...prev, comercios: restantes };
+    });
+    if (comercioSelId === id) {
+      setComercioSelId((prev) => {
+        const restantes = lojaData.comercios.filter((c) => c.id !== id);
+        return restantes.length > 0 ? restantes[0].id : null;
+      });
+    }
+    setConfirmRemoverComercio(null);
   };
 
   const salvar = async () => {
@@ -747,7 +824,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     setError(null);
     const { error } = await supabaseClient
       .from('historias')
-      .update({ estoque_loja: estoque })
+      .update({ estoque_loja: lojaData })
       .eq('id', historia.id);
     setSaving(false);
     if (error) {
@@ -758,335 +835,453 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     }
   };
 
-  // ── Kit shadcn (ui-bridge) não carregado — mesmo aviso amigável do bestiário
   if (!Table) {
     return (
-      <div className="fp-page">
-        <div className="fp-card loja-mng-v3-page">
-          <div className="fp-card-top">
-            <header className="ms-header loja-mng-v3-page-header">
-              <button type="button" className="btn-icon btn-sm" onClick={onClose} aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
-                <i className="ti ti-arrow-left" />
-              </button>
-              <h2 className="ms-title">{historia.titulo}</h2>
-            </header>
-          </div>
-          <div className="loja-mng-v3-fallback">
-            Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.
-          </div>
+      <div className="loja-mng-v3-page">
+        <div className="fp-card-top">
+          <header className="ms-header loja-mng-v3-page-header">
+            <button type="button" className="btn-icon btn-sm" onClick={onClose} aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
+              <i className="ti ti-arrow-left" />
+            </button>
+            <h2 className="ms-title">{historia.titulo}</h2>
+          </header>
+        </div>
+        <div className="loja-mng-v3-fallback">
+          Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fp-page">
-      <div className="fp-card loja-mng-v3-page">
-        <div className="fp-card-top">
-          <header className="ms-header loja-mng-v3-page-header">
-        <button
-          type="button"
-          className="btn-icon btn-sm"
-          onClick={onClose}
-          aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
-          <i className="ti ti-arrow-left" />
-        </button>
-        <div className="loja-mng-v3-header-content">
-          <div className="loja-mng-v3-page-eyebrow">
-            <i className="ti ti-shopping-bag" aria-hidden="true" />
-            {historia.titulo}
+    <div className="loja-mng-v3-page">
+      <div className="fp-card-top">
+        <header className="ms-header loja-mng-v3-page-header">
+          <button
+            type="button"
+            className="btn-icon btn-sm"
+            onClick={onClose}
+            aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
+            <i className="ti ti-arrow-left" />
+          </button>
+          <div className="loja-mng-v3-header-content">
+            <div className="loja-mng-v3-page-eyebrow">
+              <i className="ti ti-shopping-bag" aria-hidden="true" />
+              {historia.titulo}
+            </div>
+            <h2 className="ms-title">{tl.shop}</h2>
           </div>
-          <h2 className="ms-title">{tl.shop}</h2>
-        </div>
-        <button
-          type="button"
-          className="btn-primary btn-sm"
-          onClick={salvar}
-          disabled={saving}>
-          {saving ? tl.saving : tl.save}
-        </button>
-          </header>
-        </div>
-        <div className="loja-mng-v3-page-body">
-        {catalogo === null ? (
-          <div className="admin-loading"><span>{tl.loading}</span></div>
-        ) : (
-          <>
-            {/* ── Submenus (tabs) ── */}
-            <div className="loja-mng-v3-tabs">
-              <button
-                type="button"
-                className={'loja-mng-v3-tab' + (abaLoja === 'catalogo' ? ' is-active' : '')}
-                onClick={() => setAbaLoja('catalogo')}>
-                {en ? 'Catalogue' : 'Catálogo'}
-                <span className="loja-mng-v3-tab-badge">{filtrados.length}</span>
-              </button>
-              <button
-                type="button"
-                className={'loja-mng-v3-tab' + (abaLoja === 'estoque' ? ' is-active' : '')}
-                onClick={() => setAbaLoja('estoque')}>
-                {en ? 'Stock' : 'Estoque'}
-                <span className="loja-mng-v3-tab-badge">{estoque.length}</span>
-              </button>
-            </div>
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            onClick={salvar}
+            disabled={saving}>
+            {saving ? tl.saving : tl.save}
+          </button>
+        </header>
+      </div>
 
-          <div className="loja-mng-v3-grid">
-
-          {/* ══════ CATÁLOGO ══════ */}
-          <section className="loja-mng-v3-panel loja-mng-v3-panel--cat" style={{ display: abaLoja === 'catalogo' ? 'flex' : 'none' }}>
-
-            {/* Toolbar: busca + chips de grupo (mesmo padrão do bestiário/ItensList) */}
-            <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltro !== '' ? 20 : undefined }}>
-              <div className="loja-mng-v3-search">
-                <i className="ti ti-search" aria-hidden="true" />
-                <input
-                  ref={buscaRef}
-                  type="search"
-                  placeholder={tl.search}
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)} />
-                {busca && (
-                  <button
-                    type="button"
-                    className="loja-mng-v3-search-clear"
-                    onClick={() => setBusca('')}
-                    aria-label={tl.clear}>
-                    <i className="ti ti-x" aria-hidden="true" />
-                  </button>
-                )}
+      {/* Modal de criar/renomear comércio */}
+        {modalComercio && (
+          <div className="loja-comercio-modal-backdrop" onClick={() => { setModalComercio(null); setNomeComercioInput(''); }}>
+            <div className="loja-comercio-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="loja-comercio-modal-title">
+                {modalComercio === 'criar'
+                  ? (en ? 'New commerce' : 'Novo comércio')
+                  : (en ? 'Rename commerce' : 'Renomear comércio')}
               </div>
-              <div className="best-chips loja-mng-v3-chips">
-                <ChipIcon value="all" label={tl.allGroups} active={grupoFiltro === ''} onClick={() => setGrupoFiltro('')} />
-                {grupos.map((g) => (
-                  <ChipIcon key={g} value={g} label={g} active={grupoFiltro === g} onClick={() => setGrupoFiltro(g)} />
-                ))}
+              <input
+                className="loja-comercio-modal-input"
+                type="text"
+                autoFocus
+                placeholder={en ? 'e.g. Tavern of Saravossa' : 'ex: Taverna de Saravossa'}
+                value={nomeComercioInput}
+                onChange={(e) => setNomeComercioInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') modalComercio === 'criar' ? criarComercio() : renomearComercio();
+                  if (e.key === 'Escape') { setModalComercio(null); setNomeComercioInput(''); }
+                }}
+                maxLength={60}
+              />
+              <div className="loja-comercio-modal-actions">
+                <button type="button" className="btn-ghost btn-sm" onClick={() => { setModalComercio(null); setNomeComercioInput(''); }}>
+                  {en ? 'Cancel' : 'Cancelar'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary btn-sm"
+                  disabled={!nomeComercioInput.trim()}
+                  onClick={modalComercio === 'criar' ? criarComercio : renomearComercio}>
+                  {modalComercio === 'criar' ? (en ? 'Create' : 'Criar') : (en ? 'Rename' : 'Renomear')}
+                </button>
               </div>
             </div>
-
-            {/* Drawer inline — aparece acima da tabela quando item selecionado */}
-            {escolhido && (
-              <div className="loja-mng-v3-drawer" role="region" aria-label={en ? 'Add' : 'Adicionar'}>
-                {/* Info do item */}
-                <div className="loja-mng-v3-drawer-nome">
-                  {escolhido.nome}
-                  {escolhido.descricao && (
-                    <span className="loja-mng-v3-drawer-desc"> — {escolhido.descricao}</span>
-                  )}
-                </div>
-                {/* Campos + botões inline */}
-                <div className="loja-mng-v3-drawer-fields">
-                  <label className="loja-mng-v3-drawer-field">
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder={String(escolhido.valor_latao ?? 0)}
-                      value={precoOverride}
-                      onChange={(e) => setPrecoOverride(e.target.value)} />
-                  </label>
-                  <label className="loja-mng-v3-drawer-field">
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder={tl.stock || '∞'}
-                      value={estoqueInicial}
-                      onChange={(e) => setEstoqueInicial(e.target.value)} />
-                  </label>
-                  <div className="loja-mng-v3-drawer-actions">
-                    <button
-                      type="button"
-                      className="btn-ghost btn-sm"
-                      onClick={() => { setEscolhido(null); setPrecoOverride(''); setEstoqueInicial(''); }}>
-                      {tl.cancel || (en ? 'Cancel' : 'Cancelar')}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-primary btn-sm"
-                      onClick={adicionarAoEstoque}>
-                      {tl.addToShop}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Catálogo paginado */}
-            <div className="loja-mng-v3-cat-list best best-auto" ref={catWrapRef} style={{ paddingBottom: totalPagesCat <= 1 ? 20 : 0 }}>
-              {filtrados.length === 0 ? (
-                <div className="best-empty">{tl.none}</div>
-              ) : (
-                <>
-                  <div className="best-table-wrap" ref={catListRef}>
-                    <Table>
-                      <TableHeader><TableRow>
-                        <LojaSortHead col="nome" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>
-                          {en ? 'Item' : 'Item'}
-                        </LojaSortHead>
-                        <LojaSortHead col="preco" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>
-                          {en ? 'Price' : 'Preço'}
-                        </LojaSortHead>
-                      </TableRow></TableHeader>
-                      <TableBody>
-                        {filtradosSlice.map((it) => {
-                          const mc = matchCampo(it);
-                          const sel = escolhido?.slug === it.slug;
-                          return (
-                            <TableRow
-                              key={it.slug}
-                              className={sel ? 'on' : ''}
-                              onClick={() => selecionarItem(it)}
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && selecionarItem(it)}>
-                              <TableCell className="loja-mng-v3-td--nome">
-                                <span className="loja-mng-v3-row-grupo">
-                                  {it.grupo || '—'}
-                                </span>
-                                <span className="best-name">
-                                  {it.nome}
-                                  {mc && (
-                                    <span className={'loja-mng-v3-match loja-mng-v3-match--' + mc}>
-                                      {' '}({mc === 'descricao' ? tl.inDesc : mc === 'origem' ? tl.inOrig : tl.inDetails})
-                                    </span>
-                                  )}
-                                </span>
-                              </TableCell>
-                              <TableCell className="loja-mng-v3-td--preco">
-                                {precoTextoLoja(it.valor_latao ?? 0, en)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  {totalPagesCat > 1 && (
-                    <LojaPagePagination
-                      page={pageCat}
-                      safePage={safePageCat}
-                      totalPages={totalPagesCat}
-                      setPage={setPageCat}
-                      lang={lang}
-                    />
-                  )}
-                </>
-              )}
-            </div>
-
-          </section>
-
-          {/* ══════ ESTOQUE ══════ */}
-          <section className="loja-mng-v3-panel" style={{ display: abaLoja === 'estoque' ? 'flex' : 'none' }}>
-
-            {/* Toolbar: busca + chips de grupo (mesmo padrão do catálogo) */}
-            <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltroEstoque !== '' ? 20 : undefined }}>
-              <div className="loja-mng-v3-search">
-                <i className="ti ti-search" aria-hidden="true" />
-                <input
-                  type="search"
-                  placeholder={en ? 'Search…' : 'Buscar…'}
-                  value={buscaEstoque}
-                  onChange={(e) => setBuscaEstoque(e.target.value)} />
-                {buscaEstoque && (
-                  <button
-                    type="button"
-                    className="loja-mng-v3-search-clear"
-                    onClick={() => setBuscaEstoque('')}
-                    aria-label={tl.clear}>
-                    <i className="ti ti-x" aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-              {estoque.length > 0 && (
-                <div className="best-chips loja-mng-v3-chips">
-                  <ChipIcon value="all" label={tl.allGroups} active={grupoFiltroEstoque === ''} onClick={() => setGrupoFiltroEstoque('')} />
-                  {gruposEstoque.map((g) => (
-                    <ChipIcon key={g} value={g} label={g} active={grupoFiltroEstoque === g} onClick={() => setGrupoFiltroEstoque(g)} />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="loja-mng-v3-estoque-body best best-auto" ref={estoqueWrapRef} style={{ paddingBottom: totalPagesEstoque <= 1 ? 20 : 0 }}>
-              {estoque.length === 0 ? (
-                <div className="loja-mng-v3-empty">
-                  <i className="ti ti-shopping-bag-x" aria-hidden="true" />
-                  <span>{tl.empty}</span>
-                </div>
-              ) : estoqueFiltrado.length === 0 ? (
-                <div className="best-empty">{tl.none}</div>
-              ) : (
-                <>
-                  <div className="best-table-wrap">
-                    <Table>
-                      <TableHeader><TableRow>
-                        <LojaSortHead col="nome" sortKey={sortKeyEstoque} sortDir={sortDirEstoque} toggleSort={toggleSortEstoque}>
-                          {en ? 'Item' : 'Item'}
-                        </LojaSortHead>
-                        <LojaSortHead col="preco" sortKey={sortKeyEstoque} sortDir={sortDirEstoque} toggleSort={toggleSortEstoque}>
-                          {en ? 'Price' : 'Preço'}
-                        </LojaSortHead>
-                        <LojaSortHead col="estoque" sortKey={sortKeyEstoque} sortDir={sortDirEstoque} toggleSort={toggleSortEstoque} title={en ? 'Stock' : 'Estoque'}>
-                          <i className="ti ti-packages" aria-hidden="true" />
-                        </LojaSortHead>
-                        <TableHead className="loja-mng-v3-th--action" />
-                      </TableRow></TableHeader>
-                      <TableBody>
-                        {estoqueSlice.map((e) => {
-                          const cat = catalogoBySlug[e.slug];
-                          const precoFinal = e.preco_latao_override != null
-                            ? e.preco_latao_override
-                            : (cat?.valor_latao ?? 0);
-                          const estoqueQtd = e.estoque == null ? '∞' : String(e.estoque);
-                          const semEstoque = e.estoque != null && e.estoque === 0;
-                          return (
-                            <TableRow key={e.entryId}>
-                              <TableCell className="loja-mng-v3-td--nome">
-                                <span className="loja-mng-v3-row-grupo">{cat?.grupo || '—'}</span>
-                                <span className="best-name">{cat?.nome || `(? ${e.slug})`}</span>
-                              </TableCell>
-                              <TableCell className="loja-mng-v3-td--preco">
-                                {precoTextoLoja(precoFinal, en)}
-                              </TableCell>
-                              <TableCell style={{ color: semEstoque ? '#E57373' : undefined }}>
-                                {estoqueQtd}
-                              </TableCell>
-                              <TableCell className="loja-mng-v3-td--action">
-                                <button
-                                  type="button"
-                                  className="loja-mng-v3-remove"
-                                  onClick={() => removerEntrada(e.entryId)}
-                                  title={tl.remove}
-                                  aria-label={`${tl.remove} ${cat?.nome || e.slug}`}>
-                                  <i className="ti ti-x" aria-hidden="true" />
-                                </button>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  {totalPagesEstoque > 1 && (
-                    <LojaPagePagination
-                      page={pageEstoque}
-                      safePage={safePageEstoque}
-                      totalPages={totalPagesEstoque}
-                      setPage={setPageEstoque}
-                      lang={lang}
-                    />
-                  )}
-                </>
-              )}
-            </div>
-          </section>
-
           </div>
-          </>
         )}
 
-        {error && <div className="err-msg" style={{ marginTop: 12 }}>{error}</div>}
+        {/* Modal de confirmação de remoção */}
+        {confirmRemoverComercio && (() => {
+          const c = lojaData.comercios.find((x) => x.id === confirmRemoverComercio);
+          return (
+            <div className="loja-comercio-modal-backdrop" onClick={() => setConfirmRemoverComercio(null)}>
+              <div className="loja-comercio-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="loja-comercio-modal-title" style={{ color: '#E57373' }}>
+                  {en ? 'Remove commerce?' : 'Remover comércio?'}
+                </div>
+                <p className="loja-comercio-modal-desc">
+                  {en
+                    ? `"${c?.nome}" and all its items will be permanently removed.`
+                    : `"${c?.nome}" e todos os seus itens serão removidos permanentemente.`}
+                </p>
+                <div className="loja-comercio-modal-actions">
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => setConfirmRemoverComercio(null)}>
+                    {en ? 'Cancel' : 'Cancelar'}
+                  </button>
+                  <button type="button" className="btn-danger btn-sm" onClick={() => removerComercio(confirmRemoverComercio)}>
+                    {en ? 'Remove' : 'Remover'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        <div className="loja-mng-v3-page-body">
+          {catalogo === null ? (
+            <div className="admin-loading"><span>{tl.loading}</span></div>
+          ) : (
+            <div className="loja-mng-v4-layout">
+
+              {/* ══════ SIDEBAR — lista de comércios ══════ */}
+              <aside className="loja-mng-v4-sidebar">
+                <div className="loja-mng-v4-sidebar-header">
+                  <span className="loja-mng-v4-sidebar-title">
+                    <i className="ti ti-store" aria-hidden="true" />
+                    {en ? 'Commerces' : 'Comércios'}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-icon btn-sm"
+                    title={en ? 'New commerce' : 'Novo comércio'}
+                    aria-label={en ? 'New commerce' : 'Novo comércio'}
+                    onClick={() => { setNomeComercioInput(''); setModalComercio('criar'); }}>
+                    <i className="ti ti-plus" aria-hidden="true" />
+                  </button>
+                </div>
+
+                {lojaData.comercios.length === 0 ? (
+                  <div className="loja-mng-v4-sidebar-empty">
+                    <i className="ti ti-store-off" aria-hidden="true" />
+                    <span>{en ? 'No commerces yet' : 'Nenhum comércio ainda'}</span>
+                  </div>
+                ) : (
+                  <ul className="loja-mng-v4-sidebar-list">
+                    {lojaData.comercios.map((c) => (
+                      <li
+                        key={c.id}
+                        className={'loja-mng-v4-sidebar-item' + (c.id === comercioSelId ? ' is-active' : '') + (!c.ativo ? ' is-disabled' : '')}
+                        onClick={() => setComercioSelId(c.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setComercioSelId(c.id)}>
+
+                        {/* Ícone de status (ativo/oculto) */}
+                        <span
+                          className={'loja-mng-v4-status-dot' + (c.ativo ? ' is-ativo' : ' is-oculto')}
+                          title={c.ativo
+                            ? (en ? 'Visible to players' : 'Visível para jogadores')
+                            : (en ? 'Hidden from players' : 'Oculto dos jogadores')}
+                          aria-label={c.ativo ? (en ? 'Enabled' : 'Habilitado') : (en ? 'Disabled' : 'Desabilitado')} />
+
+                        <span className="loja-mng-v4-sidebar-nome">{c.nome}</span>
+                        <span className="loja-mng-v4-sidebar-count">{c.itens.length}</span>
+
+                        {/* Ações: toggle + renomear + remover — visíveis no hover */}
+                        <span className="loja-mng-v4-sidebar-actions" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className={'btn-icon btn-sm loja-mng-v4-toggle-btn' + (c.ativo ? ' is-ativo' : '')}
+                            title={c.ativo
+                              ? (en ? 'Hide from players' : 'Ocultar dos jogadores')
+                              : (en ? 'Show to players' : 'Mostrar para jogadores')}
+                            aria-label={c.ativo ? (en ? 'Disable' : 'Desabilitar') : (en ? 'Enable' : 'Habilitar')}
+                            onClick={() => toggleAtivo(c.id)}>
+                            <i className={'ti ' + (c.ativo ? 'ti-eye' : 'ti-eye-off')} aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-icon btn-sm"
+                            title={en ? 'Rename' : 'Renomear'}
+                            aria-label={en ? 'Rename' : 'Renomear'}
+                            onClick={() => { setNomeComercioInput(c.nome); setModalComercio({ id: c.id, nome: c.nome }); }}>
+                            <i className="ti ti-pencil" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-icon btn-sm loja-mng-v4-remove-btn"
+                            title={en ? 'Remove commerce' : 'Remover comércio'}
+                            aria-label={en ? 'Remove commerce' : 'Remover comércio'}
+                            onClick={() => setConfirmRemoverComercio(c.id)}>
+                            <i className="ti ti-trash" aria-hidden="true" />
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </aside>
+
+              {/* ══════ PAINEL PRINCIPAL ══════ */}
+              <div className="loja-mng-v4-main">
+                {!comercioSel ? (
+                  <div className="loja-mng-v4-no-sel">
+                    <i className="ti ti-store" aria-hidden="true" />
+                    <span>
+                      {lojaData.comercios.length === 0
+                        ? (en ? 'Create a commerce to start adding items.' : 'Crie um comércio para começar a adicionar itens.')
+                        : (en ? 'Select a commerce on the left.' : 'Selecione um comércio à esquerda.')}
+                    </span>
+                    {lojaData.comercios.length === 0 && (
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm"
+                        style={{ marginTop: 12 }}
+                        onClick={() => { setNomeComercioInput(''); setModalComercio('criar'); }}>
+                        <i className="ti ti-plus" aria-hidden="true" />
+                        {en ? ' New commerce' : ' Novo comércio'}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Cabeçalho do comércio selecionado com badge de status */}
+                    <div className="loja-mng-v4-comercio-header">
+                      <span className="loja-mng-v4-comercio-nome">
+                        {comercioSel.nome}
+                      </span>
+                      <span
+                        className={'loja-mng-v4-status-badge' + (comercioSel.ativo ? ' is-ativo' : ' is-oculto')}
+                        onClick={() => toggleAtivo(comercioSel.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleAtivo(comercioSel.id)}
+                        title={comercioSel.ativo
+                          ? (en ? 'Click to hide from players' : 'Clique para ocultar dos jogadores')
+                          : (en ? 'Click to show to players' : 'Clique para mostrar para jogadores')}>
+                        <i className={'ti ' + (comercioSel.ativo ? 'ti-eye' : 'ti-eye-off')} aria-hidden="true" />
+                        {comercioSel.ativo
+                          ? (en ? 'Visible to players' : 'Visível para jogadores')
+                          : (en ? 'Hidden from players' : 'Oculto dos jogadores')}
+                      </span>
+                    </div>
+
+                    {/* Tabs catálogo / estoque */}
+                    <div className="loja-mng-v3-tabs">
+                      <button
+                        type="button"
+                        className={'loja-mng-v3-tab' + (abaLoja === 'catalogo' ? ' is-active' : '')}
+                        onClick={() => setAbaLoja('catalogo')}>
+                        {en ? 'Catalogue' : 'Catálogo'}
+                        <span className="loja-mng-v3-tab-badge">{filtrados.length}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={'loja-mng-v3-tab' + (abaLoja === 'estoque' ? ' is-active' : '')}
+                        onClick={() => setAbaLoja('estoque')}>
+                        {en ? 'Stock' : 'Estoque'}
+                        <span className="loja-mng-v3-tab-badge">{estoque.length}</span>
+                      </button>
+                    </div>
+
+                    <div className="loja-mng-v3-grid">
+
+                      {/* ── CATÁLOGO ── */}
+                      <section className="loja-mng-v3-panel loja-mng-v3-panel--cat" style={{ display: abaLoja === 'catalogo' ? 'flex' : 'none' }}>
+                        <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltro !== '' ? 20 : undefined }}>
+                          <div className="loja-mng-v3-search">
+                            <i className="ti ti-search" aria-hidden="true" />
+                            <input
+                              ref={buscaRef}
+                              type="search"
+                              placeholder={tl.search}
+                              value={busca}
+                              onChange={(e) => setBusca(e.target.value)} />
+                            {busca && (
+                              <button type="button" className="loja-mng-v3-search-clear" onClick={() => setBusca('')} aria-label={tl.clear}>
+                                <i className="ti ti-x" aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="best-chips loja-mng-v3-chips">
+                            <ChipIcon value="all" label={tl.allGroups} active={grupoFiltro === ''} onClick={() => setGrupoFiltro('')} />
+                            {grupos.map((g) => (
+                              <ChipIcon key={g} value={g} label={g} active={grupoFiltro === g} onClick={() => setGrupoFiltro(g)} />
+                            ))}
+                          </div>
+                        </div>
+
+                        {escolhido && (
+                          <div className="loja-mng-v3-drawer" role="region" aria-label={en ? 'Add' : 'Adicionar'}>
+                            <div className="loja-mng-v3-drawer-nome">
+                              {escolhido.nome}
+                              {escolhido.descricao && (
+                                <span className="loja-mng-v3-drawer-desc"> — {escolhido.descricao}</span>
+                              )}
+                            </div>
+                            {/* Badge mostrando destino */}
+                            <div className="loja-mng-v4-drawer-destino">
+                              <i className="ti ti-store" aria-hidden="true" />
+                              {en ? `Adding to: ` : `Adicionando em: `}
+                              <strong>{comercioSel.nome}</strong>
+                            </div>
+                            <div className="loja-mng-v3-drawer-fields">
+                              <label className="loja-mng-v3-drawer-field">
+                                <input
+                                  type="number" min="0"
+                                  placeholder={String(escolhido.valor_latao ?? 0)}
+                                  value={precoOverride}
+                                  onChange={(e) => setPrecoOverride(e.target.value)} />
+                              </label>
+                              <label className="loja-mng-v3-drawer-field">
+                                <input
+                                  type="number" min="0"
+                                  placeholder={tl.stock || '∞'}
+                                  value={estoqueInicial}
+                                  onChange={(e) => setEstoqueInicial(e.target.value)} />
+                              </label>
+                              <div className="loja-mng-v3-drawer-actions">
+                                <button type="button" className="btn-ghost btn-sm"
+                                  onClick={() => { setEscolhido(null); setPrecoOverride(''); setEstoqueInicial(''); }}>
+                                  {tl.cancel || (en ? 'Cancel' : 'Cancelar')}
+                                </button>
+                                <button type="button" className="btn-primary btn-sm" onClick={adicionarAoEstoque}>
+                                  {tl.addToShop}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="loja-mng-v3-cat-list best best-auto" ref={catWrapRef} style={{ paddingBottom: totalPagesCat <= 1 ? 20 : 0 }}>
+                          {filtrados.length === 0 ? (
+                            <div className="best-empty">{tl.none}</div>
+                          ) : (
+                            <>
+                              <div className="best-table-wrap" ref={catListRef}>
+                                <Table>
+                                  <TableHeader><TableRow>
+                                    <LojaSortHead col="nome" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>{en ? 'Item' : 'Item'}</LojaSortHead>
+                                    <LojaSortHead col="preco" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>{en ? 'Price' : 'Preço'}</LojaSortHead>
+                                  </TableRow></TableHeader>
+                                  <TableBody>
+                                    {filtradosSlice.map((it) => {
+                                      const mc = matchCampo(it);
+                                      const sel = escolhido?.slug === it.slug;
+                                      return (
+                                        <TableRow key={it.slug} className={sel ? 'on' : ''} onClick={() => selecionarItem(it)} role="button" tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && selecionarItem(it)}>
+                                          <TableCell className="loja-mng-v3-td--nome">
+                                            <span className="loja-mng-v3-row-grupo">{it.grupo || '—'}</span>
+                                            <span className="best-name">
+                                              {it.nome}
+                                              {mc && <span className={'loja-mng-v3-match loja-mng-v3-match--' + mc}>{' '}({mc === 'descricao' ? tl.inDesc : mc === 'origem' ? tl.inOrig : tl.inDetails})</span>}
+                                            </span>
+                                          </TableCell>
+                                          <TableCell className="loja-mng-v3-td--preco">{precoTextoLoja(it.valor_latao ?? 0, en)}</TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                              {totalPagesCat > 1 && <LojaPagePagination page={pageCat} safePage={safePageCat} totalPages={totalPagesCat} setPage={setPageCat} lang={lang} />}
+                            </>
+                          )}
+                        </div>
+                      </section>
+
+                      {/* ── ESTOQUE ── */}
+                      <section className="loja-mng-v3-panel" style={{ display: abaLoja === 'estoque' ? 'flex' : 'none' }}>
+                        <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltroEstoque !== '' ? 20 : undefined }}>
+                          <div className="loja-mng-v3-search">
+                            <i className="ti ti-search" aria-hidden="true" />
+                            <input type="search" placeholder={en ? 'Search…' : 'Buscar…'} value={buscaEstoque} onChange={(e) => setBuscaEstoque(e.target.value)} />
+                            {buscaEstoque && (
+                              <button type="button" className="loja-mng-v3-search-clear" onClick={() => setBuscaEstoque('')} aria-label={tl.clear}>
+                                <i className="ti ti-x" aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                          {estoque.length > 0 && (
+                            <div className="best-chips loja-mng-v3-chips">
+                              <ChipIcon value="all" label={tl.allGroups} active={grupoFiltroEstoque === ''} onClick={() => setGrupoFiltroEstoque('')} />
+                              {gruposEstoque.map((g) => (
+                                <ChipIcon key={g} value={g} label={g} active={grupoFiltroEstoque === g} onClick={() => setGrupoFiltroEstoque(g)} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="loja-mng-v3-estoque-body best best-auto" ref={estoqueWrapRef} style={{ paddingBottom: totalPagesEstoque <= 1 ? 20 : 0 }}>
+                          {estoque.length === 0 ? (
+                            <div className="loja-mng-v3-empty">
+                              <i className="ti ti-shopping-bag-x" aria-hidden="true" />
+                              <span>{tl.empty}</span>
+                            </div>
+                          ) : estoqueFiltrado.length === 0 ? (
+                            <div className="best-empty">{tl.none}</div>
+                          ) : (
+                            <>
+                              <div className="best-table-wrap">
+                                <Table>
+                                  <TableHeader><TableRow>
+                                    <LojaSortHead col="nome" sortKey={sortKeyEstoque} sortDir={sortDirEstoque} toggleSort={toggleSortEstoque}>{en ? 'Item' : 'Item'}</LojaSortHead>
+                                    <LojaSortHead col="preco" sortKey={sortKeyEstoque} sortDir={sortDirEstoque} toggleSort={toggleSortEstoque}>{en ? 'Price' : 'Preço'}</LojaSortHead>
+                                    <LojaSortHead col="estoque" sortKey={sortKeyEstoque} sortDir={sortDirEstoque} toggleSort={toggleSortEstoque} title={en ? 'Stock' : 'Estoque'}>
+                                      <i className="ti ti-packages" aria-hidden="true" />
+                                    </LojaSortHead>
+                                    <TableHead className="loja-mng-v3-th--action" />
+                                  </TableRow></TableHeader>
+                                  <TableBody>
+                                    {estoqueSlice.map((e) => {
+                                      const cat = catalogoBySlug[e.slug];
+                                      const precoFinal = e.preco_latao_override != null ? e.preco_latao_override : (cat?.valor_latao ?? 0);
+                                      const estoqueQtd = e.estoque == null ? '∞' : String(e.estoque);
+                                      const semEstoque = e.estoque != null && e.estoque === 0;
+                                      return (
+                                        <TableRow key={e.entryId}>
+                                          <TableCell className="loja-mng-v3-td--nome">
+                                            <span className="loja-mng-v3-row-grupo">{cat?.grupo || '—'}</span>
+                                            <span className="best-name">{cat?.nome || `(? ${e.slug})`}</span>
+                                          </TableCell>
+                                          <TableCell className="loja-mng-v3-td--preco">{precoTextoLoja(precoFinal, en)}</TableCell>
+                                          <TableCell style={{ color: semEstoque ? '#E57373' : undefined }}>{estoqueQtd}</TableCell>
+                                          <TableCell className="loja-mng-v3-td--action">
+                                            <button type="button" className="loja-mng-v3-remove" onClick={() => removerEntrada(e.entryId)} title={tl.remove} aria-label={`${tl.remove} ${cat?.nome || e.slug}`}>
+                                              <i className="ti ti-x" aria-hidden="true" />
+                                            </button>
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                              {totalPagesEstoque > 1 && <LojaPagePagination page={pageEstoque} safePage={safePageEstoque} totalPages={totalPagesEstoque} setPage={setPageEstoque} lang={lang} />}
+                            </>
+                          )}
+                        </div>
+                      </section>
+
+                    </div>
+                  </>
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {error && <div className="err-msg" style={{ marginTop: 12 }}>{error}</div>}
         </div>
-      </div>
     </div>
   );
 }

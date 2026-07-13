@@ -157,7 +157,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
         const abrir = editable
           ? (e) => onEdit(b, scope, e.currentTarget.getBoundingClientRect())
           : undefined;
-        const tipContent = hasHover ? { title: b.label, desc: b.tip ?? (estadoLbl || undefined) } : null;
+        const tipContent = hasHover ? { desc: b.tip ?? (estadoLbl || undefined) } : null;
 
         // Cor da barra: b.color quando definido pelo pai (condições, combatBars),
         // senão cor fixa da chave (EF/EH/AR/KA/Estágio).
@@ -184,8 +184,9 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
             onKeyDown={editable ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(e); }
             } : undefined}
-            title={!hasHover && editable ? `${b.label}: ${b.val}/${b.max}${sufixoEstado}` : undefined}
+            title={!hasHover && editable ? `${b.val}/${b.max}${sufixoEstado}` : undefined}
           >
+            <span className="fp-bar-name-label">{b.label}</span>
             <div className="fp-bar-pill">
               {b.icon && (
                 <span className="fp-bar-icon" aria-hidden="true"
@@ -199,7 +200,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
                 onMouseLeave={hasHover && tipContent ? onHoverEnd : undefined}
                 onFocus={hasHover && tipContent ? (e) => onHover(e, tipContent) : undefined}
                 onBlur={hasHover && tipContent ? onHoverEnd : undefined}
-                title={!hasHover && !editable ? `${b.label}: ${b.val}${showValue ? '/' + b.max : ''}${sufixoEstado}` : undefined}
+                title={!hasHover && !editable ? `${b.val}${showValue ? '/' + b.max : ''}${sufixoEstado}` : undefined}
               >
                 {!empty && (
                   <div className="fp-bar-fill" style={{ width: (pct * 100) + '%' }}>
@@ -1049,11 +1050,12 @@ function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abr
 function FichaInfoView({
   pj, en,
   atributosFinais, derivadas, estagioNum, xpTotal, velocidade,
-  pesoPersonagem,
+  pesoPersonagem, alturaPersonagem,
   catalogoHab, catalogoMag, catalogoTec,
   habsByKey, pjHabilidades, pjMagias, pjTecnicas,
   nivelMagiaEfetivoFn, totalHabilidadeFn, totalTecnicaFn,
   bonusHabilidades, titulo,
+  historiaPj,
 }) {
   const _d = derivadas || {};
 
@@ -1157,6 +1159,29 @@ function FichaInfoView({
           {pesoPersonagem != null && (
             <Row label={en ? 'Weight' : 'Peso'} value={`${pesoPersonagem} kg`} />
           )}
+          {alturaPersonagem != null && (
+            <Row label={en ? 'Height' : 'Altura'} value={`${Math.round(alturaPersonagem * 100)} cm`} />
+          )}
+          {(() => {
+            // Idade calculada: ano atual do jogo − ano de nascimento.
+            // Requer pj.data_nasc.ano e historiaPj.data_jogo_atual.ano.
+            const dn = pj.data_nasc;
+            const dj = historiaPj?.data_jogo_atual;
+            if (dn?.ano != null && dj?.ano != null) {
+              const idade = Number(dj.ano) - Number(dn.ano);
+              const meses = typeof FANTASY_MONTHS !== 'undefined' ? FANTASY_MONTHS : null;
+              const nomeMes = meses ? (meses[dn.mes - 1]?.nome || '').replace(/^Mês /, '') : `Mês ${dn.mes}`;
+              return (
+                <>
+                  <Row label={en ? 'Date of Birth' : 'Nascimento'} value={`${dn.dia} ${nomeMes} de ${dn.ano}`} />
+                  <Row label={en ? 'Age' : 'Idade'} value={`${idade} ${en ? 'years' : 'anos'}`} />
+                </>
+              );
+            }
+            // Fallback: campo legado pj.idade (personagens criados antes da migração)
+            if (pj.idade != null) return <Row label={en ? 'Age' : 'Idade'} value={pj.idade} />;
+            return null;
+          })()}
           <Row label={en ? 'Profession'     : 'Profissão'}      value={pj.profissao} />
           <Row label={en ? 'Group'          :  'Grupo'}         value={pj.especializacao} />
           <Row label={en ? 'Kingdom'        : 'Reino'}          value={pj.reino} />
@@ -1594,7 +1619,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
       // personagens — o vínculo só existe nesse array. Usado para listar
       // os outros personagens da mesa como alvos possíveis de magia.
       const histRes = await supabaseClient.from('historias')
-        .select('id, protagonista_ids, pausada').contains('protagonista_ids', [pjAtivoId]).maybeSingle();
+        .select('id, protagonista_ids, pausada, data_jogo_atual').contains('protagonista_ids', [pjAtivoId]).maybeSingle();
       if (cancel) return;
       if (!histRes.error && histRes.data) {
         setHistoriaPj(histRes.data);
@@ -2147,8 +2172,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
       const pesoSinal = capVal > 0 ? -(pesoVal / capVal) * 50 : 0; // mapeia 0..100% → 0..-50
       return { key: 'peso', label: en ? 'Weight' : 'Peso', val: pesoVal, max: capVal || 1, color: _corCondicao(pesoSinal), icon: 'ti-weight', tip: tipPeso };
     })(),
-    { key: 'rf', label: en ? 'Physical Resistance' : 'Resistência Física', val: _clampVal(_d.rf ?? _d.resistenciaFisica ?? 0, 20, -7), max: 20, min: -7, icon: 'ti-circuit-resistor', color: _corCondicao(_clampVal(_d.rf ?? _d.resistenciaFisica ?? 0, 20, -7)) },
-    { key: 'rm', label: en ? 'Magic Resistance' : 'Resistência Mágica', val: _clampVal(_d.rm ?? _d.resistenciaMagica ?? 0, 20, -7), max: 20, min: -7, icon: 'ti-sparkles', color: _corCondicao(_clampVal(_d.rm ?? _d.resistenciaMagica ?? 0, 20, -7)) },
   ];
   const elCombate = <FichaVitBars bars={combatBars} scope="combate" en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
 
@@ -3030,6 +3053,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
             xpTotal={xpTotal}
             velocidade={velocidade}
             pesoPersonagem={ficha.peso}
+            alturaPersonagem={ficha.altura}
             catalogoHab={catalogoHab}
             catalogoMag={catalogoMag}
             catalogoTec={catalogoTec}
@@ -3042,6 +3066,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
             totalTecnicaFn={_totTec}
             bonusHabilidades={bonusHabilidades}
             titulo={titulo}
+            historiaPj={historiaPj}
           />
         </div>
       ) : fpTab === 'inventario' ? (

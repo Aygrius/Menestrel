@@ -834,6 +834,45 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     });
   };
 
+  // Fase — preparar animal: remove 1 unidade do animal e adiciona o item resultante
+  // (cat.consumiveis = slug, cat.consumiveis_peso = quantidade) na bag do personagem.
+  const prepararAnimal = (instanceId) => {
+    const it = inv?.itens.find((x) => x.instanceId === instanceId);
+    const cat = it ? catalogoBySlug[it.slug] : null;
+    if (!it || !cat?.consumiveis) return;
+    const slugResultado = cat.consumiveis;
+    const qtdResultado = Number(cat.consumiveis_peso) || 1;
+    setInv((cur) => {
+      const itens = cur.itens
+        .map((x) => x.instanceId === instanceId
+          ? { ...x, quantidade: x.quantidade - 1 }
+          : x)
+        .filter((x) => x.quantidade > 0);
+      // Tenta acumular com item igual já solto na bag (mesmo slug, sem container, sem slot)
+      const existente = itens.find((x) => x.slug === slugResultado && !x.containerId && !x.slot && !x.equipado && !x.vestido);
+      if (existente) {
+        return {
+          ...cur,
+          itens: itens.map((x) => x.instanceId === existente.instanceId
+            ? { ...x, quantidade: x.quantidade + qtdResultado }
+            : x),
+        };
+      }
+      return {
+        ...cur,
+        itens: [...itens, {
+          instanceId: novoInstanceId(),
+          slug: slugResultado,
+          quantidade: qtdResultado,
+          equipado: false,
+          slot: null,
+          containerId: null,
+          observacao: null,
+        }],
+      };
+    });
+  };
+
   const setObservacao = (instanceId, texto) => {
     setInv((cur) => ({
       ...cur,
@@ -1093,6 +1132,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onVestir={vestir}
           onDespir={despir}
           onUsar={solicitarUsar}
+          onPreparar={prepararAnimal}
           onAprenderMagia={authUserIsOwner ? aprenderMagiaPergaminho : undefined}
           onDestruir={solicitarDestruir}
           onObservacao={setObservacao}
@@ -1544,6 +1584,9 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   // overIdx = índice do slot sob o ponteiro (destino do drop), ou null.
   const [drag, setDrag] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
+  // instanceId do card que está sendo SEGURADO (pointerdown ativo, antes do arraste começar).
+  // Controla apenas o cursor — a classe .inv-card--holding é aplicada só enquanto o botão fica pressionado.
+  const [holdingId, setHoldingId] = useState(null);
 
   // Refs pra ler valores atuais dentro dos listeners globais sem closure stale.
   const dragRef = React.useRef(null);
@@ -1607,6 +1650,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
       overIdxRef.current = null;
       setDrag(null);
       setOverIdx(null);
+      setHoldingId(null);
       try { e.target.releasePointerCapture?.(e.pointerId); } catch (_) {}
       // Se houve arraste, o navegador ainda vai disparar um 'click' sintético no
       // card logo em seguida — marcamos pra suprimi-lo (senão abre os detalhes).
@@ -1627,6 +1671,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
       pointerStartRef.current = null;
       setDrag(null);
       setOverIdx(null);
+      setHoldingId(null);
     };
 
     window.addEventListener('pointermove', onMove, { passive: false });
@@ -1645,7 +1690,24 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   const onCardPointerDown = React.useCallback((e, idx, instanceId) => {
     // Só botão esquerdo do mouse / toque primário
     if (e.button != null && e.button !== 0) return;
+    // Se há um modal aberto (backdrop visível), ignora o pointerdown — o evento
+    // pode ter passado pelo backdrop/botão X do modal que ficou sobre o card.
+    if (document.querySelector('.modal-backdrop')) return;
     pointerStartRef.current = { x: e.clientX, y: e.clientY, idx, instanceId, started: false };
+    setHoldingId(instanceId);
+  }, []);
+
+  // Limpa holdingId assim que o ponteiro é solto, mesmo antes de um arraste começar.
+  // O useEffect dos handlers globais (pointermove/pointerup) só monta após drag existir,
+  // então este handler separado cobre a janela entre pointerdown e o início do arraste.
+  React.useEffect(() => {
+    const clearHold = () => setHoldingId(null);
+    window.addEventListener('pointerup', clearHold);
+    window.addEventListener('pointercancel', clearHold);
+    return () => {
+      window.removeEventListener('pointerup', clearHold);
+      window.removeEventListener('pointercancel', clearHold);
+    };
   }, []);
 
   const onCardPointerMove = React.useCallback((e, idx, instanceId) => {
@@ -1667,6 +1729,11 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   // na fase de captura do onClickCapture do .inv-grid-wrap (via suppressClickRef).
   const onCardClick = React.useCallback((instanceId) => {
     if (dragRef.current) return;
+    // Limpa o estado de "segurar" antes de abrir o modal — evita que o pointerdown
+    // do card (que disparou este clique) fique preso caso o modal consuma o pointerup
+    // correspondente (ex.: backdrop ou botão X sobre o card por trás).
+    setHoldingId(null);
+    pointerStartRef.current = null;
     onAbrirDetalhes(instanceId);
   }, [onAbrirDetalhes]);
 
@@ -1719,6 +1786,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     const liquido = cat.tipo === 'L';
     const isBeingDragged = drag && drag.fromIdx === idx;
     const isDropTarget = overIdx === idx && drag && drag.fromIdx !== idx;
+    const isHolding = holdingId === it.instanceId && !isBeingDragged;
     return (
       <button
         key={it.instanceId}
@@ -1729,6 +1797,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           + (cat?.magico ? ' inv-card--magico' : '')
           + (isBeingDragged ? ' inv-card--dragging' : '')
           + (isDropTarget ? ' inv-card--drop-target' : '')
+          + (isHolding ? ' inv-card--holding' : '')
         }
         style={{ touchAction: 'none' }}
         onClick={() => onCardClick(it.instanceId)}
@@ -1750,6 +1819,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   const renderItemCard = (it, cat, idx) => {
     const isBeingDragged = drag && drag.fromIdx === idx;
     const isDropTarget = overIdx === idx && drag && drag.fromIdx !== idx;
+    const isHolding = holdingId === it.instanceId && !isBeingDragged;
     return (
       <button
         key={it.instanceId}
@@ -1760,6 +1830,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           + (cat?.magico ? ' inv-card--magico' : '')
           + (isBeingDragged ? ' inv-card--dragging' : '')
           + (isDropTarget ? ' inv-card--drop-target' : '')
+          + (isHolding ? ' inv-card--holding' : '')
         }
         style={{ touchAction: 'none' }}
         onClick={() => onCardClick(it.instanceId)}
@@ -1944,13 +2015,14 @@ function motivoAprenderLabel(motivo, en) {
 function DetalhesItemModal({
   instance, catalogoBySlug, raca, slotsState, todosItens,
   containersDisponiveis, pjsHistoria, lang,
-  onClose, onEquipar, onDesequipar, onUsar, onAprenderMagia, onDestruir, onObservacao,
+  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onAprenderMagia, onDestruir, onObservacao,
   onMoverParaContainer, onTransferir, transferError, onTransferReset,
   onVestir, onDespir,
   onRemoverDoContainer, onAbrirDetalhesFilho, contexto,
 }) {
   const [confirmandoDestruir, setConfirmandoDestruir] = useState(false);
   const [confirmandoUsar, setConfirmandoUsar] = useState(false);
+  const [confirmandoPreparar, setConfirmandoPreparar] = useState(false);
   const [aprendendo, setAprendendo] = useState(false);
   const [aprenderErro, setAprenderErro] = useState(null);
   const [mostrarArmazenar, setMostrarArmazenar] = useState(false);
@@ -1970,6 +2042,7 @@ function DetalhesItemModal({
   useEffect(() => {
     setConfirmandoDestruir(false);
     setConfirmandoUsar(false);
+    setConfirmandoPreparar(false);
     setAprendendo(false);
     setAprenderErro(null);
     setMostrarArmazenar(false);
@@ -1986,6 +2059,8 @@ function DetalhesItemModal({
   // Joias/acessórios vestíveis usam o sistema de vestir; não mostrar botão Equipar.
   const equipavel = !!categoria && !ehVestimenta(cat);
   const consumivel = (cat.grupo === 'Consumíveis') || cat.tipo === 'L';
+  // Animal preparável: grupo Animais com slug de resultado definido no catálogo.
+  const ehAnimal = cat.grupo === 'Animais' && !!cat.consumiveis;
   // Pergaminho de magia: catálogo declara magia (key) + nivel_magia (nível efetivo).
   const ehPergaminhoMagia = !!(cat.magia && cat.nivel_magia != null);
   const isContainer = ehContainer(cat);
@@ -2202,6 +2277,26 @@ function DetalhesItemModal({
                 </button>
               </div>
             </div>
+          ) : confirmandoPreparar ? (
+            <div className="det-act-confirm">
+              <div className="det-act-confirm-title">
+                {en ? 'Prepare animal' : 'Preparar animal'}
+              </div>
+              <span className="det-act-confirm-lbl">
+                {en
+                  ? `Slaughter and process ${cat.nome}? You will receive ${cat.consumiveis_peso || 1}× ${cat.consumiveis}.`
+                  : `Abater e preparar ${cat.nome}? Você receberá ${cat.consumiveis_peso || 1}× ${cat.consumiveis}.`}
+              </span>
+              <div className="det-act-confirm-btns">
+                <button className="btn-ghost" onClick={() => setConfirmandoPreparar(false)}>
+                  {en ? 'Cancel' : 'Cancelar'}
+                </button>
+                <button className="btn-primary"
+                  onClick={() => { onPreparar(instance.instanceId); onClose(); }}>
+                  {en ? 'Yes, prepare' : 'Sim, preparar'}
+                </button>
+              </div>
+            </div>
           ) : mostrarTransferir ? (
             <div className="det-transf">
               <select
@@ -2291,6 +2386,12 @@ function DetalhesItemModal({
                       else setConfirmandoUsar(true);
                     }}>
                     {en ? 'Use' : 'Usar'}
+                  </button>
+                )}
+                {acoesPesadas && ehAnimal && onPreparar && (
+                  <button className="btn-primary"
+                    onClick={() => setConfirmandoPreparar(true)}>
+                    {en ? 'Prepare' : 'Preparar'}
                   </button>
                 )}
                 {acoesPesadas && ehPergaminhoMagia && onAprenderMagia && (
@@ -2542,8 +2643,12 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel }) {
       background: rgba(201,164,78,0.10) !important;
       border-radius: 6px;
     }
-    /* Cursor grab nos cards (arrasto via pointer events) */
+    /* Cursor padrão nos cards: pointer (clique normal) */
     .inv-card {
+      cursor: pointer;
+    }
+    /* Cursor grab aparece SÓ enquanto o botão está pressionado (segurar) */
+    .inv-card--holding {
       cursor: grab;
     }
     /* Fantasma que segue o cursor durante o arraste */

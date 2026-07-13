@@ -1038,6 +1038,20 @@
 #root .menestrel-ui .pj-card.is-clickable { cursor:pointer; transition:transform .16s ease, border-color .16s ease, background .16s ease; }
 #root .menestrel-ui .pj-card--levelup { border-color: rgba(106,85,48,0.26); box-shadow: none; }
 
+/* ── Efeito de saúde (EF) — degradê contínuo via CSS custom properties ────
+   A cor é calculada em JS (lerpRGB) e injetada como --pj-health-r/g/b no
+   inline style. border-color e box-shadow refletem a saúde; o ::before
+   (filete superior dourado original) não é alterado.                        */
+
+/* Pulso animado apenas no estado crítico (EF < 25%) */
+#root .menestrel-ui .pj-card--ef-critico {
+  animation: pj-ef-pulso 2.4s ease-in-out infinite;
+}
+@keyframes pj-ef-pulso {
+  0%, 100% { box-shadow: 0 0 24px rgba(var(--pj-health-r), var(--pj-health-g), var(--pj-health-b), 0.20); }
+  50%       { box-shadow: 0 0 42px rgba(var(--pj-health-r), var(--pj-health-g), var(--pj-health-b), 0.45); }
+}
+
 /* badge "Evoluiu" */
 #root .menestrel-ui .pj-levelup-badge { color:#3A2410; background:linear-gradient(135deg,#C9A44E,#B8702E); border:none; }
 
@@ -1617,7 +1631,7 @@
    acima da borda enquanto o card mantém overflow:hidden (barra cheia, recortada
    nos cantos). O wrapper estica na célula da grade e o card preenche o wrapper,
    preservando cards de mesma altura por linha. */
-#root .menestrel-ui .pj-card-wrap { position: relative; display: flex; flex-direction: column; }
+#root .menestrel-ui .pj-card-wrap { position: relative; display: flex; flex-direction: column; overflow: visible; }
 #root .menestrel-ui .pj-card-wrap > .pj-card { flex: 1 1 auto; }
 #root .menestrel-ui .pj-evoluiu {
   position: absolute;
@@ -2211,10 +2225,10 @@
    o trilho, agora filho dela, continua crescendo por dentro (flex:1 em
    .fp2-vit-band/.fp-cond-vit .fp-bar-track, ver abaixo). ── */
 #root .menestrel-ui .fp-bar-pill {
-  display: flex; align-items: center; gap: clamp(8px,1.5vw,14px);
+  display: flex; flex-direction: row; align-items: center; gap: clamp(8px,1.5vw,14px);
   flex: 1 1 auto; min-width: 0;
   padding: 4px 20px 4px 4px;
-  border-radius: 12px;
+  border-radius: 999px;
   background: rgba(18, 13, 6, 0.90);
   border: none;
 }
@@ -2224,11 +2238,12 @@
    cima, barra embaixo) e condição já era inline com label ao lado; agora as
    duas viraram só ícone + trilho (texto saiu, ver FichaVitBars no JSX). ── */
 #root .menestrel-ui .fp2-vit-band .fp-bar-row,
-#root .menestrel-ui .fp-cond-vit .fp-bar-row { display: flex; align-items: center; gap: clamp(8px,1.5vw,14px); width: 100%; padding: 0 0 5px; }
+#root .menestrel-ui .fp-cond-vit .fp-bar-row { display: flex; flex-direction: column; align-items: stretch; gap: 3px; width: 100%; padding: 0 0 8px; }
 #root .menestrel-ui .fp2-vit-band .fp-bar-row:last-child,
 #root .menestrel-ui .fp-cond-vit .fp-bar-row:last-child { padding: 0 0 0; }
 #root .menestrel-ui .fp2-vit-band .fp-bar-track,
 #root .menestrel-ui .fp-cond-vit .fp-bar-track { flex: 1 1 auto; min-width: 0; }
+#root .menestrel-ui .fp-bar-name-label { font-family: 'Lora', serif; font-size: 11px; font-style: italic; color: var(--muted-foreground); letter-spacing: 0.03em; padding-left: 4px; line-height: 1; }
 #root .menestrel-ui .fp-bar-track { height: 10px; border-radius: 999px; position: relative; overflow: visible; background: linear-gradient(180deg, #0c0905, #241a0e); box-shadow: inset 0 2px 3px rgba(0,0,0,.60), }
 #root .menestrel-ui .fp-bar-track.is-empty { height: 10px; border: 0; box-shadow: inset 0 2px 4px rgba(0,0,0,.8), }
 #root .menestrel-ui .fp-bar-fill { height: 100%; border-radius: 999px; position: relative; overflow: visible; background: linear-gradient(180deg, color-mix(in srgb, var(--bar-c) 50%, #fff) 0%, var(--bar-c) 44%, color-mix(in srgb, var(--bar-c) 60%, #000) 100%), linear-gradient(90deg, color-mix(in srgb, var(--bar-c) 50%, #000), var(--bar-c)); background-blend-mode: overlay, normal; animation: fpvit-breathe 8s ease-in-out infinite; }
@@ -3433,7 +3448,7 @@
 #root .menestrel-ui .pjs-empty .ornament { display: flex; align-items: center; gap: 16px; color: var(--gold); }
 #root .menestrel-ui .pjs-empty .ornament .line { width: 120px; height: 1px; background: var(--rule-strong); }
 #root .menestrel-ui .pjs-empty h3 { font-family: 'Lora', serif; font-size: 24px; color: var(--parchment); margin: 0 0 8px; }
-#root .menestrel-ui .pjs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+#root .menestrel-ui .pjs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding-top: 14px; }
 @media (max-width: 560px) { #root .menestrel-ui .pjs-grid { grid-template-columns: 1fr; } }
 #root .menestrel-ui .loja { display: flex; flex-direction: column; gap: 20px; }
 /* Inventário: mesma estrutura da Loja — toolbar e grid como filhos flex com gap,
@@ -3658,6 +3673,87 @@
   #root .menestrel-ui .loja-mng-v3-drawer-fields { flex-direction: column; align-items: stretch; }
   #root .menestrel-ui .loja-mng-v3-drawer-field input { width: 100%; }
   #root .menestrel-ui .loja-mng-v3-drawer-actions { margin-left: 0; justify-content: flex-end; }
+}
+
+/* ===== LOJA-MNG-V4 — Múltiplos Comércios ===== */
+
+/* Layout: sidebar de comércios à esquerda + painel principal à direita */
+#root .menestrel-ui .loja-mng-v4-layout { display: flex; gap: 0; height: 100%; flex: 1 1 0; min-height: 0; overflow: hidden; }
+
+/* ── Sidebar ── */
+#root .menestrel-ui .loja-mng-v4-sidebar { display: flex; flex-direction: column; width: 220px; flex-shrink: 0; border-right: 1px solid rgba(106,85,48,0.25); background: rgba(14,10,4,0.35); overflow-y: auto; }
+#root .menestrel-ui .loja-mng-v4-sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; border-bottom: 1px solid rgba(106,85,48,0.20); flex-shrink: 0; }
+#root .menestrel-ui .loja-mng-v4-sidebar-title { display: flex; align-items: center; gap: 6px; font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: .06em; color: var(--gold, #C9A44E); text-transform: uppercase; }
+#root .menestrel-ui .loja-mng-v4-sidebar-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; flex: 1 1 0; color: rgba(156,143,115,0.55); font-family: 'Lora', serif; font-size: 12px; font-style: italic; text-align: center; padding: 24px 16px; }
+#root .menestrel-ui .loja-mng-v4-sidebar-empty i { font-size: 28px; opacity: .45; }
+#root .menestrel-ui .loja-mng-v4-sidebar-list { list-style: none; margin: 0; padding: 4px 0; }
+
+/* Item da sidebar */
+#root .menestrel-ui .loja-mng-v4-sidebar-item { position: relative; display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 10px; cursor: pointer; transition: background .13s; border-left: 3px solid transparent; user-select: none; }
+#root .menestrel-ui .loja-mng-v4-sidebar-item:hover { background: rgba(201,164,78,0.07); }
+#root .menestrel-ui .loja-mng-v4-sidebar-item.is-active { background: rgba(201,164,78,0.12); border-left-color: var(--gold, #C9A44E); }
+#root .menestrel-ui .loja-mng-v4-sidebar-item.is-disabled .loja-mng-v4-sidebar-nome { opacity: 0.45; font-style: italic; }
+#root .menestrel-ui .loja-mng-v4-sidebar-nome { flex: 1 1 0; font-family: 'Lora', serif; font-size: 13px; color: #E8DDC6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#root .menestrel-ui .loja-mng-v4-sidebar-count { font-family: 'Lora', serif; font-size: 11px; color: rgba(156,143,115,0.7); flex-shrink: 0; transition: opacity .13s; }
+#root .menestrel-ui .loja-mng-v4-sidebar-item:hover .loja-mng-v4-sidebar-count { opacity: 0; }
+
+/* Dot de status (verde = ativo, cinza = oculto) */
+#root .menestrel-ui .loja-mng-v4-status-dot { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; transition: background .15s; }
+#root .menestrel-ui .loja-mng-v4-status-dot.is-ativo { background: #6ABF69; box-shadow: 0 0 5px rgba(106,191,105,0.55); }
+#root .menestrel-ui .loja-mng-v4-status-dot.is-oculto { background: rgba(156,143,115,0.35); }
+
+/* Ações do sidebar (aparecem no hover/active do item) */
+#root .menestrel-ui .loja-mng-v4-sidebar-actions { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity .13s; pointer-events: none; }
+#root .menestrel-ui .loja-mng-v4-sidebar-item:hover .loja-mng-v4-sidebar-actions,
+#root .menestrel-ui .loja-mng-v4-sidebar-item.is-active .loja-mng-v4-sidebar-actions { opacity: 1; pointer-events: auto; }
+#root .menestrel-ui .loja-mng-v4-toggle-btn { color: rgba(156,143,115,0.65) !important; }
+#root .menestrel-ui .loja-mng-v4-toggle-btn.is-ativo { color: #6ABF69 !important; }
+#root .menestrel-ui .loja-mng-v4-remove-btn { color: rgba(229,115,115,0.65) !important; }
+#root .menestrel-ui .loja-mng-v4-remove-btn:hover { color: #E57373 !important; }
+
+/* ── Painel principal ── */
+#root .menestrel-ui .loja-mng-v4-main { flex: 1 1 0; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+#root .menestrel-ui .loja-mng-v4-no-sel { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: rgba(156,143,115,0.55); font-family: 'Lora', serif; font-size: 13px; font-style: italic; text-align: center; padding: 32px 24px; }
+#root .menestrel-ui .loja-mng-v4-no-sel i { font-size: 36px; opacity: .35; }
+
+/* Cabeçalho do comércio selecionado */
+#root .menestrel-ui .loja-mng-v4-comercio-header { display: flex; align-items: center; gap: 12px; padding: 10px 18px 8px; border-bottom: 1px solid rgba(106,85,48,0.20); flex-shrink: 0; }
+#root .menestrel-ui .loja-mng-v4-comercio-nome { font-family: 'Cinzel', serif; font-size: 14px; color: #E8DDC6; font-weight: 600; }
+
+/* Badge de status clicável (habilitar / ocultar) */
+#root .menestrel-ui .loja-mng-v4-status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 8px; border-radius: 999px; font-family: 'Lora', serif; font-size: 11px; cursor: pointer; transition: background .13s; user-select: none; border: 1px solid transparent; }
+#root .menestrel-ui .loja-mng-v4-status-badge.is-ativo { color: #6ABF69; background: rgba(106,191,105,0.12); border-color: rgba(106,191,105,0.30); }
+#root .menestrel-ui .loja-mng-v4-status-badge.is-ativo:hover { background: rgba(106,191,105,0.20); }
+#root .menestrel-ui .loja-mng-v4-status-badge.is-oculto { color: rgba(156,143,115,0.65); background: rgba(156,143,115,0.10); border-color: rgba(156,143,115,0.22); }
+#root .menestrel-ui .loja-mng-v4-status-badge.is-oculto:hover { background: rgba(156,143,115,0.18); }
+
+/* Badge de destino no drawer do catálogo */
+#root .menestrel-ui .loja-mng-v4-drawer-destino { display: flex; align-items: center; gap: 5px; font-family: 'Lora', serif; font-size: 11px; color: rgba(156,143,115,0.75); margin-bottom: 8px; }
+#root .menestrel-ui .loja-mng-v4-drawer-destino strong { color: var(--gold, #C9A44E); }
+
+/* ── Modal de criar/renomear comércio ── */
+#root .menestrel-ui .loja-comercio-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 1500; display: flex; align-items: center; justify-content: center; }
+#root .menestrel-ui .loja-comercio-modal { background: #1C1407; border: 1px solid rgba(106,85,48,0.50); border-radius: 10px; padding: 22px 24px; min-width: 320px; max-width: 420px; box-shadow: 0 8px 40px rgba(0,0,0,0.60); }
+#root .menestrel-ui .loja-comercio-modal-title { font-family: 'Cinzel', serif; font-size: 14px; color: #E8DDC6; margin-bottom: 14px; }
+#root .menestrel-ui .loja-comercio-modal-desc { font-family: 'Lora', serif; font-size: 13px; color: rgba(156,143,115,0.85); margin-bottom: 16px; line-height: 1.5; }
+#root .menestrel-ui .loja-comercio-modal-input { width: 100%; background: rgba(10,7,2,0.6); border: 1px solid rgba(106,85,48,0.45); border-radius: 6px; color: #E8DDC6; font-family: 'Lora', serif; font-size: 13px; padding: 8px 12px; margin-bottom: 14px; outline: none; transition: border-color .15s; box-sizing: border-box; }
+#root .menestrel-ui .loja-comercio-modal-input:focus { border-color: var(--gold, #C9A44E); }
+#root .menestrel-ui .loja-comercio-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Scrollbar da sidebar */
+#root .menestrel-ui .loja-mng-v4-sidebar::-webkit-scrollbar { width: 4px; }
+#root .menestrel-ui .loja-mng-v4-sidebar::-webkit-scrollbar-track { background: transparent; }
+#root .menestrel-ui .loja-mng-v4-sidebar::-webkit-scrollbar-thumb { background: rgba(106,85,48,0.35); border-radius: 4px; }
+
+/* Responsivo: sidebar vira horizontal no topo em telas pequenas */
+@media (max-width: 800px) {
+  #root .menestrel-ui .loja-mng-v4-layout { flex-direction: column; }
+  #root .menestrel-ui .loja-mng-v4-sidebar { width: 100%; max-height: 140px; border-right: none; border-bottom: 1px solid rgba(106,85,48,0.25); overflow-x: auto; overflow-y: hidden; }
+  #root .menestrel-ui .loja-mng-v4-sidebar-list { display: flex; flex-direction: row; padding: 4px 8px; gap: 4px; }
+  #root .menestrel-ui .loja-mng-v4-sidebar-item { border-left: none; border-bottom: 3px solid transparent; padding: 6px 12px; white-space: nowrap; flex-shrink: 0; }
+  #root .menestrel-ui .loja-mng-v4-sidebar-item.is-active { border-bottom-color: var(--gold, #C9A44E); border-left-color: transparent; }
+  #root .menestrel-ui .loja-mng-v4-sidebar-actions { position: static; transform: none; opacity: 1; pointer-events: auto; }
+  #root .menestrel-ui .loja-mng-v4-sidebar-item:hover .loja-mng-v4-sidebar-count { opacity: 1; }
 }
 
 /* ===== FASE 4 · fatia — WIZARD-PERSONAGENS (movido; cosmético re-skinado descartado) ===== */
@@ -4650,6 +4746,291 @@
   .menestrel-ui.cdj-root .cdj-mesa-pill { padding: 0 10px 0 12px; height: 30px; }
 }
 
+/* ---- CalendarioFantasyModal — calendário pessoal do personagem ---- */
+
+/* Overlay — elemento raiz do portal (direto no body, não descendente de .menestrel-ui) */
+.cal-overlay {
+  position: fixed; inset: 0; z-index: 1200;
+  background: rgba(0,0,0,0.72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+
+/* Painel principal */
+.menestrel-ui .cal-modal {
+  background: linear-gradient(160deg,#1E1508 0%,#140F05 60%,#0D0A03 100%);
+  border: 1px solid rgba(201,164,78,0.22);
+  border-radius: 16px;
+  width: 100%; max-width: 600px;
+  max-height: 90vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.7), inset 0 1px 0 rgba(201,164,78,0.12);
+}
+
+/* Header */
+.menestrel-ui .cal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(201,164,78,0.12);
+}
+.menestrel-ui .cal-header-left {
+  display: flex; align-items: center; gap: 10px;
+}
+.menestrel-ui .cal-header-icon { font-size: 18px; color: #C9A44E; }
+.menestrel-ui .cal-header-title {
+  font-family: 'Cinzel', serif; font-size: 18px; font-weight: 600;
+  color: #E8DDC6; letter-spacing: 0.04em;
+}
+.menestrel-ui .cal-header-ano {
+  font-family: 'Lora', serif; font-size: 12px;
+  color: #9A8060; margin-left: 4px;
+}
+/* Navegação de ano no header (mestre) */
+.menestrel-ui .cal-header-ano-nav {
+  display: flex; align-items: center; gap: 6px;
+}
+.menestrel-ui .cal-ano-btn {
+  background: none; border: none; cursor: pointer;
+  color: #9A8060; font-size: 18px; line-height: 1;
+  padding: 0 4px; border-radius: 6px;
+  display: flex; align-items: center;
+  transition: color .15s;
+}
+.menestrel-ui .cal-ano-btn:hover:not(:disabled) { color: #C9A44E; }
+.menestrel-ui .cal-ano-btn:disabled { opacity: 0.3; cursor: default; }
+.menestrel-ui .cal-header-close {
+  background: none; border: none; cursor: pointer;
+  color: #9A8060; padding: 4px; border-radius: 6px;
+  display: flex; align-items: center;
+  transition: color .15s;
+}
+.menestrel-ui .cal-header-close:hover { color: #E8DDC6; }
+.menestrel-ui .cal-header-close i { font-size: 18px; }
+
+/* Navegação de mês */
+.menestrel-ui .cal-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 10px 10px 10px;
+}
+.menestrel-ui .cal-nav-btn {
+  background: none; border: none; cursor: pointer;
+  color: #C9A44E; padding: 4px 8px; border-radius: 6px;
+  font-size: 18px; line-height: 1;
+  transition: color .15s;
+}
+.menestrel-ui .cal-nav-btn:disabled { color: #4A3A20; cursor: default; }
+.menestrel-ui .cal-nav-mes {
+  font-family: 'Cinzel', serif; font-size: 18px; font-weight: 700;
+  color: #C9A44E; letter-spacing: 0.06em;
+}
+
+/* Cabeçalho dos dias da semana */
+.menestrel-ui .cal-weekdays {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  padding: 0 20px;
+}
+.menestrel-ui .cal-weekday {
+  text-align: center; font-family: 'Lora', serif; font-size: 12px;
+  color: #5A4520; font-weight: 600; 
+  padding: 5px;
+}
+
+/* Grade de dias */
+.menestrel-ui .cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  padding: 0 16px 12px; gap: 2px;
+  overflow-y: auto; flex: 1;
+}
+
+/* Célula de dia */
+.menestrel-ui .cal-dia {
+  position: relative; aspect-ratio: 1;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 999px; cursor: pointer;
+  color: #9A8060; font-family: 'Lora', serif;
+  font-size: 17px; font-weight: 400;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px;
+  transition: background .12s, border-color .12s;
+}
+.menestrel-ui .cal-dia:hover { background: rgba(201,164,78,0.07); }
+
+/* Estados do dia */
+.menestrel-ui .cal-dia.is-hoje {
+  background: linear-gradient(135deg,#C9A44E 0%,#B8702E 100%);
+  border-color: #C9A44E; border-width: 1.5px;
+  color: #1C1407; font-weight: 700;
+}
+.menestrel-ui .cal-dia.is-aniversario {
+  background: rgba(100,60,160,0.22);
+  border-color: rgba(140,80,200,0.55);
+  color: #D4B0F0;
+}
+.menestrel-ui .cal-dia.is-focado {
+  background: rgba(201,164,78,0.12);
+  border-color: rgba(201,164,78,0.35);
+}
+
+/* Pontos indicadores abaixo do número */
+.menestrel-ui .cal-dia-dots {
+  display: flex; gap: 2px; align-items: center; height: 5px;
+}
+.menestrel-ui .cal-dot {
+  width: 3px; height: 3px; border-radius: 50%; flex-shrink: 0;
+}
+.menestrel-ui .cal-dot-feriado  { background: rgba(201,164,78,0.5); }
+.menestrel-ui .cal-dot-aniv     { background: #A070D8; }
+.menestrel-ui .cal-dot-nota     { background: #4A9060; }
+.menestrel-ui .cal-dia.is-hoje .cal-dot { background: rgba(28,20,7,0.6); }
+
+/* Painel inferior — detalhe do dia selecionado */
+.menestrel-ui .cal-painel {
+  border-top: 1px solid rgba(201,164,78,0.12);
+  padding: 20px;
+  background: rgba(0,0,0,0.18);
+}
+
+/* Eyebrow do dia + botão de nota */
+.menestrel-ui .cal-painel-eyebrow {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.menestrel-ui .cal-painel-dia-label {
+  font-family: 'Cinzel', serif; font-size: 11px;
+  color: #6A5530; letter-spacing: 0.1em; text-transform: uppercase;
+}
+/* Ações do painel do dia (definir data atual + nota) */
+.menestrel-ui .cal-painel-acoes {
+  display: flex; align-items: center; gap: 8px;
+}
+.menestrel-ui .cal-definir-data-btn {
+  background: rgba(201,164,78,0.10); border: 1px solid rgba(201,164,78,0.25);
+  border-radius: 999px; cursor: pointer; padding: 3px 10px;
+  display: flex; align-items: center; gap: 5px;
+  color: #C9A44E; font-family: 'Lora', serif; font-size: 12px;
+  transition: background .12s;
+}
+.menestrel-ui .cal-definir-data-btn:hover:not(:disabled) { background: rgba(201,164,78,0.18); }
+.menestrel-ui .cal-definir-data-btn:disabled { opacity: 0.5; cursor: default; }
+.menestrel-ui .cal-definir-data-btn i { font-size: 12px; }
+.menestrel-ui .cal-data-atual-tag {
+  display: flex; align-items: center; gap: 5px;
+  font-family: 'Lora', serif; font-size: 12px; color: #8A6E38;
+  padding: 3px 4px;
+}
+.menestrel-ui .cal-data-atual-tag i { font-size: 12px; color: #C9A44E; }
+.menestrel-ui .cal-nota-btn {
+  background: rgba(201,164,78,0.10); border: 1px solid rgba(201,164,78,0.25);
+  border-radius: 999px; cursor: pointer; padding: 2px 8px;
+  display: flex; align-items: center; gap: 4px;
+  color: #C9A44E; font-family: 'Lora', serif; font-size: 14px;
+  transition: background .12s;
+}
+.menestrel-ui .cal-nota-btn:hover { background: rgba(201,164,78,0.18); }
+.menestrel-ui .cal-nota-btn i { font-size: 11px; }
+
+/* Linhas de evento (feriado, aniversário, nota) */
+.menestrel-ui .cal-evento {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+}
+.menestrel-ui .cal-evento i { font-size: 12px; flex-shrink: 0; }
+.menestrel-ui .cal-evento-feriado i  { color: #9A7B2E; }
+.menestrel-ui .cal-evento-feriado span { font-family: 'Lora', serif; font-size: 13px; color: #C4AF8A; }
+.menestrel-ui .cal-evento-aniv i    { color: #A070D8; }
+.menestrel-ui .cal-evento-aniv span { font-family: 'Lora', serif; font-size: 13px; color: #C4A0EC; }
+
+/* Linha de nota salva */
+.menestrel-ui .cal-nota-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 6px;
+}
+.menestrel-ui .cal-nota-row i { font-size: 12px; color: #4A9060; flex-shrink: 0; }
+.menestrel-ui .cal-nota-texto { font-family: 'Lora', serif; font-size: 13px; color: #8ABFA0; flex: 1; }
+.menestrel-ui .cal-nota-del {
+  background: none; border: none; cursor: pointer;
+  color: #5A3A20; padding: 2px; border-radius: 4px;
+  display: flex; align-items: center;
+  transition: color .12s; opacity: 1;
+}
+.menestrel-ui .cal-nota-del:hover { color: #C47A5A; }
+.menestrel-ui .cal-nota-del:disabled { opacity: 0.4; cursor: default; }
+.menestrel-ui .cal-nota-del i { font-size: 12px; }
+
+/* Input inline de nota */
+.menestrel-ui .cal-input-row {
+  display: flex; align-items: center; gap: 6px; margin-top: 6px; 
+}
+.menestrel-ui .cal-input-row i { font-size: 12px; color: #4A9060; flex-shrink: 0; }
+.menestrel-ui .cal-input {
+  flex: 1; background: rgba(201,164,78,0.06);
+  border: 1px solid rgba(201,164,78,0.22); border-radius: 999px;
+  color: #E8DDC6; font-family: 'Lora', serif; font-size: 12px;
+  padding: 10px; outline: none; height: 32px;
+  transition: border-color .15s;
+}
+.menestrel-ui .cal-input:focus { border-color: rgba(201,164,78,0.50); }
+.menestrel-ui .cal-input::placeholder { color: rgba(232,221,198,0.35); }
+.menestrel-ui .cal-input-counter {
+  font-family: 'Lora', serif; font-size: 10px;
+  color: #5A4520; flex-shrink: 0; min-width: 24px; text-align: right;
+}
+.menestrel-ui .cal-input-ok {
+  background: rgba(201,164,78,0.15); border: 1px solid rgba(201,164,78,0.3);
+  border-radius: 999px; cursor: pointer;
+  color: #C9A44E; padding: 7px;
+  font-family: 'Lora', serif; font-size: 12px; font-weight: 600; height: 32px;
+  transition: background .12s;
+}
+.menestrel-ui .cal-input-ok:hover:not(:disabled) { background: rgba(201,164,78,0.25); }
+.menestrel-ui .cal-input-ok:disabled { opacity: 0.5; cursor: default; }
+.menestrel-ui .cal-input-cancel {
+  background: none; border: none; cursor: pointer;
+  color: #5A4520; padding: 4px 6px; border-radius: 4px;
+  font-family: 'Lora', serif; font-size: 11px;
+  transition: color .12s;
+}
+.menestrel-ui .cal-input-cancel:hover { color: #9A8060; }
+
+/* Painel de legenda do mês (quando nenhum dia está selecionado) */
+.menestrel-ui .cal-legenda {
+  border-top: 1px solid rgba(201,164,78,0.12);
+  padding: 20px;
+  overflow-y: auto; max-height: 140px;
+}
+.menestrel-ui .cal-legenda-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 3px;
+}
+.menestrel-ui .cal-legenda-row:last-child { margin-bottom: 0; }
+.menestrel-ui .cal-legenda-num-feriado {
+  font-family: 'Cinzel', serif; font-size: 13px;
+  color: #C9A44E; min-width: 20px; text-align: right;
+}
+.menestrel-ui .cal-legenda-num-aniv {
+  font-family: 'Cinzel', serif; font-size: 11px;
+  color: #A070D8; min-width: 20px; text-align: right;
+}
+.menestrel-ui .cal-legenda-sep { color: #4A3A20; font-size: 11px; }
+.menestrel-ui .cal-legenda-nome-feriado {
+  font-family: 'Lora', serif; font-size: 12px; color: #C4AF8A;
+}
+.menestrel-ui .cal-legenda-nome-aniv {
+  font-family: 'Lora', serif; font-size: 12px; color: #C4A0EC;
+}
+.menestrel-ui .cal-legenda-num-nota {
+  font-family: 'Cinzel', serif; font-size: 13px;
+  color: #C9A44E; min-width: 20px; text-align: right;
+}
+.menestrel-ui .cal-legenda-nome-nota {
+  font-family: 'Lora', serif; font-size: 12px; color: #C4AF8A;
+}
+.menestrel-ui .cal-vazio {
+  border-top: 1px solid rgba(201,164,78,0.08);
+  padding: 10px 20px;
+  font-family: 'Lora', serif; font-size: 12px;
+  color: #4A3A20; text-align: center;
+}
+
 /* ---- RolagemLivreFab — botão de rolagem de d20 livre (topo da tela) ----
    .rl-root é co-classe de .menestrel-ui, espelho direto de .cm-root:
    mesmo position:fixed/inset:0/pointer-events:none no container,
@@ -4671,6 +5052,136 @@
 @media (max-width: 640px) {
   .menestrel-ui.rl-root .rl-fab { top: 12px; right: 12px; width: 46px; height: 46px; font-size: 19px; }
 }
+
+/* ---- MusicaPlayerFab — player flutuante (coluna direita, abaixo dos dados) ----
+   Mesmo padrão de .rl-root: container fixed pointer-events:none + filhos
+   pointer-events:auto. Posicionado na coluna direita, empilhado abaixo do D10
+   (top:16 → D20, top:76 → D10, top:136 → player).
+   .is-on        → ícone dourado (tocando)
+   .is-off       → ícone apagado (pausado/parado)
+   .is-expanded  → FAB com fundo levemente mais claro (painel aberto) */
+.menestrel-ui.ma-root { position: fixed; inset: 0; z-index: 53; pointer-events: none; }
+
+.menestrel-ui.ma-root .ma-fab {
+  position: absolute; top: 136px; right: 16px; z-index: 54; pointer-events: auto;
+  width: 52px; height: 52px; border-radius: 999px; border: 2px solid transparent;
+  background: rgba(24,17,8,0.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  font-size: 22px; display: grid; place-items: center; cursor: pointer;
+  transition: background .15s ease, color .15s ease, opacity .15s ease, border-color .15s ease;
+}
+.menestrel-ui.ma-root .ma-fab.is-on    { color: #C9A44E; opacity: 1; border-color: rgba(201,164,78,0.30); }
+.menestrel-ui.ma-root .ma-fab.is-off   { color: #7A6A4A; opacity: 0.70; }
+.menestrel-ui.ma-root .ma-fab.is-expanded { background: rgba(36,26,10,0.70); }
+.menestrel-ui.ma-root .ma-fab:hover    { background: rgba(36,26,10,0.65); }
+.menestrel-ui.ma-root .ma-fab i        { line-height: 1; }
+
+/* Painel expandido — aparece à esquerda do FAB, alinhado ao topo dele */
+.menestrel-ui.ma-root .ma-panel {
+  position: absolute; top: 136px; right: 76px; z-index: 54; pointer-events: auto;
+  background: rgba(18,13,6,0.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(106,85,48,0.35); border-radius: 12px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+  min-width: 200px; max-width: 260px;
+  animation: maPanelIn .15s ease-out;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+}
+@keyframes maPanelIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+
+/* Nome da faixa */
+.menestrel-ui.ma-root .ma-panel-track {
+  display: flex; align-items: center; gap: 7px;
+  padding-bottom: 8px; border-bottom: 1px solid rgba(106,85,48,0.22);
+}
+.menestrel-ui.ma-root .ma-panel-nome {
+  font-family: 'Lora', serif; font-size: 12px; color: #E8DDC6;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0;
+}
+
+/* Controles */
+.menestrel-ui.ma-root .ma-panel-controls {
+  display: flex; align-items: center; gap: 4px;
+}
+.menestrel-ui.ma-root .ma-ctrl-btn {
+  width: 32px; height: 32px; border-radius: 8px; border: none;
+  background: transparent; color: #9C8F73; font-size: 15px;
+  display: grid; place-items: center; cursor: pointer; flex-shrink: 0;
+  transition: color .14s, background .14s;
+}
+.menestrel-ui.ma-root .ma-ctrl-btn:hover:not(:disabled) { color: #C9A44E; background: rgba(201,164,78,0.10); }
+.menestrel-ui.ma-root .ma-ctrl-btn:disabled { opacity: 0.30; cursor: default; }
+.menestrel-ui.ma-root .ma-ctrl-btn.is-main {
+  width: 36px; height: 36px; border-radius: 999px; font-size: 17px;
+  background: rgba(201,164,78,0.10); color: #C9A44E;
+  border: 1px solid rgba(201,164,78,0.25);
+}
+.menestrel-ui.ma-root .ma-ctrl-btn.is-main:hover { background: rgba(201,164,78,0.18); }
+.menestrel-ui.ma-root .ma-ctrl-btn.is-main.is-playing { color: #E8DDC6; }
+.menestrel-ui.ma-root .ma-ctrl-btn i { line-height: 1; }
+.menestrel-ui.ma-root .ma-ctrl-sep {
+  width: 1px; height: 20px; background: rgba(106,85,48,0.35); margin: 0 2px; flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .menestrel-ui.ma-root .ma-fab   { top: 124px; right: 12px; width: 46px; height: 46px; font-size: 19px; }
+  .menestrel-ui.ma-root .ma-panel { top: 124px; right: 66px; }
+}
+
+/* Ícones filled do player — usam a fonte tabler-icons-filled (v3.44.0),
+   exatamente como .cofre-moeda-ic.is-filled já faz no projeto.
+   NÃO usar ti ti-*-filled como classe: essa variante não existe na webfont regular.
+   ma-ic-play  → \f691  ma-ic-pause → \f690
+   ma-ic-stop  → \f695  ma-ic-prev  → \f693  ma-ic-next → \f694 */
+.menestrel-ui .ma-ic {
+  font-family: "tabler-icons-filled";
+  font-style: normal; font-weight: 400; line-height: 1;
+  display: inline-block;
+}
+.menestrel-ui .ma-ic-play::before  { content: "\f691"; }
+.menestrel-ui .ma-ic-pause::before { content: "\f690"; }
+.menestrel-ui .ma-ic-stop::before  { content: "\f695"; }
+.menestrel-ui .ma-ic-prev::before  { content: "\f693"; }
+.menestrel-ui .ma-ic-next::before  { content: "\f694"; }
+
+/* ---- PlaylistMestre — página de gerenciamento de playlist do Mestre ---- */
+#root .menestrel-ui .plist-page { padding: 0; }
+#root .menestrel-ui .plist-header { display: flex; align-items: center; gap: 12px; padding: 20px 20px 16px; border-bottom: 1px solid rgba(232,221,198,0.08); margin-bottom: 20px; }
+#root .menestrel-ui .plist-header-back { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(232,221,198,0.12); background: transparent; color: #9C8F73; cursor: pointer; transition: color .15s, background .15s; flex-shrink: 0; }
+#root .menestrel-ui .plist-header-back:hover { color: #C9A44E; background: rgba(201,164,78,0.10); border-color: rgba(201,164,78,0.30); }
+#root .menestrel-ui .plist-header-info { flex: 1; min-width: 0; }
+#root .menestrel-ui .plist-eyebrow { font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #C9A44E; margin: 0 0 2px; }
+#root .menestrel-ui .plist-title { font-family: 'Cinzel', serif; font-size: 18px; color: #E8DDC6; margin: 0; font-weight: 600; }
+#root .menestrel-ui .plist-body { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 24px; }
+
+/* Bloco de adição */
+#root .menestrel-ui .plist-add-block { background: rgba(106,85,48,0.08); border: 1px solid rgba(106,85,48,0.18); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+#root .menestrel-ui .plist-add-label { font-family: 'Lora', serif; font-size: 12px; color: #9C8F73; text-transform: uppercase; letter-spacing: .06em; margin: 0; }
+#root .menestrel-ui .plist-add-row { display: flex; gap: 8px; }
+#root .menestrel-ui .plist-input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(106,85,48,0.30); background: rgba(12,9,4,0.50); color: #E8DDC6; font-family: 'Lora', serif; font-size: 13px; outline: none; transition: border-color .15s; }
+#root .menestrel-ui .plist-input:focus { border-color: rgba(201,164,78,0.50); }
+#root .menestrel-ui .plist-input::placeholder { color: #5A4E38; }
+
+/* Lista de músicas */
+#root .menestrel-ui .plist-list { display: flex; flex-direction: column; gap: 6px; }
+#root .menestrel-ui .plist-empty { color: #5A4E38; font-family: 'Lora', serif; font-size: 13px; text-align: center; padding: 28px 0; font-style: italic; }
+
+#root .menestrel-ui .plist-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(106,85,48,0.18); background: rgba(106,85,48,0.08); transition: background .15s, border-color .15s; cursor: pointer; }
+#root .menestrel-ui .plist-item:hover { background: rgba(106,85,48,0.14); border-color: rgba(106,85,48,0.30); }
+#root .menestrel-ui .plist-item.is-playing { background: rgba(201,164,78,0.10); border-color: rgba(201,164,78,0.35); }
+
+#root .menestrel-ui .plist-item-icon { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; font-size: 16px; background: rgba(24,17,8,0.50); color: #7A6A4A; transition: color .15s, background .15s; }
+#root .menestrel-ui .plist-item.is-playing .plist-item-icon { color: #C9A44E; background: rgba(201,164,78,0.12); }
+
+#root .menestrel-ui .plist-item-info { flex: 1; min-width: 0; }
+#root .menestrel-ui .plist-item-nome { font-family: 'Lora', serif; font-size: 13px; color: #E8DDC6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+#root .menestrel-ui .plist-item.is-playing .plist-item-nome { color: #C9A44E; }
+#root .menestrel-ui .plist-item-url { font-family: 'Lora', serif; font-size: 11px; color: #5A4E38; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+
+#root .menestrel-ui .plist-item-del { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; border: 1px solid transparent; background: transparent; color: #5A4E38; font-size: 14px; cursor: pointer; flex-shrink: 0; transition: color .15s, background .15s, border-color .15s; }
+#root .menestrel-ui .plist-item-del:hover { color: #F0A6A0; background: rgba(200,33,44,0.12); border-color: rgba(200,33,44,0.45); }
+
+#root .menestrel-ui .plist-now-playing { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; background: rgba(201,164,78,0.08); border: 1px solid rgba(201,164,78,0.25); font-family: 'Lora', serif; font-size: 12px; color: #9C8F73; }
+#root .menestrel-ui .plist-now-playing i { color: #C9A44E; font-size: 16px; flex-shrink: 0; }
+#root .menestrel-ui .plist-now-playing strong { color: #C9A44E; }
 
 /* ---- Keyframe utilitário — spinner genérico usado em loading states do shell ---- */
 @keyframes spin { to { transform: rotate(360deg); } }

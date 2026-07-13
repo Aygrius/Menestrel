@@ -22,7 +22,7 @@ const FANTASY_MONTHS = [
   { n:  9, nome: 'Mês da Sabedoria', dias: 30 },
   { n: 10, nome: 'Mês da Rosa',      dias: 30 },
   { n: 11, nome: 'Mês da Vida',      dias: 30 },
-  { n: 12, nome: 'Mês da Justiça',   dias: 29 },
+  { n: 12, nome: 'Mês da Justiça',   dias: 30 },
   { n: 13, nome: 'Dia de Cruine',    dias: 1 },
 ];
 

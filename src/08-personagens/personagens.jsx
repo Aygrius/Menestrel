@@ -513,10 +513,40 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
   const inicial = (p.nome || '?').trim().charAt(0).toUpperCase();
   const en = lang === 'en';
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
+
+  // Degradê contínuo de cor baseado no ratio EF atual / EF máxima.
+  // Sem estado_atual → considera cheio (ratio 1).
+  const maxEF = Number(ficha.derivadas?.energiaFisica) || 0;
+  const efAtual = p.estado_atual?.vitalidade?.ef != null
+    ? Number(p.estado_atual.vitalidade.ef)
+    : maxEF;
+  const efRatio = maxEF > 0 ? Math.max(0, Math.min(1, efAtual / maxEF)) : 1;
+
+  // Três âncoras de cor:
+  //   0%   → púrpura  rgb(107, 20,128)
+  //   50%  → carmesim rgb(139, 26, 26)
+  //   100% → dourado  rgb(201,164, 78)  (#C9A44E — ouro Pedra & Bronze)
+  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+  const lerpRGB = (r1,g1,b1, r2,g2,b2, t) => [lerp(r1,r2,t), lerp(g1,g2,t), lerp(b1,b2,t)];
+  const [hr, hg, hb] = efRatio < 0.5
+    ? lerpRGB(107,20,128, 139,26,26,  efRatio / 0.5)
+    : lerpRGB(139,26,26,  201,164,78, (efRatio - 0.5) / 0.5);
+
+  const healthStyle = {
+    '--pj-health-r': hr,
+    '--pj-health-g': hg,
+    '--pj-health-b': hb,
+    borderColor: `rgba(${hr},${hg},${hb},0.55)`,
+    boxShadow:   `0 0 24px rgba(${hr},${hg},${hb},0.20)`,
+    transition:  'border-color .4s ease, box-shadow .4s ease',
+  };
+  const pulsoClass = efRatio < 0.25 ? ' pj-card--ef-critico' : '';
+
   return (
     <div className="pj-card-wrap">
     <article
-      className={'pj-card' + (levelUp ? ' pj-card--levelup' : '') + (onAtivar ? ' is-clickable' : '')}
+      className={'pj-card' + pulsoClass + (levelUp ? ' pj-card--levelup' : '') + (onAtivar ? ' is-clickable' : '')}
+      style={healthStyle}
       onClick={onAtivar}
     >
       <div className="pj-card-body">
@@ -963,7 +993,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     grupos_armas: personagemExistente.grupos_armas || {},
     aprimoramentos: personagemExistente.aprimoramentos || {},
     caracterizacao: personagemExistente.caracterizacao || {},
-    idade: personagemExistente.idade ?? null,
+    data_nasc: personagemExistente.data_nasc ?? null, // { dia, mes, ano } | null
   } : {
     nome: '',
     sobrenome: '',
@@ -982,7 +1012,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     grupos_armas: {},
     aprimoramentos: {},
     caracterizacao: {},
-    idade: null,
+    data_nasc: null, // { dia, mes, ano } | null
   });
 
   // Carrega magias do banco uma vez
@@ -1193,16 +1223,13 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
   const descricaoTela = DESCRICOES_TELA[stepKey] || DESCRICOES_TELA[currentId] || '';  
 
   // Validações por passo
-  const idadeLimites = IDADE_LIMITES_RACA[form.raca] || [1, 999];
   const erroIdentidade =
     !form.nome.trim()         ? 'Escolha um nome' :
     !form.raca                ? 'Escolha uma raça' :
     !form.reino               ? 'Escolha um reino' :
     !form.profissao           ? 'Escolha uma profissão' :
-    (form.idade == null || form.idade === '')
-                              ? 'Informe a idade do personagem' :
-    (Number(form.idade) < idadeLimites[0] || Number(form.idade) > idadeLimites[1])
-                              ? `Idade deve estar entre ${idadeLimites[0]} e ${idadeLimites[1]} anos para ${form.raca}` : null;
+    (!form.data_nasc || form.data_nasc.dia == null || form.data_nasc.mes == null || form.data_nasc.ano == null || form.data_nasc.ano === '')
+                              ? 'Informe a data de nascimento' : null;
 
   const erroAtributos = restantes < 0
     ? `Você gastou ${gastos} pontos em atributos, mas só tem ${totalPontos}`
@@ -1284,7 +1311,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       grupos_armas: form.grupos_armas || {},
       aprimoramentos: form.aprimoramentos || {},
       caracterizacao: form.caracterizacao || {},
-      idade: form.idade != null ? Number(form.idade) : null,
+      data_nasc: form.data_nasc ?? null,
     };
 
     // Quando o JOGADOR edita seu próprio PJ, marca que ele já viu o estágio atual
@@ -1479,18 +1506,6 @@ const WIZ_RACA_FOTO = {
   'Elfo-Florestal':    '/img/racas/elfo-florestal.png',
   'Elfo-Sombrio':    '/img/racas/elfo-sombrio.png',
   'Meio-Orc':    '/img/racas/meio-orc.png',
-};
-
-// Limites de idade por raça: [mínimo, máximo] ao criar um personagem.
-const IDADE_LIMITES_RACA = {
-  'Humano':         [18, 40],
-  'Meio-Orc':       [16, 40],
-  'Anão':           [25, 100],
-  'Elfo-Dourado':   [25, 150],
-  'Elfo-Florestal': [18, 150],
-  'Elfo-Sombrio':   [16, 150],
-  'Meio-Elfo':      [18, 100],
-  'Pequenino':      [16, 40],
 };
 
 // ---------- SelectPill — cópia local de 11-ficha/ficha.jsx (originalmente de
@@ -1752,18 +1767,8 @@ function StepIdentidade({ form, update, lang, isEdit, estagio, sub = 'principal'
   }
 
   // ── Tela 1: Imagem + Identidade ──
-  // Limites de idade da raça atual — usados no <input type="number">
-  const [idadeMin, idadeMax] = IDADE_LIMITES_RACA[form.raca] || [1, 999];
-
-  // Quando a raça muda no select, clampamos a idade existente nos novos limites
-  // (evita que uma idade válida pra "Humano" fique inválida ao trocar pra "Anão").
   const handleRacaChange = (v) => {
     update('raca', v);
-    const [mn, mx] = IDADE_LIMITES_RACA[v] || [1, 999];
-    if (form.idade != null && form.idade !== '') {
-      const clamped = Math.max(mn, Math.min(mx, Number(form.idade)));
-      update('idade', clamped);
-    }
   };
 
   return (
@@ -1865,35 +1870,50 @@ function StepIdentidade({ form, update, lang, isEdit, estagio, sub = 'principal'
           />
         </div>
 
-        {/* Idade — limitada por raça; min/max atualizam quando a raça muda */}
-        <label className="motor-field">
-          <span>
-            {lang === 'en' ? 'Age' : 'Idade'}
-            <span style={{ fontWeight: 400, opacity: 0.55, marginLeft: 6, fontSize: '0.82em' }}>
-              ({idadeMin}–{idadeMax} {lang === 'en' ? 'years' : 'anos'})
-            </span>
-          </span>
-          <input
-            type="number"
-            min={idadeMin}
-            max={idadeMax}
-            step={1}
-            value={form.idade ?? ''}
-            onChange={(e) => {
-              const raw = e.target.value;
-              // Permite campo vazio enquanto digita; valida ao sair (onBlur)
-              update('idade', raw === '' ? null : Number(raw));
-            }}
-            onBlur={(e) => {
-              const v = Number(e.target.value);
-              if (!isNaN(v) && e.target.value !== '') {
-                update('idade', Math.max(idadeMin, Math.min(idadeMax, v)));
-              }
-            }}
-            style={wizInputStyle(false)}
-            placeholder={String(idadeMin)}
-          />
-        </label>
+        {/* Data de Nascimento — usa FantasyDatePicker (dia, mês, ano do calendário do jogo).
+            A idade é calculada dinamicamente pela data atual do jogo.
+            FantasyDatePicker vive em 10-shell e está disponível no window quando esta fase renderiza. */}
+        <div className="motor-field">
+          <span>{lang === 'en' ? 'Date of Birth' : 'Data de Nascimento'}</span>
+          {typeof FantasyDatePicker !== 'undefined' ? (
+            <FantasyDatePicker
+              value={form.data_nasc ?? { dia: 1, mes: 1, ano: 0 }}
+              onChange={(v) => update('data_nasc', v)}
+              lang={lang}
+            />
+          ) : (
+            /* Fallback caso FantasyDatePicker ainda não esteja disponível — 3 inputs inline */
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="number" placeholder="Dia" min={1} max={30} step={1}
+                value={form.data_nasc?.dia ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value === '' ? null : Number(e.target.value);
+                  update('data_nasc', { ...(form.data_nasc || {}), dia: v });
+                }}
+                style={{ ...wizInputStyle(false), width: 64 }}
+              />
+              <input
+                type="number" placeholder="Mês" min={1} max={13} step={1}
+                value={form.data_nasc?.mes ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value === '' ? null : Number(e.target.value);
+                  update('data_nasc', { ...(form.data_nasc || {}), mes: v });
+                }}
+                style={{ ...wizInputStyle(false), width: 64 }}
+              />
+              <input
+                type="number" placeholder="Ano"
+                value={form.data_nasc?.ano ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value === '' ? null : Number(e.target.value);
+                  update('data_nasc', { ...(form.data_nasc || {}), ano: v });
+                }}
+                style={{ ...wizInputStyle(false), flex: 1 }}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2805,7 +2825,26 @@ return (
           <dl>
             <div><dt>{lang === 'en' ? 'Race' : 'Raça'}</dt><dd>{form.raca}</dd></div>
             <div><dt>{lang === 'en' ? 'Gender' : 'Gênero'}</dt><dd>{form.genero}</dd></div>
-            {form.idade != null && <div><dt>{lang === 'en' ? 'Age' : 'Idade'}</dt><dd>{form.idade} {lang === 'en' ? 'years' : 'anos'}</dd></div>}
+            {form.data_nasc?.ano != null && (() => {
+              const dn = form.data_nasc;
+              const meses = typeof FANTASY_MONTHS !== 'undefined' ? FANTASY_MONTHS : null;
+              const nomeMes = meses ? (meses[dn.mes - 1]?.nome || '').replace(/^Mês /, '') : `Mês ${dn.mes}`;
+              const anoAtual = form._anoJogo ?? null;
+              const idadeCalc = (anoAtual != null && dn.ano != null) ? anoAtual - Number(dn.ano) : null;
+              return (
+                <div>
+                  <dt>{lang === 'en' ? 'Date of Birth' : 'Data de Nascimento'}</dt>
+                  <dd>
+                    {dn.dia} {nomeMes} de {dn.ano}
+                    {idadeCalc != null && (
+                      <span style={{ opacity: 0.6, marginLeft: 6, fontSize: '0.88em' }}>
+                        ({idadeCalc} {lang === 'en' ? 'years' : 'anos'})
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              );
+            })()}
             {(() => { const h = GAME_DATA?.racas?.[form.raca]?.altura; return h != null ? <div><dt>{lang === 'en' ? 'Height' : 'Altura'}</dt><dd>{h.toFixed(2).replace('.', ',')} m</dd></div> : null; })()}
             <div><dt>{lang === 'en' ? 'Profession' : 'Profissão'}</dt><dd>{form.profissao}</dd></div>
             <div><dt>{lang === 'en' ? 'Kingdom' : 'Reino'}</dt><dd>{form.reino}</dd></div>

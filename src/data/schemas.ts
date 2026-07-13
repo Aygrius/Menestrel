@@ -25,8 +25,22 @@ export const HistoriaSchema = z
     data_jogo: z.unknown().optional(),
     protagonista_ids: z.array(z.union([z.number(), z.string()])).nullable().optional(),
     criatura_ids: z.array(z.union([z.number(), z.string()])).nullable().optional(),
-    estoque_loja: z.array(z.unknown()).nullable().optional(),
+    estoque_loja: z.union([z.array(z.unknown()), z.object({ comercios: z.array(z.unknown()) }).passthrough()]).nullable().optional(),
     created_at: z.string().nullable().optional(),
+    // Lidos em historias.jsx / shell.jsx:
+    pausada: z.boolean().nullable().optional(),
+    // Lidos em diario.jsx (GerenciarLoreView/DiarioView) — disponibilização de
+    // lore por história. reino/cidade/npc por SLUG (migrations 014/015);
+    // item/magia/habilidade/tecnica por NOME (migration 019, Fase 2).
+    reino_ids: z.array(z.string()).nullable().optional(),
+    cidade_ids: z.array(z.string()).nullable().optional(),
+    npc_ids: z.array(z.string()).nullable().optional(),
+    item_ids: z.array(z.string()).nullable().optional(),
+    magia_ids: z.array(z.string()).nullable().optional(),
+    habilidade_ids: z.array(z.string()).nullable().optional(),
+    tecnica_ids: z.array(z.string()).nullable().optional(),
+    // Liberação de lore por PJ (migration 017): { "tipo:ref_id": [pj_id, ...] }
+    lore_acesso_pj: z.record(z.string(), z.unknown()).nullable().optional(),
   })
   .passthrough()
 

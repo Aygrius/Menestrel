@@ -672,7 +672,15 @@ function DetalheEntradaModal({
   // (protagonistas !== undefined). Mostra checkboxes dos PJs da história.
   // A chave do jsonb lore_acesso_pj é "tipo:ref_id" (ex: "npc:arissia-h3").
   const isMestreView = Array.isArray(protagonistas) && typeof onToggleLiberarPj === 'function';
-  const liberarChave = `${entrada.tipo}:${String(entrada.ref_id ?? entrada.id ?? '')}`;
+  // Ref da chave de liberação: tipos NOVOS (item/magia/habilidade/tecnica)
+  // usam NOME — mesma chave "tipo:nome" do filtro da RPC
+  // listar_diario_disponivel (migration 019). Entradas desses tipos não têm
+  // ref_id/id; sem este desvio a chave virava "item:"/"item:undefined" e o
+  // seletor ficava surdo (lia uma chave, gravava outra).
+  const liberarRef = (entrada.tipo === 'item' || TREINAMENTO_TIPOS.has(entrada.tipo))
+    ? (entrada.nome ?? '')
+    : (entrada.ref_id ?? entrada.id ?? '');
+  const liberarChave = `${entrada.tipo}:${String(liberarRef)}`;
   const liberadosPara = (isMestreView && loreAcessoPj && Array.isArray(loreAcessoPj[liberarChave]))
     ? loreAcessoPj[liberarChave]
     : [];
@@ -692,7 +700,7 @@ function DetalheEntradaModal({
                 type="checkbox"
                 checked={marcado}
                 disabled={!!savingVinculo}
-                onChange={(ev) => onToggleLiberarPj(entrada.tipo, entrada.ref_id ?? entrada.id, pj.id, ev.target.checked)}
+                onChange={(ev) => onToggleLiberarPj(entrada.tipo, liberarRef, pj.id, ev.target.checked)}
               />
               <span className="diario-liberar-nome">{pj.nome}</span>
             </label>
@@ -1670,6 +1678,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre }) {
         onChange={setEditando}
         reinosDaHistoria={reinosDaHistoria}
         cidadesDaHistoria={cidadesDaHistoria}
+        t={COPY[lang] || COPY.pt}
       />
       {error && <div className="err-msg diario-err-mt">{error}</div>}
     </ModalShell>
@@ -2338,26 +2347,32 @@ function QuantityStepper({ value, onChange, min = 1, max = Infinity, step = 1, d
 // com as opções limitadas às CÓPIAS da própria história (decisão
 // combinada: Mestre só liga a algo que ele mesmo já "importou"/forkou
 // antes, não ao catálogo global direto).
-function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaHistoria }) {
+function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaHistoria, t }) {
+  // i18n-sync (Fase 3.1, 07/2026): strings vêm de t.lore.form (COPY[lang]),
+  // padrão de 05-convites — este form era PT-only. Fallback defensivo pro
+  // COPY global cobre call sites que ainda não passem a prop.
+  const tl = (t && t.lore && t.lore.form)
+    || (typeof COPY !== 'undefined' && ((COPY[typeof lang !== 'undefined' ? lang : 'pt'] || COPY.pt).lore || {}).form)
+    || {};
   const v = entrada || { nome: '', descricao: '', imagem_url: '', atributos: {} };
   const set = (patch) => onChange({ ...v, ...patch });
   const setAttr = (k, val) => onChange({ ...v, atributos: { ...(v.atributos || {}), [k]: val } });
 
   return (
     <>
-      <label className="diario-field-label">Nome</label>
+      <label className="diario-field-label">{tl.nome}</label>
       <input className="diario-input" type="text" value={v.nome} onChange={(e) => set({ nome: e.target.value })} autoFocus />
 
-      <label className="diario-field-label diario-field-label--mt">Descrição</label>
+      <label className="diario-field-label diario-field-label--mt">{tl.descricao}</label>
       <textarea className="diario-textarea" rows={5} value={v.descricao} onChange={(e) => set({ descricao: e.target.value })} />
 
-      <label className="diario-field-label diario-field-label--mt">Imagem (URL, opcional)</label>
+      <label className="diario-field-label diario-field-label--mt">{tl.imagem}</label>
       <input className="diario-input" type="text" value={v.imagem_url || ''} onChange={(e) => set({ imagem_url: e.target.value })} placeholder="https://…" />
 
       {tipo === 'npc' && (
         <div className="diario-form-grid">
           <div>
-            <label className="diario-field-label">Deus</label>
+            <label className="diario-field-label">{tl.deus}</label>
             <SelectPill
               value={v.atributos?.deus || ''}
               onChange={(val) => setAttr('deus', val || '')}
@@ -2370,7 +2385,7 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
             />
           </div>
           <div>
-            <label className="diario-field-label">Raça</label>
+            <label className="diario-field-label">{tl.raca}</label>
             <SelectPill
               value={v.atributos?.raca || ''}
               onChange={(val) => setAttr('raca', val || '')}
@@ -2383,7 +2398,7 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
             />
           </div>
           <div>
-            <label className="diario-field-label">Localização</label>
+            <label className="diario-field-label">{tl.localizacao}</label>
             <SelectPill
               value={v.atributos?.cidade || ''}
               onChange={(val) => setAttr('cidade', val || null)}
@@ -2394,7 +2409,7 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
             />
           </div>
           <div>
-            <label className="diario-field-label">Cidade Natal</label>
+            <label className="diario-field-label">{tl.cidadeNatal}</label>
             <SelectPill
               value={v.atributos?.origem || ''}
               onChange={(val) => setAttr('origem', val || null)}
@@ -2405,27 +2420,27 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
             />
           </div>
           <div>
-            <label className="diario-field-label">Classe Social</label>
+            <label className="diario-field-label">{tl.classeSocial}</label>
             <input className="diario-input" type="text" value={v.atributos?.profissao || ''} onChange={(e) => setAttr('profissao', e.target.value)} />
           </div>
           <div>
-            <label className="diario-field-label">Idade</label>
+            <label className="diario-field-label">{tl.idade}</label>
             <input className="diario-input" type="text" value={v.atributos?.idade || ''} onChange={(e) => setAttr('idade', e.target.value)} />
           </div>
           <div>
-            <label className="diario-field-label">Família</label>
+            <label className="diario-field-label">{tl.familia}</label>
             <input className="diario-input" type="text" value={v.atributos?.familia || ''} onChange={(e) => setAttr('familia', e.target.value)} />
           </div>
           <div>
-            <label className="diario-field-label">Relação</label>
+            <label className="diario-field-label">{tl.relacao}</label>
             <input className="diario-input" type="text" value={v.atributos?.relacao || ''} onChange={(e) => setAttr('relacao', e.target.value)} />
           </div>
           <div>
-            <label className="diario-field-label">Status</label>
+            <label className="diario-field-label">{tl.status}</label>
             <input className="diario-input" type="text" value={v.atributos?.status || ''} onChange={(e) => setAttr('status', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
-            <label className="diario-field-label">Rumores</label>
+            <label className="diario-field-label">{tl.rumores}</label>
             <textarea className="diario-textarea" rows={3} value={v.atributos?.rumores || ''} onChange={(e) => setAttr('rumores', e.target.value)} />
           </div>
         </div>
@@ -2433,23 +2448,23 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
       {tipo === 'reino' && (
         <div className="diario-form-grid">
           <div>
-            <label className="diario-field-label">Ícone (URL, opcional)</label>
+            <label className="diario-field-label">{tl.icone}</label>
             <input className="diario-input" type="text" value={v.atributos?.icone || ''} onChange={(e) => setAttr('icone', e.target.value)} placeholder="https://…" />
           </div>
           <div className="diario-form-col-span">
-            <label className="diario-field-label">Governo</label>
+            <label className="diario-field-label">{tl.governo}</label>
             <textarea className="diario-textarea" rows={3} value={v.atributos?.governo || ''} onChange={(e) => setAttr('governo', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
-            <label className="diario-field-label">Cultura</label>
+            <label className="diario-field-label">{tl.cultura}</label>
             <textarea className="diario-textarea" rows={3} value={v.atributos?.cultura || ''} onChange={(e) => setAttr('cultura', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
-            <label className="diario-field-label">História recente</label>
+            <label className="diario-field-label">{tl.historiaRecente}</label>
             <textarea className="diario-textarea" rows={3} value={v.atributos?.historia_recente || ''} onChange={(e) => setAttr('historia_recente', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
-            <label className="diario-field-label">Rumores</label>
+            <label className="diario-field-label">{tl.rumores}</label>
             <textarea className="diario-textarea" rows={3} value={v.atributos?.rumores || ''} onChange={(e) => setAttr('rumores', e.target.value)} />
           </div>
         </div>
@@ -2457,7 +2472,7 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
       {tipo === 'cidade' && (
         <div className="diario-form-grid">
           <div>
-            <label className="diario-field-label">Reino</label>
+            <label className="diario-field-label">{tl.reino}</label>
             <SelectPill
               value={v.atributos?.reino || ''}
               onChange={(val) => setAttr('reino', val || null)}
@@ -2468,17 +2483,17 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
             />
           </div>
           <div>
-            <label className="diario-field-label">População</label>
+            <label className="diario-field-label">{tl.populacao}</label>
             <input className="diario-input" type="number" min="0" value={v.atributos?.populacao ?? ''} onChange={(e) => setAttr('populacao', e.target.value === '' ? null : Number(e.target.value))} />
           </div>
           <div>
             <label className="diario-field-label">
               <input type="checkbox" checked={!!v.atributos?.capital} onChange={(e) => setAttr('capital', e.target.checked)} className="diario-checkbox-inline" />
-              É a capital do reino
+              {tl.capitalDoReino}
             </label>
           </div>
           <div className="diario-form-col-span">
-            <label className="diario-field-label">Rumores</label>
+            <label className="diario-field-label">{tl.rumores}</label>
             <textarea className="diario-textarea" rows={3} value={v.atributos?.rumores || ''} onChange={(e) => setAttr('rumores', e.target.value)} />
           </div>
         </div>
@@ -2960,6 +2975,26 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
         ].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', en ? 'en' : 'pt'));
         setCatalogoNovos((prev) => ({ ...prev, treinamento: combined }));
       });
+    } else if (tipoAba === 'item') {
+      // Modelo A (Fase 2, 07/2026): a aba Item mescla o catálogo GLOBAL
+      // (itens) com os ITENS DA CAMPANHA (itens_historia desta história).
+      // A versão da campanha vence quando o nome coincide — MESMA regra da
+      // RPC listar_diario_disponivel (migration 019), pra Mestre e Jogador
+      // enxergarem a mesma coisa.
+      Promise.all([
+        supabaseClient.from('itens').select('nome, descricao').order('nome'),
+        supabaseClient.from('itens_historia').select('nome, descricao').eq('historia_id', historia.id).order('nome'),
+      ]).then(([cat, camp]) => {
+        setLoadingExtra(false);
+        const err = cat.error || camp.error;
+        if (err) { setErrorExtra(err.message); return; }
+        const nomesCampanha = new Set((camp.data || []).map((e) => e.nome));
+        const combined = [
+          ...(camp.data || []).map((e) => ({ ...e, tipo: 'item', campanha: true })),
+          ...(cat.data || []).filter((e) => !nomesCampanha.has(e.nome)).map((e) => ({ ...e, tipo: 'item' })),
+        ].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', en ? 'en' : 'pt'));
+        setCatalogoNovos((prev) => ({ ...prev, item: combined }));
+      });
     } else {
       supabaseClient.from(TIPO_TABELA[tipoAba]).select('nome, descricao').order('nome')
         .then(({ data, error: err }) => {
@@ -3112,6 +3147,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
         onChange={setEditando}
         reinosDaHistoria={reinosDaHistoria}
         cidadesDaHistoria={cidadesDaHistoria}
+        t={COPY[lang] || COPY.pt}
       />
       {error && <div className="err-msg diario-err-mt">{error}</div>}
     </ModalShell>

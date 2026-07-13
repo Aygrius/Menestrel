@@ -45,9 +45,19 @@
    tratar como bug em auditorias): automatizar os efeitos hoje apenas
    narrativos/registrados — (a) fórmula do bônus de TÉCNICA anexada ao
    ataque de arma; (b) efeitos da CRITICOS_TABELA (dano EF citado, -4,
-   desarme, "impede de atacar por N rodadas"); (c) autodano da Falha
-   Crítica (RESULTADOS_ACAO.autodano, game-data.jsx); (d) efeito
-   mecânico de status_temp (ex.: Envenenado causar dano por rodada).
+   desarme, "impede de atacar por N rodadas").
+   FEITO em 07/2026 (Fase 1.2): (d) dano por rodada em status_temp —
+   efeito dano_por_rodada DIRETO na EF (ignora EH/AR, decisão do usuário),
+   valor digitado pelo Mestre no painel do atalho Envenenado; morde a cada
+   virada de rodada ANTES do decremento (montarNovaRodada, consolidada
+   entre Mestre e Jogador — a cópia do jogador nem decrementava status).
+   FEITO em 07/2026 (Fase 1.1): (c) autodano da Falha Crítica —
+   FALHA_CRITICA_TABELA (Config_-_CRITICOS.csv, 5 tipos × 8) com segundo
+   dado na mesma coluna, dano pulando EH (AR→EF), e a 1ª leva de EFEITOS
+   MECÂNICOS de status_temp (adiantada do item d, decisão do usuário):
+   sem_acoes (auto-passe), mod_coluna (−7 em todas as ações), mod_defesa
+   (−5 na defesa_valor do alvo) e mod_vb (−5 na iniciativa efetiva);
+   rodadas_rest null = até o fim da batalha.
    ============================================================ */
 
 /* ============================== [26] BATALHA — Console ============================== */
@@ -55,6 +65,7 @@
 function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang, currentUserId, onClose }) {
   const [tip, abrirTip, fecharTip] = usePortalTooltip(300);
   const isEn = lang === 'en';
+  const tb = tBat(lang); // i18n-sync (Fase 3.3)
   const [view, setView] = useState('lista');     // 'lista' | 'nova' | 'conduzir'
   const [batalhas, setBatalhas] = useState(null);
   const [error, setError] = useState(null);
@@ -103,9 +114,9 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
   };
 
   const estadoLabel = (e) => ({
-    setup:     isEn ? 'Setup'     : 'Montagem',
-    ativa:     isEn ? 'Active'    : 'Ativa',
-    encerrada: isEn ? 'Ended'     : 'Encerrada',
+    setup:     tb.montagem,
+    ativa:     tb.ativa,
+    encerrada: tb.encerrada,
   }[e] || e);
 
   return (
@@ -118,9 +129,9 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
           className="btn-icon btn-sm"
           onClick={onClose}
           disabled={rolagemPendenteConducao}
-          onMouseEnter={(e) => rolagemPendenteConducao && abrirTip(e, isEn ? 'Finish the pending roll first' : 'Conclua a rolagem pendente primeiro')}
+          onMouseEnter={(e) => rolagemPendenteConducao && abrirTip(e, tb.concluaARolagemPendente)}
           onMouseLeave={fecharTip}
-          aria-label={isEn ? 'Back to stories' : 'Voltar às histórias'}>
+          aria-label={tb.voltarAsHistorias}>
           <i className="ti ti-arrow-left" />
         </button>
         <PortalTooltip tip={tip} onEnter={() => {}} onLeave={fecharTip} />
@@ -129,11 +140,11 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
             <i className="ti ti-swords" aria-hidden="true" />
             {historia.titulo}
           </div>
-          <h2 className="ms-title">{isEn ? 'Battles' : 'Batalhas'}</h2>
+          <h2 className="ms-title">{tb.batalhas}</h2>
         </div>
         {view === 'lista' && !abrindo && (
           <button type="button" className="btn-primary btn-sm" onClick={() => setView('nova')}>
-            {isEn ? 'New battle' : 'Nova batalha'}
+            {tb.novaBatalha}
           </button>
         )}
         {view === 'nova' && (
@@ -143,8 +154,8 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
             disabled={!novaState.canConfirm}
             onClick={() => { if (novaBatalhaRef.current) novaBatalhaRef.current(); }}>
             {novaState.saving
-              ? (isEn ? 'Creating…' : 'Criando…')
-              : (isEn ? 'Create battle' : 'Criar batalha')}
+              ? (tb.criando)
+              : (tb.criarBatalha)}
           </button>
         )}
         {abrindo && headerActions && (
@@ -187,25 +198,25 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
         ) : (
           <>
             {batalhas === null ? (
-              <div className="admin-loading"><span>{isEn ? 'Loading battles…' : 'Carregando batalhas…'}</span></div>
+              <div className="admin-loading"><span>{tb.carregandoBatalhas}</span></div>
             ) : batalhas.length === 0 ? (
               <div className="hist-protag-empty">
-                {isEn ? 'No battles yet for this story.' : 'Nenhuma batalha nesta história ainda.'}
+                {tb.nenhumaBatalhaNestaHistoria}
               </div>
             ) : (
               <div className="batalha-lista">
                 {batalhas.map((b) => {
                   const qtd = Array.isArray(b.participantes) ? b.participantes.length : 0;
                   const data = b.created_at
-                    ? new Date(b.created_at).toLocaleDateString(isEn ? 'en-US' : 'pt-BR',
+                    ? new Date(b.created_at).toLocaleDateString(tb.ptBr,
                         { day: '2-digit', month: 'short', year: 'numeric' })
                     : '';
                   // Rótulo descritivo sem expor o id da linha (que pula números após DELETE).
                   const titulo = b.estado === 'setup'
-                    ? (isEn ? 'Battle in setup' : 'Batalha em montagem')
+                    ? (tb.batalhaEmMontagem)
                     : b.estado === 'ativa'
-                      ? (isEn ? `Battle in progress · round ${b.rodada || 1}` : `Batalha em andamento · rodada ${b.rodada || 1}`)
-                      : (isEn ? 'Battle' : 'Batalha');
+                      ? interpolate(tb.batalhaEmAndamentoRodada, { rodada: b.rodada || 1 })
+                      : (tb.batalha);
                   return (
                     <div key={b.id} className="batalha-card">
                       <div className="batalha-card-main">
@@ -213,18 +224,18 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
                           {titulo}
                         </div>
                         <div className="batalha-card-meta">
-                          {qtd} {isEn ? 'participants' : 'participantes'}
+                          {qtd} {tb.participantes}
                           {data ? ` · ${data}` : ''}
                         </div>
                       </div>
                       <div className="batalha-card-actions">
                         <button className="btn-icon btn-sm"
-                          onMouseEnter={(e) => abrirTip(e, isEn ? 'Open' : 'Abrir')} onMouseLeave={fecharTip}
+                          onMouseEnter={(e) => abrirTip(e, tb.abrir)} onMouseLeave={fecharTip}
                           onClick={() => setAbrindo(b)}>
                           <i className="ti ti-arrow-right" aria-hidden="true" />
                         </button>
                         <button className="btn-icon btn-danger btn-sm"
-                          onMouseEnter={(e) => abrirTip(e, isEn ? 'Delete' : 'Excluir')} onMouseLeave={fecharTip}
+                          onMouseEnter={(e) => abrirTip(e, tb.excluir)} onMouseLeave={fecharTip}
                           onClick={() => excluirBatalha(b.id)}>
                           <i className="ti ti-trash" aria-hidden="true" />
                         </button>
@@ -246,6 +257,7 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
 // keys: array de strings "tipo:id" que pertencem a esta seção
 // items: array de { key, nome, meta, icone } já montado pelo pai
 function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDeselectAll, isEn, qtdMap, onQtd }) {
+  const tb = tBat(isEn ? 'en' : 'pt'); // i18n-sync (Fase 3.3): este componente recebe o boolean
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const [q, setQ] = useState('');
   const modoQtd = !!qtdMap; // true pra criaturas (stepper), false pra PJs (checkbox)
@@ -269,7 +281,7 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
     return (
       <div className="part-section">
         <div className="hist-protag-empty part-section-empty">
-          {isEn ? 'None linked to this story' : 'Nenhum vinculado a esta história'}
+          {tb.nenhumVinculadoAEsta}
         </div>
       </div>
     );
@@ -284,7 +296,7 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={isEn ? 'Filter…' : 'Filtrar…'}
+            placeholder={tb.filtrar}
           />
         </div>
         <div className="part-section-bulk">
@@ -292,20 +304,20 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
             /* Criaturas: bulk actions — ícones representativos da ação */
             <>
               <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, isEn ? 'One of each' : 'Uma de cada')}
+                onMouseEnter={(e) => abrirTip(e, tb.umaDeCada)}
                 onMouseLeave={fecharTip}
                 onClick={() => items.forEach((it) => onQtd(it.key, 1))}>
                 <i className="ti ti-copy" aria-hidden="true" />
               </button>
               <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, isEn ? 'Remove all' : 'Zerar todas')}
+                onMouseEnter={(e) => abrirTip(e, tb.zerarTodas)}
                 onMouseLeave={fecharTip}
                 disabled={selCount === 0}
                 onClick={() => items.forEach((it) => onQtd(it.key, 0))}>
                 <i className="ti ti-ban" aria-hidden="true" />
               </button>
               <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, isEn ? 'Add one more of each' : 'Mais uma de cada')}
+                onMouseEnter={(e) => abrirTip(e, tb.maisUmaDeCada)}
                 onMouseLeave={fecharTip}
                 onClick={() => items.forEach((it) => onQtd(it.key, (qtdMap.get(it.key) ?? 0) + 1))}>
                 <i className="ti ti-plus" aria-hidden="true" />
@@ -315,21 +327,21 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
             /* PJs: bulk actions originais */
             <>
               <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, isEn ? 'Select all' : 'Selecionar todos')}
+                onMouseEnter={(e) => abrirTip(e, tb.selecionarTodos)}
                 onMouseLeave={fecharTip}
                 disabled={allOn}
                 onClick={onSelectAll}>
                 <i className="ti ti-checkbox" aria-hidden="true" />
               </button>
               <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, isEn ? 'Deselect all' : 'Desmarcar todos')}
+                onMouseEnter={(e) => abrirTip(e, tb.desmarcarTodos)}
                 onMouseLeave={fecharTip}
                 disabled={noneOn}
                 onClick={onDeselectAll}>
                 <i className="ti ti-square" aria-hidden="true" />
               </button>
               <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, isEn ? 'Invert selection' : 'Inverter seleção')}
+                onMouseEnter={(e) => abrirTip(e, tb.inverterSelecao)}
                 onMouseLeave={fecharTip}
                 onClick={() => items.forEach((it) => onToggle(it.key))}>
                 <i className="ti ti-switch-horizontal" aria-hidden="true" />
@@ -343,7 +355,7 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
       {/* Grid 4 colunas */}
       {filtered.length === 0 ? (
         <div className="part-section-empty">
-          {isEn ? 'No results' : 'Sem resultados'}
+          {tb.semResultados}
         </div>
       ) : (
         <div className="part-section-grid">
@@ -408,6 +420,7 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
 // criarRef     — ref exposto ao pai para que ele possa acionar criar() via ModalShell footer
 // onStateChange— notifica o pai sempre que saving/canConfirm mudam (para controlar confirmDisabled/confirmLabel)
 function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onStateChange }) {
+  const tb = tBat(isEn ? 'en' : 'pt'); // i18n-sync (Fase 3.3): este componente recebe o boolean
   const nomePj = (p) => `${p.nome}${p.sobrenome ? ' ' + p.sobrenome : ''}`;
 
   // PJs: Set simples (checkbox — cada PJ entra 0 ou 1 vez)
@@ -460,7 +473,7 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
 
   // Monta arrays de itens para cada seção
   const pjItems    = pjsVinc.map((p) => ({ key: 'pj:' + p.id, nome: nomePj(p), meta: [p.raca, p.profissao].filter(Boolean).join(' · ') }));
-  const criatItems = criaturasVinc.map((c) => ({ key: 'cri:' + c.id, nome: c.nome, meta: [c.tipo || null, c.estagio != null ? `${isEn ? 'Stage' : 'Estágio'} ${c.estagio}` : null].filter(Boolean).join(' · ') }));
+  const criatItems = criaturasVinc.map((c) => ({ key: 'cri:' + c.id, nome: c.nome, meta: [c.tipo || null, c.estagio != null ? `${tb.estagio} ${c.estagio}` : null].filter(Boolean).join(' · ') }));
 
   const selectAll   = (keys) => setSelPj((prev) => { const next = new Set(prev); keys.forEach((k) => next.add(k)); return next; });
   const deselectAll = (keys) => setSelPj((prev) => { const next = new Set(prev); keys.forEach((k) => next.delete(k)); return next; });
@@ -468,12 +481,10 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
   return (
     <>
       <p className="subhead nova-batalha-intro">
-        {isEn
-          ? 'Choose who will take part in the battle. Select the player characters and creatures that will join the confrontation. Once the combatants are set, everything will be ready to start combat and track each turn.'
-          : 'Essa é a hora de escolher quem participará da batalha. Selecione os personagens dos jogadores e as criaturas que farão parte do confronto. Após definir os combatentes, tudo estará pronto para iniciar o combate e acompanhar cada turno da batalha.'}
+        {tb.essaEAHora}
       </p>
       <ParticipantSection
-        label={isEn ? 'Players' : 'Jogadores'}
+        label={tb.jogadores}
         items={pjItems}
         sel={selPj}
         onToggle={togglePj}
@@ -482,7 +493,7 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
         isEn={isEn}
       />
       <ParticipantSection
-        label={isEn ? 'Creatures' : 'Criaturas'}
+        label={tb.criaturas}
         items={criatItems}
         sel={selPj}
         onToggle={togglePj}
@@ -925,6 +936,7 @@ function mesmoParticipante(a, b) {
 
 /* ── EstadoDrop — botão "Ativo" + dropdown via portal por fighter ── */
 function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip }) {
+  const tb = tBat(isEn ? 'en' : 'pt'); // i18n-sync (Fase 3.3): este componente recebe o boolean
   const [aberto, setAberto] = React.useState(false);
   const btnRef = React.useRef(null);
 
@@ -955,9 +967,9 @@ function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip
         className={'btn-ghost btn-sm estado st-' + (p.status || 'ativo')}
         data-on="true"
         onClick={() => setAberto((v) => !v)}
-        onMouseEnter={(e) => abrirTip(e, isEn ? 'Change state' : 'Mudar estado')}
+        onMouseEnter={(e) => abrirTip(e, tb.mudarEstado)}
         onMouseLeave={fecharTip}
-        aria-label={isEn ? 'Change state' : 'Mudar estado'}>
+        aria-label={tb.mudarEstado}>
         {(p.status || 'ativo') === 'morto' ? <i className="ti ti-skull" aria-hidden="true" />
           : (p.status || 'ativo') === 'desmaiado' ? <i className="ti ti-zzz" aria-hidden="true" />
           : (p.status || 'ativo') === 'desistiu' ? <i className="ti ti-door-exit" aria-hidden="true" />
@@ -984,7 +996,7 @@ function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip
           <button className="batalha-estado-drop-item poison"
             onClick={() => { onEnvenenar(); setAberto(false); }}>
             <i className="ti ti-skull" aria-hidden="true" />
-            {isEn ? 'Poisoned' : 'Envenenado'}
+            {tb.envenenado}
           </button>
         </EstadoDropPortal>
       )}
@@ -994,8 +1006,10 @@ function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip
 
 /* ── próximo participante ATIVO na ordem de iniciativa ────────── */
 function proximoAtivo(parts, fromOrdem) {
+  // Pula quem está sem ações (FC "caído por N rodadas") — o status expira no
+  // decremento de Nova Rodada, então ninguém fica preso pra sempre.
   return [...parts].sort((a, b) => a.ordem - b.ordem)
-    .find((p) => p.ordem > fromOrdem && p.status === 'ativo') || null;
+    .find((p) => p.ordem > fromOrdem && p.status === 'ativo' && !statusTemEfeito(p, 'sem_acoes')) || null;
 }
 
 /* ── Ataques disponíveis para o ator ──────────────────────────── */
@@ -1217,9 +1231,214 @@ function interpolarCritico(msg, arma) {
     .replace(/\$\{d175\}/g,        String(d175));
 }
 
+/* ============================== Tabela de FALHA CRÍTICA (Verde — segundo dado) ============================== */
+/*
+   Fonte: Config_-_CRITICOS.csv v2 (07/2026) — 5 tipos × 8 qualidades q0..q7.
+   Uso: quando o PRIMEIRO dado produz q=0 (Falha Crítica/verde), o sistema pede
+   um segundo dado (mesma coluna, resolverAcao). A consequência cai no PRÓPRIO
+   ATACANTE. Lógica invertida do crítico: quanto MELHOR o segundo dado, mais
+   branda a consequência (q0 = 100% de dano; q7 = nada).
+   Regras confirmadas (07/2026, decisões do usuário):
+     • Dano de autodano SEMPRE pula a EH → cascata AR→EF (aplicarDanoCascata
+       com critico=true). Percentual sobre a força total do ataque, via
+       danoNoTier (100%=MD, 75%=D, 50%=M, 25%=F — ceil arma / floor magia).
+     • q1 "ações −7 por 1 mês": mecânico ATÉ O FIM DA BATALHA (mod_coluna −7,
+       rodadas_rest null); o mês fora da batalha fica no log pro Mestre.
+     • q2/q4 "perde N rodadas": mecânico (sem_acoes — auto-passe da vez).
+     • q6 "velocidade −5": mecânico (mod_vb — iniciativa efetiva reordena na
+       próxima rodada; o vb REAL do snapshot não muda).
+   Tokens ${danos.dXX} interpolados por interpolarCritico (mesmos do crítico).
+*/
+const FALHA_CRITICA_TABELA = {
+  CORTE: {
+    0: 'Você escorrega e cai sobre sua própria arma, ela corta seu abdome e você desmaia. Você sofre ${danos.d100} de dano na EF.',
+    1: 'Sua arma cai sobre sua perna e provoca um corte profundo. Suas ações tem -7 por 1 mês e você sofre ${danos.d75} de dano na EF.',
+    2: 'Você perde o equilíbrio e bate a cabeça. Você perde 2 rodadas e sofre ${danos.d50} de dano na EF.',
+    3: 'Você torce seu tornozelo enquanto se preparava para atacar. Você sofre ${danos.d25} de dano na EF.',
+    4: 'Um movimento precipitado faz com que você perca 1 rodada.',
+    5: 'Uma péssima escolha de posicionamento expõe suas vulnerabilidades. Sua defesa tem -5 até o fim da batalha.',
+    6: 'Seu adversário desvia facilmente de seu golpe e agora ele tem uma vantagem sobre você. Sua velocidade tem -5 até o fim da batalha.',
+    7: 'Apesar de errar o golpe, você mantêm firme sua posição sem nenhuma dificuldade.',
+  },
+  PERFURACAO: {
+    0: 'Você escorrega para trás e sua arma perfura seus órgãos, e você desmaia. Você sofre ${danos.d100} de dano na EF.',
+    1: 'Ao girar o corpo você perfura suas próprias pernas com sua arma. Suas ações tem -7 por 1 mês e você sofre ${danos.d75} de dano na EF.',
+    2: 'Você perde o equilíbrio e bate a cabeça. Você perde 2 rodadas e sofre ${danos.d50} de dano na EF.',
+    3: 'Você torce seu tornozelo enquanto se preparava para atacar. Você sofre ${danos.d25} de dano na EF.',
+    4: 'Um movimento precipitado faz com que você perca 1 rodada.',
+    5: 'Uma péssima escolha de posicionamento expõe suas vulnerabilidades. Sua defesa tem -5 até o fim da batalha.',
+    6: 'Seu adversário desvia facilmente de seu golpe e agora ele tem uma vantagem sobre você. Sua velocidade tem -5 até o fim da batalha.',
+    7: 'Apesar de errar seu golpe, você mantêm firme sua posição sem nenhuma dificuldade.',
+  },
+  ESMAGAMENTO: {
+    0: 'Você escorrega para o lado e sua arma cai sob sua cabeça, e você desmaia. Você sofre ${danos.d100} de dano na EF.',
+    1: 'Ao girar o corpo você esmaga seus próprios pés com sua arma. Suas ações tem -7 por 1 mês e você sofre ${danos.d75} de dano na EF.',
+    2: 'Você perde o equilíbrio e bate a cabeça. Você perde 2 rodadas e sofre ${danos.d50} de dano na EF.',
+    3: 'Você torce seu tornozelo enquanto se preparava para atacar. Você sofre ${danos.d25} de dano na EF.',
+    4: 'Um movimento precipitado faz com que você perca 1 rodada.',
+    5: 'Uma péssima escolha de posicionamento expõe suas vulnerabilidades. Sua defesa tem -5 até o fim da batalha.',
+    6: 'Seu adversário desvia facilmente de seu golpe e agora ele tem uma vantagem sobre você. Sua velocidade tem -5 até o fim da batalha.',
+    7: 'Apesar de errar seu golpe, você mantêm firme sua posição sem nenhuma dificuldade.',
+  },
+  MAGIA: {
+    0: 'Você escorrega para trás e sua magia detona com todo seu potencial, e você desmaia. Você sofre ${danos.d100} de dano na EF.',
+    1: 'Sua magia é mal evocada e detona em seus braços. Suas ações tem -7 por 1 mês e você sofre ${danos.d75} de dano na EF.',
+    2: 'Você perde o equilíbrio e bate a cabeça. Você perde 2 rodadas e sofre ${danos.d50} de dano na EF.',
+    3: 'Você torce seu tornozelo enquanto se preparava para evocar. Você sofre ${danos.d25} de dano na EF.',
+    4: 'Um movimento precipitado faz com que você perca 1 rodada.',
+    5: 'Uma péssima escolha de posicionamento expõe suas vulnerabilidades. Sua defesa tem -5 até o fim da batalha.',
+    6: 'Seu adversário desvia facilmente de sua magia e agora ele tem uma vantagem sobre você. Sua velocidade tem -5 até o fim da batalha.',
+    7: 'Apesar de errar sua magia, você mantêm firme sua posição sem nenhuma dificuldade.',
+  },
+  DESARMADO: {
+    0: 'Você escorrega e cai sobre a arma do inimigo, o golpe rasga seu abdome e você desmaia. Você sofre ${danos.d100} de dano na EF.',
+    1: 'Seu chute atinge uma região resistente do adversário e quebra sua perna. Suas ações tem -7 por 1 mês e você sofre ${danos.d75} de dano na EF.',
+    2: 'Você perde o equilíbrio e bate a cabeça. Você perde 2 rodadas e sofre ${danos.d50} de dano na EF.',
+    3: 'Você torce seu tornozelo enquanto se preparava para atacar. Você sofre ${danos.d25} de dano na EF.',
+    4: 'Um movimento precipitado faz com que você perca 1 rodada.',
+    5: 'Uma péssima escolha de posicionamento expõe suas vulnerabilidades. Sua defesa tem -5 até o fim da batalha.',
+    6: 'Seu adversário desvia facilmente de seu golpe e agora ele tem uma vantagem sobre você. Sua velocidade tem -5 até o fim da batalha.',
+    7: 'Apesar de errar o golpe, você mantêm firme sua posição sem nenhuma dificuldade.',
+  },
+};
+
+/* Mecânica por qualidade do segundo dado (uniforme entre tipos — só o texto
+   narrativo da FALHA_CRITICA_TABELA varia). rodadas_rest null = até o fim da
+   batalha (decrementarStatusTemp preserva; encerramento descarta o snapshot). */
+const FC_EFEITOS = {
+  0: { danoTier: 'MD', desmaia: true },
+  1: { danoTier: 'D',  status: { id: 'fc_acoes',  nome: 'Ações −7',      icone: '🤕', rodadas_rest: null, efeito: { tipo: 'mod_coluna', valor: -7 } } },
+  2: { danoTier: 'M',  status: { id: 'fc_caido',  nome: 'Caído',         icone: '💫', rodadas_rest: 2,    efeito: { tipo: 'sem_acoes' } } },
+  3: { danoTier: 'F' },
+  4: {                 status: { id: 'fc_caido',  nome: 'Caído',         icone: '💫', rodadas_rest: 1,    efeito: { tipo: 'sem_acoes' } } },
+  5: {                 status: { id: 'fc_defesa', nome: 'Defesa −5',     icone: '🛡️', rodadas_rest: null, efeito: { tipo: 'mod_defesa', valor: -5 } } },
+  6: {                 status: { id: 'fc_veloc',  nome: 'Velocidade −5', icone: '🐌', rodadas_rest: null, efeito: { tipo: 'mod_vb', valor: -5 } } },
+  7: {},
+};
+
+/* ── Helpers PUROS de efeito de status_temp (1ª leva mecânica) ────── */
+// Soma os `valor` dos efeitos de um tipo ativos no participante.
+function somaEfeitosStatus(p, tipo) {
+  if (!p || !Array.isArray(p.status_temp)) return 0;
+  return p.status_temp.reduce((s, st) => s + ((st.efeito && st.efeito.tipo === tipo) ? (st.efeito.valor || 0) : 0), 0);
+}
+// O participante tem algum efeito do tipo? (usado por sem_acoes, sem valor)
+function statusTemEfeito(p, tipo) {
+  return !!(p && Array.isArray(p.status_temp) && p.status_temp.some((st) => st.efeito && st.efeito.tipo === tipo));
+}
+// VB efetiva pra iniciativa: vb do snapshot + mod_vb de status. NÃO persiste.
+function vbEfetivo(p) {
+  return (p.vb || 0) + somaEfeitosStatus(p, 'mod_vb');
+}
+// Decremento por rodada: null = até o fim da batalha (preservado);
+// numérico decrementa e sai quando zera. Status sem efeito seguem a mesma regra.
+function decrementarStatusTemp(statusTemp) {
+  return (statusTemp || [])
+    .map((s) => (s.rodadas_rest == null ? s : { ...s, rodadas_rest: Math.max(0, s.rodadas_rest - 1) }))
+    .filter((s) => s.rodadas_rest == null || s.rodadas_rest > 0);
+}
+// ordenarIniciativa usando a VB EFETIVA (mod_vb), preservando o vb real.
+function ordenarIniciativaEfetiva(snaps) {
+  return ordenarIniciativa(snaps.map((p) => ({ ...p, vb: vbEfetivo(p), __orig: p })))
+    .map((d, i) => ({ ...d.__orig, ordem: i + 1 }));
+}
+
+/* ── Dano por rodada (Fase 1.2 — ex.: Envenenado) ──────────────────
+   Regras confirmadas (07/2026, decisões do usuário):
+     • Dano DIRETO na EF — veneno é interno, ignora EH e AR. Respeita o
+       piso EF_MORTE e as mesmas transições de status da cascata.
+     • Valor definido pelo Mestre ao aplicar (painel do atalho Envenenado).
+     • Timing: a cada virada de rodada o dano MORDE ANTES do decremento —
+       um veneno de 1 rodada causa dano na virada e então expira. */
+function aplicarDanoDiretoEF(dano, p) {
+  let r = Math.max(0, Math.floor(dano || 0));
+  let ef = p.ef;
+  if (r > 0 && ef > EF_MORTE) {
+    const c = Math.min(ef - EF_MORTE, r);
+    ef -= c; r -= c;
+  }
+  let status = p.status;
+  if (ef <= EF_MORTE && (status === 'ativo' || status === 'desmaiado')) status = 'morto';
+  else if ((ef <= 0 || ((p.eh || 0) === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
+  return { ...p, ef, status, sobra: r };
+}
+
+// Aplica TODOS os dano_por_rodada de um participante de uma vez (soma) e
+// devolve o detalhe por status pro log. Sem efeitos → mesma referência.
+function processarDanoPorRodada(p) {
+  const eventos = (Array.isArray(p.status_temp) ? p.status_temp : [])
+    .filter((s) => s.efeito && s.efeito.tipo === 'dano_por_rodada' && (s.efeito.valor || 0) > 0)
+    .map((s) => ({ nome: s.nome, valor: s.efeito.valor }));
+  if (!eventos.length) return { participante: p, eventos: [], total: 0 };
+  const total = eventos.reduce((a, e) => a + e.valor, 0);
+  return { participante: aplicarDanoDiretoEF(total, p), eventos, total };
+}
+
+// Virada de rodada de UM participante: reset de PA (ativos) → veneno morde
+// (mortos e desistentes não sofrem) → decrementa status (null persiste).
+function processarViradaDeRodada(p) {
+  let next = (p.status === 'ativo') ? { ...p, pa_rest: p.pa_max } : { ...p };
+  let eventos = [], total = 0;
+  if (p.status !== 'morto' && p.status !== 'desistiu') {
+    const r = processarDanoPorRodada(next);
+    next = r.participante; eventos = r.eventos; total = r.total;
+  }
+  if (Array.isArray(next.status_temp) && next.status_temp.length) {
+    next.status_temp = decrementarStatusTemp(next.status_temp);
+  }
+  return { participante: next, eventos, total };
+}
+
+// Virada COMPLETA da rodada — usada pelo Mestre (novaRodada) E pelo Jogador
+// (handlePassar quando dá a volta), pra manter os dois lados idênticos:
+// processa cada participante, reordena pela iniciativa EFETIVA e escolhe o
+// primeiro elegível (ativo e não sem_acoes; se ninguém, ninguém fica atual).
+function montarNovaRodada(participantes) {
+  const eventosRodada = [];
+  const processados = participantes.map((p) => {
+    const r = processarViradaDeRodada(p);
+    if (r.eventos.length) eventosRodada.push({ nome: p.nome, eventos: r.eventos, total: r.total });
+    return r.participante;
+  });
+  const reordered = ordenarIniciativaEfetiva(processados);
+  const primeiro = [...reordered].sort((a, b) => a.ordem - b.ordem)
+    .find((p) => p.status === 'ativo' && !statusTemEfeito(p, 'sem_acoes'));
+  return {
+    participantes: reordered.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) })),
+    eventos: eventosRodada,
+  };
+}
+
+/* ── Aplica a consequência da Falha Crítica no ATACANTE (puro) ─────
+   objDano: a arma OU a magia usada (danoNoTier respeita a fonte).
+   q: qualidade do SEGUNDO dado (0..7). Retorna { participante, dano }. */
+function aplicarFalhaCritica(atacante, objDano, q) {
+  const ef = FC_EFEITOS[q] || {};
+  let p = atacante;
+  let dano = 0;
+  if (ef.danoTier) {
+    dano = danoNoTier(objDano, ef.danoTier);
+    if (dano > 0) p = aplicarDanoCascata(dano, p, true); // pula EH → AR→EF (regra confirmada)
+  }
+  // q0: "e você desmaia" — força o status mesmo que a cascata não derrube
+  // (morto tem precedência: a cascata pode ter matado).
+  if (ef.desmaia && p.status === 'ativo') p = { ...p, status: 'desmaiado' };
+  if (ef.status) {
+    const atual = Array.isArray(p.status_temp) ? p.status_temp : [];
+    const novo = {
+      ...ef.status,
+      id: ef.status.id + ':' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      efeito: { ...ef.status.efeito },
+    };
+    p = { ...p, status_temp: [...atual, novo] };
+  }
+  return { participante: p, dano };
+}
+
 /* ============================== Condução (Fase 4b: turnos + iniciativa) ============================== */
 function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, onHeaderActionsChange, onRolagemPendenteChange }) {
   const isEn = lang === 'en';
+  const tb = tBat(lang); // i18n-sync (Fase 3.3)
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const [estado, setEstado] = useState(batalha.estado);
   const [participantes, setParticipantes] = useState(batalha.participantes || []);
@@ -1239,6 +1458,10 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
   const [statusNome,    setStatusNome]    = useState('');
   const [statusIcone,   setStatusIcone]   = useState('');
   const [statusRodadas, setStatusRodadas] = useState(3);
+  // Fase 1.2 — painel do Envenenado (dano por rodada): valor digitado pelo Mestre.
+  const [venenoOpen,    setVenenoOpen]    = useState(null);  // fkey do lutador com painel aberto
+  const [venenoVal,     setVenenoVal]     = useState('');
+  const [venenoRodadas, setVenenoRodadas] = useState(3);
   const [encerrarOpen,  setEncerrarOpen]  = useState(false); // painel inline com toggle de restaurar
   // Fase 7 — Roster colapsável: por padrão só nome+ícones ficam visíveis;
   // as barras (EF/EH/AR/KA + condições) só aparecem expandidas. O lutador
@@ -1434,6 +1657,29 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     });
   };
 
+  // Fase 1.2 — Aplica Envenenado com dano por rodada (direto na EF, regra
+  // confirmada). O valor é digitado pelo Mestre; morde a cada Nova Rodada.
+  const aplicarVeneno = (idx) => {
+    const valor = Math.max(1, parseInt(venenoVal || '0', 10) || 0);
+    const rodadas = Math.max(1, parseInt(venenoRodadas || '1', 10) || 1);
+    if (!venenoVal || valor < 1) return;
+    const novoStatus = {
+      id: 'veneno:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      nome: tb.envenenado,
+      icone: '☠',
+      rodadas_rest: rodadas,
+      efeito: { tipo: 'dano_por_rodada', valor },
+    };
+    const p = participantes[idx];
+    const atual = Array.isArray(p.status_temp) ? p.status_temp : [];
+    const atualizado = { ...p, status_temp: [...atual, novoStatus] };
+    const next = participantes.map((q, i) => (i === idx ? atualizado : q));
+    persistir({ participantes: next }, () => {
+      setParticipantes(next);
+      setVenenoOpen(null); setVenenoVal(''); setVenenoRodadas(3);
+    });
+  };
+
   // Fase 6 — Remove um status temporário (clique no chip).
   const removerStatusTemp = (idx, statusId) => {
     const p = participantes[idx];
@@ -1467,9 +1713,18 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
       karma:   Math.max(0, (next[atorIdx].karma   || 0) - k),
     };
 
-    // PA zerado → auto-passa a vez
+    // Falha Crítica (q=0): a consequência do segundo dado cai no PRÓPRIO
+    // atacante (Fase 1.1) — dano pulando EH + status mecânico da tabela.
+    let danoSelf = 0;
+    if (tipo_critico === 'self' && res_critico) {
+      const fc = aplicarFalhaCritica(next[atorIdx], tipo === 'magia' ? magia : arma, res_critico.q);
+      next[atorIdx] = fc.participante;
+      danoSelf = fc.dano;
+    }
+
+    // PA zerado, incapaz OU sem ações (FC caído) → auto-passa a vez
     const ator = next[atorIdx];
-    if (ator.pa_rest === 0 && ator.atual) {
+    if ((ator.pa_rest === 0 || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual) {
       const prox = proximoAtivo(next, ator.ordem);
       if (prox) {
         next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
@@ -1494,6 +1749,7 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
         d20_critico,
         critico_tipo: tipo_critico,
         critico_arma_tipo: tipo_critico_arma,
+        dano_self: danoSelf || undefined,
         critico_resultado: res_critico ? res_critico.codigo : null,
         critico_resultado_nome: res_critico ? res_critico.pt : null,
         critico_q: res_critico ? res_critico.q : null,
@@ -1515,6 +1771,7 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
         texto = `${atorNome} conjurou ${nomeAcao} em ${alvo.nome}`;
         if (resultadoNome) texto += ` → ${resultadoNome}`;
         if (dano > 0)      texto += ` (${dano} de dano)`;
+        if (msg_critico)   texto += `. ${msg_critico}`;
       } else {
         texto = `${atorNome} atacou ${alvo.nome} com ${nomeAcao || 'arma'}`;
         if (resultadoNome) texto += ` → ${resultadoNome}`;
@@ -1761,21 +2018,31 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
   };
 
   const novaRodada = () => {
-    // Reseta PA dos ativos + decrementa status_temp de todos (remove os que zeraram).
-    const reset = participantes.map((p) => {
-      const next = (p.status === 'ativo') ? { ...p, pa_rest: p.pa_max } : { ...p };
-      if (Array.isArray(p.status_temp) && p.status_temp.length) {
-        next.status_temp = p.status_temp
-          .map((s) => ({ ...s, rodadas_rest: Math.max(0, (s.rodadas_rest || 0) - 1) }))
-          .filter((s) => s.rodadas_rest > 0);
-      }
-      return next;
-    });
-    const reordered = ordenarIniciativa(reset);          // recalcula iniciativa pela VB
-    const primeiro = [...reordered].sort((a, b) => a.ordem - b.ordem).find((p) => p.status === 'ativo');
-    const next = reordered.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) }));
+    // Virada consolidada (Fase 1.2): dano por rodada morde → decrementa status
+    // → reordena por iniciativa efetiva → escolhe o primeiro elegível.
+    // MESMA função usada pelo handlePassar do Jogador quando a rodada vira.
+    const { participantes: next, eventos } = montarNovaRodada(participantes);
     const novaR = rodada + 1;
-    persistir({ participantes: next, rodada: novaR }, () => { setParticipantes(next); setRodada(novaR); });
+    let novoLog = log;
+    if (eventos.length) {
+      const texto = eventos
+        .map((e) => `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`)
+        .join('; ');
+      novoLog = [...log, { rodada: novaR, ts: Date.now(), acao: 'sistema', texto }];
+      if (historia && historia.id) {
+        supabaseClient.rpc('registrar_evento_mesa', {
+          p_historia_id: historia.id,
+          p_tipo: 'sistema',
+          p_texto: `Rodada ${novaR}: ${texto}`,
+          p_meta: { batalha_id: batalha.id, rodada: novaR, dano_por_rodada: eventos },
+        }).then(({ error: rpcErr }) => {
+          if (rpcErr) console.error('[batalha] registrar_evento_mesa (rodada) falhou:', rpcErr);
+        });
+      }
+    }
+    persistir({ participantes: next, log: novoLog, rodada: novaR }, () => {
+      setParticipantes(next); setLog(novoLog); setRodada(novaR);
+    });
   };
 
   const passarVez = () => {
@@ -1807,7 +2074,7 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
           disabled={iniciando || participantes.length === 0}
           onClick={iniciar}>
           <i className="ti ti-swords" aria-hidden="true" />
-          {iniciando ? (isEn ? 'Starting…' : 'Iniciando…') : (isEn ? 'Start' : 'Iniciar')}
+          {iniciando ? (tb.iniciando) : (tb.iniciar)}
         </button>
       );
       return;
@@ -1821,23 +2088,23 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
       <>
         <button type="button" className={acaoOpen ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
           disabled={salvando || !current || !catalogos || (current && current.pa_rest <= 0) || rolagemPendente}
-          onMouseEnter={(e) => rolagemPendente && abrirTip(e, isEn ? 'Finish the pending roll first' : 'Conclua a rolagem pendente primeiro')}
+          onMouseEnter={(e) => rolagemPendente && abrirTip(e, tb.concluaARolagemPendente)}
           onMouseLeave={fecharTip}
           onClick={abrirAcao}>
-          {isEn ? 'Action' : 'Ação'}
+          {tb.acao}
         </button>
         <button type="button" className="btn-icon btn-ghost btn-sm" disabled={salvando || !current || rolagemPendente} onClick={passarVez}
-          onMouseEnter={(e) => abrirTip(e, isEn ? 'Pass' : 'Passar')} onMouseLeave={fecharTip}>
+          onMouseEnter={(e) => abrirTip(e, tb.passar)} onMouseLeave={fecharTip}>
           <i className="ti ti-player-skip-forward" aria-hidden="true" />
         </button>
         <button type="button" className="btn-icon btn-ghost btn-sm" disabled={salvando || rolagemPendente} onClick={novaRodada}
-          onMouseEnter={(e) => abrirTip(e, isEn ? 'New Turn' : 'Nova Rodada')} onMouseLeave={fecharTip}>
+          onMouseEnter={(e) => abrirTip(e, tb.novaRodada)} onMouseLeave={fecharTip}>
           <i className="ti ti-refresh" aria-hidden="true" />
         </button>
         <button type="button" className="btn-danger btn-sm" disabled={salvando || rolagemPendente} onClick={encerrarBatalha}
-          onMouseEnter={(e) => rolagemPendente && abrirTip(e, isEn ? 'Finish the pending roll first' : 'Conclua a rolagem pendente primeiro')}
+          onMouseEnter={(e) => rolagemPendente && abrirTip(e, tb.concluaARolagemPendente)}
           onMouseLeave={fecharTip}>
-          {isEn ? 'End' : 'Encerrar'}
+          {tb.encerrar}
         </button>
       </>
     );
@@ -1951,7 +2218,7 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     if (err) { setError(err.message); return; }
     if (data && data.ok === false) {
       const motivo = data.motivo || 'erro_desconhecido';
-      setError(isEn ? `Failed: ${motivo}` : `Falha: ${motivo}`);
+      setError(interpolate(tb.falhaMotivo, { motivo }));
       return;
     }
     onAtualizado && onAtualizado();
@@ -1996,9 +2263,7 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     return (
       <div className="batalha-conduzir">
         <p className="batalha-setup-intro">
-          {isEn
-            ? 'Everything is ready for the battle to begin. The turn order, or initiative, is determined by each participants speed.'
-            : 'Tudo pronto para o início da batalha. A ordem de ação, ou iniciativa, é determinada pela velocidade de cada participante.'}
+          {tb.tudoProntoParaO}
         </p>
         <ul className="batalha-part-list">
           {participantes.map((p, i) => (
@@ -2036,39 +2301,37 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
         return (
           <div className="batalha-encerrar-painel">
             <div className="batalha-encerrar-aviso">
-              {isEn
-                ? 'Ending archives the log and removes this battle. Choose how to persist pools:'
-                : 'Encerrar arquiva o log e remove esta batalha. Escolha o que persistir nos PJs:'}
+              {tb.encerrarArquivaOLog}
             </div>
             <div className="batalha-encerrar-resumo">
               {feridos.length > 0 && (
                 <span>
-                  {feridos.length}{' '}{isEn ? 'wounded' : 'ferido(s)'}
+                  {feridos.length}{' '}{tb.feridoS}
                 </span>
               )}
               {mortos.length > 0 && (
                 <span className="mortos">
-                  {' · '}{mortos.length}{' '}{isEn ? 'dead' : 'morto(s)'}{' '}
-                  ({isEn ? 'persist with EF=0' : 'persistem com EF=0'})
+                  {' · '}{mortos.length}{' '}{tb.mortoS}{' '}
+                  ({tb.persistemComEf0})
                 </span>
               )}
               {feridos.length === 0 && mortos.length === 0 && (
-                <span>{isEn ? 'All PCs at full pools.' : 'Todos os PJs no máximo.'}</span>
+                <span>{tb.todosOsPjsNo}</span>
               )}
             </div>
             <div className="batalha-encerrar-acoes">
               <button className="btn-ghost btn-sm" onClick={() => setEncerrarOpen(false)} disabled={salvando}>
-                {isEn ? 'Cancel' : 'Cancelar'}
+                {tb.cancelar}
               </button>
               <button className="btn-ghost btn-sm" onClick={() => finalizarEncerramento(false)} disabled={salvando}
-                onMouseEnter={(e) => abrirTip(e, isEn ? 'Wounded PCs keep current pools in the story' : 'PJs feridos mantêm as pools atuais na história')}
+                onMouseEnter={(e) => abrirTip(e, tb.pjsFeridosMantemAs)}
                 onMouseLeave={fecharTip}>
-                {isEn ? 'End with consequences' : 'Encerrar com sequelas'}
+                {tb.encerrarComSequelas}
               </button>
               <button className="btn-primary btn-sm" onClick={() => finalizarEncerramento(true)} disabled={salvando}
-                onMouseEnter={(e) => abrirTip(e, isEn ? 'Wounded PCs return to max in the story' : 'PJs feridos voltam ao máximo na história')}
+                onMouseEnter={(e) => abrirTip(e, tb.pjsFeridosVoltamAo)}
                 onMouseLeave={fecharTip}>
-                {isEn ? 'Restore & end' : 'Restaurar e encerrar'}
+                {tb.restaurarEEncerrar}
               </button>
             </div>
           </div>
@@ -2105,7 +2368,7 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
                 <div className="batalha-fighter-id"
                   role="button" tabIndex={0}
                   aria-expanded={expandido}
-                  aria-label={(isEn ? 'Toggle pools for ' : 'Expandir/recolher barras de ') + p.nome}
+                  aria-label={(tb.expandirRecolherBarrasDe) + p.nome}
                   onClick={() => alternarRoster(fkey)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarRoster(fkey); } }}>
                   <span className={'batalha-fighter-status-ic st-' + (p.status || 'ativo')}
@@ -2117,13 +2380,13 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
                       : <i className="ti ti-check" aria-hidden="true" />}
                   </span>
                   <span className="batalha-fighter-nome">{p.nome.split(' ')[0]}</span>
-                  {p.ausente && <span className="batalha-aviso">{isEn ? 'missing' : 'ausente'}</span>}
+                  {p.ausente && <span className="batalha-aviso">{tb.ausente}</span>}
                   {/* Fase 6: chips de status temporarios - clique remove. stopPropagation
                       pra não alternar o collapse junto (clicou no chip, não no card). */}
                   {Array.isArray(p.status_temp) && p.status_temp.map((s) => (
                     <span key={s.id} className="batalha-status-chip"
                       onClick={(e) => { e.stopPropagation(); if (estado === 'ativa') removerStatusTemp(i, s.id); }}
-                      onMouseEnter={(e) => abrirTip(e, `${s.nome} · ${s.rodadas_rest} ${isEn ? 'rounds left · click to remove' : 'rodada(s) restantes · clique para remover'}`)}
+                      onMouseEnter={(e) => abrirTip(e, `${s.nome} · ${s.rodadas_rest == null ? (tb.ateOFimDa) : `${s.rodadas_rest} ${tb.rodadaSRestantes}`} · ${tb.cliqueParaRemover}`)}
                       onMouseLeave={fecharTip}>
                       {s.icone
                         ? <span className="batalha-status-chip-icone">{s.icone}</span>
@@ -2137,8 +2400,8 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
 
                 <div className="batalha-fighter-stats">
                   <span className="batalha-stat"><span>VB</span><b>{p.vb}</b></span>
-                  <span className="batalha-stat"><span>{isEn ? 'AP' : 'PA'}</span><b>{p.pa_rest}/{p.pa_max}</b></span>
-                  <span className="batalha-stat"><span>{isEn ? 'DF' : 'DF'}</span><b>{p.defesa_sigla || 'L'}{p.defesa_valor || 0}</b></span>
+                  <span className="batalha-stat"><span>{tb.pa}</span><b>{p.pa_rest}/{p.pa_max}</b></span>
+                  <span className="batalha-stat"><span>{tb.df}</span><b>{p.defesa_sigla || 'L'}{p.defesa_valor || 0}</b></span>
                   <span className="batalha-stat"><span>RM</span><b>{p.rm || 0}</b></span>
                   <span className="batalha-stat"><span>RF</span><b>{p.rf || 0}</b></span>
                 </div>
@@ -2149,8 +2412,8 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
                         setDanoOpen(danoOpen === fkey ? null : fkey); setCuraOpen(null); setStatusOpen(null);
                         setDanoVal(''); setDanoCrit(false);
                       }}
-                      aria-label={isEn ? 'Damage' : 'Dano'}
-                      onMouseEnter={(e) => abrirTip(e, isEn ? 'Damage' : 'Dano')}
+                      aria-label={tb.dano}
+                      onMouseEnter={(e) => abrirTip(e, tb.dano)}
                       onMouseLeave={fecharTip}>
                       <i className="ti ti-heart-minus" aria-hidden="true" />
                     </button>
@@ -2159,8 +2422,8 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
                         setCuraOpen(curaOpen === fkey ? null : fkey); setDanoOpen(null); setStatusOpen(null);
                         setCuraVal(''); setCuraPool('eh');
                       }}
-                      aria-label={isEn ? 'Heal' : 'Cura'}
-                      onMouseEnter={(e) => abrirTip(e, isEn ? 'Heal' : 'Cura')}
+                      aria-label={tb.cura}
+                      onMouseEnter={(e) => abrirTip(e, tb.cura)}
                       onMouseLeave={fecharTip}>
                       <i className="ti ti-heart-plus" aria-hidden="true" />
                     </button>
@@ -2173,16 +2436,10 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
                       abrirTip={abrirTip}
                       fecharTip={fecharTip}
                       onEnvenenar={() => {
-                        const novoStatus = {
-                          id: Date.now() + Math.floor(Math.random() * 1000),
-                          nome: isEn ? 'Poisoned' : 'Envenenado',
-                          icone: '☠',
-                          rodadas_rest: 3,
-                        };
-                        const atual = Array.isArray(p.status_temp) ? p.status_temp : [];
-                        const atualizado = { ...p, status_temp: [...atual, novoStatus] };
-                        const next = participantes.map((q, j) => (j === i ? atualizado : q));
-                        persistir({ participantes: next }, () => setParticipantes(next));
+                        // Fase 1.2: abre o painel de valor/rodadas — o veneno
+                        // agora tem DENTE (dano_por_rodada, direto na EF).
+                        setVenenoOpen(venenoOpen === fkey ? null : fkey);
+                        setDanoOpen(null); setCuraOpen(null);
                       }}
                     />
                   </div>
@@ -2192,23 +2449,41 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
               {estado === 'ativa' && danoOpen === fkey && (
                 <div className="batalha-dano-painel">
                   <input className="batalha-dano-input" type="number" min="0" value={danoVal}
-                    onChange={(e) => setDanoVal(e.target.value)} placeholder={isEn ? 'amount' : 'valor'} autoFocus />
+                    onChange={(e) => setDanoVal(e.target.value)} placeholder={tb.valor} autoFocus />
                   <label className="batalha-dano-crit">
                     <input type="checkbox" checked={danoCrit} onChange={(e) => setDanoCrit(e.target.checked)} />
-                    {isEn ? 'critical (skips EH)' : 'cr\u00edtico (pula EH)'}
+                    {tb.crU00edticoPulaEh}
                   </label>
                   <button className="btn-primary btn-sm" onClick={() => aplicarDano(i)} disabled={salvando}>
-                    {isEn ? 'Apply' : 'Aplicar'}
+                    {tb.aplicar}
                   </button>
                   <button className="btn-ghost btn-sm" onClick={() => { setDanoOpen(null); setDanoVal(''); setDanoCrit(false); }}>
-                    {isEn ? 'Cancel' : 'Cancelar'}
+                    {tb.cancelar}
+                  </button>
+                </div>
+              )}
+              {/* Fase 1.2 — Painel inline do Envenenado (dano por rodada, direto na EF) */}
+              {estado === 'ativa' && venenoOpen === fkey && (
+                <div className="batalha-dano-painel veneno">
+                  <span className="batalha-painel-lbl">☠ {tb.veneno}:</span>
+                  <input className="batalha-dano-input" type="number" min="1" value={venenoVal}
+                    onChange={(e) => setVenenoVal(e.target.value)}
+                    placeholder={tb.danoRodada} autoFocus />
+                  <input className="batalha-dano-input" type="number" min="1" value={venenoRodadas}
+                    onChange={(e) => setVenenoRodadas(e.target.value)}
+                    placeholder={tb.rodadas} />
+                  <button className="btn-primary btn-sm" onClick={() => aplicarVeneno(i)} disabled={salvando || !venenoVal}>
+                    {tb.aplicar}
+                  </button>
+                  <button className="btn-ghost btn-sm" onClick={() => { setVenenoOpen(null); setVenenoVal(''); setVenenoRodadas(3); }}>
+                    {tb.cancelar}
                   </button>
                 </div>
               )}
               {/* Fase 6 - Painel inline de Cura */}
               {estado === 'ativa' && curaOpen === fkey && (
                 <div className="batalha-dano-painel cura">
-                  <span className="batalha-painel-lbl">{isEn ? 'Pool' : 'Pool'}:</span>
+                  <span className="batalha-painel-lbl">{tb.pool}:</span>
                   {['eh', 'ar', 'ef'].map((pool) => (
                     <button key={pool}
                       className="btn-ghost btn-sm pool-btn"
@@ -2219,13 +2494,13 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
                     </button>
                   ))}
                   <input className="batalha-dano-input" type="number" min="0" value={curaVal}
-                    onChange={(e) => setCuraVal(e.target.value)} placeholder={isEn ? 'amount' : 'valor'} autoFocus />
+                    onChange={(e) => setCuraVal(e.target.value)} placeholder={tb.valor} autoFocus />
                   <span className="batalha-painel-hint">{p[curaPool]}/{p[curaPool + '_max']}</span>
                   <button className="btn-primary btn-sm" onClick={() => aplicarCura(i)} disabled={salvando}>
-                    {isEn ? 'Apply' : 'Aplicar'}
+                    {tb.aplicar}
                   </button>
                   <button className="btn-ghost btn-sm" onClick={() => { setCuraOpen(null); setCuraVal(''); }}>
-                    {isEn ? 'Cancel' : 'Cancelar'}
+                    {tb.cancelar}
                   </button>
                 </div>
               )}
@@ -2415,6 +2690,7 @@ const DadoD20Bat = React.forwardRef(function DadoD20Bat(props, ref) {
 function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onFechar, onConfirmar,
                        isCritico, tipoCritico, msgCritico }) {
   const isEn = lang === 'en';
+  const tb = tBat(lang); // i18n-sync (Fase 3.3)
   const [resultado, setResultado] = useState(null);
   const dadoRef = useRef(null);
   const jaRolou = useRef(false);
@@ -2462,25 +2738,25 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
   if (resultado && resultado.res) {
     const r = resultado.res;
     if (r.erra) {
-      detalheRes = isEn ? 'Miss' : 'Errou';
+      detalheRes = tb.errou;
     } else {
-      detalheRes = `${Math.round(r.dano * 100)}% ${isEn ? 'damage' : 'dano'}`;
+      detalheRes = `${Math.round(r.dano * 100)}% ${tb.dano2}`;
     }
-    if (r.autodano) detalheRes += isEn ? ' · self-damage' : ' · auto-dano';
-    if (r.critico)  detalheRes += isEn ? ' · critical!'   : ' · crítico!';
+    if (r.autodano) detalheRes += tb.autoDano;
+    if (r.critico)  detalheRes += tb.critico;
   }
 
   const labelCriticoTipo = isCritico
     ? (tipoCritico === 'alvo'
-        ? (isEn ? 'Critical on target' : 'Crítico no alvo')
-        : (isEn ? 'Critical on self'   : 'Crítico em si mesmo'))
+        ? (tb.criticoNoAlvo)
+        : (tb.criticoEmSiMesmo))
     : null;
 
   return (
     <div
       className="menestrel-ui dado-overlay-backdrop"
       role="dialog" aria-modal="true"
-      aria-label={(isEn ? 'Roll: ' : 'Rolagem: ') + titulo}
+      aria-label={(tb.rolagem) + titulo}
     >
       <div className="dado-overlay-inner">
         {/* Cabeçalho */}
@@ -2495,7 +2771,7 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
         <DadoD20Bat
           ref={dadoRef}
           size="clamp(150px, 42vw, 208px)"
-          ariaLabel={(isEn ? 'Rolling die for ' : 'Rolando dado para ') + titulo}
+          ariaLabel={(tb.rolandoDadoPara) + titulo}
           onRoll={aoRolar}
           disabled={!!resultado}
         />
@@ -2519,10 +2795,10 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
                 <div className="dado-overlay-resist-nome"
                   style={{ color: resultado.d20 > alvoResist ? 'var(--gold, #C9A44E)' : 'var(--ember-bright, #B8472F)' }}>
                   {resultado.d20 > alvoResist
-                    ? (isEn ? 'Success' : 'Sucesso')
+                    ? (tb.sucesso)
                     : (resultado.d20 === alvoResist
-                      ? (isEn ? 'Tie' : 'Empate')
-                      : (isEn ? 'Failure' : 'Fracasso'))}
+                      ? (tb.empate)
+                      : (tb.fracasso))}
                 </div>
               )}
             </div>
@@ -2535,12 +2811,12 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
             <button type="button" className="btn-primary"
               disabled={!resultado}
               onClick={() => resultado && onConfirmar({ valor: resultado.d20, resultado: resultado.res })}>
-              {isEn ? 'Confirm' : 'Confirmar'}
+              {tb.confirmar}
             </button>
           )}
           {!onConfirmar && (
             <button type="button" className="btn-primary" onClick={onFechar}>
-              {isEn ? 'Done' : 'Concluir'}
+              {tb.concluir}
             </button>
           )}
         </div>
@@ -2643,6 +2919,7 @@ function QuantityStepper({ value, onChange, min = 1, max = Infinity, step = 1, d
 /* ============================== Motor de Resolução (Fase 5a) ============================== */
 function MotorResolucao({ lang }) {
   const isEn = lang === 'en';
+  const tb = tBat(lang); // i18n-sync (Fase 3.3)
   const [modo, setModo] = useState('acao');
   const [coluna, setColuna] = useState(0);
   const [ataque, setAtaque] = useState(10);
@@ -2660,17 +2937,17 @@ function MotorResolucao({ lang }) {
     <div className="motor">
       <div className="motor-tabs">
         <button className={modo === 'acao' ? 'on' : ''} onClick={() => trocaModo('acao')}>
-          {isEn ? 'Action' : 'Ação'}
+          {tb.acao}
         </button>
         <button className={modo === 'resistencia' ? 'on' : ''} onClick={() => trocaModo('resistencia')}>
-          {isEn ? 'Resistance' : 'Resistência'}
+          {tb.resistencia}
         </button>
       </div>
 
       {modo === 'acao' ? (
         <div className="motor-body">
           <label className="motor-field">
-            <span>{isEn ? 'Action column (-7…50)' : 'Coluna de Ação (-7…50)'}</span>
+            <span>{tb.colunaDeAcao7}</span>
             <input type="number" value={coluna}
               onChange={(e) => setColuna(Math.max(-7, Math.min(50, parseInt(e.target.value || '0', 10) || 0)))} />
           </label>
@@ -2681,10 +2958,10 @@ function MotorResolucao({ lang }) {
               <div>
                 <div className="motor-result-nome">{isEn ? resAcao.en : resAcao.pt}</div>
                 <div className="motor-result-meta">
-                  {isEn ? 'Col' : 'Coluna'} {resAcao.coluna} · d20 {resAcao.d20} ·{' '}
-                  {resAcao.erra ? (isEn ? 'miss' : 'erra') : `${Math.round(resAcao.dano * 100)}% ${isEn ? 'dmg' : 'dano'}`}
-                  {resAcao.autodano ? (isEn ? ' · self-damage' : ' · auto-dano') : ''}
-                  {resAcao.critico ? (isEn ? ' · critical' : ' · crítico') : ''}
+                  {tb.coluna} {resAcao.coluna} · d20 {resAcao.d20} ·{' '}
+                  {resAcao.erra ? (tb.erra) : `${Math.round(resAcao.dano * 100)}% ${tb.dano3}`}
+                  {resAcao.autodano ? (tb.autoDano) : ''}
+                  {resAcao.critico ? (tb.critico2) : ''}
                 </div>
               </div>
             </div>
@@ -2694,25 +2971,25 @@ function MotorResolucao({ lang }) {
         <div className="motor-body">
           <div className="motor-row2">
             <label className="motor-field">
-              <span>{isEn ? 'Attack force (1-20)' : 'Força de Ataque (1-20)'}</span>
+              <span>{tb.forcaDeAtaque1}</span>
               <input type="number" value={ataque} onChange={(e) => setAtaque(_clamp1a20(e.target.value))} />
             </label>
             <label className="motor-field">
-              <span>{isEn ? 'Defense / Resist. (1-20)' : 'Defesa / Resist. (1-20)'}</span>
+              <span>{tb.defesaResist120}</span>
               <input type="number" value={defesa} onChange={(e) => setDefesa(_clamp1a20(e.target.value))} />
             </label>
           </div>
           <div className="motor-alvo">
-            {isEn ? 'Target on d20' : 'Alvo no d20'}: <strong>{alvoResist}</strong>{' '}
-            <span className="motor-alvo-hint">({isEn ? 'resists if d20 > target' : 'resiste se d20 > alvo'})</span>
+            {tb.alvoNoD20}: <strong>{alvoResist}</strong>{' '}
+            <span className="motor-alvo-hint">({tb.resisteSeD20Alvo})</span>
           </div>
           <Dado value={d20} onChange={setD20} lang={lang} />
           {resResist && (
             <div className={'motor-result resist-' + resResist}>
               <div className="motor-result-nome">
-                {resResist === 'empate' ? (isEn ? 'Tie — roll again' : 'Empate — role de novo')
-                  : resResist === 'resistiu' ? (isEn ? 'Resisted' : 'Resistiu')
-                  : (isEn ? 'Not resisted' : 'Não resistiu')}
+                {resResist === 'empate' ? (tb.empateRoleDeNovo)
+                  : resResist === 'resistiu' ? (tb.resistiu)
+                  : (tb.naoResistiu)}
               </div>
               <div className="motor-result-meta">
                 d20 {d20} {resResist === 'empate' ? '=' : (d20 > alvoResist ? '>' : '<')} {alvoResist}
@@ -2731,6 +3008,7 @@ function MotorResolucao({ lang }) {
 /* Magia ignora defesa: coluna = nível efetivo do conjurador.          */
 function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarTeste, onAplicarItem, onCancel, onRolagemPendenteChange }) {
   const isEn = lang === 'en';
+  const tb = tBat(lang); // i18n-sync (Fase 3.3)
 
   // Listas pré-computadas
   const armas    = useMemo(() => ataquesDoAtor(ator, catalogos), [ator, catalogos]);
@@ -2906,18 +3184,24 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const tecnicaTesteSel = tecnicas.find((t) => t.key === tecTesteKey) || null;
   const itemSelecionado = itensConsumiveisAtor.find((it) => it.slug === itemSlug) || null;
 
+  // Modificadores mecânicos de status_temp (Fase 1.1): "Suas ações tem −7"
+  // (FC branco) pega TODAS as ações do ator — arma, magia, habilidade e
+  // técnica; "defesa −5" (FC azul) reduz a defesa_valor EFETIVA do alvo
+  // (a coluna do atacante sobe). colunaAtaque segue pura — o mod entra aqui.
+  const modColunaAtor = somaEfeitosStatus(ator, 'mod_coluna');
   let coluna = null, colunaClamped = null, alvoResist = null;
   if (tab === 'arma' && arma && alvo) {
-    coluna = colunaAtaque(arma, alvo);
+    const alvoEfetivo = { ...alvo, defesa_valor: (alvo.defesa_valor || 0) + somaEfeitosStatus(alvo, 'mod_defesa') };
+    coluna = colunaAtaque(arma, alvoEfetivo) + modColunaAtor;
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'magia' && magia) {
-    coluna = magia.nivel;
+    coluna = magia.nivel + modColunaAtor;
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'habilidade' && habilidadeSel && habilidadeSel.total != null) {
-    coluna = habilidadeSel.total;
+    coluna = habilidadeSel.total + modColunaAtor;
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'tecnica_teste' && tecnicaTesteSel && tecnicaTesteSel.total != null) {
-    coluna = tecnicaTesteSel.total;
+    coluna = tecnicaTesteSel.total + modColunaAtor;
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'resistencia') {
     alvoResist = (typeof resolverResistencia === 'function')
@@ -2935,10 +3219,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const semPA = (ator.pa_rest || 0) <= 0;
 
   // Resultado primário que exige segundo dado:
-  //   q=0 (FC, verde) → crítico contra si mesmo; q=7 (A, cinza) → crítico contra o alvo.
-  // Magia e testes (habilidade/técnica/resistência) nunca entram no fluxo de
-  // crítico de ataque (esse fluxo é só arma).
-  const precisaCritico = !!(tab === 'arma' && res && (res.q === 0 || res.q === 7));
+  //   q=0 (FC, verde) → consequência contra SI MESMO (FALHA_CRITICA_TABELA,
+  //   arma E magia — a tabela tem o tipo MAGIA); q=7 (A, cinza) → crítico
+  //   contra o alvo (CRITICOS_TABELA, exclusivo de arma). Testes (habilidade/
+  //   técnica/resistência) nunca entram no fluxo de segundo dado.
+  const precisaCritico = !!(res && ((tab === 'arma' && (res.q === 0 || res.q === 7)) || (tab === 'magia' && res.q === 0)));
   const tipoCritico = res && res.q === 7 ? 'alvo' : (res && res.q === 0 ? 'self' : null);
 
   // Trava de re-roll do dado primário: a partir do momento em que existe um
@@ -2973,7 +3258,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const dadoCriticoTravado = d20Critico != null;
 
   // Tipo de crítico da tabela (CORTE/PERFURACAO/ESMAGAMENTO/DESARMADO) — lido do grupo da arma.
-  const tipoCriticoArma = (tab === 'arma' && arma) ? tipoCriticoDoGrupo(arma.grupo_sigla || arma.grupo || '') : 'DESARMADO';
+  const tipoCriticoArma = tab === 'magia' ? 'MAGIA'
+    : (tab === 'arma' && arma) ? tipoCriticoDoGrupo(arma.grupo_sigla || arma.grupo || '') : 'DESARMADO';
 
   // Zera o segundo dado se o primeiro mudar (evita estado órfão).
   const setD20ComReset = (v) => { setD20(v); setD20Critico(null); };
@@ -2983,8 +3269,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     ? resolverAcao(colunaClamped, d20Critico) : null;
 
   // Texto narrativo do crítico interpolado com os danos reais da arma.
+  // Tabela por direção do segundo dado: 'self' (q=0) pune o ATACANTE
+  // (FALHA_CRITICA_TABELA); 'alvo' (q=7) pune o OPONENTE (CRITICOS_TABELA).
+  // Magia interpola com a própria magia (danoNoTier fonte 'magia' → floor).
+  const objDanoCritico = tab === 'magia' ? magia : arma;
   const msgCritico = (resCritico && tipoCriticoArma)
-    ? interpolarCritico((CRITICOS_TABELA[tipoCriticoArma] || {})[resCritico.q], arma)
+    ? interpolarCritico(((tipoCritico === 'self' ? FALHA_CRITICA_TABELA : CRITICOS_TABELA)[tipoCriticoArma] || {})[resCritico.q], objDanoCritico)
     : null;
 
   // Pode confirmar: depende de qual tab está ativa.
@@ -3084,6 +3374,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         magia, alvo,
         coluna: colunaClamped, d20: res.d20, resultado: res, dano,
         custo_karma: custoKarma,
+        // Segundo dado de FALHA CRÍTICA (magia só entra no fluxo com q=0).
+        d20_critico: precisaCritico ? d20Critico : undefined,
+        res_critico: precisaCritico ? resCritico  : undefined,
+        tipo_critico: precisaCritico ? tipoCritico : undefined,
+        tipo_critico_arma: precisaCritico ? tipoCriticoArma : undefined,
+        msg_critico: precisaCritico ? msgCritico : undefined,
       });
     } else {
       onAplicar({
@@ -3115,48 +3411,47 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         <span className="acao-ator">{ator.nome}</span>
         <button className={'acao-tab' + (tab === 'arma' ? ' on' : '')}
           onClick={() => trocaTab('arma')} disabled={armas.length === 0 || temRolagemPendente}>
-          <i className="ti ti-sword" aria-hidden="true" />{isEn ? 'Weapon' : 'Arma'}
+          <i className="ti ti-sword" aria-hidden="true" />{tb.arma}
         </button>
         <button className={'acao-tab' + (tab === 'habilidade' ? ' on' : '')}
           onClick={() => trocaTab('habilidade')} disabled={semHab || temRolagemPendente}>
-          <i className="ti ti-list-check" aria-hidden="true" />{isEn ? 'Skill' : 'Habilidade'}
+          <i className="ti ti-list-check" aria-hidden="true" />{tb.habilidade}
         </button>
         <button className={'acao-tab' + (tab === 'tecnica_teste' ? ' on' : '')}
           onClick={() => trocaTab('tecnica_teste')} disabled={semTecTeste || temRolagemPendente}>
-          <i className="ti ti-bolt" aria-hidden="true" />{isEn ? 'Technique' : 'Técnica'}
+          <i className="ti ti-bolt" aria-hidden="true" />{tb.tecnica}
         </button>
         <button className={'acao-tab' + (tab === 'resistencia' ? ' on' : '')}
           onClick={() => trocaTab('resistencia')} disabled={temRolagemPendente}>
-          <i className="ti ti-shield-check" aria-hidden="true" />{isEn ? 'Resistance' : 'Resistência'}
+          <i className="ti ti-shield-check" aria-hidden="true" />{tb.resistencia}
         </button>
         {!semItem && (
           <button className={'acao-tab' + (tab === 'item' ? ' on' : '')}
             onClick={() => trocaTab('item')} disabled={temRolagemPendente}>
-            <i className="ti ti-bottle" aria-hidden="true" />{isEn ? 'Item' : 'Item'}
+            <i className="ti ti-bottle" aria-hidden="true" />{tb.item}
           </button>
         )}
         {podeMagia && (
           <button className={'acao-tab acao-tab-magia' + (tab === 'magia' ? ' on' : '')}
             onClick={() => trocaTab('magia')} disabled={temRolagemPendente}>
-            <i className="ti ti-sparkles" aria-hidden="true" />{isEn ? 'Spell' : 'Magia'}
+            <i className="ti ti-sparkles" aria-hidden="true" />{tb.magia}
           </button>
         )}
       </div>
 
       {(tab === 'arma' || tab === 'magia') && armas.length === 0 && !podeMagia ? (
         <p className="atacar-aviso-vazio">
-          {isEn ? 'No combat actions available for this actor.'
-                : 'Sem ações de combate disponíveis para este lutador.'}
+          {tb.semAcoesDeCombate}
         </p>
       ) : (tab === 'arma' || tab === 'magia') && alvos.length === 0 ? (
-        <p className="atacar-aviso-vazio">{isEn ? 'No valid targets.' : 'Sem alvos válidos.'}</p>
+        <p className="atacar-aviso-vazio">{tb.semAlvosValidos}</p>
       ) : (
       <>
       {tab === 'arma' && (
         <>
           <div className={tecnicasCompat.length > 0 ? 'atacar-row3' : 'atacar-row2'}>
             <SelectPill
-              label={isEn ? 'Weapon' : 'Arma'}
+              label={tb.arma}
               value={armaIdx}
               disabled={temRolagemPendente}
               onChange={(v) => { setArmaIdx(parseInt(v, 10)); setTecIdx(-1); setD20(null); }}
@@ -3166,7 +3461,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
               }))}
             />
             <SelectPill
-              label={isEn ? 'Target' : 'Alvo'}
+              label={tb.alvo}
               value={alvoIdx}
               disabled={temRolagemPendente}
               onChange={(v) => { setAlvoIdx(parseInt(v, 10)); setD20(null); }}
@@ -3177,12 +3472,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             />
             {tecnicasCompat.length > 0 && (
               <SelectPill
-                label={isEn ? 'Technique (optional)' : 'Técnica (opcional)'}
+                label={tb.tecnicaOpcional}
                 value={tecIdx}
                 disabled={temRolagemPendente}
                 onChange={(v) => setTecIdx(parseInt(v, 10))}
                 options={[
-                  { value: -1, label: isEn ? '— none —' : '— nenhuma —', labelBotao: '' },
+                  { value: -1, label: tb.nenhuma, labelBotao: '' },
                   ...tecnicasCompat.map((t, i) => ({
                     value: i,
                     label: t.nome,
@@ -3205,7 +3500,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         <>
           <div className="atacar-row2">
             <SelectPill
-              label={isEn ? 'Spell' : 'Magia'}
+              label={tb.magia}
               value={magiaIdx}
               disabled={temRolagemPendente}
               onChange={(v) => { setMagiaIdx(parseInt(v, 10)); setD20(null); }}
@@ -3215,7 +3510,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
               }))}
             />
             <SelectPill
-              label={isEn ? 'Target' : 'Alvo'}
+              label={tb.alvo}
               value={alvoIdx}
               disabled={temRolagemPendente}
               onChange={(v) => { setAlvoIdx(parseInt(v, 10)); setD20(null); }}
@@ -3229,7 +3524,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 
           {semKarma && (
             <span className="acao-karma-warn">
-              {isEn ? 'Not enough karma' : 'Karma insuficiente'}
+              {tb.karmaInsuficiente}
             </span>
           )}
         </>
@@ -3239,12 +3534,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
       {tab === 'habilidade' && (
         semHab ? (
           <p className="atacar-aviso-vazio">
-            {isEn ? 'This fighter has no skills.' : 'Este lutador não tem habilidades.'}
+            {tb.esteLutadorNaoTem}
           </p>
         ) : (
           <>
             <SelectPill
-              label={isEn ? 'Skill' : 'Habilidade'}
+              label={tb.habilidade}
               value={habKey || ''}
               disabled={temRolagemPendente}
               onChange={(v) => { setHabKey(v); setD20(null); }}
@@ -3264,12 +3559,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
       {tab === 'tecnica_teste' && (
         semTecTeste ? (
           <p className="atacar-aviso-vazio">
-            {isEn ? 'This fighter has no techniques.' : 'Este lutador não tem técnicas.'}
+            {tb.esteLutadorNaoTem2}
           </p>
         ) : (
           <>
             <SelectPill
-              label={isEn ? 'Technique' : 'Técnica'}
+              label={tb.tecnica}
               value={tecTesteKey || ''}
               disabled={temRolagemPendente}
               onChange={(v) => { setTecTesteKey(v); setD20(null); }}
@@ -3305,16 +3600,16 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           </div>
           <div className="atacar-row2">
             <label className="motor-field">
-              <span>{isEn ? 'Attack force' : 'Força de Ataque'}</span>
+              <span>{tb.forcaDeAtaque}</span>
               <input type="number" min="1" max="20" value={forcaAtaque} disabled={temRolagemPendente}
                 className="round"
                 onChange={(e) => { setForcaAtaque(_clamp1a20(e.target.value)); setD20(null); }} />
             </label>
             <label className="motor-field">
               <span>
-                {isEn ? 'Defense force' : 'Força de Defesa'}
+                {tb.forcaDeDefesa}
                 <em className="atacar-resist-label">
-                  ({resTipo.toUpperCase()}{isPJ ? ` · ${isEn ? 'auto' : 'auto'}` : ''})
+                  ({resTipo.toUpperCase()}{isPJ ? ` · ${tb.auto}` : ''})
                 </em>
               </span>
               <input type="number" min="1" max="20" value={forcaDefesa} disabled={isPJ || temRolagemPendente}
@@ -3329,13 +3624,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         <>
           {itensConsumiveisAtor.length === 0 ? (
             <p className="atacar-aviso-vazio">
-              {isEn ? 'No consumable items in inventory.' : 'Sem itens consumíveis no inventário.'}
+              {tb.semItensConsumiveisNo}
             </p>
           ) : (
             <>
               <div className="atacar-row2">
                 <SelectPill
-                  label={isEn ? 'Item' : 'Item'}
+                  label={tb.item}
                   value={itemSlug}
                   onChange={(v) => { setItemSlug(v); setItemQtd(1); }}
                   options={itensConsumiveisAtor.map((it) => ({
@@ -3344,7 +3639,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                   }))}
                 />
                 <QuantityStepper
-                  label={isEn ? 'Quantity' : 'Quantidade'}
+                  label={tb.quantidade}
                   value={itemQtd}
                   min={1}
                   max={itemSelecionado ? itemSelecionado.quantidade : 1}
@@ -3357,14 +3652,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                   {[itemSelecionado.cat.efeito_positivo, itemSelecionado.cat.efeito_negativo].filter(Boolean).join(' · ')}
                   {itemQtd > 1 && (
                     <span className="item-qtd-dim">
-                      {' '}({isEn ? `×${itemQtd}, applied together` : `×${itemQtd}, aplicado junto`})
+                      {' '}({interpolate(tb.aplicadoJunto, { qtd: itemQtd })})
                     </span>
                   )}
                 </div>
               )}
               {itemSelecionado && !itemSelecionado.cat.efeito_positivo && !itemSelecionado.cat.efeito_negativo && (
                 <p className="atacar-aviso-vazio com-margem">
-                  {isEn ? 'No mechanical effect — consumes the item only.' : 'Sem efeito mecânico — só consome o item.'}
+                  {tb.semEfeitoMecanicoSo}
                 </p>
               )}
             </>
@@ -3378,8 +3673,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           <div className="motor-critico-aviso"
             style={{ borderLeftColor: tipoCritico === 'alvo' ? '#808080' : '#10b020' }}>
             {tipoCritico === 'alvo'
-              ? (isEn ? '⚠ Absurd — roll again for critical effect on target.' : '⚠ Absurdo — role novamente para o efeito crítico no alvo.')
-              : (isEn ? '⚠ Critical Failure — roll again for self-damage effect.' : '⚠ Falha Crítica — role novamente para o efeito em si mesmo.')}
+              ? (tb.absurdoRoleNovamentePara)
+              : (tb.falhaCriticaRoleNovamente)}
           </div>
           <button className="btn-ghost btn-sm btn-critico-rolar"
             disabled={dadoCriticoTravado}
@@ -3387,7 +3682,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             <i className="ti ti-cube" aria-hidden="true" />
             {d20Critico != null
               ? `d20: ${d20Critico}`
-              : (isEn ? 'Roll critical d20' : 'Rolar d20 de crítico')}
+              : (tb.rolarD20DeCritico)}
           </button>
           {resCritico && (
             <span className="dado-ov-trigger-chip"
@@ -3408,12 +3703,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             : tab === 'magia' ? `${magia ? magia.nome : '?'} → ${alvo ? alvo.nome : '?'}`
             : tab === 'habilidade' ? `${habilidadeSel ? habilidadeSel.nome : '?'}`
             : tab === 'tecnica_teste' ? `${tecnicaTesteSel ? tecnicaTesteSel.nome : '?'}`
-            : `${resTipo === 'rf' ? (isEn ? 'Physical Resistance' : 'Resistência Física') : (isEn ? 'Magic Resistance' : 'Resistência Mágica')}`
+            : `${resTipo === 'rf' ? (tb.resistenciaFisica) : (tb.resistenciaMagica)}`
           }
           subtitulo={
             tab === 'resistencia'
-              ? `${isEn ? 'Attack force' : 'Força de Ataque'}: ${forcaAtaque}`
-              : `${isEn ? 'Action column' : 'Coluna de Ação'}: ${colunaClamped}`
+              ? `${tb.forcaDeAtaque}: ${forcaAtaque}`
+              : `${tb.colunaDeAcao}: ${colunaClamped}`
           }
           coluna={tab === 'resistencia' ? null : colunaClamped}
           alvoResist={tab === 'resistencia' ? alvoResist : null}
@@ -3431,9 +3726,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
       {overlayAberto === 'critico' && colunaClamped != null && (
         <DadoOverlay
           titulo={tipoCritico === 'alvo'
-            ? (isEn ? 'Critical — target' : 'Crítico — alvo')
-            : (isEn ? 'Critical Failure — self' : 'Falha Crítica — si mesmo')}
-          subtitulo={`${isEn ? 'Action column' : 'Coluna de Ação'}: ${colunaClamped}`}
+            ? (tb.criticoAlvo)
+            : (tb.falhaCriticaSiMesmo)}
+          subtitulo={`${tb.colunaDeAcao}: ${colunaClamped}`}
           coluna={colunaClamped}
           lang={lang}
           isCritico
@@ -3451,7 +3746,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 
       {semPA && (
         <div className="acao-karma-line">
-          <strong className="neg">{isEn ? 'No AP left' : 'Sem PA disponível'}</strong>
+          <strong className="neg">{tb.semPaDisponivel}</strong>
         </div>
       )}
 
@@ -3471,22 +3766,22 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
               }>
               <i className="ti ti-cube" aria-hidden="true" />
               {d20 != null
-                ? (empateResist ? (isEn ? 'Roll again' : 'Rolar de novo') : `d20: ${d20}`)
-                : (isEn ? 'Roll d20' : 'Rolar d20')}
+                ? (empateResist ? (tb.rolarDeNovo) : `d20: ${d20}`)
+                : (tb.rolarD20)}
             </button>
             {tab !== 'resistencia' && res && (
               <span className="dado-ov-trigger-chip" style={{ color: res.cor, borderColor: res.cor }}>
                 {isEn ? res.en : res.pt}
-                {!res.erra && (tab === 'arma' || tab === 'magia') && ` · ${dano} ${isEn ? 'dmg' : 'dano'}`}
+                {!res.erra && (tab === 'arma' || tab === 'magia') && ` · ${dano} ${tb.dano3}`}
               </span>
             )}
             {tab === 'resistencia' && resResist && (
               <span className={'dado-ov-trigger-chip resist-' + resResist}
                 style={{ color: resResist === 'resistiu' ? '#a4cf85' : resResist === 'empate' ? 'var(--gold)' : '#d98a7a',
                          borderColor: 'currentColor' }}>
-                {resResist === 'empate'    ? (isEn ? 'Tie — re-roll' : 'Empate — role de novo')
-                 : resResist === 'resistiu' ? (isEn ? 'Resisted'     : 'Resistiu')
-                                            : (isEn ? 'Not resisted' : 'Não resistiu')}
+                {resResist === 'empate'    ? (tb.empateRoleDeNovo2)
+                 : resResist === 'resistiu' ? (tb.resistiu)
+                                            : (tb.naoResistiu)}
               </span>
             )}
           </div>
@@ -3495,31 +3790,25 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         {temRolagemPendente ? (
           <span className="acao-travado-aviso">
             {empateResist
-              ? (isEn ? 'Tie — roll the d20 again.' : 'Empate — role o d20 de novo.')
-              : isEn
-              ? 'Already rolled — continue to confirm.'
+              ? (tb.empateRoleOD20)
               : (() => {
-                  const v = tab === 'arma' || tab === 'magia' ? 'Atacar'
-                          : tab === 'resistencia' ? 'Resistir'
-                          : 'Usar';
-                  return `Já rolou — continue em ${v}.`;
+                  // i18n-sync (Fase 3.3): o EN não cita o verbo; o {v} some na
+                  // interpolação porque a string en não tem o placeholder.
+                  const v = tab === 'arma' || tab === 'magia' ? tb.verboAtacar
+                          : tab === 'resistencia' ? tb.verboResistir
+                          : tb.verboUsar;
+                  return interpolate(tb.jaRolouContinueEm, { v });
                 })()}
           </span>
         ) : (
-          <button className="btn-ghost btn-sm" onClick={onCancel}>{isEn ? 'Cancel' : 'Cancelar'}</button>
+          <button className="btn-ghost btn-sm" onClick={onCancel}>{tb.cancelar}</button>
         )}
         <button className="btn-primary btn-sm" disabled={!podeAplicar} onClick={aplicar}>
           {(() => {
             const sufKa = custoKarma > 0 ? ` · ${custoKarma} KA` : '';
-            if (isEn) {
-              const v = tab === 'arma' || tab === 'magia' ? 'Attack'
-                      : tab === 'resistencia' ? 'Resist'
-                      : 'Use';
-              return `${v} (1 PA${sufKa})`;
-            }
-            const v = tab === 'arma' || tab === 'magia' ? 'Atacar'
-                    : tab === 'resistencia' ? 'Resistir'
-                    : 'Usar';
+            const v = tab === 'arma' || tab === 'magia' ? tb.verboAtacar
+                    : tab === 'resistencia' ? tb.verboResistir
+                    : tb.verboUsar;
             return `${v} (1 PA${sufKa})`;
           })()}
         </button>
@@ -3553,6 +3842,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
    ============================================================================= */
 function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const isEn = lang === 'en';
+  const tb = tBat(lang); // i18n-sync (Fase 3.3)
   const [catalogos, setCatalogos] = useState(null);
   const [acaoOpen, setAcaoOpen] = useState(false);
   const [rolagemPendente, setRolagemPendente] = useState(false);
@@ -3566,6 +3856,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const current = participantes.find((p) => p.atual) || null;
   const ehMinhaVez = !!(current && meuParticipante && mesmoParticipante(current, meuParticipante));
   const souAtivo = !!(meuParticipante && (meuParticipante.status || 'ativo') === 'ativo');
+  // FC "caído por N rodadas" (sem_acoes): mecanicamente igual a incapaz — a vez
+  // passa sozinha; o status expira no decremento de Nova Rodada do Mestre.
+  const podeAgir = souAtivo && !statusTemEfeito(meuParticipante, 'sem_acoes');
 
   // Auto-passe: quando o personagem incapaz (morto/desmaiado/desistiu) tem
   // atual: true, passa a vez automaticamente para não travar a batalha.
@@ -3573,7 +3866,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // mas persistJogador só deve rodar depois que o catálogo chegou).
   const autoPassRef = React.useRef(false);
   useEffect(() => {
-    if (!ehMinhaVez || souAtivo || !current || !catalogos) {
+    if (!ehMinhaVez || podeAgir || !current || !catalogos) {
       autoPassRef.current = false; // reset quando a condição some
       return;
     }
@@ -3583,7 +3876,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const t = setTimeout(() => { handlePassar(); }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line
-  }, [ehMinhaVez, souAtivo, current?.inst_id, !!catalogos]);
+  }, [ehMinhaVez, podeAgir, current?.inst_id, !!catalogos]);
 
   // Catálogos p/ o AcaoPanel. RLS: o jogador só lê o PRÓPRIO PJ em `personagens`
   // (por isso .eq('id', pjAtivoId)); itens/magias/tecnicas/habilidades/criaturas
@@ -3627,7 +3920,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     });
     setSalvando(false);
     if (error || (data && data.ok === false)) {
-      const motivo = (data && data.motivo) || (error && error.message) || (isEn ? 'Failed to save' : 'Falha ao salvar');
+      const motivo = (data && data.motivo) || (error && error.message) || (tb.falhaAoSalvar);
       setErro(motivo);
       return false;
     }
@@ -3643,7 +3936,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (idx < 0) return arr;
     const a = arr[idx];
     const incapaz = a.status === 'morto' || a.status === 'desmaiado' || a.status === 'desistiu';
-    if (a.atual && (a.pa_rest === 0 || incapaz)) {
+    if (a.atual && (a.pa_rest === 0 || incapaz || statusTemEfeito(a, 'sem_acoes'))) {
       const prox = proximoAtivo(arr, a.ordem);
       return arr.map((p) => ({ ...p, atual: !!(prox && mesmoParticipante(p, prox)) }));
     }
@@ -3668,7 +3961,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     }
     const k = Math.max(0, custo_karma || 0);
     next[atorIdx] = { ...next[atorIdx], pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1), karma: Math.max(0, (next[atorIdx].karma || 0) - k) };
-    // Se o ATOR zerou PA ou ficou incapaz, passa a vez também
+    // Falha Crítica (q=0): consequência no PRÓPRIO atacante — espelha o Mestre (Fase 1.1).
+    let danoSelf = 0;
+    if (tipo_critico === 'self' && res_critico) {
+      const fc = aplicarFalhaCritica(next[atorIdx], tipo === 'magia' ? magia : arma, res_critico.q);
+      next[atorIdx] = fc.participante;
+      danoSelf = fc.dano;
+    }
+    // Se o ATOR zerou PA, ficou incapaz OU está sem ações (FC caído), passa a vez também
     next = autoPassarSeNecessario(next, next[atorIdx]);
 
     const nomeAcao = tipo === 'magia' ? (magia && magia.nome) : (arma && arma.nome);
@@ -3682,6 +3982,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       dano, critico,
       ...(tipo_critico ? {
         d20_critico, critico_tipo: tipo_critico, critico_arma_tipo: tipo_critico_arma,
+        dano_self: danoSelf || undefined,
         critico_resultado: res_critico ? res_critico.codigo : null,
         critico_resultado_nome: res_critico ? res_critico.pt : null,
         critico_q: res_critico ? res_critico.q : null, critico_msg: msg_critico || null,
@@ -3699,6 +4000,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         texto = `${meuParticipante.nome} conjurou ${nomeAcao} em ${alvo.nome}`;
         if (resultadoNome) texto += ` → ${resultadoNome}`;
         if (dano > 0)      texto += ` (${dano} de dano)`;
+        if (msg_critico)   texto += `. ${msg_critico}`;
       } else {
         texto = `${meuParticipante.nome} atacou ${alvo.nome} com ${nomeAcao || 'arma'}`;
         if (resultadoNome) texto += ` → ${resultadoNome}`;
@@ -3866,12 +4168,29 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       const next = participantes.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
       persistJogador({ participantes: next });
     } else {
-      // deu a volta → nova rodada (reset PA dos ativos + reordena por VB)
-      const reset = participantes.map((p) => (p.status === 'ativo') ? { ...p, pa_rest: p.pa_max } : { ...p });
-      const reordered = ordenarIniciativa(reset);
-      const primeiro = [...reordered].sort((a, b) => a.ordem - b.ordem).find((p) => p.status === 'ativo');
-      const next = reordered.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) }));
-      persistJogador({ participantes: next, rodada: rodada + 1 });
+      // deu a volta → nova rodada — MESMA virada consolidada do Mestre
+      // (Fase 1.2): dano por rodada + decremento + iniciativa efetiva.
+      // (Antes esta cópia nem decrementava status_temp — inconsistência corrigida.)
+      const { participantes: next, eventos } = montarNovaRodada(participantes);
+      const novaR = rodada + 1;
+      let novoLog = log;
+      if (eventos.length) {
+        const texto = eventos
+          .map((e) => `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`)
+          .join('; ');
+        novoLog = [...log, { rodada: novaR, ts: Date.now(), acao: 'sistema', texto }];
+        if (historiaId) {
+          supabaseClient.rpc('registrar_evento_mesa', {
+            p_historia_id: historiaId,
+            p_tipo: 'sistema',
+            p_texto: `Rodada ${novaR}: ${texto}`,
+            p_meta: { batalha_id: batalha.id, rodada: novaR, dano_por_rodada: eventos },
+          }).then(({ error: rpcErr }) => {
+            if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (rodada) falhou:', rpcErr);
+          });
+        }
+      }
+      persistJogador({ participantes: next, log: novoLog, rodada: novaR });
     }
   };
 
@@ -3917,9 +4236,11 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
 
   const nomeStatus = (s) => {
     const st = s || 'ativo';
-    const map = isEn
-      ? { ativo: 'Active', passou: 'Passed', desmaiado: 'Downed', morto: 'Dead', desistiu: 'Withdrew' }
-      : { ativo: 'Ativo', passou: 'Passou', desmaiado: 'Desmaiado', morto: 'Morto', desistiu: 'Desistiu' };
+    // i18n-sync (Fase 3.3): rótulos de status via COPY[lang].batalha
+    const map = {
+      ativo: tb.statusAtivo, passou: tb.statusPassou, desmaiado: tb.statusDesmaiado,
+      morto: tb.statusMorto, desistiu: tb.statusDesistiu,
+    };
     return map[st] || st;
   };
 
@@ -3927,31 +4248,31 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     <div className="menestrel-ui batalha-jog-root">
       <header className="ms-header batalha-mng-page-header">
         <button type="button" className="btn-icon btn-sm" onClick={onVoltar}
-          aria-label={isEn ? 'Back to sheet' : 'Voltar à ficha'}>
+          aria-label={tb.voltarAFicha}>
           <i className="ti ti-arrow-left" />
         </button>
         <div className="batalha-header-title-wrap">
           <div className="batalha-mng-page-eyebrow">
             <i className="ti ti-swords" aria-hidden="true" />
-            {isEn ? 'Battle' : 'Batalha'} · {isEn ? 'Round' : 'Rodada'} {rodada}
+            {tb.batalha} · {tb.rodada} {rodada}
           </div>
           <h2 className="ms-title">
-            {meuParticipante ? meuParticipante.nome : (isEn ? 'Battle' : 'Batalha')}
+            {meuParticipante ? meuParticipante.nome : (tb.batalha)}
           </h2>
         </div>
         {ehMinhaVez && souAtivo && !acaoOpen && (
           <div className="batalha-header-acoes">
             <button type="button" className="btn-primary btn-sm" disabled={salvando} onClick={() => setAcaoOpen(true)}>
               <i className="ti ti-swords btn-ic-mr" aria-hidden="true" />
-              {isEn ? 'Action' : 'Ação'}
+              {tb.acao}
             </button>
             <button type="button" className="btn-ghost btn-sm" disabled={salvando} onClick={handlePassar}>
               <i className="ti ti-player-skip-forward btn-ic-mr" aria-hidden="true" />
-              {isEn ? 'Pass' : 'Passar'}
+              {tb.passar}
             </button>
             <button type="button" className="btn-ghost btn-sm btn-desistir" disabled={salvando} onClick={handleDesistir}>
               <i className="ti ti-flag btn-ic-mr" aria-hidden="true" />
-              {isEn ? 'Withdraw' : 'Encerrar'}
+              {tb.encerrar2}
             </button>
           </div>
         )}
@@ -3960,7 +4281,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       <div className="batalha-jog-body">
         {!catalogos ? (
           <div className="batalha-loading-msg">
-            {isEn ? 'Loading battle…' : 'Carregando batalha…'}
+            {tb.carregandoBatalha}
           </div>
         ) : (
           <>
@@ -3968,21 +4289,19 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
             {!ehMinhaVez && current && (
               <div className="batalha-vez-msg">
                 <i className="ti ti-clock btn-ic-mr" aria-hidden="true" style={{ color: '#C9A44E' }} />
-                {isEn ? `It's ${current.nome}'s turn` : `É a vez de ${current.nome}`}
+                {interpolate(tb.eAVezDe, { nome: current.nome })}
               </div>
             )}
             {ehMinhaVez && souAtivo && (
               <div className="batalha-vez-msg minha-vez">
                 <i className="ti ti-player-play btn-ic-mr" aria-hidden="true" style={{ color: '#C9A44E' }} />
-                {isEn ? "It's your turn" : 'É a sua vez'}
+                {tb.eASuaVez}
               </div>
             )}
             {ehMinhaVez && !souAtivo && meuParticipante && (
               <div className="batalha-vez-msg">
                 <i className="ti ti-clock btn-ic-mr" aria-hidden="true" style={{ color: '#C9A44E' }} />
-                {isEn
-                  ? `Your status: ${nomeStatus(meuParticipante.status)} — passing turn…`
-                  : `Seu status: ${nomeStatus(meuParticipante.status)} — passando a vez…`}
+                {interpolate(tb.seuStatusPassando, { status: nomeStatus(meuParticipante.status) })}
               </div>
             )}
 
@@ -4023,12 +4342,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                             {(p.status || 'ativo') === 'morto'     && <i className="ti ti-skull" />}
                           </span>
                           <span className={'batalha-fighter-nome' + (ehEu ? ' eu' : '')}>
-                            {(p.nome || '').split(' ')[0]}{ehEu ? (isEn ? ' (you)' : ' (você)') : ''}
+                            {(p.nome || '').split(' ')[0]}{ehEu ? (tb.voce) : ''}
                           </span>
                         </div>
                         <div className="batalha-fighter-stats">
                           <span className="batalha-stat"><span>VB</span><b>{p.vb || 0}</b></span>
-                          <span className="batalha-stat"><span>{isEn ? 'AP' : 'PA'}</span><b>{p.pa_rest || 0}/{p.pa_max || 0}</b></span>
+                          <span className="batalha-stat"><span>{tb.pa}</span><b>{p.pa_rest || 0}/{p.pa_max || 0}</b></span>
                           {!ehEu && <span className="batalha-stat dim"><span>{nomeStatus(p.status)}</span></span>}
                         </div>
                       </div>
@@ -4049,7 +4368,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
             {/* Fora da vez / status não-ativo → sem controles, só o status */}
             {(!souAtivo && meuParticipante) && (
               <div className="batalha-status-inativo">
-                {isEn ? `Your status: ${nomeStatus(meuParticipante.status)}` : `Seu status: ${nomeStatus(meuParticipante.status)}`}
+                {interpolate(tb.seuStatus, { status: nomeStatus(meuParticipante.status) })}
               </div>
             )}
           </>
@@ -4060,4 +4379,26 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
 }
 
 
-Object.assign(window, { BatalhasHistoriaView, BatalhaJogadorView });
+// MotorBatalha: funções PURAS do motor expostas pra testes (Vitest) — não usar na UI de outras fases.
+// ── i18n-sync (Fase 3.3, 07/2026) ─────────────────────────────────
+// Strings da UI de batalha vêm de COPY[lang].batalha (padrão 05-convites).
+// FORA do i18n por decisão: CRITICOS_TABELA, FALHA_CRITICA_TABELA e os nomes
+// de status do FC_EFEITOS — são CONTEÚDO de jogo da camada pura (testada),
+// PT-only como o catálogo. Fallback pt cobre COPY ausente (testes Vitest).
+function tBat(lang) {
+  return (((typeof COPY !== 'undefined' && (COPY[lang] || COPY.pt)) || {}).batalha) || {};
+}
+
+Object.assign(window, {
+  BatalhasHistoriaView, BatalhaJogadorView,
+  MotorBatalha: {
+    EF_MORTE, pontosAcaoPJ, aplicarDanoCascata, ordenarIniciativa,
+    colunaAtaque, danoNoTier, interpolarCritico, CRITICOS_TABELA,
+    // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
+    FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
+    somaEfeitosStatus, statusTemEfeito, vbEfetivo,
+    decrementarStatusTemp, ordenarIniciativaEfetiva,
+    // Fase 1.2 — dano por rodada (Envenenado) + virada de rodada consolidada
+    aplicarDanoDiretoEF, processarDanoPorRodada, processarViradaDeRodada, montarNovaRodada,
+  },
+});

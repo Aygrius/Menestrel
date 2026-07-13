@@ -19,9 +19,10 @@
 const { useState, useEffect, useMemo, useRef } = React;
 
 // Ano 0, Mês 1, Dia 1 = Moldio (índice 3).
-// Cada ano tem 360 dias (calendário fantasy sem bissexto).
+// Cada ano tem 361 dias: 12 meses de 30 dias + 1 Dia de Cruine (mês 13).
+// Âncora: (ano*361 + diasAcumuladosAtéMes + dia-1 + 3) % 7
 function calcDiaSemanaFantasy(ano, mes, dia) {
-  let total = ano * 360;
+  let total = ano * 361;
   for (let m = 1; m < mes; m++) total += FANTASY_MONTHS[m - 1].dias;
   total += (dia - 1);
   return FANTASY_WEEKDAYS[(total + 3) % 7];
