@@ -771,7 +771,14 @@ async function montarSnapshots(parts, personagensPools) {
       ar: c.absorcao || 0,        ar_max: c.absorcao || 0,
       ef: c.energia_fisica || 0,  ef_max: c.energia_fisica || 0,
       karma: 0, karma_max: 0,
-      defesa_sigla: c.tipo_armadura || 'L',
+      // Sigla de defesa: `criaturas.armadura` (L/M/P) — é o campo que o
+      // formulário de criatura grava ("Tipo de Armadura", 13-diario) e que a
+      // ficha da criatura exibe fundido com a defesa ("M4"). NÃO usar
+      // `tipo_armadura`: essa coluna existe na tabela mas está NULL em todas
+      // as 207 criaturas (é o nome do campo equivalente em `itens`) — lê-la
+      // fazia TODA criatura defender como Leve, e o atacante caía na coluna L
+      // em vez da M/P do alvo (89 das 207 criaturas são M ou P).
+      defesa_sigla: siglaArmadura(c.armadura),
       defesa_valor: c.defesa || 0,
       rf: c.resistencia_fisica || 0,
       rm: c.resistencia_magica || 0,
@@ -1071,6 +1078,16 @@ function ataquesDoAtor(ator, catalogos) {
     dano_25: c.dano_25, dano_50: c.dano_50, dano_75: c.dano_75, dano_100: c.dano_100,
     bonus_ga: 0, fonte: 'criatura',
   }];
+}
+
+/* ── Sigla de armadura normalizada (L/M/P) ──────────────────────────────────
+   Aceita o que o banco tiver e devolve sempre uma sigla que `colunaAtaque`
+   entende. 'T' (couro/tecido de armaduras antigas do catálogo de itens) é
+   preservado — colunaAtaque já o trata como L, mesma regra do parser da
+   defesa do PJ (/^([TLMP])(-?\d+)$/). Qualquer outra coisa vira 'L'. */
+function siglaArmadura(valor) {
+  const s = String(valor || '').trim().toUpperCase();
+  return (s === 'M' || s === 'P' || s === 'T') ? s : 'L';
 }
 
 /* ── Coluna de Ação do ataque: dano_categoria_alvo + bônus − valor_defesa ──── */
@@ -4391,9 +4408,14 @@ function tBat(lang) {
 
 Object.assign(window, {
   BatalhasHistoriaView, BatalhaJogadorView,
+  // montarSnapshots NÃO entra em MotorBatalha: é async e lê o banco, enquanto
+  // MotorBatalha é contrato de funções puras. Exposta à parte pro teste de
+  // integração snapshot-criatura.test.js, que troca o stub de supabaseClient.
+  montarSnapshots,
   MotorBatalha: {
     EF_MORTE, pontosAcaoPJ, aplicarDanoCascata, ordenarIniciativa,
     colunaAtaque, danoNoTier, interpolarCritico, CRITICOS_TABELA,
+    siglaArmadura,
     // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
     somaEfeitosStatus, statusTemEfeito, vbEfetivo,

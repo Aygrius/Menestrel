@@ -134,6 +134,32 @@ describe('colunaAtaque', () => {
   });
 });
 
+/* ─────────────────────────── siglaArmadura ───────────────────────── */
+describe('siglaArmadura', () => {
+  it('preserva L/M/P', () => {
+    expect(M.siglaArmadura('L')).toBe('L');
+    expect(M.siglaArmadura('M')).toBe('M');
+    expect(M.siglaArmadura('P')).toBe('P');
+  });
+
+  it("preserva 'T' (armaduras antigas do catálogo — colunaAtaque trata como L)", () => {
+    expect(M.siglaArmadura('T')).toBe('T');
+    expect(M.colunaAtaque({ dano_l: 5, bonus_ga: 0 }, { defesa_sigla: M.siglaArmadura('T'), defesa_valor: 0 })).toBe(5);
+  });
+
+  it('normaliza caixa e espaços', () => {
+    expect(M.siglaArmadura(' m ')).toBe('M');
+    expect(M.siglaArmadura('p')).toBe('P');
+  });
+
+  it('null/vazio/lixo caem em L', () => {
+    expect(M.siglaArmadura(null)).toBe('L');
+    expect(M.siglaArmadura(undefined)).toBe('L');
+    expect(M.siglaArmadura('')).toBe('L');
+    expect(M.siglaArmadura('Média')).toBe('L');
+  });
+});
+
 /* ──────────────────────────── danoNoTier ─────────────────────────── */
 describe('danoNoTier', () => {
   it('FC, R, código nulo e arma nula → 0', () => {
