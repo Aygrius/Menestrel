@@ -302,6 +302,19 @@ function peso(raca, genero) {
   return Math.floor(h * h * fator);
 }
 
+// RF/RM base — RF = estágio + físico, RM = estágio + aura, piso 0.
+// COMPARTILHADA entre PJ (calcularFicha, abaixo) e criatura
+// (12-batalha/montarSnapshots): a tabela `criaturas` não tem colunas de
+// resistência, então o snapshot de combate deriva com esta mesma conta a
+// partir de estagio/fisico/aura, que toda criatura tem preenchidos.
+// Recebe os atributos JÁ ajustados (negativos contam como 0 no PJ).
+function resistenciasBase(estagio, fisico, aura) {
+  return {
+    rf: Math.max(0, (estagio || 0) + (fisico || 0)),
+    rm: Math.max(0, (estagio || 0) + (aura   || 0)),
+  };
+}
+
 // Calcula a ficha completa a partir dos campos editáveis.
 // Para os derivados, atributos negativos contam como 0 (não altera `atributos`).
 // condicoesAtuais (opcional): pj.estado_atual?.condicoes. Quando informado,
@@ -375,10 +388,9 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais) {
       ? Math.floor((profData.ehBase || 0) * 1.1)
       : (profData.ehBase || 0);
   const eh = Math.max(0, (percepcaoC) + ehBaseMod * estagio);
-  // RF — estágio + atributo físico
-  const resFisica = Math.max(0, estagio + fisicoC);
-  // RM — estágio + atributo aura
-  const resMagica = Math.max(0, estagio + auraC);
+  // RF/RM — ver resistenciasBase (mesma fórmula usada pelas criaturas em
+  // 12-batalha/montarSnapshots; não duplicar a conta aqui).
+  const { rf: resFisica, rm: resMagica } = resistenciasBase(estagio, fisicoC, auraC);
   // KA — (RM + 1) × (aura + 1). Sem karma se aura < 1.
   const karma = atributos.aura < 1 ? 0 : Math.max(0, (resMagica + 1) * (auraC + 1));
   // VB — (11 × altura) + agilidade
@@ -913,7 +925,7 @@ Object.assign(window, {
   pontosGruposArmasTotal, gastoGruposArmas, qtdGruposArmas, bonusGrupoArma,
   idiomasIniciais, slotsAprimoramento, opcoesAprimoramento,
   RESULTADOS_ACAO, RESOLUCAO_ROWS, ACAO_COL_MIN, ACAO_COL_MAX,
-  resolverAcao, resolverResistencia,
+  resolverAcao, resolverResistencia, resistenciasBase,
   pontosCaracterizacaoTotal, gastoCaracterizacao,
   PONTOS_CARACTERIZACAO_BASE, CUSTO_CARACTERIZACAO, GANHO_CARACTERIZACAO,
 });

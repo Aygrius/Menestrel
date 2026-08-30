@@ -14,6 +14,11 @@
    e o atacante caía na coluna L — 89 das 207 criaturas são M ou P.
    ============================================================ */
 import { describe, it, expect, afterEach } from 'vitest';
+// Mesma ordem de src/main.tsx: montarSnapshots usa globais de 01-core
+// (calcularFicha, pontosAcaoPJ, resistenciasBase).
+import '../01-core/helpers.jsx';
+import '../01-core/inventario-helpers.jsx';
+import '../01-core/game-data.jsx';
 import './batalha.jsx';
 
 const stubOriginal = globalThis.supabaseClient;

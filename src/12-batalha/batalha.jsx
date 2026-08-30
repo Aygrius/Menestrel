@@ -763,6 +763,12 @@ async function montarSnapshots(parts, personagensPools) {
     }
     const c = criById[p.ref_id];
     if (!c) return { ...p, vb: 0, pa_max: 1, pa_rest: 1, eh: 0, eh_max: 0, ar: 0, ar_max: 0, ef: 0, ef_max: 0, karma: 0, karma_max: 0, defesa_sigla: 'L', defesa_valor: 0, rf: 0, rm: 0, status: 'ativo', ausente: true };
+    // RF/RM DERIVADOS, não lidos da linha: a tabela `criaturas` não tem colunas
+    // de resistência (`resistencia_fisica`/`resistencia_magica` nem existem — o
+    // SELECT falha com 42703), então o `|| 0` de antes deixava TODA criatura com
+    // RF 0 e RM 0 no card do lutador. Mesma resistenciasBase do PJ
+    // (01-core/game-data.jsx) sobre estagio/fisico/aura, preenchidos nas 207.
+    const resist = resistenciasBase(c.estagio, c.fisico, c.aura);
     return {
       tipo: 'criatura', ref_id: p.ref_id, nome: p.nome,
       inst_id: p.inst_id,   // garantido por partsComInstId acima
@@ -780,8 +786,8 @@ async function montarSnapshots(parts, personagensPools) {
       // em vez da M/P do alvo (89 das 207 criaturas são M ou P).
       defesa_sigla: siglaArmadura(c.armadura),
       defesa_valor: c.defesa || 0,
-      rf: c.resistencia_fisica || 0,
-      rm: c.resistencia_magica || 0,
+      rf: resist.rf,
+      rm: resist.rm,
       status: 'ativo',
       status_temp: [],
     };
