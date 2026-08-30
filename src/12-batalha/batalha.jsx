@@ -1039,12 +1039,18 @@ function ataquesDoAtor(ator, catalogos) {
     }
     // ESPELHO DA FICHA (Arsenal, 11-ficha/ficha.jsx — regra confirmada com o
     // usuário: "na batalha, os valores devem respeitar o que aparece na ficha"):
-    //   L/M/P efetivos = base + Agilidade (o bônus de grupo continua separado
-    //     em bonus_ga, somado por colunaAtaque — total idêntico ao da Ficha);
+    //   L/M/P efetivos = o que gerarAtaques já devolve (catálogo + o atributo
+    //     de `ajuste_atributo` da arma), passado adiante SEM MEXER; o bônus de
+    //     grupo fica separado em bonus_ga e é somado por colunaAtaque — total
+    //     idêntico ao `ap(v) = v + bonusGA` que a Ficha exibe;
     //   dano base dos tiers = dano100 da Ficha = dano da arma + Força +
     //     Bônus manual do Mestre (estado_atual.bonusArmas[slug], clamp 0..9).
-    // Sem isto a batalha usava números MENORES do que a Ficha mostra.
-    const agil  = (ficha.atributos && ficha.atributos.agilidade) || 0;
+    //
+    // NÃO somar Agilidade aqui: gerarAtaques (01-core/inventario-helpers) JÁ
+    // aplicou o atributo de ajuste da arma em dano_l/m/p. Somar de novo
+    // inflava toda coluna em +AGI acima da Ficha — e em arma de ajuste
+    // PER/FOR (28 das 75 do catálogo) somava Agilidade por cima do atributo
+    // errado. Coberto por arsenal-espelho.test.js.
     const forca = (ficha.atributos && ficha.atributos.forca) || 0;
     return lista
       .filter((a) => a && a.dano != null && a.slug && catalogos.catalogoBySlug[a.slug])
@@ -1061,10 +1067,7 @@ function ataquesDoAtor(ator, catalogos) {
         // sem esta linha TODO crítico caía em DESARMADO — espada dava
         // narrativa de chute/soco.
         return {
-          ...a,
-          dano_l: a.dano_l != null ? a.dano_l + agil : a.dano_l,
-          dano_m: a.dano_m != null ? a.dano_m + agil : a.dano_m,
-          dano_p: a.dano_p != null ? a.dano_p + agil : a.dano_p,
+          ...a,   // dano_l/m/p vêm prontos de gerarAtaques — ver comentário acima
           dano: (a.dano || 0) + forca + bonusArma,   // dano100 da Ficha
           bonus_ga: bonus, grupo_sigla: grupoSigla, fonte: 'arma',
         };
@@ -4416,6 +4419,10 @@ Object.assign(window, {
     EF_MORTE, pontosAcaoPJ, aplicarDanoCascata, ordenarIniciativa,
     colunaAtaque, danoNoTier, interpolarCritico, CRITICOS_TABELA,
     siglaArmadura,
+    // ataquesDoAtor depende dos globais de 01-core (calcularFicha,
+    // gerarAtaques, bonusGrupoArma): quem for usá-la precisa importar
+    // esses arquivos de fase antes.
+    ataquesDoAtor,
     // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
     somaEfeitosStatus, statusTemEfeito, vbEfetivo,
