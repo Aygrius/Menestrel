@@ -1113,10 +1113,19 @@ function colunaAtaque(arma, alvo) {
 function danoNoTier(arma, codigo) {
   if (!arma || !codigo || codigo === 'FC' || codigo === 'R') return 0;
   if (arma.fonte === 'criatura') {
-    if (codigo === 'F')  return arma.dano_25  || 0;
-    if (codigo === 'M')  return arma.dano_50  || 0;
-    if (codigo === 'D')  return arma.dano_75  || 0;
-    if (codigo === 'MD') return arma.dano_100 || 0;
+    // Tiers 25/50/75% DERIVADOS do dano_100, não lidos de dano_25/50/75:
+    // o formulário de criatura (13-diario, NovaCriatura) grava só dano_100,
+    // então toda criatura criada pelo app tinha esses campos NULL e causava
+    // 0 de dano em Fraco/Médio/Difícil mesmo com dano_100 > 0.
+    // Derivar é seguro e não muda nada nos dados existentes: nas 185
+    // criaturas com dano_100 > 0, as colunas batem com ceil(dano_100 × n/4)
+    // em 185 — zero divergências. É a MESMA regra que o ramo de ARMA aplica
+    // logo abaixo ("arredondamento SEMPRE pra cima").
+    const d100 = arma.dano_100 || 0;
+    if (codigo === 'F')  return Math.ceil(d100 / 4);
+    if (codigo === 'M')  return Math.ceil(d100 / 2);
+    if (codigo === 'D')  return Math.ceil((3 * d100) / 4);
+    if (codigo === 'MD') return d100;
     if (codigo === 'E')  return Math.floor((arma.dano_100 || 0) * 1.25);
     if (codigo === 'A')  return Math.floor((arma.dano_100 || 0) * 1.5);
     return 0;

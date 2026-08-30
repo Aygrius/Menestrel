@@ -2765,6 +2765,14 @@ function NovaCriaturaModal({ lang, onClose, onSaved }) {
       energia_fisica: energiaFisicaCalc, energia_heroica: energiaHeroicaCalc,
       absorcao: absorcaoCalc, defesa: defesaCalc, velocidade: velocidadeCalc,
       dano_l: lCalc, dano_m: mCalc, dano_p: pCalc, dano_100: danoCalc,
+      // Tiers 25/50/75%: mesma regra de arredondamento pra cima do Arsenal da
+      // Ficha e do danoNoTier (12-batalha). Gravados só pra ficha da criatura
+      // exibi-los (o bloco THRESH lê estas colunas) — o COMBATE não depende
+      // deles, deriva do dano_100 sozinho, então não há risco de dessincronizar.
+      // Antes ficavam NULL e a ficha mostrava "—" nos três.
+      dano_25: Math.ceil(danoCalc / 4),
+      dano_50: Math.ceil(danoCalc / 2),
+      dano_75: Math.ceil((3 * danoCalc) / 4),
     };
     CAMPOS_NUM.forEach((k) => { if (form[k] !== '') payload[k] = Number(form[k]); });
     CAMPOS_TXT.forEach((k) => { const v = (form[k] || '').trim(); if (v !== '') payload[k] = v; });

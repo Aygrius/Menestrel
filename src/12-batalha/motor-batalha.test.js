@@ -189,11 +189,21 @@ describe('danoNoTier', () => {
     expect(M.danoNoTier(magia, 'A')).toBe(10);  // floor(10.5)
   });
 
-  it('CRIATURA usa campos próprios; E/A derivam do dano_100 com floor', () => {
-    const cri = { fonte: 'criatura', dano_25: 2, dano_50: 4, dano_75: 6, dano_100: 9 };
-    expect(M.danoNoTier(cri, 'F')).toBe(2);
-    expect(M.danoNoTier(cri, 'M')).toBe(4);
-    expect(M.danoNoTier(cri, 'D')).toBe(6);
+  // MUDANÇA DELIBERADA (30/08/2026): a criatura NÃO usa mais dano_25/50/75.
+  // O formulário de criatura (13-diario) grava só dano_100, então quem era
+  // criado pelo app entrava com esses campos NULL e causava 0 de dano em
+  // Fraco/Médio/Difícil. Agora os três tiers derivam do dano_100 com ceil,
+  // igual à ARMA. Comportamento dos dados existentes é idêntico: nas 185
+  // criaturas do banco com dano_100 > 0, as colunas já eram exatamente
+  // ceil(dano_100 × n/4) — zero divergências. Ver tiers-criatura.test.js.
+  // E/A seguem com floor (divergência de regra pré-existente, intocada).
+  it('CRIATURA deriva 25/50/75 do dano_100 com ceil; E/A com floor', () => {
+    // dano_25/50/75 na linha são IGNORADOS de propósito — valores absurdos
+    // aqui provam que a derivação manda.
+    const cri = { fonte: 'criatura', dano_25: 99, dano_50: 99, dano_75: 99, dano_100: 9 };
+    expect(M.danoNoTier(cri, 'F')).toBe(3);   // ceil(9/4)  = 2.25 → 3
+    expect(M.danoNoTier(cri, 'M')).toBe(5);   // ceil(9/2)  = 4.5  → 5
+    expect(M.danoNoTier(cri, 'D')).toBe(7);   // ceil(27/4) = 6.75 → 7
     expect(M.danoNoTier(cri, 'MD')).toBe(9);
     expect(M.danoNoTier(cri, 'E')).toBe(11);  // floor(11.25)
     expect(M.danoNoTier(cri, 'A')).toBe(13);  // floor(13.5)
