@@ -143,6 +143,7 @@ function fichaEstadoLabel(key, val, max, en, min) {
 }
 
 function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const editable = typeof onEdit === 'function';
   const hasHover = typeof onHover === 'function';
   return (
@@ -154,7 +155,15 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
         const empty = pct <= 0;
         const estadoLbl = fichaEstadoLabel(b.key, b.val, b.max, en, b.min);
         const sufixoEstado = estadoLbl ? ` — ${estadoLbl}` : '';
-        const abrir = editable
+        // Teto 0 = não há o que editar (AR sem armadura equipada, KA com a
+        // Aura abaixo de 1). abrirEdicaoBarra já recusava, mas em SILÊNCIO: a
+        // linha continuava com cara de botão, cursor de clique e papel de
+        // button, e o clique não fazia nada nem dizia por quê (03/09/2026).
+        // Agora ela some da navegação e explica no tooltip — ver o `tip`
+        // montado junto de vitBars.
+        const semTeto = (b.max ?? 0) === 0;
+        const podeAbrir = editable && !semTeto;
+        const abrir = podeAbrir
           ? (e) => onEdit(b, scope, e.currentTarget.getBoundingClientRect())
           : undefined;
         const tipContent = hasHover ? { desc: b.tip ?? (estadoLbl || undefined) } : null;
@@ -176,15 +185,15 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
         return (
           <div
             key={b.key}
-            className={'fp-bar-row' + (editable ? ' is-editable' : '')}
+            className={'fp-bar-row' + (podeAbrir ? ' is-editable' : '')}
             style={{ '--bar-c': barColor }}
             onClick={abrir}
-            role={editable ? 'button' : undefined}
-            tabIndex={editable ? 0 : undefined}
-            onKeyDown={editable ? (e) => {
+            role={podeAbrir ? 'button' : undefined}
+            tabIndex={podeAbrir ? 0 : undefined}
+            onKeyDown={podeAbrir ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(e); }
             } : undefined}
-            title={!hasHover && editable ? `${b.val}/${b.max}${sufixoEstado}` : undefined}
+            {...propsTip(abrirTip, fecharTip, !hasHover && podeAbrir ? `${b.val}/${b.max}${sufixoEstado}` : undefined)}
           >
             <span className="fp-bar-name-label">{b.label}</span>
             <div className="fp-bar-pill">
@@ -200,7 +209,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
                 onMouseLeave={hasHover && tipContent ? onHoverEnd : undefined}
                 onFocus={hasHover && tipContent ? (e) => onHover(e, tipContent) : undefined}
                 onBlur={hasHover && tipContent ? onHoverEnd : undefined}
-                title={!hasHover && !editable ? `${b.val}${showValue ? '/' + b.max : ''}${sufixoEstado}` : undefined}
+                {...propsTip(abrirTip, fecharTip, !hasHover && !editable ? `${b.val}${showValue ? '/' + b.max : ''}${sufixoEstado}` : undefined)}
               >
                 {!empty && (
                   <div className="fp-bar-fill" style={{ width: (pct * 100) + '%' }}>
@@ -215,6 +224,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
           </div>
         );
       })}
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -1057,6 +1067,7 @@ function FichaInfoView({
   bonusHabilidades, titulo,
   historiaPj,
 }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const _d = derivadas || {};
 
   // ── Estado de navegação — um índice por coluna ──────────────────────────
@@ -1090,7 +1101,7 @@ function FichaInfoView({
           <button
               className="fp-col-title-nav-btn"
               onClick={multi ? onNext : undefined}
-              title={multi ? `${en ? 'Next' : 'Próximo'}: ${pages[(page + 1) % pages.length].label}` : undefined}
+              {...propsTip(abrirTip, fecharTip, multi ? `${en ? 'Next' : 'Próximo'}: ${pages[(page + 1) % pages.length].label}` : undefined)}
               aria-hidden={!multi}
               onMouseEnter={(e) => { if (multi) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(201,164,78,0.12)'; } }}
               onMouseLeave={(e) => { if (multi) { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.background = 'none'; } }}
@@ -1335,22 +1346,20 @@ function FichaInfoView({
     ...(_espMap['Guerreiro'] || []).map((s) => s.esp),
     ...(_espMap['Ladino']    || []).map((s) => s.esp),
   ]);
-  // Magias avançadas = pertencentes a colégios, trilhas, ordens e confrarias
-  // (todas as especializações EXCETO Guerreiro e Ladino, que não usam magia)
-  const SPECS_MAGICAS = new Set(
-    Object.entries(_espMap)
-      .filter(([prof]) => prof !== 'Guerreiro' && prof !== 'Ladino')
-      .flatMap(([, lista]) => lista.map((s) => s.esp))
-  );
+  // Magias avançadas = pertencentes a colégios, trilhas, ordens e confrarias.
+  // A definição saiu daqui em 03/09/2026 e virou magiaEhAvancada, em
+  // 01-core/game-data.jsx: o criador de personagem tinha OUTRA definição de
+  // "avançada" (`tipo !== 'Básica'`, que na verdade é raridade), e foi essa
+  // divergência que travou a compra de magia de especialização. Uma
+  // definição só, num lugar só — ver o comentário lá.
 
   const tecEsAvancada = (t) => {
     const lista = (t.permissao || '').split(',').map((s) => s.trim()).filter(Boolean);
     return lista.some((p) => SPECS_GUE_LAD.has(p));
   };
-  const magEsAvancada = (m) => {
-    const lista = (m.permissao || '').split(',').map((s) => s.trim()).filter(Boolean);
-    return lista.some((p) => SPECS_MAGICAS.has(p));
-  };
+  const _magAvancada_fn = (typeof magiaEhAvancada !== 'undefined' ? magiaEhAvancada : null)
+    || window.magiaEhAvancada || (() => false);
+  const magEsAvancada = (m) => _magAvancada_fn(m);
 
   // ── Col 4 — Técnicas de Combate (Básicas / Avançadas por permissao) ─
   // Avançadas: reservadas pelas guildas de ladinos e academias de guerreiros
@@ -1426,6 +1435,7 @@ function FichaInfoView({
       {col3}
       {col4}
       {col5}
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -1493,7 +1503,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
   const _bonusGA_fn = (typeof bonusGrupoArma         !== 'undefined' ? bonusGrupoArma         : null) || window.bonusGrupoArma         || (() => 0);
   const _totHab     = (typeof totalHabilidade        !== 'undefined' ? totalHabilidade        : null) || window.totalHabilidade        || (() => 0);
   // _totHabCond: mesma coisa que _totHab, só que também aplica o modificador
-  // de grupo por Reputação (±25% Influência/Subterfúgio). Fallback pra
+  // de grupo por condição — Sanidade (Conhecimento/Manobra), Reputação
+  // (Influência/Subterfúgio) e Temperatura (Geral/Profissional). Fallback pra
   // _totHab puro se a função nova ainda não tiver carregado (JS ignora o
   // 6º argumento extra que _totHab não usa).
   const _totHabCond = (typeof totalHabilidadeComCondicoes !== 'undefined' ? totalHabilidadeComCondicoes : null) || window.totalHabilidadeComCondicoes || null;
@@ -1595,7 +1606,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
         supabaseClient.from('personagens').select('*').eq('id', pjAtivoId).maybeSingle(),
         supabaseClient.from('personagens').select('id, nome, sobrenome, raca, profissao')
           .eq('user_id', currentUserId).order('created_at', { ascending: true }),
-        supabaseClient.from('itens').select('*'),
+        fetchCatalogoCompleto(),
         supabaseClient.from('magias').select('*'),
         supabaseClient.from('tecnicas').select('*'),
         supabaseClient.from('habilidades').select('*'),
@@ -1777,8 +1788,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
   // uso no JSX — duplicação proposital e barata (mesma fonte: ficha.derivadas)
   // pra não reordenar todo o bloco de Defesa/JSX que depende da ordem atual.
   const _dPre = ficha.derivadas || {};
+  // Mesmo critério de calcArmadura e calcularFicha — ver pecaNoCorpo.
   const _absorcaoEquipadaPre = (pj.inventario?.itens || []).reduce((soma, it) => {
-    const cat = (it && (it.slot || it.vestido)) ? catalogoBySlug[it.slug] : null;
+    const cat = pecaNoCorpo(it) ? catalogoBySlug[it.slug] : null;
     return soma + (cat ? (Number(cat.absorcao) || 0) : 0);
   }, 0);
   const maximosVitalidade = {
@@ -2138,8 +2150,23 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
   const vitBars = [
     { key: 'ef', label: en ? 'Physical Energy' : 'Energia Física', val: _clampVal(_vitAt.ef ?? maxEF, maxEF), max: maxEF, icon: 'ti-heart' },
     { key: 'eh', label: en ? 'Heroic Energy' : 'Energia Heroica', val: _clampVal(_vitAt.eh ?? maxEH, maxEH), max: maxEH, icon: 'ti-heart' },
-    { key: 'ar', label: en ? 'Armor' : 'Armadura', val: _clampVal(_vitAt.ar ?? arVal, arMax), max: arMax, icon: 'ti-shield' },
-    { key: 'ka', label: en ? 'Karma' : 'Karma', val: _clampVal(_vitAt.ka ?? maxKA, maxKA), max: maxKA, icon: 'ti-sparkle-highlight' },
+    // AR sem teto: buff de poção/elixir pode passar do arMax e a ficha tem
+    // que MOSTRAR isso (decisão de 01/09/2026 — "o buff pode ficar acima fora
+    // de combate"). A barra já limita o preenchimento em 100%, então valor
+    // acima do máximo aparece cheia, sem quebrar. Piso 0 continua.
+    { key: 'ar', label: en ? 'Armor' : 'Armadura', val: _clampVal(_vitAt.ar ?? arVal, Infinity), max: arMax, icon: 'ti-shield',
+      tip: arMax === 0 ? (en ? 'No armor equipped — nothing to edit.' : 'Nenhuma armadura equipada — nada a editar.') : undefined },
+    // KA com teto 0 não é "karma gasto", é karma INEXISTENTE: a fórmula zera
+    // o pool quando a Aura do PJ é menor que 1. Sem esta explicação o Mestre
+    // clica na barra e nada acontece — foi o relato de 03/09/2026 ("não
+    // consigo alterar o karma do Yuldrous"). Desde 08/09/2026 a Aura não é
+    // mais derrubada por condição: só o valor de ficha manda, e o bônus de
+    // Hidratação/Sobriedade não ressuscita um poço que não existe.
+    { key: 'ka', label: en ? 'Karma' : 'Karma', val: _clampVal(_vitAt.ka ?? maxKA, maxKA), max: maxKA, icon: 'ti-sparkle-highlight',
+      tip: maxKA === 0
+        ? (en ? 'No Karma: this character’s Aura is below 1.'
+              : 'Sem Karma: a Aura deste personagem é menor que 1.')
+        : undefined },
   ];
 
   // Velocidade/Resistência Física/Resistência Mágica como barras (a pedido
@@ -2543,9 +2570,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
               </td>
               <td className="c-range fp-center-col">{a.alcance ? `${a.alcance}m` : '—'}</td>
               <td className="c-dano fp-center-col">{total != null ? total : '—'}</td>
-              <td className="c-dano fp-center-col" title={tip('L', a.dano_l)}>{cell(a.dano_l, 'L')}</td>
-              <td className="c-dano fp-center-col" title={tip('M', a.dano_m)}>{cell(a.dano_m, 'M')}</td>
-              <td className="c-dano fp-center-col" title={tip('P', a.dano_p)}>{cell(a.dano_p, 'P')}</td>
+              <td className="c-dano fp-center-col" {...propsTip(abrirTip, fecharTip, tip('L', a.dano_l))}>{cell(a.dano_l, 'L')}</td>
+              <td className="c-dano fp-center-col" {...propsTip(abrirTip, fecharTip, tip('M', a.dano_m))}>{cell(a.dano_m, 'M')}</td>
+              <td className="c-dano fp-center-col" {...propsTip(abrirTip, fecharTip, tip('P', a.dano_p))}>{cell(a.dano_p, 'P')}</td>
               <td className="c-dano fp-center-col">{Math.ceil(dano100 * 1 / 4)}</td>
               <td className="c-dano fp-center-col">{Math.ceil(dano100 * 2 / 4)}</td>
               <td className="c-dano fp-center-col">{Math.ceil(dano100 * 3 / 4)}</td>
@@ -3039,13 +3066,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
           onClick={() => setFpTab('ficha')}>
           {en ? 'Sheet' : 'Ficha'}
         </button>
-        <button type="button" className={fpTab === 'info' ? 'btn-icon btn-sm is-active' : 'btn-icon btn-sm'} role="tab" aria-selected={fpTab === 'info'}
-          onClick={() => setFpTab('info')}
-          onMouseEnter={tabTipLabel(en ? 'Information' : 'Informações')}
-          onMouseLeave={fecharTabTip}
-          onFocus={tabTipLabel(en ? 'Information' : 'Informações')}
-          onBlur={fecharTabTip}>
-          <i className="ti ti-file-description" aria-hidden="true" />
+        {/* Texto, como as outras abas. Era ícone só, e o rótulo vivia no
+            tooltip — a aba destoava das vizinhas e exigia hover pra saber o
+            que era (08/09/2026). Sem tooltip: com o nome escrito, é redundante. */}
+        <button type="button" className={fpTab === 'info' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'info'}
+          onClick={() => setFpTab('info')}>
+          {en ? 'Information' : 'Informações'}
         </button>
         <button type="button" className={fpTab === 'inventario' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'inventario'}
           onClick={() => setFpTab('inventario')}>
@@ -3061,21 +3087,15 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
         </button>
       </div>
       {onEditar && (
-        <button type="button" className="btn-icon btn-sm"
-          aria-label={en ? 'Edit character' : 'Editar personagem'}
-          onClick={onEditar}
-          onMouseEnter={tabTipLabel(en ? 'Edit character' : 'Editar personagem')}
-          onMouseLeave={fecharTabTip}>
-          <i className="ti ti-pencil" aria-hidden="true" />
+        <button type="button" className="btn-ghost btn-sm"
+          onClick={onEditar}>
+          {en ? 'Edit' : 'Editar'}
         </button>
       )}
       {onExcluir && (
-        <button type="button" className="btn-icon btn-danger btn-sm"
-          aria-label={en ? 'Delete character' : 'Excluir personagem'}
-          onClick={onExcluir}
-          onMouseEnter={tabTipLabel(en ? 'Delete character' : 'Excluir personagem')}
-          onMouseLeave={fecharTabTip}>
-          <i className="ti ti-trash" aria-hidden="true" />
+        <button type="button" className="btn-danger btn-sm"
+          onClick={onExcluir}>
+          {en ? 'Delete' : 'Excluir'}
         </button>
       )}
     </header>
@@ -3130,15 +3150,28 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
               InventarioList usa currentUserId em queries RLS (user_id = auth.uid()) — passa o user_id
               real do PJ (pj.user_id) para que o Mestre, com acesso SECURITY DEFINER via RPC ou
               SELECT all policy, possa enxergar o inventário. Fallback pro currentUserId normal (jogador). */}
-          <InventarioList ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} onInventarioChange={(novoInv) => setPj((prev) => prev ? { ...prev, inventario: novoInv } : prev)} maximos={{ ef: maxEF, eh: maxEH, ka: maxKA, ar: arMax }} isMestre={isMestre} />
+          {/* estado_atual passa pelo MESMO handoff que o inventário: a Ficha
+              carrega `pj` uma vez por pjAtivoId e não refaz ao trocar de aba,
+              então sem `onEstadoChange` a cópia daqui ficava congelada e a
+              gravação seguinte da Ficha (aplicarEstado, usarItemFicha,
+              desequiparFicha) apagava o efeito do item usado no Inventário.
+              `estadoAtualSeed` fecha o sentido inverso — ver o cabeçalho do
+              InventarioList e 11-ficha/estado-handoff.test.js. */}
+          <InventarioList ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} onInventarioChange={(novoInv) => setPj((prev) => prev ? { ...prev, inventario: novoInv } : prev)} onEstadoChange={(novoEstado) => setPj((prev) => prev ? { ...prev, estado_atual: novoEstado } : prev)} estadoAtualSeed={pj?.estado_atual} maximos={{ ef: maxEF, eh: maxEH, ka: maxKA, ar: arMax }} />
         </div>
       ) : fpTab === 'loja' ? (
         <div className="fp-invtab">
-          <LojaJogador ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} isMestre={isMestre} />
+          <LojaJogador ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} />
         </div>
       ) : fpTab === 'diario' ? (
         <div className="fp-invtab">
-          <DiarioView pj={pj} lang={lang} key={pjAtivoId} currentUserId={pj?.user_id ?? currentUserId} isMestre={isMestre} />
+          {/* currentUserId REAL aqui, não `pj.user_id`. O DiarioView usa esse
+              valor só pra decidir `souDono` (quem pode criar/editar/
+              compartilhar) — passar o dono do PJ tornava a comparação
+              `pj.user_id === currentUserId` sempre verdadeira e a checagem,
+              código morto. As abas Inventário/Loja acima continuam recebendo
+              `pj.user_id` de propósito: lá o valor alimenta queries RLS. */}
+          <DiarioView pj={pj} lang={lang} key={pjAtivoId} currentUserId={currentUserId} isMestre={isMestre} />
         </div>
       ) : (
       <div className="fp2-sheet">

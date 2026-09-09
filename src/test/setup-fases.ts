@@ -13,11 +13,15 @@
    ============================================================ */
 import React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
+import * as ReactDOMMain from 'react-dom';
 
 const g = globalThis as any;
 
 g.React = React;
-g.ReactDOM = ReactDOMClient;
+// Mesmo merge de bootstrap-globals.ts: 'react-dom/client' sozinho não tem
+// createPortal, e as fases usam ReactDOM.createPortal (tooltip, dropdown de
+// estado, menu do token no tabuleiro).
+g.ReactDOM = Object.assign({}, ReactDOMMain, ReactDOMClient);
 
 // Hooks soltos — espelha a desestruturação única de 01-core/helpers.jsx
 Object.assign(g, {

@@ -1,59 +1,29 @@
 /* ============================================================
-   AUTH — UI de autenticação: Google, Apple, E-mail+Senha
+   AUTH — Login único (Google) + onboarding de plano
    ============================================================
    Componentes exportados:
-   - GoogleIcon          — ícone oficial Google (4 cores)
-   - AppleIcon           — ícone Apple monocromático (branco)
-   - SignupModal         — modal principal com 3 métodos:
-                           Google (OAuth) | Apple (OAuth) | E-mail+Senha
-                           Subestados do modal:
-                           · 'choice'      — tela inicial (botões OAuth + form)
-                           · 'emailForm'   — formulário email/senha visível
-                           · 'redirecting' — aguardando redirect OAuth
-                           · 'forgotSent'  — confirmação de reset enviado
-   - PlanoEscolhaModal   — onboarding pós-primeiro-login (sem mudanças)
+   - GoogleIcon        — ícone oficial Google (4 cores)
+   - LoginPage         — ÚNICA página pública do app. Não existe mais
+                         landing de SaaS, nem cadastro por e-mail/senha,
+                         nem Apple: só "Continuar com Google" (OAuth do
+                         Supabase). Estados: 'idle' | 'redirecting'.
+                         Quem nunca entrou não precisa se cadastrar — o
+                         primeiro login cria a conta e cai no
+                         PlanoEscolhaModal.
+   - PlanoEscolhaModal — onboarding pós-primeiro-login (inalterado)
 
-   INSTRUÇÕES PARA ATIVAR APPLE SIGN IN NO SUPABASE
-   ─────────────────────────────────────────────────
-   1. Crie um App ID no Apple Developer Portal
-      (developer.apple.com → Certificates → Identifiers → App IDs)
-      Marque "Sign In with Apple" nas Capabilities.
-
-   2. Crie um Services ID (mesmo portal, tipo: Services)
-      - Primary App ID: o criado no passo 1
-      - Domains: seu domínio de produção (ex.: menestrel.app)
-      - Return URLs: https://<project>.supabase.co/auth/v1/callback
-
-   3. Gere uma Private Key (.p8) vinculada ao App ID.
-
-   4. No Supabase Dashboard → Authentication → Providers → Apple:
-      - Service ID: o Services ID do passo 2
-      - Team ID: seu Apple Team ID (10 chars, no canto sup. dir. do portal)
-      - Key ID: o ID da chave gerada no passo 3
-      - Private Key: conteúdo do arquivo .p8
-
-   5. No Apple Developer Portal → Services ID → Configure:
-      adicione window.location.origin + '/auth/v1/callback' como
-      Return URL autorizado.
-
-   Enquanto não configurar, o botão Apple aparece desabilitado com
-   "Em breve" — basta mudar APPLE_ENABLED = true aqui abaixo quando
-   a configuração estiver pronta.
+   Copy da tela vem de AUTH_COPY (src/01-core/constants.jsx), em PT/EN.
+   O fundo animado reaproveita os shaders da fase 02.
    ============================================================ */
 
-// ─── Flag: Apple configurado no Supabase? ───────────────────────────────────
-const APPLE_ENABLED = false; // mude para true após configurar o provider
-
 // ─── Tokens visuais locais (Pedra & Bronze) ─────────────────────────────
-// AUTH_GRAD e AUTH_BG migraram para o CSS (.ms-modal.auth-modal, index.css) —
-// removidos daqui para não duplicar a fonte de verdade do visual.
-const AUTH_GOLD = '#C9A44E';
-const AUTH_FD   = "'Cinzel',serif";
-const AUTH_FB   = "'Lora',serif";
-const AUTH_SURFACE = 'rgba(255,255,255,0.05)';
-const AUTH_BORDER  = 'rgba(255,255,255,0.10)';
-const AUTH_MUTED   = '#9C8F73';
-const AUTH_INK     = '#E8DDC6';
+const AUTH_GRAD   = 'linear-gradient(90deg,#B8472F,#B8702E,#C9A44E,#B8862E,#7A5E2A)';
+const AUTH_GOLD   = '#C9A44E';
+const AUTH_FD     = "'Cinzel',serif";
+const AUTH_FB     = "'Lora',serif";
+const AUTH_BORDER = 'rgba(255,255,255,0.10)';
+const AUTH_MUTED  = '#9C8F73';
+const AUTH_INK    = '#E8DDC6';
 
 // ─── GoogleIcon ─────────────────────────────────────────────────────────────
 const GoogleIcon = (props) => (
@@ -65,436 +35,139 @@ const GoogleIcon = (props) => (
   </svg>
 );
 
-// ─── AppleIcon ───────────────────────────────────────────────────────────────
-const AppleIcon = (props) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.2.06 2.02.51 2.73.55.85-.17 1.65-.67 2.79-.72 1.39-.07 2.49.48 3.19 1.37-2.89 1.73-2.4 5.56.21 6.84-.44 1.17-.97 2.32-1.92 4.84zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-  </svg>
+// ─── Marca — mesmo anel de gradiente que a antiga Topbar usava ──────────────
+const MarcaMenestrel = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+    <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center' }}>
+      <svg viewBox="0 0 44 44" width="44" height="44">
+        <defs>
+          <linearGradient id="mn-ring-login" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#B8472F" />
+            <stop offset="0.3" stopColor="#B8702E" />
+            <stop offset="0.55" stopColor="#C9A44E" />
+            <stop offset="0.8" stopColor="#B8862E" />
+            <stop offset="1" stopColor="#7A5E2A" />
+          </linearGradient>
+        </defs>
+        <circle cx="22" cy="22" r="16" fill="none" stroke="url(#mn-ring-login)" strokeWidth="5"
+                strokeLinecap="round" strokeDasharray="86 16" transform="rotate(-90 22 22)" />
+      </svg>
+    </span>
+    <span style={{ fontFamily: AUTH_FB, fontWeight: 400, fontSize: 34, color: AUTH_INK, lineHeight: 1 }}>Menestrel</span>
+  </div>
 );
 
-// ─── MailIcon (inline — não depende do global Icon.*) ────────────────────────
-const MailIcon = ({ style }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-    <rect x="2" y="4" width="20" height="16" rx="2"/>
-    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-  </svg>
-);
+// ─── LoginPage ──────────────────────────────────────────────────────────────
+function LoginPage({ lang = 'pt', setLang, authCopy, shader = true, shaderKind = 'mesh', mode = 'grimoire' }) {
+  const [step, setStep]   = useState('idle');   // idle | redirecting
+  const [error, setError] = useState(null);
+  const ac = authCopy || {};
 
-// ─── ChevronLeftIcon (inline — não depende do global Icon.*) ─────────────────
-const ChevronLeftIcon = ({ style }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-    <path d="m15 18-6-6 6-6"/>
-  </svg>
-);
-
-// ─── SkullIcon (inline — fallback caso Icon.Skull não exista no global) ──────
-const SkullIcon = ({ style }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={style}>
-    <path d="M12 2a8 8 0 0 0-8 8c0 3.1 1.8 5.8 4.4 7.1V20a1 1 0 0 0 1 1h5.2a1 1 0 0 0 1-1v-2.9C18.2 15.8 20 13.1 20 10a8 8 0 0 0-8-8z"/>
-    <line x1="9" y1="17" x2="9" y2="21"/><line x1="15" y1="17" x2="15" y2="21"/>
-    <circle cx="9.5" cy="10" r="1.5" fill="currentColor"/><circle cx="14.5" cy="10" r="1.5" fill="currentColor"/>
-  </svg>
-);
-
-// ─── Helpers de estilo reutilizáveis ────────────────────────────────────────
-const inputStyle = {
-  width: '100%',
-  padding: '11px 14px',
-  borderRadius: 999,
-  border: `1px solid ${AUTH_BORDER}`,
-  background: AUTH_SURFACE,
-  color: AUTH_INK,
-  fontFamily: AUTH_FB,
-  fontSize: 15,
-  outline: 'none',
-  transition: 'border-color .15s',
-};
-
-const labelStyle = {
-  display: 'block',
-  fontFamily: AUTH_FB,
-  fontSize: 15,
-  color: AUTH_MUTED,
-  marginBottom: 6,
-};
-
-const oauthBtnBase = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 10,
-  width: '100%',
-  padding: '13px 18px',
-  borderRadius: 12,
-  border: `1px solid ${AUTH_BORDER}`,
-  background: AUTH_SURFACE,
-  color: AUTH_INK,
-  fontFamily: AUTH_FB,
-  fontSize: 15,
-  fontWeight: 400,
-  cursor: 'pointer',
-  transition: 'background .15s, border-color .15s',
-};
-
-// ─── SignupModal ─────────────────────────────────────────────────────────────
-function SignupModal({ t, lang = 'pt', onClose, authCopy }) {
-  const [step, setStep]         = useState('choice');    // choice | emailForm | redirecting | forgotSent
-  const [emailMode, setEmailMode] = useState('signup');  // signup | login | forgot
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPwd, setConfirmPwd] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState(null);
-  const [focusField, setFocusField] = useState(null);
-
-  // Escape e travamento de scroll já são responsabilidade do ModalShell — não duplicar aqui.
-
-  const resetForm = () => {
-    setError(null);
-    setEmail('');
-    setPassword('');
-    setConfirmPwd('');
-    setLoading(false);
-  };
-
-  // ── OAuth ─────────────────────────────────────────────────────────────────
-  const loginOAuth = async (provider) => {
+  const entrarComGoogle = async () => {
     setError(null);
     setStep('redirecting');
     const { error: err } = await supabaseClient.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: window.location.origin }
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
     });
     if (err) {
-      console.error(`[auth] signInWithOAuth(${provider}) falhou:`, err);
-      setError(err.message);
-      setStep('choice');
+      console.error('[auth] signInWithOAuth(google) falhou:', err);
+      setError(err.message || ac.erro);
+      setStep('idle');
     }
   };
 
-  const translateError = (msg) => {
-    if (!msg) return msg;
-    const m = msg.toLowerCase();
-    if (m.includes('invalid format') || m.includes('unable to validate email'))
-      return 'E-mail inválido. Verifique o endereço digitado.';
-    if (m.includes('already registered') || m.includes('user already exists'))
-      return 'Este e-mail já está cadastrado. Tente entrar.';
-    if (m.includes('invalid login credentials') || m.includes('invalid credentials'))
-      return 'E-mail ou senha incorretos.';
-    if (m.includes('email not confirmed'))
-      return 'Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.';
-    if (m.includes('too many requests'))
-      return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
-    return msg; // fallback: exibe o original
-  };  
-
-  // ── E-mail: cadastro ──────────────────────────────────────────────────────
-  const handleSignup = async () => {
-    setError(null);
-    if (!email || !password) { setError('Preencha e-mail e senha.'); return; }
-    if (password.length < 6)  { setError('Senha deve ter ao menos 6 caracteres.'); return; }
-    if (password !== confirmPwd) { setError('As senhas não conferem.'); return; }
-    setLoading(true);
-    const { data: signUpData, error: err } = await supabaseClient.auth.signUp({ email, password });
-    setLoading(false);
-    if (err) { setError(translateError(err.message)); return; }
-    setError(null);
-    // Se o Supabase retornou sessão imediata ("Confirm email" desabilitado no dashboard),
-    // fecha o modal — o onAuthStateChange cuida do resto.
-    // Caso contrário ("Confirm email" ativo, padrão), não há sessão ainda:
-    // mostra aviso para o usuário checar o e-mail antes de tentar entrar.
-    if (signUpData?.session) {
-      onClose();
-    } else {
-      setStep('signupSent');
-    }
-  };
-
-  // ── E-mail: login ─────────────────────────────────────────────────────────
-  const handleLogin = async () => {
-    setError(null);
-    if (!email || !password) { setError('Preencha e-mail e senha.'); return; }
-    setLoading(true);
-    const { error: err } = await supabaseClient.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (err) { setError(translateError(err.message)); return; }
-    onClose();
-  };
-
-  // ── E-mail: esqueci senha ─────────────────────────────────────────────────
-  const handleForgot = async () => {
-    setError(null);
-    if (!email) { setError('Informe o seu e-mail.'); return; }
-    setLoading(true);
-    const { error: err } = await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}?resetPassword=true`,
-    });
-    setLoading(false);
-    if (err) { setError(translateError(err.message)); return; }
-    setStep('forgotSent');
-  };
-
-  // ── Dispatch do submit do formulário ──────────────────────────────────────
-  const handleEmailSubmit = () => {
-    if (emailMode === 'signup')  handleSignup();
-    else if (emailMode === 'login')  handleLogin();
-    else handleForgot();
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleEmailSubmit();
-  };
-
-  // ── Rótulos dinâmicos ──────────────────────────────────────────────────────
-  const modeCopy = {
-    signup: {
-      title: t.modal.title,
-      sub:   t.modal.sub,
-      btn:   loading ? 'Criando conta…' : 'Criar conta',
-      switch1: 'Já tem conta?',
-      switch2: 'Entrar',
-    },
-    login: {
-      title: 'Bem-vindo de volta',
-      sub:   'Entre com sua conta Menestrel.',
-      btn:   loading ? 'Entrando…' : 'Entrar',
-      switch1: 'Ainda não tem conta?',
-      switch2: 'Cadastrar',
-    },
-    forgot: {
-      title: 'Recuperar senha',
-      sub:   'Enviaremos um link de redefinição para o seu e-mail.',
-      btn:   loading ? 'Enviando…' : 'Enviar link',
-      switch1: 'Lembrou a senha?',
-      switch2: 'Voltar ao login',
-    },
-  };
-  const mc = modeCopy[emailMode];
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <ModalShell
-      title={mc.title}
-      lang={lang}
-      size="sm"
-      extraClass="auth-modal"
-      onClose={onClose}
+    <section
+      className="menestrel-ui"
+      style={{
+        position: 'relative', minHeight: '100vh', width: '100%', overflow: 'hidden',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 'clamp(32px,7vw,72px) 24px', background: 'var(--background)',
+      }}
     >
-        {/* ══ TELA: aguardando redirect OAuth ══════════════════════════════ */}
-        {step === 'redirecting' && (
-          <div style={{ position: 'relative', textAlign: 'center', padding: '30px 0 18px' }}>
+      {/* ── Atmosfera: shader + brumas douradas ── */}
+      {shader && shaderKind === 'mesh' && <MeshGradientShader opacity={0.85} dots={true} />}
+      {shader && shaderKind !== 'mesh' && (
+        <ShaderAnimation tint={mode === 'modern' ? 'cool' : 'blood'} opacity={mode === 'modern' ? 0.45 : 0.5} blend="screen" />
+      )}
+      <div aria-hidden="true" style={{ position: 'absolute', width: 420, height: 420, left: -110, top: -80, pointerEvents: 'none', filter: 'blur(60px)', background: 'radial-gradient(closest-side,#B8862E45,transparent)' }} />
+      <div aria-hidden="true" style={{ position: 'absolute', width: 420, height: 420, right: -110, bottom: -80, pointerEvents: 'none', filter: 'blur(60px)', background: 'radial-gradient(closest-side,#7A5E2A33,transparent)' }} />
+      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(to bottom, rgba(24,18,8,.35) 0%, transparent 26%, transparent 68%, #15120C 100%)' }} />
+
+      {/* ── Cartão de login ── */}
+      <div
+        style={{
+          position: 'relative', zIndex: 2, width: 'min(440px, 100%)',
+          background: 'rgba(34,29,21,0.82)',
+          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+          border: `1px solid ${AUTH_BORDER}`, borderRadius: 6,
+          padding: 'clamp(28px,5vw,40px) clamp(22px,4vw,34px) 26px',
+          boxShadow: '0 40px 90px -30px rgba(0,0,0,0.85), 0 -50px 90px -60px rgba(201,164,78,0.35)',
+          textAlign: 'center',
+        }}
+      >
+        <div aria-hidden="true" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: AUTH_GRAD, borderRadius: '6px 6px 0 0' }} />
+
+        <MarcaMenestrel />
+
+        <div style={{ fontFamily: AUTH_FD, fontSize: 13, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', backgroundImage: AUTH_GRAD, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', marginTop: 22 }}>
+          {ac.eyebrow}
+        </div>
+
+        {step === 'redirecting' ? (
+          /* ══ aguardando o redirect do OAuth ══ */
+          <div style={{ padding: '26px 0 10px' }}>
             <div aria-hidden="true" style={{ width: 46, height: 46, margin: '0 auto', borderRadius: 999, border: '3px solid rgba(255,255,255,0.12)', borderTopColor: AUTH_GOLD, animation: 'spin 0.9s linear infinite' }} />
-            <h3 style={{ fontFamily: AUTH_FD, fontSize: 22, fontWeight: 400, color: AUTH_INK, margin: '20px 0 0' }}>Redirecionando…</h3>
-            <p style={{ fontFamily: AUTH_FB, fontSize: 15, color: AUTH_MUTED, margin: '8px 0 0' }}>Aguarde um momento.</p>
+            <h1 style={{ fontFamily: AUTH_FD, fontSize: 24, fontWeight: 400, color: AUTH_INK, margin: '22px 0 0' }}>{ac.redirecting}</h1>
+            <p style={{ fontFamily: AUTH_FB, fontSize: 15, color: AUTH_MUTED, margin: '8px 0 0' }}>{ac.aguarde}</p>
           </div>
-        )}
-
-        {/* ══ TELA: e-mail de reset enviado ════════════════════════════════ */}
-        {step === 'forgotSent' && (
-          <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 8px' }}>
-            <div style={{ width: 52, height: 52, margin: '0 auto', borderRadius: 6, border: `1px solid rgba(83, 66, 27, 0.35)`, background: 'rgba(201,164,78,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: AUTH_GOLD }}>
-              <MailIcon style={{ width: 24, height: 24 }} />
-            </div>
-            <h3 style={{ fontFamily: AUTH_FD, fontSize: 22, fontWeight: 700, color: AUTH_INK, margin: '18px 0 0' }}>E-mail enviado!</h3>
-            <p style={{ fontFamily: AUTH_FB, fontSize: 15, color: AUTH_MUTED, margin: '10px 0 0', lineHeight: 1.6 }}>
-              Verifique sua caixa de entrada em <strong style={{ color: AUTH_INK }}>{email}</strong> e clique no link para redefinir sua senha.
+        ) : (
+          /* ══ estado normal ══ */
+          <>
+            <h1 style={{ fontFamily: AUTH_FD, fontSize: 'clamp(23px,3.4vw,27px)', fontWeight: 700, lineHeight: 1.25, color: AUTH_INK, margin: '10px 0 0' }}>
+              {ac.title}
+            </h1>
+            <p style={{ fontFamily: AUTH_FB, fontSize: 15.5, lineHeight: 1.65, color: AUTH_MUTED, margin: '12px 0 0' }}>
+              {ac.sub}
             </p>
-            <button
-              className="btn-ghost"
-              onClick={() => { resetForm(); setEmailMode('login'); setStep('emailForm'); }}
-              style={{ marginTop: 24 }}
-            >
-              Voltar ao login
-            </button>
-          </div>
-        )}
 
-        {/* ══ TELA: cadastro enviado (confirm email ativo no Supabase) ════ */}
-        {step === 'signupSent' && (
-          <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 8px' }}>
-            <div style={{ width: 52, height: 52, margin: '0 auto', borderRadius: 6, border: `1px solid rgba(83, 66, 27, 0.35)`, background: 'rgba(201,164,78,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: AUTH_GOLD }}>
-              <MailIcon style={{ width: 24, height: 24 }} />
-            </div>
-            <h3 style={{ fontFamily: AUTH_FD, fontSize: 22, fontWeight: 400, color: AUTH_INK, margin: '18px 0 0' }}>Confirme seu e-mail</h3>
-            <p style={{ fontFamily: AUTH_FB, fontSize: 15, color: AUTH_MUTED, margin: '10px 0 0', lineHeight: 1.6 }}>
-              Enviamos um link de confirmação para{' '}
-              <strong style={{ color: AUTH_INK }}>{email}</strong>.
-              <br />Clique no link para ativar sua conta e entrar.
-            </p>
             <button
-              className="btn-ghost"
-              onClick={() => { resetForm(); setEmailMode('login'); setStep('emailForm'); }}
-              style={{ marginTop: 24 }}
-            >
-              Já confirmei — Entrar
-            </button>
-          </div>
-        )}
-
-        {/* ══ TELA: choice (botões OAuth) ══════════════════════════════════ */}
-        {step === 'choice' && (
-          <div style={{ position: 'relative', textAlign: 'center' }}>
-
-            {/* ── Botão Google ── */}
-            <button
-              onClick={() => loginOAuth('google')}
-              style={{ ...oauthBtnBase, marginTop: 26, background: '#FFFFFF', border: 'none', color: '#15120C', boxShadow: '0 14px 34px -18px rgba(0,0,0,0.6)' }}
+              type="button"
+              onClick={entrarComGoogle}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                width: '100%', marginTop: 28, padding: '14px 18px',
+                borderRadius: 6, border: 'none', background: '#FFFFFF', color: '#15120C',
+                fontFamily: AUTH_FB, fontSize: 16, fontWeight: 500, cursor: 'pointer',
+                boxShadow: '0 14px 34px -18px rgba(0,0,0,0.6)',
+              }}
             >
               <GoogleIcon style={{ width: 20, height: 20, flexShrink: 0 }} />
-              {authCopy.google_btn || 'Continuar com Google'}
+              {ac.google_btn}
             </button>
 
-            {/* ── Separador ── */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-              <div style={{ flex: 1, height: 1, background: AUTH_BORDER }} />
-              <span style={{ fontFamily: AUTH_FB, fontSize: 15, color: AUTH_MUTED }}>ou</span>
-              <div style={{ flex: 1, height: 1, background: AUTH_BORDER }} />
-            </div>
-
-            {/* ── Botão "Entrar com e-mail" ── */}
-            <button
-              className="btn-ghost"
-              onClick={() => { setEmailMode('signup'); setStep('emailForm'); }}
-              style={{ width: '100%', marginTop: 0 }}
-            >
-              <MailIcon style={{ width: 18, height: 18, flexShrink: 0 }} />
-              Cadastrar
-            </button>
-
-            <button
-              className="btn-ghost"
-              onClick={() => { setEmailMode('login'); setStep('emailForm'); }}
-              style={{ width: '100%', marginTop: 10, marginBottom: 4 }}
-            >
-              Continuar com e-mail
-            </button>
-
-            {error && <div className="err-msg" style={{ marginTop: 14, textAlign: 'center' }}>{error}</div>}
-
-            <div aria-hidden="true" style={{ height: 1, background: AUTH_BORDER, margin: '10px 0 14px' }} />
-            <p style={{ fontFamily: AUTH_FB, color: '#7E7258', fontSize: 13, textAlign: 'center', lineHeight: 1.55, margin: 0 }}>{t.modal.consent}</p>
-          </div>
+            {error && <div className="err-msg" style={{ marginTop: 14 }}>{error}</div>}
+          </>
         )}
 
-        {/* ══ TELA: formulário e-mail + senha ══════════════════════════════ */}
-        {step === 'emailForm' && (
-          <div style={{ position: 'relative' }}>
-            {/* Voltar */}
-            <button
-              className="btn-ghost"
-              onClick={() => { resetForm(); setStep('choice'); }}
-              style={{ justifyContent: 'flex-start', marginBottom: 20, padding: 0, border: 'none', background: 'none' }}
-            >
-              <ChevronLeftIcon style={{ width: 16, height: 16 }} />
-              Voltar
-            </button>
+        <div aria-hidden="true" style={{ height: 1, background: AUTH_BORDER, margin: '24px 0 14px' }} />
 
-            {/* Campo e-mail (sempre visível) */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>E-mail</label>
-              <input
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setFocusField('email')}
-                onBlur={() => setFocusField(null)}
-                style={{ ...inputStyle, borderColor: focusField === 'email' ? AUTH_GOLD : AUTH_BORDER }}
-                autoFocus
-              />
-            </div>
+        <p style={{ fontFamily: AUTH_FB, fontSize: 13, lineHeight: 1.55, color: '#7E7258', margin: 0 }}>
+          {ac.consent}
+        </p>
 
-            {/* Campos de senha — ocultos no modo forgot */}
-            {emailMode !== 'forgot' && (
-              <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Senha</label>
-                <input
-                  type="password"
-                  placeholder={emailMode === 'signup' ? 'Mínimo 6 caracteres' : '••••••••'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onFocus={() => setFocusField('password')}
-                  onBlur={() => setFocusField(null)}
-                  style={{ ...inputStyle, borderColor: focusField === 'password' ? AUTH_GOLD : AUTH_BORDER }}
-                />
-              </div>
-            )}
-
-            {/* Confirmar senha — só no signup */}
-            {emailMode === 'signup' && (
-              <div style={{ marginBottom: 14 }}>
-                <label style={labelStyle}>Confirmar senha</label>
-                <input
-                  type="password"
-                  placeholder="Repita a senha"
-                  value={confirmPwd}
-                  onChange={(e) => setConfirmPwd(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onFocus={() => setFocusField('confirm')}
-                  onBlur={() => setFocusField(null)}
-                  style={{ ...inputStyle, borderColor: focusField === 'confirm' ? AUTH_GOLD : AUTH_BORDER }}
-                />
-              </div>
-            )}
-
-            {/* Link "Esqueci a senha" — só no login */}
-            {emailMode === 'login' && (
-              <button
-                className="btn-ghost"
-                onClick={() => { setEmailMode('forgot'); resetForm(); }}
-                style={{ display: 'block', marginBottom: 20, padding: 0, border: 'none', background: 'none' }}
-              >
-                Esqueci minha senha
-              </button>
-            )}
-
-            {error && <div className="err-msg" style={{ marginBottom: 12 }}>{error}</div>}
-
-            {/* Botão submit principal */}
-            <button
-              className="btn-primary"
-              onClick={handleEmailSubmit}
-              disabled={loading}
-              style={{ width: '100%', fontSize: 16, marginBottom: 18 }}
-            >
-              {loading && (
-                <span style={{ width: 16, height: 16, borderRadius: 6, border: '2px solid rgba(0,0,0,0.2)', borderTopColor: '#15120C', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
-              )}
-              {mc.btn}
-            </button>
-
-            {/* Alternância signup ↔ login */}
-            <p style={{ fontFamily: AUTH_FB, fontSize: 15, color: AUTH_MUTED, textAlign: 'center', margin: 0 }}>
-              {mc.switch1}{' '}
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  resetForm();
-                  setEmailMode(emailMode === 'signup' ? 'login' : emailMode === 'login' ? 'signup' : 'login');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    resetForm();
-                    setEmailMode(emailMode === 'signup' ? 'login' : emailMode === 'login' ? 'signup' : 'login');
-                  }
-                }}
-                style={{ color: AUTH_GOLD, cursor: 'pointer', fontWeight: 600 }}
-              >
-                {mc.switch2}
-              </span>
-            </p>
-
-            <div aria-hidden="true" style={{ height: 1, background: AUTH_BORDER, margin: '18px 0 12px' }} />
-            <p style={{ fontFamily: AUTH_FB, color: '#7E7258', fontSize: 13, textAlign: 'center', lineHeight: 1.55, margin: 0 }}>{t.modal.consent}</p>
+        {setLang && (
+          <div role="group" aria-label="Idioma" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16 }}>
+            <button type="button" onClick={() => setLang('pt')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: AUTH_FB, fontSize: 14, color: lang === 'pt' ? AUTH_GOLD : AUTH_MUTED, padding: '4px 6px' }}>PT</button>
+            <span aria-hidden="true" style={{ width: 1, height: 14, background: AUTH_BORDER }} />
+            <button type="button" onClick={() => setLang('en')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: AUTH_FB, fontSize: 14, color: lang === 'en' ? AUTH_GOLD : AUTH_MUTED, padding: '4px 6px' }}>EN</button>
           </div>
         )}
-    </ModalShell>
+      </div>
+    </section>
   );
 }
 
@@ -590,5 +263,5 @@ function PlanoEscolhaModal({ lang, userId, onChosen }) {
 }
 
 Object.assign(window, {
-  GoogleIcon, AppleIcon, SignupModal, PlanoEscolhaModal,
+  GoogleIcon, LoginPage, PlanoEscolhaModal,
 });

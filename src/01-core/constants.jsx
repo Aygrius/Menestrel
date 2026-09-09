@@ -33,8 +33,28 @@ const FANTASY_WEEKDAYS = [
 
 // Strings de copy só pro fluxo de auth
 const AUTH_COPY = {
-  pt: { signout: 'Sair', google_btn: 'Continuar com Google', redirecting: 'Forjando seu acesso...' },
-  en: { signout: 'Sign out', google_btn: 'Continue with Google', redirecting: 'Forging your access...' }
+  pt: {
+    signout:     'Sair',
+    google_btn:  'Continuar com Google',
+    redirecting: 'Forjando seu acesso...',
+    eyebrow:     'Mesa de RPG para Mestres & Jogadores',
+    title:       'Bem-vindo, menestrel',
+    sub:         'Entre com a sua conta Google para abrir o seu grimório.',
+    aguarde:     'Aguarde um momento.',
+    erro:        'Não foi possível iniciar o login. Tente novamente.',
+    consent:     'Ao entrar, você concorda com a Política de Privacidade e com o tratamento dos seus dados conforme a LGPD.',
+  },
+  en: {
+    signout:     'Sign out',
+    google_btn:  'Continue with Google',
+    redirecting: 'Forging your access...',
+    eyebrow:     'RPG tabletop for Game Masters & Players',
+    title:       'Welcome, minstrel',
+    sub:         'Sign in with your Google account to open your grimoire.',
+    aguarde:     'Just a moment.',
+    erro:        'Could not start the sign-in. Please try again.',
+    consent:     'By signing in you agree to the Privacy Policy and to the processing of your personal data.',
+  },
 };
 /* ============================== [07] ADMIN CONSOLE — aparece quando o usuário está logado ============================== */
 
@@ -43,7 +63,6 @@ const ADMIN_COPY = {
     profile_label: 'Perfil',
     master: 'Mestre',
     player: 'Jogador',
-    view_landing: 'Voltar ao site',
     signout: 'Sair',
     empty_title: 'Sua biblioteca está vazia',
     empty_sub: 'Comece criando seu primeiro registro abaixo',
@@ -69,7 +88,6 @@ const ADMIN_COPY = {
     profile_label: 'Profile',
     master: 'Game Master',
     player: 'Player',
-    view_landing: 'View site',
     signout: 'Sign out',
     empty_title: 'Your library is empty',
     empty_sub: 'Start by creating your first entry below',
@@ -93,6 +111,17 @@ const ADMIN_COPY = {
   }
 };
 
+/* ── Limites do plano gratuito ────────────────────────────────────────────
+   Fonte ÚNICA. O número vivia repetido em três arquivos (historias.jsx,
+   personagens.jsx e shell.jsx, este último duas vezes só pra montar o
+   tooltip) e tinha divergido do que o onboarding promete: o
+   PlanoEscolhaModal anuncia "1 história / 1 personagem" e o código aplicava
+   2 e 3. O onboarding é a fonte da verdade (decisão do usuário, 01/09/2026).
+
+   ⚠️ Isto é gate de UI. Um cliente que fale direto com o PostgREST não é
+   barrado por aqui — a checagem no banco é assunto separado. */
+const PLANO_FREE_LIMITES = { historias: 1, personagens: 1 };
+
 const ADMIN_SECTIONS = {
   master: [
     { id: 'historias',     icon: 'Scroll' },
@@ -113,4 +142,4 @@ const ADMIN_SECTIONS = {
   ],
 };
 
-Object.assign(window, { FANTASY_MONTHS, FANTASY_WEEKDAYS, AUTH_COPY, ADMIN_COPY, ADMIN_SECTIONS });
+Object.assign(window, { FANTASY_MONTHS, FANTASY_WEEKDAYS, AUTH_COPY, ADMIN_COPY, ADMIN_SECTIONS, PLANO_FREE_LIMITES });

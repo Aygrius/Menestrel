@@ -525,6 +525,7 @@ const __TwkCheck = ({ light }) => (
 // que foi passada (string fica string, array fica array).
 // Sem options cai pro input de cor nativo (back-compat).
 function TweakColor({ label, value, options, onChange }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   if (!options || !options.length) {
     return (
       <div className="twk-row twk-row-h">
@@ -550,7 +551,7 @@ function TweakColor({ label, value, options, onChange }) {
           return (
             <button key={i} type="button" className="twk-chip" role="radio"
               aria-checked={on} data-on={on ? '1' : '0'}
-              aria-label={colors.join(', ')} title={colors.join(' · ')}
+              aria-label={colors.join(', ')} {...propsTip(abrirTip, fecharTip, colors.join(' · '))}
               style={{ background: hero }}
               onClick={() => onChange(o)}>
               {sup.length > 0 && (
@@ -563,6 +564,7 @@ function TweakColor({ label, value, options, onChange }) {
           );
         })}
       </div>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </TweakRow>
   );
 }

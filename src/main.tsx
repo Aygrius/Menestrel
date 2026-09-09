@@ -16,7 +16,7 @@ import './bootstrap-globals'      // 1º: popula os globais antes das fases
 import './index.css'              // Tailwind v4 + tokens + re-skins "Grimório" (ESSENCIAL)
 import './components/ui-bridge'   // expõe o kit shadcn no window.UI (depois do bootstrap)
 
-// ── 12 fases + app.jsx, NA ORDEM EXATA do index.html antigo ──
+// ── fases + app.jsx, NA ORDEM EXATA do index.html antigo ──
 import './01-core/copy.jsx'
 import './01-core/constants.jsx'
 import './01-core/helpers.jsx'
@@ -27,7 +27,6 @@ import './02-shell/shaders.jsx'
 import './02-shell/dado-d20.jsx'
 import './02-shell/dado-d10.jsx'
 import './02-shell/tweaks-panel.jsx'
-import './03-landing/landing.jsx'
 import './04-auth/auth.jsx'
 import './05-convites/convites.jsx'
 import './06-historias/historias.jsx'
@@ -41,6 +40,8 @@ import './10-shell/shell.jsx'
 import './11-ficha/ficha.jsx'
 import '../app.jsx'
 import './12-batalha/batalha.jsx'
+// Tabuleiro DEPOIS de batalha.jsx: usa mesmoParticipante/statusTemEfeito dele.
+import './12-batalha/tabuleiro.jsx'
 import './13-diario/diario.jsx'
 
 // ── data layer (Fase 1): expõe os hooks-ponte no window ──

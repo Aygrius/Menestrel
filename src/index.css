@@ -117,6 +117,15 @@
 @keyframes ms-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ms-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
+/* modal-detalhe — explicação de item aberta a partir de outro modal (o wizard
+   de personagem). Precisa passar por cima do backdrop de quem o abriu, que
+   também é z-index 120. Mesmo padrão do .modal-qtd mais abaixo.
+   Ele entra por portal em .mc-root, como irmão do backdrop do wizard, pra
+   herdar a MESMA centralização (ver DetalheModal em 08-personagens). O Escape
+   fecha só este: ver MODAIS_ABERTOS em 10-shell/shell.jsx. */
+#root .menestrel-ui .ms-backdrop:has(> .modal-detalhe) { z-index: 130; }
+#root .menestrel-ui .ms-modal.modal-detalhe { z-index: 130; }
+
 /* ---- painel ---- */
 #root .menestrel-ui.ms-modal, #root .menestrel-ui .ms-modal {
   position: relative;
@@ -390,35 +399,10 @@
   #root .menestrel-ui.ms-footer-right, #root .menestrel-ui .ms-footer-right { width: 100%; }
 }
 
-/* ---- variante .auth-modal: vidro translúcido + linha de gradiente (SignupModal) ---- */
-#root .menestrel-ui.ms-modal.auth-modal, #root .menestrel-ui .ms-modal.auth-modal {
-  width: min(440px, calc(100vw - 32px));
-  background: rgba(34,29,21,0.95);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 6px;
-  box-shadow: 0 40px 90px -30px rgba(0,0,0,0.85), 0 -50px 90px -60px rgba(201,164,78,0.35);
-  overflow: hidden;
-}
-#root .menestrel-ui.ms-modal.auth-modal::before, #root .menestrel-ui .ms-modal.auth-modal::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg,#B8472F,#B8702E,#C9A44E,#B8862E,#7A5E2A);
-}
-#root .menestrel-ui.ms-modal.auth-modal::after, #root .menestrel-ui .ms-modal.auth-modal::after {
-  content: ''; position: absolute; left: 50%; top: -60%; transform: translateX(-50%);
-  width: 70%; height: 60%; Border-Radius: 6px;
-  background: radial-gradient(closest-side, rgba(201,164,78,0.22), transparent);
-  filter: blur(20px); pointer-events: none;
-}
-#root .menestrel-ui.ms-modal.auth-modal .ms-header, #root .menestrel-ui .ms-modal.auth-modal .ms-header { border-bottom: none; }
-#root .menestrel-ui.ms-modal.auth-modal .ms-title, #root .menestrel-ui .ms-modal.auth-modal .ms-title { font-family: 'Cinzel', serif; }
 
 /* ============================================================
    BOTÕES — padrão único do console (modais, telas, tabelas)
    4 variantes (primary / ghost / danger / icon) × 2 tamanhos (md/sm).
-   Landing usa sistema PRÓPRIO (.lp-btn-*, mais abaixo) — mesma base
-   visual (6px, sem gradiente em ghost/danger) mas com altura/fonte
-   maiores, intencionalmente diferente (vitrine vs. ferramenta).
    Não criar pele de botão nova fora daqui — usar as classes abaixo.
    ============================================================ */
 
@@ -543,41 +527,6 @@
     width: 100%;
   }
 }
-
-/* ---- landing (.lp-btn-*): sistema PRÓPRIO, mesma base (6px, sem gradiente
-   em ghost) mas altura/padding/fonte maiores — identidade de vitrine.
-   Substitui os objetos inline S.btnPrimary/S.btnGhost de landing.jsx. ---- */
-#root .menestrel-ui .lp-btn-primary, #root .menestrel-ui .lp-btn-ghost {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  border-radius: 999px;
-  padding: 18px 40px;
-  font-family: 'Lora', serif;
-  font-size: 18px; font-weight: 600;
-  cursor: pointer; text-decoration: none;
-  transition: filter .18s ease, background .18s ease, color .18s ease, border-color .18s ease, transform .14s ease, box-shadow .18s ease;
-}
-#root .menestrel-ui .lp-btn-primary {
-  background: linear-gradient(135deg, #C9A44E 0%, #B8702E 100%); color: #1C1407; border: 1px solid transparent;
-  box-shadow: none;
-}
-#root .menestrel-ui .lp-btn-primary:hover {
-  color: #1C1407;
-  background: linear-gradient(135deg, #D4B060 0%, #C47E3C 100%);
-  border-color: transparent;
-  filter: brightness(1.06);
-}
-#root .menestrel-ui .lp-btn-primary:active { filter: brightness(1.04); }
-#root .menestrel-ui .lp-btn-ghost {
-  background: rgba(106,85,48,0.12); color: #E8DDC6; border: 1px solid transparent;
-}
-#root .menestrel-ui .lp-btn-ghost:hover {
-  color: #C9A44E;
-  background: rgba(106,85,48,0.20);
-  border-color: transparent;
-}
-#root .menestrel-ui .lp-btn-ghost:active { background: rgba(106,85,48,0.20); }
-#root .menestrel-ui .lp-btn-primary:disabled, #root .menestrel-ui .lp-btn-ghost:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
-#root .menestrel-ui .lp-btn-primary:focus-visible, #root .menestrel-ui .lp-btn-ghost:focus-visible { outline: 2px solid rgba(201,164,78,0.65); outline-offset: 2px; }
 
 /* ============================================================
    CONVITES (05) — re-skin "Pedra & Bronze"
@@ -1036,7 +985,75 @@
 #root .menestrel-ui article.pj-card::before { content:''; display:block; position:absolute; top:0; left:0; right:0; height:2px; border:none; background:linear-gradient(90deg, #B8472F, #B8702E, #C9A44E, #B8862E, #7A5E2A); opacity:1; pointer-events:none;}
 #root .menestrel-ui article.pj-card::after { display: none; }
 #root .menestrel-ui .pj-card.is-clickable { cursor:pointer; transition:transform .16s ease, border-color .16s ease, background .16s ease; }
-#root .menestrel-ui .pj-card--levelup { border-color: rgba(106,85,48,0.26); box-shadow: none; }
+/* Card de quem subiu de estágio e ainda tem pontos a distribuir. A seta
+   (.pj-evoluiu) sinaliza de perto; isto é o chamariz de longe, pra saltar aos
+   olhos numa lista de vários personagens. Sem cor nova: o halo é o ouro do
+   projeto e a varredura reusa o mesmo gradiente do filete do topo do card
+   (ember → laranja → ouro). Antes era `box-shadow: none`. */
+#root .menestrel-ui .pj-card--levelup {
+  border-color: rgba(201,164,78,0.55);
+  animation: pj-levelup-halo 2.2s ease-in-out infinite;
+}
+@keyframes pj-levelup-halo {
+  0%, 100% {
+    border-color: rgba(201,164,78,0.38);
+    box-shadow: 0 0 0 1px rgba(201,164,78,0.16), 0 0 18px rgba(201,164,78,0.20);
+  }
+  50% {
+    border-color: rgba(201,164,78,0.85);
+    box-shadow: 0 0 0 1px rgba(201,164,78,0.45), 0 0 38px rgba(201,164,78,0.52), 0 0 72px rgba(184,112,46,0.26);
+  }
+}
+
+/* Varredura de brilho atravessando o card. Usa o ::after que estava
+   desativado (`display:none` logo acima) — o ::before segue com o filete do
+   topo. O overflow:hidden do card recorta a faixa nas bordas. */
+#root .menestrel-ui article.pj-card--levelup::after {
+  content: ''; display: block; position: absolute; inset: -40% -60%;
+  z-index: 1; pointer-events: none;
+  background: linear-gradient(105deg,
+    transparent 42%,
+    rgba(184,112,46,0.14) 47%,
+    rgba(232,221,198,0.30) 50%,
+    rgba(201,164,78,0.16) 53%,
+    transparent 58%);
+  animation: pj-levelup-varre 3.4s ease-in-out infinite;
+}
+@keyframes pj-levelup-varre {
+  0%   { transform: translateX(-65%); opacity: 0; }
+  10%  { opacity: 1; }
+  50%  { transform: translateX(65%); opacity: 0; }
+  100% { transform: translateX(65%); opacity: 0; }
+}
+
+/* O selo pulsa junto com o halo do card, num compasso mais curto pra ele
+   liderar a atenção. Só box-shadow: o transform fica livre pro :hover. */
+#root .menestrel-ui .pj-evoluiu { animation: pj-evoluiu-bate 1.8s ease-in-out infinite; }
+@keyframes pj-evoluiu-bate {
+  0%, 100% { box-shadow: 0 0 12px rgba(201,164,78,0.55), 0 2px 10px rgba(0,0,0,0.45); }
+  50%      { box-shadow: 0 0 30px rgba(230,201,122,0.95), 0 0 56px rgba(184,112,46,0.45), 0 2px 10px rgba(0,0,0,0.45); }
+}
+@keyframes pj-evoluiu-anel {
+  0%   { transform: scale(1);   opacity: 0.85; }
+  70%  { transform: scale(1.95); opacity: 0; }
+  100% { transform: scale(1.95); opacity: 0; }
+}
+
+/* Quem pede menos movimento continua vendo o destaque, parado. */
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .pj-card--levelup,
+  #root .menestrel-ui article.pj-card--levelup::after,
+  #root .menestrel-ui .pj-evoluiu,
+  #root .menestrel-ui .pj-evoluiu::after { animation: none; }
+  #root .menestrel-ui .pj-card--levelup {
+    border-color: rgba(201,164,78,0.65);
+    box-shadow: 0 0 0 1px rgba(201,164,78,0.30), 0 0 28px rgba(201,164,78,0.42);
+  }
+  #root .menestrel-ui article.pj-card--levelup::after { display: none; }
+  /* Parado, o selo mantém halo forte e o anel vira borda fixa. */
+  #root .menestrel-ui .pj-evoluiu { box-shadow: 0 0 22px rgba(230,201,122,0.75), 0 2px 10px rgba(0,0,0,0.45); }
+  #root .menestrel-ui .pj-evoluiu::after { opacity: 0.6; transform: scale(1.25); }
+}
 
 /* ── Efeito de saúde (EF) — degradê contínuo via CSS custom properties ────
    A cor é calculada em JS (lerpRGB) e injetada como --pj-health-r/g/b no
@@ -1176,15 +1193,6 @@
 #root .menestrel-ui .wiz-hab-stepper button:disabled { opacity: .4; }
 #root .menestrel-ui .wiz-attrs-stepper-val,
 #root .menestrel-ui .wiz-hab-step-val { color: #E8DDC6; }
-
-/* ---- Aprimoramentos: grupos + chips ---- */
-#root .menestrel-ui .wiz-aprim-grupo { background:rgba(106,85,48,0.10); border:1px solid rgba(106,85,48,0.24); border-radius: 6px; }
-#root .menestrel-ui .wiz-aprim-grupo-titulo { color:#E8DDC6; }
-#root .menestrel-ui .wiz-aprim-grupo-meta { color:#9C8F73; }
-#root .menestrel-ui .wiz-aprim-chip { background:rgba(232,221,198,0.05); color:#9C8F73; border:1px solid rgba(232,221,198,0.12); }
-#root .menestrel-ui .wiz-aprim-chip:hover { color:#E8DDC6; background:rgba(232,221,198,0.08); }
-#root .menestrel-ui .wiz-aprim-chip.active { background:rgba(201,164,78,0.14); color:#C9A44E; border-color:rgba(201,164,78,0.35); }
-#root .menestrel-ui .wiz-aprim-chip.nativo { background:rgba(106,85,48,0.22); color:#D8C7A4; border-color:rgba(106,85,48,0.40); }
 
 /* ---- painel lateral (alguns passos) ---- */
 #root .menestrel-ui .wiz-side { background:rgba(106,85,48,0.08); border:1px solid rgba(106,85,48,0.22); border-radius: 6px; }
@@ -1633,25 +1641,44 @@
    preservando cards de mesma altura por linha. */
 #root .menestrel-ui .pj-card-wrap { position: relative; display: flex; flex-direction: column; overflow: visible; }
 #root .menestrel-ui .pj-card-wrap > .pj-card { flex: 1 1 auto; }
+/* Selo de "evoluiu" — o acesso do jogador ao wizard, já que o lápis de edição
+   passou a ser só do Mestre (08/09/2026). Era um disco pequeno de cor chapada
+   (--gold-deep, 16px); agora é um medalhão de 40px com o mesmo gradiente
+   ouro→laranja do filete do topo do card, halo pulsante e um anel que se
+   expande — é ele que precisa ser visto primeiro no card. */
 #root .menestrel-ui .pj-evoluiu {
   position: absolute;
-  top: -8px;
-  right: 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 6px;
+  top: -14px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
   border-radius: 999px;
-  font-family: 'Lora', serif;
-  border: none;
-  background:  var(--gold-deep);
-  color: var(--card);
-  font-size: 16px;
-  font-weight: 600;
+  border: 2px solid rgba(255,240,200,0.55);
+  background: linear-gradient(150deg, #F3DFA4 0%, #E6C97A 22%, #C9A44E 55%, #B8702E 100%);
+  color: #2A1B08;
+  font-size: 22px;
   line-height: 1;
   user-select: none;
-  z-index: 2;
+  z-index: 3;
+  cursor: pointer;
+  transition: transform .15s ease, filter .15s ease;
 }
+#root .menestrel-ui .pj-evoluiu > i { font-size: 22px; display: block; }
+/* Anel de radar: sai do selo e se dissolve. É o que puxa o olho à distância,
+   sem precisar de cor fora da paleta. */
+#root .menestrel-ui .pj-evoluiu::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 2px solid rgba(230,201,122,0.85);
+  pointer-events: none;
+  animation: pj-evoluiu-anel 1.8s ease-out infinite;
+}
+#root .menestrel-ui .pj-evoluiu:hover { filter: brightness(1.12); transform: scale(1.08); }
+#root .menestrel-ui .pj-evoluiu:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 3px; }
 
 /* ============================================================
    FICHA (11) + INVENTÁRIO — pacote "slots na ficha"
@@ -2545,14 +2572,25 @@
 #root .menestrel-ui .batalha-estado.est-encerrada { color: var(--parchment-dim); }
 
 /* Setup — lista de participantes pré-batalha */
-#root .menestrel-ui .batalha-part-list { list-style: none; margin: 0 20px 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+/* Margem própria removida: quem recua agora é .batalha-conduzir. */
+#root .menestrel-ui .batalha-part-list { list-style: none; margin: 0; display: flex; flex-direction: column; gap: 10px; }
 #root .menestrel-ui .batalha-part-row { display: flex; align-items: center; gap: 12px; padding: 9px 13px; background: var(--ink-bg-2); border: 1px solid var(--rule); border-radius: 6px; }
 #root .menestrel-ui .batalha-part-tipo { display: inline-block; padding: 1px 7px; font-family: 'Lora', serif; font-size: 13px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 6px; line-height: 1.5; }
 #root .menestrel-ui .batalha-part-tipo.tipo-pj { color: var(--gold-bright); }
 #root .menestrel-ui .batalha-part-tipo.tipo-criatura { color: var(--ember); }
 #root .menestrel-ui .batalha-part-nome { font-family: 'Lora', serif; font-size: 13px; color: var(--parchment); }
 
-#root .menestrel-ui .batalha-conduzir { display: flex; flex-direction: column; font-family: 'Lora', serif; font-size: 13px; }
+/* O recuo lateral é AQUI, não em cada filho. Antes .batalha-setup-intro e
+   .batalha-part-list traziam `margin: 20px` próprio e o tabuleiro não trazia
+   nenhum — o grid encostava nas bordas do card enquanto o texto acima ficava
+   recuado. Com o padding no container, tudo alinha com o título do header
+   (que tem os mesmos 20px), e o `gap` dá o ritmo vertical no lugar das
+   margens ad hoc de cada filho. */
+#root .menestrel-ui .batalha-conduzir {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 18px 20px 20px; box-sizing: border-box;
+  font-family: 'Lora', serif; font-size: 13px;
+}
 
 /* Roster */
 #root .menestrel-ui .batalha-roster { position: relative; display: flex; flex-direction: column; }
@@ -2612,21 +2650,28 @@
 #root .menestrel-ui .batalha-stat { font-family: 'Lora', serif; font-size: 13px; line-height: 1; color: var(--parchment-muted); background: rgba(106,85,48,0.12); border: 1px solid transparent; border-radius: 999px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; height: 32px; gap: 4px; white-space: nowrap; }
 #root .menestrel-ui .batalha-stat span, #root .menestrel-ui .batalha-stat b { line-height: 1; }
 #root .menestrel-ui .batalha-stat strong, #root .menestrel-ui .batalha-stat b { color: var(--bone); font-weight: 700; }
+/* Variante com ÍCONE no lugar da sigla (03/09/2026): velocidade, ações e
+   defesa ao lado do nome, no card de batalha. O ícone fica na cor de rótulo
+   que a sigla tinha — quem carrega o destaque continua sendo o número. */
+#root .menestrel-ui .batalha-stat.ic { gap: 5px; padding: 0 11px; }
+#root .menestrel-ui .batalha-stat.ic > i {
+  font-size: 15px; line-height: 1; color: var(--parchment-muted); flex-shrink: 0;
+}
+/* Chip SEM texto: os PA restantes viraram o hexágono numerado (03/09/2026) —
+   o ícone é o número, então não sobra nada pra acompanhar. Vira círculo, do
+   mesmo tamanho do indicador de estado ao lado, e o ícone cresce e assume a
+   cor de valor: aqui ele não é rótulo de coisa nenhuma, é o dado. */
+#root .menestrel-ui .batalha-stat.ic.so-ic { width: 32px; padding: 0; justify-content: center; }
+#root .menestrel-ui .batalha-stat.ic.so-ic > i { font-size: 19px; color: var(--bone); }
 #root .menestrel-ui .batalha-stat.ka { color: #b48bd3; }
 #root .menestrel-ui .batalha-stat.ka b { color: #b48bd3; }
 
-/* Ações inline (Dano/Cura/Estado) do card do lutador — mesmo padrão de botão
-   de .hist-card-actions: classes .btn-icon/.btn-ghost do sistema único (ver
-   bloco "BOTÕES" no topo do arquivo), com tamanho, hover base, foco e
-   disabled todos herdados de lá — inclusive a borda, que fica sempre
-   transparente (herdada do "border: 1px solid transparent" da base), igual
-   à história. Só a COR do ícone/texto muda por cima (dano=vermelho,
-   cura=verde, estado=tom do indicador de status); nada de borda própria.
-   O menu ⋯ continua existindo só para "Envenenar" (ver EstadoDrop). */
-#root .menestrel-ui .batalha-fighter-acoes-inline { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; flex-wrap: wrap; }
-#root .menestrel-ui .bfi-btn-lbl { white-space: nowrap; }
-#root .menestrel-ui .btn-icon.dmg:hover:not(:disabled) { color: #d98a7a; }
-#root .menestrel-ui .btn-icon.heal:hover:not(:disabled) { color: #a4cf85; }
+/* A linha de ações inline do card (Dano/Cura/Estado) saiu em 01/09/2026: os
+   dois botões coração viraram edição direta da barra de pool e o seletor de
+   estado desceu pra fileira de Mover/Ação/Passar. Com ela foram embora
+   .batalha-fighter-acoes-inline, .bfi-btn-lbl (o rótulo escrito do estado) e
+   os hovers .btn-icon.dmg/.heal — ver .batalha-menu-acao-ic, no bloco do
+   menu do token, que é onde esses botões vivem agora. */
 #root .menestrel-ui .btn-icon.status:hover:not(:disabled) { color: #b48bd3; }
 /* Estado — 4 botões diretos (Ativo/Desmaiado/Morto/Desistiu), substituindo o
    antigo menu de 3 pontos. Cores espelham .batalha-fighter-status-ic, mesmo
@@ -2666,8 +2711,9 @@
 #root .menestrel-ui .batalha-dano-painel.status { border-color: rgba(194, 90, 42, 0.45); }
 #root .menestrel-ui .batalha-dano-input { width: 78px; background: var(--ink-bg-2); color: var(--bone); border: 1px solid var(--rule); font-family: 'Lora', serif; font-size: 13px; padding: 5px 9px; border-radius: 999px; }
 #root .menestrel-ui .batalha-dano-input:focus { outline: 1px solid var(--gold); border-color: var(--gold); }
-#root .menestrel-ui .batalha-dano-crit { display: inline-flex; align-items: center; gap: 6px; font-family: 'Lora', serif; font-size: 13px; color: var(--parchment-muted); cursor: pointer; }
-#root .menestrel-ui .batalha-dano-crit input { accent-color: var(--gold); }
+/* .batalha-dano-crit era o checkbox "crítico pula a EH" do painel de dano,
+   que saiu junto com ele (01/09/2026). O crítico continua existindo no motor,
+   pela aba Ação — só não há mais dano MANUAL com cascata pra ele modificar. */
 #root .menestrel-ui .batalha-painel-lbl { font-size: 13px; letter-spacing: .07em; text-transform: uppercase; color: var(--parchment-dim); }
 #root .menestrel-ui .batalha-painel-hint { font-size: 13px; color: var(--parchment-dim); font-variant-numeric: tabular-nums; }
 
@@ -2777,8 +2823,12 @@
    ter dois sistemas de "campo de formulário" diferentes no projeto. */
 #root .menestrel-ui .motor-field { display: flex; flex-direction: column; gap: 5px; }
 #root .menestrel-ui .motor-field > span { font-family: 'Lora', serif; font-size: 13px; color: var(--parchment-dim); font-style: italic; }
+/* 32px, não 40: é a altura que .select-pill-btn e .qty-stepper-pill já
+   tinham. Lado a lado numa mesma linha (Arma / Alvo / quantidade) a diferença
+   de 8px aparecia como degrau, e no menu do token os 8px por campo somavam
+   altura suficiente pra nascer barra de rolagem. Agora é uma pílula só. */
 #root .menestrel-ui .motor-field input, #root .menestrel-ui .motor-field select {
-  height: 40px; background: rgba(24,17,8,0.92); border: 1px solid rgba(106,85,48,0.50);
+  height: 32px; background: rgba(24,17,8,0.92); border: 1px solid rgba(106,85,48,0.50);
   color: var(--parchment); padding: 0 16px; font-family: 'Lora', serif; font-size: 13px;
   outline: none; border-radius: 999px; transition: border-color .15s;
 }
@@ -2803,9 +2853,15 @@
 
 /* Painel de Ação / Teste (atacar) */
 #root .menestrel-ui .atacar { padding: 0 20px 20px 20px; background: var(--ink-bg-2); display: flex; flex-direction: column; gap: 20px; }
-#root .menestrel-ui .acao-ator { display: inline-flex; align-items: center; flex: 0 0 auto; min-height: 36px; padding: 8px 12px 8px 0; margin-right: 4px; font-family: 'Cinzel', serif; font-size: 13px; font-weight: 600; color: var(--gold-bright); letter-spacing: .02em; }
 #root .menestrel-ui .atacar-aviso-vazio { font-family: 'Lora', serif; font-size: 13px; color: var(--parchment-muted); padding: 10px 2px; }
 #root .menestrel-ui .atacar-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+/* Variante da aba Resistência (02/09/2026): o par RF/RM entrou na MESMA linha
+   das duas forças, como primeira coluna de largura própria. `align-items: end`
+   alinha os botões pela base dos inputs — sem isso eles subiriam até a altura
+   do rótulo que os campos têm em cima e eles não. */
+#root .menestrel-ui .atacar-row2.com-resist-tipo {
+  grid-template-columns: auto 1fr 1fr; align-items: end;
+}
 #root .menestrel-ui .atacar-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 11px; }
 #root .menestrel-ui .atacar-coluna { padding: 8px 11px; background: var(--ink-bg-3); border: 1px solid var(--rule); border-radius: 6px; font-family: 'Lora', serif; font-size: 13px; color: var(--parchment-muted); }
 #root .menestrel-ui .atacar-coluna strong { font-family: 'Cinzel', serif; font-size: 16px; font-weight: 600; color: var(--gold-bright); margin: 0 4px; }
@@ -2815,6 +2871,19 @@
 #root .menestrel-ui .acao-efeito-texto { font-family: 'Lora', serif; font-size: 13px; line-height: 1.5; color: var(--parchment-dim); }
 #root .menestrel-ui .acao-efeito-texto strong { font-style: normal; color: var(--gold-bright); }
 #root .menestrel-ui .atacar-footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin: 0 -20px; padding: 20px 20px 0; border-top: 1px solid var(--rule); }
+/* Rolar-d20 e Confirmar viraram só-ícone em 02/09/2026 (rótulo no title).
+   Círculos, como os do card. O de rolar cresce em pílula quando já há
+   resultado: o número do d20 fica ao lado do dado, e ele é o único lugar do
+   painel que mostra o valor cru. */
+#root .menestrel-ui .atacar-footer .dado-ov-trigger > .btn-primary,
+#root .menestrel-ui .atacar-footer .atacar-confirmar {
+  width: 32px; min-width: 32px; height: 32px; padding: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+/* O número do d20 é irmão do botão, não filho — foi o que devolveu o círculo
+   perfeito ao botão de rolar (02/09/2026): dentro dele o min-width + padding
+   lateral esticavam o círculo em pílula assim que o resultado saía. */
+#root .menestrel-ui .dado-ov-trigger-num { font-family: 'Lora', serif; font-weight: 700; font-size: 15px; color: var(--gold-bright); }
 #root .menestrel-ui .atacar-footer .dado-ov-trigger { margin: 0; flex: 1 1 auto; min-width: 0; }
 #root .menestrel-ui .atacar-footer-spacer { flex: 1 1 auto; }
 /* Substitui o botão Cancelar quando há rolagem pendente sem aplicar — tom
@@ -2840,10 +2909,8 @@
   #root .menestrel-ui .atacar-row2 { grid-template-columns: 1fr; }
   #root .menestrel-ui .atacar-row3 { grid-template-columns: 1fr; }
   #root .menestrel-ui .batalha-pools { gap: 8px; }
-  /* Em telas estreitas, o botão de Estado (único com rótulo) mostra só
-     ícone+seta — o texto some pra não competir por espaço com nome/stats. */
-  #root .menestrel-ui .bfi-btn-lbl { display: none; }
-  #root .menestrel-ui .batalha-fighter-acoes-inline .estado { padding: 0 8px; }
+  /* O botão de Estado virou só-ícone em TODA largura (01/09/2026), então a
+     regra que escondia o rótulo dele em tela estreita perdeu o alvo. */
   /* Footer do painel de Ação: dado numa linha, Cancelar/Aplicar embaixo. */
   #root .menestrel-ui .atacar-footer { justify-content: flex-start; }
   #root .menestrel-ui .atacar-footer .dado-ov-trigger { flex: 1 1 100%; }
@@ -3861,7 +3928,40 @@
 #root .menestrel-ui .wiz-habs { display: flex; flex-direction: column; gap: 20px; }
 #root .menestrel-ui .wiz-habs .wiz-pontos { grid-template-columns: repeat(4, 1fr); }
 #root .menestrel-ui .wiz-habs .wiz-pontos-num small { font-family: 'Cinzel', serif; font-size: 24px; color: var(--parchment-muted); margin-left: 2px; }
-#root .menestrel-ui .wiz-habs-list { display: flex; flex-direction: column; gap: 22px; grid-template-columns: repeat(2, 1fr); }
+#root .menestrel-ui .wiz-habs-list { display: flex; flex-direction: column; gap: 22px; }
+
+/* wiz-lista-dupla — listas do wizard em DUAS COLUNAS (08/09/2026).
+   Vale para Atributos, Grupos de Armas, Habilidades, Magias, Técnicas e as
+   vagas de Aprimoramento: todas são pares nome + stepper de mesma altura, e
+   duas por linha cortam pela metade a rolagem de listas longas.
+   O acordeão inline que existia antes saiu junto — o texto agora abre no
+   DetalheModal, porque expandir um bloco dentro da grade empurrava o vizinho
+   e desalinhava os steppers. Abaixo de 560px volta a uma coluna: dois
+   steppers lado a lado não cabem no celular. */
+/* Duas colunas por MULTICOL, não por grid. No grid, itens da mesma linha
+   compartilham a altura da linha: uma habilidade aprimorável (que carrega os
+   chips de idioma nativo e um seletor por vaga) fica muito mais alta que a
+   vizinha, e sobrava um buraco embaixo da curta até a linha seguinte —
+   era o "espaço vazio entre as habilidades" (relato de 08/09/2026).
+   Multicol só empilha e equilibra: nenhuma altura é acoplada, nenhum buraco.
+   Em multicol o espaçamento vertical vem de margin, não de gap. */
+/* `display: block` é obrigatório aqui: multicoluna não se aplica a container
+   flex, e as classes que acompanham esta (.wiz-attrs e .wiz-habs-list, logo
+   acima) declaram `display: flex; flex-direction: column`. Sem esta linha o
+   flex vencia — as listas voltavam a uma coluna e as duas colunas
+   simplesmente não existiam. */
+#root .menestrel-ui .wiz-lista-dupla { display: block; columns: 2; column-gap: 20px; }
+#root .menestrel-ui .wiz-lista-dupla .wiz-item {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  margin: 0 0 14px;
+  /* Um item nunca se parte no meio entre uma coluna e outra. */
+  break-inside: avoid; -webkit-column-break-inside: avoid;
+}
+/* O nome pode ser longo (magias e técnicas) — quebra em vez de estourar a coluna. */
+#root .menestrel-ui .wiz-lista-dupla .wiz-hab-name, #root .menestrel-ui .wiz-lista-dupla .wiz-attrs-name { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  #root .menestrel-ui .wiz-lista-dupla { columns: 1; }
+}
 #root .menestrel-ui .wiz-hab-table tr.on td { background: rgba(150, 0, 0, 0.06); }
 #root .menestrel-ui .wiz-review-empty { font-family: 'Lora', serif; font-style: normal; font-size: 13px; }
 #root .menestrel-ui .pj-card:hover .pj-card-delete { opacity: 1; }
@@ -3929,6 +4029,39 @@
 #root .menestrel-ui .wiz-mag-name-head { font-family: 'Lora', serif; color: var(--gold-bright); }
 #root .menestrel-ui .wiz-field textarea { border-radius: 12px; }
 #root .menestrel-ui .wiz-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* FantasyDatePicker — grid padrão (dia, mês, dia-da-semana, ano). Estava em
+   style inline dentro do componente (10-shell/shell.jsx); virou classe pra
+   poder ser reencaixado por contexto. Valores idênticos aos de antes. */
+#root .menestrel-ui .fdp-grid { display: grid; grid-template-columns: 70px 1fr 130px 80px; gap: 8px; }
+/* Pele padrão dos quatro campos: fundo tinta quente translúcida, sem borda —
+   o visual do seletor de mesa, que é onde o componente nasceu. Saiu do style
+   inline pra poder ser trocada por contexto. */
+#root .menestrel-ui .fdp-grid .select-pill-btn,
+#root .menestrel-ui .fdp-grid .fdp-semana,
+#root .menestrel-ui .fdp-grid .fdp-ano { background: rgba(106,85,48,0.12); border: none; }
+
+/* Na tela de Identidade do wizard o seletor de data seguia com 4 colunas
+   desiguais e gap 8px, destoando dos campos vizinhos, que são .wiz-row-2col
+   (duas colunas iguais, gap 16px) — era o "layout diferente dos demais
+   inputs" (08/09/2026). Aqui ele adota o mesmo ritmo: Dia | Mês na primeira
+   linha, Ano | dia-da-semana na segunda.
+   O `order` existe porque a ordem do DOM é dia, mês, dia-da-semana, ano: num
+   formulário o Ano tem que vir junto da data, e o dia-da-semana, que é
+   decorativo e não editável, fica por último. */
+#root .menestrel-ui .wiz-ident .fdp-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
+#root .menestrel-ui .wiz-ident .fdp-grid > :nth-child(3) { order: 1; }
+/* E a mesma PELE dos SelectPill vizinhos: fundo escuro com blur e borda de
+   1px. O padrão do componente (tinta quente, sem borda) destoava — era o
+   "fundo, a cor, etc." do relato. Valores copiados do pillStyle de SelectPill
+   em 08-personagens/personagens.jsx. */
+#root .menestrel-ui .wiz-ident .fdp-grid .select-pill-btn,
+#root .menestrel-ui .wiz-ident .fdp-grid .fdp-semana,
+#root .menestrel-ui .wiz-ident .fdp-grid .fdp-ano {
+  background: rgba(24,17,8,0.92);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(106,85,48,0.50);
+}
 #root .menestrel-ui .wiz-field textarea { background: rgba(106, 85, 48, 0.12); border: none; color: var(--parchment); padding: 10px 12px; font-family: 'Lora', serif; font-size: 13px; line-height: 1.5; outline: none; resize: vertical; min-height: 50px; transition: border-color .15s; }
 #root .menestrel-ui .wiz-field textarea:focus { border-color: var(--gold); }
 #root .menestrel-ui .wiz-field textarea::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -3947,18 +4080,41 @@
 #root .menestrel-ui .pj-levelup-badge { font-size: 15px; padding: 5px 11px; }
 #root .menestrel-ui .wiz-field-locked input, #root .menestrel-ui .wiz-field-locked select { opacity: 0.45; cursor: not-allowed; }
 #root .menestrel-ui .wiz-field-locked input:focus, #root .menestrel-ui .wiz-field-locked select:focus { outline: none; }
-#root .menestrel-ui .wiz-aprim { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 22px; }
-#root .menestrel-ui .wiz-aprim-grupo { display: flex; flex-direction: column; gap: 10px; }
-#root .menestrel-ui .wiz-aprim-grupo-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-#root .menestrel-ui .wiz-aprim-grupo-titulo { font-family: 'Lora', serif; font-size: 15px; text-transform: uppercase; }
-#root .menestrel-ui .wiz-aprim-grupo-meta { font-size: 13px; font-family: 'Lora', serif; }
-#root .menestrel-ui .wiz-aprim-nativos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; background: var(--ink-bg-2); border-left: 2px solid var(--gold); border-radius: 6px; }
-#root .menestrel-ui .wiz-aprim-opcoes { display: flex; flex-wrap: wrap; gap: 6px; }
-#root .menestrel-ui .wiz-aprim-chip { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 6px; font-family: 'Lora', serif; font-size: 15px; cursor: pointer; transition: color 0.15s, background 0.15s, border-color 0.15s; }
-#root .menestrel-ui .wiz-aprim-chip:hover:not(:disabled) { color: var(--parchment); border-color: var(--gold); }
-#root .menestrel-ui .wiz-aprim-chip.on { background: var(--gold); color: var(--bone); border-color: var(--gold); }
-#root .menestrel-ui .wiz-aprim-chip.nativo { cursor: default; }
-#root .menestrel-ui .wiz-aprim-chip.disabled, #root .menestrel-ui .wiz-aprim-chip:disabled { opacity: 0.4; cursor: not-allowed; }
+/* wiz-aprim-inline — vagas de aprimoramento DENTRO do item da habilidade que
+   as gera (08/09/2026). Substituiu o painel `.wiz-aprim`, que ficava depois de
+   toda a lista atrás de uma borda, abrindo um vão entre a habilidade
+   aprimorável e as vizinhas.
+
+   Forma idêntica pras quatro (Idioma, Religião, Arte, Sabedoria): só os
+   seletores de vaga. Saíram daqui o texto da regra, os chips de idioma nativo
+   (exceção de uma só habilidade, que quebrava o alinhamento das colunas) e o
+   contador X/N — hoje a regra e os nativos vivem no modal de explicação dela.
+
+   Sem filete à esquerda: a única coisa que resta no bloco é o que se pode
+   escolher, e é nisso que a ênfase vai (ver o realce dourado abaixo). */
+#root .menestrel-ui .wiz-aprim-inline {
+  display: flex; flex-direction: column; gap: 5px;
+  margin: 4px 0 0;
+}
+/* Realce das vagas: são o único controle EXTRA da lista, e sem eles a vaga
+   destravada passava batida. `!important` porque SelectPill traz background e
+   cor em style inline (08-personagens/personagens.jsx) e inline vence folha de
+   estilo — é a única forma de repintar sem duplicar o componente. */
+#root .menestrel-ui .wiz-aprim-inline .select-pill-btn {
+  background: rgba(201,164,78,0.14) !important;
+  color: var(--gold-bright) !important;
+}
+#root .menestrel-ui .wiz-aprim-inline .select-pill-btn:hover {
+  background: rgba(201,164,78,0.22) !important;
+}
+/* Sem vaga destravada: fica visível, mas apagado — a habilidade existe (e pode
+   ser central pra profissão, como Religião pro Sacerdote), só ainda não rendeu
+   vaga. Esconder fazia parecer que o jogo não tinha aquilo. */
+#root .menestrel-ui .wiz-aprim-inline.is-travado { opacity: 0.45; }
+/* Aqui viviam .wiz-aprim-grupo/-head/-titulo/-meta, .wiz-aprim-nativos,
+   .wiz-aprim-opcoes e .wiz-aprim-chip* — a pele do painel de aprimoramentos
+   que existia antes de as vagas irem pra dentro da habilidade-mãe. Nenhuma
+   dessas classes é mais renderizada; removidas em 08/09/2026. */
 #root .menestrel-ui .wiz-hab-stepper { display: inline-flex; align-items: center; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--ink-bg); }
 #root .menestrel-ui .wiz-hab-step { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; flex-shrink: 0; background: transparent; border: none; color: var(--gold); cursor: pointer; font-size: 16px; line-height: 1; transition: background .15s ease, color .15s ease; }
 #root .menestrel-ui .wiz-hab-step:hover:not(:disabled) { background: var(--gold); color: var(--bone); }
@@ -4070,6 +4226,8 @@
   #root .menestrel-ui .modal-wizard .wiz-body { padding: 20px; }
   #root .menestrel-ui .modal-wizard .wiz-footer { padding: 12px 18px 18px; }
   #root .menestrel-ui .wiz-row-2col { grid-template-columns: 1fr; }
+  /* Mesma regra do .wiz-row-2col: no celular os campos empilham. */
+  #root .menestrel-ui .wiz-ident .fdp-grid { grid-template-columns: 1fr; }
   #root .menestrel-ui .cofre-grid { grid-template-columns: repeat(2, 1fr); }
   #root .menestrel-ui .cofre-moedas { gap: 6px; }
   #root .menestrel-ui .cofre-moeda-badge { font-size: 15px; padding: 1px 4px; }
@@ -4367,37 +4525,9 @@
 
 /* ============================================================
    SHELL — 10-shell/shell.jsx
-   Topbar (mn-*), FichasJogador (fj-*), UserMenu (mc-usermenu),
+   FichasJogador (fj-*), UserMenu (mc-usermenu),
    AdminConsole (mc-*) e keyframes de utilitário.
    ============================================================ */
-
-/* ---- Topbar ---- */
-#root .menestrel-ui .mn-link { position: relative; }
-#root .menestrel-ui .mn-link::after {
-  content: ""; position: absolute; left: 0; right: 100%; bottom: -2px;
-  height: 2px; border-radius: 6px; background: #7A5E2A; transition: right .25s ease;
-}
-#root .menestrel-ui .mn-link:hover { color: #7A5E2A !important; }
-#root .menestrel-ui .mn-link:hover::after { right: 0; }
-
-#root .menestrel-ui .mn-cta { transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
-#root .menestrel-ui .mn-cta:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 18px 34px -12px rgba(201,164,78,0.5); }
-#root .menestrel-ui .mn-cta:active { transform: translateY(0); }
-
-#root .menestrel-ui .mn-lang button { transition: color .2s ease; }
-#root .menestrel-ui .mn-lang button:hover { color: #7A5E2A !important; }
-
-#root .menestrel-ui .mn-nav-desktop { display: flex; }
-#root .menestrel-ui .mn-burger { display: none; }
-
-@media (max-width: 980px) {
-  #root .menestrel-ui .mn-nav-desktop { display: none; }
-  #root .menestrel-ui .mn-lang { display: none; }
-  #root .menestrel-ui .mn-burger { display: flex; }
-}
-@media (max-width: 560px) {
-  #root .menestrel-ui .mn-cta { padding: 14px 22px !important; font-size: 16px !important; }
-}
 
 /* ---- FichasJogador ---- */
 #root .menestrel-ui .fj-card { transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
@@ -4517,6 +4647,35 @@
 }
 /* Na aba Convites o pill flutuante de data/local não aparece — remove o espaço reservado para ele */
 #root .menestrel-ui .mc-main:has(.cv-jog) { margin-top: 0; }
+/* No TABULEIRO de batalha o pill de data/local sai de cena: ele é fixed no
+   topo central e cobria o grid, que é a única coisa que importa ali. Vale só
+   quando o tabuleiro está montado (.batalha-tabuleiro-wrap) — a LISTA de
+   batalhas continua mostrando o pill normalmente. Mesmo recurso da exceção
+   de Convites logo acima, e o margin-top devolve os 70px reservados pra ele. */
+body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
+#root .menestrel-ui .mc-main:has(.batalha-tabuleiro-wrap) { margin-top: 20px; }
+/* Na aba PERSONAGENS o selo de evolução (.pj-evoluiu) sobe 14px acima da borda
+   do card e o anel de radar se expande mais ~19px — o efeito alcança ~33px
+   acima do card, justamente onde fica o pill de data/mesa (.cdj-root: fixed,
+   top 20px, ~32px de altura, z-index 53). Dois problemas somados, e cada um
+   precisa da sua correção:
+
+   1) EMPILHAMENTO — o pill cobria o selo. Não dá pra resolver no card: o
+      .mc-main é contexto de empilhamento próprio, então qualquer z-index lá
+      dentro fica preso abaixo do teto dele. Subir o teto pra 60 é o que faz o
+      card ganhar do pill. Mesma família de exceções por página das regras
+      acima (Convites, Tabuleiro).
+   2) RECORTE — mesmo ganhando o empilhamento, o brilho era CORTADO: .mc-main
+      tem overflow-y:auto e, quando um eixo não é `visible`, o outro passa a
+      `auto` também, então ele recorta o que sai da própria borda. O selo
+      encostava nessa borda e o halo sumia.
+      A correção troca 30px de margem externa por 30px de padding interno: o
+      card continua na MESMA posição de tela (70+14 = 40+30+14 = 84px do
+      topo), sem afastar nada do pill, mas agora sobra espaço dentro da caixa
+      de rolagem pro brilho existir. */
+#root .menestrel-ui .mc-main:has(.pjs) { z-index: 60; margin-top: 40px; }
+#root .menestrel-ui .pjs { padding-top: 30px; }
+
 /* Na aba Histórias do jogador o pill aparece mas queremos menos espaço — reduz o padding do container */
 #root .menestrel-ui .mc-main:has(.cv-av-page) { margin-top: 20px; }
 #root .menestrel-ui .mc-content:has(> .cv-av-page) { padding-top: 20px; }
@@ -4650,6 +4809,13 @@
    vira formulário inline (cdj-form). Jogador: só leitura (cursor default,
    sem lápis). */
 .menestrel-ui.cdj-root { position: fixed; top: 20px; left: 0; right: 0; z-index: 53; display: flex; justify-content: center; align-items: center; gap: 8px; pointer-events: none; }
+/* Na aba Personagens o .mc-main sobe pra 60 pra que os cards e o selo de
+   evolução passem por cima deste pill. Enquanto o seletor de mesa está
+   ABERTO, porém, a barra tem que voltar a mandar: a lista (.cdj-mesa-lista,
+   z-index 54) mora dentro deste contexto de empilhamento e ficaria escondida
+   atrás dos cards. O calendário não precisa disto — ele vai por portal pro
+   document.body, fora daqui. */
+.menestrel-ui.cdj-root:has(.cdj-mesa-lista) { z-index: 70; }
 
 /* Seletor de mesa integrado ao cdj-root — mesma pele de pill que cdj-bar */
 .menestrel-ui.cdj-root .cdj-mesa-seletor {
@@ -5611,6 +5777,12 @@
 #root .menestrel-ui .batalha-mng-page-eyebrow { font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-bright); display: flex; align-items: center; gap: 5px; margin-bottom: 2px; }
 #root .menestrel-ui .batalha-mng-page-eyebrow .ti { font-size: 12px; }
 #root .menestrel-ui .batalha-mng-page-body { flex: 1; min-height: 0; overflow-y: auto; }
+/* Com o tabuleiro na tela o corpo vira coluna flex e o .batalha-conduzir
+   estica: é o que permite o grid ocupar a altura restante em vez de parar num
+   max-height fixo. Só quando há tabuleiro — a lista de batalhas continua
+   rolando normalmente. */
+#root .menestrel-ui .batalha-mng-page-body:has(.batalha-tabuleiro-wrap) { display: flex; flex-direction: column; overflow: hidden; }
+#root .menestrel-ui .batalha-mng-page-body:has(.batalha-tabuleiro-wrap) > .batalha-conduzir { flex: 1; min-height: 0; }
 #root .menestrel-ui .batalha-mng-page-body::-webkit-scrollbar { width: 8px; height: 8px; }
 #root .menestrel-ui .batalha-mng-page-body::-webkit-scrollbar-track { background: transparent; }
 #root .menestrel-ui .batalha-mng-page-body::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: 6px; }
@@ -6226,44 +6398,51 @@
 #root .menestrel-ui .part-section-grid label.hist-protag-item { cursor: pointer; }
 
 /* ── ConduzirBatalhaView: parágrafo de intro do setup ── */
-#root .menestrel-ui .batalha-setup-intro { margin: 20px; }
+#root .menestrel-ui .batalha-setup-intro { margin: 0; }
 
 /* ── ConduzirBatalhaView: botão pool de cura ── */
-#root .menestrel-ui .btn-ghost.btn-sm.pool-btn { min-width: 44px; }
+/* .pool-btn era o seletor EH/AR/EF do painel de cura, que saiu quando a
+   edição passou a ser por clique na barra (01/09/2026): a pool agora vem do
+   clique, não de um seletor. */
 
 /* ── EstadoDropPortal ── */
 /* O portal renderiza no body (fora de .menestrel-ui), então usamos seletor
    sem escopo. A classe .batalha-estado-drop já existe no CSS do index.css
    para o dropdown não-portal — usamos a mesma para o portal.
    Posição (top/right) vem via style inline (calculado por getBoundingClientRect). */
+/* Tira HORIZONTAL de círculos (01/09/2026). Era uma lista vertical com o nome
+   escrito ao lado do ícone; o nome foi pro tooltip e o menu encolheu pro
+   tamanho da própria fileira de botões. Por isso não há mais min-width nem
+   flex-direction: column. */
 .batalha-estado-drop-portal {
   position: fixed; z-index: 9999;
-  min-width: 160px; display: flex; flex-direction: column; gap: 2px; padding: 5px;
+  display: flex; flex-direction: row; gap: 4px; padding: 5px;
   background: #221D15; border: 1px solid rgba(106,85,48,0.50);
-  border-radius: 8px; box-shadow: 0 12px 28px -10px rgba(0,0,0,.85);
-  font-family: 'Lora', serif; font-size: 13px;
+  border-radius: 999px; box-shadow: 0 12px 28px -10px rgba(0,0,0,.85);
 }
 
-/* Itens do dropdown de estado (no portal e no inline) */
+/* Cada estado é um círculo perfeito de ícone. */
 .batalha-estado-drop-portal .batalha-estado-drop-item,
 #root .menestrel-ui .batalha-estado-drop-portal .batalha-estado-drop-item {
-  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
-  background: transparent; border: none; border-radius: 5px;
-  color: var(--parchment-muted, #9C8F73); font-family: 'Lora', serif; font-size: 13px;
-  cursor: pointer; transition: background .12s, color .12s; text-align: left; width: 100%;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; flex: 0 0 auto;
+  background: transparent; border: none; border-radius: 999px;
+  color: var(--parchment-muted, #9C8F73); font-size: 16px;
+  cursor: pointer; transition: background .12s, color .12s;
 }
 .batalha-estado-drop-portal .batalha-estado-drop-item:hover { background: rgba(232,221,198,0.08); color: #F4EFE2; }
 .batalha-estado-drop-portal .batalha-estado-drop-item.on { color: #E6C97A; }
-.batalha-estado-drop-portal .batalha-estado-drop-sep {
-  border-top: 1px solid rgba(106,85,48,0.35); margin: 4px 0;
-}
+/* A régua .batalha-estado-drop-sep, que separava os 4 estados do Envenenado,
+   saiu em 01/09/2026: Envenenar é mais um item da mesma lista, não uma seção
+   à parte. A cor própria abaixo já basta pra distingui-lo. */
 .batalha-estado-drop-portal .batalha-estado-drop-item.poison { color: #b48bd3; }
 
 /* Wrapper relativo do EstadoDrop (botão + portal-anchor) */
 #root .menestrel-ui .estado-drop-wrap { position: relative; margin-left: auto; }
 
 /* Chevron dentro do botão de estado */
-#root .menestrel-ui .estado-drop-chevron { font-size: 11px; opacity: 0.6; margin-left: 2px; }
+/* O chevron do botão de estado saiu com o rótulo (01/09/2026): virou
+   só-ícone, como os outros da fileira. */
 
 /* ── SelectPill ── */
 #root .menestrel-ui .select-pill-btn {
@@ -6304,6 +6483,24 @@
 #root .menestrel-ui .select-pill-drop li .select-pill-check { font-size: 12px; color: #C9A44E; flex-shrink: 0; }
 #root .menestrel-ui .select-pill-drop li .select-pill-spacer { width: 12px; flex-shrink: 0; }
 
+/* ── SelectPill: a lista quando sai por PORTAL (02/09/2026) ────────
+   O <ul> nasce `position: absolute` ancorado no botão. Dentro do menu do
+   token, que é `overflow: auto`, isso prendia a lista no card: ela era
+   recortada na borda e, quando tinha opções demais, empurrava barra de
+   rolagem no MODAL inteiro em vez de rolar só a si mesma.
+
+   Agora SelectPillDrop (12-batalha/batalha.jsx) monta o <ul> num wrapper
+   `position: fixed` medido do botão, filho de .menestrel-ui. Aqui só se
+   desfaz o posicionamento próprio do <ul> — a caixa é o wrapper.
+
+   Wrapper flex + `min-height: 0` no item: é o que faz o <ul> encolher até o
+   max-height do wrapper (o espaço que sobra na tela) em vez de vazar. */
+#root .menestrel-ui .select-pill-drop-portal { display: flex; flex-direction: column; }
+#root .menestrel-ui .select-pill-drop-portal > .select-pill-drop {
+  position: static; top: auto; left: auto;
+  width: 100%; min-width: 0; flex: 1 1 auto; min-height: 0;
+}
+
 /* ── QuantityStepper ── */
 #root .menestrel-ui .qty-stepper-pill {
   background: rgba(24,17,8,0.92);
@@ -6329,8 +6526,10 @@
 }
 
 /* ── DadoOverlay ── */
+/* z-index 9700: acima do .batalha-token-menu (9600), de onde a rolagem é
+   disparada agora — em 1000 o overlay nasceria atrás do próprio modal. */
 #root .menestrel-ui .dado-overlay-backdrop {
-  position: fixed; inset: 0; z-index: 1000;
+  position: fixed; inset: 0; z-index: 9700;
   display: grid; place-items: center;
   padding: clamp(16px, 4vw, 40px);
   background: rgba(8,6,2,0.66);
@@ -6479,10 +6678,26 @@
 /* ── BatalhaJogadorView: scroll container ── */
 #root .menestrel-ui .batalha-jog-body { flex: 1; overflow-y: auto; padding: 16px 0; }
 
-/* ── BatalhaJogadorView: wrapper raiz ── */
-#root .menestrel-ui .batalha-jog-root {
+/* ── BatalhaJogadorView: wrapper raiz ──
+   Agora carrega também .fp-page (mesmo card frame da ficha/Lore do Mestre).
+   Zera a margin-bottom do .fp-page (aqui a página preenche a altura, não é
+   fluxo de lista) e mantém o height:100% + coluna flex de antes. */
+#root .menestrel-ui .fp-page.batalha-jog-root {
   display: flex; flex-direction: column; height: 100%;
+  margin-bottom: 0; min-height: 0;
 }
+/* Card frame do jogador: preenche a altura disponível e delega o scroll ao
+   corpo interno (.batalha-jog-body), igual ao molde de página full-height. */
+#root .menestrel-ui .batalha-jog-card {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+}
+#root .menestrel-ui .batalha-jog-card > .batalha-jog-body {
+  flex: 1 1 auto; min-height: 0;
+  padding: 16px 20px;
+}
+/* Header do jogador dentro do fp-card-top: mesmo respiro do header da ficha. */
+#root .menestrel-ui .batalha-jog-card .fp-card-top .ms-header { padding: 20px 20px 18px 20px; }
 
 /* ── Complementos finais migrados do JSX ── */
 /* Span de quantidade de item (dim) dentro de acao-item-efeito */
@@ -7424,3 +7639,275 @@
     drop-shadow(0 0 12px rgba(201,164,78,0.60))
     drop-shadow(0 0 24px rgba(201,164,78,0.35));
 }
+
+/* ============================================================
+   TABULEIRO DE BATALHA
+   ============================================================
+   Regras RECUPERADAS LITERALMENTE do CSS de produção
+   (menestrel-rpg.vercel.app /assets/index-CpOejKIs.css), que continha o
+   tabuleiro sem que o fonte estivesse no repositório. Ver o cabeçalho de
+   12-batalha/tabuleiro.jsx para a procedência completa.
+   ============================================================ */
+#root .menestrel-ui .batalha-vb-ajuste{flex-shrink:0;align-items:center;gap:4px;display:flex}
+#root .menestrel-ui .batalha-vb-ajuste-label{letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);margin-right:2px;font-size:.7rem;font-weight:600}
+#root .menestrel-ui .batalha-vb-ajuste-input{text-align:center;background:var(--input,#ffffff0f);border:1px solid var(--border,#ffffff1f);width:3.5rem;color:var(--foreground);border-radius:.375rem;padding:.25rem .375rem;font-family:inherit;font-size:.875rem}
+#root .menestrel-ui .batalha-tabuleiro-wrap{flex-direction:column;flex:1 1 auto;min-height:0;display:flex}
+/* `flex:1 1 auto` + `min-height:0` no lugar do `max-height:calc(100vh - 160px)`:
+   aquele 160 era um chute sobre a altura do header e sobrava uma faixa morta
+   embaixo do grid quando a janela era alta, ou cortava quando era baixa. Agora
+   o scroll simplesmente ocupa o que sobra do corpo da página. O margin-bottom
+   saiu junto — o espaçamento vem do gap/padding de .batalha-conduzir. */
+#root .menestrel-ui .batalha-tabuleiro-scroll{cursor:grab;flex:1 1 auto;min-height:0;margin-bottom:0}
+#root .menestrel-ui .batalha-tabuleiro-scroll.is-panning{cursor:grabbing}
+#root .menestrel-ui .batalha-jog-body>.batalha-tabuleiro-wrap{flex:0 auto;min-height:0}
+#root .menestrel-ui .batalha-vez-msg{text-align:center;color:#e8ddc6;background:#b8462f1a;border:1px solid #b8462f4d;border-radius:6px;margin:0 0 16px;padding:12px 16px;font-family:Lora,serif;font-size:13px}
+#root .menestrel-ui .batalha-vez-msg.minha-vez{color:#f0e6cc;background:#c9a44e1f;border-color:#c9a44e61}
+@keyframes batalha-token-vez-pulse{0%{opacity:.9;transform:scale(.92)}70%{opacity:0;transform:scale(1.18)}to{opacity:0;transform:scale(1.18)}}
+#root .menestrel-ui .batalha-token-vez-ring{border:2px solid var(--gold,#c9a44e);pointer-events:none;z-index:0;border-radius:50%;animation:1.6s cubic-bezier(.4,0,.2,1) infinite batalha-token-vez-pulse;position:absolute;box-shadow:0 0 12px #c9a44eb3}
+#root .menestrel-ui .batalha-token--atual{filter:drop-shadow(0 0 6px #c9a44e73)}
+/* Aviso de recusa de movimento, no espaço onde ficava a legenda de seleção.
+   Fica colado no topo do grid de propósito: é onde o olho está quando o
+   clique é recusado. */
+#root .menestrel-ui .batalha-tabuleiro-aviso {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px; padding: 8px 12px; border-radius: 8px;
+  background: rgba(184,70,47,.12); border: 1px solid rgba(184,70,47,.45);
+  color: #f0dcd4; font-family: Lora, serif; font-size: 13px;
+}
+#root .menestrel-ui .batalha-tabuleiro-aviso i { color: #d98b76; flex: none; }
+
+/* Alvo fora do alcance da arma/magia — trava o Aplicar. */
+#root .menestrel-ui .batalha-fora-alcance {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: #d98b76; font-family: Lora, serif; font-size: 12px;
+}
+
+/* ── Menu do participante (abre ao clicar no avatar do token) ─────────
+   Substituiu os cards do roster em 30/08/2026. O conteúdo é o MESMO
+   markup do card antigo (.batalha-fighter e filhos), então aqui só
+   entram a caixa flutuante e os ajustes que o card ganha ao virar
+   popover — a aparência de dentro continua vindo das regras do card,
+   por isso o portal renderiza dentro de .menestrel-ui e não no body. */
+/* z-index 9600: acima do .mn-tip (9500), que é fixed, tem pointer-events:auto
+   e é disparado pelo hover no PRÓPRIO token que abre este menu — com o menu
+   em 9450 o tooltip passava por cima dele. */
+#root .menestrel-ui .batalha-token-menu {
+  position: fixed; z-index: 9600;
+  transform: translateX(-50%);
+  /* 480px, não 420 (03/09/2026): com velocidade/ações/defesa subindo pro
+     lado do nome, 420 deixava a faixa 52px curta e ela quebrava pra linha de
+     baixo — que era justamente o que a mudança queria desfazer. Só o card
+     simples cresce; o painel de ação continua nos 600 da regra :has(.atacar).
+     Nome muito mais longo que "Lysandra Vel' Thalas" ainda quebra, e é de
+     propósito: o flex-wrap do head é a saída, melhor que cortar o nome. */
+  width: min(480px, calc(100vw - 24px));
+  overflow: auto; overscroll-behavior: contain;
+  background: var(--ink-bg-2); border: 1px solid var(--gold);
+  border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.6);
+  animation: batalhaTokenMenuFade .12s ease-out;
+}
+/* Quando não cabe embaixo, o menu sobe: o topo passa a ser a base, então
+   o translate leva os 100% da altura junto. */
+#root .menestrel-ui .batalha-token-menu.para-cima { transform: translate(-50%, -100%); }
+/* Com o painel de Ação dentro (arma/habilidade/técnica/resistência/item), o
+   menu precisa de largura de painel, não de card: 420px espremia as abas e os
+   selects em duas linhas cada. :has() evita ter que plumbar um modificador
+   desde o tabuleiro só pra isso. */
+/* 600px, não 680 (02/09/2026): com os campos em 32px e o rótulo dos botões
+   no tooltip, sobrava faixa vazia em quase toda aba. 600 é o piso confortável
+   — abaixo disso a .atacar-row3 (Arma/Alvo/Técnica, 3 colunas) começa a
+   espremer os selects, que foi o motivo de a largura ter subido de 420. */
+#root .menestrel-ui .batalha-token-menu:has(.atacar) { width: min(600px, calc(100vw - 24px)); }
+/* O padding lateral tem que continuar 20px: .acao-tabs e .atacar-footer
+   sangram a borda com `margin: 0 -20px`, e qualquer valor menor aqui faz o
+   conteúdo estourar a caixa e nascer uma barra de rolagem horizontal. Só o
+   topo muda — dentro do menu não há título acima das abas. */
+#root .menestrel-ui .batalha-token-menu .atacar { padding: 12px 20px 16px; }
+
+/* As duas réguas internas do card (acima das ações e acima das pools) iam de
+   padding a padding, parando 16px antes de cada borda. Sangram até a beirada
+   agora — mesmo truque que .acao-tabs e .atacar-footer já usavam com -20px:
+   margem negativa tira o recuo, o padding devolve o alinhamento do conteúdo.
+   Escopado ao menu do token de propósito: .batalha-fighter-pools-wrap também
+   é usado fora daqui, com outro padding. */
+#root .menestrel-ui .batalha-token-menu .batalha-menu-acoes,
+#root .menestrel-ui .batalha-token-menu .batalha-fighter-pools-wrap {
+  margin-left: -16px; margin-right: -16px;
+  padding-left: 16px; padding-right: 16px;
+}
+@keyframes batalhaTokenMenuFade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .batalha-token-menu { animation: none; }
+}
+/* z-index 2, não 1: `.batalha-fighter` também é `position:relative; z-index:1`
+   e vem DEPOIS no DOM, então empatava e pintava por cima — o X existia, ficava
+   visível pela borda, mas o card recebia o clique e nada acontecia. */
+#root .menestrel-ui .batalha-token-menu-fechar {
+  position: absolute; top: 4px; right: 4px; z-index: 3;
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 6px; cursor: pointer;
+  color: var(--parchment-muted); font-size: 15px;
+}
+#root .menestrel-ui .batalha-token-menu-fechar:hover {
+  background: rgba(232,221,198,.08); color: var(--parchment);
+}
+/* O card dentro do menu não é mais um item de lista: perde a borda e o
+   fundo próprios (a caixa já os tem) e, principalmente, perde o
+   esmaecimento por status — no roster ele servia pra destacar quem
+   estava na vez entre vários; aqui só existe UM participante na tela e
+   deixá-lo a 10% de opacidade tornaria o menu do morto ilegível. */
+#root .menestrel-ui .batalha-token-menu .batalha-fighter.em-menu {
+  border: none; background: none; padding: 16px 16px 14px; opacity: 1;
+}
+#root .menestrel-ui .batalha-token-menu .batalha-fighter.em-menu.status-ativo:not(.atual),
+#root .menestrel-ui .batalha-token-menu .batalha-fighter.em-menu.status-desmaiado,
+#root .menestrel-ui .batalha-token-menu .batalha-fighter.em-menu.status-morto,
+#root .menestrel-ui .batalha-token-menu .batalha-fighter.em-menu.status-desistiu,
+#root .menestrel-ui .batalha-token-menu .batalha-fighter.em-menu.status-passou { opacity: 1; }
+/* Sem o toggle de colapso, o cabeçalho não é mais clicável. */
+#root .menestrel-ui .batalha-token-menu .batalha-fighter-id { cursor: default; }
+#root .menestrel-ui .batalha-token-menu .batalha-fighter-id:hover .batalha-fighter-nome { color: inherit; }
+/* Fileira Ação/Passar (e Desistir, no jogador) dentro do menu. Ficavam no
+   header da página; vieram pro dono delas em 30/08/2026. */
+#root .menestrel-ui .batalha-menu-acoes {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding-top: 10px; margin-top: 2px;
+  border-top: 1px solid var(--rule);
+}
+#root .menestrel-ui .batalha-menu-acoes .btn-primary,
+#root .menestrel-ui .batalha-menu-acoes .btn-ghost { flex: 1 1 auto; justify-content: center; }
+
+/* Botões só-ícone da fileira (Mover/Ação/Passar/Desistir, 01/09/2026).
+   O rótulo saiu pro tooltip, então o botão deixa de esticar: vira um CÍRCULO
+   perfeito (largura = altura = border-radius total) e a fileira fica compacta
+   em vez de quatro blocos largos ocupando a largura do card. `flex: 0 0 auto`
+   sobrescreve o `flex: 1 1 auto` da regra acima, que era pensada pra botão
+   com texto. */
+#root .menestrel-ui .batalha-menu-acoes .batalha-menu-acao-ic {
+  flex: 0 0 auto;
+  width: 34px; height: 34px; padding: 0; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+#root .menestrel-ui .batalha-menu-acoes .batalha-menu-acao-ic i { font-size: 16px; margin: 0; }
+
+/* O seletor de estado mora na LINHA DE STATS (VB/PA/DF/RM/RF), não nesta
+   fileira — ele é leitura do combatente, como os pills, e vale pra qualquer
+   participante, enquanto Mover/Ação/Passar só existem pra quem está na vez.
+   Círculo de 32px pra casar exatamente com a altura dos pills ao lado, e o
+   `margin-left: auto` global de .estado-drop-wrap é anulado pra ele ficar
+   colado no RF em vez de saltar pra ponta da linha. */
+#root .menestrel-ui .batalha-fighter-stats .estado-drop-wrap { margin-left: 0; }
+#root .menestrel-ui .batalha-fighter-stats .batalha-menu-acao-ic {
+  width: 32px; height: 32px; padding: 0; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+#root .menestrel-ui .batalha-fighter-stats .batalha-menu-acao-ic i { font-size: 15px; margin: 0; }
+
+/* Estado no card do JOGADOR: mesmo círculo de 32px do seletor do Mestre, mas
+   só leitura — o jogador não muda o estado de ninguém. Herda de .batalha-stat
+   o fundo e a borda do pill; aqui só vira quadrado-perfeito e perde o padding
+   lateral que os pills de texto usam. */
+#root .menestrel-ui .batalha-stat.batalha-stat-estado {
+  width: 32px; height: 32px; padding: 0; border-radius: 999px; font-size: 15px;
+}
+
+/* Campos dos modais do card de batalha: números lado a lado, cada um com o
+   rótulo em cima — era isso que não cabia na faixa inline do card. Nasceu
+   pro Envenenar (dois campos) e o editor de pool passou a usar (um campo),
+   por isso o nome deixou de citar veneno em 02/09/2026. */
+#root .menestrel-ui .batalha-campos-modal { display: flex; gap: 12px; margin-top: 4px; }
+#root .menestrel-ui .batalha-campo-modal { display: flex; flex-direction: column; gap: 4px; flex: 1 1 0; }
+#root .menestrel-ui .batalha-campo-modal span {
+  font-family: 'Lora', serif; font-size: 13px; color: var(--parchment-muted);
+}
+#root .menestrel-ui .batalha-campo-modal input {
+  background: rgba(0,0,0,0.25); border: 1px solid var(--rule); border-radius: 6px;
+  color: var(--parchment); font-family: 'Lora', serif; font-size: 15px;
+  padding: 8px 10px; width: 100%;
+}
+#root .menestrel-ui .batalha-campo-modal input:focus-visible { outline: 1px solid var(--gold); }
+/* Os inputs desses modais nasciam com os spinners nativos do navegador —
+   as setinhas cinza no canto, que destoam de todo o resto (o .motor-field
+   já as escondia desde sempre). Mesmo tratamento aqui. */
+#root .menestrel-ui .batalha-campo-modal input[type="number"] {
+  -moz-appearance: textfield; appearance: textfield;
+}
+#root .menestrel-ui .batalha-campo-modal input[type="number"]::-webkit-inner-spin-button,
+#root .menestrel-ui .batalha-campo-modal input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none; margin: 0;
+}
+
+/* ── Prévia do efeito no modal de editar pool ──────────────────────
+   Barra + "8 → 3" + o delta. A cor do preenchimento sai da pool, as mesmas
+   do card, pra o Mestre reconhecer de relance qual barra está mexendo. */
+#root .menestrel-ui .batalha-previa-pool {
+  display: flex; flex-direction: column; gap: 7px; margin-top: 12px;
+  padding: 10px 12px; background: var(--ink-bg-3);
+  border: 1px solid var(--rule); border-radius: 6px;
+}
+#root .menestrel-ui .batalha-previa-pool .bpp-bar {
+  display: block; height: 6px; border-radius: 999px;
+  background: rgba(0,0,0,0.35); overflow: hidden;
+}
+#root .menestrel-ui .batalha-previa-pool .bpp-bar i {
+  display: block; height: 100%; border-radius: 999px;
+  background: var(--gold); transition: width .18s ease-out;
+}
+#root .menestrel-ui .batalha-previa-pool.pool-ef    .bpp-bar i { background: #ae2f20; }
+#root .menestrel-ui .batalha-previa-pool.pool-eh    .bpp-bar i { background: #4e98c9; }
+#root .menestrel-ui .batalha-previa-pool.pool-ar    .bpp-bar i { background: #8a8f98; }
+#root .menestrel-ui .batalha-previa-pool.pool-karma .bpp-bar i { background: #9b7cc4; }
+#root .menestrel-ui .batalha-previa-pool .bpp-nums {
+  display: flex; align-items: baseline; gap: 6px;
+  font-family: 'Lora', serif; font-variant-numeric: tabular-nums;
+  color: var(--parchment-dim); font-size: 15px;
+}
+#root .menestrel-ui .batalha-previa-pool .bpp-nums b { color: var(--parchment); font-weight: 600; }
+#root .menestrel-ui .batalha-previa-pool .bpp-nums .bpp-novo { color: var(--gold-bright); }
+#root .menestrel-ui .batalha-previa-pool .bpp-nums i { font-size: 15px; color: var(--parchment-muted); }
+#root .menestrel-ui .batalha-previa-pool .bpp-nums em {
+  font-style: normal; font-size: 13px; color: var(--parchment-muted);
+}
+#root .menestrel-ui .batalha-previa-pool .bpp-delta {
+  margin-left: auto; font-size: 13px; font-weight: 600;
+  padding: 1px 8px; border: 1px solid currentColor; border-radius: 999px;
+}
+#root .menestrel-ui .batalha-previa-pool .bpp-delta.desce { color: #d98a7a; }
+#root .menestrel-ui .batalha-previa-pool .bpp-delta.sobe  { color: #a4cf85; }
+#root .menestrel-ui .batalha-previa-pool .bpp-aviso {
+  font-family: 'Lora', serif; font-size: 13px; font-style: italic; color: var(--gold);
+}
+
+/* Total do veneno e a nota de onde ele bate. */
+#root .menestrel-ui .batalha-modal-total {
+  margin-top: 12px; font-family: 'Lora', serif; font-size: 15px;
+  color: var(--parchment-dim); font-variant-numeric: tabular-nums;
+}
+#root .menestrel-ui .batalha-modal-total b { color: var(--gold-bright); font-size: 18px; font-weight: 700; }
+#root .menestrel-ui .batalha-modal-total span { font-size: 13px; color: var(--parchment-muted); }
+#root .menestrel-ui .batalha-modal-nota {
+  margin-top: 6px; font-family: 'Lora', serif; font-size: 13px;
+  font-style: italic; color: var(--parchment-muted); line-height: 1.5;
+}
+
+/* Barra de pool clicável (01/09/2026): no card do Mestre cada EF/EH/AR/KA é
+   um <button> que abre o editor daquela pool. Herda o layout do <div> que era
+   antes — `all: unset` zeraria também o display do flex do .batalha-pool —,
+   então aqui só se neutraliza a aparência de botão e se marca a afordância. */
+#root .menestrel-ui .batalha-pool.editavel {
+  background: none; border: none; padding: 0; font: inherit; color: inherit;
+  width: 100%; text-align: left; cursor: pointer;
+}
+#root .menestrel-ui .batalha-pool.editavel:hover .batalha-pool-bar { outline: 1px solid var(--gold); }
+#root .menestrel-ui .batalha-pool.editavel:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+
+/* Espaço pro botão de fechar não cair sobre o nome. */
+#root .menestrel-ui .batalha-token-menu .batalha-fighter-head { padding-right: 26px; }
+/* Velocidade/ações/defesa AO LADO do nome (03/09/2026), não numa linha
+   abaixo. O bloco do nome é `flex: 1 1 auto` — comia a linha inteira e
+   empurrava os stats pra baixo. Aqui ele para de crescer e só encolhe.
+   O flex-wrap do head continua valendo como saída: nome muito longo joga
+   os stats pra linha de baixo em vez de espremer o nome. Escopado ao menu
+   do token — na lista de participantes o head tem outra largura. */
+#root .menestrel-ui .batalha-token-menu .batalha-fighter-id { flex: 0 1 auto; }
+#root .menestrel-ui .batalha-token-menu .batalha-fighter-stats { margin-left: auto; }

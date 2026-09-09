@@ -2504,17 +2504,19 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
 
 // ---------- LorePaginacao — paginação da lista de criaturas/lore (padrão best-pag) ----------
 function LorePaginacao({ safePage, totalPages, setPage, lang }) {
+  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const en = lang === 'en';
   const items = Array.from({ length: totalPages }, (_, i) => i + 1)
     .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
     .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx - 1] > 1) acc.push('…'); acc.push(p); return acc; }, []);
   return (
     <div className="best-pag">
-      <button className="best-page-btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1} title={en ? 'Previous' : 'Anterior'}>‹</button>
+      <button className="best-page-btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1} {...propsTip(abrirTip, fecharTip, en ? 'Previous' : 'Anterior')}>‹</button>
       {items.map((p, idx) => p === '…'
         ? <span key={`ell-${idx}`} className="best-page-ellipsis">…</span>
         : <button key={p} className={'best-page-btn' + (p === safePage ? ' is-active' : '')} onClick={() => setPage(p)}>{p}</button>)}
-      <button className="best-page-btn" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} title={en ? 'Next' : 'Próxima'}>›</button>
+      <button className="best-page-btn" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} {...propsTip(abrirTip, fecharTip, en ? 'Next' : 'Próxima')}>›</button>
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -2677,9 +2679,8 @@ function NovaCriaturaModal({ lang, onClose, onSaved }) {
   const [armas, setArmas] = React.useState([]);
   const [armaSlug, setArmaSlug] = React.useState('');
   React.useEffect(() => {
-    supabaseClient.from('itens').select('*')
-      .eq('grupo', 'Armas')
-      .order('nome')
+    // Paginado: mesmo filtrando por grupo, o corte de 1000 do PostgREST vale.
+    fetchTabelaPaginada('itens', { ordem: ['nome'], filtros: [['grupo', 'Armas']] })
       .then(({ data }) => { if (data) setArmas(data); });
   }, []);
   const armaSelecionada = React.useMemo(() => armas.find((a) => a.slug === armaSlug) || null, [armas, armaSlug]);
@@ -2990,7 +2991,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
       // RPC listar_diario_disponivel (migration 019), pra Mestre e Jogador
       // enxergarem a mesma coisa.
       Promise.all([
-        supabaseClient.from('itens').select('nome, descricao').order('nome'),
+        fetchTabelaPaginada('itens', { colunas: 'nome, descricao', ordem: ['nome'] }),
         supabaseClient.from('itens_historia').select('nome, descricao').eq('historia_id', historia.id).order('nome'),
       ]).then(([cat, camp]) => {
         setLoadingExtra(false);

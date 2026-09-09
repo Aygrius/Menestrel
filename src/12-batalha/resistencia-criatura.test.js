@@ -16,21 +16,12 @@ import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
 import './batalha.jsx';
+import './tabuleiro.jsx';   // montarSnapshots usa posValida/movimentoBase
 
 const stubOriginal = globalThis.supabaseClient;
 afterEach(() => { globalThis.supabaseClient = stubOriginal; });
 
-function fakeSupabase(tabelas) {
-  const resultado = (nome) => {
-    const box = {
-      in: () => box,
-      eq: () => box,
-      then: (res, rej) => Promise.resolve({ data: tabelas[nome] || [], error: null }).then(res, rej),
-    };
-    return box;
-  };
-  return { from: (nome) => ({ select: () => resultado(nome) }) };
-}
+import { fakeSupabase } from '../test/fake-supabase.js';
 
 // Lobisomem real (criaturas.id 86): estágio 7.
 const LOBISOMEM = {
@@ -58,9 +49,15 @@ describe('resistenciasBase — fórmula compartilhada com o PJ', () => {
 
   // Âncora contra regressão do refactor: resistenciasBase foi EXTRAÍDA de
   // dentro de calcularFicha. Estes números são os do Yuldrous (personagens.id
-  // 64) como gravados no snapshot real da batalha 82 — se o refactor tivesse
-  // mudado a conta do PJ, este teste cairia.
-  it('PJ real (Yuldrous) mantém RF 7 / RM 7 como em produção', () => {
+  // 64), do snapshot real da batalha 82 — se o refactor tivesse mudado a
+  // conta do PJ, este teste cairia.
+  //
+  // Valor atualizado em 08/09/2026 (era RF 7 / RM 7): condição não mexe mais
+  // em atributo. As Saúde +25 e Hidratação +25 deste PJ davam +1 de Físico e
+  // +1 de Aura pela regra antiga, e esse +1 entrava na resistência. Agora o
+  // efeito dessas condições vai direto pros poços (EF e KA), então RF/RM são
+  // estágio + atributo puro: 4 + 2 = 6 nos dois.
+  it('PJ real (Yuldrous): RF 6 / RM 6 — estágio 4 + atributo 2, sem condição', () => {
     const pj = {
       id: 64, nome: 'Yuldrous', raca: 'Anão', reino: 'Verrogar',
       profissao: 'Sacerdote', especializacao: 'Ordem de Crezir', deus: 'Crezir',
@@ -77,8 +74,11 @@ describe('resistenciasBase — fórmula compartilhada com o PJ', () => {
     };
     const f = window.calcularFicha(pj, {}, pj.estado_atual.condicoes);
     expect(f.estagio).toBe(4);
-    expect(f.derivadas.resistenciaFisica).toBe(7);
-    expect(f.derivadas.resistenciaMagica).toBe(7);
+    expect(f.derivadas.resistenciaFisica).toBe(6);
+    expect(f.derivadas.resistenciaMagica).toBe(6);
+    // Prova de que a mudança é a regra, não a fórmula: com e sem condições o
+    // resultado é o mesmo agora.
+    expect(window.calcularFicha(pj, {}).derivadas.resistenciaFisica).toBe(6);
   });
 
   it('é a MESMA fórmula que calcularFicha usa pro PJ', () => {

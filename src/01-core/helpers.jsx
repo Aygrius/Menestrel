@@ -119,7 +119,29 @@ function Tooltip({ tip, onEnter, onLeave }) {
   );
 }
 
-Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip });
+// ── propsTip ─────────────────────────────────────────────────────────────────
+// Espalha os handlers de um tooltip num elemento, no lugar do atributo `title`
+// nativo (padronização de 08/09/2026 — o `title` do navegador ignora o nosso
+// CSS: fonte do sistema, fundo claro, atraso próprio e nenhum estilo possível).
+//
+// Uso:  <button {...propsTip(abrirTip, fecharTip, 'Pontos insuficientes')}>
+//
+// `content` aceita o mesmo que o Tooltip: string ou { title, desc, stats, hint }.
+// Conteúdo vazio devolve {} — assim um `title` condicional (title={bloqueio ||
+// ''}) não abre balão em branco, que era o comportamento do nativo.
+//
+// Inclui foco/blur além do mouse: quem navega por teclado nunca via o `title`.
+function propsTip(abrirTip, fecharTip, content) {
+  const vazio = content == null || content === '' || content === false
+    || (typeof content === 'object' && !React.isValidElement(content)
+        && !content.title && !content.desc && !content.hint
+        && !(content.stats && content.stats.length));
+  if (vazio) return {};
+  const abrir = (e) => abrirTip(e, content);
+  return { onMouseEnter: abrir, onMouseLeave: fecharTip, onFocus: abrir, onBlur: fecharTip };
+}
+
+Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, propsTip });
 
 // ── interpolate ──────────────────────────────────────────────────────────────
 // Substitui placeholders {chave} numa string de copy (t.algumaCoisa.texto)

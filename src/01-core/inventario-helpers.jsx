@@ -53,23 +53,43 @@ function latoesToMoedas(total) {
   };
 }
 
-// ── Moedas ──────────────────────────────────────────────────────────────────
-async function fetchCatalogoCompleto() {
+// ── Leitura de tabela inteira ───────────────────────────────────────────────
+// fetchTabelaPaginada — lê uma tabela INTEIRA em blocos de 1000.
+//
+// ⚠️ O PostgREST devolve no máximo 1000 linhas por request e NÃO avisa: a
+// resposta vem 200 OK com os primeiros 1000 e ponto. Um `.select('*')` cru
+// numa tabela que cresceu passa a mentir em silêncio — no caso de `itens`,
+// armas e armaduras sumiriam do combate sem erro nenhum.
+//
+// Opções (todas opcionais):
+//   colunas  string do select ('*' por padrão)
+//   ordem    array de colunas, aplicadas em sequência (['grupo','nome'])
+//   filtros  array de [coluna, valor] aplicados como .eq()
+//
+// Genérica porque as chamadas do app não têm o mesmo formato: uma filtra por
+// grupo, outra pede só duas colunas, outras ordenam diferente.
+// Cobertura: 01-core/paginacao.test.js.
+async function fetchTabelaPaginada(tabela, opcoes) {
+  const { colunas = '*', ordem = [], filtros = [] } = opcoes || {};
   const PAGE = 1000;
   let all = [];
   let from = 0;
-  while (true) {
-    const { data, error } = await supabaseClient
-      .from('itens')
-      .select('*')
-      .order('grupo').order('nome')
-      .range(from, from + PAGE - 1);
+  for (;;) {
+    let q = supabaseClient.from(tabela).select(colunas);
+    for (const [col, val] of filtros) q = q.eq(col, val);
+    for (const col of ordem) q = q.order(col);
+    const { data, error } = await q.range(from, from + PAGE - 1);
     if (error) return { data: null, error };
     all = all.concat(data || []);
     if (!data || data.length < PAGE) break;
     from += PAGE;
   }
   return { data: all, error: null };
+}
+
+// Catálogo de itens completo, na ordem canônica de exibição.
+function fetchCatalogoCompleto() {
+  return fetchTabelaPaginada('itens', { ordem: ['grupo', 'nome'] });
 }
 
 // ── Slots de equipamento ────────────────────────────────────────────────────
@@ -145,10 +165,26 @@ function podeMoverParaContainer(itemCat, containerCat, containerInst, todosItens
 // ── Ficha do Personagem (Fase 11) ───────────────────────────────────────────
 // Soma da absorção de todos os itens equipados (campo `absorcao` do catálogo).
 // Retorna 0 quando: sem catálogo, sem inventário, ou nenhum equipado tem absorção.
+// pecaNoCorpo — a peça está VESTIDA no personagem?
+//
+// Critério ÚNICO de quem contribui com absorção/defesa. Existem dois sistemas
+// paralelos de "usar" um item: equipamento (armadura/arma → `equipado` +
+// `slot`) e vestimenta (`vestido` + `vesteSlot`). Estar dentro de container,
+// solto na mochila ou empilhado não conta.
+//
+// Nasceu porque a soma de absorção usava TRÊS critérios diferentes em três
+// arquivos: calcArmadura olhava `it.equipado`, calcularFicha olhava `it.slot`
+// e a ficha olhava `it.slot || it.vestido`. Hoje os três dão o mesmo número
+// (nenhuma das 92 Vestimentas do catálogo tem absorcao ou defesa), mas no dia
+// em que uma tiver, a ficha mostraria três valores diferentes pro mesmo PJ.
+function pecaNoCorpo(it) {
+  return !!(it && (it.equipado || it.vestido));
+}
+
 function calcArmadura(p, catalogoBySlug) {
   if (!catalogoBySlug || !p?.inventario?.itens) return 0;
   return p.inventario.itens.reduce((sum, it) => {
-    if (!it.equipado) return sum;
+    if (!pecaNoCorpo(it)) return sum;
     const cat = catalogoBySlug[it.slug];
     return sum + Number(cat?.absorcao || 0);
   }, 0);
@@ -245,6 +281,12 @@ function gerarAtaques(p, catalogoBySlug, magiasByKey, atributos) {
 //                  SEM clamp de máximo (pode passar o AR normal — é um
 //                  buff temporário de poção/elixir, não armadura real)
 //
+// As condições vivem na escala BIDIRECIONAL -COND_LIMITE..+COND_LIMITE
+// (helpers.jsx), 0 = neutro — nunca 0–100. O parse dos deltas (efeitosDoItem)
+// e o clamp da condição (aplicarDeltaCondicao) são compartilhados com o
+// consumo DENTRO de combate (aplicarEfeitoItemSnapshot, 12-batalha), pra que
+// o mesmo item não dê números diferentes nas duas telas.
+//
 // Mapa label (como aparece no banco, PT, com acento) → { scope, key }.
 const EFEITO_CONDICAO_MAP = {
   'Reputação':       { scope: 'condicoes',  key: 'reputacao' },
@@ -295,18 +337,49 @@ function parseEfeito(str) {
   return out;
 }
 
-// aplicarEfeitosItem — combina efeito_positivo (soma) e efeito_negativo
-// (subtrai) de UM item, multiplicado por `quantidade` (ex.: usar 3 cervejas
-// de uma vez aplica o efeito ×3), sobre um estado_atual existente.
-// `maximos` = { ef, eh, ka } — máximos derivados da ficha (calcularFicha),
-// usados só pro clamp de 'vitalidade'. Sem maximos, assume Infinity (sem
-// teto) — quem chama deve passar os máximos reais sempre que disponíveis.
-// Retorna um NOVO objeto estado_atual (não muta o original).
-function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
-  const efeitos = [
+// efeitosDoItem — parse único de efeito_positivo/efeito_negativo de UM item,
+// já com o sinal aplicado e multiplicado por `quantidade` (usar 3 cervejas
+// aplica o efeito ×3). Devolve [{ scope, key, delta }].
+//
+// Compartilhada de propósito: quem consome o item FORA de combate
+// (aplicarEfeitosItem, logo abaixo — mira pj.estado_atual) e DENTRO
+// (aplicarEfeitoItemSnapshot, 12-batalha/batalha.jsx — mira o snapshot do
+// participante) precisa dos MESMOS deltas. As duas funções continuam
+// separadas porque os SHAPES de destino são diferentes; o que não podia
+// continuar divergindo era a conta.
+function efeitosDoItem(cat, quantidade) {
+  const qtd = Number(quantidade) || 1;
+  return [
     ...parseEfeito(cat?.efeito_positivo).map((e) => ({ ...e, sinal: 1 })),
     ...parseEfeito(cat?.efeito_negativo).map((e) => ({ ...e, sinal: -1 })),
-  ];
+  ].map((e) => ({ scope: e.scope, key: e.key, delta: e.valor * e.sinal * qtd }));
+}
+
+// aplicarDeltaCondicao — soma `delta` numa das 8 condições respeitando a
+// escala bidirecional -COND_LIMITE..+COND_LIMITE (helpers.jsx), 0 = neutro.
+//
+// ⚠️ Ausente = 0 (NEUTRO), não 100. A escala 0–100 "cheio/vazio" morreu
+// junto com as barras antigas; enquanto esta função ficou pra trás, um gole
+// d'água ("35 Hidratação") gravava 100 e a Ficha exibia a barra saturada no
+// teto +50, e efeito negativo travava no piso 0 — condição negativa era
+// inalcançável por item. Cobertura: 01-core/efeitos-item.test.js.
+//
+// COND_LIMITE vem de helpers.jsx via window (cada fase é um módulo próprio
+// sob o Vite; o `const` de lá não vaza pro escopo daqui) — mesmo padrão
+// defensivo já usado em ficha.jsx e batalha.jsx.
+function aplicarDeltaCondicao(atual, delta) {
+  const lim = (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null) ?? window.COND_LIMITE ?? 50;
+  const base = Number.isFinite(Number(atual)) ? Number(atual) : 0;
+  return Math.max(-lim, Math.min(lim, base + delta));
+}
+
+// aplicarEfeitosItem — aplica os efeitos de UM item (ver efeitosDoItem) sobre
+// um estado_atual existente. `maximos` = { ef, eh, ka } — máximos derivados
+// da ficha (calcularFicha), usados só pro clamp de 'vitalidade'. Sem maximos,
+// assume Infinity (sem teto) — quem chama deve passar os máximos reais sempre
+// que disponíveis. Retorna um NOVO objeto estado_atual (não muta o original).
+function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
+  const efeitos = efeitosDoItem(cat, quantidade);
   if (efeitos.length === 0) return estadoAtual;
 
   const mx = maximos || {};
@@ -316,13 +389,11 @@ function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
     condicoes: { ...(base.condicoes || {}) },
     vitalidade: { ...(base.vitalidade || {}) },
   };
-  const qtd = Number(quantidade) || 1;
 
   for (const ef of efeitos) {
-    const delta = ef.valor * ef.sinal * qtd;
+    const delta = ef.delta;
     if (ef.scope === 'condicoes') {
-      const atual = novo.condicoes[ef.key] ?? 100; // condições começam cheias (100) se nunca salvas
-      novo.condicoes[ef.key] = Math.max(0, Math.min(100, atual + delta));
+      novo.condicoes[ef.key] = aplicarDeltaCondicao(novo.condicoes[ef.key], delta);
     } else if (ef.scope === 'vitalidade') {
       const max = Number(mx[ef.key]);
       const tetoOk = Number.isFinite(max) ? max : Infinity;
@@ -340,8 +411,9 @@ function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
 
 Object.assign(window, {
   MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas,
-  fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
+  fetchTabelaPaginada, fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,
-  podeMoverParaContainer, calcArmadura, AJUSTE_KEY, gerarAtaques,
-  EFEITO_CONDICAO_MAP, parseEfeito, aplicarEfeitosItem,
+  podeMoverParaContainer, pecaNoCorpo, calcArmadura, AJUSTE_KEY, gerarAtaques,
+  EFEITO_CONDICAO_MAP, parseEfeito, efeitosDoItem, aplicarDeltaCondicao,
+  aplicarEfeitosItem,
 });

@@ -402,17 +402,19 @@ function BestErrorBox({ error, hint }) {
   );
 }
 function BestPagination({ page, safePage, totalPages, setPage, setExpandida, lang }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const items = Array.from({ length: totalPages }, (_, i) => i + 1)
     .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
     .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx - 1] > 1) acc.push('…'); acc.push(p); return acc; }, []);
   const close = () => setExpandida && setExpandida(null);
   return (
     <div className="best-pag">
-      <button className="best-page-btn" onClick={() => { setPage((p) => Math.max(1, p - 1)); close(); }} disabled={safePage === 1} title={lang === 'en' ? 'Previous' : 'Anterior'}>‹</button>
+      <button className="best-page-btn" onClick={() => { setPage((p) => Math.max(1, p - 1)); close(); }} disabled={safePage === 1} {...propsTip(abrirTip, fecharTip, lang === 'en' ? 'Previous' : 'Anterior')}>‹</button>
       {items.map((p, idx) => p === '…'
         ? <span key={`ell-${idx}`} className="best-page-ellipsis">…</span>
         : <button key={p} className={'best-page-btn' + (p === safePage ? ' is-active' : '')} onClick={() => { setPage(p); close(); }}>{p}</button>)}
-      <button className="best-page-btn" onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); close(); }} disabled={safePage === totalPages} title={lang === 'en' ? 'Next' : 'Próxima'}>›</button>
+      <button className="best-page-btn" onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); close(); }} disabled={safePage === totalPages} {...propsTip(abrirTip, fecharTip, lang === 'en' ? 'Next' : 'Próxima')}>›</button>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -767,7 +769,8 @@ function ItensList({ ac, lang }) {
   useEffect(() => {
     let cancel = false;
     (async () => {
-      const { data, error } = await supabaseClient.from('itens').select('*').order('nome', { ascending: true });
+      // Paginado: `itens` passa de 1000 linhas e o PostgREST corta em silêncio.
+      const { data, error } = await fetchTabelaPaginada('itens', { ordem: ['nome'] });
       if (cancel) return;
       if (error) { setError(error.message); setItens([]); } else { setItens(data || []); }
     })();

@@ -11,19 +11,18 @@
                          (Skull, Sword, Crown, Flame, ...). É o
                          único símbolo deste arquivo exposto também
                          via `window.Icon` pra consumo retrocompat.
-   - Topbar            — barra superior (logo, nav, idioma, tema,
-                         login)
    - AdminEmpty        — estado vazio reutilizável (com ornamento)
    - AdminConsole      — layout principal do console (sidebar com
                          abas + main com a aba ativa). Onde quase
                          todas as features extraídas se encontram.
    - App               — raiz da aplicação. Estado de auth, callbacks
-                         OAuth, alternância landing/console. A lógica
-                         de auth foi mantida inline (decisão de não
-                         refatorar agora — `useAuth` fica pra depois).
+                         OAuth e a bifurcação login/console: deslogado
+                         vê a LoginPage (04-auth), logado vê o console.
+                         A lógica de auth foi mantida inline (decisão de
+                         não refatorar agora — `useAuth` fica pra depois).
 
    Depende de:
-   - Tudo o que foi extraído nas fases anteriores (Hero, ...,
+   - Tudo o que foi extraído nas fases anteriores (LoginPage,
      ConvitesJogador, ItensList, etc).
    - TWEAKS_DEFAULTS (no app.jsx, último script) — resolvido em
      runtime quando App() é renderizado.
@@ -90,19 +89,21 @@ function FantasyDatePicker({ value, onChange }) {
     onChange(next);
   };
 
-  // Pill — mesmo visual do seletor de mesa (sem borda, fundo escuro translúcido)
+  // Pill — forma e tipografia só. FUNDO e BORDA ficam no CSS (.fdp-grid, ver
+  // index.css): eles mudam por contexto, e estilo inline não pode ser
+  // sobreposto por folha de estilo. No wizard de personagem, por exemplo, os
+  // quatro campos precisam da mesma pele dos SelectPill vizinhos.
   const pill = {
-    background: 'rgba(106, 85, 48, 0.12)',
-    border: 'none', borderRadius: 999, height: 32, outline: 'none',
+    borderRadius: 999, height: 32, outline: 'none',
     fontFamily: "'Lora', serif", fontSize: 13, flexShrink: 0,
   };
 
-  // dropBtn — mesmo pill, mas com borda (padrão SelectPill/.select-pill-btn,
-  // ver campo "Arma" em batalha.jsx) já que dia/mês agora usam essa classe.
+  // dropBtn — o pill dos seletores de dia/mês (classe .select-pill-btn, mesmo
+  // tipo do campo "Arma" em batalha.jsx).
   const dropBtn = {
     ...pill,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%',
-    color: '#E8DDC6', textAlign: 'left', border: 'none',
+    color: '#E8DDC6', textAlign: 'left',
     padding: '0 12px 0 16px', cursor: 'pointer',
   };
 
@@ -122,7 +123,11 @@ function FantasyDatePicker({ value, onChange }) {
   );
 
   return (
-    <div className="menestrel-ui" style={{ display: 'grid', gridTemplateColumns: '70px 1fr 130px 80px', gap: 8 }}>
+    /* Grid em CSS (.fdp-grid), não em style inline: inline vence folha de
+       estilo, e o wizard de personagem precisa reencaixar as colunas no ritmo
+       do formulário dele (ver .wiz-ident .fdp-grid no index.css). O padrão
+       abaixo é o mesmo de antes — nada muda onde já era usado. */
+    <div className="menestrel-ui fdp-grid">
 
       {/* Dia — dropdown customizado, mesmo tipo de seletor do SelectPill (ver "Arma") */}
       <div ref={diaRef}>
@@ -176,8 +181,9 @@ function FantasyDatePicker({ value, onChange }) {
       <input
         type="text"
         readOnly
+        className="fdp-semana"
         value={`✦ ${diaSemana}`}
-        style={{ ...pill, border: 'none', color: '#C9A44E', cursor: 'default', padding: '0 16px', width: '100%' }}
+        style={{ ...pill, color: '#C9A44E', cursor: 'default', padding: '0 16px', width: '100%' }}
       />
 
       {/* Ano */}
@@ -187,7 +193,7 @@ function FantasyDatePicker({ value, onChange }) {
         className="fdp-ano"
         value={val.ano}
         onChange={(e) => update('ano', e.target.value)}
-        style={{ ...pill, border: 'none', color: '#E8DDC6', padding: '0 16px', width: '100%' }}
+        style={{ ...pill, color: '#E8DDC6', padding: '0 16px', width: '100%' }}
       />
     </div>
   );
@@ -264,122 +270,9 @@ const Icon = {
 
 window.Icon = Icon;
 
-/* ============================== [10] Topbar (navbar branca · estilo EternaCloud · CTA ouro) ==============================
-   Substitui a função Topbar existente em src/10-shell/shell.jsx.
-   NÃO mexer no Object.assign(window, { ... Topbar ... }) do fim do arquivo — ele já exporta este nome.
-   Fontes (Cinzel + Lora) já vêm do projeto migrado; não precisa reimportar.
-   Tamanhos/cores ficam inline (regra de ouro); o <style> só cobre o que inline não faz: hover, ::after e responsivo.
-*/
-function Topbar({ lang = 'pt', setLang, user, onSignup, onStart, onNavigate }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  // ───────────── FIAÇÃO — casar com o que o App() já passa pro <Topbar/> ─────────────
-  // Se o seu App usa outros nomes (ex.: idioma/setIdioma, abrirCadastro), renomeie aqui ou na chamada.
-  const links = [
-    { label: lang === 'en' ? 'About'        : 'O que é',        to: 'cap1' },
-    { label: lang === 'en' ? 'How it works' : 'Como funciona',  to: 'recursos' },
-    { label: lang === 'en' ? 'Plans'        : 'Planos',         to: 'planos' },
-    { label: lang === 'en' ? 'Supporters'   : 'Apoiadores',     to: 'fundadores' },
-  ];
-  const ctaLabel = user
-    ? (lang === 'en' ? 'My grimoire' : 'Meu grimório')
-    : (lang === 'en' ? 'Get started' : 'Começar agora');
-  const go = (to) => { setMenuOpen(false); if (onNavigate) onNavigate(to); else window.location.hash = to; };
-  const handleCta = () => { if (onSignup) onSignup(); else if (onStart) onStart(); else go(user ? 'app' : 'planos'); };
-  // ────────────────────────────────────────────────────────────────────────────────────
-
-  const C = {
-    white: '#FFFFFF', ink: '#2A1C08', link: '#4A3D26', linkMuted: '#9C8F73',
-    hair: 'rgba(24,18,8,0.05)', sep: 'rgba(24,18,8,0.18)',
-    ctaGrad: 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
-    ctaGlow: '0 12px 30px -10px rgba(201,164,78,0.45)',
-    fd: "'Cinzel',serif", fb: "'Lora',serif",
-  };
-
-  return (
-    <div className="menestrel-ui" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, display: 'flex', justifyContent: 'center', padding: '13px 24px' }}>
-      <nav aria-label="Navegação principal" style={{
-        position: 'relative', width: '100%', maxWidth: '1600px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
-        background: C.white, borderRadius: '6px', padding: '5px 5px 5px 20px',
-        boxShadow: '0 24px 64px -20px rgba(8,6,2,0.7), 0 2px 8px rgba(8,6,2,0.16)',
-        outline: `1px solid ${C.hair}`,
-      }}>
-        {/* Marca */}
-        <a href="#" onClick={(e) => { e.preventDefault(); go('topo'); }} aria-label="Menestrel — início"
-           style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', flex: '0 0 auto' }}>
-          <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center' }}>
-            <svg viewBox="0 0 44 44" width="40" height="40">
-              <defs>
-                <linearGradient id="mn-ring" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#B8472F" />
-                  <stop offset="0.3" stopColor="#B8702E" />
-                  <stop offset="0.55" stopColor="#C9A44E" />
-                  <stop offset="0.8" stopColor="#B8862E" />
-                  <stop offset="1" stopColor="#7A5E2A" />
-                </linearGradient>
-              </defs>
-              <circle cx="22" cy="22" r="16" fill="none" stroke="url(#mn-ring)" strokeWidth="5"
-                      strokeLinecap="round" strokeDasharray="86 16" transform="rotate(-90 22 22)" />
-            </svg>
-          </span>
-          <span style={{ fontFamily: C.fb, fontWeight: 400, fontSize: '32px', color: C.ink, lineHeight: 1 }}>Menestrel</span>
-        </a>
-
-        {/* Links (desktop) */}
-        <ul className="mn-nav-desktop" style={{ listStyle: 'none', alignItems: 'center', gap: '38px', margin: 0, padding: 0, justifyContent: 'center' }}>
-          {links.map((l) => (
-            <li key={l.to}>
-              <a href="#" className="mn-link" onClick={(e) => { e.preventDefault(); go(l.to); }}
-                 style={{ fontFamily: C.fb, fontWeight: 500, fontSize: '18px', color: C.link, textDecoration: 'none', padding: '6px 0', whiteSpace: 'nowrap' }}>
-                {l.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-
-        {/* Ações */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '0 0 auto', justifyContent: 'flex-end' }}>
-          <div className="mn-lang" role="group" aria-label="Idioma" style={{ alignItems: 'center', gap: '8px', padding: '0 4px' }}>
-            <button type="button" onClick={() => setLang && setLang('pt')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: C.fb, fontWeight: 400, fontSize: '16px', color: lang === 'pt' ? C.ink : C.linkMuted, padding: '6px 4px' }}>PT</button>
-            <span aria-hidden="true" style={{ width: '1px', height: '16px', background: C.sep }} />
-            <button type="button" onClick={() => setLang && setLang('en')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: C.fb, fontWeight: 400, fontSize: '16px', color: lang === 'en' ? C.ink : C.linkMuted, padding: '6px 4px' }}>EN</button>
-          </div>
-
-          <a href="#" className="mn-cta" onClick={(e) => { e.preventDefault(); handleCta(); }}
-             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: C.fb, fontWeight: 400, fontSize: '18px', color: '#fff', textDecoration: 'none', background: C.ctaGrad, padding: '18px 34px', borderRadius: '16px', boxShadow: C.ctaGlow }}>
-            {ctaLabel}
-          </a>
-
-          <button type="button" aria-label="Abrir menu" className="mn-burger" onClick={() => setMenuOpen((o) => !o)}
-            style={{ flexDirection: 'column', gap: '5px', width: '48px', height: '48px', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(24,18,8,0.12)', borderRadius: '6px', background: '#fff', cursor: 'pointer' }}>
-            <span style={{ width: '20px', height: '2px', background: C.ink, borderRadius: '2px' }} />
-            <span style={{ width: '20px', height: '2px', background: C.ink, borderRadius: '2px' }} />
-            <span style={{ width: '20px', height: '2px', background: C.ink, borderRadius: '2px' }} />
-          </button>
-        </div>
-
-        {/* Menu mobile */}
-        {menuOpen && (
-          <ul style={{ position: 'absolute', top: 'calc(100% + 12px)', left: 0, right: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '4px', background: '#fff', borderRadius: '6px', padding: '14px 18px', margin: 0, boxShadow: '0 22px 50px -18px rgba(8,6,2,0.6)' }}>
-            {links.map((l) => (
-              <li key={l.to}>
-                <a href="#" className="mn-link" onClick={(e) => { e.preventDefault(); go(l.to); }}
-                   style={{ display: 'block', fontFamily: C.fb, fontWeight: 500, fontSize: '18px', color: C.link, textDecoration: 'none', padding: '10px 0' }}>
-                  {l.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </nav>
-    </div>
-  );
-}
-
 // ---------- AdminEmpty: estado vazio (migrado · Pedra & Bronze) ----------
 function AdminEmpty({ ac, sectionLabel }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const lineL = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, transparent, rgba(201,164,78,0.45))' };
   const lineR = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, rgba(201,164,78,0.45), transparent)' };
   return (
@@ -392,11 +285,12 @@ function AdminEmpty({ ac, sectionLabel }) {
       <p style={{ margin: 0, fontSize: 15, color: '#9C8F73', lineHeight: 1.6, maxWidth: 420 }}>{ac.empty_sub}</p>
       <button
         disabled
-        title={ac.coming_soon}
+        {...propsTip(abrirTip, fecharTip, ac.coming_soon)}
         style={{ marginTop: 16, fontFamily: "'Lora', serif", fontWeight: 400, fontSize: 15, color: '#9C8F73', background: 'rgba(232,221,198,0.05)', border: '1px solid rgba(232,221,198,0.12)', borderRadius: 6, padding: '11px 20px', cursor: 'not-allowed', opacity: 0.7 }}>
         + {ac.create} {sectionLabel ? `· ${sectionLabel}` : ''}
       </button>
       <div style={{ marginTop: 10, fontSize: 15, color: 'rgba(156,143,115,0.7)' }}>{ac.coming_soon}</div>
+      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -407,6 +301,7 @@ function AdminEmpty({ ac, sectionLabel }) {
 // Depende de: calcularFicha, ATRIBUTOS_KEYS, ATRIBUTOS_LABEL (game-data.jsx)
 //             supabaseClient (global), Icon (este arquivo)
 function FichasJogador({ ac, lang, currentUserId }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const [personagens, setPersonagens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fichaAberta, setFichaAberta] = useState(null); // personagem selecionado pro modal
@@ -478,7 +373,7 @@ function FichasJogador({ ac, lang, currentUserId }) {
               className="fj-card"
               style={{ cursor: 'pointer', position: 'relative', background: 'linear-gradient(180deg, #221D15 0%, #181308 100%)', border: '1px solid rgba(106,85,48,0.30)', borderRadius: 6, padding: 18, boxShadow: '0 16px 40px -28px rgba(8,6,2,0.8)' }}
               onClick={() => setFichaAberta(p)}
-              title={lang === 'en' ? 'Open sheet' : 'Abrir ficha'}
+              {...propsTip(abrirTip, fecharTip, lang === 'en' ? 'Open sheet' : 'Abrir ficha')}
             >
               {/* Cabeçalho do card */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -574,6 +469,7 @@ function FichasJogador({ ac, lang, currentUserId }) {
             </div>
           );
         })}
+        <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
       </div>
 
       {/* Modal de ficha completa — delega ao PersonagemFichaModal existente */}
@@ -640,6 +536,19 @@ function FichasJogador({ ac, lang, currentUserId }) {
        <p>Conteúdo do corpo aqui.</p>
      </ModalShell>
 */
+// Modais abertos no momento. Só o de CIMA responde ao Escape — ver o
+// useEffect de teclado dentro de ModalShell.
+//
+// O critério é ordem no documento: vale quem vier por último. Serve tanto pro
+// modal aninhado (descendente sempre vem depois do ancestral) quanto pro que
+// entra por portal (anexado ao fim de .mc-root, depois de quem o abriu).
+//
+// Não dá pra usar ordem de montagem: os efeitos do React rodam de baixo pra
+// cima, então numa árvore <Wizard><Detalhe/></Wizard> quem se registra
+// primeiro é o Detalhe, e "o último a entrar" elegeria o Wizard — o contrário
+// do que se quer.
+const MODAIS_ABERTOS = [];
+
 function ModalShell({
   title,
   onClose = null,
@@ -664,22 +573,45 @@ function ModalShell({
 
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  const backdropRef = useRef(null);   // usado pra saber quem é o modal mais interno
 
   useEffect(() => {
     // Sem onClose, o modal é bloqueante de propósito (ex.: PlanoEscolhaModal —
     // onboarding obrigatório) — Escape não faz nada nesse caso.
-    const onKey = (e) => { if (e.key === 'Escape' && onCloseRef.current) onCloseRef.current(); };
+    //
+    // O Escape só vale pro modal mais INTERNO. Cada instância registra o
+    // listener em window, então com dois modais abertos um Escape fechava os
+    // dois — e no wizard de personagem isso significava perder o PJ em
+    // construção ao fechar a explicação de um atributo (08/09/2026).
+    //
+    // "De cima" = nenhum outro modal aberto vem depois dele no documento.
+    // DOCUMENT_POSITION_FOLLOWING (4) cobre os dois arranjos: descendente
+    // aninhado (vem como FOLLOWING|CONTAINED_BY) e irmão posterior por portal.
+    const entrada = backdropRef;
+    MODAIS_ABERTOS.push(entrada);
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || !onCloseRef.current) return;
+      const meu = backdropRef.current;
+      const temOutroAcima = meu && MODAIS_ABERTOS.some((o) => (
+        o !== entrada && o.current
+        && (meu.compareDocumentPosition(o.current) & Node.DOCUMENT_POSITION_FOLLOWING)
+      ));
+      if (temOutroAcima) return;
+      onCloseRef.current();
+    };
     window.addEventListener('keydown', onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
+      const i = MODAIS_ABERTOS.indexOf(entrada);
+      if (i !== -1) MODAIS_ABERTOS.splice(i, 1);
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
     };
   }, []);
 
   return (
-    <div className="menestrel-ui ms-backdrop">
+    <div className="menestrel-ui ms-backdrop" ref={backdropRef}>
       {/* Sem onClick aqui de propósito: clique fora NÃO fecha o modal
           (decisão de produto — ver cabeçalho do componente). Fechar só
           via "x", via Cancelar, ou via Escape. */}
@@ -762,6 +694,7 @@ const MENU_ITEM_STYLE = {
 // sempre vence. Definido FORA do UserMenu para ser um tipo de componente estável (não remonta a
 // cada render do pai, o que resetaria o estado de hover ao abrir/fechar o submenu de idioma).
 function MenuRow({ children, onClick, disabled, danger, extraStyle, title }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const [hover, setHover] = useState(false);
   const bg = disabled ? 'transparent'
     : hover ? (danger ? 'rgba(200,33,44,0.14)' : 'rgba(232,221,198,0.07)')
@@ -769,13 +702,14 @@ function MenuRow({ children, onClick, disabled, danger, extraStyle, title }) {
   return (
     <button
       role="menuitem"
-      title={title}
+      {...propsTip(abrirTip, fecharTip, title)}
       disabled={disabled}
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{ ...MENU_ITEM_STYLE, background: bg, cursor: disabled ? 'not-allowed' : 'pointer', ...extraStyle }}>
       {children}
+      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </button>
   );
 }
@@ -1297,6 +1231,7 @@ function feriadosDoDia(dia, mes) {
 // Notas pessoais: armazenadas em historias.notas_calendario (JSONB) com chave "MES:DIA".
 // Carregadas ao montar / trocar de mês; salvas/apagadas inline via Supabase.
 function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEditar, userId, onDefinirDataAtual, onClose }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const en = lang === 'en';
   const meses = typeof FANTASY_MONTHS !== 'undefined' ? FANTASY_MONTHS : null;
   const totalMeses = meses ? meses.length : 13;
@@ -1641,7 +1576,7 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
                       className="cal-definir-data-btn"
                       onClick={definirComoDataAtual}
                       disabled={definindoData}
-                      title={en ? 'Set as current date' : 'Definir como data atual'}
+                      {...propsTip(abrirTip, fecharTip, en ? 'Set as current date' : 'Definir como data atual')}
                     >
                       <i className="ti ti-calendar-check" aria-hidden="true" />
                       <span>{definindoData ? (en ? 'Setting…' : 'Definindo…') : (en ? 'Set as current' : 'Definir como atual')}</span>
@@ -1652,7 +1587,7 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
                   <button
                     className="cal-nota-del"
                     onClick={abrirInput}
-                    title={notasPorDia[diaFoco] ? (en ? 'Edit note' : 'Editar nota') : (en ? 'Add note' : 'Adicionar nota')}
+                    {...propsTip(abrirTip, fecharTip, notasPorDia[diaFoco] ? (en ? 'Edit note' : 'Editar nota') : (en ? 'Add note' : 'Adicionar nota'))}
                     aria-label={notasPorDia[diaFoco] ? (en ? 'Edit note' : 'Editar nota') : (en ? 'Add note' : 'Adicionar nota')}
                   >
                     <i className={`ti ${notasPorDia[diaFoco] ? 'ti-pencil' : 'ti-plus'}`} aria-hidden="true" />
@@ -1763,6 +1698,7 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
         })()}
       </div>{/* cal-modal */}
       </div>{/* menestrel-ui */}
+      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>,
     document.body
   );
@@ -1790,6 +1726,7 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
    CentralMensagens.
 */
 function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, limiteFreeHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, limiteFreePersonagem, esconderBotaoPersonagem, dataNascPjAtivo = null }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const [dataAtual, setDataAtual] = useState(null); // { dia, mes, ano, local } | null
   const [carregando, setCarregando] = useState(true);
   const [editando, setEditando] = useState(null); // null | 'data' | 'local'
@@ -2029,7 +1966,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
           className="cdj-pill-btn-salvar"
           onClick={onNovaHistoria}
           disabled={!!limiteFreeHistoria}
-          title={limiteFreeHistoria ? (en ? 'Free plan limit reached (2 stories)' : 'Limite do plano free atingido (2 histórias)') : undefined}
+          {...propsTip(abrirTip, fecharTip, limiteFreeHistoria ? (en ? `Free plan limit reached (${PLANO_FREE_LIMITES.historias} story)` : `Limite do plano free atingido (${PLANO_FREE_LIMITES.historias} história)`) : undefined)}
           style={{
             pointerEvents: 'auto',
             background: limiteFreeHistoria ? 'rgba(201,164,78,0.25)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
@@ -2049,7 +1986,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
           className="cdj-pill-btn-salvar"
           onClick={onNovoPersonagem}
           disabled={!!limiteFreePersonagem}
-          title={limiteFreePersonagem ? (en ? 'Free plan limit reached (3 characters)' : 'Limite do plano free atingido (3 personagens)') : undefined}
+          {...propsTip(abrirTip, fecharTip, limiteFreePersonagem ? (en ? `Free plan limit reached (${PLANO_FREE_LIMITES.personagens} character)` : `Limite do plano free atingido (${PLANO_FREE_LIMITES.personagens} personagem)`) : undefined)}
           style={{
             pointerEvents: 'auto',
             background: limiteFreePersonagem ? 'rgba(201,164,78,0.25)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
@@ -2063,6 +2000,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
           {en ? 'New character' : 'Novo personagem'}
         </button>
       )}
+      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -2085,6 +2023,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
    (antiga seção 9.5) foi removida — o canônico é src/02-shell/dado-d10.jsx,
    importado no main.tsx logo após dado-d20.jsx (mesmo padrão do D20). */
 function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const [abertoD20, setAbertoD20] = useState(false);
   const [abertoD10, setAbertoD10] = useState(false);
   const en = lang === 'en';
@@ -2121,7 +2060,7 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
           className="rl-fab"
           onClick={() => setAbertoD20(true)}
           aria-label={en ? 'Free roll D20' : 'Rolamento livre D20'}
-          title="D20"
+          {...propsTip(abrirTip, fecharTip, 'D20')}
         >
           <i className="ti ti-number-20-small" aria-hidden="true" />
         </button>
@@ -2134,10 +2073,11 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
           style={{ top: 76 }}
           onClick={() => setAbertoD10(true)}
           aria-label={en ? 'Free roll D10' : 'Rolamento livre D10'}
-          title="D10"
+          {...propsTip(abrirTip, fecharTip, 'D10')}
         >
           <i className="ti ti-number-10-small" aria-hidden="true" />
         </button>
+        <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
       </div>
 
       {/* Overlay D20 */}
@@ -2523,6 +2463,7 @@ function MusicaPlayerFab({ lang, profile, onAbrirPlaylist }) {
 // Padrão "página, não modal": header com seta de voltar, corpo solto.
 // Só acessível via botão playlist no painel do player (master).
 function PlaylistMestre({ lang, onVoltar }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const en = lang === 'en';
   const { playlist, atualId, tocando, faixaAtual, salvarPlaylist, salvarAtual, salvarTocando } = usePlaylistState();
 
@@ -2562,7 +2503,7 @@ function PlaylistMestre({ lang, onVoltar }) {
         <button
           className="btn-ghost btn-icon"
           onClick={() => salvarTocando(!tocando)}
-          title={tocando ? (en ? 'Pause' : 'Pausar') : (en ? 'Play' : 'Tocar')}
+          {...propsTip(abrirTip, fecharTip, tocando ? (en ? 'Pause' : 'Pausar') : (en ? 'Play' : 'Tocar'))}
           style={{ color: tocando ? '#C9A44E' : '#7A6A4A', fontSize: 20 }}
         >
           <i className={tocando ? 'ma-ic ma-ic-pause' : 'ma-ic ma-ic-play'} aria-hidden="true" />
@@ -2633,6 +2574,7 @@ function PlaylistMestre({ lang, onVoltar }) {
           })}
         </div>
       </div>
+      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -2645,14 +2587,28 @@ function PlaylistMestre({ lang, onVoltar }) {
    O que mudou: SÓ a moldura (fundo + glows + sidebar + container do main) virou visual novo,
    inline + tokens (regra de ouro). Toda a lógica (perfil, seções, persistência) e o SWITCH das abas
    continuam idênticos — o conteúdo de cada aba segue no estilo legado, pra migrarmos um a um depois.
-   `onViewLanding` continua disponível (hoje sem uso) caso queira um link "ver site" na sidebar.
 */
-function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLanding }) {
+/* Decide se a troca de perfil (Mestre/Jogador) deve ir pro banco.
+   `noServidor` é o que sabemos estar gravado em profiles.perfil_tipo;
+   null/undefined = ainda NÃO sabemos, e nesse estado nunca se escreve —
+   é essa a guarda que impede o palpite da montagem de virar verdade.
+
+   `noServidor` é acompanhado à parte (estado próprio, atualizado a cada
+   escrita) em vez de sair da prop userProfile: a prop nunca é refetchada, e
+   compará-la faria master→player→master pular a segunda escrita. */
+function devePersistirPerfil(noServidor, local) {
+  if (noServidor === null || noServidor === undefined) return false;
+  return noServidor !== local;
+}
+
+function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   const ac = ADMIN_COPY[lang] || ADMIN_COPY.pt;
   const [navTip, abrirNavTip, fecharNavTip, manterNavTip] = useNavTooltip(60);
 
   // Perfil persistido.
   // Prioridade de restauração: Supabase (userProfile prop) > localStorage > 'player' (novo usuário).
+  // O valor inicial é um PALPITE: o AdminConsole monta antes de userProfile
+  // chegar (App faz setUser(u) e só então `await carregarProfile(u)`).
   const [profile, setProfile] = useState(() => {
     if (userProfile && typeof userProfile.perfil_tipo === 'string') return userProfile.perfil_tipo;
     try { const s = localStorage.getItem('menestrel.profile'); if (s === 'master' || s === 'player') return s; }
@@ -2660,28 +2616,62 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
     return 'player'; // padrão para contas novas
   });
 
-  // Sincroniza com o Supabase na primeira chegada de userProfile (que carrega async após o login).
-  // Usa ref para garantir que a sincronização não sobrescreve uma troca manual feita pelo usuário
-  // na mesma sessão.
-  const _perfilSynced = React.useRef(false);
+  // O que sabemos estar GRAVADO no servidor. null = ainda não sabemos — e
+  // nesse estado não se escreve nada (ver devePersistirPerfil).
+  const [perfilNoServidor, setPerfilNoServidor] = useState(null);
+  // O usuário clicou no seletor nesta sessão? Se sim, a escolha dele vence o
+  // valor que vier do servidor — que é mais velho que o clique.
+  const trocaManualRef = React.useRef(false);
+  const escolherPerfil = React.useCallback((novo) => {
+    trocaManualRef.current = true;
+    setProfile(novo);
+  }, []);
+
+  // Primeira chegada de userProfile: registra o que o servidor tem e adota
+  // esse valor, a menos que o usuário já tenha trocado à mão nesta sessão.
   useEffect(() => {
-    if (!_perfilSynced.current && userProfile && typeof userProfile.perfil_tipo === 'string') {
-      _perfilSynced.current = true;
-      setProfile(userProfile.perfil_tipo);
+    if (perfilNoServidor !== null) return;   // já sabemos
+    if (!userProfile) return;                // ainda não carregou: não sabemos nada
+    const doServidor = userProfile.perfil_tipo;
+    if (doServidor !== 'master' && doServidor !== 'player') {
+      // Carregou, mas a coluna está vazia/inválida (linha antiga, ou trigger
+      // que nasceu sem default). Isso É saber o que há lá: nada. Marca com ''
+      // pra que devePersistirPerfil libere a gravação e o palpite local vire
+      // o valor de verdade — sem isso a guarda de null travaria a escrita
+      // para sempre nessas contas.
+      setPerfilNoServidor('');
+      return;
     }
-  }, [userProfile]);
+    setPerfilNoServidor(doServidor);
+    if (!trocaManualRef.current) setProfile(doServidor);
+  }, [userProfile, perfilNoServidor]);
 
   useEffect(() => {
     try { localStorage.setItem('menestrel.profile', profile); } catch (e) {}
-    // Persiste no Supabase para restaurar entre dispositivos/sessões
-    if (user && user.id) {
-      supabaseClient
-        .from('profiles')
-        .update({ perfil_tipo: profile })
-        .eq('id', user.id)
-        .then(() => {});
-    }
   }, [profile]);
+
+  // Persiste no Supabase para restaurar entre dispositivos/sessões.
+  //
+  // ⚠️ A guarda de devePersistirPerfil é o que fecha uma corrida real: este
+  // efeito rodava na MONTAGEM e mandava o palpite inicial pro banco antes de
+  // userProfile chegar. Num dispositivo novo (sem localStorage) o palpite é
+  // 'player', e esse UPDATE podia ganhar do SELECT do carregarProfile — o
+  // Mestre entrava como jogador, e de forma PERSISTENTE, porque o valor errado
+  // já tinha sido gravado. Cobertura: 10-shell/perfil-persistencia.test.js.
+  useEffect(() => {
+    if (!user || !user.id) return;
+    if (!devePersistirPerfil(perfilNoServidor, profile)) return;
+    // Otimista: assume gravado pra não reescrever em loop. Se falhar, a tela
+    // fica certa e o banco velho — a próxima troca tenta de novo.
+    setPerfilNoServidor(profile);
+    supabaseClient
+      .from('profiles')
+      .update({ perfil_tipo: profile })
+      .eq('id', user.id)
+      .then(({ error: err }) => {
+        if (err) console.error('[perfil] update de perfil_tipo falhou:', err);
+      });
+  }, [profile, perfilNoServidor, user]);
 
   // Seção atual também persiste. Se trocou de perfil e a seção não existe mais lá, cai na primeira.
   // "inventario" e "loja" foram removidos do menu lateral.
@@ -2702,7 +2692,12 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
     if (!sections.find((s) => s.id === currentId)) {
       setCurrentId(sections[0].id);
     }
-  }, [profile, sections, currentId]);
+    // `sections` FORA das deps de propósito: é derivado de `profile` por um
+    // .filter() que devolve array novo a cada render, então listá-lo fazia
+    // este efeito rodar em TODO render sem nunca ter o que fazer. `profile` é
+    // a única entrada que muda o conteúdo dele.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, currentId]);
   useEffect(() => {
     try { localStorage.setItem('menestrel.section', currentId); } catch (e) {}
   }, [currentId]);
@@ -2735,7 +2730,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
   // Mesma regra de limite que a HistoriasList aplica internamente — calculada
   // aqui também só pra decidir o estado visual (disabled + tooltip) do botão
   // do pill, que vive fora da HistoriasList.
-  const limiteFreeHistorias = userProfile?.plano === 'free' && (minhasHistorias?.length ?? 0) >= 2;
+  const limiteFreeHistorias = userProfile?.plano === 'free' && (minhasHistorias?.length ?? 0) >= PLANO_FREE_LIMITES.historias;
   // Quando a HistoriasList está dentro de um menu interno da aventura (loja,
   // lore, batalhas, convites), o pill do topo inteiro (seletor de mesa +
   // "Nova história") fica escondido — esses controles só existem na tela
@@ -2934,7 +2929,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
                 planoBadge={planoBadge}
                 planoPago={planoPago}
                 profile={profile}
-                onSetProfile={setProfile}
+                onSetProfile={escolherPerfil}
                 lang={lang}
                 setLang={setLang}
                 onHelp={() => { setUserMenuOpen(false); setCurrentId('guia_personagem'); }}
@@ -3052,11 +3047,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang, onViewLan
 /* ============================== [25] App — Raiz da aplicação ============================== */
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAKS_DEFAULTS);
-  const [signupOpen, setSignupOpen] = useState(false);
-  const closeSignup = React.useCallback(() => setSignupOpen(false), []);
   const [user, setUser] = useState(null);  // sessão Supabase
   const [profile, setProfile] = useState(null); // { plano, plano_escolhido_em }
-  const [previewLanding, setPreviewLanding] = useState(false); // user logado escolheu ver a landing
 
   // Carrega/recarrega o profile do usuário (chamada depois do login e
   // depois de confirmar um plano no PlanoEscolhaModal).
@@ -3078,8 +3070,23 @@ function App() {
     } else {
       // Trigger de signup ainda não criou a linha (corrida) ou não rodou.
       // Cria via upsert JÁ COM os metadados do OAuth pra a linha nunca nascer
-      // sem esses campos. onConflict:'id' = idempotente se o trigger commitar
-      // logo em seguida. NÃO toca plano_escolhido_em (preserva o onboarding).
+      // sem esses campos. NÃO toca plano_escolhido_em (preserva o onboarding).
+      //
+      // ⚠️ `ignoreDuplicates: true` (ON CONFLICT DO NOTHING) NÃO é detalhe.
+      // Com o `onConflict:'id'` sozinho isto virava um UPDATE que sobrescrevia
+      // a linha existente com plano:'free' e perfil_tipo:'player' — REBAIXANDO
+      // quem já era pago ou Mestre. E o gatilho deste bloco não é "a linha não
+      // existe": é "o SELECT acima não devolveu linha", que é coisa diferente.
+      // O SELECT volta vazio sempre que a RLS não casa naquele instante (JWT
+      // expirando, refresh de token, evento de auth com sessão ainda não
+      // aplicada) — e carregarProfile roda em TODO onAuthStateChange, inclusive
+      // TOKEN_REFRESHED. Ou seja: um soluço de sessão bastava pra derrubar o
+      // plano e o perfil de uma conta boa.
+      //
+      // Reproduzido em transação abortada no banco: sem proteção, o upsert
+      // levava paid→free e master→player. Hoje o gatilho
+      // trg_plano_somente_admin segura o PLANO; o perfil_tipo dependia só
+      // disto aqui.
       const meta = (authUser && authUser.user_metadata) || {};
       const { error: insErr } = await supabaseClient
         .from('profiles')
@@ -3090,7 +3097,7 @@ function App() {
           email: authUser.email || null,
           full_name: meta.full_name || meta.name || null,
           avatar_url: meta.avatar_url || meta.picture || null,
-        }, { onConflict: 'id' });
+        }, { onConflict: 'id', ignoreDuplicates: true });
       if (insErr) console.error('[profile] upsert fallback falhou:', insErr);
       setProfile({ plano: 'free', plano_escolhido_em: null, perfil_tipo: 'player' });
     }
@@ -3147,7 +3154,6 @@ function App() {
       setUser(u);
       if (u) {
         carregarProfile(u);
-        setSignupOpen(false); // fecha o modal de signup quando logar
       } else {
         setProfile(null);
       }
@@ -3157,15 +3163,13 @@ function App() {
 
   const authCopy = AUTH_COPY[lang] || AUTH_COPY.pt;
   const adminCopy = ADMIN_COPY[lang] || ADMIN_COPY.pt;
-  const openSignup = () => setSignupOpen(true);
   const logout = async () => {
     await supabaseClient.auth.signOut();
-    setPreviewLanding(false);
   };
   const setLang = (l) => setTweak('lang', l);
 
-  // Se está logado e NÃO está em modo preview da landing, mostra a Admin Console
-  if (user && !previewLanding) {
+  // Logado → Admin Console. Deslogado → tela de login (única página pública).
+  if (user) {
     // Primeiro login (sem plano escolhido ainda) → onboarding sobreposto ao Console
     const precisaEscolherPlano = profile && !profile.plano_escolhido_em;
     return (
@@ -3177,7 +3181,6 @@ function App() {
           t={t}
           lang={lang}
           setLang={setLang}
-          onViewLanding={() => setPreviewLanding(true)}
         />
         {precisaEscolherPlano && (
           <PlanoEscolhaModal
@@ -3190,35 +3193,17 @@ function App() {
     );
   }
 
-  // Caso contrário, mostra a landing (logado em preview, ou deslogado)
+  // Deslogado → a única página pública do app: o login com Google.
   return (
     <>
-      <Topbar t={t} lang={lang} setLang={setLang} onSignup={openSignup} user={user} onLogout={logout} authCopy={authCopy} />
-      <Hero t={t} onSignup={openSignup} shader={tweaks.shader} shaderKind={tweaks.shaderKind} mode={mode} />
-      <Opening t={t} />
-      <HOrnament />
-      <Pain t={t} />
-      <HOrnament />
-      <Solution t={t} />
-      <HOrnament />
-      <Benefits t={t} />
-      <HOrnament />
-      <Social t={t} />
-      <HOrnament />
-      <Plans t={t} onSignup={openSignup} />
-      <HOrnament />
-      <Guarantee t={t} />
-      <HOrnament />
-      <Scarcity t={t} onSignup={openSignup} lang={lang} />
-      <HOrnament />
-      <Objections t={t} />
-      <HOrnament />
-      <FAQ t={t} />
-      <HOrnament />
-      <FinalCTA t={t} onSignup={openSignup} />
-      <Foot t={t} />
-
-      {signupOpen && <SignupModal t={t} lang={lang} onClose={closeSignup} authCopy={authCopy} />}
+      <LoginPage
+        lang={lang}
+        setLang={setLang}
+        authCopy={authCopy}
+        shader={tweaks.shader}
+        shaderKind={tweaks.shaderKind}
+        mode={mode}
+      />
 
       <TweaksPanel title="Tweaks">
         <TweakSection label={lang === 'en' ? 'Atmosphere' : 'Atmosfera'}>
@@ -3263,6 +3248,9 @@ function App() {
 
 Object.assign(window, {
   ModalShell,
-  FantasyDatePicker, Topbar, AdminEmpty, FichasJogador, AdminConsole, App,
+  FantasyDatePicker, AdminEmpty, FichasJogador, AdminConsole, App,
   CentralMensagens, CardDataJogoAtual, RolagemLivreFab, MusicaPlayerFab, PlaylistMestre,
+  // Pura, exposta pro teste da corrida de perfil_tipo
+  // (10-shell/perfil-persistencia.test.js).
+  devePersistirPerfil,
 });

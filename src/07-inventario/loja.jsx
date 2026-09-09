@@ -17,7 +17,7 @@
    - supabaseClient + RPCs get_loja_pj / comprar_item
    - 01-core/inventario-helpers.jsx: MOEDA_ORDEM, latoesToMoedas
    - GLOBAIS de 07-inventario/inventario.jsx (carregado ANTES):
-     fmtNum, calcCarga, invItemIcon, recipienteAceitaSlug, MoedaPills, MoedasBoard, CabecalhoInvLoja
+     fmtNum, calcCarga, invItemIcon, recipienteAceitaSlug, MoedaPills, CabecalhoInvLoja
 
    Consumidor no app.jsx: <LojaJogador /> (aba "Loja" do AdminConsole).
 
@@ -31,7 +31,7 @@
 //   (substitui as inv-pj-tabs nesta aba; o inventário continua com as tabs).
 // - Fontes: Lora (--font-body) em todo o texto; Cinzel SÓ em títulos
 //   (título do banner e h3 do modal, que herda de `.modal h3`).
-// - Moedas do PJ: MoedasBoard PADRÃO (o mesmo trilho do inventário).
+// - Moedas do PJ: MoedaPills (mesmo trilho visual do inventário).
 // - Preço 0 latão = item gratuito ("Grátis"), no card e no modal.
 // - Busca + chips de categoria (substituem os agrupamentos inv-bag-group).
 // - Vitrine em grid única; estados: hover (CTA revelado), esgotado,

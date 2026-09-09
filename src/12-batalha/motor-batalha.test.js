@@ -16,6 +16,9 @@
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import './batalha.jsx';
+// processarViradaDeRodada repõe o movimento do tabuleiro (movimentoBase),
+// que mora em tabuleiro.jsx — mesma ordem de carga do main.tsx.
+import './tabuleiro.jsx';
 
 let M;
 beforeAll(() => {
@@ -197,7 +200,7 @@ describe('danoNoTier', () => {
   // criaturas do banco com dano_100 > 0, as colunas já eram exatamente
   // ceil(dano_100 × n/4) — zero divergências. Ver tiers-criatura.test.js.
   // E/A seguem com floor (divergência de regra pré-existente, intocada).
-  it('CRIATURA deriva 25/50/75 do dano_100 com ceil; E/A com floor', () => {
+  it('CRIATURA deriva os seis tiers do dano_100, sempre com ceil', () => {
     // dano_25/50/75 na linha são IGNORADOS de propósito — valores absurdos
     // aqui provam que a derivação manda.
     const cri = { fonte: 'criatura', dano_25: 99, dano_50: 99, dano_75: 99, dano_100: 9 };
@@ -205,8 +208,8 @@ describe('danoNoTier', () => {
     expect(M.danoNoTier(cri, 'M')).toBe(5);   // ceil(9/2)  = 4.5  → 5
     expect(M.danoNoTier(cri, 'D')).toBe(7);   // ceil(27/4) = 6.75 → 7
     expect(M.danoNoTier(cri, 'MD')).toBe(9);
-    expect(M.danoNoTier(cri, 'E')).toBe(11);  // floor(11.25)
-    expect(M.danoNoTier(cri, 'A')).toBe(13);  // floor(13.5)
+    expect(M.danoNoTier(cri, 'E')).toBe(12);  // ceil(11.25)
+    expect(M.danoNoTier(cri, 'A')).toBe(14);  // ceil(13.5)
     expect(M.danoNoTier(cri, 'X')).toBe(0);
   });
 });
@@ -483,5 +486,44 @@ describe('processarViradaDeRodada / montarNovaRodada', () => {
     expect(eventos).toEqual([]);
     expect(r.find((p) => p.nome === 'Ana').atual).toBe(false);  // sem_acoes pula
     expect(r.find((p) => p.nome === 'Beto').atual).toBe(true);
+  });
+});
+
+/* ── iconePA — o ícone É o número (03/09/2026) ────────────────────
+   O chip de PA mostrava "1/1"; virou o hexágono numerado, a pedido do
+   usuário, e o máximo foi pro tooltip.
+
+   O que se testa aqui é a borda, não o caminho feliz: a família
+   ti-hexagon-number existe só de 0 a 9. Um nome fora dessa faixa não dá
+   erro — a fonte simplesmente não desenha nada, e o chip some da tela sem
+   deixar rastro. Um pa_rest torto vindo de um snapshot antigo apagaria a
+   informação em silêncio, então o clamp é o que garante que SEMPRE sai um
+   ícone que existe. */
+describe('iconePA — sempre devolve um ícone que existe', () => {
+  const M = () => window.MotorBatalha;
+
+  it('mapeia o valor direto na faixa normal', () => {
+    expect(M().iconePA(0)).toBe('ti-hexagon-number-0');
+    expect(M().iconePA(1)).toBe('ti-hexagon-number-1');
+    expect(M().iconePA(2)).toBe('ti-hexagon-number-2');
+  });
+
+  it('prende em 9 — acima disso o ícone não existe e o chip sumiria', () => {
+    expect(M().iconePA(10)).toBe('ti-hexagon-number-9');
+    expect(M().iconePA(999)).toBe('ti-hexagon-number-9');
+  });
+
+  it('negativo vira 0, não um nome inválido', () => {
+    expect(M().iconePA(-1)).toBe('ti-hexagon-number-0');
+  });
+
+  it('ausente ou lixo vira 0', () => {
+    expect(M().iconePA(null)).toBe('ti-hexagon-number-0');
+    expect(M().iconePA(undefined)).toBe('ti-hexagon-number-0');
+    expect(M().iconePA('abc')).toBe('ti-hexagon-number-0');
+  });
+
+  it('fracionário trunca em vez de virar nome quebrado', () => {
+    expect(M().iconePA(2.7)).toBe('ti-hexagon-number-2');
   });
 });

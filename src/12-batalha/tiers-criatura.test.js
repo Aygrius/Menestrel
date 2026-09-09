@@ -66,9 +66,18 @@ describe('danoNoTier — criatura, tiers 25/50/75%', () => {
     }
   });
 
-  it('E/A da criatura seguem com floor (regra pré-existente, não tocada)', () => {
+  it('E/A da criatura arredondam pra CIMA, igual à arma (alinhado em 30/08/2026)', () => {
     const c = { fonte: 'criatura', dano_100: 11 };
-    expect(M.danoNoTier(c, 'E')).toBe(Math.floor(11 * 1.25));  // 13
-    expect(M.danoNoTier(c, 'A')).toBe(Math.floor(11 * 1.5));   // 16
+    expect(M.danoNoTier(c, 'E')).toBe(Math.ceil(11 * 1.25));   // 14 (era 13)
+    expect(M.danoNoTier(c, 'A')).toBe(Math.ceil(11 * 1.5));    // 17 (era 16)
+  });
+
+  it('os seis tiers de criatura batem com os da arma de mesmo dano_100', () => {
+    const d100 = 33;                                            // Lobisomem
+    const cri  = { fonte: 'criatura', dano_100: d100 };
+    const arma = { fonte: 'arma', dano: d100 };
+    for (const cod of ['F', 'M', 'D', 'MD', 'E', 'A']) {
+      expect(M.danoNoTier(cri, cod)).toBe(M.danoNoTier(arma, cod));
+    }
   });
 });

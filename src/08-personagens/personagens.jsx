@@ -21,7 +21,7 @@
    - StepIdentidade         — nome, raça, classe, etc
    - StepAtributos          — distribuição de pontos
    - StepHabilidades        — escolha de habilidades + qtd
-   - AprimoramentosPanel    — painel interno do step de habilidades
+   - AprimoramentoInline    — vagas de idioma/religião/arte/sabedoria, dentro da habilidade-mãe
    - StepMagias             — escolha de magias (carrega DB)
    - StepTecnicas           — escolha de técnicas (carrega DB)
    - StepRevisao            — revisão final antes de salvar
@@ -82,7 +82,20 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
     // Realtime: atualiza quando a batalha muda
     const channel = supabaseClient
       .channel('batalha_jogador_' + pjAtivoId)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'batalhas' }, async () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'batalhas' }, async (payload) => {
+        // Filtra ANTES de consultar. Sem isto, QUALQUER ação em QUALQUER
+        // batalha do sistema disparava um refetch em TODO jogador logado —
+        // um combate movimentado de outra mesa custava uma query por jogador
+        // por golpe. A linha do evento já traz `participantes`, então dá pra
+        // decidir sem ir ao banco.
+        //
+        // Quando a lista não vem (DELETE com REPLICA IDENTITY só da PK, por
+        // exemplo) o refetch acontece: não dá pra concluir que é irrelevante,
+        // e sumir com a batalha da tela importa mais que a query extra.
+        const linha = (payload && (payload.new || payload.old)) || null;
+        const lista = linha && linha.participantes;
+        if (Array.isArray(lista)
+            && !lista.some((p) => p.tipo === 'pj' && p.ref_id === pjAtivoId)) return;
         const { data } = await supabaseClient
           .from('batalhas')
           .select('*')
@@ -230,7 +243,7 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   // ficha em vez da lista, e criar um personagem novo não faz sentido nesse
   // contexto (mesmo padrão usado em "Nova história": o botão do pill do topo
   // só existe junto da tela que ele afeta).
-  const limiteFree = !isMaster && userProfile?.plano === 'free' && (personagens?.length ?? 0) >= 3;
+  const limiteFree = !isMaster && userProfile?.plano === 'free' && (personagens?.length ?? 0) >= PLANO_FREE_LIMITES.personagens;
   const dentroDeMenu = isMaster ? (fichaAbertoId != null) : (pjAtivoIdLocal != null);
   useEffect(() => {
     if (onDentroDeMenu) onDentroDeMenu(dentroDeMenu);
@@ -304,24 +317,11 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
     refetch();
   };
 
-  // Exclusão a partir da própria ficha (PJ ativo): além de apagar, volta pra
-  // lista e limpa o pj_ativo_id no banco, pois o ativo deixou de existir.
-  const confirmarExclusaoAtivo = async () => {
-    if (!toDelete) return;
-    const id = toDelete.id;
-    setToDelete(null);
-    const { error } = await supabaseClient.from('personagens').delete().eq('id', id);
-    if (error) {
-      console.error('[personagens] delete falhou:', error);
-      alert((lang === 'en' ? 'Failed to delete: ' : 'Falha ao excluir: ') + error.message);
-      return;
-    }
-    if (id === pjAtivoIdLocal) {
-      setPjAtivoIdLocal(null);
-      await persistirPjAtivo(null);
-    }
-    refetch();
-  };
+  // Havia aqui um confirmarExclusaoAtivo — exclusão a partir da própria ficha
+  // do PJ ativo, que limpava o pj_ativo_id no banco depois de apagar. Saiu com
+  // o botão Excluir da ficha do jogador (08/09/2026): Excluir virou exclusivo
+  // do Mestre, que exclui pela lista/ficha dele por confirmarExclusao, e
+  // ninguém mais chamava esta versão.
 
   if (personagens === null) {
     return <div className="admin-loading"><span>{lang === 'en' ? 'Loading characters…' : 'Reunindo a comitiva…'}</span></div>;
@@ -382,41 +382,27 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   }
 
   // Jogador com PJ ativo → renderiza a ficha em vez da lista.
+  //
+  // Sem onEditar nem onExcluir: Editar e Excluir na ficha são só do Mestre
+  // (o ramo isMaster acima passa os dois). Os botões só renderizam quando a
+  // prop existe (11-ficha/ficha.jsx), então omitir já os esconde. O jogador
+  // evolui pela seta do card, que abre o mesmo wizard — ver .pj-evoluiu em
+  // PersonagemCard.
+  //
+  // Por isso aqui não há mais os modais de edição e de exclusão: nada neste
+  // ramo consegue definir toEdit/toDelete, e a lista (onde a seta vive) só
+  // aparece quando NÃO há PJ ativo, ou seja, os dois estados são exclusivos.
   if (!isMaster && pjAtivoIdLocal != null) {
-    const pjAtivo = personagens.find((p) => p.id === pjAtivoIdLocal) || null;
     return (
-      <>
-        <FichaComBatalha
-          key={pjAtivoIdLocal}
-          ac={ac}
-          lang={lang}
-          currentUserId={currentUserId}
-          pjAtivoId={pjAtivoIdLocal}
-          onVoltar={voltarParaLista}
-          onTrocar={trocarPjAtivo}
-          onEditar={pjAtivo ? () => setToEdit(pjAtivo) : undefined}
-          onExcluir={pjAtivo ? () => setToDelete(pjAtivo) : undefined}
-        />
-
-        {toEdit && (
-          <NovoPersonagemModal
-            lang={lang}
-            personagemExistente={toEdit}
-            isMaster={isMaster}
-            onClose={() => setToEdit(null)}
-            onSaved={() => { setToEdit(null); refetch(); }}
-          />
-        )}
-
-        {toDelete && (
-          <ConfirmarExclusaoModal
-            personagem={toDelete}
-            lang={lang}
-            onCancel={() => setToDelete(null)}
-            onConfirm={confirmarExclusaoAtivo}
-          />
-        )}
-      </>
+      <FichaComBatalha
+        key={pjAtivoIdLocal}
+        ac={ac}
+        lang={lang}
+        currentUserId={currentUserId}
+        pjAtivoId={pjAtivoIdLocal}
+        onVoltar={voltarParaLista}
+        onTrocar={trocarPjAtivo}
+      />
     );
   }
 
@@ -613,10 +599,23 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
       </div>
     </article>
 
-      {levelUp && (
-        <span className="pj-evoluiu">
-          <i className="ti ti-arrow-big-up-lines"></i>
-        </span>
+      {/* Seta de evolução — é o caminho do JOGADOR pra gastar os pontos do
+          estágio novo. O lápis de edição livre saiu da ficha dele e ficou só
+          com o Mestre, então esta seta é o acesso ao wizard: aparece apenas
+          quando há pontos a distribuir (temLevelUpPendente) e some sozinha
+          quando eles são gastos. stopPropagation porque o card inteiro é
+          clicável pra ativar o PJ. */}
+      {levelUp && onEdit && (
+        <button
+          type="button"
+          className="pj-evoluiu"
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          aria-label={en ? 'Click here to level up your character!' : 'Clique aqui para evoluir seu personagem!'}
+          onMouseEnter={(e) => { e.stopPropagation(); abrirTip(e, en ? 'Click here to level up your character!' : 'Clique aqui para evoluir seu personagem!'); }}
+          onMouseLeave={fecharTip}
+        >
+          <i className="ti ti-arrow-big-up-lines" aria-hidden="true" />
+        </button>
       )}
 
     </div>
@@ -958,6 +957,7 @@ function DarMoedasModal({ personagem, lang, onCancel, onSaved }) {
 /* ============================== [17] NovoPersonagemModal: wizard de criação em 3 passos ============================== */
 function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = null, isMaster = false }) {
   const isEdit = !!personagemExistente;
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -1111,8 +1111,10 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     });
   };
   const baseVals = ATRIBUTOS_KEYS.reduce((acc, k) => { acc[k] = form[`${k}_base`]; return acc; }, {});
-  const gastos = pontosGastos(baseVals);
-  const totalPontos = pontosDisponiveis(calcEstagio(form.experiencia));
+  const gastos = pontosGastos(baseVals, form.raca);
+  // Pool de atributos = a do estágio + o bônus de equalização da raça, que
+  // devolve em pontos livres o que a raça não deu em nível inicial.
+  const totalPontos = pontosAtributosTotal(calcEstagio(form.experiencia), form.raca);
   const restantes = totalPontos - gastos;
 
   // ---- Habilidades ----
@@ -1271,10 +1273,13 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     currentId === 'magias'       ? !erroMagias :
     currentId === 'tecnicas'     ? !erroTecnicas : true;
 
-  // Calcula atributos finais (base + racial) pra usar nos cálculos de Total de habilidade
-  const racaData = GAME_DATA.racas[form.raca];
+  // Atributos finais usados nos Totais de habilidade/magia/técnica das telas
+  // seguintes. O modificador racial NÃO é somado aqui: ele já está dentro de
+  // `X_base` desde a escolha da raça (handleRacaChange semeia). Somar de novo
+  // era a contagem dupla que fazia o wizard divergir da ficha — o
+  // StepRevisao, que chama calcularFicha, sempre mostrou o valor certo.
   const atributosFinais = ATRIBUTOS_KEYS.reduce((acc, k) => {
-    acc[k] = (form[`${k}_base`] ?? 0) + (racaData?.mods[k] ?? 0);
+    acc[k] = form[`${k}_base`] ?? 0;
     return acc;
   }, {});
 
@@ -1314,9 +1319,16 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       data_nasc: form.data_nasc ?? null,
     };
 
-    // Quando o JOGADOR edita seu próprio PJ, marca que ele já viu o estágio atual
-    // (isso esconde o badge "Pronto pra evoluir!"). O Mestre NÃO atualiza isso.
-    if (isEdit && !isMaster) {
+    // Marca que o jogador já viu o estágio atual — é isso que esconde o badge
+    // "Pronto pra evoluir!" (temLevelUpPendente). O Mestre NÃO atualiza isso.
+    //
+    // Só quando os pontos do estágio foram REALMENTE distribuídos (regra do
+    // usuário, 01/09/2026). Antes bastava abrir o wizard e salvar: o badge
+    // sumia e os pontos ficavam esquecidos, sem nada lembrando o jogador.
+    if (isEdit && !isMaster && todosOsPontosGastos({
+      atributos: restantes, habilidades: habRestantes, magias: magRestantes,
+      tecnicas: tecRestantes, gruposArmas: grpRestantes, usaMagia,
+    })) {
       payload.nivel_visto = calcEstagio(form.experiencia);
     }
     // Em UPDATE pelo Mestre, preserva user_id original (não muda dono)
@@ -1379,7 +1391,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
           <button
             key={i}
             type="button"
-            title={s.label}
+            {...propsTip(abrirTip, fecharTip, s.label)}
             aria-label={s.label}
             aria-current={step === n ? 'step' : undefined}
             className={'wiz-progress-seg' + (step === n ? ' active' : '') + (step > n ? ' done' : '') + (bloqueado ? ' locked' : '')}
@@ -1418,7 +1430,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       confirmDisabled={isUltimoStep ? saving : !podeAvancar}
     >
           {descricaoTela && <p className="wiz-screen-desc">{descricaoTela}</p>}
-          {currentId === 'identidade' && <StepIdentidade form={form} update={update} updateCaract={updateCaract} lang={lang} isEdit={isEdit} estagio={estagioForm} sub={currentSub} caractRestantes={caractRestantes} />}
+          {currentId === 'identidade' && <StepIdentidade form={form} update={update} updateCaract={updateCaract} lang={lang} isEdit={isEdit} sub={currentSub} caractRestantes={caractRestantes} />}
           {currentId === 'atributos' && (
             <StepAtributos
               form={form} update={update} lang={lang}
@@ -1488,6 +1500,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
               bonusHabilidades={bonusHabilidades} />
           )}
           {saveError && <div className="err-msg" style={{ marginTop: 14 }}>{saveError}</div>}
+          <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </ModalShell>
   );
 }
@@ -1672,9 +1685,13 @@ function wizInputStyle(locked) {
   };
 }
 
-function StepIdentidade({ form, update, lang, isEdit, estagio, sub = 'principal', updateCaract, caractRestantes = 0 }) {
+function StepIdentidade({ form, update, lang, isEdit, sub = 'principal', updateCaract, caractRestantes = 0 }) {
   const opcoesEsp = GAME_DATA.especializacoes[form.profissao] || [];
-  const mostraEsp = estagio >= 5 && opcoesEsp.length > 0;
+  // O campo aparece sempre que a profissão tiver especializações. Havia aqui um
+  // `estagio >= 5 &&`, que escondia o campo na criação (personagem novo nasce
+  // com XP 0, ou seja, estágio 1) — decisão revista em 08/09/2026 a pedido do
+  // usuário. Era o único lugar do app que amarrava especialização a estágio.
+  const mostraEsp = opcoesEsp.length > 0;
   const fotoRaca  = WIZ_RACA_FOTO[form.raca] || null;
   const nenhumaLabel = '';
   const escolhaLabel = lang === 'en' ? '— choose —' : '— escolha —';
@@ -1767,8 +1784,19 @@ function StepIdentidade({ form, update, lang, isEdit, estagio, sub = 'principal'
   }
 
   // ── Tela 1: Imagem + Identidade ──
+  // Trocar de raça re-semeia os 7 atributos com o modificador racial, que é o
+  // NÍVEL INICIAL gratuito de cada um (decisão de 08/09/2026): o Anão já
+  // nasce com Físico 2 sem gastar ponto, e pontosGastos mede o gasto a partir
+  // daí. A distribuição feita até aqui é descartada de propósito — o custo de
+  // cada atributo é relativo à raça, então manter os valores mudaria o preço
+  // do que já foi comprado. Raça é a tela 1 e atributos a tela 2, e o seletor
+  // é `disabled={isEdit}`, então isso só acontece durante a criação.
   const handleRacaChange = (v) => {
+    const mods = GAME_DATA.racas[v]?.mods;
     update('raca', v);
+    // `update` usa setForm com updater funcional, então as chamadas em
+    // sequência se acumulam num render só.
+    ATRIBUTOS_KEYS.forEach((k) => update(`${k}_base`, mods?.[k] ?? 0));
   };
 
   return (
@@ -1821,8 +1849,9 @@ function StepIdentidade({ form, update, lang, isEdit, estagio, sub = 'principal'
           />
         </div>
 
-        {/* Profissão e Especialização inline — Especialização só existe a
-            partir do estágio 5, então some sozinha quando não houver o par */}
+        {/* Profissão e Especialização inline. O par só não aparece quando a
+            profissão não tem especializações no catálogo — aí Profissão volta
+            a ocupar a linha inteira, no `else` abaixo. */}
         {mostraEsp ? (
           <div className="wiz-row-2col">
             <SelectPill
@@ -1955,9 +1984,114 @@ const ATRIBUTOS_DESCRICAO = {
   percepcao:  'O atributo percepção define a capacidade de observar, interpretar e compreender o ambiente ao redor. Engloba atenção, concentração e percepção de detalhes, sendo um atributo indispensável para rastreadores, exploradores e sentinelas.',
 };
 
+/* ---- Modal de explicação, compartilhado pelos passos do wizard ----
+   Substitui o acordeão inline que cada passo mantinha (08/09/2026): com a
+   lista em duas colunas, abrir um bloco de texto no meio da grade empurrava
+   os vizinhos e bagunçava o alinhamento dos steppers.
+
+   Os cinco passos (Atributos, Grupos de Armas, Habilidades, Magias, Técnicas)
+   e o painel de Aprimoramentos montam o mesmo formato a partir dos próprios
+   dados, então o markup do detalhe vive num lugar só:
+
+     { titulo, linhas: [{ rotulo, valor }], descricao, niveis: [{ n, t }] }
+
+   `niveis` é opcional e só as Magias usam — é a tabela do que a magia faz em
+   cada nível efetivo (1, 3, 5, 7, 9). Linha com valor vazio é descartada, o
+   que dispensa cada chamador de filtrar campo em branco do banco.
+
+   Fica por cima do wizard — ver .modal-detalhe no index.css e a pilha de
+   Escape em ModalShell (10-shell/shell.jsx), que impede um Escape aqui de
+   fechar o wizard inteiro junto.
+
+   Sem rodapé de propósito: é só leitura, não tem nada a confirmar nem a
+   cancelar. Fecha no "x" ou no Escape.
+
+   VAI POR PORTAL pra .mc-root, em vez de renderizar onde foi declarado
+   (08/09/2026, relato de modal descentralizado). Declarado dentro do passo,
+   o backdrop nascia ANINHADO no backdrop do wizard, e backdrop aninhado é
+   frágil: `.ms-backdrop` tem backdrop-filter, que cria bloco de contenção
+   pros filhos `position: fixed`, então a caixa do de dentro deixa de ser a
+   viewport e a compensação `padding-left: var(--sidebar-w)` acaba contada
+   duas vezes — o modal escorrega pra direita pela largura do menu lateral.
+   Como irmão em .mc-root ele cai exatamente no mesmo caminho de qualquer
+   outro modal do app: mesma regra de CSS, mesmo --sidebar-w, mesma
+   centralização.
+
+   O alvo é .mc-root e não document.body porque os seletores do backdrop são
+   ancorados em `#root .menestrel-ui` — fora dali o modal perderia o estilo
+   todo. document.body só serve de rede pros testes, que montam um passo
+   avulso sem o shell em volta. */
+function DetalheModal({ detalhe, lang, onClose }) {
+  if (!detalhe) return null;
+  const alvo = (typeof document !== 'undefined'
+    && (document.querySelector('#root .menestrel-ui.mc-root') || document.body)) || null;
+  if (!alvo) return null;
+  const linhas = (detalhe.linhas || []).filter((l) => l && l.valor != null && l.valor !== '');
+  const niveis = (detalhe.niveis || []).filter((x) => x && x.t);
+  return ReactDOM.createPortal(
+    <ModalShell
+      title={detalhe.titulo}
+      onClose={onClose}
+      size="sm"
+      extraClass="modal-detalhe"
+      lang={lang}
+    >
+      {linhas.length > 0 && (
+        <div className="wiz-mag-niveis">
+          {linhas.map((l) => (
+            <div className="wiz-mag-nivel" key={l.rotulo}>
+              <span className="wiz-mag-nivel-n">{l.rotulo}: </span>
+              <span className="wiz-mag-nivel-t">{l.valor}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {detalhe.descricao && <p className="wiz-mag-desc">{detalhe.descricao}</p>}
+      {niveis.length > 0 && (
+        <div className="wiz-mag-niveis">
+          {niveis.map((x) => (
+            <div className="wiz-mag-nivel" key={x.n}>
+              <span className="wiz-mag-nivel-n">{x.n}</span>
+              <span className="wiz-mag-nivel-t">{x.t}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {linhas.length === 0 && niveis.length === 0 && !detalhe.descricao && (
+        <p className="wiz-mag-desc">
+          {lang === 'en' ? 'No description available.' : 'Sem descrição disponível.'}
+        </p>
+      )}
+    </ModalShell>,
+    alvo
+  );
+}
+
+// Botão do nome de um item da lista. Abre o DetalheModal quando há o que
+// explicar; sem detalhe, vira texto simples e não recebe foco de teclado.
+function NomeItem({ nome, onAbrir, className = 'wiz-hab-name' }) {
+  if (!onAbrir) {
+    return (
+      <span className={className} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span>{nome}</span>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={`${className} wiz-mag-name--clickable`}
+      style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0, textAlign: 'left' }}
+      onClick={onAbrir}
+    >
+      <span>{nome}</span>
+    </button>
+  );
+}
+
 function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isEdit, isMaster, originais }) {
-  const racaData = GAME_DATA.racas[form.raca];
-  const [expandido, setExpandido] = useState(null);
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
+  const [detalhe, setDetalhe] = useState(null);
   const incrementar = (k, delta) => {
     const atual = form[`${k}_base`] ?? 0;
     const novo = atual + delta;
@@ -1981,40 +2115,22 @@ function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isE
   });
 
   return (
-    <div className="wiz-attrs">
+    <div className="wiz-attrs wiz-lista-dupla">
       {ATRIBUTOS_KEYS.map((k) => {
         const base = form[`${k}_base`] ?? 0;
-        const mod = racaData?.mods[k] ?? 0;
-        const isOpen = expandido === k;
         const descricao = ATRIBUTOS_DESCRICAO[k];
         const semSaldoPraMais = restantes - (custoAtributo(base + 1) - custoAtributo(base)) < 0;
         const podeMais = base < 6 && !semSaldoPraMais;
         const podeMenos = base > -2 && !(isEdit && originais && base <= (originais[`${k}_base`] ?? 0));
 
         return (
-          <div key={k}>
-            {/* Nome clicável — abre descrição acima do stepper */}
-            <button
-              type="button"
-              className="wiz-attrs-name wiz-mag-name--clickable"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, marginBottom: isOpen ? 6 : 4, padding: 0 }}
-              onClick={() => setExpandido(isOpen ? null : k)}
-            >
-              <span className="wiz-mag-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
-              <span>{ATRIBUTOS_LABEL[k]}</span>
-              {mod !== 0 && (
-                <span className={mod > 0 ? 'pos' : 'neg'} style={{ fontFamily: "'Lora', serif", fontSize: 12, marginLeft: 4 }}>
-                  ({mod > 0 ? '+' : ''}{mod})
-                </span>
-              )}
-            </button>
-
-            {/* Descrição expandida — aparece acima do stepper */}
-            {isOpen && descricao && (
-              <div className="wiz-mag-detail" style={{ marginBottom: 8 }}>
-                <p className="wiz-mag-desc">{descricao}</p>
-              </div>
-            )}
+          <div key={k} className="wiz-item">
+            {/* Nome clicável — abre o modal de explicação */}
+            <NomeItem
+              nome={ATRIBUTOS_LABEL[k]}
+              className="wiz-attrs-name"
+              onAbrir={descricao ? () => setDetalhe({ titulo: ATRIBUTOS_LABEL[k], descricao }) : null}
+            />
 
             {/* Stepper pill */}
             <div style={pillStyle}>
@@ -2031,7 +2147,7 @@ function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isE
               <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => incrementar(k, +1)} aria-label="+"
-                title={base >= 6 ? (lang === 'en' ? 'Maximum value' : 'Valor máximo') : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined}
+                {...propsTip(abrirTip, fecharTip, base >= 6 ? (lang === 'en' ? 'Maximum value' : 'Valor máximo') : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
                 onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
                 <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
@@ -2040,6 +2156,8 @@ function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isE
           </div>
         );
       })}
+      <DetalheModal detalhe={detalhe} lang={lang} onClose={() => setDetalhe(null)} />
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -2048,6 +2166,7 @@ function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isE
 // Adiciona bônus em L, M e P ao usar uma arma do grupo treinado.
 // Catálogo fixo (sem DB query) — GRUPOS_ARMAS em game-data.jsx.
 function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRestantes, grpQtd, estagio, isEdit, personagemExistente }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const compradas = form.grupos_armas || {};
 
   // Mudar nível: respeita estágio (teto), saldo (orçamento) e não desfaz comprado em edição.
@@ -2069,7 +2188,7 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
     update('grupos_armas', novo);
   };
 
-  const [expandido, setExpandido] = useState(null);
+  const [detalhe, setDetalhe] = useState(null);
 
   // Coluna 1: grupos especificados manualmente
   const NOMES_COLUNA1_PT = ['Combate Desarmado', 'Combate de Imobilização', 'Corte Leve', 'Corte Médio', 'Corte Pesado'];
@@ -2095,7 +2214,6 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
 
   const renderLista = (lista) => lista.map((g) => {
     const nivel = compradas[g.sigla] || 0;
-    const isOpen = expandido === g.sigla;
     const original = personagemExistente?.grupos_armas?.[g.sigla] || 0;
     const acimaDoEstagio = nivel >= estagio;
     const semSaldoPraMais = grpRestantes - g.custo < 0;
@@ -2104,24 +2222,15 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
     const nomeMostrado = lang === 'en' ? (g.nomeEn || g.nome) : g.nome;
     const temDetalhe = !!(g.exemplos);
     return (
-      <div key={g.sigla} style={{ marginBottom: 10 }}>
-        <button
-          type="button"
-          className={'wiz-hab-name' + (temDetalhe ? ' wiz-mag-name--clickable' : '')}
-          style={{ background: 'none', border: 'none', cursor: temDetalhe ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 4, marginBottom: isOpen ? 6 : 4, padding: 0 }}
-          onClick={temDetalhe ? () => setExpandido(isOpen ? null : g.sigla) : undefined}
-        >
-          {temDetalhe && <span className="wiz-mag-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>}
-          <span>{nomeMostrado}</span>
-        </button>
-        {isOpen && temDetalhe && (
-          <div className="wiz-mag-detail" style={{ marginBottom: 8 }}>
-            <div className="wiz-mag-niveis">
-              <div className="wiz-mag-nivel"><span className="wiz-mag-nivel-n">{lang === 'en' ? 'Cost: ' : 'Custo: '}</span><span className="wiz-mag-nivel-t">{g.custo}</span></div>
-            </div>
-            <p className="wiz-mag-desc">{g.exemplos}</p>
-          </div>
-        )}
+      <div key={g.sigla} className="wiz-item">
+        <NomeItem
+          nome={nomeMostrado}
+          onAbrir={temDetalhe ? () => setDetalhe({
+            titulo: nomeMostrado,
+            linhas: [{ rotulo: lang === 'en' ? 'Cost' : 'Custo', valor: g.custo }],
+            descricao: g.exemplos,
+          }) : null}
+        />
         <div style={pillStyle}>
           <button type="button" style={btnStyle(podeMenos)} disabled={!podeMenos}
             onMouseDown={(e) => e.preventDefault()}
@@ -2136,7 +2245,7 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
           <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => mudarNivel(g.sigla, +1)} aria-label="+"
-            title={acimaDoEstagio ? (lang === 'en' ? `Max for stage (${estagio})` : `Máximo do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined}
+            {...propsTip(abrirTip, fecharTip, acimaDoEstagio ? (lang === 'en' ? `Max for stage (${estagio})` : `Máximo do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
             onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
             <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
@@ -2155,10 +2264,12 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
             : 'Esta profissão não possui pontos de grupo de armas'}
         </div>
       ) : (
-        <div className="wiz-habs-list wiz-habs-list--single">
+        <div className="wiz-habs-list wiz-lista-dupla">
           {renderLista([...coluna1, ...coluna2])}
         </div>
       )}
+      <DetalheModal detalhe={detalhe} lang={lang} onClose={() => setDetalhe(null)} />
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -2172,8 +2283,9 @@ function StepHabilidades({
 }) {
   const hab = form.habilidades || {};
   const estagio = calcEstagio(form.experiencia);
-  // Linha aberta no acordeão (key da habilidade). Null = nenhuma aberta.
-  const [expandida, setExpandida] = useState(null);
+  // Item com o modal de explicação aberto. Null = nenhum.
+  const [detalhe, setDetalhe] = useState(null);
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
 
   // Loading: habilidadesDb === null enquanto o useEffect carrega.
   if (habilidadesDb === null) {
@@ -2248,40 +2360,52 @@ function StepHabilidades({
   });
 
   const renderGrupo = ([categoria, lista]) => (
-    <div className="wiz-hab-cat" key={categoria}>
+    <div className="wiz-hab-cat wiz-lista-dupla" key={categoria}>
       {lista.map((h) => {
         const comprado = hab[h.key] || 0;
-        const isOpen = expandida === h.key;
         const nivelBruto = (h.nivel_inicial ?? 0) + comprado;
         const nivelAtual = Math.min(nivelBruto, estagio);
         const podeMaisEstagio = (h.nivel_inicial ?? 0) + comprado + 1 <= estagio;
         const semSaldoPraMais = habRestantes - (h.custo ?? 0) < 0;
         const podeMais = podeMaisEstagio && !semSaldoPraMais;
         const podeMenos = comprado > 0 && !(isEdit && comprado <= (personagemExistente?.habilidades?.[h.key] || 0));
-        const temDetalhe = !!(h.descricao || h.vantagem || h.desvantagem || h.restricao);
+        // Aprimorável sempre tem o que explicar (a regra de vagas), mesmo que
+        // o banco não traga descrição nem vantagem.
+        const temDetalhe = !!(h.descricao || h.vantagem || h.desvantagem || h.restricao
+          || GAME_DATA.aprimoramentoPorHab[h.key]);
         return (
-          <div key={h.key} style={{ marginBottom: 10 }}>
-            <button
-              type="button"
-              className={'wiz-hab-name' + (temDetalhe ? ' wiz-mag-name--clickable' : '')}
-              style={{ background: 'none', border: 'none', cursor: temDetalhe ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 6, marginBottom: isOpen ? 6 : 4, padding: 0 }}
-              onClick={temDetalhe ? () => setExpandida(isOpen ? null : h.key) : undefined}
-            >
-              {temDetalhe && <span className="wiz-mag-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>}
-              <span>{h.nome}</span>
-            </button>
-            {isOpen && temDetalhe && (
-              <div className="wiz-mag-detail" style={{ marginBottom: 8 }}>
-                <div className="wiz-mag-niveis">
-                  <div className="wiz-mag-nivel"><span className="wiz-mag-nivel-n">{lang === 'en' ? 'Attribute: ' : 'Atributo: '}</span><span className="wiz-mag-nivel-t">{ATRIBUTOS_LABEL[h.ajuste]}</span></div>
-                  <div className="wiz-mag-nivel"><span className="wiz-mag-nivel-n">{lang === 'en' ? 'Cost: ' : 'Custo: '}</span><span className="wiz-mag-nivel-t">{h.custo}</span></div>
-                  {h.vantagem && <div className="wiz-mag-nivel"><span className="wiz-mag-nivel-n">{lang === 'en' ? 'Advantage: ' : 'Vantagem: '}</span><span className="wiz-mag-nivel-t">{h.vantagem}</span></div>}
-                  {h.desvantagem && <div className="wiz-mag-nivel"><span className="wiz-mag-nivel-n">{lang === 'en' ? 'Disadvantage: ' : 'Desvantagem: '}</span><span className="wiz-mag-nivel-t">{h.desvantagem}</span></div>}
-                  {h.restricao && <div className="wiz-mag-nivel"><span className="wiz-mag-nivel-n">{lang === 'en' ? 'Restriction: ' : 'Restrição: '}</span><span className="wiz-mag-nivel-t">{String(h.restricao).trim().toUpperCase() === 'N' ? (lang === 'en' ? 'Can only be used with level' : 'Só pode ser usado com nível') : h.restricao}</span></div>}
-                </div>
-                {h.descricao && <p className="wiz-mag-desc">{h.descricao}</p>}
-              </div>
-            )}
+          <div key={h.key} className="wiz-item">
+            <NomeItem
+              nome={h.nome}
+              onAbrir={temDetalhe ? () => setDetalhe({
+                titulo: h.nome,
+                linhas: [
+                  { rotulo: lang === 'en' ? 'Attribute' : 'Atributo', valor: ATRIBUTOS_LABEL[h.ajuste] },
+                  { rotulo: lang === 'en' ? 'Cost' : 'Custo', valor: h.custo },
+                  // Só nas quatro aprimoráveis: como se ganha vaga, e os
+                  // idiomas que a raça e o reino já dão de graça. Vivia solto
+                  // na lista e desalinhava as colunas — o lugar de explicação
+                  // é aqui.
+                  { rotulo: lang === 'en' ? 'Improvement slots' : 'Vagas de aprimoramento',
+                    valor: GAME_DATA.aprimoramentoPorHab[h.key]
+                      ? (lang === 'en'
+                          ? `1 per ${GAME_DATA.aprimoramentoPorHab[h.key]} points of total`
+                          : `1 a cada ${GAME_DATA.aprimoramentoPorHab[h.key]} pontos de total`)
+                      : null },
+                  { rotulo: lang === 'en' ? 'Native languages' : 'Idiomas nativos',
+                    valor: h.key === 'idioma' ? idiomasIniciais(form.raca, form.reino).join(', ') : null },
+                  { rotulo: lang === 'en' ? 'Advantage' : 'Vantagem', valor: h.vantagem },
+                  { rotulo: lang === 'en' ? 'Disadvantage' : 'Desvantagem', valor: h.desvantagem },
+                  { rotulo: lang === 'en' ? 'Restriction' : 'Restrição',
+                    valor: h.restricao
+                      ? (String(h.restricao).trim().toUpperCase() === 'N'
+                          ? (lang === 'en' ? 'Can only be used with level' : 'Só pode ser usado com nível')
+                          : h.restricao)
+                      : null },
+                ],
+                descricao: h.descricao,
+              }) : null}
+            />
             <div style={pillStyle}>
               <button type="button" style={btnStyle(podeMenos)} disabled={!podeMenos}
                 onMouseDown={(e) => e.preventDefault()}
@@ -2296,12 +2420,20 @@ function StepHabilidades({
               <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => mudarNivel(h.key, +1)} aria-label="+"
-                title={!podeMaisEstagio ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined}
+                {...propsTip(abrirTip, fecharTip, !podeMaisEstagio ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
                 onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
                 <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
               </button>
             </div>
+            {/* Vagas de aprimoramento da própria habilidade, quando ela for
+                uma das quatro aprimoráveis. */}
+            {GAME_DATA.aprimoramentoPorHab[h.key] && (
+              <AprimoramentoInline
+                habKey={h.key} form={form} update={update} lang={lang}
+                slots={slotsAprimoramento(h.key, totalHabilidade(h.key, hab, atributosFinais, bonusHabilidades, habilidadesByKey))}
+              />
+            )}
           </div>
         );
       })}
@@ -2310,8 +2442,6 @@ function StepHabilidades({
 
   // Cada tela = 1 grupo (sub = nome do grupo). Mostra só a tabela daquele grupo.
   const grupoAtual = porGrupo.find(([cat]) => cat === sub);
-  const ultimoGrupo = GRUPOS_HABILIDADES_ORDEM[GRUPOS_HABILIDADES_ORDEM.length - 1];
-  const ehUltimoGrupo = sub === ultimoGrupo;
 
   return (
     <div className="wiz-habs">
@@ -2323,114 +2453,77 @@ function StepHabilidades({
         )}
       </div>
 
-      {ehUltimoGrupo && (
-        <AprimoramentosPanel form={form} update={update} lang={lang} atributosFinais={atributosFinais} habilidadesByKey={habilidadesByKey} bonusHabilidades={bonusHabilidades} />
-      )}
+      <DetalheModal detalhe={detalhe} lang={lang} onClose={() => setDetalhe(null)} />
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
 
-// ---- Painel de Aprimoramentos (idiomas, religiões, artes, sabedorias) ----
-// Idiomas iniciais (raça + reino + Malês) são automáticos.
-// Aprimoramentos extras destravam conforme o TOTAL da habilidade correspondente:
-//   Idioma a cada 10 pts · Religião a cada 5 pts · Arte e Sabedoria a cada 7 pts.
-function AprimoramentosPanel({ form, update, lang, atributosFinais, habilidadesByKey, bonusHabilidades }) {
-  const hab = form.habilidades || {};
+/* ---- Aprimoramentos, colados na habilidade-mãe ----
+   Idiomas, religiões, artes e sabedorias são vagas que a PRÓPRIA habilidade
+   destrava: Idioma a cada 10 pontos, Religião a cada 5, Arte e Sabedoria a
+   cada 7 (GAME_DATA.aprimoramentoPorHab). Os idiomas nativos (raça + reino +
+   Malês) são automáticos e não ocupam vaga.
+
+   Antes isto era um painel só, empilhado DEPOIS de todas as habilidades e
+   separado por uma borda — o que abria um vão no meio da lista e deixava as
+   vagas longe da habilidade que as gera (08/09/2026). Agora cada bloco mora
+   dentro do item da sua habilidade.
+
+   Bloco sem vaga aparece ESMAECIDO em vez de sumir: a habilidade existe e
+   pode ser essencial pra profissão — Religião pro Sacerdote, por exemplo —
+   e escondê-la fazia parecer que o jogo não tinha aquilo. Esmaecido, mostra
+   que existe e quanto falta pra destravar. */
+function AprimoramentoInline({ habKey, form, update, lang, slots }) {
   const aprim = form.aprimoramentos || {};
+  const escolhidos = aprim[habKey] || [];
+  if (!GAME_DATA.aprimoramentoPorHab[habKey]) return null;
 
-  // Calcula o total de cada habilidade aprimorável para saber quantos slots o PJ tem
-  const slots = {
-    idioma:    slotsAprimoramento('idioma',    totalHabilidade('idioma',    hab, atributosFinais, bonusHabilidades, habilidadesByKey)),
-    religiao:  slotsAprimoramento('religiao',  totalHabilidade('religiao',  hab, atributosFinais, bonusHabilidades, habilidadesByKey)),
-    arte:      slotsAprimoramento('arte',      totalHabilidade('arte',      hab, atributosFinais, bonusHabilidades, habilidadesByKey)),
-    sabedoria: slotsAprimoramento('sabedoria', totalHabilidade('sabedoria', hab, atributosFinais, bonusHabilidades, habilidadesByKey)),
-  };
+  const en = lang === 'en';
 
-  const escolhidos = {
-    idioma:    aprim.idioma    || [],
-    religiao:  aprim.religiao  || [],
-    arte:      aprim.arte      || [],
-    sabedoria: aprim.sabedoria || [],
-  };
+  // Forma ÚNICA pras quatro (08/09/2026): só os seletores de vaga, nada em
+  // volta. Já saíram daqui o texto da regra, os chips de idioma nativo (que
+  // eram exceção do Idioma e desalinhavam a lista) e o contador X/N — as vagas
+  // vazias já dizem quantas faltam, e "1/1" ou "0/0" só ocupavam linha.
+  // A regra de quantos pontos rendem uma vaga e os idiomas nativos vivem no
+  // modal de explicação da habilidade (ver StepHabilidades).
+  const placeholderOpt = en ? '— choose —' : '— escolha —';
 
-  const setEscolha = (habKey, novaLista) => {
-    update('aprimoramentos', { ...aprim, [habKey]: novaLista });
-  };
+  // Sem vaga destravada: um seletor desabilitado e esmaecido. Não desaparece
+  // porque a habilidade existe e pode ser central pra profissão (Religião pro
+  // Sacerdote) — sumir fazia parecer que o jogo não tinha aquilo.
+  if (slots <= 0) {
+    return (
+      <div className="wiz-aprim-inline is-travado">
+        <SelectPill options={[{ value: '', label: placeholderOpt }]} value="" placeholder={placeholderOpt} disabled />
+      </div>
+    );
+  }
 
-  // Idiomas nativos (não contam slot, sempre presentes)
-  const nativos = idiomasIniciais(form.raca, form.reino);
-
-  const grupos = [
-    { key: 'idioma',    titulo: lang === 'en' ? 'Languages' : 'Idiomas',     divisor: 10 },
-    { key: 'religiao',  titulo: lang === 'en' ? 'Religions' : 'Religiões',   divisor: 5 },
-    { key: 'arte',      titulo: lang === 'en' ? 'Arts'      : 'Artes',       divisor: 7 },
-    { key: 'sabedoria', titulo: lang === 'en' ? 'Wisdoms'   : 'Sabedorias',  divisor: 7 },
-  ];
-
-  const gruposVisiveis = grupos.filter((g) => slots[g.key] > 0);
-  if (gruposVisiveis.length === 0) return null;
+  const opcoes = opcoesAprimoramento(habKey, form.raca, form.reino);
 
   return (
-    <div className="wiz-aprim">
-
-      {gruposVisiveis.map((g) => {
-        const opcoes = opcoesAprimoramento(g.key, form.raca, form.reino);
-        const numSlots = slots[g.key];
-        const slotArray = Array.from({ length: numSlots }, (_, i) => i);
-        const placeholderOpt = lang === 'en' ? '— choose —' : '— escolha —';
-        const selectOpts = opcoes.map((opt) => ({ value: opt, label: opt }));
-
-        // Label do grupo: "Religiões · 1/1 · 1 por 5 pontos"
-        // Passado como `label` pro primeiro SelectPill — .motor-field > span aplica
-        // o estilo correto (Lora 13px itálico parchment-dim), igual a "Atenção".
-        const metaStr = lang === 'en'
-          ? `${escolhidos[g.key].filter(Boolean).length}/${numSlots} · 1 per ${g.divisor} points`
-          : `${escolhidos[g.key].filter(Boolean).length}/${numSlots} · 1 por ${g.divisor} pontos`;
-
+    <div className="wiz-aprim-inline">
+      {Array.from({ length: slots }, (_, i) => {
+        // Opção já usada em OUTRA vaga não reaparece — não dá pra escolher o
+        // mesmo idioma duas vezes.
+        const emOutroSlot = new Set(escolhidos.filter((v, idx) => v && idx !== i));
         return (
-          <div className="wiz-aprim-grupo" key={g.key}
-            style={{ background: 'none', border: 'none', borderRadius: 0, padding: 0 }}>
-
-            {/* Idiomas nativos (só pro grupo idioma): chips informativos, não contam slot */}
-            {g.key === 'idioma' && nativos.length > 0 && (
-              <div className="wiz-aprim-nativos" style={{ marginBottom: 6 }}>
-                {nativos.map((n) => (
-                  <span className="wiz-aprim-chip nativo" key={n}>{n}</span>
-                ))}
-              </div>
-            )}
-
-            {/* Um SelectPill por slot — o primeiro carrega o label do grupo */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {slotArray.map((i) => {
-                const valorAtual = escolhidos[g.key][i] || '';
-                const emOutroSlot = new Set(
-                  escolhidos[g.key].filter((v, idx) => v && idx !== i)
-                );
-                const optsDisp = [
-                  { value: '', label: placeholderOpt },
-                  ...selectOpts.filter((o) => !emOutroSlot.has(o.value)),
-                ];
-                // Só o primeiro slot exibe o label do grupo (título + meta)
-                const slotLabel = i === 0 ? `${g.titulo} · ${metaStr}` : null;
-                return (
-                  <SelectPill
-                    key={i}
-                    label={slotLabel}
-                    options={optsDisp}
-                    value={valorAtual}
-                    placeholder={placeholderOpt}
-                    onChange={(novoVal) => {
-                      const lista = [...escolhidos[g.key]];
-                      while (lista.length < i) lista.push('');
-                      lista[i] = novoVal;
-                      setEscolha(g.key, lista.slice(0, numSlots));
-                    }}
-                  />
-                );
-              })}
-            </div>
-          </div>
+          <SelectPill
+            key={i}
+            options={[
+              { value: '', label: placeholderOpt },
+              ...opcoes.filter((o) => !emOutroSlot.has(o)).map((o) => ({ value: o, label: o })),
+            ]}
+            value={escolhidos[i] || ''}
+            placeholder={placeholderOpt}
+            onChange={(novoVal) => {
+              const lista = [...escolhidos];
+              while (lista.length < i) lista.push('');
+              lista[i] = novoVal;
+              update('aprimoramentos', { ...aprim, [habKey]: lista.slice(0, slots) });
+            }}
+          />
         );
       })}
     </div>
@@ -2439,7 +2532,8 @@ function AprimoramentosPanel({ form, update, lang, atributosFinais, habilidadesB
 
 // ---- Step 4: Magias (Bardo/Mago/Rastreador/Sacerdote) ----
 function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPontos, magGasto, magRestantes, isEdit, personagemExistente }) {
-  const [expandida, setExpandida] = useState(null); // key da magia com descrição aberta
+  const [detalhe, setDetalhe] = useState(null); // magia com o modal de explicação aberto
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const estagio = calcEstagio(form.experiencia);
 
   if (magiasDb === null) {
@@ -2458,10 +2552,16 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
     );
   }
 
-  // Filtra magias disponíveis pro personagem:
+  // Filtra as magias que o personagem realmente pode COMPRAR. Dois crivos:
+  //   podeAcessarMagia  — a profissão (ou a especialização) alcança a magia;
+  //   magiaEhTravada    — a raridade permite comprar (só 'Básica' permite).
+  //
+  // A travada aparecia na lista esmaecida, com um selo de origem. Mostrar o
+  // que não se pode comprar só gerava dúvida sobre por que o botão + não
+  // respondia (decisão de 08/09/2026: não listar).
   const especializacao = form.especializacao || null;
   const disponiveis = magiasDb.filter((m) =>
-    podeAcessarMagia(m, form.profissao, especializacao)
+    podeAcessarMagia(m, form.profissao, especializacao) && !magiaEhTravada(m)
   );
 
   const compradas = form.magias || {};
@@ -2479,10 +2579,10 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
     if (isEdit && proposto < originalPasso) return;
     if (proposto > 0 && nivelMagiaEfetivo(proposto) > estagio) return;
 
-    if (delta > 0) {
-      const mm = magiasDb.find((x) => x.key === key);
-      if (mm && mm.tipo !== 'Básica') return;
-    }    
+    // Perdida/Ancestral não se compram com pontos (item especial, a criar).
+    // É RARIDADE, não a aba: uma magia de especialização pode ser Básica e
+    // comprável, e uma de profissão pode ser Perdida e travada.
+    if (delta > 0 && magiaEhTravada(magiasDb.find((x) => x.key === key))) return;
 
     // Bloqueia a compra se não houver pontos suficientes
     if (delta > 0 && gastoMagias({ ...compradas, [key]: proposto }, magiasDb) > magTotalPontos) return;
@@ -2492,10 +2592,21 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
     update('magias', novoObj);
   };
 
-  // Cada tela filtra por tipo: 'basica' → Básicas; 'avancada' → demais (Perdida/Ancestral…).
+  // "Avançada = Especialização" (03/09/2026, regra do usuário): a aba separa
+  // por QUEM ALCANÇA a magia, não por raridade.
+  //   Básicas    permissao cita a profissão — todo Mago alcança
+  //   Avançadas  permissao cita a especialização — só o Colégio Necromântico
+  //
+  // Antes as duas abas eram filtradas por `tipo`, e "Avançadas" era
+  // `tipo !== 'Básica'` — o MESMO critério que trava a compra. A aba era, por
+  // construção, a lista do que ninguém podia comprar: um personagem com
+  // especialização e pontos sobrando não conseguia gastar um ponto ali, e as
+  // magias que a especialização realmente liberava estavam na aba "Básicas".
+  // A ficha, enquanto isso, já chamava essas de "Avançadas" — a divergência
+  // entre as duas telas é que fazia a compra parecer quebrada.
   const disponiveisTela = sub === 'avancada'
-    ? disponiveis.filter((m) => m.tipo !== 'Básica')
-    : disponiveis.filter((m) => m.tipo === 'Básica');
+    ? disponiveis.filter((m) =>  magiaEhAvancada(m))
+    : disponiveis.filter((m) => !magiaEhAvancada(m));
 
   const pillStyle = {
     background: 'rgba(24,17,8,0.92)', border: '1px solid rgba(106,85,48,0.50)',
@@ -2511,52 +2622,33 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
 
   const renderTabela = (lista) => lista.map((m) => {
     const passos = compradas[m.key] || 0;
-    const isOpen = expandida === m.key;
     const originalPasso = personagemExistente?.magias?.[m.key] || 0;
-    const bloqueada = m.tipo !== 'Básica';
+    // Sem estado "travada" aqui: `disponiveis` já descartou o que não se pode
+    // comprar. mudarPasso mantém a checagem de magiaEhTravada como rede — é a
+    // regra, e não custa nada.
     const podeMaisEstagio = passos < 5 && nivelMagiaEfetivo(passos + 1) <= estagio;
     const semSaldoPraMais = passos < 5 && gastoMagias({ ...compradas, [m.key]: passos + 1 }, magiasDb) > magTotalPontos;
-    const podeMais = podeMaisEstagio && !semSaldoPraMais && !bloqueada;
+    const podeMais = podeMaisEstagio && !semSaldoPraMais;
     const podeMenos = passos > 0 && !(isEdit && passos <= originalPasso);
     return (
-      <div key={m.key} style={{ marginBottom: 10, opacity: bloqueada ? 0.6 : 1 }}>
-        <button
-          type="button"
-          className="wiz-hab-name wiz-mag-name--clickable"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, marginBottom: isOpen ? 6 : 4, padding: 0 }}
-          onClick={() => setExpandida(isOpen ? null : m.key)}
-        >
-          <span className="wiz-mag-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
-          <span>{m.nome}</span>
-        </button>
-        {isOpen && (
-          <div className="wiz-mag-detail" style={{ marginBottom: 8 }}>
-            <div className="wiz-mag-niveis">
-              {[
-                { lbl: lang === 'en' ? 'Evocation' : 'Evocação', v: m.evocacao },
-                { lbl: lang === 'en' ? 'Range' : 'Alcance', v: m.alcance },
-                { lbl: lang === 'en' ? 'Duration' : 'Duração', v: m.duracao },
-              ].filter((x) => x.v).map((x) => (
-                <div key={x.lbl} className="wiz-mag-nivel">
-                  <span className="wiz-mag-nivel-n">{x.lbl}: </span>
-                  <span className="wiz-mag-nivel-t">{x.v}</span>
-                </div>
-              ))}
-              <div className="wiz-mag-nivel"><span className="wiz-mag-nivel-n">{lang === 'en' ? 'Cost: ' : 'Custo: '}</span><span className="wiz-mag-nivel-t">{m.custo}</span></div>
-              {bloqueada && <div className="wiz-mag-nivel"><span className="wiz-mag-nivel-n">{lang === 'en' ? 'Origin: ' : 'Origem: '}</span><span className="wiz-mag-nivel-t">{m.tipo}</span></div>}
-            </div>
-            <p className="wiz-mag-desc">{m.descricao}</p>
-            <div className="wiz-mag-niveis">
-              {[{ n: 1, t: m.nivel_1 }, { n: 3, t: m.nivel_3 }, { n: 5, t: m.nivel_5 }, { n: 7, t: m.nivel_7 }, { n: 9, t: m.nivel_9 }]
-                .filter((x) => x.t).map((x) => (
-                  <div key={x.n} className="wiz-mag-nivel">
-                    <span className="wiz-mag-nivel-n">{x.n}</span>
-                    <span className="wiz-mag-nivel-t">{x.t}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-        )}
+      <div key={m.key} className="wiz-item">
+        <NomeItem
+          nome={m.nome}
+          onAbrir={() => setDetalhe({
+            titulo: m.nome,
+            linhas: [
+              { rotulo: lang === 'en' ? 'Evocation' : 'Evocação', valor: m.evocacao },
+              { rotulo: lang === 'en' ? 'Range' : 'Alcance', valor: m.alcance },
+              { rotulo: lang === 'en' ? 'Duration' : 'Duração', valor: m.duracao },
+              { rotulo: lang === 'en' ? 'Cost' : 'Custo', valor: m.custo },
+            ],
+            descricao: m.descricao,
+            niveis: [
+              { n: 1, t: m.nivel_1 }, { n: 3, t: m.nivel_3 }, { n: 5, t: m.nivel_5 },
+              { n: 7, t: m.nivel_7 }, { n: 9, t: m.nivel_9 },
+            ],
+          })}
+        />
         <div style={pillStyle}>
           <button type="button" style={btnStyle(podeMenos)} disabled={!podeMenos}
             onMouseDown={(e) => e.preventDefault()}
@@ -2571,7 +2663,7 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
           <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => mudarPasso(m.key, +1)} aria-label="+"
-            title={bloqueada ? (lang === 'en' ? `${m.tipo} spells require a special item` : `Magias ${m.tipo} exigem um item especial`) : !podeMaisEstagio && passos < 5 ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined}
+            {...propsTip(abrirTip, fecharTip, !podeMaisEstagio && passos < 5 ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
             onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
             <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
@@ -2586,21 +2678,30 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
       {disponiveisTela.length === 0 ? (
         <div className="wiz-magias-empty">
           {sub === 'avancada'
-            ? (lang === 'en' ? 'No advanced spells available for this profession yet.' : 'Nenhuma magia avançada disponível para essa profissão ainda.')
+            /* A aba agora depende da ESPECIALIZAÇÃO, não da profissão: quem
+               ainda não escolheu uma (estágio < 5) não tem nada aqui, e o
+               texto tem que dizer isso — "para essa profissão" mandava o
+               usuário procurar o problema no lugar errado. */
+            ? (especializacao
+                ? (lang === 'en' ? `No advanced spells for ${especializacao} yet.` : `Nenhuma magia avançada de ${especializacao} ainda.`)
+                : (lang === 'en' ? 'Advanced spells come from a specialization, chosen at stage 5.' : 'As magias avançadas vêm da especialização, escolhida no estágio 5.'))
             : (lang === 'en' ? 'No basic spells available for this profession yet.' : 'Nenhuma magia básica disponível para essa profissão ainda.')}
         </div>
       ) : (
-        <div className="wiz-habs-list wiz-habs-list--single">
+        <div className="wiz-habs-list wiz-lista-dupla">
           {renderTabela(disponiveisTela)}
         </div>
       )}
+      <DetalheModal detalhe={detalhe} lang={lang} onClose={() => setDetalhe(null)} />
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
 
 // ---- Step 5: Técnicas de Combate (todas as profissões) ----
 function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalPontos, tecGasto, tecRestantes, tecQtd, isEdit, personagemExistente, atributosFinais }) {
-  const [expandida, setExpandida] = useState(null);
+  const [detalhe, setDetalhe] = useState(null); // técnica com o modal de explicação aberto
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
 
   if (tecnicasDb === null) {
     return <div className="admin-loading"><span>{lang === 'en' ? 'Loading techniques…' : 'Consultando os manuais de combate…'}</span></div>;
@@ -2661,43 +2762,27 @@ function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalP
 
   const renderTabela = (lista) => lista.map((t) => {
     const passos = compradas[t.key] || 0;
-    const isOpen = expandida === t.key;
     const originalPasso = personagemExistente?.tecnicas?.[t.key] || 0;
     const acimaDoEstagio = passos >= estagio;
     const semSaldoPraMais = !acimaDoEstagio && gastoTecnicas({ ...compradas, [t.key]: passos + 1 }, tecnicasDb) > tecTotalPontos;
     const podeMais = !acimaDoEstagio && !semSaldoPraMais;
     const podeMenos = passos > 0 && !(isEdit && passos <= originalPasso);
     return (
-      <div key={t.key} style={{ marginBottom: 10 }}>
-        <button
-          type="button"
-          className="wiz-hab-name wiz-mag-name--clickable"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, marginBottom: isOpen ? 6 : 4, padding: 0 }}
-          onClick={() => setExpandida(isOpen ? null : t.key)}
-        >
-          <span className="wiz-mag-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
-          <span>{t.nome}</span>
-
-        </button>
-        {isOpen && (
-          <div className="wiz-mag-detail" style={{ marginBottom: 8 }}>
-            <div className="wiz-mag-niveis">
-              {[
-                { lbl: lang === 'en' ? 'Use' : 'Uso', v: t.uso },
-                { lbl: lang === 'en' ? 'Weapons' : 'Armas', v: t.grupo_armas },
-                { lbl: lang === 'en' ? 'Armor' : 'Armaduras', v: t.grupo_armaduras },
-              ].filter((x) => x.v).map((x) => (
-                <div key={x.lbl} className="wiz-mag-nivel">
-                  <span className="wiz-mag-nivel-n">{x.lbl}: </span>
-                  <span className="wiz-mag-nivel-t">{x.v}</span>
-                </div>
-              ))}
-              <div className="wiz-mag-nivel"><span className="wiz-mag-nivel-n">{lang === 'en' ? 'Cost: ' : 'Custo: '}</span><span className="wiz-mag-nivel-t">{t.custo}</span></div>
-            </div>
-            {t.descricao && <p className="wiz-mag-desc">{t.descricao}</p>}
-            {t.efeito && <p className="wiz-tec-efeito">{lang === 'en' ? 'Effect' : 'Efeito'}: {t.efeito}</p>}
-          </div>
-        )}
+      <div key={t.key} className="wiz-item">
+        <NomeItem
+          nome={t.nome}
+          onAbrir={() => setDetalhe({
+            titulo: t.nome,
+            linhas: [
+              { rotulo: lang === 'en' ? 'Use' : 'Uso', valor: t.uso },
+              { rotulo: lang === 'en' ? 'Weapons' : 'Armas', valor: t.grupo_armas },
+              { rotulo: lang === 'en' ? 'Armor' : 'Armaduras', valor: t.grupo_armaduras },
+              { rotulo: lang === 'en' ? 'Cost' : 'Custo', valor: t.custo },
+              { rotulo: lang === 'en' ? 'Effect' : 'Efeito', valor: t.efeito },
+            ],
+            descricao: t.descricao,
+          })}
+        />
         <div style={pillStyle}>
           <button type="button" style={btnStyle(podeMenos)} disabled={!podeMenos}
             onMouseDown={(e) => e.preventDefault()}
@@ -2712,7 +2797,7 @@ function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalP
           <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => mudarPasso(t.key, +1)} aria-label="+"
-            title={acimaDoEstagio ? (lang === 'en' ? `Max for stage (${estagio})` : `Máximo do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined}
+            {...propsTip(abrirTip, fecharTip, acimaDoEstagio ? (lang === 'en' ? `Max for stage (${estagio})` : `Máximo do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
             onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
             <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
@@ -2731,10 +2816,12 @@ function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalP
             : 'Nenhuma técnica disponível para essa profissão ainda.'}
         </div>
       ) : (
-        <div className="wiz-habs-list wiz-habs-list--single">
+        <div className="wiz-habs-list wiz-lista-dupla">
           {renderTabela(disponiveis)}
         </div>
       )}
+      <DetalheModal detalhe={detalhe} lang={lang} onClose={() => setDetalhe(null)} />
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -2958,6 +3045,6 @@ Object.assign(window, {
   PersonagensList, PersonagemCard, ConfirmarExclusaoModal,
   DarExperienciaModal, DarMoedasModal,
   NovoPersonagemModal,
-  StepIdentidade, StepAtributos, StepGruposArmas, StepHabilidades, AprimoramentosPanel,
+  StepIdentidade, StepAtributos, StepGruposArmas, StepHabilidades, AprimoramentoInline,
   StepMagias, StepTecnicas, StepRevisao,
 });

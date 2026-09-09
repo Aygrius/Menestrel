@@ -6,7 +6,7 @@
 
    - InventarioList      — orquestrador: lista PJs, carrega catálogo
                            e inventário JSONB, autosave 450ms
-   - CofreMoedas / MoedasBoard / MoedaPills / CabecalhoInvLoja
+   - MoedaPills / CabecalhoInvLoja
                          — exibição de moedas { ouro, prata, cobre, latao }
    - EquipadoBoard / VestesBoard — slots de equipamento e vestimenta
    - InvItemsTable       — tabela de itens (qtd, equipar, container, ...)
@@ -33,7 +33,7 @@
    (Infinity) — o clamp de PISO (nunca < 0) continua valendo sempre.
 
    Expõe no window (além dos componentes consumidos pelo app.jsx):
-   fmtNum, calcCarga, invItemIcon, MoedaPills, MoedasBoard, CabecalhoInvLoja
+   fmtNum, calcCarga, invItemIcon, MoedaPills, CabecalhoInvLoja
    — usados também pela Loja (07-inventario/loja.jsx), que carrega DEPOIS.
 
    Carregar depois de 01-core/inventario-helpers.jsx e ANTES de
@@ -439,8 +439,41 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
   return { peso, capacidade, pct, over: pct > 100 };
 }
 
+// Colunas de `personagens` que o InventarioList precisa. Constante ÚNICA
+// porque os três lugares que leem a tabela fazem setPjs(resultado) — trocando
+// o array inteiro —, então quem trouxer menos colunas APAGA as que faltam do
+// cache local de todos os PJs.
+//
+// Foi exatamente o que acontecia: o refetch de transferirItem vinha sem
+// forca_base/fisico_base/estado_atual e o de aprenderMagiaPergaminho sem
+// estado_atual. Depois de transferir um item, calcCarga (que lê forca_base e
+// fisico_base de `pjs`) recebia undefined e a capacidade de carga desabava
+// para a base; e `estado_atual` sumia do cache, de onde o autosave de estado
+// semeia ao trocar de PJ — podendo gravar {} por cima das condições no banco.
+// Cobertura: 07-inventario/refetch-pjs.test.js.
+const PJ_COLS = 'id,nome,sobrenome,raca,profissao,forca_base,fisico_base,inventario,estado_atual';
+
 // ── InventarioList ────────────────────────────────────────────────────────────
-function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange, maximos }) {
+/* `onEstadoChange` / `estadoAtualSeed` — handoff de estado_atual com quem
+   embute este componente (hoje a Ficha, 11-ficha/ficha.jsx).
+
+   Os dois gravam em personagens.estado_atual, cada um com seu debounce e sua
+   cópia. Como as abas da Ficha são exclusivas (o InventarioList só existe
+   enquanto fpTab==='inventario'), os dois NUNCA estão montados juntos — não é
+   caso de binding vivo, e sim de passar o bastão nas duas pontas:
+
+     onEstadoChange   quem sai avisa o valor novo. Sem isso, pj.estado_atual
+                      ficava congelado no carregamento inicial da Ficha (que
+                      não refaz ao trocar de aba) e a gravação seguinte dela
+                      apagava o efeito do item usado aqui.
+     estadoAtualSeed  quem entra recebe a semente. Fecha o sentido inverso:
+                      trocar pra esta aba dentro dos 400ms do debounce da
+                      Ficha faria a carga daqui ler do banco um valor que a
+                      Ficha ainda não gravou.
+
+   Espelha o que `onInventarioChange` já fazia pro inventário. Cobertura:
+   11-ficha/estado-handoff.test.js. */
+function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange, onEstadoChange, estadoAtualSeed, maximos }) {
   const [pjs, setPjs] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [catalogo, setCatalogo] = useState(null);
@@ -475,7 +508,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (!currentUserId) return;
     (async () => {
       const [pjRes, itRes, authRes] = await Promise.all([
-        supabaseClient.from('personagens').select('id,nome,sobrenome,raca,profissao,forca_base,fisico_base,inventario,estado_atual').eq('user_id', currentUserId).order('created_at', { ascending: true }),
+        supabaseClient.from('personagens').select(PJ_COLS).eq('user_id', currentUserId).order('created_at', { ascending: true }),
         fetchCatalogoCompleto(),
         supabaseClient.auth.getUser(),
       ]);
@@ -516,6 +549,11 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // pjsRef garante que lemos o `pjs` mais recente sem precisar listá-lo nas deps.
   const pjsRef = useRef(pjs);
   useEffect(() => { pjsRef.current = pjs; }, [pjs]);
+  // Semente do pai, em ref pelo mesmo motivo de pjsRef: entra na carga abaixo
+  // sem virar dependência dela — listá-la re-semearia a cada render do pai,
+  // atropelando o efeito de item recém aplicado aqui.
+  const seedRef = useRef(estadoAtualSeed);
+  useEffect(() => { seedRef.current = estadoAtualSeed; }, [estadoAtualSeed]);
   useEffect(() => {
     const pjsAtual = pjsRef.current;
     if (!pjsAtual || !selectedId) { setInv(null); setEstadoAtual(null); return; }
@@ -525,7 +563,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (!inventario.moedas) inventario.moedas = { ouro: 0, prata: 0, cobre: 0, latao: 0 };
     if (!Array.isArray(inventario.itens)) inventario.itens = [];
     setInv(inventario);
-    setEstadoAtual(pj.estado_atual || {});
+    // Semente do pai vence a linha do banco quando existe: a Ficha atualiza
+    // pj.estado_atual otimisticamente, então ela é sempre pelo menos tão nova
+    // quanto o banco. Só vale pro PJ FIXO — com o seletor de vários PJs
+    // (pjIdFixo ausente) a semente seria a do personagem errado.
+    const semente = (pjIdFixo && selectedId === pjIdFixo) ? seedRef.current : null;
+    setEstadoAtual(semente || pj.estado_atual || {});
   }, [selectedId]);
 
   // Fechar modais SÓ ao trocar de PJ — não a cada writeback do autosave em `pjs`.
@@ -584,6 +627,10 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   useEffect(() => {
     if (firstRenderEstado.current) { firstRenderEstado.current = false; return; }
     if (!estadoAtual || !selectedId) return;
+    // Avisa o pai NA HORA, igual onInventarioChange faz com `inv` — sem isto,
+    // a cópia da Ficha fica congelada e a próxima gravação dela apaga o que
+    // foi feito aqui.
+    if (onEstadoChange) onEstadoChange(estadoAtual);
     estadoDirtyRef.current = true;
     const id = setTimeout(async () => {
       const { error } = await supabaseClient.from('personagens').update({ estado_atual: estadoAtual }).eq('id', selectedId);
@@ -1000,7 +1047,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     // Recarregar todos os PJs do usuário para refletir ambos os inventários
     const { data: pjsAtualizados } = await supabaseClient
       .from('personagens')
-      .select('id,nome,sobrenome,raca,profissao,inventario')
+      .select(PJ_COLS)
       .eq('user_id', currentUserId)
       .order('created_at', { ascending: true });
     if (pjsAtualizados) {
@@ -1027,7 +1074,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }
     const { data: pjsAtualizados } = await supabaseClient
       .from('personagens')
-      .select('id,nome,sobrenome,raca,profissao,forca_base,fisico_base,inventario')
+      .select(PJ_COLS)
       .eq('user_id', currentUserId)
       .order('created_at', { ascending: true });
     if (pjsAtualizados) {
@@ -1190,7 +1237,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   );
 }
 
-// ── CofreMoedas — ícone Tabler ti-coins padrão, cor por denominação ───────────
+// ── MoedaPills — ícone Tabler ti-coins padrão, cor por denominação ───────────
 //
 // Props:
 //   moedas         — { ouro, prata, cobre, latao }
@@ -1230,6 +1277,7 @@ const MOEDA_PILL_NOMES = {
 };
 
 function MoedaPill({ tipo, qtd, lang, zerado, mudo, tamanho }) {
+  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const en = lang === 'en';
   const nome = MOEDA_PILL_NOMES[en ? 'en' : 'pt'][tipo];
   return (
@@ -1238,7 +1286,7 @@ function MoedaPill({ tipo, qtd, lang, zerado, mudo, tamanho }) {
         + (zerado ? ' is-zero' : '')
         + (mudo ? ' is-mudo' : '')
         + (tamanho ? ' moeda-pill--' + tamanho : '')}
-      title={nome}>
+      {...propsTip(abrirTip, fecharTip, nome)}>
       <i
         className="ti ti-coins moeda-pill-ic"
         style={{ color: MOEDA_COR[tipo] }}
@@ -1246,6 +1294,7 @@ function MoedaPill({ tipo, qtd, lang, zerado, mudo, tamanho }) {
       />
       <span className="moeda-pill-nome">{nome}</span>
       <span className="moeda-pill-qtd"><span className="moeda-pill-x"></span>{(qtd || 0).toLocaleString(en ? 'en-US' : 'pt-BR')}</span>
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </span>
   );
 }
@@ -1291,62 +1340,6 @@ function MoedaPills({ moedas, latao, lang, mostrarGratis, mostrarZeros, mudo, ta
         />
       ))}
     </span>
-  );
-}
-
-// CofreMoedas mantém a MESMA API (moedas/lang/mostrarGratis/mostrarZeros) mas
-// agora só delega no padrão novo (pílulas, tamanho compacto). Consumido pelo
-// cofre e pela coluna "Valor" do bestiário.
-function CofreMoedas({ moedas, lang, mostrarGratis, mostrarZeros }) {
-  return (
-    <MoedaPills
-      moedas={moedas}
-      lang={lang}
-      mostrarGratis={mostrarGratis}
-      mostrarZeros={mostrarZeros}
-      tamanho="sm"
-    />
-  );
-}
-// ── MoedasBoard — moedas como seção própria dentro do inventário ──────────────
-// Variante PADRÃO (inventário): ornamento (listra com ícone) + cabeçalho
-// "Moedas · total" + as 4 denominações como pílulas (padrão novo, MoedaPills).
-// Variante `compacto` (cabeçalho da Loja): cabeçalho + mesmas pílulas, tamanho sm.
-function MoedasBoard({ moedas, lang, compacto }) {
-  const en = lang === 'en';
-  const totalMoedas = MOEDA_ORDEM.reduce((s, t) => s + (moedas?.[t] || 0), 0);
-
-  const grouphead = (
-    <div className="inv-bag-grouphead">
-      <i className="ti ti-coins" aria-hidden="true" />
-      <span className="inv-bag-grp-name">{en ? 'Coins' : 'Moedas'}</span>
-      <span className="inv-bag-grp-count">{totalMoedas.toLocaleString(en ? 'en-US' : 'pt-BR')}</span>
-    </div>
-  );
-
-  if (compacto) {
-    return (
-      <div className="inv-bag-group inv-bag-group--moedas">
-        {grouphead}
-        <div className="inv-moedas-pills">
-          <MoedaPills moedas={moedas} lang={lang} mostrarZeros tamanho="sm" />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="inv-eq-board inv-moedas-board">
-      <div className="inv-divider">
-        <span className="inv-divider-ln" />
-        <span className="inv-divider-lbl"><i className="ti ti-coins" aria-hidden="true" /></span>
-        <span className="inv-divider-ln" />
-      </div>
-      {grouphead}
-      <div className="inv-moedas-pills">
-        <MoedaPills moedas={moedas} lang={lang} mostrarZeros />
-      </div>
-    </div>
   );
 }
 
@@ -1443,6 +1436,7 @@ function EquipadoBoard({ itens, catalogoBySlug, lang, onAbrir }) {
 // rótulo do slot (pequeno) + nome. Sem cabeçalhos de contagem. Múltiplas peças
 // do mesmo slot ficam adjacentes (ordenadas pela ordem canônica das regiões).
 function VestesBoard({ itens, catalogoBySlug, lang, onAbrir }) {
+  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const en = lang === 'en';
   const slotLabels = SLOT_LABELS[en ? 'en' : 'pt'] || {};
   const vestidas = (itens || []).filter((it) => it.vestido);
@@ -1470,7 +1464,7 @@ function VestesBoard({ itens, catalogoBySlug, lang, onAbrir }) {
           const slotLbl = slotLabels[vesteSlotDe(it.vesteSlot)] || it.vesteSlot || '';
           return (
             <button key={it.instanceId} type="button" className="inv-slot filled"
-              onClick={() => onAbrir(it.instanceId)} title={nome}>
+              onClick={() => onAbrir(it.instanceId)} {...propsTip(abrirTip, fecharTip, nome)}>
               <span className="inv-slot-ic">
                 <i className={'ti ' + invItemIcon(cat)} aria-hidden="true" />
               </span>
@@ -1482,6 +1476,7 @@ function VestesBoard({ itens, catalogoBySlug, lang, onAbrir }) {
           );
         })}
       </div>
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -2020,6 +2015,7 @@ function DetalhesItemModal({
   onVestir, onDespir,
   onRemoverDoContainer, onAbrirDetalhesFilho, contexto,
 }) {
+  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const [confirmandoDestruir, setConfirmandoDestruir] = useState(false);
   const [confirmandoUsar, setConfirmandoUsar] = useState(false);
   const [confirmandoPreparar, setConfirmandoPreparar] = useState(false);
@@ -2223,7 +2219,7 @@ function DetalhesItemModal({
                     </div>
                     <div className="cont-row-actions">
                       <button className="btn-icon btn-sm inv-act-btn" onClick={() => onAbrirDetalhesFilho?.(it.instanceId)}
-                        title={en ? 'Details' : 'Detalhes'}
+                        {...propsTip(abrirTip, fecharTip, en ? 'Details' : 'Detalhes')}
                         aria-label={en ? 'Details' : 'Detalhes'}>
                         <i className="ti ti-eye" aria-hidden="true" />
                       </button>
@@ -2374,7 +2370,7 @@ function DetalhesItemModal({
                     <button className="btn-primary"
                       disabled={!podeEquipar}
                       onClick={() => onEquipar(instance.instanceId)}
-                      title={bloqueioEquipar || ''}>
+                      {...propsTip(abrirTip, fecharTip, bloqueioEquipar || '')}>
                       {en ? 'Equip' : 'Equipar'}
                     </button>
                   )
@@ -2420,7 +2416,7 @@ function DetalhesItemModal({
                     <button className="btn-primary"
                       disabled={!podeVestir}
                       onClick={() => onVestir(instance.instanceId)}
-                      title={bloqueioVestir || ''}>
+                      {...propsTip(abrirTip, fecharTip, bloqueioVestir || '')}>
                       {en ? 'Wear' : 'Vestir'}
                     </button>
                   )
@@ -2438,9 +2434,9 @@ function DetalhesItemModal({
                   <button className="btn-ghost"
                     disabled={!temOndeArmazenar}
                     onClick={() => setMostrarArmazenar(true)}
-                    title={!temOndeArmazenar
+                    {...propsTip(abrirTip, fecharTip, !temOndeArmazenar
                       ? (en ? 'No compatible container in inventory' : 'Nenhum recipiente compatível no inventário')
-                      : ''}>
+                      : '')}>
                     {en ? 'Store' : 'Armazenar'}
                   </button>
                 )}
@@ -2462,6 +2458,7 @@ function DetalhesItemModal({
           )}
         </div>
 
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </ModalShell>
   );
 }
@@ -2470,6 +2467,7 @@ function used(usado, cap) { return `${fmtNum(usado)}/${fmtNum(cap)}`; }
 
 // ── ContainerModal (Fase 3) ──────────────────────────────────────────────────
 function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClose, onRemoverDoContainer, onAbrirDetalhes }) {
+  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const en = lang === 'en';
   const cat = catalogoBySlug[containerInst?.slug];
   const { armazena, usado, livre, tipoAceito, filhos } = capacidadeContainer(containerInst, todosItens, catalogoBySlug);
@@ -2508,7 +2506,7 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
                 <div className="cont-row-actions">
                   {onAbrirDetalhes && (
                   <button className="btn-icon btn-sm inv-act-btn" onClick={() => onAbrirDetalhes(it.instanceId)}
-                    title={en ? 'Details' : 'Detalhes'}
+                    {...propsTip(abrirTip, fecharTip, en ? 'Details' : 'Detalhes')}
                     aria-label={en ? 'Details' : 'Detalhes'}>
                     <i className="ti ti-eye" aria-hidden="true" />
                   </button>
@@ -2519,6 +2517,7 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
           })}
         </div>
 
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </ModalShell>
   );
 }
@@ -2675,7 +2674,7 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel }) {
 })();
 
 Object.assign(window, {
-  InventarioList, EquipadoBoard, VestesBoard, CofreMoedas, MoedasBoard, MoedaPills,
+  InventarioList, EquipadoBoard, VestesBoard, MoedaPills,
   CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, ContainerModal, QuantidadeModal,
   // ↓ expostos para a Loja (07-inventario/loja.jsx) consumir via window:
   fmtNum, calcCarga, invItemIcon, recipienteAceitaSlug, usePortalTooltip, PortalTooltip,

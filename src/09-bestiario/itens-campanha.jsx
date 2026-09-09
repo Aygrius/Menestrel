@@ -146,18 +146,20 @@ function IcNoKit() {
   return <div style={{ padding: 24, color: '#9C8F73', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
 }
 function IcPagination({ page, safePage, totalPages, setPage, setExpandida, lang }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const items = Array.from({ length: totalPages }, (_, i) => i + 1)
     .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
     .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx - 1] > 1) acc.push('…'); acc.push(p); return acc; }, []);
   const close = () => setExpandida && setExpandida(null);
   return (
     <div className="best-pag">
-      <button className="best-page-btn" onClick={() => { setPage((p) => Math.max(1, p - 1)); close(); }} disabled={safePage === 1} title={lang === 'en' ? 'Previous' : 'Anterior'}>‹</button>
+      <button className="best-page-btn" onClick={() => { setPage((p) => Math.max(1, p - 1)); close(); }} disabled={safePage === 1} {...propsTip(abrirTip, fecharTip, lang === 'en' ? 'Previous' : 'Anterior')}>‹</button>
       {items.map((p, idx) => p === '…'
         ? <span key={`ell-${idx}`} className="best-page-ellipsis">…</span>
         : <button key={p} className={'best-page-btn' + (p === safePage ? ' is-active' : '')} onClick={() => { setPage(p); close(); }}>{p}</button>)}
-      <button className="best-page-btn" onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); close(); }} disabled={safePage === totalPages} title={lang === 'en' ? 'Next' : 'Próxima'}>›</button>
+      <button className="best-page-btn" onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); close(); }} disabled={safePage === totalPages} {...propsTip(abrirTip, fecharTip, lang === 'en' ? 'Next' : 'Próxima')}>›</button>
       <span className="best-page-info">{lang === 'en' ? `${safePage} of ${totalPages}` : `${safePage} de ${totalPages}`}</span>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }

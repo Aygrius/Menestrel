@@ -1,0 +1,258 @@
+/* ============================================================
+   concentracao-dano.test.js — levar dano derruba a magia sustentada
+   ============================================================
+   A regra (quebrarConcentracao, 12-batalha/batalha.jsx): sustentar uma
+   magia de duração Variável exige não fazer mais nada. Entre os gatilhos
+   que a derrubam estão "levar dano que chegue na EF" e "desmaiar/morrer".
+   Dano contido inteiramente por EH ou AR NÃO quebra — a cascata é
+   EH → AR → EF, e a regra é dano na Energia Física.
+
+   Dois buracos que motivaram o arquivo (auditoria 01/09/2026):
+
+   1. O dano MANUAL do Mestre (aplicarDano) não quebrava nada — nem ao
+      chegar na EF, nem ao derrubar/matar. É o caminho mais usado para dano
+      vindo de fora do motor (queda, armadilha, narrativa), então era o
+      furo mais fácil de encostar: a vítima morria e o buff que ela
+      sustentava seguia ativo no alvo até o fim da batalha.
+
+   2. aplicarAcao e handleAcao só olhavam a EF. Quem zera a EH DESMAIA sem
+      a EF ser tocada, e desmaiar quebra por si só — esse caso escapava dos
+      dois lados.
+
+   `quebrarConcentracaoPorDano` é a regra única que os três passaram a usar.
+   ============================================================ */
+import { describe, it, expect, beforeAll } from 'vitest';
+import '../01-core/helpers.jsx';
+import '../01-core/inventario-helpers.jsx';
+import '../01-core/game-data.jsx';
+import './batalha.jsx';
+import './tabuleiro.jsx';
+
+let M;
+beforeAll(() => { M = window.MotorBatalha; expect(M).toBeDefined(); });
+
+const lutador = (nome, ordem, extra) => ({
+  tipo: 'pj', ref_id: nome, inst_id: nome, nome, ordem,
+  status: 'ativo', atual: false, vb: 20,
+  pa_max: 2, pa_rest: 2, mov_rest: 5, moveu_na_rodada: false,
+  ef: 10, ef_max: 10, eh: 5, eh_max: 5, ar: 3, ar_max: 3, karma: 0, karma_max: 0,
+  status_temp: [], ...extra,
+});
+
+// Buff sustentado por `ator` — shape que aplicarEfeitoApoio gera.
+const sustentado = (ator) => ({
+  id: 'mag:velocidade:x', nome: 'Velocidade', icone: '🌀',
+  rodadas_rest: null, efeito: { tipo: 'mod_vb', valor: 10 },
+  concentracao: { ator, magia_key: 'velocidade' },
+});
+
+// Aplica `dano` no participante `alvo` e devolve o array já processado pela
+// regra — reproduz o que os três call sites fazem.
+function levarDano(participantes, alvoNome, dano, critico) {
+  const i = participantes.findIndex((p) => p.nome === alvoNome);
+  const antes = participantes[i];
+  const depois = M.aplicarDanoCascata(dano, antes, !!critico);
+  const arr = participantes.map((p, k) => (k === i ? depois : p));
+  return M.quebrarConcentracaoPorDano(arr, antes, depois);
+}
+
+describe('quebrarConcentracaoPorDano — o que NÃO quebra', () => {
+  it('dano contido na EH não quebra', () => {
+    // EH 5, dano 3: sobra EH, a EF nem é tocada.
+    const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
+    const r = levarDano(arr, 'A', 3);
+    expect(r[0].eh).toBe(2);
+    expect(r[0].status_temp).toHaveLength(1);
+  });
+
+  it('dano contido na AR (crítico pula a EH) não quebra', () => {
+    // Crítico começa na AR: AR 3, dano 2 → EF intacta, segue ativo.
+    const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
+    const r = levarDano(arr, 'A', 2, true);
+    expect(r[0].ar).toBe(1);
+    expect(r[0].ef).toBe(10);
+    expect(r[0].status_temp).toHaveLength(1);
+  });
+
+  it('sem motivo pra quebrar devolve o MESMO array', () => {
+    // Checado direto na regra: o helper levarDano faz .map(), que sempre cria
+    // array novo, então a identidade só é observável aqui. Os chamadores usam
+    // isso pra decidir se vale persistir.
+    const p = lutador('A', 1, { status_temp: [sustentado('A')] });
+    const arr = [p];
+    expect(M.quebrarConcentracaoPorDano(arr, p, p)).toBe(arr);
+    // Nem antes nem depois → também não mexe.
+    expect(M.quebrarConcentracaoPorDano(arr, null, p)).toBe(arr);
+    expect(M.quebrarConcentracaoPorDano(arr, p, null)).toBe(arr);
+  });
+});
+
+describe('quebrarConcentracaoPorDano — o que quebra', () => {
+  it('dano que chega na EF quebra', () => {
+    // EH 5 + AR 3 = 8 absorvidos; 10 de dano fura 2 na EF.
+    const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
+    const r = levarDano(arr, 'A', 10);
+    expect(r[0].ef).toBe(8);
+    expect(r[0].status_temp).toHaveLength(0);
+  });
+
+  it('zerar a EH desmaia e quebra, mesmo sem a EF ser tocada', () => {
+    // O buraco nº 2: EH 5, AR 0, dano exatamente 5 → EH zera, EF intacta.
+    // Olhar só a EF deixava passar; desmaiar quebra por si só.
+    const arr = [lutador('A', 1, { ar: 0, ar_max: 0, status_temp: [sustentado('A')] })];
+    const r = levarDano(arr, 'A', 5);
+    expect(r[0].ef).toBe(10);          // EF não foi tocada
+    expect(r[0].status).toBe('desmaiado');
+    expect(r[0].status_temp).toHaveLength(0);
+  });
+
+  it('morrer quebra', () => {
+    const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
+    const r = levarDano(arr, 'A', 99);
+    expect(r[0].status).toBe('morto');
+    expect(r[0].status_temp).toHaveLength(0);
+  });
+
+  it('derruba a magia no ALVO dela, não em quem apanhou', () => {
+    // Quem sustenta é A; o buff mora no status_temp de B. A apanha → cai em B.
+    const arr = [
+      lutador('A', 1),
+      lutador('B', 2, { status_temp: [sustentado('A')] }),
+    ];
+    const r = levarDano(arr, 'A', 10);
+    expect(r[1].status_temp).toHaveLength(0);
+  });
+
+  it('não derruba a magia sustentada por outra pessoa', () => {
+    const arr = [
+      lutador('A', 1),
+      lutador('B', 2, { status_temp: [sustentado('C')] }),
+      lutador('C', 3),
+    ];
+    const r = levarDano(arr, 'A', 10);
+    expect(r[1].status_temp).toHaveLength(1);
+  });
+
+  it('quem já estava desmaiado e leva mais dano na EF também quebra', () => {
+    const arr = [lutador('A', 1, { status: 'desmaiado', eh: 0, ar: 0, status_temp: [sustentado('A')] })];
+    const r = levarDano(arr, 'A', 4);
+    expect(r[0].ef).toBe(6);
+    expect(r[0].status_temp).toHaveLength(0);
+  });
+});
+
+describe('os três caminhos de dano usam a regra', () => {
+  const fonteDe = (nome) => {
+    const i = fonte.indexOf(nome);
+    expect(i, `${nome} precisa existir`).toBeGreaterThan(-1);
+    return fonte.slice(i, i + 2200);
+  };
+  let fonte;
+  beforeAll(async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    fonte = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'batalha.jsx'), 'utf8');
+  });
+
+  it('a edição manual de pool pelo Mestre passa pela regra', () => {
+    // Era o buraco nº 1: o dano manual não chamava quebrarConcentracao nenhuma.
+    // Em 01/09/2026 os botões coração viraram edição direta da barra
+    // (aplicarPool) — a porta mudou de nome, a exigência não: baixar a EF na
+    // mão tem que derrubar a magia igual a um golpe.
+    expect(fonteDe('const aplicarPool = (idx, pool)')).toMatch(/quebrarConcentracaoPorDano/);
+  });
+
+  it('o ataque do Mestre passa pela regra', () => {
+    expect(fonteDe('const aplicarAcao = (payload)')).toMatch(/quebrarConcentracaoPorDano/);
+  });
+
+  it('o ataque do Jogador passa pela regra', () => {
+    expect(fonteDe('const handleAcao = (payload)')).toMatch(/quebrarConcentracaoPorDano/);
+  });
+
+  it('ninguém ficou com a checagem antiga de só-EF', () => {
+    // A comparação manual `.ef < ....ef` era o que deixava passar o desmaio
+    // por EH zerada. Se voltar, é sinal de que alguém recriou o buraco.
+    expect(fonte).not.toMatch(/next\[alvoIdx\]\.ef < participantes\[alvoIdx\]\.ef/);
+  });
+});
+
+describe('veneno: dano por rodada também derruba a concentração', () => {
+  // Decisão do usuário (01/09/2026): "dano na EF quebra a concentração, ou
+  // seja, veneno quebra". O dano_por_rodada vai DIRETO na EF (ignora EH e AR),
+  // então cai na mesma regra dos golpes.
+  //
+  // A consequência de ORDEM importa: a magia que cai muda o vb de quem a
+  // recebia, e é o vb que define movimento, ação extra e iniciativa da rodada
+  // nova. Por isso a quebra é resolvida ANTES da renovação de recursos.
+  const envenenado = (nome, ordem, extra) => lutador(nome, ordem, {
+    status_temp: [{ id: 'v1', nome: 'Envenenado', rodadas_rest: 3,
+                    efeito: { tipo: 'dano_por_rodada', valor: 4 } }],
+    ...extra,
+  });
+
+  it('quem sustenta magia e é envenenado a perde na virada', () => {
+    const arr = [
+      envenenado('A', 1),
+      lutador('B', 2, { status_temp: [sustentado('A')] }),
+    ];
+    const { participantes } = M.montarNovaRodada(arr);
+    const b = participantes.find((p) => p.nome === 'B');
+    expect(b.status_temp).toHaveLength(0);
+  });
+
+  it('o veneno continua mordendo — a quebra não substitui o dano', () => {
+    const arr = [envenenado('A', 1, { ef: 10 })];
+    const { participantes, eventos } = M.montarNovaRodada(arr);
+    expect(participantes[0].ef).toBe(6);
+    expect(eventos).toHaveLength(1);
+  });
+
+  it('quem NÃO está envenenado mantém a magia que sustenta', () => {
+    const arr = [
+      lutador('A', 1),
+      lutador('B', 2, { status_temp: [sustentado('A')] }),
+    ];
+    const { participantes } = M.montarNovaRodada(arr);
+    expect(participantes.find((p) => p.nome === 'B').status_temp).toHaveLength(1);
+  });
+
+  it('morto e desistente não sofrem veneno, logo não quebram nada', () => {
+    const arr = [
+      envenenado('A', 1, { status: 'morto' }),
+      lutador('B', 2, { status_temp: [sustentado('A')] }),
+    ];
+    const { participantes } = M.montarNovaRodada(arr);
+    expect(participantes.find((p) => p.nome === 'B').status_temp).toHaveLength(1);
+  });
+
+  it('a magia cai ANTES da renovação: o alvo perde o bônus de movimento', () => {
+    // B recebia +10 de vb. Se a quebra viesse depois da renovação, B entraria
+    // na rodada nova com movimento calculado sobre vb 30 — bônus de uma magia
+    // que já tinha caído.
+    const MT = window.MotorTabuleiro;
+    const arr = [
+      envenenado('A', 1),
+      lutador('B', 2, { vb: 20, status_temp: [sustentado('A')] }),
+    ];
+    const { participantes } = M.montarNovaRodada(arr);
+    const b = participantes.find((p) => p.nome === 'B');
+    expect(b.mov_rest).toBe(MT.movimentoBase(20));
+    expect(b.mov_rest).not.toBe(MT.movimentoBase(30));
+  });
+
+  it('e também perde a ação extra de velocidade > 30', () => {
+    // Regra do sistema: vb acima de 30 dá uma segunda ação na rodada. Com a
+    // magia caindo antes da renovação, o alvo não a ganha.
+    const MT = window.MotorTabuleiro;
+    expect(MT.movimentoBase).toBeTypeOf('function');
+    const arr = [
+      envenenado('A', 1),
+      lutador('B', 2, { vb: 25, pa_max: 2, status_temp: [sustentado('A')] }),
+    ];
+    const { participantes } = M.montarNovaRodada(arr);
+    const b = participantes.find((p) => p.nome === 'B');
+    expect(b.pa_rest).toBe(2);   // 2 + 0; com o buff seria 35 de vb → 3
+  });
+});

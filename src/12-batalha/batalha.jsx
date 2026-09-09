@@ -189,6 +189,8 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
           <ConduzirBatalhaView
             batalha={abrindo}
             historia={historia}
+            personagens={personagens}
+            criaturas={criaturas}
             lang={lang}
             onVoltar={() => { setAbrindo(null); setHeaderActions(null); carregar(); }}
             onAtualizado={() => carregar()}
@@ -522,6 +524,81 @@ function danoMagiaNoNivel(magia, nivelEfetivo) {
   return magia.dano || 0;
 }
 
+/* ── Modificador de VELOCIDADE lido do texto do nível ──────────────
+   Mesmo molde de danoMagiaNoNivel acima: o catálogo descreve o efeito em
+   prosa, e a gente pesca o número. Levantamento de 01/09/2026 mostrou que as
+   oito magias que modificam velocidade seguem um padrão único:
+
+     "Aumente 2 de velocidade."                        → +2
+     "Reduza 4 pontos de velocidade."                  → -4
+     "Aumente 1 coluna de ataque e 2 de velocidade."   → +2
+
+   O DISCRIMINADOR é a posição do número: modificador é sempre
+   `número + "de velocidade"`. Quem só DESCREVE velocidade põe o número
+   depois ("velocidade de 5 metros por rodada" na Telecinese, "com velocidade
+   20" na Unidade Natural) ou não põe número nenhum ("revele sua velocidade",
+   Olhar de Predador) — e esses não podem entrar, senão Telecinese viraria um
+   buff de +5.
+
+   Sem verbo Aumente/Reduza abrindo a frase o sinal é ambíguo: devolve 0 em
+   vez de chutar. RE_VERBO_MOD aceita "Reduza5" grudado, typo real do
+   catálogo em Ruído Extenuante. */
+const RE_MOD_VEL = /(\d+)\s*(?:pontos?\s+)?de\s+velocidade/i;
+const RE_VERBO_MOD = /^\s*(aumente|reduza)/i;
+
+function modVelocidadeNoNivel(magia, nivelEfetivo) {
+  if (!magia) return 0;
+  const txt = magia['nivel_' + nivelEfetivo];
+  if (!txt) return 0;
+  const mv = RE_MOD_VEL.exec(txt);
+  if (!mv) return 0;
+  const verbo = RE_VERBO_MOD.exec(txt);
+  if (!verbo) return 0;
+  const valor = parseInt(mv[1], 10);
+  if (!Number.isFinite(valor)) return 0;
+  return /reduza/i.test(verbo[1]) ? -valor : valor;
+}
+
+/* ── Duração da magia, traduzida para rodadas de batalha ───────────
+   A coluna `duracao` é texto livre e heterogênea. Três casos:
+     "2 rodadas", "10 rodadas"  → contagem direta
+     "Variável"                 → CONCENTRAÇÃO (ver quebrarConcentracao): o
+                                  conjurador sustenta a magia e não pode fazer
+                                  mais nada. Não é uma duração.
+     "30 minutos", "1 hora", "6 horas", "1 ano e 1 dia"
+                                → mais longo que qualquer batalha; dentro do
+                                  combate equivale a "até o fim". */
+const RE_RODADAS = /(\d+)\s*rodadas?/i;
+
+function duracaoEmRodadas(magia) {
+  const txt = (magia && magia.duracao) || '';
+  if (/vari[áa]vel/i.test(txt)) return { rodadas: null, concentracao: true };
+  const m = RE_RODADAS.exec(txt);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (Number.isFinite(n) && n > 0) return { rodadas: n, concentracao: false };
+  }
+  return { rodadas: null, concentracao: false };
+}
+
+/* ── A magia exige teste de resistência do alvo? ───────────────────
+   Levantamento de 01/09/2026: as quatro magias que exigem rolagem dizem,
+   todas, literalmente "teste de resistência mágica" na descrição. As outras
+   quatro não mencionam teste algum.
+
+   ANCORAR NA FRASE INTEIRA, nunca em palavras soltas: um padrão largo
+   (teste|resist|falh|passar) casa o "passar" dentro de "ultrapassar 30" na
+   descrição da magia Velocidade — que NÃO pede teste nenhum. Erro cometido de
+   verdade na investigação; há teste de regressão pra ele. */
+const RE_RESIST = /teste\s+de\s+resist[êe]ncia\s+(m[áa]gica|f[íi]sica)/i;
+
+function exigeResistencia(magia) {
+  const txt = (magia && magia.descricao) || '';
+  const m = RE_RESIST.exec(txt);
+  if (!m) return null;
+  return /m[áa]gica/i.test(m[1]) ? 'rm' : 'rf';
+}
+
 /* ── Magias ofensivas conhecidas pelo PJ ──────────────────────── */
 /* Filtra magias com passos>0 que entregam dano > 0 no nível efetivo. */
 /* Custo de karma = nível efetivo (1/3/5/7/9), por decisão do sistema. */
@@ -547,6 +624,46 @@ function magiasOfensivasDoAtor(ator, catalogos) {
       descricao: m['nivel_' + nivel] || null, // texto do nível efetivo
       evocacao: m.evocacao || null,
       alcance: m.alcance || null,
+    });
+  });
+  return out;
+}
+
+/* ── Magias de APOIO conhecidas pelo PJ ────────────────────────────
+   Espelha magiasOfensivasDoAtor logo acima, trocando o critério: em vez de
+   "entrega dano > 0 no nível efetivo", é "modifica velocidade no nível
+   efetivo". Mesma regra de karma do sistema (custo = nível efetivo).
+
+   Uma magia pode causar dano E mexer em velocidade; nesse caso aparece nas
+   duas listas, e é o Mestre que escolhe por qual aba usá-la. */
+function magiasDeApoioDoAtor(ator, catalogos) {
+  if (!ator || ator.tipo !== 'pj' || !catalogos) return [];
+  const pj = catalogos.pjById[ator.ref_id];
+  if (!pj || !pj.magias) return [];
+  const out = [];
+  Object.entries(pj.magias).forEach(([key, passos]) => {
+    const p = passos || 0;
+    if (p <= 0) return;
+    const m = catalogos.magiasByKey[key];
+    if (!m) return;
+    const nivel = (typeof nivelMagiaEfetivo === 'function') ? nivelMagiaEfetivo(p) : (p * 2 - 1);
+    const mod_vb = modVelocidadeNoNivel(m, nivel);
+    if (mod_vb === 0) return;   // não modifica velocidade → fora da lista
+    const dur = duracaoEmRodadas(m);
+    out.push({
+      fonte: 'magia',
+      key, nome: m.nome,
+      passos: p, nivel,
+      custo_karma: nivel,         // 1 karma por nível, mesma regra das ofensivas
+      mod_vb,
+      rodadas: dur.rodadas,
+      concentracao: dur.concentracao,
+      resistencia: exigeResistencia(m),
+      // alcance "Pessoal" = só em si mesmo. É o caso da magia Velocidade, a
+      // única das nove com esse alcance — e justamente a que os PJs conhecem.
+      pessoal: /pessoal/i.test(m.alcance || ''),
+      alcance: m.alcance || null,
+      descricao: m['nivel_' + nivel] || null,
     });
   });
   return out;
@@ -625,7 +742,10 @@ function aplicarDanoCascata(dano, p, critico) {
   if (r > 0 && ar > 0)    { const c = Math.min(ar, r); ar -= c; r -= c; }
   if (r > 0 && ef > EF_MORTE) { const c = Math.min(ef - EF_MORTE, r); ef -= c; r -= c; }
   let status = p.status;
-  if (ef <= EF_MORTE && (status === 'ativo' || status === 'desmaiado')) status = 'morto';
+  // Qualquer um que não esteja morto pode morrer — inclusive quem desistiu.
+  // Espelha podeSerAtacado: se dá pra atacar, tem que dar pra matar, senão o
+  // alvo vira saco de pancada imortal.
+  if (ef <= EF_MORTE && status !== 'morto') status = 'morto';
   else if ((ef <= 0 || (eh === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
   return { ...p, eh, ar, ef, status, sobra: r };
 }
@@ -640,20 +760,6 @@ const CONDICOES_KEYS = (typeof EFEITO_CONDICAO_MAP === 'object' && EFEITO_CONDIC
   ? Object.values(EFEITO_CONDICAO_MAP).filter((v) => v.scope === 'condicoes').map((v) => v.key)
   : ['reputacao', 'animo', 'sanidade', 'vitalidade', 'hidratacao', 'euforia', 'termorregulacao', 'nutricao'];
 
-/* Rótulos de exibição das 8 condições (roster, Fase de combate) — mesma
-   correspondência posicional documentada no comentário acima
-   (Reputação, Sono, Sanidade, Saúde, Hidratação, Sobriedade, Temperatura,
-   Alimentação). Curto o suficiente pra caber como label de poolBar. */
-const CONDICAO_LABEL = {
-  reputacao:       { pt: 'Reputação',  en: 'Reputation',  icon: 'ti-certificate'    },
-  animo:           { pt: 'Sono',       en: 'Sleep',       icon: 'ti-bed'            },
-  sanidade:        { pt: 'Sanidade',   en: 'Sanity',      icon: 'ti-mood-sick'      },
-  vitalidade:      { pt: 'Saúde',      en: 'Health',      icon: 'ti-heart-down'     },
-  hidratacao:      { pt: 'Hidratação', en: 'Hydration',   icon: 'ti-droplet-down'   },
-  euforia:         { pt: 'Sobriedade', en: 'Sobriety',    icon: 'ti-glass-full'     },
-  termorregulacao: { pt: 'Temperatura',en: 'Temperature', icon: 'ti-temperature'    },
-  nutricao:        { pt: 'Alimentação',en: 'Nutrition',   icon: 'ti-meat'           },
-};
 
 /* ── Monta o snapshot de combate de cada participante ───────────
    personagensPools (opcional): jsonb da história { [pjId]: { ef, eh, ar, karma } }.
@@ -671,7 +777,7 @@ async function montarSnapshots(parts, personagensPools) {
   const criIds = partsComInstId.filter((p) => p.tipo === 'criatura').map((p) => p.ref_id);
   const [pjRes, itRes, criRes] = await Promise.all([
     pjIds.length  ? supabaseClient.from('personagens').select('*').in('id', pjIds) : Promise.resolve({ data: [] }),
-    supabaseClient.from('itens').select('*'),
+    fetchCatalogoCompleto(),
     criIds.length ? supabaseClient.from('criaturas').select('*').in('id', criIds)  : Promise.resolve({ data: [] }),
   ]);
   const catalogoBySlug = {};
@@ -708,10 +814,16 @@ async function montarSnapshots(parts, personagensPools) {
         : (persist && Number.isFinite(persist.eh))
           ? Math.max(0, Math.min(ehMax, persist.eh))
           : ehMax;
+      // AR é a ÚNICA pool sem teto na entrada (decisão do usuário,
+      // 01/09/2026: "o buff pode ficar acima fora de combate"). Um elixir de
+      // Absorção passa do ar_max de propósito — aplicarEfeitosItem e
+      // aplicarEfeitoItemSnapshot já não põem teto nesse escopo, e cortar
+      // aqui fazia o buff evaporar entre um combate e o seguinte. Piso 0
+      // continua valendo. Cobertura: 12-batalha/entrada-pools.test.js.
       const arCur = (vitEstado && Number.isFinite(vitEstado.ar))
-        ? Math.max(0, Math.min(arMax, vitEstado.ar))
+        ? Math.max(0, vitEstado.ar)
         : (persist && Number.isFinite(persist.ar))
-          ? Math.max(0, Math.min(arMax, persist.ar))
+          ? Math.max(0, persist.ar)
           : arMax;
       // EF aceita NEGATIVO (piso EF_MORTE): morto encerrado persiste ef −15;
       // caído-vivo pode persistir entre −14 e 0. ⚠️ Dados LEGADOS: batalhas
@@ -747,6 +859,13 @@ async function montarSnapshots(parts, personagensPools) {
       return {
         tipo: 'pj', ref_id: p.ref_id, nome: p.nome,
         inst_id: p.inst_id,   // garantido por partsComInstId acima
+        // TABULEIRO: posição herdada do participante (quem já estava colocado
+        // não volta pra bancada ao remontar), movimento cheio da rodada, e
+        // foto/raça pro token. Ver 12-batalha/tabuleiro.jsx.
+        pos: (p.pos && posValida(p.pos)) ? { x: p.pos.x, y: p.pos.y } : null,
+        mov_rest: movimentoBase(d.velocidade || 0),
+        foto_url: pj.foto_url || null,
+        raca: pj.raca || null,
         vb: d.velocidade || 0, pa_max: pa, pa_rest: pa,
         eh: ehCur, eh_max: ehMax,
         ar: arCur, ar_max: arMax,
@@ -772,6 +891,12 @@ async function montarSnapshots(parts, personagensPools) {
     return {
       tipo: 'criatura', ref_id: p.ref_id, nome: p.nome,
       inst_id: p.inst_id,   // garantido por partsComInstId acima
+      // TABULEIRO (ver bloco equivalente do PJ acima). Criatura não tem foto;
+      // o token cai na inicial do nome. `raca` vem do tipo da criatura.
+      pos: (p.pos && posValida(p.pos)) ? { x: p.pos.x, y: p.pos.y } : null,
+      mov_rest: movimentoBase(c.velocidade || 0),
+      foto_url: null,
+      raca: c.tipo || null,
       vb: c.velocidade || 0, pa_max: 1, pa_rest: 1,
       eh: c.energia_heroica || 0, eh_max: c.energia_heroica || 0,
       ar: c.absorcao || 0,        ar_max: c.absorcao || 0,
@@ -800,25 +925,28 @@ async function montarSnapshots(parts, personagensPools) {
    snapshot: eh/eh_max, ef/ef_max, karma/karma_max (clamp no _max real do
    snapshot, que pode já estar reduzido por sequela — não no max "cheio" da
    ficha), ar sem teto pro label 'Absorção' (buff temporário, mesma regra
-   do original), e condicoes (0-100, sem _max próprio). Reaproveita
-   parseEfeito (mesmo parser de texto livre "N Condição, N Condição").
+   do original), e condicoes na escala -COND_LIMITE..+COND_LIMITE.
+
+   O PARSE dos deltas (efeitosDoItem) e o clamp da condição
+   (aplicarDeltaCondicao) vêm de 01-core/inventario-helpers.jsx, os mesmos
+   que aplicarEfeitosItem usa fora de combate: as duas funções continuam
+   separadas só porque os shapes de destino diferem — a CONTA é uma só.
+   Isso não é preciosismo: no encerramento, as condições do snapshot vão pra
+   personagens.estado_atual (estadoAoEncerrar), então uma divergência de
+   escala faria o combate gravar por cima da ficha em outra unidade.
+   Acordo travado em 12-batalha/efeito-item-escala.test.js.
+
    Retorna um NOVO objeto de participante (não muta o original). */
 function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
-  const efeitos = [
-    ...parseEfeito(cat && cat.efeito_positivo).map((e) => ({ ...e, sinal: 1 })),
-    ...parseEfeito(cat && cat.efeito_negativo).map((e) => ({ ...e, sinal: -1 })),
-  ];
+  const efeitos = efeitosDoItem(cat, quantidade);
   if (efeitos.length === 0) return participante;
 
-  const qtd = Number(quantidade) || 1;
   const novo = { ...participante, condicoes: { ...(participante.condicoes || {}) } };
-  const _COND_LIMITE = (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null) ?? window.COND_LIMITE ?? 50;
 
   for (const ef of efeitos) {
-    const delta = ef.valor * ef.sinal * qtd;
+    const delta = ef.delta;
     if (ef.scope === 'condicoes') {
-      const atual = novo.condicoes[ef.key] ?? 0;
-      novo.condicoes[ef.key] = Math.max(-_COND_LIMITE, Math.min(_COND_LIMITE, atual + delta));
+      novo.condicoes[ef.key] = aplicarDeltaCondicao(novo.condicoes[ef.key], delta);
     } else if (ef.scope === 'vitalidade') {
       // eh/ef/ka (Karma) no snapshot — clamp no _max do snapshot (respeita
       // sequela já presente: se eh_max já está reduzido, não estoura ele).
@@ -837,17 +965,49 @@ function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
       novo.ar = Math.max(0, atual + delta);
     }
   }
-  // Status coerente com as regras da cascata/cura: item negativo pode
-  // derrubar (EF ≤ 0 / EH 0 com pool) ou matar (EF ≤ EF_MORTE); item
-  // positivo reanima quando saneia as DUAS causas (EH > 0 e EF > 0).
-  const st = novo.status || 'ativo';
-  const efV = Number(novo.ef) || 0;
-  const ehV = Number(novo.eh) || 0;
-  const temEH = (Number(novo.eh_max) || 0) > 0;
-  if (efV <= EF_MORTE && (st === 'ativo' || st === 'desmaiado')) novo.status = 'morto';
-  else if (st === 'ativo' && (efV <= 0 || (temEH && ehV === 0))) novo.status = 'desmaiado';
-  else if (st === 'desmaiado' && efV > 0 && (ehV > 0 || !temEH)) novo.status = 'ativo';
-  return novo;
+  return statusPorPools(novo);
+}
+
+/* ── Status derivado das POOLS (puro) ──────────────────────────────
+   Recalcula morto/desmaiado/ativo a partir de EF e EH. Regra:
+     • EF ≤ EF_MORTE mata;
+     • EF ≤ 0, ou EH zerada em quem TEM pool de EH, derruba;
+     • desmaiado reanima só quando as DUAS causas somem (EF > 0 e EH > 0).
+   Morto não ressuscita sozinho e quem desistiu não é tocado — as duas são
+   decisão do Mestre, pelo seletor de estado.
+
+   Vivia embutida no fim de aplicarEfeitoItemSnapshot. Virou função quando o
+   Mestre passou a editar as pools clicando na barra (01/09/2026): as duas
+   portas mexem nos mesmos números e precisam derivar o status igual, senão
+   zerar a EH pela barra deixaria o lutador de pé enquanto zerá-la por um
+   item o derrubaria. Cobertura: 12-batalha/edicao-pool.test.js. */
+function statusPorPools(p) {
+  const st = p.status || 'ativo';
+  const efV = Number(p.ef) || 0;
+  const ehV = Number(p.eh) || 0;
+  const temEH = (Number(p.eh_max) || 0) > 0;
+  let status = st;
+  if (efV <= EF_MORTE && (st === 'ativo' || st === 'desmaiado')) status = 'morto';
+  else if (st === 'ativo' && (efV <= 0 || (temEH && ehV === 0))) status = 'desmaiado';
+  else if (st === 'desmaiado' && efV > 0 && (ehV > 0 || !temEH)) status = 'ativo';
+  return status === st ? p : { ...p, status };
+}
+
+/* ── Valor de uma pool depois de editada à mão (puro) ──────────────
+   O clamp NÃO é uniforme entre as quatro:
+     EF     piso EF_MORTE — ela fica negativa de propósito (caído-vivo entre
+            0 e −14, morto em −15);
+     AR     SEM teto — buff de poção/elixir passa do ar_max por desenho,
+            mesma regra que montarSnapshots aplica na entrada do combate;
+     EH/KA  faixa 0..max.
+   Cobertura: 12-batalha/edicao-pool.test.js. */
+function valorPoolEditado(p, pool, bruto) {
+  const n = parseInt(bruto, 10);
+  const v = Number.isFinite(n) ? n : 0;
+  const max = Number(p[pool + '_max']) || 0;
+  if (pool === 'ef') return Math.max(EF_MORTE, Math.min(max, v));
+  if (pool === 'ar') return Math.max(0, v);
+  return Math.max(0, Math.min(max, v));
 }
 
 /* ── Baixa `qtd` unidades de um slug no array de itens do inventário ─────
@@ -870,6 +1030,34 @@ function consumirDoInventario(itens, slug, qtd) {
     if (q - baixa > 0) out.push({ ...it, quantidade: q - baixa });
   }
   return out;
+}
+
+/* ── Baixa de item no inventário do PJ, relendo antes de escrever ──
+   Mestre e Jogador consomem itens em combate, cada um pela SUA tela, e os
+   dois escrevem a linha inteira de personagens.inventario. O Mestre carrega
+   `catalogos.pjById` uma única vez (quando a batalha vira 'ativa') e usava
+   esse cache como base da baixa — então uma poção que o jogador tinha gastado
+   minutos antes VOLTAVA pra mochila na primeira vez que o Mestre consumisse
+   qualquer coisa.
+
+   Relê a linha imediatamente antes de escrever, pra baixa partir sempre do
+   estado corrente. Devolve { ok, inventario } ou { ok:false, error }.
+
+   ⚠️ Ainda é read-then-write, não atômico: duas baixas exatamente simultâneas
+   podem se perder. Fechar isso de vez pede uma RPC que faça a conta no
+   servidor (como comprar_item/transfer_item já fazem). O que esta função
+   elimina é a janela LONGA — de minutos — que era o problema real.
+   Cobertura: 12-batalha/consumo-item.test.js. */
+async function consumirItemDoPJ(pjId, slug, qtd) {
+  const { data, error } = await supabaseClient
+    .from('personagens').select('inventario').eq('id', pjId).maybeSingle();
+  if (error) return { ok: false, error };
+  const inv = (data && data.inventario) || {};
+  const novoInv = { ...inv, itens: consumirDoInventario(inv.itens || [], slug, qtd) };
+  const { error: upErr } = await supabaseClient
+    .from('personagens').update({ inventario: novoInv }).eq('id', pjId);
+  if (upErr) return { ok: false, error: upErr };
+  return { ok: true, inventario: novoInv };
 }
 
 /* ── usePortalTooltip + PortalTooltip — padrão único de tooltip do sistema ──
@@ -947,7 +1135,42 @@ function mesmoParticipante(a, b) {
   return a.tipo === b.tipo && a.ref_id === b.ref_id;
 }
 
-/* ── EstadoDrop — botão "Ativo" + dropdown via portal por fighter ── */
+/* ── Ícone de cada estado de combate ───────────────────────────────
+   Mapa ÚNICO. O par status→ícone estava escrito à mão em quatro lugares (o
+   gatilho do EstadoDrop, os itens do dropdown, o indicador no cabeçalho do
+   card do Mestre e o do card do Jogador) e já tinha divergido: "desistiu"
+   era porta no Mestre e bandeira no Jogador.
+
+   Revisão dos ícones em 01/09/2026, a pedido do usuário. O que estava errado
+   de fato: ENVENENADO usava `ti-skull`, o MESMO ícone de morto — dois estados
+   diferentes com o mesmo desenho, no mesmo menu. Agora:
+     ativo       ti-heartbeat  pulso: vivo e agindo (era `ti-check`, genérico)
+     desmaiado   ti-zzz        caído, inconsciente
+     morto       ti-skull      caveira, só dele
+     desistiu    ti-flag       bandeira branca; unifica no que o Jogador já usava
+     envenenado  ti-flask-2    frasco: veneno, sem colidir com a caveira
+   Trocar qualquer um é editar aqui, uma linha. */
+const ICONE_STATUS = {
+  ativo:      'ti-heartbeat',
+  desmaiado:  'ti-zzz',
+  morto:      'ti-skull',
+  desistiu:   'ti-flag',
+  envenenado: 'ti-flask-2',
+};
+const iconeStatus = (k) => ICONE_STATUS[k] || ICONE_STATUS.ativo;
+
+/* Ícone dos PA restantes: o próprio ícone é o número (03/09/2026, a pedido
+   do usuário). O chip mostrava "1/1"; agora mostra só quanto sobrou, e o
+   máximo foi pro tooltip — em combate o que se olha o tempo todo é quantas
+   ações ainda dá pra gastar, não de quantas se partiu.
+   A família vai só de 0 a 9; acima disso ficaria sem ícone, então prende
+   em 9. PA nunca chega perto, mas um snapshot torto não pode apagar o chip. */
+const iconePA = (n) => {
+  const v = Math.max(0, Math.min(9, Math.trunc(Number(n) || 0)));
+  return 'ti-hexagon-number-' + v;
+};
+
+/* ── EstadoDrop — botão de estado + dropdown via portal por fighter ── */
 function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip }) {
   const tb = tBat(isEn ? 'en' : 'pt'); // i18n-sync (Fase 3.3): este componente recebe o boolean
   const [aberto, setAberto] = React.useState(false);
@@ -974,47 +1197,73 @@ function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip
     };
   }, [aberto]);
 
+  // "Ativo — mudar estado". Mesmo formato das barras de pool ("EF — editar"):
+  // o estado atual primeiro, a ação depois.
+  const nomeEstado = isEn ? STATUS[p.status || 'ativo'].en : STATUS[p.status || 'ativo'].pt;
+  const rotuloEstado = `${nomeEstado} — ${tb.mudarEstado}`;
+
   return (
     <div className="estado-drop-wrap" ref={btnRef}>
+      {/* Só ícone, como os outros da fileira (01/09/2026). O rótulo escrito e
+          o chevron saíram; o ÍCONE continua dizendo o estado (check / zzz /
+          caveira / porta) e a classe st-* continua colorindo por ele — verde
+          ativo, azul desmaiado, vermelho morto. O que o texto dizia foi pro
+          tooltip, que agora nomeia o estado ATUAL além da ação: sem isso o
+          Mestre perderia a leitura, já que o botão era o único lugar do card
+          que escrevia o estado por extenso. */}
       <button
-        className={'btn-ghost btn-sm estado st-' + (p.status || 'ativo')}
+        className={'btn-ghost btn-sm estado batalha-menu-acao-ic st-' + (p.status || 'ativo')}
         data-on="true"
-        onClick={() => setAberto((v) => !v)}
-        onMouseEnter={(e) => abrirTip(e, tb.mudarEstado)}
+        onClick={() => { fecharTip(); setAberto((v) => !v); }}
+        onMouseEnter={(e) => abrirTip(e, rotuloEstado)}
         onMouseLeave={fecharTip}
-        aria-label={tb.mudarEstado}>
-        {(p.status || 'ativo') === 'morto' ? <i className="ti ti-skull" aria-hidden="true" />
-          : (p.status || 'ativo') === 'desmaiado' ? <i className="ti ti-zzz" aria-hidden="true" />
-          : (p.status || 'ativo') === 'desistiu' ? <i className="ti ti-door-exit" aria-hidden="true" />
-          : <i className="ti ti-check" aria-hidden="true" />}
-        <span className="bfi-btn-lbl">{isEn ? STATUS[p.status || 'ativo'].en : STATUS[p.status || 'ativo'].pt}</span>
-        <i className="ti ti-chevron-down estado-drop-chevron" aria-hidden="true" />
+        aria-label={rotuloEstado}>
+        <i className={'ti ' + iconeStatus(p.status || 'ativo')} aria-hidden="true" />
       </button>
+      {/* Só ícone no menu também (01/09/2026): é uma fileira de círculos, e o
+          nome de cada estado vive no tooltip/aria-label. Sem texto o dropdown
+          deixa de ser uma lista alta e vira uma tira do tamanho da própria
+          fileira de botões. */}
       {aberto && (
         <EstadoDropPortal anchorRef={btnRef} onClose={() => setAberto(false)}>
           {Object.keys(STATUS).map((k) => {
             const ativo = (p.status || 'ativo') === k;
+            const nome = isEn ? STATUS[k].en : STATUS[k].pt;
             return (
               <button key={k} className={'batalha-estado-drop-item' + (ativo ? ' on' : '')}
-                onClick={() => { onMudar(k); setAberto(false); }}>
-                {k === 'morto' ? <i className="ti ti-skull" aria-hidden="true" />
-                  : k === 'desmaiado' ? <i className="ti ti-zzz" aria-hidden="true" />
-                  : k === 'desistiu' ? <i className="ti ti-door-exit" aria-hidden="true" />
-                  : <i className="ti ti-check" aria-hidden="true" />}
-                {isEn ? STATUS[k].en : STATUS[k].pt}
+                onClick={() => { fecharTip(); onMudar(k); setAberto(false); }}
+                aria-label={nome}
+                onMouseEnter={(e) => abrirTip(e, nome)}
+                onMouseLeave={fecharTip}>
+                <i className={'ti ' + iconeStatus(k)} aria-hidden="true" />
               </button>
             );
           })}
-          <div className="batalha-estado-drop-sep" />
+          {/* A régua que separava os 4 estados do Envenenado saiu em
+              01/09/2026: Envenenar é mais um item da mesma lista de coisas
+              que o Mestre aplica ao combatente, não uma seção à parte. */}
           <button className="batalha-estado-drop-item poison"
-            onClick={() => { onEnvenenar(); setAberto(false); }}>
-            <i className="ti ti-skull" aria-hidden="true" />
-            {tb.envenenado}
+            onClick={() => { fecharTip(); onEnvenenar(); setAberto(false); }}
+            aria-label={tb.envenenado}
+            onMouseEnter={(e) => abrirTip(e, tb.envenenado)}
+            onMouseLeave={fecharTip}>
+            <i className={'ti ' + iconeStatus('envenenado')} aria-hidden="true" />
           </button>
         </EstadoDropPortal>
       )}
     </div>
   );
+}
+
+/* ── Quem ainda pode ser ATACADO ──────────────────────────────────
+   Regra confirmada em 01/09/2026: só o morto sai da lista de alvos.
+   Desmaiado continua alvejável (golpe de misericórdia) e desistiu também
+   — largar a luta não dá imunidade.
+
+   NÃO confundir com proximoAtivo, logo abaixo: apanhar e AGIR são coisas
+   diferentes. Quem desmaiou ou desistiu vira alvo, mas não ganha a vez. */
+function podeSerAtacado(p) {
+  return !!p && p.status !== 'morto';
 }
 
 /* ── próximo participante ATIVO na ordem de iniciativa ────────── */
@@ -1126,8 +1375,12 @@ function danoNoTier(arma, codigo) {
     if (codigo === 'M')  return Math.ceil(d100 / 2);
     if (codigo === 'D')  return Math.ceil((3 * d100) / 4);
     if (codigo === 'MD') return d100;
-    if (codigo === 'E')  return Math.floor((arma.dano_100 || 0) * 1.25);
-    if (codigo === 'A')  return Math.floor((arma.dano_100 || 0) * 1.5);
+    // 125/150% com ceil, alinhados ao ramo de ARMA (30/08/2026). Estavam em
+    // floor, então criatura tirava 1 a menos que PJ no mesmo crítico —
+    // dano_100 33 dava 41/49 onde a arma equivalente dava 42/50. "Arredonda-
+    // mento SEMPRE pra cima" agora vale para os seis tiers dos dois ramos.
+    if (codigo === 'E')  return Math.ceil(d100 * 1.25);
+    if (codigo === 'A')  return Math.ceil(d100 * 1.5);
     return 0;
   }
   const base = arma.dano || 0;
@@ -1393,7 +1646,7 @@ function aplicarDanoDiretoEF(dano, p) {
     ef -= c; r -= c;
   }
   let status = p.status;
-  if (ef <= EF_MORTE && (status === 'ativo' || status === 'desmaiado')) status = 'morto';
+  if (ef <= EF_MORTE && status !== 'morto') status = 'morto';
   else if ((ef <= 0 || ((p.eh || 0) === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
   return { ...p, ef, status, sobra: r };
 }
@@ -1412,7 +1665,26 @@ function processarDanoPorRodada(p) {
 // Virada de rodada de UM participante: reset de PA (ativos) → veneno morde
 // (mortos e desistentes não sofrem) → decrementa status (null persiste).
 function processarViradaDeRodada(p) {
-  let next = (p.status === 'ativo') ? { ...p, pa_rest: p.pa_max } : { ...p };
+  // Rodada nova devolve PA, movimento cheio E o direito de mover de novo
+  // (moveu_na_rodada). Quem não está ativo não recupera nada.
+  //
+  // Movimento e PA saem da VB EFETIVA (01/09/2026), não do vb cru:
+  //   • movimento — "velocidade" governa o passo, não só a ordem de agir. Isso
+  //     muda também o alcance da Velocidade -5 da Falha Crítica, que antes só
+  //     atrasava a iniciativa e agora encurta o passo. Intencional.
+  //   • ação extra — regra do sistema, lida da descrição da magia Velocidade:
+  //     "Se sua velocidade ultrapassar 30, você terá uma segunda ação na mesma
+  //     rodada". Vale pra QUALQUER combatente acima de 30, venha o bônus de
+  //     magia ou de vb nenhum (quem já nasce rápido também ganha).
+  //     "Ultrapassar" é estrito: 30 exatos não ganham.
+  //
+  // Os dois recalculam AQUI, na virada, junto da reordenação de iniciativa em
+  // montarNovaRodada — os três andam sempre juntos.
+  const vbEf = vbEfetivo(p);
+  let next = (p.status === 'ativo')
+    ? { ...p, pa_rest: p.pa_max + (vbEf > 30 ? 1 : 0),
+              mov_rest: movimentoBase(vbEf), moveu_na_rodada: false }
+    : { ...p };
   let eventos = [], total = 0;
   if (p.status !== 'morto' && p.status !== 'desistiu') {
     const r = processarDanoPorRodada(next);
@@ -1421,6 +1693,11 @@ function processarViradaDeRodada(p) {
   if (Array.isArray(next.status_temp) && next.status_temp.length) {
     next.status_temp = decrementarStatusTemp(next.status_temp);
   }
+  // Rodada nova invalida a rolagem feita e não aplicada na anterior (o campo
+  // é do lado Jogador — ver o bloco de rolagem em BatalhaJogadorView). Sem
+  // isto, uma rolagem pendente atravessava a virada quando quem virou a
+  // rodada foi OUTRA pessoa (o Mestre no botão "Nova Rodada", por exemplo).
+  if (next.rolagem_pendente) next.rolagem_pendente = null;
   return { participante: next, eventos, total };
 }
 
@@ -1428,9 +1705,86 @@ function processarViradaDeRodada(p) {
 // (handlePassar quando dá a volta), pra manter os dois lados idênticos:
 // processa cada participante, reordena pela iniciativa EFETIVA e escolhe o
 // primeiro elegível (ativo e não sem_acoes; se ninguém, ninguém fica atual).
+/* ── Volta do combate pra ficha (puro) ─────────────────────────────
+   O ciclo do sistema é: a ficha calcula os atributos e guarda os valores
+   atuais → o personagem ENTRA em combate com esses valores (montarSnapshots)
+   → ao SAIR, a ficha é atualizada com o que aconteceu. Esta é a peça da
+   volta: dado o estado_atual que está na ficha e o snapshot final do
+   participante, devolve o estado_atual novo.
+
+   Devolve `null` quando o participante NÃO deve escrever nada.
+
+   Duas guardas, e as duas cobrem perda de dado real:
+
+   • AUSENTE. montarSnapshots marca `ausente: true` e zera todas as pools
+     quando não consegue ler o PJ — deletado, ou um tropeço de rede no
+     `.in(ids)`. Escrever esses zeros de volta fazia um PJ que só falhou de
+     carregar sair do combate com ef 0 (desmaiado) e as 8 condições zeradas.
+
+   • SNAPSHOT SEM CONDIÇÕES. Batalha criada antes das condições existirem não
+     tem `condicoes` no participante, e `{ ...(p.condicoes || {}) }` gravava
+     `{}` por cima das da ficha. Como condição ausente é lida como 0 (neutro)
+     em toda a aplicação, isso neutralizava tudo de uma vez. Ter as chaves
+     valendo 0 é diferente de não ter chave nenhuma: o primeiro é um
+     personagem legitimamente neutro e SOBRESCREVE.
+
+   Cobertura: 12-batalha/ciclo-ficha-batalha.test.js. */
+function estadoAoEncerrar(estadoAtual, p) {
+  if (!p || p.ausente) return null;
+  const base = estadoAtual || {};
+  const morto = p.status === 'morto';
+  const num = (v) => (Number.isFinite(v) ? v : undefined);
+  const vitalidade = {
+    ...(base.vitalidade || {}),
+    // Morto volta com a EF no piso: é assim que a morte sobrevive à volta —
+    // montarSnapshots relê ef <= EF_MORTE e remonta o status na próxima.
+    ef: morto ? EF_MORTE : num(p.ef),
+    eh: morto ? 0        : num(p.eh),
+    ar: num(p.ar),
+    ka: num(p.karma),
+  };
+  const temCondicoes = p.condicoes && typeof p.condicoes === 'object'
+    && Object.keys(p.condicoes).length > 0;
+  return {
+    ...base,
+    condicoes: temCondicoes ? { ...p.condicoes } : (base.condicoes || {}),
+    vitalidade,
+  };
+}
+
+/* ── Concentração derrubada pelo VENENO da virada (puro) ───────────
+   O dano_por_rodada vai DIRETO na EF (ignora EH e AR), e dano na EF derruba
+   a magia sustentada — mesma regra dos golpes (decisão de 01/09/2026). Um
+   conjurador envenenado, portanto, não sustenta magia.
+
+   Roda ANTES da virada de verdade, e é de propósito: a magia que cai muda o
+   vb de QUEM A RECEBIA, e é o vb que define movimento, ação extra (>30) e
+   iniciativa da rodada nova. Se a quebra viesse depois, o alvo entraria na
+   rodada com movimento e PA calculados sobre um bônus que já tinha caído.
+
+   Por isso o dano é calculado duas vezes: aqui só pra DESCOBRIR quem foi
+   ferido (o resultado é descartado), e de novo na virada de verdade, que é
+   quem aplica. processarDanoPorRodada é pura e devolve o MESMO participante
+   quando não há veneno, então a sonda é barata e o dano nunca conta dobrado.
+   Cobertura: 12-batalha/concentracao-dano.test.js. */
+function quebrarConcentracaoPorVeneno(participantes) {
+  let out = participantes;
+  for (const p of (participantes || [])) {
+    // Mesma guarda de processarViradaDeRodada: morto e desistente não sofrem.
+    if (p.status === 'morto' || p.status === 'desistiu') continue;
+    const { participante: depois } = processarDanoPorRodada(p);
+    if (depois === p) continue;                 // sem veneno, nada a fazer
+    out = quebrarConcentracaoPorDano(out, p, depois);
+  }
+  return out;
+}
+
 function montarNovaRodada(participantes) {
+  // Veneno morde na EF, e dano na EF derruba a magia sustentada. Resolve
+  // ANTES de renovar recursos — ver quebrarConcentracaoPorVeneno.
+  const base = quebrarConcentracaoPorVeneno(participantes);
   const eventosRodada = [];
-  const processados = participantes.map((p) => {
+  const processados = base.map((p) => {
     const r = processarViradaDeRodada(p);
     if (r.eventos.length) eventosRodada.push({ nome: p.nome, eventos: r.eventos, total: r.total });
     return r.participante;
@@ -1442,6 +1796,25 @@ function montarNovaRodada(participantes) {
     participantes: reordered.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) })),
     eventos: eventosRodada,
   };
+}
+
+/* ── Linha de log do dano por rodada de uma virada (puro) ──────────
+   `eventos` é o que montarNovaRodada devolve. Devolve null quando ninguém
+   sangrou na virada — o chamador então não mexe no log.
+
+   Existe pra que TODO caminho que vira a rodada registre a mordida do
+   veneno do mesmo jeito. Antes o texto estava copiado no novaRodada do
+   Mestre e no handlePassar do Jogador, e os quatro handle* do Jogador
+   (ação/teste/item/apoio) simplesmente DESCARTAVAM os eventos: quando o
+   turno do jogador virava a rodada, o dano por rodada era aplicado de
+   verdade nas pools, mas não aparecia no log nem na Central de Mensagens
+   — a EF caía sozinha, sem nada explicando. */
+function entradaLogViradaRodada(eventos, rodadaNova) {
+  if (!eventos || !eventos.length) return null;
+  const texto = eventos
+    .map((e) => `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`)
+    .join('; ');
+  return { rodada: rodadaNova, ts: Date.now(), acao: 'sistema', texto };
 }
 
 /* ── Aplica a consequência da Falha Crítica no ATACANTE (puro) ─────
@@ -1470,8 +1843,158 @@ function aplicarFalhaCritica(atacante, objDano, q) {
   return { participante: p, dano };
 }
 
+/* ── Aplica um efeito de apoio (magia) num participante ────────────
+   Só mexe em status_temp — o `vb` do snapshot fica intacto, exatamente como
+   aplicarFalhaCritica faz acima. vbEfetivo soma os mod_vb na hora de ordenar
+   a iniciativa e de calcular movimento/PA na virada da rodada.
+
+   Empilha por construção: cada aplicação é uma entrada nova, e
+   somaEfeitosStatus reduz por soma. Duas poções de pressa dão o dobro, e cada
+   uma expira no seu próprio prazo. */
+function aplicarEfeitoApoio(participante, magiaApoio, atorInstId) {
+  const atual = Array.isArray(participante.status_temp) ? participante.status_temp : [];
+  const novo = {
+    id: 'mag:' + magiaApoio.key + ':' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    nome: magiaApoio.nome,
+    icone: '🌀',
+    rodadas_rest: magiaApoio.rodadas != null ? magiaApoio.rodadas : null,
+    efeito: { tipo: 'mod_vb', valor: magiaApoio.mod_vb },
+  };
+  // Concentração: o efeito fica amarrado a QUEM o sustenta, pra que
+  // quebrarConcentracao saiba o que derrubar quando esse alguém agir.
+  if (magiaApoio.concentracao) {
+    novo.concentracao = { ator: atorInstId, magia_key: magiaApoio.key };
+  }
+  return { ...participante, status_temp: [...atual, novo] };
+}
+
+/* ── Quebra a concentração de um conjurador ────────────────────────
+   Regra confirmada em 01/09/2026: duração "Variável" significa que o
+   conjurador sustenta a magia e não pode fazer mais nada. Se atacar, lançar
+   outra magia, usar item, ANDAR, levar dano que chegue na EF, desmaiar,
+   morrer ou desistir, a magia cai — em TODOS os alvos de uma vez.
+
+   NÃO quebra: passar a vez sem agir (é assim que se sustenta), nem dano
+   inteiramente absorvido por EH ou AR — a cascata é EH → AR → EF, e a regra
+   é "dano na EF".
+
+   Devolve o MESMO array quando não há nada a remover: os chamadores usam
+   isso pra decidir se vale persistir. */
+function quebrarConcentracao(participantes, atorInstId) {
+  if (!atorInstId || !Array.isArray(participantes)) return participantes;
+  let mudou = false;
+  const next = participantes.map((p) => {
+    const st = Array.isArray(p.status_temp) ? p.status_temp : null;
+    if (!st || st.length === 0) return p;
+    const filtrado = st.filter((x) => !(x.concentracao && x.concentracao.ator === atorInstId));
+    if (filtrado.length === st.length) return p;
+    mudou = true;
+    return { ...p, status_temp: filtrado };
+  });
+  return mudou ? next : participantes;
+}
+
+/* ── Consequência de LEVAR DANO, em concentração (puro) ────────────
+   Regra única dos três caminhos de dano — aplicarDano (manual do Mestre),
+   aplicarAcao (ataque do Mestre) e handleAcao (ataque do Jogador).
+
+   A magia sustentada cai quando o dano CHEGA NA EF, ou quando o golpe
+   derruba/mata quem a sustentava. Dano contido inteiramente por EH ou AR
+   não quebra — a cascata é EH → AR → EF e a regra é "dano na Energia
+   Física" (ver quebrarConcentracao acima).
+
+   As DUAS condições importam, e é aí que os call sites erravam:
+
+     • aplicarDano não checava nenhuma. O dano manual é o caminho mais usado
+       pro dano que vem de fora do motor (queda, armadilha, narrativa), então
+       a vítima morria e o buff que ela sustentava seguia ativo no alvo.
+     • aplicarAcao e handleAcao checavam só a EF. Quem zera a EH DESMAIA sem
+       a EF ser tocada, e desmaiar quebra por si só — esse caso escapava.
+
+   Recebe o participante ANTES e DEPOIS do dano; sem motivo pra quebrar,
+   devolve o MESMO array. Cobertura: 12-batalha/concentracao-dano.test.js. */
+function quebrarConcentracaoPorDano(participantes, antes, depois) {
+  if (!antes || !depois) return participantes;
+  const chegouNaEF = (Number(depois.ef) || 0) < (Number(antes.ef) || 0);
+  const caiu = antes.status === 'ativo' && depois.status !== 'ativo';
+  if (!chegouNaEF && !caiu) return participantes;
+  return quebrarConcentracao(participantes, depois.inst_id);
+}
+
+/* ── Botão de ação do menu do token — só ícone ─────────────────────
+   Mover / Ação / Passar / Desistir aparecem no card do Mestre E no do
+   Jogador. Eram dois blocos de JSX quase iguais, com o rótulo escrito ao
+   lado do ícone; viraram este componente pra que a fileira não divirja
+   entre as duas telas.
+
+   Só ícone (pedido do usuário, 01/09/2026), então o rótulo PRECISA existir
+   em algum lugar: vai no aria-label sempre, e no tooltip do sistema quando
+   quem monta tem `abrirTip`. O `title` nativo é o fallback — o card do
+   Jogador não tinha tooltip nenhum até agora, e um ícone mudo ali seria
+   pior que o texto que saiu. */
+function BotaoAcaoMenu({ icone, rotulo, variante, onClick, disabled, extraClasse, abrirTip, fecharTip }) {
+  const temTip = typeof abrirTip === 'function';
+  return (
+    <button
+      type="button"
+      className={`btn-${variante || 'ghost'} btn-sm batalha-menu-acao-ic${extraClasse ? ' ' + extraClasse : ''}`}
+      /* Fecha o tooltip ANTES de agir. Vários destes botões trocam o que
+         está na tela (Ação abre o painel e some com a fileira inteira): o
+         botão desmonta com o tip aberto, o mouseleave nunca chega nele e o
+         balão fica órfão flutuando por cima do painel até o próximo hover. */
+      onClick={(e) => { if (typeof fecharTip === 'function') fecharTip(); if (onClick) onClick(e); }}
+      disabled={disabled}
+      aria-label={rotulo}
+      {...propsTip(abrirTip, fecharTip, temTip ? undefined : rotulo)}
+      onMouseEnter={temTip ? (e) => abrirTip(e, rotulo) : undefined}
+      onMouseLeave={temTip ? fecharTip : undefined}
+    >
+      <i className={'ti ' + icone} aria-hidden="true" />
+    </button>
+  );
+}
+
+/* ── Saída de combate: desmaiar, morrer ou desistir (puro) ─────────
+   Regra ÚNICA do Mestre (mudarStatus) e do Jogador (handleDesistir) —
+   as duas telas chamam esta função em vez de cada uma reimplementar as
+   três consequências:
+
+     1. o status do participante muda;
+     2. a magia que ele sustentava CAI em todos os alvos
+        (quebrarConcentracao — sair de combate é "não pode fazer mais
+        nada", ver a regra em quebrarConcentracao acima);
+     3. se era a VEZ dele, a vez passa pro próximo ativo; e se ele era o
+        ÚLTIMO da ordem, devolve viraRodada:true pro chamador virar a
+        rodada — em vez de zerar o `atual` de todos e deixar a batalha
+        parada sem ninguém pra agir.
+
+   O passo 3 é o que faltava no lado do Jogador (auditoria 01/09/2026):
+   desistir sendo o último da ordem era softlock, o MESMO que a virada
+   automática de 30/08/2026 já tinha matado em todos os outros caminhos.
+
+   A virada em si fica com o chamador porque cada lado persiste do seu
+   jeito: o Mestre por novaRodada() (que ainda loga o dano por rodada e
+   avisa a mesa), o Jogador por montarNovaRodada() + RPC.
+
+   Devolve { participantes, viraRodada }. Não muta o array recebido; sem
+   nada a fazer, devolve o MESMO array. */
+function saidaDeCombate(participantes, ref, novoStatus) {
+  const idx = (participantes || []).findIndex((p) => mesmoParticipante(p, ref));
+  if (idx < 0) return { participantes, viraRodada: false };
+  const antes = participantes[idx];
+  let next = participantes.map((p, i) => (i === idx ? { ...p, status: novoStatus } : p));
+  next = [...quebrarConcentracao(next, next[idx].inst_id)];
+  if (!antes.atual) return { participantes: next, viraRodada: false };
+  const prox = proximoAtivo(next, antes.ordem);
+  if (!prox) return { participantes: next, viraRodada: true };
+  return {
+    participantes: next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) })),
+    viraRodada: false,
+  };
+}
+
 /* ============================== Condução (Fase 4b: turnos + iniciativa) ============================== */
-function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, onHeaderActionsChange, onRolagemPendenteChange }) {
+function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = [], lang, onVoltar, onAtualizado, onHeaderActionsChange, onRolagemPendenteChange }) {
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
@@ -1482,14 +2005,15 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState(null);
   const [motorAberto, setMotorAberto] = useState(false);
-  const [danoOpen, setDanoOpen] = useState(null);   // ref_id+tipo do lutador com painel de dano aberto
-  const [danoVal, setDanoVal] = useState('');
-  const [danoCrit, setDanoCrit] = useState(false);
-  // Fase 6 — Cura, Status temporários, Encerrar com restauração
-  const [curaOpen, setCuraOpen] = useState(null);   // key do lutador com painel de cura
-  const [curaPool, setCuraPool] = useState('eh');   // 'eh' | 'ar' | 'ef'
-  const [curaVal,  setCuraVal]  = useState('');
-  const [statusOpen,    setStatusOpen]    = useState(null);  // key do lutador com painel de status temp
+  /* Edição de pool pelo card: clique numa das 4 barras (EF/EH/AR/KA) abre um
+     campo pro Mestre digitar o valor. Substituiu o par de botões coração
+     (dano/cura) em 01/09/2026 — eram dois painéis, um que SUBTRAÍA com
+     cascata e outro que SOMAVA numa pool escolhida num seletor. Agora é um
+     gesto só, e o mesmo da Ficha: clicou na barra, digitou o valor.
+     `poolOpen` guarda "fkey|pool" pra saber qual barra de qual lutador. */
+  const [poolOpen, setPoolOpen] = useState(null);
+  const [poolVal, setPoolVal] = useState('');
+  // Fase 6 — Status temporários, Encerrar
   const [statusNome,    setStatusNome]    = useState('');
   const [statusIcone,   setStatusIcone]   = useState('');
   const [statusRodadas, setStatusRodadas] = useState(3);
@@ -1498,25 +2022,21 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
   const [venenoVal,     setVenenoVal]     = useState('');
   const [venenoRodadas, setVenenoRodadas] = useState(3);
   const [encerrarOpen,  setEncerrarOpen]  = useState(false); // painel inline com toggle de restaurar
-  // Fase 7 — Roster colapsável: por padrão só nome+ícones ficam visíveis;
-  // as barras (EF/EH/AR/KA + condições) só aparecem expandidas. O lutador
-  // "atual" (vez dele, só em estado==='ativa') fica SEMPRE expandido — não
-  // é chave neste objeto, é forçado via `(estado==='ativa' && p.atual) ||
-  // !!rosterAbertos[fkey]` na hora de renderizar. Clique manual em
-  // qualquer card (inclusive o atual, mas aí não muda nada visualmente,
-  // já que o OR com "atual" domina) alterna sua própria chave aqui —
-  // outros cards não fecham junto, cada um guarda seu próprio estado.
-  const [rosterAbertos, setRosterAbertos] = useState({});
-  const alternarRoster = (fkey) => setRosterAbertos((prev) => ({ ...prev, [fkey]: !prev[fkey] }));
   const [catalogos, setCatalogos] = useState(null);
   const [acaoOpen, setAcaoOpen] = useState(false);
   // Teste agora é uma tab dentro do painel de Ação (AcaoPanel) — não tem mais
   // estado/botão próprio no footer da batalha.
-  const abrirAcao = () => setAcaoOpen((v) => !v);
   // Rolagem comprometida dentro do AcaoPanel (já existe d20 sem aplicar) —
   // reportada via onRolagemPendenteChange, usada pra travar os botões do
   // header (Passar/Nova Rodada/Encerrar) enquanto durar. Ver AcaoPanel.
   const [rolagemPendente, setRolagemPendente] = useState(false);
+
+  /* Rolagem feita e não aplicada, PERSISTIDA em batalhas.rolagem_pendente.
+     Semeada da linha do banco: é isso que faz o resultado sobreviver a
+     trocar de menu e a fechar o navegador. Toda escrita que APLICA a ação
+     zera a coluna no mesmo update — ver os `rolagem_pendente: null`. */
+  const [rolagemSalva, setRolagemSalva] = useState(batalha.rolagem_pendente || null);
+  const salvarRolagem = (r) => { setRolagemSalva(r); persistir({ rolagem_pendente: r }); };
   // Sobe esse mesmo estado mais um nível, pro avô (BatalhasHistoriaView)
   // travar também a seta de voltar do header da página — mesmo padrão já
   // usado por onHeaderActionsChange logo abaixo.
@@ -1553,7 +2073,7 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
       const criIds = participantes.filter((p) => p.tipo === 'criatura').map((p) => p.ref_id);
       const [pjRes, itRes, magRes, tecRes, habRes, criRes] = await Promise.all([
         pjIds.length  ? supabaseClient.from('personagens').select('*').in('id', pjIds) : Promise.resolve({ data: [] }),
-        supabaseClient.from('itens').select('*'),
+        fetchCatalogoCompleto(),
         supabaseClient.from('magias').select('*'),
         supabaseClient.from('tecnicas').select('*'),
         supabaseClient.from('habilidades').select('*'),
@@ -1611,7 +2131,13 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
           .from('historias').select('personagens_pools').eq('id', historia.id).maybeSingle();
         pools = histRow ? (histRow.personagens_pools || {}) : null;
       }
-      const snaps = await montarSnapshots(batalha.participantes || [], pools);
+      // `participantes` (estado), NÃO `batalha.participantes` (prop).
+      // O estado é inicializado da prop uma única vez (useState lá em cima) e
+      // nunca ressincronizado, então é ELE que acumula o posicionamento do
+      // setup — posicionarNoSetup escreve `pos` nele. Ler a prop aqui
+      // ressuscitava a lista sem posição nenhuma, e todo mundo voltava para a
+      // bancada assim que a batalha começava.
+      const snaps = await montarSnapshots(participantes || [], pools);
       let ordenados = ordenarIniciativa(snaps);
       const primeiro = [...ordenados].sort((a, b) => a.ordem - b.ordem).find((p) => p.status === 'ativo');
       ordenados = ordenados.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) }));
@@ -1628,47 +2154,81 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
   const current = participantes.find((p) => p.atual)
     || participantes.find((p) => p.status === 'ativo') || null;
 
-  const aplicarDano = (idx) => {
-    const v = parseInt(danoVal || '0', 10) || 0;
-    if (v <= 0) return;
-    const p = participantes[idx];
-    const atualizado = aplicarDanoCascata(v, p, !!danoCrit);
-    let next = participantes.map((q, i) => (i === idx ? atualizado : q));
-    // se deixou de estar ativo (morto OU desmaiado) e era o ator da vez, passa a vez
-    if (atualizado.status !== 'ativo' && p.atual) {
-      const prox = proximoAtivo(next, p.ordem);
-      next = next.map((q) => ({ ...q, atual: !!(prox && mesmoParticipante(q, prox)) }));
-    }
-    persistir({ participantes: next }, () => { setParticipantes(next); setDanoOpen(null); setDanoVal(''); setDanoCrit(false); });
+  /* ── TABULEIRO ────────────────────────────────────────────────────────
+     Dois modos de colocar token no grid, propositalmente diferentes:
+
+     SETUP — posicionamento livre. A batalha ainda não começou, então não
+     há PA nem movimento pra gastar; a única regra é caber no tabuleiro e
+     não empilhar. Escreve `pos` direto no participante CRU, que é o que
+     `montarSnapshots` lê no iniciar() pra semear o snapshot.
+
+     ATIVA — movimento de verdade: passa por moverParticipante, que cobra
+     as células andadas do mov_rest e 1 PA, e recusa com motivo.
+
+     Ambos devolvem boolean: true = o clique foi consumido (o tabuleiro
+     limpa a seleção), false = recusado (a mensagem vai pro `error`).    */
+  const posicionarNoSetup = (p, idx, destino) => {
+    if (salvando) return false;
+    if (!posValida(destino)) { setError(motivoMovimento('fora_do_tabuleiro', isEn)); return false; }
+    if (celulaOcupada(destino, participantes, p)) { setError(motivoMovimento('celula_ocupada', isEn)); return false; }
+    const next = participantes.map((q, i) => (i === idx ? { ...q, pos: { x: destino.x, y: destino.y } } : q));
+    setError(null);
+    persistir({ participantes: next }, () => setParticipantes(next));
+    return true;
   };
 
-  // Fase 6 — Cura inline (espelha aplicarDano). Adiciona à pool selecionada, capped no max.
-  // Se EH estava zerado e foi curada > 0 → reanima 'desmaiado' pra 'ativo'.
-  const aplicarCura = (idx) => {
-    const v = parseInt(curaVal || '0', 10) || 0;
-    if (v <= 0) return;
+  const moverNoTabuleiro = (p, idx, destino) => {
+    if (salvando) return false;
+    if (!p.atual) { setError(motivoMovimento('nao_e_a_vez', isEn)); return false; }
+    const r = moverParticipante(p, destino, participantes);
+    if (!r.ok) { setError(motivoMovimento(r.motivo, isEn)); return false; }
+    // Mover não gasta PA nem passa a vez (30/08/2026): quem anda continua com
+    // a ação dele para gastar. A vez só passa por Passar, por aplicarAcao ou
+    // por ficar sem PA agindo.
+    // Andar quebra a concentração (regra confirmada em 01/09/2026): sustentar
+    // a magia exige ficar parado evocando.
+    const movido = participantes.map((q, i) => (i === idx ? r.participante : q));
+    const next = [...quebrarConcentracao(movido, p.inst_id)];
+    setError(null);
+    persistir({ participantes: next }, () => setParticipantes(next));
+    return true;
+  };
+
+  // Enriquecimento do token (foto/raça). O snapshot já carrega os dois, mas
+  // no SETUP os participantes ainda são crus — aí isto é a única fonte.
+  const metaTokens = useMemo(() => {
+    const m = {};
+    (personagens || []).forEach((x) => { m['pj:' + x.id] = { foto_url: x.foto_url || null, raca: x.raca || null }; });
+    (criaturas || []).forEach((x) => { m['criatura:' + x.id] = { foto_url: null, raca: x.tipo || null }; });
+    return m;
+  }, [personagens, criaturas]);
+
+  /* Edição manual de UMA pool (EF/EH/AR/KA) pelo clique na barra.
+     Substituiu aplicarDano + aplicarCura em 01/09/2026. A diferença de fundo:
+     os dois antigos operavam por DELTA — o dano descia em cascata EH→AR→EF
+     com opção de crítico, a cura somava numa pool escolhida num seletor.
+     Este DEFINE o valor da pool que o Mestre clicou, que é o gesto pedido e o
+     mesmo que a Ficha já usa.
+
+     O que NÃO se perde no caminho, e é por isso que não é um setState seco:
+     baixar a EF pela barra tem as mesmas consequências de levar um golpe —
+     derruba a magia que o lutador sustentava e, se ele cair na própria vez,
+     passa o turno. Sem isso, a edição manual seria a porta pela qual o buraco
+     de concentração voltaria. O status sai de statusPorPools, o mesmo que o
+     consumo de item usa. */
+  const aplicarPool = (idx, pool) => {
     const p = participantes[idx];
-    const pool = curaPool;                              // 'eh' | 'ar' | 'ef'
-    const max  = p[pool + '_max'] || 0;
-    // EF pode estar NEGATIVA (piso EF_MORTE) — a cura parte do valor real
-    // (−10 + 5 → −5), sem o antigo floor em 0 que "teleportava" pra zero.
-    const piso = pool === 'ef' ? EF_MORTE : 0;
-    const novo = Math.max(piso, Math.min(max, (p[pool] || 0) + v));
-    const atualizado = { ...p, [pool]: novo };
-    // Reanimação: desmaiado só volta a 'ativo' quando as DUAS causas de
-    // queda estão sanadas — EH > 0 (se o combatente tem pool de EH) e
-    // EF > 0. Ex.: curar EH com EF ainda em −5 mantém o personagem caído.
-    if (p.status === 'desmaiado') {
-      const ehOk = pool === 'eh' ? novo > 0 : ((p.eh || 0) > 0 || (p.eh_max || 0) === 0);
-      const efOk = pool === 'ef' ? novo > 0 : (p.ef || 0) > 0;
-      if (ehOk && efOk) atualizado.status = 'ativo';
+    if (!p) return;
+    const atualizado = statusPorPools({ ...p, [pool]: valorPoolEditado(p, pool, poolVal) });
+    let next = participantes.map((q, k) => (k === idx ? atualizado : q));
+    next = [...quebrarConcentracaoPorDano(next, p, atualizado)];
+    const fechar = fecharPool;
+    if (atualizado.status !== 'ativo' && p.atual) {
+      const prox = proximoAtivo(next, p.ordem);
+      if (!prox) { fechar(); novaRodada(next); return; }   // era o último → vira a rodada
+      next = next.map((q) => ({ ...q, atual: mesmoParticipante(q, prox) }));
     }
-    // Cura EF acima de 0 NÃO ressuscita morto — Mestre tem que mudar status manualmente
-    // (ressuscitar é decisão narrativa, não automática).
-    const next = participantes.map((q, i) => (i === idx ? atualizado : q));
-    persistir({ participantes: next }, () => {
-      setParticipantes(next); setCuraOpen(null); setCuraVal(''); setCuraPool('eh');
-    });
+    persistir({ participantes: next }, () => { setParticipantes(next); fechar(); });
   };
 
   // Fase 6 — Status temporário: adiciona ao array do participante.
@@ -1688,9 +2248,16 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     const next = participantes.map((q, i) => (i === idx ? atualizado : q));
     persistir({ participantes: next }, () => {
       setParticipantes(next);
-      setStatusOpen(null); setStatusNome(''); setStatusIcone(''); setStatusRodadas(3);
+      setStatusNome(''); setStatusIcone(''); setStatusRodadas(3);
     });
   };
+
+  // Fecha o modal de Envenenar e devolve os campos ao padrão. Um lugar só,
+  // porque o modal fecha por três vias (x, Cancelar e Escape do ModalShell).
+  const fecharVeneno = () => { setVenenoOpen(null); setVenenoVal(''); setVenenoRodadas(3); };
+
+  // Idem para o editor de pool. Mesmas três vias de saída do ModalShell.
+  const fecharPool = () => { setPoolOpen(null); setPoolVal(''); };
 
   // Fase 1.2 — Aplica Envenenado com dano por rodada (direto na EF, regra
   // confirmada). O valor é digitado pelo Mestre; morde a cada Nova Rodada.
@@ -1709,10 +2276,7 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     const atual = Array.isArray(p.status_temp) ? p.status_temp : [];
     const atualizado = { ...p, status_temp: [...atual, novoStatus] };
     const next = participantes.map((q, i) => (i === idx ? atualizado : q));
-    persistir({ participantes: next }, () => {
-      setParticipantes(next);
-      setVenenoOpen(null); setVenenoVal(''); setVenenoRodadas(3);
-    });
+    persistir({ participantes: next }, () => { setParticipantes(next); fecharVeneno(); });
   };
 
   // Fase 6 — Remove um status temporário (clique no chip).
@@ -1737,8 +2301,15 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     if (alvoIdx < 0 || atorIdx < 0) return;
 
     let next = [...participantes];
+    // Atacar É uma ação: derruba a concentração de quem ataca.
+    next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     if (dano > 0) {
-      next[alvoIdx] = aplicarDanoCascata(dano, next[alvoIdx], critico);
+      const alvoAntes = next[alvoIdx];
+      next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, critico);
+      // E o golpe derruba a concentração do ALVO se furou até a EF dele ou
+      // se o derrubou/matou. Dano contido em EH ou AR não quebra — mas zerar
+      // a EH desmaia, e desmaiar quebra (ver quebrarConcentracaoPorDano).
+      next = [...quebrarConcentracaoPorDano(next, alvoAntes, next[alvoIdx])];
     }
     // Debita PA (sempre 1) e karma (se for magia).
     const k = Math.max(0, custo_karma || 0);
@@ -1758,14 +2329,16 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     }
 
     // PA zerado, incapaz OU sem ações (FC caído) → auto-passa a vez
+    let viraRodada = false;
     const ator = next[atorIdx];
     if ((ator.pa_rest === 0 || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual) {
       const prox = proximoAtivo(next, ator.ordem);
       if (prox) {
         next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
       } else {
-        // ninguém mais ativo nessa rodada → marca prox=null; nova rodada via clique manual
-        next = next.map((p) => ({ ...p, atual: false }));
+      // Sem próximo elegível: era o último da ordem. A rodada vira sozinha
+      // no fim (novaRodada abaixo), em vez de largar a batalha sem `atual`.
+        viraRodada = true;
       }
     }
 
@@ -1842,7 +2415,9 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
       });
     }
 
-    persistir({ participantes: next, log: novoLog }, () => {
+    if (viraRodada) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
+    setRolagemSalva(null);
+    persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
       setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
     });
   };
@@ -1859,18 +2434,23 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     if (testIdx < 0) return;
 
     let next = [...participantes];
+    // Fazer um teste é uma ação: quebra a concentração de quem testou.
+    next = [...quebrarConcentracao(next, next[testIdx].inst_id)];
     next[testIdx] = {
       ...next[testIdx],
       pa_rest: Math.max(0, (next[testIdx].pa_rest || 0) - 1),
     };
     // Se quem testou era o ator da vez e ficou sem PA → passa a vez.
+    let viraRodada = false;
     const t = next[testIdx];
     if (t.atual && t.pa_rest === 0) {
       const prox = proximoAtivo(next, t.ordem);
       if (prox) {
         next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
       } else {
-        next = next.map((p) => ({ ...p, atual: false }));
+      // Sem próximo elegível: era o último da ordem. A rodada vira sozinha
+      // no fim (novaRodada abaixo), em vez de largar a batalha sem `atual`.
+        viraRodada = true;
       }
     }
 
@@ -1946,7 +2526,9 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
       });
     }
 
-    persistir({ participantes: next, log: novoLog }, () => {
+    if (viraRodada) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
+    setRolagemSalva(null);
+    persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
       setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
     });
   };
@@ -1968,6 +2550,8 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     const qtd = Math.max(1, Number(quantidade) || 1);
 
     let next = [...participantes];
+    // Usar item é uma ação: quebra a concentração de quem usou.
+    next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     // Aplica o efeito (se houver) no snapshot do ator.
     next[atorIdx] = aplicarEfeitoItemSnapshot(next[atorIdx], cat, qtd);
     // Debita 1 PA (mesmo custo de qualquer ação do turno).
@@ -1976,13 +2560,20 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     // PA zerado OU ator incapacitado pelo próprio item (efeito negativo
     // derrubou/matou) → auto-passa a vez (mesmo comportamento do lado do
     // jogador, autoPassarSeNecessario).
+    let viraRodada = false;
     const atorSnap = next[atorIdx];
-    if (atorSnap.atual && (atorSnap.pa_rest === 0 || atorSnap.status !== 'ativo')) {
+    // `sem_acoes` entra aqui igual em aplicarAcao/aplicarApoio — era a única
+    // das três que não checava, e um FC "caído por N rodadas" que usasse item
+    // ficava com a vez presa.
+    if (atorSnap.atual && (atorSnap.pa_rest === 0 || atorSnap.status !== 'ativo'
+                           || statusTemEfeito(atorSnap, 'sem_acoes'))) {
       const prox = proximoAtivo(next, atorSnap.ordem);
       if (prox) {
         next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
       } else {
-        next = next.map((p) => ({ ...p, atual: false }));
+      // Sem próximo elegível: era o último da ordem. A rodada vira sozinha
+      // no fim (novaRodada abaixo), em vez de largar a batalha sem `atual`.
+        viraRodada = true;
       }
     }
 
@@ -2013,70 +2604,161 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     // escrita otimista direta do client — mesmo padrão do autosave que
     // 07-inventario/inventario.jsx já usa pra usarItem() fora de combate.
     // Só pra ator.tipo==='pj' (criaturas não têm inventário consumível aqui).
-    if (ator.tipo === 'pj' && catalogos && catalogos.pjById && catalogos.pjById[ator.ref_id]) {
-      const pjAtual = catalogos.pjById[ator.ref_id];
-      const invAtual = (pjAtual.inventario && pjAtual.inventario.itens) || [];
-      // Baixa por SLUG distribuída entre as pilhas (consumirDoInventario) —
-      // o card do AcaoPanel agrupa todas as instâncias do slug, então a
-      // baixa não pode assumir que a 1ª instância tem a quantidade toda.
-      const novosItens = consumirDoInventario(invAtual, slug, qtd);
-      const novoInv = { ...(pjAtual.inventario || {}), itens: novosItens };
-      // WRITE-THROUGH das condições (regra confirmada 06/07/2026: "usar um
-      // item muda os valores pré-batalha"): as condições finais do snapshot
-      // do ator vão pra ficha real (estado_atual.condicoes) IMEDIATAMENTE,
-      // no MESMO update do inventário (mesma linha de `personagens`) — não
-      // só no encerramento. Consequência assumida: "Encerrar restaurando"
-      // não desfaz condição alterada por item durante a batalha.
-      const novoEstado = { ...(pjAtual.estado_atual || {}), condicoes: { ...(next[atorIdx].condicoes || {}) } };
-      // Atualiza o cache local de catalogos.pjById otimisticamente, pra a
-      // lista do AcaoPanel refletir o consumo sem esperar um refetch.
-      catalogos.pjById[ator.ref_id] = { ...pjAtual, inventario: novoInv, estado_atual: novoEstado };
-      supabaseClient.from('personagens').update({ inventario: novoInv, estado_atual: novoEstado }).eq('id', ator.ref_id)
-        .then(({ error: invErr }) => {
-          if (invErr) console.error('[batalha] consumo de item (personagens.inventario) falhou:', invErr);
-        });
+    // SÓ o inventário vai pra ficha agora. Condição e vitalidade alteradas em
+    // combate ficam no snapshot e só chegam na ficha no ENCERRAMENTO (decisão
+    // do usuário, 01/09/2026: "os status alterados em combate só são levados
+    // para a ficha após o combate"), o que reverte o write-through de
+    // condições que existia aqui desde 06/07/2026.
+    //
+    // O inventário é exceção consciente: o item saiu da mochila de fato, não é
+    // status. Adiar isso exigiria carregar o consumo no snapshot até o fim e
+    // ainda deixaria a bolsa mentindo durante toda a batalha.
+    if (ator.tipo === 'pj') {
+      consumirItemDoPJ(ator.ref_id, slug, qtd).then((r) => {
+        if (!r.ok) { console.error('[batalha] consumo de item falhou:', r.error); return; }
+        // Reflete no cache local pra lista do AcaoPanel não esperar refetch.
+        const cache = catalogos && catalogos.pjById && catalogos.pjById[ator.ref_id];
+        if (cache) catalogos.pjById[ator.ref_id] = { ...cache, inventario: r.inventario };
+      });
     }
 
-    persistir({ participantes: next, log: novoLog }, () => {
+    if (viraRodada) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
+    setRolagemSalva(null);
+    persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
+      setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
+    });
+  };
+
+  // Fase 5e (01/09/2026) — aplica uma magia de APOIO (buff/debuff de
+  // velocidade). Debita 1 PA e o karma do conjurador, aplica o efeito no alvo
+  // (se ele não resistiu) e loga. Diferente de aplicarAcao: não há dano nem
+  // cascata, e o dado só entra quando a magia exige teste de resistência.
+  const aplicarApoio = (payload) => {
+    const { ator, alvo, magia, custo_karma, resistencia, d20, resistiu } = payload;
+    const atorIdx = participantes.findIndex((p) => mesmoParticipante(p, ator));
+    const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
+    if (atorIdx < 0 || alvoIdx < 0) return;
+
+    // Lançar uma magia é uma ação: derruba qualquer concentração ANTERIOR
+    // deste conjurador antes de aplicar a nova. Ninguém sustenta duas.
+    let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
+
+    const k = Math.max(0, custo_karma || 0);
+    next[atorIdx] = {
+      ...next[atorIdx],
+      pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1),
+      karma:   Math.max(0, (next[atorIdx].karma   || 0) - k),
+    };
+    if (!resistiu) {
+      next[alvoIdx] = aplicarEfeitoApoio(next[alvoIdx], magia, next[atorIdx].inst_id);
+    }
+
+    const entry = {
+      rodada, ts: Date.now(),
+      autor_tipo: ator.tipo, autor_ref_id: ator.ref_id, autor_nome: participantes[atorIdx].nome,
+      acao: 'apoio',
+      alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
+      magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
+      mod_vb: magia.mod_vb, rodadas: magia.rodadas,
+      concentracao: !!magia.concentracao,
+      custo_karma: k,
+      ...(resistencia ? { resistencia, d20, resistiu: !!resistiu } : {}),
+    };
+    const novoLog = [...log, entry];
+
+    if (historia && historia.id) {
+      const sinal = magia.mod_vb > 0 ? '+' : '';
+      const nomeAtor = participantes[atorIdx].nome;
+      const texto = resistiu
+        ? `${nomeAtor} lançou ${magia.nome} em ${alvo.nome} — resistiu`
+        : `${nomeAtor} lançou ${magia.nome} em ${alvo.nome} (${sinal}${magia.mod_vb} de velocidade)`;
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historia.id,
+        p_tipo: 'magia',
+        p_texto: texto,
+        p_meta: { batalha_id: batalha.id, ...entry },
+      }).then(({ error: rpcErr }) => {
+        if (rpcErr) console.error('[batalha] registrar_evento_mesa (apoio) falhou:', rpcErr);
+      });
+    }
+
+    // Mesma regra de fim de turno das outras ações.
+    let viraRodada = false;
+    const a = next[atorIdx];
+    if ((a.pa_rest === 0 || a.status !== 'ativo' || statusTemEfeito(a, 'sem_acoes')) && a.atual) {
+      const prox = proximoAtivo(next, a.ordem);
+      if (prox) next = next.map((q) => ({ ...q, atual: mesmoParticipante(q, prox) }));
+      else viraRodada = true;
+    }
+    if (viraRodada) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
+    setRolagemSalva(null);
+    persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
       setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
     });
   };
 
   const mudarStatus = (idx, novo) => {
     const alvo = participantes[idx];
-    let next = participantes.map((p, i) => (i === idx ? { ...p, status: novo } : p));
-    if (alvo && alvo.atual && novo !== 'ativo') {          // o ator da vez saiu → passa a vez
-      const prox = proximoAtivo(next, alvo.ordem);
-      next = next.map((p) => ({ ...p, atual: !!(prox && mesmoParticipante(p, prox)) }));
+    // Reativar não tem consequência nenhuma além do próprio status: não
+    // devolve concentração e não toma a vez de quem está agindo.
+    if (novo === 'ativo' || !alvo) {
+      const next = participantes.map((p, i) => (i === idx ? { ...p, status: novo } : p));
+      persistir({ participantes: next }, () => setParticipantes(next));
+      return;
     }
+    // Desmaiar, morrer ou desistir: status + concentração + vez, na mesma
+    // regra que o Jogador usa em handleDesistir (saidaDeCombate).
+    const { participantes: next, viraRodada } = saidaDeCombate(participantes, alvo, novo);
+    if (viraRodada) { novaRodada(next); return; }          // era o último → vira a rodada
     persistir({ participantes: next }, () => setParticipantes(next));
   };
 
-  const novaRodada = () => {
-    // Virada consolidada (Fase 1.2): dano por rodada morde → decrementa status
-    // → reordena por iniciativa efetiva → escolhe o primeiro elegível.
-    // MESMA função usada pelo handlePassar do Jogador quando a rodada vira.
-    const { participantes: next, eventos } = montarNovaRodada(participantes);
+  /* Virada consolidada (Fase 1.2): dano por rodada morde → decrementa status
+     → reordena por iniciativa efetiva → escolhe o primeiro elegível.
+     MESMA função usada pelo handlePassar do Jogador quando a rodada vira.
+
+     `base`/`logBase` existem porque a virada deixou de ser só do botão "Nova
+     Rodada" (30/08/2026): todo caminho que termina o turno do ÚLTIMO da ordem
+     — atacar, testar, usar item, morrer, mudar de status — cai aqui com o
+     estado que ele acabou de montar, em vez de zerar o `atual` de todos e
+     deixar a batalha parada esperando um clique. */
+  const novaRodada = (base, logBase, limpaRolagem) => {
+    const { participantes: next, eventos } = montarNovaRodada(base || participantes);
     const novaR = rodada + 1;
-    let novoLog = log;
-    if (eventos.length) {
-      const texto = eventos
-        .map((e) => `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`)
-        .join('; ');
-      novoLog = [...log, { rodada: novaR, ts: Date.now(), acao: 'sistema', texto }];
+    // Mesmo texto de virada que o Jogador escreve (entradaLogViradaRodada) —
+    // era copiado aqui e lá, e passou a ser um só quando os quatro handle* do
+    // Jogador também precisaram dele.
+    const entradaVirada = entradaLogViradaRodada(eventos, novaR);
+    let novoLog = logBase || log;
+    if (entradaVirada) {
+      novoLog = [...novoLog, entradaVirada];
       if (historia && historia.id) {
         supabaseClient.rpc('registrar_evento_mesa', {
           p_historia_id: historia.id,
           p_tipo: 'sistema',
-          p_texto: `Rodada ${novaR}: ${texto}`,
+          p_texto: `Rodada ${novaR}: ${entradaVirada.texto}`,
           p_meta: { batalha_id: batalha.id, rodada: novaR, dano_por_rodada: eventos },
         }).then(({ error: rpcErr }) => {
           if (rpcErr) console.error('[batalha] registrar_evento_mesa (rodada) falhou:', rpcErr);
         });
       }
     }
-    persistir({ participantes: next, log: novoLog, rodada: novaR }, () => {
+    persistir({ participantes: next, log: novoLog, rodada: novaR,
+                ...(limpaRolagem ? { rolagem_pendente: null } : {}) }, () => {
       setParticipantes(next); setLog(novoLog); setRodada(novaR);
+      // Fecha o painel de Ação SEMPRE que a rodada vira — aqui, e não em cada
+      // chamador. aplicarAcao/aplicarTeste/aplicarItem só fechavam o painel no
+      // callback do persistir do caminho normal; quando a ação virava a rodada
+      // (`if (viraRodada) { ...; novaRodada(...); return; }`) o return pulava
+      // esse fechamento e o painel ficava montado. Como o menu do token é uma
+      // render-prop, o React preservava a instância do AcaoPanel COM o d20 já
+      // rolado: matar o último oponente com o último PA deixava o painel preso
+      // exibindo "Sem alvos válidos." junto de "Já rolou — continue em Atacar.",
+      // com Atacar desabilitado (sem alvo), abas e header travados pela rolagem
+      // pendente e o X do menu escondido por menuTravado — softlock só resolvido
+      // recarregando a página. Rodada nova = ator novo e PA novo: nenhum painel
+      // aberto na rodada anterior continua válido.
+      setAcaoOpen(false);
     });
   };
 
@@ -2096,11 +2778,16 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     setEncerrarOpen(true);
   };
 
-  // Sobe os botões de ação (Ação/Passar/Nova Rodada/Encerrar, ou Iniciar) pro
+  // Sobe os botões de ação da BATALHA (Nova Rodada/Encerrar, ou Iniciar) pro
   // slot de ações do HEADER da página via onHeaderActionsChange — não mais um
   // footer fixo na base da tela. "Voltar" saiu da fileira: a seta do header
   // (sempre onClose, ver BatalhasHistoriaView) cobre essa ação agora, mesmo
   // durante a condução. Fica aqui, depois de todas as funções que referencia.
+  //
+  // Ação e Passar NÃO estão aqui (30/08/2026): agem sobre UM participante — o
+  // da vez — e por isso moraram no menu do avatar dele, junto de dano, cura e
+  // estado. No header ficavam órfãs de dono, longe do lutador que afetavam.
+  // Nova Rodada e Encerrar continuam no topo: são da batalha inteira.
   useEffect(() => {
     if (!onHeaderActionsChange) return;
     if (estado === 'setup') {
@@ -2121,17 +2808,6 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
     }
     onHeaderActionsChange(
       <>
-        <button type="button" className={acaoOpen ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
-          disabled={salvando || !current || !catalogos || (current && current.pa_rest <= 0) || rolagemPendente}
-          onMouseEnter={(e) => rolagemPendente && abrirTip(e, tb.concluaARolagemPendente)}
-          onMouseLeave={fecharTip}
-          onClick={abrirAcao}>
-          {tb.acao}
-        </button>
-        <button type="button" className="btn-icon btn-ghost btn-sm" disabled={salvando || !current || rolagemPendente} onClick={passarVez}
-          onMouseEnter={(e) => abrirTip(e, tb.passar)} onMouseLeave={fecharTip}>
-          <i className="ti ti-player-skip-forward" aria-hidden="true" />
-        </button>
         <button type="button" className="btn-icon btn-ghost btn-sm" disabled={salvando || rolagemPendente} onClick={novaRodada}
           onMouseEnter={(e) => abrirTip(e, tb.novaRodada)} onMouseLeave={fecharTip}>
           <i className="ti ti-refresh" aria-hidden="true" />
@@ -2146,59 +2822,44 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado, acaoOpen, salvando, current, catalogos, participantes, iniciando, isEn, rolagemPendente]);
 
-  // Aplica a escolha: atualiza historia.personagens_pools e chama a RPC de arquivamento.
-  // restaurar=true  → remove chaves dos PJs vivos do jsonb (volta ao max na próxima batalha)
-  // restaurar=false → grava snapshot final dos PJs no jsonb (vivos com pools atuais; mortos com ef=0)
+  // Encerra a batalha: leva o estado final pra ficha de cada PJ, limpa o
+  // personagens_pools da história e arquiva o log pela RPC.
   //
-  // Fase 7 — condicoes (Reputação/Sono/Sanidade/Saúde/Hidratação/Sobriedade/
-  // Temperatura/Alimentação) NÃO passam por personagens_pools (essas 4 chaves
-  // são as únicas que esse jsonb conhece) — vivem direto em
-  // personagens.estado_atual.condicoes, lidas/escritas também fora de
-  // batalha. Por decisão confirmada, seguem a MESMA regra de restaurar/
-  // sequelas que eh/ef/ar/karma: restaurar=true → não toca em estado_atual
-  // (ficha real do PJ permanece como estava antes da batalha); restaurar=
-  // false → grava as condições finais do snapshot de volta na ficha.
-  // NOTA (06/07/2026): com o write-through de condições no USO DE ITEM
-  // (aplicarItem/handleItem gravam estado_atual.condicoes na hora),
-  // restaurar=true já NÃO devolve a ficha ao estado pré-batalha para
-  // condições alteradas por item — só evita gravar as demais variações do
-  // snapshot. Decisão do usuário: "usar um item muda os valores
-  // pré-batalha". Por
-  // isso é uma segunda leitura+escrita (tabela personagens), separada da
-  // de historias.personagens_pools logo abaixo.
-  const finalizarEncerramento = async (restaurar) => {
+  // NÃO EXISTE MODO (decisão do usuário, 01/09/2026): "em combate nunca vamos
+  // sair restaurando — o que ficar em combate vai prevalecer SEMPRE". Antes
+  // havia dois caminhos, "Encerrar com sequelas" e "Restaurar e encerrar";
+  // o segundo devolvia os PJs às pools cheias e era até o botão primário do
+  // painel. Ficou um só: o combate é a verdade, e a ficha recebe o que saiu
+  // dele.
+  //
+  // Vale pras DUAS famílias de valor, que moram em lugares diferentes:
+  //   • eh/ef/ar/karma → estado_atual.vitalidade
+  //   • as 8 condicoes (Saúde/Sono/Hidratação/...) → estado_atual.condicoes
+  // Nenhuma das duas passa por historias.personagens_pools, que é legado e
+  // por isso é LIMPO no passo 1 — mantê-lo preenchido faria montarSnapshots
+  // preferi-lo a estado_atual e ignorar edição feita na ficha.
+  //
+  // O que é gravado por participante sai de estadoAoEncerrar (puro), que
+  // também barra PJ ausente e snapshot legado sem condições.
+  const finalizarEncerramento = async () => {
     setSalvando(true); setError(null);
 
     const pjsDaBatalha = participantes.filter((p) => p.tipo === 'pj');
 
-    // 0) Condições + Vitalidade — só roda se não for restaurar.
-    // Persiste TANTO condicoes (Saúde/Sono/etc.) QUANTO vitalidade
-    // (EF/EH/AR/Karma) em estado_atual, que é o que a ficha lê.
-    // Reads+writes em paralelo: cada PJ é linha independente.
-    if (!restaurar && pjsDaBatalha.length > 0) {
+    // 0) Condições + Vitalidade. Persiste TANTO condicoes (Saúde/Sono/etc.)
+    // QUANTO vitalidade (EF/EH/AR/Karma) em estado_atual, que é o que a ficha
+    // lê. Reads+writes em paralelo: cada PJ é linha independente.
+    if (pjsDaBatalha.length > 0) {
       const resultados = await Promise.all(pjsDaBatalha.map(async (p) => {
         const { data: pjRow, error: pjErr } = await supabaseClient
           .from('personagens').select('estado_atual').eq('id', p.ref_id).maybeSingle();
         if (pjErr) return { ok: false, error: pjErr };
         const estadoAtual = (pjRow && pjRow.estado_atual) || {};
 
-        // Vitalidade: persiste os valores do snapshot de batalha em
-        // estado_atual.vitalidade (chaves lidas pelas barras da ficha).
-        // Personagem morto recebe ef: EF_MORTE e eh: 0 para indicar morte.
-        const ismorto = p.status === 'morto';
-        const novoVit = {
-          ...(estadoAtual.vitalidade || {}),
-          ef: ismorto ? EF_MORTE : (Number.isFinite(p.ef)    ? p.ef    : undefined),
-          eh: ismorto ? 0         : (Number.isFinite(p.eh)    ? p.eh    : undefined),
-          ar: Number.isFinite(p.ar)    ? p.ar    : undefined,
-          ka: Number.isFinite(p.karma) ? p.karma : undefined,
-        };
-
-        const novoEstado = {
-          ...estadoAtual,
-          condicoes:  { ...(p.condicoes || {}) },
-          vitalidade: novoVit,
-        };
+        // Volta do combate pra ficha — ver estadoAoEncerrar. null = este
+        // participante não deve escrever nada (PJ ausente/não carregado).
+        const novoEstado = estadoAoEncerrar(estadoAtual, p);
+        if (!novoEstado) return { ok: true };
         const { error: condErr } = await supabaseClient
           .from('personagens').update({ estado_atual: novoEstado }).eq('id', p.ref_id);
         if (condErr) return { ok: false, error: condErr };
@@ -2206,20 +2867,6 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
       }));
       const falha = resultados.find((r) => !r.ok);
       if (falha) { setSalvando(false); setError(falha.error.message); return; }
-    }
-
-    // 0b) Restaurar: limpa vitalidade de estado_atual para que a ficha
-    // exiba barras cheias (personagens_pools já é deletado abaixo para o
-    // mesmo efeito dentro da batalha, mas a ficha lê estado_atual).
-    // Erros silenciosos — não bloqueia o encerramento.
-    if (restaurar && pjsDaBatalha.length > 0) {
-      await Promise.all(pjsDaBatalha.map(async (p) => {
-        const { data: pjRow } = await supabaseClient
-          .from('personagens').select('estado_atual').eq('id', p.ref_id).maybeSingle();
-        if (!pjRow?.estado_atual?.vitalidade) return;
-        const novoEstado = { ...pjRow.estado_atual, vitalidade: {} };
-        await supabaseClient.from('personagens').update({ estado_atual: novoEstado }).eq('id', p.ref_id);
-      }));
     }
 
     // 1) Lê personagens_pools atual da história (fresh).
@@ -2261,34 +2908,53 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
   };
 
 
-  // Cor das 8 condições: por SINAL do valor bruto (corCondicao, helpers.jsx
-  // — negativo vermelho / neutro / positivo verde), não mais gradiente por
-  // percentual. EF/EH/AR/KA não usam isto (corDinamica fica de fora pra eles).
-  const _corCondicao = (typeof corCondicao !== 'undefined' ? corCondicao : null) || window.corCondicao || (() => '#888');
-  const _COND_LIMITE = (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null) ?? window.COND_LIMITE ?? 50;
-
-  // opts: { key, title, icon, corDinamica, min } — todos opcionais. icon
-  // substitui o texto do label por um ícone (Fase: ícones tabler em EF/EH/
-  // AR/KA); title vira tooltip (usado pelas condições, label abreviado); key
-  // é repassada pro React quando poolBar é chamado dentro de um .map();
-  // corDinamica troca o gradiente fixo de .pool-X i pela cor por sinal
-  // (usado pelas 8 condições, que não têm uma cor de categoria própria como
-  // EF/EH/AR/KA têm — sem isso a barra preenche a largura certa mas fica
-  // invisível, sem nenhum background definido); min (default 0) é o piso da
-  // faixa — condições usam -COND_LIMITE pra preencher a barra pela POSIÇÃO
-  // no intervalo [min,max] inteiro, não só v/max (que quebraria pra v<0).
+  // Barra de pool do card: EF / EH / AR / KA. Cada uma tem cor de categoria
+  // própria, vinda do CSS (.pool-ef i, .pool-eh i, …), então aqui só entra a
+  // largura.
+  //
+  // As opções `corDinamica` (cor por sinal do valor) e `min` (piso negativo
+  // da faixa) existiam só para as 8 CONDIÇÕES, que saíram do card em
+  // 01/09/2026 — saíram junto. A condição continua com faixa bidirecional e
+  // cor por sinal na Ficha, que é quem a exibe agora (11-ficha/ficha.jsx,
+  // corCondicao/corTemperatura/corSobriedade).
+  //
+  // opts: { key, title, icon, onEditar } — todos opcionais. `icon` substitui o
+  // texto do label por um ícone tabler; `title` vira tooltip; `key` é
+  // repassada pro React quando poolBar é chamado dentro de um .map();
+  // `onEditar`, quando existe, transforma a barra num BOTÃO que abre o editor
+  // daquela pool — é como o Mestre passou a ajustar EF/EH/AR/KA desde que os
+  // botões coração saíram (01/09/2026). Sem ele a barra é só leitura, que é o
+  // caso do card do Jogador.
   const poolBar = (label, v, max, opts) => {
-    const { key, title, icon, corDinamica, min } = opts || {};
-    const lo = min ?? 0;
-    const span = max - lo;
-    const pct = span > 0 ? Math.max(0, Math.min(100, ((v - lo) / span) * 100)) : 0;
-    return (
-      <div key={key} className={'batalha-pool pool-' + label.toLowerCase()}
-        onMouseEnter={(e) => title && abrirTip(e, title)} onMouseLeave={fecharTip}>
+    const { key, title, icon, onEditar } = opts || {};
+    const pct = max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0;
+    const conteudo = (
+      <>
         <span className="batalha-pool-label">{icon || label}</span>
         <span className="batalha-pool-bar">
-          <i style={{ width: pct + '%', ...(corDinamica ? { background: _corCondicao(v) } : null) }} />
+          <i style={{ width: pct + '%' }} />
         </span>
+      </>
+    );
+    const classe = 'batalha-pool pool-' + label.toLowerCase() + (onEditar ? ' editavel' : '');
+    if (onEditar) {
+      return (
+        /* Fecha o tooltip ANTES de abrir o editor: a barra fecha o card
+           junto, some da tela com o balão aberto, e aí o mouseleave nunca
+           chega nela — o "EF — editar" ficava flutuando sobre o modal.
+           Mesmo caso do BotaoAcaoMenu. */
+        <button key={key} type="button" className={classe}
+          onClick={(e) => { fecharTip(); onEditar(e); }}
+          aria-label={title || label}
+          onMouseEnter={(e) => title && abrirTip(e, title)} onMouseLeave={fecharTip}>
+          {conteudo}
+        </button>
+      );
+    }
+    return (
+      <div key={key} className={classe}
+        onMouseEnter={(e) => title && abrirTip(e, title)} onMouseLeave={fecharTip}>
+        {conteudo}
       </div>
     );
   };
@@ -2307,6 +2973,21 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
             </li>
           ))}
         </ul>
+        {/* Tabuleiro em modo POSICIONAMENTO: sem PA nem movimento, só
+            colocar cada token onde vai começar. As posições vão pro
+            participante cru e o iniciar() as herda no snapshot. */}
+        <TabuleiroBatalha
+          entradas={participantes.map((p, i) => ({ p, i }))}
+          meta={metaTokens}
+          podeSelecionar={() => !salvando}
+          alcanceDe={() => null}
+          onMover={posicionarNoSetup}
+          salvando={salvando}
+          isEn={isEn}
+          tb={tb}
+          abrirTip={abrirTip}
+          fecharTip={fecharTip}
+        />
         {error && <div className="err-msg" style={{ marginTop: 10 }}>{error}</div>}
         {/* Botão "Iniciar batalha" é renderizado no slot de ações do HEADER
             da página (via onHeaderActionsChange, junto do mesmo padrão usado
@@ -2354,70 +3035,102 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
                 <span>{tb.todosOsPjsNo}</span>
               )}
             </div>
+            {/* Um caminho só: encerrar leva o estado do combate pra ficha.
+                O "Restaurar e encerrar" saiu em 01/09/2026 — ver o comentário
+                de finalizarEncerramento. */}
             <div className="batalha-encerrar-acoes">
               <button className="btn-ghost btn-sm" onClick={() => setEncerrarOpen(false)} disabled={salvando}>
                 {tb.cancelar}
               </button>
-              <button className="btn-ghost btn-sm" onClick={() => finalizarEncerramento(false)} disabled={salvando}
+              <button className="btn-primary btn-sm" onClick={() => finalizarEncerramento()} disabled={salvando}
                 onMouseEnter={(e) => abrirTip(e, tb.pjsFeridosMantemAs)}
                 onMouseLeave={fecharTip}>
-                {tb.encerrarComSequelas}
-              </button>
-              <button className="btn-primary btn-sm" onClick={() => finalizarEncerramento(true)} disabled={salvando}
-                onMouseEnter={(e) => abrirTip(e, tb.pjsFeridosVoltamAo)}
-                onMouseLeave={fecharTip}>
-                {tb.restaurarEEncerrar}
+                {tb.encerrar}
               </button>
             </div>
           </div>
         );
       })()}
 
-      {estado === 'ativa' && acaoOpen && current && catalogos && (
-        <AcaoPanel
-          ator={current}
-          participantes={participantes}
-          catalogos={catalogos}
-          lang={lang}
-          onAplicar={aplicarAcao}
-          onAplicarTeste={aplicarTeste}
-          onAplicarItem={aplicarItem}
-          onCancel={() => setAcaoOpen(false)}
-          onRolagemPendenteChange={setRolagemPendente}
-        />
-      )}
+      {/* Tabuleiro em modo COMBATE: só quem está na vez se move, o halo
+          mostra as células que ainda restam, e cada movimento cobra 1 PA.
+          Encerrada continua exibindo o grid, mas sem permitir mover.
 
-      {error && <div className="err-msg">{error}</div>}
+          Os cards do roster saíram (30/08/2026): tudo o que ficava neles —
+          status, chips, stats, dano/cura/estado e as pools — mora agora no
+          menu que abre ao clicar no avatar do token. O painel de Ação (arma,
+          habilidade, técnica, resistência, item) também mora nele desde
+          30/08/2026 — clicar em "Ação" TROCA o conteúdo do menu pelo painel,
+          em vez de abrir uma segunda área no corpo da página. Por isso
+          `menuDe` continua ativo com `acaoOpen`; só motor e encerramento,
+          que são telas de batalha inteira, ainda o escondem.
 
-      <div className={'batalha-roster' + (acaoOpen || motorAberto || encerrarOpen ? ' batalha-roster--hidden' : '')}>
-        {participantes.map((p, i) => {
+          `podeSelecionar` exige `p.atual`: tem que ser a MESMA condição de
+          moverNoTabuleiro (que recusa com `!p.atual`) e de alcanceDe (só o da
+          vez ganha halo). Quando era só `estado === 'ativa'`, o menu oferecia
+          "Mover" para todo participante, fechava, não desenhava halo nenhum e
+          o clique na grade era recusado com a mensagem fora da tela — parecia
+          que o tabuleiro simplesmente não movia ninguém. */}
+      <TabuleiroBatalha
+        entradas={participantes.map((p, i) => ({ p, i }))}
+        meta={metaTokens}
+        podeSelecionar={(p) => !salvando && estado === 'ativa' && !!p.atual && !p.moveu_na_rodada}
+        alcanceDe={(p) => (estado === 'ativa' && p.atual
+          ? (Number.isFinite(p.mov_rest) ? p.mov_rest : movimentoBase(p.vb))
+          : null)}
+        onMover={estado === 'ativa' ? moverNoTabuleiro : undefined}
+        salvando={salvando}
+        isEn={isEn}
+        tb={tb}
+        abrirTip={abrirTip}
+        fecharTip={fecharTip}
+        aviso={error}
+        menuTravado={rolagemPendente}
+        /* O X volta pras ações iniciais em vez de fechar o card, quando é o
+           painel de Ação que está na tela. A condição é a MESMA do menuDe
+           logo abaixo — se divergirem, o X ou fecha quando devia voltar, ou
+           volta pra um painel que não está aberto. */
+        menuVoltar={(p) => (estado === 'ativa' && acaoOpen && p.atual && catalogos)
+          ? () => setAcaoOpen(false) : null}
+        menuDe={(motorAberto || encerrarOpen) ? undefined : (p, i, fechar, mover) => {
           const fkey = p.inst_id || (p.tipo + ':' + p.ref_id + ':' + i);
-          // Atual (vez dele) fica sempre expandido enquanto a batalha está
-          // ativa; os demais só expandem se o Mestre clicou pra abrir.
-          const expandido = (estado === 'ativa' && p.atual) || !!rosterAbertos[fkey];
+          // Painel de Ação: ocupa o menu inteiro de quem está agindo. Só faz
+          // sentido para o lutador da vez — é dele o PA que a ação gasta.
+          if (estado === 'ativa' && acaoOpen && p.atual && catalogos) {
+            return (
+              <AcaoPanel
+                ator={p}
+                participantes={participantes}
+                catalogos={catalogos}
+                lang={lang}
+                onAplicar={aplicarAcao}
+                onAplicarTeste={aplicarTeste}
+                onAplicarItem={aplicarItem}
+                onAplicarApoio={aplicarApoio}
+                onCancel={() => setAcaoOpen(false)}
+                onRolagemPendenteChange={setRolagemPendente}
+                rolagemSalva={rolagemSalva}
+                onRolagemSalvaChange={salvarRolagem}
+                abrirTip={abrirTip}
+                fecharTip={fecharTip}
+              />
+            );
+          }
           return (
-          <div key={fkey}
-            className={'batalha-fighter status-' + (p.status || 'ativo') + (p.atual && estado === 'ativa' ? ' atual' : '')}>
+          <div className={'batalha-fighter em-menu status-' + (p.status || 'ativo') + (p.atual && estado === 'ativa' ? ' atual' : '')}>
             <div className="batalha-fighter-main">
               <div className="batalha-fighter-head">
-                <div className="batalha-fighter-id"
-                  role="button" tabIndex={0}
-                  aria-expanded={expandido}
-                  aria-label={(tb.expandirRecolherBarrasDe) + p.nome}
-                  onClick={() => alternarRoster(fkey)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarRoster(fkey); } }}>
+                <div className="batalha-fighter-id no-pointer">
                   <span className={'batalha-fighter-status-ic st-' + (p.status || 'ativo')}
                     onMouseEnter={(e) => abrirTip(e, isEn ? STATUS[p.status || 'ativo'].en : STATUS[p.status || 'ativo'].pt)}
                     onMouseLeave={fecharTip}>
-                    {p.status === 'morto' ? <i className="ti ti-skull" aria-hidden="true" />
-                      : p.status === 'desmaiado' ? <i className="ti ti-zzz" aria-hidden="true" />
-                      : p.status === 'desistiu' ? <i className="ti ti-door-exit" aria-hidden="true" />
-                      : <i className="ti ti-check" aria-hidden="true" />}
+                    <i className={'ti ' + iconeStatus(p.status || 'ativo')} aria-hidden="true" />
                   </span>
-                  <span className="batalha-fighter-nome">{p.nome.split(' ')[0]}</span>
+                  {/* No menu cabe o nome inteiro — o card cortava no primeiro
+                      nome por causa da largura da coluna, restrição que sumiu. */}
+                  <span className="batalha-fighter-nome">{p.nome}</span>
                   {p.ausente && <span className="batalha-aviso">{tb.ausente}</span>}
-                  {/* Fase 6: chips de status temporarios - clique remove. stopPropagation
-                      pra não alternar o collapse junto (clicou no chip, não no card). */}
+                  {/* Chips de status temporários — clique remove. */}
                   {Array.isArray(p.status_temp) && p.status_temp.map((s) => (
                     <span key={s.id} className="batalha-status-chip"
                       onClick={(e) => { e.stopPropagation(); if (estado === 'ativa') removerStatusTemp(i, s.id); }}
@@ -2430,39 +3143,42 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
                       <span className="batalha-status-chip-rod">{s.rodadas_rest}</span>
                     </span>
                   ))}
-                  <i className="ti ti-chevron-down batalha-fighter-toggle-ic" aria-hidden="true" />
                 </div>
 
+                {/* Velocidade, ações e defesa ao lado do NOME desde
+                    03/09/2026, como ícone + valor. RM e RF saíram: são
+                    consultados na hora de um teste de resistência, e a aba
+                    Resistência do painel já os traz — na fileira do card
+                    ocupavam espaço todo turno pra serem lidos quase nunca.
+                    Com só três restando, a fileira separada perdeu a razão
+                    de existir e virou esta faixa. O seletor de estado veio
+                    junto: ele tem que ficar inline com os stats. */}
                 <div className="batalha-fighter-stats">
-                  <span className="batalha-stat"><span>VB</span><b>{p.vb}</b></span>
-                  <span className="batalha-stat"><span>{tb.pa}</span><b>{p.pa_rest}/{p.pa_max}</b></span>
-                  <span className="batalha-stat"><span>{tb.df}</span><b>{p.defesa_sigla || 'L'}{p.defesa_valor || 0}</b></span>
-                  <span className="batalha-stat"><span>RM</span><b>{p.rm || 0}</b></span>
-                  <span className="batalha-stat"><span>RF</span><b>{p.rf || 0}</b></span>
-                </div>
-                {estado === 'ativa' && (
-                  <div className="batalha-fighter-acoes-inline">
-                    <button className="btn-icon btn-sm dmg"
-                      onClick={() => {
-                        setDanoOpen(danoOpen === fkey ? null : fkey); setCuraOpen(null); setStatusOpen(null);
-                        setDanoVal(''); setDanoCrit(false);
-                      }}
-                      aria-label={tb.dano}
-                      onMouseEnter={(e) => abrirTip(e, tb.dano)}
-                      onMouseLeave={fecharTip}>
-                      <i className="ti ti-heart-minus" aria-hidden="true" />
-                    </button>
-                    <button className="btn-icon btn-sm heal"
-                      onClick={() => {
-                        setCuraOpen(curaOpen === fkey ? null : fkey); setDanoOpen(null); setStatusOpen(null);
-                        setCuraVal(''); setCuraPool('eh');
-                      }}
-                      aria-label={tb.cura}
-                      onMouseEnter={(e) => abrirTip(e, tb.cura)}
-                      onMouseLeave={fecharTip}>
-                      <i className="ti ti-heart-plus" aria-hidden="true" />
-                    </button>
-                    {/* Estado — dropdown via portal, não cortado pelo overflow do pai */}
+                  <span className="batalha-stat ic"
+                    onMouseEnter={(e) => abrirTip(e, (tb.statNome && tb.statNome.vb) || 'VB')}
+                    onMouseLeave={fecharTip}>
+                    <i className="ti ti-run-sprint" aria-hidden="true" /><b>{p.vb}</b>
+                  </span>
+                  <span className="batalha-stat ic so-ic"
+                    onMouseEnter={(e) => abrirTip(e, `${(tb.statNome && tb.statNome.pa) || tb.pa} · ${p.pa_rest}/${p.pa_max}`)}
+                    onMouseLeave={fecharTip}
+                    aria-label={`${(tb.statNome && tb.statNome.pa) || tb.pa}: ${p.pa_rest}/${p.pa_max}`}>
+                    <i className={'ti ' + iconePA(p.pa_rest)} aria-hidden="true" />
+                  </span>
+                  <span className="batalha-stat ic"
+                    onMouseEnter={(e) => abrirTip(e, (tb.statNome && tb.statNome.df) || tb.df)}
+                    onMouseLeave={fecharTip}>
+                    {/* shield-half, não shield: a pool AR logo abaixo já usa
+                        o escudo cheio, e dois escudos idênticos no mesmo
+                        card não se distinguem de relance. */}
+                    <i className="ti ti-shield-half" aria-hidden="true" /><b>{p.defesa_sigla || 'L'}{p.defesa_valor || 0}</b>
+                  </span>
+                  {/* O seletor de estado mora NESTA linha, junto de VB/PA/DF/
+                      RM/RF — é leitura do combatente, como os outros pills,
+                      não uma ação de turno. Não vai na fileira de baixo:
+                      Mover/Ação/Passar só existem pra quem está na vez, e o
+                      estado vale pra qualquer participante. */}
+                  {estado === 'ativa' && (
                     <EstadoDrop
                       p={p}
                       isEn={isEn}
@@ -2471,129 +3187,241 @@ function ConduzirBatalhaView({ batalha, historia, lang, onVoltar, onAtualizado, 
                       abrirTip={abrirTip}
                       fecharTip={fecharTip}
                       onEnvenenar={() => {
-                        // Fase 1.2: abre o painel de valor/rodadas — o veneno
-                        // agora tem DENTE (dano_por_rodada, direto na EF).
-                        setVenenoOpen(venenoOpen === fkey ? null : fkey);
-                        setDanoOpen(null); setCuraOpen(null);
+                        // Guarda o ÍNDICE (e o nome, pro título): o modal vive
+                        // fora do card, então não tem `p` nem `i` no escopo.
+                        setVenenoOpen({ idx: i, nome: p.nome });
+                        setPoolOpen(null);
+                        // Fecha o card: ele tem z-index 9600 e nasceria POR
+                        // CIMA do modal, tapando o primeiro campo.
+                        fechar();
                       }}
                     />
-                  </div>
-                )}
+                  )}
+                </div>
+                {/* A linha de ações inline (coração de dano, coração de cura e
+                    o seletor de estado) saiu em 01/09/2026: o Mestre edita as
+                    pools clicando direto na barra, e o seletor de estado
+                    desceu pra fileira de ações junto de Mover/Ação/Passar. */}
               </div>
 
-              {estado === 'ativa' && danoOpen === fkey && (
-                <div className="batalha-dano-painel">
-                  <input className="batalha-dano-input" type="number" min="0" value={danoVal}
-                    onChange={(e) => setDanoVal(e.target.value)} placeholder={tb.valor} autoFocus />
-                  <label className="batalha-dano-crit">
-                    <input type="checkbox" checked={danoCrit} onChange={(e) => setDanoCrit(e.target.checked)} />
-                    {tb.crU00edticoPulaEh}
-                  </label>
-                  <button className="btn-primary btn-sm" onClick={() => aplicarDano(i)} disabled={salvando}>
-                    {tb.aplicar}
-                  </button>
-                  <button className="btn-ghost btn-sm" onClick={() => { setDanoOpen(null); setDanoVal(''); setDanoCrit(false); }}>
-                    {tb.cancelar}
-                  </button>
+              {/* Mover, Ação e Passar agem sobre quem está na vez, então
+                  dividem a fileira. Só Mover e Passar fecham o menu — Mover
+                  porque o popover cobre o tabuleiro, Passar porque a vez muda
+                  de dono. "Ação" MANTÉM o menu aberto e troca o conteúdo dele
+                  pelo painel (ver acima). `mover` vem null quando o
+                  participante não pode mover (não é a vez, ou já andou). */}
+              {/* A fileira é INTEIRA do turno: Mover, Ação e Passar só existem
+                  pra quem está na vez. Por isso a guarda pede `p.atual` —
+                  sem ele o <div> nascia pra qualquer participante e, como os
+                  três botões dentro já exigiam a vez, sobrava uma faixa VAZIA
+                  com border-top e padding: uma segunda linha no card sem nada
+                  dentro (03/09/2026).
+
+                  A guarda dupla que existia aqui fazia sentido enquanto o
+                  seletor de estado morava nesta fileira — ele vale pra
+                  qualquer um, na vez ou não. O seletor subiu pra linha dos
+                  stats, e com ele foi embora a razão de o <div> existir fora
+                  do turno. O card do Jogador já era guardado assim
+                  (ehEu && ehMinhaVez && souAtivo); agora os dois batem. */}
+              {estado === 'ativa' && p.atual && (
+                <div className="batalha-menu-acoes">
+                  {mover && (
+                    <BotaoAcaoMenu icone="ti-footsteps" onClick={mover}
+                      rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')}
+                      abrirTip={abrirTip} fecharTip={fecharTip} />
+                  )}
+                  <BotaoAcaoMenu icone="ti-swords" variante="primary" rotulo={tb.acao}
+                    disabled={salvando || !catalogos || p.pa_rest <= 0 || rolagemPendente}
+                    onClick={() => setAcaoOpen(true)}
+                    // Com rolagem pendente o motivo da trava importa mais que
+                    // o nome do botão — é o único jeito de o Mestre entender
+                    // por que "Ação" está apagado.
+                    abrirTip={(e, r) => abrirTip(e, rolagemPendente ? tb.concluaARolagemPendente : r)}
+                    fecharTip={fecharTip} />
+                  <BotaoAcaoMenu icone="ti-player-skip-forward" rotulo={tb.passar}
+                    disabled={salvando || rolagemPendente}
+                    onClick={() => { fechar(); passarVez(); }}
+                    abrirTip={abrirTip} fecharTip={fecharTip} />
                 </div>
               )}
-              {/* Fase 1.2 — Painel inline do Envenenado (dano por rodada, direto na EF) */}
-              {estado === 'ativa' && venenoOpen === fkey && (
-                <div className="batalha-dano-painel veneno">
-                  <span className="batalha-painel-lbl">☠ {tb.veneno}:</span>
-                  <input className="batalha-dano-input" type="number" min="1" value={venenoVal}
-                    onChange={(e) => setVenenoVal(e.target.value)}
-                    placeholder={tb.danoRodada} autoFocus />
-                  <input className="batalha-dano-input" type="number" min="1" value={venenoRodadas}
-                    onChange={(e) => setVenenoRodadas(e.target.value)}
-                    placeholder={tb.rodadas} />
-                  <button className="btn-primary btn-sm" onClick={() => aplicarVeneno(i)} disabled={salvando || !venenoVal}>
-                    {tb.aplicar}
-                  </button>
-                  <button className="btn-ghost btn-sm" onClick={() => { setVenenoOpen(null); setVenenoVal(''); setVenenoRodadas(3); }}>
-                    {tb.cancelar}
-                  </button>
-                </div>
-              )}
-              {/* Fase 6 - Painel inline de Cura */}
-              {estado === 'ativa' && curaOpen === fkey && (
-                <div className="batalha-dano-painel cura">
-                  <span className="batalha-painel-lbl">{tb.pool}:</span>
-                  {['eh', 'ar', 'ef'].map((pool) => (
-                    <button key={pool}
-                      className="btn-ghost btn-sm pool-btn"
-                      data-on={curaPool === pool ? 'true' : undefined}
-                      data-tone="heal"
-                      onClick={() => setCuraPool(pool)}>
-                      {pool.toUpperCase()}
-                    </button>
-                  ))}
-                  <input className="batalha-dano-input" type="number" min="0" value={curaVal}
-                    onChange={(e) => setCuraVal(e.target.value)} placeholder={tb.valor} autoFocus />
-                  <span className="batalha-painel-hint">{p[curaPool]}/{p[curaPool + '_max']}</span>
-                  <button className="btn-primary btn-sm" onClick={() => aplicarCura(i)} disabled={salvando}>
-                    {tb.aplicar}
-                  </button>
-                  <button className="btn-ghost btn-sm" onClick={() => { setCuraOpen(null); setCuraVal(''); }}>
-                    {tb.cancelar}
-                  </button>
-                </div>
-              )}
-              {/* Pools: renderizado condicionalmente — evita espaço residual do gap quando fechado */}
-              {expandido && (
-              <div className="batalha-fighter-collapse is-open">
-                <div className="batalha-fighter-collapse-inner">
+
+              {/* O Envenenado virou MODAL (01/09/2026) e é renderizado fora do
+                  card, no fim da view — dois campos numa faixa inline dentro
+                  de um popover que já é estreito ficavam espremidos, e o
+                  segundo campo (rodadas) passava despercebido. */}
+              {/* O editor de pool também virou MODAL (02/09/2026), renderizado
+                  fora do card junto do de Envenenar. A faixa inline que ficava
+                  aqui espremia campo, valor atual e dois botões numa linha só
+                  dentro de um popover estreito. */}
+              {/* Pools sempre abertas: o menu mostra UM participante por vez,
+                  então o colapso que o roster tinha perdeu a razão de ser.
+                  Com a batalha ativa cada barra é um BOTÃO: clicar abre o
+                  editor daquela pool (substituiu os botões coração). */}
               <div className="batalha-fighter-pools-wrap">
                 <div className="batalha-pools">
-                  {poolBar('EF', p.ef, p.ef_max, { title: 'EF', icon: <i className="ti ti-heart" aria-hidden="true" /> })}
-                  {poolBar('EH', p.eh, p.eh_max, { title: 'EH', icon: <i className="ti ti-heart" aria-hidden="true" /> })}
-                  {poolBar('AR', p.ar, p.ar_max, { title: 'AR', icon: <i className="ti ti-shield" aria-hidden="true" /> })}
-                  {/* ti-sparkle-highlight é um ícone recente do Tabler (v3.44, maio/2026) —
-                      se o CDN do projeto estiver fixado numa versão anterior a essa, o
-                      ícone não vai renderizar. Conferir no navegador; se faltar, trocar
-                      por "ti-sparkles" (v2.1, já usado e confirmado funcionando na aba
-                      Magia deste mesmo arquivo — fallback seguro e visualmente próximo). */}
-                  {poolBar('KA', p.karma, p.karma_max, { title: 'KA', icon: <i className="ti ti-sparkle-highlight" aria-hidden="true" /> })}
+                  {[
+                    ['EF', 'ef',    p.ef,    p.ef_max,    'ti-heart'],
+                    ['EH', 'eh',    p.eh,    p.eh_max,    'ti-heart'],
+                    ['AR', 'ar',    p.ar,    p.ar_max,    'ti-shield'],
+                    ['KA', 'karma', p.karma, p.karma_max, 'ti-sparkle-highlight'],
+                  ].map(([sigla, campo, valor, maximo, ic]) => poolBar(sigla, valor, maximo, {
+                    key: campo,
+                    title: estado === 'ativa' ? `${sigla} — ${tb.editar || (isEn ? 'edit' : 'editar')}` : sigla,
+                    icon: <i className={'ti ' + ic} aria-hidden="true" />,
+                    // Guarda ÍNDICE, nome, sigla e ícone: o editor virou
+                    // modal (02/09/2026) e vive fora do card, sem `p` nem
+                    // `i` no escopo — mesma razão do Envenenar.
+                    onEditar: estado === 'ativa' ? () => {
+                      setPoolOpen({ idx: i, pool: campo, sigla, icone: ic,
+                                    nome: p.nome, atual: valor ?? 0, max: maximo ?? 0 });
+                      setPoolVal(String(valor ?? 0));
+                      setVenenoOpen(null);
+                      // Fecha o card: z-index 9600, nasceria por cima do modal.
+                      fechar();
+                    } : undefined,
+                  }))}
                 </div>
-                {/* Condições divididas em 2 linhas de 4 (só PJ) */}
-                {p.tipo === 'pj' && p.condicoes && (
-                  <>
-                    <div className="batalha-pools batalha-pools-condicoes">
-                      {CONDICOES_KEYS.slice(0, 4).map((k) => {
-                        const lbl = CONDICAO_LABEL[k];
-                        const nomeCompleto = lbl ? (isEn ? lbl.en : lbl.pt) : k;
-                        const sigla = nomeCompleto.slice(0, 3).toUpperCase();
-                        const v = p.condicoes[k] != null ? p.condicoes[k] : 0;
-                        const icon = lbl?.icon ? <i className={'ti ' + lbl.icon} aria-hidden="true" /> : undefined;
-                        return poolBar(sigla, v, _COND_LIMITE, { key: k, title: nomeCompleto, corDinamica: true, icon, min: -_COND_LIMITE });
-                      })}
-                    </div>
-                    <div className="batalha-pools batalha-pools-condicoes">
-                      {CONDICOES_KEYS.slice(4).map((k) => {
-                        const lbl = CONDICAO_LABEL[k];
-                        const nomeCompleto = lbl ? (isEn ? lbl.en : lbl.pt) : k;
-                        const sigla = nomeCompleto.slice(0, 3).toUpperCase();
-                        const v = p.condicoes[k] != null ? p.condicoes[k] : 0;
-                        const icon = lbl?.icon ? <i className={'ti ' + lbl.icon} aria-hidden="true" /> : undefined;
-                        return poolBar(sigla, v, _COND_LIMITE, { key: k, title: nomeCompleto, corDinamica: true, icon, min: -_COND_LIMITE });
-                      })}
-                    </div>
-                  </>
-                )}
-                {/* Espaçadores invisíveis nas criaturas removidos — criaturas têm altura natural */}
+                {/* As 8 CONDIÇÕES (Saúde/Sono/Sobriedade/…) saíram daqui em
+                    01/09/2026, a pedido do usuário. Eram duas fileiras de 4
+                    barrinhas que dobravam a altura do card e competiam com o
+                    que importa em combate — EF/EH/AR/KA, logo acima.
+                    Continuam vivas e editáveis na Ficha, que é onde a
+                    condição é consultada e alterada; o combate só as carrega
+                    no snapshot e as devolve no encerramento.
+                    O card do Jogador nunca as mostrou — agora os dois batem. */}
               </div>
-                </div>
-              </div>
-              )}
             </div>
           </div>
           );
-        })}
-      </div>
+        }}
+      />
 
     </div>
     <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+
+    {/* Envenenar — modal próprio desde 01/09/2026. Fica FORA do card de
+        propósito: são dois campos, e o menu do token é estreito demais pra
+        eles numa faixa inline (o de rodadas passava despercebido). */}
+    {venenoOpen && (
+      <ModalShell
+        title={<><i className={'ti ' + iconeStatus('envenenado')} aria-hidden="true" /> {tb.envenenado}</>}
+        lang={lang}
+        size="sm"
+        onClose={fecharVeneno}
+        onCancel={fecharVeneno}
+        onConfirm={() => aplicarVeneno(venenoOpen.idx)}
+        confirmLabel={tb.aplicar}
+        confirmDisabled={salvando || !venenoVal}
+      >
+        <p className="subhead">{venenoOpen.nome}</p>
+        <div className="batalha-campos-modal">
+          <label className="batalha-campo-modal">
+            <span>{tb.danoRodada}</span>
+            <input type="number" min="1" value={venenoVal} autoFocus
+              onChange={(e) => setVenenoVal(e.target.value)} />
+          </label>
+          <label className="batalha-campo-modal">
+            <span>{tb.rodadas}</span>
+            <input type="number" min="1" value={venenoRodadas}
+              onChange={(e) => setVenenoRodadas(e.target.value)} />
+          </label>
+        </div>
+        {/* O total é a conta que o Mestre fazia de cabeça pra decidir a dose:
+            4/rodada por 3 rodadas tira 12 — em alguém com 11 de EF isso é
+            letal, e isso não se via em lugar nenhum antes de aplicar. */}
+        {(() => {
+          const d = Math.max(0, parseInt(venenoVal || '0', 10) || 0);
+          const r = Math.max(1, parseInt(venenoRodadas || '1', 10) || 1);
+          if (d < 1) return null;
+          return (
+            <p className="batalha-modal-total">
+              <b>{d * r}</b> {tb.venenoTotal} <span>({d} × {r})</span>
+            </p>
+          );
+        })()}
+        <p className="batalha-modal-nota">{tb.venenoDireto}</p>
+      </ModalShell>
+    )}
+
+    {/* Editar EF/EH/AR/KA — modal desde 02/09/2026, a pedido do usuário, no
+        mesmo molde do de Envenenar. Qual pool editar já foi dito pelo clique
+        na barra, então não há seletor aqui: só o valor, com o atual/máximo
+        embaixo pra referência. O clamp de cada pool (EF pode ir a EF_MORTE,
+        AR não tem teto) mora em valorPoolEditado, não no input. */}
+    {poolOpen && (
+      <ModalShell
+        /* Nome por extenso, não a sigla: no card a sigla basta porque a
+           barra está do lado, aqui o título é o único contexto. Vem da
+           mesma tabela que a Ficha usa, pra os dois não divergirem. */
+        title={<><i className={'ti ' + poolOpen.icone} aria-hidden="true" />{' '}
+          {(tb.poolNome && tb.poolNome[poolOpen.pool]) || poolOpen.sigla}</>}
+        lang={lang}
+        size="sm"
+        onClose={fecharPool}
+        onCancel={fecharPool}
+        onConfirm={() => aplicarPool(poolOpen.idx, poolOpen.pool)}
+        confirmLabel={tb.aplicar}
+        confirmDisabled={salvando || poolVal === ''}
+      >
+        <p className="subhead">{poolOpen.nome}</p>
+        <div className="batalha-campos-modal">
+          {/* Sem rótulo (03/09/2026, a pedido do usuário): o "valor" que
+              ficava aqui não dizia nada que o título já não dissesse — o
+              modal inteiro é sobre um número só. O nome da pool vai no
+              aria-label pra quem lê a tela não ficar com um campo mudo. */}
+          <label className="batalha-campo-modal">
+            <input type="number" value={poolVal} autoFocus
+              aria-label={(tb.poolNome && tb.poolNome[poolOpen.pool]) || poolOpen.sigla}
+              onChange={(e) => setPoolVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') aplicarPool(poolOpen.idx, poolOpen.pool); }} />
+          </label>
+        </div>
+        <PreviaPool poolOpen={poolOpen} bruto={poolVal} tb={tb} />
+      </ModalShell>
+    )}
     </>
+  );
+}
+
+/* ── Prévia do efeito, no modal de editar pool ─────────────────────
+   O modal pedia um valor ABSOLUTO e não mostrava consequência nenhuma: o
+   Mestre lia "Lysandra levou 5", digitava 3 e só descobria o resultado
+   depois de aplicar e reabrir o card.
+
+   Duas coisas ficam visíveis aqui, ambas caladas antes:
+
+   • o DELTA (8 → 3, −5). É como o dano chega na mesa, e é a conta que o
+     Mestre estava fazendo de cabeça pra preencher um campo absoluto;
+   • o CLAMP. valorPoolEditado apara em silêncio — digitar 99 numa EH de 14
+     salva 14, e nada avisava. Agora o número que vai ser gravado aparece
+     antes do Aplicar. A regra continua sendo dele, aqui só se lê: EF desce
+     até EF_MORTE, AR não tem teto, EH/KA ficam em 0..max.
+
+   A barra usa o valor JÁ aparado, senão a prévia mentiria justamente no
+   caso em que ela mais serve. */
+function PreviaPool({ poolOpen, bruto, tb }) {
+  const { pool, atual, max } = poolOpen;
+  const salvo = valorPoolEditado({ [pool + '_max']: max }, pool, bruto);
+  const delta = salvo - Number(atual || 0);
+  const pct = max > 0 ? Math.max(0, Math.min(100, (salvo / max) * 100)) : 0;
+  const digitado = parseInt(bruto, 10);
+  const aparou = Number.isFinite(digitado) && digitado !== salvo;
+  return (
+    <div className={'batalha-previa-pool pool-' + pool}>
+      <span className="bpp-bar"><i style={{ width: pct + '%' }} /></span>
+      <span className="bpp-nums">
+        <b>{atual}</b>
+        <i className="ti ti-arrow-narrow-right" aria-hidden="true" />
+        <b className="bpp-novo">{salvo}</b>
+        <em>/{max}</em>
+        {delta !== 0 && (
+          <span className={'bpp-delta ' + (delta > 0 ? 'sobe' : 'desce')}>
+            {delta > 0 ? '+' : ''}{delta}
+          </span>
+        )}
+      </span>
+      {aparou && <span className="bpp-aviso">{tb.foraDaFaixa} {salvo}.</span>}
+    </div>
   );
 }
 
@@ -2722,7 +3550,7 @@ const DadoD20Bat = React.forwardRef(function DadoD20Bat(props, ref) {
      onConfirmar({ valor, resultado }) — resultado = objeto resolverAcao ou null
      isCritico / tipoCritico / msgCritico — segundo dado de crítico
 */
-function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onFechar, onConfirmar,
+function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onFechar, onConfirmar, onRolou,
                        isCritico, tipoCritico, msgCritico }) {
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
@@ -2757,6 +3585,13 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
       ? resolverAcao(coluna, d20)
       : null;
     setResultado({ d20, res });
+    // Salva NO ATO (31/08/2026). Antes o valor só subia pro AcaoPanel no
+    // Confirmar, e entre o dado assentar e o clique havia uma janela em que
+    // `d20` ainda era null: temRolagemPendente era false, nada travava, e
+    // sair dali (trocar de token, fechar o menu) descartava a rolagem — dava
+    // pra rolar de novo a mesma ação. Reportando aqui, a trava liga no mesmo
+    // instante em que o resultado existe.
+    if (onRolou) onRolou({ valor: d20, resultado: res });
   }
 
   // Sem "rolar de novo" aqui de propósito: o dado assenta uma única vez por
@@ -2787,7 +3622,15 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
         : (tb.criticoEmSiMesmo))
     : null;
 
-  return (
+  /* PORTAL obrigatório (30/08/2026): o AcaoPanel agora vive dentro do
+     .batalha-token-menu, que tem `transform: translateX(-50%)`. Um ancestral
+     transformado vira o BLOCO CONTENTOR de descendentes `position: fixed` —
+     então o `inset: 0` deste backdrop passava a valer para a caixa do modal,
+     não para a viewport, e o `overflow: auto` do modal ainda cortava o resto.
+     O dado ficava espremido num retângulo de 680px. Saindo por portal para
+     .menestrel-ui (mesmo alvo do PortalTooltip), o fixed volta a ser da tela
+     inteira. */
+  return ReactDOM.createPortal((
     <div
       className="menestrel-ui dado-overlay-backdrop"
       role="dialog" aria-modal="true"
@@ -2857,6 +3700,52 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
         </div>
       </div>
     </div>
+  ), document.querySelector('.menestrel-ui') || document.body);
+}
+
+/* ── Portal da lista do SelectPill ─────────────────────────────────
+   Tira o dropdown de dentro do painel de Ação. Sem isto a lista nasce
+   `position:absolute` dentro do menu do token, que tem `overflow: auto`:
+   ela era recortada na borda do card e, com opções demais, criava barra de
+   rolagem no MODAL inteiro em vez de rolar só a si mesma.
+
+   Mede o botão a cada scroll/resize (o tabuleiro é panorâmico e o menu
+   acompanha o token), e vira pra cima quando não cabe embaixo. Monta dentro
+   de .menestrel-ui, não no body: as regras do pill são escopadas em
+   "#root .menestrel-ui" e no body a lista sairia sem estilo — mesmo alvo que
+   PortalTooltip e EstadoDropPortal usam. */
+function SelectPillDrop({ anchorRef, dropRef, children }) {
+  const [pos, setPos] = React.useState(null);
+  React.useLayoutEffect(() => {
+    const medir = () => {
+      const el = anchorRef && anchorRef.current;
+      if (!el || !el.isConnected) { setPos(null); return; }
+      const r = el.getBoundingClientRect();
+      const abaixo = window.innerHeight - r.bottom - 8;
+      const paraCima = abaixo < 180 && r.top > abaixo;
+      const p = { left: r.left, largura: r.width, paraCima,
+                  top: paraCima ? r.top - 4 : r.bottom + 4,
+                  maxH: Math.max(120, (paraCima ? r.top : abaixo) - 12) };
+      setPos((ant) => (ant && ant.left === p.left && ant.top === p.top
+        && ant.largura === p.largura && ant.paraCima === p.paraCima && ant.maxH === p.maxH) ? ant : p);
+    };
+    medir();
+    window.addEventListener('scroll', medir, true);
+    window.addEventListener('resize', medir);
+    return () => {
+      window.removeEventListener('scroll', medir, true);
+      window.removeEventListener('resize', medir);
+    };
+  }, [anchorRef]);
+  if (!pos) return null;
+  return ReactDOM.createPortal(
+    <div className="select-pill-drop-portal" ref={dropRef}
+      style={{ position: 'fixed', left: pos.left, top: pos.top, width: pos.largura,
+               maxHeight: pos.maxH, zIndex: 9800,
+               transform: pos.paraCima ? 'translateY(-100%)' : 'none' }}>
+      {children}
+    </div>,
+    document.querySelector('.menestrel-ui') || document.body
   );
 }
 
@@ -2869,10 +3758,18 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
 function SelectPill({ options = [], value, onChange, placeholder, disabled, label }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const dropRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    // A lista vive em PORTAL, fora de ref.current. Sem olhar o dropRef aqui,
+    // o mousedown numa opção contava como "clique fora": fechava a lista antes
+    // do onClick do <li> e a seleção nunca acontecia.
+    const handler = (e) => {
+      const noBotao = ref.current && ref.current.contains(e.target);
+      const naLista = dropRef.current && dropRef.current.contains(e.target);
+      if (!noBotao && !naLista) setOpen(false);
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
@@ -2897,20 +3794,27 @@ function SelectPill({ options = [], value, onChange, placeholder, disabled, labe
         <span className="select-pill-btn-label">{displayLabel}</span>
         <i className="ti ti-chevron-down select-pill-btn-ic" aria-hidden="true" />
       </button>
+      {/* O dropdown sai por PORTAL (02/09/2026). Era `position: absolute`
+          dentro do painel, e o menu do token tem `overflow: auto` — a lista
+          ficava PRESA lá dentro: recortada na borda e empurrando barra de
+          rolagem quando tinha opções demais. Portal + position:fixed medido
+          do botão tira a lista do fluxo e ela passa por cima de tudo. */}
       {open && (
-        <ul className="select-pill-drop">
-          {options.map((opt) => {
-            const active = String(opt.value) === String(value);
-            return (
-              <li key={opt.value} className={active ? 'active' : ''}
-                onClick={() => { onChange(opt.value); setOpen(false); }}>
-                {opt.label}
-                {active && <i className="ti ti-check select-pill-check" />}
-                {!active && <span className="select-pill-spacer" />}
-              </li>
-            );
-          })}
-        </ul>
+        <SelectPillDrop anchorRef={ref} dropRef={dropRef}>
+          <ul className="select-pill-drop">
+            {options.map((opt) => {
+              const active = String(opt.value) === String(value);
+              return (
+                <li key={opt.value} className={active ? 'active' : ''}
+                  onClick={() => { onChange(opt.value); setOpen(false); }}>
+                  {opt.label}
+                  {active && <i className="ti ti-check select-pill-check" />}
+                  {!active && <span className="select-pill-spacer" />}
+                </li>
+              );
+            })}
+          </ul>
+        </SelectPillDrop>
       )}
     </div>
   );
@@ -3041,7 +3945,25 @@ function MotorResolucao({ lang }) {
 /* Tabs: Arma | Magia. Técnica vive como sub-select dentro de Arma     */
 /* (modificador anexado ao golpe), filtrada por grupo_armas.           */
 /* Magia ignora defesa: coluna = nível efetivo do conjurador.          */
-function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarTeste, onAplicarItem, onCancel, onRolagemPendenteChange }) {
+/* `rolagemSalva` / `onRolagemSalvaChange`: a rolagem feita e não aplicada é
+   PERSISTIDA (batalhas.rolagem_pendente), não guardada só aqui. O d20 morava
+   no estado deste componente, então qualquer desmontagem o descartava —
+   trocar de menu, fechar o modal ou fechar o navegador devolvia o combatente
+   ao "pode rolar de novo", e a regra "rolou, não rola de novo" não tinha onde
+   se apoiar. Semeando o estado a partir do banco, o resultado atravessa
+   reload e troca de tela.
+
+   ONDE fica persistida depende de quem conduz, e o painel não precisa saber:
+   o Mestre escreve a coluna batalhas.rolagem_pendente (ele tem UPDATE direto
+   na tabela e age por um combatente de cada vez); o Jogador escreve
+   participantes[].rolagem_pendente do PRÓPRIO PJ, porque só alcança a tabela
+   pela RPC atualizar_batalha_jogador, que recebe participantes/log/rodada e
+   não a coluna. Os dois entregam o mesmo objeto por `rolagemSalva`. */
+function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarTeste, onAplicarItem, onAplicarApoio, onCancel, onRolagemPendenteChange, rolagemSalva, onRolagemSalvaChange, abrirTip, fecharTip }) {
+  // Só vale a rolagem DESTE ator: a linha é da batalha, não do participante.
+  const salva = (rolagemSalva && ator
+    && rolagemSalva.ator && rolagemSalva.ator.tipo === ator.tipo
+    && String(rolagemSalva.ator.ref_id) === String(ator.ref_id)) ? rolagemSalva : null;
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
 
@@ -3050,8 +3972,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const magias   = useMemo(() => magiasOfensivasDoAtor(ator, catalogos), [ator, catalogos]);
   const tecnicas = useMemo(() => tecnicasDoAtor(ator, catalogos), [ator, catalogos]);
   const alvos = useMemo(() => participantes.filter(
-    (p) => p.status === 'ativo' && !mesmoParticipante(p, ator)
+    (p) => podeSerAtacado(p) && !mesmoParticipante(p, ator)
   ), [participantes, ator]);
+  // Magias que alteram velocidade (01/09/2026). A aba Apoio só existe quando
+  // esta lista não é vazia.
+  const magiasApoio = useMemo(() => magiasDeApoioDoAtor(ator, catalogos), [ator, catalogos]);
+  const temApoio = magiasApoio.length > 0;
 
   // Tabs disponíveis: Arma sempre; Magia só se PJ é conjurador com magias ofensivas
   const podeMagia = ator.tipo === 'pj' && magias.length > 0;
@@ -3132,8 +4058,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   }, [isPJ, pj, catalogos]);
   const semItem = !isPJ || itensConsumiveisAtor.length === 0;
 
+  // A aba também vem da rolagem salva: reabrir em outra aba mostraria o painel
+  // limpo com a rolagem pendente escondida.
   const [tab, setTab] = useState(
-    armas.length > 0 ? 'arma' : (podeMagia ? 'magia' : (!semItem ? 'item' : 'habilidade'))
+    (salva && salva.tab)
+    || (armas.length > 0 ? 'arma' : (podeMagia ? 'magia' : (!semItem ? 'item' : 'habilidade')))
   );
 
   // Estado por tab
@@ -3141,10 +4070,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const [tecIdx,  setTecIdx]    = useState(-1);   // -1 = sem técnica (tab Arma)
   const [magiaIdx, setMagiaIdx] = useState(0);
   const [alvoIdx, setAlvoIdx]  = useState(0);
-  const [d20, setD20] = useState(null);
+  const [apoioIdx, setApoioIdx] = useState(0);
+  const [alvoApoioIdx, setAlvoApoioIdx] = useState(0);
+  const [d20, setD20] = useState(salva ? salva.d20 : null);
   // Segundo dado: só pedido quando primeiro resultado é FC (q=0, verde) ou A (q=7, cinza).
   // FC → autodano crítico no atacante; A → crítico devastador no alvo.
-  const [d20Critico, setD20Critico] = useState(null);
+  const [d20Critico, setD20Critico] = useState(salva ? (salva.d20_critico ?? null) : null);
   // Overlay do dado: 'primario' | 'critico' | null
   const [overlayAberto, setOverlayAberto] = useState(null);
 
@@ -3211,6 +4142,35 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // ── Alvo (compartilhado) ───────────────────────────────────
   const alvo = alvos[alvoIdx] || null;
 
+  // ── Tab APOIO ──────────────────────────────────────────────
+  const apoioSel = magiasApoio[apoioIdx] || null;
+
+  // A aba Apoio tem lista de alvos PRÓPRIA: diferente de Arma/Magia, aqui o
+  // conjurador pode (e às vezes DEVE) mirar em si mesmo.
+  //   • alcance "Pessoal"  → só ele, mais ninguém;
+  //   • buff  (mod_vb > 0) → ele primeiro, aliados depois;
+  //   • debuff (mod_vb < 0) → os outros primeiro, ele por último.
+  // A ordem define o alvo PADRÃO, e isso evita o tiro no pé de escurecer a
+  // própria iniciativa por deixar o seletor no valor inicial.
+  const alvosApoio = useMemo(() => {
+    if (!apoioSel) return [];
+    if (apoioSel.pessoal) return [ator];
+    return apoioSel.mod_vb < 0 ? [...alvos, ator] : [ator, ...alvos];
+  }, [apoioSel, alvos, ator]);
+  const alvoApoio = alvosApoio[alvoApoioIdx] || null;
+
+  // ── Alcance do tabuleiro (ligado em 30/08/2026) ─────────────
+  // A camada pura existia em 12-batalha/tabuleiro.jsx desde a reconstrução,
+  // testada, mas NINGUÉM a chamava: dava pra acertar de adaga alguém do
+  // outro lado do grid. `alvoNoAlcance` devolve true quando ator ou alvo não
+  // estão posicionados, então batalha sem tabuleiro segue exatamente como
+  // antes — a trava só existe para quem está no grid.
+  const alcanceAcao = (tab === 'arma' || tab === 'magia')
+    ? alcanceDaAcao({ arma: tab === 'arma' ? arma : null, magia: tab === 'magia' ? magia : null, tecnica })
+    : null;
+  const distanciaAoAlvo = alvo ? distanciaEntre(ator, alvo) : null;
+  const foraDeAlcance = !!(alcanceAcao != null && alvo && !alvoNoAlcance(ator, alvo, alcanceAcao));
+
   // ── Cálculos por tab ───────────────────────────────────────
   // Arma: coluna = dano_categoria + bônus_grupo − defesa_valor (clamp [-7,50]).
   // Magia: coluna = nível efetivo do conjurador (passa por toda defesa).
@@ -3238,13 +4198,21 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   } else if (tab === 'tecnica_teste' && tecnicaTesteSel && tecnicaTesteSel.total != null) {
     coluna = tecnicaTesteSel.total + modColunaAtor;
     colunaClamped = Math.max(-7, Math.min(50, coluna));
+  } else if (tab === 'apoio' && apoioSel && apoioSel.resistencia && alvoApoio) {
+    // Força de ATAQUE = nível efetivo da magia; força de DEFESA = o RF/RM do
+    // alvo. Ambas presas em 1..20, que é o intervalo que resolverResistencia
+    // aceita (ele mesmo já faz o clamp, mas explicitar deixa o cálculo legível).
+    const fAtk = Math.max(1, Math.min(20, apoioSel.nivel));
+    const fDef = Math.max(1, Math.min(20, Number(alvoApoio[apoioSel.resistencia]) || 1));
+    alvoResist = (typeof resolverResistencia === 'function')
+      ? resolverResistencia(fAtk, fDef) : null;
   } else if (tab === 'resistencia') {
     alvoResist = (typeof resolverResistencia === 'function')
       ? resolverResistencia(forcaAtaque, forcaDefesa) : null;
   }
 
   const res = (tab !== 'resistencia' && colunaClamped != null && d20 != null) ? resolverAcao(colunaClamped, d20) : null;
-  const resResist = (tab === 'resistencia' && d20 != null && alvoResist != null)
+  const resResist = ((tab === 'resistencia' || tab === 'apoio') && d20 != null && alvoResist != null)
     ? (d20 === alvoResist ? 'empate' : (d20 > alvoResist ? 'resistiu' : 'falhou'))
     : null;
   const armaPraDano = tab === 'magia' ? magia : arma;        // o objeto cujo `dano` será multiplicado pelo tier
@@ -3286,6 +4254,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const empateResist = tab === 'resistencia' && resResist === 'empate';
   const dadoPrimarioTravado = d20 != null && !empateResist;
 
+  // Rótulo do botão do dado — só-ícone desde 02/09/2026, então o texto vive no
+  // tooltip. Traz o valor rolado junto quando já houve rolagem.
+  const rotuloDado = empateResist ? tb.rolarDeNovo
+    : (d20 != null ? `${tb.rolarD20} · d20: ${d20}` : tb.rolarD20);
+
   // Trava simétrica do dado de crítico (segundo dado, só existe quando
   // precisaCritico é true): uma vez rolado, também não pode ser rolado de
   // novo — mesma regra "rola uma vez só" do dado primário, aplicada à
@@ -3315,11 +4288,15 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // Pode confirmar: depende de qual tab está ativa.
   const podeAplicar =
     (tab === 'arma' || tab === 'magia')
-      ? (!!res && !semKarma && alvo && (!precisaCritico || d20Critico != null))
+      ? (!!res && !semKarma && alvo && !foraDeAlcance && (!precisaCritico || d20Critico != null))
     : (tab === 'habilidade' || tab === 'tecnica_teste')
       ? (!semPA && d20 != null && !!res)
     : (tab === 'resistencia')
       ? (!semPA && d20 != null && !!resResist && resResist !== 'empate')
+    : (tab === 'apoio')
+      ? (!semPA && !!apoioSel && !!alvoApoio
+         && (ator.karma || 0) >= apoioSel.custo_karma
+         && (!apoioSel.resistencia || (d20 != null && resResist !== 'empate')))
     : (tab === 'item')
       ? (!semPA && !!itemSelecionado && itemQtd >= 1 && itemQtd <= itemSelecionado.quantidade)
     : false;
@@ -3331,7 +4308,18 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // onRolagemPendenteChange, pra travar também os botões do header
   // (Ação/Passar/Nova Rodada/Encerrar) — fecha a brecha de "passar a vez"
   // ou fechar o painel de outro jeito pra escapar sem gastar PA.
-  const temRolagemPendente = tab !== 'item' && d20 != null;
+  //
+  // SEGUNDA exceção (além do empate na Resistência): se não sobrou alvo
+  // válido, a ação rolada é IMPOSSÍVEL de aplicar — podeAplicar exige `alvo`
+  // e não há nenhum. Manter a trava aqui não protege PA nenhum (não há como
+  // gastá-lo nesta ação); só tranca o painel exibindo "Sem alvos válidos." e
+  // "Já rolou — continue em Atacar." ao mesmo tempo, sem Cancelar, sem abas,
+  // sem X no menu e sem header. Devolver o Cancelar é a única saída sã.
+  const semAlvoPossivel = (tab === 'arma' || tab === 'magia') && alvos.length === 0;
+  // Apoio sem teste de resistência não rola dado nenhum — não há rolagem pra
+  // ficar pendente, e travar o painel aqui só prenderia o Mestre.
+  const apoioSemDado = tab === 'apoio' && !(apoioSel && apoioSel.resistencia);
+  const temRolagemPendente = tab !== 'item' && !apoioSemDado && d20 != null && !semAlvoPossivel;
 
   // Reporta o estado de "rolagem pendente" pro pai sempre que muda.
   useEffect(() => {
@@ -3395,6 +4383,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         d20,
         resultado: res,
       });
+    } else if (tab === 'apoio' && apoioSel && alvoApoio) {
+      onAplicarApoio && onAplicarApoio({
+        ator, alvo: alvoApoio, magia: apoioSel,
+        custo_karma: apoioSel.custo_karma,
+        resistencia: apoioSel.resistencia || null,
+        d20: apoioSel.resistencia ? d20 : null,
+        resistiu: apoioSel.resistencia ? (resResist === 'resistiu') : false,
+      });
     } else if (tab === 'item' && itemSelecionado) {
       onAplicarItem && onAplicarItem({
         ator,
@@ -3443,7 +4439,6 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           resultado sem custo). Fecha essa brecha: nenhuma aba é trocável
           enquanto há rolagem pendente, só Atacar/Usar/Resistir. */}
       <div className="acao-tabs">
-        <span className="acao-ator">{ator.nome}</span>
         <button className={'acao-tab' + (tab === 'arma' ? ' on' : '')}
           onClick={() => trocaTab('arma')} disabled={armas.length === 0 || temRolagemPendente}>
           <i className="ti ti-sword" aria-hidden="true" />{tb.arma}
@@ -3470,6 +4465,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           <button className={'acao-tab acao-tab-magia' + (tab === 'magia' ? ' on' : '')}
             onClick={() => trocaTab('magia')} disabled={temRolagemPendente}>
             <i className="ti ti-sparkles" aria-hidden="true" />{tb.magia}
+          </button>
+        )}
+        {temApoio && (
+          <button className={'acao-tab' + (tab === 'apoio' ? ' on' : '')}
+            onClick={() => trocaTab('apoio')} disabled={temRolagemPendente}>
+            <i className="ti ti-wand" aria-hidden="true" />{tb.apoio}
           </button>
         )}
       </div>
@@ -3500,10 +4501,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
               value={alvoIdx}
               disabled={temRolagemPendente}
               onChange={(v) => { setAlvoIdx(parseInt(v, 10)); setD20(null); }}
-              options={alvos.map((p, i) => ({
-                value: i,
-                label: p.nome,
-              }))}
+              options={alvos.map((p, i) => {
+                const d = distanciaEntre(ator, p);
+                const longe = alcanceAcao != null && !alvoNoAlcance(ator, p, alcanceAcao);
+                return { value: i, label: p.nome + (longe ? ` · ${d} m` : '') };
+              })}
             />
             {tecnicasCompat.length > 0 && (
               <SelectPill
@@ -3623,17 +4625,20 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
               (ou mudar a força) e sumir com o d20 pelo useEffect que
               reseta a rolagem nesses casos — reabrindo a chance de rolar
               de novo mesmo sem trocar de aba. */}
-          <div className="teste-resist-tipo">
-            <button className="btn-ghost btn-sm polo-btn"
-              data-on={resTipo === 'rf' ? 'true' : undefined}
-              disabled={temRolagemPendente}
-              onClick={() => { setResTipo('rf'); }}>RF</button>
-            <button className="btn-ghost btn-sm polo-btn"
-              data-on={resTipo === 'rm' ? 'true' : undefined}
-              disabled={temRolagemPendente}
-              onClick={() => { setResTipo('rm'); }}>RM</button>
-          </div>
-          <div className="atacar-row2">
+          {/* RF/RM na MESMA linha das duas forças (02/09/2026) — eram uma
+              fileira própria acima. São o mesmo assunto: o par escolhe QUAL
+              resistência, os dois campos dizem os valores dela. */}
+          <div className="atacar-row2 com-resist-tipo">
+            <div className="teste-resist-tipo">
+              <button className="btn-ghost btn-sm polo-btn"
+                data-on={resTipo === 'rf' ? 'true' : undefined}
+                disabled={temRolagemPendente}
+                onClick={() => { setResTipo('rf'); }}>RF</button>
+              <button className="btn-ghost btn-sm polo-btn"
+                data-on={resTipo === 'rm' ? 'true' : undefined}
+                disabled={temRolagemPendente}
+                onClick={() => { setResTipo('rm'); }}>RM</button>
+            </div>
             <label className="motor-field">
               <span>{tb.forcaDeAtaque}</span>
               <input type="number" min="1" max="20" value={forcaAtaque} disabled={temRolagemPendente}
@@ -3653,6 +4658,54 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             </label>
           </div>
         </>
+      )}
+
+      {tab === 'apoio' && (
+        magiasApoio.length === 0 ? (
+          <p className="atacar-aviso-vazio">{tb.semMagiasDeApoio}</p>
+        ) : (
+          <>
+            <div className="atacar-row2">
+              <SelectPill
+                label={tb.magiaDeApoio}
+                value={apoioIdx}
+                disabled={temRolagemPendente}
+                onChange={(v) => { setApoioIdx(parseInt(v, 10)); setAlvoApoioIdx(0); setD20(null); }}
+                options={magiasApoio.map((m, i) => ({
+                  value: i, label: `${m.nome} · ${tb.nivel} ${m.nivel}`,
+                }))}
+              />
+              <SelectPill
+                label={tb.alvo}
+                value={alvoApoioIdx}
+                disabled={temRolagemPendente || alvosApoio.length <= 1}
+                onChange={(v) => { setAlvoApoioIdx(parseInt(v, 10)); setD20(null); }}
+                options={alvosApoio.map((q, i) => ({
+                  value: i,
+                  label: q.nome + (mesmoParticipante(q, ator) ? tb.voce : ''),
+                }))}
+              />
+            </div>
+            {apoioSel && (
+              <div className="acao-item-efeito">
+                <strong>{tb.efeito}:</strong>{' '}
+                {apoioSel.mod_vb > 0 ? `+${apoioSel.mod_vb}` : apoioSel.mod_vb} {tb.velocidade}
+                {' · '}
+                {apoioSel.concentracao
+                  ? tb.concentracao
+                  : apoioSel.rodadas != null
+                    ? interpolate(tb.porRodadas, { n: apoioSel.rodadas })
+                    : tb.ateOFimDa}
+              </div>
+            )}
+            {apoioSel && apoioSel.concentracao && (
+              <p className="acao-karma-line">{tb.avisoConcentracao}</p>
+            )}
+            {apoioSel && apoioSel.resistencia && resResist === 'resistiu' && (
+              <div className="err-msg">{tb.alvoResistiu}</div>
+            )}
+          </>
+        )
       )}
 
       {tab === 'item' && (
@@ -3731,7 +4784,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
       )}
 
       {/* Overlay do dado primário */}
-      {overlayAberto === 'primario' && (tab === 'resistencia' ? alvoResist != null : colunaClamped != null) && (
+      {overlayAberto === 'primario' && ((tab === 'resistencia' || tab === 'apoio') ? alvoResist != null : colunaClamped != null) && (
         <DadoOverlay
           titulo={
             tab === 'arma' ? `${arma ? arma.nome : '?'} → ${alvo ? alvo.nome : '?'}`
@@ -3750,10 +4803,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           semCard={tab === 'habilidade' || tab === 'tecnica_teste'}
           lang={lang}
           onFechar={() => setOverlayAberto(null)}
-          onConfirmar={({ valor, resultado: res2 }) => {
+          onRolou={({ valor }) => {
             setD20ComReset(valor);
-            setOverlayAberto(null);
+            onRolagemSalvaChange && onRolagemSalvaChange({
+              ator: { tipo: ator.tipo, ref_id: ator.ref_id, inst_id: ator.inst_id || null },
+              tab, d20: valor, d20_critico: null,
+            });
           }}
+          onConfirmar={() => setOverlayAberto(null)}
         />
       )}
 
@@ -3769,10 +4826,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           isCritico
           tipoCritico={tipoCritico}
           onFechar={() => setOverlayAberto(null)}
-          onConfirmar={({ valor, resultado: res2 }) => {
+          onRolou={({ valor }) => {
             setD20Critico(valor);
-            setOverlayAberto(null);
+            onRolagemSalvaChange && onRolagemSalvaChange({
+              ator: { tipo: ator.tipo, ref_id: ator.ref_id, inst_id: ator.inst_id || null },
+              tab, d20, d20_critico: valor,
+            });
           }}
+          onConfirmar={() => setOverlayAberto(null)}
         />
       )}
 
@@ -3787,7 +4848,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 
       <div className="atacar-footer">
         {/* Botão "Rolar dado" — abre o DadoOverlay (inline com Cancelar/Aplicar) */}
-        {(tab === 'resistencia' ? alvoResist != null : colunaClamped != null) && (
+        {((tab === 'resistencia' || tab === 'apoio') ? alvoResist != null : colunaClamped != null) && (
           <div className="dado-ov-trigger">
             <button className="btn-primary btn-sm" onClick={() => setOverlayAberto('primario')}
               disabled={
@@ -3797,13 +4858,25 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                 : tab === 'habilidade' ? !habilidadeSel
                 : tab === 'tecnica_teste' ? !tecnicaTesteSel
                 : tab === 'resistencia' ? alvoResist == null
+                : tab === 'apoio' ? alvoResist == null
                 : true
-              }>
+              }
+              /* Só o ícone do dado (02/09/2026). O rótulo escrito foi pro
+                 tooltip DO SISTEMA (.mn-tip, via abrirTip) — o `title` nativo
+                 que eu tinha usado aqui destoava de todo o resto do card.
+                 O NÚMERO rolado fica na tela: não é rótulo, é o resultado, e
+                 este botão é o único lugar do painel que o mostra (o chip ao
+                 lado traz o nome do resultado e o dano, nunca o d20 cru). */
+              aria-label={rotuloDado}
+              onMouseEnter={abrirTip ? (e) => abrirTip(e, rotuloDado) : undefined}
+              onMouseLeave={fecharTip || undefined}>
               <i className="ti ti-cube" aria-hidden="true" />
-              {d20 != null
-                ? (empateResist ? (tb.rolarDeNovo) : `d20: ${d20}`)
-                : (tb.rolarD20)}
             </button>
+            {/* O d20 cru fica FORA do botão (02/09/2026) — dentro dele o
+                círculo esticava em pílula. Continua ao lado, que é o único
+                lugar do painel onde o valor bruto aparece: o chip vizinho
+                traz o nome do resultado e o dano, nunca o dado. */}
+            {d20 != null && !empateResist && <b className="dado-ov-trigger-num">{d20}</b>}
             {tab !== 'resistencia' && res && (
               <span className="dado-ov-trigger-chip" style={{ color: res.cor, borderColor: res.cor }}>
                 {isEn ? res.en : res.pt}
@@ -3822,7 +4895,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           </div>
         )}
         <div className="atacar-footer-spacer" />
-        {temRolagemPendente ? (
+        {/* O "Cancelar" saiu em 02/09/2026. A saída do painel é o X do menu do
+            token — que já existe e fecha tudo. O aviso de rolagem pendente
+            fica: ele explica por que o X sumiu (menuTravado) e é a única
+            mensagem que o Mestre tem naquele estado. */}
+        {temRolagemPendente && (
           <span className="acao-travado-aviso">
             {empateResist
               ? (tb.empateRoleOD20)
@@ -3835,18 +4912,39 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                   return interpolate(tb.jaRolouContinueEm, { v });
                 })()}
           </span>
-        ) : (
-          <button className="btn-ghost btn-sm" onClick={onCancel}>{tb.cancelar}</button>
         )}
-        <button className="btn-primary btn-sm" disabled={!podeAplicar} onClick={aplicar}>
-          {(() => {
-            const sufKa = custoKarma > 0 ? ` · ${custoKarma} KA` : '';
-            const v = tab === 'arma' || tab === 'magia' ? tb.verboAtacar
-                    : tab === 'resistencia' ? tb.verboResistir
-                    : tb.verboUsar;
-            return `${v} (1 PA${sufKa})`;
-          })()}
-        </button>
+        {foraDeAlcance && (
+          <span className="batalha-fora-alcance">
+            {interpolate(tb.alvoForaDeAlcance || (isEn
+              ? 'Target out of reach ({dist} m - weapon reaches {alc} m)'
+              : 'Alvo fora de alcance ({dist} m - a arma alcança {alc} m)'),
+              { dist: distanciaAoAlvo, alc: alcanceAcao })}
+          </span>
+        )}
+        {/* Confirmar a ação: só o ícone (02/09/2026). O verbo e o CUSTO (1 PA,
+            mais o karma quando é magia) vão pro title — some da tela, mas não
+            do alcance do Mestre. O ícone acompanha a aba: espada pra atacar,
+            escudo pra resistir, check pra usar; uma espada em "Usar item"
+            seria desenho errado. */}
+        {(() => {
+          const sufKa = custoKarma > 0 ? ` · ${custoKarma} KA` : '';
+          const atacando = tab === 'arma' || tab === 'magia';
+          const v = atacando ? tb.verboAtacar
+                  : tab === 'resistencia' ? tb.verboResistir
+                  : tb.verboUsar;
+          const rotulo = `${v} (1 PA${sufKa})`;
+          const ic = atacando ? 'ti-swords'
+                   : tab === 'resistencia' ? 'ti-shield'
+                   : 'ti-check';
+          return (
+            <button className="btn-primary btn-sm atacar-confirmar" disabled={!podeAplicar}
+              onClick={aplicar} aria-label={rotulo}
+              onMouseEnter={abrirTip ? (e) => abrirTip(e, rotulo) : undefined}
+              onMouseLeave={fecharTip || undefined}>
+              <i className={'ti ' + ic} aria-hidden="true" />
+            </button>
+          );
+        })()}
       </div>
     </div>
   );
@@ -3881,6 +4979,34 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const [catalogos, setCatalogos] = useState(null);
   const [acaoOpen, setAcaoOpen] = useState(false);
   const [rolagemPendente, setRolagemPendente] = useState(false);
+  // Tooltip próprio: os botões do menu do token viraram só ícone (01/09/2026)
+  // e sem isto o jogador ficaria com quatro ícones mudos. O Mestre já tinha.
+  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
+
+  /* Rolagem feita e não aplicada — PERSISTIDA no PRÓPRIO participante
+     (participantes[].rolagem_pendente), não na coluna batalhas.rolagem_pendente
+     que o Mestre usa.
+     ────────────────────────────────────────────────────────────────────
+     Por quê a diferença: o jogador não escreve em `batalhas` (RLS), só passa
+     pela RPC atualizar_batalha_jogador — e ela recebe participantes/log/rodada,
+     NÃO a coluna de rolagem. Enquanto isso, `salvarRolagem` mandava a rolagem
+     pra persistJogador numa chave solta: ela era descartada na montagem da
+     RPC, e a chamada ainda saía sem p_participantes. Resultado: a rolagem do
+     jogador nunca sobreviveu a trocar de menu nem a recarregar, apesar do
+     comentário antigo prometer que sim.
+
+     O jsonb de participantes é o único canal que o jogador tem, e guardar ali
+     sai melhor que a coluna: a rolagem passa a ser POR JOGADOR (dois PJs podem
+     ter uma pendente ao mesmo tempo, coisa que uma coluna única não comporta)
+     e o Mestre enxerga pelo realtime de `participantes`, que ele já assina.
+
+     `rolagemOtimista` é só o eco entre o clique e a volta do realtime.
+     Ele sai de cena quando o snapshot novo JÁ carrega o mesmo valor — não a
+     cada snapshot que chega. A versão anterior descartava cego, e bastava o
+     Mestre gravar enquanto a RPC do jogador estava em voo pro painel exibir
+     "ainda não rolou" por alguns centenas de ms: janela pra rolar de novo,
+     que é justamente a regra que a persistência existe pra sustentar. */
+  const [rolagemOtimista, setRolagemOtimista] = useState(undefined);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState(null);
 
@@ -3894,6 +5020,31 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // FC "caído por N rodadas" (sem_acoes): mecanicamente igual a incapaz — a vez
   // passa sozinha; o status expira no decremento de Nova Rodada do Mestre.
   const podeAgir = souAtivo && !statusTemEfeito(meuParticipante, 'sem_acoes');
+
+  // Rolagem pendente: o eco otimista manda enquanto existe; caso contrário
+  // vale o que está persistido no meu participante (ver o bloco de estado).
+  const rolagemPersistida = (meuParticipante && meuParticipante.rolagem_pendente) || null;
+  const rolagemSalva = rolagemOtimista !== undefined ? rolagemOtimista : rolagemPersistida;
+  // Solta o eco só quando o banco confirmou o MESMO valor. Enquanto não
+  // bater, o eco continua — assim um snapshot de outra pessoa (o Mestre
+  // agindo) não apaga da tela uma rolagem que o jogador acabou de fazer.
+  const _rolagemPersistidaJson = JSON.stringify(rolagemPersistida);
+  useEffect(() => {
+    setRolagemOtimista((eco) => (
+      eco !== undefined && JSON.stringify(eco ?? null) === _rolagemPersistidaJson ? undefined : eco
+    ));
+  }, [_rolagemPersistidaJson]);
+  // Grava/limpa a rolagem no MEU participante dentro de um array de
+  // participantes. `null` limpa — toda escrita que APLICA a ação (ou encerra
+  // o turno) passa por aqui, no MESMO update, pra rolagem não sobreviver ao
+  // uso. Não muta o array recebido.
+  const comMinhaRolagem = (arr, r) => (arr || []).map((p) => (
+    mesmoParticipante(p, meuParticipante) ? { ...p, rolagem_pendente: r } : p
+  ));
+  const salvarRolagem = (r) => {
+    setRolagemOtimista(r);
+    persistJogador({ participantes: comMinhaRolagem(participantes, r) });
+  };
 
   // Auto-passe: quando o personagem incapaz (morto/desmaiado/desistiu) tem
   // atual: true, passa a vez automaticamente para não travar a batalha.
@@ -3923,7 +5074,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       const criIds = participantes.filter((p) => p.tipo === 'criatura').map((p) => p.ref_id);
       const [pjRes, itRes, magRes, tecRes, habRes, criRes] = await Promise.all([
         pjAtivoId ? supabaseClient.from('personagens').select('*').eq('id', pjAtivoId) : Promise.resolve({ data: [] }),
-        supabaseClient.from('itens').select('*'),
+        fetchCatalogoCompleto(),
         supabaseClient.from('magias').select('*'),
         supabaseClient.from('tecnicas').select('*'),
         supabaseClient.from('habilidades').select('*'),
@@ -3966,16 +5117,52 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
 
   // Passa a vez automaticamente quando o participante referenciado ficou
   // incapaz (morto / desmaiado / desistiu) ou zerou PA — espelha o Mestre.
+  /* Passa a vez quando o ator terminou o turno. Se ele era o ÚLTIMO da ordem,
+     VIRA a rodada (30/08/2026) em vez de devolver todo mundo com `atual`
+     falso — antes a batalha ficava sem ninguém na vez até alguém clicar.
+     Devolve `rodadaNova` para o chamador incluir na persistência (null quando
+     a rodada não virou) e `eventos`, o dano por rodada que a virada cobrou —
+     que o chamador PRECISA passar por registrarViradaNoLog, senão a mordida
+     do veneno acontece nas pools sem aparecer no log nem na mesa. */
   const autoPassarSeNecessario = (arr, ref) => {
     const idx = arr.findIndex((p) => mesmoParticipante(p, ref));
-    if (idx < 0) return arr;
+    const vazio = { participantes: arr, rodadaNova: null, eventos: [] };
+    if (idx < 0) return vazio;
     const a = arr[idx];
     const incapaz = a.status === 'morto' || a.status === 'desmaiado' || a.status === 'desistiu';
-    if (a.atual && (a.pa_rest === 0 || incapaz || statusTemEfeito(a, 'sem_acoes'))) {
-      const prox = proximoAtivo(arr, a.ordem);
-      return arr.map((p) => ({ ...p, atual: !!(prox && mesmoParticipante(p, prox)) }));
+    if (!(a.atual && (a.pa_rest === 0 || incapaz || statusTemEfeito(a, 'sem_acoes')))) {
+      return vazio;
     }
-    return arr;
+    const prox = proximoAtivo(arr, a.ordem);
+    if (prox) {
+      return {
+        participantes: arr.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) })),
+        rodadaNova: null, eventos: [],
+      };
+    }
+    const { participantes, eventos } = montarNovaRodada(arr);
+    return { participantes, rodadaNova: rodada + 1, eventos };
+  };
+
+  /* Registra no log (e avisa a mesa) o dano por rodada de uma virada.
+     Devolve o log novo — igual ao recebido quando ninguém sangrou. Mesma
+     saída do handlePassar e do novaRodada do Mestre, agora numa função só
+     porque os quatro handle* passaram a precisar dela também. */
+  const registrarViradaNoLog = (logBase, eventos, novaR) => {
+    const entrada = entradaLogViradaRodada(eventos, novaR);
+    if (!entrada) return logBase;
+    const historiaId = batalha && batalha.historia_id;
+    if (historiaId) {
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId,
+        p_tipo: 'sistema',
+        p_texto: `Rodada ${novaR}: ${entrada.texto}`,
+        p_meta: { batalha_id: batalha.id, rodada: novaR, dano_por_rodada: eventos },
+      }).then(({ error: rpcErr }) => {
+        if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (rodada) falhou:', rpcErr);
+      });
+    }
+    return [...logBase, entrada];
   };
 
   // ── Ação (arma/magia) — espelha aplicarAcao do Mestre, ator = meu PJ ──
@@ -3989,10 +5176,29 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (alvoIdx < 0 || atorIdx < 0) return;
 
     let next = [...participantes];
+    // Guarda a rodada nova de QUALQUER um dos dois auto-passar abaixo: se o
+    // turno acabou no último da ordem, a persistência precisa levar o número
+    // novo junto, senão o participante vira mas o contador fica para trás.
+    let rodadaNova = null;
+    // Idem pro dano por rodada cobrado na virada: sai no MESMO log da ação.
+    // Hoje só o auto-passar do ATOR chega a virar a rodada (a lista de alvos
+    // exclui o próprio ator, então o alvo nunca é o `atual`), mas acumular os
+    // dois custa nada e não depende dessa regra continuar valendo.
+    let eventosVirada = [];
+    // Atacar quebra a concentração de quem ataca — espelha aplicarAcao.
+    next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     if (dano > 0) {
-      next[alvoIdx] = aplicarDanoCascata(dano, next[alvoIdx], critico);
+      const alvoAntes = next[alvoIdx];
+      next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, critico);
+      // Dano que FURA até a EF quebra a concentração do alvo; contido em EH
+      // ou AR, não. Zerar a EH desmaia, e desmaiar quebra — espelha
+      // aplicarAcao via quebrarConcentracaoPorDano.
+      next = [...quebrarConcentracaoPorDano(next, alvoAntes, next[alvoIdx])];
       // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele
-      next = autoPassarSeNecessario(next, next[alvoIdx]);
+      const rAlvo = autoPassarSeNecessario(next, next[alvoIdx]);
+      next = rAlvo.participantes;
+      if (rAlvo.rodadaNova != null) rodadaNova = rAlvo.rodadaNova;
+      if (rAlvo.eventos.length) eventosVirada = [...eventosVirada, ...rAlvo.eventos];
     }
     const k = Math.max(0, custo_karma || 0);
     next[atorIdx] = { ...next[atorIdx], pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1), karma: Math.max(0, (next[atorIdx].karma || 0) - k) };
@@ -4004,7 +5210,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       danoSelf = fc.dano;
     }
     // Se o ATOR zerou PA, ficou incapaz OU está sem ações (FC caído), passa a vez também
-    next = autoPassarSeNecessario(next, next[atorIdx]);
+    const rAtor = autoPassarSeNecessario(next, next[atorIdx]);
+    next = rAtor.participantes;
+    if (rAtor.rodadaNova != null) rodadaNova = rAtor.rodadaNova;
+    if (rAtor.eventos.length) eventosVirada = [...eventosVirada, ...rAtor.eventos];
 
     const nomeAcao = tipo === 'magia' ? (magia && magia.nome) : (arma && arma.nome);
     const entry = {
@@ -4071,7 +5280,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       });
     }
 
-    persistJogador({ participantes: next, log: [...log, entry] });
+    // Aplicou → a rolagem sai junto, no MESMO update (comMinhaRolagem(…, null)).
+    persistJogador({ participantes: comMinhaRolagem(next, null),
+      // Se a ação virou a rodada, o dano por rodada que ela cobrou entra no
+      // MESMO log — senão a EF cai sozinha, sem nada explicando.
+      log: registrarViradaNoLog([...log, entry], eventosVirada, rodadaNova),
+      ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
   };
 
   // ── Teste (habilidade/técnica/resistência) — espelha aplicarTeste ──
@@ -4081,8 +5295,13 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const idx = participantes.findIndex((p) => mesmoParticipante(p, meuParticipante));
     if (idx < 0) return;
     let next = [...participantes];
+    // Testar é uma ação: quebra a concentração — espelha aplicarTeste.
+    next = [...quebrarConcentracao(next, next[idx].inst_id)];
     next[idx] = { ...next[idx], pa_rest: Math.max(0, (next[idx].pa_rest || 0) - 1) };
-    next = autoPassarSeNecessario(next, meuParticipante);
+    const rVez = autoPassarSeNecessario(next, meuParticipante);
+    next = rVez.participantes;
+    const rodadaNova = rVez.rodadaNova;
+    const eventosVirada = rVez.eventos;
 
     const base = { rodada, ts: Date.now(), autor_tipo: meuParticipante.tipo, autor_ref_id: meuParticipante.ref_id, autor_nome: meuParticipante.nome, acao: 'teste', tipo_teste, d20: payload.d20 };
     const entry = (tipo_teste === 'resistencia')
@@ -4131,7 +5350,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       });
     }
 
-    persistJogador({ participantes: next, log: [...log, entry] });
+    // Aplicou → a rolagem sai junto, no MESMO update (comMinhaRolagem(…, null)).
+    persistJogador({ participantes: comMinhaRolagem(next, null),
+      // Se a ação virou a rodada, o dano por rodada que ela cobrou entra no
+      // MESMO log — senão a EF cai sozinha, sem nada explicando.
+      log: registrarViradaNoLog([...log, entry], eventosVirada, rodadaNova),
+      ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
   };
 
   // ── Item — espelha aplicarItem (inclui baixa no PRÓPRIO inventário, RLS ok) ──
@@ -4144,9 +5368,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const qtd = Math.max(1, Number(quantidade) || 1);
 
     let next = [...participantes];
+    // Usar item é uma ação: quebra a concentração — espelha aplicarItem.
+    next = [...quebrarConcentracao(next, next[idx].inst_id)];
     next[idx] = aplicarEfeitoItemSnapshot(next[idx], cat, qtd);
     next[idx] = { ...next[idx], pa_rest: Math.max(0, (next[idx].pa_rest || 0) - 1) };
-    next = autoPassarSeNecessario(next, meuParticipante);
+    const rVez = autoPassarSeNecessario(next, meuParticipante);
+    next = rVez.participantes;
+    const rodadaNova = rVez.rodadaNova;
+    const eventosVirada = rVez.eventos;
 
     const entry = { rodada, ts: Date.now(), autor_tipo: meuParticipante.tipo, autor_ref_id: meuParticipante.ref_id, autor_nome: meuParticipante.nome, acao: 'item', item_slug: slug, item_nome: nome, quantidade: qtd, efeito_positivo: cat ? (cat.efeito_positivo || null) : null, efeito_negativo: cat ? (cat.efeito_negativo || null) : null };
 
@@ -4165,23 +5394,101 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     }
 
     // Consumo real no PRÓPRIO inventário (personagens RLS: user_id = auth.uid()).
-    if (catalogos && catalogos.pjById && catalogos.pjById[meuParticipante.ref_id]) {
-      const pjAtual = catalogos.pjById[meuParticipante.ref_id];
-      const invAtual = (pjAtual.inventario && pjAtual.inventario.itens) || [];
-      // Mesma baixa distribuída por slug do Mestre (consumirDoInventario).
-      const novosItens = consumirDoInventario(invAtual, slug, qtd);
-      const novoInv = { ...(pjAtual.inventario || {}), itens: novosItens };
-      // Mesmo write-through de condições do Mestre (ver aplicarItem):
-      // item muda os valores pré-batalha na hora, no mesmo update.
-      const novoEstado = { ...(pjAtual.estado_atual || {}), condicoes: { ...(next[idx].condicoes || {}) } };
-      catalogos.pjById[meuParticipante.ref_id] = { ...pjAtual, inventario: novoInv, estado_atual: novoEstado };
-      supabaseClient.from('personagens').update({ inventario: novoInv, estado_atual: novoEstado }).eq('id', meuParticipante.ref_id)
-        .then(({ error: invErr }) => { if (invErr) console.error('[batalha-jogador] consumo de item falhou:', invErr); });
-    }
-    persistJogador({ participantes: next, log: [...log, entry] });
+    // Só o inventário — espelha aplicarItem do Mestre. Condição e vitalidade
+    // do combate esperam o encerramento (decisão de 01/09/2026).
+    consumirItemDoPJ(meuParticipante.ref_id, slug, qtd).then((r) => {
+      if (!r.ok) { console.error('[batalha-jogador] consumo de item falhou:', r.error); return; }
+      const cache = catalogos && catalogos.pjById && catalogos.pjById[meuParticipante.ref_id];
+      if (cache) catalogos.pjById[meuParticipante.ref_id] = { ...cache, inventario: r.inventario };
+    });
+    // Aplicou → a rolagem sai junto, no MESMO update (comMinhaRolagem(…, null)).
+    persistJogador({ participantes: comMinhaRolagem(next, null),
+      // Se a ação virou a rodada, o dano por rodada que ela cobrou entra no
+      // MESMO log — senão a EF cai sozinha, sem nada explicando.
+      log: registrarViradaNoLog([...log, entry], eventosVirada, rodadaNova),
+      ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
   };
 
   // ── Passar a vez — espelha passarVez/novaRodada ──
+  /* TABULEIRO (lado Jogador): o jogador só mexe no PRÓPRIO token, e só na
+     vez dele — as duas guardas ficam no podeSelecionar/onMover, e a regra
+     de custo é a mesma moverParticipante do Mestre. */
+  // ── Apoio — espelha aplicarApoio do Mestre ──
+  const handleApoio = (payload) => {
+    if (!ehMinhaVez || !meuParticipante) return;
+    const { ator, alvo, magia, custo_karma, resistencia, d20, resistiu } = payload;
+    const atorIdx = participantes.findIndex((q) => mesmoParticipante(q, ator));
+    const alvoIdx = participantes.findIndex((q) => mesmoParticipante(q, alvo));
+    if (atorIdx < 0 || alvoIdx < 0) return;
+
+    // Lançar magia derruba a concentração anterior deste conjurador.
+    let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
+
+    const k = Math.max(0, custo_karma || 0);
+    next[atorIdx] = {
+      ...next[atorIdx],
+      pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1),
+      karma:   Math.max(0, (next[atorIdx].karma   || 0) - k),
+    };
+    if (!resistiu) {
+      next[alvoIdx] = aplicarEfeitoApoio(next[alvoIdx], magia, next[atorIdx].inst_id);
+    }
+    const rVez = autoPassarSeNecessario(next, next[atorIdx]);
+    next = rVez.participantes;
+    const rodadaNova = rVez.rodadaNova;
+    const eventosVirada = rVez.eventos;
+
+    const entry = {
+      rodada, ts: Date.now(),
+      autor_tipo: meuParticipante.tipo, autor_ref_id: meuParticipante.ref_id,
+      autor_nome: meuParticipante.nome,
+      acao: 'apoio',
+      alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
+      magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
+      mod_vb: magia.mod_vb, rodadas: magia.rodadas,
+      concentracao: !!magia.concentracao,
+      custo_karma: k,
+      ...(resistencia ? { resistencia, d20, resistiu: !!resistiu } : {}),
+    };
+
+    const historiaId = batalha && batalha.historia_id;
+    if (historiaId) {
+      const sinal = magia.mod_vb > 0 ? '+' : '';
+      const texto = resistiu
+        ? `${meuParticipante.nome} lançou ${magia.nome} em ${alvo.nome} — resistiu`
+        : `${meuParticipante.nome} lançou ${magia.nome} em ${alvo.nome} (${sinal}${magia.mod_vb} de velocidade)`;
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId,
+        p_tipo: 'magia',
+        p_texto: texto,
+        p_meta: { batalha_id: batalha.id, ...entry },
+      }).then(({ error: rpcErr }) => {
+        if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (apoio) falhou:', rpcErr);
+      });
+    }
+
+    // Aplicou → a rolagem sai junto, no MESMO update (comMinhaRolagem(…, null)).
+    persistJogador({ participantes: comMinhaRolagem(next, null),
+      // Se a ação virou a rodada, o dano por rodada que ela cobrou entra no
+      // MESMO log — senão a EF cai sozinha, sem nada explicando.
+      log: registrarViradaNoLog([...log, entry], eventosVirada, rodadaNova),
+      ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
+  };
+
+  const moverNoTabuleiroJogador = (p, idx, destino) => {
+    if (salvando || !meuParticipante || !mesmoParticipante(p, meuParticipante)) return false;
+    if (!ehMinhaVez) { setErro(motivoMovimento('nao_e_a_vez', isEn)); return false; }
+    const r = moverParticipante(p, destino, participantes);
+    if (!r.ok) { setErro(motivoMovimento(r.motivo, isEn)); return false; }
+    // Ver moverNoTabuleiro: mover não gasta PA nem encerra o turno, mas
+    // QUEBRA a concentração (01/09/2026).
+    const movido = participantes.map((q, i) => (i === idx ? r.participante : q));
+    const next = [...quebrarConcentracao(movido, p.inst_id)];
+    setErro(null);
+    persistJogador({ participantes: next });
+    return true;
+  };
+
   const handlePassar = () => {
     if (!ehMinhaVez || !current) return;
 
@@ -4198,46 +5505,41 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       });
     }
 
-    const prox = proximoAtivo(participantes, current.ordem);
+    // Passar encerra o turno: a rolagem feita e não aplicada morre com ele.
+    const participantesLimpos = comMinhaRolagem(participantes, null);
+    const prox = proximoAtivo(participantesLimpos, current.ordem);
     if (prox) {
-      const next = participantes.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
+      const next = participantesLimpos.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
       persistJogador({ participantes: next });
     } else {
       // deu a volta → nova rodada — MESMA virada consolidada do Mestre
       // (Fase 1.2): dano por rodada + decremento + iniciativa efetiva.
       // (Antes esta cópia nem decrementava status_temp — inconsistência corrigida.)
-      const { participantes: next, eventos } = montarNovaRodada(participantes);
+      const { participantes: next, eventos } = montarNovaRodada(participantesLimpos);
       const novaR = rodada + 1;
-      let novoLog = log;
-      if (eventos.length) {
-        const texto = eventos
-          .map((e) => `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`)
-          .join('; ');
-        novoLog = [...log, { rodada: novaR, ts: Date.now(), acao: 'sistema', texto }];
-        if (historiaId) {
-          supabaseClient.rpc('registrar_evento_mesa', {
-            p_historia_id: historiaId,
-            p_tipo: 'sistema',
-            p_texto: `Rodada ${novaR}: ${texto}`,
-            p_meta: { batalha_id: batalha.id, rodada: novaR, dano_por_rodada: eventos },
-          }).then(({ error: rpcErr }) => {
-            if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (rodada) falhou:', rpcErr);
-          });
-        }
-      }
-      persistJogador({ participantes: next, log: novoLog, rodada: novaR });
+      persistJogador({
+        participantes: next,
+        log: registrarViradaNoLog(log, eventos, novaR),
+        rodada: novaR,
+      });
     }
   };
 
   // ── Encerrar (desistir) — status do próprio PJ vira 'desistiu' ──
   const handleDesistir = () => {
     if (!meuParticipante) return;
-    const idx = participantes.findIndex((p) => mesmoParticipante(p, meuParticipante));
-    if (idx < 0) return;
-    let next = participantes.map((p, i) => (i === idx ? { ...p, status: 'desistiu' } : p));
-    if (meuParticipante.atual) {                    // era a vez dele → passa adiante
-      const prox = proximoAtivo(next, meuParticipante.ordem);
-      next = next.map((p) => ({ ...p, atual: !!(prox && mesmoParticipante(p, prox)) }));
+    // MESMA regra do Mestre (mudarStatus): muda o status, derruba a magia
+    // que o PJ sustentava e libera a vez. Antes esta cópia não fazia nem uma
+    // nem outra — e quando o desistente era o ÚLTIMO da ordem, zerava o
+    // `atual` de todos e a batalha ficava sem ninguém na vez (softlock).
+    const r = saidaDeCombate(participantes, meuParticipante, 'desistiu');
+    if (r.participantes === participantes) return;  // não achou o PJ na lista
+    // Sair da batalha também mata a rolagem feita e não aplicada.
+    let next = comMinhaRolagem(r.participantes, null);
+    let rodadaNova = null;
+    if (r.viraRodada) {                             // era o último → vira a rodada
+      next = montarNovaRodada(next).participantes;
+      rodadaNova = rodada + 1;
     }
 
     // Notifica a Central de Mensagens da Mesa (fire-and-forget).
@@ -4253,7 +5555,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       });
     }
 
-    persistJogador({ participantes: next });
+    persistJogador({ participantes: next, ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
   };
 
   // poolBar local (sem a maquinaria de tooltip do ConduzirBatalhaView).
@@ -4297,22 +5599,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
             {meuParticipante ? meuParticipante.nome : (tb.batalha)}
           </h2>
         </div>
-        {ehMinhaVez && souAtivo && !acaoOpen && (
-          <div className="batalha-header-acoes">
-            <button type="button" className="btn-primary btn-sm" disabled={salvando} onClick={() => setAcaoOpen(true)}>
-              <i className="ti ti-swords btn-ic-mr" aria-hidden="true" />
-              {tb.acao}
-            </button>
-            <button type="button" className="btn-ghost btn-sm" disabled={salvando} onClick={handlePassar}>
-              <i className="ti ti-player-skip-forward btn-ic-mr" aria-hidden="true" />
-              {tb.passar}
-            </button>
-            <button type="button" className="btn-ghost btn-sm btn-desistir" disabled={salvando} onClick={handleDesistir}>
-              <i className="ti ti-flag btn-ic-mr" aria-hidden="true" />
-              {tb.encerrar2}
-            </button>
-          </div>
-        )}
+        {/* Ação/Passar/Desistir saíram do header (30/08/2026): as três agem
+            sobre o próprio PJ, então vivem no menu do avatar dele — mesmo
+            princípio da tela do Mestre. */}
           </header>
         </div>
 
@@ -4330,6 +5619,141 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                 {interpolate(tb.eAVezDe, { nome: current.nome })}
               </div>
             )}
+            {/* Tabuleiro: o jogador enxerga todos os tokens, mas só o dele
+                é selecionável, e só quando for a vez. */}
+            <TabuleiroBatalha
+              entradas={participantes.map((p, i) => ({ p, i }))}
+              meta={{}}
+              podeSelecionar={(p) => !salvando && podeAgir && ehMinhaVez
+                && !!meuParticipante && mesmoParticipante(p, meuParticipante)
+                && !p.moveu_na_rodada}
+              alcanceDe={(p) => (meuParticipante && mesmoParticipante(p, meuParticipante)
+                ? (Number.isFinite(p.mov_rest) ? p.mov_rest : movimentoBase(p.vb))
+                : null)}
+              onMover={moverNoTabuleiroJogador}
+              salvando={salvando}
+              isEn={isEn}
+              tb={tb}
+              abrirTip={abrirTip}
+              fecharTip={fecharTip}
+              aviso={erro}
+              menuTravado={rolagemPendente}
+              /* Idem card do Jogador — mesma condição do menuDe abaixo. */
+              menuVoltar={(p) => (acaoOpen && meuParticipante
+                && mesmoParticipante(p, meuParticipante) && ehMinhaVez && souAtivo && catalogos)
+                ? () => setAcaoOpen(false) : null}
+              menuDe={(p, i, fechar, mover) => {
+                const ehEu = meuParticipante && mesmoParticipante(p, meuParticipante);
+                // Mesma troca do Mestre: o painel toma o menu do próprio PJ.
+                if (acaoOpen && ehEu && ehMinhaVez && souAtivo && catalogos) {
+                  return (
+                    <AcaoPanel
+                      ator={meuParticipante}
+                      participantes={participantes}
+                      catalogos={catalogos}
+                      lang={lang}
+                      onAplicar={handleAcao}
+                      onAplicarTeste={handleTeste}
+                      onAplicarItem={handleItem}
+                      onAplicarApoio={handleApoio}
+                      onCancel={() => { setAcaoOpen(false); setRolagemPendente(false); }}
+                      onRolagemPendenteChange={setRolagemPendente}
+                      rolagemSalva={rolagemSalva}
+                      onRolagemSalvaChange={salvarRolagem}
+                      abrirTip={abrirTip}
+                      fecharTip={fecharTip}
+                    />
+                  );
+                }
+                return (
+                  <div className={'batalha-fighter em-menu status-' + (p.status || 'ativo') + (p.atual ? ' atual' : '')}>
+                    <div className="batalha-fighter-main">
+                      <div className="batalha-fighter-head">
+                        <div className="batalha-fighter-id no-pointer">
+                          <span className={'batalha-fighter-status-ic st-' + (p.status || 'ativo')}>
+                            {/* 'passou' não existe em STATUS — é um estado que
+                                o Jogador nunca recebe do snapshot. Fica fora
+                                do mapa; se voltar a existir, entra lá. */}
+                            <i className={'ti ' + iconeStatus(p.status || 'ativo')} aria-hidden="true" />
+                          </span>
+                          <span className={'batalha-fighter-nome' + (ehEu ? ' eu' : '')}>
+                            {p.nome || ''}{ehEu ? (tb.voce) : ''}
+                          </span>
+                        </div>
+                        {/* Mesmos ícones do card do Mestre (03/09/2026). O
+                            card do Jogador nunca mostrou a defesa; entra
+                            agora junto, pra os dois lerem igual. */}
+                        <div className="batalha-fighter-stats">
+                          <span className="batalha-stat ic"
+                            onMouseEnter={(e) => abrirTip(e, (tb.statNome && tb.statNome.vb) || 'VB')}
+                            onMouseLeave={fecharTip}>
+                            <i className="ti ti-run-sprint" aria-hidden="true" /><b>{p.vb || 0}</b>
+                          </span>
+                          <span className="batalha-stat ic so-ic"
+                            onMouseEnter={(e) => abrirTip(e, `${(tb.statNome && tb.statNome.pa) || tb.pa} · ${p.pa_rest || 0}/${p.pa_max || 0}`)}
+                            onMouseLeave={fecharTip}
+                            aria-label={`${(tb.statNome && tb.statNome.pa) || tb.pa}: ${p.pa_rest || 0}/${p.pa_max || 0}`}>
+                            <i className={'ti ' + iconePA(p.pa_rest)} aria-hidden="true" />
+                          </span>
+                          <span className="batalha-stat ic"
+                            onMouseEnter={(e) => abrirTip(e, (tb.statNome && tb.statNome.df) || tb.df)}
+                            onMouseLeave={fecharTip}>
+                            <i className="ti ti-shield-half" aria-hidden="true" /><b>{p.defesa_sigla || 'L'}{p.defesa_valor || 0}</b>
+                          </span>
+                          {/* Estado dos OUTROS combatentes: círculo com ícone,
+                              no fim da linha de stats — mesma posição e mesmo
+                              desenho que o seletor do Mestre ocupa no card
+                              dele. Aqui é só leitura: o jogador não muda o
+                              estado de ninguém (o dele sai pelo Desistir), por
+                              isso é um <span>, não um <button>. O nome do
+                              estado, que era o texto do pill, foi pro tooltip. */}
+                          {!ehEu && (
+                            <span className="batalha-stat batalha-stat-estado dim"
+                              onMouseEnter={(e) => abrirTip(e, nomeStatus(p.status))}
+                              onMouseLeave={fecharTip}
+                              aria-label={nomeStatus(p.status)}>
+                              <i className={'ti ' + iconeStatus(p.status || 'ativo')} aria-hidden="true" />
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {/* As ações do turno só aparecem no próprio token, e só
+                          quando é a vez — as mesmas condições que o header
+                          usava pra mostrar a fileira. */}
+                      {ehEu && ehMinhaVez && souAtivo && (
+                        <div className="batalha-menu-acoes">
+                          {mover && (
+                            <BotaoAcaoMenu icone="ti-footsteps" onClick={mover}
+                              rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')}
+                              abrirTip={abrirTip} fecharTip={fecharTip} />
+                          )}
+                          <BotaoAcaoMenu icone="ti-swords" variante="primary" rotulo={tb.acao}
+                            disabled={salvando} onClick={() => setAcaoOpen(true)}
+                            abrirTip={abrirTip} fecharTip={fecharTip} />
+                          <BotaoAcaoMenu icone="ti-player-skip-forward" rotulo={tb.passar}
+                            disabled={salvando} onClick={() => { fechar(); handlePassar(); }}
+                            abrirTip={abrirTip} fecharTip={fecharTip} />
+                          <BotaoAcaoMenu icone="ti-flag" rotulo={tb.encerrar2}
+                            extraClasse="btn-desistir" disabled={salvando}
+                            onClick={() => { fechar(); handleDesistir(); }}
+                            abrirTip={abrirTip} fecharTip={fecharTip} />
+                        </div>
+                      )}
+                      {/* Pools continuam só do próprio PJ: o jogador vê o token
+                          dos outros, mas não os números deles. */}
+                      {ehEu && (
+                        <div className="batalha-fighter-pools-wrap"><div className="batalha-pools">
+                          {poolBar('EF', p.ef, p.ef_max)}
+                          {poolBar('EH', p.eh, p.eh_max)}
+                          {poolBar('AR', p.ar, p.ar_max)}
+                          {poolBar('KA', p.karma, p.karma_max)}
+                        </div></div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }}
+            />
             {ehMinhaVez && souAtivo && (
               <div className="batalha-vez-msg minha-vez">
                 <i className="ti ti-player-play btn-ic-mr" aria-hidden="true" style={{ color: '#C9A44E' }} />
@@ -4343,65 +5767,6 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
               </div>
             )}
 
-            {/* Painel de ação — aparece no lugar do roster (mesmo padrão do Mestre) */}
-            {ehMinhaVez && souAtivo && acaoOpen && (
-              <AcaoPanel
-                ator={meuParticipante}
-                participantes={participantes}
-                catalogos={catalogos}
-                lang={lang}
-                onAplicar={handleAcao}
-                onAplicarTeste={handleTeste}
-                onAplicarItem={handleItem}
-                onCancel={() => { setAcaoOpen(false); setRolagemPendente(false); }}
-                onRolagemPendenteChange={setRolagemPendente}
-              />
-            )}
-
-            {erro && <div className="err-msg mb">{erro}</div>}
-
-            {/* Roster — pools só do próprio PJ; esconde quando AcaoPanel está aberto */}
-            <div className={'batalha-roster com-margem' + (acaoOpen ? ' batalha-roster--hidden' : '')}>
-              {participantes.map((p, i) => {
-                const fkey = p.inst_id || (p.tipo + ':' + p.ref_id + ':' + i);
-                const ehEu = meuParticipante && mesmoParticipante(p, meuParticipante);
-                const isAtual = !!p.atual;
-                return (
-                  <div key={fkey}
-                    className={'batalha-fighter status-' + (p.status || 'ativo') + (isAtual ? ' atual' : '')}>
-                    <div className="batalha-fighter-main">
-                      <div className="batalha-fighter-head">
-                        <div className="batalha-fighter-id no-pointer">
-                          <span className={'batalha-fighter-status-ic st-' + (p.status || 'ativo')}>
-                            {(p.status || 'ativo') === 'ativo'     && <i className="ti ti-check" />}
-                            {(p.status || 'ativo') === 'passou'    && <i className="ti ti-player-skip-forward" />}
-                            {(p.status || 'ativo') === 'desmaiado' && <i className="ti ti-zzz" />}
-                            {(p.status || 'ativo') === 'desistiu'  && <i className="ti ti-flag" />}
-                            {(p.status || 'ativo') === 'morto'     && <i className="ti ti-skull" />}
-                          </span>
-                          <span className={'batalha-fighter-nome' + (ehEu ? ' eu' : '')}>
-                            {(p.nome || '').split(' ')[0]}{ehEu ? (tb.voce) : ''}
-                          </span>
-                        </div>
-                        <div className="batalha-fighter-stats">
-                          <span className="batalha-stat"><span>VB</span><b>{p.vb || 0}</b></span>
-                          <span className="batalha-stat"><span>{tb.pa}</span><b>{p.pa_rest || 0}/{p.pa_max || 0}</b></span>
-                          {!ehEu && <span className="batalha-stat dim"><span>{nomeStatus(p.status)}</span></span>}
-                        </div>
-                      </div>
-                      {ehEu && (
-                        <div className="batalha-fighter-pools-wrap"><div className="batalha-pools">
-                          {poolBar('EF', p.ef, p.ef_max)}
-                          {poolBar('EH', p.eh, p.eh_max)}
-                          {poolBar('AR', p.ar, p.ar_max)}
-                          {poolBar('KA', p.karma, p.karma_max)}
-                        </div></div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
 
             {/* Fora da vez / status não-ativo → sem controles, só o status */}
             {(!souAtivo && meuParticipante) && (
@@ -4413,6 +5778,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         )}
       </div>
       </div>
+      {/* Tooltip do menu do token (botões só-ícone). Portal, então pode ficar
+          no fim da árvore — sai por cima do menu de qualquer jeito. */}
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -4430,13 +5798,43 @@ function tBat(lang) {
 
 Object.assign(window, {
   BatalhasHistoriaView, BatalhaJogadorView,
+  // AcaoPanel NÃO entra em MotorBatalha (que é contrato de funções puras):
+  // é componente. Exposto à parte pro teste de render softlock-acao.test.jsx,
+  // que verifica que o painel nunca fica sem saída com uma rolagem pendente.
+  AcaoPanel,
+  // Idem: componente, não função pura. A prévia é o único lugar que mostra
+  // o clamp de valorPoolEditado ANTES do Aplicar, e edicao-pool.test.js
+  // renderiza pra travar isso.
+  PreviaPool,
   // montarSnapshots NÃO entra em MotorBatalha: é async e lê o banco, enquanto
   // MotorBatalha é contrato de funções puras. Exposta à parte pro teste de
   // integração snapshot-criatura.test.js, que troca o stub de supabaseClient.
   montarSnapshots,
   MotorBatalha: {
     EF_MORTE, pontosAcaoPJ, aplicarDanoCascata, ordenarIniciativa,
+    // mesmoParticipante é usado também pelo tabuleiro (12-batalha/tabuleiro.jsx)
+    // pra ignorar o próprio token ao testar colisão de célula.
+    mesmoParticipante,
     colunaAtaque, danoNoTier, interpolarCritico, CRITICOS_TABELA,
+    // Leitura de velocidade do catálogo (01/09/2026): o texto do nível é a
+    // fonte, como já acontece com o dano. duracao e descricao completam o
+    // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
+    modVelocidadeNoNivel, duracaoEmRodadas, exigeResistencia,
+    magiasDeApoioDoAtor, aplicarEfeitoApoio, quebrarConcentracao,
+    // quebrarConcentracaoPorDano é a regra compartilhada dos TRÊS caminhos de
+    // dano (manual do Mestre, ataque do Mestre, ataque do Jogador) — ver
+    // concentracao-dano.test.js.
+    quebrarConcentracaoPorDano,
+    // Veneno é dano na EF, logo também derruba concentração — resolvido antes
+    // da renovação de recursos porque muda o vb de quem recebia a magia.
+    quebrarConcentracaoPorVeneno,
+    // Volta do combate pra ficha (o outro extremo de montarSnapshots) —
+    // ver ciclo-ficha-batalha.test.js.
+    estadoAoEncerrar,
+    // saidaDeCombate é a regra compartilhada de desmaiar/morrer/desistir
+    // entre mudarStatus (Mestre) e handleDesistir (Jogador) — ver
+    // saida-de-combate.test.js.
+    saidaDeCombate,
     siglaArmadura,
     // ataquesDoAtor depende dos globais de 01-core (calcularFicha,
     // gerarAtaques, bonusGrupoArma): quem for usá-la precisa importar
@@ -4448,5 +5846,27 @@ Object.assign(window, {
     decrementarStatusTemp, ordenarIniciativaEfetiva,
     // Fase 1.2 — dano por rodada (Envenenado) + virada de rodada consolidada
     aplicarDanoDiretoEF, processarDanoPorRodada, processarViradaDeRodada, montarNovaRodada,
+    // entradaLogViradaRodada é o texto único da virada: o Mestre usa em
+    // novaRodada, o Jogador em registrarViradaNoLog (que os quatro handle*
+    // passaram a chamar — antes eles descartavam os eventos).
+    entradaLogViradaRodada,
+    // proximoAtivo entra pro teste da virada automática de rodada: é ele que
+    // devolve null quando o turno acabou no último da ordem.
+    proximoAtivo,
+    // podeSerAtacado é o par de proximoAtivo do outro lado: quem apanha, não
+    // quem age. Só o morto sai da lista de alvos (regra de 01/09/2026).
+    podeSerAtacado,
+    // Consumo de item em combate. aplicarEfeitoItemSnapshot tem que dar o
+    // MESMO resultado que aplicarEfeitosItem (01-core) pro mesmo item — as
+    // duas compartilham efeitosDoItem/aplicarDeltaCondicao justamente por
+    // isso, e efeito-item-escala.test.js trava o acordo entre elas.
+    aplicarEfeitoItemSnapshot, consumirDoInventario, consumirItemDoPJ,
+    // Edição manual das pools pelo card (clique na barra) — mesma regra de
+    // status que o consumo de item usa. Ver edicao-pool.test.js.
+    statusPorPools, valorPoolEditado,
+    // Ícone dos PA restantes no card. A família ti-hexagon-number vai só de
+    // 0 a 9, e nome fora dela não renderiza NADA — some o chip inteiro, sem
+    // erro nenhum. Por isso o clamp, e por isso ele é testado.
+    iconePA,
   },
 });

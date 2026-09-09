@@ -20,23 +20,14 @@ import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
 import './batalha.jsx';
+import './tabuleiro.jsx';   // montarSnapshots usa posValida/movimentoBase
 
 const stubOriginal = globalThis.supabaseClient;
 afterEach(() => { globalThis.supabaseClient = stubOriginal; });
 
-// Fake mínimo no formato do supabase-js: `.from(t).select('*')` é awaitable
-// e também encadeia `.in(col, ids)`.
-function fakeSupabase(tabelas) {
-  const resultado = (nome) => {
-    const box = {
-      in: () => box,
-      eq: () => box,
-      then: (res, rej) => Promise.resolve({ data: tabelas[nome] || [], error: null }).then(res, rej),
-    };
-    return box;
-  };
-  return { from: (nome) => ({ select: () => resultado(nome) }) };
-}
+// Fake compartilhado (src/test/fake-supabase.js) — modela também `.range()`,
+// que montarSnapshots passou a usar quando o catálogo virou paginado.
+import { fakeSupabase } from '../test/fake-supabase.js';
 
 // Linha real de criaturas.id 86 (Lobisomem), reduzida aos campos usados.
 const LOBISOMEM = {
@@ -82,5 +73,43 @@ describe('montarSnapshots — defesa da criatura', () => {
     const marreta = { dano_l: -2, dano_m: 2, dano_p: 6, bonus_ga: 4 };
     // Com armadura M e defesa 4 → (2+4) − 4 = 2. Lendo tipo_armadura dava L: (−2+4) − 4 = −2.
     expect(window.MotorBatalha.colunaAtaque(marreta, snap)).toBe(2);
+  });
+});
+
+describe('montarSnapshots — posição do setup sobrevive ao iniciar()', () => {
+  // Bug de 30/08/2026: os combatentes "saíam do tabuleiro" ao iniciar a
+  // batalha. iniciar() montava os snapshots a partir de `batalha.participantes`
+  // (a PROP) em vez de `participantes` (o ESTADO). O estado é inicializado da
+  // prop uma vez e nunca ressincronizado, então era só nele que o
+  // posicionamento do setup existia — a prop devolvia todo mundo sem `pos` e
+  // os tokens voltavam para a bancada. Aqui fica travado que o snapshot
+  // PRESERVA a pos que o participante cru traz.
+  const cru = (extra) => ({ tipo: 'criatura', ref_id: LOBISOMEM.id, nome: LOBISOMEM.nome, ...extra });
+
+  it('pos válida do setup entra no snapshot', async () => {
+    globalThis.supabaseClient = fakeSupabase({ criaturas: [LOBISOMEM] });
+    const [snap] = await window.montarSnapshots([cru({ pos: { x: 14, y: 9 } })], null);
+    expect(snap.pos).toEqual({ x: 14, y: 9 });
+  });
+
+  it('quem não foi posicionado entra sem pos (fica na bancada)', async () => {
+    globalThis.supabaseClient = fakeSupabase({ criaturas: [LOBISOMEM] });
+    const [snap] = await window.montarSnapshots([cru({ pos: null })], null);
+    expect(snap.pos).toBeNull();
+  });
+
+  it('pos inválida não passa: seria token fora do grid', async () => {
+    globalThis.supabaseClient = fakeSupabase({ criaturas: [LOBISOMEM] });
+    const [snap] = await window.montarSnapshots([cru({ pos: { x: 68, y: 9 } })], null);
+    expect(snap.pos).toBeNull();   // 68 + 3 > 70 colunas
+  });
+
+  it('cada participante mantém a SUA posição, sem troca entre índices', async () => {
+    globalThis.supabaseClient = fakeSupabase({ criaturas: [LOBISOMEM] });
+    const snaps = await window.montarSnapshots([
+      cru({ inst_id: 'a', pos: { x: 5, y: 5 } }),
+      cru({ inst_id: 'b', pos: { x: 30, y: 20 } }),
+    ], null);
+    expect(snaps.map((x) => x.pos)).toEqual([{ x: 5, y: 5 }, { x: 30, y: 20 }]);
   });
 });

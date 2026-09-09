@@ -15,7 +15,7 @@
    - supabaseClient (01-core/supabase.jsx)
    - FANTASY_MONTHS, calcDiaSemanaFantasy (01-core)
    - ConvitesHistoriaModal (05-convites/convites.jsx)
-   - Icon, FantasyDatePicker, CofreMoedas (ainda no app.jsx) —
+   - Icon, FantasyDatePicker (ainda no app.jsx) —
      consumidos em runtime, sempre disponíveis quando os
      componentes renderizam
 
@@ -86,7 +86,7 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
   };
 
   // Limite do plano free (mesma regra que existia no botão flutuante antigo).
-  const limiteFree = userProfile?.plano === 'free' && (historias?.length ?? 0) >= 2;
+  const limiteFree = userProfile?.plano === 'free' && (historias?.length ?? 0) >= PLANO_FREE_LIMITES.historias;
 
   // Expõe abrir() via ref pro botão "Nova história" do pill do topo (shell.jsx)
   // acionar de fora — mesmo padrão de criarRef em batalha.jsx. Respeita o
@@ -520,17 +520,19 @@ function useFitPageSize(wrapRef, opts) {
 }
 
 function LojaPagePagination({ page, safePage, totalPages, setPage, lang }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const en = lang === 'en';
   const items = Array.from({ length: totalPages }, (_, i) => i + 1)
     .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
     .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx - 1] > 1) acc.push('\u2026'); acc.push(p); return acc; }, []);
   return (
     <div className="best-pag">
-      <button className="best-page-btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1} title={en ? 'Previous' : 'Anterior'}>‹</button>
+      <button className="best-page-btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1} {...propsTip(abrirTip, fecharTip, en ? 'Previous' : 'Anterior')}>‹</button>
       {items.map((p, idx) => p === '\u2026'
         ? <span key={`ell-${idx}`} className="best-page-ellipsis">…</span>
         : <button key={p} className={'best-page-btn' + (p === safePage ? ' is-active' : '')} onClick={() => setPage(p)}>{p}</button>)}
-      <button className="best-page-btn" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} title={en ? 'Next' : 'Pr\u00f3xima'}>›</button>
+      <button className="best-page-btn" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} {...propsTip(abrirTip, fecharTip, en ? 'Next' : 'Pr\u00f3xima')}>›</button>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -578,6 +580,7 @@ function migrarEstoqueLoja(raw) {
 
 // v4 — múltiplos comércios (barra lateral) + toggle habilitar/desabilitar.
 function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const tl = tc.historias.loja;
   const en = lang === 'en';
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } = (typeof UI !== 'undefined' ? UI : {});
@@ -962,7 +965,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                   <button
                     type="button"
                     className="btn-icon btn-sm"
-                    title={en ? 'New commerce' : 'Novo comércio'}
+                    {...propsTip(abrirTip, fecharTip, en ? 'New commerce' : 'Novo comércio')}
                     aria-label={en ? 'New commerce' : 'Novo comércio'}
                     onClick={() => { setNomeComercioInput(''); setModalComercio('criar'); }}>
                     <i className="ti ti-plus" aria-hidden="true" />
@@ -988,9 +991,9 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                         {/* Ícone de status (ativo/oculto) */}
                         <span
                           className={'loja-mng-v4-status-dot' + (c.ativo ? ' is-ativo' : ' is-oculto')}
-                          title={c.ativo
+                          {...propsTip(abrirTip, fecharTip, c.ativo
                             ? (en ? 'Visible to players' : 'Visível para jogadores')
-                            : (en ? 'Hidden from players' : 'Oculto dos jogadores')}
+                            : (en ? 'Hidden from players' : 'Oculto dos jogadores'))}
                           aria-label={c.ativo ? (en ? 'Enabled' : 'Habilitado') : (en ? 'Disabled' : 'Desabilitado')} />
 
                         <span className="loja-mng-v4-sidebar-nome">{c.nome}</span>
@@ -1001,9 +1004,9 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                           <button
                             type="button"
                             className={'btn-icon btn-sm loja-mng-v4-toggle-btn' + (c.ativo ? ' is-ativo' : '')}
-                            title={c.ativo
+                            {...propsTip(abrirTip, fecharTip, c.ativo
                               ? (en ? 'Hide from players' : 'Ocultar dos jogadores')
-                              : (en ? 'Show to players' : 'Mostrar para jogadores')}
+                              : (en ? 'Show to players' : 'Mostrar para jogadores'))}
                             aria-label={c.ativo ? (en ? 'Disable' : 'Desabilitar') : (en ? 'Enable' : 'Habilitar')}
                             onClick={() => toggleAtivo(c.id)}>
                             <i className={'ti ' + (c.ativo ? 'ti-eye' : 'ti-eye-off')} aria-hidden="true" />
@@ -1011,7 +1014,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                           <button
                             type="button"
                             className="btn-icon btn-sm"
-                            title={en ? 'Rename' : 'Renomear'}
+                            {...propsTip(abrirTip, fecharTip, en ? 'Rename' : 'Renomear')}
                             aria-label={en ? 'Rename' : 'Renomear'}
                             onClick={() => { setNomeComercioInput(c.nome); setModalComercio({ id: c.id, nome: c.nome }); }}>
                             <i className="ti ti-pencil" aria-hidden="true" />
@@ -1019,7 +1022,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                           <button
                             type="button"
                             className="btn-icon btn-sm loja-mng-v4-remove-btn"
-                            title={en ? 'Remove commerce' : 'Remover comércio'}
+                            {...propsTip(abrirTip, fecharTip, en ? 'Remove commerce' : 'Remover comércio')}
                             aria-label={en ? 'Remove commerce' : 'Remover comércio'}
                             onClick={() => setConfirmRemoverComercio(c.id)}>
                             <i className="ti ti-trash" aria-hidden="true" />
@@ -1065,9 +1068,9 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleAtivo(comercioSel.id)}
-                        title={comercioSel.ativo
+                        {...propsTip(abrirTip, fecharTip, comercioSel.ativo
                           ? (en ? 'Click to hide from players' : 'Clique para ocultar dos jogadores')
-                          : (en ? 'Click to show to players' : 'Clique para mostrar para jogadores')}>
+                          : (en ? 'Click to show to players' : 'Clique para mostrar para jogadores'))}>
                         <i className={'ti ' + (comercioSel.ativo ? 'ti-eye' : 'ti-eye-off')} aria-hidden="true" />
                         {comercioSel.ativo
                           ? (en ? 'Visible to players' : 'Visível para jogadores')
@@ -1256,7 +1259,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                                           <TableCell className="loja-mng-v3-td--preco">{precoTextoLoja(precoFinal, en)}</TableCell>
                                           <TableCell style={{ color: semEstoque ? '#E57373' : undefined }}>{estoqueQtd}</TableCell>
                                           <TableCell className="loja-mng-v3-td--action">
-                                            <button type="button" className="loja-mng-v3-remove" onClick={() => removerEntrada(e.entryId)} title={tl.remove} aria-label={`${tl.remove} ${cat?.nome || e.slug}`}>
+                                            <button type="button" className="loja-mng-v3-remove" onClick={() => removerEntrada(e.entryId)} {...propsTip(abrirTip, fecharTip, tl.remove)} aria-label={`${tl.remove} ${cat?.nome || e.slug}`}>
                                               <i className="ti ti-x" aria-hidden="true" />
                                             </button>
                                           </TableCell>
@@ -1282,11 +1285,13 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
 
           {error && <div className="err-msg" style={{ marginTop: 12 }}>{error}</div>}
         </div>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
 
 function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSaved, historiaExistente = null }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const tn = t.historias.novaModal;
   const isEdit = !!historiaExistente;
   const en = lang === 'en';
@@ -1544,17 +1549,17 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
                     />
                     <div className="hist-cap-date-btns">
                       <button type="button" className="btn-icon btn-sm" onClick={() => moveCapitulo(cap.id, -1)}
-                        disabled={idx === 0} title={en ? 'Move up' : 'Subir'}
+                        disabled={idx === 0} {...propsTip(abrirTip, fecharTip, en ? 'Move up' : 'Subir')}
                         aria-label={en ? 'Move chapter up' : 'Mover capítulo para cima'}>
                         <i className="ti ti-chevron-up" aria-hidden="true" />
                       </button>
                       <button type="button" className="btn-icon btn-sm" onClick={() => moveCapitulo(cap.id, 1)}
-                        disabled={idx === capitulos.length - 1} title={en ? 'Move down' : 'Descer'}
+                        disabled={idx === capitulos.length - 1} {...propsTip(abrirTip, fecharTip, en ? 'Move down' : 'Descer')}
                         aria-label={en ? 'Move chapter down' : 'Mover capítulo para baixo'}>
                         <i className="ti ti-chevron-down" aria-hidden="true" />
                       </button>
                       <button type="button" className="btn-icon btn-sm btn-danger" onClick={() => removeCapitulo(cap.id)}
-                        title={en ? 'Remove chapter' : 'Remover capítulo'}
+                        {...propsTip(abrirTip, fecharTip, en ? 'Remove chapter' : 'Remover capítulo')}
                         aria-label={en ? 'Remove chapter' : 'Remover capítulo'}>
                         <i className="ti ti-trash" aria-hidden="true" />
                       </button>
@@ -1587,6 +1592,7 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
       )}
 
       {error && <div className="err-msg" style={{ marginTop: 14 }}>{error}</div>}
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </ModalShell>
   );
 }
