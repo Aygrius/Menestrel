@@ -2152,6 +2152,54 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
   // RF/RM: faixa -7 a 20 (mesmo piso -7 da coluna de Ação/Resistência do
   // motor de batalha — ver 12-batalha/batalha.jsx — mas teto próprio, não
   // confundir com a faixa -7..50 de lá). Velocidade: 0 a 40.
+  // ── Helpers de cor especializados por condição ─────────────────────────────
+  // Cada função recebe o valor bruto e retorna uma cor CSS interpolada.
+
+  // Peso: 0% → verde, 100% → vermelho (continuo, sem sinal).
+  // pct = _cargaPct (0..100).
+  const corPesoCarga = (pct) => {
+    const t = Math.max(0, Math.min(1, (pct ?? 0) / 100));
+    const r = Math.round(t < 0.5 ? (t * 2) * 160 : 160 + (t - 0.5) * 2 * 94);
+    const g = Math.round(t < 0.5 ? 160 - (t * 2) * 30 : 130 - (t - 0.5) * 2 * 130);
+    const b = Math.round(t < 0.5 ? 30 * (1 - t * 2) : 0);
+    return `rgb(${r},${g},${b})`;
+  };
+
+  // Temperatura: baixo(-COND_LIMITE) = azul claro, meio(0) = verde, alto(+COND_LIMITE) = vermelho.
+  // val = valor bruto no intervalo [-limite..+limite].
+  const corTemperatura = (val, limite) => {
+    const lim = Math.max(1, limite ?? 50);
+    const t = Math.max(-1, Math.min(1, (val ?? 0) / lim)); // -1..+1
+    if (t <= 0) {
+      // -1 = azul claro, 0 = verde
+      const u = t + 1; // 0..1 (u=0 azul, u=1 verde)
+      const r = Math.round(u * 34);
+      const g = Math.round(100 + u * 97);
+      const b = Math.round(220 - u * 181);
+      return `rgb(${r},${g},${b})`;
+    } else {
+      // 0 = verde, +1 = vermelho
+      const u = t; // 0..1
+      const r = Math.round(u * 204);
+      const g = Math.round(197 - u * 163);
+      const b = Math.round(0);
+      return `rgb(${r},${g},${b})`;
+    }
+  };
+
+  // Sobriedade (euforia): baixo → verde, alto → vermelho (gradiente direto sem sinal).
+  // val = valor bruto, faixa: -COND_LIMITE..+COND_LIMITE.
+  // "baixo" = negativo/alterado = verde; "alto" = positivo/sóbrio = vermelho (conforme spec).
+  const corSobriedade = (val, limite) => {
+    const lim = Math.max(1, limite ?? 50);
+    // Mapeia [-lim..+lim] → [0..1] onde 0 = verde, 1 = vermelho.
+    const t = Math.max(0, Math.min(1, ((val ?? 0) + lim) / (lim * 2)));
+    const r = Math.round(t < 0.5 ? (t * 2) * 160 : 160 + (t - 0.5) * 2 * 94);
+    const g = Math.round(t < 0.5 ? 160 - (t * 2) * 30 : 130 - (t - 0.5) * 2 * 130);
+    const b = 0;
+    return `rgb(${r},${g},${b})`;
+  };
+
   const combatBars = [
     // Velocidade removida: barra de Peso (carga) ocupa seu lugar (decisão de produto).
     // val/max = peso atual e capacidade reais (kg); pct = val/max = _cargaPct/100.
@@ -2167,10 +2215,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
           : null;
       const tipPeso = (en ? `${pesoVal} / ${capVal}` : `${pesoVal} / ${capVal}`)
         + (estadoPeso ? ` — ${estadoPeso}` : '');
-      // Peso: lógica invertida — peso alto é ruim (vermelho), baixo é bom (verde).
-      // Passa valor negativo para _corCondicao: quanto mais pesado, mais negativo → vermelho.
-      const pesoSinal = capVal > 0 ? -(pesoVal / capVal) * 50 : 0; // mapeia 0..100% → 0..-50
-      return { key: 'peso', label: en ? 'Weight' : 'Peso', val: pesoVal, max: capVal || 1, color: _corCondicao(pesoSinal), icon: 'ti-weight', tip: tipPeso };
+      // Peso: gradiente contínuo verde (0%) → vermelho (100%) baseado em _cargaPct.
+      return { key: 'peso', label: en ? 'Weight' : 'Peso', val: pesoVal, max: capVal || 1, color: corPesoCarga(_cargaPct), icon: 'ti-weight', tip: tipPeso };
     })(),
   ];
   const elCombate = <FichaVitBars bars={combatBars} scope="combate" en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
@@ -2396,13 +2442,22 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
   const elVit = <FichaVitBars bars={vitBars} scope="vit" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
 
   // Condições com o MESMO visual das barras de vitalidade (FichaVitBars).
-  // Cor por SINAL (negativo vermelho / neutro / positivo verde — corCondicao,
-  // helpers.jsx). Lista única (não mais 2 colunas pares/ímpares) — o layout
-  // empilha de qualquer forma na maioria dos breakpoints, e a divisão em 2
-  // <FichaVitBars> quebrava a divisória entre o último item de uma coluna e
-  // o primeiro da outra (Sanidade↔Sono).
+  // Cor padrão: por SINAL (negativo vermelho / neutro / positivo verde — corCondicao).
+  // Exceções com regra de cor própria:
+  //   termorregulacao → corTemperatura (azul claro ↔ verde ↔ vermelho)
+  //   euforia (sobriedade) → corSobriedade (verde baixo → vermelho alto)
   const condVitBars = condBars
-    .map((c) => ({ ...c, color: _corCondicao(c.val) }));
+    .map((c) => {
+      let color;
+      if (c.key === 'termorregulacao') {
+        color = corTemperatura(c.val, _COND_LIMITE);
+      } else if (c.key === 'euforia') {
+        color = corSobriedade(c.val, _COND_LIMITE);
+      } else {
+        color = _corCondicao(c.val);
+      }
+      return { ...c, color };
+    });
   const elCond = (
     <div className="fp-cond-vit">
       <FichaVitBars bars={condVitBars} scope="cond" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />

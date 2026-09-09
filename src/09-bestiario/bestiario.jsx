@@ -391,7 +391,7 @@ function BestNoKit() {
   return <div style={{ padding: 24, color: '#9C8F73', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
 }
 function BestLoading({ text }) {
-  return <div style={{ textAlign: 'center', color: '#9C8F73', padding: 40, fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: 14 }}>{text}</div>;
+  return <div className="admin-loading"><span>{text}</span></div>;
 }
 function BestErrorBox({ error, hint }) {
   return (

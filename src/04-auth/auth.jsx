@@ -100,7 +100,7 @@ const SkullIcon = ({ style }) => (
 const inputStyle = {
   width: '100%',
   padding: '11px 14px',
-  borderRadius: 6,
+  borderRadius: 999,
   border: `1px solid ${AUTH_BORDER}`,
   background: AUTH_SURFACE,
   color: AUTH_INK,
@@ -125,13 +125,13 @@ const oauthBtnBase = {
   gap: 10,
   width: '100%',
   padding: '13px 18px',
-  borderRadius: 6,
+  borderRadius: 12,
   border: `1px solid ${AUTH_BORDER}`,
   background: AUTH_SURFACE,
   color: AUTH_INK,
   fontFamily: AUTH_FB,
   fontSize: 15,
-  fontWeight: 600,
+  fontWeight: 400,
   cursor: 'pointer',
   transition: 'background .15s, border-color .15s',
 };
@@ -285,7 +285,7 @@ function SignupModal({ t, lang = 'pt', onClose, authCopy }) {
         {/* ══ TELA: aguardando redirect OAuth ══════════════════════════════ */}
         {step === 'redirecting' && (
           <div style={{ position: 'relative', textAlign: 'center', padding: '30px 0 18px' }}>
-            <div aria-hidden="true" style={{ width: 46, height: 46, margin: '0 auto', borderRadius: 6, border: '3px solid rgba(255,255,255,0.12)', borderTopColor: AUTH_GOLD, animation: 'spin 0.9s linear infinite' }} />
+            <div aria-hidden="true" style={{ width: 46, height: 46, margin: '0 auto', borderRadius: 999, border: '3px solid rgba(255,255,255,0.12)', borderTopColor: AUTH_GOLD, animation: 'spin 0.9s linear infinite' }} />
             <h3 style={{ fontFamily: AUTH_FD, fontSize: 22, fontWeight: 400, color: AUTH_INK, margin: '20px 0 0' }}>Redirecionando…</h3>
             <p style={{ fontFamily: AUTH_FB, fontSize: 15, color: AUTH_MUTED, margin: '8px 0 0' }}>Aguarde um momento.</p>
           </div>
@@ -346,25 +346,6 @@ function SignupModal({ t, lang = 'pt', onClose, authCopy }) {
               {authCopy.google_btn || 'Continuar com Google'}
             </button>
 
-            {/* ── Botão Apple ── */}
-            <button
-              onClick={APPLE_ENABLED ? () => loginOAuth('apple') : undefined}
-              disabled={!APPLE_ENABLED}
-              title={!APPLE_ENABLED ? 'Em breve' : undefined}
-              style={{
-                ...oauthBtnBase,
-                marginTop: 10,
-                background: APPLE_ENABLED ? '#000000' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${APPLE_ENABLED ? '#000' : AUTH_BORDER}`,
-                color: APPLE_ENABLED ? '#FFFFFF' : AUTH_MUTED,
-                cursor: APPLE_ENABLED ? 'pointer' : 'not-allowed',
-                opacity: APPLE_ENABLED ? 1 : 0.55,
-              }}
-            >
-              <AppleIcon style={{ width: 20, height: 20, flexShrink: 0 }} />
-              {APPLE_ENABLED ? (authCopy.apple_btn || 'Continuar com Apple') : 'Apple — Em breve'}
-            </button>
-
             {/* ── Separador ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
               <div style={{ flex: 1, height: 1, background: AUTH_BORDER }} />
@@ -387,7 +368,7 @@ function SignupModal({ t, lang = 'pt', onClose, authCopy }) {
               onClick={() => { setEmailMode('login'); setStep('emailForm'); }}
               style={{ width: '100%', marginTop: 10, marginBottom: 4 }}
             >
-              Já tenho conta — <span style={{ color: AUTH_GOLD }}>Entrar</span>
+              Continuar com e-mail
             </button>
 
             {error && <div className="err-msg" style={{ marginTop: 14, textAlign: 'center' }}>{error}</div>}

@@ -123,7 +123,7 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
     <div className="fp-page">
       <div className="fp-card batalha-mng-page">
         <div className="fp-card-top">
-          <header className="ms-header batalha-mng-page-header">
+          <header className="ms-header ficha-page-header">
         <button
           type="button"
           className="btn-icon btn-sm"
@@ -135,12 +135,12 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
           <i className="ti ti-arrow-left" />
         </button>
         <PortalTooltip tip={tip} onEnter={() => {}} onLeave={fecharTip} />
-        <div className="batalha-header-title-wrap">
-          <div className="batalha-mng-page-eyebrow">
+        <div className="fp-flex-fill">
+          <div className="ficha-page-eyebrow">
             <i className="ti ti-swords" aria-hidden="true" />
             {historia.titulo}
           </div>
-          <h2 className="ms-title">{tb.batalhas}</h2>
+          <h2 className="ms-title" style={{ margin: 0 }}>{tb.batalhas}</h2>
         </div>
         {view === 'lista' && !abrindo && (
           <button type="button" className="btn-primary btn-sm" onClick={() => setView('nova')}>
@@ -4280,18 +4280,20 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   };
 
   return (
-    <div className="menestrel-ui batalha-jog-root">
-      <header className="ms-header batalha-mng-page-header">
+    <div className="menestrel-ui fp-page batalha-jog-root">
+      <div className="fp-card batalha-jog-card">
+        <div className="fp-card-top">
+          <header className="ms-header ficha-page-header">
         <button type="button" className="btn-icon btn-sm" onClick={onVoltar}
           aria-label={tb.voltarAFicha}>
           <i className="ti ti-arrow-left" />
         </button>
-        <div className="batalha-header-title-wrap">
-          <div className="batalha-mng-page-eyebrow">
+        <div className="fp-flex-fill">
+          <div className="ficha-page-eyebrow">
             <i className="ti ti-swords" aria-hidden="true" />
             {tb.batalha} · {tb.rodada} {rodada}
           </div>
-          <h2 className="ms-title">
+          <h2 className="ms-title" style={{ margin: 0 }}>
             {meuParticipante ? meuParticipante.nome : (tb.batalha)}
           </h2>
         </div>
@@ -4311,7 +4313,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
             </button>
           </div>
         )}
-      </header>
+          </header>
+        </div>
 
       <div className="batalha-jog-body">
         {!catalogos ? (
@@ -4408,6 +4411,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
             )}
           </>
         )}
+      </div>
       </div>
     </div>
   );
