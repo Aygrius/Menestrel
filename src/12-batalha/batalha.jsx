@@ -718,11 +718,16 @@ function tecnicasCompativeisComArma(tecnicas, arma, catalogos) {
 }
 
 /* ── Pontos de ação por classe (spec do sistema) ──────────────── */
+// 09/09/2026: o 2º ponto de ação passou a ser prêmio da ESPECIALIZAÇÃO.
+// Antes, Guerreiro/Ladino já nasciam com 2 e subiam para 4 especializados —
+// saíam na frente das demais profissões desde o estágio 1. Agora todo mundo
+// começa com 1.
+// O +1 por velocidade > 30 (processarViradaDeRodada) continua por cima disto:
+// um especializado veloz age 3 vezes, não 2.
 function pontosAcaoPJ(pj) {
   const prof = pj.profissao;
   const guerreiroOuLadino = prof === 'Guerreiro' || prof === 'Ladino';
-  if (guerreiroOuLadino && pj.especializacao) return 4;   // especializado (não-MVP, regra pronta)
-  return guerreiroOuLadino ? 2 : 1;                        // Mago/Sacerdote/Rastreador/Bardo = 1
+  return (guerreiroOuLadino && pj.especializacao) ? 2 : 1;
 }
 
 /* ── Dano em cascata EH → AR → EF (com transbordo) ────────────── */

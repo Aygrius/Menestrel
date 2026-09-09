@@ -27,19 +27,26 @@ beforeAll(() => {
 });
 
 /* ────────────────────────── pontosAcaoPJ ────────────────────────── */
+// Regra de 09/09/2026: só a ESPECIALIZAÇÃO dá o 2º ponto de ação.
+// Antes da especialização, Guerreiro e Ladino agem como qualquer outra
+// profissão. Números anteriores (4 especializado / 2 base) ficaram para trás
+// DE PROPÓSITO — se este teste quebrar, foi mudança de regra, não acidente.
 describe('pontosAcaoPJ', () => {
-  it('Guerreiro e Ladino têm 2 PA', () => {
-    expect(M.pontosAcaoPJ({ profissao: 'Guerreiro' })).toBe(2);
-    expect(M.pontosAcaoPJ({ profissao: 'Ladino' })).toBe(2);
+  it('Guerreiro e Ladino SEM especialização têm 1 PA, como as demais profissões', () => {
+    expect(M.pontosAcaoPJ({ profissao: 'Guerreiro' })).toBe(1);
+    expect(M.pontosAcaoPJ({ profissao: 'Ladino' })).toBe(1);
   });
-  it('Guerreiro/Ladino ESPECIALIZADO tem 4 PA', () => {
-    expect(M.pontosAcaoPJ({ profissao: 'Guerreiro', especializacao: 'Cavaleiro' })).toBe(4);
-    expect(M.pontosAcaoPJ({ profissao: 'Ladino', especializacao: 'Assassino' })).toBe(4);
+
+  it('Guerreiro e Ladino especializados têm 2 PA', () => {
+    expect(M.pontosAcaoPJ({ profissao: 'Guerreiro', especializacao: 'Cavaleiro' })).toBe(2);
+    expect(M.pontosAcaoPJ({ profissao: 'Ladino', especializacao: 'Assassino' })).toBe(2);
   });
-  it('casters têm 1 PA — especialização NÃO muda', () => {
+
+  it('as demais profissões têm 1 PA, especializadas ou não', () => {
     expect(M.pontosAcaoPJ({ profissao: 'Mago' })).toBe(1);
     expect(M.pontosAcaoPJ({ profissao: 'Sacerdote' })).toBe(1);
     expect(M.pontosAcaoPJ({ profissao: 'Bardo', especializacao: 'Menestrel' })).toBe(1);
+    expect(M.pontosAcaoPJ({ profissao: 'Rastreador', especializacao: 'Batedor' })).toBe(1);
   });
 });
 
