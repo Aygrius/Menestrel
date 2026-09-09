@@ -141,12 +141,50 @@ Tomadas com o usuário em 09/09/2026:
    `rodadas_rest` e mantém um único `status_temp`; não soma um segundo
    modificador. Fecha o loop de empilhar 5 Miras na mesma coluna.
 
-### Fora de escopo, registrado
+8. **A restrição por equipamento entra na Fase 1.** Correção do usuário em
+   09/09/2026: os dados já existem em `tecnicas.grupo_armas` e
+   `tecnicas.grupo_armaduras`. Não é trabalho futuro — é regra a aplicar.
 
-Restrição de técnica por arma equipada ("Mira só com arma de arremesso"). O
-gancho já existe — `tecnicas.grupo_armas` + `tecnicasCompativeisComArma`
-(`batalha.jsx:706`), hoje aplicado só no dropdown do ataque. Quando a regra for
-definida, basta aplicar o mesmo filtro na aba Técnica.
+### 3.1 Restrição por arma e armadura
+
+`grupo_armas` já é usado por `tecnicasCompativeisComArma` (`batalha.jsx:706`)
+para filtrar o dropdown colado no ataque. `grupo_armaduras` **nunca virou regra
+em lugar nenhum** — só é exibido no bestiário (`bestiario.jsx:721`) e na ficha
+(`personagens.jsx:2779`).
+
+A Fase 1 passa a exigir os dois na **ativação** da técnica, e a levar a
+restrição de arma para dentro do efeito:
+
+- **Ativação** — a técnica só aparece habilitada na aba Técnica se a arma
+  empunhada estiver em `grupo_armas` e a armadura vestida em `grupo_armaduras`.
+  O snapshot já carrega `defesa_sigla` (`L`/`M`/`P`, `batalha.jsx:875`), que é
+  exatamente a granularidade de `grupo_armaduras`.
+- **Aplicação** — o `mod_ataque` carrega a lista de `grupo_armas` da técnica e
+  só entra na coluna quando a arma daquele golpe pertence à lista. Sem isso,
+  ativar Mira com um arco e trocar para uma espada manteria o bônus.
+
+Isso generaliza o caso especial que o Pugilato pedia (`grupo: 'CD'`): a
+restrição passa a vir do banco para as 58, em vez de ser codificada por técnica
+no registro.
+
+`'Livre'` significa "sem restrição" nas duas colunas.
+
+### 3.2 Dois defeitos encontrados no caminho
+
+**Bug vivo, independente desta feature.** `tecnicasCompativeisComArma`
+(`batalha.jsx:712`) testa `if (!t.grupo_armas) return true` para decidir se a
+técnica é genérica. Mas `'Livre'` é truthy, então a execução cai no
+`lista.includes(grupoArma)`, e `['Livre'].includes('CM')` é falso. **As 31
+técnicas com `grupo_armas = 'Livre'` — mais da metade da tabela — nunca
+aparecem no dropdown de técnica do ataque.** O comentário imediatamente acima
+da função diz que deveriam aparecer, então é defeito, não desenho. Corrigido na
+Fase 1 porque a mesma função passa a servir a aba Técnica.
+
+**Dado corrompido.** `resistencia_extrema.grupo_armas = 'Intermitente'` — o
+valor da coluna `uso` vazou para `grupo_armas` em algum import. As técnicas
+irmãs (Fúria, Heroísmo, Resistência à Dor, Animosidade) são todas `'Livre'`, e
+o `uso` da própria Resistência Extrema é `'Único'`. Corrigido por UPDATE, com o
+script versionado em `scripts/sql/`.
 
 ---
 
