@@ -5631,6 +5631,23 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    (texto livre) do descritor ocupa a largura inteira do modal. */
 #root .menestrel-ui .catalogo-campo-full { grid-column: 1 / -1; }
 
+/* Altura uniforme dos campos, igualada pela MENOR.
+   O SelectPill (campo de opções, ex.: `grupo` em itens) tem height:32px fixo e
+   fonte 13px. Já .diario-input não declara altura: com padding 10px e fonte
+   14px ele calcula ~39px — 7px mais alto. Lado a lado no grid, os campos
+   ficavam desalinhados.
+   Escopado em .catalogo-form-grid de propósito: .diario-input e .diario-textarea
+   são COMPARTILHADAS com três formulários de 13-diario/diario.jsx, e mudar a
+   regra base mexeria em telas fora deste pedido.
+   A textarea não recebe altura fixa — ela é multilinha por definição —, só a
+   fonte e o padding horizontal, pra combinar com o resto. */
+#root .menestrel-ui .catalogo-form-grid .diario-input {
+  height: 32px; padding: 0 12px; font-size: 13px; box-sizing: border-box;
+}
+#root .menestrel-ui .catalogo-form-grid .diario-textarea {
+  padding: 8px 12px; font-size: 13px; box-sizing: border-box;
+}
+
 /* diario-form-section: cabeçalho de agrupamento dentro de um form longo (Nova
    Criatura — atributos/energia/combate/repertório). Mesma cor/borda de divisor
    já usada em .ms-header, só que menor — não é um novo token, é reaproveito. */
