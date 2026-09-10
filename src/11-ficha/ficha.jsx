@@ -1057,6 +1057,62 @@ function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abr
    - Col 2: Derivadas → Grupos de Armas → Idiomas
    - Col 3: cada grupo de habilidades presente (Subterfúgio, Manobra, …)
    - Col 4/5: único subgrupo — sem seta */
+// ── Cabeçalho de coluna com navegação por subgrupo ───────────────────────
+// pages = [{ key, label }]. Quando pages.length === 1 não mostra seta nem indicadores.
+//
+// PRECISA ficar no escopo do MÓDULO (fora de FichaInfoView), e não "por
+// organização" dentro dela: um componente declarado dentro de outro vira um
+// TIPO NOVO a cada render do pai. FichaInfoView re-renderiza toda vez que
+// abrirTip roda (useTooltip -> setTip), e abrirTip é chamado pelo onFocus
+// deste próprio botão — que o navegador dispara sozinho no mousedown de
+// QUALQUER clique de mouse (mousedown → foco → mouseup → click). Com
+// ColTitleNav dentro de FichaInfoView, esse foco remonta a subárvore entre
+// o mousedown e o click: o nó que recebeu o mousedown vira órfão e o clique
+// nunca chega ao onClick. Resultado: a seta aparecia, mas não respondia a
+// clique nenhum. Mover para cá quebra esse ciclo — FichaInfoView continua
+// re-renderizando no foco/tooltip, mas ColTitleNav é o MESMO tipo entre
+// renders, então React só atualiza o botão existente em vez de trocá-lo.
+const ColTitleNav = ({ mainLabel, pages, page, onNext, abrirTip, fecharTip, en }) => {
+  const multi = pages.length > 1;
+  const sub = pages[page] || pages[0];
+  return (
+    <div className="fp-col-title-nav">
+
+      {/* Linha do título principal + seta */}
+      <div className="fp-col-title-top">
+        <span className="fp-col-title-main">
+          {mainLabel}
+        </span>
+        <button
+            className="fp-col-title-nav-btn"
+            onClick={multi ? onNext : undefined}
+            {...propsTip(abrirTip, fecharTip, multi ? `${en ? 'Next' : 'Próximo'}: ${pages[(page + 1) % pages.length].label}` : undefined)}
+            aria-hidden={!multi}
+            onMouseEnter={(e) => { if (multi) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(201,164,78,0.12)'; } }}
+            onMouseLeave={(e) => { if (multi) { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.background = 'none'; } }}
+          >
+            <i className="ti ti-chevron-right" aria-hidden="true" />
+          </button>
+      </div>
+
+      {/* Sub-label sempre visível; indicadores e seta só aparecem quando multi */}
+      <div className="fp-col-title-sub-row">
+        <span className="fp-col-title-sub">
+          {sub.label}
+        </span>
+        {/* Indicadores: traços largos=ativo, curtos=inativo — só quando há >1 página */}
+        {multi && (
+          <div className="fp-col-title-dots">
+            {pages.map((_, i) => (
+              <div key={i} className={'fp-col-title-dot ' + (i === page ? 'fp-col-title-dot--active' : 'fp-col-title-dot--inactive')} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 function FichaInfoView({
   pj, en,
   atributosFinais, derivadas, estagioNum, xpTotal, velocidade,
@@ -1084,49 +1140,6 @@ function FichaInfoView({
       <span className="fp-row-value">{value ?? '—'}</span>
     </div>
   );
-
-  // ── Cabeçalho de coluna com navegação por subgrupo ─────────────────────
-  // pages = [{ key, label }]. Quando pages.length === 1 não mostra seta nem indicadores.
-  const ColTitleNav = ({ mainLabel, pages, page, onNext }) => {
-    const multi = pages.length > 1;
-    const sub = pages[page] || pages[0];
-    return (
-      <div className="fp-col-title-nav">
-
-        {/* Linha do título principal + seta */}
-        <div className="fp-col-title-top">
-          <span className="fp-col-title-main">
-            {mainLabel}
-          </span>
-          <button
-              className="fp-col-title-nav-btn"
-              onClick={multi ? onNext : undefined}
-              {...propsTip(abrirTip, fecharTip, multi ? `${en ? 'Next' : 'Próximo'}: ${pages[(page + 1) % pages.length].label}` : undefined)}
-              aria-hidden={!multi}
-              onMouseEnter={(e) => { if (multi) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(201,164,78,0.12)'; } }}
-              onMouseLeave={(e) => { if (multi) { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.background = 'none'; } }}
-            >
-              <i className="ti ti-chevron-right" aria-hidden="true" />
-            </button>
-        </div>
-
-        {/* Sub-label sempre visível; indicadores e seta só aparecem quando multi */}
-        <div className="fp-col-title-sub-row">
-          <span className="fp-col-title-sub">
-            {sub.label}
-          </span>
-          {/* Indicadores: traços largos=ativo, curtos=inativo — só quando há >1 página */}
-          {multi && (
-            <div className="fp-col-title-dots">
-              {pages.map((_, i) => (
-                <div key={i} className={'fp-col-title-dot ' + (i === page ? 'fp-col-title-dot--active' : 'fp-col-title-dot--inactive')} />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   // ── Col 1 — Identidade / Atributos / Caracterizações ──────────────
   const caract = pj.caracterizacao || {};
@@ -1158,6 +1171,7 @@ function FichaInfoView({
         pages={col1Pages}
         page={col1Idx}
         onNext={() => setCol1Page((p) => (p + 1) % col1Pages.length)}
+        abrirTip={abrirTip} fecharTip={fecharTip} en={en}
       />
 
       {col1Sub === 'identidade' && (
@@ -1253,6 +1267,7 @@ function FichaInfoView({
         pages={col2Pages}
         page={col2Idx}
         onNext={() => setCol2Page((p) => (p + 1) % col2Pages.length)}
+        abrirTip={abrirTip} fecharTip={fecharTip} en={en}
       />
 
       {col2Sub === 'derivadas' && (
@@ -1319,6 +1334,7 @@ function FichaInfoView({
         pages={col3Pages.length > 0 ? col3Pages : [{ key: 'empty', label: '—' }]}
         page={col3Idx}
         onNext={() => setCol3Page((p) => (p + 1) % Math.max(col3Pages.length, 1))}
+        abrirTip={abrirTip} fecharTip={fecharTip} en={en}
       />
       {col3Current ? (
         col3Current.possuidas.map((h) => {
@@ -1387,6 +1403,7 @@ function FichaInfoView({
         pages={col4Pages}
         page={col4Idx}
         onNext={() => setCol4Page((p) => (p + 1) % col4Pages.length)}
+        abrirTip={abrirTip} fecharTip={fecharTip} en={en}
       />
       {col4Current.items.length === 0 ? (
         <div className="fp-col-empty">
@@ -1419,6 +1436,7 @@ function FichaInfoView({
         pages={col5Pages.length > 0 ? col5Pages : [{ key: 'vazio', label: '—' }]}
         page={col5Idx}
         onNext={() => setCol5Page((p) => (p + 1) % Math.max(col5Pages.length, 1))}
+        abrirTip={abrirTip} fecharTip={fecharTip} en={en}
       />
       {(col5Current?.items || []).map((m) => {
         const passos = pjMagias[m.key];
@@ -3572,3 +3590,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
 
 
 window.FichaPersonagem = FichaPersonagem;
+// FichaInfoView exportado à parte para o teste de navegação por hover/clique
+// (ficha-info-nav.test.jsx) conseguir montá-lo isolado, sem depender do fetch
+// de FichaPersonagem.
+window.FichaInfoView = FichaInfoView;
