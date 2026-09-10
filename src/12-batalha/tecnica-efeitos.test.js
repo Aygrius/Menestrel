@@ -587,3 +587,58 @@ describe('removerStatusTempParticipante — devolve a EH ao remover pelo chip', 
     expect(depois.eh_max).toBe(p.eh_max);
   });
 });
+
+// Fecha a lacuna relatada pelo jogador: "usou Esquiva → Falha Crítica (col 11,
+// d20 1)" não dizia NADA sobre o efeito — indistinguível de "aplicou" ou "não
+// tem automação". textoEfeitoTecnica é o complemento que os dois aplicarTeste
+// (Mestre e Jogador) anexam ao texto da Central de Mensagens quando
+// tipo_teste === 'tecnica'. Três ramos: aplicado / teste falhou / narrativa.
+describe('textoEfeitoTecnica — complemento da Central de Mensagens', () => {
+  it('efeito aplicado no próprio ator: mostra o valor com sinal, sem nome (alvo = self)', () => {
+    const aplicado = { key: 'mira', valor: 7, alvos: ['Lysandra'] };
+    expect(M.textoEfeitoTecnica('mira', aplicado, 'Lysandra'))
+      .toBe(' — efeito aplicado: +7');
+  });
+
+  it('debuff em inimigo: sinal negativo do registro vira valor negativo, com o nome do alvo', () => {
+    // expectativa é modo 'total', alvo 'inimigo', sinal -1 — mesmo par que
+    // aplicarEfeitoTecnica grava (ver describe de gravação acima).
+    const aplicado = { key: 'expectativa', valor: 6, alvos: ['Lobisomem'] };
+    expect(M.textoEfeitoTecnica('expectativa', aplicado, 'Lysandra'))
+      .toBe(' — efeito aplicado em Lobisomem: -6');
+  });
+
+  it('modo teste (Sangramento): usa o valor FIXO do registro, não o total rolado', () => {
+    // payload.valor_total do d20 pode ser qualquer coisa (ex. 15) — o dano
+    // por rodada gravado é sempre 1 (ver aplicarEfeitoTecnica). A mensagem
+    // tem que mostrar o valor que FOI gravado, não o total do teste.
+    const aplicado = { key: 'sangramento', valor: 15, alvos: ['Lobisomem'] };
+    expect(M.textoEfeitoTecnica('sangramento', aplicado, 'Lysandra'))
+      .toBe(' — efeito aplicado em Lobisomem: +1');
+  });
+
+  it('vários alvos (Voz de Comando): junta os nomes', () => {
+    const aplicado = { key: 'voz_de_comando', valor: 3, alvos: ['Aliado A', 'Aliado B'] };
+    expect(M.textoEfeitoTecnica('voz_de_comando', aplicado, 'Lysandra'))
+      .toBe(' — efeito aplicado em Aliado A, Aliado B: +3');
+  });
+
+  it('técnica COM registro mas o teste falhou (efeito null): diz que não aplicou', () => {
+    expect(M.textoEfeitoTecnica('sangramento', null, 'Lysandra'))
+      .toBe(' — efeito não aplicado (teste falhou)');
+  });
+
+  it('técnica SEM registro (Fase 2/narrativa, ex. Esquiva): efeito narrativo', () => {
+    expect(M.textoEfeitoTecnica('esquiva', null, 'Lysandra')).toBe(' — efeito narrativo, resolva na mesa');
+    // Mesmo texto mesmo se por acaso viesse um efeito preenchido — sem registro,
+    // não há como o efeito ter sido de fato aplicado pelo motor.
+    expect(M.textoEfeitoTecnica('ataque_oportuno', null, 'Lysandra'))
+      .toBe(' — efeito narrativo, resolva na mesa');
+  });
+
+  it('chave desconhecida (defensivo): trata como narrativa, não lança', () => {
+    expect(() => M.textoEfeitoTecnica('nao_existe_xyz', null, 'Lysandra')).not.toThrow();
+    expect(M.textoEfeitoTecnica('nao_existe_xyz', null, 'Lysandra'))
+      .toBe(' — efeito narrativo, resolva na mesa');
+  });
+});

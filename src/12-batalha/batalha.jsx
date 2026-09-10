@@ -2103,6 +2103,46 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
   return resultado;
 }
 
+/* ── Texto do efeito de técnica pra Central de Mensagens (puro) ────
+   Fecha a lacuna relatada em mesa: "usou Esquiva → Falha Crítica (col 11,
+   d20 1)" não dizia NADA sobre o efeito, e o jogador não distinguia (1)
+   aplicou, (2) o teste falhou e NÃO aplicou, de (3) a técnica não tem
+   automação nenhuma (Fase 2/narrativa — 34 das 58 hoje). Três ramos:
+
+     1. efeitoAplicado != null    → "efeito aplicado[ em <alvos>]: <valor>"
+     2. reg existe, mas é null    → "efeito não aplicado (teste falhou)"
+        (só ocorre em modo 'teste' — Sangramento é o único hoje)
+     3. reg não existe (`tecnicaEfeitoDe` devolve null) → "efeito narrativo"
+
+   O <valor> usa o mesmo par (sinal/valor fixo) que aplicarEfeitoTecnica usa
+   pro PRIMEIRO efeito do registro — pra técnicas com mais de um efeito de
+   sinais opostos (Postura Ofensiva/Defensiva), é o efeito principal que
+   aparece na mensagem; o card de status_temp mostra os demais. Modo 'teste'
+   usa o valor FIXO do registro (não payload.valor_total: o total do d20 não
+   é o que foi de fato gravado — ver o teste "modo teste usa o valor FIXO").
+
+   PT-only por decisão de projeto, não esquecimento: Central de Mensagens é
+   mesa_log COMPARTILHADO entre Mestre e Jogadores (não UI por-viewer), e
+   NENHUMA outra chamada de registrar_evento_mesa neste arquivo passa por
+   COPY/tBat — todas são literais em português, e mesmo `resultado.pt` é
+   usado sempre (nunca `.en`) na montagem deste mesmo texto, duas linhas
+   acima. Ver o comentário de tBat no fim do arquivo: "FORA do i18n por
+   decisão". Introduzir i18n só neste trecho quebraria essa consistência. */
+function textoEfeitoTecnica(chaveTecnica, efeitoAplicado, nomeAutor) {
+  const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(chaveTecnica) : null;
+  if (!reg) return ' — efeito narrativo, resolva na mesa';
+  if (!efeitoAplicado) return ' — efeito não aplicado (teste falhou)';
+  const primeiro = (reg.efeitos && reg.efeitos[0]) || {};
+  const valor = (reg.modo === 'teste')
+    ? (primeiro.valor || 0)
+    : (primeiro.sinal || 1) * (Number(efeitoAplicado.valor) || 0);
+  const valorTxt = valor > 0 ? `+${valor}` : `${valor}`;
+  const alvos = (efeitoAplicado.alvos || []).filter((n) => n !== nomeAutor);
+  return alvos.length
+    ? ` — efeito aplicado em ${alvos.join(', ')}: ${valorTxt}`
+    : ` — efeito aplicado: ${valorTxt}`;
+}
+
 /* `uso: 'Único'` significa uma vez por batalha (decisão de 09/09/2026).
    'Intermitente' e 'Livre' ficam sem limite — reaplicar só renova a duração,
    sem somar, o que já tira o incentivo de spammar. */
@@ -2831,6 +2871,13 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         // trecho do dado pra não virar "d20 null" na Central de Mensagens.
         // Duplicado no handler do Jogador logo abaixo; mantenha os dois iguais.
         texto += payload.d20 == null ? ` (col ${payload.coluna})` : ` (col ${payload.coluna}, d20 ${payload.d20})`;
+        // Lacuna relatada em mesa: sem isto a mensagem só dizia o resultado do
+        // dado, e "Falha Crítica" ficava indistinguível de "sem automação" —
+        // ver textoEfeitoTecnica. Duplicado no handler do Jogador; mantenha
+        // os dois iguais.
+        if (tipo_teste === 'tecnica' && payload.tecnica) {
+          texto += textoEfeitoTecnica(payload.tecnica.key, efeitoTecnicaAplicado, testador.nome);
+        }
       }
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
@@ -5857,6 +5904,13 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         // trecho do dado pra não virar "d20 null" na Central de Mensagens.
         // Duplicado no handler do Mestre acima; mantenha os dois iguais.
         texto += payload.d20 == null ? ` (col ${payload.coluna})` : ` (col ${payload.coluna}, d20 ${payload.d20})`;
+        // Lacuna relatada em mesa: sem isto a mensagem só dizia o resultado do
+        // dado, e "Falha Crítica" ficava indistinguível de "sem automação" —
+        // ver textoEfeitoTecnica. Duplicado no handler do Mestre; mantenha os
+        // dois iguais.
+        if (tipo_teste === 'tecnica' && payload.tecnica) {
+          texto += textoEfeitoTecnica(payload.tecnica.key, efeitoTecnicaAplicado, meuParticipante.nome);
+        }
       }
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
@@ -6365,6 +6419,10 @@ Object.assign(window, {
     // status_temp. Reaplicar substitui a leva anterior em vez de somar.
     // gruposDeArma é o parser das colunas grupo_armas/grupo_armaduras.
     aplicarEfeitoTecnica, gruposDeArma,
+    // Complemento da Central de Mensagens (10/09/2026): extraída dos dois
+    // aplicarTeste pra eliminar a dessincronização entre as cópias e pra
+    // ficar testável — ver tecnica-efeitos.test.js.
+    textoEfeitoTecnica,
     // Task 8: uso Único é uma vez por batalha; o registro fica em
     // tecnicas_usadas, separado do efeito (Voz de Comando atinge o alvo,
     // mas o uso é do ator).
