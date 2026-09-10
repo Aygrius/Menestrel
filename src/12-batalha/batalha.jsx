@@ -5053,9 +5053,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             {tecMultiAlvo && (
               <div className="acao-aliados">
                 <span className="acao-aliados-lbl">
-                  {isEn
-                    ? `Allies (${tecAliados.length}/${tecRegistro.maxAlvos})`
-                    : `Aliados (${tecAliados.length}/${tecRegistro.maxAlvos})`}
+                  {interpolate(tb.tecnicaAliadosRotulo, { atual: tecAliados.length, max: tecRegistro.maxAlvos })}
                 </span>
                 {tecAliadosOpcoes.map((p) => {
                   const marcado = tecAliados.includes(p.inst_id);
@@ -5082,27 +5080,17 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             {!tecBloqueio.pode && (
               <p className="acao-efeito-texto acao-efeito-bloqueio">
                 {tecBloqueio.motivo === 'arma'
-                  ? (isEn
-                      ? `Requires a weapon of group: ${tecnicaTesteSel.grupo_armas}.`
-                      : `Exige arma do grupo: ${tecnicaTesteSel.grupo_armas}.`)
+                  ? interpolate(tb.tecnicaExigeArma, { grupo: tecnicaTesteSel.grupo_armas })
                   : tecBloqueio.motivo === 'armadura'
-                  ? (isEn
-                      ? `Requires armor of group: ${tecnicaTesteSel.grupo_armaduras}.`
-                      : `Exige armadura do grupo: ${tecnicaTesteSel.grupo_armaduras}.`)
+                  ? interpolate(tb.tecnicaExigeArmadura, { grupo: tecnicaTesteSel.grupo_armaduras })
                   : tecBloqueio.motivo === 'livre_usada'
-                  ? (isEn
-                      ? 'Already used a free technique this round.'
-                      : 'Já ativou uma técnica gratuita nesta rodada.')
-                  : (isEn
-                      ? 'Already used this battle (single use).'
-                      : 'Já usada nesta batalha (uso Único).')}
+                  ? tb.tecnicaGratuitaJaUsada
+                  : tb.tecnicaUsoUnicoJaUsada}
               </p>
             )}
             {tecRegistro && tecRegistro.parcial === 'ignora_armadura' && (
               <p className="acao-efeito-texto acao-efeito-parcial">
-                {isEn
-                  ? 'Armor-ignoring half is not automated yet — apply it manually.'
-                  : 'A metade que ignora a armadura ainda não é automática — aplique na mão.'}
+                {tb.tecnicaParcialIgnoraArmadura}
               </p>
             )}
           </>

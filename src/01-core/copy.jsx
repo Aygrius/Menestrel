@@ -460,6 +460,16 @@ const COPY = {
       sucesso: 'Sucesso',
       tecnica: 'Técnica',
       tecnicaOpcional: 'Técnica (opcional)',
+      // i18n-sync (Fase 3.3): as 6 abaixo vieram de ternárias `isEn ? … : …`
+      // inline na aba Técnica do console de batalha — texto pt idêntico ao
+      // que já existia, só movido pra cá (tecnica-aba.test.jsx casa por
+      // texto pt e não pode quebrar). As 3 com {} usam interpolate().
+      tecnicaAliadosRotulo: 'Aliados ({atual}/{max})',
+      tecnicaExigeArma: 'Exige arma do grupo: {grupo}.',
+      tecnicaExigeArmadura: 'Exige armadura do grupo: {grupo}.',
+      tecnicaGratuitaJaUsada: 'Já ativou uma técnica gratuita nesta rodada.',
+      tecnicaUsoUnicoJaUsada: 'Já usada nesta batalha (uso Único).',
+      tecnicaParcialIgnoraArmadura: 'A metade que ignora a armadura ainda não é automática — aplique na mão.',
       todosOsPjsNo: 'Todos os PJs no máximo.',
       tudoProntoParaO: 'Tudo pronto para o início da batalha. A ordem de ação, ou iniciativa, é determinada pela velocidade de cada participante.',
       umaDeCada: 'Uma de cada',
@@ -916,6 +926,13 @@ const COPY = {
       sucesso: 'Success',
       tecnica: 'Technique',
       tecnicaOpcional: 'Technique (optional)',
+      // i18n-sync (Fase 3.3): espelha o bloco pt acima, mesmo conteúdo em inglês.
+      tecnicaAliadosRotulo: 'Allies ({atual}/{max})',
+      tecnicaExigeArma: 'Requires a weapon of group: {grupo}.',
+      tecnicaExigeArmadura: 'Requires armor of group: {grupo}.',
+      tecnicaGratuitaJaUsada: 'Already used a free technique this round.',
+      tecnicaUsoUnicoJaUsada: 'Already used this battle (single use).',
+      tecnicaParcialIgnoraArmadura: 'Armor-ignoring half is not automated yet — apply it manually.',
       todosOsPjsNo: 'All PCs at full pools.',
       tudoProntoParaO: 'Everything is ready for the battle to begin. The turn order, or initiative, is determined by each participants speed.',
       umaDeCada: 'One of each',
