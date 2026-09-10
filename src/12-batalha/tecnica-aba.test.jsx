@@ -411,7 +411,11 @@ describe('ROTEIRO 10 — REGRA NOVA: modo total custa 0 PA, 1 ativação livre p
     expect(aplicarBtn().disabled).toBe(true);
   });
 
-  it('quem AINDA NÃO ativou continua livre, mesmo com pa_rest 0 (não é custo de PA)', () => {
+  it('contrato do motor: podeAtivarTecnicaLivre ignora pa_rest, só olha a flag (pa_rest 0 não é estado alcançável pela UI — ver regra em debitarCustoTecnica)', () => {
+    // pa_rest: 0 aqui é só pra provar que a função pura não checa PA — na
+    // interface real esse combatente já teria sido auto-passado da vez antes
+    // de chegar a esta tela (regra confirmada pelo usuário em 09/09/2026,
+    // comentada em debitarCustoTecnica/podeAtivarTecnicaLivre).
     montar({ tecnica_livre_usada: false, pa_rest: 0 });
     abrirAbaTecnica();
     escolherTecnica('Fúria');

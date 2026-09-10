@@ -2133,7 +2133,16 @@ function marcarTecnicaUsada(p, key) {
    seguem custando 1 PA como antes — o próprio PA já as limita, não precisam
    de flag. Função pura reusada pelos dois aplicarTeste (Mestre/Jogador), no
    mesmo molde de aplicarEfeitoTecnica: a regra mora aqui, a duplicação fica
-   só no call site. */
+   só no call site.
+
+   Decisão de regra CONFIRMADA PELO USUÁRIO em 09/09/2026, que parece bug mas
+   não é: atacar antes de ativar a técnica livre da rodada IMPEDE de usá-la
+   depois. "0 PA" é o custo em Pontos de Ação, não uma isenção do turno — quem
+   gasta o último PA atacando aciona o auto-passe da vez (pa_rest === 0, ver
+   os call sites de autoPassarSeNecessario) antes de ter a chance de ativar a
+   técnica, e a ativação livre não faz nada pra segurar o turno aberto. Na
+   prática, "0 PA" para o jogador significa "ative antes de agir, ou perdeu
+   a rodada". Não corrigir sem confirmar de novo com o usuário. */
 function debitarCustoTecnica(participante, tecnicaKey) {
   const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(tecnicaKey) : null;
   if (reg && reg.modo === 'total') {
