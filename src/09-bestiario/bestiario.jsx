@@ -220,8 +220,31 @@ function SortHead({ col, sortKey, sortDir, toggleSort, children }) {
 }
 
 
+/* Gate de admin da interface.
+   CONVENIÊNCIA, não segurança: quem impede a escrita é a RLS, gated em
+   eh_admin() no banco. Este hook decide só se o lápis aparece. Um usuário
+   comum que forje a chamada leva erro do Postgres.
+
+   Chama a RPC em vez de comparar o e-mail no cliente de propósito: a
+   definição de quem é admin fica com uma dona só. Comparar aqui duplicaria
+   a regra em dois lugares que podem divergir. */
+function useEhAdmin() {
+  const [ehAdmin, setEhAdmin] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    supabaseClient.rpc('eh_admin').then(({ data, error }) => {
+      if (vivo && !error) setEhAdmin(data === true);
+    });
+    return () => { vivo = false; };
+  }, []);
+  return ehAdmin;
+}
+
 // ── BestPageHeader — header topo do card (fp-card-top) ──────────────────────
-function BestPageHeader({ eyebrow, title }) {
+// `right` é opcional: as 5 listas passam o botão "Novo" do admin ali quando
+// ehAdmin — BestPageHeader é privado deste arquivo, então isso não afeta
+// nenhum outro consumidor.
+function BestPageHeader({ eyebrow, title, right }) {
   return (
     <div className="fp-card-top">
       <header className="ms-header ficha-page-header">
@@ -229,8 +252,32 @@ function BestPageHeader({ eyebrow, title }) {
           <div className="ficha-page-eyebrow">{eyebrow}</div>
           <h2 className="ms-title" style={{ margin: 0 }}>{title}</h2>
         </div>
+        {right}
       </header>
     </div>
+  );
+}
+
+// ── BestBotaoNovo / BestBotaoEditar — controles do admin nas 5 listas ──────
+// Convenção compartilhada: "Novo" no cabeçalho abre o editor em criação
+// (linha null), o lápis em cada linha abre em edição (linha = o registro).
+function BestBotaoNovo({ ac, onClick }) {
+  return (
+    <button type="button" className="btn-ghost btn-sm" onClick={onClick}>
+      <i className="ti ti-plus" aria-hidden="true" /> {ac.editorNovo}
+    </button>
+  );
+}
+function BestBotaoEditar({ ac, onClick }) {
+  return (
+    <button
+      type="button"
+      className="btn-icon btn-sm"
+      aria-label={ac.editorEditar}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+    >
+      <i className="ti ti-pencil" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -246,20 +293,27 @@ function CriaturasList({ ac, lang }) {
   const wrapRef = React.useRef(null);
   const PAGE_SIZE = useFitPageSize(wrapRef);
   const { sorted: criaturasSorted, sortKey, sortDir, toggleSort } = useSort(criaturas);
+  const ehAdmin = useEhAdmin();
+  const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
+
+  // Extraído do useEffect original SEM mudar comportamento (mesmo guard de
+  // cancelamento, só que via objeto em vez da variável de closure) — assim dá
+  // pra chamar de novo depois de salvar no CatalogoEditor.
+  const carregarCriaturas = async (cancelRef) => {
+    const { data, error } = await supabaseClient
+      .from('criaturas')
+      .select('*')
+      .order('estagio', { ascending: true })
+      .order('nome', { ascending: true });
+    if (cancelRef && cancelRef.atual) return;
+    if (error) { console.error('[criaturas] falha ao carregar:', error); setError(error.message); setCriaturas([]); }
+    else { setCriaturas(data || []); }
+  };
 
   useEffect(() => {
-    let cancel = false;
-    (async () => {
-      const { data, error } = await supabaseClient
-        .from('criaturas')
-        .select('*')
-        .order('estagio', { ascending: true })
-        .order('nome', { ascending: true });
-      if (cancel) return;
-      if (error) { console.error('[criaturas] falha ao carregar:', error); setError(error.message); setCriaturas([]); }
-      else { setCriaturas(data || []); }
-    })();
-    return () => { cancel = true; };
+    const cancelRef = { atual: false };
+    carregarCriaturas(cancelRef);
+    return () => { cancelRef.atual = true; };
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, tipoFiltro]);
 
@@ -300,7 +354,8 @@ function CriaturasList({ ac, lang }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-criaturas">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Creatures' : 'Criaturas'} />
+      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Creatures' : 'Criaturas'}
+        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
       <div className="best-toolbar-bestiario">
         <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search creature…' : 'Buscar criatura…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
         <div className="best-chips">
@@ -325,6 +380,7 @@ function CriaturasList({ ac, lang }) {
             <Table>
               <TableHeader><TableRow>
                 {cols.map((c) => <SortHead key={c.key} col={c.key} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{c.label}</SortHead>)}
+                {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((row) => {
@@ -337,9 +393,10 @@ function CriaturasList({ ac, lang }) {
                         ) : (
                           <TableCell key={c.key}>{fmt(row[c.key])}</TableCell>
                         ))}
+                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(row)} /></TableCell>}
                       </TableRow>
                       {isOpen && (
-                        <TableRow className="best-detail"><TableCell colSpan={cols.length}>
+                        <TableRow className="best-detail"><TableCell colSpan={cols.length + (ehAdmin ? 1 : 0)}>
                           <div className="best-detail-stats">
                             {atributos.map((a) => (
                               <div className="best-stat" key={a.key}><span className="best-stat-lbl">{a.label}</span><span className="best-stat-val">{fmt(row[a.key])}</span></div>
@@ -360,6 +417,15 @@ function CriaturasList({ ac, lang }) {
         </>
       )}
     </div>
+    {editando !== undefined && (
+      <CatalogoEditor
+        tabela="criaturas"
+        linha={editando}
+        lang={lang}
+        onSalvo={() => { setEditando(undefined); carregarCriaturas(); }}
+        onCancel={() => setEditando(undefined)}
+      />
+    )}
     </div>
   );
 }
@@ -431,15 +497,20 @@ function MagiasList({ ac, lang }) {
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
   const PAGE_SIZE = useFitPageSize(wrapRef);
+  const ehAdmin = useEhAdmin();
+  const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
+
+  // Extraído SEM mudar comportamento (ver comentário equivalente em CriaturasList).
+  const carregarMagias = async (cancelRef) => {
+    const { data, error } = await supabaseClient.from('magias').select('*').order('nome', { ascending: true });
+    if (cancelRef && cancelRef.atual) return;
+    if (error) { setError(error.message); setMagias([]); } else { setMagias(data || []); }
+  };
 
   useEffect(() => {
-    let cancel = false;
-    (async () => {
-      const { data, error } = await supabaseClient.from('magias').select('*').order('nome', { ascending: true });
-      if (cancel) return;
-      if (error) { setError(error.message); setMagias([]); } else { setMagias(data || []); }
-    })();
-    return () => { cancel = true; };
+    const cancelRef = { atual: false };
+    carregarMagias(cancelRef);
+    return () => { cancelRef.atual = true; };
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, tipoFiltro]);
 
@@ -460,7 +531,8 @@ function MagiasList({ ac, lang }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Spells' : 'Magias'} />
+      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Spells' : 'Magias'}
+        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
       <div className="best-toolbar-bestiario">
         <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search spell…' : 'Buscar magia…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
         <div className="best-chips">
@@ -490,6 +562,7 @@ function MagiasList({ ac, lang }) {
                 <SortHead col='alcance' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Range' : 'Alcance'}</SortHead>
                 <SortHead col='duracao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Duration' : 'Duração'}</SortHead>
                 <SortHead col='custo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Cost' : 'Custo'}</SortHead>
+                {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((m) => {
@@ -503,9 +576,10 @@ function MagiasList({ ac, lang }) {
                         <TableCell>{m.alcance || '—'}</TableCell>
                         <TableCell>{m.duracao || '—'}</TableCell>
                         <TableCell className="best-cost">{m.custo}</TableCell>
+                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(m)} /></TableCell>}
                       </TableRow>
                       {isOpen && (
-                        <TableRow className="best-detail"><TableCell colSpan={6}>
+                        <TableRow className="best-detail"><TableCell colSpan={6 + (ehAdmin ? 1 : 0)}>
                           {m.permissao && <div className="best-permissao">{m.permissao}</div>}
                           {m.descricao && <p className="best-desc">{m.descricao}</p>}
                           <div className="best-niveis">
@@ -525,6 +599,15 @@ function MagiasList({ ac, lang }) {
         </>
       )}
     </div>
+    {editando !== undefined && (
+      <CatalogoEditor
+        tabela="magias"
+        linha={editando}
+        lang={lang}
+        onSalvo={() => { setEditando(undefined); carregarMagias(); }}
+        onCancel={() => setEditando(undefined)}
+      />
+    )}
     </div>
   );
 }
@@ -541,15 +624,20 @@ function HabilidadesList({ ac, lang }) {
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
   const PAGE_SIZE = useFitPageSize(wrapRef);
+  const ehAdmin = useEhAdmin();
+  const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
+
+  // Extraído SEM mudar comportamento (ver comentário equivalente em CriaturasList).
+  const carregarHabilidades = async (cancelRef) => {
+    const { data, error } = await supabaseClient.from('habilidades').select('*').order('nome', { ascending: true });
+    if (cancelRef && cancelRef.atual) return;
+    if (error) { console.error('[habilidades] falha ao carregar:', error); setError(error.message); setHabilidades([]); } else { setHabilidades(data || []); }
+  };
 
   useEffect(() => {
-    let cancel = false;
-    (async () => {
-      const { data, error } = await supabaseClient.from('habilidades').select('*').order('nome', { ascending: true });
-      if (cancel) return;
-      if (error) { console.error('[habilidades] falha ao carregar:', error); setError(error.message); setHabilidades([]); } else { setHabilidades(data || []); }
-    })();
-    return () => { cancel = true; };
+    const cancelRef = { atual: false };
+    carregarHabilidades(cancelRef);
+    return () => { cancelRef.atual = true; };
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, categoriaFiltro]);
 
@@ -574,7 +662,8 @@ function HabilidadesList({ ac, lang }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Skills' : 'Habilidades'} />
+      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Skills' : 'Habilidades'}
+        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
       <div className="best-toolbar-bestiario">
         <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search skill…' : 'Buscar habilidade…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
         <div className="best-chips">
@@ -599,6 +688,7 @@ function HabilidadesList({ ac, lang }) {
                 <SortHead col='vantagem' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Advantage' : 'Vantagem'}</SortHead>
                 <SortHead col='desvantagem' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Disadvantage' : 'Desvantagem'}</SortHead>
                 <SortHead col='custo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Cost' : 'Custo'}</SortHead>
+                {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((h) => {
@@ -616,9 +706,10 @@ function HabilidadesList({ ac, lang }) {
                         <TableCell>{h.vantagem || '—'}</TableCell>
                         <TableCell>{h.desvantagem || '—'}</TableCell>
                         <TableCell className="best-cost">{h.custo}</TableCell>
+                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(h)} /></TableCell>}
                       </TableRow>
                       {isOpen && temDetalhe && (
-                        <TableRow className="best-detail"><TableCell colSpan={6}>
+                        <TableRow className="best-detail"><TableCell colSpan={6 + (ehAdmin ? 1 : 0)}>
                           {h.restricao && (
                             <div className="best-meta-list">
                               <div className="best-meta"><span className="best-meta-lbl">{lang === 'en' ? 'Restriction' : 'Restrição'}</span><span className="best-meta-val">{h.restricao}</span></div>
@@ -637,6 +728,15 @@ function HabilidadesList({ ac, lang }) {
         </>
       )}
     </div>
+    {editando !== undefined && (
+      <CatalogoEditor
+        tabela="habilidades"
+        linha={editando}
+        lang={lang}
+        onSalvo={() => { setEditando(undefined); carregarHabilidades(); }}
+        onCancel={() => setEditando(undefined)}
+      />
+    )}
     </div>
   );
 }
@@ -653,15 +753,20 @@ function TecnicasList({ ac, lang }) {
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
   const PAGE_SIZE = useFitPageSize(wrapRef);
+  const ehAdmin = useEhAdmin();
+  const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
+
+  // Extraído SEM mudar comportamento (ver comentário equivalente em CriaturasList).
+  const carregarTecnicas = async (cancelRef) => {
+    const { data, error } = await supabaseClient.from('tecnicas').select('*').order('nome', { ascending: true });
+    if (cancelRef && cancelRef.atual) return;
+    if (error) { setError(error.message); setTecnicas([]); } else { setTecnicas(data || []); }
+  };
 
   useEffect(() => {
-    let cancel = false;
-    (async () => {
-      const { data, error } = await supabaseClient.from('tecnicas').select('*').order('nome', { ascending: true });
-      if (cancel) return;
-      if (error) { setError(error.message); setTecnicas([]); } else { setTecnicas(data || []); }
-    })();
-    return () => { cancel = true; };
+    const cancelRef = { atual: false };
+    carregarTecnicas(cancelRef);
+    return () => { cancelRef.atual = true; };
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, usoFiltro]);
 
@@ -684,7 +789,8 @@ function TecnicasList({ ac, lang }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Techniques' : 'Técnicas'} />
+      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Techniques' : 'Técnicas'}
+        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
       <div className="best-toolbar-bestiario">
         <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search technique…' : 'Buscar técnica…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
         <div className="best-chips">
@@ -708,6 +814,7 @@ function TecnicasList({ ac, lang }) {
                 <SortHead col='grupo_armas' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Weapons' : 'Armas'}</SortHead>
                 <SortHead col='grupo_armaduras' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Armors' : 'Armaduras'}</SortHead>
                 <SortHead col='custo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Cost' : 'Custo'}</SortHead>
+                {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((t) => {
@@ -720,9 +827,10 @@ function TecnicasList({ ac, lang }) {
                         <TableCell>{t.grupo_armas || '—'}</TableCell>
                         <TableCell>{t.grupo_armaduras || '—'}</TableCell>
                         <TableCell className="best-cost">{t.custo}</TableCell>
+                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(t)} /></TableCell>}
                       </TableRow>
                       {isOpen && (
-                        <TableRow className="best-detail"><TableCell colSpan={5}>
+                        <TableRow className="best-detail"><TableCell colSpan={5 + (ehAdmin ? 1 : 0)}>
                           {t.permissao && <div className="best-permissao">{t.permissao}</div>}
                           {t.descricao && <p className="best-desc">{t.descricao}</p>}
                           {t.efeito && <p className="best-efeito">{lang === 'en' ? 'Effect' : 'Efeito'}: {t.efeito}</p>}
@@ -738,6 +846,15 @@ function TecnicasList({ ac, lang }) {
         </>
       )}
     </div>
+    {editando !== undefined && (
+      <CatalogoEditor
+        tabela="tecnicas"
+        linha={editando}
+        lang={lang}
+        onSalvo={() => { setEditando(undefined); carregarTecnicas(); }}
+        onCancel={() => setEditando(undefined)}
+      />
+    )}
     </div>
   );
 }
@@ -755,6 +872,8 @@ function ItensList({ ac, lang }) {
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
   const PAGE_SIZE = useFitPageSize(wrapRef);
+  const ehAdmin = useEhAdmin();
+  const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
 
   // Faixas de preço (valor_latao)
   const PRECO_FAIXAS = [
@@ -766,15 +885,18 @@ function ItensList({ ac, lang }) {
     { key: 'raro',   label: lang === 'en' ? '10 000+'     : '10.000+',         icon: 'ti-diamond',      min: 10000, max: Infinity },
   ];
 
+  // Extraído SEM mudar comportamento (ver comentário equivalente em CriaturasList).
+  const carregarItens = async (cancelRef) => {
+    // Paginado: `itens` passa de 1000 linhas e o PostgREST corta em silêncio.
+    const { data, error } = await fetchTabelaPaginada('itens', { ordem: ['nome'] });
+    if (cancelRef && cancelRef.atual) return;
+    if (error) { setError(error.message); setItens([]); } else { setItens(data || []); }
+  };
+
   useEffect(() => {
-    let cancel = false;
-    (async () => {
-      // Paginado: `itens` passa de 1000 linhas e o PostgREST corta em silêncio.
-      const { data, error } = await fetchTabelaPaginada('itens', { ordem: ['nome'] });
-      if (cancel) return;
-      if (error) { setError(error.message); setItens([]); } else { setItens(data || []); }
-    })();
-    return () => { cancel = true; };
+    const cancelRef = { atual: false };
+    carregarItens(cancelRef);
+    return () => { cancelRef.atual = true; };
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, grupoFiltro, precoFiltro]);
 
@@ -802,7 +924,8 @@ function ItensList({ ac, lang }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Items' : 'Itens'} />
+      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Items' : 'Itens'}
+        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
       <div className="best-toolbar-bestiario">
         <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search item…' : 'Buscar item…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
         <div className="best-chips">
@@ -825,6 +948,7 @@ function ItensList({ ac, lang }) {
                 <SortHead col='grupo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Group' : 'Grupo'}</SortHead>
                 <SortHead col='ocupa' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Storage' : 'Armazenamento'}</SortHead>
                 <SortHead col='valor_latao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Value' : 'Valor'}</SortHead>
+                {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((it) => {
@@ -847,9 +971,10 @@ function ItensList({ ac, lang }) {
                         <TableCell>{it.grupo || '—'}</TableCell>
                         <TableCell>{armazenamento}</TableCell>
                         <TableCell>{it.valor_latao ?? 0}</TableCell>
+                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(it)} /></TableCell>}
                       </TableRow>
                       {isOpen && (
-                        <TableRow className="best-detail"><TableCell colSpan={4}>
+                        <TableRow className="best-detail"><TableCell colSpan={4 + (ehAdmin ? 1 : 0)}>
                           {equipavel && (
                             <div className="best-detail-stats">
                               {(it.categoria_equip === 'arma' || it.categoria_equip === 'escudo') && (
@@ -883,11 +1008,20 @@ function ItensList({ ac, lang }) {
         </>
       )}
     </div>
+    {editando !== undefined && (
+      <CatalogoEditor
+        tabela="itens"
+        linha={editando}
+        lang={lang}
+        onSalvo={() => { setEditando(undefined); carregarItens(); }}
+        onCancel={() => setEditando(undefined)}
+      />
+    )}
     </div>
   );
 }
 
 Object.assign(window, {
   CriaturasList, MagiasList, HabilidadesList,
-  TecnicasList, ItensList,
+  TecnicasList, ItensList, useEhAdmin,
 });
