@@ -234,7 +234,11 @@ function useEhAdmin() {
     let vivo = true;
     supabaseClient.rpc('eh_admin').then(({ data, error }) => {
       if (vivo && !error) setEhAdmin(data === true);
-    });
+    })
+      // Rejeição (falha de rede, não só {error} no retorno normal) sem catch
+      // vira unhandled rejection. `false` já é o estado default/seguro —
+      // não há controle de admin pra vazar, então só engole o erro.
+      .catch(() => {});
     return () => { vivo = false; };
   }, []);
   return ehAdmin;
