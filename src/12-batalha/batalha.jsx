@@ -3452,9 +3452,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       nome por causa da largura da coluna, restrição que sumiu. */}
                   <span className="batalha-fighter-nome">{p.nome}</span>
                   {p.ausente && <span className="batalha-aviso">{tb.ausente}</span>}
-                  {/* Chips de status temporários — clique remove. */}
+                  {/* Chips de status temporários — clique remove.
+                      I2 (revisão final): todos os efeitos de UMA técnica
+                      compartilham `id: 'tec_'+key` de propósito (é o que faz
+                      a regra de não-acumular funcionar) — Fúria gera 4
+                      status com o mesmo id, e a key de React precisa
+                      distinguir os chips mesmo assim. NÃO mude `s.id` aqui:
+                      só a key da renderização. */}
                   {Array.isArray(p.status_temp) && p.status_temp.map((s) => (
-                    <span key={s.id} className="batalha-status-chip"
+                    <span key={s.id + '_' + (s.efeito ? s.efeito.tipo : '')} className="batalha-status-chip"
                       onClick={(e) => { e.stopPropagation(); if (estado === 'ativa') removerStatusTemp(i, s.id); }}
                       onMouseEnter={(e) => abrirTip(e, `${s.nome} · ${s.rodadas_rest == null ? (tb.ateOFimDa) : `${s.rodadas_rest} ${tb.rodadaSRestantes}`} · ${tb.cliqueParaRemover}`)}
                       onMouseLeave={fecharTip}>
@@ -4447,10 +4453,18 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   }, [tab, habilidadesAtor.length, tecnicas.length, itensConsumiveisAtor.length, tecTesteKey]);
 
   // Auto-puxa RF/RM da ficha quando tab é Resistência
+  // I4 (revisão final): RF/RM EFETIVAS — antes lia direto de ficha.derivadas,
+  // ignorando status_temp (Resistência à Dor/Extrema, metade de Fúria); só a
+  // aba Apoio (defesa de OUTRO alvo) passava por rfEfetivo/rmEfetivo.
+  // ator.rf/rm é a MESMA fonte que ficha.derivadas (montarSnapshots copia
+  // 1:1), então rfEfetivo(ator)/rmEfetivo(ator) soma só o que faltava. `ficha`
+  // já é dependência do efeito e é recriada a cada mudança de `ator`
+  // (useMemo, deps inclui ator), então este efeito recalcula sozinho quando
+  // um status muda — não precisa entrar de novo nas deps.
   useEffect(() => {
     if (tab !== 'resistencia') return;
     if (!isPJ || !ficha) return;
-    const v = resTipo === 'rf' ? ficha.derivadas.resistenciaFisica : ficha.derivadas.resistenciaMagica;
+    const v = resTipo === 'rf' ? rfEfetivo(ator) : rmEfetivo(ator);
     setForcaDefesa(_clamp1a20(v));
     setD20(null);
   }, [tab, resTipo, isPJ, ficha]);
@@ -5266,8 +5280,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           }
           coluna={tab === 'resistencia' ? null : colunaClamped}
           alvoResist={tab === 'resistencia' ? alvoResist : null}
-          semCard={tab === 'habilidade'
-            || (tab === 'tecnica_teste' && (!tecPrecisaAlvo || tecMultiAlvo))}
+          /* I1 (revisão final): `semCard` NÃO controla card de alvo — controla
+             a linha de DETALHE DE DANO do DadoOverlay. A Task 8 tinha
+             mudado esta condição pra uma expressão com tecPrecisaAlvo, e
+             técnicas de alvo único passaram a anunciar "135% dano"/"Errou"
+             numa ativação que não causa dano de arma nenhum. O seletor de
+             alvo (C1, acima) é o que a spec pedia ali — não isto. */
+          semCard={tab === 'habilidade' || tab === 'tecnica_teste'}
           lang={lang}
           onFechar={() => setOverlayAberto(null)}
           onRolou={({ valor }) => {
