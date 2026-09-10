@@ -1619,6 +1619,25 @@ function somaEfeitosStatus(p, tipo) {
 function statusTemEfeito(p, tipo) {
   return !!(p && Array.isArray(p.status_temp) && p.status_temp.some((st) => st.efeito && st.efeito.tipo === tipo));
 }
+/* Soma os mod_ataque válidos para a arma em uso.
+   Por que não é só somaEfeitosStatus(p, 'mod_ataque'): a técnica pode estar
+   restrita a grupos de arma (Mira só em PL/PM/PP, Pugilato só em CD), e a
+   lista viaja no efeito. Ativar com arco e trocar para espada não mantém o
+   bônus — o status continua correndo, mas não entra nesta soma. Efeito sem
+   `grupos` vale para qualquer arma.
+
+   mod_ataque é DELIBERADAMENTE separado do mod_coluna: o −7 da Falha
+   Crítica pune toda ação (arma, magia, habilidade, técnica), enquanto
+   "coluna de ataque" das técnicas só toca arma e magia. */
+function somaModAtaque(p, grupoArma) {
+  if (!p || !Array.isArray(p.status_temp)) return 0;
+  return p.status_temp.reduce((s, st) => {
+    const ef = st.efeito;
+    if (!ef || ef.tipo !== 'mod_ataque') return s;
+    if (ef.grupos && !ef.grupos.includes(grupoArma)) return s;
+    return s + (ef.valor || 0);
+  }, 0);
+}
 // VB efetiva pra iniciativa: vb do snapshot + mod_vb de status. NÃO persiste.
 function vbEfetivo(p) {
   return (p.vb || 0) + somaEfeitosStatus(p, 'mod_vb');
@@ -4252,10 +4271,15 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   let coluna = null, colunaClamped = null, alvoResist = null;
   if (tab === 'arma' && arma && alvo) {
     const alvoEfetivo = { ...alvo, defesa_valor: (alvo.defesa_valor || 0) + somaEfeitosStatus(alvo, 'mod_defesa') };
-    coluna = colunaAtaque(arma, alvoEfetivo) + modColunaAtor;
+    // mod_ataque (técnicas, Fase 1) entra SÓ aqui e na magia — teste de
+    // habilidade e de técnica não recebem bônus de "coluna de ataque".
+    coluna = colunaAtaque(arma, alvoEfetivo)
+           + modColunaAtor
+           + somaModAtaque(ator, arma.grupo_sigla || arma.grupo || null);
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'magia' && magia) {
-    coluna = magia.nivel + modColunaAtor;
+    // Magia não tem grupo de arma: só os mod_ataque irrestritos valem.
+    coluna = magia.nivel + modColunaAtor + somaModAtaque(ator, null);
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'habilidade' && habilidadeSel && habilidadeSel.total != null) {
     coluna = habilidadeSel.total + modColunaAtor;
@@ -5911,7 +5935,7 @@ Object.assign(window, {
     ataquesDoAtor,
     // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
-    somaEfeitosStatus, statusTemEfeito, vbEfetivo,
+    somaEfeitosStatus, statusTemEfeito, somaModAtaque, vbEfetivo,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
     // Fase 1.2 — dano por rodada (Envenenado) + virada de rodada consolidada
     aplicarDanoDiretoEF, processarDanoPorRodada, processarViradaDeRodada, montarNovaRodada,

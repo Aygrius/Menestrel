@@ -139,3 +139,64 @@ describe('aplicarEfeitoTecnica — reaplicar NÃO acumula', () => {
     expect(p.status_temp[0].id).toBe('fc_defesa');
   });
 });
+
+describe('somaModAtaque', () => {
+  it('soma o mod_ataque sem grupo para qualquer arma', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'mira', nome: 'Mira' }, 7);
+    expect(M.somaModAtaque(p, 'CM')).toBe(7);
+    expect(M.somaModAtaque(p, 'PL')).toBe(7);
+    expect(M.somaModAtaque(p, null)).toBe(7);
+  });
+
+  it('mod_ataque COM restrição só vale para os grupos daquela técnica', () => {
+    const p = M.aplicarEfeitoTecnica(
+      lutador(), { key: 'pugilato', nome: 'Pugilato', grupo_armas: 'CD' }, 3);
+    expect(M.somaModAtaque(p, 'CD')).toBe(3);
+    expect(M.somaModAtaque(p, 'CM')).toBe(0);
+    expect(M.somaModAtaque(p, null)).toBe(0);
+  });
+
+  it('vale para qualquer grupo da lista', () => {
+    const p = M.aplicarEfeitoTecnica(
+      lutador(), { key: 'mira', nome: 'Mira', grupo_armas: 'PL, PM, PP' }, 5);
+    expect(M.somaModAtaque(p, 'PL')).toBe(5);
+    expect(M.somaModAtaque(p, 'PP')).toBe(5);
+    expect(M.somaModAtaque(p, 'CM')).toBe(0);
+  });
+
+  // O caso que motiva a lista viajar no efeito: ativar com arco, trocar de arma.
+  it('trocar para arma fora da lista derruba o bônus sem apagar o status', () => {
+    const p = M.aplicarEfeitoTecnica(
+      lutador(), { key: 'mira', nome: 'Mira', grupo_armas: 'PL, PM, PP' }, 5);
+    expect(M.somaModAtaque(p, 'CM')).toBe(0);
+    expect(p.status_temp).toHaveLength(1);   // o buff continua correndo
+  });
+
+  it('acumula técnicas diferentes na mesma coluna', () => {
+    let p = M.aplicarEfeitoTecnica(
+      lutador(), { key: 'furia', nome: 'Fúria', grupo_armas: 'Livre' }, 7);
+    p = M.aplicarEfeitoTecnica(p, { key: 'pugilato', nome: 'Pugilato', grupo_armas: 'CD' }, 3);
+    expect(M.somaModAtaque(p, 'CD')).toBe(10);
+    expect(M.somaModAtaque(p, 'CM')).toBe(7);
+  });
+
+  it('debuff de Resguardar entra negativo', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'resguardar', nome: 'Resguardar' }, 5);
+    expect(M.somaModAtaque(p, 'CM')).toBe(-5);
+  });
+
+  it('participante sem status_temp devolve 0', () => {
+    expect(M.somaModAtaque(lutador(), 'CM')).toBe(0);
+    expect(M.somaModAtaque({}, 'CM')).toBe(0);
+  });
+
+  // A separação que justifica a primitiva existir: o −7 da Falha Crítica
+  // (mod_coluna) pune TODA ação; o bônus da técnica é só de ataque.
+  it('não confunde mod_ataque com o mod_coluna da Falha Crítica', () => {
+    const comFC = lutador({ status_temp: [
+      { id: 'fc_acoes', nome: 'Ações −7', icone: '🤕', rodadas_rest: null, efeito: { tipo: 'mod_coluna', valor: -7 } },
+    ] });
+    expect(M.somaModAtaque(comFC, 'CM')).toBe(0);
+    expect(M.somaEfeitosStatus(comFC, 'mod_coluna')).toBe(-7);
+  });
+});
