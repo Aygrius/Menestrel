@@ -17,6 +17,7 @@
 -- REVERTER:
 --   drop policy criaturas_admin_insert on public.criaturas;  (e as outras 9)
 --   alter table public.criaturas drop column atualizado_em;   (e as outras 4)
+--   revoke insert, update on public.itens from authenticated;
 -- ============================================================
 
 begin;
@@ -58,7 +59,13 @@ create policy itens_admin_insert on public.itens
 create policy itens_admin_update on public.itens
   for update to authenticated using (public.eh_admin()) with check (public.eh_admin());
 
--- 3. Dívida de GRANT. `anon` tinha INSERT/UPDATE/DELETE em 4 das 5. Inofensivo
+-- 3. `itens` era a única das 5 sem grant de escrita para `authenticated`. Postgres
+--    exige GRANT **e** política que passe; sem o grant, a política de itens seria
+--    inútil e o erro ("permission denied for table itens") não apontaria a causa.
+--    Sem DELETE, coerente com a ausência deliberada de política de DELETE.
+grant insert, update on public.itens to authenticated;
+
+-- 4. Dívida de GRANT. `anon` tinha INSERT/UPDATE/DELETE em 4 das 5. Inofensivo
 --    enquanto a RLS nega, mas é a única linha de defesa se alguém desligar RLS
 --    numa dessas tabelas um dia. `authenticated` mantém os GRANTs — quem decide
 --    é a RLS, e queremos ela como porta única.
@@ -70,8 +77,11 @@ revoke insert, update, delete on public.itens       from anon;
 
 -- ── Verificação. Confira as três saídas antes do commit. ──
 
--- (a) Esperado: 10 linhas, 5 INSERT e 5 UPDATE, todas com eh_admin().
-select tablename, policyname, cmd
+-- (a) Esperado: 10 linhas, 5 INSERT e 5 UPDATE, e `qual`/`with_check` de
+--     TODAS as 10 devem mencionar eh_admin() — conferir o predicado, não só
+--     nome/comando da política. Uma política escrita com `using (true)` teria
+--     nome e cmd corretos e passaria por uma verificação que olhasse só isso.
+select tablename, policyname, cmd, qual, with_check
   from pg_policies
  where schemaname='public'
    and tablename in ('criaturas','magias','tecnicas','habilidades','itens')
