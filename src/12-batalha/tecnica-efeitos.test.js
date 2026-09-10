@@ -468,3 +468,99 @@ describe('registro de uso', () => {
     expect(M.marcarTecnicaUsada(p, 'furia')).toBe(p);
   });
 });
+
+// REGRA NOVA (revisão final, 09/09/2026): ativação de técnica modo 'total'
+// (23 das 24) passa a custar 0 PA, com teto de 1 ativação livre por rodada
+// por combatente. modo 'teste' (só Sangramento) continua custando 1 PA — o
+// próprio PA já o limita.
+describe('debitarCustoTecnica — ativação livre de modo "total"', () => {
+  it('modo total não debita PA e marca a flag', () => {
+    const p = M.debitarCustoTecnica(lutador({ pa_rest: 2 }), 'mira');
+    expect(p.pa_rest).toBe(2);
+    expect(p.tecnica_livre_usada).toBe(true);
+  });
+
+  it('modo teste (sangramento) debita 1 PA e não toca a flag', () => {
+    const p = M.debitarCustoTecnica(lutador({ pa_rest: 2 }), 'sangramento');
+    expect(p.pa_rest).toBe(1);
+    expect(p.tecnica_livre_usada).toBeUndefined();
+  });
+
+  it('técnica sem entrada no registro (Fase 2, narrativa) debita 1 PA — comportamento de antes', () => {
+    const p = M.debitarCustoTecnica(lutador({ pa_rest: 2 }), 'golpe_duplo');
+    expect(p.pa_rest).toBe(1);
+  });
+
+  it('PA no piso 0 não vira negativo', () => {
+    const p = M.debitarCustoTecnica(lutador({ pa_rest: 0 }), 'sangramento');
+    expect(p.pa_rest).toBe(0);
+  });
+});
+
+describe('podeAtivarTecnicaLivre — teto de 1 ativação livre por rodada', () => {
+  it('libera a primeira ativação de modo total', () => {
+    expect(M.podeAtivarTecnicaLivre(lutador(), { key: 'mira' }).pode).toBe(true);
+  });
+
+  it('bloqueia a segunda ativação de modo total na mesma rodada', () => {
+    const p = lutador({ tecnica_livre_usada: true });
+    expect(M.podeAtivarTecnicaLivre(p, { key: 'furia' }))
+      .toEqual({ pode: false, motivo: 'livre_usada' });
+  });
+
+  it('sangramento (modo teste) nunca disputa a cota — livre mesmo com a flag marcada', () => {
+    const p = lutador({ tecnica_livre_usada: true });
+    expect(M.podeAtivarTecnicaLivre(p, { key: 'sangramento' }).pode).toBe(true);
+  });
+
+  it('técnica sem entrada no registro nunca disputa a cota', () => {
+    const p = lutador({ tecnica_livre_usada: true });
+    expect(M.podeAtivarTecnicaLivre(p, { key: 'golpe_duplo' }).pode).toBe(true);
+  });
+});
+
+describe('processarViradaDeRodada zera tecnica_livre_usada', () => {
+  it('a virada devolve a ativação livre — mesmo padrão de moveu_na_rodada', () => {
+    const p = lutador({ status: 'ativo', vb: 10, pa_max: 1, tecnica_livre_usada: true });
+    const { participante } = M.processarViradaDeRodada(p);
+    expect(participante.tecnica_livre_usada).toBe(false);
+  });
+
+  it('quem não está ativo não recupera a cota', () => {
+    const p = lutador({ status: 'desmaiado', vb: 10, pa_max: 1, tecnica_livre_usada: true });
+    const { participante } = M.processarViradaDeRodada(p);
+    expect(participante.tecnica_livre_usada).toBe(true);
+  });
+});
+
+// I3 (revisão final): remover o chip à mão pulava expirarEhTemp — cancelar
+// Heroísmo/Fúria/Animosidade/Segundo Fôlego pelo chip deixava o eh_max
+// inflado pelo resto da batalha.
+describe('removerStatusTempParticipante — devolve a EH ao remover pelo chip', () => {
+  it('remove um mod_eh_temp e devolve o eh_max ao teto de antes', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'heroismo', nome: 'Heroísmo' }, 12);
+    expect(p.eh_max).toBe(32);   // 20 + 12
+    const depois = M.removerStatusTempParticipante(p, 'tec_heroismo');
+    expect(depois.eh_max).toBe(20);
+    expect(depois.status_temp).toHaveLength(0);
+  });
+
+  it('quem já gastou o bônus não é punido duas vezes (piso 0 na EH)', () => {
+    let p = M.aplicarEfeitoTecnica(lutador({ eh: 20, eh_max: 20 }), { key: 'heroismo', nome: 'Heroísmo' }, 12);
+    p = { ...p, eh: 3 };   // gastou o bônus e mais um pouco, sobrou 3
+    const depois = M.removerStatusTempParticipante(p, 'tec_heroismo');
+    expect(depois.eh).toBe(3);
+    expect(depois.eh_max).toBe(20);
+  });
+
+  it('id inexistente devolve null — o call site sabe que não há o que persistir', () => {
+    expect(M.removerStatusTempParticipante(lutador(), 'nao_existe')).toBeNull();
+  });
+
+  it('remover um status sem mod_eh_temp não mexe em eh/eh_max', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'mira', nome: 'Mira' }, 5);
+    const depois = M.removerStatusTempParticipante(p, 'tec_mira');
+    expect(depois.status_temp).toHaveLength(0);
+    expect(depois.eh_max).toBe(p.eh_max);
+  });
+});

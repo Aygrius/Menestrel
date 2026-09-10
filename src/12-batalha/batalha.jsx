@@ -913,6 +913,7 @@ async function montarSnapshots(parts, personagensPools) {
         status,
         status_temp: [],   // Fase 6: array de { id, nome, icone, rodadas_rest }
         tecnicas_usadas: [],   // Task 8: keys de técnicas Único já gastas nesta batalha
+        tecnica_livre_usada: false,   // REGRA NOVA: ativação livre (0 PA) já usada nesta rodada
       };
     }
     const c = criById[p.ref_id];
@@ -951,6 +952,7 @@ async function montarSnapshots(parts, personagensPools) {
       status: 'ativo',
       status_temp: [],
       tecnicas_usadas: [],   // Task 8: keys de técnicas Único já gastas nesta batalha
+      tecnica_livre_usada: false,   // REGRA NOVA: ativação livre (0 PA) já usada nesta rodada
     };
   });
 }
@@ -1719,6 +1721,23 @@ function expirarEhTemp(p, removidos) {
   const ehMax = Math.max(0, (Number(p.eh_max) || 0) - devolver);
   return { ...p, eh_max: ehMax, eh: Math.max(0, Math.min(ehMax, Number(p.eh) || 0)) };
 }
+
+/* Remove um status_temp pelo id (clique no chip, Fase 6) — núcleo puro.
+   I3 (revisão final, 09/09/2026): filtrar sem passar por expirarEhTemp
+   deixava o eh_max inflado pelo resto da batalha ao cancelar Heroísmo/
+   Fúria/Animosidade/Segundo Fôlego na mão — só a expiração NATURAL (virada
+   de rodada) devolvia a EH emprestada. Mesmo tratamento dos dois lados;
+   statusPorPools roda ao fim porque zerar a EH pode derrubar (mesma ordem
+   de processarViradaDeRodada). Devolve null quando o id não existe, pro
+   call site saber que não há nada pra persistir. */
+function removerStatusTempParticipante(p, statusId) {
+  if (!p) return null;
+  const atual = Array.isArray(p.status_temp) ? p.status_temp : [];
+  const removidos = atual.filter((s) => s.id === statusId);
+  if (!removidos.length) return null;
+  const novoArr = atual.filter((s) => s.id !== statusId);
+  return statusPorPools(expirarEhTemp({ ...p, status_temp: novoArr }, removidos));
+}
 // ordenarIniciativa usando a VB EFETIVA (mod_vb), preservando o vb real.
 function ordenarIniciativaEfetiva(snaps) {
   return ordenarIniciativa(snaps.map((p) => ({ ...p, vb: vbEfetivo(p), __orig: p })))
@@ -1777,7 +1796,10 @@ function processarViradaDeRodada(p) {
   const vbEf = vbEfetivo(p);
   let next = (p.status === 'ativo')
     ? { ...p, pa_rest: p.pa_max + (vbEf > 30 ? 1 : 0),
-              mov_rest: movimentoBase(vbEf), moveu_na_rodada: false }
+              mov_rest: movimentoBase(vbEf), moveu_na_rodada: false,
+              // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
+              // modo 'total' é POR RODADA — mesmo padrão de moveu_na_rodada.
+              tecnica_livre_usada: false }
     : { ...p };
   let eventos = [], total = 0;
   if (p.status !== 'morto' && p.status !== 'desistiu') {
@@ -2094,6 +2116,35 @@ function marcarTecnicaUsada(p, key) {
   const usadas = Array.isArray(p.tecnicas_usadas) ? p.tecnicas_usadas : [];
   if (usadas.includes(key)) return p;
   return { ...p, tecnicas_usadas: [...usadas, key] };
+}
+
+/* Custo de PA da ativação de uma técnica (REGRA NOVA, revisão final,
+   09/09/2026): modo 'total' (23 das 24 técnicas da Fase 1) é ativação LIVRE
+   — 0 PA, até 1 vez por rodada por combatente (a flag zera em
+   processarViradaDeRodada, mesmo padrão de moveu_na_rodada). modo 'teste'
+   (só Sangramento) e técnica sem entrada no registro (Fase 2, narrativa)
+   seguem custando 1 PA como antes — o próprio PA já as limita, não precisam
+   de flag. Função pura reusada pelos dois aplicarTeste (Mestre/Jogador), no
+   mesmo molde de aplicarEfeitoTecnica: a regra mora aqui, a duplicação fica
+   só no call site. */
+function debitarCustoTecnica(participante, tecnicaKey) {
+  const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(tecnicaKey) : null;
+  if (reg && reg.modo === 'total') {
+    return { ...participante, tecnica_livre_usada: true };
+  }
+  return { ...participante, pa_rest: Math.max(0, (participante.pa_rest || 0) - 1) };
+}
+
+/* Teto de 1 ativação LIVRE (modo 'total') por rodada. Devolve bloqueado só
+   quando a técnica É modo 'total' E a flag já foi consumida nesta rodada —
+   toda técnica modo 'teste' (Sangramento) e toda técnica sem entrada no
+   registro passam livres, porque não disputam a cota. */
+function podeAtivarTecnicaLivre(p, tecnica) {
+  const reg = (typeof tecnicaEfeitoDe === 'function')
+    ? tecnicaEfeitoDe(tecnica && tecnica.key) : null;
+  if (!reg || reg.modo !== 'total') return { pode: true, motivo: null };
+  if (p && p.tecnica_livre_usada) return { pode: false, motivo: 'livre_usada' };
+  return { pode: true, motivo: null };
 }
 
 /* ── Quebra a concentração de um conjurador ────────────────────────
@@ -2507,13 +2558,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     persistir({ participantes: next }, () => { setParticipantes(next); fecharVeneno(); });
   };
 
-  // Fase 6 — Remove um status temporário (clique no chip).
+  // Fase 6 — Remove um status temporário (clique no chip). O núcleo puro
+  // mora em removerStatusTempParticipante (I3, abaixo); aqui é só o
+  // call site: acha o participante, persiste.
   const removerStatusTemp = (idx, statusId) => {
-    const p = participantes[idx];
-    const atual = Array.isArray(p.status_temp) ? p.status_temp : [];
-    const novoArr = atual.filter((s) => s.id !== statusId);
-    if (novoArr.length === atual.length) return;
-    const atualizado = { ...p, status_temp: novoArr };
+    const atualizado = removerStatusTempParticipante(participantes[idx], statusId);
+    if (!atualizado) return;
     const next = participantes.map((q, i) => (i === idx ? atualizado : q));
     persistir({ participantes: next }, () => setParticipantes(next));
   };
@@ -2664,10 +2714,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     let next = [...participantes];
     // Fazer um teste é uma ação: quebra a concentração de quem testou.
     next = [...quebrarConcentracao(next, next[testIdx].inst_id)];
-    next[testIdx] = {
-      ...next[testIdx],
-      pa_rest: Math.max(0, (next[testIdx].pa_rest || 0) - 1),
-    };
+    // REGRA NOVA (revisão final): técnica modo 'total' é ativação LIVRE — 0
+    // PA, marca a flag em vez de debitar. Qualquer outro teste (habilidade,
+    // resistência, técnica modo 'teste') segue debitando 1 PA como sempre.
+    next[testIdx] = (tipo_teste === 'tecnica' && payload.tecnica)
+      ? debitarCustoTecnica(next[testIdx], payload.tecnica.key)
+      : { ...next[testIdx], pa_rest: Math.max(0, (next[testIdx].pa_rest || 0) - 1) };
 
     // Fase 1 das técnicas: aplica o efeito mecânico.
     //   modo 'total' → aplica sempre (não há dado).
@@ -5655,7 +5707,11 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     let next = [...participantes];
     // Testar é uma ação: quebra a concentração — espelha aplicarTeste.
     next = [...quebrarConcentracao(next, next[idx].inst_id)];
-    next[idx] = { ...next[idx], pa_rest: Math.max(0, (next[idx].pa_rest || 0) - 1) };
+    // REGRA NOVA (revisão final): técnica modo 'total' é ativação LIVRE — 0
+    // PA, marca a flag em vez de debitar. Espelha aplicarTeste (Mestre).
+    next[idx] = (tipo_teste === 'tecnica' && payload.tecnica)
+      ? debitarCustoTecnica(next[idx], payload.tecnica.key)
+      : { ...next[idx], pa_rest: Math.max(0, (next[idx].pa_rest || 0) - 1) };
 
     // Fase 1 das técnicas: aplica o efeito mecânico.
     //   modo 'total' → aplica sempre (não há dado).
@@ -6225,12 +6281,21 @@ Object.assign(window, {
     // tecnicas_usadas, separado do efeito (Voz de Comando atinge o alvo,
     // mas o uso é do ator).
     podeUsarTecnica, marcarTecnicaUsada,
+    // REGRA NOVA (revisão final, 09/09/2026): ativação de técnica modo
+    // 'total' é LIVRE — 0 PA, teto de 1 por rodada. debitarCustoTecnica
+    // decide PA-vs-flag na aplicação; podeAtivarTecnicaLivre é o predicado
+    // que a UI consulta pra bloquear a segunda ativação (mesmo padrão de
+    // tecEquip/tecUso). A flag zera em processarViradaDeRodada.
+    debitarCustoTecnica, podeAtivarTecnicaLivre,
     // Task 7: grupo_armas/grupo_armaduras viram regra de ativação (não só
     // filtro de dropdown). tecnicaPermitida decide; tecnicasCompativeisComArma
     // é o filtro do select de ataque (Object.assign(window,...) abaixo
     // também expõe esta última — ver tecnicasCompativeisComArma —
     // regressão do "Livre" em tecnica-efeitos.test.js).
     tecnicaPermitida, tecnicasCompativeisComArma,
+    // higiene 9 (revisão final): as três leituras de "grupo da arma"
+    // (acima e o call site de somaModAtaque em AcaoPanel) unificadas aqui.
+    grupoDaArma,
     // Task 5 das técnicas: mod_rf/mod_rm na resistência e mod_dano_max no
     // dano recebido (Resistência à Dor/Extrema, Fúria, Posicionamento).
     rfEfetivo, rmEfetivo, danoComModMax,
@@ -6260,6 +6325,10 @@ Object.assign(window, {
     // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
     // e devolve o empréstimo quando o status sai na virada de rodada.
     expirarEhTemp,
+    // I3 (revisão final): núcleo puro de removerStatusTemp — devolve a EH
+    // emprestada ao cancelar um mod_eh_temp pelo chip, não só na expiração
+    // natural.
+    removerStatusTempParticipante,
     // Fase 1.2 — dano por rodada (Envenenado) + virada de rodada consolidada
     aplicarDanoDiretoEF, processarDanoPorRodada, processarViradaDeRodada, montarNovaRodada,
     // entradaLogViradaRodada é o texto único da virada: o Mestre usa em
