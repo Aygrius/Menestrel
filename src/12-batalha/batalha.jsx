@@ -693,6 +693,8 @@ function tecnicasDoAtor(ator, catalogos) {
       total,
       uso: t.uso || null,
       grupo_armas: t.grupo_armas || null,
+      // 09/09/2026: grupo_armaduras passou a ser regra (tecnicaPermitida).
+      grupo_armaduras: t.grupo_armaduras || null,
       efeito: t.efeito || null,
     });
   });
@@ -701,20 +703,49 @@ function tecnicasDoAtor(ator, catalogos) {
 
 /* ── Filtra técnicas compatíveis com a arma equipada ──────────── */
 /* Regra: técnica com `grupo_armas` específico (ex.: "CM") só       */
-/* aparece para armas daquele grupo. Sem `grupo_armas` ou genéricas */
-/* aparecem para todas as armas.                                    */
+/* aparece para armas daquele grupo. 'Livre', vazio e null são      */
+/* genéricas e aparecem para todas.                                 */
+/* 09/09/2026 — 'Livre' NÃO era tratado: o teste era `!t.grupo_armas`,
+   e 'Livre' é truthy, então caía no includes e as 31 técnicas
+   genéricas (mais da metade da tabela) sumiam do dropdown. Agora a
+   normalização passa por gruposDeArma, que devolve null para 'Livre'. */
 function tecnicasCompativeisComArma(tecnicas, arma, catalogos) {
   if (!Array.isArray(tecnicas) || tecnicas.length === 0) return [];
-  if (!arma || !arma.slug || !catalogos || !catalogos.catalogoBySlug) return tecnicas.filter((t) => !t.grupo_armas);
+  const semRestricao = (t) => gruposDeArma(t.grupo_armas) === null;
+  if (!arma || !arma.slug || !catalogos || !catalogos.catalogoBySlug) {
+    return tecnicas.filter(semRestricao);
+  }
   const itemArma = catalogos.catalogoBySlug[arma.slug];
   const grupoArma = itemArma && itemArma.grupo_armas ? String(itemArma.grupo_armas) : null;
   return tecnicas.filter((t) => {
-    if (!t.grupo_armas) return true;       // técnica genérica
+    const grupos = gruposDeArma(t.grupo_armas);
+    if (!grupos) return true;              // genérica
     if (!grupoArma) return false;          // arma sem grupo → não casa específica
-    // grupo_armas no DB pode ser CSV ("CM,CL"); aceita todos
-    const lista = String(t.grupo_armas).split(',').map((s) => s.trim()).filter(Boolean);
-    return lista.includes(grupoArma);
+    return grupos.includes(grupoArma);
   });
+}
+
+/* A técnica pode ser ATIVADA com o equipamento atual?
+   Duas portas, as duas vindas do banco:
+     grupo_armas      → a arma empunhada (grupo_sigla do ataque)
+     grupo_armaduras  → a armadura vestida (defesa_sigla do snapshot, L/M/P)
+   'Livre' libera. A arma é checada primeiro porque é a restrição que o
+   jogador resolve trocando de item na hora.
+
+   grupo_armaduras nunca tinha virado regra em lugar nenhum até 09/09/2026 —
+   só era exibido no bestiário e na ficha. */
+function tecnicaPermitida(tecnica, ator, arma) {
+  const gArmas = gruposDeArma(tecnica && tecnica.grupo_armas);
+  if (gArmas) {
+    const grupoArma = arma ? (arma.grupo_sigla || arma.grupo || null) : null;
+    if (!grupoArma || !gArmas.includes(grupoArma)) return { pode: false, motivo: 'arma' };
+  }
+  const gArmaduras = gruposDeArma(tecnica && tecnica.grupo_armaduras);
+  if (gArmaduras) {
+    const sigla = ((ator && ator.defesa_sigla) || 'L').toUpperCase();
+    if (!gArmaduras.includes(sigla)) return { pode: false, motivo: 'armadura' };
+  }
+  return { pode: true, motivo: null };
 }
 
 /* ── Pontos de ação por classe (spec do sistema) ──────────────── */
@@ -5976,6 +6007,10 @@ Object.assign(window, {
   // MotorBatalha é contrato de funções puras. Exposta à parte pro teste de
   // integração snapshot-criatura.test.js, que troca o stub de supabaseClient.
   montarSnapshots,
+  // tecnicasCompativeisComArma exposta solta (fora de MotorBatalha) pro
+  // teste de regressão do "Livre" em tecnica-efeitos.test.js — ela também
+  // vive dentro de MotorBatalha, mas o teste chama via window direto.
+  tecnicasCompativeisComArma,
   MotorBatalha: {
     EF_MORTE, pontosAcaoPJ, aplicarDanoCascata, ordenarIniciativa,
     // mesmoParticipante é usado também pelo tabuleiro (12-batalha/tabuleiro.jsx)
@@ -5991,6 +6026,12 @@ Object.assign(window, {
     // status_temp. Reaplicar substitui a leva anterior em vez de somar.
     // gruposDeArma é o parser das colunas grupo_armas/grupo_armaduras.
     aplicarEfeitoTecnica, gruposDeArma,
+    // Task 7: grupo_armas/grupo_armaduras viram regra de ativação (não só
+    // filtro de dropdown). tecnicaPermitida decide; tecnicasCompativeisComArma
+    // é o filtro do select de ataque (Object.assign(window,...) abaixo
+    // também expõe esta última — ver tecnicasCompativeisComArma —
+    // regressão do "Livre" em tecnica-efeitos.test.js).
+    tecnicaPermitida, tecnicasCompativeisComArma,
     // Task 5 das técnicas: mod_rf/mod_rm na resistência e mod_dano_max no
     // dano recebido (Resistência à Dor/Extrema, Fúria, Posicionamento).
     rfEfetivo, rmEfetivo, danoComModMax,

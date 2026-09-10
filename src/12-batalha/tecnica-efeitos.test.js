@@ -327,3 +327,91 @@ describe('mod_eh_temp na virada de rodada', () => {
     expect(p.status_temp).toHaveLength(1);
   });
 });
+
+describe('gruposDeArma — parser das colunas do banco', () => {
+  it('quebra o CSV em lista', () => {
+    expect(M.gruposDeArma('PL, PM, PP')).toEqual(['PL', 'PM', 'PP']);
+    expect(M.gruposDeArma('CD')).toEqual(['CD']);
+    expect(M.gruposDeArma('L, M')).toEqual(['L', 'M']);
+  });
+
+  // O bug que este parser existe pra não repetir: 'Livre' é truthy, então
+  // `!col` não o pega, e tecnicasCompativeisComArma escondia 31 técnicas.
+  it('"Livre" significa sem restrição, não um grupo chamado Livre', () => {
+    expect(M.gruposDeArma('Livre')).toBeNull();
+    expect(M.gruposDeArma('livre')).toBeNull();
+    expect(M.gruposDeArma('  Livre  ')).toBeNull();
+  });
+
+  it('vazio, null e undefined também são sem restrição', () => {
+    expect(M.gruposDeArma('')).toBeNull();
+    expect(M.gruposDeArma(null)).toBeNull();
+    expect(M.gruposDeArma(undefined)).toBeNull();
+  });
+});
+
+describe('tecnicaPermitida', () => {
+  const arco    = { slug: 'arco-curto', grupo_sigla: 'PL' };
+  const espada  = { slug: 'espada-longa', grupo_sigla: 'CM' };
+  const leve    = lutador({ defesa_sigla: 'L' });
+  const pesada  = lutador({ defesa_sigla: 'P' });
+
+  it('libera técnica Livre/Livre com qualquer arma e armadura', () => {
+    const t = { key: 'furia', grupo_armas: 'Livre', grupo_armaduras: 'Livre' };
+    expect(M.tecnicaPermitida(t, pesada, espada)).toEqual({ pode: true, motivo: null });
+  });
+
+  it('bloqueia por arma fora do grupo', () => {
+    const t = { key: 'mira', grupo_armas: 'PL, PM, PP', grupo_armaduras: 'Livre' };
+    expect(M.tecnicaPermitida(t, leve, arco).pode).toBe(true);
+    expect(M.tecnicaPermitida(t, leve, espada)).toEqual({ pode: false, motivo: 'arma' });
+  });
+
+  it('bloqueia por armadura fora do grupo', () => {
+    // Posicionamento exige armadura L.
+    const t = { key: 'posicionamento', grupo_armas: 'Livre', grupo_armaduras: 'L' };
+    expect(M.tecnicaPermitida(t, leve, espada).pode).toBe(true);
+    expect(M.tecnicaPermitida(t, pesada, espada)).toEqual({ pode: false, motivo: 'armadura' });
+  });
+
+  it('Postura Defensiva exige armadura média ou pesada', () => {
+    const t = { key: 'postura_defensiva', grupo_armas: 'Livre', grupo_armaduras: 'M, P' };
+    expect(M.tecnicaPermitida(t, pesada, espada).pode).toBe(true);
+    expect(M.tecnicaPermitida(t, leve, espada)).toEqual({ pode: false, motivo: 'armadura' });
+  });
+
+  it('a arma é checada antes da armadura quando as duas falham', () => {
+    const t = { key: 'x', grupo_armas: 'CD', grupo_armaduras: 'L' };
+    expect(M.tecnicaPermitida(t, pesada, espada)).toEqual({ pode: false, motivo: 'arma' });
+  });
+
+  // Técnica de buff puro é ativada sem arma selecionada na aba.
+  it('sem arma, só a restrição de armadura vale', () => {
+    const livre = { key: 'furia', grupo_armas: 'Livre', grupo_armaduras: 'Livre' };
+    expect(M.tecnicaPermitida(livre, leve, null).pode).toBe(true);
+    const exigeArma = { key: 'mira', grupo_armas: 'PL, PM, PP', grupo_armaduras: 'Livre' };
+    expect(M.tecnicaPermitida(exigeArma, leve, null)).toEqual({ pode: false, motivo: 'arma' });
+  });
+});
+
+describe('tecnicasCompativeisComArma — regressão do "Livre"', () => {
+  const catalogos = { catalogoBySlug: { 'espada-longa': { grupo: 'CM' } } };
+  const espada = { slug: 'espada-longa', grupo_sigla: 'CM' };
+
+  // 31 das 58 técnicas têm grupo_armas 'Livre' e sumiam do dropdown do ataque.
+  it('técnica "Livre" aparece para qualquer arma', () => {
+    const lista = [{ key: 'furia', grupo_armas: 'Livre' }];
+    expect(window.tecnicasCompativeisComArma(lista, espada, catalogos)).toHaveLength(1);
+  });
+
+  it('técnica específica continua filtrada', () => {
+    const lista = [{ key: 'mira', grupo_armas: 'PL, PM, PP' }];
+    expect(window.tecnicasCompativeisComArma(lista, espada, catalogos)).toHaveLength(0);
+  });
+
+  it('sem arma, sobram as sem restrição', () => {
+    const lista = [{ key: 'furia', grupo_armas: 'Livre' }, { key: 'mira', grupo_armas: 'PL, PM' }];
+    const r = window.tecnicasCompativeisComArma(lista, null, catalogos);
+    expect(r.map((t) => t.key)).toEqual(['furia']);
+  });
+});
