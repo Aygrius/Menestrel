@@ -2818,7 +2818,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         const resNome = payload.resultado ? payload.resultado.pt : null;
         texto = `${testador.nome} usou ${payload.nome || payload.chave}`;
         if (resNome) texto += ` → ${resNome}`;
-        texto += ` (col ${payload.coluna}, d20 ${payload.d20})`;
+        // Técnica modo 'total' não rola d20 (payload.d20 fica null) — omite o
+        // trecho do dado pra não virar "d20 null" na Central de Mensagens.
+        // Duplicado no handler do Jogador logo abaixo; mantenha os dois iguais.
+        texto += payload.d20 == null ? ` (col ${payload.coluna})` : ` (col ${payload.coluna}, d20 ${payload.d20})`;
       }
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
@@ -5853,7 +5856,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         const resNome = payload.resultado ? payload.resultado.pt : null;
         texto = `${meuParticipante.nome} usou ${payload.nome || payload.chave}`;
         if (resNome) texto += ` → ${resNome}`;
-        texto += ` (col ${payload.coluna}, d20 ${payload.d20})`;
+        // Técnica modo 'total' não rola d20 (payload.d20 fica null) — omite o
+        // trecho do dado pra não virar "d20 null" na Central de Mensagens.
+        // Duplicado no handler do Mestre acima; mantenha os dois iguais.
+        texto += payload.d20 == null ? ` (col ${payload.coluna})` : ` (col ${payload.coluna}, d20 ${payload.d20})`;
       }
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
