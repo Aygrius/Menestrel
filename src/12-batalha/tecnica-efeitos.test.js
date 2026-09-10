@@ -395,8 +395,14 @@ describe('tecnicaPermitida', () => {
 });
 
 describe('tecnicasCompativeisComArma — regressão do "Livre"', () => {
-  const catalogos = { catalogoBySlug: { 'espada-longa': { grupo: 'CM' } } };
-  const espada = { slug: 'espada-longa', grupo_sigla: 'CM' };
+  // higiene 7 (revisão final): a chave real do catálogo é `grupo_armas`, não
+  // `grupo` — com a chave errada, grupoDaArma nunca resolvia o grupo da
+  // arma (ficava null), e os casos abaixo passavam pelo ramo "arma sem
+  // grupo" em vez de exercitar a comparação de verdade. `espada` de
+  // propósito NÃO carrega `grupo_sigla`: só o catálogo pode resolver o
+  // grupo aqui, pra este teste pegar a chave errada se ela voltar.
+  const catalogos = { catalogoBySlug: { 'espada-longa': { grupo_armas: 'CM' } } };
+  const espada = { slug: 'espada-longa' };
 
   // 31 das 58 técnicas têm grupo_armas 'Livre' e sumiam do dropdown do ataque.
   it('técnica "Livre" aparece para qualquer arma', () => {
@@ -413,6 +419,13 @@ describe('tecnicasCompativeisComArma — regressão do "Livre"', () => {
     const lista = [{ key: 'furia', grupo_armas: 'Livre' }, { key: 'mira', grupo_armas: 'PL, PM' }];
     const r = window.tecnicasCompativeisComArma(lista, null, catalogos);
     expect(r.map((t) => t.key)).toEqual(['furia']);
+  });
+
+  // higiene 7: caso positivo de verdade — sem ele, os três casos acima
+  // fecham sem NUNCA exercitar `grupos.includes(grupoArma)` retornando true.
+  it('técnica com múltiplos grupos casa quando a arma pertence a um deles', () => {
+    const lista = [{ key: 'defletir_ataque', grupo_armas: 'PL, PM, CM' }];
+    expect(window.tecnicasCompativeisComArma(lista, espada, catalogos)).toHaveLength(1);
   });
 });
 

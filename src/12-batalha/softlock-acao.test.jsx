@@ -27,6 +27,11 @@ import '../01-core/copy.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
+// higiene 8 (revisão final): AcaoPanel chama tecnicaEfeitoDe por nome nu
+// assim que alguma fixture tiver técnica selecionada — sem este import a
+// primeira que tivesse derrubava o teste com ReferenceError. Nenhuma
+// fixture deste arquivo seleciona técnica hoje, então passava por sorte.
+import '../01-core/tecnicas-efeito.jsx';
 import './batalha.jsx';
 // Tabuleiro depois de batalha: alcanceDaAcao/alvoNoAlcance vivem lá e o
 // painel os chama pra checar alcance (mesma ordem do main.tsx).
