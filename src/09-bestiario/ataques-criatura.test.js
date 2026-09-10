@@ -59,11 +59,19 @@ describe('offsetLMP', () => {
 });
 
 describe('NOMES_ATAQUE_CRIATURA', () => {
-  it('tem exatamente os 30 nomes da tabela, sem Toque', () => {
-    expect(A.NOMES_ATAQUE_CRIATURA.length).toBe(30);
-    expect(A.NOMES_ATAQUE_CRIATURA).not.toContain('Toque');
+  // Estar no DROPDOWN e ter OFFSET são coisas separadas — confundi-las foi um
+  // erro de instrução. Toque é usado por 12 criaturas do banco, então precisa
+  // ser selecionável; só não tem offset, porque nos dados ele varia de 1 a 3.
+  it('tem os 30 nomes com offset MAIS os que existem no banco sem offset', () => {
+    expect(A.NOMES_ATAQUE_CRIATURA.length).toBe(31);
     expect(A.NOMES_ATAQUE_CRIATURA).toContain('Garras');
     expect(A.NOMES_ATAQUE_CRIATURA).toContain('Hálito Encantado');
+    expect(A.NOMES_ATAQUE_CRIATURA, 'Toque é ataque real de 12 criaturas').toContain('Toque');
+  });
+
+  it('Toque é selecionável mas NÃO tem offset — o L/M/P dele não auto-calcula', () => {
+    expect(A.NOMES_ATAQUE_CRIATURA).toContain('Toque');
+    expect(A.offsetLMP('Toque')).toBeNull();
   });
 
   it('não repete nomes', () => {

@@ -113,12 +113,21 @@ function offsetLMP(nomeAtaque) {
   return o ? { l: o.l, m: o.m, p: o.p } : null;
 }
 
-// Lista pro dropdown do campo `ataque` (catalogo-descritores.jsx): os 30
-// nomes desta tabela — SEM "Toque" de propósito, mesmo motivo do offset
-// ausente (ver aviso acima). catalogo-editor.jsx ainda acrescenta, em
+// Ataques que EXISTEM no banco mas não têm offset. Entram no dropdown, e não
+// na tabela de cálculo: são coisas separadas, e confundi-las foi um erro.
+// `Toque` é usado por 12 criaturas; deixá-lo fora da lista fazia o SelectPill
+// mostrar "—" ao editar qualquer uma delas. O valor salvo sobrevivia (o form
+// guarda o que veio do banco), mas o campo PARECIA vazio, o que convida o
+// admin a preencher com outra coisa e perder o dado por engano.
+// Sem offset, o L/M/P dele simplesmente não auto-calcula — que é o
+// comportamento correto quando os dados não sustentam uma regra.
+const ATAQUES_SEM_OFFSET = ['Toque'];
+
+// Lista pro dropdown do campo `ataque` (catalogo-descritores.jsx): todo nome
+// de ataque que existe no banco. catalogo-editor.jsx ainda acrescenta, em
 // tempo de execução, as armas do catálogo `itens` (grupo Armas) que não
 // estiverem aqui, buscadas do banco.
-const NOMES_ATAQUE_CRIATURA = Object.keys(OFFSET_LMP_ATAQUE)
+const NOMES_ATAQUE_CRIATURA = [...Object.keys(OFFSET_LMP_ATAQUE), ...ATAQUES_SEM_OFFSET]
   .sort((a, b) => a.localeCompare(b, 'pt'));
 
 Object.assign(window, {

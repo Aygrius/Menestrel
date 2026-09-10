@@ -198,12 +198,12 @@ describe('dropdown de ataque (criaturas) — 30 nomes fechados + armas do catál
   const opcoesAbertas = () => Array.from(document.querySelectorAll('.select-pill-drop li'))
     .map((li) => (li.textContent || '').trim());
 
-  it('oferece os 30 nomes da tabela fechada — "Toque" NÃO aparece (offset não constante no banco)', () => {
+  it('oferece todos os ataques do banco, inclusive "Toque" (que não tem offset mas é selecionável)', () => {
     montar({ tabela: 'criaturas', linha: null });
     abrirPillAtaque();
     const opcoes = opcoesAbertas();
-    expect(opcoes.length).toBe(30);
-    expect(opcoes).not.toContain('Toque');
+    expect(opcoes.length).toBe(31);
+    expect(opcoes).toContain('Toque');
     expect(opcoes).toContain('Garras');
     expect(opcoes).toContain('Hálito Encantado');
   });
@@ -215,7 +215,7 @@ describe('dropdown de ataque (criaturas) — 30 nomes fechados + armas do catál
     await vi.waitFor(() => { expect(opcoesAbertas()).toContain('Lança Élfica'); });
     const opcoes = opcoesAbertas();
     expect(opcoes.filter((o) => o === 'Garras')).toHaveLength(1);
-    expect(opcoes.length).toBe(31); // 30 fechados + 1 arma nova
+    expect(opcoes.length).toBe(32); // 31 do banco + 1 arma nova; "Garras" nao duplica
   });
 });
 
