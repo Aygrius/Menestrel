@@ -1642,6 +1642,27 @@ function somaModAtaque(p, grupoArma) {
 function vbEfetivo(p) {
   return (p.vb || 0) + somaEfeitosStatus(p, 'mod_vb');
 }
+/* RF/RM efetivas: o valor do snapshot mais os mod_rf/mod_rm de técnica.
+   Piso 1 porque resolverResistencia só aceita 1..20 — deixar cair a 0
+   estouraria o índice da tabela. Não persiste: o rf/rm cru do snapshot
+   fica intacto, mesma disciplina de vbEfetivo. */
+function rfEfetivo(p) {
+  return Math.max(1, (Number(p && p.rf) || 0) + somaEfeitosStatus(p, 'mod_rf'));
+}
+function rmEfetivo(p) {
+  return Math.max(1, (Number(p && p.rm) || 0) + somaEfeitosStatus(p, 'mod_rm'));
+}
+
+/* Dano final depois do mod_dano_max do ALVO (Posicionamento).
+   Entra DEPOIS de danoNoTier de propósito: a função de tier é espelho do
+   Arsenal da Ficha e não deve saber de status de combate. Piso 0 — reduzir
+   dano nunca pode virar cura. */
+function danoComModMax(dano, alvo) {
+  const base = Math.max(0, Math.floor(dano || 0));
+  if (base === 0) return 0;
+  return Math.max(0, base + somaEfeitosStatus(alvo, 'mod_dano_max'));
+}
+
 // Decremento por rodada: null = até o fim da batalha (preservado);
 // numérico decrementa e sai quando zera. Status sem efeito seguem a mesma regra.
 function decrementarStatusTemp(statusTemp) {
@@ -4292,7 +4313,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     // alvo. Ambas presas em 1..20, que é o intervalo que resolverResistencia
     // aceita (ele mesmo já faz o clamp, mas explicitar deixa o cálculo legível).
     const fAtk = Math.max(1, Math.min(20, apoioSel.nivel));
-    const fDef = Math.max(1, Math.min(20, Number(alvoApoio[apoioSel.resistencia]) || 1));
+    // RF/RM EFETIVAS (Fase 1 das técnicas): Resistência à Dor / Extrema /
+    // Fúria sobem estes números enquanto o status durar.
+    const fDefBruta = apoioSel.resistencia === 'rm' ? rmEfetivo(alvoApoio) : rfEfetivo(alvoApoio);
+    const fDef = Math.max(1, Math.min(20, fDefBruta));
     alvoResist = (typeof resolverResistencia === 'function')
       ? resolverResistencia(fAtk, fDef) : null;
   } else if (tab === 'resistencia') {
@@ -4305,7 +4329,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     ? (d20 === alvoResist ? 'empate' : (d20 > alvoResist ? 'resistiu' : 'falhou'))
     : null;
   const armaPraDano = tab === 'magia' ? magia : arma;        // o objeto cujo `dano` será multiplicado pelo tier
-  const dano = (tab === 'arma' || tab === 'magia') && res && !res.erra ? danoNoTier(armaPraDano, res.codigo) : 0;
+  const danoBruto = (tab === 'arma' || tab === 'magia') && res && !res.erra ? danoNoTier(armaPraDano, res.codigo) : 0;
+  // Posicionamento (mod_dano_max no alvo) corta o dano depois do tier.
+  const dano = danoComModMax(danoBruto, alvo);
   const custoKarma = tab === 'magia' && magia ? magia.custo_karma : 0;
   const semKarma = custoKarma > 0 && (ator.karma || 0) < custoKarma;
   const semPA = (ator.pa_rest || 0) <= 0;
@@ -5914,6 +5940,9 @@ Object.assign(window, {
     // status_temp. Reaplicar substitui a leva anterior em vez de somar.
     // gruposDeArma é o parser das colunas grupo_armas/grupo_armaduras.
     aplicarEfeitoTecnica, gruposDeArma,
+    // Task 5 das técnicas: mod_rf/mod_rm na resistência e mod_dano_max no
+    // dano recebido (Resistência à Dor/Extrema, Fúria, Posicionamento).
+    rfEfetivo, rmEfetivo, danoComModMax,
     // quebrarConcentracaoPorDano é a regra compartilhada dos TRÊS caminhos de
     // dano (manual do Mestre, ataque do Mestre, ataque do Jogador) — ver
     // concentracao-dano.test.js.

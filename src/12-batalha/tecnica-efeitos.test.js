@@ -200,3 +200,56 @@ describe('somaModAtaque', () => {
     expect(M.somaEfeitosStatus(comFC, 'mod_coluna')).toBe(-7);
   });
 });
+
+describe('resistências efetivas', () => {
+  it('Resistência à Dor sobe a RF e não toca a RM', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'resistencia_a_dor', nome: 'Resistência à Dor' }, 4);
+    expect(M.rfEfetivo(p)).toBe(12);   // 8 + 4
+    expect(M.rmEfetivo(p)).toBe(6);
+  });
+
+  it('Resistência Extrema sobe a RM e não toca a RF', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'resistencia_extrema', nome: 'Resistência Extrema' }, 3);
+    expect(M.rmEfetivo(p)).toBe(9);    // 6 + 3
+    expect(M.rfEfetivo(p)).toBe(8);
+  });
+
+  it('Fúria sobe as duas de uma vez', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'furia', nome: 'Fúria' }, 5);
+    expect(M.rfEfetivo(p)).toBe(13);
+    expect(M.rmEfetivo(p)).toBe(11);
+  });
+
+  it('sem status, devolve o valor cru do snapshot', () => {
+    expect(M.rfEfetivo(lutador())).toBe(8);
+    expect(M.rmEfetivo(lutador())).toBe(6);
+  });
+
+  // resolverResistencia só aceita 1..20; a efetiva não pode furar o piso.
+  it('nunca desce abaixo de 1', () => {
+    const p = lutador({ rf: 2, status_temp: [
+      { id: 'x', nome: 'x', icone: '🔻', rodadas_rest: 1, efeito: { tipo: 'mod_rf', valor: -10 } },
+    ] });
+    expect(M.rfEfetivo(p)).toBe(1);
+  });
+});
+
+describe('danoComModMax', () => {
+  it('Posicionamento subtrai o total do dano sofrido pelo alvo', () => {
+    const alvo = M.aplicarEfeitoTecnica(lutador(), { key: 'posicionamento', nome: 'Posicionamento' }, 6);
+    expect(M.danoComModMax(20, alvo)).toBe(14);
+  });
+
+  it('nunca vira cura: piso 0', () => {
+    const alvo = M.aplicarEfeitoTecnica(lutador(), { key: 'posicionamento', nome: 'Posicionamento' }, 30);
+    expect(M.danoComModMax(5, alvo)).toBe(0);
+  });
+
+  it('alvo sem o status recebe o dano cheio', () => {
+    expect(M.danoComModMax(20, lutador())).toBe(20);
+  });
+
+  it('dano 0 continua 0', () => {
+    expect(M.danoComModMax(0, lutador())).toBe(0);
+  });
+});
