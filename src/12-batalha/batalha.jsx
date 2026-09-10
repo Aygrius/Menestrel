@@ -711,12 +711,10 @@ function tecnicasDoAtor(ator, catalogos) {
    normalização passa por gruposDeArma, que devolve null para 'Livre'. */
 function tecnicasCompativeisComArma(tecnicas, arma, catalogos) {
   if (!Array.isArray(tecnicas) || tecnicas.length === 0) return [];
-  const semRestricao = (t) => gruposDeArma(t.grupo_armas) === null;
-  if (!arma || !arma.slug || !catalogos || !catalogos.catalogoBySlug) {
-    return tecnicas.filter(semRestricao);
-  }
-  const itemArma = catalogos.catalogoBySlug[arma.slug];
-  const grupoArma = itemArma && itemArma.grupo_armas ? String(itemArma.grupo_armas) : null;
+  // grupoDaArma unifica a derivação (higiene 9, revisão final): sem arma OU
+  // arma sem grupo identificável colapsam no mesmo `null`, e o filtro abaixo
+  // já trata os dois casos igual (só as técnicas genéricas passam).
+  const grupoArma = grupoDaArma(arma, catalogos);
   return tecnicas.filter((t) => {
     const grupos = gruposDeArma(t.grupo_armas);
     if (!grupos) return true;              // genérica
@@ -734,10 +732,10 @@ function tecnicasCompativeisComArma(tecnicas, arma, catalogos) {
 
    grupo_armaduras nunca tinha virado regra em lugar nenhum até 09/09/2026 —
    só era exibido no bestiário e na ficha. */
-function tecnicaPermitida(tecnica, ator, arma) {
+function tecnicaPermitida(tecnica, ator, arma, catalogos) {
   const gArmas = gruposDeArma(tecnica && tecnica.grupo_armas);
   if (gArmas) {
-    const grupoArma = arma ? (arma.grupo_sigla || arma.grupo || null) : null;
+    const grupoArma = grupoDaArma(arma, catalogos);
     if (!grupoArma || !gArmas.includes(grupoArma)) return { pode: false, motivo: 'arma' };
   }
   const gArmaduras = gruposDeArma(tecnica && tecnica.grupo_armaduras);
@@ -1999,6 +1997,25 @@ function gruposDeArma(csv) {
   if (!txt || txt.toLowerCase() === 'livre') return null;
   const lista = txt.split(',').map((s) => s.trim()).filter(Boolean);
   return lista.length ? lista : null;
+}
+
+/* Deriva o grupo de arma (sigla, ex. 'CM') de um objeto de ataque do
+   ataquesDoAtor. Três lugares reimplementavam esta mesma regra até
+   09/09/2026 (tecnicasCompativeisComArma, tecnicaPermitida, o call site de
+   somaModAtaque em AcaoPanel) — coincidiam porque as duas fontes têm a MESMA
+   origem (catalogoBySlug[slug].grupo_armas, anexado como grupo_sigla em
+   ataquesDoAtor:1352), mas eram três leituras separadas da mesma regra.
+   Prioriza o catálogo (fonte de verdade) quando `catalogos` está à mão; cai
+   pro grupo_sigla/grupo já anexado ao objeto quando não está. Ataque de
+   CRIATURA não tem slug no catálogo de itens nem grupo_sigla — as duas
+   pontas caem em null, sem quebrar (a técnica genérica libera). */
+function grupoDaArma(arma, catalogos) {
+  if (!arma) return null;
+  if (catalogos && catalogos.catalogoBySlug && arma.slug) {
+    const item = catalogos.catalogoBySlug[arma.slug];
+    if (item && item.grupo_armas) return String(item.grupo_armas);
+  }
+  return arma.grupo_sigla || arma.grupo || null;
 }
 
 function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
@@ -4465,7 +4482,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     // habilidade e de técnica não recebem bônus de "coluna de ataque".
     coluna = colunaAtaque(arma, alvoEfetivo)
            + modColunaAtor
-           + somaModAtaque(ator, arma.grupo_sigla || arma.grupo || null);
+           + somaModAtaque(ator, grupoDaArma(arma, catalogos));
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'magia' && magia) {
     // Magia não tem grupo de arma: só os mod_ataque irrestritos valem.
