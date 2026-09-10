@@ -768,12 +768,21 @@ function pontosAcaoPJ(pj) {
 /*   • A EF fica NEGATIVA: absorve dano até o piso EF_MORTE (−15). Entre   */
 /*     0 e −14 o personagem está caído (desmaiado, morrendo); EF ≤ −15 =   */
 /*     MORTO. EF 0 deixou de ser morte imediata.                           */
+/* O 3º parâmetro era um booleano `critico`. Virou objeto de modificadores
+   na Fase 2 das técnicas, porque agora há três motivos diferentes pra pular
+   uma camada: crítico, `ignora_eh` (Golpe Letal e as 5 irmãs, mais a
+   condição Derrubado) e `ignora_armadura` (Disparo Certeiro, Explorar
+   Fraqueza). Booleano ainda é aceito e vira `{ critico: <valor> }` — os
+   chamadores antigos não mudam de comportamento, e motor-batalha.test.js
+   prova isso sem alterar uma expectativa. */
 const EF_MORTE = -15;
-function aplicarDanoCascata(dano, p, critico) {
+function aplicarDanoCascata(dano, p, mods) {
+  const m = (mods && typeof mods === 'object') ? mods : { critico: !!mods };
+  const pulaEh = !!(m.critico || m.ignoraEh);
   let r = Math.max(0, Math.floor(dano || 0));
   let eh = p.eh, ar = p.ar, ef = p.ef;
-  if (!critico && eh > 0) { const c = Math.min(eh, r); eh -= c; r -= c; }
-  if (r > 0 && ar > 0)    { const c = Math.min(ar, r); ar -= c; r -= c; }
+  if (!pulaEh && eh > 0)          { const c = Math.min(eh, r); eh -= c; r -= c; }
+  if (r > 0 && !m.ignoraArmadura && ar > 0) { const c = Math.min(ar, r); ar -= c; r -= c; }
   if (r > 0 && ef > EF_MORTE) { const c = Math.min(ef - EF_MORTE, r); ef -= c; r -= c; }
   let status = p.status;
   // Qualquer um que não esteja morto pode morrer — inclusive quem desistiu.
