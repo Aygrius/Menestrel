@@ -51,7 +51,7 @@ de defesa se alguém desligar RLS numa dessas tabelas um dia.
 | Peça | Onde | Serve para |
 |---|---|---|
 | `eh_admin()` | função no banco | `SECURITY DEFINER`, `STABLE`, lê `auth.users` pelo `auth.uid()` e compara com o e-mail do admin. Já usada por `admin_definir_plano` |
-| Bestiário | `09-bestiario/bestiario.jsx` | JÁ lista `criaturas`, `magias`, `habilidades` e `tecnicas`, com ordenação e filtro |
+| Bestiário | `09-bestiario/bestiario.jsx` | JÁ lista **as cinco** tabelas, com ordenação, filtro e paginação: `CriaturasList`, `MagiasList`, `HabilidadesList`, `TecnicasList` e `ItensList` |
 | `NovaCriaturaModal` | `13-diario/diario.jsx` | As fórmulas derivadas de criatura (EF, EH, absorção, defesa, velocidade, L/M/P, dano) |
 | `ModalShell`, `SelectPill` | componentes do app | Molde visual do editor |
 | `GRUPOS_ARMAS` | `01-core/game-data.jsx` | Catálogo fixo dos 11 grupos de arma |
@@ -208,8 +208,15 @@ normais, não obrigatórios: omitir cai no default do banco.
 
 ## 5. A tela
 
-O Bestiário ganha uma **quinta aba, `itens`** — hoje ele cobre só quatro das
-cinco. Listagem, filtro e ordenação das quatro existentes não mudam.
+> **Correção de 10/09/2026.** Uma versão anterior desta seção dizia que o
+> Bestiário cobria "só quatro das cinco" tabelas e que ganharia uma aba nova de
+> `itens`. Está errado: `ItensList` já existe (`bestiario.jsx:746`). A conclusão
+> veio de um `grep` por `.from('...')`, que não pega essa lista porque ela busca
+> por `fetchTabelaPaginada`. **Nenhuma aba nova é necessária** — as cinco já
+> estão lá, e construir uma sexta duplicaria código existente.
+
+O Bestiário já tem as cinco abas. Listagem, filtro, ordenação e paginação não
+mudam em nenhuma delas: esta feature só acrescenta os controles de edição.
 
 Quando `eh_admin()` for verdadeiro:
 
