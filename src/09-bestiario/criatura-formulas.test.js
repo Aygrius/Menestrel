@@ -1,13 +1,20 @@
 /* ============================================================
    criatura-formulas.test.js — as fórmulas derivadas de criatura
    ============================================================
-   Fixture: os 8 dragões REAIS do banco (leitura de 09/09/2026). Eles são
-   a melhor prova disponível porque EF e EH batem pela fórmula em todos os
-   8, e absorção e velocidade NÃO batem em nenhum — a classe Dragão fixa
-   esses dois valores. Isso trava as duas coisas de uma vez: que a fórmula
-   está certa, e que campo derivado PRECISA ser sobrescrevível (spec §6).
+   Fixture (EF/EH/absorção/velocidade): os 8 dragões REAIS do banco
+   (leitura de 09/09/2026). Eles são a melhor prova disponível porque EF e
+   EH batem pela fórmula em todos os 8, e absorção e velocidade NÃO batem
+   em nenhum — a classe Dragão fixa esses dois valores. Isso trava as duas
+   coisas de uma vez: que a fórmula está certa, e que campo derivado
+   PRECISA ser sobrescrevível (spec §6).
+
+   Fixture (dano100/danoLMP): criaturas reais avulsas (não só dragões — ver
+   describe('dano100...') e describe('danoLMP...') abaixo), lidas do banco
+   em 10/09/2026. dano100 é a única fórmula onde os dragões NÃO servem de
+   prova — eles fogem dela por +4, ver o comentário dentro do describe.
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
+import './ataques-criatura.jsx';
 import './criatura-formulas.jsx';
 
 let F;
@@ -100,17 +107,59 @@ describe('velocidade', () => {
   });
 });
 
-describe('dano', () => {
-  it('L/M/P somam a agilidade ao dano da arma', () => {
-    expect(F.danoLMP({ armaDanoL: 10, armaDanoM: 12, armaDanoP: 15, agilidade: 3 }))
-      .toEqual({ l: 13, m: 15, p: 18 });
+// ⚠️ As fórmulas ORIGINAIS de dano100/danoLMP (dano da arma + √peso; dano da
+// arma + Agilidade) foram migradas do formulário de PERSONAGEM
+// (NovaCriaturaModal) e nunca reproduziram nenhuma criatura do banco —
+// criatura não tem "uma arma com dano fixo", tem uma FAIXA DE PESO e um
+// OFFSET por tipo de ataque (ataques-criatura.jsx). Os valores abaixo são
+// reais, lidos do banco em 10/09/2026.
+describe('dano100 — estágio + força + faixa de peso', () => {
+  // nome, ataque, estágio, força, peso, dano_100 real do banco.
+  const CRIATURAS = [
+    { nome: 'Jaguatirica',        estagio: 3, forca: 0, peso: 50,  d100: 11 },
+    { nome: 'Zumbi',              estagio: 2, forca: 0, peso: 70,  d100: 14 },
+    { nome: 'Feratus',            estagio: 6, forca: 0, peso: 90,  d100: 18 },
+    { nome: 'Avestruz de Guerra', estagio: 5, forca: 4, peso: 120, d100: 25 },
+    { nome: 'Puma',               estagio: 5, forca: 0, peso: 150, d100: 21 },
+  ];
+
+  it('bate com as 5 criaturas de ataque Garras do banco', () => {
+    for (const c of CRIATURAS) {
+      expect(F.dano100({ estagio: c.estagio, forca: c.forca, peso: c.peso }), c.nome).toBe(c.d100);
+    }
   });
 
-  it('dano100 é o dano da arma + √peso, arredondado pra cima', () => {
-    expect(F.dano100({ armaDano: 10, peso: 100 })).toBe(20);
-    expect(F.dano100({ armaDano: 10, peso: 101 })).toBe(21);
+  // Conhecido e aceito: os 8 dragões somam +4 além desta fórmula (ex.:
+  // Dradenar = 15+4+faixa(6000)=40 → 59, banco diz 63). O usuário revisa
+  // esse cálculo depois — NÃO ajustar a fórmula geral pra acomodar os
+  // dragões, e os dragões batem em L/M/P (ver describe abaixo).
+});
+
+describe('danoLMP — estágio + agilidade + offset do ataque', () => {
+  // nome, ataque, estágio, agilidade, l/m/p reais do banco.
+  const CRIATURAS = [
+    { nome: 'Pato',       ataque: 'Bico',             estagio: 1,  agilidade: 0, l: 3,  m: 0,  p: -3 },
+    { nome: 'Águia Real', ataque: 'Bico',             estagio: 18, agilidade: 3, l: 23, m: 20, p: 17 },
+    { nome: 'Dradenar',   ataque: 'Hálito Encantado', estagio: 15, agilidade: 6, l: 22, m: 22, p: 22 },
+    { nome: 'Hydra',      ataque: 'Hálito Encantado', estagio: 21, agilidade: 3, l: 25, m: 25, p: 25 },
+  ];
+
+  it('bate com as 4 criaturas conferidas (2 dragões incluídos)', () => {
+    for (const c of CRIATURAS) {
+      expect(F.danoLMP({ ataque: c.ataque, estagio: c.estagio, agilidade: c.agilidade }), c.nome)
+        .toEqual({ l: c.l, m: c.m, p: c.p });
+    }
   });
 
+  it('ataque sem offset na tabela (ex.: Toque) devolve L/M/P vazio — não inventa número', () => {
+    expect(F.danoLMP({ ataque: 'Toque', estagio: 10, agilidade: 5 }))
+      .toEqual({ l: '', m: '', p: '' });
+    expect(F.danoLMP({ ataque: 'Arma Inexistente', estagio: 10, agilidade: 5 }))
+      .toEqual({ l: '', m: '', p: '' });
+  });
+});
+
+describe('tiersDeDano', () => {
   it('os tiers são ceil de 25/50/75%', () => {
     expect(F.tiersDeDano(63)).toEqual({ d25: 16, d50: 32, d75: 48 });
     expect(F.tiersDeDano(0)).toEqual({ d25: 0, d50: 0, d75: 0 });

@@ -9,6 +9,7 @@
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/game-data.jsx';
+import './ataques-criatura.jsx';
 import './catalogo-descritores.jsx';
 
 let MAP, descritorDe;

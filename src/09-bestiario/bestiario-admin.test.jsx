@@ -32,6 +32,7 @@ beforeAll(async () => {
   // tags nativas é suficiente pro que este arquivo verifica (presença dos
   // controles de admin, não estilo do kit).
   window.UI = { Table: 'table', TableHeader: 'thead', TableBody: 'tbody', TableRow: 'tr', TableHead: 'th', TableCell: 'td', Badge: 'span', Input: 'input' };
+  await import('./ataques-criatura.jsx');
   await import('./criatura-formulas.jsx');
   await import('./catalogo-descritores.jsx');
   await import('./bestiario.jsx');

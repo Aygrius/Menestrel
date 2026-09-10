@@ -73,14 +73,15 @@ function SelectPill({ options = [], value, onChange, placeholder, disabled, labe
 // Só `criaturas` tem colunas `derivado` no descritor hoje — ver
 // catalogo-descritores.jsx. Cada fórmula pede parâmetros nomeados
 // (criatura-formulas.jsx); aqui é só o encanamento form -> parâmetro.
-// O editor genérico não tem seletor de arma (o campo `ataque` virou texto
-// livre, diferente do NovaCriaturaModal original), então a parcela de dano
-// da arma entra como 0 — só a de Agilidade/Peso é calculada.
+// dano100/danoLMP usam o próprio `ataque` escolhido no dropdown (peso e
+// offset por tipo de ataque — ataques-criatura.jsx), não mais um "dano de
+// arma" fixo: essa era a conta de PERSONAGEM que motivou a correção de
+// 10/09/2026 (ver criatura-formulas.jsx).
 function calcularDerivadosCriatura(form) {
   const F = CriaturaFormulas;
-  const { peso, fisico, aura, estagio, coletivo, agilidade, percepcao } = form;
-  const lmp = F.danoLMP({ armaDanoL: 0, armaDanoM: 0, armaDanoP: 0, agilidade });
-  const dano100 = F.dano100({ armaDano: 0, peso });
+  const { peso, fisico, aura, estagio, forca, coletivo, agilidade, percepcao, ataque } = form;
+  const lmp = F.danoLMP({ ataque, estagio, agilidade });
+  const dano100 = F.dano100({ estagio, forca, peso });
   const tiers = F.tiersDeDano(dano100);
   return {
     energia_fisica: F.energiaFisica({ peso, fisico }),
@@ -173,6 +174,33 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
     descritor && descritor.tabela === 'criaturas' ? calcularDerivadosCriatura(form) : {}
   ), [descritor, form]);
 
+  // Dropdown de `ataque`: o descritor já traz os 30 nomes fechados de
+  // ataques-criatura.jsx (estáticos, sem banco). As armas do catálogo
+  // `itens` (grupo Armas) são um universo que MUDA com o catálogo, então
+  // entram por busca — fetchTabelaPaginada porque `itens` já passou dos
+  // 1000 registros do corte do PostgREST (01-core/inventario-helpers.jsx).
+  // Só dispara pra `criaturas`: nenhuma outra tabela tem campo de ataque.
+  const [armasCatalogo, setArmasCatalogo] = React.useState([]);
+  React.useEffect(() => {
+    if (!descritor || descritor.tabela !== 'criaturas') return;
+    let cancelado = false;
+    fetchTabelaPaginada('itens', { colunas: 'nome', filtros: [['grupo', 'Armas']], ordem: ['nome'] })
+      .then(({ data }) => { if (!cancelado) setArmasCatalogo((data || []).map((i) => i.nome)); });
+    return () => { cancelado = true; };
+  }, [descritor]);
+
+  // Campos efetivamente renderizados: iguais ao descritor, exceto `ataque`
+  // (criaturas), cujas opções ganham as armas do catálogo que ainda não
+  // estiverem na lista fechada — sem duplicar nem reordenar as 30 fixas.
+  const camposEfetivos = React.useMemo(() => {
+    if (!descritor || descritor.tabela !== 'criaturas') return descritor ? descritor.campos : [];
+    return descritor.campos.map((campo) => {
+      if (campo.col !== 'ataque') return campo;
+      const extras = armasCatalogo.filter((nome) => !campo.opcoes.includes(nome));
+      return extras.length ? { ...campo, opcoes: [...campo.opcoes, ...extras] } : campo;
+    });
+  }, [descritor, armasCatalogo]);
+
   const onChangeCampo = (campo, valor) => {
     setForm((f) => ({ ...f, [campo.col]: valor }));
     // Editar um derivado à mão marca a sobrescrita — dali em diante ele para
@@ -253,7 +281,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
       confirmLabel={saving ? t.editorSalvando : undefined}
       confirmDisabled={saving || !obrigatoriosOk}>
       <div className="catalogo-form-grid">
-        {descritor.campos.map((campo) => (
+        {camposEfetivos.map((campo) => (
           <CatalogoCampo key={campo.col} campo={campo}
             label={t[campo.rotuloKey] || campo.col}
             valor={valorDoCampo(campo)}

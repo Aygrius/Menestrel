@@ -118,7 +118,13 @@ const CATALOGO_DESCRITORES = {
       { col: 'percepcao',  tipo: 'numero', rotuloKey: 'campoPercepcao',  min: -2, max: 10 },
       { col: 'armadura',      tipo: 'texto', rotuloKey: 'campoArmadura' },
       { col: 'tipo_armadura', tipo: 'texto', rotuloKey: 'campoTipoArmadura' },
-      { col: 'ataque', tipo: 'texto', rotuloKey: 'campoAtaque' },
+      // Os 30 nomes fechados de ataques-criatura.jsx (dano_l/m/p derivam
+      // deles — ver criatura-formulas.jsx). catalogo-editor.jsx acrescenta,
+      // em tempo de execução, as armas do catálogo `itens` que faltarem
+      // aqui. "Toque" fica de fora de propósito (offset não constante no
+      // banco, ver comentário em ataques-criatura.jsx).
+      { col: 'ataque', tipo: 'opcoes', rotuloKey: 'campoAtaque',
+        opcoes: AtaquesCriatura.NOMES_ATAQUE_CRIATURA },
       { col: 'magia',   tipo: 'texto',  rotuloKey: 'campoMagia' },
       { col: 'magia_n', tipo: 'numero', rotuloKey: 'campoMagiaN', min: 1, max: 9 },
       { col: 'tecnicas_especiais', tipo: 'area', rotuloKey: 'campoTecnicasEspeciais', linhas: 2 },

@@ -18,12 +18,20 @@ import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/game-data.jsx';
+import '../01-core/inventario-helpers.jsx';
 import '../10-shell/shell.jsx';
+import './ataques-criatura.jsx';
 import './criatura-formulas.jsx';
 import './catalogo-descritores.jsx';
 
 let CatalogoEditor;
 let ultimoInsert = null, ultimoUpdate = null, erroSimulado = null;
+// Fixture do catálogo `itens` (grupo Armas) devolvida pelo `.select()`
+// de leitura — separado do `.insert()/.update()` acima porque o editor de
+// criaturas agora busca as armas pra completar o dropdown de `ataque`
+// (fetchTabelaPaginada, ver catalogo-editor.jsx). Vazio por padrão: os
+// testes que não mexem com isso não devem disparar nenhuma linha extra.
+let itensArmasFixture = [];
 
 beforeAll(async () => {
   // Dublê do supabaseClient ANTES de carregar o editor.
@@ -36,6 +44,17 @@ beforeAll(async () => {
       update: (payload) => { ultimoUpdate = { tabela, payload }; return { eq: (col, val) => {
         ultimoUpdate.eqCol = col; ultimoUpdate.eqVal = val; return {
           select: () => ({ single: async () => ({ data: payload, error: erroSimulado }) }) }; } }; },
+      // Leitura genérica (fetchTabelaPaginada): builder encadeável
+      // eq/order que termina em .range() — mesmo contrato do PostgREST
+      // real, só que devolvendo a fixture inteira numa página só.
+      select: () => {
+        const builder = {
+          eq: () => builder,
+          order: () => builder,
+          range: async () => ({ data: tabela === 'itens' ? itensArmasFixture : [], error: null }),
+        };
+        return builder;
+      },
     }),
   };
   await import('./catalogo-editor.jsx');
@@ -43,7 +62,7 @@ beforeAll(async () => {
   expect(CatalogoEditor).toBeDefined();
 });
 
-afterEach(() => { cleanup(); ultimoInsert = null; ultimoUpdate = null; erroSimulado = null; });
+afterEach(() => { cleanup(); ultimoInsert = null; ultimoUpdate = null; erroSimulado = null; itensArmasFixture = []; });
 
 const montar = (props = {}) => render(
   <div className="menestrel-ui">
@@ -135,6 +154,68 @@ describe('campo derivado (criaturas)', () => {
     // Mexer noutra entrada NÃO pode reverter a sobrescrita.
     fireEvent.change(document.querySelector('input[name="agilidade"]'), { target: { value: '6' } });
     expect(abs.value).toBe('30');
+  });
+
+  // A CORREÇÃO da fórmula (10/09/2026): dano_l/m/p vinham de "dano da arma +
+  // Agilidade" com dano da arma sempre 0 (não havia seletor de arma). Agora
+  // usam o `ataque` escolhido no dropdown — Pato real do banco (Bico,
+  // estágio 1, agilidade 0) dá 3/0/-3.
+  it('dano_l/m/p usam o ataque escolhido + estágio + agilidade', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    fireEvent.change(document.querySelector('input[name="estagio"]'), { target: { value: '1' } });
+    fireEvent.change(document.querySelector('input[name="agilidade"]'), { target: { value: '0' } });
+    const wrapperAtaque = Array.from(document.querySelectorAll('.motor-field'))
+      .find((w) => (w.querySelector('span')?.textContent || '') === 'Ataque');
+    expect(wrapperAtaque, 'campo ataque não achado').toBeTruthy();
+    fireEvent.click(wrapperAtaque.querySelector('.select-pill-btn'));
+    const opcaoBico = Array.from(document.querySelectorAll('.select-pill-drop li'))
+      .find((li) => (li.textContent || '').trim() === 'Bico');
+    expect(opcaoBico, 'opção Bico não achada').toBeTruthy();
+    fireEvent.click(opcaoBico);
+    expect(document.querySelector('input[name="dano_l"]').value).toBe('3');
+    expect(document.querySelector('input[name="dano_m"]').value).toBe('0');
+    expect(document.querySelector('input[name="dano_p"]').value).toBe('-3');
+  });
+
+  // Sem ataque escolhido não há offset — o campo fica em branco em vez de
+  // mostrar um número inventado.
+  it('sem ataque escolhido, dano_l/m/p ficam em branco', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    expect(document.querySelector('input[name="dano_l"]').value).toBe('');
+    expect(document.querySelector('input[name="dano_m"]').value).toBe('');
+    expect(document.querySelector('input[name="dano_p"]').value).toBe('');
+  });
+});
+
+describe('dropdown de ataque (criaturas) — 30 nomes fechados + armas do catálogo', () => {
+  const abrirPillAtaque = () => {
+    const wrapper = Array.from(document.querySelectorAll('.motor-field'))
+      .find((w) => (w.querySelector('span')?.textContent || '') === 'Ataque');
+    expect(wrapper, 'campo ataque não achado').toBeTruthy();
+    fireEvent.click(wrapper.querySelector('.select-pill-btn'));
+    return wrapper;
+  };
+  const opcoesAbertas = () => Array.from(document.querySelectorAll('.select-pill-drop li'))
+    .map((li) => (li.textContent || '').trim());
+
+  it('oferece os 30 nomes da tabela fechada — "Toque" NÃO aparece (offset não constante no banco)', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    abrirPillAtaque();
+    const opcoes = opcoesAbertas();
+    expect(opcoes.length).toBe(30);
+    expect(opcoes).not.toContain('Toque');
+    expect(opcoes).toContain('Garras');
+    expect(opcoes).toContain('Hálito Encantado');
+  });
+
+  it('acrescenta armas do catálogo (grupo Armas) que ainda não estão na lista, sem duplicar as que já estão', async () => {
+    itensArmasFixture = [{ nome: 'Lança Élfica' }, { nome: 'Garras' }]; // 'Garras' já é um dos 30
+    montar({ tabela: 'criaturas', linha: null });
+    abrirPillAtaque();
+    await vi.waitFor(() => { expect(opcoesAbertas()).toContain('Lança Élfica'); });
+    const opcoes = opcoesAbertas();
+    expect(opcoes.filter((o) => o === 'Garras')).toHaveLength(1);
+    expect(opcoes.length).toBe(31); // 30 fechados + 1 arma nova
   });
 });
 

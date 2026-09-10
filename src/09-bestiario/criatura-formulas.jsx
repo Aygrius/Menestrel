@@ -13,6 +13,15 @@
    fórmula de propósito — a classe Dragão fixa absorção em 30 e velocidade
    por linhagem, e nenhuma das duas bate com a conta. Por isso o editor
    preenche o campo mas DEIXA sobrescrever (spec §6).
+
+   dano100 e danoLMP dependem de AtaquesCriatura (ataques-criatura.jsx) —
+   as tabelas de faixa-de-peso e offset-por-ataque. Precisa estar carregado
+   ANTES deste arquivo (ver ordem em src/main.tsx e nos testes). As duas
+   fórmulas foram CORRIGIDAS em 10/09/2026: a versão anterior vinha do
+   NovaCriaturaModal só de nome — na prática era a conta de PERSONAGEM
+   (dano de uma arma específica + modificador), que nunca reproduziu
+   nenhuma criatura do banco porque criatura não tem "uma arma", tem faixa
+   de peso e offset por tipo de ataque. Ver comentário em cada função.
    ============================================================ */
 
 const EH_BASE_POR_COLETIVO = {
@@ -51,15 +60,34 @@ function velocidade({ agilidade, estagio, percepcao } = {}) {
   return (num(agilidade) + num(estagio)) * num(percepcao);
 }
 
-// L/M/P = dano_l/m/p da arma + Agilidade
-function danoLMP({ armaDanoL, armaDanoM, armaDanoP, agilidade } = {}) {
-  const a = num(agilidade);
-  return { l: num(armaDanoL) + a, m: num(armaDanoM) + a, p: num(armaDanoP) + a };
+// L/M/P = Estágio + Agilidade + offset do ataque (ataques-criatura.jsx).
+// ⚠️ CORRIGIDA em 10/09/2026: a fórmula original ("dano_l/m/p da arma +
+// Agilidade") foi migrada do formulário de PERSONAGEM, que soma o dano
+// impresso de UMA arma escolhida. Criatura não tem isso — o campo `ataque`
+// era texto livre e o editor sempre passava dano-da-arma = 0, então na
+// prática a fórmula só devolvia Agilidade, e nunca bateu com nenhuma
+// criatura do banco. O offset por ataque é tabela fechada (banco,
+// 10/09/2026), não “dano de uma peça de equipamento”.
+// Sem offset pro ataque (ex.: "Toque" — o único cujo offset NÃO é
+// constante entre criaturas, ver ataques-criatura.jsx) devolve string
+// vazia: o campo fica em branco pro admin preencher, em vez de mostrar um
+// número calculado sem base nenhuma.
+function danoLMP({ ataque, estagio, agilidade } = {}) {
+  const offset = AtaquesCriatura.offsetLMP(ataque);
+  if (!offset) return { l: '', m: '', p: '' };
+  const base = num(estagio) + num(agilidade);
+  return { l: base + offset.l, m: base + offset.m, p: base + offset.p };
 }
 
-// Dano = ROUNDUP(dano da arma + √peso)
-function dano100({ armaDano, peso } = {}) {
-  return teto(num(armaDano) + Math.sqrt(Math.max(0, num(peso))));
+// Dano = Estágio + Força + faixa de peso (ataques-criatura.jsx).
+// ⚠️ CORRIGIDA em 10/09/2026: a fórmula original ("ROUNDUP(dano da arma +
+// √peso)") também veio do formulário de PERSONAGEM (dano de arma + raiz
+// do peso carregado) — outra conta de personagem, não de criatura. A
+// nova bate com as 9 criaturas conferidas contra o banco (ver
+// criatura-formulas.test.js); os 8 dragões são exceção conhecida e
+// aceita (+4 além da fórmula, revisão adiada pelo usuário).
+function dano100({ estagio, forca, peso } = {}) {
+  return num(estagio) + num(forca) + AtaquesCriatura.danoPorFaixaDePeso(peso);
 }
 
 // Tiers 25/50/75% — mesma regra de arredondamento pra cima do Arsenal da Ficha.
