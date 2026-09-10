@@ -2093,7 +2093,14 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
       eh: Math.max(0, Math.min(ehMax, (Number(resultado.eh) || 0) + delta)),
     };
   }
-  return marcarTecnicaUsada(resultado, key);
+  // C2 (revisão final, 09/09/2026): esta função NÃO marca mais o uso. Ela
+  // grava só o efeito no participante recebido — que nos dois call sites de
+  // aplicarTeste é o DESTINO do efeito, não necessariamente o ator (Voz de
+  // Comando/Pressionar Oponente miram em outros). Chamar marcarTecnicaUsada
+  // aqui queimava o uso Único do ALVO em vez do ATOR: Voz de Comando (Único,
+  // até 4 aliados) gastava a técnica dos quatro. O uso é anotado à parte
+  // pelos dois aplicarTeste, sobre o TESTADOR — ver marcarTecnicaUsada.
+  return resultado;
 }
 
 /* `uso: 'Único'` significa uma vez por batalha (decisão de 09/09/2026).

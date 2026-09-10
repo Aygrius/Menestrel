@@ -443,16 +443,26 @@ describe('podeUsarTecnica — uso Único', () => {
   });
 });
 
-describe('registro de uso', () => {
-  it('aplicarEfeitoTecnica anota a key em tecnicas_usadas', () => {
+describe('registro de uso — o uso é do ATOR, não de aplicarEfeitoTecnica', () => {
+  // C2 (revisão final, 09/09/2026): aplicarEfeitoTecnica NÃO marca mais o
+  // uso — ela grava só o efeito no participante recebido, que nos dois
+  // call sites de aplicarTeste é o DESTINO do efeito, nem sempre o ator
+  // (Voz de Comando, Pressionar Oponente miram em outros). A versão antiga
+  // chamava marcarTecnicaUsada sobre esse mesmo participante recebido:
+  // Voz de Comando (Único, até 4 aliados) queimava a técnica dos QUATRO
+  // ALVOS em vez do ator. O uso é anotado à parte pelos dois aplicarTeste,
+  // sempre sobre o TESTADOR — ver marcarTecnicaUsada, abaixo.
+  it('aplicarEfeitoTecnica NÃO toca tecnicas_usadas', () => {
     const p = M.aplicarEfeitoTecnica(lutador(), { key: 'furia', nome: 'Fúria' }, 5);
-    expect(p.tecnicas_usadas).toContain('furia');
+    expect(p.tecnicas_usadas).toEqual([]);
   });
 
-  it('não duplica a key ao reaplicar', () => {
-    let p = M.aplicarEfeitoTecnica(lutador(), { key: 'mira', nome: 'Mira' }, 4);
-    p = M.aplicarEfeitoTecnica(p, { key: 'mira', nome: 'Mira' }, 4);
-    expect(p.tecnicas_usadas.filter((k) => k === 'mira')).toHaveLength(1);
+  it('aplicar num alvo não suja o tecnicas_usadas do alvo (regressão do bug de Voz de Comando)', () => {
+    const alvo = lutador({ inst_id: 'alvo1', nome: 'Alvo' });
+    const depois = M.aplicarEfeitoTecnica(
+      alvo, { key: 'voz_de_comando', nome: 'Voz de Comando', uso: 'Único' }, 3
+    );
+    expect(depois.tecnicas_usadas).toEqual([]);
   });
 
   // O uso é do ATOR; o efeito pode cair só no alvo (Voz de Comando,
