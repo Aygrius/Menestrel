@@ -1873,6 +1873,66 @@ function aplicarEfeitoApoio(participante, magiaApoio, atorInstId) {
   return { ...participante, status_temp: [...atual, novo] };
 }
 
+/* ── Efeito de TÉCNICA no status_temp (Fase 1, 09/09/2026) ─────────
+   Espelha aplicarEfeitoApoio: só mexe em status_temp, devolve objeto
+   novo, não busca nada no banco. O valorTotal chega PRONTO do chamador
+   (totalTecnica), pra função continuar pura e testável sem catálogo.
+
+   Uma técnica pode gerar VÁRIOS status (Fúria gera 4). Todos levam o
+   mesmo id 'tec_<key>' — é assim que a regra de não-acumular encontra
+   e substitui a leva anterior inteira.
+
+   REAPLICAR NÃO ACUMULA (decisão de 09/09/2026): a segunda ativação
+   remove a leva antiga e grava outra com a duração cheia. Sem isso,
+   ativar Mira cinco vezes somaria 5× o total na mesma coluna. */
+
+/* Lê `grupo_armas`/`grupo_armaduras` do banco (CSV: "PL, PM, PP").
+   Devolve null quando não há restrição — 'Livre' e vazio são o mesmo caso.
+   Existe porque as duas colunas usam o MESMO formato, e porque o teste
+   ingênuo `!col` não pega o 'Livre' (é truthy) — exatamente o bug que a
+   Task 7 corrige em tecnicasCompativeisComArma. */
+function gruposDeArma(csv) {
+  if (!csv) return null;
+  const txt = String(csv).trim();
+  if (!txt || txt.toLowerCase() === 'livre') return null;
+  const lista = txt.split(',').map((s) => s.trim()).filter(Boolean);
+  return lista.length ? lista : null;
+}
+
+function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
+  const key = tecnica && tecnica.key;
+  const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(key) : null;
+  if (!reg) return participante;   // Fase 2 ou narrativa — segue como antes
+
+  const id = 'tec_' + key;
+  const anteriores = Array.isArray(participante.status_temp) ? participante.status_temp : [];
+  // Tira a leva anterior DESTA técnica (e só dela) antes de gravar a nova.
+  const semEsta = anteriores.filter((s) => s.id !== id);
+
+  const novos = reg.efeitos.map((ef) => {
+    const efeito = (reg.modo === 'teste')
+      ? { tipo: ef.tipo, valor: ef.valor }
+      : { tipo: ef.tipo, valor: (ef.sinal || 1) * (Number(valorTotal) || 0) };
+    // Restrição de arma: vem de tecnicas.grupo_armas, não do registro.
+    // Ativar Mira (PL,PM,PP) com um arco e trocar para espada não deve manter
+    // o bônus — por isso a lista viaja NO EFEITO, e somaModAtaque a consulta
+    // a cada golpe. 'Livre' e vazio significam "qualquer arma": grupos = null.
+    if (ef.tipo === 'mod_ataque') {
+      const grupos = gruposDeArma(tecnica.grupo_armas);
+      if (grupos) efeito.grupos = grupos;
+    }
+    return {
+      id,
+      nome: tecnica.nome || key,
+      icone: reg.icone,
+      rodadas_rest: reg.rodadas,
+      efeito,
+    };
+  });
+
+  return { ...participante, status_temp: [...semEsta, ...novos] };
+}
+
 /* ── Quebra a concentração de um conjurador ────────────────────────
    Regra confirmada em 01/09/2026: duração "Variável" significa que o
    conjurador sustenta a magia e não pode fazer mais nada. Se atacar, lançar
@@ -5826,6 +5886,10 @@ Object.assign(window, {
     // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
     modVelocidadeNoNivel, duracaoEmRodadas, exigeResistencia,
     magiasDeApoioDoAtor, aplicarEfeitoApoio, quebrarConcentracao,
+    // Fase 1 das técnicas (09/09/2026): grava o efeito da técnica no
+    // status_temp. Reaplicar substitui a leva anterior em vez de somar.
+    // gruposDeArma é o parser das colunas grupo_armas/grupo_armaduras.
+    aplicarEfeitoTecnica, gruposDeArma,
     // quebrarConcentracaoPorDano é a regra compartilhada dos TRÊS caminhos de
     // dano (manual do Mestre, ataque do Mestre, ataque do Jogador) — ver
     // concentracao-dano.test.js.
