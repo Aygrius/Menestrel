@@ -5620,7 +5620,12 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    menor que a do Diário (120px vs 160px) porque a maioria dos campos do
    catálogo é numérica/curta (dano_25, custo, min/max de atributo) — texto
    livre (textarea) não usa esta coluna, ver .catalogo-campo-full abaixo. */
-#root .menestrel-ui .catalogo-form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:14px; margin-top:14px; }
+/* Coluna com MÁXIMO, não `1fr`. Com `minmax(120px,1fr)` a coluna estica pra
+   preencher o modal (que é size="lg"), e como .diario-input é width:100% o
+   input estica junto — encolher só o mínimo não mudava nada na tela. O teto de
+   160px é o que de fato padroniza os campos no tamanho menor; `auto-fill`
+   deixa quantos couberem por linha e quebra o resto. */
+#root .menestrel-ui .catalogo-form-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(120px,160px)); gap:14px; margin-top:14px; }
 /* Mesmo padrão de grid-column:1/-1 já usado em .fp-finger-strip (linha ~1705),
    .fp2-col-vit, .loja-mng-row-nome e .moedas-row-label: só o campo `area`
    (texto livre) do descritor ocupa a largura inteira do modal. */
