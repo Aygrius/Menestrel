@@ -155,6 +155,12 @@ const ADMIN_COPY = {
     campoMaosPequenino: 'Mãos (Pequenino)',
     campoMaosAnao: 'Mãos (Anão)',
     campoMaosOutras: 'Mãos (Outras Raças)',
+    // Chrome do editor genérico (catalogo-editor.jsx, Task 4) — título do
+    // modal e rótulo do botão durante o salvamento. Não são "campoX"/"tabX"
+    // porque não descrevem uma coluna/tabela, são texto fixo do editor.
+    editorNovo: 'Novo',
+    editorEditar: 'Editar',
+    editorSalvando: 'Salvando…',
     sections: {
       historias:     { label: 'Histórias',    desc: 'Suas campanhas, arcos e sessões' },
       personagens_m: { label: 'Personagens',  desc: 'Aliados, antagonistas e figurantes' },
@@ -264,6 +270,9 @@ const ADMIN_COPY = {
     campoMaosPequenino: 'Hands (Halfling)',
     campoMaosAnao: 'Hands (Dwarf)',
     campoMaosOutras: 'Hands (Other Races)',
+    editorNovo: 'New',
+    editorEditar: 'Edit',
+    editorSalvando: 'Saving…',
     sections: {
       historias:     { label: 'Stories',     desc: 'Your campaigns, arcs and sessions' },
       personagens_m: { label: 'Characters',  desc: 'Allied NPCs, antagonists and extras' },
