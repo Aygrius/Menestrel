@@ -415,3 +415,56 @@ describe('tecnicasCompativeisComArma — regressão do "Livre"', () => {
     expect(r.map((t) => t.key)).toEqual(['furia']);
   });
 });
+
+describe('podeUsarTecnica — uso Único', () => {
+  it('libera técnica Intermitente já usada', () => {
+    const p = lutador({ tecnicas_usadas: ['mira'] });
+    expect(M.podeUsarTecnica(p, { key: 'mira', uso: 'Intermitente' }))
+      .toEqual({ pode: true, motivo: null });
+  });
+
+  it('libera técnica Livre já usada', () => {
+    const p = lutador({ tecnicas_usadas: ['resguardar'] });
+    expect(M.podeUsarTecnica(p, { key: 'resguardar', uso: 'Livre' }).pode).toBe(true);
+  });
+
+  it('bloqueia técnica Única já usada nesta batalha', () => {
+    const p = lutador({ tecnicas_usadas: ['furia'] });
+    expect(M.podeUsarTecnica(p, { key: 'furia', uso: 'Único' }))
+      .toEqual({ pode: false, motivo: 'ja_usada' });
+  });
+
+  it('libera técnica Única ainda não usada', () => {
+    expect(M.podeUsarTecnica(lutador(), { key: 'furia', uso: 'Único' }).pode).toBe(true);
+  });
+
+  it('participante sem tecnicas_usadas não quebra', () => {
+    expect(M.podeUsarTecnica({}, { key: 'furia', uso: 'Único' }).pode).toBe(true);
+  });
+});
+
+describe('registro de uso', () => {
+  it('aplicarEfeitoTecnica anota a key em tecnicas_usadas', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'furia', nome: 'Fúria' }, 5);
+    expect(p.tecnicas_usadas).toContain('furia');
+  });
+
+  it('não duplica a key ao reaplicar', () => {
+    let p = M.aplicarEfeitoTecnica(lutador(), { key: 'mira', nome: 'Mira' }, 4);
+    p = M.aplicarEfeitoTecnica(p, { key: 'mira', nome: 'Mira' }, 4);
+    expect(p.tecnicas_usadas.filter((k) => k === 'mira')).toHaveLength(1);
+  });
+
+  // O uso é do ATOR; o efeito pode cair só no alvo (Voz de Comando,
+  // Pressionar Oponente). Por isso marcarTecnicaUsada é chamada à parte.
+  it('marcarTecnicaUsada anota sem tocar em status_temp', () => {
+    const p = M.marcarTecnicaUsada(lutador(), 'voz_de_comando');
+    expect(p.tecnicas_usadas).toEqual(['voz_de_comando']);
+    expect(p.status_temp).toHaveLength(0);
+  });
+
+  it('marcarTecnicaUsada é idempotente e devolve o mesmo objeto se nada muda', () => {
+    const p = M.marcarTecnicaUsada(lutador(), 'furia');
+    expect(M.marcarTecnicaUsada(p, 'furia')).toBe(p);
+  });
+});

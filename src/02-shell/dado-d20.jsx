@@ -431,4 +431,6 @@ function RolagemD20Overlay(props) {
   );
 }
 
-Object.assign(window, { DadoD20, RolagemD20Overlay, D20_DIF_LABEL });
+// D20_QUALIDADE_MINIMA sai aqui porque batalha.jsx (Task 8 de técnicas) precisa
+// decidir se um teste 'passou' sem duplicar a tabela de qualidade mínima.
+Object.assign(window, { DadoD20, RolagemD20Overlay, D20_DIF_LABEL, D20_QUALIDADE_MINIMA });

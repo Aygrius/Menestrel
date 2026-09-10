@@ -914,6 +914,7 @@ async function montarSnapshots(parts, personagensPools) {
         rm: d.resistenciaMagica || 0,
         status,
         status_temp: [],   // Fase 6: array de { id, nome, icone, rodadas_rest }
+        tecnicas_usadas: [],   // Task 8: keys de técnicas Único já gastas nesta batalha
       };
     }
     const c = criById[p.ref_id];
@@ -951,6 +952,7 @@ async function montarSnapshots(parts, personagensPools) {
       rm: resist.rm,
       status: 'ativo',
       status_temp: [],
+      tecnicas_usadas: [],   // Task 8: keys de técnicas Único já gastas nesta batalha
     };
   });
 }
@@ -2052,7 +2054,29 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
       eh: Math.max(0, Math.min(ehMax, (Number(resultado.eh) || 0) + delta)),
     };
   }
-  return resultado;
+  return marcarTecnicaUsada(resultado, key);
+}
+
+/* `uso: 'Único'` significa uma vez por batalha (decisão de 09/09/2026).
+   'Intermitente' e 'Livre' ficam sem limite — reaplicar só renova a duração,
+   sem somar, o que já tira o incentivo de spammar. */
+function podeUsarTecnica(p, tecnica) {
+  const usadas = (p && Array.isArray(p.tecnicas_usadas)) ? p.tecnicas_usadas : [];
+  if (tecnica && tecnica.uso === 'Único' && usadas.includes(tecnica.key)) {
+    return { pode: false, motivo: 'ja_usada' };
+  }
+  return { pode: true, motivo: null };
+}
+
+/* Anota a técnica como usada nesta batalha. Separada de aplicarEfeitoTecnica
+   porque o uso é sempre do ATOR, enquanto o efeito pode cair só nos alvos
+   (Voz de Comando, Pressionar Oponente): os dois não andam no mesmo
+   participante. Idempotente. */
+function marcarTecnicaUsada(p, key) {
+  if (!p || !key) return p;
+  const usadas = Array.isArray(p.tecnicas_usadas) ? p.tecnicas_usadas : [];
+  if (usadas.includes(key)) return p;
+  return { ...p, tecnicas_usadas: [...usadas, key] };
 }
 
 /* ── Quebra a concentração de um conjurador ────────────────────────
@@ -2627,6 +2651,40 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       ...next[testIdx],
       pa_rest: Math.max(0, (next[testIdx].pa_rest || 0) - 1),
     };
+
+    // Fase 1 das técnicas: aplica o efeito mecânico.
+    //   modo 'total' → aplica sempre (não há dado).
+    //   modo 'teste' → só no sucesso (o resultado já veio resolvido no payload).
+    // Aparece nas DUAS cópias de aplicarTeste porque o Mestre e o Jogador têm
+    // handlers separados; a REGRA mora em aplicarEfeitoTecnica, aqui é só a
+    // chamada. Ver batalha.jsx:5517 pro precedente de cópia dessincronizada.
+    let efeitoTecnicaAplicado = null;
+    if (tipo_teste === 'tecnica' && payload.tecnica) {
+      const reg = tecnicaEfeitoDe(payload.tecnica.key);
+      const passou = payload.sem_dado
+        || (payload.resultado && payload.resultado.q >= D20_QUALIDADE_MINIMA[reg && reg.dificuldade]);
+      if (reg && passou) {
+        // Lista vazia = alvo é o próprio testador ('self').
+        const destinos = (payload.alvos_efeito && payload.alvos_efeito.length)
+          ? payload.alvos_efeito.slice(0, reg.maxAlvos || payload.alvos_efeito.length)
+          : [next[testIdx]];
+        const atingidos = [];
+        destinos.forEach((destino) => {
+          const dIdx = next.findIndex((p) => mesmoParticipante(p, destino));
+          if (dIdx < 0) return;
+          next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total);
+          atingidos.push(next[dIdx].nome);
+        });
+        // O uso Único é do ATOR, mesmo quando o efeito cai só nos outros.
+        next[testIdx] = marcarTecnicaUsada(next[testIdx], payload.tecnica.key);
+        if (atingidos.length) {
+          efeitoTecnicaAplicado = {
+            key: payload.tecnica.key, valor: payload.valor_total, alvos: atingidos,
+          };
+        }
+      }
+    }
+
     // Se quem testou era o ator da vez e ficou sem PA → passa a vez.
     let viraRodada = false;
     const t = next[testIdx];
@@ -2665,6 +2723,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         resultado:      payload.resultado ? payload.resultado.codigo : null,
         resultado_nome: payload.resultado ? payload.resultado.pt     : null,
         critico:       !!(payload.resultado && payload.resultado.critico),
+        tecnica_efeito_aplicado: efeitoTecnicaAplicado,
       };
     }
 
@@ -4282,6 +4341,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 
   // Default de seleção ao entrar em Habilidade/Técnica(teste)/Item
   useEffect(() => {
+    // Zera a multisseleção de aliados: ao trocar de aba ou de técnica, os
+    // marcados da técnica anterior não podem sobreviver para a seguinte.
+    setTecAliados([]);
     if (tab === 'habilidade') {
       if (!habilidadesAtor.find((h) => h.key === habKey)) {
         setHabKey(habilidadesAtor[0] ? habilidadesAtor[0].key : null);
@@ -4297,7 +4359,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
       }
     }
     // eslint-disable-next-line
-  }, [tab, habilidadesAtor.length, tecnicas.length, itensConsumiveisAtor.length]);
+  }, [tab, habilidadesAtor.length, tecnicas.length, itensConsumiveisAtor.length, tecTesteKey]);
 
   // Auto-puxa RF/RM da ficha quando tab é Resistência
   useEffect(() => {
@@ -4364,6 +4426,31 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // Habilidade/Técnica(teste): coluna = total do item (clamp [-7,50]).
   const habilidadeSel = habilidadesAtor.find((h) => h.key === habKey) || null;
   const tecnicaTesteSel = tecnicas.find((t) => t.key === tecTesteKey) || null;
+  // Fase 1 (09/09/2026): a aba Técnica passou a APLICAR efeito, não só rolar.
+  const tecRegistro = tecnicaTesteSel ? tecnicaEfeitoDe(tecnicaTesteSel.key) : null;
+  const tecPrecisaAlvo = !!tecRegistro && tecRegistro.alvo !== 'self';
+  // Duas portas de bloqueio: uso Único já gasto, e equipamento incompatível
+  // (grupo_armas / grupo_armaduras, Task 7). A de equipamento vem primeiro
+  // porque o jogador resolve trocando de item.
+  const tecEquip = tecnicaTesteSel
+    ? tecnicaPermitida(tecnicaTesteSel, ator, arma) : { pode: true, motivo: null };
+  const tecUso = tecnicaTesteSel
+    ? podeUsarTecnica(ator, tecnicaTesteSel) : { pode: true, motivo: null };
+  const tecBloqueio = !tecEquip.pode ? tecEquip : tecUso;
+  // modo 'total' não rola dado: o valor é o total da técnica, direto.
+  const tecSemDado = !!tecRegistro && tecRegistro.modo === 'total';
+  // 'aliados' (só Voz de Comando: até 4) precisa de multisseleção; as outras
+  // reusam o `alvo` único que a aba de arma já tem.
+  const tecMultiAlvo = !!tecRegistro && tecRegistro.alvo === 'aliados';
+  const [tecAliados, setTecAliados] = useState([]);   // inst_id[] dos escolhidos
+  const tecAliadosOpcoes = useMemo(
+    () => (tecMultiAlvo ? participantes.filter((p) => p.status === 'ativo') : []),
+    [tecMultiAlvo, participantes]
+  );
+  const tecAlvosEscolhidos = tecMultiAlvo
+    ? tecAliadosOpcoes.filter((p) => tecAliados.includes(p.inst_id))
+    : (tecPrecisaAlvo && alvo ? [alvo] : []);
+  const tecMultiCheio = tecMultiAlvo && tecAliados.length >= (tecRegistro.maxAlvos || 1);
   const itemSelecionado = itensConsumiveisAtor.find((it) => it.slug === itemSlug) || null;
 
   // Modificadores mecânicos de status_temp (Fase 1.1): "Suas ações tem −7"
@@ -4576,6 +4663,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         testador: ator,
         chave: tecnicaTesteSel.key,
         nome:  tecnicaTesteSel.nome,
+        // Fase 1: o que o motor precisa pra aplicar o efeito.
+        // alvos_efeito é SEMPRE lista — 'self' manda vazia (o motor usa o
+        // testador), 'inimigo' manda um, 'aliados' manda até maxAlvos.
+        tecnica: tecnicaTesteSel,
+        alvos_efeito: tecAlvosEscolhidos,
+        valor_total: tecnicaTesteSel.total,
+        sem_dado: tecSemDado,
         coluna: colunaClamped,
         d20,
         resultado: res,
@@ -4807,8 +4901,56 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                 label: t.nome,
               }))}
             />
+            {tecMultiAlvo && (
+              <div className="acao-aliados">
+                <span className="acao-aliados-lbl">
+                  {isEn
+                    ? `Allies (${tecAliados.length}/${tecRegistro.maxAlvos})`
+                    : `Aliados (${tecAliados.length}/${tecRegistro.maxAlvos})`}
+                </span>
+                {tecAliadosOpcoes.map((p) => {
+                  const marcado = tecAliados.includes(p.inst_id);
+                  return (
+                    <label key={p.inst_id} className={'acao-aliado' + (marcado ? ' on' : '')}>
+                      <input
+                        type="checkbox"
+                        checked={marcado}
+                        // Teto de maxAlvos: quem não está marcado trava quando lota.
+                        disabled={!marcado && tecMultiCheio}
+                        onChange={() => setTecAliados((atual) => (
+                          marcado ? atual.filter((id) => id !== p.inst_id) : [...atual, p.inst_id]
+                        ))}
+                      />
+                      {p.nome}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
             {tecnicaTesteSel && tecnicaTesteSel.efeito && (
               <p className="acao-efeito-texto">{tecnicaTesteSel.efeito}</p>
+            )}
+            {!tecBloqueio.pode && (
+              <p className="acao-efeito-texto acao-efeito-bloqueio">
+                {tecBloqueio.motivo === 'arma'
+                  ? (isEn
+                      ? `Requires a weapon of group: ${tecnicaTesteSel.grupo_armas}.`
+                      : `Exige arma do grupo: ${tecnicaTesteSel.grupo_armas}.`)
+                  : tecBloqueio.motivo === 'armadura'
+                  ? (isEn
+                      ? `Requires armor of group: ${tecnicaTesteSel.grupo_armaduras}.`
+                      : `Exige armadura do grupo: ${tecnicaTesteSel.grupo_armaduras}.`)
+                  : (isEn
+                      ? 'Already used this battle (single use).'
+                      : 'Já usada nesta batalha (uso Único).')}
+              </p>
+            )}
+            {tecRegistro && tecRegistro.parcial === 'ignora_armadura' && (
+              <p className="acao-efeito-texto acao-efeito-parcial">
+                {isEn
+                  ? 'Armor-ignoring half is not automated yet — apply it manually.'
+                  : 'A metade que ignora a armadura ainda não é automática — aplique na mão.'}
+              </p>
             )}
           </>
         )
@@ -4997,7 +5139,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           }
           coluna={tab === 'resistencia' ? null : colunaClamped}
           alvoResist={tab === 'resistencia' ? alvoResist : null}
-          semCard={tab === 'habilidade' || tab === 'tecnica_teste'}
+          semCard={tab === 'habilidade'
+            || (tab === 'tecnica_teste' && (!tecPrecisaAlvo || tecMultiAlvo))}
           lang={lang}
           onFechar={() => setOverlayAberto(null)}
           onRolou={({ valor }) => {
@@ -5053,7 +5196,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                 : tab === 'arma' ? !(arma && alvo)
                 : tab === 'magia' ? !magia
                 : tab === 'habilidade' ? !habilidadeSel
-                : tab === 'tecnica_teste' ? !tecnicaTesteSel
+                : tab === 'tecnica_teste' ? (!tecnicaTesteSel || !tecBloqueio.pode
+                    || (tecPrecisaAlvo && tecAlvosEscolhidos.length === 0))
                 : tab === 'resistencia' ? alvoResist == null
                 : tab === 'apoio' ? alvoResist == null
                 : true
@@ -5495,6 +5639,40 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Testar é uma ação: quebra a concentração — espelha aplicarTeste.
     next = [...quebrarConcentracao(next, next[idx].inst_id)];
     next[idx] = { ...next[idx], pa_rest: Math.max(0, (next[idx].pa_rest || 0) - 1) };
+
+    // Fase 1 das técnicas: aplica o efeito mecânico.
+    //   modo 'total' → aplica sempre (não há dado).
+    //   modo 'teste' → só no sucesso (o resultado já veio resolvido no payload).
+    // Aparece nas DUAS cópias de aplicarTeste porque o Mestre e o Jogador têm
+    // handlers separados; a REGRA mora em aplicarEfeitoTecnica, aqui é só a
+    // chamada. Ver batalha.jsx:5517 pro precedente de cópia dessincronizada.
+    let efeitoTecnicaAplicado = null;
+    if (tipo_teste === 'tecnica' && payload.tecnica) {
+      const reg = tecnicaEfeitoDe(payload.tecnica.key);
+      const passou = payload.sem_dado
+        || (payload.resultado && payload.resultado.q >= D20_QUALIDADE_MINIMA[reg && reg.dificuldade]);
+      if (reg && passou) {
+        // Lista vazia = alvo é o próprio testador ('self').
+        const destinos = (payload.alvos_efeito && payload.alvos_efeito.length)
+          ? payload.alvos_efeito.slice(0, reg.maxAlvos || payload.alvos_efeito.length)
+          : [next[idx]];
+        const atingidos = [];
+        destinos.forEach((destino) => {
+          const dIdx = next.findIndex((p) => mesmoParticipante(p, destino));
+          if (dIdx < 0) return;
+          next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total);
+          atingidos.push(next[dIdx].nome);
+        });
+        // O uso Único é do ATOR, mesmo quando o efeito cai só nos outros.
+        next[idx] = marcarTecnicaUsada(next[idx], payload.tecnica.key);
+        if (atingidos.length) {
+          efeitoTecnicaAplicado = {
+            key: payload.tecnica.key, valor: payload.valor_total, alvos: atingidos,
+          };
+        }
+      }
+    }
+
     const rVez = autoPassarSeNecessario(next, meuParticipante);
     next = rVez.participantes;
     const rodadaNova = rVez.rodadaNova;
@@ -5503,7 +5681,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const base = { rodada, ts: Date.now(), autor_tipo: meuParticipante.tipo, autor_ref_id: meuParticipante.ref_id, autor_nome: meuParticipante.nome, acao: 'teste', tipo_teste, d20: payload.d20 };
     const entry = (tipo_teste === 'resistencia')
       ? { ...base, resistencia_tipo: payload.resistencia_tipo, forca_ataque: payload.forca_ataque, forca_defesa: payload.forca_defesa, alvo_resist: payload.alvo_resist, resultado: payload.resultado }
-      : { ...base, chave: payload.chave, nome: payload.nome, coluna: payload.coluna, resultado: payload.resultado ? payload.resultado.codigo : null, resultado_nome: payload.resultado ? payload.resultado.pt : null, critico: !!(payload.resultado && payload.resultado.critico) };
+      : { ...base, chave: payload.chave, nome: payload.nome, coluna: payload.coluna, resultado: payload.resultado ? payload.resultado.codigo : null, resultado_nome: payload.resultado ? payload.resultado.pt : null, critico: !!(payload.resultado && payload.resultado.critico), tecnica_efeito_aplicado: efeitoTecnicaAplicado };
 
     // Notifica a Central de Mensagens da Mesa (fire-and-forget — mesmo padrão do Mestre).
     const historiaId = batalha && batalha.historia_id;
@@ -6026,6 +6204,10 @@ Object.assign(window, {
     // status_temp. Reaplicar substitui a leva anterior em vez de somar.
     // gruposDeArma é o parser das colunas grupo_armas/grupo_armaduras.
     aplicarEfeitoTecnica, gruposDeArma,
+    // Task 8: uso Único é uma vez por batalha; o registro fica em
+    // tecnicas_usadas, separado do efeito (Voz de Comando atinge o alvo,
+    // mas o uso é do ator).
+    podeUsarTecnica, marcarTecnicaUsada,
     // Task 7: grupo_armas/grupo_armaduras viram regra de ativação (não só
     // filtro de dropdown). tecnicaPermitida decide; tecnicasCompativeisComArma
     // é o filtro do select de ataque (Object.assign(window,...) abaixo
