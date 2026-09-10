@@ -1670,6 +1670,24 @@ function decrementarStatusTemp(statusTemp) {
     .map((s) => (s.rodadas_rest == null ? s : { ...s, rodadas_rest: Math.max(0, s.rodadas_rest - 1) }))
     .filter((s) => s.rodadas_rest == null || s.rodadas_rest > 0);
 }
+
+/* Devolve a EH emprestada pelos mod_eh_temp que acabaram de expirar.
+   Recebe `removidos` em vez de reler o status_temp porque decrementarStatusTemp
+   remove o status na MESMA passada em que ele chega a zero — depois dele não há
+   mais o que inspecionar, e antes dele o status ainda está vivo. A lista de
+   removidos é a única janela em que dá pra saber quanto foi emprestado.
+
+   O eh é aparado no teto novo, com piso 0: quem gastou o bônus durante o buff
+   não é punido de novo na devolução. */
+function expirarEhTemp(p, removidos) {
+  if (!p || !Array.isArray(removidos) || removidos.length === 0) return p;
+  const devolver = removidos
+    .filter((s) => s.efeito && s.efeito.tipo === 'mod_eh_temp')
+    .reduce((soma, s) => soma + (s.efeito.valor || 0), 0);
+  if (devolver === 0) return p;
+  const ehMax = Math.max(0, (Number(p.eh_max) || 0) - devolver);
+  return { ...p, eh_max: ehMax, eh: Math.max(0, Math.min(ehMax, Number(p.eh) || 0)) };
+}
 // ordenarIniciativa usando a VB EFETIVA (mod_vb), preservando o vb real.
 function ordenarIniciativaEfetiva(snaps) {
   return ordenarIniciativa(snaps.map((p) => ({ ...p, vb: vbEfetivo(p), __orig: p })))
@@ -1736,7 +1754,18 @@ function processarViradaDeRodada(p) {
     next = r.participante; eventos = r.eventos; total = r.total;
   }
   if (Array.isArray(next.status_temp) && next.status_temp.length) {
-    next.status_temp = decrementarStatusTemp(next.status_temp);
+    const antes = next.status_temp;
+    const depois = decrementarStatusTemp(antes);
+    // Comparar por ID, não por referência: decrementarStatusTemp recria via
+    // spread TODO status com rodadas_rest numérico, sobrevivente ou não, então
+    // identidade de objeto não distingue "decrementado" de "removido".
+    const idsDepois = new Set(depois.map((s) => s.id));
+    const removidos = antes.filter((s) => !idsDepois.has(s.id));
+    next = { ...next, status_temp: depois };
+    // Devolve a EH emprestada por técnica pelos status que saíram agora.
+    next = expirarEhTemp(next, removidos);
+    // Perder EH emprestada pode derrubar: statusPorPools decide.
+    next = statusPorPools(next);
   }
   // Rodada nova invalida a rolagem feita e não aplicada na anterior (o campo
   // é do lado Jogador — ver o bloco de rolagem em BatalhaJogadorView). Sem
@@ -1970,7 +1999,29 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
     };
   });
 
-  return { ...participante, status_temp: [...semEsta, ...novos] };
+  let resultado = { ...participante, status_temp: [...semEsta, ...novos] };
+
+  // mod_eh_temp é o ÚNICO efeito que muda o snapshot em vez de ser lido
+  // on-the-fly: EH é pool com teto, e o combate clampa em eh_max. Emprestar
+  // exige subir os dois. A devolução mora em expirarEhTemp.
+  // Como a leva anterior foi removida acima, o empréstimo velho tem que ser
+  // devolvido ANTES de emprestar de novo — senão reaplicar Heroísmo empilha.
+  const devolverAntigo = anteriores
+    .filter((s) => s.id === id && s.efeito && s.efeito.tipo === 'mod_eh_temp')
+    .reduce((soma, s) => soma + (s.efeito.valor || 0), 0);
+  const emprestarNovo = novos
+    .filter((s) => s.efeito.tipo === 'mod_eh_temp')
+    .reduce((soma, s) => soma + (s.efeito.valor || 0), 0);
+  const delta = emprestarNovo - devolverAntigo;
+  if (delta !== 0) {
+    const ehMax = Math.max(0, (Number(resultado.eh_max) || 0) + delta);
+    resultado = {
+      ...resultado,
+      eh_max: ehMax,
+      eh: Math.max(0, Math.min(ehMax, (Number(resultado.eh) || 0) + delta)),
+    };
+  }
+  return resultado;
 }
 
 /* ── Quebra a concentração de um conjurador ────────────────────────
@@ -5966,6 +6017,9 @@ Object.assign(window, {
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
     somaEfeitosStatus, statusTemEfeito, somaModAtaque, vbEfetivo,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
+    // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
+    // e devolve o empréstimo quando o status sai na virada de rodada.
+    expirarEhTemp,
     // Fase 1.2 — dano por rodada (Envenenado) + virada de rodada consolidada
     aplicarDanoDiretoEF, processarDanoPorRodada, processarViradaDeRodada, montarNovaRodada,
     // entradaLogViradaRodada é o texto único da virada: o Mestre usa em

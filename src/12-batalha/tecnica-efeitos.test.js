@@ -253,3 +253,77 @@ describe('danoComModMax', () => {
     expect(M.danoComModMax(0, lutador())).toBe(0);
   });
 });
+
+describe('mod_eh_temp — EH temporária por cima do teto', () => {
+  it('a aplicação sobe eh E eh_max', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'heroismo', nome: 'Heroísmo' }, 12);
+    expect(p.eh).toBe(32);       // 20 + 12
+    expect(p.eh_max).toBe(32);
+  });
+
+  it('reaplicar não empilha o empréstimo', () => {
+    let p = M.aplicarEfeitoTecnica(lutador(), { key: 'heroismo', nome: 'Heroísmo' }, 12);
+    p = M.aplicarEfeitoTecnica(p, { key: 'heroismo', nome: 'Heroísmo' }, 12);
+    expect(p.eh_max).toBe(32);   // 32, não 44
+    expect(p.status_temp).toHaveLength(1);
+  });
+
+  it('Fúria empresta EH junto com os outros três efeitos', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'furia', nome: 'Fúria' }, 5);
+    expect(p.eh).toBe(25);
+    expect(p.eh_max).toBe(25);
+  });
+
+  it('na expiração devolve o teto e o valor não gasto', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'animosidade', nome: 'Animosidade' }, 10);
+    const fim = M.expirarEhTemp(p, p.status_temp);
+    expect(fim.eh_max).toBe(20);
+    expect(fim.eh).toBe(20);
+  });
+
+  it('quem gastou o bônus não fica com EH negativa nem perde EH própria', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'animosidade', nome: 'Animosidade' }, 10);
+    const fim = M.expirarEhTemp({ ...p, eh: 4 }, p.status_temp);
+    expect(fim.eh_max).toBe(20);
+    expect(fim.eh).toBe(4);      // não vira -6
+  });
+
+  it('EH acima do teto restaurado é aparada até ele', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'animosidade', nome: 'Animosidade' }, 10);
+    const fim = M.expirarEhTemp({ ...p, eh: 30 }, p.status_temp);
+    expect(fim.eh_max).toBe(20);
+    expect(fim.eh).toBe(20);
+  });
+
+  it('sem status removido, não devolve nada', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'heroismo', nome: 'Heroísmo' }, 12);
+    expect(M.expirarEhTemp(p, [])).toBe(p);
+  });
+});
+
+describe('mod_eh_temp na virada de rodada', () => {
+  it('a EH emprestada some sozinha quando a duração acaba', () => {
+    // Animosidade dura 2 rodadas: sobrevive à 1ª virada, morre na 2ª.
+    let p = M.aplicarEfeitoTecnica(lutador(), { key: 'animosidade', nome: 'Animosidade' }, 10);
+    expect(p.eh_max).toBe(30);
+
+    p = M.processarViradaDeRodada(p).participante;
+    expect(p.eh_max, 'sobrevive à primeira virada').toBe(30);
+
+    p = M.processarViradaDeRodada(p).participante;
+    expect(p.eh_max, 'expira na segunda virada').toBe(20);
+    expect(p.status_temp).toHaveLength(0);
+  });
+
+  it('status de OUTRA técnica que só decrementou não devolve EH', () => {
+    // Regressão: comparar `antes`/`depois` por referência classificava como
+    // removido todo status decrementado, porque decrementarStatusTemp recria
+    // o objeto via spread mesmo quando ele sobrevive. Heroísmo dura 5 rodadas:
+    // depois de uma virada ainda está vivo e não pode ter devolvido nada.
+    let p = M.aplicarEfeitoTecnica(lutador(), { key: 'heroismo', nome: 'Heroísmo' }, 12);
+    expect(p.eh_max).toBe(32);
+    p = M.processarViradaDeRodada(p).participante;
+    expect(p.eh_max, 'Heroísmo ainda vivo, EH emprestada intacta').toBe(32);
+    expect(p.status_temp).toHaveLength(1);
+  });
+});
