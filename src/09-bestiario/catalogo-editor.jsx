@@ -96,8 +96,13 @@ function calcularDerivadosCriatura(form) {
 // ---------- CatalogoCampo — um controle por tipo do descritor ----------
 function CatalogoCampo({ campo, label, valor, onChange, disabled, sobrescrito }) {
   if (campo.tipo === 'area') {
+    // catalogo-campo-full: só o texto livre (textarea) ocupa a largura
+    // cheia do modal — mesmo padrão de grid-column:1/-1 já usado em
+    // .fp-finger-strip/.fp2-col-vit/.loja-mng-row-nome/.moedas-row-label
+    // (index.css), aplicado aqui via classe em vez de seletor de coluna
+    // porque o grid é montado a partir do descritor, não hardcoded.
     return (
-      <div>
+      <div className="catalogo-campo-full">
         <label className="diario-field-label">{label}</label>
         <textarea className="diario-textarea" rows={campo.linhas || 3} name={campo.col}
           value={valor} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
@@ -247,7 +252,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
       onConfirm={salvar}
       confirmLabel={saving ? t.editorSalvando : undefined}
       confirmDisabled={saving || !obrigatoriosOk}>
-      <div className="diario-form-grid">
+      <div className="catalogo-form-grid">
         {descritor.campos.map((campo) => (
           <CatalogoCampo key={campo.col} campo={campo}
             label={t[campo.rotuloKey] || campo.col}

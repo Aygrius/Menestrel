@@ -5611,6 +5611,21 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .diario-field-label--mt { margin-top:12px; }
 #root .menestrel-ui .diario-form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:14px; margin-top:14px; }
 
+/* catalogo-form-grid: grid PRÓPRIO do editor de catálogo (09-bestiario/
+   catalogo-editor.jsx), separado de .diario-form-grid de propósito — NÃO
+   junte as duas. .diario-form-grid também é usada por três formulários de
+   13-diario/diario.jsx, sem cobertura de teste visual; mudar a coluna
+   compartilhada pra caber o catálogo (34 campos em `criaturas`, quase todo
+   numérico) quebraria o Diário sem que nenhum teste acusasse. Coluna base
+   menor que a do Diário (120px vs 160px) porque a maioria dos campos do
+   catálogo é numérica/curta (dano_25, custo, min/max de atributo) — texto
+   livre (textarea) não usa esta coluna, ver .catalogo-campo-full abaixo. */
+#root .menestrel-ui .catalogo-form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:14px; margin-top:14px; }
+/* Mesmo padrão de grid-column:1/-1 já usado em .fp-finger-strip (linha ~1705),
+   .fp2-col-vit, .loja-mng-row-nome e .moedas-row-label: só o campo `area`
+   (texto livre) do descritor ocupa a largura inteira do modal. */
+#root .menestrel-ui .catalogo-campo-full { grid-column: 1 / -1; }
+
 /* diario-form-section: cabeçalho de agrupamento dentro de um form longo (Nova
    Criatura — atributos/energia/combate/repertório). Mesma cor/borda de divisor
    já usada em .ms-header, só que menor — não é um novo token, é reaproveito. */

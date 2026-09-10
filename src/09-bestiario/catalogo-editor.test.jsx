@@ -189,6 +189,46 @@ describe('itens.magico — boolean no banco, Sim/Não na tela', () => {
   });
 });
 
+describe('largura dos campos — área ocupa a largura cheia, o resto fica na coluna estreita', () => {
+  it('o grid do editor usa a classe própria catalogo-form-grid (NÃO a diario-form-grid compartilhada)', () => {
+    montar({ tabela: 'tecnicas', linha: null });
+    const grid = document.querySelector('.catalogo-form-grid');
+    expect(grid).toBeTruthy();
+    expect(grid.classList.contains('diario-form-grid')).toBe(false);
+  });
+
+  it('campo `area` (textarea) recebe a classe de largura cheia', () => {
+    montar({ tabela: 'tecnicas', linha: null });
+    const textarea = document.querySelector('textarea[name="descricao"]');
+    const wrapper = textarea.closest('.catalogo-campo-full');
+    expect(wrapper, 'textarea de descrição deveria estar dentro de .catalogo-campo-full').toBeTruthy();
+  });
+
+  it('campo `numero` NÃO recebe a classe de largura cheia', () => {
+    montar({ tabela: 'tecnicas', linha: null });
+    const input = document.querySelector('input[name="custo"]');
+    expect(input.closest('.catalogo-campo-full')).toBeNull();
+  });
+
+  it('campo `opcoes` NÃO recebe a classe de largura cheia', () => {
+    montar({ tabela: 'tecnicas', linha: null });
+    const pill = document.querySelector('.motor-field');
+    expect(pill.closest('.catalogo-campo-full')).toBeNull();
+  });
+
+  it('campo `texto` NÃO recebe a classe de largura cheia', () => {
+    montar({ tabela: 'tecnicas', linha: null });
+    const input = document.querySelector('input[name="nome"]');
+    expect(input.closest('.catalogo-campo-full')).toBeNull();
+  });
+
+  it('campo `derivado` (criaturas) NÃO recebe a classe de largura cheia', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    const input = document.querySelector('input[name="energia_fisica"]');
+    expect(input.closest('.catalogo-campo-full')).toBeNull();
+  });
+});
+
 describe('coluna do update (.eq) — chave certa por tabela', () => {
   it('tecnicas usa key', async () => {
     montar({ tabela: 'tecnicas', linha: { key: 'mira', nome: 'Mira', custo: 2 } });
