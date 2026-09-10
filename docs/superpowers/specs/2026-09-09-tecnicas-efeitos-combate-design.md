@@ -114,10 +114,38 @@ existe pronto.
 
 ### 2.2 Fase 2 (registrada, fora deste spec)
 
-As ~21 restantes exigem reescrever a resolução do golpe: `ignora_eh`
-(6 técnicas), dano extra % (5), dano recebido % (3), ataque duplo (3), impedir
-ataque/técnicas (3), `ignora_armadura`, multi-alvo, dano em equipamento, anular
-golpe, derrubar, redirecionar defesa, EH de montaria.
+Das 34 técnicas fora da Fase 1, **29 são mecânicas** e exigem reescrever a
+resolução do golpe; as outras 5 continuam narrativas em qualquer fase
+(Concentração, Luta às Cegas, Provocar, Conduzir Oponente — esta é de tabuleiro,
+mede metros — e Remover Debilitação, que é bônus na habilidade Escapar, não
+stat de rodada).
+
+As 29:
+
+| Primitiva | N | Técnicas |
+|---|---|---|
+| `ignora_eh` | 6 | Ataque Oportuno, Atravessar Oponente, Carga, Carga de Arremesso, Carga Montada, Golpe Letal |
+| dano extra % | 5 | Ambidestria, Aprimorar, Dano Agravado, Força Interior (+25%), Brutalizar (+50%) |
+| dano recebido % | 3 | Aparar (−75%), Desviar (−50%), Combate com Escudo (−25%) |
+| ataque duplo | 3 | Contra-Ataque, Golpe Duplo, Flechadas Múltiplas |
+| impedir o alvo | 3 | Inibir Ataque, Intimidar, Leitura de Batalha |
+| dano em equipamento | 2 | Estilhaçar (2), Retalhar (3) |
+| `ignora_armadura` | 1 | Disparo Certeiro |
+| multi-alvo | 1 | Golpe Giratório |
+| anular golpe | 1 | Esquiva |
+| derrubar | 1 | Desequilibrar |
+| redirecionar defesa | 1 | Escolta |
+| EH de montaria | 1 | Combate Montado |
+| auto-restrição de crítico | 1 | Combate Não Letal |
+
+> **Correção de 10/09/2026.** Esta seção dizia "~21 restantes". Eram 29 — a
+> contagem original somava categorias, não técnicas, e subestimava o tamanho da
+> Fase 2 em quase 40%. Recontado contra as 58 linhas do banco: 24 na Fase 1,
+> 29 mecânicas na Fase 2, 5 narrativas.
+
+A meia-técnica pendente também vive aqui: **Explorar Fraqueza** está na Fase 1
+com o `mod_ataque`, e o "ignora a armadura do adversário" entra junto de
+`ignora_armadura` (ver §2.1).
 
 ---
 
