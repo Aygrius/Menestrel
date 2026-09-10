@@ -31,8 +31,11 @@ beforeAll(async () => {
     from: (tabela) => ({
       insert: (payload) => { ultimoInsert = { tabela, payload }; return {
         select: () => ({ single: async () => ({ data: { ...payload, id: 1 }, error: erroSimulado }) }) }; },
-      update: (payload) => ({ eq: () => ({
-        select: () => ({ single: async () => ({ data: payload, error: erroSimulado }) }) }) }),
+      // Registra tabela/payload E a coluna/valor usados no .eq() — sem isso
+      // o caminho de EDIÇÃO inteiro ficava sem cobertura nenhuma.
+      update: (payload) => { ultimoUpdate = { tabela, payload }; return { eq: (col, val) => {
+        ultimoUpdate.eqCol = col; ultimoUpdate.eqVal = val; return {
+          select: () => ({ single: async () => ({ data: payload, error: erroSimulado }) }) }; } }; },
     }),
   };
   await import('./catalogo-editor.jsx');
@@ -157,5 +160,57 @@ describe('gravação', () => {
     await vi.waitFor(() => {
       expect(document.body.textContent).toMatch(/duplicate key value/);
     });
+  });
+});
+
+describe('itens.magico — boolean no banco, Sim/Não na tela', () => {
+  it('carrega magico=true mostrando "Sim"', () => {
+    montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magico: true } });
+    const pill = Array.from(document.querySelectorAll('.select-pill-btn'))
+      .find((b) => /Sim|Não/.test(b.textContent));
+    expect(pill, 'campo magico não achado').toBeTruthy();
+    expect(pill.textContent).toMatch(/Sim/);
+  });
+
+  it('carrega magico=false mostrando "Não"', () => {
+    montar({ tabela: 'itens', linha: { slug: 'corda', nome: 'Corda', magico: false } });
+    const pill = Array.from(document.querySelectorAll('.select-pill-btn'))
+      .find((b) => /Sim|Não/.test(b.textContent));
+    expect(pill.textContent).toMatch(/Não/);
+  });
+
+  // A REGRESSÃO que motivou tudo: editar outro campo não pode apagar o magico.
+  it('salvar sem tocar em magico PRESERVA o true', async () => {
+    montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magico: true } });
+    fireEvent.change(document.querySelector('textarea[name="descricao"]'), { target: { value: 'nova' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.magico).toBe(true);
+  });
+});
+
+describe('coluna do update (.eq) — chave certa por tabela', () => {
+  it('tecnicas usa key', async () => {
+    montar({ tabela: 'tecnicas', linha: { key: 'mira', nome: 'Mira', custo: 2 } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.eqCol).toBe('key');
+    expect(ultimoUpdate.eqVal).toBe('mira');
+  });
+
+  it('itens usa slug', async () => {
+    montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magico: true } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.eqCol).toBe('slug');
+    expect(ultimoUpdate.eqVal).toBe('anel');
+  });
+
+  it('criaturas usa id (sem chave própria no descritor)', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 42, nome: 'Dragão' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.eqCol).toBe('id');
+    expect(ultimoUpdate.eqVal).toBe(42);
   });
 });

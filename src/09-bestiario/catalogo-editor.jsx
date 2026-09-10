@@ -127,6 +127,21 @@ function CatalogoCampo({ campo, label, valor, onChange, disabled, sobrescrito })
   );
 }
 
+// itens.magico é boolean no banco e opções 'Sim'/'Não' na tela. A conversão
+// acontece nas DUAS pontas: aqui na entrada, e no payload do salvar (mais
+// abaixo). Sem a entrada, o SelectPill não casa com nenhuma opção
+// (String(true) !== 'Sim'), o campo aparece vazio, e o salvar grava `false`
+// em todo item mágico que o admin editar por outro motivo — 55 itens do
+// catálogo (medido no banco) seriam corrompidos na primeira edição.
+function linhaParaForm(linha, descritor) {
+  if (!linha) return null;
+  const out = { ...linha };
+  if (descritor && descritor.tabela === 'itens' && typeof out.magico === 'boolean') {
+    out.magico = out.magico ? 'Sim' : 'Não';
+  }
+  return out;
+}
+
 // ---------- CatalogoEditor ----------
 function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
   const t = (ADMIN_COPY[lang] || ADMIN_COPY.pt);
@@ -138,7 +153,9 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
     return base;
   }, [descritor]);
 
-  const [form, setForm] = React.useState(() => (linha ? { ...camposVazios, ...linha } : camposVazios));
+  const [form, setForm] = React.useState(() => (
+    linha ? { ...camposVazios, ...linhaParaForm(linha, descritor) } : camposVazios
+  ));
   // Ao editar, os derivados já entram sobrescritos (ver comentário no topo do
   // arquivo) — o valor do banco não pode ser trocado pela fórmula ao mount.
   const [sobrescritos, setSobrescritos] = React.useState(() => new Set(
@@ -185,12 +202,21 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
         return;
       }
       if (campo.tipo === 'numero') {
-        if (bruto === '' || bruto === null || bruto === undefined) return; // opcional vazio -> NULL
+        // Vazio: OMITE a coluna do payload (não manda `null` explícito). No
+        // insert isso dá NULL, que é o resultado desejado. No UPDATE, porém,
+        // uma coluna omitida NÃO é limpa — o PostgREST só toca nas colunas
+        // que vierem no payload, então esvaziar um campo opcional e salvar
+        // deixa o valor antigo intacto no banco. É uma limitação conhecida,
+        // não um bug: zerar de propósito um campo já preenchido, em vez de
+        // só deixá-lo como está, é decisão de produto separada (precisaria
+        // mandar `null` explícito só pros campos que o admin realmente
+        // esvaziou, distinguindo de "nunca preenchido").
+        if (bruto === '' || bruto === null || bruto === undefined) return;
         payload[campo.col] = Number(bruto);
         return;
       }
       const valor = typeof bruto === 'string' ? bruto.trim() : bruto;
-      if (valor === '' || valor === null || valor === undefined) return;
+      if (valor === '' || valor === null || valor === undefined) return; // mesma limitação do ramo `numero`, ver comentário acima
       // itens.magico é boolean no banco; o descritor usa opções Sim/Não —
       // a conversão de volta pra boolean é responsabilidade do editor.
       if (descritor.tabela === 'itens' && campo.col === 'magico') {
