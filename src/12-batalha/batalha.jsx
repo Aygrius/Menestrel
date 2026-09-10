@@ -4404,6 +4404,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // Estado das tabs Habilidade / Técnica (teste) / Resistência / Item
   const [habKey, setHabKey] = useState(null);
   const [tecTesteKey, setTecTesteKey] = useState(null);
+  // C1 (revisão final): alvo ÚNICO da técnica (grupo alvo: 'inimigo') tem
+  // seletor e estado PRÓPRIOS — não reusa alvoIdx da aba Arma (estado
+  // compartilhado era o bug: default silencioso no índice 0, sem separar
+  // aliado de inimigo). `tecAliados` é a multisseleção de 'aliados' (Voz de
+  // Comando, até 4) — item 10: estava solto no meio da seção de cálculos,
+  // longe dos outros useState da aba; movido pra junto deles.
+  const [tecAlvoIdx, setTecAlvoIdx] = useState(0);
+  const [tecAliados, setTecAliados] = useState([]);   // inst_id[] dos escolhidos
   const [resTipo, setResTipo] = useState('rf');               // 'rf' | 'rm'
   const [forcaAtaque, setForcaAtaque] = useState(10);
   const [forcaDefesa, setForcaDefesa] = useState(10);
@@ -4417,9 +4425,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 
   // Default de seleção ao entrar em Habilidade/Técnica(teste)/Item
   useEffect(() => {
-    // Zera a multisseleção de aliados: ao trocar de aba ou de técnica, os
-    // marcados da técnica anterior não podem sobreviver para a seguinte.
+    // Zera a multisseleção de aliados e o alvo único: ao trocar de aba ou de
+    // técnica, a escolha da técnica anterior não pode sobreviver pra seguinte.
     setTecAliados([]);
+    setTecAlvoIdx(0);
     if (tab === 'habilidade') {
       if (!habilidadesAtor.find((h) => h.key === habKey)) {
         setHabKey(habilidadesAtor[0] ? habilidadesAtor[0].key : null);
@@ -4505,27 +4514,40 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // Fase 1 (09/09/2026): a aba Técnica passou a APLICAR efeito, não só rolar.
   const tecRegistro = tecnicaTesteSel ? tecnicaEfeitoDe(tecnicaTesteSel.key) : null;
   const tecPrecisaAlvo = !!tecRegistro && tecRegistro.alvo !== 'self';
-  // Duas portas de bloqueio: uso Único já gasto, e equipamento incompatível
-  // (grupo_armas / grupo_armaduras, Task 7). A de equipamento vem primeiro
-  // porque o jogador resolve trocando de item.
+  // modo 'total' não rola dado: o valor é o total da técnica, direto. Vem
+  // ANTES de tecBloqueio porque a REGRA NOVA (0 PA, 1 ativação livre por
+  // rodada) só vale pra modo 'total', e o bloqueio precisa saber disso.
+  const tecSemDado = !!tecRegistro && tecRegistro.modo === 'total';
+  // Três portas de bloqueio: equipamento incompatível (grupo_armas /
+  // grupo_armaduras, Task 7), uso Único já gasto, e a REGRA NOVA — ativação
+  // livre já gasta nesta rodada. Equipamento vem primeiro porque o jogador
+  // resolve trocando de item; a cota livre vem por último porque só ela
+  // libera de novo sozinha (na próxima rodada), sem o jogador fazer nada.
   const tecEquip = tecnicaTesteSel
-    ? tecnicaPermitida(tecnicaTesteSel, ator, arma) : { pode: true, motivo: null };
+    ? tecnicaPermitida(tecnicaTesteSel, ator, arma, catalogos) : { pode: true, motivo: null };
   const tecUso = tecnicaTesteSel
     ? podeUsarTecnica(ator, tecnicaTesteSel) : { pode: true, motivo: null };
-  const tecBloqueio = !tecEquip.pode ? tecEquip : tecUso;
-  // modo 'total' não rola dado: o valor é o total da técnica, direto.
-  const tecSemDado = !!tecRegistro && tecRegistro.modo === 'total';
-  // 'aliados' (só Voz de Comando: até 4) precisa de multisseleção; as outras
-  // reusam o `alvo` único que a aba de arma já tem.
+  const tecLivre = tecnicaTesteSel
+    ? podeAtivarTecnicaLivre(ator, tecnicaTesteSel) : { pode: true, motivo: null };
+  const tecBloqueio = !tecEquip.pode ? tecEquip : (!tecUso.pode ? tecUso : tecLivre);
+  // 'aliados' (só Voz de Comando: até 4) precisa de multisseleção; 'inimigo'
+  // usa o seletor de alvo PRÓPRIO da técnica (C1, abaixo) — nenhuma das duas
+  // reusa o `alvo`/`alvoIdx` da aba Arma (estado compartilhado era o bug:
+  // default silencioso, sem separar aliado de inimigo, e sangrava o próprio
+  // companheiro em silêncio).
   const tecMultiAlvo = !!tecRegistro && tecRegistro.alvo === 'aliados';
-  const [tecAliados, setTecAliados] = useState([]);   // inst_id[] dos escolhidos
+  const tecAlvoUnico = tecPrecisaAlvo && !tecMultiAlvo;
+  const tecAlvoSel = tecAlvoUnico ? (alvos[tecAlvoIdx] || null) : null;
   const tecAliadosOpcoes = useMemo(
-    () => (tecMultiAlvo ? participantes.filter((p) => p.status === 'ativo') : []),
-    [tecMultiAlvo, participantes]
+    // O próprio ator NÃO entra na lista (item 11): Voz de Comando pode
+    // legitimamente mirar em qualquer um (o texto do banco diz "4 alvos"),
+    // mas incluir o ATOR numa lista rotulada "Aliados" é confuso.
+    () => (tecMultiAlvo ? participantes.filter((p) => p.status === 'ativo' && !mesmoParticipante(p, ator)) : []),
+    [tecMultiAlvo, participantes, ator]
   );
   const tecAlvosEscolhidos = tecMultiAlvo
     ? tecAliadosOpcoes.filter((p) => tecAliados.includes(p.inst_id))
-    : (tecPrecisaAlvo && alvo ? [alvo] : []);
+    : (tecAlvoUnico && tecAlvoSel ? [tecAlvoSel] : []);
   const tecMultiCheio = tecMultiAlvo && tecAliados.length >= (tecRegistro.maxAlvos || 1);
   const itemSelecionado = itensConsumiveisAtor.find((it) => it.slug === itemSlug) || null;
 
@@ -4646,11 +4668,21 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     : null;
 
   // Pode confirmar: depende de qual tab está ativa.
+  // I5 (revisão final): modo 'total' não rola dado — a spec §6 pede "sem
+  // overlay de dado; aplica e debita PA" (0 PA agora, REGRA NOVA), então
+  // podeAplicar não pode exigir d20/res pra essas. semPA também não entra:
+  // ativação livre não gasta PA nenhum, o único teto é tecBloqueio
+  // (tecLivre) — quem já ativou nesta rodada fica bloqueado por ELE, mesmo
+  // com PA sobrando.
   const podeAplicar =
     (tab === 'arma' || tab === 'magia')
       ? (!!res && !semKarma && alvo && !foraDeAlcance && (!precisaCritico || d20Critico != null))
-    : (tab === 'habilidade' || tab === 'tecnica_teste')
+    : (tab === 'habilidade')
       ? (!semPA && d20 != null && !!res)
+    : (tab === 'tecnica_teste')
+      ? (!!tecnicaTesteSel && tecBloqueio.pode
+          && (tecPrecisaAlvo ? tecAlvosEscolhidos.length > 0 : true)
+          && (tecSemDado ? true : (!semPA && d20 != null && !!res)))
     : (tab === 'resistencia')
       ? (!semPA && d20 != null && !!resResist && resResist !== 'empate')
     : (tab === 'apoio')
@@ -4977,6 +5009,21 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                 label: t.nome,
               }))}
             />
+            {/* C1 (revisão final): seletor de alvo PRÓPRIO da técnica, para
+                as 5 de alvo único ('inimigo' — sangramento, expectativa,
+                resguardar, pressionar_oponente, posicionamento). Antes o
+                efeito caía em alvos[alvoIdx], estado COMPARTILHADO com a aba
+                Arma: o jogador não escolhia e a tela não dizia quem foi.
+                Molde copiado do seletor de alvo da aba Arma (tb.alvo). */}
+            {tecAlvoUnico && (
+              <SelectPill
+                label={tb.alvo}
+                value={tecAlvoIdx}
+                disabled={temRolagemPendente}
+                onChange={(v) => { setTecAlvoIdx(parseInt(v, 10)); setD20(null); }}
+                options={alvos.map((p, i) => ({ value: i, label: p.nome }))}
+              />
+            )}
             {tecMultiAlvo && (
               <div className="acao-aliados">
                 <span className="acao-aliados-lbl">
@@ -5016,6 +5063,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                   ? (isEn
                       ? `Requires armor of group: ${tecnicaTesteSel.grupo_armaduras}.`
                       : `Exige armadura do grupo: ${tecnicaTesteSel.grupo_armaduras}.`)
+                  : tecBloqueio.motivo === 'livre_usada'
+                  ? (isEn
+                      ? 'Already used a free technique this round.'
+                      : 'Já ativou uma técnica gratuita nesta rodada.')
                   : (isEn
                       ? 'Already used this battle (single use).'
                       : 'Já usada nesta batalha (uso Único).')}
@@ -5263,8 +5314,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
       )}
 
       <div className="atacar-footer">
-        {/* Botão "Rolar dado" — abre o DadoOverlay (inline com Cancelar/Aplicar) */}
-        {((tab === 'resistencia' || tab === 'apoio') ? alvoResist != null : colunaClamped != null) && (
+        {/* Botão "Rolar dado" — abre o DadoOverlay (inline com Cancelar/Aplicar).
+            I5 (revisão final): modo 'total' NÃO rola dado (spec §6) — o botão
+            nem aparece pra essas técnicas, senão o jogador rolava um d20 sem
+            nenhum significado e o log sugeria sucesso/fracasso à toa. */}
+        {!(tab === 'tecnica_teste' && tecSemDado)
+          && ((tab === 'resistencia' || tab === 'apoio') ? alvoResist != null : colunaClamped != null) && (
           <div className="dado-ov-trigger">
             <button className="btn-primary btn-sm" onClick={() => setOverlayAberto('primario')}
               disabled={
@@ -5349,7 +5404,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           const v = atacando ? tb.verboAtacar
                   : tab === 'resistencia' ? tb.verboResistir
                   : tb.verboUsar;
-          const rotulo = `${v} (1 PA${sufKa})`;
+          // REGRA NOVA (revisão final): técnica modo 'total' é ativação
+          // livre — 0 PA, refletido no rótulo pra não anunciar um custo que
+          // não é debitado (debitarCustoTecnica é quem de fato aplica isto).
+          const custoPA = (tab === 'tecnica_teste' && tecSemDado) ? 0 : 1;
+          const rotulo = `${v} (${custoPA} PA${sufKa})`;
           const ic = atacando ? 'ti-swords'
                    : tab === 'resistencia' ? 'ti-shield'
                    : 'ti-check';
