@@ -2121,6 +2121,55 @@ function grupoDaArma(arma, catalogos) {
   return arma.grupo_sigla || arma.grupo || null;
 }
 
+/* Quantos alvos este golpe pode atingir, contando o principal.
+
+   Golpe Giratório é a única com alvos_extras hoje (valor 3). Uso MÁXIMO e
+   não soma: dois status de multi-alvo ativos ao mesmo tempo significam "o
+   maior manda", não "somam os tetos" — somar transformaria duas técnicas de
+   3 alvos num golpe de 6, que nenhuma das duas promete.
+
+   Sem status, o teto é 1: um golpe, um alvo, como sempre foi. */
+function tetoDeAlvos(atacante) {
+  const st = (atacante && Array.isArray(atacante.status_temp)) ? atacante.status_temp : [];
+  const maior = st.reduce((m, s) => (
+    (s.efeito && s.efeito.tipo === 'alvos_extras') ? Math.max(m, Number(s.efeito.valor) || 0) : m
+  ), 0);
+  return Math.max(1, maior);
+}
+
+/* Um golpe caindo num alvo: esquiva, cascata e quebra de concentração.
+
+   Puro: recebe e devolve o array de participantes. Extraído do miolo dos
+   dois handlers porque alvos_extras precisa do MESMO tratamento em cada
+   alvo adicional — duplicar o bloco seria garantir que as regras
+   divergissem no primeiro conserto aplicado num lugar só.
+
+   Ruling T6b-A: o alvo extra leva o MESMO golpe — mesmo d20, mesmo tier,
+   mesmo dano base. Golpe Giratório é UM giro que alcança até 3 inimigos,
+   não três ataques separados. O que continua sendo por alvo é o que é do
+   alvo: esquiva, armadura, EH e o que modsDoGolpe resolve contra ele. */
+function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, dano, critico) {
+  if (!Array.isArray(arr) || alvoIdx < 0 || alvoIdx >= arr.length) return arr;
+  if (!(dano > 0)) return arr;
+  const next = [...arr];
+      const alvoAntes = next[alvoIdx];
+      // Fase 2: além do crítico, o golpe pode furar EH e/ou AR por técnica
+      // (ignora_eh, ignora_armadura) ou por condição do alvo (derrubado).
+      // Esquiva anula o golpe inteiro — dano ZERO mesmo com crítico ou
+      // ignora_eh: esquivar é não ser atingido (ver consumirEvitaGolpe).
+      const esq = consumirEvitaGolpe(alvoAntes);
+      if (esq.evitou) {
+        next[alvoIdx] = esq.participante;   // dano nenhum, status consumido
+      } else {
+        const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
+        next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
+      }
+  // E o golpe derruba a concentração do ALVO se furou até a EF dele ou se o
+  // derrubou/matou. Dano contido em EH ou AR não quebra — mas zerar a EH
+  // desmaia, e desmaiar quebra (ver quebrarConcentracaoPorDano).
+  return [...quebrarConcentracaoPorDano(next, alvoAntes, next[alvoIdx])];
+}
+
 /* O efeito desta técnica mora no ATACANTE, apontando pro alvo declarado?
 
    Golpe Letal é VOCÊ furando a EH daquele inimigo, não uma condição que
@@ -2799,7 +2848,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // payload: { tipo: 'arma'|'magia', arma?, magia?, tecnica?, alvo, coluna, d20, resultado, dano, custo_karma,
     //            d20_critico?, res_critico?, tipo_critico?, tipo_critico_arma?, msg_critico? }
     const { tipo, arma, magia, tecnica, alvo, coluna, d20, resultado, dano, custo_karma,
-            d20_critico, res_critico, tipo_critico, tipo_critico_arma, msg_critico } = payload;
+            d20_critico, res_critico, tipo_critico, tipo_critico_arma, msg_critico,
+            alvos_extras } = payload;
     const criticoBruto = !!(resultado && resultado.critico);
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     const atorIdx = participantes.findIndex((p) => p.atual);
@@ -2811,24 +2861,19 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     let next = [...participantes];
     // Atacar É uma ação: derruba a concentração de quem ataca.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
-    if (dano > 0) {
-      const alvoAntes = next[alvoIdx];
-      // Fase 2: além do crítico, o golpe pode furar EH e/ou AR por técnica
-      // (ignora_eh, ignora_armadura) ou por condição do alvo (derrubado).
-      // Esquiva anula o golpe inteiro — dano ZERO mesmo com crítico ou
-      // ignora_eh: esquivar é não ser atingido (ver consumirEvitaGolpe).
-      const esq = consumirEvitaGolpe(alvoAntes);
-      if (esq.evitou) {
-        next[alvoIdx] = esq.participante;   // dano nenhum, status consumido
-      } else {
-        const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
-        next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
-      }
-      // E o golpe derruba a concentração do ALVO se furou até a EF dele ou
-      // se o derrubou/matou. Dano contido em EH ou AR não quebra — mas zerar
-      // a EH desmaia, e desmaiar quebra (ver quebrarConcentracaoPorDano).
-      next = [...quebrarConcentracaoPorDano(next, alvoAntes, next[alvoIdx])];
-    }
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, dano, critico);
+    // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
+    // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
+    // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
+    // O teto é reaplicado aqui mesmo já tendo sido aplicado no painel: o
+    // payload vem de fora, e regra que só existe na UI não é regra.
+    (Array.isArray(alvos_extras) ? alvos_extras : [])
+      .slice(0, Math.max(0, tetoDeAlvos(next[atorIdx]) - 1))
+      .forEach((instId) => {
+        const exIdx = next.findIndex((p) => p.inst_id === instId);
+        if (exIdx < 0 || exIdx === alvoIdx) return;
+        next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, dano, critico);
+      });
     // Debita PA (sempre 1) e karma (se for magia).
     const k = Math.max(0, custo_karma || 0);
     // Fase 2 das técnicas: ataque extra (Golpe Duplo, Contra-Ataque,
@@ -4665,6 +4710,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const [alvoIdx, setAlvoIdx]  = useState(0);
   const [apoioIdx, setApoioIdx] = useState(0);
   const [alvoApoioIdx, setAlvoApoioIdx] = useState(0);
+  // Golpe Giratório: inst_ids dos alvos ALÉM do principal. Fica na aba Arma
+  // e não reusa tecAliados de propósito — aquele é do seletor da técnica, é
+  // de ALIADOS, e compartilhar estado entre os dois seletores já foi bug.
+  const [alvosExtras, setAlvosExtras] = useState([]);
   const [d20, setD20] = useState(salva ? salva.d20 : null);
   // Segundo dado: só pedido quando primeiro resultado é FC (q=0, verde) ou A (q=7, cinza).
   // FC → autodano crítico no atacante; A → crítico devastador no alvo.
@@ -4828,6 +4877,21 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     ? tecAliadosOpcoes.filter((p) => tecAliados.includes(p.inst_id))
     : (tecAlvoUnico && tecAlvoSel ? [tecAlvoSel] : []);
   const tecMultiCheio = tecMultiAlvo && tecAliados.length >= (tecRegistro.maxAlvos || 1);
+  // Teto de alvos do golpe (Fase 2, Task 6b). 1 = o de sempre; >1 abre a
+  // multisseleção. O principal já conta, então sobram teto-1 extras.
+  const tetoAlvosGolpe = tetoDeAlvos(ator);
+  const golpeMultiAlvo = tab === 'arma' && tetoAlvosGolpe > 1;
+  const alvosExtrasOpcoes = useMemo(
+    () => (golpeMultiAlvo ? alvos.filter((p) => !mesmoParticipante(p, alvo)) : []),
+    [golpeMultiAlvo, alvos, alvo]
+  );
+  // O que está marcado E ainda é opção válida: o alvo principal pode ter
+  // mudado depois da marcação, e um alvo marcado pode ter morrido.
+  const alvosExtrasValidos = alvosExtrasOpcoes
+    .filter((p) => alvosExtras.includes(p.inst_id))
+    .map((p) => p.inst_id);
+  const golpeMultiCheio = alvosExtrasValidos.length >= (tetoAlvosGolpe - 1);
+
   const itemSelecionado = itensConsumiveisAtor.find((it) => it.slug === itemSlug) || null;
 
   // Modificadores mecânicos de status_temp (Fase 1.1): "Suas ações tem −7"
@@ -5095,6 +5159,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
       onAplicar({
         tipo: 'arma',
         arma, tecnica, alvo,
+        // Golpe Giratório: só os que ainda são opção válida. O motor
+        // reaplica o teto — regra que só existe na UI não é regra.
+        alvos_extras: alvosExtrasValidos,
         coluna: colunaClamped, d20: res.d20, resultado: res, dano,
         custo_karma: 0,
         // Segundo dado de crítico (presente só quando q=0 ou q=7).
@@ -5190,6 +5257,35 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                 return { value: i, label: p.nome + (longe ? ` · ${d} m` : '') };
               })}
             />
+            {/* Golpe Giratório: alvos ALÉM do principal. Mesmo padrão visual
+                da multisseleção de aliados da técnica, mas sobre inimigos e
+                na aba Arma. O principal fica fora da lista — ele já está
+                escolhido no seletor acima. */}
+            {golpeMultiAlvo && alvosExtrasOpcoes.length > 0 && (
+              <div className="acao-aliados">
+                <span className="acao-aliados-lbl">
+                  {interpolate(tb.golpeAlvosExtrasRotulo, {
+                    atual: alvosExtrasValidos.length, max: tetoAlvosGolpe - 1,
+                  })}
+                </span>
+                {alvosExtrasOpcoes.map((p) => {
+                  const marcado = alvosExtrasValidos.includes(p.inst_id);
+                  return (
+                    <label key={p.inst_id} className={'acao-aliado' + (marcado ? ' on' : '')}>
+                      <input
+                        type="checkbox"
+                        checked={marcado}
+                        disabled={temRolagemPendente || (!marcado && golpeMultiCheio)}
+                        onChange={() => setAlvosExtras((atual) => (
+                          marcado ? atual.filter((id) => id !== p.inst_id) : [...atual, p.inst_id]
+                        ))}
+                      />
+                      {p.nome}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
             {tecnicasCompat.length > 0 && (
               <SelectPill
                 label={tb.tecnicaOpcional}
@@ -5926,7 +6022,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const handleAcao = (payload) => {
     if (!ehMinhaVez || !meuParticipante) return;
     const { tipo, arma, magia, tecnica, alvo, coluna, d20, resultado, dano, custo_karma,
-            d20_critico, res_critico, tipo_critico, tipo_critico_arma, msg_critico } = payload;
+            d20_critico, res_critico, tipo_critico, tipo_critico_arma, msg_critico,
+            alvos_extras } = payload;
     const criticoBruto = !!(resultado && resultado.critico);
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     const atorIdx = participantes.findIndex((p) => mesmoParticipante(p, meuParticipante));
@@ -5947,24 +6044,23 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     let eventosVirada = [];
     // Atacar quebra a concentração de quem ataca — espelha aplicarAcao.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, dano, critico);
+    // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
+    // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
+    // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
+    // O teto é reaplicado aqui mesmo já tendo sido aplicado no painel: o
+    // payload vem de fora, e regra que só existe na UI não é regra.
+    (Array.isArray(alvos_extras) ? alvos_extras : [])
+      .slice(0, Math.max(0, tetoDeAlvos(next[atorIdx]) - 1))
+      .forEach((instId) => {
+        const exIdx = next.findIndex((p) => p.inst_id === instId);
+        if (exIdx < 0 || exIdx === alvoIdx) return;
+        next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, dano, critico);
+      });
     if (dano > 0) {
-      const alvoAntes = next[alvoIdx];
-      // Fase 2: além do crítico, o golpe pode furar EH e/ou AR por técnica
-      // (ignora_eh, ignora_armadura) ou por condição do alvo (derrubado).
-      // Esquiva anula o golpe inteiro — dano ZERO mesmo com crítico ou
-      // ignora_eh: esquivar é não ser atingido (ver consumirEvitaGolpe).
-      const esq = consumirEvitaGolpe(alvoAntes);
-      if (esq.evitou) {
-        next[alvoIdx] = esq.participante;   // dano nenhum, status consumido
-      } else {
-        const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
-        next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
-      }
-      // Dano que FURA até a EF quebra a concentração do alvo; contido em EH
-      // ou AR, não. Zerar a EH desmaia, e desmaiar quebra — espelha
-      // aplicarAcao via quebrarConcentracaoPorDano.
-      next = [...quebrarConcentracaoPorDano(next, alvoAntes, next[alvoIdx])];
-      // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele
+      // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele.
+      // Só o alvo PRINCIPAL: um alvo extra não pode ser o atual, porque o
+      // atual é quem está atacando.
       const rAlvo = autoPassarSeNecessario(next, next[alvoIdx]);
       next = rAlvo.participantes;
       if (rAlvo.rodadaNova != null) rodadaNova = rAlvo.rodadaNova;
@@ -6730,6 +6826,8 @@ Object.assign(window, {
     temAcaoRestante,
     criticoPermitido,
     efeitoAncoraNoAtacante,
+    tetoDeAlvos,
+    aplicarGolpeEmAlvo,
     defesaBaseComEscolta,
     // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
     // e devolve o empréstimo quando o status sai na virada de rodada.

@@ -179,12 +179,40 @@ describe('os três caminhos de dano usam a regra', () => {
     expect(fonteDe('const aplicarPool = (idx, pool)')).toMatch(/quebrarConcentracaoPorDano/);
   });
 
-  it('o ataque do Mestre passa pela regra', () => {
-    expect(fonteDe('const aplicarAcao = (payload)')).toMatch(/quebrarConcentracaoPorDano/);
+  /* Os dois ataques chamavam quebrarConcentracaoPorDano diretamente. Em
+     11/09/2026 o miolo do golpe (esquiva → cascata → quebra) virou
+     aplicarGolpeEmAlvo, porque alvos_extras precisava do MESMO tratamento
+     em cada alvo adicional e duplicar o bloco garantiria divergência.
+
+     A exigência não mudou: todo caminho de dano passa pela regra. O que
+     mudou é que agora ela é alcançada por uma indireção, então o teste
+     segue a indireção em vez de baixar a régua — exige o elo dos dois
+     lados. Aceitar só "o handler chama alguma coisa" seria enfraquecer. */
+  it('o ataque do Mestre passa pela regra, via aplicarGolpeEmAlvo', () => {
+    expect(fonteDe('const aplicarAcao = (payload)')).toMatch(/aplicarGolpeEmAlvo\(/);
   });
 
-  it('o ataque do Jogador passa pela regra', () => {
-    expect(fonteDe('const handleAcao = (payload)')).toMatch(/quebrarConcentracaoPorDano/);
+  it('o ataque do Jogador passa pela regra, via aplicarGolpeEmAlvo', () => {
+    expect(fonteDe('const handleAcao = (payload)')).toMatch(/aplicarGolpeEmAlvo\(/);
+  });
+
+  it('e aplicarGolpeEmAlvo é quem chama a regra — o outro elo da corrente', () => {
+    const corpo = fonteDe('function aplicarGolpeEmAlvo(');
+    expect(corpo).toMatch(/quebrarConcentracaoPorDano/);
+    expect(corpo, 'a esquiva continua dentro do mesmo caminho').toMatch(/consumirEvitaGolpe/);
+  });
+
+  it('os alvos EXTRAS passam pelo mesmo caminho, não por um atalho', () => {
+    // Se alguém aplicar dano no alvo extra sem passar por aplicarGolpeEmAlvo,
+    // o golpe giratório ignoraria esquiva e concentração só nos extras — o
+    // tipo de buraco que só aparece em jogo.
+    for (const nome of ['const aplicarAcao = (payload)', 'const handleAcao = (payload)']) {
+      const corpo = fonteDe(nome);
+      const trecho = corpo.slice(corpo.indexOf('alvos_extras'));
+      expect(trecho, nome).toMatch(/aplicarGolpeEmAlvo\(/);
+      expect(trecho, nome + ' não pode chamar a cascata direto')
+        .not.toMatch(/aplicarDanoCascata\(/);
+    }
   });
 
   it('ninguém ficou com a checagem antiga de só-EF', () => {

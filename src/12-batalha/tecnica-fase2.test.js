@@ -437,3 +437,134 @@ describe('efeitoAncoraNoAtacante — quem vai no ator com âncora', () => {
     }
   });
 });
+
+/* ============================================================
+   Task 6b — Golpe Giratório: um giro, até 3 alvos
+   ============================================================
+   Ruling T6b-A: o alvo extra leva o MESMO golpe (mesmo d20, mesmo tier,
+   mesmo dano base). Golpe Giratório é UM giro que alcança até 3 inimigos,
+   não três ataques separados. O que continua sendo por alvo é o que é do
+   alvo: esquiva, armadura, EH e o que modsDoGolpe resolve contra ele.
+   ============================================================ */
+describe('tetoDeAlvos', () => {
+  const comAlvos = (...valores) => ({
+    inst_id: 'a',
+    status_temp: valores.map((v, i) => ({
+      id: 's' + i, nome: 's', icone: '·', rodadas_rest: 1,
+      efeito: { tipo: 'alvos_extras', valor: v },
+    })),
+  });
+
+  it('sem status, um golpe atinge um alvo', () => {
+    expect(M.tetoDeAlvos({ inst_id: 'a', status_temp: [] })).toBe(1);
+    expect(M.tetoDeAlvos(null)).toBe(1);
+    expect(M.tetoDeAlvos({})).toBe(1);
+  });
+
+  it('Golpe Giratório dá 3', () => {
+    expect(M.tetoDeAlvos(comAlvos(3))).toBe(3);
+  });
+
+  // Somar seria transformar duas técnicas de 3 alvos num golpe de 6, que
+  // nenhuma das duas promete.
+  it('dois status não SOMAM os tetos — o maior manda', () => {
+    expect(M.tetoDeAlvos(comAlvos(3, 2))).toBe(3);
+    expect(M.tetoDeAlvos(comAlvos(2, 3))).toBe(3);
+  });
+
+  it('status de outro tipo não conta', () => {
+    expect(M.tetoDeAlvos({ inst_id: 'a', status_temp: [
+      { id: 's', nome: 's', icone: '·', rodadas_rest: 1, efeito: { tipo: 'dano_pct', valor: 25 } },
+    ] })).toBe(1);
+  });
+
+  it('valor lixo não derruba o piso', () => {
+    expect(M.tetoDeAlvos(comAlvos(null))).toBe(1);
+    expect(M.tetoDeAlvos(comAlvos('três'))).toBe(1);
+  });
+});
+
+describe('aplicarGolpeEmAlvo', () => {
+  const lutador = (inst_id, extra) => ({
+    tipo: 'pj', ref_id: inst_id, inst_id, nome: inst_id, ordem: 1,
+    status: 'ativo', atual: false, vb: 20, pa_max: 2, pa_rest: 2,
+    ef: 10, ef_max: 10, eh: 5, eh_max: 5, ar: 3, ar_max: 3,
+    karma: 0, karma_max: 0, status_temp: [], ...extra,
+  });
+
+  it('o dano entra pela cascata EH → AR → EF', () => {
+    const arr = [lutador('atacante'), lutador('alvo')];
+    const r = M.aplicarGolpeEmAlvo(arr, 0, 1, 6, false);
+    expect(r[1].eh, 'EH absorve 5').toBe(0);
+    expect(r[1].ar, 'AR absorve 1').toBe(2);
+    expect(r[1].ef, 'nada sobra pra EF').toBe(10);
+  });
+
+  it('dano zero não mexe em nada e devolve o mesmo array', () => {
+    const arr = [lutador('atacante'), lutador('alvo')];
+    expect(M.aplicarGolpeEmAlvo(arr, 0, 1, 0, false)).toBe(arr);
+  });
+
+  it('índice inválido não explode nem altera nada', () => {
+    const arr = [lutador('atacante'), lutador('alvo')];
+    expect(M.aplicarGolpeEmAlvo(arr, 0, -1, 5, false)).toBe(arr);
+    expect(M.aplicarGolpeEmAlvo(arr, 0, 99, 5, false)).toBe(arr);
+    expect(M.aplicarGolpeEmAlvo(null, 0, 1, 5, false)).toBeNull();
+  });
+
+  // A razão de o helper existir: cada alvo resolve a PRÓPRIA esquiva.
+  it('cada alvo gasta a própria Esquiva — um giro não esgota a do outro', () => {
+    // consome_em mora no STATUS, nao dentro de efeito — e o que
+    // consumirEvitaGolpe procura. Errei isso na primeira versao do teste e
+    // ele passou reto pelo caminho da esquiva sem ninguem notar.
+    const esquiva = {
+      id: 'tec_esquiva', nome: 'Esquiva', icone: '🙅', rodadas_rest: 1,
+      consome_em: 'golpe_recebido',
+      efeito: { tipo: 'evita_golpe', valor: true },
+    };
+    const arr = [lutador('atacante'), lutador('b', { status_temp: [esquiva] }), lutador('c', { status_temp: [esquiva] })];
+    let r = M.aplicarGolpeEmAlvo(arr, 0, 1, 6, false);
+    r = M.aplicarGolpeEmAlvo(r, 0, 2, 6, false);
+    expect(r[1].eh, 'b esquivou').toBe(5);
+    expect(r[2].eh, 'c esquivou também').toBe(5);
+    expect(r[1].status_temp, 'a esquiva de b foi consumida').toHaveLength(0);
+    expect(r[2].status_temp, 'a de c também').toHaveLength(0);
+  });
+
+  it('crítico fura a EH do alvo extra igual ao do principal', () => {
+    const arr = [lutador('atacante'), lutador('alvo')];
+    const r = M.aplicarGolpeEmAlvo(arr, 0, 1, 4, true);
+    expect(r[1].eh, 'crítico pula a EH').toBe(5);
+    expect(r[1].ar).toBe(0);
+    expect(r[1].ef).toBe(9);
+  });
+
+  // Cada alvo aplica os SEUS modificadores: a âncora do ignora_eh vale só
+  // contra o alvo declarado, mesmo quando o giro alcança vários.
+  it('ignora_eh ancorado vale só no alvo ancorado, não no extra', () => {
+    const atacante = lutador('atacante', { status_temp: [{
+      id: 'tec_golpe_letal', nome: 'Golpe Letal', icone: '💀', rodadas_rest: 1,
+      efeito: { tipo: 'ignora_eh', valor: true, alvo_inst_id: 'b' },
+    }] });
+    const arr = [atacante, lutador('b'), lutador('c')];
+    let r = M.aplicarGolpeEmAlvo(arr, 0, 1, 4, false);
+    r = M.aplicarGolpeEmAlvo(r, 0, 2, 4, false);
+    expect(r[1].eh, 'b: furou a EH').toBe(5);
+    expect(r[1].ar).toBe(0);
+    expect(r[2].eh, 'c: a EH segurou, não estava ancorado').toBe(1);
+    expect(r[2].ar, 'c: a AR nem foi tocada').toBe(3);
+  });
+
+  it('derruba a concentração de quem sustentava magia e levou dano na EF', () => {
+    const arr = [
+      lutador('atacante'),
+      lutador('alvo', { eh: 0, ar: 0 }),
+      lutador('conjurador', { status_temp: [{
+        id: 'sust_x', nome: 'Sustentando', icone: '✨', rodadas_rest: 99,
+        sustentada_por: 'alvo',
+      }] }),
+    ];
+    const r = M.aplicarGolpeEmAlvo(arr, 0, 1, 4, false);
+    expect(r[1].ef, 'o dano chegou na EF').toBe(6);
+  });
+});

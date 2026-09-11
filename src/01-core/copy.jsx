@@ -467,6 +467,7 @@ const COPY = {
       // que já existia, só movido pra cá (tecnica-aba.test.jsx casa por
       // texto pt e não pode quebrar). As 3 com {} usam interpolate().
       tecnicaAliadosRotulo: 'Aliados ({atual}/{max})',
+      golpeAlvosExtrasRotulo: 'Alvos do giro ({atual}/{max})',
       tecnicaExigeArma: 'Exige arma do grupo: {grupo}.',
       tecnicaExigeArmadura: 'Exige armadura do grupo: {grupo}.',
       tecnicaGratuitaJaUsada: 'Já ativou uma técnica gratuita nesta rodada.',
@@ -932,6 +933,7 @@ const COPY = {
       tecnicaOpcional: 'Technique (optional)',
       // i18n-sync (Fase 3.3): espelha o bloco pt acima, mesmo conteúdo em inglês.
       tecnicaAliadosRotulo: 'Allies ({atual}/{max})',
+      golpeAlvosExtrasRotulo: 'Sweep targets ({atual}/{max})',
       tecnicaExigeArma: 'Requires a weapon of group: {grupo}.',
       tecnicaExigeArmadura: 'Requires armor of group: {grupo}.',
       tecnicaGratuitaJaUsada: 'Already used a free technique this round.',
