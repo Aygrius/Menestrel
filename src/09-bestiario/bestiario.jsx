@@ -943,8 +943,12 @@ function TecnicasList({ ac, lang, modoJogador }) {
                         <TableRow className="best-detail"><TableCell colSpan={5 + (ehAdmin ? 1 : 0)}>
                           {t.permissao && <div className="best-permissao">{t.permissao}</div>}
                           {t.descricao && <TextoDoBanco texto={t.descricao} className="best-desc" />}
-                          {t.efeito && <TextoDoBanco texto={t.efeito} className="best-efeito"
-                            prefixo={(lang === 'en' ? 'Effect' : 'Efeito') + ': '} />}
+                          {/* O campo `efeito` NÃO aparece aqui (pedido do usuário,
+                              11/09/2026): ele descreve o que acontece na resolução
+                              do golpe, e o lugar disso é a mesa, na hora do combate
+                              — o painel de ação já o mostra ao selecionar a técnica.
+                              No catálogo ele só duplicava a descrição e antecipava
+                              mecânica que o jogador não precisa ler ali. */}
                         </TableCell></TableRow>
                       )}
                     </React.Fragment>

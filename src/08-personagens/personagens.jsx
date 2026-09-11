@@ -597,6 +597,28 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
           </div>
         </div>
       </div>
+
+      {/* Selecionar personagem (pedido do usuário, 11/09/2026).
+
+          O card inteiro já era clicável e chamava onAtivar, mas isso é uma
+          afordância invisível: nada na tela dizia que um clique ali troca
+          TODO o contexto do jogador (ficha, inventário, loja, diário e a
+          mesa que ele enxerga). Quem não sabia, não clicava; quem clicava
+          sem saber, trocava de contexto sem entender o que aconteceu.
+
+          O clique no card continua funcionando — tirar atalho que já existe
+          só irrita quem se acostumou. O botão torna a ação nomeada. */}
+      {onAtivar && (
+        <div className="pj-card-foot">
+          <button
+            type="button"
+            className="btn-primary btn-sm pj-card-selecionar"
+            onClick={(e) => { e.stopPropagation(); onAtivar(); }}>
+            <i className="ti ti-user-check" aria-hidden="true" />
+            {en ? 'Select character' : 'Selecionar personagem'}
+          </button>
+        </div>
+      )}
     </article>
 
       {/* Seta de evolução — é o caminho do JOGADOR pra gastar os pontos do

@@ -3364,6 +3364,17 @@
 #root .menestrel-ui .cont-row-info .inv-card-qty { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: #9C8F73; }
 #root .menestrel-ui .inv-card-pills { position: absolute; top: 3px; left: 3px; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
 
+/* Rodapé do card de personagem — só existe no perfil Jogador, onde o card
+   tem a ação "Selecionar personagem" (ver PersonagemCard). */
+#root .menestrel-ui .pj-card-foot {
+  display: flex; justify-content: center;
+  padding: 0 14px 12px;
+}
+#root .menestrel-ui .pj-card-selecionar {
+  display: inline-flex; align-items: center; gap: 6px;
+  width: 100%; justify-content: center;
+}
+
 /* ── Pills do item: ESTADO x INFORMAÇÃO ────────────────────────────────
    Até 11/09/2026 `.inv-pill` não tinha estilo base nenhum — nem fundo, nem
    cor. As cinco variantes (eq/vst/mag/liq/nor) saíam idênticas, distinguidas
