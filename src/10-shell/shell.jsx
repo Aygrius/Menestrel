@@ -2947,7 +2947,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         <main className="mc-main">
           <div className="mc-content" style={{ maxWidth: isWide ? 'none' : 860, paddingBottom: 80 }}>
             {current.id === 'criaturas' ? (
-              <CriaturasList ac={ac} lang={lang} />
+              <CriaturasList ac={ac} lang={lang} modoJogador={profile === 'player'} />
             ) : current.id === 'personagens_j' ? (
               <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onLimiteFreeChange={setLimiteFreePersonagens} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo} />
             ) : current.id === 'personagens_m' ? (

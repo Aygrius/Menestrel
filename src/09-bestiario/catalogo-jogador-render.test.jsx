@@ -48,12 +48,16 @@ const HABILIDADES = [
   { key: 'furtividade', nome: 'Furtividade', grupo: 'Subterfúgio' },
   { key: 'alquimia', nome: 'Alquimia', grupo: 'Conhecimento' },
 ];
+const CRIATURAS = [
+  { id: 1, nome: 'Dragão', tipo: 'Dragão', estagio: 10 },
+  { id: 2, nome: 'Ogro', tipo: 'Gigante', estagio: 4 },
+];
 const ITENS = [
   { slug: 'adaga', nome: 'Adaga', grupo: 'Armas' },
   { slug: 'bussola', nome: 'Bússola', grupo: 'Itens' },
 ];
 
-const TABELAS = { magias: MAGIAS, tecnicas: TECNICAS, habilidades: HABILIDADES, itens: ITENS };
+const TABELAS = { criaturas: CRIATURAS, magias: MAGIAS, tecnicas: TECNICAS, habilidades: HABILIDADES, itens: ITENS };
 
 let conhecidoDublê;
 
@@ -89,7 +93,7 @@ beforeAll(() => {
 
 afterEach(() => { cleanup(); });
 
-const conhecido = ({ magias = [], tecnicas = [], habilidades = [], itens = [] } = {}) => ({
+const conhecido = ({ magias = [], tecnicas = [], habilidades = [], itens = [], criaturas = [] } = {}) => ({
   carregando: false,
   erro: null,
   conhecido: {
@@ -97,6 +101,7 @@ const conhecido = ({ magias = [], tecnicas = [], habilidades = [], itens = [] } 
     tecnicas: new Set(tecnicas),
     habilidades: new Set(habilidades),
     itens: new Set(itens),
+    criaturas: new Set(criaturas),
   },
 });
 
@@ -205,5 +210,26 @@ describe('as outras três listas filtram do mesmo jeito', () => {
     conhecidoDublê = conhecido();
     await montar(window.TecnicasList, {});
     expect(nomesNaTela().length).toBe(2);
+  });
+});
+
+describe('CriaturasList em modo jogador', () => {
+  it('mostra só as criaturas liberadas na história do jogador', async () => {
+    conhecidoDublê = conhecido({ criaturas: [2] });
+    await montar(window.CriaturasList, { modoJogador: true });
+    expect(nomesNaTela()).toEqual(['Ogro']);
+  });
+
+  it('o Mestre continua vendo o bestiário inteiro', async () => {
+    conhecidoDublê = conhecido();
+    await montar(window.CriaturasList, {});
+    expect(nomesNaTela().sort()).toEqual(['Dragão', 'Ogro']);
+  });
+
+  it('nada liberado: a tela diz o motivo', async () => {
+    conhecidoDublê = conhecido();
+    await montar(window.CriaturasList, { modoJogador: true });
+    expect(nomesNaTela()).toEqual([]);
+    expect(document.querySelector('.best-empty').textContent).toMatch(/ainda não conhecem/i);
   });
 });

@@ -317,6 +317,7 @@ const ADMIN_SECTIONS = {
   ],
   player: [
     { id: 'personagens_j', icon: 'Skull' },
+    { id: 'criaturas',     icon: 'Tower' },
     { id: 'inventario',    icon: 'Scroll' },
     { id: 'loja',          icon: 'Sheet' },
     { id: 'aventuras',     icon: 'BookOpen' },

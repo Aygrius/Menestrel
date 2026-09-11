@@ -42,7 +42,46 @@ function conhecidoDoJogador(personagens) {
   return { magias, tecnicas, habilidades, itens };
 }
 
-const CONHECIDO_VAZIO = () => ({ magias: new Map(), tecnicas: new Set(), habilidades: new Set(), itens: new Set() });
+/* Criaturas que o jogador pode ver.
+
+   A spec original (§5) propunha uma tabela nova `criaturas_liberadas` com
+   RLS e uma tela de liberação para o Mestre. Isso estava ERRADO: o
+   mecanismo já existe inteiro no Diário desde a migration 017, e criar o
+   segundo seria duas fontes de verdade para a mesma pergunta.
+
+   Como funciona o que já existe (ver 13-diario/diario.jsx:155-175 e
+   toggleLiberarPj:2749):
+     • `historias.criatura_ids` — as criaturas anexadas àquela história;
+     • `historias.lore_acesso_pj` — jsonb `{ "tipo:ref_id": [pj_id...] }`,
+       ex. `{ "criatura:15": [42] }`.
+
+   A regra de visibilidade é a da migration 017, e é repetida aqui porque é
+   contraintuitiva: chave AUSENTE significa liberada para TODOS os PJs
+   daquela história; chave PRESENTE restringe aos PJs listados. Ou seja, o
+   Mestre anexar a criatura à história já a revela — `lore_acesso_pj` só
+   serve para ESTREITAR.
+
+   Recebe as histórias de que os PJs do jogador participam e os ids desses
+   PJs. Devolve um Set de ids de criatura. */
+function criaturasLiberadas(historias, pjIds) {
+  const meus = new Set((Array.isArray(pjIds) ? pjIds : []).map(Number));
+  const out = new Set();
+  (Array.isArray(historias) ? historias : []).forEach((h) => {
+    if (!h) return;
+    const acesso = (h.lore_acesso_pj && typeof h.lore_acesso_pj === 'object') ? h.lore_acesso_pj : {};
+    (Array.isArray(h.criatura_ids) ? h.criatura_ids : []).forEach((cid) => {
+      const lista = acesso['criatura:' + String(cid)];
+      if (!Array.isArray(lista) || lista.length === 0) { out.add(cid); return; }
+      if (lista.map(Number).some((pj) => meus.has(pj))) out.add(cid);
+    });
+  });
+  return out;
+}
+
+const CONHECIDO_VAZIO = () => ({
+  magias: new Map(), tecnicas: new Set(), habilidades: new Set(),
+  itens: new Set(), criaturas: new Set(),
+});
 
 /* Busca os personagens do usuário logado uma vez e devolve o conhecido.
    `{ carregando, conhecido, erro }` — a lista não pode filtrar enquanto
@@ -79,9 +118,28 @@ function useConhecidoDoJogador(ativo) {
         if (error) {
           setErro(error);
           setConhecido(CONHECIDO_VAZIO());
-        } else {
-          setConhecido(conhecidoDoJogador(data || []));
+          return;
         }
+        const pjs = data || [];
+        const pjIds = pjs.map((p) => p.id);
+        // Criaturas vêm das HISTÓRIAS de que os PJs participam, não dos PJs
+        // (ver criaturasLiberadas). Sem PJ não há história, então nem
+        // consulta: o conjunto é vazio por construção.
+        let historias = [];
+        if (pjIds.length) {
+          const { data: hs, error: errH } = await supabaseClient
+            .from('historias')
+            .select('id, criatura_ids, lore_acesso_pj, protagonista_ids')
+            .overlaps('protagonista_ids', pjIds);
+          if (!vivo) return;
+          // Falhar aqui não pode esvaziar o resto: as outras 4 categorias
+          // já foram calculadas e não dependem de história nenhuma.
+          if (errH) setErro(errH); else historias = hs || [];
+        }
+        setConhecido({
+          ...conhecidoDoJogador(pjs),
+          criaturas: criaturasLiberadas(historias, pjIds),
+        });
       } catch (e) {
         if (!vivo) return;
         setErro(e);
@@ -96,4 +154,4 @@ function useConhecidoDoJogador(ativo) {
   return { carregando, conhecido, erro };
 }
 
-Object.assign(window, { conhecidoDoJogador, useConhecidoDoJogador });
+Object.assign(window, { conhecidoDoJogador, criaturasLiberadas, useConhecidoDoJogador });

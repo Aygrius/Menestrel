@@ -8,10 +8,11 @@
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 
-let conhecidoDoJogador;
+let conhecidoDoJogador, criaturasLiberadas;
 beforeAll(async () => {
   await import('./conhecido-jogador.jsx');
   conhecidoDoJogador = window.conhecidoDoJogador;
+  criaturasLiberadas = window.criaturasLiberadas;
 });
 
 describe('conhecidoDoJogador', () => {
@@ -98,5 +99,74 @@ describe('conhecidoDoJogador', () => {
     // personagens.inventario é sempre { moedas, itens }; nunca um array cru.
     const r = conhecidoDoJogador([{ id: 1, inventario: [{ slug: 'nao-deveria-contar' }] }]);
     expect(r.itens.size).toBe(0);
+  });
+});
+
+/* ============================================================
+   Fase B — criaturas liberadas pelo Mestre
+   ============================================================
+   A spec §5 propunha uma tabela nova (`criaturas_liberadas`) com RLS e uma
+   tela de liberação. Estava ERRADA: o mecanismo já existe inteiro desde a
+   migration 017, no Diário —
+
+     historias.criatura_ids    → as criaturas anexadas àquela história
+     historias.lore_acesso_pj  → { "criatura:15": [pj_id, ...] }
+
+   e o Mestre já libera por ali (toggleLiberarPj, 13-diario/diario.jsx:2749).
+   Construir a segunda tabela teria criado duas fontes de verdade para a
+   mesma pergunta.
+
+   A regra é contraintuitiva e por isso está travada aqui: chave AUSENTE =
+   liberada para TODOS os PJs da história; chave PRESENTE = só os listados.
+   Anexar já revela; lore_acesso_pj só ESTREITA.
+   ============================================================ */
+describe('criaturasLiberadas', () => {
+  const hist = (id, criaturaIds, acesso) => ({
+    id, criatura_ids: criaturaIds, lore_acesso_pj: acesso || {},
+  });
+
+  it('criatura anexada SEM chave de acesso é visível a todos da mesa', () => {
+    const r = criaturasLiberadas([hist(1, [10, 11])], [42]);
+    expect([...r].sort()).toEqual([10, 11]);
+  });
+
+  it('chave com lista restringe aos PJs listados', () => {
+    const h = hist(1, [10, 11], { 'criatura:11': [42] });
+    expect([...criaturasLiberadas([h], [42])].sort(), 'PJ 42 está na lista').toEqual([10, 11]);
+    expect([...criaturasLiberadas([h], [99])], 'PJ 99 não está').toEqual([10]);
+  });
+
+  it('lista VAZIA conta como liberada pra todos, não como bloqueada', () => {
+    const h = hist(1, [10], { 'criatura:10': [] });
+    expect([...criaturasLiberadas([h], [99])]).toEqual([10]);
+  });
+
+  it('criatura fora de criatura_ids não aparece nem com acesso concedido', () => {
+    // Acesso a uma criatura que não está anexada à história não a revela:
+    // é a lista da história que manda.
+    const h = hist(1, [10], { 'criatura:77': [42] });
+    expect([...criaturasLiberadas([h], [42])]).toEqual([10]);
+  });
+
+  it('une as criaturas de TODAS as histórias do jogador', () => {
+    const r = criaturasLiberadas([hist(1, [10]), hist(2, [20, 10])], [42]);
+    expect([...r].sort((a, b) => a - b)).toEqual([10, 20]);
+  });
+
+  it('basta UM dos PJs do jogador estar na lista', () => {
+    const h = hist(1, [10], { 'criatura:10': [7] });
+    expect([...criaturasLiberadas([h], [42, 7])]).toEqual([10]);
+  });
+
+  it('id como texto no jsonb ainda casa — o banco devolve número', () => {
+    const h = hist(1, [10], { 'criatura:10': ['42'] });
+    expect([...criaturasLiberadas([h], [42])]).toEqual([10]);
+  });
+
+  it('sem história, sem PJ, ou entrada torta: conjunto vazio, sem estourar', () => {
+    expect([...criaturasLiberadas([], [42])]).toEqual([]);
+    expect([...criaturasLiberadas(null, null)]).toEqual([]);
+    expect([...criaturasLiberadas([null, hist(1, null)], [42])]).toEqual([]);
+    expect([...criaturasLiberadas([hist(1, [10], 'lixo')], [42])]).toEqual([10]);
   });
 });

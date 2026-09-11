@@ -84,6 +84,37 @@ nos dois perfis. O switch de `10-shell/shell.jsx` passa `modoJogador` quando
 
 ---
 
+## 5. Criaturas — CORRIGIDO em 11/09/2026
+
+> **Esta seção estava errada.** O texto original (preservado abaixo)
+> propunha uma tabela nova `criaturas_liberadas`, RLS e uma tela de
+> liberação para o Mestre. Nada disso foi preciso: o mecanismo **já existe
+> inteiro** desde a migration 017.
+>
+> - `historias.criatura_ids` — as criaturas anexadas à história;
+> - `historias.lore_acesso_pj` — jsonb `{ "criatura:15": [pj_id, ...] }`;
+> - o Mestre já libera pelo Diário (`toggleLiberarPj`,
+>   `13-diario/diario.jsx:2749`), com granularidade **por PJ** — mais fina
+>   que a granularidade por história que esta spec havia proposto.
+>
+> Regra de visibilidade, contraintuitiva e por isso repetida no código e
+> nos testes: **chave ausente = liberada para todos os PJs da história**;
+> chave presente = só os PJs listados. Anexar já revela; `lore_acesso_pj`
+> só estreita.
+>
+> Como não havia infraestrutura a construir, a divisão Fase A / Fase B
+> perdeu o motivo, e `criaturas` entrou no menu do jogador junto com as
+> outras quatro.
+>
+> **Causa do erro:** escrevi esta seção sem procurar por um mecanismo de
+> revelação existente no schema. `historias` tem `criatura_ids`,
+> `item_ids`, `magia_ids`, `habilidade_ids`, `tecnica_ids` e
+> `lore_acesso_pj` — bastava ler as colunas da tabela antes de projetar
+> uma nova. É a mesma falha recorrente desta sessão: concluir sobre o
+> sistema a partir da parte que eu tinha olhado.
+
+### Texto original (mantido como registro do que foi decidido e por quê)
+
 ## 5. Criaturas — fase separada
 
 Criatura é a única sem fonte de verdade, e a decisão do usuário exige

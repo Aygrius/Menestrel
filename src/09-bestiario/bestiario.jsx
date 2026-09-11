@@ -365,7 +365,7 @@ function BestBotaoEditar({ ac, onClick }) {
 }
 
 // ---------- Bestiário ----------
-function CriaturasList({ ac, lang }) {
+function CriaturasList({ ac, lang, modoJogador }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } = (typeof UI !== 'undefined' ? UI : {});
   const [criaturas, setCriaturas] = useState(null);
   const [error, setError] = useState(null);
@@ -377,6 +377,7 @@ function CriaturasList({ ac, lang }) {
   const PAGE_SIZE = useFitPageSize(wrapRef);
   const { sorted: criaturasSorted, sortKey, sortDir, toggleSort } = useSort(criaturas);
   const ehAdmin = useEhAdmin();
+  const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
 
   // Extraído do useEffect original SEM mudar comportamento (mesmo guard de
@@ -403,14 +404,18 @@ function CriaturasList({ ac, lang }) {
   if (!Table) return <BestNoKit />;
   if (criaturas === null) return <BestLoading text={lang === 'en' ? 'Loading bestiary…' : 'Consultando o bestiário…'} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'criaturas' table exists in Supabase." : "Confira se a tabela 'criaturas' existe no Supabase."} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading bestiary…' : 'Consultando o bestiário…'} />;
 
   const q = query.trim().toLowerCase();
   const tiposPresentes = ['all', ...Array.from(new Set(criaturas.map((c) => c.tipo).filter(Boolean))).sort()];
-  const filtered = (criaturasSorted || []).filter((c) => {
+  let filtered = (criaturasSorted || []).filter((c) => {
     if (tipoFiltro !== 'all' && c.tipo !== tipoFiltro) return false;
     if (q && !(c.nome || '').toLowerCase().includes(q)) return false;
     return true;
   });
+  // Criatura só aparece pro jogador se o Mestre a liberou na história dele
+  // (historias.criatura_ids + lore_acesso_pj — ver criaturasLiberadas).
+  if (modoJogador) filtered = filtered.filter((c) => conhecido.criaturas.has(c.id));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -456,7 +461,7 @@ function CriaturasList({ ac, lang }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="best-empty">{textoListaVazia({ query, modoJogador: false, lang, oQue: 'criaturas', oQueEn: 'creature' })}</div>
+        <div className="best-empty">{textoListaVazia({ query, modoJogador, lang, oQue: 'criaturas', oQueEn: 'creature' })}</div>
       ) : (
         <>
           <div className="best-table-wrap" ref={wrapRef}>
