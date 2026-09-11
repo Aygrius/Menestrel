@@ -1680,6 +1680,26 @@ function somaModAtaque(p, grupoArma) {
     return s + (ef.valor || 0);
   }, 0);
 }
+/* O que este golpe fura, deste atacante contra este alvo.
+   Duas ancoragens diferentes, e a distinção é regra, não detalhe:
+     • `ignora_eh`/`ignora_armadura` ficam no ATACANTE e carregam
+       `alvo_inst_id` — Golpe Letal deixa VOCÊ furar a EH daquele inimigo,
+       e não abre ele para os outros combatentes;
+     • `derrubado` fica no ALVO e vale para QUALQUER atacante — é condição
+       dele, não golpe seu.
+   Decisão do usuário em 10/09/2026 (spec §3, itens 5 e 6). */
+function modsDoGolpe(atacante, alvo) {
+  const alvoId = alvo && alvo.inst_id;
+  const doAtacante = (tipo) => !!(atacante && Array.isArray(atacante.status_temp)
+    && atacante.status_temp.some((s) => s.efeito && s.efeito.tipo === tipo
+      && (!s.efeito.alvo_inst_id || s.efeito.alvo_inst_id === alvoId)));
+  const derrubado = !!(alvo && Array.isArray(alvo.status_temp)
+    && alvo.status_temp.some((s) => s.efeito && s.efeito.tipo === 'derrubado'));
+  return {
+    ignoraEh: doAtacante('ignora_eh') || derrubado,
+    ignoraArmadura: doAtacante('ignora_armadura'),
+  };
+}
 // VB efetiva pra iniciativa: vb do snapshot + mod_vb de status. NÃO persiste.
 function vbEfetivo(p) {
   return (p.vb || 0) + somaEfeitosStatus(p, 'mod_vb');
@@ -2669,7 +2689,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     if (dano > 0) {
       const alvoAntes = next[alvoIdx];
-      next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, critico);
+      // Fase 2: além do crítico, o golpe pode furar EH e/ou AR por técnica
+      // (ignora_eh, ignora_armadura) ou por condição do alvo (derrubado).
+      const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
+      next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
       // E o golpe derruba a concentração do ALVO se furou até a EF dele ou
       // se o derrubou/matou. Dano contido em EH ou AR não quebra — mas zerar
       // a EH desmaia, e desmaiar quebra (ver quebrarConcentracaoPorDano).
@@ -5762,7 +5785,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     if (dano > 0) {
       const alvoAntes = next[alvoIdx];
-      next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, critico);
+      // Fase 2: além do crítico, o golpe pode furar EH e/ou AR por técnica
+      // (ignora_eh, ignora_armadura) ou por condição do alvo (derrubado).
+      const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
+      next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
       // Dano que FURA até a EF quebra a concentração do alvo; contido em EH
       // ou AR, não. Zerar a EH desmaia, e desmaiar quebra — espelha
       // aplicarAcao via quebrarConcentracaoPorDano.
@@ -6501,7 +6527,7 @@ Object.assign(window, {
     ataquesDoAtor,
     // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
-    somaEfeitosStatus, statusTemEfeito, somaModAtaque, vbEfetivo,
+    somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, vbEfetivo,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
     // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
     // e devolve o empréstimo quando o status sai na virada de rodada.

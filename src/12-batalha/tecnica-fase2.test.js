@@ -9,9 +9,18 @@
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/tecnicas-efeito.jsx';
+import '../01-core/helpers.jsx';
+import '../01-core/inventario-helpers.jsx';
+import '../01-core/game-data.jsx';
+import './batalha.jsx';
+import './tabuleiro.jsx';
 
-let MAP;
-beforeAll(() => { MAP = window.TECNICA_EFEITO_MAP; expect(MAP).toBeDefined(); });
+let MAP, M;
+beforeAll(() => {
+  MAP = window.TECNICA_EFEITO_MAP;
+  expect(MAP).toBeDefined();
+  M = window.MotorBatalha;
+});
 
 // key | dificuldade | rodadas — cópia do banco.
 const FASE2 = {
@@ -122,5 +131,37 @@ describe('as primitivas caíram nas técnicas certas', () => {
 describe('o total do sistema', () => {
   it('o registro passa a cobrir 50 das 58 técnicas', () => {
     expect(Object.keys(MAP).length).toBe(50);
+  });
+});
+
+describe('modsDoGolpe — quem fura o quê', () => {
+  const comEfeito = (efeito, over = {}) => ({
+    inst_id: 'a', status_temp: [{ id: 's', nome: 's', icone: '·', rodadas_rest: 1, efeito }], ...over,
+  });
+  const vazio = (inst_id = 'b') => ({ inst_id, status_temp: [] });
+
+  it('sem status, não fura nada', () => {
+    expect(M.modsDoGolpe(vazio('a'), vazio('b'))).toEqual({ ignoraEh: false, ignoraArmadura: false });
+  });
+
+  // ignora_eh é ancorado no ATACANTE e mira UM alvo — Golpe Letal deixa VOCÊ
+  // furar a EH daquele inimigo, não abre ele pro grupo inteiro.
+  it('ignora_eh do atacante vale só contra o alvo declarado', () => {
+    const atacante = comEfeito({ tipo: 'ignora_eh', valor: true, alvo_inst_id: 'b' });
+    expect(M.modsDoGolpe(atacante, vazio('b')).ignoraEh).toBe(true);
+    expect(M.modsDoGolpe(atacante, vazio('c')).ignoraEh).toBe(false);
+  });
+
+  // Derrubado é o contrário: condição NO ALVO, vale pra qualquer atacante.
+  it('derrubado no alvo vale pra qualquer atacante', () => {
+    const alvo = comEfeito({ tipo: 'derrubado', valor: true }, { inst_id: 'b' });
+    expect(M.modsDoGolpe(vazio('a'), alvo).ignoraEh).toBe(true);
+    expect(M.modsDoGolpe(vazio('z'), alvo).ignoraEh).toBe(true);
+  });
+
+  it('ignora_armadura do atacante, também por alvo', () => {
+    const atacante = comEfeito({ tipo: 'ignora_armadura', valor: true, alvo_inst_id: 'b' });
+    expect(M.modsDoGolpe(atacante, vazio('b')).ignoraArmadura).toBe(true);
+    expect(M.modsDoGolpe(atacante, vazio('c')).ignoraArmadura).toBe(false);
   });
 });
