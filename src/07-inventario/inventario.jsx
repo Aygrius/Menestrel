@@ -1140,9 +1140,13 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
               // reordenados nos slots de itens visíveis.
               setInv((prev) => {
                 if (!prev) return prev;
+                // Equipados/vestidos agora aparecem no grid visível junto com o
+                // resto (mesma regra de itensVisiveis em InvItemsTable) — só o
+                // que está dentro de container fica de fora (tratamento próprio
+                // no ContainerModal).
                 const visivelSet = new Set(
                   prev.itens
-                    .filter((it) => !it.containerId && !it.slot && !it.vestido)
+                    .filter((it) => !it.containerId)
                     .map((it) => it.instanceId)
                 );
                 const byId = Object.fromEntries(prev.itens.map((it) => [it.instanceId, it]));
@@ -1483,8 +1487,12 @@ function VestesBoard({ itens, catalogoBySlug, lang, onAbrir }) {
 
 // ── InvItemsTable — Mochila Visual: grid flat com busca + chips de categoria ───
 // Mantém o mesmo nome/props de antes (chamado por InventarioList e pela ficha).
-// A "bolsa" mostra só itens fora de container E não equipados — os equipados
-// vivem na ficha (Defesa/Vestes); os de dentro de container, no ContainerModal.
+// A "bolsa" mostra TODOS os itens fora de container — soltos, equipados
+// (it.slot) e vestidos (it.vestido) convivem no mesmo grid; um pill no canto
+// do card ("eq"/ti-shield para equipado, "vst"/ti-shirt para vestido) marca
+// o que está em uso, pro jogador não confundir com um item solto na mochila.
+// Só o que está DENTRO de container fica de fora daqui (tem tela própria: o
+// ContainerModal).
 // Layout flat (sem agrupamento por categoria) com busca + chips, igual à loja.
 // Hook que observa o tamanho do container ref e do scroll-container (.mc-main)
 // para calcular quantas colunas e linhas de slots cabem na área visível.
@@ -1732,7 +1740,11 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     onAbrirDetalhes(instanceId);
   }, [onAbrirDetalhes]);
 
-  const itensVisiveis = (itens || []).filter((it) => !it.containerId && !it.slot && !it.vestido);
+  // Equipados (it.slot) e vestidos (it.vestido) aparecem aqui junto com o
+  // resto da bolsa — só o que está DENTRO de um container some daqui (tem
+  // tela própria, o ContainerModal). O pill "eq"/"vst" no card (ver
+  // renderItemCard/renderContainerCard) é o que distingue visualmente.
+  const itensVisiveis = (itens || []).filter((it) => !it.containerId);
 
   // Chips de categoria (grupos presentes na bolsa)
   const grupos = useMemo(() => {
@@ -1804,6 +1816,13 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         <span className="inv-card-head">
           <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
         </span>
+        {/* Container vestido (ex.: cinto) também entra no grid — mesmo pill de "em uso". */}
+        {(it.slot || it.vestido) && (
+          <span className="inv-card-pills">
+            {it.slot && <span className="inv-pill eq"><i className="ti ti-shield" aria-hidden="true" /></span>}
+            {it.vestido && <span className="inv-pill vst"><i className="ti ti-shirt" aria-hidden="true" /></span>}
+          </span>
+        )}
         <span className="inv-cont-bar">
           <span style={{ width: pct + '%', background: liquido ? '#47aad8' : undefined }} />
         </span>
@@ -1846,6 +1865,15 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           )}
           {it.observacao && (
             <span className="inv-pill nor"><i className="ti ti-feather" aria-hidden="true" /></span>
+          )}
+          {/* Equipado (arma/armadura no slot) e vestido (roupa) agora aparecem
+              no mesmo grid da bolsa — este pill é o que distingue de um item
+              solto. Mesmos glifos do EquipadoBoard/VestesBoard (ti-shield/ti-shirt). */}
+          {it.slot && (
+            <span className="inv-pill eq"><i className="ti ti-shield" aria-hidden="true" /></span>
+          )}
+          {it.vestido && (
+            <span className="inv-pill vst"><i className="ti ti-shirt" aria-hidden="true" /></span>
           )}
         </span>
       </button>
