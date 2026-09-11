@@ -2578,6 +2578,11 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
     const originalPasso = personagemExistente?.magias?.[key] || 0;
     if (isEdit && proposto < originalPasso) return;
     if (proposto > 0 && nivelMagiaEfetivo(proposto) > estagio) return;
+    // Nível sem texto não se compra (ver passosDisponiveisMagia). Vale só
+    // pra SUBIR: quem já tinha o passo antes de o admin apagar o nível não
+    // é rebaixado à força — podeMenos/originalPasso seguem mandando na
+    // descida, e ninguém perde o que já comprou.
+    if (delta > 0 && proposto > passosDisponiveisMagia(magiasDb.find((x) => x.key === key))) return;
 
     // Perdida/Ancestral não se compram com pontos (item especial, a criar).
     // É RARIDADE, não a aba: uma magia de especialização pode ser Básica e
@@ -2626,9 +2631,13 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
     // Sem estado "travada" aqui: `disponiveis` já descartou o que não se pode
     // comprar. mudarPasso mantém a checagem de magiaEhTravada como rede — é a
     // regra, e não custa nada.
+    // Teto de níveis que a magia realmente tem — o admin pode ter apagado
+    // um nível no editor de catálogo, e nível sem texto não se compra.
+    const passosDisponiveis = passosDisponiveisMagia(m);
+    const temProximoNivel = passos + 1 <= passosDisponiveis;
     const podeMaisEstagio = passos < 5 && nivelMagiaEfetivo(passos + 1) <= estagio;
     const semSaldoPraMais = passos < 5 && gastoMagias({ ...compradas, [m.key]: passos + 1 }, magiasDb) > magTotalPontos;
-    const podeMais = podeMaisEstagio && !semSaldoPraMais;
+    const podeMais = temProximoNivel && podeMaisEstagio && !semSaldoPraMais;
     const podeMenos = passos > 0 && !(isEdit && passos <= originalPasso);
     return (
       <div key={m.key} className="wiz-item">
@@ -2643,10 +2652,12 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
               { rotulo: lang === 'en' ? 'Cost' : 'Custo', valor: m.custo },
             ],
             descricao: m.descricao,
+            // Nível apagado pelo admin não aparece na ficha da magia — se
+            // não dá pra comprar, mostrar o rótulo vazio só confunde.
             niveis: [
               { n: 1, t: m.nivel_1 }, { n: 3, t: m.nivel_3 }, { n: 5, t: m.nivel_5 },
               { n: 7, t: m.nivel_7 }, { n: 9, t: m.nivel_9 },
-            ],
+            ].filter((x) => x.t != null && String(x.t).trim() !== ''),
           })}
         />
         <div style={pillStyle}>
@@ -2663,7 +2674,7 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
           <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => mudarPasso(m.key, +1)} aria-label="+"
-            {...propsTip(abrirTip, fecharTip, !podeMaisEstagio && passos < 5 ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
+            {...propsTip(abrirTip, fecharTip, !temProximoNivel && passos < 5 ? (lang === 'en' ? 'This spell has no further level' : 'Esta magia não tem nível seguinte') : !podeMaisEstagio && passos < 5 ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
             onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
             <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />

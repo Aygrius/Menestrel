@@ -260,6 +260,23 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
       return v !== undefined && v !== null && String(v).trim() !== '';
     });
 
+  /* Campo vazio no formulário: o que mandar pro banco?
+
+     Até 11/09/2026 a resposta era "nada" — a coluna saía do payload. No
+     INSERT isso dá NULL e está certo. No UPDATE não: o PostgREST só toca
+     nas colunas que vierem no payload, então apagar o conteúdo de um campo
+     e salvar deixava o valor antigo intacto. Havia um comentário longo aqui
+     dizendo que distinguir "esvaziei de propósito" de "nunca preenchi" era
+     decisão de produto separada.
+
+     O usuário pediu essa decisão (11/09/2026): "ao editar uma magia,
+     permitir excluir um nível". Então: só manda `null` quando o campo TINHA
+     valor na linha carregada e agora está vazio. Campo que já nasceu vazio
+     continua fora do payload, que é o que evita sobrescrever com NULL
+     colunas que o formulário nem conhece. */
+  const vazio = (v) => v === '' || v === null || v === undefined;
+  const limpou = (campo) => !!linha && !vazio(linha[campo.col]);
+
   const salvar = async () => {
     const payload = {};
     descritor.campos.forEach((campo) => {
@@ -270,21 +287,12 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
         return;
       }
       if (campo.tipo === 'numero') {
-        // Vazio: OMITE a coluna do payload (não manda `null` explícito). No
-        // insert isso dá NULL, que é o resultado desejado. No UPDATE, porém,
-        // uma coluna omitida NÃO é limpa — o PostgREST só toca nas colunas
-        // que vierem no payload, então esvaziar um campo opcional e salvar
-        // deixa o valor antigo intacto no banco. É uma limitação conhecida,
-        // não um bug: zerar de propósito um campo já preenchido, em vez de
-        // só deixá-lo como está, é decisão de produto separada (precisaria
-        // mandar `null` explícito só pros campos que o admin realmente
-        // esvaziou, distinguindo de "nunca preenchido").
-        if (bruto === '' || bruto === null || bruto === undefined) return;
+        if (vazio(bruto)) { if (limpou(campo)) payload[campo.col] = null; return; }
         payload[campo.col] = Number(bruto);
         return;
       }
       const valor = typeof bruto === 'string' ? bruto.trim() : bruto;
-      if (valor === '' || valor === null || valor === undefined) return; // mesma limitação do ramo `numero`, ver comentário acima
+      if (vazio(valor)) { if (limpou(campo)) payload[campo.col] = null; return; }
       // itens.magico é boolean no banco; o descritor usa opções Sim/Não —
       // a conversão de volta pra boolean é responsabilidade do editor.
       if (descritor.tabela === 'itens' && campo.col === 'magico') {

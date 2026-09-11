@@ -290,6 +290,65 @@ describe('gravação', () => {
   });
 });
 
+/* Apagar o conteúdo de um campo e salvar.
+
+   Até 11/09/2026 o editor OMITIA do payload todo campo vazio. No insert
+   isso dá NULL e está certo; no update, não — o PostgREST só toca nas
+   colunas que chegam, então apagar o texto e salvar deixava o valor antigo
+   no banco. Havia um comentário no código dizendo que resolver isso era
+   "decisão de produto separada".
+
+   O usuário tomou a decisão ao pedir "ao editar uma magia, permitir excluir
+   um nível": agora o payload leva `null` explícito, mas SÓ para o campo que
+   tinha valor na linha carregada. Campo que já nasceu vazio continua fora
+   do payload — é isso que impede o editor de sobrescrever com NULL colunas
+   que ele nem mostra. */
+describe('apagar campo ao editar', () => {
+  it('campo que TINHA valor e foi esvaziado vira null no payload', async () => {
+    montar({ linha: { key: 'mira', nome: 'Mira', custo: 2, descricao: 'Texto antigo.' } });
+    fireEvent.change(document.querySelector('textarea[name="descricao"]'), { target: { value: '' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect('descricao' in ultimoUpdate.payload, 'precisa viajar no payload').toBe(true);
+    expect(ultimoUpdate.payload.descricao).toBeNull();
+  });
+
+  it('campo que JÁ nascia vazio continua fora do payload', async () => {
+    montar({ linha: { key: 'mira', nome: 'Mira', custo: 2 } });
+    fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Mira Apurada' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect('descricao' in ultimoUpdate.payload, 'nunca teve valor: não sobrescreve').toBe(false);
+  });
+
+  it('campo numérico esvaziado também vira null', async () => {
+    montar({ tabela: 'itens', linha: { slug: 'corda', nome: 'Corda', forca_req: 5 } });
+    fireEvent.change(document.querySelector('input[name="forca_req"]'), { target: { value: '' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.forca_req).toBeNull();
+  });
+
+  it('CRIAR não manda null — campo vazio simplesmente não vai', async () => {
+    montar({ linha: null });
+    fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Nova' } });
+    fireEvent.change(document.querySelector('input[name="custo"]'), { target: { value: '2' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoInsert).not.toBeNull());
+    expect('descricao' in ultimoInsert.payload).toBe(false);
+  });
+
+  // O caso que originou o pedido: nível de magia é uma coluna de texto.
+  it('nível de magia apagado chega como null', async () => {
+    montar({ tabela: 'magias', linha: { key: 'bola_de_fogo', nome: 'Bola de Fogo', nivel_1: 'Um', nivel_3: 'Três' } });
+    fireEvent.change(document.querySelector('textarea[name="nivel_3"]'), { target: { value: '' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.nivel_3).toBeNull();
+    expect(ultimoUpdate.payload.nivel_1, 'o nível que ficou não é tocado').toBe('Um');
+  });
+});
+
 describe('itens.magico — boolean no banco, Sim/Não na tela', () => {
   it('carrega magico=true mostrando "Sim"', () => {
     montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magico: true } });

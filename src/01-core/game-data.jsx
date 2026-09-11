@@ -704,6 +704,32 @@ function nivelMagiaEfetivo(passos) {
   return p > 0 ? p * 2 - 1 : 0;
 }
 
+// Os cinco níveis de uma magia, na ordem em que se compram.
+const NIVEIS_MAGIA = [1, 3, 5, 7, 9];
+
+/* Até onde esta magia PODE ser comprada, pelo texto que ela tem.
+
+   Cada nível vive numa coluna própria (nivel_1 … nivel_9). O admin pode
+   apagar o texto de um nível (pedido do usuário em 11/09/2026: "ao editar
+   uma magia, permitir excluir um nível, impedindo que o jogador compre
+   ele"), e nível sem texto não existe: não há o que comprar.
+
+   A contagem para no PRIMEIRO buraco, em vez de contar os preenchidos.
+   Apagar o nível 5 e deixar o 7 não deve permitir pular do 3 pro 7 — os
+   passos são sequenciais, então o buraco é o teto. Se alguém apagar o
+   nível 1, a magia inteira fica sem passos, que é a leitura certa de uma
+   magia cujo primeiro nível não existe mais. */
+function passosDisponiveisMagia(magia) {
+  if (!magia) return 0;
+  let passos = 0;
+  for (const nivel of NIVEIS_MAGIA) {
+    const texto = magia['nivel_' + nivel];
+    if (texto == null || String(texto).trim() === '') break;
+    passos += 1;
+  }
+  return passos;
+}
+
 /* ============================== [12] Helpers de TÉCNICAS DE COMBATE ============================== */
 // Diferente de magias, TODAS as profissões podem comprar técnicas.
 const TECNICAS_POR_PROFISSAO = {
@@ -1078,6 +1104,7 @@ Object.assign(window, {
   modificadorGrupoPorCondicoes, totalHabilidadeComCondicoes,
   MAGIAS_POR_PROFISSAO, profissaoUsaMagia, pontosMagiasTotal, gastoMagias,
   podeAcessarMagia, nivelMagiaEfetivo, magiaEhAvancada, magiaEhTravada,
+  NIVEIS_MAGIA, passosDisponiveisMagia,
   TECNICAS_POR_PROFISSAO, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
   totalTecnica, podeAcessarTecnica,
   GRUPOS_ARMAS, GRUPOS_ARMAS_BY_SIGLA, GRUPOS_ARMAS_POR_PROFISSAO,
