@@ -1705,6 +1705,27 @@ function danoComModMax(dano, alvo) {
   return Math.max(0, base + somaEfeitosStatus(alvo, 'mod_dano_max'));
 }
 
+/* Percentuais de dano das técnicas da Fase 2.
+   SOMAM antes de multiplicar (spec §4.3): Ambidestria +25% com Brutalizar
+   +50% dá +75%, não +87,5%. Compor em cadeia inflaria o dano de quem
+   empilha técnicas, e a regra do sistema é aditiva. */
+function somaDanoPct(p) { return somaEfeitosStatus(p, 'dano_pct'); }
+function somaDanoRecebidoPct(p) { return somaEfeitosStatus(p, 'dano_recebido_pct'); }
+
+/* Dano final, na ordem fixada pela spec §4.3. A ordem MUDA O NÚMERO — em
+   especial, mod_dano_max (Posicionamento) é subtração ABSOLUTA e entra antes
+   da redução percentual; invertido, o resultado é outro.
+   Arredonda pra cima, como o resto do sistema de dano ("arredondamento SEMPRE
+   pra cima", regra confirmada). Piso 0: reduzir dano nunca vira cura. */
+function danoFinal(danoBase, atacante, alvo) {
+  const base = Math.max(0, Math.floor(danoBase || 0));
+  if (base === 0) return 0;
+  const comBonus = base * (1 + somaDanoPct(atacante) / 100);
+  const aposMaximo = comBonus + somaEfeitosStatus(alvo, 'mod_dano_max');
+  const aposReducao = aposMaximo * (1 + somaDanoRecebidoPct(alvo) / 100);
+  return Math.max(0, Math.ceil(aposReducao - 1e-9));
+}
+
 // Decremento por rodada: null = até o fim da batalha (preservado);
 // numérico decrementa e sai quando zera. Status sem efeito seguem a mesma regra.
 function decrementarStatusTemp(statusTemp) {
@@ -4679,8 +4700,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     : null;
   const armaPraDano = tab === 'magia' ? magia : arma;        // o objeto cujo `dano` será multiplicado pelo tier
   const danoBruto = (tab === 'arma' || tab === 'magia') && res && !res.erra ? danoNoTier(armaPraDano, res.codigo) : 0;
-  // Posicionamento (mod_dano_max no alvo) corta o dano depois do tier.
-  const dano = danoComModMax(danoBruto, alvo);
+  // danoFinal engloba o que danoComModMax fazia (mod_dano_max) e acrescenta
+  // os percentuais da Fase 2, na ordem da spec §4.3.
+  const dano = danoFinal(danoBruto, ator, alvo);
   const custoKarma = tab === 'magia' && magia ? magia.custo_karma : 0;
   const semKarma = custoKarma > 0 && (ator.karma || 0) < custoKarma;
   const semPA = (ator.pa_rest || 0) <= 0;
@@ -6454,6 +6476,10 @@ Object.assign(window, {
     // Task 5 das técnicas: mod_rf/mod_rm na resistência e mod_dano_max no
     // dano recebido (Resistência à Dor/Extrema, Fúria, Posicionamento).
     rfEfetivo, rmEfetivo, danoComModMax,
+    // Task 3 (Fase 2 das técnicas): ordem completa do dano — dano_pct do
+    // atacante, mod_dano_max e dano_recebido_pct do alvo, nessa ordem
+    // (spec §4.3). danoComModMax acima continua isolada e testada.
+    somaDanoPct, somaDanoRecebidoPct, danoFinal,
     // quebrarConcentracaoPorDano é a regra compartilhada dos TRÊS caminhos de
     // dano (manual do Mestre, ataque do Mestre, ataque do Jogador) — ver
     // concentracao-dano.test.js.
