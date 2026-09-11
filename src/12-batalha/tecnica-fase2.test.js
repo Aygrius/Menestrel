@@ -513,19 +513,34 @@ describe('tetoDeAlvos', () => {
 });
 
 describe('aplicarGolpeEmAlvo', () => {
+  /* res: 0 de propósito nestas fixtures — este bloco testa a MECÂNICA DO
+     GOLPE (esquiva, âncora de ignora_eh, concentração), e com a armadura
+     inteira nenhum golpe chega à EF, o que apagaria justamente o efeito que
+     se quer observar. O limiar e a durabilidade têm cobertura própria em
+     motor-batalha.test.js e dano-cascata-modificadores.test.js. */
   const lutador = (inst_id, extra) => ({
     tipo: 'pj', ref_id: inst_id, inst_id, nome: inst_id, ordem: 1,
     status: 'ativo', atual: false, vb: 20, pa_max: 2, pa_rest: 2,
-    ef: 10, ef_max: 10, eh: 5, eh_max: 5, ar: 3, ar_max: 3,
+    ef: 10, ef_max: 10, eh: 5, eh_max: 5, ar: 3, ar_max: 3, res: 0, res_max: 0,
     karma: 0, karma_max: 0, status_temp: [], ...extra,
   });
 
-  it('o dano entra pela cascata EH → AR → EF', () => {
+  it('o dano entra pela cascata: EH primeiro, e o resto passa (armadura vencida)', () => {
     const arr = [lutador('atacante'), lutador('alvo')];
     const r = M.aplicarGolpeEmAlvo(arr, 0, 1, 6, false);
     expect(r[1].eh, 'EH absorve 5').toBe(0);
-    expect(r[1].ar, 'AR absorve 1').toBe(2);
-    expect(r[1].ef, 'nada sobra pra EF').toBe(10);
+    expect(r[1].ar, 'o limiar não se gasta').toBe(3);
+    expect(r[1].ef, 'com res 0 a armadura não segura: 1 chega na EF').toBe(9);
+  });
+
+  it('a mesma fixture COM resistência segura o golpe, e de graça', () => {
+    // 6 de dano: a EH come 5 e sobra 1 contra o limiar 3. 1 <= 3, então a
+    // armadura bloqueia SEM gastar resistência — quem fura o limiar é o que
+    // SOBRA depois da EH, não o dano bruto.
+    const arr = [lutador('atacante'), lutador('alvo', { res: 2, res_max: 2 })];
+    const r = M.aplicarGolpeEmAlvo(arr, 0, 1, 6, false);
+    expect(r[1].ef, 'EF intacta').toBe(10);
+    expect(r[1].res, 'e nem custou resistência').toBe(2);
   });
 
   it('dano zero não mexe em nada e devolve o mesmo array', () => {
@@ -563,8 +578,8 @@ describe('aplicarGolpeEmAlvo', () => {
     const arr = [lutador('atacante'), lutador('alvo')];
     const r = M.aplicarGolpeEmAlvo(arr, 0, 1, 4, true);
     expect(r[1].eh, 'crítico pula a EH').toBe(5);
-    expect(r[1].ar).toBe(0);
-    expect(r[1].ef).toBe(9);
+    expect(r[1].ar, 'o limiar não se gasta').toBe(3);
+    expect(r[1].ef, 'res 0 nesta fixture: passa inteiro').toBe(6);
   });
 
   // Cada alvo aplica os SEUS modificadores: a âncora do ignora_eh vale só
@@ -578,7 +593,7 @@ describe('aplicarGolpeEmAlvo', () => {
     let r = M.aplicarGolpeEmAlvo(arr, 0, 1, 4, false);
     r = M.aplicarGolpeEmAlvo(r, 0, 2, 4, false);
     expect(r[1].eh, 'b: furou a EH').toBe(5);
-    expect(r[1].ar).toBe(0);
+    expect(r[1].ar, 'o limiar não se gasta').toBe(3);
     expect(r[2].eh, 'c: a EH segurou, não estava ancorado').toBe(1);
     expect(r[2].ar, 'c: a AR nem foi tocada').toBe(3);
   });

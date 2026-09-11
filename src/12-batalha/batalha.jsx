@@ -781,8 +781,27 @@ function aplicarDanoCascata(dano, p, mods) {
   const pulaEh = !!(m.critico || m.ignoraEh);
   let r = Math.max(0, Math.floor(dano || 0));
   let eh = p.eh, ar = p.ar, ef = p.ef;
+  let res = Number.isFinite(p.res) ? p.res : 0;
   if (!pulaEh && eh > 0)          { const c = Math.min(eh, r); eh -= c; r -= c; }
-  if (r > 0 && !m.ignoraArmadura && ar > 0) { const c = Math.min(ar, r); ar -= c; r -= c; }
+  /* ── A ARMADURA É UM LIMIAR, NÃO UMA POÇA (regra do usuário, 11/09/2026)
+
+     Antes: `ar` era um reservatório que absorvia ponto a ponto e esvaziava
+     — armadura 12 contra golpe 20 comia 12 e deixava 8 chegarem à EF no
+     MESMO golpe.
+
+     Agora:
+       • golpe ATÉ o limiar (`ar`)  → bloqueado inteiro, nada acontece;
+       • golpe ACIMA do limiar      → custa 1 ponto de RESISTÊNCIA, e nada
+                                      chega à EF;
+       • resistência em 0           → armadura arrebentada, para de bloquear
+                                      e o dano passa inteiro.
+
+     `ar` não é mais decrementado: o limiar é constante enquanto a armadura
+     existir. Quem gasta é `res`. */
+  if (r > 0 && !m.ignoraArmadura && ar > 0 && res > 0) {
+    if (r > ar) res -= 1;   // furou o limiar: desgasta 1 de resistência
+    r = 0;                  // em ambos os casos a armadura segurou o golpe
+  }
   if (r > 0 && ef > EF_MORTE) { const c = Math.min(ef - EF_MORTE, r); ef -= c; r -= c; }
   let status = p.status;
   // Qualquer um que não esteja morto pode morrer — inclusive quem desistiu.
@@ -790,7 +809,7 @@ function aplicarDanoCascata(dano, p, mods) {
   // alvo vira saco de pancada imortal.
   if (ef <= EF_MORTE && status !== 'morto') status = 'morto';
   else if ((ef <= 0 || (eh === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
-  return { ...p, eh, ar, ef, status, sobra: r };
+  return { ...p, eh, ar, ef, res, status, sobra: r };
 }
 
 /* ── Chaves das 8 condições (Reputação, Sono, Sanidade, Saúde, Hidratação,
@@ -868,6 +887,18 @@ async function montarSnapshots(parts, personagensPools) {
         : (persist && Number.isFinite(persist.ar))
           ? Math.max(0, persist.ar)
           : arMax;
+      /* RESISTÊNCIA (durabilidade da armadura) — soma de `itens.resistencia`
+         das MESMAS peças que somam a absorção. É o que se gasta quando um
+         golpe fura o limiar; ver aplicarDanoCascata.
+
+         Persiste em estado_atual.vitalidade igual às outras pools: armadura
+         amassada continua amassada na próxima batalha. Conserto é assunto
+         separado — hoje só volta ao cheio quem trocar a peça. */
+      const resMax = (typeof calcResistenciaArmadura === 'function')
+        ? calcResistenciaArmadura(pj, catalogoBySlug) : 0;
+      const resCur = (vitEstado && Number.isFinite(vitEstado.res))
+        ? Math.max(0, Math.min(resMax, vitEstado.res))
+        : resMax;
       // EF aceita NEGATIVO (piso EF_MORTE): morto encerrado persiste ef −15;
       // caído-vivo pode persistir entre −14 e 0. ⚠️ Dados LEGADOS: batalhas
       // encerradas antes desta regra gravavam morto como ef 0 — esses PJs
@@ -912,6 +943,7 @@ async function montarSnapshots(parts, personagensPools) {
         vb: d.velocidade || 0, pa_max: pa, pa_rest: pa,
         eh: ehCur, eh_max: ehMax,
         ar: arCur, ar_max: arMax,
+        res: resCur, res_max: resMax,
         ef: efCur, ef_max: efMax,
         karma: kCur, karma_max: kMax,
         condicoes,
@@ -946,6 +978,9 @@ async function montarSnapshots(parts, personagensPools) {
       vb: c.velocidade || 0, pa_max: 1, pa_rest: 1,
       eh: c.energia_heroica || 0, eh_max: c.energia_heroica || 0,
       ar: c.absorcao || 0,        ar_max: c.absorcao || 0,
+      // A tabela `criaturas` não tem coluna de resistência — derivada pela
+      // mesma razão que o catálogo de armaduras usa (ver resistenciaDeCriatura).
+      res: resistenciaDeCriatura(c), res_max: resistenciaDeCriatura(c),
       ef: c.energia_fisica || 0,  ef_max: c.energia_fisica || 0,
       karma: 0, karma_max: 0,
       // Sigla de defesa: `criaturas.armadura` (L/M/P) — é o campo que o

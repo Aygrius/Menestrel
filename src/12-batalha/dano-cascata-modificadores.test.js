@@ -16,17 +16,25 @@ import './tabuleiro.jsx';
 let M;
 beforeAll(() => { M = window.MotorBatalha; expect(M.aplicarDanoCascata).toBeTypeOf('function'); });
 
-const alvo = (over = {}) => ({ eh: 10, eh_max: 10, ar: 5, ar_max: 5, ef: 20, ef_max: 20, status: 'ativo', ...over });
+/* `res` entrou na fixture em 11/09/2026: a armadura virou LIMIAR + pool de
+   resistência (ver o cabeçalho de aplicarDanoCascata em motor-batalha.test.js).
+   Sem `res`, todo alvo entra com a armadura arrebentada e o limiar nunca é
+   exercido — o teste passaria a medir outra coisa. */
+const alvo = (over = {}) => ({ eh: 10, eh_max: 10, ar: 5, ar_max: 5, res: 10, res_max: 10, ef: 20, ef_max: 20, status: 'ativo', ...over });
 
 describe('compatibilidade — a forma antiga continua idêntica', () => {
-  it('booleano false se comporta como antes: come EH, depois AR, depois EF', () => {
+  it('booleano false: come a EH e o resto para no limiar da armadura', () => {
+    // 12 de dano: 10 na EH, sobram 2 contra limiar 5 → 2 <= 5, bloqueado
+    // inteiro, nem a resistência cai.
     const r = M.aplicarDanoCascata(12, alvo(), false);
-    expect({ eh: r.eh, ar: r.ar, ef: r.ef }).toEqual({ eh: 0, ar: 3, ef: 20 });
+    expect({ eh: r.eh, ar: r.ar, res: r.res, ef: r.ef }).toEqual({ eh: 0, ar: 5, res: 10, ef: 20 });
   });
 
   it('booleano true pula a EH, como o crítico sempre fez', () => {
+    // Pula a EH, mas os 12 batem no limiar 5: 12 > 5, então −1 de
+    // resistência e a EF não é tocada.
     const r = M.aplicarDanoCascata(12, alvo(), true);
-    expect({ eh: r.eh, ar: r.ar, ef: r.ef }).toEqual({ eh: 10, ar: 0, ef: 13 });
+    expect({ eh: r.eh, ar: r.ar, res: r.res, ef: r.ef }).toEqual({ eh: 10, ar: 5, res: 9, ef: 20 });
   });
 
   it('sem terceiro argumento não pula nada', () => {
@@ -42,9 +50,14 @@ describe('objeto de modificadores', () => {
     expect({ eh: b.eh, ar: b.ar, ef: b.ef }).toEqual({ eh: a.eh, ar: a.ar, ef: a.ef });
   });
 
-  it('ignoraEh pula a EH e começa na AR', () => {
+  it('ignoraEh pula a EH e vai bater no limiar da armadura', () => {
     const r = M.aplicarDanoCascata(12, alvo(), { ignoraEh: true });
-    expect({ eh: r.eh, ar: r.ar, ef: r.ef }).toEqual({ eh: 10, ar: 0, ef: 13 });
+    expect({ eh: r.eh, ar: r.ar, res: r.res, ef: r.ef }).toEqual({ eh: 10, ar: 5, res: 9, ef: 20 });
+  });
+
+  it('ignoraEh contra armadura JÁ arrebentada chega na EF', () => {
+    const r = M.aplicarDanoCascata(12, alvo({ res: 0 }), { ignoraEh: true });
+    expect({ eh: r.eh, ar: r.ar, ef: r.ef }).toEqual({ eh: 10, ar: 5, ef: 8 });
   });
 
   it('ignoraArmadura pula a AR mas come a EH', () => {

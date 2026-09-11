@@ -51,9 +51,23 @@ describe('pontosAcaoPJ', () => {
 });
 
 /* ──────────────────────── aplicarDanoCascata ─────────────────────── */
+/* A ARMADURA MUDOU DE MODELO em 11/09/2026, por decisão do usuário.
+
+   Antes `ar` era uma POÇA que absorvia ponto a ponto e esvaziava: armadura
+   5 contra golpe 7 comia 5 e deixava 2 chegarem à EF no mesmo golpe.
+
+   Agora `ar` é um LIMIAR constante e quem se gasta é `res` (resistência =
+   durabilidade, vinda de `itens.resistencia`):
+     • golpe ATÉ o limiar      → bloqueado inteiro, nem a resistência cai;
+     • golpe ACIMA do limiar   → −1 de resistência, EF não é tocada;
+     • resistência em 0        → armadura arrebentada, dano passa inteiro.
+
+   As expectativas abaixo mudaram por causa disso, não por regressão. A
+   fixture ganhou `res`, sem o qual todo alvo entra com armadura já quebrada
+   — que foi exatamente como as 12 falhas apareceram. */
 describe('aplicarDanoCascata', () => {
   const pj = (over = {}) => ({
-    eh: 10, ar: 5, ef: 10, eh_max: 10, status: 'ativo', ...over,
+    eh: 10, ar: 5, ef: 10, eh_max: 10, res: 10, res_max: 10, status: 'ativo', ...over,
   });
 
   it('EF_MORTE é −15 (piso de morte documentado)', () => {
@@ -65,9 +79,31 @@ describe('aplicarDanoCascata', () => {
     expect(r).toMatchObject({ eh: 5, ar: 5, ef: 10, status: 'ativo', sobra: 0 });
   });
 
-  it('transborda EH→AR→EF na ordem', () => {
+  it('EH vaza para a armadura, que SEGURA e perde 1 de resistência', () => {
+    // 7 de dano: 3 comem a EH, sobram 4 contra um limiar de 2. 4 > 2, então
+    // a armadura é furada — mas quem paga é a resistência, e a EF fica
+    // intacta. No modelo antigo a EF teria ido a 8.
     const r = M.aplicarDanoCascata(7, pj({ eh: 3, ar: 2, eh_max: 3 }));
-    expect(r).toMatchObject({ eh: 0, ar: 0, ef: 8, sobra: 0 });
+    expect(r).toMatchObject({ eh: 0, ar: 2, res: 9, ef: 10, sobra: 0 });
+  });
+
+  it('golpe ATÉ o limiar não custa nem resistência', () => {
+    const r = M.aplicarDanoCascata(2, pj({ eh: 0, eh_max: 0, ar: 5 }));
+    expect(r).toMatchObject({ ar: 5, res: 10, ef: 10 });
+  });
+
+  it('resistência em 0 = armadura arrebentada: o dano passa inteiro', () => {
+    const r = M.aplicarDanoCascata(6, pj({ eh: 0, eh_max: 0, ar: 5, res: 0 }));
+    expect(r).toMatchObject({ ar: 5, res: 0, ef: 4 });
+  });
+
+  it('a resistência desce de 1 em 1, por golpe, não pelo tamanho do golpe', () => {
+    let r = pj({ eh: 0, eh_max: 0, ar: 2, res: 3 });
+    for (let i = 0; i < 3; i += 1) r = M.aplicarDanoCascata(50, r);
+    expect(r.res, 'três golpes enormes = três pontos').toBe(0);
+    expect(r.ef, 'e a EF só cai depois que ela zera').toBe(10);
+    r = M.aplicarDanoCascata(50, r);
+    expect(r.ef, 'o quarto passa').toBe(-15);
   });
 
   it('EH chegar a 0 desmaia SEMPRE (com eh_max > 0)', () => {
@@ -77,12 +113,20 @@ describe('aplicarDanoCascata', () => {
 
   it('criatura sem pool de EH (eh_max 0) NÃO vive desmaiada por eh===0', () => {
     const r = M.aplicarDanoCascata(2, pj({ eh: 0, eh_max: 0, ar: 5, ef: 10 }));
-    expect(r).toMatchObject({ ar: 3, ef: 10, status: 'ativo' });
+    expect(r).toMatchObject({ ar: 5, ef: 10, status: 'ativo' });
   });
 
-  it('CRÍTICO pula a EH e começa na AR', () => {
+  it('CRÍTICO pula a EH mas AINDA enfrenta o limiar da armadura', () => {
+    // Crítico sempre significou "fura a EH", não "fura a armadura". Quem
+    // ignora a armadura é ignoraArmadura (Disparo Certeiro, Explorar
+    // Fraqueza), e esse é outro modificador.
     const r = M.aplicarDanoCascata(6, pj(), true);
-    expect(r).toMatchObject({ eh: 10, ar: 0, ef: 9, status: 'ativo', sobra: 0 });
+    expect(r).toMatchObject({ eh: 10, ar: 5, res: 9, ef: 10, status: 'ativo', sobra: 0 });
+  });
+
+  it('ignoraArmadura pula o limiar inteiro e vai direto na EF', () => {
+    const r = M.aplicarDanoCascata(6, pj({ eh: 0, eh_max: 0 }), { ignoraArmadura: true });
+    expect(r).toMatchObject({ ar: 5, res: 10, ef: 4 });
   });
 
   it('EF fica NEGATIVA: 0 a −14 = caído (desmaiado), não morto', () => {
@@ -315,17 +359,30 @@ describe('FC_EFEITOS (mecânica por qualidade do segundo dado)', () => {
 
 describe('aplicarFalhaCritica', () => {
   const atacante = (over = {}) => ({
-    eh: 10, ar: 3, ef: 10, eh_max: 10, status: 'ativo', status_temp: [], ...over,
+    eh: 10, ar: 3, ef: 10, eh_max: 10, res: 4, res_max: 4,
+    status: 'ativo', status_temp: [], ...over,
   });
   const arma = { dano: 10 };
 
-  it('q0: 100% de dano PULANDO a EH (AR→EF) + desmaia forçado mesmo com EF > 0', () => {
+  it('q0: dano PULA a EH e bate na armadura, que segura e se desgasta', () => {
+    // O autodano da Falha Crítica sempre pulou a EH — isso não mudou. O que
+    // mudou é o que a armadura faz com ele: 10 > limiar 3, então custa 1 de
+    // resistência e a EF fica intacta. O desmaio forçado continua valendo,
+    // porque vem da regra da Falha Crítica e não do dano.
     const { participante: p, dano } = M.aplicarFalhaCritica(atacante(), arma, 0);
     expect(dano).toBe(10);
-    expect(p.eh).toBe(10);          // EH intacta — regra confirmada
-    expect(p.ar).toBe(0);           // AR absorveu 3
-    expect(p.ef).toBe(3);           // EF levou 7
-    expect(p.status).toBe('desmaiado'); // forçado pelo "e você desmaia"
+    expect(p.eh).toBe(10);
+    expect(p.ar, 'limiar não se gasta').toBe(3);
+    expect(p.res, 'quem se gasta é a resistência').toBe(3);
+    expect(p.ef, 'a armadura segurou').toBe(10);
+    expect(p.status).toBe('desmaiado');
+  });
+
+  it('q0 com a armadura já arrebentada: aí sim o autodano chega na EF', () => {
+    const { participante: p } = M.aplicarFalhaCritica(atacante({ res: 0 }), arma, 0);
+    expect(p.eh).toBe(10);
+    expect(p.ef).toBe(0);
+    expect(p.status).toBe('desmaiado');
   });
 
   it('q0 que mata na cascata: morto tem precedência sobre o desmaio', () => {

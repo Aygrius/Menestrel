@@ -190,6 +190,40 @@ function calcArmadura(p, catalogoBySlug) {
   }, 0);
 }
 
+/* Resistência total da armadura = durabilidade.
+
+   Regra do usuário (11/09/2026): `absorcao` deixa de ser uma poça que
+   esvazia e passa a ser um LIMIAR — golpe até o limiar não faz nada. Golpe
+   acima dele gasta 1 ponto de RESISTÊNCIA. Quando a resistência zera, a
+   armadura está arrebentada e o dano passa a ir direto na Energia Física.
+
+   Soma as mesmas peças que calcArmadura soma (pecaNoCorpo), pelo mesmo
+   motivo: limiar e durabilidade têm que falar do mesmo conjunto de peças,
+   senão dá pra ter limiar sem durabilidade. */
+function calcResistenciaArmadura(p, catalogoBySlug) {
+  if (!catalogoBySlug || !p?.inventario?.itens) return 0;
+  return p.inventario.itens.reduce((sum, it) => {
+    if (!pecaNoCorpo(it)) return sum;
+    const cat = catalogoBySlug[it.slug];
+    return sum + Number(cat?.resistencia || 0);
+  }, 0);
+}
+
+/* Resistência de CRIATURA — derivada, porque a tabela `criaturas` não tem
+   a coluna (só `absorcao`).
+
+   O fator 2 não é chute: nas 63 armaduras do catálogo, `resistencia` é
+   EXATAMENTE `absorcao * 2`, sem uma única exceção (conferido no banco em
+   11/09/2026). Derivar pela mesma razão mantém um modelo só no motor e
+   dispensa migration. Se um dia uma criatura precisar de durabilidade
+   própria, basta a coluna existir e este fallback sair do caminho. */
+const FATOR_RESISTENCIA_CRIATURA = 2;
+function resistenciaDeCriatura(c) {
+  if (!c) return 0;
+  if (Number.isFinite(Number(c.resistencia))) return Math.max(0, Number(c.resistencia));
+  return Math.max(0, Number(c.absorcao || 0)) * FATOR_RESISTENCIA_CRIATURA;
+}
+
 // Mapeia siglas do `ajuste_atributo` pras chaves do objeto `atributos` da ficha.
 const AJUSTE_KEY = { AGI: 'agilidade', AUR: 'aura', FOR: 'forca', PER: 'percepcao' };
 
@@ -414,6 +448,7 @@ Object.assign(window, {
   fetchTabelaPaginada, fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,
   podeMoverParaContainer, pecaNoCorpo, calcArmadura, AJUSTE_KEY, gerarAtaques,
+  calcResistenciaArmadura, resistenciaDeCriatura, FATOR_RESISTENCIA_CRIATURA,
   EFEITO_CONDICAO_MAP, parseEfeito, efeitosDoItem, aplicarDeltaCondicao,
   aplicarEfeitosItem,
 });

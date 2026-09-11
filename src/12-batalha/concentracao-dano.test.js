@@ -36,6 +36,8 @@ const lutador = (nome, ordem, extra) => ({
   status: 'ativo', atual: false, vb: 20,
   pa_max: 2, pa_rest: 2, mov_rest: 5, moveu_na_rodada: false,
   ef: 10, ef_max: 10, eh: 5, eh_max: 5, ar: 3, ar_max: 3, karma: 0, karma_max: 0,
+  // res entrou em 11/09/2026 com o modelo de limiar + durabilidade.
+  res: 6, res_max: 6,
   status_temp: [], ...extra,
 });
 
@@ -65,13 +67,25 @@ describe('quebrarConcentracaoPorDano — o que NÃO quebra', () => {
     expect(r[0].status_temp).toHaveLength(1);
   });
 
-  it('dano contido na AR (crítico pula a EH) não quebra', () => {
-    // Crítico começa na AR: AR 3, dano 2 → EF intacta, segue ativo.
+  it('dano contido pelo limiar da armadura (crítico pula a EH) não quebra', () => {
+    // Crítico pula a EH e bate no limiar 3. Dano 2 <= 3: bloqueado inteiro,
+    // sem custar nem resistência. A EF nem é tocada, então nada quebra.
     const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
     const r = levarDano(arr, 'A', 2, true);
-    expect(r[0].ar).toBe(1);
+    expect(r[0].ar, 'o limiar não se gasta').toBe(3);
+    expect(r[0].res, 'nem a resistência, porque não furou').toBe(6);
     expect(r[0].ef).toBe(10);
     expect(r[0].status_temp).toHaveLength(1);
+  });
+
+  it('golpe que FURA o limiar mas para na resistência também não quebra', () => {
+    // Dano 9 > limiar 3: gasta 1 de resistência e a EF segue intacta. É o
+    // caso novo do modelo — antes esse golpe teria chegado na EF.
+    const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
+    const r = levarDano(arr, 'A', 9, true);
+    expect(r[0].res).toBe(5);
+    expect(r[0].ef).toBe(10);
+    expect(r[0].status_temp, 'a magia continua de pé').toHaveLength(1);
   });
 
   it('sem motivo pra quebrar devolve o MESMO array', () => {
@@ -88,11 +102,12 @@ describe('quebrarConcentracaoPorDano — o que NÃO quebra', () => {
 });
 
 describe('quebrarConcentracaoPorDano — o que quebra', () => {
-  it('dano que chega na EF quebra', () => {
-    // EH 5 + AR 3 = 8 absorvidos; 10 de dano fura 2 na EF.
-    const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
+  it('dano que chega na EF quebra — e agora só chega com a armadura quebrada', () => {
+    // A EH come 5; sobram 5 contra o limiar 3. Com resistência ZERADA a
+    // armadura não segura mais nada e os 5 vão inteiros na EF.
+    const arr = [lutador('A', 1, { status_temp: [sustentado('A')], res: 0 })];
     const r = levarDano(arr, 'A', 10);
-    expect(r[0].ef).toBe(8);
+    expect(r[0].ef).toBe(5);
     expect(r[0].status_temp).toHaveLength(0);
   });
 
@@ -106,11 +121,27 @@ describe('quebrarConcentracaoPorDano — o que quebra', () => {
     expect(r[0].status_temp).toHaveLength(0);
   });
 
-  it('morrer quebra', () => {
-    const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
+  it('morrer quebra — com a armadura já vencida', () => {
+    const arr = [lutador('A', 1, { status_temp: [sustentado('A')], res: 0 })];
     const r = levarDano(arr, 'A', 99);
     expect(r[0].status).toBe('morto');
     expect(r[0].status_temp).toHaveLength(0);
+  });
+
+  /* CONSEQUÊNCIA DO MODELO NOVO, registrada de propósito: com a armadura
+     inteira, NENHUM golpe único mata, por maior que seja. 99 de dano contra
+     limiar 3 gasta 1 de resistência e para ali. Só depois de a resistência
+     zerar o dano volta a chegar na EF.
+
+     Isso é a regra pedida ("quando toda a durabilidade acabar é que o dano
+     será na energia física"), não um bug — mas muda o combate: matar alguém
+     de armadura passa a exigir tantos golpes quanto a resistência dela. */
+  it('com a armadura inteira, um golpe gigante NÃO mata', () => {
+    const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
+    const r = levarDano(arr, 'A', 99);
+    expect(r[0].status, 'sobreviveu a 99 de dano').toBe('desmaiado');
+    expect(r[0].res, 'custou 1 de resistência').toBe(5);
+    expect(r[0].ef, 'a EF nem foi tocada').toBe(10);
   });
 
   it('derruba a magia no ALVO dela, não em quem apanhou', () => {
