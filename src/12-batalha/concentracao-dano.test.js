@@ -142,10 +142,26 @@ describe('quebrarConcentracaoPorDano — o que quebra', () => {
 });
 
 describe('os três caminhos de dano usam a regra', () => {
+  // Era `fonte.slice(i, i + 2200)`: uma janela de tamanho fixo a partir da
+  // declaração. Duas coisas erradas nisso — se o corpo passasse de 2200
+  // caracteres o teste virava falso-negativo silencioso, e na prática ele
+  // passou a LIMITAR quanto comentário cabe perto do ponto de dano (na Fase 2
+  // um comentário de regra teve de ser encurtado para não estourar a janela).
+  // Agora o corpo é delimitado por contagem de chaves: não há teto.
   const fonteDe = (nome) => {
     const i = fonte.indexOf(nome);
     expect(i, `${nome} precisa existir`).toBeGreaterThan(-1);
-    return fonte.slice(i, i + 2200);
+    const abre = fonte.indexOf('{', i);
+    expect(abre, `${nome} precisa ter corpo`).toBeGreaterThan(-1);
+    let nivel = 0;
+    for (let j = abre; j < fonte.length; j += 1) {
+      if (fonte[j] === '{') nivel += 1;
+      else if (fonte[j] === '}') {
+        nivel -= 1;
+        if (nivel === 0) return fonte.slice(i, j + 1);
+      }
+    }
+    throw new Error(`chaves desbalanceadas ao delimitar ${nome}`);
   };
   let fonte;
   beforeAll(async () => {
