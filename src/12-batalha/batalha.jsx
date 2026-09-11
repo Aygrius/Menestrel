@@ -1700,6 +1700,19 @@ function modsDoGolpe(atacante, alvo) {
     ignoraArmadura: doAtacante('ignora_armadura'),
   };
 }
+/* Esquiva é o ÚNICO status consumido por evento, não por contagem de
+   rodadas: ela é gasta pelo próximo golpe recebido, ou expira por tempo se
+   ninguém atacar — o que vier primeiro.
+   O campo `consome_em` é opcional e aditivo: status sem ele segue exatamente
+   como antes, expirando só em processarViradaDeRodada. */
+function consumirEvitaGolpe(alvo) {
+  const st = (alvo && Array.isArray(alvo.status_temp)) ? alvo.status_temp : null;
+  if (!st || !st.some((s) => s.consome_em === 'golpe_recebido' && s.efeito && s.efeito.tipo === 'evita_golpe')) {
+    return { evitou: false, participante: alvo };
+  }
+  const restante = st.filter((s) => !(s.consome_em === 'golpe_recebido' && s.efeito && s.efeito.tipo === 'evita_golpe'));
+  return { evitou: true, participante: { ...alvo, status_temp: restante } };
+}
 // VB efetiva pra iniciativa: vb do snapshot + mod_vb de status. NÃO persiste.
 function vbEfetivo(p) {
   return (p.vb || 0) + somaEfeitosStatus(p, 'mod_vb');
@@ -2691,8 +2704,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       const alvoAntes = next[alvoIdx];
       // Fase 2: além do crítico, o golpe pode furar EH e/ou AR por técnica
       // (ignora_eh, ignora_armadura) ou por condição do alvo (derrubado).
-      const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
-      next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
+      // Esquiva anula o golpe inteiro — dano ZERO mesmo com crítico ou
+      // ignora_eh: esquivar é não ser atingido (ver consumirEvitaGolpe).
+      const esq = consumirEvitaGolpe(alvoAntes);
+      if (esq.evitou) {
+        next[alvoIdx] = esq.participante;   // dano nenhum, status consumido
+      } else {
+        const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
+        next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
+      }
       // E o golpe derruba a concentração do ALVO se furou até a EF dele ou
       // se o derrubou/matou. Dano contido em EH ou AR não quebra — mas zerar
       // a EH desmaia, e desmaiar quebra (ver quebrarConcentracaoPorDano).
@@ -5787,8 +5807,15 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       const alvoAntes = next[alvoIdx];
       // Fase 2: além do crítico, o golpe pode furar EH e/ou AR por técnica
       // (ignora_eh, ignora_armadura) ou por condição do alvo (derrubado).
-      const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
-      next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
+      // Esquiva anula o golpe inteiro — dano ZERO mesmo com crítico ou
+      // ignora_eh: esquivar é não ser atingido (ver consumirEvitaGolpe).
+      const esq = consumirEvitaGolpe(alvoAntes);
+      if (esq.evitou) {
+        next[alvoIdx] = esq.participante;   // dano nenhum, status consumido
+      } else {
+        const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
+        next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
+      }
       // Dano que FURA até a EF quebra a concentração do alvo; contido em EH
       // ou AR, não. Zerar a EH desmaia, e desmaiar quebra — espelha
       // aplicarAcao via quebrarConcentracaoPorDano.
@@ -6527,7 +6554,7 @@ Object.assign(window, {
     ataquesDoAtor,
     // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
-    somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, vbEfetivo,
+    somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, consumirEvitaGolpe, vbEfetivo,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
     // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
     // e devolve o empréstimo quando o status sai na virada de rodada.
