@@ -13,7 +13,7 @@
    - DetStat / DetalhesItemModal — detalhe + ações (equipar/desequipar,
                            usar, destruir, mover, transferir via transfer_item)
    - ContainerModal      — visualiza/remove itens de um container
-   - QuantidadeModal     — escolha de quantidade (usar/destruir/mover)
+   - QuantidadeModal     — escolha de quantidade (usar/destruir/mover/transferir)
    - Helpers de carga/ícone: calcCarga, invItemIcon, fmtNum, normalizarPilhas
 
    Depende de:
@@ -1018,19 +1018,45 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     setAcaoPendente({ tipo: 'mover', instanceId, max: maxPossivel, extra: { containerId } });
   };
 
+  // Transferir com pilha > 1: pergunta quantidade (mesmo padrão das outras
+  // três ações acima). Devolve uma Promise porque o botão "Confirmar" do
+  // modal de transferência (DetalhesItemModal) já esperava uma Promise de
+  // transferirItem pra saber quando fechar — aqui ela só demora mais a
+  // resolver, até o usuário confirmar (ou cancelar) o QuantidadeModal que
+  // aparece por cima. Item avulso (quantidade 1) transfere direto, sem
+  // seletor a mais — coerente com usar/destruir/mover.
+  const solicitarTransferir = (instanceId, pjDestinoId) => {
+    const it = inv?.itens.find((x) => x.instanceId === instanceId);
+    if (!it || it.quantidade <= 1) return transferirItem(instanceId, pjDestinoId, null);
+    return new Promise((resolve) => {
+      setAcaoPendente({ tipo: 'transferir', instanceId, max: it.quantidade, extra: { pjDestinoId, resolve } });
+    });
+  };
+
   // Executa a ação que estava aguardando escolha de quantidade
-  const executarAcaoPendente = (qtd) => {
+  const executarAcaoPendente = async (qtd) => {
     if (!acaoPendente) return;
     const { tipo, instanceId, extra } = acaoPendente;
     if (tipo === 'usar')     usarItem(instanceId, qtd);
     if (tipo === 'destruir') destruirItem(instanceId, qtd);
     if (tipo === 'mover')    moverParaContainer(instanceId, extra?.containerId ?? null, qtd);
+    if (tipo === 'transferir') {
+      // O botão "Confirmar" do modal de transferência (DetalhesItemModal)
+      // está com uma Promise pendurada em extra.resolve — resolve ela agora
+      // pra ele saber se pode fechar (res.ok) ou ficar mostrando o erro.
+      const res = await transferirItem(instanceId, extra?.pjDestinoId, null, qtd);
+      extra?.resolve?.(res);
+    }
     setAcaoPendente(null);
   };
 
   // Fase 3 — transferir item entre PJs (chama RPC). Recebe o instanceId
   // explicitamente (usado tanto pela transferência inline quanto por outros pontos).
-  const transferirItem = async (instanceId, pjDestinoId, moedas) => {
+  // `quantidade` é NOVO (transferência parcial): null/undefined mantém o
+  // comportamento de sempre — transfere a pilha inteira. A RPC já limita ao
+  // disponível, rejeita < 1 e ignora o parâmetro pra item equipável
+  // (instância indivisível) — o cliente só repassa o que o usuário escolheu.
+  const transferirItem = async (instanceId, pjDestinoId, moedas, quantidade = null) => {
     setTransferError(null);
     const instance = inv?.itens.find((it) => it.instanceId === instanceId);
     if (!instance) return { ok: false };
@@ -1039,6 +1065,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       p_to_pj_id: pjDestinoId,
       p_instance_id: instanceId,
       p_moedas: moedas && moedasToLatao(moedas) > 0 ? moedas : null,
+      p_quantidade: quantidade,
     });
     if (error || !data?.ok) {
       setTransferError(error?.message || data?.motivo || 'Erro desconhecido');
@@ -1188,7 +1215,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onDestruir={solicitarDestruir}
           onObservacao={setObservacao}
           onMoverParaContainer={solicitarMover}
-          onTransferir={(pjDestinoId) => transferirItem(instanceDetalhes.instanceId, pjDestinoId, null)}
+          onTransferir={(pjDestinoId) => solicitarTransferir(instanceDetalhes.instanceId, pjDestinoId)}
           transferError={transferError}
           onTransferReset={() => setTransferError(null)}
           onRemoverDoContainer={(id) => solicitarMover(id, null)}
@@ -1213,18 +1240,20 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         const cat = it ? catalogoBySlug[it.slug] : null;
         const nome = cat?.nome || it?.slug || '';
         const titulosPt = {
-          usar:     `Usar ${nome}`,
-          destruir: `Destruir ${nome}`,
-          mover:    acaoPendente.extra?.containerId
+          usar:       `Usar ${nome}`,
+          destruir:   `Destruir ${nome}`,
+          mover:      acaoPendente.extra?.containerId
             ? `Armazenar ${nome}`
             : `Retirar ${nome}`,
+          transferir: `Transferir ${nome}`,
         };
         const titulosEn = {
-          usar:     `Use ${nome}`,
-          destruir: `Destroy ${nome}`,
-          mover:    acaoPendente.extra?.containerId
+          usar:       `Use ${nome}`,
+          destruir:   `Destroy ${nome}`,
+          mover:      acaoPendente.extra?.containerId
             ? `Store ${nome}`
             : `Take out ${nome}`,
+          transferir: `Transfer ${nome}`,
         };
         const t = (lang === 'en' ? titulosEn : titulosPt)[acaoPendente.tipo];
         return (
@@ -1233,7 +1262,13 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             max={acaoPendente.max}
             lang={lang}
             onConfirm={executarAcaoPendente}
-            onCancel={() => setAcaoPendente(null)}
+            onCancel={() => {
+              // Cancelar transferência resolve a Promise pendente com ok:false —
+              // senão o botão "Confirmar" do det-transf (DetalhesItemModal) fica
+              // com "Enviando…" preso pra sempre, esperando uma Promise que nunca ia terminar.
+              if (acaoPendente.tipo === 'transferir') acaoPendente.extra?.resolve?.({ ok: false });
+              setAcaoPendente(null);
+            }}
           />
         );
       })()}
