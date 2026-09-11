@@ -1669,6 +1669,13 @@ function statusTemEfeito(p, tipo) {
    — esse é da Falha Crítica). */
 function podeAtacarAgora(p)      { return !statusTemEfeito(p, 'sem_atacar'); }
 function podeUsarTecnicaAgora(p) { return !statusTemEfeito(p, 'sem_tecnicas'); }
+/* Ruling T6-C (Fase 2): fim de turno é "não sobrou nada a fazer", não "não
+   sobrou PA" — um ataque extra (Golpe Duplo, Contra-Ataque, Flechadas
+   Múltiplas) é ação pendente mesmo com pa_rest 0. Sem isto, ativar a
+   técnica com pa_max 1 auto-passa a vez antes do golpe extra existir. */
+function temAcaoRestante(p) {
+  return !!p && ((p.pa_rest || 0) > 0 || (p.pa_ataque_extra || 0) > 0);
+}
 /* Soma os mod_ataque válidos para a arma em uso.
    Por que não é só somaEfeitosStatus(p, 'mod_ataque'): a técnica pode estar
    restrita a grupos de arma (Mira só em PL/PM/PP, Pugilato só em CD), e a
@@ -2768,7 +2775,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // PA zerado, incapaz OU sem ações (FC caído) → auto-passa a vez
     let viraRodada = false;
     const ator = next[atorIdx];
-    if ((ator.pa_rest === 0 || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual) {
+    if ((!temAcaoRestante(ator) || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual) {
       const prox = proximoAtivo(next, ator.ordem);
       if (prox) {
         next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
@@ -2916,7 +2923,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Se quem testou era o ator da vez e ficou sem PA → passa a vez.
     let viraRodada = false;
     const t = next[testIdx];
-    if (t.atual && t.pa_rest === 0) {
+    if (t.atual && !temAcaoRestante(t)) {
       const prox = proximoAtivo(next, t.ordem);
       if (prox) {
         next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
@@ -3049,7 +3056,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // `sem_acoes` entra aqui igual em aplicarAcao/aplicarApoio — era a única
     // das três que não checava, e um FC "caído por N rodadas" que usasse item
     // ficava com a vez presa.
-    if (atorSnap.atual && (atorSnap.pa_rest === 0 || atorSnap.status !== 'ativo'
+    if (atorSnap.atual && (!temAcaoRestante(atorSnap) || atorSnap.status !== 'ativo'
                            || statusTemEfeito(atorSnap, 'sem_acoes'))) {
       const prox = proximoAtivo(next, atorSnap.ordem);
       if (prox) {
@@ -3169,7 +3176,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Mesma regra de fim de turno das outras ações.
     let viraRodada = false;
     const a = next[atorIdx];
-    if ((a.pa_rest === 0 || a.status !== 'ativo' || statusTemEfeito(a, 'sem_acoes')) && a.atual) {
+    if ((!temAcaoRestante(a) || a.status !== 'ativo' || statusTemEfeito(a, 'sem_acoes')) && a.atual) {
       const prox = proximoAtivo(next, a.ordem);
       if (prox) next = next.map((q) => ({ ...q, atual: mesmoParticipante(q, prox) }));
       else viraRodada = true;
@@ -5784,7 +5791,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (idx < 0) return vazio;
     const a = arr[idx];
     const incapaz = a.status === 'morto' || a.status === 'desmaiado' || a.status === 'desistiu';
-    if (!(a.atual && (a.pa_rest === 0 || incapaz || statusTemEfeito(a, 'sem_acoes')))) {
+    if (!(a.atual && (!temAcaoRestante(a) || incapaz || statusTemEfeito(a, 'sem_acoes')))) {
       return vazio;
     }
     const prox = proximoAtivo(arr, a.ordem);
@@ -6608,6 +6615,9 @@ Object.assign(window, {
     // Task 6a (Fase 2): bloqueios de turno puros — sem_atacar tira só a aba
     // Arma, sem_tecnicas tira só a aba Técnica. Nenhum dos dois é sem_acoes.
     podeAtacarAgora, podeUsarTecnicaAgora,
+    // Ruling T6-C (Fase 2): "sobrou ação" != "sobrou PA" — pa_ataque_extra
+    // segura o fim de turno mesmo com pa_rest 0.
+    temAcaoRestante,
     // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
     // e devolve o empréstimo quando o status sai na virada de rodada.
     expirarEhTemp,

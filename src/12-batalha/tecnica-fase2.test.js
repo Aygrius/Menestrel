@@ -216,3 +216,16 @@ describe('aplicarEfeitoTecnica escreve pa_ataque_extra', () => {
     expect(r.pa_ataque_extra || 0).toBe(0);
   });
 });
+
+describe('temAcaoRestante — o ataque extra segura o turno', () => {
+  it('PA zerado mas com ataque extra: o turno NÃO acabou', () => {
+    expect(M.temAcaoRestante({ pa_rest: 0, pa_ataque_extra: 1 })).toBe(true);
+  });
+  it('PA zerado e sem ataque extra: acabou', () => {
+    expect(M.temAcaoRestante({ pa_rest: 0, pa_ataque_extra: 0 })).toBe(false);
+  });
+  it('participante antigo, sem o campo, se comporta como antes', () => {
+    expect(M.temAcaoRestante({ pa_rest: 1 })).toBe(true);
+    expect(M.temAcaoRestante({ pa_rest: 0 })).toBe(false);
+  });
+});
