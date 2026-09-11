@@ -35,6 +35,7 @@ beforeAll(async () => {
   await import('./ataques-criatura.jsx');
   await import('./criatura-formulas.jsx');
   await import('./catalogo-descritores.jsx');
+  await import('./conhecido-jogador.jsx');
   await import('./bestiario.jsx');
   TecnicasList = window.TecnicasList;
 });

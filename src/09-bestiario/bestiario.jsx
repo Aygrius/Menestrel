@@ -543,8 +543,8 @@ function BestPagination({ page, safePage, totalPages, setPage, setExpandida, lan
   );
 }
 
-/* ============================== [18] MagiasList — Mestre vê todas as magias do banco ============================== */
-function MagiasList({ ac, lang }) {
+/* ============================== [18] MagiasList — Mestre vê todas as magias do banco; jogador só as compradas ============================== */
+function MagiasList({ ac, lang, modoJogador }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
   const [magias, setMagias] = useState(null);
   const { sorted: magiasSorted, sortKey, sortDir, toggleSort } = useSort(magias);
@@ -557,6 +557,7 @@ function MagiasList({ ac, lang }) {
   const PAGE_SIZE = useFitPageSize(wrapRef);
   const ehAdmin = useEhAdmin();
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
+  const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
 
   // Extraído SEM mudar comportamento (ver comentário equivalente em CriaturasList).
   const carregarMagias = async (cancelRef) => {
@@ -575,13 +576,15 @@ function MagiasList({ ac, lang }) {
   if (!Table) return <BestNoKit />;
   if (magias === null) return <BestLoading text={lang === 'en' ? 'Loading spells…' : 'Consultando os grimórios…'} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'magias' table exists in Supabase." : "Confira se a tabela 'magias' existe no Supabase."} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading spells…' : 'Consultando os grimórios…'} />;
 
   const q = query.trim().toLowerCase();
-  const filtered = (magiasSorted || []).filter((m) => {
+  let filtered = (magiasSorted || []).filter((m) => {
     if (tipoFiltro !== 'all' && m.tipo !== tipoFiltro) return false;
     if (q && !(m.nome || '').toLowerCase().includes(q)) return false;
     return true;
   });
+  if (modoJogador) filtered = filtered.filter((m) => conhecido.magias.has(m.key));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -636,17 +639,30 @@ function MagiasList({ ac, lang }) {
                         <TableCell className="best-cost">{m.custo}</TableCell>
                         {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(m)} /></TableCell>}
                       </TableRow>
-                      {isOpen && (
+                      {isOpen && (() => {
+                        // Modo jogador: só os níveis que ele COMPROU (spec §3 "só os níveis
+                        // comprados") — interseção entre "nível que existe" (m.nivel_N
+                        // preenchido) e "nível que o passos comprados alcança"
+                        // (NIVEIS_MAGIA.slice(0, passos), passosDisponiveisMagia já garante
+                        // que o corte respeita buraco no texto — ver 01-core/game-data.jsx).
+                        const niveisPermitidos = modoJogador
+                          ? new Set(NIVEIS_MAGIA.slice(0, conhecido.magias.get(m.key) || 0))
+                          : null;
+                        return (
                         <TableRow className="best-detail"><TableCell colSpan={6 + (ehAdmin ? 1 : 0)}>
                           {m.permissao && <div className="best-permissao">{m.permissao}</div>}
                           {m.descricao && <TextoDoBanco texto={m.descricao} className="best-desc" />}
                           <div className="best-niveis">
-                            {[{ n: 1, t: m.nivel_1 }, { n: 3, t: m.nivel_3 }, { n: 5, t: m.nivel_5 }, { n: 7, t: m.nivel_7 }, { n: 9, t: m.nivel_9 }].filter((x) => x.t).map((x) => (
+                            {[{ n: 1, t: m.nivel_1 }, { n: 3, t: m.nivel_3 }, { n: 5, t: m.nivel_5 }, { n: 7, t: m.nivel_7 }, { n: 9, t: m.nivel_9 }]
+                              .filter((x) => x.t)
+                              .filter((x) => !niveisPermitidos || niveisPermitidos.has(x.n))
+                              .map((x) => (
                               <div key={x.n} className="best-nivel"><span className="best-nivel-n">{x.n}</span><span className="best-nivel-t">{x.t}</span></div>
                             ))}
                           </div>
                         </TableCell></TableRow>
-                      )}
+                        );
+                      })()}
                     </React.Fragment>
                   );
                 })}
@@ -670,8 +686,8 @@ function MagiasList({ ac, lang }) {
   );
 }
 
-/* ============================== [19] HabilidadesList — Mestre vê todas as habilidades (DB) ============================== */
-function HabilidadesList({ ac, lang }) {
+/* ============================== [19] HabilidadesList — Mestre vê todas as habilidades (DB); jogador só as que tem ============================== */
+function HabilidadesList({ ac, lang, modoJogador }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
   const [habilidades, setHabilidades] = useState(null);
   const { sorted: habSorted, sortKey, sortDir, toggleSort } = useSort(habilidades);
@@ -684,6 +700,7 @@ function HabilidadesList({ ac, lang }) {
   const PAGE_SIZE = useFitPageSize(wrapRef);
   const ehAdmin = useEhAdmin();
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
+  const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
 
   // Extraído SEM mudar comportamento (ver comentário equivalente em CriaturasList).
   const carregarHabilidades = async (cancelRef) => {
@@ -702,17 +719,19 @@ function HabilidadesList({ ac, lang }) {
   if (!Table) return <BestNoKit />;
   if (habilidades === null) return <BestLoading text={lang === 'en' ? 'Loading skills…' : 'Carregando habilidades…'} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'habilidades' table exists in Supabase." : "Confira se a tabela 'habilidades' existe no Supabase."} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading skills…' : 'Carregando habilidades…'} />;
 
   const todasHabilidades = habSorted || [];
   // Categorias na ordem canônica, só as que aparecem (agora renderizadas como chips — antes só tinha "Todas").
   const categoriasPresentes = GRUPOS_HABILIDADES_ORDEM.filter((g) => todasHabilidades.some((h) => h.grupo === g));
 
   const q = query.trim().toLowerCase();
-  const filtered = todasHabilidades.filter((h) => {
+  let filtered = todasHabilidades.filter((h) => {
     if (categoriaFiltro !== 'all' && h.grupo !== categoriaFiltro) return false;
     if (q && !(h.nome || '').toLowerCase().includes(q)) return false;
     return true;
   });
+  if (modoJogador) filtered = filtered.filter((h) => conhecido.habilidades.has(h.key));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -799,8 +818,8 @@ function HabilidadesList({ ac, lang }) {
   );
 }
 
-/* ============================== [20] TecnicasList — Mestre vê todas as técnicas ============================== */
-function TecnicasList({ ac, lang }) {
+/* ============================== [20] TecnicasList — Mestre vê todas as técnicas; jogador só as que tem ============================== */
+function TecnicasList({ ac, lang, modoJogador }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
   const [tecnicas, setTecnicas] = useState(null);
   const { sorted: tecnicasSorted, sortKey, sortDir, toggleSort } = useSort(tecnicas);
@@ -813,6 +832,7 @@ function TecnicasList({ ac, lang }) {
   const PAGE_SIZE = useFitPageSize(wrapRef);
   const ehAdmin = useEhAdmin();
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
+  const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
 
   // Extraído SEM mudar comportamento (ver comentário equivalente em CriaturasList).
   const carregarTecnicas = async (cancelRef) => {
@@ -831,15 +851,17 @@ function TecnicasList({ ac, lang }) {
   if (!Table) return <BestNoKit />;
   if (tecnicas === null) return <BestLoading text={lang === 'en' ? 'Loading techniques…' : 'Consultando os manuais de combate…'} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'tecnicas' table exists in Supabase." : "Confira se a tabela 'tecnicas' existe no Supabase."} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading techniques…' : 'Consultando os manuais de combate…'} />;
 
   const usosDisponiveis = Array.from(new Set(tecnicas.map((t) => t.uso).filter(Boolean))).sort();
 
   const q = query.trim().toLowerCase();
-  const filtered = (tecnicasSorted || []).filter((t) => {
+  let filtered = (tecnicasSorted || []).filter((t) => {
     if (usoFiltro !== 'all' && t.uso !== usoFiltro) return false;
     if (q && !(t.nome || '').toLowerCase().includes(q)) return false;
     return true;
   });
+  if (modoJogador) filtered = filtered.filter((t) => conhecido.tecnicas.has(t.key));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -918,8 +940,8 @@ function TecnicasList({ ac, lang }) {
   );
 }
 
-/* ============================== [21] ItensList — Mestre vê todos os itens ============================== */
-function ItensList({ ac, lang }) {
+/* ============================== [21] ItensList — Mestre vê todos os itens; jogador só os que possui ============================== */
+function ItensList({ ac, lang, modoJogador }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
   const [itens, setItens] = useState(null);
   const { sorted: itensSorted, sortKey, sortDir, toggleSort } = useSort(itens);
@@ -933,6 +955,7 @@ function ItensList({ ac, lang }) {
   const PAGE_SIZE = useFitPageSize(wrapRef);
   const ehAdmin = useEhAdmin();
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
+  const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
 
   // Faixas de preço (valor_latao)
   const PRECO_FAIXAS = [
@@ -962,12 +985,13 @@ function ItensList({ ac, lang }) {
   if (!Table) return <BestNoKit />;
   if (itens === null) return <BestLoading text={lang === 'en' ? 'Loading items…' : 'Consultando o inventário do mundo…'} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'itens' table exists in Supabase." : "Confira se a tabela 'itens' existe no Supabase."} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading items…' : 'Consultando o inventário do mundo…'} />;
 
   const gruposDisponiveis = Array.from(new Set(itens.map((i) => i.grupo).filter(Boolean))).sort();
 
   const q = query.trim().toLowerCase();
   const faixaAtiva = PRECO_FAIXAS.find((f) => f.key === precoFiltro) || PRECO_FAIXAS[0];
-  const filtered = (itensSorted || []).filter((it) => {
+  let filtered = (itensSorted || []).filter((it) => {
     if (grupoFiltro !== 'all' && it.grupo !== grupoFiltro) return false;
     if (q && !(it.nome || '').toLowerCase().includes(q)) return false;
     if (precoFiltro !== 'all') {
@@ -976,6 +1000,7 @@ function ItensList({ ac, lang }) {
     }
     return true;
   });
+  if (modoJogador) filtered = filtered.filter((it) => conhecido.itens.has(it.slug));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);

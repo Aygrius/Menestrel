@@ -2955,13 +2955,13 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ) : current.id === 'fichas' ? (
               <FichasJogador ac={ac} lang={lang} currentUserId={user.id} />
             ) : current.id === 'magias' ? (
-              <MagiasList ac={ac} lang={lang} />
+              <MagiasList ac={ac} lang={lang} modoJogador={profile === 'player'} />
             ) : current.id === 'habilidades' ? (
-              <HabilidadesList ac={ac} lang={lang} />
+              <HabilidadesList ac={ac} lang={lang} modoJogador={profile === 'player'} />
             ) : current.id === 'tecnicas' ? (
-              <TecnicasList ac={ac} lang={lang} />
+              <TecnicasList ac={ac} lang={lang} modoJogador={profile === 'player'} />
             ) : current.id === 'itens' ? (
-              <ItensList ac={ac} lang={lang} />
+              <ItensList ac={ac} lang={lang} modoJogador={profile === 'player'} />
             ) : current.id === 'itens_campanha' ? (
               <ItensCampanhaManager ac={ac} lang={lang} />
             ) : current.id === 'historias' ? (

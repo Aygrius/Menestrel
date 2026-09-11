@@ -321,6 +321,14 @@ const ADMIN_SECTIONS = {
     { id: 'loja',          icon: 'Sheet' },
     { id: 'aventuras',     icon: 'BookOpen' },
     { id: 'convites',      icon: 'Crown' },
+    // Catálogos filtrados pelo que o jogador conhece/possui (spec
+    // docs/superpowers/specs/2026-09-11-catalogos-visao-jogador-design.md §4).
+    // Mesmos ícones da lista master, propositalmente. `criaturas` FICA DE FORA
+    // até a Fase B (tabela de liberação) existir — ver §5 da spec.
+    { id: 'itens',         icon: 'Sheet' },
+    { id: 'magias',        icon: 'Flame' },
+    { id: 'tecnicas',      icon: 'Sword' },
+    { id: 'habilidades',   icon: 'Shield' },
   ],
 };
 
