@@ -118,18 +118,21 @@ describe('itens equipados/vestidos aparecem na lista principal do inventário', 
     expect(cards.length).toBe(3);
   });
 
-  it('o item equipado (it.slot) leva o pill "eq" (ti-shield)', async () => {
+  /* Um selo só, "E" de em uso, para equipado E para vestido (pedido do
+     usuário, 11/09/2026: "use apenas o E de equipado, mesmo para roupa,
+     visualmente não faz diferença"). Antes eram dois selos distintos —
+     eq/ti-shield e vst/ti-shirt. A distinção continua nos DADOS; o que
+     saiu foi a distinção visual no grid. */
+  it('equipado e vestido levam o MESMO selo E — um cada', async () => {
     const { container } = montar();
     await waitFor(() => expect(screen.getByText('3 de 3')).toBeTruthy());
-    const pills = container.querySelectorAll('.inv-card .inv-pill.eq');
-    expect(pills.length).toBe(1);
+    expect(container.querySelectorAll('.inv-card .inv-pill.eq').length,
+      'um do equipado, um do vestido').toBe(2);
   });
 
-  it('o item vestido (it.vestido) leva o pill "vst" (ti-shirt)', async () => {
-    const { container } = montar();
-    await waitFor(() => expect(screen.getByText('3 de 3')).toBeTruthy());
-    const pills = container.querySelectorAll('.inv-card .inv-pill.vst');
-    expect(pills.length).toBe(1);
+  it('o selo antigo de vestido não existe mais', () => {
+    montar();
+    expect(document.querySelectorAll('.inv-pill.vst').length).toBe(0);
   });
 
   it('o item solto na mochila não leva pill eq nem vst', async () => {
@@ -137,7 +140,7 @@ describe('itens equipados/vestidos aparecem na lista principal do inventário', 
     await waitFor(() => expect(screen.getByText('3 de 3')).toBeTruthy());
     // Card sem equipar/vestir: nenhum dos dois pills.
     const semPill = Array.from(container.querySelectorAll('.inv-grid-wrap .inv-card'))
-      .filter((el) => !el.querySelector('.inv-pill.eq') && !el.querySelector('.inv-pill.vst'));
+      .filter((el) => !el.querySelector('.inv-pill.eq'));
     expect(semPill.length).toBe(1);
   });
 });

@@ -3364,6 +3364,31 @@
 #root .menestrel-ui .cont-row-info .inv-card-qty { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: #9C8F73; }
 #root .menestrel-ui .inv-card-pills { position: absolute; top: 3px; left: 3px; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
 
+/* Chips de atributo no modal de detalhes: o NÚMERO passa a morar DENTRO do
+   quadrinho do ícone, pequeno, no canto inferior direito (pedido do usuário,
+   11/09/2026). Antes ficava ao lado, e cada chip ocupava o dobro da largura
+   por causa disso — com 6 atributos a linha quebrava. */
+#root .menestrel-ui .det-sec-ic-box { position: relative; }
+#root .menestrel-ui .det-sec-chip .det-sec-val {
+  position: absolute; right: -3px; bottom: -3px;
+  min-width: 13px; height: 13px; padding: 0 2px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #E8DDC6; background: #2A2114;
+  border: 1px solid rgba(106,85,48,0.75); border-radius: 4px;
+}
+
+/* Faísca do item mágico — marca de NATUREZA, não de estado: sem caixa, pra
+   não parecer mais um selo. Fica no canto oposto aos selos. */
+#root .menestrel-ui .inv-faisca {
+  position: absolute; top: 2px; right: 3px;
+  font-size: 10px; line-height: 1;
+  color: #C9A44E; text-shadow: 0 0 4px rgba(201,164,78,0.55);
+  pointer-events: none;
+}
+#root .menestrel-ui .inv-bag-grid--slots .inv-faisca { font-size: 9px; }
+
 /* Barra de RESISTÊNCIA (durabilidade da armadura) — mesmo molde da barra de
    capacidade dos containers (.inv-cont-bar): faixa fina colada no rodapé do
    card. Cor diferente pra não se confundir com capacidade: aço, não vermelho. */

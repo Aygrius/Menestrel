@@ -1796,15 +1796,23 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   const normTxt = (s) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
   const q = normTxt(busca);
 
-  // Itens filtrados pela busca + chip de grupo
+  // Itens filtrados pela busca + chip de grupo, com os EM USO na frente
+  // (pedido do usuário, 11/09/2026). Equipado e vestido contam igual — é a
+  // mesma distinção que o selo E faz.
+  //
+  // A ordenação é ESTÁVEL (sort só compara o par em-uso/solto): dentro de
+  // cada bloco a ordem manual que o jogador arrastou continua valendo, e é
+  // ela que commitReorder persiste.
   const itensFiltrados = useMemo(() => {
-    return itensVisiveis.filter((it) => {
+    const visiveis = itensVisiveis.filter((it) => {
       const cat = catalogoBySlug[it.slug];
       const g = cat?.grupo || (en ? 'Other' : 'Outros');
       if (grupoSel && g !== grupoSel) return false;
       if (q && !normTxt(cat?.nome || it.slug).includes(q)) return false;
       return true;
     });
+    const emUso = (it) => (it.slot || it.vestido) ? 0 : 1;
+    return visiveis.slice().sort((a, b) => emUso(a) - emUso(b));
   }, [itensVisiveis, catalogoBySlug, grupoSel, q, en]);
 
   // Mantém a ref sempre atualizada para o commitReorder ler sem closure stale.
@@ -1854,8 +1862,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         {/* Container vestido (ex.: cinto) também entra no grid — mesmo pill de "em uso". */}
         {(it.slot || it.vestido) && (
           <span className="inv-card-pills">
-            {it.slot && <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><i className="ti ti-letter-e" aria-hidden="true" /></span>}
-            {it.vestido && <span className="inv-pill vst" role="img" aria-label={en ? 'Worn' : 'Vestido'}><i className="ti ti-letter-v" aria-hidden="true" /></span>}
+            {(it.slot || it.vestido) && <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><i className="ti ti-letter-e" aria-hidden="true" /></span>}
           </span>
         )}
         <span className="inv-cont-bar">
@@ -1896,8 +1903,13 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
         </span>
         <span className="inv-card-pills">
+          {/* Mágico deixou de ser SELO e virou faísca solta: estado (em uso)
+              e natureza (mágico) não podem ter a mesma forma, senão o olho
+              tem que ler os dois pra saber qual é qual. */}
           {cat?.magico && (
-            <span className="inv-pill mag"><i className="ti ti-sparkle-highlight" aria-hidden="true" /></span>
+            <span className="inv-faisca" role="img" aria-label={en ? 'Magic' : 'Mágico'}>
+              <i className="ti ti-sparkles" aria-hidden="true" />
+            </span>
           )}
           {cat?.tipo === 'L' && (
             <span className="inv-pill liq"><i className="ti ti-droplet" aria-hidden="true" /></span>
@@ -1908,14 +1920,13 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           {/* Equipado (arma/armadura no slot) e vestido (roupa) agora aparecem
               no mesmo grid da bolsa — este pill é o que distingue de um item
               solto. Mesmos glifos do EquipadoBoard/VestesBoard (ti-shield/ti-shirt). */}
-          {/* Letra em vez de glifo (pedido do usuário, 11/09/2026): E de
-              equipado, V de vestido. Duas letras se distinguem entre si a
-              12px melhor que escudo x camisa, que viram duas manchas. */}
-          {it.slot && (
+          {/* Um selo só: E de "em uso", para equipado E para vestido
+              (pedido do usuário, 11/09/2026 — "visualmente não faz
+              diferença"). A distinção entre arma no slot e roupa vestida
+              continua existindo nos dados e no modal; no grid ela não
+              ajudava a decidir nada e gastava um segundo glifo. */}
+          {(it.slot || it.vestido) && (
             <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><i className="ti ti-letter-e" aria-hidden="true" /></span>
-          )}
-          {it.vestido && (
-            <span className="inv-pill vst" role="img" aria-label={en ? 'Worn' : 'Vestido'}><i className="ti ti-letter-v" aria-hidden="true" /></span>
           )}
         </span>
         {/* Barra de RESISTÊNCIA (durabilidade) — mesmo molde da barra de
