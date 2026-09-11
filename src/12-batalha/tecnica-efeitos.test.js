@@ -95,7 +95,7 @@ describe('aplicarEfeitoTecnica — gravação', () => {
 
   it('técnica sem entrada no mapa devolve o participante intacto', () => {
     const orig = lutador();
-    expect(M.aplicarEfeitoTecnica(orig, { key: 'golpe_duplo', nome: 'Golpe Duplo' }, 5)).toBe(orig);
+    expect(M.aplicarEfeitoTecnica(orig, { key: 'concentracao', nome: 'Concentração' }, 5)).toBe(orig);
   });
 });
 
@@ -510,7 +510,7 @@ describe('debitarCustoTecnica — ativação livre de modo "total"', () => {
   });
 
   it('técnica sem entrada no registro (Fase 2, narrativa) debita 1 PA — comportamento de antes', () => {
-    const p = M.debitarCustoTecnica(lutador({ pa_rest: 2 }), 'golpe_duplo');
+    const p = M.debitarCustoTecnica(lutador({ pa_rest: 2 }), 'concentracao');
     expect(p.pa_rest).toBe(1);
   });
 
@@ -538,7 +538,7 @@ describe('podeAtivarTecnicaLivre — teto de 1 ativação livre por rodada', () 
 
   it('técnica sem entrada no registro nunca disputa a cota', () => {
     const p = lutador({ tecnica_livre_usada: true });
-    expect(M.podeAtivarTecnicaLivre(p, { key: 'golpe_duplo' }).pode).toBe(true);
+    expect(M.podeAtivarTecnicaLivre(p, { key: 'concentracao' }).pode).toBe(true);
   });
 });
 
@@ -628,11 +628,11 @@ describe('textoEfeitoTecnica — complemento da Central de Mensagens', () => {
       .toBe(' — efeito não aplicado (teste falhou)');
   });
 
-  it('técnica SEM registro (Fase 2/narrativa, ex. Esquiva): efeito narrativo', () => {
-    expect(M.textoEfeitoTecnica('esquiva', null, 'Lysandra')).toBe(' — efeito narrativo, resolva na mesa');
+  it('técnica SEM registro (Fase 2/narrativa, ex. Concentração): efeito narrativo', () => {
+    expect(M.textoEfeitoTecnica('concentracao', null, 'Lysandra')).toBe(' — efeito narrativo, resolva na mesa');
     // Mesmo texto mesmo se por acaso viesse um efeito preenchido — sem registro,
     // não há como o efeito ter sido de fato aplicado pelo motor.
-    expect(M.textoEfeitoTecnica('ataque_oportuno', null, 'Lysandra'))
+    expect(M.textoEfeitoTecnica('luta_as_cegas', null, 'Lysandra'))
       .toBe(' — efeito narrativo, resolva na mesa');
   });
 
