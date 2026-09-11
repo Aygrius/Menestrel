@@ -152,6 +152,24 @@ function ChipIcon({ value, label, active, onClick, _icon }) {
   );
 }
 
+/* Quantas linhas cabem na altura visível — a CONTA, separada do hook pra
+   poder ser testada sem DOM.
+
+   O clamp em `top` é o conserto de um bug real (11/09/2026): `top` vem de
+   getBoundingClientRect(), ou seja, é relativo à VIEWPORT e fica NEGATIVO
+   quando a página está rolada. Sem clamp, `innerHeight - top` cresce junto
+   com a rolagem e a página passa a "caber" dezenas de linhas.
+
+   O sintoma era enganoso — aparecia ao CLICAR numa linha, não ao rolar —
+   porque a conta só é refeita quando algo re-renderiza. Rolar sozinho não
+   re-renderiza; expandir uma linha sim. Então a rolagem ficava represada e
+   o efeito estourava no clique seguinte, junto com a navegação indo pra
+   página 1 (totalPages cai pra 1 quando a página incha). */
+function linhasQueCabem(m) {
+  const alturaUtil = m.innerHeight - Math.max(0, m.top) - m.reserved - m.headH;
+  return Math.max(m.min, Math.floor(alturaUtil / m.rowH));
+}
+
 /* Quantas linhas cabem na altura visível (em vez de PAGE_SIZE fixo). */
 function useFitPageSize(wrapRef, opts) {
   const o = opts || {};
@@ -171,8 +189,7 @@ function useFitPageSize(wrapRef, opts) {
     const thead = w.querySelector('thead');
     const headH = thead ? thead.getBoundingClientRect().height : 40;
     const top = w.getBoundingClientRect().top;
-    const avail = window.innerHeight - top - reserved - headH;
-    return Math.max(min, Math.floor(avail / rowH));
+    return linhasQueCabem({ innerHeight: window.innerHeight, top, reserved, headH, rowH, min });
   };
   useEffect(() => { const n = calc(); if (n != null && n !== size) setSize(n); });
   useEffect(() => {
@@ -1028,4 +1045,5 @@ function ItensList({ ac, lang }) {
 Object.assign(window, {
   CriaturasList, MagiasList, HabilidadesList,
   TecnicasList, ItensList, useEhAdmin,
+  linhasQueCabem,
 });

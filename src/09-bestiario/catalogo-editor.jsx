@@ -139,6 +139,39 @@ function CatalogoCampo({ campo, label, valor, onChange, disabled, sobrescrito })
 // (String(true) !== 'Sim'), o campo aparece vazio, e o salvar grava `false`
 // em todo item mágico que o admin editar por outro motivo — 55 itens do
 // catálogo (medido no banco) seriam corrompidos na primeira edição.
+/* Chave a partir do nome — o admin não digita mais "chave"/"slug".
+
+   O formato sai dos dados, não de gosto: as 4 tabelas usam snake_case sem
+   acento ("Área de Paz" -> area_de_paz, "Aljava Reforçada" ->
+   aljava_reforcada). Preposição NÃO é removida: "Bainha para Adagas" vira
+   bainha_para_adagas.
+
+   Só vale na CRIAÇÃO. Renomear um registro existente não pode mexer na
+   chave: ela é a identidade, e inventário, ficha e batalha referenciam
+   itens por slug — derivar de novo num rename quebraria essas referências
+   em silêncio. Por isso salvar() só usa isto quando não há linha. */
+function slugDeNome(nome) {
+  return String(nome || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+/* Primeira chave livre a partir da base: base, base_2, base_3...
+   `usadas` são as chaves que já existem no banco começando por base — uma
+   consulta só, em vez de tentar inserir e tomar erro de unicidade. */
+function chaveLivre(base, usadas) {
+  if (!base) return '';
+  const set = usadas instanceof Set ? usadas : new Set(usadas || []);
+  if (!set.has(base)) return base;
+  for (let i = 2; i < 1000; i += 1) {
+    const tentativa = base + '_' + i;
+    if (!set.has(tentativa)) return tentativa;
+  }
+  return base + '_' + Date.now();
+}
+
 function linhaParaForm(linha, descritor) {
   if (!linha) return null;
   const out = { ...linha };
@@ -218,8 +251,10 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
       : form[campo.col]
   );
 
+  // O campo auto não entra na checagem: ele não é renderizado, e exigir o
+  // preenchimento de um input que não existe travaria o Salvar pra sempre.
   const obrigatoriosOk = descritor.campos
-    .filter((c) => c.obrigatorio)
+    .filter((c) => c.obrigatorio && !c.autoDeNome)
     .every((c) => {
       const v = form[c.col];
       return v !== undefined && v !== null && String(v).trim() !== '';
@@ -262,6 +297,20 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
 
     setSaving(true); setError(null);
     const idCol = descritor.chave || 'id';
+
+    // Chave derivada do nome, SÓ na criação (ver slugDeNome). No update ela
+    // sai do payload: é a identidade da linha e o .eq() abaixo depende dela.
+    const campoAuto = descritor.campos.find((c) => c.autoDeNome);
+    if (campoAuto && !linha) {
+      const base = slugDeNome(form.nome);
+      if (!base) { setSaving(false); setError(t.editorChaveVazia); return; }
+      const { data: existentes, error: errBusca } = await supabaseClient
+        .from(descritor.tabela).select(campoAuto.col).like(campoAuto.col, base + '%');
+      if (errBusca) { setSaving(false); setError(errBusca.message); return; }
+      payload[campoAuto.col] = chaveLivre(base, (existentes || []).map((r) => r[campoAuto.col]));
+    } else if (campoAuto) {
+      delete payload[campoAuto.col];
+    }
     const query = linha
       ? supabaseClient.from(descritor.tabela).update(payload).eq(idCol, linha[idCol]).select().single()
       : supabaseClient.from(descritor.tabela).insert(payload).select().single();
@@ -281,7 +330,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
       confirmLabel={saving ? t.editorSalvando : undefined}
       confirmDisabled={saving || !obrigatoriosOk}>
       <div className="catalogo-form-grid">
-        {camposEfetivos.map((campo) => (
+        {camposEfetivos.filter((campo) => !campo.autoDeNome).map((campo) => (
           <CatalogoCampo key={campo.col} campo={campo}
             label={t[campo.rotuloKey] || campo.col}
             valor={valorDoCampo(campo)}
@@ -296,4 +345,4 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
   );
 }
 
-Object.assign(window, { CatalogoEditor });
+Object.assign(window, { CatalogoEditor, slugDeNome, chaveLivre });

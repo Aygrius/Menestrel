@@ -161,6 +161,7 @@ const ADMIN_COPY = {
     editorNovo: 'Novo',
     editorEditar: 'Editar',
     editorSalvando: 'Salvando…',
+    editorChaveVazia: 'O nome não gera uma chave válida — use ao menos uma letra ou número.',
     sections: {
       historias:     { label: 'Histórias',    desc: 'Suas campanhas, arcos e sessões' },
       personagens_m: { label: 'Personagens',  desc: 'Aliados, antagonistas e figurantes' },
@@ -273,6 +274,7 @@ const ADMIN_COPY = {
     editorNovo: 'New',
     editorEditar: 'Edit',
     editorSalvando: 'Saving…',
+    editorChaveVazia: 'This name does not yield a valid key — use at least one letter or digit.',
     sections: {
       historias:     { label: 'Stories',     desc: 'Your campaigns, arcs and sessions' },
       personagens_m: { label: 'Characters',  desc: 'Allied NPCs, antagonists and extras' },

@@ -32,6 +32,9 @@ let ultimoInsert = null, ultimoUpdate = null, erroSimulado = null;
 // (fetchTabelaPaginada, ver catalogo-editor.jsx). Vazio por padrão: os
 // testes que não mexem com isso não devem disparar nenhuma linha extra.
 let itensArmasFixture = [];
+// Chaves que o .like() de pré-checagem de colisão devolve. Vazio por
+// padrão: sem colisão, a chave derivada do nome passa direto.
+let chavesExistentesFixture = [];
 
 beforeAll(async () => {
   // Dublê do supabaseClient ANTES de carregar o editor.
@@ -52,6 +55,9 @@ beforeAll(async () => {
           eq: () => builder,
           order: () => builder,
           range: async () => ({ data: tabela === 'itens' ? itensArmasFixture : [], error: null }),
+          // Pré-checagem de colisão da chave automática: o editor pergunta
+          // quais chaves já começam com a base antes de inserir.
+          like: async () => ({ data: chavesExistentesFixture, error: null }),
         };
         return builder;
       },
@@ -62,7 +68,10 @@ beforeAll(async () => {
   expect(CatalogoEditor).toBeDefined();
 });
 
-afterEach(() => { cleanup(); ultimoInsert = null; ultimoUpdate = null; erroSimulado = null; itensArmasFixture = []; });
+afterEach(() => {
+  cleanup(); ultimoInsert = null; ultimoUpdate = null; erroSimulado = null;
+  itensArmasFixture = []; chavesExistentesFixture = [];
+});
 
 const montar = (props = {}) => render(
   <div className="menestrel-ui">
@@ -77,9 +86,12 @@ describe('montagem a partir do descritor', () => {
   it('renderiza um campo por entrada do descritor', () => {
     montar();
     const d = window.descritorDe('tecnicas');
-    // Cada campo aparece: input, textarea ou SelectPill.
+    // Cada campo aparece: input, textarea ou SelectPill — MENOS o de chave,
+    // que desde 11/09/2026 é derivado do nome e não é mais renderizado.
+    const visiveis = d.campos.filter((c) => !c.autoDeNome);
+    expect(visiveis.length, 'o descritor precisa ter 1 campo automático').toBe(d.campos.length - 1);
     const controles = document.querySelectorAll('input, textarea, .select-pill-btn');
-    expect(controles.length).toBeGreaterThanOrEqual(d.campos.length);
+    expect(controles.length).toBeGreaterThanOrEqual(visiveis.length);
   });
 
   it('campo de opções oferece só os valores da lista', () => {
@@ -101,18 +113,53 @@ describe('montagem a partir do descritor', () => {
   });
 });
 
-describe('somenteNovo', () => {
-  it('a coluna-chave é editável ao CRIAR', () => {
+/* Era o bloco 'somenteNovo', que verificava que o input de chave nascia
+   editável ao criar e travado ao editar. O usuário pediu (11/09/2026) que o
+   input sumisse e a chave saísse do nome, então o comportamento antigo não
+   existe mais — mas a exigência por trás dele continua, e é ela que estes
+   testes guardam: a chave NUNCA muda depois de criada. */
+describe('chave automática', () => {
+  it('o input de chave não existe mais, nem ao criar', () => {
     montar({ linha: null });
-    const chave = document.querySelector('input[name="key"]');
-    expect(chave).toBeTruthy();
-    expect(chave.disabled).toBe(false);
+    expect(document.querySelector('input[name="key"]')).toBeNull();
   });
 
-  it('a coluna-chave fica travada ao EDITAR', () => {
+  it('nem ao editar', () => {
     montar({ linha: { key: 'mira', nome: 'Mira', custo: 2 } });
-    const chave = document.querySelector('input[name="key"]');
-    expect(chave.disabled).toBe(true);
+    expect(document.querySelector('input[name="key"]')).toBeNull();
+  });
+
+  it('criar deriva a chave do nome', async () => {
+    montar({ linha: null });
+    fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Golpe da Sombra' } });
+    fireEvent.change(document.querySelector('input[name="custo"]'), { target: { value: '2' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoInsert).not.toBeNull());
+    expect(ultimoInsert.payload.key).toBe('golpe_da_sombra');
+  });
+
+  it('chave já usada ganha sufixo em vez de estourar unicidade no banco', async () => {
+    chavesExistentesFixture = [{ key: 'mira' }];
+    montar({ linha: null });
+    fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Mira' } });
+    fireEvent.change(document.querySelector('input[name="custo"]'), { target: { value: '2' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoInsert).not.toBeNull());
+    expect(ultimoInsert.payload.key).toBe('mira_2');
+  });
+
+  // A regra que mais importa: renomear NÃO pode mexer na chave. Ela é a
+  // identidade da linha, e item é referenciado por slug em inventário, ficha
+  // e batalha — derivar de novo aqui quebraria tudo isso em silêncio.
+  it('EDITAR e renomear não manda a chave no payload', async () => {
+    montar({ linha: { key: 'mira', nome: 'Mira', custo: 2 } });
+    fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Mira Apurada' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.nome).toBe('Mira Apurada');
+    expect('key' in ultimoUpdate.payload, 'a chave não pode viajar no update').toBe(false);
+    expect(ultimoUpdate.eqCol).toBe('key');
+    expect(ultimoUpdate.eqVal, 'o .eq() continua mirando a chave ORIGINAL').toBe('mira');
   });
 });
 
@@ -125,7 +172,8 @@ describe('obrigatório', () => {
 
   it('salvar libera quando os obrigatórios estão preenchidos', () => {
     montar({ linha: null });
-    fireEvent.change(document.querySelector('input[name="key"]'), { target: { value: 'nova' } });
+    // Sem o input de chave: se ele ainda contasse como obrigatório, o botão
+    // ficaria travado pra sempre, porque não há como preenchê-lo.
     fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Nova' } });
     fireEvent.change(document.querySelector('input[name="custo"]'), { target: { value: '2' } });
     const salvar = screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent));
@@ -222,7 +270,6 @@ describe('dropdown de ataque (criaturas) — 30 nomes fechados + armas do catál
 describe('gravação', () => {
   it('criar chama insert na tabela do descritor', async () => {
     montar({ linha: null });
-    fireEvent.change(document.querySelector('input[name="key"]'), { target: { value: 'nova' } });
     fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Nova' } });
     fireEvent.change(document.querySelector('input[name="custo"]'), { target: { value: '2' } });
     fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
@@ -234,7 +281,6 @@ describe('gravação', () => {
   it('erro do banco aparece na tela, com o texto do Postgres', async () => {
     erroSimulado = { message: 'duplicate key value violates unique constraint' };
     montar({ linha: null });
-    fireEvent.change(document.querySelector('input[name="key"]'), { target: { value: 'mira' } });
     fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Mira' } });
     fireEvent.change(document.querySelector('input[name="custo"]'), { target: { value: '2' } });
     fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));

@@ -36,7 +36,7 @@ const CATALOGO_DESCRITORES = {
     rotuloKey: 'tabTecnicas',
     chave: 'key',
     campos: [
-      { col: 'key',   tipo: 'texto',  rotuloKey: 'campoChave', obrigatorio: true, somenteNovo: true },
+      { col: 'key',   tipo: 'texto',  rotuloKey: 'campoChave', obrigatorio: true, somenteNovo: true, autoDeNome: true },
       { col: 'nome',  tipo: 'texto',  rotuloKey: 'campoNome',  obrigatorio: true },
       { col: 'custo', tipo: 'numero', rotuloKey: 'campoCusto', obrigatorio: true, min: 1, max: 2 },
       { col: 'uso',   tipo: 'opcoes', rotuloKey: 'campoUso',   opcoes: ['Único', 'Intermitente', 'Livre'] },
@@ -54,7 +54,7 @@ const CATALOGO_DESCRITORES = {
     rotuloKey: 'tabHabilidades',
     chave: 'key',
     campos: [
-      { col: 'key',   tipo: 'texto',  rotuloKey: 'campoChave', obrigatorio: true, somenteNovo: true },
+      { col: 'key',   tipo: 'texto',  rotuloKey: 'campoChave', obrigatorio: true, somenteNovo: true, autoDeNome: true },
       { col: 'nome',  tipo: 'texto',  rotuloKey: 'campoNome',  obrigatorio: true },
       { col: 'grupo', tipo: 'opcoes', rotuloKey: 'campoGrupo', obrigatorio: true,
         opcoes: ['Conhecimento', 'Geral', 'Influência', 'Manobra', 'Profissional', 'Subterfúgio'] },
@@ -73,7 +73,7 @@ const CATALOGO_DESCRITORES = {
     rotuloKey: 'tabMagias',
     chave: 'key',
     campos: [
-      { col: 'key',      tipo: 'texto', rotuloKey: 'campoChave', obrigatorio: true, somenteNovo: true },
+      { col: 'key',      tipo: 'texto', rotuloKey: 'campoChave', obrigatorio: true, somenteNovo: true, autoDeNome: true },
       { col: 'nome',     tipo: 'texto', rotuloKey: 'campoNome',  obrigatorio: true },
       { col: 'tipo',     tipo: 'texto', rotuloKey: 'campoTipo' },
       { col: 'evocacao', tipo: 'texto', rotuloKey: 'campoEvocacao' },
@@ -151,7 +151,7 @@ const CATALOGO_DESCRITORES = {
     rotuloKey: 'tabItens',
     chave: 'slug',
     campos: [
-      { col: 'slug', tipo: 'texto', rotuloKey: 'campoSlug', obrigatorio: true, somenteNovo: true },
+      { col: 'slug', tipo: 'texto', rotuloKey: 'campoSlug', obrigatorio: true, somenteNovo: true, autoDeNome: true },
       { col: 'nome', tipo: 'texto', rotuloKey: 'campoNome', obrigatorio: true },
       { col: 'grupo', tipo: 'opcoes', rotuloKey: 'campoGrupo',
         opcoes: ['Animais', 'Armaduras', 'Armas', 'Consumíveis', 'Diario', 'Instrumentos', 'Itens',
