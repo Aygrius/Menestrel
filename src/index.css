@@ -1831,6 +1831,11 @@
 #root .menestrel-ui .best-meta-val { color: #C7B79A; word-break:break-word; overflow-wrap:anywhere; }
 #root .menestrel-ui .best-desc { font-size:13px; color: #C7B79A; line-height:1.55; margin:0; word-break:break-word; overflow-wrap:anywhere; }
 #root .menestrel-ui .best-efeito { font-size:13px; color: #8C7F63; line-height:1.55; margin:8px 0 0; font-style:italic; }
+/* Descrição virou VÁRIOS <p> (11/09/2026, ver paragrafosDe em bestiario.jsx).
+   O espaçamento entra só ENTRE irmãos: assim o primeiro parágrafo mantém a
+   margem que o bloco já tinha e nada se desloca em quem tem 1 parágrafo só. */
+#root .menestrel-ui .best-desc + .best-desc { margin-top:8px; }
+#root .menestrel-ui .best-efeito + .best-efeito { margin-top:6px; }
 #root .menestrel-ui .best-niveis { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
 #root .menestrel-ui .best-nivel { display:flex; gap:10px; align-items:flex-start; }
 #root .menestrel-ui .best-nivel-n { flex:0 0 auto; width:22px; height:22px; border-radius: 6px; background:rgba(201,164,78,0.16); color:#C9A44E; font-weight:700; font-size:12px; display:grid; place-items:center; }

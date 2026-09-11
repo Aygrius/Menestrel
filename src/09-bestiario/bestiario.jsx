@@ -152,6 +152,43 @@ function ChipIcon({ value, label, active, onClick, _icon }) {
   );
 }
 
+/* Quebra um texto do banco em parágrafos.
+
+   O campo `descricao` (e `efeito`) é digitado com quebras de linha, e até
+   11/09/2026 ia inteiro dentro de um <p> — HTML colapsa \n em espaço, então
+   tudo virava um bloco corrido. Pedido do usuário: "a descrição das magias,
+   itens, etc, devem respeitar a formatação do texto (parágrafos)".
+
+   A REGRA VEM DOS DADOS, não da convenção Markdown. Conferi o banco em
+   11/09/2026: 36 magias, 6 criaturas e 1 item têm quebra de linha na
+   descrição, e ZERO registros — em qualquer tabela — usam linha em branco.
+   Ou seja, quem escreveu esses textos separa parágrafo com um \n simples.
+   Tratar \n como <br> e exigir linha em branco pra parágrafo, que é o
+   costume do Markdown, deixaria os 43 registros existentes exatamente como
+   estão hoje: um bloco só, agora com quebras apertadas. Então aqui QUALQUER
+   quebra abre parágrafo novo, e sequências de quebras contam como uma.
+
+   Devolve array de strings, uma por parágrafo. Função pura de propósito —
+   a renderização é de quem chama. */
+function paragrafosDe(texto) {
+  return String(texto == null ? '' : texto)
+    .replace(/\r\n?/g, '\n')
+    .split(/\n+/)
+    .map((linha) => linha.trim())
+    .filter((linha) => linha !== '');
+}
+
+/* Texto do banco com os parágrafos preservados. Substitui o <p>{texto}</p>
+   cru que existia nas 5 listas. Sem texto, não renderiza nada — os call
+   sites já faziam `texto && <p>`, e manter isso aqui evita <p> vazio. */
+function TextoDoBanco({ texto, className, prefixo }) {
+  const paragrafos = paragrafosDe(texto);
+  if (!paragrafos.length) return null;
+  return paragrafos.map((p, i) => (
+    <p className={className} key={i}>{i === 0 && prefixo ? prefixo : null}{p}</p>
+  ));
+}
+
 /* Quantas linhas cabem na altura visível — a CONTA, separada do hook pra
    poder ser testada sem DOM.
 
@@ -424,7 +461,7 @@ function CriaturasList({ ac, lang }) {
                             ))}
                           </div>
                           {row.descricao
-                            ? <p className="best-desc">{row.descricao}</p>
+                            ? <TextoDoBanco texto={row.descricao} className="best-desc" />
                             : <p className="best-desc" style={{ opacity: 0.55 }}>{lang === 'en' ? 'No description yet.' : 'Sem descrição ainda.'}</p>}
                         </TableCell></TableRow>
                       )}
@@ -602,7 +639,7 @@ function MagiasList({ ac, lang }) {
                       {isOpen && (
                         <TableRow className="best-detail"><TableCell colSpan={6 + (ehAdmin ? 1 : 0)}>
                           {m.permissao && <div className="best-permissao">{m.permissao}</div>}
-                          {m.descricao && <p className="best-desc">{m.descricao}</p>}
+                          {m.descricao && <TextoDoBanco texto={m.descricao} className="best-desc" />}
                           <div className="best-niveis">
                             {[{ n: 1, t: m.nivel_1 }, { n: 3, t: m.nivel_3 }, { n: 5, t: m.nivel_5 }, { n: 7, t: m.nivel_7 }, { n: 9, t: m.nivel_9 }].filter((x) => x.t).map((x) => (
                               <div key={x.n} className="best-nivel"><span className="best-nivel-n">{x.n}</span><span className="best-nivel-t">{x.t}</span></div>
@@ -736,7 +773,7 @@ function HabilidadesList({ ac, lang }) {
                               <div className="best-meta"><span className="best-meta-lbl">{lang === 'en' ? 'Restriction' : 'Restrição'}</span><span className="best-meta-val">{h.restricao}</span></div>
                             </div>
                           )}
-                          {h.descricao && <p className="best-desc">{h.descricao}</p>}
+                          {h.descricao && <TextoDoBanco texto={h.descricao} className="best-desc" />}
                         </TableCell></TableRow>
                       )}
                     </React.Fragment>
@@ -853,8 +890,9 @@ function TecnicasList({ ac, lang }) {
                       {isOpen && (
                         <TableRow className="best-detail"><TableCell colSpan={5 + (ehAdmin ? 1 : 0)}>
                           {t.permissao && <div className="best-permissao">{t.permissao}</div>}
-                          {t.descricao && <p className="best-desc">{t.descricao}</p>}
-                          {t.efeito && <p className="best-efeito">{lang === 'en' ? 'Effect' : 'Efeito'}: {t.efeito}</p>}
+                          {t.descricao && <TextoDoBanco texto={t.descricao} className="best-desc" />}
+                          {t.efeito && <TextoDoBanco texto={t.efeito} className="best-efeito"
+                            prefixo={(lang === 'en' ? 'Effect' : 'Efeito') + ': '} />}
                         </TableCell></TableRow>
                       )}
                     </React.Fragment>
@@ -1015,7 +1053,7 @@ function ItensList({ ac, lang }) {
                               {it.forca_req != null && it.forca_req !== 0 && (<div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Strength' : 'Força'}</span><span className="best-stat-val">{it.forca_req > 0 ? `${it.forca_req}` : it.forca_req}</span></div>)}
                             </div>
                           )}
-                          {it.descricao && <p className="best-desc">{it.descricao}</p>}
+                          {it.descricao && <TextoDoBanco texto={it.descricao} className="best-desc" />}
                           {it.efeito && <p className="best-efeito">{it.efeito}</p>}
                         </TableCell></TableRow>
                       )}
@@ -1045,5 +1083,5 @@ function ItensList({ ac, lang }) {
 Object.assign(window, {
   CriaturasList, MagiasList, HabilidadesList,
   TecnicasList, ItensList, useEhAdmin,
-  linhasQueCabem,
+  linhasQueCabem, paragrafosDe, TextoDoBanco,
 });
