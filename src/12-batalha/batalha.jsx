@@ -923,6 +923,7 @@ async function montarSnapshots(parts, personagensPools) {
         status_temp: [],   // Fase 6: array de { id, nome, icone, rodadas_rest }
         tecnicas_usadas: [],   // Task 8: keys de técnicas Único já gastas nesta batalha
         tecnica_livre_usada: false,   // REGRA NOVA: ativação livre (0 PA) já usada nesta rodada
+        pa_ataque_extra: 0,   // Fase 2: contador de ataques extras (Golpe Duplo etc.) da rodada
       };
     }
     const c = criById[p.ref_id];
@@ -962,6 +963,7 @@ async function montarSnapshots(parts, personagensPools) {
       status_temp: [],
       tecnicas_usadas: [],   // Task 8: keys de técnicas Único já gastas nesta batalha
       tecnica_livre_usada: false,   // REGRA NOVA: ativação livre (0 PA) já usada nesta rodada
+      pa_ataque_extra: 0,   // Fase 2: contador de ataques extras (Golpe Duplo etc.) da rodada
     };
   });
 }
@@ -1661,6 +1663,12 @@ function somaEfeitosStatus(p, tipo) {
 function statusTemEfeito(p, tipo) {
   return !!(p && Array.isArray(p.status_temp) && p.status_temp.some((st) => st.efeito && st.efeito.tipo === tipo));
 }
+/* Bloqueios de turno da Fase 2. Separados de propósito: Inibir Ataque e
+   Intimidar tiram só o ATAQUE, Leitura de Batalha tira só as TÉCNICAS.
+   Nenhum dos dois é `sem_acoes` (que tira tudo e faz o turno passar sozinho
+   — esse é da Falha Crítica). */
+function podeAtacarAgora(p)      { return !statusTemEfeito(p, 'sem_atacar'); }
+function podeUsarTecnicaAgora(p) { return !statusTemEfeito(p, 'sem_tecnicas'); }
 /* Soma os mod_ataque válidos para a arma em uso.
    Por que não é só somaEfeitosStatus(p, 'mod_ataque'): a técnica pode estar
    restrita a grupos de arma (Mira só em PL/PM/PP, Pugilato só em CD), e a
@@ -1862,7 +1870,10 @@ function processarViradaDeRodada(p) {
               mov_rest: movimentoBase(vbEf), moveu_na_rodada: false,
               // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
               // modo 'total' é POR RODADA — mesmo padrão de moveu_na_rodada.
-              tecnica_livre_usada: false }
+              tecnica_livre_usada: false,
+              // Fase 2: o contador de ataque extra (Golpe Duplo/Contra-Ataque/
+              // Flechadas Múltiplas) também é POR RODADA — zera na virada.
+              pa_ataque_extra: 0 }
     : { ...p };
   let eventos = [], total = 0;
   if (p.status !== 'morto' && p.status !== 'desistiu') {
@@ -2135,6 +2146,18 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
   });
 
   let resultado = { ...participante, status_temp: [...semEsta, ...novos] };
+
+  // Ruling T6-A (Fase 2): ataque_extra ALÉM de entrar em status_temp (ícone
+  // na mesa) soma direto em pa_ataque_extra — é o contador que o ataque
+  // consome antes do pa_rest normal. Aditivo dentro da rodada (a leva
+  // anterior já foi removida acima, então isto não empilha reaplicação da
+  // MESMA técnica); processarViradaDeRodada zera o contador na virada.
+  const extraAtaque = novos
+    .filter((s) => s.efeito && s.efeito.tipo === 'ataque_extra')
+    .reduce((soma, s) => soma + (s.efeito.valor || 0), 0);
+  if (extraAtaque) {
+    resultado = { ...resultado, pa_ataque_extra: (participante.pa_ataque_extra || 0) + extraAtaque };
+  }
 
   // mod_eh_temp é o ÚNICO efeito que muda o snapshot em vez de ser lido
   // on-the-fly: EH é pool com teto, e o combate clampa em eh_max. Emprestar
@@ -2720,10 +2743,17 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     }
     // Debita PA (sempre 1) e karma (se for magia).
     const k = Math.max(0, custo_karma || 0);
+    // Fase 2 das técnicas: ataque extra (Golpe Duplo, Contra-Ataque,
+    // Flechadas Múltiplas) consome pa_ataque_extra em vez de pa_rest — só
+    // na aba Arma. Técnica, magia, habilidade e item continuam pagando
+    // pa_rest (ver aplicarTeste/aplicarEfeitoItem, que não tocam este bloco).
+    const usaAtaqueExtra = tipo === 'arma' && (next[atorIdx].pa_ataque_extra || 0) > 0;
     next[atorIdx] = {
       ...next[atorIdx],
-      pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1),
-      karma:   Math.max(0, (next[atorIdx].karma   || 0) - k),
+      ...(usaAtaqueExtra
+        ? { pa_ataque_extra: Math.max(0, (next[atorIdx].pa_ataque_extra || 0) - 1) }
+        : { pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1) }),
+      karma: Math.max(0, (next[atorIdx].karma || 0) - k),
     };
 
     // Falha Crítica (q=0): a consequência do segundo dado cai no PRÓPRIO
@@ -4986,7 +5016,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           enquanto há rolagem pendente, só Atacar/Usar/Resistir. */}
       <div className="acao-tabs">
         <button className={'acao-tab' + (tab === 'arma' ? ' on' : '')}
-          onClick={() => trocaTab('arma')} disabled={armas.length === 0 || temRolagemPendente}>
+          onClick={() => trocaTab('arma')} disabled={armas.length === 0 || temRolagemPendente || !podeAtacarAgora(ator)}>
           <i className="ti ti-sword" aria-hidden="true" />{tb.arma}
         </button>
         <button className={'acao-tab' + (tab === 'habilidade' ? ' on' : '')}
@@ -4994,7 +5024,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
           <i className="ti ti-list-check" aria-hidden="true" />{tb.habilidade}
         </button>
         <button className={'acao-tab' + (tab === 'tecnica_teste' ? ' on' : '')}
-          onClick={() => trocaTab('tecnica_teste')} disabled={semTecTeste || temRolagemPendente}>
+          onClick={() => trocaTab('tecnica_teste')} disabled={semTecTeste || temRolagemPendente || !podeUsarTecnicaAgora(ator)}>
           <i className="ti ti-bolt" aria-hidden="true" />{tb.tecnica}
         </button>
         <button className={'acao-tab' + (tab === 'resistencia' ? ' on' : '')}
@@ -5021,7 +5051,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         )}
       </div>
 
-      {(tab === 'arma' || tab === 'magia') && armas.length === 0 && !podeMagia ? (
+      {tab === 'arma' && !podeAtacarAgora(ator) ? (
+        <p className="atacar-aviso-vazio">
+          {tb.semAtacarBloqueado}
+        </p>
+      ) : (tab === 'arma' || tab === 'magia') && armas.length === 0 && !podeMagia ? (
         <p className="atacar-aviso-vazio">
           {tb.semAcoesDeCombate}
         </p>
@@ -5143,6 +5177,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         semTecTeste ? (
           <p className="atacar-aviso-vazio">
             {tb.esteLutadorNaoTem2}
+          </p>
+        ) : !podeUsarTecnicaAgora(ator) ? (
+          <p className="atacar-aviso-vazio">
+            {tb.semTecnicasBloqueado}
           </p>
         ) : (
           <>
@@ -5827,7 +5865,18 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       if (rAlvo.eventos.length) eventosVirada = [...eventosVirada, ...rAlvo.eventos];
     }
     const k = Math.max(0, custo_karma || 0);
-    next[atorIdx] = { ...next[atorIdx], pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1), karma: Math.max(0, (next[atorIdx].karma || 0) - k) };
+    // Fase 2 das técnicas: ataque extra (Golpe Duplo, Contra-Ataque,
+    // Flechadas Múltiplas) consome pa_ataque_extra em vez de pa_rest — só
+    // na aba Arma. Técnica, magia, habilidade e item continuam pagando
+    // pa_rest (ver aplicarTeste/aplicarEfeitoItem, que não tocam este bloco).
+    const usaAtaqueExtra = tipo === 'arma' && (next[atorIdx].pa_ataque_extra || 0) > 0;
+    next[atorIdx] = {
+      ...next[atorIdx],
+      ...(usaAtaqueExtra
+        ? { pa_ataque_extra: Math.max(0, (next[atorIdx].pa_ataque_extra || 0) - 1) }
+        : { pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1) }),
+      karma: Math.max(0, (next[atorIdx].karma || 0) - k),
+    };
     // Falha Crítica (q=0): consequência no PRÓPRIO atacante — espelha o Mestre (Fase 1.1).
     let danoSelf = 0;
     if (tipo_critico === 'self' && res_critico) {
@@ -6556,6 +6605,9 @@ Object.assign(window, {
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
     somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, consumirEvitaGolpe, vbEfetivo,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
+    // Task 6a (Fase 2): bloqueios de turno puros — sem_atacar tira só a aba
+    // Arma, sem_tecnicas tira só a aba Técnica. Nenhum dos dois é sem_acoes.
+    podeAtacarAgora, podeUsarTecnicaAgora,
     // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
     // e devolve o empréstimo quando o status sai na virada de rodada.
     expirarEhTemp,

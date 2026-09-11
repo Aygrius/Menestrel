@@ -169,3 +169,50 @@ describe('modsDoGolpe — quem fura o quê', () => {
     expect(M.modsDoGolpe(atacante, vazio('c')).ignoraArmadura).toBe(false);
   });
 });
+
+describe('bloqueios de turno', () => {
+  const com = (tipo) => ({ inst_id: 'a', status_temp: [{ id: 's', nome: 's', icone: '·', rodadas_rest: 1, efeito: { tipo, valor: true } }] });
+  const sem = () => ({ inst_id: 'a', status_temp: [] });
+
+  it('sem_atacar impede atacar, e só isso', () => {
+    expect(M.podeAtacarAgora(com('sem_atacar'))).toBe(false);
+    expect(M.podeUsarTecnicaAgora(com('sem_atacar'))).toBe(true);
+  });
+
+  it('sem_tecnicas impede técnica, e só isso', () => {
+    expect(M.podeUsarTecnicaAgora(com('sem_tecnicas'))).toBe(false);
+    expect(M.podeAtacarAgora(com('sem_tecnicas'))).toBe(true);
+  });
+
+  it('sem status, pode tudo', () => {
+    expect(M.podeAtacarAgora(sem())).toBe(true);
+    expect(M.podeUsarTecnicaAgora(sem())).toBe(true);
+  });
+});
+
+describe('pa_ataque_extra', () => {
+  const base = () => ({ inst_id: 'a', status: 'ativo', vb: 10, pa_max: 1, pa_rest: 1,
+    mov_rest: 5, moveu_na_rodada: true, tecnica_livre_usada: true, pa_ataque_extra: 2, status_temp: [] });
+
+  it('a virada de rodada zera o ataque extra, como zera o resto', () => {
+    const { participante } = M.processarViradaDeRodada(base());
+    expect(participante.pa_ataque_extra).toBe(0);
+    expect(participante.tecnica_livre_usada).toBe(false);
+    expect(participante.moveu_na_rodada).toBe(false);
+  });
+});
+
+describe('aplicarEfeitoTecnica escreve pa_ataque_extra', () => {
+  it('Golpe Duplo dá +1 ataque extra ao ator, além do status na mesa', () => {
+    const p = { inst_id: 'a', status: 'ativo', pa_ataque_extra: 0, status_temp: [] };
+    const r = M.aplicarEfeitoTecnica(p, { key: 'golpe_duplo', nome: 'Golpe Duplo' }, 0);
+    expect(r.pa_ataque_extra).toBe(1);
+    expect(r.status_temp.some((s) => s.efeito && s.efeito.tipo === 'ataque_extra')).toBe(true);
+  });
+
+  it('efeito que não é ataque_extra não mexe no contador', () => {
+    const p = { inst_id: 'a', status: 'ativo', pa_ataque_extra: 0, status_temp: [] };
+    const r = M.aplicarEfeitoTecnica(p, { key: 'brutalizar', nome: 'Brutalizar' }, 0);
+    expect(r.pa_ataque_extra || 0).toBe(0);
+  });
+});
