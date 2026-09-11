@@ -3373,12 +3373,14 @@
    `position: relative` no ícone não o ancorava em nada, e o absoluto subia
    até o modal — o número foi parar no canto inferior direito da janela. */
 #root .menestrel-ui .det-sec-chip { position: relative; display: inline-flex; }
-/* O chip de efeito é só o ícone e responde a hover/foco — precisa avisar
-   que há algo a ler ali, senão o tooltip vira segredo. */
-#root .menestrel-ui .det-sec-chip--efeito { cursor: help; }
-#root .menestrel-ui .det-sec-chip--efeito:hover .det-sec-ic-box,
+/* O chip de efeito é só o ícone e abre tooltip no hover. Sem cursor `help`
+   e sem contorno dourado (pedido do usuário, 11/09/2026) — o tooltip já é
+   o retorno, e a moldura competia com os selos de estado.
+
+   O realce de FOCO fica, discreto: sem ele quem navega por teclado não tem
+   como saber onde está. É outra coisa do hover. */
 #root .menestrel-ui .det-sec-chip--efeito:focus-visible .det-sec-ic-box {
-  outline: 1px solid rgba(201,164,78,0.65); outline-offset: 1px;
+  outline: 1px solid rgba(232,221,198,0.45); outline-offset: 1px;
 }
 #root .menestrel-ui .det-sec-chip .det-sec-val {
   position: absolute; right: -3px; bottom: -3px;

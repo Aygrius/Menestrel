@@ -1902,15 +1902,19 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         <span className="inv-card-head">
           <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
         </span>
+        {/* A faísca é IRMÃ de .inv-card-pills, não filha.
+
+            Estava dentro, e como .inv-card-pills é `position: absolute`, ela
+            virava o contexto de posicionamento: a faísca se ancorava no
+            container dos selos em vez do card, e caía por cima do E. Fora
+            dele, o `right: 3px` passa a valer contra o card, que é o canto
+            oposto onde ela deveria estar. */}
+        {cat?.magico && (
+          <span className="inv-faisca" role="img" aria-label={en ? 'Magic' : 'Mágico'}>
+            <i className="ti ti-sparkles" aria-hidden="true" />
+          </span>
+        )}
         <span className="inv-card-pills">
-          {/* Mágico deixou de ser SELO e virou faísca solta: estado (em uso)
-              e natureza (mágico) não podem ter a mesma forma, senão o olho
-              tem que ler os dois pra saber qual é qual. */}
-          {cat?.magico && (
-            <span className="inv-faisca" role="img" aria-label={en ? 'Magic' : 'Mágico'}>
-              <i className="ti ti-sparkles" aria-hidden="true" />
-            </span>
-          )}
           {cat?.tipo === 'L' && (
             <span className="inv-pill liq"><i className="ti ti-droplet" aria-hidden="true" /></span>
           )}
