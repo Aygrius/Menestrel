@@ -2145,13 +2145,27 @@ function tetoDeAlvos(atacante) {
    divergissem no primeiro conserto aplicado num lugar só.
 
    Ruling T6b-A: o alvo extra leva o MESMO golpe — mesmo d20, mesmo tier,
-   mesmo dano base. Golpe Giratório é UM giro que alcança até 3 inimigos,
-   não três ataques separados. O que continua sendo por alvo é o que é do
-   alvo: esquiva, armadura, EH e o que modsDoGolpe resolve contra ele. */
-function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, dano, critico) {
+   mesmo dano BRUTO. Golpe Giratório é UM giro que alcança até 3 inimigos,
+   não três ataques separados.
+
+   O que é DO ALVO continua sendo por alvo, e isso é mais do que a cascata.
+   A revisão final da Fase 2 mostrou que o custo declarado naquela ruling
+   estava subestimado: reusar o `dano` já finalizado contra o alvo
+   principal fazia os extras perderem também dano_recebido_pct (Aparar
+   −75%, Desviar −50%, Combate com Escudo −25%) e mod_dano_max
+   (Posicionamento) — nenhum dos dois mora na cascata. Na mesa: B ativa
+   Aparar, o inimigo gira em A e B, e B leva 20 em vez de 5. Pior ainda no
+   outro sentido: se só A tivesse Aparar, B ganharia o −75% de graça.
+
+   Por isso a função recebe o dano BRUTO e chama danoFinal contra CADA
+   alvo. Para o alvo principal o resultado é idêntico ao de antes — é a
+   mesma conta, com os mesmos dois participantes. */
+function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico) {
   if (!Array.isArray(arr) || alvoIdx < 0 || alvoIdx >= arr.length) return arr;
-  if (!(dano > 0)) return arr;
+  if (!(danoBruto > 0)) return arr;
   const next = [...arr];
+  const dano = danoFinal(danoBruto, next[atorIdx], next[alvoIdx]);
+  if (!(dano > 0)) return arr;
       const alvoAntes = next[alvoIdx];
       // Fase 2: além do crítico, o golpe pode furar EH e/ou AR por técnica
       // (ignora_eh, ignora_armadura) ou por condição do alvo (derrubado).
@@ -2232,6 +2246,15 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
       nome: tecnica.nome || key,
       icone: reg.icone,
       rodadas_rest: reg.rodadas,
+      // consome_em mora na ENTRADA do registro e precisa descer pro status:
+      // consumirEvitaGolpe procura `s.consome_em`, não `reg.consome_em`.
+      // Sem esta linha a Esquiva nascia inconsumível — o jogador passava num
+      // teste Muito Difícil, gastava a ativação livre da rodada, via o chip
+      // 🙅 na mesa e levava o golpe inteiro. Ficou assim da Task 5 até
+      // 11/09/2026 com a suíte verde, porque TODO teste de evita_golpe
+      // montava o status à mão, já com o campo. Ver o teste
+      // "o status que a PRODUÇÃO monta", que fecha esse buraco.
+      ...(reg.consome_em ? { consome_em: reg.consome_em } : {}),
       efeito,
     };
   });
@@ -2849,7 +2872,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     //            d20_critico?, res_critico?, tipo_critico?, tipo_critico_arma?, msg_critico? }
     const { tipo, arma, magia, tecnica, alvo, coluna, d20, resultado, dano, custo_karma,
             d20_critico, res_critico, tipo_critico, tipo_critico_arma, msg_critico,
-            alvos_extras } = payload;
+            alvos_extras, dano_bruto } = payload;
+    // aplicarGolpeEmAlvo finaliza o dano CONTRA CADA ALVO (ver F2 lá). O
+    // painel manda os dois: `dano` já finalizado contra o alvo principal,
+    // que é o número que vai pro log, e `dano_bruto`, que é o que o motor
+    // usa. Payload antigo (sem dano_bruto) cai de volta em `dano`.
+    const danoPraGolpe = (dano_bruto != null) ? dano_bruto : dano;
     const criticoBruto = !!(resultado && resultado.critico);
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     const atorIdx = participantes.findIndex((p) => p.atual);
@@ -2861,7 +2889,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     let next = [...participantes];
     // Atacar É uma ação: derruba a concentração de quem ataca.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
-    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, dano, critico);
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico);
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -2872,7 +2900,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       .forEach((instId) => {
         const exIdx = next.findIndex((p) => p.inst_id === instId);
         if (exIdx < 0 || exIdx === alvoIdx) return;
-        next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, dano, critico);
+        next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico);
       });
     // Debita PA (sempre 1) e karma (se for magia).
     const k = Math.max(0, custo_karma || 0);
@@ -5162,6 +5190,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         // Golpe Giratório: só os que ainda são opção válida. O motor
         // reaplica o teto — regra que só existe na UI não é regra.
         alvos_extras: alvosExtrasValidos,
+        // O motor finaliza o dano contra CADA alvo; `dano` acima é o já
+        // finalizado contra o principal, e serve pro log e pra tela.
+        dano_bruto: danoBruto,
         coluna: colunaClamped, d20: res.d20, resultado: res, dano,
         custo_karma: 0,
         // Segundo dado de crítico (presente só quando q=0 ou q=7).
@@ -6023,7 +6054,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (!ehMinhaVez || !meuParticipante) return;
     const { tipo, arma, magia, tecnica, alvo, coluna, d20, resultado, dano, custo_karma,
             d20_critico, res_critico, tipo_critico, tipo_critico_arma, msg_critico,
-            alvos_extras } = payload;
+            alvos_extras, dano_bruto } = payload;
+    // aplicarGolpeEmAlvo finaliza o dano CONTRA CADA ALVO (ver F2 lá). O
+    // painel manda os dois: `dano` já finalizado contra o alvo principal,
+    // que é o número que vai pro log, e `dano_bruto`, que é o que o motor
+    // usa. Payload antigo (sem dano_bruto) cai de volta em `dano`.
+    const danoPraGolpe = (dano_bruto != null) ? dano_bruto : dano;
     const criticoBruto = !!(resultado && resultado.critico);
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     const atorIdx = participantes.findIndex((p) => mesmoParticipante(p, meuParticipante));
@@ -6044,7 +6080,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     let eventosVirada = [];
     // Atacar quebra a concentração de quem ataca — espelha aplicarAcao.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
-    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, dano, critico);
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico);
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -6055,7 +6091,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       .forEach((instId) => {
         const exIdx = next.findIndex((p) => p.inst_id === instId);
         if (exIdx < 0 || exIdx === alvoIdx) return;
-        next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, dano, critico);
+        next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico);
       });
     if (dano > 0) {
       // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele.

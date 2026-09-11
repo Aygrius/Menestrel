@@ -568,3 +568,130 @@ describe('aplicarGolpeEmAlvo', () => {
     expect(r[1].ef, 'o dano chegou na EF').toBe(6);
   });
 });
+
+/* ============================================================
+   O que a revisão final da Fase 2 encontrou
+   ============================================================ */
+
+/* F1 (Critical) — a Esquiva estava MORTA em produção.
+
+   `consome_em` mora na entrada do registro; aplicarEfeitoTecnica montava o
+   status sem copiar o campo, e consumirEvitaGolpe procura por
+   `s.consome_em`. Na mesa: o jogador passava num teste Muito Difícil,
+   gastava a ativação livre da rodada, via o chip 🙅 — e levava o golpe
+   inteiro.
+
+   Passou da Task 5 até 11/09/2026 com a suíte verde porque TODOS os testes
+   de evita_golpe montavam o status À MÃO, já com o campo. Testar o
+   consumidor com uma fixture que o produtor nunca produziria é o buraco
+   exato: as duas metades estavam certas isoladamente e nunca se falavam.
+   Estes testes usam o que a PRODUÇÃO monta, de ponta a ponta. */
+describe('F1 — o status que a PRODUÇÃO monta é consumível', () => {
+  const alvo = () => ({
+    inst_id: 'a', status: 'ativo', eh: 10, eh_max: 10,
+    ar: 0, ar_max: 0, ef: 20, ef_max: 20, status_temp: [],
+  });
+
+  it('aplicarEfeitoTecnica copia consome_em do registro pro status', () => {
+    const r = M.aplicarEfeitoTecnica(alvo(), { key: 'esquiva', nome: 'Esquiva' }, 0);
+    expect(r.status_temp[0].consome_em).toBe('golpe_recebido');
+  });
+
+  it('e o status que ela monta É consumido por consumirEvitaGolpe', () => {
+    const r = M.aplicarEfeitoTecnica(alvo(), { key: 'esquiva', nome: 'Esquiva' }, 0);
+    expect(M.consumirEvitaGolpe(r).evitou, 'o elo que faltava').toBe(true);
+  });
+
+  it('ponta a ponta: ativou Esquiva pela produção, o golpe não entra', () => {
+    const esquivando = M.aplicarEfeitoTecnica(alvo(), { key: 'esquiva', nome: 'Esquiva' }, 0);
+    const arr = [{ ...alvo(), inst_id: 'atacante' }, esquivando];
+    const r = M.aplicarGolpeEmAlvo(arr, 0, 1, 6, false);
+    expect(r[1].eh, 'esquivou: EH intacta').toBe(10);
+    expect(r[1].status_temp, 'e a esquiva foi gasta').toHaveLength(0);
+  });
+
+  it('técnica SEM consome_em não ganha o campo à toa', () => {
+    const r = M.aplicarEfeitoTecnica(alvo(), { key: 'brutalizar', nome: 'Brutalizar' }, 0);
+    expect('consome_em' in r.status_temp[0]).toBe(false);
+  });
+
+  // Guarda geral: qualquer entrada do registro que declare consome_em tem
+  // de chegar no status. Hoje só a Esquiva declara; a próxima entra coberta.
+  it('vale para TODA entrada do registro que declare consome_em', () => {
+    for (const [key, reg] of Object.entries(window.TECNICA_EFEITO_MAP)) {
+      if (!reg.consome_em) continue;
+      const r = M.aplicarEfeitoTecnica(alvo(), { key, nome: key }, 0);
+      expect(r.status_temp[0].consome_em, key).toBe(reg.consome_em);
+    }
+  });
+});
+
+/* F2 (Critical) — o alvo extra do Golpe Giratório perdia a PRÓPRIA redução.
+
+   O dano vinha finalizado contra o alvo PRINCIPAL e era reusado tal e qual
+   nos extras, então eles perdiam dano_recebido_pct (Aparar −75%, Desviar
+   −50%, Combate com Escudo −25%) e mod_dano_max — nenhum dos dois mora na
+   cascata, que era o que a Ruling T6b-A tinha assumido cobrir.
+
+   O custo declarado na ruling estava subestimado, e o pior é que a fase
+   fazia as PRÓPRIAS técnicas defensivas não funcionarem contra o próprio
+   giro dela. aplicarGolpeEmAlvo passou a receber o dano BRUTO e chamar
+   danoFinal contra cada alvo. */
+describe('F2 — cada alvo aplica a própria redução de dano', () => {
+  const lutador = (inst_id, extra) => ({
+    tipo: 'pj', ref_id: inst_id, inst_id, nome: inst_id, ordem: 1,
+    status: 'ativo', atual: false, vb: 20, pa_max: 2, pa_rest: 2,
+    ef: 100, ef_max: 100, eh: 0, eh_max: 0, ar: 0, ar_max: 0,
+    karma: 0, karma_max: 0, status_temp: [], ...extra,
+  });
+  const comReducao = (inst_id, pct) => lutador(inst_id, { status_temp: [{
+    id: 'tec_aparar', nome: 'Aparar', icone: '🛡️', rodadas_rest: 1,
+    efeito: { tipo: 'dano_recebido_pct', valor: pct },
+  }] });
+
+  it('quem aparou leva menos, mesmo sendo alvo EXTRA', () => {
+    // A é o principal e não aparou; B é extra e aparou 75%.
+    const arr = [lutador('atacante'), lutador('A'), comReducao('B', -75)];
+    let r = M.aplicarGolpeEmAlvo(arr, 0, 1, 20, false);
+    r = M.aplicarGolpeEmAlvo(r, 0, 2, 20, false);
+    expect(r[1].ef, 'A levou os 20').toBe(80);
+    expect(r[2].ef, 'B levou 5, não 20').toBe(95);
+  });
+
+  it('e o contrário: a redução de um NÃO protege o outro', () => {
+    const arr = [lutador('atacante'), comReducao('A', -75), lutador('B')];
+    let r = M.aplicarGolpeEmAlvo(arr, 0, 1, 20, false);
+    r = M.aplicarGolpeEmAlvo(r, 0, 2, 20, false);
+    expect(r[1].ef, 'A aparou').toBe(95);
+    expect(r[2].ef, 'B não aparou e leva cheio').toBe(80);
+  });
+
+  it('o bônus de dano do ATACANTE vale em todos os alvos', () => {
+    const atacante = lutador('atacante', { status_temp: [{
+      id: 'tec_brutalizar', nome: 'Brutalizar', icone: '💢', rodadas_rest: 1,
+      efeito: { tipo: 'dano_pct', valor: 50 },
+    }] });
+    const arr = [atacante, lutador('A'), lutador('B')];
+    let r = M.aplicarGolpeEmAlvo(arr, 0, 1, 20, false);
+    r = M.aplicarGolpeEmAlvo(r, 0, 2, 20, false);
+    expect(r[1].ef).toBe(70);
+    expect(r[2].ef, 'o mesmo giro, o mesmo +50%').toBe(70);
+  });
+
+  it('mod_dano_max do alvo também entra por alvo', () => {
+    const arr = [lutador('atacante'), lutador('A'), lutador('B', { status_temp: [{
+      id: 'tec_posicionamento', nome: 'Posicionamento', icone: '🎯', rodadas_rest: 1,
+      efeito: { tipo: 'mod_dano_max', valor: -8 },
+    }] })];
+    let r = M.aplicarGolpeEmAlvo(arr, 0, 1, 20, false);
+    r = M.aplicarGolpeEmAlvo(r, 0, 2, 20, false);
+    expect(r[1].ef).toBe(80);
+    expect(r[2].ef, 'B tirou 8 do dano máximo').toBe(88);
+  });
+
+  it('a redução não vira cura nem dano negativo', () => {
+    const arr = [lutador('atacante'), comReducao('A', -200)];
+    const r = M.aplicarGolpeEmAlvo(arr, 0, 1, 20, false);
+    expect(r[1].ef).toBe(100);
+  });
+});
