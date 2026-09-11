@@ -187,10 +187,22 @@ describe('editor de pool — modal, não faixa inline', () => {
     expect(aberturaDoEditor()).toMatch(/\bfechar\(\)/);
   });
 
+  /* A busca precisa aceitar \r\n além de \n.
+
+     Este teste procurava a string com um '\n' literal embutido. O arquivo
+     batalha.jsx está com CRLF no repositório (o git converte no checkout —
+     é o que os avisos "LF will be replaced by CRLF" anunciam), então o
+     indexOf devolvia -1 e o teste quebrava com a mensagem enganosa "a barra
+     editável precisa ter onClick próprio", como se o código estivesse
+     errado. Passava só em working trees onde o arquivo tinha ficado com LF.
+
+     Descoberto em 11/09/2026 ao rodar a suíte na main recém-mesclada: o
+     mesmo commit passava no branch e falhava na main, porque o checkout
+     rematerializou o arquivo com CRLF. */
   it('o clique fecha o tooltip, senão ele fica órfão sobre o modal', () => {
-    const i = fonte.indexOf('className={classe}\n          onClick=');
-    expect(i, 'a barra editável precisa ter onClick próprio').toBeGreaterThan(-1);
-    expect(fonte.slice(i, i + 200)).toMatch(/fecharTip\(\)/);
+    const m = fonte.match(/className=\{classe\}\r?\n\s*onClick=/);
+    expect(m, 'a barra editável precisa ter onClick próprio').not.toBeNull();
+    expect(fonte.slice(m.index, m.index + 200)).toMatch(/fecharTip\(\)/);
   });
 });
 
