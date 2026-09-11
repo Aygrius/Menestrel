@@ -591,3 +591,83 @@ describe('iconePA — sempre devolve um ícone que existe', () => {
     expect(M().iconePA(2.7)).toBe('ti-hexagon-number-2');
   });
 });
+
+/* ============================================================
+   Desgaste POR PEÇA — decisão do usuário (11/09/2026)
+   ============================================================
+   Quando um golpe fura o limiar, quem perde 1 de resistência é a peça com
+   MAIS resistência restante: a mais inteira aguenta o tranco. O conjunto
+   se gasta equilibrado e nenhuma peça quebra muito antes das outras.
+   ============================================================ */
+describe('desgastarArmadura', () => {
+  const pc = (slug, res, max) => ({ instanceId: slug + '#1', slug, res, res_max: max ?? res });
+
+  it('a peça mais inteira paga', () => {
+    const r = M.desgastarArmadura([pc('elmo', 2), pc('peito', 6), pc('bota', 4)]);
+    expect(r.map((x) => x.res)).toEqual([2, 5, 4]);
+  });
+
+  it('empate vai para a primeira — ordem estável entre golpes', () => {
+    const r = M.desgastarArmadura([pc('a', 3), pc('b', 3)]);
+    expect(r.map((x) => x.res)).toEqual([2, 3]);
+  });
+
+  it('golpe após golpe, o conjunto desce em degraus', () => {
+    let p = [pc('elmo', 2), pc('peito', 3)];
+    p = M.desgastarArmadura(p);   // peito 3 -> 2
+    p = M.desgastarArmadura(p);   // empate 2/2, primeira: elmo -> 1
+    p = M.desgastarArmadura(p);   // peito 2 -> 1
+    expect(p.map((x) => x.res)).toEqual([1, 1]);
+  });
+
+  it('não deixa peça negativa nem escolhe peça zerada', () => {
+    const r = M.desgastarArmadura([pc('quebrada', 0, 4), pc('inteira', 1, 4)]);
+    expect(r.map((x) => x.res)).toEqual([0, 0]);
+    expect(M.desgastarArmadura(r).map((x) => x.res), 'todas em 0: nada muda').toEqual([0, 0]);
+  });
+
+  it('entrada vazia ou inválida não explode', () => {
+    expect(M.desgastarArmadura([])).toEqual([]);
+    expect(M.desgastarArmadura(null)).toBeNull();
+  });
+});
+
+describe('a cascata desconta na peça certa', () => {
+  const alvoComPecas = (pecas) => ({
+    eh: 0, eh_max: 0, ar: 5, ar_max: 5, ef: 20, ef_max: 20, status: 'ativo',
+    res: pecas.reduce((s, p) => s + p.res, 0),
+    armadura_pecas: pecas,
+  });
+
+  it('golpe que fura tira 1 da peça mais inteira, e a EF fica intacta', () => {
+    const r = M.aplicarDanoCascata(9, alvoComPecas([
+      { slug: 'elmo', res: 2, res_max: 4 }, { slug: 'peito', res: 6, res_max: 6 },
+    ]));
+    expect(r.armadura_pecas.map((p) => p.res)).toEqual([2, 5]);
+    expect(r.res, 'o total acompanha as peças').toBe(7);
+    expect(r.ef).toBe(20);
+  });
+
+  it('golpe ATÉ o limiar não desgasta peça nenhuma', () => {
+    const r = M.aplicarDanoCascata(5, alvoComPecas([{ slug: 'elmo', res: 3, res_max: 3 }]));
+    expect(r.armadura_pecas[0].res).toBe(3);
+    expect(r.res).toBe(3);
+  });
+
+  it('com TODAS as peças em 0 o dano passa inteiro', () => {
+    const r = M.aplicarDanoCascata(9, alvoComPecas([
+      { slug: 'elmo', res: 0, res_max: 4 }, { slug: 'peito', res: 0, res_max: 6 },
+    ]));
+    expect(r.ef).toBe(11);
+  });
+
+  // Criatura não tem inventário, logo não tem peças: cai no escalar.
+  it('sem lista de peças (criatura), desconta o escalar', () => {
+    const r = M.aplicarDanoCascata(9, {
+      eh: 0, eh_max: 0, ar: 5, ef: 20, res: 4, status: 'ativo',
+    });
+    expect(r.res).toBe(3);
+    expect(r.ef).toBe(20);
+    expect(r.armadura_pecas, 'e não inventa a lista').toBeUndefined();
+  });
+});

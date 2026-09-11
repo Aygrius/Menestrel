@@ -209,6 +209,28 @@ function calcResistenciaArmadura(p, catalogoBySlug) {
   }, 0);
 }
 
+/* As peças de armadura no corpo, cada uma com sua durabilidade.
+
+   A durabilidade ATUAL mora na instância do item (`it.res`); o máximo vem
+   do catálogo (`itens.resistencia`). Item que nunca apanhou não tem `res`
+   gravado e entra cheio.
+
+   Existe porque o desgaste é POR PEÇA: quando um golpe fura o limiar, quem
+   perde o ponto é a peça com mais resistência restante (decisão do usuário,
+   11/09/2026). Sem a lista, o motor só saberia o total e não teria em quem
+   descontar. */
+function pecasDeArmadura(p, catalogoBySlug) {
+  if (!catalogoBySlug || !p?.inventario?.itens) return [];
+  return p.inventario.itens.reduce((out, it) => {
+    if (!pecaNoCorpo(it)) return out;
+    const max = Number(catalogoBySlug[it.slug]?.resistencia || 0);
+    if (max <= 0) return out;                      // peça sem durabilidade não entra
+    const atual = Number.isFinite(Number(it.res)) ? Math.max(0, Math.min(max, Number(it.res))) : max;
+    out.push({ instanceId: it.instanceId, slug: it.slug, res: atual, res_max: max });
+    return out;
+  }, []);
+}
+
 /* Resistência de CRIATURA — derivada, porque a tabela `criaturas` não tem
    a coluna (só `absorcao`).
 
@@ -449,6 +471,7 @@ Object.assign(window, {
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,
   podeMoverParaContainer, pecaNoCorpo, calcArmadura, AJUSTE_KEY, gerarAtaques,
   calcResistenciaArmadura, resistenciaDeCriatura, FATOR_RESISTENCIA_CRIATURA,
+  pecasDeArmadura,
   EFEITO_CONDICAO_MAP, parseEfeito, efeitosDoItem, aplicarDeltaCondicao,
   aplicarEfeitosItem,
 });

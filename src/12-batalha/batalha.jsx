@@ -776,12 +776,37 @@ function pontosAcaoPJ(pj) {
    chamadores antigos não mudam de comportamento, e motor-batalha.test.js
    prova isso sem alterar uma expectativa. */
 const EF_MORTE = -15;
+/* Onde cai o desgaste quando um golpe fura o limiar.
+
+   Decisão do usuário (11/09/2026): na peça com MAIS resistência restante —
+   a mais inteira aguenta o tranco. O conjunto se gasta de forma equilibrada
+   e nenhuma peça quebra muito antes das outras, o que também deixa as
+   barrinhas do inventário legíveis (descem juntas, em degraus).
+
+   Empate resolve pela primeira da lista; a ordem das peças é a do
+   inventário, estável entre golpes. */
+function desgastarArmadura(pecas) {
+  if (!Array.isArray(pecas) || pecas.length === 0) return pecas;
+  let alvo = -1, maior = 0;
+  pecas.forEach((pc, i) => {
+    const r = Math.max(0, Number(pc && pc.res) || 0);
+    if (r > maior) { maior = r; alvo = i; }
+  });
+  if (alvo < 0) return pecas;   // todas já em 0
+  return pecas.map((pc, i) => (i === alvo ? { ...pc, res: Math.max(0, (Number(pc.res) || 0) - 1) } : pc));
+}
+const somaRes = (pecas) => (Array.isArray(pecas) ? pecas : [])
+  .reduce((s, pc) => s + Math.max(0, Number(pc && pc.res) || 0), 0);
+
 function aplicarDanoCascata(dano, p, mods) {
   const m = (mods && typeof mods === 'object') ? mods : { critico: !!mods };
   const pulaEh = !!(m.critico || m.ignoraEh);
   let r = Math.max(0, Math.floor(dano || 0));
   let eh = p.eh, ar = p.ar, ef = p.ef;
   let res = Number.isFinite(p.res) ? p.res : 0;
+  // Criatura não tem peças (a tabela não tem inventário): cai no ramo do
+  // escalar logo abaixo. PJ tem, e aí o desconto é por peça.
+  let pecas = Array.isArray(p.armadura_pecas) ? p.armadura_pecas : null;
   if (!pulaEh && eh > 0)          { const c = Math.min(eh, r); eh -= c; r -= c; }
   /* ── A ARMADURA É UM LIMIAR, NÃO UMA POÇA (regra do usuário, 11/09/2026)
 
@@ -799,7 +824,10 @@ function aplicarDanoCascata(dano, p, mods) {
      `ar` não é mais decrementado: o limiar é constante enquanto a armadura
      existir. Quem gasta é `res`. */
   if (r > 0 && !m.ignoraArmadura && ar > 0 && res > 0) {
-    if (r > ar) res -= 1;   // furou o limiar: desgasta 1 de resistência
+    if (r > ar) {           // furou o limiar: desgasta 1 de resistência
+      if (pecas && pecas.length) { pecas = desgastarArmadura(pecas); res = somaRes(pecas); }
+      else res -= 1;
+    }
     r = 0;                  // em ambos os casos a armadura segurou o golpe
   }
   if (r > 0 && ef > EF_MORTE) { const c = Math.min(ef - EF_MORTE, r); ef -= c; r -= c; }
@@ -809,7 +837,8 @@ function aplicarDanoCascata(dano, p, mods) {
   // alvo vira saco de pancada imortal.
   if (ef <= EF_MORTE && status !== 'morto') status = 'morto';
   else if ((ef <= 0 || (eh === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
-  return { ...p, eh, ar, ef, res, status, sobra: r };
+  return { ...p, eh, ar, ef, res, status, sobra: r,
+    ...(pecas ? { armadura_pecas: pecas } : {}) };
 }
 
 /* ── Chaves das 8 condições (Reputação, Sono, Sanidade, Saúde, Hidratação,
@@ -894,11 +923,10 @@ async function montarSnapshots(parts, personagensPools) {
          Persiste em estado_atual.vitalidade igual às outras pools: armadura
          amassada continua amassada na próxima batalha. Conserto é assunto
          separado — hoje só volta ao cheio quem trocar a peça. */
-      const resMax = (typeof calcResistenciaArmadura === 'function')
-        ? calcResistenciaArmadura(pj, catalogoBySlug) : 0;
-      const resCur = (vitEstado && Number.isFinite(vitEstado.res))
-        ? Math.max(0, Math.min(resMax, vitEstado.res))
-        : resMax;
+      const pecasArm = (typeof pecasDeArmadura === 'function')
+        ? pecasDeArmadura(pj, catalogoBySlug) : [];
+      const resMax = pecasArm.reduce((s, pc) => s + pc.res_max, 0);
+      const resCur = pecasArm.reduce((s, pc) => s + pc.res, 0);
       // EF aceita NEGATIVO (piso EF_MORTE): morto encerrado persiste ef −15;
       // caído-vivo pode persistir entre −14 e 0. ⚠️ Dados LEGADOS: batalhas
       // encerradas antes desta regra gravavam morto como ef 0 — esses PJs
@@ -943,7 +971,7 @@ async function montarSnapshots(parts, personagensPools) {
         vb: d.velocidade || 0, pa_max: pa, pa_rest: pa,
         eh: ehCur, eh_max: ehMax,
         ar: arCur, ar_max: arMax,
-        res: resCur, res_max: resMax,
+        res: resCur, res_max: resMax, armadura_pecas: pecasArm,
         ef: efCur, ef_max: efMax,
         karma: kCur, karma_max: kMax,
         condicoes,
@@ -7021,6 +7049,7 @@ Object.assign(window, {
     // Ruling T6-C (Fase 2): "sobrou ação" != "sobrou PA" — pa_ataque_extra
     // segura o fim de turno mesmo com pa_rest 0.
     temAcaoRestante,
+    desgastarArmadura,
     criticoPermitido,
     efeitoAncoraNoAtacante,
     tetoDeAlvos,

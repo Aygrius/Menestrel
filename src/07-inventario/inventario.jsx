@@ -1866,6 +1866,10 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   };
 
   const renderItemCard = (it, cat, idx) => {
+    const resMax = Number(cat?.resistencia || 0);
+    const resAtual = Number.isFinite(Number(it.res))
+      ? Math.max(0, Math.min(resMax, Number(it.res))) : resMax;
+    const resPct = resMax > 0 ? Math.round((resAtual / resMax) * 100) : 0;
     const isBeingDragged = drag && drag.fromIdx === idx;
     const isDropTarget = overIdx === idx && drag && drag.fromIdx !== idx;
     const isHolding = holdingId === it.instanceId && !isBeingDragged;
@@ -1914,6 +1918,23 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
             <span className="inv-pill vst" role="img" aria-label={en ? 'Worn' : 'Vestido'}><i className="ti ti-letter-v" aria-hidden="true" /></span>
           )}
         </span>
+        {/* Barra de RESISTÊNCIA (durabilidade) — mesmo molde da barra de
+            capacidade dos containers, colada no rodapé do card.
+
+            Só aparece em item que TEM resistência no catálogo (armas e
+            armaduras); o resto do inventário não se desgasta. O atual vem da
+            instância (`it.res`); item que nunca apanhou entra cheio.
+
+            A cor avisa antes de acabar: aço > 50%, ouro até 50%, vermelho
+            até 25%. Armadura zerada para de bloquear (ver aplicarDanoCascata),
+            e isso é grande demais pra descobrir só na hora do golpe. */}
+        {resMax > 0 && (
+          <span className="inv-res-bar" data-baixa={resPct <= 25 ? 2 : (resPct <= 50 ? 1 : 0)}
+            role="img"
+            aria-label={`${en ? 'Durability' : 'Resistência'}: ${resAtual}/${resMax}`}>
+            <span style={{ width: resPct + '%' }} />
+          </span>
+        )}
       </button>
     );
   };

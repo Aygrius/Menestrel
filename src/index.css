@@ -3364,6 +3364,22 @@
 #root .menestrel-ui .cont-row-info .inv-card-qty { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: #9C8F73; }
 #root .menestrel-ui .inv-card-pills { position: absolute; top: 3px; left: 3px; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
 
+/* Barra de RESISTÊNCIA (durabilidade da armadura) — mesmo molde da barra de
+   capacidade dos containers (.inv-cont-bar): faixa fina colada no rodapé do
+   card. Cor diferente pra não se confundir com capacidade: aço, não vermelho. */
+#root .menestrel-ui .inv-res-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: rgb(38,34,27); border-radius: 999px;
+}
+#root .menestrel-ui .inv-res-bar > span {
+  display: block; height: 100%; border-radius: 999px;
+  background: #8FA3B0;
+}
+#root .menestrel-ui .inv-res-bar[data-baixa="1"] > span { background: #C9A44E; }
+#root .menestrel-ui .inv-res-bar[data-baixa="2"] > span { background: #d84747; }
+#root .menestrel-ui .inv-card:has(.inv-res-bar) { padding-bottom: 9px; }
+#root .menestrel-ui .inv-bag-grid--slots .inv-res-bar { height: 2px; }
+
 /* Rodapé do card de personagem — só existe no perfil Jogador, onde o card
    tem a ação "Selecionar personagem" (ver PersonagemCard). */
 #root .menestrel-ui .pj-card-foot {
