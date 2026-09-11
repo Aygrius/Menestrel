@@ -229,3 +229,38 @@ describe('temAcaoRestante — o ataque extra segura o turno', () => {
     expect(M.temAcaoRestante({ pa_rest: 0 })).toBe(false);
   });
 });
+
+/* Guarda de invariante, não teste de comportamento — e declarado como tal.
+   O botão "Ação" do token do Mestre vive dentro da view grande, que não é
+   exportada e não dá para montar isolada. Ele era a ÚLTIMA porta ainda
+   decidindo fim de turno por PA cru: quem bancava um ataque extra chegava
+   com pa_rest 0, temAcaoRestante segurava a vez corretamente, e o botão
+   aparecia apagado — o Mestre só podia passar a vez e perder o golpe.
+   Este teste não prova que a UI funciona; prova que ninguém reintroduziu a
+   checagem crua de PA numa decisão de "pode agir". */
+describe('nenhuma porta de ação decide por PA cru', () => {
+  let fonte;
+  beforeAll(async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    fonte = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'batalha.jsx'), 'utf8');
+  });
+
+  // Comentários citam a regra antiga de propósito (é assim que se explica o
+  // que mudou); só o código vivo é que não pode voltar a usá-la. Tira os
+  // DOIS formatos: /* ... */, cujas linhas de continuação não têm marcador
+  // nenhum (foi o que me escapou na primeira versão deste teste), e // até
+  // o fim da linha.
+  const codigoVivo = () => fonte
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  it('nenhum código vivo compara pa_rest com zero', () => {
+    expect(codigoVivo()).not.toMatch(/pa_rest\s*(===|==|<=|<)\s*0\b/);
+  });
+
+  it('o botão Ação do token usa temAcaoRestante', () => {
+    expect(fonte).toMatch(/disabled=\{salvando \|\| !catalogos \|\| !temAcaoRestante\(p\)/);
+  });
+});

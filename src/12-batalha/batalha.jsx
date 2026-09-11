@@ -2156,9 +2156,14 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
 
   // Ruling T6-A (Fase 2): ataque_extra ALÉM de entrar em status_temp (ícone
   // na mesa) soma direto em pa_ataque_extra — é o contador que o ataque
-  // consome antes do pa_rest normal. Aditivo dentro da rodada (a leva
-  // anterior já foi removida acima, então isto não empilha reaplicação da
-  // MESMA técnica); processarViradaDeRodada zera o contador na virada.
+  // consome antes do pa_rest normal.
+  //
+  // O contador é ADITIVO de verdade, inclusive ao reaplicar a MESMA técnica:
+  // remover a leva anterior de status_temp (acima) não devolve o extra já
+  // concedido, então ativar Golpe Duplo duas vezes na mesma rodada dá 2. Só a
+  // entrada de status_temp é deduplicada por id. É a regra pretendida — cada
+  // ativação custou o seu teste — e não um efeito colateral da dedup.
+  // processarViradaDeRodada zera o contador na virada.
   const extraAtaque = novos
     .filter((s) => s.efeito && s.efeito.tipo === 'ataque_extra')
     .reduce((soma, s) => soma + (s.efeito.valor || 0), 0);
@@ -3728,7 +3733,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       abrirTip={abrirTip} fecharTip={fecharTip} />
                   )}
                   <BotaoAcaoMenu icone="ti-swords" variante="primary" rotulo={tb.acao}
-                    disabled={salvando || !catalogos || p.pa_rest <= 0 || rolagemPendente}
+                    // Não é "tem PA", é "tem o que fazer": quem bancou um ataque
+                    // extra (Golpe Duplo e cia.) chega aqui com pa_rest 0 e um
+                    // golpe na mão. Com a checagem antiga o Mestre não conseguia
+                    // abrir o painel para gastá-lo — só passar a vez e perdê-lo.
+                    disabled={salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente}
                     onClick={() => setAcaoOpen(true)}
                     // Com rolagem pendente o motivo da trava importa mais que
                     // o nome do botão — é o único jeito de o Mestre entender
