@@ -315,9 +315,12 @@ describe('sem_critico', () => {
    SUA defesa por 3 rodadas." Quem escolta EMPRESTA a própria defesa; o
    status fica no aliado escoltado e aponta de volta para a fonte. */
 describe('Escolta empresta a defesa de quem escolta', () => {
-  const escolta = { inst_id: 'e', nome: 'Escolta', status: 'ativo', defesa_valor: 12, status_temp: [] };
+  // O escolta é o tanque: armadura Pesada, defesa 12. O protegido é o mago:
+  // armadura Leve, defesa 3.
+  const escolta = { inst_id: 'e', nome: 'Escolta', status: 'ativo',
+    defesa_valor: 12, defesa_sigla: 'P', status_temp: [] };
   const comStatus = (fonteInstId) => ({
-    inst_id: 'b', nome: 'Protegido', status: 'ativo', defesa_valor: 3,
+    inst_id: 'b', nome: 'Protegido', status: 'ativo', defesa_valor: 3, defesa_sigla: 'L',
     status_temp: [{ id: 'tec_escolta', nome: 'Escolta', icone: '🫂', rodadas_rest: 3,
                     efeito: { tipo: 'usa_defesa_de', valor: true, fonte_inst_id: fonteInstId } }],
   });
@@ -329,18 +332,43 @@ describe('Escolta empresta a defesa de quem escolta', () => {
     expect(ef.fonte_inst_id).toBe('e');
   });
 
-  it('o protegido defende com a defesa da fonte, não com a sua', () => {
-    expect(M.defesaBaseComEscolta(comStatus('e'), [escolta, comStatus('e')])).toBe(12);
+  /* Decisão do usuário (11/09/2026): empresta o VALOR e a CLASSE.
+
+     Defesa neste sistema é sigla + valor, e colunaAtaque escolhe
+     dano_l/dano_m/dano_p pela sigla. Emprestar só o número — como estava
+     até a revisão final — produzia uma combinação melhor que os dois
+     combatentes sozinhos: o atacante ficava na coluna L (a mais generosa,
+     do mago) com o valor 12 (do guerreiro). */
+  it('o protegido defende com a defesa da fonte: valor E classe', () => {
+    const d = M.defesaComEscolta(comStatus('e'), [escolta, comStatus('e')]);
+    expect(d.defesa_valor).toBe(12);
+    expect(d.defesa_sigla, 'a classe vem junto, senão sobra o melhor dos dois').toBe('P');
   });
 
-  it('fonte fora de campo: a defesa própria volta a valer', () => {
+  it('fonte fora de campo: a defesa própria volta a valer, inteira', () => {
     const morto = { ...escolta, status: 'morto' };
-    expect(M.defesaBaseComEscolta(comStatus('e'), [morto, comStatus('e')])).toBe(3);
-    expect(M.defesaBaseComEscolta(comStatus('sumiu'), [escolta]), 'fonte inexistente').toBe(3);
+    expect(M.defesaComEscolta(comStatus('e'), [morto, comStatus('e')]))
+      .toEqual({ defesa_valor: 3, defesa_sigla: 'L' });
+    expect(M.defesaComEscolta(comStatus('sumiu'), [escolta]), 'fonte inexistente')
+      .toEqual({ defesa_valor: 3, defesa_sigla: 'L' });
   });
 
   it('sem o status, nada muda', () => {
-    expect(M.defesaBaseComEscolta({ inst_id: 'b', defesa_valor: 3, status_temp: [] }, [escolta])).toBe(3);
+    expect(M.defesaComEscolta({ inst_id: 'b', defesa_valor: 3, defesa_sigla: 'L', status_temp: [] }, [escolta]))
+      .toEqual({ defesa_valor: 3, defesa_sigla: 'L' });
+  });
+
+  it('sem sigla no snapshot, assume L — é o default do resto do motor', () => {
+    expect(M.defesaComEscolta({ inst_id: 'b', defesa_valor: 3, status_temp: [] }, []).defesa_sigla).toBe('L');
+  });
+
+  // A consequência prática: a coluna do atacante muda de verdade.
+  it('a coluna do ataque muda de dano_l para dano_p quando o mago é escoltado', () => {
+    const arma = { dano_l: 20, dano_m: 14, dano_p: 8, bonus_ga: 0 };
+    const sozinho = M.defesaComEscolta({ inst_id: 'b', defesa_valor: 3, defesa_sigla: 'L', status_temp: [] }, []);
+    const protegido = M.defesaComEscolta(comStatus('e'), [escolta, comStatus('e')]);
+    expect(M.colunaAtaque(arma, sozinho), 'mago sozinho: 20 - 3').toBe(17);
+    expect(M.colunaAtaque(arma, protegido), 'escoltado: 8 - 12').toBe(-4);
   });
 
   it('outros tipos de efeito não ganham fonte_inst_id', () => {
@@ -693,5 +721,169 @@ describe('F2 — cada alvo aplica a própria redução de dano', () => {
     const arr = [lutador('atacante'), comReducao('A', -200)];
     const r = M.aplicarGolpeEmAlvo(arr, 0, 1, 20, false);
     expect(r[1].ef).toBe(100);
+  });
+});
+
+/* F3 (Important) — o log da mesa dizia "+true".
+
+   textoEfeitoTecnica usava `primeiro.valor || 0` para todo modo 'teste'.
+   Como `true > 0` é verdadeiro, 15 das 26 técnicas da Fase 2 escreviam
+   "+true" no log COMPARTILHADO, que todo jogador da mesa lê. E Aparar, que
+   é −75%, escrevia "−75", que se lê como 75 de dano fixo.
+
+   Ninguém foi dono do texto das primitivas booleanas: a Task 8 só dizia
+   que a mensagem "já nomeia o alvo", o que era verdade e insuficiente. */
+describe('F3 — o texto do efeito no log', () => {
+  const aplicado = (alvos, valor) => ({ alvos, valor });
+
+  it('efeito liga/desliga não imprime número nenhum', () => {
+    const t = M.textoEfeitoTecnica('golpe_letal', aplicado(['Grok']), 'Eu');
+    expect(t).toContain('Grok');
+    expect(t, 'nada de "+true"').not.toMatch(/true/);
+    expect(t, 'nem um número solto').not.toMatch(/[+-]\d/);
+  });
+
+  it('as 15 booleanas da Fase 2 estão todas limpas', () => {
+    const booleanas = Object.entries(window.TECNICA_EFEITO_MAP)
+      .filter(([, r]) => r.efeitos.some((e) => e.valor === true))
+      .map(([k]) => k);
+    expect(booleanas.length, 'premissa: existem booleanas').toBeGreaterThan(10);
+    for (const key of booleanas) {
+      expect(M.textoEfeitoTecnica(key, aplicado(['Grok']), 'Eu'), key).not.toMatch(/true/);
+    }
+  });
+
+  it('percentual aparece COM o símbolo de porcentagem', () => {
+    expect(M.textoEfeitoTecnica('brutalizar', aplicado([]), 'Eu')).toMatch(/\+50%/);
+    expect(M.textoEfeitoTecnica('aparar', aplicado([]), 'Eu'), 'não é 75 de dano').toMatch(/-75%/);
+  });
+
+  it('o valor que escala com o total continua sem %', () => {
+    const t = M.textoEfeitoTecnica('mira', aplicado([], 7), 'Eu');
+    expect(t).toMatch(/\+7\b/);
+    expect(t).not.toMatch(/%/);
+  });
+
+  it('postura defensiva continua mostrando o sinal negativo do total', () => {
+    expect(M.textoEfeitoTecnica('postura_defensiva', aplicado([], 5), 'Eu')).toMatch(/\+5\b/);
+  });
+
+  it('teste que falhou continua dizendo que falhou', () => {
+    expect(M.textoEfeitoTecnica('golpe_letal', null, 'Eu')).toMatch(/não aplicado/);
+  });
+
+  it('técnica sem registro continua narrativa', () => {
+    expect(M.textoEfeitoTecnica('concentracao', aplicado(['Grok']), 'Eu')).toMatch(/narrativ/);
+  });
+});
+
+// Traduz os índices que alvosExtrasEfetivos devolve para nomes, que é o que
+// os testes abaixo querem afirmar.
+const alvosNomes = (arr, atacante, alvoIdx, ids) =>
+  M.alvosExtrasEfetivos(arr, atacante, alvoIdx, ids).map((i) => arr[i].nome);
+
+/* F7 (Minor) — o ataque extra prendia o turno de quem não podia atacar. */
+describe('F7 — ataque extra sob sem_atacar não segura o turno', () => {
+  const inibido = (extra) => ({
+    inst_id: 'a', pa_rest: 0, pa_ataque_extra: 1,
+    status_temp: [{ id: 'tec_inibir_ataque', nome: 'Inibir Ataque', icone: '🚫',
+                    rodadas_rest: 1, efeito: { tipo: 'sem_atacar', valor: true } }],
+    ...extra,
+  });
+
+  it('com sem_atacar, o extra NÃO conta como ação pendente', () => {
+    // A aba Arma é o único consumidor do extra e está desabilitada; contar
+    // o extra fazia o auto-passe nunca disparar e o turno ficava preso.
+    expect(M.temAcaoRestante(inibido())).toBe(false);
+  });
+
+  it('mas PA normal ainda conta, mesmo inibido — sobra magia, item, técnica', () => {
+    expect(M.temAcaoRestante(inibido({ pa_rest: 1 }))).toBe(true);
+  });
+
+  it('sem a inibição, o extra volta a segurar o turno', () => {
+    expect(M.temAcaoRestante({ inst_id: 'a', pa_rest: 0, pa_ataque_extra: 1, status_temp: [] })).toBe(true);
+  });
+});
+
+/* F10 (Minor) — o teto de alvos e o débito do ataque não tinham teste
+   NENHUM. Apagar o slice deixava um payload forjado varrer a mesa; apagar
+   o ramo do extra tornava o ataque adicional infinito. Os dois estavam
+   embutidos nos handlers, que não são exportados — por isso viraram
+   funções puras antes de ganhar teste. */
+describe('F10 — alvosExtrasEfetivos', () => {
+  const p = (inst_id, extra) => ({ inst_id, nome: inst_id, status_temp: [], ...extra });
+  const giro = p('atacante', { status_temp: [{
+    id: 'tec_golpe_giratorio', nome: 'Golpe Giratório', icone: '🌪️', rodadas_rest: 1,
+    efeito: { tipo: 'alvos_extras', valor: 3 },
+  }] });
+  const mesa = [giro, p('A'), p('B'), p('C'), p('D')];
+
+  it('teto 3 = alvo principal + 2 extras, não 3 extras', () => {
+    expect(alvosNomes(mesa, giro, 1, ['B', 'C', 'D'])).toEqual(['B', 'C']);
+  });
+
+  it('sem status de multi-alvo, NENHUM extra passa', () => {
+    expect(alvosNomes(mesa, p('atacante'), 1, ['B', 'C'])).toEqual([]);
+  });
+
+  it('o alvo principal não é atingido duas vezes', () => {
+    expect(alvosNomes(mesa, giro, 1, ['A', 'B'])).toEqual(['B']);
+  });
+
+  it('id repetido não gasta duas vagas nem bate duas vezes', () => {
+    expect(alvosNomes(mesa, giro, 1, ['B', 'B', 'C'])).toEqual(['B', 'C']);
+  });
+
+  it('quem não está na mesa é ignorado sem consumir vaga', () => {
+    expect(alvosNomes(mesa, giro, 1, ['fantasma', 'B', 'C'])).toEqual(['B', 'C']);
+  });
+
+  it('payload forjado com a mesa inteira ainda respeita o teto', () => {
+    expect(alvosNomes(mesa, giro, 1, ['A', 'B', 'C', 'D']).length).toBe(2);
+  });
+
+  it('entrada inválida devolve lista vazia', () => {
+    expect(M.alvosExtrasEfetivos(null, giro, 1, ['B'])).toEqual([]);
+    expect(M.alvosExtrasEfetivos(mesa, giro, 1, null)).toEqual([]);
+    expect(M.alvosExtrasEfetivos(mesa, giro, 1, [])).toEqual([]);
+  });
+});
+
+describe('F10 — debitarCustoAtaque', () => {
+  const ator = (extra) => ({ inst_id: 'a', pa_rest: 2, pa_ataque_extra: 0, karma: 10, ...extra });
+
+  it('sem ataque extra, paga pa_rest', () => {
+    const r = M.debitarCustoAtaque(ator(), 'arma', 0);
+    expect(r.pa_rest).toBe(1);
+    expect(r.pa_ataque_extra).toBe(0);
+  });
+
+  it('com ataque extra, gasta o EXTRA e preserva o PA', () => {
+    const r = M.debitarCustoAtaque(ator({ pa_ataque_extra: 1 }), 'arma', 0);
+    expect(r.pa_ataque_extra, 'o extra foi gasto').toBe(0);
+    expect(r.pa_rest, 'o PA normal fica intacto').toBe(2);
+  });
+
+  it('o extra NÃO paga magia — só a aba Arma', () => {
+    const r = M.debitarCustoAtaque(ator({ pa_ataque_extra: 1 }), 'magia', 3);
+    expect(r.pa_ataque_extra, 'intocado').toBe(1);
+    expect(r.pa_rest).toBe(1);
+    expect(r.karma).toBe(7);
+  });
+
+  // Sem esta regra o ataque extra seria infinito.
+  it('dois ataques seguidos com 1 extra: o segundo já paga PA', () => {
+    let r = M.debitarCustoAtaque(ator({ pa_rest: 1, pa_ataque_extra: 1 }), 'arma', 0);
+    expect(r.pa_ataque_extra).toBe(0);
+    expect(r.pa_rest).toBe(1);
+    r = M.debitarCustoAtaque(r, 'arma', 0);
+    expect(r.pa_rest).toBe(0);
+  });
+
+  it('nada fica negativo', () => {
+    const r = M.debitarCustoAtaque(ator({ pa_rest: 0, karma: 0 }), 'arma', 5);
+    expect(r.pa_rest).toBe(0);
+    expect(r.karma).toBe(0);
   });
 });

@@ -1674,7 +1674,14 @@ function podeUsarTecnicaAgora(p) { return !statusTemEfeito(p, 'sem_tecnicas'); }
    Múltiplas) é ação pendente mesmo com pa_rest 0. Sem isto, ativar a
    técnica com pa_max 1 auto-passa a vez antes do golpe extra existir. */
 function temAcaoRestante(p) {
-  return !!p && ((p.pa_rest || 0) > 0 || (p.pa_ataque_extra || 0) > 0);
+  if (!p) return false;
+  if ((p.pa_rest || 0) > 0) return true;
+  // O ataque extra só conta como ação pendente se o participante PODE
+  // atacar. Sob sem_atacar (Inibir Ataque, Intimidar) a aba Arma fica
+  // desabilitada e o extra é o único recurso que sobrou — contá-lo
+  // segurava um turno que ninguém tinha como gastar, e o auto-passe
+  // nunca disparava. Achado F7 da revisão final da Fase 2.
+  return (p.pa_ataque_extra || 0) > 0 && podeAtacarAgora(p);
 }
 /* Soma os mod_ataque válidos para a arma em uso.
    Por que não é só somaEfeitosStatus(p, 'mod_ataque'): a técnica pode estar
@@ -2137,6 +2144,50 @@ function tetoDeAlvos(atacante) {
   return Math.max(1, maior);
 }
 
+/* Quais alvos extras o golpe REALMENTE atinge, como índices no array.
+
+   Estava embutido nos dois handlers como um `.slice(0, teto - 1)` sem
+   teste nenhum: apagar o slice deixava um payload forjado varrer a mesa
+   inteira com a suíte verde. Achado F10 da revisão final.
+
+   Filtra três coisas, nesta ordem: quem não está na mesa, o próprio alvo
+   principal (que já levou o golpe), e o excedente do teto. O teto é
+   reaplicado aqui mesmo já tendo sido aplicado no painel — o payload vem
+   de fora, e regra que só existe na UI não é regra. */
+function alvosExtrasEfetivos(arr, atacante, alvoIdx, ids) {
+  if (!Array.isArray(arr) || !Array.isArray(ids)) return [];
+  const teto = Math.max(0, tetoDeAlvos(atacante) - 1);
+  const vistos = new Set();
+  const out = [];
+  for (const instId of ids) {
+    if (out.length >= teto) break;
+    if (vistos.has(instId)) continue;
+    vistos.add(instId);
+    const idx = arr.findIndex((p) => p.inst_id === instId);
+    if (idx < 0 || idx === alvoIdx) continue;
+    out.push(idx);
+  }
+  return out;
+}
+
+/* Débito do custo de um ataque. Ataque extra (Golpe Duplo, Contra-Ataque,
+   Flechadas Múltiplas) consome pa_ataque_extra ANTES do pa_rest, e só na
+   aba Arma — técnica, magia, habilidade e item continuam pagando pa_rest.
+
+   Também estava embutido nos dois handlers sem teste: apagar o ramo do
+   extra tornava o ataque adicional infinito, e nada quebrava. */
+function debitarCustoAtaque(p, tipo, custoKarma) {
+  const k = Math.max(0, custoKarma || 0);
+  const usaExtra = tipo === 'arma' && (p.pa_ataque_extra || 0) > 0;
+  return {
+    ...p,
+    ...(usaExtra
+      ? { pa_ataque_extra: Math.max(0, (p.pa_ataque_extra || 0) - 1) }
+      : { pa_rest: Math.max(0, (p.pa_rest || 0) - 1) }),
+    karma: Math.max(0, (p.karma || 0) - k),
+  };
+}
+
 /* Um golpe caindo num alvo: esquiva, cascata e quebra de concentração.
 
    Puro: recebe e devolve o array de participantes. Extraído do miolo dos
@@ -2333,19 +2384,41 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
    usado sempre (nunca `.en`) na montagem deste mesmo texto, duas linhas
    acima. Ver o comentário de tBat no fim do arquivo: "FORA do i18n por
    decisão". Introduzir i18n só neste trecho quebraria essa consistência. */
+// Os efeitos cujo número é uma PORCENTAGEM. Sem isto o log dizia "-75" para
+// Aparar, que se lê como 75 de dano fixo em vez de 75% a menos.
+const TIPOS_EFEITO_PERCENTUAL = ['dano_pct', 'dano_recebido_pct'];
+
 function textoEfeitoTecnica(chaveTecnica, efeitoAplicado, nomeAutor) {
   const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(chaveTecnica) : null;
   if (!reg) return ' — efeito narrativo, resolva na mesa';
   if (!efeitoAplicado) return ' — efeito não aplicado (teste falhou)';
   const primeiro = (reg.efeitos && reg.efeitos[0]) || {};
-  const valor = (reg.modo === 'teste')
-    ? (primeiro.valor || 0)
-    : (primeiro.sinal || 1) * (Number(efeitoAplicado.valor) || 0);
-  const valorTxt = valor > 0 ? `+${valor}` : `${valor}`;
+  /* O número que aparece no log depende da FORMA do efeito, não do modo da
+     técnica. São três formas, e até 11/09/2026 só a primeira era tratada:
+
+       • escala com o total (mod_ataque etc.) → total × sinal;
+       • percentual fixo (dano_pct 50, dano_recebido_pct −75) → "+50%"/"−75%";
+       • liga/desliga (ignora_eh, evita_golpe, derrubado…) → número NENHUM.
+
+     O código fazia `primeiro.valor || 0` para todo modo 'teste', e como
+     `true > 0` é verdadeiro, 15 das 26 técnicas da Fase 2 escreviam
+     "+true" no log compartilhado da mesa. Aparar, que é −75%, escrevia
+     "−75", que se lê como 75 de dano fixo. */
+  const ehFlag = primeiro.valor === true;
+  const ehPercentual = TIPOS_EFEITO_PERCENTUAL.includes(primeiro.tipo);
+  let valorTxt = '';
+  if (!ehFlag) {
+    const valor = (reg.modo === 'teste')
+      ? (Number(primeiro.valor) || 0)
+      : (primeiro.sinal || 1) * (Number(efeitoAplicado.valor) || 0);
+    const sufixo = ehPercentual ? '%' : '';
+    valorTxt = (valor > 0 ? `+${valor}` : `${valor}`) + sufixo;
+  }
   const alvos = (efeitoAplicado.alvos || []).filter((n) => n !== nomeAutor);
+  const sufixoValor = valorTxt ? `: ${valorTxt}` : '';
   return alvos.length
-    ? ` — efeito aplicado em ${alvos.join(', ')}: ${valorTxt}`
-    : ` — efeito aplicado: ${valorTxt}`;
+    ? ` — efeito aplicado em ${alvos.join(', ')}${sufixoValor}`
+    : ` — efeito aplicado${sufixoValor}`;
 }
 
 /* `uso: 'Único'` significa uma vez por batalha (decisão de 09/09/2026).
@@ -2387,14 +2460,27 @@ function criticoPermitido(atacante) { return !statusTemEfeito(atacante, 'sem_cri
 
    Fonte fora de campo (morta, desmaiada, que desistiu, ou que simplesmente
    não está mais na lista) não protege ninguém: a defesa própria volta. */
-function defesaBaseComEscolta(alvo, participantes) {
-  const propria = (alvo && alvo.defesa_valor) || 0;
+function defesaComEscolta(alvo, participantes) {
+  const propria = {
+    defesa_valor: (alvo && alvo.defesa_valor) || 0,
+    defesa_sigla: (alvo && alvo.defesa_sigla) || 'L',
+  };
   if (!alvo || !Array.isArray(participantes)) return propria;
   const st = (alvo.status_temp || []).find((e) => e.efeito && e.efeito.tipo === 'usa_defesa_de');
   const fonteId = st && st.efeito.fonte_inst_id;
   if (!fonteId) return propria;
   const fonte = participantes.find((q) => q.inst_id === fonteId && q.status === 'ativo');
-  return fonte ? (fonte.defesa_valor || 0) : propria;
+  if (!fonte) return propria;
+  // Decisão do usuário (11/09/2026): empresta os DOIS. Defesa neste sistema
+  // é sigla + valor, e colunaAtaque escolhe dano_l/dano_m/dano_p pela sigla.
+  // Emprestar só o número deixava uma combinação melhor que os dois
+  // combatentes sozinhos: um guerreiro de armadura P cobrindo um mago L
+  // mantinha o atacante na coluna L (a mais generosa) com o valor 9 do
+  // guerreiro. "Permite que 1 alvo use SUA defesa" é literal.
+  return {
+    defesa_valor: fonte.defesa_valor || 0,
+    defesa_sigla: fonte.defesa_sigla || 'L',
+  };
 }
 
 /* Custo de PA da ativação de uma técnica. A regra mudou DUAS vezes:
@@ -2412,6 +2498,14 @@ function defesaBaseComEscolta(alvo, participantes) {
    processarViradaDeRodada, mesmo padrão de moveu_na_rodada), e técnica SEM
    entrada no registro (as puramente narrativas) segue custando 1 PA — o
    próprio PA já as limita, e elas não disputam a cota.
+
+   11/09/2026 — TENTAR consome, mesmo falhando. O débito acontece antes de
+   saber o resultado do dado, e a revisão final levantou isso como possível
+   acidente: uma técnica Muito Difícil que falha tranca as 50 registradas
+   pelo resto da rodada, enquanto as 8 puramente narrativas seguem
+   disponíveis porque pagam PA. O usuário confirmou que é a regra que quer:
+   a tentativa é o custo. Não "consertar" isto movendo o débito para depois
+   do teste sem confirmar de novo — é decisão, não descuido.
 
    Função pura reusada pelos dois aplicarTeste (Mestre/Jogador), no mesmo
    molde de aplicarEfeitoTecnica: a regra mora aqui, a duplicação fica só no
@@ -2895,27 +2989,21 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
     // O teto é reaplicado aqui mesmo já tendo sido aplicado no painel: o
     // payload vem de fora, e regra que só existe na UI não é regra.
-    (Array.isArray(alvos_extras) ? alvos_extras : [])
-      .slice(0, Math.max(0, tetoDeAlvos(next[atorIdx]) - 1))
-      .forEach((instId) => {
-        const exIdx = next.findIndex((p) => p.inst_id === instId);
-        if (exIdx < 0 || exIdx === alvoIdx) return;
-        next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico);
-      });
+    // Os nomes saem daqui pro log: sem eles, um giro que amassa três
+    // inimigos era registrado como um golpe em UM deles, e os outros dois
+    // perdiam EH e AR sem nenhum registro na mesa.
+    const nomesAlvosExtras = [];
+    alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
+      nomesAlvosExtras.push(next[exIdx].nome);
+      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico);
+    });
     // Debita PA (sempre 1) e karma (se for magia).
     const k = Math.max(0, custo_karma || 0);
     // Fase 2 das técnicas: ataque extra (Golpe Duplo, Contra-Ataque,
     // Flechadas Múltiplas) consome pa_ataque_extra em vez de pa_rest — só
     // na aba Arma. Técnica, magia, habilidade e item continuam pagando
     // pa_rest (ver aplicarTeste/aplicarEfeitoItem, que não tocam este bloco).
-    const usaAtaqueExtra = tipo === 'arma' && (next[atorIdx].pa_ataque_extra || 0) > 0;
-    next[atorIdx] = {
-      ...next[atorIdx],
-      ...(usaAtaqueExtra
-        ? { pa_ataque_extra: Math.max(0, (next[atorIdx].pa_ataque_extra || 0) - 1) }
-        : { pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1) }),
-      karma: Math.max(0, (next[atorIdx].karma || 0) - k),
-    };
+    next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
 
     // Falha Crítica (q=0): a consequência do segundo dado cai no PRÓPRIO
     // atacante (Fase 1.1) — dano pulando EH + status mecânico da tabela.
@@ -2946,6 +3034,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       autor_tipo: ator.tipo, autor_ref_id: ator.ref_id, autor_nome: participantes[atorIdx].nome,
       acao: tipo,                                // 'arma' | 'magia'
       alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
+      ...(nomesAlvosExtras.length ? { alvos_extras_nomes: nomesAlvosExtras } : {}),
       arma_nome: nomeAcao,                       // mantém nome do campo p/ retrocompat do render
       coluna, d20,
       resultado: resultado ? resultado.codigo : null,
@@ -2982,6 +3071,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         texto = `${atorNome} atacou ${alvo.nome} com ${nomeAcao || 'arma'}`;
         if (resultadoNome) texto += ` → ${resultadoNome}`;
         if (dano > 0)      texto += ` (${dano} de dano)`;
+        // Golpe Giratório: o mesmo giro alcançou mais gente. O dano de
+        // cada um é resolvido contra a defesa DELE (ver aplicarGolpeEmAlvo),
+        // por isso o texto não repete o número do alvo principal.
+        if (nomesAlvosExtras.length) texto += ` · e também em ${nomesAlvosExtras.join(', ')}`;
         if (msg_critico)   texto += `. ${msg_critico}`;
       }
       supabaseClient.rpc('registrar_evento_mesa', {
@@ -2993,6 +3086,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           rodada,
           autor_nome:     atorNome,
           alvo_nome:      alvo.nome,
+          ...(nomesAlvosExtras.length ? { alvos_extras_nomes: nomesAlvosExtras } : {}),
           acao_nome:      nomeAcao,
           coluna,         d20,
           resultado:      resultado ? resultado.codigo : null,
@@ -4929,7 +5023,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const modColunaAtor = somaEfeitosStatus(ator, 'mod_coluna');
   let coluna = null, colunaClamped = null, alvoResist = null;
   if (tab === 'arma' && arma && alvo) {
-    const alvoEfetivo = { ...alvo, defesa_valor: defesaBaseComEscolta(alvo, participantes) + somaEfeitosStatus(alvo, 'mod_defesa') };
+    const defEsc = defesaComEscolta(alvo, participantes);
+    const alvoEfetivo = { ...alvo,
+      defesa_valor: defEsc.defesa_valor + somaEfeitosStatus(alvo, 'mod_defesa'),
+      defesa_sigla: defEsc.defesa_sigla };
     // mod_ataque (técnicas, Fase 1) entra SÓ aqui e na magia — teste de
     // habilidade e de técnica não recebem bônus de "coluna de ataque".
     coluna = colunaAtaque(arma, alvoEfetivo)
@@ -4980,7 +5077,17 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   //   arma E magia — a tabela tem o tipo MAGIA); q=7 (A, cinza) → crítico
   //   contra o alvo (CRITICOS_TABELA, exclusivo de arma). Testes (habilidade/
   //   técnica/resistência) nunca entram no fluxo de segundo dado.
-  const precisaCritico = !!(res && ((tab === 'arma' && (res.q === 0 || res.q === 7)) || (tab === 'magia' && res.q === 0)));
+  /* Combate Não Letal (sem_critico) barra o ABSURDO inteiro, não só o
+     número. Antes, o motor resolvia como golpe normal (criticoPermitido) mas
+     o painel ainda exigia o segundo dado e mandava msg_critico pro log
+     COMPARTILHADO — quem escolheu subjugar publicava uma descrição de
+     mutilação de CRITICOS_TABELA e o alvo saía ileso. A Falha Crítica (q=0)
+     NÃO entra nessa isenção: sem_critico é sobre não matar o outro, não
+     sobre o atacante escapar do próprio erro. */
+  const criticoBloqueado = !criticoPermitido(ator);
+  const precisaCritico = !!(res && (
+    (tab === 'arma' && (res.q === 0 || (res.q === 7 && !criticoBloqueado)))
+    || (tab === 'magia' && res.q === 0)));
   const tipoCritico = res && res.q === 7 ? 'alvo' : (res && res.q === 0 ? 'self' : null);
 
   // Trava de re-roll do dado primário: a partir do momento em que existe um
@@ -5715,9 +5822,16 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
       </>
       )}
 
+      {/* "Sem PA" é sobre pagar ESTA ação, e é o que trava habilidade,
+          resistência, apoio e item. Mas quem bancou um ataque extra chega
+          aqui com pa_rest 0 e ainda pode atacar, e o aviso vermelho dizia
+          que não podia fazer nada. Agora as duas situações têm textos
+          diferentes: sem nada, e só-o-extra. */}
       {semPA && (
         <div className="acao-karma-line">
-          <strong className="neg">{tb.semPaDisponivel}</strong>
+          <strong className="neg">
+            {(ator.pa_ataque_extra || 0) > 0 ? tb.soAtaqueExtraDisponivel : tb.semPaDisponivel}
+          </strong>
         </div>
       )}
 
@@ -6086,13 +6200,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
     // O teto é reaplicado aqui mesmo já tendo sido aplicado no painel: o
     // payload vem de fora, e regra que só existe na UI não é regra.
-    (Array.isArray(alvos_extras) ? alvos_extras : [])
-      .slice(0, Math.max(0, tetoDeAlvos(next[atorIdx]) - 1))
-      .forEach((instId) => {
-        const exIdx = next.findIndex((p) => p.inst_id === instId);
-        if (exIdx < 0 || exIdx === alvoIdx) return;
-        next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico);
-      });
+    // Os nomes saem daqui pro log: sem eles, um giro que amassa três
+    // inimigos era registrado como um golpe em UM deles, e os outros dois
+    // perdiam EH e AR sem nenhum registro na mesa.
+    const nomesAlvosExtras = [];
+    alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
+      nomesAlvosExtras.push(next[exIdx].nome);
+      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico);
+    });
     if (dano > 0) {
       // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele.
       // Só o alvo PRINCIPAL: um alvo extra não pode ser o atual, porque o
@@ -6107,14 +6222,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Flechadas Múltiplas) consome pa_ataque_extra em vez de pa_rest — só
     // na aba Arma. Técnica, magia, habilidade e item continuam pagando
     // pa_rest (ver aplicarTeste/aplicarEfeitoItem, que não tocam este bloco).
-    const usaAtaqueExtra = tipo === 'arma' && (next[atorIdx].pa_ataque_extra || 0) > 0;
-    next[atorIdx] = {
-      ...next[atorIdx],
-      ...(usaAtaqueExtra
-        ? { pa_ataque_extra: Math.max(0, (next[atorIdx].pa_ataque_extra || 0) - 1) }
-        : { pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1) }),
-      karma: Math.max(0, (next[atorIdx].karma || 0) - k),
-    };
+    next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
     // Falha Crítica (q=0): consequência no PRÓPRIO atacante — espelha o Mestre (Fase 1.1).
     let danoSelf = 0;
     if (tipo_critico === 'self' && res_critico) {
@@ -6133,6 +6241,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       rodada, ts: Date.now(),
       autor_tipo: meuParticipante.tipo, autor_ref_id: meuParticipante.ref_id, autor_nome: meuParticipante.nome,
       acao: tipo, alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
+      ...(nomesAlvosExtras.length ? { alvos_extras_nomes: nomesAlvosExtras } : {}),
       arma_nome: nomeAcao, coluna, d20,
       resultado: resultado ? resultado.codigo : null,
       resultado_nome: resultado ? resultado.pt : null,
@@ -6162,6 +6271,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         texto = `${meuParticipante.nome} atacou ${alvo.nome} com ${nomeAcao || 'arma'}`;
         if (resultadoNome) texto += ` → ${resultadoNome}`;
         if (dano > 0)      texto += ` (${dano} de dano)`;
+        // Golpe Giratório: o mesmo giro alcançou mais gente. O dano de
+        // cada um é resolvido contra a defesa DELE (ver aplicarGolpeEmAlvo),
+        // por isso o texto não repete o número do alvo principal.
+        if (nomesAlvosExtras.length) texto += ` · e também em ${nomesAlvosExtras.join(', ')}`;
         if (msg_critico)   texto += `. ${msg_critico}`;
       }
       supabaseClient.rpc('registrar_evento_mesa', {
@@ -6173,6 +6286,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           rodada,
           autor_nome:     meuParticipante.nome,
           alvo_nome:      alvo.nome,
+          ...(nomesAlvosExtras.length ? { alvos_extras_nomes: nomesAlvosExtras } : {}),
           acao_nome:      nomeAcao,
           coluna,         d20,
           resultado:      resultado ? resultado.codigo : null,
@@ -6863,8 +6977,10 @@ Object.assign(window, {
     criticoPermitido,
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
+    alvosExtrasEfetivos,
+    debitarCustoAtaque,
     aplicarGolpeEmAlvo,
-    defesaBaseComEscolta,
+    defesaComEscolta,
     // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
     // e devolve o empréstimo quando o status sai na virada de rodada.
     expirarEhTemp,
