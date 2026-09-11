@@ -389,3 +389,51 @@ describe('efeitos ancorados no atacante gravam o alvo', () => {
     expect(ef.alvo_inst_id).toBeUndefined();
   });
 });
+
+/* Achado da revisão da Task 8: a regra de ancoragem vivia embutida nas duas
+   cópias de aplicarTeste, sem teste nenhum. Derrubar a checagem de `alvo`
+   quebraria Explorar Fraqueza em silêncio — ela carrega ignora_armadura mas
+   é auto-buff, o destino dela já é o próprio testador, e ancorar estamparia
+   o inst_id do ator nele mesmo: o match exato de modsDoGolpe nunca mais
+   bateria e a técnica ficaria permanentemente sem efeito, com a suíte
+   inteira verde. Extraída pra função pura e trancada aqui. */
+describe('efeitoAncoraNoAtacante — quem vai no ator com âncora', () => {
+  const reg = (k) => window.TECNICA_EFEITO_MAP[k];
+
+  it('as 7 de alvo inimigo que furam EH ou armadura ancoram', () => {
+    for (const k of ['ataque_oportuno', 'atravessar_oponente', 'carga',
+      'carga_de_arremesso', 'carga_montada', 'golpe_letal', 'disparo_certeiro']) {
+      expect(M.efeitoAncoraNoAtacante(reg(k)), k).toBe(true);
+    }
+  });
+
+  // O caso que motivou a extração.
+  it('Explorar Fraqueza fura armadura mas é self — NÃO ancora', () => {
+    expect(reg('explorar_fraqueza').alvo, 'premissa do teste').toBe('self');
+    expect(reg('explorar_fraqueza').efeitos.some((e) => e.tipo === 'ignora_armadura')).toBe(true);
+    expect(M.efeitoAncoraNoAtacante(reg('explorar_fraqueza'))).toBe(false);
+  });
+
+  it('nenhuma entrada do registro sem ignora_* ancora', () => {
+    for (const [k, r] of Object.entries(window.TECNICA_EFEITO_MAP)) {
+      const fura = r.efeitos.some((e) => e.tipo === 'ignora_eh' || e.tipo === 'ignora_armadura');
+      if (!fura) expect(M.efeitoAncoraNoAtacante(r), k + ' não fura nada').toBe(false);
+    }
+  });
+
+  it('as duas condições são necessárias — nenhuma sozinha basta', () => {
+    expect(M.efeitoAncoraNoAtacante({ alvo: 'inimigo', efeitos: [{ tipo: 'derrubado' }] }),
+      'inimigo sem ignora_*').toBe(false);
+    expect(M.efeitoAncoraNoAtacante({ alvo: 'self', efeitos: [{ tipo: 'ignora_eh' }] }),
+      'ignora_* sem inimigo').toBe(false);
+    expect(M.efeitoAncoraNoAtacante({ alvo: 'aliados', efeitos: [{ tipo: 'ignora_eh' }] }),
+      'aliados também não').toBe(false);
+    expect(M.efeitoAncoraNoAtacante({ alvo: 'inimigo', efeitos: [{ tipo: 'ignora_eh' }] })).toBe(true);
+  });
+
+  it('entrada malformada não explode', () => {
+    for (const v of [null, undefined, {}, { alvo: 'inimigo' }, { alvo: 'inimigo', efeitos: null }]) {
+      expect(M.efeitoAncoraNoAtacante(v), JSON.stringify(v)).toBe(false);
+    }
+  });
+});

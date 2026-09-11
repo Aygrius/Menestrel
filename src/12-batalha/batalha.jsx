@@ -2121,6 +2121,27 @@ function grupoDaArma(arma, catalogos) {
   return arma.grupo_sigla || arma.grupo || null;
 }
 
+/* O efeito desta técnica mora no ATACANTE, apontando pro alvo declarado?
+
+   Golpe Letal é VOCÊ furando a EH daquele inimigo, não uma condição que
+   passa a valer pra qualquer um que bata nele — por isso o status vai no
+   ator com alvo_inst_id, e modsDoGolpe só o aplica contra aquele alvo.
+
+   As DUAS condições importam, e a segunda é a sutil: Explorar Fraqueza
+   (Fase 1) carrega ignora_armadura mas é alvo 'self', e o destino dela já
+   É o próprio testador. Ancorar ali estamparia o inst_id do ator nele
+   mesmo, e o match exato de modsDoGolpe nunca mais bateria — a técnica
+   ficaria permanentemente sem efeito. Auto-buff segue sem âncora, valendo
+   contra qualquer alvo, que é o comportamento que ela sempre teve.
+
+   Era código embutido nas duas cópias de aplicarTeste, sem teste nenhum:
+   derrubar a checagem de alvo quebraria Explorar Fraqueza em silêncio e a
+   suíte inteira continuaria verde. Achado da revisão da Task 8. */
+function efeitoAncoraNoAtacante(reg) {
+  if (!reg || reg.alvo !== 'inimigo' || !Array.isArray(reg.efeitos)) return false;
+  return reg.efeitos.some((ef) => ef.tipo === 'ignora_eh' || ef.tipo === 'ignora_armadura');
+}
+
 function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
   const key = tecnica && tecnica.key;
   const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(key) : null;
@@ -2966,15 +2987,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         const destinos = (payload.alvos_efeito && payload.alvos_efeito.length)
           ? payload.alvos_efeito.slice(0, reg.maxAlvos || payload.alvos_efeito.length)
           : [next[testIdx]];
-        // ignora_eh/ignora_armadura (Fase 2, Task 8): o efeito não fica no
-        // alvo escolhido, fica no ATOR — Golpe Letal é VOCÊ furando a EH
-        // daquele inimigo, não uma condição que passa a valer pra qualquer
-        // um que bata nele. alvo: 'inimigo' é o que distingue essas técnicas
-        // dos auto-buffs 'self' (Explorar Fraqueza) que carregam o mesmo
-        // tipo de efeito mas sem alvo escolhido — esses continuam indo no
-        // próprio testador, sem âncora (ver aplicarEfeitoTecnica).
-        const ancoraNoAtacante = reg.alvo === 'inimigo'
-          && reg.efeitos.some((ef) => ef.tipo === 'ignora_eh' || ef.tipo === 'ignora_armadura');
+        // Fase 2, Task 8: a regra mora em efeitoAncoraNoAtacante (pura e
+        // testada) — aqui é só a chamada, igual nas duas cópias.
+        const ancoraNoAtacante = efeitoAncoraNoAtacante(reg);
         const atingidos = [];
         destinos.forEach((destino) => {
           const dIdx = next.findIndex((p) => mesmoParticipante(p, destino));
@@ -6088,15 +6103,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         const destinos = (payload.alvos_efeito && payload.alvos_efeito.length)
           ? payload.alvos_efeito.slice(0, reg.maxAlvos || payload.alvos_efeito.length)
           : [next[idx]];
-        // ignora_eh/ignora_armadura (Fase 2, Task 8): o efeito não fica no
-        // alvo escolhido, fica no ATOR — Golpe Letal é VOCÊ furando a EH
-        // daquele inimigo, não uma condição que passa a valer pra qualquer
-        // um que bata nele. alvo: 'inimigo' é o que distingue essas técnicas
-        // dos auto-buffs 'self' (Explorar Fraqueza) que carregam o mesmo
-        // tipo de efeito mas sem alvo escolhido — esses continuam indo no
-        // próprio testador, sem âncora (ver aplicarEfeitoTecnica).
-        const ancoraNoAtacante = reg.alvo === 'inimigo'
-          && reg.efeitos.some((ef) => ef.tipo === 'ignora_eh' || ef.tipo === 'ignora_armadura');
+        // Fase 2, Task 8: a regra mora em efeitoAncoraNoAtacante (pura e
+        // testada) — aqui é só a chamada, igual nas duas cópias.
+        const ancoraNoAtacante = efeitoAncoraNoAtacante(reg);
         const atingidos = [];
         destinos.forEach((destino) => {
           const dIdx = next.findIndex((p) => mesmoParticipante(p, destino));
@@ -6720,6 +6729,7 @@ Object.assign(window, {
     // segura o fim de turno mesmo com pa_rest 0.
     temAcaoRestante,
     criticoPermitido,
+    efeitoAncoraNoAtacante,
     defesaBaseComEscolta,
     // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
     // e devolve o empréstimo quando o status sai na virada de rodada.
