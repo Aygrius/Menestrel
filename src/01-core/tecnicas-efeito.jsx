@@ -220,8 +220,12 @@ const TECNICA_EFEITO_MAP = {
                       dificuldade: 'muito_dificil',
                       consome_em: 'golpe_recebido',
                       efeitos: [{ tipo: 'evita_golpe', valor: true }] },
-  // usa_defesa_de: quem ativa passa a defender com a coluna de defesa do
-  // aliado escoltado. maxAlvos: 1 — só dá pra escoltar um aliado por vez.
+  // usa_defesa_de: quem ativa EMPRESTA a própria defesa ao aliado escoltado —
+  // o texto do banco é "permite que 1 alvo use SUA defesa por 3 rodadas". O
+  // status fica no ALIADO, com fonte_inst_id apontando pra quem ativou; é
+  // por isso que alvo é 'aliados'. (Este comentário dizia o INVERSO até
+  // 11/09/2026 e contradizia a spec, o próprio alvo da entrada e o banco.)
+  // maxAlvos: 1 — só dá pra escoltar um aliado por vez.
   escolta:            { modo: 'teste', alvo: 'aliados', rodadas: 3, icone: '🫂',
                       dificuldade: 'medio',
                       maxAlvos: 1,

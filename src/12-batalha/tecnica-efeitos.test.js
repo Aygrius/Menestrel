@@ -492,21 +492,26 @@ describe('registro de uso — o uso é do ATOR, não de aplicarEfeitoTecnica', (
   });
 });
 
-// REGRA NOVA (revisão final, 09/09/2026): ativação de técnica modo 'total'
-// (23 das 24) passa a custar 0 PA, com teto de 1 ativação livre por rodada
-// por combatente. modo 'teste' (só Sangramento) continua custando 1 PA — o
-// próprio PA já o limita.
-describe('debitarCustoTecnica — ativação livre de modo "total"', () => {
+// A regra mudou duas vezes, e este bloco guarda a segunda versão:
+//
+//   09/09/2026 (Fase 1): só modo 'total' era livre; modo 'teste' pagava PA.
+//   10/09/2026 (Fase 2): QUALQUER técnica com entrada no registro é livre,
+//     de qualquer modo, mantido o teto de 1 por rodada.
+//
+// As expectativas de Sangramento abaixo mudaram por causa disso — é mudança
+// de regra pedida pelo usuário, não regressão. Técnica SEM entrada no
+// registro continua pagando 1 PA, e é ela que passou a guardar esse caminho.
+describe('debitarCustoTecnica — ativação livre de qualquer modo registrado', () => {
   it('modo total não debita PA e marca a flag', () => {
     const p = M.debitarCustoTecnica(lutador({ pa_rest: 2 }), 'mira');
     expect(p.pa_rest).toBe(2);
     expect(p.tecnica_livre_usada).toBe(true);
   });
 
-  it('modo teste (sangramento) debita 1 PA e não toca a flag', () => {
+  it('modo teste (sangramento) TAMBÉM é livre desde a Fase 2', () => {
     const p = M.debitarCustoTecnica(lutador({ pa_rest: 2 }), 'sangramento');
-    expect(p.pa_rest).toBe(1);
-    expect(p.tecnica_livre_usada).toBeUndefined();
+    expect(p.pa_rest, 'não debita mais PA').toBe(2);
+    expect(p.tecnica_livre_usada, 'passou a consumir a cota').toBe(true);
   });
 
   it('técnica sem entrada no registro (Fase 2, narrativa) debita 1 PA — comportamento de antes', () => {
@@ -514,8 +519,11 @@ describe('debitarCustoTecnica — ativação livre de modo "total"', () => {
     expect(p.pa_rest).toBe(1);
   });
 
+  // Usava 'sangramento', que desde a Fase 2 não debita nada — o teste
+  // passaria sem exercitar o piso. Trocado para uma técnica SEM entrada no
+  // registro, que é o único caminho que ainda debita.
   it('PA no piso 0 não vira negativo', () => {
-    const p = M.debitarCustoTecnica(lutador({ pa_rest: 0 }), 'sangramento');
+    const p = M.debitarCustoTecnica(lutador({ pa_rest: 0 }), 'concentracao');
     expect(p.pa_rest).toBe(0);
   });
 });
@@ -531,9 +539,10 @@ describe('podeAtivarTecnicaLivre — teto de 1 ativação livre por rodada', () 
       .toEqual({ pode: false, motivo: 'livre_usada' });
   });
 
-  it('sangramento (modo teste) nunca disputa a cota — livre mesmo com a flag marcada', () => {
+  it('sangramento (modo teste) PASSOU a disputar a cota na Fase 2', () => {
     const p = lutador({ tecnica_livre_usada: true });
-    expect(M.podeAtivarTecnicaLivre(p, { key: 'sangramento' }).pode).toBe(true);
+    expect(M.podeAtivarTecnicaLivre(p, { key: 'sangramento' }))
+      .toEqual({ pode: false, motivo: 'livre_usada' });
   });
 
   it('técnica sem entrada no registro nunca disputa a cota', () => {

@@ -2121,7 +2121,7 @@ function grupoDaArma(arma, catalogos) {
   return arma.grupo_sigla || arma.grupo || null;
 }
 
-function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
+function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
   const key = tecnica && tecnica.key;
   const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(key) : null;
   if (!reg) return participante;   // Fase 2 ou narrativa — segue como antes
@@ -2142,6 +2142,11 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal) {
     if (ef.tipo === 'mod_ataque') {
       const grupos = gruposDeArma(tecnica.grupo_armas);
       if (grupos) efeito.grupos = grupos;
+    }
+    // Escolta: o status mora no aliado, mas a defesa que vale é a de quem
+    // ativou — sem esta âncora não há como achar a fonte depois.
+    if (ef.tipo === 'usa_defesa_de' && opcoes && opcoes.fonteInstId) {
+      efeito.fonte_inst_id = opcoes.fonteInstId;
     }
     return {
       id,
@@ -2263,40 +2268,78 @@ function marcarTecnicaUsada(p, key) {
   return { ...p, tecnicas_usadas: [...usadas, key] };
 }
 
-/* Custo de PA da ativação de uma técnica (REGRA NOVA, revisão final,
-   09/09/2026): modo 'total' (23 das 24 técnicas da Fase 1) é ativação LIVRE
-   — 0 PA, até 1 vez por rodada por combatente (a flag zera em
-   processarViradaDeRodada, mesmo padrão de moveu_na_rodada). modo 'teste'
-   (só Sangramento) e técnica sem entrada no registro (Fase 2, narrativa)
-   seguem custando 1 PA como antes — o próprio PA já as limita, não precisam
-   de flag. Função pura reusada pelos dois aplicarTeste (Mestre/Jogador), no
-   mesmo molde de aplicarEfeitoTecnica: a regra mora aqui, a duplicação fica
-   só no call site.
+/* Combate Não Letal impede que o SEU golpe seja crítico: o Absurdo continua
+   saindo na tabela, mas resolve como golpe normal. É do ATACANTE, não do
+   alvo — quem escolheu não matar é quem ativou. */
+function criticoPermitido(atacante) { return !statusTemEfeito(atacante, 'sem_critico'); }
+
+/* Escolta (usa_defesa_de) — Ruling T7-A. O texto da técnica no banco é "Um
+   teste de Escolta (Médio) permite que 1 alvo use SUA defesa por 3 rodadas":
+   quem escolta EMPRESTA a própria defesa. O status fica no ALIADO escoltado
+   e carrega fonte_inst_id apontando de volta pra quem ativou.
+
+   Não mudei a assinatura de colunaAtaque de propósito: ela é pura, recebe só
+   (arma, alvo) e não tem como alcançar a lista de participantes pra resolver
+   a fonte. O shim alvoEfetivo no AcaoPanel já existia exatamente pra isso
+   (é onde mod_defesa entra), então a defesa emprestada entra no mesmo lugar.
+
+   Fonte fora de campo (morta, desmaiada, que desistiu, ou que simplesmente
+   não está mais na lista) não protege ninguém: a defesa própria volta. */
+function defesaBaseComEscolta(alvo, participantes) {
+  const propria = (alvo && alvo.defesa_valor) || 0;
+  if (!alvo || !Array.isArray(participantes)) return propria;
+  const st = (alvo.status_temp || []).find((e) => e.efeito && e.efeito.tipo === 'usa_defesa_de');
+  const fonteId = st && st.efeito.fonte_inst_id;
+  if (!fonteId) return propria;
+  const fonte = participantes.find((q) => q.inst_id === fonteId && q.status === 'ativo');
+  return fonte ? (fonte.defesa_valor || 0) : propria;
+}
+
+/* Custo de PA da ativação de uma técnica. A regra mudou DUAS vezes:
+
+   09/09/2026 (Fase 1): só modo 'total' era ativação livre — 0 PA, 1 vez por
+   rodada. modo 'teste' e técnica sem registro custavam 1 PA.
+
+   10/09/2026 (Fase 2, decisão do usuário): QUALQUER técnica com entrada no
+   registro é ativação livre, de qualquer modo. O motivo é aritmético: 17 das
+   26 técnicas da Fase 2 duram exatamente 1 rodada, e são todas modo 'teste'.
+   Sob a regra antiga, gastar o PA pra ativar um efeito que dura uma rodada e
+   depois não ter PA pra usá-lo fazia todas nascerem inúteis.
+
+   O que NÃO mudou: a cota continua sendo 1 por rodada (a flag zera em
+   processarViradaDeRodada, mesmo padrão de moveu_na_rodada), e técnica SEM
+   entrada no registro (as puramente narrativas) segue custando 1 PA — o
+   próprio PA já as limita, e elas não disputam a cota.
+
+   Função pura reusada pelos dois aplicarTeste (Mestre/Jogador), no mesmo
+   molde de aplicarEfeitoTecnica: a regra mora aqui, a duplicação fica só no
+   call site.
 
    Decisão de regra CONFIRMADA PELO USUÁRIO em 09/09/2026, que parece bug mas
    não é: atacar antes de ativar a técnica livre da rodada IMPEDE de usá-la
    depois. "0 PA" é o custo em Pontos de Ação, não uma isenção do turno — quem
-   gasta o último PA atacando aciona o auto-passe da vez (pa_rest === 0, ver
-   os call sites de autoPassarSeNecessario) antes de ter a chance de ativar a
-   técnica, e a ativação livre não faz nada pra segurar o turno aberto. Na
+   gasta o último PA atacando aciona o auto-passe da vez (hoje temAcaoRestante,
+   ver os call sites de autoPassarSeNecessario) antes de ter a chance de ativar
+   a técnica, e a ativação livre não faz nada pra segurar o turno aberto. Na
    prática, "0 PA" para o jogador significa "ative antes de agir, ou perdeu
    a rodada". Não corrigir sem confirmar de novo com o usuário. */
 function debitarCustoTecnica(participante, tecnicaKey) {
   const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(tecnicaKey) : null;
-  if (reg && reg.modo === 'total') {
+  if (reg) {
     return { ...participante, tecnica_livre_usada: true };
   }
   return { ...participante, pa_rest: Math.max(0, (participante.pa_rest || 0) - 1) };
 }
 
-/* Teto de 1 ativação LIVRE (modo 'total') por rodada. Devolve bloqueado só
-   quando a técnica É modo 'total' E a flag já foi consumida nesta rodada —
-   toda técnica modo 'teste' (Sangramento) e toda técnica sem entrada no
-   registro passam livres, porque não disputam a cota. */
+/* Teto de 1 ativação LIVRE por rodada. Desde a Fase 2 a cota vale pra
+   QUALQUER técnica com entrada no registro, não só as de modo 'total' — ver
+   o comentário longo em debitarCustoTecnica. Devolve bloqueado quando a
+   técnica está no registro E a flag já foi consumida nesta rodada. Técnica
+   sem entrada passa livre porque não disputa a cota: ela paga PA. */
 function podeAtivarTecnicaLivre(p, tecnica) {
   const reg = (typeof tecnicaEfeitoDe === 'function')
     ? tecnicaEfeitoDe(tecnica && tecnica.key) : null;
-  if (!reg || reg.modo !== 'total') return { pode: true, motivo: null };
+  if (!reg) return { pode: true, motivo: null };
   if (p && p.tecnica_livre_usada) return { pode: false, motivo: 'livre_usada' };
   return { pode: true, motivo: null };
 }
@@ -2727,10 +2770,13 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     //            d20_critico?, res_critico?, tipo_critico?, tipo_critico_arma?, msg_critico? }
     const { tipo, arma, magia, tecnica, alvo, coluna, d20, resultado, dano, custo_karma,
             d20_critico, res_critico, tipo_critico, tipo_critico_arma, msg_critico } = payload;
-    const critico = !!(resultado && resultado.critico);
+    const criticoBruto = !!(resultado && resultado.critico);
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     const atorIdx = participantes.findIndex((p) => p.atual);
     if (alvoIdx < 0 || atorIdx < 0) return;
+    // Combate Não Letal (sem_critico): o Absurdo saiu na tabela, mas quem
+    // ativou escolheu subjugar — resolve como golpe normal.
+    const critico = criticoBruto && criticoPermitido(participantes[atorIdx]);
 
     let next = [...participantes];
     // Atacar É uma ação: derruba a concentração de quem ataca.
@@ -2905,6 +2951,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         || (payload.resultado && payload.resultado.q >= D20_QUALIDADE_MINIMA[reg && reg.dificuldade]);
       if (reg && passou) {
         // Lista vazia = alvo é o próprio testador ('self').
+        // Quem ativou, pra Escolta ancorar a defesa emprestada. Nome igual
+        // nas duas cópias de propósito: só a linha do índice difere.
+        const fonteInstId = next[testIdx].inst_id;
         const destinos = (payload.alvos_efeito && payload.alvos_efeito.length)
           ? payload.alvos_efeito.slice(0, reg.maxAlvos || payload.alvos_efeito.length)
           : [next[testIdx]];
@@ -2912,7 +2961,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         destinos.forEach((destino) => {
           const dIdx = next.findIndex((p) => mesmoParticipante(p, destino));
           if (dIdx < 0) return;
-          next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total);
+          next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total, { fonteInstId });
           atingidos.push(next[dIdx].nome);
         });
         // O uso Único é do ATOR, mesmo quando o efeito cai só nos outros.
@@ -4750,7 +4799,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const modColunaAtor = somaEfeitosStatus(ator, 'mod_coluna');
   let coluna = null, colunaClamped = null, alvoResist = null;
   if (tab === 'arma' && arma && alvo) {
-    const alvoEfetivo = { ...alvo, defesa_valor: (alvo.defesa_valor || 0) + somaEfeitosStatus(alvo, 'mod_defesa') };
+    const alvoEfetivo = { ...alvo, defesa_valor: defesaBaseComEscolta(alvo, participantes) + somaEfeitosStatus(alvo, 'mod_defesa') };
     // mod_ataque (técnicas, Fase 1) entra SÓ aqui e na magia — teste de
     // habilidade e de técnica não recebem bônus de "coluna de ataque".
     coluna = colunaAtaque(arma, alvoEfetivo)
@@ -5840,10 +5889,13 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (!ehMinhaVez || !meuParticipante) return;
     const { tipo, arma, magia, tecnica, alvo, coluna, d20, resultado, dano, custo_karma,
             d20_critico, res_critico, tipo_critico, tipo_critico_arma, msg_critico } = payload;
-    const critico = !!(resultado && resultado.critico);
+    const criticoBruto = !!(resultado && resultado.critico);
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     const atorIdx = participantes.findIndex((p) => mesmoParticipante(p, meuParticipante));
     if (alvoIdx < 0 || atorIdx < 0) return;
+    // Combate Não Letal (sem_critico): o Absurdo saiu na tabela, mas quem
+    // ativou escolheu subjugar — resolve como golpe normal.
+    const critico = criticoBruto && criticoPermitido(participantes[atorIdx]);
 
     let next = [...participantes];
     // Guarda a rodada nova de QUALQUER um dos dois auto-passar abaixo: se o
@@ -6007,6 +6059,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         || (payload.resultado && payload.resultado.q >= D20_QUALIDADE_MINIMA[reg && reg.dificuldade]);
       if (reg && passou) {
         // Lista vazia = alvo é o próprio testador ('self').
+        // Quem ativou, pra Escolta ancorar a defesa emprestada. Nome igual
+        // nas duas cópias de propósito: só a linha do índice difere.
+        const fonteInstId = next[idx].inst_id;
         const destinos = (payload.alvos_efeito && payload.alvos_efeito.length)
           ? payload.alvos_efeito.slice(0, reg.maxAlvos || payload.alvos_efeito.length)
           : [next[idx]];
@@ -6014,7 +6069,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         destinos.forEach((destino) => {
           const dIdx = next.findIndex((p) => mesmoParticipante(p, destino));
           if (dIdx < 0) return;
-          next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total);
+          next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total, { fonteInstId });
           atingidos.push(next[dIdx].nome);
         });
         // O uso Único é do ATOR, mesmo quando o efeito cai só nos outros.
@@ -6627,6 +6682,8 @@ Object.assign(window, {
     // Ruling T6-C (Fase 2): "sobrou ação" != "sobrou PA" — pa_ataque_extra
     // segura o fim de turno mesmo com pa_rest 0.
     temAcaoRestante,
+    criticoPermitido,
+    defesaBaseComEscolta,
     // Task 6 das técnicas: mod_eh_temp sobe eh/eh_max ao aplicar (Fase 1 acima)
     // e devolve o empréstimo quando o status sai na virada de rodada.
     expirarEhTemp,

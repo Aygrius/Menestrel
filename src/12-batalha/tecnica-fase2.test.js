@@ -264,3 +264,88 @@ describe('nenhuma porta de ação decide por PA cru', () => {
     expect(fonte).toMatch(/disabled=\{salvando \|\| !catalogos \|\| !temAcaoRestante\(p\)/);
   });
 });
+
+/* ============================================================
+   Task 7 — ativação livre para qualquer modo, sem_critico, Escolta
+   ============================================================ */
+describe('ativação livre vale para QUALQUER modo (mudança da Fase 2)', () => {
+  const ator = (over = {}) => ({ inst_id: 'a', pa_rest: 1, tecnica_livre_usada: false, status_temp: [], tecnicas_usadas: [], ...over });
+
+  it('técnica de modo teste também é ativação livre', () => {
+    const p = M.debitarCustoTecnica(ator(), 'golpe_letal');
+    expect(p.pa_rest, 'não debita PA').toBe(1);
+    expect(p.tecnica_livre_usada).toBe(true);
+  });
+
+  it('técnica de modo total continua livre', () => {
+    const p = M.debitarCustoTecnica(ator(), 'mira');
+    expect(p.pa_rest).toBe(1);
+    expect(p.tecnica_livre_usada).toBe(true);
+  });
+
+  it('a SEGUNDA da rodada é bloqueada, seja qual for o modo', () => {
+    const usado = ator({ tecnica_livre_usada: true });
+    expect(M.podeAtivarTecnicaLivre(usado, { key: 'golpe_letal' }).pode).toBe(false);
+    expect(M.podeAtivarTecnicaLivre(usado, { key: 'mira' }).pode).toBe(false);
+  });
+
+  it('técnica SEM entrada no registro continua debitando PA', () => {
+    const p = M.debitarCustoTecnica(ator(), 'concentracao');
+    expect(p.pa_rest).toBe(0);
+    expect(p.tecnica_livre_usada, 'não consome a cota livre').toBe(false);
+  });
+
+  it('sem entrada no registro, a cota livre não bloqueia', () => {
+    const usado = ator({ tecnica_livre_usada: true });
+    expect(M.podeAtivarTecnicaLivre(usado, { key: 'concentracao' }).pode).toBe(true);
+  });
+});
+
+describe('sem_critico', () => {
+  it('o resultado Absurdo não vira crítico enquanto durar', () => {
+    const com = { inst_id: 'a', status_temp: [{ id: 's', nome: 's', icone: '·', rodadas_rest: 1, efeito: { tipo: 'sem_critico', valor: true } }] };
+    expect(M.criticoPermitido(com)).toBe(false);
+    expect(M.criticoPermitido({ inst_id: 'a', status_temp: [] })).toBe(true);
+  });
+});
+
+/* Escolta — Ruling T7-A. O comentário do registro dizia o INVERSO ("quem
+   ativa passa a defender com a defesa do aliado"). O texto da técnica no
+   banco é inequívoco: "Um teste de Escolta (Médio) permite que 1 alvo use
+   SUA defesa por 3 rodadas." Quem escolta EMPRESTA a própria defesa; o
+   status fica no aliado escoltado e aponta de volta para a fonte. */
+describe('Escolta empresta a defesa de quem escolta', () => {
+  const escolta = { inst_id: 'e', nome: 'Escolta', status: 'ativo', defesa_valor: 12, status_temp: [] };
+  const comStatus = (fonteInstId) => ({
+    inst_id: 'b', nome: 'Protegido', status: 'ativo', defesa_valor: 3,
+    status_temp: [{ id: 'tec_escolta', nome: 'Escolta', icone: '🫂', rodadas_rest: 3,
+                    efeito: { tipo: 'usa_defesa_de', valor: true, fonte_inst_id: fonteInstId } }],
+  });
+
+  it('aplicarEfeitoTecnica grava fonte_inst_id no ALIADO', () => {
+    const aliado = { inst_id: 'b', status: 'ativo', status_temp: [] };
+    const r = M.aplicarEfeitoTecnica(aliado, { key: 'escolta', nome: 'Escolta' }, 0, { fonteInstId: 'e' });
+    const ef = r.status_temp.find((s) => s.efeito.tipo === 'usa_defesa_de').efeito;
+    expect(ef.fonte_inst_id).toBe('e');
+  });
+
+  it('o protegido defende com a defesa da fonte, não com a sua', () => {
+    expect(M.defesaBaseComEscolta(comStatus('e'), [escolta, comStatus('e')])).toBe(12);
+  });
+
+  it('fonte fora de campo: a defesa própria volta a valer', () => {
+    const morto = { ...escolta, status: 'morto' };
+    expect(M.defesaBaseComEscolta(comStatus('e'), [morto, comStatus('e')])).toBe(3);
+    expect(M.defesaBaseComEscolta(comStatus('sumiu'), [escolta]), 'fonte inexistente').toBe(3);
+  });
+
+  it('sem o status, nada muda', () => {
+    expect(M.defesaBaseComEscolta({ inst_id: 'b', defesa_valor: 3, status_temp: [] }, [escolta])).toBe(3);
+  });
+
+  it('outros tipos de efeito não ganham fonte_inst_id', () => {
+    const p = { inst_id: 'b', status: 'ativo', status_temp: [] };
+    const r = M.aplicarEfeitoTecnica(p, { key: 'desequilibrar', nome: 'Desequilibrar' }, 0, { fonteInstId: 'e' });
+    expect(r.status_temp.find((s) => s.efeito.tipo === 'derrubado').efeito.fonte_inst_id).toBeUndefined();
+  });
+});
