@@ -45,10 +45,10 @@ const TECNICA_EFEITO_MAP = {
                        efeitos: [{ tipo: 'mod_ataque', sinal: 1 }] },
   // Sem duração no texto do banco; `uso` é Único. 1 rodada por decisão —
   // ver o teste que trava isso em tecnicas-efeito.test.js.
-  // METADE PENDENTE: o "ignora a armadura do adversário" é Fase 2.
+  // Fase 2 completou a metade que faltava: ignora_armadura.
   explorar_fraqueza: { modo: 'total', alvo: 'self',    rodadas: 1,  icone: '🔍',
-                       parcial: 'ignora_armadura',
-                       efeitos: [{ tipo: 'mod_ataque', sinal: 1 }] },
+                       efeitos: [{ tipo: 'mod_ataque', sinal: 1 },
+                                 { tipo: 'ignora_armadura', valor: true }] },
   // Debuff: sai da coluna de ataque do adversário.
   resguardar:        { modo: 'total', alvo: 'inimigo', rodadas: 2,  icone: '🛡️',
                        efeitos: [{ tipo: 'mod_ataque', sinal: -1 }] },
@@ -119,6 +119,113 @@ const TECNICA_EFEITO_MAP = {
   sangramento:       { modo: 'teste', alvo: 'inimigo', rodadas: 5,  icone: '🩸',
                        dificuldade: 'dificil',
                        efeitos: [{ tipo: 'dano_por_rodada', valor: 1 }] },
+
+  /* ============================================================
+     FASE 2 — as 26 técnicas que reescrevem a resolução do golpe em
+     vez de só somar um número a um stat. Todas são modo: 'teste'
+     (nenhuma rola 'total'); a dificuldade vem literal do banco,
+     convertida para a chave de D20_QUALIDADE_MINIMA.
+     Spec: docs/superpowers/specs/2026-09-10-tecnicas-fase-2-design.md
+     ============================================================ */
+
+  /* ── ignora_eh: o golpe passa direto pela energia heroica ────── */
+  ataque_oportuno:     { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '⚡',
+                        dificuldade: 'medio',
+                        efeitos: [{ tipo: 'ignora_eh', valor: true }] },
+  atravessar_oponente: { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '➡️',
+                        dificuldade: 'medio',
+                        efeitos: [{ tipo: 'ignora_eh', valor: true }] },
+  carga:               { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '🐗',
+                        dificuldade: 'dificil',
+                        efeitos: [{ tipo: 'ignora_eh', valor: true }] },
+  carga_de_arremesso:  { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '🪓',
+                        dificuldade: 'medio',
+                        efeitos: [{ tipo: 'ignora_eh', valor: true }] },
+  carga_montada:       { modo: 'teste', alvo: 'inimigo', rodadas: 2, icone: '🐴',
+                        dificuldade: 'medio',
+                        efeitos: [{ tipo: 'ignora_eh', valor: true }] },
+  golpe_letal:         { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '💀',
+                        dificuldade: 'muito_dificil',
+                        efeitos: [{ tipo: 'ignora_eh', valor: true }] },
+
+  /* ── dano_pct: bônus percentual sobre o dano causado ──────────── */
+  ambidestria:    { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🙌',
+                   dificuldade: 'medio',
+                   efeitos: [{ tipo: 'dano_pct', valor: 25 }] },
+  aprimorar:      { modo: 'teste', alvo: 'self', rodadas: 3, icone: '📈',
+                   dificuldade: 'muito_dificil',
+                   efeitos: [{ tipo: 'dano_pct', valor: 25 }] },
+  dano_agravado:  { modo: 'teste', alvo: 'self', rodadas: 1, icone: '💢',
+                   dificuldade: 'muito_dificil',
+                   efeitos: [{ tipo: 'dano_pct', valor: 25 }] },
+  forca_interior: { modo: 'teste', alvo: 'self', rodadas: 2, icone: '🧘',
+                   dificuldade: 'medio',
+                   efeitos: [{ tipo: 'dano_pct', valor: 25 }] },
+  // Único com +50% em vez de +25% — o texto do banco confirma o valor maior.
+  brutalizar:     { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🔨',
+                   dificuldade: 'dificil',
+                   efeitos: [{ tipo: 'dano_pct', valor: 50 }] },
+
+  /* ── dano_recebido_pct: reduz o dano recebido — valor NEGATIVO,
+     é o motor quem soma (reduzir = somar um percentual negativo) ── */
+  aparar:             { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🥋',
+                       dificuldade: 'muito_dificil',
+                       efeitos: [{ tipo: 'dano_recebido_pct', valor: -75 }] },
+  desviar:            { modo: 'teste', alvo: 'self', rodadas: 3, icone: '🌀',
+                       dificuldade: 'muito_dificil',
+                       efeitos: [{ tipo: 'dano_recebido_pct', valor: -50 }] },
+  combate_com_escudo: { modo: 'teste', alvo: 'self', rodadas: 2, icone: '🔰',
+                       dificuldade: 'medio',
+                       efeitos: [{ tipo: 'dano_recebido_pct', valor: -25 }] },
+
+  /* ── ataque_extra: +1 golpe, PA só utilizável pra atacar ──────── */
+  contra_ataque:       { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🔁',
+                        dificuldade: 'dificil',
+                        efeitos: [{ tipo: 'ataque_extra', valor: 1 }] },
+  golpe_duplo:         { modo: 'teste', alvo: 'self', rodadas: 1, icone: '✌️',
+                        dificuldade: 'muito_dificil',
+                        efeitos: [{ tipo: 'ataque_extra', valor: 1 }] },
+  flechadas_multiplas: { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🪶',
+                        dificuldade: 'muito_dificil',
+                        efeitos: [{ tipo: 'ataque_extra', valor: 1 }] },
+
+  // Única com dois tipos de efeito no mesmo golpe: +25% de dano E até 3 alvos.
+  golpe_giratorio: { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🌪️',
+                    dificuldade: 'dificil',
+                    efeitos: [{ tipo: 'dano_pct', valor: 25 },
+                              { tipo: 'alvos_extras', valor: 3 }] },
+
+  /* ── demais primitivas da Fase 2, uma técnica cada ────────────── */
+  disparo_certeiro:  { modo: 'teste', alvo: 'inimigo', rodadas: 3, icone: '🔭',
+                      dificuldade: 'medio',
+                      efeitos: [{ tipo: 'ignora_armadura', valor: true }] },
+  inibir_ataque:      { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '🚫',
+                      dificuldade: 'dificil',
+                      efeitos: [{ tipo: 'sem_atacar', valor: true }] },
+  intimidar:          { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '👹',
+                      dificuldade: 'muito_dificil',
+                      efeitos: [{ tipo: 'sem_atacar', valor: true }] },
+  leitura_de_batalha: { modo: 'teste', alvo: 'inimigo', rodadas: 2, icone: '📖',
+                      dificuldade: 'medio',
+                      efeitos: [{ tipo: 'sem_tecnicas', valor: true }] },
+  combate_nao_letal:  { modo: 'teste', alvo: 'self', rodadas: 2, icone: '🥊',
+                      dificuldade: 'medio',
+                      efeitos: [{ tipo: 'sem_critico', valor: true }] },
+  desequilibrar:      { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '⚖️',
+                      dificuldade: 'muito_dificil',
+                      efeitos: [{ tipo: 'derrubado', valor: true }] },
+  // consome_em: gasto no PRÓXIMO golpe recebido, não por rodada — mecanismo
+  // novo da Fase 2. `rodadas` continua sendo o teto de tempo do status.
+  esquiva:            { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🙅',
+                      dificuldade: 'muito_dificil',
+                      consome_em: 'golpe_recebido',
+                      efeitos: [{ tipo: 'evita_golpe', valor: true }] },
+  // usa_defesa_de: quem ativa passa a defender com a coluna de defesa do
+  // aliado escoltado. maxAlvos: 1 — só dá pra escoltar um aliado por vez.
+  escolta:            { modo: 'teste', alvo: 'aliados', rodadas: 3, icone: '🫂',
+                      dificuldade: 'medio',
+                      maxAlvos: 1,
+                      efeitos: [{ tipo: 'usa_defesa_de', valor: true }] },
 };
 
 // Lookup tolerante: técnica sem entrada devolve null, e o chamador mantém o

@@ -48,14 +48,32 @@ const EFEITO_NO_BANCO = {
 };
 
 const TIPOS_VALIDOS = [
+  // Fase 1
   'mod_ataque', 'mod_defesa', 'mod_vb', 'mod_eh_temp',
   'mod_rf', 'mod_rm', 'mod_dano_max', 'dano_por_rodada',
+  // Fase 2 — reescrevem a resolução do golpe
+  'ignora_eh', 'ignora_armadura', 'dano_pct', 'dano_recebido_pct',
+  'ataque_extra', 'alvos_extras', 'sem_atacar', 'sem_tecnicas',
+  'sem_critico', 'derrubado', 'evita_golpe', 'usa_defesa_de',
+];
+// Os que multiplicam o total da técnica (totalTecnica × sinal). O resto é
+// valor fixo (dano_pct 25) ou flag liga/desliga (ignora_eh true).
+const TIPOS_ESCALAM_COM_TOTAL = [
+  'mod_ataque', 'mod_defesa', 'mod_vb', 'mod_eh_temp',
+  'mod_rf', 'mod_rm', 'mod_dano_max',
 ];
 const DIFICULDADES_VALIDAS = ['facil', 'medio', 'dificil', 'muito_dificil', 'absurdo'];
 
 describe('TECNICA_EFEITO_MAP', () => {
-  it('cobre exatamente as 24 técnicas da Fase 1', () => {
-    expect(Object.keys(MAP).sort()).toEqual(Object.keys(EFEITO_NO_BANCO).sort());
+  // Era igualdade exata com as 24 da Fase 1. Virou contenção quando a Fase 2
+  // acrescentou 26: este arquivo continua sendo o dono das 24 originais, e
+  // tecnica-fase2.test.js é o dono das outras. O total fica travado aqui pra
+  // uma entrada não sumir sem ninguém notar.
+  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 50', () => {
+    for (const key of Object.keys(EFEITO_NO_BANCO)) {
+      expect(MAP[key], `${key} da Fase 1 sumiu do registro`).toBeDefined();
+    }
+    expect(Object.keys(MAP).length, '24 da Fase 1 + 26 da Fase 2').toBe(50);
   });
 
   it('toda entrada tem modo, alvo, rodadas, ícone e ao menos um efeito', () => {
@@ -72,8 +90,17 @@ describe('TECNICA_EFEITO_MAP', () => {
     for (const [key, e] of Object.entries(MAP)) {
       for (const ef of e.efeitos) {
         expect(TIPOS_VALIDOS, `${key}/${ef.tipo}`).toContain(ef.tipo);
-        if (e.modo === 'total') expect([1, -1], key).toContain(ef.sinal);
-        else expect(Number.isFinite(ef.valor), key).toBe(true);
+        // O que determina a forma do efeito é o TIPO dele, não o modo da
+        // técnica. Explorar Fraqueza é `modo: 'total'` e tem os dois: um
+        // mod_ataque que escala com o total, e um ignora_armadura que é
+        // liga/desliga. Antes este teste exigia `sinal` em todo efeito de
+        // modo total, e quebrou quando a Fase 2 completou aquela técnica.
+        if (TIPOS_ESCALAM_COM_TOTAL.includes(ef.tipo)) {
+          expect([1, -1], `${key}/${ef.tipo} escala e precisa de sinal`).toContain(ef.sinal);
+        } else {
+          expect(Number.isFinite(ef.valor) || ef.valor === true,
+            `${key}/${ef.tipo} é valor fixo ou flag`).toBe(true);
+        }
       }
     }
   });
@@ -146,7 +173,7 @@ describe('tecnicaEfeitoDe', () => {
   // Fallback é o comportamento narrativo de hoje, não erro: as 34 técnicas
   // de Fase 2 e as 4 puramente narrativas continuam só no log.
   it('devolve null para técnica sem entrada, sem lançar', () => {
-    expect(tecnicaEfeitoDe('golpe_duplo')).toBeNull();
+    expect(tecnicaEfeitoDe('concentracao'), 'narrativa em qualquer fase').toBeNull();
     expect(tecnicaEfeitoDe('nao_existe')).toBeNull();
     expect(tecnicaEfeitoDe(null)).toBeNull();
     expect(tecnicaEfeitoDe(undefined)).toBeNull();
