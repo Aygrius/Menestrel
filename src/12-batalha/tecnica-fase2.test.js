@@ -101,9 +101,13 @@ describe('as primitivas caíram nas técnicas certas', () => {
     }
   });
 
-  it('Golpe Giratório tem os DOIS: +25% e até 3 alvos', () => {
+  // O nome deste teste prometia "+25%" e o corpo nunca verificava o valor —
+  // só os tipos e o teto de alvos. Teste que anuncia mais do que confere é o
+  // pior tipo, porque dá falsa segurança. Agora afirma os dois números.
+  it('Golpe Giratório tem os DOIS: +25% de dano e até 3 alvos', () => {
     expect(tipos('golpe_giratorio')).toEqual(['alvos_extras','dano_pct']);
     expect(MAP.golpe_giratorio.efeitos.find((e) => e.tipo === 'alvos_extras').valor).toBe(3);
+    expect(MAP.golpe_giratorio.efeitos.find((e) => e.tipo === 'dano_pct').valor).toBe(25);
   });
 
   it('as que atuam no alvo miram inimigo', () => {
