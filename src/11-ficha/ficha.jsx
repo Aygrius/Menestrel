@@ -2368,6 +2368,16 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
     const filled = !!it;
     const catOk = filled && !!cat;
     const abs = catOk ? (Number(cat.absorcao) || 0) : 0;
+    /* Resistência (durabilidade) da peça — mesma barra do inventário.
+
+       É na ficha que o jogador olha a armadura antes de entrar em combate,
+       então é aqui que precisa dar pra ver o que está prestes a arrebentar.
+       Zerada, a peça para de bloquear (ver aplicarDanoCascata). */
+    const resMax = catOk ? (Number(cat.resistencia) || 0) : 0;
+    const resAtual = (resMax > 0 && Number.isFinite(Number(it && it.res)))
+      ? Math.max(0, Math.min(resMax, Number(it.res)))
+      : resMax;
+    const resPct = resMax > 0 ? Math.round((resAtual / resMax) * 100) : 0;
     const isCont = catOk && _ehContainer(cat);   // container vestido (cinto/bolsa) → menu Ver/Despir
     const lbl = slotLbl(regiao);
     const nomeLbl = catOk ? cat.nome : (it ? (it.slug || '?') : lbl);
@@ -2388,6 +2398,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
       stats: [
         cat.dano != null ? { label: en ? 'Damage' : 'Dano', value: cat.dano } : null,
         Number(cat.absorcao) > 0 ? { label: en ? 'Absorb' : 'Absorção', value: cat.absorcao } : null,
+        resMax > 0 ? { label: en ? 'Durability' : 'Resistência', value: `${resAtual}/${resMax}` } : null,
       ].filter(Boolean),
     } : null;
     return (
@@ -2418,6 +2429,16 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
         </span>
         {filled && podeEditarInv && (
           <span className="fp-slot-x" aria-hidden="true"><i className={'ti ' + (isCont ? 'ti-moneybag' : (it.vestido ? 'ti-shirt-off' : 'ti-shield-off'))} /></span>
+        )}
+        {/* Barra de resistência — mesmas classes do inventário (.inv-res-bar),
+            pra que as duas telas nunca divirjam de cor nem de limiar de
+            aviso. Só aparece em peça que TEM resistência no catálogo. */}
+        {filled && resMax > 0 && (
+          <span className="inv-res-bar" data-baixa={resPct <= 25 ? 2 : (resPct <= 50 ? 1 : 0)}
+            role="img"
+            aria-label={`${en ? 'Durability' : 'Resistência'}: ${resAtual}/${resMax}`}>
+            <span style={{ width: resPct + '%' }} />
+          </span>
         )}
       </button>
     );

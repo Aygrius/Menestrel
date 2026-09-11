@@ -3368,7 +3368,11 @@
    quadrinho do ícone, pequeno, no canto inferior direito (pedido do usuário,
    11/09/2026). Antes ficava ao lado, e cada chip ocupava o dobro da largura
    por causa disso — com 6 atributos a linha quebrava. */
-#root .menestrel-ui .det-sec-ic-box { position: relative; }
+/* O contexto de posicionamento é o CHIP, não o quadrinho do ícone: o
+   número (.det-sec-val) é IRMÃO de .det-sec-ic-box, não filho dele. Pôr
+   `position: relative` no ícone não o ancorava em nada, e o absoluto subia
+   até o modal — o número foi parar no canto inferior direito da janela. */
+#root .menestrel-ui .det-sec-chip { position: relative; display: inline-flex; }
 #root .menestrel-ui .det-sec-chip .det-sec-val {
   position: absolute; right: -3px; bottom: -3px;
   min-width: 13px; height: 13px; padding: 0 2px;
@@ -3404,6 +3408,10 @@
 #root .menestrel-ui .inv-res-bar[data-baixa="2"] > span { background: #d84747; }
 #root .menestrel-ui .inv-card:has(.inv-res-bar) { padding-bottom: 9px; }
 #root .menestrel-ui .inv-bag-grid--slots .inv-res-bar { height: 2px; }
+/* A mesma barra dentro da casa do paper-doll da ficha. `.inv-slot` precisa
+   ser contexto de posicionamento — a barra é absoluta no rodapé da casa. */
+#root .menestrel-ui .inv-slot { position: relative; }
+#root .menestrel-ui .inv-slot .inv-res-bar { height: 3px; border-radius: 0 0 6px 6px; }
 
 /* Rodapé do card de personagem — só existe no perfil Jogador, onde o card
    tem a ação "Selecionar personagem" (ver PersonagemCard). */
