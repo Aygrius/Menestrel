@@ -3373,6 +3373,13 @@
    `position: relative` no ícone não o ancorava em nada, e o absoluto subia
    até o modal — o número foi parar no canto inferior direito da janela. */
 #root .menestrel-ui .det-sec-chip { position: relative; display: inline-flex; }
+/* O chip de efeito é só o ícone e responde a hover/foco — precisa avisar
+   que há algo a ler ali, senão o tooltip vira segredo. */
+#root .menestrel-ui .det-sec-chip--efeito { cursor: help; }
+#root .menestrel-ui .det-sec-chip--efeito:hover .det-sec-ic-box,
+#root .menestrel-ui .det-sec-chip--efeito:focus-visible .det-sec-ic-box {
+  outline: 1px solid rgba(201,164,78,0.65); outline-offset: 1px;
+}
 #root .menestrel-ui .det-sec-chip .det-sec-val {
   position: absolute; right: -3px; bottom: -3px;
   min-width: 13px; height: 13px; padding: 0 2px;

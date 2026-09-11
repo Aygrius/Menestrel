@@ -2257,28 +2257,48 @@ function DetalhesItemModal({
                 <span className="det-sec-val">{cat.dano}</span>
               </span>
             )}
+            {/* Efeito é TEXTO, e texto não cabe num selo de canto (pedido do
+                usuário, 11/09/2026: "quando houver um efeito no item, não
+                precisa mostrar qual efeito é, o efeito vira tooltip").
+
+                Os chips numéricos acima continuam com o número no canto —
+                número cabe. Estes três viram só o ícone, e o conteúdo sai no
+                hover. Sem o texto ao lado, a linha de atributos para de
+                quebrar quando o item tem efeito longo. */}
             {cat.efeito_positivo && (
-              <span className="det-sec-chip">
+              <span className="det-sec-chip det-sec-chip--efeito"
+                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Positive effect' : 'Efeito positivo', desc: cat.efeito_positivo })}
+                onMouseLeave={fecharTip}
+                tabIndex={0}
+                onFocus={(e) => abrirTip(e, { title: en ? 'Positive effect' : 'Efeito positivo', desc: cat.efeito_positivo })}
+                onBlur={fecharTip}>
                 <span className="det-sec-ic-box det-sec-ic--pos">
                   <i className="ti ti-plus" aria-hidden="true" />
                 </span>
-                <span className="det-sec-val">{cat.efeito_positivo}</span>
               </span>
             )}
             {cat.efeito_negativo && (
-              <span className="det-sec-chip">
+              <span className="det-sec-chip det-sec-chip--efeito"
+                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Negative effect' : 'Efeito negativo', desc: cat.efeito_negativo })}
+                onMouseLeave={fecharTip}
+                tabIndex={0}
+                onFocus={(e) => abrirTip(e, { title: en ? 'Negative effect' : 'Efeito negativo', desc: cat.efeito_negativo })}
+                onBlur={fecharTip}>
                 <span className="det-sec-ic-box det-sec-ic--neg">
                   <i className="ti ti-minus" aria-hidden="true" />
                 </span>
-                <span className="det-sec-val">{cat.efeito_negativo}</span>
               </span>
             )}
             {(cat.magia || cat.nivel_magia != null) && (
-              <span className="det-sec-chip">
-                <span className="det-sec-ic-box">
+              <span className="det-sec-chip det-sec-chip--efeito"
+                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Spell' : 'Magia', desc: [cat.magia, cat.nivel_magia].filter((x) => x != null && x !== '').join(' ') || null })}
+                onMouseLeave={fecharTip}
+                tabIndex={0}
+                onFocus={(e) => abrirTip(e, { title: en ? 'Spell' : 'Magia', desc: [cat.magia, cat.nivel_magia].filter((x) => x != null && x !== '').join(' ') || null })}
+                onBlur={fecharTip}>
+                <span className="det-sec-ic-box ">
                   <i className="ti ti-sparkle" aria-hidden="true" />
                 </span>
-                {cat.magia && <span className="det-sec-val">{cat.magia} {cat.nivel_magia}</span>}
               </span>
             )}
           </div>
