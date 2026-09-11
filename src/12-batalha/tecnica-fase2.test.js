@@ -349,3 +349,43 @@ describe('Escolta empresta a defesa de quem escolta', () => {
     expect(r.status_temp.find((s) => s.efeito.tipo === 'derrubado').efeito.fonte_inst_id).toBeUndefined();
   });
 });
+
+/* Task 8 — o efeito de ignora_eh/ignora_armadura mora no ATACANTE, mas só
+   vale contra o alvo declarado (Golpe Letal não abre a EH de todo mundo,
+   só a de quem foi atacado). aplicarEfeitoTecnica grava alvo_inst_id
+   quando opcoes.alvoInstId vem preenchido; modsDoGolpe (já coberto acima)
+   é quem lê esse campo na hora de resolver o golpe. */
+describe('efeitos ancorados no atacante gravam o alvo', () => {
+  const lutador = () => ({ inst_id: 'a', eh: 10, eh_max: 10, ar: 0, ar_max: 0, ef: 20, ef_max: 20,
+    status: 'ativo', status_temp: [], tecnicas_usadas: [] });
+
+  it('Golpe Letal grava alvo_inst_id no efeito do ATACANTE', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'golpe_letal', nome: 'Golpe Letal' }, 0, { alvoInstId: 'b' });
+    const ef = p.status_temp.find((s) => s.efeito.tipo === 'ignora_eh').efeito;
+    expect(ef.alvo_inst_id).toBe('b');
+  });
+
+  it('Disparo Certeiro (ignora_armadura) grava alvo_inst_id no efeito do ATACANTE', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'disparo_certeiro', nome: 'Disparo Certeiro' }, 0, { alvoInstId: 'b' });
+    const ef = p.status_temp.find((s) => s.efeito.tipo === 'ignora_armadura').efeito;
+    expect(ef.alvo_inst_id).toBe('b');
+  });
+
+  it('Desequilibrar grava derrubado no ALVO, sem alvo_inst_id', () => {
+    const alvo = M.aplicarEfeitoTecnica({ ...lutador(), inst_id: 'b' }, { key: 'desequilibrar', nome: 'Desequilibrar' }, 0);
+    const ef = alvo.status_temp.find((s) => s.efeito.tipo === 'derrubado').efeito;
+    expect(ef.alvo_inst_id).toBeUndefined();
+  });
+
+  it('sem opcoes.alvoInstId, ignora_eh não grava âncora (auto-buff self, ex. Explorar Fraqueza)', () => {
+    const p = M.aplicarEfeitoTecnica(lutador(), { key: 'golpe_letal', nome: 'Golpe Letal' }, 0);
+    const ef = p.status_temp.find((s) => s.efeito.tipo === 'ignora_eh').efeito;
+    expect(ef.alvo_inst_id).toBeUndefined();
+  });
+
+  it('outros tipos de efeito não ganham alvo_inst_id mesmo com opcoes.alvoInstId', () => {
+    const alvo = M.aplicarEfeitoTecnica({ ...lutador(), inst_id: 'b' }, { key: 'desequilibrar', nome: 'Desequilibrar' }, 0, { alvoInstId: 'z' });
+    const ef = alvo.status_temp.find((s) => s.efeito.tipo === 'derrubado').efeito;
+    expect(ef.alvo_inst_id).toBeUndefined();
+  });
+});

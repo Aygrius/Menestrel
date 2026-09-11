@@ -2148,6 +2148,15 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
     if (ef.tipo === 'usa_defesa_de' && opcoes && opcoes.fonteInstId) {
       efeito.fonte_inst_id = opcoes.fonteInstId;
     }
+    // Golpe Letal e as 5 irmãs (ignora_eh), Disparo Certeiro (ignora_armadura):
+    // o efeito mora no ATACANTE (Fase 2, Task 8) e carrega alvo_inst_id pra
+    // valer só contra o inimigo declarado — modsDoGolpe é quem lê isto.
+    // Sem âncora (opcoes.alvoInstId ausente, caso dos auto-buffs 'self' como
+    // Explorar Fraqueza) o efeito segue valendo contra qualquer alvo, como
+    // antes desta task.
+    if ((ef.tipo === 'ignora_eh' || ef.tipo === 'ignora_armadura') && opcoes && opcoes.alvoInstId) {
+      efeito.alvo_inst_id = opcoes.alvoInstId;
+    }
     return {
       id,
       nome: tecnica.nome || key,
@@ -2957,11 +2966,25 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         const destinos = (payload.alvos_efeito && payload.alvos_efeito.length)
           ? payload.alvos_efeito.slice(0, reg.maxAlvos || payload.alvos_efeito.length)
           : [next[testIdx]];
+        // ignora_eh/ignora_armadura (Fase 2, Task 8): o efeito não fica no
+        // alvo escolhido, fica no ATOR — Golpe Letal é VOCÊ furando a EH
+        // daquele inimigo, não uma condição que passa a valer pra qualquer
+        // um que bata nele. alvo: 'inimigo' é o que distingue essas técnicas
+        // dos auto-buffs 'self' (Explorar Fraqueza) que carregam o mesmo
+        // tipo de efeito mas sem alvo escolhido — esses continuam indo no
+        // próprio testador, sem âncora (ver aplicarEfeitoTecnica).
+        const ancoraNoAtacante = reg.alvo === 'inimigo'
+          && reg.efeitos.some((ef) => ef.tipo === 'ignora_eh' || ef.tipo === 'ignora_armadura');
         const atingidos = [];
         destinos.forEach((destino) => {
           const dIdx = next.findIndex((p) => mesmoParticipante(p, destino));
           if (dIdx < 0) return;
-          next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total, { fonteInstId });
+          if (ancoraNoAtacante) {
+            next[testIdx] = aplicarEfeitoTecnica(next[testIdx], payload.tecnica, payload.valor_total,
+              { fonteInstId, alvoInstId: next[dIdx].inst_id });
+          } else {
+            next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total, { fonteInstId });
+          }
           atingidos.push(next[dIdx].nome);
         });
         // O uso Único é do ATOR, mesmo quando o efeito cai só nos outros.
@@ -6065,11 +6088,25 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         const destinos = (payload.alvos_efeito && payload.alvos_efeito.length)
           ? payload.alvos_efeito.slice(0, reg.maxAlvos || payload.alvos_efeito.length)
           : [next[idx]];
+        // ignora_eh/ignora_armadura (Fase 2, Task 8): o efeito não fica no
+        // alvo escolhido, fica no ATOR — Golpe Letal é VOCÊ furando a EH
+        // daquele inimigo, não uma condição que passa a valer pra qualquer
+        // um que bata nele. alvo: 'inimigo' é o que distingue essas técnicas
+        // dos auto-buffs 'self' (Explorar Fraqueza) que carregam o mesmo
+        // tipo de efeito mas sem alvo escolhido — esses continuam indo no
+        // próprio testador, sem âncora (ver aplicarEfeitoTecnica).
+        const ancoraNoAtacante = reg.alvo === 'inimigo'
+          && reg.efeitos.some((ef) => ef.tipo === 'ignora_eh' || ef.tipo === 'ignora_armadura');
         const atingidos = [];
         destinos.forEach((destino) => {
           const dIdx = next.findIndex((p) => mesmoParticipante(p, destino));
           if (dIdx < 0) return;
-          next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total, { fonteInstId });
+          if (ancoraNoAtacante) {
+            next[idx] = aplicarEfeitoTecnica(next[idx], payload.tecnica, payload.valor_total,
+              { fonteInstId, alvoInstId: next[dIdx].inst_id });
+          } else {
+            next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total, { fonteInstId });
+          }
           atingidos.push(next[dIdx].nome);
         });
         // O uso Único é do ATOR, mesmo quando o efeito cai só nos outros.
