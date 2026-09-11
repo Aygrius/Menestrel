@@ -3333,6 +3333,9 @@
   border-radius: 2px;
   font-size: 8px;
 }
+/* O vestido continua redondo mesmo na grade compacta — é metade da
+   distinção (a outra é a cor), e perdê-la aqui devolveria a confusão. */
+#root .menestrel-ui .inv-bag-grid--slots .inv-pill.vst { border-radius: 50%; }
 
 /* Barra de container na grade */
 #root .menestrel-ui .inv-bag-grid--slots .inv-cont-bar {
@@ -3360,6 +3363,57 @@
 #root .menestrel-ui .inv-card-ic { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #root .menestrel-ui .cont-row-info .inv-card-qty { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; color: #9C8F73; }
 #root .menestrel-ui .inv-card-pills { position: absolute; top: 3px; left: 3px; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
+
+/* ── Pills do item: ESTADO x INFORMAÇÃO ────────────────────────────────
+   Até 11/09/2026 `.inv-pill` não tinha estilo base nenhum — nem fundo, nem
+   cor. As cinco variantes (eq/vst/mag/liq/nor) saíam idênticas, distinguidas
+   só pelo glifo de 8-12px, e era impossível bater o olho e saber o que está
+   equipado. Pedido do usuário: "os itens equipados podem ser melhor
+   sinalizados, para não confundir com os não equipados ou vestidos."
+
+   A separação é por CATEGORIA, não por item:
+     • ESTADO (equipado / vestido) — preenchido e saturado. É o que muda o
+       que o personagem pode fazer, então grita.
+     • INFORMAÇÃO (mágico / líquido / observação) — contorno discreto. É
+       metadado; não pode competir com o estado.
+
+   Equipado usa o ouro do tema e vestido o azul, as duas cores que o projeto
+   já emprega — e são distinguíveis também por forma (o vestido é redondo),
+   para não depender só de cor. */
+#root .menestrel-ui .inv-pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 3px;
+  font-size: 9px; line-height: 1; flex: 0 0 auto;
+  border: 1px solid transparent;
+}
+/* Estado — letra num selo DISCRETO.
+
+   A primeira versão saturou tudo (ouro e azul chapados). O usuário pediu o
+   contrário: "um ícone ti-letter-e no canto, e uma cor esmaecida". Faz mais
+   sentido mesmo — item equipado está EM USO, não disponível, e a leitura
+   natural disso é apagar, não acender. Quem tem que brilhar é o que você
+   ainda pode pegar. */
+#root .menestrel-ui .inv-pill.eq {
+  background: rgba(201,164,78,0.16); color: rgba(201,164,78,0.85);
+  border-color: rgba(201,164,78,0.40);
+  font-weight: 700;
+}
+#root .menestrel-ui .inv-pill.vst {
+  background: rgba(71,170,216,0.16); color: rgba(71,170,216,0.85);
+  border-color: rgba(71,170,216,0.40);
+  border-radius: 50%;
+  font-weight: 700;
+}
+/* Informação — contorno */
+#root .menestrel-ui .inv-pill.mag { color: #C9A44E; border-color: rgba(201,164,78,0.45); background: rgba(201,164,78,0.10); }
+#root .menestrel-ui .inv-pill.liq { color: #47AAD8; border-color: rgba(71,170,216,0.40); background: rgba(71,170,216,0.10); }
+#root .menestrel-ui .inv-pill.nor { color: #9C8F73; border-color: rgba(156,143,115,0.40); background: rgba(156,143,115,0.10); }
+
+/* O card inteiro carrega o estado — mas a regra NÃO mora aqui: o bloco de
+   cards preenchidos (busque por "Cards preenchidos") usa `!important` no
+   background e na borda, e `!important` vence qualquer especificidade.
+   Escrever a marcação aqui compilava, casava o seletor, e não pintava nada.
+   Ver o bloco "Estado do item no CARD" junto daquelas regras. */
 #root .menestrel-ui .inv-card-cont { min-width: 0; background: rgba(150, 0, 0, 0.06); position: relative; overflow: hidden; cursor: pointer; }
 
 #root .menestrel-ui .inv-cont-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; }
@@ -6129,6 +6183,38 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
   background: linear-gradient(160deg, rgba(38,30,16,0.97) 0%, rgba(24,18,8,0.99) 100%) !important;
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.60), inset 0 -1px 1px rgba(255,255,255,0.025), 0 0 0 1px rgba(0,0,0,0.45);
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+/* ── Estado do item no CARD (11/09/2026) ──────────────────────────────
+   O selo de 12px sozinho não separa equipado de solto à distância — é o
+   card inteiro que precisa mudar. Mora AQUI, e não junto das outras regras
+   de `.inv-pill`, porque o bloco "Cards preenchidos" logo acima usa
+   `!important` em background e border: uma regra mais específica lá em
+   cima simplesmente não pinta. Por isso estas também usam `!important` —
+   é a convenção já estabelecida neste trecho do arquivo, não preferência.
+
+   Ouro = equipado, azul = vestido, sem anel = solto. A cor repete a do
+   selo de propósito: o card diz o estado de longe, o selo confirma de
+   perto, e os dois nunca discordam. */
+#root .menestrel-ui .inv-bag-grid--slots .inv-card:has(.inv-pill.eq),
+#root .menestrel-ui .inv-bag-grid--slots .inv-card:has(.inv-pill.vst) {
+  border-color: rgba(106,85,48,0.30) !important;
+  background: linear-gradient(160deg, rgba(26,21,11,0.97) 0%, rgba(16,12,5,0.99) 100%) !important;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.60), 0 0 0 1px rgba(0,0,0,0.45);
+}
+/* O conteúdo é que esmaece — o selo NÃO, senão some justamente a marca que
+   explica por que o card está apagado. */
+#root .menestrel-ui .inv-bag-grid--slots .inv-card:has(.inv-pill.eq) .inv-card-ic,
+#root .menestrel-ui .inv-bag-grid--slots .inv-card:has(.inv-pill.vst) .inv-card-ic {
+  opacity: 0.45;
+  filter: saturate(0.6);
+}
+/* Hover devolve o brilho: o item continua clicável, e o feedback tem que
+   dizer isso. */
+#root .menestrel-ui .inv-bag-grid--slots .inv-card:has(.inv-pill.eq):hover .inv-card-ic,
+#root .menestrel-ui .inv-bag-grid--slots .inv-card:has(.inv-pill.vst):hover .inv-card-ic {
+  opacity: 0.9;
+  filter: none;
 }
 
 /* Hover */

@@ -1363,6 +1363,18 @@ function ataquesDoAtor(ator, catalogos) {
         const grupoSigla = arma && arma.grupo_armas ? arma.grupo_armas : null;
         const bonus = (typeof bonusGrupoArma === 'function')
           ? (bonusGrupoArma(grupoSigla, pj.grupos_armas || {}) || 0) : 0;
+        /* NÃO REMOVER por parecer código morto.
+
+           estado_atual.bonusArmas é LIDO aqui (entra no dano100, a base de
+           todos os tiers) e hoje não é ESCRITO por lugar nenhum: a tabela de
+           armas da ficha, que era o único editor manual, saiu em 11/09/2026
+           a pedido do usuário. A decisão dele foi manter o bônus valendo e
+           trocar a origem — passará a ser efeito de magia, ainda a construir.
+
+           Há 6 valores vivos no banco (Eco +5 cajado, Nihil +5 punhal e
+           arco, Yuldrous +5 marreta, Galadar +3 maça e clava) que continuam
+           afetando o dano em combate. Apagar esta linha mudaria o dano
+           desses personagens em silêncio. */
         const bonusArma = Math.max(0, Math.min(9, Number(pj.estado_atual?.bonusArmas?.[a.slug]) || 0));
         // grupo_sigla ANEXADO ao ataque: tipoCriticoDoGrupo (AcaoPanel) lê
         // arma.grupo_sigla pra escolher a tabela de crítico (CORTE/

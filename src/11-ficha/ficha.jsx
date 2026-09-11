@@ -1793,9 +1793,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
   // técnica — todos derivam de `ficha.atributos`/`ficha.derivadas` abaixo.
   const ficha = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes);
   const ataques = gerarAtaques(pj, catalogoBySlug, magiasByKey, ficha.atributos);
-  // Tabela de armas exibe apenas itens físicos (origem === arma).
-  // Magias com dano (ex.: 'Toque Gélido') aparecem na aba Magias — não aqui.
-  const ataquesArmas = ataques.filter((a) => a.origem === 'arma');
 
   const slotsState = getSlotsState(pj.inventario?.itens || [], catalogoBySlug, pj.raca);
 
@@ -1841,26 +1838,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
     if (!pj) return;
     const novo = aplicarEfeitosItem(pj.estado_atual, cat, quantidade, maximosVitalidade);
     if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
-  };
-  // alterarBonusArma — grava o bônus manual (0..9) de UMA arma na tabela de
-  // ataques, em estado_atual.bonusArmas[slug]. Mesmo mecanismo de
-  // persistência de vitalidade/condições (salvarEstadoAtual, debounce
-  // 400ms). Gate de "só Mestre" é feito NA RENDERIZAÇÃO da célula (isMestre),
-  // não aqui — mesmo padrão de aplicarEstado logo abaixo.
-  // Chave = slug da arma, não instanceId: arma sem slug real não aparece em
-  // `ataques` (gerarAtaques já filtra), então todo item aqui tem slug. Efeito
-  // colateral aceito: duas cópias da MESMA arma equipadas (ex.: adaga na mão
-  // esquerda e direita) compartilham um bônus só, por serem o mesmo slug —
-  // se precisar de bônus por instância, teria que existir instanceId em `a`
-  // (não confirmado, gerarAtaques mora em 12-batalha/batalha.jsx).
-  const alterarBonusArma = (slug, novoValor) => {
-    if (!pj || !slug) return;
-    const v = Math.max(0, Math.min(9, Math.round(Number(novoValor) || 0)));
-    const novo = {
-      ...(pj.estado_atual || {}),
-      bonusArmas: { ...(pj.estado_atual?.bonusArmas || {}), [slug]: v },
-    };
-    salvarEstadoAtual(novo);
   };
 
   const atributosFinais = ficha.atributos;
@@ -2474,7 +2451,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
   // passa a significar "existe catálogo pra mostrar" — Magias continua
   // condicionada à profissão usar magia (PJ sem magia não tem o que mostrar
   // ali, nem "não aprendido" faz sentido pra ele).
-  const temArmas = ataquesArmas.length > 0;
   const temHab = catalogoHab.length > 0;
   const temMag = catalogoMag.length > 0;
   const temTec = catalogoTec.length > 0;
@@ -2513,94 +2489,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
 
 
 
-  const elArmas = (
-    <table className="fp-atk">
-      <thead>
-        <tr>
-          <th className="c-nome">{en ? 'Weapon' : 'Arma'}</th>
-          <th className="c-dano fp-center-col">{en ? 'Bonus' : 'Bônus'}</th>
-          <th className="c-range fp-center-col">{en ? 'Range' : 'Alcance'}</th>
-          <th className="c-dano fp-center-col">Total</th>
-          <th className="c-dano fp-center-col">L</th>
-          <th className="c-dano fp-center-col">M</th>
-          <th className="c-dano fp-center-col">P</th>
-          <th className="c-dano fp-center-col">25%</th>
-          <th className="c-dano fp-center-col">50%</th>
-          <th className="c-dano fp-center-col">75%</th>
-          <th className="c-dano fp-center-col">100%</th>
-        </tr>
-      </thead>
-      <tbody>
-        {ataquesArmas.length === 0 ? (
-          <tr><td colSpan={11} className="fp-empty"></td></tr>
-        ) : ataquesArmas.map((a, i) => {
-          const armaCat = a.slug ? catalogoBySlug[a.slug] : null;
-          const grupoSigla = armaCat?.grupo_armas || null;
-          const bonusGA = _bonusGA_fn(grupoSigla, pj.grupos_armas || {});
-          // L/M/P somam o bônus de grupo de arma (treino, já existia) E a
-          // Agilidade do personagem. 100% soma Força + o Bônus manual do
-          // Mestre (0..9) por cima do dano base da arma (a.dano) — isso dá
-          // dano100. 25/50/75% são FRAÇÃO DE dano100 (confirmado com o
-          // usuário): atualizam junto quando Força, Bônus ou o dano base
-          // mudam, não são mais fração do dano base puro.
-          const forca = atributosFinais?.forca ?? 0;
-          const bonusArma = Math.max(0, Math.min(9, Number(pj.estado_atual?.bonusArmas?.[a.slug]) || 0));
-          const dano100 = a.dano + forca + bonusArma;
-          const ap = (v) => (v != null ? v + bonusGA : null);
-          const tip = (col, base) => {
-            if (base == null) return undefined;
-            const partes = [];
-            if (bonusGA) partes.push(`${bonusGA >= 0 ? '+' : '-'} ${Math.abs(bonusGA)} (${grupoSigla})`);
-            return partes.length ? `${col}: ${base} ${partes.join(' ')}` : undefined;
-          };
-          const cell = (base, col) => {
-            const ef = ap(base);
-            if (ef == null) return '—';
-            if (base != null && ef !== base) return <span style={{ color: 'var(--fp-gold)' }}>{ef}</span>;
-            return ef;
-          };
-          // Total = média dos valores de L/M/P JÁ ajustados (grupo +
-          // agilidade) que existirem — categoria nula (arma sem essa
-          // forma de dano) sai da conta em vez de zerar o resultado.
-          // Arredondamento SEMPRE pra cima (Math.ceil), regra confirmada
-          // pelo usuário — aplicada aqui e nos tiers 25/50/75% abaixo.
-          const partesTotal = [ap(a.dano_l), ap(a.dano_m), ap(a.dano_p)].filter((v) => v != null);
-          const total = partesTotal.length
-            ? Math.ceil(partesTotal.reduce((s, v) => s + v, 0) / partesTotal.length)
-            : null;
-          return (
-            <tr key={i}>
-              <td className="c-nome">{a.nome}</td>
-              <td className="c-dano fp-center-col">
-                {isMestre ? (
-                  <div className="fp-bonus-stepper">
-                    <button type="button" className="fp-step-btn--sm" disabled={bonusArma <= 0}
-                      onMouseDown={(e) => e.preventDefault()} onClick={() => alterarBonusArma(a.slug, bonusArma - 1)} aria-label="-">
-                      <i className="ti ti-minus" aria-hidden="true" />
-                    </button>
-                    <span className="fp-bonus-val">{bonusArma}</span>
-                    <button type="button" className="fp-step-btn--sm" disabled={bonusArma >= 9}
-                      onMouseDown={(e) => e.preventDefault()} onClick={() => alterarBonusArma(a.slug, bonusArma + 1)} aria-label="+">
-                      <i className="ti ti-plus" aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : bonusArma}
-              </td>
-              <td className="c-range fp-center-col">{a.alcance ? `${a.alcance}m` : '—'}</td>
-              <td className="c-dano fp-center-col">{total != null ? total : '—'}</td>
-              <td className="c-dano fp-center-col" {...propsTip(abrirTip, fecharTip, tip('L', a.dano_l))}>{cell(a.dano_l, 'L')}</td>
-              <td className="c-dano fp-center-col" {...propsTip(abrirTip, fecharTip, tip('M', a.dano_m))}>{cell(a.dano_m, 'M')}</td>
-              <td className="c-dano fp-center-col" {...propsTip(abrirTip, fecharTip, tip('P', a.dano_p))}>{cell(a.dano_p, 'P')}</td>
-              <td className="c-dano fp-center-col">{Math.ceil(dano100 * 1 / 4)}</td>
-              <td className="c-dano fp-center-col">{Math.ceil(dano100 * 2 / 4)}</td>
-              <td className="c-dano fp-center-col">{Math.ceil(dano100 * 3 / 4)}</td>
-              <td className="c-dano fp-center-col">{dano100}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
 
   // Hover do nome de Habilidade/Magia/Técnica (aba Capacidades): mesmo padrão
   // Tooltip de hover das capacidades (Habilidades/Magias/Técnicas): reusa o
@@ -3037,18 +2925,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
     </div>
   );
 
-  // Abaixo das três colunas, em largura cheia: só o arsenal.
-  // A tríade (Habilidades/Magias/Técnicas) agora vive no card lateral direito
-  // (abas Atributos/Magias/Técnicas/Habilidades), não mais numa aba separada.
-  const lowerRest = (
-    <>
-      {temArmas && (
-        <section className="fp2-panel fp2-wide fp2-arsenal-bar">
-          <div className="fp2-panel-body fp2-arsenal">{elArmas}</div>
-        </section>
-      )}
-    </>
-  );
 
   // ── Header — mesmo padrão ms-header de Convites/Batalhas/Lore: seta de
   // voltar + eyebrow + título (nome do PJ), abas como segmented control
@@ -3202,8 +3078,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
             <div className="fp2-col-main">{equipRow}</div>
             <aside className="fp2-col-side">{combatPanels}</aside>
           </div>
-          {lowerRest}
-        </div>
+                  </div>
       </div>
       )}
       </div>{/* /fp-card */}

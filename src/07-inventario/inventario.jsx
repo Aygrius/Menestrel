@@ -1854,8 +1854,8 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         {/* Container vestido (ex.: cinto) também entra no grid — mesmo pill de "em uso". */}
         {(it.slot || it.vestido) && (
           <span className="inv-card-pills">
-            {it.slot && <span className="inv-pill eq"><i className="ti ti-shield" aria-hidden="true" /></span>}
-            {it.vestido && <span className="inv-pill vst"><i className="ti ti-shirt" aria-hidden="true" /></span>}
+            {it.slot && <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><i className="ti ti-letter-e" aria-hidden="true" /></span>}
+            {it.vestido && <span className="inv-pill vst" role="img" aria-label={en ? 'Worn' : 'Vestido'}><i className="ti ti-letter-v" aria-hidden="true" /></span>}
           </span>
         )}
         <span className="inv-cont-bar">
@@ -1904,11 +1904,14 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           {/* Equipado (arma/armadura no slot) e vestido (roupa) agora aparecem
               no mesmo grid da bolsa — este pill é o que distingue de um item
               solto. Mesmos glifos do EquipadoBoard/VestesBoard (ti-shield/ti-shirt). */}
+          {/* Letra em vez de glifo (pedido do usuário, 11/09/2026): E de
+              equipado, V de vestido. Duas letras se distinguem entre si a
+              12px melhor que escudo x camisa, que viram duas manchas. */}
           {it.slot && (
-            <span className="inv-pill eq"><i className="ti ti-shield" aria-hidden="true" /></span>
+            <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><i className="ti ti-letter-e" aria-hidden="true" /></span>
           )}
           {it.vestido && (
-            <span className="inv-pill vst"><i className="ti ti-shirt" aria-hidden="true" /></span>
+            <span className="inv-pill vst" role="img" aria-label={en ? 'Worn' : 'Vestido'}><i className="ti ti-letter-v" aria-hidden="true" /></span>
           )}
         </span>
       </button>
