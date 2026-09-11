@@ -152,6 +152,31 @@ function ChipIcon({ value, label, active, onClick, _icon }) {
   );
 }
 
+/* Por que a lista está vazia?
+
+   O texto de vazio das 5 listas sempre disse "nada corresponde à busca" —
+   certo quando há busca, errado quando não há. No modo jogador o caso comum
+   é justamente esse: o jogador não tem personagem, ou tem personagem que
+   não conhece nada daquele catálogo. Dizer 'Nenhuma magia corresponde a ""'
+   faz parecer defeito de busca, quando é a resposta certa do sistema.
+
+   Spec §2: "jogador sem personagem nenhum vê as abas vazias. A tela diz
+   isso em texto, em vez de fingir que o catálogo não existe." */
+function textoListaVazia({ query, modoJogador, lang, oQue, oQueEn }) {
+  const buscando = !!(query && query.trim());
+  if (buscando) {
+    return lang === 'en'
+      ? `No ${oQueEn} matches "${query}".`
+      : `Nenhum resultado para "${query}" em ${oQue}.`;
+  }
+  if (modoJogador) {
+    return lang === 'en'
+      ? `Your characters don't know any ${oQueEn} yet.`
+      : `Seus personagens ainda não conhecem ${oQue}.`;
+  }
+  return lang === 'en' ? `No ${oQueEn} here yet.` : `Nada em ${oQue} ainda.`;
+}
+
 /* Quebra um texto do banco em parágrafos.
 
    O campo `descricao` (e `efeito`) é digitado com quebras de linha, e até
@@ -431,7 +456,7 @@ function CriaturasList({ ac, lang }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="best-empty">{lang === 'en' ? `No creature matches "${query}".` : `Nenhuma criatura corresponde a "${query}".`}</div>
+        <div className="best-empty">{textoListaVazia({ query, modoJogador: false, lang, oQue: 'criaturas', oQueEn: 'creature' })}</div>
       ) : (
         <>
           <div className="best-table-wrap" ref={wrapRef}>
@@ -611,7 +636,7 @@ function MagiasList({ ac, lang, modoJogador }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="best-empty">{lang === 'en' ? `No spell matches "${query}".` : `Nenhuma magia corresponde a "${query}".`}</div>
+        <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'magias', oQueEn: 'spell' })}</div>
       ) : (
         <>
           <div className="best-table-wrap" ref={wrapRef}>
@@ -753,7 +778,7 @@ function HabilidadesList({ ac, lang, modoJogador }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="best-empty">{lang === 'en' ? `No skill matches "${query}".` : `Nenhuma habilidade corresponde a "${query}".`}</div>
+        <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'habilidades', oQueEn: 'skill' })}</div>
       ) : (
         <>
           <div className="best-table-wrap" ref={wrapRef}>
@@ -883,7 +908,7 @@ function TecnicasList({ ac, lang, modoJogador }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="best-empty">{lang === 'en' ? `No technique matches "${query}".` : `Nenhuma técnica corresponde a "${query}".`}</div>
+        <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'técnicas', oQueEn: 'technique' })}</div>
       ) : (
         <>
           <div className="best-table-wrap" ref={wrapRef}>
@@ -1022,7 +1047,7 @@ function ItensList({ ac, lang, modoJogador }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="best-empty">{lang === 'en' ? `No item matches "${query}".` : `Nenhum item corresponde a "${query}".`}</div>
+        <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'itens', oQueEn: 'item' })}</div>
       ) : (
         <>
           <div className="best-table-wrap" ref={wrapRef}>
@@ -1108,5 +1133,5 @@ function ItensList({ ac, lang, modoJogador }) {
 Object.assign(window, {
   CriaturasList, MagiasList, HabilidadesList,
   TecnicasList, ItensList, useEhAdmin,
-  linhasQueCabem, paragrafosDe, TextoDoBanco,
+  linhasQueCabem, paragrafosDe, TextoDoBanco, textoListaVazia,
 });
