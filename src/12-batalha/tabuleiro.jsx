@@ -78,20 +78,27 @@ function parseAlcance(valor) {
   if (typeof valor === 'number') return Number.isFinite(valor) ? Math.max(1, Math.floor(valor)) : null;
   const s = String(valor).trim().toLowerCase();
   if (!s) return null;
-  if (/toque|pessoal|corpo/.test(s)) return 1;
+  /* Pessoal = SÓ em si mesmo (alcance 0); Toque e corpo a corpo = adjacente.
+     Os dois devolviam 1 até 11/09/2026, e por isso as 62 magias de alcance
+     Pessoal aceitavam alvo adjacente no tabuleiro. A aba Apoio já tratava
+     `pessoal` à parte (batalha.jsx), mas o tabuleiro não. Spec §7.3. */
+  if (/pessoal/.test(s)) return 0;
+  if (/toque|corpo/.test(s)) return 1;
   const m = s.match(/(\d+)/);
   return m ? Math.max(1, parseInt(m[1], 10)) : null;
 }
 
 function dentroDoAlcance(posA, posB, alcance) {
-  const a = Math.max(1, Math.floor(Number(alcance) || 0) || 1);
+  // Piso 0, não 1: alcance 0 (magia Pessoal) casa só a própria célula.
+  const a = Math.max(0, Math.floor(Number(alcance) || 0));
   return distanciaBordas(posA, posB) <= a;
 }
 
 /* Alcance efetivo de uma ação. Magia usa o alcance dela; arma usa o da
    TÉCNICA quando há uma (a técnica pode estender), senão o da arma. */
 function alcanceDaAcao({ arma, magia, tecnica } = {}) {
-  if (magia) return parseAlcance(magia.alcance) || 1;
+  // `!= null` e não `||`: alcance 0 (Pessoal) é válido e não pode virar 1.
+  if (magia) { const a = parseAlcance(magia.alcance); return a != null ? a : 1; }
   if (!arma) return 1;
   return ((tecnica ? parseAlcance(tecnica.alcance) : null) || parseAlcance(arma.alcance)) || 1;
 }

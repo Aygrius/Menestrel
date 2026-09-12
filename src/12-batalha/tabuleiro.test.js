@@ -410,3 +410,46 @@ describe('posicionarMenu — o painel de ação não deve rolar', () => {
     expect(r.modo).toBe('abaixo');
   });
 });
+
+describe('parseAlcance — Pessoal não é Toque', () => {
+  /* 62 magias têm alcance Pessoal e 65 têm Toque; tratá-las igual fazia uma
+     magia "só em si mesmo" aceitar alvo adjacente. Spec §7.3. */
+  it('Pessoal é 0 — só o próprio conjurador', () => {
+    expect(T.parseAlcance('Pessoal')).toBe(0);
+  });
+
+  it('Toque continua 1 — adjacente', () => {
+    expect(T.parseAlcance('Toque')).toBe(1);
+  });
+
+  it('corpo a corpo continua 1', () => {
+    expect(T.parseAlcance('Corpo a corpo')).toBe(1);
+  });
+
+  it('distância em metros não muda', () => {
+    expect(T.parseAlcance('20 metros')).toBe(20);
+  });
+
+  it('alcanceDaAcao não transforma o 0 de Pessoal em 1', () => {
+    // O `|| 1` antigo fazia exatamente isso e anulava a correção.
+    expect(T.alcanceDaAcao({ magia: { alcance: 'Pessoal' } })).toBe(0);
+  });
+
+  it('alcanceDaAcao ainda dá 1 para magia sem alcance declarado', () => {
+    expect(T.alcanceDaAcao({ magia: { alcance: null } })).toBe(1);
+  });
+
+  it('dentroDoAlcance aceita 0 sem virar 1', () => {
+    /* O piso de dentroDoAlcance era 1; com 0 ele deixa de somar uma célula de
+       folga. Note que 0 NÃO significa "só eu" no tabuleiro: distanciaBordas
+       desconta TAB_TOKEN-1, então dois tokens 3×3 encostados já dão 0.
+
+       Restringir a si mesmo é IDENTIDADE, não distância — quem faz isso é a
+       flag `pessoal` de magiasDeApoioDoAtor (batalha.jsx), e é lá que a regra
+       tem que continuar. O 0 aqui só tira a folga extra. */
+    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 3, y: 3 }, 0)).toBe(true);
+    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 7, y: 3 }, 0)).toBe(false);
+    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 7, y: 3 }, 1)).toBe(false);
+    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 6, y: 3 }, 1)).toBe(true);
+  });
+});
