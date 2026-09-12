@@ -4521,6 +4521,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         resultado:      payload.resultado ? payload.resultado.codigo : null,
         resultado_nome: payload.resultado ? payload.resultado.pt     : null,
         critico:       !!(payload.resultado && payload.resultado.critico),
+        // Dificuldade pedida e veredito — só o teste de habilidade os tem.
+        ...(payload.dificuldade ? { dificuldade: payload.dificuldade, passou: payload.passou } : {}),
         tecnica_efeito_aplicado: efeitoTecnicaAplicado,
       };
     }
@@ -4540,6 +4542,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         const resNome = payload.resultado ? payload.resultado.pt : null;
         texto = `${testador.nome} usou ${payload.nome || payload.chave}`;
         if (resNome) texto += ` → ${resNome}`;
+        /* VEREDITO do teste de habilidade (12/09/2026). A mensagem dizia a
+           qualidade ("→ Difícil") e parava aí; quem lia não sabia se aquilo
+           bastava para o que o Mestre havia pedido. A ficha sempre disse
+           sucesso/falha — agora a batalha diz também, com a dificuldade. */
+        if (tipo_teste === 'habilidade' && payload.dificuldade && payload.passou != null) {
+          const dif = (window.D20_DIF_LABEL || {})[payload.dificuldade];
+          texto += ` — ${dif ? dif.pt : payload.dificuldade}: ${payload.passou ? 'passou' : 'falhou'}`;
+        }
         // Técnica modo 'total' não rola d20 (payload.d20 fica null) — omite o
         // trecho do dado pra não virar "d20 null" na Central de Mensagens.
         // Duplicado no handler do Jogador logo abaixo; mantenha os dois iguais.
@@ -6147,6 +6157,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 
   // Estado das tabs Habilidade / Técnica (teste) / Resistência / Item
   const [habKey, setHabKey] = useState(null);
+  // Mesma escala e mesmo padrão da ficha (HabilidadeDetalhesModal): começa em
+  // "Médio", nem o mais fácil nem o mais difícil.
+  const [habDificuldade, setHabDificuldade] = useState('medio');
   const [tecTesteKey, setTecTesteKey] = useState(null);
   // C1 (revisão final): alvo ÚNICO da técnica (grupo alvo: 'inimigo') tem
   // seletor e estado PRÓPRIOS — não reusa alvoIdx da aba Arma (estado
@@ -6644,6 +6657,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         coluna: colunaClamped,
         d20,
         resultado: res,
+        /* DIFICULDADE E VEREDITO (12/09/2026). A aba rolava o dado e mostrava
+           só a qualidade; quem dizia se aquilo bastava era o Mestre, de
+           cabeça. Na FICHA o mesmo teste sempre pediu a dificuldade e
+           respondia sucesso/falha — e desde que o motor passou a julgar teste
+           de habilidade por causa de Proteção Natural, esta aba era o único
+           lugar do jogo que ainda não usava a régua. */
+        dificuldade: habDificuldade,
+        passou: res ? passouNoTesteDeHabilidade(res.q, habDificuldade) : null,
       });
     } else if (tab === 'tecnica_teste' && tecnicaTesteSel) {
       onAplicarTeste && onAplicarTeste({
@@ -6937,8 +6958,27 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                 label: h.nome,
               }))}
             />
+            {/* DIFICULDADE — a mesma escala da ficha, pelos mesmos rótulos
+                (D20_DIF_LABEL). Sem ela a aba rolava e não dizia nada: o
+                Mestre via "Difícil" na tela e tinha que julgar de cabeça se
+                aquilo passava no que ele havia pedido. */}
+            <SelectPill
+              label={tb.dificuldade || 'Dificuldade'}
+              value={habDificuldade}
+              disabled={temRolagemPendente}
+              onChange={(v) => { setHabDificuldade(v); setD20(null); }}
+              options={Object.keys(D20_QUALIDADE_MINIMA).map((id) => ({
+                value: id,
+                label: (D20_DIF_LABEL[id] || {})[en ? 'en' : 'pt'] || id,
+              }))}
+            />
             {habilidadeSel && habilidadeSel.descricao && (
               <p className="acao-efeito-texto">{habilidadeSel.descricao}</p>
+            )}
+            {res && (
+              passouNoTesteDeHabilidade(res.q, habDificuldade)
+                ? <p className="acao-efeito-texto">{tb.testePassou || 'Passou no teste.'}</p>
+                : <div className="err-msg">{tb.testeFalhou || 'Falhou no teste.'}</div>
             )}
           </>
         )
@@ -7982,6 +8022,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         const resNome = payload.resultado ? payload.resultado.pt : null;
         texto = `${meuParticipante.nome} usou ${payload.nome || payload.chave}`;
         if (resNome) texto += ` → ${resNome}`;
+        /* VEREDITO do teste de habilidade (12/09/2026). A mensagem dizia a
+           qualidade ("→ Difícil") e parava aí; quem lia não sabia se aquilo
+           bastava para o que o Mestre havia pedido. A ficha sempre disse
+           sucesso/falha — agora a batalha diz também, com a dificuldade. */
+        if (tipo_teste === 'habilidade' && payload.dificuldade && payload.passou != null) {
+          const dif = (window.D20_DIF_LABEL || {})[payload.dificuldade];
+          texto += ` — ${dif ? dif.pt : payload.dificuldade}: ${payload.passou ? 'passou' : 'falhou'}`;
+        }
         // Técnica modo 'total' não rola d20 (payload.d20 fica null) — omite o
         // trecho do dado pra não virar "d20 null" na Central de Mensagens.
         // Duplicado no handler do Mestre acima; mantenha os dois iguais.
