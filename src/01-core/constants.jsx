@@ -173,11 +173,18 @@ const ADMIN_COPY = {
       magias:        { label: 'Magias',       desc: 'Feitiços, encantamentos e rituais' },
       tecnicas:      { label: 'Técnicas',     desc: 'Manobras, golpes especiais e talentos' },
       habilidades:   { label: 'Habilidades',  desc: 'Atributos, perícias e capacidades' },
-      personagens_j: { label: 'Personagens',  desc: 'Suas fichas de aventureiros' },
+      /* "Meus Personagens" desde 12/09/2026: a seção nova de NPCs se chama
+         "Personagens" (nome do usuário), e com a barra só de ícones o tooltip
+         é o único rótulo — dois iguais seriam dois destinos indistinguíveis. */
+      personagens_j: { label: 'Meus Personagens', desc: 'Suas fichas de aventureiros' },
       inventario:    { label: 'Inventário',   desc: 'Itens que seus personagens carregam' },
       loja:          { label: 'Loja',         desc: 'Equipamentos e itens disponíveis pra compra' },
       convites:      { label: 'Convites',     desc: 'Aceite convites e veja suas mesas ativas' },
       aventuras:     { label: 'Histórias',    desc: 'As aventuras vividas pelos seus personagens' },
+      /* Vieram do Diário em 12/09/2026 — antes eram abas dentro da ficha. */
+      lugares:       { label: 'Lugares',      desc: 'Os reinos e cidades que seu personagem conhece' },
+      npcs:          { label: 'Personagens',  desc: 'As pessoas que seu personagem conheceu' },
+      memorias:      { label: 'Memórias',     desc: 'O que seu personagem escreveu sobre o que viveu' },
     }
   },
   en: {
@@ -286,11 +293,15 @@ const ADMIN_COPY = {
       magias:        { label: 'Spells',      desc: 'Magic, enchantments and rituals' },
       tecnicas:      { label: 'Techniques',  desc: 'Maneuvers, special moves and feats' },
       habilidades:   { label: 'Abilities',   desc: 'Attributes, skills and capacities' },
-      personagens_j: { label: 'Characters',  desc: 'Your adventurer sheets' },
+      personagens_j: { label: 'My Characters', desc: 'Your adventurer sheets' },
       inventario:    { label: 'Inventory',   desc: 'Items your characters carry' },
       loja:          { label: 'Shop',        desc: 'Gear and items available for purchase' },
       convites:      { label: 'Invites',     desc: 'Accept invites and see your active tables' },
       aventuras:     { label: 'Stories',     desc: 'Adventures lived by your characters' },
+      /* Vieram do Diário em 12/09/2026 — antes eram abas dentro da ficha. */
+      lugares:       { label: 'Places',      desc: 'The kingdoms and cities your character knows' },
+      npcs:          { label: 'Characters',  desc: 'The people your character has met' },
+      memorias:      { label: 'Memories',    desc: 'What your character wrote about what they lived' },
     }
   }
 };
@@ -306,9 +317,22 @@ const ADMIN_COPY = {
    barrado por aqui — a checagem no banco é assunto separado. */
 const PLANO_FREE_LIMITES = { historias: 1, personagens: 1 };
 
+/* ── A BARRA LATERAL, reorganizada em 12/09/2026 ───────────────────
+   Três mudanças pedidas pelo usuário, e cada uma tem uma razão de lugar:
+
+   `historias` SAIU do Mestre — o conteúdo passou a ser alcançado de dentro de
+   Personagens, porque personagem pertence a história: procurar um pela outra é
+   o caminho natural, e duas portas para a mesma coisa dividiam a atenção.
+
+   `convites` SAIU do Jogador — foi para o menu de baixo, junto de perfil e
+   idioma. Convite não é um lugar do mundo do jogo (como criaturas, itens,
+   magias); é administração da conta, e é lá que ela mora.
+
+   `lugar`, `personagem` e `memoria` ENTRARAM no Jogador — vieram do Diário,
+   que era uma aba dentro da ficha. Deixaram de ser um canto de uma tela para
+   virar três destinos próprios, que é o peso que têm na mesa. */
 const ADMIN_SECTIONS = {
   master: [
-    { id: 'historias',     icon: 'Scroll' },
     { id: 'personagens_m', icon: 'Skull' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'itens',         icon: 'Sheet' },
@@ -321,9 +345,12 @@ const ADMIN_SECTIONS = {
     { id: 'personagens_j', icon: 'Skull' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'inventario',    icon: 'Scroll' },
-    { id: 'loja',          icon: 'Sheet' },
+    { id: 'loja',          icon: 'Store' },
     { id: 'aventuras',     icon: 'BookOpen' },
-    { id: 'convites',      icon: 'Crown' },
+    // Vieram do Diário (era aba dentro da ficha) em 12/09/2026.
+    { id: 'lugares',       icon: 'MapPin' },
+    { id: 'npcs',          icon: 'Users' },
+    { id: 'memorias',      icon: 'Feather' },
     // Catálogos filtrados pelo que o jogador conhece/possui (spec
     // docs/superpowers/specs/2026-09-11-catalogos-visao-jogador-design.md §4).
     // Mesmos ícones da lista master, propositalmente. `criaturas` FICA DE FORA

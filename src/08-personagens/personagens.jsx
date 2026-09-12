@@ -182,7 +182,7 @@ function temLevelUpPendente(p) {
 //   - 'player' → mostra só PJs do próprio user
 //   - 'master' → mostra TODOS os PJs (RLS permite SELECT all)
 //                e dá acesso a botões de Editar e Dar XP em qualquer um
-function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onLimiteFreeChange, onFichaAberta, onNomePjAtivo }) {
+function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onLimiteFreeChange, onFichaAberta, onNomePjAtivo, onAbrirHistorias }) {
   const isMaster = profile === 'master';
   const [modalOpen, setModalOpen] = useState(false);
   const [toDelete, setToDelete] = useState(null);
@@ -442,6 +442,23 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
 
   return (
     <div className="pjs">
+      {/* HISTÓRIAS, alcançada daqui (12/09/2026).
+
+          A seção saiu da barra lateral a pedido do usuário, e o conteúdo
+          passou a ser "vinculado no menu personagens". O vínculo é real e não
+          arbitrário: personagem PERTENCE a história, e é por aqui que o
+          Mestre navega entre as duas.
+
+          Só para o Mestre — o Jogador tem a seção Histórias (aventuras)
+          própria, que mostra o que ele viveu, não o que ele administra. */}
+      {isMaster && onAbrirHistorias && (
+        <div className="pjs-atalho-historias">
+          <button type="button" className="btn-ghost btn-sm" onClick={onAbrirHistorias}>
+            <i className="ti ti-book-2" aria-hidden="true" />
+            {lang === 'en' ? 'Stories' : 'Histórias'}
+          </button>
+        </div>
+      )}
       <div className="pjs-grid">
         {personagens.map((p) => (
           <PersonagemCard

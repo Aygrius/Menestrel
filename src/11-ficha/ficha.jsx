@@ -3129,10 +3129,20 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           onClick={() => setFpTab('loja')}>
           {en ? 'Shop' : 'Loja'}
         </button>
-        <button type="button" className={fpTab === 'diario' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'diario'}
-          onClick={() => setFpTab('diario')}>
-          {en ? 'Journal' : 'Diário'}
-        </button>
+        {/* A aba DIÁRIO saiu da ficha DO JOGADOR em 12/09/2026, a pedido do
+            usuário: o conteúdo virou três seções próprias na barra lateral —
+            Lugares, Personagens e Memórias. Era muita coisa para o canto de
+            uma aba.
+
+            Para o MESTRE ela fica: as seções novas são do jogador e falam do
+            PJ ativo dele. O Mestre chega ao diário abrindo a ficha do
+            personagem, e é este botão que o leva lá. */}
+        {isMestre && (
+          <button type="button" className={fpTab === 'diario' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'diario'}
+            onClick={() => setFpTab('diario')}>
+            {en ? 'Journal' : 'Diário'}
+          </button>
+        )}
       </div>
       {onEditar && (
         <button type="button" className="btn-ghost btn-sm"
@@ -3211,14 +3221,19 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         <div className="fp-invtab">
           <LojaJogador ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} />
         </div>
-      ) : fpTab === 'diario' ? (
+      ) : (fpTab === 'diario' && isMestre) ? (
+        /* O DIÁRIO SAIU das abas do JOGADOR em 12/09/2026 — virou três seções
+           na barra lateral (Lugares, Personagens, Memórias).
+
+           O ramo FICA para o MESTRE: ele abre a ficha de um PJ para ver o
+           diário daquele personagem, e ele não tem as seções novas na barra
+           (elas são do jogador, sobre o PJ ativo dele). Sem isto o Mestre
+           perderia o acesso que tinha, sem ganhar outro.
+
+           currentUserId REAL aqui, não `pj.user_id`: o DiarioView usa esse
+           valor só pra decidir `souDono`, e passar o dono do PJ tornaria a
+           comparação sempre verdadeira. */
         <div className="fp-invtab">
-          {/* currentUserId REAL aqui, não `pj.user_id`. O DiarioView usa esse
-              valor só pra decidir `souDono` (quem pode criar/editar/
-              compartilhar) — passar o dono do PJ tornava a comparação
-              `pj.user_id === currentUserId` sempre verdadeira e a checagem,
-              código morto. As abas Inventário/Loja acima continuam recebendo
-              `pj.user_id` de propósito: lá o valor alimenta queries RLS. */}
           <DiarioView pj={pj} lang={lang} key={pjAtivoId} currentUserId={currentUserId} isMestre={isMestre} />
         </div>
       ) : (

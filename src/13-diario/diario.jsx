@@ -1412,7 +1412,7 @@ function useGridDimensions() {
   return [setGridEl, dims];
 }
 
-function DiarioView({ pj, lang, papel, currentUserId, isMestre }) {
+function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   const en = lang === 'en';
   const pjId = pj?.id;
   const PAGE_SIZE = 10;
@@ -1441,7 +1441,11 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre }) {
   // Menu superior: 'meu' = o que o jogador importou pro catálogo próprio;
   // 'aventura' = o que o mestre ou outros jogadores compartilharam com ele.
   const [menuDiario,          setMenuDiario]          = useState('meu');
-  const [tipoAba,             setTipoAba]             = useState('memoria');
+  /* tipoFixo (12/09/2026): as secoes Lugares/Personagens/Memorias da barra
+     lateral sao este mesmo Diario travado num tipo so. Deixar de ser uma aba
+     dentro da ficha e virar tres destinos foi decisao do usuario — e o codigo
+     nao precisou de tres telas novas, so de nao oferecer a escolha. */
+  const [tipoAba,             setTipoAba]             = useState(tipoFixo || 'memoria');
   const [tipoNovo,            setTipoNovo]            = useState(null);
   const [editando,            setEditando]            = useState(null);
   const [slugOrigemEscolhido, setSlugOrigemEscolhido] = useState(null);
@@ -1512,7 +1516,8 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre }) {
   useEffect(() => { setPage(1); setQuery(''); }, [tipoAba]);
   // Ao trocar de menu superior, volta pra aba padrão de cada seção
   useEffect(() => {
-    setTipoAba(menuDiario === 'meu' ? 'memoria' : 'criatura');
+    // Com tipo fixo não há aba para voltar: a seção É o tipo.
+    if (!tipoFixo) setTipoAba(menuDiario === 'meu' ? 'memoria' : 'criatura');
     setPage(1); setQuery('');
   }, [menuDiario]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1740,18 +1745,23 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre }) {
 
         {/* Toolbar: abas + busca + botão Novo */}
         <div className="lore-mng-toolbar">
-          <div className="diario-subtabs" role="tablist">
-            {(menuDiario === 'meu'
-              ? ['memoria', ...DIARIO_TIPOS]        /* Meu Diário: todas as abas, incl. Memória */
-              : DIARIO_TIPOS                         /* Conteúdo da Aventura: sem Memória */
-            ).map((t) => (
-              <button key={t}
-                className={tipoAba === t ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
-                onClick={() => setTipoAba(t)}>
-                {t === 'memoria' ? (en ? 'Memorie' : 'Memória') : diarioTipoLabel(t, lang)}
-              </button>
-            ))}
-          </div>
+          {/* Com tipo fixo a fileira some: a seção da barra lateral JÁ disse
+              qual tipo é, e repetir a escolha aqui ofereceria sair dela sem
+              que a barra acompanhasse. */}
+          {!tipoFixo && (
+            <div className="diario-subtabs" role="tablist">
+              {(menuDiario === 'meu'
+                ? ['memoria', ...DIARIO_TIPOS]        /* Meu Diário: todas as abas, incl. Memória */
+                : DIARIO_TIPOS                         /* Conteúdo da Aventura: sem Memória */
+              ).map((t) => (
+                <button key={t}
+                  className={tipoAba === t ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
+                  onClick={() => setTipoAba(t)}>
+                  {t === 'memoria' ? (en ? 'Memorie' : 'Memória') : diarioTipoLabel(t, lang)}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="best-search">
             <input type="search" value={query}
               onChange={(e) => { setQuery(e.target.value); setPage(1); }}

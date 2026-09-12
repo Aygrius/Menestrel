@@ -227,8 +227,16 @@ const Icon = {
   Flame:    TI_cls('ti-meteor'),        // Magias
   Sword:    TI_cls('ti-bow'),           // Técnicas
   Shield:   TI_cls('ti-tools'),         // Habilidades
-  Sheet:    TI_cls('ti-file-description'), // Loja / Itens (lista)
+  Sheet:    TI_cls('ti-file-description'), // Itens (lista)
+  /* A Loja tinha o MESMO icone de Itens. Nao incomodava enquanto a barra
+     mostrava o nome de cada secao; com a barra so de icones (12/09/2026)
+     virou duas portas identicas. Um teste agora exige icones distintos. */
+  Store:    TI_cls('ti-building-store'), // Loja
   BookOpen: TI_cls('ti-book'),          // Aventuras (histórias do jogador)
+  // As três que vieram do Diário em 12/09/2026 — ver ADMIN_SECTIONS.
+  MapPin:   TI_cls('ti-map-pin'),       // Lugares
+  Users:    TI_cls('ti-users'),         // Personagens (NPCs) conhecidos
+  Feather:  TI_cls('ti-feather'),       // Memórias
 
   // ── Logo / cabeçalho ─────────────────────────────────────────────────────────
   Skull:   TI_cls('ti-id'),           // Logo ornamental
@@ -714,7 +722,7 @@ function MenuRow({ children, onClick, disabled, danger, extraStyle, title }) {
   );
 }
 
-function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge, planoPago, lang, setLang, profile, onSetProfile, onHelp, onLogout, onClose }) {
+function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge, planoPago, lang, setLang, profile, onSetProfile, onHelp, onConvites, onLogout, onClose }) {
   const ref = React.useRef(null);
   const [pos, setPos] = useState(null);
 
@@ -814,6 +822,19 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
           </div>
         )}
       </div>
+
+      {/* ── Convites (12/09/2026) ────────────────────────────────────
+          Saiu da barra lateral e veio para cá, a pedido do usuário. Convite
+          não é um lugar do mundo do jogo — como criaturas, itens ou magias
+          são; é administração da conta, e aqui já moram perfil e idioma.
+
+          Só para o Jogador: quem convida é o Mestre, de dentro da história. */}
+      {profile !== 'master' && onConvites && (
+        <MenuRow onClick={() => { onConvites(); onClose(); }}>
+          <Icon.Crown style={{ fontSize: 16, lineHeight: 1 }} />
+          {lang === 'en' ? 'Invites' : 'Convites'}
+        </MenuRow>
+      )}
 
       {/* ── Idioma — mostra valor atual, expande inline (abaixo) pra trocar ── */}
       <div>
@@ -2898,6 +2919,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   const [nomePjAtivo, setNomePjAtivo] = useState(null);
   // data de nascimento do PJ ativo — passada ao CalendarioFantasyModal para marcar o aniversário
   const [dataNascPjAtivo, setDataNascPjAtivo] = useState(null);
+  // O PJ ativo inteiro — as secoes Lugares/Personagens/Memorias (ex-Diario)
+  // precisam dele. null = jogador sem personagem ativo, e as telas dizem isso.
+  const [pjAtivo, setPjAtivo] = useState(null);
   useEffect(() => {
     if (!user || !user.id) return;
     let cancel = false;
@@ -2913,14 +2937,17 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         const { data: prof } = await supabaseClient.from('profiles').select('pj_ativo_id').eq('id', user.id).maybeSingle();
         if (cancel) return;
         const pjAtivoId = prof && prof.pj_ativo_id;
-        if (!pjAtivoId) { setMinhasHistorias([]); setDataNascPjAtivo(null); return; }
+        if (!pjAtivoId) { setMinhasHistorias([]); setDataNascPjAtivo(null); setPjAtivo(null); return; }
         const [histRes, pjRes] = await Promise.all([
           supabaseClient.from('historias').select('id, titulo').contains('protagonista_ids', [pjAtivoId]).maybeSingle(),
-          supabaseClient.from('personagens').select('data_nasc').eq('id', pjAtivoId).maybeSingle(),
+          // A linha INTEIRA agora: as seções Lugares/Personagens/Memórias
+          // (ex-Diário) precisam do PJ, não só da data de nascimento.
+          supabaseClient.from('personagens').select('*').eq('id', pjAtivoId).maybeSingle(),
         ]);
         if (cancel) return;
         setMinhasHistorias(!histRes.error && histRes.data ? [histRes.data] : []);
         setDataNascPjAtivo(pjRes.data?.data_nasc ?? null);
+        setPjAtivo(pjRes.data || null);
       }
     })();
     return () => { cancel = true; };
@@ -3063,6 +3090,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 lang={lang}
                 setLang={setLang}
                 onHelp={() => { setUserMenuOpen(false); setCurrentId('guia_personagem'); }}
+                onConvites={() => { setUserMenuOpen(false); setConviteModalAberto(true); }}
                 onLogout={onLogout}
                 onClose={() => setUserMenuOpen(false)}
               />
@@ -3081,7 +3109,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ) : current.id === 'personagens_j' ? (
               <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onLimiteFreeChange={setLimiteFreePersonagens} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo} />
             ) : current.id === 'personagens_m' ? (
-              <PersonagensList ac={ac} t={t} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} />
+              <PersonagensList ac={ac} t={t} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} onAbrirHistorias={() => setCurrentId('historias')} />
             ) : current.id === 'fichas' ? (
               <FichasJogador ac={ac} lang={lang} currentUserId={user.id} />
             ) : current.id === 'magias' ? (
@@ -3095,7 +3123,27 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ) : current.id === 'itens_campanha' ? (
               <ItensCampanhaManager ac={ac} lang={lang} />
             ) : current.id === 'historias' ? (
+              /* A seção saiu da barra lateral em 12/09/2026 (ver
+                 ADMIN_SECTIONS), mas o destino CONTINUA existindo: quem chega
+                 por dentro de Personagens vem parar aqui. Remover o ramo
+                 quebraria o caminho novo junto com o antigo. */
               <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} />
+            ) : (current.id === 'lugares' || current.id === 'npcs' || current.id === 'memorias') ? (
+              /* AS TRÊS QUE VIERAM DO DIÁRIO. São o mesmo DiarioView, travado
+                 num tipo — ver `tipoFixo`. Sem personagem ativo não há diário
+                 de ninguém, e a tela diz isso em vez de aparecer vazia. */
+              !pjAtivo ? (
+                <AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />
+              ) : (
+                <DiarioView
+                  pj={pjAtivo}
+                  lang={lang}
+                  currentUserId={user.id}
+                  isMestre={false}
+                  tipoFixo={current.id === 'lugares' ? 'lugar' : current.id === 'npcs' ? 'npc' : 'memoria'}
+                  key={current.id + ':' + pjAtivo.id}
+                />
+              )
             ) : current.id === 'aventuras' ? (
               <AventurasJogador t={t} lang={lang} currentUserId={user.id} reloadToken={aventurasReloadToken} />
             ) : current.id === 'guia_personagem' ? (

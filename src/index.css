@@ -8215,3 +8215,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
   #root .menestrel-ui .mn-carregando,
   #root .menestrel-ui .mn-carregando-gira { animation: none; }
 }
+
+/* Atalho para Histórias dentro de Personagens (12/09/2026): a seção saiu da
+   barra lateral e o caminho passa por aqui, porque personagem pertence a
+   história. */
+#root .menestrel-ui .pjs-atalho-historias { margin-bottom: 12px; }
+#root .menestrel-ui .pjs-atalho-historias .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
