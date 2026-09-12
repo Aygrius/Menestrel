@@ -692,9 +692,27 @@ function CriaturasAuditoriaPainel({ criaturas, lang }) {
    o catálogo que está no ar, agora.
 
    Fechado por padrão: é ferramenta de manutenção, não de consulta diária. */
-function MagiasAuditoriaPainel({ magias, lang }) {
+function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
   const [aberto, setAberto] = React.useState(false);
+  const [recarregando, setRecarregando] = React.useState(false);
   const en = lang === 'en';
+
+  /* BOTÃO DE RECONFERIR.
+
+     A verificação recalcula sozinha quando a magia é salva pelo editor, mas
+     NÃO quando o catálogo muda por fora — outro admin, ou SQL direto. A
+     resposta que eu tinha dado para esse caso era "aperte F5", que é resposta
+     ruim: obriga a recarregar a tela inteira e perder a posição na lista.
+
+     O botão busca o catálogo de novo e o painel recalcula. `recarregando`
+     existe só para o clique ter retorno visível — a consulta é rápida, mas
+     sem ele o botão parece morto. */
+  const reconferir = async (e) => {
+    e.stopPropagation();          // não fecha/abre a faixa
+    if (!onRecarregar || recarregando) return;
+    setRecarregando(true);
+    try { await onRecarregar(); } finally { setRecarregando(false); }
+  };
 
   const r = React.useMemo(
     () => (typeof auditarMagias === 'function' ? auditarMagias(magias || []) : null),
@@ -731,6 +749,24 @@ function MagiasAuditoriaPainel({ magias, lang }) {
           {' · '}
           {en ? `${s.orfa} unmapped` : `${s.orfa} sem registro`}
         </span>
+        {onRecarregar && (
+          /* Dentro do <button> da faixa haveria botão aninhado, que é HTML
+             inválido — por isso é um <span role="button">, com stopPropagation
+             para o clique não abrir/fechar a faixa junto. */
+          <span
+            role="button"
+            tabIndex={0}
+            className="best-aud-recarregar"
+            aria-label={en ? 'Check again' : 'Conferir novamente'}
+            onClick={reconferir}
+            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') reconferir(ev); }}
+          >
+            <i className={'ti ' + (recarregando ? 'ti-loader' : 'ti-refresh')} aria-hidden="true" />
+            {recarregando
+              ? (en ? 'Checking…' : 'Conferindo…')
+              : (en ? 'Check again' : 'Conferir novamente')}
+          </span>
+        )}
       </button>
 
       {aberto && (
@@ -770,6 +806,12 @@ function MagiasAuditoriaPainel({ magias, lang }) {
               último e é a que vale perguntar. */}
           {r.orfa.length > 0 && (() => {
             const CLASSES = [
+              /* 'resolvido' vem PRIMEIRO e é o único acionável: a pendência já
+                 foi sanada no texto e a magia só espera ser ligada. Sem este
+                 grupo, corrigir a magia não mudava nada na tela — foi o que
+                 aconteceu com Auxílio Natural. */
+              { id: 'resolvido', pt: '✓ Pronta para entrar — me avise para ligar',
+                                 en: '✓ Ready to wire up — let me know' },
               { id: 'decisao',  pt: 'Falta uma decisão sua — o motor daria conta',
                                 en: 'Needs a rules decision — the engine could handle it' },
               { id: 'sistema',  pt: 'Falta um sistema que o combate não tem',
@@ -781,11 +823,14 @@ function MagiasAuditoriaPainel({ magias, lang }) {
               { id: null,       pt: 'Sem motivo registrado — vale perguntar',
                                 en: 'No reason on file — worth asking' },
             ];
-            const motivoDe = (k) => (typeof motivoForaDoRegistro === 'function'
-              ? motivoForaDoRegistro(k) : null);
+            /* Passa a LINHA da magia, não só a chave: é ela que o predicado
+               `resolvido` inspeciona para saber se o texto deixou de ser
+               ambíguo. `x.magia` vem de auditarMagias. */
+            const motivoDe = (x) => (typeof motivoForaDoRegistro === 'function'
+              ? motivoForaDoRegistro(x.magia || x.key) : null);
             return CLASSES.map((c) => {
               const itens = r.orfa.filter((x) => {
-                const m = motivoDe(x.key);
+                const m = motivoDe(x);
                 return c.id ? (m && m.classe === c.id) : !m;
               });
               if (!itens.length) return null;
@@ -794,7 +839,7 @@ function MagiasAuditoriaPainel({ magias, lang }) {
                   <div className="best-aud-titulo">{en ? c.en : c.pt} · {itens.length}</div>
                   <ul className="best-aud-lista">
                     {itens.map((x) => {
-                      const m = motivoDe(x.key);
+                      const m = motivoDe(x);
                       return (
                         <li key={x.key}><strong>{x.nome}</strong>
                           <span className="best-aud-det"> — {m ? m.motivo
@@ -892,7 +937,7 @@ function MagiasList({ ac, lang, modoJogador }) {
           Mora AQUI, ao lado do editor, porque é aqui que o texto é editado —
           e porque a tabela `magias` exige autenticação, então um script de
           linha de comando precisaria de credencial que esta tela já tem. */}
-      {ehAdmin && <MagiasAuditoriaPainel magias={magias} lang={lang} />}
+      {ehAdmin && <MagiasAuditoriaPainel magias={magias} lang={lang} onRecarregar={carregarMagias} />}
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'magias', oQueEn: 'spell' })}</div>

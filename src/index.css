@@ -8127,3 +8127,8 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .best-aud-lista strong { color: #C9BFA8; font-weight: 600; }
 #root .menestrel-ui .best-aud-det { color: #7E735F; }
 #root .menestrel-ui .best-aud-rodape { margin: 12px 0 0; color: #7E735F; font-size: 11px; }
+
+/* Botão "Conferir novamente" da auditoria. Fica na faixa fechada, à direita
+   do resumo: é lá que o Mestre olha depois de editar uma magia. */
+#root .menestrel-ui .best-aud-recarregar { display: inline-flex; align-items: center; gap: 4px; margin-left: 12px; padding: 2px 8px; border: 1px solid #3A362E; border-radius: 4px; color: #9C8F73; font-size: 11px; cursor: pointer; white-space: nowrap; }
+#root .menestrel-ui .best-aud-recarregar:hover { color: #E6DCC4; border-color: #5A5347; }

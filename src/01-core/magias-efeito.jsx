@@ -597,6 +597,13 @@ const MAGIA_EFEITO_MAP = {
   carne_em_vermes:       { alvo: 'inimigo', alvos: 1, icone: '🐛',
                            efeitos: [{ tipo: 'dano',       unidade: 'dano' },
                                      { tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
+  /* Entrou em 12/09/2026, depois de o usuário desfazer a ambiguidade: o texto
+     dizia "Cause 4 de DANO MÁXIMO e reduza 1 coluna", e dano máximo no motor
+     é o TETO de dano do alvo, não dano causado. Virou "Causa 4 de dano", que
+     é inequívoco — e a magia ficou idêntica em forma a Canção do Tormento. */
+  auxilio_natural:       { alvo: 'inimigo', alvos: 1, icone: '🌾',
+                           efeitos: [{ tipo: 'dano',       unidade: 'dano' },
+                                     { tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
 
   /* ── Cura ─────────────────────────────────────────────────────────
      curas_naturais restaura EH no nível 1 e ganha EF nos altos; declarar as
@@ -775,7 +782,9 @@ function auditarMagias(magiasDb) {
     if (!reg) {
       // Sem registro: narrativa, a menos que o texto entregue número legível.
       if (unidadesLidas.size > 0) {
-        out.orfa.push({ key: m.key, nome: m.nome, unidades: [...unidadesLidas] });
+        // A LINHA inteira vai junto: o painel precisa dela para avaliar o
+        // predicado `resolvido` de MAGIA_FORA_DO_REGISTRO contra o texto atual.
+        out.orfa.push({ key: m.key, nome: m.nome, unidades: [...unidadesLidas], magia: m });
       } else {
         out.narrativa.push({ key: m.key, nome: m.nome });
       }
@@ -926,19 +935,35 @@ Object.assign(window, {
    verdade, ou é candidata esquecida — como Heroísmo era.
    ============================================================ */
 const MAGIA_FORA_DO_REGISTRO = {
-  /* ── Falta uma decisão de regra ─────────────────────────────────── */
-  garras: { classe: 'decisao', motivo:
-    'Alcance "Pessoal" mas causa dano em inimigo. São as suas garras — se o alcance virar "Toque", entra.' },
-  lamina_de_luz: { classe: 'decisao', motivo:
-    'Mesmo caso de Garras: alcance "Pessoal" com dano em inimigo. Trocar para "Toque" resolve.' },
-  forcar_disputa: { classe: 'decisao', motivo:
-    'O "+N de velocidade" é em quem — no conjurador ou no adversário atraído? A descrição não diz.' },
-  tensao: { classe: 'decisao', motivo:
-    'Dá defesa, velocidade e coluna, mas exige teste de resistência. Buff que o alvo resiste não faz sentido: é debuff?' },
-  auxilio_natural: { classe: 'decisao', motivo:
-    '"Cause N de dano máximo": no motor, dano máximo é o TETO de dano do alvo, não dano causado. Qual dos dois?' },
-  parede_de_cristal: { classe: 'decisao', motivo:
-    'É uma parede no terreno, não um efeito em alguém. Em quem a redução de dano deve valer?' },
+  /* ── Falta uma decisão de regra ───────────────────────────────────
+     Cada uma traz `resolvido(magia)`: o predicado que diz se o texto já
+     deixou de ser ambíguo.
+
+     Existe porque o usuário corrigiu Auxílio Natural e a magia continuou
+     aparecendo com o motivo antigo — o painel dizia "falta uma decisão sua",
+     ele decidiu, e nada no sistema percebeu. Com o predicado, a magia muda de
+     grupo sozinha e passa a dizer "pronta para entrar, me avise". */
+  garras: { classe: 'decisao',
+    motivo: 'Alcance "Pessoal" mas causa dano em inimigo. São as suas garras — se o alcance virar "Toque", entra.',
+    resolvido: (m) => !/pessoal/i.test(m.alcance || '') },
+  lamina_de_luz: { classe: 'decisao',
+    motivo: 'Mesmo caso de Garras: alcance "Pessoal" com dano em inimigo. Trocar para "Toque" resolve.',
+    resolvido: (m) => !/pessoal/i.test(m.alcance || '') },
+  forcar_disputa: { classe: 'decisao',
+    motivo: 'O "+N de velocidade" é em quem — no conjurador ou no adversário atraído? A descrição não diz.',
+    // Resolve quando o texto disser de quem é o bônus.
+    resolvido: (m) => /\b(seu|sua|voc[êe]|do alvo|no alvo|do advers[áa]rio)\b/i.test(m.nivel_1 || '') },
+  tensao: { classe: 'decisao',
+    motivo: 'Dá defesa, velocidade e coluna, mas exige teste de resistência. Buff que o alvo resiste não faz sentido: é debuff?',
+    // Resolve quando virar penalidade, OU quando a descrição largar o teste.
+    resolvido: (m) => /\b(reduz|reduza|diminui)\b/i.test(m.nivel_1 || '')
+                   || !/teste\s+de\s+resist/i.test(m.descricao || '') },
+  auxilio_natural: { classe: 'decisao',
+    motivo: '"Cause N de dano máximo": no motor, dano máximo é o TETO de dano do alvo, não dano causado. Qual dos dois?',
+    resolvido: (m) => !/dano\s+m[áa]ximo/i.test(m.nivel_1 || '') },
+  parede_de_cristal: { classe: 'decisao',
+    motivo: 'É uma parede no terreno, não um efeito em alguém. Em quem a redução de dano deve valer?',
+    resolvido: (m) => /\b(no alvo|em si|pessoal|aliad)/i.test((m.nivel_1 || '') + ' ' + (m.descricao || '')) },
 
   /* ── Ritual ou evocação longa: fora de combate ──────────────────── */
   hibernar: { classe: 'ritual', motivo: 'Evocação de 8 horas.' },
@@ -973,11 +998,23 @@ const MAGIA_FORA_DO_REGISTRO = {
   criatura_disforme: { classe: 'invocado', motivo: 'Anima uma carcaça.' },
 };
 
-// Lookup tolerante: magia sem motivo registrado devolve null, e o painel a
-// mostra como "sem motivo registrado" — que é o convite para perguntar.
-function motivoForaDoRegistro(key) {
+/* Lookup tolerante: magia sem motivo registrado devolve null, e o painel a
+   mostra como "sem motivo registrado" — que é o convite para perguntar.
+
+   Recebe a LINHA da magia, não só a chave, para poder avaliar o predicado
+   `resolvido` contra o texto que está no banco agora. Devolve a classe
+   'resolvido' quando a pendência já foi sanada: é o sinal de que a magia
+   está pronta para entrar no motor e só falta alguém ligá-la. */
+function motivoForaDoRegistro(magiaOuKey) {
+  const m = (magiaOuKey && typeof magiaOuKey === 'object') ? magiaOuKey : null;
+  const key = m ? m.key : magiaOuKey;
   if (!key || typeof key !== 'string') return null;
-  return MAGIA_FORA_DO_REGISTRO[key] || null;
+  const reg = MAGIA_FORA_DO_REGISTRO[key];
+  if (!reg) return null;
+  if (m && typeof reg.resolvido === 'function' && reg.resolvido(m)) {
+    return { ...reg, classe: 'resolvido' };
+  }
+  return reg;
 }
 
 Object.assign(window, { MAGIA_FORA_DO_REGISTRO, motivoForaDoRegistro });

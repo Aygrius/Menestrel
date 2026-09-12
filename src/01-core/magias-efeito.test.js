@@ -203,8 +203,8 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem 66 entradas — 65 da varredura mais Heroismo', () => {
-    expect(Object.keys(MAP)).toHaveLength(66);
+  it('tem 67 entradas — 66 mais Auxilio Natural', () => {
+    expect(Object.keys(MAP)).toHaveLength(67);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -364,6 +364,9 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     // Entrou depois de o usuario trocar "Cure" por "Restaura": nao havia
     // dificuldade nenhuma, o verbo antigo e que era desconhecido.
     heroismo:              'Restaura 8 de energia heroica.',
+    // Entrou depois de o usuario trocar "dano maximo" por "dano": a
+    // ambiguidade era essa, e o texto novo e inequivoco.
+    auxilio_natural:       'Causa 4 de dano e reduz 1 coluna de ataque.',
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',

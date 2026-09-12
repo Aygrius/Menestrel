@@ -126,7 +126,9 @@ describe('a lista de fora-do-motor diz o MOTIVO e o que fazer', () => {
     <div className="menestrel-ui"><Painel magias={magias} lang="pt" /></div>
   );
 
-  const GARRAS = { key: 'garras', nome: 'Garras', nivel_1: 'Causa 12 de dano.' };
+  // `alcance` importa: é o que o predicado `resolvido` de Garras inspeciona.
+  const GARRAS = { key: 'garras', nome: 'Garras', alcance: 'Pessoal',
+                   nivel_1: 'Causa 12 de dano.' };
   const RITUAL = { key: 'manjar_de_lena', nome: 'Manjar de Lena',
                    nivel_1: 'Restaura 5 de energia heroica.' };
   const DESCONHECIDA = { key: 'magia_nova_qualquer', nome: 'Magia Nova',
@@ -160,5 +162,78 @@ describe('a lista de fora-do-motor diz o MOTIVO e o que fazer', () => {
                        nivel_1: 'Restaura 8 de energia heroica.' };
     montarOrfas([heroismo]);
     expect(screen.getByText(/1 lidas corretamente/)).toBeTruthy();
+  });
+});
+
+describe('a pendência SOME quando o texto é corrigido', () => {
+  /* O caso que motivou isto: o usuário corrigiu Auxílio Natural — o texto
+     dizia "dano máximo", que é ambíguo, e virou "dano" — e a magia continuou
+     aparecendo com o motivo antigo. O painel dizia "falta uma decisão sua",
+     ele decidiu, e nada percebeu.
+
+     Agora cada pendência de decisão traz um predicado que olha o texto ATUAL.
+     Resolvida, a magia muda de grupo e passa a dizer "pronta para entrar". */
+  const montarUm = (m) => render(
+    <div className="menestrel-ui"><Painel magias={[m]} lang="pt" /></div>
+  );
+
+  it('Garras com alcance Pessoal: ainda falta decisão', () => {
+    montarUm({ key: 'garras', nome: 'Garras', alcance: 'Pessoal',
+               nivel_1: 'Causa 12 de dano.' });
+    fireEvent.click(cabecalho());
+    expect(screen.getByText(/Falta uma decisão sua/)).toBeTruthy();
+  });
+
+  it('Garras com alcance Toque: PRONTA para entrar', () => {
+    montarUm({ key: 'garras', nome: 'Garras', alcance: 'Toque',
+               nivel_1: 'Causa 12 de dano.' });
+    fireEvent.click(cabecalho());
+    expect(screen.getByText(/Pronta para entrar/)).toBeTruthy();
+    expect(screen.queryByText(/Falta uma decisão sua/)).toBeNull();
+  });
+
+  it('o grupo "pronta" vem PRIMEIRO — é o único acionável', () => {
+    const { container } = render(
+      <div className="menestrel-ui"><Painel lang="pt" magias={[
+        { key: 'garras', nome: 'Garras', alcance: 'Toque', nivel_1: 'Causa 12 de dano.' },
+        { key: 'manjar_de_lena', nome: 'Manjar', nivel_1: 'Restaura 5 de energia heroica.' },
+      ]} /></div>
+    );
+    fireEvent.click(container.querySelector('.best-aud-head'));
+    const titulos = [...container.querySelectorAll('.best-aud-titulo')].map((n) => n.textContent);
+    expect(titulos[0]).toMatch(/Pronta para entrar/);
+  });
+});
+
+describe('botão Conferir novamente', () => {
+  /* A verificação recalcula sozinha quando a magia é salva pelo editor, mas
+     não quando o catálogo muda por fora. A resposta que eu tinha dado para
+     esse caso era "aperte F5" — ruim: recarrega a tela toda e perde a
+     posição na lista. */
+  const OK = { key: 'bencao', nome: 'Bênção',
+               nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' };
+
+  it('não aparece quando o painel não sabe recarregar', () => {
+    render(<div className="menestrel-ui"><Painel magias={[OK]} lang="pt" /></div>);
+    expect(screen.queryByText(/Conferir novamente/)).toBeNull();
+  });
+
+  it('aparece e chama o recarregador', async () => {
+    let chamou = 0;
+    render(<div className="menestrel-ui">
+      <Painel magias={[OK]} lang="pt" onRecarregar={() => { chamou += 1; }} />
+    </div>);
+    fireEvent.click(screen.getByText(/Conferir novamente/));
+    expect(chamou).toBe(1);
+  });
+
+  it('o clique NÃO abre nem fecha a faixa', () => {
+    // Sem stopPropagation, o clique subiria para o <button> da faixa.
+    const { container } = render(<div className="menestrel-ui">
+      <Painel magias={[OK]} lang="pt" onRecarregar={() => {}} />
+    </div>);
+    expect(container.querySelector('.best-aud-corpo')).toBeNull();
+    fireEvent.click(screen.getByText(/Conferir novamente/));
+    expect(container.querySelector('.best-aud-corpo')).toBeNull();
   });
 });

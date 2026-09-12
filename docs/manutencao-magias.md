@@ -123,6 +123,23 @@ Roda a mesma leitura do motor contra o banco, agora.
 | **órfã** | tem número legível e o motor ignora | ou é narrativa mesmo, ou falta registro |
 | **narrativa** | sem número, sem registro | nada |
 
+As **órfãs** vêm agrupadas pelo *motivo* de estarem fora, e o primeiro grupo é
+o único acionável:
+
+| Grupo | Significa |
+|---|---|
+| **✓ Pronta para entrar** | a pendência era no texto e **você já resolveu** — me avise para ligar |
+| **Falta uma decisão sua** | o motor daria conta; falta escolher a regra (o item diz qual) |
+| **Falta um sistema** | precisa de algo que o combate não tem (karma, parede no terreno…) |
+| **Ritual ou fora de combate** | nada a fazer |
+| **Sem motivo registrado** | candidata esquecida — vale perguntar |
+
+### O botão *Conferir novamente*
+
+Salvou pelo editor, a verificação recalcula sozinha. Mudou o catálogo por fora
+— outro admin, SQL direto — clique em **Conferir novamente** na própria faixa:
+ele busca o catálogo de novo, sem recarregar a tela.
+
 ### Verificação das magias de criatura — na aba **Criaturas**
 
 | Estado | Significa |
@@ -189,10 +206,12 @@ razão. Quatro são candidatas a **correção de texto**, não a código:
 |---|---|
 | Garras | `alcance: Pessoal`, mas causa dano em inimigo |
 | Lâmina de Luz | idem |
-| Auxílio Natural | *"Cause 4 de dano máximo"* — no motor, dano máximo é o teto do alvo, não dano causado |
+| ~~Auxílio Natural~~ | **resolvida** em 12/09/2026: *"dano máximo"* virou *"dano"*, e a magia entrou no motor |
 | Tensão | buff de defesa/velocidade/coluna que **exige teste de resistência** — buff que o alvo resiste não faz sentido |
 
-Ajustando esses quatro textos, elas entram no motor sem código novo.
+Ajustando esses textos, elas entram no motor sem código novo. O painel avisa
+quando o ajuste pegou: a magia sai de *"Falta uma decisão sua"* e aparece em
+*"✓ Pronta para entrar"*.
 
 As outras sete precisam de sistemas que o combate não tem (objeto de arte como
 alvo, doenças por atributo, karma, parede no terreno, teste de atributo) ou são
