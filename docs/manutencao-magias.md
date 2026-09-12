@@ -205,6 +205,77 @@ Decisão registrada em
 
 ## 7. Estado atual do catálogo
 
+### A varredura das magias que nenhum personagem conhecia (12/09/2026, noite)
+
+A validação anterior olhou as magias que os personagens da mesa conhecem. As
+**111 restantes** foram lidas uma a uma, com o objetivo de mecanizar o efeito
+em batalha e fora dela. Verificação contra o banco depois da varredura:
+
+```
+238 magias · 95 no motor · 0 quebradas · 0 ambíguas · 111 fora do motor, TODAS com motivo · 32 narrativas
+```
+
+As 111 de fora aparecem no painel agrupadas — nenhuma em *"sem motivo
+registrado"*:
+
+| Grupo | Quantas | Exemplo |
+|---|---|---|
+| Falta uma decisão sua | 8 | Alucinação, Dominação Animal, Rastreamento: número **por extenso** ("um nível") |
+| Falta um sistema | 45 | karma como alvo, porcentagem de poço, bônus preso a um alvo, invisibilidade |
+| Narrativa | 20 | Leitura, Mutação, Levitação — o Mestre resolve na mesa |
+| Ritual | 30 | Análise, Runas, Retorno do Mártir |
+| Invocado | 8 | Criação, Conjuração Demoníaca |
+
+**Peça nova: dificuldade de habilidade.** A forma mais comum do catálogo fora
+de dano e cura — *"Reduza 1 nível de dificuldade da habilidade Furtividade"* —
+não tinha primitiva. Agora tem (`mod_dificuldade`), e **17 magias entraram**
+por ela: Ausência, Avaliação, Camuflagem, Conhecimento, Conhecimento
+Linguístico, Conhecimento Natural, Convocação, Deslocamento Natural, Detectar
+Intenção, Escrita, Faro, Habilidade Animal, Linguagem, Malabarismo, Mestre da
+Forja, Orientação e Sexto Sentido. Mais três com peças que já existiam:
+Corrente e Fascínio (impedem o alvo de agir) e Dueto Mágico (níveis das
+magias na área).
+
+Como escrever para o leitor entender:
+
+| Forma | Exemplo |
+|---|---|
+| uma habilidade | `Reduza 2 níveis de dificuldade da habilidade Furtividade.` |
+| várias | `... da habilidade Equilibrar, Nadar e Escalar.` (ou `Equilibrar ou Prestidigitação` — vale nas duas) |
+| grupo inteiro | `... de habilidades do grupo Profissional.` |
+| mais difícil | `Aumenta 1 nível de dificuldade da habilidade Sentidos.` |
+
+- **Dígito, não por extenso.** "um nível" não é lido — são exatamente as três
+  pendências de texto do grupo *decisão*. Troque por "1 nível" e a magia vai
+  sozinha para *"pronta para entrar"*.
+- **O nome da habilidade é o do catálogo**, sem acento e caixa importando.
+  Plural é tolerado ("Idiomas" casa com "Idioma").
+
+Como ela vale:
+
+- **Na batalha**, na aba *Habilidade*: o Mestre escolhe a dificuldade como
+  sempre, e a tela mostra *"Com magia ativa: Médio → Fácil"*. O veredito usa a
+  deslocada.
+- **Na ficha**, no *Usar* de uma habilidade: a mesma conta, e o log da mesa
+  diz *"(Médio → Fácil)"*.
+- **Duração Instantânea** (Avaliação, Faro, Escrita…) = *"a magia e a
+  habilidade devem ser usadas juntas"*: fica em *Magias ativas* como **"até o
+  próximo teste"** e some depois do teste daquela habilidade.
+- **Duração de horas** (Camuflagem, Conhecimento…) = magia ativa até vencer no
+  calendário, como qualquer outra.
+
+**Consertado no caminho:** quando o Mestre aprovava uma evocação no colega, só
+o efeito instantâneo pousava — a magia de calendário não virava ativa na ficha
+do alvo. Ficha e aprovação passaram a usar a mesma porta
+(`aplicarMagiaNoEstado`).
+
+> ⚠️ **Força Sagrada** ficou de fora de propósito: o texto já é legível, mas
+> atributo de combate (`mod_atributo`) ainda não tem consumidor no motor — é a
+> mesma pendência da Licantropia Lupina. Ligar agora a faria aparecer "no
+> motor" sem fazer nada.
+
+### Antes da varredura
+
 Rodando a verificação contra o banco em 12/09/2026, no fim do dia:
 
 ```

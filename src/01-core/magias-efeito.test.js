@@ -214,10 +214,15 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          'mod_coluna',
                          // Fase 2: sem_acoes JÁ EXISTIA (Falha Crítica). A fase
                          // acrescenta produtores, não mecanismo.
-                         'sem_acoes'];
+                         'sem_acoes',
+                         // Varredura das magias que nenhum personagem conhecia
+                         // (12/09/2026): a dificuldade de habilidade vira
+                         // primitiva. Vinte e poucas magias a pedem.
+                         'mod_dificuldade'];
 
-  it('tem 75 entradas — 74 mais Visao Animal', () => {
-    expect(Object.keys(MAP)).toHaveLength(75);
+  it('tem 95 entradas — 75 até a varredura das magias que ninguém conhecia, e 20 dela', () => {
+    // 17 de dificuldade de habilidade + Corrente, Fascínio e Dueto Mágico.
+    expect(Object.keys(MAP)).toHaveLength(95);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -407,6 +412,27 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',
+    // Varredura das magias que nenhum personagem conhecia (12/09/2026).
+    ausencia:             'Reduza 1 nível de dificuldade da habilidade Escapar.',
+    avaliacao:            'Reduza 1 nível de dificuldade da habilidade Negociar.',
+    camuflagem:           'Reduz 1 nível de dificuldade da habilidade Furtividade.',
+    conhecimento:         'Reduza 1 nível de dificuldade de habilidades do grupo Profissional.',
+    conhecimento_linguistico: 'Reduza 1 nível de dificuldade da habilidade Idiomas e Alfabetização.',
+    conhecimento_natural: 'Reduza 1 nível de dificuldade de habilidades do grupo Geral.',
+    convocacao:           'Reduza 1 nível de dificuldade da habilidade Liderar.',
+    deslocamento_natural: 'Reduza 1 nível de dificuldade da habilidade Equilibrar, Nadar e Escalar.',
+    detectar_intencao:    'Reduza 1 nível de dificuldade da habilidade Empatia.',
+    escrita:              'Reduza 1 nível de dificuldade da habilidade Alfabetização.',
+    faro:                 'Reduza 1 nível de dificuldade da habilidade Rastrear e Sentidos.',
+    habilidade_animal:    'Assimila a habilidade de um lobo: Reduza 1 nível de dificuldade em Rastrear.',
+    linguagem:            'Reduza 1 nível de dificuldade da habilidade Idiomas.',
+    malabarismo:          'Reduza 1 nível de dificuldade da habilidade Equilibrar ou Prestidigitação.',
+    mestre_da_forja:      'Reduz 1 nível de dificuldade da habilidade Metalurgia.',
+    orientacao:           'Reduza 1 nível de dificuldade da habilidade Navegar.',
+    sexto_sentido:        'Reduza 1 nível de dificuldade da habilidade Sensitividade.',
+    corrente:             'A magia tem duração de 5 minutos.',
+    fascinio:             'Esta magia tem força de ataque 2.',
+    dueto_magico:         'Aumenta 2 níveis das magias evocadas.',
   };
 
   it('a lista de conferência cobre TODAS as entradas do mapa', () => {

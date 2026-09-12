@@ -555,7 +555,9 @@
 #root .menestrel-ui .cv-form-title { font-family: 'Cinzel', serif; font-weight: 700; font-size: 18px; margin: 0 0 6px; color: #E8DDC6; }
 #root .menestrel-ui .cv-sub { font-family: 'Lora', serif; font-size: 14px; color: #9C8F73; line-height: 1.55; margin: 0 0 16px; }
 #root .menestrel-ui .cv-input-row { display: flex; gap: 10px; flex-wrap: wrap; }
-#root .menestrel-ui .cv-input { flex: 1; min-width: 200px; height: 40px; background: rgba(16,11,5,0.4); border: 1px solid rgba(106, 85, 48, 0.20); border-radius: 999px; color: #E8DDC6; font-family: 'Lora', serif; font-size: 16px; letter-spacing: .12em; text-transform: uppercase; padding: 0 16px; text-align: center; transition: border-color .15s ease; }
+/* Campo de altura do sistema: 32px, fonte 13px (12/09/2026). Era 40px/16px —
+   e é o campo que abre logo depois do stepper de criação de personagem. */
+#root .menestrel-ui .cv-input { flex: 1; min-width: 200px; height: 32px; box-sizing: border-box; background: rgba(16,11,5,0.4); border: 1px solid rgba(106, 85, 48, 0.20); border-radius: 999px; color: #E8DDC6; font-family: 'Lora', serif; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; padding: 0 16px; text-align: center; transition: border-color .15s ease; }
 #root .menestrel-ui .cv-input:focus { outline: none; }
 #root .menestrel-ui .cv-input::placeholder { color: #6E6147; letter-spacing: .12em; }
 #root .menestrel-ui .cv-instr { font-size: 14px; color: #C7B79A; margin: 0 0 14px; }
@@ -3442,7 +3444,6 @@
   margin-top: auto;
   padding: 4px 0 0;
 }
-#root .menestrel-ui .pj-card-selecionar { gap: 6px; }
 
 /* ── Pills do item: ESTADO x INFORMAÇÃO ────────────────────────────────
    Até 11/09/2026 `.inv-pill` não tinha estilo base nenhum — nem fundo, nem
@@ -3616,11 +3617,11 @@
 #root .menestrel-ui .det-transf > .det-act-confirm-btns,
 #root .menestrel-ui .det-armazenar > .det-act-confirm-btns { padding: 20px 20px 0; margin: 0px -24px 0; border-top: 1px solid rgba(106,85,48,0.30); }
 #root .menestrel-ui .det-armazenar { display: flex; flex-direction: column; gap: 20px; }
-#root .menestrel-ui .det-armazenar select { width: 100%; padding: 10px 30px 10px 10px; font-family: 'Lora', serif; font-size: 13px; border: 1px solid var(--rule); border-radius: 6px; background: var(--ink-bg-2); color: var(--parchment); appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23C9A44E' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
+#root .menestrel-ui .det-armazenar select { width: 100%; height: 32px; box-sizing: border-box; padding: 0 30px 0 14px; font-family: 'Lora', serif; font-size: 13px; border: 1px solid var(--rule); border-radius: 999px; background: var(--ink-bg-2); color: var(--parchment); appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23C9A44E' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
 #root .menestrel-ui .det-armazenar label { display: block; font-family: 'Lora', serif; font-size: 13px; font-style: italic; color: var(--parchment-dim); }
 #root .menestrel-ui .det-armazenar select:focus { outline: none; }
 #root .menestrel-ui .det-transf { display: flex; flex-direction: column; gap: 20px; }
-#root .menestrel-ui .det-transf select { width: 100%; padding: 10px 30px 10px 10px; font-family: 'Lora', serif; font-size: 13px; border: 1px solid var(--rule); border-radius: 6px; background: var(--ink-bg-2); color: var(--parchment); appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23C9A44E' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
+#root .menestrel-ui .det-transf select { width: 100%; height: 32px; box-sizing: border-box; padding: 0 30px 0 14px; font-family: 'Lora', serif; font-size: 13px; border: 1px solid var(--rule); border-radius: 999px; background: var(--ink-bg-2); color: var(--parchment); appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23C9A44E' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
 #root .menestrel-ui .det-transf label { display: block; font-family: 'Lora', serif; font-size: 13px; font-style: italic; color: var(--parchment-dim); }
 #root .menestrel-ui .det-transf select:focus { outline: none; }
 @media (max-width: 880px) {
@@ -3942,7 +3943,7 @@
 #root .menestrel-ui .loja-comercio-modal { background: #1C1407; border: 1px solid rgba(106,85,48,0.50); border-radius: 10px; padding: 22px 24px; min-width: 320px; max-width: 420px; box-shadow: 0 8px 40px rgba(0,0,0,0.60); }
 #root .menestrel-ui .loja-comercio-modal-title { font-family: 'Cinzel', serif; font-size: 14px; color: #E8DDC6; margin-bottom: 14px; }
 #root .menestrel-ui .loja-comercio-modal-desc { font-family: 'Lora', serif; font-size: 13px; color: rgba(156,143,115,0.85); margin-bottom: 16px; line-height: 1.5; }
-#root .menestrel-ui .loja-comercio-modal-input { width: 100%; background: rgba(10,7,2,0.6); border: 1px solid rgba(106,85,48,0.45); border-radius: 6px; color: #E8DDC6; font-family: 'Lora', serif; font-size: 13px; padding: 8px 12px; margin-bottom: 14px; outline: none; transition: border-color .15s; box-sizing: border-box; }
+#root .menestrel-ui .loja-comercio-modal-input { width: 100%; height: 32px; box-sizing: border-box; background: rgba(10,7,2,0.6); border: 1px solid rgba(106,85,48,0.45); border-radius: 999px; color: #E8DDC6; font-family: 'Lora', serif; font-size: 13px; padding: 0 14px; margin-bottom: 14px; outline: none; transition: border-color .15s; box-sizing: border-box; }
 #root .menestrel-ui .loja-comercio-modal-input:focus { border-color: var(--gold, #C9A44E); }
 #root .menestrel-ui .loja-comercio-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
@@ -4815,6 +4816,10 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 /* Na aba Histórias do jogador o pill aparece mas queremos menos espaço — reduz o padding do container */
 #root .menestrel-ui .mc-main:has(.cv-av-page) { margin-top: 20px; }
 #root .menestrel-ui .mc-content:has(> .cv-av-page) { padding-top: 20px; }
+/* Várias histórias empilhadas (12/09/2026): um personagem pode estar em mais
+   de uma, e os cards encostavam um no outro — .cv-av-page não tinha espaço
+   entre os filhos, e a borda de um card colava na do seguinte. */
+#root .menestrel-ui .cv-av-page { display: flex; flex-direction: column; gap: 24px; padding-bottom: 24px; }
 #root .menestrel-ui .mc-main::-webkit-scrollbar { width: 8px; height: 8px; }
 #root .menestrel-ui .mc-main::-webkit-scrollbar-track { background: transparent; }
 #root .menestrel-ui .mc-main::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: 6px; }
@@ -5267,8 +5272,8 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 .menestrel-ui .cal-input {
   flex: 1; background: rgba(201,164,78,0.06);
   border: 1px solid rgba(201,164,78,0.22); border-radius: 999px;
-  color: #E8DDC6; font-family: 'Lora', serif; font-size: 12px;
-  padding: 10px; outline: none; height: 32px;
+  color: #E8DDC6; font-family: 'Lora', serif; font-size: 13px;
+  padding: 0 14px; outline: none; height: 32px; box-sizing: border-box;
   transition: border-color .15s;
 }
 .menestrel-ui .cal-input:focus { border-color: rgba(201,164,78,0.50); }
@@ -5458,7 +5463,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .plist-add-block { background: rgba(106,85,48,0.08); border: 1px solid rgba(106,85,48,0.18); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 #root .menestrel-ui .plist-add-label { font-family: 'Lora', serif; font-size: 12px; color: #9C8F73; text-transform: uppercase; letter-spacing: .06em; margin: 0; }
 #root .menestrel-ui .plist-add-row { display: flex; gap: 8px; }
-#root .menestrel-ui .plist-input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(106,85,48,0.30); background: rgba(12,9,4,0.50); color: #E8DDC6; font-family: 'Lora', serif; font-size: 13px; outline: none; transition: border-color .15s; }
+#root .menestrel-ui .plist-input { flex: 1; min-width: 0; height: 32px; box-sizing: border-box; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(106,85,48,0.30); background: rgba(12,9,4,0.50); color: #E8DDC6; font-family: 'Lora', serif; font-size: 13px; outline: none; transition: border-color .15s; }
 #root .menestrel-ui .plist-input:focus { border-color: rgba(201,164,78,0.50); }
 #root .menestrel-ui .plist-input::placeholder { color: #5A4E38; }
 
@@ -5669,14 +5674,19 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .diario-subtabs { display:flex; gap:6px; flex-wrap:wrap; margin: 0; }
 /* Sub-abas agora estão dentro do best-toolbar (inline com a busca) */
 
+/* Altura do sistema: 32px, fonte 13px. Até 12/09/2026 isto só valia dentro de
+   .catalogo-form-grid; nos formulários do próprio Diário o campo tinha ~38px
+   e fonte 14px. */
 #root .menestrel-ui .diario-input {
-  width:100%; font-family:'Lora', serif; font-size:14px; color:#E8DDC6; font-weight: 400;
-  background:rgba(232,221,198,0.04); border:1px solid rgba(232,221,198,0.14); border-radius: 999px; padding:10px 12px;
+  width:100%; font-family:'Lora', serif; font-size:13px; color:#E8DDC6; font-weight: 400;
+  background:rgba(232,221,198,0.04); border:1px solid rgba(232,221,198,0.14); border-radius: 999px; padding:0 12px;
+  height:32px; box-sizing:border-box;
   outline:none; transition:border-color .15s ease;
 }
 #root .menestrel-ui .diario-textarea {
-  width:100%; font-family:'Lora', serif; font-size:14px; color:#E8DDC6; font-weight: 400;
-  background:rgba(232,221,198,0.04); border:1px solid rgba(232,221,198,0.14); border-radius: 12px; padding:10px 12px;
+  width:100%; font-family:'Lora', serif; font-size:13px; color:#E8DDC6; font-weight: 400;
+  background:rgba(232,221,198,0.04); border:1px solid rgba(232,221,198,0.14); border-radius: 12px; padding:8px 12px;
+  box-sizing:border-box;
   outline:none; transition:border-color .15s ease;
 }
 #root .menestrel-ui .diario-input:focus,
@@ -5767,22 +5777,10 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    (texto livre) do descritor ocupa a largura inteira do modal. */
 #root .menestrel-ui .catalogo-campo-full { grid-column: 1 / -1; }
 
-/* Altura uniforme dos campos, igualada pela MENOR.
-   O SelectPill (campo de opções, ex.: `grupo` em itens) tem height:32px fixo e
-   fonte 13px. Já .diario-input não declara altura: com padding 10px e fonte
-   14px ele calcula ~39px — 7px mais alto. Lado a lado no grid, os campos
-   ficavam desalinhados.
-   Escopado em .catalogo-form-grid de propósito: .diario-input e .diario-textarea
-   são COMPARTILHADAS com três formulários de 13-diario/diario.jsx, e mudar a
-   regra base mexeria em telas fora deste pedido.
-   A textarea não recebe altura fixa — ela é multilinha por definição —, só a
-   fonte e o padding horizontal, pra combinar com o resto. */
-#root .menestrel-ui .catalogo-form-grid .diario-input {
-  height: 32px; padding: 0 12px; font-size: 13px; box-sizing: border-box;
-}
-#root .menestrel-ui .catalogo-form-grid .diario-textarea {
-  padding: 8px 12px; font-size: 13px; box-sizing: border-box;
-}
+/* Altura uniforme dos campos (10/09/2026): começou escopada aqui, em
+   .catalogo-form-grid, para não mexer nos formulários do Diário. Em 12/09/2026
+   o usuário pediu o mesmo tamanho no sistema inteiro, e a regra subiu para a
+   base de .diario-input / .diario-textarea — nada mais a sobrepor aqui. */
 
 /* diario-form-section: cabeçalho de agrupamento dentro de um form longo (Nova
    Criatura — atributos/energia/combate/repertório). Mesma cor/borda de divisor
@@ -5884,11 +5882,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .diario-det-nota { padding:12px; border-radius:8px; background:rgba(201,164,78,0.06); border:1px solid rgba(201,164,78,0.20); }
 #root .menestrel-ui .diario-det-nota-lbl { display:flex; align-items:center; gap:6px; font-family:'Lora', serif; font-size:12px; text-transform:uppercase; color:#C9A44E; margin-bottom:6px; }
 #root .menestrel-ui .diario-det-nota p { font-family:'Lora', serif; font-size:13.5px; font-style:italic; line-height:1.5; color:#E8DDC6; margin:0; }
-
-/* ── Menu superior do DiarioView: Meu Diário / Conteúdo da Aventura ──
-   Reutiliza os tokens do .loja-mng-v3-tabs; só precisa de margem extra
-   para separar do parágrafo acima e da toolbar de abas abaixo. */
-#root .menestrel-ui .diario-menu-tabs { margin: 0; border-top: 1px solid rgba(106, 85, 48, 0.20); }
 
 /* ── Abas internas do modal NPC (Ficha / Descrição) ──
    Segmented control compacto, mesmo padrão visual das .diario-subtabs
@@ -8026,9 +8019,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
   font-family: 'Lora', serif; font-size: 13px; color: var(--parchment-muted);
 }
 #root .menestrel-ui .batalha-campo-modal input {
-  background: rgba(0,0,0,0.25); border: 1px solid var(--rule); border-radius: 6px;
-  color: var(--parchment); font-family: 'Lora', serif; font-size: 15px;
-  padding: 8px 10px; width: 100%;
+  background: rgba(0,0,0,0.25); border: 1px solid var(--rule); border-radius: 999px;
+  color: var(--parchment); font-family: 'Lora', serif; font-size: 13px;
+  height: 32px; box-sizing: border-box; padding: 0 14px; width: 100%;
 }
 #root .menestrel-ui .batalha-campo-modal input:focus-visible { outline: 1px solid var(--gold); }
 /* Os inputs desses modais nasciam com os spinners nativos do navegador —
@@ -8135,6 +8128,51 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .best-aud-lista strong { color: #C9BFA8; font-weight: 600; }
 #root .menestrel-ui .best-aud-det { color: #7E735F; }
 #root .menestrel-ui .best-aud-rodape { margin: 12px 0 0; color: #7E735F; font-size: 11px; }
+/* Estatísticas do catálogo (12/09/2026) — mesma pele discreta da conferência:
+   números para ler de relance, não um painel de BI. */
+#root .menestrel-ui .best-est-titulo { color: #C9BFA8; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+#root .menestrel-ui .best-est { padding-bottom: 8px; border-bottom: 1px solid #2A2722; margin-bottom: 14px; }
+#root .menestrel-ui .best-est-grupo { margin: 6px 0 8px; }
+#root .menestrel-ui .best-est-grupo-tit { color: #9C8F73; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin: 10px 0 4px; }
+#root .menestrel-ui .best-est-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+#root .menestrel-ui .best-est-chip { display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 9px; border-radius: 999px; background: rgba(106,85,48,0.14); color: #C9BFA8; font-size: 12px; }
+#root .menestrel-ui .best-est-chip strong { color: #E6C97A; font-weight: 700; }
+#root .menestrel-ui .best-est-pct { color: #7E735F; font-size: 10.5px; }
+#root .menestrel-ui .best-est-tabela-wrap { overflow-x: auto; }
+#root .menestrel-ui .best-est-tabela { border-collapse: collapse; font-size: 12px; color: #C9BFA8; white-space: nowrap; }
+#root .menestrel-ui .best-est-tabela th { color: #9C8F73; font-weight: 600; text-align: right; padding: 4px 8px; border-bottom: 1px solid #3A362E; }
+#root .menestrel-ui .best-est-tabela td { text-align: right; padding: 3px 8px; border-bottom: 1px solid #2A2722; }
+#root .menestrel-ui .best-est-tabela th:first-child, #root .menestrel-ui .best-est-tabela td:first-child { text-align: left; }
+#root .menestrel-ui .best-est-tabela strong { color: #E6C97A; }
+/* Zero numa função é o dado mais importante da tabela: é o buraco. */
+#root .menestrel-ui .best-est-zero { color: #B8702E; }
+#root .menestrel-ui .best-est-nome { color: #E8DDC6; }
+/* Sugestões de magias (12/09/2026) — o documento docs/sugestoes-magias.md
+   renderizado na página, logo abaixo da conferência. Pele de leitura: Lora,
+   linha folgada, tabelas finas. */
+#root .menestrel-ui .sug-painel { margin-top: 10px; }
+#root .menestrel-ui .sug-md { font-family: 'Lora', serif; color: #C9BFA8; font-size: 13px; line-height: 1.6; max-width: 900px; }
+#root .menestrel-ui .sug-h { font-family: 'Cinzel', serif; color: #E6C97A; margin: 18px 0 8px; line-height: 1.3; }
+#root .menestrel-ui .sug-h1 { font-size: 18px; margin-top: 4px; }
+#root .menestrel-ui .sug-h2 { font-size: 15px; }
+#root .menestrel-ui .sug-h3 { font-size: 13.5px; color: #D4B060; }
+#root .menestrel-ui .sug-h4 { font-size: 12.5px; color: #C9BFA8; }
+#root .menestrel-ui .sug-p { margin: 6px 0; }
+#root .menestrel-ui .sug-md strong { color: #E8DDC6; font-weight: 600; }
+#root .menestrel-ui .sug-md em { color: #D8CBB0; }
+#root .menestrel-ui .sug-md code { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; padding: 1px 5px; border-radius: 4px; background: rgba(106,85,48,0.18); color: #E6C97A; }
+#root .menestrel-ui .sug-pre { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; line-height: 1.6; margin: 8px 0; padding: 10px 12px; border-radius: 6px; background: rgba(16,11,5,0.55); color: #D8CBB0; overflow-x: auto; white-space: pre; }
+#root .menestrel-ui .sug-hr { border: none; border-top: 1px solid #2A2722; margin: 14px 0; }
+#root .menestrel-ui .sug-citacao { margin: 6px 0 10px; padding: 4px 12px; border-left: 2px solid rgba(201,164,78,.55); color: #B8AC92; font-style: italic; }
+#root .menestrel-ui .sug-citacao .sug-p { margin: 2px 0; }
+#root .menestrel-ui .sug-lista { margin: 6px 0; padding-left: 22px; list-style: disc; }
+#root .menestrel-ui ol.sug-lista { list-style: decimal; }
+#root .menestrel-ui .sug-lista li::marker { color: #9C8F73; }
+#root .menestrel-ui .sug-lista li { margin: 3px 0; }
+#root .menestrel-ui .sug-tabela-wrap { overflow-x: auto; margin: 8px 0 10px; }
+#root .menestrel-ui .sug-tabela { border-collapse: collapse; font-size: 12px; }
+#root .menestrel-ui .sug-tabela th { text-align: left; color: #9C8F73; font-weight: 600; padding: 4px 10px; border-bottom: 1px solid #3A362E; white-space: nowrap; }
+#root .menestrel-ui .sug-tabela td { padding: 4px 10px; border-bottom: 1px solid #2A2722; vertical-align: top; }
 
 /* Botão "Conferir novamente" da auditoria. Fica na faixa fechada, à direita
    do resumo: é lá que o Mestre olha depois de editar uma magia. */
@@ -8203,28 +8241,107 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .mc-sidebar .mc-user-name { display: none; }
 #root .menestrel-ui .mc-sidebar .mc-user i.ti-chevron-right { display: none; }
 
-/* ── CARREGANDO — um texto só, uma animação só (12/09/2026) ──────────
-   Eram nove textos diferentes para a mesma espera. O ícone gira e o texto
-   respira devagar: movimento suficiente para dizer "está vivo", lento o
-   bastante para não competir com o conteúdo que vai chegar.
+/* ── CARREGANDO — um texto só, dentro de um selo de bronze ───────────
+   12/09/2026, duas decisões do usuário no mesmo dia: primeiro "um texto de
+   carregamento só, com animação"; depois "mais bonita, com estilo medieval
+   entre uma página e outra". O texto continua um só; a moldura virou um selo
+   (ver o comentário de Carregando em 01-core/helpers.jsx).
 
-   prefers-reduced-motion desliga as duas — quem pediu menos movimento não
-   deve receber movimento nenhum só porque é bonito. */
+   Três movimentos, cada um com um papel:
+   - o ARCO dourado corre rápido (1.4s): é o sinal de "está carregando";
+   - o ANEL de runas gira devagar (24s): ornamento, quase parado;
+   - a MARCA no centro respira (2.4s), com um brilho que vai e volta.
+
+   O conjunto entra com atraso de 180ms: carregamento rápido não chega a
+   mostrar o selo, e a troca de página não pisca.
+
+   prefers-reduced-motion desliga tudo — o selo aparece parado, inteiro. */
 #root .menestrel-ui .mn-carregando {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  padding: 40px 20px; color: #9C8F73;
-  font-family: 'Lora', serif; font-size: 14px;
-  animation: mn-carregando-respira 2s ease-in-out infinite;
+  flex: 1 1 auto; align-self: stretch;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; min-height: max(300px, min(60vh, 520px)); padding: 40px 20px; box-sizing: border-box;
+  animation: mn-carregando-entra .5s ease-out .18s both;
 }
-#root .menestrel-ui .mn-carregando-gira {
-  font-size: 20px; color: #C9A44E;
-  animation: mn-carregando-gira 1s linear infinite;
+#root .menestrel-ui .mn-carregando--compacto { min-height: 140px; padding: 24px 16px; gap: 10px; }
+
+#root .menestrel-ui .mn-carregando-selo {
+  position: relative; width: 128px; height: 128px;
+  display: grid; place-items: center;
 }
+#root .menestrel-ui .mn-carregando--compacto .mn-carregando-selo { width: 68px; height: 68px; }
+/* Halo de vela atrás do selo — luz quente, não um círculo desenhado. */
+#root .menestrel-ui .mn-carregando-selo::before {
+  content: ''; position: absolute; inset: -26px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(201,164,78,0.16) 0%, rgba(201,164,78,0.05) 45%, transparent 70%);
+  animation: mn-carregando-halo 2.4s ease-in-out infinite;
+}
+#root .menestrel-ui .mn-carregando-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+#root .menestrel-ui .mn-carregando-anel {
+  transform-box: view-box; transform-origin: 50% 50%;
+  animation: mn-carregando-gira 24s linear infinite;
+}
+#root .menestrel-ui .mn-carregando-linha { fill: none; stroke: rgba(201,164,78,0.30); stroke-width: 1; }
+/* As "runas": traços curtos e irregulares num círculo tracejado. */
+#root .menestrel-ui .mn-carregando-runas { fill: none; stroke: rgba(201,164,78,0.45); stroke-width: 3; stroke-dasharray: 1 4 3 4 1 7; }
+#root .menestrel-ui .mn-carregando-losango { fill: #C9A44E; }
+
+#root .menestrel-ui .mn-carregando-trilho { fill: none; stroke: rgba(106,85,48,0.35); stroke-width: 2.5; }
+#root .menestrel-ui .mn-carregando-arco {
+  fill: none; stroke: #D4B060; stroke-width: 2.5; stroke-linecap: round;
+  stroke-dasharray: 24 76;
+  transform-box: view-box; transform-origin: 50% 50%;
+  filter: drop-shadow(0 0 3px rgba(212,176,96,0.65));
+  animation: mn-carregando-gira 1.4s cubic-bezier(.55,.15,.45,.85) infinite;
+}
+#root .menestrel-ui .mn-carregando-miolo {
+  fill: rgba(28,20,7,0.55);
+  stroke: rgba(201,164,78,0.40); stroke-width: 1;
+}
+
+#root .menestrel-ui .mn-carregando-marca {
+  position: relative; font-size: 40px; line-height: 1; color: #D4B060;
+  text-shadow: 0 0 10px rgba(212,176,96,0.55);
+  animation: mn-carregando-respira 2.4s ease-in-out infinite;
+}
+#root .menestrel-ui .mn-carregando--compacto .mn-carregando-marca { font-size: 22px; }
+
+/* Filete: linha — losango — linha, como o fecho de um capítulo. */
+#root .menestrel-ui .mn-carregando-filete { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+#root .menestrel-ui .mn-carregando-filete span {
+  display: block; width: 56px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(201,164,78,0.55));
+}
+#root .menestrel-ui .mn-carregando-filete span:last-child { background: linear-gradient(90deg, rgba(201,164,78,0.55), transparent); }
+#root .menestrel-ui .mn-carregando-filete i {
+  display: block; width: 5px; height: 5px; background: #C9A44E; transform: rotate(45deg);
+}
+
+#root .menestrel-ui .mn-carregando-txt {
+  font-family: 'Cinzel', 'Lora', serif; font-weight: 600;
+  font-size: 13px; letter-spacing: 0.32em; text-transform: uppercase;
+  color: #C9A44E;
+  /* o letter-spacing empurra o texto pra esquerda do centro; compensa */
+  padding-left: 0.32em;
+}
+#root .menestrel-ui .mn-carregando--compacto .mn-carregando-txt { font-size: 11px; }
+#root .menestrel-ui .mn-carregando-pontos { letter-spacing: 0.08em; }
+#root .menestrel-ui .mn-carregando-pontos i { font-style: normal; animation: mn-carregando-ponto 1.4s ease-in-out infinite; }
+#root .menestrel-ui .mn-carregando-pontos i:nth-child(2) { animation-delay: .2s; }
+#root .menestrel-ui .mn-carregando-pontos i:nth-child(3) { animation-delay: .4s; }
+
+@keyframes mn-carregando-entra { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes mn-carregando-gira { to { transform: rotate(360deg); } }
-@keyframes mn-carregando-respira { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes mn-carregando-respira { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
+@keyframes mn-carregando-halo { 0%, 100% { opacity: .6; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.04); } }
+@keyframes mn-carregando-ponto { 0%, 100% { opacity: .15; } 40% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   #root .menestrel-ui .mn-carregando,
-  #root .menestrel-ui .mn-carregando-gira { animation: none; }
+  #root .menestrel-ui .mn-carregando-selo::before,
+  #root .menestrel-ui .mn-carregando-anel,
+  #root .menestrel-ui .mn-carregando-arco,
+  #root .menestrel-ui .mn-carregando-marca,
+  #root .menestrel-ui .mn-carregando-pontos i { animation: none; }
 }
 
 /* Atalho para Histórias dentro de Personagens (12/09/2026): a seção saiu da
@@ -8233,65 +8350,160 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .pjs-atalho-historias { margin-bottom: 12px; }
 #root .menestrel-ui .pjs-atalho-historias .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
 
-/* ── Card de personagem: ativo e inerte (12/09/2026) ─────────────────
-   Quem diz que o personagem está ativo é o CARD, não o rodapé. A primeira
-   versão punha uma etiqueta solta ao lado do botão, num rodapé desenhado para
-   UM botão de largura total — e saía torta.
+/* ── Card de personagem: ativo, a escolher e bloqueado (12/09/2026) ────
+   Refeito a pedido do usuário: "uma melhoria no card dos personagens, ativos
+   e não ativos, nos botões para desativar, na visualização de qual está
+   ativo".
 
-   O bloqueado (há outro ativo) não recebe aviso nenhum: o usuário mandou tirar
-   a frase, e ele tem razão — numa grade, uma frase só naquele card puxa o olho
-   justamente para o que NÃO dá para fazer. Ele apenas recua. */
+   O que estava errado, visto numa captura:
+   - a borda dourada de .pj-card--ativo NUNCA aparecia: o card recebe
+     borderColor e boxShadow INLINE (a cor de saúde), e estilo inline ganha de
+     qualquer regra. O ativo se distinguia só pela largura e por uma pílula
+     de 10px no canto;
+   - o "Desativar" era um botão fantasma sozinho no rodapé de um card da
+     largura da tela;
+   - com nenhum ativo, três botões dourados gritavam lado a lado.
+
+   O ativo tem UMA borda, dourada. Uma primeira versão desta rodada pôs uma
+   segunda moldura por fora e o capítulo numa caixa própria — "não precisa
+   criar um card dentro do outro, duas bordas" (usuário). Para a borda
+   dourada aparecer, o ativo não recebe a cor de saúde inline (ver
+   healthStyle em PersonagemCard); a saúde dele aparece na barra de EF. */
+
+/* ── ATIVO ── */
 #root .menestrel-ui .pj-card--ativo {
-  border-color: rgba(201,164,78,.55);
-  box-shadow: 0 0 0 1px rgba(201,164,78,.28), 0 6px 18px rgba(0,0,0,.30);
+  border-color: rgba(201,164,78,.60);
+  box-shadow: 0 0 0 1px rgba(201,164,78,.18), 0 0 28px rgba(201,164,78,.16);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(201,164,78,.10) 0%, transparent 55%),
+    rgba(24,17,8,0.62);
 }
 
 /* "Depois de selecionar um personagem, ele vira o centro das atenções, é ele
-   que importa." (usuário, 12/09/2026)
-
-   O ativo sai da grade de três colunas e toma a linha inteira, no topo —
-   `order:-1` porque a ordem da lista vem do banco e o ativo pode estar em
-   qualquer posição dela. Retrato e nome crescem junto: um card largo com o
-   retrato de 70px pareceria um card comum esticado. */
-#root .menestrel-ui .pjs-grid > .pj-card-wrap--ativo { grid-column: 1 / -1; order: -1; }
-#root .menestrel-ui .pj-card-wrap--ativo .pj-card { padding: 22px 20px 18px; }
-#root .menestrel-ui .pj-card-wrap--ativo .pj-card-portrait { width: 104px; height: 168px; }
-#root .menestrel-ui .pj-card-wrap--ativo .pj-name { font-size: 30px; }
-
-/* Selo do ativo. Era um ::after e brigava com a varredura de --levelup pelo
-   mesmo pseudo-elemento; virou <span> no JSX (ver PersonagemCard). */
-#root .menestrel-ui .pj-card-selo {
-  position: absolute; top: 10px; right: 12px; z-index: 2;
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 2px 9px; border-radius: 999px;
-  border: 1px solid rgba(201,164,78,.50);
-  background: rgba(201,164,78,.12);
-  color: #E6C97A; font-size: .62rem; font-weight: 600;
-  letter-spacing: .08em; text-transform: uppercase; line-height: 1.6;
-  pointer-events: none;
+   que importa." (usuário, 12/09/2026) — o ativo toma a linha inteira, no
+   topo (`order:-1`: a ordem vem do banco). */
+#root .menestrel-ui .pjs-grid > .pj-card-wrap--ativo { grid-column: 1 / -1; order: -1; margin-bottom: 8px; }
+#root .menestrel-ui .pj-card-wrap--ativo .pj-card { padding: 22px 22px 20px; gap: 16px; }
+#root .menestrel-ui .pj-card-wrap--ativo .pj-card-body { gap: 20px; align-items: stretch; }
+#root .menestrel-ui .pj-card-wrap--ativo .pj-card-info { flex: 1 1 auto; justify-content: center; gap: 6px; }
+#root .menestrel-ui .pj-card-wrap--ativo .pj-card-portrait {
+  width: 108px; height: 168px;
+  box-shadow: 0 0 0 1px rgba(201,164,78,.45);
 }
-#root .menestrel-ui .pj-card-selo > i { font-size: 12px; }
-/* O medalhão da seta de evoluir pousa em `top:-14px; right:12px` — mesmo
-   canto do selo. Quando os dois aparecem juntos (ativo com pontos a
-   distribuir), o selo abre caminho. */
-#root .menestrel-ui .pj-card-wrap--seta .pj-card-selo { right: 62px; }
+#root .menestrel-ui .pj-card-wrap--ativo .pj-name { font-size: 32px; }
 
-/* O inerte recua de verdade — inclusive o chamariz de level up, que numa
-   grade com um ativo destacado estaria disputando o olho justamente para o
-   card em que não há nada a fazer. */
-#root .menestrel-ui .pj-card--inerte { opacity: .45; filter: saturate(.55); }
-#root .menestrel-ui .pj-card--inerte:hover { opacity: .60; filter: saturate(.80); }
+/* Selo: sobrescrito do nome, com uma chama acesa. */
+#root .menestrel-ui .pj-card-selo {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+  font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600;
+  letter-spacing: .22em; text-transform: uppercase; color: #E6C97A;
+}
+#root .menestrel-ui .pj-card-selo-chama {
+  width: 8px; height: 8px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: radial-gradient(circle at 40% 60%, #FFF1C8 0%, #E6C97A 35%, #C47E3C 100%);
+  box-shadow: 0 0 8px rgba(230,201,122,.9), 0 0 16px rgba(196,126,60,.5);
+  animation: pj-selo-chama 1.9s ease-in-out infinite;
+}
+@keyframes pj-selo-chama {
+  0%, 100% { opacity: 1;   transform: rotate(-45deg) scale(1); }
+  50%      { opacity: .7;  transform: rotate(-45deg) scale(.82); }
+}
+
+/* Vitais do ativo */
+#root .menestrel-ui .pj-vitais { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 8px 22px; margin-top: 8px; }
+#root .menestrel-ui .pj-vital-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+#root .menestrel-ui .pj-vital-rot { font-family: 'Lora', serif; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #8C7F63; }
+#root .menestrel-ui .pj-vital-num { font-family: 'Cinzel', serif; font-size: 14px; color: #E8DDC6; }
+#root .menestrel-ui .pj-vital-max { color: #7A6E55; font-size: 12px; }
+#root .menestrel-ui .pj-vital-barra { height: 5px; border-radius: 999px; background: rgba(106,85,48,.25); overflow: hidden; }
+#root .menestrel-ui .pj-vital-fill { display: block; height: 100%; border-radius: 999px; transition: width .4s ease; }
+#root .menestrel-ui .pj-vital--eh .pj-vital-fill { background: linear-gradient(90deg, #7A5E2A, #C9A44E); }
+
+/* Ações do ativo: coluna à direita, centrada na altura do card. */
+#root .menestrel-ui .pj-card-acoes-ativo {
+  display: flex; flex-direction: column; justify-content: center; gap: 8px;
+  margin-left: auto; padding-left: 20px; flex-shrink: 0;
+  border-left: 1px solid rgba(106,85,48,.22);
+}
+#root .menestrel-ui .pj-card-acoes-ativo .btn-sm { min-width: 150px; gap: 7px; }
+#root .menestrel-ui .pj-card-desativar { color: #9C8F73; }
+#root .menestrel-ui .pj-card-desativar:hover:not(:disabled) {
+  color: #F0A6A0; background: rgba(162,59,47,.16); box-shadow: inset 0 0 0 1px rgba(184,71,47,.45);
+}
+
+/* Último capítulo: parte do próprio card, separada só por um fio — sem
+   caixa, fundo ou borda próprios. */
+#root .menestrel-ui .pj-capitulo { padding-top: 16px; border-top: 1px solid rgba(106,85,48,.25); }
+#root .menestrel-ui .pj-capitulo-eyebrow {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-family: 'Cinzel', serif; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #C9A44E;
+}
+#root .menestrel-ui .pj-capitulo-eyebrow .ti { font-size: 13px; }
+#root .menestrel-ui .pj-capitulo-eyebrow .sep { color: #7A5E2A; }
+#root .menestrel-ui .pj-capitulo-historia { color: #9C8F73; letter-spacing: .08em; }
+#root .menestrel-ui .pj-capitulo-titulo { margin: 6px 0 2px; font-family: 'Cinzel', serif; font-size: 17px; font-weight: 600; color: #E8DDC6; }
+#root .menestrel-ui .pj-capitulo-num { font-family: 'Lora', serif; font-size: 12px; font-weight: 400; color: #8C7F63; margin-right: 8px; }
+#root .menestrel-ui .pj-capitulo-data { font-family: 'Lora', serif; font-size: 12px; color: #8C7F63; font-style: italic; }
+/* O capítulo pode ser longo: três linhas bastam para lembrar onde se parou. */
+#root .menestrel-ui .pj-capitulo-texto {
+  margin: 8px 0 0; font-family: 'Lora', serif; font-size: 13.5px; line-height: 1.6; color: #CFC3A8;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  white-space: pre-line;
+}
+
+/* Etiqueta "Pausada" (Mestre) — era um style inline. */
+#root .menestrel-ui .pj-card-pausada {
+  display: inline-block; margin-left: 8px; padding: 1px 8px;
+  font-size: .62rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+  color: var(--gold-bright, #E6C97A); border: 1px solid var(--gold-deep, #B8862E);
+  border-radius: 999px; background: rgba(0,0,0,.18);
+}
+
+/* ── A ESCOLHER (nenhum ativo) ──
+   O card sobe um pouco no hover e a pílula acende: a escolha acontece onde
+   o mouse está, e os outros dois cards ficam quietos. */
+#root .menestrel-ui .pj-card-wrap:has(> .pj-card.is-clickable) { transition: transform .18s ease; }
+#root .menestrel-ui .pj-card-wrap:has(> .pj-card.is-clickable:hover) { transform: translateY(-3px); }
+#root .menestrel-ui .pj-card-selecionar { gap: 6px; color: #C9A44E; background: rgba(201,164,78,.08); box-shadow: inset 0 0 0 1px rgba(201,164,78,.30); }
+#root .menestrel-ui .pj-card.is-clickable:hover .pj-card-selecionar,
+#root .menestrel-ui .pj-card-selecionar:focus-visible {
+  color: #1C1407; background: linear-gradient(135deg, #D4B060 0%, #C47E3C 100%); box-shadow: 0 2px 12px rgba(201,164,78,.30);
+}
+
+/* ── BLOQUEADO (há outro ativo) ──
+   Recua de verdade — inclusive o chamariz de level up. Sem frase: o motivo
+   vem no tooltip, e o cadeado só aparece no hover. */
+#root .menestrel-ui .pj-card--inerte { opacity: .45; filter: saturate(.55); cursor: not-allowed; }
+#root .menestrel-ui .pj-card--inerte:hover { opacity: .62; filter: saturate(.80); }
 #root .menestrel-ui .pj-card--inerte.pj-card--levelup { animation: none; }
 #root .menestrel-ui article.pj-card--inerte.pj-card--levelup::after { display: none; }
+#root .menestrel-ui .pj-card-cadeado {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center;
+  background: rgba(106,85,48,.22); color: #C9A44E; font-size: 14px;
+  opacity: 0; transition: opacity .16s ease;
+}
+#root .menestrel-ui .pj-card--inerte:hover .pj-card-cadeado { opacity: 1; }
+
+@media (max-width: 720px) {
+  #root .menestrel-ui .pj-card-wrap--ativo .pj-card-body { flex-wrap: wrap; }
+  #root .menestrel-ui .pj-card-acoes-ativo { flex-direction: row; flex-wrap: wrap; width: 100%; margin-left: 0; padding-left: 0; border-left: none; }
+  #root .menestrel-ui .pj-card-acoes-ativo .btn-sm { flex: 1 1 140px; }
+  #root .menestrel-ui .pj-vitais { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .pj-card-selo-chama { animation: none; }
+  #root .menestrel-ui .pj-card-wrap:has(> .pj-card.is-clickable:hover) { transform: none; }
+}
 
 /* ── Diário em forma de tabela (12/09/2026) ──────────────────────────
    "A página de lugares, personagens, memórias deve ser uma tabela igual as
    demais itens, magias, etc." As linhas passaram de .diario-vinculo-item
    (uma tira flex) para o kit de tabela do bestiário — o CSS abaixo é só o
    que a tabela do diário tem de próprio: a coluna de ações e o trecho da
-   memória. Todo o resto (moldura, cabeçalho, zebra, hover) vem de
-   .best-table-wrap, sem pele nova. */
-#root .menestrel-ui .diario-table-wrap { margin-top: 14px; }
+   memória. Todo o resto (moldura, cabeçalho, zebra, hover, e desde
+   12/09/2026 também o espaço até a barra) vem de .best-table-wrap e
+   .best-toolbar-bestiario, sem pele nova. */
 /* Ações encostadas à direita. Célula normal (não flex): dentro de .best-auto
    toda coluna a partir da segunda nasce com width:1px e se ajusta ao
    conteúdo, e um td flex briga com esse cálculo. */

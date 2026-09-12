@@ -79,7 +79,7 @@ describe('seta de evoluir', () => {
 describe('ativo, inativo e bloqueado', () => {
   it('o ativo mostra o selo e a ação de desativar', () => {
     const { container } = montar({ ativo: true, onDesativar: () => {} });
-    expect(container.querySelector('.pj-card-selo').textContent).toContain('Ativo');
+    expect(container.querySelector('.pj-card-selo').textContent).toMatch(/ativo/i);
     expect(screen.getByRole('button', { name: /Desativar/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Selecionar/ })).toBeNull();
   });
@@ -101,5 +101,39 @@ describe('ativo, inativo e bloqueado', () => {
     expect(container.querySelector('.pj-card--inerte')).not.toBeNull();
     // A frase "outro personagem está ativo" saiu a pedido do usuário.
     expect(container.textContent).not.toMatch(/outro personagem/i);
+  });
+});
+
+/* Rodada de 12/09/2026: "melhoria no card dos personagens, ativos e não
+   ativos, nos botões para desativar, na visualização de qual está ativo" e
+   "no card de personagem principal, adicione o último capítulo da história". */
+describe('ações e capítulo do ativo', () => {
+  const CAP = { historia: 'As Marcas do Passado', numero: 7, titulo: 'A ponte de Verrogar', texto: 'A chuva não parou.', data: null };
+
+  it('o ativo oferece voltar à ficha, e o botão chama onAbrir sem reativar', () => {
+    let abriu = 0; let ativou = 0;
+    montar({ ativo: true, onDesativar: () => {}, onAbrir: () => { abriu++; }, onAtivar: () => { ativou++; } });
+    screen.getByRole('button', { name: /Abrir ficha/ }).click();
+    expect(abriu).toBe(1);
+    expect(ativou).toBe(0);
+  });
+
+  it('o ativo mostra o último capítulo da história', () => {
+    const { container } = montar({ ativo: true, onDesativar: () => {}, ultimoCapitulo: CAP });
+    const cap = container.querySelector('.pj-capitulo');
+    expect(cap.textContent).toMatch(/Último capítulo/);
+    expect(cap.textContent).toMatch(/As Marcas do Passado/);
+    expect(cap.textContent).toMatch(/Cap\. 7/);
+    expect(cap.textContent).toMatch(/A ponte de Verrogar/);
+  });
+
+  it('quem não está ativo não mostra capítulo, mesmo recebendo um', () => {
+    const { container } = montar({ onAtivar: () => {}, ultimoCapitulo: CAP });
+    expect(container.querySelector('.pj-capitulo')).toBeNull();
+  });
+
+  it('o ativo mostra as energias', () => {
+    const { container } = montar({ ativo: true, onDesativar: () => {} });
+    expect(container.querySelector('.pj-vitais')).not.toBeNull();
   });
 });

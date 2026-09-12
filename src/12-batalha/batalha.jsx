@@ -3225,6 +3225,32 @@ function somaModHabilidade(p, nomeHabilidade) {
   }, 0);
 }
 
+/* ── Degraus de DIFICULDADE que os status dão a uma habilidade (puro) ─
+   Camuflagem ("Reduz 1 nível de dificuldade da habilidade Furtividade") vira
+   status `mod_dificuldade` com a lista de habilidades/grupos lida do texto.
+   A conta — casar nome ou grupo, somar — é a MESMA da ficha
+   (passosDeDificuldade, em 01-core): o teste não pode ficar mais fácil num
+   lugar e não no outro.
+
+   `hab` = { nome, grupo }. Negativo = mais fácil. */
+function somaDificuldadeDoStatus(p, hab) {
+  const st = (p && Array.isArray(p.status_temp)) ? p.status_temp : null;
+  if (!st || !hab || typeof passosDeDificuldade !== 'function') return 0;
+  return passosDeDificuldade(st.map((s) => s && s.efeito), hab);
+}
+
+/* Queima as magias "para o próximo teste" (Avaliação, Faro…) depois de um
+   teste de habilidade — e só as que valiam NESTA habilidade. Molde de
+   consumirOferenda. Devolve o MESMO participante quando não há o que queimar. */
+function consumirDificuldadeDoTeste(p, hab) {
+  const st = Array.isArray(p && p.status_temp) ? p.status_temp : null;
+  if (!st || !hab || typeof passosDeDificuldade !== 'function') return p;
+  const queima = (s) => s && s.consome_em === 'teste_habilidade'
+    && passosDeDificuldade([s.efeito], hab) !== 0;
+  if (!st.some(queima)) return p;
+  return { ...p, status_temp: st.filter((s) => !queima(s)) };
+}
+
 /* ── Dano no EQUIPAMENTO do alvo (puro) ────────────────────────────
    Estilhaçar ("causa 2 de dano em 1 equipamento") e Retalhar ("3 de dano").
    O equipamento que o combate conhece é a armadura, e o que nela se gasta é a
@@ -3454,6 +3480,17 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
     if (bruto == null) return;
 
     const efeito = { tipo: ef.tipo, valor: (ef.sinal || 1) * bruto };
+    /* DIFICULDADE DE HABILIDADE (12/09/2026): o número diz quantos degraus; QUAL
+       habilidade vem do mesmo texto do nível. Sem nome legível ("das
+       habilidades", sem dizer quais) o status não nasce — um degrau que não
+       sabe onde morder seria bônus em tudo. */
+    if (ef.tipo === 'mod_dificuldade') {
+      const alvosDif = (typeof habilidadesDaDificuldade === 'function')
+        ? habilidadesDaDificuldade(magia, nivel) : null;
+      if (!alvosDif) return;
+      efeito.habilidades = alvosDif.habilidades;
+      efeito.grupos = alvosDif.grupos;
+    }
     if (ef.elemento !== undefined) efeito.elemento = ef.elemento;
     if (ef.base) efeito.base = true;
     /* ESCALADA: o valor CRESCE a cada virada de rodada, em vez de ficar parado
@@ -5004,6 +5041,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     next[testIdx] = (tipo_teste === 'tecnica' && payload.tecnica)
       ? debitarCustoTecnica(next[testIdx], payload.tecnica.key)
       : { ...next[testIdx], pa_rest: Math.max(0, (next[testIdx].pa_rest || 0) - 1) };
+    // Magia "para o próximo teste" (Avaliação, Faro…) some depois dele.
+    if (tipo_teste === 'habilidade') {
+      next[testIdx] = consumirDificuldadeDoTeste(next[testIdx], { nome: payload.nome, grupo: payload.grupo });
+    }
 
     // Fase 1 das técnicas: aplica o efeito mecânico.
     //   modo 'total' → aplica sempre (não há dado).
@@ -6722,7 +6763,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       const total = (typeof totalHabilidadeComCondicoes === 'function')
         ? totalHabilidadeComCondicoes(key, pj.habilidades, atributosFicha, bonusObj, habsByKey, (ator && ator.condicoes) || pj.estado_atual?.condicoes)
         : (typeof totalHabilidade === 'function' ? totalHabilidade(key, pj.habilidades, atributosFicha, bonusObj, habsByKey) : null);
-      lista.push({ key, nome: h.nome, qtd: qtd || 0, total, ajuste: h.ajuste, descricao: h.descricao });
+      // grupo: magia de dificuldade pode mirar o GRUPO inteiro (Conhecimento → Profissional).
+      lista.push({ key, nome: h.nome, grupo: h.grupo, qtd: qtd || 0, total, ajuste: h.ajuste, descricao: h.descricao });
     });
     return lista.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   }, [isPJ, pj, catalogos, atributosFicha, ator]);
@@ -6946,6 +6988,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // Magia: coluna = nível efetivo do conjurador (passa por toda defesa).
   // Habilidade/Técnica(teste): coluna = total do item (clamp [-7,50]).
   const habilidadeSel = habilidadesAtor.find((h) => h.key === habKey) || null;
+  /* A dificuldade que VALE: a escolhida, deslocada pelas magias de dificuldade
+     ativas no ator (Camuflagem, Faro…). O Mestre escolhe "Médio" como sempre; a
+     magia é que o torna Fácil — e a tela diz isso, em vez de mudar em silêncio. */
+  const habPassosDif = habilidadeSel ? somaDificuldadeDoStatus(ator, habilidadeSel) : 0;
+  const habDificuldadeEfetiva = (typeof deslocarDificuldade === 'function')
+    ? deslocarDificuldade(habDificuldade, habPassosDif) : habDificuldade;
   /* A habilidade que a MAGIA de apoio exige, casada pelo NOME que o texto do
      nível traz ("teste da habilidade Sentidos"). Casa sem acento e sem caixa
      porque o texto é prosa do catálogo, não uma chave. */
@@ -7318,8 +7366,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
            respondia sucesso/falha — e desde que o motor passou a julgar teste
            de habilidade por causa de Proteção Natural, esta aba era o único
            lugar do jogo que ainda não usava a régua. */
-        dificuldade: habDificuldade,
-        passou: res ? passouNoTesteDeHabilidade(res.q, habDificuldade) : null,
+        grupo: habilidadeSel.grupo,
+        dificuldade: habDificuldadeEfetiva,
+        passou: res ? passouNoTesteDeHabilidade(res.q, habDificuldadeEfetiva) : null,
       });
     } else if (tab === 'tecnica_teste' && tecnicaTesteSel) {
       onAplicarTeste && onAplicarTeste({
@@ -7647,11 +7696,19 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
                 label: (D20_DIF_LABEL[id] || {})[en ? 'en' : 'pt'] || id,
               }))}
             />
+            {habPassosDif !== 0 && habDificuldadeEfetiva !== habDificuldade && (
+              <p className="acao-efeito-texto">
+                {(en ? 'With active spells: ' : 'Com magia ativa: ')}
+                {(D20_DIF_LABEL[habDificuldade] || {})[en ? 'en' : 'pt'] || habDificuldade}
+                {' → '}
+                <strong>{(D20_DIF_LABEL[habDificuldadeEfetiva] || {})[en ? 'en' : 'pt'] || habDificuldadeEfetiva}</strong>
+              </p>
+            )}
             {habilidadeSel && habilidadeSel.descricao && (
               <p className="acao-efeito-texto">{habilidadeSel.descricao}</p>
             )}
             {res && (
-              passouNoTesteDeHabilidade(res.q, habDificuldade)
+              passouNoTesteDeHabilidade(res.q, habDificuldadeEfetiva)
                 ? <p className="acao-efeito-texto">{tb.testePassou || 'Passou no teste.'}</p>
                 : <div className="err-msg">{tb.testeFalhou || 'Falhou no teste.'}</div>
             )}
@@ -8669,6 +8726,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     next[idx] = (tipo_teste === 'tecnica' && payload.tecnica)
       ? debitarCustoTecnica(next[idx], payload.tecnica.key)
       : { ...next[idx], pa_rest: Math.max(0, (next[idx].pa_rest || 0) - 1) };
+    // Magia "para o próximo teste" some depois dele — espelha aplicarTeste.
+    if (tipo_teste === 'habilidade') {
+      next[idx] = consumirDificuldadeDoTeste(next[idx], { nome: payload.nome, grupo: payload.grupo });
+    }
 
     // Fase 1 das técnicas: aplica o efeito mecânico.
     //   modo 'total' → aplica sempre (não há dado).
@@ -9273,7 +9334,7 @@ Object.assign(window, {
     proximaVisibilidade, textoVisibilidade, VISIBILIDADE_ICONE, VISIBILIDADE_ORDEM,
     magiaNoNivel, niveisDisponiveis,
     VISIBILIDADE_PENALIDADE, VISIBILIDADE_NIVEL,
-    somaModHabilidade, aplicarDanoEquipamento,
+    somaModHabilidade, somaDificuldadeDoStatus, consumirDificuldadeDoTeste, aplicarDanoEquipamento,
     magiasDeApoioDoAtor, magiasOfensivasDoAtor, magiasConhecidasDoAtor,
     aplicarEfeitoApoio, quebrarConcentracao,
     // Fase 1 das técnicas (09/09/2026): grava o efeito da técnica no

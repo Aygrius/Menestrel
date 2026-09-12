@@ -52,7 +52,9 @@ const IC_TIPOS_SL      = ['S', 'L'];
 const IC_TIPO_ARMADURA = ['L', 'M', 'P'];
 const IC_ATRIBUTOS     = ['FOR', 'FIS', 'AGI', 'PER', 'INT', 'AUR', 'CAR'];
 
-const IC_INP = { width: '100%', padding: '8px 10px', fontFamily: "'Lora', serif", fontSize: 13, boxSizing: 'border-box' };
+// Altura do sistema: 32px (12/09/2026). A textarea da descrição sobrescreve
+// `height` com `auto` — ela é multilinha.
+const IC_INP = { width: '100%', height: 32, padding: '0 10px', fontFamily: "'Lora', serif", fontSize: 13, boxSizing: 'border-box' };
 
 function icMotivoMsg(motivo, lang) {
   const en = lang === 'en';
@@ -331,7 +333,7 @@ function ItemCampanhaModal({ item, historiaId, lang, onClose, onSaved }) {
               <input style={IC_INP} value={form.icone} onChange={set('icone')} placeholder="ti-..." />
             </IcCampo>
             <IcCampo label={en ? 'Description' : 'Descrição'} span="full">
-              <textarea style={{ ...IC_INP, minHeight: 70, resize: 'vertical' }} value={form.descricao} onChange={set('descricao')} />
+              <textarea style={{ ...IC_INP, height: 'auto', padding: '8px 10px', minHeight: 70, resize: 'vertical' }} value={form.descricao} onChange={set('descricao')} />
             </IcCampo>
 
             <IcSecao>{en ? 'Storage & price' : 'Armazenamento & preço'}</IcSecao>

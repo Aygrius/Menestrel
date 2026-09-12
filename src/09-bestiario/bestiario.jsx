@@ -692,6 +692,173 @@ function CriaturasAuditoriaPainel({ criaturas, lang }) {
    o catálogo que está no ar, agora.
 
    Fechado por padrão: é ferramenta de manutenção, não de consulta diária. */
+/* ── ESTATÍSTICAS DO CATÁLOGO (12/09/2026) ─────────────────────────
+   "Na página de conferência, informa uma estatística de magias. Quantas
+   magias para cada profissão, magias de suporte, de ataque, etc." (usuário)
+
+   Mora dentro da conferência porque responde a pergunta vizinha: a
+   verificação diz se o motor LÊ o catálogo; isto diz se o catálogo está
+   EQUILIBRADO. A conta é estatisticasMagias (01-core), com as mesmas regras
+   de profissão, raridade e função que o resto do sistema já usa. */
+function MagiasEstatisticas({ magias, lang }) {
+  const en = lang === 'en';
+  const e = React.useMemo(
+    () => (typeof estatisticasMagias === 'function' ? estatisticasMagias(magias || []) : null),
+    [magias]
+  );
+  if (!e || !e.total) return null;
+  const F = FUNCAO_DA_MAGIA;
+  const rot = (f) => (F[f] ? (en ? F[f].en : F[f].pt) : f);
+  const FUNCOES_MOTOR = ['ataque', 'controle', 'suporte', 'cura', 'protecao'];
+  const FORA = ['decisao', 'sistema', 'narrativa', 'ritual', 'invocado'];
+  const pct = (n) => (e.total ? Math.round((n / e.total) * 100) : 0);
+  const ROTULO_ELEMENTO = {
+    fogo: { pt: 'Fogo', en: 'Fire' }, terra: { pt: 'Terra', en: 'Earth' },
+    agua: { pt: 'Água', en: 'Water' }, ar: { pt: 'Ar', en: 'Air' },
+    celestial: { pt: 'Celestial', en: 'Celestial' }, infernal: { pt: 'Infernal', en: 'Infernal' },
+    sem_elemento: { pt: 'Sem elemento (dano base)', en: 'No element (base damage)' },
+    qualquer: { pt: 'Qualquer elemento', en: 'Any element' },
+  };
+
+  const Chips = ({ titulo, itens }) => (
+    <div className="best-est-grupo">
+      <div className="best-est-grupo-tit">{titulo}</div>
+      <div className="best-est-chips">
+        {itens.filter(([, n]) => n > 0).map(([rotulo, n]) => (
+          <span key={rotulo} className="best-est-chip">
+            {rotulo} <strong>{n}</strong> <span className="best-est-pct">{pct(n)}%</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Profissões que não conjuram (Guerreiro, Ladino) só poluem a tabela.
+  const profs = Object.entries(e.porProfissao).filter(([, p]) => p.total > 0)
+    .sort((a, b) => b[1].total - a[1].total);
+  const espsPorProf = {};
+  Object.entries(e.porEspecializacao).forEach(([esp, v]) => {
+    (espsPorProf[v.profissao] = espsPorProf[v.profissao] || []).push([esp, v.total]);
+  });
+
+  return (
+    <div className="best-aud-secao best-est">
+      {/* Classe própria, não best-aud-titulo: a estatística não é um grupo de
+          pendência, e a ordem dos grupos ("pronta para entrar" primeiro) é regra. */}
+      <div className="best-est-titulo">{en ? 'Catalog statistics' : 'Estatísticas do catálogo'} · {e.total}</div>
+
+      <Chips titulo={en ? 'By role (engine)' : 'Por função (no motor)'}
+        itens={FUNCOES_MOTOR.map((f) => [rot(f), e.porFuncao[f] || 0])} />
+      <Chips titulo={en ? 'Off the engine' : 'Fora do motor'}
+        itens={FORA.map((f) => [rot(f), e.porFuncao[f] || 0])} />
+      <Chips titulo={en ? 'Rarity' : 'Raridade'}
+        itens={Object.entries(e.porRaridade).map(([t, n]) => [
+          t === 'Básica' ? (en ? 'Basic (buyable)' : 'Básica (comprável)')
+            : t === '—' ? (en ? 'No type' : 'Sem tipo') : `${t} (${en ? 'special item' : 'item especial'})`, n])} />
+      <Chips titulo={en ? 'Casting' : 'Evocação'}
+        itens={[[en ? 'Instant' : 'Instantânea', e.porEvocacao.instantanea],
+                [en ? 'Channeled (rounds)' : 'Canalizada (rodadas)', e.porEvocacao.canalizada],
+                [en ? 'Ritual / long' : 'Ritual / longa', e.porEvocacao.ritual]]} />
+      <Chips titulo={en ? 'Duration (level 1)' : 'Duração (nível 1)'}
+        itens={[[en ? 'Instant' : 'Instantânea', e.porDuracao.instantanea],
+                [en ? 'Rounds' : 'Rodadas', e.porDuracao.rodadas],
+                [en ? 'Calendar' : 'Calendário', e.porDuracao.calendario],
+                [en ? 'Permanent' : 'Permanente', e.porDuracao.permanente]]} />
+
+      <div className="best-est-grupo-tit">{en ? 'By profession' : 'Por profissão'}</div>
+      <div className="best-est-tabela-wrap">
+        <table className="best-est-tabela best-est-profissoes">
+          <thead>
+            <tr>
+              <th>{en ? 'Profession' : 'Profissão'}</th>
+              <th>Total</th>
+              <th>{en ? 'Basic' : 'Básicas'}</th>
+              <th>{en ? 'Advanced' : 'Avançadas'}</th>
+              <th>{en ? 'Buyable' : 'Compráveis'}</th>
+              <th>{en ? 'Locked' : 'Travadas'}</th>
+              <th>{en ? 'In engine' : 'No motor'}</th>
+              {FUNCOES_MOTOR.map((f) => <th key={f}>{rot(f)}</th>)}
+              <th>{en ? 'Off engine' : 'Fora do motor'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {profs.map(([nome, p]) => (
+              <tr key={nome}>
+                <td className="best-est-nome">{nome}</td>
+                <td><strong>{p.total}</strong></td>
+                <td>{p.basicas}</td>
+                <td>{p.avancadas}</td>
+                <td>{p.compraveis}</td>
+                <td>{p.travadas}</td>
+                <td>{p.noMotor}</td>
+                {FUNCOES_MOTOR.map((f) => (
+                  <td key={f} className={p.funcoes[f] === 0 ? 'best-est-zero' : ''}>{p.funcoes[f]}</td>
+                ))}
+                <td>{FORA.reduce((s, f) => s + (p.funcoes[f] || 0), 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {/* Legenda em texto, não tooltip nativo: o projeto não usa `title` (ver
+          tooltip-padrao.test.js), e estas definições são o que torna a tabela legível. */}
+      <p className="best-aud-ajuda best-est-legenda">
+        {en
+          ? 'Total: reachable by the profession or one of its specializations. Basic: every member reaches. Advanced: only through a specialization. Locked: Lost or Ancestral, needs a special item. In orange: a role with no spell.'
+          : 'Total: alcançáveis pela profissão ou por uma especialização dela. Básicas: todo membro alcança. Avançadas: só por especialização. Travadas: Perdida ou Ancestral, dependem de item especial. Em laranja: função sem nenhuma magia.'}
+      </p>
+
+      {/* POR ELEMENTO: "quero magias de proteção e dano por elemento" (usuário).
+          Só o que o motor aplica; zero em laranja é o elemento sem cobertura. */}
+      <div className="best-est-grupo-tit">{en ? 'By element (engine)' : 'Por elemento (no motor)'}</div>
+      <div className="best-est-tabela-wrap">
+        <table className="best-est-tabela best-est-elementos">
+          <thead><tr>
+            <th>{en ? 'Element' : 'Elemento'}</th>
+            <th>{en ? 'Damage' : 'Dano'}</th>
+            <th>{en ? 'Protection' : 'Proteção'}</th>
+          </tr></thead>
+          <tbody>
+            {Object.entries(e.porElemento).map(([el, v]) => (
+              <tr key={el}>
+                <td className="best-est-nome">{ROTULO_ELEMENTO[el] ? (en ? ROTULO_ELEMENTO[el].en : ROTULO_ELEMENTO[el].pt) : el}</td>
+                <td className={v.dano === 0 && el !== 'qualquer' ? 'best-est-zero' : ''}>{v.dano}</td>
+                <td className={v.protecao === 0 && el !== 'sem_elemento' ? 'best-est-zero' : ''}>{v.protecao}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="best-est-grupo-tit">{en ? 'By specialization' : 'Por especialização'}</div>
+      <ul className="best-aud-lista best-est-esps">
+        {profs.map(([nome]) => (espsPorProf[nome] || []).length > 0 && (
+          <li key={nome}><strong>{nome}</strong>
+            <span className="best-aud-det"> — {(espsPorProf[nome] || [])
+              .sort((a, b) => b[1] - a[1]).map(([esp, n]) => `${esp} ${n}`).join(' · ')}</span>
+          </li>
+        ))}
+      </ul>
+
+      {(e.semPermissao.length > 0 || Object.keys(e.permissaoDesconhecida).length > 0) && (
+        <>
+          <div className="best-est-grupo-tit">{en ? 'Nobody can buy' : 'Ninguém consegue comprar'}</div>
+          <ul className="best-aud-lista">
+            {e.semPermissao.length > 0 && (
+              <li><strong>{en ? 'No permission' : 'Sem permissão'}</strong>
+                <span className="best-aud-det"> — {e.semPermissao.join(', ')}</span></li>
+            )}
+            {Object.entries(e.permissaoDesconhecida).map(([nome, mags]) => (
+              <li key={nome}><strong>{en ? `Unknown "${nome}"` : `"${nome}" não é profissão nem especialização`}</strong>
+                <span className="best-aud-det"> — {mags.join(', ')}</span></li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
   const [aberto, setAberto] = React.useState(false);
   const [recarregando, setRecarregando] = React.useState(false);
@@ -811,6 +978,8 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
               : <>Motor carregado neste navegador: <strong>{noMotor} magias</strong> registradas. O botão rebusca o CATÁLOGO; motor novo — magia que eu acabei de ligar — só chega recarregando a página.</>}
           </p>
 
+          <MagiasEstatisticas magias={magias} lang={lang} />
+
           <Secao
             titulo={en ? '⚠ Broken — in the engine but no longer readable' : '⚠ Quebradas — estão no motor e pararam de ser lidas'}
             itens={r.quebrada}
@@ -852,6 +1021,12 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
                                 en: 'Needs a subsystem combat does not have' },
               { id: 'invocado', pt: 'Os números são a ficha de um invocado',
                                 en: 'The numbers are a summoned creature sheet' },
+              /* 'narrativa' entrou em 12/09/2026 com a varredura das magias que
+                 nenhum personagem conhecia: sem número nenhum no texto, o Mestre
+                 resolve na mesa. Aparecer aqui, com o motivo, é o que diz que
+                 a magia FOI lida — e não esquecida no rodapé. */
+              { id: 'narrativa', pt: 'Narrativa — o Mestre resolve na mesa',
+                                 en: 'Narrative — the GM resolves it at the table' },
               { id: 'ritual',   pt: 'Ritual ou fora de combate — nada a fazer',
                                 en: 'Ritual or out of combat — nothing to do' },
               { id: null,       pt: 'Sem motivo registrado — vale perguntar',
@@ -972,6 +1147,11 @@ function MagiasList({ ac, lang, modoJogador }) {
           e porque a tabela `magias` exige autenticação, então um script de
           linha de comando precisaria de credencial que esta tela já tem. */}
       {ehAdmin && <MagiasAuditoriaPainel magias={magias} lang={lang} onRecarregar={carregarMagias} />}
+      {/* O documento de sugestões, logo abaixo da conferência (12/09/2026). Nome
+          global, com guarda: o arquivo é carregado depois deste em main.tsx. */}
+      {ehAdmin && typeof MagiasSugestoesPainel === 'function' && <MagiasSugestoesPainel lang={lang} />}
+      {/* O estudo de redução do catálogo, logo abaixo das sugestões (12/09/2026). */}
+      {ehAdmin && typeof EstudoMagiasPainel === 'function' && <EstudoMagiasPainel lang={lang} />}
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'magias', oQueEn: 'spell' })}</div>
@@ -1400,6 +1580,8 @@ function TecnicasList({ ac, lang, modoJogador }) {
           técnica é editado, e a tabela exige autenticação que esta tela já
           tem. Ver TecnicasAuditoriaPainel. */}
       {ehAdmin && <TecnicasAuditoriaPainel tecnicas={tecnicas} lang={lang} onRecarregar={carregarTecnicas} />}
+      {/* Sugestões de técnicas, junto da conferência (12/09/2026). */}
+      {ehAdmin && typeof TecnicasSugestoesPainel === 'function' && <TecnicasSugestoesPainel lang={lang} />}
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'técnicas', oQueEn: 'technique' })}</div>
@@ -1543,6 +1725,9 @@ function ItensList({ ac, lang, modoJogador }) {
         </div>
         <div className="best-count">{filtered.length} de {itens.length}</div>
       </div>
+      {/* Sugestões de itens para batalha (12/09/2026). Itens não tem painel de
+          conferência; o documento fica no mesmo lugar em que os outros dois ficam. */}
+      {ehAdmin && typeof ItensSugestoesPainel === 'function' && <ItensSugestoesPainel lang={lang} />}
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'itens', oQueEn: 'item' })}</div>

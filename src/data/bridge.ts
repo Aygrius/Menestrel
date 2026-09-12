@@ -84,6 +84,17 @@ type PersonagensData = {
   // Modo master: a que história (id) cada personagem pertence — permite a
   // tela filtrar pela mesa ativa (seletor do canto). Vazio no modo player.
   historiaIdPorPersonagem: Record<string, number | string>
+  // Modo player: o capítulo mais recente da história de cada personagem,
+  // para o card do personagem ativo (12/09/2026). Vazio no modo master.
+  ultimoCapituloPorPersonagem: Record<string, UltimoCapitulo>
+}
+
+type UltimoCapitulo = {
+  historia: string
+  numero: number
+  titulo: string | null
+  texto: string | null
+  data: { dia?: number; mes?: number; ano?: number } | null
 }
 
 async function enriquecerProfiles(
@@ -127,7 +138,7 @@ function usePersonagensData(
           ...new Set((hist || []).flatMap((h: any) => h.protagonista_ids || [])),
         ]
         if (ids.length === 0) {
-          return { personagens: [], profilesMap: {}, idsComMesa: [], historiaIdPorPersonagem: {} }
+          return { personagens: [], profilesMap: {}, idsComMesa: [], historiaIdPorPersonagem: {}, ultimoCapituloPorPersonagem: {} }
         }
         const { data, error } = await supabaseClient
           .from('personagens')
@@ -141,6 +152,7 @@ function usePersonagensData(
           profilesMap: await enriquecerProfiles(personagens),
           idsComMesa: [], // selo "sem mesa" é só do modo jogador
           historiaIdPorPersonagem,
+          ultimoCapituloPorPersonagem: {},
         }
       }
 
@@ -157,6 +169,7 @@ function usePersonagensData(
 
       // RPC do selo "sem mesa" — cosmética; falha silenciosa como no original.
       let idsComMesa: string[] = []
+      const ultimoCapituloPorPersonagem: Record<string, UltimoCapitulo> = {}
       try {
         const { data: mesas } = await supabaseClient.rpc('listar_minhas_mesas')
         const arr = Array.isArray(mesas) ? mesas : mesas ? JSON.parse(mesas) : []
@@ -164,12 +177,31 @@ function usePersonagensData(
         arr.forEach((m: any) =>
           (m.meus_pjs || []).forEach((p: any) => vinc.add(p.id)),
         )
+        /* Último capítulo: `capitulos` é uma lista em ordem de narração, então
+           é o último item. Um personagem pode estar em mais de uma história; a
+           RPC devolve as histórias da mais nova para a mais antiga, e vale a
+           primeira que já tem capítulo — a que ele está vivendo agora. */
+        arr.forEach((m: any) => {
+          const caps = Array.isArray(m.capitulos) ? m.capitulos : []
+          if (caps.length === 0) return
+          const c = caps[caps.length - 1] || {}
+          ;(m.meus_pjs || []).forEach((p: any) => {
+            if (ultimoCapituloPorPersonagem[p.id]) return
+            ultimoCapituloPorPersonagem[p.id] = {
+              historia: m.titulo,
+              numero: caps.length,
+              titulo: c.titulo || null,
+              texto: c.texto || null,
+              data: c.data_capitulo || null,
+            }
+          })
+        })
         idsComMesa = [...vinc]
       } catch {
         /* selo é cosmético */
       }
 
-      return { personagens, profilesMap, idsComMesa, historiaIdPorPersonagem: {} }
+      return { personagens, profilesMap, idsComMesa, historiaIdPorPersonagem: {}, ultimoCapituloPorPersonagem }
     },
   })
 }

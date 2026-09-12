@@ -12,6 +12,8 @@ import '@testing-library/jest-dom/vitest';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
+// game-data: a estatística por profissão lê GAME_DATA (profissões e especializações).
+import '../01-core/game-data.jsx';
 import '../01-core/magias-efeito.jsx';
 import './bestiario.jsx';
 
@@ -304,5 +306,31 @@ describe('a hora prova que o botão rodou', () => {
     </div>);
     fireEvent.click(screen.getByText(/Conferir novamente/));
     expect(await screen.findByText(/conferido às/)).toBeTruthy();
+  });
+});
+
+describe('estatísticas do catálogo', () => {
+  /* "Na página de conferência, informa uma estatística de magias. Quantas
+     magias para cada profissão, magias de suporte, de ataque, etc." */
+  it('aparecem ao abrir a conferência, com a tabela por profissão', () => {
+    const { container } = render(
+      <div className="menestrel-ui"><Painel lang="pt" magias={[
+        { key: 'bola_de_fogo', nome: 'Bola de Fogo', permissao: 'Mago', tipo: 'Básica',
+          nivel_1: 'Causa 12 de dano elemental de fogo.' },
+        { key: 'curas_fisicas', nome: 'Curas Físicas', permissao: 'Sacerdote', tipo: 'Básica',
+          nivel_1: 'Restaura 10 de energia física.' },
+      ]} /></div>
+    );
+    fireEvent.click(container.querySelector('.best-aud-head'));
+    expect(container.querySelector('.best-est-titulo').textContent).toMatch(/Estatísticas do catálogo · 2/);
+    const linhas = [...container.querySelectorAll('.best-est-profissoes tbody tr')]
+      .map((tr) => tr.querySelector('td').textContent);
+    expect(linhas.sort()).toEqual(['Mago', 'Sacerdote']);
+    expect(container.textContent).toMatch(/Ataque 1/);
+    expect(container.textContent).toMatch(/Cura 1/);
+    // e a tabela por elemento: Bola de Fogo é dano de fogo
+    const fogo = [...container.querySelectorAll('.best-est-elementos tbody tr')]
+      .find((tr) => tr.querySelector('td').textContent === 'Fogo');
+    expect(fogo.querySelectorAll('td')[1].textContent).toBe('1');
   });
 });

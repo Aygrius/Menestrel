@@ -183,7 +183,7 @@ const ADMIN_COPY = {
       aventuras:     { label: 'Histórias',    desc: 'As aventuras vividas pelos seus personagens' },
       /* Vieram do Diário em 12/09/2026 — antes eram abas dentro da ficha. */
       lugares:       { label: 'Lugares',      desc: 'Os reinos e cidades que seu personagem conhece' },
-      npcs:          { label: 'Personagens',  desc: 'As pessoas que seu personagem conheceu' },
+      npcs:          { label: 'NPCs',         desc: 'As pessoas que seu personagem conheceu' },
       memorias:      { label: 'Memórias',     desc: 'O que seu personagem escreveu sobre o que viveu' },
     }
   },
@@ -300,7 +300,7 @@ const ADMIN_COPY = {
       aventuras:     { label: 'Stories',     desc: 'Adventures lived by your characters' },
       /* Vieram do Diário em 12/09/2026 — antes eram abas dentro da ficha. */
       lugares:       { label: 'Places',      desc: 'The kingdoms and cities your character knows' },
-      npcs:          { label: 'Characters',  desc: 'The people your character has met' },
+      npcs:          { label: 'NPCs',        desc: 'The people your character has met' },
       memorias:      { label: 'Memories',    desc: 'What your character wrote about what they lived' },
     }
   }

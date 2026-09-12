@@ -73,7 +73,11 @@ function FdpDrop({ anchorRef, children, onClose }) {
   );
 }
 
-function FantasyDatePicker({ value, onChange }) {
+/* `disabled` (12/09/2026): a data de nascimento trava depois que o personagem
+   existe — "não devem ficar disponíveis para editar depois de criar o
+   personagem, mesmo para o mestre" (usuário). Os quatro campos continuam
+   visíveis, com a mesma pele esmaecida dos SelectPill travados do wizard. */
+function FantasyDatePicker({ value, onChange, disabled = false }) {
   const val = value || { dia: 1, mes: 1, ano: 0 };
   const maxDias = FANTASY_MONTHS[val.mes - 1]?.dias || 30;
   const diaSemana = calcDiaSemanaFantasy(val.ano, val.mes, val.dia);
@@ -96,6 +100,7 @@ function FantasyDatePicker({ value, onChange }) {
   const pill = {
     borderRadius: 999, height: 32, outline: 'none',
     fontFamily: "'Lora', serif", fontSize: 13, flexShrink: 0,
+    ...(disabled ? { opacity: 0.45, cursor: 'not-allowed' } : null),
   };
 
   // dropBtn — o pill dos seletores de dia/mês (classe .select-pill-btn, mesmo
@@ -104,7 +109,7 @@ function FantasyDatePicker({ value, onChange }) {
     ...pill,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%',
     color: '#E8DDC6', textAlign: 'left',
-    padding: '0 12px 0 16px', cursor: 'pointer',
+    padding: '0 12px 0 16px', cursor: disabled ? 'not-allowed' : 'pointer',
   };
 
   const dropItem = (active) => ({
@@ -131,11 +136,11 @@ function FantasyDatePicker({ value, onChange }) {
 
       {/* Dia — dropdown customizado, mesmo tipo de seletor do SelectPill (ver "Arma") */}
       <div ref={diaRef}>
-        <button type="button" className="select-pill-btn" data-open={diaOpen ? 'true' : 'false'} style={dropBtn} onClick={() => { setDiaOpen((v) => !v); setMesOpen(false); }}>
+        <button type="button" className="select-pill-btn" data-open={diaOpen ? 'true' : 'false'} style={dropBtn} disabled={disabled} onClick={() => { if (disabled) return; setDiaOpen((v) => !v); setMesOpen(false); }}>
           <span>{val.dia}</span>
           {chevron(diaOpen)}
         </button>
-        {diaOpen && (
+        {diaOpen && !disabled && (
           <FdpDrop anchorRef={diaRef} onClose={() => setDiaOpen(false)}>
             {Array.from({ length: maxDias }, (_, i) => i + 1).map((d) => (
               <li key={d}
@@ -154,13 +159,13 @@ function FantasyDatePicker({ value, onChange }) {
 
       {/* Mês — dropdown customizado, mesmo tipo de seletor do SelectPill (ver "Arma") */}
       <div ref={mesRef}>
-        <button type="button" className="select-pill-btn" data-open={mesOpen ? 'true' : 'false'} style={dropBtn} onClick={() => { setMesOpen((v) => !v); setDiaOpen(false); }}>
+        <button type="button" className="select-pill-btn" data-open={mesOpen ? 'true' : 'false'} style={dropBtn} disabled={disabled} onClick={() => { if (disabled) return; setMesOpen((v) => !v); setDiaOpen(false); }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {FANTASY_MONTHS[val.mes - 1]?.nome || ''}
           </span>
           {chevron(mesOpen)}
         </button>
-        {mesOpen && (
+        {mesOpen && !disabled && (
           <FdpDrop anchorRef={mesRef} onClose={() => setMesOpen(false)}>
             {FANTASY_MONTHS.map((m) => (
               <li key={m.n}
@@ -192,7 +197,9 @@ function FantasyDatePicker({ value, onChange }) {
         min={0}
         className="fdp-ano"
         value={val.ano}
-        onChange={(e) => update('ano', e.target.value)}
+        disabled={disabled}
+        readOnly={disabled}
+        onChange={(e) => { if (!disabled) update('ano', e.target.value); }}
         style={{ ...pill, color: '#E8DDC6', padding: '0 16px', width: '100%' }}
       />
     </div>
@@ -1066,8 +1073,14 @@ function FilaAprovacaoMagia({ lang, historiaId, pedidos, onRespondido }) {
           ka: Number(dv.karmamax) || 0,
         };
 
-        const efeitos = efeitosDeMagiaNaFicha(mag, pedido.nivel);
-        const novo = aplicarEfeitosNaFicha(alvoPj.estado_atual, efeitos, maximos);
+        /* A MESMA porta da ficha (aplicarMagiaNoEstado, 01-core). Antes esta
+           aprovação aplicava só o instantâneo: uma magia de calendário aprovada
+           no colega curava e esquecia de ficar ativa. A data do jogo é lida
+           AGORA, pelo mesmo motivo da ficha do alvo acima. */
+        const { data: hist } = await supabaseClient
+          .from('historias').select('data_jogo_atual').eq('id', historiaId).maybeSingle();
+        const novo = aplicarMagiaNoEstado(alvoPj.estado_atual, mag, pedido.nivel, maximos,
+          hist && hist.data_jogo_atual);
         if (novo !== alvoPj.estado_atual) {
           const { error: e3 } = await supabaseClient
             .from('personagens').update({ estado_atual: novo }).eq('id', pedido.alvo_id);
@@ -2872,7 +2885,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
 
   const current = sections.find((s) => s.id === currentId) || { id: currentId };
   const sectionMeta = ac.sections[current.id] || { label: current.id };
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'playlist'].includes(current.id);
+  /* Seções sem o teto de 860px. Lugares/NPCs/Memórias entraram em 12/09/2026:
+     viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
+     tabela saía mais estreita que a das outras ("a largura da tabela em
+     lugares, npcs está menor que em itens, magias" — usuário). */
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'npcs', 'memorias', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'playlist'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);

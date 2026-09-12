@@ -42,6 +42,8 @@ import './08-personagens/personagens.jsx'
 import './08-personagens/guia_personagem.jsx'
 import './09-bestiario/conhecido-jogador.jsx'
 import './09-bestiario/bestiario.jsx'
+// Sugestões de magias: lê docs/sugestoes-magias.md (?raw) e mostra na página de Magias.
+import './09-bestiario/sugestoes-magias.jsx'
 import './09-bestiario/itens-campanha.jsx'
 import './10-shell/shell.jsx'
 import './11-ficha/ficha.jsx'

@@ -67,8 +67,10 @@ describe('o painel manda a dificuldade e o veredito no payload', () => {
     const i = fonte.indexOf("tipo_teste: 'habilidade'");
     expect(i).toBeGreaterThan(-1);
     const bloco = fonte.slice(i, i + 1400);
-    expect(bloco).toMatch(/dificuldade: habDificuldade/);
-    expect(bloco).toMatch(/passouNoTesteDeHabilidade\(res\.q, habDificuldade\)/);
+    /* Desde 12/09/2026 é a dificuldade EFETIVA — a escolhida, deslocada pelas
+       magias de dificuldade ativas no ator (Camuflagem, Faro…). */
+    expect(bloco).toMatch(/dificuldade: habDificuldadeEfetiva/);
+    expect(bloco).toMatch(/passouNoTesteDeHabilidade\(res\.q, habDificuldadeEfetiva\)/);
   });
 
   it('e os DOIS lados escrevem o veredito na mensagem da mesa', () => {

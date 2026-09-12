@@ -141,20 +141,39 @@ const MAGIA_UNIDADES = [
   { re: /^\s*de\s+dano\s+m[áa]ximo/i,           campo: 'dano_max' },
   { re: /^\s*de\s+dano/i,                       campo: 'dano'    },
   // Oferenda: "Aumenta 2 NÍVEIS DA MAGIA e reduz 1 de energia física."
-  { re: /^\s*n[íi]ve(?:l|is)\s+da\s+magia/i,    campo: 'nivel_magia' },
+  // Dueto Mágico: "Aumenta 2 níveis DAS MAGIAS evocadas" — o plural entrou em
+  // 12/09/2026 com a varredura das magias que nenhum personagem conhece.
+  { re: /^\s*n[íi]ve(?:l|is)\s+d[ae]s?\s+magias?/i, campo: 'nivel_magia' },
+  /* DIFICULDADE DE HABILIDADE — 12/09/2026.
+
+     "Reduza 1 nível de dificuldade da habilidade Furtividade." É a forma mais
+     comum do catálogo fora de dano e cura: vinte e poucas magias a usam, e
+     nenhuma entrava no motor porque ele não sabia mexer em dificuldade.
+
+     O número é quantos DEGRAUS a escala anda (Fácil · Médio · Difícil · Muito
+     Difícil · Absurdo); QUAL habilidade é lido por habilidadesDaDificuldade,
+     do mesmo texto — assim o admin troca a habilidade sem me chamar.
+
+     `nível de dificuldade` vem ANTES de qualquer outra unidade que comece por
+     "nível": a de cima exige "da magia", então as duas não se confundem. */
+  { re: /^\s*n[íi]ve(?:l|is)\s+de\s+dificuldade/i, campo: 'dificuldade' },
   /* Licantropia Lupina: "Aumenta 2 no atributo Força e 1 no atributo Físico e
      diminui 2 no atributo Intelecto e 1 no atributo Carisma."
 
      Um campo por atributo, com o prefixo `atr_` para não colidir com nada —
      `forca` sozinho seria confundível com a Força que o dano da arma usa. As
-     chaves batem com ATRIBUTOS_KEYS de game-data.jsx. */
-  { re: /^\s*n[oa]\s+atributo\s+for[çc]a/i,     campo: 'atr_forca'     },
-  { re: /^\s*n[oa]\s+atributo\s+f[íi]sico/i,    campo: 'atr_fisico'    },
-  { re: /^\s*n[oa]\s+atributo\s+intelecto/i,    campo: 'atr_intelecto' },
-  { re: /^\s*n[oa]\s+atributo\s+carisma/i,      campo: 'atr_carisma'   },
-  { re: /^\s*n[oa]\s+atributo\s+aura/i,         campo: 'atr_aura'      },
-  { re: /^\s*n[oa]\s+atributo\s+agilidade/i,    campo: 'atr_agilidade' },
-  { re: /^\s*n[oa]\s+atributo\s+percep[çc][ãa]o/i, campo: 'atr_percepcao' },
+     chaves batem com ATRIBUTOS_KEYS de game-data.jsx.
+
+     `de atributo` também vale (12/09/2026): Força Sagrada escreve "Aumente 1
+     de atributo força". A preposição muda, a ordem número-antes-da-unidade
+     continua exigida. */
+  { re: /^\s*(?:n[oa]|de)\s+atributo\s+for[çc]a/i,     campo: 'atr_forca'     },
+  { re: /^\s*(?:n[oa]|de)\s+atributo\s+f[íi]sico/i,    campo: 'atr_fisico'    },
+  { re: /^\s*(?:n[oa]|de)\s+atributo\s+intelecto/i,    campo: 'atr_intelecto' },
+  { re: /^\s*(?:n[oa]|de)\s+atributo\s+carisma/i,      campo: 'atr_carisma'   },
+  { re: /^\s*(?:n[oa]|de)\s+atributo\s+aura/i,         campo: 'atr_aura'      },
+  { re: /^\s*(?:n[oa]|de)\s+atributo\s+agilidade/i,    campo: 'atr_agilidade' },
+  { re: /^\s*(?:n[oa]|de)\s+atributo\s+percep[çc][ãa]o/i, campo: 'atr_percepcao' },
 ];
 
 /* O DISCRIMINADOR é a POSIÇÃO do número: modificador é sempre
@@ -434,8 +453,36 @@ function motivoNaoAplicaNaFicha(magia, nivel) {
      ficha, com data de vencimento, e a valer na próxima batalha. Antes caía
      aqui como "o Mestre aplica". */
   if (classe === 'calendario') return null;
-  if (efeitosDeMagiaNaFicha(magia, nivel).length === 0) return 'duradoura';
+  if (efeitosDeMagiaNaFicha(magia, nivel).length === 0) {
+    // Dificuldade "para o próximo teste" também aplica: vira magia ativa até
+    // ser consumida (magiaAtivaDaEvocacao).
+    return magiaConsumidaNoTeste(magia, nivel) ? null : 'duradoura';
+  }
   return null;
+}
+
+/* ── A magia POUSA na ficha: uma porta só ──────────────────────────
+   Quem evoca em si mesmo (a ficha) e quem aprova a evocação no colega (o
+   Mestre, na Central de Mensagens) escreviam cada um a sua versão — e a do
+   Mestre esquecia a magia ativa: uma Bênção de "1 hora" aprovada no colega
+   curava o que tinha de instantâneo e perdia o resto. Achado da varredura de
+   12/09/2026.
+
+   Faz as duas coisas na ordem certa: efeitos instantâneos pelo mesmo
+   aplicarEfeitosNaFicha do item consumido, e depois a magia ativa, que RENOVA
+   em vez de empilhar. `extras` leva o que não é da magia (o karma do
+   conjurador, quando é ele próprio o alvo). */
+function aplicarMagiaNoEstado(estado, magia, nivel, maximos, dataJogo, extras) {
+  const efeitos = [...efeitosDeMagiaNaFicha(magia, nivel), ...(extras || [])];
+  let novo = (typeof aplicarEfeitosNaFicha === 'function')
+    ? aplicarEfeitosNaFicha(estado, efeitos, maximos) : estado;
+  const ativa = magiaAtivaDaEvocacao(magia, nivel, dataJogo);
+  if (ativa) {
+    const base = novo || {};
+    const outras = (base.magias_ativas || []).filter((a) => a && a.key !== ativa.key);
+    novo = { ...base, magias_ativas: [...outras, ativa] };
+  }
+  return novo;
 }
 
 /* ── DEGRAU 2: a evocação que espera o Mestre ──────────────────────
@@ -529,8 +576,16 @@ function duracaoEmDiasDeJogo(magia, nivel) {
    primeiro ajuste do catálogo — o erro que este projeto passou a semana
    inteira corrigindo. */
 function magiaAtivaDaEvocacao(magia, nivel, dataJogo) {
+  if (!magia || !magia.key) return null;
   const dias = duracaoEmDiasDeJogo(magia, nivel);
-  if (dias == null || !magia || !magia.key) return null;
+  /* Sem data de vencimento, mas "para o próximo teste" (Avaliação, Faro):
+     fica sem `vence_em` — magiasAtivasVigentes mantém quem não tem fim — e
+     com `consome_em`, que consumirMagiasDoTeste queima depois do teste. */
+  if (dias == null) {
+    return magiaConsumidaNoTeste(magia, nivel)
+      ? { key: magia.key, nome: magia.nome || magia.key, nivel, consome_em: 'teste_habilidade' }
+      : null;
+  }
   if (typeof somarDiasFantasy !== 'function') return null;
   const vence = somarDiasFantasy(dataJogo, dias);
   if (!vence) return null;   // história sem data definida
@@ -629,6 +684,130 @@ function testeHabilidadeNoNivel(magia, nivel) {
   const dif = DIFICULDADE_POR_NOME[semAcento(m[2]).trim()];
   if (!habilidade || !dif) return null;
   return { habilidade, dificuldade: dif };
+}
+
+/* ── DIFICULDADE DE HABILIDADE — 12/09/2026 ────────────────────────
+   Vinte e poucas magias dizem "Reduza N níveis de dificuldade da habilidade
+   X": Camuflagem em Furtividade, Faro em Rastrear e Sentidos, Conhecimento em
+   todo o grupo Profissional. Nenhuma entrava no motor, porque ele não sabia
+   mexer em dificuldade — só em coluna.
+
+   Três peças, e as três moram aqui porque a FICHA e a BATALHA rolam teste de
+   habilidade com a mesma escala (D20_QUALIDADE_MINIMA): se cada uma deslocasse
+   a dificuldade por conta, o mesmo Faro valeria um degrau num lugar e dois no
+   outro.
+
+     habilidadesDaDificuldade  QUAIS habilidades, lidas do texto do nível
+     passosDeDificuldade       quantos degraus os efeitos ativos somam numa
+                               habilidade (por nome ou pelo grupo dela)
+     deslocarDificuldade       anda na escala, sem passar de Fácil nem de
+                               Absurdo
+
+   O NÚMERO de degraus vem de efeitosNoNivel (unidade `dificuldade`), como todo
+   número deste catálogo. */
+const DIFICULDADE_ORDEM = ['facil', 'medio', 'dificil', 'muito_dificil', 'absurdo'];
+
+/* Os alvos da dificuldade, do jeito que o catálogo os escreve:
+
+     "da habilidade Equilibrar, Nadar e Escalar"       → três habilidades
+     "da habilidade Equilibrar ou Prestidigitação"     → as duas valem
+     "em Rastrear"                                     → Habilidade Animal
+     "de habilidades do grupo Profissional"            → o grupo inteiro
+     "do grupo de habilidades Influência"              → idem
+
+   "das habilidades", sem nome (Aprimorar Habilidades), devolve null: a
+   habilidade é escolhida na hora, e o texto não diz qual. */
+function habilidadesDaDificuldade(magia, nivel) {
+  const txt = (magia && magia['nivel_' + nivel]) || '';
+  const m = /dificuldade\s+([^.]*)/i.exec(txt);
+  if (!m) return null;
+  let resto = m[1].trim();
+  const g = /grupo\s+(?:de\s+habilidades\s+)?([A-Za-zÀ-ÿ]+)/i.exec(resto);
+  if (g) return { habilidades: [], grupos: [g[1]] };
+  resto = resto.replace(/^(?:d[aoe]s?|n[ao]s?|em)\s+/i, '').replace(/^habilidades?\b\s*/i, '');
+  const nomes = resto.split(/\s*,\s*|\s+e\s+|\s+ou\s+/i).map((s) => s.trim()).filter(Boolean);
+  return nomes.length ? { habilidades: nomes, grupos: [] } : null;
+}
+
+/* Casa nome de habilidade sem acento, sem caixa e tolerando o PLURAL: o texto
+   de Linguagem diz "Idiomas" e a habilidade do catálogo se chama "Idioma". */
+function nomeDeHabilidadeCasa(a, b) {
+  const x = semAcento(a || '').trim();
+  const y = semAcento(b || '').trim();
+  if (!x || !y) return false;
+  return x === y || x.replace(/s$/, '') === y.replace(/s$/, '');
+}
+
+/* Soma os degraus que uma lista de efeitos dá a UMA habilidade.
+   `hab` = { nome, grupo }. Negativo = mais fácil. */
+function passosDeDificuldade(efeitos, hab) {
+  if (!hab || !Array.isArray(efeitos)) return 0;
+  return efeitos.reduce((soma, ef) => {
+    if (!ef || ef.tipo !== 'mod_dificuldade') return soma;
+    const porNome = (ef.habilidades || []).some((n) => nomeDeHabilidadeCasa(n, hab.nome));
+    const porGrupo = (ef.grupos || []).some((g) => nomeDeHabilidadeCasa(g, hab.grupo));
+    return (porNome || porGrupo) ? soma + (Number(ef.valor) || 0) : soma;
+  }, 0);
+}
+
+function deslocarDificuldade(dificuldade, passos) {
+  const i = DIFICULDADE_ORDEM.indexOf(dificuldade);
+  const n = Number(passos) || 0;
+  if (i < 0 || !n) return dificuldade;
+  return DIFICULDADE_ORDEM[Math.max(0, Math.min(DIFICULDADE_ORDEM.length - 1, i + n))];
+}
+
+/* Os efeitos de dificuldade de uma magia num nível, já no formato que a
+   batalha (status_temp) e a ficha (magias ativas) usam. Vazio quando a magia
+   não mexe em dificuldade ou o texto não diz em qual habilidade. */
+function efeitosDeDificuldade(magia, nivel) {
+  const reg = magiaEfeitoDe(magia && magia.key);
+  if (!reg) return [];
+  const alvos = habilidadesDaDificuldade(magia, nivel);
+  if (!alvos) return [];
+  const lido = efeitosNoNivel(magia, nivel);
+  return reg.efeitos
+    .filter((ef) => ef.tipo === 'mod_dificuldade' && lido[ef.unidade] != null)
+    .map((ef) => ({
+      tipo: 'mod_dificuldade',
+      valor: (ef.sinal || 1) * lido[ef.unidade],
+      habilidades: alvos.habilidades,
+      grupos: alvos.grupos,
+      ...(ef.consome_em ? { consome_em: ef.consome_em } : {}),
+    }));
+}
+
+/* A magia vale no PRÓXIMO teste de habilidade, e some depois dele?
+
+   "A magia e a habilidade devem ser usadas juntas" (Avaliação, Detectar
+   Intenção) — são as de duração Instantânea. Fora de combate não há rodada
+   para contar, e o calendário não serve: a magia não dura um dia, dura um
+   teste. Por isso ela fica na ficha até o teste seguinte daquela habilidade. */
+function magiaConsumidaNoTeste(magia, nivel) {
+  return efeitosDeDificuldade(magia, nivel).some((e) => e.consome_em === 'teste_habilidade');
+}
+
+/* Quantos degraus as MAGIAS ATIVAS da ficha dão a uma habilidade.
+   `magiasPorKey` é o catálogo (a magia ativa guarda só key e nível — o texto
+   do nível é a fonte, ver magiaAtivaDaEvocacao). */
+function passosDasMagiasAtivas(ativas, hab, magiasPorKey) {
+  const lista = Array.isArray(ativas) ? ativas : [];
+  return lista.reduce((soma, a) => {
+    const mag = a && magiasPorKey ? magiasPorKey[a.key] : null;
+    return mag ? soma + passosDeDificuldade(efeitosDeDificuldade(mag, a.nivel), hab) : soma;
+  }, 0);
+}
+
+/* Depois do teste, some a magia que era "para este teste" — e só a que valia
+   NESTA habilidade: Faro consumido num teste de Negociar seria roubo. */
+function consumirMagiasDoTeste(ativas, hab, magiasPorKey) {
+  const lista = Array.isArray(ativas) ? ativas : [];
+  return lista.filter((a) => {
+    if (!a || a.consome_em !== 'teste_habilidade') return true;
+    const mag = magiasPorKey ? magiasPorKey[a.key] : null;
+    if (!mag) return true;
+    return passosDeDificuldade(efeitosDeDificuldade(mag, a.nivel), hab) === 0;
+  });
 }
 
 /* ── Prazo de cura natural, em dias ────────────────────────────────
@@ -1180,6 +1359,94 @@ const MAGIA_EFEITO_MAP = {
                         efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
   curas_fisicas:      { alvo: 'aliado', alvos: 1, icone: '❤️',
                         efeitos: [{ tipo: 'cura_pool', unidade: 'cura_ef', pool: 'ef' }] },
+
+  /* ══ AS MAGIAS QUE NENHUM PERSONAGEM CONHECIA — 12/09/2026 ══════════
+     "Anteriormente fizemos a validação dos efeitos de magias, mas apenas das
+     magias que há personagens que as conhecem. Vamos fazer agora das demais,
+     para mecanizar o efeito em batalha e fora de batalha." (usuário)
+
+     Foram 111. As que cabem entram aqui; as outras ganharam motivo em
+     MAGIA_FORA_DO_REGISTRO, e aparecem na verificação do catálogo agrupadas.
+
+     ── DIFICULDADE DE HABILIDADE (17) ────────────────────────────────
+     A primitiva nova. `sinal: -1` = mais fácil (todas destas "reduzem").
+     QUAL habilidade não mora aqui: vem do texto (habilidadesDaDificuldade).
+
+     `consome_em: 'teste_habilidade'` nas de duração Instantânea (ou
+     Variável sem duração no nível): "a magia e a habilidade devem ser usadas
+     juntas" — valem para UM teste e somem. As de 1 hora, 12 horas etc. valem
+     até vencer no calendário, fora de combate, e a batalha inteira dentro. */
+  ausencia:             { alvo: 'self', alvos: 1, icone: '🫥',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+  avaliacao:            { alvo: 'self', alvos: 1, icone: '⚖️',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
+                                      consome_em: 'teste_habilidade' }] },
+  camuflagem:           { alvo: 'self', alvos: 1, icone: '🍂',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+  conhecimento:         { alvo: 'self', alvos: 1, icone: '📚',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+  conhecimento_linguistico: { alvo: 'self', alvos: 1, icone: '🗣️',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+  conhecimento_natural: { alvo: 'self', alvos: 1, icone: '🌿',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+  convocacao:           { alvo: 'self', alvos: 1, icone: '📯',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
+                                      consome_em: 'teste_habilidade' }] },
+  deslocamento_natural: { alvo: 'self', alvos: 1, icone: '🧗',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
+                                      consome_em: 'teste_habilidade' }] },
+  detectar_intencao:    { alvo: 'self', alvos: 1, icone: '🧠',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
+                                      consome_em: 'teste_habilidade' }] },
+  escrita:              { alvo: 'self', alvos: 1, icone: '✍️',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
+                                      consome_em: 'teste_habilidade' }] },
+  faro:                 { alvo: 'self', alvos: 1, icone: '👃',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
+                                      consome_em: 'teste_habilidade' }] },
+  // Conhecida por personagem, e entra pela mesma porta: cada nível é um animal
+  // e uma habilidade diferente ("de um lobo: ... em Rastrear").
+  habilidade_animal:    { alvo: 'self', alvos: 1, icone: '🐺',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+  linguagem:            { alvo: 'self', alvos: 1, icone: '💬',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+  // "Equilibrar OU Prestidigitação": vale nas duas — qualquer uma que for
+  // testada consome a magia.
+  malabarismo:          { alvo: 'self', alvos: 1, icone: '🤹',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
+                                      consome_em: 'teste_habilidade' }] },
+  // Ritual: não se evoca em batalha (evocacaoEmRodadas bloqueia), só na ficha.
+  mestre_da_forja:      { alvo: 'self', alvos: 1, icone: '⚒️',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
+                                      consome_em: 'teste_habilidade' }] },
+  orientacao:           { alvo: 'self', alvos: 1, icone: '🧭',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+  // Alcance Toque: é a única destas que se lança em OUTRO personagem — fora
+  // de combate, com aprovação do Mestre.
+  sexto_sentido:        { alvo: 'aliado', alvos: 1, icone: '👁️',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+
+  /* ── Com primitivas que já existiam (3) ─────────────────────────── */
+  /* CORRENTE: "O alvo não poderá realizar magias, atacar ou usar habilidades
+     que exijam movimento". É sem_acoes, a mesma bandeira de Medo e Sono. A
+     duração é de minutos a horas — mais que qualquer batalha, que é como
+     duracaoNoNivel já trata calendário dentro do combate. */
+  corrente:             { alvo: 'inimigo', alvos: 1, icone: '⛓️',
+                          efeitos: [{ tipo: 'sem_acoes', valor: true }] },
+  /* FASCÍNIO: hipnotiza todos no raio que falharem na resistência. Dura
+     enquanto o conjurador toca — concentração, que é o que 'Variável' sem
+     duração no nível já significa.
+
+     PARCIAL: "caso o alvo seja atacado, ele irá despertar" não é automático;
+     o log avisa. */
+  fascinio:             { alvo: 'inimigo', alvos: 'escolha', icone: '🌀',
+                          area: 'aura', parcial: 'desperta_ao_ser_atacado',
+                          efeitos: [{ tipo: 'sem_acoes', valor: true }] },
+  /* DUETO MÁGICO: "Aumenta 2 níveis das magias evocadas" no local, enquanto a
+     música dura. É mod_nivel_magia — o da Oferenda —, mas SEM consome_em: vale
+     para toda magia evocada na aura durante as 10 rodadas, não só a próxima. */
+  dueto_magico:         { alvo: 'aliado', alvos: 'escolha', icone: '🎶', area: 'aura',
+                          efeitos: [{ tipo: 'mod_nivel_magia', unidade: 'nivel_magia', sinal: 1 }] },
 };
 
 // Lookup tolerante: magia sem entrada devolve null, e o chamador mantém o
@@ -1216,6 +1483,9 @@ Object.assign(window, {
   pedidoDeMagiaPendente, metaDeEvocacao, pedidosDeMagiaAbertos,
   duracaoEmDiasDeJogo, magiaAtivaDaEvocacao, magiasAtivasVigentes,
   MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
+  DIFICULDADE_ORDEM, habilidadesDaDificuldade, passosDeDificuldade, deslocarDificuldade,
+  efeitosDeDificuldade, magiaConsumidaNoTeste, passosDasMagiasAtivas, consumirMagiasDoTeste,
+  aplicarMagiaNoEstado,
 });
 
 /* ============================================================
@@ -1270,8 +1540,13 @@ function auditarMagias(magiasDb) {
     leituras.forEach((l) => Object.keys(l.valores).forEach((k) => unidadesLidas.add(k)));
 
     if (!reg) {
-      // Sem registro: narrativa, a menos que o texto entregue número legível.
-      if (unidadesLidas.size > 0) {
+      /* Sem registro: narrativa, a menos que o texto entregue número legível
+         OU que a magia tenha motivo registrado. A segunda condição entrou em
+         12/09/2026 com a varredura das magias que nenhum personagem conhece:
+         a maioria das que pedem correção de texto é justamente a que o leitor
+         NÃO lê ("um nível", por extenso), e sem isto ela sumia no rodapé das
+         narrativas em vez de aparecer com o motivo na conferência. */
+      if (unidadesLidas.size > 0 || MAGIA_FORA_DO_REGISTRO[m.key]) {
         // A LINHA inteira vai junto: o painel precisa dela para avaliar o
         // predicado `resolvido` de MAGIA_FORA_DO_REGISTRO contra o texto atual.
         out.orfa.push({ key: m.key, nome: m.nome, unidades: [...unidadesLidas], magia: m });
@@ -1318,6 +1593,157 @@ function auditarMagias(magiasDb) {
   return out;
 }
 
+/* ============================================================
+   ESTATÍSTICAS DO CATÁLOGO — 12/09/2026
+   ============================================================
+   "Na página de conferência, informa uma estatística de magias. Quantas
+   magias para cada profissão, magias de suporte, de ataque, etc." (usuário)
+
+   É a pergunta de BALANCEAMENTO, vizinha da de manutenção que a auditoria
+   responde: não "o motor lê?", mas "o catálogo está equilibrado?" — quem
+   tem muita cura e nenhum ataque, quanto de cada profissão só se compra com
+   item especial, quanto é ritual.
+
+   Três eixos, cada um com a sua fonte, e nenhum inventado aqui:
+
+     PROFISSÃO  `permissao` (CSV). Uma magia conta para a profissão quando cita
+                a profissão (básica — todo membro alcança) OU uma especialização
+                dela (avançada). É a mesma regra de podeAcessarMagia e
+                magiaEhAvancada, em game-data.jsx.
+     RARIDADE   `tipo`: Básica se compra com pontos; Perdida e Ancestral
+                dependem de item especial (magiaEhTravada).
+     FUNÇÃO     o REGISTRO do motor, que é o único lugar onde "alvo inimigo" e
+                "causa dano" estão escritos sem ambiguidade. Magia fora do motor
+                cai na classe do motivo registrado (ritual, narrativa…). */
+const FUNCAO_DA_MAGIA = {
+  ataque:    { pt: 'Ataque',    en: 'Attack' },
+  controle:  { pt: 'Controle e debuff', en: 'Control & debuff' },
+  suporte:   { pt: 'Suporte',   en: 'Support' },
+  cura:      { pt: 'Cura',      en: 'Healing' },
+  protecao:  { pt: 'Proteção',  en: 'Protection' },
+  sistema:   { pt: 'Fora do motor: falta sistema', en: 'Off-engine: missing system' },
+  decisao:   { pt: 'Fora do motor: decisão ou texto', en: 'Off-engine: decision or text' },
+  narrativa: { pt: 'Narrativa', en: 'Narrative' },
+  ritual:    { pt: 'Ritual',    en: 'Ritual' },
+  invocado:  { pt: 'Invocação', en: 'Summoning' },
+};
+
+/* A função de UMA magia. A ordem dos testes é a prioridade: uma magia que
+   causa dano E aplica penalidade (Canção do Tormento) é de ataque; uma que
+   cura E dá bônus (Véu de Maira) é de cura. */
+function funcaoDaMagia(magia) {
+  const key = magia && magia.key;
+  const reg = key ? MAGIA_EFEITO_MAP[key] : null;
+  if (reg) {
+    const tipos = reg.efeitos.map((e) => e.tipo);
+    if (tipos.includes('dano') && reg.alvo === 'inimigo') return 'ataque';
+    if (reg.efeitos.some((e) => e.tipo === 'cura_pool' && (e.sinal || 1) > 0)) return 'cura';
+    if (tipos.includes('reducao_dano')) return 'protecao';
+    if (reg.alvo === 'inimigo') return 'controle';
+    return 'suporte';
+  }
+  const fora = key ? MAGIA_FORA_DO_REGISTRO[key] : null;
+  if (fora && FUNCAO_DA_MAGIA[fora.classe]) return fora.classe;
+  // Sem registro e sem motivo: é a narrativa que a auditoria conta no rodapé.
+  return 'narrativa';
+}
+
+function estatisticasMagias(magiasDb, gameData) {
+  const lista = (Array.isArray(magiasDb) ? magiasDb : []).filter((m) => m && m.key);
+  const gd = gameData || (typeof GAME_DATA !== 'undefined' ? GAME_DATA : null);
+  const espPorProfissao = (gd && gd.especializacoes) || {};
+  const profissoes = Object.keys((gd && gd.profissoes) || espPorProfissao);
+  const espParaProfissao = {};
+  Object.entries(espPorProfissao).forEach(([prof, esps]) => {
+    (esps || []).forEach((e) => { espParaProfissao[e.esp] = prof; });
+  });
+
+  const zeraFuncoes = () => Object.fromEntries(Object.keys(FUNCAO_DA_MAGIA).map((f) => [f, 0]));
+  const porProfissao = Object.fromEntries(profissoes.map((p) => [p, {
+    total: 0, basicas: 0, avancadas: 0, compraveis: 0, travadas: 0, noMotor: 0,
+    funcoes: zeraFuncoes(),
+  }]));
+  const porEspecializacao = {};
+  const porFuncao = zeraFuncoes();
+  const porRaridade = {};
+  const porEvocacao = { instantanea: 0, canalizada: 0, ritual: 0 };
+  const porDuracao = { instantanea: 0, rodadas: 0, calendario: 0, permanente: 0 };
+  const semPermissao = [];
+  const permissaoDesconhecida = {};
+  let noMotor = 0;
+  /* POR ELEMENTO (12/09/2026): "quero magias de proteção e dano por elemento —
+     fogo, terra, água, ar, celestial e infernal" (usuário). Conta só o que o
+     MOTOR aplica: dano em inimigo pelo elemento lido do texto do nível mais
+     alto, e redução de dano pelo elemento do registro. 'sem_elemento' é dano
+     base; 'qualquer' é proteção que corta todo elemento. */
+  const porElemento = Object.fromEntries(['fogo', 'terra', 'agua', 'ar', 'celestial', 'infernal', 'sem_elemento', 'qualquer']
+    .map((el) => [el, { dano: 0, protecao: 0 }]));
+
+  lista.forEach((m) => {
+    const funcao = funcaoDaMagia(m);
+    porFuncao[funcao] = (porFuncao[funcao] || 0) + 1;
+    const ehMotor = !!MAGIA_EFEITO_MAP[m.key];
+    if (ehMotor) noMotor += 1;
+    if (ehMotor) {
+      const reg = MAGIA_EFEITO_MAP[m.key];
+      if (reg.alvo === 'inimigo' && reg.efeitos.some((ef) => ef.tipo === 'dano')) {
+        const nivelTexto = [9, 7, 5, 3, 1].find((n) => m['nivel_' + n]);
+        const el = (nivelTexto && elementoDoNivel(m, nivelTexto)) || 'sem_elemento';
+        if (porElemento[el]) porElemento[el].dano += 1;
+      }
+      const protecoes = new Set(reg.efeitos.filter((ef) => ef.tipo === 'reducao_dano')
+        .map((ef) => (ef.elemento == null ? 'qualquer' : ef.elemento)));
+      protecoes.forEach((el) => { if (porElemento[el]) porElemento[el].protecao += 1; });
+    }
+
+    const tipo = m.tipo || '—';
+    porRaridade[tipo] = (porRaridade[tipo] || 0) + 1;
+    const travada = m.tipo !== 'Básica';
+
+    const ev = String(m.evocacao || '');
+    if (!ev || /instant[âa]nea/i.test(ev)) porEvocacao.instantanea += 1;
+    else if (/\d+\s*rodadas?/i.test(ev)) porEvocacao.canalizada += 1;
+    else porEvocacao.ritual += 1;   // Ritual, Variável, horas, dias
+
+    const dur = classeDeDuracao(m, 1);
+    porDuracao[dur] = (porDuracao[dur] || 0) + 1;
+
+    const nomes = String(m.permissao || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (!nomes.length) { semPermissao.push(m.nome || m.key); return; }
+
+    /* Uma magia conta UMA vez por profissão, mesmo citando a profissão e duas
+       especializações dela. "Básica" ganha de "avançada" quando os dois
+       aparecem: se a profissão está citada, todo membro alcança. */
+    const alcance = {};   // profissão → 'basica' | 'avancada'
+    nomes.forEach((nome) => {
+      if (porProfissao[nome]) { alcance[nome] = 'basica'; return; }
+      const prof = espParaProfissao[nome];
+      if (prof) {
+        if (!alcance[prof]) alcance[prof] = 'avancada';
+        const e = porEspecializacao[nome] || (porEspecializacao[nome] = { profissao: prof, total: 0 });
+        e.total += 1;
+        return;
+      }
+      (permissaoDesconhecida[nome] = permissaoDesconhecida[nome] || []).push(m.nome || m.key);
+    });
+    Object.entries(alcance).forEach(([prof, como]) => {
+      const p = porProfissao[prof];
+      if (!p) return;
+      p.total += 1;
+      if (como === 'basica') p.basicas += 1; else p.avancadas += 1;
+      if (travada) p.travadas += 1; else p.compraveis += 1;
+      if (ehMotor) p.noMotor += 1;
+      p.funcoes[funcao] += 1;
+    });
+  });
+
+  return {
+    total: lista.length, noMotor,
+    porProfissao, porEspecializacao, porFuncao, porRaridade, porEvocacao, porDuracao, porElemento,
+    semPermissao, permissaoDesconhecida,
+  };
+}
+
 /* Resumo de uma linha, para o cabeçalho do painel e para o log do script. */
 function resumoAuditoria(r) {
   return {
@@ -1328,7 +1754,8 @@ function resumoAuditoria(r) {
   };
 }
 
-Object.assign(window, { lerNivel, auditarMagias, resumoAuditoria, MAGIA_NIVEIS });
+Object.assign(window, { lerNivel, auditarMagias, resumoAuditoria, MAGIA_NIVEIS,
+  FUNCAO_DA_MAGIA, funcaoDaMagia, estatisticasMagias });
 
 /* ── Casamento nome → magia, usado pelas criaturas ─────────────────
    `criaturas.magia` é TEXTO com os nomes separados por vírgula
@@ -1486,8 +1913,6 @@ const MAGIA_FORA_DO_REGISTRO = {
 
      As duas dependiam de sistema que não existia — e sistema, diferente de
      decisão, é trabalho meu. */
-  alucinacao: { classe: 'sistema', motivo:
-    'Mexe na dificuldade da habilidade Sentidos, não em stat de combate.' },
   invisibilidade: { classe: 'sistema', motivo:
     'Precisa de primitiva de seleção de alvo: ficar difícil de ser alvejado.' },
   ordens: { classe: 'sistema', motivo:
@@ -1502,7 +1927,154 @@ const MAGIA_FORA_DO_REGISTRO = {
   pseudomateria: { classe: 'invocado', motivo:
     'Cria um personagem controlado pelo Mestre.' },
   criatura_disforme: { classe: 'invocado', motivo: 'Anima uma carcaça.' },
+
+  /* ══ VARREDURA DAS MAGIAS QUE NENHUM PERSONAGEM CONHECIA — 12/09/2026 ══
+     Cada uma das 111 foi lida. As que cabiam entraram no registro; as de
+     baixo ficaram de fora COM MOTIVO. Nenhuma regra foi adivinhada — o
+     usuário pediu, para as dúvidas, "ignore por agora, ela vai aparecer na
+     conferência depois". É aqui que ela aparece. */
+
+  /* ── Falta uma decisão sua ou uma correção de texto ─────────────── */
+  /* A primitiva de dificuldade já existe; o texto é que escreve o número POR
+     EXTENSO, e a regra do catálogo é dígito (docs/manutencao-magias.md §1).
+     Com "1 nível" no lugar de "um nível", o predicado percebe e a magia vai
+     para "pronta para entrar". */
+  alucinacao: { classe: 'decisao', resolvido: (m) => leUnidadeEmAlgumNivel(m, 'dificuldade'), motivo:
+    'Aumenta a dificuldade de Sentidos do alvo, mas escreve o número por extenso ("um nível"). Com dígito ("1 nível") ela entra.' },
+  dominacao_animal: { classe: 'decisao', resolvido: (m) => leUnidadeEmAlgumNivel(m, 'dificuldade'), motivo:
+    'Reduz a dificuldade de Adestrar, mas escreve o número por extenso ("um nível"). Com dígito ela entra.' },
+  rastreamento: { classe: 'decisao', resolvido: (m) => leUnidadeEmAlgumNivel(m, 'dificuldade'), motivo:
+    'Reduz a dificuldade de Rastrear para o próximo teste, mas escreve o número por extenso ("um nível"). Com dígito ela entra.' },
+  forca_da_montanha: { classe: 'decisao',
+    resolvido: (m) => ['atr_fisico', 'atr_forca', 'atr_agilidade', 'atr_percepcao']
+      .every((u) => leUnidadeEmAlgumNivel(m, u)),
+    motivo: 'Um número para dois atributos ("Aumente 1 de atributo físico e atributo força"). Escreva cada um com o seu número: "Aumenta 1 no atributo Físico e 1 no atributo Força e reduz 1 no atributo Agilidade e 1 no atributo Percepção".' },
+  ataque_impetuoso: { classe: 'decisao', motivo:
+    '"Cause mais 4 no dano máximo de um ataque": é bônus de dano no PRÓXIMO golpe? Se for, o texto precisa virar "Aumenta 4 de dano" e eu ligo como bônus consumido no golpe.' },
+  apontar_sufocante: { classe: 'decisao', motivo:
+    'O efeito (não pode atacar, perde 1 de energia física por rodada) está na descrição; o nível só diz "Sufoca o alvo por N rodadas". Com "A magia tem duração de N rodadas. Reduz 1 de energia física por rodada." no nível, ela entra.' },
+  teriantropia: { classe: 'decisao', motivo:
+    'Cada nível é uma forma diferente (felina, canina…) e escreve "reduza 1 dificuldade" sem "nível de". Precisa de "Reduza 1 nível de dificuldade da habilidade X" — e depende de Licantropia estar ativa.' },
+  vigilia: { classe: 'decisao', motivo:
+    '"Reduza 9 níveis da habilidade Sentidos" diminui com o nível da magia e não diz "de dificuldade". É penalidade enquanto dorme? Falta a regra.' },
+
+  /* ── Falta um sistema que o combate não tem ─────────────────────── */
+  amizade: { classe: 'sistema', motivo:
+    'O bônus em Influência é do conjurador, mas só contra o alvo que falhou na resistência — o motor não prende bônus a um alvo. (O número também está por extenso.)' },
+  empatia: { classe: 'sistema', motivo:
+    'O bônus em Empatia é do conjurador, mas só contra o alvo que falhou na resistência — o motor não prende bônus a um alvo.' },
+  seducao: { classe: 'sistema', motivo:
+    'O bônus em Persuadir é do conjurador, só contra o alvo seduzido — o motor não prende bônus a um alvo. (O número também está por extenso.)' },
+  aprimorar_habilidades: { classe: 'sistema', motivo:
+    'A habilidade é escolhida na hora ("uma habilidade escolhida do grupo Subterfúgio, Manobra ou Geral") — a evocação não tem essa escolha.' },
+  despistamento: { classe: 'sistema', motivo:
+    'A trilha falsa dificulta quem PERSEGUE, e o perseguidor não é escolhido na evocação.' },
+  terreno_hostil: { classe: 'sistema', motivo:
+    'O terreno dificulta forasteiros que usam os recursos do local; e "Sobrevivência" não existe no catálogo de habilidades.' },
+  aeroataque: { classe: 'sistema', motivo: 'Derruba, move ou arrasta por peso (kg) — o combate não tem peso nem empurrão.' },
+  aprimoramento_animal: { classe: 'sistema', motivo: 'Mexe no companheiro animal com elo — o combate não tem companheiro.' },
+  area_de_paz: { classe: 'sistema', motivo: 'Quem ataca alguém na área precisa resistir antes — o motor não testa o ATACANTE.' },
+  bote: { classe: 'sistema', motivo: 'Executa a técnica Bote no nível da magia — magia que dispara técnica.' },
+  cancao_do_controle: { classe: 'sistema', motivo: 'O conjurador controla o corpo do alvo — troca de controle entre participantes.' },
+  cataclisma: { classe: 'sistema', motivo: 'Rouba karma máximo e o transfere — karma como alvo de efeito.' },
+  explosao_mistica: { classe: 'sistema', motivo: 'Reduz karma máximo de quem está na área — karma como alvo de efeito.' },
+  rompimento_de_harmonia: { classe: 'sistema', motivo: 'Reduz karma dos ouvintes — karma como alvo de efeito.' },
+  mutualidade: { classe: 'sistema', motivo: 'Karma compartilhado entre dois seres.' },
+  conversao_energetica: { classe: 'sistema', motivo: 'Magia recebida vira karma.' },
+  dadivas_da_guerra: { classe: 'sistema', motivo: 'Concede uso temporário de técnicas de outras profissões.' },
+  desfazer: { classe: 'sistema', motivo: 'Desfaz criaturas criadas por magia — o combate não sabe quem foi invocado.' },
+  escuridao: { classe: 'sistema', motivo:
+    'O tabuleiro tem escuridão, mas quem a pinta é o Mestre; magia ainda não cria área de escuridão.' },
+  expulsao: { classe: 'sistema', motivo: 'Bane criaturas de outros planos.' },
+  forma_espectral: { classe: 'sistema', motivo: 'Intangível: atravessa obstáculos e não ataca fisicamente.' },
+  /* O texto já é legível ("Aumente 1 de atributo força" — o leitor aprendeu "de
+     atributo"), mas mod_atributo ainda NÃO tem consumidor no combate: é a
+     pendência da Licantropia (ver magia-efeitos.test.js, PENDENTES). Ligar a
+     magia agora a faria aparecer "no motor" sem fazer nada. */
+  forca_sagrada: { classe: 'sistema', motivo:
+    'Atributo de combate ainda não tem consumidor no motor — a mesma pendência da Licantropia Lupina.' },
+  intercessao_divina: { classe: 'sistema', motivo: 'Reduz níveis de dano CRÍTICO — o motor não gradua crítico.' },
+  julgamento_de_cruine: { classe: 'sistema', motivo: 'Dano em PORCENTAGEM da energia heroica e física — o leitor só lê números absolutos.' },
+  nutricao_natural: { classe: 'sistema', motivo: 'Restaura PORCENTAGEM da energia heroica e física — o leitor só lê números absolutos.' },
+  pele_ignea: { classe: 'sistema', motivo: 'Reduz dano de fogo em PORCENTAGEM — a redução do motor é absoluta.' },
+  passagem_vital: { classe: 'sistema', motivo: 'Doa porcentagem da própria energia a outro personagem.' },
+  toque_de_furia: { classe: 'sistema', motivo: 'Transfere porcentagem da energia heroica como bônus.' },
+  maldicao_da_justica: { classe: 'sistema', motivo: 'Contra-ataque mágico em quem ataca desarmado ou rendido.' },
+  milagre_analogo: { classe: 'sistema', motivo: 'Reproduz uma magia de outro deus.' },
+  olhar_de_predador: { classe: 'sistema', motivo: 'Perda de iniciativa, revelação de ficha e visão 180º.' },
+  prolongamento: { classe: 'sistema', motivo: 'Estende a duração de outras magias.' },
+  purificacao: { classe: 'sistema', motivo: 'Remove magias e venenos por nível.' },
+  recuperecao_fisica: { classe: 'sistema', motivo: 'Cura veneno, vício ou doença por TIPO (e a chave tem erro de grafia: "recuperecao").' },
+  refletir: { classe: 'sistema', motivo: 'Reflete magias de volta ao conjurador.' },
+  rugido_intimidador: { classe: 'sistema', motivo: 'Teste de MORAL — o combate não tem moral.' },
+  silencio: { classe: 'sistema', motivo: 'Área onde magia não-instantânea não pode ser evocada.' },
+  soneto_da_morte: { classe: 'sistema', motivo: 'Morte ao ouvir as quatro estrofes, e perdas em porcentagem por rodada.' },
+  transferencia_celeste: { classe: 'sistema', motivo: 'Transfere doença, ferimento ou possessão entre corpos.' },
+  vinculo_vital: { classe: 'sistema', motivo: 'Divide o dano com o companheiro animal.' },
+  visao_termica: { classe: 'sistema', motivo: 'Vê seres invisíveis — o combate não tem invisibilidade.' },
+  voo: { classe: 'sistema', motivo: 'Voo, e teste de "Concentração", que não existe no catálogo de habilidades.' },
+
+  /* ── Narrativa: sem número, o Mestre resolve na mesa ────────────── */
+  cacada_marcada: { classe: 'narrativa', motivo: 'Guia até o alvo por dias.' },
+  comunhao_natural: { classe: 'narrativa', motivo: 'Percebe eventos numa área natural.' },
+  convivencia: { classe: 'narrativa', motivo: 'Um dia de convivência para colher informações.' },
+  hidrotolerancia: { classe: 'narrativa', motivo: 'Respira debaixo d’água.' },
+  intuicao: { classe: 'narrativa', motivo: 'Pressente perigo com uma rodada de antecedência.' },
+  invocar_instrumento: { classe: 'narrativa', motivo: 'O instrumento marcado voa até as mãos.' },
+  leitura: { classe: 'narrativa', motivo: 'Compreende um texto pelo toque.' },
+  leitura_de_habitos: { classe: 'narrativa', motivo: 'Descobre origem, segredos e pecados do alvo.' },
+  levitacao: { classe: 'narrativa', motivo: 'Movimento vertical no ar.' },
+  localizar_objeto: { classe: 'narrativa', motivo: 'Localiza um objeto pela aura.' },
+  maldicoes: { classe: 'narrativa', motivo: 'Maldições livres, limitadas pela imaginação.' },
+  marca_da_morte: { classe: 'narrativa', motivo: 'Marca para achar o alvo depois.' },
+  memorizacao: { classe: 'narrativa', motivo: 'Grava informação na memória.' },
+  modificar_espirito: { classe: 'narrativa', motivo: 'Muda o estado de espírito numa escala narrativa.' },
+  mutacao: { classe: 'narrativa', motivo: 'Disfarce e troca de forma.' },
+  pseudoconsciencia: { classe: 'narrativa', motivo: 'Dispensa a concentração de Ilusões.' },
+  santuario_natural: { classe: 'narrativa', motivo: 'Abrigo contra perigos ambientais.' },
+  sentido_natural: { classe: 'narrativa', motivo: 'Projeta os sentidos pela vegetação.' },
+  transformacao_metalica: { classe: 'narrativa', motivo: 'Altera a maleabilidade do metal.' },
+  unidade_natural: { classe: 'narrativa', motivo: 'Teleporte pela vegetação.' },
+
+  /* ── Ritual ou fora de combate ──────────────────────────────────── */
+  abrigo: { classe: 'ritual', motivo: 'Ritual: localiza abrigo natural.' },
+  ambiente_natural: { classe: 'ritual', motivo: 'Ritual: libera magias de ambiente natural.' },
+  analise: { classe: 'ritual', motivo: 'Ritual: revela propriedades de um item.' },
+  aprisionar: { classe: 'ritual', motivo: 'Ritual: prisão de escuridão com armadura própria.' },
+  assombracao: { classe: 'ritual', motivo: 'Ritual: atrai mortos-vivos a um local.' },
+  aura_emocional: { classe: 'ritual', motivo: 'Ritual: marca emocional em pessoa ou lugar.' },
+  carcere_de_almas: { classe: 'ritual', motivo: 'Ritual: aprisiona a alma numa gema.' },
+  centro_de_poder: { classe: 'ritual', motivo: 'Ritual: elo permanente com um local.' },
+  circulo_profano: { classe: 'ritual', motivo: 'Ritual: círculo de 10 anos contra mortos-vivos.' },
+  criptograma_mistico: { classe: 'ritual', motivo:
+    'Ritual sobre um texto: a dificuldade em Alfabetização é de quem tentar lê-lo, não de um alvo.' },
+  dominio_demoniaco: { classe: 'ritual', motivo: 'Ritual: submete um demônio.' },
+  encarnacao: { classe: 'ritual', motivo: 'Ritual: encarna um espírito num corpo.' },
+  fusao_natural: { classe: 'ritual', motivo: 'Ritual: funde-se aos animais com elo.' },
+  interdicao_dimensional: { classe: 'ritual', motivo: 'Ritual: bloqueia acesso a outros planos.' },
+  laco_mortal: { classe: 'ritual', motivo: 'Ritual: vínculo de alma entre dois seres.' },
+  lenda_viva: { classe: 'ritual', motivo: 'Ritual: dá vida a uma lenda local.' },
+  lendas: { classe: 'ritual', motivo: 'Ritual: descobre uma lenda.' },
+  piedade: { classe: 'ritual', motivo: 'Ritual: juramento de servidão do adversário poupado.' },
+  receptaculo_de_elementos: { classe: 'ritual', motivo: 'Ritual: item que amplia dano elemental.' },
+  retorno_do_martir: { classe: 'ritual', motivo: 'Ritual: ressuscita.' },
+  runas: { classe: 'ritual', motivo: 'Ritual: guarda uma magia numa runa.' },
+  solo_divino: { classe: 'ritual', motivo: 'Ritual: purifica um local profanado.' },
+  visao_de_cena: { classe: 'ritual', motivo: 'Ritual: vê uma cena do passado.' },
+
+  /* ── Os números são a ficha de um invocado ──────────────────────── */
+  conjuracao_demoniaca: { classe: 'invocado', motivo: 'Evoca um demônio.' },
+  convocacao_animal: { classe: 'invocado', motivo: 'Convoca animais por estágio.' },
+  criacao: { classe: 'invocado', motivo: 'Cria um morto-vivo.' },
+  ultima_oracao: { classe: 'invocado', motivo: 'Convoca um enviado celestial.' },
 };
+
+/* O predicado mais comum das pendências de texto: o leitor passou a achar a
+   unidade em ALGUM dos cinco níveis — o mesmo critério da auditoria. */
+function leUnidadeEmAlgumNivel(magia, unidade) {
+  if (!magia) return false;
+  return MAGIA_NIVEIS.some((n) => efeitosNoNivel(magia, n)[unidade] != null);
+}
 
 /* Lookup tolerante: magia sem motivo registrado devolve null, e o painel a
    mostra como "sem motivo registrado" — que é o convite para perguntar.

@@ -890,6 +890,8 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
     sem_acoes:       'temAcaoRestante + proximoAtivo',
     mod_nivel_magia: 'nivelComOferenda + consumirOferenda',
     sem_cura_ef:     'aplicarCuraPool',
+    // 12/09/2026: a dificuldade de habilidade, na aba Habilidade e na ficha.
+    mod_dificuldade: 'somaDificuldadeDoStatus + consumirDificuldadeDoTeste',
   };
 
   /* Primitivas DECLARADAS e ainda SEM consumidor. A lista existe para o
@@ -925,6 +927,7 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
     // nome some do arquivo e o teste acusa.
     ['aplicarCuraPool', 'aplicarDrenoEh', 'danoAposReducao', 'nivelComOferenda',
      'consumirOferenda', 'aplicarCurasDaMagia', 'evocacaoPrendeAcao',
+     'somaDificuldadeDoStatus', 'consumirDificuldadeDoTeste',
     ].forEach((fn) => expect(M[fn], fn).toBeTypeOf('function'));
   });
 });

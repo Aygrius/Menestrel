@@ -2065,27 +2065,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
          extraída de aplicarEfeitosItem justamente para isto. O clamp de poço,
          a escala de condição e o piso de zero são os mesmos, e há um lugar só
          para corrigir quando algum estiver errado. */
-      const efeitos = [...efeitosDeMagiaNaFicha(mag, nivel),
-                       { scope: 'vitalidade', key: 'ka', delta: -nivel }];
-      let novo = aplicarEfeitosNaFicha(pj.estado_atual, efeitos, maximosVitalidade);
+      /* aplicarMagiaNoEstado (01-core) é a MESMA porta que o Mestre usa ao
+         aprovar a evocação no colega: efeitos instantâneos pelo caminho do
+         item consumido e, depois, a magia ativa (calendário ou "para o próximo
+         teste"). Duas versões divergiam — a do Mestre esquecia a ativa. */
+      const novo = aplicarMagiaNoEstado(pj.estado_atual, mag, nivel, maximosVitalidade,
+        historiaPj && historiaPj.data_jogo_atual,
+        [{ scope: 'vitalidade', key: 'ka', delta: -nivel }]);
 
-      /* DEGRAU 3 — magia que dura no CALENDÁRIO vira magia ATIVA na ficha,
-         com data de vencimento. O que a torna útil é o que vem depois: uma
-         Bênção de "1 hora" lançada antes da masmorra precisa estar ativa
-         quando a luta começa, e o snapshot de batalha a lê daqui.
-
-         Guarda o NÍVEL, não os números já calculados: o texto do nível é a
-         fonte, e congelar valores criaria uma segunda cópia que sairia de
-         sincronia no primeiro ajuste do catálogo. */
-      const ativa = (typeof magiaAtivaDaEvocacao === 'function')
-        ? magiaAtivaDaEvocacao(mag, nivel, historiaPj && historiaPj.data_jogo_atual) : null;
-      if (ativa) {
-        const base = novo || {};
-        // Relançar a mesma magia RENOVA em vez de empilhar — mesma regra que
-        // aplicarEfeitoMagia segue em batalha.
-        const outras = (base.magias_ativas || []).filter((a) => a && a.key !== ativa.key);
-        novo = { ...base, magias_ativas: [...outras, ativa] };
-      }
       if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
     }
 
@@ -2133,13 +2120,28 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     if (!rolagem) return;
     const nomePj = [pj?.nome, pj?.sobrenome].filter(Boolean).join(' ');
     const difEntry = (window.D20_DIF_LABEL || {})[rolagem.dificuldade];
-    const difLbl = difEntry ? (en ? difEntry.en : difEntry.pt) : rolagem.dificuldade;
+    const difEfetiva = difEntry ? (en ? difEntry.en : difEntry.pt) : rolagem.dificuldade;
+    // Com magia de dificuldade ativa, o log mostra de onde saiu: "Médio → Fácil".
+    const escEntry = rolagem.dificuldade_escolhida && rolagem.dificuldade_escolhida !== rolagem.dificuldade
+      ? (window.D20_DIF_LABEL || {})[rolagem.dificuldade_escolhida] : null;
+    const difLbl = escEntry ? `${en ? escEntry.en : escEntry.pt} → ${difEfetiva}` : difEfetiva;
     const texto = en
       ? `${nomePj} used ${rolagem.nome} (${difLbl}) and got ${res.sucesso ? 'a success' : 'a failure'}.`
       : `${nomePj} usou ${rolagem.nome} (${difLbl}) e obteve uma ${res.sucesso ? 'sucesso' : 'falha'}.`;
+    /* Magia "para o próximo teste" (Avaliação, Faro…) some depois dele — só a
+       que valia NESTA habilidade (consumirMagiasDoTeste, 01-core). */
+    const ativasAntes = (pj.estado_atual && pj.estado_atual.magias_ativas) || [];
+    const ativasDepois = (typeof consumirMagiasDoTeste === 'function')
+      ? consumirMagiasDoTeste(ativasAntes, { nome: rolagem.nome, grupo: rolagem.grupo }, magiasByKey)
+      : ativasAntes;
+    if (ativasDepois.length !== ativasAntes.length) {
+      salvarEstadoAtual({ ...(pj.estado_atual || {}), magias_ativas: ativasDepois });
+    }
     registrarEventoMesa('teste', texto, {
       habilidade: rolagem.nome,
       dificuldade: rolagem.dificuldade,
+      ...(rolagem.dificuldade_escolhida && rolagem.dificuldade_escolhida !== rolagem.dificuldade
+        ? { dificuldade_escolhida: rolagem.dificuldade_escolhida } : {}),
       qualidade: res.q,
       qualidade_label: en ? res.en : res.pt,
       d20: res.d20,
@@ -2628,9 +2630,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             <div key={a.key} className="fp-magia-ativa">
               <span>{a.nome} {en ? 'lv' : 'nv'} {a.nivel}</span>
               <span className="fp-magia-ativa-ate">
-                {(en ? 'until ' : 'até ')}
-                {(typeof formatarDataFantasy === 'function')
-                  ? formatarDataFantasy(a.vence_em, lang) : ''}
+                {/* "Para o próximo teste" não tem data: vale um teste e some. */}
+                {a.consome_em === 'teste_habilidade'
+                  ? (en ? 'until the next test' : 'até o próximo teste')
+                  : <>{(en ? 'until ' : 'até ')}
+                      {(typeof formatarDataFantasy === 'function')
+                        ? formatarDataFantasy(a.vence_em, lang) : ''}</>}
               </span>
             </div>
           ))}
@@ -3594,7 +3599,20 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             total={total}
             lang={lang}
             onClose={() => setHabilidadeDetalheKey(null)}
-            onUsar={(p) => { setHabilidadeDetalheKey(null); setRolagem(p); }}
+            /* A dificuldade que VALE: a escolhida, deslocada pelas magias de
+               dificuldade ativas (Camuflagem, Faro…) — a mesma conta da batalha
+               (passosDeDificuldade). A escolhida vai junto para o log dizer
+               "Médio → Fácil" em vez de trocar em silêncio. */
+            onUsar={(p) => {
+              setHabilidadeDetalheKey(null);
+              const alvoHab = { nome: hab.nome, grupo: hab.grupo };
+              const passos = (typeof passosDasMagiasAtivas === 'function')
+                ? passosDasMagiasAtivas(magiasAtivas, alvoHab, magiasByKey) : 0;
+              const efetiva = passos && typeof deslocarDificuldade === 'function'
+                ? deslocarDificuldade(p.dificuldade, passos) : p.dificuldade;
+              setRolagem({ ...p, grupo: hab.grupo, dificuldade: efetiva,
+                           dificuldade_escolhida: p.dificuldade });
+            }}
             abrirTip={abrirTip}
             fecharTip={fecharTip}
           />

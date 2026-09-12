@@ -481,6 +481,11 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
             bloqueadoPorOutroAtivo={!isMaster && !!pjAtivoNoPerfil && pjAtivoNoPerfil !== p.id}
             onAtivar={!isMaster ? () => ativarPj(p.id) : undefined}
             onDesativar={!isMaster && pjAtivoNoPerfil === p.id ? desativarPj : undefined}
+            /* Voltar à ficha do ativo sem passar pela barra lateral: quem veio
+               para a lista pelo "voltar" da ficha não tinha caminho de volta
+               a partir do próprio card (o clique no ativo não faz nada). */
+            onAbrir={!isMaster && pjAtivoNoPerfil === p.id ? () => setPjAtivoIdLocal(p.id) : undefined}
+            ultimoCapitulo={!isMaster ? pjData?.ultimoCapituloPorPersonagem?.[p.id] : undefined}
             onAbrirFicha={isMaster ? () => setFichaAbertoId(p.id) : undefined}
             lang={lang} />
         ))}
@@ -548,7 +553,7 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   );
 }
 
-function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGiveMoedas, onAtivar, onDesativar, ativo, bloqueadoPorOutroAtivo, onAbrirFicha, onEntrarMesa, semMesa, pausado, lang, playerName }) {
+function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGiveMoedas, onAtivar, onDesativar, onAbrir, ultimoCapitulo, ativo, bloqueadoPorOutroAtivo, onAbrirFicha, onEntrarMesa, semMesa, pausado, lang, playerName }) {
   const ficha = calcularFicha(p);
   const titulo = tituloDoPersonagem(p);
   const levelUp = temLevelUpPendente(p);
@@ -564,6 +569,10 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
     ? Number(p.estado_atual.vitalidade.ef)
     : maxEF;
   const efRatio = maxEF > 0 ? Math.max(0, Math.min(1, efAtual / maxEF)) : 1;
+  const maxEH = Number(ficha.derivadas?.energiaHeroica) || 0;
+  const ehAtual = p.estado_atual?.vitalidade?.eh != null
+    ? Number(p.estado_atual.vitalidade.eh)
+    : maxEH;
 
   // Três âncoras de cor:
   //   0%   → púrpura  rgb(107, 20,128)
@@ -579,46 +588,62 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
     '--pj-health-r': hr,
     '--pj-health-g': hg,
     '--pj-health-b': hb,
-    borderColor: `rgba(${hr},${hg},${hb},0.55)`,
-    boxShadow:   `0 0 24px rgba(${hr},${hg},${hb},0.20)`,
+    /* O ativo fica sem a cor de saúde na borda: inline ganha do CSS, e a
+       borda dele é a dourada de .pj-card--ativo. A saúde do ativo aparece
+       na barra de EF. */
+    ...(ativo ? null : {
+      borderColor: `rgba(${hr},${hg},${hb},0.55)`,
+      boxShadow:   `0 0 24px rgba(${hr},${hg},${hb},0.20)`,
+    }),
     transition:  'border-color .4s ease, box-shadow .4s ease',
   };
   const pulsoClass = efRatio < 0.25 ? ' pj-card--ef-critico' : '';
 
   /* A seta de evoluir só aparece no personagem ATIVO (ou, para o Mestre, em
      qualquer um — ele não tem PJ ativo). O invólucro precisa saber disso
-     porque o medalhão da seta pousa no mesmo canto do selo "Ativo", e o CSS
-     desloca um quando o outro está em cena. */
+     para marcar o card (.pj-card-wrap--seta). */
   const mostrarSetaEvoluir = !!(levelUp && onEdit && (isMaster || ativo));
+
+  const podeSelecionar = !!(onAtivar && !bloqueadoPorOutroAtivo && !ativo);
+  const nomeCompleto = [p.nome, p.sobrenome].filter(Boolean).join(' ');
+
+  /* Vitais do ativo (12/09/2026). O card ativo ocupa a linha inteira e, só
+     com nome e uma linha de meta, era uma faixa larga e vazia. Energia física
+     e heroica é o que o jogador quer saber de relance sobre quem está em jogo.
+     A barra de EF usa a mesma cor de saúde que já tinge a borda do card. */
+  const vitais = [
+    { k: 'ef', rotulo: en ? 'Physical energy' : 'Energia física', atual: efAtual, max: maxEF, cor: `rgb(${hr},${hg},${hb})` },
+    { k: 'eh', rotulo: en ? 'Heroic energy' : 'Energia heroica', atual: ehAtual, max: maxEH },
+  ].filter((v) => v.max > 0);
+
+  /* Último capítulo (pedido do usuário, 12/09/2026): "no card de personagem
+     principal, adicione o último capítulo da história". Só no ativo — é ele
+     que está vivendo a história; nos outros seria texto demais numa grade. */
+  const cap = ativo ? ultimoCapitulo : null;
+  const capData = cap?.data && typeof formatarDataFantasy === 'function' && cap.data.dia && cap.data.mes
+    ? formatarDataFantasy(cap.data, lang) : null;
 
   return (
     <div className={'pj-card-wrap' + (ativo ? ' pj-card-wrap--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card-wrap--inerte' : '') + (mostrarSetaEvoluir ? ' pj-card-wrap--seta' : '')}>
     <article
-      className={'pj-card' + pulsoClass + (levelUp ? ' pj-card--levelup' : '') + (ativo ? ' pj-card--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card--inerte' : '') + ((onAtivar && !bloqueadoPorOutroAtivo && !ativo) ? ' is-clickable' : '')}
+      className={'pj-card' + pulsoClass + (levelUp ? ' pj-card--levelup' : '') + (ativo ? ' pj-card--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card--inerte' : '') + (podeSelecionar ? ' is-clickable' : '')}
       style={healthStyle}
-      onClick={(onAtivar && !bloqueadoPorOutroAtivo && !ativo) ? onAtivar : undefined}
+      onClick={podeSelecionar ? onAtivar : undefined}
+      /* O bloqueado continua SEM frase no card — o usuário mandou tirar. O
+         motivo aparece só para quem pousa o mouse nele, que é quem perguntou. */
+      onMouseEnter={bloqueadoPorOutroAtivo
+        ? (e) => abrirTip(e, en ? 'Deactivate your active character to choose this one' : 'Desative o personagem ativo para escolher este')
+        : undefined}
+      onMouseLeave={bloqueadoPorOutroAtivo ? fecharTip : undefined}
     >
-      {/* Selo ATIVO — elemento de verdade, e não um ::after (12/09/2026).
-
-          A primeira versão desenhava o selo em `article.pj-card--ativo::after`
-          e brigava pelo mesmo pseudo-elemento com a varredura de
-          `.pj-card--levelup`: quem viesse depois no arquivo ganhava, e um
-          personagem ativo COM pontos a distribuir perdia um dos dois sinais
-          por acidente de ordem de regra. Com um <span> os dois convivem.
-
-          E o selo diz a palavra, não só o ícone: "ativo/inativo" é o
-          vocabulário que o usuário escolheu para esta mecânica. */}
-      {ativo && (
-        <span className="pj-card-selo" aria-hidden="true">
-          <i className="ti ti-user-check" />
-          {en ? 'Active' : 'Ativo'}
-        </span>
+      {bloqueadoPorOutroAtivo && (
+        <span className="pj-card-cadeado" aria-hidden="true"><i className="ti ti-lock" /></span>
       )}
 
       <div className="pj-card-body">
         <div className={'pj-card-portrait' + (!fotoUrl ? ' is-empty' : '')}>
           {fotoUrl
-            ? <img src={fotoUrl} alt={[p.nome, p.sobrenome].filter(Boolean).join(' ')} className="pj-card-portrait-img" />
+            ? <img src={fotoUrl} alt={nomeCompleto} className="pj-card-portrait-img" />
             : <span className="pj-card-portrait-mono">{inicial}</span>}
         </div>
         <div className="pj-card-info">
@@ -657,17 +682,25 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
               {/* Editar (lápis) e Excluir (lixeira) removidos do card — edição via ficha do PJ ativo */}
               <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
             </div>
-            <div className="pj-name">
-              {p.nome} {p.sobrenome || ''}
-            </div>
+            {/* Selo ATIVO — elemento de verdade, e não um ::after (ver a
+                nota de 12/09/2026 no CSS). Saiu do canto do card e virou o
+                sobrescrito do nome: no canto era uma pílula de 10px disputando
+                lugar com a seta de evoluir, e o olho lia o nome sem ver o selo.
+                Acima do nome, o selo é a primeira coisa lida no card. */}
+            {ativo && (
+              <span className="pj-card-selo">
+                <span className="pj-card-selo-chama" aria-hidden="true" />
+                {en ? 'Active character' : 'Personagem ativo'}
+              </span>
+            )}
+            <div className="pj-name">{nomeCompleto}</div>
           </header>
           {/* Estágio, raça/profissão e título — 12/09/2026.
 
               `titulo` já era calculado aqui e não ia para lugar nenhum: o
               card mostrava só o nome do jogador, que é a mesma palavra em
-              todos os cards de um mesmo dono. Com o ativo ocupando a linha
-              inteira ficou gritante — uma faixa larga com uma linha só de
-              texto repetido. Isto é o que distingue um personagem do outro. */}
+              todos os cards de um mesmo dono. Isto é o que distingue um
+              personagem do outro. */}
           <div className="pj-meta">
             <span>{en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}</span>
             {(p.raca || p.profissao) && <span className="sep">·</span>}
@@ -678,68 +711,102 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
                 cards traziam o nome DELE, repetido card a card. */}
             {isMaster && <span className="sep">·</span>}
             {isMaster && <span>{playerName}</span>}
-            {pausado && (
-              <span style={{
-                display: 'inline-block', marginLeft: 8, padding: '1px 8px',
-                fontSize: '0.62rem', fontWeight: 600, letterSpacing: '0.06em',
-                textTransform: 'uppercase', whiteSpace: 'nowrap', verticalAlign: 'middle',
-                color: 'var(--gold-bright, #E6C97A)', border: '1px solid var(--gold-deep, #B8862E)',
-                borderRadius: 999, background: 'rgba(0,0,0,0.18)',
-              }}>
-                {en ? 'Paused' : 'Pausada'}
-              </span>
+            {pausado && <span className="pj-card-pausada">{en ? 'Paused' : 'Pausada'}</span>}
+          </div>
+
+          {ativo && vitais.length > 0 && (
+            <div className="pj-vitais">
+              {vitais.map((v) => (
+                <div key={v.k} className={'pj-vital pj-vital--' + v.k}>
+                  <div className="pj-vital-top">
+                    <span className="pj-vital-rot">{v.rotulo}</span>
+                    <span className="pj-vital-num">{v.atual}<span className="pj-vital-max">/{v.max}</span></span>
+                  </div>
+                  <div className="pj-vital-barra">
+                    <span
+                      className="pj-vital-fill"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, (v.atual / v.max) * 100))}%`,
+                        ...(v.cor ? { background: v.cor } : null),
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Ações do ATIVO — refeitas em 12/09/2026.
+
+            Antes: um "Desativar" fantasma, sozinho, centralizado no rodapé
+            de um card da largura da tela — a única ação do personagem em jogo
+            parecia um rodapé esquecido. Agora as duas ações moram ao lado do
+            nome, empilhadas: "Abrir ficha" é a principal (é o que se faz com
+            o personagem ativo), "Desativar" fica abaixo, mais discreto, e só
+            ganha cor de alerta no hover — trocar de personagem troca o mundo
+            inteiro do jogador, não é o clique que se quer dar por engano. */}
+        {ativo && (onAbrir || onDesativar) && (
+          <div className="pj-card-acoes-ativo">
+            {onAbrir && (
+              <button
+                type="button"
+                className="btn-primary btn-sm pj-card-abrir"
+                onClick={(e) => { e.stopPropagation(); onAbrir(); }}>
+                <i className="ti ti-book-2" aria-hidden="true" />
+                {en ? 'Open sheet' : 'Abrir ficha'}
+              </button>
+            )}
+            {onDesativar && (
+              <button
+                type="button"
+                className="btn-ghost btn-sm pj-card-desativar"
+                onClick={(e) => { e.stopPropagation(); onDesativar(); }}>
+                <i className="ti ti-player-stop" aria-hidden="true" />
+                {en ? 'Deactivate' : 'Desativar'}
+              </button>
             )}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Selecionar personagem (pedido do usuário, 11/09/2026).
+      {cap && (
+        <section className="pj-capitulo" aria-label={en ? 'Latest chapter' : 'Último capítulo'}>
+          <div className="pj-capitulo-eyebrow">
+            <i className="ti ti-feather" aria-hidden="true" />
+            <span>{en ? 'Latest chapter' : 'Último capítulo'}</span>
+            <span className="sep">·</span>
+            <span className="pj-capitulo-historia">{cap.historia}</span>
+          </div>
+          <h4 className="pj-capitulo-titulo">
+            <span className="pj-capitulo-num">{en ? `Ch. ${cap.numero}` : `Cap. ${cap.numero}`}</span>
+            {cap.titulo || (en ? 'Untitled' : 'Sem título')}
+          </h4>
+          {capData && <div className="pj-capitulo-data">{capData}</div>}
+          {cap.texto && <p className="pj-capitulo-texto">{cap.texto}</p>}
+        </section>
+      )}
 
-          O card inteiro já era clicável e chamava onAtivar, mas isso é uma
-          afordância invisível: nada na tela dizia que um clique ali troca
-          TODO o contexto do jogador (ficha, inventário, loja, diário e a
-          mesa que ele enxerga). Quem não sabia, não clicava; quem clicava
-          sem saber, trocava de contexto sem entender o que aconteceu.
+      {/* Selecionar personagem (pedido do usuário, 11/09/2026). O clique no
+          card continua funcionando; o botão torna a ação nomeada.
 
-          O clique no card continua funcionando — tirar atalho que já existe
-          só irrita quem se acostumou. O botão torna a ação nomeada. */}
-      {/* ATIVO / INATIVO — refeito em 12/09/2026.
-
-          A primeira versão punha uma etiqueta solta ao lado do botão num
-          rodapé feito para UM botão de largura total, e saía torta. E o card
-          bloqueado ganhava um parágrafo de aviso, que o usuário mandou tirar:
-          numa grade de cards, uma frase só naquele card puxa o olho para o
-          que NÃO dá para fazer.
-
-          Agora o rodapé tem sempre a mesma forma — uma pílula centralizada no
-          rodapé do card, ou nada. Quem diz que o personagem está ativo é o
-          CARD (anel dourado e selo no canto), não o rodapé; e o bloqueado
-          simplesmente não oferece ação, porque não há ação.
-
-          A pílula não é mais esticada de borda a borda: o card ativo agora
-          ocupa a linha inteira da grade, e um botão de largura total nele
-          teria um palmo de comprimento. */}
-      {ativo ? (
+          Pílula centralizada no rodapé, ou nada — o bloqueado simplesmente
+          não oferece ação, porque não há ação. Em repouso a pílula é
+          discreta: três botões dourados lado a lado numa grade gritavam
+          todos ao mesmo tempo. Ela acende quando o mouse chega no card (ver
+          .pj-card.is-clickable:hover no CSS), que é quando a escolha
+          acontece. */}
+      {podeSelecionar && (
         <div className="pj-card-foot">
           <button
             type="button"
             className="btn-ghost btn-sm pj-card-selecionar"
-            onClick={(e) => { e.stopPropagation(); if (onDesativar) onDesativar(); }}>
-            <i className="ti ti-user-off" aria-hidden="true" />
-            {en ? 'Deactivate' : 'Desativar'}
-          </button>
-        </div>
-      ) : bloqueadoPorOutroAtivo ? null : onAtivar ? (
-        <div className="pj-card-foot">
-          <button
-            type="button"
-            className="btn-primary btn-sm pj-card-selecionar"
             onClick={(e) => { e.stopPropagation(); onAtivar(); }}>
             <i className="ti ti-user-check" aria-hidden="true" />
             {en ? 'Select character' : 'Selecionar personagem'}
           </button>
         </div>
-      ) : null}
+      )}
     </article>
 
       {/* Seta de evolução — é o caminho do JOGADOR pra gastar os pontos do
@@ -1043,7 +1110,7 @@ function DarMoedasModal({ personagem, lang, onCancel, onSaved }) {
   if (!coinVals) {
     return (
       <ModalShell title={en ? 'Coins' : 'Moedas'} lang={lang} size="sm" onClose={onCancel} onCancel={onCancel}>
-        <Carregando lang={lang} />
+        <Carregando lang={lang} compacto />
       </ModalShell>
     );
   }
@@ -1376,6 +1443,12 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
   const descricaoTela = DESCRICOES_TELA[stepKey] || DESCRICOES_TELA[currentId] || '';  
 
   // Validações por passo
+  /* Data de nascimento trava ao editar — inclusive para o Mestre (pedido do
+     usuário, 12/09/2026). Exceção: personagem antigo SEM data. A validação
+     da Identidade exige a data, e travar um campo vazio deixaria a edição
+     impossível de salvar; ele preenche uma vez e, dali em diante, trava. */
+  const dataNascTravada = isEdit && personagemExistente?.data_nasc?.ano != null;
+
   const erroIdentidade =
     !form.nome.trim()         ? 'Escolha um nome' :
     !form.raca                ? 'Escolha uma raça' :
@@ -1581,7 +1654,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       confirmDisabled={isUltimoStep ? saving : !podeAvancar}
     >
           {descricaoTela && <p className="wiz-screen-desc">{descricaoTela}</p>}
-          {currentId === 'identidade' && <StepIdentidade form={form} update={update} updateCaract={updateCaract} lang={lang} isEdit={isEdit} sub={currentSub} caractRestantes={caractRestantes} />}
+          {currentId === 'identidade' && <StepIdentidade form={form} update={update} updateCaract={updateCaract} lang={lang} isEdit={isEdit} dataNascTravada={dataNascTravada} sub={currentSub} caractRestantes={caractRestantes} />}
           {currentId === 'atributos' && (
             <StepAtributos
               form={form} update={update} lang={lang}
@@ -1836,7 +1909,7 @@ function wizInputStyle(locked) {
   };
 }
 
-function StepIdentidade({ form, update, lang, isEdit, sub = 'principal', updateCaract, caractRestantes = 0 }) {
+function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, sub = 'principal', updateCaract, caractRestantes = 0 }) {
   const opcoesEsp = GAME_DATA.especializacoes[form.profissao] || [];
   // O campo aparece sempre que a profissão tiver especializações. Havia aqui um
   // `estagio >= 5 &&`, que escondia o campo na criação (personagem novo nasce
@@ -2058,7 +2131,8 @@ function StepIdentidade({ form, update, lang, isEdit, sub = 'principal', updateC
           {typeof FantasyDatePicker !== 'undefined' ? (
             <FantasyDatePicker
               value={form.data_nasc ?? { dia: 1, mes: 1, ano: 0 }}
-              onChange={(v) => update('data_nasc', v)}
+              onChange={(v) => { if (!dataNascTravada) update('data_nasc', v); }}
+              disabled={dataNascTravada}
               lang={lang}
             />
           ) : (
@@ -2066,6 +2140,7 @@ function StepIdentidade({ form, update, lang, isEdit, sub = 'principal', updateC
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <input
                 type="number" placeholder="Dia" min={1} max={30} step={1}
+                disabled={dataNascTravada}
                 value={form.data_nasc?.dia ?? ''}
                 onChange={(e) => {
                   const v = e.target.value === '' ? null : Number(e.target.value);
@@ -2075,6 +2150,7 @@ function StepIdentidade({ form, update, lang, isEdit, sub = 'principal', updateC
               />
               <input
                 type="number" placeholder="Mês" min={1} max={13} step={1}
+                disabled={dataNascTravada}
                 value={form.data_nasc?.mes ?? ''}
                 onChange={(e) => {
                   const v = e.target.value === '' ? null : Number(e.target.value);
@@ -2084,6 +2160,7 @@ function StepIdentidade({ form, update, lang, isEdit, sub = 'principal', updateC
               />
               <input
                 type="number" placeholder="Ano"
+                disabled={dataNascTravada}
                 value={form.data_nasc?.ano ?? ''}
                 onChange={(e) => {
                   const v = e.target.value === '' ? null : Number(e.target.value);

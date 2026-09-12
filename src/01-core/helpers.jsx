@@ -96,13 +96,51 @@ function formatarDataFantasy(d, lang) {
    que tela está.
 
    `role="status"` e `aria-live` para leitor de tela anunciar sem roubar o
-   foco; o ícone é decorativo e fica escondido dele. */
-function Carregando({ lang, oQue }) {
+   foco; o selo é decorativo e fica escondido dele.
+
+   O SELO (12/09/2026): "faça uma tela de carregamento mais bonita, com estilo
+   medieval entre uma página e outra". Continua um texto só — o pedido anterior
+   segue de pé —, agora dentro de um selo de bronze: um anel de runas que gira
+   devagar, um arco dourado que corre por dentro dele (é o arco que diz "está
+   carregando"; o anel lento é só ornamento) e a marca do sistema no centro,
+   acesa e respirando. Embaixo, um filete com losango e o texto em Cinzel.
+
+   O selo aparece com um pequeno atraso (ver .mn-carregando no CSS): a maioria
+   das páginas carrega em menos de um instante, e um selo que pisca e some a
+   cada troca de página cansa mais do que a espera.
+
+   `compacto` é para quem espera dentro de um modal pequeno: selo menor, sem
+   filete, altura mínima menor. */
+function Carregando({ lang, oQue, compacto }) {
   const txt = lang === 'en' ? 'Loading' : 'Carregando';
+  // 8 losangos no anel externo, um a cada 45°.
+  const estrelas = [0, 45, 90, 135, 180, 225, 270, 315];
   return (
-    <div className="mn-carregando" role="status" aria-live="polite">
-      <i className="ti ti-loader-2 mn-carregando-gira" aria-hidden="true" />
-      <span>{oQue ? `${txt} ${oQue}…` : `${txt}…`}</span>
+    <div className={'mn-carregando' + (compacto ? ' mn-carregando--compacto' : '')} role="status" aria-live="polite">
+      <div className="mn-carregando-selo" aria-hidden="true">
+        <svg viewBox="0 0 120 120" className="mn-carregando-svg">
+          <g className="mn-carregando-anel">
+            <circle cx="60" cy="60" r="55" className="mn-carregando-linha" />
+            <circle cx="60" cy="60" r="49" className="mn-carregando-runas" />
+            {estrelas.map((a) => (
+              <path key={a} d="M60 0 L64 5 L60 10 L56 5 Z" transform={`rotate(${a} 60 60)`} className="mn-carregando-losango" />
+            ))}
+          </g>
+          <circle cx="60" cy="60" r="41" className="mn-carregando-trilho" />
+          <circle cx="60" cy="60" r="41" className="mn-carregando-arco" pathLength="100" />
+          <circle cx="60" cy="60" r="33" className="mn-carregando-miolo" />
+        </svg>
+        <i className="ti ti-currency-monero mn-carregando-marca" />
+      </div>
+      {!compacto && (
+        <div className="mn-carregando-filete" aria-hidden="true">
+          <span /><i /><span />
+        </div>
+      )}
+      <div className="mn-carregando-txt">
+        {oQue ? `${txt} ${oQue}` : txt}
+        <span className="mn-carregando-pontos" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span>
+      </div>
     </div>
   );
 }
