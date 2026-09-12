@@ -327,6 +327,22 @@ Meteoros tem as duas coisas: teto de 5 fragmentos **e** área. Vale o teto —
 `alvos: 5` com `parcial: 'area'`, porque o número de fragmentos está no texto
 e o raio não.
 
+**O raio vem depois, e o código já nasce esperando por ele.** O usuário
+informou em 11/09/2026 que vai acrescentar raio de efeito a Bola de Fogo e
+Meteoros. Para que isso seja preenchimento de banco e não mudança de código, a
+seleção de alvos de uma magia `parcial: 'area'` lê um campo `raio` da magia:
+
+- **`raio` preenchido** → os alvos são todos os participantes dentro de `raio`
+  da célula escolhida, automaticamente, e o `parcial: 'area'` deixa de ser
+  anotado no log daquela magia.
+- **`raio` ausente ou 0** (estado de hoje) → seleção manual pelo Mestre, com
+  `parcial: 'area'` no log.
+
+O campo não existe ainda em `magias`; a leitura é tolerante a `undefined`, e um
+teste cobre os dois ramos com um objeto de magia montado à mão. Nenhuma
+migração entra nesta fase — quando a coluna chegar, o ramo automático liga
+sozinho.
+
 ---
 
 ## 7. Três defeitos encontrados no caminho
