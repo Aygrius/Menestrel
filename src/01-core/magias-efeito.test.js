@@ -203,8 +203,8 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem 67 entradas — 66 mais Auxilio Natural', () => {
-    expect(Object.keys(MAP)).toHaveLength(67);
+  it('tem 69 entradas — 67 mais Garras e Lamina de Luz', () => {
+    expect(Object.keys(MAP)).toHaveLength(69);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -367,6 +367,10 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     // Entrou depois de o usuario trocar "dano maximo" por "dano": a
     // ambiguidade era essa, e o texto novo e inequivoco.
     auxilio_natural:       'Causa 4 de dano e reduz 1 coluna de ataque.',
+    // Entraram depois de o usuario trocar `alcance` de "Pessoal" para
+    // "Toque": dano em inimigo com alcance que nao alcanca inimigo.
+    garras:                'Causa 4 de dano, ignora a energia heroica.',
+    lamina_de_luz:         'Causa 24 de dano elemental de luz.',
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',

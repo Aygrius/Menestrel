@@ -319,6 +319,9 @@ function elementoDoNivel(magia, nivel) {
                               produzem o mesmo número)
                    elemento — só em reducao_dano; null = qualquer elemento
                    pool     — 'eh' ou 'ef'
+                   ignora_eh — só em dano: o golpe pula a EH e cai direto na
+                              cascata AR→EF. Mesma chave que Golpe Letal
+                              acende nas técnicas (modsDoGolpe)
      so_racas?   restrição de alvo por criaturas.tipo (regra, não sugestão)
      inverte_em? raças em que o efeito INVERTE de sinal
      grupo_armas? restrição de arma, no molde das técnicas
@@ -330,8 +333,23 @@ function elementoDoNivel(magia, nivel) {
    Magia sem entrada aqui continua narrativa. É o fallback, não um erro.
    ============================================================ */
 const MAGIA_EFEITO_MAP = {
-  /* ── Dano (12) ─────────────────────────────────────────────────── */
+  /* ── Dano (14) ─────────────────────────────────────────────────── */
   bola_de_fogo:       { alvo: 'inimigo', alvos: 1, icone: '🔥', parcial: 'area',
+                        efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  /* Garras e Lâmina de Luz entraram em 12/09/2026, depois de o usuário
+     trocar `alcance` de "Pessoal" para "Toque" — era só isso que as segurava
+     fora: dano em inimigo com alcance que não alcança inimigo nenhum.
+
+     "Causa 4 de dano, IGNORA A ENERGIA HEROICA": a garra é sua, crava na
+     carne. `ignora_eh` manda a cascata pular a EH — a mesma chave que Golpe
+     Letal acende. `duracao: 20 rodadas` no banco quer dizer que a garra fica
+     na mão por 20 rodadas; o motor não tem arma temporária, então na mesa ela
+     é conjurada a cada golpe. Vale o dano, que é o que importa. */
+  garras:             { alvo: 'inimigo', alvos: 1, icone: '🐾',
+                        efeitos: [{ tipo: 'dano', unidade: 'dano', ignora_eh: true }] },
+  // "Causa 24 de dano elemental de luz" — elemento sai do texto (elementoDoNivel),
+  // então Fotoproteção do alvo corta esta e não corta as outras.
+  lamina_de_luz:      { alvo: 'inimigo', alvos: 1, icone: '⚔️',
                         efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
   // "25% do dano é convertido em energia heroica para você, podendo
   // ultrapassar seu limite" — o dreno é o único efeito que passa do teto.
@@ -620,23 +638,17 @@ const MAGIA_EFEITO_MAP = {
   heroismo:              { alvo: 'aliado', alvos: 1, icone: '🦸',
                            efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
 
-  /* ── AS 11 QUE FICARAM DE FORA, e por quê ──────────────────────────
+  /* ── AS 8 QUE FICARAM DE FORA, e por quê ───────────────────────────
      Nenhuma foi adivinhada. Todas seguem aparecendo como órfãs no
      verificador, que é o comportamento certo: número legível, motor ignora.
 
        aura_ameacadora  alvo é um OBJETO de arte tocado, e o efeito recai em
                         quem olhar. Não há alvo de combate a escolher.
-       auxilio_natural  "Cause 4 de DANO MÁXIMO" — no motor, dano_max é o teto
-                        de dano do alvo, não dano causado. O texto é ambíguo.
        campo_abencoado  "Restaura 1 de energia física POR HORA" — fora de
                         combate.
        doencas          doenças nomeadas, com efeito por atributo. Subsistema.
        forcar_disputa   "+2 de velocidade" em quem? A descrição é sobre atrair
                         o adversário; o bônus não tem dono claro.
-       garras           alcance Pessoal e causa dano: são as SUAS garras. O
-                        modelo trata Pessoal como "só em si mesmo".
-       lamina_de_luz    idem, e ainda "não tem efeito sobre outros seres" que
-                        não demônios e mortos-vivos.
        manjar_de_lena   restaura karma, que não é primitiva de rodada, e é
                         ritual de comida.
        parede_de_cristal  é uma PAREDE no terreno, não um buff num alvo.
@@ -646,8 +658,9 @@ const MAGIA_EFEITO_MAP = {
                         resistência. Buff que o alvo resiste não faz sentido
                         como buff; provável que seja debuff mal redigido.
 
-     Quatro delas (garras, lamina_de_luz, auxilio_natural, tensao) são
-     candidatas a CORREÇÃO DE TEXTO, não a código. Ver docs/manutencao-magias.md
+     Três (garras, lamina_de_luz, auxilio_natural) eram candidatas a CORREÇÃO
+     DE TEXTO e já entraram — sobrou tensao na mesma condição. Ver
+     docs/manutencao-magias.md
      ══════════════════════════════════════════════════════════════════ */
 
   /* ── META e ATRIBUTO (2) — 12/09/2026 ──────────────────────────────
@@ -943,12 +956,10 @@ const MAGIA_FORA_DO_REGISTRO = {
      aparecendo com o motivo antigo — o painel dizia "falta uma decisão sua",
      ele decidiu, e nada no sistema percebeu. Com o predicado, a magia muda de
      grupo sozinha e passa a dizer "pronta para entrar, me avise". */
-  garras: { classe: 'decisao',
-    motivo: 'Alcance "Pessoal" mas causa dano em inimigo. São as suas garras — se o alcance virar "Toque", entra.',
-    resolvido: (m) => !/pessoal/i.test(m.alcance || '') },
-  lamina_de_luz: { classe: 'decisao',
-    motivo: 'Mesmo caso de Garras: alcance "Pessoal" com dano em inimigo. Trocar para "Toque" resolve.',
-    resolvido: (m) => !/pessoal/i.test(m.alcance || '') },
+  /* Garras e Lâmina de Luz SAÍRAM daqui em 12/09/2026: o usuário trocou o
+     alcance para "Toque" e as duas entraram no MAGIA_EFEITO_MAP. É o ciclo
+     completo que o predicado existe para fechar — pendência marcada, texto
+     corrigido, painel percebe, magia ligada, pendência apagada. */
   forcar_disputa: { classe: 'decisao',
     motivo: 'O "+N de velocidade" é em quem — no conjurador ou no adversário atraído? A descrição não diz.',
     // Resolve quando o texto disser de quem é o bônus.

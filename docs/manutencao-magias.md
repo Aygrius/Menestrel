@@ -192,26 +192,29 @@ Decisão registrada em
 
 ## 7. Estado atual do catálogo
 
-Medido em 12/09/2026, depois da varredura das órfãs:
+Rodando a verificação contra o banco em 12/09/2026, no fim do dia:
 
 ```
-238 magias · 65 no motor · 0 quebradas · 0 ambíguas · 11 órfãs · 162 narrativas
+238 magias · 69 no motor · 0 quebradas · 0 ambíguas · 11 órfãs · 158 narrativas
 ```
 
-As **11 órfãs** que sobraram ficaram de fora por motivo registrado, não por
-esquecimento — o comentário no fim do `MAGIA_EFEITO_MAP` lista cada uma com a
-razão. Quatro são candidatas a **correção de texto**, não a código:
+**Zero quebradas e zero ambíguas**: nenhum texto do catálogo está ilegível para
+o motor hoje.
 
-| Magia | Problema no texto |
+As **11 órfãs** ficaram de fora por motivo registrado, não por esquecimento —
+nenhuma cai em *"sem motivo registrado"*. Oito são ritual ou dependem de
+sistema que o combate não tem. **Três esperam decisão sua:**
+
+| Magia | O que falta decidir |
 |---|---|
-| Garras | `alcance: Pessoal`, mas causa dano em inimigo |
-| Lâmina de Luz | idem |
-| ~~Auxílio Natural~~ | **resolvida** em 12/09/2026: *"dano máximo"* virou *"dano"*, e a magia entrou no motor |
-| Tensão | buff de defesa/velocidade/coluna que **exige teste de resistência** — buff que o alvo resiste não faz sentido |
+| Forçar Disputa | *"Aumenta N de velocidade"* — em quem? No conjurador ou no adversário atraído? |
+| Tensão | dá defesa, velocidade e coluna, mas **exige teste de resistência** — buff que o alvo resiste é debuff mal redigido? |
+| Parede de Cristal | é uma parede no terreno, não um efeito num alvo |
 
-Ajustando esses textos, elas entram no motor sem código novo. O painel avisa
-quando o ajuste pegou: a magia sai de *"Falta uma decisão sua"* e aparece em
-*"✓ Pronta para entrar"*.
+Três outras já fecharam esse ciclo no mesmo dia: **Garras** e **Lâmina de Luz**
+(alcance *"Pessoal"* → *"Toque"*) e **Auxílio Natural** (*"dano máximo"* →
+*"dano"*). O painel avisa quando o ajuste pega: a magia sai de *"Falta uma
+decisão sua"* e aparece em *"✓ Pronta para entrar"* — e aí é só me avisar.
 
 As outras sete precisam de sistemas que o combate não tem (objeto de arte como
 alvo, doenças por atributo, karma, parede no terreno, teste de atributo) ou são

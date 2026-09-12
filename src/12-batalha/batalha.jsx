@@ -2640,7 +2640,7 @@ function debitarCustoAtaque(p, tipo, custoKarma) {
    Por isso a função recebe o dano BRUTO e chama danoFinal contra CADA
    alvo. Para o alvo principal o resultado é idêntico ao de antes — é a
    mesma conta, com os mesmos dois participantes. */
-function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento, drena) {
+function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento, drena, furaEh) {
   if (!Array.isArray(arr) || alvoIdx < 0 || alvoIdx >= arr.length) return arr;
   if (!(danoBruto > 0)) return arr;
   const next = [...arr];
@@ -2659,7 +2659,10 @@ function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento,
         next[alvoIdx] = esq.participante;   // dano nenhum, status consumido
       } else {
         const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
-        next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
+        // `furaEh` vem da MAGIA (Garras), `modsG.ignoraEh` vem da TÉCNICA do
+        // atacante ou da condição do alvo. Somam-se: basta um para pular a EH.
+        next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes,
+          { critico, ...modsG, ignoraEh: modsG.ignoraEh || !!furaEh });
         /* DRENO (Toque Gélido): "Se for um ataque na energia física do alvo,
            25% do dano é convertido em energia heroica para você". O texto
            condiciona à EF, então a conta é sobre o que CHEGOU na EF — não
@@ -4023,6 +4026,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // campo por magia: quem sabe que a magia drena é o mapa.
     const drenaGolpe = tipo === 'magia' && magia
       && !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_eh');
+    // Garras: "Causa 4 de dano, ignora a energia heroica". Mesma origem do
+    // dreno — quem sabe é o registro, não um campo da linha da magia.
+    const furaEhGolpe = tipo === 'magia' && magia
+      && !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos
+        .some((e) => e.tipo === 'dano' && e.ignora_eh);
     /* LARGADA DA CANALIZAÇÃO: magia ofensiva de N rodadas não ataca ninguém
        agora. Cobra karma e PA, prende o conjurador, e o golpe acontece quando
        o contador zerar — momento em que este mesmo handler roda de novo, já
@@ -4043,7 +4051,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     let next = [...participantes];
     // Atacar É uma ação: derruba a concentração de quem ataca.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
-    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe);
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -4055,7 +4063,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const nomesAlvosExtras = [];
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
-      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe);
+      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
     });
     // Debita PA (sempre 1) e karma (se for magia).
     const k = Math.max(0, custo_karma || 0);
@@ -7435,6 +7443,11 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // campo por magia: quem sabe que a magia drena é o mapa.
     const drenaGolpe = tipo === 'magia' && magia
       && !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_eh');
+    // Garras: "Causa 4 de dano, ignora a energia heroica". Mesma origem do
+    // dreno — quem sabe é o registro, não um campo da linha da magia.
+    const furaEhGolpe = tipo === 'magia' && magia
+      && !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos
+        .some((e) => e.tipo === 'dano' && e.ignora_eh);
     /* LARGADA DA CANALIZAÇÃO: magia ofensiva de N rodadas não ataca ninguém
        agora. Cobra karma e PA, prende o conjurador, e o golpe acontece quando
        o contador zerar — momento em que este mesmo handler roda de novo, já
@@ -7464,7 +7477,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     let eventosVirada = [];
     // Atacar quebra a concentração de quem ataca — espelha aplicarAcao.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
-    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe);
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -7476,7 +7489,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const nomesAlvosExtras = [];
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
-      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe);
+      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
     });
     if (dano > 0) {
       // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele.

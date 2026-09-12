@@ -126,16 +126,18 @@ describe('a lista de fora-do-motor diz o MOTIVO e o que fazer', () => {
     <div className="menestrel-ui"><Painel magias={magias} lang="pt" /></div>
   );
 
-  // `alcance` importa: é o que o predicado `resolvido` de Garras inspeciona.
-  const GARRAS = { key: 'garras', nome: 'Garras', alcance: 'Pessoal',
-                   nivel_1: 'Causa 12 de dano.' };
+  /* A fixture era Garras, que ENTROU no motor em 12/09/2026 quando o usuário
+     trocou o alcance para "Toque". Exemplo de pendência precisa ser uma que
+     siga pendente: Forçar Disputa não diz de QUEM é o bônus de velocidade. */
+  const PENDENTE = { key: 'forcar_disputa', nome: 'Forçar Disputa',
+                     nivel_1: 'Aumenta 1 de velocidade.' };
   const RITUAL = { key: 'manjar_de_lena', nome: 'Manjar de Lena',
                    nivel_1: 'Restaura 5 de energia heroica.' };
   const DESCONHECIDA = { key: 'magia_nova_qualquer', nome: 'Magia Nova',
                          nivel_1: 'Causa 9 de dano.' };
 
   it('separa "falta decisão sua" de "ritual, nada a fazer"', () => {
-    montarOrfas([GARRAS, RITUAL]);
+    montarOrfas([PENDENTE, RITUAL]);
     fireEvent.click(cabecalho());
     expect(screen.getByText(/Falta uma decisão sua/)).toBeTruthy();
     // "nada a fazer" aparece duas vezes na tela — no título do grupo e no
@@ -144,10 +146,9 @@ describe('a lista de fora-do-motor diz o MOTIVO e o que fazer', () => {
   });
 
   it('mostra o motivo concreto, não só o nome', () => {
-    montarOrfas([GARRAS]);
+    montarOrfas([PENDENTE]);
     fireEvent.click(cabecalho());
-    // Garras: alcance Pessoal com dano em inimigo — trocar para Toque resolve.
-    expect(screen.getByText(/alcance virar "Toque"/)).toBeTruthy();
+    expect(screen.getByText(/é em quem/)).toBeTruthy();
   });
 
   it('magia SEM motivo registrado cai num grupo que convida a perguntar', () => {
@@ -177,16 +178,21 @@ describe('a pendência SOME quando o texto é corrigido', () => {
     <div className="menestrel-ui"><Painel magias={[m]} lang="pt" /></div>
   );
 
-  it('Garras com alcance Pessoal: ainda falta decisão', () => {
-    montarUm({ key: 'garras', nome: 'Garras', alcance: 'Pessoal',
-               nivel_1: 'Causa 12 de dano.' });
+  /* Forçar Disputa: "Aumenta N de velocidade" sem dizer em quem. O predicado
+     procura o dono do bônus no texto. */
+  const SEM_DONO  = { key: 'forcar_disputa', nome: 'Forçar Disputa',
+                      nivel_1: 'Aumenta 1 de velocidade.' };
+  const COM_DONO  = { key: 'forcar_disputa', nome: 'Forçar Disputa',
+                      nivel_1: 'Aumenta 1 de velocidade no alvo.' };
+
+  it('sem dizer de quem é o bônus: ainda falta decisão', () => {
+    montarUm(SEM_DONO);
     fireEvent.click(cabecalho());
     expect(screen.getByText(/Falta uma decisão sua/)).toBeTruthy();
   });
 
-  it('Garras com alcance Toque: PRONTA para entrar', () => {
-    montarUm({ key: 'garras', nome: 'Garras', alcance: 'Toque',
-               nivel_1: 'Causa 12 de dano.' });
+  it('texto dizendo "no alvo": PRONTA para entrar', () => {
+    montarUm(COM_DONO);
     fireEvent.click(cabecalho());
     expect(screen.getByText(/Pronta para entrar/)).toBeTruthy();
     expect(screen.queryByText(/Falta uma decisão sua/)).toBeNull();
@@ -195,7 +201,7 @@ describe('a pendência SOME quando o texto é corrigido', () => {
   it('o grupo "pronta" vem PRIMEIRO — é o único acionável', () => {
     const { container } = render(
       <div className="menestrel-ui"><Painel lang="pt" magias={[
-        { key: 'garras', nome: 'Garras', alcance: 'Toque', nivel_1: 'Causa 12 de dano.' },
+        COM_DONO,
         { key: 'manjar_de_lena', nome: 'Manjar', nivel_1: 'Restaura 5 de energia heroica.' },
       ]} /></div>
     );

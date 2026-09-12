@@ -923,3 +923,53 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
     ].forEach((fn) => expect(M[fn], fn).toBeTypeOf('function'));
   });
 });
+
+describe('ignora_eh — Garras crava na carne', () => {
+  /* "Causa 4 de dano, ignora a energia heroica." A cascata normal come a EH
+     primeiro; a garra pula direto para armadura→EF. É a mesma chave que Golpe
+     Letal acende nas técnicas — o que faltava era a magia poder acendê-la. */
+  const atacante = () => ({ inst_id: 'c1', eh: 10, eh_max: 10, status_temp: [] });
+  const vitima = (over = {}) => ({
+    inst_id: 'v1', eh: 30, eh_max: 30, ar: 0, ar_max: 0, res: 0,
+    ef: 40, ef_max: 40, status: 'ativo', status_temp: [], ...over,
+  });
+
+  it('com a flag, a EH inteira do alvo é ignorada', () => {
+    const r = M.aplicarGolpeEmAlvo([atacante(), vitima()], 0, 1, 12, false, null, false, true);
+    expect(r[1].eh).toBe(30);      // intacta
+    expect(r[1].ef).toBe(28);      // levou os 12
+  });
+
+  it('sem a flag, a EH segura o golpe (é a cascata de sempre)', () => {
+    const r = M.aplicarGolpeEmAlvo([atacante(), vitima()], 0, 1, 12, false, null, false, false);
+    expect(r[1].eh).toBe(18);
+    expect(r[1].ef).toBe(40);
+  });
+
+  it('a armadura ainda segura: ignora a EH, não a proteção', () => {
+    const r = M.aplicarGolpeEmAlvo([atacante(), vitima({ ar: 20, ar_max: 20, res: 3 })],
+                                   0, 1, 12, false, null, false, true);
+    expect(r[1].ef).toBe(40);      // golpe abaixo do limiar: bloqueado inteiro
+  });
+
+  it('o registro de Garras é quem declara a flag', () => {
+    const reg = window.MAGIA_EFEITO_MAP.garras;
+    expect(reg.efeitos.some((e) => e.tipo === 'dano' && e.ignora_eh)).toBe(true);
+  });
+
+  it('e OS DOIS handlers de ação acendem a flag — Mestre e Jogador', async () => {
+    /* Sem este elo a flag existiria no mapa e não chegaria na cascata — foi
+       exatamente o que aconteceu com `pool: 'eh'` de Covardia, que está
+       declarado e ninguém lê. E são dois caminhos: o ataque do Mestre e o do
+       Jogador são handlers separados que precisam ficar idênticos. */
+    const { readFileSync } = await import('node:fs');
+    const { resolve, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const fonte = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), 'batalha.jsx'), 'utf8');
+    const derivacoes = fonte.match(/const furaEhGolpe =/g) || [];
+    expect(derivacoes.length, 'Mestre e Jogador').toBe(2);
+    const passagens = fonte.match(/aplicarGolpeEmAlvo\([^)]*furaEhGolpe\)/g) || [];
+    expect(passagens.length, 'alvo principal e alvos extras, nos dois').toBe(4);
+  });
+});
