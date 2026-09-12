@@ -74,8 +74,12 @@ describe('o painel começa fechado', () => {
 });
 
 describe('órfãs aparecem como oportunidade, não como erro', () => {
-  const ORFA = { key: 'hidroprotecao', nome: 'Hidroproteção',
-    nivel_1: 'Reduz 16 de dano elemental de água.' };
+  /* A fixture era Hidroproteção, que ENTROU no registro na varredura de
+     12/09/2026 — órfã de exemplo precisa ser uma que siga de fora. Melodia Zen
+     ficou por motivo registrado: exige meia hora de música ininterrupta, não
+     é ação de combate. */
+  const ORFA = { key: 'melodia_zen', nome: 'Melodia Zen',
+    nivel_1: 'Durante meia hora de música, recuperando 8 de energia heroica.' };
 
   it('não acendem a borda de alerta', () => {
     const { container } = montar([ORFA]);
@@ -90,8 +94,8 @@ describe('órfãs aparecem como oportunidade, não como erro', () => {
   it('e listadas com a unidade que o motor saberia ler', () => {
     montar([ORFA]);
     fireEvent.click(cabecalho());
-    expect(screen.getByText('Hidroproteção')).toBeTruthy();
-    expect(screen.getByText(/reducao_dano/)).toBeTruthy();
+    expect(screen.getByText('Melodia Zen')).toBeTruthy();
+    expect(screen.getByText(/cura_eh/)).toBeTruthy();
   });
 });
 

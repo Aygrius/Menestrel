@@ -256,11 +256,21 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
     expect(MAP.oferenda).toBeDefined();
   });
 
-  it('protecao_animal é a key de Aeroproteção — nome e chave divergem no banco', () => {
-    // Documentado aqui porque é armadilha: quem procurar 'aeroprotecao' no
-    // mapa não acha, e renomear a key quebraria pj.magias dos personagens.
-    expect(MAP.protecao_animal).toBeDefined();
-    expect(MAP.aeroprotecao).toBeUndefined();
+  it('as chaves foram ALINHADAS aos nomes em 12/09/2026', () => {
+    /* Seis magias tinham key divergente do nome — Aeroproteção era
+       "protecao_animal", Hidroproteção era "protecao_elemental". Procurar
+       pela magia pelo nome não a encontrava, e as quatro iniciadas por
+       "protecao_" ainda ocupavam um espaço de nomes genérico.
+
+       Alinhadas por scripts/sql/magias-key-alinha-nome.sql, que renomeou
+       também personagens.magias. Criaturas referenciam por NOME e não
+       foram afetadas. */
+    expect(MAP.aeroprotecao).toBeDefined();
+    expect(MAP.hidroprotecao).toBeDefined();
+    expect(MAP.fotomanipulacao).toBeDefined();
+    expect(MAP.protecao_animal).toBeUndefined();
+    expect(MAP.protecao_elemental).toBeUndefined();
+    expect(MAP.manipulacao_de_luz).toBeUndefined();
   });
 });
 
@@ -293,11 +303,11 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     forca_mutua:        'Aumenta 1 coluna de ataque.',
     geomanipulacao:     'Causa 4 de dano elemental de terra.',
     hidromanipulacao:   'Cause 4 de dano elemental de água.',
-    manipulacao_de_luz: 'Causa 4 de dano elemental de luz.',
+    fotomanipulacao:    'Causa 4 de dano elemental de luz.',
     meteoros:           'Cada fragmento causa 12 de dano elemental da terra.',
     piromanipulacao:    'Causa 4 de dano elemental de fogo.',
     piroprotecao:       'Reduz 16 de dano elemental de fogo.',
-    protecao_animal:    'Reduz 16 de dano elemental de ar.',
+    aeroprotecao:       'Reduz 16 de dano elemental de ar.',
     raio_eletrico:      'Cada raio causa 12 de dano elemental fogo.',
     super_resistencia:  'Aumenta 1 de resistência física e 1 de resistência mágica.',
     toque_gelido:       'Cause 12 de dano base.',
@@ -330,7 +340,7 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     putrefacao:            'Cause 12 de dano base.',
     onda_destrutiva:       'Cause 4 de dano base.',
     narrativa_real:        'Cause 16 de dano base.',
-    protecao_elemental:    'Reduz 16 de dano elemental de água.',
+    hidroprotecao:         'Reduz 16 de dano elemental de água.',
     destreza_animal:       'Aumente 2 colunas de ataque.',
     obstinacao:            'Aumente 1 coluna de ataque, 1 de resistência física, 1 de resistência mágica e 5 de energia heroica.',
     coordenacao:           'Aumente 1 coluna de ataque e 2 de velocidade.',
@@ -522,11 +532,16 @@ describe('auditarMagias — o verificador de manutenção do catálogo', () => {
   });
 
   it('ÓRFÃ: tem número mecânico legível e NÃO tem registro', () => {
-    // A lista que responde "que magia eu deveria acrescentar a seguir".
-    const r = auditar([{ key: 'hidroprotecao', nome: 'Hidroproteção',
-      nivel_1: 'Reduz 16 de dano elemental de água.' }]);
+    /* A lista que responde "que magia eu deveria acrescentar a seguir".
+
+       A fixture era Hidroproteção, que ENTROU no registro na varredura de
+       12/09/2026 — órfã de exemplo precisa ser uma que siga de fora. Melodia
+       Zen ficou por motivo registrado: exige meia hora de música
+       ininterrupta, não é ação de combate. */
+    const r = auditar([{ key: 'melodia_zen', nome: 'Melodia Zen',
+      nivel_1: 'Durante meia hora de música, recuperando 8 de energia heroica.' }]);
     expect(r.orfa).toHaveLength(1);
-    expect(r.orfa[0].unidades).toEqual(['reducao_dano']);
+    expect(r.orfa[0].unidades).toEqual(['cura_eh']);
   });
 
   it('NARRATIVA: sem registro e sem número — nada a fazer', () => {
@@ -539,7 +554,7 @@ describe('auditarMagias — o verificador de manutenção do catálogo', () => {
   it('o resumo conta tudo e fecha com o total', () => {
     const r = auditar([
       { key: 'bencao', nome: 'B', nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' },
-      { key: 'hidroprotecao', nome: 'H', nivel_1: 'Reduz 16 de dano elemental de água.' },
+      { key: 'melodia_zen', nome: 'M', nivel_1: 'Cure 8 de energia heroica.' },
       { key: 'xyz', nome: 'X', nivel_1: 'Narrativa pura.' },
     ]);
     const s = resumo(r);

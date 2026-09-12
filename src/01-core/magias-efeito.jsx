@@ -46,9 +46,36 @@ const MAGIA_VERBOS = {
   recuperam: 'cura',
   // Gerúndio: Melodia Zen escreve "recuperando 8 de energia heroica".
   recuperando: 'cura',
+  /* `cure` é o terceiro sinônimo de restaurar, e aparece em Heroísmo
+     ("Cure 10 de energia heroica") e Hibernar. Varredura de 12/09/2026. */
+  cure:     'cura',
+  /* `adiciona` chegou com o texto novo do Véu de Maira: "Restaura 15 de
+     energia heroica e ADICIONA 1 coluna de ataque". Funcionava por acaso —
+     caía no ramo de cura, que passa adiante o que não é poço —, mas depender
+     de acaso é o que faz magia parar de funcionar em silêncio. */
+  adiciona: 'mais',
+  adicione: 'mais',
   causa:    'dano',
   cause:    'dano',
 };
+
+/* ── Verbos que a varredura NÃO adotou, e por quê ───────────────────
+   A varredura do catálogo (12/09/2026) achou estes antes de números, e eles
+   ficaram de fora porque o sentido não é inequívoco. Adotá-los seria eu
+   decidir regra de jogo lendo prosa:
+
+     recebe     "Recebe 10 de energia heroica adicional" (Necropotência) —
+                parece ganho, mas "recebe 10 de dano" seria o oposto.
+     absorve    absorção de dano, que é outro subsistema.
+     transfere  move recurso entre alvos: precisa de origem E destino.
+     converta   troca um recurso por outro.
+     altera / modifique / economiza
+                genéricos demais para inferir sinal ou unidade.
+     conceda    "Conceda ao morto-vivo 15 de energia física" (Criatura
+                Disforme) — o alvo é uma criatura invocada, não participante.
+
+   Se alguma delas precisar virar regra, o caminho é o de sempre: decidir o
+   sentido com o usuário e acrescentar aqui, não deduzir. */
 
 /* Unidade = a frase que vem DEPOIS do número. Cada entrada aponta pro nome do
    campo de saída. `coluna` casa "coluna de ataque" e o plural "colunas". */
@@ -108,7 +135,7 @@ const MAGIA_UNIDADES = [
    entravam como 'mais'. Em Licantropia o resultado saía certo por acidente —
    o registro é que dá o sinal —, mas um texto com "Aumenta 2 de X e reduz 3
    de X" teria o segundo sobrescrevendo o primeiro sob a ação errada. */
-const RE_VERBO = /\b(aumenta|aumente|reduz|reduza|diminui|diminua|restaura|recupera|recupere|recuperam|recuperando|causa|cause)\b/gi;
+const RE_VERBO = /\b(aumenta|aumente|reduz|reduza|diminui|diminua|restaura|recupera|recupere|recuperam|recuperando|cure|adiciona|adicione|causa|cause)\b/gi;
 
 /* ── O leitor, com diagnóstico ─────────────────────────────────────
    `efeitosNoNivel` devolve só os valores; esta devolve também o que o parser
@@ -290,7 +317,7 @@ const MAGIA_EFEITO_MAP = {
                         efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
   hidromanipulacao:   { alvo: 'inimigo', alvos: 1, icone: '💧',
                         efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
-  manipulacao_de_luz: { alvo: 'inimigo', alvos: 1, icone: '✨',
+  fotomanipulacao:    { alvo: 'inimigo', alvos: 1, icone: '✨',
                         efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
   // Multi-alvo: o número vem da DESCRIÇÃO, não do texto do nível —
   // "três dardos ... em até três alvos escolhidos".
@@ -309,9 +336,9 @@ const MAGIA_EFEITO_MAP = {
                         efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
 
   /* ── Redução de dano (3) ───────────────────────────────────────── */
-  // `protecao_animal` é a KEY de Aeroproteção no banco — nome e chave
-  // divergem desde algum import antigo. NÃO renomear: quebra pj.magias.
-  protecao_animal:    { alvo: 'self', alvos: 1, icone: '🌬️',
+  // A key era `protecao_animal` até 12/09/2026, quando as seis chaves que
+  // divergiam do nome foram alinhadas — ver scripts/sql/magias-key-alinha-nome.sql.
+  aeroprotecao:       { alvo: 'self', alvos: 1, icone: '🌬️',
                         efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano',
                                     elemento: 'ar' }] },
   piroprotecao:       { alvo: 'self', alvos: 1, icone: '🛡️',
@@ -466,11 +493,10 @@ const MAGIA_EFEITO_MAP = {
                            efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
 
   /* ── Redução de dano ──────────────────────────────────────────────
-     ATENÇÃO À CHAVE: Hidroproteção é `protecao_elemental` no banco, como
-     Aeroproteção é `protecao_animal`. Nome e chave divergem desde algum
-     import antigo, e procurar por `hidroprotecao` não acha. Não renomeie:
-     quebra pj.magias e criaturas.magia. */
-  protecao_elemental:    { alvo: 'self', alvos: 1, icone: '💧',
+     A key era `protecao_elemental` — soava genérica e era especificamente
+     água, e procurar por `hidroprotecao` não achava nada. Alinhada ao nome em
+     12/09/2026 junto de outras cinco; ver scripts/sql/magias-key-alinha-nome.sql. */
+  hidroprotecao:         { alvo: 'self', alvos: 1, icone: '💧',
                            efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano',
                                        elemento: 'agua' }] },
 

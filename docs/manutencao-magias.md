@@ -34,8 +34,18 @@ para equilibrar magia ser trabalho de banco.
 verbo + número + unidade
 ```
 
-**Verbos:** `Aumenta/Aumente`, `Reduz/Reduza`, `Diminui/Diminua`,
-`Restaura`, `Causa/Cause`.
+**Verbos:**
+
+| Sentido | Formas aceitas |
+|---|---|
+| bônus | `Aumenta/Aumente`, `Adiciona/Adicione` |
+| penalidade | `Reduz/Reduza`, `Diminui/Diminua` |
+| restaurar poço | `Restaura`, `Recupera/Recupere/Recuperam/Recuperando`, `Cure` |
+| causar dano | `Causa/Cause` |
+
+Verbo fora dessa lista faz o leitor **não entender nada** da frase, e a magia
+vira efeito zero em silêncio. Foi o que aconteceu ao trocar "Aumente" por
+"Recupera" no Véu de Maira — o verificador pegou.
 
 **Unidades:** `coluna(s) de ataque`, `de energia heroica`, `de energia física`,
 `de resistência física`, `de resistência mágica`, `de velocidade`, `de defesa`,
@@ -75,6 +85,11 @@ Estes **não** são conteúdo. Mudá-los quebra referências, em silêncio.
 ### `key`
 É por ela que **`personagens.magias`** referencia. Trocar a chave apaga a magia
 da ficha de todo PJ que a comprou. O editor já a trava depois da criação.
+
+Desde 12/09/2026 a `key` **deriva do nome** em todas as 238 — seis divergiam
+(Aeroproteção era `protecao_animal`, Hidroproteção era `protecao_elemental`) e
+foram alinhadas por `scripts/sql/magias-key-alinha-nome.sql`, que renomeou
+também `personagens.magias`. Se criar magia nova, deixe o editor gerar a chave.
 
 ### `nome`
 É por ele que **`criaturas.magia`** referencia — aquele campo é texto com os
