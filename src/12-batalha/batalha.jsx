@@ -915,6 +915,27 @@ function pontosAcaoPJ(pj) {
   return (guerreiroOuLadino && pj.especializacao) ? 2 : 1;
 }
 
+/* ── Pontos de ação DESTA rodada, a partir da base e da velocidade ─
+   Regra do sistema, lida da descrição da magia Velocidade: "Se sua velocidade
+   ultrapassar 30, você terá uma segunda ação na mesma rodada". Vale para
+   QUALQUER combatente acima de 30, PJ ou criatura, venha o bônus de magia ou
+   de velocidade natural — confirmado pelo usuário em 12/09/2026.
+
+   "Ultrapassar" é ESTRITO: 30 exatos não ganham.
+
+   `pa_max` é a BASE (profissão no PJ, 1 na criatura) e não muda; o bônus
+   entra no `pa_rest` de cada rodada. Por isso esta função existe e é chamada
+   nos dois lugares que montam pa_rest — montarSnapshots (rodada 1) e
+   processarViradaDeRodada (da 2 em diante).
+
+   Existir num lugar só é o ponto: o bônus vivia SÓ na virada de rodada, então
+   na primeira rodada ninguém o recebia. Um combatente veloz agia uma vez na
+   rodada 1 e duas da 2 em diante, sem nada explicando a diferença. */
+function paDaRodada(paBase, vbEfetivoDoP) {
+  const base = Math.max(0, Number(paBase) || 0);
+  return base + ((Number(vbEfetivoDoP) || 0) > 30 ? 1 : 0);
+}
+
 /* ── Dano em cascata EH → AR → EF (com transbordo) ────────────── */
 /* Crítico pula a EH e começa na AR. Excedente após a EF bater o piso de   */
 /* morte é "sobra" (overkill).                                             */
@@ -1154,7 +1175,10 @@ async function montarSnapshots(parts, personagensPools) {
         mov_rest: movimentoBase(d.velocidade || 0),
         foto_url: pj.foto_url || null,
         raca: pj.raca || null,
-        vb: d.velocidade || 0, pa_max: pa, pa_rest: pa,
+        // pa_rest ganha o bônus de velocidade JÁ NA RODADA 1 (paDaRodada):
+        // antes ele só entrava na virada, e o veloz agia uma vez a menos na
+        // primeira rodada que em todas as outras.
+        vb: d.velocidade || 0, pa_max: pa, pa_rest: paDaRodada(pa, d.velocidade || 0),
         eh: ehCur, eh_max: ehMax,
         ar: arCur, ar_max: arMax,
         res: resCur, res_max: resMax, armadura_pecas: pecasArm,
@@ -1197,7 +1221,9 @@ async function montarSnapshots(parts, personagensPools) {
          como "não dá pra conferir" e deixa passar, marcando parcial no log,
          em vez de bloquear um alvo que talvez fosse válido. */
       estagio: c.estagio != null ? c.estagio : null,
-      vb: c.velocidade || 0, pa_max: 1, pa_rest: 1,
+      // Base 1, mesma regra do PJ: acima de velocidade 30 ganha mais uma ação
+      // (confirmado pelo usuário em 12/09/2026). O bônus entra no pa_rest.
+      vb: c.velocidade || 0, pa_max: 1, pa_rest: paDaRodada(1, c.velocidade || 0),
       eh: c.energia_heroica || 0, eh_max: c.energia_heroica || 0,
       ar: c.absorcao || 0,        ar_max: c.absorcao || 0,
       // A tabela `criaturas` não tem coluna de resistência — derivada pela
@@ -2185,7 +2211,7 @@ function processarViradaDeRodada(p) {
   // montarNovaRodada — os três andam sempre juntos.
   const vbEf = vbEfetivo(p);
   let next = (p.status === 'ativo')
-    ? { ...p, pa_rest: p.pa_max + (vbEf > 30 ? 1 : 0),
+    ? { ...p, pa_rest: paDaRodada(p.pa_max, vbEf),
               mov_rest: movimentoBase(vbEf), moveu_na_rodada: false,
               // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
               // modo 'total' é POR RODADA — mesmo padrão de moveu_na_rodada.
@@ -8078,7 +8104,7 @@ Object.assign(window, {
   // vive dentro de MotorBatalha, mas o teste chama via window direto.
   tecnicasCompativeisComArma,
   MotorBatalha: {
-    EF_MORTE, pontosAcaoPJ, aplicarDanoCascata, ordenarIniciativa,
+    EF_MORTE, pontosAcaoPJ, paDaRodada, aplicarDanoCascata, ordenarIniciativa,
     // mesmoParticipante é usado também pelo tabuleiro (12-batalha/tabuleiro.jsx)
     // pra ignorar o próprio token ao testar colisão de célula.
     mesmoParticipante,

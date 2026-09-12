@@ -420,3 +420,42 @@ describe('canalizar PRENDE o conjurador e a vez passa sozinha', () => {
     expect(M.evocacaoPrendeAcao(null)).toBe(false);
   });
 });
+
+describe('PA por rodada — a mesma regra para PJ e criatura', () => {
+  /* Confirmado pelo usuário em 12/09/2026: "O PA das criaturas é calculado
+     igual dos jogadores, acima de velocidade 30 ganha mais uma."
+
+     O bônus existia, mas SÓ em processarViradaDeRodada — ou seja, da rodada 2
+     em diante. O snapshot da rodada 1 montava pa_rest sem ele, e um combatente
+     veloz agia uma vez na primeira rodada e duas em todas as outras, sem nada
+     explicando a diferença. paDaRodada passou a ser a fonte única, chamada
+     pelos dois lugares. */
+  it('velocidade acima de 30 dá uma ação a mais', () => {
+    expect(M.paDaRodada(1, 31)).toBe(2);
+  });
+
+  it('"ultrapassar" é ESTRITO: 30 exatos não ganham', () => {
+    expect(M.paDaRodada(1, 30)).toBe(1);
+  });
+
+  it('a base do PJ especializado também recebe o bônus', () => {
+    expect(M.paDaRodada(2, 35)).toBe(3);
+  });
+
+  it('velocidade baixa não tira nada', () => {
+    expect(M.paDaRodada(1, 10)).toBe(1);
+  });
+
+  it('a virada de rodada usa a mesma regra', () => {
+    const veloz = { status: 'ativo', pa_max: 1, vb: 35, status_temp: [] };
+    expect(M.processarViradaDeRodada(veloz).participante.pa_rest).toBe(2);
+  });
+
+  it('buff de velocidade que cruza 30 concede a ação extra na virada', () => {
+    // vbEfetivo soma mod_vb: quem tem 28 e recebe +5 de Velocidade passa a 33.
+    const p = { status: 'ativo', pa_max: 1, vb: 28, status_temp: [
+      { id: 'mag_velocidade', rodadas_rest: 5, efeito: { tipo: 'mod_vb', valor: 5 } },
+    ] };
+    expect(M.processarViradaDeRodada(p).participante.pa_rest).toBe(2);
+  });
+});
