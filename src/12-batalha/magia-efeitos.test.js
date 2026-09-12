@@ -850,3 +850,76 @@ describe('Oferenda — a magia seguinte sai ampliada', () => {
     expect(M.aplicarCuraPool(p, 'eh', 5).eh).toBe(10);                       // EH não é afetada
   });
 });
+
+describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
+  /* O PONTO CEGO QUE ESTE BLOCO FECHA.
+
+     O verificador do catálogo (auditarMagias) confere se o TEXTO é legível.
+     Ele não tem como saber se a primitiva declarada é lida por alguém — e por
+     isso diz "ok" para uma magia que escreve um status que ninguém consulta.
+
+     Aconteceu duas vezes nesta sessão:
+       Oferenda      declarou mod_nivel_magia e nada o consumia; a magia
+                     gastava EF e a próxima saía no nível de sempre.
+       Fase 1        deixou proteção elemental, cura, dreno e a evocação
+                     inteira como funções corretas que nada chamava.
+
+     Aqui a lista é explícita: acrescentar primitiva ao registro sem ligá-la
+     quebra o teste na hora. */
+
+  // Primitivas com consumidor de verdade, e onde ele mora.
+  const LIGADAS = {
+    dano:            'aplicarGolpeEmAlvo → aplicarDanoCascata',
+    dano_por_rodada: 'processarDanoPorRodada',
+    reducao_dano:    'danoFinal → danoAposReducao',
+    cura_pool:       'aplicarCurasDaMagia → aplicarCuraPool',
+    dreno_eh:        'aplicarGolpeEmAlvo → aplicarDrenoEh',
+    mod_ataque:      'somaModAtaque',
+    mod_coluna:      'somaEfeitosStatus na coluna de toda ação',
+    mod_defesa:      'defesa efetiva do alvo',
+    mod_vb:          'vbEfetivo',
+    mod_rf:          'resolução de resistência',
+    mod_rm:          'resolução de resistência',
+    mod_eh_temp:     'aplicarEfeitoMagia + expirarEhTemp',
+    mod_dano_max:    'danoFinal',
+    sem_acoes:       'temAcaoRestante + proximoAtivo',
+    mod_nivel_magia: 'nivelComOferenda + consumirOferenda',
+    sem_cura_ef:     'aplicarCuraPool',
+  };
+
+  /* Primitivas DECLARADAS e ainda SEM consumidor. A lista existe para o
+     estado ser explícito em vez de surpresa — e para encolher, nunca crescer.
+
+     mod_atributo — Licantropia Lupina. O atributo chega ao combate pela
+     coluna de ataque (gerarAtaques aplica o `ajuste_atributo` da arma), e
+     ligá-lo exige passar modificadores por calcularFicha. Os poços derivados
+     (EF, defesa, RF) ficam congelados no snapshot e NÃO acompanhariam, o que
+     é uma inconsistência que precisa de decisão de regra antes de código.
+     O usuário avisou em 12/09/2026 que vai alterar a magia. */
+  const PENDENTES = { mod_atributo: 'Licantropia — ver comentário acima' };
+
+  it('nenhuma primitiva do registro ficou sem consumidor por acidente', () => {
+    const tipos = new Set();
+    Object.values(window.MAGIA_EFEITO_MAP).forEach((reg) => {
+      reg.efeitos.forEach((ef) => tipos.add(ef.tipo));
+    });
+    const semConsumidor = [...tipos].filter((t) => !LIGADAS[t] && !PENDENTES[t]);
+    expect(semConsumidor,
+      `primitiva(s) no registro sem consumidor e sem justificativa: ${semConsumidor.join(', ')}`)
+      .toEqual([]);
+  });
+
+  it('a lista de pendentes não cresceu', () => {
+    // Ela só deve encolher. Se precisar crescer, é decisão consciente — e o
+    // motivo vai no comentário, como o do mod_atributo.
+    expect(Object.keys(PENDENTES)).toEqual(['mod_atributo']);
+  });
+
+  it('as primitivas LIGADAS realmente existem no motor', () => {
+    // Guarda contra a lista virar ficção: se alguém remover uma função, o
+    // nome some do arquivo e o teste acusa.
+    ['aplicarCuraPool', 'aplicarDrenoEh', 'danoAposReducao', 'nivelComOferenda',
+     'consumirOferenda', 'aplicarCurasDaMagia', 'evocacaoPrendeAcao',
+    ].forEach((fn) => expect(M[fn], fn).toBeTypeOf('function'));
+  });
+});
