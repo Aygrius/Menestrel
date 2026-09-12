@@ -415,3 +415,39 @@ describe('textoEfeitoMagia — o que vai pro log da mesa', () => {
       .toBe('-4 de velocidade');
   });
 });
+
+describe('a cura está LIGADA à aba Apoio', () => {
+  /* aplicarEfeitoMagia ignora efeito instantâneo de propósito — cura não é
+     status_temp. Mas alguém tem que aplicá-la, senão Curas Físicas vira uma
+     magia que gasta karma e não faz nada. aplicarEfeitoApoio é a ponte. */
+  const CURAS_EF = { key: 'curas_fisicas', nome: 'Curas Físicas', duracao: 'Instantânea',
+                     nivel_1: 'Restaura 4 de energia física.' };
+  const CURAS_EH = { key: 'curas_espirituais', nome: 'Curas Espirituais', duracao: 'Instantânea',
+                     nivel_1: 'Restaura 20 de energia heroica.' };
+  const apoio = (cat) => ({ key: cat.key, nome: cat.nome, nivel: 1, catalogo: cat });
+
+  it('Curas Físicas restaura EF pela aba Apoio', () => {
+    const r = M.aplicarEfeitoApoio(alvo({ ef: 5, ef_max: 20 }), apoio(CURAS_EF), 'c1');
+    expect(r.ef).toBe(9);
+  });
+
+  it('Curas Espirituais restaura EH, respeitando o teto', () => {
+    const r = M.aplicarEfeitoApoio(alvo({ eh: 2, eh_max: 10 }), apoio(CURAS_EH), 'c1');
+    expect(r.eh).toBe(10);
+  });
+
+  it('em morto-vivo, Curas Espirituais QUEIMA a EH', () => {
+    const morto = alvo({ raca: 'Morto', eh: 20, eh_max: 20 });
+    expect(M.aplicarEfeitoApoio(morto, apoio(CURAS_EH), 'c1').eh).toBe(0);
+  });
+
+  it('cura NÃO deixa status_temp para trás', () => {
+    const r = M.aplicarEfeitoApoio(alvo({ ef: 5, ef_max: 20 }), apoio(CURAS_EF), 'c1');
+    expect(r.status_temp).toHaveLength(0);
+  });
+
+  it('magia que só dá buff não passa pela cura', () => {
+    const r = M.aplicarEfeitoApoio(alvo(), { key: 'bencao', nome: 'Bênção', nivel: 1, catalogo: BENCAO }, 'c1');
+    expect(r.ef).toBe(20);
+  });
+});

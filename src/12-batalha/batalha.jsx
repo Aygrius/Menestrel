@@ -2266,8 +2266,13 @@ function aplicarEfeitoApoio(participante, magiaApoio, atorInstId) {
     // O catálogo inteiro quando magiasDeApoioDoAtor o anexou; senão o próprio
     // objeto, que nos testes antigos já carrega os campos nivel_N.
     const cat = magiaApoio.catalogo || magiaApoio;
-    return aplicarEfeitoMagia(participante, { ...cat, key: magiaApoio.key, nome: magiaApoio.nome },
-      magiaApoio.nivel, { fonteInstId: atorInstId });
+    const magiaCompleta = { ...cat, key: magiaApoio.key, nome: magiaApoio.nome };
+    const comStatus = aplicarEfeitoMagia(participante, magiaCompleta, magiaApoio.nivel,
+      { fonteInstId: atorInstId });
+    // aplicarEfeitoMagia cuida só do que VIRA STATUS. A cura acontece e acaba,
+    // então não é status_temp — mas tem que acontecer, senão Curas Físicas
+    // seria uma magia que não faz nada.
+    return aplicarCurasDaMagia(comStatus, magiaCompleta, magiaApoio.nivel);
   }
 
   const atual = Array.isArray(participante.status_temp) ? participante.status_temp : [];
@@ -2654,6 +2659,27 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
     };
   }
   return resultado;
+}
+
+/* ── Curas de uma magia, aplicadas de uma vez (puro) ───────────────
+   A ponte entre o registro e aplicarCuraPool. Existe porque a cura é
+   INSTANTÂNEA: não vira status_temp, então aplicarEfeitoMagia a ignora de
+   propósito — mas alguém precisa aplicá-la, senão Curas Físicas é uma magia
+   que não faz nada.
+
+   A inversão em morto-vivo entra aqui, onde o alvo está à mão. */
+function aplicarCurasDaMagia(alvoP, magia, nivel) {
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magia && magia.key) : null;
+  if (!reg) return alvoP;
+  const curas = reg.efeitos.filter((ef) => ef.tipo === 'cura_pool');
+  if (!curas.length) return alvoP;
+  const lido = (typeof efeitosNoNivel === 'function') ? efeitosNoNivel(magia, nivel) : {};
+  const inverter = efeitoInverteNoAlvo(alvoP, magia.key);
+  return curas.reduce((p, ef) => {
+    const valor = lido[ef.unidade];
+    if (valor == null) return p;
+    return aplicarCuraPool(p, ef.pool, valor, { inverter });
+  }, alvoP);
 }
 
 /* ── Cura de pool (puro) ───────────────────────────────────────────
@@ -7522,7 +7548,7 @@ Object.assign(window, {
        gatilho que já derrubava concentração derruba canalização. */
     aplicarEfeitoMagia, aplicarCuraPool, aplicarDrenoEh, danoAposReducao,
     alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia, alvosDeArea,
-    resumoEfeitoMagia, textoEfeitoMagia,
+    resumoEfeitoMagia, textoEfeitoMagia, aplicarCurasDaMagia,
     evocacaoEmRodadas, iniciarEvocacao, decrementarEvocacao, evocacaoPronta,
     quebrarEvocacao,
     // Complemento da Central de Mensagens (10/09/2026): extraída dos dois
