@@ -8166,3 +8166,14 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .fp-magias-ativas-tit { display: flex; align-items: center; gap: 5px; color: #C9A44E; font-size: 11px; margin-bottom: 4px; }
 #root .menestrel-ui .fp-magia-ativa { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: #C8BCAA; padding: 2px 0; }
 #root .menestrel-ui .fp-magia-ativa-ate { color: #8A7F6B; white-space: nowrap; }
+
+/* Bônus de iniciativa na montagem: um campo pequeno por combatente, à direita
+   do nome. É onde o Mestre decide quem começa em vantagem. */
+#root .menestrel-ui .batalha-part-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#root .menestrel-ui .batalha-part-ini { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #8A7F6B; }
+#root .menestrel-ui .batalha-part-ini input { width: 52px; text-align: center; }
+
+/* Ativo / inativo no card de personagem (12/09/2026). O ativo ganha selo e a
+   única ação que leva a outro: desativar. Os demais dizem por que não dá. */
+#root .menestrel-ui .pj-card-ativo-tag { display: inline-flex; align-items: center; gap: 5px; color: #C9A44E; font-size: 12px; }
+#root .menestrel-ui .pj-card-bloqueado { font-size: 11px; color: #8A7F6B; line-height: 1.35; }

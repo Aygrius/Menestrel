@@ -326,6 +326,7 @@ const COPY = {
       magiaTesteExige: 'Teste de {h} ({d}) — coluna {c}',
       /* Visibilidade do tabuleiro (12/09/2026). Os tres nomes vem da propria
          magia Visao Animal, que os define um a um. */
+      bonusIniciativa: '+ iniciativa',
       visib_clara: 'Tabuleiro iluminado',
       visib_parcial: 'Escuridão parcial — noite sem lua',
       visib_total: 'Escuridão total — ambiente fechado',
@@ -842,6 +843,7 @@ const COPY = {
          ateOFimDa and rodadas already existed in this block; reused. */
       alvoResistiu: 'The target resisted — the effect did not land.',
       magiaTesteExige: '{h} test ({d}) — column {c}',
+      bonusIniciativa: '+ initiative',
       visib_clara: 'Lit board',
       visib_parcial: 'Partial darkness — moonless night',
       visib_total: 'Total darkness — enclosed space',

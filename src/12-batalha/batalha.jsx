@@ -1296,6 +1296,28 @@ function semearMagiasAtivas(snap, pj, magiasByKey, dataJogo) {
   return out;
 }
 
+/* ── Bônus de iniciativa da montagem (puro) ────────────────────────
+   Decisão do usuário, 12/09/2026: "ao entrar em uma batalha, deve ser possível
+   adicionar um valor de 1 a 10 na iniciativa/velocidade de todos os
+   participantes" — um valor POR participante.
+
+   É o que faltava para representar quem começa em vantagem: emboscada,
+   prontidão, quem viu o outro antes. Um valor único para todos não mudaria a
+   ordem (todos subiriam igual); por participante, muda.
+
+   Soma na VELOCIDADE, não numa coluna própria. Consequência assumida: mexe
+   também no passo do tabuleiro e na ação extra acima de 30 — e é coerente,
+   porque quem reagiu mais rápido está mais rápido nesta cena.
+
+   Teto de 10 e piso de 0 aqui, e não só no input: valor vindo de batalha
+   antiga ou digitado fora da tela não pode estourar a regra. */
+const BONUS_INICIATIVA_MAX = 10;
+
+function bonusIniciativaDe(p) {
+  const n = Math.floor(Number(p && p.bonus_iniciativa) || 0);
+  return Math.max(0, Math.min(BONUS_INICIATIVA_MAX, n));
+}
+
 async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
   const pools = personagensPools || {};
   // Garante inst_id único em todos os participantes — inclusive batalhas antigas
@@ -1317,6 +1339,7 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
   const criById = {}; (criRes.data || []).forEach((c) => { criById[c.id] = c; });
 
   return partsComInstId.map((p) => {
+    const bonusIni = bonusIniciativaDe(p);
     if (p.tipo === 'pj') {
       const pj = pjById[p.ref_id];
       if (!pj) {
@@ -1414,7 +1437,12 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         // pa_rest ganha o bônus de velocidade JÁ NA RODADA 1 (paDaRodada):
         // antes ele só entrava na virada, e o veloz agia uma vez a menos na
         // primeira rodada que em todas as outras.
-        vb: d.velocidade || 0, pa_max: pa, pa_rest: paDaRodada(pa, d.velocidade || 0),
+        // BONUS DE INICIATIVA da montagem (12/09/2026): o Mestre ajusta quem
+        // age primeiro antes de a luta comecar — emboscada, prontidao, quem
+        // viu o outro antes. Soma na velocidade, entao mexe tambem no passo
+        // do tabuleiro e na acao extra acima de 30, que e coerente: quem
+        // reagiu mais rapido esta mais rapido.
+        vb: (d.velocidade || 0) + bonusIni, pa_max: pa, pa_rest: paDaRodada(pa, (d.velocidade || 0) + bonusIni),
         pa_tecnica_max: paTec, pa_tecnica_rest: paTec,
         eh: ehCur, eh_max: ehMax,
         ar: arCur, ar_max: arMax,
@@ -1462,7 +1490,8 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
       estagio: c.estagio != null ? c.estagio : null,
       // Base 1, mesma regra do PJ: acima de velocidade 30 ganha mais uma ação
       // (confirmado pelo usuário em 12/09/2026). O bônus entra no pa_rest.
-      vb: c.velocidade || 0, pa_max: 1, pa_rest: paDaRodada(1, c.velocidade || 0),
+      // Mesmo bonus de iniciativa do PJ — ver o comentario la em cima.
+      vb: (c.velocidade || 0) + bonusIni, pa_max: 1, pa_rest: paDaRodada(1, (c.velocidade || 0) + bonusIni),
       // Criatura nunca tem o ponto de tecnica: e sempre 1 ponto livre.
       pa_tecnica_max: 0, pa_tecnica_rest: 0,
       eh: c.energia_heroica || 0, eh_max: c.energia_heroica || 0,
@@ -5603,10 +5632,29 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
             {' '}{textoVisibilidade(visibilidade, tb)}
           </button>
         </div>
+        {/* BÔNUS DE INICIATIVA, um por combatente (12/09/2026). É aqui que o
+            Mestre decide quem começa em vantagem — emboscada, prontidão, quem
+            viu o outro antes. Some na velocidade, então também alonga o passo
+            e pode dar a ação extra acima de 30. */}
         <ul className="batalha-part-list">
           {participantes.map((p, i) => (
             <li key={i} className="batalha-part-row">
               <span className="batalha-part-nome">{p.nome}</span>
+              <label className="batalha-part-ini">
+                <span>{tb.bonusIniciativa || '+ iniciativa'}</span>
+                <input
+                  type="number" min="0" max={BONUS_INICIATIVA_MAX} step="1"
+                  value={p.bonus_iniciativa || 0}
+                  disabled={salvando}
+                  onChange={(e) => {
+                    const v = Math.max(0, Math.min(BONUS_INICIATIVA_MAX,
+                      Math.floor(Number(e.target.value) || 0)));
+                    const next = participantes.map((q, j) => (j === i ? { ...q, bonus_iniciativa: v } : q));
+                    setParticipantes(next);
+                    persistir({ participantes: next });
+                  }}
+                />
+              </label>
             </li>
           ))}
         </ul>
@@ -9219,6 +9267,7 @@ Object.assign(window, {
     // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
     modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia, passouNoTesteDeHabilidade,
     ehMontaria, montariasDisponiveis, montar, desmontar, montariaSegue, vbParaMovimento,
+    bonusIniciativaDe, BONUS_INICIATIVA_MAX,
     semearMagiasAtivas,
     enxergaNaEscuridao, penalidadeDeVisibilidade, nivelVisibilidade,
     proximaVisibilidade, textoVisibilidade, VISIBILIDADE_ICONE, VISIBILIDADE_ORDEM,

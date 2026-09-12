@@ -37,6 +37,13 @@ describe('conhecidoDoJogador', () => {
     expect(r.itens.size).toBe(0);
   });
 
+  /* ATENÇÃO AO NÍVEL: esta função une o que recebe, e continua certa assim.
+     O que mudou em 12/09/2026 foi QUEM a chama — useConhecidoDoJogador passava
+     TODOS os PJs do jogador e passou a passar só o ATIVO, porque o ponto de
+     vista é de um personagem, não a soma de três (decisão do usuário).
+
+     Então este teste descreve a função, não o produto: na tela, a lista tem um
+     elemento só. Ver o describe do ponto de vista no fim do arquivo. */
   it('une magias, técnicas, habilidades e itens de 2 PJs', () => {
     const pjs = [
       {
@@ -168,5 +175,39 @@ describe('criaturasLiberadas', () => {
     expect([...criaturasLiberadas(null, null)]).toEqual([]);
     expect([...criaturasLiberadas([null, hist(1, null)], [42])]).toEqual([]);
     expect([...criaturasLiberadas([hist(1, [10], 'lixo')], [42])]).toEqual([10]);
+  });
+});
+
+describe('o ponto de vista é de UM personagem', () => {
+  /* Decisão do usuário, 12/09/2026: "depois que um jogador selecionar o
+     personagem, todos os demais menus serão seu ponto de vista em relação a
+     magias, técnicas, animais, etc que conhece".
+
+     Antes o hook trazia TODOS os PJs do jogador e unia o que cada um sabia. Um
+     jogador com três personagens via a soma dos três — e nenhum deles sabia
+     tudo aquilo. O recorte não era de ninguém.
+
+     O hook faz I/O, então o que se trava aqui é a FONTE: que ele resolve o PJ
+     ativo pelo perfil e restringe a consulta a ele. */
+  let fonte;
+  beforeAll(async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    fonte = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'conhecido-jogador.jsx'), 'utf8');
+  });
+
+  it('lê o pj_ativo_id do perfil', () => {
+    expect(fonte).toMatch(/from\('profiles'\)\.select\('pj_ativo_id'\)/);
+  });
+
+  it('e restringe a consulta de personagens a ELE', () => {
+    expect(fonte).toMatch(/\.eq\('id', pjAtivoId\)/);
+  });
+
+  it('sem PJ ativo, o conjunto é VAZIO — e é de propósito', () => {
+    /* É o estado em que o jogador ainda não escolheu por quais olhos está
+       olhando. Mostrar um recorte que não é de ninguém seria pior. */
+    expect(fonte).toMatch(/if \(!pjAtivoId\) \{ setConhecido\(CONHECIDO_VAZIO\(\)\); return; \}/);
   });
 });

@@ -54,7 +54,7 @@
    3. View de batalha do jogador com restrições (só age na vez do seu PJ)
    4. Mensagem "vez de X" quando não é a vez do PJ
 */
-function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTrocar, onEditar, onExcluir }) {
+function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir }) {
   const isEn = lang === 'en';
   const [batalhaAtiva, setBatalhaAtiva] = useState(null);   // { id, estado, participantes, historia_id, ... }
   const [viewBatalha, setViewBatalha] = useState(false);    // true = mostra tela de batalha
@@ -159,7 +159,7 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
       currentUserId={currentUserId}
       pjAtivoId={pjAtivoId}
       onVoltar={onVoltar}
-      onTrocar={onTrocar}
+
       onEditar={onEditar}
       onExcluir={onExcluir}
       navSlot={btnBatalha}
@@ -286,18 +286,52 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
       .eq('id', currentUserId);
     if (error) console.error('[ficha] pj_ativo_id update failed:', error);
   };
+  /* SELEÇÃO EXCLUSIVA — decisão do usuário, 12/09/2026.
+
+     "Depois que um jogador selecionar o personagem, todos os demais menus
+     serão seu ponto de vista [...]. Portanto, para selecionar outro
+     personagem, será necessário desativar o personagem ativo."
+
+     É consequência direta do ponto de vista: se magias, técnicas e criaturas
+     passam a ser as que AQUELE personagem conhece (ver useConhecidoDoJogador),
+     então trocar de personagem com um clique trocaria o mundo inteiro por
+     baixo do jogador sem ele perceber. Desativar primeiro torna a troca um
+     gesto consciente.
+
+     `pjAtivoNoPerfil` é a verdade — o que o banco guarda e o que as outras
+     telas leem. `pjAtivoIdLocal` continua sendo só navegação (qual ficha está
+     aberta nesta tela). */
+  const [pjAtivoNoPerfil, setPjAtivoNoPerfil] = useState(
+    !isMaster ? (userProfile?.pj_ativo_id || null) : null
+  );
+
   const ativarPj = async (pjId) => {
+    // Com alguém ativo, ativar outro não faz nada: desative primeiro.
+    if (pjAtivoNoPerfil && pjAtivoNoPerfil !== pjId) return;
+    setPjAtivoNoPerfil(pjId);
     setPjAtivoIdLocal(pjId);
     await persistirPjAtivo(pjId);
+  };
+
+  /* Desativar: some o ponto de vista, e o jogador volta a poder escolher. As
+     listas ficam vazias até ele escolher de novo — de propósito, porque o
+     recorte da união de vários personagens não é de ninguém. */
+  const desativarPj = async () => {
+    setPjAtivoNoPerfil(null);
+    setPjAtivoIdLocal(null);
+    await persistirPjAtivo(null);
   };
   const voltarParaLista = () => {
     // só navegação local — não mexe no banco. pj_ativo_id segue salvo.
     setPjAtivoIdLocal(null);
   };
-  const trocarPjAtivo = async (novoPjId) => {
-    setPjAtivoIdLocal(novoPjId);
-    await persistirPjAtivo(novoPjId);
-  };
+  /* `trocarPjAtivo` SAIU em 12/09/2026. Trocava o PJ ativo direto, sem
+     desativar — exatamente o que a regra nova proíbe. Estava morto (a ficha
+     recebia o prop `onTrocar` e nunca o chamava), mas arma carregada na
+     gaveta dispara sozinha um dia: a próxima pessoa a precisar de um
+     "trocar" acharia esta função pronta e a usaria.
+
+     Quem troca de personagem passa por desativarPj. */
 
   const confirmarExclusao = async () => {
     if (!toDelete) return;
@@ -401,7 +435,7 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
         currentUserId={currentUserId}
         pjAtivoId={pjAtivoIdLocal}
         onVoltar={voltarParaLista}
-        onTrocar={trocarPjAtivo}
+
       />
     );
   }
@@ -423,7 +457,13 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
             onDelete={() => setToDelete(p)}
             onGiveXp={() => setToGiveXp(p)}
             onGiveMoedas={() => setToGiveMoedas(p)}
+            /* Ativo/inativo, o termo que o usuário pediu. O card do ativo
+               mostra "Desativar"; os outros ficam bloqueados enquanto houver
+               um ativo — e dizem por quê. */
+            ativo={!isMaster && pjAtivoNoPerfil === p.id}
+            bloqueadoPorOutroAtivo={!isMaster && !!pjAtivoNoPerfil && pjAtivoNoPerfil !== p.id}
             onAtivar={!isMaster ? () => ativarPj(p.id) : undefined}
+            onDesativar={!isMaster && pjAtivoNoPerfil === p.id ? desativarPj : undefined}
             onAbrirFicha={isMaster ? () => setFichaAbertoId(p.id) : undefined}
             lang={lang} />
         ))}
@@ -491,7 +531,7 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   );
 }
 
-function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGiveMoedas, onAtivar, onAbrirFicha, onEntrarMesa, semMesa, pausado, lang, playerName }) {
+function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGiveMoedas, onAtivar, onDesativar, ativo, bloqueadoPorOutroAtivo, onAbrirFicha, onEntrarMesa, semMesa, pausado, lang, playerName }) {
   const ficha = calcularFicha(p);
   const titulo = tituloDoPersonagem(p);
   const levelUp = temLevelUpPendente(p);
@@ -531,9 +571,9 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
   return (
     <div className="pj-card-wrap">
     <article
-      className={'pj-card' + pulsoClass + (levelUp ? ' pj-card--levelup' : '') + (onAtivar ? ' is-clickable' : '')}
+      className={'pj-card' + pulsoClass + (levelUp ? ' pj-card--levelup' : '') + ((onAtivar && !bloqueadoPorOutroAtivo && !ativo) ? ' is-clickable' : '')}
       style={healthStyle}
-      onClick={onAtivar}
+      onClick={(onAtivar && !bloqueadoPorOutroAtivo && !ativo) ? onAtivar : undefined}
     >
       <div className="pj-card-body">
         <div className={'pj-card-portrait' + (!fotoUrl ? ' is-empty' : '')}>
@@ -608,7 +648,36 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
 
           O clique no card continua funcionando — tirar atalho que já existe
           só irrita quem se acostumou. O botão torna a ação nomeada. */}
-      {onAtivar && (
+      {/* ATIVO / INATIVO (12/09/2026). Três estados, e cada um diz o que dá
+          para fazer:
+
+            ativo      → "Desativar", porque é o único caminho para trocar;
+            bloqueado  → diz que há outro ativo, em vez de um botão morto;
+            livre      → "Selecionar personagem", como antes.
+
+          O card inteiro continua clicável, mas só quando a ação existe: com
+          outro personagem ativo, clicar não pode fazer nada em silêncio. */}
+      {ativo ? (
+        <div className="pj-card-foot">
+          <span className="pj-card-ativo-tag">
+            <i className="ti ti-user-check" aria-hidden="true" />
+            {en ? 'Active' : 'Ativo'}
+          </span>
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            onClick={(e) => { e.stopPropagation(); if (onDesativar) onDesativar(); }}>
+            {en ? 'Deactivate' : 'Desativar'}
+          </button>
+        </div>
+      ) : bloqueadoPorOutroAtivo ? (
+        <div className="pj-card-foot">
+          <span className="pj-card-bloqueado">
+            {en ? 'Another character is active — deactivate it to choose this one.'
+                : 'Outro personagem está ativo — desative-o para escolher este.'}
+          </span>
+        </div>
+      ) : onAtivar ? (
         <div className="pj-card-foot">
           <button
             type="button"
@@ -618,7 +687,7 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
             {en ? 'Select character' : 'Selecionar personagem'}
           </button>
         </div>
-      )}
+      ) : null}
     </article>
 
       {/* Seta de evolução — é o caminho do JOGADOR pra gastar os pontos do

@@ -53,7 +53,8 @@
    - ac, lang, currentUserId   — herdados do AdminConsole
    - pjAtivoId                 — id do PJ ativo (já carregado do banco)
    - onVoltar()                — volta à lista (não muda pj_ativo_id)
-   - onTrocar(novoPjId)        — troca de PJ ativo (atualiza profiles)
+   - (onTrocar saiu em 12/09/2026: trocar de PJ exige desativar antes — ver
+     desativarPj em 08-personagens. O prop era morto e contradizia a regra.)
 
    ── Dependências (de outras fases) ────────────────────────
    - calcularFicha(p, catalogoBySlug, condicoesAtuais?) → game-data.jsx
@@ -1510,7 +1511,7 @@ function TooltipFlipGuard() {
   return null;
 }
 
-function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTrocar, onEditar, onExcluir, isMestre, navSlot }) {
+function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, isMestre, navSlot }) {
   const en = lang === 'en';
 
   // Globals de fases anteriores — acesso via window para robustez,

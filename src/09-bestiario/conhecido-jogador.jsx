@@ -110,10 +110,35 @@ function useConhecidoDoJogador(ativo) {
           setConhecido(CONHECIDO_VAZIO());
           return;
         }
+        /* O PONTO DE VISTA É DE UM PERSONAGEM SÓ — decisão do usuário,
+           12/09/2026: "depois que um jogador selecionar o personagem, todos os
+           demais menus serão seu ponto de vista em relação a magias, técnicas,
+           animais, etc que conhece".
+
+           Antes esta consulta trazia TODOS os PJs do jogador (.eq user_id) e
+           unia o que cada um sabia. O jogador com três personagens via a soma
+           dos três — e nenhum deles sabia tudo aquilo. Agora lê o PJ ATIVO do
+           perfil, e é só ele.
+
+           Sem PJ ativo o conjunto é VAZIO, de propósito: é o estado em que o
+           jogador ainda não escolheu por quais olhos está olhando, e as telas
+           dizem isso em vez de mostrar um recorte que não é de ninguém. */
+        const { data: perfil, error: errPerfil } = await supabaseClient
+          .from('profiles').select('pj_ativo_id').eq('id', userId).maybeSingle();
+        if (!vivo) return;
+        if (errPerfil) {
+          setErro(errPerfil);
+          setConhecido(CONHECIDO_VAZIO());
+          return;
+        }
+        const pjAtivoId = perfil && perfil.pj_ativo_id;
+        if (!pjAtivoId) { setConhecido(CONHECIDO_VAZIO()); return; }
+
         const { data, error } = await supabaseClient
           .from('personagens')
           .select('id, magias, tecnicas, habilidades, inventario')
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .eq('id', pjAtivoId);
         if (!vivo) return;
         if (error) {
           setErro(error);
