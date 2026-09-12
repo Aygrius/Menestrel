@@ -989,8 +989,138 @@ function linhaParaMensagem(row, lang) {
   };
 }
 
-function CentralMensagens({ lang, historiaId, sidebarLargura = 208 }) {
+/* ============================================================
+   FILA DE APROVAÇÃO DO MESTRE — degrau 2, 12/09/2026
+   ============================================================
+   "Magias que aplicam efeitos em outros jogadores precisam de aprovação do
+   Mestre." — decisão do usuário.
+
+   Isso não contorna a regra do banco: torna-a desnecessária de contornar. A
+   política `personagens_update_own_or_vinculado` já autoriza o Mestre a
+   escrever em todo protagonista da história dele, então a escrita acontece na
+   sessão de alguém que JÁ PODIA. A alternativa seria uma RPC SECURITY DEFINER
+   reimplementando em código quem pode conjurar em quem — uma segunda cópia de
+   uma regra que o banco já enuncia. Ver docs/fora-de-combate.md §2.
+
+   O que o Mestre vê: os pedidos abertos, com quem evocou, o quê, em quem. Ele
+   aplica ou dispensa. A resposta é um SEGUNDO evento no log apontando para o
+   primeiro (`meta.responde_pedido`), porque mesa_log é append-only — e assim o
+   histórico da mesa guarda quem aprovou o quê.
+
+   O karma JÁ FOI COBRADO do conjurador no momento da evocação, na linha dele.
+   Aqui só pousa o efeito no alvo. ============================================================ */
+function FilaAprovacaoMagia({ lang, historiaId, pedidos, onRespondido }) {
+  const en = lang === 'en';
+  const [ocupado, setOcupado] = useState(null);   // id do pedido em trânsito
+  const [erro, setErro] = useState(null);
+
+  if (!pedidos || pedidos.length === 0) return null;
+
+  const responder = async (pedido, aplicar) => {
+    setOcupado(pedido.id);
+    setErro(null);
+    try {
+      let texto;
+      if (aplicar) {
+        /* Lê a ficha do alvo AGORA: o estado pode ter mudado entre a evocação
+           e a aprovação, e aplicar sobre um retrato velho sobrescreveria o que
+           aconteceu no meio. */
+        const { data: alvoPj, error: e1 } = await supabaseClient
+          .from('personagens').select('*').eq('id', pedido.alvo_id).maybeSingle();
+        if (e1 || !alvoPj) throw (e1 || new Error('alvo não encontrado'));
+
+        const { data: mag, error: e2 } = await supabaseClient
+          .from('magias').select('*').eq('key', pedido.magia_key).maybeSingle();
+        if (e2 || !mag) throw (e2 || new Error('magia não encontrada'));
+
+        /* calcularFicha SEM catálogo de itens: EH, EF e Karma vêm dos
+           atributos, e só a armadura dependeria do catálogo — que nenhuma
+           magia instantânea toca. Evita carregar 747 itens para curar 20. */
+        const fichaAlvo = calcularFicha(alvoPj, null,
+          (alvoPj.estado_atual && alvoPj.estado_atual.condicoes) || null);
+        const dv = fichaAlvo.derivadas || {};
+        const maximos = {
+          ef: Number(dv.energiaFisica) || 0,
+          eh: Number(dv.energiaHeroica) || 0,
+          ka: Number(dv.karmamax) || 0,
+        };
+
+        const efeitos = efeitosDeMagiaNaFicha(mag, pedido.nivel);
+        const novo = aplicarEfeitosNaFicha(alvoPj.estado_atual, efeitos, maximos);
+        if (novo !== alvoPj.estado_atual) {
+          const { error: e3 } = await supabaseClient
+            .from('personagens').update({ estado_atual: novo }).eq('id', pedido.alvo_id);
+          if (e3) throw e3;
+        }
+        texto = en
+          ? `The GM applied ${pedido.magia} level ${pedido.nivel} on ${pedido.alvo_nome}.`
+          : `O Mestre aplicou ${pedido.magia} nível ${pedido.nivel} em ${pedido.alvo_nome}.`;
+      } else {
+        texto = en
+          ? `The GM did not apply ${pedido.magia} on ${pedido.alvo_nome}.`
+          : `O Mestre não aplicou ${pedido.magia} em ${pedido.alvo_nome}.`;
+      }
+
+      const { error: e4 } = await supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId,
+        p_tipo: 'magia',
+        p_texto: texto,
+        // `responde_pedido` é o que tira o pedido da fila — não há update em
+        // mesa_log, e não deveria haver.
+        p_meta: { responde_pedido: pedido.id, aplicado: !!aplicar,
+                  magia_key: pedido.magia_key, alvo_id: pedido.alvo_id },
+      });
+      if (e4) throw e4;
+      if (onRespondido) onRespondido();
+    } catch (err) {
+      setErro(err.message || String(err));
+    } finally {
+      setOcupado(null);
+    }
+  };
+
+  return (
+    <div className="cm-fila">
+      <div className="cm-fila-titulo">
+        <i className="ti ti-hand-stop" aria-hidden="true" />
+        {en ? 'Waiting for you' : 'Esperando você'} · {pedidos.length}
+      </div>
+      {pedidos.map((p) => (
+        <div key={p.id} className="cm-fila-item">
+          <span className="cm-fila-texto">
+            {p.conjurador ? `${p.conjurador} → ` : ''}
+            <strong>{p.magia}</strong> {en ? 'lv' : 'nv'} {p.nivel}
+            {p.alvo_nome ? ` · ${p.alvo_nome}` : ''}
+          </span>
+          <span className="cm-fila-acoes">
+            <button type="button" className="btn-primary btn-sm"
+              disabled={ocupado === p.id} onClick={() => responder(p, true)}>
+              {en ? 'Apply' : 'Aplicar'}
+            </button>
+            <button type="button" className="btn-ghost btn-sm"
+              disabled={ocupado === p.id} onClick={() => responder(p, false)}>
+              {en ? 'Dismiss' : 'Dispensar'}
+            </button>
+          </span>
+        </div>
+      ))}
+      {erro && <div className="err-msg">{erro}</div>}
+    </div>
+  );
+}
+
+function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = false }) {
   const [mensagens, setMensagens] = useState([]);
+  // Linhas CRUAS do log — o `meta` que a fila de aprovação lê. As mensagens
+  // acima são formato de exibição e perdem o meta de propósito.
+  const [linhasCruas, setLinhasCruas] = useState([]);
+  /* Só o Mestre tem fila, e só ela justifica varrer o log inteiro. Para o
+     jogador o cálculo nem roda. */
+  const pedidosAbertos = React.useMemo(
+    () => (ehMestre && typeof pedidosDeMagiaAbertos === 'function'
+      ? pedidosDeMagiaAbertos(linhasCruas) : []),
+    [ehMestre, linhasCruas]
+  );
   const [aberto, setAberto] = useState(false);
   const [naoLidas, setNaoLidas] = useState(0);
   const retrairTimeoutRef = React.useRef(null);
@@ -1084,6 +1214,10 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208 }) {
       const ordenado = [...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20);
       ordenado.forEach((row) => vistosRef.current.add(row.id));
       setMensagens(ordenado.map((row) => linhaParaMensagem(row, lang)));
+      /* A FILA DO MESTRE (degrau 2, 12/09/2026). Varre o log INTEIRO, não só
+         as 20 da janela: um pedido feito há meia hora continua esperando, e
+         sumir da lista não o resolve. Ver pedidosDeMagiaAbertos. */
+      setLinhasCruas(data);
     })();
 
     const channel = supabaseClient
@@ -1096,6 +1230,9 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208 }) {
         if (!row || vistosRef.current.has(row.id)) return;
         vistosRef.current.add(row.id);
         setMensagens((prev) => [linhaParaMensagem(row, lang), ...prev].slice(0, 20));
+        // A fila acompanha em tempo real: um pedido novo aparece para o
+        // Mestre sem recarregar, e a resposta some da fila do mesmo jeito.
+        setLinhasCruas((prev) => [...prev, row]);
         setNaoLidas((n) => n + 1);
         tocarSino(); // sino suave — AudioContext já desbloqueado pelo FAB
         abrirGaveta(true); // chegou mensagem nova -> expande e depois retrai sozinha
@@ -1134,6 +1271,16 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208 }) {
         aria-label={lang === 'en' ? 'Table messages' : 'Mensagens da mesa'}
       >
         <div className="cm-drawer-body" style={{ paddingLeft: `calc(${sidebarLargura}px + max(20px, (100vw - ${sidebarLargura}px - 1060px) / 2))`, paddingRight: `max(20px, (100vw - ${sidebarLargura}px - 1060px) / 2)` }}>
+          {/* A fila vem ANTES do feed e só para o Mestre: é a única coisa
+              aqui que pede ação, e o feed rola. */}
+          {ehMestre && (
+            <FilaAprovacaoMagia
+              lang={lang}
+              historiaId={historiaId}
+              pedidos={pedidosAbertos}
+              onRespondido={() => { /* o realtime traz a resposta e a fila encolhe */ }}
+            />
+          )}
           {mensagens.length === 0 ? (
             <div className="cm-empty">{lang === 'en' ? 'No messages yet.' : 'Nenhuma mensagem ainda.'}</div>
           ) : (
@@ -3012,7 +3159,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             Resolve a história via mesaAtivaId (Mestre: seletor acima;
             Jogador: PJ ativo, automático). Sem mesa resolvida, o próprio
             componente decide não montar nada. */}
-        <CentralMensagens lang={lang} historiaId={mesaAtivaId} sidebarLargura={sidebarCollapsed ? 64 : 208} />
+        <CentralMensagens lang={lang} historiaId={mesaAtivaId} sidebarLargura={sidebarCollapsed ? 64 : 208}
+          ehMestre={profile === 'master'} />
 
         {/* Botão de rolagem de d20 livre — só aparece quando a FichaPersonagem
             está montada (fichaAtiva=true). O dado é vinculado ao PJ ativo, não

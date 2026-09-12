@@ -2036,6 +2036,24 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
     const motivo = (typeof motivoNaoAplicaNaFicha === 'function')
       ? motivoNaoAplicaNaFicha(mag, nivel) : 'narrativa';
     const aplicou = emMim && !motivo && podeEditarFoto;
+    /* A magia SAIU do conjurador? Saiu quando ela tem o que fazer fora de
+       combate — não importa em quem o efeito vai pousar. É isso que decide o
+       karma (degrau 2, 12/09/2026).
+
+       Antes o karma só era cobrado quando o efeito era aplicado na hora, e
+       isso deixava evocação em terceiro sair de graça enquanto esperava o
+       Mestre. Agora o custo é do ATO, como em batalha, onde o karma sai na
+       largada e não volta se a evocação quebrar. */
+    const saiu = !motivo && podeEditarFoto;
+    const pendente = saiu && !emMim;
+
+    /* Karma da evocação em TERCEIRO: sai do conjurador agora, na linha dele —
+       que é a única que ele pode escrever. O efeito no alvo é do Mestre. */
+    if (pendente) {
+      const soKarma = aplicarEfeitosNaFicha(pj.estado_atual,
+        [{ scope: 'vitalidade', key: 'ka', delta: -nivel }], maximosVitalidade);
+      if (soKarma !== pj.estado_atual) salvarEstadoAtual(soKarma);
+    }
 
     if (aplicou) {
       /* O karma sai do NÍVEL EVOCADO, não do nível comprado. Em batalha se
@@ -2062,8 +2080,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
       narrativa:  en ? ' — narrative effect, resolve at the table.'
                      : ' — efeito narrativo, resolva na mesa.',
     };
+    /* Ordem importa: "não aplicou em mim" só vira "aguardando o Mestre"
+       quando a magia REALMENTE saiu. Uma magia de rodada lançada num colega
+       não está esperando ninguém — ela é de combate, e o texto tem que dizer
+       isso em vez de prometer uma aprovação que nunca virá. */
     const sufixo = aplicou ? ''
-      : (!emMim
+      : (pendente
           ? (en ? ' — awaiting the GM to apply it on the target.'
                 : ' — aguardando o Mestre aplicar no alvo.')
           : (SUFIXO[motivo] || ''));
@@ -2073,18 +2095,15 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
       : `${nomePj} usou a magia ${mag.nome} nível ${nivel}${nomeAlvo ? ` em ${nomeAlvo}` : ''}.`)
       + sufixo;
 
-    registrarEventoMesa('magia', texto, {
-      magia: mag.nome,
-      nivel,
-      alvo_id: alvo ? alvo.id : null,
-      alvo_nome: nomeAlvo,
-      // `pendente` é o que o Mestre vai ler para saber que há algo a aplicar
-      // (degrau 2). Já viaja agora para o log nascer com a forma certa.
-      aplicado: aplicou,
-      pendente: !aplicou && !emMim,
-      motivo: aplicou ? null : (emMim ? motivo : 'aprovacao_mestre'),
-      karma_gasto: aplicou ? nivel : 0,
-    });
+    /* A forma do `meta` mora em metaDeEvocacao (01-core), e não aqui: quem
+       PRODUZ o pedido é esta tela, quem o CONSOME é o painel do Mestre, e a
+       forma não pode ser descrita em dois lugares. */
+    registrarEventoMesa('magia', texto, metaDeEvocacao({
+      magia: mag, nivel, alvo, aplicou,
+      motivo: aplicou ? null : (pendente ? 'aprovacao_mestre' : motivo),
+      karma: saiu ? nivel : 0,
+      conjurador: nomePj,
+    }));
   };
 
   // Resultado de um teste de habilidade (RolagemD20Overlay -> onResultado).

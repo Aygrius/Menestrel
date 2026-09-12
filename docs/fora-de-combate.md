@@ -151,7 +151,7 @@ existe, falta o caminho até `estado_atual`.
 Aplica o que a trava 3 já classificou: **instantânea e permanente entram; as de
 rodada só registram no log**, com o texto dizendo por quê.
 
-### Degrau 2 — Alvo em terceiro, com aprovação do Mestre
+### Degrau 2 — Alvo em terceiro, com aprovação do Mestre · **CONSTRUÍDO**
 
 O jogador evoca → vira evento pendente no `mesa_log` → o Mestre vê na Central
 de Mensagens e clica em *Aplicar* → a escrita acontece **na sessão dele**, que
@@ -159,6 +159,20 @@ o banco já autoriza.
 
 Zero infraestrutura nova, a regra de segurança intacta, e a mesa no controle —
 que é como Provocar e Conduzir Oponente já foram resolvidas.
+
+**Como ficou (12/09/2026):** a fila aparece no topo da Central de Mensagens, só
+para o Mestre, com *Aplicar* e *Dispensar*. A resposta é um SEGUNDO evento
+apontando para o pedido (`meta.responde_pedido`) — `mesa_log` é append-only, e
+assim o histórico guarda quem aprovou o quê.
+
+O **karma sai na evocação**, na linha do próprio conjurador — a única que ele
+pode escrever. É o custo do ATO, como em batalha, onde o karma sai na largada e
+não volta se a evocação quebrar. O que espera o Mestre é o efeito pousar no
+alvo, não o preço.
+
+E o Mestre aplica pela MESMA função que o jogador usa em si mesmo
+(`efeitosDeMagiaNaFicha` + `aplicarEfeitosNaFicha`): dois caminhos divergiriam,
+e curar a si mesmo daria um número enquanto curar o colega daria outro.
 
 ### Degrau 3 — Duração no calendário
 

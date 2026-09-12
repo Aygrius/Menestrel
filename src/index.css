@@ -8151,3 +8151,11 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .visib-parcial { color: #8FA3C4; }
 #root .menestrel-ui .visib-total   { color: #6B7A99; }
 #root .menestrel-ui .visib-magica  { color: #7A6B99; }
+
+/* Fila de aprovação do Mestre, no topo da gaveta de mensagens. É a única
+   coisa ali que pede ação — por isso vem antes do feed e tem fundo próprio. */
+#root .menestrel-ui .cm-fila { border: 1px solid #5A4A2A; border-radius: 6px; background: rgba(201,164,78,.08); padding: 8px 10px; margin-bottom: 10px; }
+#root .menestrel-ui .cm-fila-titulo { display: flex; align-items: center; gap: 6px; color: #C9A44E; font-size: 12px; margin-bottom: 6px; }
+#root .menestrel-ui .cm-fila-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; }
+#root .menestrel-ui .cm-fila-texto { font-size: 12px; color: #E6DCC4; }
+#root .menestrel-ui .cm-fila-acoes { display: flex; gap: 6px; flex-shrink: 0; }

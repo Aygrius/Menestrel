@@ -435,6 +435,74 @@ function motivoNaoAplicaNaFicha(magia, nivel) {
   return null;
 }
 
+/* ── DEGRAU 2: a evocação que espera o Mestre ──────────────────────
+   Decisão do usuário: "magias que aplicam efeitos em outros jogadores
+   precisam de aprovação do Mestre". Isso não é contorno da regra do banco —
+   é o que a torna desnecessária de contornar: o Mestre JÁ pode escrever em
+   todo protagonista da história dele, então quem aplica é alguém que já
+   podia. Ver docs/fora-de-combate.md §2.
+
+   Estas duas funções leem e escrevem o `meta` do evento em mesa_log, que é a
+   fila. Ficam aqui, no núcleo, porque quem PRODUZ o pedido (a ficha do
+   jogador) e quem o CONSOME (o painel do Mestre) são telas diferentes — e a
+   forma do pedido não pode ser descrita duas vezes. */
+function pedidoDeMagiaPendente(meta) {
+  if (!meta || typeof meta !== 'object') return null;
+  if (!meta.pendente) return null;
+  if (meta.alvo_id == null || !meta.magia_key) return null;
+  return {
+    magia_key: meta.magia_key,
+    magia: meta.magia || meta.magia_key,
+    nivel: Number(meta.nivel) || 1,
+    alvo_id: meta.alvo_id,
+    alvo_nome: meta.alvo_nome || null,
+    conjurador: meta.conjurador_nome || null,
+  };
+}
+
+/* O `meta` que a ficha grava ao evocar. Um lugar só para a forma do pedido:
+   o painel do Mestre lê exatamente estes campos, e pedidoDeMagiaPendente
+   acima é o leitor. */
+function metaDeEvocacao({ magia, nivel, alvo, aplicou, motivo, karma, conjurador }) {
+  return {
+    magia: magia ? magia.nome : null,
+    magia_key: magia ? magia.key : null,
+    nivel,
+    alvo_id: alvo ? alvo.id : null,
+    alvo_nome: alvo ? alvo.nome : null,
+    conjurador_nome: conjurador || null,
+    aplicado: !!aplicou,
+    // Pendente = saiu do conjurador e espera o Mestre pousar no alvo.
+    pendente: !aplicou && !!(alvo && motivo === 'aprovacao_mestre'),
+    motivo: aplicou ? null : (motivo || null),
+    karma_gasto: karma || 0,
+  };
+}
+
+/* Quais pedidos ainda esperam o Mestre.
+
+   `mesa_log` é APPEND-ONLY para o cliente — conferi no banco: só há política
+   de SELECT, e a escrita passa pela RPC. Então um pedido não é "marcado como
+   resolvido": o que existe é um SEGUNDO evento apontando para o primeiro, por
+   `meta.responde_pedido`. Melhor assim — o histórico da mesa fica intacto, e
+   dá para ler depois quem aprovou o quê.
+
+   Recebe as linhas cruas de listar_eventos_mesa (que devolve SETOF mesa_log,
+   então `meta` vem junto) e devolve só os abertos, do mais novo ao mais
+   velho: o Mestre resolve o que acabou de chegar. */
+function pedidosDeMagiaAbertos(linhas) {
+  const rows = Array.isArray(linhas) ? linhas : [];
+  const respondidos = new Set();
+  rows.forEach((r) => {
+    const id = r && r.meta && r.meta.responde_pedido;
+    if (id != null) respondidos.add(String(id));
+  });
+  return rows
+    .filter((r) => r && !respondidos.has(String(r.id)) && pedidoDeMagiaPendente(r.meta))
+    .map((r) => ({ ...pedidoDeMagiaPendente(r.meta), id: r.id, quando: r.created_at }))
+    .reverse();
+}
+
 /* ── Até qual escuridão a magia deixa enxergar ─────────────────────
    Visão Animal, e a escada está no texto dos níveis:
 
@@ -1068,6 +1136,7 @@ Object.assign(window, {
   efeitosNoNivel, elementoDoNivel, escaladaNoNivel, curaEmDiasNoNivel,
   testeHabilidadeNoNivel, visaoEscuridaoNoNivel, DIFICULDADE_POR_NOME, MAGIA_ELEMENTOS_VALIDOS,
   classeDeDuracao, valeForaDeCombate, efeitosDeMagiaNaFicha, motivoNaoAplicaNaFicha,
+  pedidoDeMagiaPendente, metaDeEvocacao, pedidosDeMagiaAbertos,
   MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
 });
 
