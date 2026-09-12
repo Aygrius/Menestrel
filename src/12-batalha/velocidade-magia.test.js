@@ -14,6 +14,7 @@ import '../01-core/copy.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
+import '../01-core/magias-efeito.jsx';
 import './batalha.jsx';
 import './tabuleiro.jsx';
 
@@ -170,28 +171,58 @@ describe('exigeResistencia — a frase é literal e idêntica nas quatro', () =>
 });
 
 describe('magiasDeApoioDoAtor', () => {
+  /* CRITÉRIO MUDOU EM 11/09/2026, de propósito.
+
+     Era "modifica velocidade no nível efetivo", porque velocidade era o único
+     efeito de apoio que o motor sabia aplicar. Com a Fase 1 das magias o
+     critério passou a ser "tem entrada no MAGIA_EFEITO_MAP e não é magia de
+     ataque" — a aba Apoio deixa de ser a aba da Velocidade e vira a aba de
+     todo buff mecânico.
+
+     Consequência nas fixtures: `distracao` saiu da lista. Ela modifica
+     velocidade, mas nenhum PJ da campanha a comprou, então não entrou na
+     Fase 1 e continua narrativa. Ganhou lugar `bencao`, que é do recorte.
+     As expectativas sobre Velocidade em si NÃO mudaram — ela atravessou a
+     migração sem mudar de comportamento, que era o requisito. */
   const CATALOGOS = {
-    pjById: { 7: { id: 7, magias: { velocidade: 3, distracao: 1, bola_fogo: 2 } } },
+    pjById: { 7: { id: 7, magias: { velocidade: 3, distracao: 1, bola_de_fogo: 2, bencao: 1 } } },
     magiasByKey: {
       // passos 3 → nível efetivo 5 (p*2-1)
       velocidade: { key: 'velocidade', nome: 'Velocidade', duracao: '30 minutos',
+                    evocacao: 'Instantânea', alcance: 'Pessoal',
                     descricao: 'Uma descarga cinética. Se sua velocidade ultrapassar 30, você terá uma segunda ação.',
                     nivel_5: 'Aumente 6 de velocidade.' },
-      // passos 1 → nível efetivo 1
+      // Modifica velocidade, mas NÃO está no registro da Fase 1 → narrativa.
       distracao:  { key: 'distracao', nome: 'Distração', duracao: '2 rodadas',
                     descricao: 'Chama a atenção de todos que não passarem em um teste de resistência mágica.',
                     nivel_1: 'Reduza 4 pontos de velocidade.' },
-      // passos 2 → nível efetivo 3; não mexe em velocidade
-      bola_fogo:  { key: 'bola_fogo', nome: 'Bola de Fogo', duracao: 'Instantânea',
-                    descricao: 'Fogo.', nivel_3: 'Causa 12 de dano.' },
+      // No registro, mas alvo 'inimigo' → vive na aba Magia, não na Apoio.
+      bola_de_fogo: { key: 'bola_de_fogo', nome: 'Bola de Fogo', duracao: 'Instantânea',
+                      evocacao: 'Instantânea', descricao: 'Fogo.',
+                      nivel_3: 'Causa 12 de dano elemental de fogo.' },
+      // No registro, alvo 'aliado', e NÃO mexe em velocidade — o caso que o
+      // critério antigo excluía e o novo inclui.
+      bencao:     { key: 'bencao', nome: 'Bênção', duracao: '10 rodadas',
+                    evocacao: 'Instantânea', alcance: 'Toque', descricao: 'Bênção divina.',
+                    nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' },
     },
     catalogoBySlug: {},
   };
   const ATOR = { tipo: 'pj', ref_id: 7, inst_id: 'pj:7', nome: 'Mago' };
 
-  it('lista só as magias que modificam velocidade', () => {
+  it('lista as magias de apoio do registro, não só as de velocidade', () => {
     const lista = M.magiasDeApoioDoAtor(ATOR, CATALOGOS);
-    expect(lista.map((m) => m.key).sort()).toEqual(['distracao', 'velocidade']);
+    expect(lista.map((m) => m.key).sort()).toEqual(['bencao', 'velocidade']);
+  });
+
+  it('magia de ATAQUE não entra na aba Apoio', () => {
+    expect(M.magiasDeApoioDoAtor(ATOR, CATALOGOS).map((m) => m.key))
+      .not.toContain('bola_de_fogo');
+  });
+
+  it('magia fora do registro continua narrativa, mesmo mexendo em velocidade', () => {
+    expect(M.magiasDeApoioDoAtor(ATOR, CATALOGOS).map((m) => m.key))
+      .not.toContain('distracao');
   });
 
   it('traz o valor do nível efetivo, não do nível 1', () => {
@@ -202,15 +233,21 @@ describe('magiasDeApoioDoAtor', () => {
   });
 
   it('traz duração, concentração e resistência resolvidas', () => {
-    const lista = M.magiasDeApoioDoAtor(ATOR, CATALOGOS);
-    const v = lista.find((m) => m.key === 'velocidade');
-    const d = lista.find((m) => m.key === 'distracao');
+    const v = M.magiasDeApoioDoAtor(ATOR, CATALOGOS).find((m) => m.key === 'velocidade');
     expect(v.rodadas).toBeNull();
     expect(v.concentracao).toBe(false);
     expect(v.resistencia).toBeNull();
-    expect(d.rodadas).toBe(2);
-    expect(d.mod_vb).toBe(-4);
-    expect(d.resistencia).toBe('rm');
+  });
+
+  it('traz os campos novos da Fase 1', () => {
+    const lista = M.magiasDeApoioDoAtor(ATOR, CATALOGOS);
+    const v = lista.find((m) => m.key === 'velocidade');
+    const b = lista.find((m) => m.key === 'bencao');
+    expect(v).toMatchObject({ alvo: 'self',   max_alvos: 1, evocacao_rodadas: 0,
+                              evocacao_bloqueada: false, pessoal: true });
+    expect(b).toMatchObject({ alvo: 'aliado', max_alvos: 1, pessoal: false });
+    // O objeto do catálogo viaja inteiro pra aplicarEfeitoMagia ler o nível.
+    expect(b.catalogo.nivel_1).toContain('energia heroica');
   });
 
   it('criatura não tem magia de apoio (só PJ conjura)', () => {
@@ -224,13 +261,31 @@ describe('magiasDeApoioDoAtor', () => {
 });
 
 describe('aplicarEfeitoApoio', () => {
-  const alvo = { tipo: 'pj', ref_id: 1, inst_id: 'pj:1', nome: 'Alvo', vb: 20, status_temp: [] };
-  const apoio = { key: 'velocidade', nome: 'Velocidade', mod_vb: 6, rodadas: null, concentracao: false };
+  /* MUDOU EM 11/09/2026: magia COM entrada no MAGIA_EFEITO_MAP passa a ser
+     delegada a aplicarEfeitoMagia, que lê todos os efeitos do texto do nível.
+     A delegação mora dentro de aplicarEfeitoApoio, e não nos dois handlers
+     (Mestre e Jogador), pela mesma disciplina do resto do motor: a regra fica
+     na função pura, a duplicação fica no call site.
+
+     Duas consequências para estas fixtures:
+       • elas precisam carregar o texto do nível — o valor não vem mais de um
+         campo `mod_vb` pré-calculado;
+       • reaplicar RENOVA em vez de empilhar (decisão 8 do spec).
+
+     O caminho ANTIGO continua vivo para magia sem entrada no registro, e tem
+     describe próprio logo abaixo. */
+  const alvo = { tipo: 'pj', ref_id: 1, inst_id: 'pj:1', nome: 'Alvo', vb: 20,
+                 eh: 10, eh_max: 10, status_temp: [] };
+  // Velocidade nível 5: "Aumente 6 de velocidade", duração 30 minutos.
+  const apoio = { key: 'velocidade', nome: 'Velocidade', nivel: 5, mod_vb: 6,
+                  rodadas: null, concentracao: false,
+                  catalogo: { key: 'velocidade', nome: 'Velocidade',
+                              duracao: '30 minutos', nivel_5: 'Aumente 6 de velocidade.' } };
 
   it('cria um status_temp com o efeito mod_vb', () => {
     const p = M.aplicarEfeitoApoio(alvo, apoio, 'pj:7');
     expect(p.status_temp).toHaveLength(1);
-    expect(p.status_temp[0].efeito).toEqual({ tipo: 'mod_vb', valor: 6 });
+    expect(p.status_temp[0].efeito).toMatchObject({ tipo: 'mod_vb', valor: 6 });
   });
 
   it('NÃO altera o vb real do snapshot', () => {
@@ -244,22 +299,48 @@ describe('aplicarEfeitoApoio', () => {
     expect(alvo.status_temp).toHaveLength(0);
   });
 
-  it('duração em rodadas vira rodadas_rest; sem duração vira null', () => {
-    expect(M.aplicarEfeitoApoio(alvo, { ...apoio, rodadas: 2 }, 'pj:7').status_temp[0].rodadas_rest).toBe(2);
+  it('duração em rodadas vira rodadas_rest; mais longa que a batalha vira null', () => {
+    const curta = { ...apoio,
+      catalogo: { ...apoio.catalogo, duracao: '2 rodadas' } };
+    expect(M.aplicarEfeitoApoio(alvo, curta, 'pj:7').status_temp[0].rodadas_rest).toBe(2);
     expect(M.aplicarEfeitoApoio(alvo, apoio, 'pj:7').status_temp[0].rodadas_rest).toBeNull();
   });
 
   it('só marca concentracao quando a magia é de concentração', () => {
     expect(M.aplicarEfeitoApoio(alvo, apoio, 'pj:7').status_temp[0].concentracao).toBeUndefined();
-    const c = M.aplicarEfeitoApoio(alvo, { ...apoio, concentracao: true }, 'pj:7');
-    expect(c.status_temp[0].concentracao).toEqual({ ator: 'pj:7', magia_key: 'velocidade' });
+    const conc = { ...apoio, catalogo: { ...apoio.catalogo, duracao: 'Variável' } };
+    expect(M.aplicarEfeitoApoio(alvo, conc, 'pj:7').status_temp[0].concentracao)
+      .toEqual({ ator: 'pj:7', magia_key: 'velocidade' });
   });
 
-  it('duas aplicações empilham e somam', () => {
+  it('reaplicar RENOVA em vez de empilhar', () => {
+    // Era "duas aplicações empilham e somam" (vbEfetivo 32). Empilhar deixava
+    // relançar Velocidade cinco vezes virar +30 de velocidade no mesmo alvo.
+    // Decisão 8 do spec, a mesma que as técnicas já seguiam.
     const um = M.aplicarEfeitoApoio(alvo, apoio, 'pj:7');
     const dois = M.aplicarEfeitoApoio(um, apoio, 'pj:7');
+    expect(dois.status_temp).toHaveLength(1);
+    expect(M.vbEfetivo(dois)).toBe(26);
+  });
+});
+
+describe('aplicarEfeitoApoio — o caminho antigo, para magia fora do registro', () => {
+  /* Magia sem entrada no MAGIA_EFEITO_MAP continua pelo caminho de antes da
+     Fase 1: um status de mod_vb montado a partir do campo pré-calculado. É o
+     fallback, não um erro — Distração e as outras magias de velocidade que
+     nenhum PJ comprou seguem por aqui. */
+  const alvo = { tipo: 'pj', ref_id: 1, inst_id: 'pj:1', nome: 'Alvo', vb: 20, status_temp: [] };
+  const fora = { key: 'distracao', nome: 'Distração', mod_vb: -4, rodadas: 2, concentracao: false };
+
+  it('grava mod_vb a partir do campo pré-calculado', () => {
+    const p = M.aplicarEfeitoApoio(alvo, fora, 'pj:7');
+    expect(p.status_temp[0].efeito).toEqual({ tipo: 'mod_vb', valor: -4 });
+    expect(p.status_temp[0].rodadas_rest).toBe(2);
+  });
+
+  it('AINDA empilha — o caminho antigo não mudou de comportamento', () => {
+    const dois = M.aplicarEfeitoApoio(M.aplicarEfeitoApoio(alvo, fora, 'pj:7'), fora, 'pj:7');
     expect(dois.status_temp).toHaveLength(2);
-    expect(M.vbEfetivo(dois)).toBe(32);
   });
 });
 

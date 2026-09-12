@@ -348,3 +348,70 @@ describe('área: o raio vem depois, e o código já espera por ele', () => {
     expect(r.map((p) => p.raca)).toEqual(['Demônio']);
   });
 });
+
+describe('resumoEfeitoMagia — a prévia deixou de ser só velocidade', () => {
+  /* A linha de efeito da aba Apoio era `mod_vb + " de velocidade"`, fixo. Com
+     a Fase 1, Bênção chegava nessa linha e aparecia como "0 de velocidade" —
+     afirmação ERRADA, pior que não mostrar nada. */
+  const apoio = (key, nivel, catalogo) => ({ key, nome: key, nivel, catalogo });
+
+  it('Bênção lista os dois efeitos', () => {
+    const r = M.resumoEfeitoMagia(apoio('bencao', 1, BENCAO), null);
+    expect(r).toEqual(['+1 coluna de ataque', '+5 de energia heroica']);
+  });
+
+  it('Velocidade continua dizendo velocidade', () => {
+    expect(M.resumoEfeitoMagia(apoio('velocidade', 1, VELOCIDADE), null))
+      .toEqual(['+2 de velocidade']);
+  });
+
+  it('Aura Divina mostra o sinal negativo do registro', () => {
+    expect(M.resumoEfeitoMagia(apoio('aura_divina', 1, AURA), null))
+      .toEqual(['-1 coluna de ataque']);
+  });
+
+  it('Super Resistência lista as duas resistências', () => {
+    expect(M.resumoEfeitoMagia(apoio('super_resistencia', 1, SUPER_RES), null))
+      .toEqual(['+1 de resistência física', '+1 de resistência mágica']);
+  });
+
+  it('Piroproteção nomeia o elemento', () => {
+    expect(M.resumoEfeitoMagia(apoio('piroprotecao', 1, PIROPROT), null))
+      .toEqual(['−16 de redução de dano (fogo)']);
+  });
+
+  it('cura diz "restaura", não "aumenta"', () => {
+    const CURAS = { key: 'curas_espirituais', nome: 'Curas Espirituais',
+                    duracao: 'Instantânea', nivel_1: 'Restaura 20 de energia heroica.' };
+    expect(M.resumoEfeitoMagia(apoio('curas_espirituais', 1, CURAS), null))
+      .toEqual(['restaura 20 de energia heroica']);
+  });
+
+  it('magia fora do registro devolve lista vazia — a UI cai no fallback', () => {
+    expect(M.resumoEfeitoMagia(apoio('ressurreicao', 1, {}), null)).toEqual([]);
+  });
+});
+
+describe('textoEfeitoMagia — o que vai pro log da mesa', () => {
+  it('junta os efeitos numa frase', () => {
+    expect(M.textoEfeitoMagia({ key: 'bencao', nome: 'Bênção', nivel: 1, catalogo: BENCAO }))
+      .toBe('+1 coluna de ataque, +5 de energia heroica');
+  });
+
+  it('marca o que ficou PARCIAL — área escolhida pelo Mestre', () => {
+    const AURA_LOG = { key: 'aura_divina', nome: 'Aura Divina', nivel: 1, catalogo: AURA };
+    expect(M.textoEfeitoMagia(AURA_LOG)).toMatch(/alvos de área escolhidos pelo Mestre/);
+  });
+
+  it('marca o vínculo não conferido de Força Mútua', () => {
+    const FM = { key: 'forca_mutua', nome: 'Força Mútua', nivel: 1,
+                 catalogo: { key: 'forca_mutua', duracao: '1 dia',
+                             nivel_1: 'Aumenta 1 coluna de ataque.' } };
+    expect(M.textoEfeitoMagia(FM)).toMatch(/vínculo de Elo Animal não conferido/);
+  });
+
+  it('magia fora do registro cai no formato antigo', () => {
+    expect(M.textoEfeitoMagia({ key: 'distracao', nome: 'Distração', mod_vb: -4 }))
+      .toBe('-4 de velocidade');
+  });
+});

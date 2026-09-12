@@ -679,23 +679,44 @@ function magiasDeApoioDoAtor(ator, catalogos) {
     const m = catalogos.magiasByKey[key];
     if (!m) return;
     const nivel = (typeof nivelMagiaEfetivo === 'function') ? nivelMagiaEfetivo(p) : (p * 2 - 1);
-    const mod_vb = modVelocidadeNoNivel(m, nivel);
-    if (mod_vb === 0) return;   // não modifica velocidade → fora da lista
+    /* CRITÉRIO NOVO (11/09/2026). Até aqui era `modVelocidadeNoNivel !== 0`,
+       porque velocidade era o único efeito de apoio que o motor sabia aplicar.
+       Com o registro da Fase 1 o critério vira "tem entrada no registro e não
+       é magia de ataque" — as oito de velocidade continuam na lista, agora
+       acompanhadas de Bênção, Bravura, Super Resistência e companhia.
+
+       `alvo === 'inimigo'` sai porque essas vivem na aba Magia. Aura Divina é
+       debuff em inimigo e fica lá, apesar de não causar dano. */
+    const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(key) : null;
+    if (!reg || reg.alvo === 'inimigo') return;
     const dur = duracaoEmRodadas(m);
+    const ev  = evocacaoEmRodadas(m);
     out.push({
       fonte: 'magia',
       key, nome: m.nome,
       passos: p, nivel,
       custo_karma: nivel,         // 1 karma por nível, mesma regra das ofensivas
-      mod_vb,
+      // mod_vb continua no objeto: a UI ainda o exibe, e Velocidade é a única
+      // que o usa. Para as demais é 0, e a prévia simplesmente não o mostra.
+      mod_vb: modVelocidadeNoNivel(m, nivel),
       rodadas: dur.rodadas,
       concentracao: dur.concentracao,
+      // Evocação canalizada: quantas rodadas até resolver, e se a magia sequer
+      // pode ser evocada em batalha (Ritual e afins não podem).
+      evocacao_rodadas: ev.rodadas,
+      evocacao_bloqueada: ev.bloqueada,
       resistencia: exigeResistencia(m),
-      // alcance "Pessoal" = só em si mesmo. É o caso da magia Velocidade, a
-      // única das nove com esse alcance — e justamente a que os PJs conhecem.
+      // alcance "Pessoal" = só em si mesmo. É IDENTIDADE, não distância: o
+      // tabuleiro não distingue (ver parseAlcance), então a regra mora aqui.
       pessoal: /pessoal/i.test(m.alcance || ''),
       alcance: m.alcance || null,
+      alvo: reg.alvo,
+      max_alvos: tetoDeAlvosMagia(key),
+      parcial: reg.parcial || null,
       descricao: m['nivel_' + nivel] || null,
+      // O objeto do catálogo viaja INTEIRO: aplicarEfeitoMagia lê o texto do
+      // nível dele, não de campos pré-mastigados aqui.
+      catalogo: m,
     });
   });
   return out;
@@ -2208,6 +2229,27 @@ function aplicarFalhaCritica(atacante, objDano, q) {
    somaEfeitosStatus reduz por soma. Duas poções de pressa dão o dobro, e cada
    uma expira no seu próprio prazo. */
 function aplicarEfeitoApoio(participante, magiaApoio, atorInstId) {
+  /* FASE 1 DAS MAGIAS (11/09/2026). Magia com entrada no registro passa por
+     aplicarEfeitoMagia, que grava TODOS os efeitos do texto do nível — não só
+     velocidade — e cuida do empréstimo de EH, da restrição de arma e da regra
+     de não-acumular.
+
+     Delegar AQUI, e não nos dois call sites (Mestre e Jogador), é a mesma
+     disciplina que o resto do motor segue: a regra mora na função pura, a
+     duplicação fica no call site. Os dois handlers de apoio ganham o
+     comportamento novo sem serem tocados.
+
+     O caminho antigo continua valendo como fallback para magia SEM entrada no
+     registro — é o comportamento de antes desta fase, não um erro. */
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magiaApoio && magiaApoio.key) : null;
+  if (reg) {
+    // O catálogo inteiro quando magiasDeApoioDoAtor o anexou; senão o próprio
+    // objeto, que nos testes antigos já carrega os campos nivel_N.
+    const cat = magiaApoio.catalogo || magiaApoio;
+    return aplicarEfeitoMagia(participante, { ...cat, key: magiaApoio.key, nome: magiaApoio.nome },
+      magiaApoio.nivel, { fonteInstId: atorInstId });
+  }
+
   const atual = Array.isArray(participante.status_temp) ? participante.status_temp : [];
   const novo = {
     id: 'mag:' + magiaApoio.key + ':' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
@@ -2661,6 +2703,79 @@ function efeitoInverteNoAlvo(alvoP, magiaKey) {
   if (!reg || !reg.inverte_em) return false;
   const raca = alvoP && alvoP.raca;
   return !!raca && reg.inverte_em.includes(raca);
+}
+
+/* ── Resumo legível do efeito de uma magia de apoio (puro) ─────────
+   A prévia da aba Apoio mostrava SÓ velocidade ("+2 Velocidade"), porque até
+   11/09/2026 velocidade era o único efeito de apoio do motor. Com a Fase 1,
+   Bênção chegava à mesma prévia e aparecia como "0 Velocidade" — pior que
+   não mostrar nada, porque afirma o errado.
+
+   Devolve uma lista de pedaços já formatados ("+1 coluna de ataque",
+   "+5 energia heroica"), na ordem do registro. Vazia quando a magia não tem
+   efeito legível — e aí a UI não mostra a linha.
+
+   PT literal como o resto da aba: os rótulos vêm de tb (COPY.batalha). */
+function resumoEfeitoMagia(magiaApoio, tb) {
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magiaApoio && magiaApoio.key) : null;
+  if (!reg || !magiaApoio) return [];
+  const cat = magiaApoio.catalogo || magiaApoio;
+  const lido = (typeof efeitosNoNivel === 'function') ? efeitosNoNivel(cat, magiaApoio.nivel) : {};
+  /* Os fallbacks são CÓPIA LITERAL dos valores pt de COPY.batalha, inclusive
+     as preposições ("de energia heroica", não "energia heroica"). Divergir
+     faria a mesma magia aparecer escrita de um jeito na tela (que passa tb) e
+     de outro no log da mesa (que não passa) — e o log é PT literal por
+     convenção do projeto, então ele cai sempre no fallback. */
+  const rotulo = {
+    mod_ataque:   (tb && tb.colunaAtaque)   || 'coluna de ataque',
+    mod_defesa:   (tb && tb.defesaLbl)      || 'de defesa',
+    mod_vb:       (tb && tb.velocidade)     || 'de velocidade',
+    mod_rf:       (tb && tb.resistenciaF)   || 'de resistência física',
+    mod_rm:       (tb && tb.resistenciaM)   || 'de resistência mágica',
+    mod_eh_temp:  (tb && tb.energiaHeroica) || 'de energia heroica',
+    cura_pool:    (tb && tb.restaura)       || 'restaura',
+    reducao_dano: (tb && tb.reduzDano)      || 'de redução de dano',
+  };
+  const out = [];
+  reg.efeitos.forEach((ef) => {
+    const bruto = lido[ef.unidade];
+    if (bruto == null) return;
+    const nome = rotulo[ef.tipo];
+    if (!nome) return;
+    if (ef.tipo === 'cura_pool') {
+      out.push(`${nome} ${bruto} ${ef.pool === 'eh' ? rotulo.mod_eh_temp : ((tb && tb.energiaFisica) || 'de energia física')}`);
+      return;
+    }
+    if (ef.tipo === 'reducao_dano') {
+      out.push(`−${bruto} ${nome}${ef.elemento ? ` (${ef.elemento})` : ''}`);
+      return;
+    }
+    const v = (ef.sinal || 1) * bruto;
+    out.push(`${v > 0 ? '+' : ''}${v} ${nome}`);
+  });
+  return out;
+}
+
+/* ── Texto do efeito de magia para a Central de Mensagens (puro) ───
+   Os dois handlers de apoio escreviam "(+6 de velocidade)" fixo no log. Com a
+   Fase 1 isso passou a mentir: Bênção aparecia como "(0 de velocidade)".
+
+   PT literal, como as outras 15 chamadas de registrar_evento_mesa — é um log
+   compartilhado que vários jogadores com idiomas diferentes leem, e o padrão
+   existente é este.
+
+   A marca de PARCIAL entra aqui, e não só na tela, pro Mestre auditar depois:
+   Força Mútua confere a raça mas não o vínculo de Elo Animal, e magia de área
+   teve os alvos escolhidos por ele, não pela regra. */
+function textoEfeitoMagia(magiaApoio) {
+  const partes = resumoEfeitoMagia(magiaApoio, null);
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magiaApoio && magiaApoio.key) : null;
+  const base = partes.length
+    ? partes.join(', ')
+    : `${magiaApoio.mod_vb > 0 ? '+' : ''}${magiaApoio.mod_vb} de velocidade`;
+  if (reg && reg.parcial === 'elo_animal') return `${base} — vínculo de Elo Animal não conferido`;
+  if (reg && reg.parcial === 'area')       return `${base} — alvos de área escolhidos pelo Mestre`;
+  return base;
 }
 
 /* ── Quantos alvos esta MAGIA pega ─────────────────────────────────
@@ -3831,11 +3946,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const novoLog = [...log, entry];
 
     if (historia && historia.id) {
-      const sinal = magia.mod_vb > 0 ? '+' : '';
       const nomeAtor = participantes[atorIdx].nome;
       const texto = resistiu
         ? `${nomeAtor} lançou ${magia.nome} em ${alvo.nome} — resistiu`
-        : `${nomeAtor} lançou ${magia.nome} em ${alvo.nome} (${sinal}${magia.mod_vb} de velocidade)`;
+        : `${nomeAtor} lançou ${magia.nome} em ${alvo.nome} (${textoEfeitoMagia(magia)})`;
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
         p_tipo: 'magia',
@@ -5352,8 +5466,19 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // própria iniciativa por deixar o seletor no valor inicial.
   const alvosApoio = useMemo(() => {
     if (!apoioSel) return [];
+    // "Pessoal" é IDENTIDADE, não distância: o tabuleiro não distingue Pessoal
+    // de Toque com precisão (ver parseAlcance), então a regra mora aqui.
     if (apoioSel.pessoal) return [ator];
-    return apoioSel.mod_vb < 0 ? [...alvos, ator] : [ator, ...alvos];
+    /* Quem vem primeiro na lista é o alvo PADRÃO. O critério era
+       `mod_vb < 0` — debuff mira no outro, buff mira em si. Passa a vir do
+       registro, que sabe disso sem depender de velocidade ser o efeito:
+       magia de alvo 'aliado' e 'self' mira em si; 'inimigo' miraria no outro,
+       mas essas vivem na aba Magia e não chegam aqui.
+
+       Alvo que a magia não pode afetar (so_racas) sai da lista — a restrição
+       é regra, não sugestão (decisão 7 do spec). */
+    const permitidos = alvos.filter((q) => alvoPermitidoParaMagia(q, apoioSel.key).pode);
+    return apoioSel.alvo === 'inimigo' ? [...permitidos, ator] : [ator, ...permitidos];
   }, [apoioSel, alvos, ator]);
   const alvoApoio = alvosApoio[alvoApoioIdx] || null;
 
@@ -6061,8 +6186,16 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                 value={apoioIdx}
                 disabled={temRolagemPendente}
                 onChange={(v) => { setApoioIdx(parseInt(v, 10)); setAlvoApoioIdx(0); setD20(null); }}
+                /* Ritual fica VISÍVEL e desabilitado, não escondido: o Mestre
+                   precisa ver que a magia existe e por que não dá pra usá-la,
+                   senão procura um bug que não existe. Mesmo padrão de
+                   tecUso/tecEquip na aba Técnica. */
                 options={magiasApoio.map((m, i) => ({
-                  value: i, label: `${m.nome} · ${tb.nivel} ${m.nivel}`,
+                  value: i,
+                  label: m.evocacao_bloqueada
+                    ? `${m.nome} · ${tb.magiaRitual}`
+                    : `${m.nome} · ${tb.nivel} ${m.nivel}`,
+                  disabled: !!m.evocacao_bloqueada,
                 }))}
               />
               <SelectPill
@@ -6079,7 +6212,17 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             {apoioSel && (
               <div className="acao-item-efeito">
                 <strong>{tb.efeito}:</strong>{' '}
-                {apoioSel.mod_vb > 0 ? `+${apoioSel.mod_vb}` : apoioSel.mod_vb} {tb.velocidade}
+                {/* resumoEfeitoMagia lê o texto do nível e lista TODOS os
+                    efeitos. Antes esta linha mostrava só velocidade, e a
+                    Bênção aparecia como "0 Velocidade" — afirmação errada,
+                    pior que nenhuma. Fallback pro formato antigo quando a
+                    magia não tem entrada no registro. */}
+                {(() => {
+                  const partes = resumoEfeitoMagia(apoioSel, tb);
+                  return partes.length
+                    ? partes.join(', ')
+                    : `${apoioSel.mod_vb > 0 ? '+' : ''}${apoioSel.mod_vb} ${tb.velocidade}`;
+                })()}
                 {' · '}
                 {apoioSel.concentracao
                   ? tb.concentracao
@@ -6090,6 +6233,18 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             )}
             {apoioSel && apoioSel.concentracao && (
               <p className="acao-karma-line">{tb.avisoConcentracao}</p>
+            )}
+            {/* Evocação canalizada: o jogador precisa saber ANTES de gastar o
+                karma que vai ficar preso N rodadas, e o que derruba. */}
+            {apoioSel && apoioSel.evocacao_rodadas > 0 && (
+              <p className="acao-karma-line">
+                {interpolate(tb.magiaEvocacaoAviso, { n: apoioSel.evocacao_rodadas })}
+              </p>
+            )}
+            {/* A metade que a Fase 1 não automatiza vai para a tela, não só
+                para o log — Força Mútua confere a raça, não o vínculo. */}
+            {apoioSel && apoioSel.parcial === 'elo_animal' && (
+              <p className="acao-karma-line">{tb.magiaParcialElo}</p>
             )}
             {apoioSel && apoioSel.resistencia && resResist === 'resistiu' && (
               <div className="err-msg">{tb.alvoResistiu}</div>
@@ -6953,10 +7108,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
 
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      const sinal = magia.mod_vb > 0 ? '+' : '';
       const texto = resistiu
         ? `${meuParticipante.nome} lançou ${magia.nome} em ${alvo.nome} — resistiu`
-        : `${meuParticipante.nome} lançou ${magia.nome} em ${alvo.nome} (${sinal}${magia.mod_vb} de velocidade)`;
+        : `${meuParticipante.nome} lançou ${magia.nome} em ${alvo.nome} (${textoEfeitoMagia(magia)})`;
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'magia',
@@ -7339,6 +7493,7 @@ Object.assign(window, {
        gatilho que já derrubava concentração derruba canalização. */
     aplicarEfeitoMagia, aplicarCuraPool, aplicarDrenoEh, danoAposReducao,
     alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia, alvosDeArea,
+    resumoEfeitoMagia, textoEfeitoMagia,
     evocacaoEmRodadas, iniciarEvocacao, decrementarEvocacao, evocacaoPronta,
     quebrarEvocacao,
     // Complemento da Central de Mensagens (10/09/2026): extraída dos dois
