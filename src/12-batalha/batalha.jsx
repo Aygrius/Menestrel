@@ -909,10 +909,29 @@ function tecnicaPermitida(tecnica, ator, arma, catalogos) {
 // começa com 1.
 // O +1 por velocidade > 30 (processarViradaDeRodada) continua por cima disto:
 // um especializado veloz age 3 vezes, não 2.
-function pontosAcaoPJ(pj) {
-  const prof = pj.profissao;
+/* ── Os DOIS pontos de ação, e por que são separados ───────────────
+   Regra do usuário, 12/09/2026: Guerreiro e Ladino especializados seguem
+   tendo duas ações, mas a SEGUNDA só serve para técnica de combate. Todo o
+   resto — magia, habilidade, item, ataque de arma — sai da primeira.
+
+   Por isso `pontosAcaoPJ` passou a devolver 1 para TODO MUNDO e o segundo
+   ponto virou um pool próprio (`pontosAcaoTecnicaPJ`). Manter os dois num
+   número só não daria: `pa_rest: 2` não sabe dizer que um deles é restrito, e
+   o Guerreiro especializado atacaria duas vezes por rodada.
+
+   É o mesmo desenho de `pa_ataque_extra` (Golpe Duplo e irmãs), que já é um
+   ponto restrito a um tipo de ação e é consumido ANTES do pa_rest. */
+function pontosAcaoPJ() {
+  return 1;
+}
+
+/* O ponto de ação EXCLUSIVO de técnica. Só a ESPECIALIZAÇÃO o concede, e só
+   a Guerreiro e Ladino — mesma condição que valia para o 2º PA antes de ele
+   virar restrito. Criatura nunca tem: é sempre 1 ponto livre. */
+function pontosAcaoTecnicaPJ(pj) {
+  const prof = pj && pj.profissao;
   const guerreiroOuLadino = prof === 'Guerreiro' || prof === 'Ladino';
-  return (guerreiroOuLadino && pj.especializacao) ? 2 : 1;
+  return (guerreiroOuLadino && pj.especializacao) ? 1 : 0;
 }
 
 /* ── Pontos de ação DESTA rodada, a partir da base e da velocidade ─
@@ -1093,6 +1112,9 @@ async function montarSnapshots(parts, personagensPools) {
       }
       const d = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes).derivadas;
       const pa = pontosAcaoPJ(pj);
+      // Ponto exclusivo de tecnica (Guerreiro/Ladino especializado). Pool
+      // proprio porque um numero so nao sabe dizer que um ponto e restrito.
+      const paTec = pontosAcaoTecnicaPJ(pj);
       const defParsed = /^([TLMP])(-?\d+)$/.exec(String(d.defesa || ''));
       // Pools atuais — PRIORIDADE: estado_atual.vitalidade (fonte canônica —
       // é onde a ficha grava edições e onde o encerramento persiste as
@@ -1179,6 +1201,7 @@ async function montarSnapshots(parts, personagensPools) {
         // antes ele só entrava na virada, e o veloz agia uma vez a menos na
         // primeira rodada que em todas as outras.
         vb: d.velocidade || 0, pa_max: pa, pa_rest: paDaRodada(pa, d.velocidade || 0),
+        pa_tecnica_max: paTec, pa_tecnica_rest: paTec,
         eh: ehCur, eh_max: ehMax,
         ar: arCur, ar_max: arMax,
         res: resCur, res_max: resMax, armadura_pecas: pecasArm,
@@ -1224,6 +1247,8 @@ async function montarSnapshots(parts, personagensPools) {
       // Base 1, mesma regra do PJ: acima de velocidade 30 ganha mais uma ação
       // (confirmado pelo usuário em 12/09/2026). O bônus entra no pa_rest.
       vb: c.velocidade || 0, pa_max: 1, pa_rest: paDaRodada(1, c.velocidade || 0),
+      // Criatura nunca tem o ponto de tecnica: e sempre 1 ponto livre.
+      pa_tecnica_max: 0, pa_tecnica_rest: 0,
       eh: c.energia_heroica || 0, eh_max: c.energia_heroica || 0,
       ar: c.absorcao || 0,        ar_max: c.absorcao || 0,
       // A tabela `criaturas` não tem coluna de resistência — derivada pela
@@ -1996,6 +2021,15 @@ function temAcaoRestante(p) {
   // Preso canalizando: não tem ação, por mais PA que a virada tenha devolvido.
   if (evocacaoPrendeAcao(p)) return false;
   if ((p.pa_rest || 0) > 0) return true;
+  /* O ponto exclusivo de técnica também é ação pendente: sem isto, o Guerreiro
+     especializado que gastou o PA livre teria a vez passada sozinha ANTES de
+     usar a técnica que o segundo ponto existe para pagar.
+
+     Diferente de pa_ataque_extra, não há guarda de "pode usar": quem tem este
+     ponto é Guerreiro ou Ladino ESPECIALIZADO, e especialização pressupõe
+     técnicas. O botão Passar continua disponível se por algum motivo não
+     houver nenhuma utilizável. */
+  if ((p.pa_tecnica_rest || 0) > 0) return true;
   // O ataque extra só conta como ação pendente se o participante PODE
   // atacar. Sob sem_atacar (Inibir Ataque, Intimidar) a aba Arma fica
   // desabilitada e o extra é o único recurso que sobrou — contá-lo
@@ -2212,6 +2246,9 @@ function processarViradaDeRodada(p) {
   const vbEf = vbEfetivo(p);
   let next = (p.status === 'ativo')
     ? { ...p, pa_rest: paDaRodada(p.pa_max, vbEf),
+              // O ponto exclusivo de técnica volta cheio, como o pa_rest.
+              // Não acumula entre rodadas: quem não usou, perdeu.
+              pa_tecnica_rest: p.pa_tecnica_max || 0,
               mov_rest: movimentoBase(vbEf), moveu_na_rodada: false,
               // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
               // modo 'total' é POR RODADA — mesmo padrão de moveu_na_rodada.
@@ -3394,6 +3431,16 @@ function debitarCustoTecnica(participante, tecnicaKey) {
   const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(tecnicaKey) : null;
   if (reg) {
     return { ...participante, tecnica_livre_usada: true };
+  }
+  /* Técnica paga primeiro do pool EXCLUSIVO (Guerreiro/Ladino especializado),
+     e só depois do pa_rest livre. A ordem é a regra: gastar o livre primeiro
+     desperdiçaria o ponto restrito, que não serve para mais nada e não
+     acumula entre rodadas.
+
+     Mesma disciplina de debitarCustoAtaque com pa_ataque_extra. */
+  if ((participante.pa_tecnica_rest || 0) > 0) {
+    return { ...participante,
+      pa_tecnica_rest: Math.max(0, (participante.pa_tecnica_rest || 0) - 1) };
   }
   return { ...participante, pa_rest: Math.max(0, (participante.pa_rest || 0) - 1) };
 }
@@ -6104,6 +6151,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const custoKarma = tab === 'magia' && magia ? magia.custo_karma : 0;
   const semKarma = custoKarma > 0 && (ator.karma || 0) < custoKarma;
   const semPA = (ator.pa_rest || 0) <= 0;
+  // O ponto exclusivo de tecnica (Guerreiro/Ladino especializado) nao conta
+  // como PA livre, mas PAGA tecnica — a aba Tecnica nao pode travar por semPA
+  // enquanto ele existir. Mesmo tratamento de pa_ataque_extra na aba Arma.
+  const temPaTecnica = (ator.pa_tecnica_rest || 0) > 0;
+  const semPaParaTecnica = semPA && !temPaTecnica;
 
   // Resultado primário que exige segundo dado:
   //   q=0 (FC, verde) → consequência contra SI MESMO (FALHA_CRITICA_TABELA,
@@ -6212,7 +6264,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     : (tab === 'tecnica_teste')
       ? (!!tecnicaTesteSel && tecBloqueio.pode
           && (tecPrecisaAlvo ? tecAlvosEscolhidos.length > 0 : true)
-          && (tecSemDado ? true : (!semPA && d20 != null && !!res)))
+          && (tecSemDado ? true : (!semPaParaTecnica && d20 != null && !!res)))
     : (tab === 'resistencia')
       ? (!semPA && d20 != null && !!resResist && resResist !== 'empate')
     : (tab === 'apoio')
@@ -6965,7 +7017,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
       {semPA && (
         <div className="acao-karma-line">
           <strong className="neg">
-            {(ator.pa_ataque_extra || 0) > 0 ? tb.soAtaqueExtraDisponivel : tb.semPaDisponivel}
+            {(ator.pa_ataque_extra || 0) > 0 ? tb.soAtaqueExtraDisponivel
+              : temPaTecnica ? tb.soTecnicaDisponivel
+              : tb.semPaDisponivel}
           </strong>
         </div>
       )}
@@ -8104,7 +8158,8 @@ Object.assign(window, {
   // vive dentro de MotorBatalha, mas o teste chama via window direto.
   tecnicasCompativeisComArma,
   MotorBatalha: {
-    EF_MORTE, pontosAcaoPJ, paDaRodada, aplicarDanoCascata, ordenarIniciativa,
+    EF_MORTE, pontosAcaoPJ, pontosAcaoTecnicaPJ, paDaRodada,
+    aplicarDanoCascata, ordenarIniciativa,
     // mesmoParticipante é usado também pelo tabuleiro (12-batalha/tabuleiro.jsx)
     // pra ignorar o próprio token ao testar colisão de célula.
     mesmoParticipante,

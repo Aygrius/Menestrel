@@ -486,6 +486,8 @@ const COPY = {
       tecnicaAliadosRotulo: 'Aliados ({atual}/{max})',
       golpeAlvosExtrasRotulo: 'Alvos do giro ({atual}/{max})',
       soAtaqueExtraDisponivel: 'Sem PA — resta o ataque extra.',
+      // Guerreiro/Ladino especializado: o 2º ponto base só paga técnica.
+      soTecnicaDisponivel: 'Sem PA livre — resta a ação de técnica.',
       tecnicaExigeArma: 'Exige arma do grupo: {grupo}.',
       tecnicaExigeArmadura: 'Exige armadura do grupo: {grupo}.',
       tecnicaGratuitaJaUsada: 'Já ativou uma técnica gratuita nesta rodada.',
@@ -967,6 +969,7 @@ const COPY = {
       tecnicaAliadosRotulo: 'Allies ({atual}/{max})',
       golpeAlvosExtrasRotulo: 'Sweep targets ({atual}/{max})',
       soAtaqueExtraDisponivel: 'No AP — only the extra attack is left.',
+      soTecnicaDisponivel: 'No free AP — only the technique action is left.',
       tecnicaExigeArma: 'Requires a weapon of group: {grupo}.',
       tecnicaExigeArmadura: 'Requires armor of group: {grupo}.',
       tecnicaGratuitaJaUsada: 'Already used a free technique this round.',

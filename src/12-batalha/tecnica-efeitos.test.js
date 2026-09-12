@@ -651,3 +651,76 @@ describe('textoEfeitoTecnica — complemento da Central de Mensagens', () => {
       .toBe(' — efeito narrativo, resolva na mesa');
   });
 });
+
+describe('o 2º ponto base só paga TÉCNICA — regra de 12/09/2026', () => {
+  /* Guerreiro e Ladino especializados seguem com duas ações, mas a segunda
+     serve só para técnica de combate. Arma, magia, habilidade e item saem da
+     primeira. A ação extra por velocidade > 30 é livre para todos e NÃO entra
+     nesta restrição.
+
+     O pool é próprio (pa_tecnica_rest) porque um número só não conseguiria
+     dizer que um dos pontos é restrito: com pa_rest 2, o Guerreiro
+     especializado atacaria duas vezes por rodada. */
+  const guerreiro = (over = {}) => ({
+    inst_id: 'g1', tipo: 'pj', status: 'ativo', status_temp: [],
+    pa_max: 1, pa_rest: 1, pa_tecnica_max: 1, pa_tecnica_rest: 1, vb: 10, ...over,
+  });
+  // Técnica FORA do registro: paga PA. As do registro são ativação livre.
+  const KEY_PAGA = 'tecnica_inexistente_no_registro';
+
+  it('a técnica gasta o ponto EXCLUSIVO primeiro, preservando o livre', () => {
+    // Gastar o livre primeiro desperdiçaria o restrito, que não serve para
+    // mais nada e não acumula entre rodadas.
+    const r = M.debitarCustoTecnica(guerreiro(), KEY_PAGA);
+    expect(r.pa_tecnica_rest).toBe(0);
+    expect(r.pa_rest).toBe(1);
+  });
+
+  it('esgotado o exclusivo, a técnica passa a pagar do livre', () => {
+    const r = M.debitarCustoTecnica(guerreiro({ pa_tecnica_rest: 0 }), KEY_PAGA);
+    expect(r.pa_rest).toBe(0);
+  });
+
+  it('quem NÃO é especializado sempre paga do livre', () => {
+    const mago = guerreiro({ pa_tecnica_max: 0, pa_tecnica_rest: 0 });
+    expect(M.debitarCustoTecnica(mago, KEY_PAGA).pa_rest).toBe(0);
+  });
+
+  it('o ponto de técnica conta como ação pendente', () => {
+    // Sem isto, o Guerreiro que gastou o PA livre teria a vez passada sozinha
+    // ANTES de usar a técnica que o segundo ponto existe para pagar.
+    expect(M.temAcaoRestante(guerreiro({ pa_rest: 0 }))).toBe(true);
+  });
+
+  it('sem PA livre E sem ponto de técnica, não há ação', () => {
+    expect(M.temAcaoRestante(guerreiro({ pa_rest: 0, pa_tecnica_rest: 0 }))).toBe(false);
+  });
+
+  it('o ponto de técnica volta cheio na virada, e NÃO acumula', () => {
+    const gasto = guerreiro({ pa_rest: 0, pa_tecnica_rest: 0 });
+    expect(M.processarViradaDeRodada(gasto).participante.pa_tecnica_rest).toBe(1);
+    const inteiro = guerreiro();
+    expect(M.processarViradaDeRodada(inteiro).participante.pa_tecnica_rest).toBe(1);
+  });
+
+  it('o ponto de técnica NÃO paga ataque de arma', () => {
+    // debitarCustoAtaque nem conhece o pool: tira do pa_rest, como sempre.
+    const r = M.debitarCustoAtaque(guerreiro(), 'arma', 0);
+    expect(r.pa_rest).toBe(0);
+    expect(r.pa_tecnica_rest).toBe(1);
+  });
+
+  it('a ação extra por VELOCIDADE é livre, e soma ao ponto de técnica', () => {
+    // Guerreiro especializado e veloz: 1 livre + 1 de velocidade + 1 de técnica.
+    const veloz = guerreiro({ vb: 35, pa_rest: 0, pa_tecnica_rest: 0 });
+    const r = M.processarViradaDeRodada(veloz).participante;
+    expect(r.pa_rest).toBe(2);
+    expect(r.pa_tecnica_rest).toBe(1);
+  });
+
+  it('criatura nunca tem o ponto de técnica', () => {
+    const cri = { inst_id: 'c1', tipo: 'criatura', status: 'ativo', status_temp: [],
+                  pa_max: 1, pa_rest: 1, pa_tecnica_max: 0, pa_tecnica_rest: 0, vb: 10 };
+    expect(M.processarViradaDeRodada(cri).participante.pa_tecnica_rest).toBe(0);
+  });
+});

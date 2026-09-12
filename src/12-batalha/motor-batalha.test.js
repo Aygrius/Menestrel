@@ -26,20 +26,43 @@ beforeAll(() => {
   expect(M).toBeDefined();
 });
 
-/* ────────────────────────── pontosAcaoPJ ────────────────────────── */
-// Regra de 09/09/2026: só a ESPECIALIZAÇÃO dá o 2º ponto de ação.
-// Antes da especialização, Guerreiro e Ladino agem como qualquer outra
-// profissão. Números anteriores (4 especializado / 2 base) ficaram para trás
-// DE PROPÓSITO — se este teste quebrar, foi mudança de regra, não acidente.
+/* ────────────────────────── pontosAcaoPJ ──────────────────────────
+   MUDANÇA DE REGRA, 12/09/2026 (usuário): Guerreiro e Ladino especializados
+   continuam com duas ações, mas a SEGUNDA só serve para técnica de combate.
+   Todo o resto — arma, magia, habilidade, item — sai da primeira.
+
+   Por isso pontosAcaoPJ passou a devolver 1 para TODO MUNDO, e o segundo
+   ponto virou pool próprio em pontosAcaoTecnicaPJ. Um número só não
+   conseguiria dizer que um dos pontos é restrito, e o Guerreiro especializado
+   atacaria duas vezes por rodada.
+
+   Histórico das mudanças de regra nesta constante, todas deliberadas:
+     4 especializado / 2 base  → até 09/09/2026
+     2 especializado / 1 base  → 09/09/2026
+     1 para todos + 1 pool de técnica → 12/09/2026 (atual)
+
+   Se este teste quebrar, foi mudança de regra, não acidente. */
 describe('pontosAcaoPJ', () => {
-  it('Guerreiro e Ladino SEM especialização têm 1 PA, como as demais profissões', () => {
+  it('TODA profissão tem 1 ponto de ação livre, especializada ou não', () => {
     expect(M.pontosAcaoPJ({ profissao: 'Guerreiro' })).toBe(1);
     expect(M.pontosAcaoPJ({ profissao: 'Ladino' })).toBe(1);
+    expect(M.pontosAcaoPJ({ profissao: 'Guerreiro', especializacao: 'Cavaleiro' })).toBe(1);
+    expect(M.pontosAcaoPJ({ profissao: 'Ladino', especializacao: 'Assassino' })).toBe(1);
   });
 
-  it('Guerreiro e Ladino especializados têm 2 PA', () => {
-    expect(M.pontosAcaoPJ({ profissao: 'Guerreiro', especializacao: 'Cavaleiro' })).toBe(2);
-    expect(M.pontosAcaoPJ({ profissao: 'Ladino', especializacao: 'Assassino' })).toBe(2);
+  it('só Guerreiro e Ladino ESPECIALIZADOS ganham o ponto de técnica', () => {
+    expect(M.pontosAcaoTecnicaPJ({ profissao: 'Guerreiro', especializacao: 'Cavaleiro' })).toBe(1);
+    expect(M.pontosAcaoTecnicaPJ({ profissao: 'Ladino', especializacao: 'Assassino' })).toBe(1);
+  });
+
+  it('sem especialização não há ponto de técnica', () => {
+    expect(M.pontosAcaoTecnicaPJ({ profissao: 'Guerreiro' })).toBe(0);
+    expect(M.pontosAcaoTecnicaPJ({ profissao: 'Ladino' })).toBe(0);
+  });
+
+  it('as demais profissões nunca ganham o ponto de técnica', () => {
+    expect(M.pontosAcaoTecnicaPJ({ profissao: 'Mago', especializacao: 'Arcanista' })).toBe(0);
+    expect(M.pontosAcaoTecnicaPJ({ profissao: 'Bardo', especializacao: 'Menestrel' })).toBe(0);
   });
 
   it('as demais profissões têm 1 PA, especializadas ou não', () => {
