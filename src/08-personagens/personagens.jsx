@@ -661,8 +661,23 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
               {p.nome} {p.sobrenome || ''}
             </div>
           </header>
+          {/* Estágio, raça/profissão e título — 12/09/2026.
+
+              `titulo` já era calculado aqui e não ia para lugar nenhum: o
+              card mostrava só o nome do jogador, que é a mesma palavra em
+              todos os cards de um mesmo dono. Com o ativo ocupando a linha
+              inteira ficou gritante — uma faixa larga com uma linha só de
+              texto repetido. Isto é o que distingue um personagem do outro. */}
           <div className="pj-meta">
-            <span>{playerName}</span>
+            <span>{en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}</span>
+            {(p.raca || p.profissao) && <span className="sep">·</span>}
+            {(p.raca || p.profissao) && <span>{[p.raca, p.profissao].filter(Boolean).join(' ')}</span>}
+            {titulo && <span className="sep">·</span>}
+            {titulo && <span>{titulo}</span>}
+            {/* O dono só interessa ao Mestre. Na lista do jogador todos os
+                cards traziam o nome DELE, repetido card a card. */}
+            {isMaster && <span className="sep">·</span>}
+            {isMaster && <span>{playerName}</span>}
             {pausado && (
               <span style={{
                 display: 'inline-block', marginLeft: 8, padding: '1px 8px',

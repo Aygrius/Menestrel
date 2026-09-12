@@ -1259,7 +1259,12 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved }) {
   const en = lang === 'en';
   const isEdit = !!memoria;
   const [titulo, setTitulo] = useState(memoria?.titulo || '');
-  const [conteudo, setConteudo] = useState(memoria?.conteudo || '');
+  /* O corpo da memória mora em `diario_entradas.comentario` — o `conteudo` é
+     só o nome do PARÂMETRO da RPC (p_conteudo). A tela lia `memoria.conteudo`,
+     campo que não existe em lugar nenhum: abrir uma memória salva mostrava o
+     texto em branco, e salvar por cima apagava o que estava escrito.
+     Descoberto em 12/09/2026 ao montar a tabela, que precisava do trecho. */
+  const [conteudo, setConteudo] = useState(memoria?.comentario ?? memoria?.conteudo ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -1275,7 +1280,7 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved }) {
     setSaving(false);
     if (err) { setError(err.message); return; }
     if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
-    onSaved(data && data.entrada ? data.entrada : { ...memoria, titulo, conteudo });
+    onSaved(data && data.entrada ? data.entrada : { ...memoria, titulo, comentario: conteudo });
   };
 
   return (
@@ -1312,6 +1317,45 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved }) {
 }
 
 // ---------- DiarioView (Jogador) ----------
+
+/* Moldura da tabela do diário (12/09/2026).
+
+   As telas Lugares, Personagens e Memórias da barra lateral são este mesmo
+   Diário travado num tipo, e o usuário pediu que fossem "uma tabela igual às
+   demais — itens, magias, etc.". Igual quer dizer as MESMAS peças: o kit de
+   tabela do bestiário (UI.Table dentro de .best-table-wrap), cabeçalho que
+   ordena ao clique (SortHead) e a mesma paginação.
+
+   Só a moldura mora aqui; as linhas cada aba desenha por conta, porque as
+   ações de cada uma são diferentes (importar, compartilhar, excluir).
+
+   `cols`: [{ key, label, style?, ordena? }] — ordena:false vira cabeçalho
+   morto, para a coluna de ações e para o que não faz sentido ordenar. */
+/* Primeira linha de uma memória, para a coluna "Trecho". Sem isso a tabela
+   teria uma coluna só (título) e pareceria uma lista com bordas. */
+function resumoDeTexto(txt, max = 90) {
+  const s = String(txt || '').replace(/\s+/g, ' ').trim();
+  if (!s) return '—';
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+function DiarioTabela({ cols, wrapRef, sortKey, sortDir, toggleSort, children }) {
+  const { Table, TableHeader, TableBody, TableRow, TableHead } = (typeof UI !== 'undefined' ? UI : {});
+  if (!Table) return null;
+  return (
+    <div className="best-table-wrap diario-table-wrap" ref={wrapRef}>
+      <Table>
+        <TableHeader><TableRow>
+          {cols.map((c) => (c.ordena === false
+            ? <TableHead key={c.key} style={c.style}>{c.label || ''}</TableHead>
+            : <SortHead key={c.key} col={c.key} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{c.label}</SortHead>
+          ))}
+        </TableRow></TableHeader>
+        <TableBody>{children}</TableBody>
+      </Table>
+    </div>
+  );
+}
 
 // Tooltip portal — mesmo padrão .mn-tip do projeto (Pedra & Bronze), renderizado
 // dentro do .menestrel-ui ativo para escapar de overflow:hidden/transform.
@@ -1415,7 +1459,10 @@ function useGridDimensions() {
 function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   const en = lang === 'en';
   const pjId = pj?.id;
+  // Fallback: quantas linhas mostrar antes de useFitPageSize medir a tela.
   const PAGE_SIZE = 10;
+  // Kit de tabela do projeto — o mesmo que Itens, Magias e o Bestiário usam.
+  const { TableRow, TableCell } = (typeof UI !== 'undefined' ? UI : {});
   // O jogador dono do PJ pode criar/editar/compartilhar. O Mestre vendo a
   // ficha de outro jogador tem acesso de leitura (não é o autor das entradas).
   const souDono = !isMestre && (currentUserId == null || pj?.user_id == null || pj.user_id === currentUserId);
@@ -1520,6 +1567,72 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     if (!tipoFixo) setTipoAba(menuDiario === 'meu' ? 'memoria' : 'criatura');
     setPage(1); setQuery('');
   }, [menuDiario]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── A lista da aba, num lugar só ─────────────────────────────────────
+     "A página de lugares, personagens, memórias deve ser uma tabela igual
+     às demais — itens, magias, etc." (usuário, 12/09/2026)
+
+     Tabela igual de verdade quer dizer as MESMAS peças do bestiário —
+     ordenação por clique no cabeçalho (useSort), quantas linhas cabem na
+     tela (useFitPageSize), paginação. E hook não pode ser chamado dentro de
+     um ramo do JSX: cada aba montava a própria lista lá embaixo, repetindo
+     busca e paginação quatro vezes.
+
+     Então a lista sobe pra cá e o JSX volta a ser só desenho. A regra de
+     cada aba é a mesma de antes, linha por linha. */
+  const listaDaAba = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const casa = (nome) => !q || String(nome || '').toLowerCase().includes(q);
+    const porNome = (a, b) => (a.nome || '').localeCompare(b.nome || '', en ? 'en' : 'pt');
+
+    if (tipoAba === 'memoria') {
+      return (memorias || []).filter(
+        (m) => casa(m.titulo) || (!!q && String(m.comentario || '').toLowerCase().includes(q))
+      );
+    }
+
+    if (tipoAba === 'criatura') {
+      // "Meu Diário": só as que o PJ importou. "Aventura": todas as disponíveis.
+      const base = menuDiario === 'meu'
+        ? (criaturas || []).filter((c) => importados.has(`criatura:${c.id}`))
+        : (criaturas || []);
+      return base.filter((c) => casa(c.nome));
+    }
+
+    if (DIARIO_TIPOS_NOVOS.has(tipoAba)) {
+      // 'treinamento' junta magia + habilidade + técnica numa aba só.
+      const baseDisp = tipoAba === 'treinamento'
+        ? [
+            ...(disponibilizados.magia      || []),
+            ...(disponibilizados.habilidade || []),
+            ...(disponibilizados.tecnica    || []),
+          ].sort(porNome)
+        : (disponibilizados[tipoAba] || []);
+      const base = menuDiario === 'meu'
+        ? baseDisp.filter((e) => importados.has(`${e.tipo || tipoAba}:${e.nome}`))
+        : baseDisp;
+      return base.filter((e) => casa(e.nome));
+    }
+
+    // NPC / Lugares: o que o PJ criou (ou lhe compartilharam) x o que o
+    // Mestre disponibilizou, excluindo o que o PJ já tem como seu.
+    const loreDoTipo = (lore || []).filter((e) =>
+      tipoAba === 'lugar' ? LUGAR_TIPOS.has(e.tipo) : e.tipo === tipoAba
+    );
+    const idsDoPj = new Set(loreDoTipo.map((e) => String(e.slug || e.id)));
+    const dispTipos = tipoAba === 'lugar' ? ['reino', 'cidade'] : [tipoAba];
+    const doMestre = dispTipos.flatMap((t) =>
+      (disponibilizados[t] || []).filter((e) => !idsDoPj.has(String(e.slug || e.id)))
+    );
+    return (menuDiario === 'meu' ? loreDoTipo : doMestre).filter((e) => casa(e.nome)).sort(porNome);
+  }, [tipoAba, menuDiario, query, memorias, criaturas, lore, disponibilizados, importados, en]);
+
+  const { sorted: linhas, sortKey, sortDir, toggleSort } = useSort(listaDaAba);
+  const wrapRef = React.useRef(null);
+  const porPagina = useFitPageSize(wrapRef, { fallback: PAGE_SIZE });
+  const totalPages = Math.max(1, Math.ceil(linhas.length / porPagina));
+  const safePage   = Math.min(page, totalPages);
+  const pagina     = linhas.slice((safePage - 1) * porPagina, safePage * porPagina);
 
   // ── CRUD ──────────────────────────────────────────────────────
   const salvarLore = async () => {
@@ -1717,15 +1830,27 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         </button>
       );
 
-  return (
+  /* Título da PÁGINA, quando ela é uma (tipoFixo). As palavras saem de
+     ADMIN_COPY, as mesmas da barra lateral: se um dia "Memórias" virar outra
+     coisa, o menu e o título da página mudam juntos. */
+  const SECAO_DO_TIPO = { lugar: 'lugares', npc: 'npcs', memoria: 'memorias' };
+  const tituloDaSecao = tipoFixo
+    ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[SECAO_DO_TIPO[tipoFixo]] || {}).label
+    : null;
+
+  const corpo = (
     <div className="diario-view">
       <div className="lore-mng-page-body">
 
-        <p className="subhead">
-          {en
-            ? 'Use the journal as a personal glossary to organize characters, kingdoms, cities, items and other important details of your adventure. Then choose which of this information will be available for consultation during this story.'
-            : 'Use o diário como um glossário pessoal para organizar personagens, reinos, cidades, itens e outros detalhes importantes da sua aventura. Depois, escolha quais dessas informações ficarão disponíveis para consulta durante esta história.'}
-        </p>
+        {/* O parágrafo explica o diário INTEIRO — cabe na aba da ficha, que é
+            o diário inteiro, e não numa seção que já se chama Memórias. */}
+        {!tipoFixo && (
+          <p className="subhead">
+            {en
+              ? 'Use the journal as a personal glossary to organize characters, kingdoms, cities, items and other important details of your adventure. Then choose which of this information will be available for consultation during this story.'
+              : 'Use o diário como um glossário pessoal para organizar personagens, reinos, cidades, itens e outros detalhes importantes da sua aventura. Depois, escolha quais dessas informações ficarão disponíveis para consulta durante esta história.'}
+          </p>
+        )}
 
         {/* Menu superior: Meu Diário / Conteúdo da Aventura — igual ao Catálogo/Estoque da Loja */}
         <div className="loja-mng-v3-tabs diario-menu-tabs">
@@ -1781,61 +1906,59 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         {error && <div className="err-msg diario-err-mb">{error}</div>}
 
         {/* ── Aba Memórias ── */}
-        {tipoAba === 'memoria' && (() => {
-          const q = query.trim().toLowerCase();
-          const filtradas = (memorias || []).filter((m) =>
-            !q || (m.titulo || '').toLowerCase().includes(q) || (m.conteudo || '').toLowerCase().includes(q)
-          );
-          return filtradas.length === 0 ? (
+        {tipoAba === 'memoria' && (
+          pagina.length === 0 ? (
             <div className="best-empty diario-empty-lg">
               <i className="ti ti-feather" style={{ fontSize: 32, opacity: 0.3, display: 'block', marginBottom: 8 }} aria-hidden="true" />
-              {q
+              {query.trim()
                 ? (en ? `No memory matches "${query}".` : `Nenhuma memória corresponde a "${query}".`)
                 : (en ? 'You haven\'t recorded any memories in your personal notes yet.' : 'Você ainda não registrou nenhuma memória em suas anotações pessoais.')}
             </div>
           ) : (
-            <div className="diario-vinculo-list diario-vinculo-list--full">
-              {filtradas.map((m) => (
-                <div key={m.id} className="diario-vinculo-item diario-vinculo-item--mestre">
-                  <span className="diario-vinculo-nome">{m.titulo || (en ? '(untitled)' : '(sem título)')}</span>
-                  <button className="btn-icon btn-sm"
-                    onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
-                    onMouseLeave={fecharTip}
-                    onClick={() => setMemoriaAberta(m)}>
-                    <i className="ti ti-eye" aria-hidden="true" />
-                  </button>
-                  {souDono && (
-                    <button className="btn-icon btn-danger btn-sm"
-                      onMouseEnter={(e) => abrirTip(e, { desc: en ? 'Delete' : 'Excluir' })}
-                      onMouseLeave={fecharTip}
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        supabaseClient.rpc('excluir_entrada_diario', { p_id: m.id }).then(carregar);
-                      }}>
-                      <i className="ti ti-trash" aria-hidden="true" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          );
-        })()}
+            <>
+              <DiarioTabela
+                cols={[
+                  { key: 'titulo', label: en ? 'Title' : 'Título' },
+                  /* O trecho não ordena: ordenar por começo de texto não
+                     responde nenhuma pergunta que alguém faça. */
+                  { key: 'comentario', label: en ? 'Excerpt' : 'Trecho', ordena: false },
+                  { key: 'acoes', label: '', ordena: false, style: { width: 96 } },
+                ]}
+                wrapRef={wrapRef} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>
+                {pagina.map((m) => (
+                  <TableRow key={m.id} style={{ cursor: 'pointer' }} onClick={() => setMemoriaAberta(m)}>
+                    <TableCell className="best-name">{m.titulo || (en ? '(untitled)' : '(sem título)')}</TableCell>
+                    <TableCell className="diario-td-trecho">{resumoDeTexto(m.comentario)}</TableCell>
+                    <TableCell className="diario-td-acoes" onClick={(ev) => ev.stopPropagation()}>
+                      <button className="btn-icon btn-sm"
+                        onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
+                        onMouseLeave={fecharTip}
+                        onClick={() => setMemoriaAberta(m)}>
+                        <i className="ti ti-eye" aria-hidden="true" />
+                      </button>
+                      {souDono && (
+                        <button className="btn-icon btn-danger btn-sm"
+                          onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Delete' : 'Excluir' })}
+                          onMouseLeave={fecharTip}
+                          onClick={() => supabaseClient.rpc('excluir_entrada_diario', { p_id: m.id }).then(carregar)}>
+                          <i className="ti ti-trash" aria-hidden="true" />
+                        </button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </DiarioTabela>
+              <LorePaginacao safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />
+            </>
+          )
+        )}
 
         {/* ── Aba Criaturas (disponibilizadas pelo Mestre + botão Importar) ── */}
-        {tipoAba === 'criatura' && (() => {
-          const q = query.trim().toLowerCase();
-          // "Meu Diário": só as que o PJ já importou; "Conteúdo da Aventura": todas as disponíveis
-          const base = menuDiario === 'meu'
-            ? (criaturas || []).filter((c) => importados.has(`criatura:${c.id}`))
-            : (criaturas || []);
-          const lista = base.filter((c) => !q || (c.nome || '').toLowerCase().includes(q));
-          const totalPages = Math.max(1, Math.ceil(lista.length / PAGE_SIZE));
-          const safePage   = Math.min(page, totalPages);
-          const pagina     = lista.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-          return lista.length === 0 ? (
+        {tipoAba === 'criatura' && (
+          pagina.length === 0 ? (
             <div className="best-empty diario-empty-lg">
               <i className="ti ti-paw" style={{ fontSize: 32, opacity: 0.3, display: 'block', marginBottom: 8 }} aria-hidden="true" />
-              {q
+              {query.trim()
                 ? (en ? `No creature matches "${query}".` : `Nenhuma criatura corresponde a "${query}".`)
                 : menuDiario === 'meu'
                   ? (en ? 'You haven\'t recorded any creatures in your personal notes yet.' : 'Você ainda não registrou nenhuma criatura em suas anotações pessoais.')
@@ -1843,143 +1966,116 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
             </div>
           ) : (
             <>
-              <div className="diario-vinculo-list diario-vinculo-list--full">
+              <DiarioTabela
+                cols={[
+                  { key: 'nome', label: en ? 'Name' : 'Nome' },
+                  { key: 'acoes', label: '', ordena: false, style: { width: 96 } },
+                ]}
+                wrapRef={wrapRef} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>
                 {pagina.map((c) => {
                   const foiImportado = importados.has(`criatura:${c.id}`);
+                  const abrir = async () => {
+                    const { data } = await supabaseClient.from('criaturas').select('*').eq('id', c.id).maybeSingle();
+                    setViewingLore(data ? { ...data, tipo: 'criatura', ref_id: data.id } : { ...c, tipo: 'criatura', ref_id: c.id });
+                  };
                   return (
-                    <div key={c.id} className="diario-vinculo-item diario-vinculo-item--mestre">
-                      <span className="diario-vinculo-nome">{c.nome}</span>
-                      <button className="btn-icon btn-sm"
-                        onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
-                        onMouseLeave={fecharTip}
-                        onClick={async () => {
-                          const { data } = await supabaseClient.from('criaturas').select('*').eq('id', c.id).maybeSingle();
-                          setViewingLore(data ? { ...data, tipo: 'criatura', ref_id: data.id } : { ...c, tipo: 'criatura', ref_id: c.id });
-                        }}>
-                        <i className="ti ti-eye" aria-hidden="true" />
-                      </button>
-                      {souDono && (
-                        foiImportado
-                          ? renderBotaoImportado('criatura', c.id)
-                          : (
-                            <button className="btn-icon btn-sm"
-                              onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Import to journal' : 'Importar para o diário' })}
-                              onMouseLeave={fecharTip}
-                              onClick={() => importarEntrada('criatura', c.id)}>
-                              <i className="ti ti-download" aria-hidden="true" />
-                            </button>
-                          )
-                      )}
-                    </div>
+                    <TableRow key={c.id} style={{ cursor: 'pointer' }} onClick={abrir}>
+                      <TableCell className="best-name">{c.nome}</TableCell>
+                      <TableCell className="diario-td-acoes" onClick={(ev) => ev.stopPropagation()}>
+                        <button className="btn-icon btn-sm"
+                          onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
+                          onMouseLeave={fecharTip}
+                          onClick={abrir}>
+                          <i className="ti ti-eye" aria-hidden="true" />
+                        </button>
+                        {souDono && (
+                          foiImportado
+                            ? renderBotaoImportado('criatura', c.id)
+                            : (
+                              <button className="btn-icon btn-sm"
+                                onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Import to journal' : 'Importar para o diário' })}
+                                onMouseLeave={fecharTip}
+                                onClick={() => importarEntrada('criatura', c.id)}>
+                                <i className="ti ti-download" aria-hidden="true" />
+                              </button>
+                            )
+                        )}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </div>
+              </DiarioTabela>
               <LorePaginacao safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />
             </>
-          );
-        })()}
+          )
+        )}
 
         {/* ── Aba Item / Treinamento (magia+habilidade+tecnica) — disponibilizados pelo Mestre + Importar ── */}
-        {DIARIO_TIPOS_NOVOS.has(tipoAba) && (() => {
-          const q = query.trim().toLowerCase();
-          // 'treinamento' combina os três tipos; 'item' usa só a lista de item
-          const baseDisp = tipoAba === 'treinamento'
-            ? [
-                ...(disponibilizados.magia      || []),
-                ...(disponibilizados.habilidade  || []),
-                ...(disponibilizados.tecnica     || []),
-              ].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', en ? 'en' : 'pt'))
-            : (disponibilizados[tipoAba] || []);
-          // "Meu Diário": só os que o PJ já importou; "Conteúdo da Aventura": todos os disponíveis
-          const base = menuDiario === 'meu'
-            ? baseDisp.filter((e) => {
-                const tipoReal = e.tipo || tipoAba;
-                return importados.has(`${tipoReal}:${e.nome}`);
-              })
-            : baseDisp;
-          const entradas = base.filter((e) => !q || (e.nome || '').toLowerCase().includes(q));
-          const totalPages = Math.max(1, Math.ceil(entradas.length / PAGE_SIZE));
-          const safePage   = Math.min(page, totalPages);
-          const pagina     = entradas.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-          return entradas.length === 0 ? (
+        {DIARIO_TIPOS_NOVOS.has(tipoAba) && (
+          pagina.length === 0 ? (
             <div className="best-empty diario-empty-lg">
               <i className={'ti ' + (DIARIO_TIPO_ICON[tipoAba] || 'ti-help')}
                 style={{ fontSize: 32, opacity: 0.3, display: 'block', marginBottom: 8 }} aria-hidden="true" />
-              {q ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`)
+              {query.trim() ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`)
                  : menuDiario === 'meu'
                    ? (en ? 'You haven\'t imported anything in this category yet.' : 'Você ainda não importou nada nesta categoria.')
                    : (en ? 'The master has not yet recorded any information in this category.' : 'O mestre ainda não registrou nenhuma informação desta categoria.')}
             </div>
           ) : (
             <>
-              <div className="diario-vinculo-list diario-vinculo-list--full">
+              <DiarioTabela
+                cols={[
+                  { key: 'nome', label: en ? 'Name' : 'Nome' },
+                  /* Só a aba Treinamento mistura tipos; nas outras a coluna
+                     repetiria a mesma palavra em todas as linhas. */
+                  ...(tipoAba === 'treinamento' ? [{ key: 'tipo', label: en ? 'Type' : 'Tipo' }] : []),
+                  { key: 'acoes', label: '', ordena: false, style: { width: 96 } },
+                ]}
+                wrapRef={wrapRef} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>
                 {pagina.map((e) => {
                   const tipoReal = e.tipo || tipoAba;
                   const foiImportado = importados.has(`${tipoReal}:${e.nome}`);
                   return (
-                    <div key={`${tipoReal}:${e.nome}`} className="diario-vinculo-item diario-vinculo-item--mestre">
-                      <span className="diario-vinculo-nome">{e.nome}</span>
-                      <button className="btn-icon btn-sm"
-                        onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
-                        onMouseLeave={fecharTip}
-                        onClick={() => setViewingLore({ ...e, tipo: tipoReal })}>
-                        <i className="ti ti-eye" aria-hidden="true" />
-                      </button>
-                      {souDono && (
-                        foiImportado
-                          ? renderBotaoImportado(tipoReal, e.nome)
-                          : (
-                            <button className="btn-icon btn-sm"
-                              onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Import to journal' : 'Importar para o diário' })}
-                              onMouseLeave={fecharTip}
-                              onClick={() => importarEntrada(tipoReal, e.nome)}>
-                              <i className="ti ti-download" aria-hidden="true" />
-                            </button>
-                          )
-                      )}
-                    </div>
+                    <TableRow key={`${tipoReal}:${e.nome}`} style={{ cursor: 'pointer' }}
+                      onClick={() => setViewingLore({ ...e, tipo: tipoReal })}>
+                      <TableCell className="best-name">{e.nome}</TableCell>
+                      {tipoAba === 'treinamento' && <TableCell>{diarioTipoLabel(tipoReal, lang)}</TableCell>}
+                      <TableCell className="diario-td-acoes" onClick={(ev) => ev.stopPropagation()}>
+                        <button className="btn-icon btn-sm"
+                          onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
+                          onMouseLeave={fecharTip}
+                          onClick={() => setViewingLore({ ...e, tipo: tipoReal })}>
+                          <i className="ti ti-eye" aria-hidden="true" />
+                        </button>
+                        {souDono && (
+                          foiImportado
+                            ? renderBotaoImportado(tipoReal, e.nome)
+                            : (
+                              <button className="btn-icon btn-sm"
+                                onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Import to journal' : 'Importar para o diário' })}
+                                onMouseLeave={fecharTip}
+                                onClick={() => importarEntrada(tipoReal, e.nome)}>
+                                <i className="ti ti-download" aria-hidden="true" />
+                              </button>
+                            )
+                        )}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </div>
+              </DiarioTabela>
               <LorePaginacao safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />
             </>
-          );
-        })()}
+          )
+        )}
 
         {/* ── Abas NPC / Lugares — disponibilizados pelo Mestre + criados pelo PJ + Importar ── */}
-        {!DIARIO_TIPOS_NOVOS.has(tipoAba) && tipoAba !== 'criatura' && tipoAba !== 'memoria' && (() => {
-          const q = query.trim().toLowerCase();
-
-          // Entradas criadas pelo PJ (ou compartilhadas por outros PJs)
-          const loreDoTipo = (lore || []).filter((e) =>
-            tipoAba === 'lugar' ? LUGAR_TIPOS.has(e.tipo) : e.tipo === tipoAba
-          );
-          const playerIds = new Set(loreDoTipo.map((e) => String(e.slug || e.id)));
-
-          // Entradas disponibilizadas pelo Mestre (excluindo as que o PJ já criou)
-          const dispTipos = tipoAba === 'lugar' ? ['reino', 'cidade'] : [tipoAba];
-          const mestreEntradas = dispTipos.flatMap((t) =>
-            (disponibilizados[t] || []).filter((e) => !playerIds.has(String(e.slug || e.id)))
-          );
-
-          // "Meu Diário": só entradas criadas pelo próprio PJ ou que já importou
-          // "Conteúdo da Aventura": entradas do Mestre/outros jogadores (excl. as criadas pelo PJ)
-          const combinado = (menuDiario === 'meu'
-            ? loreDoTipo  // apenas o que o PJ criou (lore do PJ)
-            : mestreEntradas  // apenas o que veio do Mestre ou outros jogadores
-          )
-            .filter((e) => !q || (e.nome || '').toLowerCase().includes(q))
-            .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', en ? 'en' : 'pt'));
-
-          const totalPages = Math.max(1, Math.ceil(combinado.length / PAGE_SIZE));
-          const safePage   = Math.min(page, totalPages);
-          const pagina     = combinado.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-
-          return combinado.length === 0 ? (
+        {!DIARIO_TIPOS_NOVOS.has(tipoAba) && tipoAba !== 'criatura' && tipoAba !== 'memoria' && (
+          pagina.length === 0 ? (
             <div className="best-empty diario-empty-lg">
               <i className={'ti ' + (DIARIO_TIPO_ICON[tipoAba] || 'ti-help')}
                 style={{ fontSize: 32, opacity: 0.3, display: 'block', marginBottom: 8 }} aria-hidden="true" />
-              {q
+              {query.trim()
                 ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`)
                 : menuDiario === 'meu'
                   ? (en ? 'You haven\'t recorded any information in your personal notes yet.' : 'Você ainda não registrou nenhuma informação em suas anotações pessoais.')
@@ -1987,73 +2083,88 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
             </div>
           ) : (
             <>
-              <div className="diario-vinculo-list diario-vinculo-list--full">
+              <DiarioTabela
+                cols={[
+                  { key: 'nome', label: en ? 'Name' : 'Nome' },
+                  /* Lugares mistura Reino e Cidade — a coluna diz qual é. */
+                  ...(tipoAba === 'lugar' ? [{ key: 'tipo', label: en ? 'Type' : 'Tipo' }] : []),
+                  { key: 'criado_por_nome', label: en ? 'Recorded by' : 'Registrado por' },
+                  { key: 'acoes', label: '', ordena: false, style: { width: 140 } },
+                ]}
+                wrapRef={wrapRef} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>
                 {pagina.map((e) => {
                   const refId          = e.slug || e.id;
                   const foiImportado   = importados.has(`${e.tipo}:${String(refId)}`);
-                  const isOwn        = souDono && e.criado_por_personagem_id === pjId;
-                  const isMestreEntry = !e.criado_por_personagem_id;
+                  const isOwn          = souDono && e.criado_por_personagem_id === pjId;
+                  const isMestreEntry  = !e.criado_por_personagem_id;
                   // Entradas de outro jogador que compartilhou — também importáveis
                   const isOutroJogador = souDono && !isOwn && !isMestreEntry;
                   const podeImportar   = (isMestreEntry || isOutroJogador) && !foiImportado;
                   return (
-                    <div key={String(refId)} className="diario-vinculo-item diario-vinculo-item--mestre">
-                      {isOwn ? (
-                        <input type="checkbox"
-                          checked={!!e.compartilhado}
-                          disabled={savingVinculo}
-                          onChange={(ev) => toggleCompartilhar(e.tipo, refId, ev.target.checked)}
-                        />
-                      ) : null}
-                      <span className="diario-vinculo-nome">{e.nome}</span>
-                      <button className="btn-icon btn-sm"
-                        onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
-                        onMouseLeave={fecharTip}
-                        onClick={() => setViewingLore(e)}>
-                        <i className="ti ti-eye" aria-hidden="true" />
-                      </button>
-                      {isOwn && (
-                        <>
-                          <button className="btn-icon btn-sm"
-                            onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Edit' : 'Editar' })}
+                    <TableRow key={String(refId)} style={{ cursor: 'pointer' }} onClick={() => setViewingLore(e)}>
+                      <TableCell className="best-name">
+                        {/* Compartilhar com a mesa continua sendo um clique só,
+                            agora dentro da célula do nome — o que é do PJ ele
+                            marca; o que é do Mestre não tem o que marcar. */}
+                        {isOwn && (
+                          <input type="checkbox"
+                            className="diario-check-compartilha"
+                            checked={!!e.compartilhado}
+                            disabled={savingVinculo}
+                            onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Share with the table' : 'Compartilhar com a mesa' })}
                             onMouseLeave={fecharTip}
-                            onClick={() => { setTipoNovo(e.tipo); setEditando({ ...e }); setSlugOrigemEscolhido(refId); }}>
-                            <i className="ti ti-pencil" aria-hidden="true" />
-                          </button>
-                          <button className="btn-icon btn-danger btn-sm"
-                            onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Delete' : 'Excluir' })}
-                            onMouseLeave={fecharTip}
-                            onClick={() => excluirLore(refId)}>
-                            <i className="ti ti-trash" aria-hidden="true" />
-                          </button>
-                        </>
-                      )}
-                      {souDono && (
-                        foiImportado
-                          ? renderBotaoImportado(e.tipo, refId)
-                          : podeImportar ? (
-                              <button className="btn-icon btn-sm"
-                                onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Import to journal' : 'Importar para o diário' })}
-                                onMouseLeave={fecharTip}
-                                onClick={() => importarEntrada(e.tipo, refId, e)}>
-                                <i className="ti ti-download" aria-hidden="true" />
-                              </button>
-                            ) : null
-                      )}
-                      {/* Selo do personagem criador — à direita de tudo */}
-                      {e.criado_por_nome && (
-                        <span style={{ fontSize: 11, color: 'var(--gold)', border: '1px solid rgba(201,164,78,0.35)', borderRadius: 4, padding: '1px 7px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                          {e.criado_por_nome}
-                        </span>
-                      )}
-                    </div>
+                            onClick={(ev) => ev.stopPropagation()}
+                            onChange={(ev) => toggleCompartilhar(e.tipo, refId, ev.target.checked)}
+                          />
+                        )}
+                        {e.nome}
+                      </TableCell>
+                      {tipoAba === 'lugar' && <TableCell>{diarioTipoLabel(e.tipo, lang)}</TableCell>}
+                      <TableCell>{e.criado_por_nome || (en ? 'Game Master' : 'Mestre')}</TableCell>
+                      <TableCell className="diario-td-acoes" onClick={(ev) => ev.stopPropagation()}>
+                        <button className="btn-icon btn-sm"
+                          onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
+                          onMouseLeave={fecharTip}
+                          onClick={() => setViewingLore(e)}>
+                          <i className="ti ti-eye" aria-hidden="true" />
+                        </button>
+                        {isOwn && (
+                          <>
+                            <button className="btn-icon btn-sm"
+                              onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Edit' : 'Editar' })}
+                              onMouseLeave={fecharTip}
+                              onClick={() => { setTipoNovo(e.tipo); setEditando({ ...e }); setSlugOrigemEscolhido(refId); }}>
+                              <i className="ti ti-pencil" aria-hidden="true" />
+                            </button>
+                            <button className="btn-icon btn-danger btn-sm"
+                              onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Delete' : 'Excluir' })}
+                              onMouseLeave={fecharTip}
+                              onClick={() => excluirLore(refId)}>
+                              <i className="ti ti-trash" aria-hidden="true" />
+                            </button>
+                          </>
+                        )}
+                        {souDono && (
+                          foiImportado
+                            ? renderBotaoImportado(e.tipo, refId)
+                            : podeImportar ? (
+                                <button className="btn-icon btn-sm"
+                                  onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Import to journal' : 'Importar para o diário' })}
+                                  onMouseLeave={fecharTip}
+                                  onClick={() => importarEntrada(e.tipo, refId, e)}>
+                                  <i className="ti ti-download" aria-hidden="true" />
+                                </button>
+                              ) : null
+                        )}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </div>
+              </DiarioTabela>
               <LorePaginacao safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />
             </>
-          );
-        })()}
+          )
+        )}
 
       </div>{/* lore-mng-page-body */}
 
@@ -2077,6 +2188,23 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         />
       )}
       <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    </div>
+  );
+
+  /* Dentro da ficha (Mestre) isto é uma ABA, e o cabeçalho é o da ficha —
+     repetir um aqui daria dois títulos empilhados. Na barra lateral é uma
+     PÁGINA, e ganha a mesma moldura de Itens, Magias e Bestiário. */
+  if (!tipoFixo) return corpo;
+  return (
+    <div className="fp-page">
+      <div className="fp-card best best-auto">
+        <BestPageHeader
+          eyebrow={en ? 'JOURNAL' : 'DIÁRIO'}
+          title={tituloDaSecao}
+          right={<span className="best-count">{linhas.length}</span>}
+        />
+        {corpo}
+      </div>
     </div>
   );
 }
