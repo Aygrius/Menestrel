@@ -2864,7 +2864,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   // N histórias simultâneas — minhasHistorias alimenta um seletor simples
   // (dropdown) pra ele escolher qual mesa acompanhar agora. Persistido em
   // localStorage só pra não perder a escolha ao trocar de aba (mesmo
-  // padrão de menestrel.profile/section/sidebarCollapsed acima).
+  // padrão de menestrel.profile/section acima).
   const [minhasHistorias, setMinhasHistorias] = useState(null); // null = ainda não carregou; [] = carregou mas vazio; [{id, titulo}] = lista real
   const [mesaAtivaId, setMesaAtivaId] = useState(() => {
     try { const v = localStorage.getItem('menestrel.mesaAtivaId'); return v ? Number(v) : null; }
@@ -2940,14 +2940,19 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     } catch (e) {}
   }, [mesaAtivaId]);
 
-  // Sidebar retrátil ("collapse"). Estado persiste entre sessões, igual perfil/seção.
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem('menestrel.sidebarCollapsed') === '1'; }
-    catch (e) { return false; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('menestrel.sidebarCollapsed', sidebarCollapsed ? '1' : '0'); } catch (e) {}
-  }, [sidebarCollapsed]);
+  /* SIDEBAR SEMPRE PEQUENA — decisão do usuário, 12/09/2026: "remova o botão
+     'expandir menu', esta opção não será mais permitida" e "o menu não irá se
+     expandir mais porque ele sempre será pequeno".
+
+     Era um estado persistido em localStorage com um botão de recolher. O
+     estado inteiro saiu, não só o botão: sobrar a variável com um único valor
+     possível convidaria alguém a religá-la, e a largura vira um número fixo em
+     vez de um ternário repetido em quatro lugares. Quem tinha a chave antiga
+     no navegador simplesmente a ignora daqui em diante.
+
+     Só ícones, então o NOME de cada seção passa a viver inteiramente no
+     tooltip — que já existia e já era acionado no hover (abrirNavTip). */
+  const SIDEBAR_LARGURA = 64;
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const avatarRef = React.useRef(null);
@@ -2960,7 +2965,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
 
   return (
     <>
-      <div className="menestrel-ui mc-root" style={{ '--sidebar-w': sidebarCollapsed ? '64px' : '208px' }}>
+      <div className="menestrel-ui mc-root" style={{ '--sidebar-w': SIDEBAR_LARGURA + 'px' }}>
 
         {/* ── Fundo animado — baseado em DarkGradientBg (paleta Pedra & Bronze) ── */}
         <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
@@ -2985,34 +2990,12 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         </div>
 
         {/* SIDEBAR */}
-        <aside className={'mc-sidebar' + (sidebarCollapsed ? ' is-collapsed' : '')}>
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 4px' }}>
-            <svg viewBox="0 0 44 44" width="32" height="32" aria-label="Menestrel">
-              <defs>
-                <linearGradient id="mc-ring" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#B8472F" />
-                  <stop offset="0.3" stopColor="#B8702E" />
-                  <stop offset="0.55" stopColor="#C9A44E" />
-                  <stop offset="0.8" stopColor="#B8862E" />
-                  <stop offset="1" stopColor="#7A5E2A" />
-                </linearGradient>
-              </defs>
-              <circle cx="22" cy="22" r="16" fill="none" stroke="url(#mc-ring)" strokeWidth="5"
-                      strokeLinecap="round" strokeDasharray="86 16" transform="rotate(-90 22 22)" />
-            </svg>
+        <aside className="mc-sidebar">
+          {/* MARCA DO SISTEMA (12/09/2026). Era um anel em SVG com gradiente;
+              virou o dragão, sem círculo em volta, a pedido do usuário. */}
+          <div className="mc-marca">
+            <i className="ti ti-dragon" aria-label="Menestrel" />
           </div>
-
-          {/* Botão de recolher/expandir — dentro da sidebar, abaixo da logo */}
-          <button
-            className="mc-navitem"
-            onClick={() => setSidebarCollapsed((v) => !v)}
-            aria-label={sidebarCollapsed ? (lang === 'en' ? 'Expand menu' : 'Expandir menu') : (lang === 'en' ? 'Collapse menu' : 'Recolher menu')}
-            onMouseEnter={(e) => abrirNavTip(e, sidebarCollapsed ? (lang === 'en' ? 'Expand menu' : 'Expandir menu') : (lang === 'en' ? 'Collapse menu' : 'Recolher menu'))}
-            onMouseLeave={fecharNavTip}
-          >
-            <i className="ti ti-menu-2" style={{ fontSize: 20, lineHeight: 1, flex: '0 0 auto' }} aria-hidden="true" />
-            <span>{lang === 'en' ? 'Collapse' : 'Recolher'}</span>
-          </button>
 
           <nav className="mc-nav">
             {sections.map((s) => {
@@ -3148,7 +3131,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           onNovaHistoria={current.id === 'historias' ? () => abrirNovaHistoriaRef.current && abrirNovaHistoriaRef.current() : null}
           limiteFreeHistoria={limiteFreeHistorias}
           esconderSeletorEBotaoNovo={current.id === 'historias' && historiasDentroDeMenu}
-          sidebarLargura={sidebarCollapsed ? 64 : 208}
+          sidebarLargura={SIDEBAR_LARGURA}
           onNovoPersonagem={current.id === 'personagens_j' ? () => abrirNovoPersonagemRef.current && abrirNovoPersonagemRef.current() : null}
           limiteFreePersonagem={limiteFreePersonagens}
           esconderBotaoPersonagem={current.id === 'personagens_j' && personagensDentroDeMenu}
@@ -3159,7 +3142,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             Resolve a história via mesaAtivaId (Mestre: seletor acima;
             Jogador: PJ ativo, automático). Sem mesa resolvida, o próprio
             componente decide não montar nada. */}
-        <CentralMensagens lang={lang} historiaId={mesaAtivaId} sidebarLargura={sidebarCollapsed ? 64 : 208}
+        <CentralMensagens lang={lang} historiaId={mesaAtivaId} sidebarLargura={SIDEBAR_LARGURA}
           ehMestre={profile === 'master'} />
 
         {/* Botão de rolagem de d20 livre — só aparece quando a FichaPersonagem

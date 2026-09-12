@@ -4727,7 +4727,6 @@
   transition: flex-basis .32s cubic-bezier(.4,0,.2,1), padding .32s cubic-bezier(.4,0,.2,1),
     opacity .2s ease, border-color .32s ease;
 }
-#root .menestrel-ui .mc-sidebar.is-collapsed { flex-basis: 64px; padding: 16px 8px; align-items: center; }
 
 #root .menestrel-ui .mc-nav {
   display: flex; flex-direction: column; gap: 2px; flex: 1; min-height: 0;
@@ -4749,11 +4748,8 @@
   content: ''; position: absolute; left: -10px; top: 6px; bottom: 6px; width: 3px;
   border-radius: 0 3px 3px 0; background: #C9A44E;
 }
-#root .menestrel-ui .mc-sidebar.is-collapsed .mc-navitem.is-active::before { left: -8px; }
 #root .menestrel-ui .mc-navitem i { flex: 0 0 auto; font-size: 20px; line-height: 1; }
 #root .menestrel-ui .mc-navitem span { overflow: hidden; text-overflow: ellipsis; }
-#root .menestrel-ui .mc-sidebar.is-collapsed .mc-navitem { justify-content: center; padding: 9px; }
-#root .menestrel-ui .mc-sidebar.is-collapsed .mc-navitem span { display: none; }
 
 #root .menestrel-ui .mc-user {
   display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; margin-top: 8px;
@@ -4761,13 +4757,10 @@
   background: transparent; transition: background .16s ease;
 }
 #root .menestrel-ui .mc-user:hover { background: rgba(232,221,198,0.06); }
-#root .menestrel-ui .mc-sidebar.is-collapsed .mc-user { justify-content: center; padding: 9px; border-top: none; }
 #root .menestrel-ui .mc-user-name {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 13px; color: #E8DDC6; font-weight: 500;
 }
-#root .menestrel-ui .mc-sidebar.is-collapsed .mc-user-name { display: none; }
-#root .menestrel-ui .mc-sidebar.is-collapsed .mc-user i.ti-chevron-right { display: none; }
 
 #root .menestrel-ui .mc-main {
   position: relative; z-index: 1; flex: 1; width: 0; height: 100%; overflow-y: auto;
@@ -8177,3 +8170,24 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    única ação que leva a outro: desativar. Os demais dizem por que não dá. */
 #root .menestrel-ui .pj-card-ativo-tag { display: inline-flex; align-items: center; gap: 5px; color: #C9A44E; font-size: 12px; }
 #root .menestrel-ui .pj-card-bloqueado { font-size: 11px; color: #8A7F6B; line-height: 1.35; }
+
+/* Marca do sistema: o dragão, sem círculo (12/09/2026). */
+#root .menestrel-ui .mc-marca { display: flex; justify-content: center; padding: 8px 0 6px; }
+#root .menestrel-ui .mc-marca .ti { font-size: 30px; line-height: 1; color: #C9A44E; }
+
+/* ── SIDEBAR SEMPRE PEQUENA (12/09/2026) ─────────────────────────────
+   "O menu não irá se expandir mais porque ele sempre será pequeno."
+
+   Estas regras eram o modificador `.is-collapsed`, aplicado por um botão que
+   saiu. Viraram o estado ÚNICO da sidebar: modificador que nunca pode estar
+   ausente não é modificador, é o normal — e mantê-lo como classe convidaria
+   alguém a procurar o outro estado, que não existe mais.
+
+   Só ícones. O nome de cada seção vive no tooltip (abrirNavTip). */
+#root .menestrel-ui .mc-sidebar { flex-basis: 64px; padding: 16px 8px; align-items: center; }
+#root .menestrel-ui .mc-sidebar .mc-navitem { justify-content: center; padding: 9px; }
+#root .menestrel-ui .mc-sidebar .mc-navitem span { display: none; }
+#root .menestrel-ui .mc-sidebar .mc-navitem.is-active::before { left: -8px; }
+#root .menestrel-ui .mc-sidebar .mc-user { justify-content: center; padding: 9px; border-top: none; }
+#root .menestrel-ui .mc-sidebar .mc-user-name { display: none; }
+#root .menestrel-ui .mc-sidebar .mc-user i.ti-chevron-right { display: none; }
