@@ -230,3 +230,115 @@ describe('passar a vez NÃO quebra — é assim que se evoca', () => {
     expect(M.evocacaoPronta(p)).toBe(true);
   });
 });
+
+describe('passoDeApoio — a evocação finalmente COMEÇA de algum lugar', () => {
+  /* Até este ponto iniciarEvocacao existia, era testada e nunca era chamada:
+     a mecânica que o usuário pediu ("quantidade de rodadas para evocar") não
+     acontecia na mesa. passoDeApoio é quem decide entre largar e resolver, e
+     mora numa função pura porque a decisão precisa ser IDÊNTICA nos dois
+     lados — aplicarApoio (Mestre) e handleApoio (Jogador). */
+  const CURAS_CAT = { key: 'curas_fisicas', nome: 'Curas Físicas',
+                      evocacao: '3 rodadas', duracao: 'Instantânea',
+                      nivel_1: 'Restaura 4 de energia física.' };
+  const BENCAO_CAT = { key: 'bencao', nome: 'Bênção', evocacao: 'Instantânea',
+                       duracao: '10 rodadas',
+                       nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' };
+  const apoio = (cat) => ({ key: cat.key, nome: cat.nome, nivel: 1, catalogo: cat });
+
+  const alvoP = (over = {}) => ({
+    inst_id: 'a1', tipo: 'pj', nome: 'Alvo', raca: 'Humano',
+    eh: 10, eh_max: 10, ef: 5, ef_max: 20, status: 'ativo', status_temp: [], ...over,
+  });
+
+  it('magia de N rodadas LARGA a canalização e não toca no alvo', () => {
+    const arr = [conj(), alvoP()];
+    const r = M.passoDeApoio(arr, 0, 1, apoio(CURAS_CAT), 1, false);
+    expect(r.fase).toBe('iniciou');
+    expect(r.participantes[0].evocando).toMatchObject({ magia_key: 'curas_fisicas', rodadas_rest: 3 });
+    expect(r.participantes[1].ef).toBe(5);     // ninguém foi curado ainda
+  });
+
+  it('a largada cobra karma e PA', () => {
+    const r = M.passoDeApoio([conj({ karma: 9, pa_rest: 1 }), alvoP()], 0, 1, apoio(CURAS_CAT), 1, false);
+    expect(r.participantes[0].karma).toBe(8);
+    expect(r.participantes[0].pa_rest).toBe(0);
+  });
+
+  it('magia INSTANTÂNEA resolve na hora, sem criar estado', () => {
+    const r = M.passoDeApoio([conj(), alvoP()], 0, 1, apoio(BENCAO_CAT), 1, false);
+    expect(r.fase).toBe('resolveu');
+    expect(r.participantes[0].evocando).toBeUndefined();
+    expect(r.participantes[1].status_temp.length).toBeGreaterThan(0);
+  });
+
+  it('concluir a canalização aplica o efeito e limpa o estado', () => {
+    let arr = [conj(), alvoP()];
+    arr = M.passoDeApoio(arr, 0, 1, apoio(CURAS_CAT), 1, false).participantes;
+    // Três viradas até o contador zerar.
+    for (let i = 0; i < 3; i++) arr[0] = M.processarViradaDeRodada(arr[0]).participante;
+    expect(M.evocacaoPronta(arr[0])).toBe(true);
+    const r = M.passoDeApoio(arr, 0, 1, apoio(CURAS_CAT), 1, false);
+    expect(r.fase).toBe('resolveu');
+    expect(r.participantes[0].evocando).toBeUndefined();
+    expect(r.participantes[1].ef).toBe(9);     // curou os 4
+  });
+
+  it('concluir NÃO cobra o karma de novo — já foi pago na largada', () => {
+    let arr = [conj({ karma: 5 }), alvoP()];
+    arr = M.passoDeApoio(arr, 0, 1, apoio(CURAS_CAT), 1, false).participantes;
+    expect(arr[0].karma).toBe(4);
+    const r = M.passoDeApoio(arr, 0, 1, apoio(CURAS_CAT), 1, false);
+    expect(r.participantes[0].karma).toBe(4);  // continua 4, não 3
+  });
+
+  it('alvo que MORREU no meio faz a magia resolver sem efeito', () => {
+    // Spec §4.3: o karma já foi gasto; a magia sai, mas não pega em ninguém.
+    let arr = [conj(), alvoP()];
+    arr = M.passoDeApoio(arr, 0, 1, apoio(CURAS_CAT), 1, false).participantes;
+    arr[1] = { ...arr[1], status: 'morto' };
+    const r = M.passoDeApoio(arr, 0, 1, apoio(CURAS_CAT), 1, false);
+    expect(r.fase).toBe('perdeu');
+    expect(r.participantes[1].ef).toBe(5);     // não curou
+    expect(r.participantes[0].evocando).toBeUndefined();
+  });
+
+  it('alvo de raça inválida também derruba o efeito na resolução', () => {
+    const AURA_CAT = { key: 'aura_divina', nome: 'Aura Divina', evocacao: 'Instantânea',
+                       duracao: '1 hora', nivel_1: 'A área reduz 1 coluna de ataque.' };
+    const r = M.passoDeApoio([conj(), alvoP({ raca: 'Animal' })], 0, 1, apoio(AURA_CAT), 1, false);
+    expect(r.fase).toBe('perdeu');
+  });
+
+  it('alvo que RESISTIU não recebe o efeito, mas a magia foi lançada', () => {
+    const r = M.passoDeApoio([conj(), alvoP()], 0, 1, apoio(BENCAO_CAT), 1, true);
+    expect(r.fase).toBe('resolveu');
+    expect(r.participantes[1].status_temp).toHaveLength(0);
+  });
+});
+
+describe('textoPassoDeApoio — o log conta a verdade em cada fase', () => {
+  const CURAS = { key: 'curas_fisicas', nome: 'Curas Físicas', nivel: 1,
+                  catalogo: { key: 'curas_fisicas', evocacao: '3 rodadas',
+                              duracao: 'Instantânea', nivel_1: 'Restaura 4 de energia física.' } };
+
+  it('largada diz que COMEÇOU, não que lançou', () => {
+    // "lançou X em Y" era mentira quando nada tinha acontecido ainda.
+    expect(M.textoPassoDeApoio('iniciou', 'Mago', CURAS, 'Alvo', false))
+      .toBe('Mago começou a evocar Curas Físicas — 3 rodada(s) até resolver');
+  });
+
+  it('alvo perdido é registrado como tal', () => {
+    expect(M.textoPassoDeApoio('perdeu', 'Mago', CURAS, 'Alvo', false))
+      .toMatch(/o alvo não era mais válido/);
+  });
+
+  it('resolução com resistência', () => {
+    expect(M.textoPassoDeApoio('resolveu', 'Mago', CURAS, 'Alvo', true))
+      .toMatch(/resistiu/);
+  });
+
+  it('resolução normal descreve o efeito', () => {
+    expect(M.textoPassoDeApoio('resolveu', 'Mago', CURAS, 'Alvo', false))
+      .toBe('Mago lançou Curas Físicas em Alvo (restaura 4 de energia física)');
+  });
+});

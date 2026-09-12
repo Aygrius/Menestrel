@@ -2661,6 +2661,79 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
   return resultado;
 }
 
+/* ── Texto do passo de apoio para a Central de Mensagens (puro) ────
+   Quatro frases, uma por desfecho. Existe para os dois handlers não
+   divergirem na redação — e porque "lançou X em Y" era mentira quando a magia
+   só COMEÇOU a ser evocada e nada aconteceu ainda.
+
+   PT literal, como as outras chamadas de registrar_evento_mesa. */
+function textoPassoDeApoio(fase, nomeAtor, magia, nomeAlvo, resistiu) {
+  const cat = (magia && magia.catalogo) || magia;
+  if (fase === 'iniciou') {
+    const n = evocacaoEmRodadas(cat).rodadas;
+    return `${nomeAtor} começou a evocar ${magia.nome} — ${n} rodada(s) até resolver`;
+  }
+  if (fase === 'perdeu') {
+    return `${nomeAtor} concluiu ${magia.nome}, mas o alvo não era mais válido`;
+  }
+  if (resistiu) return `${nomeAtor} lançou ${magia.nome} em ${nomeAlvo} — resistiu`;
+  return `${nomeAtor} lançou ${magia.nome} em ${nomeAlvo} (${textoEfeitoMagia(magia)})`;
+}
+
+/* ── Um passo de magia de apoio: larga a evocação ou resolve (puro) ─
+   A evocação canalizada só existe de verdade quando ALGUÉM a inicia, e essa
+   decisão precisa ser a mesma nos dois lados — Mestre (aplicarApoio) e
+   Jogador (handleApoio). Por isso mora aqui, e não nos dois handlers.
+
+   Dois passos, decididos pelo estado do conjurador:
+
+     1. LARGADA — magia de N rodadas e o conjurador ainda não a está evocando.
+        Cobra karma e 1 PA, grava `evocando`, NÃO toca no alvo.
+     2. RESOLUÇÃO — magia instantânea, ou canalização que chegou a zero.
+        Aplica o efeito. Cobra karma e PA só se ainda não cobrou na largada.
+
+   O alvo é REVALIDADO na resolução (spec §4.3): quem morreu, desistiu ou
+   virou alvo inválido no meio some, e a magia resolve sem efeito — o karma já
+   foi gasto.
+
+   Devolve { participantes, fase } com fase 'iniciou' | 'resolveu' | 'perdeu'. */
+function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu) {
+  const next = [...arr];
+  const ator = next[atorIdx];
+  const k = Math.max(0, custoKarma || 0);
+  const cat = (magia && magia.catalogo) || magia;
+  const ev = evocacaoEmRodadas(cat);
+  const evocandoEsta = !!(ator.evocando && ator.evocando.magia_key === magia.key);
+
+  // 1. Largada da canalização.
+  if (ev.rodadas > 0 && !evocandoEsta) {
+    next[atorIdx] = iniciarEvocacao(ator, { ...cat, key: magia.key },
+      magia.nivel, [next[alvoIdx] && next[alvoIdx].inst_id].filter(Boolean), k);
+    return { participantes: next, fase: 'iniciou' };
+  }
+
+  // 2. Resolução. Quem estava canalizando já pagou na largada.
+  if (evocandoEsta) {
+    const { evocando, ...semEvocacao } = ator;
+    next[atorIdx] = semEvocacao;
+  } else {
+    next[atorIdx] = {
+      ...ator,
+      pa_rest: Math.max(0, (ator.pa_rest || 0) - 1),
+      karma:   Math.max(0, (ator.karma   || 0) - k),
+    };
+  }
+
+  const alvoP = next[alvoIdx];
+  const alvoSumiu = !alvoP || alvoP.status === 'morto' || alvoP.status === 'desistiu'
+    || !alvoPermitidoParaMagia(alvoP, magia.key).pode;
+  if (resistiu || alvoSumiu) {
+    return { participantes: next, fase: alvoSumiu ? 'perdeu' : 'resolveu' };
+  }
+  next[alvoIdx] = aplicarEfeitoApoio(alvoP, magia, next[atorIdx].inst_id);
+  return { participantes: next, fase: 'resolveu' };
+}
+
 /* ── Curas de uma magia, aplicadas de uma vez (puro) ───────────────
    A ponte entre o registro e aplicarCuraPool. Existe porque a cura é
    INSTANTÂNEA: não vira status_temp, então aplicarEfeitoMagia a ignora de
@@ -3975,19 +4048,16 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
 
     const k = Math.max(0, custo_karma || 0);
-    next[atorIdx] = {
-      ...next[atorIdx],
-      pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1),
-      karma:   Math.max(0, (next[atorIdx].karma   || 0) - k),
-    };
-    if (!resistiu) {
-      next[alvoIdx] = aplicarEfeitoApoio(next[alvoIdx], magia, next[atorIdx].inst_id);
-    }
+    // Larga a canalização OU resolve — a decisão é de passoDeApoio, e é a
+    // mesma nos dois lados (ver handleApoio no BatalhaJogadorView).
+    const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu);
+    next = passo.participantes;
 
     const entry = {
       rodada, ts: Date.now(),
       autor_tipo: ator.tipo, autor_ref_id: ator.ref_id, autor_nome: participantes[atorIdx].nome,
       acao: 'apoio',
+      fase_evocacao: passo.fase,
       alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
       magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
       mod_vb: magia.mod_vb, rodadas: magia.rodadas,
@@ -3999,9 +4069,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
     if (historia && historia.id) {
       const nomeAtor = participantes[atorIdx].nome;
-      const texto = resistiu
-        ? `${nomeAtor} lançou ${magia.nome} em ${alvo.nome} — resistiu`
-        : `${nomeAtor} lançou ${magia.nome} em ${alvo.nome} (${textoEfeitoMagia(magia)})`;
+      const texto = textoPassoDeApoio(passo.fase, nomeAtor, magia, alvo.nome, resistiu);
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
         p_tipo: 'magia',
@@ -5508,6 +5576,15 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 
   // ── Tab APOIO ──────────────────────────────────────────────
   const apoioSel = magiasApoio[apoioIdx] || null;
+  /* Canalização em curso trava a aba na magia que está sendo evocada: trocar
+     de magia no meio é uma ação, e ação derruba a evocação (quebrarEvocacao).
+     Deixar o select livre daria ao jogador um jeito de perder o karma sem
+     entender por quê. */
+  const evocandoAgora = ator && ator.evocando ? ator.evocando : null;
+  const apoioEvocando = evocandoAgora
+    ? magiasApoio.find((m) => m.key === evocandoAgora.magia_key) || null
+    : null;
+  const evocacaoPendente = !!evocandoAgora && (evocandoAgora.rodadas_rest || 0) > 0;
 
   // A aba Apoio tem lista de alvos PRÓPRIA: diferente de Arma/Magia, aqui o
   // conjurador pode (e às vezes DEVE) mirar em si mesmo.
@@ -5756,8 +5833,17 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     : (tab === 'resistencia')
       ? (!semPA && d20 != null && !!resResist && resResist !== 'empate')
     : (tab === 'apoio')
+      /* Canalização em curso e ainda não pronta: nada a confirmar — a magia
+         resolve sozinha quando o contador chegar a zero, e o jogador só passa
+         a vez até lá. Ritual nunca confirma.
+
+         O karma NÃO é cobrado de novo na resolução (passoDeApoio sabe disso),
+         então quem está concluindo uma canalização não precisa ter o karma
+         outra vez — daí a checagem só valer na largada. */
       ? (!semPA && !!apoioSel && !!alvoApoio
-         && (ator.karma || 0) >= apoioSel.custo_karma
+         && !apoioSel.evocacao_bloqueada
+         && !evocacaoPendente
+         && (evocandoAgora || (ator.karma || 0) >= apoioSel.custo_karma)
          && (!apoioSel.resistencia || (d20 != null && resResist !== 'empate')))
     : (tab === 'item')
       ? (!semPA && !!itemSelecionado && itemQtd >= 1 && itemQtd <= itemSelecionado.quantidade)
@@ -6286,12 +6372,26 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             {apoioSel && apoioSel.concentracao && (
               <p className="acao-karma-line">{tb.avisoConcentracao}</p>
             )}
-            {/* Evocação canalizada: o jogador precisa saber ANTES de gastar o
+            {/* CANALIZAÇÃO EM CURSO tem precedência sobre o aviso: quem já
+                está evocando não precisa ler de novo o que vai acontecer —
+                precisa ver quantas rodadas faltam. */}
+            {evocandoAgora && (
+              <p className="acao-karma-line">
+                {interpolate(tb.magiaEvocando, {
+                  nome: (apoioEvocando && apoioEvocando.nome) || evocandoAgora.magia_key,
+                  n: evocandoAgora.rodadas_rest,
+                })}
+              </p>
+            )}
+            {/* Aviso da largada: o jogador precisa saber ANTES de gastar o
                 karma que vai ficar preso N rodadas, e o que derruba. */}
-            {apoioSel && apoioSel.evocacao_rodadas > 0 && (
+            {!evocandoAgora && apoioSel && apoioSel.evocacao_rodadas > 0 && (
               <p className="acao-karma-line">
                 {interpolate(tb.magiaEvocacaoAviso, { n: apoioSel.evocacao_rodadas })}
               </p>
+            )}
+            {apoioSel && apoioSel.evocacao_bloqueada && (
+              <p className="acao-karma-line">{tb.magiaRitual}</p>
             )}
             {/* A metade que a Fase 1 não automatiza vai para a tela, não só
                 para o log — Força Mútua confere a raça, não o vínculo. */}
@@ -7135,14 +7235,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
 
     const k = Math.max(0, custo_karma || 0);
-    next[atorIdx] = {
-      ...next[atorIdx],
-      pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1),
-      karma:   Math.max(0, (next[atorIdx].karma   || 0) - k),
-    };
-    if (!resistiu) {
-      next[alvoIdx] = aplicarEfeitoApoio(next[alvoIdx], magia, next[atorIdx].inst_id);
-    }
+    // Mesma função do lado do Mestre: larga a canalização ou resolve. A regra
+    // mora na função pura justamente para as duas cópias não divergirem —
+    // foi assim que a cópia do Jogador passou meses sem decrementar
+    // status_temp (ver o comentário em aplicarEfeitoTecnica).
+    const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu);
+    next = passo.participantes;
     const rVez = autoPassarSeNecessario(next, next[atorIdx]);
     next = rVez.participantes;
     const rodadaNova = rVez.rodadaNova;
@@ -7153,6 +7251,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       autor_tipo: meuParticipante.tipo, autor_ref_id: meuParticipante.ref_id,
       autor_nome: meuParticipante.nome,
       acao: 'apoio',
+      fase_evocacao: passo.fase,
       alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
       magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
       mod_vb: magia.mod_vb, rodadas: magia.rodadas,
@@ -7163,9 +7262,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
 
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      const texto = resistiu
-        ? `${meuParticipante.nome} lançou ${magia.nome} em ${alvo.nome} — resistiu`
-        : `${meuParticipante.nome} lançou ${magia.nome} em ${alvo.nome} (${textoEfeitoMagia(magia)})`;
+      const texto = textoPassoDeApoio(passo.fase, meuParticipante.nome, magia, alvo.nome, resistiu);
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'magia',
@@ -7549,6 +7646,7 @@ Object.assign(window, {
     aplicarEfeitoMagia, aplicarCuraPool, aplicarDrenoEh, danoAposReducao,
     alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia, alvosDeArea,
     resumoEfeitoMagia, textoEfeitoMagia, aplicarCurasDaMagia,
+    passoDeApoio, textoPassoDeApoio,
     evocacaoEmRodadas, iniciarEvocacao, decrementarEvocacao, evocacaoPronta,
     quebrarEvocacao,
     // Complemento da Central de Mensagens (10/09/2026): extraída dos dois
