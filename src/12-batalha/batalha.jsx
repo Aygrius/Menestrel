@@ -667,6 +667,23 @@ function evocacaoEmRodadas(magia) {
    verdade na investigação; há teste de regressão pra ele. */
 const RE_RESIST = /teste\s+de\s+resist[êe]ncia\s+(m[áa]gica|f[íi]sica)/i;
 
+/* ── Passou no teste de habilidade? (puro) ─────────────────────────
+   O dado já foi rolado e resolvido em resolverAcao, que devolve uma QUALIDADE
+   (q 0..7: Falha Crítica → Absurdo). Passar é alcançar a qualidade que a
+   dificuldade pede — a mesma tabela que a ficha usa no teste de habilidade
+   avulso (D20_QUALIDADE_MINIMA, em 02-shell/dado-d20.jsx).
+
+   Reaproveitar aquela tabela em vez de escrever outra é o ponto: teste de
+   habilidade em batalha e teste de habilidade na ficha têm que ser a MESMA
+   coisa, senão o mesmo Sentidos (Absurdo) passa num lugar e falha no outro. */
+function passouNoTesteDeHabilidade(qualidade, dificuldade) {
+  const tabela = (typeof D20_QUALIDADE_MINIMA === 'object' && D20_QUALIDADE_MINIMA)
+    ? D20_QUALIDADE_MINIMA : { facil: 2, medio: 3, dificil: 4, muito_dificil: 5, absurdo: 7 };
+  const min = tabela[dificuldade];
+  if (min == null) return true;        // dificuldade que não conhecemos não barra
+  return Number(qualidade) >= min;
+}
+
 function exigeResistencia(magia) {
   const txt = (magia && magia.descricao) || '';
   const m = RE_RESIST.exec(txt);
@@ -837,6 +854,11 @@ function magiasDeApoioDoAtor(ator, catalogos) {
       evocacao_rodadas: ev.rodadas,
       evocacao_bloqueada: ev.bloqueada,
       resistencia: exigeResistencia(m),
+      /* Teste que o CONJURADOR faz para a magia sair, lido do texto do nível
+         ({ habilidade, dificuldade }). Espelha `resistencia`, que é o teste do
+         ALVO para escapar — e as duas podem coexistir sem se atrapalhar. */
+      teste_habilidade: (typeof testeHabilidadeNoNivel === 'function')
+        ? testeHabilidadeNoNivel(m, nivel) : null,
       // alcance "Pessoal" = só em si mesmo. É IDENTIDADE, não distância: o
       // tabuleiro não distingue (ver parseAlcance), então a regra mora aqui.
       pessoal: /pessoal/i.test(m.alcance || ''),
@@ -3025,6 +3047,13 @@ function textoPassoDeApoio(fase, nomeAtor, magia, nomeAlvo, resistiu) {
   if (fase === 'perdeu') {
     return `${nomeAtor} concluiu ${magia.nome}, mas o alvo não era mais válido`;
   }
+  if (fase === 'falhou_teste') {
+    const t = (typeof testeHabilidadeNoNivel === 'function')
+      ? testeHabilidadeNoNivel(cat, magia.nivel) : null;
+    return t
+      ? `${nomeAtor} lançou ${magia.nome} — falhou no teste de ${t.habilidade}`
+      : `${nomeAtor} lançou ${magia.nome} — falhou no teste`;
+  }
   if (resistiu) return `${nomeAtor} lançou ${magia.nome} em ${nomeAlvo} — resistiu`;
   return `${nomeAtor} lançou ${magia.nome} em ${nomeAlvo} (${textoEfeitoMagia(magia)})`;
 }
@@ -3070,7 +3099,7 @@ function textoPassoDeApoioComCura(fase, nomeAtor, magia, nomeAlvo, resistiu, his
    foi gasto.
 
    Devolve { participantes, fase } com fase 'iniciou' | 'resolveu' | 'perdeu'. */
-function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu) {
+function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhouTeste) {
   const next = [...arr];
   const ator = next[atorIdx];
   const k = Math.max(0, custoKarma || 0);
@@ -3104,6 +3133,14 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu) {
      raio a partir do conjurador. Aura Divina é a única da Fase 1/2 assim.
      Quando não há posição (setup), alvosDeAura devolve null e a magia cai no
      caminho de alvo único — melhor do que não fazer nada. */
+  /* TESTE DE HABILIDADE REPROVADO: a magia saiu e não pegou.
+
+     Sai ANTES da aura e antes do alvo único, porque o teste é do CONJURADOR e
+     vale para a magia inteira — reprovado, não há em quem aplicar, nem numa
+     aura de vinte pessoas. O karma e o PA já foram cobrados acima: pagar pela
+     tentativa é a regra, como no teste de resistência do alvo. */
+  if (falhouTeste) return { participantes: next, fase: 'falhou_teste' };
+
   const reg = magiaEfeitoDe(magia.key);
   if (reg && reg.area === 'aura') {
     const atingidos = alvosDeAura(cat, next[atorIdx], next, magia.nivel);
@@ -4651,7 +4688,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   // (se ele não resistiu) e loga. Diferente de aplicarAcao: não há dano nem
   // cascata, e o dado só entra quando a magia exige teste de resistência.
   const aplicarApoio = (payload) => {
-    const { ator, alvo, magia, custo_karma, resistencia, d20, resistiu } = payload;
+    const { ator, alvo, magia, custo_karma, resistencia, d20, resistiu, falhou_teste } = payload;
     const atorIdx = participantes.findIndex((p) => mesmoParticipante(p, ator));
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     if (atorIdx < 0 || alvoIdx < 0) return;
@@ -4663,7 +4700,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const k = Math.max(0, custo_karma || 0);
     // Larga a canalização OU resolve — a decisão é de passoDeApoio, e é a
     // mesma nos dois lados (ver handleApoio no BatalhaJogadorView).
-    const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu);
+    const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu, falhou_teste);
     next = passo.participantes;
 
     const entry = {
@@ -6248,6 +6285,16 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // Magia: coluna = nível efetivo do conjurador (passa por toda defesa).
   // Habilidade/Técnica(teste): coluna = total do item (clamp [-7,50]).
   const habilidadeSel = habilidadesAtor.find((h) => h.key === habKey) || null;
+  /* A habilidade que a MAGIA de apoio exige, casada pelo NOME que o texto do
+     nível traz ("teste da habilidade Sentidos"). Casa sem acento e sem caixa
+     porque o texto é prosa do catálogo, não uma chave. */
+  const habTesteDaMagia = useMemo(() => {
+    const t = apoioSel && apoioSel.teste_habilidade;
+    if (!t || !t.habilidade) return null;
+    const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    const alvo = norm(t.habilidade);
+    return habilidadesAtor.find((h) => norm(h.nome) === alvo) || null;
+  }, [apoioSel, habilidadesAtor]);
   const tecnicaTesteSel = tecnicas.find((t) => t.key === tecTesteKey) || null;
   // Fase 1 (09/09/2026): a aba Técnica passou a APLICAR efeito, não só rolar.
   const tecRegistro = tecnicaTesteSel ? tecnicaEfeitoDe(tecnicaTesteSel.key) : null;
@@ -6339,6 +6386,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   } else if (tab === 'tecnica_teste' && tecnicaTesteSel && tecnicaTesteSel.total != null) {
     coluna = tecnicaTesteSel.total + modColunaAtor;
     colunaClamped = Math.max(-7, Math.min(50, coluna));
+  } else if (tab === 'apoio' && apoioSel && apoioSel.teste_habilidade && habTesteDaMagia) {
+    /* TESTE DE HABILIDADE DA MAGIA (Proteção Natural). A coluna é a do
+       CONJURADOR na habilidade que a magia exige — a mesma conta da aba
+       Habilidade, não uma paralela: um Sentidos (Absurdo) tem que dar o mesmo
+       resultado aqui e lá. Sem a habilidade na ficha não há coluna, e o painel
+       avisa em vez de deixar rolar. */
+    coluna = habTesteDaMagia.total + modColunaAtor;
+    colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'apoio' && apoioSel && apoioSel.resistencia && alvoApoio) {
     // Força de ATAQUE = nível efetivo da magia; força de DEFESA = o RF/RM do
     // alvo. Ambas presas em 1..20, que é o intervalo que resolverResistencia
@@ -6356,6 +6411,18 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   }
 
   const res = (tab !== 'resistencia' && colunaClamped != null && d20 != null) ? resolverAcao(colunaClamped, d20) : null;
+
+  /* RESULTADO DO TESTE DE HABILIDADE DA MAGIA.
+
+     null = não há teste a fazer, ou ainda não rolou. Quando existe, o efeito
+     da magia depende dele: passou, aplica; falhou, a magia sai e não pega —
+     e o karma foi gasto do mesmo jeito, como no teste de resistência. */
+  const magiaPedeTeste = tab === 'apoio' && !!(apoioSel && apoioSel.teste_habilidade);
+  const passouTesteMagia = (magiaPedeTeste && res)
+    ? passouNoTesteDeHabilidade(res.q, apoioSel.teste_habilidade.dificuldade) : null;
+  // Exige a habilidade NA FICHA: sem ela não há coluna para rolar, e deixar
+  // rolar com coluna zero fingiria um teste que ninguém fez.
+  const semHabDoTeste = magiaPedeTeste && !habTesteDaMagia;
   const resResist = ((tab === 'resistencia' || tab === 'apoio') && d20 != null && alvoResist != null)
     ? (d20 === alvoResist ? 'empate' : (d20 > alvoResist ? 'resistiu' : 'falhou'))
     : null;
@@ -6495,7 +6562,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
          && !apoioSel.evocacao_bloqueada
          && !evocacaoPendente
          && (evocandoAgora || (ator.karma || 0) >= apoioSel.custo_karma)
-         && (!apoioSel.resistencia || (d20 != null && resResist !== 'empate')))
+         && (!apoioSel.resistencia || (d20 != null && resResist !== 'empate'))
+         /* Magia com teste de habilidade só aplica depois de rolado — e nunca
+            quando o conjurador não tem a habilidade na ficha. */
+         && (!magiaPedeTeste || (!semHabDoTeste && d20 != null)))
     : (tab === 'item')
       ? (!semPA && !!itemSelecionado && itemQtd >= 1 && itemQtd <= itemSelecionado.quantidade)
     : false;
@@ -6517,7 +6587,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const semAlvoPossivel = (tab === 'arma' || tab === 'magia') && alvos.length === 0;
   // Apoio sem teste de resistência não rola dado nenhum — não há rolagem pra
   // ficar pendente, e travar o painel aqui só prenderia o Mestre.
-  const apoioSemDado = tab === 'apoio' && !(apoioSel && apoioSel.resistencia);
+  // Apoio SEM dado: nem teste de resistência do alvo, nem teste de habilidade
+  // do conjurador. Com qualquer um dos dois, o painel mostra o dado.
+  const apoioSemDado = tab === 'apoio'
+    && !(apoioSel && (apoioSel.resistencia || apoioSel.teste_habilidade));
   const temRolagemPendente = tab !== 'item' && !apoioSemDado && d20 != null && !semAlvoPossivel;
 
   // Reporta o estado de "rolagem pendente" pro pai sempre que muda.
@@ -6596,6 +6669,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
         resistencia: apoioSel.resistencia || null,
         d20: apoioSel.resistencia ? d20 : null,
         resistiu: apoioSel.resistencia ? (resResist === 'resistiu') : false,
+        // Teste do conjurador: reprovado, a magia sai e não pega em ninguém.
+        teste_habilidade: apoioSel.teste_habilidade || null,
+        falhou_teste: magiaPedeTeste ? (passouTesteMagia === false) : false,
       });
     } else if (tab === 'item' && itemSelecionado) {
       onAplicarItem && onAplicarItem({
@@ -7082,6 +7158,31 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             )}
             {apoioSel && apoioSel.resistencia && resResist === 'resistiu' && (
               <div className="err-msg">{tb.alvoResistiu}</div>
+            )}
+            {/* TESTE DE HABILIDADE DO CONJURADOR (Proteção Natural).
+                Três estados, e cada um precisa dizer coisa diferente: falta a
+                habilidade na ficha (não dá pra rolar), ainda não rolou (o que
+                vai ser exigido), e já rolou (passou ou não). */}
+            {magiaPedeTeste && semHabDoTeste && (
+              <div className="err-msg">
+                {interpolate(tb.magiaTesteSemHabilidade || 'Esta magia exige um teste de {h}, e este lutador não tem essa habilidade.',
+                  { h: apoioSel.teste_habilidade.habilidade })}
+              </div>
+            )}
+            {magiaPedeTeste && !semHabDoTeste && (
+              <p className="acao-efeito-texto">
+                {interpolate(tb.magiaTesteExige || 'Teste de {h} ({d}) — coluna {c}',
+                  { h: apoioSel.teste_habilidade.habilidade,
+                    d: (D20_DIF_LABEL[apoioSel.teste_habilidade.dificuldade] || {})[en ? 'en' : 'pt']
+                       || apoioSel.teste_habilidade.dificuldade,
+                    c: colunaClamped })}
+              </p>
+            )}
+            {magiaPedeTeste && passouTesteMagia === false && (
+              <div className="err-msg">{tb.magiaTesteFalhou || 'Falhou no teste — a magia não pegou.'}</div>
+            )}
+            {magiaPedeTeste && passouTesteMagia === true && (
+              <p className="acao-efeito-texto">{tb.magiaTestePassou || 'Passou no teste.'}</p>
             )}
           </>
         )
@@ -7987,7 +8088,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // ── Apoio — espelha aplicarApoio do Mestre ──
   const handleApoio = (payload) => {
     if (!ehMinhaVez || !meuParticipante) return;
-    const { ator, alvo, magia, custo_karma, resistencia, d20, resistiu } = payload;
+    const { ator, alvo, magia, custo_karma, resistencia, d20, resistiu, falhou_teste } = payload;
     const atorIdx = participantes.findIndex((q) => mesmoParticipante(q, ator));
     const alvoIdx = participantes.findIndex((q) => mesmoParticipante(q, alvo));
     if (atorIdx < 0 || alvoIdx < 0) return;
@@ -8000,7 +8101,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // mora na função pura justamente para as duas cópias não divergirem —
     // foi assim que a cópia do Jogador passou meses sem decrementar
     // status_temp (ver o comentário em aplicarEfeitoTecnica).
-    const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu);
+    const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu, falhou_teste);
     next = passo.participantes;
     const rVez = autoPassarSeNecessario(next, next[atorIdx]);
     next = rVez.participantes;
@@ -8392,7 +8493,7 @@ Object.assign(window, {
     // Leitura de velocidade do catálogo (01/09/2026): o texto do nível é a
     // fonte, como já acontece com o dano. duracao e descricao completam o
     // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
-    modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia,
+    modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia, passouNoTesteDeHabilidade,
     magiasDeApoioDoAtor, magiasOfensivasDoAtor, magiasConhecidasDoAtor,
     aplicarEfeitoApoio, quebrarConcentracao,
     // Fase 1 das técnicas (09/09/2026): grava o efeito da técnica no

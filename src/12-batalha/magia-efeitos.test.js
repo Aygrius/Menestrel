@@ -1232,3 +1232,94 @@ describe('a cura natural da doença tem DATA', () => {
     });
   });
 });
+
+describe('o motor rola HABILIDADE, não só resistência', () => {
+  /* Decisão do usuário, 12/09/2026: "o motor deve rolar habilidade também".
+     Era o que segurava Proteção Natural, a última órfã que não era ritual.
+
+     A diferença entre os dois testes é DE QUEM ROLA:
+       • resistência — rola o ALVO, para escapar da magia;
+       • habilidade  — rola o CONJURADOR, para a magia sair.
+
+     A escala de aprovação é a MESMA da ficha (D20_QUALIDADE_MINIMA). Se
+     divergissem, o mesmo Sentidos (Absurdo) passaria num lugar e falharia no
+     outro. */
+  const PROT = { key: 'protecao_natural', nome: 'Proteção Natural', duracao: '2 rodadas',
+                 alcance: 'Pessoal',
+                 nivel_1: 'Com um teste da habilidade Sentidos (Absurdo), reduz 4 de dano.',
+                 nivel_9: 'Com um teste da habilidade Sentidos (Fácil), reduz 20 de dano.' };
+
+  describe('lendo a exigência do texto', () => {
+    it('nome da habilidade e dificuldade', () => {
+      expect(window.testeHabilidadeNoNivel(PROT, 1))
+        .toEqual({ habilidade: 'Sentidos', dificuldade: 'absurdo' });
+    });
+
+    it('a dificuldade AFROUXA com o nível — por isso é lida, não registrada', () => {
+      expect(window.testeHabilidadeNoNivel(PROT, 9).dificuldade).toBe('facil');
+    });
+
+    it('"Muito Difícil" vira a chave com underscore que o motor usa', () => {
+      const m = { nivel_1: 'Com um teste da habilidade Sentidos (Muito Difícil), reduz 8 de dano.' };
+      expect(window.testeHabilidadeNoNivel(m, 1).dificuldade).toBe('muito_dificil');
+    });
+
+    it('magia sem teste devolve null', () => {
+      expect(window.testeHabilidadeNoNivel({ nivel_1: 'Aumenta 1 coluna de ataque.' }, 1)).toBeNull();
+    });
+
+    it('dificuldade que não existe na escala não vira teste', () => {
+      const m = { nivel_1: 'Com um teste da habilidade Sentidos (Impossível), reduz 4 de dano.' };
+      expect(window.testeHabilidadeNoNivel(m, 1)).toBeNull();
+    });
+  });
+
+  describe('a aprovação usa a MESMA escala da ficha', () => {
+    it.each([
+      ['absurdo', 7, true], ['absurdo', 6, false],
+      ['facil', 2, true], ['facil', 1, false],
+      ['muito_dificil', 5, true], ['muito_dificil', 4, false],
+    ])('%s com qualidade %i → %s', (dif, q, esperado) => {
+      expect(M.passouNoTesteDeHabilidade(q, dif)).toBe(esperado);
+    });
+
+    it('dificuldade desconhecida não barra ninguém', () => {
+      // Prefere deixar passar a travar a mesa por uma palavra nova no texto.
+      expect(M.passouNoTesteDeHabilidade(1, 'impossivel')).toBe(true);
+    });
+  });
+
+  describe('falhar no teste faz a magia sair sem pegar', () => {
+    const conj = () => ({ ...alvo(), inst_id: 'c1', karma: 10, pa_rest: 2 });
+    const magia = { key: 'protecao_natural', nome: 'Proteção Natural', nivel: 1,
+                    custo_karma: 1, catalogo: PROT };
+
+    it('reprovado: nenhum status é gravado', () => {
+      const r = M.passoDeApoio([conj()], 0, 0, magia, 1, false, true);
+      expect(r.fase).toBe('falhou_teste');
+      expect(r.participantes[0].status_temp).toHaveLength(0);
+    });
+
+    it('mas o karma foi gasto — paga-se pela tentativa', () => {
+      const r = M.passoDeApoio([conj()], 0, 0, magia, 1, false, true);
+      expect(r.participantes[0].karma).toBe(9);
+    });
+
+    it('aprovado: a redução de dano entra', () => {
+      const r = M.passoDeApoio([conj()], 0, 0, magia, 1, false, false);
+      expect(r.fase).toBe('resolveu');
+      const ef = r.participantes[0].status_temp.find((s) => s.efeito.tipo === 'reducao_dano');
+      expect(ef.efeito).toMatchObject({ valor: 4, base: true });
+    });
+
+    it('e a redução alcança dano SEM elemento — é queda, não fogo', () => {
+      const r = M.passoDeApoio([conj()], 0, 0, magia, 1, false, false);
+      expect(M.danoAposReducao(10, r.participantes[0], null)).toBe(6);
+    });
+
+    it('o log diz em QUE teste se falhou', () => {
+      expect(M.textoPassoDeApoio('falhou_teste', 'Mago', magia, 'Mago', false))
+        .toMatch(/falhou no teste de Sentidos/);
+    });
+  });
+});

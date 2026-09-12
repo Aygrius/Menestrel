@@ -321,6 +321,12 @@ const COPY = {
          ateOFimDa e rodadas já existiam neste bloco e são reaproveitadas. */
       apoio: 'Apoio',
       alvoResistiu: 'O alvo resistiu — o efeito não pegou.',
+      /* Teste de HABILIDADE do conjurador (Proteção Natural). Diferente do de
+         resistência: lá o alvo tenta escapar, aqui o conjurador tenta acertar. */
+      magiaTesteExige: 'Teste de {h} ({d}) — coluna {c}',
+      magiaTesteSemHabilidade: 'Esta magia exige um teste de {h}, e este lutador não tem essa habilidade.',
+      magiaTesteFalhou: 'Falhou no teste — a magia não pegou.',
+      magiaTestePassou: 'Passou no teste.',
       avisoConcentracao: 'Enquanto sustenta esta magia você não pode fazer mais nada. Atacar, usar item, andar ou levar dano na Energia Física quebra a concentração.',
       concentracao: 'Concentração',
       efeito: 'Efeito',
@@ -814,8 +820,11 @@ const COPY = {
       alvo: 'Target',
       /* ── Support tab (2026-09-01): spells that change speed ──
          ateOFimDa and rodadas already existed in this block; reused. */
-      apoio: 'Support',
       alvoResistiu: 'The target resisted — the effect did not land.',
+      magiaTesteExige: '{h} test ({d}) — column {c}',
+      magiaTesteSemHabilidade: 'This spell needs a {h} test, and this fighter lacks that skill.',
+      magiaTesteFalhou: 'Failed the test — the spell did not land.',
+      magiaTestePassou: 'Passed the test.',
       avisoConcentracao: 'While sustaining this spell you cannot do anything else. Attacking, using an item, moving or taking Physical Energy damage breaks concentration.',
       concentracao: 'Concentration',
       efeito: 'Effect',

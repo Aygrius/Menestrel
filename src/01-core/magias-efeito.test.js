@@ -213,8 +213,8 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem 73 entradas — 72 mais Doencas', () => {
-    expect(Object.keys(MAP)).toHaveLength(73);
+  it('tem 74 entradas — 73 mais Protecao Natural', () => {
+    expect(Object.keys(MAP)).toHaveLength(74);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -395,6 +395,9 @@ describe('o acordo entre o mapa e o texto do banco', () => {
       'Cause conjuntivite: Esta doenca afeta os olhos, embacando a visao e causando um pouco de dor. Reduz 25 de Saude e o tempo de cura e de 3 dias.',
       'Cause febre amarela: Cause febre, tremores e coloracao amarela pela pele. Reduz 7 colunas de ataque. Alem disso, a cada rodada a penalidade aumenta 2 pontos (menos 9, menos 11, menos 13..). O tempo de cura e de duas semanas.',
     ],
+    // Entrou quando o motor aprendeu a rolar teste de HABILIDADE: a
+    // dificuldade afrouxa com o nivel (Absurdo no 1, Facil no 9).
+    protecao_natural:   'Com um teste da habilidade Sentidos (Absurdo), reduz 4 de dano.',
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',

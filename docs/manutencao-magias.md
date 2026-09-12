@@ -207,7 +207,7 @@ Decisão registrada em
 Rodando a verificação contra o banco em 12/09/2026, no fim do dia:
 
 ```
-238 magias · 73 no motor · 0 quebradas · 0 ambíguas · 7 órfãs · 158 narrativas
+238 magias · 74 no motor · 0 quebradas · 0 ambíguas · 6 órfãs · 158 narrativas
 ```
 
 **Zero quebradas e zero ambíguas**: nenhum texto do catálogo está ilegível para
@@ -225,21 +225,36 @@ a regra geral abaixo.
 > ser resistida, se o alvo quiser. Exigir teste de resistência **não** é sinal
 > de que a magia é debuff — foi o que segurou Tensão fora do motor por engano.
 
-As **7 órfãs** restantes ficaram de fora por motivo registrado; nenhuma cai em
-*"sem motivo registrado"*. Seis são ritual ou fora de combate. Sobra uma:
+As **6 órfãs** restantes são **todas ritual ou fora de combate** — Aura
+Ameaçadora, Campo Abençoado, Hibernar, Manjar de Lena, Melodia Zen e
+Necropotência. Nada a fazer com nenhuma: são magias de meia hora de música, de
+30 dias de duração, de comida.
 
-| Magia | O que falta no motor |
-|---|---|
-| Proteção Natural | rolar teste de **habilidade** (Sentidos) — o motor só rola resistência. E ela protege de desastre natural (queda, incêndio), não de ataque |
+Ou seja: **não sobrou nenhuma magia de combate fora do motor.** Os grupos
+*"falta uma decisão sua"*, *"falta um sistema"* e *"sem motivo registrado"*
+estão todos vazios, e é o estado saudável.
 
-**Doenças** saiu dessa lista em 12/09/2026, quando as duas peças que faltavam
-foram construídas — e as duas são gerais, não exclusivas dela:
+O último dia de trabalho (12/09/2026) fechou as quatro peças que faltavam — e
+as quatro são **gerais**, não exclusivas da magia que as pediu:
 
-| Peça | O que faz |
-|---|---|
-| `mod_condicao` | magia passa a mexer nas **condições da ficha** (Saúde), não só nos poços de combate |
-| escalada | status cujo valor **cresce** a cada rodada (`"a cada rodada a penalidade aumenta 2 pontos"`) |
-| cura natural | `"o tempo de cura é de 3 dias"` + a **data atual do jogo** = a data em que o alvo sara, no log da mesa |
+| Peça | O que faz | Pedida por |
+|---|---|---|
+| `mod_condicao` | magia mexe nas **condições da ficha** (Saúde), não só nos poços de combate | Doenças |
+| escalada | status cujo valor **cresce** a cada rodada | Doenças |
+| cura natural | prazo do texto + **data atual do jogo** = a data em que o alvo sara | Doenças |
+| teste de habilidade | o motor **rola habilidade**, não só resistência | Proteção Natural |
+
+### Os dois testes, e quem rola cada um
+
+| Teste | Quem rola | Para quê | Como o texto pede |
+|---|---|---|---|
+| **Resistência** | o **alvo** | escapar da magia | `descricao` com *"teste de resistência mágica"* |
+| **Habilidade** | o **conjurador** | a magia sair | `nivel_N` com *"Com um teste da habilidade Sentidos (Absurdo)"* |
+
+A dificuldade do teste de habilidade fica **no texto do nível**, não no código
+— por isso ela pode afrouxar conforme a magia sobe (Absurdo no 1, Fácil no 9), e
+você ajusta isso sem me chamar. A escala é a mesma da ficha: Fácil, Médio,
+Difícil, Muito Difícil, Absurdo.
 
 As outras sete precisam de sistemas que o combate não tem (objeto de arte como
 alvo, doenças por atributo, karma, parede no terreno, teste de atributo) ou são

@@ -328,6 +328,34 @@ function escaladaNoNivel(magia, nivel) {
   return m ? Math.abs(parseInt(m[1], 10)) || null : null;
 }
 
+/* ── Teste de HABILIDADE exigido pela magia ────────────────────────
+   Proteção Natural: "Com um teste da habilidade Sentidos (Absurdo), reduz 4 de
+   dano." A dificuldade AFROUXA com o nível — Absurdo no 1, Fácil no 9 —, então
+   ela é lida do texto como qualquer outro número, e não fica no registro.
+
+   Irmã de exigeResistencia, e a diferença é de quem rola:
+     • resistência  — rola o ALVO, para escapar da magia;
+     • habilidade   — rola o CONJURADOR, para a magia sair.
+
+   Devolve { habilidade, dificuldade } ou null. `dificuldade` já vem na chave
+   que D20_QUALIDADE_MINIMA usa, para o motor não ter duas grafias da mesma
+   escala. */
+const DIFICULDADE_POR_NOME = {
+  facil: 'facil', medio: 'medio', dificil: 'dificil',
+  'muito dificil': 'muito_dificil', absurdo: 'absurdo',
+};
+const RE_TESTE_HAB = /teste\s+d[ae]\s+habilidade\s+([^(,.]+?)\s*\(([^)]+)\)/i;
+
+function testeHabilidadeNoNivel(magia, nivel) {
+  const txt = (magia && magia['nivel_' + nivel]) || '';
+  const m = RE_TESTE_HAB.exec(txt);
+  if (!m) return null;
+  const habilidade = m[1].trim();
+  const dif = DIFICULDADE_POR_NOME[semAcento(m[2]).trim()];
+  if (!habilidade || !dif) return null;
+  return { habilidade, dificuldade: dif };
+}
+
 /* ── Prazo de cura natural, em dias ────────────────────────────────
    Doenças: "o tempo de cura é de 3 dias" nos níveis 1 a 7, e "de duas
    semanas" no 9. O prazo vira DATA no motor, somada à data atual do jogo —
@@ -458,6 +486,20 @@ const MAGIA_EFEITO_MAP = {
                         efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
 
   /* ── Redução de dano (4) ───────────────────────────────────────── */
+  /* PROTEÇÃO NATURAL — entrou em 12/09/2026, quando o motor aprendeu a rolar
+     teste de HABILIDADE (decisão do usuário: "o motor deve rolar habilidade
+     também"). Era a última órfã que não era ritual.
+
+     "Com um teste da habilidade Sentidos (Absurdo), reduz 4 de dano." Quem
+     rola é o CONJURADOR, e a magia só sai se ele passar — diferente do teste
+     de resistência, que é o alvo tentando escapar. A dificuldade afrouxa com o
+     nível (Absurdo no 1, Fácil no 9), então é lida do texto, não do registro.
+
+     `base: true` como na Parede: é campo de força contra desastre natural —
+     queda, avalanche, incêndio —, e queda não tem elemento. */
+  protecao_natural:   { alvo: 'self', alvos: 1, icone: '🍃',
+                        efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano',
+                                    elemento: null, base: true }] },
   /* PAREDE DE CRISTAL — decisão do usuário, 12/09/2026: "o dano é reduzido em
      uma área de 5 metros a partir do jogador". Por isso `area: 'aura'` com o
      raio vindo do `alcance` (5 metros), e `elemento: null` de verdade — a
@@ -882,7 +924,8 @@ function tetoEstagioNoNivel(magia, nivel) {
 }
 
 Object.assign(window, {
-  efeitosNoNivel, elementoDoNivel, escaladaNoNivel, curaEmDiasNoNivel, MAGIA_ELEMENTOS_VALIDOS,
+  efeitosNoNivel, elementoDoNivel, escaladaNoNivel, curaEmDiasNoNivel,
+  testeHabilidadeNoNivel, MAGIA_ELEMENTOS_VALIDOS,
   MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
 });
 
@@ -1146,14 +1189,14 @@ const MAGIA_FORA_DO_REGISTRO = {
   melodia_zen: { classe: 'ritual', motivo: 'Exige meia hora de música ininterrupta.' },
 
   /* ── Precisa de subsistema que o combate não tem ────────────────── */
-  /* Doenças SAIU daqui em 12/09/2026: as duas peças que faltavam — a ponte com
-     a condição Saúde e o modificador que cresce por rodada — foram
-     construídas, e a magia entrou no registro.
+  /* O grupo 'sistema' esvaziou em 12/09/2026. Duas saíram no mesmo dia:
 
-     Proteção Natural ficou, com o motivo reescrito depois de o usuário
-     melhorar a descrição: a razão mudou de lugar e ficou mais estreita. */
-  protecao_natural: { classe: 'sistema', motivo:
-    'Agora está claro: "teste da habilidade Sentidos (Absurdo)" e protege de desastre natural (queda, incêndio). Falta o motor rolar teste de HABILIDADE — ele só rola resistência.' },
+       doencas           ganhou a ponte com as condições de ficha (Saúde) e o
+                         modificador que cresce por rodada;
+       protecao_natural  o motor aprendeu a rolar teste de HABILIDADE.
+
+     As duas dependiam de sistema que não existia — e sistema, diferente de
+     decisão, é trabalho meu. */
   alucinacao: { classe: 'sistema', motivo:
     'Mexe na dificuldade da habilidade Sentidos, não em stat de combate.' },
   invisibilidade: { classe: 'sistema', motivo:
