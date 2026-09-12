@@ -126,6 +126,10 @@ const MAGIA_UNIDADES = [
   { re: /^\s*(?:de\s+)?resist[êe]ncia\s+m[áa]gica/i, campo: 'rm'      },
   { re: /^\s*(?:pontos?\s+)?de\s+velocidade/i,  campo: 'vb'      },
   { re: /^\s*de\s+defesa/i,                     campo: 'defesa'  },
+  /* Saúde é uma das 8 CONDIÇÕES da ficha (escala −50..+50), não um poço de
+     combate. Doenças é a única magia que mexe nela: "Reduz 25 de Saúde".
+     Ver mod_condicao no registro e aplicarCondicoesDaMagia no motor. */
+  { re: /^\s*de\s+sa[úu]de/i,                   campo: 'saude'   },
   /* `de dano máximo` ANTES de `de dano`, e a ordem é a regra.
 
      A busca é por `.find`, então a primeira que casar vence. Ataque Infernal
@@ -278,14 +282,82 @@ function efeitosNoNivel(magia, nivel) {
    caractere de palavra, então `\bágua\b` precedido de espaço nunca casa, e
    "dano elemental água" devolvia null. Tirar o acento dos dois lados resolve
    sem precisar enumerar variantes. */
+/* OS SEIS ELEMENTOS (decisão do usuário, 12/09/2026). São estes e só estes:
+
+     Celestial · Ar · Fogo · Água · Terra · Infernal
+
+   Duas correções entraram com a lista:
+
+   'luz' NÃO é um sétimo elemento — era o nome antigo do Celestial, e as duas
+   formas conviviam no catálogo ("dano celestial" em Dardos de Luz, "dano
+   elemental de luz" em Fotomanipulação). Eram tratadas como elementos
+   distintos, então proteção celestial não cortaria a Lâmina de Luz. Os textos
+   do banco foram alinhados por scripts/sql/magias-elemento-luz-vira-celestial.sql,
+   e 'luz' fica aqui como SINÔNIMO: texto antigo, catálogo de outra mesa ou
+   digitação do admin continuam sendo lidos, e caem no mesmo elemento.
+
+   'infernal' era lido como SEM elemento — havia um comentário dizendo que
+   estava certo assim. Não estava: é elemento, e com ele Manipulação Infernal
+   passa a ser cortável por proteção. */
 const MAGIA_ELEMENTOS = [
-  { re: /\bfogo\b/,      campo: 'fogo'      },
-  { re: /\bagua\b/,      campo: 'agua'      },
-  { re: /\bar\b/,        campo: 'ar'        },
-  { re: /\bterra\b/,     campo: 'terra'     },
-  { re: /\bluz\b/,       campo: 'luz'       },
-  { re: /\bcelestial\b/, campo: 'celestial' },
+  { re: /\bfogo\b/,             campo: 'fogo'      },
+  { re: /\bagua\b/,             campo: 'agua'      },
+  { re: /\bar\b/,               campo: 'ar'        },
+  { re: /\bterra\b/,            campo: 'terra'     },
+  { re: /\b(celestial|luz)\b/,  campo: 'celestial' },
+  { re: /\binfernal\b/,         campo: 'infernal'  },
 ];
+const MAGIA_ELEMENTOS_VALIDOS = ['celestial', 'ar', 'fogo', 'agua', 'terra', 'infernal'];
+
+/* ── Penalidade que CRESCE a cada rodada ───────────────────────────
+   Doenças, nível 9: "Reduz 7 colunas de ataque. Além disso, a cada rodada a
+   penalidade aumenta 2 pontos (menos 9, menos 11, menos 13..)".
+
+   NÃO entra na gramática `verbo + número + unidade`, de propósito. A unidade
+   ali seria "pontos", que é palavra de enchimento em meio catálogo — Distração
+   diz "Reduza 4 PONTOS de velocidade", e uma unidade `pontos` solta roubaria
+   aquele número antes de `de velocidade` ser testado. Então ancora na FRASE
+   inteira, que é distintiva, como RE_RESIST faz com o teste de resistência.
+
+   Devolve o passo (sempre positivo); o sinal vem do efeito que ela modifica. */
+const RE_ESCALADA = /a\s+cada\s+rodada[^.]{0,40}?(?:aumenta|cresce)\s+(\d+)/i;
+
+function escaladaNoNivel(magia, nivel) {
+  const txt = (magia && magia['nivel_' + nivel]) || '';
+  const m = RE_ESCALADA.exec(txt);
+  return m ? Math.abs(parseInt(m[1], 10)) || null : null;
+}
+
+/* ── Prazo de cura natural, em dias ────────────────────────────────
+   Doenças: "o tempo de cura é de 3 dias" nos níveis 1 a 7, e "de duas
+   semanas" no 9. O prazo vira DATA no motor, somada à data atual do jogo —
+   ver curaNaturalDaMagia em 12-batalha.
+
+   POR EXTENSO É ACEITO AQUI, e só aqui. A regra do catálogo é usar dígito
+   (ver docs/manutencao-magias.md), e ela vale para EFEITO: número por extenso
+   num efeito vira silenciosamente efeito zero, que é o pior tipo de erro. Um
+   prazo não tem esse risco — ou é lido, ou não há data para mostrar, e a
+   ausência é visível. Então em vez de obrigar o usuário a reescrever uma frase
+   que está boa em português, o leitor aprende a contar até doze.
+
+   Semana = 7 dias, mês = 30 (o mês do calendário fantasy). */
+const NUM_EXTENSO = {
+  um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6,
+  sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12,
+};
+const RE_CURA = /tempo\s+de\s+cura\s+(?:é|e)\s+de\s+([\wá-ú]+)\s+(dias?|semanas?|m[êe]s|meses)/i;
+
+function curaEmDiasNoNivel(magia, nivel) {
+  const txt = (magia && magia['nivel_' + nivel]) || '';
+  const m = RE_CURA.exec(txt);
+  if (!m) return null;
+  const cru = m[1];
+  const n = /^\d+$/.test(cru) ? parseInt(cru, 10) : NUM_EXTENSO[semAcento(cru)];
+  if (!n || n <= 0) return null;
+  const un = semAcento(m[2]);
+  const fator = un.startsWith('semana') ? 7 : (un.startsWith('mes') || un === 'meses' ? 30 : 1);
+  return n * fator;
+}
 
 function semAcento(s) {
   return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -461,6 +533,32 @@ const MAGIA_EFEITO_MAP = {
                         efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: 1 }] },
   velocidade:         { alvo: 'self', alvos: 1, icone: '💨',
                         efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: 1 }] },
+  /* DOENÇAS — entrou em 12/09/2026, depois de o usuário reescrever os cinco
+     níveis com doenças nomeadas e efeito concreto. Duas peças novas no motor,
+     ambas gerais e não específicas desta magia:
+
+       mod_condicao  "Reduz 25 de Saúde" (níveis 1 a 7). Saúde é uma das 8
+                     CONDIÇÕES da ficha, escala −50..+50 — não é poço de
+                     combate. O snapshot de batalha já carregava `condicoes` e
+                     já as devolvia para estado_atual; faltava a ponte entre
+                     magia e condição. Instantâneo, como dano e cura.
+       escala        "a cada rodada a penalidade aumenta 2 pontos" (nível 9).
+                     O valor do status CRESCE na virada de rodada, em vez de
+                     ficar parado até expirar.
+
+     Os níveis pedem coisas diferentes: 1–7 mexem em Saúde, 9 troca para
+     coluna de ataque com escalada. Declarar as duas unidades está certo — o
+     verificador cobre a UNIÃO dos cinco níveis, e cada nível aplica só o que
+     o próprio texto traz.
+
+     PARCIAL: "caso a doença não seja tratada até 2 dias após a contaminação
+     [...] morrerá" é prazo em DIAS, fora de qualquer batalha. */
+  doencas:            { alvo: 'inimigo', alvos: 1, icone: '🦠',
+                        parcial: 'agravamento', ruido_esperado: true,
+                        efeitos: [{ tipo: 'mod_condicao', unidade: 'saude',
+                                    condicao: 'vitalidade', sinal: -1 },
+                                  { tipo: 'mod_ataque', unidade: 'coluna',
+                                    sinal: -1, escala: true }] },
   /* FORÇAR DISPUTA — decisão do usuário, 12/09/2026: o bônus é do ADVERSÁRIO.
      "atrair a atenção do adversário e forçá-lo ao combate, aumentando sua
      velocidade, caso falhe em um teste de resistência mágica": ele vem para
@@ -573,8 +671,9 @@ const MAGIA_EFEITO_MAP = {
                            efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
   fogo_divino:           { alvo: 'inimigo', alvos: 1, icone: '🔥',
                            efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
-  // "dano infernal" não é elemento conhecido, e está certo assim:
-  // elementoDoNivel devolve null e proteção elemental nenhuma o corta.
+  // "dano infernal" É elemento desde 12/09/2026 — o comentário aqui dizia o
+  // contrário, e dizia errado. Agora elementoDoNivel devolve 'infernal', e uma
+  // proteção contra infernal corta esta magia como Piroproteção corta fogo.
   manipulacao_infernal:  { alvo: 'inimigo', alvos: 1, icone: '👿',
                            efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
   putrefacao:            { alvo: 'inimigo', alvos: 1, icone: '🦠',
@@ -783,7 +882,8 @@ function tetoEstagioNoNivel(magia, nivel) {
 }
 
 Object.assign(window, {
-  efeitosNoNivel, elementoDoNivel, MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
+  efeitosNoNivel, elementoDoNivel, escaladaNoNivel, curaEmDiasNoNivel, MAGIA_ELEMENTOS_VALIDOS,
+  MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
 });
 
 /* ============================================================
@@ -859,8 +959,25 @@ function auditarMagias(magiasDb) {
       out.quebrada.push({ key: m.key, nome: m.nome, faltando, avisos });
       return;
     }
-    if (avisos.length) {
-      out.ambigua.push({ key: m.key, nome: m.nome, avisos });
+    /* RUÍDO DECLARADO.
+
+       Doenças (a única até agora) tem texto de nível que é meio prosa: "o
+       tempo de cura é de 3 dias", "a penalidade aumenta 2 pontos (menos 9,
+       menos 11, menos 13..)". São números REAIS no texto e o leitor faz certo
+       em não reconhecê-los — mas as unidades que importam (Saúde, coluna) ele
+       lê certinho, e não há nada a corrigir.
+
+       Sem isto a magia ficaria ambígua para sempre, e aviso que ninguém pode
+       resolver ensina a ignorar o painel. `ruido_esperado` no registro é a
+       declaração de que aqueles números são prosa.
+
+       Só vale para 'unidade_desconhecida'. 'sobrescrita' — mesmo campo escrito
+       duas vezes — continua acusando: aquilo é conflito, não prosa. */
+    const relevantes = reg.ruido_esperado
+      ? avisos.filter((a) => a.tipo !== 'unidade_desconhecida')
+      : avisos;
+    if (relevantes.length) {
+      out.ambigua.push({ key: m.key, nome: m.nome, avisos: relevantes });
       return;
     }
     out.ok.push({ key: m.key, nome: m.nome });
@@ -1029,14 +1146,14 @@ const MAGIA_FORA_DO_REGISTRO = {
   melodia_zen: { classe: 'ritual', motivo: 'Exige meia hora de música ininterrupta.' },
 
   /* ── Precisa de subsistema que o combate não tem ────────────────── */
-  /* Os dois motivos abaixo foram REESCRITOS em 12/09/2026, depois de o
-     usuário melhorar as duas descrições. Ficaram de fora, mas por razão nova
-     e mais estreita — e é isso que o painel precisa dizer, senão cobra uma
-     correção que já foi feita. */
+  /* Doenças SAIU daqui em 12/09/2026: as duas peças que faltavam — a ponte com
+     a condição Saúde e o modificador que cresce por rodada — foram
+     construídas, e a magia entrou no registro.
+
+     Proteção Natural ficou, com o motivo reescrito depois de o usuário
+     melhorar a descrição: a razão mudou de lugar e ficou mais estreita. */
   protecao_natural: { classe: 'sistema', motivo:
     'Agora está claro: "teste da habilidade Sentidos (Absurdo)" e protege de desastre natural (queda, incêndio). Falta o motor rolar teste de HABILIDADE — ele só rola resistência.' },
-  doencas: { classe: 'sistema', motivo:
-    'Ficou clara. Faltam duas peças: "Reduz N de Saúde" é condição de ficha, não status de combate; e "a cada rodada a penalidade aumenta 2" é modificador que cresce, e os do motor são fixos. A parte de coluna de ataque (nível 9) já caberia hoje.' },
   alucinacao: { classe: 'sistema', motivo:
     'Mexe na dificuldade da habilidade Sentidos, não em stat de combate.' },
   invisibilidade: { classe: 'sistema', motivo:

@@ -49,13 +49,25 @@ vira efeito zero em silêncio. Foi o que aconteceu ao trocar "Aumente" por
 
 **Unidades:** `coluna(s) de ataque`, `de energia heroica`, `de energia física`,
 `de resistência física`, `de resistência mágica`, `de velocidade`, `de defesa`,
-`de dano`, `de dano máximo`, `níveis da magia`, `no atributo <Força|Físico|
-Intelecto|Carisma|Aura|Agilidade|Percepção>`.
+`de dano`, `de dano máximo`, `de Saúde`, `níveis da magia`, `no atributo
+<Força|Físico|Intelecto|Carisma|Aura|Agilidade|Percepção>`.
+
+**Elementos** — são **seis**, e só estes:
+
+> Celestial · Ar · Fogo · Água · Terra · Infernal
+
+Escreva `dano elemental de fogo` (os quatro do meio) ou `dano elemental
+celestial` / `dano infernal` (os dois adjetivos). *Luz* era o nome antigo do
+Celestial: os textos do banco foram alinhados em 12/09/2026, e a forma velha
+segue sendo lida como sinônimo para não quebrar nada escrito antes.
 
 Quatro regras que parecem detalhe e não são:
 
 - **Use DÍGITO, nunca por extenso.** `"Reduz 5 colunas"` funciona;
-  `"Reduz cinco colunas"` não é lido. Aconteceu de verdade com o Ruído.
+  `"Reduz cinco colunas"` não é lido. Aconteceu de verdade com o Ruído. A única
+  exceção é o **prazo de cura** (`"o tempo de cura é de duas semanas"`), que
+  aceita por extenso: prazo não lido some da tela, enquanto efeito não lido
+  vira zero em silêncio.
 - **Deixe espaço depois do verbo.** `"Reduza5 colunas"` não é lido — a
   fronteira de palavra exige o espaço. Mordeu Ruído e Ruído Extenuante.
 - **O número vem ANTES da unidade.** `"5 de velocidade"` é modificador;
@@ -195,7 +207,7 @@ Decisão registrada em
 Rodando a verificação contra o banco em 12/09/2026, no fim do dia:
 
 ```
-238 magias · 72 no motor · 0 quebradas · 0 ambíguas · 8 órfãs · 158 narrativas
+238 magias · 73 no motor · 0 quebradas · 0 ambíguas · 7 órfãs · 158 narrativas
 ```
 
 **Zero quebradas e zero ambíguas**: nenhum texto do catálogo está ilegível para
@@ -213,14 +225,21 @@ a regra geral abaixo.
 > ser resistida, se o alvo quiser. Exigir teste de resistência **não** é sinal
 > de que a magia é debuff — foi o que segurou Tensão fora do motor por engano.
 
-As **8 órfãs** restantes ficaram de fora por motivo registrado; nenhuma cai em
-*"sem motivo registrado"*. Seis são ritual ou fora de combate. As outras duas
-dependem de sistema que o combate não tem:
+As **7 órfãs** restantes ficaram de fora por motivo registrado; nenhuma cai em
+*"sem motivo registrado"*. Seis são ritual ou fora de combate. Sobra uma:
 
 | Magia | O que falta no motor |
 |---|---|
-| Proteção Natural | rolar teste de **habilidade** (Sentidos) — o motor só rola resistência |
-| Doenças | *"Reduz N de Saúde"* é condição de ficha, não status de combate; e *"a cada rodada a penalidade aumenta 2"* é modificador que **cresce**, e os do motor são fixos |
+| Proteção Natural | rolar teste de **habilidade** (Sentidos) — o motor só rola resistência. E ela protege de desastre natural (queda, incêndio), não de ataque |
+
+**Doenças** saiu dessa lista em 12/09/2026, quando as duas peças que faltavam
+foram construídas — e as duas são gerais, não exclusivas dela:
+
+| Peça | O que faz |
+|---|---|
+| `mod_condicao` | magia passa a mexer nas **condições da ficha** (Saúde), não só nos poços de combate |
+| escalada | status cujo valor **cresce** a cada rodada (`"a cada rodada a penalidade aumenta 2 pontos"`) |
+| cura natural | `"o tempo de cura é de 3 dias"` + a **data atual do jogo** = a data em que o alvo sara, no log da mesa |
 
 As outras sete precisam de sistemas que o combate não tem (objeto de arte como
 alvo, doenças por atributo, karma, parede no terreno, teste de atributo) ou são

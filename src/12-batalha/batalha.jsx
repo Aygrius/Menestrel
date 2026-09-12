@@ -2265,6 +2265,26 @@ function processarDanoPorRodada(p) {
 
 // Virada de rodada de UM participante: reset de PA (ativos) → veneno morde
 // (mortos e desistentes não sofrem) → decrementa status (null persiste).
+/* ── Status cujo valor CRESCE a cada rodada (puro) ─────────────────
+   Até aqui todo status_temp entrava com um valor e ficava nele até expirar.
+   Doenças (nível 9) precisa do contrário: "Reduz 7 colunas de ataque [...] a
+   cada rodada a penalidade aumenta 2 pontos (menos 9, menos 11, menos 13..)".
+
+   `escalada` já vem com o sinal certo de aplicarEfeitoMagia, então somar é
+   tudo — penalidade fica mais negativa, bônus ficaria mais positivo. Status
+   sem o campo passa intocado, e a MESMA referência volta quando ninguém
+   escala: virada de rodada roda para todo participante, toda rodada. */
+function escalarStatusTemp(lista) {
+  if (!Array.isArray(lista) || !lista.some((s) => s && s.efeito && s.efeito.escalada)) {
+    return lista;
+  }
+  return lista.map((s) => {
+    const passo = s && s.efeito && Number(s.efeito.escalada);
+    if (!passo) return s;
+    return { ...s, efeito: { ...s.efeito, valor: (Number(s.efeito.valor) || 0) + passo } };
+  });
+}
+
 function processarViradaDeRodada(p) {
   // Rodada nova devolve PA, movimento cheio E o direito de mover de novo
   // (moveu_na_rodada). Quem não está ativo não recupera nada.
@@ -2301,7 +2321,14 @@ function processarViradaDeRodada(p) {
     next = r.participante; eventos = r.eventos; total = r.total;
   }
   if (Array.isArray(next.status_temp) && next.status_temp.length) {
-    const antes = next.status_temp;
+    /* ESCALADA ANTES DO DECREMENTO, e a ordem é a regra.
+
+       Doenças nível 9 entra em −7 e o texto promete "menos 9, menos 11, menos
+       13": o primeiro crescimento acontece na PRIMEIRA virada, e um status de
+       1 rodada cresce uma vez antes de expirar. É o mesmo timing do veneno
+       logo acima ("o dano MORDE ANTES do decremento"), pelo mesmo motivo —
+       inverter faria o último efeito da magia ser silenciosamente descartado. */
+    const antes = escalarStatusTemp(next.status_temp);
     const depois = decrementarStatusTemp(antes);
     // Comparar por ID, não por referência: decrementarStatusTemp recria via
     // spread TODO status com rodadas_rest numérico, sobrevivente ou não, então
@@ -2500,10 +2527,11 @@ function aplicarEfeitoApoio(participante, magiaApoio, atorInstId) {
     const magiaCompleta = { ...cat, key: magiaApoio.key, nome: magiaApoio.nome };
     const comStatus = aplicarEfeitoMagia(participante, magiaCompleta, magiaApoio.nivel,
       { fonteInstId: atorInstId });
-    // aplicarEfeitoMagia cuida só do que VIRA STATUS. A cura acontece e acaba,
-    // então não é status_temp — mas tem que acontecer, senão Curas Físicas
-    // seria uma magia que não faz nada.
-    return aplicarCurasDaMagia(comStatus, magiaCompleta, magiaApoio.nivel);
+    // aplicarEfeitoMagia cuida só do que VIRA STATUS. Cura e condição
+    // acontecem e acabam, então não são status_temp — mas têm que acontecer,
+    // senão Curas Físicas e Doenças seriam magias que não fazem nada.
+    const comCura = aplicarCurasDaMagia(comStatus, magiaCompleta, magiaApoio.nivel);
+    return aplicarCondicoesDaMagia(comCura, magiaCompleta, magiaApoio.nivel);
   }
 
   const atual = Array.isArray(participante.status_temp) ? participante.status_temp : [];
@@ -2855,7 +2883,10 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
 
   const novos = [];
   reg.efeitos.forEach((ef) => {
-    if (ef.tipo === 'dano' || ef.tipo === 'cura_pool' || ef.tipo === 'dreno_eh') return;
+    // Instantâneos: acontecem e acabam, não viram status. Quem os aplica são
+    // aplicarCurasDaMagia / aplicarCondicoesDaMagia / o golpe.
+    if (ef.tipo === 'dano' || ef.tipo === 'cura_pool' || ef.tipo === 'dreno_eh'
+        || ef.tipo === 'mod_condicao') return;
     /* Efeito de BANDEIRA (Fase 2): `sem_acoes` não tem número — ou o alvo
        está impedido, ou não está. O registro declara `valor: true` e não
        declara `unidade`, exatamente como as técnicas já fazem com
@@ -2879,6 +2910,19 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
 
     const efeito = { tipo: ef.tipo, valor: (ef.sinal || 1) * bruto };
     if (ef.elemento !== undefined) efeito.elemento = ef.elemento;
+    if (ef.base) efeito.base = true;
+    /* ESCALADA: o valor CRESCE a cada virada de rodada, em vez de ficar parado
+       até expirar. Doenças nível 9: "Reduz 7 colunas de ataque [...] a cada
+       rodada a penalidade aumenta 2 pontos (menos 9, menos 11, menos 13..)".
+
+       O passo vem do TEXTO (escaladaNoNivel), como todo número; o registro só
+       diz que esta magia escala. Nasce com o mesmo sinal do valor — penalidade
+       que cresce fica mais negativa, e um bônus que crescesse ficaria mais
+       positivo sem código novo. */
+    if (ef.escala && typeof escaladaNoNivel === 'function') {
+      const passo = escaladaNoNivel(magia, nivel);
+      if (passo) efeito.escalada = (ef.sinal || 1) * passo;
+    }
 
     // Restrição de arma: mesma mecânica das técnicas. Ativar Arqueirismo com
     // arco e trocar para espada não pode manter o bônus — somaModAtaque
@@ -2985,6 +3029,30 @@ function textoPassoDeApoio(fase, nomeAtor, magia, nomeAlvo, resistiu) {
   return `${nomeAtor} lançou ${magia.nome} em ${nomeAlvo} (${textoEfeitoMagia(magia)})`;
 }
 
+/* A MESMA linha de log, com a data da cura natural quando houver.
+
+   Não é pura, e por isso é separada: para saber QUANDO a doença passa é
+   preciso a data atual do jogo, que mora em historias.data_jogo_atual.
+
+   A ida ao banco é condicional — só acontece quando o texto do nível promete
+   um prazo de cura, o que hoje é uma magia em 238. Toda outra magia devolve na
+   hora, sem viagem nenhuma. Falha de rede também cai no texto sem data: o
+   registro do evento é mais importante que o enfeite. */
+function textoPassoDeApoioComCura(fase, nomeAtor, magia, nomeAlvo, resistiu, historiaId, lang) {
+  const base = textoPassoDeApoio(fase, nomeAtor, magia, nomeAlvo, resistiu);
+  const cat = (magia && magia.catalogo) || magia;
+  const temPrazo = fase === 'resolveu' && !resistiu && historiaId
+    && typeof curaEmDiasNoNivel === 'function' && curaEmDiasNoNivel(cat, magia && magia.nivel);
+  if (!temPrazo) return Promise.resolve(base);
+  return supabaseClient.from('historias').select('data_jogo_atual').eq('id', historiaId).maybeSingle()
+    .then(({ data, error }) => {
+      if (error) return base;
+      const extra = textoCuraNatural(cat, magia.nivel, data && data.data_jogo_atual, lang);
+      return extra ? `${base} · ${extra}` : base;
+    })
+    .catch(() => base);
+}
+
 /* ── Um passo de magia de apoio: larga a evocação ou resolve (puro) ─
    A evocação canalizada só existe de verdade quando ALGUÉM a inicia, e essa
    decisão precisa ser a mesma nos dois lados — Mestre (aplicarApoio) e
@@ -3069,6 +3137,74 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu) {
    que não faz nada.
 
    A inversão em morto-vivo entra aqui, onde o alvo está à mão. */
+/* ── Quando a doença passa sozinha (puro) ──────────────────────────
+   Pedido do usuário, 12/09/2026: "na magia Doenças busque a data atual do
+   jogo, e conte a partir disso a quantidade de dias para a cura natural".
+
+   O prazo está no texto do nível ("o tempo de cura é de 3 dias"; no 9, "de
+   duas semanas") e a data atual está em historias.data_jogo_atual. Aqui as
+   duas se encontram: prazo + data = a data em que o alvo sara.
+
+   Devolve null quando falta qualquer uma das pontas — magia sem prazo, ou
+   história sem data definida. Null é "não há data a mostrar", não erro: a
+   doença acontece do mesmo jeito, e a condição já foi aplicada. */
+function curaNaturalDaMagia(magia, nivel, dataJogo) {
+  if (typeof curaEmDiasNoNivel !== 'function' || typeof somarDiasFantasy !== 'function') return null;
+  const dias = curaEmDiasNoNivel(magia, nivel);
+  if (!dias) return null;
+  const data = somarDiasFantasy(dataJogo, dias);
+  return data ? { dias, data } : null;
+}
+
+/* Texto pronto para o log: "sara em 3 dias — 14 de Mês do Ouro, ano 12".
+   O prazo aparece MESMO sem data de jogo definida, porque o número sozinho já
+   serve ao Mestre; o que some é a data. */
+function textoCuraNatural(magia, nivel, dataJogo, lang) {
+  if (typeof curaEmDiasNoNivel !== 'function') return '';
+  const dias = curaEmDiasNoNivel(magia, nivel);
+  if (!dias) return '';
+  const en = lang === 'en';
+  const prazo = en ? `heals in ${dias} day${dias === 1 ? '' : 's'}`
+                   : `sara em ${dias} dia${dias === 1 ? '' : 's'}`;
+  const c = curaNaturalDaMagia(magia, nivel, dataJogo);
+  if (!c) return prazo;
+  const quando = (typeof formatarDataFantasy === 'function')
+    ? formatarDataFantasy(c.data, lang) : '';
+  return quando ? `${prazo} — ${quando}` : prazo;
+}
+
+/* ── Condições de ficha mexidas por magia (puro) ───────────────────
+   Irmã de aplicarCurasDaMagia, e existe pelo mesmo motivo: mudar uma condição
+   é INSTANTÂNEO, não vira status_temp, então aplicarEfeitoMagia a ignora de
+   propósito — mas alguém tem que aplicá-la.
+
+   Doenças é a primeira magia a mexer em condição ("Reduz 25 de Saúde"). A
+   ponte é curta porque o snapshot de batalha JÁ carrega `condicoes` e já as
+   devolve para pj.estado_atual.condicoes ao salvar: o que faltava era o
+   caminho da magia até lá. Usa aplicarDeltaCondicao, a mesma função dos
+   itens, para a escala −50..+50 e o clamp serem um só em todo o jogo. */
+function aplicarCondicoesDaMagia(alvoP, magia, nivel) {
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magia && magia.key) : null;
+  if (!reg || !alvoP) return alvoP;
+  const mexem = reg.efeitos.filter((ef) => ef.tipo === 'mod_condicao');
+  if (!mexem.length) return alvoP;
+  const lido = (typeof efeitosNoNivel === 'function') ? efeitosNoNivel(magia, nivel) : {};
+
+  let out = alvoP;
+  mexem.forEach((ef) => {
+    const bruto = lido[ef.unidade];
+    // Nível cujo texto não traz a unidade: Doenças mexe em Saúde nos níveis
+    // 1 a 7 e troca para coluna de ataque no 9. Não inventa zero.
+    if (bruto == null || !ef.condicao) return;
+    const delta = (ef.sinal || 1) * bruto;
+    const atual = (out.condicoes || {})[ef.condicao];
+    const novo = (typeof aplicarDeltaCondicao === 'function')
+      ? aplicarDeltaCondicao(atual, delta) : (Number(atual) || 0) + delta;
+    out = { ...out, condicoes: { ...(out.condicoes || {}), [ef.condicao]: novo } };
+  });
+  return out;
+}
+
 function aplicarCurasDaMagia(alvoP, magia, nivel) {
   const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magia && magia.key) : null;
   if (!reg) return alvoP;
@@ -4546,15 +4682,16 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
     if (historia && historia.id) {
       const nomeAtor = participantes[atorIdx].nome;
-      const texto = textoPassoDeApoio(passo.fase, nomeAtor, magia, alvo.nome, resistiu);
-      supabaseClient.rpc('registrar_evento_mesa', {
-        p_historia_id: historia.id,
-        p_tipo: 'magia',
-        p_texto: texto,
-        p_meta: { batalha_id: batalha.id, ...entry },
-      }).then(({ error: rpcErr }) => {
-        if (rpcErr) console.error('[batalha] registrar_evento_mesa (apoio) falhou:', rpcErr);
-      });
+      textoPassoDeApoioComCura(passo.fase, nomeAtor, magia, alvo.nome, resistiu, historia.id, lang)
+        .then((texto) => supabaseClient.rpc('registrar_evento_mesa', {
+          p_historia_id: historia.id,
+          p_tipo: 'magia',
+          p_texto: texto,
+          p_meta: { batalha_id: batalha.id, ...entry },
+        }))
+        .then(({ error: rpcErr }) => {
+          if (rpcErr) console.error('[batalha] registrar_evento_mesa (apoio) falhou:', rpcErr);
+        });
     }
 
     // Mesma regra de fim de turno das outras ações.
@@ -7886,15 +8023,16 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
 
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      const texto = textoPassoDeApoio(passo.fase, meuParticipante.nome, magia, alvo.nome, resistiu);
-      supabaseClient.rpc('registrar_evento_mesa', {
-        p_historia_id: historiaId,
-        p_tipo: 'magia',
-        p_texto: texto,
-        p_meta: { batalha_id: batalha.id, ...entry },
-      }).then(({ error: rpcErr }) => {
-        if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (apoio) falhou:', rpcErr);
-      });
+      textoPassoDeApoioComCura(passo.fase, meuParticipante.nome, magia, alvo.nome, resistiu, historiaId, lang)
+        .then((texto) => supabaseClient.rpc('registrar_evento_mesa', {
+          p_historia_id: historiaId,
+          p_tipo: 'magia',
+          p_texto: texto,
+          p_meta: { batalha_id: batalha.id, ...entry },
+        }))
+        .then(({ error: rpcErr }) => {
+          if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (apoio) falhou:', rpcErr);
+        });
     }
 
     // Aplicou → a rolagem sai junto, no MESMO update (comMinhaRolagem(…, null)).
@@ -8273,7 +8411,9 @@ Object.assign(window, {
     nivelComOferenda, consumirOferenda,
     alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia,
     alvosDeArea, alvosDeAura, alvosNoRaio,
-    resumoEfeitoMagia, textoEfeitoMagia, aplicarCurasDaMagia,
+    resumoEfeitoMagia, textoEfeitoMagia, aplicarCurasDaMagia, aplicarCondicoesDaMagia,
+    curaNaturalDaMagia, textoCuraNatural,
+    escalarStatusTemp,
     passoDeApoio, textoPassoDeApoio, faseDeEvocacao, evocacaoPrendeAcao,
     evocacaoEmRodadas, iniciarEvocacao, decrementarEvocacao, evocacaoPronta,
     quebrarEvocacao,

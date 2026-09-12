@@ -124,8 +124,15 @@ describe('o elemento do dano', () => {
     ['Cada dardo causa 4 de dano elemental água.', 'agua'],
     ['Causa 4 de dano elemental de ar.', 'ar'],
     ['Cada fragmento causa 12 de dano elemental da terra.', 'terra'],
-    ['Causa 4 de dano elemental de luz.', 'luz'],
+    // "luz" era o nome ANTIGO do Celestial, e as duas formas conviviam no
+    // catalogo. Desde 12/09/2026 sao o mesmo elemento: os textos do banco
+    // foram alinhados, e a forma velha segue sendo lida como sinonimo.
+    ['Causa 4 de dano elemental celestial.', 'celestial'],
+    ['Causa 4 de dano elemental de luz.', 'celestial'],
     ['Cada dardo causa 8 de dano celestial.', 'celestial'],
+    // Infernal era lido como SEM elemento, com um comentario dizendo que
+    // estava certo assim. Nao estava: e um dos seis.
+    ['Causa 28 de dano infernal.', 'infernal'],
   ])('%s → %s', (txt, esperado) => {
     expect(elementoDoNivel(mag(txt), 1)).toBe(esperado);
   });
@@ -195,6 +202,9 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // 12/09/2026: as primitivas que Oferenda e Licantropia
                          // trouxeram. Ver o comentario das entradas no mapa.
                          'mod_nivel_magia', 'sem_cura_ef', 'mod_atributo',
+                         // Doencas (12/09/2026): mexe numa das 8 CONDICOES da
+                         // ficha (Saude), que nao e poco de combate.
+                         'mod_condicao',
                          // Varredura das orfas: mod_coluna estreia produtor
                          // magico. Existia desde a Falha Critica, e so as
                          // tecnicas a usavam. Ato Falho pune TODAS as acoes.
@@ -203,8 +213,8 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem 72 entradas — 69 mais as tres ultimas decisoes', () => {
-    expect(Object.keys(MAP)).toHaveLength(72);
+  it('tem 73 entradas — 72 mais Doencas', () => {
+    expect(Object.keys(MAP)).toHaveLength(73);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -303,7 +313,7 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     forca_mutua:        'Aumenta 1 coluna de ataque.',
     geomanipulacao:     'Causa 4 de dano elemental de terra.',
     hidromanipulacao:   'Cause 4 de dano elemental de água.',
-    fotomanipulacao:    'Causa 4 de dano elemental de luz.',
+    fotomanipulacao:    'Causa 4 de dano elemental celestial.',
     meteoros:           'Cada fragmento causa 12 de dano elemental da terra.',
     piromanipulacao:    'Causa 4 de dano elemental de fogo.',
     piroprotecao:       'Reduz 16 de dano elemental de fogo.',
@@ -370,7 +380,7 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     // Entraram depois de o usuario trocar `alcance` de "Pessoal" para
     // "Toque": dano em inimigo com alcance que nao alcanca inimigo.
     garras:                'Causa 4 de dano, ignora a energia heroica.',
-    lamina_de_luz:         'Causa 24 de dano elemental de luz.',
+    lamina_de_luz:         'Causa 24 de dano elemental celestial.',
     /* As tres ultimas pendencias de decisao, respondidas em 12/09/2026:
        o bonus de Forcar Disputa e do ADVERSARIO; a Parede vale numa area a
        partir do conjurador; e resistir e escolha de quem recebe, nao sinal
@@ -378,6 +388,13 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     forcar_disputa:        'Aumenta 1 de velocidade.',
     parede_de_cristal:     'Reduz 8 de dano.',
     tensao:                'Aumenta 1 de defesa, 1 de velocidade e 1 coluna de ataque.',
+    /* Doencas declara DUAS unidades porque os niveis pedem coisas diferentes:
+       1 a 7 mexem em Saude, o 9 troca para coluna de ataque com escalada.
+       Por isso um ARRAY — e a unica ate agora. Textos literais do banco. */
+    doencas: [
+      'Cause conjuntivite: Esta doenca afeta os olhos, embacando a visao e causando um pouco de dor. Reduz 25 de Saude e o tempo de cura e de 3 dias.',
+      'Cause febre amarela: Cause febre, tremores e coloracao amarela pela pele. Reduz 7 colunas de ataque. Alem disso, a cada rodada a penalidade aumenta 2 pontos (menos 9, menos 11, menos 13..). O tempo de cura e de duas semanas.',
+    ],
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',
@@ -392,12 +409,21 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     '%s: toda unidade declarada é encontrada pelo parser', (key, texto) => {
       const reg = window.MAGIA_EFEITO_MAP[key];
       expect(reg, ` não está no mapa`).toBeDefined();
-      const lido = window.efeitosNoNivel({ key, nivel_1: texto }, 1);
+      /* UNIAO DOS NIVEIS, nao um nivel so.
+
+         Doencas foi a primeira magia a precisar disso (12/09/2026): os niveis
+         1 a 7 mexem em Saude e o 9 troca para coluna de ataque com escalada,
+         entao texto nenhum sozinho traz as duas unidades. E o mesmo criterio
+         de auditarMagias, que sempre olhou os cinco niveis — este teste e que
+         supunha um texto so. Valor string segue valendo e significa um nivel. */
+      const textos = Array.isArray(texto) ? texto : [texto];
+      const lido = {};
+      textos.forEach((t) => Object.assign(lido, window.efeitosNoNivel({ key, nivel_1: t }, 1)));
       reg.efeitos.forEach((ef) => {
         // Efeito de bandeira não lê número nenhum: nada a conferir aqui.
         if (ef.valor !== undefined) return;
         expect(lido[ef.unidade],
-          `${key}: unidade "${ef.unidade}" não encontrada em "${texto}"`)
+          `${key}: unidade "${ef.unidade}" não encontrada em ${JSON.stringify(textos)}`)
           .toBeGreaterThan(0);
       });
     });

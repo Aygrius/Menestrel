@@ -28,6 +28,60 @@ function calcDiaSemanaFantasy(ano, mes, dia) {
   return FANTASY_WEEKDAYS[(total + 3) % 7];
 }
 
+/* ── Somar dias no calendário fantasy ──────────────────────────────
+   O ano tem 361 dias: 12 meses de 30 mais o Dia de Cruine, que é o mês 13 com
+   um dia só. Contar "3 dias a partir de hoje" na mão erra o Cruine, então a
+   conta vira dia ABSOLUTO, soma, e volta — mesma âncora de
+   calcDiaSemanaFantasy, para as duas nunca discordarem.
+
+   Aceita delta negativo (para trás) e devolve null para data malformada, que
+   é o que chega quando a história ainda não teve data definida.
+
+   Estreou com a magia Doenças: "o tempo de cura é de 3 dias" precisa virar uma
+   data concreta a partir da data atual do jogo. */
+const FANTASY_DIAS_ANO = 361;
+
+function dataFantasyParaAbsoluto(d) {
+  if (!d) return null;
+  const ano = Number(d.ano), mes = Number(d.mes), dia = Number(d.dia);
+  if (!Number.isFinite(ano) || !Number.isFinite(mes) || !Number.isFinite(dia)) return null;
+  if (mes < 1 || mes > FANTASY_MONTHS.length || dia < 1) return null;
+  let total = ano * FANTASY_DIAS_ANO;
+  for (let m = 1; m < mes; m++) total += FANTASY_MONTHS[m - 1].dias;
+  return total + (dia - 1);
+}
+
+function absolutoParaDataFantasy(abs) {
+  if (!Number.isFinite(abs)) return null;
+  // Math.floor, não divisão inteira: ano negativo (antes do ano 0) tem que
+  // descer, e o resto tem que ficar positivo para o laço dos meses funcionar.
+  const ano = Math.floor(abs / FANTASY_DIAS_ANO);
+  let resto = abs - ano * FANTASY_DIAS_ANO;
+  for (let m = 0; m < FANTASY_MONTHS.length; m++) {
+    const dias = FANTASY_MONTHS[m].dias;
+    if (resto < dias) return { ano, mes: m + 1, dia: resto + 1 };
+    resto -= dias;
+  }
+  return null;   // inalcançável: os meses somam 361 por definição
+}
+
+function somarDiasFantasy(data, dias) {
+  const abs = dataFantasyParaAbsoluto(data);
+  const n = Number(dias);
+  if (abs == null || !Number.isFinite(n)) return null;
+  return absolutoParaDataFantasy(abs + Math.trunc(n));
+}
+
+function formatarDataFantasy(d, lang) {
+  if (!d) return '';
+  const mes = FANTASY_MONTHS[d.mes - 1];
+  const nome = mes ? mes.nome : '';
+  // Dia de Cruine é o mês 13 e tem um dia só: "1 de Dia de Cruine" soa errado,
+  // e o nome já é a data inteira.
+  if (mes && mes.dias === 1) return nome;
+  return `${d.dia} de ${nome}, ano ${d.ano}`;
+}
+
 // ── useTweaks ───────────────────────────────────────────────────────────────
 // Fonte única de verdade pros valores do tweak. setTweak persiste via host
 // (__edit_mode_set_keys → host reescreve o bloco EDITMODE em disco).
@@ -141,7 +195,9 @@ function propsTip(abrirTip, fecharTip, content) {
   return { onMouseEnter: abrir, onMouseLeave: fecharTip, onFocus: abrir, onBlur: fecharTip };
 }
 
-Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, propsTip });
+Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, propsTip,
+  somarDiasFantasy, dataFantasyParaAbsoluto, absolutoParaDataFantasy, formatarDataFantasy,
+  FANTASY_DIAS_ANO });
 
 // ── interpolate ──────────────────────────────────────────────────────────────
 // Substitui placeholders {chave} numa string de copy (t.algumaCoisa.texto)

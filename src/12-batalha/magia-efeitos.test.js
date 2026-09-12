@@ -12,6 +12,9 @@
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/copy.jsx';
+// constants.jsx entra por FANTASY_MONTHS: o calendário fantasy é quem sabe que
+// o ano tem 361 dias, e a cura natural de Doenças conta nele.
+import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
@@ -882,6 +885,7 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
     mod_rm:          'resolução de resistência',
     mod_eh_temp:     'aplicarEfeitoMagia + expirarEhTemp',
     mod_dano_max:    'danoFinal',
+    mod_condicao:    'aplicarCondicoesDaMagia',
     sem_acoes:       'temAcaoRestante + proximoAtivo',
     mod_nivel_magia: 'nivelComOferenda + consumirOferenda',
     sem_cura_ef:     'aplicarCuraPool',
@@ -1036,5 +1040,195 @@ describe('aura hostil exclui o conjurador; aura protetora não', () => {
     const longe = p('f1', 40);
     const r = M.alvosDeAura(cat('tensao', '10 metros'), conj, [conj, perto, longe], 1);
     expect(r.map((x) => x.inst_id).sort()).toEqual(['a1', 'c1']);
+  });
+});
+
+describe('Doenças — as duas peças novas', () => {
+  /* Doenças era a última magia a precisar de SISTEMA, não de decisão. Depois
+     de o usuário reescrever os cinco níveis com doenças nomeadas, as peças
+     que faltavam ficaram concretas:
+
+       mod_condicao  "Reduz 25 de Saúde" — Saúde é uma das 8 condições da
+                     ficha (escala −50..+50), não poço de combate;
+       escala        "a cada rodada a penalidade aumenta 2 pontos" — o valor
+                     do status CRESCE, e até aqui todo status era fixo. */
+  const N1 = 'Cause conjuntivite: Esta doença afeta os olhos, embaçando a visão e causando um pouco de dor. Reduz 25 de Saúde e o tempo de cura é de 3 dias.';
+  const N9 = 'Cause febre amarela: Cause febre, tremores e coloração amarela pela pele. Reduz 7 colunas de ataque. Além disso, a cada rodada a penalidade aumenta 2 pontos (menos 9, menos 11, menos 13..). O tempo de cura é de duas semanas.';
+  const DOENCAS = { key: 'doencas', nome: 'Doenças', duracao: 'Instantânea',
+                    nivel_1: N1, nivel_9: N9 };
+  const vitima = (over = {}) => ({ ...alvo(), condicoes: { vitalidade: 0 }, ...over });
+
+  describe('a ponte com a condição Saúde', () => {
+    it('"Reduz 25 de Saúde" desce a condição', () => {
+      const r = M.aplicarCondicoesDaMagia(vitima(), DOENCAS, 1);
+      expect(r.condicoes.vitalidade).toBe(-25);
+    });
+
+    it('parte de onde a ficha estava, não de zero', () => {
+      const r = M.aplicarCondicoesDaMagia(vitima({ condicoes: { vitalidade: 10 } }), DOENCAS, 1);
+      expect(r.condicoes.vitalidade).toBe(-15);
+    });
+
+    it('respeita o piso da escala de condição', () => {
+      // aplicarDeltaCondicao é a MESMA função dos itens: o clamp é um só.
+      const r = M.aplicarCondicoesDaMagia(vitima({ condicoes: { vitalidade: -40 } }), DOENCAS, 1);
+      expect(r.condicoes.vitalidade).toBeGreaterThanOrEqual(-50);
+    });
+
+    it('não vira status_temp — condição acontece e acaba', () => {
+      const r = M.aplicarEfeitoMagia(vitima(), DOENCAS, 1);
+      expect(r.status_temp.some((s) => s.efeito.tipo === 'mod_condicao')).toBe(false);
+    });
+
+    it('nível que não fala de Saúde não mexe nela', () => {
+      // O 9 troca para coluna de ataque: não inventa zero nem carrega o 25.
+      const r = M.aplicarCondicoesDaMagia(vitima(), DOENCAS, 9);
+      expect(r.condicoes.vitalidade).toBe(0);
+    });
+
+    it('e o caminho de apoio aplica as duas coisas juntas', () => {
+      // aplicarEfeitoApoio é quem os dois handlers chamam — se a ponte não
+      // estiver encadeada ali, Doenças não faz nada na mesa.
+      const r = M.aplicarEfeitoApoio(vitima(),
+        { key: 'doencas', nome: 'Doenças', nivel: 1, catalogo: DOENCAS }, 'c1');
+      expect(r.condicoes.vitalidade).toBe(-25);
+    });
+  });
+
+  describe('a penalidade que cresce por rodada', () => {
+    const col = (p) => {
+      const s = p.status_temp.find((x) => x.efeito.tipo === 'mod_ataque');
+      return s ? s.efeito.valor : null;
+    };
+
+    it('entra em −7, como o texto diz', () => {
+      expect(col(M.aplicarEfeitoMagia(vitima(), DOENCAS, 9))).toBe(-7);
+    });
+
+    it('o passo vem do TEXTO e nasce com o sinal do efeito', () => {
+      const s = M.aplicarEfeitoMagia(vitima(), DOENCAS, 9).status_temp
+        .find((x) => x.efeito.tipo === 'mod_ataque');
+      expect(s.efeito.escalada).toBe(-2);
+    });
+
+    it('−7 → −9 → −11 → −13, a sequência do texto', () => {
+      let p = M.aplicarEfeitoMagia(vitima(), DOENCAS, 9);
+      const serie = [col(p)];
+      for (let i = 0; i < 3; i++) {
+        p = M.processarViradaDeRodada(p).participante;
+        serie.push(col(p));
+      }
+      expect(serie).toEqual([-7, -9, -11, -13]);
+    });
+
+    it('a penalidade que cresceu chega no golpe', () => {
+      let p = M.aplicarEfeitoMagia(vitima(), DOENCAS, 9);
+      p = M.processarViradaDeRodada(p).participante;
+      expect(M.somaModAtaque(p, 'CM')).toBe(-9);
+    });
+
+    it('status SEM escalada não muda — e volta a MESMA referência', () => {
+      const lista = [{ id: 'x', nome: 'x', rodadas_rest: 3,
+                       efeito: { tipo: 'mod_ataque', valor: 3 } }];
+      expect(M.escalarStatusTemp(lista)).toBe(lista);
+    });
+
+    it('nível sem a frase da escalada não escala', () => {
+      // O texto do nível 1 não promete crescimento nenhum.
+      const p = M.aplicarEfeitoMagia(vitima(), DOENCAS, 1);
+      expect(p.status_temp.some((s) => s.efeito.escalada)).toBe(false);
+    });
+  });
+});
+
+describe('os SEIS elementos', () => {
+  /* Decisão do usuário, 12/09/2026: Celestial, Ar, Fogo, Água, Terra,
+     Infernal. "Luz" era o nome antigo do Celestial e virou sinônimo; Infernal
+     era lido como dano SEM elemento, e agora é elemento de verdade. */
+  it('a lista tem exatamente seis', () => {
+    expect(window.MAGIA_ELEMENTOS_VALIDOS).toHaveLength(6);
+  });
+
+  it('proteção celestial corta a Lâmina de Luz — o que o nome antigo impedia', () => {
+    // Enquanto "luz" e "celestial" eram elementos distintos, uma proteção
+    // celestial não cortava nada que dissesse "de luz".
+    const p = { inst_id: 'v1', ef: 40, status_temp: [
+      { nome: 'x', efeito: { tipo: 'reducao_dano', valor: 8, elemento: 'celestial' } }] };
+    const lamina = { key: 'lamina_de_luz', nome: 'Lâmina de Luz',
+                     nivel_1: 'Causa 24 de dano elemental de luz.' };
+    expect(window.elementoDoNivel(lamina, 1)).toBe('celestial');
+    expect(M.danoAposReducao(24, p, 'celestial')).toBe(16);
+  });
+
+  it('proteção infernal corta Manipulação Infernal', () => {
+    const p = { inst_id: 'v1', ef: 40, status_temp: [
+      { nome: 'x', efeito: { tipo: 'reducao_dano', valor: 8, elemento: 'infernal' } }] };
+    expect(M.danoAposReducao(28, p, 'infernal')).toBe(20);
+  });
+
+  it('e infernal NÃO é cortado por proteção de fogo', () => {
+    const p = { inst_id: 'v1', ef: 40, status_temp: [
+      { nome: 'x', efeito: { tipo: 'reducao_dano', valor: 8, elemento: 'fogo' } }] };
+    expect(M.danoAposReducao(28, p, 'infernal')).toBe(28);
+  });
+});
+
+describe('a cura natural da doença tem DATA', () => {
+  /* Pedido do usuário: "na magia Doenças busque a data atual do jogo, e conte
+     a partir disso a quantidade de dias para a cura natural".
+
+     Duas pontas: o prazo está no texto do nível, a data atual em
+     historias.data_jogo_atual. O calendário tem 361 dias — 12 meses de 30
+     mais o Dia de Cruine —, então contar na mão erraria a virada. */
+  const N1 = 'Cause conjuntivite: Esta doença afeta os olhos. Reduz 25 de Saúde e o tempo de cura é de 3 dias.';
+  const N9 = 'Cause febre amarela: Reduz 7 colunas de ataque. Além disso, a cada rodada a penalidade aumenta 2 pontos (menos 9, menos 11, menos 13..). O tempo de cura é de duas semanas.';
+  const DOENCAS = { key: 'doencas', nome: 'Doenças', nivel_1: N1, nivel_9: N9 };
+
+  it('3 dias a partir de 10/Mês do Ouro', () => {
+    const r = M.curaNaturalDaMagia(DOENCAS, 1, { dia: 10, mes: 5, ano: 12 });
+    expect(r).toMatchObject({ dias: 3, data: { dia: 13, mes: 5, ano: 12 } });
+  });
+
+  it('"duas semanas" por extenso = 14 dias', () => {
+    // O catálogo manda usar dígito para EFEITO; prazo aceita por extenso,
+    // porque prazo não lido some da tela em vez de virar efeito zero.
+    expect(window.curaEmDiasNoNivel(DOENCAS, 9)).toBe(14);
+  });
+
+  it('vira o mês corretamente', () => {
+    const r = M.curaNaturalDaMagia(DOENCAS, 1, { dia: 29, mes: 5, ano: 12 });
+    expect(r.data).toEqual({ dia: 2, mes: 6, ano: 12 });
+  });
+
+  it('atravessa o Dia de Cruine e o ano novo', () => {
+    // Mês 12 tem 30 dias, e depois vem o mês 13 (Dia de Cruine, 1 dia só).
+    // 29/12 + 3 = 30/12, Cruine, 1/1 do ano seguinte.
+    const r = M.curaNaturalDaMagia(DOENCAS, 1, { dia: 29, mes: 12, ano: 12 });
+    expect(r.data).toEqual({ dia: 1, mes: 1, ano: 13 });
+  });
+
+  it('sem data de jogo definida: sem data, mas o prazo continua', () => {
+    expect(M.curaNaturalDaMagia(DOENCAS, 1, null)).toBeNull();
+    expect(M.textoCuraNatural(DOENCAS, 1, null, 'pt')).toBe('sara em 3 dias');
+  });
+
+  it('o texto do log junta prazo e data', () => {
+    const t = M.textoCuraNatural(DOENCAS, 1, { dia: 10, mes: 5, ano: 12 }, 'pt');
+    expect(t).toBe('sara em 3 dias — 13 de Mês do Ouro, ano 12');
+  });
+
+  it('magia sem prazo não inventa texto', () => {
+    expect(M.textoCuraNatural({ key: 'bencao', nivel_1: 'Aumenta 1 coluna de ataque.' },
+                              1, { dia: 1, mes: 1, ano: 0 }, 'pt')).toBe('');
+  });
+
+  it('e o ida-e-volta do calendário fecha em qualquer data', () => {
+    // Se somar e subtrair não voltarem ao mesmo dia, a conta está errada em
+    // algum lugar do Cruine.
+    [{ dia: 1, mes: 1, ano: 0 }, { dia: 30, mes: 12, ano: 7 },
+     { dia: 1, mes: 13, ano: 3 }, { dia: 15, mes: 6, ano: 100 }].forEach((d) => {
+      const ida = window.somarDiasFantasy(d, 47);
+      expect(window.somarDiasFantasy(ida, -47)).toEqual(d);
+    });
   });
 });
