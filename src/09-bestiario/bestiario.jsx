@@ -573,6 +573,104 @@ function BestPagination({ page, safePage, totalPages, setPage, setExpandida, lan
   );
 }
 
+/* ── Auditoria do catálogo de magias (painel do admin) ─────────────
+   O motor de combate lê o EFEITO das magias do texto dos níveis (o número) e
+   a SEMÂNTICA de um registro em código (a unidade, o alvo, o sinal). Mudar o
+   número no catálogo muda o efeito sozinho — é assim de propósito, para
+   equilibrar magia ser trabalho de banco e não de código.
+
+   O que NÃO se resolve sozinho é mudar a FORMA: trocar "coluna de ataque" por
+   "defesa" faz o registro apontar para uma unidade que o texto não tem mais,
+   e a magia vira um efeito de zero, em silêncio.
+
+   Existe um teste que trava esse acordo, mas ele compara o registro contra
+   cópias do texto coladas no próprio teste: pega mudança no CÓDIGO, não no
+   BANCO. Este painel fecha essa lacuna — roda a mesma leitura do motor contra
+   o catálogo que está no ar, agora.
+
+   Fechado por padrão: é ferramenta de manutenção, não de consulta diária. */
+function MagiasAuditoriaPainel({ magias, lang }) {
+  const [aberto, setAberto] = React.useState(false);
+  const en = lang === 'en';
+
+  const r = React.useMemo(
+    () => (typeof auditarMagias === 'function' ? auditarMagias(magias || []) : null),
+    [magias]
+  );
+  if (!r) return null;
+  const s = resumoAuditoria(r);
+  // Quebrada é o único estado que exige ação imediata: a magia está no motor
+  // e parou de funcionar. Ambígua é aviso; órfã é oportunidade.
+  const temProblema = s.quebrada > 0 || s.ambigua > 0;
+
+  const Secao = ({ titulo, itens, detalhe }) => (
+    itens.length === 0 ? null : (
+      <div className="best-aud-secao">
+        <div className="best-aud-titulo">{titulo} · {itens.length}</div>
+        <ul className="best-aud-lista">
+          {itens.map((x) => (
+            <li key={x.key}><strong>{x.nome}</strong>{detalhe ? detalhe(x) : null}</li>
+          ))}
+        </ul>
+      </div>
+    )
+  );
+
+  return (
+    <div className={'best-auditoria' + (temProblema ? ' com-problema' : '')}>
+      <button type="button" className="best-aud-head" onClick={() => setAberto((v) => !v)}>
+        <span className="best-aud-chevron" style={{ transform: aberto ? 'rotate(90deg)' : 'none' }}>›</span>
+        <strong>{en ? 'Catalog check' : 'Verificação do catálogo'}</strong>
+        <span className="best-aud-resumo">
+          {temProblema
+            ? (en ? `${s.quebrada} broken · ${s.ambigua} ambiguous` : `${s.quebrada} quebrada(s) · ${s.ambigua} ambígua(s)`)
+            : (en ? `${s.ok} read correctly` : `${s.ok} lidas corretamente`)}
+          {' · '}
+          {en ? `${s.orfa} unmapped` : `${s.orfa} sem registro`}
+        </span>
+      </button>
+
+      {aberto && (
+        <div className="best-aud-corpo">
+          <p className="best-aud-ajuda">
+            {en
+              ? 'Numbers in the level text drive the effect — edit them freely. Changing WHICH unit a spell affects needs a code change.'
+              : 'O número no texto do nível governa o efeito — pode editar à vontade. Trocar QUAL unidade a magia afeta exige mudança no código.'}
+          </p>
+
+          <Secao
+            titulo={en ? '⚠ Broken — in the engine but no longer readable' : '⚠ Quebradas — estão no motor e pararam de ser lidas'}
+            itens={r.quebrada}
+            detalhe={(x) => <span className="best-aud-det"> — {en ? 'missing' : 'falta'}: {x.faltando.join(', ')}</span>}
+          />
+          <Secao
+            titulo={en ? '⚠ Ambiguous — the reader found something odd' : '⚠ Ambíguas — o leitor achou algo estranho'}
+            itens={r.ambigua}
+            detalhe={(x) => (
+              <span className="best-aud-det"> — {x.avisos.map((a) => (
+                a.tipo === 'sobrescrita'
+                  ? (en ? `"${a.campo}" written twice (${a.de}→${a.para})` : `"${a.campo}" escrito duas vezes (${a.de}→${a.para})`)
+                  : (en ? `unknown unit near "${a.trecho}"` : `unidade desconhecida perto de "${a.trecho}"`)
+              )).join('; ')}</span>
+            )}
+          />
+          <Secao
+            titulo={en ? 'Unmapped — readable numbers, no engine entry' : 'Sem registro — têm número legível e o motor ignora'}
+            itens={r.orfa}
+            detalhe={(x) => <span className="best-aud-det"> — {x.unidades.join(', ')}</span>}
+          />
+
+          <p className="best-aud-rodape">
+            {en
+              ? `${s.ok} mapped and consistent · ${s.narrativa} narrative (nothing to do) · ${s.total} total`
+              : `${s.ok} no motor e consistentes · ${s.narrativa} narrativas (nada a fazer) · ${s.total} no total`}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ============================== [18] MagiasList — Mestre vê todas as magias do banco; jogador só as compradas ============================== */
 function MagiasList({ ac, lang, modoJogador }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
@@ -639,6 +737,14 @@ function MagiasList({ ac, lang, modoJogador }) {
         </div>
         <div className="best-count">{filtered.length} de {magias.length}</div>
       </div>
+
+      {/* Auditoria do catálogo — só admin. Responde a pergunta de manutenção:
+          "editei o texto de uma magia; o motor de combate ainda entende?"
+
+          Mora AQUI, ao lado do editor, porque é aqui que o texto é editado —
+          e porque a tabela `magias` exige autenticação, então um script de
+          linha de comando precisaria de credencial que esta tela já tem. */}
+      {ehAdmin && <MagiasAuditoriaPainel magias={magias} lang={lang} />}
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'magias', oQueEn: 'spell' })}</div>
@@ -1155,6 +1261,9 @@ function ItensList({ ac, lang, modoJogador }) {
 
 Object.assign(window, {
   CriaturasList, MagiasList, HabilidadesList,
+  // Exposto pro teste de render: e a tela que diz ao Mestre se a edicao dele
+  // quebrou alguma magia no motor.
+  MagiasAuditoriaPainel,
   TecnicasList, ItensList, useEhAdmin,
   linhasQueCabem, paragrafosDe, TextoDoBanco, textoListaVazia,
 });

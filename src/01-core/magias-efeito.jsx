@@ -30,6 +30,10 @@ const MAGIA_VERBOS = {
   aumente:  'mais',
   reduz:    'menos',
   reduza:   'menos',
+  // Licantropia Lupina é a única que diz "diminui" em vez de "reduz":
+  // "Aumenta 1 no atributo Força e DIMINUI 1 no atributo Intelecto."
+  diminui:  'menos',
+  diminua:  'menos',
   restaura: 'cura',
   causa:    'dano',
   cause:    'dano',
@@ -55,6 +59,21 @@ const MAGIA_UNIDADES = [
      (mod_dano_max), que Pele de Árvore também usa. */
   { re: /^\s*de\s+dano\s+m[áa]ximo/i,           campo: 'dano_max' },
   { re: /^\s*de\s+dano/i,                       campo: 'dano'    },
+  // Oferenda: "Aumenta 2 NÍVEIS DA MAGIA e reduz 1 de energia física."
+  { re: /^\s*n[íi]ve(?:l|is)\s+da\s+magia/i,    campo: 'nivel_magia' },
+  /* Licantropia Lupina: "Aumenta 2 no atributo Força e 1 no atributo Físico e
+     diminui 2 no atributo Intelecto e 1 no atributo Carisma."
+
+     Um campo por atributo, com o prefixo `atr_` para não colidir com nada —
+     `forca` sozinho seria confundível com a Força que o dano da arma usa. As
+     chaves batem com ATRIBUTOS_KEYS de game-data.jsx. */
+  { re: /^\s*n[oa]\s+atributo\s+for[çc]a/i,     campo: 'atr_forca'     },
+  { re: /^\s*n[oa]\s+atributo\s+f[íi]sico/i,    campo: 'atr_fisico'    },
+  { re: /^\s*n[oa]\s+atributo\s+intelecto/i,    campo: 'atr_intelecto' },
+  { re: /^\s*n[oa]\s+atributo\s+carisma/i,      campo: 'atr_carisma'   },
+  { re: /^\s*n[oa]\s+atributo\s+aura/i,         campo: 'atr_aura'      },
+  { re: /^\s*n[oa]\s+atributo\s+agilidade/i,    campo: 'atr_agilidade' },
+  { re: /^\s*n[oa]\s+atributo\s+percep[çc][ãa]o/i, campo: 'atr_percepcao' },
 ];
 
 /* O DISCRIMINADOR é a POSIÇÃO do número: modificador é sempre
@@ -65,18 +84,52 @@ const MAGIA_UNIDADES = [
 
    É por isso que as regex de MAGIA_UNIDADES são ancoradas em ^: elas casam
    contra o que vem LOGO DEPOIS do número, não contra a frase inteira. */
-const RE_VERBO = /\b(aumenta|aumente|reduz|reduza|restaura|causa|cause)\b/gi;
+/* `diminui` PRECISA estar aqui, não só em MAGIA_VERBOS: é esta regex que
+   fatia o texto em trechos por verbo. Sem ela, "Aumenta 1 no atributo Força e
+   diminui 1 no atributo Intelecto" virava UM trecho só, e os dois números
+   entravam como 'mais'. Em Licantropia o resultado saía certo por acidente —
+   o registro é que dá o sinal —, mas um texto com "Aumenta 2 de X e reduz 3
+   de X" teria o segundo sobrescrevendo o primeiro sob a ação errada. */
+const RE_VERBO = /\b(aumenta|aumente|reduz|reduza|diminui|diminua|restaura|causa|cause)\b/gi;
 
-function efeitosNoNivel(magia, nivel) {
+/* ── O leitor, com diagnóstico ─────────────────────────────────────
+   `efeitosNoNivel` devolve só os valores; esta devolve também o que o parser
+   NÃO entendeu. É o que permite auditar o catálogo sem adivinhação: número
+   sem unidade conhecida, número sem verbo nenhum, e campo escrito duas vezes
+   (a armadilha que Ataque Infernal expôs).
+
+   Uma função só para as duas saídas, de propósito: duplicar a caminhada
+   garantiria que auditoria e execução divergissem no primeiro conserto feito
+   num lugar só. */
+function lerNivel(magia, nivel) {
   const out = {};
+  const avisos = [];
   const txt = (magia && magia['nivel_' + nivel]) || '';
-  if (!txt) return out;
+  if (!txt) return { valores: out, avisos, texto: '' };
+
+  const escrever = (campo, valor) => {
+    if (out[campo] !== undefined && out[campo] !== valor) {
+      avisos.push({ tipo: 'sobrescrita', campo, de: out[campo], para: valor });
+    }
+    out[campo] = valor;
+  };
 
   // Cada ocorrência de verbo abre um TRECHO, que vai até o próximo verbo.
   // Assim "Aumenta 1 coluna e 5 de energia heroica" mantém os dois números
   // sob o mesmo verbo, e um texto com dois verbos não mistura os sinais.
   const verbos = [...txt.matchAll(RE_VERBO)];
-  if (!verbos.length) return out;
+  /* Sem verbo de efeito não há nada a ler, e isso NÃO é aviso aqui.
+
+     A primeira versão avisava `sem_verbo` sempre que houvesse número no
+     texto, e a auditoria do catálogo real mostrou o erro na hora: Medo diz
+     "A magia tem duração de 1 rodada" e Esconjuração "Afeta criaturas de
+     estágio 1" — número legítimo, de duração e de teto, que verbo de efeito
+     nenhum governa. As duas apareciam como ambíguas nos cinco níveis.
+
+     Quem sabe se a ausência é suspeita é a AUDITORIA, que conhece o registro:
+     magia que declara unidade numérica e não entrega nada é problema; magia
+     de bandeira ou narrativa, não. Ver auditarMagias. */
+  if (!verbos.length) return { valores: out, avisos, texto: txt };
 
   verbos.forEach((v, i) => {
     const acao = MAGIA_VERBOS[v[1].toLowerCase()];
@@ -91,29 +144,38 @@ function efeitosNoNivel(magia, nivel) {
       if (!Number.isFinite(valor)) continue;
       const resto = trecho.slice(m.index + m[0].length);
       const u = MAGIA_UNIDADES.find((x) => x.re.test(resto));
-      if (!u) continue;
+      if (!u) {
+        avisos.push({ tipo: 'unidade_desconhecida', valor,
+                      trecho: resto.slice(0, 40).trim() });
+        continue;
+      }
       // 'dano' é a única unidade cujo verbo muda o CAMPO, não só o sinal:
       // causar dano e reduzir dano recebido são coisas diferentes, e a
       // segunda é uma primitiva própria (reducao_dano).
       if (u.campo === 'dano') {
-        if (acao === 'dano')  out.dano = valor;
-        if (acao === 'menos') out.reducao_dano = valor;
+        if (acao === 'dano')  escrever('dano', valor);
+        if (acao === 'menos') escrever('reducao_dano', valor);
         continue;
       }
       // dano_max não muda de campo por verbo: o sinal quem dá é o registro
       // (Pele de Árvore reduz o teto; Ataque Infernal o aumenta).
-      if (u.campo === 'dano_max') { out.dano_max = valor; continue; }
+      if (u.campo === 'dano_max') { escrever('dano_max', valor); continue; }
       // Restaurar PREENCHE o pool; aumentar LEVANTA o teto. São primitivas
       // distintas (spec §8), então o campo é distinto.
       if (acao === 'cura') {
-        if (u.campo === 'eh') out.cura_eh = valor;
-        if (u.campo === 'ef') out.cura_ef = valor;
+        if (u.campo === 'eh') escrever('cura_eh', valor);
+        if (u.campo === 'ef') escrever('cura_ef', valor);
         continue;
       }
-      if (acao === 'mais' || acao === 'menos') out[u.campo] = valor;
+      if (acao === 'mais' || acao === 'menos') escrever(u.campo, valor);
     }
   });
-  return out;
+  return { valores: out, avisos, texto: txt };
+}
+
+// A leitura crua, sem diagnóstico — o que o motor usa em combate.
+function efeitosNoNivel(magia, nivel) {
+  return lerNivel(magia, nivel).valores;
 }
 
 /* ── Elemento do dano ──────────────────────────────────────────────
@@ -342,6 +404,44 @@ const MAGIA_EFEITO_MAP = {
   sono:               { alvo: 'inimigo', alvos: 1, icone: '💤',
                         efeitos: [{ tipo: 'sem_acoes', valor: true }] },
 
+  /* ── META e ATRIBUTO (2) — 12/09/2026 ──────────────────────────────
+     As duas que a Fase 1 adiou em §2.3 por não serem "um número somado a um
+     stat por N rodadas". Continuam não sendo — cada uma trouxe a primitiva
+     que faltava.
+
+     OFERENDA: "A próxima magia que evocar terá seus níveis ampliados.
+     Enquanto este efeito durar, você não poderá recuperar sua energia física
+     de nenhuma forma." Três coisas de uma vez:
+
+       mod_nivel_magia — status consumido pela PRÓXIMA magia, não por rodada.
+                         Usa consome_em, o mesmo mecanismo da Esquiva.
+       cura_pool −1    — o sangue oferecido: custo imediato de EF. Reusa
+                         aplicarCuraPool invertido, que já tem piso 0.
+       sem_cura_ef     — bandeira que bloqueia recuperação de EF enquanto dura.
+
+     O nível soma direto na escala 1/3/5/7/9, e cai certo: "+2 níveis" leva 1
+     a 3, e "+6" leva 1 a 7. Teto em 9. */
+  oferenda:           { alvo: 'self', alvos: 1, icone: '🩸',
+                        efeitos: [{ tipo: 'mod_nivel_magia', unidade: 'nivel_magia',
+                                    sinal: 1, consome_em: 'magia_evocada' },
+                                  { tipo: 'cura_pool', unidade: 'ef', pool: 'ef', sinal: -1 },
+                                  { tipo: 'sem_cura_ef', valor: true }] },
+  /* LICANTROPIA LUPINA: o atributo sobe e desce junto — Força e Físico para
+     cima, Intelecto e Carisma para baixo, nos três níveis. Por isso o sinal
+     mora aqui: o parser devolve só a magnitude ("diminui 2" vira 2).
+
+     `mod_atributo` entra na coluna de ataque, que é onde o atributo toca a
+     rodada — NÃO nos poços. Ver aplicarModsAtributo para o porquê. */
+  licantropia_lupina: { alvo: 'self', alvos: 1, icone: '🐺',
+                        efeitos: [{ tipo: 'mod_atributo', unidade: 'atr_forca',
+                                    atributo: 'forca', sinal: 1 },
+                                  { tipo: 'mod_atributo', unidade: 'atr_fisico',
+                                    atributo: 'fisico', sinal: 1 },
+                                  { tipo: 'mod_atributo', unidade: 'atr_intelecto',
+                                    atributo: 'intelecto', sinal: -1 },
+                                  { tipo: 'mod_atributo', unidade: 'atr_carisma',
+                                    atributo: 'carisma', sinal: -1 }] },
+
   /* ── Cura (2) ──────────────────────────────────────────────────── */
   // "efeito inverso em mortos-vivos": a cura de EH vira dano na EH.
   curas_espirituais:  { alvo: 'aliado', alvos: 1, icone: '💚',
@@ -381,3 +481,96 @@ function tetoEstagioNoNivel(magia, nivel) {
 Object.assign(window, {
   efeitosNoNivel, elementoDoNivel, MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
 });
+
+/* ============================================================
+   AUDITORIA DO CATÁLOGO
+   ============================================================
+   Responde a pergunta de manutenção: "mudei o texto de uma magia — o motor
+   ainda entende?"
+
+   POR QUE ISTO EXISTE. O acordo entre o registro e o texto é travado por um
+   teste (magias-efeito.test.js), mas esse teste compara o mapa contra CÓPIAS
+   do texto coladas no próprio arquivo. Ele pega mudança no CÓDIGO; não pega
+   mudança no BANCO. Editar uma magia pelo admin e quebrar o padrão não
+   dispara nada — a magia só para de fazer efeito, em silêncio, e a mesa
+   descobre no meio do combate.
+
+   Esta auditoria roda contra o catálogo DE VERDADE e classifica cada magia:
+
+     ok         — tem registro, e todas as unidades declaradas são lidas
+     quebrada   — tem registro, e alguma unidade NÃO é lida em nível nenhum
+                  (o caso grave: a magia virou um efeito de zero)
+     ambigua    — o texto tem número que o leitor não entende, ou um campo
+                  escrito duas vezes no mesmo nível
+     orfa       — NÃO tem registro, mas o texto tem número mecânico legível.
+                  Pode ser magia nova esperando entrada, ou narrativa que por
+                  acaso cita um número. É a lista para o Mestre olhar.
+     narrativa  — sem registro e sem número: tudo certo, nada a fazer
+
+   NÍVEL A NÍVEL, e a unidade precisa aparecer em ALGUM nível, não em todos:
+   Licantropia só menciona Físico e Carisma a partir do nível 5, e isso é
+   legítimo.
+   ============================================================ */
+const MAGIA_NIVEIS = [1, 3, 5, 7, 9];
+
+function auditarMagias(magiasDb) {
+  const lista = Array.isArray(magiasDb) ? magiasDb : [];
+  const out = { ok: [], quebrada: [], ambigua: [], orfa: [], narrativa: [] };
+
+  lista.forEach((m) => {
+    if (!m || !m.key) return;
+    const reg = MAGIA_EFEITO_MAP[m.key] || null;
+
+    // Lê os cinco níveis uma vez só.
+    const leituras = MAGIA_NIVEIS.map((n) => ({ nivel: n, ...lerNivel(m, n) }))
+      .filter((l) => l.texto);
+
+    const avisos = [];
+    leituras.forEach((l) => {
+      l.avisos.forEach((a) => avisos.push({ ...a, nivel: l.nivel }));
+    });
+
+    const unidadesLidas = new Set();
+    leituras.forEach((l) => Object.keys(l.valores).forEach((k) => unidadesLidas.add(k)));
+
+    if (!reg) {
+      // Sem registro: narrativa, a menos que o texto entregue número legível.
+      if (unidadesLidas.size > 0) {
+        out.orfa.push({ key: m.key, nome: m.nome, unidades: [...unidadesLidas] });
+      } else {
+        out.narrativa.push({ key: m.key, nome: m.nome });
+      }
+      return;
+    }
+
+    // Com registro: toda unidade declarada tem que ser lida em ALGUM nível.
+    // Efeito de bandeira (valor: true) não lê número — não entra na conta.
+    const declaradas = reg.efeitos.filter((ef) => ef.valor === undefined)
+      .map((ef) => ef.unidade);
+    const faltando = declaradas.filter((u) => !unidadesLidas.has(u));
+
+    if (faltando.length) {
+      out.quebrada.push({ key: m.key, nome: m.nome, faltando, avisos });
+      return;
+    }
+    if (avisos.length) {
+      out.ambigua.push({ key: m.key, nome: m.nome, avisos });
+      return;
+    }
+    out.ok.push({ key: m.key, nome: m.nome });
+  });
+
+  return out;
+}
+
+/* Resumo de uma linha, para o cabeçalho do painel e para o log do script. */
+function resumoAuditoria(r) {
+  return {
+    ok: r.ok.length, quebrada: r.quebrada.length, ambigua: r.ambigua.length,
+    orfa: r.orfa.length, narrativa: r.narrativa.length,
+    total: r.ok.length + r.quebrada.length + r.ambigua.length
+         + r.orfa.length + r.narrativa.length,
+  };
+}
+
+Object.assign(window, { lerNivel, auditarMagias, resumoAuditoria, MAGIA_NIVEIS });

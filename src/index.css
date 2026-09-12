@@ -8108,3 +8108,22 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    do token — na lista de participantes o head tem outra largura. */
 #root .menestrel-ui .batalha-token-menu .batalha-fighter-id { flex: 0 1 auto; }
 #root .menestrel-ui .batalha-token-menu .batalha-fighter-stats { margin-left: auto; }
+/* ── Auditoria do catálogo de magias (admin) ───────────────────────
+   Faixa dobrável acima da tabela de magias. Fechada é uma linha discreta;
+   só ganha a borda de alerta quando há magia QUEBRADA ou AMBÍGUA — estado
+   que exige ação. Órfã e narrativa não acendem nada: são informação. */
+#root .menestrel-ui .best-auditoria { margin: 0 0 12px; border: 1px solid #33302A; border-radius: 6px; background: #1C1A16; }
+#root .menestrel-ui .best-auditoria.com-problema { border-color: #8A5A2B; }
+#root .menestrel-ui .best-aud-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; background: none; border: 0; color: #C9BFA8; font-size: 13px; text-align: left; cursor: pointer; }
+#root .menestrel-ui .best-aud-head:hover { color: #E6DCC4; }
+#root .menestrel-ui .best-aud-chevron { display: inline-block; transition: transform .12s ease; color: #9C8F73; }
+#root .menestrel-ui .best-aud-resumo { margin-left: auto; color: #9C8F73; font-size: 12px; }
+#root .menestrel-ui .best-auditoria.com-problema .best-aud-resumo { color: #D08A46; }
+#root .menestrel-ui .best-aud-corpo { padding: 4px 12px 12px 32px; border-top: 1px solid #2A2722; }
+#root .menestrel-ui .best-aud-ajuda { margin: 8px 0 12px; color: #9C8F73; font-size: 12px; line-height: 1.5; }
+#root .menestrel-ui .best-aud-secao { margin-bottom: 12px; }
+#root .menestrel-ui .best-aud-titulo { color: #C9BFA8; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+#root .menestrel-ui .best-aud-lista { margin: 0; padding-left: 16px; color: #9C8F73; font-size: 12px; line-height: 1.7; }
+#root .menestrel-ui .best-aud-lista strong { color: #C9BFA8; font-weight: 600; }
+#root .menestrel-ui .best-aud-det { color: #7E735F; }
+#root .menestrel-ui .best-aud-rodape { margin: 12px 0 0; color: #7E735F; font-size: 11px; }

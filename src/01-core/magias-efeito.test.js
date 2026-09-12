@@ -192,12 +192,15 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // como primitivas de TECNICA e passaram a ter produtor
                          // magico — Sangramento e Posicionamento, respectivamente.
                          'dano_por_rodada', 'mod_dano_max',
+                         // 12/09/2026: as primitivas que Oferenda e Licantropia
+                         // trouxeram. Ver o comentario das entradas no mapa.
+                         'mod_nivel_magia', 'sem_cura_ef', 'mod_atributo',
                          // Fase 2: sem_acoes JÁ EXISTIA (Falha Crítica). A fase
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem 35 entradas — 25 da Fase 1, 3 de controle, 7 de criatura', () => {
-    expect(Object.keys(MAP)).toHaveLength(35);
+  it('tem 37 entradas — 25 da Fase 1, 3 de controle, 7 de criatura, 2 de meta/atributo', () => {
+    expect(Object.keys(MAP)).toHaveLength(37);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -241,12 +244,12 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
     expect(magiaEfeitoDe(undefined)).toBeNull();
   });
 
-  it('as duas magias adiadas para a Fase 2 NÃO estão no mapa', () => {
-    /* Licantropia mexe em atributo (atravessa calcularFicha inteira) e
-       Oferenda modifica a PRÓXIMA magia — nenhuma das duas é status_temp.
-       Spec §2.3. Se alguém as acrescentar sem a primitiva, este teste avisa. */
-    expect(MAP.licantropia_lupina).toBeUndefined();
-    expect(MAP.oferenda).toBeUndefined();
+  it('Licantropia e Oferenda entraram em 12/09/2026, com primitiva propria', () => {
+    // A Fase 1 as adiou (spec §2.3) por nao serem "um numero somado a um stat
+    // por N rodadas". Continuam nao sendo — cada uma trouxe a primitiva que
+    // faltava: mod_nivel_magia/sem_cura_ef e mod_atributo.
+    expect(MAP.licantropia_lupina).toBeDefined();
+    expect(MAP.oferenda).toBeDefined();
   });
 
   it('protecao_animal é a key de Aeroproteção — nome e chave divergem no banco', () => {
@@ -307,6 +310,12 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     pele_de_arvore:     'Reduza 4 de dano máximo.',
     relampago:          'Cause 28 de dano base.',
     ruido_extenuante:   'Reduza 1 coluna de ataque e 8 de velocidade.',
+    /* META e ATRIBUTO (12/09/2026). */
+    oferenda:           'Aumenta 2 níveis da magia e reduz 1 de energia física.',
+    /* NIVEL 5, nao 1: Licantropia so menciona Fisico e Carisma a partir dele.
+       Unidade que so existe em nivel alto e caso real, e a conferencia tem
+       que usar um texto que exercite TODAS as declaradas. */
+    licantropia_lupina: 'Aumenta 2 no atributo Força e 1 no atributo Físico e diminui 2 no atributo Intelecto e 1 no atributo Carisma.',
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',
@@ -395,9 +404,115 @@ describe('as três magias de CONTROLE da Fase 2', () => {
        alvo), Ordens (narrativa), Possessão (troca de corpo), Licantropia
        (atributos) e Oferenda (meta-magia) precisam de sistemas que o motor de
        combate não tem. Entregar três inteiras é melhor que nove pela metade. */
-    ['alucinacao', 'invisibilidade', 'ordens', 'possessao',
-     'licantropia_lupina', 'oferenda'].forEach((k) => {
+    ['alucinacao', 'invisibilidade', 'ordens', 'possessao'].forEach((k) => {
       expect(MAP[k], `${k} entrou no mapa sem a primitiva que precisa`).toBeUndefined();
     });
+  });
+});
+
+describe('auditarMagias — o verificador de manutenção do catálogo', () => {
+  /* POR QUE ESTE VERIFICADOR EXISTE.
+
+     O teste de acordo acima compara o mapa contra CÓPIAS do texto coladas
+     neste arquivo. Ele pega mudança no CÓDIGO; não pega mudança no BANCO.
+     Editar uma magia pelo admin e quebrar o padrão não dispara nada — a magia
+     só para de fazer efeito, em silêncio.
+
+     auditarMagias roda contra o catálogo de verdade e responde: o motor ainda
+     entende o que está escrito? */
+  let auditar, resumo;
+  beforeAll(() => {
+    auditar = window.auditarMagias;
+    resumo = window.resumoAuditoria;
+    expect(auditar).toBeTypeOf('function');
+  });
+
+  it('magia do registro com todas as unidades legíveis fica OK', () => {
+    const r = auditar([{ key: 'bencao', nome: 'Bênção',
+      nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' }]);
+    expect(r.ok.map((x) => x.key)).toEqual(['bencao']);
+    expect(r.quebrada).toHaveLength(0);
+  });
+
+  it('QUEBRADA: o texto mudou e a unidade declarada sumiu', () => {
+    // O caso que motivou tudo: alguém troca "coluna de ataque" por "defesa" e
+    // a magia vira um buff de zero, sem nada avisando.
+    const r = auditar([{ key: 'bencao', nome: 'Bênção',
+      nivel_1: 'Aumenta 1 de defesa e 5 de energia heroica.' }]);
+    expect(r.quebrada).toHaveLength(1);
+    expect(r.quebrada[0].faltando).toEqual(['coluna']);
+  });
+
+  it('a unidade precisa aparecer em ALGUM nível, não em todos', () => {
+    /* Licantropia só menciona Físico e Carisma a partir do nível 5. Exigir
+       todas em todos acusaria uma magia correta. */
+    const r = auditar([{ key: 'licantropia_lupina', nome: 'Licantropia Lupina',
+      nivel_1: 'Aumenta 1 no atributo Força e diminui 1 no atributo Intelecto.',
+      nivel_5: 'Aumenta 2 no atributo Força e 1 no atributo Físico e diminui 2 no atributo Intelecto e 1 no atributo Carisma.' }]);
+    expect(r.quebrada).toHaveLength(0);
+    expect(r.ok).toHaveLength(1);
+  });
+
+  it('efeito de BANDEIRA não exige número nenhum', () => {
+    // Medo produz sem_acoes; o texto do nível só traz a duração.
+    const r = auditar([{ key: 'medo', nome: 'Medo',
+      nivel_1: 'A magia tem duração de 1 rodada.' }]);
+    expect(r.ok.map((x) => x.key)).toEqual(['medo']);
+  });
+
+  it('REGRESSÃO: número de duração ou de estágio NÃO é ambiguidade', () => {
+    /* Primeira versão avisava sempre que houvesse número sem verbo, e a
+       auditoria do catálogo real acusou Medo e Esconjuração nos cinco níveis.
+       Número de duração e teto de estágio são legítimos. */
+    const r = auditar([
+      { key: 'medo', nome: 'Medo', nivel_1: 'A magia tem duração de 1 rodada.' },
+      { key: 'esconjuracao', nome: 'Esconjuração', nivel_1: 'Afeta criaturas de estágio 1.' },
+    ]);
+    expect(r.ambigua).toHaveLength(0);
+  });
+
+  it('AMBÍGUA: dois números escrevendo o MESMO campo no mesmo nível', () => {
+    // A armadilha que Ataque Infernal expôs, antes de `de dano máximo` virar
+    // unidade própria: o segundo número sobrescrevia o primeiro.
+    const r = auditar([{ key: 'bola_de_fogo', nome: 'Bola de Fogo',
+      nivel_1: 'Causa 12 de dano elemental e causa 4 de dano extra.' }]);
+    expect(r.ambigua).toHaveLength(1);
+    expect(r.ambigua[0].avisos.some((a) => a.tipo === 'sobrescrita')).toBe(true);
+  });
+
+  it('AMBÍGUA: número com unidade que o leitor não conhece', () => {
+    const r = auditar([{ key: 'bencao', nome: 'Bênção',
+      nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica e 3 de sorte.' }]);
+    expect(r.ambigua[0].avisos.some((a) => a.tipo === 'unidade_desconhecida')).toBe(true);
+  });
+
+  it('ÓRFÃ: tem número mecânico legível e NÃO tem registro', () => {
+    // A lista que responde "que magia eu deveria acrescentar a seguir".
+    const r = auditar([{ key: 'hidroprotecao', nome: 'Hidroproteção',
+      nivel_1: 'Reduz 16 de dano elemental de água.' }]);
+    expect(r.orfa).toHaveLength(1);
+    expect(r.orfa[0].unidades).toEqual(['reducao_dano']);
+  });
+
+  it('NARRATIVA: sem registro e sem número — nada a fazer', () => {
+    const r = auditar([{ key: 'clarividencia', nome: 'Clarividência',
+      nivel_1: 'A magia tem duração de alguns segundos.' }]);
+    expect(r.narrativa).toHaveLength(1);
+    expect(r.orfa).toHaveLength(0);
+  });
+
+  it('o resumo conta tudo e fecha com o total', () => {
+    const r = auditar([
+      { key: 'bencao', nome: 'B', nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' },
+      { key: 'hidroprotecao', nome: 'H', nivel_1: 'Reduz 16 de dano elemental de água.' },
+      { key: 'xyz', nome: 'X', nivel_1: 'Narrativa pura.' },
+    ]);
+    const s = resumo(r);
+    expect(s).toMatchObject({ ok: 1, orfa: 1, narrativa: 1, total: 3 });
+  });
+
+  it('entrada vazia ou malformada não lança', () => {
+    expect(resumo(auditar(null)).total).toBe(0);
+    expect(resumo(auditar([null, {}, { nome: 'sem key' }])).total).toBe(0);
   });
 });

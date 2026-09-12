@@ -3023,8 +3023,11 @@ function aplicarCurasDaMagia(alvoP, magia, nivel) {
   const curas = reg.efeitos.filter((ef) => ef.tipo === 'cura_pool');
   if (!curas.length) return alvoP;
   const lido = (typeof efeitosNoNivel === 'function') ? efeitosNoNivel(magia, nivel) : {};
-  const inverter = efeitoInverteNoAlvo(alvoP, magia.key);
+  // `sinal: -1` no registro = CUSTO, não cura. É o sangue da Oferenda, e usa o
+  // mesmo caminho invertido do efeito inverso em morto-vivo.
+  const inverterPorRaca = efeitoInverteNoAlvo(alvoP, magia.key);
   return curas.reduce((p, ef) => {
+    const inverter = inverterPorRaca || (ef.sinal || 1) < 0;
     const valor = lido[ef.unidade];
     if (valor == null) return p;
     return aplicarCuraPool(p, ef.pool, valor, { inverter });
@@ -3045,9 +3048,16 @@ function aplicarCuraPool(p, pool, valor, opcoes) {
   if (!p || (pool !== 'eh' && pool !== 'ef')) return p;
   const v = Math.max(0, Math.floor(Number(valor) || 0));
   if (!v) return p;
+  const inverter = !!(opcoes && opcoes.inverter);
+  /* Oferenda: "enquanto este efeito durar, você não poderá recuperar sua
+     energia física DE NENHUMA FORMA". A bandeira barra a cura de EF venha ela
+     de onde vier — outra magia, item, edição do Mestre pela barra. Não barra
+     o CUSTO: tirar EF continua valendo, senão a própria Oferenda não cobraria
+     o sangue que ela oferece. */
+  if (!inverter && pool === 'ef' && statusTemEfeito(p, 'sem_cura_ef')) return p;
   const atual = Number(p[pool]) || 0;
   const teto  = Number(p[pool + '_max']) || 0;
-  const novo = (opcoes && opcoes.inverter)
+  const novo = inverter
     ? Math.max(0, atual - v)
     : Math.min(teto, atual + v);
   return statusPorPools({ ...p, [pool]: novo });
