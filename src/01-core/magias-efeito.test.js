@@ -205,6 +205,9 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // Doencas (12/09/2026): mexe numa das 8 CONDICOES da
                          // ficha (Saude), que nao e poco de combate.
                          'mod_condicao',
+                         // Visibilidade do tabuleiro (12/09/2026): Visao Animal
+                         // enxerga na escuridao, e o nivel diz ate qual.
+                         'visao_escuridao',
                          // Varredura das orfas: mod_coluna estreia produtor
                          // magico. Existia desde a Falha Critica, e so as
                          // tecnicas a usavam. Ato Falho pune TODAS as acoes.
@@ -213,8 +216,8 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem 74 entradas — 73 mais Protecao Natural', () => {
-    expect(Object.keys(MAP)).toHaveLength(74);
+  it('tem 75 entradas — 74 mais Visao Animal', () => {
+    expect(Object.keys(MAP)).toHaveLength(75);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -398,6 +401,9 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     // Entrou quando o motor aprendeu a rolar teste de HABILIDADE: a
     // dificuldade afrouxa com o nivel (Absurdo no 1, Facil no 9).
     protecao_natural:   'Com um teste da habilidade Sentidos (Absurdo), reduz 4 de dano.',
+    // Bandeira: o valor nao e "verbo + numero + unidade", e qual escuridao o
+    // nivel vence — lido por visaoEscuridaoNoNivel.
+    visao_animal:       'Permite enxergar na escuridao parcial.',
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',

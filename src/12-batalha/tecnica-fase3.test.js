@@ -170,10 +170,10 @@ describe('Estilhaçar e Retalhar — dano no equipamento', () => {
   });
 });
 
-describe('as tres que seguem fora TÊM motivo registrado', () => {
+describe('as duas que seguem fora TÊM motivo registrado', () => {
   /* O que faltava não era só o efeito: era o instrumento. Nas magias, a lista
      de fora-do-motor com motivo foi o que permitiu ao usuário decidir. */
-  it.each(['luta_as_cegas', 'provocar', 'conduzir_oponente'])(
+  it.each(['provocar', 'conduzir_oponente'])(
     '%s diz por que está fora', (key) => {
       const m = window.tecnicaForaDoRegistro(key);
       expect(m, key).toBeTruthy();
@@ -182,20 +182,20 @@ describe('as tres que seguem fora TÊM motivo registrado', () => {
     });
 
   it('e nenhuma delas está no registro de efeito', () => {
-    ['luta_as_cegas', 'provocar', 'conduzir_oponente']
+    ['provocar', 'conduzir_oponente']
       .forEach((k) => expect(window.TECNICA_EFEITO_MAP[k], k).toBeUndefined());
   });
 
   it('técnica LIGADA não aparece como fora', () => {
-    ['concentracao', 'remover_debilitacao', 'estilhacar', 'retalhar', 'combate_montado']
+    ['concentracao', 'remover_debilitacao', 'estilhacar', 'retalhar', 'combate_montado', 'luta_as_cegas']
       .forEach((k) => expect(window.tecnicaForaDoRegistro(k), k).toBeNull());
   });
 
   it('registro e lista-de-fora cobrem as 58 do catálogo, sem sobra', () => {
     const ligadas = Object.keys(window.TECNICA_EFEITO_MAP).length;
     const fora = Object.keys(window.TECNICA_FORA_DO_REGISTRO).length;
-    // 55 + 3 = 58. Combate Montado saiu da lista de fora em 12/09/2026,
-    // quando a montaria virou mecanica.
+    // 56 + 2 = 58. Combate Montado e Luta as Cegas sairam da lista de fora em
+    // 12/09/2026, quando montaria e visibilidade viraram mecanica.
     expect(ligadas + fora).toBe(58);
   });
 });

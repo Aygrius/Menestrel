@@ -1621,6 +1621,70 @@ function EstadoDropPortal({ anchorRef, onClose, children }) {
 }
 
 /* ============================================================
+   VISIBILIDADE DO TABULEIRO — 12/09/2026
+   ============================================================
+   "O Mestre poderá adicionar um efeito de visibilidade no tabuleiro da
+   batalha: escuridão parcial, escuridão total, escuridão mágica."
+
+   Os três níveis não são invenção: estão escritos na magia **Visão Animal**,
+   que os define um a um —
+
+     Escuridão Parcial   equivalente a uma noite sem lua
+     Escuridão Total     equivalente a um ambiente fechado
+     Escuridão Mágica    ausência total de luz
+
+   — e a magia **Escuridão** é o que os cria em jogo ("criando escuridão
+   parcial ou total [...] todos os que estiverem na área receberão as
+   penalidades apropriadas").
+
+   Quem vence cada nível também já estava escrito: Visão Animal enxerga na
+   parcial (nível 1), na total (3) e na mágica (5). E a técnica **Luta às
+   Cegas** dispensa enxergar — "permite lutar sem enxergar por 3 rodadas".
+
+   O que NÃO estava escrito em lugar nenhum é o tamanho da penalidade. Esse
+   número é balanceamento, e balanceamento é decisão do usuário: a escada
+   abaixo é um PADRÃO declarado, não uma regra descoberta. Mudar é trocar
+   estes três números.
+   ============================================================ */
+const VISIBILIDADE_NIVEL = { clara: 0, parcial: 1, total: 2, magica: 3 };
+
+/* Penalidade na COLUNA DE ATAQUE de quem não enxerga. Coluna porque é a moeda
+   que a tabela de resolução lê — mesma unidade de Mira, Postura e das magias
+   de debuff, então não inventa mecanismo novo. */
+const VISIBILIDADE_PENALIDADE = { clara: 0, parcial: -2, total: -4, magica: -6 };
+
+function nivelVisibilidade(v) {
+  return VISIBILIDADE_NIVEL[v] != null ? VISIBILIDADE_NIVEL[v] : 0;
+}
+
+/* Este combatente enxerga NESTE nível de escuridão?
+
+   Duas portas, e as duas vêm de status que alguma magia ou técnica gravou:
+     visao_escuridao  valor = até qual nível enxerga (1 parcial, 2 total,
+                      3 mágica). Visão Animal escala com o nível da magia.
+     luta_sem_ver     não enxerga, e não precisa — Luta às Cegas.
+
+   Escuridão clara todo mundo vence, inclusive quem não tem nada. */
+function enxergaNaEscuridao(p, visibilidade) {
+  const nivel = nivelVisibilidade(visibilidade);
+  if (nivel === 0) return true;
+  const st = (p && Array.isArray(p.status_temp)) ? p.status_temp : [];
+  return st.some((s) => {
+    const ef = s && s.efeito;
+    if (!ef) return false;
+    if (ef.tipo === 'luta_sem_ver') return true;
+    return ef.tipo === 'visao_escuridao' && (Number(ef.valor) || 0) >= nivel;
+  });
+}
+
+/* O que a escuridão tira da coluna deste combatente. Zero quando ele enxerga
+   — por magia, por técnica, ou porque está claro. */
+function penalidadeDeVisibilidade(p, visibilidade) {
+  if (enxergaNaEscuridao(p, visibilidade)) return 0;
+  return VISIBILIDADE_PENALIDADE[visibilidade] || 0;
+}
+
+/* ============================================================
    MONTARIA — 12/09/2026
    ============================================================
    "As montarias já existem (inicialmente pode incluir todas as criaturas do
@@ -3210,6 +3274,22 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
        declara `unidade`, exatamente como as técnicas já fazem com
        evita_golpe e ignora_armadura. */
     if (ef.valor !== undefined) {
+      /* VISÃO ANIMAL: a bandeira vira NÚMERO aqui — qual escuridão este nível
+         vence (1 parcial, 2 total, 3 mágica), lido do texto. O registro não
+         guarda o número porque ele escala com o nível da magia, como todo
+         número neste catálogo. Nível que não fala de enxergar não grava
+         status nenhum. */
+      if (ef.tipo === 'visao_escuridao') {
+        const ate = (typeof visaoEscuridaoNoNivel === 'function')
+          ? visaoEscuridaoNoNivel(magia, nivel) : null;
+        if (!ate) return;
+        novos.push({
+          id, nome: magia.nome || key, icone: reg.icone,
+          rodadas_rest: dur.rodadas,
+          efeito: { tipo: 'visao_escuridao', valor: ate },
+        });
+        return;
+      }
       novos.push({
         id, nome: magia.nome || key, icone: reg.icone,
         rodadas_rest: dur.rodadas,
@@ -4213,6 +4293,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const [estado, setEstado] = useState(batalha.estado);
   const [participantes, setParticipantes] = useState(batalha.participantes || []);
   const [rodada, setRodada] = useState(batalha.rodada || 0);
+  /* VISIBILIDADE DO TABULEIRO (12/09/2026). Estado da BATALHA, não do
+     participante: escuridão é do ambiente. 'clara' é o default e o valor de
+     toda batalha que existia antes desta linha. */
+  const [visibilidade, setVisibilidade] = useState(batalha.visibilidade || 'clara');
   const [iniciando, setIniciando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState(null);
@@ -5194,6 +5278,28 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     }
     onHeaderActionsChange(
       <>
+        {/* VISIBILIDADE DO TABULEIRO. Um botão que cicla claro → parcial →
+            total → mágica → claro. Ciclar em vez de abrir menu porque são
+            quatro estados numa escada, e o ícone diz em qual você está: o
+            Mestre acende a escuridão no meio da cena sem tirar a mão do
+            teclado. O tooltip nomeia o estado e a penalidade. */}
+        <button type="button"
+          className={'btn-icon btn-ghost btn-sm visib-' + visibilidade}
+          disabled={salvando || rolagemPendente}
+          onClick={() => {
+            const ordem = ['clara', 'parcial', 'total', 'magica'];
+            const prox = ordem[(ordem.indexOf(visibilidade) + 1) % ordem.length];
+            setVisibilidade(prox);
+            persistir({ visibilidade: prox });
+          }}
+          onMouseEnter={(e) => abrirTip(e, (tb['visib_' + visibilidade] || visibilidade)
+            + (VISIBILIDADE_PENALIDADE[visibilidade]
+               ? ` · ${VISIBILIDADE_PENALIDADE[visibilidade]} ${tb.coluna || 'coluna'}` : ''))}
+          onMouseLeave={fecharTip}>
+          <i className={'ti ' + (visibilidade === 'clara' ? 'ti-sun'
+            : visibilidade === 'parcial' ? 'ti-cloud-moon'
+            : visibilidade === 'total' ? 'ti-moon-off' : 'ti-eye-off')} aria-hidden="true" />
+        </button>
         <button type="button" className="btn-icon btn-ghost btn-sm" disabled={salvando || rolagemPendente} onClick={novaRodada}
           onMouseEnter={(e) => abrirTip(e, tb.novaRodada)} onMouseLeave={fecharTip}>
           <i className="ti ti-refresh" aria-hidden="true" />
@@ -5489,6 +5595,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                 participantes={participantes}
                 catalogos={catalogos}
                 lang={lang}
+                visibilidade={visibilidade}
                 onAplicar={aplicarAcao}
                 onAplicarTeste={aplicarTeste}
                 onAplicarItem={aplicarItem}
@@ -6369,7 +6476,7 @@ function MotorResolucao({ lang }) {
    participantes[].rolagem_pendente do PRÓPRIO PJ, porque só alcança a tabela
    pela RPC atualizar_batalha_jogador, que recebe participantes/log/rodada e
    não a coluna. Os dois entregam o mesmo objeto por `rolagemSalva`. */
-function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarTeste, onAplicarItem, onAplicarApoio, onCancel, onRolagemPendenteChange, rolagemSalva, onRolagemSalvaChange, abrirTip, fecharTip }) {
+function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplicar, onAplicarTeste, onAplicarItem, onAplicarApoio, onCancel, onRolagemPendenteChange, rolagemSalva, onRolagemSalvaChange, abrirTip, fecharTip }) {
   // Só vale a rolagem DESTE ator: a linha é da batalha, não do participante.
   const salva = (rolagemSalva && ator
     && rolagemSalva.ator && rolagemSalva.ator.tipo === ator.tipo
@@ -6717,7 +6824,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // (FC branco) pega TODAS as ações do ator — arma, magia, habilidade e
   // técnica; "defesa −5" (FC azul) reduz a defesa_valor EFETIVA do alvo
   // (a coluna do atacante sobe). colunaAtaque segue pura — o mod entra aqui.
-  const modColunaAtor = somaEfeitosStatus(ator, 'mod_coluna');
+  /* A escuridão do tabuleiro entra JUNTO do mod_coluna, e não separada, porque
+     é a mesma natureza: um número que sai da coluna do atacante seja qual for
+     a arma. Quem enxerga — Visão Animal, Luta às Cegas — não paga nada. */
+  const modColunaAtor = somaEfeitosStatus(ator, 'mod_coluna')
+    + penalidadeDeVisibilidade(ator, visibilidade);
   let coluna = null, colunaClamped = null, alvoResist = null;
   if (tab === 'arma' && arma && alvo) {
     const defEsc = defesaComEscolta(alvo, participantes);
@@ -7548,6 +7659,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             )}
             {/* De onde a magia vem, e o que isso custa. O karma zero precisa
                 de explicação na tela, senão parece bug. */}
+            {/* A escuridão cobra caro e é fácil de esquecer: sem este aviso o
+                jogador vê a coluna baixa e não sabe por quê. */}
+            {penalidadeDeVisibilidade(ator, visibilidade) !== 0 && (
+              <div className="err-msg">
+                {interpolate(tb.naoEnxerga || 'Você não enxerga: {n} de coluna.',
+                  { n: penalidadeDeVisibilidade(ator, visibilidade) })}
+              </div>
+            )}
             {apoioSel && apoioSel.item && (
               <p className="acao-efeito-texto">
                 {interpolate(
@@ -7880,6 +7999,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
+  // O jogador LÊ a visibilidade; quem a define é o Mestre. Vem por prop e se
+  // atualiza sozinha pelo realtime, como o resto da batalha.
+  const visibilidade = batalha.visibilidade || 'clara';
   const [catalogos, setCatalogos] = useState(null);
   const [acaoOpen, setAcaoOpen] = useState(false);
   const [rolagemPendente, setRolagemPendente] = useState(false);
@@ -8739,6 +8861,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                       participantes={participantes}
                       catalogos={catalogos}
                       lang={lang}
+                      visibilidade={visibilidade}
                       onAplicar={handleAcao}
                       onAplicarTeste={handleTeste}
                       onAplicarItem={handleItem}
@@ -8913,6 +9036,8 @@ Object.assign(window, {
     // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
     modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia, passouNoTesteDeHabilidade,
     ehMontaria, montariasDisponiveis, montar, desmontar, montariaSegue, vbParaMovimento,
+    enxergaNaEscuridao, penalidadeDeVisibilidade, nivelVisibilidade,
+    VISIBILIDADE_PENALIDADE, VISIBILIDADE_NIVEL,
     somaModHabilidade, aplicarDanoEquipamento,
     magiasDeApoioDoAtor, magiasOfensivasDoAtor, magiasConhecidasDoAtor,
     aplicarEfeitoApoio, quebrarConcentracao,

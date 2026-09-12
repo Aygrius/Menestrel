@@ -57,6 +57,8 @@ const TIPOS_VALIDOS = [
   'sem_critico', 'derrubado', 'evita_golpe', 'usa_defesa_de',
   // Fase 3 (12/09/2026) — a varredura das oito que estavam fora do motor.
   'mantem_concentracao', 'mod_habilidade', 'dano_equipamento',
+  // Visibilidade do tabuleiro: Luta as Cegas dispensa enxergar.
+  'luta_sem_ver',
 ];
 // Os que multiplicam o total da técnica (totalTecnica × sinal). O resto é
 // valor fixo (dano_pct 25) ou flag liga/desliga (ignora_eh true).
@@ -75,12 +77,13 @@ describe('TECNICA_EFEITO_MAP', () => {
   // acrescentou 26: este arquivo continua sendo o dono das 24 originais, e
   // tecnica-fase2.test.js é o dono das outras. O total fica travado aqui pra
   // uma entrada não sumir sem ninguém notar.
-  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 55', () => {
+  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 56', () => {
     for (const key of Object.keys(EFEITO_NO_BANCO)) {
       expect(MAP[key], `${key} da Fase 1 sumiu do registro`).toBeDefined();
     }
     // +1 em 12/09/2026: Combate Montado, quando a montaria virou mecanica.
-    expect(Object.keys(MAP).length, '24 + 26 + 4 + Combate Montado').toBe(55);
+    // +1 em 12/09/2026: Luta as Cegas, quando o tabuleiro ganhou escuridao.
+    expect(Object.keys(MAP).length, '24 + 26 + 4 + Montado + Cegas').toBe(56);
   });
 
   it('toda entrada tem modo, alvo, rodadas, ícone e ao menos um efeito', () => {

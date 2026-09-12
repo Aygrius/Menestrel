@@ -886,6 +886,7 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
     mod_eh_temp:     'aplicarEfeitoMagia + expirarEhTemp',
     mod_dano_max:    'danoFinal',
     mod_condicao:    'aplicarCondicoesDaMagia',
+    visao_escuridao: 'enxergaNaEscuridao + penalidadeDeVisibilidade',
     sem_acoes:       'temAcaoRestante + proximoAtivo',
     mod_nivel_magia: 'nivelComOferenda + consumirOferenda',
     sem_cura_ef:     'aplicarCuraPool',

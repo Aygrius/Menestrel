@@ -271,6 +271,16 @@ const TECNICA_EFEITO_MAP = {
   retalhar:           { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '🪓',
                       dificuldade: 'dificil',
                       efeitos: [{ tipo: 'dano_equipamento', valor: 3 }] },
+  /* "Um teste de Luta às Cegas (Difícil) permite lutar sem enxergar por 3
+     rodadas." Entrou em 12/09/2026, quando o tabuleiro ganhou visibilidade —
+     antes não havia escuridão para vencer, e a técnica não tinha o que fazer.
+
+     Não é "enxergar": é não precisar. Vence os TRÊS níveis de uma vez, porque
+     o texto não qualifica. Visão Animal, que enxerga de verdade, escala por
+     nível; esta é tudo ou nada, e por isso custa Difícil e dura 3 rodadas. */
+  luta_as_cegas:      { modo: 'teste', alvo: 'self', rodadas: 3, icone: '🙈',
+                      dificuldade: 'dificil',
+                      efeitos: [{ tipo: 'luta_sem_ver', valor: true }] },
 };
 
 /* ── As que seguem FORA, e por quê ─────────────────────────────────
@@ -284,8 +294,6 @@ const TECNICA_EFEITO_MAP = {
                  desenho. Decisão do usuário em 12/09/2026 para as duas que
                  eu havia classificado como falta de sistema. */
 const TECNICA_FORA_DO_REGISTRO = {
-  luta_as_cegas: { classe: 'sistema', motivo:
-    '"Lutar sem enxergar" só vale se existir enxergar. O combate não tem visibilidade nem escuridão.' },
   /* As duas abaixo o motor NÃO vai automatizar, e está certo assim.
 
      Provocar obriga o alvo a mirar em quem provocou; Conduzir Oponente empurra

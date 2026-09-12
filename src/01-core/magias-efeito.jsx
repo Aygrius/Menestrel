@@ -328,6 +328,29 @@ function escaladaNoNivel(magia, nivel) {
   return m ? Math.abs(parseInt(m[1], 10)) || null : null;
 }
 
+/* ── Até qual escuridão a magia deixa enxergar ─────────────────────
+   Visão Animal, e a escada está no texto dos níveis:
+
+     nível 1  "Permite enxergar na escuridão parcial."
+     nível 3  "...na escuridão total."
+     nível 5  "...na escuridão mágica."
+
+   Os três nomes são os mesmos que a própria descrição da magia define (noite
+   sem lua / ambiente fechado / ausência total de luz) e os mesmos que o
+   tabuleiro usa. Ler daqui em vez de fixar no registro mantém a regra do
+   projeto: o número está no texto, e você pode reescalonar sem me chamar.
+
+   Devolve 1, 2 ou 3 — ou null quando o nível não fala de enxergar. */
+const ESCURIDAO_NIVEL = { parcial: 1, total: 2, magica: 3 };
+const RE_VISAO = /enxergar\s+na\s+escurid[aã]o\s+(parcial|total|m[áa]gica)/i;
+
+function visaoEscuridaoNoNivel(magia, nivel) {
+  const txt = (magia && magia['nivel_' + nivel]) || '';
+  const m = RE_VISAO.exec(txt);
+  if (!m) return null;
+  return ESCURIDAO_NIVEL[semAcento(m[1])] || null;
+}
+
 /* ── Teste de HABILIDADE exigido pela magia ────────────────────────
    Proteção Natural: "Com um teste da habilidade Sentidos (Absurdo), reduz 4 de
    dano." A dificuldade AFROUXA com o nível — Absurdo no 1, Fácil no 9 —, então
@@ -575,6 +598,17 @@ const MAGIA_EFEITO_MAP = {
                         efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: 1 }] },
   velocidade:         { alvo: 'self', alvos: 1, icone: '💨',
                         efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: 1 }] },
+  /* VISÃO ANIMAL — entrou em 12/09/2026, junto com a visibilidade do
+     tabuleiro. Antes não havia escuridão para enxergar, e a magia era
+     narrativa por falta de alvo, não por falta de clareza.
+
+     `unidade` nenhuma: o valor não é "verbo + número + unidade", é qual
+     escuridão o nível vence, e quem lê isso é visaoEscuridaoNoNivel. Por isso
+     o efeito é declarado como bandeira (`valor: true`) e o motor troca pelo
+     número na hora de aplicar — mesmo tratamento de Combate Montado, cujo
+     número também vem de fora do registro. */
+  visao_animal:       { alvo: 'self', alvos: 1, icone: '🦉',
+                        efeitos: [{ tipo: 'visao_escuridao', valor: true }] },
   /* DOENÇAS — entrou em 12/09/2026, depois de o usuário reescrever os cinco
      níveis com doenças nomeadas e efeito concreto. Duas peças novas no motor,
      ambas gerais e não específicas desta magia:
@@ -925,7 +959,7 @@ function tetoEstagioNoNivel(magia, nivel) {
 
 Object.assign(window, {
   efeitosNoNivel, elementoDoNivel, escaladaNoNivel, curaEmDiasNoNivel,
-  testeHabilidadeNoNivel, DIFICULDADE_POR_NOME, MAGIA_ELEMENTOS_VALIDOS,
+  testeHabilidadeNoNivel, visaoEscuridaoNoNivel, DIFICULDADE_POR_NOME, MAGIA_ELEMENTOS_VALIDOS,
   MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
 });
 

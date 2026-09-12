@@ -643,7 +643,7 @@ describe('textoEfeitoTecnica — complemento da Central de Mensagens', () => {
     expect(M.textoEfeitoTecnica('provocar', null, 'Lysandra')).toBe(' — efeito narrativo, resolva na mesa');
     // Mesmo texto mesmo se por acaso viesse um efeito preenchido — sem registro,
     // não há como o efeito ter sido de fato aplicado pelo motor.
-    expect(M.textoEfeitoTecnica('luta_as_cegas', null, 'Lysandra'))
+    expect(M.textoEfeitoTecnica('conduzir_oponente', null, 'Lysandra'))
       .toBe(' — efeito narrativo, resolva na mesa');
   });
 

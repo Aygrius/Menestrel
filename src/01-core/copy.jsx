@@ -324,6 +324,14 @@ const COPY = {
       /* Teste de HABILIDADE do conjurador (Proteção Natural). Diferente do de
          resistência: lá o alvo tenta escapar, aqui o conjurador tenta acertar. */
       magiaTesteExige: 'Teste de {h} ({d}) — coluna {c}',
+      /* Visibilidade do tabuleiro (12/09/2026). Os tres nomes vem da propria
+         magia Visao Animal, que os define um a um. */
+      visib_clara: 'Tabuleiro iluminado',
+      visib_parcial: 'Escuridão parcial — noite sem lua',
+      visib_total: 'Escuridão total — ambiente fechado',
+      visib_magica: 'Escuridão mágica — ausência total de luz',
+      coluna: 'de coluna',
+      naoEnxerga: 'Você não enxerga: {n} de coluna. Visão Animal ou Luta às Cegas resolvem.',
       /* Magia concedida por ITEM (anel, cajado, pergaminho). O karma zero
          precisa de explicacao na tela, senao parece bug. */
       magiaDeItem: 'Vem de {item} — não custa karma.',
@@ -831,6 +839,12 @@ const COPY = {
          ateOFimDa and rodadas already existed in this block; reused. */
       alvoResistiu: 'The target resisted — the effect did not land.',
       magiaTesteExige: '{h} test ({d}) — column {c}',
+      visib_clara: 'Lit board',
+      visib_parcial: 'Partial darkness — moonless night',
+      visib_total: 'Total darkness — enclosed space',
+      visib_magica: 'Magical darkness — no light at all',
+      coluna: 'column',
+      naoEnxerga: 'You cannot see: {n} to column. Animal Sight or Blind Fighting fix it.',
       magiaDeItem: 'Comes from {item} — costs no karma.',
       magiaDeItemConsumivel: 'Comes from {item} — costs no karma, and the item is consumed.',
       magiaTesteSemHabilidade: 'This spell needs a {h} test, and this fighter lacks that skill.',
