@@ -925,7 +925,7 @@ function tetoEstagioNoNivel(magia, nivel) {
 
 Object.assign(window, {
   efeitosNoNivel, elementoDoNivel, escaladaNoNivel, curaEmDiasNoNivel,
-  testeHabilidadeNoNivel, MAGIA_ELEMENTOS_VALIDOS,
+  testeHabilidadeNoNivel, DIFICULDADE_POR_NOME, MAGIA_ELEMENTOS_VALIDOS,
   MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
 });
 

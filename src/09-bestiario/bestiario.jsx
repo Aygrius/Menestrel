@@ -1182,6 +1182,151 @@ function HabilidadesList({ ac, lang, modoJogador }) {
 }
 
 /* ============================== [20] TecnicasList — Mestre vê todas as técnicas; jogador só as que tem ============================== */
+/* ── Verificação do catálogo de TÉCNICAS (só admin) ────────────────
+   Irmã do painel das magias, e existe pela mesma razão prática: a varredura
+   de 12/09/2026 achou 8 técnicas fora do motor, e eu só as encontrei
+   comparando catálogo e registro na mão. O Mestre não tinha instrumento.
+
+   Mas a REGRA que ela verifica é o oposto da das magias, e o painel diz isso
+   em voz alta:
+
+     magia    o número mora no TEXTO. Editou, valeu na próxima conjuração.
+     técnica  o número mora no CÓDIGO. Editar "por 2 rodadas" para "por 5"
+              muda o que a tela promete e não muda o que o motor faz.
+
+   Por isso o estado que importa aqui é DIVERGENTE — texto e motor contando
+   histórias diferentes —, e não "ilegível". */
+function TecnicasAuditoriaPainel({ tecnicas, lang, onRecarregar }) {
+  const [aberto, setAberto] = React.useState(false);
+  const [recarregando, setRecarregando] = React.useState(false);
+  const [conferidoEm, setConferidoEm] = React.useState(null);
+  const en = lang === 'en';
+
+  const reconferir = async (e) => {
+    e.stopPropagation();
+    if (!onRecarregar || recarregando) return;
+    setRecarregando(true);
+    try { await onRecarregar(); setConferidoEm(new Date()); }
+    finally { setRecarregando(false); }
+  };
+
+  const r = React.useMemo(
+    () => (typeof auditarTecnicas === 'function' ? auditarTecnicas(tecnicas || []) : null),
+    [tecnicas]
+  );
+  const noMotor = (typeof TECNICA_EFEITO_MAP === 'object' && TECNICA_EFEITO_MAP)
+    ? Object.keys(TECNICA_EFEITO_MAP).length : 0;
+  if (!r) return null;
+  const s = resumoAuditoriaTecnicas(r);
+  // Divergência é o único estado que exige ação: a tela está mentindo para o
+  // jogador. Ficar de fora do motor é oportunidade, não erro.
+  const temProblema = s.divergente > 0;
+
+  const CLASSES = [
+    { id: 'decisao',  pt: 'Falta uma decisão sua — o motor daria conta',
+                      en: 'Needs a rules decision — the engine could handle it' },
+    { id: 'sistema',  pt: 'Falta um sistema que o combate não tem',
+                      en: 'Needs a system the engine lacks' },
+    { id: null,       pt: 'Sem motivo registrado — vale perguntar',
+                      en: 'No reason on file — worth asking' },
+  ];
+
+  return (
+    <div className={'best-auditoria' + (temProblema ? ' com-problema' : '')}>
+      <button type="button" className="best-aud-head" onClick={() => setAberto((v) => !v)}>
+        <span className="best-aud-chevron" style={{ transform: aberto ? 'rotate(90deg)' : 'none' }}>›</span>
+        <strong>{en ? 'Catalog check' : 'Verificação do catálogo'}</strong>
+        <span className="best-aud-resumo">
+          {temProblema
+            ? (en ? `${s.divergente} diverging` : `${s.divergente} divergente(s)`)
+            : (en ? `${s.ok} in sync` : `${s.ok} em acordo com o motor`)}
+          {' · '}
+          {en ? `${s.fora} unmapped` : `${s.fora} fora do motor`}
+        </span>
+        {onRecarregar && (
+          <span
+            role="button"
+            tabIndex={0}
+            className="best-aud-recarregar"
+            aria-label={en ? 'Check again' : 'Conferir novamente'}
+            onClick={reconferir}
+            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') reconferir(ev); }}
+          >
+            <i className={'ti ' + (recarregando ? 'ti-loader' : 'ti-refresh')} aria-hidden="true" />
+            {recarregando
+              ? (en ? 'Checking…' : 'Conferindo…')
+              : (en ? 'Check again' : 'Conferir novamente')}
+          </span>
+        )}
+        {conferidoEm && !recarregando && (
+          <span className="best-aud-hora">
+            {(en ? 'checked at ' : 'conferido às ')}
+            {conferidoEm.toLocaleTimeString(en ? 'en-US' : 'pt-BR',
+              { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </span>
+        )}
+      </button>
+
+      {aberto && (
+        <div className="best-aud-corpo">
+          <p className="best-aud-ajuda">
+            {en
+              ? 'UNLIKE spells: a technique\'s numbers live in CODE. Editing the text changes what the screen promises, not what the engine does — tell me and I change both.'
+              : 'AO CONTRÁRIO das magias: o número da técnica mora no CÓDIGO. Editar o texto muda o que a tela promete, não o que o motor faz — me avise e eu mudo os dois.'}
+          </p>
+          <p className="best-aud-ajuda best-aud-motor">
+            {en
+              ? <>Engine loaded in this browser: <strong>{noMotor} techniques</strong> registered.</>
+              : <>Motor carregado neste navegador: <strong>{noMotor} técnicas</strong> registradas.</>}
+          </p>
+
+          {r.divergente.length > 0 && (
+            <div className="best-aud-secao">
+              <div className="best-aud-titulo">
+                {en ? '⚠ Text and engine disagree' : '⚠ Texto e motor discordam'} · {r.divergente.length}
+              </div>
+              <ul className="best-aud-lista">
+                {r.divergente.map((x) => (
+                  <li key={x.key}><strong>{x.nome}</strong>
+                    <span className="best-aud-det"> — {x.avisos.map((a) => (
+                      en ? `text says ${a.campo} ${a.texto}, engine uses ${a.motor}`
+                         : `o texto diz ${a.campo} ${a.texto}, o motor usa ${a.motor}`
+                    )).join('; ')}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {r.fora.length > 0 && CLASSES.map((c) => {
+            const itens = r.fora.filter((x) => (c.id ? (x.motivo && x.motivo.classe === c.id) : !x.motivo));
+            if (!itens.length) return null;
+            return (
+              <div className="best-aud-secao" key={c.id || 'sem'}>
+                <div className="best-aud-titulo">{en ? c.en : c.pt} · {itens.length}</div>
+                <ul className="best-aud-lista">
+                  {itens.map((x) => (
+                    <li key={x.key}><strong>{x.nome}</strong>
+                      <span className="best-aud-det"> — {x.motivo ? x.motivo.motivo
+                        : (en ? 'not in the engine; tell me if it should be'
+                              : 'não está no motor; me diga se deveria estar')}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+
+          <p className="best-aud-ajuda">
+            {en ? `${s.ok} of ${s.total} techniques run in combat.`
+                : `${s.ok} das ${s.total} técnicas funcionam em combate.`}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TecnicasList({ ac, lang, modoJogador }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
   const [tecnicas, setTecnicas] = useState(null);
@@ -1244,6 +1389,11 @@ function TecnicasList({ ac, lang, modoJogador }) {
         </div>
         <div className="best-count">{filtered.length} de {tecnicas.length}</div>
       </div>
+
+      {/* Mora AQUI pelo mesmo motivo do painel das magias: é onde o texto da
+          técnica é editado, e a tabela exige autenticação que esta tela já
+          tem. Ver TecnicasAuditoriaPainel. */}
+      {ehAdmin && <TecnicasAuditoriaPainel tecnicas={tecnicas} lang={lang} onRecarregar={carregarTecnicas} />}
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'técnicas', oQueEn: 'technique' })}</div>
@@ -1490,7 +1640,7 @@ Object.assign(window, {
   CriaturasList, MagiasList, HabilidadesList,
   // Exposto pro teste de render: e a tela que diz ao Mestre se a edicao dele
   // quebrou alguma magia no motor.
-  MagiasAuditoriaPainel, CriaturasAuditoriaPainel,
+  MagiasAuditoriaPainel, CriaturasAuditoriaPainel, TecnicasAuditoriaPainel,
   TecnicasList, ItensList, useEhAdmin,
   linhasQueCabem, paragrafosDe, TextoDoBanco, textoListaVazia,
 });

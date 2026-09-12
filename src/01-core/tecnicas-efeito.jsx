@@ -286,6 +286,73 @@ function tecnicaForaDoRegistro(key) {
   return TECNICA_FORA_DO_REGISTRO[key] || null;
 }
 
+/* ── VERIFICAÇÃO DO CATÁLOGO DE TÉCNICAS ───────────────────────────
+   Irmã de auditarMagias, e a diferença entre as duas É A REGRA que o Mestre
+   precisa saber:
+
+     magia    o NÚMERO mora no texto do banco. Editou, valeu na próxima
+              conjuração.
+     técnica  o número mora AQUI, no código. Editar "por 2 rodadas" para "por
+              5 rodadas" no banco muda o que a tela PROMETE e não muda nada do
+              que o motor FAZ.
+
+   Por isso a auditoria das técnicas procura DIVERGÊNCIA, não ilegibilidade: o
+   texto e o registro contando histórias diferentes. Era um teste de unidade
+   desde a Fase 1 (tecnicas-efeito.test.js), mas travado contra cópias
+   hardcoded das 24 originais — pega deriva de CÓDIGO, e nunca viu o banco.
+
+   Estados:
+     ok           registro e texto dizem a mesma coisa
+     divergente   dizem números diferentes (rodadas ou dificuldade)
+     fora         sem entrada no registro — com motivo, quando registrado */
+function auditarTecnicas(tecnicasDb) {
+  const lista = Array.isArray(tecnicasDb) ? tecnicasDb : [];
+  const out = { ok: [], divergente: [], fora: [] };
+
+  lista.forEach((t) => {
+    if (!t || !t.key) return;
+    const reg = TECNICA_EFEITO_MAP[t.key];
+    if (!reg) {
+      out.fora.push({ key: t.key, nome: t.nome, motivo: tecnicaForaDoRegistro(t.key) });
+      return;
+    }
+    const texto = t.efeito || '';
+    const avisos = [];
+
+    // "por 2 rodadas" — Explorar Fraqueza não declara duração, e está certo.
+    const mRod = texto.match(/(\d+)\s*rodadas?/i);
+    if (mRod && Number(mRod[1]) !== reg.rodadas) {
+      avisos.push({ campo: 'rodadas', texto: Number(mRod[1]), motor: reg.rodadas });
+    }
+
+    /* "Um teste de X (Difícil)". A tabela de nomes é a de magias-efeito.jsx,
+       lida do window NA CHAMADA e não no carregamento: este arquivo carrega
+       antes daquele (ver main.tsx), mas a auditoria só roda quando alguém
+       abre o painel. É o mesmo idioma que batalha.jsx usa com
+       D20_QUALIDADE_MINIMA, e evita uma segunda cópia da escala. */
+    const mDif = texto.match(/teste\s+de\s+[^(]*\(([^)]+)\)/i);
+    if (mDif && reg.modo === 'teste') {
+      const tabela = (typeof window !== 'undefined' && window.DIFICULDADE_POR_NOME) || null;
+      const chave = tabela
+        ? tabela[String(mDif[1]).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()]
+        : null;
+      if (chave && chave !== reg.dificuldade) {
+        avisos.push({ campo: 'dificuldade', texto: chave, motor: reg.dificuldade });
+      }
+    }
+
+    if (avisos.length) out.divergente.push({ key: t.key, nome: t.nome, avisos });
+    else out.ok.push({ key: t.key, nome: t.nome });
+  });
+  return out;
+}
+
+function resumoAuditoriaTecnicas(r) {
+  if (!r) return null;
+  return { ok: r.ok.length, divergente: r.divergente.length, fora: r.fora.length,
+           total: r.ok.length + r.divergente.length + r.fora.length };
+}
+
 // Lookup tolerante: técnica sem entrada devolve null, e o chamador mantém o
 // comportamento narrativo de antes da Fase 1. Nunca lança.
 function tecnicaEfeitoDe(key) {
@@ -294,4 +361,5 @@ function tecnicaEfeitoDe(key) {
 }
 
 Object.assign(window, { TECNICA_EFEITO_MAP, tecnicaEfeitoDe,
-  TECNICA_FORA_DO_REGISTRO, tecnicaForaDoRegistro });
+  TECNICA_FORA_DO_REGISTRO, tecnicaForaDoRegistro,
+  auditarTecnicas, resumoAuditoriaTecnicas });
