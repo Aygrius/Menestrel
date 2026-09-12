@@ -8132,3 +8132,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    do resumo: é lá que o Mestre olha depois de editar uma magia. */
 #root .menestrel-ui .best-aud-recarregar { display: inline-flex; align-items: center; gap: 4px; margin-left: 12px; padding: 2px 8px; border: 1px solid #3A362E; border-radius: 4px; color: #9C8F73; font-size: 11px; cursor: pointer; white-space: nowrap; }
 #root .menestrel-ui .best-aud-recarregar:hover { color: #E6DCC4; border-color: #5A5347; }
+
+/* Hora da última conferência: prova que o botão rodou mesmo quando a lista
+   não muda. Discreta — é carimbo, não informação de leitura. */
+#root .menestrel-ui .best-aud-hora { margin-left: 8px; color: #6E6552; font-size: 10px; white-space: nowrap; }
+/* A linha que diz qual MOTOR está carregado neste navegador. */
+#root .menestrel-ui .best-aud-motor { margin-top: -4px; }

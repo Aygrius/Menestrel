@@ -707,17 +707,28 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
      O botão busca o catálogo de novo e o painel recalcula. `recarregando`
      existe só para o clique ter retorno visível — a consulta é rápida, mas
      sem ele o botão parece morto. */
+  /* A HORA da última conferência.
+
+     Sem ela, um clique que não muda nada na lista é indistinguível de um
+     clique que não funcionou — foi exatamente a dúvida do usuário. A hora
+     muda sempre, então o botão sempre prova que rodou. */
+  const [conferidoEm, setConferidoEm] = React.useState(null);
+
   const reconferir = async (e) => {
     e.stopPropagation();          // não fecha/abre a faixa
     if (!onRecarregar || recarregando) return;
     setRecarregando(true);
-    try { await onRecarregar(); } finally { setRecarregando(false); }
+    try { await onRecarregar(); setConferidoEm(new Date()); }
+    finally { setRecarregando(false); }
   };
 
   const r = React.useMemo(
     () => (typeof auditarMagias === 'function' ? auditarMagias(magias || []) : null),
     [magias]
   );
+  // Tamanho do registro DESTE bundle — a identidade do motor carregado.
+  const noMotor = (typeof MAGIA_EFEITO_MAP === 'object' && MAGIA_EFEITO_MAP)
+    ? Object.keys(MAGIA_EFEITO_MAP).length : 0;
   if (!r) return null;
   const s = resumoAuditoria(r);
   // Quebrada é o único estado que exige ação imediata: a magia está no motor
@@ -767,6 +778,13 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
               : (en ? 'Check again' : 'Conferir novamente')}
           </span>
         )}
+        {conferidoEm && !recarregando && (
+          <span className="best-aud-hora">
+            {(en ? 'checked at ' : 'conferido às ')}
+            {conferidoEm.toLocaleTimeString(en ? 'en-US' : 'pt-BR',
+              { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </span>
+        )}
       </button>
 
       {aberto && (
@@ -775,6 +793,22 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
             {en
               ? 'Numbers in the level text drive the effect — edit them freely. Changing WHICH unit a spell affects needs a code change.'
               : 'O número no texto do nível governa o efeito — pode editar à vontade. Trocar QUAL unidade a magia afeta exige mudança no código.'}
+          </p>
+          {/* AS DUAS METADES DA VERIFICAÇÃO, ditas em voz alta.
+
+              O usuário corrigiu o texto de duas magias, eu as liguei no motor,
+              ele clicou em "Conferir novamente" e as duas continuaram na lista
+              — porque o botão rebusca o CATÁLOGO e o motor veio no JS que o
+              navegador já tinha carregado. A confusão é legítima: nada na tela
+              dizia que eram duas coisas com prazos diferentes.
+
+              O número de magias registradas é o jeito mais curto de saber qual
+              motor está no ar: se eu digo "liguei duas" e aqui ainda aparece o
+              número velho, falta recarregar a página. */}
+          <p className="best-aud-ajuda best-aud-motor">
+            {en
+              ? <>Engine loaded in this browser: <strong>{noMotor} spells</strong> registered. The button below re-fetches the CATALOG; a new engine (a spell I just wired up) only arrives when the page reloads.</>
+              : <>Motor carregado neste navegador: <strong>{noMotor} magias</strong> registradas. O botão rebusca o CATÁLOGO; motor novo — magia que eu acabei de ligar — só chega recarregando a página.</>}
           </p>
 
           <Secao

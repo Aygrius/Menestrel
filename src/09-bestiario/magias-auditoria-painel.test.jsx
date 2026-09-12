@@ -243,3 +243,48 @@ describe('botão Conferir novamente', () => {
     expect(container.querySelector('.best-aud-corpo')).toBeNull();
   });
 });
+
+describe('o painel diz qual MOTOR está carregado', () => {
+  /* A confusão que motivou isto: o usuário corrigiu o texto de duas magias,
+     eu as liguei no motor, ele clicou em "Conferir novamente" e as duas
+     continuaram na lista. Estava certo dos dois lados — o botão rebusca o
+     CATÁLOGO (dados), e o motor (código) veio no JS que o navegador já tinha
+     carregado. Nada na tela dizia que eram duas coisas com prazos diferentes. */
+  const OK = { key: 'bencao', nome: 'Bênção',
+               nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' };
+
+  it('mostra o tamanho do registro deste bundle', () => {
+    render(<div className="menestrel-ui"><Painel magias={[OK]} lang="pt" /></div>);
+    fireEvent.click(cabecalho());
+    const n = Object.keys(window.MAGIA_EFEITO_MAP).length;
+    expect(screen.getByText(new RegExp(`${n} magias`))).toBeTruthy();
+  });
+
+  it('e explica que o botão não traz motor novo', () => {
+    render(<div className="menestrel-ui"><Painel magias={[OK]} lang="pt" /></div>);
+    fireEvent.click(cabecalho());
+    expect(screen.getByText(/só chega recarregando a página/)).toBeTruthy();
+  });
+});
+
+describe('a hora prova que o botão rodou', () => {
+  /* Um clique que não muda nada na lista era indistinguível de um clique que
+     não funcionou. A hora muda sempre. */
+  const OK = { key: 'bencao', nome: 'Bênção',
+               nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' };
+
+  it('não aparece antes do primeiro clique', () => {
+    render(<div className="menestrel-ui">
+      <Painel magias={[OK]} lang="pt" onRecarregar={() => {}} />
+    </div>);
+    expect(screen.queryByText(/conferido às/)).toBeNull();
+  });
+
+  it('aparece depois', async () => {
+    render(<div className="menestrel-ui">
+      <Painel magias={[OK]} lang="pt" onRecarregar={async () => {}} />
+    </div>);
+    fireEvent.click(screen.getByText(/Conferir novamente/));
+    expect(await screen.findByText(/conferido às/)).toBeTruthy();
+  });
+});
