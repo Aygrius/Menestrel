@@ -188,12 +188,16 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
   const TIPOS_VALIDOS = ['dano', 'reducao_dano', 'cura_pool', 'dreno_eh',
                          'mod_ataque', 'mod_defesa', 'mod_vb',
                          'mod_rf', 'mod_rm', 'mod_eh_temp',
+                         // Magias de criatura (12/09/2026): as duas ja existiam
+                         // como primitivas de TECNICA e passaram a ter produtor
+                         // magico — Sangramento e Posicionamento, respectivamente.
+                         'dano_por_rodada', 'mod_dano_max',
                          // Fase 2: sem_acoes JÁ EXISTIA (Falha Crítica). A fase
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem exatamente 28 entradas — 25 da Fase 1 + 3 de controle da Fase 2', () => {
-    expect(Object.keys(MAP)).toHaveLength(28);
+  it('tem 35 entradas — 25 da Fase 1, 3 de controle, 7 de criatura', () => {
+    expect(Object.keys(MAP)).toHaveLength(35);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -295,12 +299,20 @@ describe('o acordo entre o mapa e o texto do banco', () => {
        efeito: traz duracao (Medo), teto de estagio (Esconjuracao) ou prosa
        (Sono). Por isso as entradas declaram `valor: true` em vez de
        `unidade`, e o acordo mapa-parser abaixo as pula. */
+    /* As sete de CRIATURA (12/09/2026). Copias literais do banco. */
+    ataque_infernal:    'Cause 28 de dano base e, mais 1 de dano máximo na energia física por rodada.',
+    bastao_de_luz:      'Cause 20 de dano base.',
+    campo_de_trevas:    'Reduza 1 de energia física por rodada.',
+    geoprotecao:        'Reduz 16 de dano elemental da terra.',
+    pele_de_arvore:     'Reduza 4 de dano máximo.',
+    relampago:          'Cause 28 de dano base.',
+    ruido_extenuante:   'Reduza 1 coluna de ataque e 8 de velocidade.',
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',
   };
 
-  it('a lista de conferência cobre as 25 entradas do mapa', () => {
+  it('a lista de conferência cobre TODAS as entradas do mapa', () => {
     expect(Object.keys(NIVEL_1_NO_BANCO).sort())
       .toEqual(Object.keys(window.MAGIA_EFEITO_MAP).sort());
   });

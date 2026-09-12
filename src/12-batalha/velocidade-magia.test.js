@@ -488,3 +488,90 @@ describe('magia de debuff/controle tem onde ser lançada', () => {
     expect(M.magiasDeApoioDoAtor(ATOR, CAT).map((m) => m.key)).toContain('bencao');
   });
 });
+
+describe('CRIATURA conjura — 12/09/2026', () => {
+  /* A spec registrava normalização de `criaturas.magia` como PRÉ-REQUISITO.
+     O levantamento mostrou que ela não é necessária: 89 menções, 39 nomes
+     distintos, 100% casando com magias.nome, e magia_n preenchido nas 60
+     criaturas, sempre em 1/3/5/7/9.
+
+     Resolver por nome em tempo de execução não corre risco de migração, não
+     muda schema e deixa o Mestre continuar digitando nomes no editor. */
+  const CAT = {
+    pjById: {},
+    criById: {
+      10: { id: 10, nome: 'Gárgula II', magia: 'Geoproteção, Piromanipulação', magia_n: 5 },
+      11: { id: 11, nome: 'Aparição',   magia: 'Toque Gélido',                 magia_n: 9 },
+      12: { id: 12, nome: 'Mudo',       magia: null,                           magia_n: null },
+      13: { id: 13, nome: 'Fantasma',   magia: 'Magia Que Não Existe',         magia_n: 3 },
+    },
+    magiasByKey: {
+      geoprotecao:     { key: 'geoprotecao', nome: 'Geoproteção', duracao: '3 rodadas',
+                         evocacao: '2 rodadas', alcance: 'Pessoal', descricao: 'Pedra.',
+                         nivel_5: 'Reduz 24 de dano elemental da terra.' },
+      piromanipulacao: { key: 'piromanipulacao', nome: 'Piromanipulação', duracao: '1 rodada',
+                         evocacao: '1 rodada', alcance: '10 metros', descricao: 'Fogo.',
+                         nivel_5: 'Causa 12 de dano elemental de fogo.' },
+      toque_gelido:    { key: 'toque_gelido', nome: 'Toque Gélido', duracao: 'Instantânea',
+                         evocacao: 'Instantânea', alcance: 'Toque', descricao: 'Gelo.',
+                         nivel_9: 'Cause 36 de dano base.' },
+    },
+    catalogoBySlug: {},
+  };
+  const cri = (id) => ({ tipo: 'criatura', ref_id: id, inst_id: 'criatura:' + id, nome: 'X' });
+
+  it('resolve os nomes separados por vírgula em magias do catálogo', () => {
+    expect(M.magiasConhecidasDoAtor(cri(10), CAT).map((x) => x.key).sort())
+      .toEqual(['geoprotecao', 'piromanipulacao']);
+  });
+
+  it('magia_n é o nível efetivo de TODAS as magias da criatura', () => {
+    M.magiasConhecidasDoAtor(cri(10), CAT).forEach((x) => expect(x.nivel).toBe(5));
+  });
+
+  it('criatura NÃO paga karma — a tabela nem tem a coluna', () => {
+    M.magiasConhecidasDoAtor(cri(10), CAT).forEach((x) => expect(x.custo_karma).toBe(0));
+  });
+
+  it('a magia ofensiva da criatura entra na aba Magia, no nível dela', () => {
+    const lista = M.magiasOfensivasDoAtor(cri(11), CAT);
+    expect(lista).toHaveLength(1);
+    expect(lista[0]).toMatchObject({ key: 'toque_gelido', nivel: 9, dano: 36, custo_karma: 0 });
+  });
+
+  it('a magia de proteção da criatura entra na aba Apoio', () => {
+    const lista = M.magiasDeApoioDoAtor(cri(10), CAT);
+    expect(lista.map((m) => m.key)).toEqual(['geoprotecao']);
+    expect(lista[0].nivel).toBe(5);
+  });
+
+  it('a magia de dano NÃO aparece na aba Apoio da criatura', () => {
+    expect(M.magiasDeApoioDoAtor(cri(10), CAT).map((m) => m.key)).not.toContain('piromanipulacao');
+  });
+
+  it('criatura sem magia devolve lista vazia', () => {
+    expect(M.magiasConhecidasDoAtor(cri(12), CAT)).toEqual([]);
+  });
+
+  it('nome que não casa com o catálogo é ignorado, sem lançar', () => {
+    // Mesmo fallback de magia sem entrada no registro: some da lista mecânica
+    // e continua no texto do card, para o Mestre narrar.
+    expect(M.magiasConhecidasDoAtor(cri(13), CAT)).toEqual([]);
+  });
+
+  it('criatura fora do criById não quebra', () => {
+    expect(M.magiasConhecidasDoAtor(cri(999), CAT)).toEqual([]);
+  });
+
+  it('o casamento por nome ignora caixa e espaços', () => {
+    const catEspacos = { ...CAT, criById: { 20: { id: 20, magia: '  geoproteção ,PIROMANIPULAÇÃO', magia_n: 5 } } };
+    expect(M.magiasConhecidasDoAtor(cri(20), catEspacos).map((x) => x.key).sort())
+      .toEqual(['geoprotecao', 'piromanipulacao']);
+  });
+
+  it('PJ continua funcionando exatamente como antes', () => {
+    const catPj = { ...CAT, pjById: { 7: { id: 7, magias: { toque_gelido: 5 } } } };
+    const lista = M.magiasConhecidasDoAtor({ tipo: 'pj', ref_id: 7 }, catPj);
+    expect(lista[0]).toMatchObject({ key: 'toque_gelido', nivel: 9, custo_karma: 9 });
+  });
+});

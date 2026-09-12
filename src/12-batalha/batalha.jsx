@@ -674,27 +674,80 @@ function exigeResistencia(magia) {
   return /m[áa]gica/i.test(m[1]) ? 'rm' : 'rf';
 }
 
-/* ── Magias ofensivas conhecidas pelo PJ ──────────────────────── */
-/* Filtra magias com passos>0 que entregam dano > 0 no nível efetivo. */
-/* Custo de karma = nível efetivo (1/3/5/7/9), por decisão do sistema. */
+/* ── Quais magias este combatente conhece, e em que nível ──────────
+   Fonte única para PJ e CRIATURA. Antes só PJ conjurava, e as duas listas
+   (ofensiva e apoio) abriam com `ator.tipo !== 'pj' → []`.
+
+   PJ — `pj.magias` é { key: passos }, e o nível efetivo sai de
+   nivelMagiaEfetivo(passos). Karma custa o nível, regra do sistema.
+
+   CRIATURA — `criaturas.magia` é TEXTO com os nomes separados por vírgula
+   ("Geoproteção, Transformação") e `criaturas.magia_n` traz o nível efetivo,
+   um só para a lista inteira.
+
+   POR QUE NÃO MIGREI O BANCO. A spec registrava normalização de
+   `criaturas.magia` como pré-requisito. O levantamento de 12/09/2026 mostrou
+   que ela não é necessária: 89 menções, 39 nomes distintos, **100% casando**
+   com `magias.nome`, e `magia_n` preenchido em todas as 60 criaturas, sempre
+   em 1/3/5/7/9. Resolver por nome em tempo de execução não corre risco de
+   migração, não muda schema e deixa o Mestre continuar digitando nomes no
+   editor de catálogo, que é como ele já edita o campo.
+
+   Nome que NÃO casar é ignorado em silêncio — é o mesmo fallback de magia sem
+   entrada no registro: some da lista mecânica e continua no texto do card.
+
+   CRIATURA NÃO PAGA KARMA. A tabela `criaturas` não tem coluna de karma e o
+   snapshot as monta com karma 0/0; cobrar bloquearia toda conjuração de
+   monstro. O custo delas é o ponto de ação, como o dos golpes. */
+function magiasConhecidasDoAtor(ator, catalogos) {
+  if (!ator || !catalogos) return [];
+
+  if (ator.tipo === 'pj') {
+    const pj = catalogos.pjById[ator.ref_id];
+    if (!pj || !pj.magias) return [];
+    return Object.entries(pj.magias).map(([key, passos]) => {
+      const p = passos || 0;
+      if (p <= 0) return null;
+      const m = catalogos.magiasByKey[key];
+      if (!m) return null;
+      const nivel = (typeof nivelMagiaEfetivo === 'function') ? nivelMagiaEfetivo(p) : (p * 2 - 1);
+      return { key, magia: m, nivel, passos: p, custo_karma: nivel };
+    }).filter(Boolean);
+  }
+
+  if (ator.tipo === 'criatura') {
+    const cri = catalogos.criById && catalogos.criById[ator.ref_id];
+    if (!cri || !cri.magia) return [];
+    const nivel = Number(cri.magia_n) || 1;
+    // Índice nome→magia montado uma vez por chamada. O catálogo é pequeno
+    // (238) e a lista da criatura tem 1-3 nomes, então não compensa cachear.
+    const porNome = {};
+    Object.values(catalogos.magiasByKey || {}).forEach((m) => {
+      if (m && m.nome) porNome[m.nome.trim().toLowerCase()] = m;
+    });
+    return String(cri.magia).split(',').map((txt) => {
+      const m = porNome[txt.trim().toLowerCase()];
+      if (!m) return null;
+      return { key: m.key, magia: m, nivel, passos: null, custo_karma: 0 };
+    }).filter(Boolean);
+  }
+
+  return [];
+}
+
+/* ── Magias ofensivas conhecidas pelo combatente ───────────────────
+   Filtra as que entregam dano > 0 no nível efetivo. Vale para PJ e criatura
+   desde 12/09/2026 — ver magiasConhecidasDoAtor. */
 function magiasOfensivasDoAtor(ator, catalogos) {
-  if (!ator || ator.tipo !== 'pj' || !catalogos) return [];
-  const pj = catalogos.pjById[ator.ref_id];
-  if (!pj || !pj.magias) return [];
   const out = [];
-  Object.entries(pj.magias).forEach(([key, passos]) => {
-    const p = passos || 0;
-    if (p <= 0) return;
-    const m = catalogos.magiasByKey[key];
-    if (!m) return;
-    const nivel = (typeof nivelMagiaEfetivo === 'function') ? nivelMagiaEfetivo(p) : (p * 2 - 1);
+  magiasConhecidasDoAtor(ator, catalogos).forEach(({ key, magia: m, nivel, passos, custo_karma }) => {
     const dano  = danoMagiaNoNivel(m, nivel);
     if (dano <= 0) return; // não-ofensiva → fora desta fase (cura/buff vêm depois)
     out.push({
       fonte: 'magia',
       key, nome: m.nome,
-      passos: p, nivel,           // nível efetivo (1/3/5/7/9)
-      custo_karma: nivel,         // 1 karma p/ nível, conforme regra
+      passos, nivel,              // nível efetivo (1/3/5/7/9)
+      custo_karma,                // PJ paga o nível; criatura não paga nada
       dano,                       // base; tier final calculado por danoNoTier
       // Elemento do dano: casa com a proteção elemental do alvo em danoFinal.
       // null = "dano base" (Toque Gélido), que proteção elemental não alcança.
@@ -713,32 +766,16 @@ function magiasOfensivasDoAtor(ator, catalogos) {
   return out;
 }
 
-/* ── Magias de APOIO conhecidas pelo PJ ────────────────────────────
+/* ── Magias de APOIO conhecidas pelo combatente ────────────────────
    Espelha magiasOfensivasDoAtor logo acima, trocando o critério: em vez de
-   "entrega dano > 0 no nível efetivo", é "modifica velocidade no nível
-   efetivo". Mesma regra de karma do sistema (custo = nível efetivo).
+   "causa dano", é "tem entrada no registro e NÃO causa dano". Vale para PJ e
+   criatura desde 12/09/2026 — ver magiasConhecidasDoAtor.
 
-   Uma magia pode causar dano E mexer em velocidade; nesse caso aparece nas
-   duas listas, e é o Mestre que escolhe por qual aba usá-la. */
+   Uma magia só aparece numa das duas listas: o critério é complementar, e é
+   o efeito que decide, não o alvo. */
 function magiasDeApoioDoAtor(ator, catalogos) {
-  if (!ator || ator.tipo !== 'pj' || !catalogos) return [];
-  const pj = catalogos.pjById[ator.ref_id];
-  if (!pj || !pj.magias) return [];
   const out = [];
-  Object.entries(pj.magias).forEach(([key, passos]) => {
-    const p = passos || 0;
-    if (p <= 0) return;
-    const m = catalogos.magiasByKey[key];
-    if (!m) return;
-    const nivel = (typeof nivelMagiaEfetivo === 'function') ? nivelMagiaEfetivo(p) : (p * 2 - 1);
-    /* CRITÉRIO NOVO (11/09/2026). Até aqui era `modVelocidadeNoNivel !== 0`,
-       porque velocidade era o único efeito de apoio que o motor sabia aplicar.
-       Com o registro da Fase 1 o critério vira "tem entrada no registro e não
-       é magia de ataque" — as oito de velocidade continuam na lista, agora
-       acompanhadas de Bênção, Bravura, Super Resistência e companhia.
-
-       `alvo === 'inimigo'` sai porque essas vivem na aba Magia. Aura Divina é
-       debuff em inimigo e fica lá, apesar de não causar dano. */
+  magiasConhecidasDoAtor(ator, catalogos).forEach(({ key, magia: m, nivel, passos, custo_karma }) => {
     /* CRITÉRIO CORRIGIDO em 12/09/2026. Era "tem entrada no registro E não
        mira inimigo", e isso abria um buraco: `magiasOfensivasDoAtor` exige
        `dano > 0`, então magia que mira inimigo SEM causar dano não aparecia em
@@ -753,13 +790,15 @@ function magiasDeApoioDoAtor(ator, catalogos) {
     const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(key) : null;
     if (!reg) return;
     if (reg.efeitos.some((ef) => ef.tipo === 'dano')) return;
-    const dur = duracaoEmRodadas(m);
+    // duracaoNoNivel, não duracaoEmRodadas: 21 magias escrevem a duração no
+    // texto do nível e deixam 'Variável' na coluna (ver a função).
+    const dur = duracaoNoNivel(m, nivel);
     const ev  = evocacaoEmRodadas(m);
     out.push({
       fonte: 'magia',
       key, nome: m.nome,
-      passos: p, nivel,
-      custo_karma: nivel,         // 1 karma por nível, mesma regra das ofensivas
+      passos, nivel,
+      custo_karma,                // PJ paga o nível; criatura não paga nada
       // mod_vb continua no objeto: a UI ainda o exibe, e Velocidade é a única
       // que o usa. Para as demais é 0, e a prévia simplesmente não o mostra.
       mod_vb: modVelocidadeNoNivel(m, nivel),
@@ -5674,7 +5713,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   const temApoio = magiasApoio.length > 0;
 
   // Tabs disponíveis: Arma sempre; Magia só se PJ é conjurador com magias ofensivas
-  const podeMagia = ator.tipo === 'pj' && magias.length > 0;
+  /* `ator.tipo === 'pj'` saiu em 12/09/2026: criatura conjura. A lista já
+     resolve a diferença (magiasConhecidasDoAtor), então a única condição que
+     resta é ter magia. A aba Apoio nunca teve a trava — só a Magia tinha. */
+  const podeMagia = magias.length > 0;
 
   // ── Habilidade / Resistência: usam sempre o ATOR (lutador da vez), sem
   // seletor de testador (decisão de produto — diferente do antigo TestePanel). ──
@@ -8045,7 +8087,8 @@ Object.assign(window, {
     // fonte, como já acontece com o dano. duracao e descricao completam o
     // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
     modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia,
-    magiasDeApoioDoAtor, aplicarEfeitoApoio, quebrarConcentracao,
+    magiasDeApoioDoAtor, magiasOfensivasDoAtor, magiasConhecidasDoAtor,
+    aplicarEfeitoApoio, quebrarConcentracao,
     // Fase 1 das técnicas (09/09/2026): grava o efeito da técnica no
     // status_temp. Reaplicar substitui a leva anterior em vez de somar.
     // gruposDeArma é o parser das colunas grupo_armas/grupo_armaduras.

@@ -45,6 +45,15 @@ const MAGIA_UNIDADES = [
   { re: /^\s*de\s+resist[êe]ncia\s+m[áa]gica/i, campo: 'rm'      },
   { re: /^\s*(?:pontos?\s+)?de\s+velocidade/i,  campo: 'vb'      },
   { re: /^\s*de\s+defesa/i,                     campo: 'defesa'  },
+  /* `de dano máximo` ANTES de `de dano`, e a ordem é a regra.
+
+     A busca é por `.find`, então a primeira que casar vence. Ataque Infernal
+     diz "Cause 28 de dano base E, MAIS 1 DE DANO MÁXIMO na energia física por
+     rodada": os dois números caem sob o mesmo verbo, e com `de dano` testado
+     primeiro o 1 sobrescrevia o 28 — a magia virava 1 de dano em vez de 28.
+     São coisas diferentes: uma é o golpe, a outra é o teto de dano do alvo
+     (mod_dano_max), que Pele de Árvore também usa. */
+  { re: /^\s*de\s+dano\s+m[áa]ximo/i,           campo: 'dano_max' },
   { re: /^\s*de\s+dano/i,                       campo: 'dano'    },
 ];
 
@@ -91,6 +100,9 @@ function efeitosNoNivel(magia, nivel) {
         if (acao === 'menos') out.reducao_dano = valor;
         continue;
       }
+      // dano_max não muda de campo por verbo: o sinal quem dá é o registro
+      // (Pele de Árvore reduz o teto; Ataque Infernal o aumenta).
+      if (u.campo === 'dano_max') { out.dano_max = valor; continue; }
       // Restaurar PREENCHE o pool; aumentar LEVANTA o teto. São primitivas
       // distintas (spec §8), então o campo é distinto.
       if (acao === 'cura') {
@@ -266,6 +278,41 @@ const MAGIA_EFEITO_MAP = {
                         efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: 1 }] },
   velocidade:         { alvo: 'self', alvos: 1, icone: '💨',
                         efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: 1 }] },
+
+  /* ── MAGIAS DE CRIATURA (7) — 12/09/2026 ───────────────────────────
+     Levantamento das 60 criaturas com magia: 89 menções, 39 nomes distintos,
+     100% casando com o catálogo. Destas sete, NENHUMA precisou de primitiva
+     nova — todas caem em coisas que o motor já sabe fazer, inclusive duas que
+     as técnicas já produziam e as magias ainda não usavam (`dano_por_rodada`
+     e `mod_dano_max`).
+
+     Entram porque são as magias que os monstros da mesa realmente usam:
+     Piromanipulação e Hidromanipulação lideram com 18 menções juntas, e estas
+     sete somam mais 24. */
+  bastao_de_luz:      { alvo: 'inimigo', alvos: 1, icone: '🔦',
+                        efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  relampago:          { alvo: 'inimigo', alvos: 1, icone: '🌩️',
+                        efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  // "Cause 28 de dano base E, mais 1 de dano máximo na energia física POR
+  // RODADA" — golpe imediato mais sangramento. dano_por_rodada é a mesma
+  // primitiva do Sangramento das técnicas.
+  ataque_infernal:    { alvo: 'inimigo', alvos: 1, icone: '😈',
+                        efeitos: [{ tipo: 'dano',            unidade: 'dano' },
+                                  { tipo: 'dano_por_rodada', unidade: 'dano_max' }] },
+  // "Reduza 1 de energia física por rodada" — só o sangramento.
+  campo_de_trevas:    { alvo: 'inimigo', alvos: 1, icone: '🌑',
+                        efeitos: [{ tipo: 'dano_por_rodada', unidade: 'ef' }] },
+  // Irmã de Piroproteção e Aeroproteção, para o elemento terra.
+  geoprotecao:        { alvo: 'self', alvos: 1, icone: '🪨',
+                        efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano',
+                                    elemento: 'terra' }] },
+  // "Reduza 4 de dano máximo": baixa o teto de dano de quem bate nela.
+  // mod_dano_max já existe — é o que Posicionamento faz nas técnicas.
+  pele_de_arvore:     { alvo: 'self', alvos: 1, icone: '🌳',
+                        efeitos: [{ tipo: 'mod_dano_max', unidade: 'dano_max', sinal: -1 }] },
+  ruido_extenuante:   { alvo: 'inimigo', alvos: 1, icone: '📢',
+                        efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 },
+                                  { tipo: 'mod_vb',     unidade: 'vb',     sinal: -1 }] },
 
   /* ── CONTROLE (3) — Fase 2, 12/09/2026 ─────────────────────────────
      As três impedem o alvo de agir, e as três são resolvidas por DISPUTA DE
