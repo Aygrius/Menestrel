@@ -653,9 +653,18 @@ function magiasOfensivasDoAtor(ator, catalogos) {
       passos: p, nivel,           // nível efetivo (1/3/5/7/9)
       custo_karma: nivel,         // 1 karma p/ nível, conforme regra
       dano,                       // base; tier final calculado por danoNoTier
+      // Elemento do dano: casa com a proteção elemental do alvo em danoFinal.
+      // null = "dano base" (Toque Gélido), que proteção elemental não alcança.
+      elemento: (typeof elementoDoNivel === 'function') ? elementoDoNivel(m, nivel) : null,
       descricao: m['nivel_' + nivel] || null, // texto do nível efetivo
       evocacao: m.evocacao || null,
+      // Evocação canalizada: a aba Magia precisa saber se a magia demora e se
+      // pode ser evocada em batalha (Ritual não pode).
+      evocacao_rodadas: evocacaoEmRodadas(m).rodadas,
+      evocacao_bloqueada: evocacaoEmRodadas(m).bloqueada,
       alcance: m.alcance || null,
+      max_alvos: tetoDeAlvosMagia(key),
+      catalogo: m,
     });
   });
   return out;
@@ -1930,12 +1939,23 @@ function somaDanoRecebidoPct(p) { return somaEfeitosStatus(p, 'dano_recebido_pct
    da redução percentual; invertido, o resultado é outro.
    Arredonda pra cima, como o resto do sistema de dano ("arredondamento SEMPRE
    pra cima", regra confirmada). Piso 0: reduzir dano nunca vira cura. */
-function danoFinal(danoBase, atacante, alvo) {
+function danoFinal(danoBase, atacante, alvo, elemento) {
   const base = Math.max(0, Math.floor(danoBase || 0));
   if (base === 0) return 0;
   const comBonus = base * (1 + somaDanoPct(atacante) / 100);
   const aposMaximo = comBonus + somaEfeitosStatus(alvo, 'mod_dano_max');
-  const aposReducao = aposMaximo * (1 + somaDanoRecebidoPct(alvo) / 100);
+  /* Proteção elemental (Piroproteção, Aeroproteção, Armadura Elemental) entra
+     AQUI, junto do outro modificador PLANO e antes dos percentuais — a mesma
+     ordem que mod_dano_max já seguia. A alternativa (depois do percentual)
+     mudaria o resultado quando as duas coisas incidem: com −16 plano e −75%
+     percentual, 20 de dano dá 1 nesta ordem e 0 na outra.
+
+     `elemento` ausente = golpe não elemental (arma, ou magia de "dano base"),
+     e aí danoAposReducao devolve o número intacto. */
+  const aposElemento = elemento
+    ? danoAposReducao(aposMaximo, alvo, elemento)
+    : aposMaximo;
+  const aposReducao = aposElemento * (1 + somaDanoRecebidoPct(alvo) / 100);
   return Math.max(0, Math.ceil(aposReducao - 1e-9));
 }
 
@@ -2394,11 +2414,14 @@ function debitarCustoAtaque(p, tipo, custoKarma) {
    Por isso a função recebe o dano BRUTO e chama danoFinal contra CADA
    alvo. Para o alvo principal o resultado é idêntico ao de antes — é a
    mesma conta, com os mesmos dois participantes. */
-function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico) {
+function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento) {
   if (!Array.isArray(arr) || alvoIdx < 0 || alvoIdx >= arr.length) return arr;
   if (!(danoBruto > 0)) return arr;
   const next = [...arr];
-  const dano = danoFinal(danoBruto, next[atorIdx], next[alvoIdx]);
+  // `elemento` desce até danoFinal para a proteção elemental do ALVO casar.
+  // Vai por alvo, como o resto de danoFinal: Golpe Giratório com magia de
+  // fogo tem que respeitar a Piroproteção de CADA alvo, não a do primeiro.
+  const dano = danoFinal(danoBruto, next[atorIdx], next[alvoIdx], elemento);
   if (!(dano > 0)) return arr;
       const alvoAntes = next[alvoIdx];
       // Fase 2: além do crítico, o golpe pode furar EH e/ou AR por técnica
@@ -3509,10 +3532,13 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // ativou escolheu subjugar — resolve como golpe normal.
     const critico = criticoBruto && criticoPermitido(participantes[atorIdx]);
 
+    // Elemento do golpe: só magia tem. Arma e "dano base" (Toque Gélido) vão
+    // com null, e aí proteção elemental nenhuma os alcança — que é a regra.
+    const elementoDoGolpe = (tipo === 'magia' && magia) ? (magia.elemento || null) : null;
     let next = [...participantes];
     // Atacar É uma ação: derruba a concentração de quem ataca.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
-    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico);
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe);
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -3524,7 +3550,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const nomesAlvosExtras = [];
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
-      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico);
+      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe);
     });
     // Debita PA (sempre 1) e karma (se for magia).
     const k = Math.max(0, custo_karma || 0);
@@ -6751,6 +6777,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // ativou escolheu subjugar — resolve como golpe normal.
     const critico = criticoBruto && criticoPermitido(participantes[atorIdx]);
 
+    // Elemento do golpe: só magia tem. Arma e "dano base" (Toque Gélido) vão
+    // com null, e aí proteção elemental nenhuma os alcança — que é a regra.
+    const elementoDoGolpe = (tipo === 'magia' && magia) ? (magia.elemento || null) : null;
     let next = [...participantes];
     // Guarda a rodada nova de QUALQUER um dos dois auto-passar abaixo: se o
     // turno acabou no último da ordem, a persistência precisa levar o número
@@ -6763,7 +6792,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     let eventosVirada = [];
     // Atacar quebra a concentração de quem ataca — espelha aplicarAcao.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
-    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico);
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe);
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -6775,7 +6804,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const nomesAlvosExtras = [];
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
-      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico);
+      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe);
     });
     if (dano > 0) {
       // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele.

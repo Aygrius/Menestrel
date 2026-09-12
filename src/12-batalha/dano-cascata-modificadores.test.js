@@ -164,3 +164,48 @@ describe('reducao_dano — a proteção elemental corta ANTES da cascata', () =>
     expect({ eh: r.eh, ef: r.ef }).toEqual({ eh: 0, ef: 20 });
   });
 });
+
+describe('danoFinal — a proteção elemental está LIGADA ao golpe', () => {
+  /* As funções puras da Fase 1 existiam e eram testadas, mas nada as chamava:
+     Piroproteção cortava dano em teste e não na mesa. danoFinal é o funil
+     único dos modificadores, e é onde a redução passou a entrar — junto do
+     outro modificador PLANO (mod_dano_max) e antes dos percentuais. */
+  const atacante = { status_temp: [] };
+  const comPiro = (valor = 16) => alvo({
+    status_temp: [{ id: 'mag_piroprotecao', efeito: { tipo: 'reducao_dano', valor, elemento: 'fogo' } }],
+  });
+
+  it('golpe de fogo é cortado', () => {
+    expect(M.danoFinal(20, atacante, comPiro(), 'fogo')).toBe(4);
+  });
+
+  it('golpe de água passa inteiro', () => {
+    expect(M.danoFinal(20, atacante, comPiro(), 'agua')).toBe(20);
+  });
+
+  it('golpe SEM elemento passa inteiro — arma não é magia elemental', () => {
+    expect(M.danoFinal(20, atacante, comPiro(), null)).toBe(20);
+    expect(M.danoFinal(20, atacante, comPiro())).toBe(20);
+  });
+
+  it('alvo sem proteção não muda nada', () => {
+    expect(M.danoFinal(20, atacante, alvo(), 'fogo')).toBe(20);
+  });
+
+  it('a redução PLANA entra antes do percentual', () => {
+    /* Ordem importa quando as duas incidem. Com Piroproteção −16 e um
+       dano_recebido_pct de −75% (Aparar) sobre 20 de fogo:
+         plano→percentual: (20 − 16) × 0,25 = 1
+         percentual→plano: (20 × 0,25) − 16 = 0
+       Vale a primeira, que é a ordem que mod_dano_max já seguia. */
+    const p = alvo({ status_temp: [
+      { id: 'mag_piroprotecao', efeito: { tipo: 'reducao_dano', valor: 16, elemento: 'fogo' } },
+      { id: 'tec_aparar',       efeito: { tipo: 'dano_recebido_pct', valor: -75 } },
+    ] });
+    expect(M.danoFinal(20, atacante, p, 'fogo')).toBe(1);
+  });
+
+  it('proteção maior que o golpe zera, não vira cura', () => {
+    expect(M.danoFinal(4, atacante, comPiro(), 'fogo')).toBe(0);
+  });
+});
