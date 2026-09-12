@@ -516,3 +516,78 @@ describe('auditarMagias — o verificador de manutenção do catálogo', () => {
     expect(resumo(auditar([null, {}, { nome: 'sem key' }])).total).toBe(0);
   });
 });
+
+describe('auditarCriaturas — o furo do rename', () => {
+  /* `personagens.magias` referencia magia por KEY e sobrevive a um rename.
+     `criaturas.magia` referencia por NOME, em texto livre — trocar o nome de
+     "Piromanipulação" quebra as 10 criaturas que a citam, em silêncio.
+
+     `nome` parece conteúdo editável, e é identidade. Daí esta auditoria. */
+  let auditar, resumo, resolver, indice;
+  beforeAll(() => {
+    auditar = window.auditarCriaturas;
+    resumo = window.resumoAuditoriaCriaturas;
+    resolver = window.resolverNomesDeMagia;
+    indice = window.indiceMagiasPorNome;
+    expect(auditar).toBeTypeOf('function');
+  });
+
+  const CATALOGO = [
+    { key: 'piromanipulacao', nome: 'Piromanipulação' },
+    { key: 'geoprotecao',     nome: 'Geoproteção' },
+    { key: 'clarividencia',   nome: 'Clarividência' },   // sem entrada no registro
+  ];
+
+  it('criatura com nomes que casam e nível preenchido fica OK', () => {
+    const r = auditar([{ id: 1, nome: 'Gárgula', magia: 'Geoproteção, Piromanipulação', magia_n: 5 }], CATALOGO);
+    expect(r.ok).toHaveLength(1);
+    expect(r.nome_orfao).toHaveLength(0);
+  });
+
+  it('NOME ÓRFÃO: alguém renomeou a magia e a criatura ficou apontando pro nada', () => {
+    const r = auditar([{ id: 1, nome: 'Gárgula', magia: 'Piromanipulaçao', magia_n: 5 }], CATALOGO);
+    expect(r.nome_orfao).toHaveLength(1);
+    expect(r.nome_orfao[0].nomes).toEqual(['Piromanipulaçao']);
+  });
+
+  it('o painel mostra QUAL nome não casou, para dar pra corrigir', () => {
+    const r = auditar([{ id: 1, nome: 'Quimera', magia: 'Geoproteção, Sopro Inexistente', magia_n: 5 }], CATALOGO);
+    expect(r.nome_orfao[0].nomes).toEqual(['Sopro Inexistente']);
+  });
+
+  it('SEM NÍVEL: magia_n vazio faz o motor cair no nível 1', () => {
+    const r = auditar([{ id: 1, nome: 'X', magia: 'Piromanipulação', magia_n: null }], CATALOGO);
+    expect(r.sem_nivel).toHaveLength(1);
+  });
+
+  it('SÓ NARRATIVA: os nomes casam, mas nenhuma tem efeito no motor', () => {
+    const r = auditar([{ id: 1, nome: 'Vidente', magia: 'Clarividência', magia_n: 5 }], CATALOGO);
+    expect(r.so_narrativa).toHaveLength(1);
+    expect(r.nome_orfao).toHaveLength(0);
+  });
+
+  it('criatura sem magia não entra na conta', () => {
+    const r = auditar([{ id: 1, nome: 'Lobo', magia: null }, { id: 2, nome: 'Urso', magia: '  ' }], CATALOGO);
+    expect(resumo(r).total).toBe(0);
+  });
+
+  it('o casamento tolera caixa e espaços, como o editor exige', () => {
+    const r = auditar([{ id: 1, nome: 'X', magia: '  GEOPROTEÇÃO , piromanipulação', magia_n: 3 }], CATALOGO);
+    expect(r.ok).toHaveLength(1);
+  });
+
+  it('entrada malformada não lança', () => {
+    expect(resumo(auditar(null, null)).total).toBe(0);
+    expect(resumo(auditar([null, {}], CATALOGO)).total).toBe(0);
+  });
+
+  it('o resolvedor é o MESMO que o motor usa em combate', () => {
+    /* Se a auditoria tivesse cópia da lógica, ela mentiria: diria que está
+       tudo certo enquanto a mesa vê a magia sumir. magiasConhecidasDoAtor
+       chama estas duas funções. */
+    const idx = indice(CATALOGO);
+    const r = resolver('Geoproteção, Nao Existe', idx);
+    expect(r.achadas.map((m) => m.key)).toEqual(['geoprotecao']);
+    expect(r.naoAchadas).toEqual(['Nao Existe']);
+  });
+});

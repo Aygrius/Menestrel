@@ -719,17 +719,15 @@ function magiasConhecidasDoAtor(ator, catalogos) {
     const cri = catalogos.criById && catalogos.criById[ator.ref_id];
     if (!cri || !cri.magia) return [];
     const nivel = Number(cri.magia_n) || 1;
-    // Índice nome→magia montado uma vez por chamada. O catálogo é pequeno
-    // (238) e a lista da criatura tem 1-3 nomes, então não compensa cachear.
-    const porNome = {};
-    Object.values(catalogos.magiasByKey || {}).forEach((m) => {
-      if (m && m.nome) porNome[m.nome.trim().toLowerCase()] = m;
-    });
-    return String(cri.magia).split(',').map((txt) => {
-      const m = porNome[txt.trim().toLowerCase()];
-      if (!m) return null;
-      return { key: m.key, magia: m, nivel, passos: null, custo_karma: 0 };
-    }).filter(Boolean);
+    /* O casamento nome→magia mora em 01-core/magias-efeito.jsx, e não aqui,
+       porque a AUDITORIA do catálogo (auditarCriaturas) precisa usar
+       exatamente a mesma regra. Auditoria com cópia da lógica mente: diria
+       que está tudo certo enquanto a mesa vê a magia sumir.
+
+       `naoAchadas` é descartado aqui de propósito — o motor ignora em
+       silêncio, que é o fallback certo em combate. Quem reporta é o painel. */
+    const { achadas } = resolverNomesDeMagia(cri.magia, indiceMagiasPorNome(catalogos.magiasByKey));
+    return achadas.map((m) => ({ key: m.key, magia: m, nivel, passos: null, custo_karma: 0 }));
   }
 
   return [];

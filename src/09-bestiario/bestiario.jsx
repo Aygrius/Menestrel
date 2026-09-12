@@ -460,6 +460,10 @@ function CriaturasList({ ac, lang, modoJogador }) {
         <div className="best-count">{filtered.length} de {criaturas.length}</div>
       </div>
 
+      {/* Verifica se os nomes em criaturas.magia ainda casam com o catálogo —
+          o furo que a auditoria de magias não alcança (rename silencioso). */}
+      {ehAdmin && <CriaturasAuditoriaPainel criaturas={criaturas} lang={lang} />}
+
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador, lang, oQue: 'criaturas', oQueEn: 'creature' })}</div>
       ) : (
@@ -569,6 +573,105 @@ function BestPagination({ page, safePage, totalPages, setPage, setExpandida, lan
         : <button key={p} className={'best-page-btn' + (p === safePage ? ' is-active' : '')} onClick={() => { setPage(p); close(); }}>{p}</button>)}
       <button className="best-page-btn" onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); close(); }} disabled={safePage === totalPages} {...propsTip(abrirTip, fecharTip, lang === 'en' ? 'Next' : 'Próxima')}>›</button>
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    </div>
+  );
+}
+
+/* ── Auditoria das magias DE CRIATURA (painel do admin) ────────────
+   Fecha o furo que a auditoria de `magias` não alcança: renomear uma magia.
+
+   `personagens.magias` referencia por `key` e sobrevive a um rename;
+   `criaturas.magia` referencia por NOME, em texto livre. Trocar o nome de
+   "Piromanipulação" quebra, em silêncio, as dez criaturas que a citam — e
+   `nome` parece conteúdo editável, não identidade.
+
+   Carrega o catálogo de magias SÓ ao abrir: fechado, não custa consulta. */
+function CriaturasAuditoriaPainel({ criaturas, lang }) {
+  const [aberto, setAberto] = React.useState(false);
+  const [magias, setMagias] = React.useState(null);
+  const en = lang === 'en';
+
+  React.useEffect(() => {
+    if (!aberto || magias !== null) return;
+    let vivo = true;
+    (async () => {
+      const { data } = await supabaseClient.from('magias').select('key,nome');
+      if (vivo) setMagias(data || []);
+    })();
+    return () => { vivo = false; };
+  }, [aberto, magias]);
+
+  const r = React.useMemo(
+    () => ((magias && typeof auditarCriaturas === 'function')
+      ? auditarCriaturas(criaturas || [], magias) : null),
+    [criaturas, magias]
+  );
+
+  const s = r ? resumoAuditoriaCriaturas(r) : null;
+  const temProblema = !!s && (s.nome_orfao > 0 || s.sem_nivel > 0);
+
+  return (
+    <div className={'best-auditoria' + (temProblema ? ' com-problema' : '')}>
+      <button type="button" className="best-aud-head" onClick={() => setAberto((v) => !v)}>
+        <span className="best-aud-chevron" style={{ transform: aberto ? 'rotate(90deg)' : 'none' }}>›</span>
+        <strong>{en ? 'Creature spells check' : 'Verificação das magias de criatura'}</strong>
+        <span className="best-aud-resumo">
+          {!s ? (en ? 'click to run' : 'clique para verificar')
+            : temProblema
+              ? (en ? `${s.nome_orfao} unknown name(s)` : `${s.nome_orfao} nome(s) sem correspondência`)
+              : (en ? `${s.ok} casting correctly` : `${s.ok} conjurando corretamente`)}
+        </span>
+      </button>
+
+      {aberto && (
+        <div className="best-aud-corpo">
+          {!r ? (
+            <p className="best-aud-ajuda">{en ? 'Loading…' : 'Consultando…'}</p>
+          ) : (
+            <>
+              <p className="best-aud-ajuda">
+                {en
+                  ? 'Creatures reference spells by NAME, not key. Renaming a spell silently breaks every creature that cites it.'
+                  : 'Criaturas referenciam magia por NOME, não por chave. Renomear uma magia quebra, em silêncio, toda criatura que a cita.'}
+              </p>
+
+              {r.nome_orfao.length > 0 && (
+                <div className="best-aud-secao">
+                  <div className="best-aud-titulo">
+                    {en ? '⚠ Unknown spell name' : '⚠ Nome de magia que não existe'} · {r.nome_orfao.length}
+                  </div>
+                  <ul className="best-aud-lista">
+                    {r.nome_orfao.map((x) => (
+                      <li key={x.id}><strong>{x.nome}</strong>
+                        <span className="best-aud-det"> — {x.nomes.join(', ')}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {r.sem_nivel.length > 0 && (
+                <div className="best-aud-secao">
+                  <div className="best-aud-titulo">
+                    {en ? '⚠ No spell level (magia_n)' : '⚠ Sem nível de magia (magia_n)'} · {r.sem_nivel.length}
+                  </div>
+                  <ul className="best-aud-lista">
+                    {r.sem_nivel.map((x) => (
+                      <li key={x.id}><strong>{x.nome}</strong>
+                        <span className="best-aud-det"> — {en ? 'falls back to level 1' : 'cai no nível 1'}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <p className="best-aud-rodape">
+                {en
+                  ? `${s.ok} cast with effect · ${s.so_narrativa} narrative only · ${s.total} with spells`
+                  : `${s.ok} conjuram com efeito · ${s.so_narrativa} só narrativas · ${s.total} com magia`}
+              </p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1263,7 +1366,7 @@ Object.assign(window, {
   CriaturasList, MagiasList, HabilidadesList,
   // Exposto pro teste de render: e a tela que diz ao Mestre se a edicao dele
   // quebrou alguma magia no motor.
-  MagiasAuditoriaPainel,
+  MagiasAuditoriaPainel, CriaturasAuditoriaPainel,
   TecnicasList, ItensList, useEhAdmin,
   linhasQueCabem, paragrafosDe, TextoDoBanco, textoListaVazia,
 });

@@ -574,3 +574,95 @@ function resumoAuditoria(r) {
 }
 
 Object.assign(window, { lerNivel, auditarMagias, resumoAuditoria, MAGIA_NIVEIS });
+
+/* ── Casamento nome → magia, usado pelas criaturas ─────────────────
+   `criaturas.magia` é TEXTO com os nomes separados por vírgula
+   ("Geoproteção, Transformação"), e não chaves. Quem resolve isso em combate
+   é magiasConhecidasDoAtor; quem audita é auditarCriaturas.
+
+   Os dois chamam ESTAS funções, e não cada um a sua cópia: auditoria que não
+   usa exatamente a mesma regra do motor mente — diria que está tudo certo
+   enquanto a mesa vê a magia sumir.
+
+   O índice é por nome normalizado (sem caixa, sem espaço nas pontas), que é a
+   tolerância que o editor de catálogo pede: o Mestre digita à mão. */
+function indiceMagiasPorNome(magias) {
+  const lista = Array.isArray(magias) ? magias : Object.values(magias || {});
+  const idx = {};
+  lista.forEach((m) => {
+    if (m && m.nome) idx[String(m.nome).trim().toLowerCase()] = m;
+  });
+  return idx;
+}
+
+/* Devolve `{ achadas, naoAchadas }`. `naoAchadas` é o que o motor ignora em
+   silêncio — e é exatamente o que a auditoria precisa ver. */
+function resolverNomesDeMagia(csv, indice) {
+  const achadas = [];
+  const naoAchadas = [];
+  String(csv || '').split(',').forEach((txt) => {
+    const nome = txt.trim();
+    if (!nome) return;
+    const m = indice[nome.toLowerCase()];
+    if (m) achadas.push(m); else naoAchadas.push(nome);
+  });
+  return { achadas, naoAchadas };
+}
+
+/* ── Auditoria das magias DE CRIATURA ──────────────────────────────
+   A auditoria de `magias` não pega o furo mais traiçoeiro do catálogo:
+   renomear uma magia. `personagens.magias` referencia por `key` e sobrevive,
+   mas `criaturas.magia` referencia por NOME — trocar "Piromanipulação" por
+   outra coisa quebra as 10 criaturas que a citam, sem nada avisando.
+
+   `nome` parece conteúdo editável, e não é: é identidade. Daí esta auditoria.
+
+   Classifica cada criatura com magia:
+     ok          — todos os nomes casam, e ao menos um tem efeito no motor
+     nome_orfao  — algum nome NÃO casa com magia nenhuma (o caso grave)
+     sem_nivel   — casa, mas `magia_n` está vazio: o motor cai em nível 1
+     so_narrativa— todos casam e nenhum tem entrada no registro (informativo)
+   ============================================================ */
+function auditarCriaturas(criaturasDb, magiasDb) {
+  const criaturas = Array.isArray(criaturasDb) ? criaturasDb : [];
+  const indice = indiceMagiasPorNome(magiasDb);
+  const out = { ok: [], nome_orfao: [], sem_nivel: [], so_narrativa: [] };
+
+  criaturas.forEach((c) => {
+    if (!c || !c.magia || !String(c.magia).trim()) return;
+    const { achadas, naoAchadas } = resolverNomesDeMagia(c.magia, indice);
+
+    if (naoAchadas.length) {
+      out.nome_orfao.push({ id: c.id, nome: c.nome, nomes: naoAchadas });
+      return;
+    }
+    if (c.magia_n == null || !Number(c.magia_n)) {
+      out.sem_nivel.push({ id: c.id, nome: c.nome,
+                           magias: achadas.map((m) => m.nome) });
+      return;
+    }
+    const comEfeito = achadas.filter((m) => MAGIA_EFEITO_MAP[m.key]);
+    if (!comEfeito.length) {
+      out.so_narrativa.push({ id: c.id, nome: c.nome,
+                              magias: achadas.map((m) => m.nome) });
+      return;
+    }
+    out.ok.push({ id: c.id, nome: c.nome,
+                  magias: comEfeito.map((m) => m.nome) });
+  });
+
+  return out;
+}
+
+function resumoAuditoriaCriaturas(r) {
+  return {
+    ok: r.ok.length, nome_orfao: r.nome_orfao.length,
+    sem_nivel: r.sem_nivel.length, so_narrativa: r.so_narrativa.length,
+    total: r.ok.length + r.nome_orfao.length + r.sem_nivel.length + r.so_narrativa.length,
+  };
+}
+
+Object.assign(window, {
+  indiceMagiasPorNome, resolverNomesDeMagia,
+  auditarCriaturas, resumoAuditoriaCriaturas,
+});
