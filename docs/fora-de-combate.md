@@ -100,7 +100,7 @@ dispensa inventar qualquer taxa entre rodada e minuto:
 |---|---|---|
 | **Instantânea** | 67 | aplica e acaba — **são estas as magias de fora de combate** |
 | **Permanente** | 17 | aplica e fica |
-| **Calendário** | 57 | aplica com data de vencimento na data do jogo |
+| **Calendário** | 57 | vira **magia ativa** na ficha, com data de vencimento, e vale na próxima batalha (degrau 3) |
 | **Rodadas** | 43 | **são magias de combate, por construção.** Evoca, o log registra, nada é escrito na ficha |
 
 Quer o bônus de *"10 rodadas"*? Evoque quando o combate começar — é o que o
@@ -134,9 +134,9 @@ conjurador) nunca foi problema — a ficha já rola com dificuldade e veredito.
 
 ---
 
-## 3. O que eu recomendo
+## 3. Os três degraus — TODOS CONSTRUÍDOS em 12/09/2026
 
-**Três degraus, e o primeiro resolve a maior parte.**
+Foram construídos em ordem, e cada um destravou o seguinte.
 
 ### Degrau 1 — Magia em si mesmo, agora
 
@@ -174,11 +174,27 @@ E o Mestre aplica pela MESMA função que o jogador usa em si mesmo
 (`efeitosDeMagiaNaFicha` + `aplicarEfeitosNaFicha`): dois caminhos divergiriam,
 e curar a si mesmo daria um número enquanto curar o colega daria outro.
 
-### Degrau 3 — Duração no calendário
+### Degrau 3 — Duração no calendário · **CONSTRUÍDO**
 
-Magia de minutos, horas ou dias ganha data de vencimento pela data do jogo. É
-a peça mais bonita e a menos urgente: depende de alguém avançar a data, e o
-Mestre já faz isso à mão.
+Magia de minutos, horas ou dias ganha data de vencimento pela data do jogo.
+
+**O que a torna útil é o que vem depois:** uma Bênção de *"1 hora"* lançada
+antes de entrar na masmorra precisa estar ativa **quando a luta começa**. Por
+isso ela fica na ficha (`estado_atual.magias_ativas`) com a data de vencimento,
+e o snapshot de batalha a transforma em status ao montar — reusando
+`aplicarEfeitoMagia`, o mesmo caminho da conjuração dentro do combate. Um
+segundo caminho daria números diferentes para a mesma magia conforme onde foi
+evocada.
+
+| Decisão | Por quê |
+|---|---|
+| guarda o **nível**, não os números | o texto do nível é a fonte; congelar valores criaria uma cópia que sai de sincronia no primeiro ajuste do catálogo |
+| minutos e horas vencem **no mesmo dia** | o calendário tem grão de dia, e fingir precisão de hora seria mentir com mais casas |
+| vence **no dia**, não depois dele | uma magia que vence em 14 vale no 13 e não vale no 14 |
+| relançar **renova**, não empilha | mesma regra que o motor de batalha já segue |
+
+A ficha mostra o que está ativo e até quando — sem isso a magia duraria no
+escuro, e *"por que minha coluna está +1?"* viraria suporte.
 
 ---
 

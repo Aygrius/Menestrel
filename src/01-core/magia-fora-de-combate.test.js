@@ -124,7 +124,9 @@ describe('quando NÃO aplica, diz por quê', () => {
   it.each([
     [CURAS, 1, null],              // aplica
     [BENCAO, 1, 'rodadas'],        // magia de combate
-    [AURA, 1, 'calendario'],       // degrau 3
+    // Calendário DEIXOU de ser recusa em 12/09/2026, com o degrau 3: passa a
+    // virar magia ativa na ficha, com data de vencimento.
+    [AURA, 1, null],
     [NECRO, 1, 'narrativa'],       // órfã: sem registro, a duração nem pesa
     [{ key: 'inexistente' }, 1, 'narrativa'],
   ])('%# → %s', (magia, nivel, esperado) => {

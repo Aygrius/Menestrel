@@ -430,7 +430,10 @@ function motivoNaoAplicaNaFicha(magia, nivel) {
   if (!reg) return 'narrativa';                       // sem entrada no motor
   const classe = classeDeDuracao(magia, nivel);
   if (classe === 'rodadas') return 'rodadas';         // é magia de combate
-  if (classe === 'calendario') return 'calendario';   // degrau 3
+  /* Calendário ENTROU no degrau 3 (12/09/2026): passa a virar magia ativa na
+     ficha, com data de vencimento, e a valer na próxima batalha. Antes caía
+     aqui como "o Mestre aplica". */
+  if (classe === 'calendario') return null;
   if (efeitosDeMagiaNaFicha(magia, nivel).length === 0) return 'duradoura';
   return null;
 }
@@ -477,6 +480,80 @@ function metaDeEvocacao({ magia, nivel, alvo, aplicou, motivo, karma, conjurador
     motivo: aplicou ? null : (motivo || null),
     karma_gasto: karma || 0,
   };
+}
+
+/* ── DEGRAU 3: a magia que dura no CALENDÁRIO ──────────────────────
+   57 magias duram minutos, horas, dias ou anos. Fora de combate elas não têm
+   rodadas para contar — mas têm a data do jogo, que já existe e que
+   somarDiasFantasy já sabe somar (construída para a cura de Doenças).
+
+   O que as torna úteis é o que acontece DEPOIS: uma Bênção de "1 hora"
+   lançada antes de entrar na masmorra precisa estar ativa quando a luta
+   começa. Por isso a magia ativa fica na FICHA, com data de vencimento, e o
+   snapshot de batalha a transforma em status_temp na hora de montar.
+
+   O calendário tem grão de DIA. Minutos e horas vencem no mesmo dia de jogo —
+   e é honesto: quando o Mestre avança a data, elas acabaram. Fingir precisão
+   de hora num calendário que só conta dias seria mentir com mais casas. */
+const RE_QUANTIDADE_TEMPO = /(\d+)\s*(minutos?|horas?|dias?|semanas?|m[êe]s|meses|anos?)/gi;
+const DIAS_POR_UNIDADE = { minuto: 0, hora: 0, dia: 1, semana: 7, mes: 30, ano: 361 };
+
+function duracaoEmDiasDeJogo(magia, nivel) {
+  if (classeDeDuracao(magia, nivel) !== 'calendario') return null;
+  // O texto do nível manda, como em toda a família (53 magias 'Variável').
+  const doNivel = (magia && magia['nivel_' + nivel]) || '';
+  const mNivel = /dura[çc][ãa]o\s+de\s+([^.]+)/i.exec(doNivel);
+  const txt = (mNivel ? mNivel[1] : (magia && magia.duracao)) || '';
+
+  let dias = 0, achou = false;
+  // "1 ano e 1 dia" soma as duas parcelas — por isso o laço, e não um match.
+  RE_QUANTIDADE_TEMPO.lastIndex = 0;
+  let m = RE_QUANTIDADE_TEMPO.exec(txt);
+  while (m) {
+    const n = parseInt(m[1], 10);
+    const un = semAcento(m[2]).replace(/s$/, '').replace('mese', 'mes');
+    if (Number.isFinite(n) && DIAS_POR_UNIDADE[un] != null) {
+      dias += n * DIAS_POR_UNIDADE[un];
+      achou = true;
+    }
+    m = RE_QUANTIDADE_TEMPO.exec(txt);
+  }
+  return achou ? dias : null;
+}
+
+/* A magia ativa que a evocação cria, ou null quando ela não dura no
+   calendário. `vence_em` é a data do jogo em que ela deixa de valer.
+
+   Guarda o NÍVEL, não os efeitos já calculados: o texto do nível é a fonte, e
+   congelar números aqui criaria uma segunda cópia que sairia de sincronia no
+   primeiro ajuste do catálogo — o erro que este projeto passou a semana
+   inteira corrigindo. */
+function magiaAtivaDaEvocacao(magia, nivel, dataJogo) {
+  const dias = duracaoEmDiasDeJogo(magia, nivel);
+  if (dias == null || !magia || !magia.key) return null;
+  if (typeof somarDiasFantasy !== 'function') return null;
+  const vence = somarDiasFantasy(dataJogo, dias);
+  if (!vence) return null;   // história sem data definida
+  return { key: magia.key, nome: magia.nome || magia.key, nivel, vence_em: vence };
+}
+
+/* VENCIMENTO PREGUIÇOSO: a magia expira por comparação NA LEITURA, nunca por
+   rotina de fundo. Nada avança a data do jogo sozinho — se o vencimento
+   dependesse de um processo, os bônus nunca acabariam. É o mesmo padrão da
+   cura natural de Doenças.
+
+   Vence NO DIA: uma magia que vence em 14 ainda vale no 13 e já não vale no
+   14. Minutos e horas dão 0 dias e portanto vencem no mesmo dia — que é o
+   grão do calendário. */
+function magiasAtivasVigentes(ativas, dataJogo) {
+  const lista = Array.isArray(ativas) ? ativas : [];
+  if (typeof dataFantasyParaAbsoluto !== 'function') return lista;
+  const hoje = dataFantasyParaAbsoluto(dataJogo);
+  if (hoje == null) return lista;   // sem data, não há como vencer nada
+  return lista.filter((a) => {
+    const fim = a && a.vence_em ? dataFantasyParaAbsoluto(a.vence_em) : null;
+    return fim == null ? true : hoje < fim;
+  });
 }
 
 /* Quais pedidos ainda esperam o Mestre.
@@ -1137,6 +1214,7 @@ Object.assign(window, {
   testeHabilidadeNoNivel, visaoEscuridaoNoNivel, DIFICULDADE_POR_NOME, MAGIA_ELEMENTOS_VALIDOS,
   classeDeDuracao, valeForaDeCombate, efeitosDeMagiaNaFicha, motivoNaoAplicaNaFicha,
   pedidoDeMagiaPendente, metaDeEvocacao, pedidosDeMagiaAbertos,
+  duracaoEmDiasDeJogo, magiaAtivaDaEvocacao, magiasAtivasVigentes,
   MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
 });
 

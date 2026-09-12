@@ -8159,3 +8159,10 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .cm-fila-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; }
 #root .menestrel-ui .cm-fila-texto { font-size: 12px; color: #E6DCC4; }
 #root .menestrel-ui .cm-fila-acoes { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* Magias ativas na ficha (degrau 3): o que está valendo agora e até quando.
+   Sem esta lista a magia duraria no escuro. */
+#root .menestrel-ui .fp-magias-ativas { margin-top: 10px; border-top: 1px solid #3A362E; padding-top: 8px; }
+#root .menestrel-ui .fp-magias-ativas-tit { display: flex; align-items: center; gap: 5px; color: #C9A44E; font-size: 11px; margin-bottom: 4px; }
+#root .menestrel-ui .fp-magia-ativa { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: #C8BCAA; padding: 2px 0; }
+#root .menestrel-ui .fp-magia-ativa-ate { color: #8A7F6B; white-space: nowrap; }

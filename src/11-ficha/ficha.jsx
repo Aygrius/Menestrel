@@ -2066,7 +2066,25 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
          para corrigir quando algum estiver errado. */
       const efeitos = [...efeitosDeMagiaNaFicha(mag, nivel),
                        { scope: 'vitalidade', key: 'ka', delta: -nivel }];
-      const novo = aplicarEfeitosNaFicha(pj.estado_atual, efeitos, maximosVitalidade);
+      let novo = aplicarEfeitosNaFicha(pj.estado_atual, efeitos, maximosVitalidade);
+
+      /* DEGRAU 3 — magia que dura no CALENDÁRIO vira magia ATIVA na ficha,
+         com data de vencimento. O que a torna útil é o que vem depois: uma
+         Bênção de "1 hora" lançada antes da masmorra precisa estar ativa
+         quando a luta começa, e o snapshot de batalha a lê daqui.
+
+         Guarda o NÍVEL, não os números já calculados: o texto do nível é a
+         fonte, e congelar valores criaria uma segunda cópia que sairia de
+         sincronia no primeiro ajuste do catálogo. */
+      const ativa = (typeof magiaAtivaDaEvocacao === 'function')
+        ? magiaAtivaDaEvocacao(mag, nivel, historiaPj && historiaPj.data_jogo_atual) : null;
+      if (ativa) {
+        const base = novo || {};
+        // Relançar a mesma magia RENOVA em vez de empilhar — mesma regra que
+        // aplicarEfeitoMagia segue em batalha.
+        const outras = (base.magias_ativas || []).filter((a) => a && a.key !== ativa.key);
+        novo = { ...base, magias_ativas: [...outras, ativa] };
+      }
       if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
     }
 
@@ -2580,9 +2598,43 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
       }
       return { ...c, color };
     });
+  /* MAGIAS ATIVAS (degrau 3, 12/09/2026). Magia de duração de calendário
+     evocada fora de combate fica aqui, com a data em que vence — e vale na
+     próxima batalha.
+
+     Sem esta lista o jogador não sabe o que ainda está ativo nele: a magia
+     duraria no escuro, e "por que minha coluna está +1?" viraria suporte.
+
+     Filtra na LEITURA contra a data do jogo, nunca por rotina de fundo: nada
+     avança a data sozinho, e um bônus que dependesse de um processo para
+     vencer nunca venceria. */
+  const magiasAtivas = (typeof magiasAtivasVigentes === 'function')
+    ? magiasAtivasVigentes(
+        (pj.estado_atual && pj.estado_atual.magias_ativas) || [],
+        historiaPj && historiaPj.data_jogo_atual)
+    : [];
+
   const elCond = (
     <div className="fp-cond-vit">
       <FichaVitBars bars={condVitBars} scope="cond" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />
+      {magiasAtivas.length > 0 && (
+        <div className="fp-magias-ativas">
+          <div className="fp-magias-ativas-tit">
+            <i className="ti ti-sparkles" aria-hidden="true" />
+            {en ? 'Active spells' : 'Magias ativas'}
+          </div>
+          {magiasAtivas.map((a) => (
+            <div key={a.key} className="fp-magia-ativa">
+              <span>{a.nome} {en ? 'lv' : 'nv'} {a.nivel}</span>
+              <span className="fp-magia-ativa-ate">
+                {(en ? 'until ' : 'até ')}
+                {(typeof formatarDataFantasy === 'function')
+                  ? formatarDataFantasy(a.vence_em, lang) : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 

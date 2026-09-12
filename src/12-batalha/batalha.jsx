@@ -1268,7 +1268,35 @@ const CONDICOES_KEYS = (typeof EFEITO_CONDICAO_MAP === 'object' && EFEITO_CONDIC
    personagensPools (opcional): jsonb da história { [pjId]: { ef, eh, ar, karma } }.
    Se a chave do PJ existe, esses valores entram como o "atual" do snapshot;
    max continua sendo o calculado da ficha (sequela = atual < max).      */
-async function montarSnapshots(parts, personagensPools) {
+/* ── As magias que já estavam ativas quando a luta começou ─────────
+   Degrau 3 (12/09/2026). Magia de duração de CALENDÁRIO evocada fora de
+   combate fica na ficha com data de vencimento (estado_atual.magias_ativas).
+   É aqui que ela vira efeito: uma Bênção de "1 hora" lançada antes de entrar
+   na masmorra está valendo quando a luta começa.
+
+   Reusa aplicarEfeitoMagia — a MESMA função que a conjuração dentro da
+   batalha usa. Um segundo caminho daria números diferentes para a mesma magia
+   conforme onde foi evocada.
+
+   `duracaoNoNivel` devolve `rodadas: null` para duração de calendário, e isso
+   já significa "dura a batalha inteira" no motor — que é o certo: uma hora é
+   mais longa que qualquer combate. */
+function semearMagiasAtivas(snap, pj, magiasByKey, dataJogo) {
+  const ativas = (pj && pj.estado_atual && pj.estado_atual.magias_ativas) || null;
+  if (!Array.isArray(ativas) || ativas.length === 0) return snap;
+  if (typeof magiasAtivasVigentes !== 'function' || typeof aplicarEfeitoMagia !== 'function') return snap;
+  // VENCIMENTO PREGUIÇOSO: filtra na leitura, contra a data do jogo de agora.
+  const vigentes = magiasAtivasVigentes(ativas, dataJogo);
+  let out = snap;
+  vigentes.forEach((a) => {
+    const cat = magiasByKey && magiasByKey[a.key];
+    if (!cat) return;
+    out = aplicarEfeitoMagia(out, cat, a.nivel);
+  });
+  return out;
+}
+
+async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
   const pools = personagensPools || {};
   // Garante inst_id único em todos os participantes — inclusive batalhas antigas
   // criadas antes desta correção, que não têm inst_id no banco.
@@ -1373,7 +1401,7 @@ async function montarSnapshots(parts, personagensPools) {
         const v = Number(condBase[k]);
         condicoes[k] = Number.isFinite(v) ? Math.max(-_COND_LIMITE, Math.min(_COND_LIMITE, v)) : 0;
       });
-      return {
+      const snapPj = {
         tipo: 'pj', ref_id: p.ref_id, nome: p.nome,
         inst_id: p.inst_id,   // garantido por partsComInstId acima
         // TABULEIRO: posição herdada do participante (quem já estava colocado
@@ -1404,6 +1432,8 @@ async function montarSnapshots(parts, personagensPools) {
         tecnica_livre_usada: false,   // REGRA NOVA: ativação livre (0 PA) já usada nesta rodada
         pa_ataque_extra: 0,   // Fase 2: contador de ataques extras (Golpe Duplo etc.) da rodada
       };
+      // Magia de calendário evocada ANTES da luta entra valendo (degrau 3).
+      return semearMagiasAtivas(snapPj, pj, magiasByKey, dataJogo);
     }
     const c = criById[p.ref_id];
     if (!c) return { ...p, vb: 0, pa_max: 1, pa_rest: 1, eh: 0, eh_max: 0, ar: 0, ar_max: 0, ef: 0, ef_max: 0, karma: 0, karma_max: 0, defesa_sigla: 'L', defesa_valor: 0, rf: 0, rm: 0, status: 'ativo', ausente: true };
@@ -4521,7 +4551,22 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       // setup — posicionarNoSetup escreve `pos` nele. Ler a prop aqui
       // ressuscitava a lista sem posição nenhuma, e todo mundo voltava para a
       // bancada assim que a batalha começava.
-      const snaps = await montarSnapshots(participantes || [], pools);
+      /* DEGRAU 3: magia de calendário evocada antes da luta entra valendo.
+         Para transformá-la em status o motor precisa do TEXTO DO NÍVEL (o
+         catálogo) e da data do jogo, que é quem diz se ela já venceu. As duas
+         só são buscadas aqui, na largada — não na montagem, onde ninguém
+         ainda tem efeito para semear. */
+      const [magRes, histData] = await Promise.all([
+        supabaseClient.from('magias').select('*'),
+        historia && historia.id
+          ? supabaseClient.from('historias').select('data_jogo_atual').eq('id', historia.id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+      const magiasByKey = {};
+      (magRes.data || []).forEach((m) => { magiasByKey[m.key] = m; });
+      const dataJogo = (histData && histData.data && histData.data.data_jogo_atual) || null;
+
+      const snaps = await montarSnapshots(participantes || [], pools, magiasByKey, dataJogo);
       let ordenados = ordenarIniciativa(snaps);
       const primeiro = [...ordenados].sort((a, b) => a.ordem - b.ordem).find((p) => p.status === 'ativo');
       ordenados = ordenados.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) }));
@@ -9174,6 +9219,7 @@ Object.assign(window, {
     // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
     modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia, passouNoTesteDeHabilidade,
     ehMontaria, montariasDisponiveis, montar, desmontar, montariaSegue, vbParaMovimento,
+    semearMagiasAtivas,
     enxergaNaEscuridao, penalidadeDeVisibilidade, nivelVisibilidade,
     proximaVisibilidade, textoVisibilidade, VISIBILIDADE_ICONE, VISIBILIDADE_ORDEM,
     magiaNoNivel, niveisDisponiveis,
