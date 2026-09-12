@@ -337,8 +337,9 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     perspicacia:           'Aumente 1 de velocidade, 1 de defesa e 1 coluna de ataque.',
     cancao_do_alento:      'Aumente 1 coluna de ataque e 5 de energia heroica.',
     cancao_do_animo:       'Aumenta 1 de velocidade e 5 de energia heroica.',
-    // SEM o "de" antes de "energia heroica" — prosa real do catalogo.
-    veu_de_maira:          'Aumente 15 energia heroica e 1 coluna de ataque.',
+    // Texto corrigido pelo usuario em 12/09/2026: ganhou o "de" e trocou
+    // "Aumente" por "Recupera" — que o leitor nao conhecia. Ver o verbo novo.
+    veu_de_maira:          'Recupera 15 de energia heroica e 1 coluna de ataque.',
     bencao_selvagem:       'Aumenta 1 coluna de ataque e reduz 5 de energia heroica.',
     ato_falho:             'Reduza 1 coluna de resolução para todas as ações.',
     degeneracao_fisica:    'Reduza 1 coluna de ataque.',
@@ -623,5 +624,52 @@ describe('auditarCriaturas — o furo do rename', () => {
     const r = resolver('Geoproteção, Nao Existe', idx);
     expect(r.achadas.map((m) => m.key)).toEqual(['geoprotecao']);
     expect(r.naoAchadas).toEqual(['Nao Existe']);
+  });
+});
+
+describe('verbos de cura — o caso que o verificador pegou em produção', () => {
+  /* O usuário corrigiu o texto do Véu de Maira e, no mesmo movimento, trocou
+     "Aumente" por "Recupera" — verbo que o leitor não conhecia. Verbo
+     desconhecido = nada lido = magia com efeito ZERO, em silêncio.
+
+     Foi o painel de verificação que apontou. É o cenário que ele existe para
+     cobrir: mudança no BANCO, não no código. */
+  it('Recupera é sinônimo de Restaura', () => {
+    expect(efeitosNoNivel(mag('Recupera 15 de energia heroica.'), 1).cura_eh).toBe(15);
+  });
+
+  it.each(['Recupere', 'Recuperam', 'Recuperando'])('%s também', (verbo) => {
+    expect(efeitosNoNivel(mag(`${verbo} 8 de energia heroica.`), 1).cura_eh).toBe(8);
+  });
+
+  it('REGRESSÃO: verbo de cura governando uma COLUNA não a descarta', () => {
+    /* Véu de Maira: "Recupera 15 de energia heroica e 1 coluna de ataque."
+       O verbo governa os dois, mas "recuperar uma coluna" só pode significar
+       ganhar uma. O ramo de cura só tratava poços e engolia a coluna — a
+       magia entregava metade do que promete. */
+    const r = efeitosNoNivel(mag('Recupera 15 de energia heroica e 1 coluna de ataque.'), 1);
+    expect(r).toMatchObject({ cura_eh: 15, coluna: 1 });
+  });
+
+  it('a preposição continua opcional depois da correção', () => {
+    expect(efeitosNoNivel(mag('Aumente 15 energia heroica.'), 1).eh).toBe(15);
+  });
+
+  it('Melodia Zen fica legível, mas continua FORA do registro', () => {
+    /* "Durante meia hora de música ininterrupta… recuperando 8 de energia
+       heroica." O número é legível, mas a magia exige meia hora — não é ação
+       de combate. Fica órfã no verificador, que é a classificação certa:
+       número legível que o motor ignora de propósito. */
+    const txt = 'Durante meia hora de música ininterrupta, os ouvintes sentem-se como se tivessem descansado por 4 horas, recuperando 8 de energia heroica.';
+    expect(efeitosNoNivel(mag(txt), 1).cura_eh).toBe(8);
+    expect(window.MAGIA_EFEITO_MAP.melodia_zen).toBeUndefined();
+  });
+
+  it('o número ANTES do verbo continua sendo ignorado', () => {
+    // "descansado por 4 horas" vem antes de "recuperando" e não entra.
+    const txt = 'Descansado por 4 horas, recuperando 8 de energia heroica.';
+    const r = efeitosNoNivel(mag(txt), 1);
+    expect(r.cura_eh).toBe(8);
+    expect(Object.keys(r)).toEqual(['cura_eh']);
   });
 });

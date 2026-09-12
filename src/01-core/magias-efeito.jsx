@@ -35,6 +35,17 @@ const MAGIA_VERBOS = {
   diminui:  'menos',
   diminua:  'menos',
   restaura: 'cura',
+  /* `recupera` é sinônimo de `restaura`, e entrou em 12/09/2026 depois de o
+     verificador pegar o caso: o usuário corrigiu o texto do Véu de Maira e,
+     no mesmo movimento, trocou "Aumente" por "Recupera". Verbo desconhecido =
+     nada lido = magia com efeito zero, em silêncio.
+
+     Duas magias usam a família: Véu de Maira e Melodia Zen. */
+  recupera: 'cura',
+  recupere: 'cura',
+  recuperam: 'cura',
+  // Gerúndio: Melodia Zen escreve "recuperando 8 de energia heroica".
+  recuperando: 'cura',
   causa:    'dano',
   cause:    'dano',
 };
@@ -97,7 +108,7 @@ const MAGIA_UNIDADES = [
    entravam como 'mais'. Em Licantropia o resultado saía certo por acidente —
    o registro é que dá o sinal —, mas um texto com "Aumenta 2 de X e reduz 3
    de X" teria o segundo sobrescrevendo o primeiro sob a ação errada. */
-const RE_VERBO = /\b(aumenta|aumente|reduz|reduza|diminui|diminua|restaura|causa|cause)\b/gi;
+const RE_VERBO = /\b(aumenta|aumente|reduz|reduza|diminui|diminua|restaura|recupera|recupere|recuperam|recuperando|causa|cause)\b/gi;
 
 /* ── O leitor, com diagnóstico ─────────────────────────────────────
    `efeitosNoNivel` devolve só os valores; esta devolve também o que o parser
@@ -170,8 +181,17 @@ function lerNivel(magia, nivel) {
       // Restaurar PREENCHE o pool; aumentar LEVANTA o teto. São primitivas
       // distintas (spec §8), então o campo é distinto.
       if (acao === 'cura') {
-        if (u.campo === 'eh') escrever('cura_eh', valor);
-        if (u.campo === 'ef') escrever('cura_ef', valor);
+        if (u.campo === 'eh') { escrever('cura_eh', valor); continue; }
+        if (u.campo === 'ef') { escrever('cura_ef', valor); continue; }
+        /* Unidade que NÃO é poço, sob verbo de cura, cai no ramo de bônus.
+
+           Véu de Maira diz "Recupera 15 de energia heroica e 1 coluna de
+           ataque": o verbo governa os dois, mas "recuperar uma coluna" só
+           pode significar ganhar uma. Antes, o `continue` engolia a coluna e
+           a magia entregava metade do que promete.
+
+           Não há leitura alternativa, então não é chute — é a única. */
+        escrever(u.campo, valor);
         continue;
       }
       if (acao === 'mais' || acao === 'menos') escrever(u.campo, valor);
@@ -480,10 +500,13 @@ const MAGIA_EFEITO_MAP = {
                                      { tipo: 'mod_eh_temp', unidade: 'eh', sinal: 1 }] },
   // "protege os animais que possui um elo ativo" — mesma metade pendente de
   // Força Mútua: a raça é verificável, o elo não.
+  /* O texto diz "RECUPERA 15 de energia heroica", não "aumenta": é cura, que
+     preenche o poço até o teto — não `mod_eh_temp`, que levanta o teto. A
+     entrada foi corrigida junto com o texto, em 12/09/2026. */
   veu_de_maira:          { alvo: 'aliado', alvos: 1, icone: '🐾',
                            so_racas: ['Animal'], parcial: 'elo_animal',
-                           efeitos: [{ tipo: 'mod_eh_temp', unidade: 'eh',     sinal: 1 },
-                                     { tipo: 'mod_ataque',  unidade: 'coluna', sinal: 1 }] },
+                           efeitos: [{ tipo: 'cura_pool',  unidade: 'cura_eh', pool: 'eh' },
+                                     { tipo: 'mod_ataque', unidade: 'coluna',  sinal: 1 }] },
   // "concede proteção contra ataques de animais, PORÉM isso consome parte de
   // sua energia vital" — buff com custo, como a Oferenda.
   bencao_selvagem:       { alvo: 'aliado', alvos: 1, icone: '🌿',
