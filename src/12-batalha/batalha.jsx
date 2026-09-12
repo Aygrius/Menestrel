@@ -510,17 +510,24 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
   );
 }
 
-/* ── Dano de uma magia no nível efetivo do conjurador ─────────── */
-/* Extrai o número do texto `nivel_N` (ex.: "Cause 16 de dano base."). */
-/* Fallback: campo `dano` da tabela (que costuma ser o do nível 9).    */
+/* ── Dano de uma magia no nível efetivo do conjurador ───────────────
+   Delegado a efeitosNoNivel (01-core/magias-efeito.jsx) desde 11/09/2026.
+
+   A versão anterior casava /(\d+)\s*de\s*dano/i SEM olhar o verbo, e oito
+   magias do catálogo dizem "Reduz N de dano". Aeroproteção, Piroproteção e
+   Armadura Elemental — as três que os PJs têm — apareciam na aba Magia como
+   ofensivas, porque magiasOfensivasDoAtor só filtra por dano > 0. Uma
+   proteção de 16 virava um golpe de 16. Ver spec §7.1.
+
+   Fallback: campo `dano` da tabela (que costuma ser o do nível 9). */
 function danoMagiaNoNivel(magia, nivelEfetivo) {
   if (!magia) return 0;
-  const campo = 'nivel_' + nivelEfetivo;
-  const txt = magia[campo];
-  if (txt) {
-    const m = /(\d+)\s*de\s*dano/i.exec(txt);
-    if (m) return parseInt(m[1], 10);
-  }
+  const ef = (typeof efeitosNoNivel === 'function')
+    ? efeitosNoNivel(magia, nivelEfetivo) : {};
+  if (ef.dano != null) return ef.dano;
+  // Texto de nível que REDUZ dano não pode cair no fallback: uma proteção com
+  // a coluna `dano` preenchida na tabela voltaria a virar ataque por outra via.
+  if (ef.reducao_dano != null) return 0;
   return magia.dano || 0;
 }
 
