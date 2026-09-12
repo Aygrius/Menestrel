@@ -240,10 +240,23 @@ const MAGIA_EFEITO_MAP = {
      Explicitar isto aqui é exatamente o que o mapa existe para fazer. */
   barreira_mistica:   { alvo: 'self', alvos: 1, icone: '🔮',
                         efeitos: [{ tipo: 'mod_defesa', unidade: 'coluna', sinal: 1 }] },
-  // Área por natureza e só morde demônios/mortos-vivos. 'escolha' = o Mestre
-  // seleciona quantos alvos válidos quiser no alcance (spec §6.3).
+  /* AURA, não projétil de área — correção de 12/09/2026.
+
+     "Esta magia envolve seu corpo em uma aura que repele demônios e
+     mortos-vivos A PARTIR DE SI." O centro é o conjurador e o raio é o
+     próprio `alcance` da magia (25 metros), que o catálogo já tem.
+
+     Estava marcada `parcial: 'area'` com seleção manual, esperando a coluna
+     `raio` — que ela nunca precisou. Quem precisa de `raio` é o projétil de
+     área (Bola de Fogo, Meteoros), cujo centro é uma célula escolhida e cujo
+     raio não está em lugar nenhum do catálogo.
+
+     "sem direito a resistência mágica, pois não são afetadas diretamente
+     pela magia" — não há rolagem. exigeResistencia devolve null porque a
+     frase não é "teste de resistência mágica"; há teste de regressão pra
+     isso não passar a casar depois. */
   aura_divina:        { alvo: 'inimigo', alvos: 'escolha', icone: '🕊️',
-                        so_racas: ['Demônio', 'Morto'], parcial: 'area',
+                        so_racas: ['Demônio', 'Morto'], area: 'aura',
                         efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
   // PARCIAL de propósito: a raça é verificável, "sob Elo Animal" não é —
   // Elo Animal é narrativa nesta fase e não grava status nenhum. A metade

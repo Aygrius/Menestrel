@@ -2878,6 +2878,26 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu) {
     };
   }
 
+  /* AURA: o efeito não é num alvo escolhido, é em TODOS os válidos dentro do
+     raio a partir do conjurador. Aura Divina é a única da Fase 1/2 assim.
+     Quando não há posição (setup), alvosDeAura devolve null e a magia cai no
+     caminho de alvo único — melhor do que não fazer nada. */
+  const reg = magiaEfeitoDe(magia.key);
+  if (reg && reg.area === 'aura') {
+    const atingidos = alvosDeAura(cat, next[atorIdx], next, magia.nivel);
+    if (atingidos && atingidos.length) {
+      const ids = new Set(atingidos.map((p) => p.inst_id));
+      for (let i = 0; i < next.length; i++) {
+        if (ids.has(next[i].inst_id)) {
+          next[i] = aplicarEfeitoApoio(next[i], magia, next[atorIdx].inst_id);
+        }
+      }
+      return { participantes: next, fase: 'resolveu', atingidos: atingidos.map((p) => p.nome) };
+    }
+    // Ninguém válido no raio: a magia saiu e não pegou em ninguém.
+    if (atingidos) return { participantes: next, fase: 'perdeu' };
+  }
+
   const alvoP = next[alvoIdx];
   const alvoSumiu = !alvoP || alvoP.status === 'morto' || alvoP.status === 'desistiu'
     || !alvoPermitidoParaMagia(alvoP, magia.key, cat, magia.nivel).pode;
@@ -3101,17 +3121,47 @@ function tetoDeAlvosMagia(magiaKey) {
 
    "Válido" exclui morto, desistiu e ausente — e respeita a restrição de raça,
    senão uma Aura Divina com raio pegaria o companheiro animal do grupo. */
-function alvosDeArea(magia, celula, participantes) {
+function alvosDeArea(magia, celula, participantes, nivel) {
   const raio = Number(magia && magia.raio) || 0;
   if (raio <= 0) return null;
-  if (!celula || !Array.isArray(participantes)) return null;
+  return alvosNoRaio(magia, celula, raio, participantes, nivel);
+}
+
+/* ── Alvos de uma AURA centrada no conjurador (puro) ───────────────
+   Correção de 12/09/2026, apontada pelo usuário. Aura Divina diz "envolve seu
+   corpo em uma aura que repele demônios e mortos-vivos A PARTIR DE SI": o
+   centro é o conjurador e o raio é o `alcance` da própria magia, que o
+   catálogo já traz (25 metros).
+
+   Ela estava marcada como área manual esperando a coluna `raio`, e nunca
+   precisou dela. Quem precisa é o PROJÉTIL de área (Bola de Fogo, Meteoros),
+   cujo centro é uma célula escolhida e cujo raio não está no catálogo.
+
+   Devolve null quando não há posição — no setup, antes de os tokens irem ao
+   tabuleiro, não há como calcular área, e aí a UI cai na seleção manual. */
+function alvosDeAura(magia, conjurador, participantes, nivel) {
+  if (!conjurador || !posValida(conjurador.pos)) return null;
+  const raio = parseAlcance(magia && magia.alcance);
+  if (raio == null || raio <= 0) return null;
+  return alvosNoRaio(magia, conjurador.pos, raio, participantes, nivel)
+    // O conjurador nunca é alvo da própria aura. Na prática so_racas já o
+    // exclui (PJ não é Demônio nem Morto), mas a regra não pode depender
+    // disso: uma aura sem restrição de raça pegaria quem a lançou.
+    .filter((p) => !mesmoParticipante(p, conjurador));
+}
+
+/* O miolo comum das duas: quem está dentro do raio a partir de um centro e é
+   alvo válido para a magia. "Válido" exclui morto, desistiu e ausente, e
+   respeita so_racas e o teto de estágio. */
+function alvosNoRaio(magia, centro, raio, participantes, nivel) {
+  if (!centro || !Array.isArray(participantes)) return null;
   return participantes.filter((p) => {
     if (!p || p.ausente) return false;
     const st = p.status || 'ativo';
     if (st === 'morto' || st === 'desistiu') return false;
     if (!posValida(p.pos)) return false;
-    if (!dentroDoAlcance(celula, p.pos, raio)) return false;
-    return alvoPermitidoParaMagia(p, magia.key).pode;
+    if (!dentroDoAlcance(centro, p.pos, raio)) return false;
+    return alvoPermitidoParaMagia(p, magia.key, magia, nivel).pode;
   });
 }
 
@@ -8009,7 +8059,8 @@ Object.assign(window, {
        quebrarEvocacao fica ENCADEADA em quebrarConcentracao, então todo
        gatilho que já derrubava concentração derruba canalização. */
     aplicarEfeitoMagia, aplicarCuraPool, aplicarDrenoEh, danoAposReducao,
-    alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia, alvosDeArea,
+    alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia,
+    alvosDeArea, alvosDeAura, alvosNoRaio,
     resumoEfeitoMagia, textoEfeitoMagia, aplicarCurasDaMagia,
     passoDeApoio, textoPassoDeApoio, faseDeEvocacao, evocacaoPrendeAcao,
     evocacaoEmRodadas, iniciarEvocacao, decrementarEvocacao, evocacaoPronta,

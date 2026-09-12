@@ -399,8 +399,18 @@ describe('textoEfeitoMagia — o que vai pro log da mesa', () => {
   });
 
   it('marca o que ficou PARCIAL — área escolhida pelo Mestre', () => {
+    /* Bola de Fogo, não Aura Divina: a aura deixou de ser parcial em
+       12/09/2026, quando se viu que o raio dela é o próprio alcance. Quem
+       continua parcial é o PROJÉTIL de área, cujo raio não está no catálogo. */
+    const BOLA_LOG = { key: 'bola_de_fogo', nome: 'Bola de Fogo', nivel: 1,
+                       catalogo: { key: 'bola_de_fogo', duracao: 'Instantânea',
+                                   nivel_1: 'Causa 12 de dano elemental de fogo.' } };
+    expect(M.textoEfeitoMagia(BOLA_LOG)).toMatch(/alvos de área escolhidos pelo Mestre/);
+  });
+
+  it('Aura Divina NÃO é mais marcada como parcial', () => {
     const AURA_LOG = { key: 'aura_divina', nome: 'Aura Divina', nivel: 1, catalogo: AURA };
-    expect(M.textoEfeitoMagia(AURA_LOG)).toMatch(/alvos de área escolhidos pelo Mestre/);
+    expect(M.textoEfeitoMagia(AURA_LOG)).not.toMatch(/escolhidos pelo Mestre/);
   });
 
   it('marca o vínculo não conferido de Força Mútua', () => {
@@ -632,5 +642,107 @@ describe('Esconjuração — raça E teto de estágio', () => {
   it('sem magia/nivel na chamada, só a raça é conferida', () => {
     // As chamadas de UI que só filtram raça continuam valendo.
     expect(M.alvoPermitidoParaMagia(cri('Morto', 99), 'esconjuracao').pode).toBe(true);
+  });
+});
+
+describe('Aura Divina é AURA, não projétil de área', () => {
+  /* Correção de 12/09/2026, apontada pelo usuário: "25 metros a partir de quem
+     evoca a magia é o seu alcance". O texto confirma — "envolve seu corpo em
+     uma aura que repele demônios e mortos-vivos A PARTIR DE SI".
+
+     O centro é o conjurador e o raio é o próprio `alcance`, que o catálogo já
+     traz. Ela estava marcada como área MANUAL esperando a coluna `raio`, e
+     nunca precisou dela: quem precisa é o projétil de área (Bola de Fogo,
+     Meteoros), cujo centro é uma célula escolhida. */
+  const AURA_CAT = { key: 'aura_divina', nome: 'Aura Divina', alcance: '25 metros',
+                     duracao: '1 hora', nivel_1: 'A área reduz 1 coluna de ataque.' };
+  const noTab = (x, over = {}) => ({
+    inst_id: 'p' + x, tipo: 'criatura', raca: 'Morto', estagio: 1,
+    status: 'ativo', pos: { x, y: 1 }, status_temp: [], ...over,
+  });
+  const conjurador = { inst_id: 'c1', tipo: 'pj', raca: 'Humano', nome: 'Clériga',
+                       pos: { x: 1, y: 1 }, status: 'ativo', status_temp: [] };
+
+  it('pega todos os válidos no raio do ALCANCE, sem pedir raio nenhum', () => {
+    const r = M.alvosDeAura(AURA_CAT, conjurador, [conjurador, noTab(5), noTab(60)], 1);
+    expect(r.map((p) => p.inst_id)).toEqual(['p5']);
+  });
+
+  it('NÃO pega o próprio conjurador', () => {
+    const r = M.alvosDeAura(AURA_CAT, conjurador, [conjurador, noTab(5)], 1);
+    expect(r.find((p) => p.inst_id === 'c1')).toBeUndefined();
+  });
+
+  it('respeita a restrição de raça', () => {
+    const r = M.alvosDeAura(AURA_CAT, conjurador,
+      [conjurador, noTab(5, { raca: 'Animal' }), noTab(6, { raca: 'Demônio' })], 1);
+    expect(r.map((p) => p.raca)).toEqual(['Demônio']);
+  });
+
+  it('sem posição no tabuleiro devolve null — a UI cai em alvo único', () => {
+    expect(M.alvosDeAura(AURA_CAT, { ...conjurador, pos: null }, [conjurador], 1)).toBeNull();
+  });
+
+  it('o registro marca `area: aura`, e não `parcial: area`', () => {
+    const reg = window.MAGIA_EFEITO_MAP.aura_divina;
+    expect(reg.area).toBe('aura');
+    expect(reg.parcial).toBeUndefined();
+  });
+
+  it('Bola de Fogo e Meteoros CONTINUAM parciais — o raio delas não existe', () => {
+    // O centro delas é uma célula escolhida, não o conjurador; o raio virá da
+    // coluna que o usuário vai criar.
+    expect(window.MAGIA_EFEITO_MAP.bola_de_fogo.parcial).toBe('area');
+    expect(window.MAGIA_EFEITO_MAP.meteoros.parcial).toBe('area');
+    expect(window.MAGIA_EFEITO_MAP.bola_de_fogo.area).toBeUndefined();
+  });
+
+  it('REGRESSÃO: "sem direito a resistência mágica" NÃO pede rolagem', () => {
+    /* O texto diz que as criaturas "sofrem penalidades … sem direito a
+       resistência mágica, pois não são afetadas diretamente pela magia".
+       exigeResistencia ancora na frase "teste de resistência mágica", que não
+       aparece aqui — então devolve null. Se alguém alargar o padrão, Aura
+       Divina passa a exigir um dado que a magia não tem. */
+    expect(M.exigeResistencia({ descricao:
+      'Esta magia envolve seu corpo em uma aura que repele demônios e mortos-vivos a partir de si. Essas criaturas sofrem penalidades ao atacar (mesmo à distância) qualquer um dentro da área protegida, sem direito a resistência mágica, pois não são afetadas diretamente pela magia.' }))
+      .toBeNull();
+  });
+});
+
+describe('passoDeApoio aplica a aura em TODOS os atingidos', () => {
+  const AURA = { key: 'aura_divina', nome: 'Aura Divina', alcance: '25 metros',
+                 duracao: '1 hora', evocacao: 'Instantânea',
+                 nivel_1: 'A área reduz 1 coluna de ataque.' };
+  const apoio = { key: 'aura_divina', nome: 'Aura Divina', nivel: 1, catalogo: AURA };
+  const morto = (x) => ({ inst_id: 'm' + x, tipo: 'criatura', raca: 'Morto', estagio: 1,
+                          pos: { x, y: 1 }, status: 'ativo', status_temp: [] });
+  const clerigo = { inst_id: 'c1', tipo: 'pj', nome: 'Clériga', raca: 'Humano',
+                    pos: { x: 1, y: 1 }, karma: 9, pa_rest: 1, status: 'ativo', status_temp: [] };
+
+  it('dois mortos-vivos no raio recebem o debuff de uma vez', () => {
+    const r = M.passoDeApoio([clerigo, morto(5), morto(8)], 0, 1, apoio, 1, false);
+    expect(r.fase).toBe('resolveu');
+    expect(r.participantes[1].status_temp[0].efeito).toMatchObject({ tipo: 'mod_ataque', valor: -1 });
+    expect(r.participantes[2].status_temp[0].efeito).toMatchObject({ tipo: 'mod_ataque', valor: -1 });
+  });
+
+  it('o log registra quem foi atingido', () => {
+    const r = M.passoDeApoio([clerigo, morto(5), morto(8)], 0, 1, apoio, 1, false);
+    expect(r.atingidos).toHaveLength(2);
+  });
+
+  it('quem está FORA do raio não é afetado', () => {
+    const r = M.passoDeApoio([clerigo, morto(5), morto(60)], 0, 1, apoio, 1, false);
+    expect(r.participantes[2].status_temp).toHaveLength(0);
+  });
+
+  it('a clériga não se debuffa', () => {
+    const r = M.passoDeApoio([clerigo, morto(5)], 0, 1, apoio, 1, false);
+    expect(r.participantes[0].status_temp).toHaveLength(0);
+  });
+
+  it('ninguém válido no raio: a magia sai e não pega em ninguém', () => {
+    const r = M.passoDeApoio([clerigo, morto(60)], 0, 1, apoio, 1, false);
+    expect(r.fase).toBe('perdeu');
   });
 });

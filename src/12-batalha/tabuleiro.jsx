@@ -820,9 +820,10 @@ Object.assign(window, {
   // alcance e tinham o mesmo defeito.
   posValida, movimentoBase, preservarPosicoes,
   celulaOcupada, moverParticipante, motivoMovimento,
-  // dentroDoAlcance entrou com alvosDeArea (magias, Fase 1): batalha.jsx a
-  // chama sem prefixo pra montar a lista de alvos de uma magia de área.
-  alcanceDaAcao, distanciaEntre, alvoNoAlcance, dentroDoAlcance,
+  // dentroDoAlcance entrou com alvosDeArea (magias, Fase 1) e parseAlcance com
+  // alvosDeAura (Fase 2): batalha.jsx chama as duas sem prefixo pra montar a
+  // lista de alvos de uma magia de área — a aura usa o `alcance` como raio.
+  alcanceDaAcao, distanciaEntre, alvoNoAlcance, dentroDoAlcance, parseAlcance,
   // Camada pura do tabuleiro — testada em tabuleiro.test.js.
   MotorTabuleiro: {
     TAB_COLS, TAB_ROWS, TAB_TOKEN, TAB_CELULA, TAB_ZOOMS, TAB_TOKEN_ESCALA,
