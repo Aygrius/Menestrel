@@ -3423,15 +3423,26 @@
 #root .menestrel-ui .inv-slot .inv-res-bar { height: 3px; border-radius: 0 0 6px 6px; }
 
 /* Rodapé do card de personagem — só existe no perfil Jogador, onde o card
-   tem a ação "Selecionar personagem" (ver PersonagemCard). */
+   tem a ação "Selecionar personagem" (ver PersonagemCard).
+
+   Sem padding lateral próprio (12/09/2026): o `.pj-card` já reserva 17px de
+   cada lado, e os 14px daqui somavam em cima disso — o botão ficava recuado
+   31px enquanto retrato, nome e jogador ficavam em 17px. Era exatamente o
+   "espaçamento maior que o dos outros itens do card" que o usuário viu.
+
+   `margin-top: auto` gruda a ação no fundo, então cards de alturas
+   diferentes na mesma linha alinham os botões entre si.
+
+   O botão NÃO é mais de largura total: esticar uma pílula de 32px até a
+   borda do card deixava a ação com cara de barra, e no card ativo — que
+   agora ocupa a linha inteira — viraria um botão de um palmo. Pílula no
+   tamanho do texto, centralizada. */
 #root .menestrel-ui .pj-card-foot {
   display: flex; justify-content: center;
-  padding: 0 14px 12px;
+  margin-top: auto;
+  padding: 4px 0 0;
 }
-#root .menestrel-ui .pj-card-selecionar {
-  display: inline-flex; align-items: center; gap: 6px;
-  width: 100%; justify-content: center;
-}
+#root .menestrel-ui .pj-card-selecionar { gap: 6px; }
 
 /* ── Pills do item: ESTADO x INFORMAÇÃO ────────────────────────────────
    Até 11/09/2026 `.inv-pill` não tinha estilo base nenhum — nem fundo, nem
@@ -8166,10 +8177,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .batalha-part-ini { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #8A7F6B; }
 #root .menestrel-ui .batalha-part-ini input { width: 52px; text-align: center; }
 
-/* Ativo / inativo no card de personagem (12/09/2026). O ativo ganha selo e a
-   única ação que leva a outro: desativar. Os demais dizem por que não dá. */
-#root .menestrel-ui .pj-card-ativo-tag { display: inline-flex; align-items: center; gap: 5px; color: #C9A44E; font-size: 12px; }
-#root .menestrel-ui .pj-card-bloqueado { font-size: 11px; color: #8A7F6B; line-height: 1.35; }
 
 /* Marca do sistema: o dragão, sem círculo (12/09/2026). */
 #root .menestrel-ui .mc-marca { display: flex; justify-content: center; padding: 8px 0 6px; }
@@ -8221,3 +8228,54 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    história. */
 #root .menestrel-ui .pjs-atalho-historias { margin-bottom: 12px; }
 #root .menestrel-ui .pjs-atalho-historias .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── Card de personagem: ativo e inerte (12/09/2026) ─────────────────
+   Quem diz que o personagem está ativo é o CARD, não o rodapé. A primeira
+   versão punha uma etiqueta solta ao lado do botão, num rodapé desenhado para
+   UM botão de largura total — e saía torta.
+
+   O bloqueado (há outro ativo) não recebe aviso nenhum: o usuário mandou tirar
+   a frase, e ele tem razão — numa grade, uma frase só naquele card puxa o olho
+   justamente para o que NÃO dá para fazer. Ele apenas recua. */
+#root .menestrel-ui .pj-card--ativo {
+  border-color: rgba(201,164,78,.55);
+  box-shadow: 0 0 0 1px rgba(201,164,78,.28), 0 6px 18px rgba(0,0,0,.30);
+}
+
+/* "Depois de selecionar um personagem, ele vira o centro das atenções, é ele
+   que importa." (usuário, 12/09/2026)
+
+   O ativo sai da grade de três colunas e toma a linha inteira, no topo —
+   `order:-1` porque a ordem da lista vem do banco e o ativo pode estar em
+   qualquer posição dela. Retrato e nome crescem junto: um card largo com o
+   retrato de 70px pareceria um card comum esticado. */
+#root .menestrel-ui .pjs-grid > .pj-card-wrap--ativo { grid-column: 1 / -1; order: -1; }
+#root .menestrel-ui .pj-card-wrap--ativo .pj-card { padding: 22px 20px 18px; }
+#root .menestrel-ui .pj-card-wrap--ativo .pj-card-portrait { width: 104px; height: 168px; }
+#root .menestrel-ui .pj-card-wrap--ativo .pj-name { font-size: 30px; }
+
+/* Selo do ativo. Era um ::after e brigava com a varredura de --levelup pelo
+   mesmo pseudo-elemento; virou <span> no JSX (ver PersonagemCard). */
+#root .menestrel-ui .pj-card-selo {
+  position: absolute; top: 10px; right: 12px; z-index: 2;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; border-radius: 999px;
+  border: 1px solid rgba(201,164,78,.50);
+  background: rgba(201,164,78,.12);
+  color: #E6C97A; font-size: .62rem; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase; line-height: 1.6;
+  pointer-events: none;
+}
+#root .menestrel-ui .pj-card-selo > i { font-size: 12px; }
+/* O medalhão da seta de evoluir pousa em `top:-14px; right:12px` — mesmo
+   canto do selo. Quando os dois aparecem juntos (ativo com pontos a
+   distribuir), o selo abre caminho. */
+#root .menestrel-ui .pj-card-wrap--seta .pj-card-selo { right: 62px; }
+
+/* O inerte recua de verdade — inclusive o chamariz de level up, que numa
+   grade com um ativo destacado estaria disputando o olho justamente para o
+   card em que não há nada a fazer. */
+#root .menestrel-ui .pj-card--inerte { opacity: .45; filter: saturate(.55); }
+#root .menestrel-ui .pj-card--inerte:hover { opacity: .60; filter: saturate(.80); }
+#root .menestrel-ui .pj-card--inerte.pj-card--levelup { animation: none; }
+#root .menestrel-ui article.pj-card--inerte.pj-card--levelup::after { display: none; }

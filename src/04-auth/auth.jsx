@@ -35,24 +35,15 @@ const GoogleIcon = (props) => (
   </svg>
 );
 
-// ─── Marca — mesmo anel de gradiente que a antiga Topbar usava ──────────────
+/* ─── Marca ──────────────────────────────────────────────────────────────────
+   A SEGUNDA cópia do anel de gradiente — a primeira estava na sidebar. Trocar
+   o ícone do sistema em 12/09/2026 deixou esta para trás, e o usuário viu o
+   antigo no login. A marca aparece em dois lugares e agora é a mesma nos dois:
+   ti-currency-monero, sem círculo. */
 const MarcaMenestrel = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-    <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center' }}>
-      <svg viewBox="0 0 44 44" width="44" height="44">
-        <defs>
-          <linearGradient id="mn-ring-login" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#B8472F" />
-            <stop offset="0.3" stopColor="#B8702E" />
-            <stop offset="0.55" stopColor="#C9A44E" />
-            <stop offset="0.8" stopColor="#B8862E" />
-            <stop offset="1" stopColor="#7A5E2A" />
-          </linearGradient>
-        </defs>
-        <circle cx="22" cy="22" r="16" fill="none" stroke="url(#mn-ring-login)" strokeWidth="5"
-                strokeLinecap="round" strokeDasharray="86 16" transform="rotate(-90 22 22)" />
-      </svg>
-    </span>
+    <i className="ti ti-currency-monero" aria-hidden="true"
+       style={{ fontSize: 40, lineHeight: 1, color: '#C9A44E' }} />
     <span style={{ fontFamily: AUTH_FB, fontWeight: 400, fontSize: 34, color: AUTH_INK, lineHeight: 1 }}>Menestrel</span>
   </div>
 );

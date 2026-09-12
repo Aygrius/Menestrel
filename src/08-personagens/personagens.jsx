@@ -585,13 +585,36 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
   };
   const pulsoClass = efRatio < 0.25 ? ' pj-card--ef-critico' : '';
 
+  /* A seta de evoluir só aparece no personagem ATIVO (ou, para o Mestre, em
+     qualquer um — ele não tem PJ ativo). O invólucro precisa saber disso
+     porque o medalhão da seta pousa no mesmo canto do selo "Ativo", e o CSS
+     desloca um quando o outro está em cena. */
+  const mostrarSetaEvoluir = !!(levelUp && onEdit && (isMaster || ativo));
+
   return (
-    <div className="pj-card-wrap">
+    <div className={'pj-card-wrap' + (ativo ? ' pj-card-wrap--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card-wrap--inerte' : '') + (mostrarSetaEvoluir ? ' pj-card-wrap--seta' : '')}>
     <article
-      className={'pj-card' + pulsoClass + (levelUp ? ' pj-card--levelup' : '') + ((onAtivar && !bloqueadoPorOutroAtivo && !ativo) ? ' is-clickable' : '')}
+      className={'pj-card' + pulsoClass + (levelUp ? ' pj-card--levelup' : '') + (ativo ? ' pj-card--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card--inerte' : '') + ((onAtivar && !bloqueadoPorOutroAtivo && !ativo) ? ' is-clickable' : '')}
       style={healthStyle}
       onClick={(onAtivar && !bloqueadoPorOutroAtivo && !ativo) ? onAtivar : undefined}
     >
+      {/* Selo ATIVO — elemento de verdade, e não um ::after (12/09/2026).
+
+          A primeira versão desenhava o selo em `article.pj-card--ativo::after`
+          e brigava pelo mesmo pseudo-elemento com a varredura de
+          `.pj-card--levelup`: quem viesse depois no arquivo ganhava, e um
+          personagem ativo COM pontos a distribuir perdia um dos dois sinais
+          por acidente de ordem de regra. Com um <span> os dois convivem.
+
+          E o selo diz a palavra, não só o ícone: "ativo/inativo" é o
+          vocabulário que o usuário escolheu para esta mecânica. */}
+      {ativo && (
+        <span className="pj-card-selo" aria-hidden="true">
+          <i className="ti ti-user-check" />
+          {en ? 'Active' : 'Ativo'}
+        </span>
+      )}
+
       <div className="pj-card-body">
         <div className={'pj-card-portrait' + (!fotoUrl ? ' is-empty' : '')}>
           {fotoUrl
@@ -665,36 +688,33 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
 
           O clique no card continua funcionando — tirar atalho que já existe
           só irrita quem se acostumou. O botão torna a ação nomeada. */}
-      {/* ATIVO / INATIVO (12/09/2026). Três estados, e cada um diz o que dá
-          para fazer:
+      {/* ATIVO / INATIVO — refeito em 12/09/2026.
 
-            ativo      → "Desativar", porque é o único caminho para trocar;
-            bloqueado  → diz que há outro ativo, em vez de um botão morto;
-            livre      → "Selecionar personagem", como antes.
+          A primeira versão punha uma etiqueta solta ao lado do botão num
+          rodapé feito para UM botão de largura total, e saía torta. E o card
+          bloqueado ganhava um parágrafo de aviso, que o usuário mandou tirar:
+          numa grade de cards, uma frase só naquele card puxa o olho para o
+          que NÃO dá para fazer.
 
-          O card inteiro continua clicável, mas só quando a ação existe: com
-          outro personagem ativo, clicar não pode fazer nada em silêncio. */}
+          Agora o rodapé tem sempre a mesma forma — uma pílula centralizada no
+          rodapé do card, ou nada. Quem diz que o personagem está ativo é o
+          CARD (anel dourado e selo no canto), não o rodapé; e o bloqueado
+          simplesmente não oferece ação, porque não há ação.
+
+          A pílula não é mais esticada de borda a borda: o card ativo agora
+          ocupa a linha inteira da grade, e um botão de largura total nele
+          teria um palmo de comprimento. */}
       {ativo ? (
         <div className="pj-card-foot">
-          <span className="pj-card-ativo-tag">
-            <i className="ti ti-user-check" aria-hidden="true" />
-            {en ? 'Active' : 'Ativo'}
-          </span>
           <button
             type="button"
-            className="btn-ghost btn-sm"
+            className="btn-ghost btn-sm pj-card-selecionar"
             onClick={(e) => { e.stopPropagation(); if (onDesativar) onDesativar(); }}>
+            <i className="ti ti-user-off" aria-hidden="true" />
             {en ? 'Deactivate' : 'Desativar'}
           </button>
         </div>
-      ) : bloqueadoPorOutroAtivo ? (
-        <div className="pj-card-foot">
-          <span className="pj-card-bloqueado">
-            {en ? 'Another character is active — deactivate it to choose this one.'
-                : 'Outro personagem está ativo — desative-o para escolher este.'}
-          </span>
-        </div>
-      ) : onAtivar ? (
+      ) : bloqueadoPorOutroAtivo ? null : onAtivar ? (
         <div className="pj-card-foot">
           <button
             type="button"
@@ -713,7 +733,15 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
           quando há pontos a distribuir (temLevelUpPendente) e some sozinha
           quando eles são gastos. stopPropagation porque o card inteiro é
           clicável pra ativar o PJ. */}
-      {levelUp && onEdit && (
+      {/* Só no personagem ATIVO (12/09/2026). A seta aparecia em qualquer card
+          com pontos a distribuir — inclusive em quem o jogador não escolheu —
+          e pedia que ele evoluísse um personagem que não está em jogo. Com o
+          ponto de vista único, evoluir é coisa do ativo; os outros esperam a
+          vez, e quem quiser mexer neles desativa este primeiro.
+
+          O Mestre é exceção: para ele não existe PJ ativo (ele administra
+          todos), então a seta segue como era. */}
+      {mostrarSetaEvoluir && (
         <button
           type="button"
           className="pj-evoluiu"

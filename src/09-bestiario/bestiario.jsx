@@ -1649,4 +1649,13 @@ Object.assign(window, {
   MagiasAuditoriaPainel, CriaturasAuditoriaPainel, TecnicasAuditoriaPainel,
   TecnicasList, ItensList, useEhAdmin,
   linhasQueCabem, paragrafosDe, TextoDoBanco, textoListaVazia,
+  /* O VOCABULÁRIO DA TABELA, exposto em 12/09/2026.
+
+     As telas Lugares/Personagens/Memórias (13-diario) passaram a ser "uma
+     tabela igual às demais", a pedido do usuário. Igual de verdade quer dizer
+     as MESMAS peças — cabeçalho, busca, chips, ordenação, paginação —, não uma
+     tabela parecida escrita de novo ali. Duplicar o vocabulário é como as duas
+     telas começam a divergir sem ninguém decidir que deviam. */
+  BestPageHeader, BestLoading, BestErrorBox, BestPagination,
+  useFitPageSize, useSort, SortHead, ChipIcon,
 });
