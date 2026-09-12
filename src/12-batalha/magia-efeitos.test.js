@@ -746,3 +746,107 @@ describe('passoDeApoio aplica a aura em TODOS os atingidos', () => {
     expect(r.fase).toBe('perdeu');
   });
 });
+
+describe('Oferenda — a magia seguinte sai ampliada', () => {
+  /* ERRO QUE ESTE BLOCO EXISTE PARA NÃO DEIXAR VOLTAR.
+
+     Oferenda entrou no registro com mod_nivel_magia, sem_cura_ef e o custo de
+     EF — e NADA consumia o primeiro. O status era criado e a próxima magia
+     saía no nível de sempre: a magia gastava sangue e não fazia nada.
+
+     É o mesmo padrão de falha registrado no plano ("funções corretas que nada
+     chamava"), repetido. Daí os testes serem de ponta a ponta, e não só da
+     função pura. */
+  const OFERENDA = { key: 'oferenda', nome: 'Oferenda', duracao: '10 rodadas',
+                     evocacao: 'Instantânea', alcance: 'Pessoal',
+                     nivel_1: 'Aumenta 2 níveis da magia e reduz 1 de energia física.' };
+  const CAT = {
+    pjById: { 7: { id: 7, magias: { oferenda: 1, bola_de_fogo: 1 } } },
+    magiasByKey: {
+      oferenda: OFERENDA,
+      bola_de_fogo: { key: 'bola_de_fogo', nome: 'Bola de Fogo', duracao: 'Instantânea',
+                      evocacao: 'Instantânea', alcance: '20 metros',
+                      nivel_1: 'Causa 12 de dano elemental de fogo.',
+                      nivel_3: 'Causa 20 de dano elemental de fogo.' },
+    },
+    catalogoBySlug: {},
+  };
+  const ator = (over = {}) => ({ tipo: 'pj', ref_id: 7, inst_id: 'p7', nome: 'Clérigo',
+    status_temp: [], ef: 20, ef_max: 20, eh: 10, eh_max: 10, karma: 9, ...over });
+
+  it('sem Oferenda, a magia sai no nível comprado', () => {
+    const lista = M.magiasOfensivasDoAtor(ator(), CAT);
+    expect(lista.find((m) => m.key === 'bola_de_fogo').nivel).toBe(1);
+  });
+
+  it('COM Oferenda ativa, a próxima magia sobe de nível', () => {
+    const comBonus = ator({ status_temp: [
+      { id: 'mag_oferenda', rodadas_rest: 10, consome_em: 'magia_evocada',
+        efeito: { tipo: 'mod_nivel_magia', valor: 2 } },
+    ] });
+    const bola = M.magiasOfensivasDoAtor(comBonus, CAT).find((m) => m.key === 'bola_de_fogo');
+    expect(bola.nivel).toBe(3);
+    expect(bola.dano).toBe(20);   // lê o nivel_3, não o nivel_1
+  });
+
+  it('o karma continua custando o nível COMPRADO, não o ampliado', () => {
+    // A Oferenda paga em sangue (EF); cobrar karma pelo bônus seria cobrar
+    // duas vezes pela mesma coisa.
+    const comBonus = ator({ status_temp: [
+      { id: 'mag_oferenda', efeito: { tipo: 'mod_nivel_magia', valor: 2 } },
+    ] });
+    expect(M.magiasOfensivasDoAtor(comBonus, CAT)
+      .find((m) => m.key === 'bola_de_fogo').custo_karma).toBe(1);
+  });
+
+  it('o teto é 9 — o topo da escala', () => {
+    expect(M.nivelComOferenda({ status_temp: [
+      { efeito: { tipo: 'mod_nivel_magia', valor: 6 } }] }, 7)).toBe(9);
+  });
+
+  it('lançar a magia QUEIMA a Oferenda', () => {
+    const p = ator({ status_temp: [
+      { id: 'mag_oferenda', consome_em: 'magia_evocada',
+        efeito: { tipo: 'mod_nivel_magia', valor: 2 } },
+    ] });
+    expect(M.consumirOferenda(p).status_temp).toHaveLength(0);
+  });
+
+  it('a queima NÃO leva junto o bloqueio de cura de EF', () => {
+    /* Oferenda deixa três status e só um morre na próxima magia: "enquanto
+       este efeito durar, você não poderá recuperar sua energia física" vale
+       as 10 rodadas inteiras. Por isso consome_em desce POR EFEITO. */
+    const p = ator({ status_temp: [
+      { id: 'mag_oferenda', consome_em: 'magia_evocada',
+        efeito: { tipo: 'mod_nivel_magia', valor: 2 } },
+      { id: 'mag_oferenda', rodadas_rest: 10, efeito: { tipo: 'sem_cura_ef', valor: true } },
+    ] });
+    const r = M.consumirOferenda(p);
+    expect(r.status_temp).toHaveLength(1);
+    expect(r.status_temp[0].efeito.tipo).toBe('sem_cura_ef');
+  });
+
+  it('sem Oferenda, consumir não muda nada', () => {
+    const p = ator();
+    expect(M.consumirOferenda(p)).toBe(p);
+  });
+
+  it('aplicarEfeitoMagia grava consome_em no status, vindo do EFEITO', () => {
+    // O defeito original: aplicarEfeitoMagia lia reg.consome_em (nível da
+    // entrada) e o campo nunca chegava ao status.
+    const r = M.aplicarEfeitoMagia(ator(), OFERENDA, 1, { fonteInstId: 'p7' });
+    const nivelSt = r.status_temp.find((s) => s.efeito.tipo === 'mod_nivel_magia');
+    expect(nivelSt.consome_em).toBe('magia_evocada');
+    const curaSt = r.status_temp.find((s) => s.efeito.tipo === 'sem_cura_ef');
+    expect(curaSt.consome_em).toBeUndefined();
+  });
+
+  it('sem_cura_ef bloqueia recuperação de EF, mas não o custo', () => {
+    const p = ator({ ef: 5, status_temp: [
+      { id: 'mag_oferenda', rodadas_rest: 10, efeito: { tipo: 'sem_cura_ef', valor: true } },
+    ] });
+    expect(M.aplicarCuraPool(p, 'ef', 8).ef).toBe(5);                        // não cura
+    expect(M.aplicarCuraPool(p, 'ef', 3, { inverter: true }).ef).toBe(2);    // custo passa
+    expect(M.aplicarCuraPool(p, 'eh', 5).eh).toBe(10);                       // EH não é afetada
+  });
+});

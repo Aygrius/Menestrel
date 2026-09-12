@@ -699,6 +699,33 @@ function exigeResistencia(magia) {
    CRIATURA NÃO PAGA KARMA. A tabela `criaturas` não tem coluna de karma e o
    snapshot as monta com karma 0/0; cobrar bloquearia toda conjuração de
    monstro. O custo delas é o ponto de ação, como o dos golpes. */
+/* ── O bônus de nível da Oferenda ──────────────────────────────────
+   "A próxima magia que evocar terá seus níveis ampliados." O bônus soma
+   direto na escala 1/3/5/7/9 e cai certo nela: "+2 níveis" leva 1 a 3, "+6"
+   leva 1 a 7. Teto em 9, que é o topo da escala.
+
+   Some para QUALQUER magia da lista, porque o jogador ainda não escolheu
+   qual vai lançar — é isso que "a próxima" significa. O status é queimado na
+   conjuração, por consumirOferenda. */
+function nivelComOferenda(ator, nivelBase) {
+  const bonus = somaEfeitosStatus(ator, 'mod_nivel_magia');
+  if (!bonus) return nivelBase;
+  return Math.min(9, Math.max(1, (Number(nivelBase) || 1) + bonus));
+}
+
+/* Queima o status de Oferenda depois que uma magia saiu.
+
+   `consome_em: 'magia_evocada'` mora no EFEITO, não na entrada: a Oferenda
+   deixa três status e só este morre agora — `sem_cura_ef` dura as 10 rodadas
+   inteiras. Molde de consumirEvitaGolpe, que faz o mesmo com a Esquiva.
+
+   Devolve o MESMO participante quando não há nada a queimar. */
+function consumirOferenda(p) {
+  const st = Array.isArray(p && p.status_temp) ? p.status_temp : null;
+  if (!st || !st.some((s) => s.consome_em === 'magia_evocada')) return p;
+  return { ...p, status_temp: st.filter((s) => s.consome_em !== 'magia_evocada') };
+}
+
 function magiasConhecidasDoAtor(ator, catalogos) {
   if (!ator || !catalogos) return [];
 
@@ -710,8 +737,11 @@ function magiasConhecidasDoAtor(ator, catalogos) {
       if (p <= 0) return null;
       const m = catalogos.magiasByKey[key];
       if (!m) return null;
-      const nivel = (typeof nivelMagiaEfetivo === 'function') ? nivelMagiaEfetivo(p) : (p * 2 - 1);
-      return { key, magia: m, nivel, passos: p, custo_karma: nivel };
+      const base = (typeof nivelMagiaEfetivo === 'function') ? nivelMagiaEfetivo(p) : (p * 2 - 1);
+      const nivel = nivelComOferenda(ator, base);
+      // O karma continua custando o nível COMPRADO, não o ampliado: a Oferenda
+      // paga em sangue (EF), e cobrar karma pelo bônus seria cobrar duas vezes.
+      return { key, magia: m, nivel, passos: p, custo_karma: base };
     }).filter(Boolean);
   }
 
@@ -2823,6 +2853,7 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
         rodadas_rest: dur.rodadas,
         ...(dur.concentracao && opcoes && opcoes.fonteInstId
           ? { concentracao: { ator: opcoes.fonteInstId, magia_key: key } } : {}),
+        ...(ef.consome_em ? { consome_em: ef.consome_em } : {}),
         efeito: { tipo: ef.tipo, valor: ef.valor },
       });
       return;
@@ -2851,6 +2882,13 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
       rodadas_rest: dur.rodadas,
       ...(dur.concentracao && opcoes && opcoes.fonteInstId
         ? { concentracao: { ator: opcoes.fonteInstId, magia_key: key } } : {}),
+      /* consome_em desce POR EFEITO, não pela entrada.
+
+         As técnicas põem no registro inteiro porque lá cada entrada tem um
+         consumo só. Oferenda não: `mod_nivel_magia` morre na próxima magia,
+         e `sem_cura_ef` dura as 10 rodadas. Copiar do nível da entrada
+         apagaria os dois juntos. */
+      ...(ef.consome_em ? { consome_em: ef.consome_em } : {}),
       efeito,
     });
   });
@@ -2977,6 +3015,9 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu) {
       karma:   Math.max(0, (ator.karma   || 0) - k),
     };
   }
+  // A magia SAIU: queima a Oferenda, que vale para uma só. Vem depois do
+  // débito porque o nível ampliado já foi lido lá atrás, na montagem da lista.
+  next[atorIdx] = consumirOferenda(next[atorIdx]);
 
   /* AURA: o efeito não é num alvo escolhido, é em TODOS os válidos dentro do
      raio a partir do conjurador. Aura Divina é a única da Fase 1/2 assim.
@@ -4023,6 +4064,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // na aba Arma. Técnica, magia, habilidade e item continuam pagando
     // pa_rest (ver aplicarTeste/aplicarEfeitoItem, que não tocam este bloco).
     next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
+    // Magia ofensiva tambem queima a Oferenda: ela vale para UMA magia, seja
+    // ela de ataque ou de apoio.
+    if (tipo === 'magia') next[atorIdx] = consumirOferenda(next[atorIdx]);
 
     // Falha Crítica (q=0): a consequência do segundo dado cai no PRÓPRIO
     // atacante (Fase 1.1) — dano pulando EH + status mecânico da tabela.
@@ -7449,6 +7493,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // na aba Arma. Técnica, magia, habilidade e item continuam pagando
     // pa_rest (ver aplicarTeste/aplicarEfeitoItem, que não tocam este bloco).
     next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
+    // Magia ofensiva tambem queima a Oferenda: ela vale para UMA magia, seja
+    // ela de ataque ou de apoio.
+    if (tipo === 'magia') next[atorIdx] = consumirOferenda(next[atorIdx]);
     // Falha Crítica (q=0): consequência no PRÓPRIO atacante — espelha o Mestre (Fase 1.1).
     let danoSelf = 0;
     if (tipo_critico === 'self' && res_critico) {
@@ -8191,6 +8238,7 @@ Object.assign(window, {
        quebrarEvocacao fica ENCADEADA em quebrarConcentracao, então todo
        gatilho que já derrubava concentração derruba canalização. */
     aplicarEfeitoMagia, aplicarCuraPool, aplicarDrenoEh, danoAposReducao,
+    nivelComOferenda, consumirOferenda,
     alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia,
     alvosDeArea, alvosDeAura, alvosNoRaio,
     resumoEfeitoMagia, textoEfeitoMagia, aplicarCurasDaMagia,
