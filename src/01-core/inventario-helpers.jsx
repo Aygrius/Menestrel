@@ -434,9 +434,21 @@ function aplicarDeltaCondicao(atual, delta) {
 // da ficha (calcularFicha), usados só pro clamp de 'vitalidade'. Sem maximos,
 // assume Infinity (sem teto) — quem chama deve passar os máximos reais sempre
 // que disponíveis. Retorna um NOVO objeto estado_atual (não muta o original).
-function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
-  const efeitos = efeitosDoItem(cat, quantidade);
-  if (efeitos.length === 0) return estadoAtual;
+/* ── O APLICADOR, sozinho ──────────────────────────────────────────
+   Recebe efeitos JÁ PRONTOS — [{ scope, key, delta }] — e os escreve no
+   estado_atual. Extraído de aplicarEfeitosItem em 12/09/2026, quando a MAGIA
+   fora de combate passou a precisar do mesmo caminho (degrau 1,
+   docs/fora-de-combate.md).
+
+   Extrair em vez de copiar é o ponto: o clamp de poço, a escala de condição e
+   o piso de zero ficam num lugar só. Item consumido e magia evocada entram na
+   ficha pela mesma porta, e quando um deles estiver errado há um lugar para
+   corrigir — não dois que já divergiram.
+
+   aplicarEfeitosItem continua existindo com a mesma assinatura: quem já a
+   chamava não muda nada. */
+function aplicarEfeitosNaFicha(estadoAtual, efeitos, maximos) {
+  if (!Array.isArray(efeitos) || efeitos.length === 0) return estadoAtual;
 
   const mx = maximos || {};
   const base = estadoAtual || {};
@@ -465,6 +477,12 @@ function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
   return novo;
 }
 
+/* A composição de sempre: item → efeitos → ficha. Assinatura intocada, para
+   que os chamadores de antes de 12/09/2026 não saibam que algo mudou. */
+function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
+  return aplicarEfeitosNaFicha(estadoAtual, efeitosDoItem(cat, quantidade), maximos);
+}
+
 Object.assign(window, {
   MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas,
   fetchTabelaPaginada, fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
@@ -473,5 +491,5 @@ Object.assign(window, {
   calcResistenciaArmadura, resistenciaDeCriatura, FATOR_RESISTENCIA_CRIATURA,
   pecasDeArmadura,
   EFEITO_CONDICAO_MAP, parseEfeito, efeitosDoItem, aplicarDeltaCondicao,
-  aplicarEfeitosItem,
+  aplicarEfeitosItem, aplicarEfeitosNaFicha,
 });

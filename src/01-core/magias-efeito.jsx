@@ -328,6 +328,113 @@ function escaladaNoNivel(magia, nivel) {
   return m ? Math.abs(parseInt(m[1], 10)) || null : null;
 }
 
+/* ============================================================
+   FORA DE COMBATE — 12/09/2026
+   ============================================================
+   Duas decisões do usuário definem esta seção inteira:
+
+     1. "Fora de batalha, as rodadas não contam."
+     2. "Magias que aplicam efeitos em outros jogadores precisam de aprovação
+        do Mestre."
+
+   A primeira não é limitação: é uma classificação que o catálogo JÁ tinha
+   feito, e ela dispensa inventar qualquer taxa entre rodada e minuto.
+   Ver docs/fora-de-combate.md.
+   ============================================================ */
+/* Em qual dos quatro baldes esta evocação cai.
+
+   Lê o TEXTO DO NÍVEL primeiro: 53 magias têm `duracao: 'Variável'`, que
+   significa "veja o nível" — e a mesma magia pode ser instantânea no nível 1 e
+   durar horas no 9. A classificação é por EVOCAÇÃO, não por magia. */
+const RE_DUR_RODADAS = /\brodadas?\b/i;
+const RE_DUR_CALENDARIO = /\b(segundos?|minutos?|horas?|dias?|semanas?|m[êe]s|meses|anos?)\b/i;
+const RE_DUR_PERM = /\b(permanente|para\s+sempre|definitiv)/i;
+
+function classeDeDuracao(magia, nivel) {
+  const doNivel = (magia && magia['nivel_' + nivel]) || '';
+  // "A magia tem duração de 1 rodada." — a frase do nível manda.
+  const mNivel = /dura[çc][ãa]o\s+de\s+([^.]+)/i.exec(doNivel);
+  const candidatos = [mNivel ? mNivel[1] : null, (magia && magia.duracao) || ''];
+
+  for (const txt of candidatos) {
+    if (!txt) continue;
+    if (RE_DUR_PERM.test(txt)) return 'permanente';
+    if (RE_DUR_RODADAS.test(txt)) return 'rodadas';
+    if (RE_DUR_CALENDARIO.test(txt)) return 'calendario';
+    if (/instant[âa]nea/i.test(txt)) return 'instantanea';
+  }
+  // Sem nada legível — trata como instantânea, que é o balde que aplica e
+  // acaba: erra para o lado de não deixar efeito pendurado na ficha.
+  return 'instantanea';
+}
+
+/* A magia vale fora de combate? Rodada é coisa de batalha — decisão do
+   usuário. Instantânea e permanente valem; calendário fica para o degrau 3. */
+function valeForaDeCombate(magia, nivel) {
+  const c = classeDeDuracao(magia, nivel);
+  return c === 'instantanea' || c === 'permanente';
+}
+
+/* ── A magia, traduzida para o formato que a FICHA já sabe aplicar ──
+   Devolve a MESMA forma de `efeitosDoItem` — [{ scope, key, delta }] — para
+   que `aplicarEfeitosItem` faça o trabalho. Não é atalho: é o que impede uma
+   segunda verdade. O clamp de pool, a escala de condição e o piso de zero
+   passam a ser exatamente os mesmos de um item consumido, e há um lugar só
+   para corrigir quando algum estiver errado.
+
+   Só as primitivas INSTANTÂNEAS entram, e o encaixe é feliz: elas são
+   exatamente as que cabem numa ficha. As duradouras (mod_ataque, mod_defesa,
+   mod_vb…) precisam de `status_temp`, que conta rodadas — e rodada, fora de
+   combate, não conta. As duas regras chegam à mesma fronteira por caminhos
+   diferentes, o que é um bom sinal de que a fronteira é real. */
+function efeitosDeMagiaNaFicha(magia, nivel) {
+  const reg = magiaEfeitoDe(magia && magia.key);
+  if (!reg) return [];
+  const lido = efeitosNoNivel(magia, nivel);
+  const out = [];
+
+  reg.efeitos.forEach((ef) => {
+    const bruto = ef.unidade != null ? lido[ef.unidade] : null;
+    switch (ef.tipo) {
+      case 'cura_pool':
+        // `sinal: -1` existe: Necropotência cura morto-vivo e fere vivo.
+        if (bruto != null && (ef.pool === 'eh' || ef.pool === 'ef')) {
+          out.push({ scope: 'vitalidade', key: ef.pool, delta: (ef.sinal || 1) * bruto });
+        }
+        break;
+      case 'dreno_eh':
+        if (bruto != null) out.push({ scope: 'vitalidade', key: 'eh', delta: bruto });
+        break;
+      case 'dano':
+        // Fora de combate não há armadura nem cascata: o dano vai direto na
+        // energia física. É a mesma simplificação do veneno por rodada.
+        if (bruto != null) out.push({ scope: 'vitalidade', key: 'ef', delta: -bruto });
+        break;
+      case 'mod_condicao':
+        if (bruto != null && ef.condicao) {
+          out.push({ scope: 'condicoes', key: ef.condicao, delta: (ef.sinal || 1) * bruto });
+        }
+        break;
+      default:
+        break;   // duradoura: não cabe na ficha, e a regra das rodadas já diz
+    }
+  });
+  return out;
+}
+
+/* Por que esta evocação não aplicou nada — texto pronto para o log da mesa.
+   Devolve null quando ela APLICA; string quando não, e a string diz o motivo.
+   Sem isto, "evoquei e não aconteceu nada" vira suporte. */
+function motivoNaoAplicaNaFicha(magia, nivel) {
+  const reg = magiaEfeitoDe(magia && magia.key);
+  if (!reg) return 'narrativa';                       // sem entrada no motor
+  const classe = classeDeDuracao(magia, nivel);
+  if (classe === 'rodadas') return 'rodadas';         // é magia de combate
+  if (classe === 'calendario') return 'calendario';   // degrau 3
+  if (efeitosDeMagiaNaFicha(magia, nivel).length === 0) return 'duradoura';
+  return null;
+}
+
 /* ── Até qual escuridão a magia deixa enxergar ─────────────────────
    Visão Animal, e a escada está no texto dos níveis:
 
@@ -960,6 +1067,7 @@ function tetoEstagioNoNivel(magia, nivel) {
 Object.assign(window, {
   efeitosNoNivel, elementoDoNivel, escaladaNoNivel, curaEmDiasNoNivel,
   testeHabilidadeNoNivel, visaoEscuridaoNoNivel, DIFICULDADE_POR_NOME, MAGIA_ELEMENTOS_VALIDOS,
+  classeDeDuracao, valeForaDeCombate, efeitosDeMagiaNaFicha, motivoNaoAplicaNaFicha,
   MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
 });
 

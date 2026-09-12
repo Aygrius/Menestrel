@@ -2009,20 +2009,81 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onTroca
   // em Galadar." Sem teste de qualidade aqui (diferente de habilidade) —
   // a magia, por ora, só notifica; aplicar o efeito mecânico no alvo é
   // trabalho futuro (curar/dano/buff), fora do escopo desta notificação.
+  /* EVOCAR FORA DE COMBATE — degrau 1, 12/09/2026.
+     Ver docs/fora-de-combate.md.
+
+     Até aqui este handler só escrevia no log: a magia era anunciada e não
+     acontecia. Agora ela ACONTECE, dentro de uma fronteira estreita e
+     deliberada — alvo é o próprio conjurador, e o efeito é instantâneo.
+
+     As duas regras do usuário desenham a fronteira:
+
+       • alvo em TERCEIRO exige aprovação do Mestre (degrau 2). Aqui o
+         evento vai para o log como pendente, e ninguém escreve na ficha do
+         colega — o que o banco recusaria de qualquer jeito, com razão;
+       • magia de RODADA é magia de combate. Fora dele, só o log.
+
+     Quando não aplica, o log DIZ POR QUÊ. "Evoquei e não aconteceu nada" foi
+     o que esta tela fez por meses, e não pode voltar a ser um mistério. */
   const aoEvocarMagia = ({ nivel, alvo }) => {
     if (!magiaDetalheKey) return;
     const mag = magiasByKey[magiaDetalheKey];
     if (!mag) return;
     const nomePj = [pj?.nome, pj?.sobrenome].filter(Boolean).join(' ');
     const nomeAlvo = alvo ? alvo.nome : null;
-    const texto = en
+    const emMim = !alvo || String(alvo.id) === String(pj.id);
+
+    const motivo = (typeof motivoNaoAplicaNaFicha === 'function')
+      ? motivoNaoAplicaNaFicha(mag, nivel) : 'narrativa';
+    const aplicou = emMim && !motivo && podeEditarFoto;
+
+    if (aplicou) {
+      /* O karma sai do NÍVEL EVOCADO, não do nível comprado. Em batalha se
+         conjura sempre no máximo e a distinção não aparece; aqui o jogador
+         escolhe o nível, e cobrar o máximo por uma evocação de nível 1 seria
+         cobrar o que ele não usou. */
+      /* aplicarEfeitosNaFicha é a MESMA porta que o item consumido usa —
+         extraída de aplicarEfeitosItem justamente para isto. O clamp de poço,
+         a escala de condição e o piso de zero são os mesmos, e há um lugar só
+         para corrigir quando algum estiver errado. */
+      const efeitos = [...efeitosDeMagiaNaFicha(mag, nivel),
+                       { scope: 'vitalidade', key: 'ka', delta: -nivel }];
+      const novo = aplicarEfeitosNaFicha(pj.estado_atual, efeitos, maximosVitalidade);
+      if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
+    }
+
+    const SUFIXO = {
+      rodadas:    en ? ' — lasts in rounds, so it is a combat spell: cast it in battle.'
+                     : ' — dura em rodadas, então é magia de combate: evoque em batalha.',
+      calendario: en ? ' — lasts on the calendar; the GM applies it.'
+                     : ' — dura no calendário; o Mestre aplica.',
+      duradoura:  en ? ' — lasting effect; the GM applies it.'
+                     : ' — efeito duradouro; o Mestre aplica.',
+      narrativa:  en ? ' — narrative effect, resolve at the table.'
+                     : ' — efeito narrativo, resolva na mesa.',
+    };
+    const sufixo = aplicou ? ''
+      : (!emMim
+          ? (en ? ' — awaiting the GM to apply it on the target.'
+                : ' — aguardando o Mestre aplicar no alvo.')
+          : (SUFIXO[motivo] || ''));
+
+    const texto = (en
       ? `${nomePj} cast the spell ${mag.nome} level ${nivel}${nomeAlvo ? ` on ${nomeAlvo}` : ''}.`
-      : `${nomePj} usou a magia ${mag.nome} nível ${nivel}${nomeAlvo ? ` em ${nomeAlvo}` : ''}.`;
+      : `${nomePj} usou a magia ${mag.nome} nível ${nivel}${nomeAlvo ? ` em ${nomeAlvo}` : ''}.`)
+      + sufixo;
+
     registrarEventoMesa('magia', texto, {
       magia: mag.nome,
       nivel,
       alvo_id: alvo ? alvo.id : null,
       alvo_nome: nomeAlvo,
+      // `pendente` é o que o Mestre vai ler para saber que há algo a aplicar
+      // (degrau 2). Já viaja agora para o log nascer com a forma certa.
+      aplicado: aplicou,
+      pendente: !aplicou && !emMim,
+      motivo: aplicou ? null : (emMim ? motivo : 'aprovacao_mestre'),
+      karma_gasto: aplicou ? nivel : 0,
     });
   };
 
