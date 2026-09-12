@@ -8191,3 +8191,27 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .mc-sidebar .mc-user { justify-content: center; padding: 9px; border-top: none; }
 #root .menestrel-ui .mc-sidebar .mc-user-name { display: none; }
 #root .menestrel-ui .mc-sidebar .mc-user i.ti-chevron-right { display: none; }
+
+/* ── CARREGANDO — um texto só, uma animação só (12/09/2026) ──────────
+   Eram nove textos diferentes para a mesma espera. O ícone gira e o texto
+   respira devagar: movimento suficiente para dizer "está vivo", lento o
+   bastante para não competir com o conteúdo que vai chegar.
+
+   prefers-reduced-motion desliga as duas — quem pediu menos movimento não
+   deve receber movimento nenhum só porque é bonito. */
+#root .menestrel-ui .mn-carregando {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 40px 20px; color: #9C8F73;
+  font-family: 'Lora', serif; font-size: 14px;
+  animation: mn-carregando-respira 2s ease-in-out infinite;
+}
+#root .menestrel-ui .mn-carregando-gira {
+  font-size: 20px; color: #C9A44E;
+  animation: mn-carregando-gira 1s linear infinite;
+}
+@keyframes mn-carregando-gira { to { transform: rotate(360deg); } }
+@keyframes mn-carregando-respira { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .mn-carregando,
+  #root .menestrel-ui .mn-carregando-gira { animation: none; }
+}

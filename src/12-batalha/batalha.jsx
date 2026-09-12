@@ -200,7 +200,7 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
         ) : (
           <>
             {batalhas === null ? (
-              <div className="admin-loading"><span>{tb.carregandoBatalhas}</span></div>
+              <Carregando lang={lang} />
             ) : batalhas.length === 0 ? (
               <div className="hist-protag-empty">
                 {tb.nenhumaBatalhaNestaHistoria}

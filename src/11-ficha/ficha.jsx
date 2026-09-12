@@ -1761,7 +1761,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     );
   }
   if (!pj || catalogo === null || magias === null || tecnicas === null || habilidades === null) {
-    return <div className="admin-loading"><span>{en ? 'Loading sheet…' : 'Abrindo a ficha…'}</span></div>;
+    return <Carregando lang={lang} />;
   }
 
   // História pausada pelo Mestre → bloqueia o ACESSO à ficha, mas só pro

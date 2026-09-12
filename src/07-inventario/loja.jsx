@@ -529,7 +529,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
 
   // ── Render ────────────────────────────────────────────────
   if (pjs === null || catalogo === null) {
-    return <div className="admin-loading"><span>{en ? 'Opening the shop…' : 'Abrindo a loja…'}</span></div>;
+    return <Carregando lang={lang} />;
   }
   if (error) {
     return (
@@ -578,7 +578,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
       {feedback && <div className="loja-feedback">{feedback}</div>}
 
       {loja === null ? (
-        <div className="admin-loading"><span>{en ? 'Opening the shop…' : 'Abrindo a loja…'}</span></div>
+        <Carregando lang={lang} />
       ) : (semHistoria || estoqueLoja.length === 0) ? (
         <div className="loja-warn-empty">
           <span>{en

@@ -82,6 +82,31 @@ function formatarDataFantasy(d, lang) {
   return `${d.dia} de ${nome}, ano ${d.ano}`;
 }
 
+/* ── CARREGANDO — um texto só, em toda página ──────────────────────
+   Decisão do usuário, 12/09/2026: "padronize o texto de carregamento de todas
+   as páginas, e adicione uma animação nele."
+
+   Havia NOVE textos diferentes para a mesma espera — "Consultando os
+   grimórios…", "Consultando o bestiário…", "Carregando fichas…",
+   "Carregando os itens…", "Consultando…" e por aí. Cada tela inventava o seu,
+   e o usuário aprendia que espera é uma coisa diferente em cada lugar.
+
+   Um texto só, uma animação só. Quem quiser dizer O QUE está carregando usa
+   `oQue` — mas o padrão é não dizer, porque na prática quem espera já sabe em
+   que tela está.
+
+   `role="status"` e `aria-live` para leitor de tela anunciar sem roubar o
+   foco; o ícone é decorativo e fica escondido dele. */
+function Carregando({ lang, oQue }) {
+  const txt = lang === 'en' ? 'Loading' : 'Carregando';
+  return (
+    <div className="mn-carregando" role="status" aria-live="polite">
+      <i className="ti ti-loader-2 mn-carregando-gira" aria-hidden="true" />
+      <span>{oQue ? `${txt} ${oQue}…` : `${txt}…`}</span>
+    </div>
+  );
+}
+
 // ── useTweaks ───────────────────────────────────────────────────────────────
 // Fonte única de verdade pros valores do tweak. setTweak persiste via host
 // (__edit_mode_set_keys → host reescreve o bloco EDITMODE em disco).
@@ -195,7 +220,7 @@ function propsTip(abrirTip, fecharTip, content) {
   return { onMouseEnter: abrir, onMouseLeave: fecharTip, onFocus: abrir, onBlur: fecharTip };
 }
 
-Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, propsTip,
+Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, propsTip, Carregando,
   somarDiasFantasy, dataFantasyParaAbsoluto, absolutoParaDataFantasy, formatarDataFantasy,
   FANTASY_DIAS_ANO });
 

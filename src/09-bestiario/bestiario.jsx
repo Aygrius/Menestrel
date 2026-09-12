@@ -402,9 +402,9 @@ function CriaturasList({ ac, lang, modoJogador }) {
   useEffect(() => { setPage(1); setExpandida(null); }, [query, tipoFiltro]);
 
   if (!Table) return <BestNoKit />;
-  if (criaturas === null) return <BestLoading text={lang === 'en' ? 'Loading bestiary…' : 'Consultando o bestiário…'} />;
+  if (criaturas === null) return <BestLoading lang={lang} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'criaturas' table exists in Supabase." : "Confira se a tabela 'criaturas' existe no Supabase."} />;
-  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading bestiary…' : 'Consultando o bestiário…'} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
   const q = query.trim().toLowerCase();
   const tiposPresentes = ['all', ...Array.from(new Set(criaturas.map((c) => c.tipo).filter(Boolean))).sort()];
@@ -548,8 +548,8 @@ const badgeStyle = { background: '#F5ECD4', color: '#8A6B12', border: '1px solid
 function BestNoKit() {
   return <div style={{ padding: 24, color: '#9C8F73', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
 }
-function BestLoading({ text }) {
-  return <div className="admin-loading"><span>{text}</span></div>;
+function BestLoading({ lang }) {
+  return <Carregando lang={lang} />;
 }
 function BestErrorBox({ error, hint }) {
   return (
@@ -929,9 +929,9 @@ function MagiasList({ ac, lang, modoJogador }) {
   useEffect(() => { setPage(1); setExpandida(null); }, [query, tipoFiltro]);
 
   if (!Table) return <BestNoKit />;
-  if (magias === null) return <BestLoading text={lang === 'en' ? 'Loading spells…' : 'Consultando os grimórios…'} />;
+  if (magias === null) return <BestLoading lang={lang} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'magias' table exists in Supabase." : "Confira se a tabela 'magias' existe no Supabase."} />;
-  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading spells…' : 'Consultando os grimórios…'} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
   const q = query.trim().toLowerCase();
   let filtered = (magiasSorted || []).filter((m) => {
@@ -1080,9 +1080,9 @@ function HabilidadesList({ ac, lang, modoJogador }) {
   useEffect(() => { setPage(1); setExpandida(null); }, [query, categoriaFiltro]);
 
   if (!Table) return <BestNoKit />;
-  if (habilidades === null) return <BestLoading text={lang === 'en' ? 'Loading skills…' : 'Carregando habilidades…'} />;
+  if (habilidades === null) return <BestLoading lang={lang} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'habilidades' table exists in Supabase." : "Confira se a tabela 'habilidades' existe no Supabase."} />;
-  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading skills…' : 'Carregando habilidades…'} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
   const todasHabilidades = habSorted || [];
   // Categorias na ordem canônica, só as que aparecem (agora renderizadas como chips — antes só tinha "Todas").
@@ -1363,9 +1363,9 @@ function TecnicasList({ ac, lang, modoJogador }) {
   useEffect(() => { setPage(1); setExpandida(null); }, [query, usoFiltro]);
 
   if (!Table) return <BestNoKit />;
-  if (tecnicas === null) return <BestLoading text={lang === 'en' ? 'Loading techniques…' : 'Consultando os manuais de combate…'} />;
+  if (tecnicas === null) return <BestLoading lang={lang} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'tecnicas' table exists in Supabase." : "Confira se a tabela 'tecnicas' existe no Supabase."} />;
-  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading techniques…' : 'Consultando os manuais de combate…'} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
   const usosDisponiveis = Array.from(new Set(tecnicas.map((t) => t.uso).filter(Boolean))).sort();
 
@@ -1506,9 +1506,9 @@ function ItensList({ ac, lang, modoJogador }) {
   useEffect(() => { setPage(1); setExpandida(null); }, [query, grupoFiltro, precoFiltro]);
 
   if (!Table) return <BestNoKit />;
-  if (itens === null) return <BestLoading text={lang === 'en' ? 'Loading items…' : 'Consultando o inventário do mundo…'} />;
+  if (itens === null) return <BestLoading lang={lang} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'itens' table exists in Supabase." : "Confira se a tabela 'itens' existe no Supabase."} />;
-  if (modoJogador && carregandoConhecido) return <BestLoading text={lang === 'en' ? 'Loading items…' : 'Consultando o inventário do mundo…'} />;
+  if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
   const gruposDisponiveis = Array.from(new Set(itens.map((i) => i.grupo).filter(Boolean))).sort();
 

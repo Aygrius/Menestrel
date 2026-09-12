@@ -257,8 +257,8 @@ function montarCatalogoDisponivel(resp) {
 
 // ---------- Loading / erro (versões locais — ver nota "Depende de" no topo) ----------
 
-function DiarioLoading({ text }) {
-  return <div className="admin-loading"><span>{text}</span></div>;
+function DiarioLoading({ lang }) {
+  return <Carregando lang={lang} />;
 }
 
 function DiarioErrorBox({ error, hint }) {
@@ -1616,7 +1616,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre }) {
   // ── Early returns ─────────────────────────────────────────────
   if (!pjId) return null;
   if (lore === null && criaturas === null) {
-    return <DiarioLoading text={en ? 'Loading journal…' : 'Carregando diário…'} />;
+    return <DiarioLoading lang={lang} />;
   }
 
   // ── Helpers ───────────────────────────────────────────────────
@@ -2188,7 +2188,7 @@ function SelecionarBaseModal({ tipo, lang, onClose, onEscolher }) {
       </button>
 
       {entradas === null ? (
-        <DiarioLoading text={en ? 'Loading catalog…' : 'Carregando catálogo…'} />
+        <DiarioLoading lang={lang} />
       ) : error ? (
         <DiarioErrorBox error={error} hint={en ? 'Could not load the world catalog.' : 'Não foi possível carregar o catálogo do mundo.'} />
       ) : entradas.length === 0 ? (
@@ -2861,7 +2861,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
         </div>
         <div className="lore-mng-page-body">
         {lore === null ? (
-          <DiarioLoading text={en ? 'Loading…' : 'Carregando…'} />
+          <DiarioLoading lang={lang} />
         ) : (
           <>
 
@@ -2897,7 +2897,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
 
             {DIARIO_TIPOS_NOVOS.has(tipoAba) ? (() => {
               if (loadingExtra || catalogoNovos[tipoAba] === null) {
-                return <DiarioLoading text={en ? 'Loading…' : 'Carregando…'} />;
+                return <DiarioLoading lang={lang} />;
               }
               if (errorExtra) {
                 return <DiarioErrorBox error={errorExtra} hint={en ? 'Could not load data.' : 'Não foi possível carregar os dados.'} />;

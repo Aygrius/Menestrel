@@ -98,7 +98,7 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
   }, [abrirNovaHistoriaRef, limiteFree]);
 
   if (historias === null) {
-    return <div className="admin-loading"><span>{th.lista.carregando}</span></div>;
+    return <Carregando lang={lang} />;
   }
   if (error) {
     return (
@@ -951,7 +951,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
 
         <div className="loja-mng-v3-page-body">
           {catalogo === null ? (
-            <div className="admin-loading"><span>{tl.loading}</span></div>
+            <Carregando lang={lang} />
           ) : (
             <div className="loja-mng-v4-layout">
 

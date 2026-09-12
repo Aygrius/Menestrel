@@ -1121,7 +1121,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
 
   // ── Render ────────────────────────────────────────────────
   if (pjs === null || catalogo === null) {
-    return <div className="admin-loading"><span>{lang === 'en' ? 'Loading inventory…' : 'Abrindo as algibeiras…'}</span></div>;
+    return <Carregando lang={lang} />;
   }
   if (error) {
     return (

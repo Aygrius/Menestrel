@@ -358,7 +358,7 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   // ninguém mais chamava esta versão.
 
   if (personagens === null) {
-    return <div className="admin-loading"><span>{lang === 'en' ? 'Loading characters…' : 'Reunindo a comitiva…'}</span></div>;
+    return <Carregando lang={lang} />;
   }
   if (error) {
     return (
@@ -983,7 +983,7 @@ function DarMoedasModal({ personagem, lang, onCancel, onSaved }) {
   if (!coinVals) {
     return (
       <ModalShell title={en ? 'Coins' : 'Moedas'} lang={lang} size="sm" onClose={onCancel} onCancel={onCancel}>
-        <div className="admin-loading"><span>{en ? 'Loading...' : 'Carregando...'}</span></div>
+        <Carregando lang={lang} />
       </ModalShell>
     );
   }
@@ -2628,7 +2628,7 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
   const estagio = calcEstagio(form.experiencia);
 
   if (magiasDb === null) {
-    return <div className="admin-loading"><span>{lang === 'en' ? 'Loading spells…' : 'Consultando os grimórios…'}</span></div>;
+    return <Carregando lang={lang} />;
   }
   if (magiasError) {
     return (
@@ -2806,7 +2806,7 @@ function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalP
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
 
   if (tecnicasDb === null) {
-    return <div className="admin-loading"><span>{lang === 'en' ? 'Loading techniques…' : 'Consultando os manuais de combate…'}</span></div>;
+    return <Carregando lang={lang} />;
   }
   if (tecnicasError) {
     return (
