@@ -874,6 +874,9 @@ function magiasOfensivasDoAtor(ator, catalogos) {
       // concede (ver magiasDeItensDoAtor). O painel mostra, e o pergaminho
       // e consumido por aqui.
       item: item || null,
+      // Os níveis que este conjurador pode escolher — o nível é decisão dele
+      // (12/09/2026), e é ele que define o karma. Ver magiaNoNivel.
+      niveis: niveisDisponiveis(m, nivel),
     });
   });
   return out;
@@ -939,9 +942,63 @@ function magiasDeApoioDoAtor(ator, catalogos) {
       // nível dele, não de campos pré-mastigados aqui.
       catalogo: m,
       item: item || null,
+      niveis: niveisDisponiveis(m, nivel),
     });
   });
   return out;
+}
+
+/* ── O NÍVEL É ESCOLHA DO JOGADOR ──────────────────────────────────
+   Decisão do usuário, 12/09/2026: "Dentro ou fora de batalha, o nível da magia
+   é uma escolha do jogador. O nível da magia é também a quantidade de karma
+   que a magia consome."
+
+   Fora de combate a ficha já deixava escolher; em batalha, não — conjurava-se
+   sempre no nível máximo comprado, e o karma saía desse mesmo número. Isso
+   tirava do jogador a decisão mais interessante que a magia oferece: gastar
+   menos para guardar karma.
+
+   Esta função é o ÚNICO lugar que sabe quais campos dependem do nível. As
+   listas (ofensiva e apoio) a chamam para montar o item no nível máximo, e o
+   painel a chama de novo quando o jogador escolhe outro — assim não há duas
+   contas do mesmo número, que é o erro que esta sessão passou inteira
+   corrigindo.
+
+   `custo_karma` vira o próprio nível, como o usuário definiu. A exceção é
+   magia vinda de ITEM, que não custa karma nenhum: a magia está no anel, não
+   em quem o usa (decisão anterior, mantida). */
+function magiaNoNivel(base, nivel) {
+  if (!base || !base.catalogo || nivel == null || nivel === base.nivel) return base;
+  const m = base.catalogo;
+  const dur = duracaoNoNivel(m, nivel);
+  return {
+    ...base,
+    nivel,
+    custo_karma: base.item ? 0 : nivel,
+    descricao: m['nivel_' + nivel] || null,
+    // Ofensiva: dano e elemento saem do texto daquele nível.
+    ...(base.dano !== undefined
+      ? { dano: danoMagiaNoNivel(m, nivel),
+          elemento: (typeof elementoDoNivel === 'function') ? elementoDoNivel(m, nivel) : null }
+      : {}),
+    // Apoio: duração, velocidade e o teste de habilidade também.
+    ...(base.rodadas !== undefined
+      ? { rodadas: dur.rodadas, concentracao: dur.concentracao,
+          mod_vb: modVelocidadeNoNivel(m, nivel),
+          teste_habilidade: (typeof testeHabilidadeNoNivel === 'function')
+            ? testeHabilidadeNoNivel(m, nivel) : null }
+      : {}),
+  };
+}
+
+/* Quais níveis este conjurador pode escolher: os que ele comprou E que têm
+   texto. Magia sem texto num nível não tem o que aplicar ali.
+
+   A escada do sistema é 1/3/5/7/9 — não há nível 2. */
+const MAGIA_NIVEIS_ESCADA = [1, 3, 5, 7, 9];
+
+function niveisDisponiveis(m, nivelMax) {
+  return MAGIA_NIVEIS_ESCADA.filter((n) => n <= (nivelMax || 0) && !!(m && m['nivel_' + n]));
 }
 
 /* ── Técnicas conhecidas pelo PJ ──────────────────────────────── */
@@ -1653,8 +1710,39 @@ const VISIBILIDADE_NIVEL = { clara: 0, parcial: 1, total: 2, magica: 3 };
    de debuff, então não inventa mecanismo novo. */
 const VISIBILIDADE_PENALIDADE = { clara: 0, parcial: -2, total: -4, magica: -6 };
 
+/* Ícone de cada estado, num lugar só.
+
+   Estava espalhado num ternário dentro do JSX e usava `ti-cloud-moon`, que NÃO
+   EXISTE no conjunto Tabler — a escuridão parcial saía como quadrado vazio.
+   Os quatro abaixo foram conferidos contra o tabler-icons.min.css que o
+   index.html carrega. Ícone inventado não avisa que está errado: some, e é o
+   tipo de erro que só aparece quando alguém abre a tela. */
+const VISIBILIDADE_ICONE = {
+  clara:   'ti-sun',          // dia
+  parcial: 'ti-moon-stars',   // noite sem lua
+  total:   'ti-moon-off',     // ambiente fechado
+  magica:  'ti-eye-off',      // ausência total de luz
+};
+const VISIBILIDADE_ORDEM = ['clara', 'parcial', 'total', 'magica'];
+
 function nivelVisibilidade(v) {
   return VISIBILIDADE_NIVEL[v] != null ? VISIBILIDADE_NIVEL[v] : 0;
+}
+
+/* O botão CICLA em vez de abrir menu: são quatro estados numa escada, e o
+   ícone diz em qual você está. O Mestre acende a escuridão no meio da cena
+   sem tirar a mão do teclado. */
+function proximaVisibilidade(v) {
+  const i = VISIBILIDADE_ORDEM.indexOf(v);
+  return VISIBILIDADE_ORDEM[(i < 0 ? 0 : i + 1) % VISIBILIDADE_ORDEM.length];
+}
+
+/* Nome do estado mais o que ele custa. O tooltip é o único lugar onde a
+   penalidade aparece antes de alguém rolar um dado. */
+function textoVisibilidade(v, tb) {
+  const nome = (tb && tb['visib_' + v]) || v;
+  const pen = VISIBILIDADE_PENALIDADE[v];
+  return pen ? `${nome} · ${pen} ${(tb && tb.coluna) || 'de coluna'}` : nome;
 }
 
 /* Este combatente enxerga NESTE nível de escuridão?
@@ -5286,19 +5374,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         <button type="button"
           className={'btn-icon btn-ghost btn-sm visib-' + visibilidade}
           disabled={salvando || rolagemPendente}
-          onClick={() => {
-            const ordem = ['clara', 'parcial', 'total', 'magica'];
-            const prox = ordem[(ordem.indexOf(visibilidade) + 1) % ordem.length];
-            setVisibilidade(prox);
-            persistir({ visibilidade: prox });
-          }}
-          onMouseEnter={(e) => abrirTip(e, (tb['visib_' + visibilidade] || visibilidade)
-            + (VISIBILIDADE_PENALIDADE[visibilidade]
-               ? ` · ${VISIBILIDADE_PENALIDADE[visibilidade]} ${tb.coluna || 'coluna'}` : ''))}
+          onClick={() => { const p = proximaVisibilidade(visibilidade); setVisibilidade(p); persistir({ visibilidade: p }); }}
+          onMouseEnter={(e) => abrirTip(e, textoVisibilidade(visibilidade, tb))}
           onMouseLeave={fecharTip}>
-          <i className={'ti ' + (visibilidade === 'clara' ? 'ti-sun'
-            : visibilidade === 'parcial' ? 'ti-cloud-moon'
-            : visibilidade === 'total' ? 'ti-moon-off' : 'ti-eye-off')} aria-hidden="true" />
+          <i className={'ti ' + VISIBILIDADE_ICONE[visibilidade]} aria-hidden="true" />
         </button>
         <button type="button" className="btn-icon btn-ghost btn-sm" disabled={salvando || rolagemPendente} onClick={novaRodada}
           onMouseEnter={(e) => abrirTip(e, tb.novaRodada)} onMouseLeave={fecharTip}>
@@ -5458,6 +5537,27 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         <p className="batalha-setup-intro">
           {tb.tudoProntoParaO}
         </p>
+        {/* VISIBILIDADE NA MONTAGEM (12/09/2026, a pedido do usuário).
+            A escuridão é da CENA, e a cena é decidida antes de alguém rolar
+            dado: emboscada noturna, cripta, caverna. Escolher só depois de
+            iniciar obrigaria o Mestre a começar a batalha errada e corrigir.
+
+            Mesmo botão que cicla no header da batalha ativa — mesma função,
+            mesmos ícones, mesmo texto. Aqui ele ganha o nome escrito ao lado,
+            porque na montagem há espaço e não há pressa. */}
+        <div className="batalha-setup-visib">
+          <button type="button"
+            className={'btn-ghost btn-sm visib-' + visibilidade}
+            disabled={salvando}
+            onClick={() => {
+              const prox = proximaVisibilidade(visibilidade);
+              setVisibilidade(prox);
+              persistir({ visibilidade: prox });
+            }}>
+            <i className={'ti ' + VISIBILIDADE_ICONE[visibilidade]} aria-hidden="true" />
+            {' '}{textoVisibilidade(visibilidade, tb)}
+          </button>
+        </div>
         <ul className="batalha-part-list">
           {participantes.map((p, i) => (
             <li key={i} className="batalha-part-row">
@@ -6684,13 +6784,20 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const tecnica = (tecIdx >= 0 && tecnicasCompat[tecIdx]) || null;
 
   // ── Tab MAGIA ──────────────────────────────────────────────
-  const magia = magias[magiaIdx] || null;
+  /* NÍVEL ESCOLHIDO PELO JOGADOR (12/09/2026). `null` = o máximo, que é o
+     padrão e o comportamento de antes desta data. Guardado por ABA porque
+     magia de ataque e magia de apoio são escolhas independentes. */
+  const [nivelMagiaSel, setNivelMagiaSel] = useState(null);
+  const [nivelApoioSel, setNivelApoioSel] = useState(null);
+  const magiaBase = magias[magiaIdx] || null;
+  const magia = magiaNoNivel(magiaBase, nivelMagiaSel);
 
   // ── Alvo (compartilhado) ───────────────────────────────────
   const alvo = alvos[alvoIdx] || null;
 
   // ── Tab APOIO ──────────────────────────────────────────────
-  const apoioSel = magiasApoio[apoioIdx] || null;
+  const apoioBase = magiasApoio[apoioIdx] || null;
+  const apoioSel = magiaNoNivel(apoioBase, nivelApoioSel);
   /* Canalização em curso trava a aba na magia que está sendo evocada: trocar
      de magia no meio é uma ação, e ação derruba a evocação (quebrarEvocacao).
      Deixar o select livre daria ao jogador um jeito de perder o karma sem
@@ -7340,7 +7447,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
               label={tb.magia}
               value={magiaIdx}
               disabled={temRolagemPendente}
-              onChange={(v) => { setMagiaIdx(parseInt(v, 10)); setD20(null); }}
+              // Trocar de magia zera o nível escolhido: o nível de uma não
+              // significa nada na outra, e manter vazaria entre elas.
+              onChange={(v) => { setMagiaIdx(parseInt(v, 10)); setNivelMagiaSel(null); setD20(null); }}
               /* Ritual fica VISÍVEL e desabilitado: o Mestre precisa ver que a
                  magia existe e por que não dá pra usá-la em batalha. Mesmo
                  padrão da aba Apoio e de tecUso/tecEquip na aba Técnica. */
@@ -7355,6 +7464,21 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
                 disabled: !!m.evocacao_bloqueada,
               }))}
             />
+            {/* NÍVEL — escolha do jogador, e é ele que define o karma
+                (12/09/2026). Só aparece quando há mais de um nível para
+                escolher: com um só, o seletor seria decoração. */}
+            {magiaBase && (magiaBase.niveis || []).length > 1 && (
+              <SelectPill
+                label={tb.nivel}
+                value={magia.nivel}
+                disabled={temRolagemPendente}
+                onChange={(v) => { setNivelMagiaSel(parseInt(v, 10)); setD20(null); }}
+                options={magiaBase.niveis.map((n) => ({
+                  value: n,
+                  label: magiaBase.item ? `${n}` : `${n} · ${n} ${tb.karma}`,
+                }))}
+              />
+            )}
             <SelectPill
               label={tb.alvo}
               value={alvoIdx}
@@ -7579,7 +7703,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
                 label={tb.magiaDeApoio}
                 value={apoioIdx}
                 disabled={temRolagemPendente}
-                onChange={(v) => { setApoioIdx(parseInt(v, 10)); setAlvoApoioIdx(0); setD20(null); }}
+                onChange={(v) => { setApoioIdx(parseInt(v, 10)); setAlvoApoioIdx(0); setNivelApoioSel(null); setD20(null); }}
                 /* Ritual fica VISÍVEL e desabilitado, não escondido: o Mestre
                    precisa ver que a magia existe e por que não dá pra usá-la,
                    senão procura um bug que não existe. Mesmo padrão de
@@ -7592,6 +7716,20 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
                   disabled: !!m.evocacao_bloqueada,
                 }))}
               />
+              {/* Mesmo seletor de nível da aba Magia — e o mesmo motivo: o
+                  nível é escolha do jogador, e é ele que define o karma. */}
+              {apoioBase && (apoioBase.niveis || []).length > 1 && !evocandoAgora && (
+                <SelectPill
+                  label={tb.nivel}
+                  value={apoioSel.nivel}
+                  disabled={temRolagemPendente}
+                  onChange={(v) => { setNivelApoioSel(parseInt(v, 10)); setD20(null); }}
+                  options={apoioBase.niveis.map((n) => ({
+                    value: n,
+                    label: apoioBase.item ? `${n}` : `${n} · ${n} ${tb.karma}`,
+                  }))}
+                />
+              )}
               <SelectPill
                 label={tb.alvo}
                 value={alvoApoioIdx}
@@ -9037,6 +9175,8 @@ Object.assign(window, {
     modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia, passouNoTesteDeHabilidade,
     ehMontaria, montariasDisponiveis, montar, desmontar, montariaSegue, vbParaMovimento,
     enxergaNaEscuridao, penalidadeDeVisibilidade, nivelVisibilidade,
+    proximaVisibilidade, textoVisibilidade, VISIBILIDADE_ICONE, VISIBILIDADE_ORDEM,
+    magiaNoNivel, niveisDisponiveis,
     VISIBILIDADE_PENALIDADE, VISIBILIDADE_NIVEL,
     somaModHabilidade, aplicarDanoEquipamento,
     magiasDeApoioDoAtor, magiasOfensivasDoAtor, magiasConhecidasDoAtor,

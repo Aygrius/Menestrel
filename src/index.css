@@ -8143,3 +8143,11 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    Ligada (montado) fica dourada, como o item ativo da fileira. */
 #root .menestrel-ui .batalha-estado-drop-item.montaria { color: #9C7B4E; }
 #root .menestrel-ui .batalha-estado-drop-item.montaria.on { color: #C9A44E; }
+
+/* Visibilidade na montagem: o botão ganha nome escrito ao lado, porque ali há
+   espaço e não há pressa. Na batalha ativa é só o ícone, no header. */
+#root .menestrel-ui .batalha-setup-visib { margin: 8px 0 12px; }
+#root .menestrel-ui .batalha-setup-visib .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
+#root .menestrel-ui .visib-parcial { color: #8FA3C4; }
+#root .menestrel-ui .visib-total   { color: #6B7A99; }
+#root .menestrel-ui .visib-magica  { color: #7A6B99; }

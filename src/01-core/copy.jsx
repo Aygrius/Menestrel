@@ -344,6 +344,9 @@ const COPY = {
       efeito: 'Efeito',
       magiaDeApoio: 'Magia',
       nivel: 'nível',
+      /* O nível da magia É o karma que ela consome (decisão de 12/09/2026),
+         e por isso o seletor mostra os dois no mesmo rótulo. */
+      karma: 'de karma',
       porRodadas: 'por {n} rodadas',
       semMagiasDeApoio: 'Este combatente não conhece magias de apoio.',
       usar1Pa: 'Usar (1 PA)',
@@ -855,6 +858,7 @@ const COPY = {
       efeito: 'Effect',
       magiaDeApoio: 'Spell',
       nivel: 'level',
+      karma: 'karma',
       porRodadas: 'for {n} rounds',
       semMagiasDeApoio: 'This combatant knows no support spells.',
       usar1Pa: 'Use (1 AP)',
