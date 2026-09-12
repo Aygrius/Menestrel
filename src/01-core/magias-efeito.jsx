@@ -55,6 +55,17 @@ const MAGIA_VERBOS = {
      de acaso é o que faz magia parar de funcionar em silêncio. */
   adiciona: 'mais',
   adicione: 'mais',
+  /* `recebe` entrou em 12/09/2026, depois de o usuário confirmar o sentido:
+     em Necropotência ("Recebe 10 de energia heroica ADICIONAL") é ganho.
+
+     A dúvida era "recebe 10 de dano", que significaria o oposto — e ela se
+     resolve sozinha: sob a ação 'mais', a unidade `dano` não é escrita em
+     campo nenhum (só 'causa' e 'reduz' a escrevem). Ossos de Aço, a única
+     outra magia com o verbo, diz exatamente isso e continua ilegível de
+     propósito. */
+  recebe:   'mais',
+  recebem:  'mais',
+  recebendo: 'mais',
   causa:    'dano',
   cause:    'dano',
 };
@@ -64,18 +75,39 @@ const MAGIA_VERBOS = {
    ficaram de fora porque o sentido não é inequívoco. Adotá-los seria eu
    decidir regra de jogo lendo prosa:
 
-     recebe     "Recebe 10 de energia heroica adicional" (Necropotência) —
-                parece ganho, mas "recebe 10 de dano" seria o oposto.
+     [recebe foi ADOTADO em 12/09/2026 — ver MAGIA_VERBOS acima]
      absorve    absorção de dano, que é outro subsistema.
      transfere  move recurso entre alvos: precisa de origem E destino.
      converta   troca um recurso por outro.
      altera / modifique / economiza
                 genéricos demais para inferir sinal ou unidade.
      conceda    "Conceda ao morto-vivo 15 de energia física" (Criatura
-                Disforme) — o alvo é uma criatura invocada, não participante.
+                Disforme) — o alvo é uma criatura INVOCADA. Ver a lacuna de
+                invocação, logo abaixo.
 
    Se alguma delas precisar virar regra, o caminho é o de sempre: decidir o
    sentido com o usuário e acrescentar aqui, não deduzir. */
+
+/* ── LACUNA CONHECIDA: magias de INVOCAÇÃO ─────────────────────────
+   Nomeada pelo usuário em 12/09/2026. Quatro magias criam PARTICIPANTES novos
+   no meio da batalha, e o motor não sabe fazer isso:
+
+     Projeção            cria uma cópia do personagem
+     Guardião Espiritual cria cópias do personagem
+     Pseudomatéria       cria um personagem controlado pelo Mestre
+     Criatura Disforme   anima uma carcaça
+
+   Os números no texto do nível delas ("A projeção possui 1 de energia
+   heroica", "defesa L1 e dano máximo…") NÃO são efeito sobre alguém: são a
+   FICHA do invocado. Por isso ficam fora do registro, e por isso o leitor
+   não deve aprender `possui` nem `conceda` — ler esses números como buff
+   daria energia heroica ao conjurador.
+
+   Entrar de verdade exige o que a batalha ainda não tem: acrescentar um
+   participante depois do setup, com snapshot próprio, posição no tabuleiro e
+   lugar na ordem de iniciativa. É feature de porte próprio, não primitiva.
+
+   Enquanto isso, seguem narrativas: o Mestre invoca na mão, como já faz. */
 
 /* Unidade = a frase que vem DEPOIS do número. Cada entrada aponta pro nome do
    campo de saída. `coluna` casa "coluna de ataque" e o plural "colunas". */
@@ -135,7 +167,7 @@ const MAGIA_UNIDADES = [
    entravam como 'mais'. Em Licantropia o resultado saía certo por acidente —
    o registro é que dá o sinal —, mas um texto com "Aumenta 2 de X e reduz 3
    de X" teria o segundo sobrescrevendo o primeiro sob a ação errada. */
-const RE_VERBO = /\b(aumenta|aumente|reduz|reduza|diminui|diminua|restaura|recupera|recupere|recuperam|recuperando|cure|adiciona|adicione|causa|cause)\b/gi;
+const RE_VERBO = /\b(aumenta|aumente|reduz|reduza|diminui|diminua|restaura|recupera|recupere|recuperam|recuperando|cure|adiciona|adicione|recebe|recebem|recebendo|causa|cause)\b/gi;
 
 /* ── O leitor, com diagnóstico ─────────────────────────────────────
    `efeitosNoNivel` devolve só os valores; esta devolve também o que o parser

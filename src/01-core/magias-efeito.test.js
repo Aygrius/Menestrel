@@ -688,3 +688,51 @@ describe('verbos de cura — o caso que o verificador pegou em produção', () =
     expect(Object.keys(r)).toEqual(['cura_eh']);
   });
 });
+
+describe('verbo `recebe` e os limites do leitor — varredura de 12/09/2026', () => {
+  it('Necropotência: "Recebe N de energia heroica adicional" é ganho', () => {
+    // Sentido confirmado pelo usuário: neste caso a EH é adicional.
+    expect(efeitosNoNivel(mag('Recebe 10 de energia heroica adicional.'), 1).eh).toBe(10);
+  });
+
+  it('"recebe N de dano" continua ILEGÍVEL, e é o que resolve a ambiguidade', () => {
+    /* A dúvida ao adotar o verbo era "recebe 10 de dano", que significaria o
+       oposto de ganho. Ela se resolve sozinha: sob a ação 'mais', a unidade
+       `dano` não é escrita em campo nenhum — só 'causa' e 'reduz' a escrevem.
+       Ossos de Aço diz exatamente isso (dano de queda) e segue ignorada. */
+    const r = efeitosNoNivel(mag('Só recebe 1 de dano na energia física a cada 5 metros.'), 1);
+    expect(r.dano).toBeUndefined();
+    expect(r.reducao_dano).toBeUndefined();
+  });
+
+  it('NÚMERO POR EXTENSO não é lido — o catálogo usa dígitos', () => {
+    /* Aconteceu de verdade: ao consertar o "Reduza5" grudado do Ruído, o texto
+       virou "Reduz cinco colunas de ataque" e a magia continuou entregando
+       zero. O leitor procura dígitos, e as outras 237 magias usam dígitos. */
+    expect(efeitosNoNivel(mag('Reduz cinco colunas de ataque.'), 1).coluna).toBeUndefined();
+    expect(efeitosNoNivel(mag('Reduz 5 colunas de ataque.'), 1).coluna).toBe(5);
+  });
+
+  it('VERBO GRUDADO no número também não é lido', () => {
+    // "Reduza5" — o typo original do Ruído, e o mesmo que já mordeu Ruído
+    // Extenuante em 09/2026. A fronteira de palavra exige o espaço.
+    expect(efeitosNoNivel(mag('Reduza5 colunas de ataque.'), 1).coluna).toBeUndefined();
+  });
+
+  it('magias de INVOCAÇÃO seguem fora do registro', () => {
+    /* Projeção, Guardião Espiritual, Pseudomatéria e Criatura Disforme criam
+       PARTICIPANTES. Os números do nível delas são a ficha do invocado, não
+       efeito em alguém — ler como buff daria energia heroica ao conjurador.
+       Entrar exige acrescentar participante depois do setup, com snapshot,
+       posição e lugar na iniciativa: feature de porte próprio. */
+    ['projecao', 'guardiao_espiritual', 'pseudomateria', 'criatura_disforme']
+      .forEach((k) => expect(window.MAGIA_EFEITO_MAP[k], k).toBeUndefined());
+  });
+
+  it('"possui" e "conceda" NÃO são verbos, e é de propósito', () => {
+    // São as formas que as magias de invocação usam para descrever a ficha do
+    // invocado. Adotá-las daria os atributos dele a quem conjurou.
+    expect(efeitosNoNivel(mag('A projeção possui 40 de energia heroica.'), 1)).toEqual({});
+    expect(efeitosNoNivel(mag('Conceda ao morto-vivo 25 de energia física.'), 1)).toEqual({});
+  });
+});
