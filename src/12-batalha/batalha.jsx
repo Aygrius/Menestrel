@@ -743,13 +743,71 @@ function consumirOferenda(p) {
   return { ...p, status_temp: st.filter((s) => s.consome_em !== 'magia_evocada') };
 }
 
+/* ── Magias que os ITENS concedem (puro) ───────────────────────────
+   55 itens do catálogo carregam `magia` + `nivel_magia`: anéis, cajados,
+   armas, e 6 pergaminhos. Até 12/09/2026 isso era um selo no inventário e
+   nada mais — o Anel Narya dizia "Piromanipulação" e não conjurava.
+
+   As regras, decididas ao ligar:
+
+     QUANDO CONCEDE   item em uso — `equipado` (arma, escudo, armadura) ou
+                      `vestido` (anel, capa). Guardar o anel na mochila não
+                      empresta a magia. Pergaminho é a exceção: não se veste,
+                      e vale por estar na mão.
+     KARMA ZERO       a magia está no ITEM, não em quem o usa. É o que separa
+                      um anel de aprender a magia — e é o mesmo tratamento que
+                      as criaturas já recebiam.
+     NÍVEL            `nivel_magia` do item, de 1 a 9. Não escala com o PJ:
+                      quem escalou foi o artífice.
+     PERGAMINHO       consumível, e some depois de usado (ver consumirItemDaMagia).
+
+   O nome da magia casa pelo MESMO índice que as criaturas usam, para a
+   auditoria e o motor nunca discordarem. */
+function magiasDeItensDoAtor(ator, catalogos) {
+  if (!ator || ator.tipo !== 'pj' || !catalogos) return [];
+  const pj = catalogos.pjById && catalogos.pjById[ator.ref_id];
+  const itens = pj && pj.inventario && Array.isArray(pj.inventario.itens) ? pj.inventario.itens : null;
+  const catBySlug = catalogos.catalogoBySlug || {};
+  if (!itens || typeof indiceMagiasPorNome !== 'function') return [];
+  const indice = indiceMagiasPorNome(catalogos.magiasByKey || {});
+
+  const out = [];
+  const jaVistos = new Set();
+  itens.forEach((it) => {
+    if (!it || (it.quantidade || 0) <= 0) return;
+    const cat = catBySlug[it.slug];
+    if (!cat || !cat.magia) return;
+    const consumivel = (cat.grupo === 'Consumíveis') || cat.tipo === 'L';
+    // Em uso, ou consumível na mochila. Anel no fundo da bolsa não vale.
+    if (!consumivel && !it.equipado && !it.vestido) return;
+
+    const { achadas } = resolverNomesDeMagia(cat.magia, indice);
+    achadas.forEach((m) => {
+      // Dois anéis com a mesma magia não viram duas entradas na lista.
+      const chaveUnica = m.key + '@' + it.slug;
+      if (jaVistos.has(chaveUnica)) return;
+      jaVistos.add(chaveUnica);
+      out.push({
+        key: m.key, magia: m,
+        nivel: Math.max(1, Math.min(9, Number(cat.nivel_magia) || 1)),
+        passos: null, custo_karma: 0,
+        item: { slug: it.slug, instanceId: it.instanceId, nome: cat.nome || it.slug, consumivel },
+      });
+    });
+  });
+  return out;
+}
+
 function magiasConhecidasDoAtor(ator, catalogos) {
   if (!ator || !catalogos) return [];
 
   if (ator.tipo === 'pj') {
     const pj = catalogos.pjById[ator.ref_id];
-    if (!pj || !pj.magias) return [];
-    return Object.entries(pj.magias).map(([key, passos]) => {
+    // Sem magias aprendidas o PJ ainda pode ter um anel: as duas fontes são
+    // independentes, e a do item não depende de `pj.magias` existir.
+    if (!pj) return [];
+    if (!pj.magias) return magiasDeItensDoAtor(ator, catalogos);
+    const proprias = Object.entries(pj.magias).map(([key, passos]) => {
       const p = passos || 0;
       if (p <= 0) return null;
       const m = catalogos.magiasByKey[key];
@@ -760,6 +818,12 @@ function magiasConhecidasDoAtor(ator, catalogos) {
       // paga em sangue (EF), e cobrar karma pelo bônus seria cobrar duas vezes.
       return { key, magia: m, nivel, passos: p, custo_karma: base };
     }).filter(Boolean);
+    /* Magia que o PJ SABE ganha do item que a concede: saber é melhor — o
+       nível escala com os passos comprados e o item é fixo. Sem este corte, a
+       mesma magia apareceria duas vezes na lista de ação. */
+    const sabidas = new Set(proprias.map((x) => x.key));
+    return [...proprias,
+            ...magiasDeItensDoAtor(ator, catalogos).filter((x) => !sabidas.has(x.key))];
   }
 
   if (ator.tipo === 'criatura') {
@@ -785,7 +849,7 @@ function magiasConhecidasDoAtor(ator, catalogos) {
    desde 12/09/2026 — ver magiasConhecidasDoAtor. */
 function magiasOfensivasDoAtor(ator, catalogos) {
   const out = [];
-  magiasConhecidasDoAtor(ator, catalogos).forEach(({ key, magia: m, nivel, passos, custo_karma }) => {
+  magiasConhecidasDoAtor(ator, catalogos).forEach(({ key, magia: m, nivel, passos, custo_karma, item }) => {
     const dano  = danoMagiaNoNivel(m, nivel);
     if (dano <= 0) return; // não-ofensiva → fora desta fase (cura/buff vêm depois)
     out.push({
@@ -806,6 +870,10 @@ function magiasOfensivasDoAtor(ator, catalogos) {
       alcance: m.alcance || null,
       max_alvos: tetoDeAlvosMagia(key),
       catalogo: m,
+      // De onde a magia veio: null = o PJ a aprendeu; objeto = um item a
+      // concede (ver magiasDeItensDoAtor). O painel mostra, e o pergaminho
+      // e consumido por aqui.
+      item: item || null,
     });
   });
   return out;
@@ -820,7 +888,7 @@ function magiasOfensivasDoAtor(ator, catalogos) {
    o efeito que decide, não o alvo. */
 function magiasDeApoioDoAtor(ator, catalogos) {
   const out = [];
-  magiasConhecidasDoAtor(ator, catalogos).forEach(({ key, magia: m, nivel, passos, custo_karma }) => {
+  magiasConhecidasDoAtor(ator, catalogos).forEach(({ key, magia: m, nivel, passos, custo_karma, item }) => {
     /* CRITÉRIO CORRIGIDO em 12/09/2026. Era "tem entrada no registro E não
        mira inimigo", e isso abria um buraco: `magiasOfensivasDoAtor` exige
        `dano > 0`, então magia que mira inimigo SEM causar dano não aparecia em
@@ -870,6 +938,7 @@ function magiasDeApoioDoAtor(ator, catalogos) {
       // O objeto do catálogo viaja INTEIRO: aplicarEfeitoMagia lê o texto do
       // nível dele, não de campos pré-mastigados aqui.
       catalogo: m,
+      item: item || null,
     });
   });
   return out;
@@ -1475,6 +1544,26 @@ async function consumirItemDoPJ(pjId, slug, qtd) {
     .from('personagens').update({ inventario: novoInv }).eq('id', pjId);
   if (upErr) return { ok: false, error: upErr };
   return { ok: true, inventario: novoInv };
+}
+
+/* ── O pergaminho some depois de lido ──────────────────────────────
+   Magia vinda de item (magiasDeItensDoAtor) não custa karma, e a contrapartida
+   é esta: se o item for CONSUMÍVEL — os 6 pergaminhos do catálogo —, ele sai
+   da mochila. Anel e cajado não: ficam, e é por isso que valem mais.
+
+   Some mesmo quando a magia falha no teste ou perde o alvo. Pergaminho lido é
+   pergaminho gasto — a mesma lógica do karma, que também não volta.
+
+   Reusa consumirItemDoPJ, o mesmo caminho do consumo pela aba Item: uma só
+   função escrevendo em personagens.inventario. */
+function consumirItemDaMagia(ator, magia, catalogos) {
+  const item = magia && magia.item;
+  if (!item || !item.consumivel || !ator || ator.tipo !== 'pj') return;
+  consumirItemDoPJ(ator.ref_id, item.slug, 1).then((r) => {
+    if (!r.ok) { console.error('[batalha] consumo de pergaminho falhou:', r.error); return; }
+    const cache = catalogos && catalogos.pjById && catalogos.pjById[ator.ref_id];
+    if (cache) catalogos.pjById[ator.ref_id] = { ...cache, inventario: r.inventario };
+  });
 }
 
 /* ── usePortalTooltip + PortalTooltip — padrão único de tooltip do sistema ──
@@ -4308,6 +4397,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       iniciarCanalizacaoOfensiva(atorIdx, magia, alvo, custo_karma);
       return;
     }
+    // Magia de ATAQUE vinda de pergaminho: o papel some aqui, na resolução —
+    // mesma regra do apoio, e por isso vem depois do return da largada.
+    if (tipo === 'magia') consumirItemDaMagia(ator, magia, catalogos);
     let next = [...participantes];
     // Atacar É uma ação: derruba a concentração de quem ataca.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
@@ -4783,6 +4875,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // mesma nos dois lados (ver handleApoio no BatalhaJogadorView).
     const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu, falhou_teste);
     next = passo.participantes;
+    /* Pergaminho gasta na RESOLUÇÃO, não na largada: quem começa a canalizar
+       e é interrompido não perdeu o papel. Falhar no teste ou perder o alvo,
+       sim — o pergaminho foi lido. */
+    if (passo.fase !== 'iniciou') consumirItemDaMagia(ator, magia, catalogos);
 
     const entry = {
       rodada, ts: Date.now(),
@@ -6963,11 +7059,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
               /* Ritual fica VISÍVEL e desabilitado: o Mestre precisa ver que a
                  magia existe e por que não dá pra usá-la em batalha. Mesmo
                  padrão da aba Apoio e de tecUso/tecEquip na aba Técnica. */
+              /* Magia vinda de ITEM leva o nome do item no rótulo. Sem isso o
+                 jogador vê duas magias iguais na lista, uma custando karma e
+                 outra não, e não tem como saber qual é qual. */
               options={magias.map((m, i) => ({
                 value: i,
                 label: m.evocacao_bloqueada
                   ? `${m.nome} · ${tb.magiaRitual}`
-                  : `${m.nome} ${m.nivel}`,
+                  : `${m.nome} ${m.nivel}${m.item ? ` · ${m.item.nome}` : ''}`,
                 disabled: !!m.evocacao_bloqueada,
               }))}
             />
@@ -7204,7 +7303,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                   value: i,
                   label: m.evocacao_bloqueada
                     ? `${m.nome} · ${tb.magiaRitual}`
-                    : `${m.nome} · ${tb.nivel} ${m.nivel}`,
+                    : `${m.nome} · ${tb.nivel} ${m.nivel}${m.item ? ` · ${m.item.nome}` : ''}`,
                   disabled: !!m.evocacao_bloqueada,
                 }))}
               />
@@ -7272,6 +7371,17 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
             )}
             {apoioSel && apoioSel.resistencia && resResist === 'resistiu' && (
               <div className="err-msg">{tb.alvoResistiu}</div>
+            )}
+            {/* De onde a magia vem, e o que isso custa. O karma zero precisa
+                de explicação na tela, senão parece bug. */}
+            {apoioSel && apoioSel.item && (
+              <p className="acao-efeito-texto">
+                {interpolate(
+                  apoioSel.item.consumivel
+                    ? (tb.magiaDeItemConsumivel || 'Vem de {item} — não custa karma, e o item é consumido.')
+                    : (tb.magiaDeItem || 'Vem de {item} — não custa karma.'),
+                  { item: apoioSel.item.nome })}
+              </p>
             )}
             {/* TESTE DE HABILIDADE DO CONJURADOR (Proteção Natural).
                 Três estados, e cada um precisa dizer coisa diferente: falta a
@@ -7836,6 +7946,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       iniciarCanalizacaoOfensiva(atorIdx, magia, alvo, custo_karma);
       return;
     }
+    // Magia de ATAQUE vinda de pergaminho: o papel some aqui, na resolução —
+    // mesma regra do apoio, e por isso vem depois do return da largada.
+    if (tipo === 'magia') consumirItemDaMagia(ator, magia, catalogos);
     let next = [...participantes];
     // Guarda a rodada nova de QUALQUER um dos dois auto-passar abaixo: se o
     // turno acabou no último da ordem, a persistência precisa levar o número
@@ -8228,6 +8341,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // status_temp (ver o comentário em aplicarEfeitoTecnica).
     const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu, falhou_teste);
     next = passo.participantes;
+    /* Pergaminho gasta na RESOLUÇÃO, não na largada: quem começa a canalizar
+       e é interrompido não perdeu o papel. Falhar no teste ou perder o alvo,
+       sim — o pergaminho foi lido. */
+    if (passo.fase !== 'iniciou') consumirItemDaMagia(ator, magia, catalogos);
     const rVez = autoPassarSeNecessario(next, next[atorIdx]);
     next = rVez.participantes;
     const rodadaNova = rVez.rodadaNova;

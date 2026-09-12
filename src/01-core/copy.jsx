@@ -324,6 +324,10 @@ const COPY = {
       /* Teste de HABILIDADE do conjurador (Proteção Natural). Diferente do de
          resistência: lá o alvo tenta escapar, aqui o conjurador tenta acertar. */
       magiaTesteExige: 'Teste de {h} ({d}) — coluna {c}',
+      /* Magia concedida por ITEM (anel, cajado, pergaminho). O karma zero
+         precisa de explicacao na tela, senao parece bug. */
+      magiaDeItem: 'Vem de {item} — não custa karma.',
+      magiaDeItemConsumivel: 'Vem de {item} — não custa karma, e o item é consumido.',
       magiaTesteSemHabilidade: 'Esta magia exige um teste de {h}, e este lutador não tem essa habilidade.',
       magiaTesteFalhou: 'Falhou no teste — a magia não pegou.',
       magiaTestePassou: 'Passou no teste.',
@@ -827,6 +831,8 @@ const COPY = {
          ateOFimDa and rodadas already existed in this block; reused. */
       alvoResistiu: 'The target resisted — the effect did not land.',
       magiaTesteExige: '{h} test ({d}) — column {c}',
+      magiaDeItem: 'Comes from {item} — costs no karma.',
+      magiaDeItemConsumivel: 'Comes from {item} — costs no karma, and the item is consumed.',
       magiaTesteSemHabilidade: 'This spell needs a {h} test, and this fighter lacks that skill.',
       magiaTesteFalhou: 'Failed the test — the spell did not land.',
       magiaTestePassou: 'Passed the test.',
