@@ -1472,10 +1472,17 @@ function podeSerAtacado(p) {
 
 /* ── próximo participante ATIVO na ordem de iniciativa ────────── */
 function proximoAtivo(parts, fromOrdem) {
-  // Pula quem está sem ações (FC "caído por N rodadas") — o status expira no
-  // decremento de Nova Rodada, então ninguém fica preso pra sempre.
+  /* Pula quem está sem ações (FC "caído por N rodadas") — o status expira no
+     decremento de Nova Rodada, então ninguém fica preso pra sempre.
+
+     E pula quem está CANALIZANDO uma magia (11/09/2026): Meteoros prende o
+     conjurador 5 rodadas e a vez dele passa sozinha. O contador desce em
+     processarViradaDeRodada, então também aqui ninguém fica preso pra sempre.
+     Sem este pulo, a vez PARAVA nele e a batalha travava — ele não tem ação
+     pra gastar e nada faria o turno andar. */
   return [...parts].sort((a, b) => a.ordem - b.ordem)
-    .find((p) => p.ordem > fromOrdem && p.status === 'ativo' && !statusTemEfeito(p, 'sem_acoes')) || null;
+    .find((p) => p.ordem > fromOrdem && p.status === 'ativo'
+      && !statusTemEfeito(p, 'sem_acoes') && !evocacaoPrendeAcao(p)) || null;
 }
 
 /* ── Ataques disponíveis para o ator ──────────────────────────── */
@@ -1840,8 +1847,26 @@ function podeUsarTecnicaAgora(p) { return !statusTemEfeito(p, 'sem_tecnicas'); }
    sobrou PA" — um ataque extra (Golpe Duplo, Contra-Ataque, Flechadas
    Múltiplas) é ação pendente mesmo com pa_rest 0. Sem isto, ativar a
    técnica com pa_max 1 auto-passa a vez antes do golpe extra existir. */
+/* ── A canalização prende o conjurador? (puro) ─────────────────────
+   Regra confirmada pelo usuário em 11/09/2026: uma magia de 5 rodadas de
+   evocação, como Meteoros, realmente deixa o personagem cinco rodadas sem
+   fazer nada — e a vez dele passa SOZINHA.
+
+   Enquanto `rodadas_rest > 0` ele não tem ação nenhuma. Em zero a magia está
+   pronta e ele age normalmente: a ação daquele turno é resolver a magia.
+
+   É o mesmo contrato de `sem_acoes` da Falha Crítica, e usa o mesmo caminho
+   de auto-passe — por isso entra em temAcaoRestante e não num ramo paralelo:
+   TODOS os call sites que já perguntavam "esse ainda tem o que fazer?" passam
+   a acertar sem serem tocados. */
+function evocacaoPrendeAcao(p) {
+  return !!(p && p.evocando && (Number(p.evocando.rodadas_rest) || 0) > 0);
+}
+
 function temAcaoRestante(p) {
   if (!p) return false;
+  // Preso canalizando: não tem ação, por mais PA que a virada tenha devolvido.
+  if (evocacaoPrendeAcao(p)) return false;
   if ((p.pa_rest || 0) > 0) return true;
   // O ataque extra só conta como ação pendente se o participante PODE
   // atacar. Sob sem_atacar (Inibir Ataque, Intimidar) a aba Arma fica
@@ -2187,8 +2212,11 @@ function montarNovaRodada(participantes) {
     return r.participante;
   });
   const reordered = ordenarIniciativaEfetiva(processados);
+  // Quem abre a rodada pula sem_acoes E quem está canalizando: Meteoros
+  // prende 5 rodadas, e abrir a rodada nele travaria o turno.
   const primeiro = [...reordered].sort((a, b) => a.ordem - b.ordem)
-    .find((p) => p.status === 'ativo' && !statusTemEfeito(p, 'sem_acoes'));
+    .find((p) => p.status === 'ativo' && !statusTemEfeito(p, 'sem_acoes')
+      && !evocacaoPrendeAcao(p));
   return {
     participantes: reordered.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) })),
     eventos: eventosRodada,
@@ -2419,7 +2447,7 @@ function debitarCustoAtaque(p, tipo, custoKarma) {
    Por isso a função recebe o dano BRUTO e chama danoFinal contra CADA
    alvo. Para o alvo principal o resultado é idêntico ao de antes — é a
    mesma conta, com os mesmos dois participantes. */
-function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento) {
+function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento, drena) {
   if (!Array.isArray(arr) || alvoIdx < 0 || alvoIdx >= arr.length) return arr;
   if (!(danoBruto > 0)) return arr;
   const next = [...arr];
@@ -2439,6 +2467,17 @@ function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento)
       } else {
         const modsG = modsDoGolpe(next[atorIdx], alvoAntes);
         next[alvoIdx] = aplicarDanoCascata(dano, alvoAntes, { critico, ...modsG });
+        /* DRENO (Toque Gélido): "Se for um ataque na energia física do alvo,
+           25% do dano é convertido em energia heroica para você". O texto
+           condiciona à EF, então a conta é sobre o que CHEGOU na EF — não
+           sobre o dano bruto nem sobre o que a EH e a armadura seguraram.
+
+           Vale por alvo: uma magia de dreno em vários alvos drena de cada um
+           o que efetivamente furou até a EF daquele. */
+        if (drena) {
+          const naEf = Math.max(0, (Number(alvoAntes.ef) || 0) - (Number(next[alvoIdx].ef) || 0));
+          if (naEf > 0) next[atorIdx] = aplicarDrenoEh(next[atorIdx], naEf);
+        }
       }
   // E o golpe derruba a concentração do ALVO se furou até a EF dele ou se o
   // derrubou/matou. Dano contido em EH ou AR não quebra — mas zerar a EH
@@ -2659,6 +2698,28 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
     };
   }
   return resultado;
+}
+
+/* ── Em que fase da evocação esta magia está, para este conjurador? ─
+   Uma pergunta, três respostas, e as duas abas (Magia e Apoio) mais os dois
+   lados (Mestre e Jogador) precisam responder igual — por isso mora aqui.
+
+     'bloqueada' → Ritual e afins: não se evoca em batalha;
+     'largada'   → canalização de N rodadas que ainda não começou. A ação
+                   COBRA e prende o conjurador, mas não ataca nem cura;
+     'resolucao' → instantânea, ou canalização que chegou a zero. É agora que
+                   o dado rola e o efeito acontece.
+
+   O dado NÃO é rolado na largada de propósito: a rolagem é o golpe, e o golpe
+   acontece quando a magia sai. Rolar antes deixaria o jogador ver o resultado
+   e decidir se vale a pena continuar canalizando. */
+function faseDeEvocacao(ator, magia) {
+  const cat = (magia && magia.catalogo) || magia;
+  const ev = evocacaoEmRodadas(cat);
+  if (ev.bloqueada) return 'bloqueada';
+  if (!ev.rodadas) return 'resolucao';
+  const evocandoEsta = !!(ator && ator.evocando && magia && ator.evocando.magia_key === magia.key);
+  return evocandoEsta ? 'resolucao' : 'largada';
 }
 
 /* ── Texto do passo de apoio para a Central de Mensagens (puro) ────
@@ -3634,10 +3695,29 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Elemento do golpe: só magia tem. Arma e "dano base" (Toque Gélido) vão
     // com null, e aí proteção elemental nenhuma os alcança — que é a regra.
     const elementoDoGolpe = (tipo === 'magia' && magia) ? (magia.elemento || null) : null;
+    // Toque Gélido é a única da Fase 1 com dreno. Vem do registro, não de um
+    // campo por magia: quem sabe que a magia drena é o mapa.
+    const drenaGolpe = tipo === 'magia' && magia
+      && !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_eh');
+    /* LARGADA DA CANALIZAÇÃO: magia ofensiva de N rodadas não ataca ninguém
+       agora. Cobra karma e PA, prende o conjurador, e o golpe acontece quando
+       o contador zerar — momento em que este mesmo handler roda de novo, já
+       com faseDeEvocacao devolvendo 'resolucao'.
+
+       Sai ANTES de qualquer coisa tocar o alvo. O painel já não oferece o
+       dado nesta fase (ver magiaEmLargada no AcaoPanel), então não há rolagem
+       a descartar aqui. */
+    const faseMagia = (tipo === 'magia' && magia)
+      ? faseDeEvocacao(participantes[atorIdx], magia) : 'resolucao';
+    if (faseMagia === 'bloqueada') return;
+    if (faseMagia === 'largada') {
+      iniciarCanalizacaoOfensiva(atorIdx, magia, alvo, custo_karma);
+      return;
+    }
     let next = [...participantes];
     // Atacar É uma ação: derruba a concentração de quem ataca.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
-    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe);
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe);
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -3649,7 +3729,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const nomesAlvosExtras = [];
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
-      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe);
+      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe);
     });
     // Debita PA (sempre 1) e karma (se for magia).
     const k = Math.max(0, custo_karma || 0);
@@ -3762,6 +3842,47 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     }
 
     if (viraRodada) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
+    setRolagemSalva(null);
+    persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
+      setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
+    });
+  };
+
+  /* Largada da canalização de uma magia OFENSIVA (lado Mestre).
+     Espelha o ramo 'iniciou' de passoDeApoio, com a persistência deste lado.
+     Não toca no alvo: só cobra, prende o conjurador e loga. O golpe acontece
+     quando o contador zerar e aplicarAcao rodar de novo. */
+  const iniciarCanalizacaoOfensiva = (atorIdx, magia, alvo, custoKarma) => {
+    const k = Math.max(0, custoKarma || 0);
+    // Começar a evocar é uma ação: derruba a concentração anterior.
+    let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
+    const cat = magia.catalogo || magia;
+    next[atorIdx] = iniciarEvocacao(next[atorIdx], { ...cat, key: magia.key },
+      magia.nivel, [alvo && alvo.inst_id].filter(Boolean), k);
+
+    const nRodadas = evocacaoEmRodadas(cat).rodadas;
+    const entry = {
+      rodada, ts: Date.now(),
+      autor_tipo: next[atorIdx].tipo, autor_ref_id: next[atorIdx].ref_id,
+      autor_nome: next[atorIdx].nome,
+      acao: 'magia', fase_evocacao: 'iniciou',
+      alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
+      magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
+      evocacao_rodadas: nRodadas, custo_karma: k,
+    };
+    const novoLog = [...log, entry];
+
+    if (historia && historia.id) {
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historia.id,
+        p_tipo: 'magia',
+        p_texto: textoPassoDeApoio('iniciou', next[atorIdx].nome, magia, alvo.nome, false),
+        p_meta: { batalha_id: batalha.id, ...entry },
+      }).then(({ error: rpcErr }) => {
+        if (rpcErr) console.error('[batalha] registrar_evento_mesa (evocacao) falhou:', rpcErr);
+      });
+    }
+
     setRolagemSalva(null);
     persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
       setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
@@ -5667,10 +5788,18 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     ? tecAliadosOpcoes.filter((p) => tecAliados.includes(p.inst_id))
     : (tecAlvoUnico && tecAlvoSel ? [tecAlvoSel] : []);
   const tecMultiCheio = tecMultiAlvo && tecAliados.length >= (tecRegistro.maxAlvos || 1);
-  // Teto de alvos do golpe (Fase 2, Task 6b). 1 = o de sempre; >1 abre a
-  // multisseleção. O principal já conta, então sobram teto-1 extras.
-  const tetoAlvosGolpe = tetoDeAlvos(ator);
-  const golpeMultiAlvo = tab === 'arma' && tetoAlvosGolpe > 1;
+  /* Teto de alvos do golpe (Fase 2, Task 6b). 1 = o de sempre; >1 abre a
+     multisseleção. O principal já conta, então sobram teto-1 extras.
+
+     DUAS FONTES desde a Fase 1 das magias (11/09/2026), e a distinção é real:
+       • arma  — vem do status_temp do ATACANTE (alvos_extras, Golpe Giratório);
+       • magia — vem do REGISTRO da magia (Dardos de Gelo 3, Raio Elétrico 2,
+                 Dardos de Luz 2, Meteoros 5).
+     A máquina a jusante é a mesma e não muda: alvosExtrasEfetivos e
+     aplicarGolpeEmAlvo já resolvem esquiva, armadura e danoFinal por alvo. */
+  const tetoAlvosMagia = (tab === 'magia' && magia) ? (tetoDeAlvosMagia(magia.key) || 1) : 1;
+  const tetoAlvosGolpe = tab === 'magia' ? tetoAlvosMagia : tetoDeAlvos(ator);
+  const golpeMultiAlvo = (tab === 'arma' || tab === 'magia') && tetoAlvosGolpe > 1;
   const alvosExtrasOpcoes = useMemo(
     () => (golpeMultiAlvo ? alvos.filter((p) => !mesmoParticipante(p, alvo)) : []),
     [golpeMultiAlvo, alvos, alvo]
@@ -5821,9 +5950,26 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
   // ativação livre não gasta PA nenhum, o único teto é tecBloqueio
   // (tecLivre) — quem já ativou nesta rodada fica bloqueado por ELE, mesmo
   // com PA sobrando.
+  /* LARGADA de magia ofensiva canalizada: nada a rolar. O dado é o golpe, e o
+     golpe acontece quando a magia SAI — rolar agora deixaria o jogador ver o
+     resultado antes de decidir se vale ficar 5 rodadas parado. Ver
+     faseDeEvocacao. */
+  const magiaEmLargada = tab === 'magia' && magia
+    && faseDeEvocacao(ator, magia) === 'largada';
+  const magiaBloqueada = tab === 'magia' && magia
+    && faseDeEvocacao(ator, magia) === 'bloqueada';
+
   const podeAplicar =
     (tab === 'arma' || tab === 'magia')
-      ? (!!res && !semKarma && alvo && !foraDeAlcance && (!precisaCritico || d20Critico != null))
+      /* LARGADA de canalização: confirma SEM dado — a ação é começar a evocar,
+         e o golpe vem rodadas depois. Continua exigindo alvo, alcance e karma,
+         que são o que a largada compromete.
+
+         Ritual nunca confirma: não se evoca em batalha. */
+      ? (magiaBloqueada ? false
+         : magiaEmLargada
+           ? (!semKarma && !semPA && alvo && !foraDeAlcance)
+           : (!!res && !semKarma && alvo && !foraDeAlcance && (!precisaCritico || d20Critico != null)))
     : (tab === 'habilidade')
       ? (!semPA && d20 != null && !!res)
     : (tab === 'tecnica_teste')
@@ -6072,10 +6218,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
                 return { value: i, label: p.nome + (longe ? ` · ${d} m` : '') };
               })}
             />
-            {/* Golpe Giratório: alvos ALÉM do principal. Mesmo padrão visual
-                da multisseleção de aliados da técnica, mas sobre inimigos e
-                na aba Arma. O principal fica fora da lista — ele já está
-                escolhido no seletor acima. */}
+            {/* Alvos ALÉM do principal. Mesmo padrão visual da multisseleção
+                de aliados da técnica, mas sobre inimigos. O principal fica
+                fora da lista — ele já está escolhido no seletor acima.
+
+                Serve Golpe Giratório (aba Arma, teto do status_temp) E as
+                magias multi-alvo (aba Magia, teto do registro): Dardos de
+                Gelo 3, Raio Elétrico 2, Dardos de Luz 2, Meteoros 5. */}
             {golpeMultiAlvo && alvosExtrasOpcoes.length > 0 && (
               <div className="acao-aliados">
                 <span className="acao-aliados-lbl">
@@ -6135,9 +6284,15 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
               value={magiaIdx}
               disabled={temRolagemPendente}
               onChange={(v) => { setMagiaIdx(parseInt(v, 10)); setD20(null); }}
+              /* Ritual fica VISÍVEL e desabilitado: o Mestre precisa ver que a
+                 magia existe e por que não dá pra usá-la em batalha. Mesmo
+                 padrão da aba Apoio e de tecUso/tecEquip na aba Técnica. */
               options={magias.map((m, i) => ({
                 value: i,
-                label: `${m.nome} ${m.nivel}`,
+                label: m.evocacao_bloqueada
+                  ? `${m.nome} · ${tb.magiaRitual}`
+                  : `${m.nome} ${m.nivel}`,
+                disabled: !!m.evocacao_bloqueada,
               }))}
             />
             <SelectPill
@@ -6151,6 +6306,28 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 
           {magia && magia.descricao && (
             <p className="acao-efeito-texto">{magia.descricao}</p>
+          )}
+
+          {/* Canalizando esta magia: o que falta. O dado não aparece nesta
+              fase, então sem este aviso o painel ficaria mudo. */}
+          {ator.evocando && magia && ator.evocando.magia_key === magia.key
+            && ator.evocando.rodadas_rest > 0 && (
+            <p className="acao-karma-line">
+              {interpolate(tb.magiaEvocando, {
+                nome: magia.nome, n: ator.evocando.rodadas_rest,
+              })}
+            </p>
+          )}
+          {/* Largada: o jogador precisa saber que vai ficar N rodadas parado
+              ANTES de gastar o karma. A vez dele passa sozinha até a magia
+              sair (regra do usuário, 11/09/2026). */}
+          {magiaEmLargada && (
+            <p className="acao-karma-line">
+              {interpolate(tb.magiaEvocacaoAviso, { n: magia.evocacao_rodadas })}
+            </p>
+          )}
+          {magiaBloqueada && (
+            <p className="acao-karma-line">{tb.magiaRitual}</p>
           )}
 
           {semKarma && (
@@ -6568,7 +6745,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
               disabled={
                 dadoPrimarioTravado ? true
                 : tab === 'arma' ? !(arma && alvo)
-                : tab === 'magia' ? !magia
+                // Largada de canalização e Ritual não rolam nada: o dado é o
+                // golpe, e o golpe só acontece quando a magia sai.
+                : tab === 'magia' ? (!magia || magiaEmLargada || magiaBloqueada)
                 : tab === 'habilidade' ? !habilidadeSel
                 : tab === 'tecnica_teste' ? (!tecnicaTesteSel || !tecBloqueio.pode
                     || (tecPrecisaAlvo && tecAlvosEscolhidos.length === 0))
@@ -6738,7 +6917,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const souAtivo = !!(meuParticipante && (meuParticipante.status || 'ativo') === 'ativo');
   // FC "caído por N rodadas" (sem_acoes): mecanicamente igual a incapaz — a vez
   // passa sozinha; o status expira no decremento de Nova Rodada do Mestre.
-  const podeAgir = souAtivo && !statusTemEfeito(meuParticipante, 'sem_acoes');
+  // Canalizar prende igual: enquanto Meteoros não sai, o jogador não age e a
+  // vez dele passa sozinha (regra do usuário, 11/09/2026).
+  const podeAgir = souAtivo && !statusTemEfeito(meuParticipante, 'sem_acoes')
+    && !evocacaoPrendeAcao(meuParticipante);
 
   // Rolagem pendente: o eco otimista manda enquanto existe; caso contrário
   // vale o que está persistido no meu participante (ver o bloco de estado).
@@ -6906,6 +7088,25 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Elemento do golpe: só magia tem. Arma e "dano base" (Toque Gélido) vão
     // com null, e aí proteção elemental nenhuma os alcança — que é a regra.
     const elementoDoGolpe = (tipo === 'magia' && magia) ? (magia.elemento || null) : null;
+    // Toque Gélido é a única da Fase 1 com dreno. Vem do registro, não de um
+    // campo por magia: quem sabe que a magia drena é o mapa.
+    const drenaGolpe = tipo === 'magia' && magia
+      && !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_eh');
+    /* LARGADA DA CANALIZAÇÃO: magia ofensiva de N rodadas não ataca ninguém
+       agora. Cobra karma e PA, prende o conjurador, e o golpe acontece quando
+       o contador zerar — momento em que este mesmo handler roda de novo, já
+       com faseDeEvocacao devolvendo 'resolucao'.
+
+       Sai ANTES de qualquer coisa tocar o alvo. O painel já não oferece o
+       dado nesta fase (ver magiaEmLargada no AcaoPanel), então não há rolagem
+       a descartar aqui. */
+    const faseMagia = (tipo === 'magia' && magia)
+      ? faseDeEvocacao(participantes[atorIdx], magia) : 'resolucao';
+    if (faseMagia === 'bloqueada') return;
+    if (faseMagia === 'largada') {
+      iniciarCanalizacaoOfensiva(atorIdx, magia, alvo, custo_karma);
+      return;
+    }
     let next = [...participantes];
     // Guarda a rodada nova de QUALQUER um dos dois auto-passar abaixo: se o
     // turno acabou no último da ordem, a persistência precisa levar o número
@@ -6918,7 +7119,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     let eventosVirada = [];
     // Atacar quebra a concentração de quem ataca — espelha aplicarAcao.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
-    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe);
+    next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe);
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -6930,7 +7131,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const nomesAlvosExtras = [];
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
-      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe);
+      next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe);
     });
     if (dano > 0) {
       // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele.
@@ -7037,6 +7238,49 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       // MESMO log — senão a EF cai sozinha, sem nada explicando.
       log: registrarViradaNoLog([...log, entry], eventosVirada, rodadaNova),
       ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
+  };
+
+  /* Largada da canalização ofensiva (lado Jogador) — espelha
+     iniciarCanalizacaoOfensiva do Mestre, com a persistência deste lado.
+     A regra de QUANDO largar não está aqui nem lá: está em faseDeEvocacao. */
+  const iniciarCanalizacaoOfensiva = (atorIdx, magia, alvo, custoKarma) => {
+    const k = Math.max(0, custoKarma || 0);
+    let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
+    const cat = magia.catalogo || magia;
+    next[atorIdx] = iniciarEvocacao(next[atorIdx], { ...cat, key: magia.key },
+      magia.nivel, [alvo && alvo.inst_id].filter(Boolean), k);
+
+    // Canalizar consome o turno: a vez passa sozinha e segue passando
+    // enquanto a evocação prender (ver temAcaoRestante/proximoAtivo).
+    const rVez = autoPassarSeNecessario(next, next[atorIdx]);
+    next = rVez.participantes;
+
+    const nRodadas = evocacaoEmRodadas(cat).rodadas;
+    const entry = {
+      rodada, ts: Date.now(),
+      autor_tipo: meuParticipante.tipo, autor_ref_id: meuParticipante.ref_id,
+      autor_nome: meuParticipante.nome,
+      acao: 'magia', fase_evocacao: 'iniciou',
+      alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
+      magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
+      evocacao_rodadas: nRodadas, custo_karma: k,
+    };
+
+    const historiaId = batalha && batalha.historia_id;
+    if (historiaId) {
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId,
+        p_tipo: 'magia',
+        p_texto: textoPassoDeApoio('iniciou', meuParticipante.nome, magia, alvo.nome, false),
+        p_meta: { batalha_id: batalha.id, ...entry },
+      }).then(({ error: rpcErr }) => {
+        if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (evocacao) falhou:', rpcErr);
+      });
+    }
+
+    persistJogador({ participantes: comMinhaRolagem(next, null),
+      log: registrarViradaNoLog([...log, entry], rVez.eventos, rVez.rodadaNova),
+      ...(rVez.rodadaNova != null ? { rodada: rVez.rodadaNova } : {}) });
   };
 
   // ── Teste (habilidade/técnica/resistência) — espelha aplicarTeste ──
@@ -7646,7 +7890,7 @@ Object.assign(window, {
     aplicarEfeitoMagia, aplicarCuraPool, aplicarDrenoEh, danoAposReducao,
     alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia, alvosDeArea,
     resumoEfeitoMagia, textoEfeitoMagia, aplicarCurasDaMagia,
-    passoDeApoio, textoPassoDeApoio,
+    passoDeApoio, textoPassoDeApoio, faseDeEvocacao, evocacaoPrendeAcao,
     evocacaoEmRodadas, iniciarEvocacao, decrementarEvocacao, evocacaoPronta,
     quebrarEvocacao,
     // Complemento da Central de Mensagens (10/09/2026): extraída dos dois

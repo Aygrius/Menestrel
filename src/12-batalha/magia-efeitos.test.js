@@ -451,3 +451,56 @@ describe('a cura está LIGADA à aba Apoio', () => {
     expect(r.ef).toBe(20);
   });
 });
+
+describe('dreno_eh — Toque Gélido converte o que chegou na EF', () => {
+  /* A conta é sobre o dano que CHEGOU NA EF, não sobre o bruto: o texto
+     condiciona ("se for um ataque na energia física do alvo"). Dano que a EH
+     ou a armadura seguraram não drena nada. */
+  const atacante = (over = {}) => ({ inst_id: 'c1', eh: 10, eh_max: 10, status_temp: [], ...over });
+  const vitima = (over = {}) => ({
+    inst_id: 'v1', eh: 0, eh_max: 0, ar: 0, ar_max: 0, res: 0,
+    ef: 40, ef_max: 40, status: 'ativo', status_temp: [], ...over,
+  });
+
+  it('drena 25% do que furou até a EF', () => {
+    const r = M.aplicarGolpeEmAlvo([atacante(), vitima()], 0, 1, 12, false, null, true);
+    expect(r[1].ef).toBe(28);      // levou 12
+    expect(r[0].eh).toBe(13);      // ganhou floor(12 * 0,25)
+  });
+
+  it('sem a flag, não drena', () => {
+    const r = M.aplicarGolpeEmAlvo([atacante(), vitima()], 0, 1, 12, false, null, false);
+    expect(r[0].eh).toBe(10);
+  });
+
+  it('dano contido pela EH do alvo não drena', () => {
+    // Nada chegou na EF, então não houve "ataque na energia física".
+    const r = M.aplicarGolpeEmAlvo([atacante(), vitima({ eh: 50, eh_max: 50 })], 0, 1, 12, false, null, true);
+    expect(r[1].ef).toBe(40);
+    expect(r[0].eh).toBe(10);
+  });
+
+  it('o dreno PASSA do máximo do conjurador', () => {
+    const r = M.aplicarGolpeEmAlvo([atacante({ eh: 10, eh_max: 10 }), vitima()], 0, 1, 40, false, null, true);
+    expect(r[0].eh).toBeGreaterThan(10);
+  });
+});
+
+describe('multi-alvo de magia usa a máquina do Golpe Giratório', () => {
+  /* tetoDeAlvosMagia troca a FONTE do teto (registro da magia em vez do
+     status_temp do atacante); a máquina a jusante — alvosExtrasEfetivos e
+     aplicarGolpeEmAlvo — é a mesma e não mudou. */
+  it('cada alvo resolve a PRÓPRIA proteção elemental', () => {
+    const atacante = { inst_id: 'c1', status_temp: [] };
+    const semProt = { inst_id: 'v1', eh: 0, eh_max: 0, ar: 0, ar_max: 0, res: 0,
+                      ef: 40, ef_max: 40, status: 'ativo', status_temp: [] };
+    const comProt = { ...semProt, inst_id: 'v2',
+                      status_temp: [{ id: 'mag_piroprotecao',
+                        efeito: { tipo: 'reducao_dano', valor: 10, elemento: 'fogo' } }] };
+    let arr = [atacante, semProt, comProt];
+    arr = M.aplicarGolpeEmAlvo(arr, 0, 1, 12, false, 'fogo');
+    arr = M.aplicarGolpeEmAlvo(arr, 0, 2, 12, false, 'fogo');
+    expect(arr[1].ef).toBe(28);   // 12 inteiros
+    expect(arr[2].ef).toBe(38);   // 12 − 10 = 2
+  });
+});

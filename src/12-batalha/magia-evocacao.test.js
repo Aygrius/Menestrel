@@ -342,3 +342,71 @@ describe('textoPassoDeApoio — o log conta a verdade em cada fase', () => {
       .toBe('Mago lançou Curas Físicas em Alvo (restaura 4 de energia física)');
   });
 });
+
+describe('faseDeEvocacao — a mesma resposta para as duas abas e os dois lados', () => {
+  const RITUAL   = { key: 'sagracao', nome: 'Sagração', evocacao: 'Ritual' };
+  const INSTANT  = { key: 'bola_de_fogo', nome: 'Bola de Fogo', evocacao: 'Instantânea' };
+  const CANAL    = { key: 'meteoros', nome: 'Meteoros', evocacao: '5 rodadas' };
+
+  it('Ritual é bloqueada', () => {
+    expect(M.faseDeEvocacao(conj(), RITUAL)).toBe('bloqueada');
+  });
+
+  it('instantânea resolve na hora', () => {
+    expect(M.faseDeEvocacao(conj(), INSTANT)).toBe('resolucao');
+  });
+
+  it('canalizada que ainda não começou é largada', () => {
+    expect(M.faseDeEvocacao(conj(), CANAL)).toBe('largada');
+  });
+
+  it('canalizada JÁ em curso é resolução — não larga de novo', () => {
+    // Sem isto o conjurador pagaria o karma a cada turno sem nunca resolver.
+    const p = M.iniciarEvocacao(conj(), CANAL, 5, ['a1'], 5);
+    expect(M.faseDeEvocacao(p, CANAL)).toBe('resolucao');
+  });
+
+  it('evocando OUTRA magia não faz esta virar resolução', () => {
+    const p = M.iniciarEvocacao(conj(), CANAL, 5, ['a1'], 5);
+    expect(M.faseDeEvocacao(p, { key: 'dardos_de_gelo', evocacao: '1 rodada' })).toBe('largada');
+  });
+});
+
+describe('canalizar PRENDE o conjurador e a vez passa sozinha', () => {
+  /* Regra confirmada pelo usuário em 11/09/2026: Meteoros com 5 rodadas de
+     evocação realmente deixa o personagem 5 rodadas sem fazer nada, e a vez
+     dele passa automaticamente. */
+  const CANAL = { key: 'meteoros', nome: 'Meteoros', evocacao: '5 rodadas' };
+
+  it('quem está canalizando não tem ação, mesmo com PA cheio', () => {
+    const p = { ...M.iniciarEvocacao(conj(), CANAL, 5, ['a1'], 5), pa_rest: 2 };
+    expect(M.evocacaoPrendeAcao(p)).toBe(true);
+    expect(M.temAcaoRestante(p)).toBe(false);
+  });
+
+  it('em ZERO rodadas ele volta a agir — a ação é resolver a magia', () => {
+    let p = M.iniciarEvocacao(conj(), CANAL, 5, ['a1'], 5);
+    for (let i = 0; i < 5; i++) p = M.processarViradaDeRodada(p).participante;
+    expect(M.evocacaoPrendeAcao(p)).toBe(false);
+    expect(M.temAcaoRestante(p)).toBe(true);
+  });
+
+  it('proximoAtivo PULA quem está canalizando', () => {
+    // Sem o pulo a vez PARAVA nele: sem ação pra gastar, nada faria o turno
+    // andar, e a batalha travava.
+    const canalizando = { ...M.iniciarEvocacao(conj({ inst_id: 'c1' }), CANAL, 5, ['a1'], 5), ordem: 2 };
+    const livre = { ...conj({ inst_id: 'c3' }), ordem: 3 };
+    expect(M.proximoAtivo([canalizando, livre], 1).inst_id).toBe('c3');
+  });
+
+  it('proximoAtivo aceita quem TERMINOU a canalização', () => {
+    let pronto = M.iniciarEvocacao(conj({ inst_id: 'c2' }), CANAL, 5, ['a1'], 5);
+    for (let i = 0; i < 5; i++) pronto = M.processarViradaDeRodada(pronto).participante;
+    expect(M.proximoAtivo([{ ...pronto, ordem: 2 }], 1).inst_id).toBe('c2');
+  });
+
+  it('quem não canaliza não é afetado', () => {
+    expect(M.evocacaoPrendeAcao(conj())).toBe(false);
+    expect(M.evocacaoPrendeAcao(null)).toBe(false);
+  });
+});
