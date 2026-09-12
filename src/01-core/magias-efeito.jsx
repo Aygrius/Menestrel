@@ -43,10 +43,17 @@ const MAGIA_VERBOS = {
    campo de saída. `coluna` casa "coluna de ataque" e o plural "colunas". */
 const MAGIA_UNIDADES = [
   { re: /^\s*colunas?/i,                        campo: 'coluna'  },
-  { re: /^\s*de\s+energia\s+heroica/i,          campo: 'eh'      },
-  { re: /^\s*de\s+energia\s+f[íi]sica/i,        campo: 'ef'      },
-  { re: /^\s*de\s+resist[êe]ncia\s+f[íi]sica/i, campo: 'rf'      },
-  { re: /^\s*de\s+resist[êe]ncia\s+m[áa]gica/i, campo: 'rm'      },
+  /* O `de` é OPCIONAL nestas quatro. Véu de Maira escreve "Aumente 15 energia
+     heroica e 1 coluna de ataque" — sem a preposição —, e o leitor devolvia
+     só a coluna: a magia daria o bônus de ataque e nenhum de EH, em silêncio.
+
+     Afrouxar aqui é seguro porque a frase é distintiva: "15 energia heroica"
+     não se confunde com nada. O que continua EXIGIDO é a ordem — número
+     antes da unidade —, que é o que separa modificador de descrição. */
+  { re: /^\s*(?:de\s+)?energia\s+heroica/i,          campo: 'eh'      },
+  { re: /^\s*(?:de\s+)?energia\s+f[íi]sica/i,        campo: 'ef'      },
+  { re: /^\s*(?:de\s+)?resist[êe]ncia\s+f[íi]sica/i, campo: 'rf'      },
+  { re: /^\s*(?:de\s+)?resist[êe]ncia\s+m[áa]gica/i, campo: 'rm'      },
   { re: /^\s*(?:pontos?\s+)?de\s+velocidade/i,  campo: 'vb'      },
   { re: /^\s*de\s+defesa/i,                     campo: 'defesa'  },
   /* `de dano máximo` ANTES de `de dano`, e a ordem é a regra.
@@ -403,6 +410,151 @@ const MAGIA_EFEITO_MAP = {
      fizer qualquer outra coisa. É o que a magia descreve. */
   sono:               { alvo: 'inimigo', alvos: 1, icone: '💤',
                         efeitos: [{ tipo: 'sem_acoes', valor: true }] },
+
+  /* ══ VARREDURA DAS ÓRFÃS (28) — 12/09/2026 ═════════════════════════
+     O verificador apontou 39 magias com número mecânico legível e sem entrada
+     no registro. Destas, 28 tinham alvo e sinal INEQUÍVOCOS na descrição, e
+     entram aqui. As 11 que sobraram estão listadas no fim deste bloco, cada
+     uma com o motivo — nenhuma delas foi adivinhada.
+
+     Nenhuma primitiva nova foi precisa. `mod_coluna` estreia produtor mágico:
+     existia desde a Falha Crítica e só as técnicas a usavam.
+
+     ── Dano em inimigo ───────────────────────────────────────────── */
+  armadilha_natural:     { alvo: 'inimigo', alvos: 1, icone: '🪤',
+                           efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  energia_primordial:    { alvo: 'inimigo', alvos: 1, icone: '🌌',
+                           efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  feixes_incandescentes: { alvo: 'inimigo', alvos: 1, icone: '☀️',
+                           efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  flecha_divina:         { alvo: 'inimigo', alvos: 1, icone: '🏹',
+                           efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  fogo_divino:           { alvo: 'inimigo', alvos: 1, icone: '🔥',
+                           efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  // "dano infernal" não é elemento conhecido, e está certo assim:
+  // elementoDoNivel devolve null e proteção elemental nenhuma o corta.
+  manipulacao_infernal:  { alvo: 'inimigo', alvos: 1, icone: '👿',
+                           efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  putrefacao:            { alvo: 'inimigo', alvos: 1, icone: '🦠',
+                           efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  // "onda de choque A PARTIR DO EVOCADOR" e "todos que ouvirem sua voz" são
+  // área. Sem raio no catálogo, seguem alvo único com a marca no log —
+  // mesmo tratamento de Bola de Fogo e Meteoros.
+  onda_destrutiva:       { alvo: 'inimigo', alvos: 1, icone: '💥', parcial: 'area',
+                           efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  narrativa_real:        { alvo: 'inimigo', alvos: 1, icone: '📖', parcial: 'area',
+                           efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+
+  /* ── Redução de dano ──────────────────────────────────────────────
+     ATENÇÃO À CHAVE: Hidroproteção é `protecao_elemental` no banco, como
+     Aeroproteção é `protecao_animal`. Nome e chave divergem desde algum
+     import antigo, e procurar por `hidroprotecao` não acha. Não renomeie:
+     quebra pj.magias e criaturas.magia. */
+  protecao_elemental:    { alvo: 'self', alvos: 1, icone: '💧',
+                           efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano',
+                                       elemento: 'agua' }] },
+
+  /* ── Buff em si mesmo ─────────────────────────────────────────── */
+  destreza_animal:       { alvo: 'self', alvos: 1, icone: '🐆',
+                           efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: 1 }] },
+  obstinacao:            { alvo: 'self', alvos: 1, icone: '🙏',
+                           efeitos: [{ tipo: 'mod_ataque',  unidade: 'coluna', sinal: 1 },
+                                     { tipo: 'mod_rf',      unidade: 'rf',     sinal: 1 },
+                                     { tipo: 'mod_rm',      unidade: 'rm',     sinal: 1 },
+                                     { tipo: 'mod_eh_temp', unidade: 'eh',     sinal: 1 }] },
+
+  /* ── Buff em aliado ─────────────────────────────────────────────── */
+  // "coordenando até 4 dos seus companheiros" — o teto está na descrição.
+  coordenacao:           { alvo: 'aliado', alvos: 4, icone: '🧭',
+                           efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: 1 },
+                                     { tipo: 'mod_vb',     unidade: 'vb',     sinal: 1 }] },
+  perspicacia:           { alvo: 'aliado', alvos: 1, icone: '🔎',
+                           efeitos: [{ tipo: 'mod_vb',     unidade: 'vb',      sinal: 1 },
+                                     { tipo: 'mod_defesa', unidade: 'defesa',  sinal: 1 },
+                                     { tipo: 'mod_ataque', unidade: 'coluna',  sinal: 1 }] },
+  cancao_do_alento:      { alvo: 'aliado', alvos: 1, icone: '🎵', parcial: 'area',
+                           efeitos: [{ tipo: 'mod_ataque',  unidade: 'coluna', sinal: 1 },
+                                     { tipo: 'mod_eh_temp', unidade: 'eh',     sinal: 1 }] },
+  cancao_do_animo:       { alvo: 'aliado', alvos: 1, icone: '🎶', parcial: 'area',
+                           efeitos: [{ tipo: 'mod_vb',      unidade: 'vb', sinal: 1 },
+                                     { tipo: 'mod_eh_temp', unidade: 'eh', sinal: 1 }] },
+  // "protege os animais que possui um elo ativo" — mesma metade pendente de
+  // Força Mútua: a raça é verificável, o elo não.
+  veu_de_maira:          { alvo: 'aliado', alvos: 1, icone: '🐾',
+                           so_racas: ['Animal'], parcial: 'elo_animal',
+                           efeitos: [{ tipo: 'mod_eh_temp', unidade: 'eh',     sinal: 1 },
+                                     { tipo: 'mod_ataque',  unidade: 'coluna', sinal: 1 }] },
+  // "concede proteção contra ataques de animais, PORÉM isso consome parte de
+  // sua energia vital" — buff com custo, como a Oferenda.
+  bencao_selvagem:       { alvo: 'aliado', alvos: 1, icone: '🌿',
+                           efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: 1 },
+                                     { tipo: 'cura_pool',  unidade: 'eh', pool: 'eh', sinal: -1 }] },
+
+  /* ── Debuff em inimigo ────────────────────────────────────────────
+     ato_falho usa mod_coluna, e NÃO mod_ataque: "reduza 1 coluna de resolução
+     para TODAS as ações". mod_ataque só morde arma e magia; mod_coluna pune
+     toda ação, que é o que o texto pede. A distinção é a mesma que separa a
+     Falha Crítica das técnicas de postura. */
+  ato_falho:             { alvo: 'inimigo', alvos: 1, icone: '🎭',
+                           efeitos: [{ tipo: 'mod_coluna', unidade: 'coluna', sinal: -1 }] },
+  degeneracao_fisica:    { alvo: 'inimigo', alvos: 1, icone: '🦴',
+                           efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
+  ruido:                 { alvo: 'inimigo', alvos: 1, icone: '🔊',
+                           efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
+  distracao:             { alvo: 'inimigo', alvos: 1, icone: '👀',
+                           efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: -1 }] },
+  regiao_inviolavel:     { alvo: 'inimigo', alvos: 1, icone: '🕸️', parcial: 'area',
+                           efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: -1 }] },
+  cancao_do_sono:        { alvo: 'inimigo', alvos: 1, icone: '🎼', parcial: 'area',
+                           efeitos: [{ tipo: 'mod_ataque',  unidade: 'coluna', sinal: -1 },
+                                     { tipo: 'mod_eh_temp', unidade: 'eh',     sinal: -1 }] },
+
+  /* ── Dano + debuff no mesmo golpe ───────────────────────────────── */
+  cancao_do_tormento:    { alvo: 'inimigo', alvos: 1, icone: '🎻', parcial: 'area',
+                           efeitos: [{ tipo: 'dano',       unidade: 'dano' },
+                                     { tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
+  carne_em_vermes:       { alvo: 'inimigo', alvos: 1, icone: '🐛',
+                           efeitos: [{ tipo: 'dano',       unidade: 'dano' },
+                                     { tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
+
+  /* ── Cura ─────────────────────────────────────────────────────────
+     curas_naturais restaura EH no nível 1 e ganha EF nos altos; declarar as
+     duas é correto — a conferência exige a unidade em ALGUM nível. */
+  curas_naturais:        { alvo: 'aliado', alvos: 1, icone: '🌱',
+                           efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' },
+                                     { tipo: 'cura_pool', unidade: 'cura_ef', pool: 'ef' }] },
+  curas_heroicas:        { alvo: 'aliado', alvos: 1, icone: '💗',
+                           efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
+
+  /* ── AS 11 QUE FICARAM DE FORA, e por quê ──────────────────────────
+     Nenhuma foi adivinhada. Todas seguem aparecendo como órfãs no
+     verificador, que é o comportamento certo: número legível, motor ignora.
+
+       aura_ameacadora  alvo é um OBJETO de arte tocado, e o efeito recai em
+                        quem olhar. Não há alvo de combate a escolher.
+       auxilio_natural  "Cause 4 de DANO MÁXIMO" — no motor, dano_max é o teto
+                        de dano do alvo, não dano causado. O texto é ambíguo.
+       campo_abencoado  "Restaura 1 de energia física POR HORA" — fora de
+                        combate.
+       doencas          doenças nomeadas, com efeito por atributo. Subsistema.
+       forcar_disputa   "+2 de velocidade" em quem? A descrição é sobre atrair
+                        o adversário; o bônus não tem dono claro.
+       garras           alcance Pessoal e causa dano: são as SUAS garras. O
+                        modelo trata Pessoal como "só em si mesmo".
+       lamina_de_luz    idem, e ainda "não tem efeito sobre outros seres" que
+                        não demônios e mortos-vivos.
+       manjar_de_lena   restaura karma, que não é primitiva de rodada, e é
+                        ritual de comida.
+       parede_de_cristal  é uma PAREDE no terreno, não um buff num alvo.
+       protecao_natural "com um teste de atributo percepção (Absurdo)" — teste
+                        de atributo não é mecanismo que o combate tenha.
+       tensao           buff de defesa/velocidade/coluna que EXIGE teste de
+                        resistência. Buff que o alvo resiste não faz sentido
+                        como buff; provável que seja debuff mal redigido.
+
+     Quatro delas (garras, lamina_de_luz, auxilio_natural, tensao) são
+     candidatas a CORREÇÃO DE TEXTO, não a código. Ver docs/manutencao-magias.md
+     ══════════════════════════════════════════════════════════════════ */
 
   /* ── META e ATRIBUTO (2) — 12/09/2026 ──────────────────────────────
      As duas que a Fase 1 adiou em §2.3 por não serem "um número somado a um

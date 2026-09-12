@@ -195,12 +195,16 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // 12/09/2026: as primitivas que Oferenda e Licantropia
                          // trouxeram. Ver o comentario das entradas no mapa.
                          'mod_nivel_magia', 'sem_cura_ef', 'mod_atributo',
+                         // Varredura das orfas: mod_coluna estreia produtor
+                         // magico. Existia desde a Falha Critica, e so as
+                         // tecnicas a usavam. Ato Falho pune TODAS as acoes.
+                         'mod_coluna',
                          // Fase 2: sem_acoes JÁ EXISTIA (Falha Crítica). A fase
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem 37 entradas — 25 da Fase 1, 3 de controle, 7 de criatura, 2 de meta/atributo', () => {
-    expect(Object.keys(MAP)).toHaveLength(37);
+  it('tem 65 entradas — 37 anteriores + 28 da varredura das orfas', () => {
+    expect(Object.keys(MAP)).toHaveLength(65);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -316,6 +320,36 @@ describe('o acordo entre o mapa e o texto do banco', () => {
        Unidade que so existe em nivel alto e caso real, e a conferencia tem
        que usar um texto que exercite TODAS as declaradas. */
     licantropia_lupina: 'Aumenta 2 no atributo Força e 1 no atributo Físico e diminui 2 no atributo Intelecto e 1 no atributo Carisma.',
+    /* ══ VARREDURA DAS ÓRFÃS (12/09/2026). Cópias literais do banco. ══ */
+    armadilha_natural:     'Cause 12 de dano base.',
+    energia_primordial:    'Cause 36 de dano base.',
+    feixes_incandescentes: 'Cause 32 de dano base.',
+    flecha_divina:         'Cause 20 de dano base.',
+    fogo_divino:           'Cause 28 de dano base.',
+    manipulacao_infernal:  'Causa 28 de dano infernal.',
+    putrefacao:            'Cause 12 de dano base.',
+    onda_destrutiva:       'Cause 4 de dano base.',
+    narrativa_real:        'Cause 16 de dano base.',
+    protecao_elemental:    'Reduz 16 de dano elemental de água.',
+    destreza_animal:       'Aumente 2 colunas de ataque.',
+    obstinacao:            'Aumente 1 coluna de ataque, 1 de resistência física, 1 de resistência mágica e 5 de energia heroica.',
+    coordenacao:           'Aumente 1 coluna de ataque e 2 de velocidade.',
+    perspicacia:           'Aumente 1 de velocidade, 1 de defesa e 1 coluna de ataque.',
+    cancao_do_alento:      'Aumente 1 coluna de ataque e 5 de energia heroica.',
+    cancao_do_animo:       'Aumenta 1 de velocidade e 5 de energia heroica.',
+    // SEM o "de" antes de "energia heroica" — prosa real do catalogo.
+    veu_de_maira:          'Aumente 15 energia heroica e 1 coluna de ataque.',
+    bencao_selvagem:       'Aumenta 1 coluna de ataque e reduz 5 de energia heroica.',
+    ato_falho:             'Reduza 1 coluna de resolução para todas as ações.',
+    degeneracao_fisica:    'Reduza 1 coluna de ataque.',
+    ruido:                 'Reduza 1 coluna de ataque.',
+    distracao:             'Reduza 4 pontos de velocidade.',
+    regiao_inviolavel:     'Reduza 12 de velocidade.',
+    cancao_do_sono:        'Reduza 1 coluna de ataque e 5 de energia heroica.',
+    cancao_do_tormento:    'Reduza 1 coluna de ataque e causa 4 de dano base.',
+    carne_em_vermes:       'Cause 4 de dano base e reduza 1 coluna de ataque.',
+    curas_naturais:        'Restaura 4 de energia heroica e 2 de energia física.',
+    curas_heroicas:        'Restaura 8 de energia heroica.',
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',

@@ -156,13 +156,25 @@ Decisão registrada em
 
 ## 7. Estado atual do catálogo
 
-Medido em 12/09/2026, com o verificador:
+Medido em 12/09/2026, depois da varredura das órfãs:
 
 ```
-238 magias · 37 no motor · 0 quebradas · 0 ambíguas · 39 órfãs · 162 narrativas
+238 magias · 65 no motor · 0 quebradas · 0 ambíguas · 11 órfãs · 162 narrativas
 ```
 
-As **39 órfãs** são as candidatas naturais a entrar no motor — têm número
-legível e hoje são ignoradas. Entre elas: Hidroproteção (irmã exata de
-Piro/Aero/Geoproteção), Coordenação, Perspicácia, Tensão, Distração, Curas
-Naturais, Curas Heroicas.
+As **11 órfãs** que sobraram ficaram de fora por motivo registrado, não por
+esquecimento — o comentário no fim do `MAGIA_EFEITO_MAP` lista cada uma com a
+razão. Quatro são candidatas a **correção de texto**, não a código:
+
+| Magia | Problema no texto |
+|---|---|
+| Garras | `alcance: Pessoal`, mas causa dano em inimigo |
+| Lâmina de Luz | idem |
+| Auxílio Natural | *"Cause 4 de dano máximo"* — no motor, dano máximo é o teto do alvo, não dano causado |
+| Tensão | buff de defesa/velocidade/coluna que **exige teste de resistência** — buff que o alvo resiste não faz sentido |
+
+Ajustando esses quatro textos, elas entram no motor sem código novo.
+
+As outras sete precisam de sistemas que o combate não tem (objeto de arte como
+alvo, doenças por atributo, karma, parede no terreno, teste de atributo) ou são
+de fora de combate.

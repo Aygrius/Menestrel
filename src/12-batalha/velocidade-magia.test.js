@@ -179,13 +179,16 @@ describe('magiasDeApoioDoAtor', () => {
      ataque" — a aba Apoio deixa de ser a aba da Velocidade e vira a aba de
      todo buff mecânico.
 
-     Consequência nas fixtures: `distracao` saiu da lista. Ela modifica
+     Consequência nas fixtures: a magia "fora do registro" precisa ser uma que
+     REALMENTE ficou de fora. Era `distracao`, que entrou na varredura de
+     12/09/2026; virou `forcar_disputa`, excluída de propósito porque o "+2 de
+     velocidade" dela não tem dono claro na descrição. Ela modifica
      velocidade, mas nenhum PJ da campanha a comprou, então não entrou na
      Fase 1 e continua narrativa. Ganhou lugar `bencao`, que é do recorte.
      As expectativas sobre Velocidade em si NÃO mudaram — ela atravessou a
      migração sem mudar de comportamento, que era o requisito. */
   const CATALOGOS = {
-    pjById: { 7: { id: 7, magias: { velocidade: 3, distracao: 1, bola_de_fogo: 2, bencao: 1 } } },
+    pjById: { 7: { id: 7, magias: { velocidade: 3, forcar_disputa: 1, bola_de_fogo: 2, bencao: 1 } } },
     magiasByKey: {
       // passos 3 → nível efetivo 5 (p*2-1)
       velocidade: { key: 'velocidade', nome: 'Velocidade', duracao: '30 minutos',
@@ -193,7 +196,7 @@ describe('magiasDeApoioDoAtor', () => {
                     descricao: 'Uma descarga cinética. Se sua velocidade ultrapassar 30, você terá uma segunda ação.',
                     nivel_5: 'Aumente 6 de velocidade.' },
       // Modifica velocidade, mas NÃO está no registro da Fase 1 → narrativa.
-      distracao:  { key: 'distracao', nome: 'Distração', duracao: '2 rodadas',
+      forcar_disputa: { key: 'forcar_disputa', nome: 'Forçar Disputa', duracao: '2 rodadas',
                     descricao: 'Chama a atenção de todos que não passarem em um teste de resistência mágica.',
                     nivel_1: 'Reduza 4 pontos de velocidade.' },
       // No registro, mas alvo 'inimigo' → vive na aba Magia, não na Apoio.
@@ -222,7 +225,7 @@ describe('magiasDeApoioDoAtor', () => {
 
   it('magia fora do registro continua narrativa, mesmo mexendo em velocidade', () => {
     expect(M.magiasDeApoioDoAtor(ATOR, CATALOGOS).map((m) => m.key))
-      .not.toContain('distracao');
+      .not.toContain('forcar_disputa');
   });
 
   it('traz o valor do nível efetivo, não do nível 1', () => {
@@ -330,7 +333,7 @@ describe('aplicarEfeitoApoio — o caminho antigo, para magia fora do registro',
      fallback, não um erro — Distração e as outras magias de velocidade que
      nenhum PJ comprou seguem por aqui. */
   const alvo = { tipo: 'pj', ref_id: 1, inst_id: 'pj:1', nome: 'Alvo', vb: 20, status_temp: [] };
-  const fora = { key: 'distracao', nome: 'Distração', mod_vb: -4, rodadas: 2, concentracao: false };
+  const fora = { key: 'forcar_disputa', nome: 'Forçar Disputa', mod_vb: -4, rodadas: 2, concentracao: false };
 
   it('grava mod_vb a partir do campo pré-calculado', () => {
     const p = M.aplicarEfeitoApoio(alvo, fora, 'pj:7');
