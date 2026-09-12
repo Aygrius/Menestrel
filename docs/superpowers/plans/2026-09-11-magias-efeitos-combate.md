@@ -2467,3 +2467,50 @@ Ordens, Possessão, Esconjuração, Alucinação), mais Licantropia Lupina
 (`mod_atributo`) e Oferenda (`mod_nivel_magia`). E, como pré-requisito da fase
 em que criaturas conjurarem, a normalização de `criaturas.magia` de texto
 livre para `key` → nível.
+
+---
+
+# Execução — 11 e 12/09/2026
+
+**Plano executado.** Baseline 1001 testes → **1403**, build limpo.
+
+As 11 tasks foram feitas, mas a execução não seguiu o plano em três pontos, e
+o desvio foi maior que o plano. O que aconteceu de fato está no log de
+revisões da spec (`§Revisões`, R1–R8); aqui fica só o mapa do que mudou de
+rumo, para quem comparar plano e resultado.
+
+| Task | Situação |
+|---|---|
+| 1 — parser + verbo | feita |
+| 2 — defeitos de dado | feita; SQL aplicado em produção |
+| 3 — registro | feita, e o registro cresceu de 25 para **35** (R1) |
+| 4 — `aplicarEfeitoMagia` | feita |
+| 5 — `cura_pool` / `dreno_eh` | feita |
+| 6 — `reducao_dano` | feita |
+| 7 — estado `evocando` | feita |
+| 8 — quebra da evocação | feita |
+| 9 — restrição de alvo | feita, mais teto de estágio (Fase 2) |
+| 10 — multi-alvo e área | feita, e a **área virou duas formas** (R4) |
+| 11 — UI | feita nas duas abas |
+
+## Onde o plano errou
+
+1. **"As funções puras bastam."** O plano tratou motor e UI como tasks
+   separadas, e a Task 11 cobria só a aba Apoio. O resultado foi um conjunto
+   de funções corretas, testadas e **que nada chamava** — proteção elemental,
+   cura, dreno e a evocação inteira existiam sem estar ligadas. Foi preciso
+   um passo de ligação que o plano não previa.
+
+2. **"Criaturas precisam de migração."** Não precisavam (R3). O plano
+   registrou uma migração de banco como pré-requisito sem antes medir a
+   qualidade do dado — que era 100%.
+
+3. **A Fase 2 foi dimensionada por contagem, não por leitura.** Nove magias
+   viraram três (R2). O mesmo erro que o spec das técnicas já tinha cometido
+   e corrigido ("a contagem original somava categorias, não técnicas").
+
+## Lição que vale para o próximo plano
+
+Ler o dado antes de escrever a task. As três correções acima vieram todas de
+consultas que levaram minutos e que o plano poderia ter feito antes de
+declarar escopo.

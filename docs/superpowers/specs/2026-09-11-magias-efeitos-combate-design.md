@@ -490,3 +490,127 @@ e reportar.
 | Parser e catálogo divergirem depois de um UPDATE no admin | Teste de §5.3 exige achar cada unidade declarada nos 5 níveis |
 | Evocação longa travar o jogador sem ele entender | O painel diz na largada quantas rodadas e o que quebra; o card mostra o contador |
 | Magia sem entrada no mapa quebrar a aba | Fallback é o comportamento narrativo de hoje, não erro |
+
+---
+
+# Revisões — o que a execução mudou
+
+Este documento é o registro da decisão tomada em **11/09/2026**, e o corpo
+acima fica como estava: apagá-lo esconderia *por que* cada escolha foi feita.
+O que a implementação descobriu vai aqui.
+
+Onde uma seção acima ficou factualmente errada, a linha abaixo diz qual é a
+regra que vale. Comentários de código apontam para as seções (`ver spec §6.3`),
+então a correção precisa ser encontrável a partir delas.
+
+## R1 — O registro tem 35 entradas, não 25 (revisa §2.2)
+
+| Leva | N | Quando |
+|---|---|---|
+| Fase 1 — as que os PJs compraram | 25 | 11/09/2026 |
+| Fase 2 — controle | 3 | 12/09/2026 |
+| Magias de criatura | 7 | 12/09/2026 |
+
+## R2 — A Fase 2 entregou 3 magias, não 9 (revisa §2.4)
+
+Das nove registradas, só **Medo, Sono e Esconjuração** cabiam: as três
+impedem o alvo de agir, e `sem_acoes` já existia desde a Falha Crítica — a
+fase acrescentou produtores, não mecanismo.
+
+As outras seis precisam de sistemas que o motor de combate não tem, e **não
+são trabalho pendente de magia**; são trabalho pendente de outros subsistemas:
+
+| Magia | O que falta |
+|---|---|
+| Alucinação | dificuldade de HABILIDADE, não stat de combate |
+| Invisibilidade | primitiva de seleção de alvo |
+| Ordens | narrativa pura — "a ordem pode ter N palavras" |
+| Possessão | troca de corpo entre participantes |
+| Licantropia Lupina | `mod_atributo`, que atravessa `calcularFicha` |
+| Oferenda | meta-magia: modifica a PRÓXIMA magia |
+
+Há teste que falha se alguma delas entrar no mapa sem a primitiva.
+
+## R3 — Criaturas conjuram, e NÃO foi preciso migrar (revisa §2.5)
+
+§2.5 dizia que normalizar `criaturas.magia` era pré-requisito. O levantamento
+de 12/09/2026 mostrou que não é:
+
+- 89 menções, 39 nomes distintos, **100% casando** com `magias.nome`;
+- `magia_n` preenchido nas 60 criaturas, sempre em 1/3/5/7/9.
+
+`magiasConhecidasDoAtor` resolve por nome em tempo de execução. Sem migração,
+sem mudança de schema, e o Mestre segue digitando nomes no editor de catálogo.
+
+**Criatura não paga karma** — a tabela não tem a coluna, e o snapshot as monta
+com 0/0. O custo delas é o ponto de ação.
+
+## R4 — Área tem DUAS formas, e Aura Divina é a outra (revisa §6.3)
+
+§6.3 tratou toda área como "projétil esperando a coluna `raio`". São duas:
+
+| Forma | Centro | Raio | Precisa de `raio`? |
+|---|---|---|---|
+| **Aura** | o conjurador | o próprio `alcance` | **Não** |
+| **Projétil** | célula escolhida | `raio` | Sim |
+
+Aura Divina é aura — *"envolve seu corpo… a partir de si"*, 25 m. Estava
+marcada `parcial: 'area'` com seleção manual e nunca precisou. Quem espera a
+coluna é Bola de Fogo e Meteoros.
+
+## R5 — `Variável` significa duas coisas opostas no catálogo
+
+`duracaoEmRodadas` trata a coluna `duracao = 'Variável'` como concentração.
+Mas **21 magias** usam 'Variável' querendo dizer *"a duração está no texto do
+nível, e escala com ele"* — Medo vai de 1 a 5 rodadas assim.
+
+`duracaoNoNivel` lê o nível primeiro e cai na coluna depois. As 32 'Variável'
+sem texto de duração continuam concentração de verdade — o caso do Sono.
+
+Nenhuma das 25 da Fase 1 tem essa forma, então a leitura delas não mudou.
+
+## R6 — Quatro defeitos vivos, achados no caminho
+
+1. **`danoMagiaNoNivel` sem âncora de verbo** (§7.1) — "Reduz N de dano" era
+   lido como dano causado. Aeroproteção, Piroproteção e Armadura Elemental
+   apareciam como magias de ataque.
+2. **`parseAlcance` tratava `Pessoal` como `Toque`** (§7.3) — 62 magias
+   aceitavam alvo adjacente.
+3. **Magia que mira inimigo sem causar dano não aparecia em aba nenhuma** —
+   `magiasOfensivasDoAtor` exige `dano > 0` e `magiasDeApoioDoAtor` excluía
+   `alvo === 'inimigo'`. **Aura Divina ficou inconjurável** desde que entrou
+   no registro. O critério passou a ser sobre o EFEITO: quem causa dano vive
+   na aba Magia, o resto na Apoio.
+4. **Parser sobrescrevia o dano** — "Cause 28 de dano base e, mais 1 de dano
+   máximo…" tinha dois números casando com `de dano`, e o segundo vencia:
+   Ataque Infernal entregaria 1 em vez de 28. `de dano máximo` virou unidade
+   própria, testada antes.
+
+E um de dado: Curas Físicas nível 9 prometia "50 de saúde", unidade que não
+existe no motor. Corrigido por script.
+
+## R7 — Regras de combate que o usuário confirmou durante a execução
+
+- **Canalizar prende mesmo.** Meteoros deixa o conjurador 5 rodadas sem agir,
+  e a vez dele passa sozinha. `evocacaoPrendeAcao` entra em `temAcaoRestante`
+  e `proximoAtivo` — o mesmo caminho do `sem_acoes`. Sem o pulo em
+  `proximoAtivo` a vez parava nele e a batalha travava.
+- **O bônus de PA por velocidade valia só da rodada 2 em diante.** Vivia só em
+  `processarViradaDeRodada`; os snapshots montavam a rodada 1 sem ele. Um
+  combatente veloz agia uma vez a menos justamente na abertura. `paDaRodada`
+  virou fonte única. Valia para PJ também, não só criatura.
+- **A 2ª ação de Guerreiro/Ladino especializado só paga técnica de combate**
+  (12/09/2026). Virou pool próprio (`pa_tecnica_rest`): um número só não
+  conseguiria dizer que um dos pontos é restrito, e o especializado atacaria
+  duas vezes por rodada. Mesmo desenho de `pa_ataque_extra`.
+- **A ação extra por velocidade > 30 é livre para todos**, e não entra nessa
+  restrição.
+
+## R8 — O que continua fora
+
+| Item | De quem é |
+|---|---|
+| Coluna `raio` | do usuário — serve só a Bola de Fogo e Meteoros; `alvosDeArea` já a lê |
+| As 6 magias de R2 | de outros subsistemas, não da magia |
+| ~19 magias de criatura | narrativas ou de outros sistemas (Escuridão, Silêncio, Fascínio, Aura Emocional…) |
+| Rótulo da aba "Apoio" | ficou impreciso: abriga controle desde a Fase 2 |
