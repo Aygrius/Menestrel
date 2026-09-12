@@ -17,20 +17,22 @@ batalha.
 |---|---|---|---|---|
 | **Habilidade** | ✅ d20, dificuldade e veredito | — (o teste **é** o resultado) | — | ✅ |
 | **Item** | — (não precisa) | ✅ condições e poços da ficha | ✅ baixa no inventário | ✅ |
-| **Magia** | ❌ | ❌ | ❌ | ✅ |
+| **Magia** | — | ✅ desde 12/09/2026 | ✅ karma, no nível evocado | ✅ |
 
-**Duas das três já estão prontas.** Habilidade e item funcionam fim a fim: o
-item consumido mexe em Saúde, Hidratação, EH, EF — a mesma escala que a batalha
-usa, pela mesma função (`aplicarDeltaCondicao`), então não há duas verdades.
+Habilidade e item sempre funcionaram fim a fim: o item consumido mexe em Saúde,
+Hidratação, EH, EF — a mesma escala que a batalha usa, pela mesma função
+(`aplicarDeltaCondicao`), então não há duas verdades.
 
-**Magia não.** O botão *Evocar* escolhe nível e alvo, escreve na Central de
-Mensagens da Mesa — e para aí. Não aplica efeito, não cobra karma. O próprio
-código já dizia isso desde que foi escrito:
+**Magia não funcionava.** O botão *Evocar* escolhia nível e alvo, escrevia na
+Central de Mensagens da Mesa — e parava aí. O próprio código dizia isso desde
+que foi escrito:
 
 > *"Evocar (onEvocar) fecha o modal e notifica a Central de Mensagens da Mesa
 > com { nivel, alvo } — ainda NÃO aplica o efeito mecânico no alvo."*
 
-Ou seja: **a lacuna é uma só, e tem nome.**
+Era uma lacuna só, e tinha nome. **Os três degraus abaixo a fecharam em
+12/09/2026** — e as seções 2 e 3 ficam como estão porque explicam POR QUE cada
+peça é do jeito que é, que é o que se esquece primeiro.
 
 ---
 
@@ -138,18 +140,24 @@ conjurador) nunca foi problema — a ficha já rola com dificuldade e veredito.
 
 Foram construídos em ordem, e cada um destravou o seguinte.
 
-### Degrau 1 — Magia em si mesmo, agora
+### Degrau 1 — Magia em si mesmo · **CONSTRUÍDO**
 
 Magia cujo alvo é o **próprio conjurador** aplica de verdade: cobra karma,
 grava o efeito na ficha, avisa a mesa. Sem trava 2 (é a própria linha), sem
 trava 4 (ninguém resiste a si mesmo) e sem aprovação de ninguém.
 
-Cobre cura pessoal, buff pessoal, proteção — e são as que mais se usam fora de
-combate. **É o degrau que eu construiria primeiro**, e é pequeno: o motor
-existe, falta o caminho até `estado_atual`.
+Cobre cura pessoal, buff pessoal, proteção — as que mais se usam fora de
+combate. Foi o primeiro justamente por não depender de nenhuma das travas.
 
-Aplica o que a trava 3 já classificou: **instantânea e permanente entram; as de
-rodada só registram no log**, com o texto dizendo por quê.
+Aplica o que a trava 3 classificou: **instantânea e permanente entram; as de
+rodada só registram no log**, com o texto dizendo por quê. E quando não aplica,
+**o log diz o motivo** — *"evoquei e não aconteceu nada"* foi o que esta tela
+fez por meses, e não pode voltar a ser mistério.
+
+> **Uma porta só para escrever na ficha.** `aplicarEfeitosNaFicha` foi
+> EXTRAÍDA de `aplicarEfeitosItem`, não copiada: item consumido e magia
+> evocada entram pelo mesmo caminho, com o mesmo clamp de poço, a mesma escala
+> de condição e o mesmo piso de zero.
 
 ### Degrau 2 — Alvo em terceiro, com aprovação do Mestre · **CONSTRUÍDO**
 
@@ -214,11 +222,25 @@ decidir balanceamento no código — o oposto da regra que rege este catálogo.
 
 ## 5. Resumo de uma linha
 
-> Habilidade e item **já funcionam** fora de combate. Magia anuncia e não
-> acontece — e o que falta não é motor, são duas travas, **ambas resolvidas por
-> decisão do usuário em 12/09/2026**: quem escreve na ficha do colega é o
-> **Mestre, aprovando** (e é por isso que funciona — ele já podia), e magia de
-> **rodada é magia de combate**, então fora dele só o log registra.
+> **As três funcionam fora de combate.** A lacuna era só da magia, e não era
+> falta de motor: era **onde escrever** e **quanto tempo dura**. Duas decisões
+> do usuário em 12/09/2026 fecharam as duas — quem escreve na ficha do colega é
+> o **Mestre, aprovando** (funciona porque ele já podia), e magia de **rodada é
+> magia de combate**, então fora dele só o log registra.
 >
-> O que sobra é construir: degrau 1 (magia em si mesmo) não depende de nenhuma
-> das duas e cobre a maior fatia.
+> O que sobrou virou os três degraus, todos construídos no mesmo dia: em si
+> mesmo, com aprovação do Mestre, e com vencimento no calendário.
+
+---
+
+## 6. O que ficou por fazer
+
+Nada dos três degraus. Duas coisas ficaram **de propósito**, e é bom que
+estejam escritas:
+
+- **Magia de rodada continua sem valer fora de combate.** É a regra, não uma
+  lacuna — mas se um dia você quiser que ela valha (por exemplo, "dura até a
+  próxima batalha"), o lugar de mexer é `classeDeDuracao`.
+- **A duração de calendário tem grão de DIA.** Uma magia de 1 hora e outra de
+  23 horas vencem no mesmo dia de jogo. Se a mesa passar a contar horas, o
+  lugar é `duracaoEmDiasDeJogo`.
