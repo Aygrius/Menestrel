@@ -3019,9 +3019,10 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         {/* SIDEBAR */}
         <aside className="mc-sidebar">
           {/* MARCA DO SISTEMA (12/09/2026). Era um anel em SVG com gradiente;
-              virou o dragão, sem círculo em volta, a pedido do usuário. */}
+              virou o dragão e, na mesma tarde, ti-currency-monero — que é o
+              que ficou. Sem círculo em volta, como o usuário pediu. */}
           <div className="mc-marca">
-            <i className="ti ti-dragon" aria-label="Menestrel" />
+            <i className="ti ti-currency-monero" aria-label="Menestrel" />
           </div>
 
           <nav className="mc-nav">
