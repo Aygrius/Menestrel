@@ -360,9 +360,19 @@ describe('faseDeEvocacao — a mesma resposta para as duas abas e os dois lados'
     expect(M.faseDeEvocacao(conj(), CANAL)).toBe('largada');
   });
 
-  it('canalizada JÁ em curso é resolução — não larga de novo', () => {
-    // Sem isto o conjurador pagaria o karma a cada turno sem nunca resolver.
+  it('canalizada em curso e AINDA CORRENDO é "presa" — não larga de novo', () => {
+    /* Nem 'largada' nem 'resolucao'. Se fosse 'largada', o handler chamaria
+       iniciarEvocacao outra vez: karma recobrado e contagem reiniciada, num
+       laço que nunca resolveria. Na prática o conjurador nem chega aqui
+       (evocacaoPrendeAcao tira a ação dele), mas a função é pura e o painel
+       do Mestre inspeciona qualquer participante. */
     const p = M.iniciarEvocacao(conj(), CANAL, 5, ['a1'], 5);
+    expect(M.faseDeEvocacao(p, CANAL)).toBe('presa');
+  });
+
+  it('canalizada que CHEGOU A ZERO é resolução', () => {
+    let p = M.iniciarEvocacao(conj(), CANAL, 5, ['a1'], 5);
+    for (let i = 0; i < 5; i++) p = M.processarViradaDeRodada(p).participante;
     expect(M.faseDeEvocacao(p, CANAL)).toBe('resolucao');
   });
 

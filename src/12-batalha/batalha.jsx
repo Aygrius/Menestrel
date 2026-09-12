@@ -2719,7 +2719,17 @@ function faseDeEvocacao(ator, magia) {
   if (ev.bloqueada) return 'bloqueada';
   if (!ev.rodadas) return 'resolucao';
   const evocandoEsta = !!(ator && ator.evocando && magia && ator.evocando.magia_key === magia.key);
-  return evocandoEsta ? 'resolucao' : 'largada';
+  if (!evocandoEsta) return 'largada';
+  /* Já está canalizando ESTA magia. Com o contador em zero, resolve.
+
+     Com o contador AINDA CORRENDO devolve 'presa', e NÃO 'largada': largar de
+     novo chamaria iniciarEvocacao outra vez, recobrando o karma e reiniciando
+     a contagem. Na prática o conjurador nem chega aqui — evocacaoPrendeAcao
+     tira a ação dele e a vez passa sozinha —, mas a função é pura e o painel
+     do Mestre inspeciona qualquer participante, não só o da vez. Responder
+     errado fora do turno seria uma armadilha esperando um call site novo. */
+  if (evocacaoPronta(ator)) return 'resolucao';
+  return 'presa';
 }
 
 /* ── Texto do passo de apoio para a Central de Mensagens (puro) ────
@@ -3709,7 +3719,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
        a descartar aqui. */
     const faseMagia = (tipo === 'magia' && magia)
       ? faseDeEvocacao(participantes[atorIdx], magia) : 'resolucao';
-    if (faseMagia === 'bloqueada') return;
+    // 'presa' = canalizando e ainda não pronta. Não larga de novo (recobraria
+    // o karma) nem resolve: simplesmente não há ação a fazer.
+    if (faseMagia === 'bloqueada' || faseMagia === 'presa') return;
     if (faseMagia === 'largada') {
       iniciarCanalizacaoOfensiva(atorIdx, magia, alvo, custo_karma);
       return;
@@ -5954,10 +5966,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
      golpe acontece quando a magia SAI — rolar agora deixaria o jogador ver o
      resultado antes de decidir se vale ficar 5 rodadas parado. Ver
      faseDeEvocacao. */
-  const magiaEmLargada = tab === 'magia' && magia
-    && faseDeEvocacao(ator, magia) === 'largada';
-  const magiaBloqueada = tab === 'magia' && magia
-    && faseDeEvocacao(ator, magia) === 'bloqueada';
+  const faseMagiaPainel = (tab === 'magia' && magia) ? faseDeEvocacao(ator, magia) : 'resolucao';
+  const magiaEmLargada = faseMagiaPainel === 'largada';
+  // 'presa' entra junto de 'bloqueada' na UI: nos dois casos não há o que
+  // confirmar nem o que rolar. O aviso na tela é que difere.
+  const magiaBloqueada = faseMagiaPainel === 'bloqueada' || faseMagiaPainel === 'presa';
 
   const podeAplicar =
     (tab === 'arma' || tab === 'magia')
@@ -6326,7 +6339,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
               {interpolate(tb.magiaEvocacaoAviso, { n: magia.evocacao_rodadas })}
             </p>
           )}
-          {magiaBloqueada && (
+          {faseMagiaPainel === 'bloqueada' && (
             <p className="acao-karma-line">{tb.magiaRitual}</p>
           )}
 
@@ -7102,7 +7115,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
        a descartar aqui. */
     const faseMagia = (tipo === 'magia' && magia)
       ? faseDeEvocacao(participantes[atorIdx], magia) : 'resolucao';
-    if (faseMagia === 'bloqueada') return;
+    // 'presa' = canalizando e ainda não pronta. Não larga de novo (recobraria
+    // o karma) nem resolve: simplesmente não há ação a fazer.
+    if (faseMagia === 'bloqueada' || faseMagia === 'presa') return;
     if (faseMagia === 'largada') {
       iniciarCanalizacaoOfensiva(atorIdx, magia, alvo, custo_karma);
       return;
