@@ -55,12 +55,18 @@ const TIPOS_VALIDOS = [
   'ignora_eh', 'ignora_armadura', 'dano_pct', 'dano_recebido_pct',
   'ataque_extra', 'alvos_extras', 'sem_atacar', 'sem_tecnicas',
   'sem_critico', 'derrubado', 'evita_golpe', 'usa_defesa_de',
+  // Fase 3 (12/09/2026) — a varredura das oito que estavam fora do motor.
+  'mantem_concentracao', 'mod_habilidade', 'dano_equipamento',
 ];
 // Os que multiplicam o total da técnica (totalTecnica × sinal). O resto é
 // valor fixo (dano_pct 25) ou flag liga/desliga (ignora_eh true).
 const TIPOS_ESCALAM_COM_TOTAL = [
   'mod_ataque', 'mod_defesa', 'mod_vb', 'mod_eh_temp',
   'mod_rf', 'mod_rm', 'mod_dano_max',
+  // Fase 3: Remover Debilitacao soma o PROPRIO TOTAL a uma habilidade
+  // nomeada, entao escala como os de cima — so que o destino nao e um stat
+  // de combate, e sim a habilidade Escapar.
+  'mod_habilidade',
 ];
 const DIFICULDADES_VALIDAS = ['facil', 'medio', 'dificil', 'muito_dificil', 'absurdo'];
 
@@ -69,11 +75,11 @@ describe('TECNICA_EFEITO_MAP', () => {
   // acrescentou 26: este arquivo continua sendo o dono das 24 originais, e
   // tecnica-fase2.test.js é o dono das outras. O total fica travado aqui pra
   // uma entrada não sumir sem ninguém notar.
-  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 50', () => {
+  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 54', () => {
     for (const key of Object.keys(EFEITO_NO_BANCO)) {
       expect(MAP[key], `${key} da Fase 1 sumiu do registro`).toBeDefined();
     }
-    expect(Object.keys(MAP).length, '24 da Fase 1 + 26 da Fase 2').toBe(50);
+    expect(Object.keys(MAP).length, '24 da Fase 1 + 26 da Fase 2 + 4 da Fase 3').toBe(54);
   });
 
   it('toda entrada tem modo, alvo, rodadas, ícone e ao menos um efeito', () => {
@@ -173,7 +179,9 @@ describe('tecnicaEfeitoDe', () => {
   // Fallback é o comportamento narrativo de hoje, não erro: as 34 técnicas
   // de Fase 2 e as 4 puramente narrativas continuam só no log.
   it('devolve null para técnica sem entrada, sem lançar', () => {
-    expect(tecnicaEfeitoDe('concentracao'), 'narrativa em qualquer fase').toBeNull();
+    // Concentracao ENTROU no motor na Fase 3; o exemplo de fora virou Provocar,
+    // que precisa de alvo obrigatorio — sistema que o combate nao tem.
+    expect(tecnicaEfeitoDe('provocar'), 'narrativa por falta de sistema').toBeNull();
     expect(tecnicaEfeitoDe('nao_existe')).toBeNull();
     expect(tecnicaEfeitoDe(null)).toBeNull();
     expect(tecnicaEfeitoDe(undefined)).toBeNull();

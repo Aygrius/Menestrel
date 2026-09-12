@@ -95,7 +95,9 @@ describe('aplicarEfeitoTecnica — gravação', () => {
 
   it('técnica sem entrada no mapa devolve o participante intacto', () => {
     const orig = lutador();
-    expect(M.aplicarEfeitoTecnica(orig, { key: 'concentracao', nome: 'Concentração' }, 5)).toBe(orig);
+    // Concentracao ENTROU no motor em 12/09/2026 (Fase 3). O exemplo de
+    // tecnica fora do registro virou Provocar, que segue narrativa.
+    expect(M.aplicarEfeitoTecnica(orig, { key: 'provocar', nome: 'Provocar' }, 5)).toBe(orig);
   });
 });
 
@@ -515,7 +517,7 @@ describe('debitarCustoTecnica — ativação livre de qualquer modo registrado',
   });
 
   it('técnica sem entrada no registro (Fase 2, narrativa) debita 1 PA — comportamento de antes', () => {
-    const p = M.debitarCustoTecnica(lutador({ pa_rest: 2 }), 'concentracao');
+    const p = M.debitarCustoTecnica(lutador({ pa_rest: 2 }), 'provocar');
     expect(p.pa_rest).toBe(1);
   });
 
@@ -523,7 +525,7 @@ describe('debitarCustoTecnica — ativação livre de qualquer modo registrado',
   // passaria sem exercitar o piso. Trocado para uma técnica SEM entrada no
   // registro, que é o único caminho que ainda debita.
   it('PA no piso 0 não vira negativo', () => {
-    const p = M.debitarCustoTecnica(lutador({ pa_rest: 0 }), 'concentracao');
+    const p = M.debitarCustoTecnica(lutador({ pa_rest: 0 }), 'provocar');
     expect(p.pa_rest).toBe(0);
   });
 });
@@ -547,7 +549,7 @@ describe('podeAtivarTecnicaLivre — teto de 1 ativação livre por rodada', () 
 
   it('técnica sem entrada no registro nunca disputa a cota', () => {
     const p = lutador({ tecnica_livre_usada: true });
-    expect(M.podeAtivarTecnicaLivre(p, { key: 'concentracao' }).pode).toBe(true);
+    expect(M.podeAtivarTecnicaLivre(p, { key: 'provocar' }).pode).toBe(true);
   });
 });
 
@@ -638,7 +640,7 @@ describe('textoEfeitoTecnica — complemento da Central de Mensagens', () => {
   });
 
   it('técnica SEM registro (Fase 2/narrativa, ex. Concentração): efeito narrativo', () => {
-    expect(M.textoEfeitoTecnica('concentracao', null, 'Lysandra')).toBe(' — efeito narrativo, resolva na mesa');
+    expect(M.textoEfeitoTecnica('provocar', null, 'Lysandra')).toBe(' — efeito narrativo, resolva na mesa');
     // Mesmo texto mesmo se por acaso viesse um efeito preenchido — sem registro,
     // não há como o efeito ter sido de fato aplicado pelo motor.
     expect(M.textoEfeitoTecnica('luta_as_cegas', null, 'Lysandra'))

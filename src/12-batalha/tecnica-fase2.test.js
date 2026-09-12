@@ -133,8 +133,10 @@ describe('as primitivas caíram nas técnicas certas', () => {
 });
 
 describe('o total do sistema', () => {
-  it('o registro passa a cobrir 50 das 58 técnicas', () => {
-    expect(Object.keys(MAP).length).toBe(50);
+  it('o registro passa a cobrir 54 das 58 técnicas', () => {
+    // 50 ate 12/09/2026; a Fase 3 ligou 4 das 8 que estavam fora. As outras
+    // 4 tem motivo registrado em TECNICA_FORA_DO_REGISTRO.
+    expect(Object.keys(MAP).length).toBe(54);
   });
 });
 
@@ -290,14 +292,15 @@ describe('ativação livre vale para QUALQUER modo (mudança da Fase 2)', () => 
   });
 
   it('técnica SEM entrada no registro continua debitando PA', () => {
-    const p = M.debitarCustoTecnica(ator(), 'concentracao');
+    // Concentracao entrou no motor na Fase 3 — o exemplo de fora virou Provocar.
+    const p = M.debitarCustoTecnica(ator(), 'provocar');
     expect(p.pa_rest).toBe(0);
     expect(p.tecnica_livre_usada, 'não consome a cota livre').toBe(false);
   });
 
   it('sem entrada no registro, a cota livre não bloqueia', () => {
     const usado = ator({ tecnica_livre_usada: true });
-    expect(M.podeAtivarTecnicaLivre(usado, { key: 'concentracao' }).pode).toBe(true);
+    expect(M.podeAtivarTecnicaLivre(usado, { key: 'provocar' }).pode).toBe(true);
   });
 });
 
@@ -788,7 +791,7 @@ describe('F3 — o texto do efeito no log', () => {
   });
 
   it('técnica sem registro continua narrativa', () => {
-    expect(M.textoEfeitoTecnica('concentracao', aplicado(['Grok']), 'Eu')).toMatch(/narrativ/);
+    expect(M.textoEfeitoTecnica('provocar', aplicado(['Grok']), 'Eu')).toMatch(/narrativ/);
   });
 });
 

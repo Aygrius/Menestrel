@@ -230,7 +230,61 @@ const TECNICA_EFEITO_MAP = {
                       dificuldade: 'medio',
                       maxAlvos: 1,
                       efeitos: [{ tipo: 'usa_defesa_de', valor: true }] },
+
+  /* ============================================================
+     FASE 3 — 12/09/2026. A varredura das técnicas fora do motor achou
+     oito, e estas quatro caem em mecanismos que o combate JÁ tem. As
+     outras quatro precisam de sistemas que ele não tem, e o motivo de
+     cada uma está registrado em TECNICA_FORA_DO_REGISTRO.
+     ============================================================ */
+  /* "Um teste de Concentração (Difícil) permite continuar realizando uma
+     tarefa por 2 rodadas." A tarefa, em combate, é a magia sustentada: o
+     motor já quebra concentração ao atacar, andar, usar item ou levar dano na
+     EF. Esta técnica é o escudo contra isso — ver quebrarConcentracao. */
+  concentracao:       { modo: 'teste', alvo: 'self', rodadas: 2, icone: '🧘',
+                      dificuldade: 'dificil',
+                      efeitos: [{ tipo: 'mantem_concentracao', valor: true }] },
+  /* "Seu total de Remover Debilitação é adicionado à sua habilidade Escapar
+     por 1 rodada." Bônus numa HABILIDADE nomeada, não num stat de combate —
+     primeira do tipo, e só faz sentido agora que a aba Habilidade julga o
+     teste. modo 'total': o valor é o total da própria técnica. */
+  remover_debilitacao: { modo: 'total', alvo: 'self', rodadas: 1, icone: '🔓',
+                      efeitos: [{ tipo: 'mod_habilidade', sinal: 1, habilidade: 'Escapar' }] },
+  /* "Causa N de dano em 1 equipamento de 1 alvo." Equipamento que o combate
+     conhece é a ARMADURA, e o que nela se gasta é a resistência (`res`) —
+     mesma coisa que o golpe acima do limiar desgasta, um ponto por vez. Aqui
+     o desgaste é o efeito, não o efeito colateral. Armadura em res 0 para de
+     bloquear: é o "equipamento inutilizado" da descrição. */
+  estilhacar:         { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '💥',
+                      dificuldade: 'medio',
+                      efeitos: [{ tipo: 'dano_equipamento', valor: 2 }] },
+  retalhar:           { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '🪓',
+                      dificuldade: 'dificil',
+                      efeitos: [{ tipo: 'dano_equipamento', valor: 3 }] },
 };
+
+/* ── As que seguem FORA, e por quê ─────────────────────────────────
+   Mesmo instrumento que as magias ganharam: motivo registrado, não
+   esquecimento. O painel de verificação lê daqui.
+
+   `classe` fala de QUEM resolve:
+     'sistema' — falta mecanismo no combate; é trabalho meu
+     'decisao' — o motor daria conta, falta a regra ser decidida */
+const TECNICA_FORA_DO_REGISTRO = {
+  combate_montado: { classe: 'sistema', motivo:
+    'Soma 50% da EH da MONTARIA à sua. O combate não tem montaria: não há de onde tirar esse número.' },
+  luta_as_cegas: { classe: 'sistema', motivo:
+    '"Lutar sem enxergar" só vale se existir enxergar. O combate não tem visibilidade nem escuridão.' },
+  provocar: { classe: 'sistema', motivo:
+    'Atrai a atenção do alvo — obriga a mirar em você. Falta alvo obrigatório, que nenhuma outra técnica ou magia usa.' },
+  conduzir_oponente: { classe: 'decisao', motivo:
+    'Move 1 alvo por 5 metros. O tabuleiro tem posição e distância, mas quem escolhe PARA ONDE o alvo vai — você, o alvo, ou a linha reta para trás?' },
+};
+
+function tecnicaForaDoRegistro(key) {
+  if (!key || typeof key !== 'string') return null;
+  return TECNICA_FORA_DO_REGISTRO[key] || null;
+}
 
 // Lookup tolerante: técnica sem entrada devolve null, e o chamador mantém o
 // comportamento narrativo de antes da Fase 1. Nunca lança.
@@ -239,4 +293,5 @@ function tecnicaEfeitoDe(key) {
   return TECNICA_EFEITO_MAP[key] || null;
 }
 
-Object.assign(window, { TECNICA_EFEITO_MAP, tecnicaEfeitoDe });
+Object.assign(window, { TECNICA_EFEITO_MAP, tecnicaEfeitoDe,
+  TECNICA_FORA_DO_REGISTRO, tecnicaForaDoRegistro });

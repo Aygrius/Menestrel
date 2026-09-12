@@ -2762,6 +2762,56 @@ function efeitoAncoraNoAtacante(reg) {
   return reg.efeitos.some((ef) => ef.tipo === 'ignora_eh' || ef.tipo === 'ignora_armadura');
 }
 
+/* ── Bônus de técnica numa HABILIDADE nomeada (puro) ───────────────
+   Remover Debilitação: "seu total é adicionado à sua habilidade Escapar por 1
+   rodada". É o primeiro modificador do jogo que mira numa habilidade e não num
+   stat de combate — e só passou a fazer sentido quando a aba Habilidade
+   ganhou dificuldade e veredito, porque antes somar à coluna não mudava nada
+   que alguém lesse.
+
+   Casa pelo NOME, sem acento e sem caixa: o registro guarda o nome como o
+   texto do banco o escreve, e a habilidade do PJ vem do catálogo. */
+function somaModHabilidade(p, nomeHabilidade) {
+  const st = (p && Array.isArray(p.status_temp)) ? p.status_temp : null;
+  if (!st || !nomeHabilidade) return 0;
+  const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const alvo = norm(nomeHabilidade);
+  return st.reduce((soma, s) => {
+    const ef = s && s.efeito;
+    if (!ef || ef.tipo !== 'mod_habilidade') return soma;
+    if (norm(ef.habilidade) !== alvo) return soma;
+    return soma + (Number(ef.valor) || 0);
+  }, 0);
+}
+
+/* ── Dano no EQUIPAMENTO do alvo (puro) ────────────────────────────
+   Estilhaçar ("causa 2 de dano em 1 equipamento") e Retalhar ("3 de dano").
+   O equipamento que o combate conhece é a armadura, e o que nela se gasta é a
+   RESISTÊNCIA — a mesma que o golpe acima do limiar consome, um ponto por vez.
+   A diferença é que aqui o desgaste é o objetivo, não o efeito colateral.
+
+   Reusa desgastarArmadura, que sempre morde a peça mais inteira: sem isso,
+   duas peças ficariam pela metade em vez de uma quebrar. Resistência em 0 = a
+   armadura para de bloquear, que é o "equipamento inutilizado" do texto.
+
+   Criatura não tem peças (a tabela não tem inventário): cai no `res` escalar,
+   espelhando exatamente o que aplicarDanoCascata faz. Instantâneo — não vira
+   status_temp, como dano e cura não viram. */
+function aplicarDanoEquipamento(p, reg) {
+  if (!p || !reg || !Array.isArray(reg.efeitos)) return p;
+  const total = reg.efeitos.reduce((s, ef) => (ef.tipo === 'dano_equipamento'
+    ? s + (Number(ef.valor) || 0) : s), 0);
+  if (total <= 0) return p;
+
+  if (Array.isArray(p.armadura_pecas) && p.armadura_pecas.length) {
+    let pecas = p.armadura_pecas;
+    for (let i = 0; i < total; i++) pecas = desgastarArmadura(pecas);
+    return { ...p, armadura_pecas: pecas, res: somaRes(pecas) };
+  }
+  const res = Math.max(0, (Number(p.res) || 0) - total);
+  return { ...p, res };
+}
+
 function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
   const key = tecnica && tecnica.key;
   const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(key) : null;
@@ -2784,6 +2834,12 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
       const grupos = gruposDeArma(tecnica.grupo_armas);
       if (grupos) efeito.grupos = grupos;
     }
+    /* Remover Debilitação: o bônus é numa HABILIDADE nomeada ("adicionado à
+       sua habilidade Escapar"), não num stat de combate. O nome viaja no
+       efeito pelo mesmo motivo que a restrição de arma viaja: quem consome
+       precisa saber A QUAL habilidade o número pertence, e o registro não
+       chega lá. */
+    if (ef.tipo === 'mod_habilidade' && ef.habilidade) efeito.habilidade = ef.habilidade;
     // Escolta: o status mora no aliado, mas a defesa que vale é a de quem
     // ativou — sem esta âncora não há como achar a fonte depois.
     if (ef.tipo === 'usa_defesa_de' && opcoes && opcoes.fonteInstId) {
@@ -3716,6 +3772,18 @@ function podeAtivarTecnicaLivre(p, tecnica) {
    isso pra decidir se vale persistir. */
 function quebrarConcentracao(participantes, atorInstId, motivo) {
   if (!atorInstId || !Array.isArray(participantes)) return participantes;
+  /* TÉCNICA CONCENTRAÇÃO (12/09/2026) — "permite continuar realizando uma
+     tarefa por 2 rodadas". Em combate a tarefa é a magia sustentada, e esta é
+     a única coisa no jogo que segura a queda.
+
+     Blinda o conjurador INTEIRO enquanto o status durar: não escolhe gatilho,
+     porque o texto não escolhe. Atacar, andar, usar item ou levar dano na EF
+     deixam de derrubar a magia — que é exatamente o que a técnica promete, e
+     por isso ela custa um teste Difícil e vale só 2 rodadas. */
+  const protegido = (participantes || []).some((p) => p && p.inst_id === atorInstId
+    && Array.isArray(p.status_temp)
+    && p.status_temp.some((s) => s.efeito && s.efeito.tipo === 'mantem_concentracao'));
+  if (protegido) return participantes;
   let mudou = false;
   const next = participantes.map((p) => {
     const st = Array.isArray(p.status_temp) ? p.status_temp : null;
@@ -4471,6 +4539,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           } else {
             next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total, { fonteInstId });
           }
+          // Estilhaçar e Retalhar gastam a armadura do alvo NA HORA — é dano
+          // em equipamento, não um status que dura rodadas.
+          next[dIdx] = aplicarDanoEquipamento(next[dIdx], reg);
           atingidos.push(next[dIdx].nome);
         });
         // O uso Único é do ATOR, mesmo quando o efeito cai só nos outros.
@@ -6394,7 +6465,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
     coluna = magia.nivel + modColunaAtor + somaModAtaque(ator, null);
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'habilidade' && habilidadeSel && habilidadeSel.total != null) {
-    coluna = habilidadeSel.total + modColunaAtor;
+    // + o bônus que alguma técnica tenha dado A ESTA habilidade (Remover
+    // Debilitação soma o próprio total à habilidade Escapar).
+    coluna = habilidadeSel.total + modColunaAtor
+           + somaModHabilidade(ator, habilidadeSel.nome);
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'tecnica_teste' && tecnicaTesteSel && tecnicaTesteSel.total != null) {
     coluna = tecnicaTesteSel.total + modColunaAtor;
@@ -7988,6 +8062,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           } else {
             next[dIdx] = aplicarEfeitoTecnica(next[dIdx], payload.tecnica, payload.valor_total, { fonteInstId });
           }
+          // Estilhaçar e Retalhar gastam a armadura do alvo NA HORA — é dano
+          // em equipamento, não um status que dura rodadas.
+          next[dIdx] = aplicarDanoEquipamento(next[dIdx], reg);
           atingidos.push(next[dIdx].nome);
         });
         // O uso Único é do ATOR, mesmo quando o efeito cai só nos outros.
@@ -8542,6 +8619,7 @@ Object.assign(window, {
     // fonte, como já acontece com o dano. duracao e descricao completam o
     // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
     modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia, passouNoTesteDeHabilidade,
+    somaModHabilidade, aplicarDanoEquipamento,
     magiasDeApoioDoAtor, magiasOfensivasDoAtor, magiasConhecidasDoAtor,
     aplicarEfeitoApoio, quebrarConcentracao,
     // Fase 1 das técnicas (09/09/2026): grava o efeito da técnica no
