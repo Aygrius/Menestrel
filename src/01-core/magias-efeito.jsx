@@ -606,6 +606,12 @@ const MAGIA_EFEITO_MAP = {
                                      { tipo: 'cura_pool', unidade: 'cura_ef', pool: 'ef' }] },
   curas_heroicas:        { alvo: 'aliado', alvos: 1, icone: '💗',
                            efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
+  /* Heroísmo entrou em 12/09/2026, e a razão de ter demorado vale registrar:
+     o texto dizia "Cure 8 de energia heroica" — verbo que o leitor não
+     conhecia —, então a varredura das órfãs nem a viu. O usuário corrigiu
+     para "Restaura", ela ficou legível, e não havia dificuldade nenhuma. */
+  heroismo:              { alvo: 'aliado', alvos: 1, icone: '🦸',
+                           efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
 
   /* ── AS 11 QUE FICARAM DE FORA, e por quê ──────────────────────────
      Nenhuma foi adivinhada. Todas seguem aparecendo como órfãs no
@@ -899,3 +905,79 @@ Object.assign(window, {
   indiceMagiasPorNome, resolverNomesDeMagia,
   auditarCriaturas, resumoAuditoriaCriaturas,
 });
+
+/* ============================================================
+   POR QUE ESTA MAGIA NÃO ESTÁ NO MOTOR
+   ============================================================
+   O painel de verificação listava as magias fora do registro e parava aí. O
+   usuário perguntou, com razão: "qual é a dificuldade com a magia Heroísmo?"
+   — e a resposta era "nenhuma, eu só não a liguei ainda". O painel não tinha
+   como dizer isso.
+
+   Este mapa põe o motivo na tela. Cada entrada diz em que CLASSE a magia cai
+   e o que fazer com ela:
+
+     'decisao'  — o motor daria conta; falta você decidir uma regra
+     'ritual'   — Ritual ou evocação longa: não se lança em combate
+     'sistema'  — precisa de subsistema que o combate não tem
+     'invocado' — os números são a ficha de uma criatura invocada
+
+   Magia legível e SEM entrada aqui é a que vale perguntar: ou é narrativa de
+   verdade, ou é candidata esquecida — como Heroísmo era.
+   ============================================================ */
+const MAGIA_FORA_DO_REGISTRO = {
+  /* ── Falta uma decisão de regra ─────────────────────────────────── */
+  garras: { classe: 'decisao', motivo:
+    'Alcance "Pessoal" mas causa dano em inimigo. São as suas garras — se o alcance virar "Toque", entra.' },
+  lamina_de_luz: { classe: 'decisao', motivo:
+    'Mesmo caso de Garras: alcance "Pessoal" com dano em inimigo. Trocar para "Toque" resolve.' },
+  forcar_disputa: { classe: 'decisao', motivo:
+    'O "+N de velocidade" é em quem — no conjurador ou no adversário atraído? A descrição não diz.' },
+  tensao: { classe: 'decisao', motivo:
+    'Dá defesa, velocidade e coluna, mas exige teste de resistência. Buff que o alvo resiste não faz sentido: é debuff?' },
+  auxilio_natural: { classe: 'decisao', motivo:
+    '"Cause N de dano máximo": no motor, dano máximo é o TETO de dano do alvo, não dano causado. Qual dos dois?' },
+  parede_de_cristal: { classe: 'decisao', motivo:
+    'É uma parede no terreno, não um efeito em alguém. Em quem a redução de dano deve valer?' },
+
+  /* ── Ritual ou evocação longa: fora de combate ──────────────────── */
+  hibernar: { classe: 'ritual', motivo: 'Evocação de 8 horas.' },
+  aura_ameacadora: { classe: 'ritual', motivo: 'Ritual, e o alvo é um objeto de arte.' },
+  campo_abencoado: { classe: 'ritual', motivo: 'Ritual, e restaura "por hora".' },
+  manjar_de_lena: { classe: 'ritual', motivo: 'Ritual de comida.' },
+  necropotencia: { classe: 'ritual', motivo:
+    'Ritual com 30 dias de duração — lançada antes da batalha, o bônus já está na ficha.' },
+  ossos_de_aco: { classe: 'ritual', motivo: 'O dano é de queda, por metro — fora de combate.' },
+  melodia_zen: { classe: 'ritual', motivo: 'Exige meia hora de música ininterrupta.' },
+
+  /* ── Precisa de subsistema que o combate não tem ────────────────── */
+  protecao_natural: { classe: 'sistema', motivo:
+    'Exige teste de atributo (Percepção), que o combate não tem.' },
+  doencas: { classe: 'sistema', motivo:
+    'Doenças nomeadas, com efeito por atributo. É subsistema próprio.' },
+  alucinacao: { classe: 'sistema', motivo:
+    'Mexe na dificuldade da habilidade Sentidos, não em stat de combate.' },
+  invisibilidade: { classe: 'sistema', motivo:
+    'Precisa de primitiva de seleção de alvo: ficar difícil de ser alvejado.' },
+  ordens: { classe: 'sistema', motivo:
+    'O nível só define quantas palavras a ordem tem. É narrativa pura.' },
+  possessao: { classe: 'sistema', motivo:
+    'Troca de corpo entre participantes. Subsistema próprio.' },
+
+  /* ── Os números são a ficha de um INVOCADO ──────────────────────── */
+  projecao: { classe: 'invocado', motivo:
+    'Cria uma cópia do personagem. Os números são a ficha dela, não efeito em alguém.' },
+  guardiao_espiritual: { classe: 'invocado', motivo: 'Cria cópias do personagem.' },
+  pseudomateria: { classe: 'invocado', motivo:
+    'Cria um personagem controlado pelo Mestre.' },
+  criatura_disforme: { classe: 'invocado', motivo: 'Anima uma carcaça.' },
+};
+
+// Lookup tolerante: magia sem motivo registrado devolve null, e o painel a
+// mostra como "sem motivo registrado" — que é o convite para perguntar.
+function motivoForaDoRegistro(key) {
+  if (!key || typeof key !== 'string') return null;
+  return MAGIA_FORA_DO_REGISTRO[key] || null;
+}
+
+Object.assign(window, { MAGIA_FORA_DO_REGISTRO, motivoForaDoRegistro });

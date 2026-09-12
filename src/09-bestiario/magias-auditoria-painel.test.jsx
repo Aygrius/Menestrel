@@ -91,11 +91,14 @@ describe('órfãs aparecem como oportunidade, não como erro', () => {
     expect(screen.getByText(/1 sem registro/)).toBeTruthy();
   });
 
-  it('e listadas com a unidade que o motor saberia ler', () => {
+  it('e listadas com o MOTIVO de estarem fora', () => {
+    /* Antes o painel mostrava as unidades lidas ("cura_eh"), que não dizem
+       nada ao Mestre. Desde 12/09/2026 mostra o motivo: Melodia Zen exige
+       meia hora de música ininterrupta. */
     montar([ORFA]);
     fireEvent.click(cabecalho());
     expect(screen.getByText('Melodia Zen')).toBeTruthy();
-    expect(screen.getByText(/cura_eh/)).toBeTruthy();
+    expect(screen.getByText(/meia hora de música/)).toBeTruthy();
   });
 });
 
@@ -112,5 +115,50 @@ describe('não quebra com entrada vazia', () => {
   it('lista vazia renderiza sem lançar', () => {
     const { container } = montar([]);
     expect(container.querySelector('.best-auditoria')).toBeTruthy();
+  });
+});
+
+describe('a lista de fora-do-motor diz o MOTIVO e o que fazer', () => {
+  /* O usuário perguntou "qual é a dificuldade com a magia Heroísmo?" e o
+     painel não tinha como responder: listava nomes e parava aí. Uma lista sem
+     motivo é inútil — nenhum item indica o que fazer com ele. */
+  const montarOrfas = (magias) => render(
+    <div className="menestrel-ui"><Painel magias={magias} lang="pt" /></div>
+  );
+
+  const GARRAS = { key: 'garras', nome: 'Garras', nivel_1: 'Causa 12 de dano.' };
+  const RITUAL = { key: 'manjar_de_lena', nome: 'Manjar de Lena',
+                   nivel_1: 'Restaura 5 de energia heroica.' };
+  const DESCONHECIDA = { key: 'magia_nova_qualquer', nome: 'Magia Nova',
+                         nivel_1: 'Causa 9 de dano.' };
+
+  it('separa "falta decisão sua" de "ritual, nada a fazer"', () => {
+    montarOrfas([GARRAS, RITUAL]);
+    fireEvent.click(cabecalho());
+    expect(screen.getByText(/Falta uma decisão sua/)).toBeTruthy();
+    // "nada a fazer" aparece duas vezes na tela — no título do grupo e no
+    // rodapé das narrativas. Ancorar no título inteiro desambigua.
+    expect(screen.getByText(/Ritual ou fora de combate/)).toBeTruthy();
+  });
+
+  it('mostra o motivo concreto, não só o nome', () => {
+    montarOrfas([GARRAS]);
+    fireEvent.click(cabecalho());
+    // Garras: alcance Pessoal com dano em inimigo — trocar para Toque resolve.
+    expect(screen.getByText(/alcance virar "Toque"/)).toBeTruthy();
+  });
+
+  it('magia SEM motivo registrado cai num grupo que convida a perguntar', () => {
+    // É o caso que o Heroísmo era: candidata esquecida, não impossível.
+    montarOrfas([DESCONHECIDA]);
+    fireEvent.click(cabecalho());
+    expect(screen.getByText(/vale perguntar/)).toBeTruthy();
+  });
+
+  it('Heroísmo saiu da lista — foi ligado em 12/09/2026', () => {
+    const heroismo = { key: 'heroismo', nome: 'Heroísmo',
+                       nivel_1: 'Restaura 8 de energia heroica.' };
+    montarOrfas([heroismo]);
+    expect(screen.getByText(/1 lidas corretamente/)).toBeTruthy();
   });
 });

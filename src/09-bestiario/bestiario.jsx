@@ -757,11 +757,56 @@ function MagiasAuditoriaPainel({ magias, lang }) {
               )).join('; ')}</span>
             )}
           />
-          <Secao
-            titulo={en ? 'Unmapped — readable numbers, no engine entry' : 'Sem registro — têm número legível e o motor ignora'}
-            itens={r.orfa}
-            detalhe={(x) => <span className="best-aud-det"> — {x.unidades.join(', ')}</span>}
-          />
+          {/* Fora do motor, AGRUPADO POR MOTIVO.
+
+              A versão anterior só listava os nomes, e o usuário perguntou —
+              com razão — "qual é a dificuldade com a magia Heroísmo?". A
+              resposta era "nenhuma, eu só não a liguei". O painel não tinha
+              como dizer isso, e por isso a lista era inútil: nenhum item
+              indicava o que fazer com ele.
+
+              Agora cada magia carrega a classe e o motivo, de
+              MAGIA_FORA_DO_REGISTRO. A classe SEM motivo registrado fica por
+              último e é a que vale perguntar. */}
+          {r.orfa.length > 0 && (() => {
+            const CLASSES = [
+              { id: 'decisao',  pt: 'Falta uma decisão sua — o motor daria conta',
+                                en: 'Needs a rules decision — the engine could handle it' },
+              { id: 'sistema',  pt: 'Falta um sistema que o combate não tem',
+                                en: 'Needs a subsystem combat does not have' },
+              { id: 'invocado', pt: 'Os números são a ficha de um invocado',
+                                en: 'The numbers are a summoned creature sheet' },
+              { id: 'ritual',   pt: 'Ritual ou fora de combate — nada a fazer',
+                                en: 'Ritual or out of combat — nothing to do' },
+              { id: null,       pt: 'Sem motivo registrado — vale perguntar',
+                                en: 'No reason on file — worth asking' },
+            ];
+            const motivoDe = (k) => (typeof motivoForaDoRegistro === 'function'
+              ? motivoForaDoRegistro(k) : null);
+            return CLASSES.map((c) => {
+              const itens = r.orfa.filter((x) => {
+                const m = motivoDe(x.key);
+                return c.id ? (m && m.classe === c.id) : !m;
+              });
+              if (!itens.length) return null;
+              return (
+                <div className="best-aud-secao" key={c.id || 'sem'}>
+                  <div className="best-aud-titulo">{en ? c.en : c.pt} · {itens.length}</div>
+                  <ul className="best-aud-lista">
+                    {itens.map((x) => {
+                      const m = motivoDe(x.key);
+                      return (
+                        <li key={x.key}><strong>{x.nome}</strong>
+                          <span className="best-aud-det"> — {m ? m.motivo
+                            : (en ? `reads ${x.unidades.join(', ')}` : `lê ${x.unidades.join(', ')}`)}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            });
+          })()}
 
           <p className="best-aud-rodape">
             {en

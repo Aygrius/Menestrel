@@ -203,8 +203,8 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem 65 entradas — 37 anteriores + 28 da varredura das orfas', () => {
-    expect(Object.keys(MAP)).toHaveLength(65);
+  it('tem 66 entradas — 65 da varredura mais Heroismo', () => {
+    expect(Object.keys(MAP)).toHaveLength(66);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -361,6 +361,9 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     carne_em_vermes:       'Cause 4 de dano base e reduza 1 coluna de ataque.',
     curas_naturais:        'Restaura 4 de energia heroica e 2 de energia física.',
     curas_heroicas:        'Restaura 8 de energia heroica.',
+    // Entrou depois de o usuario trocar "Cure" por "Restaura": nao havia
+    // dificuldade nenhuma, o verbo antigo e que era desconhecido.
+    heroismo:              'Restaura 8 de energia heroica.',
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',
