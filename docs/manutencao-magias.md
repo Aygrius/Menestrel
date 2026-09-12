@@ -1,6 +1,6 @@
-# Manutenção do catálogo de magias
+# Manutenção dos catálogos de combate
 
-**Para quem edita magias pelo admin.** Responde uma pergunta: *mudei o texto —
+**Para quem edita magias, técnicas e itens pelo admin.** Responde uma pergunta: *mudei o texto —
 o efeito mudou junto, ou preciso mexer no motor?*
 
 ---
@@ -120,7 +120,8 @@ criaturas** que a citam.
 
 ## 4. Como conferir que você acertou
 
-Dois painéis no bestiário, só para admin. Ambos fechados por padrão; só acendem
+Três painéis no bestiário, só para admin — Magias, Criaturas e Técnicas. Todos
+fechados por padrão; só acendem
 quando há problema.
 
 ### Verificação do catálogo — na aba **Magias**
@@ -256,6 +257,49 @@ A dificuldade do teste de habilidade fica **no texto do nível**, não no códig
 você ajusta isso sem me chamar. A escala é a mesma da ficha: Fácil, Médio,
 Difícil, Muito Difícil, Absurdo.
 
-As outras sete precisam de sistemas que o combate não tem (objeto de arte como
-alvo, doenças por atributo, karma, parede no terreno, teste de atributo) ou são
-de fora de combate.
+---
+
+## 8. Os catálogos vizinhos — e a regra que se INVERTE
+
+Em 12/09/2026 a verificação foi estendida a técnicas e itens. As três telas se
+parecem, e é justamente por isso que a diferença precisa estar escrita.
+
+### Técnicas — o número mora no CÓDIGO
+
+> **Editar `"por 2 rodadas"` para `"por 5 rodadas"` muda o que a tela promete e
+> não muda nada do que o motor faz.**
+
+É o oposto da magia. Nas magias o parser lê o número do texto a cada
+conjuração; nas técnicas a duração e a dificuldade estão no registro em código,
+e o texto do banco é só o que o jogador lê.
+
+Por isso a **Verificação do catálogo** na aba *Técnicas* procura **divergência**
+— texto e motor contando números diferentes —, e não ilegibilidade. Se algo
+aparecer ali, me avise: a correção é nos dois lugares ao mesmo tempo.
+
+Estado em 12/09/2026: **54 das 58** rodam em combate; 0 divergentes. As 4 de
+fora têm motivo no painel — Combate Montado (não há montaria), Luta às Cegas
+(não há visibilidade), Provocar (não há alvo obrigatório) e Conduzir Oponente,
+que espera uma decisão sua: *move o alvo 5 metros — para onde?*
+
+### Itens — dois caminhos independentes
+
+| O que o item tem | O que acontece em combate |
+|---|---|
+| `efeito_positivo` / `efeito_negativo` | muda condição de ficha ou poço, na aba **Item** |
+| `magia` + `nivel_magia` | **concede a magia**, nas abas Magia/Apoio |
+
+O primeiro caminho é lido do texto, como nas magias — e o catálogo inteiro
+(747 itens) está limpo: nenhum rótulo desconhecido.
+
+O segundo entrou em 12/09/2026, e vale a pena saber as regras:
+
+- **item em uso concede**: `equipado` ou `vestido`. Anel na mochila não vale;
+- **pergaminho é exceção** — não se veste, e **some depois de lido**;
+- **não custa karma** — a magia está no item;
+- **o nível é o do item** (`nivel_magia`), não escala com o personagem;
+- magia que o personagem **sabe** ganha da que o item concede.
+
+> ⚠️ `itens.magia` referencia a magia **pelo nome**, como `criaturas.magia`.
+> Mesma armadilha do §3: um item apontava para *"Energia Primodial"* (sem o
+> **r**) e nunca conjuraria nada, em silêncio.
