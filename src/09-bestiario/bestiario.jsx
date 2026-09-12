@@ -1227,6 +1227,12 @@ function TecnicasAuditoriaPainel({ tecnicas, lang, onRecarregar }) {
                       en: 'Needs a rules decision — the engine could handle it' },
     { id: 'sistema',  pt: 'Falta um sistema que o combate não tem',
                       en: 'Needs a system the engine lacks' },
+    /* 'mestre' NÃO é pendência: é o desenho. A técnica rola o dado
+       normalmente e o Mestre conduz o resultado na mesa — automatizar tiraria
+       dele a decisão sobre o que o adversário faz. Vem depois das duas de
+       cima justamente porque não pede nada de ninguém. */
+    { id: 'mestre',   pt: 'O Mestre resolve na mesa — é assim de propósito',
+                      en: 'The GM resolves it at the table — by design' },
     { id: null,       pt: 'Sem motivo registrado — vale perguntar',
                       en: 'No reason on file — worth asking' },
   ];

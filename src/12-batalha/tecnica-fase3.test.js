@@ -10,8 +10,10 @@
      Remover Debilitação bônus numa HABILIDADE nomeada (a aba já julga teste)
      Estilhaçar/Retalhar gastam a resistência da armadura (o golpe já gasta)
 
-   As outras quatro precisam de montaria, visibilidade e alvo obrigatório —
-   e agora têm motivo escrito em TECNICA_FORA_DO_REGISTRO.
+   Das outras quatro, Combate Montado entrou no mesmo dia, quando a MONTARIA
+   virou mecânica. As três que sobraram têm motivo escrito em
+   TECNICA_FORA_DO_REGISTRO — e duas delas por decisão do usuário: Provocar e
+   Conduzir Oponente são arbitragem do Mestre, não falta de sistema.
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/copy.jsx';
@@ -168,30 +170,32 @@ describe('Estilhaçar e Retalhar — dano no equipamento', () => {
   });
 });
 
-describe('as quatro que seguem fora TÊM motivo registrado', () => {
+describe('as tres que seguem fora TÊM motivo registrado', () => {
   /* O que faltava não era só o efeito: era o instrumento. Nas magias, a lista
      de fora-do-motor com motivo foi o que permitiu ao usuário decidir. */
-  it.each(['combate_montado', 'luta_as_cegas', 'provocar', 'conduzir_oponente'])(
+  it.each(['luta_as_cegas', 'provocar', 'conduzir_oponente'])(
     '%s diz por que está fora', (key) => {
       const m = window.tecnicaForaDoRegistro(key);
       expect(m, key).toBeTruthy();
-      expect(['sistema', 'decisao']).toContain(m.classe);
+      expect(['sistema', 'decisao', 'mestre']).toContain(m.classe);
       expect(m.motivo.length).toBeGreaterThan(30);
     });
 
   it('e nenhuma delas está no registro de efeito', () => {
-    ['combate_montado', 'luta_as_cegas', 'provocar', 'conduzir_oponente']
+    ['luta_as_cegas', 'provocar', 'conduzir_oponente']
       .forEach((k) => expect(window.TECNICA_EFEITO_MAP[k], k).toBeUndefined());
   });
 
   it('técnica LIGADA não aparece como fora', () => {
-    ['concentracao', 'remover_debilitacao', 'estilhacar', 'retalhar']
+    ['concentracao', 'remover_debilitacao', 'estilhacar', 'retalhar', 'combate_montado']
       .forEach((k) => expect(window.tecnicaForaDoRegistro(k), k).toBeNull());
   });
 
   it('registro e lista-de-fora cobrem as 58 do catálogo, sem sobra', () => {
     const ligadas = Object.keys(window.TECNICA_EFEITO_MAP).length;
     const fora = Object.keys(window.TECNICA_FORA_DO_REGISTRO).length;
+    // 55 + 3 = 58. Combate Montado saiu da lista de fora em 12/09/2026,
+    // quando a montaria virou mecanica.
     expect(ligadas + fora).toBe(58);
   });
 });

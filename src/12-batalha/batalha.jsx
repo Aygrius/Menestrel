@@ -1620,6 +1620,110 @@ function EstadoDropPortal({ anchorRef, onClose, children }) {
   );
 }
 
+/* ============================================================
+   MONTARIA — 12/09/2026
+   ============================================================
+   "As montarias já existem (inicialmente pode incluir todas as criaturas do
+   tipo Cavalo), vamos criar a mecânica de montar." — decisão do usuário.
+
+   Não há tabela nova nem coluna nova: a montaria é uma CRIATURA que já está na
+   batalha, com posição, EH e velocidade próprias. Montar é amarrar dois
+   participantes que já existem.
+
+   O que amarrar muda:
+     • o cavaleiro anda com a VELOCIDADE DA MONTARIA — é o ponto de montar;
+     • os dois ocupam a mesma célula: mover o cavaleiro leva o cavalo junto,
+       senão o tabuleiro mente;
+     • a técnica Combate Montado passa a ter de onde tirar "50% da energia
+       heroica da sua montaria".
+
+   O que NÃO muda, de propósito: a montaria continua sendo um combatente
+   inteiro — tem iniciativa, pode ser atacada, pode morrer. Quem decide o que
+   ela faz no turno dela é o Mestre, como com qualquer criatura.
+   ============================================================ */
+/* Por enquanto, cavalos e pônei. A regra é por NOME porque `tipo` no banco diz
+   Animal/Místico — Cavalo Lendário é Místico e é montaria do mesmo jeito.
+   Quando outras montarias aparecerem (grifo, camelo), é aqui que a lista
+   cresce, num lugar só. */
+const RE_MONTARIA = /^(cavalo|p[ôo]nei)\b/i;
+
+function ehMontaria(cri) {
+  const nome = (cri && (cri.nome || cri.nome_criatura)) || '';
+  return RE_MONTARIA.test(String(nome).trim());
+}
+
+/* Quem, nesta batalha, pode servir de montaria para este cavaleiro: criatura
+   viva, que é montaria, e que ainda não tem ninguém em cima. */
+function montariasDisponiveis(participantes, cavaleiro) {
+  if (!Array.isArray(participantes)) return [];
+  return participantes.filter((p) => {
+    if (!p || p.tipo !== 'criatura' || !ehMontaria(p)) return false;
+    if (p.status === 'morto' || p.ausente) return false;
+    if (p.montado_por && (!cavaleiro || p.montado_por !== cavaleiro.inst_id)) return false;
+    return true;
+  });
+}
+
+/* Monta (puro). Devolve o MESMO array quando não há o que fazer — os
+   chamadores usam isso para decidir se vale persistir.
+
+   Um cavaleiro por montaria e uma montaria por cavaleiro: montar de novo
+   desmonta a anterior, em vez de acumular duas. */
+function montar(participantes, cavaleiroInstId, montariaInstId) {
+  if (!Array.isArray(participantes) || !cavaleiroInstId || !montariaInstId) return participantes;
+  const cav = participantes.find((p) => p && p.inst_id === cavaleiroInstId);
+  const mon = participantes.find((p) => p && p.inst_id === montariaInstId);
+  if (!cav || !mon || !ehMontaria(mon) || mon.status === 'morto') return participantes;
+  if (mon.montado_por && mon.montado_por !== cavaleiroInstId) return participantes;
+
+  const base = desmontar(participantes, cavaleiroInstId);
+  return base.map((p) => {
+    if (p.inst_id === cavaleiroInstId) {
+      return { ...p,
+        // A EH da montaria viaja CONGELADA, como todo derivado do snapshot:
+        // Combate Montado soma 50% dela, e o número não pode mudar no meio da
+        // batalha porque o cavalo levou uma flechada.
+        montaria: { inst_id: mon.inst_id, ref_id: mon.ref_id, nome: mon.nome,
+                    eh_max: Number(mon.eh_max) || Number(mon.eh) || 0,
+                    velocidade: Number(mon.vb) || 0 },
+        // Cavaleiro assume a célula da montaria: quem sobe vai até o cavalo.
+        pos: (mon.pos && posValida(mon.pos)) ? { ...mon.pos } : p.pos };
+    }
+    if (p.inst_id === montariaInstId) return { ...p, montado_por: cavaleiroInstId };
+    return p;
+  });
+}
+
+function desmontar(participantes, cavaleiroInstId) {
+  if (!Array.isArray(participantes) || !cavaleiroInstId) return participantes;
+  const cav = participantes.find((p) => p && p.inst_id === cavaleiroInstId);
+  if (!cav || !cav.montaria) return participantes;
+  const montariaId = cav.montaria.inst_id;
+  return participantes.map((p) => {
+    if (p.inst_id === cavaleiroInstId) { const { montaria, ...resto } = p; return resto; }
+    if (p.inst_id === montariaId) { const { montado_por, ...resto } = p; return resto; }
+    return p;
+  });
+}
+
+/* A montaria SEGUE o cavaleiro pelo tabuleiro. Chamado depois de mover: sem
+   isto o cavalo fica para trás e os dois aparecem em células diferentes, o que
+   é pior do que não ter montaria nenhuma. */
+function montariaSegue(participantes, cavaleiroInstId) {
+  if (!Array.isArray(participantes)) return participantes;
+  const cav = participantes.find((p) => p && p.inst_id === cavaleiroInstId);
+  if (!cav || !cav.montaria || !posValida(cav.pos)) return participantes;
+  const id = cav.montaria.inst_id;
+  let mudou = false;
+  const next = participantes.map((p) => {
+    if (p.inst_id !== id) return p;
+    if (p.pos && p.pos.x === cav.pos.x && p.pos.y === cav.pos.y) return p;
+    mudou = true;
+    return { ...p, pos: { ...cav.pos } };
+  });
+  return mudou ? next : participantes;
+}
+
 /* ── Ordena por VB (desc); empate: PJ antes, depois nome ──────── */
 function ordenarIniciativa(snaps) {
   return [...snaps]
@@ -1677,7 +1781,8 @@ const iconePA = (n) => {
 };
 
 /* ── EstadoDrop — botão de estado + dropdown via portal por fighter ── */
-function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip }) {
+function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip,
+                      montarias, onMontar, onDesmontar }) {
   const tb = tBat(isEn ? 'en' : 'pt'); // i18n-sync (Fase 3.3): este componente recebe o boolean
   const [aberto, setAberto] = React.useState(false);
   const btnRef = React.useRef(null);
@@ -1755,6 +1860,29 @@ function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip
             onMouseLeave={fecharTip}>
             <i className={'ti ' + iconeStatus('envenenado')} aria-hidden="true" />
           </button>
+          {/* MONTARIA (12/09/2026). Um botão por cavalo disponível, na mesma
+              fileira de ícones — o padrão que o menu já era. Montado, o botão
+              vira "desmontar" e é só um.
+
+              Só aparece quando há montaria na batalha: sem cavalo no tabuleiro
+              não há o que oferecer, e um botão morto confunde. */}
+          {p.montaria ? (
+            <button className="batalha-estado-drop-item montaria on"
+              onClick={() => { fecharTip(); onDesmontar && onDesmontar(); setAberto(false); }}
+              aria-label={(isEn ? 'Dismount from ' : 'Desmontar de ') + p.montaria.nome}
+              onMouseEnter={(e) => abrirTip(e, (isEn ? 'Dismount from ' : 'Desmontar de ') + p.montaria.nome)}
+              onMouseLeave={fecharTip}>
+              <i className="ti ti-horse-toy" aria-hidden="true" />
+            </button>
+          ) : (montarias || []).map((m) => (
+            <button key={m.inst_id} className="batalha-estado-drop-item montaria"
+              onClick={() => { fecharTip(); onMontar && onMontar(m); setAberto(false); }}
+              aria-label={(isEn ? 'Mount ' : 'Montar em ') + m.nome}
+              onMouseEnter={(e) => abrirTip(e, (isEn ? 'Mount ' : 'Montar em ') + m.nome)}
+              onMouseLeave={fecharTip}>
+              <i className="ti ti-horse-toy" aria-hidden="true" />
+            </button>
+          ))}
         </EstadoDropPortal>
       )}
     </div>
@@ -2242,6 +2370,18 @@ function consumirEvitaGolpe(alvo) {
 function vbEfetivo(p) {
   return (p.vb || 0) + somaEfeitosStatus(p, 'mod_vb');
 }
+/* ── Velocidade que vale para ANDAR (puro) ─────────────────────────
+   Montado, quem anda é o cavalo: o passo sai da velocidade DELE, e é para isso
+   que se monta. Um Cavalo Árabe (21) leva quem tem velocidade 8 longe.
+
+   Só o MOVIMENTO usa esta — iniciativa e a ação extra acima de 30 seguem em
+   vbEfetivo, na velocidade do próprio combatente. Montar dá passo, não dá
+   reflexo: quem age é o cavaleiro. */
+function vbParaMovimento(p) {
+  const montada = p && p.montaria && Number(p.montaria.velocidade);
+  if (montada > 0) return montada;
+  return vbEfetivo(p);
+}
 /* RF/RM efetivas: o valor do snapshot mais os mod_rf/mod_rm de técnica.
    Piso 1 porque resolverResistencia só aceita 1..20 — deixar cair a 0
    estouraria o índice da tabela. Não persiste: o rf/rm cru do snapshot
@@ -2418,7 +2558,8 @@ function processarViradaDeRodada(p) {
               // O ponto exclusivo de técnica volta cheio, como o pa_rest.
               // Não acumula entre rodadas: quem não usou, perdeu.
               pa_tecnica_rest: p.pa_tecnica_max || 0,
-              mov_rest: movimentoBase(vbEf), moveu_na_rodada: false,
+              // O passo sai da montaria quando há uma — ver vbParaMovimento.
+              mov_rest: movimentoBase(vbParaMovimento(p)), moveu_na_rodada: false,
               // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
               // modo 'total' é POR RODADA — mesmo padrão de moveu_na_rodada.
               tecnica_livre_usada: false,
@@ -2912,9 +3053,19 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
   const semEsta = anteriores.filter((s) => s.id !== id);
 
   const novos = reg.efeitos.map((ef) => {
-    const efeito = (reg.modo === 'teste')
-      ? { tipo: ef.tipo, valor: ef.valor }
-      : { tipo: ef.tipo, valor: (ef.sinal || 1) * (Number(valorTotal) || 0) };
+    /* COMBATE MONTADO: o valor não está no registro nem no total da técnica —
+       é 50% da EH da montaria, e portanto depende de em qual cavalo o
+       combatente está. Sem montaria dá 0, o efeito não entra, e o painel
+       avisa antes de gastar o PA. */
+    const doMontaria = ef.do_montaria_pct != null
+      ? Math.floor(((participante && participante.montaria && participante.montaria.eh_max) || 0)
+                   * (Number(ef.do_montaria_pct) || 0) / 100)
+      : null;
+    const efeito = doMontaria != null
+      ? { tipo: ef.tipo, valor: doMontaria }
+      : (reg.modo === 'teste')
+        ? { tipo: ef.tipo, valor: ef.valor }
+        : { tipo: ef.tipo, valor: (ef.sinal || 1) * (Number(valorTotal) || 0) };
     // Restrição de arma: vem de tecnicas.grupo_armas, não do registro.
     // Ativar Mira (PL,PM,PP) com um arco e trocar para espada não deve manter
     // o bônus — por isso a lista viaja NO EFEITO, e somaModAtaque a consulta
@@ -3866,9 +4017,10 @@ function quebrarConcentracao(participantes, atorInstId, motivo) {
      a única coisa no jogo que segura a queda.
 
      Blinda o conjurador INTEIRO enquanto o status durar: não escolhe gatilho,
-     porque o texto não escolhe. Atacar, andar, usar item ou levar dano na EF
-     deixam de derrubar a magia — que é exatamente o que a técnica promete, e
-     por isso ela custa um teste Difícil e vale só 2 rodadas. */
+     porque o texto não escolhe. Atacar, usar item ou levar dano na EF deixam
+     de derrubar a magia — que é exatamente o que a técnica promete, e por isso
+     ela custa um teste Difícil e vale só 2 rodadas. (Andar nunca derrubou
+     desde a correção de regra de 12/09/2026.) */
   const protegido = (participantes || []).some((p) => p && p.inst_id === atorInstId
     && Array.isArray(p.status_temp)
     && p.status_temp.some((s) => s.efeito && s.efeito.tipo === 'mantem_concentracao'));
@@ -4245,10 +4397,18 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Mover não gasta PA nem passa a vez (30/08/2026): quem anda continua com
     // a ação dele para gastar. A vez só passa por Passar, por aplicarAcao ou
     // por ficar sem PA agindo.
-    // Andar quebra a concentração (regra confirmada em 01/09/2026): sustentar
-    // a magia exige ficar parado evocando.
+    /* ANDAR NÃO QUEBRA A CONCENTRAÇÃO — correção de regra em 12/09/2026.
+
+       Desde 01/09/2026 o motor derrubava a magia sustentada ao andar, por uma
+       leitura minha de "sustentar exige ficar parado". O usuário corrigiu: só
+       ATACAR e LEVAR DANO NA EF derrubam. Quem sustenta pode se reposicionar.
+
+       Na prática muda bastante a mesa: dava para perder a magia sem ter feito
+       nada — um passo para sair da área de um inimigo custava a evocação. */
     const movido = participantes.map((q, i) => (i === idx ? r.participante : q));
-    const next = [...quebrarConcentracao(movido, p.inst_id)];
+    // A montaria vai junto: dois tokens em células diferentes seria pior do
+    // que não ter montaria (ver montariaSegue).
+    const next = montariaSegue(movido, p.inst_id);
     setError(null);
     persistir({ participantes: next }, () => setParticipantes(next));
     return true;
@@ -5418,6 +5578,20 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       onMudar={(k) => mudarStatus(i, k)}
                       abrirTip={abrirTip}
                       fecharTip={fecharTip}
+                      /* Montaria: só PJ monta, e só em cavalo vivo e livre.
+                         A lista e a amarração são puras (montariasDisponiveis
+                         / montar / desmontar); aqui é só a chamada. */
+                      montarias={p.tipo === 'pj' ? montariasDisponiveis(participantes, p) : []}
+                      onMontar={(m) => {
+                        const next = montar(participantes, p.inst_id, m.inst_id);
+                        if (next === participantes) return;
+                        persistir({ participantes: next }, () => setParticipantes(next));
+                      }}
+                      onDesmontar={() => {
+                        const next = desmontar(participantes, p.inst_id);
+                        if (next === participantes) return;
+                        persistir({ participantes: next }, () => setParticipantes(next));
+                      }}
                       onEnvenenar={() => {
                         // Guarda o ÍNDICE (e o nome, pro título): o modal vive
                         // fora do card, então não tem `p` nem `i` no escopo.
@@ -8391,10 +8565,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (!ehMinhaVez) { setErro(motivoMovimento('nao_e_a_vez', isEn)); return false; }
     const r = moverParticipante(p, destino, participantes);
     if (!r.ok) { setErro(motivoMovimento(r.motivo, isEn)); return false; }
-    // Ver moverNoTabuleiro: mover não gasta PA nem encerra o turno, mas
-    // QUEBRA a concentração (01/09/2026).
+    // Ver moverNoTabuleiro: mover não gasta PA, não encerra o turno e NÃO
+    // quebra a concentração (correção de regra em 12/09/2026).
     const movido = participantes.map((q, i) => (i === idx ? r.participante : q));
-    const next = [...quebrarConcentracao(movido, p.inst_id)];
+    // A montaria vai junto: dois tokens em células diferentes seria pior do
+    // que não ter montaria (ver montariaSegue).
+    const next = montariaSegue(movido, p.inst_id);
     setErro(null);
     persistJogador({ participantes: next });
     return true;
@@ -8736,6 +8912,7 @@ Object.assign(window, {
     // fonte, como já acontece com o dano. duracao e descricao completam o
     // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
     modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia, passouNoTesteDeHabilidade,
+    ehMontaria, montariasDisponiveis, montar, desmontar, montariaSegue, vbParaMovimento,
     somaModHabilidade, aplicarDanoEquipamento,
     magiasDeApoioDoAtor, magiasOfensivasDoAtor, magiasConhecidasDoAtor,
     aplicarEfeitoApoio, quebrarConcentracao,

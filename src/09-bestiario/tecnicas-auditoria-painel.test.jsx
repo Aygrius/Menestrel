@@ -93,17 +93,31 @@ describe('acende quando o texto foi editado e o motor não', () => {
 });
 
 describe('as que estão fora do motor vêm com o MOTIVO', () => {
-  it('separa "falta decisão sua" de "falta sistema"', () => {
-    montar([PROVOCAR, CONDUZIR]);
+  /* Em 12/09/2026 o usuário reclassificou Provocar e Conduzir Oponente: as
+     duas são sobre o que o ADVERSÁRIO faz, e quem conduz o adversário é o
+     Mestre. Saíram de "falta sistema" para "o Mestre resolve" — que não é
+     pendência, é o desenho. Sobrou Luta às Cegas como falta de sistema. */
+  const CEGAS = { key: 'luta_as_cegas', nome: 'Luta às Cegas',
+    efeito: 'Um teste de Luta às Cegas (Difícil) permite lutar sem enxergar por 3 rodadas.' };
+
+  it('separa "o Mestre resolve" de "falta sistema"', () => {
+    montar([PROVOCAR, CEGAS]);
     fireEvent.click(cabecalho());
-    expect(screen.getByText(/Falta uma decisão sua/)).toBeTruthy();
+    expect(screen.getByText(/O Mestre resolve na mesa/)).toBeTruthy();
     expect(screen.getByText(/Falta um sistema/)).toBeTruthy();
   });
 
   it('mostra o motivo concreto, não só o nome', () => {
     montar([PROVOCAR]);
     fireEvent.click(cabecalho());
-    expect(screen.getByText(/alvo obrigatório/)).toBeTruthy();
+    expect(screen.getByText(/o Mestre conduz/)).toBeTruthy();
+  });
+
+  it('e diz que "o Mestre resolve" é de propósito, não pendência', () => {
+    montar([CONDUZIR]);
+    fireEvent.click(cabecalho());
+    expect(screen.getByText(/é assim de propósito/)).toBeTruthy();
+    expect(screen.getByText(/move o token do alvo/)).toBeTruthy();
   });
 
   it('técnica sem motivo registrado convida a perguntar', () => {

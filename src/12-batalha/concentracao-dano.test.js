@@ -331,3 +331,62 @@ describe('veneno: dano por rodada também derruba a concentração', () => {
     expect(b.pa_rest).toBe(2);   // 2 + 0; com o buff seria 35 de vb → 3
   });
 });
+
+describe('ANDAR não quebra a concentração — correção de 12/09/2026', () => {
+  /* Desde 01/09/2026 o motor derrubava a magia sustentada quando o conjurador
+     andava, por uma leitura minha de "sustentar exige ficar parado". O usuário
+     corrigiu a regra: só ATACAR e LEVAR DANO NA EF derrubam.
+
+     A mudança é grande na mesa — dava para perder a evocação sem ter agido,
+     só por dar um passo para sair da área de um inimigo.
+
+     Não havia teste nenhum cobrindo o comportamento antigo, e é por isso que
+     ele sobreviveu onze dias sem ninguém notar. Este é o que faltava. */
+  let fonte;
+  beforeAll(async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    fonte = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'batalha.jsx'), 'utf8');
+  });
+
+  const corpoDe = (assinatura) => {
+    const i = fonte.indexOf(assinatura);
+    expect(i, `${assinatura} precisa existir`).toBeGreaterThan(-1);
+    const abre = fonte.indexOf('{', i);
+    let nivel = 0;
+    for (let j = abre; j < fonte.length; j += 1) {
+      if (fonte[j] === '{') nivel += 1;
+      else if (fonte[j] === '}') { nivel -= 1; if (nivel === 0) return fonte.slice(i, j + 1); }
+    }
+    throw new Error('chaves desbalanceadas');
+  };
+
+  it('o movimento do Mestre não chama quebrarConcentracao', () => {
+    expect(corpoDe('const moverNoTabuleiro = (p, idx, destino)'))
+      .not.toMatch(/quebrarConcentracao\(/);
+  });
+
+  it('o movimento do Jogador também não', () => {
+    // Os dois lados têm handlers separados e precisam concordar.
+    expect(corpoDe('const moverNoTabuleiroJogador = (p, idx, destino)'))
+      .not.toMatch(/quebrarConcentracao\(/);
+  });
+
+  it('mas ATACAR continua quebrando — os dois lados', () => {
+    expect(corpoDe('const aplicarAcao = (payload)')).toMatch(/quebrarConcentracao\(/);
+    expect(corpoDe('const handleAcao = (payload)')).toMatch(/quebrarConcentracao\(/);
+  });
+
+  it('e dano na EF continua quebrando', () => {
+    // A regra vive em quebrarConcentracaoPorDano, coberta acima neste arquivo.
+    expect(fonte).toMatch(/function quebrarConcentracaoPorDano/);
+  });
+
+  it('o aviso na tela não promete mais que andar derruba', () => {
+    const aviso = (window.COPY && window.COPY.pt && window.COPY.pt.batalha
+      && window.COPY.pt.batalha.avisoConcentracao) || '';
+    if (!aviso) return;                       // copy não carregada nesta suíte
+    expect(aviso).toMatch(/andar, não/i);
+  });
+});

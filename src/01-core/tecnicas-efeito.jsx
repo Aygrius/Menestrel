@@ -244,6 +244,16 @@ const TECNICA_EFEITO_MAP = {
   concentracao:       { modo: 'teste', alvo: 'self', rodadas: 2, icone: '🧘',
                       dificuldade: 'dificil',
                       efeitos: [{ tipo: 'mantem_concentracao', valor: true }] },
+  /* "Um teste de Combate Montado (Médio) adiciona 50% da energia heroica da
+     sua MONTARIA à sua energia heroica por 5 rodadas."
+
+     O valor não cabe no registro: depende de em qual cavalo o combatente está.
+     `do_montaria_pct` diz de onde tirá-lo — aplicarEfeitoTecnica calcula na
+     hora, a partir da montaria congelada no snapshot. Sem montaria, o efeito
+     simplesmente não entra (valor 0), e o painel avisa. */
+  combate_montado:    { modo: 'teste', alvo: 'self', rodadas: 5, icone: '🐴',
+                      dificuldade: 'medio',
+                      efeitos: [{ tipo: 'mod_eh_temp', do_montaria_pct: 50 }] },
   /* "Seu total de Remover Debilitação é adicionado à sua habilidade Escapar
      por 1 rodada." Bônus numa HABILIDADE nomeada, não num stat de combate —
      primeira do tipo, e só faz sentido agora que a aba Habilidade julga o
@@ -269,16 +279,24 @@ const TECNICA_EFEITO_MAP = {
 
    `classe` fala de QUEM resolve:
      'sistema' — falta mecanismo no combate; é trabalho meu
-     'decisao' — o motor daria conta, falta a regra ser decidida */
+     'decisao' — o motor daria conta, falta a regra ser decidida
+     'mestre'  — resolve na mesa, por arbitragem. NÃO é pendência: é o
+                 desenho. Decisão do usuário em 12/09/2026 para as duas que
+                 eu havia classificado como falta de sistema. */
 const TECNICA_FORA_DO_REGISTRO = {
-  combate_montado: { classe: 'sistema', motivo:
-    'Soma 50% da EH da MONTARIA à sua. O combate não tem montaria: não há de onde tirar esse número.' },
   luta_as_cegas: { classe: 'sistema', motivo:
     '"Lutar sem enxergar" só vale se existir enxergar. O combate não tem visibilidade nem escuridão.' },
-  provocar: { classe: 'sistema', motivo:
-    'Atrai a atenção do alvo — obriga a mirar em você. Falta alvo obrigatório, que nenhuma outra técnica ou magia usa.' },
-  conduzir_oponente: { classe: 'decisao', motivo:
-    'Move 1 alvo por 5 metros. O tabuleiro tem posição e distância, mas quem escolhe PARA ONDE o alvo vai — você, o alvo, ou a linha reta para trás?' },
+  /* As duas abaixo o motor NÃO vai automatizar, e está certo assim.
+
+     Provocar obriga o alvo a mirar em quem provocou; Conduzir Oponente empurra
+     o alvo pelo tabuleiro. Os dois são sobre o que o adversário FAZ, e quem
+     conduz o adversário é o Mestre — automatizar seria tirar dele a decisão,
+     não poupar trabalho. O teste de dado continua valendo: a técnica rola
+     normalmente, e o resultado diz ao Mestre se pegou. */
+  provocar: { classe: 'mestre', motivo:
+    'Rola o teste e o Mestre conduz: o alvo provocado passa a atacar quem provocou.' },
+  conduzir_oponente: { classe: 'mestre', motivo:
+    'Rola o teste e o Mestre move o token do alvo até 5 metros.' },
 };
 
 function tecnicaForaDoRegistro(key) {

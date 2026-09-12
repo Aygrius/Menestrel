@@ -133,10 +133,10 @@ describe('as primitivas caíram nas técnicas certas', () => {
 });
 
 describe('o total do sistema', () => {
-  it('o registro passa a cobrir 54 das 58 técnicas', () => {
+  it('o registro passa a cobrir 55 das 58 técnicas', () => {
     // 50 ate 12/09/2026; a Fase 3 ligou 4 das 8 que estavam fora. As outras
     // 4 tem motivo registrado em TECNICA_FORA_DO_REGISTRO.
-    expect(Object.keys(MAP).length).toBe(54);
+    expect(Object.keys(MAP).length).toBe(55);
   });
 });
 

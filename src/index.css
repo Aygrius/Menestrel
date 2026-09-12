@@ -8138,3 +8138,8 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .best-aud-hora { margin-left: 8px; color: #6E6552; font-size: 10px; white-space: nowrap; }
 /* A linha que diz qual MOTOR está carregado neste navegador. */
 #root .menestrel-ui .best-aud-motor { margin-top: -4px; }
+
+/* Montaria no menu de estado: mesma bolinha dos demais, em tom de couro.
+   Ligada (montado) fica dourada, como o item ativo da fileira. */
+#root .menestrel-ui .batalha-estado-drop-item.montaria { color: #9C7B4E; }
+#root .menestrel-ui .batalha-estado-drop-item.montaria.on { color: #C9A44E; }

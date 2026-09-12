@@ -75,11 +75,12 @@ describe('TECNICA_EFEITO_MAP', () => {
   // acrescentou 26: este arquivo continua sendo o dono das 24 originais, e
   // tecnica-fase2.test.js é o dono das outras. O total fica travado aqui pra
   // uma entrada não sumir sem ninguém notar.
-  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 54', () => {
+  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 55', () => {
     for (const key of Object.keys(EFEITO_NO_BANCO)) {
       expect(MAP[key], `${key} da Fase 1 sumiu do registro`).toBeDefined();
     }
-    expect(Object.keys(MAP).length, '24 da Fase 1 + 26 da Fase 2 + 4 da Fase 3').toBe(54);
+    // +1 em 12/09/2026: Combate Montado, quando a montaria virou mecanica.
+    expect(Object.keys(MAP).length, '24 + 26 + 4 + Combate Montado').toBe(55);
   });
 
   it('toda entrada tem modo, alvo, rodadas, ícone e ao menos um efeito', () => {
@@ -101,7 +102,12 @@ describe('TECNICA_EFEITO_MAP', () => {
         // mod_ataque que escala com o total, e um ignora_armadura que é
         // liga/desliga. Antes este teste exigia `sinal` em todo efeito de
         // modo total, e quebrou quando a Fase 2 completou aquela técnica.
-        if (TIPOS_ESCALAM_COM_TOTAL.includes(ef.tipo)) {
+        /* Efeito cujo valor vem do ESTADO, nao do registro nem do total:
+           Combate Montado le 50% da EH da montaria. Nao tem sinal nem valor
+           fixo, e esta certo — quem calcula e aplicarEfeitoTecnica. */
+        if (ef.do_montaria_pct != null) {
+          expect(ef.do_montaria_pct, key + ' precisa de percentual').toBeGreaterThan(0);
+        } else if (TIPOS_ESCALAM_COM_TOTAL.includes(ef.tipo)) {
           expect([1, -1], `${key}/${ef.tipo} escala e precisa de sinal`).toContain(ef.sinal);
         } else {
           expect(Number.isFinite(ef.valor) || ef.valor === true,
