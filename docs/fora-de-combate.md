@@ -1,8 +1,10 @@
 # Habilidades, itens e magias fora de combate
 
 **Mapa do que já funciona, do que não funciona e do que trava.** Levantado em
-12/09/2026 a pedido do usuário. É um documento de decisão, não um plano de
-execução: as escolhas que ele expõe são suas.
+12/09/2026 a pedido do usuário, e atualizado no mesmo dia com as duas decisões
+que ele tomou ao ler: **aprovação do Mestre** para alvo em terceiro, e
+**rodadas não contam** fora de batalha. As duas fecharam as travas que este
+documento existia para expor.
 
 ---
 
@@ -32,7 +34,7 @@ Ou seja: **a lacuna é uma só, e tem nome.**
 
 ---
 
-## 2. Por que a magia parou aí — as quatro travas
+## 2. Por que a magia parou aí — as quatro travas (três já resolvidas)
 
 Não é falta de motor. O motor de magia existe e está completo (75 magias,
 alvo, nível, elemento, testes, duração, cura, condição). O que falta é que ele
@@ -60,39 +62,75 @@ personagens_update_own_or_vinculado:
 Um jogador pode alterar **o próprio** personagem. Curar um colega significa
 escrever na linha dele — e o banco recusa, com razão.
 
-Três saídas, em ordem de custo:
+**DECIDIDO pelo usuário em 12/09/2026: magia em outro jogador exige aprovação
+do Mestre.** E isso não é contorno — é a solução correta, pela razão exata:
 
-| Saída | Custo | O que muda na mesa |
+> O Mestre **já tem permissão de escrita** em todo protagonista da história
+> dele, pela política acima. A aprovação não fura o banco: ela faz com que
+> **quem escreve seja alguém que já podia**. A escrita acontece na sessão do
+> Mestre, e a regra de segurança fica intacta em vez de perfurada.
+
+É melhor que a alternativa que eu havia listado (uma RPC `SECURITY DEFINER`):
+aquela teria de **reimplementar em código** quem pode conjurar em quem — uma
+segunda cópia de uma regra que o banco já enuncia. Duas cópias da mesma regra
+divergem sempre; foi o erro mais caro desta semana, três vezes.
+
+**De brinde, resolve a trava 4:** o teste de resistência do alvo é arbitrado
+pelo Mestre no momento de aprovar.
+
+### A fila já existe: `mesa_log`
+
+Tem `meta jsonb`, chega por realtime e o Mestre já a lê. Uma evocação pendente
+é um evento com `meta.pendente`, e a Central de Mensagens ganha um botão
+*Aplicar*.
+
+> ⚠️ `mesa_log` tem **só política de SELECT** — é append-only para o cliente
+> (a escrita passa pela RPC `registrar_evento_mesa`). Então "aplicada" é um
+> **segundo evento**, não um update do primeiro. Melhor assim: o histórico da
+> mesa fica intacto.
+
+### Trava 3 — Fora de combate não há rodadas · **RESOLVIDA**
+
+**Regra do usuário, 12/09/2026: fora de batalha, as rodadas não contam.**
+
+Não é limitação — é uma classificação que o catálogo **já tinha feito**, e ela
+dispensa inventar qualquer taxa entre rodada e minuto:
+
+| Duração | Quantas | Fora de combate |
 |---|---|---|
-| **O Mestre aplica** | zero | o jogador evoca, a mesa vê no log, o Mestre aplica. É como a mesa já resolve tudo que o motor não faz |
-| **RPC dedicada** | média | espelha `atualizar_batalha_jogador`, que já existe pelo mesmo motivo, no combate |
-| **Só em si mesmo** | zero | magia de alvo próprio aplica sozinha; alvo em terceiro vai para o Mestre |
+| **Instantânea** | 67 | aplica e acaba — **são estas as magias de fora de combate** |
+| **Permanente** | 17 | aplica e fica |
+| **Calendário** | 57 | aplica com data de vencimento na data do jogo |
+| **Rodadas** | 43 | **são magias de combate, por construção.** Evoca, o log registra, nada é escrito na ficha |
 
-### Trava 3 — Fora de combate não há rodadas
+Quer o bônus de *"10 rodadas"*? Evoque quando o combate começar — é o que o
+próprio texto da magia diz.
 
-E é aqui que o catálogo é duro:
+> ⚠️ **53 magias têm duração `Variável`**, que significa "veja o nível". Elas
+> caem em baldes DIFERENTES conforme o nível evocado: a mesma magia pode ser
+> instantânea no 1 e de horas no 9. A classificação é **por evocação**, não por
+> magia — e `duracaoNoNivel` já sabe resolver isso.
 
-```
-67 instantâneas          → aplicam e acabam. Nenhum problema.
-57 tempo de calendário   → "10 minutos", "1 hora", "30 dias"
-53 variáveis (ver nível) → a duração está no texto do nível
-43 em RODADAS            → não significam nada fora de combate
-17 permanentes           → aplicam e ficam
-```
+### Duas regras que vêm junto com a trava 3
 
-As **43 em rodadas** são o problema conceitual: *"Aumenta 1 coluna por 10
-rodadas"* fora de combate dura o quê? Isso é decisão de regra, não de código.
+**Vencimento preguiçoso.** As de calendário expiram por **comparação na
+leitura** — *"a data do jogo já passou de 14 de Mês do Ouro?"* —, nunca por
+rotina de fundo. Nada avança a data do jogo sozinho; se o vencimento dependesse
+de um processo, os bônus nunca acabariam. É o mesmo padrão da cura natural de
+Doenças, que já funciona assim.
 
-As **57 de calendário** já têm para onde ir: a data do jogo existe e o motor já
-sabe somar dias nela (`somarDiasFantasy`, construída para a cura natural de
-Doenças). Uma magia de 30 dias vira *"vence em 12 de Mês do Ouro"*.
+**A data aparece na ficha.** *"Bênção — vence em 14 de Mês do Ouro"*. Sem isso
+o jogador não sabe o que ainda está ativo nele.
 
-### Trava 4 — Os testes precisam de duas pessoas
+### Trava 4 — Os testes precisam de duas pessoas · **RESOLVIDA pela trava 2**
 
 Magia com **teste de resistência** exige que o alvo role. Em combate o painel
 faz isso porque os dois estão na mesma tela. Fora de combate, o alvo é outro
-jogador, talvez ausente. O teste de **habilidade** (do conjurador) não tem esse
-problema: a ficha já rola habilidade com dificuldade e veredito.
+jogador, talvez ausente.
+
+A aprovação do Mestre resolve de graça: **ele arbitra o teste ao aprovar**, que
+é o que já faz com Provocar e Conduzir Oponente. E o teste de **habilidade** (do
+conjurador) nunca foi problema — a ficha já rola com dificuldade e veredito.
 
 ---
 
@@ -104,22 +142,23 @@ problema: a ficha já rola habilidade com dificuldade e veredito.
 
 Magia cujo alvo é o **próprio conjurador** aplica de verdade: cobra karma,
 grava o efeito na ficha, avisa a mesa. Sem trava 2 (é a própria linha), sem
-trava 4 (ninguém resiste a si mesmo).
+trava 4 (ninguém resiste a si mesmo) e sem aprovação de ninguém.
 
 Cobre cura pessoal, buff pessoal, proteção — e são as que mais se usam fora de
 combate. **É o degrau que eu construiria primeiro**, e é pequeno: o motor
 existe, falta o caminho até `estado_atual`.
 
-Para a trava 3, a regra mais simples que funciona: **instantâneas e
-permanentes aplicam; as de rodada ficam para o Mestre**, com o log dizendo por
-quê. Sem inventar equivalência entre rodada e minuto.
+Aplica o que a trava 3 já classificou: **instantânea e permanente entram; as de
+rodada só registram no log**, com o texto dizendo por quê.
 
-### Degrau 2 — Alvo em terceiro, pelo Mestre
+### Degrau 2 — Alvo em terceiro, com aprovação do Mestre
 
-O jogador evoca, o log registra com nível e alvo, e o **Mestre aplica** com um
-clique — ele já pode escrever em qualquer protagonista da história dele. Zero
-infraestrutura nova, e mantém a mesa no controle, que é como Provocar e
-Conduzir Oponente já foram resolvidas.
+O jogador evoca → vira evento pendente no `mesa_log` → o Mestre vê na Central
+de Mensagens e clica em *Aplicar* → a escrita acontece **na sessão dele**, que
+o banco já autoriza.
+
+Zero infraestrutura nova, a regra de segurança intacta, e a mesa no controle —
+que é como Provocar e Conduzir Oponente já foram resolvidas.
 
 ### Degrau 3 — Duração no calendário
 
@@ -146,7 +185,10 @@ decidir balanceamento no código — o oposto da regra que rege este catálogo.
 ## 5. Resumo de uma linha
 
 > Habilidade e item **já funcionam** fora de combate. Magia anuncia e não
-> acontece — e o que falta não é motor, é **onde escrever** (ficha do colega é
-> proibida pelo banco) e **quanto tempo dura** (43 magias contam em rodadas,
-> que fora de combate não existem). Magia em si mesmo resolve a maior fatia e
-> não esbarra em nenhuma das duas.
+> acontece — e o que falta não é motor, são duas travas, **ambas resolvidas por
+> decisão do usuário em 12/09/2026**: quem escreve na ficha do colega é o
+> **Mestre, aprovando** (e é por isso que funciona — ele já podia), e magia de
+> **rodada é magia de combate**, então fora dele só o log registra.
+>
+> O que sobra é construir: degrau 1 (magia em si mesmo) não depende de nenhuma
+> das duas e cobre a maior fatia.
