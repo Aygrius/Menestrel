@@ -349,7 +349,26 @@ describe('apagar campo ao editar', () => {
   });
 });
 
-describe('itens.magico — boolean no banco, Sim/Não na tela', () => {
+describe('itens.magico — coluna GERADA, só leitura', () => {
+  /* CORREÇÃO DE 11/09/2026.
+
+     Este describe travava a expectativa `payload.magico === true` — isto é,
+     que o editor MANDASSE a coluna no UPDATE. Contra o banco real isso nunca
+     funcionou: `magico` é
+
+       GENERATED ALWAYS AS (magia IS NOT NULL AND magia <> '') STORED
+
+     e o Postgres recusa qualquer UPDATE que a mencione, com
+     "column magico can only be updated to DEFAULT". O resultado era que
+     NENHUMA edição de item salvava — o erro que o usuário reportou.
+
+     A suíte ficava verde porque o fake do Supabase (src/test/fake-supabase.js)
+     aceita qualquer payload; a coluna gerada só existe no banco de verdade.
+     Lição registrada aqui pra não voltar: teste de payload prova o que o
+     cliente MANDA, não o que o banco ACEITA.
+
+     O valor continua sendo EXIBIDO — o Mestre precisa ver se o item é mágico
+     —, mas deriva de `magia` e não é editável nem enviado. */
   it('carrega magico=true mostrando "Sim"', () => {
     montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magico: true } });
     const pill = Array.from(document.querySelectorAll('.select-pill-btn'))
@@ -365,13 +384,48 @@ describe('itens.magico — boolean no banco, Sim/Não na tela', () => {
     expect(pill.textContent).toMatch(/Não/);
   });
 
-  // A REGRESSÃO que motivou tudo: editar outro campo não pode apagar o magico.
-  it('salvar sem tocar em magico PRESERVA o true', async () => {
+  it('o controle fica desabilitado', () => {
+    montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magico: true } });
+    const pill = Array.from(document.querySelectorAll('.select-pill-btn'))
+      .find((b) => /Sim|Não/.test(b.textContent));
+    expect(pill.disabled).toBe(true);
+  });
+
+  it('NUNCA entra no payload — é o que fazia todo save de item falhar', async () => {
     montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magico: true } });
     fireEvent.change(document.querySelector('textarea[name="descricao"]'), { target: { value: 'nova' } });
     fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
     await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
-    expect(ultimoUpdate.payload.magico).toBe(true);
+    expect('magico' in ultimoUpdate.payload).toBe(false);
+    expect(ultimoUpdate.payload.descricao, 'o resto do payload segue normal').toBe('nova');
+  });
+});
+
+describe('opções com sigla no banco e palavra na tela', () => {
+  it('itens.tipo mostra Sólido e grava S', async () => {
+    montar({ tabela: 'itens', linha: { slug: 'pocao', nome: 'Poção', tipo: 'S' } });
+    const pill = Array.from(document.querySelectorAll('.select-pill-btn'))
+      .find((b) => /Sólido|Líquido/.test(b.textContent));
+    expect(pill, 'campo tipo não achado').toBeTruthy();
+    expect(pill.textContent).toMatch(/Sólido/);
+
+    fireEvent.change(document.querySelector('textarea[name="descricao"]'), { target: { value: 'x' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.tipo, 'a SIGLA vai pro banco, não o rótulo').toBe('S');
+  });
+
+  it('itens.tipo_armadura mostra Médio e grava M', async () => {
+    montar({ tabela: 'itens', linha: { slug: 'cota', nome: 'Cota', tipo_armadura: 'M' } });
+    const pill = Array.from(document.querySelectorAll('.select-pill-btn'))
+      .find((b) => /Leve|Médio|Pesado/.test(b.textContent));
+    expect(pill, 'campo tipo_armadura não achado').toBeTruthy();
+    expect(pill.textContent).toMatch(/Médio/);
+
+    fireEvent.change(document.querySelector('textarea[name="descricao"]'), { target: { value: 'x' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.tipo_armadura).toBe('M');
   });
 });
 

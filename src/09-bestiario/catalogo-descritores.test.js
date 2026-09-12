@@ -159,6 +159,75 @@ describe('CATALOGO_DESCRITORES', () => {
   });
 });
 
+describe('opcoesNormalizadas — sigla no banco, palavra na tela', () => {
+  /* O descritor sempre gravou O PRÓPRIO RÓTULO no banco, porque `opcoes` era
+     uma lista de strings e o editor mapeava `{ value: o, label: o }`. Isso
+     impede mostrar "Sólido" e gravar "S".
+
+     A lista passa a aceitar as duas formas: string (valor = rótulo, como
+     sempre) e { value, label }. Normalizar num lugar só evita que cada
+     consumidor tenha que saber disso. */
+  let opcoesNormalizadas;
+  beforeAll(() => {
+    opcoesNormalizadas = window.opcoesNormalizadas;
+    expect(opcoesNormalizadas).toBeTypeOf('function');
+  });
+
+  it('string vira value e label iguais — a forma antiga não muda', () => {
+    expect(opcoesNormalizadas({ opcoes: ['Sim', 'Não'] }))
+      .toEqual([{ value: 'Sim', label: 'Sim' }, { value: 'Não', label: 'Não' }]);
+  });
+
+  it('objeto passa direto', () => {
+    expect(opcoesNormalizadas({ opcoes: [{ value: 'S', label: 'Sólido' }] }))
+      .toEqual([{ value: 'S', label: 'Sólido' }]);
+  });
+
+  it('lista mista funciona', () => {
+    expect(opcoesNormalizadas({ opcoes: ['Livre', { value: 'L', label: 'Leve' }] }))
+      .toEqual([{ value: 'Livre', label: 'Livre' }, { value: 'L', label: 'Leve' }]);
+  });
+
+  it('campo sem opções devolve lista vazia, sem lançar', () => {
+    expect(opcoesNormalizadas({})).toEqual([]);
+    expect(opcoesNormalizadas(null)).toEqual([]);
+  });
+});
+
+describe('itens — os campos que mudaram em 11/09/2026', () => {
+  const campoDe = (col) => MAP.itens.campos.find((c) => c.col === col);
+
+  it('magico é somenteLeitura — é coluna GERADA no Postgres', () => {
+    /* itens.magico é GENERATED ALWAYS AS (magia IS NOT NULL AND magia <> '').
+       O banco recusa qualquer UPDATE que a mencione com
+       "column magico can only be updated to DEFAULT" — e o editor a mandava
+       no payload de TODA edição de item, então nenhum item salvava. */
+    expect(campoDe('magico').somenteLeitura).toBe(true);
+  });
+
+  it('tipo mostra Sólido/Líquido e grava S/L', () => {
+    const campo = campoDe('tipo');
+    expect(campo.tipo).toBe('opcoes');
+    expect(window.opcoesNormalizadas(campo))
+      .toEqual([{ value: 'S', label: 'Sólido' }, { value: 'L', label: 'Líquido' }]);
+  });
+
+  it('tipo_armadura mostra Leve/Médio/Pesado e grava L/M/P', () => {
+    const campo = campoDe('tipo_armadura');
+    expect(campo.tipo).toBe('opcoes');
+    expect(window.opcoesNormalizadas(campo).map((o) => o.value)).toEqual(['L', 'M', 'P']);
+    expect(window.opcoesNormalizadas(campo).map((o) => o.label))
+      .toEqual(['Leve', 'Médio', 'Pesado']);
+  });
+
+  it('origem é dropdown com os três valores reais do banco', () => {
+    const campo = campoDe('origem');
+    expect(campo.tipo).toBe('opcoes');
+    expect(window.opcoesNormalizadas(campo).map((o) => o.value))
+      .toEqual(['Comum', 'Raro', 'Mágico']);
+  });
+});
+
 describe('descritorDe', () => {
   it('devolve o descritor da tabela', () => {
     expect(descritorDe('tecnicas').tabela).toBe('tecnicas');

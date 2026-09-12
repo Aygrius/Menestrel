@@ -1114,6 +1114,20 @@ function ItensList({ ac, lang, modoJogador }) {
                           )}
                           {it.descricao && <TextoDoBanco texto={it.descricao} className="best-desc" />}
                           {it.efeito && <p className="best-efeito">{it.efeito}</p>}
+                          {/* itens.doc_url guarda o link do CONTEÚDO do item — hoje só os
+                              três livros da campanha o usam, apontando pro texto da obra.
+                              Até 11/09/2026 o campo existia no editor e nenhuma tela o lia:
+                              o Mestre digitava o link e ele não ia a lugar nenhum.
+                              rel=noreferrer junto de target=_blank porque a aba aberta
+                              ganha window.opener sem isso. */}
+                          {it.doc_url && (
+                            <p className="best-efeito">
+                              <a href={it.doc_url} target="_blank" rel="noopener noreferrer">
+                                <i className="ti ti-external-link" aria-hidden="true" />
+                                {' '}{lang === 'en' ? 'Open content' : 'Abrir conteúdo'}
+                              </a>
+                            </p>
+                          )}
                         </TableCell></TableRow>
                       )}
                     </React.Fragment>

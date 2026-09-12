@@ -156,9 +156,16 @@ const CATALOGO_DESCRITORES = {
       { col: 'grupo', tipo: 'opcoes', rotuloKey: 'campoGrupo',
         opcoes: ['Animais', 'Armaduras', 'Armas', 'Consumíveis', 'Diario', 'Instrumentos', 'Itens',
           'Minerais', 'Moedas', 'Propriedades', 'Recipientes', 'Serviços', 'Transportes', 'Vestimentas'] },
-      { col: 'tipo',      tipo: 'texto', rotuloKey: 'campoTipo' },
+      // O banco guarda a SIGLA (S/L); a tela mostra a palavra. Ver
+      // opcoesNormalizadas no fim do arquivo.
+      { col: 'tipo',      tipo: 'opcoes', rotuloKey: 'campoTipo',
+        opcoes: [{ value: 'S', label: 'Sólido' }, { value: 'L', label: 'Líquido' }] },
       { col: 'tipo_item', tipo: 'texto', rotuloKey: 'campoTipoItem' },
-      { col: 'origem',    tipo: 'texto', rotuloKey: 'campoOrigem' },
+      // Os três valores vêm de um SELECT DISTINCT em 11/09/2026: Comum 489,
+      // Raro 105, Mágico 78. Os 75 vazios foram preenchidos com Comum pelo
+      // script scripts/sql/itens-origem-tipo-armadura-fix.sql.
+      { col: 'origem',    tipo: 'opcoes', rotuloKey: 'campoOrigem',
+        opcoes: ['Comum', 'Raro', 'Mágico'] },
       { col: 'icone',     tipo: 'texto', rotuloKey: 'campoIcone' },
       { col: 'doc_url',   tipo: 'texto', rotuloKey: 'campoDocUrl' },
       { col: 'descricao', tipo: 'area', rotuloKey: 'campoDescricao', linhas: 3 },
@@ -180,13 +187,29 @@ const CATALOGO_DESCRITORES = {
       { col: 'nivel_magia', tipo: 'numero', rotuloKey: 'campoNivelMagia', min: 0 },
       { col: 'consumiveis',       tipo: 'numero', rotuloKey: 'campoConsumiveis',      min: 0 },
       { col: 'consumiveis_peso',  tipo: 'numero', rotuloKey: 'campoConsumiveisPeso',  min: 0 },
-      // magico é boolean no banco; o editor converte de/para ['Sim','Não'] — não aqui.
-      { col: 'magico', tipo: 'opcoes', rotuloKey: 'campoMagico', opcoes: ['Sim', 'Não'] },
+      /* SOMENTE LEITURA, e não é preferência — é o banco.
+         itens.magico é coluna GERADA:
+           magico boolean GENERATED ALWAYS AS (magia IS NOT NULL AND magia <> '')
+         O Postgres recusa qualquer UPDATE que a mencione, com
+         "column magico can only be updated to DEFAULT". O editor a mandava no
+         payload de TODA edição de item, então NENHUM item salvava — o erro
+         que o usuário reportou em 11/09/2026.
+         O valor se resolve sozinho a partir de `magia`: preencheu, é mágico. */
+      { col: 'magico', tipo: 'opcoes', rotuloKey: 'campoMagico',
+        opcoes: ['Sim', 'Não'], somenteLeitura: true },
       { col: 'magia',  tipo: 'texto',  rotuloKey: 'campoMagia' },
       // Mesmo AJUSTE_KEY de 01-core/inventario-helpers.jsx.
       { col: 'ajuste_atributo', tipo: 'opcoes', rotuloKey: 'campoAjusteAtributo', opcoes: ['AGI', 'AUR', 'FOR', 'PER'] },
       { col: 'grupo_armas',   tipo: 'opcoes', rotuloKey: 'campoArmas',        opcoes: OPCOES_GRUPO_ARMAS },
-      { col: 'tipo_armadura', tipo: 'opcoes', rotuloKey: 'campoTipoArmadura', opcoes: OPCOES_GRUPO_ARMADURAS },
+      /* Sigla no banco, palavra na tela — mesmo tratamento de `tipo`.
+         NÃO usa OPCOES_GRUPO_ARMADURAS (que tem 'Livre'): 'Livre' faz sentido
+         em tecnicas.grupo_armaduras, onde significa "serve com qualquer
+         armadura", e nenhum sentido aqui, onde a coluna diz QUE armadura a
+         peça É. */
+      { col: 'tipo_armadura', tipo: 'opcoes', rotuloKey: 'campoTipoArmadura',
+        opcoes: [{ value: 'L', label: 'Leve' },
+                 { value: 'M', label: 'Médio' },
+                 { value: 'P', label: 'Pesado' }] },
       { col: 'categoria_equip',    tipo: 'texto', rotuloKey: 'campoCategoriaEquip' },
       { col: 'slot_equip',         tipo: 'texto', rotuloKey: 'campoSlotEquip' },
       { col: 'grupo_equipamento',  tipo: 'texto', rotuloKey: 'campoGrupoEquipamento' },
@@ -204,4 +227,21 @@ function descritorDe(tabela) {
   return CATALOGO_DESCRITORES[tabela] || null;
 }
 
-Object.assign(window, { CATALOGO_DESCRITORES, descritorDe });
+/* ── As opções de um campo, sempre como { value, label } ───────────
+   Até 11/09/2026 `opcoes` era só uma lista de strings, e o editor mapeava
+   `{ value: o, label: o }` — o rótulo IA PARA O BANCO. Isso impede mostrar
+   "Sólido" e gravar "S", que é o que itens.tipo e itens.tipo_armadura pedem
+   (as colunas guardam sigla de um caractere).
+
+   A lista passa a aceitar as duas formas, e normalizar num lugar só evita que
+   cada consumidor precise saber disso. String continua valendo exatamente
+   como antes — valor igual ao rótulo —, então os descritores que não mudaram
+   não mudam de comportamento. */
+function opcoesNormalizadas(campo) {
+  const lista = (campo && campo.opcoes) || [];
+  return lista.map((o) => (
+    (o && typeof o === 'object') ? { value: o.value, label: o.label } : { value: o, label: o }
+  ));
+}
+
+Object.assign(window, { CATALOGO_DESCRITORES, descritorDe, opcoesNormalizadas });

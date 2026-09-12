@@ -111,9 +111,14 @@ function CatalogoCampo({ campo, label, valor, onChange, disabled, sobrescrito })
     );
   }
   if (campo.tipo === 'opcoes') {
+    // opcoesNormalizadas (catalogo-descritores.jsx) aceita string e
+    // { value, label }: é o que deixa itens.tipo mostrar "Sólido" e gravar "S".
+    // Campo somenteLeitura sai desabilitado — o valor vem do banco e é o banco
+    // que o calcula (itens.magico é coluna GERADA).
     return (
-      <SelectPill label={label} value={valor} onChange={onChange} disabled={disabled}
-        options={campo.opcoes.map((o) => ({ value: o, label: o }))} />
+      <SelectPill label={label} value={valor} onChange={onChange}
+        disabled={disabled || !!campo.somenteLeitura}
+        options={opcoesNormalizadas(campo)} />
     );
   }
   // texto, numero e derivado (derivado é numérico, só ganha a marca de sobrescrita).
@@ -280,6 +285,13 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
   const salvar = async () => {
     const payload = {};
     descritor.campos.forEach((campo) => {
+      /* Campo somenteLeitura NUNCA entra no payload.
+         itens.magico é coluna GERADA no Postgres, e mencioná-la num UPDATE
+         devolve "column magico can only be updated to DEFAULT" — o erro que
+         fazia TODA edição de item falhar até 11/09/2026. A guarda é genérica
+         de propósito: qualquer coluna gerada que apareça depois já nasce
+         coberta. */
+      if (campo.somenteLeitura) return;
       const bruto = valorDoCampo(campo);
       if (campo.tipo === 'derivado') {
         // Calculado ou sobrescrito, sempre grava — nunca some do payload.
@@ -293,12 +305,10 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
       }
       const valor = typeof bruto === 'string' ? bruto.trim() : bruto;
       if (vazio(valor)) { if (limpou(campo)) payload[campo.col] = null; return; }
-      // itens.magico é boolean no banco; o descritor usa opções Sim/Não —
-      // a conversão de volta pra boolean é responsabilidade do editor.
-      if (descritor.tabela === 'itens' && campo.col === 'magico') {
-        payload[campo.col] = valor === 'Sim';
-        return;
-      }
+      // A conversão 'Sim'/'Não' -> boolean de itens.magico vivia aqui e foi
+      // removida em 11/09/2026: o campo é somenteLeitura e sai na guarda do
+      // topo do loop, então este ponto nunca o via. A conversão que RESTA é a
+      // do sentido oposto (banco -> tela), em linhaParaForm.
       payload[campo.col] = valor;
     });
     payload.atualizado_em = new Date().toISOString();
