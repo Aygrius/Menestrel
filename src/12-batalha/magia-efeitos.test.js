@@ -504,3 +504,133 @@ describe('multi-alvo de magia usa a máquina do Golpe Giratório', () => {
     expect(arr[2].ef).toBe(38);   // 12 − 10 = 2
   });
 });
+
+describe('duracaoNoNivel — 21 magias põem a duração no TEXTO DO NÍVEL', () => {
+  /* Defeito que o levantamento da Fase 2 expôs: duracaoEmRodadas trata
+     'Variável' como CONCENTRAÇÃO, mas 21 magias usam 'Variável' na coluna com
+     o sentido oposto — "a duração está no nível, e escala com ele". Medo seria
+     lida como concentração perpétua em vez de 1 rodada.
+
+     As outras 32 'Variável' não trazem duração no nível, e essas SIM são
+     concentração. O discriminador é a frase existir no texto. */
+  const MEDO = { key: 'medo', duracao: 'Variável',
+                 nivel_1: 'A magia tem duração de 1 rodada.',
+                 nivel_5: 'A magia tem duração de 3 rodadas.',
+                 nivel_9: 'A magia tem duração de 5 rodadas.' };
+
+  it('lê as rodadas do nível, não a coluna', () => {
+    expect(M.duracaoNoNivel(MEDO, 1)).toMatchObject({ rodadas: 1, concentracao: false });
+    expect(M.duracaoNoNivel(MEDO, 9)).toMatchObject({ rodadas: 5, concentracao: false });
+  });
+
+  it('marca que veio do nível', () => {
+    expect(M.duracaoNoNivel(MEDO, 1).doNivel).toBe(true);
+  });
+
+  it('REGRESSÃO: duracaoEmRodadas sozinha diria concentração', () => {
+    // É exatamente o erro que duracaoNoNivel evita.
+    expect(M.duracaoEmRodadas(MEDO)).toEqual({ rodadas: null, concentracao: true });
+  });
+
+  it('tempo mais longo que a batalha vira "até o fim"', () => {
+    const m = { duracao: 'Variável', nivel_1: 'A magia tem duração de 1 dia.' };
+    expect(M.duracaoNoNivel(m, 1)).toMatchObject({ rodadas: null, concentracao: false });
+  });
+
+  it('"A magia é permanente" também', () => {
+    const m = { duracao: 'Variável', nivel_9: 'A magia é permanente.' };
+    expect(M.duracaoNoNivel(m, 9)).toMatchObject({ rodadas: null, concentracao: false });
+  });
+
+  it('nível SEM frase de duração cai na coluna — e aí Variável é concentração', () => {
+    // Sono: 'Variável' na coluna e "Altera N condições do sono" no nível.
+    const sono = { key: 'sono', duracao: 'Variável', nivel_1: 'Altera uma condição do sono.' };
+    expect(M.duracaoNoNivel(sono, 1)).toMatchObject({ concentracao: true, doNivel: false });
+  });
+
+  it('as 25 da Fase 1 não mudam de leitura', () => {
+    expect(M.duracaoNoNivel(BENCAO, 1)).toMatchObject({ rodadas: 10, doNivel: false });
+    expect(M.duracaoNoNivel(AURA, 1)).toMatchObject({ rodadas: null, concentracao: false });
+  });
+});
+
+describe('magias de CONTROLE — sem_acoes pela Fase 2', () => {
+  const MEDO = { key: 'medo', nome: 'Medo', duracao: 'Variável',
+                 nivel_1: 'A magia tem duração de 1 rodada.',
+                 nivel_9: 'A magia tem duração de 5 rodadas.' };
+  const SONO = { key: 'sono', nome: 'Sono', duracao: 'Variável',
+                 nivel_1: 'Altera uma condição do sono.' };
+
+  it('Medo grava sem_acoes com a duração do nível', () => {
+    const r = M.aplicarEfeitoMagia(alvo(), MEDO, 1);
+    expect(r.status_temp[0].efeito).toEqual({ tipo: 'sem_acoes', valor: true });
+    expect(r.status_temp[0].rodadas_rest).toBe(1);
+  });
+
+  it('a duração escala com o nível', () => {
+    expect(M.aplicarEfeitoMagia(alvo(), MEDO, 9).status_temp[0].rodadas_rest).toBe(5);
+  });
+
+  it('o alvo sob Medo perde a ação, e o motor JÁ sabia disso', () => {
+    // sem_acoes não é primitiva nova: a Falha Crítica já a produzia, e
+    // temAcaoRestante/proximoAtivo já a respeitavam. A Fase 2 só acrescenta
+    // um produtor.
+    const r = M.aplicarEfeitoMagia(alvo({ pa_rest: 2 }), MEDO, 1);
+    expect(window.MotorBatalha.statusTemEfeito
+      ? window.MotorBatalha.statusTemEfeito(r, 'sem_acoes')
+      : r.status_temp.some((s) => s.efeito.tipo === 'sem_acoes')).toBe(true);
+  });
+
+  it('Sono é concentração: o conjurador sustenta e a âncora fica no status', () => {
+    const r = M.aplicarEfeitoMagia(alvo(), SONO, 1, { fonteInstId: 'c1' });
+    expect(r.status_temp[0].rodadas_rest).toBeNull();
+    expect(r.status_temp[0].concentracao).toEqual({ ator: 'c1', magia_key: 'sono' });
+  });
+
+  it('acordar o alvo: quebrar a concentração do conjurador tira o sono', () => {
+    const dormindo = M.aplicarEfeitoMagia(alvo(), SONO, 1, { fonteInstId: 'c1' });
+    const r = M.quebrarConcentracao([dormindo], 'c1');
+    expect(r[0].status_temp).toHaveLength(0);
+  });
+
+  it('reaplicar Medo renova em vez de empilhar', () => {
+    let p = M.aplicarEfeitoMagia(alvo(), MEDO, 9);
+    p = M.aplicarEfeitoMagia(p, MEDO, 9);
+    expect(p.status_temp.filter((s) => s.id === 'mag_medo')).toHaveLength(1);
+  });
+});
+
+describe('Esconjuração — raça E teto de estágio', () => {
+  const ESC = { key: 'esconjuracao', nome: 'Esconjuração', duracao: '10 rodadas',
+                nivel_1: 'Afeta criaturas de estágio 1.',
+                nivel_5: 'Afeta criaturas de até estágio 9.' };
+  const cri = (raca, estagio) => ({ inst_id: 'x', tipo: 'criatura', raca, estagio, status: 'ativo' });
+
+  it('aceita morto-vivo dentro do teto', () => {
+    expect(M.alvoPermitidoParaMagia(cri('Morto', 1), 'esconjuracao', ESC, 1).pode).toBe(true);
+  });
+
+  it('recusa criatura ACIMA do teto, com motivo próprio', () => {
+    expect(M.alvoPermitidoParaMagia(cri('Morto', 5), 'esconjuracao', ESC, 1))
+      .toEqual({ pode: false, motivo: 'estagio' });
+  });
+
+  it('o teto sobe com o nível', () => {
+    expect(M.alvoPermitidoParaMagia(cri('Demônio', 9), 'esconjuracao', ESC, 5).pode).toBe(true);
+  });
+
+  it('raça errada é recusada antes do estágio', () => {
+    expect(M.alvoPermitidoParaMagia(cri('Animal', 1), 'esconjuracao', ESC, 1).motivo).toBe('raca');
+  });
+
+  it('snapshot ANTIGO sem estagio não bloqueia — o Mestre arbitra', () => {
+    // Recusar um alvo que talvez fosse válido é pior que deixar passar e
+    // marcar. O campo entrou no snapshot em 12/09/2026.
+    expect(M.alvoPermitidoParaMagia(cri('Morto', null), 'esconjuracao', ESC, 1).pode).toBe(true);
+  });
+
+  it('sem magia/nivel na chamada, só a raça é conferida', () => {
+    // As chamadas de UI que só filtram raça continuam valendo.
+    expect(M.alvoPermitidoParaMagia(cri('Morto', 99), 'esconjuracao').pode).toBe(true);
+  });
+});

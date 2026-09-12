@@ -254,6 +254,34 @@ const MAGIA_EFEITO_MAP = {
   velocidade:         { alvo: 'self', alvos: 1, icone: '💨',
                         efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: 1 }] },
 
+  /* ── CONTROLE (3) — Fase 2, 12/09/2026 ─────────────────────────────
+     As três impedem o alvo de agir, e as três são resolvidas por DISPUTA DE
+     RESISTÊNCIA, não por coluna de ataque: o texto de todas diz "caso falhe
+     em um teste de resistência mágica". exigeResistencia já lê isso do banco.
+
+     A primitiva é `sem_acoes`, que JÁ EXISTE e já é respeitada por
+     proximoAtivo e temAcaoRestante desde a Falha Crítica — a Fase 2 acrescenta
+     produtores, não mecanismo. Por isso o efeito declara `valor: true` e não
+     `unidade`: é bandeira, não número.
+
+     A DURAÇÃO vem do texto do nível (duracaoNoNivel), não da coluna: as três
+     têm `duracao = 'Variável'`, que nelas significa "veja no nível", e não
+     concentração. Medo escala 1 → 3 → 5 rodadas. */
+  medo:               { alvo: 'inimigo', alvos: 1, icone: '😱',
+                        efeitos: [{ tipo: 'sem_acoes', valor: true }] },
+  // "repele mortos-vivos e demônios" + "Afeta criaturas de até estágio N".
+  // A raça é regra (so_racas); o estágio é teto lido do texto do nível.
+  esconjuracao:       { alvo: 'inimigo', alvos: 1, icone: '✝️',
+                        so_racas: ['Morto', 'Demônio'], teto_estagio: true,
+                        efeitos: [{ tipo: 'sem_acoes', valor: true }] },
+  /* Sono é a única das três que é concentração de VERDADE: a coluna diz
+     'Variável' e o nível NÃO traz duração — traz "Altera N condições do
+     sono", que é outra coisa. duracaoNoNivel cai na coluna e devolve
+     concentração, então o conjurador sustenta o sono e acorda o alvo se
+     fizer qualquer outra coisa. É o que a magia descreve. */
+  sono:               { alvo: 'inimigo', alvos: 1, icone: '💤',
+                        efeitos: [{ tipo: 'sem_acoes', valor: true }] },
+
   /* ── Cura (2) ──────────────────────────────────────────────────── */
   // "efeito inverso em mortos-vivos": a cura de EH vira dano na EH.
   curas_espirituais:  { alvo: 'aliado', alvos: 1, icone: '💚',
@@ -270,6 +298,26 @@ function magiaEfeitoDe(key) {
   return MAGIA_EFEITO_MAP[key] || null;
 }
 
+/* ── Teto de estágio lido do texto do nível (Fase 2) ───────────────
+   Esconjuração é a única da Fase 2 com teto de alvo por poder:
+
+     nivel_1 "Afeta criaturas de estágio 1."
+     nivel_5 "Afeta criaturas de até estágio 9."
+     nivel_9 "Afeta criaturas de até estágio 17."
+
+   O "até" aparece a partir do nível 3 e não muda o sentido — o número é o
+   teto nos dois casos. Devolve null quando o nível não declara teto, e aí
+   quem chama trata como "sem limite conhecido". */
+const RE_TETO_ESTAGIO = /est[áa]gio\s+(\d+)/i;
+
+function tetoEstagioNoNivel(magia, nivel) {
+  const txt = (magia && magia['nivel_' + nivel]) || '';
+  const m = RE_TETO_ESTAGIO.exec(txt);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 Object.assign(window, {
-  efeitosNoNivel, elementoDoNivel, MAGIA_EFEITO_MAP, magiaEfeitoDe,
+  efeitosNoNivel, elementoDoNivel, MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
 });

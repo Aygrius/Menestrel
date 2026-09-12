@@ -588,6 +588,49 @@ function duracaoEmRodadas(magia) {
   return { rodadas: null, concentracao: false };
 }
 
+/* ── Duração lida do TEXTO DO NÍVEL, quando ele a declara ──────────
+   Levantamento de 12/09/2026: 21 magias têm `duracao = 'Variável'` na coluna
+   E a duração de verdade escrita no texto do nível, escalando com ele:
+
+     Medo — duracao 'Variável'
+            nivel_1 "A magia tem duração de 1 rodada."
+            nivel_9 "A magia tem duração de 5 rodadas."
+
+   Para essas, 'Variável' NÃO significa concentração: significa "depende do
+   nível, veja no texto". Lê-las por duracaoEmRodadas fazia Medo virar uma
+   concentração perpétua em vez de 1 rodada — o oposto da regra.
+
+   As outras 32 'Variável' não trazem texto de duração no nível, e essas SIM
+   são concentração de verdade. O discriminador é a frase existir no nível.
+
+   Só rodadas contam para o combate. "1 dia", "1 ano", "permanente" são mais
+   longos que qualquer batalha e viram `rodadas: null` — que decrementarStatusTemp
+   já trata como "até o fim". Isso é intencional: dentro da batalha os três
+   são a mesma coisa.
+
+   Nenhuma das 25 magias da Fase 1 tem esta forma, então a leitura delas não
+   muda. Ver spec §2.4. */
+const RE_DUR_NIVEL = /magia\s+(?:tem\s+dura[çc][ãa]o\s+de|dura)\s+([^.]*)/i;
+const RE_DUR_PERMANENTE = /magia\s+[ée]\s+permanente/i;
+
+function duracaoNoNivel(magia, nivel) {
+  const txt = (magia && magia['nivel_' + nivel]) || '';
+  if (txt) {
+    if (RE_DUR_PERMANENTE.test(txt)) return { rodadas: null, concentracao: false, doNivel: true };
+    const m = RE_DUR_NIVEL.exec(txt);
+    if (m) {
+      const r = RE_RODADAS.exec(m[1]);
+      if (r) {
+        const n = parseInt(r[1], 10);
+        if (Number.isFinite(n) && n > 0) return { rodadas: n, concentracao: false, doNivel: true };
+      }
+      // Minutos, horas, dias, anos: mais longo que a batalha.
+      return { rodadas: null, concentracao: false, doNivel: true };
+    }
+  }
+  return { ...duracaoEmRodadas(magia), doNivel: false };
+}
+
 /* ── Evocação da magia, traduzida para rodadas de batalha ──────────
    Irmã de duracaoEmRodadas, e a simetria é proposital: duração é quanto o
    efeito DURA, evocação é quanto ele DEMORA a existir. A coluna `evocacao` é
@@ -696,8 +739,20 @@ function magiasDeApoioDoAtor(ator, catalogos) {
 
        `alvo === 'inimigo'` sai porque essas vivem na aba Magia. Aura Divina é
        debuff em inimigo e fica lá, apesar de não causar dano. */
+    /* CRITÉRIO CORRIGIDO em 12/09/2026. Era "tem entrada no registro E não
+       mira inimigo", e isso abria um buraco: `magiasOfensivasDoAtor` exige
+       `dano > 0`, então magia que mira inimigo SEM causar dano não aparecia em
+       aba nenhuma. Aura Divina — debuff de coluna em demônios e mortos-vivos —
+       ficou inconjurável desde a Fase 1, e as três de controle da Fase 2
+       (Medo, Sono, Esconjuração) nasceriam com o mesmo problema.
+
+       O critério certo é sobre o EFEITO, não sobre o alvo: magia que causa
+       dano vive na aba Magia (resolvida por coluna de ataque); todo o resto
+       vive aqui, inclusive debuff e controle, que são resolvidos por disputa
+       de resistência — caminho que esta aba já tinha. */
     const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(key) : null;
-    if (!reg || reg.alvo === 'inimigo') return;
+    if (!reg) return;
+    if (reg.efeitos.some((ef) => ef.tipo === 'dano')) return;
     const dur = duracaoEmRodadas(m);
     const ev  = evocacaoEmRodadas(m);
     out.push({
@@ -1095,6 +1150,14 @@ async function montarSnapshots(parts, personagensPools) {
       mov_rest: movimentoBase(c.velocidade || 0),
       foto_url: null,
       raca: c.tipo || null,
+      /* estagio entrou na Fase 2 das magias (12/09/2026): Esconjuração diz
+         "Afeta criaturas de até estágio N", então a regra precisa do número.
+         Já era lido aqui para derivar as resistências — só não era guardado.
+
+         Snapshot antigo não tem o campo; alvoPermitidoParaMagia trata ausência
+         como "não dá pra conferir" e deixa passar, marcando parcial no log,
+         em vez de bloquear um alvo que talvez fosse válido. */
+      estagio: c.estagio != null ? c.estagio : null,
       vb: c.velocidade || 0, pa_max: 1, pa_rest: 1,
       eh: c.energia_heroica || 0, eh_max: c.energia_heroica || 0,
       ar: c.absorcao || 0,        ar_max: c.absorcao || 0,
@@ -2637,14 +2700,34 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
   const anteriores = Array.isArray(participante.status_temp) ? participante.status_temp : [];
   const semEsta = anteriores.filter((s) => s.id !== id);
 
-  // A duração vem do BANCO, não do registro: o catálogo já a tem certa e é lá
-  // que o editor de admin a edita. rodadas null = persiste até o fim da
-  // batalha, que é o que decrementarStatusTemp já faz.
-  const dur = duracaoEmRodadas(magia);
+  /* A duração vem do BANCO, não do registro: o catálogo já a tem certa e é lá
+     que o editor de admin a edita. rodadas null = persiste até o fim da
+     batalha, que é o que decrementarStatusTemp já faz.
+
+     duracaoNoNivel e não duracaoEmRodadas: 21 magias escrevem a duração no
+     TEXTO DO NÍVEL e deixam 'Variável' na coluna. Para elas, ler a coluna
+     devolveria concentração perpétua em vez da contagem certa. Quando o nível
+     não diz nada, cai na coluna — que é o caso das 25 da Fase 1. */
+  const dur = duracaoNoNivel(magia, nivel);
 
   const novos = [];
   reg.efeitos.forEach((ef) => {
     if (ef.tipo === 'dano' || ef.tipo === 'cura_pool' || ef.tipo === 'dreno_eh') return;
+    /* Efeito de BANDEIRA (Fase 2): `sem_acoes` não tem número — ou o alvo
+       está impedido, ou não está. O registro declara `valor: true` e não
+       declara `unidade`, exatamente como as técnicas já fazem com
+       evita_golpe e ignora_armadura. */
+    if (ef.valor !== undefined) {
+      novos.push({
+        id, nome: magia.nome || key, icone: reg.icone,
+        rodadas_rest: dur.rodadas,
+        ...(dur.concentracao && opcoes && opcoes.fonteInstId
+          ? { concentracao: { ator: opcoes.fonteInstId, magia_key: key } } : {}),
+        efeito: { tipo: ef.tipo, valor: ef.valor },
+      });
+      return;
+    }
+
     const bruto = lido[ef.unidade];
     // Unidade declarada que o texto não tem: o teste de acordo (spec §5.3)
     // existe pra isso não chegar aqui. Chegando, não inventa zero — pula.
@@ -2797,7 +2880,7 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu) {
 
   const alvoP = next[alvoIdx];
   const alvoSumiu = !alvoP || alvoP.status === 'morto' || alvoP.status === 'desistiu'
-    || !alvoPermitidoParaMagia(alvoP, magia.key).pode;
+    || !alvoPermitidoParaMagia(alvoP, magia.key, cat, magia.nivel).pode;
   if (resistiu || alvoSumiu) {
     return { participantes: next, fase: alvoSumiu ? 'perdeu' : 'resolveu' };
   }
@@ -2877,14 +2960,34 @@ function aplicarDrenoEh(conjurador, danoNaEf) {
 
    Molde de tecnicaPermitida: devolve { pode, motivo } pra UI pôr o motivo no
    tooltip em vez de só desabilitar sem explicação. */
-function alvoPermitidoParaMagia(alvoP, magiaKey) {
+function alvoPermitidoParaMagia(alvoP, magiaKey, magia, nivel) {
   const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magiaKey) : null;
-  if (!reg || !reg.so_racas) return { pode: true, motivo: null };
-  const raca = alvoP && alvoP.raca;
-  if (!raca) return { pode: false, motivo: 'raca' };
-  return reg.so_racas.includes(raca)
-    ? { pode: true, motivo: null }
-    : { pode: false, motivo: 'raca' };
+  if (!reg) return { pode: true, motivo: null };
+
+  if (reg.so_racas) {
+    const raca = alvoP && alvoP.raca;
+    if (!raca) return { pode: false, motivo: 'raca' };
+    if (!reg.so_racas.includes(raca)) return { pode: false, motivo: 'raca' };
+  }
+
+  /* TETO DE ESTÁGIO (Fase 2): Esconjuração diz "Afeta criaturas de até
+     estágio N", e o N escala com o nível da magia — 1 → 9 → 17.
+
+     Duas ausências, dois tratamentos diferentes, e a distinção importa:
+       • sem `magia`/`nivel` na chamada → quem chamou não quer conferir o
+         teto (é o caso das chamadas de UI que só filtram raça). Passa.
+       • com a magia, mas alvo SEM `estagio` → snapshot antigo, montado antes
+         de o campo existir. Passa e NÃO bloqueia: recusar um alvo que talvez
+         fosse válido é pior que deixar o Mestre arbitrar, e o log marca. */
+  if (reg.teto_estagio && magia && nivel != null) {
+    const teto = (typeof tetoEstagioNoNivel === 'function')
+      ? tetoEstagioNoNivel(magia, nivel) : null;
+    const est = alvoP && alvoP.estagio;
+    if (teto != null && est != null && Number(est) > teto) {
+      return { pode: false, motivo: 'estagio' };
+    }
+  }
+  return { pode: true, motivo: null };
 }
 
 /* O efeito INVERTE neste alvo? "Esta magia possui o efeito inverso em
@@ -5739,7 +5842,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, onAplicar, onAplicarT
 
        Alvo que a magia não pode afetar (so_racas) sai da lista — a restrição
        é regra, não sugestão (decisão 7 do spec). */
-    const permitidos = alvos.filter((q) => alvoPermitidoParaMagia(q, apoioSel.key).pode);
+    // Passa o catálogo e o nível: sem eles o teto de estágio da Esconjuração
+    // não é conferido, e um morto-vivo forte demais ficaria selecionável.
+    const permitidos = alvos.filter((q) => alvoPermitidoParaMagia(
+      q, apoioSel.key, apoioSel.catalogo, apoioSel.nivel).pode);
     return apoioSel.alvo === 'inimigo' ? [...permitidos, ator] : [ator, ...permitidos];
   }, [apoioSel, alvos, ator]);
   const alvoApoio = alvosApoio[alvoApoioIdx] || null;
@@ -7888,7 +7994,7 @@ Object.assign(window, {
     // Leitura de velocidade do catálogo (01/09/2026): o texto do nível é a
     // fonte, como já acontece com o dano. duracao e descricao completam o
     // quadro (por quantas rodadas, e se o alvo tem direito a resistir).
-    modVelocidadeNoNivel, duracaoEmRodadas, exigeResistencia,
+    modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia,
     magiasDeApoioDoAtor, aplicarEfeitoApoio, quebrarConcentracao,
     // Fase 1 das técnicas (09/09/2026): grava o efeito da técnica no
     // status_temp. Reaplicar substitui a leva anterior em vez de somar.

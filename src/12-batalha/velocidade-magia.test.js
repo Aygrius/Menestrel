@@ -436,3 +436,55 @@ describe('virada de rodada — iniciativa, movimento e ação extra andam juntos
     expect(participantes[0].pa_rest).toBe(0);
   });
 });
+
+describe('magia de debuff/controle tem onde ser lançada', () => {
+  /* BURACO DA FASE 1, achado em 12/09/2026 ao ligar o controle da Fase 2.
+
+     magiasOfensivasDoAtor exige `dano > 0`; magiasDeApoioDoAtor excluía
+     `alvo === 'inimigo'`. Magia que mira inimigo SEM causar dano caía entre as
+     duas e não aparecia em aba nenhuma — Aura Divina ficou INCONJURÁVEL desde
+     que entrou no registro, e Medo, Sono e Esconjuração nasceriam iguais.
+
+     O critério passou a ser sobre o EFEITO: quem causa dano vive na aba Magia
+     (coluna de ataque); todo o resto vive na Apoio, que já resolve por disputa
+     de resistência. */
+  const CAT = {
+    pjById: { 7: { id: 7, magias: { aura_divina: 1, medo: 1, bola_de_fogo: 1, bencao: 1 } } },
+    magiasByKey: {
+      aura_divina:  { key: 'aura_divina', nome: 'Aura Divina', duracao: '1 hora',
+                      evocacao: 'Instantânea', alcance: '25 metros',
+                      descricao: 'Repele demônios e mortos-vivos.',
+                      nivel_1: 'A área reduz 1 coluna de ataque.' },
+      medo:         { key: 'medo', nome: 'Medo', duracao: 'Variável',
+                      evocacao: 'Instantânea', alcance: '5 metros',
+                      descricao: 'O alvo que falhar em um teste de resistência mágica fica sem ação.',
+                      nivel_1: 'A magia tem duração de 1 rodada.' },
+      bola_de_fogo: { key: 'bola_de_fogo', nome: 'Bola de Fogo', duracao: 'Instantânea',
+                      evocacao: 'Instantânea', descricao: 'Fogo.',
+                      nivel_1: 'Causa 12 de dano elemental de fogo.' },
+      bencao:       { key: 'bencao', nome: 'Bênção', duracao: '10 rodadas',
+                      evocacao: 'Instantânea', alcance: 'Toque', descricao: 'Bênção.',
+                      nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' },
+    },
+    catalogoBySlug: {},
+  };
+  const ATOR = { tipo: 'pj', ref_id: 7, inst_id: 'pj:7', nome: 'Clériga' };
+
+  it('Aura Divina aparece na aba Apoio', () => {
+    expect(M.magiasDeApoioDoAtor(ATOR, CAT).map((m) => m.key)).toContain('aura_divina');
+  });
+
+  it('Medo também — controle é resolvido por resistência, não por coluna', () => {
+    const medo = M.magiasDeApoioDoAtor(ATOR, CAT).find((m) => m.key === 'medo');
+    expect(medo).toBeDefined();
+    expect(medo.resistencia).toBe('rm');
+  });
+
+  it('magia de DANO continua fora da aba Apoio', () => {
+    expect(M.magiasDeApoioDoAtor(ATOR, CAT).map((m) => m.key)).not.toContain('bola_de_fogo');
+  });
+
+  it('buff em aliado não foi afetado pela mudança', () => {
+    expect(M.magiasDeApoioDoAtor(ATOR, CAT).map((m) => m.key)).toContain('bencao');
+  });
+});

@@ -187,10 +187,13 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          'Elemental', 'Morto', 'Demônio', 'Construído', 'Celestial'];
   const TIPOS_VALIDOS = ['dano', 'reducao_dano', 'cura_pool', 'dreno_eh',
                          'mod_ataque', 'mod_defesa', 'mod_vb',
-                         'mod_rf', 'mod_rm', 'mod_eh_temp'];
+                         'mod_rf', 'mod_rm', 'mod_eh_temp',
+                         // Fase 2: sem_acoes JÁ EXISTIA (Falha Crítica). A fase
+                         // acrescenta produtores, não mecanismo.
+                         'sem_acoes'];
 
-  it('tem exatamente 25 entradas', () => {
-    expect(Object.keys(MAP)).toHaveLength(25);
+  it('tem exatamente 28 entradas — 25 da Fase 1 + 3 de controle da Fase 2', () => {
+    expect(Object.keys(MAP)).toHaveLength(28);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -206,7 +209,16 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
     '%s só declara tipos que o motor conhece', (key, reg) => {
       reg.efeitos.forEach((ef) => {
         expect(TIPOS_VALIDOS, `${key}.${ef.tipo}`).toContain(ef.tipo);
-        expect(ef.unidade, key).toBeTruthy();
+        /* Duas formas de efeito, e cada uma exige um campo:
+             NÚMERO   — `unidade`, a chave que efeitosNoNivel devolve;
+             BANDEIRA — `valor`, sem unidade (sem_acoes não tem número: ou o
+                        alvo está impedido, ou não está).
+           Exigir `unidade` das duas rejeitaria as de controle; não exigir
+           nada deixaria passar uma entrada malformada. */
+        const temUnidade = !!ef.unidade;
+        const temValor = ef.valor !== undefined;
+        expect(temUnidade || temValor, `${key}.${ef.tipo}: sem unidade nem valor`).toBe(true);
+        expect(temUnidade && temValor, `${key}.${ef.tipo}: unidade E valor`).toBe(false);
       });
     });
 
@@ -279,6 +291,13 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     super_resistencia:  'Aumenta 1 de resistência física e 1 de resistência mágica.',
     toque_gelido:       'Cause 12 de dano base.',
     velocidade:         'Aumenta 2 de velocidade.',
+    /* Fase 2 — as tres de CONTROLE. O texto do nivel delas NAO traz numero de
+       efeito: traz duracao (Medo), teto de estagio (Esconjuracao) ou prosa
+       (Sono). Por isso as entradas declaram `valor: true` em vez de
+       `unidade`, e o acordo mapa-parser abaixo as pula. */
+    medo:               'A magia tem duracao de 1 rodada.',
+    esconjuracao:       'Afeta criaturas de estagio 1.',
+    sono:               'Altera uma condicao do sono.',
   };
 
   it('a lista de conferência cobre as 25 entradas do mapa', () => {
@@ -289,12 +308,84 @@ describe('o acordo entre o mapa e o texto do banco', () => {
   it.each(Object.entries(NIVEL_1_NO_BANCO))(
     '%s: toda unidade declarada é encontrada pelo parser', (key, texto) => {
       const reg = window.MAGIA_EFEITO_MAP[key];
-      expect(reg, `${key} não está no mapa`).toBeDefined();
+      expect(reg, ` não está no mapa`).toBeDefined();
       const lido = window.efeitosNoNivel({ key, nivel_1: texto }, 1);
       reg.efeitos.forEach((ef) => {
+        // Efeito de bandeira não lê número nenhum: nada a conferir aqui.
+        if (ef.valor !== undefined) return;
         expect(lido[ef.unidade],
           `${key}: unidade "${ef.unidade}" não encontrada em "${texto}"`)
           .toBeGreaterThan(0);
       });
     });
+});
+
+describe('tetoEstagioNoNivel — Esconjuração escala com o nível', () => {
+  /* Frases literais do banco, levantadas em 12/09/2026. O "até" aparece a
+     partir do nível 3 e não muda o sentido: o número é o teto nos dois casos. */
+  let tetoEstagioNoNivel;
+  beforeAll(() => {
+    tetoEstagioNoNivel = window.tetoEstagioNoNivel;
+    expect(tetoEstagioNoNivel).toBeTypeOf('function');
+  });
+
+  const esc = {
+    key: 'esconjuracao',
+    nivel_1: 'Afeta criaturas de estágio 1.',
+    nivel_5: 'Afeta criaturas de até estágio 9.',
+    nivel_9: 'Afeta criaturas de até estágio 17.',
+  };
+
+  it.each([[1, 1], [5, 9], [9, 17]])('nível %i → teto %i', (nivel, teto) => {
+    expect(tetoEstagioNoNivel(esc, nivel)).toBe(teto);
+  });
+
+  it('nível sem texto devolve null', () => {
+    expect(tetoEstagioNoNivel(esc, 3)).toBeNull();
+  });
+
+  it('magia que não fala de estágio devolve null', () => {
+    expect(tetoEstagioNoNivel({ nivel_1: 'Causa 12 de dano.' }, 1)).toBeNull();
+  });
+
+  it('magia nula não lança', () => {
+    expect(tetoEstagioNoNivel(null, 1)).toBeNull();
+  });
+});
+
+describe('as três magias de CONTROLE da Fase 2', () => {
+  let MAP;
+  beforeAll(() => { MAP = window.MAGIA_EFEITO_MAP; });
+
+  it.each(['medo', 'esconjuracao', 'sono'])('%s produz sem_acoes', (key) => {
+    expect(MAP[key].efeitos.map((e) => e.tipo)).toEqual(['sem_acoes']);
+  });
+
+  it.each(['medo', 'esconjuracao', 'sono'])('%s mira inimigo', (key) => {
+    expect(MAP[key].alvo).toBe('inimigo');
+  });
+
+  it('o efeito de controle é BANDEIRA: valor true, sem unidade', () => {
+    const ef = MAP.medo.efeitos[0];
+    expect(ef.valor).toBe(true);
+    expect(ef.unidade).toBeUndefined();
+  });
+
+  it('só Esconjuração restringe raça e estágio', () => {
+    expect(MAP.esconjuracao.so_racas).toEqual(['Morto', 'Demônio']);
+    expect(MAP.esconjuracao.teto_estagio).toBe(true);
+    expect(MAP.medo.so_racas).toBeUndefined();
+    expect(MAP.sono.teto_estagio).toBeUndefined();
+  });
+
+  it('as seis magias que NÃO cabem na Fase 2 continuam fora do mapa', () => {
+    /* Alucinação (dificuldade de habilidade), Invisibilidade (seleção de
+       alvo), Ordens (narrativa), Possessão (troca de corpo), Licantropia
+       (atributos) e Oferenda (meta-magia) precisam de sistemas que o motor de
+       combate não tem. Entregar três inteiras é melhor que nove pela metade. */
+    ['alucinacao', 'invisibilidade', 'ordens', 'possessao',
+     'licantropia_lupina', 'oferenda'].forEach((k) => {
+      expect(MAP[k], `${k} entrou no mapa sem a primitiva que precisa`).toBeUndefined();
+    });
+  });
 });
