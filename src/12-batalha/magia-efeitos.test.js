@@ -973,3 +973,68 @@ describe('ignora_eh — Garras crava na carne', () => {
     expect(passagens.length, 'alvo principal e alvos extras, nos dois').toBe(4);
   });
 });
+
+describe('redução que alcança dano BASE — Parede de Cristal', () => {
+  /* A regra tinha uma generalização escondida: `if (!elemento) return d` no
+     topo de danoAposReducao, isto é, redução nenhuma vale contra dano sem
+     elemento. Está certo para proteção ELEMENTAL — Piroproteção não segura
+     porrada de maça — e estava errado para a Parede de Cristal, que barra
+     "qualquer objeto ou criatura com corpo físico". `base: true` no efeito é
+     quem separa os dois casos. */
+  const comStatus = (efeito) => ({ inst_id: 'v1', ef: 40, status_temp: [{ nome: 'x', efeito }] });
+  const PAREDE = { tipo: 'reducao_dano', valor: 8, elemento: null, base: true };
+  const PIRO   = { tipo: 'reducao_dano', valor: 8, elemento: 'fogo' };
+  const GENERICA = { tipo: 'reducao_dano', valor: 8, elemento: null };
+
+  it('a parede corta golpe SEM elemento', () => {
+    expect(M.danoAposReducao(20, comStatus(PAREDE), null)).toBe(12);
+  });
+
+  it('e corta golpe elemental também', () => {
+    expect(M.danoAposReducao(20, comStatus(PAREDE), 'fogo')).toBe(12);
+  });
+
+  it('REGRESSÃO: proteção elemental NÃO alcança dano base', () => {
+    expect(M.danoAposReducao(20, comStatus(PIRO), null)).toBe(20);
+  });
+
+  it('REGRESSÃO: Armadura Elemental (elemento null, sem base) segue elemental-only', () => {
+    // "elemento null" ali quer dizer QUALQUER elemento, não "também sem elemento".
+    expect(M.danoAposReducao(20, comStatus(GENERICA), null)).toBe(20);
+    expect(M.danoAposReducao(20, comStatus(GENERICA), 'ar')).toBe(12);
+  });
+
+  it('REGRESSÃO: proteção do elemento errado não corta', () => {
+    expect(M.danoAposReducao(20, comStatus(PIRO), 'ar')).toBe(20);
+  });
+});
+
+describe('aura hostil exclui o conjurador; aura protetora não', () => {
+  /* Aura Divina pune quem está em volta — quem lançou não se pune. Parede de
+     Cristal e Tensão nascem "a partir de você", então quem lançou está dentro.
+     O filtro era incondicional e deixava o conjurador de fora da própria
+     parede, que é o oposto do que a magia diz. */
+  const p = (id, x, extra = {}) => ({ inst_id: id, nome: id, pos: { x, y: 0 },
+                                      status: 'ativo', status_temp: [], ...extra });
+  const conj = p('c1', 0);
+  const perto = p('a1', 1);
+  const cat = (key, alcance) => ({ key, nome: key, alcance, nivel_1: 'Reduz 8 de dano.' });
+
+  it('Parede de Cristal: o conjurador está DENTRO', () => {
+    const r = M.alvosDeAura(cat('parede_de_cristal', '5 metros'), conj, [conj, perto], 1);
+    expect(r.map((x) => x.inst_id)).toContain('c1');
+  });
+
+  it('Aura Divina: o conjurador fica FORA', () => {
+    const alvo = p('d1', 1, { raca: 'Demônio' });
+    const r = M.alvosDeAura(cat('aura_divina', '25 metros'), conj, [conj, alvo], 1);
+    expect(r.map((x) => x.inst_id)).not.toContain('c1');
+    expect(r.map((x) => x.inst_id)).toContain('d1');
+  });
+
+  it('Tensão pega todo mundo no raio — "todos devem fazer um teste"', () => {
+    const longe = p('f1', 40);
+    const r = M.alvosDeAura(cat('tensao', '10 metros'), conj, [conj, perto, longe], 1);
+    expect(r.map((x) => x.inst_id).sort()).toEqual(['a1', 'c1']);
+  });
+});

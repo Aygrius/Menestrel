@@ -195,26 +195,32 @@ Decisão registrada em
 Rodando a verificação contra o banco em 12/09/2026, no fim do dia:
 
 ```
-238 magias · 69 no motor · 0 quebradas · 0 ambíguas · 11 órfãs · 158 narrativas
+238 magias · 72 no motor · 0 quebradas · 0 ambíguas · 8 órfãs · 158 narrativas
 ```
 
 **Zero quebradas e zero ambíguas**: nenhum texto do catálogo está ilegível para
 o motor hoje.
 
-As **11 órfãs** ficaram de fora por motivo registrado, não por esquecimento —
-nenhuma cai em *"sem motivo registrado"*. Oito são ritual ou dependem de
-sistema que o combate não tem. **Três esperam decisão sua:**
+**O grupo "Falta uma decisão sua" está VAZIO**, e esse é o estado saudável: não
+há nenhuma magia legível cuja regra ninguém tenha decidido. Seis fecharam esse
+ciclo em 12/09/2026 — Garras e Lâmina de Luz (alcance *"Pessoal"* → *"Toque"*),
+Auxílio Natural (*"dano máximo"* → *"dano"*), e as três últimas por decisão
+direta sua: o bônus de **Forçar Disputa** é do adversário, a **Parede de
+Cristal** vale numa área a partir de quem conjura, e **Tensão** entrou junto com
+a regra geral abaixo.
 
-| Magia | O que falta decidir |
+> **Resistir é escolha de quem recebe.** Toda magia evocada por terceiros pode
+> ser resistida, se o alvo quiser. Exigir teste de resistência **não** é sinal
+> de que a magia é debuff — foi o que segurou Tensão fora do motor por engano.
+
+As **8 órfãs** restantes ficaram de fora por motivo registrado; nenhuma cai em
+*"sem motivo registrado"*. Seis são ritual ou fora de combate. As outras duas
+dependem de sistema que o combate não tem:
+
+| Magia | O que falta no motor |
 |---|---|
-| Forçar Disputa | *"Aumenta N de velocidade"* — em quem? No conjurador ou no adversário atraído? |
-| Tensão | dá defesa, velocidade e coluna, mas **exige teste de resistência** — buff que o alvo resiste é debuff mal redigido? |
-| Parede de Cristal | é uma parede no terreno, não um efeito num alvo |
-
-Três outras já fecharam esse ciclo no mesmo dia: **Garras** e **Lâmina de Luz**
-(alcance *"Pessoal"* → *"Toque"*) e **Auxílio Natural** (*"dano máximo"* →
-*"dano"*). O painel avisa quando o ajuste pega: a magia sai de *"Falta uma
-decisão sua"* e aparece em *"✓ Pronta para entrar"* — e aí é só me avisar.
+| Proteção Natural | rolar teste de **habilidade** (Sentidos) — o motor só rola resistência |
+| Doenças | *"Reduz N de Saúde"* é condição de ficha, não status de combate; e *"a cada rodada a penalidade aumenta 2"* é modificador que **cresce**, e os do motor são fixos |
 
 As outras sete precisam de sistemas que o combate não tem (objeto de arte como
 alvo, doenças por atributo, karma, parede no terreno, teste de atributo) ou são

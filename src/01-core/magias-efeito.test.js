@@ -203,8 +203,8 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // acrescenta produtores, não mecanismo.
                          'sem_acoes'];
 
-  it('tem 69 entradas — 67 mais Garras e Lamina de Luz', () => {
-    expect(Object.keys(MAP)).toHaveLength(69);
+  it('tem 72 entradas — 69 mais as tres ultimas decisoes', () => {
+    expect(Object.keys(MAP)).toHaveLength(72);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -371,6 +371,13 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     // "Toque": dano em inimigo com alcance que nao alcanca inimigo.
     garras:                'Causa 4 de dano, ignora a energia heroica.',
     lamina_de_luz:         'Causa 24 de dano elemental de luz.',
+    /* As tres ultimas pendencias de decisao, respondidas em 12/09/2026:
+       o bonus de Forcar Disputa e do ADVERSARIO; a Parede vale numa area a
+       partir do conjurador; e resistir e escolha de quem recebe, nao sinal
+       de debuff — o que liberou Tensao. */
+    forcar_disputa:        'Aumenta 1 de velocidade.',
+    parede_de_cristal:     'Reduz 8 de dano.',
+    tensao:                'Aumenta 1 de defesa, 1 de velocidade e 1 coluna de ataque.',
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',

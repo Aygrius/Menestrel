@@ -6,7 +6,7 @@
    não há, e que a lista de quebradas diz QUAL unidade sumiu — que é a
    informação de que o Mestre precisa para desfazer a edição.
    ============================================================ */
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import '../01-core/copy.jsx';
@@ -26,6 +26,28 @@ const montar = (magias) => render(
   <div className="menestrel-ui"><Painel magias={magias} lang="pt" /></div>
 );
 const cabecalho = () => screen.getAllByRole('button')[0];
+
+/* UMA PENDÊNCIA FICTÍCIA, injetada no registro só para estes testes.
+
+   As fixtures de "falta uma decisão sua" já quebraram TRÊS vezes por usarem
+   magia de verdade: Hidroproteção, depois Garras, depois Forçar Disputa —
+   cada uma entrou no motor no dia seguinte, e o teste caiu junto. Em
+   12/09/2026 o grupo esvaziou de vez: as três últimas decisões foram
+   respondidas pelo usuário e não sobrou nenhuma magia real na classe.
+
+   O que estes testes afirmam é sobre o MECANISMO — pendência com predicado
+   muda de grupo quando o texto é corrigido —, não sobre qual magia está
+   pendente. Então a fixture passa a ser inventada, e o esvaziamento do grupo
+   (que é o estado saudável) deixa de derrubar a suíte. */
+const PENDENCIA_FICTICIA = 'magia_de_teste_indecisa';
+beforeAll(() => {
+  window.MAGIA_FORA_DO_REGISTRO[PENDENCIA_FICTICIA] = {
+    classe: 'decisao',
+    motivo: 'O bônus é em quem — no conjurador ou no alvo? A descrição não diz.',
+    resolvido: (m) => !/pessoal/i.test(m.alcance || ''),
+  };
+});
+afterAll(() => { delete window.MAGIA_FORA_DO_REGISTRO[PENDENCIA_FICTICIA]; });
 
 const BENCAO_OK = { key: 'bencao', nome: 'Bênção',
   nivel_1: 'Aumenta 1 coluna de ataque e 5 de energia heroica.' };
@@ -126,11 +148,8 @@ describe('a lista de fora-do-motor diz o MOTIVO e o que fazer', () => {
     <div className="menestrel-ui"><Painel magias={magias} lang="pt" /></div>
   );
 
-  /* A fixture era Garras, que ENTROU no motor em 12/09/2026 quando o usuário
-     trocou o alcance para "Toque". Exemplo de pendência precisa ser uma que
-     siga pendente: Forçar Disputa não diz de QUEM é o bônus de velocidade. */
-  const PENDENTE = { key: 'forcar_disputa', nome: 'Forçar Disputa',
-                     nivel_1: 'Aumenta 1 de velocidade.' };
+  const PENDENTE = { key: PENDENCIA_FICTICIA, nome: 'Magia Indecisa',
+                     alcance: 'Pessoal', nivel_1: 'Aumenta 1 de velocidade.' };
   const RITUAL = { key: 'manjar_de_lena', nome: 'Manjar de Lena',
                    nivel_1: 'Restaura 5 de energia heroica.' };
   const DESCONHECIDA = { key: 'magia_nova_qualquer', nome: 'Magia Nova',
@@ -178,12 +197,11 @@ describe('a pendência SOME quando o texto é corrigido', () => {
     <div className="menestrel-ui"><Painel magias={[m]} lang="pt" /></div>
   );
 
-  /* Forçar Disputa: "Aumenta N de velocidade" sem dizer em quem. O predicado
-     procura o dono do bônus no texto. */
-  const SEM_DONO  = { key: 'forcar_disputa', nome: 'Forçar Disputa',
-                      nivel_1: 'Aumenta 1 de velocidade.' };
-  const COM_DONO  = { key: 'forcar_disputa', nome: 'Forçar Disputa',
-                      nivel_1: 'Aumenta 1 de velocidade no alvo.' };
+  // O predicado da pendência fictícia olha `alcance` (ver o topo do arquivo).
+  const SEM_DONO  = { key: PENDENCIA_FICTICIA, nome: 'Magia Indecisa',
+                      alcance: 'Pessoal', nivel_1: 'Aumenta 1 de velocidade.' };
+  const COM_DONO  = { key: PENDENCIA_FICTICIA, nome: 'Magia Indecisa',
+                      alcance: 'Toque', nivel_1: 'Aumenta 1 de velocidade.' };
 
   it('sem dizer de quem é o bônus: ainda falta decisão', () => {
     montarUm(SEM_DONO);

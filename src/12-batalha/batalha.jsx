@@ -1041,12 +1041,22 @@ const somaRes = (pecas) => (Array.isArray(pecas) ? pecas : [])
 function danoAposReducao(dano, alvoP, elemento) {
   const d = Math.max(0, Math.floor(Number(dano) || 0));
   if (!d || !alvoP || !Array.isArray(alvoP.status_temp)) return d;
-  if (!elemento) return d;   // dano base: proteção elemental não alcança
   const corte = alvoP.status_temp.reduce((s, st) => {
     const ef = st.efeito;
     if (!ef || ef.tipo !== 'reducao_dano') return s;
+    /* DANO BASE (elemento null) — a regra tem duas metades.
+
+       Proteção ELEMENTAL não alcança dano base: Piroproteção não segura
+       porrada de maça. Era um `if (!elemento) return d` no topo, que saía
+       antes de somar nada.
+
+       Parede de Cristal quebrou essa generalização (12/09/2026): ela barra
+       "qualquer objeto ou criatura com corpo físico", então corta o golpe de
+       maça também. `base: true` no efeito é quem diz isso — as três proteções
+       elementais não o têm e seguem exatamente como antes. */
+    if (!elemento && !ef.base) return s;
     // `!= null` distingue undefined (entrada malformada) de null ("qualquer").
-    if (ef.elemento != null && ef.elemento !== elemento) return s;
+    if (elemento && ef.elemento != null && ef.elemento !== elemento) return s;
     return s + (Number(ef.valor) || 0);
   }, 0);
   return Math.max(0, d - corte);
@@ -3297,11 +3307,20 @@ function alvosDeAura(magia, conjurador, participantes, nivel) {
   if (!conjurador || !posValida(conjurador.pos)) return null;
   const raio = parseAlcance(magia && magia.alcance);
   if (raio == null || raio <= 0) return null;
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magia && magia.key) : null;
+  /* O CONJURADOR ESTÁ DENTRO DA PRÓPRIA AURA? Depende de a aura ser hostil.
+
+     Aura Divina pune quem está em volta: o conjurador obviamente não se pune,
+     e a regra não podia depender de so_racas para excluí-lo (uma aura hostil
+     sem restrição de raça pegaria quem a lançou).
+
+     Parede de Cristal e Tensão nascem A PARTIR DELE — "você cria uma parede
+     invisível a partir de você" —, então ele está dentro e recebe o efeito.
+     Excluí-lo aqui deixaria o conjurador desprotegido dentro da própria
+     parede, que é o oposto do que a magia diz. */
+  const hostil = !reg || reg.alvo === 'inimigo';
   return alvosNoRaio(magia, conjurador.pos, raio, participantes, nivel)
-    // O conjurador nunca é alvo da própria aura. Na prática so_racas já o
-    // exclui (PJ não é Demônio nem Morto), mas a regra não pode depender
-    // disso: uma aura sem restrição de raça pegaria quem a lançou.
-    .filter((p) => !mesmoParticipante(p, conjurador));
+    .filter((p) => !hostil || !mesmoParticipante(p, conjurador));
 }
 
 /* O miolo comum das duas: quem está dentro do raio a partir de um centro e é

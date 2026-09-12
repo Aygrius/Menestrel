@@ -385,7 +385,24 @@ const MAGIA_EFEITO_MAP = {
   meteoros:           { alvo: 'inimigo', alvos: 5, icone: '☄️', parcial: 'area',
                         efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
 
-  /* ── Redução de dano (3) ───────────────────────────────────────── */
+  /* ── Redução de dano (4) ───────────────────────────────────────── */
+  /* PAREDE DE CRISTAL — decisão do usuário, 12/09/2026: "o dano é reduzido em
+     uma área de 5 metros a partir do jogador". Por isso `area: 'aura'` com o
+     raio vindo do `alcance` (5 metros), e `elemento: null` de verdade — a
+     parede barra objeto físico, não elemento, então corta dano BASE também.
+     É a primeira redução assim; ver danoAposReducao.
+
+     E o conjurador está DENTRO: a parede nasce a partir dele.
+
+     PARCIAL: a descrição diz "caso um ataque faça dano menor que o
+     especificado, este é totalmente absorvido" e "deve-se fazer um dano igual
+     ou maior para quebrar a magia" — isso é LIMIAR que arrebenta, como a
+     armadura, não redução fixa. Entrou como redução fixa, que é o que o
+     usuário pediu; o limiar fica registrado como pergunta em aberto. */
+  parede_de_cristal:  { alvo: 'aliado', alvos: 'escolha', icone: '🧱',
+                        area: 'aura', parcial: 'limiar_quebra',
+                        efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano',
+                                    elemento: null, base: true }] },
   // A key era `protecao_animal` até 12/09/2026, quando as seis chaves que
   // divergiam do nome foram alinhadas — ver scripts/sql/magias-key-alinha-nome.sql.
   aeroprotecao:       { alvo: 'self', alvos: 1, icone: '🌬️',
@@ -444,6 +461,34 @@ const MAGIA_EFEITO_MAP = {
                         efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: 1 }] },
   velocidade:         { alvo: 'self', alvos: 1, icone: '💨',
                         efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: 1 }] },
+  /* FORÇAR DISPUTA — decisão do usuário, 12/09/2026: o bônus é do ADVERSÁRIO.
+     "atrair a atenção do adversário e forçá-lo ao combate, aumentando sua
+     velocidade, caso falhe em um teste de resistência mágica": ele vem para
+     cima de você mais rápido. Buff em inimigo, e é intencional.
+
+     PARCIAL: rendição, recusa e maldição divina são arbitragem do Mestre. */
+  forcar_disputa:     { alvo: 'inimigo', alvos: 1, icone: '🎯',
+                        parcial: 'rendicao',
+                        efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: 1 }] },
+  /* TENSÃO — "dentro da área de efeito, TODOS devem fazer um teste de
+     resistência mágica. Uma vez tensa, a pessoa estará muito mais atenta, o
+     que lhe garante um bônus em combate."
+
+     Aura de 10 metros que pega todo mundo no raio, aliado ou não — é o que
+     `area: 'aura'` já faz, porque o filtro de alvo não separa lado.
+
+     Sobre o teste: regra geral do usuário (12/09/2026) — "todas as magias
+     evocadas por terceiros podem ser resistidas, se o alvo assim desejar".
+     Resistir é ESCOLHA de quem recebe, não sinal de que a magia é debuff. Foi
+     o que segurou Tensão fora do registro até hoje.
+
+     PARCIAL: o troco no fim ("sofreram 100 de energia heroica") não entra —
+     a magia dura 1 hora, então ela nunca termina dentro de uma batalha. */
+  tensao:             { alvo: 'aliado', alvos: 'escolha', icone: '🎻',
+                        area: 'aura', parcial: 'desgaste_final',
+                        efeitos: [{ tipo: 'mod_defesa', unidade: 'defesa',  sinal: 1 },
+                                  { tipo: 'mod_vb',     unidade: 'vb',      sinal: 1 },
+                                  { tipo: 'mod_ataque', unidade: 'coluna',  sinal: 1 }] },
 
   /* ── MAGIAS DE CRIATURA (7) — 12/09/2026 ───────────────────────────
      Levantamento das 60 criaturas com magia: 89 menções, 39 nomes distintos,
@@ -960,21 +1005,18 @@ const MAGIA_FORA_DO_REGISTRO = {
      alcance para "Toque" e as duas entraram no MAGIA_EFEITO_MAP. É o ciclo
      completo que o predicado existe para fechar — pendência marcada, texto
      corrigido, painel percebe, magia ligada, pendência apagada. */
-  forcar_disputa: { classe: 'decisao',
-    motivo: 'O "+N de velocidade" é em quem — no conjurador ou no adversário atraído? A descrição não diz.',
-    // Resolve quando o texto disser de quem é o bônus.
-    resolvido: (m) => /\b(seu|sua|voc[êe]|do alvo|no alvo|do advers[áa]rio)\b/i.test(m.nivel_1 || '') },
-  tensao: { classe: 'decisao',
-    motivo: 'Dá defesa, velocidade e coluna, mas exige teste de resistência. Buff que o alvo resiste não faz sentido: é debuff?',
-    // Resolve quando virar penalidade, OU quando a descrição largar o teste.
-    resolvido: (m) => /\b(reduz|reduza|diminui)\b/i.test(m.nivel_1 || '')
-                   || !/teste\s+de\s+resist/i.test(m.descricao || '') },
-  auxilio_natural: { classe: 'decisao',
-    motivo: '"Cause N de dano máximo": no motor, dano máximo é o TETO de dano do alvo, não dano causado. Qual dos dois?',
-    resolvido: (m) => !/dano\s+m[áa]ximo/i.test(m.nivel_1 || '') },
-  parede_de_cristal: { classe: 'decisao',
-    motivo: 'É uma parede no terreno, não um efeito em alguém. Em quem a redução de dano deve valer?',
-    resolvido: (m) => /\b(no alvo|em si|pessoal|aliad)/i.test((m.nivel_1 || '') + ' ' + (m.descricao || '')) },
+  /* Em 12/09/2026 as TRÊS ÚLTIMAS pendências de decisão foram respondidas e o
+     grupo ficou vazio — por isso não há nenhuma entrada 'decisao' aqui:
+
+       forcar_disputa     o bônus de velocidade é do ADVERSÁRIO ("forçá-lo ao
+                          combate, aumentando sua velocidade");
+       parede_de_cristal  a redução vale numa área de 5 metros a partir do
+                          conjurador;
+       tensao             resistir é ESCOLHA de quem recebe — regra geral,
+                          não sinal de debuff (ver a nota no registro).
+
+     O grupo vazio é o estado saudável. Entrada nova aqui significa magia
+     legível cuja REGRA ninguém decidiu ainda — e o painel vai cobrar. */
 
   /* ── Ritual ou evocação longa: fora de combate ──────────────────── */
   hibernar: { classe: 'ritual', motivo: 'Evocação de 8 horas.' },
@@ -987,10 +1029,14 @@ const MAGIA_FORA_DO_REGISTRO = {
   melodia_zen: { classe: 'ritual', motivo: 'Exige meia hora de música ininterrupta.' },
 
   /* ── Precisa de subsistema que o combate não tem ────────────────── */
+  /* Os dois motivos abaixo foram REESCRITOS em 12/09/2026, depois de o
+     usuário melhorar as duas descrições. Ficaram de fora, mas por razão nova
+     e mais estreita — e é isso que o painel precisa dizer, senão cobra uma
+     correção que já foi feita. */
   protecao_natural: { classe: 'sistema', motivo:
-    'Exige teste de atributo (Percepção), que o combate não tem.' },
+    'Agora está claro: "teste da habilidade Sentidos (Absurdo)" e protege de desastre natural (queda, incêndio). Falta o motor rolar teste de HABILIDADE — ele só rola resistência.' },
   doencas: { classe: 'sistema', motivo:
-    'Doenças nomeadas, com efeito por atributo. É subsistema próprio.' },
+    'Ficou clara. Faltam duas peças: "Reduz N de Saúde" é condição de ficha, não status de combate; e "a cada rodada a penalidade aumenta 2" é modificador que cresce, e os do motor são fixos. A parte de coluna de ataque (nível 9) já caberia hoje.' },
   alucinacao: { classe: 'sistema', motivo:
     'Mexe na dificuldade da habilidade Sentidos, não em stat de combate.' },
   invisibilidade: { classe: 'sistema', motivo:
