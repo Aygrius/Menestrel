@@ -588,6 +588,31 @@ function duracaoEmRodadas(magia) {
   return { rodadas: null, concentracao: false };
 }
 
+/* ── Evocação da magia, traduzida para rodadas de batalha ──────────
+   Irmã de duracaoEmRodadas, e a simetria é proposital: duração é quanto o
+   efeito DURA, evocação é quanto ele DEMORA a existir. A coluna `evocacao` é
+   texto livre, com quatro casos (levantamento de 11/09/2026):
+
+     "Instantânea"              → 0 rodadas, resolve na hora (80 magias)
+     "1 rodada" … "10 rodadas"  → canalização (132 magias)
+     "Ritual"                   → fora de combate (39 magias)
+     "Variável", horas, dias    → idem (7 magias)
+
+   Evocação AUSENTE é tratada como instantânea, NÃO como bloqueio: uma linha
+   de catálogo incompleta não pode tirar a magia da mesa. */
+function evocacaoEmRodadas(magia) {
+  const txt = (magia && magia.evocacao) || '';
+  if (!txt) return { rodadas: 0, bloqueada: false };
+  if (/instant[âa]nea/i.test(txt)) return { rodadas: 0, bloqueada: false };
+  const m = RE_RODADAS.exec(txt);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (Number.isFinite(n) && n > 0) return { rodadas: n, bloqueada: false };
+  }
+  // Ritual, Variável, horas, dias: mais longo que qualquer batalha.
+  return { rodadas: null, bloqueada: true };
+}
+
 /* ── A magia exige teste de resistência do alvo? ───────────────────
    Levantamento de 01/09/2026: as quatro magias que exigem rolagem dizem,
    todas, literalmente "teste de resistência mágica" na descrição. As outras
@@ -804,6 +829,36 @@ function desgastarArmadura(pecas) {
 }
 const somaRes = (pecas) => (Array.isArray(pecas) ? pecas : [])
   .reduce((s, pc) => s + Math.max(0, Number(pc && pc.res) || 0), 0);
+
+/* ── Redução de dano elemental (puro) ──────────────────────────────
+   Roda ANTES de aplicarDanoCascata, reduzindo o NÚMERO DE ENTRADA. É
+   deliberado: a cascata é a área com mais correções do projeto (bc1fa6a…
+   c0eb189) e motor-batalha.test.js congela as regras dela. Mexer aqui em vez
+   de lá é o que mantém aquela suíte intocada.
+
+   Casamento por elemento:
+     • elemento da proteção IGUAL ao do golpe → corta;
+     • elemento da proteção NULL              → corta qualquer golpe ELEMENTAL
+                                                (Armadura Elemental);
+     • golpe SEM elemento ("dano base")       → nada corta, nem a genérica.
+
+   A última regra é a que separa Toque Gélido das manipulações: dano base não
+   é elemental, então proteção elemental não o alcança.
+
+   Piso 0 — redução maior que o golpe não vira cura. */
+function danoAposReducao(dano, alvoP, elemento) {
+  const d = Math.max(0, Math.floor(Number(dano) || 0));
+  if (!d || !alvoP || !Array.isArray(alvoP.status_temp)) return d;
+  if (!elemento) return d;   // dano base: proteção elemental não alcança
+  const corte = alvoP.status_temp.reduce((s, st) => {
+    const ef = st.efeito;
+    if (!ef || ef.tipo !== 'reducao_dano') return s;
+    // `!= null` distingue undefined (entrada malformada) de null ("qualquer").
+    if (ef.elemento != null && ef.elemento !== elemento) return s;
+    return s + (Number(ef.valor) || 0);
+  }, 0);
+  return Math.max(0, d - corte);
+}
 
 function aplicarDanoCascata(dano, p, mods) {
   const m = (mods && typeof mods === 'object') ? mods : { critico: !!mods };
@@ -1995,6 +2050,10 @@ function processarViradaDeRodada(p) {
   // isto, uma rolagem pendente atravessava a virada quando quem virou a
   // rodada foi OUTRA pessoa (o Mestre no botão "Nova Rodada", por exemplo).
   if (next.rolagem_pendente) next.rolagem_pendente = null;
+  // A canalização anda na virada, junto do decremento dos status. Sem isto a
+  // contagem só andaria quando alguém chamasse decrementarEvocacao à mão, e a
+  // magia de N rodadas nunca resolveria sozinha.
+  next = decrementarEvocacao(next);
   return { participante: next, eventos, total };
 }
 
@@ -2441,6 +2500,210 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
   return resultado;
 }
 
+/* ── Aplica o efeito de uma MAGIA num participante (puro) ──────────
+   Irmã de aplicarEfeitoTecnica, com uma diferença que é a decisão central da
+   Fase 1 (spec §5): o VALOR não vem do chamador nem do registro — vem do
+   texto do nível, lido por efeitosNoNivel. O registro só diz qual unidade ler
+   e com que sinal.
+
+   Por que uma função pura: aplicarTeste/aplicarAcao existem em duas cópias,
+   Mestre e Jogador. Essa duplicação já mordeu antes — a cópia do Jogador
+   passou meses sem decrementar status_temp. A regra mora aqui; a duplicação
+   fica no call site.
+
+   Dona única da regra de não-acumular: reativar a mesma magia no mesmo alvo
+   RENOVA rodadas_rest e mantém um único conjunto de status, em vez de somar
+   um segundo modificador. Mesma decisão 7 do spec das técnicas.
+
+   Efeito INSTANTÂNEO (dano, cura_pool, dreno_eh) não vira status_temp: ele
+   acontece na resolução e acabou. Quem o aplica é a cascata de dano e
+   aplicarCuraPool, não esta função. */
+function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
+  const key = magia && magia.key;
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(key) : null;
+  if (!reg) return participante;   // narrativa ou Fase 2 — segue como antes
+
+  const lido = (typeof efeitosNoNivel === 'function') ? efeitosNoNivel(magia, nivel) : {};
+  const id = 'mag_' + key;
+  const anteriores = Array.isArray(participante.status_temp) ? participante.status_temp : [];
+  const semEsta = anteriores.filter((s) => s.id !== id);
+
+  // A duração vem do BANCO, não do registro: o catálogo já a tem certa e é lá
+  // que o editor de admin a edita. rodadas null = persiste até o fim da
+  // batalha, que é o que decrementarStatusTemp já faz.
+  const dur = duracaoEmRodadas(magia);
+
+  const novos = [];
+  reg.efeitos.forEach((ef) => {
+    if (ef.tipo === 'dano' || ef.tipo === 'cura_pool' || ef.tipo === 'dreno_eh') return;
+    const bruto = lido[ef.unidade];
+    // Unidade declarada que o texto não tem: o teste de acordo (spec §5.3)
+    // existe pra isso não chegar aqui. Chegando, não inventa zero — pula.
+    if (bruto == null) return;
+
+    const efeito = { tipo: ef.tipo, valor: (ef.sinal || 1) * bruto };
+    if (ef.elemento !== undefined) efeito.elemento = ef.elemento;
+
+    // Restrição de arma: mesma mecânica das técnicas. Ativar Arqueirismo com
+    // arco e trocar para espada não pode manter o bônus — somaModAtaque
+    // consulta ef.grupos a cada golpe.
+    if (ef.tipo === 'mod_ataque' && reg.grupo_armas) {
+      const grupos = gruposDeArma(reg.grupo_armas);
+      if (grupos) efeito.grupos = grupos;
+    }
+
+    novos.push({
+      id,
+      nome: magia.nome || key,
+      icone: reg.icone,
+      rodadas_rest: dur.rodadas,
+      ...(dur.concentracao && opcoes && opcoes.fonteInstId
+        ? { concentracao: { ator: opcoes.fonteInstId, magia_key: key } } : {}),
+      efeito,
+    });
+  });
+
+  if (!novos.length) return participante;
+  let resultado = { ...participante, status_temp: [...semEsta, ...novos] };
+
+  /* mod_eh_temp é o ÚNICO que muda o snapshot em vez de ser lido on-the-fly:
+     EH é pool com teto e o combate clampa em eh_max, então emprestar exige
+     subir os dois. A devolução mora em expirarEhTemp.
+
+     Como a leva anterior foi removida acima, o empréstimo velho tem que ser
+     devolvido ANTES de emprestar de novo — senão relançar Bênção empilha o
+     teto. Mesmo cuidado (e mesmo bug evitado) de aplicarEfeitoTecnica. */
+  const devolverAntigo = anteriores
+    .filter((s) => s.id === id && s.efeito && s.efeito.tipo === 'mod_eh_temp')
+    .reduce((soma, s) => soma + (s.efeito.valor || 0), 0);
+  const emprestarNovo = novos
+    .filter((s) => s.efeito.tipo === 'mod_eh_temp')
+    .reduce((soma, s) => soma + (s.efeito.valor || 0), 0);
+  const delta = emprestarNovo - devolverAntigo;
+  if (delta !== 0) {
+    const ehMax = Math.max(0, (Number(resultado.eh_max) || 0) + delta);
+    resultado = {
+      ...resultado,
+      eh_max: ehMax,
+      eh: Math.max(0, Math.min(ehMax, (Number(resultado.eh) || 0) + delta)),
+    };
+  }
+  return resultado;
+}
+
+/* ── Cura de pool (puro) ───────────────────────────────────────────
+   DISTINTA de mod_eh_temp, e a distinção é a regra: cura PREENCHE o pool até
+   o teto; mod_eh_temp LEVANTA o teto e enche junto. Curas Espirituais num
+   alvo com a EH cheia não faz nada; Bênção no mesmo alvo dá +5 acima.
+
+   opcoes.inverter — "esta magia possui o efeito inverso em mortos-vivos":
+   a mesma cura queima o pool em vez de enchê-lo. Piso 0.
+
+   statusPorPools roda no fim porque encher a EH de quem desmaiou reativa, e
+   esvaziá-la derruba. */
+function aplicarCuraPool(p, pool, valor, opcoes) {
+  if (!p || (pool !== 'eh' && pool !== 'ef')) return p;
+  const v = Math.max(0, Math.floor(Number(valor) || 0));
+  if (!v) return p;
+  const atual = Number(p[pool]) || 0;
+  const teto  = Number(p[pool + '_max']) || 0;
+  const novo = (opcoes && opcoes.inverter)
+    ? Math.max(0, atual - v)
+    : Math.min(teto, atual + v);
+  return statusPorPools({ ...p, [pool]: novo });
+}
+
+/* ── Dreno de EH do Toque Gélido (puro) ────────────────────────────
+   "Se for um ataque na energia física do alvo, 25% do dano é convertido em
+   energia heroica para você, PODENDO ULTRAPASSAR SEU LIMITE".
+
+   É o único efeito da Fase 1 que passa do eh_max de propósito, e por isso NÃO
+   usa aplicarCuraPool: o teto é justamente o que ele ignora. Recebe o dano
+   que CHEGOU NA EF, não o dano bruto — a conversão é sobre o que atravessou
+   a cascata, como o texto diz ("se for um ataque na energia física"). */
+function aplicarDrenoEh(conjurador, danoNaEf) {
+  if (!conjurador) return conjurador;
+  const ganho = Math.floor(Math.max(0, Number(danoNaEf) || 0) * 0.25);
+  if (!ganho) return conjurador;
+  return { ...conjurador, eh: (Number(conjurador.eh) || 0) + ganho };
+}
+
+/* ── O alvo é válido para esta magia? (puro) ───────────────────────
+   Três magias da Fase 1 restringem o alvo no próprio texto do catálogo, e a
+   decisão 7 do spec é que isso vale como REGRA: alvo inválido nem fica
+   selecionável.
+
+   O dado já estava no snapshot: criatura carrega `raca: c.tipo`
+   (montarSnapshots), e criaturas.tipo tem exatamente os valores que as magias
+   pedem — Animal 74, Morto 18, Demônio 13. Nenhuma mudança de schema.
+
+   Um PJ nunca tem raça Demônio, Morto ou Animal, então a restrição nunca
+   dispara sobre personagens — que é o resultado correto, não um furo.
+
+   Molde de tecnicaPermitida: devolve { pode, motivo } pra UI pôr o motivo no
+   tooltip em vez de só desabilitar sem explicação. */
+function alvoPermitidoParaMagia(alvoP, magiaKey) {
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magiaKey) : null;
+  if (!reg || !reg.so_racas) return { pode: true, motivo: null };
+  const raca = alvoP && alvoP.raca;
+  if (!raca) return { pode: false, motivo: 'raca' };
+  return reg.so_racas.includes(raca)
+    ? { pode: true, motivo: null }
+    : { pode: false, motivo: 'raca' };
+}
+
+/* O efeito INVERTE neste alvo? "Esta magia possui o efeito inverso em
+   mortos-vivos" — Curas Espirituais numa criatura tipo Morto queima a EH em
+   vez de restaurá-la. Quem aplica a inversão é aplicarCuraPool, via
+   opcoes.inverter; esta função só responde a pergunta. */
+function efeitoInverteNoAlvo(alvoP, magiaKey) {
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magiaKey) : null;
+  if (!reg || !reg.inverte_em) return false;
+  const raca = alvoP && alvoP.raca;
+  return !!raca && reg.inverte_em.includes(raca);
+}
+
+/* ── Quantos alvos esta MAGIA pega ─────────────────────────────────
+   'escolha' vira null = sem teto, e a UI deixa o Mestre selecionar quantos
+   alvos válidos quiser. Só as magias de área usam isso (spec §6.3).
+   Magia fora do registro cai em alvo único, como o ataque de arma.
+
+   O sufixo `Magia` no nome não é enfeite: `tetoDeAlvos` já existe e é do
+   GOLPE (Golpe Giratório, via status alvos_extras — Fase 2 das técnicas). As
+   duas respondem à mesma pergunta por fontes diferentes: aquela lê o
+   status_temp do atacante, esta lê o registro da magia. */
+function tetoDeAlvosMagia(magiaKey) {
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magiaKey) : null;
+  if (!reg) return 1;
+  return reg.alvos === 'escolha' ? null : (Number(reg.alvos) || 1);
+}
+
+/* ── Alvos de uma magia de ÁREA ────────────────────────────────────
+   O catálogo NÃO tem raio hoje, e por isso a Fase 1 deixa a seleção com o
+   Mestre (parcial: 'area' no log). O usuário informou em 11/09/2026 que vai
+   acrescentar raio a Bola de Fogo e Meteoros — então esta função já lê o
+   campo, e o dia em que a coluna existir o ramo automático liga sozinho, sem
+   tocar em código.
+
+     raio ausente ou 0 → devolve null: seleção manual, como hoje;
+     raio > 0          → devolve todos os participantes válidos no raio.
+
+   "Válido" exclui morto, desistiu e ausente — e respeita a restrição de raça,
+   senão uma Aura Divina com raio pegaria o companheiro animal do grupo. */
+function alvosDeArea(magia, celula, participantes) {
+  const raio = Number(magia && magia.raio) || 0;
+  if (raio <= 0) return null;
+  if (!celula || !Array.isArray(participantes)) return null;
+  return participantes.filter((p) => {
+    if (!p || p.ausente) return false;
+    const st = p.status || 'ativo';
+    if (st === 'morto' || st === 'desistiu') return false;
+    if (!posValida(p.pos)) return false;
+    if (!dentroDoAlcance(celula, p.pos, raio)) return false;
+    return alvoPermitidoParaMagia(p, magia.key).pode;
+  });
+}
+
 /* ── Texto do efeito de técnica pra Central de Mensagens (puro) ────
    Fecha a lacuna relatada em mesa: "usou Esquiva → Falha Crítica (col 11,
    d20 1)" não dizia NADA sobre o efeito, e o jogador não distinguia (1)
@@ -2634,7 +2897,7 @@ function podeAtivarTecnicaLivre(p, tecnica) {
 
    Devolve o MESMO array quando não há nada a remover: os chamadores usam
    isso pra decidir se vale persistir. */
-function quebrarConcentracao(participantes, atorInstId) {
+function quebrarConcentracao(participantes, atorInstId, motivo) {
   if (!atorInstId || !Array.isArray(participantes)) return participantes;
   let mudou = false;
   const next = participantes.map((p) => {
@@ -2644,6 +2907,75 @@ function quebrarConcentracao(participantes, atorInstId) {
     if (filtrado.length === st.length) return p;
     mudou = true;
     return { ...p, status_temp: filtrado };
+  });
+  /* A EVOCAÇÃO cai pelos MESMOS gatilhos da concentração (spec §4.5).
+     Encadear AQUI, e não em cada call site, é o que evita um segundo caminho
+     paralelo — o erro que deixou a cópia do Jogador meses sem decrementar
+     status_temp. quebrarConcentracaoPorDano e saidaDeCombate já chamam esta
+     função, então os dois passam a derrubar canalização de graça. */
+  return quebrarEvocacao(mudou ? next : participantes, atorInstId, motivo || 'acao');
+}
+
+/* ── Largada da evocação canalizada (puro) ─────────────────────────
+   O karma sai AQUI, não na resolução, e NÃO volta se a evocação quebrar
+   (decisão 3 do spec). É o custo do risco: quem começa a evocar Meteoros e
+   leva um golpe na EF perdeu 5 de karma e as rodadas já gastas.
+
+   Os alvos são escolhidos na largada e REVALIDADOS na resolução — quem morreu
+   ou saiu do alcance no meio é descartado lá (spec §4.3). */
+function iniciarEvocacao(p, magia, nivel, alvosIds, custoKarma) {
+  if (!p || !magia) return p;
+  const ev = evocacaoEmRodadas(magia);
+  if (ev.bloqueada) return p;          // Ritual: nem cobra, nem cria estado
+  const karma = Math.max(0, (Number(p.karma) || 0) - (Number(custoKarma) || 0));
+  const pa    = Math.max(0, (Number(p.pa_rest) || 0) - 1);
+  // Instantânea não cria estado: resolve no mesmo call site que já resolvia.
+  if (!ev.rodadas) return { ...p, karma, pa_rest: pa };
+  return {
+    ...p, karma, pa_rest: pa,
+    evocando: {
+      magia_key: magia.key, nivel,
+      alvos: Array.isArray(alvosIds) ? [...alvosIds] : [],
+      rodadas_rest: ev.rodadas,
+      karma_pago: Number(custoKarma) || 0,
+    },
+  };
+}
+
+/* Uma rodada a menos na canalização. Devolve o MESMO objeto quando não há
+   evocação em curso — os chamadores usam isso pra decidir se vale persistir. */
+function decrementarEvocacao(p) {
+  if (!p || !p.evocando) return p;
+  const r = Math.max(0, (Number(p.evocando.rodadas_rest) || 0) - 1);
+  if (r === p.evocando.rodadas_rest) return p;
+  return { ...p, evocando: { ...p.evocando, rodadas_rest: r } };
+}
+
+function evocacaoPronta(p) {
+  return !!(p && p.evocando && (Number(p.evocando.rodadas_rest) || 0) <= 0);
+}
+
+/* ── Quebra a evocação canalizada de um conjurador (puro) ──────────
+   Gêmea de quebrarConcentracao, e chamada pelos mesmos gatilhos. As duas
+   coisas são "o conjurador está preso a uma magia e qualquer outra coisa a
+   derruba"; a diferença é só o payload — concentração sustenta um efeito JÁ
+   aplicado, evocação sustenta um ainda NÃO aplicado.
+
+   O karma NÃO volta (decisão 3 do spec): quem começou a evocar pagou.
+
+   `evocacao_quebrada` fica no participante pro log dizer o que caiu e por quê
+   — sem isso o jogador vê a magia sumir e não sabe o motivo.
+
+   Devolve o MESMO array quando não há nada a remover. */
+function quebrarEvocacao(participantes, atorInstId, motivo) {
+  if (!atorInstId || !Array.isArray(participantes)) return participantes;
+  let mudou = false;
+  const next = participantes.map((p) => {
+    if (!p.evocando || p.inst_id !== atorInstId) return p;
+    mudou = true;
+    const { evocando, ...resto } = p;
+    return { ...resto,
+      evocacao_quebrada: { magia_key: evocando.magia_key, motivo: motivo || 'acao' } };
   });
   return mudou ? next : participantes;
 }
@@ -6997,6 +7329,18 @@ Object.assign(window, {
     // status_temp. Reaplicar substitui a leva anterior em vez de somar.
     // gruposDeArma é o parser das colunas grupo_armas/grupo_armaduras.
     aplicarEfeitoTecnica, gruposDeArma,
+    /* Fase 1 das MAGIAS (11/09/2026). O registro (01-core/magias-efeito.jsx)
+       diz a forma; efeitosNoNivel lê o número do texto do nível; a duração vem
+       do banco. Reaplicar substitui a leva anterior, como nas técnicas.
+
+       evocacaoEmRodadas é irmã de duracaoEmRodadas de propósito: duração é
+       quanto o efeito dura, evocação é quanto ele demora a existir.
+       quebrarEvocacao fica ENCADEADA em quebrarConcentracao, então todo
+       gatilho que já derrubava concentração derruba canalização. */
+    aplicarEfeitoMagia, aplicarCuraPool, aplicarDrenoEh, danoAposReducao,
+    alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia, alvosDeArea,
+    evocacaoEmRodadas, iniciarEvocacao, decrementarEvocacao, evocacaoPronta,
+    quebrarEvocacao,
     // Complemento da Central de Mensagens (10/09/2026): extraída dos dois
     // aplicarTeste pra eliminar a dessincronização entre as cópias e pra
     // ficar testável — ver tecnica-efeitos.test.js.

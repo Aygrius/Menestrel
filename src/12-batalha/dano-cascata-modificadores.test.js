@@ -90,3 +90,77 @@ describe('as garantias antigas não mudam', () => {
     expect(r.status).toBe('ativo');
   });
 });
+
+describe('reducao_dano — a proteção elemental corta ANTES da cascata', () => {
+  /* A redução NÃO entra em aplicarDanoCascata: ela reduz o NÚMERO DE ENTRADA,
+     e a cascata segue sem saber que existe. É deliberado — esta é a área com
+     mais correções do projeto, e motor-batalha.test.js congela as regras dela.
+     Spec §8. */
+  const comProtecao = (elemento, valor) => alvo({
+    status_temp: [{ id: 'mag_x', nome: 'Proteção', rodadas_rest: 3,
+                    efeito: { tipo: 'reducao_dano', valor, elemento } }],
+  });
+
+  it('Piroproteção corta dano de fogo', () => {
+    expect(M.danoAposReducao(20, comProtecao('fogo', 16), 'fogo')).toBe(4);
+  });
+
+  it('Piroproteção NÃO corta dano de água', () => {
+    expect(M.danoAposReducao(20, comProtecao('fogo', 16), 'agua')).toBe(20);
+  });
+
+  it('Aeroproteção corta dano de ar', () => {
+    expect(M.danoAposReducao(20, comProtecao('ar', 16), 'ar')).toBe(4);
+  });
+
+  it('Armadura Elemental (elemento null) corta QUALQUER dano elemental', () => {
+    const p = comProtecao(null, 8);
+    expect(M.danoAposReducao(20, p, 'fogo')).toBe(12);
+    expect(M.danoAposReducao(20, p, 'terra')).toBe(12);
+  });
+
+  it('proteção elemental NÃO corta dano SEM elemento (dano base)', () => {
+    // Toque Gélido causa "dano base": não é elemental, e proteção elemental
+    // nenhuma o alcança — nem a genérica.
+    expect(M.danoAposReducao(20, comProtecao(null, 8), null)).toBe(20);
+  });
+
+  it('piso 0 — redução maior que o dano não vira cura', () => {
+    expect(M.danoAposReducao(4, comProtecao('fogo', 16), 'fogo')).toBe(0);
+  });
+
+  it('duas proteções que casam SOMAM', () => {
+    const p = alvo({ status_temp: [
+      { id: 'mag_a', efeito: { tipo: 'reducao_dano', valor: 8,  elemento: 'fogo' } },
+      { id: 'mag_b', efeito: { tipo: 'reducao_dano', valor: 16, elemento: null  } },
+    ] });
+    expect(M.danoAposReducao(30, p, 'fogo')).toBe(6);
+  });
+
+  it('sem proteção nenhuma o dano passa inteiro', () => {
+    expect(M.danoAposReducao(20, alvo(), 'fogo')).toBe(20);
+  });
+
+  it('alvo sem status_temp não quebra', () => {
+    expect(M.danoAposReducao(20, { eh: 1 }, 'fogo')).toBe(20);
+  });
+
+  it('REGRESSÃO: aplicarDanoCascata continua sem conhecer reducao_dano', () => {
+    const p = alvo({ status_temp: [
+      { id: 'mag_x', efeito: { tipo: 'reducao_dano', valor: 100, elemento: null } },
+    ] });
+    const r = M.aplicarDanoCascata(12, p, false);
+    expect({ eh: r.eh, ar: r.ar, res: r.res, ef: r.ef })
+      .toEqual({ eh: 0, ar: 5, res: 10, ef: 20 });
+  });
+
+  it('em conjunto: reduz primeiro, cascata depois', () => {
+    // Piroproteção 16 contra golpe de fogo 26 → entra 10 na cascata, come a
+    // EH inteira e para no limiar.
+    const p = comProtecao('fogo', 16);
+    const entrada = M.danoAposReducao(26, p, 'fogo');
+    expect(entrada).toBe(10);
+    const r = M.aplicarDanoCascata(entrada, p, false);
+    expect({ eh: r.eh, ef: r.ef }).toEqual({ eh: 0, ef: 20 });
+  });
+});
