@@ -424,7 +424,10 @@ describe('textoEfeitoMagia — o que vai pro log da mesa', () => {
   });
 
   it('magia fora do registro cai no formato antigo', () => {
-    expect(M.textoEfeitoMagia({ key: 'distracao', nome: 'Distração', mod_vb: -4 }))
+    // Distração era o exemplo até entrar no registro com a marca de área
+    // (fusão com Região Inviolável, 12/09/2026); a chave aqui é de propósito
+    // uma que o registro não tem.
+    expect(M.textoEfeitoMagia({ key: 'magia_sem_registro', nome: 'Distração', mod_vb: -4 }))
       .toBe('-4 de velocidade');
   });
 });
@@ -892,6 +895,10 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
     sem_cura_ef:     'aplicarCuraPool',
     // 12/09/2026: a dificuldade de habilidade, na aba Habilidade e na ficha.
     mod_dificuldade: 'somaDificuldadeDoStatus + consumirDificuldadeDoTeste',
+    // 12/09/2026, as corrigidas pelo usuário (magias-corrigidas.test.js).
+    mod_ef_temp:     'aplicarEfeitoMagia + expirarEhTemp',
+    mod_habilidade:  'somaModHabilidade (aba Habilidade)',
+    mod_dano:        'danoFinal + consumirModDano',
   };
 
   /* Primitivas DECLARADAS e ainda SEM consumidor. A lista existe para o

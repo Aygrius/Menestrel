@@ -205,6 +205,30 @@ Decisão registrada em
 
 ## 7. Estado atual do catálogo
 
+### A reforma pelo perfil de cada profissão (12/09/2026, fim da noite)
+
+```
+235 magias · 106 no motor · 0 quebradas · 0 ambíguas
+```
+
+Aplicada por `scripts/sql/magias-reforma-perfis.sql`, com o estado anterior
+guardado em `backup.magias_20260912` (e os três vizinhos: personagens, criaturas
+e itens). O que muda para quem edita:
+
+- **25 magias novas**, todas no motor: seis ataques de colégio, Cadência Veloz,
+  treze curas de ordem, Égide Celestial, Selo Abismal e as três finais de
+  dificuldade que não existiam (Dom das Línguas, Sombra, Graça Felina).
+- **28 magias fundidas** em outras e **Teriantropia excluída**. As chaves antigas
+  não existem mais; `personagens.magias`, `criaturas.magia` e `itens.magia`
+  foram migrados no mesmo script (§3: nome e chave são identidade).
+- **Uma chave renomeada**: `recuperecao_fisica` → `recuperacao_fisica`.
+- **Elemento no texto**: Relâmpago e Raio Elétrico são ar, Toque Gélido e
+  Putrefação são infernal, Fogo Divino é celestial, Feixes Incandescentes é
+  fogo. Selo Abismal passa a cortar os dois infernais.
+
+O que foi decidido e o que ficou em aberto está em *Sugestões de magias* e no
+*Estudo* desta página.
+
 ### A varredura das magias que nenhum personagem conhecia (12/09/2026, noite)
 
 A validação anterior olhou as magias que os personagens da mesa conhecem. As

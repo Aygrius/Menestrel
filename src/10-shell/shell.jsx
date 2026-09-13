@@ -3127,7 +3127,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ) : current.id === 'personagens_j' ? (
               <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onLimiteFreeChange={setLimiteFreePersonagens} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo} />
             ) : current.id === 'personagens_m' ? (
-              <PersonagensList ac={ac} t={t} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} onAbrirHistorias={() => setCurrentId('historias')} />
+              <PersonagensList ac={ac} t={t} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} />
             ) : current.id === 'fichas' ? (
               <FichasJogador ac={ac} lang={lang} currentUserId={user.id} />
             ) : current.id === 'magias' ? (
@@ -3141,10 +3141,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ) : current.id === 'itens_campanha' ? (
               <ItensCampanhaManager ac={ac} lang={lang} />
             ) : current.id === 'historias' ? (
-              /* A seção saiu da barra lateral em 12/09/2026 (ver
-                 ADMIN_SECTIONS), mas o destino CONTINUA existindo: quem chega
-                 por dentro de Personagens vem parar aqui. Remover o ramo
-                 quebraria o caminho novo junto com o antigo. */
               <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} />
             ) : (current.id === 'lugares' || current.id === 'npcs' || current.id === 'memorias') ? (
               /* AS TRÊS QUE VIERAM DO DIÁRIO. São o mesmo DiarioView, travado

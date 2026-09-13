@@ -1126,9 +1126,8 @@ const MAGIA_EFEITO_MAP = {
   // mod_dano_max já existe — é o que Posicionamento faz nas técnicas.
   pele_de_arvore:     { alvo: 'self', alvos: 1, icone: '🌳',
                         efeitos: [{ tipo: 'mod_dano_max', unidade: 'dano_max', sinal: -1 }] },
-  ruido_extenuante:   { alvo: 'inimigo', alvos: 1, icone: '📢',
-                        efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 },
-                                  { tipo: 'mod_vb',     unidade: 'vb',     sinal: -1 }] },
+  // Ruído Extenuante saiu em 12/09/2026: foi fundido em Ruído, que ganhou a
+  // velocidade nos níveis 7 e 9 (docs/estudo-magias.md §2.2).
 
   /* ── CONTROLE (3) — Fase 2, 12/09/2026 ─────────────────────────────
      As três impedem o alvo de agir, e as três são resolvidas por DISPUTA DE
@@ -1247,13 +1246,15 @@ const MAGIA_EFEITO_MAP = {
      Falha Crítica das técnicas de postura. */
   ato_falho:             { alvo: 'inimigo', alvos: 1, icone: '🎭',
                            efeitos: [{ tipo: 'mod_coluna', unidade: 'coluna', sinal: -1 }] },
-  degeneracao_fisica:    { alvo: 'inimigo', alvos: 1, icone: '🦴',
-                           efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
+  /* Fusões de 12/09/2026 (docs/estudo-magias.md §2.2): Ruído absorveu Ruído
+     Extenuante (velocidade nos níveis 7 e 9); Distração absorveu Região
+     Inviolável (a área nos níveis 7 e 9, com a mesma marca de Bola de Fogo).
+     Degeneração Física, que era clone de Ruído, virou ataque — ver o bloco
+     da reforma no fim do mapa. */
   ruido:                 { alvo: 'inimigo', alvos: 1, icone: '🔊',
-                           efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
-  distracao:             { alvo: 'inimigo', alvos: 1, icone: '👀',
-                           efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: -1 }] },
-  regiao_inviolavel:     { alvo: 'inimigo', alvos: 1, icone: '🕸️', parcial: 'area',
+                           efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 },
+                                     { tipo: 'mod_vb',     unidade: 'vb',     sinal: -1 }] },
+  distracao:             { alvo: 'inimigo', alvos: 1, icone: '👀', parcial: 'area',
                            efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: -1 }] },
   cancao_do_sono:        { alvo: 'inimigo', alvos: 1, icone: '🎼', parcial: 'area',
                            efeitos: [{ tipo: 'mod_ataque',  unidade: 'coluna', sinal: -1 },
@@ -1376,54 +1377,37 @@ const MAGIA_EFEITO_MAP = {
      Variável sem duração no nível): "a magia e a habilidade devem ser usadas
      juntas" — valem para UM teste e somem. As de 1 hora, 12 horas etc. valem
      até vencer no calendário, fora de combate, e a batalha inteira dentro. */
-  ausencia:             { alvo: 'self', alvos: 1, icone: '🫥',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
-  avaliacao:            { alvo: 'self', alvos: 1, icone: '⚖️',
+  /* FUSÃO de 12/09/2026 (docs/estudo-magias.md §2.1): as 22 magias de uma
+     habilidade viraram 6 — uma por grupo, ou uma por par de habilidades.
+     A instantânea vale para o próximo teste; a de duração vale enquanto dura.
+
+       amizade              grupo Influência  Empatia, Detectar Intenção, Sedução,
+                                              Avaliação, Convocação
+       conhecimento_natural grupo Geral       Faro, Rastreamento, Orientação,
+                                              Sexto Sentido, Dominação Animal
+       conhecimento         grupo Profissional  Mestre da Forja
+       dom_das_linguas      Idioma e Alfabetização  Linguagem, Conhecimento
+                                              Linguístico, Escrita
+       sombra               grupo Subterfúgio Camuflagem, Ausência
+       graca_felina         grupo Manobra     Deslocamento Natural, Malabarismo,
+                                              Aprimorar Habilidades */
+  amizade:              { alvo: 'self', alvos: 1, icone: '🤝',
                           efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
                                       consome_em: 'teste_habilidade' }] },
-  camuflagem:           { alvo: 'self', alvos: 1, icone: '🍂',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
   conhecimento:         { alvo: 'self', alvos: 1, icone: '📚',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
-  conhecimento_linguistico: { alvo: 'self', alvos: 1, icone: '🗣️',
                           efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
   conhecimento_natural: { alvo: 'self', alvos: 1, icone: '🌿',
                           efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
-  convocacao:           { alvo: 'self', alvos: 1, icone: '📯',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
-                                      consome_em: 'teste_habilidade' }] },
-  deslocamento_natural: { alvo: 'self', alvos: 1, icone: '🧗',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
-                                      consome_em: 'teste_habilidade' }] },
-  detectar_intencao:    { alvo: 'self', alvos: 1, icone: '🧠',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
-                                      consome_em: 'teste_habilidade' }] },
-  escrita:              { alvo: 'self', alvos: 1, icone: '✍️',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
-                                      consome_em: 'teste_habilidade' }] },
-  faro:                 { alvo: 'self', alvos: 1, icone: '👃',
+  dom_das_linguas:      { alvo: 'self', alvos: 1, icone: '🗣️',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
+  graca_felina:         { alvo: 'self', alvos: 1, icone: '🐈',
                           efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
                                       consome_em: 'teste_habilidade' }] },
   // Conhecida por personagem, e entra pela mesma porta: cada nível é um animal
   // e uma habilidade diferente ("de um lobo: ... em Rastrear").
   habilidade_animal:    { alvo: 'self', alvos: 1, icone: '🐺',
                           efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
-  linguagem:            { alvo: 'self', alvos: 1, icone: '💬',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
-  // "Equilibrar OU Prestidigitação": vale nas duas — qualquer uma que for
-  // testada consome a magia.
-  malabarismo:          { alvo: 'self', alvos: 1, icone: '🤹',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
-                                      consome_em: 'teste_habilidade' }] },
-  // Ritual: não se evoca em batalha (evocacaoEmRodadas bloqueia), só na ficha.
-  mestre_da_forja:      { alvo: 'self', alvos: 1, icone: '⚒️',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1,
-                                      consome_em: 'teste_habilidade' }] },
-  orientacao:           { alvo: 'self', alvos: 1, icone: '🧭',
-                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
-  // Alcance Toque: é a única destas que se lança em OUTRO personagem — fora
-  // de combate, com aprovação do Mestre.
-  sexto_sentido:        { alvo: 'aliado', alvos: 1, icone: '👁️',
+  sombra:               { alvo: 'self', alvos: 1, icone: '🫥',
                           efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: -1 }] },
 
   /* ── Com primitivas que já existiam (3) ─────────────────────────── */
@@ -1447,6 +1431,118 @@ const MAGIA_EFEITO_MAP = {
      para toda magia evocada na aura durante as 10 rodadas, não só a próxima. */
   dueto_magico:         { alvo: 'aliado', alvos: 'escolha', icone: '🎶', area: 'aura',
                           efeitos: [{ tipo: 'mod_nivel_magia', unidade: 'nivel_magia', sinal: 1 }] },
+
+  /* ══ REFORMA PELO PERFIL DE CADA PROFISSÃO — 12/09/2026 ═════════════
+     Decisões do usuário sobre docs/sugestoes-magias.md: Mago ataca por
+     colégio, Bardo apoia, Sacerdote cura por ordem, e todo elemento tem dano
+     e proteção. Nenhuma primitiva nova. Ver scripts/sql/magias-reforma-perfis.sql.
+
+     ── Ataque para os colégios que tinham menos ─────────────────────── */
+  frasco_incendiario:   { alvo: 'inimigo', alvos: 1, icone: '🧪', parcial: 'area',
+                          efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  nevoa_caustica:       { alvo: 'inimigo', alvos: 1, icone: '🌫️',
+                          efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  verdade_ofuscante:    { alvo: 'inimigo', alvos: 1, icone: '📜',
+                          efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  // "Causa 4 de dano na energia heroica e reduza 1 coluna": o molde de
+  // Covardia com a penalidade de Canção do Tormento.
+  paradoxo:             { alvo: 'inimigo', alvos: 1, icone: '♾️',
+                          efeitos: [{ tipo: 'dano', unidade: 'dano', pool: 'eh' },
+                                    { tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
+  terror_fantasma:      { alvo: 'inimigo', alvos: 1, icone: '👻',
+                          efeitos: [{ tipo: 'dano', unidade: 'dano', pool: 'eh' }] },
+  enxame_de_espinhos:   { alvo: 'inimigo', alvos: 1, icone: '🌵',
+                          efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
+  // Degeneração Física deixou de ser debuff (estudo §2.2): era clone exato de
+  // Ruído, e virou ataque infernal com a penalidade de antes.
+  degeneracao_fisica:   { alvo: 'inimigo', alvos: 1, icone: '🦴',
+                          efeitos: [{ tipo: 'dano',       unidade: 'dano' },
+                                    { tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
+  /* APONTAR SUFOCANTE: o nível ganhou "A magia tem duração de N rodadas.
+     Reduza 1 de energia física por rodada." — a pendência de texto que a
+     segurava. Sem ações (a mão apontada sufoca) e a perda por rodada de
+     Campo de Trevas. */
+  apontar_sufocante:    { alvo: 'inimigo', alvos: 1, icone: '✋',
+                          efeitos: [{ tipo: 'sem_acoes', valor: true },
+                                    { tipo: 'dano_por_rodada', unidade: 'ef' }] },
+
+  /* ── Bardo ──────────────────────────────────────────────────────── */
+  cadencia_veloz:       { alvo: 'aliado', alvos: 'escolha', icone: '🥁', area: 'aura',
+                          efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: 1 }] },
+
+  /* ── Sacerdote: uma cura com a cara de cada ordem ──────────────────
+     Bálsamo de Lena mexe na CONDIÇÃO Saúde da ficha, como Doenças — só que
+     para cima e em aliado. funcaoDaMagia a conta como cura. */
+  balsamo_de_lena:      { alvo: 'aliado', alvos: 1, icone: '🌹',
+                          efeitos: [{ tipo: 'mod_condicao', unidade: 'saude',
+                                      condicao: 'vitalidade', sinal: 1 }] },
+  seiva_de_maira:       { alvo: 'aliado', alvos: 1, icone: '🍃',
+                          efeitos: [{ tipo: 'cura_pool', unidade: 'cura_ef', pool: 'ef' }] },
+  mare_restauradora:    { alvo: 'aliado', alvos: 1, icone: '🌊',
+                          efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' },
+                                    { tipo: 'cura_pool', unidade: 'cura_ef', pool: 'ef' }] },
+  paz_coletiva:         { alvo: 'aliado', alvos: 'escolha', icone: '🕊️', area: 'aura',
+                          efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
+  sangue_de_batalha:    { alvo: 'self', alvos: 1, icone: '🩸',
+                          efeitos: [{ tipo: 'cura_pool',  unidade: 'cura_ef', pool: 'ef' },
+                                    { tipo: 'mod_ataque', unidade: 'coluna',  sinal: 1 }] },
+  // "efeito inverso em mortos-vivos", como Curas Espirituais.
+  descanso_de_cruine:   { alvo: 'aliado', alvos: 1, icone: '⚰️',
+                          inverte_em: ['Morto'],
+                          efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
+  justa_reparacao:      { alvo: 'aliado', alvos: 1, icone: '⚖️',
+                          efeitos: [{ tipo: 'cura_pool',  unidade: 'cura_ef', pool: 'ef' },
+                                    { tipo: 'mod_defesa', unidade: 'defesa',  sinal: 1 }] },
+  bencao_da_terra:      { alvo: 'aliado', alvos: 1, icone: '⛰️',
+                          efeitos: [{ tipo: 'cura_pool',    unidade: 'cura_ef', pool: 'ef' },
+                                    { tipo: 'reducao_dano', unidade: 'reducao_dano', elemento: 'terra' }] },
+  chama_vital:          { alvo: 'aliado', alvos: 1, icone: '🔥',
+                          efeitos: [{ tipo: 'cura_pool',    unidade: 'cura_ef', pool: 'ef' },
+                                    { tipo: 'reducao_dano', unidade: 'reducao_dano', elemento: 'fogo' }] },
+  mente_serena:         { alvo: 'aliado', alvos: 1, icone: '🧘',
+                          efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
+  tempera_da_carne:     { alvo: 'aliado', alvos: 1, icone: '🔨',
+                          efeitos: [{ tipo: 'cura_pool',  unidade: 'cura_ef', pool: 'ef' },
+                                    { tipo: 'mod_defesa', unidade: 'defesa',  sinal: 1 }] },
+  alivio_dourado:       { alvo: 'aliado', alvos: 'escolha', icone: '✨', area: 'aura',
+                          efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
+  pressagio_curativo:   { alvo: 'aliado', alvos: 1, icone: '🔮',
+                          efeitos: [{ tipo: 'cura_pool', unidade: 'cura_ef', pool: 'ef' }] },
+
+  /* ── As proteções que faltavam: celestial e infernal ────────────── */
+  /* ══ CORRIGIDAS PELO USUÁRIO — 12/09/2026, fim da noite ═════════════
+     Três das pendências de texto da conferência, depois de o usuário reescrever
+     os níveis. Ataque Impetuoso é a quarta — ver o bloco dela logo abaixo. */
+  // "Aumenta 1 nível de dificuldade da habilidade Sentidos" — a dificuldade é
+  // do ALVO enganado, e vale para o próximo teste de Sentidos dele.
+  alucinacao:           { alvo: 'inimigo', alvos: 1, icone: '🌀',
+                          efeitos: [{ tipo: 'mod_dificuldade', unidade: 'dificuldade', sinal: 1,
+                                      consome_em: 'teste_habilidade' }] },
+  /* "Aumenta 2 de energia física, e reduz 4 de velocidade". A energia física
+     sobe o TETO por 20 rodadas, como Bênção sobe o da heroica: mod_ef_temp é
+     o espelho de mod_eh_temp, e a devolução mora em expirarEhTemp. */
+  forca_da_montanha:    { alvo: 'self', alvos: 1, icone: '⛰️',
+                          efeitos: [{ tipo: 'mod_ef_temp', unidade: 'ef', sinal: 1 },
+                                    { tipo: 'mod_vb',      unidade: 'vb', sinal: -1 }] },
+  /* "Reduz 9 colunas da habilidade Sentidos" (1 coluna no nível 9): é a
+     atenção que sobra enquanto dorme, e cresce com o nível. mod_habilidade é
+     a primitiva de Remover Debilitação — soma no total de UMA habilidade
+     nomeada. PARCIAL: a magia dura 8 horas de sono; a aba Habilidade da
+     batalha aplica, a ficha fora de combate ainda não lê mod_habilidade. */
+  vigilia:              { alvo: 'self', alvos: 1, icone: '🌙', parcial: 'fora_de_combate',
+                          efeitos: [{ tipo: 'mod_habilidade', unidade: 'coluna', sinal: -1,
+                                      habilidade: 'Sentidos' }] },
+  /* "Causa 4 de dano extra no próximo ataque": bônus PLANO no dano do próximo
+     golpe de quem evoca, e gasto nele. mod_dano soma em danoFinal antes dos
+     percentuais; consome_em 'golpe_dado' é o irmão de 'golpe_recebido' (a
+     Esquiva). É suporte em si — não causa dano em ninguém ao ser lançada. */
+  ataque_impetuoso:     { alvo: 'self', alvos: 1, icone: '💢',
+                          efeitos: [{ tipo: 'mod_dano', unidade: 'dano', sinal: 1,
+                                      consome_em: 'golpe_dado' }] },
+  egide_celestial:      { alvo: 'aliado', alvos: 1, icone: '🌑',
+                          efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano', elemento: 'celestial' }] },
+  selo_abismal:         { alvo: 'aliado', alvos: 1, icone: '🔯',
+                          efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano', elemento: 'infernal' }] },
 };
 
 // Lookup tolerante: magia sem entrada devolve null, e o chamador mantém o
@@ -1638,6 +1734,11 @@ function funcaoDaMagia(magia) {
     const tipos = reg.efeitos.map((e) => e.tipo);
     if (tipos.includes('dano') && reg.alvo === 'inimigo') return 'ataque';
     if (reg.efeitos.some((e) => e.tipo === 'cura_pool' && (e.sinal || 1) > 0)) return 'cura';
+    // Condição de ficha restaurada em quem não é inimigo também é cura
+    // (Bálsamo de Lena devolve Saúde). Doenças baixa a mesma condição em
+    // inimigo e continua sendo ataque — o teste de dano acima já a pegou.
+    if (reg.alvo !== 'inimigo'
+      && reg.efeitos.some((e) => e.tipo === 'mod_condicao' && (e.sinal || 1) > 0)) return 'cura';
     if (tipos.includes('reducao_dano')) return 'protecao';
     if (reg.alvo === 'inimigo') return 'controle';
     return 'suporte';
@@ -1939,34 +2040,11 @@ const MAGIA_FORA_DO_REGISTRO = {
      EXTENSO, e a regra do catálogo é dígito (docs/manutencao-magias.md §1).
      Com "1 nível" no lugar de "um nível", o predicado percebe e a magia vai
      para "pronta para entrar". */
-  alucinacao: { classe: 'decisao', resolvido: (m) => leUnidadeEmAlgumNivel(m, 'dificuldade'), motivo:
-    'Aumenta a dificuldade de Sentidos do alvo, mas escreve o número por extenso ("um nível"). Com dígito ("1 nível") ela entra.' },
-  dominacao_animal: { classe: 'decisao', resolvido: (m) => leUnidadeEmAlgumNivel(m, 'dificuldade'), motivo:
-    'Reduz a dificuldade de Adestrar, mas escreve o número por extenso ("um nível"). Com dígito ela entra.' },
-  rastreamento: { classe: 'decisao', resolvido: (m) => leUnidadeEmAlgumNivel(m, 'dificuldade'), motivo:
-    'Reduz a dificuldade de Rastrear para o próximo teste, mas escreve o número por extenso ("um nível"). Com dígito ela entra.' },
-  forca_da_montanha: { classe: 'decisao',
-    resolvido: (m) => ['atr_fisico', 'atr_forca', 'atr_agilidade', 'atr_percepcao']
-      .every((u) => leUnidadeEmAlgumNivel(m, u)),
-    motivo: 'Um número para dois atributos ("Aumente 1 de atributo físico e atributo força"). Escreva cada um com o seu número: "Aumenta 1 no atributo Físico e 1 no atributo Força e reduz 1 no atributo Agilidade e 1 no atributo Percepção".' },
-  ataque_impetuoso: { classe: 'decisao', motivo:
-    '"Cause mais 4 no dano máximo de um ataque": é bônus de dano no PRÓXIMO golpe? Se for, o texto precisa virar "Aumenta 4 de dano" e eu ligo como bônus consumido no golpe.' },
-  apontar_sufocante: { classe: 'decisao', motivo:
-    'O efeito (não pode atacar, perde 1 de energia física por rodada) está na descrição; o nível só diz "Sufoca o alvo por N rodadas". Com "A magia tem duração de N rodadas. Reduz 1 de energia física por rodada." no nível, ela entra.' },
-  teriantropia: { classe: 'decisao', motivo:
-    'Cada nível é uma forma diferente (felina, canina…) e escreve "reduza 1 dificuldade" sem "nível de". Precisa de "Reduza 1 nível de dificuldade da habilidade X" — e depende de Licantropia estar ativa.' },
-  vigilia: { classe: 'decisao', motivo:
-    '"Reduza 9 níveis da habilidade Sentidos" diminui com o nível da magia e não diz "de dificuldade". É penalidade enquanto dorme? Falta a regra.' },
+  /* Alucinação, Força da Montanha, Ataque Impetuoso e Vigília SAÍRAM daqui em
+     12/09/2026: o usuário reescreveu os níveis e as quatro entraram no
+     MAGIA_EFEITO_MAP (bloco "CORRIGIDAS PELO USUÁRIO"). */
 
   /* ── Falta um sistema que o combate não tem ─────────────────────── */
-  amizade: { classe: 'sistema', motivo:
-    'O bônus em Influência é do conjurador, mas só contra o alvo que falhou na resistência — o motor não prende bônus a um alvo. (O número também está por extenso.)' },
-  empatia: { classe: 'sistema', motivo:
-    'O bônus em Empatia é do conjurador, mas só contra o alvo que falhou na resistência — o motor não prende bônus a um alvo.' },
-  seducao: { classe: 'sistema', motivo:
-    'O bônus em Persuadir é do conjurador, só contra o alvo seduzido — o motor não prende bônus a um alvo. (O número também está por extenso.)' },
-  aprimorar_habilidades: { classe: 'sistema', motivo:
-    'A habilidade é escolhida na hora ("uma habilidade escolhida do grupo Subterfúgio, Manobra ou Geral") — a evocação não tem essa escolha.' },
   despistamento: { classe: 'sistema', motivo:
     'A trilha falsa dificulta quem PERSEGUE, e o perseguidor não é escolhido na evocação.' },
   terreno_hostil: { classe: 'sistema', motivo:
@@ -2004,21 +2082,19 @@ const MAGIA_FORA_DO_REGISTRO = {
   olhar_de_predador: { classe: 'sistema', motivo: 'Perda de iniciativa, revelação de ficha e visão 180º.' },
   prolongamento: { classe: 'sistema', motivo: 'Estende a duração de outras magias.' },
   purificacao: { classe: 'sistema', motivo: 'Remove magias e venenos por nível.' },
-  recuperecao_fisica: { classe: 'sistema', motivo: 'Cura veneno, vício ou doença por TIPO (e a chave tem erro de grafia: "recuperecao").' },
+  recuperacao_fisica: { classe: 'sistema', motivo: 'Cura veneno, vício ou doença por TIPO.' },
   refletir: { classe: 'sistema', motivo: 'Reflete magias de volta ao conjurador.' },
   rugido_intimidador: { classe: 'sistema', motivo: 'Teste de MORAL — o combate não tem moral.' },
   silencio: { classe: 'sistema', motivo: 'Área onde magia não-instantânea não pode ser evocada.' },
   soneto_da_morte: { classe: 'sistema', motivo: 'Morte ao ouvir as quatro estrofes, e perdas em porcentagem por rodada.' },
   transferencia_celeste: { classe: 'sistema', motivo: 'Transfere doença, ferimento ou possessão entre corpos.' },
   vinculo_vital: { classe: 'sistema', motivo: 'Divide o dano com o companheiro animal.' },
-  visao_termica: { classe: 'sistema', motivo: 'Vê seres invisíveis — o combate não tem invisibilidade.' },
   voo: { classe: 'sistema', motivo: 'Voo, e teste de "Concentração", que não existe no catálogo de habilidades.' },
 
   /* ── Narrativa: sem número, o Mestre resolve na mesa ────────────── */
   cacada_marcada: { classe: 'narrativa', motivo: 'Guia até o alvo por dias.' },
   comunhao_natural: { classe: 'narrativa', motivo: 'Percebe eventos numa área natural.' },
   convivencia: { classe: 'narrativa', motivo: 'Um dia de convivência para colher informações.' },
-  hidrotolerancia: { classe: 'narrativa', motivo: 'Respira debaixo d’água.' },
   intuicao: { classe: 'narrativa', motivo: 'Pressente perigo com uma rodada de antecedência.' },
   invocar_instrumento: { classe: 'narrativa', motivo: 'O instrumento marcado voa até as mãos.' },
   leitura: { classe: 'narrativa', motivo: 'Compreende um texto pelo toque.' },
@@ -2026,20 +2102,17 @@ const MAGIA_FORA_DO_REGISTRO = {
   levitacao: { classe: 'narrativa', motivo: 'Movimento vertical no ar.' },
   localizar_objeto: { classe: 'narrativa', motivo: 'Localiza um objeto pela aura.' },
   maldicoes: { classe: 'narrativa', motivo: 'Maldições livres, limitadas pela imaginação.' },
-  marca_da_morte: { classe: 'narrativa', motivo: 'Marca para achar o alvo depois.' },
   memorizacao: { classe: 'narrativa', motivo: 'Grava informação na memória.' },
   modificar_espirito: { classe: 'narrativa', motivo: 'Muda o estado de espírito numa escala narrativa.' },
   mutacao: { classe: 'narrativa', motivo: 'Disfarce e troca de forma.' },
   pseudoconsciencia: { classe: 'narrativa', motivo: 'Dispensa a concentração de Ilusões.' },
   santuario_natural: { classe: 'narrativa', motivo: 'Abrigo contra perigos ambientais.' },
-  sentido_natural: { classe: 'narrativa', motivo: 'Projeta os sentidos pela vegetação.' },
   transformacao_metalica: { classe: 'narrativa', motivo: 'Altera a maleabilidade do metal.' },
   unidade_natural: { classe: 'narrativa', motivo: 'Teleporte pela vegetação.' },
 
   /* ── Ritual ou fora de combate ──────────────────────────────────── */
   abrigo: { classe: 'ritual', motivo: 'Ritual: localiza abrigo natural.' },
   ambiente_natural: { classe: 'ritual', motivo: 'Ritual: libera magias de ambiente natural.' },
-  analise: { classe: 'ritual', motivo: 'Ritual: revela propriedades de um item.' },
   aprisionar: { classe: 'ritual', motivo: 'Ritual: prisão de escuridão com armadura própria.' },
   assombracao: { classe: 'ritual', motivo: 'Ritual: atrai mortos-vivos a um local.' },
   aura_emocional: { classe: 'ritual', motivo: 'Ritual: marca emocional em pessoa ou lugar.' },

@@ -205,6 +205,10 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // Doencas (12/09/2026): mexe numa das 8 CONDICOES da
                          // ficha (Saude), que nao e poco de combate.
                          'mod_condicao',
+                         // Corrigidas pelo usuário (12/09/2026): Força da
+                         // Montanha (EF emprestada), Vigília (coluna numa
+                         // habilidade) e Ataque Impetuoso (bônus no golpe).
+                         'mod_ef_temp', 'mod_habilidade', 'mod_dano',
                          // Visibilidade do tabuleiro (12/09/2026): Visao Animal
                          // enxerga na escuridao, e o nivel diz ate qual.
                          'visao_escuridao',
@@ -220,9 +224,14 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // primitiva. Vinte e poucas magias a pedem.
                          'mod_dificuldade'];
 
-  it('tem 95 entradas — 75 até a varredura das magias que ninguém conhecia, e 20 dela', () => {
-    // 17 de dificuldade de habilidade + Corrente, Fascínio e Dueto Mágico.
-    expect(Object.keys(MAP)).toHaveLength(95);
+  it('tem 110 entradas — 106 da reforma e mais 4 corrigidas pelo usuário (12/09/2026)', () => {
+    // As 4: Alucinação, Força da Montanha, Vigília e Ataque Impetuoso.
+    // A reforma: 16 saíram (as dificuldades fundidas, Ruído Extenuante e
+    // Região Inviolável), 4 finais de dificuldade entraram (Amizade, Dom das
+    // Línguas, Sombra, Graça Felina) e 23 novas ou religadas (6 ataques de
+    // colégio, Apontar Sufocante, Cadência Veloz, 13 curas de ordem, Égide
+    // Celestial e Selo Abismal). Degeneração Física mudou de forma e ficou.
+    expect(Object.keys(MAP)).toHaveLength(110);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -326,9 +335,9 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     piromanipulacao:    'Causa 4 de dano elemental de fogo.',
     piroprotecao:       'Reduz 16 de dano elemental de fogo.',
     aeroprotecao:       'Reduz 16 de dano elemental de ar.',
-    raio_eletrico:      'Cada raio causa 12 de dano elemental fogo.',
+    raio_eletrico:      'Cada raio causa 12 de dano elemental de ar.',
     super_resistencia:  'Aumenta 1 de resistência física e 1 de resistência mágica.',
-    toque_gelido:       'Cause 12 de dano base.',
+    toque_gelido:       'Causa 12 de dano infernal.',
     velocidade:         'Aumenta 2 de velocidade.',
     /* Fase 2 — as tres de CONTROLE. O texto do nivel delas NAO traz numero de
        efeito: traz duracao (Medo), teto de estagio (Esconjuracao) ou prosa
@@ -340,8 +349,8 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     campo_de_trevas:    'Reduza 1 de energia física por rodada.',
     geoprotecao:        'Reduz 16 de dano elemental da terra.',
     pele_de_arvore:     'Reduza 4 de dano máximo.',
-    relampago:          'Cause 28 de dano base.',
-    ruido_extenuante:   'Reduza 1 coluna de ataque e 8 de velocidade.',
+    // 12/09/2026: o elemento que o nome já dizia (sugestões §3.1).
+    relampago:          'Causa 28 de dano elemental de ar.',
     /* META e ATRIBUTO (12/09/2026). */
     oferenda:           'Aumenta 2 níveis da magia e reduz 1 de energia física.',
     /* NIVEL 5, nao 1: Licantropia so menciona Fisico e Carisma a partir dele.
@@ -351,11 +360,11 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     /* ══ VARREDURA DAS ÓRFÃS (12/09/2026). Cópias literais do banco. ══ */
     armadilha_natural:     'Cause 12 de dano base.',
     energia_primordial:    'Cause 36 de dano base.',
-    feixes_incandescentes: 'Cause 32 de dano base.',
+    feixes_incandescentes: 'Causa 32 de dano elemental de fogo.',
     flecha_divina:         'Cause 20 de dano base.',
-    fogo_divino:           'Cause 28 de dano base.',
+    fogo_divino:           'Causa 28 de dano elemental celestial.',
     manipulacao_infernal:  'Causa 28 de dano infernal.',
-    putrefacao:            'Cause 12 de dano base.',
+    putrefacao:            'Causa 12 de dano infernal.',
     onda_destrutiva:       'Cause 4 de dano base.',
     narrativa_real:        'Cause 16 de dano base.',
     hidroprotecao:         'Reduz 16 de dano elemental de água.',
@@ -370,10 +379,11 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     veu_de_maira:          'Recupera 15 de energia heroica e 1 coluna de ataque.',
     bencao_selvagem:       'Aumenta 1 coluna de ataque e reduz 5 de energia heroica.',
     ato_falho:             'Reduza 1 coluna de resolução para todas as ações.',
-    degeneracao_fisica:    'Reduza 1 coluna de ataque.',
-    ruido:                 'Reduza 1 coluna de ataque.',
-    distracao:             'Reduza 4 pontos de velocidade.',
-    regiao_inviolavel:     'Reduza 12 de velocidade.',
+    // 12/09/2026: vira ataque infernal (estudo §2.2).
+    degeneracao_fisica:    'Causa 6 de dano infernal e reduza 1 coluna de ataque.',
+    // Nível 7: é onde a velocidade de Ruído Extenuante, fundida, aparece.
+    ruido:                 'Reduz 7 colunas de ataque e 8 de velocidade.',
+    distracao:             'Reduza 4 de velocidade.',
     cancao_do_sono:        'Reduza 1 coluna de ataque e 5 de energia heroica.',
     cancao_do_tormento:    'Reduza 1 coluna de ataque e causa 4 de dano base.',
     carne_em_vermes:       'Cause 4 de dano base e reduza 1 coluna de ataque.',
@@ -413,26 +423,47 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',
     // Varredura das magias que nenhum personagem conhecia (12/09/2026).
-    ausencia:             'Reduza 1 nível de dificuldade da habilidade Escapar.',
-    avaliacao:            'Reduza 1 nível de dificuldade da habilidade Negociar.',
-    camuflagem:           'Reduz 1 nível de dificuldade da habilidade Furtividade.',
+    // Fusão de 12/09/2026: 22 magias de dificuldade viraram 6.
+    amizade:              'Reduza 1 nível de dificuldade de habilidades do grupo Influência.',
     conhecimento:         'Reduza 1 nível de dificuldade de habilidades do grupo Profissional.',
-    conhecimento_linguistico: 'Reduza 1 nível de dificuldade da habilidade Idiomas e Alfabetização.',
     conhecimento_natural: 'Reduza 1 nível de dificuldade de habilidades do grupo Geral.',
-    convocacao:           'Reduza 1 nível de dificuldade da habilidade Liderar.',
-    deslocamento_natural: 'Reduza 1 nível de dificuldade da habilidade Equilibrar, Nadar e Escalar.',
-    detectar_intencao:    'Reduza 1 nível de dificuldade da habilidade Empatia.',
-    escrita:              'Reduza 1 nível de dificuldade da habilidade Alfabetização.',
-    faro:                 'Reduza 1 nível de dificuldade da habilidade Rastrear e Sentidos.',
+    dom_das_linguas:      'Reduza 1 nível de dificuldade da habilidade Idioma e Alfabetização.',
+    graca_felina:         'Reduza 1 nível de dificuldade de habilidades do grupo Manobra.',
     habilidade_animal:    'Assimila a habilidade de um lobo: Reduza 1 nível de dificuldade em Rastrear.',
-    linguagem:            'Reduza 1 nível de dificuldade da habilidade Idiomas.',
-    malabarismo:          'Reduza 1 nível de dificuldade da habilidade Equilibrar ou Prestidigitação.',
-    mestre_da_forja:      'Reduz 1 nível de dificuldade da habilidade Metalurgia.',
-    orientacao:           'Reduza 1 nível de dificuldade da habilidade Navegar.',
-    sexto_sentido:        'Reduza 1 nível de dificuldade da habilidade Sensitividade.',
+    sombra:               'Reduza 1 nível de dificuldade de habilidades do grupo Subterfúgio.',
     corrente:             'A magia tem duração de 5 minutos.',
     fascinio:             'Esta magia tem força de ataque 2.',
     dueto_magico:         'Aumenta 2 níveis das magias evocadas.',
+    /* ══ Reforma pelo perfil de cada profissão (12/09/2026). Cópias literais
+       de scripts/sql/magias-reforma-perfis.sql. ══ */
+    frasco_incendiario:   'Causa 10 de dano elemental de fogo.',
+    nevoa_caustica:       'Causa 6 de dano elemental de ar.',
+    verdade_ofuscante:    'Causa 6 de dano elemental celestial.',
+    paradoxo:             'Causa 4 de dano na energia heroica e reduza 1 coluna de ataque.',
+    terror_fantasma:      'Causa 6 de dano na energia heroica.',
+    enxame_de_espinhos:   'Causa 6 de dano elemental de terra.',
+    apontar_sufocante:    'A magia tem duração de 1 rodada. Reduza 1 de energia física por rodada.',
+    cadencia_veloz:       'Aumenta 3 de velocidade.',
+    balsamo_de_lena:      'Aumenta 5 de Saúde.',
+    seiva_de_maira:       'Restaura 6 de energia física.',
+    mare_restauradora:    'Restaura 4 de energia heroica e 4 de energia física.',
+    paz_coletiva:         'Restaura 4 de energia heroica.',
+    sangue_de_batalha:    'Restaura 8 de energia física e aumenta 1 coluna de ataque.',
+    descanso_de_cruine:   'Restaura 8 de energia heroica.',
+    justa_reparacao:      'Restaura 4 de energia física e aumenta 2 de defesa.',
+    bencao_da_terra:      'Restaura 6 de energia física e reduz 4 de dano elemental de terra.',
+    chama_vital:          'Restaura 6 de energia física e reduz 4 de dano elemental de fogo.',
+    mente_serena:         'Restaura 6 de energia heroica.',
+    tempera_da_carne:     'Restaura 6 de energia física e aumenta 1 de defesa.',
+    alivio_dourado:       'Restaura 3 de energia heroica.',
+    pressagio_curativo:   'Restaura 4 de energia física.',
+    egide_celestial:      'Reduz 8 de dano elemental celestial.',
+    selo_abismal:         'Reduz 8 de dano infernal.',
+    // Corrigidas pelo usuário (12/09/2026). Cópias literais do banco.
+    alucinacao:           'Aumenta 1 nível de dificuldade da habilidade Sentidos.',
+    forca_da_montanha:    'Aumenta 2 de energia física, e reduz 4 de velocidade.',
+    vigilia:              'Reduz 9 colunas da habilidade Sentidos.',
+    ataque_impetuoso:     'Causa 4 de dano extra no próximo ataque.',
   };
 
   it('a lista de conferência cobre TODAS as entradas do mapa', () => {
@@ -527,7 +558,9 @@ describe('as três magias de CONTROLE da Fase 2', () => {
        alvo), Ordens (narrativa), Possessão (troca de corpo), Licantropia
        (atributos) e Oferenda (meta-magia) precisam de sistemas que o motor de
        combate não tem. Entregar três inteiras é melhor que nove pela metade. */
-    ['alucinacao', 'invisibilidade', 'ordens', 'possessao'].forEach((k) => {
+    // Alucinação SAIU desta lista em 12/09/2026: a dificuldade de habilidade
+    // ganhou primitiva e o usuário corrigiu o texto — ela está no mapa.
+    ['invisibilidade', 'ordens', 'possessao'].forEach((k) => {
       expect(MAP[k], `${k} entrou no mapa sem a primitiva que precisa`).toBeUndefined();
     });
   });

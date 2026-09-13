@@ -233,12 +233,17 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
                       <div className="batalha-card-actions">
                         <button className="btn-icon btn-sm"
                           onMouseEnter={(e) => abrirTip(e, tb.abrir)} onMouseLeave={fecharTip}
-                          onClick={() => setAbrindo(b)}>
+                          /* Fecha o tooltip ANTES de abrir: a lista desmonta com
+                             o balão aberto, o mouseleave nunca chega e o "Abrir"
+                             ficava flutuando sobre a montagem da batalha
+                             (12/09/2026). Mesmo caso do BotaoAcaoMenu. */
+                          onClick={() => { fecharTip(); setAbrindo(b); }}>
                           <i className="ti ti-arrow-right" aria-hidden="true" />
                         </button>
                         <button className="btn-icon btn-danger btn-sm"
                           onMouseEnter={(e) => abrirTip(e, tb.excluir)} onMouseLeave={fecharTip}
-                          onClick={() => excluirBatalha(b.id)}>
+                          // Mesmo caso do Abrir: o card some ao excluir.
+                          onClick={() => { fecharTip(); excluirBatalha(b.id); }}>
                           <i className="ti ti-trash" aria-hidden="true" />
                         </button>
                       </div>
@@ -2577,6 +2582,17 @@ function consumirEvitaGolpe(alvo) {
   const restante = st.filter((s) => !(s.consome_em === 'golpe_recebido' && s.efeito && s.efeito.tipo === 'evita_golpe'));
   return { evitou: true, participante: { ...alvo, status_temp: restante } };
 }
+/* Ataque Impetuoso (12/09/2026): o bônus de dano vale para UM golpe dado e é
+   gasto nele — o irmão de consumirEvitaGolpe, do lado de quem ataca. Quem
+   chama o faz DEPOIS do alvo principal e dos extras: Golpe Giratório é um golpe
+   só, e o bônus tem que chegar a todos os alvos dele. Devolve o MESMO
+   participante quando não há o que gastar. */
+function consumirModDano(p) {
+  const st = (p && Array.isArray(p.status_temp)) ? p.status_temp : null;
+  const gasta = (s) => s && s.consome_em === 'golpe_dado' && s.efeito && s.efeito.tipo === 'mod_dano';
+  if (!st || !st.some(gasta)) return p;
+  return { ...p, status_temp: st.filter((s) => !gasta(s)) };
+}
 // VB efetiva pra iniciativa: vb do snapshot + mod_vb de status. NÃO persiste.
 function vbEfetivo(p) {
   return (p.vb || 0) + somaEfeitosStatus(p, 'mod_vb');
@@ -2629,7 +2645,10 @@ function somaDanoRecebidoPct(p) { return somaEfeitosStatus(p, 'dano_recebido_pct
 function danoFinal(danoBase, atacante, alvo, elemento) {
   const base = Math.max(0, Math.floor(danoBase || 0));
   if (base === 0) return 0;
-  const comBonus = base * (1 + somaDanoPct(atacante) / 100);
+  /* mod_dano (Ataque Impetuoso, 12/09/2026): bônus PLANO do atacante, somado
+     antes dos percentuais — "+4 de dano" com Brutalizar +50% dá (base+4)×1,5.
+     Só vale para golpe que acertou (base > 0), e é gasto em consumirModDano. */
+  const comBonus = (base + somaEfeitosStatus(atacante, 'mod_dano')) * (1 + somaDanoPct(atacante) / 100);
   const aposMaximo = comBonus + somaEfeitosStatus(alvo, 'mod_dano_max');
   /* Proteção elemental (Piroproteção, Aeroproteção, Armadura Elemental) entra
      AQUI, junto do outro modificador PLANO e antes dos percentuais — a mesma
@@ -2664,12 +2683,23 @@ function decrementarStatusTemp(statusTemp) {
    não é punido de novo na devolução. */
 function expirarEhTemp(p, removidos) {
   if (!p || !Array.isArray(removidos) || removidos.length === 0) return p;
-  const devolver = removidos
-    .filter((s) => s.efeito && s.efeito.tipo === 'mod_eh_temp')
-    .reduce((soma, s) => soma + (s.efeito.valor || 0), 0);
-  if (devolver === 0) return p;
-  const ehMax = Math.max(0, (Number(p.eh_max) || 0) - devolver);
-  return { ...p, eh_max: ehMax, eh: Math.max(0, Math.min(ehMax, Number(p.eh) || 0)) };
+  const soma = (tipo) => removidos
+    .filter((s) => s.efeito && s.efeito.tipo === tipo)
+    .reduce((acc, s) => acc + (s.efeito.valor || 0), 0);
+  const devolver = soma('mod_eh_temp');
+  // mod_ef_temp (Força da Montanha, 12/09/2026): o mesmo empréstimo, na EF.
+  const devolverEf = soma('mod_ef_temp');
+  if (devolver === 0 && devolverEf === 0) return p;
+  let out = p;
+  if (devolver !== 0) {
+    const ehMax = Math.max(0, (Number(out.eh_max) || 0) - devolver);
+    out = { ...out, eh_max: ehMax, eh: Math.max(0, Math.min(ehMax, Number(out.eh) || 0)) };
+  }
+  if (devolverEf !== 0) {
+    const efMax = Math.max(0, (Number(out.ef_max) || 0) - devolverEf);
+    out = { ...out, ef_max: efMax, ef: Math.max(0, Math.min(efMax, Number(out.ef) || 0)) };
+  }
+  return out;
 }
 
 /* Remove um status_temp pelo id (clique no chip, Fase 6) — núcleo puro.
@@ -3513,6 +3543,10 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
       const grupos = gruposDeArma(reg.grupo_armas);
       if (grupos) efeito.grupos = grupos;
     }
+    // Vigília (12/09/2026): mod_habilidade precisa do NOME da habilidade no
+    // efeito, como Remover Debilitação faz nas técnicas — somaModHabilidade
+    // casa por ele.
+    if (ef.tipo === 'mod_habilidade' && ef.habilidade) efeito.habilidade = ef.habilidade;
 
     novos.push({
       id,
@@ -3555,6 +3589,21 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
       ...resultado,
       eh_max: ehMax,
       eh: Math.max(0, Math.min(ehMax, (Number(resultado.eh) || 0) + delta)),
+    };
+  }
+  /* mod_ef_temp (Força da Montanha, 12/09/2026): o espelho exato do acima na
+     energia física — sobe teto e valor, devolve a leva antiga antes, e a
+     devolução natural mora em expirarEhTemp. */
+  const somaEf = (lista) => lista
+    .filter((s) => s.efeito && s.efeito.tipo === 'mod_ef_temp')
+    .reduce((acc, s) => acc + (s.efeito.valor || 0), 0);
+  const deltaEf = somaEf(novos) - somaEf(anteriores.filter((s) => s.id === id));
+  if (deltaEf !== 0) {
+    const efMax = Math.max(0, (Number(resultado.ef_max) || 0) + deltaEf);
+    resultado = {
+      ...resultado,
+      ef_max: efMax,
+      ef: Math.max(0, Math.min(efMax, (Number(resultado.ef) || 0) + deltaEf)),
     };
   }
   return resultado;
@@ -4504,6 +4553,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const [encerrarOpen,  setEncerrarOpen]  = useState(false); // painel inline com toggle de restaurar
   const [catalogos, setCatalogos] = useState(null);
   const [acaoOpen, setAcaoOpen] = useState(false);
+  /* Ataque a partir do avatar do INIMIGO (12/09/2026): { id, aba } de quem foi
+     clicado. O painel abre no menu DELE, com ele já marcado como alvo e o
+     lutador da vez como ator. `acaoOpen` continua sendo o interruptor — toda
+     ação aplicada o fecha, e com ele este estado some. */
+  const [ataqueContra, setAtaqueContra] = useState(null);
+  useEffect(() => { if (!acaoOpen) setAtaqueContra(null); }, [acaoOpen]);
+  /* Montagem: índice de quem o Mestre armou pra posicionar pelo ícone ao lado
+     do nome (12/09/2026). O tabuleiro recebe como seleção controlada. */
+  const [posicionando, setPosicionando] = useState(null);
   // Teste agora é uma tab dentro do painel de Ação (AcaoPanel) — não tem mais
   // estado/botão próprio no footer da batalha.
   // Rolagem comprometida dentro do AcaoPanel (já existe d20 sem aplicar) —
@@ -4860,6 +4918,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       nomesAlvosExtras.push(next[exIdx].nome);
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
     });
+    // O bônus de Ataque Impetuoso foi usado neste golpe (em todos os alvos).
+    next[atorIdx] = consumirModDano(next[atorIdx]);
     // Debita PA (sempre 1) e karma (se for magia).
     const k = Math.max(0, custo_karma || 0);
     // Fase 2 das técnicas: ataque extra (Golpe Duplo, Contra-Ataque,
@@ -5465,12 +5525,40 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     if (!onHeaderActionsChange) return;
     if (estado === 'setup') {
       onHeaderActionsChange(
-        <button type="button" className="btn-primary btn-sm"
-          disabled={iniciando || participantes.length === 0}
-          onClick={iniciar}>
-          <i className="ti ti-swords" aria-hidden="true" />
-          {iniciando ? (tb.iniciando) : (tb.iniciar)}
-        </button>
+        <>
+          {/* ILUMINAÇÃO NA MONTAGEM, ao lado de Iniciar (pedido do usuário,
+              12/09/2026): um botão por estado, e marcar um desmarca os
+              outros — é um grupo de rádio. Na montagem não há pressa, então
+              os quatro ficam à vista em vez do botão que cicla da batalha
+              ativa. O tooltip nomeia o estado e a penalidade. */}
+          <div className="batalha-visib-grupo" role="radiogroup"
+            aria-label={tb.visibilidade || 'Iluminação'}>
+            {VISIBILIDADE_ORDEM.map((v) => {
+              const marcado = visibilidade === v;
+              return (
+                <button key={v} type="button" role="radio" aria-checked={marcado}
+                  data-visib={v}
+                  className={'btn-icon btn-ghost btn-sm visib-' + v + (marcado ? ' is-marcado' : '')}
+                  disabled={salvando}
+                  onClick={() => {
+                    if (marcado) return;
+                    setVisibilidade(v);
+                    persistir({ visibilidade: v });
+                  }}
+                  onMouseEnter={(e) => abrirTip(e, textoVisibilidade(v, tb))}
+                  onMouseLeave={fecharTip}>
+                  <i className={'ti ' + VISIBILIDADE_ICONE[v]} aria-hidden="true" />
+                </button>
+              );
+            })}
+          </div>
+          {/* Só a palavra, sem ícone (pedido do usuário, 12/09/2026). */}
+          <button type="button" className="btn-primary btn-sm"
+            disabled={iniciando || participantes.length === 0}
+            onClick={iniciar}>
+            {iniciando ? (tb.iniciando) : (tb.iniciar)}
+          </button>
+        </>
       );
       return;
     }
@@ -5649,30 +5737,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   if (estado === 'setup') {
     return (
       <div className="batalha-conduzir">
-        <p className="batalha-setup-intro">
-          {tb.tudoProntoParaO}
-        </p>
-        {/* VISIBILIDADE NA MONTAGEM (12/09/2026, a pedido do usuário).
-            A escuridão é da CENA, e a cena é decidida antes de alguém rolar
-            dado: emboscada noturna, cripta, caverna. Escolher só depois de
-            iniciar obrigaria o Mestre a começar a batalha errada e corrigir.
-
-            Mesmo botão que cicla no header da batalha ativa — mesma função,
-            mesmos ícones, mesmo texto. Aqui ele ganha o nome escrito ao lado,
-            porque na montagem há espaço e não há pressa. */}
-        <div className="batalha-setup-visib">
-          <button type="button"
-            className={'btn-ghost btn-sm visib-' + visibilidade}
-            disabled={salvando}
-            onClick={() => {
-              const prox = proximaVisibilidade(visibilidade);
-              setVisibilidade(prox);
-              persistir({ visibilidade: prox });
-            }}>
-            <i className={'ti ' + VISIBILIDADE_ICONE[visibilidade]} aria-hidden="true" />
-            {' '}{textoVisibilidade(visibilidade, tb)}
-          </button>
-        </div>
+        {/* O texto de introdução ("Tudo pronto para o início da batalha…") e o
+            botão de iluminação saíram daqui em 12/09/2026, a pedido do usuário:
+            a iluminação mora agora no header, ao lado de Iniciar, como quatro
+            botões de rádio. A escuridão continua sendo escolhida ANTES de
+            começar — emboscada noturna, cripta, caverna. */}
         {/* BÔNUS DE INICIATIVA, um por combatente (12/09/2026). É aqui que o
             Mestre decide quem começa em vantagem — emboscada, prontidão, quem
             viu o outro antes. Some na velocidade, então também alonga o passo
@@ -5680,22 +5749,64 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         <ul className="batalha-part-list">
           {participantes.map((p, i) => (
             <li key={i} className="batalha-part-row">
-              <span className="batalha-part-nome">{p.nome}</span>
-              <label className="batalha-part-ini">
-                <span>{tb.bonusIniciativa || '+ iniciativa'}</span>
-                <input
-                  type="number" min="0" max={BONUS_INICIATIVA_MAX} step="1"
-                  value={p.bonus_iniciativa || 0}
-                  disabled={salvando}
-                  onChange={(e) => {
-                    const v = Math.max(0, Math.min(BONUS_INICIATIVA_MAX,
-                      Math.floor(Number(e.target.value) || 0)));
-                    const next = participantes.map((q, j) => (j === i ? { ...q, bonus_iniciativa: v } : q));
-                    setParticipantes(next);
-                    persistir({ participantes: next });
-                  }}
-                />
-              </label>
+              {/* Ícone de POSICIONAR ao lado do nome (pedido do usuário,
+                  12/09/2026): arma este combatente, e o próximo clique na
+                  grade o coloca lá. Substitui a bancada de avatares embaixo do
+                  tabuleiro. Dourado = armado; o traço verde diz que já está
+                  no tabuleiro. */}
+              <span className="batalha-part-nome-wrap">
+                {(() => {
+                  const armado = posicionando === i;
+                  const colocado = !!(p.pos && Number.isFinite(p.pos.x) && Number.isFinite(p.pos.y));
+                  const dica = armado
+                    ? (isEn ? 'Click on the board to place' : 'Clique no tabuleiro para posicionar')
+                    : (isEn ? 'Choose position' : 'Escolher posição');
+                  return (
+                    <button type="button"
+                      className={'batalha-part-posicionar' + (armado ? ' is-armado' : '') + (colocado ? ' is-colocado' : '')}
+                      aria-pressed={armado}
+                      aria-label={dica + ' — ' + p.nome}
+                      data-posicionar={i}
+                      disabled={salvando}
+                      onClick={() => { fecharTip(); setPosicionando((cur) => (cur === i ? null : i)); }}
+                      onMouseEnter={(e) => abrirTip(e, dica)}
+                      onMouseLeave={fecharTip}>
+                      <i className={'ti ' + (armado ? 'ti-crosshair' : 'ti-map-pin')} aria-hidden="true" />
+                    </button>
+                  );
+                })()}
+                <span className="batalha-part-nome">{p.nome}</span>
+              </span>
+              {/* Dez botões redondos, de 1 a 10, no lugar do campo numérico
+                  (pedido do usuário, 12/09/2026). Um grupo de rádio: marcar um
+                  desmarca o outro, e clicar no marcado volta a 0 (sem bônus). */}
+              <div className="batalha-part-ini" role="radiogroup"
+                aria-label={(tb.bonusIniciativa || '+ iniciativa') + ' — ' + p.nome}>
+                {/* Sem a palavra "iniciativa" na tela, e só de 1 a 9 — os nove
+                    hexágonos numerados que o Tabler tem (pedido do usuário,
+                    12/09/2026). O nome segue no aria-label do grupo. */}
+                <span className="batalha-ini-opcoes">
+                  {Array.from({ length: Math.min(9, BONUS_INICIATIVA_MAX) }, (_, k) => k + 1).map((n) => {
+                    const marcado = (p.bonus_iniciativa || 0) === n;
+                    return (
+                      <button key={n} type="button" role="radio" aria-checked={marcado}
+                        data-ini={n}
+                        className={'batalha-ini-bola' + (marcado ? ' is-marcado' : '')}
+                        disabled={salvando}
+                        aria-label={String(n)}
+                        onClick={() => {
+                          const v = marcado ? 0 : n;
+                          const next = participantes.map((q, j) => (j === i ? { ...q, bonus_iniciativa: v } : q));
+                          setParticipantes(next);
+                          persistir({ participantes: next });
+                        }}>
+                        {/* Ícone de hexágono numerado (pedido do usuário, 12/09/2026). */}
+                        <i className={'ti ti-hexagon-number-' + n} aria-hidden="true" />
+                      </button>
+                    );
+                  })}
+                </span>
+              </div>
             </li>
           ))}
         </ul>
@@ -5705,6 +5816,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         <TabuleiroBatalha
           entradas={participantes.map((p, i) => ({ p, i }))}
           meta={metaTokens}
+          movendoControlado={posicionando}
+          onMovendoChange={setPosicionando}
+          semBancada
           podeSelecionar={() => !salvando}
           alcanceDe={() => null}
           onMover={posicionarNoSetup}
@@ -5816,16 +5930,23 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
            painel de Ação que está na tela. A condição é a MESMA do menuDe
            logo abaixo — se divergirem, o X ou fecha quando devia voltar, ou
            volta pra um painel que não está aberto. */
-        menuVoltar={(p) => (estado === 'ativa' && acaoOpen && p.atual && catalogos)
+        menuVoltar={(p) => (estado === 'ativa' && acaoOpen && catalogos
+            && ((p.atual && !ataqueContra) || (ataqueContra && current && p.inst_id === ataqueContra.id)))
           ? () => setAcaoOpen(false) : null}
         menuDe={(motorAberto || encerrarOpen) ? undefined : (p, i, fechar, mover) => {
           const fkey = p.inst_id || (p.tipo + ':' + p.ref_id + ':' + i);
           // Painel de Ação: ocupa o menu inteiro de quem está agindo. Só faz
           // sentido para o lutador da vez — é dele o PA que a ação gasta.
-          if (estado === 'ativa' && acaoOpen && p.atual && catalogos) {
+          // Aberto a partir do avatar do INIMIGO, mora no menu do inimigo, mas
+          // o ator continua sendo o lutador da vez.
+          const painelNoInimigo = !!(ataqueContra && current && p.inst_id === ataqueContra.id);
+          if (estado === 'ativa' && acaoOpen && catalogos && ((p.atual && !ataqueContra) || painelNoInimigo)) {
             return (
               <AcaoPanel
-                ator={p}
+                key={painelNoInimigo ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba : 'proprio'}
+                alvoInicialId={painelNoInimigo ? ataqueContra.id : undefined}
+                abaInicial={painelNoInimigo ? ataqueContra.aba : undefined}
+                ator={painelNoInimigo ? current : p}
                 participantes={participantes}
                 catalogos={catalogos}
                 lang={lang}
@@ -5906,6 +6027,17 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                         card não se distinguem de relance. */}
                     <i className="ti ti-shield-half" aria-hidden="true" /><b>{p.defesa_sigla || 'L'}{p.defesa_valor || 0}</b>
                   </span>
+                  {/* ABSORÇÃO como número fixo (12/09/2026): o limiar da
+                      armadura — golpe até ele é bloqueado. Com elixir, o
+                      bônus aparece junto. Só para quem tem absorção. */}
+                  {(p.ar || 0) > 0 && (
+                    <span className="batalha-stat ic"
+                      onMouseEnter={(e) => abrirTip(e, (isEn ? 'Absorption' : 'Absorção')
+                        + ((p.ar || 0) > (p.ar_max || 0) ? ` · ${p.ar_max || 0} + ${(p.ar || 0) - (p.ar_max || 0)}` : ''))}
+                      onMouseLeave={fecharTip}>
+                      <i className="ti ti-shield" aria-hidden="true" /><b>{p.ar}</b>
+                    </span>
+                  )}
                   {/* O seletor de estado mora NESTA linha, junto de VB/PA/DF/
                       RM/RF — é leitura do combatente, como os outros pills,
                       não uma ação de turno. Não vai na fileira de baixo:
@@ -5996,6 +6128,38 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                 </div>
               )}
 
+              {/* ATACAR ESTE COMBATENTE (12/09/2026, pedido do usuário): no
+                  avatar de quem NÃO está na vez, o lutador da vez escolhe com
+                  o que atacar — e o painel de Ação abre aqui mesmo, com este
+                  alvo marcado. Só oferece o que o atacante tem. */}
+              {estado === 'ativa' && current && !p.atual && podeSerAtacado(p) && catalogos
+                && !mesmoParticipante(p, current) && (() => {
+                const temArma = ataquesDoAtor(current, catalogos).length > 0;
+                const temMagia = magiasOfensivasDoAtor(current, catalogos).length > 0;
+                if (!temArma && !temMagia) return null;
+                const bloqueado = salvando || !temAcaoRestante(current) || rolagemPendente;
+                const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); };
+                return (
+                  <div className="batalha-menu-acoes batalha-menu-atacar">
+                    <span className="batalha-menu-atacar-lbl">
+                      {interpolate(tb.atacarComo || (isEn ? '{nome} attacks with' : '{nome} ataca com'), { nome: current.nome })}
+                    </span>
+                    {temArma && (
+                      <BotaoAcaoMenu icone="ti-sword" variante="primary"
+                        rotulo={tb.tabArma || (isEn ? 'Weapon' : 'Arma')}
+                        disabled={bloqueado} onClick={() => abrir('arma')}
+                        abrirTip={abrirTip} fecharTip={fecharTip} />
+                    )}
+                    {temMagia && (
+                      <BotaoAcaoMenu icone="ti-comet" variante="primary"
+                        rotulo={tb.tabMagia || (isEn ? 'Spell' : 'Magia')}
+                        disabled={bloqueado} onClick={() => abrir('magia')}
+                        abrirTip={abrirTip} fecharTip={fecharTip} />
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* O Envenenado virou MODAL (01/09/2026) e é renderizado fora do
                   card, no fim da view — dois campos numa faixa inline dentro
                   de um popover que já é estreito ficavam espremidos, e o
@@ -6010,19 +6174,26 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                   editor daquela pool (substituiu os botões coração). */}
               <div className="batalha-fighter-pools-wrap">
                 <div className="batalha-pools">
+                  {/* AR saiu das barras (12/09/2026): a absorção é um limiar
+                      fixo, nunca esvazia — virou o número com escudo na linha
+                      dos stats. No lugar entra a RESISTÊNCIA (RES), que é o que
+                      se gasta; só aparece em quem tem peça de armadura, e não
+                      é editável aqui: ela mora nas peças (armadura_pecas). */}
                   {[
                     ['EF', 'ef',    p.ef,    p.ef_max,    'ti-heart'],
                     ['EH', 'eh',    p.eh,    p.eh_max,    'ti-heart'],
-                    ['AR', 'ar',    p.ar,    p.ar_max,    'ti-shield'],
+                    ...((p.res_max || 0) > 0 ? [['RES', 'res', p.res, p.res_max, 'ti-shield']] : []),
                     ['KA', 'karma', p.karma, p.karma_max, 'ti-sparkle-highlight'],
                   ].map(([sigla, campo, valor, maximo, ic]) => poolBar(sigla, valor, maximo, {
                     key: campo,
-                    title: estado === 'ativa' ? `${sigla} — ${tb.editar || (isEn ? 'edit' : 'editar')}` : sigla,
+                    title: campo === 'res'
+                      ? `${isEn ? 'Armor durability' : 'Resistência da armadura'} · ${valor || 0}/${maximo || 0}`
+                      : (estado === 'ativa' ? `${sigla} — ${tb.editar || (isEn ? 'edit' : 'editar')}` : sigla),
                     icon: <i className={'ti ' + ic} aria-hidden="true" />,
                     // Guarda ÍNDICE, nome, sigla e ícone: o editor virou
                     // modal (02/09/2026) e vive fora do card, sem `p` nem
                     // `i` no escopo — mesma razão do Envenenar.
-                    onEditar: estado === 'ativa' ? () => {
+                    onEditar: (estado === 'ativa' && campo !== 'res') ? () => {
                       setPoolOpen({ idx: i, pool: campo, sigla, icone: ic,
                                     nome: p.nome, atual: valor ?? 0, max: maximo ?? 0 });
                       setPoolVal(String(valor ?? 0));
@@ -6710,7 +6881,11 @@ function MotorResolucao({ lang }) {
    participantes[].rolagem_pendente do PRÓPRIO PJ, porque só alcança a tabela
    pela RPC atualizar_batalha_jogador, que recebe participantes/log/rodada e
    não a coluna. Os dois entregam o mesmo objeto por `rolagemSalva`. */
-function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplicar, onAplicarTeste, onAplicarItem, onAplicarApoio, onCancel, onRolagemPendenteChange, rolagemSalva, onRolagemSalvaChange, abrirTip, fecharTip }) {
+/* `alvoInicialId` / `abaInicial` (12/09/2026): o painel pode nascer já
+   apontado para um inimigo — quem clica no avatar dele no tabuleiro escolhe
+   "atacar com arma/magia" ali mesmo, e o painel abre na aba certa com o alvo
+   marcado. Ausentes, o painel abre como sempre. */
+function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplicar, onAplicarTeste, onAplicarItem, onAplicarApoio, onCancel, onRolagemPendenteChange, rolagemSalva, onRolagemSalvaChange, abrirTip, fecharTip, alvoInicialId, abaInicial }) {
   // Só vale a rolagem DESTE ator: a linha é da batalha, não do participante.
   const salva = (rolagemSalva && ator
     && rolagemSalva.ator && rolagemSalva.ator.tipo === ator.tipo
@@ -6817,6 +6992,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // limpo com a rolagem pendente escondida.
   const [tab, setTab] = useState(
     (salva && salva.tab)
+    || ((abaInicial === 'arma' && armas.length > 0) || (abaInicial === 'magia' && podeMagia) ? abaInicial : null)
     || (armas.length > 0 ? 'arma' : (podeMagia ? 'magia' : (!semItem ? 'item' : 'habilidade')))
   );
 
@@ -6824,7 +7000,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const [armaIdx, setArmaIdx]   = useState(0);
   const [tecIdx,  setTecIdx]    = useState(-1);   // -1 = sem técnica (tab Arma)
   const [magiaIdx, setMagiaIdx] = useState(0);
-  const [alvoIdx, setAlvoIdx]  = useState(0);
+  // Alvo vindo do clique no avatar do inimigo: o índice dele em `alvos`.
+  const [alvoIdx, setAlvoIdx]  = useState(() => {
+    const k = alvoInicialId ? alvos.findIndex((p) => p.inst_id === alvoInicialId) : -1;
+    return k >= 0 ? k : 0;
+  });
   const [apoioIdx, setApoioIdx] = useState(0);
   const [alvoApoioIdx, setAlvoApoioIdx] = useState(0);
   // Golpe Giratório: inst_ids dos alvos ALÉM do principal. Fica na aba Arma
@@ -8292,6 +8472,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const visibilidade = batalha.visibilidade || 'clara';
   const [catalogos, setCatalogos] = useState(null);
   const [acaoOpen, setAcaoOpen] = useState(false);
+  // Ataque a partir do avatar do inimigo — mesmo contrato da visão do Mestre.
+  const [ataqueContra, setAtaqueContra] = useState(null);
+  useEffect(() => { if (!acaoOpen) setAtaqueContra(null); }, [acaoOpen]);
   const [rolagemPendente, setRolagemPendente] = useState(false);
   // Tooltip próprio: os botões do menu do token viraram só ícone (01/09/2026)
   // e sem isto o jogador ficaria com quatro ícones mudos. O Mestre já tinha.
@@ -8559,6 +8742,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       nomesAlvosExtras.push(next[exIdx].nome);
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
     });
+    // O bônus de Ataque Impetuoso foi usado neste golpe (em todos os alvos).
+    next[atorIdx] = consumirModDano(next[atorIdx]);
     if (dano > 0) {
       // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele.
       // Só o alvo PRINCIPAL: um alvo extra não pode ser o atual, porque o
@@ -9063,7 +9248,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const poolBar = (label, v, max) => {
     const span = max || 0;
     const pct = span > 0 ? Math.max(0, Math.min(100, (v / span) * 100)) : 0;
-    const ic = label === 'AR' ? 'ti-shield' : label === 'KA' ? 'ti-sparkle-highlight' : 'ti-heart';
+    const ic = (label === 'AR' || label === 'RES') ? 'ti-shield' : label === 'KA' ? 'ti-sparkle-highlight' : 'ti-heart';
     return (
       <div key={label} className={'batalha-pool pool-' + label.toLowerCase()}>
         <span className="batalha-pool-label"><i className={'ti ' + ic} aria-hidden="true" /></span>
@@ -9140,15 +9325,21 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
               aviso={erro}
               menuTravado={rolagemPendente}
               /* Idem card do Jogador — mesma condição do menuDe abaixo. */
-              menuVoltar={(p) => (acaoOpen && meuParticipante
-                && mesmoParticipante(p, meuParticipante) && ehMinhaVez && souAtivo && catalogos)
+              menuVoltar={(p) => (acaoOpen && meuParticipante && ehMinhaVez && souAtivo && catalogos
+                && ((mesmoParticipante(p, meuParticipante) && !ataqueContra)
+                  || (ataqueContra && p.inst_id === ataqueContra.id)))
                 ? () => setAcaoOpen(false) : null}
               menuDe={(p, i, fechar, mover) => {
                 const ehEu = meuParticipante && mesmoParticipante(p, meuParticipante);
-                // Mesma troca do Mestre: o painel toma o menu do próprio PJ.
-                if (acaoOpen && ehEu && ehMinhaVez && souAtivo && catalogos) {
+                // Mesma troca do Mestre: o painel toma o menu do próprio PJ —
+                // ou o do inimigo, quando o ataque partiu do avatar dele.
+                const painelNoInimigo = !!(ataqueContra && p.inst_id === ataqueContra.id);
+                if (acaoOpen && ehMinhaVez && souAtivo && catalogos && ((ehEu && !ataqueContra) || painelNoInimigo)) {
                   return (
                     <AcaoPanel
+                      key={painelNoInimigo ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba : 'proprio'}
+                      alvoInicialId={painelNoInimigo ? ataqueContra.id : undefined}
+                      abaInicial={painelNoInimigo ? ataqueContra.aba : undefined}
                       ator={meuParticipante}
                       participantes={participantes}
                       catalogos={catalogos}
@@ -9202,6 +9393,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                             onMouseLeave={fecharTip}>
                             <i className="ti ti-shield-half" aria-hidden="true" /><b>{p.defesa_sigla || 'L'}{p.defesa_valor || 0}</b>
                           </span>
+                          {/* Absorção como número fixo — mesmo do card do Mestre. */}
+                          {(p.ar || 0) > 0 && (
+                            <span className="batalha-stat ic"
+                              onMouseEnter={(e) => abrirTip(e, isEn ? 'Absorption' : 'Absorção')}
+                              onMouseLeave={fecharTip}>
+                              <i className="ti ti-shield" aria-hidden="true" /><b>{p.ar}</b>
+                            </span>
+                          )}
                           {/* Estado dos OUTROS combatentes: círculo com ícone,
                               no fim da linha de stats — mesma posição e mesmo
                               desenho que o seletor do Mestre ocupa no card
@@ -9241,13 +9440,42 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                             abrirTip={abrirTip} fecharTip={fecharTip} />
                         </div>
                       )}
+                      {/* ATACAR ESTE COMBATENTE, na vez do jogador: mesmo
+                          atalho do Mestre (12/09/2026). O painel abre no
+                          menu do alvo, com ele marcado. */}
+                      {!ehEu && ehMinhaVez && souAtivo && meuParticipante && catalogos
+                        && podeSerAtacado(p) && (() => {
+                        const temArma = ataquesDoAtor(meuParticipante, catalogos).length > 0;
+                        const temMagia = magiasOfensivasDoAtor(meuParticipante, catalogos).length > 0;
+                        if (!temArma && !temMagia) return null;
+                        const bloqueado = salvando || rolagemPendente;
+                        const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); };
+                        return (
+                          <div className="batalha-menu-acoes batalha-menu-atacar">
+                            <span className="batalha-menu-atacar-lbl">{tb.atacarCom || (isEn ? 'Attack with' : 'Atacar com')}</span>
+                            {temArma && (
+                              <BotaoAcaoMenu icone="ti-sword" variante="primary"
+                                rotulo={tb.tabArma || (isEn ? 'Weapon' : 'Arma')}
+                                disabled={bloqueado} onClick={() => abrir('arma')}
+                                abrirTip={abrirTip} fecharTip={fecharTip} />
+                            )}
+                            {temMagia && (
+                              <BotaoAcaoMenu icone="ti-comet" variante="primary"
+                                rotulo={tb.tabMagia || (isEn ? 'Spell' : 'Magia')}
+                                disabled={bloqueado} onClick={() => abrir('magia')}
+                                abrirTip={abrirTip} fecharTip={fecharTip} />
+                            )}
+                          </div>
+                        );
+                      })()}
                       {/* Pools continuam só do próprio PJ: o jogador vê o token
                           dos outros, mas não os números deles. */}
                       {ehEu && (
                         <div className="batalha-fighter-pools-wrap"><div className="batalha-pools">
                           {poolBar('EF', p.ef, p.ef_max)}
                           {poolBar('EH', p.eh, p.eh_max)}
-                          {poolBar('AR', p.ar, p.ar_max)}
+                          {/* AR virou número fixo nos stats; a barra é a resistência. */}
+                          {(p.res_max || 0) > 0 && poolBar('RES', p.res, p.res_max)}
                           {poolBar('KA', p.karma, p.karma_max)}
                         </div></div>
                       )}
@@ -9410,7 +9638,7 @@ Object.assign(window, {
     ataquesDoAtor,
     // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
-    somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, consumirEvitaGolpe, vbEfetivo,
+    somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, consumirEvitaGolpe, consumirModDano, vbEfetivo,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
     // Task 6a (Fase 2): bloqueios de turno puros — sem_atacar tira só a aba
     // Arma, sem_tecnicas tira só a aba Técnica. Nenhum dos dois é sem_acoes.

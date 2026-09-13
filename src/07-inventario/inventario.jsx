@@ -972,9 +972,13 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
 
   // ── Wrappers que perguntam quantidade quando há mais de 1 em estoque ──
   // (e que validam capacidade do container destino, no caso de "mover")
-  const solicitarUsar = (instanceId) => {
+  /* `qtd` (12/09/2026): a quantidade já escolhida DENTRO da janela do item —
+     o seletor inline de usar/descartar/transferir. Vindo, age direto; sem ela
+     (chamadas de outros pontos), segue o QuantidadeModal de antes. */
+  const solicitarUsar = (instanceId, qtd) => {
     const it = inv?.itens.find((x) => x.instanceId === instanceId);
     if (!it) return;
+    if (qtd != null) { usarItem(instanceId, Math.max(1, Math.min(it.quantidade || 1, qtd))); return; }
     if (it.quantidade > 1) {
       setAcaoPendente({ tipo: 'usar', instanceId, max: it.quantidade });
     } else {
@@ -982,9 +986,10 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }
   };
 
-  const solicitarDestruir = (instanceId) => {
+  const solicitarDestruir = (instanceId, qtd) => {
     const it = inv?.itens.find((x) => x.instanceId === instanceId);
     if (!it) return;
+    if (qtd != null) { destruirItem(instanceId, Math.max(1, Math.min(it.quantidade || 1, qtd))); return; }
     if (it.quantidade > 1) {
       setAcaoPendente({ tipo: 'destruir', instanceId, max: it.quantidade });
     } else {
@@ -1025,9 +1030,11 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // resolver, até o usuário confirmar (ou cancelar) o QuantidadeModal que
   // aparece por cima. Item avulso (quantidade 1) transfere direto, sem
   // seletor a mais — coerente com usar/destruir/mover.
-  const solicitarTransferir = (instanceId, pjDestinoId) => {
+  const solicitarTransferir = (instanceId, pjDestinoId, qtd) => {
     const it = inv?.itens.find((x) => x.instanceId === instanceId);
     if (!it || it.quantidade <= 1) return transferirItem(instanceId, pjDestinoId, null);
+    // Quantidade escolhida no seletor da própria janela: vai direto.
+    if (qtd != null) return transferirItem(instanceId, pjDestinoId, null, qtd);
     return new Promise((resolve) => {
       setAcaoPendente({ tipo: 'transferir', instanceId, max: it.quantidade, extra: { pjDestinoId, resolve } });
     });
@@ -1215,7 +1222,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onDestruir={solicitarDestruir}
           onObservacao={setObservacao}
           onMoverParaContainer={solicitarMover}
-          onTransferir={(pjDestinoId) => solicitarTransferir(instanceDetalhes.instanceId, pjDestinoId)}
+          onTransferir={(pjDestinoId, qtd) => solicitarTransferir(instanceDetalhes.instanceId, pjDestinoId, qtd)}
           transferError={transferError}
           onTransferReset={() => setTransferError(null)}
           onRemoverDoContainer={(id) => solicitarMover(id, null)}
@@ -1261,6 +1268,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             titulo={t}
             max={acaoPendente.max}
             lang={lang}
+            irreversivel={acaoPendente.tipo === 'usar' || acaoPendente.tipo === 'destruir'}
             onConfirm={executarAcaoPendente}
             onCancel={() => {
               // Cancelar transferência resolve a Promise pendente com ok:false —
@@ -2167,6 +2175,13 @@ function DetalhesItemModal({
   const containerData = isContainer ? capacidadeContainer(instance, todosItens, catalogoBySlug) : null;
   const hasContainerContent = !!(containerData?.filhos?.length);
   const temMultiplos = instance.quantidade > 1;
+  /* Itens de defesa mostram a RESISTÊNCIA nos ícones, junto de ocupa e
+     absorção (pedido do usuário, 12/09/2026). O número é a resistência atual
+     da instância (a mesma conta da barra do card); o máximo vai no tooltip. */
+  const resMaxItem = Number(cat.resistencia || 0);
+  const mostraResistencia = cat.grupo === 'Armaduras' && resMaxItem > 0;
+  const resAtualItem = Number.isFinite(Number(instance.res))
+    ? Math.max(0, Math.min(resMaxItem, Number(instance.res))) : resMaxItem;
 
   // Análise de equipar
   let podeEquipar = false, bloqueioEquipar = null, maosReq = null;
@@ -2227,10 +2242,17 @@ function DetalhesItemModal({
       onClose={onClose}
     >
         {/* ── Seção A: Atributos inline ──── */}
-        {(cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0) && (
+        {/* Na transferência, a janela mostra só a escolha do destinatário:
+            ícones, descrição e conteúdo saem (pedido do usuário, 12/09/2026). */}
+        {!mostrarTransferir && (cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0 || mostraResistencia) && (
           <div className="det-sec-a">
             {cat.ocupa != null && (
-              <span className="det-sec-chip">
+              <span className="det-sec-chip"
+                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Takes up' : 'Ocupa', desc: fmtNum(cat.ocupa) })}
+                onMouseLeave={fecharTip}
+                tabIndex={0}
+                onFocus={(e) => abrirTip(e, { title: en ? 'Takes up' : 'Ocupa', desc: fmtNum(cat.ocupa) })}
+                onBlur={fecharTip}>
                 <span className="det-sec-ic-box det-sec-ic--ocupa">
                   <i className="ti ti-package-import" aria-hidden="true" />
                 </span>
@@ -2246,11 +2268,29 @@ function DetalhesItemModal({
               </span>
             )}
             {Number(cat.absorcao) > 0 && (
-              <span className="det-sec-chip">
+              <span className="det-sec-chip"
+                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Absorbs' : 'Absorção', desc: String(cat.absorcao) })}
+                onMouseLeave={fecharTip}
+                tabIndex={0}
+                onFocus={(e) => abrirTip(e, { title: en ? 'Absorbs' : 'Absorção', desc: String(cat.absorcao) })}
+                onBlur={fecharTip}>
                 <span className="det-sec-ic-box">
                   <i className="ti ti-shield-half" aria-hidden="true" />
                 </span>
                 <span className="det-sec-val">{cat.absorcao}</span>
+              </span>
+            )}
+            {mostraResistencia && (
+              <span className="det-sec-chip det-sec-chip--resistencia"
+                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Durability' : 'Resistência', desc: `${resAtualItem}/${resMaxItem}` })}
+                onMouseLeave={fecharTip}
+                tabIndex={0}
+                onFocus={(e) => abrirTip(e, { title: en ? 'Durability' : 'Resistência', desc: `${resAtualItem}/${resMaxItem}` })}
+                onBlur={fecharTip}>
+                <span className={'det-sec-ic-box' + (resAtualItem < resMaxItem ? ' det-sec-ic--neg' : '')}>
+                  <i className="ti ti-hammer" aria-hidden="true" />
+                </span>
+                <span className="det-sec-val">{resAtualItem}</span>
               </span>
             )}
             {cat.dano && (
@@ -2309,13 +2349,13 @@ function DetalhesItemModal({
         )}
 
         {/* ── Linha divisória ──────────────────────────────────── */}
-        {(cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0) &&
+        {!mostrarTransferir && (cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0 || mostraResistencia) &&
          (cat.descricao || cat.efeito) && (
           <hr className="det-sec-divider" />
         )}
 
         {/* ── Seção B: Descrição ───────────────────────────────── */}
-        {(cat.descricao || cat.efeito) && (
+        {!mostrarTransferir && (cat.descricao || cat.efeito) && (
           <div className="det-sec-b">
             <span className="det-sec-desc-val">
               {cat.descricao}
@@ -2328,7 +2368,7 @@ function DetalhesItemModal({
         {/* ── Conteúdo do container ────────────────────────────── */}
         {/* Só renderiza quando há itens dentro; container vazio = sem bloco,
             sem espaçamento fantasma (o margin-top de det-actions abaixo fica 0). */}
-        {hasContainerContent && (
+        {!mostrarTransferir && hasContainerContent && (
           <div className="det-container-content">
             <div className="cont-list">
               {containerData.filhos.map((it) => {
@@ -2417,18 +2457,45 @@ function DetalhesItemModal({
             </div>
           ) : mostrarTransferir ? (
             <div className="det-transf">
-              <select
-                id={`transf-${instance.instanceId}`}
-                value={transfPjId}
-                onChange={(e) => { setTransfPjId(e.target.value); onTransferReset && onTransferReset(); }}>
-                <option value=""></option>
-                {(pjsHistoria || []).map((pj) => (
-                  <option key={pj.id} value={pj.id}>
-                    {pj.nome} {pj.sobrenome || ''} ({pj.raca} · {pj.profissao})
-                  </option>
-                ))}
-              </select>
-              {transferError && <div className="transf-error">{transferError}</div>}
+              {/* Mini cards com foto e nome — o mesmo seletor do alvo de magia
+                  (det-opt-grid / det-opt-card), no lugar do <select> (pedido
+                  do usuário, 12/09/2026). Sem foto, a inicial do nome. */}
+              <div className="det-opt-grid" role="radiogroup" aria-label={en ? 'Recipient' : 'Destinatário'}>
+                {(pjsHistoria || []).map((pj) => {
+                  const id = String(pj.id);
+                  const nome = [pj.nome, pj.sobrenome].filter(Boolean).join(' ');
+                  const selecionado = transfPjId === id;
+                  const detalhe = [pj.raca, pj.profissao].filter(Boolean).join(' · ');
+                  return (
+                    <button
+                      type="button"
+                      key={id}
+                      role="radio"
+                      aria-checked={selecionado}
+                      data-pj-id={id}
+                      className={'det-opt-card' + (selecionado ? ' det-opt-card--sel' : '')}
+                      disabled={transferindo}
+                      onClick={() => { setTransfPjId(id); onTransferReset && onTransferReset(); }}
+                      onMouseEnter={(e) => abrirTip(e, { title: nome, desc: detalhe || null })}
+                      onMouseLeave={fecharTip}
+                      onFocus={(e) => abrirTip(e, { title: nome, desc: detalhe || null })}
+                      onBlur={fecharTip}
+                    >
+                      {pj.foto_url ? (
+                        <img className="det-opt-foto" src={pj.foto_url} alt="" />
+                      ) : (
+                        <span className="det-opt-foto det-opt-foto--vazia">{(nome || '?').trim().slice(0, 1).toUpperCase()}</span>
+                      )}
+                      <span className="det-opt-nome">{nome}</span>
+                      {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, #C9A44E)' }} />}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Primeiro o aliado; a quantidade vem DEPOIS, na janela padrão de
+                  quantidade (QuantidadeModal), quando a pilha tem mais de uma
+                  unidade (pedido do usuário, 12/09/2026). */}
+              {transferError && <div className="transf-error">{motivoTransferenciaLabel(transferError, en)}</div>}
               <div className="det-act-confirm-btns">
                 <button className="btn-ghost" disabled={transferindo}
                   onClick={() => { setMostrarTransferir(false); setTransfPjId(''); onTransferReset && onTransferReset(); }}>
@@ -2499,6 +2566,7 @@ function DetalhesItemModal({
                 )}
                 {consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && (
                   <button className="btn-primary"
+                    // Pilha: vai direto pra janela de quantidade (a padrão).
                     onClick={() => {
                       if (temMultiplos) onUsar(instance.instanceId);
                       else setConfirmandoUsar(true);
@@ -2565,6 +2633,7 @@ function DetalhesItemModal({
 
                 {/* Descartar — mesma linha dos demais botões */}
                 <button className="btn-danger"
+                  // Pilha: vai direto pra janela de quantidade (a padrão).
                   onClick={() => {
                     if (temMultiplos) onDestruir(instance.instanceId);
                     else setConfirmandoDestruir(true);
@@ -2647,7 +2716,26 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
 // ── QuantidadeModal ──────────────────────────────────────────────────────────
 // Pergunta quanto aplicar de uma ação (usar/destruir/mover) quando há mais de 1
 // em estoque. Stepper pill (−/valor/+) + chips de preset + aviso irreversível.
-function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel }) {
+/* Motivos de recusa da RPC transfer_item, em texto de gente. Motivo novo que
+   não esteja aqui aparece cru — é o sinal de que falta a tradução. */
+function motivoTransferenciaLabel(motivo, en) {
+  const M = {
+    aventura_diferente: en ? 'Only characters in the same adventure can trade items.' : 'Só é possível transferir para personagens da mesma aventura.',
+    sem_permissao:      en ? 'You cannot transfer items from this character.'         : 'Você não pode transferir itens deste personagem.',
+    nao_autenticado:    en ? 'You are not signed in.'                                  : 'Você não está autenticado.',
+    mesmo_personagem:   en ? 'Pick another character.'                                 : 'Escolha outro personagem.',
+    quantidade_invalida: en ? 'Invalid quantity.'                                      : 'Quantidade inválida.',
+    sem_bolsa_destino:  en ? 'The recipient has no purse for coins.'                   : 'O destinatário não tem bolsa para as moedas.',
+    instancia_nao_encontrada: en ? 'Item not found in the inventory.'                  : 'Item não encontrado no inventário.',
+  };
+  return M[motivo] || motivo;
+}
+
+/* A JANELA PADRÃO de quantidade (padronizada em 12/09/2026, pedido do
+   usuário): usar, descartar, guardar/retirar e transferir passam todos por
+   ela, na ficha e no inventário. `irreversivel` decide só o aviso — transferir
+   e guardar têm volta, e dizer "irreversível" ali era mentira. */
+function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel, irreversivel = true }) {
   const [qtd, setQtd] = useState(1);
   const en = lang === 'en';
   useEffect(() => {
@@ -2690,7 +2778,9 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel }) {
         fontFamily: "'Lora', serif", fontSize: 13, fontStyle: 'italic',
         color: 'var(--parchment-muted, #9C8F73)', marginBottom: 14,
       }}>
-        {en ? 'Caution, this action is irreversible.' : 'Cuidado, essa ação é irreversível.'}
+        {irreversivel
+          ? (en ? 'Caution, this action is irreversible.' : 'Cuidado, essa ação é irreversível.')
+          : (en ? 'How many?' : 'Quantos?')}
       </p>
 
       {/* stepper pill */}

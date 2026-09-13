@@ -2740,6 +2740,15 @@
 #root .menestrel-ui .batalha-pool.pool-eh .batalha-pool-label { color: #a4cf85; }
 #root .menestrel-ui .batalha-pool.pool-ar .batalha-pool-bar i { background: linear-gradient(90deg, #4a6b85 0%, #7a9bb8 100%); }
 #root .menestrel-ui .batalha-pool.pool-ar .batalha-pool-label { color: #7a9bb8; }
+/* RES — resistência da armadura, a barra que substituiu AR (12/09/2026). Aço. */
+#root .menestrel-ui .batalha-pool.pool-res .batalha-pool-bar i { background: linear-gradient(90deg, #6b7280 0%, #b8bec8 100%); }
+#root .menestrel-ui .batalha-pool.pool-res .batalha-pool-label { color: #b8bec8; }
+/* Ficha: selo de número fixo ao lado do nome da barra (a absorção). */
+#root .menestrel-ui .fp-bar-badge {
+  display: inline-flex; align-items: center; gap: 3px; margin-left: 6px;
+  font-size: 11px; color: var(--parchment-muted, #9C8F73); font-variant-numeric: tabular-nums;
+}
+#root .menestrel-ui .fp-bar-badge .ti { font-size: 12px; }
 #root .menestrel-ui .batalha-pool.pool-ef .batalha-pool-bar i { background: linear-gradient(90deg, #a83232 0%, #d9685a 100%); }
 #root .menestrel-ui .batalha-pool.pool-ef .batalha-pool-label { color: #d9685a; }
 #root .menestrel-ui .batalha-pool.pool-ka .batalha-pool-bar i { background: linear-gradient(90deg, #6b3e8f 0%, #b48bd3 100%); }
@@ -3131,6 +3140,8 @@
 #root .menestrel-ui .det-desc { margin: 0 0 20px 0; padding: 0px 0px; border-radius: 0 4px 4px 0; font-family: 'Lora', serif; font-size: 13px; }
 #root .menestrel-ui .det-desc p { margin: 0; }
 #root .menestrel-ui .det-desc p:last-child { margin-bottom: 0; }
+/* Descrição com vários parágrafos (a da magia vem quebrada por linha). */
+#root .menestrel-ui .det-desc p + p { margin-top: 8px; }
 #root .menestrel-ui .det-efeito strong { color: var(--gold-bright); font-weight: 400; }
 #root .menestrel-ui .det-stat { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; font-family: 'Lora', serif; font-size: 15px; transition: border-color .15s; }
 #root .menestrel-ui .det-stat:hover { border-color: var(--gold); }
@@ -4566,6 +4577,10 @@
 #root .menestrel-ui.admin-error .err-msg, .twk-panel.admin-error .err-msg, #root .menestrel-ui .admin-error .err-msg, .twk-panel .admin-error .err-msg { font-size: 13px; }
 #root .menestrel-ui.add-item-row.selected, .twk-panel.add-item-row.selected, #root .menestrel-ui .add-item-row.selected, .twk-panel .add-item-row.selected { background: rgba(150, 0, 0, 0.15); }
 #root .menestrel-ui.modal.modal-detalhes, .twk-panel.modal.modal-detalhes, #root .menestrel-ui .modal.modal-detalhes, .twk-panel .modal.modal-detalhes { max-width: 560px; width: 100%; }
+/* JANELA DE DETALHES PADRONIZADA (pedido do usuário, 12/09/2026): item,
+   magia e habilidade usam a mesma largura — um pouco mais que o `ms-md`
+   (500px) que as três tinham. Vence o `.ms-md` por vir depois no arquivo. */
+#root .menestrel-ui.ms-modal.modal-detalhes, #root .menestrel-ui .ms-modal.modal-detalhes { max-width: 620px; width: 100%; }
 #root .menestrel-ui.modal.modal-container, .twk-panel.modal.modal-container, #root .menestrel-ui .modal.modal-container, .twk-panel .modal.modal-container { max-width: 560px; width: 100%; }
 #root .menestrel-ui.modal.modal-qtd, .twk-panel.modal.modal-qtd, #root .menestrel-ui .modal.modal-qtd, .twk-panel .modal.modal-qtd { max-width: 380px; width: 100%; padding: 28px; z-index: 1100; }
 #root .menestrel-ui.modal-qtd-title, .twk-panel.modal-qtd-title, #root .menestrel-ui .modal-qtd-title, .twk-panel .modal-qtd-title { font-size: 18px; margin: 0 0 18px 0; }
@@ -5431,6 +5446,102 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 @media (max-width: 640px) {
   .menestrel-ui.ma-root .ma-fab   { top: 124px; right: 12px; width: 46px; height: 46px; font-size: 19px; }
   .menestrel-ui.ma-root .ma-panel { top: 124px; right: 66px; }
+}
+
+/* ---- AtalhosFicha — Habilidade / Magia / Item (11-ficha/atalhos-ficha.jsx) ----
+   Continuação da coluna dos dados: 16 D20 · 76 D10 · 136 música · 196+ atalhos,
+   60px entre botões. --at-i é a posição do botão entre os visíveis. A lista
+   abre à esquerda, alinhada ao topo do botão que a abriu, como o mini-player. */
+.menestrel-ui.at-root { position: fixed; inset: 0; z-index: 53; pointer-events: none; --at-topo: 196px; --at-passo: 60px; }
+
+.menestrel-ui.at-root .at-fab {
+  position: absolute; top: calc(var(--at-topo) + var(--at-i, 0) * var(--at-passo)); right: 16px;
+  z-index: 54; pointer-events: auto;
+  width: 52px; height: 52px; border-radius: 999px; border: 2px solid transparent;
+  background: rgba(24,17,8,0.50); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: #C9A44E; font-size: 22px; display: grid; place-items: center; cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.menestrel-ui.at-root .at-fab:hover { background: rgba(36,26,10,0.60); }
+.menestrel-ui.at-root .at-fab.is-aberto { background: rgba(36,26,10,0.70); border-color: rgba(201,164,78,0.45); }
+.menestrel-ui.at-root .at-fab i { line-height: 1; }
+
+.menestrel-ui.at-root .at-panel {
+  position: absolute; top: calc(var(--at-topo) + var(--at-i, 0) * var(--at-passo)); right: 76px;
+  z-index: 54; pointer-events: auto;
+  width: 280px; max-width: calc(100vw - 92px);
+  max-height: calc(100vh - var(--at-topo) - var(--at-i, 0) * var(--at-passo) - 16px);
+  min-height: 160px;
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  background: rgba(18,13,6,0.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(106,85,48,0.35); border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  animation: maPanelIn .15s ease-out;
+}
+.menestrel-ui.at-root .at-panel-head {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 8px; border-bottom: 1px solid rgba(106,85,48,0.22);
+  color: #C9A44E; font-size: 15px;
+}
+.menestrel-ui.at-root .at-panel-titulo {
+  flex: 1; min-width: 0; font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: .08em;
+  text-transform: uppercase; color: #E8DDC6;
+}
+.menestrel-ui.at-root .at-panel-conta { font-family: 'Lora', serif; font-size: 12px; color: #9C8F73; }
+
+.menestrel-ui.at-root .at-busca {
+  height: 32px; padding: 0 10px; font-size: 13px; font-family: 'Lora', serif;
+  color: #E8DDC6; background: rgba(232,221,198,0.05);
+  border: 1px solid rgba(232,221,198,0.12); border-radius: 8px; outline: none;
+  flex-shrink: 0; width: 100%; box-sizing: border-box;
+}
+.menestrel-ui.at-root .at-busca::placeholder { color: #7A6A4A; }
+.menestrel-ui.at-root .at-busca:focus { border-color: rgba(201,164,78,0.45); }
+
+.menestrel-ui.at-root .at-lista {
+  flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
+  margin: 0 -4px; padding: 0 4px;
+  scrollbar-width: thin; scrollbar-color: rgba(201,164,78,0.35) transparent;
+}
+.menestrel-ui.at-root .at-linha {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 6px 8px; border: none; border-radius: 6px; background: transparent;
+  color: #C8BCAA; cursor: pointer; font-family: 'Lora', serif;
+  transition: background .12s ease, color .12s ease;
+}
+.menestrel-ui.at-root .at-linha:hover,
+.menestrel-ui.at-root .at-linha:focus-visible { background: rgba(201,164,78,0.10); color: #E8DDC6; outline: none; }
+.menestrel-ui.at-root .at-linha-ic { font-size: 16px; color: #9C8F73; flex-shrink: 0; }
+.menestrel-ui.at-root .at-linha-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.menestrel-ui.at-root .at-linha-nome { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menestrel-ui.at-root .at-linha-sub { font-size: 11px; color: #7A6A4A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menestrel-ui.at-root .at-linha-meta { display: inline-flex; align-items: baseline; gap: 6px; flex-shrink: 0; }
+/* O nome do número ("Total", "Nível", "Quantidade") em tom apagado; o número
+   em dourado, com largura fixa para as linhas alinharem. */
+.menestrel-ui.at-root .at-linha-meta-lbl { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: #7A6A4A; }
+.menestrel-ui.at-root .at-linha-meta-val { font-size: 12px; color: #C9A44E; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+
+/* Janela da habilidade (HabilidadeDetalhesModal): a dificuldade em cinco
+   botões numa linha, em vez de dropdown. O card é o det-opt-card da escolha de
+   alvo da magia; aqui só a grade e o texto centralizado. Estreito: 3 + 2. */
+#root .menestrel-ui .det-dif-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+/* O total da habilidade é o próprio ícone: o número dentro da caixa. */
+#root .menestrel-ui .det-sec-ic-box.det-hab-total-num {
+  font-family: 'Cinzel', serif; font-size: 14px; font-weight: 600;
+  font-variant-numeric: tabular-nums; color: #C9A44E; line-height: 1;
+}
+#root .menestrel-ui .det-sec-ic-box.det-hab-total-num.det-sec-ic--neg { color: #C0563F; }
+#root .menestrel-ui .det-dif-card { justify-content: center; text-align: center; padding: 8px 6px; }
+#root .menestrel-ui .det-dif-card .det-opt-nome { font-size: 12px; white-space: nowrap; }
+@media (max-width: 520px) {
+  #root .menestrel-ui .det-dif-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.menestrel-ui.at-root .at-vazio { margin: 8px 4px; font-size: 12px; color: #7A6A4A; font-family: 'Lora', serif; }
+
+@media (max-width: 640px) {
+  .menestrel-ui.at-root { --at-topo: 180px; --at-passo: 56px; }
+  .menestrel-ui.at-root .at-fab { right: 12px; width: 46px; height: 46px; font-size: 19px; }
+  .menestrel-ui.at-root .at-panel { right: 66px; max-width: calc(100vw - 82px); }
 }
 
 /* Ícones filled do player — usam a fonte tabler-icons-filled (v3.44.0),
@@ -7972,6 +8083,25 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
   padding-top: 10px; margin-top: 2px;
   border-top: 1px solid var(--rule);
 }
+/* Montagem: ícone de posicionar ao lado do nome de cada combatente. */
+#root .menestrel-ui .batalha-part-nome-wrap { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+#root .menestrel-ui .batalha-part-posicionar {
+  width: 28px; height: 28px; flex: none; padding: 0; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--rule); color: var(--parchment-muted);
+  font-size: 15px; cursor: pointer; transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+#root .menestrel-ui .batalha-part-posicionar:hover:not(:disabled) { border-color: var(--gold); color: var(--parchment); }
+#root .menestrel-ui .batalha-part-posicionar:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
+#root .menestrel-ui .batalha-part-posicionar.is-colocado { color: #a4cf85; }
+#root .menestrel-ui .batalha-part-posicionar.is-armado { border-color: var(--gold, #C9A44E); background: rgba(201,164,78,0.16); color: var(--gold-bright, #E0BF6A); }
+#root .menestrel-ui .batalha-part-posicionar:disabled { opacity: 0.5; cursor: default; }
+
+/* "Fulano ataca com [Arma] [Magia]" no menu do avatar do inimigo. */
+#root .menestrel-ui .batalha-menu-atacar { align-items: center; }
+#root .menestrel-ui .batalha-menu-atacar-lbl {
+  font-family: 'Lora', serif; font-size: 12px; color: var(--parchment-muted); margin-right: 2px;
+}
 #root .menestrel-ui .batalha-menu-acoes .btn-primary,
 #root .menestrel-ui .batalha-menu-acoes .btn-ghost { flex: 1 1 auto; justify-content: center; }
 
@@ -8192,8 +8322,12 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 
 /* Visibilidade na montagem: o botão ganha nome escrito ao lado, porque ali há
    espaço e não há pressa. Na batalha ativa é só o ícone, no header. */
-#root .menestrel-ui .batalha-setup-visib { margin: 8px 0 12px; }
-#root .menestrel-ui .batalha-setup-visib .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
+/* Iluminação na montagem: quatro botões de rádio no header, ao lado de
+   Iniciar. O marcado ganha a moldura dourada; os outros ficam apagados. */
+#root .menestrel-ui .batalha-visib-grupo { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
+#root .menestrel-ui .batalha-visib-grupo .btn-icon { opacity: 0.55; border: 1px solid transparent; }
+#root .menestrel-ui .batalha-visib-grupo .btn-icon:hover { opacity: 0.85; }
+#root .menestrel-ui .batalha-visib-grupo .btn-icon.is-marcado { opacity: 1; border-color: var(--gold, #C9A44E); background: rgba(201,164,78,0.10); }
 #root .menestrel-ui .visib-parcial { color: #8FA3C4; }
 #root .menestrel-ui .visib-total   { color: #6B7A99; }
 #root .menestrel-ui .visib-magica  { color: #7A6B99; }
@@ -8217,7 +8351,20 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    do nome. É onde o Mestre decide quem começa em vantagem. */
 #root .menestrel-ui .batalha-part-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #root .menestrel-ui .batalha-part-ini { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #8A7F6B; }
-#root .menestrel-ui .batalha-part-ini input { width: 52px; text-align: center; }
+/* Bônus de iniciativa: nove ícones de hexágono numerado, de 1 a 9 (pedido do
+   usuário, 12/09/2026). O ícone É o botão — sem círculo em volta. O marcado
+   fica dourado e maior; clicar nele de novo volta a 0. */
+#root .menestrel-ui .batalha-ini-opcoes { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+#root .menestrel-ui .batalha-ini-bola {
+  width: 28px; height: 28px; padding: 0; border: none; background: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--parchment-muted); font-size: 24px; line-height: 1; cursor: pointer;
+  opacity: 0.6; transition: color .15s ease, opacity .15s ease, transform .15s ease;
+}
+#root .menestrel-ui .batalha-ini-bola:hover:not(:disabled) { opacity: 1; color: var(--parchment); }
+#root .menestrel-ui .batalha-ini-bola:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; border-radius: 4px; }
+#root .menestrel-ui .batalha-ini-bola.is-marcado { opacity: 1; color: var(--gold-bright, #E0BF6A); transform: scale(1.12); }
+#root .menestrel-ui .batalha-ini-bola:disabled { opacity: 0.35; cursor: default; }
 
 
 /* Marca do sistema: o dragão, sem círculo (12/09/2026). */
@@ -8343,12 +8490,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
   #root .menestrel-ui .mn-carregando-marca,
   #root .menestrel-ui .mn-carregando-pontos i { animation: none; }
 }
-
-/* Atalho para Histórias dentro de Personagens (12/09/2026): a seção saiu da
-   barra lateral e o caminho passa por aqui, porque personagem pertence a
-   história. */
-#root .menestrel-ui .pjs-atalho-historias { margin-bottom: 12px; }
-#root .menestrel-ui .pjs-atalho-historias .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ── Card de personagem: ativo, a escolher e bloqueado (12/09/2026) ────
    Refeito a pedido do usuário: "uma melhoria no card dos personagens, ativos

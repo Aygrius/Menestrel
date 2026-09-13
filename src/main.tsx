@@ -46,6 +46,8 @@ import './09-bestiario/bestiario.jsx'
 import './09-bestiario/sugestoes-magias.jsx'
 import './09-bestiario/itens-campanha.jsx'
 import './10-shell/shell.jsx'
+// Atalhos flutuantes (Habilidade/Magia/Item) ANTES da ficha, que os monta.
+import './11-ficha/atalhos-ficha.jsx'
 import './11-ficha/ficha.jsx'
 import '../app.jsx'
 import './12-batalha/batalha.jsx'

@@ -32,7 +32,10 @@ describe('funcaoDaMagia — a função sai do registro', () => {
     ['medo', 'controle'],
     ['ato_falho', 'controle'],
     ['bencao', 'suporte'],
-    ['camuflagem', 'suporte'],          // dificuldade de habilidade é suporte
+    ['sombra', 'suporte'],              // dificuldade de habilidade é suporte
+    ['balsamo_de_lena', 'cura'],        // condição de ficha restaurada em aliado é cura
+    ['seiva_de_maira', 'cura'],
+    ['egide_celestial', 'protecao'],
     ['bencao_selvagem', 'suporte'],     // cura_pool com sinal -1 é CUSTO, não cura
   ])('%s → %s', (key, esperado) => {
     expect(funcao({ key })).toBe(esperado);
@@ -43,7 +46,9 @@ describe('funcaoDaMagia — a função sai do registro', () => {
     expect(funcao({ key: 'leitura' })).toBe('narrativa');
     expect(funcao({ key: 'refletir' })).toBe('sistema');
     expect(funcao({ key: 'criacao' })).toBe('invocado');
-    expect(funcao({ key: 'alucinacao' })).toBe('decisao');
+    // Alucinação era o exemplo de 'decisao' até entrar no motor (12/09/2026):
+    // com o registro, a função vem dele — dificuldade no inimigo é controle.
+    expect(funcao({ key: 'alucinacao' })).toBe('controle');
   });
 
   it('sem registro e sem motivo é narrativa', () => {

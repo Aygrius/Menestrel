@@ -164,7 +164,10 @@ describe('editor de pool — modal, não faixa inline', () => {
   });
 
   const aberturaDoEditor = () => {
-    const i = fonte.indexOf('onEditar: estado === ');
+    // Desde 12/09/2026 a condição também exclui a barra RES (resistência da
+    // armadura, que mora nas peças e não se edita): `(estado === 'ativa' && campo !== 'res')`.
+    const m = /onEditar: \(?estado === /.exec(fonte);
+    const i = m ? m.index : -1;
     expect(i, 'o clique que abre o editor precisa existir').toBeGreaterThan(-1);
     return fonte.slice(i, i + 700);
   };

@@ -340,14 +340,21 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         },
       }, (p.nome || '').split(' ')[0]),
+      /* Largura FIXA, a do avatar (pedido do usuário, 12/09/2026). Com
+         `width: 100%` a barra acompanhava o bloco do nome, que cresce com o
+         texto — "Lysandra" ganhava barras mais largas que "Eco", e a mesma
+         vida parecia outra de token para token. */
       size >= 28 && React.createElement('div', {
-        style: { marginTop: 3, display: 'flex', flexDirection: 'column', gap: 2, width: '100%' },
+        className: 'batalha-token-barras',
+        style: { marginTop: 3, marginLeft: 'auto', marginRight: 'auto', display: 'flex', flexDirection: 'column', gap: 2, width: size },
       },
         barra(p.ef, p.ef_max, 'linear-gradient(90deg, #a83232, #d9685a)'),
         barra(p.eh, p.eh_max, 'linear-gradient(90deg, #6b9a52, #a4cf85)'),
         // AR e KA só aparecem para quem tem: criatura sem absorção e PJ sem
         // karma ganhariam uma barra sempre vazia embaixo do avatar.
-        p.ar_max > 0 && barra(p.ar, p.ar_max, 'linear-gradient(90deg, #4a7fb5, #86b8e0)'),
+        // Armadura: a barra é a RESISTÊNCIA das peças (12/09/2026) — a
+        // absorção virou limiar fixo e nunca esvaziava.
+        p.res_max > 0 && barra(p.res, p.res_max, 'linear-gradient(90deg, #6b7280, #b8bec8)'),
         p.karma_max > 0 && barra(p.karma, p.karma_max, 'linear-gradient(90deg, #7a52a8, #b48bd3)')
       ))
   );
@@ -541,9 +548,15 @@ function TabuleiroMenu({ alvoEl, onFechar, rotuloFechar, rotuloVoltar, travado, 
    o menu. Por isso, havendo menuDe, o token é clicável para TODO
    participante, inclusive os que ninguém pode mover: sem os cards, o avatar
    virou o único caminho até as pools e as ações de quem não está na vez. */
+/* movendoControlado / onMovendoChange (12/09/2026): quem está ARMADO pra
+   posicionar pode vir de fora. Na montagem da batalha o Mestre escolhe pelo
+   ícone ao lado do nome, na lista do topo, e não mais pela bancada — que
+   `semBancada` esconde. Sem as duas props, o tabuleiro guarda a seleção
+   sozinho, como sempre. */
 function TabuleiroBatalha({
   entradas, meta, podeSelecionar, alcanceDe, onMover, salvando, isEn, tb,
   abrirTip, fecharTip, menuDe, aviso, menuTravado, menuVoltar,
+  movendoControlado, onMovendoChange, semBancada,
 }) {
   // Duas coisas distintas, e essa distinção é o ponto: o menu é um popover
   // que cobre parte do tabuleiro, então enquanto ele está aberto o clique na
@@ -551,7 +564,14 @@ function TabuleiroBatalha({
   // arma mais o movimento; quem arma é o botão "Mover" de dentro dele, que
   // fecha o menu e libera a grade.
   const [menuAberto, setMenuAberto] = useState(null);   // índice com menu aberto
-  const [movendo, setMovendo]       = useState(null);   // índice armado pra mover
+  const [movendoInterno, setMovendoInterno] = useState(null);   // índice armado pra mover
+  const controlado = movendoControlado !== undefined && typeof onMovendoChange === 'function';
+  const movendo = controlado ? movendoControlado : movendoInterno;
+  // Aceita valor ou função, como o setState que ele substitui.
+  const setMovendo = React.useCallback((v) => {
+    if (!controlado) { setMovendoInterno(v); return; }
+    onMovendoChange(typeof v === 'function' ? v(movendoControlado) : v);
+  }, [controlado, onMovendoChange, movendoControlado]);
   const scrollRef = useRef(null);
   // Um ref por token (chave = índice do participante), para o menu se ancorar
   // no avatar. Guardado em Map porque a lista muda de tamanho entre rodadas.
@@ -763,17 +783,16 @@ function TabuleiroBatalha({
       )
     ),
 
-    // bancada: quem ainda não foi posicionado
-    naBancada.length > 0 && React.createElement('div', {
+    // bancada: quem ainda não foi posicionado. Sem o rótulo "Ainda fora do
+    // tabuleiro (N)" (pedido do usuário, 12/09/2026), e escondida de vez na
+    // montagem (`semBancada`), onde o posicionamento sai do ícone da lista.
+    !semBancada && naBancada.length > 0 && React.createElement('div', {
+      className: 'batalha-tabuleiro-bancada',
       style: {
         marginTop: 10, padding: '8px 10px', borderRadius: 10,
         border: '1px dashed rgba(201,164,78,.35)', background: 'rgba(201,164,78,.05)',
       },
     },
-      React.createElement('div', {
-        style: { fontFamily: 'Lora, serif', fontSize: 12, color: 'var(--muted-foreground, #b9a77e)', marginBottom: 6 },
-      }, ((tb && tb.tabBancada) || (isEn ? 'Not placed yet' : 'Ainda fora do tabuleiro'))
-         + ' (' + naBancada.length + ')'),
       React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 10 } },
         naBancada.map((e) => React.createElement('div', {
           key: e.p.inst_id || e.p.tipo + ':' + e.p.ref_id + ':' + e.i,

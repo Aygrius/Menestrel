@@ -51,20 +51,21 @@ describe('ADMIN_SECTIONS.player — os 5 catálogos', () => {
 
      convites SAIU do jogador   → menu de baixo, com perfil e idioma. Não é um
                                   lugar do mundo do jogo; é conta.
-     historias SAIU do mestre   → alcançado de dentro de Personagens, porque
-                                  personagem pertence a história.
      lugar/npc/memoria ENTRARAM → vieram do Diário, que era uma aba dentro da
                                   ficha. Viraram três destinos próprios.
 
-   O que estes testes protegem é a SAÍDA: um `historias` reaparecendo na barra
-   voltaria a dividir a atenção com o caminho novo, e ninguém notaria. */
+   `historias` chegou a sair do Mestre nessa reorganização. Não era para sair
+   ("Saiu? Mas não era pra sair." — usuário, 12/09/2026): voltou a ser a
+   primeira seção da barra, e o teste abaixo trava isso. */
 describe('o que saiu da barra lateral', () => {
   it('convites não é mais seção do jogador', () => {
     expect(ADMIN_SECTIONS.player.map((s) => s.id)).not.toContain('convites');
   });
+});
 
-  it('historias não é mais seção do mestre', () => {
-    expect(ADMIN_SECTIONS.master.map((s) => s.id)).not.toContain('historias');
+describe('Histórias fica na barra do Mestre', () => {
+  it('é a primeira seção do mestre', () => {
+    expect(ADMIN_SECTIONS.master[0]).toEqual({ id: 'historias', icon: 'Scroll' });
   });
 });
 
@@ -85,11 +86,11 @@ describe('o que entrou: as três do ex-Diário', () => {
   });
 });
 
-describe('ADMIN_SECTIONS.master — as 7 que sobraram', () => {
-  it('mantém a ordem, sem historias', () => {
+describe('ADMIN_SECTIONS.master — as 8 seções', () => {
+  it('mantém a ordem, com Histórias primeiro', () => {
     const ids = ADMIN_SECTIONS.master.map((s) => s.id);
     expect(ids).toEqual([
-      'personagens_m', 'criaturas', 'itens',
+      'historias', 'personagens_m', 'criaturas', 'itens',
       'itens_campanha', 'magias', 'tecnicas', 'habilidades',
     ]);
   });

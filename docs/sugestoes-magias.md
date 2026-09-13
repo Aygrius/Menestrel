@@ -1,9 +1,11 @@
-# Magias — estatística, sugestões novas e adaptações
+# Magias — estatística, sugestões e o que foi aplicado
 
-**Levantado em 12/09/2026** a partir do catálogo de produção (238 magias). Os
-números ao vivo estão nas *Estatísticas do catálogo*, na Verificação do
-catálogo desta mesma página. Nada aqui foi aplicado ao banco: são propostas
-para você decidir.
+**Atualizado em 12/09/2026, depois da reforma.** A primeira versão deste
+documento propunha magias novas e adaptações a partir do catálogo de 238
+magias. As decisões foram aplicadas no banco por
+`scripts/sql/magias-reforma-perfis.sql` (backup em `backup.*_20260912`), e as
+análises abaixo foram **refeitas contra o catálogo novo**, com a mesma conta
+das *Estatísticas do catálogo* desta página.
 
 ---
 
@@ -19,343 +21,234 @@ para você decidir.
 E, atravessando as profissões: **proteção e dano por elemento** — fogo, terra,
 água, ar, celestial e infernal.
 
-Todas as sugestões e adaptações abaixo seguem esse perfil.
+---
+
+## 1. O que foi aplicado
+
+```
+238 magias → 235 magias   ·   no motor 95 → 106   ·   0 quebradas · 0 ambíguas
++25 novas · 28 fundidas em outras · 1 excluída (Teriantropia) · 1 renomeada
+```
+
+As descrições das magias novas foram escritas no tom das que já existiam:
+segunda pessoa, a restrição de uso na própria descrição, e o teste de
+resistência mágica só onde o alvo tem de onde escapar.
+
+### 1.1 Magias novas aplicadas — ataque para os colégios com menos ataque
+
+| Magia | Colégio | Custo | Evocação · Alcance | Nível 1 → 9 |
+|---|---|---|---|---|
+| **Frasco Incendiário** | Alquímico | 2 | 1 rodada · 15 metros | 10 → 30 de dano elemental de fogo, pode atingir quem estiver próximo |
+| **Névoa Cáustica** | Alquímico | 1 | 1 rodada · 20 metros | 6 → 22 de dano elemental de ar, com resistência |
+| **Verdade Ofuscante** | Filosófico | 1 | 1 rodada · 20 metros | 6 → 26 de dano elemental celestial |
+| **Paradoxo** | Filosófico | 2 | 2 rodadas · 20 metros | 4 → 20 de dano na energia heroica e −1 → −5 colunas por 3 rodadas |
+| **Terror Fantasma** | Ilusionista | 1 | Instantânea · 20 metros | 6 → 22 de dano na energia heroica |
+| **Enxame de Espinhos** | Naturalista | 1 | 1 rodada · 20 metros | 6 → 26 de dano elemental de terra, só em solo natural |
+
+Rajada Cortante (Elemental) e Chama Negra (Necromântico) **não entraram**: o
+Elemental já é o colégio com mais ataque, e o Necromântico ganhou dano infernal
+comprável com Putrefação, Toque Gélido e Degeneração Física.
+
+### 1.2 Bardo
+
+| Magia | Confraria | Custo | Evocação · Alcance · Duração | Nível 1 → 9 |
+|---|---|---|---|---|
+| **Cadência Veloz** | Artistas | 2 | Instantânea · 10 metros · 3 rodadas | +3 → +9 de velocidade para todos os aliados na área |
+
+Hino de Guerra, Balada do Escudo, Canção da Firmeza e Refrão Heroico foram
+descartadas.
+
+### 1.3 Sacerdote — uma cura com a cara de cada ordem
+
+| Magia | Ordem | Custo | Nível 1 → 9 |
+|---|---|---|---|
+| **Bálsamo de Lena** | Lena | 1 | +5 → +25 de Saúde (condição da ficha) |
+| **Seiva de Maira** | Maira | 2 | 6 → 30 de energia física, só em ambiente natural |
+| **Maré Restauradora** | Ganis | 2 | 4 → 20 de energia heroica e de energia física |
+| **Paz Coletiva** | Selimon | 2 | 4 → 16 de energia heroica, todos os aliados na área |
+| **Sangue de Batalha** | Blator | 2 | 8 → 24 de energia física e +1 → +3 colunas, em si |
+| **Descanso de Cruine** | Cruine | 1 | 8 → 32 de energia heroica; fere morto-vivo |
+| **Justa Reparação** | Crizagom | 2 | 4 → 20 de energia física e +2 → +6 de defesa |
+| **Bênção da Terra** | Sevides | 2 | 6 → 22 de energia física e reduz 4 → 16 de dano de terra |
+| **Chama Vital** | Crezir | 2 | 6 → 22 de energia física e reduz 4 → 16 de dano de fogo |
+| **Mente Serena** | Palier | 1 | 6 → 24 de energia heroica |
+| **Têmpera da Carne** | Parom | 2 | 6 → 22 de energia física e +1 → +3 de defesa |
+| **Alívio Dourado** | Cambu | 2 | 3 → 12 de energia heroica, todos os aliados na área |
+| **Presságio Curativo** | Plandis | 1 | 4 → 20 de energia física, evocação instantânea |
+
+O custo seguiu as curas que o Sacerdote já tinha: **1** para a cura de um poço
+só (como Curas Heroicas), **2** para a que cura em área ou soma um segundo
+efeito (como Curas Físicas e Curas Espirituais).
+
+### 1.4 Elementos — as proteções que faltavam
+
+| Magia | Quem | Custo | Nível 1 → 9 |
+|---|---|---|---|
+| **Égide Celestial** | Colégio Necromântico | 1 | reduz 8 → 24 de dano elemental celestial |
+| **Selo Abismal** | Ordem de Cruine | 1 | reduz 8 → 24 de dano infernal |
+
+### 1.5 Adaptações das magias existentes
+
+| Magia | Antes | Agora |
+|---|---|---|
+| **Relâmpago** | dano base | dano elemental de **ar** |
+| **Raio Elétrico** | dano elemental de fogo | dano elemental de **ar** |
+| **Toque Gélido** | dano base | dano **infernal** |
+| **Fogo Divino** | dano base | dano elemental **celestial** |
+| **Feixes Incandescentes** | dano base | dano elemental de **fogo** |
+| **Putrefação** | dano base | dano **infernal** |
+| **Hidroproteção** | Perdida, Sacerdote | **Básica**, Sacerdote e Colégio Elemental |
+| **Aeroproteção** | Rastreador | Rastreador e **Colégio Elemental** |
+| **Covardia** | Ilusionista e Ordem de Blator | só **Colégio Ilusionista** |
+| **Apontar Sufocante** | "Imobiliza o alvo por N rodadas" | "A magia tem duração de N rodadas. Reduza 1 de energia física por rodada." — **entrou no motor** |
+| **Recupereção Física** | nome e chave com erro, sem tipo | **Recuperação Física**, Básica |
+
+Curas Naturais e Curas Heroicas ficaram como estavam. As três correções de
+texto de §3.4 que diziam "um nível" (Dominação Animal, Alucinação e
+Rastreamento) já estavam com dígito no banco; duas delas saíram na fusão.
 
 ---
 
-## 1. O catálogo contra o perfil
+## 2. O catálogo contra o perfil, refeito
 
 ```
-238 magias · 95 no motor
-Função (no motor):   Ataque 29 · Suporte 37 · Controle 16 · Proteção 7 · Cura 6
-Raridade:            Básica 170 · Perdida 51 · Ancestral 15 · sem tipo 2
+235 magias · 106 no motor
+Função (no motor):   Ataque 36 · Suporte 28 · Cura 19 · Controle 14 · Proteção 9
+Raridade:            Básica 175 · Perdida 46 · Ancestral 14
 ```
+
+| | Antes | Depois |
+|---|---|---|
+| Ataque no motor | 29 | **36** |
+| Cura no motor | 6 | **19** |
+| Proteção no motor | 7 | **9** |
+| Suporte no motor | 37 | 28 — as fusões de dificuldade |
+| Controle no motor | 16 | 14 — Ruído Extenuante e Região Inviolável fundidas; Degeneração virou ataque |
+| Travadas (Perdida + Ancestral) | 66 (28%) | **60 (26%)** |
 
 ### Mago — ataque, por colégio
 
-| Colégio | Ataques no motor | Observação |
-|---|---|---|
-| Todo Mago | 4 | Bola de Fogo, Raio Elétrico, Fotomanipulação, Dardos de Luz (travada) |
-| Colégio Elemental | 7 | cobre fogo, água, terra e ar — e o infernal só por Energia Primordial, que é Ancestral |
-| Colégio Necromântico | 5 | **3 das 5 travadas**; as 2 compráveis são dano base, sem elemento |
-| Colégio Naturalista | 2 | as duas são dano base |
-| Colégio Ilusionista | 1 | só Covardia |
-| **Colégio Alquímico** | **0** | |
-| **Colégio Filosófico** | **0** | |
+| Colégio | Antes | Depois | Quais |
+|---|---|---|---|
+| Todo Mago | 4 | 4 | Bola de Fogo, Raio Elétrico, Fotomanipulação, Dardos de Luz (travada) |
+| Colégio Elemental | 7 | 7 | as quatro manipulações, Dardos de Gelo, Meteoros, Energia Primordial (travada) |
+| Colégio Necromântico | 5 | **6** | Putrefação, Toque Gélido e **Degeneração Física** compráveis, e as três travadas |
+| Colégio Naturalista | 2 | **3** | Relâmpago, Feixes Incandescentes, **Enxame de Espinhos** |
+| Colégio Ilusionista | 1 | **2** | Covardia, **Terror Fantasma** |
+| Colégio Alquímico | 0 | **2** | **Frasco Incendiário**, **Névoa Cáustica** |
+| Colégio Filosófico | 0 | **2** | **Verdade Ofuscante**, **Paradoxo** |
 
-### Bardo — suporte
-
-11 magias de suporte no motor (Canção do Alento, Canção do Ânimo, Perspicácia,
-Tensão, Dueto Mágico…). O perfil está atendido; o buraco é a **Confraria de
-Arautos, com 2 magias no total**, e nenhuma proteção de grupo.
-
-### Rastreador — controle animal
-
-**Nenhuma magia de controle animal está no motor.** Adestramento e Elo Animal
-são narrativas; Dominação Animal espera correção de texto; Aprimoramento
-Animal e Vínculo Vital precisam do sistema de companheiro. O que o motor tem de
-"animal" é buff no próprio Rastreador (Destreza Animal, Habilidade Animal,
-Visão Animal) e em animal aliado (Força Mútua).
+Todo colégio tem agora ao menos dois ataques compráveis.
 
 ### Sacerdote — cura, por ordem
 
-| | |
-|---|---|
-| Curas compráveis | **3** — Curas Espirituais, Curas Físicas, Curas Heroicas |
-| Curas próprias de ordem | **0** em 13 ordens (Véu de Maira é Perdida) |
-
-Toda cura do Sacerdote é da profissão inteira: entrar numa ordem não muda
-**como** ele cura.
+| | Antes | Depois |
+|---|---|---|
+| Curas compráveis | 3 | **16** |
+| Ordens com cura própria | 0 de 13 | **13 de 13** |
 
 ### Elementos — dano e proteção (no motor)
 
-| Elemento | Dano | Proteção |
-|---|---|---|
-| Fogo | 3 | 1 |
-| Terra | 2 | 1 |
-| Água | 2 | 1 — Hidroproteção, **Perdida** |
-| Ar | **1** | 1 — Aeroproteção, **só Rastreador** |
-| Celestial | 4 (2 travadas) | **0** |
-| Infernal | 4 — **as 4 travadas** | **0** |
-| Sem elemento (dano base) | **13** | — |
-| Qualquer elemento | — | Armadura Elemental, Parede de Cristal, Proteção Natural |
+| Elemento | Dano antes | Dano depois | Proteção antes | Proteção depois |
+|---|---|---|---|---|
+| Fogo | 3 | 4 | 1 | **2** (Chama Vital) |
+| Terra | 2 | 3 | 1 | **2** (Bênção da Terra) |
+| Água | 2 | 2 | 1 (Perdida) | 1 (**Básica**) |
+| Ar | 1 | **4** | 1 | 1 (agora também no Elemental) |
+| Celestial | 4 | 6 | **0** | **1** (Égide Celestial) |
+| Infernal | 4, todas travadas | **7, três compráveis** | **0** | **1** (Selo Abismal) |
+| Sem elemento | 13 | 10 | — | — |
 
-Os três buracos: **nenhuma proteção celestial ou infernal**, **nenhum dano
-infernal comprável**, e **13 ataques sem elemento** — metade deles tem nome de
-elemento (Relâmpago, Toque Gélido, Fogo Divino) e texto de "dano base".
+Os três buracos de antes estão fechados: **todo elemento tem dano e proteção
+compráveis**, o dano infernal pode ser comprado, e os ataques com nome de
+elemento passaram a ter o elemento no texto.
 
 ---
 
-## 2. Magias novas sugeridas
+## 3. Quem saiu perdendo com as fusões
 
-Todas escritas no padrão que o motor lê (**verbo + número + unidade**, dígito,
-número antes da unidade). Os textos foram conferidos contra o leitor — inclusive
-o **elemento** de cada dano e proteção. Nenhuma pede primitiva nova: basta a
-entrada no registro.
+A fusão soma as permissões: quem comprava a magia antiga alcança a final. Mesmo
+assim, cada profissão fica com **menos magias distintas** na lista, e a perda
+não se distribuiu por igual.
 
-Nas tabelas, os níveis intermediários seguem a mesma escala.
+| Profissão | Antes | Depois | Saldo | Das suas, fundidas ou excluídas | Compráveis | No motor |
+|---|---|---|---|---|---|---|
+| **Rastreador** | 50 | 43 | **−7** | **12 (24%)** | 39 → 34 | 21 → 19 |
+| **Bardo** | 41 | 37 | **−4** | 8 (19,5%) | 31 → 28 | 19 → 18 |
+| Sacerdote | 88 | 97 | +9 | 11 (12,5%) | 63 → 76 | 37 → 48 |
+| Mago | 97 | 102 | +5 | 5 (5,2%) | 73 → 79 | 30 → 41 |
 
-### 2.1 Mago — um ataque para cada colégio que falta
+> **O Rastreador foi o mais prejudicado.** Perdeu 12 magias da lista — um
+> quarto dela —, 6 das quais estavam no motor, e **não ganhou nenhuma magia
+> do seu perfil**, porque as sugestões de controle animal (§4) ficaram fora
+> das decisões. Das fundidas, só Teriantropia saiu sem deixar caminho.
 
-**Rajada Cortante** · Colégio Elemental · Básica · Evocação 1 rodada · 20 metros · Instantânea
-> O ar se comprime numa lâmina invisível que corta o alvo.
+**Rastreador** — o que saiu: Aprimorar Habilidades, Deslocamento Natural (→
+Graça Felina), Camuflagem (→ Sombra), Conhecimento Linguístico (→ Dom das
+Línguas), Dominação Animal, Faro, Orientação, Rastreamento (→ Conhecimento
+Natural), Região Inviolável (→ Distração), Sentido Natural (→ Comunhão
+Natural), Visão Térmica (→ Visão Animal) e Teriantropia. Um detalhe pesa no
+perfil: **Dominação Animal era a única magia com nome de controle animal que
+ele comprava**, e agora vive dentro de Conhecimento Natural.
 
-| 1 | 5 | 9 |
+**Bardo** — o que saiu: Empatia, Detectar Intenção, Sedução (→ Amizade),
+Linguagem, Escrita (→ Dom das Línguas), Malabarismo (→ Graça Felina), Ausência
+(→ Sombra) e Ruído Extenuante (→ Ruído). Ganhou Cadência Veloz. Todas as
+fundidas têm caminho.
+
+**Sacerdote** e **Mago** saíram no positivo: as fusões tiraram 11 e 5, e as
+magias novas devolveram 15 e 7. O Sacerdote também deixou de ter Covardia pela
+Ordem de Blator, que ganhou Sangue de Batalha.
+
+### As especializações que mais perderam
+
+| Especialização | Antes | Depois |
 |---|---|---|
-| Causa 6 de dano elemental de ar. | Causa 16 de dano elemental de ar. | Causa 26 de dano elemental de ar. |
+| **Trilha de Exploradores** | 12 | **8** |
+| Trilha de Caçadores | 12 | 10 |
+| **Confraria de Arautos** | 2 | **1** — só Sombra |
+| Trilha de Guardiões | 18 | 17 |
+| Ordem de Cambu | 10 | 9 |
+| Ordem de Lena | 7 | 6 |
+| Colégio Ilusionista | 17 | 16 |
 
-Registro: inimigo, `dano`. *O ar é o elemento com menos dano (1).*
-
-**Chama Negra** · Colégio Necromântico · Básica · Evocação 1 rodada · 20 metros · Instantânea
-> Um fogo sem luz, alimentado pela morte, consome a carne do alvo.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Causa 8 de dano infernal. | Causa 20 de dano infernal. | Causa 32 de dano infernal. |
-
-Registro: inimigo, `dano`. *Primeiro dano infernal comprável do catálogo.*
-
-**Terror Fantasma** · Colégio Ilusionista · Básica · Evocação Instantânea · 20 metros · Instantânea
-> Uma visão do pior medo do alvo, que falhar em um teste de resistência mágica,
-> drena a sua coragem.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Causa 6 de dano na energia heroica. | Causa 14 de dano na energia heroica. | Causa 22 de dano na energia heroica. |
-
-Registro: inimigo, `dano` com `pool: 'eh'` (o molde de Covardia).
-
-**Frasco Incendiário** · Colégio Alquímico · Básica · Evocação 1 rodada · 15 metros · Instantânea
-> Um frasco de reagentes arremessado explode em chamas ao tocar o alvo.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Causa 10 de dano elemental de fogo. | Causa 20 de dano elemental de fogo. | Causa 30 de dano elemental de fogo. |
-
-Registro: inimigo, `dano`, `parcial: 'area'` (como Bola de Fogo).
-
-**Verdade Ofuscante** · Colégio Filosófico · Básica · Evocação 1 rodada · 20 metros · Instantânea
-> A luz de uma verdade inegável fere quem vive na mentira.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Causa 6 de dano elemental celestial. | Causa 16 de dano elemental celestial. | Causa 26 de dano elemental celestial. |
-
-Registro: inimigo, `dano`.
-
-**Enxame de Espinhos** · Colégio Naturalista · Básica · Evocação 1 rodada · 20 metros · Instantânea
-> Raízes e espinhos irrompem do chão sob o alvo.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Causa 6 de dano elemental de terra. | Causa 16 de dano elemental de terra. | Causa 26 de dano elemental de terra. |
-
-Registro: inimigo, `dano`. *Primeiro ataque do Naturalista com elemento.*
-
-### 2.2 Bardo — suporte, e a Confraria de Arautos
-
-**Hino de Guerra** · Confraria de Arautos · Básica · Evocação 1 rodada · 10 metros · 5 rodadas
-> Um canto de marcha que firma o braço de todos os aliados que o ouvem.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Aumenta 1 coluna de ataque. | Aumenta 2 colunas de ataque. | Aumenta 3 colunas de ataque. |
-
-Registro: aliado, `alvos: 'escolha'`, `area: 'aura'`, `mod_ataque`.
-
-**Balada do Escudo** · Confraria de Arautos · Básica · Evocação 2 rodadas · 10 metros · 3 rodadas
-> A cadência da balada ergue um escudo sonoro ao redor dos aliados.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Reduz 3 de dano. | Reduz 9 de dano. | Reduz 15 de dano. |
-
-Registro: aliado, área (aura), `reducao_dano` sem elemento e `base: true`.
-
-**Canção da Firmeza** · Confraria de Eruditos · Básica · Evocação 1 rodada · 10 metros · 5 rodadas
-> Versos antigos lembram aos aliados quem eles são, e nenhum encanto os dobra.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Aumenta 2 de resistência mágica e 2 de resistência física. | Aumenta 4 de resistência mágica e 4 de resistência física. | Aumenta 6 de resistência mágica e 6 de resistência física. |
-
-Registro: aliado, área (aura), `mod_rm` + `mod_rf`.
-
-**Cadência Veloz** · Confraria de Artistas · Básica · Evocação Instantânea · 10 metros · 3 rodadas
-> Um ritmo acelerado que os pés dos aliados seguem sem perceber.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Aumenta 3 de velocidade. | Aumenta 6 de velocidade. | Aumenta 9 de velocidade. |
-
-Registro: aliado, área (aura), `mod_vb`.
-
-**Refrão Heroico** · Bardo · Básica · Evocação Instantânea · Toque · 10 rodadas
-> Um refrão que o aliado não consegue tirar da cabeça, e que o faz lutar além
-> do limite.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Aumenta 5 de energia heroica. | Aumenta 15 de energia heroica. | Aumenta 25 de energia heroica. |
-
-Registro: aliado, `mod_eh_temp` (o molde da Bênção).
-
-### 2.3 Rastreador — controle animal
-
-Todas com `so_racas: ['Animal']`: o motor já recusa alvo que não é animal (é o
-que Força Mútua faz).
-
-**Acalmar Fera** · Rastreador · Básica · Evocação Instantânea · 20 metros · Variável
-> O animal que falhar em um teste de resistência mágica se aquieta e deixa de
-> atacar.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| A magia tem duração de 1 rodada. | A magia tem duração de 3 rodadas. | A magia tem duração de 5 rodadas. |
-
-Registro: inimigo, `sem_acoes`, `so_racas: ['Animal']` (o molde de Medo).
-
-**Espantar Fera** · Trilha de Guardiões · Básica · Evocação Instantânea · 20 metros · 3 rodadas
-> Um gesto e um som que o animal que falhar em um teste de resistência mágica
-> reconhece como predador maior.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Reduza 4 de velocidade e 1 coluna de ataque. | Reduza 8 de velocidade e 2 colunas de ataque. | Reduza 12 de velocidade e 3 colunas de ataque. |
-
-Registro: inimigo, `mod_vb −` + `mod_ataque −`, `so_racas: ['Animal']`.
-
-**Instigar Fera** · Trilha de Caçadores · Básica · Evocação Instantânea · 20 metros · 5 rodadas
-> O animal aliado sente a caçada e ataca com fúria redobrada.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Aumenta 1 coluna de ataque e 3 de velocidade. | Aumenta 2 colunas de ataque e 6 de velocidade. | Aumenta 3 colunas de ataque e 9 de velocidade. |
-
-Registro: aliado, `mod_ataque` + `mod_vb`, `so_racas: ['Animal']`.
-
-**Couro de Fera** · Trilha de Guardiões · Básica · Evocação 1 rodada · Toque · 10 rodadas
-> O couro do animal aliado endurece como casca de árvore.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Reduz 4 de dano. | Reduz 10 de dano. | Reduz 16 de dano. |
-
-Registro: aliado, `reducao_dano` com `base: true`, `so_racas: ['Animal']`.
-
-**Chamado da Matilha** · Trilha de Exploradores · Básica · Evocação 1 rodada · 20 metros · 5 rodadas
-> Um uivo que todos os animais aliados no raio atendem ao mesmo tempo.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Aumenta 1 coluna de ataque. | Aumenta 2 colunas de ataque. | Aumenta 3 colunas de ataque. |
-
-Registro: aliado, área (aura), `mod_ataque`, `so_racas: ['Animal']`.
-
-> O que mais destravaria o Rastreador **não é magia nova, é o companheiro
-> animal** como participante da batalha: Aprimoramento Animal, Vínculo Vital,
-> Elo Animal e metade de Força Mútua e Véu de Maira esperam por ele.
-
-### 2.4 Sacerdote — uma cura com a cara de cada ordem
-
-| Magia | Ordem | Alcance · Evocação | Nível 1 | Nível 9 | Registro |
-|---|---|---|---|---|---|
-| **Bálsamo de Lena** | Lena | Toque · 3 rodadas | Aumenta 5 de Saúde. | Aumenta 25 de Saúde. | aliado, `mod_condicao` Saúde + |
-| **Seiva de Maira** | Maira | Toque · 2 rodadas | Restaura 6 de energia física. | Restaura 30 de energia física. | aliado, `cura_pool` EF |
-| **Maré Restauradora** | Ganis | Toque · 2 rodadas | Restaura 4 de energia heroica e 4 de energia física. | Restaura 20 de energia heroica e 20 de energia física. | aliado, `cura_pool` EH + EF |
-| **Paz Coletiva** | Selimon | 10 metros · 3 rodadas | Restaura 4 de energia heroica. | Restaura 16 de energia heroica. | aliado, área (aura), `cura_pool` EH |
-| **Sangue de Batalha** | Blator | Pessoal · Instantânea | Restaura 8 de energia física e aumenta 1 coluna de ataque. | Restaura 24 de energia física e aumenta 3 colunas de ataque. | self, `cura_pool` EF + `mod_ataque` |
-| **Descanso de Cruine** | Cruine | Toque · 1 rodada | Restaura 8 de energia heroica. | Restaura 32 de energia heroica. | aliado, `cura_pool` EH, `inverte_em: ['Morto']` (fere morto-vivo) |
-| **Justa Reparação** | Crizagom | Toque · 2 rodadas | Restaura 4 de energia física e aumenta 2 de defesa. | Restaura 20 de energia física e aumenta 6 de defesa. | aliado, `cura_pool` EF + `mod_defesa` |
-| **Bênção da Terra** | Sevides | Toque · 2 rodadas | Restaura 6 de energia física e reduz 4 de dano elemental de terra. | Restaura 22 de energia física e reduz 16 de dano elemental de terra. | aliado, `cura_pool` EF + `reducao_dano` terra |
-| **Chama Vital** | Crezir | Toque · 2 rodadas | Restaura 6 de energia física e reduz 4 de dano elemental de fogo. | Restaura 22 de energia física e reduz 16 de dano elemental de fogo. | aliado, `cura_pool` EF + `reducao_dano` fogo |
-| **Mente Serena** | Palier | Toque · 1 rodada | Restaura 6 de energia heroica. | Restaura 24 de energia heroica. | aliado, `cura_pool` EH |
-| **Têmpera da Carne** | Parom | Toque · 3 rodadas | Restaura 6 de energia física e aumenta 1 de defesa. | Restaura 22 de energia física e aumenta 3 de defesa. | aliado, `cura_pool` EF + `mod_defesa` |
-| **Alívio Dourado** | Cambu | 10 metros · 2 rodadas | Restaura 3 de energia heroica. | Restaura 12 de energia heroica. | aliado, área (aura), `cura_pool` EH |
-| **Presságio Curativo** | Plandis | Toque · Instantânea | Restaura 4 de energia física. | Restaura 20 de energia física. | aliado, `cura_pool` EF — a cura mais rápida, para quem previu o golpe |
-
-### 2.5 Elementos — as proteções que faltam
-
-**Égide Celestial** · Sacerdote · Básica · Evocação Instantânea · Toque · 3 rodadas
-> Um véu de sombra sagrada que desvia a luz dos seres celestiais.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Reduz 8 de dano elemental celestial. | Reduz 16 de dano elemental celestial. | Reduz 24 de dano elemental celestial. |
-
-Registro: aliado, `reducao_dano` com `elemento: 'celestial'`.
-
-**Selo contra o Abismo** · Ordem de Cruine · Básica · Evocação Instantânea · Toque · 3 rodadas
-> Um selo desenhado com cinzas que o fogo infernal não atravessa.
-
-| 1 | 5 | 9 |
-|---|---|---|
-| Reduz 8 de dano infernal. | Reduz 16 de dano infernal. | Reduz 24 de dano infernal. |
-
-Registro: aliado, `reducao_dano` com `elemento: 'infernal'`.
-
-Com essas duas, **Chama Negra** e **Rajada Cortante** (2.1), e as adaptações
-de 3.1, todo elemento passa a ter dano e proteção compráveis.
+A Confraria de Arautos, que já era a menor especialização do catálogo, ficou
+com uma magia só. As duas sugestões feitas para ela (Hino de Guerra e Balada do
+Escudo) estavam entre as descartadas.
 
 ---
 
-## 3. Adaptações das magias existentes
+## 4. O que ficou por decidir
 
-### 3.1 Dar elemento a quem tem nome de elemento
+### 4.1 Rastreador — controle animal (a sugestão 2.3)
 
-Treze ataques são "dano base". Estes seis têm o elemento no nome ou na
-descrição — trocar o texto do nível basta, sem código:
+A seção não recebeu decisão, e é a que compensaria a profissão mais
+prejudicada. As cinco continuam prontas para entrar, todas com `so_racas:
+['Animal']`:
 
-| Magia | Hoje | Sugestão |
+| Magia | Quem | Nível 1 → 9 |
 |---|---|---|
-| **Relâmpago** | "Cause 28 de dano base." | "Causa 28 de dano elemental de ar." |
-| **Raio Elétrico** | "Cada raio causa 12 de dano elemental **fogo**." | "…de dano elemental de ar." — eletricidade é ar, e o ar só tem 1 ataque |
-| **Toque Gélido** | "Cause 12 de dano base." | "Causa 12 de dano elemental de água." |
-| **Fogo Divino** | "Cause 28 de dano base." | "Causa 28 de dano elemental celestial." |
-| **Feixes Incandescentes** | "Cause 32 de dano base." | "Causa 32 de dano elemental de fogo." |
-| **Putrefação** | "Cause 12 de dano base." | "Causa 12 de dano infernal." — e vira o dano infernal comprável do Necromântico |
+| **Acalmar Fera** | Rastreador | o animal fica sem ações por 1 → 5 rodadas |
+| **Espantar Fera** | Trilha de Guardiões | −4 → −12 de velocidade e −1 → −3 colunas |
+| **Instigar Fera** | Trilha de Caçadores | animal aliado ganha +1 → +3 colunas e +3 → +9 de velocidade |
+| **Couro de Fera** | Trilha de Guardiões | animal aliado reduz 4 → 16 de dano |
+| **Chamado da Matilha** | Trilha de Exploradores | todos os animais aliados na área ganham +1 → +3 colunas |
 
-### 3.2 Proteções travadas ou mal distribuídas
+### 4.2 As travadas, explicado (a antiga 3.6)
 
-- **Hidroproteção** é Perdida e só do Sacerdote: é a única proteção de água.
-  Sugestão: **Básica**, e permissão também para o **Colégio Elemental**.
-- **Aeroproteção** é só do Rastreador. Sugestão: somar o **Colégio
-  Elemental**, que tem as proteções de fogo e terra e não a de ar.
+**Perdida** e **Ancestral** são raridades que não se compram com pontos: cada
+**nível** se aprende com um pergaminho próprio. **Resolvido em 12/09/2026**: o
+catálogo tem agora **286 pergaminhos**, um para cada nível com texto das 60
+magias travadas ("Pergaminho Vôo 1", "Pergaminho Vôo 3"… até o 9), criados por
+`scripts/sql/pergaminhos-magias-travadas.sql` e `pergaminhos-por-nivel.sql`.
 
-### 3.3 Mover magias para o perfil certo
+Usar o pergaminho no inventário ensina aquele nível, e só se o personagem já
+tem o anterior, pode acessar a magia, está no estágio e tem pontos de magia —
+a RPC `usar_pergaminho_magia` já fazia essas checagens. O que falta é o
+pergaminho **chegar à mesa**: loja, recompensa ou item de história, a critério
+do Mestre.
 
-| Magia | Hoje | Sugestão |
-|---|---|---|
-| **Curas Naturais** | Rastreador, Ancestral | Ordem de Maira, Básica — cura é do Sacerdote, e hoje ninguém a compra |
-| **Curas Heroicas** | Sacerdote, Bardo | manter no Bardo como suporte, ou deixar só no Sacerdote |
-| **Covardia** | Colégio Ilusionista, Ordem de Blator | manter no Ilusionista (ataque); Blator ganha Sangue de Batalha (2.4) |
-| **Mestre da Forja** | sem permissão | Ordem de Parom — o título da ordem é literalmente "Mestre da Forja" |
-
-### 3.4 Correções de texto que ligam a magia no motor
-
-| Magia | Hoje | Sugestão |
-|---|---|---|
-| **Dominação Animal** | "Reduz **um** nível…" | "Reduz **1** nível de dificuldade da habilidade Adestrar." — e é controle animal |
-| **Alucinação** | "Aumenta **um** nível…" | "Aumenta **1** nível de dificuldade da habilidade Sentidos." |
-| **Rastreamento** | "Reduz **um** nível…" | "Reduz **1** nível de dificuldade da habilidade Rastrear." |
-| **Apontar Sufocante** | "Sufoca o alvo por 3 rodadas." | "A magia tem duração de 3 rodadas. Reduza 1 de energia física por rodada." |
-
-### 3.5 Higiene do catálogo
-
-- **Recupereção Física**: nome e chave com erro, sem permissão e sem tipo.
-  Pelo perfil é cura de Sacerdote: renomear para **Recuperação Física** e dar a
-  permissão — ou apagar em favor de Purificação. Ninguém a conhece, então a
-  chave pode mudar sem quebrar ficha.
-- **Linguagem**, **Conhecimento Linguístico** e **Escrita** cobrem quase o mesmo
-  nicho (Idioma e Alfabetização). Fundir duas delas.
-
-### 3.6 As travadas
-
-**66 magias (28%)** dependem do item especial que ainda não existe — e o
-**dano infernal inteiro** está nelas. Criar o item destrava tudo de uma vez;
-rebaixar só os níveis 1 e 3 para Básica é a alternativa.
-
-### 3.7 Os sistemas que mais destravam, pelo perfil
+### 4.3 Os sistemas que mais destravam, pelo perfil
 
 | Peça | Para quem | O que destrava |
 |---|---|---|

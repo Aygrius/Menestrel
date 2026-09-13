@@ -1,24 +1,22 @@
 /* ============================================================
-   transferir-quantidade.test.jsx — QuantidadeModal na transferência
+   transferir-quantidade.test.jsx — quantidade na transferência
    ============================================================
-   Pedido do usuário: "Bússola e alguns itens ao transferir, eu não consigo
-   selecionar a quantidade." Transferir NUNCA ofereceu seletor — sempre moveu
-   a instância inteira. Usar/destruir/mover já perguntam quantidade (via
-   QuantidadeModal) quando a pilha tem mais de 1 unidade; transferir passou a
-   seguir o MESMO padrão.
+   Pedidos do usuário: "Bússola e alguns itens ao transferir, eu não consigo
+   selecionar a quantidade." e, em 12/09/2026, "Na hora de transferir o item,
+   primeiro selecionar o aliado, depois escolher a quantidade, modal
+   diferente. Padronize o seletor de quantidade."
 
-   A RPC transfer_item (banco, fora do escopo deste arquivo) ganhou
-   p_quantidade (bigint, DEFAULT NULL = "tudo", limitado ao disponível). Este
-   teste cobre só o lado do cliente:
+   O fluxo, travado aqui:
+     1. pilha de 1 unidade → escolhe o aliado, confirma, transfere direto;
+        a RPC recebe p_quantidade: null;
+     2. pilha de N>1 → escolhe o aliado, confirma, e AÍ abre a janela padrão
+        de quantidade (QuantidadeModal); a RPC recebe o valor escolhido;
+     3. cancelar a janela de quantidade não chama a RPC nem trava "Enviando…";
+     4. a janela de quantidade é a MESMA de descartar — só o aviso muda:
+        descartar é irreversível, transferir não.
 
-     1. pilha de 1 unidade → transfere direto, SEM abrir QuantidadeModal,
-        e a RPC recebe p_quantidade: null (comportamento antigo intacto).
-     2. pilha de N>1 unidades → abre QuantidadeModal (empilhado sobre o
-        DetalhesItemModal, mesmo padrão de "mover"); ao confirmar uma
-        quantidade, a RPC recebe p_quantidade com o valor escolhido.
-
-   Renderiza InventarioList de verdade, mesmo padrão de
-   itens-equipados-visiveis.test.jsx (supabase falso via fake-supabase.js).
+   A RPC transfer_item (banco) só transfere entre personagens da mesma
+   aventura desde 12/09/2026 — aqui cobre-se só o lado do cliente.
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, waitFor, screen, fireEvent } from '@testing-library/react';
@@ -27,15 +25,12 @@ import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
-// DetalhesItemModal (e o QuantidadeModal que ele abre) renderizam dentro de
-// ModalShell (10-shell/shell.jsx), que só existe como window global se
-// alguém o carregar — mesmo padrão de catalogo-editor.test.jsx.
+// DetalhesItemModal e QuantidadeModal renderizam dentro de ModalShell
+// (10-shell/shell.jsx), que só existe como window global se alguém o carregar.
 import '../10-shell/shell.jsx';
 import '../07-inventario/inventario.jsx';
 import { fakeSupabase } from '../test/fake-supabase.js';
 
-// Mesmos stubs de itens-equipados-visiveis.test.jsx: InvItemsTable precisa
-// de window.UI.Input e de ResizeObserver pra montar o grid sem explodir.
 window.UI = { ...window.UI, Input: (props) => <input {...props} /> };
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
@@ -58,10 +53,8 @@ const USER = 'user-1';
 const PJ_ID = 64;
 const PJ_DESTINO_ID = 65;
 
-// grupo 'Consumíveis' é ACUMULÁVEL (normalizarPilhas, GRUPOS_ACUMULAVEIS) —
-// uma pilha solta com quantidade > 1 continua sendo UMA instância/card só.
-// Grupo não-acumulável (ex. 'Ferramentas') explode pilha>1 em N instâncias
-// separadas de quantidade 1 — o oposto do que este teste precisa simular.
+// grupo 'Consumíveis' é ACUMULÁVEL — uma pilha solta com quantidade > 1
+// continua sendo UMA instância/card só.
 const CATALOGO = [
   { slug: 'pocao', nome: 'Poção', grupo: 'Consumíveis', ocupa: 1 },
 ];
@@ -82,9 +75,8 @@ function montar(quantidade, chamadasRpc) {
     historias: [{ id: 9, protagonista_ids: [PJ_ID] }],
     __authUserId: USER,
     __rpc: {
-      get_pjs_historia: [{ id: PJ_DESTINO_ID, nome: 'Ana', sobrenome: null, raca: 'Elfo', profissao: 'Ladina' }],
+      get_pjs_historia: [{ id: PJ_DESTINO_ID, nome: 'Ana', sobrenome: null, raca: 'Elfo', profissao: 'Ladina', foto_url: 'https://x/ana.png' }],
       get_loja_pj: { ok: true, historia_titulo: 'Mesa' },
-      // Captura os args de cada chamada pra afirmar o p_quantidade recebido.
       transfer_item: (args) => { chamadasRpc.push(args); return { ok: true, quantidade: args.p_quantidade ?? quantidade }; },
     },
   });
@@ -94,45 +86,49 @@ function montar(quantidade, chamadasRpc) {
   );
 }
 
-// Abre o DetalhesItemModal da "Poção" e entra no fluxo de transferência
-// (botão "Transferir" → seleciona o PJ destino → clica "Confirmar").
-async function iniciarTransferencia(container) {
+async function abrirPocao(container) {
   await waitFor(() => expect(container.querySelector('.inv-card')).toBeTruthy());
   fireEvent.click(container.querySelector('.inv-card'));
-  const modalDetalhes = await screen.findByText('Poção');
-  fireEvent.click(screen.getByText('Transferir'));
-  const select = await screen.findByRole('combobox');
-  fireEvent.change(select, { target: { value: String(PJ_DESTINO_ID) } });
-  // Só existe um botão "Confirmar" nesse ponto (o de dentro de det-transf) —
-  // o modal de quantidade ainda não abriu.
-  fireEvent.click(screen.getByText('Confirmar'));
-  return modalDetalhes;
+  await screen.findByText('Poção');
 }
 
-describe('transferir com quantidade', () => {
-  it('pilha de 1 unidade transfere direto, sem abrir QuantidadeModal (p_quantidade: null)', async () => {
+// Abre a janela da Poção, entra na transferência, escolhe a Ana e confirma.
+async function iniciarTransferencia(container) {
+  await abrirPocao(container);
+  expect(document.querySelector('.det-sec-a')).toBeTruthy();
+  fireEvent.click(screen.getByText('Transferir'));
+  // Na transferência a janela fica só com os destinatários.
+  expect(document.querySelector('.det-sec-a')).toBeNull();
+  expect(document.querySelector('.det-sec-b')).toBeNull();
+  const card = await screen.findByRole('radio', { name: /Ana/ });
+  expect(card.querySelector('img.det-opt-foto').getAttribute('src')).toBe('https://x/ana.png');
+  fireEvent.click(card);
+  expect(card.getAttribute('aria-checked')).toBe('true');
+  // Primeiro o aliado; a quantidade ainda não foi perguntada.
+  expect(screen.queryByText('Transferir Poção')).toBeFalsy();
+  fireEvent.click(screen.getByText('Confirmar'));
+}
+
+describe('transferir: primeiro o aliado, depois a quantidade', () => {
+  it('pilha de 1 unidade transfere direto, sem janela de quantidade (p_quantidade: null)', async () => {
     const chamadasRpc = [];
     const { container } = montar(1, chamadasRpc);
     await iniciarTransferencia(container);
 
     await waitFor(() => expect(chamadasRpc.length).toBe(1));
     expect(chamadasRpc[0].p_quantidade).toBe(null);
-    // QuantidadeModal nunca chegou a abrir — item avulso não pergunta quantidade.
     expect(screen.queryByText('Transferir Poção')).toBeFalsy();
   });
 
-  it('pilha de N>1 abre QuantidadeModal e repassa a quantidade escolhida como p_quantidade', async () => {
+  it('pilha de N>1 abre a janela padrão de quantidade e repassa a escolha', async () => {
     const chamadasRpc = [];
     const { container } = montar(5, chamadasRpc);
     await iniciarTransferencia(container);
 
-    // QuantidadeModal empilhado por cima — título "Transferir Poção" prova
-    // que abriu (padrão "mover": não fecha o DetalhesItemModal por baixo).
     await screen.findByText('Transferir Poção');
+    // Transferir tem volta: nada de "irreversível".
+    expect(screen.queryByText(/irreversível/)).toBeFalsy();
 
-    // Sobe pra 2 (chip preset "2") e confirma no modal de quantidade — nesse
-    // ponto o "Confirmar" do det-transf já virou "Enviando…", então só existe
-    // um "Confirmar" na tela (o do QuantidadeModal).
     fireEvent.click(screen.getByText('2'));
     fireEvent.click(screen.getByText('Confirmar'));
 
@@ -142,7 +138,7 @@ describe('transferir com quantidade', () => {
     expect(chamadasRpc[0].p_to_pj_id).toBe(String(PJ_DESTINO_ID));
   });
 
-  it('cancelar o QuantidadeModal não deixa "Enviando…" travado', async () => {
+  it('cancelar a janela de quantidade não deixa "Enviando…" travado', async () => {
     const chamadasRpc = [];
     const { container } = montar(5, chamadasRpc);
     await iniciarTransferencia(container);
@@ -150,9 +146,17 @@ describe('transferir com quantidade', () => {
     await screen.findByText('Transferir Poção');
     fireEvent.click(screen.getByText('Cancelar', { selector: '.ms-footer button' }));
 
-    // Nenhuma chamada à RPC — o usuário desistiu da quantidade.
     expect(chamadasRpc.length).toBe(0);
-    // O botão original volta a dizer "Confirmar" (não fica preso em "Enviando…").
     await waitFor(() => expect(screen.getByText('Confirmar')).toBeTruthy());
+  });
+});
+
+describe('a janela de quantidade é a mesma de descartar', () => {
+  it('descartar uma pilha abre a janela padrão, com o aviso de irreversível', async () => {
+    const { container } = montar(5, []);
+    await abrirPocao(container);
+    fireEvent.click(screen.getByText('Descartar'));
+    await screen.findByText('Destruir Poção');
+    expect(screen.getByText(/irreversível/)).toBeTruthy();
   });
 });

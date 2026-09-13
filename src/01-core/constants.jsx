@@ -320,9 +320,9 @@ const PLANO_FREE_LIMITES = { historias: 1, personagens: 1 };
 /* ── A BARRA LATERAL, reorganizada em 12/09/2026 ───────────────────
    Três mudanças pedidas pelo usuário, e cada uma tem uma razão de lugar:
 
-   `historias` SAIU do Mestre — o conteúdo passou a ser alcançado de dentro de
-   Personagens, porque personagem pertence a história: procurar um pela outra é
-   o caminho natural, e duas portas para a mesma coisa dividiam a atenção.
+   (`historias` chegou a sair do Mestre nesta reorganização, alcançada por um
+   botão dentro de Personagens. Não era para sair — o usuário corrigiu no mesmo
+   dia, e ela voltou a ser a primeira seção da barra.)
 
    `convites` SAIU do Jogador — foi para o menu de baixo, junto de perfil e
    idioma. Convite não é um lugar do mundo do jogo (como criaturas, itens,
@@ -333,6 +333,7 @@ const PLANO_FREE_LIMITES = { historias: 1, personagens: 1 };
    virar três destinos próprios, que é o peso que têm na mesa. */
 const ADMIN_SECTIONS = {
   master: [
+    { id: 'historias',     icon: 'Scroll' },
     { id: 'personagens_m', icon: 'Skull' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'itens',         icon: 'Sheet' },

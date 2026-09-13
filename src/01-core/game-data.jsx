@@ -693,7 +693,9 @@ function magiaEhAvancada(magia) {
 }
 
 // Raridade, eixo independente do acima: Perdida e Ancestral não se compram
-// com pontos — dependem de um item especial, ainda a ser criado.
+// com pontos — cada NÍVEL se aprende com um pergaminho próprio (itens
+// "Pergaminho <Magia> <N>", via RPC usar_pergaminho_magia; criados em
+// 12/09/2026 por scripts/sql/pergaminhos-por-nivel.sql).
 function magiaEhTravada(magia) {
   return !!magia && magia.tipo !== 'Básica';
 }

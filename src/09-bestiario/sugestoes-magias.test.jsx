@@ -38,8 +38,9 @@ describe('o painel', () => {
   it('carrega o documento de verdade', () => {
     const { container } = render(<div className="menestrel-ui"><Painel lang="pt" /></div>);
     fireEvent.click(container.querySelector('.best-aud-head'));
-    expect(container.textContent).toMatch(/Magias novas sugeridas/);
-    expect(container.textContent).toMatch(/Chama Negra/);
+    expect(container.textContent).toMatch(/Magias novas aplicadas/);
+    expect(container.textContent).toMatch(/Cadência Veloz/);
+    expect(container.textContent).toMatch(/Quem saiu perdendo com as fusões/);
   });
 });
 

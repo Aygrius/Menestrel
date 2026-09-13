@@ -35,14 +35,19 @@ beforeAll(() => {
   expect(M.somaDificuldadeDoStatus).toBeTypeOf('function');
 });
 
+/* Os nomes CAMUFLAGEM e FARO ficaram: são os dois papéis que a suíte exercita
+   (a de duração e a "para o próximo teste"). As magias em si foram fundidas em
+   12/09/2026 — Camuflagem em Sombra, Faro em Conhecimento Natural — e as
+   fixtures usam as finais com o texto de habilidade nomeada de antes, que o
+   leitor continua tendo de entender. */
 const CAMUFLAGEM = {
-  key: 'camuflagem', nome: 'Camuflagem', duracao: '12 horas', evocacao: 'Instantânea',
+  key: 'sombra', nome: 'Sombra', duracao: '1 hora', evocacao: 'Instantânea',
   nivel_1: 'Reduz 1 nível de dificuldade da habilidade Furtividade.',
   nivel_3: 'Reduz 2 níveis de dificuldade da habilidade Furtividade.',
   nivel_5: 'Reduz 3 níveis de dificuldade da habilidade Furtividade.',
 };
 const FARO = {
-  key: 'faro', nome: 'Faro', duracao: 'Instantânea', evocacao: 'Instantânea',
+  key: 'graca_felina', nome: 'Graça Felina', duracao: 'Instantânea', evocacao: 'Instantânea',
   nivel_1: 'Reduza 1 nível de dificuldade da habilidade Rastrear e Sentidos.',
   nivel_3: 'Reduza 2 níveis de dificuldade da habilidade Rastrear e Sentidos.',
 };
@@ -163,14 +168,14 @@ describe('fora de combate — a ficha', () => {
 
   it('magia de duração (Camuflagem, 12 horas) vira ativa com data', () => {
     const a = W.magiaAtivaDaEvocacao(CAMUFLAGEM, 1, DATA);
-    expect(a).toMatchObject({ key: 'camuflagem', nivel: 1 });
+    expect(a).toMatchObject({ key: 'sombra', nivel: 1 });
     expect(a.vence_em).toBeTruthy();
     expect(a.consome_em).toBeUndefined();
   });
 
   it('magia "para o próximo teste" (Faro, instantânea) vira ativa SEM data e com consumo', () => {
     const a = W.magiaAtivaDaEvocacao(FARO, 1, DATA);
-    expect(a).toEqual({ key: 'faro', nome: 'Faro', nivel: 1, consome_em: 'teste_habilidade' });
+    expect(a).toEqual({ key: 'graca_felina', nome: 'Graça Felina', nivel: 1, consome_em: 'teste_habilidade' });
     // e sem data ela continua vigente — não há vencimento para comparar
     expect(W.magiasAtivasVigentes([a], DATA)).toHaveLength(1);
   });
@@ -180,20 +185,20 @@ describe('fora de combate — a ficha', () => {
   });
 
   it('as ativas somam degraus na habilidade testada', () => {
-    const porKey = { camuflagem: CAMUFLAGEM, faro: FARO };
-    const ativas = [{ key: 'camuflagem', nivel: 3 }, { key: 'faro', nivel: 1, consome_em: 'teste_habilidade' }];
+    const porKey = { sombra: CAMUFLAGEM, graca_felina: FARO };
+    const ativas = [{ key: 'sombra', nivel: 3 }, { key: 'graca_felina', nivel: 1, consome_em: 'teste_habilidade' }];
     expect(W.passosDasMagiasAtivas(ativas, { nome: 'Furtividade' }, porKey)).toBe(-2);
     expect(W.passosDasMagiasAtivas(ativas, { nome: 'Rastrear' }, porKey)).toBe(-1);
   });
 
   it('o teste consome só a magia que valia NELE', () => {
-    const porKey = { camuflagem: CAMUFLAGEM, faro: FARO };
-    const ativas = [{ key: 'camuflagem', nivel: 3 }, { key: 'faro', nivel: 1, consome_em: 'teste_habilidade' }];
+    const porKey = { sombra: CAMUFLAGEM, graca_felina: FARO };
+    const ativas = [{ key: 'sombra', nivel: 3 }, { key: 'graca_felina', nivel: 1, consome_em: 'teste_habilidade' }];
     // Negociar não mexe em nada
     expect(W.consumirMagiasDoTeste(ativas, { nome: 'Negociar' }, porKey)).toHaveLength(2);
     // Sentidos queima o Faro; Camuflagem (com data) fica
     expect(W.consumirMagiasDoTeste(ativas, { nome: 'Sentidos' }, porKey).map((a) => a.key))
-      .toEqual(['camuflagem']);
+      .toEqual(['sombra']);
   });
 
   it('aplicarMagiaNoEstado: efeitos, extras e a ativa, numa porta só', () => {
@@ -243,17 +248,21 @@ describe('em batalha — status_temp', () => {
 });
 
 describe('a conferência — magias fora do motor aparecem com o motivo', () => {
-  it('texto por extenso (sem número legível) vai para a lista com o motivo, não para o rodapé', () => {
+  /* Alucinação foi o exemplo destes dois testes enquanto esperava a correção
+     de texto. O usuário corrigiu ("1 nível") e ela ENTROU no motor em
+     12/09/2026 — o ciclo que eles descreviam se fechou. Ficam as duas pontas
+     dele: com o texto certo, ok; com o texto por extenso, o motor não lê. */
+  it('corrigida para dígito, Alucinação está no motor e passa na conferência', () => {
     const r = W.auditarMagias([{ key: 'alucinacao', nome: 'Alucinação',
-      nivel_1: 'Aumenta um nível de dificuldade da habilidade Sentidos.' }]);
-    expect(r.orfa.map((x) => x.key)).toEqual(['alucinacao']);
-    expect(W.motivoForaDoRegistro(r.orfa[0].magia).classe).toBe('decisao');
+      nivel_1: 'Aumenta 1 nível de dificuldade da habilidade Sentidos.' }]);
+    expect(r.ok.map((x) => x.key)).toEqual(['alucinacao']);
+    expect(W.motivoForaDoRegistro('alucinacao')).toBeNull();
   });
 
-  it('corrigido para dígito, a pendência vira "pronta para entrar"', () => {
-    const m = { key: 'alucinacao', nome: 'Alucinação',
-      nivel_1: 'Aumenta 1 nível de dificuldade da habilidade Sentidos.' };
-    expect(W.motivoForaDoRegistro(m).classe).toBe('resolvido');
+  it('se o texto voltar para "um nível", a conferência acusa quebrada', () => {
+    const r = W.auditarMagias([{ key: 'alucinacao', nome: 'Alucinação',
+      nivel_1: 'Aumenta um nível de dificuldade da habilidade Sentidos.' }]);
+    expect(r.quebrada.map((x) => x.key)).toEqual(['alucinacao']);
   });
 
   it('narrativa registrada também aparece, com a classe própria', () => {

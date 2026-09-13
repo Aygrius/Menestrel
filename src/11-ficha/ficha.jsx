@@ -92,6 +92,7 @@ const FICHA_VIT_COLORS = {
   ef: '#ae2f20',   // Energia Física — ember quente (Pedra & Bronze)
   eh: '#4e98c9',   // Energia Heroica — ouro-velho
   ar: '#8c8d8e',   // Armadura — aço frio
+  res: '#8c8d8e',  // Resistência da armadura (a barra que substituiu AR, 12/09/2026)
   ka: '#9150A0',   // Karma — ametista discreta
   velocidade: '#4a8f5c',  // Velocidade — verde (agilidade)
   rf: '#a86b3c',          // Resistência Física — bronze/cobre
@@ -163,7 +164,9 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
         // Agora ela some da navegação e explica no tooltip — ver o `tip`
         // montado junto de vitBars.
         const semTeto = (b.max ?? 0) === 0;
-        const podeAbrir = editable && !semTeto;
+        // `semEdicao`: barra DERIVADA de outra fonte (a resistência da armadura
+        // vem das peças do inventário) — clicar não abre o editor de estado.
+        const podeAbrir = editable && !semTeto && !b.semEdicao;
         const abrir = podeAbrir
           ? (e) => onEdit(b, scope, e.currentTarget.getBoundingClientRect())
           : undefined;
@@ -196,7 +199,17 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
             } : undefined}
             {...propsTip(abrirTip, fecharTip, !hasHover && podeAbrir ? `${b.val}/${b.max}${sufixoEstado}` : undefined)}
           >
-            <span className="fp-bar-name-label">{b.label}</span>
+            <span className="fp-bar-name-label">
+              {b.label}
+              {/* Selo ao lado do nome: um número FIXO que acompanha a barra sem
+                  ser ela — a absorção da armadura (12/09/2026). */}
+              {b.badge && (
+                <span className="fp-bar-badge">
+                  {b.badge.icon && <i className={'ti ' + b.badge.icon} aria-hidden="true" />}
+                  {b.badge.texto}
+                </span>
+              )}
+            </span>
             <div className="fp-bar-pill">
               {b.icon && (
                 <span className="fp-bar-icon" aria-hidden="true"
@@ -685,7 +698,9 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, l
     n,
     titulo: m[`nivel_${n}`],
     valor: m[`valor_${n}`],
-  })).filter((nv) => nv.titulo || nv.valor);
+  // Só os níveis que o personagem JÁ aprendeu (pedido do usuário, 12/09/2026):
+  // os bloqueados apareciam com cadeado e só ocupavam espaço.
+  })).filter((nv) => (nv.titulo || nv.valor) && (!possui || nv.n <= nivelAtual));
 
   // Nível escolhido pelo jogador p/ evocar — começa no maior nível que ele
   // possui (mais comum) e só pode ser ajustado pra algo <= nivelAtual.
@@ -724,7 +739,7 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, l
 
   return (
     <div className="ms-backdrop" role="presentation">
-      <div className="ms-modal ms-md" role="dialog" aria-modal="true" aria-label={m.nome}>
+      <div className="ms-modal ms-md modal-detalhes" role="dialog" aria-modal="true" aria-label={m.nome}>
         <div className="ms-header">
           <h3 className="ms-title">
             <i className="ti ti-comet det-title-ic" aria-hidden="true" style={{ marginRight: 8 }} />
@@ -739,28 +754,35 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, l
         </div>
 
         <div className="ms-body">
+          {/* Só o ícone; o texto sai no tooltip, com o nome do campo de título
+              — igual aos efeitos da janela de item (pedido do usuário,
+              12/09/2026). Texto ao lado quebrava a linha. */}
           {FICHA_TXT.length > 0 && (
             <div className="det-sec-a">
               {FICHA_TXT.map((f) => (
-                <span key={f.lbl} className="det-sec-chip"
-                  onMouseEnter={(e) => abrirTip(e, { desc: f.lbl })}
+                <span key={f.lbl} className="det-sec-chip det-sec-chip--efeito"
+                  aria-label={`${f.lbl}: ${f.val}`}
+                  onMouseEnter={(e) => abrirTip(e, { title: f.lbl, desc: f.val })}
                   onMouseLeave={fecharTip}
-                  onFocus={(e) => abrirTip(e, { desc: f.lbl })}
+                  onFocus={(e) => abrirTip(e, { title: f.lbl, desc: f.val })}
                   onBlur={fecharTip}
                   tabIndex={0}
                 >
                   <span className="det-sec-ic-box">
                     <i className={'ti ' + f.ic} aria-hidden="true" />
                   </span>
-                  <span className="det-sec-val">{f.val}</span>
                 </span>
               ))}
             </div>
           )}
 
+          {/* Um <p> por parágrafo do banco (pedido do usuário, 12/09/2026):
+              "Itens necessários: …" e as listas de Adestramento e Sono vinham
+              coladas no texto corrido. */}
           {m.descricao && (
             <div className="det-desc">
-              <p>{m.descricao}</p>
+              {String(m.descricao).split(/\r?\n/).map((p) => p.trim()).filter(Boolean)
+                .map((p, i) => <p key={i}>{p}</p>)}
             </div>
           )}
 
@@ -861,63 +883,6 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, l
   );
 }
 
-// ---------- SelectPill — cópia local de 12-batalha/batalha.jsx ----------
-// SelectPill não é exportado via window por batalha.jsx. Padrão do projeto:
-// cada módulo que precisa declara sua própria cópia local em vez de importar
-// (ver também a cópia em 13-diario/diario.jsx, usada no LoreEntradaForm pro
-// campo Raça). Copiado aqui pro seletor de Dificuldade do
-// HabilidadeDetalhesModal — este é o dropdown padrão REAL do projeto (ver
-// skill menestrel-rpg, seção "Padrão de dropdown/select"). CSS já existe em
-// index.css (blocos .select-pill-btn / .select-pill-drop / .motor-field),
-// nada novo a adicionar lá.
-function SelectPill({ options = [], value, onChange, placeholder, disabled, label }) {
-  const [open, setOpen] = useState(false);
-  const ref = React.useRef(null);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const selected = options.find((o) => String(o.value) === String(value));
-  const displayLabel = selected
-    ? (selected.labelBotao != null ? selected.labelBotao : selected.label)
-    : (placeholder || '—');
-
-  return (
-    <div className="motor-field" ref={ref} style={{ position: 'relative' }}>
-      {label && <span>{label}</span>}
-      <button type="button" className="select-pill-btn" data-open={open ? 'true' : 'false'} disabled={disabled}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={(e) => { e.currentTarget.blur(); !disabled && setOpen((v) => !v); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}>
-        <span className="select-pill-btn-label">{displayLabel}</span>
-        <i className="ti ti-chevron-down select-pill-btn-ic" aria-hidden="true"
-           style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-      </button>
-      {open && (
-        <ul className="select-pill-drop">
-          {options.map((opt) => {
-            const active = String(opt.value) === String(value);
-            return (
-              <li key={opt.value}
-                className={active ? 'active' : undefined}
-                onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(201,164,78,0.10)'; e.currentTarget.style.color = '#E8DDC6'; } }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = active ? '#C9A44E' : '#C8BCAA'; }}
-                onClick={() => { onChange(opt.value); setOpen(false); }}>
-                {active && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
-                {!active && <span className="select-pill-drop-spacer" />}
-                {opt.label}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 /* ============================== [11] Modal de detalhes de habilidade ============================== */
 /* Abre ao clicar numa habilidade do card lateral (aba Habilidades), fora de
@@ -934,16 +899,6 @@ function SelectPill({ options = [], value, onChange, placeholder, disabled, labe
 function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abrirTip, fecharTip }) {
   const en = lang === 'en';
   const h = habilidade;
-
-  const AJUSTE_LBL = {
-    intelecto: en ? 'Intellect' : 'Intelecto',
-    aura: 'Aura',
-    carisma: en ? 'Charisma' : 'Carisma',
-    forca: en ? 'Strength' : 'Força',
-    fisico: en ? 'Body' : 'Físico',
-    agilidade: en ? 'Agility' : 'Agilidade',
-    percepcao: en ? 'Perception' : 'Percepção',
-  };
 
   const DIFICULDADES = [
     { id: 'facil', lbl: en ? 'Easy' : 'Fácil' },
@@ -965,21 +920,35 @@ function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abr
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prevOverflow; };
   }, [onClose]);
 
+  const ATRIBUTO_LBL = {
+    intelecto: en ? 'Intellect' : 'Intelecto',
+    aura: 'Aura',
+    carisma: en ? 'Charisma' : 'Carisma',
+    forca: en ? 'Strength' : 'Força',
+    fisico: en ? 'Body' : 'Físico',
+    agilidade: en ? 'Agility' : 'Agilidade',
+    percepcao: en ? 'Perception' : 'Percepção',
+  };
+
+  /* Atributo, grupo e restrição: só o ícone, e o texto no tooltip (pedido do
+     usuário, 12/09/2026) — o mesmo trato dos atributos da magia e dos efeitos
+     do item. O texto ao lado competia com o total. */
   const FICHA_TXT = [
-    { ic: 'ti-adjustments', lbl: en ? 'Adjustment' : 'Ajuste', val: AJUSTE_LBL[h.ajuste] || h.ajuste },
+    { ic: 'ti-adjustments', lbl: en ? 'Attribute' : 'Atributo', val: ATRIBUTO_LBL[h.ajuste] || h.ajuste },
+    { ic: 'ti-category', lbl: en ? 'Group' : 'Grupo', val: h.grupo },
     { ic: 'ti-ban', lbl: en ? 'Restriction' : 'Restrição', val: h.restricao },
   ].filter((f) => f.val != null && f.val !== '');
 
+  // O total com sinal de menos de verdade ("−2", não hífen).
+  const totalTxt = total == null ? null : (total < 0 ? `−${Math.abs(total)}` : String(total));
+
   return (
     <div className="ms-backdrop" role="presentation">
-      <div className="ms-modal ms-md" role="dialog" aria-modal="true" aria-label={h.nome}>
+      <div className="ms-modal ms-md modal-detalhes" role="dialog" aria-modal="true" aria-label={h.nome}>
         <div className="ms-header">
           <h3 className="ms-title">
             <i className="ti ti-bolt det-title-ic" aria-hidden="true" style={{ marginRight: 8 }} />
             {h.nome}
-            {total != null && (
-              <span className="det-title-badge">{total >= 0 ? `${total}` : total}</span>
-            )}
           </h3>
           <button type="button" className="ms-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
             <i className="ti ti-x" aria-hidden="true" />
@@ -987,20 +956,41 @@ function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abr
         </div>
 
         <div className="ms-body">
-          {FICHA_TXT.length > 0 && (
+          {/* O TOTAL num card pequeno, igual aos atributos da janela de item
+              (pedido do usuário, 12/09/2026): ícone na caixa e o número no
+              canto. Negativo usa a caixa vermelha de efeito negativo. */}
+          {(totalTxt != null || FICHA_TXT.length > 0) && (
             <div className="det-sec-a">
-              {FICHA_TXT.map((f) => (
-                <span key={f.lbl} className="det-sec-chip"
-                  onMouseEnter={(e) => abrirTip(e, { desc: f.lbl })}
+              {totalTxt != null && (
+                <span className="det-sec-chip det-hab-total"
+                  onMouseEnter={(e) => abrirTip(e, { desc: 'Total' })}
                   onMouseLeave={fecharTip}
-                  onFocus={(e) => abrirTip(e, { desc: f.lbl })}
+                  onFocus={(e) => abrirTip(e, { desc: 'Total' })}
+                  onBlur={fecharTip}
+                  tabIndex={0}
+                >
+                  {/* O próprio número É o ícone, dentro da caixa (pedido do
+                      usuário, 12/09/2026). "Total" sai no tooltip. */}
+                  <span className={'det-sec-ic-box det-hab-total-num' + (total < 0 ? ' det-sec-ic--neg' : '')}
+                    aria-label={`Total: ${totalTxt}`}>
+                    {totalTxt}
+                  </span>
+                </span>
+              )}
+              {/* Restrição: só o ícone, o texto no tooltip — como os atributos
+                  da magia e os efeitos do item (pedido do usuário, 12/09/2026). */}
+              {FICHA_TXT.map((f) => (
+                <span key={f.lbl} className="det-sec-chip det-sec-chip--efeito"
+                  aria-label={`${f.lbl}: ${f.val}`}
+                  onMouseEnter={(e) => abrirTip(e, { title: f.lbl, desc: f.val })}
+                  onMouseLeave={fecharTip}
+                  onFocus={(e) => abrirTip(e, { title: f.lbl, desc: f.val })}
                   onBlur={fecharTip}
                   tabIndex={0}
                 >
                   <span className="det-sec-ic-box">
                     <i className={'ti ' + f.ic} aria-hidden="true" />
                   </span>
-                  <span className="det-sec-val">{f.val}</span>
                 </span>
               ))}
             </div>
@@ -1015,11 +1005,28 @@ function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abr
           <div className="det-sec-head">
             <span>{en ? 'Difficulty' : 'Dificuldade'}</span>
           </div>
-          <SelectPill
-            value={dificuldadeSel}
-            onChange={setDificuldadeSel}
-            options={DIFICULDADES.map((d) => ({ value: d.id, label: d.lbl }))}
-          />
+          {/* Botões selecionáveis em vez de dropdown (pedido do usuário,
+              12/09/2026): as cinco cabem numa linha e ficam à vista. Mesmo
+              card da escolha de alvo da magia (det-opt-card). */}
+          <div className="det-opt-grid det-dif-grid" role="radiogroup"
+            aria-label={en ? 'Difficulty' : 'Dificuldade'}>
+            {DIFICULDADES.map((d) => {
+              const selecionado = dificuldadeSel === d.id;
+              return (
+                <button
+                  type="button"
+                  key={d.id}
+                  role="radio"
+                  aria-checked={selecionado}
+                  data-dificuldade={d.id}
+                  className={'det-opt-card det-dif-card' + (selecionado ? ' det-opt-card--sel' : '')}
+                  onClick={() => setDificuldadeSel(d.id)}
+                >
+                  <span className="det-opt-nome">{d.lbl}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="ms-footer">
@@ -1963,15 +1970,18 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     }
   };
   // Pedem quantidade quando há mais de 1 em estoque (abre QuantidadeModal).
-  const solicitarUsarFicha = (instanceId) => {
+  // `qtd` vem do seletor inline da janela do item (12/09/2026): age direto.
+  const solicitarUsarFicha = (instanceId, qtd) => {
     const it = (pj.inventario?.itens || []).find((x) => x.instanceId === instanceId);
     if (!it) return;
+    if (qtd != null) { usarItemFicha(instanceId, Math.max(1, Math.min(it.quantidade || 1, qtd))); return; }
     if (it.quantidade > 1) setAcaoQtd({ tipo: 'usar', instanceId, max: it.quantidade });
     else usarItemFicha(instanceId, 1);
   };
-  const solicitarDestruirFicha = (instanceId) => {
+  const solicitarDestruirFicha = (instanceId, qtd) => {
     const it = (pj.inventario?.itens || []).find((x) => x.instanceId === instanceId);
     if (!it) return;
+    if (qtd != null) { destruirItemFicha(instanceId, Math.max(1, Math.min(it.quantidade || 1, qtd))); return; }
     if (it.quantidade > 1) setAcaoQtd({ tipo: 'destruir', instanceId, max: it.quantidade });
     else destruirItemFicha(instanceId, 1);
   };
@@ -2173,7 +2183,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   };
   const abrirEdicaoBarra = (item, scope, anchor) => {
     if (!podeEditarEstado) return;
-    if ((item.max ?? 0) === 0) return; // AR sem armadura / KA sem karma — nada a editar
+    if ((item.max ?? 0) === 0) return; // sem armadura / KA sem karma — nada a editar
+    if (item.semEdicao) return;          // derivada das peças (resistência da armadura)
     setEditBar({ item, scope, anchor });
   };
 
@@ -2246,12 +2257,31 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const vitBars = [
     { key: 'ef', label: en ? 'Physical Energy' : 'Energia Física', val: _clampVal(_vitAt.ef ?? maxEF, maxEF), max: maxEF, icon: 'ti-heart' },
     { key: 'eh', label: en ? 'Heroic Energy' : 'Energia Heroica', val: _clampVal(_vitAt.eh ?? maxEH, maxEH), max: maxEH, icon: 'ti-heart' },
-    // AR sem teto: buff de poção/elixir pode passar do arMax e a ficha tem
-    // que MOSTRAR isso (decisão de 01/09/2026 — "o buff pode ficar acima fora
-    // de combate"). A barra já limita o preenchimento em 100%, então valor
-    // acima do máximo aparece cheia, sem quebrar. Piso 0 continua.
-    { key: 'ar', label: en ? 'Armor' : 'Armadura', val: _clampVal(_vitAt.ar ?? arVal, Infinity), max: arMax, icon: 'ti-shield',
-      tip: arMax === 0 ? (en ? 'No armor equipped — nothing to edit.' : 'Nenhuma armadura equipada — nada a editar.') : undefined },
+    /* ARMADURA (12/09/2026): a barra deixou de ser a absorção. Com a regra do
+       limiar, a absorção é um número FIXO — golpe até ele é bloqueado, acima
+       dele gasta resistência — e nunca esvazia, então a barra ficava sempre
+       cheia e não dizia nada. O que se GASTA é a resistência das peças, e é
+       ela que a barra mostra agora. A absorção vira o selo ao lado do nome,
+       com o bônus de elixir quando há (o elixir continua valendo). */
+    (() => {
+      const _pecasFn = (typeof pecasDeArmadura !== 'undefined' ? pecasDeArmadura : null) || window.pecasDeArmadura || null;
+      const pecas = _pecasFn ? _pecasFn(pj, catalogoBySlug) : [];
+      const resMax = pecas.reduce((s, pc) => s + pc.res_max, 0);
+      const resCur = pecas.reduce((s, pc) => s + pc.res, 0);
+      const absAtual = Math.max(0, Math.round(Number(_vitAt.ar ?? arVal) || 0));
+      const bonus = Math.max(0, absAtual - arMax);
+      const absTxt = bonus > 0 ? `${arMax} (+${bonus})` : String(absAtual);
+      return {
+        key: 'res', label: en ? 'Armor' : 'Armadura', val: resCur, max: resMax, icon: 'ti-shield',
+        semEdicao: true,
+        badge: (absAtual > 0 || arMax > 0) ? { icon: 'ti-shield', texto: absTxt } : null,
+        tip: resMax === 0 && absAtual === 0
+          ? (en ? 'No armor equipped.' : 'Nenhuma armadura equipada.')
+          : (en
+            ? `Absorption ${absTxt} · Durability ${resCur}/${resMax}`
+            : `Absorção ${absTxt} · Resistência ${resCur}/${resMax}`),
+      };
+    })(),
     // KA com teto 0 não é "karma gasto", é karma INEXISTENTE: a fórmula zera
     // o pool quando a Aura do PJ é menor que 1. Sem esta explicação o Mestre
     // clica na barra e nada acontece — foi o relato de 03/09/2026 ("não
@@ -3134,20 +3164,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           onClick={() => setFpTab('loja')}>
           {en ? 'Shop' : 'Loja'}
         </button>
-        {/* A aba DIÁRIO saiu da ficha DO JOGADOR em 12/09/2026, a pedido do
-            usuário: o conteúdo virou três seções próprias na barra lateral —
-            Lugares, Personagens e Memórias. Era muita coisa para o canto de
-            uma aba.
-
-            Para o MESTRE ela fica: as seções novas são do jogador e falam do
-            PJ ativo dele. O Mestre chega ao diário abrindo a ficha do
-            personagem, e é este botão que o leva lá. */}
-        {isMestre && (
-          <button type="button" className={fpTab === 'diario' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'diario'}
-            onClick={() => setFpTab('diario')}>
-            {en ? 'Journal' : 'Diário'}
-          </button>
-        )}
+        {/* A aba DIÁRIO saiu da ficha para TODOS em 12/09/2026. Primeiro do
+            Jogador (virou Lugares, Personagens e Memórias na barra lateral);
+            depois também do Mestre, a pedido do usuário. A liberação de lore
+            para os PJs não mora aqui — é do GerenciarLoreView, na história. */}
       </div>
       {onEditar && (
         <button type="button" className="btn-ghost btn-sm"
@@ -3164,9 +3184,39 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     </header>
   );
 
+  /* Atalhos (11-ficha/atalhos-ficha.jsx): pronto para escolher. Só o dono age
+     pela ficha — é a mesma regra de aoEvocarMagia (podeEditarFoto) —, e só em
+     Ficha/Informações: em Inventário e Loja o InventarioList guarda a própria
+     cópia do inventário e do estado.
+
+     Habilidade é o CATÁLOGO INTEIRO, não só as compradas (pedido do usuário,
+     12/09/2026): "nada impede que ele faça o teste com o total negativo". O
+     total de uma não comprada sai da mesma conta, só sem os pontos. Magia e
+     item continuam sendo o que o PJ tem — esses não se usam sem ter. */
+  const _AtalhosFicha = (typeof AtalhosFicha !== 'undefined' ? AtalhosFicha : null) || window.AtalhosFicha || null;
+  const _itemUsavel = (typeof itemUsavelNoAtalho !== 'undefined' ? itemUsavelNoAtalho : null) || window.itemUsavelNoAtalho || (() => false);
+  const mostrarAtalhos = !!_AtalhosFicha && podeEditarFoto && (fpTab === 'ficha' || fpTab === 'info');
+  const atalhoHabilidades = mostrarAtalhos
+    ? Object.values(habsByKey).map((h) => ({
+        key: h.key, nome: h.nome, grupo: h.grupo,
+        total: (_totHabCond || _totHab)(h.key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes),
+      }))
+    : [];
+  const atalhoMagias = mostrarAtalhos
+    ? Object.keys(pj.magias || {}).map((k) => magiasByKey[k]).filter(Boolean).map((m) => ({
+        key: m.key, nome: m.nome, nivel: _nivelMag((pj.magias || {})[m.key]),
+      }))
+    : [];
+  const atalhoItens = mostrarAtalhos
+    ? itensPj.filter((it) => _itemUsavel(catalogoBySlug[it.slug])).map((it) => ({
+        id: it.instanceId, nome: catalogoBySlug[it.slug].nome, quantidade: it.quantidade,
+        icone: _itemIcon(catalogoBySlug[it.slug]),
+      }))
+    : [];
+
   return (
     <>
-    <div className={'menestrel-ui fp-page' + (fpFull ? ' is-full' : '') + ((fpTab === 'inventario' || fpTab === 'loja' || fpTab === 'diario') ? ' is-inv' : '')}>
+    <div className={'menestrel-ui fp-page' + (fpFull ? ' is-full' : '') + ((fpTab === 'inventario' || fpTab === 'loja') ? ' is-inv' : '')}>
 
       <div className="fp-card">
         <div className="fp-card-top">
@@ -3226,21 +3276,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         <div className="fp-invtab">
           <LojaJogador ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} />
         </div>
-      ) : (fpTab === 'diario' && isMestre) ? (
-        /* O DIÁRIO SAIU das abas do JOGADOR em 12/09/2026 — virou três seções
-           na barra lateral (Lugares, Personagens, Memórias).
-
-           O ramo FICA para o MESTRE: ele abre a ficha de um PJ para ver o
-           diário daquele personagem, e ele não tem as seções novas na barra
-           (elas são do jogador, sobre o PJ ativo dele). Sem isto o Mestre
-           perderia o acesso que tinha, sem ganhar outro.
-
-           currentUserId REAL aqui, não `pj.user_id`: o DiarioView usa esse
-           valor só pra decidir `souDono`, e passar o dono do PJ tornaria a
-           comparação sempre verdadeira. */
-        <div className="fp-invtab">
-          <DiarioView pj={pj} lang={lang} key={pjAtivoId} currentUserId={currentUserId} isMestre={isMestre} />
-        </div>
       ) : (
       <div className="fp2-sheet">
         <div className="fp2-frame">
@@ -3272,6 +3307,22 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       document.getElementById('root') || document.body
     )}
     <TooltipFlipGuard />
+
+    {/* Atalhos flutuantes — Habilidade, Magia e Item, na coluna dos dados.
+        Portal em #root pelo mesmo motivo dos tooltips: .fp-page.is-full é
+        position:fixed e prenderia os botões num contexto de empilhamento. */}
+    {mostrarAtalhos && ReactDOM.createPortal(
+      <AtalhosFicha
+        lang={lang}
+        habilidades={atalhoHabilidades}
+        magias={atalhoMagias}
+        itens={atalhoItens}
+        onHabilidade={(key) => setHabilidadeDetalheKey(key)}
+        onMagia={(key) => setMagiaDetalheKey(key)}
+        onItem={(id) => setDetalheCintoId(id)}
+      />,
+      document.getElementById('root') || document.body
+    )}
 
     {/* ── Card de Joias (portal) ──────────────────────────────────────────────
         Renderizado via ReactDOM.createPortal dentro de #root (não body!) para que
@@ -3559,8 +3610,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         );
       })()}
 
-      {/* Detalhes de uma magia (fora de combate) — abre ao clicar numa magia
-          no card lateral (aba Magias). Permite escolher o nível (até o
+      {/* Detalhes de uma magia (fora de combate) — abre pelo atalho flutuante
+          de Magia (AtalhosFicha). Permite escolher o nível (até o
           nível efetivo que o PJ possui) e o alvo (o próprio PJ ou outro
           protagonista da mesma história). "Evocar" fecha o modal e notifica
           a Central de Mensagens da Mesa (aoEvocarMagia); ainda NÃO aplica
@@ -3584,8 +3635,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         );
       })()}
 
-      {/* Detalhes de uma habilidade (fora de combate) — abre ao clicar numa
-          habilidade no card lateral (aba Habilidades). Habilidade não tem
+      {/* Detalhes de uma habilidade (fora de combate) — abre pelo atalho
+          flutuante de Habilidade (AtalhosFicha). Habilidade não tem
           nível: sempre usa o total já calculado (_totHab). Não tem alvo —
           só a escolha da dificuldade do uso. Só visual por ora: "Usar"
           ainda não dispara nenhuma ação. */}
@@ -3656,3 +3707,8 @@ window.FichaPersonagem = FichaPersonagem;
 // (ficha-info-nav.test.jsx) conseguir montá-lo isolado, sem depender do fetch
 // de FichaPersonagem.
 window.FichaInfoView = FichaInfoView;
+// HabilidadeDetalhesModal à parte pelo mesmo motivo: o teste do total em
+// destaque (habilidade-detalhes-total.test.jsx) monta só a janela.
+window.HabilidadeDetalhesModal = HabilidadeDetalhesModal;
+// E a da magia, pelo teste dos atributos em tooltip (magia-detalhes-tooltip.test.jsx).
+window.MagiaDetalhesModal = MagiaDetalhesModal;
