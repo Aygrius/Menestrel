@@ -2407,6 +2407,8 @@
 }
 #root .menestrel-ui .det-opt-card:hover { border-color: var(--gold); }
 #root .menestrel-ui .det-opt-card--sel { border-color: var(--gold, #C9A44E); background: rgba(201,164,78,0.10); }
+#root .menestrel-ui .det-opt-card:disabled { cursor: default; opacity: .6; }
+#root .menestrel-ui .det-opt-foto--vazia .ti { font-size: 16px; color: var(--gold, #C9A44E); }
 #root .menestrel-ui .det-opt-foto {
   width: 28px; height: 28px; Border-Radius: 6px; flex: 0 0 auto;
   object-fit: cover; background: rgba(106,85,48,0.30);
@@ -2489,6 +2491,9 @@
 /* ===== FASE 4 · fatia 1 — BATALHA (redesenho denso · ícones Tabler) ===== */
 /* Painel de Ação — abas */
 #root .menestrel-ui .acao-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin: 0 -20px; padding: 0 20px; border-bottom: 1px solid var(--rule); }
+/* Invólucro da aba desativada: recebe o mouse no lugar do botão (13/09/2026). */
+#root .menestrel-ui .acao-tab-wrap { display: inline-flex; flex: 0 0 auto; cursor: help; }
+#root .menestrel-ui .acao-tab-wrap > .acao-tab:disabled { pointer-events: none; }
 /* SelectPill (Arma/Alvo/Habilidade/Técnica/Magia/Estado etc.) — remove o
    contorno de foco do navegador. Tentativa anterior só zerava outline/
    box-shadow; o que sobrava era o próprio border-color do <button> sendo
@@ -2556,9 +2561,13 @@
 /* Mesma moldura de .acao-tecnica-efeito (citação de efeito dentro do painel
    de Ação), mas tom dourado/neutro em vez do roxo de Magia/Técnica — Item
    não deve herdar a associação cromática de magia. */
-#root .menestrel-ui .acao-item-efeito { margin: 8px 0 10px; padding: 8px 10px; background: rgba(201,164,78,0.07); border-left: 2px solid rgba(201,164,78,0.40); font-size: 15px; line-height: 1.4; color: var(--parchment); border-radius: 0 4px 4px 0; }
+/* Efeito do ITEM e da MAGIA de efeito, e as linhas de aviso logo abaixo: mesma
+   prosa das descrições de Habilidade/Técnica/Magia (.acao-efeito-texto) desde
+   13/09/2026 — "O texto de descrição dos itens e de apoio estão muito grandes
+   e diferentes dos outros textos." Eram 15px numa caixa com borda dourada. */
+#root .menestrel-ui .acao-item-efeito { margin: 8px 0 4px; padding: 0; background: none; border: none; font-family: 'Lora', serif; font-size: 13px; line-height: 1.5; color: var(--parchment-dim); }
 #root .menestrel-ui .acao-item-efeito strong { color: var(--gold-bright); }
-#root .menestrel-ui .acao-karma-line { margin: 8px 0 4px; font-size: 15px; color: var(--parchment); }
+#root .menestrel-ui .acao-karma-line { margin: 6px 0 4px; font-family: 'Lora', serif; font-size: 13px; line-height: 1.5; color: var(--parchment-dim); }
 #root .menestrel-ui .acao-karma-line strong { color: #b48bd3; font-size: 1em; }
 #root .menestrel-ui .acao-karma-line strong.neg { color: #c44; }
 #root .menestrel-ui .acao-karma-have { opacity: 0.65; font-size: 1em; }
@@ -2740,6 +2749,15 @@
 #root .menestrel-ui .batalha-pool.pool-eh .batalha-pool-label { color: #a4cf85; }
 #root .menestrel-ui .batalha-pool.pool-ar .batalha-pool-bar i { background: linear-gradient(90deg, #4a6b85 0%, #7a9bb8 100%); }
 #root .menestrel-ui .batalha-pool.pool-ar .batalha-pool-label { color: #7a9bb8; }
+/* Leitura de livro (itens.doc_url): o Google Docs em modo /preview, ocupando
+   a janela grande. Sem borda nem moldura clara em volta (pedido do usuário,
+   13/09/2026): o documento encosta direto no corpo da janela. */
+#root .menestrel-ui .ms-modal.modal-leitura-doc { max-width: min(960px, calc(100vw - 32px)); width: 100%; }
+#root .menestrel-ui .leitura-doc-frame {
+  display: block; width: 100%; height: min(72vh, 900px);
+  border: none; border-radius: 0; background: transparent; outline: none;
+}
+
 /* RES — resistência da armadura, a barra que substituiu AR (12/09/2026). Aço. */
 #root .menestrel-ui .batalha-pool.pool-res .batalha-pool-bar i { background: linear-gradient(90deg, #6b7280 0%, #b8bec8 100%); }
 #root .menestrel-ui .batalha-pool.pool-res .batalha-pool-label { color: #b8bec8; }
@@ -2754,10 +2772,51 @@
 #root .menestrel-ui .batalha-pool.pool-ka .batalha-pool-bar i { background: linear-gradient(90deg, #6b3e8f 0%, #b48bd3 100%); }
 #root .menestrel-ui .batalha-pool.pool-ka .batalha-pool-label { color: #b48bd3; }
 
+/* ── POOLS COMO BOTÕES (13/09/2026) ───────────────────────────────
+   "As barras vão virar botões com ícone" e, na segunda leva do mesmo dia,
+   "ao invés do fundo, eu quero uma borda que diminui. O restante do botão é
+   igual os demais." O círculo é o mesmo dos números e das ações da fileira
+   (.batalha-card-barra): mesmo fundo, mesmo ícone claro. A única coisa da cor
+   da pool é o ANEL, um traço de SVG que encolhe com a porcentagem — a volta
+   inteira é a pool cheia; o trilho apagado embaixo mostra quanto já foi. */
+#root .menestrel-ui .batalha-pool-botao {
+  --pool-cor: #b8bec8;
+  position: relative; flex: 0 0 auto;
+  width: 34px; height: 34px; padding: 0; border: none; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(106,85,48,0.12); color: var(--bone); font: inherit; cursor: default;
+}
+#root .menestrel-ui .batalha-pool-botao.pool-ef  { --pool-cor: #d9685a; }
+#root .menestrel-ui .batalha-pool-botao.pool-eh  { --pool-cor: #a4cf85; }
+#root .menestrel-ui .batalha-pool-botao.pool-res { --pool-cor: #b8bec8; }
+#root .menestrel-ui .batalha-pool-botao.pool-ka  { --pool-cor: #b48bd3; }
+#root .menestrel-ui .batalha-pool-anel { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+#root .menestrel-ui .batalha-pool-anel circle { fill: none; stroke-width: 2.25; }
+#root .menestrel-ui .batalha-pool-anel-trilho { stroke: color-mix(in srgb, var(--pool-cor) 18%, transparent); }
+#root .menestrel-ui .batalha-pool-anel-nivel {
+  stroke: var(--pool-cor); stroke-linecap: round;
+  transition: stroke-dasharray .45s cubic-bezier(.4,0,.2,1);
+}
+/* Anel vazio: some até o arredondamento da ponta, senão sobra um pingo. */
+#root .menestrel-ui .batalha-pool-botao.vazia .batalha-pool-anel-nivel { stroke: transparent; }
+#root .menestrel-ui .batalha-pool-botao > i { position: relative; font-size: 16px; line-height: 1; margin: 0; }
+#root .menestrel-ui .batalha-pool-botao.editavel { cursor: pointer; transition: background .15s ease; }
+#root .menestrel-ui .batalha-pool-botao.editavel:hover { background: rgba(106,85,48,0.24); }
+#root .menestrel-ui .batalha-pool-botao.editavel:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .batalha-pool-anel-nivel { transition: none; }
+}
+
 /* Chips de status temporário */
 #root .menestrel-ui .batalha-status-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; font-family: 'Lora', serif; font-size: 13px; font-weight: 500; color: var(--parchment); background: rgba(201,164,78,.07); border: 1px solid var(--rule); border-radius: 6px; line-height: 1.6; cursor: pointer; transition: background .15s, opacity .15s; }
 #root .menestrel-ui .batalha-status-chip:hover { background: rgba(201,164,78,.16); }
+/* Na tela do jogador os chips são só leitura (13/09/2026): sem cursor de clique. */
+#root .menestrel-ui .batalha-status-chip.somente-leitura { cursor: default; }
+#root .menestrel-ui .batalha-status-chip.somente-leitura:hover { background: rgba(201,164,78,.07); }
 #root .menestrel-ui .batalha-status-chip-icone { font-size: 12px; line-height: 1; color: var(--gold); }
+/* Evocando (13/09/2026): estado da canalização, azul-arcano para não se confundir com efeito. */
+#root .menestrel-ui .batalha-status-chip-evocando { border-color: rgba(159,184,255,.45); }
+#root .menestrel-ui .batalha-status-chip-evocando .batalha-status-chip-icone { color: #9fb8ff; }
 #root .menestrel-ui .batalha-status-chip-rod { font-size: 13px; font-weight: 700; color: var(--gold-bright); margin-left: 1px; font-variant-numeric: tabular-nums; }
 
 /* Log */
@@ -3407,13 +3466,18 @@
 
 /* Faísca do item mágico — marca de NATUREZA, não de estado: sem caixa, pra
    não parecer mais um selo. Fica no canto oposto aos selos. */
+/* A caixa é a MESMA do selo E (.inv-pill: 14px, a 3px do topo; 12px na grade
+   compacta), com o glifo centrado — assim a faísca e o E ficam na mesma
+   altura (13/09/2026). */
 #root .menestrel-ui .inv-faisca {
-  position: absolute; top: 2px; right: 3px;
+  position: absolute; top: 3px; right: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px;
   font-size: 10px; line-height: 1;
   color: #C9A44E; text-shadow: 0 0 4px rgba(201,164,78,0.55);
   pointer-events: none;
 }
-#root .menestrel-ui .inv-bag-grid--slots .inv-faisca { font-size: 9px; }
+#root .menestrel-ui .inv-bag-grid--slots .inv-faisca { width: 12px; height: 12px; font-size: 9px; }
 
 /* Barra de RESISTÊNCIA (durabilidade da armadura) — mesmo molde da barra de
    capacidade dos containers (.inv-cont-bar): faixa fina colada no rodapé do
@@ -3485,10 +3549,13 @@
    sentido mesmo — item equipado está EM USO, não disponível, e a leitura
    natural disso é apagar, não acender. Quem tem que brilhar é o que você
    ainda pode pegar. */
+/* Desde 13/09/2026 o E (ti-letter-e-small) segue a faísca do item mágico:
+   sem borda e sem fundo, só o glifo — pedido do usuário. O glifo "small"
+   é miúdo, daí a fonte maior que a do selo. */
 #root .menestrel-ui .inv-pill.eq {
-  background: rgba(201,164,78,0.16); color: rgba(201,164,78,0.85);
-  border-color: rgba(201,164,78,0.40);
-  font-weight: 700;
+  background: transparent; border-color: transparent;
+  color: #C9A44E; text-shadow: 0 0 4px rgba(201,164,78,0.55);
+  font-size: 16px; font-weight: 700;
 }
 #root .menestrel-ui .inv-pill.vst {
   background: rgba(71,170,216,0.16); color: rgba(71,170,216,0.85);
@@ -5883,10 +5950,45 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    160px é o que de fato padroniza os campos no tamanho menor; `auto-fill`
    deixa quantos couberem por linha e quebra o resto. */
 #root .menestrel-ui .catalogo-form-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(120px,160px)); gap:14px; margin-top:14px; }
+/* Largura do modal do editor = a grade (13/09/2026). "O modal de criar/editar
+   criaturas está mais largo do que deveria?" — era o `ms-lg` (800px), mas a
+   grade só cabe 4 colunas de 160px (4×160 + 3×14 = 682px): sobravam ~70px
+   vazios à direita, e descrição/listas paravam antes da borda. Medido no
+   Chromium: corpo com 24px de padding de cada lado + 1px de borda →
+   682 + 48 + 2 = 732; 4px de folga para arredondamento (a 5ª coluna só
+   caberia com 856). Vale para os 5 editores de catálogo. */
+#root .menestrel-ui .ms-modal.modal-catalogo { max-width: 736px; }
 /* Mesmo padrão de grid-column:1/-1 já usado em .fp-finger-strip (linha ~1705),
    .fp2-col-vit, .loja-mng-row-nome e .moedas-row-label: só o campo `area`
    (texto livre) do descritor ocupa a largura inteira do modal. */
 #root .menestrel-ui .catalogo-campo-full { grid-column: 1 / -1; }
+
+/* catalogo-lista (13/09/2026): técnicas/habilidades/magias da criatura
+   escolhidas no catálogo — etiquetas + busca. A lista de sugestões reusa
+   .select-pill-drop (mesmo visual do SelectPill), ancorada no campo de busca. */
+#root .menestrel-ui .catalogo-lista-caixa {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 6px; border: 1px solid rgba(232,221,198,0.14); border-radius: 12px;
+  background: rgba(232,221,198,0.02);
+}
+#root .menestrel-ui .catalogo-lista-chip {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  padding: 3px 4px 3px 10px; border-radius: 999px;
+  font-family: 'Lora', serif; font-size: 13px; color: #E8DDC6;
+  background: rgba(201,164,78,0.10); border: 1px solid rgba(201,164,78,0.30);
+}
+#root .menestrel-ui .catalogo-lista-chip-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Nome gravado que não existe no catálogo ("Bote"): fica, mas avisa. */
+#root .menestrel-ui .catalogo-lista-chip--fora { border-style: dashed; border-color: rgba(232,221,198,0.30); background: transparent; color: #C8BCAA; }
+#root .menestrel-ui .catalogo-lista-chip-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: #9C8F73; cursor: pointer; font-size: 12px;
+}
+#root .menestrel-ui .catalogo-lista-chip-x:hover { background: rgba(201,164,78,0.16); color: #E8DDC6; }
+#root .menestrel-ui .catalogo-lista-busca { position: relative; flex: 1 1 180px; min-width: 140px; }
+#root .menestrel-ui .catalogo-lista-busca .diario-input { border-color: transparent; background: transparent; }
+#root .menestrel-ui .catalogo-lista-drop { max-height: 220px; overflow-y: auto; }
 
 /* Altura uniforme dos campos (10/09/2026): começou escopada aqui, em
    .catalogo-form-grid, para não mexer nos formulários do Diário. Em 12/09/2026
@@ -6476,6 +6578,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 /* Pills de mágico/líquido/observação */
 #root .menestrel-ui .inv-bag-grid--slots .inv-card-pills { top: 3px; left: 3px; }
 #root .menestrel-ui .inv-bag-grid--slots .inv-pill { width: 12px; height: 12px; border-radius: 2px; font-size: 8px; }
+#root .menestrel-ui .inv-bag-grid--slots .inv-pill.eq { font-size: 14px; }
 
 /* O gridTemplateColumns vem via style inline (calculado pelo ResizeObserver) —
    as media queries abaixo não são mais necessárias para a variante --slots */
@@ -6651,9 +6754,27 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
   color: var(--parchment-dim); padding: 6px 0;
 }
 
-/* Grid 4 colunas dos participantes */
+/* Grid 5 colunas dos participantes (era 4; 13/09/2026, pedido do usuário).
+   O card perdeu a linha de meta (raça/estágio) e virou uma linha só: caixa +
+   nome (+ quantidade na criatura), centralizados na vertical. minmax(0, 1fr)
+   deixa o nome longo encolher com reticências em vez de alargar a coluna. */
 #root .menestrel-ui .part-section-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px;
+}
+#root .menestrel-ui .part-section-grid .hist-protag-item,
+#root .menestrel-ui .part-section-grid .hist-protag-item.modo-qtd {
+  grid-template-rows: auto; align-items: center; min-height: 40px; padding: 8px 10px;
+}
+#root .menestrel-ui .part-section-grid .hist-protag-item input,
+#root .menestrel-ui .part-section-grid .part-check-visual { grid-row: auto; }
+#root .menestrel-ui .part-section-grid .hist-protag-name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+@media (max-width: 900px) {
+  #root .menestrel-ui .part-section-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  #root .menestrel-ui .part-section-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Item de participante no modo criatura (grid 2col: checkbox | nome+stepper / meta) */
@@ -6745,6 +6866,8 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    saiu em 01/09/2026: Envenenar é mais um item da mesma lista, não uma seção
    à parte. A cor própria abaixo já basta pra distingui-lo. */
 .batalha-estado-drop-portal .batalha-estado-drop-item.poison { color: #b48bd3; }
+.batalha-estado-drop-portal .batalha-estado-drop-item.sangra { color: #e05a4f; }
+.batalha-estado-drop-portal .batalha-estado-drop-item.caido { color: #e8c26b; }
 
 /* Wrapper relativo do EstadoDrop (botão + portal-anchor) */
 #root .menestrel-ui .estado-drop-wrap { position: relative; margin-left: auto; }
@@ -6789,6 +6912,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 }
 #root .menestrel-ui .select-pill-drop li:hover { background: rgba(201,164,78,0.10); color: #E8DDC6; }
 #root .menestrel-ui .select-pill-drop li.active { color: #C9A44E; }
+/* Opção indisponível: visível, com o motivo no rótulo, sem escolha (13/09/2026). */
+#root .menestrel-ui .select-pill-drop li.disabled { color: #7A6E58; cursor: not-allowed; font-style: italic; }
+#root .menestrel-ui .select-pill-drop li.disabled:hover { background: transparent; color: #7A6E58; }
 #root .menestrel-ui .select-pill-drop li .select-pill-check { font-size: 12px; color: #C9A44E; flex-shrink: 0; }
 #root .menestrel-ui .select-pill-drop li .select-pill-spacer { width: 12px; flex-shrink: 0; }
 
@@ -7967,6 +8093,20 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    o scroll simplesmente ocupa o que sobra do corpo da página. O margin-bottom
    saiu junto — o espaçamento vem do gap/padding de .batalha-conduzir. */
 #root .menestrel-ui .batalha-tabuleiro-scroll{cursor:grab;flex:1 1 auto;min-height:0;margin-bottom:0}
+/* Réguas numeradas (13/09/2026): grade 2×2 — canto, colunas em cima, linhas à
+   esquerda, e o scroll no quadrante grande. Ocupa o lugar do scroll no flex. */
+#root .menestrel-ui .batalha-tabuleiro-quadro{display:grid;grid-template-columns:22px minmax(0,1fr);grid-template-rows:18px minmax(0,1fr);flex:1 1 auto;min-height:0}
+#root .menestrel-ui .batalha-tabuleiro-quadro>.batalha-tabuleiro-scroll{grid-column:2;grid-row:2;min-height:0}
+#root .menestrel-ui .batalha-tabuleiro-regua-canto{grid-column:1;grid-row:1}
+#root .menestrel-ui .batalha-tabuleiro-regua{position:relative;overflow:hidden;user-select:none;pointer-events:none}
+#root .menestrel-ui .batalha-tabuleiro-regua--col{grid-column:2;grid-row:1;margin:0 1px}
+#root .menestrel-ui .batalha-tabuleiro-regua--lin{grid-column:1;grid-row:2;margin:1px 0}
+#root .menestrel-ui .batalha-tabuleiro-regua-trilho{position:absolute;top:0;left:0;will-change:transform}
+#root .menestrel-ui .batalha-tabuleiro-regua--col .batalha-tabuleiro-regua-trilho{height:100%}
+#root .menestrel-ui .batalha-tabuleiro-regua--lin .batalha-tabuleiro-regua-trilho{width:100%}
+#root .menestrel-ui .batalha-tabuleiro-regua-num{position:absolute;font-family:Lora,serif;font-size:10px;color:#9c8f73;text-align:center;font-variant-numeric:tabular-nums}
+#root .menestrel-ui .batalha-tabuleiro-regua--col .batalha-tabuleiro-regua-num{top:0;height:18px;line-height:18px}
+#root .menestrel-ui .batalha-tabuleiro-regua--lin .batalha-tabuleiro-regua-num{left:0;width:22px}
 #root .menestrel-ui .batalha-tabuleiro-scroll.is-panning{cursor:grabbing}
 #root .menestrel-ui .batalha-jog-body>.batalha-tabuleiro-wrap{flex:0 auto;min-height:0}
 #root .menestrel-ui .batalha-vez-msg{text-align:center;color:#e8ddc6;background:#b8462f1a;border:1px solid #b8462f4d;border-radius:6px;margin:0 0 16px;padding:12px 16px;font-family:Lora,serif;font-size:13px}
@@ -7974,6 +8114,102 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 @keyframes batalha-token-vez-pulse{0%{opacity:.9;transform:scale(.92)}70%{opacity:0;transform:scale(1.18)}to{opacity:0;transform:scale(1.18)}}
 #root .menestrel-ui .batalha-token-vez-ring{border:2px solid var(--gold,#c9a44e);pointer-events:none;z-index:0;border-radius:50%;animation:1.6s cubic-bezier(.4,0,.2,1) infinite batalha-token-vez-pulse;position:absolute;box-shadow:0 0 12px #c9a44eb3}
 #root .menestrel-ui .batalha-token--atual{filter:drop-shadow(0 0 6px #c9a44e73)}
+
+/* ── DANO NO TOKEN (13/09/2026) ────────────────────────────────────
+   "efeito vermelho na EF, efeito verde na EH, e efeito branco na armadura."
+   Três peças, disparadas por useFlashDeDano (tabuleiro.jsx):
+     • o avatar dá um tranco curto;
+     • um VÉU da cor atravessa o rosto e some;
+     • um ANEL da cor abre para fora, como onda de impacto;
+   e a barrinha da pool atingida acende. Na ordem da cascata (EH → armadura
+   → EF), cada cor entra um pouco depois da anterior. Tudo acaba antes de
+   FLASH_DANO_MS (950ms), quando as classes saem. */
+#root .menestrel-ui .batalha-token { --dano-ef: #ff3b2f; --dano-eh: #5fe36b; --dano-arm: #ffffff; }
+@keyframes batalha-dano-tranco {
+  0% { transform: translateX(0); } 15% { transform: translateX(-3px) rotate(-3deg); }
+  35% { transform: translateX(3px) rotate(2deg); } 55% { transform: translateX(-2px); }
+  75% { transform: translateX(1px); } 100% { transform: translateX(0); }
+}
+@keyframes batalha-dano-veu {
+  0% { opacity: 0; } 18% { opacity: .78; } 100% { opacity: 0; }
+}
+@keyframes batalha-dano-anel {
+  0% { opacity: 0; transform: scale(.85); } 20% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.45); }
+}
+#root .menestrel-ui .batalha-token-avatar.is-dano { animation: batalha-dano-tranco .42s ease-out; }
+#root .menestrel-ui .batalha-token-dano-veu {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none; opacity: 0;
+  mix-blend-mode: screen; animation: batalha-dano-veu .7s ease-out both;
+}
+#root .menestrel-ui .batalha-token-dano-veu--eh       { background: radial-gradient(circle, var(--dano-eh) 0%, color-mix(in srgb, var(--dano-eh) 55%, transparent) 70%); }
+#root .menestrel-ui .batalha-token-dano-veu--armadura { background: radial-gradient(circle, var(--dano-arm) 0%, color-mix(in srgb, var(--dano-arm) 45%, transparent) 70%); animation-delay: .12s; }
+#root .menestrel-ui .batalha-token-dano-veu--ef       { background: radial-gradient(circle, var(--dano-ef) 0%, color-mix(in srgb, var(--dano-ef) 60%, transparent) 70%); animation-delay: .24s; mix-blend-mode: normal; }
+#root .menestrel-ui .batalha-token-dano-anel {
+  position: absolute; border-radius: 50%; pointer-events: none; z-index: 2; opacity: 0;
+  border: 2px solid currentColor; box-shadow: 0 0 14px currentColor, inset 0 0 8px currentColor;
+  animation: batalha-dano-anel .75s cubic-bezier(.2,.7,.3,1) both;
+}
+#root .menestrel-ui .batalha-token-dano-anel--eh       { color: var(--dano-eh); }
+#root .menestrel-ui .batalha-token-dano-anel--armadura { color: var(--dano-arm); animation-delay: .12s; }
+#root .menestrel-ui .batalha-token-dano-anel--ef       { color: var(--dano-ef); animation-delay: .24s; }
+/* ── ANEL DA EF NO AVATAR (14/09/2026) ────────────────────────────
+   "Mostre uma borda do EF ao redor do avatar, é sua EF." Substituiu as
+   barrinhas embaixo do token. Mesmo desenho dos botões de pool do card: o
+   trilho apagado é a EF inteira, o traço vermelho é o que resta, e ele
+   recolhe a partir do topo. No golpe que chega na EF, o traço acende junto
+   com o anel de dano. */
+#root .menestrel-ui .batalha-token-ef circle { fill: none; stroke-width: 6; }
+#root .menestrel-ui .batalha-token-ef-trilho { stroke: rgba(0,0,0,.45); }
+#root .menestrel-ui .batalha-token-ef-nivel {
+  stroke: #d9685a; stroke-linecap: round;
+  filter: drop-shadow(0 0 1.5px rgba(0,0,0,.8));
+  transition: stroke-dasharray .45s cubic-bezier(.4,0,.2,1);
+}
+#root .menestrel-ui .batalha-token-ef.vazia .batalha-token-ef-nivel { stroke: transparent; }
+@keyframes batalha-dano-ef-anel {
+  0% { stroke: #d9685a; } 25% { stroke: #ffb3a8; stroke-width: 9; } 100% { stroke: #d9685a; stroke-width: 6; }
+}
+#root .menestrel-ui .batalha-token-ef.is-dano-ef .batalha-token-ef-nivel { animation: batalha-dano-ef-anel .8s ease-out .24s both; }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .batalha-token-ef-nivel { transition: none; }
+  #root .menestrel-ui .batalha-token-ef.is-dano-ef .batalha-token-ef-nivel { animation: none; }
+}
+/* Sem movimento: nada de tranco nem onda; só a cor acende e apaga no lugar. */
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .batalha-token-avatar.is-dano { animation: none; }
+  #root .menestrel-ui .batalha-token-dano-anel { animation: none; opacity: 0; }
+  #root .menestrel-ui .batalha-token-dano-veu { animation-duration: .9s; animation-delay: 0s; }
+}
+
+/* ── ESCURIDÃO DO TABULEIRO (13/09/2026) ──────────────────────────
+   "escurecer o tabuleiro dependendo da iluminação". Camada sobre a grade e
+   abaixo dos tokens (tabuleiro.jsx), com os três níveis da magia Visão
+   Animal: noite sem lua, ambiente fechado, ausência total de luz. A mágica
+   puxa para o violeta, a mesma família de cor do ícone dela no header. A
+   vinheta fecha as bordas, e a troca de iluminação esmaece em vez de piscar. */
+#root .menestrel-ui .batalha-tabuleiro-escuridao {
+  opacity: 0; transition: opacity .7s ease, background-color .7s ease;
+  background-color: transparent;
+}
+#root .menestrel-ui .batalha-tabuleiro-escuridao--parcial {
+  opacity: 1;
+  background-color: rgba(8, 12, 28, .38);
+  background-image: radial-gradient(ellipse at center, transparent 45%, rgba(4, 6, 16, .45) 100%);
+}
+#root .menestrel-ui .batalha-tabuleiro-escuridao--total {
+  opacity: 1;
+  background-color: rgba(3, 4, 10, .62);
+  background-image: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, .55) 100%);
+}
+#root .menestrel-ui .batalha-tabuleiro-escuridao--magica {
+  opacity: 1;
+  background-color: rgba(8, 2, 16, .8);
+  background-image: radial-gradient(ellipse at center, rgba(70, 30, 110, .12) 0%, transparent 50%, rgba(0, 0, 0, .6) 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .batalha-tabuleiro-escuridao { transition: none; }
+}
 /* Aviso de recusa de movimento, no espaço onde ficava a legenda de seleção.
    Fica colado no topo do grid de propósito: é onde o olho está quando o
    clique é recusado. */
@@ -8051,15 +8287,21 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 /* z-index 2, não 1: `.batalha-fighter` também é `position:relative; z-index:1`
    e vem DEPOIS no DOM, então empatava e pintava por cima — o X existia, ficava
    visível pela borda, mas o card recebia o clique e nada acontecia. */
+/* Redondo desde 13/09/2026 ("o botão de X fica redondo igual os demais"):
+   o mesmo círculo de 34px, fundo e ícone dos botões da fileira do card. */
 #root .menestrel-ui .batalha-token-menu-fechar {
-  position: absolute; top: 4px; right: 4px; z-index: 3;
-  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-  background: none; border: none; border-radius: 6px; cursor: pointer;
-  color: var(--parchment-muted); font-size: 15px;
+  position: absolute; top: 12px; right: 12px; z-index: 3;
+  width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(106,85,48,0.12); border: none; border-radius: 999px; cursor: pointer;
+  color: var(--bone); font-size: 16px;
+  transition: background .15s ease;
 }
-#root .menestrel-ui .batalha-token-menu-fechar:hover {
-  background: rgba(232,221,198,.08); color: var(--parchment);
-}
+#root .menestrel-ui .batalha-token-menu-fechar:hover { background: rgba(106,85,48,0.24); }
+#root .menestrel-ui .batalha-token-menu-fechar:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+
+/* POOLS AO LADO DO NOME (13/09/2026): os círculos de EF/EH/resistência/Karma
+   saíram da fileira de baixo e seguem o nome na mesma linha. */
+#root .menestrel-ui .batalha-card-pools-nome { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 /* O card dentro do menu não é mais um item de lista: perde a borda e o
    fundo próprios (a caixa já os tem) e, principalmente, perde o
    esmaecimento por status — no roster ele servia pra destacar quem
@@ -8097,11 +8339,10 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .batalha-part-posicionar.is-armado { border-color: var(--gold, #C9A44E); background: rgba(201,164,78,0.16); color: var(--gold-bright, #E0BF6A); }
 #root .menestrel-ui .batalha-part-posicionar:disabled { opacity: 0.5; cursor: default; }
 
-/* "Fulano ataca com [Arma] [Magia]" no menu do avatar do inimigo. */
+/* [Arma] [Magia] no menu do avatar do inimigo. Desde 13/09/2026 sem o texto
+   "Fulano ataca com", na fileira única (.batalha-card-barra) e no fundo ghost
+   dos outros círculos — o que diz "atacar com arma/magia" é o tooltip. */
 #root .menestrel-ui .batalha-menu-atacar { align-items: center; }
-#root .menestrel-ui .batalha-menu-atacar-lbl {
-  font-family: 'Lora', serif; font-size: 12px; color: var(--parchment-muted); margin-right: 2px;
-}
 #root .menestrel-ui .batalha-menu-acoes .btn-primary,
 #root .menestrel-ui .batalha-menu-acoes .btn-ghost { flex: 1 1 auto; justify-content: center; }
 
@@ -8117,6 +8358,26 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
   display: inline-flex; align-items: center; justify-content: center;
 }
 #root .menestrel-ui .batalha-menu-acoes .batalha-menu-acao-ic i { font-size: 16px; margin: 0; }
+
+/* ── FILEIRA ÚNICA DO CARD (13/09/2026) ────────────────────────────
+   "Os ícones PA, velocidade, etc ficam inline com os botões mover, ação, etc.
+   Padronize esses ícones." Números + estado à esquerda, ações do turno à
+   direita, e TODOS no mesmo círculo de 34px dos botões: o que muda entre um
+   número e um botão é só o fundo (o número é leitura, sem borda de botão).
+   Quando não cabe, as ações quebram para a linha de baixo, alinhadas à
+   direita, em vez de espremer os números. */
+#root .menestrel-ui .batalha-card-barra { align-items: center; justify-content: space-between; row-gap: 8px; }
+#root .menestrel-ui .batalha-card-barra .batalha-fighter-stats { gap: 8px; flex-wrap: wrap; }
+#root .menestrel-ui .batalha-card-botoes { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+#root .menestrel-ui .batalha-card-barra .batalha-stat,
+#root .menestrel-ui .batalha-card-barra .batalha-fighter-stats .batalha-menu-acao-ic {
+  width: 34px; height: 34px; padding: 0; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+#root .menestrel-ui .batalha-stat.batalha-stat-num > i { font-size: 26px; line-height: 1; color: var(--bone); margin: 0; }
+#root .menestrel-ui .batalha-stat.batalha-stat-num > b { font-family: 'Cinzel', serif; font-size: 13px; color: var(--bone); }
+#root .menestrel-ui .batalha-card-barra .batalha-stat.batalha-stat-estado,
+#root .menestrel-ui .batalha-card-barra .batalha-fighter-stats .batalha-menu-acao-ic i { font-size: 16px; }
 
 /* O seletor de estado mora na LINHA DE STATS (VB/PA/DF/RM/RF), não nesta
    fileira — ele é leitura do combatente, como os pills, e vale pra qualquer
@@ -8230,7 +8491,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .batalha-pool.editavel:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
 
 /* Espaço pro botão de fechar não cair sobre o nome. */
-#root .menestrel-ui .batalha-token-menu .batalha-fighter-head { padding-right: 26px; }
+#root .menestrel-ui .batalha-token-menu .batalha-fighter-head { padding-right: 40px; }
 /* Velocidade/ações/defesa AO LADO do nome (03/09/2026), não numa linha
    abaixo. O bloco do nome é `flex: 1 1 auto` — comia a linha inteira e
    empurrava os stats pra baixo. Aqui ele para de crescer e só encolhe.
@@ -8238,7 +8499,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    os stats pra linha de baixo em vez de espremer o nome. Escopado ao menu
    do token — na lista de participantes o head tem outra largura. */
 #root .menestrel-ui .batalha-token-menu .batalha-fighter-id { flex: 0 1 auto; }
-#root .menestrel-ui .batalha-token-menu .batalha-fighter-stats { margin-left: auto; }
+/* Desde 13/09/2026 os números não moram mais no head (foram para a fileira
+   das ações, .batalha-card-barra) — lá eles ficam à esquerda. */
+#root .menestrel-ui .batalha-token-menu .batalha-card-barra .batalha-fighter-stats { margin-left: 0; }
 /* ── Auditoria do catálogo de magias (admin) ───────────────────────
    Faixa dobrável acima da tabela de magias. Fechada é uma linha discreta;
    só ganha a borda de alerta quando há magia QUEBRADA ou AMBÍGUA — estado
@@ -8340,6 +8603,39 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 #root .menestrel-ui .cm-fila-texto { font-size: 12px; color: #E6DCC4; }
 #root .menestrel-ui .cm-fila-acoes { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* ── Venda de item: negociação com o Mestre (13/09/2026) ── */
+#root .menestrel-ui .modal-venda .venda-resumo { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-bottom: 16px; }
+#root .menestrel-ui .modal-venda .venda-resumo-item { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#root .menestrel-ui .modal-venda .venda-rot { font-family: 'Lora', serif; font-size: 12px; font-style: italic; color: var(--parchment-dim, #9C8F73); }
+#root .menestrel-ui .modal-venda .venda-resumo-item strong { font-family: 'Lora', serif; font-size: 14px; color: #E8DDC6; }
+#root .menestrel-ui .modal-venda .venda-status { font-family: 'Lora', serif; font-size: 13px; color: #C9A44E; margin: 0 0 12px; }
+#root .menestrel-ui .modal-venda .venda-form { display: flex; flex-direction: column; gap: 10px; }
+#root .menestrel-ui .modal-venda .venda-qtd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#root .menestrel-ui .modal-venda .venda-qtd strong { font-family: 'Lora', serif; font-size: 13px; color: #E8DDC6; min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+#root .menestrel-ui .venda-moedas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 480px) { #root .menestrel-ui .venda-moedas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+#root .menestrel-ui .venda-moeda { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#root .menestrel-ui .venda-moeda-nome { display: flex; align-items: center; gap: 4px; font-family: 'Lora', serif; font-size: 12px; color: var(--parchment-dim, #9C8F73); }
+#root .menestrel-ui .venda-moeda--ouro .ti { color: #E2B84A; }
+#root .menestrel-ui .venda-moeda--prata .ti { color: #C9CED6; }
+#root .menestrel-ui .venda-moeda--cobre .ti { color: #C07A4A; }
+#root .menestrel-ui .venda-moeda--latao .ti { color: #B59A5A; }
+#root .menestrel-ui .venda-moeda input,
+#root .menestrel-ui .modal-venda .venda-mensagem {
+  width: 100%; box-sizing: border-box; font-family: 'Lora', serif; font-size: 13px; color: var(--parchment, #E8DDC6);
+  background: var(--ink-bg-2, rgba(24,17,8,0.92)); border: 1px solid var(--rule, rgba(106,85,48,0.5)); border-radius: 6px;
+}
+#root .menestrel-ui .venda-moeda input { height: 32px; padding: 0 10px; text-align: right; font-variant-numeric: tabular-nums; }
+#root .menestrel-ui .modal-venda .venda-mensagem { padding: 8px 10px; resize: vertical; }
+#root .menestrel-ui .venda-moeda input:focus,
+#root .menestrel-ui .modal-venda .venda-mensagem:focus { outline: none; border-color: var(--gold, #C9A44E); }
+#root .menestrel-ui .modal-venda .venda-rodadas { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+#root .menestrel-ui .modal-venda .venda-rodada { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; border-radius: 6px; background: rgba(106,85,48,0.18); border-left: 2px solid rgba(106,85,48,0.6); }
+#root .menestrel-ui .modal-venda .venda-rodada--mestre { border-left-color: var(--gold, #C9A44E); }
+#root .menestrel-ui .modal-venda .venda-rodada-linha { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-family: 'Lora', serif; font-size: 13px; color: #E8DDC6; }
+#root .menestrel-ui .modal-venda .venda-rodada-msg { font-family: 'Lora', serif; font-size: 12px; font-style: italic; color: var(--parchment-dim, #9C8F73); overflow-wrap: anywhere; }
+#root .menestrel-ui .modal-venda .venda-acoes { flex-wrap: wrap; }
+
 /* Magias ativas na ficha (degrau 3): o que está valendo agora e até quando.
    Sem esta lista a magia duraria no escuro. */
 #root .menestrel-ui .fp-magias-ativas { margin-top: 10px; border-top: 1px solid #3A362E; padding-top: 8px; }
@@ -8355,6 +8651,10 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
    usuário, 12/09/2026). O ícone É o botão — sem círculo em volta. O marcado
    fica dourado e maior; clicar nele de novo volta a 0. */
 #root .menestrel-ui .batalha-ini-opcoes { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+/* Bandos e iniciativa por tipo (13/09/2026): o "+4 minions" ao lado do líder e
+   o "todas as N" ao lado do seletor que vale para o tipo inteiro. */
+#root .menestrel-ui .batalha-part-bando,
+#root .menestrel-ui .batalha-part-ini-tipo { font-family: inherit; font-size: 11px; color: var(--parchment-muted); white-space: nowrap; }
 #root .menestrel-ui .batalha-ini-bola {
   width: 28px; height: 28px; padding: 0; border: none; background: none;
   display: inline-flex; align-items: center; justify-content: center;

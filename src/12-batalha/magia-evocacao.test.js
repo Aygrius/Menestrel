@@ -139,7 +139,7 @@ describe('a quebra — as mesmas regras da concentração', () => {
   it('quebrar remove o estado e registra o motivo', () => {
     const r = M.quebrarEvocacao(evocando(), 'c1', 'atacou');
     expect(r[0].evocando).toBeUndefined();
-    expect(r[0].evocacao_quebrada).toEqual({ magia_key: 'meteoros', motivo: 'atacou' });
+    expect(r[0].evocacao_quebrada).toEqual({ magia_key: 'meteoros', magia_nome: 'Meteoros', motivo: 'atacou' });
   });
 
   it('o karma NÃO volta', () => {

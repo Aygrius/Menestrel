@@ -116,8 +116,6 @@ const CATALOGO_DESCRITORES = {
       { col: 'fisico',     tipo: 'numero', rotuloKey: 'campoFisico',     min: -2, max: 10 },
       { col: 'agilidade',  tipo: 'numero', rotuloKey: 'campoAgilidade',  min: -2, max: 10 },
       { col: 'percepcao',  tipo: 'numero', rotuloKey: 'campoPercepcao',  min: -2, max: 10 },
-      { col: 'armadura',      tipo: 'texto', rotuloKey: 'campoArmadura' },
-      { col: 'tipo_armadura', tipo: 'texto', rotuloKey: 'campoTipoArmadura' },
       // Os 30 nomes fechados de ataques-criatura.jsx (dano_l/m/p derivam
       // deles — ver criatura-formulas.jsx). catalogo-editor.jsx acrescenta,
       // em tempo de execução, as armas do catálogo `itens` que faltarem
@@ -125,14 +123,30 @@ const CATALOGO_DESCRITORES = {
       // banco, ver comentário em ataques-criatura.jsx).
       { col: 'ataque', tipo: 'opcoes', rotuloKey: 'campoAtaque',
         opcoes: AtaquesCriatura.NOMES_ATAQUE_CRIATURA },
-      { col: 'magia',   tipo: 'texto',  rotuloKey: 'campoMagia' },
-      { col: 'magia_n', tipo: 'numero', rotuloKey: 'campoMagiaN', min: 1, max: 9 },
-      { col: 'tecnicas_especiais', tipo: 'area', rotuloKey: 'campoTecnicasEspeciais', linhas: 2 },
-      { col: 'habilidades',        tipo: 'area', rotuloKey: 'campoHabilidades',        linhas: 2 },
+      /* Escolhidas na lista do catálogo (13/09/2026): "Quero poder escolher
+         quais técnicas, habilidades e magias a criatura possui, escolhendo na
+         lista que temos disponíveis." Grava o MESMO texto separado por
+         vírgula de antes — batalha (resolverNomesDeMagia) e Diário leem assim.
+         `fonte` é a tabela de onde saem os nomes. */
+      /* Sem campo de nível (13/09/2026): "O nível das habilidades, técnicas e
+         magias é com base no nível e atributos da criatura." Magia conjura no
+         estágio (nivelMagiaDeCriatura); `magia_n` fica no banco, sem uso. */
+      { col: 'magia',   tipo: 'lista',  rotuloKey: 'campoMagia', fonte: 'magias' },
+      { col: 'tecnicas_especiais', tipo: 'lista', rotuloKey: 'campoTecnicasEspeciais', fonte: 'tecnicas' },
+      { col: 'habilidades',        tipo: 'lista', rotuloKey: 'campoHabilidades',        fonte: 'habilidades' },
       // Derivados: calculados pelas fórmulas de criatura-formulas.jsx, não
       // editados diretamente pelo admin — por isso nunca são obrigatórios.
       { col: 'energia_fisica',  tipo: 'derivado', rotuloKey: 'campoEnergiaFisica',  derivado: true, formula: 'energiaFisica' },
       { col: 'energia_heroica', tipo: 'derivado', rotuloKey: 'campoEnergiaHeroica', derivado: true, formula: 'energiaHeroica' },
+      /* Tipo de armadura (13/09/2026): um campo só, junto da Absorção e da
+         Defesa. Eram dois — `armadura` (texto livre, a sigla que a batalha lê
+         em siglaArmadura) e `tipo_armadura` (vazio em 224 das 228 criaturas,
+         ignorado pela batalha). `tipo_armadura` sai do formulário; a coluna
+         fica no banco, intocada (campo fora do descritor nunca vai no payload). */
+      { col: 'armadura', tipo: 'opcoes', rotuloKey: 'campoTipoArmadura',
+        opcoes: [{ value: 'L', label: 'Leve' },
+                 { value: 'M', label: 'Médio' },
+                 { value: 'P', label: 'Pesado' }] },
       { col: 'absorcao', tipo: 'derivado', rotuloKey: 'campoAbsorcao', derivado: true, formula: 'absorcao' },
       { col: 'defesa',   tipo: 'derivado', rotuloKey: 'campoDefesa',   derivado: true, formula: 'defesa' },
       { col: 'velocidade', tipo: 'derivado', rotuloKey: 'campoVelocidade', derivado: true, formula: 'velocidade' },
@@ -140,9 +154,13 @@ const CATALOGO_DESCRITORES = {
       { col: 'dano_m', tipo: 'derivado', rotuloKey: 'campoDanoM', derivado: true, formula: 'danoLMP' },
       { col: 'dano_p', tipo: 'derivado', rotuloKey: 'campoDanoP', derivado: true, formula: 'danoLMP' },
       { col: 'dano_100', tipo: 'derivado', rotuloKey: 'campoDano100', derivado: true, formula: 'dano100' },
-      { col: 'dano_25', tipo: 'derivado', rotuloKey: 'campoDano25', derivado: true, formula: 'tiersDeDano' },
-      { col: 'dano_50', tipo: 'derivado', rotuloKey: 'campoDano50', derivado: true, formula: 'tiersDeDano' },
-      { col: 'dano_75', tipo: 'derivado', rotuloKey: 'campoDano75', derivado: true, formula: 'tiersDeDano' },
+      /* 25/50/75% não aparecem (13/09/2026): "não precisa mostrar dano 75,50,25
+         do dano, só 100, é óbvio." Continuam gravados — a batalha os lê —, e
+         saem SEMPRE do Dano 100% que está na tela (`deDano100`), inclusive ao
+         editar: preso ao valor antigo, mudar o 100% os deixaria errados. */
+      { col: 'dano_25', tipo: 'derivado', rotuloKey: 'campoDano25', derivado: true, formula: 'tiersDeDano', oculto: true, deDano100: 'd25' },
+      { col: 'dano_50', tipo: 'derivado', rotuloKey: 'campoDano50', derivado: true, formula: 'tiersDeDano', oculto: true, deDano100: 'd50' },
+      { col: 'dano_75', tipo: 'derivado', rotuloKey: 'campoDano75', derivado: true, formula: 'tiersDeDano', oculto: true, deDano100: 'd75' },
     ],
   },
 

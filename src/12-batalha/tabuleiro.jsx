@@ -54,11 +54,30 @@ function posValida(pos) {
     && pos.y >= 0 && pos.y + TAB_TOKEN <= TAB_ROWS;
 }
 
-/* Distância de MOVIMENTO entre duas células — Chebyshev (diagonal custa
-   igual a ortogonal). É a que o gasto de movimento consome. */
+/* Distância Chebyshev entre duas células (diagonal custa igual a ortogonal).
+   Foi a do MOVIMENTO até 13/09/2026 — ver distanciaMovimento logo abaixo.
+   Segue servindo onde "quantas casas de um lado" é a pergunta certa. */
 function distanciaCelulas(a, b) {
   if (!a || !b) return Infinity;
   return Math.max(Math.abs((a.x || 0) - (b.x || 0)), Math.abs((a.y || 0) - (b.y || 0)));
+}
+
+/* ── Distância de MOVIMENTO: em linha reta (13/09/2026) ─────────────
+   "A área de mover o personagem deve ser redonda, se movendo igualmente em
+   todas as direções." Com Chebyshev a área era um QUADRADO: andar 5 na
+   diagonal levava o token 7 casas longe, mais que os 5 da reta. Agora é a
+   distância euclidiana, e o alcance forma um círculo.
+
+   O custo em movimento é essa distância ARREDONDADA PRA CIMA (regra do
+   sistema): a diagonal (3, 3) mede 4,24 e custa 5. O 1e-9 protege a reta
+   exata de virar uma casa a mais por erro de ponto flutuante. */
+function distanciaMovimento(a, b) {
+  if (!a || !b) return Infinity;
+  return Math.hypot((a.x || 0) - (b.x || 0), (a.y || 0) - (b.y || 0));
+}
+function custoMovimento(a, b) {
+  const d = distanciaMovimento(a, b);
+  return Number.isFinite(d) ? Math.ceil(d - 1e-9) : Infinity;
 }
 
 /* Distância de ALCANCE entre dois tokens — mesma Chebyshev, mas de BORDA
@@ -120,6 +139,55 @@ function celulaOcupada(pos, participantes, ignorar) {
   });
 }
 
+/* ── O bando anda com o líder (13/09/2026) ─────────────────────────
+   Ver o bloco BANDOS em batalha.jsx. Depois que o líder anda (ou é
+   posicionado na montagem), cada minion de pé vai para uma casa livre ENCOSTADA
+   nele — o anel de 8 casas a um token de distância, e o seguinte se o
+   primeiro estiver cheio. Entre as livres, a mais perto de onde o minion
+   estava: quem ia à esquerda continua à esquerda, e a formação não embaralha a
+   cada passo.
+
+   Minion já encostado fica onde está. Desmaiado não é arrastado, morto e
+   fugido também não. Não gasta movimento nem PA do minion: o passo foi do
+   líder. Sem nada a mudar, devolve o MESMO array. */
+function casasAoRedor(pos, anel) {
+  const out = [];
+  const passo = TAB_TOKEN;
+  for (let dy = -anel; dy <= anel; dy++) {
+    for (let dx = -anel; dx <= anel; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== anel) continue;
+      const c = { x: pos.x + dx * passo, y: pos.y + dy * passo };
+      if (posValida(c)) out.push(c);
+    }
+  }
+  return out;
+}
+
+function bandoSegueLider(participantes, liderInstId) {
+  if (!Array.isArray(participantes) || !liderInstId) return participantes;
+  const lider = participantes.find((p) => p && p.inst_id === liderInstId);
+  if (!lider || !lider.bando || lider.bando.papel !== 'lider' || !posValida(lider.pos)) return participantes;
+  const seguidores = participantes.filter((p) => p && p.bando && p.bando.papel === 'minion'
+    && p.bando.lider === liderInstId && (p.status || 'ativo') === 'ativo' && !p.ausente && !p.fugiu);
+  if (!seguidores.length) return participantes;
+  let out = participantes;
+  seguidores.forEach((m) => {
+    const atual = out.find((p) => p.inst_id === m.inst_id) || m;
+    if (posValida(atual.pos) && distanciaBordas(atual.pos, lider.pos) <= 1
+        && !celulaOcupada(atual.pos, out, atual)) return;
+    const origem = posValida(atual.pos) ? atual.pos : lider.pos;
+    let destino = null;
+    for (let anel = 1; anel <= 2 && !destino; anel++) {
+      const livres = casasAoRedor(lider.pos, anel).filter((c) => !celulaOcupada(c, out, atual));
+      livres.sort((a, b) => distanciaCelulas(a, origem) - distanciaCelulas(b, origem));
+      destino = livres[0] || null;
+    }
+    if (!destino) return;
+    out = out.map((p) => (p.inst_id === m.inst_id ? { ...p, pos: { x: destino.x, y: destino.y } } : p));
+  });
+  return out;
+}
+
 /* Códigos de recusa de movimento + texto PT/EN (recuperados do bundle). */
 const MOV_MOTIVOS = {
   nao_ativo:          ['O participante não está ativo.',              'Participant is not active.'],
@@ -128,14 +196,51 @@ const MOV_MOTIVOS = {
   fora_do_tabuleiro:  ['Destino fora do tabuleiro.',                  'Destination outside the board.'],
   mesmo_lugar:        ['Já está nessa célula.',                       'Already on that cell.'],
   sem_movimento:      ['Além do movimento restante da rodada.',       'Beyond the remaining movement this round.'],
-  ja_moveu:           ['Já se moveu nesta rodada.',                   'Already moved this round.'],
+  ja_moveu:           ['Já se moveu duas vezes nesta rodada.',        'Already moved twice this round.'],
+  sem_pa:             ['Sem pontos de ação para o 2º movimento.',     'No action points left for a 2nd move.'],
   celula_ocupada:     ['Célula ocupada.',                             'Cell occupied.'],
   nao_e_a_vez:        ['Só quem está na vez pode se mover.',          'Only the active fighter can move.'],
+  segue_lider:        ['Minion anda com o líder do bando.',           'Minions move with their band leader.'],
 };
+
+/* Minion com o líder de pé não anda sozinho (13/09/2026, ver bandoSegueLider).
+   Líder desmaiado, morto ou fora da lista solta o minion. */
+function minionPresoAoLider(p, participantes) {
+  if (!p || !p.bando || p.bando.papel !== 'minion' || !p.bando.lider) return false;
+  const lider = (participantes || []).find((q) => q && q.inst_id === p.bando.lider);
+  return !!(lider && (lider.status || 'ativo') === 'ativo' && !lider.ausente);
+}
 
 function motivoMovimento(codigo, isEn) {
   const m = MOV_MOTIVOS[codigo];
   return m ? (isEn ? m[1] : m[0]) : String(codigo || '');
+}
+
+/* ── Quantos movimentos na rodada, e quanto o próximo pode andar ─────
+   Regra do usuário (13/09/2026): "mover-se pelo campo de batalha uma vez não
+   gasta ação, 2 vezes gasta" — e o 2º movimento dá um PASSO COMPLETO, no
+   máximo dois por rodada.
+     1º movimento  grátis, até mov_rest (o passo da rodada)
+     2º movimento  1 PA (só do pa_rest), passo completo de novo
+   `movimentos_na_rodada` conta; snapshot antigo só tem moveu_na_rodada, que
+   vale 1. */
+const MOVIMENTOS_POR_RODADA = 2;
+function movimentosFeitos(p) {
+  const n = Number(p && p.movimentos_na_rodada);
+  if (Number.isFinite(n) && n > 0) return n;
+  return (p && p.moveu_na_rodada) ? 1 : 0;
+}
+function passoCompleto(p) {
+  const vb = (typeof vbParaMovimento === 'function') ? vbParaMovimento(p) : (p && p.vb);
+  return movimentoBase(vb);
+}
+// Células que o PRÓXIMO movimento pode andar; 0 quando não há movimento.
+function movimentoDisponivel(p) {
+  if (!p) return 0;
+  const n = movimentosFeitos(p);
+  if (n >= MOVIMENTOS_POR_RODADA) return 0;
+  if (n === 0) return Number.isFinite(p.mov_rest) ? p.mov_rest : movimentoBase(p.vb);
+  return (p.pa_rest || 0) > 0 ? passoCompleto(p) : 0;
 }
 
 /* Validação pura do movimento. Devolve { ok, motivo } ou { ok, dist }.
@@ -147,45 +252,49 @@ function validarMovimento(p, destino, participantes) {
   if (typeof statusTemEfeito === 'function' && statusTemEfeito(p, 'sem_acoes')) {
     return { ok: false, motivo: 'sem_acoes' };
   }
-  // Um movimento por rodada (30/08/2026). `mov_rest` continua limitando a
-  // DISTÂNCIA desse único movimento; esta flag limita a QUANTIDADE. Sem ela
-  // dava pra fatiar o deslocamento em vários cliques, o que na prática era
-  // movimento ilimitado dentro do alcance.
-  if (p.moveu_na_rodada)     return { ok: false, motivo: 'ja_moveu' };
+  if (minionPresoAoLider(p, participantes)) return { ok: false, motivo: 'segue_lider' };
+  // Até DOIS movimentos por rodada (13/09/2026; era um desde 30/08/2026). A
+  // contagem impede fatiar o deslocamento em vários cliques.
+  const feitos = movimentosFeitos(p);
+  if (feitos >= MOVIMENTOS_POR_RODADA) return { ok: false, motivo: 'ja_moveu' };
+  // O 2º custa 1 PA, só do pa_rest — o ponto exclusivo de técnica e o ataque
+  // extra não servem para andar.
+  if (feitos >= 1 && (p.pa_rest || 0) <= 0) return { ok: false, motivo: 'sem_pa' };
   if (!posValida(p.pos))     return { ok: false, motivo: 'sem_posicao' };
   if (!posValida(destino))   return { ok: false, motivo: 'fora_do_tabuleiro' };
 
-  const dist = distanciaCelulas(p.pos, destino);
+  // Em linha reta desde 13/09/2026 (distanciaMovimento): o alcance é redondo.
+  const dist = custoMovimento(p.pos, destino);
   if (dist === 0) return { ok: false, motivo: 'mesmo_lugar' };
-  const mov = Number.isFinite(p.mov_rest) ? p.mov_rest : movimentoBase(p.vb);
+  const mov = movimentoDisponivel(p);
   if (dist > mov) return { ok: false, motivo: 'sem_movimento' };
   if (celulaOcupada(destino, participantes, p)) return { ok: false, motivo: 'celula_ocupada' };
   return { ok: true, dist };
 }
 
-/* Aplica o movimento: desconta as células andadas e fecha o movimento da
-   rodada (moveu_na_rodada).
-   ────────────────────────────────────────────────────────────────────
-   NÃO cobra PA (mudado em 30/08/2026). Antes cobrava os dois, e com
-   criatura tendo pa_max 1 o PA sempre acabava primeiro: ela andava uma
-   única vez, a vez passava na hora, e ainda sobrava mov_rest na barra —
-   nunca conseguia mover e agir na mesma rodada. Movimento é orçamento
-   de mov_rest; PA é orçamento de AÇÃO. Cobrar nos dois era cobrança
-   dobrada e deixava o mov_rest sem função.
+/* Aplica o movimento (regra de 13/09/2026, ver movimentoDisponivel):
+     1º  desconta as células do mov_rest; NÃO gasta PA
+     2º  gasta 1 PA (só do pa_rest) e anda de um passo completo novo
+   Histórico: até 30/08/2026 cobrava PA e movimento; depois nenhum PA; em
+   13/09/2026 de manhã, 1 PA sempre; à tarde o usuário fixou "uma vez não
+   gasta ação, 2 vezes gasta".
 
    Não muta o participante recebido. */
 function moverParticipante(p, destino, participantes) {
   const v = validarMovimento(p, destino, participantes);
   if (!v.ok) return { ok: false, motivo: v.motivo, participante: p };
-  const mov = Number.isFinite(p.mov_rest) ? p.mov_rest : movimentoBase(p.vb);
+  const feitos = movimentosFeitos(p);
+  const mov = movimentoDisponivel(p);
   return {
     ok: true,
     dist: v.dist,
     participante: {
       ...p,
       pos: { x: destino.x, y: destino.y },
-      mov_rest: mov - v.dist,
+      mov_rest: Math.max(0, mov - v.dist),
       moveu_na_rodada: true,
+      movimentos_na_rodada: feitos + 1,
+      ...(feitos >= 1 ? { pa_rest: Math.max(0, (p.pa_rest || 0) - 1) } : {}),
     },
   };
 }
@@ -205,9 +314,11 @@ function moverParticipante(p, destino, participantes) {
    Devolve null quando não há nenhuma célula boa na direção. */
 function destinoAlcancavel(p, desejado, participantes) {
   if (!p || !posValida(p.pos) || !posValida(desejado)) return null;
-  const dist = distanciaCelulas(p.pos, desejado);
+  // Distância em linha reta, a mesma de validarMovimento (13/09/2026).
+  const dist = distanciaMovimento(p.pos, desejado);
   if (dist === 0) return null;                       // já está lá
-  const mov = Number.isFinite(p.mov_rest) ? p.mov_rest : movimentoBase(p.vb);
+  // O passo do PRÓXIMO movimento: o que sobrou no 1º, cheio no 2º (13/09/2026).
+  const mov = movimentoDisponivel(p);
   // Do mais longe permitido para o mais perto: o primeiro que serve ganha,
   // então um clique legal devolve exatamente a célula clicada.
   for (let d = Math.min(dist, mov); d >= 1; d--) {
@@ -217,8 +328,8 @@ function destinoAlcancavel(p, desejado, participantes) {
       y: p.pos.y + Math.round((desejado.y - p.pos.y) * t),
     };
     // O arredondamento pode estourar o passo; nesse caso pula.
-    if (!posValida(c) || distanciaCelulas(p.pos, c) > mov) continue;
-    if (distanciaCelulas(p.pos, c) === 0) continue;
+    if (!posValida(c) || custoMovimento(p.pos, c) > mov) continue;
+    if (custoMovimento(p.pos, c) === 0) continue;
     if (!celulaOcupada(c, participantes, p)) return c;
   }
   return null;
@@ -252,41 +363,156 @@ function alvoNoAlcance(ator, alvo, alcance) {
   return d <= Math.max(1, Math.floor(Number(alcance) || 0) || 1);
 }
 
+/* ── Régua numerada do tabuleiro (13/09/2026) ─────────────────────────
+   Uma faixa fora da área que rola, deslocada pela rolagem. O passo entre
+   números acompanha o tamanho da célula para não embolar: célula grande
+   numera todas; média, de 5 em 5; pequena, de 10 em 10 (sempre com o 1). */
+function passoDaRegua(cel) {
+  if (cel >= 22) return 1;
+  if (cel >= 10) return 5;
+  return 10;
+}
+function ReguaTabuleiro({ eixo, total, cel, deslocamento }) {
+  const passo = passoDaRegua(cel);
+  const horizontal = eixo === 'col';
+  const numeros = [];
+  for (let i = 0; i < total; i += 1) {
+    const n = i + 1;
+    if (n !== 1 && n % passo !== 0) continue;
+    numeros.push(React.createElement('span', {
+      key: n, className: 'batalha-tabuleiro-regua-num',
+      style: horizontal
+        ? { left: i * cel, width: cel }
+        : { top: i * cel, height: cel, lineHeight: cel + 'px' },
+    }, n));
+  }
+  return React.createElement('div', {
+    className: 'batalha-tabuleiro-regua batalha-tabuleiro-regua--' + eixo, 'aria-hidden': 'true',
+  }, React.createElement('div', {
+    className: 'batalha-tabuleiro-regua-trilho',
+    style: horizontal
+      ? { width: total * cel, transform: `translateX(${-deslocamento}px)` }
+      : { height: total * cel, transform: `translateY(${-deslocamento}px)` },
+  }, numeros));
+}
+
 /* ── Token: avatar redondo + status + nome + barras EF/EH/AR ───────── */
-function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, abrirTip, fecharTip, refAvatar }) {
+/* ── Selos de estado temporário no token (puro) ────────────────────
+   O tabuleiro é a única coisa que todo mundo vê igual. Veneno e sangramento
+   são o mesmo mecanismo (dano_por_rodada); o prefixo do id separa os dois
+   (statusAplicadoPeloMestre em batalha.jsx). Caído é `sem_acoes`. Evocando é
+   o estado da canalização, não um status_temp. */
+function selosDoToken(p) {
+  const st = Array.isArray(p && p.status_temp) ? p.status_temp.filter(Boolean) : [];
+  const idTxt = (s) => (typeof s.id === 'string' ? s.id : '');
+  const porRodada = st.filter((s) => s.efeito && s.efeito.tipo === 'dano_por_rodada');
+  const sangra = porRodada.some((s) => idTxt(s).startsWith('sangramento:'));
+  const veneno = porRodada.some((s) => !idTxt(s).startsWith('sangramento:'));
+  const caido = st.some((s) => s.efeito && s.efeito.tipo === 'sem_acoes');
+  const selos = [];
+  if (veneno) selos.push({ classe: 'batalha-token-selo-veneno', nome: 'Envenenado', icone: 'ti-flask-2', cor: '#7fd66b' });
+  if (sangra) selos.push({ classe: 'batalha-token-selo-sangrando', nome: 'Sangrando', icone: 'ti-droplet', cor: '#e05a4f' });
+  if (caido) selos.push({ classe: 'batalha-token-selo-caido', nome: 'Caído', icone: 'ti-arrow-down-circle', cor: '#e8c26b' });
+  if (p && p.evocando) selos.push({ classe: 'batalha-token-selo-evocando', nome: 'Evocando', icone: 'ti-sparkles', cor: '#9fb8ff' });
+  return selos;
+}
+
+// Os quatro estados de VISIBILIDADE_ORDEM (batalha.jsx). Lista local para o
+// tabuleiro não depender da ordem de carga; valor desconhecido vira 'clara'.
+const ESCURIDAO_NIVEIS = ['clara', 'parcial', 'total', 'magica'];
+
+/* ── Animação de DANO no token (13/09/2026) ─────────────────────────
+   "Adicione um efeito animação quando um personagem sofre dano, efeito
+   vermelho na EF, efeito verde na EH, e efeito branco na armadura."
+
+   O token é o lugar que Mestre e jogadores veem igual, e o dano chega nele por
+   todos os caminhos (golpe, magia, veneno na virada, barra editada, gravação
+   de outra tela pelo realtime) — por isso a detecção é por DIFERENÇA de pool
+   entre um render e o seguinte, e não um aviso de cada handler.
+
+   Armadura = a RESISTÊNCIA caiu: é o que o golpe acima do limiar gasta. O
+   golpe contido inteiro pelo limiar não muda número nenhum e não tem como
+   piscar daqui.
+
+   Pool que cai junto com o próprio máximo não é dano: é empréstimo de EH/EF
+   devolvido quando a técnica ou a magia expira (expirarEhTemp). */
+const FLASH_DANO_MS = 950;
+
+function danoNasPools(antes, depois) {
+  const nada = { ef: false, eh: false, armadura: false };
+  if (!antes || !depois) return nada;
+  const num = (v) => (v == null || v === '' ? null : (Number.isFinite(Number(v)) ? Number(v) : null));
+  const caiu = (k) => {
+    const a = num(antes[k]); const d = num(depois[k]);
+    if (a == null || d == null || d >= a) return false;
+    const maxA = num(antes[k + '_max']); const maxD = num(depois[k + '_max']);
+    return !(maxA != null && maxD != null && maxD < maxA);
+  };
+  return { ef: caiu('ef'), eh: caiu('eh'), armadura: caiu('res') };
+}
+
+// Devolve { ef, eh, armadura, n } enquanto a animação dura; null fora dela.
+// `n` troca a cada golpe, e é a key que reinicia a animação no golpe seguido.
+function useFlashDeDano(p) {
+  const anterior = useRef(null);
+  const timer = useRef(null);
+  const [flash, setFlash] = useState(null);
+  const chave = p ? [p.inst_id, p.ef, p.eh, p.res, p.ef_max, p.eh_max].join('|') : '';
+  useEffect(() => {
+    const atual = p ? { inst_id: p.inst_id, ef: p.ef, eh: p.eh, res: p.res, ef_max: p.ef_max, eh_max: p.eh_max } : null;
+    const antes = anterior.current;
+    anterior.current = atual;
+    // Primeiro render e troca de participante não são dano.
+    if (!antes || !atual || antes.inst_id !== atual.inst_id) return;
+    const d = danoNasPools(antes, atual);
+    if (!d.ef && !d.eh && !d.armadura) return;
+    setFlash((f) => ({ ...d, n: ((f && f.n) || 0) + 1 }));
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setFlash(null), FLASH_DANO_MS);
+    // eslint-disable-next-line
+  }, [chave]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return flash;
+}
+
+/* Fração da EF para o anel do avatar: 0..1, EF negativa (caído-vivo) é vazio.
+   null quando não há EF para medir — participante cru da montagem. */
+function fracaoEfDoToken(p) {
+  const max = Number(p && p.ef_max) || 0;
+  if (max <= 0) return null;
+  return Math.max(0, Math.min(1, (Number(p.ef) || 0) / max));
+}
+
+function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, refAvatar }) {
+  const flash = useFlashDeDano(p);
   const m = meta || {};
   const foto = p.foto_url || m.foto_url || null;
-  const raca = p.raca || m.raca || null;
   const inicial = ((p.nome || '?').trim()[0] || '?').toUpperCase();
   const status = p.status || 'ativo';
   const fora = status === 'morto' || status === 'desistiu';
-  const cor = selecionado ? 'var(--gold, #C9A44E)'
-    : (p.tipo === 'pj' ? 'rgba(201,164,78,.9)' : 'rgba(184,71,47,.95)');
   const grande = size >= 24;
-  // Só o nome: raça e status já aparecem no token (selo de caveira/zzz) e no
-  // menu que o clique abre — repetir os três no hover só polui.
-  const titulo = p.nome;
-  const barra = (valor, max, grad) => React.createElement('div', {
-    style: { width: '100%', height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.10)', overflow: 'hidden' },
-  }, React.createElement('div', {
-    style: {
-      height: '100%', borderRadius: 2,
-      width: (valor != null && max > 0 ? Math.max(0, Math.min(1, valor / max)) * 100 : 0) + '%',
-      background: grad, transition: 'width .35s cubic-bezier(.4,.0,.2,1)',
-    },
-  }));
+  /* ANEL DA EF (14/09/2026): "Remova as barras debaixo do avatar [...] Mostre
+     uma borda do EF ao redor do avatar, é sua EF." As quatro barrinhas (EF,
+     EH, resistência, Karma) saíram; ficou a EF, desenhada como a borda do
+     próprio avatar — o mesmo traço de SVG com pathLength 100 dos botões de
+     pool do card, recolhendo a partir do topo conforme a EF cai. Antes a
+     borda era da cor do lado (dourado PJ, vermelho criatura); agora ela é a
+     vida. As outras pools seguem no card que o clique abre. */
+  const fracaoEf = fracaoEfDoToken(p);
+  const pctEf = fracaoEf == null ? 0 : Math.round(fracaoEf * 100);
 
   return React.createElement('div', {
     role: podeSel ? 'button' : undefined,
     tabIndex: podeSel ? 0 : undefined,
+    // Sem tooltip com o nome (14/09/2026, pedido do usuário): o nome já está
+    // embaixo do avatar. Fica só no aria-label, para leitor de tela.
+    'aria-label': p.nome || undefined,
     onClick: (e) => { e.stopPropagation(); if (podeSel) onSelect(e); },
     onKeyDown: (e) => {
       if (podeSel && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); onSelect(e); }
     },
-    onMouseEnter: (e) => { if (abrirTip) abrirTip(e, titulo); },
-    onMouseLeave: () => { if (fecharTip) fecharTip(); },
-    title: abrirTip ? undefined : titulo,
-    className: 'batalha-token' + (atual ? ' batalha-token--atual' : ''),
+    className: 'batalha-token' + (atual ? ' batalha-token--atual' : '') + (flash ? ' is-dano' : '')
+      + (p.tipo === 'pj' ? ' batalha-token--pj' : ' batalha-token--criatura'),
     style: {
       position: 'relative', width: size, display: 'flex', flexDirection: 'column',
       alignItems: 'center', cursor: podeSel ? 'pointer' : 'default', pointerEvents: 'auto',
@@ -295,68 +521,96 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
     // anel pulsante de "é a vez dele"
     atual && React.createElement('span', {
       'aria-hidden': 'true', className: 'batalha-token-vez-ring',
-      style: { width: size + 10, height: size + 10, top: -5, left: '50%', marginLeft: -(size + 10) / 2 },
+      style: { width: size + 14, height: size + 14, top: -7, left: '50%', marginLeft: -(size + 14) / 2 },
     }),
+    /* Anéis de dano, um por pool atingida, na ordem da cascata (EH → armadura
+       → EF): o CSS atrasa cada um um pouco, e o golpe que atravessa a EH e
+       chega na EF pisca verde e depois vermelho. */
+    flash && ['eh', 'armadura', 'ef'].filter((k) => flash[k]).map((k) => React.createElement('span', {
+      key: k + ':' + flash.n, 'aria-hidden': 'true',
+      className: 'batalha-token-dano-anel batalha-token-dano-anel--' + k,
+      style: { width: size + 16, height: size + 16, top: -8, left: '50%', marginLeft: -(size + 16) / 2 },
+    })),
+    // O avatar e o anel da EF andam juntos: o tranco do dano e a escala da
+    // seleção valem para os dois.
     React.createElement('div', {
       ref: refAvatar,
+      key: flash ? 'avatar-dano-' + flash.n : 'avatar',
+      className: 'batalha-token-avatar' + (flash ? ' is-dano' : ''),
       style: {
-        width: size, height: size, borderRadius: '50%', overflow: 'hidden', flex: 'none',
-        border: '2px solid ' + cor,
-        boxShadow: atual
-          ? '0 0 0 3px rgba(201,164,78,.45), 0 0 16px rgba(201,164,78,.65)'
-          : '0 1px 4px rgba(0,0,0,.5)',
-        background: 'linear-gradient(135deg, rgba(184,112,46,.95), rgba(122,94,42,.95))',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative', width: size, height: size, flex: 'none',
         opacity: fora ? 0.35 : (status === 'desmaiado' ? 0.55 : 1),
         transform: selecionado ? 'scale(1.12)' : 'none',
         transition: 'transform .15s ease, opacity .2s ease',
       },
-    }, foto
-      ? React.createElement('img', {
-          src: foto, alt: '', draggable: false,
-          style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-        })
-      : React.createElement('span', {
-          style: {
-            fontFamily: 'Cinzel, serif', fontWeight: 700, color: '#1C1407',
-            fontSize: Math.max(10, Math.round(size * 0.48)), lineHeight: 1, userSelect: 'none',
-          },
-        }, inicial)),
-    // selo de status (caveira / zzz / bandeira)
+    },
+      React.createElement('div', {
+        className: 'batalha-token-rosto',
+        style: {
+          position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden',
+          boxShadow: selecionado
+            ? '0 0 0 2px rgba(201,164,78,.9), 0 0 14px rgba(201,164,78,.6)'
+            : (atual ? '0 0 16px rgba(201,164,78,.65)' : '0 1px 4px rgba(0,0,0,.5)'),
+          background: 'linear-gradient(135deg, rgba(184,112,46,.95), rgba(122,94,42,.95))',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        },
+      }, foto
+        ? React.createElement('img', {
+            src: foto, alt: '', draggable: false,
+            style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+          })
+        : React.createElement('span', {
+            style: {
+              fontFamily: 'Cinzel, serif', fontWeight: 700, color: '#1C1407',
+              fontSize: Math.max(10, Math.round(size * 0.48)), lineHeight: 1, userSelect: 'none',
+            },
+          }, inicial),
+        // Véu de cor por cima do rosto: o "acerto" que se lê de longe.
+        flash && ['eh', 'armadura', 'ef'].filter((k) => flash[k]).map((k) => React.createElement('span', {
+          key: 'veu-' + k, 'aria-hidden': 'true',
+          className: 'batalha-token-dano-veu batalha-token-dano-veu--' + k,
+        }))),
+      fracaoEf != null && React.createElement('svg', {
+        key: flash && flash.ef ? 'ef-dano-' + flash.n : 'ef',
+        className: 'batalha-token-ef' + (flash && flash.ef ? ' is-dano-ef' : '') + (pctEf === 0 ? ' vazia' : ''),
+        viewBox: '0 0 100 100', 'aria-hidden': 'true', focusable: 'false', 'data-pct': pctEf,
+        style: { position: 'absolute', inset: -4, width: size + 8, height: size + 8, pointerEvents: 'none', overflow: 'visible' },
+      },
+        React.createElement('circle', { className: 'batalha-token-ef-trilho', cx: 50, cy: 50, r: 47, pathLength: 100 }),
+        React.createElement('circle', {
+          className: 'batalha-token-ef-nivel', cx: 50, cy: 50, r: 47, pathLength: 100,
+          strokeDasharray: pctEf + ' 100', transform: 'rotate(-90 50 50)',
+        }))),
+    // selo de status (caveira / zzz / bandeira) — com nome, para leitor de
+    // tela e para quem pergunta "o que é isso" (13/09/2026).
     status !== 'ativo' && size >= 18 && React.createElement('span', {
+      className: 'batalha-token-selo-estado', role: 'img',
+      'aria-label': status === 'morto' ? 'Morto' : status === 'desmaiado' ? 'Desmaiado' : 'Desistiu',
       style: { position: 'absolute', top: -4, right: -6, lineHeight: 1, fontSize: Math.max(10, Math.round(size * 0.32)) },
     }, React.createElement('i', {
       className: 'ti ' + (status === 'morto' ? 'ti-skull' : status === 'desmaiado' ? 'ti-zzz' : 'ti-flag'),
       'aria-hidden': 'true', style: { color: '#f2e8d5', textShadow: '0 1px 2px #000' },
     })),
-    // nome + barras (só quando o zoom dá espaço)
+    /* Selos de estado temporário (veneno, sangrando, caído, evocando), na
+       coluna da esquerda, um embaixo do outro (13/09/2026). */
+    fora || size < 18 ? null : selosDoToken(p).map((selo, k) => React.createElement('span', {
+      key: selo.classe, className: selo.classe, role: 'img', 'aria-label': selo.nome,
+      style: { position: 'absolute', top: -4 + k * Math.max(10, Math.round(size * 0.34)), left: -6,
+        lineHeight: 1, fontSize: Math.max(10, Math.round(size * 0.32)) },
+    }, React.createElement('i', {
+      className: 'ti ' + selo.icone, 'aria-hidden': 'true', style: { color: selo.cor, textShadow: '0 1px 2px #000' },
+    }))),
+    // nome (só quando o zoom dá espaço). As barras que vinham embaixo saíram
+    // em 14/09/2026 — a EF virou o anel do avatar.
     grande && React.createElement('div', {
-      style: { pointerEvents: 'none', marginTop: 2, textAlign: 'center', maxWidth: size * 2.6, lineHeight: 1.12 },
-    },
-      React.createElement('div', {
-        style: {
-          fontFamily: 'Lora, serif', fontSize: Math.max(8, Math.round(size * 0.26)),
-          color: 'var(--foreground, #f2e8d5)', textShadow: '0 1px 2px rgba(0,0,0,.85)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        },
-      }, (p.nome || '').split(' ')[0]),
-      /* Largura FIXA, a do avatar (pedido do usuário, 12/09/2026). Com
-         `width: 100%` a barra acompanhava o bloco do nome, que cresce com o
-         texto — "Lysandra" ganhava barras mais largas que "Eco", e a mesma
-         vida parecia outra de token para token. */
-      size >= 28 && React.createElement('div', {
-        className: 'batalha-token-barras',
-        style: { marginTop: 3, marginLeft: 'auto', marginRight: 'auto', display: 'flex', flexDirection: 'column', gap: 2, width: size },
+      className: 'batalha-token-nome',
+      style: {
+        pointerEvents: 'none', marginTop: 6, textAlign: 'center', maxWidth: size * 2.6, lineHeight: 1.12,
+        fontFamily: 'Lora, serif', fontSize: Math.max(8, Math.round(size * 0.26)),
+        color: 'var(--foreground, #f2e8d5)', textShadow: '0 1px 2px rgba(0,0,0,.85)',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       },
-        barra(p.ef, p.ef_max, 'linear-gradient(90deg, #a83232, #d9685a)'),
-        barra(p.eh, p.eh_max, 'linear-gradient(90deg, #6b9a52, #a4cf85)'),
-        // AR e KA só aparecem para quem tem: criatura sem absorção e PJ sem
-        // karma ganhariam uma barra sempre vazia embaixo do avatar.
-        // Armadura: a barra é a RESISTÊNCIA das peças (12/09/2026) — a
-        // absorção virou limiar fixo e nunca esvaziava.
-        p.res_max > 0 && barra(p.res, p.res_max, 'linear-gradient(90deg, #6b7280, #b8bec8)'),
-        p.karma_max > 0 && barra(p.karma, p.karma_max, 'linear-gradient(90deg, #7a52a8, #b48bd3)')
-      ))
+    }, (p.nome || '').split(' ')[0])
   );
 }
 
@@ -556,7 +810,7 @@ function TabuleiroMenu({ alvoEl, onFechar, rotuloFechar, rotuloVoltar, travado, 
 function TabuleiroBatalha({
   entradas, meta, podeSelecionar, alcanceDe, onMover, salvando, isEn, tb,
   abrirTip, fecharTip, menuDe, aviso, menuTravado, menuVoltar,
-  movendoControlado, onMovendoChange, semBancada,
+  movendoControlado, onMovendoChange, semBancada, abrirMenu, visibilidade,
 }) {
   // Duas coisas distintas, e essa distinção é o ponto: o menu é um popover
   // que cobre parte do tabuleiro, então enquanto ele está aberto o clique na
@@ -582,6 +836,14 @@ function TabuleiroBatalha({
     return r;
   }, []);
   const fecharMenu = React.useCallback(() => setMenuAberto(null), []);
+  /* Abrir o menu de um token por fora (13/09/2026): a magia canalizada que
+     ficou pronta abre o painel de quem evoca na vez dele. `abrirMenu` é
+     { i, chave }; a chave muda uma vez por ocasião, e só aí o menu abre. */
+  const chaveAbrirMenu = abrirMenu ? abrirMenu.chave : null;
+  useEffect(() => {
+    if (abrirMenu && abrirMenu.i != null) { setMovendo(null); setMenuAberto(abrirMenu.i); }
+    // eslint-disable-next-line
+  }, [chaveAbrirMenu]);
   // "Mover": fecha o menu e deixa o token armado. O clique seguinte na grade
   // é que move.
   const armarMovimento = React.useCallback(() => {
@@ -592,12 +854,20 @@ function TabuleiroBatalha({
   const cel = TAB_CELULA * TAB_ZOOMS[TAB_ZOOM_PADRAO];
   const largura = TAB_COLS * cel;
   const altura  = TAB_ROWS * cel;
+  // Réguas acompanham o arraste (13/09/2026): a posição de rolagem move os
+  // números das bordas junto do grid.
+  const [rolagemXY, setRolagemXY] = useState({ x: 0, y: 0 });
+  const aoRolar = React.useCallback((ev) => {
+    const el = ev.currentTarget;
+    setRolagemXY((a) => (a.x === el.scrollLeft && a.y === el.scrollTop ? a : { x: el.scrollLeft, y: el.scrollTop }));
+  }, []);
 
   const entradaMenu = menuAberto == null ? null : entradas.find((e) => e.i === menuAberto);
   const entradaMov  = movendo    == null ? null : entradas.find((e) => e.i === movendo);
   const alvoMover   = entradaMov && podeSelecionar(entradaMov.p) ? entradaMov.p : null;
-  const noTabuleiro = entradas.filter((e) => posValida(e.p.pos));
-  const naBancada   = entradas.filter((e) => !posValida(e.p.pos) && !e.p.ausente);
+  // Minion que fugiu (líder morto) saiu de cena: nem no grid, nem na bancada.
+  const noTabuleiro = entradas.filter((e) => posValida(e.p.pos) && !e.p.fugiu);
+  const naBancada   = entradas.filter((e) => !posValida(e.p.pos) && !e.p.ausente && !e.p.fugiu);
   const metaDe = (p) => (meta || {})[p.tipo + ':' + p.ref_id] || null;
 
   // Centraliza a rolagem no "centro de massa" dos tokens ao abrir.
@@ -716,12 +986,22 @@ function TabuleiroBatalha({
       React.createElement('i', { className: 'ti ti-alert-triangle', 'aria-hidden': 'true' }),
       React.createElement('span', null, aviso)),
 
+    /* RÉGUAS NUMERADAS (13/09/2026): "Numerar colunas e linhas no tabuleiro
+       da batalha." Ficam FORA da área que rola — senão sumiam ao arrastar —
+       e se deslocam com a rolagem (rolagemXY). Colunas 1–TAB_COLS em cima,
+       linhas 1–TAB_ROWS à esquerda; a numeração conta a partir de 1 (a
+       célula x=0 é a coluna 1). */
+    React.createElement('div', { className: 'batalha-tabuleiro-quadro' },
+      React.createElement('div', { className: 'batalha-tabuleiro-regua-canto', 'aria-hidden': 'true' }),
+      React.createElement(ReguaTabuleiro, { eixo: 'col', total: TAB_COLS, cel, deslocamento: rolagemXY.x }),
+      React.createElement(ReguaTabuleiro, { eixo: 'lin', total: TAB_ROWS, cel, deslocamento: rolagemXY.y }),
     React.createElement('div', {
       ref: scrollRef, className: 'batalha-tabuleiro-scroll',
       style: {
         overflow: 'hidden', borderRadius: 12, border: '1px solid rgba(201,164,78,.25)',
         background: 'rgba(10,8,4,.55)', touchAction: 'none',
       },
+      onScroll: aoRolar,
       onMouseDown: panInicio, onMouseMove: panMove, onMouseUp: panFim, onMouseLeave: panFim,
       onTouchStart: toqueInicio, onTouchMove: toqueMove, onTouchEnd: panFim, onTouchCancel: panFim,
     },
@@ -743,19 +1023,39 @@ function TabuleiroBatalha({
           ].join(', '),
         },
       },
-        // halo do alcance/movimento do selecionado
+        /* ESCURIDÃO (13/09/2026): "Adicione um efeito para escurecer o
+           tabuleiro dependendo da iluminação." Uma camada sobre a grade e
+           ABAIXO dos tokens — escurece o campo sem esconder quem está nele,
+           porque o Mestre e os jogadores ainda precisam ler a mesa. A
+           penalidade de verdade continua sendo a de coluna
+           (penalidadeDeVisibilidade); isto é só o que se vê. Sempre montada,
+           com opacidade 0 no claro, para a troca de iluminação esmaecer. */
+        React.createElement('div', {
+          'aria-hidden': 'true',
+          'data-iluminacao': ESCURIDAO_NIVEIS.includes(visibilidade) ? visibilidade : 'clara',
+          className: 'batalha-tabuleiro-escuridao batalha-tabuleiro-escuridao--'
+            + (ESCURIDAO_NIVEIS.includes(visibilidade) ? visibilidade : 'clara'),
+          style: { position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 },
+        }),
+        /* Halo do movimento do selecionado — REDONDO desde 13/09/2026, o
+           mesmo círculo que validarMovimento aceita (distanciaMovimento).
+           O círculo é o LIMITE DO CENTRO do avatar ("A área redonda deve ser
+           o limite do centro do avatar"): centro no meio do token e raio =
+           passo, sem o meio token de folga que ele tinha. Com a folga, clicar
+           perto da borda do halo parecia válido e o avatar parava antes, fora
+           do ponto clicado. */
         alvoMover && alcance != null && Number.isFinite(alcance) && posValida(alvoMover.pos) && (() => {
           const r = Math.max(0, Math.floor(alcance));
-          const x0 = Math.max(0, alvoMover.pos.x - r);
-          const y0 = Math.max(0, alvoMover.pos.y - r);
-          const x1 = Math.min(TAB_COLS - 1, alvoMover.pos.x + TAB_TOKEN - 1 + r);
-          const y1 = Math.min(TAB_ROWS - 1, alvoMover.pos.y + TAB_TOKEN - 1 + r);
+          const raio = r * cel;
+          const cx = (alvoMover.pos.x + TAB_TOKEN / 2) * cel;
+          const cy = (alvoMover.pos.y + TAB_TOKEN / 2) * cel;
           return React.createElement('div', {
+            className: 'batalha-tabuleiro-alcance',
             style: {
-              position: 'absolute', left: x0 * cel, top: y0 * cel,
-              width: (x1 - x0 + 1) * cel, height: (y1 - y0 + 1) * cel,
-              background: 'rgba(201,164,78,.13)', outline: '1px dashed rgba(201,164,78,.55)',
-              pointerEvents: 'none',
+              position: 'absolute', left: cx - raio, top: cy - raio,
+              width: raio * 2, height: raio * 2, borderRadius: '50%',
+              background: 'rgba(201,164,78,.13)', border: '1px dashed rgba(201,164,78,.55)',
+              boxSizing: 'border-box', pointerEvents: 'none',
             },
           });
         })(),
@@ -778,10 +1078,9 @@ function TabuleiroBatalha({
           // movido. Quem move continua sendo decidido por alvoMover.
           podeSel: !salvando && (podeSelecionar(e.p) || !!menuDe),
           onSelect: () => aoClicarToken(e),
-          abrirTip, fecharTip,
         })))
       )
-    ),
+    )),
 
     // bancada: quem ainda não foi posicionado. Sem o rótulo "Ainda fora do
     // tabuleiro (N)" (pedido do usuário, 12/09/2026), e escondida de vez na
@@ -801,7 +1100,6 @@ function TabuleiroBatalha({
           selecionado: e.i === menuAberto || e.i === movendo, atual: !!e.p.atual,
           podeSel: !salvando && (podeSelecionar(e.p) || !!menuDe),
           onSelect: () => aoClicarToken(e),
-          abrirTip, fecharTip,
         }))))
     ),
 
@@ -843,13 +1141,20 @@ Object.assign(window, {
   // alvosDeAura (Fase 2): batalha.jsx chama as duas sem prefixo pra montar a
   // lista de alvos de uma magia de área — a aura usa o `alcance` como raio.
   alcanceDaAcao, distanciaEntre, alvoNoAlcance, dentroDoAlcance, parseAlcance,
+  // 13/09/2026: 1º movimento grátis, 2º custa PA — batalha.jsx usa para saber
+  // se o token pode andar e quanto destacar.
+  movimentoDisponivel,
+  // 13/09/2026: bandos — o líder leva os minions (moverNoTabuleiro/posicionarNoSetup).
+  bandoSegueLider, minionPresoAoLider,
   // Camada pura do tabuleiro — testada em tabuleiro.test.js.
   MotorTabuleiro: {
     TAB_COLS, TAB_ROWS, TAB_TOKEN, TAB_CELULA, TAB_ZOOMS, TAB_TOKEN_ESCALA,
     MOV_MIN, MOV_FATOR, MOV_MOTIVOS,
-    movimentoBase, posValida, distanciaCelulas, distanciaBordas, posicionarMenu,
+    movimentoBase, posValida, distanciaCelulas, distanciaMovimento, custoMovimento, distanciaBordas, posicionarMenu,
     parseAlcance, dentroDoAlcance, alcanceDaAcao, celulaOcupada,
-    validarMovimento, moverParticipante, preservarPosicoes, destinoAlcancavel,
-    distanciaEntre, alvoNoAlcance, motivoMovimento,
+    validarMovimento, moverParticipante, preservarPosicoes, destinoAlcancavel, movimentoDisponivel,
+    distanciaEntre, alvoNoAlcance, motivoMovimento, selosDoToken,
+    danoNasPools, FLASH_DANO_MS, ESCURIDAO_NIVEIS, fracaoEfDoToken,
+    casasAoRedor, bandoSegueLider, minionPresoAoLider,
   },
 });

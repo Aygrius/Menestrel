@@ -187,7 +187,8 @@ describe('ROTEIRO 2 — restrição por ARMA (arco vs espada)', () => {
     montar({}, { inventario: { itens: [{ slug: 'espada_longa', slot: 'mao_d', equipado: true }] } });
     abrirAbaTecnica();
     escolherTecnica('Mira');
-    expect(textoNaTela(/Exige arma do grupo: PL, PM, PP/)).toBe(true);
+    // 13/09/2026: o motivo diz os grupos por extenso e a arma na mão.
+    expect(textoNaTela(/Exige arma do grupo PL \(.*\) ou PM \(.*\) ou PP \(.*\) — Espada Longa é do grupo CM/)).toBe(true);
   });
 
   it('Fúria (Livre) não é bloqueada por arma nenhuma', () => {
@@ -297,7 +298,7 @@ describe('ROTEIRO 6 — técnica de Fase 2 continua narrativa, sem quebrar', () 
     montar({}, { inventario: { itens: [{ slug: 'espada_longa', slot: 'mao_d', equipado: true }] } });
     abrirAbaTecnica();
     escolherTecnica('Golpe Duplo');   // exige CP/EP, está com CM
-    expect(textoNaTela(/Exige arma do grupo: CP, EP/)).toBe(true);
+    expect(textoNaTela(/Exige arma do grupo CP \(Corte Pesado\) ou EP \(.*\) — Espada Longa é do grupo CM/)).toBe(true);
     expect(btnRolar().disabled).toBe(true);
   });
 });
@@ -445,6 +446,124 @@ describe('ROTEIRO 11 — I4: RF efetiva alimenta a aba Resistência', () => {
     const inputs = document.querySelectorAll('input[type="number"]');
     // Força de Ataque, depois Força de Defesa (RF por padrão) — mesma ordem do JSX.
     expect(inputs[1].value).toBe('13');   // 8 (rf) + 5 (mod_rf), não os 8 crus
+  });
+});
+
+/* ROTEIRO 12 — CRIATURA (13/09/2026): "O Haalin tem várias técnicas de
+   combate, mas na batalha o menu técnica está desativado." A aba nascia
+   desativada porque tecnicasDoAtor só listava técnica de PJ. */
+describe('ROTEIRO 12 — criatura usa a aba Técnica (Haalin)', () => {
+  const HAALIN = {
+    ...INIMIGO, ref_id: 242, inst_id: 'criatura:242', nome: 'Haalin', ordem: 1, atual: true,
+    defesa_sigla: 'M',
+  };
+  const montarHaalin = () => render(
+    <div className="menestrel-ui">
+      <AcaoPanel
+        ator={HAALIN}
+        participantes={[HAALIN, ALIADO]}
+        catalogos={{
+          pjById: {}, catalogoBySlug: CATALOGO, magiasByKey: {}, tecnicasByKey: TECNICAS,
+          habilidadesByKey: {
+            sentidos: { key: 'sentidos', nome: 'Sentidos', grupo: 'Geral', ajuste: 'percepcao' },
+            rastrear: { key: 'rastrear', nome: 'Rastrear', grupo: 'Profissional', ajuste: 'percepcao' },
+          },
+          habilidadesDb: [],
+          criById: { 242: { id: 242, nome: 'Haalin', estagio: 7, percepcao: 4, ataque: 'Garras',
+            tecnicas_especiais: 'Ataque Oportuno, Voz de Comando, Fúria', habilidades: 'Sentidos, Rastrear' } },
+        }}
+        lang="pt"
+        onAplicar={() => {}}
+        onAplicarTeste={(p) => { ultimoPayload = p; }}
+        onAplicarItem={() => {}} onAplicarApoio={() => {}} onCancel={() => {}}
+        onRolagemPendenteChange={() => {}}
+        rolagemSalva={null} onRolagemSalvaChange={() => {}}
+      />
+    </div>
+  );
+
+  it('a aba Técnica fica habilitada e lista as técnicas do catálogo', () => {
+    montarHaalin();
+    expect(btn(/^Técnica$/).disabled).toBe(false);
+    abrirAbaTecnica();
+    fireEvent.click(document.querySelector('.select-pill-btn'));
+    const opcoes = Array.from(document.querySelectorAll('.select-pill-drop li')).map((el) => el.textContent.trim());
+    // "Ataque Oportuno" não está na fixture de técnicas deste arquivo: fica de fora.
+    expect(opcoes).toEqual(['Voz de Comando', 'Fúria']);
+  });
+
+  it('Fúria da criatura aplica com o total nível (estágio 7) + percepção 4', () => {
+    ultimoPayload = null;
+    montarHaalin();
+    abrirAbaTecnica();
+    escolherTecnica('Fúria');
+    const aplicar = document.querySelector('.atacar-confirmar');
+    expect(aplicar.disabled).toBe(false);
+    fireEvent.click(aplicar);
+    expect(ultimoPayload).toMatchObject({ tipo_teste: 'tecnica', chave: 'furia', valor_total: 11 });
+  });
+
+  it('a aba Habilidade também abre, com as habilidades da criatura', () => {
+    montarHaalin();
+    const aba = btn(/^Habilidade$/);
+    expect(aba.disabled).toBe(false);
+    fireEvent.click(aba);
+    fireEvent.click(document.querySelector('.select-pill-btn'));
+    const opcoes = Array.from(document.querySelectorAll('.select-pill-drop li')).map((el) => el.textContent.trim());
+    expect(opcoes).toEqual(['Rastrear', 'Sentidos']);
+  });
+});
+
+/* ROTEIRO 13 — "Quando cliquei em habilidade ficou tudo preto." (usuário,
+   13/09/2026). A aba Habilidade usava `en`, que não existe no AcaoPanel (a
+   variável é `isEn`): ReferenceError ao abrir a aba, o React desmontava a
+   tela inteira. Nenhum teste abria a aba com habilidade na lista — só a
+   criatura do ROTEIRO 12 pegou. Este é o do PJ, o caso de quem reportou. */
+describe('ROTEIRO 13 — PJ abre a aba Habilidade sem derrubar a tela', () => {
+  const HABS = {
+    furtividade: { key: 'furtividade', nome: 'Furtividade', grupo: 'Subterfúgio', ajuste: 'agilidade', descricao: 'Mover-se sem ser notado.' },
+    sentidos: { key: 'sentidos', nome: 'Sentidos', grupo: 'Geral', ajuste: 'percepcao' },
+  };
+  const montarPj = () => render(
+    <div className="menestrel-ui">
+      <AcaoPanel
+        ator={ator()}
+        participantes={[ator(), ALIADO, INIMIGO]}
+        catalogos={{ pjById: { 7: { ...pjBase, habilidades: { furtividade: 3, sentidos: 2 } } },
+          catalogoBySlug: CATALOGO, magiasByKey: {}, tecnicasByKey: TECNICAS,
+          habilidadesByKey: HABS, habilidadesDb: Object.values(HABS) }}
+        lang="pt"
+        onAplicar={() => {}} onAplicarTeste={(p) => { ultimoPayload = p; }}
+        onAplicarItem={() => {}} onAplicarApoio={() => {}} onCancel={() => {}}
+        onRolagemPendenteChange={() => {}} rolagemSalva={null} onRolagemSalvaChange={() => {}}
+      />
+    </div>
+  );
+
+  it('abre, lista as habilidades, a dificuldade e a descrição', () => {
+    montarPj();
+    fireEvent.click(btn(/^Habilidade$/));
+    expect(textoNaTela(/Dificuldade/)).toBe(true);
+    escolherTecnica('Furtividade');   // helper genérico de SelectPill
+    expect(textoNaTela(/Mover-se sem ser notado/)).toBe(true);
+    expect(btnRolar()).toBeTruthy();
+  });
+
+  it('também em inglês', () => {
+    render(
+      <div className="menestrel-ui">
+        <AcaoPanel ator={ator()} participantes={[ator(), INIMIGO]}
+          catalogos={{ pjById: { 7: { ...pjBase, habilidades: { sentidos: 2 } } }, catalogoBySlug: CATALOGO,
+            magiasByKey: {}, tecnicasByKey: TECNICAS, habilidadesByKey: HABS, habilidadesDb: [] }}
+          lang="en" onAplicar={() => {}} onAplicarTeste={() => {}} onAplicarItem={() => {}}
+          onAplicarApoio={() => {}} onCancel={() => {}} onRolagemPendenteChange={() => {}}
+          rolagemSalva={null} onRolagemSalvaChange={() => {}} />
+      </div>
+    );
+    const aba = screen.getAllByRole('button').find((b) => /^(Ability|Skill|Habilidade)$/i.test(b.textContent.trim()));
+    expect(aba).toBeTruthy();
+    fireEvent.click(aba);
+    expect(document.querySelectorAll('.select-pill-btn').length).toBeGreaterThanOrEqual(2);
   });
 });
 

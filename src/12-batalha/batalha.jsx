@@ -260,7 +260,7 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
   );
 }
 
-// ── ParticipantSection — seção reutilizável com eyebrow, filtro, bulk-select e grid 4 colunas
+// ── ParticipantSection — seção reutilizável com eyebrow, filtro, bulk-select e grid 5 colunas
 // keys: array de strings "tipo:id" que pertencem a esta seção
 // items: array de { key, nome, meta, icone } já montado pelo pai
 function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDeselectAll, isEn, qtdMap, onQtd }) {
@@ -359,7 +359,7 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
       </div>
       <PortalTooltip tip={tip} onEnter={() => {}} onLeave={fecharTip} />
 
-      {/* Grid 4 colunas */}
+      {/* Grid 5 colunas (13/09/2026) */}
       {filtered.length === 0 ? (
         <div className="part-section-empty">
           {tb.semResultados}
@@ -398,8 +398,9 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
                       </div>
                     )}
                   </div>
-                  {/* Linha 2: meta */}
-                  <div className="hist-protag-meta">{it.meta}</div>
+                  {/* Sem a linha de meta (tipo · estágio) desde 13/09/2026, a
+                      pedido do usuário: o card fica só com o nome. A meta
+                      continua servindo ao filtro de busca. */}
                 </div>
               );
             }
@@ -412,7 +413,6 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
               >
                 <input type="checkbox" checked={on} onChange={() => onToggle(it.key)} />
                 <div className="hist-protag-name">{it.nome}</div>
-                <div className="hist-protag-meta">{it.meta}</div>
               </label>
             );
           })}
@@ -453,7 +453,8 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
 
   const criar = async () => {
     setSaving(true);
-    const participantes = [
+    // 5+ criaturas iguais viram bandos de líder + 4 minions (formarBandos).
+    const participantes = formarBandos([
       ...pjsVinc.filter((p) => selPj.has('pj:' + p.id))
         .map((p) => ({ tipo: 'pj', ref_id: p.id, nome: nomePj(p) })),
       // Criaturas: expande qtd>1 em múltiplos participantes, cada uma com inst_id único
@@ -465,7 +466,7 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
           inst_id: `cri:${c.id}:${Date.now()}:${i}:${Math.random().toString(36).slice(2,7)}`,
         }));
       }),
-    ];
+    ]);
     await onCriar(participantes);
     setSaving(false);
   };
@@ -704,8 +705,9 @@ function exigeResistencia(magia) {
    nivelMagiaEfetivo(passos). Karma custa o nível, regra do sistema.
 
    CRIATURA — `criaturas.magia` é TEXTO com os nomes separados por vírgula
-   ("Geoproteção, Transformação") e `criaturas.magia_n` traz o nível efetivo,
-   um só para a lista inteira.
+   ("Geoproteção, Transformação"). O nível, um só para a lista inteira, é o
+   ESTÁGIO da criatura desde 13/09/2026 (nivelMagiaDeCriatura) — antes era
+   `magia_n`, que o parágrafo abaixo descreve.
 
    POR QUE NÃO MIGREI O BANCO. A spec registrava normalização de
    `criaturas.magia` como pré-requisito. O levantamento de 12/09/2026 mostrou
@@ -834,7 +836,11 @@ function magiasConhecidasDoAtor(ator, catalogos) {
   if (ator.tipo === 'criatura') {
     const cri = catalogos.criById && catalogos.criById[ator.ref_id];
     if (!cri || !cri.magia) return [];
-    const nivel = Number(cri.magia_n) || 1;
+    /* Nível = ESTÁGIO da criatura (13/09/2026, nivelMagiaDeCriatura) — não
+       mais `magia_n`. "Se a criatura tem nível 7 e magia bola de fogo, o nível
+       da magia é 7." */
+    const nivel = (typeof nivelMagiaDeCriatura === 'function')
+      ? nivelMagiaDeCriatura(cri.estagio) : (Number(cri.estagio) || 1);
     /* O casamento nome→magia mora em 01-core/magias-efeito.jsx, e não aqui,
        porque a AUDITORIA do catálogo (auditarCriaturas) precisa usar
        exatamente a mesma regra. Auditoria com cópia da lógica mente: diria
@@ -1010,8 +1016,85 @@ function niveisDisponiveis(m, nivelMax) {
 /* Hoje a técnica vive como "modificador anexado ao ataque da arma". */
 /* Retornamos os metadados úteis pro select; a mecânica fica TODO    */
 /* até o usuário definir a fórmula numérica do bônus.                */
+/* ── Técnicas e habilidades de CRIATURA (13/09/2026) ───────────────
+   "O Haalin tem várias técnicas de combate, mas na batalha o menu técnica
+    está desativado." A lista abria com `ator.tipo !== 'pj' → []`, e era a
+   única trava — aplicar teste, efeito e custo de ação já não distinguem PJ
+   de criatura. A aba Habilidade tinha a mesma trava.
+
+   Regra do usuário: "O nível das habilidades, técnicas e magias é com base
+   no nível e atributos da criatura. No caso das técnicas e habilidades o
+   total leva em consideração o atributo de ajuste."
+     nível = ESTÁGIO da criatura (número colado no texto, "Esquiva 7", não conta)
+     total = nível + atributo de ajuste — totalTecnica / totalHabilidade, as
+             mesmas contas do PJ
+
+   `tecnicas_especiais` e `habilidades` são TEXTO separado por vírgula. Nome
+   sem par no catálogo ("Bote", "Carga") some da lista mecânica e fica no
+   texto do card, como a magia de criatura que não casa. */
+const normNomeCriatura = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+function atributosDaCriatura(cri) {
+  const n = (v) => Number(v) || 0;
+  return { aura: n(cri.aura), carisma: n(cri.carisma), forca: n(cri.forca), fisico: n(cri.fisico),
+    agilidade: n(cri.agilidade), percepcao: n(cri.percepcao), intelecto: n(cri.intelecto) };
+}
+
+// Os registros do catálogo que o texto da criatura nomeia, sem repetir.
+function catalogoNomeadoPelaCriatura(csv, porKey) {
+  const porNome = {};
+  Object.values(porKey || {}).forEach((r) => { if (r && r.nome) porNome[normNomeCriatura(r.nome)] = r; });
+  const out = [];
+  const vistas = new Set();
+  String(csv || '').split(',').forEach((txt) => {
+    const nome = txt.trim().replace(/\s+\d+$/, '');
+    const r = nome && porNome[normNomeCriatura(nome)];
+    if (!r || vistas.has(r.key)) return;
+    vistas.add(r.key);
+    out.push(r);
+  });
+  return out;
+}
+
+function habilidadesDeCriatura(ator, catalogos) {
+  const cri = catalogos && catalogos.criById && catalogos.criById[ator && ator.ref_id];
+  if (!cri || !cri.habilidades) return [];
+  const habsByKey = catalogos.habilidadesByKey || {};
+  const nivel = Number(cri.estagio) || 1;
+  const atributos = atributosDaCriatura(cri);
+  return catalogoNomeadoPelaCriatura(cri.habilidades, habsByKey).map((h) => ({
+    key: h.key, nome: h.nome, grupo: h.grupo, qtd: nivel,
+    total: (typeof totalHabilidade === 'function')
+      ? totalHabilidade(h.key, { [h.key]: nivel }, atributos, {}, habsByKey) : null,
+    ajuste: h.ajuste, descricao: h.descricao,
+  })).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+}
+
+function tecnicasDeCriatura(ator, catalogos) {
+  const cri = catalogos.criById && catalogos.criById[ator.ref_id];
+  if (!cri || !cri.tecnicas_especiais) return [];
+  const atributos = atributosDaCriatura(cri);
+  const nivel = Number(cri.estagio) || 1;
+  const out = [];
+  catalogoNomeadoPelaCriatura(cri.tecnicas_especiais, catalogos.tecnicasByKey).forEach((t) => {
+    const total = (typeof totalTecnica === 'function') ? totalTecnica(t, { [t.key]: nivel }, atributos) : null;
+    out.push({
+      fonte: 'tecnica',
+      key: t.key, nome: t.nome, nivel,
+      total,
+      uso: t.uso || null,
+      grupo_armas: t.grupo_armas || null,
+      grupo_armaduras: t.grupo_armaduras || null,
+      efeito: t.efeito || null,
+    });
+  });
+  return out;
+}
+
 function tecnicasDoAtor(ator, catalogos) {
-  if (!ator || ator.tipo !== 'pj' || !catalogos || !catalogos.tecnicasByKey) return [];
+  if (!ator || !catalogos || !catalogos.tecnicasByKey) return [];
+  if (ator.tipo === 'criatura') return tecnicasDeCriatura(ator, catalogos);
+  if (ator.tipo !== 'pj') return [];
   const pj = catalogos.pjById[ator.ref_id];
   if (!pj || !pj.tecnicas) return [];
   const ficha = (typeof calcularFicha === 'function')
@@ -1081,6 +1164,35 @@ function tecnicaPermitida(tecnica, ator, arma, catalogos) {
     if (!gArmaduras.includes(sigla)) return { pode: false, motivo: 'armadura' };
   }
   return { pode: true, motivo: null };
+}
+
+/* ── O motivo da restrição de ARMA, por extenso (13/09/2026) ────────
+   "Na hora de usar técnica e magia, não está avisando o motivo de não poder
+    usar. Se a restrição for de tipo da arma, avise." (usuário)
+   A tela dizia "Exige arma do grupo: CP, EP." — sem dizer que arma estava na
+   mão nem de que grupo ela é. Aqui: grupos exigidos com nome (GRUPOS_ARMAS),
+   e a arma empunhada com o grupo dela. null quando a arma não é o problema. */
+function nomeGrupoArma(sigla, isEn) {
+  const g = (typeof GRUPOS_ARMAS !== 'undefined' && Array.isArray(GRUPOS_ARMAS))
+    ? GRUPOS_ARMAS.find((x) => x.sigla === sigla) : null;
+  const nome = g ? (isEn ? (g.nomeEn || g.nome) : g.nome) : null;
+  return nome ? `${sigla} (${nome})` : sigla;
+}
+function motivoArmaTecnica(tecnica, arma, catalogos, isEn) {
+  const exigidos = gruposDeArma(tecnica && tecnica.grupo_armas);
+  if (!exigidos) return null;
+  const grupo = grupoDaArma(arma, catalogos);
+  if (grupo && exigidos.includes(grupo)) return null;
+  const lista = exigidos.map((s) => nomeGrupoArma(s, isEn)).join(isEn ? ' or ' : ' ou ');
+  const nomeArma = arma && (arma.nome || (catalogos && catalogos.catalogoBySlug && arma.slug
+    && catalogos.catalogoBySlug[arma.slug] && catalogos.catalogoBySlug[arma.slug].nome));
+  const mao = !arma
+    ? (isEn ? 'no weapon in hand' : 'nenhuma arma empunhada')
+    : grupo
+      ? (isEn ? `${nomeArma || 'the weapon'} is group ${nomeGrupoArma(grupo, isEn)}`
+              : `${nomeArma || 'a arma'} é do grupo ${nomeGrupoArma(grupo, isEn)}`)
+      : (isEn ? `${nomeArma || 'the weapon'} has no weapon group` : `${nomeArma || 'a arma'} não tem grupo de arma`);
+  return isEn ? `Requires a weapon of group ${lista} — ${mao}.` : `Exige arma do grupo ${lista} — ${mao}.`;
 }
 
 /* ── Pontos de ação por classe (spec do sistema) ──────────────── */
@@ -1327,10 +1439,12 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
   const pools = personagensPools || {};
   // Garante inst_id único em todos os participantes — inclusive batalhas antigas
   // criadas antes desta correção, que não têm inst_id no banco.
-  const partsComInstId = parts.map((p, i) => ({
+  // Bandos (formarBandos, idempotente) e um número de iniciativa por TIPO de
+  // criatura (iniciativaPorTipo): completam a batalha montada antes das regras.
+  const partsComInstId = iniciativaPorTipo(formarBandos(parts.map((p, i) => ({
     ...p,
     inst_id: p.inst_id || `${p.tipo}:${p.ref_id}:boot:${i}:${Math.random().toString(36).slice(2, 7)}`,
-  }));
+  }))));
   const pjIds  = partsComInstId.filter((p) => p.tipo === 'pj').map((p) => p.ref_id);
   const criIds = partsComInstId.filter((p) => p.tipo === 'criatura').map((p) => p.ref_id);
   const [pjRes, itRes, criRes] = await Promise.all([
@@ -1466,7 +1580,13 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         pa_ataque_extra: 0,   // Fase 2: contador de ataques extras (Golpe Duplo etc.) da rodada
       };
       // Magia de calendário evocada ANTES da luta entra valendo (degrau 3).
-      return semearMagiasAtivas(snapPj, pj, magiasByKey, dataJogo);
+      const semeado = semearMagiasAtivas(snapPj, pj, magiasByKey, dataJogo);
+      /* Velocidade que veio de magia ativa vale JÁ na rodada 1 (13/09/2026):
+         pa_rest e mov_rest acima foram calculados sobre o vb cru, e só a
+         virada somava o mod_vb — uma Velocidade lançada antes da luta não dava
+         a ação extra nem o passo maior na primeira rodada. */
+      if (semeado === snapPj || somaEfeitosStatus(semeado, 'mod_vb') === 0) return semeado;
+      return { ...semeado, pa_rest: paDaRodada(pa, vbEfetivo(semeado)), mov_rest: movimentoBase(vbParaMovimento(semeado)) };
     }
     const c = criById[p.ref_id];
     if (!c) return { ...p, vb: 0, pa_max: 1, pa_rest: 1, eh: 0, eh_max: 0, ar: 0, ar_max: 0, ef: 0, ef_max: 0, karma: 0, karma_max: 0, defesa_sigla: 'L', defesa_valor: 0, rf: 0, rm: 0, status: 'ativo', ausente: true };
@@ -1476,9 +1596,15 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
     // RF 0 e RM 0 no card do lutador. Mesma resistenciasBase do PJ
     // (01-core/game-data.jsx) sobre estagio/fisico/aura, preenchidos nas 207.
     const resist = resistenciasBase(c.estagio, c.fisico, c.aura);
+    // Minion de bando: 1/4 de EF, EH e AR (poolDeMinion). O resto é da criatura.
+    const minion = papelNoBando(p) === 'minion';
+    const ehCri = minion ? poolDeMinion(c.energia_heroica) : (c.energia_heroica || 0);
+    const arCri = minion ? poolDeMinion(c.absorcao) : (c.absorcao || 0);
+    const efCri = minion ? poolDeMinion(c.energia_fisica) : (c.energia_fisica || 0);
     return {
       tipo: 'criatura', ref_id: p.ref_id, nome: p.nome,
       inst_id: p.inst_id,   // garantido por partsComInstId acima
+      ...(p.bando ? { bando: p.bando } : {}),
       // TABULEIRO (ver bloco equivalente do PJ acima). Criatura não tem foto;
       // o token cai na inicial do nome. `raca` vem do tipo da criatura.
       pos: (p.pos && posValida(p.pos)) ? { x: p.pos.x, y: p.pos.y } : null,
@@ -1499,12 +1625,12 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
       vb: (c.velocidade || 0) + bonusIni, pa_max: 1, pa_rest: paDaRodada(1, (c.velocidade || 0) + bonusIni),
       // Criatura nunca tem o ponto de tecnica: e sempre 1 ponto livre.
       pa_tecnica_max: 0, pa_tecnica_rest: 0,
-      eh: c.energia_heroica || 0, eh_max: c.energia_heroica || 0,
-      ar: c.absorcao || 0,        ar_max: c.absorcao || 0,
+      eh: ehCri, eh_max: ehCri,
+      ar: arCri, ar_max: arCri,
       // A tabela `criaturas` não tem coluna de resistência — derivada pela
       // mesma razão que o catálogo de armaduras usa (ver resistenciaDeCriatura).
       res: resistenciaDeCriatura(c), res_max: resistenciaDeCriatura(c),
-      ef: c.energia_fisica || 0,  ef_max: c.energia_fisica || 0,
+      ef: efCri, ef_max: efCri,
       karma: 0, karma_max: 0,
       // Sigla de defesa: `criaturas.armadura` (L/M/P) — é o campo que o
       // formulário de criatura grava ("Tipo de Armadura", 13-diario) e que a
@@ -1940,15 +2066,239 @@ function montariaSegue(participantes, cavaleiroInstId) {
   return mudou ? next : participantes;
 }
 
+/* ============================================================
+   BANDOS: LÍDER + MINIONS — 13/09/2026
+   ============================================================
+   "Quando houver mais de 5 criaturas iguais, elas serão representadas por 1
+   criatura líder e 4 minions, que vão andar juntos pelo tabuleiro, se o líder
+   morrer, todos os demais fogem. Os minions devem ter 1/4 de EF, EH e AR."
+
+   Decisões tomadas com o usuário na mesma data:
+     • BANDOS DE 5. Cada 5 criaturas do mesmo tipo (mesmo ref_id) viram um
+       bando; o que sobra fica solto e luta normal. 12 Goblins = 2 bandos + 2.
+     • MINIONS AGEM, logo depois do líder: a vez deles vem colada na dele
+       (ordenarIniciativa), com o mesmo número de iniciativa do tipo.
+     • O MOVIMENTO É DO LÍDER. Quando ele anda, os minions vão junto para as
+       casas ao redor (bandoSegueLider, em tabuleiro.jsx); sozinho, o minion
+       não anda enquanto o líder estiver de pé.
+
+   O bando mora no próprio participante — `bando: { id, papel, lider }` — e
+   não numa lista à parte: é o participante que atravessa setup → snapshot →
+   gravação mesclada, e um campo a mais nele chega em todo lugar sem mudar a
+   RPC.
+   ============================================================ */
+const BANDO_TAMANHO = 5;
+const MINION_DIVISOR = 4;
+
+function papelNoBando(p) {
+  return (p && p.bando && p.bando.papel) || null;
+}
+
+/* Agrupa em bandos as criaturas SOLTAS (sem `bando`). Idempotente: quem já
+   está num bando não é tocado, então rodar de novo na largada não reagrupa
+   nada — só completa batalhas montadas antes desta regra.
+
+   O nome ganha o papel ("Goblin (líder)"): matar o líder espanta o bando, e o
+   jogador precisa saber em quem mirar. Com mais de um bando do mesmo tipo, o
+   número separa um do outro. Criatura sem inst_id não entra — sem ele não há
+   como o minion apontar para o seu líder. */
+function formarBandos(participantes) {
+  if (!Array.isArray(participantes)) return participantes;
+  const soltosPorTipo = new Map();
+  participantes.forEach((p, i) => {
+    if (!p || p.tipo !== 'criatura' || p.bando || !p.inst_id) return;
+    const k = String(p.ref_id);
+    if (!soltosPorTipo.has(k)) soltosPorTipo.set(k, []);
+    soltosPorTipo.get(k).push(i);
+  });
+  let out = participantes;
+  soltosPorTipo.forEach((idxs, k) => {
+    const novos = Math.floor(idxs.length / BANDO_TAMANHO);
+    if (!novos) return;
+    const existentes = new Set(participantes
+      .filter((p) => p && p.tipo === 'criatura' && String(p.ref_id) === k && p.bando)
+      .map((p) => p.bando.id)).size;
+    const total = existentes + novos;
+    if (out === participantes) out = [...participantes];
+    for (let b = 0; b < novos; b++) {
+      const membros = idxs.slice(b * BANDO_TAMANHO, (b + 1) * BANDO_TAMANHO);
+      const liderId = out[membros[0]].inst_id;
+      const num = total > 1 ? ' ' + (existentes + b + 1) : '';
+      membros.forEach((idx, j) => {
+        const p = out[idx];
+        const papel = j === 0 ? 'lider' : 'minion';
+        out[idx] = {
+          ...p,
+          nome: `${p.nome || ''} (${papel === 'lider' ? 'líder' : 'minion'}${num})`,
+          bando: { id: 'bando:' + liderId, papel, lider: liderId },
+        };
+      });
+    }
+  });
+  return out;
+}
+
+/* Minion tem 1/4 da EF, da EH e da AR da criatura. Arredonda PRA CIMA, a
+   regra do sistema — e é o que impede um minion de EF 3 nascer com 0, que o
+   faria entrar desmaiado. */
+function poolDeMinion(v) {
+  const n = Number(v) || 0;
+  return n > 0 ? Math.ceil(n / MINION_DIVISOR) : n;
+}
+
+/* UM NÚMERO DE INICIATIVA POR TIPO DE CRIATURA (13/09/2026). Vale o valor da
+   PRIMEIRA criatura daquele tipo na lista — é a linha em que o seletor
+   aparece na montagem. PJ continua com o seu. Devolve o MESMO array quando já
+   está tudo igual. */
+function iniciativaPorTipo(participantes) {
+  if (!Array.isArray(participantes)) return participantes;
+  const porTipo = new Map();
+  participantes.forEach((p) => {
+    if (p && p.tipo === 'criatura' && !porTipo.has(String(p.ref_id))) {
+      porTipo.set(String(p.ref_id), bonusIniciativaDe(p));
+    }
+  });
+  let mudou = false;
+  const out = participantes.map((p) => {
+    if (!p || p.tipo !== 'criatura') return p;
+    const v = porTipo.get(String(p.ref_id));
+    if (bonusIniciativaDe(p) === v && (p.bonus_iniciativa || 0) === v) return p;
+    mudou = true;
+    return { ...p, bonus_iniciativa: v };
+  });
+  return mudou ? out : participantes;
+}
+
+/* O clique no seletor da montagem: PJ muda só ele; criatura muda o TIPO todo. */
+function definirIniciativa(participantes, idx, valor) {
+  const alvo = participantes && participantes[idx];
+  if (!alvo) return participantes;
+  const v = Math.max(0, Math.min(BONUS_INICIATIVA_MAX, Math.floor(Number(valor) || 0)));
+  return participantes.map((p, i) => {
+    const mesmoTipo = alvo.tipo === 'criatura'
+      ? (p && p.tipo === 'criatura' && String(p.ref_id) === String(alvo.ref_id))
+      : i === idx;
+    return mesmoTipo ? { ...p, bonus_iniciativa: v } : p;
+  });
+}
+
+/* ── Líder morto, bando em fuga (puro) ─────────────────────────────
+   Todo minion ainda de pé de um líder MORTO sai de combate como 'desistiu',
+   com `fugiu: true` (o tabuleiro tira o token de cena). Desmaiado também
+   foge — o bando o arrasta — e o morto fica onde caiu.
+
+   Mesmas consequências de saidaDeCombate (concentração cai, a vez passa), mas
+   com TODOS os fugitivos marcados ANTES de procurar o próximo: um por vez, a
+   vez passaria de minion em minion, cada um já de saída.
+
+   Devolve { participantes, fugas: [{ lider, minions }], viraRodada }. Sem
+   fuga, o MESMO array e fugas vazio. */
+function fugaDeBandos(participantes) {
+  const vazio = { participantes, fugas: [], viraRodada: false };
+  if (!Array.isArray(participantes)) return vazio;
+  const mortos = participantes.filter((p) => papelNoBando(p) === 'lider' && p.status === 'morto' && p.inst_id);
+  if (!mortos.length) return vazio;
+  const idsMortos = new Set(mortos.map((l) => l.inst_id));
+  // `fugiu === false` = o Mestre trouxe de volta um fugitivo: não foge de novo.
+  const foge = (p) => papelNoBando(p) === 'minion' && idsMortos.has(p.bando.lider)
+    && p.status !== 'morto' && p.status !== 'desistiu' && p.fugiu !== false;
+  if (!participantes.some(foge)) return vazio;
+
+  const fugas = mortos
+    .map((l) => ({ lider: l.nome, minions: participantes.filter((p) => foge(p) && p.bando.lider === l.inst_id).map((p) => p.nome) }))
+    .filter((f) => f.minions.length);
+  const atualQueFoge = participantes.find((p) => foge(p) && p.atual) || null;
+  const fugitivos = participantes.filter(foge);
+  let next = participantes.map((p) => (foge(p) ? { ...p, status: 'desistiu', fugiu: true } : p));
+  fugitivos.forEach((f) => {
+    if (f.inst_id) next = [...quebrarConcentracao(next, f.inst_id, 'desistiu')];
+  });
+  let viraRodada = false;
+  if (atualQueFoge) {
+    const prox = proximoAtivo(next, atualQueFoge.ordem);
+    if (prox) next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
+    else viraRodada = true;
+  }
+  return { participantes: next, fugas, viraRodada };
+}
+
+function textoFugaDeBando(fugas) {
+  return (fugas || [])
+    .map((f) => `${f.lider} caiu — ${f.minions.join(', ')} ${f.minions.length > 1 ? 'fugiram' : 'fugiu'}`)
+    .join('; ');
+}
+
+/* A fuga aplicada numa GRAVAÇÃO (puro). Os dois funis — persistir do Mestre e
+   persistJogador — passam por aqui, e é por isso que nenhum dos vinte e
+   tantos caminhos que matam alguém (golpe, magia, veneno na virada, Falha
+   Crítica, barra de EF, seletor de estado) precisou saber de bando.
+
+   `campos` é o que a tela ia gravar; `ctx` traz o log e a rodada correntes.
+   Se o fugitivo estava na vez e era o último da ordem, a rodada vira aqui —
+   a não ser que a própria gravação já esteja virando, e aí a vez só vai para
+   o primeiro ativo. Devolve { campos, texto } — texto null quando ninguém
+   fugiu. */
+function fugaNaGravacao(campos, ctx) {
+  if (!campos || !Array.isArray(campos.participantes)) return { campos, texto: null };
+  const f = fugaDeBandos(campos.participantes);
+  if (!f.fugas.length) return { campos, texto: null };
+  const rodadaAtual = (ctx && ctx.rodada) || 0;
+  const logBase = campos.log != null ? campos.log : ((ctx && ctx.log) || []);
+  const texto = textoFugaDeBando(f.fugas);
+  const rodadaDaFuga = campos.rodada != null ? campos.rodada : rodadaAtual;
+  let parts = f.participantes;
+  const novoLog = [...logBase, { rodada: rodadaDaFuga, ts: Date.now(), acao: 'sistema', texto }];
+  const extra = {};
+  if (f.viraRodada) {
+    if (campos.rodada != null) {
+      const primeiro = proximoAtivo(parts, 0);
+      parts = parts.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) }));
+    } else {
+      const r = montarNovaRodada(parts);
+      parts = r.participantes;
+      extra.rodada = rodadaAtual + 1;
+      const virada = entradaLogViradaRodada(r.eventos, extra.rodada);
+      if (virada) novoLog.push(virada);
+    }
+  }
+  return { campos: { ...campos, ...extra, participantes: parts, log: novoLog }, texto };
+}
+
+// A fuga também vira linha na Central de Mensagens da mesa.
+function avisarFugaNaMesa(historiaId, batalhaId, rodada, texto) {
+  if (!historiaId || !texto) return;
+  supabaseClient.rpc('registrar_evento_mesa', {
+    p_historia_id: historiaId, p_tipo: 'sistema', p_texto: texto,
+    p_meta: { batalha_id: batalhaId, rodada, fuga_de_bando: true },
+  }).then(({ error }) => {
+    if (error) console.error('[batalha] registrar_evento_mesa (fuga) falhou:', error);
+  });
+}
+
 /* ── Ordena por VB (desc); empate: PJ antes, depois nome ──────── */
+/* Minion NÃO entra na disputa: a vez dele vem colada logo depois da do seu
+   líder, qualquer que seja a velocidade própria (uma Falha Crítica de
+   "velocidade −5" no minion não o separa do bando). Minion cujo líder não
+   está na lista volta a ser ordenado como qualquer um. */
 function ordenarIniciativa(snaps) {
-  return [...snaps]
+  const lista = [...snaps];
+  const ids = new Set(lista.map((p) => p && p.inst_id).filter(Boolean));
+  const segueLider = (p) => papelNoBando(p) === 'minion' && p.bando.lider
+    && p.bando.lider !== p.inst_id && ids.has(p.bando.lider);
+  const cabecas = lista.filter((p) => !segueLider(p))
     .sort((a, b) => {
       if (b.vb !== a.vb) return b.vb - a.vb;
       if (a.tipo !== b.tipo) return a.tipo === 'pj' ? -1 : 1;
       return (a.nome || '').localeCompare(b.nome || '');
-    })
-    .map((p, i) => ({ ...p, ordem: i + 1 }));
+    });
+  const ordenados = [];
+  cabecas.forEach((c) => {
+    ordenados.push(c);
+    if (c && c.inst_id) {
+      lista.forEach((m) => { if (segueLider(m) && m.bando.lider === c.inst_id) ordenados.push(m); });
+    }
+  });
+  return ordenados.map((p, i) => ({ ...p, ordem: i + 1 }));
 }
 
 /* ── Compara dois participantes como sendo o mesmo combatente ──────
@@ -1982,19 +2332,223 @@ const ICONE_STATUS = {
   morto:      'ti-skull',
   desistiu:   'ti-flag',
   envenenado: 'ti-flask-2',
+  // 13/09/2026: "Adicione mais 3 status possíveis do personagem: caído,
+  // sangrando (parecido com envenenado), evocando".
+  sangrando:  'ti-droplet',
+  caido:      'ti-arrow-down-circle',
+  evocando:   'ti-sparkles',
 };
 const iconeStatus = (k) => ICONE_STATUS[k] || ICONE_STATUS.ativo;
 
-/* Ícone dos PA restantes: o próprio ícone é o número (03/09/2026, a pedido
-   do usuário). O chip mostrava "1/1"; agora mostra só quanto sobrou, e o
-   máximo foi pro tooltip — em combate o que se olha o tempo todo é quantas
-   ações ainda dá pra gastar, não de quantas se partiu.
-   A família vai só de 0 a 9; acima disso ficaria sem ícone, então prende
-   em 9. PA nunca chega perto, mas um snapshot torto não pode apagar o chip. */
-const iconePA = (n) => {
-  const v = Math.max(0, Math.min(9, Math.trunc(Number(n) || 0)));
-  return 'ti-hexagon-number-' + v;
+/* ── Status que o Mestre aplica pelo menu de estado (puro) ──────────
+   Envenenado e Sangrando são o MESMO mecanismo (dano direto na EF a cada
+   virada, processarDanoPorRodada) com nomes diferentes; o prefixo do id é o
+   que o tabuleiro usa para escolher o selo. Caído é o `sem_acoes` que a
+   Falha Crítica já aplicava com o mesmo nome: sem ações, a vez passa. */
+function statusAplicadoPeloMestre(tipo, valor, rodadas, tb) {
+  const t = tb || {};
+  const sufixo = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const r = Math.max(1, Number(rodadas) || 1);
+  if (tipo === 'caido') {
+    return { id: 'caido:' + sufixo, nome: t.caido || 'Caído', icone: '💫', rodadas_rest: r,
+      efeito: { tipo: 'sem_acoes' } };
+  }
+  const v = Math.max(1, Number(valor) || 1);
+  if (tipo === 'sangramento') {
+    return { id: 'sangramento:' + sufixo, nome: t.sangrando || 'Sangrando', icone: '🩸', rodadas_rest: r,
+      efeito: { tipo: 'dano_por_rodada', valor: v } };
+  }
+  return { id: 'veneno:' + sufixo, nome: t.envenenado || 'Envenenado', icone: '☠', rodadas_rest: r,
+    efeito: { tipo: 'dano_por_rodada', valor: v } };
+}
+
+/* ── Números do card do combatente (13/09/2026) ────────────────────
+   "Remova os ícones de velocidade, defesa, etc, e use os números de
+   ti-number-50-small." Velocidade, PA, defesa e absorção deixam de ser
+   ícone + valor e viram SÓ o número, todos na mesma família — o que era
+   hexágono nos PA (03/09/2026) entra na mesma regra. Qual número é qual fica
+   no tooltip e no aria-label, e na ordem fixa da fileira.
+
+   A família ti-number-N-small do Tabler vai de 0 a 100 (conferido no
+   tabler-icons.min.css que o index.html carrega). Fora disso — defesa
+   negativa, velocidade acima de 100 — não existe ícone, e ícone inexistente
+   não dá erro: some. Por isso devolve null e o chip cai no número escrito. */
+const NUMERO_ICONE_MAX = 100;
+function iconeNumero(n) {
+  if (n == null || n === '') return null;
+  const v = Number(n);
+  if (!Number.isInteger(v) || v < 0 || v > NUMERO_ICONE_MAX) return null;
+  return 'ti-number-' + v + '-small';
+}
+
+/* Nome da defesa pela sigla da armadura (13/09/2026): o tooltip diz "Média",
+   não "Defesa · M4" — o número já está no chip. Feminino porque qualifica a
+   DEFESA. 'T' (tecido, catálogo antigo) defende como Leve em colunaAtaque,
+   então se chama Leve aqui também. */
+const DEFESA_NOME = {
+  L: ['Leve', 'Light'], T: ['Leve', 'Light'], M: ['Média', 'Medium'], P: ['Pesada', 'Heavy'],
 };
+function nomeDefesa(sigla, isEn) {
+  const par = DEFESA_NOME[String(sigla || 'L').toUpperCase()] || DEFESA_NOME.L;
+  return isEn ? par[1] : par[0];
+}
+
+/* Um chip de número: sigla opcional em texto (a letra da defesa) + o número.
+   O TOOLTIP é só o nome ("Velocidade", "Ações", "Média") — pedido do usuário
+   em 13/09/2026: o número já está à vista. O aria-label leva o valor, porque
+   leitor de tela não enxerga o ícone. */
+function NumeroStat({ nome, valor, detalhe, abrirTip, fecharTip }) {
+  const n = Number.isFinite(Number(valor)) ? Math.trunc(Number(valor)) : 0;
+  const ic = iconeNumero(n);
+  return (
+    <span className="batalha-stat batalha-stat-num"
+      role="img" aria-label={`${nome}: ${detalhe || n}`}
+      onMouseEnter={abrirTip ? (e) => abrirTip(e, nome) : undefined}
+      onMouseLeave={fecharTip || undefined}>
+      {ic ? <i className={'ti ' + ic} aria-hidden="true" /> : <b aria-hidden="true">{n}</b>}
+    </span>
+  );
+}
+
+/* Os números do combatente, na ordem da fileira: velocidade, PA, defesa e —
+   só para quem tem — absorção. Um componente para os dois cards (Mestre e
+   Jogador), que já tinham divergido uma vez nestes mesmos chips. */
+function NumerosDoCombatente({ p, tb, isEn, abrirTip, fecharTip }) {
+  const nome = (k, padrao) => (tb && tb.statNome && tb.statNome[k]) || padrao;
+  const arMax = Number(p.ar_max) || 0;
+  const ar = Number(p.ar) || 0;
+  return (
+    <>
+      <NumeroStat nome={nome('vb', isEn ? 'Speed' : 'Velocidade')} valor={p.vb}
+        abrirTip={abrirTip} fecharTip={fecharTip} />
+      <NumeroStat nome={nome('pa', (tb && tb.pa) || 'PA')} valor={p.pa_rest}
+        detalhe={`${p.pa_rest || 0}/${p.pa_max || 0}`}
+        abrirTip={abrirTip} fecharTip={fecharTip} />
+      {/* Defesa SÓ com o número desde 13/09/2026 ("Remova o L de L9"): o tipo
+          de armadura já está no tooltip ("Média"). */}
+      <NumeroStat nome={nomeDefesa(p.defesa_sigla, isEn)} valor={p.defesa_valor}
+        abrirTip={abrirTip} fecharTip={fecharTip} />
+      {/* ABSORÇÃO (12/09/2026): o limiar da armadura. Com elixir, o bônus vai
+          no tooltip. Só para quem tem absorção. */}
+      {ar > 0 && (
+        <NumeroStat nome={isEn ? 'Absorption' : 'Absorção'} valor={ar}
+          detalhe={ar > arMax ? `${arMax} + ${ar - arMax}` : String(ar)}
+          abrirTip={abrirTip} fecharTip={fecharTip} />
+      )}
+    </>
+  );
+}
+
+/* ── Pools como BOTÕES (13/09/2026) ────────────────────────────────
+   "As barras vão virar botões com ícone" — e, na mesma data, "ao invés do
+   fundo, eu quero uma borda que diminui". Cada pool é um círculo igual aos
+   outros do card, na MESMA fileira, com um anel na cor da pool que encolhe
+   conforme ela é gasta. Como não há número à vista, o valor vai no tooltip
+   ("Energia Física · 8/10").
+
+   Com `onClick` é botão (o Mestre edita a pool); sem, é leitura. EF negativa
+   (caído-vivo) conta como vazio. */
+const POOLS_DO_CARD = [
+  { pool: 'ef',  campo: 'ef',    icone: 'ti-heart',             nome: ['Energia Física', 'Physical Energy'] },
+  { pool: 'eh',  campo: 'eh',    icone: 'ti-heart',             nome: ['Energia Heroica', 'Heroic Energy'] },
+  { pool: 'res', campo: 'res',   icone: 'ti-shield',            nome: ['Resistência da armadura', 'Armor durability'] },
+  { pool: 'ka',  campo: 'karma', icone: 'ti-sparkle-highlight', nome: ['Karma', 'Karma'] },
+];
+
+function fracaoDaPool(valor, max) {
+  const m = Number(max) || 0;
+  if (m <= 0) return 0;
+  return Math.max(0, Math.min(1, (Number(valor) || 0) / m));
+}
+
+function PoolBotao({ def, valor, max, isEn, onClick, abrirTip, fecharTip }) {
+  const nome = isEn ? def.nome[1] : def.nome[0];
+  const dica = `${nome} · ${Number(valor) || 0}/${Number(max) || 0}`;
+  const pct = Math.round(fracaoDaPool(valor, max) * 100);
+  /* O ANEL (13/09/2026): "ao invés do fundo, eu quero uma borda que diminui.
+     O restante do botão é igual os demais." A borda é um traço de SVG com
+     pathLength 100 — o dasharray é a própria porcentagem —, partindo do topo
+     e recolhendo no sentido anti-horário conforme a pool é gasta. */
+  const conteudo = (
+    <>
+      <svg className="batalha-pool-anel" viewBox="0 0 36 36" aria-hidden="true" focusable="false">
+        <circle className="batalha-pool-anel-trilho" cx="18" cy="18" r="16.5" pathLength="100" />
+        <circle className="batalha-pool-anel-nivel" cx="18" cy="18" r="16.5" pathLength="100"
+          strokeDasharray={`${pct} 100`} transform="rotate(-90 18 18)" />
+      </svg>
+      <i className={'ti ' + def.icone} aria-hidden="true" />
+    </>
+  );
+  const classe = 'batalha-pool-botao pool-' + def.pool + (onClick ? ' editavel' : '') + (pct === 0 ? ' vazia' : '');
+  const tip = {
+    onMouseEnter: abrirTip ? (e) => abrirTip(e, dica) : undefined,
+    onMouseLeave: fecharTip || undefined,
+  };
+  if (onClick) {
+    return (
+      <button type="button" className={classe} aria-label={dica} data-pct={pct}
+        // Fecha o tooltip antes: o editor fecha o card, e o balão ficaria órfão.
+        onClick={(e) => { if (fecharTip) fecharTip(); onClick(e); }} {...tip}>
+        {conteudo}
+      </button>
+    );
+  }
+  return (
+    <span className={classe} role="img" aria-label={dica} data-pct={pct} {...tip}>{conteudo}</span>
+  );
+}
+
+/* ── StatusTempChips — os efeitos temporários de um combatente ──────
+   "O status envenenado, desistiu, deve aparecer pra todo mundo." (usuário,
+   13/09/2026). Os chips moravam só no card do Mestre; o jogador não via
+   nenhum, nem os do próprio personagem. Agora é um componente só, nas duas
+   telas: no Mestre, clicar remove (onRemover); no jogador, só leitura.
+
+   I2 (revisão final): todos os efeitos de UMA técnica compartilham
+   `id: 'tec_'+key` de propósito (é o que faz a regra de não-acumular
+   funcionar) — Fúria gera 4 status com o mesmo id, e a key de React precisa
+   distinguir os chips mesmo assim. NÃO mude `s.id`: só a key. */
+function StatusTempChips({ p, tb, somenteLeitura, onRemover, abrirTip, fecharTip }) {
+  const lista = Array.isArray(p && p.status_temp) ? p.status_temp : [];
+  const ev = p && p.evocando;
+  if (!lista.length && !ev) return null;
+  const t = tb || {};
+  /* EVOCANDO (13/09/2026) não é status_temp: é o próprio estado da
+     canalização. Aparece para todos e não se remove no clique — quem derruba
+     evocação é ação ou dano, não o Mestre apagando um chip. */
+  const chipEvocando = ev ? (() => {
+    const nome = ev.magia_nome || ev.magia_key;
+    const n = Number(ev.rodadas_rest) || 0;
+    const dica = n > 0 ? interpolate(t.magiaEvocando || '{nome} — {n}', { nome, n })
+      : interpolate(t.magiaPronta || '{nome}', { nome });
+    return (
+      <span key="evocando" className="batalha-status-chip somente-leitura batalha-status-chip-evocando"
+        onMouseEnter={abrirTip ? (e) => abrirTip(e, dica) : undefined}
+        onMouseLeave={fecharTip || undefined}>
+        <i className={'ti ' + iconeStatus('evocando') + ' batalha-status-chip-icone'} aria-hidden="true" />
+        {(t.evocandoChip || 'Evocando') + ' ' + nome}
+        <span className="batalha-status-chip-rod">{n}</span>
+      </span>
+    );
+  })() : null;
+  return [chipEvocando, ...lista.map((s, idx) => {
+    const duracao = s.rodadas_rest == null ? (t.ateOFimDa || '') : `${s.rodadas_rest} ${t.rodadaSRestantes || ''}`;
+    const dica = `${s.nome} · ${duracao}` + (somenteLeitura ? '' : ` · ${t.cliqueParaRemover || ''}`);
+    return (
+      <span key={s.id + '_' + (s.efeito ? s.efeito.tipo : '') + '_' + idx}
+        className={'batalha-status-chip' + (somenteLeitura ? ' somente-leitura' : '')}
+        onClick={somenteLeitura ? undefined : (e) => { e.stopPropagation(); onRemover && onRemover(s.id); }}
+        onMouseEnter={abrirTip ? (e) => abrirTip(e, dica) : undefined}
+        onMouseLeave={fecharTip || undefined}>
+        {s.icone
+          ? <span className="batalha-status-chip-icone">{s.icone}</span>
+          : <i className="ti ti-bolt batalha-status-chip-icone" aria-hidden="true" />}
+        {s.nome}
+        <span className="batalha-status-chip-rod">{s.rodadas_rest}</span>
+      </span>
+    );
+  })].filter(Boolean);
+}
 
 /* ── EstadoDrop — botão de estado + dropdown via portal por fighter ── */
 function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip,
@@ -2069,13 +2623,19 @@ function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip
           {/* A régua que separava os 4 estados do Envenenado saiu em
               01/09/2026: Envenenar é mais um item da mesma lista de coisas
               que o Mestre aplica ao combatente, não uma seção à parte. */}
-          <button className="batalha-estado-drop-item poison"
-            onClick={() => { fecharTip(); onEnvenenar(); setAberto(false); }}
-            aria-label={tb.envenenado}
-            onMouseEnter={(e) => abrirTip(e, tb.envenenado)}
-            onMouseLeave={fecharTip}>
-            <i className={'ti ' + iconeStatus('envenenado')} aria-hidden="true" />
-          </button>
+          {/* Sangrando e Caído entram na mesma fileira (13/09/2026); os três
+              abrem o mesmo modal, com o tipo escolhido. */}
+          {[['veneno', 'envenenado', tb.envenenado, 'poison'],
+            ['sangramento', 'sangrando', tb.sangrando, 'sangra'],
+            ['caido', 'caido', tb.caido, 'caido']].map(([tipo, ic, nome, cls]) => (
+            <button key={tipo} className={'batalha-estado-drop-item ' + cls}
+              onClick={() => { fecharTip(); onEnvenenar(tipo); setAberto(false); }}
+              aria-label={nome}
+              onMouseEnter={(e) => abrirTip(e, nome)}
+              onMouseLeave={fecharTip}>
+              <i className={'ti ' + iconeStatus(ic)} aria-hidden="true" />
+            </button>
+          ))}
           {/* MONTARIA (12/09/2026). Um botão por cavalo disponível, na mesma
               fileira de ícones — o padrão que o menu já era. Montado, o botão
               vira "desmontar" e é só um.
@@ -2205,6 +2765,72 @@ function ataquesDoAtor(ator, catalogos) {
     dano_25: c.dano_25, dano_50: c.dano_50, dano_75: c.dano_75, dano_100: c.dano_100,
     bonus_ga: 0, fonte: 'criatura',
   }];
+}
+
+/* ── Texto do resultado de um golpe (arma ou magia) para a mesa ─────────
+   "Porque o ataque com chicote deu essa mensagem e não deu dano? '… →
+    Rotineiro'" (usuário, 13/09/2026). Rotineiro e Falha Crítica são ERRO na
+   Tabela de Resolução (RESULTADOS_ACAO.erra), e a mensagem só dizia o nome.
+   Acerto que não passou dano também ficava mudo. Um texto só para Mestre e
+   Jogador — eram quatro cópias da mesma concatenação. */
+function textoResultadoGolpe(resultado, dano) {
+  if (!resultado) return '';
+  const base = ` → ${resultado.pt}`;
+  if (resultado.erra) return `${base} (errou)`;
+  return Number(dano) > 0 ? `${base} (${dano} de dano)` : `${base} (acertou, 0 de dano)`;
+}
+
+/* ── O eco local da rolagem do JOGADOR (13/09/2026) ─────────────────────
+   A tela do jogador mostra a rolagem por um eco (`rolagemOtimista`) até o
+   banco confirmar o MESMO valor (ecoDepoisDoSnapshot). Atacar antes dessa
+   confirmação grava a rolagem já limpa: o banco nunca mostra o valor rolado,
+   o eco nunca casa e fica para sempre — o painel reabria "Já rolou" com o
+   dado velho, e o segundo ataque saía com o d20 do primeiro (batalha 96, os
+   dois golpes do Victor com d20 12 e depois 8).
+
+   ecoAoGravar: a gravação que zera a MINHA rolagem (rolagem_pendente: null,
+   por comMinhaRolagem) zera o eco junto — para null, não undefined, para a
+   tela não voltar a ler a rolagem velha enquanto o snapshot não chega. */
+function ecoAoGravar(eco, participantesGravados, eu) {
+  const minha = eu && (participantesGravados || []).find((p) => mesmoParticipante(p, eu));
+  if (minha && Object.prototype.hasOwnProperty.call(minha, 'rolagem_pendente') && minha.rolagem_pendente == null) {
+    return null;
+  }
+  return eco;
+}
+/* ── Assinatura do ator no momento da rolagem (13/09/2026) ─────────────
+   "Resultado do ataque anterior está influenciando o novo ataque." (usuário)
+   — o Adrian atacou duas vezes com o MESMO d20 13 em 7 segundos. A rolagem
+   já aplicada voltava como "Já rolou" (snapshot atrasado chegando depois do
+   novo) e o segundo ataque a reaproveitava.
+   A rolagem guarda o estado de ação do ator quando o dado caiu; ao
+   restaurar, se o ator já gastou alguma ação desde então, a rolagem é de uma
+   ação que JÁ ACONTECEU — é descartada. */
+function assinaturaDaRolagem(ator) {
+  if (!ator) return null;
+  return [ator.pa_rest || 0, ator.pa_tecnica_rest || 0, ator.pa_ataque_extra || 0,
+    ator.tecnica_livre_usada ? 1 : 0, (ator.evocando && ator.evocando.magia_key) || ''].join('|');
+}
+
+/* ── Base da mescla quando a gravação ZERA a minha rolagem (13/09/2026) ──
+   "Resultado do ataque anterior está influenciando o novo ataque." A mescla
+   do banco só grava o campo que a tela MUDOU em relação à base. Rolar e
+   aplicar saem do mesmo render: a base ainda tem `rolagem_pendente: null`
+   (o snapshot com o dado não chegou), a gravação que aplica também manda
+   null — "não mudou" — e o banco ficava com o dado já usado. Com a ação
+   automática logo depois do dado isso passou a ser o caso comum.
+   Zerar é sempre intencional (comMinhaRolagem(…, null)): a base leva uma
+   marca diferente de null para o banco ver a mudança e gravar. */
+function baseQueZeraMinhaRolagem(base, novo, eu) {
+  const minha = eu && (novo || []).find((p) => mesmoParticipante(p, eu));
+  if (!minha || !Object.prototype.hasOwnProperty.call(minha, 'rolagem_pendente')
+    || minha.rolagem_pendente != null) return base;
+  return (base || []).map((p) => (mesmoParticipante(p, eu)
+    ? { ...p, rolagem_pendente: { zerando: true } } : p));
+}
+
+function ecoDepoisDoSnapshot(eco, persistidaJson) {
+  return eco !== undefined && JSON.stringify(eco ?? null) === persistidaJson ? undefined : eco;
 }
 
 /* ── Sigla de armadura normalizada (L/M/P) ──────────────────────────────────
@@ -2368,7 +2994,9 @@ function tipoCriticoDoGrupo(sigla) {
 // mensagem de crítico com os valores reais de dano daquela arma.
 function interpolarCritico(msg, arma) {
   if (!msg || !arma) return msg || '';
-  const base = arma.dano || 0;
+  // Criatura não tem `dano`: o 100% dela é dano_100 (ver danoNoTier). Lendo só
+  // `dano`, o crítico q7 de toda criatura dizia "(0 EF)" (13/09/2026).
+  const base = (arma.fonte === 'criatura' ? arma.dano_100 : arma.dano) || 0;
   const danos = {
     d25:  danoNoTier(arma, 'F'),
     d50:  danoNoTier(arma, 'M'),
@@ -2463,7 +3091,7 @@ const FALHA_CRITICA_TABELA = {
    narrativo da FALHA_CRITICA_TABELA varia). rodadas_rest null = até o fim da
    batalha (decrementarStatusTemp preserva; encerramento descarta o snapshot). */
 const FC_EFEITOS = {
-  0: { danoTier: 'MD', desmaia: true },
+  0: { danoTier: 'MD', desmaia: true },   // ver FC_AUTODANO_FATOR: o tier é cortado pela metade
   1: { danoTier: 'D',  status: { id: 'fc_acoes',  nome: 'Ações −7',      icone: '🤕', rodadas_rest: null, efeito: { tipo: 'mod_coluna', valor: -7 } } },
   2: { danoTier: 'M',  status: { id: 'fc_caido',  nome: 'Caído',         icone: '💫', rodadas_rest: 2,    efeito: { tipo: 'sem_acoes' } } },
   3: { danoTier: 'F' },
@@ -2472,6 +3100,33 @@ const FC_EFEITOS = {
   6: {                 status: { id: 'fc_veloc',  nome: 'Velocidade −5', icone: '🐌', rodadas_rest: null, efeito: { tipo: 'mod_vb', valor: -5 } } },
   7: {},
 };
+
+/* ── AUTODANO PELA METADE (13/09/2026) ─────────────────────────────
+   "Eu quero diminuir o dano que um personagem ou criatura pode aplicar em si
+   mesmo na falha crítica, corte pelo menos pela metade" — decisão do usuário.
+
+   O tier continua o mesmo (q0 = MD, q1 = D, q2 = M, q3 = F): o que cai é o
+   número que sai dele. FLOOR e não ceil, porque "pelo menos pela metade" não
+   admite arredondar para cima — ceil(7/2) = 4 passaria da metade. Um golpe de
+   dano 1 no q3 vira 0, e está certo: é o tornozelo torcido.
+
+   A MESMA conta alimenta o texto da tabela (interpolarFalhaCritica), senão a
+   narrativa diria "sofre 10" e a EF perderia 5. */
+const FC_AUTODANO_FATOR = 0.5;
+
+function danoAutoinfligido(objDano, tier) {
+  return Math.floor(danoNoTier(objDano, tier) * FC_AUTODANO_FATOR);
+}
+
+// interpolarCritico com os números do AUTODANO — só para FALHA_CRITICA_TABELA.
+function interpolarFalhaCritica(msg, objDano) {
+  if (!msg || !objDano) return msg || '';
+  return msg
+    .replace(/\$\{danos\.d25\}/g,  String(danoAutoinfligido(objDano, 'F')))
+    .replace(/\$\{danos\.d50\}/g,  String(danoAutoinfligido(objDano, 'M')))
+    .replace(/\$\{danos\.d75\}/g,  String(danoAutoinfligido(objDano, 'D')))
+    .replace(/\$\{danos\.d100\}/g, String(danoAutoinfligido(objDano, 'MD')));
+}
 
 /* ── Helpers PUROS de efeito de status_temp (1ª leva mecânica) ────── */
 // Soma os `valor` dos efeitos de um tipo ativos no participante.
@@ -2514,15 +3169,11 @@ function temAcaoRestante(p) {
   // Preso canalizando: não tem ação, por mais PA que a virada tenha devolvido.
   if (evocacaoPrendeAcao(p)) return false;
   if ((p.pa_rest || 0) > 0) return true;
-  /* O ponto exclusivo de técnica também é ação pendente: sem isto, o Guerreiro
-     especializado que gastou o PA livre teria a vez passada sozinha ANTES de
-     usar a técnica que o segundo ponto existe para pagar.
-
-     Diferente de pa_ataque_extra, não há guarda de "pode usar": quem tem este
-     ponto é Guerreiro ou Ladino ESPECIALIZADO, e especialização pressupõe
-     técnicas. O botão Passar continua disponível se por algum motivo não
-     houver nenhuma utilizável. */
-  if ((p.pa_tecnica_rest || 0) > 0) return true;
+  /* O ponto exclusivo de técnica NÃO segura a vez (13/09/2026). Regra do
+     usuário: "Ao acabar o PA, pode passar a vez automático" — e, perguntado
+     sobre o ponto de técnica que sobra, "passar mesmo assim". Quem quer usá-lo
+     usa ANTES de gastar o último PA, mesma lógica da técnica gratuita (ver
+     debitarCustoTecnica). Até esta data ele contava como ação pendente. */
   // O ataque extra só conta como ação pendente se o participante PODE
   // atacar. Sob sem_atacar (Inibir Ataque, Intimidar) a aba Arma fica
   // desabilitada e o extra é o único recurso que sobrou — contá-lo
@@ -2697,7 +3348,9 @@ function expirarEhTemp(p, removidos) {
   }
   if (devolverEf !== 0) {
     const efMax = Math.max(0, (Number(out.ef_max) || 0) - devolverEf);
-    out = { ...out, ef_max: efMax, ef: Math.max(0, Math.min(efMax, Number(out.ef) || 0)) };
+    // Piso EF_MORTE, não 0: EF negativa é estado legítimo (caído-vivo). Com
+    // piso 0, o buff que expirava num caído com EF −8 o CURAVA até 0.
+    out = { ...out, ef_max: efMax, ef: Math.max(EF_MORTE, Math.min(efMax, Number(out.ef) || 0)) };
   }
   return out;
 }
@@ -2801,6 +3454,8 @@ function processarViradaDeRodada(p) {
               pa_tecnica_rest: p.pa_tecnica_max || 0,
               // O passo sai da montaria quando há uma — ver vbParaMovimento.
               mov_rest: movimentoBase(vbParaMovimento(p)), moveu_na_rodada: false,
+              // Até dois movimentos por rodada: 1º grátis, 2º custa PA (13/09/2026).
+              movimentos_na_rodada: 0,
               // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
               // modo 'total' é POR RODADA — mesmo padrão de moveu_na_rodada.
               tecnica_livre_usada: false,
@@ -2973,7 +3628,7 @@ function aplicarFalhaCritica(atacante, objDano, q) {
   let p = atacante;
   let dano = 0;
   if (ef.danoTier) {
-    dano = danoNoTier(objDano, ef.danoTier);
+    dano = danoAutoinfligido(objDano, ef.danoTier);
     if (dano > 0) p = aplicarDanoCascata(dano, p, true); // pula EH → AR→EF (regra confirmada)
   }
   // q0: "e você desmaia" — força o status mesmo que a cascata não derrube
@@ -4373,7 +5028,8 @@ function iniciarEvocacao(p, magia, nivel, alvosIds, custoKarma) {
   return {
     ...p, karma, pa_rest: pa,
     evocando: {
-      magia_key: magia.key, nivel,
+      // O nome vai junto para o chip "Evocando" que todos veem (13/09/2026).
+      magia_key: magia.key, magia_nome: magia.nome || null, nivel,
       alvos: Array.isArray(alvosIds) ? [...alvosIds] : [],
       rodadas_rest: ev.rodadas,
       karma_pago: Number(custoKarma) || 0,
@@ -4414,9 +5070,78 @@ function quebrarEvocacao(participantes, atorInstId, motivo) {
     mudou = true;
     const { evocando, ...resto } = p;
     return { ...resto,
-      evocacao_quebrada: { magia_key: evocando.magia_key, motivo: motivo || 'acao' } };
+      evocacao_quebrada: { magia_key: evocando.magia_key,
+        ...(evocando.magia_nome ? { magia_nome: evocando.magia_nome } : {}),
+        motivo: motivo || 'acao' } };
   });
   return mudou ? next : participantes;
+}
+
+/* ── A evocação que CHEGOU A ZERO sai do conjurador (puro) ──────────
+   "O lamarc usou meteoros, e depois de 5 rodadas não subiu o log do dano da
+   magia na sua vez." (usuário, 13/09/2026). Resolver passava por
+   quebrarConcentracao, que marcava `evocacao_quebrada` numa magia que tinha
+   acabado de SAIR. Quem resolve tira a evocação antes, por aqui. */
+function soltarEvocacao(p) {
+  if (!p || !p.evocando) return p;
+  const { evocando, ...resto } = p;
+  return resto;
+}
+
+/* ── Quebra de concentração antes de uma magia de APOIO (puro) ──────
+   "Quando faço uma ação com 2, 3 rodadas para funcionar, não está
+   executando." (usuário, 13/09/2026). aplicarApoio/handleApoio quebravam a
+   concentração ANTES de passoDeApoio — e a quebra leva a evocação junto. Na
+   hora de concluir Curas Físicas, passoDeApoio já não via a canalização,
+   largava de novo, cobrava o karma outra vez e zerava a contagem: a magia
+   nunca saía. Concluindo a MESMA magia, a evocação atravessa a quebra. */
+function quebrarAntesDoApoio(participantes, atorIdx, magia) {
+  const quem = participantes[atorIdx];
+  const concluindo = !!(quem && magia && evocacaoPronta(quem) && quem.evocando.magia_key === magia.key);
+  let next = [...participantes];
+  if (concluindo) next[atorIdx] = soltarEvocacao(quem);
+  next = [...quebrarConcentracao(next, quem.inst_id)];
+  if (concluindo) next[atorIdx] = { ...next[atorIdx], evocando: quem.evocando };
+  return next;
+}
+
+/* A magia está pronta mas o alvo caiu ou saiu do alcance: ela sai sem efeito
+   (spec §4.3). É a ação do turno — custa o PA, e o karma já foi pago. */
+function concluirEvocacaoSemAlvo(p) {
+  if (!p || !p.evocando) return p;
+  return { ...soltarEvocacao(p), pa_rest: Math.max(0, (Number(p.pa_rest) || 0) - 1) };
+}
+
+/* ── Evocações que caíram numa gravação (puro) ─────────────────────
+   quebrarEvocacao marca `evocacao_quebrada`, mas ninguém lia a marca: a
+   magia sumia do conjurador sem uma linha na mesa — o jogador esperava
+   Meteoros sair e não sabia que ela tinha caído. As duas persistências
+   passam a lista por aqui: cada marca NOVA vira um evento, e a marca sai do
+   participante (não tem por que ficar gravada).
+
+   Devolve o MESMO array quando não há marca nenhuma. */
+const MOTIVO_QUEBRA_EVOCACAO = {
+  acao: 'agiu antes de a magia sair',
+  dano: 'sofreu dano na Energia Física',
+  desmaiado: 'desmaiou', morto: 'morreu', desistiu: 'desistiu',
+};
+function evocacoesQuebradas(base, novo) {
+  if (!Array.isArray(novo) || !novo.some((p) => p && p.evocacao_quebrada)) {
+    return { participantes: novo, eventos: [] };
+  }
+  const eventos = [];
+  const participantes = novo.map((p) => {
+    if (!p || !p.evocacao_quebrada) return p;
+    const antes = (base || []).find((b) => mesmoParticipante(b, p));
+    if (!(antes && antes.evocacao_quebrada)) eventos.push({ nome: p.nome, ...p.evocacao_quebrada });
+    const { evocacao_quebrada, ...resto } = p;
+    return resto;
+  });
+  return { participantes, eventos };
+}
+function textoEvocacaoQuebrada(ev) {
+  const motivo = MOTIVO_QUEBRA_EVOCACAO[ev.motivo] || ev.motivo || MOTIVO_QUEBRA_EVOCACAO.acao;
+  return `${ev.nome} perdeu a evocação de ${ev.magia_nome || ev.magia_key} (${motivo})`;
 }
 
 /* ── Consequência de LEVAR DANO, em concentração (puro) ────────────
@@ -4443,7 +5168,7 @@ function quebrarConcentracaoPorDano(participantes, antes, depois) {
   const chegouNaEF = (Number(depois.ef) || 0) < (Number(antes.ef) || 0);
   const caiu = antes.status === 'ativo' && depois.status !== 'ativo';
   if (!chegouNaEF && !caiu) return participantes;
-  return quebrarConcentracao(participantes, depois.inst_id);
+  return quebrarConcentracao(participantes, depois.inst_id, 'dano');
 }
 
 /* ── Botão de ação do menu do token — só ícone ─────────────────────
@@ -4508,7 +5233,7 @@ function saidaDeCombate(participantes, ref, novoStatus) {
   if (idx < 0) return { participantes, viraRodada: false };
   const antes = participantes[idx];
   let next = participantes.map((p, i) => (i === idx ? { ...p, status: novoStatus } : p));
-  next = [...quebrarConcentracao(next, next[idx].inst_id)];
+  next = [...quebrarConcentracao(next, next[idx].inst_id, novoStatus)];
   if (!antes.atual) return { participantes: next, viraRodada: false };
   const prox = proximoAtivo(next, antes.ordem);
   if (!prox) return { participantes: next, viraRodada: true };
@@ -4592,10 +5317,66 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   };
 
   // Persiste no banco e aplica o estado local (locais) de forma otimista.
+  /* MESCLA em vez de sobrescrever (13/09/2026). "O status envenenado não está
+     mostrando. Não persiste." — gravar a lista inteira de participantes (e o
+     log inteiro) apagava o que um jogador tinha gravado no meio-tempo, e a
+     gravação do jogador apagava o que o Mestre fez (o Envenenado). Agora a
+     tela manda o que TINHA (base = o estado deste render, de onde `campos`
+     foi calculado) e o banco aplica só o que ela mudou
+     (atualizar_batalha_mestre / batalha_mesclar_participantes). Gravação sem
+     participantes nem log (rolagem_pendente, visibilidade) segue direta. */
+  /* FILA (13/09/2026): gravar o dado (update direto) e aplicar a ação (RPC)
+     saem colados desde a ação automática depois do dado. Em voo ao mesmo
+     tempo, o update do dado podia chegar DEPOIS e deixar a rolagem já usada
+     na coluna. Cada gravação espera a anterior terminar. */
+  const filaGravacao = React.useRef(Promise.resolve());
   const persistir = async (campos, locais) => {
+    const baseParticipantes = participantes;
+    const baseLog = log;
+    // Líder morto espanta o bando (fugaNaGravacao). ANTES das quebras de
+    // evocação: o minion que foge larga a magia, e essa quebra também vira linha.
+    const fuga = (estado === 'ativa') ? fugaNaGravacao(campos, { log, rodada }) : { campos, texto: null };
+    if (fuga.texto) { campos = fuga.campos; avisarFugaNaMesa(historia && historia.id, batalha.id, rodada, fuga.texto); }
+    // Evocação que caiu nesta gravação vira linha na mesa (evocacoesQuebradas).
+    if (campos && campos.participantes !== undefined) {
+      const quebras = evocacoesQuebradas(baseParticipantes, campos.participantes);
+      if (quebras.participantes !== campos.participantes) campos = { ...campos, participantes: quebras.participantes };
+      if (historia && historia.id) quebras.eventos.forEach((ev) => {
+        supabaseClient.rpc('registrar_evento_mesa', {
+          p_historia_id: historia.id, p_tipo: 'magia', p_texto: textoEvocacaoQuebrada(ev),
+          p_meta: { batalha_id: batalha.id, rodada, fase_evocacao: 'quebrou', ...ev },
+        }).then(({ error: rpcErr }) => {
+          if (rpcErr) console.error('[batalha] registrar_evento_mesa (quebra) falhou:', rpcErr);
+        });
+      });
+    }
     if (locais) locais();
+    // `locais` não tem a fuga: sobrepõe, senão os minions ficam de pé até o eco.
+    if (fuga.texto) { setParticipantes(campos.participantes); setLog(campos.log); if (campos.rodada != null) setRodada(campos.rodada); }
     setSalvando(true);
-    const { error: err } = await supabaseClient.from('batalhas').update(campos).eq('id', batalha.id);
+    let err = null;
+    const anterior = filaGravacao.current;
+    let liberar;
+    filaGravacao.current = new Promise((r) => { liberar = r; });
+    await anterior;
+    try {
+      if (campos && (campos.participantes !== undefined || campos.log !== undefined)) {
+        const { participantes: pNovo, log: lNovo, ...extras } = campos;
+        const { data, error } = await supabaseClient.rpc('atualizar_batalha_mestre', {
+          p_batalha_id: batalha.id,
+          p_participantes: pNovo !== undefined ? pNovo : null,
+          p_base_participantes: pNovo !== undefined ? baseParticipantes : null,
+          p_log: lNovo !== undefined ? lNovo : null,
+          p_base_log: lNovo !== undefined ? baseLog : null,
+          p_extras: extras,
+        });
+        err = error || (data && data.ok === false ? { message: data.motivo } : null);
+      } else {
+        ({ error: err } = await supabaseClient.from('batalhas').update(campos).eq('id', batalha.id));
+      }
+    } finally {
+      liberar();
+    }
     setSalvando(false);
     if (err) { setError(err.message); return false; }
     onAtualizado && onAtualizado();
@@ -4691,7 +5472,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       const dataJogo = (histData && histData.data && histData.data.data_jogo_atual) || null;
 
       const snaps = await montarSnapshots(participantes || [], pools, magiasByKey, dataJogo);
-      let ordenados = ordenarIniciativa(snaps);
+      // EFETIVA: magia de velocidade ativa desde antes da luta já conta na ordem.
+      let ordenados = ordenarIniciativaEfetiva(snaps);
       const primeiro = [...ordenados].sort((a, b) => a.ordem - b.ordem).find((p) => p.status === 'ativo');
       ordenados = ordenados.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) }));
       await persistir({ estado: 'ativa', rodada: 1, participantes: ordenados }, () => {
@@ -4706,6 +5488,16 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
   const current = participantes.find((p) => p.atual)
     || participantes.find((p) => p.status === 'ativo') || null;
+  /* Magia canalizada PRONTA na vez de quem evoca (13/09/2026): o painel abre
+     sozinho, já nela. Uma chave por ocasião (quem, qual magia, que rodada)
+     para não reabrir depois que o Mestre fechar. */
+  const idxProntoParaEvocar = participantes.findIndex((p) => p.atual && evocacaoPronta(p));
+  const chaveEvocacaoPronta = (estado === 'ativa' && idxProntoParaEvocar >= 0)
+    ? `${participantes[idxProntoParaEvocar].inst_id}:${participantes[idxProntoParaEvocar].evocando.magia_key}:${rodada}` : null;
+  useEffect(() => {
+    if (chaveEvocacaoPronta && catalogos) { setAtaqueContra(null); setAcaoOpen(true); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveEvocacaoPronta, !!catalogos]);
 
   /* ── TABULEIRO ────────────────────────────────────────────────────────
      Dois modos de colocar token no grid, propositalmente diferentes:
@@ -4724,7 +5516,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     if (salvando) return false;
     if (!posValida(destino)) { setError(motivoMovimento('fora_do_tabuleiro', isEn)); return false; }
     if (celulaOcupada(destino, participantes, p)) { setError(motivoMovimento('celula_ocupada', isEn)); return false; }
-    const next = participantes.map((q, i) => (i === idx ? { ...q, pos: { x: destino.x, y: destino.y } } : q));
+    const posto = participantes.map((q, i) => (i === idx ? { ...q, pos: { x: destino.x, y: destino.y } } : q));
+    // Posicionar o líder já coloca o bando em volta dele (bandoSegueLider).
+    const next = bandoSegueLider(posto, p.inst_id);
     setError(null);
     persistir({ participantes: next }, () => setParticipantes(next));
     return true;
@@ -4735,9 +5529,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     if (!p.atual) { setError(motivoMovimento('nao_e_a_vez', isEn)); return false; }
     const r = moverParticipante(p, destino, participantes);
     if (!r.ok) { setError(motivoMovimento(r.motivo, isEn)); return false; }
-    // Mover não gasta PA nem passa a vez (30/08/2026): quem anda continua com
-    // a ação dele para gastar. A vez só passa por Passar, por aplicarAcao ou
-    // por ficar sem PA agindo.
+    // Mover GASTA 1 PA (13/09/2026, regra do usuário — ver moverParticipante).
+    // Como toda ação, se era a última, a vez passa (mesma regra de aplicarTeste).
     /* ANDAR NÃO QUEBRA A CONCENTRAÇÃO — correção de regra em 12/09/2026.
 
        Desde 01/09/2026 o motor derrubava a magia sustentada ao andar, por uma
@@ -4749,8 +5542,16 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const movido = participantes.map((q, i) => (i === idx ? r.participante : q));
     // A montaria vai junto: dois tokens em células diferentes seria pior do
     // que não ter montaria (ver montariaSegue).
-    const next = montariaSegue(movido, p.inst_id);
+    let next = montariaSegue(movido, p.inst_id);
+    // Líder de bando leva os minions junto (bandoSegueLider, tabuleiro.jsx).
+    next = bandoSegueLider(next, p.inst_id);
     setError(null);
+    const quem = next.find((q) => mesmoParticipante(q, p));
+    if (quem && quem.atual && !temAcaoRestante(quem)) {
+      const prox = proximoAtivo(next, quem.ordem);
+      if (!prox) { novaRodada(next, log, true); return true; }
+      next = next.map((q) => ({ ...q, atual: mesmoParticipante(q, prox) }));
+    }
     persistir({ participantes: next }, () => setParticipantes(next));
     return true;
   };
@@ -4822,21 +5623,23 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
   // Fase 1.2 — Aplica Envenenado com dano por rodada (direto na EF, regra
   // confirmada). O valor é digitado pelo Mestre; morde a cada Nova Rodada.
-  const aplicarVeneno = (idx) => {
+  /* O mesmo modal aplica Envenenado, Sangrando e Caído (13/09/2026) — ver
+     statusAplicadoPeloMestre. `tipo` vem de venenoOpen. */
+  const aplicarVeneno = (idx, tipo) => {
     const valor = Math.max(1, parseInt(venenoVal || '0', 10) || 0);
     const rodadas = Math.max(1, parseInt(venenoRodadas || '1', 10) || 1);
-    if (!venenoVal || valor < 1) return;
-    const novoStatus = {
-      id: 'veneno:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-      nome: tb.envenenado,
-      icone: '☠',
-      rodadas_rest: rodadas,
-      efeito: { tipo: 'dano_por_rodada', valor },
-    };
+    if (tipo !== 'caido' && (!venenoVal || valor < 1)) return;
+    const novoStatus = statusAplicadoPeloMestre(tipo, valor, rodadas, tb);
     const p = participantes[idx];
     const atual = Array.isArray(p.status_temp) ? p.status_temp : [];
     const atualizado = { ...p, status_temp: [...atual, novoStatus] };
-    const next = participantes.map((q, i) => (i === idx ? atualizado : q));
+    let next = participantes.map((q, i) => (i === idx ? atualizado : q));
+    // Caído na própria vez fica sem ações: a vez passa agora, como na Falha Crítica.
+    if (tipo === 'caido' && p.atual) {
+      const prox = proximoAtivo(next, p.ordem);
+      if (!prox) { fecharVeneno(); novaRodada(next); return; }
+      next = next.map((q) => ({ ...q, atual: mesmoParticipante(q, prox) }));
+    }
     persistir({ participantes: next }, () => { setParticipantes(next); fecharVeneno(); });
   };
 
@@ -4862,6 +5665,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // usa. Payload antigo (sem dano_bruto) cai de volta em `dano`.
     const danoPraGolpe = (dano_bruto != null) ? dano_bruto : dano;
     const criticoBruto = !!(resultado && resultado.critico);
+    // Evocação pronta com o alvo perdido: sai sem efeito (ver concluirEvocacaoPerdida).
+    if (payload.evocacao_perdida) {
+      const idxAtor = participantes.findIndex((p) => p.atual);
+      if (idxAtor >= 0 && magia) concluirEvocacaoPerdida(idxAtor, magia);
+      return;
+    }
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     const atorIdx = participantes.findIndex((p) => p.atual);
     if (alvoIdx < 0 || atorIdx < 0) return;
@@ -4900,8 +5709,18 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     }
     // Magia de ATAQUE vinda de pergaminho: o papel some aqui, na resolução —
     // mesma regra do apoio, e por isso vem depois do return da largada.
-    if (tipo === 'magia') consumirItemDaMagia(ator, magia, catalogos);
+    /* `participantes[atorIdx]`, não `ator`: `ator` é um const declarado mais
+       abaixo nesta função, e lê-lo aqui lançava ReferenceError (TDZ) — toda
+       magia de ataque do Mestre morria calada no clique (13/09/2026). */
+    if (tipo === 'magia') consumirItemDaMagia(participantes[atorIdx], magia, catalogos);
     let next = [...participantes];
+    /* RESOLUÇÃO DA CANALIZAÇÃO (13/09/2026): o karma foi pago na largada e não
+       se cobra de novo, e a evocação sai do conjurador ANTES da quebra de
+       concentração — senão a magia que acabou de sair era registrada como
+       "perdida". */
+    const resolvendoEvocacao = tipo === 'magia' && evocacaoPronta(next[atorIdx])
+      && next[atorIdx].evocando.magia_key === magia.key;
+    if (resolvendoEvocacao) next[atorIdx] = soltarEvocacao(next[atorIdx]);
     // Atacar É uma ação: derruba a concentração de quem ataca.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
@@ -4920,8 +5739,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     });
     // O bônus de Ataque Impetuoso foi usado neste golpe (em todos os alvos).
     next[atorIdx] = consumirModDano(next[atorIdx]);
-    // Debita PA (sempre 1) e karma (se for magia).
-    const k = Math.max(0, custo_karma || 0);
+    // Debita PA (sempre 1) e karma (se for magia; a canalização já pagou).
+    const k = resolvendoEvocacao ? 0 : Math.max(0, custo_karma || 0);
     // Fase 2 das técnicas: ataque extra (Golpe Duplo, Contra-Ataque,
     // Flechadas Múltiplas) consome pa_ataque_extra em vez de pa_rest — só
     // na aba Arma. Técnica, magia, habilidade e item continuam pagando
@@ -4986,17 +5805,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Falha de rede não bloqueia o fluxo local.
     if (historia && historia.id) {
       const atorNome = participantes[atorIdx].nome;
-      const resultadoNome = resultado ? resultado.pt : null;
       let texto;
       if (tipo === 'magia') {
         texto = `${atorNome} conjurou ${nomeAcao} em ${alvo.nome}`;
-        if (resultadoNome) texto += ` → ${resultadoNome}`;
-        if (dano > 0)      texto += ` (${dano} de dano)`;
+        texto += textoResultadoGolpe(resultado, dano);
         if (msg_critico)   texto += `. ${msg_critico}`;
       } else {
         texto = `${atorNome} atacou ${alvo.nome} com ${nomeAcao || 'arma'}`;
-        if (resultadoNome) texto += ` → ${resultadoNome}`;
-        if (dano > 0)      texto += ` (${dano} de dano)`;
+        texto += textoResultadoGolpe(resultado, dano);
         // Golpe Giratório: o mesmo giro alcançou mais gente. O dano de
         // cada um é resolvido contra a defesa DELE (ver aplicarGolpeEmAlvo),
         // por isso o texto não repete o número do alvo principal.
@@ -5075,6 +5891,55 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       });
     }
 
+    /* Começar a canalizar prende a ação (evocacaoPrendeAcao): a vez passa.
+       A tela do Jogador já passava (autoPassarSeNecessario); a do Mestre
+       deixava a vez parada em quem ficou sem ação (13/09/2026). */
+    const quem = next[atorIdx];
+    if (quem.atual && !temAcaoRestante(quem)) {
+      const prox = proximoAtivo(next, quem.ordem);
+      if (!prox) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
+      next = next.map((q) => ({ ...q, atual: mesmoParticipante(q, prox) }));
+    }
+
+    setRolagemSalva(null);
+    persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
+      setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
+    });
+  };
+
+  /* Evocação PRONTA cujo alvo caiu ou saiu do alcance (13/09/2026). A magia
+     sai sem efeito (spec §4.3): cobra o PA do turno, limpa a evocação e diz
+     na mesa o que aconteceu — antes ela ficava pronta para sempre, sem alvo
+     para mirar e sem uma linha no log. */
+  const concluirEvocacaoPerdida = (atorIdx, magia) => {
+    const quemEvoca = participantes[atorIdx];
+    const alvoId = quemEvoca && quemEvoca.evocando && (quemEvoca.evocando.alvos || [])[0];
+    const alvoAntigo = participantes.find((q) => q.inst_id === alvoId) || null;
+    let next = [...participantes];
+    next[atorIdx] = concluirEvocacaoSemAlvo(next[atorIdx]);
+    const entry = {
+      rodada, ts: Date.now(),
+      autor_tipo: quemEvoca.tipo, autor_ref_id: quemEvoca.ref_id, autor_nome: quemEvoca.nome,
+      acao: 'magia', fase_evocacao: 'perdeu',
+      alvo_nome: alvoAntigo ? alvoAntigo.nome : null,
+      magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
+    };
+    const novoLog = [...log, entry];
+    if (historia && historia.id) {
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historia.id, p_tipo: 'magia',
+        p_texto: textoPassoDeApoio('perdeu', quemEvoca.nome, magia, entry.alvo_nome, false),
+        p_meta: { batalha_id: batalha.id, ...entry },
+      }).then(({ error: rpcErr }) => {
+        if (rpcErr) console.error('[batalha] registrar_evento_mesa (evocacao perdida) falhou:', rpcErr);
+      });
+    }
+    const quem = next[atorIdx];
+    if (quem.atual && !temAcaoRestante(quem)) {
+      const prox = proximoAtivo(next, quem.ordem);
+      if (!prox) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
+      next = next.map((q) => ({ ...q, atual: mesmoParticipante(q, prox) }));
+    }
     setRolagemSalva(null);
     persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
       setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
@@ -5375,7 +6240,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
     // Lançar uma magia é uma ação: derruba qualquer concentração ANTERIOR
     // deste conjurador antes de aplicar a nova. Ninguém sustenta duas.
-    let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
+    let next = quebrarAntesDoApoio(participantes, atorIdx, magia);
 
     const k = Math.max(0, custo_karma || 0);
     // Larga a canalização OU resolve — a decisão é de passoDeApoio, e é a
@@ -5435,7 +6300,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Reativar não tem consequência nenhuma além do próprio status: não
     // devolve concentração e não toma a vez de quem está agindo.
     if (novo === 'ativo' || !alvo) {
-      const next = participantes.map((p, i) => (i === idx ? { ...p, status: novo } : p));
+      // Minion que fugiu e o Mestre traz de volta: `fugiu: false` o põe de novo
+      // no tabuleiro e impede fugaDeBandos de espantá-lo outra vez.
+      const next = participantes.map((p, i) => (i === idx
+        ? { ...p, status: novo, ...(p.fugiu && novo === 'ativo' ? { fugiu: false } : {}) } : p));
       persistir({ participantes: next }, () => setParticipantes(next));
       return;
     }
@@ -5586,10 +6454,18 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           onMouseEnter={(e) => abrirTip(e, tb.novaRodada)} onMouseLeave={fecharTip}>
           <i className="ti ti-refresh" aria-hidden="true" />
         </button>
-        <button type="button" className="btn-danger btn-sm" disabled={salvando || rolagemPendente} onClick={encerrarBatalha}
-          onMouseEnter={(e) => rolagemPendente && abrirTip(e, tb.concluaARolagemPendente)}
+        {/* ENCERRAR vira círculo com ícone (13/09/2026): "Remova o botão de
+            encerrar no topo." Ele é o ÚNICO caminho para encerrar a batalha
+            (leva o estado para a ficha e arquiva o log), então sai o botão
+            vermelho com texto e fica o ícone, igual aos vizinhos — decisão do
+            usuário. O clique abre o mesmo painel de confirmação. */}
+        <button type="button" className="btn-icon btn-ghost btn-sm batalha-encerrar-ic"
+          disabled={salvando || rolagemPendente} onClick={() => { fecharTip(); encerrarBatalha(); }}
+          aria-label={tb.encerrarBatalha || (isEn ? 'End battle' : 'Encerrar batalha')}
+          onMouseEnter={(e) => abrirTip(e, rolagemPendente ? tb.concluaARolagemPendente
+            : (tb.encerrarBatalha || (isEn ? 'End battle' : 'Encerrar batalha')))}
           onMouseLeave={fecharTip}>
-          {tb.encerrar}
+          <i className="ti ti-door-exit" aria-hidden="true" />
         </button>
       </>
     );
@@ -5682,57 +6558,6 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   };
 
 
-  // Barra de pool do card: EF / EH / AR / KA. Cada uma tem cor de categoria
-  // própria, vinda do CSS (.pool-ef i, .pool-eh i, …), então aqui só entra a
-  // largura.
-  //
-  // As opções `corDinamica` (cor por sinal do valor) e `min` (piso negativo
-  // da faixa) existiam só para as 8 CONDIÇÕES, que saíram do card em
-  // 01/09/2026 — saíram junto. A condição continua com faixa bidirecional e
-  // cor por sinal na Ficha, que é quem a exibe agora (11-ficha/ficha.jsx,
-  // corCondicao/corTemperatura/corSobriedade).
-  //
-  // opts: { key, title, icon, onEditar } — todos opcionais. `icon` substitui o
-  // texto do label por um ícone tabler; `title` vira tooltip; `key` é
-  // repassada pro React quando poolBar é chamado dentro de um .map();
-  // `onEditar`, quando existe, transforma a barra num BOTÃO que abre o editor
-  // daquela pool — é como o Mestre passou a ajustar EF/EH/AR/KA desde que os
-  // botões coração saíram (01/09/2026). Sem ele a barra é só leitura, que é o
-  // caso do card do Jogador.
-  const poolBar = (label, v, max, opts) => {
-    const { key, title, icon, onEditar } = opts || {};
-    const pct = max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0;
-    const conteudo = (
-      <>
-        <span className="batalha-pool-label">{icon || label}</span>
-        <span className="batalha-pool-bar">
-          <i style={{ width: pct + '%' }} />
-        </span>
-      </>
-    );
-    const classe = 'batalha-pool pool-' + label.toLowerCase() + (onEditar ? ' editavel' : '');
-    if (onEditar) {
-      return (
-        /* Fecha o tooltip ANTES de abrir o editor: a barra fecha o card
-           junto, some da tela com o balão aberto, e aí o mouseleave nunca
-           chega nela — o "EF — editar" ficava flutuando sobre o modal.
-           Mesmo caso do BotaoAcaoMenu. */
-        <button key={key} type="button" className={classe}
-          onClick={(e) => { fecharTip(); onEditar(e); }}
-          aria-label={title || label}
-          onMouseEnter={(e) => title && abrirTip(e, title)} onMouseLeave={fecharTip}>
-          {conteudo}
-        </button>
-      );
-    }
-    return (
-      <div key={key} className={classe}
-        onMouseEnter={(e) => title && abrirTip(e, title)} onMouseLeave={fecharTip}>
-        {conteudo}
-      </div>
-    );
-  };
-
   // ── SETUP ──
   if (estado === 'setup') {
     return (
@@ -5746,8 +6571,20 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
             Mestre decide quem começa em vantagem — emboscada, prontidão, quem
             viu o outro antes. Some na velocidade, então também alonga o passo
             e pode dar a ação extra acima de 30. */}
+        {/* BANDOS e INICIATIVA POR TIPO (13/09/2026): minion não tem linha —
+            ele é posicionado junto com o líder (bandoSegueLider) e age com o
+            número do tipo. O seletor de iniciativa aparece só na PRIMEIRA
+            criatura de cada tipo e vale para todas (definirIniciativa). */}
         <ul className="batalha-part-list">
-          {participantes.map((p, i) => (
+          {participantes.map((p, i) => {
+            if (papelNoBando(p) === 'minion') return null;
+            const primeiraDoTipo = p.tipo !== 'criatura'
+              || participantes.findIndex((q) => q.tipo === 'criatura' && String(q.ref_id) === String(p.ref_id)) === i;
+            const qtdTipo = p.tipo === 'criatura'
+              ? participantes.filter((q) => q.tipo === 'criatura' && String(q.ref_id) === String(p.ref_id)).length : 1;
+            const minionsDoLider = papelNoBando(p) === 'lider'
+              ? participantes.filter((q) => papelNoBando(q) === 'minion' && q.bando.lider === p.inst_id).length : 0;
+            return (
             <li key={i} className="batalha-part-row">
               {/* Ícone de POSICIONAR ao lado do nome (pedido do usuário,
                   12/09/2026): arma este combatente, e o próximo clique na
@@ -5775,11 +6612,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                     </button>
                   );
                 })()}
-                <span className="batalha-part-nome">{p.nome}</span>
+                <span className="batalha-part-nome">
+                  {p.nome}
+                  {minionsDoLider > 0 && <span className="batalha-part-bando"> +{minionsDoLider} minions</span>}
+                </span>
               </span>
               {/* Dez botões redondos, de 1 a 10, no lugar do campo numérico
                   (pedido do usuário, 12/09/2026). Um grupo de rádio: marcar um
                   desmarca o outro, e clicar no marcado volta a 0 (sem bônus). */}
+              {primeiraDoTipo && (
               <div className="batalha-part-ini" role="radiogroup"
                 aria-label={(tb.bonusIniciativa || '+ iniciativa') + ' — ' + p.nome}>
                 {/* Sem a palavra "iniciativa" na tela, e só de 1 a 9 — os nove
@@ -5796,7 +6637,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                         aria-label={String(n)}
                         onClick={() => {
                           const v = marcado ? 0 : n;
-                          const next = participantes.map((q, j) => (j === i ? { ...q, bonus_iniciativa: v } : q));
+                          // Criatura: o valor vale para o tipo inteiro.
+                          const next = definirIniciativa(participantes, i, v);
                           setParticipantes(next);
                           persistir({ participantes: next });
                         }}>
@@ -5806,9 +6648,16 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                     );
                   })}
                 </span>
+                {qtdTipo > 1 && (
+                  <span className="batalha-part-ini-tipo">
+                    {isEn ? `all ${qtdTipo}` : `todas as ${qtdTipo}`}
+                  </span>
+                )}
               </div>
+              )}
             </li>
-          ))}
+            );
+          })}
         </ul>
         {/* Tabuleiro em modo POSICIONAMENTO: sem PA nem movimento, só
             colocar cada token onde vai começar. As posições vão pro
@@ -5819,6 +6668,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           movendoControlado={posicionando}
           onMovendoChange={setPosicionando}
           semBancada
+          visibilidade={visibilidade}
           podeSelecionar={() => !salvando}
           alcanceDe={() => null}
           onMover={posicionarNoSetup}
@@ -5914,11 +6764,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       <TabuleiroBatalha
         entradas={participantes.map((p, i) => ({ p, i }))}
         meta={metaTokens}
-        podeSelecionar={(p) => !salvando && estado === 'ativa' && !!p.atual && !p.moveu_na_rodada}
-        alcanceDe={(p) => (estado === 'ativa' && p.atual
-          ? (Number.isFinite(p.mov_rest) ? p.mov_rest : movimentoBase(p.vb))
+        visibilidade={visibilidade}
+        podeSelecionar={(p) => !salvando && estado === 'ativa' && !!p.atual && movimentoDisponivel(p) > 0
+          && !minionPresoAoLider(p, participantes)}
+        alcanceDe={(p) => (estado === 'ativa' && p.atual && !minionPresoAoLider(p, participantes)
+          ? movimentoDisponivel(p)
           : null)}
         onMover={estado === 'ativa' ? moverNoTabuleiro : undefined}
+        abrirMenu={chaveEvocacaoPronta && catalogos ? { i: idxProntoParaEvocar, chave: chaveEvocacaoPronta } : null}
         salvando={salvando}
         isEn={isEn}
         tb={tb}
@@ -5969,114 +6822,44 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
             <div className="batalha-fighter-main">
               <div className="batalha-fighter-head">
                 <div className="batalha-fighter-id no-pointer">
-                  <span className={'batalha-fighter-status-ic st-' + (p.status || 'ativo')}
-                    onMouseEnter={(e) => abrirTip(e, isEn ? STATUS[p.status || 'ativo'].en : STATUS[p.status || 'ativo'].pt)}
-                    onMouseLeave={fecharTip}>
-                    <i className={'ti ' + iconeStatus(p.status || 'ativo')} aria-hidden="true" />
-                  </span>
+                  {/* Sem o ícone de status ao lado do nome desde 13/09/2026: o
+                      estado já está no seletor da fileira de baixo. */}
                   {/* No menu cabe o nome inteiro — o card cortava no primeiro
                       nome por causa da largura da coluna, restrição que sumiu. */}
                   <span className="batalha-fighter-nome">{p.nome}</span>
+                  {/* POOLS AO LADO DO NOME desde 13/09/2026 ("Os 4 itens de eh,
+                      ef, etc devem ficar inline com o nome"). Anel que diminui
+                      (PoolBotao); a resistência só com peça de armadura, e não
+                      se edita aqui (mora nas peças). */}
+                  <span className="batalha-card-pools-nome">
+                    {POOLS_DO_CARD.filter((d) => d.pool !== 'res' || (p.res_max || 0) > 0).map((d) => {
+                      const valor = p[d.campo];
+                      const maximo = p[d.campo + '_max'];
+                      const sigla = d.pool === 'ka' ? 'KA' : d.pool.toUpperCase();
+                      return (
+                        <PoolBotao key={d.pool} def={d} valor={valor} max={maximo} isEn={isEn}
+                          abrirTip={abrirTip} fecharTip={fecharTip}
+                          // Guarda ÍNDICE, nome, sigla e ícone: o editor é modal e
+                          // vive fora do card, sem `p` nem `i` no escopo.
+                          onClick={(estado === 'ativa' && d.pool !== 'res') ? () => {
+                            setPoolOpen({ idx: i, pool: d.campo, sigla, icone: d.icone,
+                                          nome: p.nome, atual: valor ?? 0, max: maximo ?? 0 });
+                            setPoolVal(String(valor ?? 0));
+                            setVenenoOpen(null);
+                            // Fecha o card: z-index 9600, nasceria por cima do modal.
+                            fechar();
+                          } : undefined} />
+                      );
+                    })}
+                  </span>
                   {p.ausente && <span className="batalha-aviso">{tb.ausente}</span>}
-                  {/* Chips de status temporários — clique remove.
-                      I2 (revisão final): todos os efeitos de UMA técnica
-                      compartilham `id: 'tec_'+key` de propósito (é o que faz
-                      a regra de não-acumular funcionar) — Fúria gera 4
-                      status com o mesmo id, e a key de React precisa
-                      distinguir os chips mesmo assim. NÃO mude `s.id` aqui:
-                      só a key da renderização. */}
-                  {Array.isArray(p.status_temp) && p.status_temp.map((s) => (
-                    <span key={s.id + '_' + (s.efeito ? s.efeito.tipo : '')} className="batalha-status-chip"
-                      onClick={(e) => { e.stopPropagation(); if (estado === 'ativa') removerStatusTemp(i, s.id); }}
-                      onMouseEnter={(e) => abrirTip(e, `${s.nome} · ${s.rodadas_rest == null ? (tb.ateOFimDa) : `${s.rodadas_rest} ${tb.rodadaSRestantes}`} · ${tb.cliqueParaRemover}`)}
-                      onMouseLeave={fecharTip}>
-                      {s.icone
-                        ? <span className="batalha-status-chip-icone">{s.icone}</span>
-                        : <i className="ti ti-bolt batalha-status-chip-icone" aria-hidden="true" />}
-                      {s.nome}
-                      <span className="batalha-status-chip-rod">{s.rodadas_rest}</span>
-                    </span>
-                  ))}
+                  {/* Chips de status temporários — clique remove (Mestre). */}
+                  <StatusTempChips p={p} tb={tb}
+                    onRemover={(id) => { if (estado === 'ativa') removerStatusTemp(i, id); }}
+                    abrirTip={abrirTip} fecharTip={fecharTip} />
+
                 </div>
 
-                {/* Velocidade, ações e defesa ao lado do NOME desde
-                    03/09/2026, como ícone + valor. RM e RF saíram: são
-                    consultados na hora de um teste de resistência, e a aba
-                    Resistência do painel já os traz — na fileira do card
-                    ocupavam espaço todo turno pra serem lidos quase nunca.
-                    Com só três restando, a fileira separada perdeu a razão
-                    de existir e virou esta faixa. O seletor de estado veio
-                    junto: ele tem que ficar inline com os stats. */}
-                <div className="batalha-fighter-stats">
-                  <span className="batalha-stat ic"
-                    onMouseEnter={(e) => abrirTip(e, (tb.statNome && tb.statNome.vb) || 'VB')}
-                    onMouseLeave={fecharTip}>
-                    <i className="ti ti-run-sprint" aria-hidden="true" /><b>{p.vb}</b>
-                  </span>
-                  <span className="batalha-stat ic so-ic"
-                    onMouseEnter={(e) => abrirTip(e, `${(tb.statNome && tb.statNome.pa) || tb.pa} · ${p.pa_rest}/${p.pa_max}`)}
-                    onMouseLeave={fecharTip}
-                    aria-label={`${(tb.statNome && tb.statNome.pa) || tb.pa}: ${p.pa_rest}/${p.pa_max}`}>
-                    <i className={'ti ' + iconePA(p.pa_rest)} aria-hidden="true" />
-                  </span>
-                  <span className="batalha-stat ic"
-                    onMouseEnter={(e) => abrirTip(e, (tb.statNome && tb.statNome.df) || tb.df)}
-                    onMouseLeave={fecharTip}>
-                    {/* shield-half, não shield: a pool AR logo abaixo já usa
-                        o escudo cheio, e dois escudos idênticos no mesmo
-                        card não se distinguem de relance. */}
-                    <i className="ti ti-shield-half" aria-hidden="true" /><b>{p.defesa_sigla || 'L'}{p.defesa_valor || 0}</b>
-                  </span>
-                  {/* ABSORÇÃO como número fixo (12/09/2026): o limiar da
-                      armadura — golpe até ele é bloqueado. Com elixir, o
-                      bônus aparece junto. Só para quem tem absorção. */}
-                  {(p.ar || 0) > 0 && (
-                    <span className="batalha-stat ic"
-                      onMouseEnter={(e) => abrirTip(e, (isEn ? 'Absorption' : 'Absorção')
-                        + ((p.ar || 0) > (p.ar_max || 0) ? ` · ${p.ar_max || 0} + ${(p.ar || 0) - (p.ar_max || 0)}` : ''))}
-                      onMouseLeave={fecharTip}>
-                      <i className="ti ti-shield" aria-hidden="true" /><b>{p.ar}</b>
-                    </span>
-                  )}
-                  {/* O seletor de estado mora NESTA linha, junto de VB/PA/DF/
-                      RM/RF — é leitura do combatente, como os outros pills,
-                      não uma ação de turno. Não vai na fileira de baixo:
-                      Mover/Ação/Passar só existem pra quem está na vez, e o
-                      estado vale pra qualquer participante. */}
-                  {estado === 'ativa' && (
-                    <EstadoDrop
-                      p={p}
-                      isEn={isEn}
-                      STATUS={STATUS}
-                      onMudar={(k) => mudarStatus(i, k)}
-                      abrirTip={abrirTip}
-                      fecharTip={fecharTip}
-                      /* Montaria: só PJ monta, e só em cavalo vivo e livre.
-                         A lista e a amarração são puras (montariasDisponiveis
-                         / montar / desmontar); aqui é só a chamada. */
-                      montarias={p.tipo === 'pj' ? montariasDisponiveis(participantes, p) : []}
-                      onMontar={(m) => {
-                        const next = montar(participantes, p.inst_id, m.inst_id);
-                        if (next === participantes) return;
-                        persistir({ participantes: next }, () => setParticipantes(next));
-                      }}
-                      onDesmontar={() => {
-                        const next = desmontar(participantes, p.inst_id);
-                        if (next === participantes) return;
-                        persistir({ participantes: next }, () => setParticipantes(next));
-                      }}
-                      onEnvenenar={() => {
-                        // Guarda o ÍNDICE (e o nome, pro título): o modal vive
-                        // fora do card, então não tem `p` nem `i` no escopo.
-                        setVenenoOpen({ idx: i, nome: p.nome });
-                        setPoolOpen(null);
-                        // Fecha o card: ele tem z-index 9600 e nasceria POR
-                        // CIMA do modal, tapando o primeiro campo.
-                        fechar();
-                      }}
-                    />
-                  )}
-                </div>
                 {/* A linha de ações inline (coração de dano, coração de cura e
                     o seletor de estado) saiu em 01/09/2026: o Mestre edita as
                     pools clicando direto na barra, e o seletor de estado
@@ -6102,63 +6885,106 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                   stats, e com ele foi embora a razão de o <div> existir fora
                   do turno. O card do Jogador já era guardado assim
                   (ehEu && ehMinhaVez && souAtivo); agora os dois batem. */}
-              {estado === 'ativa' && p.atual && (
-                <div className="batalha-menu-acoes">
-                  {mover && (
-                    <BotaoAcaoMenu icone="ti-footsteps" onClick={mover}
-                      rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')}
-                      abrirTip={abrirTip} fecharTip={fecharTip} />
+              {/* FILEIRA ÚNICA do card (13/09/2026): "Os ícones PA, velocidade,
+                  etc ficam inline com os botões mover, ação, etc. Padronize
+                  esses ícones." Os números (NumerosDoCombatente) e o seletor de
+                  estado à esquerda, as ações do turno à direita, todos no mesmo
+                  círculo de 34px. A fileira existe para qualquer participante —
+                  os números valem sempre; Mover/Ação/Passar só na vez dele. */}
+              <div className="batalha-menu-acoes batalha-card-barra">
+                <div className="batalha-fighter-stats">
+                  <NumerosDoCombatente p={p} tb={tb} isEn={isEn} abrirTip={abrirTip} fecharTip={fecharTip} />
+                  {/* O seletor de estado vem colado nos números: é leitura do
+                      combatente e vale pra qualquer participante, enquanto
+                      Mover/Ação/Passar só existem pra quem está na vez. */}
+                  {estado === 'ativa' && (
+                    <EstadoDrop
+                      p={p}
+                      isEn={isEn}
+                      STATUS={STATUS}
+                      onMudar={(k) => mudarStatus(i, k)}
+                      abrirTip={abrirTip}
+                      fecharTip={fecharTip}
+                      /* Montaria: só PJ monta, e só em cavalo vivo e livre.
+                         A lista e a amarração são puras (montariasDisponiveis
+                         / montar / desmontar); aqui é só a chamada. */
+                      montarias={p.tipo === 'pj' ? montariasDisponiveis(participantes, p) : []}
+                      onMontar={(m) => {
+                        const next = montar(participantes, p.inst_id, m.inst_id);
+                        if (next === participantes) return;
+                        persistir({ participantes: next }, () => setParticipantes(next));
+                      }}
+                      onDesmontar={() => {
+                        const next = desmontar(participantes, p.inst_id);
+                        if (next === participantes) return;
+                        persistir({ participantes: next }, () => setParticipantes(next));
+                      }}
+                      onEnvenenar={(tipo) => {
+                        // Guarda o ÍNDICE (e o nome, pro título): o modal vive
+                        // fora do card, então não tem `p` nem `i` no escopo.
+                        setVenenoOpen({ idx: i, nome: p.nome, tipo: tipo || 'veneno' });
+                        setPoolOpen(null);
+                        // Fecha o card: ele tem z-index 9600 e nasceria POR
+                        // CIMA do modal, tapando o primeiro campo.
+                        fechar();
+                      }}
+                    />
                   )}
-                  <BotaoAcaoMenu icone="ti-swords" variante="primary" rotulo={tb.acao}
-                    // Não é "tem PA", é "tem o que fazer": quem bancou um ataque
-                    // extra (Golpe Duplo e cia.) chega aqui com pa_rest 0 e um
-                    // golpe na mão. Com a checagem antiga o Mestre não conseguia
-                    // abrir o painel para gastá-lo — só passar a vez e perdê-lo.
-                    disabled={salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente}
-                    onClick={() => setAcaoOpen(true)}
-                    // Com rolagem pendente o motivo da trava importa mais que
-                    // o nome do botão — é o único jeito de o Mestre entender
-                    // por que "Ação" está apagado.
-                    abrirTip={(e, r) => abrirTip(e, rolagemPendente ? tb.concluaARolagemPendente : r)}
-                    fecharTip={fecharTip} />
-                  <BotaoAcaoMenu icone="ti-player-skip-forward" rotulo={tb.passar}
-                    disabled={salvando || rolagemPendente}
-                    onClick={() => { fechar(); passarVez(); }}
-                    abrirTip={abrirTip} fecharTip={fecharTip} />
                 </div>
-              )}
-
-              {/* ATACAR ESTE COMBATENTE (12/09/2026, pedido do usuário): no
-                  avatar de quem NÃO está na vez, o lutador da vez escolhe com
-                  o que atacar — e o painel de Ação abre aqui mesmo, com este
-                  alvo marcado. Só oferece o que o atacante tem. */}
-              {estado === 'ativa' && current && !p.atual && podeSerAtacado(p) && catalogos
-                && !mesmoParticipante(p, current) && (() => {
-                const temArma = ataquesDoAtor(current, catalogos).length > 0;
-                const temMagia = magiasOfensivasDoAtor(current, catalogos).length > 0;
-                if (!temArma && !temMagia) return null;
-                const bloqueado = salvando || !temAcaoRestante(current) || rolagemPendente;
-                const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); };
-                return (
-                  <div className="batalha-menu-acoes batalha-menu-atacar">
-                    <span className="batalha-menu-atacar-lbl">
-                      {interpolate(tb.atacarComo || (isEn ? '{nome} attacks with' : '{nome} ataca com'), { nome: current.nome })}
-                    </span>
-                    {temArma && (
-                      <BotaoAcaoMenu icone="ti-sword" variante="primary"
-                        rotulo={tb.tabArma || (isEn ? 'Weapon' : 'Arma')}
-                        disabled={bloqueado} onClick={() => abrir('arma')}
+                {estado === 'ativa' && p.atual && (
+                  <div className="batalha-card-botoes">
+                    {mover && (
+                      <BotaoAcaoMenu icone="ti-footsteps" onClick={mover}
+                        rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')}
                         abrirTip={abrirTip} fecharTip={fecharTip} />
                     )}
-                    {temMagia && (
-                      <BotaoAcaoMenu icone="ti-comet" variante="primary"
-                        rotulo={tb.tabMagia || (isEn ? 'Spell' : 'Magia')}
-                        disabled={bloqueado} onClick={() => abrir('magia')}
-                        abrirTip={abrirTip} fecharTip={fecharTip} />
-                    )}
+                    <BotaoAcaoMenu icone="ti-swords" variante="primary" rotulo={tb.acao}
+                      // Não é "tem PA", é "tem o que fazer": quem bancou um ataque
+                      // extra (Golpe Duplo e cia.) chega aqui com pa_rest 0 e um
+                      // golpe na mão. Com a checagem antiga o Mestre não conseguia
+                      // abrir o painel para gastá-lo — só passar a vez e perdê-lo.
+                      disabled={salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente}
+                      onClick={() => setAcaoOpen(true)}
+                      // Com rolagem pendente o motivo da trava importa mais que
+                      // o nome do botão — é o único jeito de o Mestre entender
+                      // por que "Ação" está apagado.
+                      abrirTip={(e, r) => abrirTip(e, rolagemPendente ? tb.concluaARolagemPendente : r)}
+                      fecharTip={fecharTip} />
+                    <BotaoAcaoMenu icone="ti-player-skip-forward" rotulo={tb.passar}
+                      disabled={salvando || rolagemPendente}
+                      onClick={() => { fechar(); passarVez(); }}
+                      abrirTip={abrirTip} fecharTip={fecharTip} />
                   </div>
-                );
-              })()}
+                )}
+                {/* ATACAR ESTE COMBATENTE (12/09/2026) — inline com o resto desde
+                    13/09/2026, sem o "Fulano ataca com" e no mesmo fundo dos
+                    outros círculos. No avatar de quem NÃO está na vez, o lutador
+                    da vez escolhe com o que atacar; o painel abre com este alvo. */}
+                {estado === 'ativa' && current && !p.atual && podeSerAtacado(p) && catalogos
+                  && !mesmoParticipante(p, current) && (() => {
+                  const temArma = ataquesDoAtor(current, catalogos).length > 0;
+                  const temMagia = magiasOfensivasDoAtor(current, catalogos).length > 0;
+                  if (!temArma && !temMagia) return null;
+                  const bloqueado = salvando || !temAcaoRestante(current) || rolagemPendente;
+                  const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); };
+                  return (
+                    <div className="batalha-card-botoes batalha-menu-atacar">
+                      {temArma && (
+                        <BotaoAcaoMenu icone="ti-sword"
+                          rotulo={isEn ? 'Attack with weapon' : 'Atacar com arma'}
+                          disabled={bloqueado} onClick={() => abrir('arma')}
+                          abrirTip={abrirTip} fecharTip={fecharTip} />
+                      )}
+                      {temMagia && (
+                        <BotaoAcaoMenu icone="ti-comet"
+                          rotulo={isEn ? 'Attack with spell' : 'Atacar com magia'}
+                          disabled={bloqueado} onClick={() => abrir('magia')}
+                          abrirTip={abrirTip} fecharTip={fecharTip} />
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
 
               {/* O Envenenado virou MODAL (01/09/2026) e é renderizado fora do
                   card, no fim da view — dois campos numa faixa inline dentro
@@ -6168,50 +6994,6 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                   fora do card junto do de Envenenar. A faixa inline que ficava
                   aqui espremia campo, valor atual e dois botões numa linha só
                   dentro de um popover estreito. */}
-              {/* Pools sempre abertas: o menu mostra UM participante por vez,
-                  então o colapso que o roster tinha perdeu a razão de ser.
-                  Com a batalha ativa cada barra é um BOTÃO: clicar abre o
-                  editor daquela pool (substituiu os botões coração). */}
-              <div className="batalha-fighter-pools-wrap">
-                <div className="batalha-pools">
-                  {/* AR saiu das barras (12/09/2026): a absorção é um limiar
-                      fixo, nunca esvazia — virou o número com escudo na linha
-                      dos stats. No lugar entra a RESISTÊNCIA (RES), que é o que
-                      se gasta; só aparece em quem tem peça de armadura, e não
-                      é editável aqui: ela mora nas peças (armadura_pecas). */}
-                  {[
-                    ['EF', 'ef',    p.ef,    p.ef_max,    'ti-heart'],
-                    ['EH', 'eh',    p.eh,    p.eh_max,    'ti-heart'],
-                    ...((p.res_max || 0) > 0 ? [['RES', 'res', p.res, p.res_max, 'ti-shield']] : []),
-                    ['KA', 'karma', p.karma, p.karma_max, 'ti-sparkle-highlight'],
-                  ].map(([sigla, campo, valor, maximo, ic]) => poolBar(sigla, valor, maximo, {
-                    key: campo,
-                    title: campo === 'res'
-                      ? `${isEn ? 'Armor durability' : 'Resistência da armadura'} · ${valor || 0}/${maximo || 0}`
-                      : (estado === 'ativa' ? `${sigla} — ${tb.editar || (isEn ? 'edit' : 'editar')}` : sigla),
-                    icon: <i className={'ti ' + ic} aria-hidden="true" />,
-                    // Guarda ÍNDICE, nome, sigla e ícone: o editor virou
-                    // modal (02/09/2026) e vive fora do card, sem `p` nem
-                    // `i` no escopo — mesma razão do Envenenar.
-                    onEditar: (estado === 'ativa' && campo !== 'res') ? () => {
-                      setPoolOpen({ idx: i, pool: campo, sigla, icone: ic,
-                                    nome: p.nome, atual: valor ?? 0, max: maximo ?? 0 });
-                      setPoolVal(String(valor ?? 0));
-                      setVenenoOpen(null);
-                      // Fecha o card: z-index 9600, nasceria por cima do modal.
-                      fechar();
-                    } : undefined,
-                  }))}
-                </div>
-                {/* As 8 CONDIÇÕES (Saúde/Sono/Sobriedade/…) saíram daqui em
-                    01/09/2026, a pedido do usuário. Eram duas fileiras de 4
-                    barrinhas que dobravam a altura do card e competiam com o
-                    que importa em combate — EF/EH/AR/KA, logo acima.
-                    Continuam vivas e editáveis na Ficha, que é onde a
-                    condição é consultada e alterada; o combate só as carrega
-                    no snapshot e as devolve no encerramento.
-                    O card do Jogador nunca as mostrou — agora os dois batem. */}
-              </div>
             </div>
           </div>
           );
@@ -6224,34 +7006,42 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     {/* Envenenar — modal próprio desde 01/09/2026. Fica FORA do card de
         propósito: são dois campos, e o menu do token é estreito demais pra
         eles numa faixa inline (o de rodadas passava despercebido). */}
-    {venenoOpen && (
+    {venenoOpen && (() => {
+      // Envenenado, Sangrando ou Caído (13/09/2026). Caído não tem dano.
+      const tipoSt = venenoOpen.tipo || 'veneno';
+      const semDano = tipoSt === 'caido';
+      const icSt = tipoSt === 'sangramento' ? 'sangrando' : tipoSt === 'caido' ? 'caido' : 'envenenado';
+      const nomeSt = tipoSt === 'sangramento' ? tb.sangrando : tipoSt === 'caido' ? tb.caido : tb.envenenado;
+      return (
       <ModalShell
-        title={<><i className={'ti ' + iconeStatus('envenenado')} aria-hidden="true" /> {tb.envenenado}</>}
+        title={<><i className={'ti ' + iconeStatus(icSt)} aria-hidden="true" /> {nomeSt}</>}
         lang={lang}
         size="sm"
         onClose={fecharVeneno}
         onCancel={fecharVeneno}
-        onConfirm={() => aplicarVeneno(venenoOpen.idx)}
+        onConfirm={() => aplicarVeneno(venenoOpen.idx, tipoSt)}
         confirmLabel={tb.aplicar}
-        confirmDisabled={salvando || !venenoVal}
+        confirmDisabled={salvando || (!semDano && !venenoVal)}
       >
         <p className="subhead">{venenoOpen.nome}</p>
         <div className="batalha-campos-modal">
+          {!semDano && (
           <label className="batalha-campo-modal">
             <span>{tb.danoRodada}</span>
             <input type="number" min="1" value={venenoVal} autoFocus
               onChange={(e) => setVenenoVal(e.target.value)} />
           </label>
+          )}
           <label className="batalha-campo-modal">
             <span>{tb.rodadas}</span>
-            <input type="number" min="1" value={venenoRodadas}
+            <input type="number" min="1" value={venenoRodadas} autoFocus={semDano}
               onChange={(e) => setVenenoRodadas(e.target.value)} />
           </label>
         </div>
         {/* O total é a conta que o Mestre fazia de cabeça pra decidir a dose:
             4/rodada por 3 rodadas tira 12 — em alguém com 11 de EF isso é
             letal, e isso não se via em lugar nenhum antes de aplicar. */}
-        {(() => {
+        {!semDano && (() => {
           const d = Math.max(0, parseInt(venenoVal || '0', 10) || 0);
           const r = Math.max(1, parseInt(venenoRodadas || '1', 10) || 1);
           if (d < 1) return null;
@@ -6261,9 +7051,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
             </p>
           );
         })()}
-        <p className="batalha-modal-nota">{tb.venenoDireto}</p>
+        <p className="batalha-modal-nota">{semDano ? tb.caidoNota : tb.venenoDireto}</p>
       </ModalShell>
-    )}
+      );
+    })()}
 
     {/* Editar EF/EH/AR/KA — modal desde 02/09/2026, a pedido do usuário, no
         mesmo molde do de Envenenar. Qual pool editar já foi dito pelo clique
@@ -6726,9 +7517,13 @@ function SelectPill({ options = [], value, onChange, placeholder, disabled, labe
           <ul className="select-pill-drop">
             {options.map((opt) => {
               const active = String(opt.value) === String(value);
+              // Opção desativada (13/09/2026): fica visível com o motivo no
+              // rótulo, mas não se escolhe. `disabled` já vinha das magias de
+              // Ritual e era ignorado aqui — dava para escolhê-las.
               return (
-                <li key={opt.value} className={active ? 'active' : ''}
-                  onClick={() => { onChange(opt.value); setOpen(false); }}>
+                <li key={opt.value} className={(active ? 'active' : '') + (opt.disabled ? ' disabled' : '')}
+                  aria-disabled={opt.disabled ? 'true' : undefined}
+                  onClick={() => { if (opt.disabled) return; onChange(opt.value); setOpen(false); }}>
                   {opt.label}
                   {active && <i className="ti ti-check select-pill-check" />}
                   {!active && <span className="select-pill-spacer" />}
@@ -6904,6 +7699,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // esta lista não é vazia.
   const magiasApoio = useMemo(() => magiasDeApoioDoAtor(ator, catalogos), [ator, catalogos]);
   const temApoio = magiasApoio.length > 0;
+  /* EVOCAÇÃO PRONTA (13/09/2026). "O lamarc usou meteoros, e depois de 5
+     rodadas não subiu o log do dano da magia na sua vez." Na vez em que a
+     contagem zera, o painel abre JÁ na magia, no nível e no alvo da largada —
+     antes abria em Arma, e qualquer outra ação derrubava a evocação calada. */
+  const evProntaKey = evocacaoPronta(ator) ? ator.evocando.magia_key : null;
+  const evMagiaIdx = evProntaKey ? magias.findIndex((m) => m.key === evProntaKey) : -1;
+  const evApoioIdx = evProntaKey ? magiasApoio.findIndex((m) => m.key === evProntaKey) : -1;
+  const evNivel = evProntaKey && Number.isFinite(ator.evocando.nivel) ? ator.evocando.nivel : null;
 
   // Tabs disponíveis: Arma sempre; Magia só se PJ é conjurador com magias ofensivas
   /* `ator.tipo === 'pj'` saiu em 12/09/2026: criatura conjura. A lista já
@@ -6926,6 +7729,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   }, [isPJ, pj, catalogos, ator]);
   const atributosFicha = (ficha && ficha.atributos) || {};
   const habilidadesAtor = useMemo(() => {
+    // Criatura (13/09/2026): nível = estágio, total = nível + ajuste.
+    if (ator && ator.tipo === 'criatura') return habilidadesDeCriatura(ator, catalogos);
     if (!isPJ || !pj || !pj.habilidades) return [];
     const habsByKey = (catalogos && catalogos.habilidadesByKey) || {};
     const habsDb    = (catalogos && catalogos.habilidadesDb)    || [];
@@ -6944,7 +7749,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     return lista.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   }, [isPJ, pj, catalogos, atributosFicha, ator]);
 
-  const semHab = !isPJ || habilidadesAtor.length === 0;
+  const semHab = habilidadesAtor.length === 0;
   const semTecTeste = tecnicas.length === 0;   // tecnicas (todas do ator) já existe abaixo
 
   // ── Tab ITEM — consumíveis do inventário REAL do ator (lido de
@@ -6992,49 +7797,79 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // limpo com a rolagem pendente escondida.
   const [tab, setTab] = useState(
     (salva && salva.tab)
+    || (evMagiaIdx >= 0 ? 'magia' : (evApoioIdx >= 0 ? 'apoio' : null))
     || ((abaInicial === 'arma' && armas.length > 0) || (abaInicial === 'magia' && podeMagia) ? abaInicial : null)
     || (armas.length > 0 ? 'arma' : (podeMagia ? 'magia' : (!semItem ? 'item' : 'habilidade')))
   );
 
+  /* ESCOLHAS DA ROLAGEM SALVA (13/09/2026). A rolagem guardava aba e dado,
+     mas não O QUE foi rolado: ao reabrir, cada seletor voltava ao primeiro da
+     lista. O Galadar rolou Desviar e o painel reabriu em Imprevisibilidade
+     (Único, já gasta) — Aplicar desabilitado, seletor travado pela rolagem,
+     menu travado. `sel` guarda as escolhas no momento da rolagem. */
+  const selSalva = (salva && salva.sel) || {};
+  const idxSalvo = (v, padrao) => (Number.isInteger(v) && v >= 0 ? v : padrao);
+
   // Estado por tab
-  const [armaIdx, setArmaIdx]   = useState(0);
-  const [tecIdx,  setTecIdx]    = useState(-1);   // -1 = sem técnica (tab Arma)
-  const [magiaIdx, setMagiaIdx] = useState(0);
-  // Alvo vindo do clique no avatar do inimigo: o índice dele em `alvos`.
+  const [armaIdx, setArmaIdx]   = useState(idxSalvo(selSalva.armaIdx, 0));
+  const [tecIdx,  setTecIdx]    = useState(Number.isInteger(selSalva.tecIdx) ? selSalva.tecIdx : -1);   // -1 = sem técnica (tab Arma)
+  const [magiaIdx, setMagiaIdx] = useState(idxSalvo(selSalva.magiaIdx, evMagiaIdx >= 0 ? evMagiaIdx : 0));
+  // Alvo vindo do clique no avatar do inimigo (ou da rolagem salva): o índice dele em `alvos`.
   const [alvoIdx, setAlvoIdx]  = useState(() => {
-    const k = alvoInicialId ? alvos.findIndex((p) => p.inst_id === alvoInicialId) : -1;
+    const id = selSalva.alvoId || alvoInicialId
+      || (evMagiaIdx >= 0 ? (ator.evocando.alvos || [])[0] : null);
+    const k = id ? alvos.findIndex((p) => p.inst_id === id) : -1;
     return k >= 0 ? k : 0;
   });
-  const [apoioIdx, setApoioIdx] = useState(0);
-  const [alvoApoioIdx, setAlvoApoioIdx] = useState(0);
+  const [apoioIdx, setApoioIdx] = useState(idxSalvo(selSalva.apoioIdx, evApoioIdx >= 0 ? evApoioIdx : 0));
+  const [alvoApoioIdx, setAlvoApoioIdx] = useState(idxSalvo(selSalva.alvoApoioIdx, 0));
   // Golpe Giratório: inst_ids dos alvos ALÉM do principal. Fica na aba Arma
   // e não reusa tecAliados de propósito — aquele é do seletor da técnica, é
   // de ALIADOS, e compartilhar estado entre os dois seletores já foi bug.
-  const [alvosExtras, setAlvosExtras] = useState([]);
+  const [alvosExtras, setAlvosExtras] = useState(Array.isArray(selSalva.alvosExtras) ? selSalva.alvosExtras : []);
   const [d20, setD20] = useState(salva ? salva.d20 : null);
   // Segundo dado: só pedido quando primeiro resultado é FC (q=0, verde) ou A (q=7, cinza).
   // FC → autodano crítico no atacante; A → crítico devastador no alvo.
   const [d20Critico, setD20Critico] = useState(salva ? (salva.d20_critico ?? null) : null);
   // Overlay do dado: 'primario' | 'critico' | null
   const [overlayAberto, setOverlayAberto] = useState(null);
+  // Aplicar sozinho ao confirmar o dado (13/09/2026) — ver o efeito junto de `aplicar`.
+  const [autoAplicar, setAutoAplicar] = useState(false);
 
   // Estado das tabs Habilidade / Técnica (teste) / Resistência / Item
-  const [habKey, setHabKey] = useState(null);
+  const [habKey, setHabKey] = useState(selSalva.habKey || null);
   // Mesma escala e mesmo padrão da ficha (HabilidadeDetalhesModal): começa em
   // "Médio", nem o mais fácil nem o mais difícil.
-  const [habDificuldade, setHabDificuldade] = useState('medio');
-  const [tecTesteKey, setTecTesteKey] = useState(null);
+  const [habDificuldade, setHabDificuldade] = useState(selSalva.habDificuldade || 'medio');
+  const [tecTesteKey, setTecTesteKey] = useState(selSalva.tecTesteKey || null);
   // C1 (revisão final): alvo ÚNICO da técnica (grupo alvo: 'inimigo') tem
   // seletor e estado PRÓPRIOS — não reusa alvoIdx da aba Arma (estado
   // compartilhado era o bug: default silencioso no índice 0, sem separar
   // aliado de inimigo). `tecAliados` é a multisseleção de 'aliados' (Voz de
   // Comando, até 4) — item 10: estava solto no meio da seção de cálculos,
   // longe dos outros useState da aba; movido pra junto deles.
-  const [tecAlvoIdx, setTecAlvoIdx] = useState(0);
-  const [tecAliados, setTecAliados] = useState([]);   // inst_id[] dos escolhidos
-  const [resTipo, setResTipo] = useState('rf');               // 'rf' | 'rm'
-  const [forcaAtaque, setForcaAtaque] = useState(10);
-  const [forcaDefesa, setForcaDefesa] = useState(10);
+  const [tecAlvoIdx, setTecAlvoIdx] = useState(idxSalvo(selSalva.tecAlvoIdx, 0));
+  const [tecAliados, setTecAliados] = useState(Array.isArray(selSalva.tecAliados) ? selSalva.tecAliados : []);   // inst_id[] dos escolhidos
+  const [resTipo, setResTipo] = useState(selSalva.resTipo === 'rm' ? 'rm' : 'rf');               // 'rf' | 'rm'
+  const [forcaAtaque, setForcaAtaque] = useState(Number.isFinite(selSalva.forcaAtaque) ? selSalva.forcaAtaque : 10);
+  const [forcaDefesa, setForcaDefesa] = useState(Number.isFinite(selSalva.forcaDefesa) ? selSalva.forcaDefesa : 10);
+
+  /* Rolagem restaurada cuja escolha não dá mais para reconstruir: rolagem
+     ANTIGA (sem `sel`, como a do Galadar) numa aba em que a escolha importa,
+     ou escolha que sumiu da lista. Não tem como aplicar — é descartada logo
+     abaixo, junto das outras saídas de rolagem impossível. Vale só para a
+     rolagem que veio salva: o estado desliga assim que ela sai. */
+  const [restauroInvalido, setRestauroInvalido] = useState(() => {
+    if (!salva || salva.d20 == null) return false;
+    // Rolagem de uma ação que já aconteceu (ver assinaturaDaRolagem).
+    if (salva.assin != null && salva.assin !== assinaturaDaRolagem(ator)) return true;
+    if (salva.tab === 'tecnica_teste') return !selSalva.tecTesteKey || !tecnicas.some((t) => t.key === selSalva.tecTesteKey);
+    if (salva.tab === 'habilidade') return !selSalva.habKey || !habilidadesAtor.some((h) => h.key === selSalva.habKey);
+    return false;
+  });
+  // O efeito de "default de seleção" zera alvo/aliados da técnica ao montar;
+  // com escolhas restauradas, a primeira passada não pode apagá-las.
+  const restaurandoSel = React.useRef(!!(salva && salva.sel));
   const [itemSlug, setItemSlug] = useState(null);
   const [itemQtd, setItemQtd]  = useState(1);
 
@@ -7047,8 +7882,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   useEffect(() => {
     // Zera a multisseleção de aliados e o alvo único: ao trocar de aba ou de
     // técnica, a escolha da técnica anterior não pode sobreviver pra seguinte.
-    setTecAliados([]);
-    setTecAlvoIdx(0);
+    // (Exceto na montagem que restaura uma rolagem salva — ver restaurandoSel.)
+    if (restaurandoSel.current) {
+      restaurandoSel.current = false;
+    } else {
+      setTecAliados([]);
+      setTecAlvoIdx(0);
+    }
     if (tab === 'habilidade') {
       if (!habilidadesAtor.find((h) => h.key === habKey)) {
         setHabKey(habilidadesAtor[0] ? habilidadesAtor[0].key : null);
@@ -7096,23 +7936,67 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     () => tecnicasCompativeisComArma(tecnicas, arma, catalogos),
     [tecnicas, arma, catalogos]
   );
-  const tecnica = (tecIdx >= 0 && tecnicasCompat[tecIdx]) || null;
+  /* tecIdx indexa TODAS as técnicas desde 13/09/2026: a aba Arma lista as
+     incompatíveis com a arma também, desativadas e com o motivo (antes elas
+     sumiam). A escolhida só vale se for compatível. */
+  const tecnica = (tecIdx >= 0 && tecnicas[tecIdx] && tecnicasCompat.includes(tecnicas[tecIdx]))
+    ? tecnicas[tecIdx] : null;
 
   // ── Tab MAGIA ──────────────────────────────────────────────
   /* NÍVEL ESCOLHIDO PELO JOGADOR (12/09/2026). `null` = o máximo, que é o
      padrão e o comportamento de antes desta data. Guardado por ABA porque
      magia de ataque e magia de apoio são escolhas independentes. */
-  const [nivelMagiaSel, setNivelMagiaSel] = useState(null);
-  const [nivelApoioSel, setNivelApoioSel] = useState(null);
+  const [nivelMagiaSel, setNivelMagiaSel] = useState(Number.isFinite(selSalva.nivelMagiaSel) ? selSalva.nivelMagiaSel
+    : (evMagiaIdx >= 0 ? evNivel : null));
+  const [nivelApoioSel, setNivelApoioSel] = useState(Number.isFinite(selSalva.nivelApoioSel) ? selSalva.nivelApoioSel
+    : (evApoioIdx >= 0 ? evNivel : null));
   const magiaBase = magias[magiaIdx] || null;
   const magia = magiaNoNivel(magiaBase, nivelMagiaSel);
 
   // ── Alvo (compartilhado) ───────────────────────────────────
-  const alvo = alvos[alvoIdx] || null;
+  /* Resolvendo a canalização, o alvo é o da LARGADA (spec §4.3) — e se ele
+     caiu, não há outro para o seletor oferecer no lugar. */
+  const resolvendoEvocacao = tab === 'magia' && !!magiaBase && evProntaKey === magiaBase.key;
+  const alvoIdEvocacao = resolvendoEvocacao ? (ator.evocando.alvos || [])[0] : null;
+  const alvo = alvoIdEvocacao
+    ? (alvos.find((p) => p.inst_id === alvoIdEvocacao) || null)
+    : (alvos[alvoIdx] || null);
 
   // ── Tab APOIO ──────────────────────────────────────────────
   const apoioBase = magiasApoio[apoioIdx] || null;
   const apoioSel = magiaNoNivel(apoioBase, nivelApoioSel);
+
+  /* ── ABA MAGIAS (13/09/2026) ────────────────────────────────────
+     "Porque temos um menu chamado 'apoio'? Ele deve se chamar magias." Eram
+     duas abas — Magia (ataque: coluna, dado, dano) e Apoio (o resto: buff,
+     cura, debuff, controle) — e o usuário escolheu juntá-las numa só.
+
+     Por dentro os DOIS FLUXOS continuam: `tab` segue valendo 'magia' ou
+     'apoio', e é isso que decide dado, alvo e aplicação — toda a regra que
+     já estava testada fica onde está. O que se juntou é o que se vê: um botão
+     "Magias" e um seletor com todas as magias do combatente. Escolher uma do
+     outro grupo troca o fluxo por baixo. O valor da opção carrega o grupo
+     ('m:3' ataque, 'a:1' efeito) porque os dois índices se repetem. */
+  const opcaoMagia = (m) => (m.evocacao_bloqueada
+    ? `${m.nome} · ${tb.magiaRitual}`
+    : `${m.nome} · ${tb.nivel} ${m.nivel}${m.item ? ` · ${m.item.nome}` : ''}`);
+  const opcoesMagias = [
+    ...magias.map((m, i) => ({ value: 'm:' + i, label: opcaoMagia(m), disabled: !!m.evocacao_bloqueada })),
+    ...magiasApoio.map((m, i) => ({ value: 'a:' + i, label: opcaoMagia(m), disabled: !!m.evocacao_bloqueada })),
+  ];
+  const valorMagiaEscolhida = tab === 'apoio' ? 'a:' + apoioIdx : 'm:' + magiaIdx;
+  const escolherMagia = (v) => {
+    const [grupo, n] = String(v).split(':');
+    const idx = parseInt(n, 10);
+    if (!Number.isFinite(idx)) return;
+    if (grupo === 'a') {
+      if (tab !== 'apoio') trocaTab('apoio');
+      setApoioIdx(idx); setAlvoApoioIdx(0); setNivelApoioSel(null); setD20(null);
+    } else {
+      if (tab !== 'magia') trocaTab('magia');
+      setMagiaIdx(idx); setNivelMagiaSel(null); setD20(null);
+    }
+  };
   /* Canalização em curso trava a aba na magia que está sendo evocada: trocar
      de magia no meio é uma ação, e ação derruba a evocação (quebrarEvocacao).
      Deixar o select livre daria ao jogador um jeito de perder o karma sem
@@ -7162,6 +8046,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     : null;
   const distanciaAoAlvo = alvo ? distanciaEntre(ator, alvo) : null;
   const foraDeAlcance = !!(alcanceAcao != null && alvo && !alvoNoAlcance(ator, alvo, alcanceAcao));
+  // Magia pronta, alvo caído ou longe: não há dado a rolar, só concluir sem efeito.
+  const evocacaoAlvoPerdido = resolvendoEvocacao && (!alvo || foraDeAlcance);
 
   // ── Cálculos por tab ───────────────────────────────────────
   // Arma: coluna = dano_categoria + bônus_grupo − defesa_valor (clamp [-7,50]).
@@ -7327,7 +8213,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // danoFinal engloba o que danoComModMax fazia (mod_dano_max) e acrescenta
   // os percentuais da Fase 2, na ordem da spec §4.3.
   const dano = danoFinal(danoBruto, ator, alvo);
-  const custoKarma = tab === 'magia' && magia ? magia.custo_karma : 0;
+  // Resolvendo a canalização o karma já foi pago na largada — pedir de novo
+  // travava a magia em "karma insuficiente" (13/09/2026).
+  const custoKarma = tab === 'magia' && magia && !resolvendoEvocacao ? magia.custo_karma : 0;
   const semKarma = custoKarma > 0 && (ator.karma || 0) < custoKarma;
   const semPA = (ator.pa_rest || 0) <= 0;
   // O ponto exclusivo de tecnica (Guerreiro/Ladino especializado) nao conta
@@ -7406,8 +8294,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // (FALHA_CRITICA_TABELA); 'alvo' (q=7) pune o OPONENTE (CRITICOS_TABELA).
   // Magia interpola com a própria magia (danoNoTier fonte 'magia' → floor).
   const objDanoCritico = tab === 'magia' ? magia : arma;
+  // Autodano sai pela metade (FC_AUTODANO_FATOR), e o texto tem que dizer isso.
   const msgCritico = (resCritico && tipoCriticoArma)
-    ? interpolarCritico(((tipoCritico === 'self' ? FALHA_CRITICA_TABELA : CRITICOS_TABELA)[tipoCriticoArma] || {})[resCritico.q], objDanoCritico)
+    ? (tipoCritico === 'self'
+      ? interpolarFalhaCritica((FALHA_CRITICA_TABELA[tipoCriticoArma] || {})[resCritico.q], objDanoCritico)
+      : interpolarCritico((CRITICOS_TABELA[tipoCriticoArma] || {})[resCritico.q], objDanoCritico))
     : null;
 
   // Pode confirmar: depende de qual tab está ativa.
@@ -7435,6 +8326,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
 
          Ritual nunca confirma: não se evoca em batalha. */
       ? (magiaBloqueada ? false
+         : evocacaoAlvoPerdido ? !semPA
          : magiaEmLargada
            ? (!semKarma && !semPA && alvo && !foraDeAlcance)
            : (!!res && !semKarma && alvo && !foraDeAlcance && (!precisaCritico || d20Critico != null)))
@@ -7488,6 +8380,38 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const apoioSemDado = tab === 'apoio'
     && !(apoioSel && (apoioSel.resistencia || apoioSel.teste_habilidade));
   const temRolagemPendente = tab !== 'item' && !apoioSemDado && d20 != null && !semAlvoPossivel;
+
+  /* TERCEIRA saída: rolagem feita com o alvo FORA DE ALCANCE (13/09/2026).
+     "Eu não devo poder atacar um adversário que está mais longe que minha arma
+      alcança, fiz isso e agora estou preso no ataque." O botão de rolar agora
+     exige alcance, mas a rolagem que já existe nesse estado (gravada na
+     batalha antes da correção, ou o alvo que se afastou) é impossível de
+     aplicar — podeAplicar exige alcance. Diferente de "sem alvo", aqui há
+     outros alvos: soltar a trava deixaria usar o mesmo dado em outro. Por isso
+     a rolagem é DESCARTADA, no painel e na batalha. */
+  const rolagemForaDeAlcance = (tab === 'arma' || tab === 'magia') && d20 != null && foraDeAlcance;
+  /* QUARTA saída (13/09/2026): rolagem que voltou salva mas não se aplica —
+     a escolha não deu para reconstruir (restauroInvalido) ou a técnica
+     restaurada está bloqueada (uso Único gasto, equipamento). O Galadar ficou
+     assim com Desviar. Mesmo tratamento do alcance: descarta. Uma rolagem
+     feita AGORA nunca cai aqui: o dado da técnica só rola com tecBloqueio.pode. */
+  const rolagemInaplicavel = d20 != null && (
+    restauroInvalido
+    || (tab === 'tecnica_teste' && (!tecnicaTesteSel || !tecBloqueio.pode))
+    || (tab === 'habilidade' && !habilidadeSel));
+  useEffect(() => {
+    if (!rolagemForaDeAlcance && !rolagemInaplicavel) return;
+    setD20(null); setD20Critico(null); setOverlayAberto(null); setRestauroInvalido(false);
+    onRolagemSalvaChange && onRolagemSalvaChange(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rolagemForaDeAlcance, rolagemInaplicavel]);
+
+  // As escolhas que acompanham a rolagem salva (ver selSalva).
+  const selecaoAtual = () => ({
+    armaIdx, tecIdx, magiaIdx, alvoId: alvo ? alvo.inst_id : null, alvosExtras,
+    apoioIdx, alvoApoioIdx, habKey, habDificuldade, tecTesteKey, tecAlvoIdx, tecAliados,
+    resTipo, forcaAtaque, forcaDefesa, nivelMagiaSel, nivelApoioSel,
+  });
 
   // Reporta o estado de "rolagem pendente" pro pai sempre que muda.
   useEffect(() => {
@@ -7586,11 +8510,17 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
         nome: itemSelecionado.nome,
         quantidade: itemQtd,
       });
+    } else if (tab === 'magia' && evocacaoAlvoPerdido) {
+      onAplicar({ tipo: 'magia', magia, alvo: null, evocacao_perdida: true });
     } else if (tab === 'magia') {
       onAplicar({
         tipo: 'magia',
         magia, alvo,
-        coluna: colunaClamped, d20: res.d20, resultado: res, dano,
+        /* Largada de magia canalizada não rola (res é null): `res.d20` jogava
+           TypeError e o clique morria calado — "não consigo clicar para usar
+           PA" (usuário, 13/09/2026, Relâmpago da Espada Sagae). aplicarAcao e
+           handleAcao já tratam a largada sem dado. */
+        coluna: colunaClamped, d20: res ? res.d20 : null, resultado: res, dano,
         custo_karma: custoKarma,
         // Segundo dado de FALHA CRÍTICA (magia só entra no fluxo com q=0).
         d20_critico: precisaCritico ? d20Critico : undefined,
@@ -7621,6 +8551,36 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     }
   };
 
+  /* AÇÃO AUTOMÁTICA DEPOIS DO DADO (13/09/2026). "Ação automático depois do
+     dado." (usuário) — confirmar o dado já aplica a ação; o botão Atacar/Usar
+     virou só a porta para quem não rola (largada, técnica sem dado, item).
+     Se o resultado pede o segundo dado (crítico), ele abre sozinho e a ação
+     sai ao confirmar esse. Quando ainda não dá para aplicar (sem PA, fora de
+     alcance…), nada acontece e o motivo continua na tela. Fecha também a
+     janela entre rolar e aplicar, por onde uma rolagem velha se reaproveitava. */
+  /* O DADO JÁ É A AÇÃO (13/09/2026). "Rodar o dado para uma ação já consome
+     o PA, não precisa de executar a ação." A ação sai sozinha logo depois de o
+     dado assentar — o tempo de ler o resultado no card. Confirmar só adianta.
+     Um timer por painel: rolar de novo (empate) ou confirmar cancela o
+     anterior, e desmontar o painel também. */
+  const timerAutoAplicar = useRef(null);
+  useEffect(() => () => clearTimeout(timerAutoAplicar.current), []);
+  const aplicarDepoisDoDado = () => {
+    clearTimeout(timerAutoAplicar.current);
+    timerAutoAplicar.current = setTimeout(() => { setOverlayAberto(null); setAutoAplicar(true); }, 1200);
+  };
+  const confirmarDado = () => {
+    clearTimeout(timerAutoAplicar.current);
+    setOverlayAberto(null); setAutoAplicar(true);
+  };
+  useEffect(() => {
+    if (!autoAplicar) return;
+    setAutoAplicar(false);
+    if (precisaCritico && d20Critico == null && !dadoCriticoTravado) { setOverlayAberto('critico'); return; }
+    if (podeAplicar) aplicar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAplicar]);
+
   return (
     <div className="atacar acao">
       {/* Tabs + combatente atual */}
@@ -7631,41 +8591,68 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           rolou Falha Crítica → trocar pra Resistência ou Item some com o
           resultado sem custo). Fecha essa brecha: nenhuma aba é trocável
           enquanto há rolagem pendente, só Atacar/Usar/Resistir. */}
+      {/* Aba desativada DIZ POR QUÊ (13/09/2026): o motivo vive num invólucro
+          (data-motivo + tooltip) porque botão desativado não recebe o mouse.
+          Rolagem pendente não entra: o aviso "Já rolou" já explica. */}
       <div className="acao-tabs">
-        <button className={'acao-tab' + (tab === 'arma' ? ' on' : '')}
-          onClick={() => trocaTab('arma')} disabled={armas.length === 0 || temRolagemPendente || !podeAtacarAgora(ator)}>
-          <i className="ti ti-sword" aria-hidden="true" />{tb.arma}
-        </button>
-        <button className={'acao-tab' + (tab === 'habilidade' ? ' on' : '')}
-          onClick={() => trocaTab('habilidade')} disabled={semHab || temRolagemPendente}>
-          <i className="ti ti-list-check" aria-hidden="true" />{tb.habilidade}
-        </button>
-        <button className={'acao-tab' + (tab === 'tecnica_teste' ? ' on' : '')}
-          onClick={() => trocaTab('tecnica_teste')} disabled={semTecTeste || temRolagemPendente || !podeUsarTecnicaAgora(ator)}>
-          <i className="ti ti-bolt" aria-hidden="true" />{tb.tecnica}
-        </button>
-        <button className={'acao-tab' + (tab === 'resistencia' ? ' on' : '')}
-          onClick={() => trocaTab('resistencia')} disabled={temRolagemPendente}>
-          <i className="ti ti-shield-check" aria-hidden="true" />{tb.resistencia}
-        </button>
-        {!semItem && (
-          <button className={'acao-tab' + (tab === 'item' ? ' on' : '')}
-            onClick={() => trocaTab('item')} disabled={temRolagemPendente}>
-            <i className="ti ti-bottle" aria-hidden="true" />{tb.item}
-          </button>
-        )}
-        {podeMagia && (
-          <button className={'acao-tab acao-tab-magia' + (tab === 'magia' ? ' on' : '')}
-            onClick={() => trocaTab('magia')} disabled={temRolagemPendente}>
-            <i className="ti ti-sparkles" aria-hidden="true" />{tb.magia}
-          </button>
-        )}
-        {temApoio && (
-          <button className={'acao-tab' + (tab === 'apoio' ? ' on' : '')}
-            onClick={() => trocaTab('apoio')} disabled={temRolagemPendente}>
-            <i className="ti ti-wand" aria-hidden="true" />{tb.apoio}
-          </button>
-        )}
+        {(() => {
+          const comMotivo = (motivo, botao) => (motivo ? (
+            <span className="acao-tab-wrap" data-motivo={motivo}
+              onMouseEnter={abrirTip ? (e) => abrirTip(e, motivo) : undefined}
+              onMouseLeave={fecharTip || undefined}>{botao}</span>
+          ) : botao);
+          const motivoArma = armas.length === 0 ? (isEn ? 'No weapon in hand.' : 'Nenhuma arma empunhada.')
+            : !podeAtacarAgora(ator) ? tb.semAtacarBloqueado : null;
+          const motivoTec = semTecTeste ? tb.esteLutadorNaoTem2
+            : !podeUsarTecnicaAgora(ator) ? tb.semTecnicasBloqueado : null;
+          const motivoHab = semHab ? tb.esteLutadorNaoTem : null;
+          /* Evocação pronta: só a aba dela fica aberta. Qualquer outra ação
+             derruba a canalização (quebrarConcentracao) — e o karma já foi. */
+          const abaDaEvocacao = evMagiaIdx >= 0 ? 'magia' : (evApoioIdx >= 0 ? 'apoio' : null);
+          const motivoEv = (aba) => (abaDaEvocacao && aba !== abaDaEvocacao
+            ? interpolate(tb.evocacaoTravaAbas, { nome: ator.evocando.magia_nome || evProntaKey }) : null);
+          const aba = (chave, motivo, classe, icone, rotulo) => {
+            const m = motivo || motivoEv(chave);
+            return (
+              <React.Fragment key={chave}>
+                {comMotivo(m, (
+                  <button className={'acao-tab' + (classe ? ' ' + classe : '') + (tab === chave ? ' on' : '')}
+                    onClick={() => trocaTab(chave)} disabled={!!m || temRolagemPendente}>
+                    <i className={'ti ' + icone} aria-hidden="true" />{rotulo}
+                  </button>
+                ))}
+              </React.Fragment>
+            );
+          };
+          return (
+            <>
+              {aba('arma', motivoArma, '', 'ti-sword', tb.arma)}
+              {aba('habilidade', motivoHab, '', 'ti-list-check', tb.habilidade)}
+              {aba('tecnica_teste', motivoTec, '', 'ti-bolt', tb.tecnica)}
+              {aba('resistencia', null, '', 'ti-shield-check', tb.resistencia)}
+              {!semItem && aba('item', null, '', 'ti-bottle', tb.item)}
+              {/* UMA aba para todas as magias (13/09/2026) — ver opcoesMagias.
+                  Entra no fluxo de ataque quando há magia de ataque e alvo
+                  para ela; senão, no de efeito. */}
+              {(podeMagia || temApoio) && (() => {
+                const chave = (tab === 'magia' || tab === 'apoio') ? tab
+                  : ((podeMagia && (alvos.length > 0 || !temApoio)) ? 'magia' : 'apoio');
+                const m = motivoEv('magia') && motivoEv('apoio');
+                return (
+                  <React.Fragment key="magias">
+                    {comMotivo(m, (
+                      <button className={'acao-tab acao-tab-magia' + ((tab === 'magia' || tab === 'apoio') ? ' on' : '')}
+                        onClick={() => { if (tab !== chave) trocaTab(chave); }}
+                        disabled={!!m || temRolagemPendente}>
+                        <i className="ti ti-sparkles" aria-hidden="true" />{tb.magias || (isEn ? 'Spells' : 'Magias')}
+                      </button>
+                    ))}
+                  </React.Fragment>
+                );
+              })()}
+            </>
+          );
+        })()}
       </div>
 
       {tab === 'arma' && !podeAtacarAgora(ator) ? (
@@ -7676,13 +8663,24 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
         <p className="atacar-aviso-vazio">
           {tb.semAcoesDeCombate}
         </p>
-      ) : (tab === 'arma' || tab === 'magia') && alvos.length === 0 ? (
-        <p className="atacar-aviso-vazio">{tb.semAlvosValidos}</p>
+      ) : (tab === 'arma' || tab === 'magia') && alvos.length === 0 && !resolvendoEvocacao ? (
+        <>
+          {/* Sem alvo para magia de ATAQUE, o seletor continua à mão: numa aba
+              só, é por ele que se chega às magias de efeito (13/09/2026). */}
+          {tab === 'magia' && temApoio && (
+            <div className="atacar-row2">
+              <SelectPill label={tb.magia} value={valorMagiaEscolhida}
+                disabled={temRolagemPendente || evMagiaIdx >= 0 || evApoioIdx >= 0}
+                onChange={escolherMagia} options={opcoesMagias} />
+            </div>
+          )}
+          <p className="atacar-aviso-vazio">{tb.semAlvosValidos}</p>
+        </>
       ) : (
       <>
       {tab === 'arma' && (
         <>
-          <div className={tecnicasCompat.length > 0 ? 'atacar-row3' : 'atacar-row2'}>
+          <div className={tecnicas.length > 0 ? 'atacar-row3' : 'atacar-row2'}>
             <SelectPill
               label={tb.arma}
               value={armaIdx}
@@ -7736,18 +8734,28 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
                 })}
               </div>
             )}
-            {tecnicasCompat.length > 0 && (
+            {/* Todas as técnicas (13/09/2026): as que exigem outra arma
+                aparecem desativadas, com o grupo exigido no rótulo — antes
+                sumiam sem aviso. O motivo completo vai logo abaixo. */}
+            {tecnicas.length > 0 && (
               <SelectPill
                 label={tb.tecnicaOpcional}
-                value={tecIdx}
+                value={tecnica ? tecIdx : -1}
                 disabled={temRolagemPendente}
                 onChange={(v) => setTecIdx(parseInt(v, 10))}
                 options={[
                   { value: -1, label: tb.nenhuma, labelBotao: '' },
-                  ...tecnicasCompat.map((t, i) => ({
-                    value: i,
-                    label: t.nome,
-                  })),
+                  ...tecnicas.map((t, i) => {
+                    const incompativel = !tecnicasCompat.includes(t);
+                    const grupos = incompativel ? (gruposDeArma(t.grupo_armas) || []) : [];
+                    return {
+                      value: i,
+                      label: incompativel
+                        ? `${t.nome} · ${isEn ? 'requires weapon' : 'exige arma'} ${grupos.join(', ')}`
+                        : t.nome,
+                      disabled: incompativel,
+                    };
+                  }),
                 ]}
               />
             )}
@@ -7758,6 +8766,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
               <strong>{tecnica.nome}:</strong> {tecnica.efeito}
             </div>
           )}
+          {/* Nenhuma técnica serve para a arma na mão: diz por quê, com a
+              primeira como exemplo do grupo exigido. */}
+          {tecnicas.length > 0 && tecnicasCompat.length === 0 && (
+            <p className="acao-efeito-texto acao-efeito-bloqueio">
+              {(isEn ? 'No technique works with this weapon. ' : 'Nenhuma técnica serve para esta arma. ')}
+              {motivoArmaTecnica(tecnicas[0], arma, catalogos, isEn)}
+            </p>
+          )}
 
         </>
       )}
@@ -7765,26 +8781,16 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       {tab === 'magia' && (
         <>
           <div className="atacar-row2">
+            {/* Seletor ÚNICO da aba Magias (ver opcoesMagias): todas as
+                magias, de ataque e de efeito. Trocar de magia zera o nível; o
+                ritual fica visível e desabilitado; magia de item leva o nome
+                do item. Evocação pronta trava a escolha. */}
             <SelectPill
               label={tb.magia}
-              value={magiaIdx}
-              disabled={temRolagemPendente}
-              // Trocar de magia zera o nível escolhido: o nível de uma não
-              // significa nada na outra, e manter vazaria entre elas.
-              onChange={(v) => { setMagiaIdx(parseInt(v, 10)); setNivelMagiaSel(null); setD20(null); }}
-              /* Ritual fica VISÍVEL e desabilitado: o Mestre precisa ver que a
-                 magia existe e por que não dá pra usá-la em batalha. Mesmo
-                 padrão da aba Apoio e de tecUso/tecEquip na aba Técnica. */
-              /* Magia vinda de ITEM leva o nome do item no rótulo. Sem isso o
-                 jogador vê duas magias iguais na lista, uma custando karma e
-                 outra não, e não tem como saber qual é qual. */
-              options={magias.map((m, i) => ({
-                value: i,
-                label: m.evocacao_bloqueada
-                  ? `${m.nome} · ${tb.magiaRitual}`
-                  : `${m.nome} ${m.nivel}${m.item ? ` · ${m.item.nome}` : ''}`,
-                disabled: !!m.evocacao_bloqueada,
-              }))}
+              value={valorMagiaEscolhida}
+              disabled={temRolagemPendente || evMagiaIdx >= 0 || evApoioIdx >= 0}
+              onChange={escolherMagia}
+              options={opcoesMagias}
             />
             {/* NÍVEL — escolha do jogador, e é ele que define o karma
                 (12/09/2026). Só aparece quando há mais de um nível para
@@ -7793,7 +8799,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
               <SelectPill
                 label={tb.nivel}
                 value={magia.nivel}
-                disabled={temRolagemPendente}
+                disabled={temRolagemPendente || resolvendoEvocacao}
                 onChange={(v) => { setNivelMagiaSel(parseInt(v, 10)); setD20(null); }}
                 options={magiaBase.niveis.map((n) => ({
                   value: n,
@@ -7803,8 +8809,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             )}
             <SelectPill
               label={tb.alvo}
-              value={alvoIdx}
-              disabled={temRolagemPendente}
+              value={alvo ? Math.max(0, alvos.indexOf(alvo)) : alvoIdx}
+              disabled={temRolagemPendente || resolvendoEvocacao}
               onChange={(v) => { setAlvoIdx(parseInt(v, 10)); setD20(null); }}
               options={alvos.map((p, i) => ({ value: i, label: p.nome }))}
             />
@@ -7812,6 +8818,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
 
           {magia && magia.descricao && (
             <p className="acao-efeito-texto">{magia.descricao}</p>
+          )}
+
+          {/* Evocação pronta: o que fazer agora (13/09/2026). */}
+          {resolvendoEvocacao && (
+            <p className="acao-efeito-texto magia-largada-instrucao">
+              {interpolate(evocacaoAlvoPerdido ? tb.magiaProntaAlvoPerdido : tb.magiaPronta, { nome: magia.nome })}
+            </p>
           )}
 
           {/* Canalizando esta magia: o que falta. O dado não aparece nesta
@@ -7831,6 +8844,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             <p className="acao-karma-line">
               {interpolate(tb.magiaEvocacaoAviso, { n: magia.evocacao_rodadas })}
             </p>
+          )}
+          {/* "Estou clicando em atacar usando magia da espada Sagae, não consigo
+              clicar para usar PA." (13/09/2026) — o Atacar estava habilitado;
+              o que ficava cinza era o DADO, que na largada não rola. A tela não
+              dizia qual botão apertar. */}
+          {magiaEmLargada && (
+            <p className="acao-efeito-texto magia-largada-instrucao">{tb.magiaLargadaInstrucao}</p>
           )}
           {faseMagiaPainel === 'bloqueada' && (
             <p className="acao-karma-line">{tb.magiaRitual}</p>
@@ -7873,15 +8893,15 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
               onChange={(v) => { setHabDificuldade(v); setD20(null); }}
               options={Object.keys(D20_QUALIDADE_MINIMA).map((id) => ({
                 value: id,
-                label: (D20_DIF_LABEL[id] || {})[en ? 'en' : 'pt'] || id,
+                label: (D20_DIF_LABEL[id] || {})[isEn ? 'en' : 'pt'] || id,
               }))}
             />
             {habPassosDif !== 0 && habDificuldadeEfetiva !== habDificuldade && (
               <p className="acao-efeito-texto">
-                {(en ? 'With active spells: ' : 'Com magia ativa: ')}
-                {(D20_DIF_LABEL[habDificuldade] || {})[en ? 'en' : 'pt'] || habDificuldade}
+                {(isEn ? 'With active spells: ' : 'Com magia ativa: ')}
+                {(D20_DIF_LABEL[habDificuldade] || {})[isEn ? 'en' : 'pt'] || habDificuldade}
                 {' → '}
-                <strong>{(D20_DIF_LABEL[habDificuldadeEfetiva] || {})[en ? 'en' : 'pt'] || habDificuldadeEfetiva}</strong>
+                <strong>{(D20_DIF_LABEL[habDificuldadeEfetiva] || {})[isEn ? 'en' : 'pt'] || habDificuldadeEfetiva}</strong>
               </p>
             )}
             {habilidadeSel && habilidadeSel.descricao && (
@@ -7963,9 +8983,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             {!tecBloqueio.pode && (
               <p className="acao-efeito-texto acao-efeito-bloqueio">
                 {tecBloqueio.motivo === 'arma'
-                  ? interpolate(tb.tecnicaExigeArma, { grupo: tecnicaTesteSel.grupo_armas })
+                  // Por extenso, com a arma na mão (13/09/2026).
+                  ? motivoArmaTecnica(tecnicaTesteSel, arma, catalogos, isEn)
                   : tecBloqueio.motivo === 'armadura'
-                  ? interpolate(tb.tecnicaExigeArmadura, { grupo: tecnicaTesteSel.grupo_armaduras })
+                  ? `${interpolate(tb.tecnicaExigeArmadura, { grupo: tecnicaTesteSel.grupo_armaduras })} ${isEn ? 'Current armor' : 'Armadura atual'}: ${(ator.defesa_sigla || 'L').toUpperCase()}.`
                   : tecBloqueio.motivo === 'livre_usada'
                   ? tb.tecnicaGratuitaJaUsada
                   : tb.tecnicaUsoUnicoJaUsada}
@@ -8029,22 +9050,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
         ) : (
           <>
             <div className="atacar-row2">
+              {/* O MESMO seletor da parte de ataque (opcoesMagias). */}
               <SelectPill
-                label={tb.magiaDeApoio}
-                value={apoioIdx}
-                disabled={temRolagemPendente}
-                onChange={(v) => { setApoioIdx(parseInt(v, 10)); setAlvoApoioIdx(0); setNivelApoioSel(null); setD20(null); }}
-                /* Ritual fica VISÍVEL e desabilitado, não escondido: o Mestre
-                   precisa ver que a magia existe e por que não dá pra usá-la,
-                   senão procura um bug que não existe. Mesmo padrão de
-                   tecUso/tecEquip na aba Técnica. */
-                options={magiasApoio.map((m, i) => ({
-                  value: i,
-                  label: m.evocacao_bloqueada
-                    ? `${m.nome} · ${tb.magiaRitual}`
-                    : `${m.nome} · ${tb.nivel} ${m.nivel}${m.item ? ` · ${m.item.nome}` : ''}`,
-                  disabled: !!m.evocacao_bloqueada,
-                }))}
+                label={tb.magia}
+                value={valorMagiaEscolhida}
+                disabled={temRolagemPendente || evMagiaIdx >= 0 || evApoioIdx >= 0}
+                onChange={escolherMagia}
+                options={opcoesMagias}
               />
               {/* Mesmo seletor de nível da aba Magia — e o mesmo motivo: o
                   nível é escolha do jogador, e é ele que define o karma. */}
@@ -8158,7 +9170,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
               <p className="acao-efeito-texto">
                 {interpolate(tb.magiaTesteExige || 'Teste de {h} ({d}) — coluna {c}',
                   { h: apoioSel.teste_habilidade.habilidade,
-                    d: (D20_DIF_LABEL[apoioSel.teste_habilidade.dificuldade] || {})[en ? 'en' : 'pt']
+                    d: (D20_DIF_LABEL[apoioSel.teste_habilidade.dificuldade] || {})[isEn ? 'en' : 'pt']
                        || apoioSel.teste_habilidade.dificuldade,
                     c: colunaClamped })}
               </p>
@@ -8276,12 +9288,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           onFechar={() => setOverlayAberto(null)}
           onRolou={({ valor }) => {
             setD20ComReset(valor);
+            setRestauroInvalido(false);
             onRolagemSalvaChange && onRolagemSalvaChange({
               ator: { tipo: ator.tipo, ref_id: ator.ref_id, inst_id: ator.inst_id || null },
-              tab, d20: valor, d20_critico: null,
+              tab, d20: valor, d20_critico: null, sel: selecaoAtual(), assin: assinaturaDaRolagem(ator),
             });
+            aplicarDepoisDoDado();
           }}
-          onConfirmar={() => setOverlayAberto(null)}
+          onConfirmar={confirmarDado}
         />
       )}
 
@@ -8301,10 +9315,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             setD20Critico(valor);
             onRolagemSalvaChange && onRolagemSalvaChange({
               ator: { tipo: ator.tipo, ref_id: ator.ref_id, inst_id: ator.inst_id || null },
-              tab, d20, d20_critico: valor,
+              tab, d20, d20_critico: valor, sel: selecaoAtual(), assin: assinaturaDaRolagem(ator),
             });
+            aplicarDepoisDoDado();
           }}
-          onConfirmar={() => setOverlayAberto(null)}
+          onConfirmar={confirmarDado}
         />
       )}
 
@@ -8332,15 +9347,21 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             nem aparece pra essas técnicas, senão o jogador rolava um d20 sem
             nenhum significado e o log sugeria sucesso/fracasso à toa. */}
         {!(tab === 'tecnica_teste' && tecSemDado)
+          /* Largada de magia canalizada e Ritual também não rolam (13/09/2026):
+             o dado cinza parecia o próximo passo e escondia o Atacar. */
+          && !(tab === 'magia' && (magiaEmLargada || magiaBloqueada || evocacaoAlvoPerdido))
           && ((tab === 'resistencia' || tab === 'apoio') ? alvoResist != null : colunaClamped != null) && (
           <div className="dado-ov-trigger">
             <button className="btn-primary btn-sm" onClick={() => setOverlayAberto('primario')}
               disabled={
                 dadoPrimarioTravado ? true
-                : tab === 'arma' ? !(arma && alvo)
+                /* Fora de alcance não rola (13/09/2026): o Atacar já exigia
+                   alcance, o dado não — rolar prendia o painel numa ação que
+                   nunca poderia ser aplicada. */
+                : tab === 'arma' ? !(arma && alvo) || foraDeAlcance
                 // Largada de canalização e Ritual não rolam nada: o dado é o
                 // golpe, e o golpe só acontece quando a magia sai.
-                : tab === 'magia' ? (!magia || magiaEmLargada || magiaBloqueada)
+                : tab === 'magia' ? (!magia || !alvo || magiaEmLargada || magiaBloqueada || foraDeAlcance)
                 : tab === 'habilidade' ? !habilidadeSel
                 : tab === 'tecnica_teste' ? (!tecnicaTesteSel || !tecBloqueio.pode
                     || (tecPrecisaAlvo && tecAlvosEscolhidos.length === 0))
@@ -8416,7 +9437,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
         {(() => {
           const sufKa = custoKarma > 0 ? ` · ${custoKarma} KA` : '';
           const atacando = tab === 'arma' || tab === 'magia';
-          const v = atacando ? tb.verboAtacar
+          const v = (tab === 'magia' && evocacaoAlvoPerdido) ? tb.verboConcluirEvocacao
+                  : (tab === 'magia' && magiaEmLargada) ? tb.verboEvocar
+                  : atacando ? tb.verboAtacar
                   : tab === 'resistencia' ? tb.verboResistir
                   : tb.verboUsar;
           // REGRA NOVA (revisão final): técnica modo 'total' é ativação
@@ -8520,6 +9543,13 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // vez dele passa sozinha (regra do usuário, 11/09/2026).
   const podeAgir = souAtivo && !statusTemEfeito(meuParticipante, 'sem_acoes')
     && !evocacaoPrendeAcao(meuParticipante);
+  // Magia canalizada PRONTA na minha vez: o painel abre sozinho nela (13/09/2026).
+  const chaveEvocacaoPronta = (ehMinhaVez && podeAgir && evocacaoPronta(meuParticipante))
+    ? `${meuParticipante.inst_id}:${meuParticipante.evocando.magia_key}:${rodada}` : null;
+  useEffect(() => {
+    if (chaveEvocacaoPronta && catalogos) { setAtaqueContra(null); setAcaoOpen(true); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveEvocacaoPronta, !!catalogos]);
 
   // Rolagem pendente: o eco otimista manda enquanto existe; caso contrário
   // vale o que está persistido no meu participante (ver o bloco de estado).
@@ -8530,9 +9560,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // agindo) não apaga da tela uma rolagem que o jogador acabou de fazer.
   const _rolagemPersistidaJson = JSON.stringify(rolagemPersistida);
   useEffect(() => {
-    setRolagemOtimista((eco) => (
-      eco !== undefined && JSON.stringify(eco ?? null) === _rolagemPersistidaJson ? undefined : eco
-    ));
+    setRolagemOtimista((eco) => ecoDepoisDoSnapshot(eco, _rolagemPersistidaJson));
   }, [_rolagemPersistidaJson]);
   // Grava/limpa a rolagem no MEU participante dentro de um array de
   // participantes. `null` limpa — toda escrita que APLICA a ação (ou encerra
@@ -8541,9 +9569,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const comMinhaRolagem = (arr, r) => (arr || []).map((p) => (
     mesmoParticipante(p, meuParticipante) ? { ...p, rolagem_pendente: r } : p
   ));
+  // manterAberto (13/09/2026): gravar o dado FECHAVA o painel logo depois de
+  // rolar; reabrir restaurava a rolagem sem a escolha e travava (Galadar,
+  // Desviar). Salvar ou descartar a rolagem não é aplicar a ação.
   const salvarRolagem = (r) => {
     setRolagemOtimista(r);
-    persistJogador({ participantes: comMinhaRolagem(participantes, r) });
+    persistJogador({ participantes: comMinhaRolagem(participantes, r) }, { manterAberto: true });
   };
 
   // Auto-passe: quando o personagem incapaz (morto/desmaiado/desistiu) tem
@@ -8595,22 +9626,63 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   }, [batalha && batalha.id, pjAtivoId]);
 
   // Persistência do jogador — via RPC (não pode escrever direto em `batalhas`).
-  const persistJogador = async (campos) => {
+  // Fila das gravações: rolar e aplicar saem colados (ação automática depois
+  // do dado) e duas RPCs em voo podem chegar ao banco fora de ordem.
+  const filaGravacao = React.useRef(Promise.resolve());
+  const persistJogador = async (campos, opcoes) => {
     if (!batalha) return false;
+    const manterAberto = !!(opcoes && opcoes.manterAberto);
     setSalvando(true); setErro(null);
-    const { data, error } = await supabaseClient.rpc('atualizar_batalha_jogador', {
-      p_batalha_id: batalha.id,
-      p_participantes: campos.participantes,
-      p_log: (campos.log != null ? campos.log : null),
-      p_rodada: (campos.rodada != null ? campos.rodada : null),
+    // Líder morto espanta o bando — mesmo funil do Mestre (fugaNaGravacao).
+    const fuga = fugaNaGravacao(campos, { log, rodada });
+    if (fuga.texto) { campos = fuga.campos; avisarFugaNaMesa(batalha.historia_id, batalha.id, rodada, fuga.texto); }
+    /* Gravação que zera a MINHA rolagem (aplicar a ação) zera o eco junto —
+       sem isso o eco da rolagem velha sobrevivia e o próximo ataque saía com o
+       mesmo d20 (ver ecoAoGravar). Se a gravação falhar, o eco volta. */
+    const zeraMinhaRolagem = ecoAoGravar(undefined, campos.participantes, meuParticipante) === null;
+    const ecoAntes = rolagemOtimista;
+    if (zeraMinhaRolagem) setRolagemOtimista(null);
+    // Evocação que caiu nesta gravação vira linha na mesa (evocacoesQuebradas).
+    const quebras = evocacoesQuebradas(participantes, campos.participantes);
+    const participantesGravados = quebras.participantes;
+    const historiaId = batalha.historia_id;
+    if (historiaId) quebras.eventos.forEach((ev) => {
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId, p_tipo: 'magia', p_texto: textoEvocacaoQuebrada(ev),
+        p_meta: { batalha_id: batalha.id, rodada, fase_evocacao: 'quebrou', ...ev },
+      }).then(({ error: rpcErr }) => {
+        if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (quebra) falhou:', rpcErr);
+      });
     });
+    const anterior = filaGravacao.current;
+    let liberar;
+    filaGravacao.current = new Promise((r) => { liberar = r; });
+    await anterior;
+    let data, error;
+    try {
+      ({ data, error } = await supabaseClient.rpc('atualizar_batalha_jogador', {
+        p_batalha_id: batalha.id,
+        p_participantes: participantesGravados,
+        p_log: (campos.log != null ? campos.log : null),
+        p_rodada: (campos.rodada != null ? campos.rodada : null),
+        // MESCLA (13/09/2026): a base é o snapshot de onde `campos` saiu. O banco
+        // aplica só o que esta tela mudou e preserva o que o Mestre fez no
+        // meio-tempo — a gravação do jogador apagava o Envenenado.
+        p_base_participantes: baseQueZeraMinhaRolagem(participantes, participantesGravados, meuParticipante),
+        p_base_log: (campos.log != null ? log : null),
+      }));
+    } finally {
+      liberar();
+    }
     setSalvando(false);
     if (error || (data && data.ok === false)) {
       const motivo = (data && data.motivo) || (error && error.message) || (tb.falhaAoSalvar);
       setErro(motivo);
+      // A ação não foi aplicada: a rolagem feita continua valendo.
+      if (zeraMinhaRolagem) setRolagemOtimista(ecoAntes);
       return false;
     }
-    setAcaoOpen(false);
+    if (!manterAberto) setAcaoOpen(false);
     return true;
     // Sem update local: o realtime de FichaComBatalha traz o novo snapshot.
   };
@@ -8677,6 +9749,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // usa. Payload antigo (sem dano_bruto) cai de volta em `dano`.
     const danoPraGolpe = (dano_bruto != null) ? dano_bruto : dano;
     const criticoBruto = !!(resultado && resultado.critico);
+    // Evocação pronta com o alvo perdido: sai sem efeito — espelha aplicarAcao.
+    if (payload.evocacao_perdida) {
+      const idxEu = participantes.findIndex((p) => mesmoParticipante(p, meuParticipante));
+      if (idxEu >= 0 && magia) concluirEvocacaoPerdida(idxEu, magia);
+      return;
+    }
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     const atorIdx = participantes.findIndex((p) => mesmoParticipante(p, meuParticipante));
     if (alvoIdx < 0 || atorIdx < 0) return;
@@ -8715,8 +9793,15 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     }
     // Magia de ATAQUE vinda de pergaminho: o papel some aqui, na resolução —
     // mesma regra do apoio, e por isso vem depois do return da largada.
-    if (tipo === 'magia') consumirItemDaMagia(ator, magia, catalogos);
+    // `meuParticipante`: esta tela não tem `ator` — lê-lo lançava
+    // ReferenceError e a magia de ataque do jogador nunca saía (13/09/2026).
+    if (tipo === 'magia') consumirItemDaMagia(meuParticipante, magia, catalogos);
     let next = [...participantes];
+    // Resolução da canalização: sem cobrar karma de novo, e a evocação sai
+    // antes da quebra de concentração — espelha aplicarAcao.
+    const resolvendoEvocacao = tipo === 'magia' && evocacaoPronta(next[atorIdx])
+      && next[atorIdx].evocando.magia_key === magia.key;
+    if (resolvendoEvocacao) next[atorIdx] = soltarEvocacao(next[atorIdx]);
     // Guarda a rodada nova de QUALQUER um dos dois auto-passar abaixo: se o
     // turno acabou no último da ordem, a persistência precisa levar o número
     // novo junto, senão o participante vira mas o contador fica para trás.
@@ -8753,7 +9838,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       if (rAlvo.rodadaNova != null) rodadaNova = rAlvo.rodadaNova;
       if (rAlvo.eventos.length) eventosVirada = [...eventosVirada, ...rAlvo.eventos];
     }
-    const k = Math.max(0, custo_karma || 0);
+    const k = resolvendoEvocacao ? 0 : Math.max(0, custo_karma || 0);
     // Fase 2 das técnicas: ataque extra (Golpe Duplo, Contra-Ataque,
     // Flechadas Múltiplas) consome pa_ataque_extra em vez de pa_rest — só
     // na aba Arma. Técnica, magia, habilidade e item continuam pagando
@@ -8799,17 +9884,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Notifica a Central de Mensagens da Mesa (fire-and-forget — mesmo padrão do Mestre).
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      const resultadoNome = resultado ? resultado.pt : null;
       let texto;
       if (tipo === 'magia') {
         texto = `${meuParticipante.nome} conjurou ${nomeAcao} em ${alvo.nome}`;
-        if (resultadoNome) texto += ` → ${resultadoNome}`;
-        if (dano > 0)      texto += ` (${dano} de dano)`;
+        texto += textoResultadoGolpe(resultado, dano);
         if (msg_critico)   texto += `. ${msg_critico}`;
       } else {
         texto = `${meuParticipante.nome} atacou ${alvo.nome} com ${nomeAcao || 'arma'}`;
-        if (resultadoNome) texto += ` → ${resultadoNome}`;
-        if (dano > 0)      texto += ` (${dano} de dano)`;
+        texto += textoResultadoGolpe(resultado, dano);
         // Golpe Giratório: o mesmo giro alcançou mais gente. O dano de
         // cada um é resolvido contra a defesa DELE (ver aplicarGolpeEmAlvo),
         // por isso o texto não repete o número do alvo principal.
@@ -8892,6 +9974,38 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       });
     }
 
+    persistJogador({ participantes: comMinhaRolagem(next, null),
+      log: registrarViradaNoLog([...log, entry], rVez.eventos, rVez.rodadaNova),
+      ...(rVez.rodadaNova != null ? { rodada: rVez.rodadaNova } : {}) });
+  };
+
+  /* Evocação pronta cujo alvo caiu ou saiu do alcance (lado Jogador) —
+     espelha concluirEvocacaoPerdida do Mestre. */
+  const concluirEvocacaoPerdida = (atorIdx, magia) => {
+    const eu = participantes[atorIdx];
+    const alvoId = eu && eu.evocando && (eu.evocando.alvos || [])[0];
+    const alvoAntigo = participantes.find((q) => q.inst_id === alvoId) || null;
+    let next = [...participantes];
+    next[atorIdx] = concluirEvocacaoSemAlvo(next[atorIdx]);
+    const rVez = autoPassarSeNecessario(next, next[atorIdx]);
+    next = rVez.participantes;
+    const entry = {
+      rodada, ts: Date.now(),
+      autor_tipo: eu.tipo, autor_ref_id: eu.ref_id, autor_nome: eu.nome,
+      acao: 'magia', fase_evocacao: 'perdeu',
+      alvo_nome: alvoAntigo ? alvoAntigo.nome : null,
+      magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
+    };
+    const historiaId = batalha && batalha.historia_id;
+    if (historiaId) {
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId, p_tipo: 'magia',
+        p_texto: textoPassoDeApoio('perdeu', eu.nome, magia, entry.alvo_nome, false),
+        p_meta: { batalha_id: batalha.id, ...entry },
+      }).then(({ error: rpcErr }) => {
+        if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (evocacao perdida) falhou:', rpcErr);
+      });
+    }
     persistJogador({ participantes: comMinhaRolagem(next, null),
       log: registrarViradaNoLog([...log, entry], rVez.eventos, rVez.rodadaNova),
       ...(rVez.rodadaNova != null ? { rodada: rVez.rodadaNova } : {}) });
@@ -9105,7 +10219,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (atorIdx < 0 || alvoIdx < 0) return;
 
     // Lançar magia derruba a concentração anterior deste conjurador.
-    let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
+    let next = quebrarAntesDoApoio(participantes, atorIdx, magia);
 
     const k = Math.max(0, custo_karma || 0);
     // Mesma função do lado do Mestre: larga a canalização ou resolve. A regra
@@ -9164,14 +10278,20 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (!ehMinhaVez) { setErro(motivoMovimento('nao_e_a_vez', isEn)); return false; }
     const r = moverParticipante(p, destino, participantes);
     if (!r.ok) { setErro(motivoMovimento(r.motivo, isEn)); return false; }
-    // Ver moverNoTabuleiro: mover não gasta PA, não encerra o turno e NÃO
-    // quebra a concentração (correção de regra em 12/09/2026).
+    // Ver moverNoTabuleiro: mover gasta 1 PA (13/09/2026), passa a vez se era
+    // a última ação e NÃO quebra a concentração (correção de 12/09/2026).
     const movido = participantes.map((q, i) => (i === idx ? r.participante : q));
     // A montaria vai junto: dois tokens em células diferentes seria pior do
     // que não ter montaria (ver montariaSegue).
-    const next = montariaSegue(movido, p.inst_id);
+    const rVez = autoPassarSeNecessario(montariaSegue(movido, p.inst_id), meuParticipante);
     setErro(null);
-    persistJogador({ participantes: next });
+    // comMinhaRolagem(…, null): com a rolagem pendente o menu fica travado e
+    // não se anda — mas se a rodada virar aqui, a regra de toda gravação com
+    // log vale igual (globais-tabuleiro.test.js).
+    persistJogador({ participantes: comMinhaRolagem(rVez.participantes, null),
+      ...(rVez.rodadaNova != null
+        ? { rodada: rVez.rodadaNova, log: registrarViradaNoLog(log, rVez.eventos, rVez.rodadaNova) }
+        : {}) });
     return true;
   };
 
@@ -9223,9 +10343,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Sair da batalha também mata a rolagem feita e não aplicada.
     let next = comMinhaRolagem(r.participantes, null);
     let rodadaNova = null;
+    let logVirada = null;
     if (r.viraRodada) {                             // era o último → vira a rodada
-      next = montarNovaRodada(next).participantes;
+      // O dano por rodada da virada vai pro log, como em todo outro caminho que
+      // vira a rodada — aqui era descartado e a EF caía sem explicação.
+      const virada = montarNovaRodada(next);
+      next = virada.participantes;
       rodadaNova = rodada + 1;
+      logVirada = registrarViradaNoLog(log, virada.eventos, rodadaNova);
     }
 
     // Notifica a Central de Mensagens da Mesa (fire-and-forget).
@@ -9241,20 +10366,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       });
     }
 
-    persistJogador({ participantes: next, ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
-  };
-
-  // poolBar local (sem a maquinaria de tooltip do ConduzirBatalhaView).
-  const poolBar = (label, v, max) => {
-    const span = max || 0;
-    const pct = span > 0 ? Math.max(0, Math.min(100, (v / span) * 100)) : 0;
-    const ic = (label === 'AR' || label === 'RES') ? 'ti-shield' : label === 'KA' ? 'ti-sparkle-highlight' : 'ti-heart';
-    return (
-      <div key={label} className={'batalha-pool pool-' + label.toLowerCase()}>
-        <span className="batalha-pool-label"><i className={'ti ' + ic} aria-hidden="true" /></span>
-        <span className="batalha-pool-bar"><i style={{ width: pct + '%' }} /></span>
-      </div>
-    );
+    persistJogador({ participantes: next,
+      ...(rodadaNova != null ? { rodada: rodadaNova } : {}),
+      ...(logVirada && logVirada !== log ? { log: logVirada } : {}) });
   };
 
   const nomeStatus = (s) => {
@@ -9310,13 +10424,16 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
             <TabuleiroBatalha
               entradas={participantes.map((p, i) => ({ p, i }))}
               meta={{}}
+              visibilidade={visibilidade}
               podeSelecionar={(p) => !salvando && podeAgir && ehMinhaVez
                 && !!meuParticipante && mesmoParticipante(p, meuParticipante)
-                && !p.moveu_na_rodada}
+                && movimentoDisponivel(p) > 0}
               alcanceDe={(p) => (meuParticipante && mesmoParticipante(p, meuParticipante)
-                ? (Number.isFinite(p.mov_rest) ? p.mov_rest : movimentoBase(p.vb))
+                ? movimentoDisponivel(p)
                 : null)}
               onMover={moverNoTabuleiroJogador}
+              abrirMenu={chaveEvocacaoPronta && catalogos
+                ? { i: participantes.indexOf(meuParticipante), chave: chaveEvocacaoPronta } : null}
               salvando={salvando}
               isEn={isEn}
               tb={tb}
@@ -9363,44 +10480,37 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                     <div className="batalha-fighter-main">
                       <div className="batalha-fighter-head">
                         <div className="batalha-fighter-id no-pointer">
-                          <span className={'batalha-fighter-status-ic st-' + (p.status || 'ativo')}>
-                            {/* 'passou' não existe em STATUS — é um estado que
-                                o Jogador nunca recebe do snapshot. Fica fora
-                                do mapa; se voltar a existir, entra lá. */}
-                            <i className={'ti ' + iconeStatus(p.status || 'ativo')} aria-hidden="true" />
-                          </span>
+                          {/* Sem o ícone de status ao lado do nome (13/09/2026). */}
                           <span className={'batalha-fighter-nome' + (ehEu ? ' eu' : '')}>
                             {p.nome || ''}{ehEu ? (tb.voce) : ''}
                           </span>
-                        </div>
-                        {/* Mesmos ícones do card do Mestre (03/09/2026). O
-                            card do Jogador nunca mostrou a defesa; entra
-                            agora junto, pra os dois lerem igual. */}
-                        <div className="batalha-fighter-stats">
-                          <span className="batalha-stat ic"
-                            onMouseEnter={(e) => abrirTip(e, (tb.statNome && tb.statNome.vb) || 'VB')}
-                            onMouseLeave={fecharTip}>
-                            <i className="ti ti-run-sprint" aria-hidden="true" /><b>{p.vb || 0}</b>
-                          </span>
-                          <span className="batalha-stat ic so-ic"
-                            onMouseEnter={(e) => abrirTip(e, `${(tb.statNome && tb.statNome.pa) || tb.pa} · ${p.pa_rest || 0}/${p.pa_max || 0}`)}
-                            onMouseLeave={fecharTip}
-                            aria-label={`${(tb.statNome && tb.statNome.pa) || tb.pa}: ${p.pa_rest || 0}/${p.pa_max || 0}`}>
-                            <i className={'ti ' + iconePA(p.pa_rest)} aria-hidden="true" />
-                          </span>
-                          <span className="batalha-stat ic"
-                            onMouseEnter={(e) => abrirTip(e, (tb.statNome && tb.statNome.df) || tb.df)}
-                            onMouseLeave={fecharTip}>
-                            <i className="ti ti-shield-half" aria-hidden="true" /><b>{p.defesa_sigla || 'L'}{p.defesa_valor || 0}</b>
-                          </span>
-                          {/* Absorção como número fixo — mesmo do card do Mestre. */}
-                          {(p.ar || 0) > 0 && (
-                            <span className="batalha-stat ic"
-                              onMouseEnter={(e) => abrirTip(e, isEn ? 'Absorption' : 'Absorção')}
-                              onMouseLeave={fecharTip}>
-                              <i className="ti ti-shield" aria-hidden="true" /><b>{p.ar}</b>
+                          {/* Pools ao lado do nome (13/09/2026), só do próprio PJ e
+                              só de leitura: o jogador não vê os números dos outros. */}
+                          {ehEu && (
+                            <span className="batalha-card-pools-nome">
+                              {POOLS_DO_CARD.filter((d) => d.pool !== 'res' || (p.res_max || 0) > 0).map((d) => (
+                                <PoolBotao key={d.pool} def={d} valor={p[d.campo]} max={p[d.campo + '_max']}
+                                  isEn={isEn} abrirTip={abrirTip} fecharTip={fecharTip} />
+                              ))}
                             </span>
                           )}
+                          {/* Efeitos temporários de QUALQUER combatente, só
+                              leitura (13/09/2026): envenenado, caído, buffs —
+                              o jogador não via nenhum. Mesmo lugar do Mestre. */}
+                          <StatusTempChips p={p} tb={tb} somenteLeitura
+                            abrirTip={abrirTip} fecharTip={fecharTip} />
+                        </div>
+                      </div>
+                      {/* As ações do turno só aparecem no próprio token, e só
+                          quando é a vez — as mesmas condições que o header
+                          usava pra mostrar a fileira. */}
+                      {/* FILEIRA ÚNICA (13/09/2026): números e estado à esquerda,
+                          ações do turno à direita — a mesma do card do Mestre
+                          (NumerosDoCombatente). As ações seguem só no próprio
+                          token e só na vez. */}
+                      <div className="batalha-menu-acoes batalha-card-barra">
+                        <div className="batalha-fighter-stats">
+                          <NumerosDoCombatente p={p} tb={tb} isEn={isEn} abrirTip={abrirTip} fecharTip={fecharTip} />
                           {/* Estado dos OUTROS combatentes: círculo com ícone,
                               no fim da linha de stats — mesma posição e mesmo
                               desenho que o seletor do Mestre ocupa no card
@@ -9417,68 +10527,52 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                             </span>
                           )}
                         </div>
-                      </div>
-                      {/* As ações do turno só aparecem no próprio token, e só
-                          quando é a vez — as mesmas condições que o header
-                          usava pra mostrar a fileira. */}
-                      {ehEu && ehMinhaVez && souAtivo && (
-                        <div className="batalha-menu-acoes">
-                          {mover && (
-                            <BotaoAcaoMenu icone="ti-footsteps" onClick={mover}
-                              rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')}
+                        {ehEu && ehMinhaVez && souAtivo && (
+                          <div className="batalha-card-botoes">
+                            {mover && (
+                              <BotaoAcaoMenu icone="ti-footsteps" onClick={mover}
+                                rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')}
+                                abrirTip={abrirTip} fecharTip={fecharTip} />
+                            )}
+                            <BotaoAcaoMenu icone="ti-swords" variante="primary" rotulo={tb.acao}
+                              disabled={salvando} onClick={() => setAcaoOpen(true)}
                               abrirTip={abrirTip} fecharTip={fecharTip} />
-                          )}
-                          <BotaoAcaoMenu icone="ti-swords" variante="primary" rotulo={tb.acao}
-                            disabled={salvando} onClick={() => setAcaoOpen(true)}
-                            abrirTip={abrirTip} fecharTip={fecharTip} />
-                          <BotaoAcaoMenu icone="ti-player-skip-forward" rotulo={tb.passar}
-                            disabled={salvando} onClick={() => { fechar(); handlePassar(); }}
-                            abrirTip={abrirTip} fecharTip={fecharTip} />
-                          <BotaoAcaoMenu icone="ti-flag" rotulo={tb.encerrar2}
-                            extraClasse="btn-desistir" disabled={salvando}
-                            onClick={() => { fechar(); handleDesistir(); }}
-                            abrirTip={abrirTip} fecharTip={fecharTip} />
-                        </div>
-                      )}
-                      {/* ATACAR ESTE COMBATENTE, na vez do jogador: mesmo
-                          atalho do Mestre (12/09/2026). O painel abre no
-                          menu do alvo, com ele marcado. */}
-                      {!ehEu && ehMinhaVez && souAtivo && meuParticipante && catalogos
-                        && podeSerAtacado(p) && (() => {
-                        const temArma = ataquesDoAtor(meuParticipante, catalogos).length > 0;
-                        const temMagia = magiasOfensivasDoAtor(meuParticipante, catalogos).length > 0;
-                        if (!temArma && !temMagia) return null;
-                        const bloqueado = salvando || rolagemPendente;
-                        const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); };
-                        return (
-                          <div className="batalha-menu-acoes batalha-menu-atacar">
-                            <span className="batalha-menu-atacar-lbl">{tb.atacarCom || (isEn ? 'Attack with' : 'Atacar com')}</span>
-                            {temArma && (
-                              <BotaoAcaoMenu icone="ti-sword" variante="primary"
-                                rotulo={tb.tabArma || (isEn ? 'Weapon' : 'Arma')}
-                                disabled={bloqueado} onClick={() => abrir('arma')}
-                                abrirTip={abrirTip} fecharTip={fecharTip} />
-                            )}
-                            {temMagia && (
-                              <BotaoAcaoMenu icone="ti-comet" variante="primary"
-                                rotulo={tb.tabMagia || (isEn ? 'Spell' : 'Magia')}
-                                disabled={bloqueado} onClick={() => abrir('magia')}
-                                abrirTip={abrirTip} fecharTip={fecharTip} />
-                            )}
+                            <BotaoAcaoMenu icone="ti-player-skip-forward" rotulo={tb.passar}
+                              disabled={salvando} onClick={() => { fechar(); handlePassar(); }}
+                              abrirTip={abrirTip} fecharTip={fecharTip} />
+                            <BotaoAcaoMenu icone="ti-flag" rotulo={tb.encerrar2}
+                              extraClasse="btn-desistir" disabled={salvando}
+                              onClick={() => { fechar(); handleDesistir(); }}
+                              abrirTip={abrirTip} fecharTip={fecharTip} />
                           </div>
-                        );
-                      })()}
-                      {/* Pools continuam só do próprio PJ: o jogador vê o token
-                          dos outros, mas não os números deles. */}
-                      {ehEu && (
-                        <div className="batalha-fighter-pools-wrap"><div className="batalha-pools">
-                          {poolBar('EF', p.ef, p.ef_max)}
-                          {poolBar('EH', p.eh, p.eh_max)}
-                          {/* AR virou número fixo nos stats; a barra é a resistência. */}
-                          {(p.res_max || 0) > 0 && poolBar('RES', p.res, p.res_max)}
-                          {poolBar('KA', p.karma, p.karma_max)}
-                        </div></div>
-                      )}
+                        )}
+                        {/* ATACAR ESTE COMBATENTE, na vez do jogador (12/09/2026) —
+                            inline com o resto desde 13/09/2026, igual ao Mestre. */}
+                        {!ehEu && ehMinhaVez && souAtivo && meuParticipante && catalogos
+                          && podeSerAtacado(p) && (() => {
+                          const temArma = ataquesDoAtor(meuParticipante, catalogos).length > 0;
+                          const temMagia = magiasOfensivasDoAtor(meuParticipante, catalogos).length > 0;
+                          if (!temArma && !temMagia) return null;
+                          const bloqueado = salvando || rolagemPendente;
+                          const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); };
+                          return (
+                            <div className="batalha-card-botoes batalha-menu-atacar">
+                              {temArma && (
+                                <BotaoAcaoMenu icone="ti-sword"
+                                  rotulo={isEn ? 'Attack with weapon' : 'Atacar com arma'}
+                                  disabled={bloqueado} onClick={() => abrir('arma')}
+                                  abrirTip={abrirTip} fecharTip={fecharTip} />
+                              )}
+                              {temMagia && (
+                                <BotaoAcaoMenu icone="ti-comet"
+                                  rotulo={isEn ? 'Attack with spell' : 'Atacar com magia'}
+                                  disabled={bloqueado} onClick={() => abrir('magia')}
+                                  abrirTip={abrirTip} fecharTip={fecharTip} />
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 );
@@ -9532,6 +10626,8 @@ Object.assign(window, {
   // é componente. Exposto à parte pro teste de render softlock-acao.test.jsx,
   // que verifica que o painel nunca fica sem saída com uma rolagem pendente.
   AcaoPanel,
+  // Chips de efeitos temporários, nas telas do Mestre e do jogador (13/09/2026).
+  StatusTempChips,
   // Idem: componente, não função pura. A prévia é o único lugar que mostra
   // o clamp de valorPoolEditado ANTES do Aplicar, e edicao-pool.test.js
   // renderiza pra travar isso.
@@ -9557,6 +10653,9 @@ Object.assign(window, {
     modVelocidadeNoNivel, duracaoEmRodadas, duracaoNoNivel, exigeResistencia, passouNoTesteDeHabilidade,
     ehMontaria, montariasDisponiveis, montar, desmontar, montariaSegue, vbParaMovimento,
     bonusIniciativaDe, BONUS_INICIATIVA_MAX,
+    // 13/09/2026: bandos (líder + 4 minions) e iniciativa por tipo de criatura.
+    BANDO_TAMANHO, MINION_DIVISOR, papelNoBando, formarBandos, poolDeMinion,
+    iniciativaPorTipo, definirIniciativa, fugaDeBandos, textoFugaDeBando, fugaNaGravacao,
     semearMagiasAtivas,
     enxergaNaEscuridao, penalidadeDeVisibilidade, nivelVisibilidade,
     proximaVisibilidade, textoVisibilidade, VISIBILIDADE_ICONE, VISIBILIDADE_ORDEM,
@@ -9564,7 +10663,11 @@ Object.assign(window, {
     VISIBILIDADE_PENALIDADE, VISIBILIDADE_NIVEL,
     somaModHabilidade, somaDificuldadeDoStatus, consumirDificuldadeDoTeste, aplicarDanoEquipamento,
     magiasDeApoioDoAtor, magiasOfensivasDoAtor, magiasConhecidasDoAtor,
+    // Técnicas do combatente — PJ e, desde 13/09/2026, criatura.
+    tecnicasDoAtor, habilidadesDeCriatura, motivoArmaTecnica,
     aplicarEfeitoApoio, quebrarConcentracao,
+    // 13/09/2026: texto do golpe diz "errou"; eco da rolagem do jogador.
+    textoResultadoGolpe, ecoAoGravar, ecoDepoisDoSnapshot, assinaturaDaRolagem,
     // Fase 1 das técnicas (09/09/2026): grava o efeito da técnica no
     // status_temp. Reaplicar substitui a leva anterior em vez de somar.
     // gruposDeArma é o parser das colunas grupo_armas/grupo_armaduras.
@@ -9587,6 +10690,11 @@ Object.assign(window, {
     passoDeApoio, textoPassoDeApoio, faseDeEvocacao, evocacaoPrendeAcao,
     evocacaoEmRodadas, iniciarEvocacao, decrementarEvocacao, evocacaoPronta,
     quebrarEvocacao,
+    // 13/09/2026: a canalização resolve, a quebra vira linha na mesa, a rolagem
+    // zerada vence a mescla, e os status caído/sangrando do Mestre.
+    soltarEvocacao, concluirEvocacaoSemAlvo, quebrarAntesDoApoio,
+    evocacoesQuebradas, textoEvocacaoQuebrada, baseQueZeraMinhaRolagem,
+    statusAplicadoPeloMestre,
     // Complemento da Central de Mensagens (10/09/2026): extraída dos dois
     // aplicarTeste pra eliminar a dessincronização entre as cópias e pra
     // ficar testável — ver tecnica-efeitos.test.js.
@@ -9638,6 +10746,7 @@ Object.assign(window, {
     ataquesDoAtor,
     // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
+    FC_AUTODANO_FATOR, danoAutoinfligido, interpolarFalhaCritica,
     somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, consumirEvitaGolpe, consumirModDano, vbEfetivo,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
     // Task 6a (Fase 2): bloqueios de turno puros — sem_atacar tira só a aba
@@ -9681,9 +10790,11 @@ Object.assign(window, {
     // Edição manual das pools pelo card (clique na barra) — mesma regra de
     // status que o consumo de item usa. Ver edicao-pool.test.js.
     statusPorPools, valorPoolEditado,
-    // Ícone dos PA restantes no card. A família ti-hexagon-number vai só de
-    // 0 a 9, e nome fora dela não renderiza NADA — some o chip inteiro, sem
-    // erro nenhum. Por isso o clamp, e por isso ele é testado.
-    iconePA,
+    // Números do card (13/09/2026, substituiu iconePA): ti-number-N-small só
+    // existe de 0 a 100, e nome fora dela não renderiza NADA — por isso o
+    // null, que faz o chip cair no número escrito. Ver card-numeros.test.jsx.
+    iconeNumero, NUMERO_ICONE_MAX,
+    // 13/09/2026: tooltip da defesa pelo nome da armadura e pools como botões.
+    nomeDefesa, fracaoDaPool, POOLS_DO_CARD,
   },
 });

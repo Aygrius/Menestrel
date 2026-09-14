@@ -1143,6 +1143,92 @@ function FilaAprovacaoMagia({ lang, historiaId, pedidos, onRespondido }) {
   );
 }
 
+/* ============================================================
+   FILA DE VENDAS — negociação de item com o Mestre (13/09/2026)
+   ============================================================
+   As negociações ABERTAS da mesa em que é a vez de quem está olhando: para o
+   Mestre, as propostas e contrapropostas dos jogadores; para o jogador, as
+   ofertas do Mestre (a RLS de vendas_item já limita o jogador aos PJs dele).
+   "Negociar" abre o VendaModal (07-inventario) — aceitar, recusar ou
+   contrapropor. O Realtime da tabela mantém a fila em dia. */
+function precoCurtoVenda(latao, lang) {
+  const t = Math.max(0, Math.round(Number(latao) || 0));
+  const m = { ouro: Math.floor(t / 1000), prata: Math.floor((t % 1000) / 100), cobre: Math.floor((t % 100) / 10), latao: t % 10 };
+  const suf = lang === 'en' ? { ouro: 'g', prata: 's', cobre: 'c', latao: 'b' } : { ouro: 'o', prata: 'p', cobre: 'c', latao: 'l' };
+  const partes = ['ouro', 'prata', 'cobre', 'latao'].filter((k) => m[k] > 0).map((k) => `${m[k]}${suf[k]}`);
+  return partes.length ? partes.join(' ') : `0${suf.latao}`;
+}
+
+function FilaVendas({ lang, historiaId, papel }) {
+  const en = lang === 'en';
+  const [vendas, setVendas] = useState([]);
+  const [aberta, setAberta] = useState(null);
+  const sufixo = useRef(Math.random().toString(36).slice(2, 8));
+
+  const carregar = React.useCallback(async () => {
+    try {
+      const res = await supabaseClient.from('vendas_item')
+        .select('id,pj_id,pj_nome,item_nome,slug,quantidade,preco_latao,vez,status')
+        .eq('historia_id', historiaId).eq('status', 'aberta')
+        .order('created_at', { ascending: true });
+      setVendas(res && !res.error && Array.isArray(res.data) ? res.data : []);
+    } catch (_) { setVendas([]); }
+  }, [historiaId]);
+
+  useEffect(() => {
+    if (!historiaId) { setVendas([]); return undefined; }
+    carregar();
+    if (typeof supabaseClient.channel !== 'function') return undefined;
+    const ch = supabaseClient
+      .channel('vendas_hist_' + historiaId + '_' + sufixo.current)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas_item', filter: 'historia_id=eq.' + historiaId },
+        () => carregar())
+      .subscribe();
+    return () => { supabaseClient.removeChannel(ch); };
+  }, [historiaId, carregar]);
+
+  const minhaVez = vendas.filter((v) => v.vez === papel);
+  const Modal = typeof window !== 'undefined' ? window.VendaModal : null;
+  const alvo = typeof document !== 'undefined' ? (document.getElementById('root') || document.body) : null;
+
+  if (minhaVez.length === 0 && !aberta) return null;
+
+  const modal = aberta && Modal ? (
+    <div className="menestrel-ui">
+      <Modal lang={lang} papel={papel} pjId={aberta.pj_id} vendaId={aberta.id}
+        onClose={() => { setAberta(null); carregar(); }} />
+    </div>
+  ) : null;
+
+  return (
+    <>
+      {minhaVez.length > 0 && (
+        <div className="cm-fila cm-fila--vendas">
+          <div className="cm-fila-titulo">
+            <i className="ti ti-coins" aria-hidden="true" />
+            {en ? 'Sales waiting for you' : 'Vendas esperando você'} · {minhaVez.length}
+          </div>
+          {minhaVez.map((v) => (
+            <div key={v.id} className="cm-fila-item" data-venda-id={v.id}>
+              <span className="cm-fila-texto">
+                {papel === 'mestre' && v.pj_nome ? `${v.pj_nome} → ` : ''}
+                <strong>{Number(v.quantidade) > 1 ? `${v.quantidade}× ` : ''}{v.item_nome || v.slug}</strong>
+                {' · '}{precoCurtoVenda(v.preco_latao, lang)}
+              </span>
+              <span className="cm-fila-acoes">
+                <button type="button" className="btn-primary btn-sm" onClick={() => setAberta(v)}>
+                  {en ? 'Negotiate' : 'Negociar'}
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (alvo && ReactDOM && ReactDOM.createPortal ? ReactDOM.createPortal(modal, alvo) : modal)}
+    </>
+  );
+}
+
 function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = false }) {
   const [mensagens, setMensagens] = useState([]);
   // Linhas CRUAS do log — o `meta` que a fila de aprovação lê. As mensagens
@@ -1315,6 +1401,8 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
               onRespondido={() => { /* o realtime traz a resposta e a fila encolhe */ }}
             />
           )}
+          {/* Vendas de item: para os dois lados, só as da vez de quem olha. */}
+          <FilaVendas lang={lang} historiaId={historiaId} papel={ehMestre ? 'mestre' : 'jogador'} />
           {mensagens.length === 0 ? (
             <div className="cm-empty">{lang === 'en' ? 'No messages yet.' : 'Nenhuma mensagem ainda.'}</div>
           ) : (

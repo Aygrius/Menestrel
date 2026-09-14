@@ -166,7 +166,9 @@ describe('editor de pool — modal, não faixa inline', () => {
   const aberturaDoEditor = () => {
     // Desde 12/09/2026 a condição também exclui a barra RES (resistência da
     // armadura, que mora nas peças e não se edita): `(estado === 'ativa' && campo !== 'res')`.
-    const m = /onEditar: \(?estado === /.exec(fonte);
+    // 13/09/2026: a barra virou PoolBotao, e o clique vem em `onClick` com a
+    // mesma condição: `(estado === 'ativa' && d.pool !== 'res')`.
+    const m = /onClick=\{\(estado === 'ativa' && d\.pool !== 'res'\)/.exec(fonte);
     const i = m ? m.index : -1;
     expect(i, 'o clique que abre o editor precisa existir').toBeGreaterThan(-1);
     return fonte.slice(i, i + 700);
@@ -203,9 +205,12 @@ describe('editor de pool — modal, não faixa inline', () => {
      mesmo commit passava no branch e falhava na main, porque o checkout
      rematerializou o arquivo com CRLF. */
   it('o clique fecha o tooltip, senão ele fica órfão sobre o modal', () => {
-    const m = fonte.match(/className=\{classe\}\r?\n\s*onClick=/);
-    expect(m, 'a barra editável precisa ter onClick próprio').not.toBeNull();
-    expect(fonte.slice(m.index, m.index + 200)).toMatch(/fecharTip\(\)/);
+    // Desde 13/09/2026 quem fecha é o PoolBotao, no botão editável.
+    const i = fonte.indexOf('function PoolBotao(');
+    expect(i, 'PoolBotao precisa existir').toBeGreaterThan(-1);
+    const corpo = fonte.slice(i, i + 2000);
+    const m = corpo.match(/<button type="button" className=\{classe\}[\s\S]*?onClick=\{\(e\) => \{ if \(fecharTip\) fecharTip\(\); onClick\(e\); \}\}/);
+    expect(m, 'o botão de pool editável precisa fechar o tooltip no clique').not.toBeNull();
   });
 });
 

@@ -94,8 +94,81 @@ function calcularDerivadosCriatura(form) {
   };
 }
 
+// ---------- CatalogoLista — escolher nomes do catálogo (13/09/2026) ----------
+/* "Quero poder escolher quais técnicas, habilidades e magias a criatura
+   possui, escolhendo na lista que temos disponíveis." (usuário)
+
+   O valor continua sendo o TEXTO separado por vírgula da coluna — é o que a
+   batalha (resolverNomesDeMagia) e o Diário leem. A tela só troca o jeito de
+   escrever: etiquetas + busca na lista.
+
+   Duas coisas do banco real moldam a comparação (listaChave):
+     • nível colado no nome: "Esquiva 7" é a técnica Esquiva — já escolhida,
+       não pode ser oferecida de novo;
+     • nome sem par no catálogo ("Bote", "Carga de Quadrúpede"): é da criatura
+       e FICA. Aparece marcado, e só sai se o Mestre remover. */
+const listaChave = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/\s+\d+$/, '').trim();
+const listaSeparar = (csv) => String(csv || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+function CatalogoLista({ campo, label, valor, onChange, disabled, nomes, t }) {
+  const [busca, setBusca] = React.useState('');
+  const escolhidos = listaSeparar(valor);
+  const chavesEscolhidas = new Set(escolhidos.map(listaChave));
+  const doCatalogo = new Set((nomes || []).map(listaChave));
+  const termo = listaChave(busca);
+  const sugestoes = termo
+    ? (nomes || []).filter((n) => listaChave(n).includes(termo) && !chavesEscolhidas.has(listaChave(n))).slice(0, 40)
+    : [];
+
+  const gravar = (lista) => onChange(lista.join(', '));
+  const adicionar = (nome) => { gravar([...escolhidos, nome]); setBusca(''); };
+  const remover = (idx) => gravar(escolhidos.filter((_, i) => i !== idx));
+
+  return (
+    <div className="catalogo-campo-full catalogo-lista" data-lista={campo.col}>
+      <label className="diario-field-label">{label}</label>
+      <div className="catalogo-lista-caixa">
+        {escolhidos.map((nome, i) => {
+          const fora = nomes && nomes.length > 0 && !doCatalogo.has(listaChave(nome));
+          return (
+            <span key={nome + i} className={'catalogo-lista-chip' + (fora ? ' catalogo-lista-chip--fora' : '')}>
+              {fora && <i className="ti ti-alert-circle catalogo-lista-chip-aviso" role="img" aria-label={t.listaForaCatalogo} />}
+              <span className="catalogo-lista-chip-nome">{nome}</span>
+              <button type="button" className="catalogo-lista-chip-x" disabled={disabled}
+                aria-label={`${t.listaRemover} ${nome}`} onClick={() => remover(i)}>
+                <i className="ti ti-x" aria-hidden="true" />
+              </button>
+            </span>
+          );
+        })}
+        <div className="catalogo-lista-busca">
+          <input className="diario-input" type="text" value={busca} disabled={disabled}
+            placeholder={t.listaBuscar} aria-label={`${label}: ${t.listaBuscar}`}
+            onChange={(e) => setBusca(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); if (sugestoes[0]) adicionar(sugestoes[0]); }
+              if (e.key === 'Escape') setBusca('');
+            }} />
+          {sugestoes.length > 0 && (
+            <ul className="select-pill-drop catalogo-lista-drop">
+              {sugestoes.map((n) => (
+                <li key={n} onMouseDown={(e) => e.preventDefault()} onClick={() => adicionar(n)}>{n}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- CatalogoCampo — um controle por tipo do descritor ----------
-function CatalogoCampo({ campo, label, valor, onChange, disabled, sobrescrito }) {
+function CatalogoCampo({ campo, label, valor, onChange, disabled, sobrescrito, nomes, t }) {
+  if (campo.tipo === 'lista') {
+    return <CatalogoLista campo={campo} label={label} valor={valor} onChange={onChange}
+      disabled={disabled} nomes={nomes} t={t} />;
+  }
   if (campo.tipo === 'area') {
     // catalogo-campo-full: só o texto livre (textarea) ocupa a largura
     // cheia do modal — mesmo padrão de grid-column:1/-1 já usado em
@@ -227,6 +300,23 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
     return () => { cancelado = true; };
   }, [descritor]);
 
+  // Nomes do catálogo para os campos `lista` (técnicas, habilidades, magias
+  // da criatura). Uma busca por tabela de origem, só das que o descritor usa.
+  const [nomesPorFonte, setNomesPorFonte] = React.useState({});
+  React.useEffect(() => {
+    if (!descritor) return;
+    const fontes = [...new Set(descritor.campos.filter((c) => c.tipo === 'lista').map((c) => c.fonte))];
+    let cancelado = false;
+    fontes.forEach((fonte) => {
+      fetchTabelaPaginada(fonte, { colunas: 'nome', ordem: ['nome'] })
+        .then(({ data }) => {
+          if (cancelado) return;
+          setNomesPorFonte((m) => ({ ...m, [fonte]: [...new Set((data || []).map((r) => r.nome).filter(Boolean))] }));
+        });
+    });
+    return () => { cancelado = true; };
+  }, [descritor]);
+
   // Campos efetivamente renderizados: iguais ao descritor, exceto `ataque`
   // (criaturas), cujas opções ganham as armas do catálogo que ainda não
   // estiverem na lista fechada — sem duplicar nem reordenar as 30 fixas.
@@ -250,11 +340,16 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
 
   if (!descritor) return null; // tabela sem descritor: nada a montar
 
-  const valorDoCampo = (campo) => (
-    campo.tipo === 'derivado'
-      ? (sobrescritos.has(campo.col) ? form[campo.col] : derivados[campo.col])
-      : form[campo.col]
-  );
+  const valorDerivado = (campo) => (sobrescritos.has(campo.col) ? form[campo.col] : derivados[campo.col]);
+  const valorDoCampo = (campo) => {
+    // Derivado oculto que sai do Dano 100% (dano_25/50/75): sempre do valor
+    // que está na tela, calculado ou digitado — ver catalogo-descritores.jsx.
+    if (campo.deDano100) {
+      const d100 = descritor.campos.find((c) => c.col === 'dano_100');
+      return CriaturaFormulas.tiersDeDano(d100 ? valorDerivado(d100) : 0)[campo.deDano100];
+    }
+    return campo.tipo === 'derivado' ? valorDerivado(campo) : form[campo.col];
+  };
 
   // O campo auto não entra na checagem: ele não é renderizado, e exigir o
   // preenchimento de um input que não existe travaria o Salvar pra sempre.
@@ -342,19 +437,21 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
   const titulo = `${tabLabel} — ${linha ? t.editorEditar : t.editorNovo}`;
 
   return (
-    <ModalShell title={titulo} lang={lang} size="lg"
+    <ModalShell title={titulo} lang={lang} size="lg" extraClass="modal-catalogo"
       onClose={onCancel} onCancel={onCancel}
       onConfirm={salvar}
       confirmLabel={saving ? t.editorSalvando : undefined}
       confirmDisabled={saving || !obrigatoriosOk}>
       <div className="catalogo-form-grid">
-        {camposEfetivos.filter((campo) => !campo.autoDeNome).map((campo) => (
+        {camposEfetivos.filter((campo) => !campo.autoDeNome && !campo.oculto).map((campo) => (
           <CatalogoCampo key={campo.col} campo={campo}
             label={t[campo.rotuloKey] || campo.col}
             valor={valorDoCampo(campo)}
             onChange={(v) => onChangeCampo(campo, v)}
             disabled={!!(campo.somenteNovo && linha)}
             sobrescrito={sobrescritos.has(campo.col)}
+            nomes={campo.tipo === 'lista' ? nomesPorFonte[campo.fonte] : undefined}
+            t={t}
           />
         ))}
       </div>

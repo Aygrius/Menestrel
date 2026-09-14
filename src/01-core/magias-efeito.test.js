@@ -700,29 +700,29 @@ describe('auditarCriaturas — o furo do rename', () => {
   ];
 
   it('criatura com nomes que casam e nível preenchido fica OK', () => {
-    const r = auditar([{ id: 1, nome: 'Gárgula', magia: 'Geoproteção, Piromanipulação', magia_n: 5 }], CATALOGO);
+    const r = auditar([{ id: 1, nome: 'Gárgula', magia: 'Geoproteção, Piromanipulação', estagio: 5 }], CATALOGO);
     expect(r.ok).toHaveLength(1);
     expect(r.nome_orfao).toHaveLength(0);
   });
 
   it('NOME ÓRFÃO: alguém renomeou a magia e a criatura ficou apontando pro nada', () => {
-    const r = auditar([{ id: 1, nome: 'Gárgula', magia: 'Piromanipulaçao', magia_n: 5 }], CATALOGO);
+    const r = auditar([{ id: 1, nome: 'Gárgula', magia: 'Piromanipulaçao', estagio: 5 }], CATALOGO);
     expect(r.nome_orfao).toHaveLength(1);
     expect(r.nome_orfao[0].nomes).toEqual(['Piromanipulaçao']);
   });
 
   it('o painel mostra QUAL nome não casou, para dar pra corrigir', () => {
-    const r = auditar([{ id: 1, nome: 'Quimera', magia: 'Geoproteção, Sopro Inexistente', magia_n: 5 }], CATALOGO);
+    const r = auditar([{ id: 1, nome: 'Quimera', magia: 'Geoproteção, Sopro Inexistente', estagio: 5 }], CATALOGO);
     expect(r.nome_orfao[0].nomes).toEqual(['Sopro Inexistente']);
   });
 
-  it('SEM NÍVEL: magia_n vazio faz o motor cair no nível 1', () => {
-    const r = auditar([{ id: 1, nome: 'X', magia: 'Piromanipulação', magia_n: null }], CATALOGO);
+  it('SEM NÍVEL: sem estágio o motor cai no nível 1 (o nível da magia é o estágio, 13/09/2026)', () => {
+    const r = auditar([{ id: 1, nome: 'X', magia: 'Piromanipulação', estagio: null, magia_n: 7 }], CATALOGO);
     expect(r.sem_nivel).toHaveLength(1);
   });
 
   it('SÓ NARRATIVA: os nomes casam, mas nenhuma tem efeito no motor', () => {
-    const r = auditar([{ id: 1, nome: 'Vidente', magia: 'Clarividência', magia_n: 5 }], CATALOGO);
+    const r = auditar([{ id: 1, nome: 'Vidente', magia: 'Clarividência', estagio: 5 }], CATALOGO);
     expect(r.so_narrativa).toHaveLength(1);
     expect(r.nome_orfao).toHaveLength(0);
   });
@@ -733,7 +733,7 @@ describe('auditarCriaturas — o furo do rename', () => {
   });
 
   it('o casamento tolera caixa e espaços, como o editor exige', () => {
-    const r = auditar([{ id: 1, nome: 'X', magia: '  GEOPROTEÇÃO , piromanipulação', magia_n: 3 }], CATALOGO);
+    const r = auditar([{ id: 1, nome: 'X', magia: '  GEOPROTEÇÃO , piromanipulação', estagio: 3 }], CATALOGO);
     expect(r.ok).toHaveLength(1);
   });
 

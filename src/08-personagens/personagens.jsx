@@ -47,6 +47,15 @@
 
 
 
+/* Snapshot da batalha que acabou de chegar é mais novo (ou igual) que o da
+   tela? Outra batalha, ou sem uma das duas, conta como novo. (13/09/2026) */
+function maisNovaOuIgual(nova, atual) {
+  if (!nova || !atual || nova.id !== atual.id) return true;
+  const tNova = Date.parse(nova.updated_at || '') || 0;
+  const tAtual = Date.parse(atual.updated_at || '') || 0;
+  return tNova >= tAtual;
+}
+
 /* ============================== FichaComBatalha — wrapper do jogador ==============================
    Envolve FichaPersonagem adicionando:
    1. Detecção de batalha ativa em que o PJ participa
@@ -105,7 +114,12 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         const b = (data || []).find((b2) =>
           (b2.participantes || []).some((p) => p.tipo === 'pj' && p.ref_id === pjAtivoId)
         );
-        setBatalhaAtiva(b || null);
+        /* Snapshot ATRASADO não substitui o novo (13/09/2026). Cada evento
+           dispara uma busca; duas buscas quase juntas podem voltar fora de
+           ordem, e a mais velha chegando por último trazia de volta uma
+           rolagem já aplicada — o Adrian atacou duas vezes com o mesmo d20.
+           updated_at vem do trigger trg_batalhas_touch. */
+        setBatalhaAtiva((atual) => (maisNovaOuIgual(b, atual) ? (b || null) : atual));
         // Se a batalha encerrou, volta para a ficha
         if (!b && viewBatalha) setViewBatalha(false);
       })
@@ -3265,6 +3279,8 @@ return (
 
 
 Object.assign(window, {
+  // 13/09/2026: snapshot atrasado da batalha não substitui o novo.
+  maisNovaOuIgual,
   PersonagensList, PersonagemCard, ConfirmarExclusaoModal,
   DarExperienciaModal, DarMoedasModal,
   NovoPersonagemModal,

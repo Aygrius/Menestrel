@@ -652,7 +652,7 @@ function CriaturasAuditoriaPainel({ criaturas, lang }) {
               {r.sem_nivel.length > 0 && (
                 <div className="best-aud-secao">
                   <div className="best-aud-titulo">
-                    {en ? '⚠ No spell level (magia_n)' : '⚠ Sem nível de magia (magia_n)'} · {r.sem_nivel.length}
+                    {en ? '⚠ No stage (spell level comes from it)' : '⚠ Sem estágio (o nível da magia vem dele)'} · {r.sem_nivel.length}
                   </div>
                   <ul className="best-aud-lista">
                     {r.sem_nivel.map((x) => (
@@ -1661,6 +1661,8 @@ function ItensList({ ac, lang, modoJogador }) {
   const ehAdmin = useEhAdmin();
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
   const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
+  // Livro aberto na janela de leitura (itens.doc_url), 13/09/2026: guarda o slug.
+  const [lendoDoc, setLendoDoc] = useState(null);
 
   // Faixas de preço (valor_latao)
   const PRECO_FAIXAS = [
@@ -1794,14 +1796,30 @@ function ItensList({ ac, lang, modoJogador }) {
                               o Mestre digitava o link e ele não ia a lugar nenhum.
                               rel=noreferrer junto de target=_blank porque a aba aberta
                               ganha window.opener sem isso. */}
-                          {it.doc_url && (
-                            <p className="best-efeito">
-                              <a href={it.doc_url} target="_blank" rel="noopener noreferrer">
-                                <i className="ti ti-external-link" aria-hidden="true" />
-                                {' '}{lang === 'en' ? 'Open content' : 'Abrir conteúdo'}
-                              </a>
-                            </p>
-                          )}
+                          {/* Desde 13/09/2026 o conteúdo abre NUMA JANELA de leitura
+                              (LeituraDocModal, 07-inventario), a mesma do botão "Ler"
+                              do item — pedido do usuário. O link pra nova aba mora
+                              dentro dela. Sem o componente carregado, cai no link. */}
+                          {it.doc_url && (() => {
+                            const LeituraDoc = (typeof window !== 'undefined' && window.LeituraDocModal) || null;
+                            return (
+                              <p className="best-efeito">
+                                {LeituraDoc ? (
+                                  <button type="button" className="btn-ghost btn-sm" onClick={() => setLendoDoc(it.slug)}>
+                                    {lang === 'en' ? 'Read' : 'Ler'}
+                                  </button>
+                                ) : (
+                                  <a href={it.doc_url} target="_blank" rel="noopener noreferrer">
+                                    <i className="ti ti-external-link" aria-hidden="true" />
+                                    {' '}{lang === 'en' ? 'Open content' : 'Abrir conteúdo'}
+                                  </a>
+                                )}
+                                {LeituraDoc && lendoDoc === it.slug && (
+                                  <LeituraDoc titulo={it.nome} docUrl={it.doc_url} lang={lang} onClose={() => setLendoDoc(null)} />
+                                )}
+                              </p>
+                            );
+                          })()}
                         </TableCell></TableRow>
                       )}
                     </React.Fragment>

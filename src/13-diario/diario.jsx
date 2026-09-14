@@ -596,8 +596,10 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
           <div className="cficha-abilities-head">
             <i className="ti ti-sparkles cficha-abilities-icon" aria-hidden="true" />
             <span className="cficha-abilities-lbl">{en ? 'Spells' : 'Magias'}</span>
-            {get('magia_n') && (
-              <span className="cficha-badge cficha-badge--magia-n">{fmt('magia_n')}</span>
+            {/* Nível das magias = estágio da criatura (13/09/2026), o mesmo
+                que a batalha usa — não mais `magia_n`. */}
+            {get('estagio') !== null && typeof nivelMagiaDeCriatura === 'function' && (
+              <span className="cficha-badge cficha-badge--magia-n">{nivelMagiaDeCriatura(get('estagio'))}</span>
             )}
           </div>
           <div className="cficha-pill-list">

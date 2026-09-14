@@ -116,6 +116,166 @@ const botao = (re) => screen.getAllByRole('button').find(
   (b) => re.test(b.textContent) || re.test(b.getAttribute('aria-label') || '')
 );
 
+/* ── Alvo FORA DE ALCANCE (13/09/2026) ─────────────────────────────
+   "Eu não devo poder atacar um adversário que está mais longe que minha arma
+    alcança, fiz isso e agora estou preso no ataque pois não consigo atacar."
+   (usuário)
+
+   O Atacar já exigia alcance (podeAplicar), mas o botão de ROLAR não: dava
+   pra rolar contra o alvo longe, e aí a trava de rolagem (que impede fugir de
+   um resultado ruim) prendia o painel numa ação impossível de aplicar. A
+   rolagem pendente fica gravada na batalha, então recarregar não soltava.
+
+     1. rolar exige o alvo no alcance (arma e magia);
+     2. rolagem que já existe com o alvo fora de alcance é DESCARTADA — no
+        painel e na batalha (onRolagemSalvaChange(null)) —, e o painel solta. */
+describe('AcaoPanel — alvo fora do alcance da arma', () => {
+  // Machado: alcance 0 no catálogo → 1 célula (corpo a corpo). Tokens 3×3:
+  // x 0 e x 10 ficam a 8 células de borda a borda.
+  const PERTO = { x: 0, y: 0 };
+  const LONGE = { x: 10, y: 0 };
+  const ATOR_POS = { ...ATOR, pos: PERTO };
+  const ALVO_LONGE = { ...ALVO_MORTO, status: 'ativo', pa_rest: 1, ef: 30, eh: 12, pos: LONGE };
+
+  function montarLonge({ rolagemSalva = null, onSalva = () => {}, onPendente = () => {}, alvo = ALVO_LONGE } = {}) {
+    return render(
+      <div className="menestrel-ui">
+        <AcaoPanel
+          ator={ATOR_POS}
+          participantes={[ATOR_POS, alvo]}
+          catalogos={CATALOGOS}
+          lang="pt"
+          onAplicar={() => {}} onAplicarTeste={() => {}} onAplicarItem={() => {}} onCancel={() => {}}
+          onRolagemPendenteChange={onPendente}
+          rolagemSalva={rolagemSalva}
+          onRolagemSalvaChange={onSalva}
+        />
+      </div>
+    );
+  }
+  const btnRolar = () => document.querySelector('.dado-ov-trigger button');
+
+  it('avisa que está fora de alcance e NÃO deixa rolar o dado', () => {
+    montarLonge();
+    expect(screen.getByText(/Alvo fora de alcance/i)).toBeTruthy();
+    expect(btnRolar().disabled).toBe(true);
+    expect(botao(/Atacar \(1 PA\)/i).disabled).toBe(true);
+  });
+
+  it('com o alvo encostado, rolar continua liberado', () => {
+    montarLonge({ alvo: { ...ALVO_LONGE, pos: { x: 3, y: 0 } } });
+    expect(screen.queryByText(/Alvo fora de alcance/i)).toBeNull();
+    expect(btnRolar().disabled).toBe(false);
+  });
+
+  it('quem JÁ ficou preso (rolagem gravada, alvo longe) é solto: a rolagem é descartada', () => {
+    const salvas = [];
+    const pendentes = [];
+    montarLonge({ rolagemSalva: ROLAGEM_SALVA, onSalva: (r) => salvas.push(r), onPendente: (v) => pendentes.push(v) });
+    expect(salvas, 'apaga a rolagem gravada na batalha').toContain(null);
+    expect(pendentes.at(-1), 'o painel não fica mais travado').toBe(false);
+    expect(screen.queryByText(/Já rolou/i)).toBeNull();
+    expect(btnRolar().disabled, 'e continua sem poder rolar contra o alvo longe').toBe(true);
+  });
+
+  it('rolagem gravada com o alvo NO alcance continua valendo (a trava geral não afrouxou)', () => {
+    const salvas = [];
+    montarLonge({ rolagemSalva: ROLAGEM_SALVA, onSalva: (r) => salvas.push(r), alvo: { ...ALVO_LONGE, pos: { x: 3, y: 0 } } });
+    expect(salvas).not.toContain(null);
+    expect(screen.getByText(/Já rolou/i)).toBeTruthy();
+  });
+});
+
+/* ── Rolagem RESTAURADA com a escolha errada (13/09/2026) ─────────────
+   "Depois de tirar um rotineiro em desviar, o menu trava e não consigo fazer
+    mais nada em batalha." (usuário)
+
+   Batalha 96, Galadar: rolou Desviar (d20 3). Na tela do jogador, gravar a
+   rolagem FECHAVA o painel; reabrir restaurava aba e dado, mas não QUAL
+   técnica — o painel escolhia a primeira da lista, Imprevisibilidade, de uso
+   Único e já gasta. Aplicar desabilitado, seletor travado pela rolagem, menu
+   travado: sem saída. O Mestre teve de gastar os PA do Galadar com itens.
+
+     • a rolagem passa a guardar as escolhas (`sel`) e o painel as restaura;
+     • rolagem restaurada que não dá para aplicar é DESCARTADA e o painel solta
+       (é o caso das rolagens antigas, sem `sel`, como a do Galadar). */
+describe('AcaoPanel — rolagem restaurada lembra a técnica escolhida', () => {
+  const TECS = {
+    imprevisibilidade: { key: 'imprevisibilidade', nome: 'Imprevisibilidade', uso: 'Único', ajuste: 'percepcao', grupo_armas: 'Livre', grupo_armaduras: 'L', efeito: 'Defesa.' },
+    desviar: { key: 'desviar', nome: 'Desviar', uso: 'Intermitente', ajuste: 'agilidade', grupo_armas: 'Livre', grupo_armaduras: 'L, M', efeito: 'Ignora 50% do dano.' },
+  };
+  const GALADAR_PJ = { ...PJ, id: 57, nome: 'Galadar', tecnicas: { imprevisibilidade: 2, desviar: 3 } };
+  const GALADAR = { ...ATOR, ref_id: 57, inst_id: 'pj:57', nome: 'Galadar', pa_rest: 2, defesa_sigla: 'L',
+    tecnicas_usadas: ['imprevisibilidade'] };
+  const VIVO = { ...ALVO_MORTO, status: 'ativo' };
+  const CATS = { pjById: { 57: GALADAR_PJ }, catalogoBySlug: CATALOGO, magiasByKey: {}, tecnicasByKey: TECS };
+
+  function montarG(rolagemSalva) {
+    const salvas = [];
+    const pendentes = [];
+    render(
+      <div className="menestrel-ui">
+        <AcaoPanel ator={GALADAR} participantes={[GALADAR, VIVO]} catalogos={CATS} lang="pt"
+          onAplicar={() => {}} onAplicarTeste={() => {}} onAplicarItem={() => {}} onCancel={() => {}}
+          onRolagemPendenteChange={(v) => pendentes.push(v)}
+          rolagemSalva={rolagemSalva} onRolagemSalvaChange={(r) => salvas.push(r)} />
+      </div>
+    );
+    return { salvas, pendentes };
+  }
+  const base = { ator: { tipo: 'pj', ref_id: 57, inst_id: 'pj:57' }, tab: 'tecnica_teste', d20: 3, d20_critico: null };
+
+  it('com a escolha salva, volta em Desviar e dá para aplicar o Rotineiro', () => {
+    const { salvas } = montarG({ ...base, sel: { tecTesteKey: 'desviar' } });
+    expect(salvas).not.toContain(null);
+    expect(screen.getByText(/Já rolou/i)).toBeTruthy();
+    expect(document.querySelector('.select-pill-btn').textContent).toMatch(/Desviar/);
+    expect(document.querySelector('.atacar-confirmar').disabled).toBe(false);
+  });
+
+  it('o CASO do Galadar (rolagem antiga, sem escolha): descarta e solta o painel', () => {
+    const { salvas, pendentes } = montarG(base);
+    expect(salvas).toContain(null);
+    expect(pendentes.at(-1)).toBe(false);
+    expect(screen.queryByText(/Já rolou/i)).toBeNull();
+  });
+
+  it('escolha salva que não existe mais (técnica sumiu): também descarta', () => {
+    const { salvas } = montarG({ ...base, sel: { tecTesteKey: 'tecnica_que_nao_existe' } });
+    expect(salvas).toContain(null);
+  });
+
+  /* "Resultado do ataque anterior está influenciando o novo ataque." — o
+     Adrian atacou duas vezes com o MESMO d20 13 em 7 s: a rolagem já aplicada
+     voltou (snapshot atrasado) e o 2º ataque a reaproveitou. A rolagem guarda
+     a assinatura de ação do ator; se ele já gastou ação desde então, é de uma
+     ação que JÁ ACONTECEU. */
+  it('rolagem de uma ação já gasta (PA mudou desde o dado): descarta', () => {
+    const M = window.MotorBatalha;
+    const assinQuandoRolou = M.assinaturaDaRolagem({ ...GALADAR, pa_rest: 2 });
+    // Galadar agora com 1 PA: a ação daquela rolagem já foi aplicada.
+    const salvas = [];
+    render(
+      <div className="menestrel-ui">
+        <AcaoPanel ator={{ ...GALADAR, pa_rest: 1 }} participantes={[{ ...GALADAR, pa_rest: 1 }, VIVO]} catalogos={CATS} lang="pt"
+          onAplicar={() => {}} onAplicarTeste={() => {}} onAplicarItem={() => {}} onCancel={() => {}}
+          onRolagemPendenteChange={() => {}}
+          rolagemSalva={{ ...base, sel: { tecTesteKey: 'desviar' }, assin: assinQuandoRolou }}
+          onRolagemSalvaChange={(r) => salvas.push(r)} />
+      </div>
+    );
+    expect(salvas).toContain(null);
+    expect(screen.queryByText(/Já rolou/i)).toBeNull();
+  });
+
+  it('mesma assinatura (nada gasto desde o dado): a rolagem continua valendo', () => {
+    const M = window.MotorBatalha;
+    const { salvas } = montarG({ ...base, sel: { tecTesteKey: 'desviar' }, assin: M.assinaturaDaRolagem(GALADAR) });
+    expect(salvas).not.toContain(null);
+    expect(screen.getByText(/Já rolou/i)).toBeTruthy();
+  });
+});
+
 describe('AcaoPanel — rolagem pendente sem alvo possível', () => {
   it('reconhece o estado: sem alvos válidos e com a rolagem já feita', () => {
     montar();

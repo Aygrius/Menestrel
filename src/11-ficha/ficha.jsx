@@ -1990,6 +1990,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     if (acaoQtd.tipo === 'usar')     usarItemFicha(acaoQtd.instanceId, qtd);
     if (acaoQtd.tipo === 'destruir') destruirItemFicha(acaoQtd.instanceId, qtd);
     setAcaoQtd(null);
+    // Confirmou a quantidade: a janela do item fecha junto (13/09/2026),
+    // como no Inventário. Cancelar não passa por aqui.
+    setDetalheCintoId(null);
   };
   // (Vestes removidas — só restam slots de defesa.)
 
@@ -2057,12 +2060,18 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
        largada e não volta se a evocação quebrar. */
     const saiu = !motivo && podeEditarFoto;
     const pendente = saiu && !emMim;
+    /* 13/09/2026: o karma sai de TODA evocação do dono — narrativa e
+       duradoura inclusive, que antes saíam de graça. Só a de rodada não sai
+       fora de combate (karmaDaEvocacaoForaDeCombate, 01-core). */
+    const karma = podeEditarFoto && typeof karmaDaEvocacaoForaDeCombate === 'function'
+      ? karmaDaEvocacaoForaDeCombate(motivo, nivel) : 0;
 
-    /* Karma da evocação em TERCEIRO: sai do conjurador agora, na linha dele —
-       que é a única que ele pode escrever. O efeito no alvo é do Mestre. */
-    if (pendente) {
+    /* Karma quando o efeito NÃO pousa aqui (em terceiro, narrativa,
+       duradoura): sai do conjurador agora, na linha dele — que é a única que
+       ele pode escrever. */
+    if (!aplicou && karma > 0) {
       const soKarma = aplicarEfeitosNaFicha(pj.estado_atual,
-        [{ scope: 'vitalidade', key: 'ka', delta: -nivel }], maximosVitalidade);
+        [{ scope: 'vitalidade', key: 'ka', delta: -karma }], maximosVitalidade);
       if (soKarma !== pj.estado_atual) salvarEstadoAtual(soKarma);
     }
 
@@ -2117,7 +2126,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     registrarEventoMesa('magia', texto, metaDeEvocacao({
       magia: mag, nivel, alvo, aplicou,
       motivo: aplicou ? null : (pendente ? 'aprovacao_mestre' : motivo),
-      karma: saiu ? nivel : 0,
+      karma,
       conjurador: nomePj,
     }));
   };
@@ -2399,7 +2408,11 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // Independe do getSlotsState — mesmo critério da faixa de dedos.
   // Nota: lê it.slot independente de it.equipado, para surfaçar dados
   // inconsistentes (slot preenchido mas equipado:false) e permitir desequipar.
-  const regiaoDe = (it) => it.slot || (it.vestido ? it.vesteSlot : null);
+  /* Vestido guarda o slot do BANCO em peças antigas ('costas', 'corpo',
+     'orelhas', 'dedos'): traduz pela mesma tabela do inventário (vesteSlotDe)
+     para cair na casa certa — capa, roupa, brinco, joia (13/09/2026). */
+  const _vesteSlotDe = (typeof window !== 'undefined' && window.vesteSlotDe) || ((s) => s);
+  const regiaoDe = (it) => it.slot || (it.vestido ? _vesteSlotDe(it.vesteSlot) : null);
   const equipPorRegiao = (() => {
     const m = {};
     for (const it of itensPj) {

@@ -207,3 +207,18 @@ describe('o caminho completo de uma evocação em si mesmo', () => {
     expect(depois.vitalidade).toMatchObject({ eh: 25, ka: 4 });
   });
 });
+
+/* "O personagem usou a magia fora de combate e não gastou o karma." (usuário,
+   13/09/2026) — narrativa e duradoura saíam de graça. */
+describe('karmaDaEvocacaoForaDeCombate — o custo é do ato', () => {
+  it('aplicou na ficha (motivo null): cobra o nível evocado', () => {
+    expect(window.karmaDaEvocacaoForaDeCombate(null, 5)).toBe(5);
+  });
+  it('narrativa e duradoura também cobram', () => {
+    expect(window.karmaDaEvocacaoForaDeCombate('narrativa', 3)).toBe(3);
+    expect(window.karmaDaEvocacaoForaDeCombate('duradoura', 1)).toBe(1);
+  });
+  it('rodada não sai fora de combate: não cobra', () => {
+    expect(window.karmaDaEvocacaoForaDeCombate('rodadas', 7)).toBe(0);
+  });
+});

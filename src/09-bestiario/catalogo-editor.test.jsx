@@ -32,6 +32,9 @@ let ultimoInsert = null, ultimoUpdate = null, erroSimulado = null;
 // (fetchTabelaPaginada, ver catalogo-editor.jsx). Vazio por padrão: os
 // testes que não mexem com isso não devem disparar nenhuma linha extra.
 let itensArmasFixture = [];
+// Nomes de técnicas/habilidades/magias para os seletores de lista da
+// criatura (13/09/2026). Vazios por padrão, como a de armas.
+let listasFixture = { tecnicas: [], habilidades: [], magias: [] };
 // Chaves que o .like() de pré-checagem de colisão devolve. Vazio por
 // padrão: sem colisão, a chave derivada do nome passa direto.
 let chavesExistentesFixture = [];
@@ -54,7 +57,7 @@ beforeAll(async () => {
         const builder = {
           eq: () => builder,
           order: () => builder,
-          range: async () => ({ data: tabela === 'itens' ? itensArmasFixture : [], error: null }),
+          range: async () => ({ data: tabela === 'itens' ? itensArmasFixture : (listasFixture[tabela] || []), error: null }),
           // Pré-checagem de colisão da chave automática: o editor pergunta
           // quais chaves já começam com a base antes de inserir.
           like: async () => ({ data: chavesExistentesFixture, error: null }),
@@ -71,6 +74,7 @@ beforeAll(async () => {
 afterEach(() => {
   cleanup(); ultimoInsert = null; ultimoUpdate = null; erroSimulado = null;
   itensArmasFixture = []; chavesExistentesFixture = [];
+  listasFixture = { tecnicas: [], habilidades: [], magias: [] };
 });
 
 const montar = (props = {}) => render(
@@ -430,6 +434,13 @@ describe('opções com sigla no banco e palavra na tela', () => {
 });
 
 describe('largura dos campos — área ocupa a largura cheia, o resto fica na coluna estreita', () => {
+  // 13/09/2026: o modal tinha 800px e a grade só 682px (4 colunas de 160px).
+  // A classe modal-catalogo ajusta a largura à grade (index.css).
+  it('o modal do editor leva a classe modal-catalogo, que o ajusta à grade', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    expect(document.querySelector('.ms-modal').classList.contains('modal-catalogo')).toBe(true);
+  });
+
   it('o grid do editor usa a classe própria catalogo-form-grid (NÃO a diario-form-grid compartilhada)', () => {
     montar({ tabela: 'tecnicas', linha: null });
     const grid = document.querySelector('.catalogo-form-grid');
@@ -492,5 +503,154 @@ describe('coluna do update (.eq) — chave certa por tabela', () => {
     await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
     expect(ultimoUpdate.eqCol).toBe('id');
     expect(ultimoUpdate.eqVal).toBe(42);
+  });
+});
+
+/* ── Criatura: armadura, absorção e listas do catálogo (13/09/2026) ──
+   "Na hora de criação e edição de criaturas, onde eu informo a absorção e onde
+    eu informo o tipo de armadura? Quero poder escolher quais técnicas,
+    habilidades e magias a criatura possui, escolhendo na lista que temos
+    disponíveis." (usuário)
+
+   • Havia DOIS campos de armadura: "Armadura" (texto livre, a sigla L/M/P que
+     a batalha lê) e "Tipo de Armadura" (`tipo_armadura`, vazio em 224 das 228
+     criaturas e ignorado pela batalha). Fica um só: `armadura`, escolhido
+     entre Leve/Médio/Pesado, com o rótulo "Tipo de Armadura", junto da
+     Absorção e da Defesa.
+   • Técnicas, habilidades e magias continuam gravando texto separado por
+     vírgula (o formato que batalha e Diário leem), mas são escolhidas na lista
+     do catálogo. O que já estava gravado e não existe no catálogo ("Bote",
+     "Esquiva 7") continua lá — nada some ao editar. */
+describe('criatura — tipo de armadura', () => {
+  const pillPorRotulo = (rotulo) => Array.from(document.querySelectorAll('.motor-field'))
+    .find((w) => (w.querySelector('span')?.textContent || '') === rotulo);
+
+  it('um só campo "Tipo de Armadura", com Leve/Médio/Pesado', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    const rotulos = Array.from(document.querySelectorAll('label, .motor-field > span'))
+      .map((el) => el.textContent.trim());
+    expect(rotulos.filter((r) => r === 'Tipo de Armadura')).toHaveLength(1);
+    expect(rotulos, 'o campo "Armadura" de texto livre sai').not.toContain('Armadura');
+    const w = pillPorRotulo('Tipo de Armadura');
+    expect(w, 'tipo de armadura deve ser uma seleção').toBeTruthy();
+    fireEvent.click(w.querySelector('.select-pill-btn'));
+    const opcoes = Array.from(document.querySelectorAll('.select-pill-drop li')).map((li) => li.textContent.trim());
+    expect(opcoes).toEqual(['Leve', 'Médio', 'Pesado']);
+  });
+
+  it('grava a SIGLA em `armadura` e não manda `tipo_armadura`', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 7, nome: 'Lobo', armadura: 'L', tipo_armadura: 'X' } });
+    const w = pillPorRotulo('Tipo de Armadura');
+    expect(w.querySelector('.select-pill-btn').textContent).toMatch(/Leve/);
+    fireEvent.click(w.querySelector('.select-pill-btn'));
+    fireEvent.click(Array.from(document.querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === 'Pesado'));
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.armadura).toBe('P');
+    expect('tipo_armadura' in ultimoUpdate.payload).toBe(false);
+  });
+
+  it('absorção continua calculada e editável, logo depois do tipo de armadura', () => {
+    const cols = window.descritorDe('criaturas').campos.map((c) => c.col);
+    expect(cols.indexOf('absorcao')).toBe(cols.indexOf('armadura') + 1);
+    expect(cols).not.toContain('tipo_armadura');
+  });
+
+  /* 13/09/2026: "O nível das habilidades, técnicas e magias é com base no
+     nível e atributos da criatura." O nível das magias é o estágio — o campo
+     de nível à parte sai do formulário. */
+  it('não há campo de nível das magias: o nível é o estágio da criatura', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    expect(document.querySelector('input[name="magia_n"]')).toBeNull();
+    expect(window.descritorDe('criaturas').campos.map((c) => c.col)).not.toContain('magia_n');
+  });
+});
+
+/* "Na criação/edição de criaturas, não precisa mostrar dano 75, 50, 25 do
+    dano, só 100, é óbvio." (usuário, 13/09/2026) — os três continuam
+   gravados (a batalha os lê), sempre derivados do Dano 100% que está na tela. */
+describe('criatura — só o Dano 100% aparece', () => {
+  it('Dano 25/50/75 não são renderizados', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    ['dano_25', 'dano_50', 'dano_75'].forEach((col) => expect(document.querySelector(`input[name="${col}"]`), col).toBeNull());
+    expect(document.querySelector('input[name="dano_100"]')).toBeTruthy();
+  });
+
+  it('ao criar, os três vão no payload calculados do Dano 100%', async () => {
+    montar({ tabela: 'criaturas', linha: null });
+    fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Urso' } });
+    fireEvent.change(document.querySelector('input[name="dano_100"]'), { target: { value: '30' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoInsert).not.toBeNull());
+    expect(ultimoInsert.payload).toMatchObject({ dano_100: 30, dano_25: 8, dano_50: 15, dano_75: 23 });
+  });
+
+  it('ao editar, mudar o Dano 100% recalcula os três (não ficam presos no valor antigo)', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 9, nome: 'Urso', dano_100: 20, dano_25: 5, dano_50: 10, dano_75: 15 } });
+    fireEvent.change(document.querySelector('input[name="dano_100"]'), { target: { value: '40' } });
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload).toMatchObject({ dano_100: 40, dano_25: 10, dano_50: 20, dano_75: 30 });
+  });
+});
+
+describe('criatura — técnicas, habilidades e magias escolhidas na lista', () => {
+  const blocoDe = (col) => document.querySelector('[data-lista="' + col + '"]');
+  const chips = (col) => Array.from(blocoDe(col).querySelectorAll('.catalogo-lista-chip-nome')).map((c) => c.textContent);
+  const buscar = (col, txt) => fireEvent.change(blocoDe(col).querySelector('input'), { target: { value: txt } });
+  const sugestoes = (col) => Array.from(blocoDe(col).querySelectorAll('.select-pill-drop li')).map((li) => li.textContent.trim());
+  const salvar = () => fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+
+  it('mostra o que está gravado como etiquetas, inclusive o que não está no catálogo', async () => {
+    listasFixture.tecnicas = [{ nome: 'Esquiva' }, { nome: 'Fúria' }];
+    montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Tigre', tecnicas_especiais: 'Esquiva 7, Bote' } });
+    expect(chips('tecnicas_especiais')).toEqual(['Esquiva 7', 'Bote']);
+    await vi.waitFor(() => expect(blocoDe('tecnicas_especiais').querySelector('.catalogo-lista-chip--fora')).toBeTruthy());
+    const fora = Array.from(blocoDe('tecnicas_especiais').querySelectorAll('.catalogo-lista-chip--fora')).map((c) => c.textContent);
+    expect(fora).toHaveLength(1);
+    expect(fora[0]).toMatch(/Bote/);
+  });
+
+  it('busca na lista do catálogo, sem oferecer o que já foi escolhido, e grava com vírgula', async () => {
+    listasFixture.tecnicas = [{ nome: 'Esquiva' }, { nome: 'Fúria' }, { nome: 'Fúria Cega' }];
+    montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Tigre', tecnicas_especiais: 'Esquiva 7, Bote' } });
+    buscar('tecnicas_especiais', 'fur');
+    await vi.waitFor(() => expect(sugestoes('tecnicas_especiais')).toEqual(['Fúria', 'Fúria Cega']));
+    buscar('tecnicas_especiais', 'esq');
+    expect(sugestoes('tecnicas_especiais'), 'Esquiva já está (com nível 7)').toEqual([]);
+    buscar('tecnicas_especiais', 'fur');
+    fireEvent.click(Array.from(blocoDe('tecnicas_especiais').querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === 'Fúria'));
+    expect(chips('tecnicas_especiais')).toEqual(['Esquiva 7', 'Bote', 'Fúria']);
+    salvar();
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.tecnicas_especiais).toBe('Esquiva 7, Bote, Fúria');
+  });
+
+  it('remover a etiqueta tira do texto gravado; remover todas grava null', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Tigre', habilidades: 'Correr, Sentidos' } });
+    fireEvent.click(blocoDe('habilidades').querySelector('button[aria-label="Remover Correr"]'));
+    expect(chips('habilidades')).toEqual(['Sentidos']);
+    fireEvent.click(blocoDe('habilidades').querySelector('button[aria-label="Remover Sentidos"]'));
+    salvar();
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.habilidades).toBeNull();
+  });
+
+  it('magias vêm da tabela de magias; Enter adiciona a primeira sugestão', async () => {
+    listasFixture.magias = [{ nome: 'Bola de Fogo' }, { nome: 'Silêncio' }];
+    montar({ tabela: 'criaturas', linha: null });
+    buscar('magia', 'sil');
+    await vi.waitFor(() => expect(sugestoes('magia')).toEqual(['Silêncio']));
+    fireEvent.keyDown(blocoDe('magia').querySelector('input'), { key: 'Enter' });
+    expect(chips('magia')).toEqual(['Silêncio']);
+    expect(blocoDe('magia').querySelector('input').value).toBe('');
+  });
+
+  it('texto que não está na lista não vira etiqueta (escolha é só do catálogo)', async () => {
+    listasFixture.habilidades = [{ nome: 'Correr' }];
+    montar({ tabela: 'criaturas', linha: null });
+    buscar('habilidades', 'Voar');
+    fireEvent.keyDown(blocoDe('habilidades').querySelector('input'), { key: 'Enter' });
+    expect(chips('habilidades')).toEqual([]);
   });
 });

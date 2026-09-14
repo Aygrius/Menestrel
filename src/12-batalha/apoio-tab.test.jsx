@@ -123,7 +123,17 @@ function montar(magiasDoPj, onAplicarApoio) {
 const btn = (re) => screen.getAllByRole('button').find(
   (b) => re.test(b.textContent) || re.test(b.getAttribute('aria-label') || '')
 );
-const abaApoio = () => btn(/^Apoio$/);
+// Desde 13/09/2026 Apoio e Magia são UMA aba, "Magias" (ver opcoesMagias).
+const abaApoio = () => btn(/^Magias$/);
+
+describe('aba Magias — ataque e efeito numa aba só (13/09/2026)', () => {
+  it('não existem mais os botões "Apoio" e "Magia" separados', () => {
+    montar({ velocidade: 1 });
+    expect(btn(/^Apoio$/)).toBeFalsy();
+    expect(btn(/^Magia$/)).toBeFalsy();
+    expect(abaApoio()).toBeTruthy();
+  });
+});
 
 describe('aba Apoio — quando aparece', () => {
   it('não aparece pra quem não tem magia nenhuma', () => {

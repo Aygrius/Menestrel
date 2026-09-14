@@ -121,8 +121,12 @@ describe('AcaoPanel — nasce apontado para o inimigo clicado', () => {
 describe('a fiação nos dois menus do tabuleiro', () => {
   const fonte = readFileSync(resolve(__dirname, 'batalha.jsx'), 'utf8');
 
-  it('Mestre e Jogador oferecem "ataca com" no avatar do inimigo', () => {
-    expect(fonte.match(/className="batalha-menu-acoes batalha-menu-atacar"/g)).toHaveLength(2);
+  // 13/09/2026: sem o texto "Fulano ataca com"; os botões entram na fileira
+  // única do card, no fundo dos outros círculos (sem variante primary).
+  it('Mestre e Jogador oferecem o ataque no avatar do inimigo, inline', () => {
+    expect(fonte.match(/className="batalha-card-botoes batalha-menu-atacar"/g)).toHaveLength(2);
+    expect(fonte).not.toMatch(/batalha-menu-atacar-lbl/);
+    expect(fonte.match(/<BotaoAcaoMenu icone="ti-sword"\r?\n/g)).toHaveLength(2);
   });
 
   it('os dois menus passam alvo e aba iniciais ao painel', () => {

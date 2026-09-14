@@ -354,6 +354,12 @@ describe('FALHA_CRITICA_TABELA (segundo dado do q=0)', () => {
     expect(msg).not.toContain('${');
   });
 
+  it('o texto da Falha Crítica mostra o autodano JÁ CORTADO pela metade (dano 10 → q0 = 5)', () => {
+    const msg = M.interpolarFalhaCritica(M.FALHA_CRITICA_TABELA.CORTE[0], { dano: 10 });
+    expect(msg).toContain('5 de dano na EF');
+    expect(msg).not.toContain('${');
+  });
+
   it('lógica invertida: q3 tem dano leve, q7 não tem consequência mecânica', () => {
     expect(M.FALHA_CRITICA_TABELA.MAGIA[3]).toContain('${danos.d25}');
     expect(M.FALHA_CRITICA_TABELA.MAGIA[7]).not.toContain('dano');
@@ -387,13 +393,20 @@ describe('aplicarFalhaCritica', () => {
   });
   const arma = { dano: 10 };
 
+  it('autodano é METADE do tier, arredondado pra baixo (13/09/2026)', () => {
+    expect(M.FC_AUTODANO_FATOR).toBe(0.5);
+    expect(M.danoAutoinfligido({ dano: 10 }, 'MD')).toBe(5);
+    expect(M.danoAutoinfligido({ dano: 7 }, 'MD')).toBe(3);   // floor(3.5): nunca passa da metade
+    expect(M.danoAutoinfligido({ dano: 1 }, 'F')).toBe(0);
+  });
+
   it('q0: dano PULA a EH e bate na armadura, que segura e se desgasta', () => {
     // O autodano da Falha Crítica sempre pulou a EH — isso não mudou. O que
     // mudou é o que a armadura faz com ele: 10 > limiar 3, então custa 1 de
     // resistência e a EF fica intacta. O desmaio forçado continua valendo,
     // porque vem da regra da Falha Crítica e não do dano.
     const { participante: p, dano } = M.aplicarFalhaCritica(atacante(), arma, 0);
-    expect(dano).toBe(10);
+    expect(dano).toBe(5);           // metade de 10
     expect(p.eh).toBe(10);
     expect(p.ar, 'limiar não se gasta').toBe(3);
     expect(p.res, 'quem se gasta é a resistência').toBe(3);
@@ -404,29 +417,29 @@ describe('aplicarFalhaCritica', () => {
   it('q0 com a armadura já arrebentada: aí sim o autodano chega na EF', () => {
     const { participante: p } = M.aplicarFalhaCritica(atacante({ res: 0 }), arma, 0);
     expect(p.eh).toBe(10);
-    expect(p.ef).toBe(0);
+    expect(p.ef).toBe(5);           // 10 − metade de 10
     expect(p.status).toBe('desmaiado');
   });
 
   it('q0 que mata na cascata: morto tem precedência sobre o desmaio', () => {
     const { participante: p } = M.aplicarFalhaCritica(
       atacante({ ar: 0, ef: -10, eh_max: 0, status: 'desmaiado' }), { dano: 10 }, 0);
-    expect(p.status).toBe('morto'); // −10 − 10 = −20 ≤ EF_MORTE
+    expect(p.status).toBe('morto'); // −10 − 5 = −15 ≤ EF_MORTE
   });
 
-  it('q1: 75% de dano + status Ações −7 até o fim da batalha; q3: só 25% de dano', () => {
+  it('q1: metade de 75% + status Ações −7 até o fim da batalha; q3: metade de 25%', () => {
     const r1 = M.aplicarFalhaCritica(atacante(), arma, 1);
-    expect(r1.dano).toBe(8);        // ceil(7.5) — regra de arma
+    expect(r1.dano).toBe(4);        // floor(ceil(7.5) / 2)
     expect(r1.participante.status_temp).toHaveLength(1);
     expect(r1.participante.status_temp[0]).toMatchObject({ rodadas_rest: null, efeito: { tipo: 'mod_coluna', valor: -7 } });
     const r3 = M.aplicarFalhaCritica(atacante(), arma, 3);
-    expect(r3.dano).toBe(3);        // ceil(2.5)
+    expect(r3.dano).toBe(1);        // floor(ceil(2.5) / 2)
     expect(r3.participante.status_temp).toHaveLength(0);
   });
 
-  it('magia usa floor no tier (q3 com dano 10 → 2)', () => {
+  it('magia usa floor no tier (q3 com dano 10 → 2, metade → 1)', () => {
     const r = M.aplicarFalhaCritica(atacante(), { dano: 10, fonte: 'magia' }, 3);
-    expect(r.dano).toBe(2);         // floor(2.5)
+    expect(r.dano).toBe(1);         // floor(floor(2.5) / 2)
   });
 
   it('q4: sem dano, ganha Caído (sem_acoes, 1 rodada); q7: no-op absoluto', () => {
@@ -576,42 +589,24 @@ describe('processarViradaDeRodada / montarNovaRodada', () => {
   });
 });
 
-/* ── iconePA — o ícone É o número (03/09/2026) ────────────────────
-   O chip de PA mostrava "1/1"; virou o hexágono numerado, a pedido do
-   usuário, e o máximo foi pro tooltip.
-
-   O que se testa aqui é a borda, não o caminho feliz: a família
-   ti-hexagon-number existe só de 0 a 9. Um nome fora dessa faixa não dá
-   erro — a fonte simplesmente não desenha nada, e o chip some da tela sem
-   deixar rastro. Um pa_rest torto vindo de um snapshot antigo apagaria a
-   informação em silêncio, então o clamp é o que garante que SEMPRE sai um
-   ícone que existe. */
-describe('iconePA — sempre devolve um ícone que existe', () => {
+/* ── iconeNumero — o número do card (13/09/2026, substituiu iconePA) ──
+   Velocidade, PA, defesa e absorção viraram ti-number-N-small, a pedido do
+   usuário. O que se testa é a borda: a família existe só de 0 a 100, e um
+   nome fora dela não dá erro — a fonte não desenha nada e o chip some. Por
+   isso fora da faixa devolve null e o card escreve o número. */
+describe('iconeNumero — só devolve ícone que existe', () => {
   const M = () => window.MotorBatalha;
 
-  it('mapeia o valor direto na faixa normal', () => {
-    expect(M().iconePA(0)).toBe('ti-hexagon-number-0');
-    expect(M().iconePA(1)).toBe('ti-hexagon-number-1');
-    expect(M().iconePA(2)).toBe('ti-hexagon-number-2');
+  it('0 a 100 viram ti-number-N-small', () => {
+    expect(M().iconeNumero(0)).toBe('ti-number-0-small');
+    expect(M().iconeNumero(50)).toBe('ti-number-50-small');
+    expect(M().iconeNumero(100)).toBe('ti-number-100-small');
   });
 
-  it('prende em 9 — acima disso o ícone não existe e o chip sumiria', () => {
-    expect(M().iconePA(10)).toBe('ti-hexagon-number-9');
-    expect(M().iconePA(999)).toBe('ti-hexagon-number-9');
-  });
-
-  it('negativo vira 0, não um nome inválido', () => {
-    expect(M().iconePA(-1)).toBe('ti-hexagon-number-0');
-  });
-
-  it('ausente ou lixo vira 0', () => {
-    expect(M().iconePA(null)).toBe('ti-hexagon-number-0');
-    expect(M().iconePA(undefined)).toBe('ti-hexagon-number-0');
-    expect(M().iconePA('abc')).toBe('ti-hexagon-number-0');
-  });
-
-  it('fracionário trunca em vez de virar nome quebrado', () => {
-    expect(M().iconePA(2.7)).toBe('ti-hexagon-number-2');
+  it('fora da família (negativo, acima de 100, fração, lixo) não inventa nome', () => {
+    for (const v of [-1, 101, 2.7, 'abc', null, undefined, NaN]) {
+      expect(M().iconeNumero(v)).toBeNull();
+    }
   });
 });
 

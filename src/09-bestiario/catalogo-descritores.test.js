@@ -41,7 +41,9 @@ const OBRIGATORIAS = {
 // `criaturas` não tem: ela é identificada pelo id do banco, e `nome` é editável.
 const CHAVE = { criaturas: null, magias: 'key', tecnicas: 'key', habilidades: 'key', itens: 'slug' };
 
-const TIPOS = ['texto', 'area', 'numero', 'opcoes', 'derivado'];
+// `lista` (13/09/2026): nomes escolhidos do catálogo, gravados com vírgula.
+const TIPOS = ['texto', 'area', 'numero', 'opcoes', 'derivado', 'lista'];
+const FONTES_LISTA = ['tecnicas', 'habilidades', 'magias'];
 
 describe('CATALOGO_DESCRITORES', () => {
   it('cobre exatamente as 5 tabelas', () => {
@@ -78,6 +80,7 @@ describe('CATALOGO_DESCRITORES', () => {
     for (const [tab, d] of Object.entries(MAP)) {
       for (const c of d.campos) {
         expect(TIPOS, `${tab}.${c.col}`).toContain(c.tipo);
+        if (c.tipo === 'lista') expect(FONTES_LISTA, `${tab}.${c.col} sem fonte válida`).toContain(c.fonte);
         expect(typeof c.rotuloKey === 'string' && c.rotuloKey.length > 0, `${tab}.${c.col}`).toBe(true);
       }
     }

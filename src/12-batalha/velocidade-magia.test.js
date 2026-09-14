@@ -504,13 +504,17 @@ describe('CRIATURA conjura — 12/09/2026', () => {
 
      Resolver por nome em tempo de execução não corre risco de migração, não
      muda schema e deixa o Mestre continuar digitando nomes no editor. */
+  /* 13/09/2026: o nível das magias da criatura é o ESTÁGIO dela, não
+     `magia_n` ("se a criatura tem nível 7 e magia bola de fogo, o nível da
+     magia é 7" — usuário). magia_n fica nas fixtures com valor DIFERENTE de
+     propósito, para provar que não é mais lido. */
   const CAT = {
     pjById: {},
     criById: {
-      10: { id: 10, nome: 'Gárgula II', magia: 'Geoproteção, Piromanipulação', magia_n: 5 },
-      11: { id: 11, nome: 'Aparição',   magia: 'Toque Gélido',                 magia_n: 9 },
-      12: { id: 12, nome: 'Mudo',       magia: null,                           magia_n: null },
-      13: { id: 13, nome: 'Fantasma',   magia: 'Magia Que Não Existe',         magia_n: 3 },
+      10: { id: 10, nome: 'Gárgula II', magia: 'Geoproteção, Piromanipulação', estagio: 5, magia_n: 1 },
+      11: { id: 11, nome: 'Aparição',   magia: 'Toque Gélido',                 estagio: 11, magia_n: 3 },
+      12: { id: 12, nome: 'Mudo',       magia: null,                           estagio: 2, magia_n: null },
+      13: { id: 13, nome: 'Fantasma',   magia: 'Magia Que Não Existe',         estagio: 3, magia_n: 3 },
     },
     magiasByKey: {
       geoprotecao:     { key: 'geoprotecao', nome: 'Geoproteção', duracao: '3 rodadas',
@@ -532,8 +536,19 @@ describe('CRIATURA conjura — 12/09/2026', () => {
       .toEqual(['geoprotecao', 'piromanipulacao']);
   });
 
-  it('magia_n é o nível efetivo de TODAS as magias da criatura', () => {
+  it('o ESTÁGIO é o nível de todas as magias da criatura (magia_n não conta)', () => {
     M.magiasConhecidasDoAtor(cri(10), CAT).forEach((x) => expect(x.nivel).toBe(5));
+  });
+
+  it('estágio acima de 9 conjura no 9, o topo da escada', () => {
+    expect(M.magiasConhecidasDoAtor(cri(11), CAT)[0].nivel).toBe(9);
+  });
+
+  it('nivelMagiaDeCriatura: o degrau 1/3/5/7/9 mais alto que o estágio alcança', () => {
+    const n = window.nivelMagiaDeCriatura;
+    expect([1, 2, 3, 4, 6, 7, 8, 9, 10, 27].map(n)).toEqual([1, 1, 3, 3, 5, 7, 7, 9, 9, 9]);
+    expect(n(null)).toBe(1);
+    expect(n(0)).toBe(1);
   });
 
   it('criatura NÃO paga karma — a tabela nem tem a coluna', () => {
@@ -571,7 +586,7 @@ describe('CRIATURA conjura — 12/09/2026', () => {
   });
 
   it('o casamento por nome ignora caixa e espaços', () => {
-    const catEspacos = { ...CAT, criById: { 20: { id: 20, magia: '  geoproteção ,PIROMANIPULAÇÃO', magia_n: 5 } } };
+    const catEspacos = { ...CAT, criById: { 20: { id: 20, magia: '  geoproteção ,PIROMANIPULAÇÃO', estagio: 5 } } };
     expect(M.magiasConhecidasDoAtor(cri(20), catEspacos).map((x) => x.key).sort())
       .toEqual(['geoprotecao', 'piromanipulacao']);
   });

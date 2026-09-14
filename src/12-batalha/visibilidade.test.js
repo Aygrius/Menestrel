@@ -193,6 +193,11 @@ describe('a penalidade chega no golpe', () => {
     // Mestre define e persiste; Jogador lê por prop e vê pelo realtime.
     expect(fonte).toMatch(/const \[visibilidade, setVisibilidade\] = useState\(batalha\.visibilidade/);
     expect(fonte).toMatch(/const visibilidade = batalha\.visibilidade \|\| 'clara'/);
-    expect((fonte.match(/visibilidade=\{visibilidade\}/g) || []).length).toBe(2);
+    // 2 painéis de ação (Mestre e Jogador) + 3 tabuleiros (montagem, Mestre e
+    // Jogador), que escurecem com a iluminação desde 13/09/2026.
+    expect((fonte.match(/visibilidade=\{visibilidade\}/g) || []).length).toBe(5);
+    const tabuleiros = fonte.split('<TabuleiroBatalha').slice(1);
+    expect(tabuleiros).toHaveLength(3);
+    tabuleiros.forEach((t) => expect(t.slice(0, 400)).toMatch(/visibilidade=\{visibilidade\}/));
   });
 });

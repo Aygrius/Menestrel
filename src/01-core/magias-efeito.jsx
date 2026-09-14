@@ -461,6 +461,18 @@ function motivoNaoAplicaNaFicha(magia, nivel) {
   return null;
 }
 
+/* Quanto de karma a evocação fora de combate cobra do conjurador.
+   "O personagem usou a magia fora de combate e não gastou o karma." (usuário,
+   13/09/2026) — o karma só saía quando a ficha aplicava o efeito, então magia
+   narrativa ("resolva na mesa") e duradoura ("o Mestre aplica") saíam de
+   graça. A magia foi usada nos dois casos: o custo é do ATO.
+   A exceção é a de RODADA: fora de combate ela não sai ("evoque em batalha"),
+   e não há o que cobrar. Cobra o NÍVEL EVOCADO, como no resto da ficha. */
+function karmaDaEvocacaoForaDeCombate(motivo, nivel) {
+  if (motivo === 'rodadas') return 0;
+  return Math.max(0, Number(nivel) || 0);
+}
+
 /* ── A magia POUSA na ficha: uma porta só ──────────────────────────
    Quem evoca em si mesmo (a ficha) e quem aprova a evocação no colega (o
    Mestre, na Central de Mensagens) escreviam cada um a sua versão — e a do
@@ -1575,7 +1587,7 @@ function tetoEstagioNoNivel(magia, nivel) {
 Object.assign(window, {
   efeitosNoNivel, elementoDoNivel, escaladaNoNivel, curaEmDiasNoNivel,
   testeHabilidadeNoNivel, visaoEscuridaoNoNivel, DIFICULDADE_POR_NOME, MAGIA_ELEMENTOS_VALIDOS,
-  classeDeDuracao, valeForaDeCombate, efeitosDeMagiaNaFicha, motivoNaoAplicaNaFicha,
+  classeDeDuracao, valeForaDeCombate, efeitosDeMagiaNaFicha, motivoNaoAplicaNaFicha, karmaDaEvocacaoForaDeCombate,
   pedidoDeMagiaPendente, metaDeEvocacao, pedidosDeMagiaAbertos,
   duracaoEmDiasDeJogo, magiaAtivaDaEvocacao, magiasAtivasVigentes,
   MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
@@ -1892,6 +1904,20 @@ function resolverNomesDeMagia(csv, indice) {
   return { achadas, naoAchadas };
 }
 
+/* ── Nível das magias de CRIATURA = o estágio dela (13/09/2026) ────
+   "O nível das habilidades, técnicas e magias é com base no nível e
+    atributos da criatura. Por exemplo, se a criatura tem nível 7 e magia bola
+    de fogo, o nível da magia é 7." (usuário)
+
+   Antes vinha de `criaturas.magia_n`, preenchido à mão e desalinhado do
+   estágio em 40 das 60 criaturas com magia. Magia só tem os degraus
+   1/3/5/7/9: o nível é o degrau mais alto que o estágio alcança (estágio 6
+   conjura no 5; acima de 9, no 9). Sem estágio, 1. */
+function nivelMagiaDeCriatura(estagio) {
+  const e = Math.max(1, Math.floor(Number(estagio) || 1));
+  return Math.min(9, e % 2 === 0 ? e - 1 : e);
+}
+
 /* ── Auditoria das magias DE CRIATURA ──────────────────────────────
    A auditoria de `magias` não pega o furo mais traiçoeiro do catálogo:
    renomear uma magia. `personagens.magias` referencia por `key` e sobrevive,
@@ -1903,7 +1929,8 @@ function resolverNomesDeMagia(csv, indice) {
    Classifica cada criatura com magia:
      ok          — todos os nomes casam, e ao menos um tem efeito no motor
      nome_orfao  — algum nome NÃO casa com magia nenhuma (o caso grave)
-     sem_nivel   — casa, mas `magia_n` está vazio: o motor cai em nível 1
+     sem_nivel   — casa, mas a criatura não tem ESTÁGIO: o motor cai em nível 1
+                   (o nível da magia é o estágio desde 13/09/2026)
      so_narrativa— todos casam e nenhum tem entrada no registro (informativo)
    ============================================================ */
 function auditarCriaturas(criaturasDb, magiasDb) {
@@ -1919,7 +1946,7 @@ function auditarCriaturas(criaturasDb, magiasDb) {
       out.nome_orfao.push({ id: c.id, nome: c.nome, nomes: naoAchadas });
       return;
     }
-    if (c.magia_n == null || !Number(c.magia_n)) {
+    if (c.estagio == null || !Number(c.estagio)) {
       out.sem_nivel.push({ id: c.id, nome: c.nome,
                            magias: achadas.map((m) => m.nome) });
       return;
@@ -1946,7 +1973,7 @@ function resumoAuditoriaCriaturas(r) {
 }
 
 Object.assign(window, {
-  indiceMagiasPorNome, resolverNomesDeMagia,
+  indiceMagiasPorNome, resolverNomesDeMagia, nivelMagiaDeCriatura,
   auditarCriaturas, resumoAuditoriaCriaturas,
 });
 

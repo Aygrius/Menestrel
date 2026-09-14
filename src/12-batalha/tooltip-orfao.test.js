@@ -36,12 +36,14 @@ beforeAll(async () => {
 const CONTROLES = [
   ['botão de ação do card (Mover/Ação/Passar/Estado)',
    'onClick={(e) => { if (typeof fecharTip === \'function\') fecharTip(); if (onClick) onClick(e); }}'],
-  ['barra de pool clicável (abre o modal de editar)',
-   'onClick={(e) => { fecharTip(); onEditar(e); }}'],
+  // A barra virou botão (PoolBotao) em 13/09/2026.
+  ['botão de pool clicável (abre o modal de editar)',
+   'onClick={(e) => { if (fecharTip) fecharTip(); onClick(e); }}'],
   ['item do menu de estados',
    'onClick={() => { fecharTip(); onMudar(k); setAberto(false); }}'],
-  ['item Envenenado do menu de estados',
-   'onClick={() => { fecharTip(); onEnvenenar(); setAberto(false); }}'],
+  // Envenenado, Sangrando e Caído saem do mesmo botão desde 13/09/2026.
+  ['itens Envenenado/Sangrando/Caído do menu de estados',
+   'onClick={() => { fecharTip(); onEnvenenar(tipo); setAberto(false); }}'],
 ];
 
 describe('controles que somem no clique fecham o tooltip antes', () => {

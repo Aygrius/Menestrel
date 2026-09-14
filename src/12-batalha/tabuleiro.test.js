@@ -112,10 +112,20 @@ describe('validarMovimento — ordem das guardas', () => {
   it('não ativo', () => {
     expect(T.validarMovimento({ ...base, status: 'desmaiado' }, { x: 13, y: 10 }, []).motivo).toBe('nao_ativo');
   });
-  it('PA zerado NÃO impede mover (30/08/2026): andar gasta mov_rest, não PA', () => {
-    // Antes isto recusava com 'sem_pa'. Com criatura em pa_max 1, o PA
-    // acabava no primeiro passo e ela ficava presa com mov_rest sobrando.
+  /* 13/09/2026, regra do usuário: "mover-se pelo campo de batalha uma vez não
+     gasta ação, 2 vezes gasta" — e o 2º movimento dá um passo completo, no
+     máximo dois por rodada. */
+  it('o 1º movimento é grátis: sem PA também anda', () => {
     expect(T.validarMovimento({ ...base, pa_rest: 0 }, { x: 13, y: 10 }, [])).toEqual({ ok: true, dist: 3 });
+  });
+  it('o 2º movimento precisa de PA', () => {
+    const jaAndou = { ...base, pa_rest: 0, movimentos_na_rodada: 1, moveu_na_rodada: true };
+    expect(T.validarMovimento(jaAndou, { x: 13, y: 10 }, []).motivo).toBe('sem_pa');
+    expect(T.motivoMovimento('sem_pa', false)).toBe('Sem pontos de ação para o 2º movimento.');
+  });
+  it('o ponto exclusivo de técnica e o ataque extra NÃO pagam o 2º movimento', () => {
+    const jaAndou = { ...base, pa_rest: 0, pa_tecnica_rest: 1, pa_ataque_extra: 1, movimentos_na_rodada: 1 };
+    expect(T.validarMovimento(jaAndou, { x: 13, y: 10 }, []).motivo).toBe('sem_pa');
   });
   it('sem posição de origem', () => {
     expect(T.validarMovimento({ ...base, pos: null }, { x: 13, y: 10 }, []).motivo).toBe('sem_posicao');
@@ -140,46 +150,62 @@ describe('validarMovimento — ordem das guardas', () => {
   });
 });
 
-describe('moverParticipante — desconta movimento, NÃO gasta PA', () => {
+describe('moverParticipante — 1º grátis, 2º custa 1 PA e dá passo completo (13/09/2026)', () => {
   const p = { tipo: 'pj', ref_id: 1, inst_id: 'a', status: 'ativo', pa_rest: 2, vb: 40, mov_rest: 10, pos: { x: 10, y: 10 } };
 
-  it('aplica posição e desconta só a distância', () => {
+  it('1º movimento: aplica posição, desconta a distância, NÃO gasta PA', () => {
     const r = T.moverParticipante(p, { x: 14, y: 13 }, [p]);
     expect(r.ok).toBe(true);
-    expect(r.dist).toBe(4);                       // Chebyshev: max(4,3)
+    expect(r.dist).toBe(5);                       // em linha reta: hypot(4,3) = 5 (13/09/2026)
     expect(r.participante.pos).toEqual({ x: 14, y: 13 });
-    expect(r.participante.mov_rest).toBe(6);      // 10 − 4
-    expect(r.participante.pa_rest).toBe(2);       // intacto: mover não é ação
+    expect(r.participante.mov_rest).toBe(5);      // 10 − 5
+    expect(r.participante.pa_rest).toBe(2);
+    expect(r.participante.movimentos_na_rodada).toBe(1);
   });
 
-  it('criatura de 1 PA move UMA vez por rodada e mantém a ação', () => {
-    // Duas regras se cruzam aqui, e é fácil confundi-las:
-    //   mov_rest         → o quão LONGE vai esse único movimento;
-    //   moveu_na_rodada  → que ele é único.
-    // O PA fica de fora das duas: andar não consome ação, senão a criatura
-    // (pa_max 1) teria que escolher entre andar e atacar.
+  it('2º movimento: gasta 1 PA e anda um passo COMPLETO, não o que sobrou', () => {
     let c = { tipo: 'criatura', ref_id: 9, inst_id: 'c', status: 'ativo',
               pa_rest: 1, vb: 32, mov_rest: 8, pos: { x: 10, y: 10 } };
-    c = T.moverParticipante(c, { x: 13, y: 10 }, [c]).participante;   // 3 m
-    expect(c.mov_rest).toBe(5);
-    expect(c.moveu_na_rodada).toBe(true);
-    expect(c.pa_rest).toBe(1);                    // ainda pode atacar
-    // Sobram 5 m, mas o movimento da rodada acabou.
-    expect(T.moverParticipante(c, { x: 15, y: 10 }, [c]).motivo).toBe('ja_moveu');
+    c = T.moverParticipante(c, { x: 17, y: 10 }, [c]).participante;   // 7 de 8
+    expect(c).toMatchObject({ mov_rest: 1, pa_rest: 1, movimentos_na_rodada: 1, moveu_na_rodada: true });
+    // Sobrou 1, mas o 2º movimento vale o passo inteiro (vb 32 → 8).
+    const r2 = T.moverParticipante(c, { x: 25, y: 10 }, [c]);
+    expect(r2.ok).toBe(true);
+    expect(r2.participante).toMatchObject({ pa_rest: 0, movimentos_na_rodada: 2, mov_rest: 0 });
   });
 
-  it('ja_moveu é checado antes de mov_rest e de célula ocupada', () => {
+  it('não há 3º movimento', () => {
     const c = { tipo: 'pj', ref_id: 9, inst_id: 'c', status: 'ativo',
-                pa_rest: 3, vb: 20, mov_rest: 5, pos: { x: 10, y: 10 },
-                moveu_na_rodada: true };
-    expect(T.validarMovimento(c, { x: 40, y: 10 }, []).motivo).toBe('ja_moveu');
+                pa_rest: 3, vb: 20, mov_rest: 5, pos: { x: 10, y: 10 }, movimentos_na_rodada: 2 };
+    expect(T.validarMovimento(c, { x: 12, y: 10 }, []).motivo).toBe('ja_moveu');
+    expect(T.motivoMovimento('ja_moveu', false)).toBe('Já se moveu duas vezes nesta rodada.');
+  });
+
+  it('o 2º movimento não gasta o ponto exclusivo de técnica nem o ataque extra', () => {
+    const q = { ...p, pa_rest: 1, pa_tecnica_rest: 1, pa_ataque_extra: 1, movimentos_na_rodada: 1 };
+    const r = T.moverParticipante(q, { x: 12, y: 10 }, [q]).participante;
+    expect(r).toMatchObject({ pa_rest: 0, pa_tecnica_rest: 1, pa_ataque_extra: 1 });
+  });
+
+  it('snapshot antigo (só moveu_na_rodada) conta como 1 movimento feito', () => {
+    const c = { tipo: 'pj', ref_id: 9, inst_id: 'c', status: 'ativo',
+                pa_rest: 0, vb: 20, mov_rest: 5, pos: { x: 10, y: 10 }, moveu_na_rodada: true };
+    expect(T.validarMovimento(c, { x: 12, y: 10 }, []).motivo).toBe('sem_pa');
+  });
+
+  it('movimentoDisponivel: o passo do próximo movimento, ou 0', () => {
+    expect(T.movimentoDisponivel({ ...p })).toBe(10);                                       // 1º: mov_rest
+    expect(T.movimentoDisponivel({ ...p, mov_rest: 2, movimentos_na_rodada: 1 })).toBe(10); // 2º: passo cheio (vb 40)
+    expect(T.movimentoDisponivel({ ...p, pa_rest: 0, movimentos_na_rodada: 1 })).toBe(0);   // sem PA
+    expect(T.movimentoDisponivel({ ...p, movimentos_na_rodada: 2 })).toBe(0);
   });
 
   it('a virada de rodada devolve o movimento a quem está ativo', () => {
     const c = { status: 'ativo', pa_max: 2, pa_rest: 0, vb: 40, mov_rest: 0,
-                moveu_na_rodada: true };
+                moveu_na_rodada: true, movimentos_na_rodada: 2 };
     const r = window.MotorBatalha.processarViradaDeRodada(c);
     expect(r.participante.moveu_na_rodada).toBe(false);
+    expect(r.participante.movimentos_na_rodada).toBe(0);
     expect(r.participante.mov_rest).toBe(10);
   });
 
@@ -319,10 +345,27 @@ describe('destinoAlcancavel — o clique não precisa mais cair numa célula leg
     expect(T.distanciaCelulas({ x: 10, y: 10 }, d)).toBe(5);
   });
 
-  it('a direção diagonal é preservada na projeção', () => {
+  // Área REDONDA desde 13/09/2026: a diagonal para dentro do círculo de 5,
+  // em (13, 13) — hypot(3,3) = 4,24, custo 5 —, e não mais em (15, 15).
+  it('a direção diagonal é preservada na projeção, dentro do círculo', () => {
     const d = T.destinoAlcancavel(andarilho(), { x: 30, y: 30 }, []);
-    expect(T.distanciaCelulas({ x: 10, y: 10 }, d)).toBe(5);
+    expect(d).toEqual({ x: 13, y: 13 });
+    expect(T.custoMovimento({ x: 10, y: 10 }, d)).toBeLessThanOrEqual(5);
     expect(d.x - 10).toBe(d.y - 10);
+  });
+
+  it('o alcance é igual em todas as direções (círculo, não quadrado)', () => {
+    const mov = 5; const origem = { x: 20, y: 20 };
+    const alcancaveis = [];
+    for (let dx = -8; dx <= 8; dx++) for (let dy = -8; dy <= 8; dy++) {
+      if ((dx || dy) && T.validarMovimento(andarilho({ pos: origem }), { x: 20 + dx, y: 20 + dy }, []).ok) alcancaveis.push([dx, dy]);
+    }
+    const maior = Math.max(...alcancaveis.map(([dx, dy]) => Math.hypot(dx, dy)));
+    expect(maior).toBeLessThanOrEqual(mov);
+    expect(alcancaveis).toContainEqual([5, 0]);
+    expect(alcancaveis).toContainEqual([0, -5]);
+    expect(alcancaveis).toContainEqual([3, 4]);
+    expect(alcancaveis).not.toContainEqual([5, 5]);
   });
 
   it('destino ocupado recua pela mesma reta até a primeira célula livre', () => {

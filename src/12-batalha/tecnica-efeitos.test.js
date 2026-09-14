@@ -688,10 +688,17 @@ describe('o 2º ponto base só paga TÉCNICA — regra de 12/09/2026', () => {
     expect(M.debitarCustoTecnica(mago, KEY_PAGA).pa_rest).toBe(0);
   });
 
-  it('o ponto de técnica conta como ação pendente', () => {
-    // Sem isto, o Guerreiro que gastou o PA livre teria a vez passada sozinha
-    // ANTES de usar a técnica que o segundo ponto existe para pagar.
-    expect(M.temAcaoRestante(guerreiro({ pa_rest: 0 }))).toBe(true);
+  /* Regra do usuário (13/09/2026): "Ao acabar o PA, pode passar a vez
+     automático" — e, perguntado sobre o ponto de técnica que sobra: "Passar
+     mesmo assim". Quem quer usar o ponto de técnica usa ANTES de gastar o
+     último PA, mesma lógica da técnica gratuita. Até aqui o ponto segurava a
+     vez (o teste dizia o contrário). */
+  it('o ponto de técnica NÃO segura a vez: PA normal zerado, a vez passa', () => {
+    expect(M.temAcaoRestante(guerreiro({ pa_rest: 0 }))).toBe(false);
+  });
+
+  it('com PA normal sobrando, o ponto de técnica continua utilizável', () => {
+    expect(M.temAcaoRestante(guerreiro({ pa_rest: 1 }))).toBe(true);
   });
 
   it('sem PA livre E sem ponto de técnica, não há ação', () => {
