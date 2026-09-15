@@ -1,93 +1,60 @@
 /* ============================================================
    FÓRMULAS DERIVADAS DE CRIATURA
    ============================================================
-   Extraídas do NovaCriaturaModal (13-diario/diario.jsx), que é aposentado
-   junto desta migração. Ficam puras — sem React, banco ou catálogo — pra
-   serem testáveis sem renderizar nada, e pra que o editor de catálogo e
-   qualquer outro consumidor futuro usem a MESMA conta.
+   Puras — sem React, banco ou catálogo carregado por conta própria — pra
+   serem testáveis sem renderizar nada, e pra que o editor de catálogo e o
+   recálculo em lote usem a MESMA conta.
 
-   Fórmulas fornecidas pelo usuário no formato de planilha; conferidas
-   contra os 8 dragões do banco em criatura-formulas.test.js.
+   REFORMA DE 14/09/2026 (usuário). "Os campos Ataque, Energia Física, Energia
+   Heroica, Tipo de Armadura, Absorção, Defesa, Velocidade, L, M, P e Dano 100%
+   são calculados automaticamente com base nas informações inseridas. Por isso
+   deve ser possível equipar a criatura com armas e armaduras."
 
-   ⚠️ Estes valores são DERIVADOS, não IMPOSTOS. Várias criaturas fogem da
-   fórmula de propósito — a classe Dragão fixa absorção em 30 e velocidade
-   por linhagem, e nenhuma das duas bate com a conta. Por isso o editor
-   preenche o campo mas DEIXA sobrescrever (spec §6).
+     EF = 2·√Peso + Físico            (arredondado pra cima: a coluna é inteira)
+     EH = (12 + Aura) × Estágio
+     RF = Estágio + Físico
+     RM = Estágio + Aura
+     VB = (Físico + Agilidade) × Estágio
 
-   dano100 e danoLMP dependem de AtaquesCriatura (ataques-criatura.jsx) —
-   as tabelas de faixa-de-peso e offset-por-ataque. Precisa estar carregado
-   ANTES deste arquivo (ver ordem em src/main.tsx e nos testes). As duas
-   fórmulas foram CORRIGIDAS em 10/09/2026: a versão anterior vinha do
-   NovaCriaturaModal só de nome — na prática era a conta de PERSONAGEM
-   (dano de uma arma específica + modificador), que nunca reproduziu
-   nenhuma criatura do banco porque criatura não tem "uma arma", tem faixa
-   de peso e offset por tipo de ataque. Ver comentário em cada função.
+   E o que vem do EQUIPAMENTO segue a conta do PERSONAGEM (decisão do usuário):
+     • Absorção = soma da absorção das peças equipadas;
+     • Defesa   = soma da defesa das peças + Agilidade;
+     • Tipo     = o do peitoral (slot 'peito'); sem peitoral, Leve;
+     • Ataque   = a arma na mão (a direita primeiro);
+     • L/M/P    = dano_l/m/p da arma + o atributo de ajuste dela;
+     • Dano 100% = dano da arma + Força.
+   Sem arma não há ataque: as armas NATURAIS (Presas, Garras…) entram no
+   catálogo de itens e são equipadas como qualquer outra — antes eram uma
+   tabela fechada de offsets (ataques-criatura.jsx) que não sai mais daqui.
+
+   O que saiu: a EH por coletivo (Grupo Grande 10…Solitário 21), a couraça
+   natural pelo Físico (absorção Físico×5, defesa Agilidade+8), a velocidade
+   (Agilidade+Estágio)×Percepção e o dano por faixa de peso.
    ============================================================ */
 
-const EH_BASE_POR_COLETIVO = {
-  'Grupo Grande': 10, 'Grupo Médio': 13, 'Grupo Pequeno': 17, 'Solitário': 21,
-};
-
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
-const teto = (v) => Math.ceil(v - 1e-9) || 0;   // margem contra ruído de ponto flutuante; `|| 0` normaliza -0 (Math.ceil(0 - 1e-9) dá -0)
+const teto = (v) => Math.ceil(v - 1e-9) || 0;   // margem contra ruído de ponto flutuante; `|| 0` normaliza -0
 
 // EF = ROUNDUP(2·√peso + Físico)
 function energiaFisica({ peso, fisico } = {}) {
   return teto(2 * Math.sqrt(Math.max(0, num(peso))) + num(fisico));
 }
 
-// EH = (base_do_coletivo + Aura) × Estágio.
-// `base` crua tem precedência sobre `coletivo`: os dragões usam base 20, que
-// não é nenhum dos quatro coletivos nomeados.
-function energiaHeroica({ base, coletivo, aura, estagio } = {}) {
-  const b = base != null ? num(base) : (EH_BASE_POR_COLETIVO[coletivo] || 0);
-  return teto((b + num(aura)) * num(estagio));
+// EH = (12 + Aura) × Estágio
+const EH_BASE = 12;
+function energiaHeroica({ aura, estagio } = {}) {
+  return teto((EH_BASE + num(aura)) * num(estagio));
 }
 
-// Absorção = Físico > 0 ? Físico × 5 : 0
-function absorcao({ fisico } = {}) {
-  const f = num(fisico);
-  return f > 0 ? f * 5 : 0;
-}
+// RF = Estágio + Físico · RM = Estágio + Aura. Sem piso aqui: o piso 0 de
+// combate é do motor (resistenciasBase, 01-core/game-data.jsx), que usa a
+// mesma conta. Não há coluna no banco — o editor só mostra.
+function resistenciaFisica({ estagio, fisico } = {}) { return num(estagio) + num(fisico); }
+function resistenciaMagica({ estagio, aura } = {}) { return num(estagio) + num(aura); }
 
-// Defesa = Absorção > 0 ? Agilidade + 8 : Agilidade
-function defesa({ fisico, agilidade } = {}) {
-  return absorcao({ fisico }) > 0 ? num(agilidade) + 8 : num(agilidade);
-}
-
-// Velocidade = (Agilidade + Estágio) × Percepção
-function velocidade({ agilidade, estagio, percepcao } = {}) {
-  return (num(agilidade) + num(estagio)) * num(percepcao);
-}
-
-// L/M/P = Estágio + Agilidade + offset do ataque (ataques-criatura.jsx).
-// ⚠️ CORRIGIDA em 10/09/2026: a fórmula original ("dano_l/m/p da arma +
-// Agilidade") foi migrada do formulário de PERSONAGEM, que soma o dano
-// impresso de UMA arma escolhida. Criatura não tem isso — o campo `ataque`
-// era texto livre e o editor sempre passava dano-da-arma = 0, então na
-// prática a fórmula só devolvia Agilidade, e nunca bateu com nenhuma
-// criatura do banco. O offset por ataque é tabela fechada (banco,
-// 10/09/2026), não “dano de uma peça de equipamento”.
-// Sem offset pro ataque (ex.: "Toque" — o único cujo offset NÃO é
-// constante entre criaturas, ver ataques-criatura.jsx) devolve string
-// vazia: o campo fica em branco pro admin preencher, em vez de mostrar um
-// número calculado sem base nenhuma.
-function danoLMP({ ataque, estagio, agilidade } = {}) {
-  const offset = AtaquesCriatura.offsetLMP(ataque);
-  if (!offset) return { l: '', m: '', p: '' };
-  const base = num(estagio) + num(agilidade);
-  return { l: base + offset.l, m: base + offset.m, p: base + offset.p };
-}
-
-// Dano = Estágio + Força + faixa de peso (ataques-criatura.jsx).
-// ⚠️ CORRIGIDA em 10/09/2026: a fórmula original ("ROUNDUP(dano da arma +
-// √peso)") também veio do formulário de PERSONAGEM (dano de arma + raiz
-// do peso carregado) — outra conta de personagem, não de criatura. A
-// nova bate com as 9 criaturas conferidas contra o banco (ver
-// criatura-formulas.test.js); os 8 dragões são exceção conhecida e
-// aceita (+4 além da fórmula, revisão adiada pelo usuário).
-function dano100({ estagio, forca, peso } = {}) {
-  return num(estagio) + num(forca) + AtaquesCriatura.danoPorFaixaDePeso(peso);
+// VB = (Físico + Agilidade) × Estágio
+function velocidade({ fisico, agilidade, estagio } = {}) {
+  return (num(fisico) + num(agilidade)) * num(estagio);
 }
 
 // Tiers 25/50/75% — mesma regra de arredondamento pra cima do Arsenal da Ficha.
@@ -96,10 +63,161 @@ function tiersDeDano(d100) {
   return { d25: Math.ceil(d / 4), d50: Math.ceil(d / 2), d75: Math.ceil((3 * d) / 4) };
 }
 
+/* ── EQUIPAMENTO ──────────────────────────────────────────────────────
+   `criaturas.equipamento` (jsonb) é uma lista de { slug, slot }:
+     slot 'mao_d' / 'mao_e'  arma ou escudo (itens com slot_equip 'maos')
+     slot = itens.slot_equip  peça de armadura (cabeca, peito, pernas, pes,
+                              ombros, bracos) — uma por slot
+   Arma de duas mãos (maos_outras = 2) ocupa as duas mãos. */
+const MAOS = ['mao_d', 'mao_e'];
+const AJUSTE_ATRIBUTO = { FOR: 'forca', AGI: 'agilidade', PER: 'percepcao', AUR: 'aura', FIS: 'fisico', CAR: 'carisma' };
+
+function listaEquipamento(equipamento) {
+  return (Array.isArray(equipamento) ? equipamento : []).filter((e) => e && e.slug);
+}
+
+function maosDaPeca(cat) {
+  return cat && Number(cat.maos_outras) === 2 ? 2 : 1;
+}
+
+// Onde a peça entra: mão livre para arma/escudo, o slot próprio para armadura.
+// Devolve { slot } ou { motivo } quando não cabe.
+function slotParaPeca(cat, equipamento, catalogoBySlug) {
+  if (!cat) return { motivo: 'item_desconhecido' };
+  const lista = listaEquipamento(equipamento);
+  const naMao = cat.slot_equip === 'maos' || cat.grupo === 'Armas';
+  if (naMao) {
+    const ocupadas = new Set();
+    lista.forEach((e) => {
+      if (!MAOS.includes(e.slot)) return;
+      ocupadas.add(e.slot);
+      if (maosDaPeca(catalogoBySlug && catalogoBySlug[e.slug]) === 2) MAOS.forEach((m) => ocupadas.add(m));
+    });
+    const livres = MAOS.filter((m) => !ocupadas.has(m));
+    if (livres.length < maosDaPeca(cat)) return { motivo: 'maos_ocupadas' };
+    return { slot: livres[0] };
+  }
+  const slot = cat.slot_equip;
+  if (!slot) return { motivo: 'sem_slot' };
+  if (lista.some((e) => e.slot === slot)) return { motivo: 'slot_ocupado' };
+  return { slot };
+}
+
+/* Tudo o que o equipamento decide, de uma vez. `atributos` = { forca,
+   agilidade, percepcao, aura, fisico, carisma } da criatura. Peça cujo slug
+   não está no catálogo é ignorada (item apagado não derruba a conta). */
+function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {}) {
+  const at = atributos || {};
+  const cats = catalogoBySlug || {};
+  const pecas = listaEquipamento(equipamento)
+    .map((e) => ({ ...e, cat: cats[e.slug] }))
+    .filter((e) => e.cat);
+
+  let absorcaoTotal = 0;
+  let defesaTotal = 0;
+  let tipo = '';
+  pecas.forEach(({ slot, cat }) => {
+    absorcaoTotal += num(cat.absorcao);
+    defesaTotal += num(cat.defesa);
+    if (slot === 'peito' && cat.tipo_armadura) tipo = cat.tipo_armadura;
+  });
+
+  // Todas as armas nas mãos, a direita primeiro. A primeira é o Ataque.
+  const armas = MAOS
+    .map((m) => pecas.find((p) => p.slot === m && p.cat.dano != null))
+    .filter(Boolean);
+  const arma = armas[0] || null;
+  /* Dano 100% de CADA arma (14/09/2026): "o 'dano 100%' deve aparecer para
+     todos os tipos de equipamentos de ataque que a criatura tiver". A coluna
+     dano_100 continua sendo o da primeira (é a que a batalha lê); a lista é
+     o que o editor mostra. */
+  const danos_100 = armas.map((a) => ({
+    slug: a.slug, nome: a.cat.nome || a.slug, dano_100: num(a.cat.dano) + num(at.forca),
+  }));
+
+  let ataque = null;
+  let dano_l = null; let dano_m = null; let dano_p = null; let dano_100 = null;
+  if (arma) {
+    const c = arma.cat;
+    const aj = AJUSTE_ATRIBUTO[String(c.ajuste_atributo || '').toUpperCase()];
+    const bonus = aj ? num(at[aj]) : 0;
+    ataque = c.nome || arma.slug;
+    dano_l = num(c.dano_l) + bonus;
+    dano_m = num(c.dano_m) + bonus;
+    dano_p = num(c.dano_p) + bonus;
+    dano_100 = num(c.dano) + num(at.forca);
+  }
+
+  return {
+    ataque,
+    armadura: tipo || 'L',
+    absorcao: absorcaoTotal,
+    defesa: defesaTotal + num(at.agilidade),
+    dano_l, dano_m, dano_p, dano_100,
+    danos_100,
+  };
+}
+
+/* TODOS os ataques da criatura (14/09/2026 — ficha dos animais do PJ: "é
+   preciso montar todos os ataques"). Um por arma nas mãos, com a mesma conta
+   de derivadosDoEquipamento: L/M/P = coluna da arma + atributo de ajuste;
+   Dano 100% = dano da arma + Força; 75/50/25 pelos tiers. Sem arma no
+   equipamento (criatura antiga), cai no ataque único das colunas gravadas. */
+function ataquesDaCriatura(c, catalogoBySlug) {
+  const x = c || {};
+  const at = { forca: x.forca, agilidade: x.agilidade, percepcao: x.percepcao, aura: x.aura, fisico: x.fisico, carisma: x.carisma };
+  const cats = catalogoBySlug || {};
+  const pecas = listaEquipamento(x.equipamento).map((e) => ({ ...e, cat: cats[e.slug] })).filter((e) => e.cat);
+  const armas = MAOS.map((m) => pecas.find((p) => p.slot === m && p.cat.dano != null)).filter(Boolean);
+  if (armas.length) {
+    return armas.map(({ slug, cat }) => {
+      const aj = AJUSTE_ATRIBUTO[String(cat.ajuste_atributo || '').toUpperCase()];
+      const bonus = aj ? num(at[aj]) : 0;
+      const d100 = num(cat.dano) + num(at.forca);
+      const t = tiersDeDano(d100);
+      return { slug, nome: cat.nome || slug,
+        dano_l: num(cat.dano_l) + bonus, dano_m: num(cat.dano_m) + bonus, dano_p: num(cat.dano_p) + bonus,
+        dano_100: d100, dano_75: t.d75, dano_50: t.d50, dano_25: t.d25 };
+    });
+  }
+  if (!x.ataque && x.dano_100 == null) return [];
+  return [{ slug: null, nome: x.ataque || '—',
+    dano_l: x.dano_l, dano_m: x.dano_m, dano_p: x.dano_p,
+    dano_100: x.dano_100, dano_75: x.dano_75, dano_50: x.dano_50, dano_25: x.dano_25 }];
+}
+
+/* A criatura inteira: atributos + equipamento → todas as colunas calculadas.
+   É o que o editor mostra e o que o recálculo em lote grava. */
+function derivadosDaCriatura(c, catalogoBySlug) {
+  const x = c || {};
+  const eq = derivadosDoEquipamento({
+    equipamento: x.equipamento,
+    catalogoBySlug,
+    atributos: { forca: x.forca, agilidade: x.agilidade, percepcao: x.percepcao, aura: x.aura, fisico: x.fisico, carisma: x.carisma },
+  });
+  const tiers = eq.dano_100 == null ? { d25: null, d50: null, d75: null } : tiersDeDano(eq.dano_100);
+  return {
+    energia_fisica: energiaFisica(x),
+    energia_heroica: energiaHeroica(x),
+    resistencia_fisica: resistenciaFisica(x),
+    resistencia_magica: resistenciaMagica(x),
+    velocidade: velocidade(x),
+    ataque: eq.ataque,
+    armadura: eq.armadura,
+    absorcao: eq.absorcao,
+    defesa: eq.defesa,
+    dano_l: eq.dano_l, dano_m: eq.dano_m, dano_p: eq.dano_p,
+    dano_100: eq.dano_100, dano_25: tiers.d25, dano_50: tiers.d50, dano_75: tiers.d75,
+    danos_100: eq.danos_100,
+  };
+}
+
 Object.assign(window, {
   CriaturaFormulas: {
-    EH_BASE_POR_COLETIVO,
-    energiaFisica, energiaHeroica, absorcao, defesa, velocidade,
-    danoLMP, dano100, tiersDeDano,
+    EH_BASE,
+    energiaFisica, energiaHeroica, resistenciaFisica, resistenciaMagica, velocidade,
+    tiersDeDano,
+    MAOS, AJUSTE_ATRIBUTO, slotParaPeca, derivadosDoEquipamento, derivadosDaCriatura,
+    ataquesDaCriatura,
   },
 });

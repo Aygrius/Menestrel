@@ -538,6 +538,10 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
 
   useEffect(() => { recarregar(); }, [recarregar]);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, grupoFiltro, historiaId]);
+  // Magia do item mágico por extenso (14/09/2026) — mesma peça do Bestiário.
+  const magias = (window.useMagiasParaItens || (() => []))();
+  const BestItemArmazenamento = window.BestItemArmazenamento || (() => null);
+  const BestItemMagia = window.BestItemMagia || (() => null);
 
   if (!Table) return <IcNoKit />;
 
@@ -586,7 +590,6 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
                   <IcSortHead col="nome" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{en ? 'Name' : 'Nome'}</IcSortHead>
                   <IcSortHead col="grupo" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{en ? 'Group' : 'Grupo'}</IcSortHead>
                   <IcSortHead col="categoria_equip" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{en ? 'Type' : 'Tipo'}</IcSortHead>
-                  <IcSortHead col="ocupa" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{en ? 'Storage' : 'Armazenamento'}</IcSortHead>
                   <TableHead>{en ? 'Value' : 'Valor'}</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
@@ -596,10 +599,7 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
                     const tipoLabel = it.categoria_equip
                       ? it.categoria_equip
                       : (it.magico ? (en ? 'magic' : 'mágico') : (it.armazena > 0 ? (en ? 'container' : 'recipiente') : '—'));
-                    const armazenamento =
-                      (it.armazena != null && it.armazena > 0) ? `+${Number(it.armazena).toFixed(1)}`
-                      : (it.ocupa != null && it.ocupa !== '') ? `-${Number(it.ocupa).toFixed(1)}`
-                      : '';
+                    const temArmazenamento = !!window.temArmazenamentoItem && window.temArmazenamentoItem(it);
                     return (
                       <React.Fragment key={it.id}>
                         <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : it.id)}>
@@ -609,13 +609,13 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
                           </TableCell>
                           <TableCell>{it.grupo || '—'}</TableCell>
                           <TableCell>{tipoLabel}</TableCell>
-                          <TableCell>{armazenamento}</TableCell>
                           <TableCell>{it.valor_latao ?? 0}</TableCell>
                         </TableRow>
                         {isOpen && (
-                          <TableRow className="best-detail"><TableCell colSpan={5}>
-                            {equipavel && (
+                          <TableRow className="best-detail"><TableCell colSpan={4}>
+                            {(equipavel || temArmazenamento) && (
                               <div className="best-detail-stats">
+                                <BestItemArmazenamento item={it} lang={lang} />
                                 {it.slot_equip && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Slot' : 'Uso'}</span><span className="best-stat-val">{it.slot_equip}</span></div>)}
                                 {it.dano != null && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Damage' : 'Dano'}</span><span className="best-stat-val">{it.dano}</span></div>)}
                                 {it.alcance != null && it.alcance > 0 && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Range' : 'Alcance'}</span><span className="best-stat-val">{it.alcance}</span></div>)}
@@ -625,7 +625,8 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
                                 {it.forca_req != null && it.forca_req !== 0 && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Min. Strength' : 'Força Mín.'}</span><span className="best-stat-val">{it.forca_req}</span></div>)}
                               </div>
                             )}
-                            {(it.categoria_equip === 'arma' || it.categoria_equip === 'escudo') && (
+                            {/* Mãos só no escudo: na arma saiu (14/09/2026). */}
+                            {it.categoria_equip === 'escudo' && (
                               <div className="best-maos">
                                 <span className="best-stat-lbl">{en ? 'Hands' : 'Mãos'}</span>
                                 <span>{en ? 'Halfling' : 'Pequenino'} {it.maos_pequenino ?? '✗'}</span>
@@ -635,6 +636,7 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
                             )}
                             {it.descricao && <p className="best-desc">{it.descricao}</p>}
                             {it.efeito && <p className="best-efeito">{it.efeito}</p>}
+                            <BestItemMagia item={it} magias={magias} lang={lang} />
                             {it.efeito_positivo && <p className="best-efeito" style={{ color: '#7FB07F' }}>+ {it.efeito_positivo}</p>}
                             {it.efeito_negativo && <p className="best-efeito" style={{ color: '#C98A8A' }}>− {it.efeito_negativo}</p>}
                             <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>

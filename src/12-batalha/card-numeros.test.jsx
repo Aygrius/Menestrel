@@ -59,7 +59,7 @@ describe('números e ações na MESMA fileira', () => {
     const barra = menu.querySelector('.batalha-card-barra');
     expect(barra, 'fileira única do card').toBeTruthy();
     expect(barra.querySelectorAll('.batalha-stat-num')).toHaveLength(4);
-    expect(barra.querySelectorAll('.batalha-card-botoes .batalha-menu-acao-ic')).toHaveLength(4);
+    expect(barra.querySelectorAll('.batalha-card-botoes .batalha-menu-acao-ic')).toHaveLength(3);   // sem Encerrar
     // nada de números sobrando no cabeçalho do nome
     expect(menu.querySelector('.batalha-fighter-head .batalha-stat-num')).toBeNull();
     // "Remova o ícone de status do lado do nome do personagem" (13/09/2026)
@@ -78,7 +78,7 @@ describe('números e ações na MESMA fileira', () => {
     expect(menu.querySelector('.batalha-stat-sigla')).toBeNull();
     const rotulos = [...menu.querySelectorAll('.batalha-stat-num')].map((s) => s.getAttribute('aria-label'));
     expect(rotulos[1]).toContain('2/2');
-    expect(rotulos[2]).toBe('Média: 4');
+    expect(rotulos[2]).toBe('Armadura Média: 4');
   });
 
   it('fora da família de ícones (defesa negativa) o número vai escrito', async () => {
@@ -88,13 +88,14 @@ describe('números e ações na MESMA fileira', () => {
     expect(defesa.textContent).toBe('-2');
   });
 
-  it('quem não está na vez: a fileira mostra só os números e o estado', async () => {
+  // "O jogador não vê velocidade, ações e armadura do adversário. Apenas o
+  // status." (14/09/2026)
+  it('card de outro combatente: sem números, só o estado', async () => {
     const outro = lutador({ ref_id: 99, inst_id: 'outro', nome: 'Aliado', ordem: 2, atual: false, ar: 0 });
     const menu = await cardDe([lutador(), outro], 'Aliado');
-    const barra = menu.querySelector('.batalha-card-barra');
-    expect(barra.querySelectorAll('.batalha-stat-num')).toHaveLength(3);   // sem absorção
-    expect(barra.querySelector('.batalha-card-botoes')).toBeNull();
-    expect(barra.querySelector('.batalha-stat-estado')).toBeTruthy();
+    expect(menu.querySelector('.batalha-card-barra')).toBeNull();
+    expect(menu.querySelectorAll('.batalha-stat-num')).toHaveLength(0);
+    expect(menu.querySelector('.batalha-card-pools-nome .batalha-stat-estado')).toBeTruthy();
   });
 });
 
@@ -117,13 +118,14 @@ describe('tooltip dos números: só o nome', () => {
     const chips = [...menu.querySelectorAll('.batalha-stat-num')];
     const dicas = [];
     for (const c of chips) dicas.push(await dicaDe(c));
-    expect(dicas).toEqual(['Velocidade', 'Ações', 'Média', 'Absorção']);
+    expect(dicas).toEqual(['Velocidade', 'Ações', 'Armadura Média', 'Absorção']);
   });
 
-  it('a defesa se chama pela armadura: Leve, Média, Pesada', () => {
+  // "Armadura Leve", não só "Leve" (14/09/2026).
+  it('a defesa se chama pela armadura: Armadura Leve, Média, Pesada', () => {
     expect(['L', 'M', 'P', 'T', undefined].map((s) => window.MotorBatalha.nomeDefesa(s)))
-      .toEqual(['Leve', 'Média', 'Pesada', 'Leve', 'Leve']);
-    expect(window.MotorBatalha.nomeDefesa('P', true)).toBe('Heavy');
+      .toEqual(['Armadura Leve', 'Armadura Média', 'Armadura Pesada', 'Armadura Leve', 'Armadura Leve']);
+    expect(window.MotorBatalha.nomeDefesa('P', true)).toBe('Heavy Armor');
   });
 });
 

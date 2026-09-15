@@ -37,18 +37,20 @@ function montar(p, onMover) {
 }
 
 const cel = () => T.TAB_CELULA * T.TAB_ZOOMS[3];
-// Centro (em células) do token cuja posição é o canto do bloco 3×3.
+// Centro (em células) do token cuja posição é o canto do bloco 2×2.
 const centro = (pos) => ({ x: pos.x + T.TAB_TOKEN / 2, y: pos.y + T.TAB_TOKEN / 2 });
 
 describe('clicar para mover centraliza o avatar no ponto clicado', () => {
-  it('clique dentro do círculo: o centro do avatar cai no meio da célula clicada', () => {
+  /* Token 2×2 desde 14/09/2026: o centro de um bloco par é um cruzamento de
+     linhas, não o meio de uma célula. O avatar vai para o cruzamento mais
+     perto do clique. */
+  it('clique dentro do círculo: o centro do avatar cai no cruzamento mais perto', () => {
     const onMover = vi.fn(() => true);
     const { grade } = montar(heroi(), onMover);
-    const alvo = { x: 18, y: 14 };
-    fireEvent.click(grade, { clientX: (alvo.x + 0.5) * cel(), clientY: (alvo.y + 0.5) * cel() });
+    fireEvent.click(grade, { clientX: 18.3 * cel(), clientY: 14.8 * cel() });
     expect(onMover).toHaveBeenCalledTimes(1);
     const destino = onMover.mock.calls[0][2];
-    expect(centro(destino)).toEqual({ x: alvo.x + 0.5, y: alvo.y + 0.5 });
+    expect(centro(destino)).toEqual({ x: 18, y: 15 });
   });
 
   it('o círculo tem raio igual ao passo, medido do CENTRO do avatar', () => {
@@ -61,6 +63,54 @@ describe('clicar para mover centraliza o avatar no ponto clicado', () => {
     const cy = parseFloat(halo.style.top) + raio;
     expect(cx).toBe(centro({ x: 10, y: 10 }).x * cel());
     expect(cy).toBe(centro({ x: 10, y: 10 }).y * cel());
+  });
+
+  /* "O avatar dos participantes devem ter 2x2, aumente um pouco o nome. Remova
+     a sombra dourada do avatar, deixe apenas o pulsar para indicar de quem é
+     a vez." (usuário, 14/09/2026) */
+  it('quem está na vez: só o anel pulsante, sem sombra dourada no avatar', () => {
+    const { c } = montar(heroi(), () => true);
+    const token = c.querySelector('.batalha-token--atual');
+    expect(token.querySelector('.batalha-token-vez-ring')).toBeTruthy();
+    expect(token.querySelector('.batalha-token-rosto').style.boxShadow).not.toMatch(/201,\s*164,\s*78/);
+  });
+
+  it('o avatar mede 2 células e o nome ficou maior', () => {
+    const { c } = montar(heroi(), () => true);
+    const size = Math.round(T.TAB_TOKEN_ESCALA * cel() * 0.95);
+    const avatar = c.querySelector('.batalha-token-avatar');
+    expect(parseFloat(avatar.style.width)).toBe(size);
+    expect(T.TAB_TOKEN).toBe(T.TAB_TOKEN_ESCALA);
+    expect(parseFloat(c.querySelector('.batalha-token-nome').style.fontSize)).toBe(Math.round(size * 0.32));
+  });
+
+  /* "No campo de batalha, quando eu clicar em 'mover', remova a opção de
+     clicar em um adversário. Clicar em mover restringe apenas à
+     movimentação." (usuário, 14/09/2026) */
+  it('com o Mover armado, nenhum token recebe clique e Escape desarma', () => {
+    const inimigo = { tipo: 'criatura', ref_id: 'o', inst_id: 'o', nome: 'Orc', status: 'ativo', atual: false,
+      pos: { x: 14, y: 10 }, ef: 10, ef_max: 10 };
+    const onMovendoChange = vi.fn();
+    const menuDe = vi.fn(() => React.createElement('div', null, 'menu'));
+    const render2 = (movendo) => render(React.createElement(Tabuleiro, {
+      entradas: [{ p: heroi(), i: 0 }, { p: inimigo, i: 1 }], meta: {},
+      podeSelecionar: (q) => q.inst_id === 'h', alcanceDe: (q) => T.movimentoDisponivel(q),
+      onMover: () => true, salvando: false, isEn: false, tb: {},
+      movendoControlado: movendo, onMovendoChange, menuDe,
+    })).container;
+
+    const armado = render2(0);
+    const tokens = [...armado.querySelectorAll('.batalha-token')];
+    expect(tokens.map((t) => t.style.pointerEvents)).toEqual(['none', 'none']);
+    fireEvent.click(tokens[1]);
+    expect(menuDe).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onMovendoChange).toHaveBeenCalledWith(null);
+    cleanup();
+
+    // Desarmado, o adversário volta a abrir o menu.
+    const livre = render2(null);
+    expect([...livre.querySelectorAll('.batalha-token')].map((t) => t.style.pointerEvents)).toEqual(['auto', 'auto']);
   });
 
   it('todo centro dentro do círculo é aceito, e nenhum fora dele', () => {

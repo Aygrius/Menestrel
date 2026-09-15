@@ -15,6 +15,8 @@ import documento from '../../docs/sugestoes-magias.md?raw';
 import docTecnicas from '../../docs/sugestoes-tecnicas.md?raw';
 import docItens from '../../docs/sugestoes-itens.md?raw';
 import docEstudo from '../../docs/estudo-magias.md?raw';
+// helpers: o botão da janela usa o tooltip do projeto (useTooltip/propsTip).
+import '../01-core/helpers.jsx';
 import './sugestoes-magias.jsx';
 
 let Painel, Md;
@@ -28,19 +30,26 @@ afterEach(cleanup);
 const montarDoc = () => render(<div className="menestrel-ui"><Md texto={documento} /></div>).container;
 
 describe('o painel', () => {
-  it('começa fechado e abre no clique', () => {
+  /* 14/09/2026: botão "Sugestões" no cabeçalho da lista, e o documento numa
+     janela (BestPainelModal) — que entra por portal, fora do container. */
+  it('é um botão "Sugestões" que abre o documento numa janela', () => {
     const { container } = render(<div className="menestrel-ui"><Painel lang="pt" /></div>);
-    expect(container.querySelector('.sug-md')).toBeNull();
-    fireEvent.click(container.querySelector('.best-aud-head'));
-    expect(container.querySelector('.sug-md')).toBeTruthy();
+    expect(document.querySelector('.sug-md')).toBeNull();
+    const botao = container.querySelector('.best-painel-abrir');
+    expect(botao.textContent).toBe('Sugestões');
+    fireEvent.click(botao);
+    const janela = document.querySelector('[role="dialog"]');
+    expect(janela.getAttribute('aria-label')).toBe('Sugestões de magias');
+    expect(janela.querySelector('.sug-md')).toBeTruthy();
   });
 
   it('carrega o documento de verdade', () => {
     const { container } = render(<div className="menestrel-ui"><Painel lang="pt" /></div>);
-    fireEvent.click(container.querySelector('.best-aud-head'));
-    expect(container.textContent).toMatch(/Magias novas aplicadas/);
-    expect(container.textContent).toMatch(/Cadência Veloz/);
-    expect(container.textContent).toMatch(/Quem saiu perdendo com as fusões/);
+    fireEvent.click(container.querySelector('.best-painel-abrir'));
+    const janela = document.querySelector('[role="dialog"]');
+    expect(janela.textContent).toMatch(/Magias novas aplicadas/);
+    expect(janela.textContent).toMatch(/Cadência Veloz/);
+    expect(janela.textContent).toMatch(/Quem saiu perdendo com as fusões/);
   });
 });
 
@@ -113,9 +122,10 @@ describe('técnicas e itens — os outros dois documentos', () => {
   ])('%s abre o documento certo', (nome, titulo, conteudo) => {
     const P = window[nome];
     const { container } = render(<div className="menestrel-ui"><P lang="pt" /></div>);
-    expect(container.textContent).toMatch(titulo);
-    fireEvent.click(container.querySelector('.best-aud-head'));
-    expect(container.textContent).toMatch(conteudo);
+    fireEvent.click(container.querySelector('.best-painel-abrir'));
+    const janela = document.querySelector('[role="dialog"]');
+    expect(janela.getAttribute('aria-label')).toMatch(titulo);
+    expect(janela.textContent).toMatch(conteudo);
   });
 
   it.each([['técnicas', docTecnicas], ['itens', docItens], ['estudo', docEstudo]])('o documento de %s renderiza sem markdown cru', (_, doc) => {

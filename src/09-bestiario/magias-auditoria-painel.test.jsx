@@ -5,6 +5,10 @@
    a tela mostra: que o painel acende quando há problema, fica quieto quando
    não há, e que a lista de quebradas diz QUAL unidade sumiu — que é a
    informação de que o Mestre precisa para desfazer a edição.
+
+   14/09/2026: a faixa recolhível virou BOTÃO no cabeçalho da lista, que abre
+   uma JANELA (BestPainelModal). O alerta mora no botão; o resumo e a lista,
+   na janela — que entra por portal no document, fora do `container`.
    ============================================================ */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
@@ -59,11 +63,12 @@ const BENCAO_QUEBRADA = { key: 'bencao', nome: 'Bênção',
 describe('o painel fica quieto quando está tudo certo', () => {
   it('não acende a borda de alerta', () => {
     const { container } = montar([BENCAO_OK]);
-    expect(container.querySelector('.best-auditoria.com-problema')).toBeNull();
+    expect(container.querySelector('.best-painel-botao.com-problema')).toBeNull();
   });
 
-  it('o resumo fechado diz quantas foram lidas', () => {
+  it('a janela diz quantas foram lidas', () => {
     montar([BENCAO_OK]);
+    fireEvent.click(cabecalho());
     expect(screen.getByText(/1 lidas corretamente/)).toBeTruthy();
   });
 });
@@ -71,11 +76,13 @@ describe('o painel fica quieto quando está tudo certo', () => {
 describe('o painel acende quando a edição quebrou uma magia', () => {
   it('marca com-problema', () => {
     const { container } = montar([BENCAO_QUEBRADA]);
-    expect(container.querySelector('.best-auditoria.com-problema')).toBeTruthy();
+    expect(container.querySelector('.best-painel-botao.com-problema')).toBeTruthy();
   });
 
-  it('o resumo fechado já conta a quebrada, sem precisar abrir', () => {
+  it('o botão acende sem abrir, e a janela conta a quebrada', () => {
     montar([BENCAO_QUEBRADA]);
+    expect(document.querySelector('.best-painel-alerta')).toBeTruthy();
+    fireEvent.click(cabecalho());
     expect(screen.getByText(/1 quebrada\(s\)/)).toBeTruthy();
   });
 
@@ -89,11 +96,28 @@ describe('o painel acende quando a edição quebrou uma magia', () => {
 });
 
 describe('o painel começa fechado', () => {
-  it('a lista só aparece depois do clique', () => {
-    const { container } = montar([BENCAO_QUEBRADA]);
-    expect(container.querySelector('.best-aud-corpo')).toBeNull();
+  it('a lista só aparece depois do clique, numa janela', () => {
+    montar([BENCAO_QUEBRADA]);
+    expect(document.querySelector('.best-aud-corpo')).toBeNull();
     fireEvent.click(cabecalho());
-    expect(container.querySelector('.best-aud-corpo')).toBeTruthy();
+    const janela = document.querySelector('[role="dialog"]');
+    expect(janela.getAttribute('aria-label')).toBe('Verificação do catálogo');
+    expect(janela.querySelector('.best-aud-corpo')).toBeTruthy();
+  });
+
+  it('o X e o Escape fecham a janela', () => {
+    montar([BENCAO_OK]);
+    fireEvent.click(cabecalho());
+    fireEvent.click(screen.getByLabelText('Fechar'));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    fireEvent.click(cabecalho());
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('o botão diz só "Verificação" — o título completo é da janela', () => {
+    montar([BENCAO_OK]);
+    expect(cabecalho().textContent).toBe('Verificação');
   });
 });
 
@@ -107,11 +131,12 @@ describe('órfãs aparecem como oportunidade, não como erro', () => {
 
   it('não acendem a borda de alerta', () => {
     const { container } = montar([ORFA]);
-    expect(container.querySelector('.best-auditoria.com-problema')).toBeNull();
+    expect(container.querySelector('.best-painel-botao.com-problema')).toBeNull();
   });
 
-  it('mas são contadas no resumo fechado', () => {
+  it('mas são contadas no resumo da janela', () => {
     montar([ORFA]);
+    fireEvent.click(cabecalho());
     expect(screen.getByText(/1 sem registro/)).toBeTruthy();
   });
 
@@ -138,7 +163,7 @@ describe('a ajuda explica a regra de manutenção', () => {
 describe('não quebra com entrada vazia', () => {
   it('lista vazia renderiza sem lançar', () => {
     const { container } = montar([]);
-    expect(container.querySelector('.best-auditoria')).toBeTruthy();
+    expect(container.querySelector('.best-painel-botao')).toBeTruthy();
   });
 });
 
@@ -183,6 +208,7 @@ describe('a lista de fora-do-motor diz o MOTIVO e o que fazer', () => {
     const heroismo = { key: 'heroismo', nome: 'Heroísmo',
                        nivel_1: 'Restaura 8 de energia heroica.' };
     montarOrfas([heroismo]);
+    fireEvent.click(cabecalho());
     expect(screen.getByText(/1 lidas corretamente/)).toBeTruthy();
   });
 });
@@ -225,8 +251,8 @@ describe('a pendência SOME quando o texto é corrigido', () => {
         { key: 'manjar_de_lena', nome: 'Manjar', nivel_1: 'Restaura 5 de energia heroica.' },
       ]} /></div>
     );
-    fireEvent.click(container.querySelector('.best-aud-head'));
-    const titulos = [...container.querySelectorAll('.best-aud-titulo')].map((n) => n.textContent);
+    fireEvent.click(container.querySelector('.best-painel-abrir'));
+    const titulos = [...document.querySelectorAll('.best-aud-titulo')].map((n) => n.textContent);
     expect(titulos[0]).toMatch(/Pronta para entrar/);
   });
 });
@@ -241,6 +267,7 @@ describe('botão Conferir novamente', () => {
 
   it('não aparece quando o painel não sabe recarregar', () => {
     render(<div className="menestrel-ui"><Painel magias={[OK]} lang="pt" /></div>);
+    fireEvent.click(cabecalho());
     expect(screen.queryByText(/Conferir novamente/)).toBeNull();
   });
 
@@ -249,18 +276,19 @@ describe('botão Conferir novamente', () => {
     render(<div className="menestrel-ui">
       <Painel magias={[OK]} lang="pt" onRecarregar={() => { chamou += 1; }} />
     </div>);
+    fireEvent.click(cabecalho());
     fireEvent.click(screen.getByText(/Conferir novamente/));
     expect(chamou).toBe(1);
   });
 
-  it('o clique NÃO abre nem fecha a faixa', () => {
-    // Sem stopPropagation, o clique subiria para o <button> da faixa.
-    const { container } = render(<div className="menestrel-ui">
+  it('o clique NÃO fecha a janela', () => {
+    render(<div className="menestrel-ui">
       <Painel magias={[OK]} lang="pt" onRecarregar={() => {}} />
     </div>);
-    expect(container.querySelector('.best-aud-corpo')).toBeNull();
+    fireEvent.click(cabecalho());
+    expect(document.querySelector('.best-aud-corpo')).toBeTruthy();
     fireEvent.click(screen.getByText(/Conferir novamente/));
-    expect(container.querySelector('.best-aud-corpo')).toBeNull();
+    expect(document.querySelector('.best-aud-corpo')).toBeTruthy();
   });
 });
 
@@ -304,6 +332,7 @@ describe('a hora prova que o botão rodou', () => {
     render(<div className="menestrel-ui">
       <Painel magias={[OK]} lang="pt" onRecarregar={async () => {}} />
     </div>);
+    fireEvent.click(cabecalho());
     fireEvent.click(screen.getByText(/Conferir novamente/));
     expect(await screen.findByText(/conferido às/)).toBeTruthy();
   });
@@ -321,15 +350,16 @@ describe('estatísticas do catálogo', () => {
           nivel_1: 'Restaura 10 de energia física.' },
       ]} /></div>
     );
-    fireEvent.click(container.querySelector('.best-aud-head'));
-    expect(container.querySelector('.best-est-titulo').textContent).toMatch(/Estatísticas do catálogo · 2/);
-    const linhas = [...container.querySelectorAll('.best-est-profissoes tbody tr')]
+    fireEvent.click(container.querySelector('.best-painel-abrir'));
+    const janela = document.querySelector('[role="dialog"]');
+    expect(janela.querySelector('.best-est-titulo').textContent).toMatch(/Estatísticas do catálogo · 2/);
+    const linhas = [...janela.querySelectorAll('.best-est-profissoes tbody tr')]
       .map((tr) => tr.querySelector('td').textContent);
     expect(linhas.sort()).toEqual(['Mago', 'Sacerdote']);
-    expect(container.textContent).toMatch(/Ataque 1/);
-    expect(container.textContent).toMatch(/Cura 1/);
+    expect(janela.textContent).toMatch(/Ataque 1/);
+    expect(janela.textContent).toMatch(/Cura 1/);
     // e a tabela por elemento: Bola de Fogo é dano de fogo
-    const fogo = [...container.querySelectorAll('.best-est-elementos tbody tr')]
+    const fogo = [...janela.querySelectorAll('.best-est-elementos tbody tr')]
       .find((tr) => tr.querySelector('td').textContent === 'Fogo');
     expect(fogo.querySelectorAll('td')[1].textContent).toBe('1');
   });

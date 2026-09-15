@@ -23,13 +23,18 @@
    (mesmoParticipante, statusTemEfeito), carregados antes por main.tsx.
    ============================================================ */
 
-/* ── Geometria do tabuleiro (valores exatos do bundle) ─────────────────
-   Grid de 70×35 células. Cada participante ocupa um bloco de 3×3 — por
+/* ── Geometria do tabuleiro ─────────────────────────────────────────────
+   Grid de 55×35 células. Cada participante ocupa um bloco de 2×2 — por
    isso todo clamp de posição é contra (COLS - TOKEN) e (ROWS - TOKEN), e
-   as distâncias de borda descontam (TOKEN - 1).                        */
-const TAB_COLS   = 70;      // largura do tabuleiro, em células
+   as distâncias de borda descontam (TOKEN - 1).
+
+   14/09/2026 (usuário): "O avatar dos participantes devem ter 2x2 [...] O
+   tabuleiro deve ter 55x35." Os valores do bundle recuperado eram 70×35 e
+   token 3×3 — o avatar já era DESENHADO com 2 células (TAB_TOKEN_ESCALA),
+   mas ocupava 3×3, e sobrava uma célula fantasma em volta de cada um. */
+const TAB_COLS   = 55;      // largura do tabuleiro, em células
 const TAB_ROWS   = 35;      // altura do tabuleiro, em células
-const TAB_TOKEN  = 3;       // lado do token, em células (3×3)
+const TAB_TOKEN  = 2;       // lado do token, em células (2×2)
 const TAB_CELULA = 40;      // px por célula no zoom 1×
 const TAB_ZOOMS  = [0.15, 0.25, 0.35, 0.5, 0.75, 1, 1.5];
 const TAB_ZOOM_PADRAO = 3;  // índice em TAB_ZOOMS → 0.5
@@ -82,7 +87,8 @@ function custoMovimento(a, b) {
 
 /* Distância de ALCANCE entre dois tokens — mesma Chebyshev, mas de BORDA
    a borda: desconta (TAB_TOKEN - 1) em cada eixo, porque os tokens têm
-   3×3. Dois tokens encostados dão 0. */
+   2×2. Dois tokens que dividem células dão 0; lado a lado, sem célula no
+   meio, dão 1 (o alcance corpo a corpo). */
 function distanciaBordas(a, b) {
   if (!a || !b) return Infinity;
   const dx = Math.max(0, Math.abs((a.x || 0) - (b.x || 0)) - (TAB_TOKEN - 1));
@@ -122,8 +128,27 @@ function alcanceDaAcao({ arma, magia, tecnica } = {}) {
   return ((tecnica ? parseAlcance(tecnica.alcance) : null) || parseAlcance(arma.alcance)) || 1;
 }
 
+/* ── Sobreposição de tokens (14/09/2026) ────────────────────────────
+   "Dois combatentes não podem estar exatamente no mesmo lugar do tabuleiro,
+   mas eles podem ocupar até duas células iguais (isso garante se aproximar
+   do adversário)." (usuário)
+
+   Quantas células dois tokens 2×2 dividem: 4 no mesmo lugar, 2 deslocados de
+   uma casa num eixo, 1 na diagonal, 0 afastados. Até
+   MAX_CELULAS_COMPARTILHADAS é aproximação legítima; acima disso é empilhar.
+   Até esta data qualquer célula em comum bloqueava. */
+const MAX_CELULAS_COMPARTILHADAS = 2;
+
+function celulasEmComum(a, b) {
+  if (!a || !b) return 0;
+  const lx = Math.max(0, TAB_TOKEN - Math.abs((a.x || 0) - (b.x || 0)));
+  const ly = Math.max(0, TAB_TOKEN - Math.abs((a.y || 0) - (b.y || 0)));
+  return lx * ly;
+}
+
 /* Célula ocupada por qualquer participante VIVO e posicionado (exceto o
-   que está se movendo). Morto/desistiu não bloqueia. */
+   que está se movendo). Morto/desistiu não bloqueia. "Ocupada" = o token
+   posto ali dividiria MAIS de MAX_CELULAS_COMPARTILHADAS com alguém. */
 function celulaOcupada(pos, participantes, ignorar) {
   if (!posValida(pos)) return false;
   // mesmoParticipante mora em batalha.jsx e chega via MotorBatalha (main.tsx
@@ -135,7 +160,7 @@ function celulaOcupada(pos, participantes, ignorar) {
     if (!p || (ignorar && mesmo(p, ignorar)) || p.ausente) return false;
     const st = p.status || 'ativo';
     if (st === 'morto' || st === 'desistiu') return false;
-    return posValida(p.pos) && distanciaBordas(pos, p.pos) === 0;
+    return posValida(p.pos) && celulasEmComum(pos, p.pos) > MAX_CELULAS_COMPARTILHADAS;
   });
 }
 
@@ -201,6 +226,7 @@ const MOV_MOTIVOS = {
   celula_ocupada:     ['Célula ocupada.',                             'Cell occupied.'],
   nao_e_a_vez:        ['Só quem está na vez pode se mover.',          'Only the active fighter can move.'],
   segue_lider:        ['Minion anda com o líder do bando.',           'Minions move with their band leader.'],
+  sem_conducao:       ['Não dá para conduzir este adversário agora.', 'You cannot lead this opponent right now.'],
 };
 
 /* Minion com o líder de pé não anda sozinho (13/09/2026, ver bandoSegueLider).
@@ -299,6 +325,67 @@ function moverParticipante(p, destino, participantes) {
   };
 }
 
+/* ── CONDUZIR OPONENTE (14/09/2026) ─────────────────────────────────
+   "Se o jogador for bem sucedido no teste, ele poderá mover o adversário
+   escolhido por 2 rodadas." O texto do banco completa: "move 1 alvo por 5
+   metros" — e uma célula é um metro (parseAlcance lê "5 metros" como 5).
+
+   O status `conduzido` mora no adversário e aponta para quem conduz
+   (fonte_inst_id). A regra:
+     • só quem conduz move, e só na VEZ dele (quem chama confere a vez);
+     • uma condução por rodada, de até `casas` células em linha reta;
+     • não gasta o movimento nem o PA de ninguém — o custo foi o teste;
+     • quem conduz precisa estar de pé; o conduzido não pode estar morto
+       nem fora de cena. Desmaiado se arrasta.
+   "Já conduziu nesta rodada" fica anotado NO STATUS (conduzido_em =
+   rodadas_rest do momento): a contagem desce a cada virada, então a marca
+   deixa de bater sozinha na rodada seguinte, sem precisar do número da
+   rodada da batalha. */
+const CONDUCAO_CASAS_PADRAO = 5;
+
+function statusDeConducao(alvo, condutor) {
+  if (!alvo || !condutor || !condutor.inst_id || !Array.isArray(alvo.status_temp)) return null;
+  return alvo.status_temp.find((s) => s && s.efeito && s.efeito.tipo === 'conduzido'
+    && s.efeito.fonte_inst_id === condutor.inst_id) || null;
+}
+
+// Células que `condutor` pode levar `alvo` agora; 0 quando não pode.
+function conducaoDisponivel(alvo, condutor) {
+  const st = statusDeConducao(alvo, condutor);
+  if (!st) return 0;
+  if ((condutor.status || 'ativo') !== 'ativo' || condutor.ausente || condutor.fugiu) return 0;
+  const stAlvo = alvo.status || 'ativo';
+  if (stAlvo === 'morto' || stAlvo === 'desistiu' || alvo.ausente || alvo.fugiu) return 0;
+  if (!posValida(alvo.pos)) return 0;
+  if (st.efeito.conduzido_em != null && st.efeito.conduzido_em === st.rodadas_rest) return 0;
+  const casas = Number(st.efeito.casas);
+  return Number.isFinite(casas) && casas > 0 ? casas : CONDUCAO_CASAS_PADRAO;
+}
+
+/* Move o conduzido. Devolve { ok, motivo, participante } no molde de
+   moverParticipante, com os mesmos códigos de recusa. Não muta nada. */
+function conduzirParticipante(alvo, condutor, destino, participantes) {
+  const casas = conducaoDisponivel(alvo, condutor);
+  if (!casas) return { ok: false, motivo: 'sem_conducao', participante: alvo };
+  if (!posValida(destino)) return { ok: false, motivo: 'fora_do_tabuleiro', participante: alvo };
+  const dist = custoMovimento(alvo.pos, destino);
+  if (dist === 0) return { ok: false, motivo: 'mesmo_lugar', participante: alvo };
+  if (dist > casas) return { ok: false, motivo: 'sem_movimento', participante: alvo };
+  if (celulaOcupada(destino, participantes, alvo)) return { ok: false, motivo: 'celula_ocupada', participante: alvo };
+  const st = statusDeConducao(alvo, condutor);
+  return {
+    ok: true,
+    dist,
+    participante: {
+      ...alvo,
+      pos: { x: destino.x, y: destino.y },
+      status_temp: alvo.status_temp.map((s) => (s === st
+        ? { ...s, efeito: { ...s.efeito, conduzido_em: s.rodadas_rest } }
+        : s)),
+    },
+  };
+}
+
 /* Melhor destino ALCANÇÁVEL na direção do clique.
    ────────────────────────────────────────────────────────────────
    O clique no tabuleiro não precisa mais cair exatamente numa célula
@@ -311,14 +398,18 @@ function moverParticipante(p, destino, participantes) {
    o que muda é só a mira. validarMovimento segue recusando um destino
    fora de alcance que chegue por outro caminho.
 
-   Devolve null quando não há nenhuma célula boa na direção. */
-function destinoAlcancavel(p, desejado, participantes) {
+   Devolve null quando não há nenhuma célula boa na direção.
+
+   `passoMax` (14/09/2026, Conduzir Oponente): quando o token é levado por
+   outro, o passo não é o movimento dele, e sim o que a condução permite.
+   Ausente, vale o movimento do próprio token, como sempre. */
+function destinoAlcancavel(p, desejado, participantes, passoMax) {
   if (!p || !posValida(p.pos) || !posValida(desejado)) return null;
   // Distância em linha reta, a mesma de validarMovimento (13/09/2026).
   const dist = distanciaMovimento(p.pos, desejado);
   if (dist === 0) return null;                       // já está lá
   // O passo do PRÓXIMO movimento: o que sobrou no 1º, cheio no 2º (13/09/2026).
-  const mov = movimentoDisponivel(p);
+  const mov = Number.isFinite(passoMax) ? passoMax : movimentoDisponivel(p);
   // Do mais longe permitido para o mais perto: o primeiro que serve ganha,
   // então um clique legal devolve exatamente a célula clicada.
   for (let d = Math.min(dist, mov); d >= 1; d--) {
@@ -483,7 +574,9 @@ function fracaoEfDoToken(p) {
   return Math.max(0, Math.min(1, (Number(p.ef) || 0) / max));
 }
 
-function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, refAvatar }) {
+/* `atravessavel` (14/09/2026): com o Mover armado, o token deixa o clique passar
+   para a grade — ver o comentário no mapa de tokens do TabuleiroBatalha. */
+function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, refAvatar, atravessavel }) {
   const flash = useFlashDeDano(p);
   const m = meta || {};
   const foto = p.foto_url || m.foto_url || null;
@@ -507,7 +600,8 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
     // Sem tooltip com o nome (14/09/2026, pedido do usuário): o nome já está
     // embaixo do avatar. Fica só no aria-label, para leitor de tela.
     'aria-label': p.nome || undefined,
-    onClick: (e) => { e.stopPropagation(); if (podeSel) onSelect(e); },
+    // Atravessável: o clique segue para a grade (vira destino do movimento).
+    onClick: (e) => { if (atravessavel) return; e.stopPropagation(); if (podeSel) onSelect(e); },
     onKeyDown: (e) => {
       if (podeSel && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); onSelect(e); }
     },
@@ -515,7 +609,8 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
       + (p.tipo === 'pj' ? ' batalha-token--pj' : ' batalha-token--criatura'),
     style: {
       position: 'relative', width: size, display: 'flex', flexDirection: 'column',
-      alignItems: 'center', cursor: podeSel ? 'pointer' : 'default', pointerEvents: 'auto',
+      alignItems: 'center', cursor: podeSel && !atravessavel ? 'pointer' : 'default',
+      pointerEvents: atravessavel ? 'none' : 'auto',
     },
   },
     // anel pulsante de "é a vez dele"
@@ -548,9 +643,10 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
         className: 'batalha-token-rosto',
         style: {
           position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden',
-          boxShadow: selecionado
-            ? '0 0 0 2px rgba(201,164,78,.9), 0 0 14px rgba(201,164,78,.6)'
-            : (atual ? '0 0 16px rgba(201,164,78,.65)' : '0 1px 4px rgba(0,0,0,.5)'),
+          /* Sem sombra nem contorno dourado (14/09/2026): "Remova a sombra
+             dourada do avatar, deixe apenas o pulsar para indicar de quem é a
+             vez." O selecionado continua maior (scale no avatar, acima). */
+          boxShadow: '0 1px 4px rgba(0,0,0,.5)',
           background: 'linear-gradient(135deg, rgba(184,112,46,.95), rgba(122,94,42,.95))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         },
@@ -605,8 +701,9 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
     grande && React.createElement('div', {
       className: 'batalha-token-nome',
       style: {
+        // Um pouco maior desde 14/09/2026 (era size × 0.26): ~12px no zoom padrão.
         pointerEvents: 'none', marginTop: 6, textAlign: 'center', maxWidth: size * 2.6, lineHeight: 1.12,
-        fontFamily: 'Lora, serif', fontSize: Math.max(8, Math.round(size * 0.26)),
+        fontFamily: 'Lora, serif', fontSize: Math.max(9, Math.round(size * 0.32)),
         color: 'var(--foreground, #f2e8d5)', textShadow: '0 1px 2px rgba(0,0,0,.85)',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       },
@@ -865,9 +962,23 @@ function TabuleiroBatalha({
   const entradaMenu = menuAberto == null ? null : entradas.find((e) => e.i === menuAberto);
   const entradaMov  = movendo    == null ? null : entradas.find((e) => e.i === movendo);
   const alvoMover   = entradaMov && podeSelecionar(entradaMov.p) ? entradaMov.p : null;
+  // Escape desarma o Mover — com os tokens atravessáveis (MOVER SÓ MOVE, no
+  // mapa de tokens abaixo), é a saída que sobra além de mover de fato.
+  const movendoArmado = !!menuDe && !!alvoMover;
+  useEffect(() => {
+    if (!movendoArmado) return undefined;
+    const aoTeclar = (ev) => { if (ev.key === 'Escape') setMovendo(null); };
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, [movendoArmado, setMovendo]);
   // Minion que fugiu (líder morto) saiu de cena: nem no grid, nem na bancada.
-  const noTabuleiro = entradas.filter((e) => posValida(e.p.pos) && !e.p.fugiu);
-  const naBancada   = entradas.filter((e) => !posValida(e.p.pos) && !e.p.ausente && !e.p.fugiu);
+  /* Montaria em uso (14/09/2026): montado é COMBATENTE ÚNICO — o cavalo não
+     tem token nem lugar na bancada; anda dentro do token do cavaleiro. */
+  const _emUso = (window.MotorBatalha && window.MotorBatalha.ehMontariaEmUso) || (() => false);
+  const participantesTab = entradas.map((e) => e.p);
+  const visivel = (e) => !e.p.fugiu && !_emUso(e.p, participantesTab);
+  const noTabuleiro = entradas.filter((e) => posValida(e.p.pos) && visivel(e));
+  const naBancada   = entradas.filter((e) => !posValida(e.p.pos) && !e.p.ausente && visivel(e));
   const metaDe = (p) => (meta || {})[p.tipo + ':' + p.ref_id] || null;
 
   // Centraliza a rolagem no "centro de massa" dos tokens ao abrir.
@@ -912,14 +1023,17 @@ function TabuleiroBatalha({
     setMenuAberto(null);
     if (movendo == null || !alvoMover || salvando) return;
     const r = ev.currentTarget.getBoundingClientRect();
-    const cx = Math.floor((ev.clientX - r.left) / cel);
-    const cy = Math.floor((ev.clientY - r.top) / cel);
-    if (cx < 0 || cy < 0 || cx >= TAB_COLS || cy >= TAB_ROWS) return;
-    // clique mira o CENTRO do token 3×3, por isso o -metade e o clamp
-    const meio = Math.floor(TAB_TOKEN / 2);
+    const fx = (ev.clientX - r.left) / cel;   // posição do clique, em células
+    const fy = (ev.clientY - r.top) / cel;
+    if (fx < 0 || fy < 0 || fx >= TAB_COLS || fy >= TAB_ROWS) return;
+    /* O clique mira o CENTRO do token. Com token de lado par (2×2, desde
+       14/09/2026) o centro é sempre um cruzamento de linhas da grade, nunca o
+       meio de uma célula — então vale o cruzamento mais perto do clique:
+       round(clique − lado/2). Com lado ímpar a mesma conta cai na célula
+       clicada, como antes. */
     const mirado = {
-      x: Math.max(0, Math.min(TAB_COLS - TAB_TOKEN, cx - meio)),
-      y: Math.max(0, Math.min(TAB_ROWS - TAB_TOKEN, cy - meio)),
+      x: Math.max(0, Math.min(TAB_COLS - TAB_TOKEN, Math.round(fx - TAB_TOKEN / 2))),
+      y: Math.max(0, Math.min(TAB_ROWS - TAB_TOKEN, Math.round(fy - TAB_TOKEN / 2))),
     };
     // Clique longe demais (ou em cima de alguém) não é mais recusado: anda
     // o quanto der naquela direção.
@@ -927,7 +1041,11 @@ function TabuleiroBatalha({
     // origem; clicou na própria célula), manda o alvo cru: quem recusa é o
     // motor, e é ele que tem a mensagem certa pro Mestre. Engolir o clique
     // aqui deixaria o usuário sem explicação nenhuma.
-    const destino = destinoAlcancavel(alvoMover, mirado, entradas.map((e) => e.p)) || mirado;
+    // O passo é o que alcanceDe diz (o halo desenhado): para quem anda é o
+    // movimento dele; para quem é conduzido, o que a condução permite.
+    const passo = alcanceDe ? alcanceDe(alvoMover) : null;
+    const destino = destinoAlcancavel(alvoMover, mirado, entradas.map((e) => e.p),
+      Number.isFinite(passo) ? passo : undefined) || mirado;
     if (onMover(alvoMover, movendo, destino)) setMovendo(null);
   };
 
@@ -1077,6 +1195,13 @@ function TabuleiroBatalha({
           // Com menu, todo token abre — inclusive o de quem não pode ser
           // movido. Quem move continua sendo decidido por alvoMover.
           podeSel: !salvando && (podeSelecionar(e.p) || !!menuDe),
+          /* MOVER SÓ MOVE (14/09/2026): "quando eu clicar em mover, remova a
+             opção de clicar em um adversário. Clicar em mover restringe apenas
+             à movimentação." Com o movimento armado na batalha (há menuDe),
+             nenhum token recebe clique: o clique em cima de um adversário vai
+             para a grade e vira destino. Escape desarma. Na montagem (sem
+             menuDe) clicar noutro token continua trocando quem posiciona. */
+          atravessavel: movendoArmado,
           onSelect: () => aoClicarToken(e),
         })))
       )
@@ -1146,6 +1271,8 @@ Object.assign(window, {
   movimentoDisponivel,
   // 13/09/2026: bandos — o líder leva os minions (moverNoTabuleiro/posicionarNoSetup).
   bandoSegueLider, minionPresoAoLider,
+  // 14/09/2026: Conduzir Oponente — quem conduz leva o adversário pelo tabuleiro.
+  conducaoDisponivel, conduzirParticipante,
   // Camada pura do tabuleiro — testada em tabuleiro.test.js.
   MotorTabuleiro: {
     TAB_COLS, TAB_ROWS, TAB_TOKEN, TAB_CELULA, TAB_ZOOMS, TAB_TOKEN_ESCALA,
@@ -1156,5 +1283,7 @@ Object.assign(window, {
     distanciaEntre, alvoNoAlcance, motivoMovimento, selosDoToken,
     danoNasPools, FLASH_DANO_MS, ESCURIDAO_NIVEIS, fracaoEfDoToken,
     casasAoRedor, bandoSegueLider, minionPresoAoLider,
+    MAX_CELULAS_COMPARTILHADAS, celulasEmComum,
+    CONDUCAO_CASAS_PADRAO, conducaoDisponivel, conduzirParticipante,
   },
 });

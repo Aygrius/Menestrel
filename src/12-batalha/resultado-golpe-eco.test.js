@@ -31,21 +31,65 @@ beforeAll(() => { M = window.MotorBatalha; });
 const R = (q) => window.RESULTADOS_ACAO[q];
 
 describe('textoResultadoGolpe — a mensagem diz se errou', () => {
-  it('Rotineiro é erro: "→ Rotineiro (errou)"', () => {
+  // Frase reescrita em 14/09/2026: sem o nome do resultado, "e causou N de dano".
+  it('Rotineiro é erro: "e errou"', () => {
     expect(window.resolverAcao(1, 8).codigo).toBe('R');   // o caso do Victor
-    expect(M.textoResultadoGolpe(R(1), 0)).toBe(' → Rotineiro (errou)');
+    expect(M.textoResultadoGolpe(R(1), 0)).toBe(' e errou');
   });
   it('Falha Crítica também erra', () => {
-    expect(M.textoResultadoGolpe(R(0), 0)).toBe(' → Falha Crítica (errou)');
+    expect(M.textoResultadoGolpe(R(0), 0)).toBe(' e errou');
   });
-  it('acerto com dano mostra o dano, como antes', () => {
-    expect(M.textoResultadoGolpe(R(2), 8)).toBe(' → Fácil (8 de dano)');
+  it('acerto com dano mostra o dano', () => {
+    expect(M.textoResultadoGolpe(R(2), 8)).toBe(' e causou 8 de dano');
   });
   it('acerto que não passou dano diz isso, em vez de silêncio', () => {
-    expect(M.textoResultadoGolpe(R(3), 0)).toBe(' → Médio (acertou, 0 de dano)');
+    expect(M.textoResultadoGolpe(R(3), 0)).toBe(' e acertou, sem causar dano');
   });
   it('sem resultado (largada de magia canalizada) não escreve nada', () => {
     expect(M.textoResultadoGolpe(null, 0)).toBe('');
+  });
+});
+
+/* "Lirael atacou Lobo Adulto com Arco Élfico e causou 35 de dano. Você provoca
+   uma perfuração na perna do oponente com 12 de dano adicional, ele terá -4
+   por 1 dia." (usuário, 14/09/2026) */
+describe('textoGolpeNaMesa — a frase inteira', () => {
+  const LIRAEL = { tipo: 'pj', nome: "Lirael Vel'Thalas" };
+  const ARCO = { dano: 24, fonte: 'arma' };   // 50% → 12
+
+  it('o exemplo do usuário, palavra por palavra', () => {
+    const msgCritico = M.interpolarCritico(M.CRITICOS_TABELA.PERFURACAO[1], ARCO);
+    expect(M.textoGolpeNaMesa({
+      ator: LIRAEL, alvoNome: 'Lobo Adulto', acaoNome: 'Arco Élfico', tipo: 'arma',
+      resultado: R(7), dano: 35, alvosExtras: [], msgCritico,
+    })).toBe('Lirael atacou Lobo Adulto com Arco Élfico e causou 35 de dano. '
+      + 'Você provoca uma perfuração na perna do oponente com 12 de dano adicional, ele terá -4 por 1 dia.');
+  });
+
+  it('criatura mantém o nome inteiro; sem crítico, a frase fecha com ponto', () => {
+    expect(M.textoGolpeNaMesa({
+      ator: { tipo: 'criatura', nome: 'Lobo Adulto' }, alvoNome: 'Lirael', acaoNome: 'Mordida', tipo: 'arma',
+      resultado: R(1), dano: 0,
+    })).toBe('Lobo Adulto atacou Lirael com Mordida e errou.');
+  });
+
+  it('magia e golpe em vários alvos', () => {
+    expect(M.textoGolpeNaMesa({
+      ator: LIRAEL, alvoNome: 'Haalin', acaoNome: 'Relâmpago', tipo: 'magia', resultado: R(4), dano: 20,
+    })).toBe('Lirael conjurou Relâmpago em Haalin e causou 20 de dano.');
+    expect(M.textoGolpeNaMesa({
+      ator: LIRAEL, alvoNome: 'Lobo', acaoNome: 'Espada', tipo: 'arma', resultado: R(4), dano: 9,
+      alvosExtras: ['Lobo 2', 'Lobo 3'],
+    })).toBe('Lirael atacou Lobo com Espada e causou 9 de dano, e também atingiu Lobo 2, Lobo 3.');
+  });
+
+  it('nenhum texto de crítico sobra com "(N EF)" no fim', () => {
+    for (const tipo of Object.values(M.CRITICOS_TABELA)) {
+      for (const msg of Object.values(tipo)) {
+        expect(msg).not.toMatch(/EF\)/);
+        expect(msg).toMatch(/com \$\{[^}]+\} de dano adicional/);
+      }
+    }
   });
 });
 

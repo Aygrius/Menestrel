@@ -62,6 +62,23 @@ describe('AR: o buff acima do máximo atravessa pro combate', () => {
     const [s] = await entrar({ vitalidade: {} });
     expect(s.ar).toBe(0);
   });
+
+  /* "Porque o Yuldrous tem 21 de absorção e 32 de resistência?" (usuário,
+     14/09/2026): a ficha guardava ar 21, resto do tempo em que a absorção
+     esvaziava; ele veste 32. Abaixo das peças, o valor gravado não vale. */
+  it('ar guardado ABAIXO da armadura vestida entra no valor das peças', async () => {
+    const pj = { ...PJ({ vitalidade: { ar: 21 } }), inventario: { itens: [
+      { instanceId: 'c1', slug: 'cota', slot: 'peito', equipado: true },
+    ] } };
+    globalThis.supabaseClient = fakeSupabase({
+      personagens: [pj], criaturas: [],
+      itens: [{ slug: 'cota', nome: 'Cota', categoria_equip: 'armadura', absorcao: 32, resistencia: 32 }],
+    });
+    const [s] = await window.montarSnapshots([{ tipo: 'pj', ref_id: 1, nome: 'Victor' }], null);
+    expect(s.ar_max).toBe(32);
+    expect(s.ar).toBe(32);
+    expect(s.res_max).toBe(32);
+  });
 });
 
 describe('as demais pools continuam com teto', () => {

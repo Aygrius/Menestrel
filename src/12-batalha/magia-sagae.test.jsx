@@ -84,13 +84,16 @@ function montar(ator = ALDREN, alvo = HAALIN) {
    dado desativado como se fosse o próximo passo e não dizia o que apertar. */
 describe('Espada Sagae — Relâmpago do item: a largada diz o que apertar', () => {
   // Aba única "Magias" desde 13/09/2026.
-  const abrirMagia = () => fireEvent.click(btn(/^Magias$/));
+  const abrirMagia = () => fireEvent.click(btn(/^Magia$/));
 
   it('a aba Magia lista o Relâmpago da espada, no nível 9', () => {
     montar();
     abrirMagia();
-    // Formato único do seletor de Magias (13/09/2026): "Nome · nível N · Item".
-    expect(document.body.textContent).toMatch(/Relâmpago · nível 9 · Espada Longa Sagae/);
+    // Seletor de Magias: "Nome · Item" — o nível saiu do nome em 14/09/2026 e
+    // foi para a barra (NivelMagiaBarra).
+    expect(document.body.textContent).toMatch(/Relâmpago · Espada Longa Sagae/);
+    expect(document.body.textContent).not.toMatch(/nível 9/);
+    expect(document.querySelector('.nivel-barra-ponto.on').textContent).toBe('9');
   });
 
   it('na largada não há botão de dado — ele parecia o próximo passo', () => {

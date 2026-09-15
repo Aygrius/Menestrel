@@ -13,8 +13,11 @@
      • os dois ficam na mesma célula, sempre;
      • Combate Montado passa a ter de onde tirar "50% da EH da sua montaria".
 
-   O que NÃO muda: a montaria segue sendo combatente inteiro — tem iniciativa,
-   apanha e morre.
+   O que NÃO muda: a montaria apanha e morre.
+
+   14/09/2026: montado virou COMBATENTE ÚNICO — a montaria não tem mais vez
+   própria nem token; e os animais do PJ entram na batalha controlados por
+   quem joga com ele. Ver o último bloco deste arquivo.
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/copy.jsx';
@@ -55,6 +58,18 @@ describe('o que conta como montaria', () => {
     ['Lobo', false], ['Cavaleiro Negro', false], ['Dragão', false],
   ])('%s → %s', (nome, esperado) => {
     expect(M.ehMontaria({ nome })).toBe(esperado);
+  });
+
+  /* 14/09/2026: montaria virou característica da criatura (criaturas.montaria).
+     A coluna vence o nome; o nome só vale para snapshot sem o campo. */
+  it('a característica da criatura vence o nome', () => {
+    expect(M.ehMontaria({ nome: 'Grifo', eh_montaria: true })).toBe(true);
+    expect(M.ehMontaria({ nome: 'Cavalo Árabe', eh_montaria: false })).toBe(false);
+    expect(M.ehMontaria({ nome: 'Camelo', montaria: true })).toBe(true);
+  });
+
+  it('`montaria` objeto (a do cavaleiro) não conta como característica', () => {
+    expect(M.ehMontaria({ nome: 'Cavaleiro', montaria: { inst_id: 'cri:1' } })).toBe(false);
   });
 
   it('"Cavaleiro" NÃO é montaria — o prefixo tem que ser palavra inteira', () => {
@@ -212,7 +227,9 @@ describe('Combate Montado tira o número da montaria', () => {
   it('e a EH emprestada entra de verdade no poço', () => {
     const arr = M.montar([cavaleiro(), cavalo()], 'pj:1', 'cri:160');
     const r = M.aplicarEfeitoTecnica(arr[0], TEC, 0);
-    expect({ eh: r.eh, eh_max: r.eh_max }).toEqual({ eh: 60, eh_max: 60 });   // 30 + 30
+    // 15/09/2026: montar já soma a EH do cavalo (30 + 60 = 90); a técnica
+    // soma MAIS 50% da montaria por cima (+30).
+    expect({ eh: r.eh, eh_max: r.eh_max }).toEqual({ eh: 120, eh_max: 120 });
   });
 
   it('a pé, o efeito é ZERO — não inventa montaria', () => {
@@ -227,5 +244,151 @@ describe('Combate Montado tira o número da montaria', () => {
 
   it('e saiu da lista de técnicas sem motor', () => {
     expect(window.tecnicaForaDoRegistro('combate_montado')).toBeNull();
+  });
+});
+
+/* ============================================================
+   ANIMAIS DO PERSONAGEM E COMBATENTE ÚNICO — 14/09/2026
+   "Na hora do combate, o personagem irá controlar seus animais em combate.
+    Se estiver montado, será um combatente único." Decisões: o Mestre escolhe
+   quem entra; quem ataca escolhe mirar no cavaleiro ou na montaria; montaria
+   caída derruba o cavaleiro; animal morto sai do inventário.
+   ============================================================ */
+describe('animais do personagem na batalha', () => {
+  const PJ = { id: 7, inventario: { itens: [
+    { instanceId: 'i-cav', slug: 'cavalo_quarter', quantidade: 1, montado: true },
+    { instanceId: 'i-cao', slug: 'cao', quantidade: 1 },
+    { instanceId: 'i-agua', slug: 'agua', quantidade: 3 },
+  ] } };
+  const ITENS = { cavalo_quarter: { slug: 'cavalo_quarter', criatura_id: 157 }, cao: { slug: 'cao', criatura_id: 66 } };
+  const CRIS = { 157: { id: 157, nome: 'Cavalo Quarter', montaria: true }, 66: { id: 66, nome: 'Cão', montaria: false } };
+
+  it('animaisParaBatalha lista só os itens vinculados a criatura', () => {
+    const r = M.animaisParaBatalha(PJ, ITENS, CRIS);
+    expect(r.map((a) => [a.nome, a.montado, a.montaria])).toEqual([
+      ['Cavalo Quarter', true, true], ['Cão', false, false],
+    ]);
+  });
+
+  it('o participante carrega o dono, a instância e o "montar na largada"', () => {
+    const [cav, cao] = M.animaisParaBatalha(PJ, ITENS, CRIS);
+    expect(M.participanteDeAnimal(PJ, cav, 'Galadar')).toMatchObject({
+      tipo: 'criatura', ref_id: 157, nome: 'Cavalo Quarter (Galadar)',
+      inst_id: 'ani:7:i-cav', dono_pj: 7, item_instance_id: 'i-cav', montar_em_pj: 7,
+    });
+    expect(M.participanteDeAnimal(PJ, cao, 'Galadar').montar_em_pj).toBeUndefined();
+  });
+
+  it('animal de PJ não forma bando, mesmo com 5 iguais', () => {
+    const caes = Array.from({ length: 5 }, (_, i) => ({ tipo: 'criatura', ref_id: 66, nome: 'Cão', inst_id: 'ani:7:c' + i, dono_pj: 7 }));
+    expect(M.formarBandos(caes).every((p) => !p.bando)).toBe(true);
+  });
+
+  it('só o dono pode montar no próprio cavalo', () => {
+    const meu = cavalo({ dono_pj: 1 });
+    const alheio = cavalo({ inst_id: 'cri:x', dono_pj: 9 });
+    const arr = [cavaleiro(), meu, alheio];
+    expect(M.montariasDisponiveis(arr, arr[0]).map((p) => p.inst_id)).toEqual(['cri:160']);
+  });
+
+  it('na largada, o montado sobe no cavalo e os dois ficam na célula do cavaleiro', () => {
+    const arr = M.amarrarMontariasIniciais([
+      cavaleiro({ pos: { x: 2, y: 2 } }),
+      cavalo({ pos: null, dono_pj: 1, montar_em_pj: 1 }),
+    ]);
+    expect(arr[0].montaria.inst_id).toBe('cri:160');
+    expect(arr[1].montado_por).toBe('pj:1');
+    expect(arr[1].pos).toEqual({ x: 2, y: 2 });
+    expect(arr[1].montar_em_pj).toBeUndefined();
+  });
+
+  it('montado é combatente único: a montaria nunca recebe a vez', () => {
+    const arr = M.montar([cavaleiro({ ordem: 1 }), cavalo({ ordem: 2 }), lobo({ ordem: 3 })], 'pj:1', 'cri:160');
+    expect(M.ehMontariaEmUso(arr[1], arr)).toBe(true);
+    expect(M.proximoAtivo(arr, 1).inst_id).toBe('cri:9');
+  });
+
+  it('montaria caída derruba o cavaleiro, que segue a pé', () => {
+    const arr = M.montar([cavaleiro(), cavalo()], 'pj:1', 'cri:160')
+      .map((p) => (p.inst_id === 'cri:160' ? { ...p, status: 'morto' } : p));
+    const r = M.derrubarCavaleiros(arr);
+    expect(r.caidos).toEqual(['Cavaleiro']);
+    expect(r.participantes[0].montaria).toBeUndefined();
+  });
+
+  it('montaria de pé não derruba ninguém (mesmo array)', () => {
+    const arr = M.montar([cavaleiro(), cavalo()], 'pj:1', 'cri:160');
+    expect(M.derrubarCavaleiros(arr).participantes).toBe(arr);
+  });
+
+  it('a queda passa pelo funil de gravação e vira linha no log', () => {
+    const arr = M.montar([cavaleiro(), cavalo()], 'pj:1', 'cri:160')
+      .map((p) => (p.inst_id === 'cri:160' ? { ...p, status: 'desmaiado' } : p));
+    const r = M.fugaNaGravacao({ participantes: arr }, { log: [], rodada: 2 });
+    expect(r.campos.participantes[0].montaria).toBeUndefined();
+    expect(r.campos.log[0].texto).toMatch(/caiu da montaria/);
+  });
+
+  it('animal morto sai do inventário; da pilha, só quem morreu', () => {
+    const inv = { itens: [
+      { instanceId: 'a', slug: 'cavalo_quarter', quantidade: 1, montado: true },
+      { instanceId: 'b', slug: 'cao', quantidade: 3 },
+    ] };
+    const r = M.inventarioSemAnimaisMortos(inv, ['a', 'b', 'b']);
+    expect(r.itens).toEqual([{ instanceId: 'b', slug: 'cao', quantidade: 1, montado: false }]);
+    expect(M.inventarioSemAnimaisMortos(inv, [])).toBe(inv);
+  });
+});
+
+/* ============================================================
+   EH EMPRESTADA — 15/09/2026
+   "Quando um jogador monta em um animal, a EH do animal é somada à sua."
+   Decisão: a EH PASSA para o cavaleiro (o animal fica com 0) e volta ao
+   desmontar, com o dano sofrido saindo primeiro da parte do animal.
+   ============================================================ */
+describe('EH emprestada da montaria', () => {
+  const montado = (over) => M.montar([cavaleiro(over), cavalo()], 'pj:1', 'cri:160');
+
+  it('ao montar, o cavaleiro soma a EH do cavalo e o cavalo fica com 0', () => {
+    const arr = montado();
+    expect({ eh: arr[0].eh, eh_max: arr[0].eh_max }).toEqual({ eh: 90, eh_max: 90 });
+    expect({ eh: arr[1].eh, eh_max: arr[1].eh_max }).toEqual({ eh: 0, eh_max: 0 });
+  });
+
+  it('o cavalo com EH 0 emprestada NÃO vira desmaiado nem derruba o cavaleiro', () => {
+    const arr = montado();
+    expect(arr[1].status).toBe('ativo');
+    expect(M.derrubarCavaleiros(arr).participantes).toBe(arr);
+  });
+
+  it('sem dano, desmontar devolve tudo como era', () => {
+    const r = M.desmontar(montado(), 'pj:1');
+    expect({ eh: r[0].eh, eh_max: r[0].eh_max }).toEqual({ eh: 30, eh_max: 30 });
+    expect({ eh: r[1].eh, eh_max: r[1].eh_max }).toEqual({ eh: 60, eh_max: 60 });
+  });
+
+  it('o dano sai primeiro da parte do cavalo', () => {
+    const arr = montado().map((p) => (p.inst_id === 'pj:1' ? { ...p, eh: 50 } : p));   // levou 40
+    const r = M.desmontar(arr, 'pj:1');
+    expect(r[0].eh).toBe(30);   // o cavaleiro fica com a dele
+    expect(r[1].eh).toBe(20);   // o cavalo absorveu os 40
+  });
+
+  it('dano maior que a parte do cavalo passa para o cavaleiro', () => {
+    const arr = montado().map((p) => (p.inst_id === 'pj:1' ? { ...p, eh: 10 } : p));   // levou 80
+    const r = M.desmontar(arr, 'pj:1');
+    expect(r[1].eh).toBe(0);
+    expect(r[0].eh).toBe(10);
+  });
+
+  it('remontar o mesmo cavalo não perde a EH dele', () => {
+    const arr = M.montar(M.desmontar(montado(), 'pj:1'), 'pj:1', 'cri:160');
+    expect(arr[0].eh).toBe(90);
+  });
+
+  it('encerrar desmonta todos: a EH emprestada não vai para a ficha', () => {
+    const r = M.desmontarTodos(montado());
+    expect(r[0].eh).toBe(30);
+    expect(r[0].montaria).toBeUndefined();
   });
 });

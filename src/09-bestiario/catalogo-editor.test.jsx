@@ -2,7 +2,8 @@
    catalogo-editor.test.jsx — o editor genérico renderizado
    ============================================================
    Cobre o contrato do editor: monta os campos do descritor, respeita
-   obrigatório e somenteNovo, e recalcula derivado SEM travá-lo.
+   obrigatório e somenteNovo, e calcula os derivados da criatura (só leitura
+   desde 14/09/2026, com o equipamento entrando na conta).
    O supabaseClient é substituído por um dublê — nenhum teste toca o banco.
 
    CORREÇÃO ao brief original: os rótulos (ADMIN_COPY) vivem em
@@ -20,17 +21,16 @@ import '../01-core/helpers.jsx';
 import '../01-core/game-data.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../10-shell/shell.jsx';
-import './ataques-criatura.jsx';
 import './criatura-formulas.jsx';
 import './catalogo-descritores.jsx';
 
 let CatalogoEditor;
 let ultimoInsert = null, ultimoUpdate = null, erroSimulado = null;
-// Fixture do catálogo `itens` (grupo Armas) devolvida pelo `.select()`
-// de leitura — separado do `.insert()/.update()` acima porque o editor de
-// criaturas agora busca as armas pra completar o dropdown de `ataque`
-// (fetchTabelaPaginada, ver catalogo-editor.jsx). Vazio por padrão: os
-// testes que não mexem com isso não devem disparar nenhuma linha extra.
+// DELETE (14/09/2026): o que foi pedido e quantas linhas o banco "apagou".
+let ultimoDelete = null, linhasApagadas = 1;
+// Fixture do catálogo `itens` (Armas e Armaduras) devolvida pelo
+// `.select()` de leitura: o editor de criaturas busca as peças que dá para
+// equipar (fetchTabelaPaginada, filtrando por grupo). Vazio por padrão.
 let itensArmasFixture = [];
 // Nomes de técnicas/habilidades/magias para os seletores de lista da
 // criatura (13/09/2026). Vazios por padrão, como a de armas.
@@ -53,11 +53,21 @@ beforeAll(async () => {
       // Leitura genérica (fetchTabelaPaginada): builder encadeável
       // eq/order que termina em .range() — mesmo contrato do PostgREST
       // real, só que devolvendo a fixture inteira numa página só.
+      delete: () => ({ eq: (col, val) => ({ select: async () => {
+        ultimoDelete = { tabela, col, val };
+        return { data: linhasApagadas ? [{ [col]: val }] : [], error: erroSimulado };
+      } }) }),
       select: () => {
+        const filtros = {};
         const builder = {
-          eq: () => builder,
+          eq: (col, val) => { filtros[col] = val; return builder; },
           order: () => builder,
-          range: async () => ({ data: tabela === 'itens' ? itensArmasFixture : (listasFixture[tabela] || []), error: null }),
+          range: async () => ({
+            data: tabela === 'itens'
+              ? itensArmasFixture.filter((it) => !filtros.grupo || it.grupo === filtros.grupo)
+              : (listasFixture[tabela] || []),
+            error: null,
+          }),
           // Pré-checagem de colisão da chave automática: o editor pergunta
           // quais chaves já começam com a base antes de inserir.
           like: async () => ({ data: chavesExistentesFixture, error: null }),
@@ -73,6 +83,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   cleanup(); ultimoInsert = null; ultimoUpdate = null; erroSimulado = null;
+  ultimoDelete = null; linhasApagadas = 1;
   itensArmasFixture = []; chavesExistentesFixture = [];
   listasFixture = { tecnicas: [], habilidades: [], magias: [] };
 });
@@ -185,89 +196,196 @@ describe('obrigatório', () => {
   });
 });
 
-describe('campo derivado (criaturas)', () => {
-  it('calcula ao mudar a entrada', () => {
+/* Linhas reais de `itens` (14/09/2026), só com as colunas que a conta lê. */
+const ESPADA_LONGA = { slug: 'espada_longa', nome: 'Espada Longa', grupo: 'Armas', slot_equip: 'maos', dano: 28, dano_l: -4, dano_m: 0, dano_p: 4, ajuste_atributo: 'FOR', maos_outras: 1 };
+const ARCO = { slug: 'arco', nome: 'Arco', grupo: 'Armas', slot_equip: 'maos', dano: 18, dano_l: -2, dano_m: 0, dano_p: -2, ajuste_atributo: 'PER', maos_outras: 2 };
+const PEITORAL = { slug: 'peitoral_de_aco', nome: 'Peitoral de Aço', grupo: 'Armaduras', slot_equip: 'peito', absorcao: 8, defesa: 3, tipo_armadura: 'P' };
+const CALCA = { slug: 'calca_de_couro', nome: 'Calça de Couro', grupo: 'Armaduras', slot_equip: 'pernas', absorcao: 2, defesa: 1, tipo_armadura: 'L' };
+const PECAS = [ESPADA_LONGA, ARCO, PEITORAL, CALCA];
+
+const valor = (col) => document.querySelector(`input[name="${col}"]`).value;
+const digitar = (col, v) => fireEvent.change(document.querySelector(`input[name="${col}"]`), { target: { value: v } });
+const blocoEquip = () => document.querySelector('[data-lista="equipamento"]');
+const equipar = async (nome) => {
+  fireEvent.change(blocoEquip().querySelector('input'), { target: { value: nome } });
+  const li = await vi.waitFor(() => {
+    const achou = Array.from(document.querySelectorAll('.catalogo-lista-drop li'))
+      .find((x) => x.firstChild && x.firstChild.textContent === nome);
+    expect(achou, nome).toBeTruthy();
+    return achou;
+  });
+  fireEvent.click(li);
+};
+const salvar = () => fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+
+/* "Os campos Ataque, Energia Física, Energia Heroica, Tipo de Armadura,
+   Absorção, Defesa, Velocidade, L, M, P e Dano 100% são calculados
+   automaticamente com base nas informações inseridas." (usuário, 14/09/2026) */
+describe('campos calculados (criaturas)', () => {
+  it('EF, EH, RF, RM e VB saem dos atributos', () => {
     montar({ tabela: 'criaturas', linha: null });
-    fireEvent.change(document.querySelector('input[name="peso"]'), { target: { value: '6000' } });
-    fireEvent.change(document.querySelector('input[name="fisico"]'), { target: { value: '4' } });
-    expect(document.querySelector('input[name="energia_fisica"]').value).toBe('159');
+    digitar('peso', '6000'); digitar('fisico', '4'); digitar('aura', '3');
+    digitar('agilidade', '6'); digitar('estagio', '15');
+    expect(valor('energia_fisica')).toBe('159');
+    expect(valor('energia_heroica')).toBe('225');     // (12 + 3) × 15
+    expect(valor('resistencia_fisica')).toBe('19');   // 15 + 4
+    expect(valor('resistencia_magica')).toBe('18');   // 15 + 3
+    expect(valor('velocidade')).toBe('150');          // (4 + 6) × 15
   });
 
-  // A regra que vem da spec §6: dragão tem absorção 30 fixa, e a fórmula dá 20.
-  // Se o campo fosse travado, editar um dragão corromperia o valor dele.
-  it('aceita sobrescrita manual e marca que foi sobrescrito', () => {
+  it('todos são só leitura', () => {
     montar({ tabela: 'criaturas', linha: null });
-    fireEvent.change(document.querySelector('input[name="fisico"]'), { target: { value: '4' } });
-    const abs = document.querySelector('input[name="absorcao"]');
-    expect(abs.value).toBe('20');
-    expect(abs.disabled).toBe(false);
-    fireEvent.change(abs, { target: { value: '30' } });
-    expect(abs.value).toBe('30');
-    // Mexer noutra entrada NÃO pode reverter a sobrescrita.
-    fireEvent.change(document.querySelector('input[name="agilidade"]'), { target: { value: '6' } });
-    expect(abs.value).toBe('30');
+    ['ataque', 'energia_fisica', 'energia_heroica', 'resistencia_fisica', 'resistencia_magica', 'armadura',
+      'absorcao', 'defesa', 'velocidade', 'dano_l', 'dano_m', 'dano_p', 'dano_100'].forEach((col) => {
+      const input = document.querySelector(`input[name="${col}"]`);
+      expect(input, col).toBeTruthy();
+      expect(input.readOnly && input.disabled, col).toBe(true);
+    });
   });
 
-  // A CORREÇÃO da fórmula (10/09/2026): dano_l/m/p vinham de "dano da arma +
-  // Agilidade" com dano da arma sempre 0 (não havia seletor de arma). Agora
-  // usam o `ataque` escolhido no dropdown — Pato real do banco (Bico,
-  // estágio 1, agilidade 0) dá 3/0/-3.
-  it('dano_l/m/p usam o ataque escolhido + estágio + agilidade', () => {
+  it('sem nada equipado: sem ataque, Absorção 0, Defesa = Agilidade, Leve', () => {
     montar({ tabela: 'criaturas', linha: null });
-    fireEvent.change(document.querySelector('input[name="estagio"]'), { target: { value: '1' } });
-    fireEvent.change(document.querySelector('input[name="agilidade"]'), { target: { value: '0' } });
-    const wrapperAtaque = Array.from(document.querySelectorAll('.motor-field'))
-      .find((w) => (w.querySelector('span')?.textContent || '') === 'Ataque');
-    expect(wrapperAtaque, 'campo ataque não achado').toBeTruthy();
-    fireEvent.click(wrapperAtaque.querySelector('.select-pill-btn'));
-    const opcaoBico = Array.from(document.querySelectorAll('.select-pill-drop li'))
-      .find((li) => (li.textContent || '').trim() === 'Bico');
-    expect(opcaoBico, 'opção Bico não achada').toBeTruthy();
-    fireEvent.click(opcaoBico);
-    expect(document.querySelector('input[name="dano_l"]').value).toBe('3');
-    expect(document.querySelector('input[name="dano_m"]').value).toBe('0');
-    expect(document.querySelector('input[name="dano_p"]').value).toBe('-3');
+    digitar('agilidade', '3');
+    expect(valor('ataque')).toBe('—');
+    expect(valor('dano_l')).toBe('—');
+    expect(valor('dano_100')).toBe('—');
+    expect(valor('absorcao')).toBe('0');
+    expect(valor('defesa')).toBe('3');
+    expect(valor('armadura')).toBe('Leve');
   });
 
-  // Sem ataque escolhido não há offset — o campo fica em branco em vez de
-  // mostrar um número inventado.
-  it('sem ataque escolhido, dano_l/m/p ficam em branco', () => {
+  it('"Técnicas Especiais" agora se chama "Técnicas"', () => {
     montar({ tabela: 'criaturas', linha: null });
-    expect(document.querySelector('input[name="dano_l"]').value).toBe('');
-    expect(document.querySelector('input[name="dano_m"]').value).toBe('');
-    expect(document.querySelector('input[name="dano_p"]').value).toBe('');
+    const rotulo = document.querySelector('[data-lista="tecnicas_especiais"] label').textContent;
+    expect(rotulo).toBe('Técnicas');
   });
 });
 
-describe('dropdown de ataque (criaturas) — 30 nomes fechados + armas do catálogo', () => {
-  const abrirPillAtaque = () => {
-    const wrapper = Array.from(document.querySelectorAll('.motor-field'))
-      .find((w) => (w.querySelector('span')?.textContent || '') === 'Ataque');
-    expect(wrapper, 'campo ataque não achado').toBeTruthy();
-    fireEvent.click(wrapper.querySelector('.select-pill-btn'));
-    return wrapper;
-  };
-  const opcoesAbertas = () => Array.from(document.querySelectorAll('.select-pill-drop li'))
-    .map((li) => (li.textContent || '').trim());
-
-  it('oferece todos os ataques do banco, inclusive "Toque" (que não tem offset mas é selecionável)', () => {
+describe('equipamento (criaturas)', () => {
+  it('equipar arma calcula Ataque, L/M/P e Dano 100%, com a conta do personagem', async () => {
+    itensArmasFixture = PECAS;
     montar({ tabela: 'criaturas', linha: null });
-    abrirPillAtaque();
-    const opcoes = opcoesAbertas();
-    expect(opcoes.length).toBe(31);
-    expect(opcoes).toContain('Toque');
-    expect(opcoes).toContain('Garras');
-    expect(opcoes).toContain('Hálito Encantado');
+    digitar('forca', '4');
+    await equipar('Espada Longa');
+    expect(valor('ataque')).toBe('Espada Longa');
+    expect([valor('dano_l'), valor('dano_m'), valor('dano_p')]).toEqual(['0', '4', '8']);   // FOR 4
+    expect(valor('dano_100')).toBe('32');                                                   // 28 + 4
+    expect(blocoEquip().querySelector('[data-slot="mao_d"] .catalogo-lista-chip-nome').textContent).toBe('Espada Longa');
   });
 
-  it('acrescenta armas do catálogo (grupo Armas) que ainda não estão na lista, sem duplicar as que já estão', async () => {
-    itensArmasFixture = [{ nome: 'Lança Élfica' }, { nome: 'Garras' }]; // 'Garras' já é um dos 30
+  // "o 'dano 100%' deve aparecer para todos os tipos de equipamentos de ataque
+  // que a criatura tiver" (usuário, 14/09/2026)
+  it('uma caixa de Dano 100% por arma, com o nome dela', async () => {
+    const MORDIDA = { slug: 'mordida', nome: 'Mordida', grupo: 'Armas', slot_equip: 'maos', dano: 4, dano_l: 1, dano_m: 0, dano_p: -1, ajuste_atributo: 'FOR', maos_outras: 1 };
+    itensArmasFixture = [...PECAS, MORDIDA];
     montar({ tabela: 'criaturas', linha: null });
-    abrirPillAtaque();
-    await vi.waitFor(() => { expect(opcoesAbertas()).toContain('Lança Élfica'); });
-    const opcoes = opcoesAbertas();
-    expect(opcoes.filter((o) => o === 'Garras')).toHaveLength(1);
-    expect(opcoes.length).toBe(32); // 31 do banco + 1 arma nova; "Garras" nao duplica
+    digitar('forca', '4');
+    await equipar('Espada Longa');
+    await equipar('Mordida');
+    const caixas = [...document.querySelectorAll('[data-dano-arma]')];
+    expect(caixas.map((c) => c.querySelector('label').textContent)).toEqual(['Dano 100% · Espada Longa', 'Dano 100% · Mordida']);
+    expect(caixas.map((c) => c.querySelector('input').value)).toEqual(['32', '8']);
+    expect(valor('dano_100')).toBe('32');   // a coluna continua sendo a da primeira
+  });
+
+  it('armaduras somam absorção e defesa; o tipo é o do peitoral', async () => {
+    itensArmasFixture = PECAS;
+    montar({ tabela: 'criaturas', linha: null });
+    digitar('agilidade', '2');
+    await equipar('Calça de Couro');
+    expect(valor('armadura')).toBe('Leve');
+    await equipar('Peitoral de Aço');
+    expect(valor('absorcao')).toBe('10');
+    expect(valor('defesa')).toBe('6');   // 3 + 1 + agilidade 2
+    expect(valor('armadura')).toBe('Pesado');
+  });
+
+  it('arma de duas mãos com a mão ocupada aparece bloqueada e não entra', async () => {
+    itensArmasFixture = PECAS;
+    montar({ tabela: 'criaturas', linha: null });
+    await equipar('Espada Longa');
+    fireEvent.change(blocoEquip().querySelector('input'), { target: { value: 'Arco' } });
+    const li = await vi.waitFor(() => {
+      const x = document.querySelector('.catalogo-lista-drop li[data-slug="arco"]');
+      expect(x).toBeTruthy();
+      return x;
+    });
+    expect(li.getAttribute('aria-disabled')).toBe('true');
+    expect(li.textContent).toMatch(/As duas mãos estão ocupadas/);
+    fireEvent.click(li);
+    expect(blocoEquip().querySelectorAll('.catalogo-lista-chip')).toHaveLength(1);
+  });
+
+  it('tirar a peça recalcula', async () => {
+    itensArmasFixture = PECAS;
+    montar({ tabela: 'criaturas', linha: null });
+    await equipar('Espada Longa');
+    fireEvent.click(blocoEquip().querySelector('.catalogo-lista-chip-x'));
+    expect(valor('ataque')).toBe('—');
+  });
+
+  it('grava o equipamento e todos os calculados — inclusive null quando não há arma', async () => {
+    itensArmasFixture = PECAS;
+    montar({ tabela: 'criaturas', linha: { id: 7, nome: 'Orc', estagio: 2, forca: 1, agilidade: 1,
+      ataque: 'Garras', dano_l: 5, dano_100: 30, armadura: 'M', equipamento: [] } });
+    await equipar('Peitoral de Aço');
+    salvar();
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload).toMatchObject({
+      equipamento: [{ slug: 'peitoral_de_aco', slot: 'peito' }],
+      armadura: 'P', absorcao: 8, defesa: 4,
+      ataque: null, dano_l: null, dano_m: null, dano_p: null,
+      dano_100: null, dano_25: null, dano_50: null, dano_75: null,
+    });
+    // RF e RM não existem no banco; tipo_armadura segue fora.
+    expect('resistencia_fisica' in ultimoUpdate.payload).toBe(false);
+    expect('resistencia_magica' in ultimoUpdate.payload).toBe(false);
+    expect('tipo_armadura' in ultimoUpdate.payload).toBe(false);
+  });
+
+  it('abre com o que está gravado', async () => {
+    itensArmasFixture = PECAS;
+    montar({ tabela: 'criaturas', linha: { id: 7, nome: 'Orc', forca: 2,
+      equipamento: [{ slug: 'espada_longa', slot: 'mao_d' }] } });
+    await vi.waitFor(() => expect(valor('ataque')).toBe('Espada Longa'));
+    expect(valor('dano_100')).toBe('30');
+  });
+});
+
+/* "No rodapé adicionar um botão para excluir." (usuário, 14/09/2026) */
+describe('excluir (criaturas)', () => {
+  const botaoExcluir = () => screen.queryAllByRole('button').find((b) => /Excluir|Confirmar exclusão/.test(b.textContent));
+
+  it('só aparece editando uma criatura, no rodapé', () => {
+    montar({ tabela: 'criaturas', linha: null, onExcluido: () => {} });
+    expect(botaoExcluir()).toBeUndefined();
+    cleanup();
+    montar({ tabela: 'tecnicas', linha: { key: 'mira', nome: 'Mira', custo: 1 }, onExcluido: () => {} });
+    expect(botaoExcluir()).toBeUndefined();
+    cleanup();
+    montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Lobo' }, onExcluido: () => {} });
+    expect(botaoExcluir().closest('.ms-footer')).toBeTruthy();
+  });
+
+  it('dois cliques: o primeiro arma, o segundo apaga e avisa', async () => {
+    const onExcluido = vi.fn();
+    montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Lobo' }, onExcluido });
+    fireEvent.click(botaoExcluir());
+    expect(ultimoDelete).toBeNull();
+    expect(botaoExcluir().textContent).toMatch(/Confirmar exclusão/);
+    fireEvent.click(botaoExcluir());
+    await vi.waitFor(() => expect(onExcluido).toHaveBeenCalledTimes(1));
+    expect(ultimoDelete).toEqual({ tabela: 'criaturas', col: 'id', val: 3 });
+  });
+
+  it('banco que não apaga nada (RLS) mostra erro e não fecha', async () => {
+    linhasApagadas = 0;
+    const onExcluido = vi.fn();
+    montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Lobo' }, onExcluido });
+    fireEvent.click(botaoExcluir());
+    fireEvent.click(botaoExcluir());
+    await vi.waitFor(() => expect(document.querySelector('.err-msg')).toBeTruthy());
+    expect(onExcluido).not.toHaveBeenCalled();
   });
 });
 
@@ -522,35 +640,17 @@ describe('coluna do update (.eq) — chave certa por tabela', () => {
      do catálogo. O que já estava gravado e não existe no catálogo ("Bote",
      "Esquiva 7") continua lá — nada some ao editar. */
 describe('criatura — tipo de armadura', () => {
-  const pillPorRotulo = (rotulo) => Array.from(document.querySelectorAll('.motor-field'))
-    .find((w) => (w.querySelector('span')?.textContent || '') === rotulo);
-
-  it('um só campo "Tipo de Armadura", com Leve/Médio/Pesado', () => {
+  it('um só campo "Tipo de Armadura", calculado (Leve/Médio/Pesado vêm do peitoral)', () => {
     montar({ tabela: 'criaturas', linha: null });
     const rotulos = Array.from(document.querySelectorAll('label, .motor-field > span'))
       .map((el) => el.textContent.trim());
     expect(rotulos.filter((r) => r === 'Tipo de Armadura')).toHaveLength(1);
     expect(rotulos, 'o campo "Armadura" de texto livre sai').not.toContain('Armadura');
-    const w = pillPorRotulo('Tipo de Armadura');
-    expect(w, 'tipo de armadura deve ser uma seleção').toBeTruthy();
-    fireEvent.click(w.querySelector('.select-pill-btn'));
-    const opcoes = Array.from(document.querySelectorAll('.select-pill-drop li')).map((li) => li.textContent.trim());
-    expect(opcoes).toEqual(['Leve', 'Médio', 'Pesado']);
+    expect(window.descritorDe('criaturas').campos.find((c) => c.col === 'armadura').rotulos)
+      .toEqual({ L: 'Leve', M: 'Médio', P: 'Pesado' });
   });
 
-  it('grava a SIGLA em `armadura` e não manda `tipo_armadura`', async () => {
-    montar({ tabela: 'criaturas', linha: { id: 7, nome: 'Lobo', armadura: 'L', tipo_armadura: 'X' } });
-    const w = pillPorRotulo('Tipo de Armadura');
-    expect(w.querySelector('.select-pill-btn').textContent).toMatch(/Leve/);
-    fireEvent.click(w.querySelector('.select-pill-btn'));
-    fireEvent.click(Array.from(document.querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === 'Pesado'));
-    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
-    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
-    expect(ultimoUpdate.payload.armadura).toBe('P');
-    expect('tipo_armadura' in ultimoUpdate.payload).toBe(false);
-  });
-
-  it('absorção continua calculada e editável, logo depois do tipo de armadura', () => {
+  it('absorção vem logo depois do tipo de armadura, e tipo_armadura não está no formulário', () => {
     const cols = window.descritorDe('criaturas').campos.map((c) => c.col);
     expect(cols.indexOf('absorcao')).toBe(cols.indexOf('armadura') + 1);
     expect(cols).not.toContain('tipo_armadura');
@@ -576,21 +676,102 @@ describe('criatura — só o Dano 100% aparece', () => {
     expect(document.querySelector('input[name="dano_100"]')).toBeTruthy();
   });
 
-  it('ao criar, os três vão no payload calculados do Dano 100%', async () => {
+  it('os três vão no payload calculados do Dano 100% da arma', async () => {
+    itensArmasFixture = PECAS;
     montar({ tabela: 'criaturas', linha: null });
-    fireEvent.change(document.querySelector('input[name="nome"]'), { target: { value: 'Urso' } });
-    fireEvent.change(document.querySelector('input[name="dano_100"]'), { target: { value: '30' } });
-    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    digitar('nome', 'Urso'); digitar('forca', '2');
+    await equipar('Espada Longa');
+    salvar();
     await vi.waitFor(() => expect(ultimoInsert).not.toBeNull());
     expect(ultimoInsert.payload).toMatchObject({ dano_100: 30, dano_25: 8, dano_50: 15, dano_75: 23 });
   });
+});
 
-  it('ao editar, mudar o Dano 100% recalcula os três (não ficam presos no valor antigo)', async () => {
-    montar({ tabela: 'criaturas', linha: { id: 9, nome: 'Urso', dano_100: 20, dano_25: 5, dano_50: 10, dano_75: 15 } });
-    fireEvent.change(document.querySelector('input[name="dano_100"]'), { target: { value: '40' } });
-    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+describe('criatura — a primeira linha da grade', () => {
+  /* "'estágio' fica inline com 'nome', 'tipo', etc." (usuário, 14/09/2026) */
+  it('Nome, Tipo, Subtipo e Estágio são os quatro primeiros campos', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    const rotulos = Array.from(document.querySelectorAll('.catalogo-form-grid > *')).slice(0, 4)
+      .map((el) => (el.querySelector('label, .motor-field > span') || {}).textContent);
+    expect(rotulos).toEqual(['Nome', 'Tipo', 'Subtipo', 'Estágio']);
+  });
+});
+
+/* "Na hora de criar um novo item para vincular às criaturas, apareceu: new row
+   for relation "itens" violates check constraint "itens_icone_formato_chk""
+   (usuário, 14/09/2026). O banco só aceita ^ti-[a-z0-9-]+$. */
+describe('itens — ícone no formato do banco', () => {
+  const criarItem = async (icone) => {
+    montar({ tabela: 'itens', linha: null });
+    digitar('nome', 'Presas');
+    digitar('icone', icone);
+    salvar();
+  };
+
+  it.each([
+    ['ti ti-paw', 'ti-paw'],
+    ['<i class="ti ti-paw"></i>', 'ti-paw'],
+    ['paw', 'ti-paw'],
+    ['ti-paw', 'ti-paw'],
+  ])('"%s" grava "%s"', async (digitado, gravado) => {
+    await criarItem(digitado);
+    await vi.waitFor(() => expect(ultimoInsert).not.toBeNull());
+    expect(ultimoInsert.payload.icone).toBe(gravado);
+  });
+
+  it('mostra a prévia do ícone', () => {
+    montar({ tabela: 'itens', linha: null });
+    digitar('icone', 'ti ti-paw');
+    expect(document.querySelector('.catalogo-icone-previa i').className).toBe('ti ti-paw');
+  });
+
+  it('formato impossível avisa e não manda nada ao banco', async () => {
+    await criarItem('garras!');
+    expect(document.querySelector('.catalogo-icone-erro').textContent).toMatch(/Ícone inválido/);
+    await vi.waitFor(() => expect(document.querySelector('.err-msg')).toBeTruthy());
+    expect(ultimoInsert).toBeNull();
+  });
+});
+
+/* "Plano é um dropdown: Material, Infernal, Celestial, Elemental / Tipo é um
+   dropdown: Animal, Construído, Celestial, Infernal, Místico, Dragão, Elemental,
+   Monstro, Morto, Gigante, Civilizado / Subtipo é um dropdown: Fogo, Ar, Água,
+   Terra, Celestial, Infernal" (usuário, 14/09/2026) */
+describe('criatura — Tipo, Subtipo e Plano em lista', () => {
+  const pill = (rotulo) => Array.from(document.querySelectorAll('.motor-field'))
+    .find((w) => (w.querySelector('span')?.textContent || '') === rotulo);
+  const abrir = (rotulo) => {
+    const w = pill(rotulo);
+    expect(w, rotulo).toBeTruthy();
+    fireEvent.click(w.querySelector('.select-pill-btn'));
+    return Array.from(document.querySelectorAll('.select-pill-drop li')).map((li) => li.textContent.trim());
+  };
+
+  it.each([
+    ['Tipo', ['Animal', 'Construído', 'Celestial', 'Infernal', 'Místico', 'Dragão', 'Elemental', 'Monstro', 'Morto', 'Gigante', 'Civilizado']],
+    ['Subtipo', ['Fogo', 'Ar', 'Água', 'Terra', 'Celestial', 'Infernal']],
+    ['Plano', ['Material', 'Infernal', 'Celestial', 'Elemental']],
+  ])('%s oferece exatamente a lista', (rotulo, lista) => {
+    montar({ tabela: 'criaturas', linha: null });
+    expect(abrir(rotulo)).toEqual(lista);
+  });
+
+  it('valor gravado fora da lista aparece marcado e continua salvando igual', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Balor', tipo: 'Demônio', plano: 'Infernal' } });
+    expect(pill('Tipo').querySelector('.select-pill-btn').textContent).toMatch(/Demônio \(fora da lista\)/);
+    expect(abrir('Tipo')[0]).toBe('Demônio (fora da lista)');
+    salvar();
     await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
-    expect(ultimoUpdate.payload).toMatchObject({ dano_100: 40, dano_25: 10, dano_50: 20, dano_75: 30 });
+    expect(ultimoUpdate.payload).toMatchObject({ tipo: 'Demônio', plano: 'Infernal' });
+  });
+
+  it('escolher da lista troca o valor', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Balor', tipo: 'Demônio' } });
+    abrir('Tipo');
+    fireEvent.click(Array.from(document.querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === 'Infernal'));
+    salvar();
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.tipo).toBe('Infernal');
   });
 });
 

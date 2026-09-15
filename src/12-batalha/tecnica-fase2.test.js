@@ -133,10 +133,11 @@ describe('as primitivas caíram nas técnicas certas', () => {
 });
 
 describe('o total do sistema', () => {
-  it('o registro passa a cobrir 56 das 58 técnicas', () => {
-    // 50 ate 12/09/2026; a Fase 3 ligou 4 das 8 que estavam fora. As outras
-    // 4 tem motivo registrado em TECNICA_FORA_DO_REGISTRO.
-    expect(Object.keys(MAP).length).toBe(56);
+  it('o registro cobre as 58 técnicas', () => {
+    // 50 ate 12/09/2026; a Fase 3 ligou 4 das 8 que estavam fora, e Combate
+    // Montado e Luta as Cegas entraram no mesmo dia (56). Provocar e Conduzir
+    // Oponente fecharam a conta em 14/09/2026.
+    expect(Object.keys(MAP).length).toBe(58);
   });
 });
 
@@ -292,15 +293,15 @@ describe('ativação livre vale para QUALQUER modo (mudança da Fase 2)', () => 
   });
 
   it('técnica SEM entrada no registro continua debitando PA', () => {
-    // Concentracao entrou no motor na Fase 3 — o exemplo de fora virou Provocar.
-    const p = M.debitarCustoTecnica(ator(), 'provocar');
+    // Nenhuma técnica do banco fica mais de fora (14/09/2026): chave inventada.
+    const p = M.debitarCustoTecnica(ator(), 'tecnica_sem_registro');
     expect(p.pa_rest).toBe(0);
     expect(p.tecnica_livre_usada, 'não consome a cota livre').toBe(false);
   });
 
   it('sem entrada no registro, a cota livre não bloqueia', () => {
     const usado = ator({ tecnica_livre_usada: true });
-    expect(M.podeAtivarTecnicaLivre(usado, { key: 'provocar' }).pode).toBe(true);
+    expect(M.podeAtivarTecnicaLivre(usado, { key: 'tecnica_sem_registro' }).pode).toBe(true);
   });
 });
 
@@ -791,7 +792,7 @@ describe('F3 — o texto do efeito no log', () => {
   });
 
   it('técnica sem registro continua narrativa', () => {
-    expect(M.textoEfeitoTecnica('provocar', aplicado(['Grok']), 'Eu')).toMatch(/narrativ/);
+    expect(M.textoEfeitoTecnica('tecnica_sem_registro', aplicado(['Grok']), 'Eu')).toMatch(/narrativ/);
   });
 });
 

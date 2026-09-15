@@ -27,7 +27,9 @@ beforeAll(() => { fonte = readFileSync(resolve(aqui, 'batalha.jsx'), 'utf8'); })
 const corpoDe = (inicio) => {
   const i = fonte.indexOf(inicio);
   expect(i, 'não achei: ' + inicio).toBeGreaterThan(-1);
-  return fonte.slice(i, i + 2600);
+  // 3200 (era 2600): o funil do persistir ganhou a queda de montaria em
+  // 14/09/2026 e o fim da função saiu da janela. A asserção não mudou.
+  return fonte.slice(i, i + 3200);
 };
 
 describe('Mestre — persistir', () => {

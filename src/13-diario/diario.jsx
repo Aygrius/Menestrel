@@ -181,9 +181,13 @@
 
 // ---------- Constantes ----------
 
-const DIARIO_TIPOS = ['criatura', 'npc', 'lugar', 'item', 'treinamento'];
-// Abas cujo "Novo" e checkboxes de disponibilizar ainda não têm suporte de backend.
-const DIARIO_TIPOS_NOVOS = new Set(['item', 'treinamento']);
+/* As abas Item e Treinamento saíram do Lore em 14/09/2026: "a regra é que os
+   personagens vão acessar apenas aquilo que eles possuem ou viram na loja, no
+   menu lateral esquerdo." O Mestre não libera mais item, magia, habilidade nem
+   técnica pelo Lore — o jogador vê isso nas páginas Itens, Magias etc., pelo
+   que o personagem tem. As colunas historias.item_ids/magia_ids/… ficam no
+   banco, sem tela que as escreva. */
+const DIARIO_TIPOS = ['criatura', 'npc', 'lugar'];
 // Tipos reais que compõem a aba "Lugares"
 const LUGAR_TIPOS = new Set(['reino', 'cidade']);
 // Tipos reais que compõem a aba "Treinamento"
@@ -216,6 +220,12 @@ const DIARIO_TIPO_LABEL = {
         memoria: 'Memory', item: 'Item', treinamento: 'Training',
         magia: 'Spell', habilidade: 'Ability', tecnica: 'Technique', personagem: 'Character' },
 };
+
+// "Novo"/"Nova" concorda com o tipo: era "Novo Cidade" (corrigido em 14/09/2026).
+const DIARIO_TIPOS_FEMININOS = new Set(['cidade', 'memoria', 'criatura', 'magia', 'habilidade', 'tecnica']);
+function novoDoTipo(tipo) {
+  return DIARIO_TIPOS_FEMININOS.has(tipo) ? 'Nova' : 'Novo';
+}
 
 function diarioTipoLabel(tipo, lang) {
   const l = lang === 'en' ? 'en' : 'pt';
@@ -1497,12 +1507,14 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   const [importadosIds, setImportadosIds] = useState(new Map());
 
   // ── UI ────────────────────────────────────────────────────────
-  /* Origem da linha (12/09/2026). Havia um menu "Meu Diário" / "Informações
-     da Aventura" que partia a mesma tabela em duas telas. O usuário pediu que
-     tudo aparecesse numa tabela só, "com marcação de criação do usuário ou da
-     aventura". A marcação é a coluna Origem; o filtro é o mesmo grupo de
-     chips que Magias usa para o tipo. 'all' | 'pessoal' | 'aventura'. */
-  const [origemFiltro,        setOrigemFiltro]        = useState('all');
+  /* Origem da linha (12/09/2026): tudo numa tabela só, "com marcação de
+     criação do usuário ou da aventura" — a coluna Origem. Os chips que
+     filtravam por ela saíram em 14/09/2026, com os das páginas do catálogo:
+     "vão seguir o mesmo padrão das demais páginas 'itens', 'magias', etc, no
+     que diz respeito aos botões de filtro, botão de buscar, etc." A coluna
+     continua e ordena pelo cabeçalho. */
+  // Lugares: o + abre a escolha entre Reino e Cidade (um + só no cabeçalho).
+  const [escolhendoLugar,     setEscolhendoLugar]     = useState(false);
   /* tipoFixo (12/09/2026): as secoes Lugares/Personagens/Memorias da barra
      lateral sao este mesmo Diario travado num tipo so. Deixar de ser uma aba
      dentro da ficha e virar tres destinos foi decisao do usuario — e o codigo
@@ -1575,7 +1587,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   };
 
   useEffect(() => { carregar(); }, [pjId]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setPage(1); setQuery(''); setOrigemFiltro('all'); }, [tipoAba]);
+  useEffect(() => { setPage(1); setQuery(''); }, [tipoAba]);
 
   /* ── A lista da aba, num lugar só ─────────────────────────────────────
      "A página de lugares, personagens, memórias deve ser uma tabela igual
@@ -1589,14 +1601,12 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
 
      Então a lista sobe pra cá e o JSX volta a ser só desenho.
 
-     `base` é tudo o que a aba tem; `lista` é o que sobra depois da busca e
-     do filtro de origem. A diferença entre as duas é o "X de Y" da contagem,
-     o mesmo de Magias. */
+     `base` é tudo o que a aba tem; `lista`, o que sobra depois da busca. */
   // Só Personagens e Lugares misturam as duas origens. Memória é sempre do
   // jogador e criatura/item/treinamento sempre da aventura: nessas a coluna
   // repetiria a mesma palavra em todas as linhas.
   const temOrigem = tipoAba === 'npc' || tipoAba === 'lugar';
-  const { base: baseDaAba, lista: listaDaAba } = React.useMemo(() => {
+  const { lista: listaDaAba } = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     const casa = (nome) => !q || String(nome || '').toLowerCase().includes(q);
     const porNome = (a, b) => (a.nome || '').localeCompare(b.nome || '', en ? 'en' : 'pt');
@@ -1611,18 +1621,6 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     if (tipoAba === 'criatura') {
       const base = criaturas || [];
       return { base, lista: base.filter((c) => casa(c.nome)) };
-    }
-
-    if (DIARIO_TIPOS_NOVOS.has(tipoAba)) {
-      // 'treinamento' junta magia + habilidade + técnica numa aba só.
-      const base = tipoAba === 'treinamento'
-        ? [
-            ...(disponibilizados.magia      || []),
-            ...(disponibilizados.habilidade || []),
-            ...(disponibilizados.tecnica    || []),
-          ].sort(porNome)
-        : (disponibilizados[tipoAba] || []);
-      return { base, lista: base.filter((e) => casa(e.nome)) };
     }
 
     // NPC / Lugares: o que está no diário do PJ (criado por ele ou
@@ -1643,10 +1641,8 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
       ...loreDoTipo.map((e) => ({ ...e, origem: origemDaEntrada(e, pjId) })),
       ...doMestre.map((e) => ({ ...e, origem: 'aventura' })),
     ].sort(porNome);
-    return { base, lista: base.filter((e) =>
-      casa(e.nome) && (origemFiltro === 'all' || e.origem === origemFiltro)
-    ) };
-  }, [tipoAba, query, origemFiltro, memorias, criaturas, lore, disponibilizados, pjId, en]);
+    return { base, lista: base.filter((e) => casa(e.nome)) };
+  }, [tipoAba, query, memorias, criaturas, lore, disponibilizados, pjId, en]);
 
   const { sorted: linhas, sortKey, sortDir, toggleSort } = useSort(listaDaAba);
   const wrapRef = React.useRef(null);
@@ -1805,7 +1801,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     <ModalShell
       title={editando.id
         ? (en ? `Edit ${diarioTipoLabel(tipoReal || tipoAba, lang)}` : `Editar ${diarioTipoLabel(tipoReal || tipoAba, lang)}`)
-        : (en ? `New ${diarioTipoLabel(tipoReal || tipoAba, lang)}` : `Novo ${diarioTipoLabel(tipoReal || tipoAba, lang)}`)}
+        : (en ? `New ${diarioTipoLabel(tipoReal || tipoAba, lang)}` : `${novoDoTipo(tipoReal || tipoAba)} ${diarioTipoLabel(tipoReal || tipoAba, lang)}`)}
       lang={lang}
       onClose={() => { setEditando(null); setTipoNovo(null); }}
       onCancel={() => { setEditando(null); setTipoNovo(null); }}
@@ -1824,32 +1820,21 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   );
 
   // ── Render ────────────────────────────────────────────────────
-  /* A página segue o molde de Magias peça por peça (12/09/2026): cabeçalho
-     com o "Novo" à direita → barra com busca, chips e "X de Y" → tabela →
-     paginação do bestiário. "Ainda está muito diferente de magias, técnicas,
-     habilidades" — as diferenças eram justamente essas peças: um menu de
-     abas a mais, uma barra própria, a contagem no cabeçalho, uma paginação
-     escrita de novo e um vazio com ícone grande. */
+  /* A página segue o molde de Magias peça por peça (12/09/2026) — e desde
+     14/09/2026 o molde é: cabeçalho com a busca e o + à direita → tabela →
+     paginação do bestiário. Sem chips de filtro e sem o "X de Y". */
 
-  // Botões de criar — mesma pele do "Novo" das listas do bestiário
-  // (btn-ghost + ti-plus). Quem não é dono do PJ só lê.
-  const botaoCriar = (label, onClick, disabled) => (
-    <button key={label} type="button" className="btn-ghost btn-sm" disabled={disabled} onClick={onClick}>
-      <i className="ti ti-plus" aria-hidden="true" /> {label}
-    </button>
-  );
-  const botoesNovo = !souDono ? null
+  /* Criar: o MESMO + das listas do bestiário (só o símbolo, com tooltip) —
+     14/09/2026. Lugares tinha dois botões, "Novo Reino" e "Nova Cidade"; com
+     um + só, ele abre a escolha. Quem não é dono do PJ só lê. */
+  const criar = !souDono ? null
     : tipoAba === 'memoria'
-      ? botaoCriar(en ? 'New Memory' : 'Nova Memória', () => setMemoriaAberta({}), false)
-    : tipoAba === 'lugar' ? (
-        <div style={{ display: 'flex', gap: 6 }}>
-          {botaoCriar(en ? 'New Kingdom' : 'Novo Reino', () => abrirNovoLugar('reino'), !historiaId)}
-          {botaoCriar(en ? 'New City' : 'Nova Cidade', () => abrirNovoLugar('cidade'), !historiaId)}
-        </div>
-      )
+      ? { onNovo: () => setMemoriaAberta({}), dica: en ? 'New memory' : 'Nova memória', desativado: false }
+    : tipoAba === 'lugar'
+      ? { onNovo: () => setEscolhendoLugar(true), dica: en ? 'New place' : 'Novo lugar', desativado: !historiaId }
     : tipoAba === 'npc'
-      ? botaoCriar(en ? `New ${diarioTipoLabel('npc', lang)}` : `Novo ${diarioTipoLabel('npc', lang)}`,
-          () => { setSlugOrigemEscolhido(null); setEditando({}); }, !historiaId)
+      ? { onNovo: () => { setSlugOrigemEscolhido(null); setEditando({}); },
+          dica: en ? 'New NPC' : 'Novo NPC', desativado: !historiaId }
     : null;
 
   /* Título da PÁGINA, quando ela é uma (tipoFixo). As palavras saem de
@@ -1860,42 +1845,22 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[SECAO_DO_TIPO[tipoFixo]] || {}).label
     : null;
 
-  const ORIGENS = [
-    { value: 'all',      icon: 'ti-list',    label: en ? 'All' : 'Todas' },
-    { value: 'pessoal',  icon: 'ti-writing', label: en ? 'Written by you' : 'Criadas por você' },
-    { value: 'aventura', icon: 'ti-compass', label: en ? 'From the adventure' : 'Da aventura' },
-  ];
   const rotuloOrigem = (o) => (o === 'pessoal' ? (en ? 'Personal' : 'Pessoal') : (en ? 'Adventure' : 'Aventura'));
 
-  const Input = (typeof UI !== 'undefined' && UI.Input) || 'input';
   // Sigla fica em maiúsculas: "Buscar NPC…", não "Buscar npc…".
   const rotuloTipo = diarioTipoLabel(tipoAba, lang);
   const rotuloBusca = rotuloTipo === rotuloTipo.toUpperCase() ? rotuloTipo : rotuloTipo.toLowerCase();
-  const barra = (
-    <div className="best-toolbar-bestiario">
-      <div className="best-search">
-        <Input type="search"
-          placeholder={en
-            ? `Search ${rotuloBusca}…`
-            : `Buscar ${rotuloBusca}…`}
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
-      </div>
-      {temOrigem && (
-        <div className="best-chips">
-          {ORIGENS.map((o) => (
-            <ChipIcon key={o.value} value={o.value} _icon={o.icon} label={o.label}
-              active={origemFiltro === o.value}
-              onClick={() => { setOrigemFiltro(o.value); setPage(1); }} />
-          ))}
-        </div>
-      )}
-      <div className="best-count">
-        {en ? `${listaDaAba.length} of ${baseDaAba.length}` : `${listaDaAba.length} de ${baseDaAba.length}`}
-      </div>
-      {/* Na aba da ficha não há cabeçalho de página: o "Novo" fica na barra. */}
-      {!tipoFixo && botoesNovo}
-    </div>
+  /* Busca + o +, juntos — o cabeçalho de Itens e Magias (BestBuscaENovo,
+     09-bestiario/bestiario.jsx). Sem chips de filtro e sem o "X de Y". */
+  const buscaENovo = (
+    <BestBuscaENovo
+      ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
+      placeholder={en ? `Search ${rotuloBusca}…` : `Buscar ${rotuloBusca}…`}
+      query={query}
+      setQuery={(v) => { setQuery(v); setPage(1); }}
+      podeCriar={!!criar && !criar.desativado}
+      onNovo={criar ? criar.onNovo : undefined}
+      dicaNovo={criar ? criar.dica : undefined} />
   );
 
   const textoVazio = query.trim()
@@ -1904,12 +1869,6 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
       ? (en ? 'You haven\'t recorded any memories yet.' : 'Você ainda não registrou nenhuma memória.')
     : tipoAba === 'criatura'
       ? (en ? 'There are no creatures available to you yet.' : 'Ainda não há nenhuma criatura disponível para você.')
-    : DIARIO_TIPOS_NOVOS.has(tipoAba)
-      ? (en ? 'The master has not recorded anything in this category yet.' : 'O mestre ainda não registrou nada nesta categoria.')
-    : origemFiltro === 'pessoal'
-      ? (en ? 'You haven\'t written anything here yet.' : 'Você ainda não criou nada aqui.')
-    : origemFiltro === 'aventura'
-      ? (en ? 'The adventure hasn\'t revealed anything here yet.' : 'A aventura ainda não revelou nada aqui.')
     : (en ? 'Nothing here yet — neither written by you nor revealed by the adventure.'
           : 'Nada aqui ainda — nem criado por você, nem revelado pela aventura.');
 
@@ -1976,30 +1935,6 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
             {souDono && (importados.has(`criatura:${c.id}`)
               ? renderBotaoImportado('criatura', c.id)
               : botaoImportar('criatura', c.id))}
-          </TableCell>
-        </TableRow>
-      );
-    };
-  } else if (DIARIO_TIPOS_NOVOS.has(tipoAba)) {
-    cols = [
-      { key: 'nome', label: en ? 'Name' : 'Nome' },
-      /* Só a aba Treinamento mistura tipos; nas outras a coluna
-         repetiria a mesma palavra em todas as linhas. */
-      ...(tipoAba === 'treinamento' ? [{ key: 'tipo', label: en ? 'Type' : 'Tipo' }] : []),
-      { key: 'acoes', label: '', ordena: false, style: { width: 96 } },
-    ];
-    linha = (e) => {
-      const tipoDaLinha = e.tipo || tipoAba;
-      const ver = () => setViewingLore({ ...e, tipo: tipoDaLinha });
-      return (
-        <TableRow key={`${tipoDaLinha}:${e.nome}`} style={{ cursor: 'pointer' }} onClick={ver}>
-          <TableCell className="best-name">{e.nome}</TableCell>
-          {tipoAba === 'treinamento' && <TableCell>{diarioTipoLabel(tipoDaLinha, lang)}</TableCell>}
-          <TableCell className="diario-td-acoes" onClick={(ev) => ev.stopPropagation()}>
-            {botaoVer(ver)}
-            {souDono && (importados.has(`${tipoDaLinha}:${e.nome}`)
-              ? renderBotaoImportado(tipoDaLinha, e.nome)
-              : botaoImportar(tipoDaLinha, e.nome))}
           </TableCell>
         </TableRow>
       );
@@ -2101,6 +2036,21 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         />
       )}
       {formModal}
+      {escolhendoLugar && (
+        <ModalShell title={en ? 'New place' : 'Novo lugar'} lang={lang} size="sm"
+          onClose={() => setEscolhendoLugar(false)} onCancel={() => setEscolhendoLugar(false)}>
+          <div className="diario-escolha-lugar">
+            <button type="button" className="btn-ghost"
+              onClick={() => { setEscolhendoLugar(false); abrirNovoLugar('reino'); }}>
+              <i className="ti ti-flag" aria-hidden="true" /> {en ? 'Kingdom' : 'Reino'}
+            </button>
+            <button type="button" className="btn-ghost"
+              onClick={() => { setEscolhendoLugar(false); abrirNovoLugar('cidade'); }}>
+              <i className="ti ti-building-castle" aria-hidden="true" /> {en ? 'City' : 'Cidade'}
+            </button>
+          </div>
+        </ModalShell>
+      )}
       {memoriaAberta !== null && (
         <MemoriaModal
           memoria={memoriaAberta.id ? memoriaAberta : null}
@@ -2137,7 +2087,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
               ))}
             </div>
           </div>
-          {barra}
+          <div className="best-toolbar-bestiario">{buscaENovo}</div>
           {erro}
           {tabela}
         </div>
@@ -2155,9 +2105,8 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         <BestPageHeader
           eyebrow={en ? 'JOURNAL' : 'DIÁRIO'}
           title={tituloDaSecao}
-          right={botoesNovo}
+          right={buscaENovo}
         />
-        {barra}
         {erro}
         {tabela}
       </div>
@@ -2262,7 +2211,7 @@ function SelecionarBaseModal({ tipo, lang, onClose, onEscolher }) {
 
   return (
     <ModalShell
-      title={en ? `New ${diarioTipoLabel(tipo, lang)} — choose a base` : `Novo ${diarioTipoLabel(tipo, lang)} — escolha uma base`}
+      title={en ? `New ${diarioTipoLabel(tipo, lang)} — choose a base` : `${novoDoTipo(tipo)} ${diarioTipoLabel(tipo, lang)} — escolha uma base`}
       lang={lang}
       onClose={onClose}
       onCancel={onClose}
@@ -2652,10 +2601,6 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
   const [query, setQuery] = useState('');
   const [viewingLore, setViewingLore] = useState(null);
   const [tipoNovo, setTipoNovo] = useState(null);
-  // Catálogo lazy: 'treinamento' agrupa magia+habilidade+tecnica (cada item tem .tipo)
-  const [catalogoNovos, setCatalogoNovos] = useState({ item: null, treinamento: null });
-  const [loadingExtra, setLoadingExtra]   = useState(false);
-  const [errorExtra,   setErrorExtra]     = useState(null);
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(80);
   // Protagonistas da história — carregados uma vez, usados no seletor de liberação por PJ
   const [protagonistas, setProtagonistas] = useState([]);
@@ -2712,59 +2657,6 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
   };
 
   useEffect(() => { carregar(); }, [historia.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Carrega catálogo na primeira vez que o tab é aberto
-  useEffect(() => {
-    if (!DIARIO_TIPOS_NOVOS.has(tipoAba)) return;
-    if (catalogoNovos[tipoAba] !== null) return;
-    setLoadingExtra(true);
-    setErrorExtra(null);
-    if (tipoAba === 'treinamento') {
-      // Carrega magia + habilidade + tecnica em paralelo e combina
-      Promise.all([
-        supabaseClient.from('magias').select('nome, descricao').order('nome'),
-        supabaseClient.from('habilidades').select('nome, descricao').order('nome'),
-        supabaseClient.from('tecnicas').select('nome, descricao').order('nome'),
-      ]).then(([mag, hab, tec]) => {
-        setLoadingExtra(false);
-        const err = mag.error || hab.error || tec.error;
-        if (err) { setErrorExtra(err.message); return; }
-        const combined = [
-          ...(mag.data || []).map((e) => ({ ...e, tipo: 'magia' })),
-          ...(hab.data || []).map((e) => ({ ...e, tipo: 'habilidade' })),
-          ...(tec.data || []).map((e) => ({ ...e, tipo: 'tecnica' })),
-        ].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', en ? 'en' : 'pt'));
-        setCatalogoNovos((prev) => ({ ...prev, treinamento: combined }));
-      });
-    } else if (tipoAba === 'item') {
-      // Modelo A (Fase 2, 07/2026): a aba Item mescla o catálogo GLOBAL
-      // (itens) com os ITENS DA CAMPANHA (itens_historia desta história).
-      // A versão da campanha vence quando o nome coincide — MESMA regra da
-      // RPC listar_diario_disponivel (migration 019), pra Mestre e Jogador
-      // enxergarem a mesma coisa.
-      Promise.all([
-        fetchTabelaPaginada('itens', { colunas: 'nome, descricao', ordem: ['nome'] }),
-        supabaseClient.from('itens_historia').select('nome, descricao').eq('historia_id', historia.id).order('nome'),
-      ]).then(([cat, camp]) => {
-        setLoadingExtra(false);
-        const err = cat.error || camp.error;
-        if (err) { setErrorExtra(err.message); return; }
-        const nomesCampanha = new Set((camp.data || []).map((e) => e.nome));
-        const combined = [
-          ...(camp.data || []).map((e) => ({ ...e, tipo: 'item', campanha: true })),
-          ...(cat.data || []).filter((e) => !nomesCampanha.has(e.nome)).map((e) => ({ ...e, tipo: 'item' })),
-        ].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', en ? 'en' : 'pt'));
-        setCatalogoNovos((prev) => ({ ...prev, item: combined }));
-      });
-    } else {
-      supabaseClient.from(TIPO_TABELA[tipoAba]).select('nome, descricao').order('nome')
-        .then(({ data, error: err }) => {
-          setLoadingExtra(false);
-          if (err) { setErrorExtra(err.message); return; }
-          setCatalogoNovos((prev) => ({ ...prev, [tipoAba]: (data || []).map((e) => ({ ...e, tipo: tipoAba })) }));
-        });
-    }
-  }, [tipoAba]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const salvarLore = async () => {
     const tipoReal = tipoNovo || tipoAba;
@@ -2896,7 +2788,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
     <ModalShell
       title={editando.id
         ? (en ? `Edit ${diarioTipoLabel(tipoNovo || tipoAba, lang)}` : `Editar ${diarioTipoLabel(tipoNovo || tipoAba, lang)}`)
-        : (en ? `New ${diarioTipoLabel(tipoNovo || tipoAba, lang)}` : `Novo ${diarioTipoLabel(tipoNovo || tipoAba, lang)}`)}
+        : (en ? `New ${diarioTipoLabel(tipoNovo || tipoAba, lang)}` : `${novoDoTipo(tipoNovo || tipoAba)} ${diarioTipoLabel(tipoNovo || tipoAba, lang)}`)}
       lang={lang}
       onClose={() => { setEditando(null); setTipoNovo(null); }}
       onCancel={() => { setEditando(null); setTipoNovo(null); }}
@@ -2937,7 +2829,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
           </div>
           <h2 className="ms-title lore-mng-page-h2">Lore</h2>
         </div>
-        {tipoAba === 'criatura' || DIARIO_TIPOS_NOVOS.has(tipoAba) ? null
+        {tipoAba === 'criatura' ? null
         : tipoAba === 'lugar' ? (
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn-primary btn-sm" onClick={() => { setTipoNovo('reino'); setSlugOrigemEscolhido(null); setEditando({}); }}>
@@ -2949,7 +2841,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
           </div>
         ) : (
           <button className="btn-primary btn-sm" onClick={() => { setSlugOrigemEscolhido(null); setEditando({}); }}>
-            {en ? `New ${diarioTipoLabel(tipoAba, lang)}` : `Novo ${diarioTipoLabel(tipoAba, lang)}`}
+            {en ? `New ${diarioTipoLabel(tipoAba, lang)}` : `${novoDoTipo(tipoAba)} ${diarioTipoLabel(tipoAba, lang)}`}
           </button>
         )}
           </header>
@@ -2990,55 +2882,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
 
             {error && <div className="err-msg diario-err-mb">{error}</div>}
 
-            {DIARIO_TIPOS_NOVOS.has(tipoAba) ? (() => {
-              if (loadingExtra || catalogoNovos[tipoAba] === null) {
-                return <DiarioLoading lang={lang} />;
-              }
-              if (errorExtra) {
-                return <DiarioErrorBox error={errorExtra} hint={en ? 'Could not load data.' : 'Não foi possível carregar os dados.'} />;
-              }
-              const q = query.trim().toLowerCase();
-              const entradas = catalogoNovos[tipoAba].filter(
-                (e) => !q || (e.nome || '').toLowerCase().includes(q) || (e.descricao || '').toLowerCase().includes(q)
-              );
-              if (entradas.length === 0) return (
-                <div className="best-empty diario-empty-lg">
-                  <i className={'ti ' + (DIARIO_TIPO_ICON[tipoAba] || 'ti-help')}
-                     style={{ fontSize: 32, opacity: 0.3, display: 'block', marginBottom: 8 }} aria-hidden="true" />
-                  {q
-                    ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`)
-                    : (en ? 'Nothing here yet.' : 'Nada cadastrado ainda.')}
-                </div>
-              );
-              const totalPages = Math.max(1, Math.ceil(entradas.length / PAGE_SIZE));
-              const safePage   = Math.min(page, totalPages);
-              const pagina     = entradas.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-              return (
-                <>
-                  <div className="diario-vinculo-list diario-vinculo-list--full">
-                    {pagina.map((e) => {
-                      // e.tipo é o tipo real (magia/habilidade/tecnica/item)
-                      const campoReal = `${e.tipo}_ids`;
-                      const ligado = (historia[campoReal] || []).includes(e.nome);
-                      return (
-                        <div key={`${e.tipo}:${e.nome}`} className="diario-vinculo-item diario-vinculo-item--mestre">
-                          <input type="checkbox" checked={ligado} disabled={savingVinculo}
-                            onChange={(ev) => toggleDisponibilizar(e.tipo, e.nome, ev.target.checked)} />
-                          <span className="diario-vinculo-nome">{e.nome}</span>
-                          <button className="btn-icon btn-sm"
-                            onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
-                            onMouseLeave={fecharTip}
-                            onClick={() => setViewingLore({ ...e })}>
-                            <i className="ti ti-eye" aria-hidden="true" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <LorePaginacao safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />
-                </>
-              );
-            })() : tipoAba === 'criatura' ? (() => {
+            {tipoAba === 'criatura' ? (() => {
               const q = query.trim().toLowerCase();
               const lista = (criaturas || []).filter((c) => !q || c.nome.toLowerCase().includes(q));
               const totalPages = Math.max(1, Math.ceil(lista.length / PAGE_SIZE));

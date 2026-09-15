@@ -43,6 +43,8 @@
 
    Carregar depois de 07-inventario/ e antes do app.jsx.
    ============================================================ */
+// Botão + janela da Verificação do catálogo (14/09/2026) — ver painel-modal.jsx.
+import './painel-modal.jsx';
 
 
 // ---------- Hooks e helpers compartilhados ----------
@@ -342,13 +344,44 @@ function BestPageHeader({ eyebrow, title, right }) {
 }
 
 // ── BestBotaoNovo / BestBotaoEditar — controles do admin nas 5 listas ──────
-// Convenção compartilhada: "Novo" no cabeçalho abre o editor em criação
+// Convenção compartilhada: o + no cabeçalho abre o editor em criação
 // (linha null), o lápis em cada linha abre em edição (linha = o registro).
-function BestBotaoNovo({ ac, onClick }) {
+// Só o símbolo desde 14/09/2026 (pedido do usuário); "Novo" fica no
+// aria-label, para leitor de tela e teste.
+// `dica`: o tooltip do + (14/09/2026) — "Nova magia", "Novo item"... Sem ela,
+// cai no "Novo" do ADMIN_COPY.
+function BestBotaoNovo({ ac, onClick, dica }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   return (
-    <button type="button" className="btn-ghost btn-sm" onClick={onClick}>
-      <i className="ti ti-plus" aria-hidden="true" /> {ac.editorNovo}
-    </button>
+    <>
+      <button type="button" className="btn-icon btn-sm best-botao-novo"
+        onClick={() => { fecharTip(); onClick(); }}
+        aria-label={ac.editorNovo}
+        {...propsTip(abrirTip, fecharTip, dica || ac.editorNovo)}>
+        <i className="ti ti-plus" aria-hidden="true" />
+      </button>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    </>
+  );
+}
+
+/* Busca + botão +, juntos no cabeçalho (14/09/2026). "Remova os botões de
+   filtro, e também o contador '1034 de 1034', e o botão de buscar fica ao lado
+   do botão '+ novo'." A barra que ficava abaixo do título (busca, chips de
+   filtro e contador) saiu das 5 listas; sobrou a busca, que sobe para cá. */
+/* `ferramentas` (14/09/2026): Verificação, Sugestões e Estudo, que eram faixas
+   recolhíveis abaixo do cabeçalho, viraram botões entre a busca e o + — cada
+   um abre a sua janela (BestPainelModal, painel-modal.jsx). */
+function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, dicaNovo, ferramentas }) {
+  const { Input } = (typeof UI !== 'undefined' ? UI : {});
+  return (
+    <div className="best-header-acoes">
+      <div className="best-search">
+        {Input && <Input type="search" placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)} />}
+      </div>
+      {ferramentas}
+      {podeCriar && <BestBotaoNovo ac={ac} onClick={onNovo} dica={dicaNovo} />}
+    </div>
   );
 }
 function BestBotaoEditar({ ac, onClick }) {
@@ -366,11 +399,10 @@ function BestBotaoEditar({ ac, onClick }) {
 
 // ---------- Bestiário ----------
 function CriaturasList({ ac, lang, modoJogador }) {
-  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } = (typeof UI !== 'undefined' ? UI : {});
+  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } = (typeof UI !== 'undefined' ? UI : {});
   const [criaturas, setCriaturas] = useState(null);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
-  const [tipoFiltro, setTipoFiltro] = useState('all');
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
@@ -399,7 +431,7 @@ function CriaturasList({ ac, lang, modoJogador }) {
     carregarCriaturas(cancelRef);
     return () => { cancelRef.atual = true; };
   }, []);
-  useEffect(() => { setPage(1); setExpandida(null); }, [query, tipoFiltro]);
+  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
 
   if (!Table) return <BestNoKit />;
   if (criaturas === null) return <BestLoading lang={lang} />;
@@ -407,9 +439,7 @@ function CriaturasList({ ac, lang, modoJogador }) {
   if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
   const q = query.trim().toLowerCase();
-  const tiposPresentes = ['all', ...Array.from(new Set(criaturas.map((c) => c.tipo).filter(Boolean))).sort()];
   let filtered = (criaturasSorted || []).filter((c) => {
-    if (tipoFiltro !== 'all' && c.tipo !== tipoFiltro) return false;
     if (q && !(c.nome || '').toLowerCase().includes(q)) return false;
     return true;
   });
@@ -443,26 +473,13 @@ function CriaturasList({ ac, lang, modoJogador }) {
     <div className="fp-page">
     <div className="fp-card best best-criaturas">
       <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Creatures' : 'Criaturas'}
-        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
-      <div className="best-toolbar-bestiario">
-        <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search creature…' : 'Buscar criatura…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-        <div className="best-chips">
-          {tiposPresentes.map((t) => (
-            <ChipIcon
-              key={t}
-              value={t}
-              label={t === 'all' ? (lang === 'en' ? 'All' : 'Todos') : t}
-              active={tipoFiltro === t}
-              onClick={() => setTipoFiltro(t)}
-            />
-          ))}
-        </div>
-        <div className="best-count">{filtered.length} de {criaturas.length}</div>
-      </div>
-
-      {/* Verifica se os nomes em criaturas.magia ainda casam com o catálogo —
-          o furo que a auditoria de magias não alcança (rename silencioso). */}
-      {ehAdmin && <CriaturasAuditoriaPainel criaturas={criaturas} lang={lang} />}
+        right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
+          placeholder={lang === 'en' ? 'Search creature…' : 'Buscar criatura…'}
+          podeCriar={ehAdmin} onNovo={() => setEditando(null)}
+          dicaNovo={lang === 'en' ? 'New creature' : 'Nova criatura'}
+          /* Verifica se os nomes em criaturas.magia ainda casam com o catálogo —
+             o furo que a auditoria de magias não alcança (rename silencioso). */
+          ferramentas={ehAdmin && <CriaturasAuditoriaPainel criaturas={criaturas} lang={lang} />} />} />
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador, lang, oQue: 'criaturas', oQueEn: 'creature' })}</div>
@@ -493,6 +510,10 @@ function CriaturasList({ ac, lang, modoJogador }) {
                             {atributos.map((a) => (
                               <div className="best-stat" key={a.key}><span className="best-stat-lbl">{a.label}</span><span className="best-stat-val">{fmt(row[a.key])}</span></div>
                             ))}
+                            {/* Montaria (14/09/2026): característica da criatura. */}
+                            {row.montaria === true && (
+                              <div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Mount' : 'Montaria'}</span><span className="best-stat-val">{lang === 'en' ? 'Yes' : 'Sim'}</span></div>
+                            )}
                           </div>
                           {row.descricao
                             ? <TextoDoBanco texto={row.descricao} className="best-desc" />
@@ -515,6 +536,7 @@ function CriaturasList({ ac, lang, modoJogador }) {
         linha={editando}
         lang={lang}
         onSalvo={() => { setEditando(undefined); carregarCriaturas(); }}
+        onExcluido={() => { setEditando(undefined); setExpandida(null); carregarCriaturas(); }}
         onCancel={() => setEditando(undefined)}
       />
     )}
@@ -611,20 +633,19 @@ function CriaturasAuditoriaPainel({ criaturas, lang }) {
   const temProblema = !!s && (s.nome_orfao > 0 || s.sem_nivel > 0);
 
   return (
-    <div className={'best-auditoria' + (temProblema ? ' com-problema' : '')}>
-      <button type="button" className="best-aud-head" onClick={() => setAberto((v) => !v)}>
-        <span className="best-aud-chevron" style={{ transform: aberto ? 'rotate(90deg)' : 'none' }}>›</span>
-        <strong>{en ? 'Creature spells check' : 'Verificação das magias de criatura'}</strong>
-        <span className="best-aud-resumo">
-          {!s ? (en ? 'click to run' : 'clique para verificar')
-            : temProblema
-              ? (en ? `${s.nome_orfao} unknown name(s)` : `${s.nome_orfao} nome(s) sem correspondência`)
-              : (en ? `${s.ok} casting correctly` : `${s.ok} conjurando corretamente`)}
-        </span>
-      </button>
-
-      {aberto && (
+    <BestPainelModal lang={lang}
+      rotulo={en ? 'Check' : 'Verificação'}
+      titulo={en ? 'Creature spells check' : 'Verificação das magias de criatura'}
+      alerta={temProblema} aberto={aberto}
+      onAbrir={() => setAberto(true)} onFechar={() => setAberto(false)}>
         <div className="best-aud-corpo">
+          {s && (
+            <p className="best-aud-resumo">
+              {temProblema
+                ? (en ? `${s.nome_orfao} unknown name(s)` : `${s.nome_orfao} nome(s) sem correspondência`)
+                : (en ? `${s.ok} casting correctly` : `${s.ok} conjurando corretamente`)}
+            </p>
+          )}
           {!r ? (
             <p className="best-aud-ajuda">{en ? 'Loading…' : 'Consultando…'}</p>
           ) : (
@@ -671,8 +692,7 @@ function CriaturasAuditoriaPainel({ criaturas, lang }) {
             </>
           )}
         </div>
-      )}
-    </div>
+    </BestPainelModal>
   );
 }
 
@@ -859,6 +879,31 @@ function MagiasEstatisticas({ magias, lang }) {
   );
 }
 
+/* "Conferir novamente" + a hora da última conferência, no topo da janela da
+   Verificação (magias e técnicas). Era um <span role="button"> dentro da faixa
+   — botão aninhado em botão é HTML inválido; na janela voltou a ser <button>. */
+function BotaoReconferir({ en, onRecarregar, recarregando, conferidoEm, onClick }) {
+  if (!onRecarregar) return null;
+  return (
+    <span className="best-aud-reconferir">
+      {conferidoEm && !recarregando && (
+        <span className="best-aud-hora">
+          {(en ? 'checked at ' : 'conferido às ')}
+          {conferidoEm.toLocaleTimeString(en ? 'en-US' : 'pt-BR',
+            { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        </span>
+      )}
+      <button type="button" className="btn-ghost btn-sm best-aud-recarregar"
+        aria-label={en ? 'Check again' : 'Conferir novamente'} onClick={onClick}>
+        <i className={'ti ' + (recarregando ? 'ti-loader' : 'ti-refresh')} aria-hidden="true" />
+        {recarregando
+          ? (en ? 'Checking…' : 'Conferindo…')
+          : (en ? 'Check again' : 'Conferir novamente')}
+      </button>
+    </span>
+  );
+}
+
 function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
   const [aberto, setAberto] = React.useState(false);
   const [recarregando, setRecarregando] = React.useState(false);
@@ -882,7 +927,7 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
   const [conferidoEm, setConferidoEm] = React.useState(null);
 
   const reconferir = async (e) => {
-    e.stopPropagation();          // não fecha/abre a faixa
+    if (e) e.stopPropagation();
     if (!onRecarregar || recarregando) return;
     setRecarregando(true);
     try { await onRecarregar(); setConferidoEm(new Date()); }
@@ -916,46 +961,21 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
   );
 
   return (
-    <div className={'best-auditoria' + (temProblema ? ' com-problema' : '')}>
-      <button type="button" className="best-aud-head" onClick={() => setAberto((v) => !v)}>
-        <span className="best-aud-chevron" style={{ transform: aberto ? 'rotate(90deg)' : 'none' }}>›</span>
-        <strong>{en ? 'Catalog check' : 'Verificação do catálogo'}</strong>
-        <span className="best-aud-resumo">
-          {temProblema
-            ? (en ? `${s.quebrada} broken · ${s.ambigua} ambiguous` : `${s.quebrada} quebrada(s) · ${s.ambigua} ambígua(s)`)
-            : (en ? `${s.ok} read correctly` : `${s.ok} lidas corretamente`)}
-          {' · '}
-          {en ? `${s.orfa} unmapped` : `${s.orfa} sem registro`}
-        </span>
-        {onRecarregar && (
-          /* Dentro do <button> da faixa haveria botão aninhado, que é HTML
-             inválido — por isso é um <span role="button">, com stopPropagation
-             para o clique não abrir/fechar a faixa junto. */
-          <span
-            role="button"
-            tabIndex={0}
-            className="best-aud-recarregar"
-            aria-label={en ? 'Check again' : 'Conferir novamente'}
-            onClick={reconferir}
-            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') reconferir(ev); }}
-          >
-            <i className={'ti ' + (recarregando ? 'ti-loader' : 'ti-refresh')} aria-hidden="true" />
-            {recarregando
-              ? (en ? 'Checking…' : 'Conferindo…')
-              : (en ? 'Check again' : 'Conferir novamente')}
-          </span>
-        )}
-        {conferidoEm && !recarregando && (
-          <span className="best-aud-hora">
-            {(en ? 'checked at ' : 'conferido às ')}
-            {conferidoEm.toLocaleTimeString(en ? 'en-US' : 'pt-BR',
-              { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </span>
-        )}
-      </button>
-
-      {aberto && (
+    <BestPainelModal lang={lang}
+      rotulo={en ? 'Check' : 'Verificação'}
+      titulo={en ? 'Catalog check' : 'Verificação do catálogo'}
+      alerta={temProblema} aberto={aberto}
+      onAbrir={() => setAberto(true)} onFechar={() => setAberto(false)}
+      acoesTopo={<BotaoReconferir en={en} onRecarregar={onRecarregar} recarregando={recarregando}
+        conferidoEm={conferidoEm} onClick={reconferir} />}>
         <div className="best-aud-corpo">
+          <p className="best-aud-resumo">
+            {temProblema
+              ? (en ? `${s.quebrada} broken · ${s.ambigua} ambiguous` : `${s.quebrada} quebrada(s) · ${s.ambigua} ambígua(s)`)
+              : (en ? `${s.ok} read correctly` : `${s.ok} lidas corretamente`)}
+            {' · '}
+            {en ? `${s.orfa} unmapped` : `${s.orfa} sem registro`}
+          </p>
           <p className="best-aud-ajuda">
             {en
               ? 'Numbers in the level text drive the effect — edit them freely. Changing WHICH unit a spell affects needs a code change.'
@@ -1068,19 +1088,17 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
               : `${s.ok} no motor e consistentes · ${s.narrativa} narrativas (nada a fazer) · ${s.total} no total`}
           </p>
         </div>
-      )}
-    </div>
+    </BestPainelModal>
   );
 }
 
 /* ============================== [18] MagiasList — Mestre vê todas as magias do banco; jogador só as compradas ============================== */
 function MagiasList({ ac, lang, modoJogador }) {
-  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
+  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [magias, setMagias] = useState(null);
   const { sorted: magiasSorted, sortKey, sortDir, toggleSort } = useSort(magias);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
-  const [tipoFiltro, setTipoFiltro] = useState('all');
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
@@ -1101,7 +1119,7 @@ function MagiasList({ ac, lang, modoJogador }) {
     carregarMagias(cancelRef);
     return () => { cancelRef.atual = true; };
   }, []);
-  useEffect(() => { setPage(1); setExpandida(null); }, [query, tipoFiltro]);
+  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
 
   if (!Table) return <BestNoKit />;
   if (magias === null) return <BestLoading lang={lang} />;
@@ -1110,7 +1128,6 @@ function MagiasList({ ac, lang, modoJogador }) {
 
   const q = query.trim().toLowerCase();
   let filtered = (magiasSorted || []).filter((m) => {
-    if (tipoFiltro !== 'all' && m.tipo !== tipoFiltro) return false;
     if (q && !(m.nome || '').toLowerCase().includes(q)) return false;
     return true;
   });
@@ -1123,35 +1140,22 @@ function MagiasList({ ac, lang, modoJogador }) {
     <div className="fp-page">
     <div className="fp-card best best-auto">
       <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Spells' : 'Magias'}
-        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
-      <div className="best-toolbar-bestiario">
-        <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search spell…' : 'Buscar magia…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-        <div className="best-chips">
-          {['all', 'Básica', 'Perdida', 'Ancestral'].map((t) => (
-            <ChipIcon
-              key={t}
-              value={t}
-              label={t === 'all' ? (lang === 'en' ? 'All' : 'Todas') : t}
-              active={tipoFiltro === t}
-              onClick={() => setTipoFiltro(t)}
-            />
-          ))}
-        </div>
-        <div className="best-count">{filtered.length} de {magias.length}</div>
-      </div>
-
-      {/* Auditoria do catálogo — só admin. Responde a pergunta de manutenção:
-          "editei o texto de uma magia; o motor de combate ainda entende?"
-
-          Mora AQUI, ao lado do editor, porque é aqui que o texto é editado —
-          e porque a tabela `magias` exige autenticação, então um script de
-          linha de comando precisaria de credencial que esta tela já tem. */}
-      {ehAdmin && <MagiasAuditoriaPainel magias={magias} lang={lang} onRecarregar={carregarMagias} />}
-      {/* O documento de sugestões, logo abaixo da conferência (12/09/2026). Nome
-          global, com guarda: o arquivo é carregado depois deste em main.tsx. */}
-      {ehAdmin && typeof MagiasSugestoesPainel === 'function' && <MagiasSugestoesPainel lang={lang} />}
-      {/* O estudo de redução do catálogo, logo abaixo das sugestões (12/09/2026). */}
-      {ehAdmin && typeof EstudoMagiasPainel === 'function' && <EstudoMagiasPainel lang={lang} />}
+        right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
+          placeholder={lang === 'en' ? 'Search spell…' : 'Buscar magia…'}
+          podeCriar={ehAdmin} onNovo={() => setEditando(null)}
+          dicaNovo={lang === 'en' ? 'New spell' : 'Nova magia'}
+          /* Verificação do catálogo, Sugestões e Estudo — só admin. A
+             verificação responde a pergunta de manutenção: "editei o texto de
+             uma magia; o motor de combate ainda entende?" Mora AQUI, ao lado do
+             editor, porque é aqui que o texto é editado — e porque a tabela
+             `magias` exige autenticação que esta tela já tem. Sugestões e
+             Estudo têm nome global com guarda: o arquivo carrega depois deste
+             em main.tsx. */
+          ferramentas={ehAdmin && (<>
+            <MagiasAuditoriaPainel magias={magias} lang={lang} onRecarregar={carregarMagias} />
+            {typeof MagiasSugestoesPainel === 'function' && <MagiasSugestoesPainel lang={lang} />}
+            {typeof EstudoMagiasPainel === 'function' && <EstudoMagiasPainel lang={lang} />}
+          </>)} />} />
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'magias', oQueEn: 'spell' })}</div>
@@ -1231,12 +1235,11 @@ function MagiasList({ ac, lang, modoJogador }) {
 
 /* ============================== [19] HabilidadesList — Mestre vê todas as habilidades (DB); jogador só as que tem ============================== */
 function HabilidadesList({ ac, lang, modoJogador }) {
-  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
+  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [habilidades, setHabilidades] = useState(null);
   const { sorted: habSorted, sortKey, sortDir, toggleSort } = useSort(habilidades);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
-  const [categoriaFiltro, setCategoriaFiltro] = useState('all');
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
@@ -1257,7 +1260,7 @@ function HabilidadesList({ ac, lang, modoJogador }) {
     carregarHabilidades(cancelRef);
     return () => { cancelRef.atual = true; };
   }, []);
-  useEffect(() => { setPage(1); setExpandida(null); }, [query, categoriaFiltro]);
+  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
 
   if (!Table) return <BestNoKit />;
   if (habilidades === null) return <BestLoading lang={lang} />;
@@ -1265,12 +1268,9 @@ function HabilidadesList({ ac, lang, modoJogador }) {
   if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
   const todasHabilidades = habSorted || [];
-  // Categorias na ordem canônica, só as que aparecem (agora renderizadas como chips — antes só tinha "Todas").
-  const categoriasPresentes = GRUPOS_HABILIDADES_ORDEM.filter((g) => todasHabilidades.some((h) => h.grupo === g));
 
   const q = query.trim().toLowerCase();
   let filtered = todasHabilidades.filter((h) => {
-    if (categoriaFiltro !== 'all' && h.grupo !== categoriaFiltro) return false;
     if (q && !(h.nome || '').toLowerCase().includes(q)) return false;
     return true;
   });
@@ -1283,17 +1283,10 @@ function HabilidadesList({ ac, lang, modoJogador }) {
     <div className="fp-page">
     <div className="fp-card best best-auto">
       <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Skills' : 'Habilidades'}
-        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
-      <div className="best-toolbar-bestiario">
-        <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search skill…' : 'Buscar habilidade…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-        <div className="best-chips">
-          <ChipIcon value="all" label={lang === 'en' ? 'All' : 'Todas'} active={categoriaFiltro === 'all'} onClick={() => setCategoriaFiltro('all')} />
-          {categoriasPresentes.map((g) => (
-            <ChipIcon key={g} value={g} label={g} active={categoriaFiltro === g} onClick={() => setCategoriaFiltro(g)} />
-          ))}
-        </div>
-        <div className="best-count">{filtered.length} de {todasHabilidades.length}</div>
-      </div>
+        right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
+          placeholder={lang === 'en' ? 'Search skill…' : 'Buscar habilidade…'}
+          podeCriar={ehAdmin} onNovo={() => setEditando(null)}
+          dicaNovo={lang === 'en' ? 'New skill' : 'Nova habilidade'} />} />
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'habilidades', oQueEn: 'skill' })}</div>
@@ -1313,7 +1306,9 @@ function HabilidadesList({ ac, lang, modoJogador }) {
               <TableBody>
                 {pageSlice.map((h) => {
                   const isOpen = expandida === h.key;
-                  const temDetalhe = !!(h.descricao || h.restricao);
+                  // Só a descrição: a restrição de uso saiu do detalhe em 14/09/2026
+                  // (pedido do usuário). A coluna segue no banco e no editor.
+                  const temDetalhe = !!h.descricao;
                   return (
                     <React.Fragment key={h.key}>
                       <TableRow className={isOpen ? 'on' : ''} style={temDetalhe ? { cursor: 'pointer' } : undefined} onClick={temDetalhe ? () => setExpandida(isOpen ? null : h.key) : undefined}>
@@ -1330,11 +1325,6 @@ function HabilidadesList({ ac, lang, modoJogador }) {
                       </TableRow>
                       {isOpen && temDetalhe && (
                         <TableRow className="best-detail"><TableCell colSpan={6 + (ehAdmin ? 1 : 0)}>
-                          {h.restricao && (
-                            <div className="best-meta-list">
-                              <div className="best-meta"><span className="best-meta-lbl">{lang === 'en' ? 'Restriction' : 'Restrição'}</span><span className="best-meta-val">{h.restricao}</span></div>
-                            </div>
-                          )}
                           {h.descricao && <TextoDoBanco texto={h.descricao} className="best-desc" />}
                         </TableCell></TableRow>
                       )}
@@ -1383,7 +1373,7 @@ function TecnicasAuditoriaPainel({ tecnicas, lang, onRecarregar }) {
   const en = lang === 'en';
 
   const reconferir = async (e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     if (!onRecarregar || recarregando) return;
     setRecarregando(true);
     try { await onRecarregar(); setConferidoEm(new Date()); }
@@ -1418,43 +1408,21 @@ function TecnicasAuditoriaPainel({ tecnicas, lang, onRecarregar }) {
   ];
 
   return (
-    <div className={'best-auditoria' + (temProblema ? ' com-problema' : '')}>
-      <button type="button" className="best-aud-head" onClick={() => setAberto((v) => !v)}>
-        <span className="best-aud-chevron" style={{ transform: aberto ? 'rotate(90deg)' : 'none' }}>›</span>
-        <strong>{en ? 'Catalog check' : 'Verificação do catálogo'}</strong>
-        <span className="best-aud-resumo">
-          {temProblema
-            ? (en ? `${s.divergente} diverging` : `${s.divergente} divergente(s)`)
-            : (en ? `${s.ok} in sync` : `${s.ok} em acordo com o motor`)}
-          {' · '}
-          {en ? `${s.fora} unmapped` : `${s.fora} fora do motor`}
-        </span>
-        {onRecarregar && (
-          <span
-            role="button"
-            tabIndex={0}
-            className="best-aud-recarregar"
-            aria-label={en ? 'Check again' : 'Conferir novamente'}
-            onClick={reconferir}
-            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') reconferir(ev); }}
-          >
-            <i className={'ti ' + (recarregando ? 'ti-loader' : 'ti-refresh')} aria-hidden="true" />
-            {recarregando
-              ? (en ? 'Checking…' : 'Conferindo…')
-              : (en ? 'Check again' : 'Conferir novamente')}
-          </span>
-        )}
-        {conferidoEm && !recarregando && (
-          <span className="best-aud-hora">
-            {(en ? 'checked at ' : 'conferido às ')}
-            {conferidoEm.toLocaleTimeString(en ? 'en-US' : 'pt-BR',
-              { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </span>
-        )}
-      </button>
-
-      {aberto && (
+    <BestPainelModal lang={lang}
+      rotulo={en ? 'Check' : 'Verificação'}
+      titulo={en ? 'Catalog check' : 'Verificação do catálogo'}
+      alerta={temProblema} aberto={aberto}
+      onAbrir={() => setAberto(true)} onFechar={() => setAberto(false)}
+      acoesTopo={<BotaoReconferir en={en} onRecarregar={onRecarregar} recarregando={recarregando}
+        conferidoEm={conferidoEm} onClick={reconferir} />}>
         <div className="best-aud-corpo">
+          <p className="best-aud-resumo">
+            {temProblema
+              ? (en ? `${s.divergente} diverging` : `${s.divergente} divergente(s)`)
+              : (en ? `${s.ok} in sync` : `${s.ok} em acordo com o motor`)}
+            {' · '}
+            {en ? `${s.fora} unmapped` : `${s.fora} fora do motor`}
+          </p>
           <p className="best-aud-ajuda">
             {en
               ? 'UNLIKE spells: a technique\'s numbers live in CODE. Editing the text changes what the screen promises, not what the engine does — tell me and I change both.'
@@ -1508,18 +1476,16 @@ function TecnicasAuditoriaPainel({ tecnicas, lang, onRecarregar }) {
                 : `${s.ok} das ${s.total} técnicas funcionam em combate.`}
           </p>
         </div>
-      )}
-    </div>
+    </BestPainelModal>
   );
 }
 
 function TecnicasList({ ac, lang, modoJogador }) {
-  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
+  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [tecnicas, setTecnicas] = useState(null);
   const { sorted: tecnicasSorted, sortKey, sortDir, toggleSort } = useSort(tecnicas);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
-  const [usoFiltro, setUsoFiltro] = useState('all');
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
@@ -1540,18 +1506,15 @@ function TecnicasList({ ac, lang, modoJogador }) {
     carregarTecnicas(cancelRef);
     return () => { cancelRef.atual = true; };
   }, []);
-  useEffect(() => { setPage(1); setExpandida(null); }, [query, usoFiltro]);
+  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
 
   if (!Table) return <BestNoKit />;
   if (tecnicas === null) return <BestLoading lang={lang} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'tecnicas' table exists in Supabase." : "Confira se a tabela 'tecnicas' existe no Supabase."} />;
   if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
-  const usosDisponiveis = Array.from(new Set(tecnicas.map((t) => t.uso).filter(Boolean))).sort();
-
   const q = query.trim().toLowerCase();
   let filtered = (tecnicasSorted || []).filter((t) => {
-    if (usoFiltro !== 'all' && t.uso !== usoFiltro) return false;
     if (q && !(t.nome || '').toLowerCase().includes(q)) return false;
     return true;
   });
@@ -1564,24 +1527,16 @@ function TecnicasList({ ac, lang, modoJogador }) {
     <div className="fp-page">
     <div className="fp-card best best-auto">
       <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Techniques' : 'Técnicas'}
-        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
-      <div className="best-toolbar-bestiario">
-        <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search technique…' : 'Buscar técnica…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-        <div className="best-chips">
-          <ChipIcon value="all" label={lang === 'en' ? 'All' : 'Todas'} active={usoFiltro === 'all'} onClick={() => setUsoFiltro('all')} />
-          {usosDisponiveis.map((u) => (
-            <ChipIcon key={u} value={u} label={u} active={usoFiltro === u} onClick={() => setUsoFiltro(u)} />
-          ))}
-        </div>
-        <div className="best-count">{filtered.length} de {tecnicas.length}</div>
-      </div>
-
-      {/* Mora AQUI pelo mesmo motivo do painel das magias: é onde o texto da
-          técnica é editado, e a tabela exige autenticação que esta tela já
-          tem. Ver TecnicasAuditoriaPainel. */}
-      {ehAdmin && <TecnicasAuditoriaPainel tecnicas={tecnicas} lang={lang} onRecarregar={carregarTecnicas} />}
-      {/* Sugestões de técnicas, junto da conferência (12/09/2026). */}
-      {ehAdmin && typeof TecnicasSugestoesPainel === 'function' && <TecnicasSugestoesPainel lang={lang} />}
+        right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
+          placeholder={lang === 'en' ? 'Search technique…' : 'Buscar técnica…'}
+          podeCriar={ehAdmin} onNovo={() => setEditando(null)}
+          dicaNovo={lang === 'en' ? 'New technique' : 'Nova técnica'}
+          /* Mesmo motivo do painel das magias: é onde o texto da técnica é
+             editado, e a tabela exige autenticação que esta tela já tem. */
+          ferramentas={ehAdmin && (<>
+            <TecnicasAuditoriaPainel tecnicas={tecnicas} lang={lang} onRecarregar={carregarTecnicas} />
+            {typeof TecnicasSugestoesPainel === 'function' && <TecnicasSugestoesPainel lang={lang} />}
+          </>)} />} />
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'técnicas', oQueEn: 'technique' })}</div>
@@ -1645,15 +1600,114 @@ function TecnicasList({ ac, lang, modoJogador }) {
   );
 }
 
+/* ============================== [21a] Peças do detalhe do item ==============================
+   14/09/2026, pedido do usuário:
+     • "remova a coluna armazenamento. O armazenamento, quando houver, será um
+       ícone dentro do item junto com os demais" — e depois, no mesmo dia, "ao
+       invés de mostrar um ícone e tooltip, eu quero o texto 'ocupa'": virou um
+       quadro com rótulo em texto, igual a Dano/Alcance;
+     • "se for um item mágico, informe como texto qual magia é e a descrição
+       da magia" — itens.magia guarda o NOME da magia (magiaDoItem, 07-inventario).
+   Também usadas pela página de itens da campanha (itens-campanha.jsx). */
+function temArmazenamentoItem(it) {
+  const tem = (v) => v != null && v !== '' && Number.isFinite(Number(v));
+  return !!it && ((tem(it.armazena) && Number(it.armazena) > 0) || tem(it.ocupa));
+}
+
+function BestItemArmazenamento({ item, lang }) {
+  if (!temArmazenamentoItem(item)) return null;
+  const en = lang === 'en';
+  const fmt = (v) => Number(v).toFixed(1);
+  // Rótulo em TEXTO, como os demais quadros (pedido do usuário, 14/09/2026:
+  // "ao invés de mostrar um ícone e tooltip, eu quero o texto 'ocupa'").
+  const quadro = (rotulo, valor) => (
+    <div className="best-stat">
+      <span className="best-stat-lbl">{rotulo}</span>
+      <span className="best-stat-val">{valor}</span>
+    </div>
+  );
+  return (
+    <>
+      {item.ocupa != null && item.ocupa !== '' && quadro(en ? 'Takes up' : 'Ocupa', fmt(item.ocupa))}
+      {Number(item.armazena) > 0 && quadro(en ? 'Stores' : 'Armazena', fmt(item.armazena))}
+    </>
+  );
+}
+
+/* Animal ligado à criatura (itens.criatura_id, 14/09/2026): a característica
+   vem da CRIATURA — o item só a mostra. `criaturasPorId` = { [id]: linha }. */
+function useCriaturasPorId() {
+  const [mapa, setMapa] = useState({});
+  useEffect(() => {
+    let cancelado = false;
+    fetchTabelaPaginada('criaturas', { colunas: 'id, nome, montaria', ordem: ['nome'] })
+      .then(({ data }) => {
+        if (cancelado) return;
+        const m = {};
+        (data || []).forEach((c) => { m[c.id] = c; });
+        setMapa(m);
+      });
+    return () => { cancelado = true; };
+  }, []);
+  return mapa;
+}
+
+function BestItemCriatura({ item, criaturasPorId, lang }) {
+  if (!item || item.criatura_id == null) return null;
+  const c = (criaturasPorId || {})[item.criatura_id];
+  if (!c) return null;
+  const en = lang === 'en';
+  return (
+    <>
+      <div className="best-stat"><span className="best-stat-lbl">{en ? 'Creature' : 'Criatura'}</span><span className="best-stat-val">{c.nome}</span></div>
+      {c.montaria === true && (
+        <div className="best-stat"><span className="best-stat-lbl">{en ? 'Mount' : 'Montaria'}</span><span className="best-stat-val">{en ? 'Yes' : 'Sim'}</span></div>
+      )}
+    </>
+  );
+}
+
+/* Catálogo de magias, carregado uma vez por tela de itens. */
+function useMagiasParaItens() {
+  const [magias, setMagias] = useState([]);
+  useEffect(() => {
+    let cancelado = false;
+    supabaseClient.from('magias').select('key, nome, descricao, nivel_1, nivel_3, nivel_5, nivel_7, nivel_9')
+      .then(({ data }) => { if (!cancelado) setMagias(data || []); });
+    return () => { cancelado = true; };
+  }, []);
+  return magias;
+}
+
+function BestItemMagia({ item, magias, lang }) {
+  if (!item || !item.magia) return null;
+  const en = lang === 'en';
+  const _magiaDoItem = window.magiaDoItem;
+  const magia = _magiaDoItem ? _magiaDoItem(item, magias) : null;
+  const nivel = item.nivel_magia != null && item.nivel_magia !== '' ? Number(item.nivel_magia) : null;
+  const textoNivel = magia && nivel != null ? magia['nivel_' + nivel] : null;
+  return (
+    <div className="best-magia">
+      {/* Só "Bola de Fogo · Nível 9" — sem ícone nem rótulo "Magia" (14/09/2026). */}
+      <div className="best-magia-head">
+        <span className="best-magia-nome">
+          {magia ? magia.nome : item.magia}
+          {nivel != null && ` · ${en ? 'Level' : 'Nível'} ${nivel}`}
+        </span>
+      </div>
+      {magia && magia.descricao && <TextoDoBanco texto={magia.descricao} className="best-desc" />}
+      {textoNivel && <p className="best-efeito">{textoNivel}</p>}
+    </div>
+  );
+}
+
 /* ============================== [21] ItensList — Mestre vê todos os itens; jogador só os que possui ============================== */
 function ItensList({ ac, lang, modoJogador }) {
-  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input } = (typeof UI !== 'undefined' ? UI : {});
+  const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [itens, setItens] = useState(null);
   const { sorted: itensSorted, sortKey, sortDir, toggleSort } = useSort(itens);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
-  const [grupoFiltro, setGrupoFiltro] = useState('all');
-  const [precoFiltro, setPrecoFiltro] = useState('all');
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
@@ -1663,16 +1717,6 @@ function ItensList({ ac, lang, modoJogador }) {
   const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
   // Livro aberto na janela de leitura (itens.doc_url), 13/09/2026: guarda o slug.
   const [lendoDoc, setLendoDoc] = useState(null);
-
-  // Faixas de preço (valor_latao)
-  const PRECO_FAIXAS = [
-    { key: 'all',    label: lang === 'en' ? 'All prices' : 'Todos os preços', icon: 'ti-list',         min: 0,     max: Infinity },
-    { key: 'gratis', label: lang === 'en' ? 'Free'        : 'Gratuito',        icon: 'ti-gift',         min: 0,     max: 0        },
-    { key: 'barato', label: lang === 'en' ? '1–99'        : '1–99',            icon: 'ti-coin',         min: 1,     max: 99       },
-    { key: 'medio',  label: lang === 'en' ? '100–999'     : '100–999',         icon: 'ti-coins',        min: 100,   max: 999      },
-    { key: 'caro',   label: lang === 'en' ? '1 000–9 999' : '1.000–9.999',     icon: 'ti-cash',         min: 1000,  max: 9999     },
-    { key: 'raro',   label: lang === 'en' ? '10 000+'     : '10.000+',         icon: 'ti-diamond',      min: 10000, max: Infinity },
-  ];
 
   // Extraído SEM mudar comportamento (ver comentário equivalente em CriaturasList).
   const carregarItens = async (cancelRef) => {
@@ -1687,24 +1731,20 @@ function ItensList({ ac, lang, modoJogador }) {
     carregarItens(cancelRef);
     return () => { cancelRef.atual = true; };
   }, []);
-  useEffect(() => { setPage(1); setExpandida(null); }, [query, grupoFiltro, precoFiltro]);
+  // Magias do catálogo, para o item mágico dizer QUAL magia carrega (14/09/2026).
+  const magias = useMagiasParaItens();
+  // Criatura vinculada aos animais — de onde vem a característica Montaria.
+  const criaturasPorId = useCriaturasPorId();
+  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
 
   if (!Table) return <BestNoKit />;
   if (itens === null) return <BestLoading lang={lang} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'itens' table exists in Supabase." : "Confira se a tabela 'itens' existe no Supabase."} />;
   if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
-  const gruposDisponiveis = Array.from(new Set(itens.map((i) => i.grupo).filter(Boolean))).sort();
-
   const q = query.trim().toLowerCase();
-  const faixaAtiva = PRECO_FAIXAS.find((f) => f.key === precoFiltro) || PRECO_FAIXAS[0];
   let filtered = (itensSorted || []).filter((it) => {
-    if (grupoFiltro !== 'all' && it.grupo !== grupoFiltro) return false;
     if (q && !(it.nome || '').toLowerCase().includes(q)) return false;
-    if (precoFiltro !== 'all') {
-      const v = it.valor_latao ?? 0;
-      if (v < faixaAtiva.min || v > faixaAtiva.max) return false;
-    }
     return true;
   });
   if (modoJogador) filtered = filtered.filter((it) => conhecido.itens.has(it.slug));
@@ -1716,20 +1756,12 @@ function ItensList({ ac, lang, modoJogador }) {
     <div className="fp-page">
     <div className="fp-card best best-auto">
       <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Items' : 'Itens'}
-        right={ehAdmin && <BestBotaoNovo ac={ac} onClick={() => setEditando(null)} />} />
-      <div className="best-toolbar-bestiario">
-        <div className="best-search"><Input type="search" placeholder={lang === 'en' ? 'Search item…' : 'Buscar item…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-        <div className="best-chips">
-          <ChipIcon value="all" label={lang === 'en' ? 'All' : 'Todos'} active={grupoFiltro === 'all'} onClick={() => setGrupoFiltro('all')} />
-          {gruposDisponiveis.map((g) => (
-            <ChipIcon key={g} value={g} label={g} active={grupoFiltro === g} onClick={() => setGrupoFiltro(g)} />
-          ))}
-        </div>
-        <div className="best-count">{filtered.length} de {itens.length}</div>
-      </div>
-      {/* Sugestões de itens para batalha (12/09/2026). Itens não tem painel de
-          conferência; o documento fica no mesmo lugar em que os outros dois ficam. */}
-      {ehAdmin && typeof ItensSugestoesPainel === 'function' && <ItensSugestoesPainel lang={lang} />}
+        right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
+          placeholder={lang === 'en' ? 'Search item…' : 'Buscar item…'}
+          podeCriar={ehAdmin} onNovo={() => setEditando(null)}
+          dicaNovo={lang === 'en' ? 'New item' : 'Novo item'}
+          /* Sugestões de itens para batalha. Itens não tem verificação. */
+          ferramentas={ehAdmin && typeof ItensSugestoesPainel === 'function' && <ItensSugestoesPainel lang={lang} />} />} />
 
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'itens', oQueEn: 'item' })}</div>
@@ -1740,7 +1772,6 @@ function ItensList({ ac, lang, modoJogador }) {
               <TableHeader><TableRow>
                 <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
                 <SortHead col='grupo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Group' : 'Grupo'}</SortHead>
-                <SortHead col='ocupa' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Storage' : 'Armazenamento'}</SortHead>
                 <SortHead col='valor_latao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Value' : 'Valor'}</SortHead>
                 {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
@@ -1749,12 +1780,8 @@ function ItensList({ ac, lang, modoJogador }) {
                   const isOpen = expandida === it.slug;
                   const isContainer = ehContainer(it);
                   const equipavel = !!it.categoria_equip;
-                  // Armazenamento: "+" quando é capacidade (armazena, recipiente),
-                  // "-" quando é o espaço que ocupa. Vazio/branco -> célula em branco.
-                  const armazenamento =
-                    (it.armazena != null && it.armazena > 0) ? `+${Number(it.armazena).toFixed(1)}`
-                    : (it.ocupa != null && it.ocupa !== '') ? `-${Number(it.ocupa).toFixed(1)}`
-                    : '';
+                  const temArmazenamento = temArmazenamentoItem(it);
+                  const temCriatura = it.criatura_id != null && !!criaturasPorId[it.criatura_id];
                   return (
                     <React.Fragment key={it.id || it.slug}>
                       <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : it.slug)}>
@@ -1763,21 +1790,25 @@ function ItensList({ ac, lang, modoJogador }) {
                           {it.nome}
                         </TableCell>
                         <TableCell>{it.grupo || '—'}</TableCell>
-                        <TableCell>{armazenamento}</TableCell>
                         <TableCell>{it.valor_latao ?? 0}</TableCell>
                         {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(it)} /></TableCell>}
                       </TableRow>
                       {isOpen && (
-                        <TableRow className="best-detail"><TableCell colSpan={4 + (ehAdmin ? 1 : 0)}>
-                          {equipavel && (
+                        <TableRow className="best-detail"><TableCell colSpan={3 + (ehAdmin ? 1 : 0)}>
+                          {(equipavel || temArmazenamento || temCriatura) && (
                             <div className="best-detail-stats">
-                              {(it.categoria_equip === 'arma' || it.categoria_equip === 'escudo') && (
+                              {/* Ocupa/Armazena num quadro, junto dos demais (14/09/2026) —
+                                  era uma coluna da tabela. Ver BestItemArmazenamento. */}
+                              <BestItemArmazenamento item={it} lang={lang} />
+                              <BestItemCriatura item={it} criaturasPorId={criaturasPorId} lang={lang} />
+                              {/* Mãos só no ESCUDO: na arma saiu (pedido de 14/09/2026). */}
+                              {it.categoria_equip === 'escudo' && (
                                 <div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Halfling' : 'Pequenino'}</span><span className="best-stat-val">{it.maos_pequenino != null ? `${it.maos_pequenino} ${lang === 'en' ? (it.maos_pequenino === 1 ? 'hand' : 'hands') : (it.maos_pequenino === 1 ? 'mão' : 'mãos')}` : <span style={{ color: '#C0392B', fontWeight: 700 }}>✗</span>}</span></div>
                               )}
-                              {(it.categoria_equip === 'arma' || it.categoria_equip === 'escudo') && (
+                              {it.categoria_equip === 'escudo' && (
                                 <div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Dwarf' : 'Anão'}</span><span className="best-stat-val">{it.maos_anao != null ? `${it.maos_anao} ${lang === 'en' ? (it.maos_anao === 1 ? 'hand' : 'hands') : (it.maos_anao === 1 ? 'mão' : 'mãos')}` : <span style={{ color: '#C0392B', fontWeight: 700 }}>✗</span>}</span></div>
                               )}
-                              {(it.categoria_equip === 'arma' || it.categoria_equip === 'escudo') && (
+                              {it.categoria_equip === 'escudo' && (
                                 <div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Others' : 'Outros'}</span><span className="best-stat-val">{it.maos_outras != null ? `${it.maos_outras} ${lang === 'en' ? (it.maos_outras === 1 ? 'hand' : 'hands') : (it.maos_outras === 1 ? 'mão' : 'mãos')}` : <span style={{ color: '#C0392B', fontWeight: 700 }}>✗</span>}</span></div>
                               )}
                               {it.dano != null && (<div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Damage' : 'Dano'}</span><span className="best-stat-val">{it.dano}</span></div>)}
@@ -1790,6 +1821,7 @@ function ItensList({ ac, lang, modoJogador }) {
                           )}
                           {it.descricao && <TextoDoBanco texto={it.descricao} className="best-desc" />}
                           {it.efeito && <p className="best-efeito">{it.efeito}</p>}
+                          <BestItemMagia item={it} magias={magias} lang={lang} />
                           {/* itens.doc_url guarda o link do CONTEÚDO do item — hoje só os
                               três livros da campanha o usam, apontando pro texto da obra.
                               Até 11/09/2026 o campo existia no editor e nenhuma tela o lia:
@@ -1851,6 +1883,8 @@ Object.assign(window, {
   // quebrou alguma magia no motor.
   MagiasAuditoriaPainel, CriaturasAuditoriaPainel, TecnicasAuditoriaPainel,
   TecnicasList, ItensList, useEhAdmin,
+  // Detalhe do item (14/09/2026) — também na página de itens da campanha.
+  BestItemArmazenamento, BestItemMagia, useMagiasParaItens, temArmazenamentoItem,
   linhasQueCabem, paragrafosDe, TextoDoBanco, textoListaVazia,
   /* O VOCABULÁRIO DA TABELA, exposto em 12/09/2026.
 
@@ -1861,4 +1895,7 @@ Object.assign(window, {
      telas começam a divergir sem ninguém decidir que deviam. */
   BestPageHeader, BestLoading, BestErrorBox, BestPagination,
   useFitPageSize, useSort, SortHead, ChipIcon,
+  // 14/09/2026: o cabeçalho "busca + ferramentas + +" também serve às páginas
+  // Lugares, NPCs e Memórias (13-diario/diario.jsx).
+  BestBuscaENovo, BestBotaoNovo,
 });

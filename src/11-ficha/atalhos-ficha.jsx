@@ -36,6 +36,9 @@ function itemUsavelNoAtalho(cat) {
   if (cat.categoria_equip) return false;
   if (cat.armazena != null && Number(cat.armazena) > 0) return false;
   if (cat.magia && cat.nivel_magia != null) return false;
+  // Flecha: quem gasta é o ataque com arco, não o jogador (14/09/2026).
+  const _ehFlecha = (typeof window !== 'undefined' && window.ehFlecha) || null;
+  if (_ehFlecha && _ehFlecha(cat)) return false;
   return true;
 }
 

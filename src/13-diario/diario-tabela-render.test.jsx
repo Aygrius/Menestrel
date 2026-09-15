@@ -7,9 +7,12 @@
    Remova 'meu diário' e 'informações da aventura', agora devem aparecer na
    mesma tabela, com marcação de criação do usuário ou da aventura."
 
-   Cada bloco falha se a regra correspondente voltar atrás: o menu de duas
-   abas reaparecer, uma das origens sumir da tabela, a coluna Origem perder
-   a marcação, ou a página voltar a ter barra/paginação próprias.
+   E em 14/09/2026: "As páginas 'lugares', 'npcs', 'memórias' vão seguir o
+   mesmo padrão das demais páginas 'itens', 'magias', etc, no que diz
+   respeito aos botões de filtro, botão de buscar, etc." — sem chips de
+   filtro, sem o "X de Y", e a busca no cabeçalho ao lado do +.
+
+   Cada bloco falha se a regra correspondente voltar atrás.
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
@@ -95,17 +98,14 @@ describe('NPCs: uma tabela só', () => {
       ['Borin', 'Aventura'],   // outro jogador compartilhou
       ['Cael', 'Aventura'],    // o Mestre liberou
     ]);
-    expect(document.querySelector('.best-count').textContent).toBe('3 de 3');
   });
 
-  it('os chips de origem filtram a tabela, e a contagem diz quanto sobrou', async () => {
+  it('a busca do cabeçalho filtra a tabela', async () => {
     await montar('npc');
-    fireEvent.click(document.querySelector('[aria-label="Criadas por você"]'));
-    expect(linhas()).toEqual([['Arissia', 'Pessoal']]);
-    expect(document.querySelector('.best-count').textContent).toBe('1 de 3');
-
-    fireEvent.click(document.querySelector('[aria-label="Da aventura"]'));
-    expect(linhas().map((l) => l[0])).toEqual(['Borin', 'Cael']);
+    const busca = document.querySelector('.fp-card-top .best-search input[type="search"]');
+    expect(busca.getAttribute('placeholder')).toBe('Buscar NPC…');
+    fireEvent.change(busca, { target: { value: 'bor' } });
+    expect(linhas()).toEqual([['Borin', 'Aventura']]);
   });
 });
 
@@ -118,26 +118,55 @@ describe('Lugares mistura Reino e Cidade e as duas origens', () => {
       ['Verrogar', 'Cidade', 'Pessoal'],
     ]);
   });
-});
 
-describe('Memórias: só existe uma origem, então não há coluna nem chips', () => {
-  it('sem Origem', async () => {
-    await montar('memoria');
-    expect(cabecalho()).toEqual(['Título', 'Trecho']);
-    expect(document.querySelector('.best-chips')).toBeNull();
+  it('um + só no cabeçalho, que abre a escolha entre Reino e Cidade', async () => {
+    await montar('lugar');
+    const novos = document.querySelectorAll('.fp-card-top [aria-label="Novo"]');
+    expect(novos).toHaveLength(1);
+    fireEvent.click(novos[0]);
+    const janela = document.querySelector('[role="dialog"][aria-label="Novo lugar"]');
+    expect(janela).toBeTruthy();
+    expect([...janela.querySelectorAll('.diario-escolha-lugar button')].map((b) => b.textContent.trim()))
+      .toEqual(['Reino', 'Cidade']);
+    fireEvent.click([...janela.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cidade'));
+    expect(document.querySelector('[role="dialog"][aria-label="Nova Cidade"]')).toBeTruthy();
   });
 });
 
-describe('as mesmas peças de Magias', () => {
-  it('cabeçalho com o "Novo", barra do bestiário, paginação do bestiário', async () => {
+describe('Memórias: só existe uma origem, então não há coluna', () => {
+  it('sem Origem', async () => {
+    await montar('memoria');
+    expect(cabecalho()).toEqual(['Título', 'Trecho']);
+  });
+});
+
+describe('as mesmas peças de Itens e Magias', () => {
+  it.each(['npc', 'lugar', 'memoria'])('%s: sem chips de filtro, sem contagem, sem barra abaixo do cabeçalho', async (tipo) => {
+    await montar(tipo);
+    expect(document.querySelector('.best-chips')).toBeNull();
+    expect(document.querySelector('.best-count')).toBeNull();
+    expect(document.querySelector('.best-toolbar-bestiario')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/\d+ de \d+/);
+  });
+
+  it('cabeçalho com a busca e o + (só o símbolo, com tooltip), tabela e paginação do bestiário', async () => {
     await montar('npc');
     const card = document.querySelector('.fp-card.best.best-auto');
+    const acoes = card.querySelector('.fp-card-top .best-header-acoes');
+    expect(acoes.querySelector('.best-search input')).toBeTruthy();
+    const novo = acoes.querySelector('[aria-label="Novo"]');
+    expect(novo.textContent.trim()).toBe('');
+    fireEvent.mouseEnter(novo);
+    expect([...document.querySelectorAll('.mn-tip')].map((t) => t.textContent)).toContain('Novo NPC');
     // As peças ficam soltas no card, como em Magias: .best é coluna flex.
-    expect(card.querySelector(':scope > .best-toolbar-bestiario')).toBeTruthy();
     expect(card.querySelector(':scope > .best-table-wrap')).toBeTruthy();
     expect(card.querySelector(':scope > .best-pag')).toBeTruthy();
-    expect(card.querySelector('.fp-card-top').textContent).toMatch(/Novo NPC/);
-    // A contagem saiu do cabeçalho para a barra.
-    expect(card.querySelector('.fp-card-top .best-count')).toBeNull();
+  });
+
+  it('memórias: o + tem o tooltip "Nova memória"', async () => {
+    await montar('memoria');
+    const novo = document.querySelector('.fp-card-top [aria-label="Novo"]');
+    fireEvent.mouseEnter(novo);
+    expect([...document.querySelectorAll('.mn-tip')].map((t) => t.textContent)).toContain('Nova memória');
   });
 });

@@ -9,7 +9,6 @@
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/game-data.jsx';
-import './ataques-criatura.jsx';
 import './catalogo-descritores.jsx';
 
 let MAP, descritorDe;
@@ -21,11 +20,11 @@ beforeAll(() => {
 
 // Cópia do schema. `id` e `created_at` NÃO entram em descritor (são do banco).
 const COLUNAS = {
-  criaturas: ['nome','tipo','estagio','energia_fisica','energia_heroica','absorcao','armadura','defesa','velocidade','peso','ataque','dano_l','dano_m','dano_p','dano_25','dano_50','dano_75','dano_100','intelecto','aura','carisma','forca','fisico','agilidade','percepcao','tipo_armadura','descricao','subtipo','plano','coletivo','magia','magia_n','tecnicas_especiais','habilidades'],
+  criaturas: ['nome','tipo','estagio','energia_fisica','energia_heroica','absorcao','armadura','defesa','velocidade','peso','ataque','dano_l','dano_m','dano_p','dano_25','dano_50','dano_75','dano_100','intelecto','aura','carisma','forca','fisico','agilidade','percepcao','tipo_armadura','descricao','subtipo','plano','coletivo','magia','magia_n','tecnicas_especiais','habilidades','equipamento','montaria'],
   magias: ['key','nome','evocacao','alcance','duracao','custo','tipo','permissao','descricao','nivel_1','nivel_3','nivel_5','nivel_7','nivel_9','dano'],
   tecnicas: ['key','nome','custo','permissao','uso','grupo_armas','grupo_armaduras','descricao','efeito','ajuste'],
   habilidades: ['key','nome','grupo','ajuste','custo','nivel_inicial','vantagem','desvantagem','restricao','descricao'],
-  itens: ['slug','nome','grupo','ocupa','armazena','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia','descricao','magico','categoria_equip','slot_equip','grupo_equipamento','maos_pequenino','maos_anao','maos_outras','forca_req','dano','alcance','ajuste_atributo','defesa','absorcao','tipo_armadura','dano_l','dano_m','dano_p','grupo_armas','origem','resistencia','icone','consumiveis','consumiveis_peso','doc_url'],
+  itens: ['slug','nome','grupo','ocupa','armazena','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia','descricao','magico','categoria_equip','slot_equip','grupo_equipamento','maos_pequenino','maos_anao','maos_outras','forca_req','dano','alcance','ajuste_atributo','defesa','absorcao','tipo_armadura','dano_l','dano_m','dano_p','grupo_armas','origem','resistencia','icone','consumiveis','consumiveis_peso','doc_url','criatura_id'],
 };
 
 // NOT NULL sem default — o descritor tem que marcar obrigatorio.
@@ -42,7 +41,9 @@ const OBRIGATORIAS = {
 const CHAVE = { criaturas: null, magias: 'key', tecnicas: 'key', habilidades: 'key', itens: 'slug' };
 
 // `lista` (13/09/2026): nomes escolhidos do catálogo, gravados com vírgula.
-const TIPOS = ['texto', 'area', 'numero', 'opcoes', 'derivado', 'lista'];
+// `equipamento` (14/09/2026): armas e armaduras da criatura.
+// `referencia` (14/09/2026): uma linha de outra tabela, pelo id (itens.criatura_id).
+const TIPOS = ['texto', 'area', 'numero', 'opcoes', 'derivado', 'lista', 'equipamento', 'referencia'];
 const FONTES_LISTA = ['tecnicas', 'habilidades', 'magias'];
 
 describe('CATALOGO_DESCRITORES', () => {
@@ -53,6 +54,8 @@ describe('CATALOGO_DESCRITORES', () => {
   it('toda coluna declarada existe na tabela', () => {
     for (const [tab, d] of Object.entries(MAP)) {
       for (const c of d.campos) {
+        // semColuna: só mostrado (RF/RM da criatura), nunca gravado.
+        if (c.semColuna) continue;
         expect(COLUNAS[tab], `${tab}.${c.col} não existe no schema`).toContain(c.col);
       }
     }
@@ -124,14 +127,29 @@ describe('CATALOGO_DESCRITORES', () => {
   it('ajuste usa os 7 atributos do sistema', () => {
     for (const tab of ['tecnicas', 'habilidades']) {
       const campo = MAP[tab].campos.find((c) => c.col === 'ajuste');
-      expect(campo.opcoes.sort(), tab).toEqual([...window.ATRIBUTOS_KEYS].sort());
+      expect(window.opcoesNormalizadas(campo).map((o) => o.value).sort(), tab)
+        .toEqual([...window.ATRIBUTOS_KEYS].sort());
+    }
+  });
+
+  // "No input 'ajuste', deve mostrar o atributo com a primeira letra maiúscula." (14/09/2026)
+  it('ajuste grava a chave e mostra o nome com maiúscula e acento', () => {
+    for (const tab of ['tecnicas', 'habilidades']) {
+      const campo = MAP[tab].campos.find((c) => c.col === 'ajuste');
+      expect(window.opcoesNormalizadas(campo), tab).toEqual([
+        { value: 'intelecto', label: 'Intelecto' }, { value: 'aura', label: 'Aura' },
+        { value: 'carisma', label: 'Carisma' }, { value: 'forca', label: 'Força' },
+        { value: 'fisico', label: 'Físico' }, { value: 'agilidade', label: 'Agilidade' },
+        { value: 'percepcao', label: 'Percepção' },
+      ]);
     }
   });
 
   it('criaturas tem os campos derivados, e eles NÃO são obrigatórios', () => {
     const derivados = MAP.criaturas.campos.filter((c) => c.tipo === 'derivado').map((c) => c.col);
     expect(derivados.sort()).toEqual(
-      ['absorcao','dano_100','dano_25','dano_50','dano_75','dano_l','dano_m','dano_p','defesa','energia_fisica','energia_heroica','velocidade'].sort()
+      // 14/09/2026: ataque e armadura passam a ser calculados; RF e RM entram só para mostrar.
+      ['absorcao','armadura','ataque','dano_100','dano_25','dano_50','dano_75','dano_l','dano_m','dano_p','defesa','energia_fisica','energia_heroica','resistencia_fisica','resistencia_magica','velocidade'].sort()
     );
     for (const c of MAP.criaturas.campos.filter((x) => x.tipo === 'derivado')) {
       expect(c.obrigatorio, c.col).not.toBe(true);
@@ -240,5 +258,60 @@ describe('descritorDe', () => {
     expect(descritorDe('inexistente')).toBeNull();
     expect(descritorDe(null)).toBeNull();
     expect(descritorDe(undefined)).toBeNull();
+  });
+});
+
+/* "'estágio' fica inline com 'nome', 'tipo', etc." (usuário, 14/09/2026):
+   na grade de 4 colunas, a primeira linha é Nome · Tipo · Subtipo · Estágio. */
+describe('criaturas — ordem e equipamento', () => {
+  it('os quatro primeiros campos são nome, tipo, subtipo e estágio', () => {
+    expect(MAP.criaturas.campos.slice(0, 4).map((c) => c.col)).toEqual(['nome', 'tipo', 'subtipo', 'estagio']);
+  });
+  it('tem o campo de equipamento, antes dos calculados', () => {
+    const cols = MAP.criaturas.campos.map((c) => c.col);
+    expect(MAP.criaturas.campos.find((c) => c.col === 'equipamento').tipo).toBe('equipamento');
+    expect(cols.indexOf('equipamento')).toBeLessThan(cols.indexOf('ataque'));
+  });
+  it('RF e RM não vão para o banco', () => {
+    for (const col of ['resistencia_fisica', 'resistencia_magica']) {
+      expect(MAP.criaturas.campos.find((c) => c.col === col).semColuna, col).toBe(true);
+    }
+  });
+});
+
+/* As CHECK de `itens` no banco (leitura de 14/09/2026). Campo que o banco
+   restringe tem que ser lista com EXATAMENTE esses valores — texto livre
+   deixava o admin digitar algo que o insert recusava. */
+describe('itens — campos que o banco restringe', () => {
+  const valores = (col) => window.opcoesNormalizadas(MAP.itens.campos.find((c) => c.col === col)).map((o) => o.value).sort();
+  it('categoria_equip = itens_categoria_equip_chk', () => {
+    expect(valores('categoria_equip')).toEqual(['arma', 'armadura', 'escudo']);
+  });
+  it('slot_equip = itens_slot_equip_chk', () => {
+    expect(valores('slot_equip')).toEqual(['bracos', 'cabeca', 'cintura', 'corpo', 'costas', 'dedos',
+      'maos', 'orelhas', 'peito', 'pernas', 'pes', 'pescoco', 'ombros'].sort());
+  });
+  it('icone passa pelo normalizador, e todo valor válido casa a itens_icone_formato_chk', () => {
+    expect(MAP.itens.campos.find((c) => c.col === 'icone').formato).toBe('icone');
+    const chk = /^ti-[a-z0-9-]+$/;
+    for (const t of ['ti-paw', 'ti ti-paw', '<i class="ti ti-file-star"></i>', 'Paw Print', 'Garra Ácida']) {
+      const r = window.normalizarIcone(t);
+      expect(r.valido, t).toBe(true);
+      expect(chk.test(r.valor), t).toBe(true);
+    }
+    expect(window.normalizarIcone('')).toEqual({ valor: null, valido: true });
+    expect(window.normalizarIcone('garras!').valido).toBe(false);
+  });
+});
+
+/* "Nas habilidades, [...] remova o input de 'nível inicial'." (usuário, 14/09/2026) */
+describe('habilidades — sem nível inicial no formulário', () => {
+  it('o descritor não declara nivel_inicial (o banco tem default 0)', () => {
+    expect(MAP.habilidades.campos.map((c) => c.col)).not.toContain('nivel_inicial');
+  });
+
+  // "Ainda há um campo escrito 'restrição' no modal de editar habilidades." (14/09/2026)
+  it('nem restricao', () => {
+    expect(MAP.habilidades.campos.map((c) => c.col)).not.toContain('restricao');
   });
 });

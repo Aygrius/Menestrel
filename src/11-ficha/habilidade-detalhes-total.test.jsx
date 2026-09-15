@@ -33,18 +33,26 @@ const montar = (total, props = {}) => render(
 ).container.ownerDocument.body;
 
 describe('o total num card pequeno, igual aos atributos do item', () => {
-  it('o número É o ícone, dentro da caixa', () => {
+  /* "use o ícone ti-number-5-small para mostrar o nível das habilidades,
+     magias, etc." (usuário, 14/09/2026) */
+  it('o número É o ícone ti-number-N-small, dentro da caixa', () => {
     const b = montar(5);
     const chip = b.querySelector('.det-sec-chip.det-hab-total');
     const caixa = chip.querySelector('.det-sec-ic-box.det-hab-total-num');
-    expect(caixa.textContent).toBe('5');
-    expect(chip.querySelector('.ti')).toBeNull();
+    expect(caixa.querySelector('i').className).toBe('ti ti-number-5-small');
+    expect(caixa.textContent).toBe('');
+    expect(caixa.getAttribute('aria-label')).toBe('Total: 5');
     expect(chip.querySelector('.det-sec-val')).toBeNull();
     expect(chip.querySelector('.det-sec-ic--neg')).toBeNull();
   });
 
-  it('negativo: sinal de menos de verdade e a caixa vermelha', () => {
+  it('zero também é ícone', () => {
+    expect(montar(0).querySelector('.det-hab-total i').className).toBe('ti ti-number-0-small');
+  });
+
+  it('negativo (fora da família do Tabler): sinal de menos de verdade e a caixa vermelha', () => {
     const caixa = montar(-3).querySelector('.det-hab-total .det-sec-ic-box');
+    expect(caixa.querySelector('i')).toBeNull();
     expect(caixa.textContent).toBe('−3');
     expect(caixa.classList.contains('det-sec-ic--neg')).toBe(true);
   });

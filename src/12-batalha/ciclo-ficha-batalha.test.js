@@ -213,7 +213,9 @@ describe('criatura NÃO persiste — só PJ', () => {
     const i = fonte.indexOf('const finalizarEncerramento');
     const corpo = fonte.slice(i, i + 3000);
     // A lista escrita vem de pjsDaBatalha, que filtra por tipo === 'pj'.
-    expect(fonte).toMatch(/const pjsDaBatalha = participantes\.filter\(\(p\) => p\.tipo === 'pj'\)/);
+    // participantesFinais (15/09/2026) = os mesmos participantes já desmontados,
+    // para a EH emprestada da montaria não ir para a ficha.
+    expect(fonte).toMatch(/const pjsDaBatalha = participantes(?:Finais)?\.filter\(\(p\) => p\.tipo === 'pj'\)/);
     expect(corpo).toMatch(/pjsDaBatalha\.map/);
     // E nada percorre `participantes` cru pra escrever ficha.
     expect(corpo).not.toMatch(/participantes\.map\(async/);

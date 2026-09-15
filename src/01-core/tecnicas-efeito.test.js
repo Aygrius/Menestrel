@@ -59,6 +59,8 @@ const TIPOS_VALIDOS = [
   'mantem_concentracao', 'mod_habilidade', 'dano_equipamento',
   // Visibilidade do tabuleiro: Luta as Cegas dispensa enxergar.
   'luta_sem_ver',
+  // 14/09/2026: Provocar (o alvo só ataca quem provocou) e Conduzir Oponente.
+  'provocado', 'conduzido',
 ];
 // Os que multiplicam o total da técnica (totalTecnica × sinal). O resto é
 // valor fixo (dano_pct 25) ou flag liga/desliga (ignora_eh true).
@@ -77,13 +79,15 @@ describe('TECNICA_EFEITO_MAP', () => {
   // acrescentou 26: este arquivo continua sendo o dono das 24 originais, e
   // tecnica-fase2.test.js é o dono das outras. O total fica travado aqui pra
   // uma entrada não sumir sem ninguém notar.
-  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 56', () => {
+  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 58', () => {
     for (const key of Object.keys(EFEITO_NO_BANCO)) {
       expect(MAP[key], `${key} da Fase 1 sumiu do registro`).toBeDefined();
     }
     // +1 em 12/09/2026: Combate Montado, quando a montaria virou mecanica.
     // +1 em 12/09/2026: Luta as Cegas, quando o tabuleiro ganhou escuridao.
-    expect(Object.keys(MAP).length, '24 + 26 + 4 + Montado + Cegas').toBe(56);
+    // +2 em 14/09/2026: Provocar e Conduzir Oponente saíram da mesa para o motor.
+    // Com isso as 58 técnicas do banco estão todas no registro.
+    expect(Object.keys(MAP).length, '24 + 26 + 4 + Montado + Cegas + Provocar + Conduzir').toBe(58);
   });
 
   it('toda entrada tem modo, alvo, rodadas, ícone e ao menos um efeito', () => {
@@ -188,9 +192,8 @@ describe('tecnicaEfeitoDe', () => {
   // Fallback é o comportamento narrativo de hoje, não erro: as 34 técnicas
   // de Fase 2 e as 4 puramente narrativas continuam só no log.
   it('devolve null para técnica sem entrada, sem lançar', () => {
-    // Concentracao ENTROU no motor na Fase 3; o exemplo de fora virou Provocar,
-    // que precisa de alvo obrigatorio — sistema que o combate nao tem.
-    expect(tecnicaEfeitoDe('provocar'), 'narrativa por falta de sistema').toBeNull();
+    // Desde 14/09/2026 nenhuma técnica do banco fica fora: Provocar, o último
+    // exemplo real, entrou no motor. Sobra a chave desconhecida.
     expect(tecnicaEfeitoDe('nao_existe')).toBeNull();
     expect(tecnicaEfeitoDe(null)).toBeNull();
     expect(tecnicaEfeitoDe(undefined)).toBeNull();

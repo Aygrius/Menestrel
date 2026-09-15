@@ -11,9 +11,9 @@
      Estilhaçar/Retalhar gastam a resistência da armadura (o golpe já gasta)
 
    Das outras quatro, Combate Montado entrou no mesmo dia, quando a MONTARIA
-   virou mecânica. As três que sobraram têm motivo escrito em
-   TECNICA_FORA_DO_REGISTRO — e duas delas por decisão do usuário: Provocar e
-   Conduzir Oponente são arbitragem do Mestre, não falta de sistema.
+   virou mecânica. Provocar e Conduzir Oponente ficaram como arbitragem do
+   Mestre até 14/09/2026, quando o usuário as trouxe para o motor — ver
+   provocar-conduzir.test.js. TECNICA_FORA_DO_REGISTRO está vazia.
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/copy.jsx';
@@ -170,21 +170,15 @@ describe('Estilhaçar e Retalhar — dano no equipamento', () => {
   });
 });
 
-describe('as duas que seguem fora TÊM motivo registrado', () => {
+describe('a lista de fora do motor', () => {
   /* O que faltava não era só o efeito: era o instrumento. Nas magias, a lista
-     de fora-do-motor com motivo foi o que permitiu ao usuário decidir. */
+     de fora-do-motor com motivo foi o que permitiu ao usuário decidir.
+     Provocar e Conduzir Oponente moravam nela até 14/09/2026. */
   it.each(['provocar', 'conduzir_oponente'])(
-    '%s diz por que está fora', (key) => {
-      const m = window.tecnicaForaDoRegistro(key);
-      expect(m, key).toBeTruthy();
-      expect(['sistema', 'decisao', 'mestre']).toContain(m.classe);
-      expect(m.motivo.length).toBeGreaterThan(30);
+    '%s saiu da lista e entrou no registro', (key) => {
+      expect(window.tecnicaForaDoRegistro(key), key).toBeNull();
+      expect(window.TECNICA_EFEITO_MAP[key], key).toBeDefined();
     });
-
-  it('e nenhuma delas está no registro de efeito', () => {
-    ['provocar', 'conduzir_oponente']
-      .forEach((k) => expect(window.TECNICA_EFEITO_MAP[k], k).toBeUndefined());
-  });
 
   it('técnica LIGADA não aparece como fora', () => {
     ['concentracao', 'remover_debilitacao', 'estilhacar', 'retalhar', 'combate_montado', 'luta_as_cegas']
@@ -194,8 +188,8 @@ describe('as duas que seguem fora TÊM motivo registrado', () => {
   it('registro e lista-de-fora cobrem as 58 do catálogo, sem sobra', () => {
     const ligadas = Object.keys(window.TECNICA_EFEITO_MAP).length;
     const fora = Object.keys(window.TECNICA_FORA_DO_REGISTRO).length;
-    // 56 + 2 = 58. Combate Montado e Luta as Cegas sairam da lista de fora em
-    // 12/09/2026, quando montaria e visibilidade viraram mecanica.
+    // 58 + 0. Combate Montado e Luta as Cegas sairam da lista de fora em
+    // 12/09/2026; Provocar e Conduzir Oponente, em 14/09/2026.
     expect(ligadas + fora).toBe(58);
   });
 });

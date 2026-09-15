@@ -199,12 +199,22 @@ function calcArmadura(p, catalogoBySlug) {
 
    Soma as mesmas peças que calcArmadura soma (pecaNoCorpo), pelo mesmo
    motivo: limiar e durabilidade têm que falar do mesmo conjunto de peças,
-   senão dá pra ter limiar sem durabilidade. */
+   senão dá pra ter limiar sem durabilidade.
+
+   E só peça que ABSORVE (14/09/2026): arma também tem `resistencia` no
+   catálogo (84 das 93), mas é a durabilidade da ARMA. O arco equipado da
+   Lirael somava 11 à armadura dela (31 em vez de 20) e passava a gastar os
+   pontos dos golpes que furavam o limiar. Escudo absorve, então conta. */
+function pecaQueAbsorve(cat) {
+  return Number(cat?.absorcao || 0) > 0;
+}
+
 function calcResistenciaArmadura(p, catalogoBySlug) {
   if (!catalogoBySlug || !p?.inventario?.itens) return 0;
   return p.inventario.itens.reduce((sum, it) => {
     if (!pecaNoCorpo(it)) return sum;
     const cat = catalogoBySlug[it.slug];
+    if (!pecaQueAbsorve(cat)) return sum;
     return sum + Number(cat?.resistencia || 0);
   }, 0);
 }
@@ -223,6 +233,7 @@ function pecasDeArmadura(p, catalogoBySlug) {
   if (!catalogoBySlug || !p?.inventario?.itens) return [];
   return p.inventario.itens.reduce((out, it) => {
     if (!pecaNoCorpo(it)) return out;
+    if (!pecaQueAbsorve(catalogoBySlug[it.slug])) return out;   // arma não é armadura
     const max = Number(catalogoBySlug[it.slug]?.resistencia || 0);
     if (max <= 0) return out;                      // peça sem durabilidade não entra
     const atual = Number.isFinite(Number(it.res)) ? Math.max(0, Math.min(max, Number(it.res))) : max;
@@ -234,12 +245,15 @@ function pecasDeArmadura(p, catalogoBySlug) {
 /* Resistência de CRIATURA — derivada, porque a tabela `criaturas` não tem
    a coluna (só `absorcao`).
 
-   O fator 2 não é chute: nas 63 armaduras do catálogo, `resistencia` é
+   O fator não é chute: nas 63 armaduras do catálogo, `resistencia` era
    EXATAMENTE `absorcao * 2`, sem uma única exceção (conferido no banco em
-   11/09/2026). Derivar pela mesma razão mantém um modelo só no motor e
-   dispensa migration. Se um dia uma criatura precisar de durabilidade
-   própria, basta a coluna existir e este fallback sair do caminho. */
-const FATOR_RESISTENCIA_CRIATURA = 2;
+   11/09/2026). Em 14/09/2026 a resistência de todos os equipamentos caiu pela
+   metade (scripts/sql/itens-resistencia-metade-2026-09-14.sql) e as armaduras
+   passaram a ter `resistencia = absorcao` — daí o fator 1. Derivar pela mesma
+   razão mantém um modelo só no motor e dispensa migration. Se um dia uma
+   criatura precisar de durabilidade própria, basta a coluna existir e este
+   fallback sair do caminho. */
+const FATOR_RESISTENCIA_CRIATURA = 1;
 function resistenciaDeCriatura(c) {
   if (!c) return 0;
   if (Number.isFinite(Number(c.resistencia))) return Math.max(0, Number(c.resistencia));
@@ -247,7 +261,8 @@ function resistenciaDeCriatura(c) {
 }
 
 // Mapeia siglas do `ajuste_atributo` pras chaves do objeto `atributos` da ficha.
-const AJUSTE_KEY = { AGI: 'agilidade', AUR: 'aura', FOR: 'forca', PER: 'percepcao' };
+// FIS entrou em 14/09/2026 com as armas naturais (Chifre, Bico, Cauda usam Físico).
+const AJUSTE_KEY = { AGI: 'agilidade', AUR: 'aura', FIS: 'fisico', FOR: 'forca', PER: 'percepcao' };
 
 // Gera a lista de ataques do PJ a partir das armas equipadas (slot mao_d/mao_e
 // com `dano` no catálogo) e das magias com `dano > 0`.
@@ -483,7 +498,24 @@ function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
   return aplicarEfeitosNaFicha(estadoAtual, efeitosDoItem(cat, quantidade), maximos);
 }
 
+/* FLECHA (14/09/2026): "O item flecha é usado automaticamente ao atacar usando
+   arco, remova o botão usar do item flecha no inventário." É consumível no
+   catálogo (grupo Consumíveis), mas não se USA pela mão: quem gasta é o ataque
+   com arco. Sai de todo lugar que oferece "Usar" — a janela do item, os atalhos
+   da ficha e a aba Item da batalha.
+
+   Pelo nome, sem acento e sem caixa: o catálogo tem Flecha, Flecha I, III e V
+   (slugs flecha, flecha_i…). "Pergaminho Flecha Divina" é magia, não munição,
+   e não casa porque o nome não COMEÇA com "flecha". */
+function ehFlecha(cat) {
+  if (!cat) return false;
+  const nome = String(cat.nome || cat.slug || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  return /^flechas?(\s|_|$)/.test(nome);
+}
+
 Object.assign(window, {
+  ehFlecha,
   MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas,
   fetchTabelaPaginada, fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,

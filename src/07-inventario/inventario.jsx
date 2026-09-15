@@ -175,11 +175,12 @@ function normalizarPilhas(itens, catalogoBySlug) {
     // Se a quantidade for > 1 (ex.: RPC comprar_item incrementou a pilha
     // existente sem saber que estava equipada), mantém 1 unidade equipada
     // e explode o excedente em instâncias soltas novas.
-    if (it.equipado || it.vestido) {
+    // Montaria em uso (montado, 14/09/2026) segue a mesma regra: um cavalo só.
+    if (it.equipado || it.vestido || it.montado) {
       const qtdEq = it.quantidade || 1;
       saida.push(qtdEq <= 1 ? it : { ...it, quantidade: 1 });
       for (let k = 1; k < qtdEq; k++) {
-        saida.push({ ...it, instanceId: novoInstanceId() + '-eq' + k, quantidade: 1, equipado: false, vestido: false, slot: null, vesteSlot: null });
+        saida.push({ ...it, instanceId: novoInstanceId() + '-eq' + k, quantidade: 1, equipado: false, vestido: false, montado: false, slot: null, vesteSlot: null });
         mudou = true;
       }
       continue;
@@ -520,6 +521,9 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // src/11-ficha/ficha.jsx já usa (protagonista_ids @> [pjId]). Usado só
   // pra notificar a Central de Mensagens da Mesa (registrar_evento_mesa).
   const [historiaId, setHistoriaId] = useState(null);
+  // Criaturas marcadas como montaria (criaturas.montaria, 14/09/2026). O animal
+  // do inventário é montável quando o NOME casa com uma delas (criaturaDoItem).
+  const criaturasMontaria = useCriaturasMontaria();
   // True quando auth.uid() === currentUserId, ou seja, o usuário logado
   // é o dono dos PJs listados. False quando um Mestre está vendo o inventário
   // de outro jogador — nesse caso a RPC usar_pergaminho_magia falha (auth.uid()
@@ -869,6 +873,40 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       const catInvertido = { efeito_positivo: cat.efeito_negativo, efeito_negativo: cat.efeito_positivo };
       setEstadoAtual((cur) => aplicarEfeitosItem(cur, catInvertido, 1, maximos));
     }
+  };
+
+  // ── Montar / Desmontar (14/09/2026) ────────────────────────────────────────
+  // "As criaturas que podem ser montadas, o jogador poderá clicar no animal no
+  // inventário e clicar e montar. Ao montar, aparecerá uma ficha extra da
+  // montaria." Montar marca `montado: true` na instância (a ficha lê daí e abre
+  // a aba Montaria). Uma montaria por vez: montar outra desmonta a anterior.
+  // Pilha se divide como no vestir — monta-se UM cavalo, não a manada.
+  const montar = (instanceId) => {
+    if (!inv) return { ok: false };
+    const idx = inv.itens.findIndex((it) => it.instanceId === instanceId);
+    if (idx < 0) return { ok: false };
+    const it = inv.itens[idx];
+    if (it.montado) return { ok: false };
+    if (!criaturaDoItem(catalogoBySlug[it.slug], criaturasMontaria)) return { ok: false, motivo: 'não é montaria' };
+    const itens = inv.itens.map((x) => (x.montado ? { ...x, montado: false } : x));
+    let resultId = instanceId;
+    if (it.quantidade > 1) {
+      itens[idx] = { ...itens[idx], quantidade: it.quantidade - 1 };
+      resultId = novoInstanceId();
+      itens.push({ instanceId: resultId, slug: it.slug, quantidade: 1, montado: true, equipado: false, slot: null, containerId: null, observacao: it.observacao || null });
+    } else {
+      itens[idx] = { ...itens[idx], montado: true, containerId: null };
+    }
+    setInv({ ...inv, itens });
+    if (resultId !== instanceId) setDetalhesId(resultId);
+    return { ok: true, newId: resultId };
+  };
+
+  const desmontar = (instanceId) => {
+    setInv((cur) => ({
+      ...cur,
+      itens: cur.itens.map((it) => it.instanceId === instanceId ? { ...it, montado: false } : it),
+    }));
   };
 
   // ── Notificação na Central de Mensagens da Mesa ────────────────────
@@ -1294,6 +1332,9 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onDespir={despir}
           onUsar={solicitarUsar}
           onPreparar={prepararAnimal}
+          criaturaMontaria={criaturaDoItem(catalogoBySlug[instanceDetalhes.slug], criaturasMontaria)}
+          onMontar={montar}
+          onDesmontar={desmontar}
           onAprenderMagia={authUserIsOwner ? aprenderMagiaPergaminho : undefined}
           pjAprendiz={(pjs || []).find((x) => x.id === selectedId) || null}
           magiasDb={magiasDb}
@@ -2039,6 +2080,10 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           {(it.slot || it.vestido) && (
             <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><i className="ti ti-letter-e-small" aria-hidden="true" /></span>
           )}
+          {/* Montaria em uso (14/09/2026) — mesmo selo dourado do "em uso". */}
+          {it.montado && (
+            <span className="inv-pill eq" role="img" aria-label={en ? 'Mounted' : 'Montado'}><i className="ti ti-horse" aria-hidden="true" /></span>
+          )}
         </span>
         {/* Barra de RESISTÊNCIA (durabilidade) — mesmo molde da barra de
             capacidade dos containers, colada no rodapé do card.
@@ -2254,6 +2299,67 @@ function magiaDoItem(cat, magiasDb) {
   return magiasDb.find((m) => m.key === key)
     || magiasDb.find((m) => chaveDaMagiaPorNome(m.nome) === key) || null;
 }
+/* ── Montaria (14/09/2026) ────────────────────────────────────────────────
+   O animal do inventário (itens, grupo Animais) aponta para a criatura do
+   bestiário por `itens.criatura_id` — o vínculo que o usuário escolheu:
+   "as características do Cavalo em criaturas e Cavalo em itens devem ser o
+   mesmo". A característica mora SÓ na criatura (criaturas.montaria); o item
+   herda. Até a mesma data a ligação era pelo nome, e 23 animais ficavam de
+   fora sem aviso. Item sem vínculo, ou vinculado a criatura que não é
+   montaria, não oferece Montar. */
+function criaturaDoItem(cat, criaturas) {
+  if (!cat || cat.criatura_id == null || !Array.isArray(criaturas) || !criaturas.length) return null;
+  const id = String(cat.criatura_id);
+  return criaturas.find((c) => c && c.montaria === true && String(c.id) === id) || null;
+}
+// A instância montada do inventário (uma por personagem), ou null.
+function itemMontado(itens) {
+  return (Array.isArray(itens) ? itens : []).find((it) => it && it.montado) || null;
+}
+/* Os animais do personagem (aba Animais da ficha, 14/09/2026): cada instância
+   do inventário cujo item aponta para uma criatura carregada. Qualquer
+   criatura, não só montaria — "a página da montaria, e de todos os animais".
+   `criaturasPorId` = { [id]: linha de criaturas }. */
+function animaisDoPersonagem(itens, catalogoBySlug, criaturasPorId) {
+  const mapa = criaturasPorId || {};
+  return (Array.isArray(itens) ? itens : []).map((instancia) => {
+    const cat = catalogoBySlug && catalogoBySlug[instancia.slug];
+    const criatura = cat && cat.criatura_id != null ? mapa[cat.criatura_id] : null;
+    return criatura ? { instancia, cat, criatura } : null;
+  }).filter(Boolean);
+}
+/* Carrega as criaturas pelos ids (a linha inteira: a ficha mostra tudo).
+   `ids` entra como string ordenada para o efeito não refazer a cada render. */
+function useCriaturasPorIds(ids) {
+  const chave = Array.from(new Set((ids || []).filter((x) => x != null).map(String))).sort().join(',');
+  const [mapa, setMapa] = useState({});
+  useEffect(() => {
+    if (!chave) { setMapa({}); return undefined; }
+    let cancelado = false;
+    supabaseClient.from('criaturas').select('*').in('id', chave.split(','))
+      .then(({ data, error }) => {
+        if (cancelado) return;
+        const m = {};
+        if (!error) (data || []).forEach((c) => { m[c.id] = c; });
+        setMapa(m);
+      });
+    return () => { cancelado = true; };
+  }, [chave]);
+  return mapa;
+}
+/* Carrega as criaturas-montaria uma vez. Sem a coluna no banco (script não
+   aplicado) a consulta falha e a lista fica vazia: ninguém monta, nada quebra. */
+function useCriaturasMontaria() {
+  const [lista, setLista] = useState([]);
+  useEffect(() => {
+    let cancelado = false;
+    supabaseClient.from('criaturas').select('*').eq('montaria', true)
+      .then(({ data, error }) => { if (!cancelado) setLista(error ? [] : (data || [])); });
+    return () => { cancelado = true; };
+  }, []);
+  return lista;
+}
+
 function bloqueioPergaminho(cat, pj, opcoes) {
   if (!ehPergaminhoDeMagia(cat)) return null;
   const op = opcoes || {};
@@ -2325,6 +2431,7 @@ function DetalhesItemModal({
   onClose, onEquipar, onDesequipar, onUsar, onPreparar, onAprenderMagia, pjAprendiz, magiasDb, onDestruir, onObservacao,
   onMoverParaContainer, onTransferir, transferError, onTransferReset,
   onVestir, onDespir,
+  criaturaMontaria, onMontar, onDesmontar,
   onRemoverDoContainer, onAbrirDetalhesFilho, contexto,
   onVender, vendaAberta, podeVender,
 }) {
@@ -2825,7 +2932,8 @@ function DetalhesItemModal({
                     </button>
                   )
                 )}
-                {consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && (
+                {/* Flecha não tem Usar: o ataque com arco a gasta (14/09/2026). */}
+                {consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && !ehFlecha(cat) && (
                   <button className="btn-primary"
                     // Pilha: vai direto pra janela de quantidade (a padrão).
                     onClick={() => {
@@ -2835,7 +2943,19 @@ function DetalhesItemModal({
                     {en ? 'Use' : 'Usar'}
                   </button>
                 )}
-                {acoesPesadas && ehAnimal && onPreparar && (
+                {/* Montar / Desmontar — animal cuja criatura é montaria. */}
+                {acoesPesadas && criaturaMontaria && onMontar && (
+                  instance.montado ? (
+                    <button className="btn-primary" onClick={() => onDesmontar(instance.instanceId)}>
+                      {en ? 'Dismount' : 'Desmontar'}
+                    </button>
+                  ) : (
+                    <button className="btn-primary" onClick={() => onMontar(instance.instanceId)}>
+                      {en ? 'Mount' : 'Montar'}
+                    </button>
+                  )
+                )}
+                {acoesPesadas && ehAnimal && onPreparar && !instance.montado && (
                   <button className="btn-primary"
                     onClick={() => setConfirmandoPreparar(true)}>
                     {en ? 'Prepare' : 'Preparar'}
@@ -2891,14 +3011,14 @@ function DetalhesItemModal({
                 )}
 
                 {/* Transferir */}
-                {acoesPesadas && pjsHistoria.length > 0 && !instance.vestido && (
+                {acoesPesadas && pjsHistoria.length > 0 && !instance.vestido && !instance.montado && (
                   <button className="btn-ghost" onClick={() => { onTransferReset && onTransferReset(); setMostrarTransferir(true); }}>
                     {en ? 'Transfer' : 'Transferir'}
                   </button>
                 )}
 
                 {/* Armazenar em */}
-                {acoesPesadas && !isContainer && !instance.equipado && !instance.vestido && (
+                {acoesPesadas && !isContainer && !instance.equipado && !instance.vestido && !instance.montado && (
                   <button className="btn-ghost"
                     disabled={!temOndeArmazenar}
                     onClick={() => setMostrarArmazenar(true)}
@@ -3577,6 +3697,12 @@ Object.assign(window, {
   vesteSlotDe,
   // Pergaminho: o botão "Aprender" bloqueia quando não há o que ensinar.
   bloqueioPergaminho, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia,
+  // A magia que o item carrega — o bestiário mostra nome e descrição.
+  magiaDoItem,
+  // Montaria: a ficha abre a aba da montaria a partir daqui.
+  criaturaDoItem, itemMontado, useCriaturasMontaria,
+  // Aba Animais da ficha: todos os animais vinculados a criatura.
+  animaisDoPersonagem, useCriaturasPorIds,
   VendaModal, PrecoMoedasInput, motivoVendaLabel, bloqueioVenda, vendaAcoesDisponiveis,
   // ↓ expostos para a Loja (07-inventario/loja.jsx) consumir via window:
   fmtNum, calcCarga, invItemIcon, recipienteAceitaSlug, usePortalTooltip, PortalTooltip,

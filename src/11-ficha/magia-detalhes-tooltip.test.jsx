@@ -39,7 +39,7 @@ const montar = (abrirTip = vi.fn()) => render(
 describe('atributos da magia', () => {
   it('só o ícone: nenhum texto ao lado', () => {
     const b = montar();
-    const chips = [...b.querySelectorAll('.det-sec-a .det-sec-chip')];
+    const chips = [...b.querySelectorAll('.det-sec-a .det-sec-chip--efeito')];
     expect(chips).toHaveLength(3);
     chips.forEach((c) => {
       expect(c.classList.contains('det-sec-chip--efeito')).toBe(true);
@@ -60,6 +60,54 @@ describe('atributos da magia', () => {
     expect(niveis).toHaveLength(2);
     expect(niveis.join(' ')).not.toMatch(/24/);
     expect(b.querySelector('.mag-nivel-card--locked')).toBeNull();
+  });
+
+  /* "use o ícone ti-number-5-small para mostrar o nível das habilidades,
+     magias, etc." (usuário, 14/09/2026) — no lugar dos hexágonos numerados. */
+  it('o nível é o ícone ti-number-N-small em cada nível', () => {
+    const magia = { ...MAGIA, nivel_3: 'Causa 18 de dano elemental de fogo.' };
+    const b = render(
+      <div className="menestrel-ui">
+        <Modal magia={magia} passos={2} nivelMagiaEfetivoFn={() => 3} eu={{ id: 1, nome: 'Eco' }}
+          colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={() => {}} fecharTip={() => {}} />
+      </div>
+    ).container.ownerDocument.body;
+    expect([...b.querySelectorAll('.mag-nivel-titulo i:first-child')].map((i) => i.className))
+      .toEqual(['ti ti-number-1-small', 'ti ti-number-3-small']);
+    expect(b.querySelector('[class*="ti-hexagon-number"]')).toBeNull();
+  });
+
+  /* "No modal de magias, o número do nível da magia deve aparecer igual em
+     habilidades, como um ícone junto com os demais." (usuário, 14/09/2026) */
+  it('o nível atual é o PRIMEIRO card da fileira de ícones, igual ao total da habilidade', () => {
+    const abrirTip = vi.fn();
+    const b = render(
+      <div className="menestrel-ui">
+        <Modal magia={MAGIA} passos={2} nivelMagiaEfetivoFn={() => 3} eu={{ id: 1, nome: 'Eco' }}
+          colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={abrirTip} fecharTip={() => {}} />
+      </div>
+    ).container.ownerDocument.body;
+    const chips = [...b.querySelectorAll('.det-sec-a > .det-sec-chip')];
+    expect(chips).toHaveLength(4);
+    const nivel = chips[0];
+    expect(nivel.classList.contains('det-hab-total')).toBe(true);
+    const caixa = nivel.querySelector('.det-sec-ic-box.det-hab-total-num');
+    expect(caixa.querySelector('i').className).toBe('ti ti-number-3-small');
+    expect(caixa.getAttribute('aria-label')).toBe('Nível: 3');
+    fireEvent.mouseEnter(nivel);
+    expect(abrirTip).toHaveBeenCalledWith(expect.anything(), { desc: 'Nível' });
+    // O selo ao lado do nome saiu.
+    expect(b.querySelector('.ms-title .det-title-badge')).toBeNull();
+  });
+
+  it('quem não tem a magia não vê card de nível', () => {
+    const b = render(
+      <div className="menestrel-ui">
+        <Modal magia={MAGIA} passos={null} nivelMagiaEfetivoFn={() => 0} eu={{ id: 1, nome: 'Eco' }}
+          colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={() => {}} fecharTip={() => {}} />
+      </div>
+    ).container.ownerDocument.body;
+    expect(b.querySelector('.det-mag-nivel')).toBeNull();
   });
 
   it('a descrição preserva os parágrafos do banco', () => {

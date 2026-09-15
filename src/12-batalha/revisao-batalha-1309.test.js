@@ -24,7 +24,8 @@ describe('crítico de criatura: o 175% sai do dano_100', () => {
   it('q7 de criatura não diz mais "(0 EF)"', () => {
     const ataque = { fonte: 'criatura', dano_100: 12 };
     const msg = M.interpolarCritico(M.CRITICOS_TABELA.DESARMADO[7], ataque);
-    expect(msg).toContain('(21 EF)');   // ceil(12 × 1,75)
+    // "com N de dano adicional" desde 14/09/2026 (era "(N EF)").
+    expect(msg).toContain('com 21 de dano adicional');   // ceil(12 × 1,75)
   });
 
   it('arma segue lendo `dano`', () => {

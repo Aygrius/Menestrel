@@ -281,6 +281,30 @@ const TECNICA_EFEITO_MAP = {
   luta_as_cegas:      { modo: 'teste', alvo: 'self', rodadas: 3, icone: '🙈',
                       dificuldade: 'dificil',
                       efeitos: [{ tipo: 'luta_sem_ver', valor: true }] },
+
+  /* ============================================================
+     14/09/2026 — Provocar e Conduzir Oponente saem da mesa e entram no
+     motor, a pedido do usuário. Até aqui eram arbitragem do Mestre
+     (TECNICA_FORA_DO_REGISTRO); a regra agora é:
+       Provocar           "Se o jogador for bem sucedido no teste, o inimigo
+                           só poderá atacar ele."
+       Conduzir Oponente  "Se o jogador for bem sucedido no teste, ele poderá
+                           mover o adversário escolhido por 2 rodadas."
+     Os dois moram no ALVO e carregam fonte_inst_id (quem ativou), como a
+     Escolta — é o único jeito de saber depois QUEM provocou ou conduz.
+     ============================================================ */
+  /* "atrai a atenção de 1 alvo por 5 rodadas". Quem provocou fora de combate
+     (morto, desmaiado, desistiu) solta o provocado — ver provocadorDe. */
+  provocar:           { modo: 'teste', alvo: 'inimigo', rodadas: 5, icone: '🗯️',
+                      dificuldade: 'dificil',
+                      efeitos: [{ tipo: 'provocado', valor: true }] },
+  /* "move 1 alvo por 5 metros por 2 rodadas". Uma célula do tabuleiro é um
+     metro (parseAlcance lê "5 metros" como 5 casas), então `casas: 5`: uma
+     condução por rodada, na vez de quem conduz, sem gastar o movimento nem o
+     PA de ninguém — ver conduzirParticipante, em 12-batalha/tabuleiro.jsx. */
+  conduzir_oponente:  { modo: 'teste', alvo: 'inimigo', rodadas: 2, icone: '🫸',
+                      dificuldade: 'medio',
+                      efeitos: [{ tipo: 'conduzido', valor: true, casas: 5 }] },
 };
 
 /* ── As que seguem FORA, e por quê ─────────────────────────────────
@@ -294,17 +318,9 @@ const TECNICA_EFEITO_MAP = {
                  desenho. Decisão do usuário em 12/09/2026 para as duas que
                  eu havia classificado como falta de sistema. */
 const TECNICA_FORA_DO_REGISTRO = {
-  /* As duas abaixo o motor NÃO vai automatizar, e está certo assim.
-
-     Provocar obriga o alvo a mirar em quem provocou; Conduzir Oponente empurra
-     o alvo pelo tabuleiro. Os dois são sobre o que o adversário FAZ, e quem
-     conduz o adversário é o Mestre — automatizar seria tirar dele a decisão,
-     não poupar trabalho. O teste de dado continua valendo: a técnica rola
-     normalmente, e o resultado diz ao Mestre se pegou. */
-  provocar: { classe: 'mestre', motivo:
-    'Rola o teste e o Mestre conduz: o alvo provocado passa a atacar quem provocou.' },
-  conduzir_oponente: { classe: 'mestre', motivo:
-    'Rola o teste e o Mestre move o token do alvo até 5 metros.' },
+  /* Vazio desde 14/09/2026. Provocar e Conduzir Oponente moravam aqui como
+     arbitragem do Mestre (decisão de 12/09/2026); o usuário decidiu depois que
+     o motor resolve as duas — ver as entradas no fim de TECNICA_EFEITO_MAP. */
 };
 
 function tecnicaForaDoRegistro(key) {

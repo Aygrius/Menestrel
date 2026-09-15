@@ -130,8 +130,8 @@ const botao = (re) => screen.getAllByRole('button').find(
      2. rolagem que já existe com o alvo fora de alcance é DESCARTADA — no
         painel e na batalha (onRolagemSalvaChange(null)) —, e o painel solta. */
 describe('AcaoPanel — alvo fora do alcance da arma', () => {
-  // Machado: alcance 0 no catálogo → 1 célula (corpo a corpo). Tokens 3×3:
-  // x 0 e x 10 ficam a 8 células de borda a borda.
+  // Machado: alcance 0 no catálogo → 1 célula (corpo a corpo). Tokens 2×2:
+  // x 0 e x 10 ficam a 9 células de borda a borda; x 2 é encostado.
   const PERTO = { x: 0, y: 0 };
   const LONGE = { x: 10, y: 0 };
   const ATOR_POS = { ...ATOR, pos: PERTO };
@@ -159,11 +159,12 @@ describe('AcaoPanel — alvo fora do alcance da arma', () => {
     montarLonge();
     expect(screen.getByText(/Alvo fora de alcance/i)).toBeTruthy();
     expect(btnRolar().disabled).toBe(true);
-    expect(botao(/Atacar \(1 PA\)/i).disabled).toBe(true);
+    // O dado na linha é o próprio golpe (14/09/2026): não há Atacar à parte.
+    expect(document.querySelector('.atacar-confirmar')).toBeNull();
   });
 
   it('com o alvo encostado, rolar continua liberado', () => {
-    montarLonge({ alvo: { ...ALVO_LONGE, pos: { x: 3, y: 0 } } });
+    montarLonge({ alvo: { ...ALVO_LONGE, pos: { x: 2, y: 0 } } });
     expect(screen.queryByText(/Alvo fora de alcance/i)).toBeNull();
     expect(btnRolar().disabled).toBe(false);
   });
@@ -180,7 +181,7 @@ describe('AcaoPanel — alvo fora do alcance da arma', () => {
 
   it('rolagem gravada com o alvo NO alcance continua valendo (a trava geral não afrouxou)', () => {
     const salvas = [];
-    montarLonge({ rolagemSalva: ROLAGEM_SALVA, onSalva: (r) => salvas.push(r), alvo: { ...ALVO_LONGE, pos: { x: 3, y: 0 } } });
+    montarLonge({ rolagemSalva: ROLAGEM_SALVA, onSalva: (r) => salvas.push(r), alvo: { ...ALVO_LONGE, pos: { x: 2, y: 0 } } });
     expect(salvas).not.toContain(null);
     expect(screen.getByText(/Já rolou/i)).toBeTruthy();
   });
@@ -280,10 +281,9 @@ describe('AcaoPanel — rolagem pendente sem alvo possível', () => {
   it('reconhece o estado: sem alvos válidos e com a rolagem já feita', () => {
     montar();
     expect(screen.getByText(/Sem alvos válidos/i)).toBeTruthy();
-    // Atacar continua (corretamente) desabilitado: não há alvo pra acertar.
-    const atacar = botao(/Atacar \(1 PA\)/i);
-    expect(atacar).toBeTruthy();
-    expect(atacar.disabled).toBe(true);
+    // Nada a aplicar: não há alvo pra acertar, então nenhum confirmar habilitado.
+    const confirmar = document.querySelector('.atacar-confirmar');
+    expect(confirmar == null || confirmar.disabled).toBe(true);
   });
 
   it('oferece uma saída: destrava o menu, no lugar do aviso "Já rolou"', () => {

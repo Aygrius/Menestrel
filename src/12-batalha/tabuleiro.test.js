@@ -6,7 +6,7 @@
    propósito, nunca por acidente (mesma disciplina de
    motor-batalha.test.js).
 
-   Referência: grid 70×35, token 3×3, movimento = max(5, floor(VB×5/20)).
+   Referência: grid 55×35, token 2×2 (desde 14/09/2026; era 70×35 e 3×3), movimento = max(5, floor(VB×5/20)).
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/helpers.jsx';
@@ -23,8 +23,9 @@ beforeAll(() => {
 });
 
 describe('constantes de geometria', () => {
-  it('grid 70×35, token 3×3', () => {
-    expect([T.TAB_COLS, T.TAB_ROWS, T.TAB_TOKEN]).toEqual([70, 35, 3]);
+  // "O avatar dos participantes devem ter 2x2 [...] O tabuleiro deve ter 55x35." (14/09/2026)
+  it('grid 55×35, token 2×2', () => {
+    expect([T.TAB_COLS, T.TAB_ROWS, T.TAB_TOKEN]).toEqual([55, 35, 2]);
   });
 });
 
@@ -42,14 +43,14 @@ describe('movimentoBase — VB em células', () => {
   });
 });
 
-describe('posValida — o token 3×3 tem que caber inteiro', () => {
+describe('posValida — o token 2×2 tem que caber inteiro', () => {
   it('aceita posição interna', () => {
     expect(T.posValida({ x: 0, y: 0 })).toBe(true);
-    expect(T.posValida({ x: 67, y: 32 })).toBe(true);  // 67+3=70, 32+3=35
+    expect(T.posValida({ x: 53, y: 33 })).toBe(true);  // 53+2=55, 33+2=35
   });
   it('recusa quando o token vazaria a borda', () => {
-    expect(T.posValida({ x: 68, y: 32 })).toBe(false); // 68+3=71 > 70
-    expect(T.posValida({ x: 67, y: 33 })).toBe(false); // 33+3=36 > 35
+    expect(T.posValida({ x: 54, y: 33 })).toBe(false); // 54+2=56 > 55
+    expect(T.posValida({ x: 53, y: 34 })).toBe(false); // 34+2=36 > 35
   });
   it('recusa negativo, fracionário, nulo', () => {
     expect(T.posValida({ x: -1, y: 0 })).toBe(false);
@@ -64,9 +65,9 @@ describe('distâncias', () => {
     expect(T.distanciaCelulas({ x: 0, y: 0 }, { x: 3, y: 3 })).toBe(3);
     expect(T.distanciaCelulas({ x: 0, y: 0 }, { x: 3, y: 5 })).toBe(5);
   });
-  it('alcance é de BORDA: desconta o tamanho do token, encostados = 0', () => {
-    expect(T.distanciaBordas({ x: 0, y: 0 }, { x: 3, y: 0 })).toBe(1);
-    expect(T.distanciaBordas({ x: 0, y: 0 }, { x: 2, y: 0 })).toBe(0);
+  it('alcance é de BORDA: desconta o tamanho do token, dividindo célula = 0', () => {
+    expect(T.distanciaBordas({ x: 0, y: 0 }, { x: 2, y: 0 })).toBe(1);   // lado a lado
+    expect(T.distanciaBordas({ x: 0, y: 0 }, { x: 1, y: 0 })).toBe(0);   // dividem 2 células
     expect(T.distanciaBordas({ x: 0, y: 0 }, { x: 0, y: 0 })).toBe(0);
   });
 });
@@ -90,16 +91,31 @@ describe('parseAlcance / alcanceDaAcao', () => {
 
 describe('celulaOcupada', () => {
   const vivo = { tipo: 'pj', ref_id: 1, inst_id: 'a', pos: { x: 10, y: 10 }, status: 'ativo' };
-  it('bloqueia sobreposição de tokens vivos', () => {
-    expect(T.celulaOcupada({ x: 11, y: 11 }, [vivo])).toBe(true);
-    expect(T.celulaOcupada({ x: 13, y: 10 }, [vivo])).toBe(false);
+  /* "Dois combatentes não podem estar exatamente no mesmo lugar do tabuleiro,
+     mas eles podem ocupar até duas células iguais (isso garante se aproximar
+     do adversário)." (usuário, 14/09/2026) */
+  it('bloqueia o MESMO lugar', () => {
+    expect(T.celulaOcupada({ x: 10, y: 10 }, [vivo])).toBe(true);
+  });
+  it('aceita dividir até duas células: meio token de lado ou na diagonal', () => {
+    expect(T.celulaOcupada({ x: 11, y: 10 }, [vivo])).toBe(false);  // 2 células
+    expect(T.celulaOcupada({ x: 10, y: 9 }, [vivo])).toBe(false);   // 2 células
+    expect(T.celulaOcupada({ x: 11, y: 11 }, [vivo])).toBe(false);  // 1 célula
+    expect(T.celulaOcupada({ x: 12, y: 10 }, [vivo])).toBe(false);  // lado a lado
+  });
+  it('conta as células em comum', () => {
+    expect(T.celulasEmComum({ x: 10, y: 10 }, { x: 10, y: 10 })).toBe(4);
+    expect(T.celulasEmComum({ x: 10, y: 10 }, { x: 11, y: 10 })).toBe(2);
+    expect(T.celulasEmComum({ x: 10, y: 10 }, { x: 11, y: 11 })).toBe(1);
+    expect(T.celulasEmComum({ x: 10, y: 10 }, { x: 12, y: 10 })).toBe(0);
+    expect(T.MAX_CELULAS_COMPARTILHADAS).toBe(2);
   });
   it('morto e desistiu NÃO bloqueiam', () => {
-    expect(T.celulaOcupada({ x: 11, y: 11 }, [{ ...vivo, status: 'morto' }])).toBe(false);
-    expect(T.celulaOcupada({ x: 11, y: 11 }, [{ ...vivo, status: 'desistiu' }])).toBe(false);
+    expect(T.celulaOcupada({ x: 10, y: 10 }, [{ ...vivo, status: 'morto' }])).toBe(false);
+    expect(T.celulaOcupada({ x: 10, y: 10 }, [{ ...vivo, status: 'desistiu' }])).toBe(false);
   });
   it('ignora o próprio participante que está se movendo', () => {
-    expect(T.celulaOcupada({ x: 11, y: 11 }, [vivo], vivo)).toBe(false);
+    expect(T.celulaOcupada({ x: 10, y: 10 }, [vivo], vivo)).toBe(false);
   });
 });
 
@@ -243,8 +259,8 @@ describe('preservarPosicoes — remontar snapshot sem perder o tabuleiro', () =>
 
 describe('alvoNoAlcance — tabuleiro é opcional', () => {
   const a = { pos: { x: 10, y: 10 } };
-  // borda a borda: |10-13| − (3−1) = 1 célula de distância
-  const b = { pos: { x: 13, y: 10 } };
+  // borda a borda: |10-12| − (2−1) = 1 célula de distância
+  const b = { pos: { x: 12, y: 10 } };
   it('respeita o alcance quando os dois estão posicionados', () => {
     expect(T.alvoNoAlcance(a, b, 1)).toBe(true);
     expect(T.alvoNoAlcance(a, { pos: { x: 20, y: 10 } }, 1)).toBe(false);
@@ -485,14 +501,14 @@ describe('parseAlcance — Pessoal não é Toque', () => {
   it('dentroDoAlcance aceita 0 sem virar 1', () => {
     /* O piso de dentroDoAlcance era 1; com 0 ele deixa de somar uma célula de
        folga. Note que 0 NÃO significa "só eu" no tabuleiro: distanciaBordas
-       desconta TAB_TOKEN-1, então dois tokens 3×3 encostados já dão 0.
+       desconta TAB_TOKEN-1, então dois tokens 2×2 que dividem célula já dão 0.
 
        Restringir a si mesmo é IDENTIDADE, não distância — quem faz isso é a
        flag `pessoal` de magiasDeApoioDoAtor (batalha.jsx), e é lá que a regra
        tem que continuar. O 0 aqui só tira a folga extra. */
     expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 3, y: 3 }, 0)).toBe(true);
-    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 7, y: 3 }, 0)).toBe(false);
-    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 7, y: 3 }, 1)).toBe(false);
-    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 6, y: 3 }, 1)).toBe(true);
+    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 5, y: 3 }, 0)).toBe(false);
+    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 6, y: 3 }, 1)).toBe(false);
+    expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 5, y: 3 }, 1)).toBe(true);
   });
 });

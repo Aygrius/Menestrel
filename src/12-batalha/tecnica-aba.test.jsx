@@ -397,11 +397,13 @@ describe('ROTEIRO 10 — REGRA NOVA: modo total custa 0 PA, 1 ativação livre p
     expect(aplicarBtn().getAttribute('aria-label')).toMatch(/0 PA/);
   });
 
-  it('o rótulo de Aplicar mostra 1 PA para Sangramento (modo teste)', () => {
+  // Com dado na linha (14/09/2026), rolar já é a ação: o custo vai no dado.
+  it('o rótulo do dado mostra 1 PA para Sangramento (modo teste)', () => {
     montar({}, { inventario: { itens: [{ slug: 'espada_longa', slot: 'mao_d', equipado: true }] } });
     abrirAbaTecnica();
     escolherTecnica('Sangramento');
-    expect(aplicarBtn().getAttribute('aria-label')).toMatch(/1 PA/);
+    expect(aplicarBtn()).toBeNull();
+    expect(btnRolar().getAttribute('aria-label')).toMatch(/1 PA/);
   });
 
   it('quem já ativou a técnica livre nesta rodada vê Fúria bloqueada, mesmo com PA sobrando', () => {
@@ -435,17 +437,13 @@ describe('ROTEIRO 10 — REGRA NOVA: modo total custa 0 PA, 1 ativação livre p
 // mesmo) montava a Força de Defesa a partir de ficha.derivadas, ignorando
 // status_temp. Resistência à Dor/Extrema e as metades de Fúria não faziam
 // nada ali.
-describe('ROTEIRO 11 — I4: RF efetiva alimenta a aba Resistência', () => {
-  it('Resistência à Dor (mod_rf) soma na Força de Defesa da aba Resistência', () => {
-    montar({
-      rf: 8,
-      status_temp: [{ id: 'tec_resistencia_a_dor', nome: 'Resistência à Dor', icone: '🦾',
-        rodadas_rest: 5, efeito: { tipo: 'mod_rf', valor: 5 } }],
-    });
-    fireEvent.click(btn(/^Resist/));
-    const inputs = document.querySelectorAll('input[type="number"]');
-    // Força de Ataque, depois Força de Defesa (RF por padrão) — mesma ordem do JSX.
-    expect(inputs[1].value).toBe('13');   // 8 (rf) + 5 (mod_rf), não os 8 crus
+/* A aba Resistência saiu do painel em 14/09/2026 ("Remova o menu
+   'Resistência'"). A RF efetiva (rfEfetivo) segue coberta pelos testes do
+   motor; aqui fica só que a aba não volta. */
+describe('ROTEIRO 11 — a aba Resistência não existe mais', () => {
+  it('nenhum botão de aba Resistência', () => {
+    montar({ rf: 8 });
+    expect(screen.queryAllByRole('button').find((b) => /^Resist/.test(b.textContent.trim()))).toBeUndefined();
   });
 });
 

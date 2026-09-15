@@ -120,3 +120,38 @@ describe('FichaInfoView — seta de navegação (ColTitleNav)', () => {
     expect(document.querySelector('.fp-col-title-sub').textContent).not.toBe(rotuloAntes);
   });
 });
+
+/* "Em informações, mostre todas as habilidades, mesmo as que o jogador não
+   tenha aprendido ainda." (usuário, 14/09/2026) */
+describe('FichaInfoView — Habilidades mostra o catálogo inteiro', () => {
+  const HABS = [
+    { key: 'furtividade', nome: 'Furtividade', grupo: 'Subterfúgio' },
+    { key: 'escapar',     nome: 'Escapar',     grupo: 'Subterfúgio' },
+    { key: 'oratoria',    nome: 'Oratória',    grupo: 'Influência' },
+  ];
+  const linhas = () => {
+    const col = [...document.querySelectorAll('.fp-col-title-main')]
+      .find((el) => el.textContent === 'Habilidades').closest('.fp-col-title-nav').parentElement;
+    return [...col.querySelectorAll('.fp-row')];
+  };
+
+  it('a não aprendida aparece, apagada, com o total que daria', () => {
+    montar({
+      catalogoHab: HABS,
+      pjHabilidades: { furtividade: 2 },
+      totalHabilidadeFn: (key) => (key === 'furtividade' ? 4 : -1),
+    });
+    const rows = linhas();
+    expect(rows.map((r) => r.querySelector('.fp-row-label').textContent)).toEqual(['Furtividade', 'Escapar']);
+    expect(rows.map((r) => r.querySelector('.fp-row-value').textContent)).toEqual(['4', '-1']);
+    expect(rows[0].classList.contains('fp-row--nao-aprendida')).toBe(false);
+    expect(rows[1].classList.contains('fp-row--nao-aprendida')).toBe(true);
+  });
+
+  it('grupo sem nenhuma habilidade aprendida também tem página', () => {
+    montar({ catalogoHab: HABS, pjHabilidades: {} });
+    const subs = [...document.querySelectorAll('.fp-col-title-sub')].map((s) => s.textContent);
+    expect(subs).toContain('Subterfúgio');
+    expect(document.body.textContent).not.toMatch(/Nenhuma habilidade\./);
+  });
+});

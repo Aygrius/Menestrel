@@ -87,30 +87,14 @@ describe('motivoArmaTecnica — o texto da restrição de arma', () => {
   });
 });
 
-describe('aba Arma — técnica que exige outra arma aparece desativada, com o motivo', () => {
-  it('Golpe Duplo aparece na lista, desativado, dizendo o grupo exigido', () => {
+/* "No menu Arma, remova 'técnica (opcional)'." (usuário, 14/09/2026) — a
+   técnica se usa pela aba Técnica, cujo bloqueio por arma segue testado abaixo. */
+describe('aba Arma — sem o seletor de técnica', () => {
+  it('não há "Técnica (opcional)" nem aviso de técnica na aba Arma', () => {
     montar();
-    abrirPill('Técnica (opcional)');
-    const golpe = itens().find((li) => li.textContent.includes('Golpe Duplo'));
-    expect(golpe, 'a técnica incompatível não pode sumir').toBeTruthy();
-    expect(golpe.classList.contains('disabled')).toBe(true);
-    expect(golpe.textContent).toMatch(/exige arma CP, EP/);
-  });
-
-  it('clicar na opção desativada não a escolhe', () => {
-    montar();
-    abrirPill('Técnica (opcional)');
-    fireEvent.click(itens().find((li) => li.textContent.includes('Golpe Duplo')));
-    expect(pillPorRotulo('Técnica (opcional)').querySelector('.select-pill-btn').textContent).not.toMatch(/Golpe Duplo/);
-  });
-
-  it('as compatíveis continuam escolhíveis', () => {
-    montar();
-    abrirPill('Técnica (opcional)');
-    const desviar = itens().find((li) => li.textContent.includes('Desviar'));
-    expect(desviar.classList.contains('disabled')).toBe(false);
-    fireEvent.click(desviar);
-    expect(pillPorRotulo('Técnica (opcional)').querySelector('.select-pill-btn').textContent).toMatch(/Desviar/);
+    expect(pillPorRotulo('Técnica (opcional)')).toBeFalsy();
+    expect(document.body.textContent).not.toMatch(/Nenhuma técnica serve/);
+    expect(document.querySelector('.acao-tecnica-efeito')).toBeNull();
   });
 });
 

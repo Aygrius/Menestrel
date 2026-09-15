@@ -123,10 +123,13 @@ describe('a fiação nos dois menus do tabuleiro', () => {
 
   // 13/09/2026: sem o texto "Fulano ataca com"; os botões entram na fileira
   // única do card, no fundo dos outros círculos (sem variante primary).
+  // 14/09/2026: no Jogador, UM botão "Atacar" na linha do X (batalha-head-acoes).
   it('Mestre e Jogador oferecem o ataque no avatar do inimigo, inline', () => {
-    expect(fonte.match(/className="batalha-card-botoes batalha-menu-atacar"/g)).toHaveLength(2);
+    expect(fonte.match(/className="batalha-card-botoes batalha-menu-atacar"/g)).toHaveLength(1);
+    expect(fonte.match(/className="batalha-card-botoes batalha-menu-atacar batalha-head-acoes"/g)).toHaveLength(1);
     expect(fonte).not.toMatch(/batalha-menu-atacar-lbl/);
-    expect(fonte.match(/<BotaoAcaoMenu icone="ti-sword"\r?\n/g)).toHaveLength(2);
+    expect(fonte.match(/<BotaoAcaoMenu icone="ti-sword"\r?\n/g)).toHaveLength(1);
+    expect(fonte).toContain("rotulo={isEn ? 'Attack' : 'Atacar'}");
   });
 
   it('os dois menus passam alvo e aba iniciais ao painel', () => {

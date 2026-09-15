@@ -91,12 +91,14 @@ describe('ações do turno — círculos só com ícone', () => {
     }
   });
 
-  it('Desistir está entre eles — é a ação que só o Jogador tem', async () => {
+  // "Remova o botão 'Encerrar' do jogador" (14/09/2026).
+  it('Mover, Ação e Passar — sem o Encerrar (desistir)', async () => {
     const { container } = montar([lutador()]);
     const menu = await abrirCardDe(container, 'Yuldrous');
     const rotulos = [...menu.querySelectorAll('.batalha-menu-acoes .batalha-menu-acao-ic')]
       .map((b) => b.getAttribute('aria-label'));
-    expect(rotulos.length).toBe(4);   // Mover, Ação, Passar, Desistir
+    expect(rotulos.length).toBe(3);   // Mover, Ação, Passar
+    expect(menu.querySelector('.btn-desistir')).toBeNull();
   });
 });
 
@@ -106,11 +108,13 @@ describe('estado dos outros — círculo com ícone, não texto', () => {
     atual: false, status: 'desmaiado',
   });
 
-  it('o estado alheio aparece como ícone no fim da linha de stats', async () => {
+  // Por último na linha do nome, junto das pools, desde 14/09/2026.
+  it('o estado alheio aparece como ícone no fim da linha do nome', async () => {
     const { container } = montar([lutador(), outro]);
     const menu = await abrirCardDe(container, 'Aliado');
-    const pill = menu.querySelector('.batalha-fighter-stats .batalha-stat-estado');
-    expect(pill, 'o estado do outro combatente precisa estar na linha de stats').toBeTruthy();
+    const pill = menu.querySelector('.batalha-card-pools-nome .batalha-stat-estado');
+    expect(pill, 'o estado do outro combatente precisa estar na linha do nome').toBeTruthy();
+    expect(pill.parentElement.lastElementChild).toBe(pill);
     expect(pill.querySelector('i')).toBeTruthy();
     expect(pill.textContent.trim(), 'o nome do estado foi pro tooltip').toBe('');
     expect(pill.getAttribute('aria-label')).toBeTruthy();
@@ -119,13 +123,13 @@ describe('estado dos outros — círculo com ícone, não texto', () => {
   it('o ícone é o do estado — desmaiado usa o mesmo do mapa único', async () => {
     const { container } = montar([lutador(), outro]);
     const menu = await abrirCardDe(container, 'Aliado');
-    const ic = menu.querySelector('.batalha-fighter-stats .batalha-stat-estado i');
+    const ic = menu.querySelector('.batalha-card-pools-nome .batalha-stat-estado i');
     expect(ic.className).toContain('ti-zzz');
   });
 
   it('no PRÓPRIO card não há pill de estado — o card inteiro já é do jogador', async () => {
     const { container } = montar([lutador()]);
     const menu = await abrirCardDe(container, 'Yuldrous');
-    expect(menu.querySelector('.batalha-fighter-stats .batalha-stat-estado')).toBeNull();
+    expect(menu.querySelector('.batalha-stat-estado')).toBeNull();
   });
 });

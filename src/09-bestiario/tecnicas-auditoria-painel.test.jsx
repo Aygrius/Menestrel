@@ -12,6 +12,8 @@
    A regra verificada aqui é O OPOSTO da das magias, e o painel precisa dizer
    isso: no texto da magia o número VALE; no da técnica, o número é decorativo
    — quem manda é o código.
+
+   14/09/2026: botão no cabeçalho + janela (BestPainelModal), no lugar da faixa.
    ============================================================ */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
@@ -44,21 +46,18 @@ const SANGRAMENTO_OK = { key: 'sangramento', nome: 'Sangramento',
   efeito: 'Um teste de Sangramento (Difícil) causa 1 de dano na energia física em 1 alvo por 5 rodadas.' };
 const SANGRAMENTO_DIF = { key: 'sangramento', nome: 'Sangramento',
   efeito: 'Um teste de Sangramento (Fácil) causa 1 de dano na energia física em 1 alvo por 5 rodadas.' };
-const PROVOCAR = { key: 'provocar', nome: 'Provocar',
-  efeito: 'Um teste de Provocar (Difícil) atrai a atenção de 1 alvo por 5 rodadas.' };
-const CONDUZIR = { key: 'conduzir_oponente', nome: 'Conduzir Oponente',
-  efeito: 'Um teste de Conduzir Oponente (Médio) move 1 alvo por 5 metros por 2 rodadas.' };
 const DESCONHECIDA = { key: 'tecnica_nova_qualquer', nome: 'Técnica Nova',
   efeito: 'Seu total é adicionado a algo por 2 rodadas.' };
 
 describe('fica quieto quando texto e motor concordam', () => {
   it('não acende a borda de alerta', () => {
     const { container } = montar([MIRA_OK, SANGRAMENTO_OK]);
-    expect(container.querySelector('.best-auditoria.com-problema')).toBeNull();
+    expect(container.querySelector('.best-painel-botao.com-problema')).toBeNull();
   });
 
-  it('o resumo fechado diz quantas estão em acordo', () => {
+  it('a janela diz quantas estão em acordo', () => {
     montar([MIRA_OK]);
+    fireEvent.click(cabecalho());
     expect(screen.getByText(/1 em acordo com o motor/)).toBeTruthy();
   });
 });
@@ -68,7 +67,7 @@ describe('acende quando o texto foi editado e o motor não', () => {
      muda o efeito; nas técnicas, muda só a promessa da tela. */
   it('marca com-problema', () => {
     const { container } = montar([MIRA_DIVERGENTE]);
-    expect(container.querySelector('.best-auditoria.com-problema')).toBeTruthy();
+    expect(container.querySelector('.best-painel-botao.com-problema')).toBeTruthy();
   });
 
   it('diz os DOIS números — o do texto e o do motor', () => {
@@ -88,7 +87,7 @@ describe('acende quando o texto foi editado e o motor não', () => {
     const ef = { key: 'explorar_fraqueza', nome: 'Explorar Fraqueza',
       efeito: 'Seu total de Explorar Fraqueza é adicionado à sua coluna de ataque e ignora a armadura do adversário.' };
     const { container } = montar([ef]);
-    expect(container.querySelector('.best-auditoria.com-problema')).toBeNull();
+    expect(container.querySelector('.best-painel-botao.com-problema')).toBeNull();
   });
 });
 
@@ -96,7 +95,8 @@ describe('as que estão fora do motor vêm com o MOTIVO', () => {
   /* Em 12/09/2026 o usuário reclassificou Provocar e Conduzir Oponente: as
      duas são sobre o que o ADVERSÁRIO faz, e quem conduz o adversário é o
      Mestre. Saíram de "falta sistema" para "o Mestre resolve" — que não é
-     pendência, é o desenho.
+     pendência, é o desenho. Em 14/09/2026 as duas entraram no motor, e o grupo
+     "o Mestre resolve" também esvaziou: a fixture dele virou inventada.
 
      E no mesmo dia o grupo "falta sistema" ESVAZIOU: Luta às Cegas era a
      última, e entrou quando o tabuleiro ganhou escuridão. Por isso a fixture
@@ -112,6 +112,24 @@ describe('as que estão fora do motor vêm com o MOTIVO', () => {
   afterAll(() => { delete window.TECNICA_FORA_DO_REGISTRO[FICTICIA_SISTEMA]; });
   const SEM_SISTEMA = { key: FICTICIA_SISTEMA, nome: 'Técnica Impossível',
     efeito: 'Um teste de Técnica Impossível (Difícil) faz algo por 3 rodadas.' };
+  const FICTICIA_MESTRE = 'tecnica_de_teste_do_mestre';
+  const FICTICIA_MESTRE_2 = 'tecnica_de_teste_do_mestre_2';
+  beforeAll(() => {
+    window.TECNICA_FORA_DO_REGISTRO[FICTICIA_MESTRE] = {
+      classe: 'mestre', motivo: 'Rola o teste e o Mestre conduz: o alvo passa a fazer o que a técnica pede.',
+    };
+    window.TECNICA_FORA_DO_REGISTRO[FICTICIA_MESTRE_2] = {
+      classe: 'mestre', motivo: 'Rola o teste e o Mestre move o token do alvo até 5 metros.',
+    };
+  });
+  afterAll(() => {
+    delete window.TECNICA_FORA_DO_REGISTRO[FICTICIA_MESTRE];
+    delete window.TECNICA_FORA_DO_REGISTRO[FICTICIA_MESTRE_2];
+  });
+  const PROVOCAR = { key: FICTICIA_MESTRE, nome: 'Técnica da Mesa',
+    efeito: 'Um teste de Técnica da Mesa (Difícil) atrai a atenção de 1 alvo por 5 rodadas.' };
+  const CONDUZIR = { key: FICTICIA_MESTRE_2, nome: 'Outra da Mesa',
+    efeito: 'Um teste de Outra da Mesa (Médio) move 1 alvo por 5 metros por 2 rodadas.' };
 
   it('separa "o Mestre resolve" de "falta sistema"', () => {
     montar([PROVOCAR, SEM_SISTEMA]);
@@ -141,7 +159,7 @@ describe('as que estão fora do motor vêm com o MOTIVO', () => {
 
   it('estar fora do motor NÃO acende alerta — é oportunidade, não erro', () => {
     const { container } = montar([PROVOCAR]);
-    expect(container.querySelector('.best-auditoria.com-problema')).toBeNull();
+    expect(container.querySelector('.best-painel-botao.com-problema')).toBeNull();
   });
 });
 
@@ -167,12 +185,14 @@ describe('a ajuda diz a regra INVERTIDA das técnicas', () => {
 describe('o botão Conferir novamente', () => {
   it('não aparece sem recarregador', () => {
     montar([MIRA_OK]);
+    fireEvent.click(cabecalho());
     expect(screen.queryByText(/Conferir novamente/)).toBeNull();
   });
 
   it('chama o recarregador e carimba a hora', async () => {
     let chamou = 0;
     montar([MIRA_OK], { onRecarregar: async () => { chamou += 1; } });
+    fireEvent.click(cabecalho());
     fireEvent.click(screen.getByText(/Conferir novamente/));
     expect(chamou).toBe(1);
     expect(await screen.findByText(/conferido às/)).toBeTruthy();
@@ -182,6 +202,6 @@ describe('o botão Conferir novamente', () => {
 describe('não quebra com entrada vazia', () => {
   it('lista vazia renderiza', () => {
     const { container } = montar([]);
-    expect(container.querySelector('.best-auditoria')).toBeTruthy();
+    expect(container.querySelector('.best-painel-botao')).toBeTruthy();
   });
 });

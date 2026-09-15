@@ -100,8 +100,8 @@ describe('montarSnapshots — posição do setup sobrevive ao iniciar()', () => 
 
   it('pos inválida não passa: seria token fora do grid', async () => {
     globalThis.supabaseClient = fakeSupabase({ criaturas: [LOBISOMEM] });
-    const [snap] = await window.montarSnapshots([cru({ pos: { x: 68, y: 9 } })], null);
-    expect(snap.pos).toBeNull();   // 68 + 3 > 70 colunas
+    const [snap] = await window.montarSnapshots([cru({ pos: { x: 54, y: 9 } })], null);
+    expect(snap.pos).toBeNull();   // 54 + 2 > 55 colunas
   });
 
   it('cada participante mantém a SUA posição, sem troca entre índices', async () => {

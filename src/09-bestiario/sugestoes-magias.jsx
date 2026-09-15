@@ -25,6 +25,9 @@ import textoTecnicas from '../../docs/sugestoes-tecnicas.md?raw';
 import textoItens from '../../docs/sugestoes-itens.md?raw';
 // "Análise para diminuir as magias pouco interessantes e fundir as parecidas" (12/09/2026).
 import textoEstudoMagias from '../../docs/estudo-magias.md?raw';
+// Botão + janela dos painéis (14/09/2026). Importado aqui também para os testes
+// que montam só este arquivo.
+import './painel-modal.jsx';
 
 // ── Inline: `código`, **negrito**, *itálico* ────────────────────────────────
 function mdInline(texto, chave) {
@@ -169,50 +172,50 @@ function MarkdownSimples({ texto }) {
   return <div className="sug-md">{mdBlocos(linhas, 'md')}</div>;
 }
 
-/* O painel: mesma faixa recolhível da Verificação do catálogo, fechado por
-   padrão — é leitura longa, não pode empurrar a tabela para baixo. */
-function SugestoesPainel({ lang, texto, titulo, arquivo }) {
+/* O painel: desde 14/09/2026 é um botão no cabeçalho da lista, ao lado do +,
+   que abre o documento numa janela (BestPainelModal, painel-modal.jsx). Antes
+   era uma faixa recolhível entre o cabeçalho e a tabela. `rotulo` é o texto
+   curto do botão; `titulo`, o da janela. */
+function SugestoesPainel({ lang, texto, titulo, rotulo, arquivo }) {
   const [aberto, setAberto] = React.useState(false);
   const en = lang === 'en';
   if (!texto) return null;
+  const rot = rotulo || titulo;
   return (
-    <div className="best-auditoria sug-painel">
-      <button type="button" className="best-aud-head" onClick={() => setAberto((v) => !v)}>
-        <span className="best-aud-chevron" style={{ transform: aberto ? 'rotate(90deg)' : 'none' }}>›</span>
-        <strong>{en ? titulo.en : titulo.pt}</strong>
-        <span className="best-aud-resumo">
-          {en ? 'new entries and adaptations — proposals, nothing applied' : 'novidades e adaptações — propostas, nada aplicado'}
-        </span>
-      </button>
-      {aberto && (
-        <div className="best-aud-corpo">
-          <p className="best-aud-ajuda">
-            {en
-              ? `Reference document (${arquivo}). Live numbers come from the catalog itself.`
-              : `Documento de referência (${arquivo}). Os números ao vivo vêm do próprio catálogo.`}
-          </p>
-          <MarkdownSimples texto={texto} />
-        </div>
-      )}
-    </div>
+    <BestPainelModal lang={lang}
+      rotulo={en ? rot.en : rot.pt}
+      titulo={en ? titulo.en : titulo.pt}
+      aberto={aberto} onAbrir={() => setAberto(true)} onFechar={() => setAberto(false)}>
+      <div className="best-aud-corpo sug-painel">
+        <p className="best-aud-ajuda">
+          {en
+            ? `New entries and adaptations — proposals, nothing applied. Reference document (${arquivo}); live numbers come from the catalog itself.`
+            : `Novidades e adaptações — propostas, nada aplicado. Documento de referência (${arquivo}); os números ao vivo vêm do próprio catálogo.`}
+        </p>
+        <MarkdownSimples texto={texto} />
+      </div>
+    </BestPainelModal>
   );
 }
 
+const ROTULO_SUGESTOES = { pt: 'Sugestões', en: 'Suggestions' };
+
 function MagiasSugestoesPainel({ lang, texto }) {
-  return <SugestoesPainel lang={lang} texto={texto != null ? texto : textoMagias}
+  return <SugestoesPainel lang={lang} texto={texto != null ? texto : textoMagias} rotulo={ROTULO_SUGESTOES}
     titulo={{ pt: 'Sugestões de magias', en: 'Spell suggestions' }} arquivo="docs/sugestoes-magias.md" />;
 }
 function TecnicasSugestoesPainel({ lang, texto }) {
-  return <SugestoesPainel lang={lang} texto={texto != null ? texto : textoTecnicas}
+  return <SugestoesPainel lang={lang} texto={texto != null ? texto : textoTecnicas} rotulo={ROTULO_SUGESTOES}
     titulo={{ pt: 'Sugestões de técnicas', en: 'Technique suggestions' }} arquivo="docs/sugestoes-tecnicas.md" />;
 }
 function ItensSugestoesPainel({ lang, texto }) {
-  return <SugestoesPainel lang={lang} texto={texto != null ? texto : textoItens}
+  return <SugestoesPainel lang={lang} texto={texto != null ? texto : textoItens} rotulo={ROTULO_SUGESTOES}
     titulo={{ pt: 'Sugestões de itens para batalha', en: 'Battle item suggestions' }} arquivo="docs/sugestoes-itens.md" />;
 }
 
 function EstudoMagiasPainel({ lang, texto }) {
   return <SugestoesPainel lang={lang} texto={texto != null ? texto : textoEstudoMagias}
+    rotulo={{ pt: 'Estudo', en: 'Study' }}
     titulo={{ pt: 'Estudo: enxugar e melhorar as magias', en: 'Study: trimming and improving spells' }} arquivo="docs/estudo-magias.md" />;
 }
 

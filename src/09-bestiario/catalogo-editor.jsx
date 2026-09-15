@@ -9,19 +9,15 @@
    com o MESMO componente. NovaCriaturaModal é aposentado na Task 6; até lá
    este arquivo é o único a usar CriaturaFormulas fora dos testes dela.
 
-   Props: { tabela, linha, lang, onSalvo, onCancel }. `linha` null = criação.
-   `onSalvo(linhaSalva)` é chamado depois do sucesso.
+   Props: { tabela, linha, lang, onSalvo, onCancel, onExcluido }. `linha` null
+   = criação. `onSalvo(linhaSalva)` é chamado depois do sucesso;
+   `onExcluido(linha)`, depois de excluir (só criaturas).
 
-   Campo derivado sobrescrevível (spec §6): 12 colunas de `criaturas` são
-   calculadas (EF, EH, absorção, defesa, velocidade, L/M/P, dano e os 3
-   tiers), mas a classe Dragão fixa absorção em 30 e velocidade por
-   linhagem — nenhum dos dois bate com a fórmula. Por isso o campo aceita
-   edição manual e, uma vez editado à mão, para de recalcular (Set
-   `sobrescritos` no estado, classe `campo-sobrescrito` na marcação visual).
-   Ao EDITAR uma linha existente, todos os derivados entram no Set já no
-   mount: o valor gravado no banco (que pode ser o de um dragão) não pode
-   ser silenciosamente substituído pela fórmula assim que o admin mexe em
-   outro campo do formulário.
+   Campo derivado (criaturas): calculado e SÓ LEITURA desde 14/09/2026 — atributos
+   e equipamento entram, e Ataque, EF, EH, RF, RM, Tipo de Armadura, Absorção,
+   Defesa, Velocidade, L/M/P e Dano 100% saem da conta (derivadosDaCriatura,
+   criatura-formulas.jsx). Até essa data eram sugestões sobrescrevíveis, por
+   causa dos dragões feitos à mão; o usuário decidiu que a conta manda.
    ============================================================ */
 
 // ---------- SelectPill — cópia local, mesmo padrão de diario.jsx/batalha.jsx/
@@ -69,29 +65,84 @@ function SelectPill({ options = [], value, onChange, placeholder, disabled, labe
   );
 }
 
-// ---------- Derivados de criatura ----------
-// Só `criaturas` tem colunas `derivado` no descritor hoje — ver
-// catalogo-descritores.jsx. Cada fórmula pede parâmetros nomeados
-// (criatura-formulas.jsx); aqui é só o encanamento form -> parâmetro.
-// dano100/danoLMP usam o próprio `ataque` escolhido no dropdown (peso e
-// offset por tipo de ataque — ataques-criatura.jsx), não mais um "dano de
-// arma" fixo: essa era a conta de PERSONAGEM que motivou a correção de
-// 10/09/2026 (ver criatura-formulas.jsx).
-function calcularDerivadosCriatura(form) {
-  const F = CriaturaFormulas;
-  const { peso, fisico, aura, estagio, forca, coletivo, agilidade, percepcao, ataque } = form;
-  const lmp = F.danoLMP({ ataque, estagio, agilidade });
-  const dano100 = F.dano100({ estagio, forca, peso });
-  const tiers = F.tiersDeDano(dano100);
-  return {
-    energia_fisica: F.energiaFisica({ peso, fisico }),
-    energia_heroica: F.energiaHeroica({ coletivo, aura, estagio }),
-    absorcao: F.absorcao({ fisico }),
-    defesa: F.defesa({ fisico, agilidade }),
-    velocidade: F.velocidade({ agilidade, estagio, percepcao }),
-    dano_l: lmp.l, dano_m: lmp.m, dano_p: lmp.p,
-    dano_100: dano100, dano_25: tiers.d25, dano_50: tiers.d50, dano_75: tiers.d75,
+// ---------- Equipamento de criatura (14/09/2026) ----------
+/* "deve ser possível equipar a criatura com armas e armaduras." O valor é a
+   lista { slug, slot } de criaturas.equipamento; o slot sai de slotParaPeca
+   (criatura-formulas.jsx): mão livre para arma e escudo, o slot próprio para
+   a armadura. O que não cabe não entra — e a busca diz por quê.
+
+   `catalogo` são os itens de Armas e Armaduras, com as colunas que a conta
+   usa; `porSlug` é o mesmo catálogo indexado. */
+const EQUIP_MOTIVO = { maos_ocupadas: 'equipMaosOcupadas', slot_ocupado: 'equipSlotOcupado', sem_slot: 'equipSemSlot' };
+
+function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, lang, t }) {
+  const [busca, setBusca] = React.useState('');
+  const lista = Array.isArray(valor) ? valor : [];
+  const rotulosSlot = (typeof SLOT_LABELS !== 'undefined' && (SLOT_LABELS[lang] || SLOT_LABELS.pt)) || {};
+  const termo = listaChave(busca);
+  const sugestoes = termo
+    ? (catalogo || []).filter((it) => listaChave(it.nome).includes(termo)).slice(0, 40)
+    : [];
+
+  const equipar = (it) => {
+    const r = CriaturaFormulas.slotParaPeca(it, lista, porSlug);
+    if (!r.slot) return;
+    onChange([...lista, { slug: it.slug, slot: r.slot }]);
+    setBusca('');
   };
+  const tirar = (idx) => onChange(lista.filter((_, i) => i !== idx));
+
+  return (
+    <div className="catalogo-campo-full catalogo-lista catalogo-equipamento" data-lista="equipamento">
+      <label className="diario-field-label">{label}</label>
+      <div className="catalogo-lista-caixa">
+        {lista.map((e, i) => {
+          const cat = porSlug && porSlug[e.slug];
+          return (
+            <span key={e.slug + ':' + e.slot + ':' + i} className="catalogo-lista-chip" data-slot={e.slot}>
+              <span className="catalogo-equip-slot">{rotulosSlot[e.slot] || e.slot}</span>
+              <span className="catalogo-lista-chip-nome">{cat ? cat.nome : e.slug}</span>
+              <button type="button" className="catalogo-lista-chip-x"
+                aria-label={`${t.equipRemover} ${cat ? cat.nome : e.slug}`} onClick={() => tirar(i)}>
+                <i className="ti ti-x" aria-hidden="true" />
+              </button>
+            </span>
+          );
+        })}
+        <div className="catalogo-lista-busca">
+          <input className="diario-input" type="text" value={busca}
+            placeholder={t.equipBuscar} aria-label={`${label}: ${t.equipBuscar}`}
+            onChange={(e) => setBusca(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setBusca('');
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const primeira = sugestoes.find((it) => CriaturaFormulas.slotParaPeca(it, lista, porSlug).slot);
+                if (primeira) equipar(primeira);
+              }
+            }} />
+          {sugestoes.length > 0 && (
+            <ul className="select-pill-drop catalogo-lista-drop">
+              {sugestoes.map((it) => {
+                const r = CriaturaFormulas.slotParaPeca(it, lista, porSlug);
+                return (
+                  <li key={it.slug} data-slug={it.slug} aria-disabled={!r.slot}
+                    className={r.slot ? undefined : 'catalogo-equip-bloqueado'}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => equipar(it)}>
+                    {it.nome}
+                    <span className="catalogo-equip-onde">
+                      {r.slot ? (rotulosSlot[r.slot] || r.slot) : t[EQUIP_MOTIVO[r.motivo]] || ''}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ---------- CatalogoLista — escolher nomes do catálogo (13/09/2026) ----------
@@ -164,10 +215,55 @@ function CatalogoLista({ campo, label, valor, onChange, disabled, nomes, t }) {
 }
 
 // ---------- CatalogoCampo — um controle por tipo do descritor ----------
-function CatalogoCampo({ campo, label, valor, onChange, disabled, sobrescrito, nomes, t }) {
+function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t, equip, lang, derivados }) {
+  if (campo.tipo === 'equipamento') {
+    return <CatalogoEquipamento label={label} valor={valor} onChange={onChange}
+      catalogo={equip && equip.catalogo} porSlug={equip && equip.porSlug} lang={lang} t={t} />;
+  }
+  /* Calculado (14/09/2026): só leitura, sempre o que a conta dá. Sem valor
+     (criatura sem arma não tem Ataque nem L/M/P) aparece "—". */
+  /* Dano 100% por arma (14/09/2026): uma caixa para cada arma na mão, com o
+     nome dela no rótulo. A primeira mantém name="dano_100" — é a coluna. */
+  if (campo.tipo === 'derivado' && campo.col === 'dano_100'
+      && derivados && Array.isArray(derivados.danos_100) && derivados.danos_100.length > 0) {
+    return (
+      <>
+        {derivados.danos_100.map((d, i) => (
+          <div key={d.slug + '_' + i} data-dano-arma={d.slug}>
+            <label className="diario-field-label">{`${label} · ${d.nome}`}</label>
+            <input className="diario-input campo-calculado" type="text"
+              name={i === 0 ? campo.col : `${campo.col}_${i + 1}`}
+              value={d.dano_100} readOnly disabled aria-readonly="true" />
+          </div>
+        ))}
+      </>
+    );
+  }
+  if (campo.tipo === 'derivado') {
+    const vazio = valor == null || valor === '';
+    const mostrado = vazio ? '—' : (campo.rotulos && campo.rotulos[valor]) || valor;
+    return (
+      <div>
+        <label className="diario-field-label">{label}</label>
+        <input className="diario-input campo-calculado" type="text" name={campo.col}
+          value={mostrado} readOnly disabled aria-readonly="true" />
+      </div>
+    );
+  }
   if (campo.tipo === 'lista') {
     return <CatalogoLista campo={campo} label={label} valor={valor} onChange={onChange}
       disabled={disabled} nomes={nomes} t={t} />;
+  }
+  /* Referência (14/09/2026): UMA linha de outra tabela, gravada pelo id —
+     itens.criatura_id aponta o animal para a criatura do bestiário. `refs` é
+     [{ id, nome }] da tabela `fonte`. Vazio = sem vínculo (null no banco). */
+  if (campo.tipo === 'referencia') {
+    const opcoes = [{ value: '', label: t.campoSemVinculo || '—' },
+      ...(refs || []).map((r) => ({ value: String(r.id), label: r.nome }))];
+    return (
+      <SelectPill label={label} value={valor == null ? '' : String(valor)} onChange={onChange}
+        disabled={disabled} options={opcoes} />
+    );
   }
   if (campo.tipo === 'area') {
     // catalogo-campo-full: só o texto livre (textarea) ocupa a largura
@@ -188,19 +284,49 @@ function CatalogoCampo({ campo, label, valor, onChange, disabled, sobrescrito, n
     // { value, label }: é o que deixa itens.tipo mostrar "Sólido" e gravar "S".
     // Campo somenteLeitura sai desabilitado — o valor vem do banco e é o banco
     // que o calcula (itens.magico é coluna GERADA).
+    /* Valor gravado FORA da lista (14/09/2026): quando um campo de texto livre
+       vira lista fechada (tipo/subtipo/plano da criatura), o que já está no
+       banco — "Demônio", "Lobo", "Astral" — não pode sumir da tela nem ser
+       trocado sem ninguém ver. Ele entra como primeira opção, marcado, e só
+       muda se alguém escolher outra. */
+    const opcoes = opcoesNormalizadas(campo);
+    const foraDaLista = valor != null && valor !== '' && !opcoes.some((o) => String(o.value) === String(valor));
+    const opcoesComAtual = foraDaLista
+      ? [{ value: valor, label: `${valor} (${t.campoForaDaLista})` }, ...opcoes]
+      : opcoes;
     return (
       <SelectPill label={label} value={valor} onChange={onChange}
         disabled={disabled || !!campo.somenteLeitura}
-        options={opcoesNormalizadas(campo)} />
+        options={opcoesComAtual} />
     );
   }
-  // texto, numero e derivado (derivado é numérico, só ganha a marca de sobrescrita).
+  /* Ícone (itens.icone, 14/09/2026): o banco só aceita "ti-nome". A prévia
+     mostra o que vai ser gravado; formato que não dá para aproveitar avisa
+     aqui, e o salvar recusa com a mesma mensagem. */
+  if (campo.formato === 'icone') {
+    const n = normalizarIcone(valor);
+    return (
+      <div className="catalogo-campo-icone">
+        <label className="diario-field-label">{label}</label>
+        <div className="catalogo-icone-linha">
+          <input className="diario-input" type="text" name={campo.col} placeholder="ti-paw"
+            value={valor} onChange={(e) => onChange(e.target.value)} disabled={disabled}
+            aria-invalid={!n.valido} />
+          <span className="catalogo-icone-previa" aria-hidden="true">
+            {n.valido && n.valor ? <i className={'ti ' + n.valor} /> : null}
+          </span>
+        </div>
+        {!n.valido && <div className="catalogo-icone-erro" role="alert">{t.campoIconeInvalido}</div>}
+      </div>
+    );
+  }
+  // texto e numero.
   return (
     <div>
       <label className="diario-field-label">{label}</label>
       <input
-        className={'diario-input' + (sobrescrito ? ' campo-sobrescrito' : '')}
-        type={campo.tipo === 'numero' || campo.tipo === 'derivado' ? 'number' : 'text'}
+        className="diario-input"
+        type={campo.tipo === 'numero' ? 'number' : 'text'}
         name={campo.col}
         min={campo.min} max={campo.max}
         value={valor}
@@ -256,49 +382,72 @@ function linhaParaForm(linha, descritor) {
   if (descritor && descritor.tabela === 'itens' && typeof out.magico === 'boolean') {
     out.magico = out.magico ? 'Sim' : 'Não';
   }
+  // Campos `booleano` (criaturas.montaria): mesma conversão, no sentido
+  // banco -> tela. O sentido oposto fica no salvar.
+  (descritor ? descritor.campos : []).forEach((c) => {
+    if (c.booleano && typeof out[c.col] === 'boolean') out[c.col] = out[c.col] ? 'Sim' : 'Não';
+  });
+  if (descritor && descritor.campos.some((c) => c.tipo === 'equipamento')) {
+    out.equipamento = Array.isArray(out.equipamento) ? out.equipamento : [];
+  }
   return out;
 }
 
+/* As colunas que a conta do equipamento lê (criatura-formulas.jsx) e a busca
+   mostra. `itens` passa de 1000 linhas: fetchTabelaPaginada. */
+const COLUNAS_EQUIP = 'slug, nome, grupo, slot_equip, categoria_equip, dano, dano_l, dano_m, dano_p, ajuste_atributo, absorcao, defesa, tipo_armadura, maos_outras';
+
 // ---------- CatalogoEditor ----------
-function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
+/* `onExcluido` (14/09/2026): "No rodapé adicionar um botão para excluir." Só
+   no editor de criaturas e só editando uma que existe. Dois cliques: o
+   primeiro arma, o segundo apaga. */
+function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) {
   const t = (ADMIN_COPY[lang] || ADMIN_COPY.pt);
   const descritor = descritorDe(tabela);
 
   const camposVazios = React.useMemo(() => {
     const base = {};
-    (descritor ? descritor.campos : []).forEach((c) => { base[c.col] = ''; });
+    (descritor ? descritor.campos : []).forEach((c) => { base[c.col] = c.tipo === 'equipamento' ? [] : ''; });
     return base;
   }, [descritor]);
 
   const [form, setForm] = React.useState(() => (
     linha ? { ...camposVazios, ...linhaParaForm(linha, descritor) } : camposVazios
   ));
-  // Ao editar, os derivados já entram sobrescritos (ver comentário no topo do
-  // arquivo) — o valor do banco não pode ser trocado pela fórmula ao mount.
-  const [sobrescritos, setSobrescritos] = React.useState(() => new Set(
-    linha && descritor ? descritor.campos.filter((c) => c.tipo === 'derivado').map((c) => c.col) : []
-  ));
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState(null);
+  const [confirmandoExcluir, setConfirmandoExcluir] = React.useState(false);
+  const [excluindo, setExcluindo] = React.useState(false);
 
-  const derivados = React.useMemo(() => (
-    descritor && descritor.tabela === 'criaturas' ? calcularDerivadosCriatura(form) : {}
-  ), [descritor, form]);
-
-  // Dropdown de `ataque`: o descritor já traz os 30 nomes fechados de
-  // ataques-criatura.jsx (estáticos, sem banco). As armas do catálogo
-  // `itens` (grupo Armas) são um universo que MUDA com o catálogo, então
-  // entram por busca — fetchTabelaPaginada porque `itens` já passou dos
-  // 1000 registros do corte do PostgREST (01-core/inventario-helpers.jsx).
-  // Só dispara pra `criaturas`: nenhuma outra tabela tem campo de ataque.
-  const [armasCatalogo, setArmasCatalogo] = React.useState([]);
+  const temEquipamento = !!descritor && descritor.campos.some((c) => c.tipo === 'equipamento');
+  // Armas e Armaduras do catálogo — só para quem tem campo de equipamento.
+  const [equipCatalogo, setEquipCatalogo] = React.useState([]);
   React.useEffect(() => {
-    if (!descritor || descritor.tabela !== 'criaturas') return;
+    if (!temEquipamento) return undefined;
     let cancelado = false;
-    fetchTabelaPaginada('itens', { colunas: 'nome', filtros: [['grupo', 'Armas']], ordem: ['nome'] })
-      .then(({ data }) => { if (!cancelado) setArmasCatalogo((data || []).map((i) => i.nome)); });
+    Promise.all(['Armas', 'Armaduras'].map((grupo) => (
+      fetchTabelaPaginada('itens', { colunas: COLUNAS_EQUIP, filtros: [['grupo', grupo]], ordem: ['nome'] })
+    ))).then((respostas) => {
+      if (cancelado) return;
+      setEquipCatalogo(respostas.flatMap((r) => (r && r.data) || [])
+        .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt')));
+    });
     return () => { cancelado = true; };
-  }, [descritor]);
+  }, [temEquipamento]);
+  const equipPorSlug = React.useMemo(() => {
+    const m = {};
+    equipCatalogo.forEach((it) => { m[it.slug] = it; });
+    return m;
+  }, [equipCatalogo]);
+
+  /* Calculados (criaturas): TUDO sai da conta, sempre — atributos e
+     equipamento. Até 14/09/2026 eram sugestões que o admin podia sobrescrever
+     (os dragões tinham absorção e velocidade à mão); agora "são calculados
+     automaticamente com base nas informações inseridas". */
+  const derivados = React.useMemo(() => (
+    descritor && descritor.tabela === 'criaturas'
+      ? CriaturaFormulas.derivadosDaCriatura(form, equipPorSlug) : {}
+  ), [descritor, form, equipPorSlug]);
 
   // Nomes do catálogo para os campos `lista` (técnicas, habilidades, magias
   // da criatura). Uma busca por tabela de origem, só das que o descritor usa.
@@ -317,39 +466,29 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
     return () => { cancelado = true; };
   }, [descritor]);
 
-  // Campos efetivamente renderizados: iguais ao descritor, exceto `ataque`
-  // (criaturas), cujas opções ganham as armas do catálogo que ainda não
-  // estiverem na lista fechada — sem duplicar nem reordenar as 30 fixas.
-  const camposEfetivos = React.useMemo(() => {
-    if (!descritor || descritor.tabela !== 'criaturas') return descritor ? descritor.campos : [];
-    return descritor.campos.map((campo) => {
-      if (campo.col !== 'ataque') return campo;
-      const extras = armasCatalogo.filter((nome) => !campo.opcoes.includes(nome));
-      return extras.length ? { ...campo, opcoes: [...campo.opcoes, ...extras] } : campo;
+  // Linhas de outra tabela para os campos `referencia` (itens.criatura_id).
+  const [refsPorFonte, setRefsPorFonte] = React.useState({});
+  React.useEffect(() => {
+    if (!descritor) return undefined;
+    const fontes = [...new Set(descritor.campos.filter((c) => c.tipo === 'referencia').map((c) => c.fonte))];
+    let cancelado = false;
+    fontes.forEach((fonte) => {
+      fetchTabelaPaginada(fonte, { colunas: 'id, nome', ordem: ['nome'] })
+        .then(({ data }) => {
+          if (cancelado) return;
+          setRefsPorFonte((m) => ({ ...m, [fonte]: data || [] }));
+        });
     });
-  }, [descritor, armasCatalogo]);
+    return () => { cancelado = true; };
+  }, [descritor]);
 
   const onChangeCampo = (campo, valor) => {
     setForm((f) => ({ ...f, [campo.col]: valor }));
-    // Editar um derivado à mão marca a sobrescrita — dali em diante ele para
-    // de seguir a fórmula, mesmo que outras entradas continuem mudando.
-    if (campo.tipo === 'derivado') {
-      setSobrescritos((s) => { const novo = new Set(s); novo.add(campo.col); return novo; });
-    }
   };
 
   if (!descritor) return null; // tabela sem descritor: nada a montar
 
-  const valorDerivado = (campo) => (sobrescritos.has(campo.col) ? form[campo.col] : derivados[campo.col]);
-  const valorDoCampo = (campo) => {
-    // Derivado oculto que sai do Dano 100% (dano_25/50/75): sempre do valor
-    // que está na tela, calculado ou digitado — ver catalogo-descritores.jsx.
-    if (campo.deDano100) {
-      const d100 = descritor.campos.find((c) => c.col === 'dano_100');
-      return CriaturaFormulas.tiersDeDano(d100 ? valorDerivado(d100) : 0)[campo.deDano100];
-    }
-    return campo.tipo === 'derivado' ? valorDerivado(campo) : form[campo.col];
-  };
+  const valorDoCampo = (campo) => (campo.tipo === 'derivado' ? derivados[campo.col] : form[campo.col]);
 
   // O campo auto não entra na checagem: ele não é renderizado, e exigir o
   // preenchimento de um input que não existe travaria o Salvar pra sempre.
@@ -379,18 +518,25 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
 
   const salvar = async () => {
     const payload = {};
+    let iconeInvalido = false;
     descritor.campos.forEach((campo) => {
       /* Campo somenteLeitura NUNCA entra no payload.
          itens.magico é coluna GERADA no Postgres, e mencioná-la num UPDATE
          devolve "column magico can only be updated to DEFAULT" — o erro que
          fazia TODA edição de item falhar até 11/09/2026. A guarda é genérica
          de propósito: qualquer coluna gerada que apareça depois já nasce
-         coberta. */
-      if (campo.somenteLeitura) return;
+         coberta. `semColuna` (RF/RM da criatura) nem existe no banco. */
+      if (campo.somenteLeitura || campo.semColuna) return;
       const bruto = valorDoCampo(campo);
+      if (campo.tipo === 'equipamento') {
+        payload[campo.col] = Array.isArray(bruto) ? bruto : [];
+        return;
+      }
       if (campo.tipo === 'derivado') {
-        // Calculado ou sobrescrito, sempre grava — nunca some do payload.
-        payload[campo.col] = Number(bruto) || 0;
+        // Sempre grava o que a conta dá — inclusive null (criatura sem arma
+        // não tem Ataque nem L/M/P, e o valor velho não pode ficar).
+        if (vazio(bruto)) { payload[campo.col] = null; return; }
+        payload[campo.col] = campo.texto ? String(bruto) : (Number(bruto) || 0);
         return;
       }
       if (campo.tipo === 'numero') {
@@ -398,7 +544,25 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
         payload[campo.col] = Number(bruto);
         return;
       }
-      const valor = typeof bruto === 'string' ? bruto.trim() : bruto;
+      // Referência: id numérico no banco; vazio desfaz o vínculo.
+      if (campo.tipo === 'referencia') {
+        if (vazio(bruto)) { if (limpou(campo)) payload[campo.col] = null; return; }
+        payload[campo.col] = Number(bruto);
+        return;
+      }
+      // Booleano: 'Sim'/'Não' na tela, true/false no banco.
+      if (campo.booleano) {
+        if (bruto === 'Sim' || bruto === true) payload[campo.col] = true;
+        else if (bruto === 'Não' || bruto === false || limpou(campo)) payload[campo.col] = false;
+        return;
+      }
+      let valor = typeof bruto === 'string' ? bruto.trim() : bruto;
+      // Ícone: grava sempre "ti-nome" (itens_icone_formato_chk).
+      if (campo.formato === 'icone') {
+        const n = normalizarIcone(valor);
+        if (!n.valido) { iconeInvalido = true; return; }
+        valor = n.valor || '';
+      }
       if (vazio(valor)) { if (limpou(campo)) payload[campo.col] = null; return; }
       // A conversão 'Sim'/'Não' -> boolean de itens.magico vivia aqui e foi
       // removida em 11/09/2026: o campo é somenteLeitura e sai na guarda do
@@ -407,6 +571,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
       payload[campo.col] = valor;
     });
     payload.atualizado_em = new Date().toISOString();
+    if (iconeInvalido) { setError(t.campoIconeInvalido); return; }
 
     setSaving(true); setError(null);
     const idCol = descritor.chave || 'id';
@@ -433,6 +598,33 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
     onSalvo(data);
   };
 
+  // Excluir: só criaturas, só editando. `.select()` pelo mesmo motivo do
+  // toggleDisponibilizar do Lore: DELETE barrado pela RLS volta sem erro e
+  // com zero linhas — sem conferir, a janela fecharia e a criatura ficaria.
+  const podeExcluir = descritor.tabela === 'criaturas' && !!linha && typeof onExcluido === 'function';
+  const excluir = async () => {
+    if (!confirmandoExcluir) { setConfirmandoExcluir(true); return; }
+    setExcluindo(true); setError(null);
+    const idCol = descritor.chave || 'id';
+    const { data, error: err } = await supabaseClient
+      .from(descritor.tabela).delete().eq(idCol, linha[idCol]).select();
+    setExcluindo(false);
+    if (err) { setError(err.message); setConfirmandoExcluir(false); return; }
+    if (!data || data.length === 0) {
+      setError(lang === 'en' ? 'Nothing was deleted (permission denied?).' : 'Nada foi excluído (sem permissão?).');
+      setConfirmandoExcluir(false);
+      return;
+    }
+    onExcluido(linha);
+  };
+  const botaoExcluir = podeExcluir ? (
+    <button type="button" className={confirmandoExcluir ? 'btn-danger btn-md' : 'btn-ghost btn-md catalogo-btn-excluir'}
+      onClick={excluir} disabled={saving || excluindo}>
+      <i className="ti ti-trash" aria-hidden="true" />{' '}
+      {excluindo ? t.editorExcluindo : (confirmandoExcluir ? t.editorExcluirConfirmar : t.editorExcluir)}
+    </button>
+  ) : null;
+
   const tabLabel = t[descritor.rotuloKey] || descritor.tabela;
   const titulo = `${tabLabel} — ${linha ? t.editorEditar : t.editorNovo}`;
 
@@ -441,16 +633,20 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel }) {
       onClose={onCancel} onCancel={onCancel}
       onConfirm={salvar}
       confirmLabel={saving ? t.editorSalvando : undefined}
-      confirmDisabled={saving || !obrigatoriosOk}>
+      confirmDisabled={saving || excluindo || !obrigatoriosOk}
+      footerBeforeConfirm={botaoExcluir}>
       <div className="catalogo-form-grid">
-        {camposEfetivos.filter((campo) => !campo.autoDeNome && !campo.oculto).map((campo) => (
+        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto).map((campo) => (
           <CatalogoCampo key={campo.col} campo={campo}
             label={t[campo.rotuloKey] || campo.col}
             valor={valorDoCampo(campo)}
             onChange={(v) => onChangeCampo(campo, v)}
             disabled={!!(campo.somenteNovo && linha)}
-            sobrescrito={sobrescritos.has(campo.col)}
             nomes={campo.tipo === 'lista' ? nomesPorFonte[campo.fonte] : undefined}
+            refs={campo.tipo === 'referencia' ? refsPorFonte[campo.fonte] : undefined}
+            equip={campo.tipo === 'equipamento' ? { catalogo: equipCatalogo, porSlug: equipPorSlug } : undefined}
+            derivados={campo.tipo === 'derivado' ? derivados : undefined}
+            lang={lang}
             t={t}
           />
         ))}

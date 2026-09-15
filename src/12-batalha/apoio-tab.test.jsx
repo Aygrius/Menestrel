@@ -123,15 +123,16 @@ function montar(magiasDoPj, onAplicarApoio) {
 const btn = (re) => screen.getAllByRole('button').find(
   (b) => re.test(b.textContent) || re.test(b.getAttribute('aria-label') || '')
 );
-// Desde 13/09/2026 Apoio e Magia são UMA aba, "Magias" (ver opcoesMagias).
-const abaApoio = () => btn(/^Magias$/);
+// Desde 13/09/2026 Apoio e Magia são UMA aba (ver opcoesMagias). Chamava-se
+// "Magias"; é "Magia", no singular, desde 14/09/2026.
+const abaApoio = () => btn(/^Magia$/);
 
 describe('aba Magias — ataque e efeito numa aba só (13/09/2026)', () => {
   it('não existem mais os botões "Apoio" e "Magia" separados', () => {
     montar({ velocidade: 1 });
     expect(btn(/^Apoio$/)).toBeFalsy();
-    expect(btn(/^Magia$/)).toBeFalsy();
-    expect(abaApoio()).toBeTruthy();
+    expect(btn(/^Magias$/)).toBeFalsy();
+    expect(screen.getAllByRole('button').filter((b) => /^Magia$/.test(b.textContent.trim()))).toHaveLength(1);
   });
 });
 
@@ -238,12 +239,13 @@ describe('aba Apoio — rolagem só quando a magia exige', () => {
     expect(usar.disabled).toBe(false);
   });
 
-  it('magia com teste fica travada até o dado sair', () => {
+  // Dado na linha (14/09/2026): com teste, a ação É o dado — não há Usar à
+  // parte para apertar antes de rolar.
+  it('magia com teste só age pelo dado', () => {
     montarComTeste({ bravura: 1 });
     fireEvent.click(abaApoio());
-    const usar = btn(/Usar \(1 PA/i);
-    expect(usar).toBeTruthy();
-    expect(usar.disabled).toBe(true);
+    expect(document.querySelector('.atacar-confirmar')).toBeNull();
+    expect(btn(/Rolar d20 · Usar \(1 PA/i)).toBeTruthy();
   });
 });
 

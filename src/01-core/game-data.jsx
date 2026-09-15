@@ -382,7 +382,7 @@ function resistenciasBase(estagio, fisico, aura) {
 // Calcula a ficha completa a partir dos campos editáveis.
 // Para os derivados, atributos negativos contam como 0 (não altera `atributos`).
 // condicoesAtuais (opcional): pj.estado_atual?.condicoes. Quando informado,
-// soma os deltas de CONDICOES_POCO_MAP nos poços EF/EH/KA/AR/VB (ver [14.5]).
+// soma os deltas de CONDICOES_POCO_MAP nos poços EF/EH/KA/VB (ver [14.5]).
 // Os ATRIBUTOS nunca são afetados por condição. O efeito das condições de
 // GRUPO (Sanidade/Reputação/Temperatura) não mora aqui — é aplicado no total
 // da habilidade, por totalHabilidadeComCondicoes.
@@ -479,10 +479,8 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais) {
       }
     });
   }
-  // Alimentação soma na AR (piso 0). Fica FORA do laço: vale mesmo sem
-  // armadura equipada — é vigor do corpo, não equipamento. Não entra na
-  // string de Defesa, que continua sendo peitoral + defesa dos itens.
-  absorcaoTotal = Math.max(0, absorcaoTotal + dPoco.ar);
+  // A Absorção é SÓ a soma dos equipamentos: a Alimentação deixou de somar
+  // nela em 14/09/2026 ("Alimentação não deve alterar a absorção").
 
   // Defesa: sigla do peitoral (L por padrão se não houver peitoral)
   //         + (soma das defesas dos equipamentos + agilidade).
@@ -963,15 +961,23 @@ function resolverResistencia(ataque, defesa) {
    que zerava o Karma inteiro; Temperatura mexia na Agilidade, que mexia na
    Defesa). Agora cada condição bate DIRETO no que deve afetar:
 
-     - 5 condições somam num poço derivado (EF / VB / KA / AR / EH);
+     - 5 condições somam em poços derivados (EF / VB / KA / EH);
      - 3 condições multiplicam um PAR de grupos de habilidade.
 
    Os 6 grupos ficam cobertos por exatamente um par, então uma habilidade
-   nunca recebe mais de um multiplicador. */
+   nunca recebe mais de um multiplicador.
+
+   PROPORCIONAL AO NÍVEL DA BARRA (14/09/2026, usuário): "Para todas as barras
+   de vitalidade, faça com que o ganho e a perda seja proporcional ao nível da
+   barra." Até então eram degraus (±3 até 24, ±6 a partir de 25; ×0,75/×1,25 e
+   ×0,5/×1,5). Agora a barra cheia (±COND_LIMITE) dá o efeito máximo — o mesmo
+   do antigo degrau extremo — e o meio da barra dá metade. */
 
 // Faixa de intensidade de uma condição: -2 (extremo negativo), -1 (brando
 // negativo), 0 (neutro), +1 (brando positivo), +2 (extremo positivo).
 // Os extremos são INCLUSIVOS: -25 já é faixa forte, assim como +25.
+// Não entra mais na conta dos efeitos (que é proporcional, ver acima); fica
+// para quem precisa de uma leitura em degraus.
 const COND_FAIXA_EXTREMA = 25;
 function faixaCondicao(valor) {
   const v = Number(valor);
@@ -982,20 +988,33 @@ function faixaCondicao(valor) {
   return 2;
 }
 
-// Delta somado ao poço por faixa: ±3 na branda, ±6 na extrema.
-const COND_DELTA_POR_FAIXA = { '-2': -6, '-1': -3, 0: 0, 1: 3, 2: 6 };
+// Fração da barra, de -1 (vazia) a +1 (cheia). 0 = neutro.
+function proporcaoCondicao(valor) {
+  const lim = (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null)
+    ?? (typeof window !== 'undefined' ? window.COND_LIMITE : null) ?? 50;
+  const v = Number(valor);
+  if (!Number.isFinite(v) || v === 0) return 0;
+  return Math.max(-1, Math.min(1, v / lim));
+}
 
-/* Condições que somam num poço derivado. `poco` é a chave do delta devolvido
-   por deltasPocosPorCondicoes. Sobriedade é o caso especial pedido pelo
-   usuário: os DOIS lados são bônus, só mudam de poço (bêbado rende Energia
-   Heroica, sóbrio rende Karma) — por isso tem pocoNeg/pocoPos em vez de
-   `poco`, e usa o módulo da faixa como delta. */
+// Efeito máximo num poço, com a barra no extremo.
+const COND_DELTA_MAX = 6;
+
+/* Condições que somam em poços derivados. Cada lado da barra (`neg`, `pos`)
+   lista os poços que ele move; `max` é o efeito com a barra no extremo
+   (padrão COND_DELTA_MAX). O sinal acompanha o da barra, exceto em `bonus`,
+   que é ganho dos dois lados.
+
+   Sobriedade é o caso pedido pelo usuário: os DOIS lados são bônus, só mudam
+   de poço (bêbado rende Energia Heroica, sóbrio rende Karma).
+   Alimentação (14/09/2026): "Negativo perde velocidade e karma, positivo ganha
+   3 EF." */
 const CONDICOES_POCO_MAP = {
-  vitalidade: { poco: 'ef' },                        // Saúde        → Energia Física
-  animo:      { poco: 'vb' },                        // Sono         → Velocidade
-  hidratacao: { poco: 'ka' },                        // Hidratação   → Karma
-  nutricao:   { poco: 'ar' },                        // Alimentação  → Absorção
-  euforia:    { pocoNeg: 'eh', pocoPos: 'ka' },      // Sobriedade   → EH (−) / KA (+)
+  vitalidade: { neg: [{ poco: 'ef' }], pos: [{ poco: 'ef' }] },               // Saúde       → Energia Física
+  animo:      { neg: [{ poco: 'vb' }], pos: [{ poco: 'vb' }] },               // Sono        → Velocidade
+  hidratacao: { neg: [{ poco: 'ka' }], pos: [{ poco: 'ka' }] },               // Hidratação  → Karma
+  nutricao:   { neg: [{ poco: 'vb' }, { poco: 'ka' }], pos: [{ poco: 'ef', max: 3 }] },   // Alimentação → VB e KA (−) / EF (+)
+  euforia:    { neg: [{ poco: 'eh', bonus: true }], pos: [{ poco: 'ka' }] },  // Sobriedade  → EH (−) / KA (+)
 };
 
 /* Condições que multiplicam grupos de habilidade. `direto` acompanha o sinal
@@ -1013,24 +1032,24 @@ Object.entries(CONDICOES_GRUPO_MAP).forEach(([condKey, par]) => {
   CONDICOES_GRUPO_POR_GRUPO[par.inverso] = { condicao: condKey, papel: 'inverso' };
 });
 
-// Multiplicador do grupo direto por faixa; o inverso é o espelho (2 − direto).
-const COND_MULT_DIRETO_POR_FAIXA = { '-2': 0.5, '-1': 0.75, 0: 1, 1: 1.25, 2: 1.5 };
+// Variação máxima do multiplicador, com a barra no extremo: ×1,5 / ×0,5.
+const COND_MULT_VARIACAO_MAX = 0.5;
 
 // Soma dos deltas de poço de TODAS as condições. Devolve sempre o objeto
 // completo (poço sem condição = 0), então o caller não precisa de guarda.
 // Poços acumulam: Hidratação +6 e Sobriedade +6 dão +12 de Karma.
+// Arredondamento ao inteiro mais próximo: a barra a +25 (metade) dá +3.
 function deltasPocosPorCondicoes(condicoes) {
-  const out = { ef: 0, eh: 0, ka: 0, ar: 0, vb: 0 };
+  const out = { ef: 0, eh: 0, ka: 0, vb: 0 };
   if (!condicoes) return out;
   Object.entries(CONDICOES_POCO_MAP).forEach(([condKey, regra]) => {
-    const faixa = faixaCondicao(condicoes[condKey]);
-    if (faixa === 0) return;
-    if (regra.poco) {
-      out[regra.poco] += COND_DELTA_POR_FAIXA[faixa];
-      return;
-    }
-    // Sobriedade: bônus dos dois lados, poço decidido pelo sinal.
-    out[faixa < 0 ? regra.pocoNeg : regra.pocoPos] += COND_DELTA_POR_FAIXA[Math.abs(faixa)];
+    const p = proporcaoCondicao(condicoes[condKey]);
+    if (p === 0) return;
+    (p < 0 ? regra.neg : regra.pos).forEach((alvo) => {
+      const intensidade = Math.round((alvo.max ?? COND_DELTA_MAX) * Math.abs(p));
+      if (intensidade === 0) return;
+      out[alvo.poco] += (alvo.bonus || p > 0) ? intensidade : -intensidade;
+    });
   });
   return out;
 }
@@ -1041,9 +1060,9 @@ function modificadorGrupoPorCondicoes(grupo, condicoes) {
   if (!condicoes) return 1;
   const regra = CONDICOES_GRUPO_POR_GRUPO[grupo];
   if (!regra) return 1;
-  const faixa = faixaCondicao(condicoes[regra.condicao]);
-  if (faixa === 0) return 1;
-  const direto = COND_MULT_DIRETO_POR_FAIXA[faixa];
+  const p = proporcaoCondicao(condicoes[regra.condicao]);
+  if (p === 0) return 1;
+  const direto = 1 + COND_MULT_VARIACAO_MAX * p;
   return regra.papel === 'direto' ? direto : 2 - direto;
 }
 
@@ -1102,7 +1121,7 @@ Object.assign(window, {
   qtdHabilidades, limiteQtdHabilidades, nivelHabilidade, totalHabilidade,
   calcBonusHabilidadesRacaReino,
   CONDICOES_POCO_MAP, CONDICOES_GRUPO_MAP, CONDICOES_GRUPO_POR_GRUPO,
-  faixaCondicao, deltasPocosPorCondicoes,
+  faixaCondicao, proporcaoCondicao, deltasPocosPorCondicoes,
   modificadorGrupoPorCondicoes, totalHabilidadeComCondicoes,
   MAGIAS_POR_PROFISSAO, profissaoUsaMagia, pontosMagiasTotal, gastoMagias,
   podeAcessarMagia, nivelMagiaEfetivo, magiaEhAvancada, magiaEhTravada,

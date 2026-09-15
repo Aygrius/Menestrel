@@ -94,7 +94,7 @@ describe('painel na vez em que a magia fica pronta', () => {
   it('abre na aba Magia, com a instrução de rolar o dado', () => {
     montar([ALDREN, VAMPIRO, HAALIN]);
     // Aba única "Magias" desde 13/09/2026.
-    expect(aba('Magias').className).toMatch(/\bon\b/);
+    expect(aba('Magia').className).toMatch(/\bon\b/);
     expect(document.querySelector('.magia-largada-instrucao').textContent)
       .toBe('Relâmpago está pronta: role o dado para soltar a magia.');
     expect(document.querySelector('.dado-ov-trigger button').disabled).toBe(false);
@@ -111,8 +111,10 @@ describe('painel na vez em que a magia fica pronta', () => {
 
   it('as outras abas ficam travadas, dizendo por quê', () => {
     montar([ALDREN, HAALIN]);
-    expect(aba('Resistência').disabled).toBe(true);
-    const wrap = aba('Resistência').closest('.acao-tab-wrap');
+    // Era a aba Resistência (a única sem motivo próprio de bloqueio), que saiu
+    // em 14/09/2026. Arma serve igual: o Aldren tem arma na mão.
+    expect(aba('Arma').disabled).toBe(true);
+    const wrap = aba('Arma').closest('.acao-tab-wrap');
     expect(wrap.getAttribute('data-motivo')).toMatch(/Resolva Relâmpago primeiro/);
   });
 
@@ -252,7 +254,8 @@ describe('caído, sangrando e evocando', () => {
     render(<div className="menestrel-ui"><StatusTempChips p={{ ...HAALIN, evocando: { ...PRONTA, rodadas_rest: 3 } }}
       tb={window.tBat ? window.tBat('pt') : {}} somenteLeitura /></div>);
     const chip = document.querySelector('.batalha-status-chip-evocando');
-    expect(chip.textContent).toMatch(/Evocando Relâmpago/);
-    expect(chip.textContent).toMatch(/3/);
+    // Botão redondo desde 14/09/2026: o texto vai no aria-label/tooltip.
+    expect(chip.getAttribute('aria-label')).toMatch(/Evocando Relâmpago/);
+    expect(chip.getAttribute('aria-label')).toMatch(/3/);
   });
 });

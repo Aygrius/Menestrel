@@ -37,12 +37,14 @@ const CAIDO = { id: 'caido', nome: 'Caído', rodadas_rest: 1, efeito: { tipo: 's
 const tb = { ateOFimDa: 'até o fim da batalha', rodadaSRestantes: 'rodada(s) restantes', cliqueParaRemover: 'clique para remover' };
 
 describe('StatusTempChips', () => {
-  it('mostra nome e rodadas de cada efeito', () => {
+  // Botão redondo desde 14/09/2026: nome e rodadas no aria-label/tooltip, as
+  // rodadas também na borda azul — sem texto nem badge dentro.
+  it('diz nome e rodadas de cada efeito', () => {
     render(<div className="menestrel-ui"><Chips p={{ status_temp: [ENVENENADO, CAIDO] }} tb={tb} somenteLeitura /></div>);
     const chips = document.querySelectorAll('.batalha-status-chip');
     expect(chips).toHaveLength(2);
-    expect(chips[0].textContent).toMatch(/Envenenado/);
-    expect(chips[0].textContent).toMatch(/3/);
+    expect(chips[0].getAttribute('aria-label')).toMatch(/Envenenado · 3/);
+    expect(chips[0].textContent.trim()).toBe('');
   });
 
   it('só leitura (jogador): clicar não remove nada', () => {
