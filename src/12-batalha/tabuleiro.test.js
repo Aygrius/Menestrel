@@ -6,7 +6,8 @@
    propósito, nunca por acidente (mesma disciplina de
    motor-batalha.test.js).
 
-   Referência: grid 55×35, token 2×2 (desde 14/09/2026; era 70×35 e 3×3), movimento = max(5, floor(VB×5/20)).
+   Referência: grid 50×35, token 2×2 (desde 17/09/2026; era 55×35 desde
+   14/09/2026, e 70×35 com token 3×3 antes disso), movimento = max(5, floor(VB×5/20)).
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/helpers.jsx';
@@ -24,8 +25,9 @@ beforeAll(() => {
 
 describe('constantes de geometria', () => {
   // "O avatar dos participantes devem ter 2x2 [...] O tabuleiro deve ter 55x35." (14/09/2026)
-  it('grid 55×35, token 2×2', () => {
-    expect([T.TAB_COLS, T.TAB_ROWS, T.TAB_TOKEN]).toEqual([55, 35, 2]);
+  // "O tabuleiro terá 50x35 posições, e estará centralizado na tela." (17/09/2026)
+  it('grid 50×35, token 2×2', () => {
+    expect([T.TAB_COLS, T.TAB_ROWS, T.TAB_TOKEN]).toEqual([50, 35, 2]);
   });
 });
 
@@ -46,11 +48,11 @@ describe('movimentoBase — VB em células', () => {
 describe('posValida — o token 2×2 tem que caber inteiro', () => {
   it('aceita posição interna', () => {
     expect(T.posValida({ x: 0, y: 0 })).toBe(true);
-    expect(T.posValida({ x: 53, y: 33 })).toBe(true);  // 53+2=55, 33+2=35
+    expect(T.posValida({ x: 48, y: 33 })).toBe(true);  // 48+2=50, 33+2=35
   });
   it('recusa quando o token vazaria a borda', () => {
-    expect(T.posValida({ x: 54, y: 33 })).toBe(false); // 54+2=56 > 55
-    expect(T.posValida({ x: 53, y: 34 })).toBe(false); // 34+2=36 > 35
+    expect(T.posValida({ x: 49, y: 33 })).toBe(false); // 49+2=51 > 50
+    expect(T.posValida({ x: 48, y: 34 })).toBe(false); // 34+2=36 > 35
   });
   it('recusa negativo, fracionário, nulo', () => {
     expect(T.posValida({ x: -1, y: 0 })).toBe(false);
@@ -268,6 +270,17 @@ describe('alvoNoAlcance — tabuleiro é opcional', () => {
   it('quem não está no tabuleiro não é bloqueado por alcance', () => {
     expect(T.alvoNoAlcance(a, { pos: null }, 1)).toBe(true);
     expect(T.alvoNoAlcance({ pos: null }, b, 1)).toBe(true);
+  });
+  /* Revisão de 24/09/2026: alcance 0 (magia Pessoal) virava 1 aqui, e a
+     magia aceitava um alvo adjacente — dentroDoAlcance e parseAlcance já
+     tinham sido corrigidos em 11/09/2026, esta função ficou para trás. */
+  it('alcance 0 (Pessoal) não alcança o vizinho', () => {
+    expect(T.alvoNoAlcance(a, b, 0)).toBe(false);
+    expect(T.alvoNoAlcance(a, { pos: { x: 10, y: 10 } }, 0)).toBe(true);
+  });
+  it('alcance ausente continua valendo corpo a corpo', () => {
+    expect(T.alvoNoAlcance(a, b, null)).toBe(true);
+    expect(T.alvoNoAlcance(a, b, undefined)).toBe(true);
   });
 });
 

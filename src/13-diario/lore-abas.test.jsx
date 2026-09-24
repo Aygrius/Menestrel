@@ -13,6 +13,11 @@ import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
 import '../10-shell/shell.jsx';
+/* 17/09/2026: a tela do Mestre virou tabela padrão e passou a usar o
+   vocabulário que o bestiário exporta (useSort/SortHead/BestPagination/
+   BestBuscaENovo/useFitPageSize). Antes desta rodada só o DiarioView do
+   Jogador precisava dele, e este teste renderiza o GerenciarLoreView. */
+import '../09-bestiario/bestiario.jsx';
 import './diario.jsx';
 
 const consultadas = [];

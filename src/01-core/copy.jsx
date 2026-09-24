@@ -75,8 +75,6 @@ const COPY = {
       card: {
         batalhas: 'Batalhas',
         convites: 'Convites',
-        lore: 'Lore',
-        loreTip: 'Lore (NPCs, Reinos, Cidades)',
         lojaTip: 'Loja ({qtd})',
         loja: 'Loja',
         editar: 'Editar',
@@ -166,6 +164,21 @@ const COPY = {
         reino: 'Reino',
         populacao: 'População',
         capitalDoReino: 'É a capital do reino',
+        tipoDeLugar: 'Tipo de lugar',
+      },
+      /* Modal do botão de olho (17/09/2026). As três opções são o estado
+         REAL das colunas historias.<tipo>_ids + lore_acesso_pj — ver
+         visibilidadeDaEntrada em 13-diario/diario.jsx. */
+      permissao: {
+        titulo: 'Quem pode ver',
+        ninguem: 'Ninguém',
+        ninguemDica: 'A entrada não é disponibilizada nesta história.',
+        todos: 'Todos os protagonistas',
+        todosDica: 'Qualquer personagem da história pode ver e importar.',
+        alguns: 'Somente estes personagens',
+        algunsDica: 'Só quem estiver marcado vê a entrada.',
+        escolhaAlguem: 'Marque pelo menos um personagem.',
+        semProtagonistas: 'Esta história ainda não tem personagens.',
       },
     },
     inventario: {
@@ -376,6 +389,9 @@ const COPY = {
       caido: 'Caído',
       caidoNota: 'Caído fica sem ações até levantar: a vez passa sozinha.',
       sangrando: 'Sangrando',
+      ferido: 'Ferido',
+      feridoColunas: 'Colunas de penalidade',
+      feridoNota: 'As colunas saem de todas as ações — arma, magia, habilidade e técnica.',
       magiaRitual: 'Ritual — não pode ser evocada em batalha.',
       magiaParcialElo: 'Só afeta animais sob Elo Animal — confira o vínculo.',
       magiaParcialArea: 'Magia de área: escolha os alvos atingidos.',
@@ -610,8 +626,6 @@ const COPY = {
       card: {
         batalhas: 'Battles',
         convites: 'Invites',
-        lore: 'Lore',
-        loreTip: 'Lore (NPCs, Kingdoms, Cities)',
         lojaTip: 'Shop ({qtd})',
         loja: 'Shop',
         editar: 'Edit',
@@ -701,6 +715,18 @@ const COPY = {
         reino: 'Realm',
         populacao: 'Population',
         capitalDoReino: "Is the realm's capital",
+        tipoDeLugar: 'Kind of place',
+      },
+      permissao: {
+        titulo: 'Who can see',
+        ninguem: 'Nobody',
+        ninguemDica: 'The entry is not available in this story.',
+        todos: 'All protagonists',
+        todosDica: 'Any character in the story can see and import it.',
+        alguns: 'Only these characters',
+        algunsDica: 'Only the ones checked can see the entry.',
+        escolhaAlguem: 'Check at least one character.',
+        semProtagonistas: 'This story has no characters yet.',
       },
     },
     inventario: {
@@ -899,6 +925,9 @@ const COPY = {
       caido: 'Prone',
       caidoNota: 'Prone has no actions until getting up: the turn passes on its own.',
       sangrando: 'Bleeding',
+      ferido: 'Wounded',
+      feridoColunas: 'Penalty columns',
+      feridoNota: 'The columns come off every action — weapon, spell, skill and technique.',
       magiaRitual: 'Ritual — cannot be cast in battle.',
       magiaParcialElo: 'Only affects animals under Animal Bond — check the bond.',
       magiaParcialArea: 'Area spell: pick the targets hit.',

@@ -384,3 +384,39 @@ describe('X do menu — volta um nível ou fecha', () => {
     expect(vistos).toContain('Yuldrous');
   });
 });
+
+/* Revisão de 24/09/2026. O menu aberto e o Mover armado eram guardados pelo
+   ÍNDICE do participante. A virada de rodada reordena a lista por velocidade
+   (ordenarIniciativa) — e o vento agora muda a velocidade no meio da luta —,
+   então uma atualização vinda de outra tela fazia o menu aberto trocar de
+   dono sozinho, e o Mover ia para quem caísse naquele índice. */
+describe('a lista reordenou com o menu aberto', () => {
+  it('o menu continua no mesmo combatente', () => {
+    const menuDe = (p) => React.createElement('div', null, 'menu de ' + p.nome);
+    const r = montar({ menuDe });
+    fireEvent.click(tokenDe('Yuldrous'));
+    expect(screen.getByText('menu de Yuldrous')).toBeTruthy();
+    // Virada de rodada: o Lobisomem passou a agir primeiro.
+    const invertidas = [
+      { p: ENTRADAS[1].p, i: 0 },
+      { p: ENTRADAS[0].p, i: 1 },
+    ];
+    r.rerender(React.createElement(Tabuleiro, {
+      entradas: invertidas, meta: {}, podeSelecionar: () => true, alcanceDe: () => null,
+      onMover: () => false, salvando: false, isEn: false, tb: {}, abrirTip: null, fecharTip: null, menuDe,
+    }));
+    expect(screen.getByText('menu de Yuldrous')).toBeTruthy();
+    expect(screen.queryByText('menu de Lobisomem')).toBeNull();
+  });
+
+  it('quem sai da lista fecha o menu', () => {
+    const menuDe = (p) => React.createElement('div', null, 'menu de ' + p.nome);
+    const r = montar({ menuDe });
+    fireEvent.click(tokenDe('Yuldrous'));
+    r.rerender(React.createElement(Tabuleiro, {
+      entradas: [{ p: ENTRADAS[1].p, i: 0 }], meta: {}, podeSelecionar: () => true, alcanceDe: () => null,
+      onMover: () => false, salvando: false, isEn: false, tb: {}, abrirTip: null, fecharTip: null, menuDe,
+    }));
+    expect(screen.queryByText(/menu de/)).toBeNull();
+  });
+});

@@ -17,7 +17,9 @@
    e equipamento entram, e Ataque, EF, EH, RF, RM, Tipo de Armadura, Absorção,
    Defesa, Velocidade, L/M/P e Dano 100% saem da conta (derivadosDaCriatura,
    criatura-formulas.jsx). Até essa data eram sugestões sobrescrevíveis, por
-   causa dos dragões feitos à mão; o usuário decidiu que a conta manda.
+   causa dos dragões feitos à mão; o usuário decidiu que a conta manda. Desde
+   15/09/2026 nem aparecem no modal: vão no payload e a linha expandida da
+   CriaturasList (bestiario.jsx) é quem os mostra.
    ============================================================ */
 
 // ---------- SelectPill — cópia local, mesmo padrão de diario.jsx/batalha.jsx/
@@ -68,17 +70,21 @@ function SelectPill({ options = [], value, onChange, placeholder, disabled, labe
 // ---------- Equipamento de criatura (14/09/2026) ----------
 /* "deve ser possível equipar a criatura com armas e armaduras." O valor é a
    lista { slug, slot } de criaturas.equipamento; o slot sai de slotParaPeca
-   (criatura-formulas.jsx): mão livre para arma e escudo, o slot próprio para
+   (criatura-formulas.jsx): armas sem limite, um escudo, o slot próprio para
    a armadura. O que não cabe não entra — e a busca diz por quê.
+
+   Sem rótulo de lugar ("Mão", "Peito"…) desde 15/09/2026: "não haverá
+   limitação de equipamentos de ataque, ou seja, remova o identificador 'mão',
+   etc do modal". O slot continua gravado — a conta precisa dele —, só não
+   aparece.
 
    `catalogo` são os itens de Armas e Armaduras, com as colunas que a conta
    usa; `porSlug` é o mesmo catálogo indexado. */
-const EQUIP_MOTIVO = { maos_ocupadas: 'equipMaosOcupadas', slot_ocupado: 'equipSlotOcupado', sem_slot: 'equipSemSlot' };
+const EQUIP_MOTIVO = { ja_equipada: 'equipJaEquipada', slot_ocupado: 'equipSlotOcupado', sem_slot: 'equipSemSlot' };
 
-function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, lang, t }) {
+function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t }) {
   const [busca, setBusca] = React.useState('');
   const lista = Array.isArray(valor) ? valor : [];
-  const rotulosSlot = (typeof SLOT_LABELS !== 'undefined' && (SLOT_LABELS[lang] || SLOT_LABELS.pt)) || {};
   const termo = listaChave(busca);
   const sugestoes = termo
     ? (catalogo || []).filter((it) => listaChave(it.nome).includes(termo)).slice(0, 40)
@@ -100,7 +106,6 @@ function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, lang, 
           const cat = porSlug && porSlug[e.slug];
           return (
             <span key={e.slug + ':' + e.slot + ':' + i} className="catalogo-lista-chip" data-slot={e.slot}>
-              <span className="catalogo-equip-slot">{rotulosSlot[e.slot] || e.slot}</span>
               <span className="catalogo-lista-chip-nome">{cat ? cat.nome : e.slug}</span>
               <button type="button" className="catalogo-lista-chip-x"
                 aria-label={`${t.equipRemover} ${cat ? cat.nome : e.slug}`} onClick={() => tirar(i)}>
@@ -131,9 +136,7 @@ function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, lang, 
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => equipar(it)}>
                     {it.nome}
-                    <span className="catalogo-equip-onde">
-                      {r.slot ? (rotulosSlot[r.slot] || r.slot) : t[EQUIP_MOTIVO[r.motivo]] || ''}
-                    </span>
+                    {!r.slot && <span className="catalogo-equip-onde">{t[EQUIP_MOTIVO[r.motivo]] || ''}</span>}
                   </li>
                 );
               })}
@@ -215,41 +218,15 @@ function CatalogoLista({ campo, label, valor, onChange, disabled, nomes, t }) {
 }
 
 // ---------- CatalogoCampo — um controle por tipo do descritor ----------
-function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t, equip, lang, derivados }) {
+function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t, equip }) {
   if (campo.tipo === 'equipamento') {
     return <CatalogoEquipamento label={label} valor={valor} onChange={onChange}
-      catalogo={equip && equip.catalogo} porSlug={equip && equip.porSlug} lang={lang} t={t} />;
+      catalogo={equip && equip.catalogo} porSlug={equip && equip.porSlug} t={t} />;
   }
-  /* Calculado (14/09/2026): só leitura, sempre o que a conta dá. Sem valor
-     (criatura sem arma não tem Ataque nem L/M/P) aparece "—". */
-  /* Dano 100% por arma (14/09/2026): uma caixa para cada arma na mão, com o
-     nome dela no rótulo. A primeira mantém name="dano_100" — é a coluna. */
-  if (campo.tipo === 'derivado' && campo.col === 'dano_100'
-      && derivados && Array.isArray(derivados.danos_100) && derivados.danos_100.length > 0) {
-    return (
-      <>
-        {derivados.danos_100.map((d, i) => (
-          <div key={d.slug + '_' + i} data-dano-arma={d.slug}>
-            <label className="diario-field-label">{`${label} · ${d.nome}`}</label>
-            <input className="diario-input campo-calculado" type="text"
-              name={i === 0 ? campo.col : `${campo.col}_${i + 1}`}
-              value={d.dano_100} readOnly disabled aria-readonly="true" />
-          </div>
-        ))}
-      </>
-    );
-  }
-  if (campo.tipo === 'derivado') {
-    const vazio = valor == null || valor === '';
-    const mostrado = vazio ? '—' : (campo.rotulos && campo.rotulos[valor]) || valor;
-    return (
-      <div>
-        <label className="diario-field-label">{label}</label>
-        <input className="diario-input campo-calculado" type="text" name={campo.col}
-          value={mostrado} readOnly disabled aria-readonly="true" />
-      </div>
-    );
-  }
+  /* Campo `derivado` não chega aqui desde 15/09/2026: "No modal de editar
+     criaturas, não precisa mostrar os campos preenchidos automaticamente, mas
+     mostre ao expandir a criatura na tabela." A conta continua rodando e indo
+     no payload (ver salvar); quem mostra é a linha expandida da CriaturasList. */
   if (campo.tipo === 'lista') {
     return <CatalogoLista campo={campo} label={label} valor={valor} onChange={onChange}
       disabled={disabled} nomes={nomes} t={t} />;
@@ -329,6 +306,11 @@ function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t
         type={campo.tipo === 'numero' ? 'number' : 'text'}
         name={campo.col}
         min={campo.min} max={campo.max}
+        /* `passo` (17/09/2026): sem ele o input[type=number] assume step=1 e o
+           navegador RECUSA 0,80 — o campo fica inválido e o salvar não passa.
+           Só `altura` precisa hoje (metros com duas casas); os outros campos
+           numéricos do catálogo são inteiros e seguem sem step. */
+        step={campo.passo}
         value={valor}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
@@ -393,6 +375,63 @@ function linhaParaForm(linha, descritor) {
   return out;
 }
 
+/* ── Criatura e item Animal: a mesma entrada (15/09/2026) ──────────
+   "Os itens do tipo animal, e as criaturas, são em tese a mesma entrada no
+   banco, fazem referência às criaturas que os jogadores podem comercializar e
+   possuir, algumas, até montar." Decisão: unificar de verdade — o Mestre
+   cadastra a criatura, e o item Animal vem junto.
+
+   Depois de salvar a criatura:
+     1. item já ligado (itens.criatura_id)  → acompanha o nome da criatura;
+     2. senão, e a criatura é do tipo Animal:
+        a. item Animal SEM vínculo com o mesmo nome (cadastro antigo)
+           → ganha o vínculo, em vez de nascer um duplicado;
+        b. nenhum → cria o item (grupo Animais), com a chave pelo nome.
+   O slug do item nunca muda: inventários o referenciam. Preço, peso e o resto
+   de loja ficam para o Mestre no editor de itens — não há de onde tirar.
+
+   Devolve null ou a mensagem de erro. A criatura já está salva quando isto
+   roda; erro aqui não pode fingir que a criatura falhou. */
+async function sincronizarAnimalDaCriatura(criatura) {
+  if (!criatura || criatura.id == null || !criatura.nome) return null;
+  const itens = () => supabaseClient.from('itens');
+  const { data: ligados, error: e1 } = await itens().select('slug, nome').eq('criatura_id', criatura.id);
+  if (e1) return e1.message;
+  if (ligados && ligados.length) {
+    const renomear = ligados.filter((it) => it.nome !== criatura.nome);
+    for (const it of renomear) {
+      const { error } = await itens().update({ nome: criatura.nome, atualizado_em: new Date().toISOString() }).eq('slug', it.slug);
+      if (error) return error.message;
+    }
+    return null;
+  }
+  if (criatura.tipo !== 'Animal') return null;
+
+  const { data: soltos, error: e2 } = await itens().select('slug, nome').eq('grupo', 'Animais').is('criatura_id', null);
+  if (e2) return e2.message;
+  const alvo = listaChave(criatura.nome);
+  const mesmoNome = (soltos || []).find((it) => listaChave(it.nome) === alvo);
+  if (mesmoNome) {
+    const { error } = await itens().update({ criatura_id: criatura.id, atualizado_em: new Date().toISOString() }).eq('slug', mesmoNome.slug);
+    return error ? error.message : null;
+  }
+
+  const base = slugDeNome(criatura.nome);
+  const { data: usadas, error: e3 } = await itens().select('slug').like('slug', base + '%');
+  if (e3) return e3.message;
+  const { error } = await itens().insert({
+    slug: chaveLivre(base, (usadas || []).map((r) => r.slug)),
+    nome: criatura.nome,
+    grupo: 'Animais',
+    tipo: 'S',
+    origem: 'Comum',
+    descricao: criatura.descricao || null,
+    criatura_id: criatura.id,
+    atualizado_em: new Date().toISOString(),
+  });
+  return error ? error.message : null;
+}
+
 /* As colunas que a conta do equipamento lê (criatura-formulas.jsx) e a busca
    mostra. `itens` passa de 1000 linhas: fetchTabelaPaginada. */
 const COLUNAS_EQUIP = 'slug, nome, grupo, slot_equip, categoria_equip, dano, dano_l, dano_m, dano_p, ajuste_atributo, absorcao, defesa, tipo_armadura, maos_outras';
@@ -418,6 +457,9 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
   const [error, setError] = React.useState(null);
   const [confirmandoExcluir, setConfirmandoExcluir] = React.useState(false);
   const [excluindo, setExcluindo] = React.useState(false);
+  // Criatura criada cujo item Animal falhou: o modal fica aberto com o erro, e
+  // o próximo Salvar precisa ATUALIZAR essa linha — inserir de novo duplicaria.
+  const [criadaAgora, setCriadaAgora] = React.useState(null);
 
   const temEquipamento = !!descritor && descritor.campos.some((c) => c.tipo === 'equipamento');
   // Armas e Armaduras do catálogo — só para quem tem campo de equipamento.
@@ -589,12 +631,22 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
     } else if (campoAuto) {
       delete payload[campoAuto.col];
     }
-    const query = linha
-      ? supabaseClient.from(descritor.tabela).update(payload).eq(idCol, linha[idCol]).select().single()
+    const alvo = linha || criadaAgora;
+    const query = alvo
+      ? supabaseClient.from(descritor.tabela).update(payload).eq(idCol, alvo[idCol]).select().single()
       : supabaseClient.from(descritor.tabela).insert(payload).select().single();
     const { data, error: err } = await query;
+    if (err) { setSaving(false); setError(err.message); return; }
+    if (descritor.tabela === 'criaturas' && data) {
+      const erroAnimal = await sincronizarAnimalDaCriatura(data);
+      if (erroAnimal) {
+        if (!alvo) setCriadaAgora(data);
+        setSaving(false);
+        setError(`${t.editorAnimalFalhou} ${erroAnimal}`);
+        return;
+      }
+    }
     setSaving(false);
-    if (err) { setError(err.message); return; }
     onSalvo(data);
   };
 
@@ -636,7 +688,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
       confirmDisabled={saving || excluindo || !obrigatoriosOk}
       footerBeforeConfirm={botaoExcluir}>
       <div className="catalogo-form-grid">
-        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto).map((campo) => (
+        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto && campo.tipo !== 'derivado').map((campo) => (
           <CatalogoCampo key={campo.col} campo={campo}
             label={t[campo.rotuloKey] || campo.col}
             valor={valorDoCampo(campo)}
@@ -645,8 +697,6 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
             nomes={campo.tipo === 'lista' ? nomesPorFonte[campo.fonte] : undefined}
             refs={campo.tipo === 'referencia' ? refsPorFonte[campo.fonte] : undefined}
             equip={campo.tipo === 'equipamento' ? { catalogo: equipCatalogo, porSlug: equipPorSlug } : undefined}
-            derivados={campo.tipo === 'derivado' ? derivados : undefined}
-            lang={lang}
             t={t}
           />
         ))}

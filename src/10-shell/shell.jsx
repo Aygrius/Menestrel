@@ -918,23 +918,46 @@ function NavTooltip({ tip, onEnter, onLeave }) {
   // content pode ser string ou { title }
   const label = typeof content === 'string' ? content : (content?.title || '');
   if (!label) return null;
+  /* CONTRASTE (16/09/2026): "o fundo está muito parecido com o fundo do site".
+     Estava mesmo — #141009 contra a página #15120C é a mesma cor a olho nu, e
+     não havia borda nem sombra para desenhar a silhueta.
+
+     Veste a mesma pele que o .mn-tip recebeu e que .at-panel/.cdj-mesa-lista já
+     usavam: quase preto, aro castanho e sombra funda. As duas famílias de
+     tooltip do projeto têm que combinar — o usuário não sabe (nem deve saber)
+     que são componentes diferentes; o pill do clima usa esta, o slot do
+     inventário usa a outra. Por isso o fundo OPACO de 17/09/2026 chegou aqui
+     junto com o do CSS: ver o comentário de .mn-tip em index.css.
+
+     As cores vivem em constantes porque a seta repete as duas, e seta fora de
+     sincronia com o balão é o defeito clássico deste arranjo. */
+  const TIP_FUNDO = '#120D06';
+  const TIP_ARO   = 'rgba(106,85,48,0.35)';
   return ReactDOM.createPortal(
     <div
       style={{
         position: 'fixed', left, top, transform: 'translateY(-50%)',
         zIndex: 9999,
-        background: '#141009',
-        borderRadius: 6, padding: '12px 12px 12px 12px',
+        background: TIP_FUNDO,
+        border: '1px solid ' + TIP_ARO, boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
+        borderRadius: 6, padding: '10px 12px',
         pointerEvents: 'none', whiteSpace: 'nowrap',
         animation: 'fpItemTipIn .12s ease-out',
         fontFamily: "'Lora', serif", fontSize: 12, color: '#E8DDC6',
       }}
     >
-      {/* seta apontando para a esquerda */}
+      {/* Seta apontando para a esquerda — duas camadas: a de trás (6px) faz o
+          contorno, a da frente (5px) o miolo, senão o bico sai sem aro. */}
+      <div style={{
+        position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)',
+        borderWidth: 6, borderStyle: 'solid',
+        borderColor: 'transparent ' + TIP_ARO + ' transparent transparent',
+        width: 0, height: 0,
+      }} />
       <div style={{
         position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)',
         borderWidth: 5, borderStyle: 'solid',
-        borderColor: 'transparent #141009 transparent transparent',
+        borderColor: 'transparent ' + TIP_FUNDO + ' transparent transparent',
         width: 0, height: 0,
       }} />
       {label}
@@ -986,10 +1009,14 @@ const MSG_TIPO_ICON = {
   aviso: 'ti-bell',
 };
 
+/* Eventos em DESTAQUE (15/09/2026): "Adicione no log da mesa com destaque
+   quando um personagem evoluir um estágio." O evento marca `meta.destaque` e a
+   linha ganha moldura dourada e o próprio ícone — subir de estágio acontece
+   poucas vezes numa campanha e não pode passar batido no meio do feed. */
 function MensagemEvento({ msg }) {
-  const iconClass = MSG_TIPO_ICON[msg.tipo] || MSG_TIPO_ICON.sistema;
+  const iconClass = msg.icone || MSG_TIPO_ICON[msg.tipo] || MSG_TIPO_ICON.sistema;
   return (
-    <div className="cm-msg">
+    <div className={'cm-msg' + (msg.destaque ? ' cm-msg--destaque' : '')}>
       <div className="cm-msg-icon">
         <i className={'ti ' + iconClass} aria-hidden="true" />
       </div>
@@ -1009,11 +1036,15 @@ function linhaParaMensagem(row, lang) {
     day: '2-digit', month: '2-digit', year: '2-digit',
     hour: '2-digit', minute: '2-digit',
   });
+  const meta = (row.meta && typeof row.meta === 'object') ? row.meta : {};
   return {
     id: 'db-' + row.id,
     tipo: row.tipo,
     texto: row.texto,
     hora: dataHora,
+    // Quem grava o evento decide o destaque e pode pedir um ícone próprio.
+    destaque: !!meta.destaque,
+    icone: typeof meta.icone === 'string' && /^ti-[a-z0-9-]+$/.test(meta.icone) ? meta.icone : null,
   };
 }
 
@@ -1496,6 +1527,106 @@ function feriadosDoDia(dia, mes) {
   return FERIADOS_FANTASY.filter((f) => f.dia === dia && f.mes === mes).map((f) => f.nome);
 }
 
+/* ============================== [9.4a] O tempo da mesa vira evento no log ==============================
+   "As mudanças de data, hora e condições climáticas devem ser informadas no
+    log da aventura para todos. Quando a data mudar, informe quando houver um
+    feriado naquele dia." (usuário, 20/09/2026)
+
+   O log já existia (RPC registrar_evento_mesa → mesa_log → Realtime). O que
+   nasce aqui são os TEXTOS, puros e testáveis sem montar tela nenhuma — ver
+   10-shell/log-tempo-mesa.test.js.
+
+   Os nomes dos feriados ficam em português mesmo na versão inglesa: são nomes
+   próprios da ambientação, como Farzelo ou Cruine, não rótulos de interface. */
+
+/* A data por extenso. Esta função existe para o log e a BARRA DO TOPO nunca
+   divergirem — a barra escrevia isto inline no JSX, e duas formatações da
+   mesma data em lugares diferentes é o tipo de coisa que ninguém percebe até
+   estar errada. Data incompleta devolve string vazia: quem chama decide se
+   isso vira evento ou silêncio. */
+function rotuloDataJogo(data) {
+  const dia = data && Number(data.dia);
+  const mes = data && Number(data.mes);
+  const ano = data && Number(data.ano);
+  if (!Number.isFinite(dia) || !Number.isFinite(mes) || !Number.isFinite(ano)) return '';
+  const mesData = FANTASY_MONTHS[mes - 1];
+  if (!mesData) return '';
+  const nomeMes = mesData.nome.replace(/^Mês /, '');
+  const semana = calcDiaSemanaFantasy(ano, mes, dia);
+  const semanaCap = semana.charAt(0).toUpperCase() + semana.slice(1).toLowerCase();
+  return `${semanaCap}, ${dia} ${nomeMes} de ${ano}`;
+}
+
+/* O feriado entra na MESMA frase da data, e no plural quando há mais de um —
+   dia 5 do Mês da Água tem dois. Anunciar só o primeiro esconderia metade do
+   calendário, e é por isso que feriadosDoDia devolve array. */
+function textoEventoData(data, en) {
+  const rotulo = rotuloDataJogo(data);
+  if (!rotulo) return '';
+  const base = en ? `The adventure is now ${rotulo}.` : `A aventura agora é ${rotulo}.`;
+  const feriados = feriadosDoDia(Number(data.dia), Number(data.mes));
+  if (feriados.length === 0) return base;
+  const lista = feriados.length === 1
+    ? feriados[0]
+    : feriados.slice(0, -1).join(', ') + (en ? ' and ' : ' e ') + feriados[feriados.length - 1];
+  return base + (en ? ` Today is ${lista}.` : ` Hoje é ${lista}.`);
+}
+
+/* DE ONDE PARA ONDE (20/09/2026): "use 'O tempo mudou de 12h para 13h.'"
+
+   Dizia só o destino. Quem lê o log da aventura depois não estava na mesa
+   quando aconteceu — sem o ponto de partida, não dá para saber se passou uma
+   hora ou doze, e é justamente isso que o desgaste por hora cobra.
+
+   Mesa que ainda não tinha hora não tem "de onde", e a frase vira só o
+   destino em vez de inventar um ponto de partida. */
+function textoEventoHora(horaAnterior, horaNova, en) {
+  const nova = Number(horaNova);
+  if (!Number.isFinite(nova)) return '';
+  const antes = Number(horaAnterior);
+  if (!Number.isFinite(antes)) {
+    return en ? `Table time is now ${nova}h.` : `A hora da mesa agora é ${nova}h.`;
+  }
+  if (antes === nova) return '';
+  return en
+    ? `Time moved from ${antes}h to ${nova}h.`
+    : `O tempo mudou de ${antes}h para ${nova}h.`;
+}
+
+function textoEventoLocal(local, en) {
+  const l = (local || '').trim();
+  if (!l) return '';
+  return en ? `The table is now at ${l}.` : `A mesa agora está em ${l}.`;
+}
+
+/* "O clima mudou de Desértico para Árido." (usuário, 20/09/2026)
+
+   A TRILHA SAIU DA FRASE. Dizer "Água · Árido" obrigava quem lê a saber que
+   Árido é um degrau da trilha da Água; os nomes dos degraus já identificam o
+   eixo sozinhos, e o par "de X para Y" conta o que de fato aconteceu.
+
+   E "CLIMA", não "tempo": o usuário separou os dois vocabulários no mesmo
+   pedido — tempo é o relógio, clima é a condição atmosférica.
+
+   Sem degrau anterior, parte do PADRÃO da trilha: é o que a barra já mostrava
+   antes de alguém tocar nela, então dizer "de Fresco" é verdade, e "de nada"
+   não seria. Degrau desconhecido ou igual não vira evento — o id vem de um
+   jsonb do banco e pode ser de uma versão anterior da trilha. */
+function textoEventoTempo(trilhaChave, degrauAnterior, degrauNovo, en) {
+  const trilha = TEMPO_TRILHAS.find((t) => t.chave === trilhaChave);
+  if (!trilha) return '';
+  const novo = trilha.degraus.find((d) => d.id === degrauNovo);
+  if (!novo) return '';
+  const antes = trilha.degraus.find((d) => d.id === degrauAnterior)
+    || trilha.degraus.find((d) => d.id === trilha.padrao);
+  if (!antes || antes.id === novo.id) return '';
+  const de = en ? antes.en : antes.pt;
+  const para = en ? novo.en : novo.pt;
+  return en
+    ? `The weather changed from ${de} to ${para}.`
+    : `O clima mudou de ${de} para ${para}.`;
+}
+
 // Modal de calendário fantasy — visão de todos os meses com feriados destacados.
 // Notas pessoais: armazenadas em historias.notas_calendario (JSONB) com chave "MES:DIA".
 // Carregadas ao montar / trocar de mês; salvas/apagadas inline via Supabase.
@@ -1973,6 +2104,269 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
   );
 }
 
+/* ============================== [9.4b] Condição do tempo — três trilhas de cinco degraus ==============================
+   Mora ao lado de data e local, na mesma barra do topo, e é gravada no MESMO
+   jsonb (historias.data_jogo_atual.tempo) — por isso já chega em todo mundo
+   pelo realtime que o CardDataJogoAtual assina, sem coluna nova nem migração.
+
+   Um botão por trilha, e o botão CICLA — mesmo trato da iluminação da batalha
+   ativa (VISIBILIDADE_ORDEM em 12-batalha/batalha.jsx): são degraus numa
+   escada, o ícone diz em qual você está e o Mestre avança a chuva no meio da
+   narração sem abrir menu. O tooltip nomeia a trilha e o degrau, que é o que
+   o ícone sozinho não consegue dizer.
+
+   Só o Mestre cicla; o Jogador vê. E a leitura é o motivo de NÃO usar
+   `disabled` no botão do Jogador: botão desabilitado não dispara mouseenter,
+   e sem tooltip o ícone fica mudo justamente pra quem não pode clicar.
+
+   Os ícones foram conferidos contra o tabler-icons.min.css que o index.html
+   carrega — mesma disciplina do VISIBILIDADE_ICONE, onde um `ti-cloud-moon`
+   inventado virou quadrado vazio na tela. */
+const TEMPO_TRILHAS = [
+  {
+    chave: 'agua',
+    rotulo: { pt: 'Água', en: 'Water' },
+    degraus: [
+      { id: 'desertico',  ic: 'ti-cactus',      pt: 'Desértico',   en: 'Desert' },
+      { id: 'arido',      ic: 'ti-droplet-off', pt: 'Árido',       en: 'Arid' },
+      { id: 'fresco',     ic: 'ti-droplet',     pt: 'Fresco',      en: 'Fresh' },
+      { id: 'chuva_fina', ic: 'ti-cloud-rain',  pt: 'Chuva fina',  en: 'Light rain' },
+      { id: 'tempestade', ic: 'ti-cloud-storm', pt: 'Tempestade',  en: 'Storm' },
+    ],
+    padrao: 'fresco',
+  },
+  {
+    chave: 'vento',
+    rotulo: { pt: 'Vento', en: 'Wind' },
+    degraus: [
+      { id: 'sem_vento', ic: 'ti-wind-off', pt: 'Sem vento',    en: 'No wind' },
+      { id: 'leves',     ic: 'ti-wind',     pt: 'Ventos leves', en: 'Light winds' },
+      { id: 'ventania',  ic: 'ti-windsock', pt: 'Ventania',     en: 'Strong wind' },
+      { id: 'vendaval',  ic: 'ti-storm',    pt: 'Vendaval',     en: 'Gale' },
+      { id: 'tornado',   ic: 'ti-tornado',  pt: 'Tornado',      en: 'Tornado' },
+    ],
+    padrao: 'sem_vento',
+  },
+  {
+    chave: 'temperatura',
+    rotulo: { pt: 'Temperatura', en: 'Temperature' },
+    degraus: [
+      { id: 'frio_extremo',  ic: 'ti-snowflake',        pt: 'Frio extremo',  en: 'Extreme cold' },
+      { id: 'frio_leve',     ic: 'ti-temperature-snow', pt: 'Frio leve',     en: 'Mild cold' },
+      { id: 'agradavel',     ic: 'ti-temperature',      pt: 'Agradável',     en: 'Pleasant' },
+      { id: 'calor_leve',    ic: 'ti-temperature-sun',  pt: 'Calor leve',    en: 'Mild heat' },
+      { id: 'calor_extremo', ic: 'ti-flame',            pt: 'Calor extremo', en: 'Extreme heat' },
+    ],
+    padrao: 'agradavel',
+  },
+];
+
+/* Degrau em que a trilha está. Mesa antiga (sem `tempo` no jsonb) e valor
+   desconhecido caem no padrão da trilha em vez de sumir da tela. */
+function degrauTempo(trilha, tempo) {
+  const id = tempo && tempo[trilha.chave];
+  return trilha.degraus.find((d) => d.id === id)
+    || trilha.degraus.find((d) => d.id === trilha.padrao);
+}
+
+/* O botão ABRE A LISTA em vez de ciclar (16/09/2026): "ao clicar em um botão,
+   abre as opções para escolher". Ciclar obrigava a passar por Tempestade para
+   voltar de Chuva fina a Fresco, e o Mestre não navega o clima em escada — ele
+   já sabe onde quer parar. Some, com isso, o `proximoDegrauTempo`. */
+
+/* "Água · Chuva fina" — a trilha antes do degrau, porque três ícones lado a
+   lado só se distinguem quando o tooltip diz de qual eixo cada um fala. */
+function textoTempo(trilha, degrau, en) {
+  return `${en ? trilha.rotulo.en : trilha.rotulo.pt} · ${en ? degrau.en : degrau.pt}`;
+}
+
+/* ============================== [9.4b2] O clima pinta o fundo do console ==============================
+   "Água: efeito de chuva mais forte em tempestade, e efeito de areia mais
+    forte em desértico. Vento: efeito de vento mais forte em tornado, e ir
+    diminuindo. Temperatura: efeito de insolação mais forte em calor extremo,
+    e efeito de neve mais forte em frio extremo." (usuário, 20/09/2026)
+
+   Duas das três trilhas são EIXOS, não escadas: a água vai de deserto a
+   tempestade passando por um meio seco-nem-molhado, e a temperatura vai de
+   frio a calor passando por agradável. Nesses dois, o degrau do meio não
+   desenha nada, e os lados desenham coisas DIFERENTES — areia e chuva não são
+   o mesmo efeito com o sinal trocado, e por isso o mapa é explícito em vez de
+   uma conta sobre o índice do degrau. Vento é a única escada de verdade.
+
+   A tabela repete os ids de TEMPO_TRILHAS de propósito: quem mexer num degrau
+   lá precisa decidir o que ele pinta aqui, e um id órfão simplesmente não
+   desenha (ver efeitosDoTempo) em vez de derrubar a tela. */
+const CLIMA_EFEITOS = {
+  agua: {
+    desertico:  { tipo: 'areia', intensidade: 2 },
+    arido:      { tipo: 'areia', intensidade: 1 },
+    fresco:     null,
+    chuva_fina: { tipo: 'chuva', intensidade: 1 },
+    tempestade: { tipo: 'chuva', intensidade: 2 },
+  },
+  vento: {
+    sem_vento: null,
+    leves:     { tipo: 'vento', intensidade: 1 },
+    ventania:  { tipo: 'vento', intensidade: 2 },
+    vendaval:  { tipo: 'vento', intensidade: 3 },
+    tornado:   { tipo: 'vento', intensidade: 4 },
+  },
+  temperatura: {
+    frio_extremo:  { tipo: 'neve', intensidade: 2 },
+    frio_leve:     { tipo: 'neve', intensidade: 1 },
+    agradavel:     null,
+    calor_leve:    { tipo: 'insolacao', intensidade: 1 },
+    calor_extremo: { tipo: 'insolacao', intensidade: 2 },
+  },
+};
+
+/* `hasOwnProperty` e não `mapa[id]` direto: o id vem de um jsonb do banco, e
+   um valor como "constructor" acharia algo no protótipo e viraria um efeito
+   sem tipo na tela. */
+function efeitoDoDegrau(chave, id) {
+  const mapa = CLIMA_EFEITOS[chave];
+  return Object.prototype.hasOwnProperty.call(mapa, id) ? mapa[id] : null;
+}
+
+/* O que o fundo desenha, na ordem em que as camadas entram. Recebe o jsonb
+   inteiro, não só `.tempo`, porque é assim que é chamada — e mesa sem clima
+   definido, que é a maioria, tem que abrir com a tela limpa: os padrões das
+   três trilhas (fresco, sem vento, agradável) são justamente os neutros. */
+function efeitosDoTempo(data) {
+  const tempo = (data && data.tempo) || {};
+  const ventoEfeito = efeitoDoDegrau('vento', tempo.vento);
+  const vento = ventoEfeito ? ventoEfeito.intensidade : 0;
+  return ['agua', 'vento', 'temperatura'].reduce((acc, chave) => {
+    const e = efeitoDoDegrau(chave, tempo[chave]);
+    if (!e) return acc;
+    // Chuva e neve caem tortas quando venta — o nível viaja junto na camada
+    // em vez de ela ter que ir buscá-lo.
+    const caiDoCeu = e.tipo === 'chuva' || e.tipo === 'neve';
+    acc.push(caiDoCeu ? { ...e, vento } : { ...e });
+    return acc;
+  }, []);
+}
+
+/* ============================== [9.4c] Dia ou noite — o botão ao lado do clima ==============================
+   "Juntamente com os cards de local, data e mesa do topo, adicione um botão
+    para selecionar se é dia ou se é noite." (usuário, 17/09/2026)
+
+   Mesmo arranjo do clima: mora no jsonb `historias.data_jogo_atual` (chave
+   `periodo`), e por isso já chega a todo mundo pelo realtime que o card já
+   assina — sem coluna nova nem migração.
+
+   Diferente do clima, aqui o botão ALTERNA em vez de abrir lista: são dois
+   estados, e uma lista de duas opções custa um clique a mais para dizer o que
+   o ícone já diz. Mesa antiga (sem `periodo` no jsonb) é dia. */
+const PERIODOS = [
+  { id: 'dia',   ic: 'ti-sun',  pt: 'Dia',   en: 'Day' },
+  { id: 'noite', ic: 'ti-moon', pt: 'Noite', en: 'Night' },
+];
+
+/* ============================== [9.4d] A hora do jogo e a luz que ela lança ==============================
+   "a iluminação dourada mais à direita representa o sol nascendo no leste, e a
+    luz mais à esquerda se pondo no oeste. (…) Para ambos, a iluminação ao meio
+    representa meio dia e meia noite, horário onde a luz ficará mais forte."
+   (usuário, 20/09/2026)
+
+   A hora (0–23) mora no MESMO jsonb da data (`data_jogo_atual.hora`), como o
+   clima e o período antes dela — nenhuma coluna nova, e o realtime que o card
+   já assina entrega a mudança a todo mundo.
+
+   O PERÍODO DEIXOU DE SER ESCOLHA e virou consequência: 6h–17h é dia, 18h–5h
+   é noite. O sol/lua da barra continua lá, agora como leitura do que a hora
+   diz. Isso põe meio-dia e meia-noite no centro exato de cada travessia, que é
+   o que o efeito pede — o dia e a noite precisam ter a mesma duração pra luz
+   chegar ao auge no meio dos dois.
+
+   Mesa antiga não tem `hora`, e é aí que o `periodo` já gravado ainda serve:
+   vale como fallback até alguém definir a hora. Sem isso, toda mesa em curso
+   amanheceria à meia-noite no dia em que este código subisse. */
+const HORA_NASCER = 6;          // primeira hora de dia
+const HORAS_POR_PERIODO = 12;   // dia e noite têm a mesma duração
+
+function periodoDaHora(hora) {
+  return (hora >= HORA_NASCER && hora < HORA_NASCER + HORAS_POR_PERIODO) ? 'dia' : 'noite';
+}
+
+/* 0 no nascente (leste, à direita), 0.5 no meio da travessia (meio-dia ou
+   meia-noite, no centro), 1 no poente (oeste, à esquerda).
+
+   O `+ 24` antes do módulo é a virada das 23h para as 0h: sem ele a noite
+   ganha fase negativa depois da meia-noite e a luz salta para fora da tela. */
+function faseDoPeriodo(hora) {
+  const inicio = periodoDaHora(hora) === 'dia' ? HORA_NASCER : HORA_NASCER + HORAS_POR_PERIODO;
+  return ((hora - inicio + 24) % 24) / HORAS_POR_PERIODO;
+}
+
+/* Hora utilizável a partir do jsonb, que pode vir de mesa antiga, de mesa sem
+   data nenhuma, ou com lixo — a barra do topo nunca pode sumir por causa disso. */
+function horaDoJogo(data) {
+  const h = data && data.hora;
+  if (Number.isInteger(h) && h >= 0 && h <= 23) return h;
+  return (data && data.periodo === 'noite') ? 0 : 12;
+}
+
+/* O que o fundo do console precisa saber. `origemX` é a posição horizontal da
+   fonte de luz em %, e `forca` a intensidade — nunca 0, senão a tela fica
+   chapada no nascer e no pôr do sol, onde ainda há luz rasante. `inclinacao`
+   deixa os raios verticais no auge (sol a pino) e deitados no horizonte. */
+function luzDaHora(data) {
+  const hora = horaDoJogo(data);
+  const periodo = periodoDaHora(hora);
+  const fase = faseDoPeriodo(hora);
+  const quente = periodo === 'dia';
+  return {
+    hora,
+    periodo,
+    fase,
+    quente,
+    origemX: (1 - fase) * 100,
+    forca: 0.35 + 0.65 * Math.sin(Math.PI * fase),
+    inclinacao: -45 + fase * 90,
+    // Ouro e bronze de dia (os mesmos de sempre); luar de aço à noite.
+    cor: quente ? '201,164,78' : '143,166,196',
+    cor2: quente ? '184,112,46' : '92,115,146',
+  };
+}
+
+/* O fundo do console pronto para aplicar: o AdminConsole não faz conta, só
+   pinta. É o que permite provar a iluminação sem montar o console inteiro,
+   com sessão, perfil e mesa. Os cinco valores são exatamente os que mudam com
+   a hora — máscara (de onde a luz vem), inclinação (quão rasante ela é),
+   opacidade (quão forte) e o par de cores dos filetes. */
+function estiloLuzFundo(data) {
+  const luz = luzDaHora(data);
+  const doisDec = (n) => Math.round(n * 100) / 100;
+  const rgba = (cor, a) => `rgba(${cor},${a})`;
+  const filete = (cor) => `linear-gradient(${rgba(cor, 1)} 0%, ${rgba(cor, 0)} 100%)`;
+  /* O AUGE É O PONTO ALTO (20/09/2026, "torne os horários 12h e 24h mais
+     claros"). Duas coisas acontecem no meio da travessia, e nenhuma delas é
+     levantar o dia inteiro:
+
+     - a opacidade é o QUADRADO da força, não ela mesma. O teto subiu de 0.1
+       para 0.24, mas o quadrado segura o horizonte onde ele já estava (0.03) e
+       estreita a corcova, então o meio-dia se destaca das horas vizinhas em
+       vez de arrastar a tarde toda com ele.
+     - a máscara ABRE de 125% para 175%: a pino, a luz não é só mais forte,
+       ela alcança mais tela. */
+  const auge = Math.sin(Math.PI * luz.fase);
+  return {
+    mask: `radial-gradient(${doisDec(125 + 50 * auge)}% 100% at ${doisDec(luz.origemX)}% 0%, #000 0%, rgba(0,0,0,0.22) 88%, transparent 100%)`,
+    transform: `skewX(${doisDec(luz.inclinacao)}deg)`,
+    opacity: 0.24 * luz.forca * luz.forca,
+    corA: rgba(luz.cor, 1),
+    corB: rgba(luz.cor2, 1),
+    gradA: filete(luz.cor),
+    gradB: filete(luz.cor2),
+  };
+}
+
+function periodoDoJogo(data) {
+  const id = luzDaHora(data).periodo;
+  return PERIODOS.find((p) => p.id === id) || PERIODOS[0];
+}
+
 /* ============================== [9.5] CardDataJogoAtual — card flutuante com data/local atual da mesa ==============================
    Mostra sempre (Mestre e Jogador) onde a aventura está agora — separado
    da "data de início" (data_inicio/data_jogo, fixas, só editadas na criação
@@ -1994,7 +2388,7 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
    Sem historiaId (mesa não resolvida) não monta nada — mesmo contrato da
    CentralMensagens.
 */
-function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, limiteFreeHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, limiteFreePersonagem, esconderBotaoPersonagem, dataNascPjAtivo = null }) {
+function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, limiteFreeHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, limiteFreePersonagem, esconderBotaoPersonagem, dataNascPjAtivo = null, onDataAtual = null }) {
   const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const [dataAtual, setDataAtual] = useState(null); // { dia, mes, ano, local } | null
   const [carregando, setCarregando] = useState(true);
@@ -2002,19 +2396,54 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
   const [rascunho, setRascunho] = useState({ dia: 1, mes: 1, ano: 0, local: '' });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState(null);
-  const [mesaDropOpen, setMesaDropOpen] = useState(false);
+  const [tempoAberto, setTempoAberto] = useState(null); // chave da trilha com a lista aberta
+  const [horaAberta, setHoraAberta] = useState(false); // lista das 24 horas
   const [calendarioAberto, setCalendarioAberto] = useState(false);
-  const mesaDropRef = React.useRef(null);
+  const tempoDropRef = React.useRef(null);
+  const horaDropRef = React.useRef(null);
+  // Espelho de `editando` para o ouvinte de realtime, que é montado uma vez
+  // por mesa e não pode depender do estado da edição em curso.
+  const editandoRef = React.useRef(null);
+  useEffect(() => { editandoRef.current = editando; }, [editando]);
 
-  // Fecha dropdown ao clicar fora
+  /* O fundo do console é iluminado pela hora da mesa (ver luzDaHora), e quem
+     carrega e assina esse jsonb é este card — não o AdminConsole, que é o pai
+     e só tem a pintura. Sem este aviso, o Mestre avançaria o relógio e a luz
+     só mudaria no F5 seguinte. Vale para o Jogador também: a hora chega a ele
+     pelo realtime, e o fundo dele tem que acompanhar. */
+  useEffect(() => { if (onDataAtual) onDataAtual(dataAtual); }, [dataAtual, onDataAtual]);
+
+  /* Mesmo trato para a lista do clima, mais o Escape: o grupo inteiro divide um
+     ref, então clicar no pill do Vento com a lista da Água aberta troca de lista
+     em vez de fechar — é um clique dentro do grupo, e o onClick do pill resolve. */
   useEffect(() => {
-    if (!mesaDropOpen) return undefined;
-    const handler = (e) => {
-      if (mesaDropRef.current && !mesaDropRef.current.contains(e.target)) setMesaDropOpen(false);
+    if (!tempoAberto) return undefined;
+    const fora = (e) => {
+      if (tempoDropRef.current && !tempoDropRef.current.contains(e.target)) setTempoAberto(null);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [mesaDropOpen]);
+    const esc = (e) => { if (e.key === 'Escape') setTempoAberto(null); };
+    document.addEventListener('mousedown', fora);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', fora);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [tempoAberto]);
+
+  // Idem para a lista das horas, que tem o próprio ref por ser um pill só.
+  useEffect(() => {
+    if (!horaAberta) return undefined;
+    const fora = (e) => {
+      if (horaDropRef.current && !horaDropRef.current.contains(e.target)) setHoraAberta(false);
+    };
+    const esc = (e) => { if (e.key === 'Escape') setHoraAberta(false); };
+    document.addEventListener('mousedown', fora);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', fora);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [horaAberta]);
 
   // Carrega data_jogo_atual sempre que a mesa ativa muda (troca de história do
   // Mestre, ou troca de PJ ativo do Jogador) — mesmo gatilho de CentralMensagens.
@@ -2032,7 +2461,35 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
       if (error) { console.error('[data-jogo-atual] carga falhou:', error); return; }
       setDataAtual(data && data.data_jogo_atual ? data.data_jogo_atual : null);
     })();
-    return () => { cancel = true; };
+
+    /* A data é DA MESA, não de quem olha (15/09/2026): o Mestre avança o dia e
+       todo mundo tem que ver o mesmo dia, sem recarregar a página.
+
+       Antes a carga acontecia uma vez, quando a mesa era resolvida — o jogador
+       ficava com a data velha na tela até dar F5. `historias` já está na
+       publicação de realtime (a mesma que mesa_log e batalhas usam), então é
+       só ouvir o UPDATE da linha desta mesa.
+
+       O `select` acima continua sendo a fonte da primeira pintura: realtime
+       traz o que MUDA, não o que já estava lá. */
+    const canal = (typeof supabaseClient.channel === 'function')
+      ? supabaseClient
+        .channel('historia_data_' + historiaId)
+        .on('postgres_changes', {
+          event: 'UPDATE', schema: 'public', table: 'historias', filter: 'id=eq.' + historiaId,
+        }, (payload) => {
+          if (cancel) return;
+          const nova = payload && payload.new && payload.new.data_jogo_atual;
+          // Editando: não puxa o tapete de quem está com o formulário aberto.
+          setDataAtual((atual) => (editandoRef.current ? atual : (nova || null)));
+        })
+        .subscribe()
+      : null;
+
+    return () => {
+      cancel = true;
+      if (canal) supabaseClient.removeChannel(canal);
+    };
   }, [historiaId]);
 
   const abrirEdicao = (modo) => {
@@ -2047,10 +2504,169 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     setEditando(modo);
   };
 
+  /* O TEMPO DA MESA VIRA EVENTO NO LOG (20/09/2026). Mesmo padrão de
+     registrarEventoMesa em 11-ficha e 07-inventario: RPC SECURITY DEFINER que
+     grava em mesa_log, e o Realtime distribui para Mestre e Jogadores.
+
+     Não bloqueia nem desfaz nada: a data, a hora e o clima já foram gravados e
+     já estão na tela de todo mundo quando isto dispara. Falhar aqui custa uma
+     linha no log, não a mudança — por isso o erro só vai para o console.
+
+     `meta` guarda o valor estruturado ao lado do texto já escrito. O texto é
+     renderizado no idioma de QUEM MEXEU (é assim que todo evento de mesa já
+     funciona); o meta é o que permitiria, um dia, reescrever o evento no
+     idioma de quem lê. */
+  const registrarEventoMesa = (texto, meta) => {
+    if (!historiaId || !texto) return;
+    supabaseClient
+      .rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId,
+        p_tipo: 'sistema',
+        p_texto: texto,
+        p_meta: meta || {},
+      })
+      .then(({ data, error }) => {
+        if (error || (data && data.ok === false)) {
+          console.error('[data-jogo-atual] registrar_evento_mesa falhou:', error || data);
+        }
+      });
+  };
+
+  /* ============================== O RELÓGIO DESGASTA A MESA ==============================
+     Implementa docs/superpowers/specs/2026-09-20-clima-desgaste-design.md. As
+     regras todas moram em 01-core/clima-desgaste.jsx, puras; o que está aqui é
+     só a ida ao banco.
+
+     Escreve nos PJs dos OUTROS: a policy personagens_update_own_or_vinculado
+     autoriza o Mestre a mexer em quem está em `protagonista_ids` da história
+     dele. Não é preciso RPC — foi conferido em pg_policies antes de desenhar.
+
+     Nada disto bloqueia a barra: a hora e o clima já foram gravados e já estão
+     na tela de todo mundo quando estas funções rodam. Falhar aqui deixa horas
+     PENDENTES, não perdidas — é para isso que serve a âncora. */
+
+  // O instante em que a mesa está, ou null quando ela ainda não tem data.
+  const instanteDe = (d) => {
+    if (!d || d.dia == null || d.mes == null || d.ano == null) return null;
+    return { ano: d.ano, mes: d.mes, dia: d.dia, hora: horaDoJogo(d) };
+  };
+
+  /* A ÂNCORA é o instante até onde o desgaste já foi cobrado, e não o relógio
+     anterior. A diferença importa quando uma escrita falha: com o relógio como
+     referência, aquelas horas sumiriam para sempre; com a âncora, elas ficam
+     devendo e são cobradas no próximo movimento.
+
+     Mesa sem âncora (todas, no dia em que isto subir) ancora no relógio atual:
+     ninguém acorda devendo quinhentas horas de fome. */
+  const ancoraDe = (d) => (d && d.decaimento_em) || instanteDe(d);
+
+  const aplicarDesgasteNosPJs = async (horas, horaInicial, tempo) => {
+    if (horas <= 0) return;
+    const { data: hist, error } = await supabaseClient
+      .from('historias').select('protagonista_ids').eq('id', historiaId).maybeSingle();
+    if (error || !hist) { console.error('[desgaste] não consegui ler os protagonistas:', error); return; }
+    const ids = Array.isArray(hist.protagonista_ids) ? hist.protagonista_ids : [];
+    if (ids.length === 0) return;
+    // A linha INTEIRA: a atividade (dormir, meditar…) recupera energia até o
+    // máximo da ficha e soma atributo, e os dois saem de calcularFicha.
+    const { data: pjs, error: erroPjs } = await supabaseClient
+      .from('personagens').select('*').in('id', ids);
+    if (erroPjs || !pjs) { console.error('[desgaste] não consegui ler os PJs:', erroPjs); return; }
+    const semKarma = window.SEM_KARMA || new Set(['Guerreiro', 'Ladino']);
+    await Promise.all(pjs.map((pj) => {
+      const est = pj.estado_atual || {};
+      const tipoAtividade = est.atividade && est.atividade.tipo;
+      const desgastado = { ...est, condicoes: decaimentoPorHoras(est.condicoes, horaInicial, horas, tempo, tipoAtividade) };
+      /* O descanso vem DEPOIS do desgaste: o máximo de EF/EH/KA depende das
+         condições (fome tira karma, por exemplo), e vale o das condições que
+         a hora deixou. */
+      let novo = desgastado;
+      if (tipoAtividade) {
+        const ficha = calcularFicha(pj, null, desgastado.condicoes);
+        const d = ficha.derivadas || {};
+        novo = recuperacaoPorAtividade(desgastado, horas, {
+          atributos: ficha.atributos,
+          maximos: { ef: Number(d.energiaFisica) || 0, eh: Number(d.energiaHeroica) || 0, ka: Number(d.karmamax) || 0 },
+          semKarma: semKarma.has(pj.profissao),
+          // Morto não descansa: EF no piso da batalha (EF_MORTE, −15) ou a
+          // marca manual de "morto" do Mestre.
+          morto: Number(est.vitalidade && est.vitalidade.ef) <= -15
+            || (Array.isArray(est.status) && est.status.some((st) => (window.tipoDoStatus || (() => null))(st) === 'morto')),
+        });
+      }
+      return supabaseClient.from('personagens').update({ estado_atual: novo }).eq('id', pj.id)
+        .then(({ error: e }) => { if (e) console.error('[desgaste] PJ', pj.id, e); });
+    }));
+  };
+
+  /* Chuva coletada. O estoque é reescrito inteiro, então a entrada da água é
+     somada à que existir em vez de substituí-la — e nasce com preço nenhum,
+     herdando o do catálogo, porque água da chuva não tem dono. */
+  const aplicarChuvaNaLoja = async (horas, tempo) => {
+    const porHora = aguaPorHoraDeChuva(tempo && tempo.agua);
+    if (porHora <= 0 || horas <= 0) return;
+    const ganho = porHora * horas;
+    const { data: hist, error } = await supabaseClient
+      .from('historias').select('estoque_loja').eq('id', historiaId).maybeSingle();
+    if (error || !hist) { console.error('[desgaste] não consegui ler a loja:', error); return; }
+    const estoque = Array.isArray(hist.estoque_loja) ? hist.estoque_loja : [];
+    const i = estoque.findIndex((it) => it && it.slug === 'agua');
+    const novo = i >= 0
+      ? estoque.map((it, k) => k === i ? { ...it, estoque: (Number(it.estoque) || 0) + ganho } : it)
+      : [...estoque, { slug: 'agua', estoque: ganho }];
+    const { error: erroUp } = await supabaseClient
+      .from('historias').update({ estoque_loja: novo }).eq('id', historiaId);
+    if (erroUp) console.error('[desgaste] não consegui gravar a loja:', erroUp);
+  };
+
+  /* O desgaste de N horas: as condições dos PJs e a água da loja. `horaInicial`
+     é a hora da ÂNCORA, não a nova — é dela que o motor parte para saber
+     quantas das horas cruzadas caem na janela do sono. */
+  /* A cobrança avulsa de mudar o clima: uma hora daquele degrau, em todos os
+     PJs da mesa. Percorre os mesmos passos de aplicarDesgasteNosPJs, mas
+     chamando tiqueDeClima — que cobra SÓ o efeito do clima, sem a fome, a sede
+     de base e o sono, porque o relógio não andou. */
+  const aplicarTiqueDeClima = async (trilhaChave, degrauId) => {
+    if (trilhaChave !== 'temperatura') return;
+    const { data: hist, error } = await supabaseClient
+      .from('historias').select('protagonista_ids').eq('id', historiaId).maybeSingle();
+    if (error || !hist) { console.error('[desgaste] tique: protagonistas', error); return; }
+    const ids = Array.isArray(hist.protagonista_ids) ? hist.protagonista_ids : [];
+    if (ids.length === 0) return;
+    const { data: pjs, error: erroPjs } = await supabaseClient
+      .from('personagens').select('id, estado_atual').in('id', ids);
+    if (erroPjs || !pjs) { console.error('[desgaste] tique: PJs', erroPjs); return; }
+    await Promise.all(pjs.map((pj) => {
+      const est = pj.estado_atual || {};
+      const novo = { ...est, condicoes: tiqueDeClima(est.condicoes, trilhaChave, degrauId) };
+      return supabaseClient.from('personagens').update({ estado_atual: novo }).eq('id', pj.id)
+        .then(({ error: e }) => { if (e) console.error('[desgaste] tique PJ', pj.id, e); });
+    }));
+  };
+
+  const cobrarHoras = async (ancora, instanteNovo, tempo) => {
+    const horas = horasEntre(ancora, instanteNovo);
+    if (horas <= 0) return;
+    await Promise.all([
+      aplicarDesgasteNosPJs(horas, horaDoJogo(ancora), tempo),
+      aplicarChuvaNaLoja(horas, tempo),
+    ]);
+  };
+
   const salvar = async () => {
     setSalvando(true);
     setErro(null);
-    const payload = { dia: rascunho.dia, mes: rascunho.mes, ano: rascunho.ano, local: rascunho.local.trim() };
+    // Guardado ANTES do update: é com ele que se decide o que mudou de fato e,
+    // portanto, o que merece virar evento no log.
+    const anteriorSalvar = dataAtual;
+    /* O jsonb é reescrito inteiro pelo update, então TUDO que mora nele tem
+       que entrar no payload — inclusive o tempo, que este formulário nem
+       mostra. Sem isso, editar o local apagava a condição do tempo. */
+    const payload = {
+      ...(dataAtual || {}),
+      dia: rascunho.dia, mes: rascunho.mes, ano: rascunho.ano, local: rascunho.local.trim(),
+      tempo: (dataAtual && dataAtual.tempo) || undefined,
+    };
     const { error } = await supabaseClient
       .from('historias').update({ data_jogo_atual: payload }).eq('id', historiaId);
     setSalvando(false);
@@ -2061,16 +2677,135 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     }
     setDataAtual(payload);
     setEditando(null);
+    /* Data E local numa mesma edição viram DOIS eventos: são duas informações
+       diferentes para quem lê o log, e quem só mexeu no local não deve fazer o
+       calendário parecer que andou. Por isso cada um só dispara se mudou de
+       verdade — comparando com o que estava antes, não com o vazio. */
+    const mudouData = !anteriorSalvar
+      || anteriorSalvar.dia !== payload.dia
+      || anteriorSalvar.mes !== payload.mes
+      || anteriorSalvar.ano !== payload.ano;
+    const mudouLocal = ((anteriorSalvar && anteriorSalvar.local) || '') !== payload.local;
+    if (mudouData) {
+      registrarEventoMesa(textoEventoData(payload, lang === "en"),
+        { data: { dia: payload.dia, mes: payload.mes, ano: payload.ano } });
+    }
+    if (mudouLocal) registrarEventoMesa(textoEventoLocal(payload.local, lang === "en"), { local: payload.local });
   };
 
   // Define a data atual da aventura a partir do calendário (mestre) — preserva o local
   const definirDataAtual = async ({ dia, mes, ano }) => {
-    const payload = { dia, mes, ano, local: (dataAtual && dataAtual.local) || '' };
+    const anterior = dataAtual;
+    const ancora = ancoraDe(anterior);
+    const instanteNovo = { ano, mes, dia, hora: horaDoJogo(anterior) };
+    const payload = {
+      ...(anterior || {}),
+      dia, mes, ano,
+      local: (anterior && anterior.local) || '',
+      tempo: (anterior && anterior.tempo) || undefined,
+      decaimento_em: instanteNovo,
+    };
     const { error } = await supabaseClient
       .from('historias').update({ data_jogo_atual: payload }).eq('id', historiaId);
     if (error) { console.error('[data-jogo-atual] definir data falhou:', error); return { error }; }
     setDataAtual(payload);
+    /* Avançar três dias no calendário são 72 horas de desgaste — data e
+       relógio contam igual. Para TRÁS não cobra nada (horasEntre devolve 0) e
+       só re-ancora: tempo que passou, passou. */
+    await cobrarHoras(ancora, instanteNovo, anterior && anterior.tempo);
+    registrarEventoMesa(textoEventoData(payload, lang === "en"), { data: { dia, mes, ano } });
     return {};
+  };
+
+  /* Grava UM degrau de UMA trilha. Otimista: a barra já mostra o degrau novo
+     enquanto o update viaja — a lista fecha no clique, e esperar o banco para
+     repintar deixaria o pill no valor velho por um tempo visível. Falhou, volta
+     ao que estava e registra. */
+  const definirTempo = async (trilha, prox) => {
+    if (!podeEditar || !historiaId) return;
+    setTempoAberto(null);
+    const anterior = dataAtual;
+    if (degrauTempo(trilha, anterior && anterior.tempo) === prox) return;
+    /* Espalha o que já estava no jsonb em vez de remontar campo a campo: numa
+       mesa que ainda não tem data, remontar inventaria um 1/1/0 e a barra
+       passaria a exibir uma data que o Mestre nunca definiu. Mexer no tempo
+       tem que mexer SÓ no tempo. */
+    const payload = {
+      ...(anterior || {}),
+      tempo: { ...((anterior && anterior.tempo) || {}), [trilha.chave]: prox.id },
+    };
+    setDataAtual(payload);
+    const { error } = await supabaseClient
+      .from('historias').update({ data_jogo_atual: payload }).eq('id', historiaId);
+    if (error) {
+      console.error('[data-jogo-atual] definir tempo falhou:', error);
+      setDataAtual(anterior);
+      return;   // desfeito na tela, não anuncia no log o que não aconteceu
+    }
+    /* O TIQUE IMEDIATO. Mudar o degrau cobra UMA HORA daquele clima na hora,
+       como se ela tivesse passado sob a condição nova — foi o que o usuário
+       pediu depois de mudar o clima e ver as barras paradas.
+
+       A ÂNCORA NÃO ANDA: o relógio não se moveu, e uma âncora adiantada faria
+       a próxima virada de hora cobrar de menos. Esta é uma cobrança avulsa,
+       por evento, fora da contagem de horas.
+
+       Só a trilha que mudou tique, e na prática só a temperatura desgasta
+       condição — água abastece a loja, vento penaliza a VB. Corrigir um clima
+       clicado errado cobra assim mesmo: não há desfazer, pela mesma razão que
+       o relógio para trás não devolve fome. */
+    await aplicarTiqueDeClima(trilha.chave, prox.id);
+    if (aguaPorHoraDeChuva(prox.id) > 0) await aplicarChuvaNaLoja(1, payload.tempo);
+    const degrauAntes = (anterior && anterior.tempo && anterior.tempo[trilha.chave]) || null;
+    registrarEventoMesa(textoEventoTempo(trilha.chave, degrauAntes, prox.id, lang === "en"),
+      { tempo: { trilha: trilha.chave, de: degrauAntes, para: prox.id } });
+  };
+
+  /* Acerta o relógio da mesa. Mesmo otimismo e mesmo cuidado do definirTempo:
+     o jsonb é ESPALHADO, não remontado — remontar inventaria um 1/1/0 numa mesa
+     que ainda não definiu data.
+
+     `periodo` continua sendo gravado, agora DERIVADO da hora: é o que uma mesa
+     antiga lê enquanto ninguém acerta o relógio dela, e deixar o valor velho
+     apodrecendo no jsonb ao lado de uma hora nova seria contradição pura. */
+  const definirHora = async (hora) => {
+    if (!podeEditar || !historiaId) return;
+    setHoraAberta(false);
+    const anterior = dataAtual;
+    /* A hora de ONDE se partiu, para o log dizer "de 12h para 13h". Vem de
+       horaDoJogo e não de `anterior.hora` cru: mesa antiga sem hora gravada
+       cai no fallback do período, que é o que a barra estava mostrando. */
+    const horaAntes = anterior ? horaDoJogo(anterior) : null;
+    /* HORA MENOR VIRA O DIA. Data e relógio são uma linha do tempo só, e o
+       tempo só anda para frente: às 22h, escolher 2h são quatro horas depois,
+       não vinte antes. Quem precisa voltar usa o calendário. */
+    const instanteNovo = proximoInstante(anterior, hora);
+    const ancora = ancoraDe(anterior);
+    const payload = {
+      ...(anterior || {}),
+      ...instanteNovo,
+      periodo: periodoDaHora(hora),
+      decaimento_em: instanteDe(instanteNovo) || undefined,
+    };
+    setDataAtual(payload);
+    const { error } = await supabaseClient
+      .from('historias').update({ data_jogo_atual: payload }).eq('id', historiaId);
+    if (error) {
+      console.error('[data-jogo-atual] definir hora falhou:', error);
+      setDataAtual(anterior);
+      return;   // desfeito na tela, não anuncia no log o que não aconteceu
+    }
+    /* A âncora já foi gravada acima; o desgaste roda depois e pode falhar sem
+       derrubar a hora. Se falhar, as horas ficam devendo — e é justamente por
+       isso que a âncora é gravada JUNTO com o relógio, e não depois. */
+    const virouODia = instanteNovo.dia != null && anterior && anterior.dia !== instanteNovo.dia;
+    await cobrarHoras(ancora, instanteDe(instanteNovo), anterior && anterior.tempo);
+    registrarEventoMesa(textoEventoHora(horaAntes, hora, lang === "en"), { de: horaAntes, para: hora });
+    // O dia virou junto: quem lê o log precisa saber, e é onde o feriado entra.
+    if (virouODia) {
+      registrarEventoMesa(textoEventoData(payload, lang === "en"),
+        { data: { dia: payload.dia, mes: payload.mes, ano: payload.ano } });
+    }
   };
 
   // Carregando ainda bloqueia tudo (evita flash). Sem historiaId mas com
@@ -2083,44 +2818,43 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
   if (!historiaId && !onNovoPersonagem) return null;
 
   const en = lang === 'en';
-  const mostrarSeletorMesa = profile === 'master' && minhasHistorias && minhasHistorias.length > 1 && setMesaAtivaId && !esconderSeletorEBotaoNovo;
+  /* Aparece sempre que o Mestre ESTÁ numa mesa — inclusive quando ele só tem
+     uma história. O dropdown antigo se escondia com `length > 1` (uma lista de
+     um item não serve pra nada), mas a porta de saída serve: sem ela, um
+     Mestre de mesa única entrava e nunca mais via a tela de escolha. */
+  const mostrarSairMesa = profile === 'master' && mesaAtivaId && minhasHistorias && setMesaAtivaId && !esconderSeletorEBotaoNovo;
 
   return (
     <div className="menestrel-ui cdj-root" style={{ left: sidebarLargura, transition: 'left .32s cubic-bezier(.4,0,.2,1)' }}>
-      {mostrarSeletorMesa && (() => {
+      {/* SAIR DA MESA, no lugar do dropdown (20/09/2026). "Assim como o
+          jogador escolhe o personagem, e continua com ele enquanto não clicar
+          no botão sair. Isso deve acontecer com o mestre para a escolha a
+          história" (usuário).
+
+          O dropdown listava todas as mesas e trocava com um clique. Agora
+          entrar numa mesa é clicar no card dela, e este botão é a porta de
+          volta — a mesma gramática do PJ ativo do Jogador.
+
+          O rótulo é a PALAVRA "Sair", não o título da mesa nem um ícone.
+          Cheguei a pôr os dois achando que o botão deveria dizer onde o Mestre
+          está; ele diz o que o clique FAZ, e quem diz onde a mesa está é a
+          própria tela — a lista de histórias já mostra só a mesa ativa. Mesma
+          palavra e mesma pele do "Sair" da ficha do Jogador. */}
+      {mostrarSairMesa && (() => {
         const historiaAtiva = minhasHistorias.find((h) => h.id === mesaAtivaId);
         return (
-          <div className="cdj-mesa-seletor" ref={mesaDropRef}>
-            <button
-              type="button"
-              className={'cdj-mesa-pill' + (mesaDropOpen ? ' is-open' : '')}
-              onClick={() => setMesaDropOpen((v) => !v)}
-              aria-haspopup="listbox"
-              aria-expanded={mesaDropOpen}
-              aria-label={en ? 'Active table' : 'Mesa ativa'}
-            >
-              <span className="cdj-mesa-titulo">{historiaAtiva ? historiaAtiva.titulo : '—'}</span>
-              <i className="ti ti-chevron-down cdj-mesa-chevron" aria-hidden="true" />
-            </button>
-            {mesaDropOpen && (
-              <ul className="cdj-mesa-lista" role="listbox">
-                {minhasHistorias.map((h) => (
-                  <li
-                    key={h.id}
-                    role="option"
-                    aria-selected={h.id === mesaAtivaId}
-                    className={'cdj-mesa-opcao' + (h.id === mesaAtivaId ? ' is-ativa' : '')}
-                    onClick={() => { setMesaAtivaId(h.id); setMesaDropOpen(false); }}
-                  >
-                    {h.titulo}
-                    {h.id === mesaAtivaId && <i className="ti ti-check" aria-hidden="true" />}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <button
+            type="button"
+            className="cdj-bar cdj-mesa-sair is-editavel"
+            onClick={() => setMesaAtivaId(null)}
+            aria-label={(en ? 'Leave table' : 'Sair da mesa') + (historiaAtiva ? ' · ' + historiaAtiva.titulo : '')}
+          >
+            {en ? 'Leave' : 'Sair'}
+          </button>
         );
       })()}
+      {/* `dataAtual` pode existir carregando SÓ o tempo (Mestre que mexeu no
+          clima antes de definir a data). Data mesmo é a que tem dia. */}
       {editando === null ? (
         historiaId && (
           <>
@@ -2132,7 +2866,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
               aria-label={en ? 'Current in-game date' : 'Data atual do jogo'}
             >
               <i className="ti ti-calendar-event" aria-hidden="true" />
-              {dataAtual ? (
+              {dataAtual && dataAtual.dia ? (
                 <span className="cdj-data">
                   {(() => {
                     const nomeMes = FANTASY_MONTHS[dataAtual.mes - 1]?.nome || '';
@@ -2162,6 +2896,116 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                 <span className="cdj-local">{dataAtual.local}</span>
               </button>
             )}
+            {/* A HORA DO JOGO — ao lado da data, do local e do clima.
+                Era o botão que ALTERNAVA dia↔noite (17/09/2026); virou o
+                relógio da mesa (20/09/2026, "um controle apenas da hora, não
+                precisa de minutos e segundos"). O sol e a lua continuam aqui,
+                agora derivados da hora em vez de escolhidos — ver luzDaHora.
+
+                Clicar ABRE A LISTA das 24, como os pills do clima: ninguém
+                avança 14 cliques pra sair das 6h da manhã e chegar às 20h.
+                O Jogador só lê, e o pill dele NÃO usa `disabled` — botão
+                desabilitado não dispara mouseenter e o tooltip ficaria mudo
+                justo pra quem não pode clicar. */}
+            <div className="cdj-hora-wrap" ref={horaDropRef}>
+              {(() => {
+                const luz = luzDaHora(dataAtual);
+                const periodo = periodoDoJogo(dataAtual);
+                const texto = `${luz.hora}h · ${en ? periodo.en : periodo.pt}`;
+                return (<>
+                  <button
+                    type="button"
+                    className={'cdj-bar cdj-periodo cdj-hora' + (podeEditar ? ' is-editavel' : '') + (horaAberta ? ' is-open' : '')}
+                    data-periodo={periodo.id}
+                    aria-label={(en ? 'In-game hour' : 'Hora do jogo') + ' · ' + texto}
+                    aria-haspopup={podeEditar ? 'listbox' : undefined}
+                    aria-expanded={podeEditar ? horaAberta : undefined}
+                    onClick={() => {
+                      if (!podeEditar) return;
+                      // O tooltip do pill taparia a primeira linha da lista.
+                      fecharTip();
+                      setHoraAberta((v) => !v);
+                    }}
+                    {...propsTip(abrirTip, fecharTip, texto)}
+                  >
+                    {/* SÓ O ÍCONE (20/09/2026): "no botão de horário, não
+                        precisa do texto '12h', deixe apenas o ícone. E o texto
+                        vem no tooltip." O sol e a lua já dizem o período; a
+                        hora exata vive no balão, que `texto` acima já monta
+                        como "14h · Dia". */}
+                    <i className={'ti ' + periodo.ic} aria-hidden="true" />
+                  </button>
+                  {horaAberta && (
+                    <ul className="cdj-hora-lista" role="listbox" aria-label={en ? 'In-game hour' : 'Hora do jogo'}>
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <li
+                          key={h}
+                          role="option"
+                          aria-selected={h === luz.hora}
+                          data-hora={h}
+                          data-periodo={periodoDaHora(h)}
+                          className={'cdj-hora-opcao' + (h === luz.hora ? ' is-ativa' : '')}
+                          onClick={() => definirHora(h)}
+                        >
+                          {h}h
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>);
+              })()}
+            </div>
+            {/* CONDIÇÃO DO TEMPO — ao lado de data e local (16/09/2026).
+                Um pill por trilha; clicar abre a lista dos cinco degraus, no
+                mesmo molde do seletor de mesa aqui ao lado. Ver TEMPO_TRILHAS. */}
+            <div className="cdj-tempo-grupo" role="group" ref={tempoDropRef}
+              aria-label={en ? 'Weather' : 'Condição do tempo'}>
+              {TEMPO_TRILHAS.map((trilha) => {
+                const degrau = degrauTempo(trilha, dataAtual && dataAtual.tempo);
+                const texto = textoTempo(trilha, degrau, en);
+                const aberta = tempoAberto === trilha.chave;
+                const nomeTrilha = en ? trilha.rotulo.en : trilha.rotulo.pt;
+                return (
+                  <div key={trilha.chave} className="cdj-tempo-wrap">
+                    <button
+                      type="button"
+                      className={'cdj-bar cdj-tempo' + (podeEditar ? ' is-editavel' : '') + (aberta ? ' is-open' : '')}
+                      data-tempo={degrau.id}
+                      aria-label={texto}
+                      aria-haspopup={podeEditar ? 'listbox' : undefined}
+                      aria-expanded={podeEditar ? aberta : undefined}
+                      onClick={() => {
+                        if (!podeEditar) return;
+                        // O tooltip do pill taparia a primeira linha da lista.
+                        fecharTip();
+                        setTempoAberto(aberta ? null : trilha.chave);
+                      }}
+                      {...propsTip(abrirTip, fecharTip, texto)}
+                    >
+                      <i className={'ti ' + degrau.ic} aria-hidden="true" />
+                    </button>
+                    {aberta && (
+                      <ul className="cdj-tempo-lista" role="listbox" aria-label={nomeTrilha}>
+                        {trilha.degraus.map((d) => (
+                          <li
+                            key={d.id}
+                            role="option"
+                            aria-selected={d.id === degrau.id}
+                            data-tempo={d.id}
+                            className={'cdj-tempo-opcao' + (d.id === degrau.id ? ' is-ativa' : '')}
+                            onClick={() => definirTempo(trilha, d)}
+                          >
+                            <i className={'ti ' + d.ic + ' cdj-tempo-ic'} aria-hidden="true" />
+                            <span className="cdj-tempo-opcao-nome">{en ? d.en : d.pt}</span>
+                            {d.id === degrau.id && <i className="ti ti-check cdj-tempo-check" aria-hidden="true" />}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
             {calendarioAberto && (
               <CalendarioFantasyModal
                 dataAtual={dataAtual}
@@ -2229,7 +3073,13 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
           )}
         </div>
       )}
-      {profile === 'master' && onNovaHistoria && !editando && !esconderSeletorEBotaoNovo && (
+      {/* "Nova história" só FORA de uma mesa (20/09/2026). Dentro dela a lista
+          mostra um card só — o da mesa ativa — e um botão de criar ali dentro
+          convida a sair do lugar sem dizer que sai. Criar pertence à tela de
+          escolha, junto com os outros cards, que é para onde o "Sair" leva.
+          Mesma gramática do Jogador: ele cria personagem na lista, não de
+          dentro da ficha de um. */}
+      {profile === 'master' && onNovaHistoria && !editando && !esconderSeletorEBotaoNovo && !mesaAtivaId && (
         <button
           type="button"
           className="cdj-pill-btn-salvar"
@@ -2379,475 +3229,6 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
   );
 }
 
-/* ============================== [9.7] MusicaAmbiente — player com playlist ==============================
-   Toca música ambiente em loop enquanto o usuário está no console.
-   Usa iframe invisível do YouTube (youtube-nocookie.com) com autoplay + loop.
-
-   ARQUITETURA:
-   - usePlaylistState   → hook central; persiste em localStorage.
-   - MusicaPlayerFab    → mini-player flutuante (right:16, top:136, abaixo dos dados).
-                          FAB principal: play/pause. Expande em painel com prev/next/stop
-                          e nome da faixa. Tooltip via NavTooltip (padrão do shell).
-                          Botão de playlist (só master) navega para PlaylistMestre.
-   - PlaylistMestre     → página de gerenciamento (seção especial 'playlist').
-
-   REGRA DO NAVEGADOR: autoplay só funciona após a 1ª interação do usuário.
-   O iframe só monta após o 1.º clique/keydown na página.
-
-   HELPERS: extrairYtId(url) → aceita URL completa, youtu.be/ID e ID cru (11 chars). */
-
-const MUSICA_YT_ID_PADRAO = '67XRi2616YA';
-const MUSICA_FAIXA_PADRAO = { id: '__padrao__', nome: 'Trilha padrão', ytId: MUSICA_YT_ID_PADRAO };
-
-function extrairYtId(url) {
-  if (!url) return null;
-  url = url.trim();
-  const curto = url.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
-  if (curto) return curto[1];
-  const longo = url.match(/[?&/](?:v=|embed\/)([A-Za-z0-9_-]{11})/);
-  if (longo) return longo[1];
-  if (/^[A-Za-z0-9_-]{11}$/.test(url)) return url;
-  return null;
-}
-
-function ytEmbedUrl(ytId) {
-  return `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&loop=1&playlist=${ytId}&controls=0&mute=0&enablejsapi=0`;
-}
-
-// ── Hook central de estado da playlist ───────────────────────────────────────
-function usePlaylistState() {
-  const [playlist, setPlaylistRaw] = useState(() => {
-    try { const s = localStorage.getItem('menestrel.playlist'); return s ? JSON.parse(s) : []; }
-    catch (e) { return []; }
-  });
-  const [atualId, setAtualIdRaw] = useState(() => {
-    try { return localStorage.getItem('menestrel.playlistAtual') || null; }
-    catch (e) { return null; }
-  });
-  // tocando = true → reproduzindo; false → pausado/parado (iframe desmontado)
-  const [tocando, setTocandoRaw] = useState(() => {
-    try { const s = localStorage.getItem('menestrel.musica'); return s === null ? true : s === '1'; }
-    catch (e) { return true; }
-  });
-
-  const salvarPlaylist = (nova) => {
-    setPlaylistRaw(nova);
-    try { localStorage.setItem('menestrel.playlist', JSON.stringify(nova)); } catch (e) {}
-  };
-  const salvarAtual = (id) => {
-    setAtualIdRaw(id);
-    try {
-      if (id) localStorage.setItem('menestrel.playlistAtual', id);
-      else localStorage.removeItem('menestrel.playlistAtual');
-    } catch (e) {}
-  };
-  const salvarTocando = (v) => {
-    setTocandoRaw(v);
-    try { localStorage.setItem('menestrel.musica', v ? '1' : '0'); } catch (e) {}
-  };
-
-  // Faixa efetiva: selecionada → padrão
-  const faixaAtual = playlist.find((f) => f.id === atualId) || (playlist.length === 0 ? MUSICA_FAIXA_PADRAO : playlist[0]);
-  const ytIdAtivo = faixaAtual.ytId;
-
-  // Navegação prev/next dentro da lista real (ignora padrão)
-  const idxAtual = playlist.findIndex((f) => f.id === faixaAtual.id);
-  const irProxima = () => {
-    if (playlist.length === 0) return;
-    const prox = playlist[(idxAtual + 1) % playlist.length];
-    salvarAtual(prox.id);
-    salvarTocando(true);
-  };
-  const irAnterior = () => {
-    if (playlist.length === 0) return;
-    const ant = playlist[(idxAtual - 1 + playlist.length) % playlist.length];
-    salvarAtual(ant.id);
-    salvarTocando(true);
-  };
-
-  return {
-    playlist, atualId, tocando, faixaAtual, ytIdAtivo,
-    salvarPlaylist, salvarAtual, salvarTocando,
-    irProxima, irAnterior,
-  };
-}
-
-// ── Tooltip helper local (padrão NavTooltip do shell, mas posicionado acima) ─
-// Os FABs ficam no canto direito → tooltip aparece à esquerda deles.
-function useMaTip() {
-  const [tip, setTip] = useState(null);
-  const timer = React.useRef(null);
-  const abrir = React.useCallback((e, label) => {
-    clearTimeout(timer.current);
-    const rect = e.currentTarget.getBoundingClientRect();
-    timer.current = setTimeout(() => setTip({ rect, label }), 60);
-  }, []);
-  const fechar = React.useCallback(() => { clearTimeout(timer.current); setTip(null); }, []);
-  return [tip, abrir, fechar];
-}
-function MaTip({ tip }) {
-  if (!tip) return null;
-  const { rect, label } = tip;
-  // Posiciona à esquerda do botão, centralizado verticalmente
-  const left = rect.left - 10;
-  const top  = rect.top + rect.height / 2;
-  return ReactDOM.createPortal(
-    <div className="menestrel-ui" style={{
-      position: 'fixed', left, top,
-      transform: 'translate(-100%, -50%)',
-      zIndex: 9999, pointerEvents: 'none',
-      background: '#15120C', borderRadius: 6,
-      padding: '6px 10px', whiteSpace: 'nowrap',
-      fontFamily: "'Lora', serif", fontSize: 12, color: '#E8DDC6',
-      animation: 'fpTipFade .12s ease-out',
-    }}>
-      {/* seta apontando para a direita */}
-      <div style={{
-        position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)',
-        borderWidth: 5, borderStyle: 'solid',
-        borderColor: 'transparent transparent transparent #15120C',
-        width: 0, height: 0,
-      }} />
-      {label}
-    </div>,
-    document.body
-  );
-}
-
-// ── MusicaPlayerFab — mini-player flutuante ──────────────────────────────────
-// FAB principal (ícone de nota) fica em right:16, top:136 (abaixo de D20/D10).
-// Ao clicar expande um painel compacto à esquerda com: prev · play/pause · stop · next
-// e o nome da faixa. Botão de playlist no painel (só master).
-//
-// PAUSE REAL via YouTube IFrame API (postMessage):
-//   - O iframe fica SEMPRE montado após a 1ª interação (não desmonta no pause).
-//   - enablejsapi=1 permite enviar comandos via postMessage.
-//   - pauseVideo / playVideo são enviados ao contentWindow do iframe.
-//   - Quando muda de faixa (ytId novo), o iframe é desmontado+remontado via key.
-//   - Stop = pauseVideo + volta ao início (seekTo 0).
-//
-// ORIGEM DO postMessage: youtube-nocookie.com aceita mensagens com origin '*'
-// desde que o iframe já tenha carregado. Usamos ref para chamar após onLoad.
-function MusicaPlayerFab({ lang, profile, onAbrirPlaylist }) {
-  const en = lang === 'en';
-  const { playlist, atualId, tocando, faixaAtual, ytIdAtivo,
-          salvarTocando, salvarAtual, irProxima, irAnterior } = usePlaylistState();
-
-  // Autoplay: iframe só monta após 1ª interação
-  const [interagiu, setInteragiu] = useState(false);
-  useEffect(() => {
-    if (interagiu) return;
-    const handler = () => setInteragiu(true);
-    document.addEventListener('click', handler, { once: true });
-    document.addEventListener('keydown', handler, { once: true });
-    return () => {
-      document.removeEventListener('click', handler);
-      document.removeEventListener('keydown', handler);
-    };
-  }, [interagiu]);
-
-  const iframeRef = React.useRef(null);
-  const iframeProntoRef = React.useRef(false); // true após onLoad
-
-  // Envia comando para o iframe do YouTube via postMessage
-  const ytCmd = React.useCallback((func, args) => {
-    const win = iframeRef.current && iframeRef.current.contentWindow;
-    if (!win) return;
-    try {
-      win.postMessage(JSON.stringify({ event: 'command', func, args: args || [] }), '*');
-    } catch (e) {}
-  }, []);
-
-  // Quando o iframe carrega, marca como pronto.
-  // Se o estado já é "pausado", manda pausar imediatamente.
-  const onIframeLoad = React.useCallback(() => {
-    iframeProntoRef.current = true;
-    if (!tocando) {
-      // Pequeno delay pois o player ainda está inicializando
-      setTimeout(() => ytCmd('pauseVideo'), 300);
-    }
-  }, [tocando, ytCmd]);
-
-  // Reagir a mudanças de tocando APÓS iframe pronto
-  const tocandoRef = React.useRef(tocando);
-  useEffect(() => {
-    tocandoRef.current = tocando;
-    if (!iframeProntoRef.current) return;
-    if (tocando) {
-      ytCmd('playVideo');
-    } else {
-      ytCmd('pauseVideo');
-    }
-  }, [tocando, ytCmd]);
-
-  // Quando troca de faixa, reseta o flag de iframe pronto (vai remontar)
-  const ytIdAtivoRef = React.useRef(ytIdAtivo);
-  useEffect(() => {
-    if (ytIdAtivoRef.current !== ytIdAtivo) {
-      ytIdAtivoRef.current = ytIdAtivo;
-      iframeProntoRef.current = false;
-    }
-  }, [ytIdAtivo]);
-
-  const [expandido, setExpandido] = useState(false);
-  const panelRef = React.useRef(null);
-  const fabRef   = React.useRef(null);
-  const [tip, abrirTip, fecharTip] = useMaTip();
-
-  // Fecha ao clicar fora
-  useEffect(() => {
-    if (!expandido) return;
-    const handler = (e) => {
-      if (panelRef.current && panelRef.current.contains(e.target)) return;
-      if (fabRef.current   && fabRef.current.contains(e.target))   return;
-      setExpandido(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [expandido]);
-
-  // Stop = pausar + retroceder ao início
-  const stop = () => {
-    ytCmd('seekTo', [0, true]);
-    ytCmd('pauseVideo');
-    salvarTocando(false);
-  };
-
-  const temNavegacao = playlist.length > 1;
-  const labelFab = tocando
-    ? (en ? 'Ambient music — playing' : 'Música ambiente — tocando')
-    : (en ? 'Ambient music — paused'  : 'Música ambiente — pausada');
-
-  return (
-    <div className="menestrel-ui ma-root">
-      {/* Iframe — monta após 1ª interação e fica SEMPRE montado (key só muda quando troca faixa).
-          enablejsapi=1 habilita postMessage. autoplay=1 começa a tocar ao montar.
-          Pause/play são controlados via ytCmd, não por desmontagem. */}
-      {interagiu && (
-        <iframe
-          ref={iframeRef}
-          key={ytIdAtivo}
-          src={`https://www.youtube-nocookie.com/embed/${ytIdAtivo}?autoplay=1&loop=1&playlist=${ytIdAtivo}&controls=0&mute=0&enablejsapi=1`}
-          allow="autoplay"
-          onLoad={onIframeLoad}
-          style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', left: -9999, top: -9999 }}
-          title="Música ambiente Menestrel"
-          aria-hidden="true"
-          tabIndex={-1}
-        />
-      )}
-
-      {/* Painel expandido — aparece à esquerda do FAB */}
-      {expandido && (
-        <div ref={panelRef} className="ma-panel">
-          {/* Nome da faixa */}
-          <div className="ma-panel-track">
-            <i className={tocando ? 'ma-ic ma-ic-play' : 'ma-ic ma-ic-pause'}
-               style={{ fontSize: 13, flexShrink: 0 }} aria-hidden="true" />
-            <span className="ma-panel-nome">{faixaAtual.nome}</span>
-          </div>
-          {/* Controles */}
-          <div className="ma-panel-controls">
-            {/* Anterior */}
-            <button
-              className="ma-ctrl-btn"
-              onClick={irAnterior}
-              disabled={!temNavegacao}
-              aria-label={en ? 'Previous' : 'Anterior'}
-              onMouseEnter={(e) => abrirTip(e, en ? 'Previous' : 'Anterior')}
-              onMouseLeave={fecharTip}
-            >
-              <i className="ma-ic ma-ic-prev" aria-hidden="true" />
-            </button>
-            {/* Play / Pause */}
-            <button
-              className={'ma-ctrl-btn is-main' + (tocando ? ' is-playing' : '')}
-              onClick={() => salvarTocando(!tocando)}
-              aria-label={tocando ? (en ? 'Pause' : 'Pausar') : (en ? 'Play' : 'Tocar')}
-              onMouseEnter={(e) => abrirTip(e, tocando ? (en ? 'Pause' : 'Pausar') : (en ? 'Play' : 'Tocar'))}
-              onMouseLeave={fecharTip}
-            >
-              <i className={tocando ? 'ma-ic ma-ic-pause' : 'ma-ic ma-ic-play'} aria-hidden="true" />
-            </button>
-            {/* Stop */}
-            <button
-              className="ma-ctrl-btn"
-              onClick={stop}
-              disabled={!tocando}
-              aria-label={en ? 'Stop' : 'Parar'}
-              onMouseEnter={(e) => abrirTip(e, en ? 'Stop' : 'Parar')}
-              onMouseLeave={fecharTip}
-            >
-              <i className="ma-ic ma-ic-stop" aria-hidden="true" />
-            </button>
-            {/* Próxima */}
-            <button
-              className="ma-ctrl-btn"
-              onClick={irProxima}
-              disabled={!temNavegacao}
-              aria-label={en ? 'Next' : 'Próxima'}
-              onMouseEnter={(e) => abrirTip(e, en ? 'Next' : 'Próxima')}
-              onMouseLeave={fecharTip}
-            >
-              <i className="ma-ic ma-ic-next" aria-hidden="true" />
-            </button>
-            {/* Separador + botão playlist (só master) */}
-            {onAbrirPlaylist && (
-              <>
-                <div className="ma-ctrl-sep" />
-                <button
-                  className="ma-ctrl-btn"
-                  onClick={() => { setExpandido(false); onAbrirPlaylist(); }}
-                  aria-label={en ? 'Manage playlist' : 'Gerenciar playlist'}
-                  onMouseEnter={(e) => abrirTip(e, en ? 'Manage playlist' : 'Gerenciar playlist')}
-                  onMouseLeave={fecharTip}
-                >
-                  <i className="ti ti-playlist" aria-hidden="true" />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* FAB principal */}
-      <button
-        ref={fabRef}
-        type="button"
-        className={'ma-fab' + (tocando ? ' is-on' : ' is-off') + (expandido ? ' is-expanded' : '')}
-        onClick={() => setExpandido((v) => !v)}
-        aria-label={labelFab}
-        onMouseEnter={(e) => { if (!expandido) abrirTip(e, labelFab); }}
-        onMouseLeave={fecharTip}
-      >
-        <i className={tocando ? 'ti ti-music' : 'ti ti-music-off'} aria-hidden="true" />
-      </button>
-
-      <MaTip tip={tip} />
-    </div>
-  );
-}
-
-// ── PlaylistMestre — tela de gerenciamento de playlist ──────────────────────
-// Padrão "página, não modal": header com seta de voltar, corpo solto.
-// Só acessível via botão playlist no painel do player (master).
-function PlaylistMestre({ lang, onVoltar }) {
-  const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
-  const en = lang === 'en';
-  const { playlist, atualId, tocando, faixaAtual, salvarPlaylist, salvarAtual, salvarTocando } = usePlaylistState();
-
-  const [nome, setNome] = useState('');
-  const [url, setUrl] = useState('');
-  const [erro, setErro] = useState('');
-
-  const adicionarFaixa = () => {
-    const ytId = extrairYtId(url);
-    if (!ytId) { setErro(en ? 'Invalid YouTube URL or ID.' : 'URL ou ID do YouTube inválido.'); return; }
-    const nomeUsado = nome.trim() || (en ? 'Track ' + (playlist.length + 1) : 'Faixa ' + (playlist.length + 1));
-    const nova = { id: Date.now().toString(36) + Math.random().toString(36).slice(2), nome: nomeUsado, ytId };
-    const novaLista = [...playlist, nova];
-    salvarPlaylist(novaLista);
-    if (playlist.length === 0) salvarAtual(nova.id); // primeira faixa → seleciona e toca
-    setNome(''); setUrl(''); setErro('');
-  };
-
-  const removerFaixa = (id) => {
-    const nova = playlist.filter((f) => f.id !== id);
-    salvarPlaylist(nova);
-    if (atualId === id) salvarAtual(nova.length > 0 ? nova[0].id : null);
-  };
-
-  const selecionarFaixa = (id) => { salvarAtual(id); salvarTocando(true); };
-
-  return (
-    <div className="plist-page">
-      <div className="plist-header">
-        <button className="plist-header-back" onClick={onVoltar} aria-label={en ? 'Back' : 'Voltar'}>
-          <i className="ti ti-arrow-left" style={{ fontSize: 16 }} aria-hidden="true" />
-        </button>
-        <div className="plist-header-info">
-          <p className="plist-eyebrow">{en ? 'Master Tools' : 'Ferramentas do Mestre'}</p>
-          <h2 className="plist-title">{en ? 'Ambient Playlist' : 'Playlist Ambiente'}</h2>
-        </div>
-        <button
-          className="btn-ghost btn-icon"
-          onClick={() => salvarTocando(!tocando)}
-          {...propsTip(abrirTip, fecharTip, tocando ? (en ? 'Pause' : 'Pausar') : (en ? 'Play' : 'Tocar'))}
-          style={{ color: tocando ? '#C9A44E' : '#7A6A4A', fontSize: 20 }}
-        >
-          <i className={tocando ? 'ma-ic ma-ic-pause' : 'ma-ic ma-ic-play'} aria-hidden="true" />
-        </button>
-      </div>
-
-      <div className="plist-body">
-        {/* Faixa tocando agora */}
-        <div className="plist-now-playing">
-          <i className={tocando ? 'ti ti-music' : 'ti ti-music-off'} aria-hidden="true" />
-          <span>
-            {tocando ? (en ? 'Now playing: ' : 'Tocando agora: ') : (en ? 'Paused: ' : 'Pausado: ')}
-            <strong>{faixaAtual.nome}</strong>
-          </span>
-        </div>
-
-        {/* Adicionar faixa */}
-        <div className="plist-add-block">
-          <p className="plist-add-label">{en ? 'Add track' : 'Adicionar faixa'}</p>
-          <input
-            className="plist-input"
-            placeholder={en ? 'Name (optional)' : 'Nome (opcional)'}
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-          />
-          <div className="plist-add-row">
-            <input
-              className="plist-input"
-              placeholder={en ? 'YouTube URL or ID' : 'URL ou ID do YouTube'}
-              value={url}
-              onChange={(e) => { setUrl(e.target.value); setErro(''); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') adicionarFaixa(); }}
-            />
-            <button className="btn-primary btn-sm" onClick={adicionarFaixa} style={{ whiteSpace: 'nowrap' }}>
-              <i className="ti ti-plus" aria-hidden="true" /> {en ? 'Add' : 'Adicionar'}
-            </button>
-          </div>
-          {erro && <p style={{ color: '#F0A6A0', fontFamily: "'Lora', serif", fontSize: 12, margin: 0 }}>{erro}</p>}
-        </div>
-
-        {/* Lista de faixas */}
-        <div className="plist-list">
-          {playlist.length === 0 && (
-            <p className="plist-empty">
-              {en ? 'No tracks yet. Add a YouTube link above.' : 'Nenhuma faixa ainda. Adicione um link do YouTube acima.'}
-            </p>
-          )}
-          {playlist.map((faixa) => {
-            const ativa = faixa.id === atualId;
-            return (
-              <div key={faixa.id} className={'plist-item' + (ativa ? ' is-playing' : '')} onClick={() => selecionarFaixa(faixa.id)}>
-                <div className="plist-item-icon">
-                  <i className={ativa && tocando ? 'ma-ic ma-ic-play' : 'ti ti-music'} aria-hidden="true" />
-                </div>
-                <div className="plist-item-info">
-                  <div className="plist-item-nome">{faixa.nome}</div>
-                  <div className="plist-item-url">youtube.com/watch?v={faixa.ytId}</div>
-                </div>
-                <button
-                  className="plist-item-del"
-                  onClick={(e) => { e.stopPropagation(); removerFaixa(faixa.id); }}
-                  aria-label={en ? 'Remove' : 'Remover'}
-                >
-                  <i className="ti ti-x" aria-hidden="true" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-    </div>
-  );
-}
-
 /* ============================== [10] AdminConsole — moldura migrada (Grimório do dragão) ==============================
    Substitui a função AdminConsole inteira em src/10-shell/shell.jsx
    (de `function AdminConsole(...) {` até o `}` logo antes de `function App() {`).
@@ -2865,6 +3246,23 @@ function PlaylistMestre({ lang, onVoltar }) {
    `noServidor` é acompanhado à parte (estado próprio, atualizado a cada
    escrita) em vez de sair da prop userProfile: a prop nunca é refetchada, e
    compará-la faria master→player→master pular a segunda escrita. */
+/* Qual mesa deve ficar ativa depois que a lista de histórias chega.
+
+   Devolve o id novo, ou `undefined` quando não há nada a mudar — e essa
+   distinção é o recurso inteiro: `null` é "saia da mesa", `undefined` é "não
+   toque no estado". Confundir os dois é o que fazia o console reentrar na mesa
+   logo depois do Mestre sair dela.
+
+   Lista `null`/`undefined` significa "a busca ainda não voltou", e é diferente
+   de lista vazia: tratar carregamento como vazio apagava a mesa salva a cada
+   recarga da página. Ver 10-shell/mesa-ativa.test.js. */
+function proximaMesaAtiva(minhasHistorias, mesaAtivaId) {
+  if (!Array.isArray(minhasHistorias)) return undefined;   // ainda carregando
+  if (!mesaAtivaId) return undefined;                      // fora de mesa, por escolha
+  if (minhasHistorias.some((h) => h.id === mesaAtivaId)) return undefined;
+  return null;                                             // a mesa salva sumiu
+}
+
 function devePersistirPerfil(noServidor, local) {
   if (noServidor === null || noServidor === undefined) return false;
   return noServidor !== local;
@@ -2946,9 +3344,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   // "inventario" e "loja" foram removidos do menu lateral.
   // "guia_personagem" é tratada como seção especial (fora do ADMIN_SECTIONS) — não aparece
   // no menu lateral, só é acessada via onHelp. Por isso o useEffect de guarda não a reverte.
-  // "playlist" também é especial — acessada via clique longo no FAB de música (master only).
   const SECTIONS_OCULTAS = ['inventario', 'loja', 'itens_campanha'];
-  const SECTIONS_ESPECIAIS = ['guia_personagem', 'playlist'];
+  const SECTIONS_ESPECIAIS = ['guia_personagem'];
   const sections = (ADMIN_SECTIONS[profile] || []).filter((s) => !SECTIONS_OCULTAS.includes(s.id));
   const [currentId, setCurrentId] = useState(() => {
     try { return localStorage.getItem('menestrel.section') || sections[0].id; }
@@ -2977,7 +3374,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
      tabela saía mais estreita que a das outras ("a largura da tabela em
      lugares, npcs está menor que em itens, magias" — usuário). */
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'npcs', 'memorias', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'playlist'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'npcs', 'memorias', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
@@ -2992,6 +3389,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   // localStorage só pra não perder a escolha ao trocar de aba (mesmo
   // padrão de menestrel.profile/section acima).
   const [minhasHistorias, setMinhasHistorias] = useState(null); // null = ainda não carregou; [] = carregou mas vazio; [{id, titulo}] = lista real
+  // Sobe a cada clique na barra lateral — ver o onClick do .mc-navitem.
+  const [navToken, setNavToken] = useState(0);
   const [mesaAtivaId, setMesaAtivaId] = useState(() => {
     try { const v = localStorage.getItem('menestrel.mesaAtivaId'); return v ? Number(v) : null; }
     catch (e) { return null; }
@@ -3036,7 +3435,12 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           .from('historias').select('id, titulo').eq('mestre_id', user.id)
           .order('created_at', { ascending: false });
         if (cancel) return;
-        setMinhasHistorias(error ? [] : (data || []));
+        /* Falha na busca NÃO vira lista vazia (15/09/2026: "às vezes o sistema
+           muda de mesa sem minha autorização"). Lista vazia zera a mesa ativa, e
+           o carregamento seguinte caía na primeira história — trocando a mesa do
+           Mestre sozinho. Erro agora preserva o que já estava. */
+        if (error) { console.error('[mesa] não consegui listar as histórias:', error); return; }
+        setMinhasHistorias(data || []);
       } else {
         // Jogador: resolve a história do PJ ativo e busca data_nasc para o calendário.
         const { data: prof } = await supabaseClient.from('profiles').select('pj_ativo_id').eq('id', user.id).maybeSingle();
@@ -3050,25 +3454,36 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           supabaseClient.from('personagens').select('*').eq('id', pjAtivoId).maybeSingle(),
         ]);
         if (cancel) return;
-        setMinhasHistorias(!histRes.error && histRes.data ? [histRes.data] : []);
+        // Mesmo critério do Mestre: erro preserva a mesa; sem história, zera.
+        if (histRes.error) { console.error('[mesa] não consegui resolver a história do PJ:', histRes.error); }
+        else setMinhasHistorias(histRes.data ? [histRes.data] : []);
         setDataNascPjAtivo(pjRes.data?.data_nasc ?? null);
         setPjAtivo(pjRes.data || null);
       }
     })();
     return () => { cancel = true; };
   }, [user, profile]);
-  // Auto-seleciona quando há exatamente 1 opção, ou quando a selecionada saiu da lista.
-  // Guard: minhasHistorias===null significa "ainda carregando" — não resetar o id salvo.
+  /* ENTRAR NUMA MESA É GESTO DO MESTRE (20/09/2026). Este efeito ESCOLHIA uma
+     mesa sozinho (`minhasHistorias[0]`) sempre que o id salvo não casava com a
+     lista. Fazia sentido enquanto existia o dropdown de mesas; com o botão de
+     sair, virava uma porta trancada — o clique zerava o id e o efeito reentrava
+     na mesma mesa no quadro seguinte.
+
+     Agora ele só LIMPA o que não existe mais. A regra mora em
+     proximaMesaAtiva, pura e testada em 10-shell/mesa-ativa.test.js, porque
+     montada dentro do console ela só se deixaria observar montando o console
+     inteiro. */
   useEffect(() => {
-    if (minhasHistorias === null) return; // ainda carregando — preserva o id do localStorage
-    if (minhasHistorias.length === 0) { setMesaAtivaId(null); return; }
-    if (!minhasHistorias.find((h) => h.id === mesaAtivaId)) {
-      setMesaAtivaId(minhasHistorias[0].id);
-    }
+    const prox = proximaMesaAtiva(minhasHistorias, mesaAtivaId);
+    if (prox !== undefined) setMesaAtivaId(prox);
   }, [minhasHistorias, mesaAtivaId]);
+  /* Sair precisa SOBREVIVER à recarga, e para isso a chave tem que sumir do
+     localStorage — não basta parar de gravar. Sem o remove, o Mestre saía da
+     mesa, recarregava a página e voltava para dentro dela. */
   useEffect(() => {
     try {
       if (mesaAtivaId) localStorage.setItem('menestrel.mesaAtivaId', String(mesaAtivaId));
+      else localStorage.removeItem('menestrel.mesaAtivaId');
     } catch (e) {}
   }, [mesaAtivaId]);
 
@@ -3086,6 +3501,15 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      tooltip — que já existia e já era acionado no hover (abrirNavTip). */
   const SIDEBAR_LARGURA = 64;
 
+  /* A LUZ DO FUNDO SEGUE O RELÓGIO DA MESA (20/09/2026). Quem carrega e assina
+     `historias.data_jogo_atual` é o CardDataJogoAtual, lá embaixo na barra do
+     topo — este console só pinta o que ele avisa. `useCallback` com deps vazias
+     porque o aviso é um efeito lá dentro: uma função nova a cada render faria
+     o efeito re-disparar sem parar. */
+  const [dataMesa, setDataMesa] = useState(null);
+  const receberDataMesa = React.useCallback((d) => setDataMesa(d), []);
+  const luzFundo = estiloLuzFundo(dataMesa);
+
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const avatarRef = React.useRef(null);
 
@@ -3102,20 +3526,58 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         {/* ── Fundo animado — baseado em DarkGradientBg (paleta Pedra & Bronze) ── */}
         <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
 
-          {/* Gradiente base: bronze escuro no canto superior esquerdo → preto */}
+          {/* Gradiente base: a máscara é a FONTE DE LUZ, e ela atravessa o céu
+              com a hora da mesa — à direita no nascente, no centro ao meio-dia
+              (e à meia-noite), à esquerda no poente. Ver estiloLuzFundo. */}
           <div style={{
             position: 'absolute', inset: 0, opacity: 1,
             background: 'radial-gradient(100% 100% at 0% 0%, #000000 0%, #000000 100%)',
-            mask: 'radial-gradient(125% 100% at 0% 0%, #000 0%, rgba(0,0,0,0.22) 88%, transparent 100%)',
+            mask: luzFundo.mask,
+            transition: 'mask 1.2s ease, -webkit-mask 1.2s ease',
           }} >
 
-            {/* Filetes inclinados — ouro translúcido em vez de ciano */}
-            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(201,164,78,1) 0%, rgba(201,164,78,0) 100%)', mask: 'linear-gradient(90deg, transparent 0%, #000 20%, transparent 36%, #000 55%, rgba(0,0,0,0.13) 67%, #000 78%, transparent 97%)', transform: 'skewX(45deg)' }} />
-            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(201,164,78,1) 0%, rgba(201,164,78,0) 100%)', mask: 'linear-gradient(90deg, transparent 11%, #000 25%, rgba(0,0,0,0.55) 41%, rgba(0,0,0,0.13) 67%, #000 78%, transparent 97%)', transform: 'skewX(45deg)' }} />
-            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(184,112,46,1) 0%, rgba(184,112,46,0) 100%)', mask: 'linear-gradient(90deg, transparent 9%, #000 20%, rgba(0,0,0,0.55) 28%, rgba(0,0,0,0.42) 40%, #000 48%, rgba(0,0,0,0.27) 54%, rgba(0,0,0,0.13) 78%, #000 88%, transparent 97%)', transform: 'skewX(45deg)' }} />
-            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(184,112,46,1) 0%, rgba(184,112,46,0) 100%)', mask: 'linear-gradient(90deg, transparent 0%, #000 17%, rgba(0,0,0,0.55) 26%, #000 35%, transparent 47%, rgba(0,0,0,0.13) 69%, #000 79%, transparent 97%)', transform: 'skewX(45deg)' }} />
-            <div style={{ position: 'absolute', inset: 0, opacity: 0.1, background: 'linear-gradient(rgba(184,112,46,1) 0%, rgba(184,112,46,0) 100%)', mask: 'linear-gradient(90deg, transparent 0%, #000 20%, rgba(0,0,0,0.55) 27%, #000 42%, transparent 48%, rgba(0,0,0,0.13) 67%, #000 74%, #000 82%, rgba(0,0,0,0.47) 88%, transparent 97%)', transform: 'skewX(45deg)' }} />
+            {/* Filetes inclinados — os "raios". Os dois primeiros são a cor
+                principal da hora (ouro de dia, luar de aço à noite), os três
+                últimos a secundária. O desenho de cada máscara é o que dá o
+                espaçamento irregular entre eles, e por isso continua fixo:
+                quem responde à hora é a cor, a opacidade e a inclinação. */}
+            {[
+              { grad: luzFundo.gradA, mask: 'linear-gradient(90deg, transparent 0%, #000 20%, transparent 36%, #000 55%, rgba(0,0,0,0.13) 67%, #000 78%, transparent 97%)' },
+              { grad: luzFundo.gradA, mask: 'linear-gradient(90deg, transparent 11%, #000 25%, rgba(0,0,0,0.55) 41%, rgba(0,0,0,0.13) 67%, #000 78%, transparent 97%)' },
+              { grad: luzFundo.gradB, mask: 'linear-gradient(90deg, transparent 9%, #000 20%, rgba(0,0,0,0.55) 28%, rgba(0,0,0,0.42) 40%, #000 48%, rgba(0,0,0,0.27) 54%, rgba(0,0,0,0.13) 78%, #000 88%, transparent 97%)' },
+              { grad: luzFundo.gradB, mask: 'linear-gradient(90deg, transparent 0%, #000 17%, rgba(0,0,0,0.55) 26%, #000 35%, transparent 47%, rgba(0,0,0,0.13) 69%, #000 79%, transparent 97%)' },
+              { grad: luzFundo.gradB, mask: 'linear-gradient(90deg, transparent 0%, #000 20%, rgba(0,0,0,0.55) 27%, #000 42%, transparent 48%, rgba(0,0,0,0.13) 67%, #000 74%, #000 82%, rgba(0,0,0,0.47) 88%, transparent 97%)' },
+            ].map((filete, i) => (
+              <div key={i} style={{
+                position: 'absolute', inset: 0,
+                opacity: luzFundo.opacity,
+                background: filete.grad,
+                mask: filete.mask,
+                transform: luzFundo.transform,
+                transition: 'opacity 1.2s ease, transform 1.2s ease, background 1.2s ease',
+              }} />
+            ))}
           </div>
+
+          {/* O CLIMA DA MESA, por cima da luz (20/09/2026). Uma camada por
+              trilha acesa — chuva ou areia, vento, neve ou insolação. O
+              desenho inteiro é CSS (.mc-clima em index.css): daqui saem só o
+              tipo, o degrau e, pra chuva e a neve, o quanto está ventando,
+              que é o que as inclina.
+
+              O <i> é a TERCEIRA camada de profundidade: ::before e ::after
+              dão duas, e chuva e neve precisam de três pra não parecerem um
+              papel de parede rolando. */}
+          {efeitosDoTempo(dataMesa).map((e) => (
+            <div
+              key={e.tipo}
+              className={'mc-clima mc-clima-' + e.tipo}
+              data-int={e.intensidade}
+              style={e.vento != null ? { '--clima-vento': e.vento } : undefined}
+            >
+              <i aria-hidden="true" />
+            </div>
+          ))}
 
           {/* Grade de pontos sutil */}
           <div style={{ position: 'absolute', inset: 0, opacity: 0.1, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(201,164,78,0.6) 1px, transparent 0)', backgroundSize: '20px 20px' }} />
@@ -3145,6 +3607,15 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                       setConviteModalAberto(true);
                     } else {
                       setCurrentId(s.id);
+                      /* O TOQUE NO MENU CONTA, mesmo na seção já aberta
+                         (17/09/2026). `setCurrentId` com o mesmo valor não
+                         rerenderiza nada, então clicar em "Personagens" de
+                         dentro da ficha de um PJ não fazia absolutamente nada —
+                         e o Mestre, que não tem botão de sair, ficava sem
+                         caminho de volta. Este contador é o sinal de "você
+                         pediu esta seção de novo"; quem o escuta hoje é a
+                         lista de personagens do Mestre. */
+                      setNavToken((t) => t + 1);
                     }
                   }}
                   aria-label={meta.label}
@@ -3211,11 +3682,20 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         <main className="mc-main">
           <div className="mc-content" style={{ maxWidth: isWide ? 'none' : 860, paddingBottom: 80 }}>
             {current.id === 'criaturas' ? (
-              <CriaturasList ac={ac} lang={lang} modoJogador={profile === 'player'} />
+              /* `historiaId` (17/09/2026): habilita o botão de OLHO na tabela
+                 — quem pode ver cada criatura NA MESA ATIVA. Disponibilizar
+                 criatura pra história era a aba "Criatura" do Lore, que só se
+                 alcançava por Histórias → card da mesa → botão "Lore"; o
+                 botão saiu no mesmo dia e a função veio pra cá. O Jogador
+                 recebe o id igual e a CriaturasList ignora (modoJogador). */
+              <CriaturasList ac={ac} lang={lang} modoJogador={profile === 'player'} historiaId={mesaAtivaId} />
             ) : current.id === 'personagens_j' ? (
               <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onLimiteFreeChange={setLimiteFreePersonagens} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo} />
             ) : current.id === 'personagens_m' ? (
-              <PersonagensList ac={ac} t={t} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} />
+              /* `voltarToken`: o Mestre sai da ficha pelo próprio menu, e não
+                 por um botão dentro dela — "quem persiste no personagem
+                 escolhido é o jogador". Por isso o token só chega aqui. */
+              <PersonagensList ac={ac} t={t} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} voltarToken={navToken} />
             ) : current.id === 'fichas' ? (
               <FichasJogador ac={ac} lang={lang} currentUserId={user.id} />
             ) : current.id === 'magias' ? (
@@ -3229,12 +3709,26 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ) : current.id === 'itens_campanha' ? (
               <ItensCampanhaManager ac={ac} lang={lang} />
             ) : current.id === 'historias' ? (
-              <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} />
+              <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} onEntrarMesa={setMesaAtivaId} />
             ) : (current.id === 'lugares' || current.id === 'npcs' || current.id === 'memorias') ? (
-              /* AS TRÊS QUE VIERAM DO DIÁRIO. São o mesmo DiarioView, travado
-                 num tipo — ver `tipoFixo`. Sem personagem ativo não há diário
-                 de ninguém, e a tela diz isso em vez de aparecer vazia. */
-              !pjAtivo ? (
+              /* AS TRÊS QUE VIERAM DO DIÁRIO. Para o JOGADOR são o mesmo
+                 DiarioView travado num tipo (ver `tipoFixo`), e sem personagem
+                 ativo não há diário de ninguém — a tela diz isso em vez de
+                 aparecer vazia.
+
+                 Para o MESTRE (17/09/2026) Lugares e NPCs são outra coisa: o
+                 lore DA MESA, o mesmo que ele já administrava em Histórias →
+                 "Lore", agora também no menu lateral e preso à mesa ativa. Ele
+                 não tem PJ, então o que falta aqui é mesa, não personagem.
+                 Memórias segue só do Jogador: memória é do personagem. */
+              profile === 'master' && current.id !== 'memorias' ? (
+                <LoreDaMesa
+                  historiaId={mesaAtivaId}
+                  lang={lang}
+                  tipoFixo={current.id === 'lugares' ? 'lugar' : 'npc'}
+                  vazio={<AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />}
+                />
+              ) : !pjAtivo ? (
                 <AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />
               ) : (
                 <DiarioView
@@ -3250,8 +3744,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               <AventurasJogador t={t} lang={lang} currentUserId={user.id} reloadToken={aventurasReloadToken} />
             ) : current.id === 'guia_personagem' ? (
               <GuiaPersonagem lang={lang} />
-            ) : current.id === 'playlist' ? (
-              <PlaylistMestre lang={lang} onVoltar={() => setCurrentId(sections[0].id)} />
             ) : (
               <AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />
             )}
@@ -3286,6 +3778,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           limiteFreePersonagem={limiteFreePersonagens}
           esconderBotaoPersonagem={current.id === 'personagens_j' && personagensDentroDeMenu}
           dataNascPjAtivo={dataNascPjAtivo}
+          onDataAtual={receberDataMesa}
         />
 
         {/* Central de mensagens da mesa — Mestre e Jogador.
@@ -3301,11 +3794,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         {fichaAtiva && (
           <RolagemLivreFab lang={lang} historiaId={mesaAtivaId} nomeUsuario={nomePjAtivo || firstName} />
         )}
-
-        {/* Player de música ambiente — FAB flutuante (right:16, top:136, abaixo dos dados).
-            Clique abre mini-player com prev/play/pause/stop/next e nome da faixa.
-            Botão playlist no painel (só master) navega para PlaylistMestre. */}
-        <MusicaPlayerFab lang={lang} profile={profile} onAbrirPlaylist={profile === 'master' ? () => setCurrentId('playlist') : null} />
 
         {/* Modal de aceite de convite — abre via botão "Convites" na sidebar */}
         {conviteModalAberto && typeof ConviteModal !== 'undefined' && (
@@ -3530,7 +4018,17 @@ function App() {
 Object.assign(window, {
   ModalShell,
   FantasyDatePicker, AdminEmpty, FichasJogador, AdminConsole, App,
-  CentralMensagens, CardDataJogoAtual, RolagemLivreFab, MusicaPlayerFab, PlaylistMestre,
+  CentralMensagens, CardDataJogoAtual, RolagemLivreFab,
+  // A linha do feed e o conversor de evento — expostos para o teste do
+  // destaque (log-eventos.test.jsx) montar só eles.
+  MensagemEvento, linhaParaMensagem,
+  // Puras, expostas pro teste da luz por horário (10-shell/luz-do-horario.test.js).
+  periodoDaHora, faseDoPeriodo, horaDoJogo, luzDaHora, estiloLuzFundo,
+  // Pura, exposta pro teste do clima (10-shell/clima-efeitos.test.js).
+  efeitosDoTempo,
+  proximaMesaAtiva,
+  // Puras, expostas pro teste do log de tempo (10-shell/log-tempo-mesa.test.js).
+  feriadosDoDia, rotuloDataJogo, textoEventoData, textoEventoHora, textoEventoLocal, textoEventoTempo,
   // Pura, exposta pro teste da corrida de perfil_tipo
   // (10-shell/perfil-persistencia.test.js).
   devePersistirPerfil,

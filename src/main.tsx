@@ -22,9 +22,11 @@ import './01-core/constants.jsx'
 import './01-core/helpers.jsx'
 import './01-core/inventario-helpers.jsx'
 import './01-core/supabase.jsx'
+import './01-core/clima-desgaste.jsx'   // o relógio da mesa desgasta o PJ (20/09/2026)
 import './01-core/game-data.jsx'
 import './01-core/tecnicas-efeito.jsx'
 import './01-core/magias-efeito.jsx'
+import './01-core/status-efeito.jsx'   // status que sobrevive à batalha (17/09/2026)
 import './09-bestiario/ataques-criatura.jsx'
 import './09-bestiario/criatura-formulas.jsx'
 import './09-bestiario/catalogo-descritores.jsx'

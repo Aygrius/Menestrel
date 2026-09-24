@@ -115,7 +115,7 @@ describe('MarkdownSimples — as formas que o documento usa', () => {
 describe('técnicas e itens — os outros dois documentos', () => {
   /* "Faça sugestões de técnicas e itens para uso em batalha." (usuário) */
   it.each([
-    ['TecnicasSugestoesPainel', /Sugestões de técnicas/, /Emboscada/],
+    ['TecnicasSugestoesPainel', /Sugestões de técnicas/, /Formação de Escudos/],
     ['ItensSugestoesPainel', /Sugestões de itens para batalha/, /Poção Menor de Vigor/],
     // "Análise para diminuir as magias pouco interessantes e fundir as parecidas."
     ['EstudoMagiasPainel', /Estudo: enxugar e melhorar as magias/, /Dificuldade de habilidade — 22 magias viram 6/],

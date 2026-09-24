@@ -61,6 +61,9 @@ const TIPOS_VALIDOS = [
   'luta_sem_ver',
   // 14/09/2026: Provocar (o alvo só ataca quem provocou) e Conduzir Oponente.
   'provocado', 'conduzido',
+  // 15/09/2026: técnicas de criatura — Hipnose e Prender tiram as ações; os
+  // Botes aplicam no alvo quando o golpe chega à EF.
+  'sem_acoes', 'ao_acertar_ef',
 ];
 // Os que multiplicam o total da técnica (totalTecnica × sinal). O resto é
 // valor fixo (dano_pct 25) ou flag liga/desliga (ignora_eh true).
@@ -79,15 +82,16 @@ describe('TECNICA_EFEITO_MAP', () => {
   // acrescentou 26: este arquivo continua sendo o dono das 24 originais, e
   // tecnica-fase2.test.js é o dono das outras. O total fica travado aqui pra
   // uma entrada não sumir sem ninguém notar.
-  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 58', () => {
+  it('mantém as 24 técnicas da Fase 1 e o total do sistema é 65', () => {
     for (const key of Object.keys(EFEITO_NO_BANCO)) {
       expect(MAP[key], `${key} da Fase 1 sumiu do registro`).toBeDefined();
     }
     // +1 em 12/09/2026: Combate Montado, quando a montaria virou mecanica.
     // +1 em 12/09/2026: Luta as Cegas, quando o tabuleiro ganhou escuridao.
     // +2 em 14/09/2026: Provocar e Conduzir Oponente saíram da mesa para o motor.
-    // Com isso as 58 técnicas do banco estão todas no registro.
-    expect(Object.keys(MAP).length, '24 + 26 + 4 + Montado + Cegas + Provocar + Conduzir').toBe(58);
+    // Com isso as 58 técnicas do banco estavam todas no registro.
+    // +7 em 15/09/2026: as técnicas de criatura cadastradas pelo editor.
+    expect(Object.keys(MAP).length, '24 + 26 + 4 + Montado + Cegas + Provocar + Conduzir + 7 de criatura').toBe(65);
   });
 
   it('toda entrada tem modo, alvo, rodadas, ícone e ao menos um efeito', () => {

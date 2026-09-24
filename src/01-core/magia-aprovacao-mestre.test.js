@@ -96,6 +96,26 @@ describe('ler um pedido', () => {
   it('evento de teste de habilidade não vira pedido', () => {
     expect(window.pedidoDeMagiaPendente({ habilidade: 'Sentidos', sucesso: true })).toBeNull();
   });
+
+  /* Bug de 15/09/2026: a janela de magia mandava alvo_id 'self' quando o
+     jogador escolhia a si mesmo, o pedido caía nesta fila, e aplicar dava
+     "invalid input syntax for type bigint: self". O alvo agora é o id do PJ;
+     pedido com alvo que não é id NÃO entra na fila. */
+  it('alvo que não é id de personagem não vira pedido', () => {
+    const meta = { ...metaPendente(), alvo_id: 'self' };
+    expect(window.pedidoDeMagiaPendente(meta)).toBeNull();
+    expect(window.pedidoDeMagiaPendente({ ...metaPendente(), alvo_id: 'abc' })).toBeNull();
+    // Id em texto continua valendo — é o que a tela manda.
+    expect(window.pedidoDeMagiaPendente({ ...metaPendente(), alvo_id: '42' })).toMatchObject({ alvo_id: '42' });
+  });
+
+  it('a fila do Mestre ignora os pedidos com alvo self que ficaram no log', () => {
+    const linhas = [
+      { id: 1, created_at: 'a', meta: { ...metaPendente(), alvo_id: 'self' } },
+      { id: 2, created_at: 'b', meta: metaPendente() },
+    ];
+    expect(window.pedidosDeMagiaAbertos(linhas).map((p) => p.id)).toEqual([2]);
+  });
 });
 
 describe('a fila: o que ainda espera o Mestre', () => {

@@ -20,7 +20,7 @@
      • Absorção = soma da absorção das peças equipadas;
      • Defesa   = soma da defesa das peças + Agilidade;
      • Tipo     = o do peitoral (slot 'peito'); sem peitoral, Leve;
-     • Ataque   = a arma na mão (a direita primeiro);
+     • Ataque   = a primeira arma equipada (sem limite de armas desde 15/09/2026);
      • L/M/P    = dano_l/m/p da arma + o atributo de ajuste dela;
      • Dano 100% = dano da arma + Força.
    Sem arma não há ataque: as armas NATURAIS (Presas, Garras…) entram no
@@ -65,42 +65,52 @@ function tiersDeDano(d100) {
 
 /* ── EQUIPAMENTO ──────────────────────────────────────────────────────
    `criaturas.equipamento` (jsonb) é uma lista de { slug, slot }:
-     slot 'mao_d' / 'mao_e'  arma ou escudo (itens com slot_equip 'maos')
+     slot 'arma'              arma (itens do grupo Armas) — SEM LIMITE
+     slot 'escudo'            escudo (item de mão que não é arma) — um só
      slot = itens.slot_equip  peça de armadura (cabeca, peito, pernas, pes,
                               ombros, bracos) — uma por slot
-   Arma de duas mãos (maos_outras = 2) ocupa as duas mãos. */
+
+   15/09/2026 (usuário): "Para as criaturas, não haverá limitação de
+   equipamentos de ataque." Até aqui arma e escudo disputavam duas mãos
+   (mao_d/mao_e) como no personagem; criatura não tem mão — a Hydra morde com
+   todas as cabeças. Equipamento gravado antes, em mao_d/mao_e, continua
+   valendo: a ordem dos ataques é mão direita, mão esquerda, e depois as
+   armas na ordem em que foram equipadas. */
 const MAOS = ['mao_d', 'mao_e'];
+const SLOTS_DE_ARMA = ['mao_d', 'mao_e', 'arma'];
 const AJUSTE_ATRIBUTO = { FOR: 'forca', AGI: 'agilidade', PER: 'percepcao', AUR: 'aura', FIS: 'fisico', CAR: 'carisma' };
 
 function listaEquipamento(equipamento) {
   return (Array.isArray(equipamento) ? equipamento : []).filter((e) => e && e.slug);
 }
 
-function maosDaPeca(cat) {
-  return cat && Number(cat.maos_outras) === 2 ? 2 : 1;
-}
+const ehArma = (cat) => !!cat && cat.grupo === 'Armas';
+const ehEscudo = (cat) => !!cat && !ehArma(cat) && cat.slot_equip === 'maos';
 
-// Onde a peça entra: mão livre para arma/escudo, o slot próprio para armadura.
-// Devolve { slot } ou { motivo } quando não cabe.
+// Onde a peça entra. Devolve { slot } ou { motivo } quando não cabe.
 function slotParaPeca(cat, equipamento, catalogoBySlug) {
   if (!cat) return { motivo: 'item_desconhecido' };
   const lista = listaEquipamento(equipamento);
-  const naMao = cat.slot_equip === 'maos' || cat.grupo === 'Armas';
-  if (naMao) {
-    const ocupadas = new Set();
-    lista.forEach((e) => {
-      if (!MAOS.includes(e.slot)) return;
-      ocupadas.add(e.slot);
-      if (maosDaPeca(catalogoBySlug && catalogoBySlug[e.slug]) === 2) MAOS.forEach((m) => ocupadas.add(m));
-    });
-    const livres = MAOS.filter((m) => !ocupadas.has(m));
-    if (livres.length < maosDaPeca(cat)) return { motivo: 'maos_ocupadas' };
-    return { slot: livres[0] };
+  // A mesma arma duas vezes seria o mesmo ataque repetido — quase sempre um
+  // Enter a mais na busca, não intenção.
+  if (ehArma(cat)) {
+    return lista.some((e) => e.slug === cat.slug) ? { motivo: 'ja_equipada' } : { slot: 'arma' };
+  }
+  if (ehEscudo(cat)) {
+    const temEscudo = lista.some((e) => e.slot === 'escudo'
+      || (MAOS.includes(e.slot) && ehEscudo(catalogoBySlug && catalogoBySlug[e.slug])));
+    return temEscudo ? { motivo: 'slot_ocupado' } : { slot: 'escudo' };
   }
   const slot = cat.slot_equip;
   if (!slot) return { motivo: 'sem_slot' };
   if (lista.some((e) => e.slot === slot)) return { motivo: 'slot_ocupado' };
   return { slot };
+}
+
+// As armas equipadas, na ordem dos ataques: mão direita, mão esquerda (dados
+// antigos) e depois as de slot 'arma' na ordem da lista. Só vale peça com dano.
+function armasEquipadas(pecas) {
+  return SLOTS_DE_ARMA.flatMap((s) => pecas.filter((p) => p.slot === s && p.cat.dano != null));
 }
 
 /* Tudo o que o equipamento decide, de uma vez. `atributos` = { forca,
@@ -122,10 +132,8 @@ function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {})
     if (slot === 'peito' && cat.tipo_armadura) tipo = cat.tipo_armadura;
   });
 
-  // Todas as armas nas mãos, a direita primeiro. A primeira é o Ataque.
-  const armas = MAOS
-    .map((m) => pecas.find((p) => p.slot === m && p.cat.dano != null))
-    .filter(Boolean);
+  // Todas as armas equipadas. A primeira é o Ataque.
+  const armas = armasEquipadas(pecas);
   const arma = armas[0] || null;
   /* Dano 100% de CADA arma (14/09/2026): "o 'dano 100%' deve aparecer para
      todos os tipos de equipamentos de ataque que a criatura tiver". A coluna
@@ -159,7 +167,7 @@ function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {})
 }
 
 /* TODOS os ataques da criatura (14/09/2026 — ficha dos animais do PJ: "é
-   preciso montar todos os ataques"). Um por arma nas mãos, com a mesma conta
+   preciso montar todos os ataques"). Um por arma equipada, com a mesma conta
    de derivadosDoEquipamento: L/M/P = coluna da arma + atributo de ajuste;
    Dano 100% = dano da arma + Força; 75/50/25 pelos tiers. Sem arma no
    equipamento (criatura antiga), cai no ataque único das colunas gravadas. */
@@ -168,7 +176,7 @@ function ataquesDaCriatura(c, catalogoBySlug) {
   const at = { forca: x.forca, agilidade: x.agilidade, percepcao: x.percepcao, aura: x.aura, fisico: x.fisico, carisma: x.carisma };
   const cats = catalogoBySlug || {};
   const pecas = listaEquipamento(x.equipamento).map((e) => ({ ...e, cat: cats[e.slug] })).filter((e) => e.cat);
-  const armas = MAOS.map((m) => pecas.find((p) => p.slot === m && p.cat.dano != null)).filter(Boolean);
+  const armas = armasEquipadas(pecas);
   if (armas.length) {
     return armas.map(({ slug, cat }) => {
       const aj = AJUSTE_ATRIBUTO[String(cat.ajuste_atributo || '').toUpperCase()];
@@ -219,5 +227,11 @@ Object.assign(window, {
     tiersDeDano,
     MAOS, AJUSTE_ATRIBUTO, slotParaPeca, derivadosDoEquipamento, derivadosDaCriatura,
     ataquesDaCriatura,
+    /* listaEquipamento entrou no export em 17/09/2026: a seção Equipamentos da
+       ficha do bestiário precisa das peças vestidas, e não só das armas que
+       viram ataque. Era privada do módulo, e quem estava fora tinha que
+       repetir o filtro `e && e.slug` — duas leituras do mesmo jsonb, com
+       chance de discordarem sobre o que conta como peça. */
+    listaEquipamento,
   },
 });

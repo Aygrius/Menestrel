@@ -133,11 +133,12 @@ describe('as primitivas caíram nas técnicas certas', () => {
 });
 
 describe('o total do sistema', () => {
-  it('o registro cobre as 58 técnicas', () => {
+  it('o registro cobre as 65 técnicas', () => {
     // 50 ate 12/09/2026; a Fase 3 ligou 4 das 8 que estavam fora, e Combate
     // Montado e Luta as Cegas entraram no mesmo dia (56). Provocar e Conduzir
-    // Oponente fecharam a conta em 14/09/2026.
-    expect(Object.keys(MAP).length).toBe(58);
+    // Oponente fecharam a conta em 14/09/2026. As 7 de criatura (Botes,
+    // Hipnose, Prender...) entraram em 15/09/2026 — tecnicas-criaturas-motor.test.js.
+    expect(Object.keys(MAP).length).toBe(65);
   });
 });
 

@@ -28,6 +28,23 @@ function calcDiaSemanaFantasy(ano, mes, dia) {
   return FANTASY_WEEKDAYS[(total + 3) % 7];
 }
 
+/* ── Feriado de uma data ───────────────────────────────────────────
+   Devolve o nome da data comemorativa, ou null em dia comum. A tabela é
+   FERIADOS (constants.jsx) — lore fixa do mundo, a mesma em qualquer mesa.
+
+   Só dia e mês entram na conta: feriado repete todo ano. E a validação é
+   estrita de propósito — a data vem de um jsonb do banco, e a barra do topo
+   chama isto a cada render, então uma data pela metade tem que devolver null
+   em vez de derrubar o console. */
+function feriadoDe(mes, dia, en) {
+  if (!Number.isInteger(mes) || !Number.isInteger(dia)) return null;
+  const m = FANTASY_MONTHS[mes - 1];
+  if (!m || dia < 1 || dia > m.dias) return null;
+  const f = FERIADOS[mes + '-' + dia];
+  if (!f) return null;
+  return en ? f.en : f.pt;
+}
+
 /* ── Somar dias no calendário fantasy ──────────────────────────────
    O ano tem 361 dias: 12 meses de 30 mais o Dia de Cruine, que é o mês 13 com
    um dia só. Contar "3 dias a partir de hoje" na mão erra o Cruine, então a
@@ -205,13 +222,23 @@ function useTooltip(delay = 80) {
 //   • string simples → só título
 //   • { title, desc, stats, hint } → layout rico
 //     stats = [{ label, value }]
-function Tooltip({ tip, onEnter, onLeave }) {
+/* `abaixo` (20/09/2026): abre o balão PARA BAIXO da âncora, em vez de para
+   cima. Serve a quem tem o botão colado na borda de cima de um card — o balão
+   subindo cobre a própria borda do card, e foi assim que o filete de gradiente
+   do card de histórias "sumia" no hover (cinco relatos até a causa aparecer).
+
+   Não é um flip novo: reusa o `data-tip-flip="below"` que o CSS já desenha,
+   com seta para cima e tudo, e que o TooltipFlipGuard da ficha aplica sozinho
+   quando o balão sairia pelo topo da viewport. A diferença é que aqui a
+   decisão é FIXA, não medida — o botão está sempre no alto do card. */
+function Tooltip({ tip, onEnter, onLeave, abaixo = false }) {
   if (!tip) return null;
   const { x, y, content } = tip;
   const rich = content && typeof content === 'object' && !React.isValidElement(content);
   return (
     <div
       className="mn-tip"
+      data-tip-flip={abaixo ? 'below' : undefined}
       style={{ position: 'fixed', left: x, top: y }}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -258,7 +285,7 @@ function propsTip(abrirTip, fecharTip, content) {
   return { onMouseEnter: abrir, onMouseLeave: fecharTip, onFocus: abrir, onBlur: fecharTip };
 }
 
-Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, propsTip, Carregando,
+Object.assign(window, { calcDiaSemanaFantasy, feriadoDe, useTweaks, useTooltip, Tooltip, propsTip, Carregando,
   somarDiasFantasy, dataFantasyParaAbsoluto, absolutoParaDataFantasy, formatarDataFantasy,
   FANTASY_DIAS_ANO });
 
@@ -295,3 +322,56 @@ function corCondicao(val) {
 }
 
 Object.assign(window, { corCondicao, COND_LIMITE });
+/* ============================================================
+   QuantidadeStepper — O seletor de quantidade do sistema
+   ============================================================
+   "O seletor de quantidade padrão do nosso sistema é o que está sendo usado na
+    hora de clicar em uma barra de ef, eh, etc. Por isso, onde houver seletor de
+    quantidade, use esse design. Seja para selecionar quantidade de itens,
+    status, loja." (usuário, 17/09/2026)
+
+   Havia CINCO desenhos diferentes para a mesma pergunta — "quantos?":
+
+     1. .fp-pop-stepper, do BarEditPopover (11-ficha) — este, o eleito;
+     2. .qty-stepper-pill, do QuantityStepper (12-batalha), copiado tal e qual
+        em 13-diario — quase igual ao primeiro, com borda e 8px mais baixo;
+     3. um pill de estilo inline dentro do modal de quantidade do inventário,
+        com uma fileira de chips de atalho por baixo;
+     4. a loja, que não era stepper: dois botões com uma BARRA arrastável no
+        meio, como um controle de volume;
+     5. o modal de status, que era um <input type="number"> nu.
+
+   Cinco perguntas iguais com cinco respostas diferentes. Agora é um componente
+   só, aqui na fase 01 — que carrega antes de todas as outras, então ninguém
+   precisa copiá-lo de novo para usá-lo.
+
+   `centro` permite o texto do meio: a ficha mostra "12 / 18", o inventário
+   "3 de 5", o modal de status só o número. Quando não vem, mostra o valor.
+   ============================================================ */
+function QuantidadeStepper({
+  value, onChange, min = 0, max = Infinity, step = 1,
+  centro, disabled, label, className,
+}) {
+  const v = Number(value) || 0;
+  const podeDec = !disabled && v > min;
+  const podeInc = !disabled && v < max;
+  const ir = (alvo) => onChange(Math.max(min, Math.min(max, alvo)));
+  return (
+    <div className={'fp-pop-stepper' + (className ? ' ' + className : '')}
+      role="group" aria-label={label || undefined}>
+      <button type="button" className="fp-step-btn" disabled={!podeDec}
+        /* onMouseDown/preventDefault: sem isto o clique tira o foco do campo
+           que abriu o stepper e alguns popovers se fechavam sozinhos. */
+        onMouseDown={(e) => e.preventDefault()} onClick={() => ir(v - step)} aria-label="-">
+        <i className="ti ti-minus" aria-hidden="true" />
+      </button>
+      <span className="fp-pop-stepper-label">{centro == null ? v : centro}</span>
+      <button type="button" className="fp-step-btn" disabled={!podeInc}
+        onMouseDown={(e) => e.preventDefault()} onClick={() => ir(v + step)} aria-label="+">
+        <i className="ti ti-plus" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+Object.assign(window, { QuantidadeStepper });

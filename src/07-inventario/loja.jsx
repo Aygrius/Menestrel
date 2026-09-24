@@ -188,8 +188,7 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
     return () => window.removeEventListener('keydown', onKey);
   }, [qtd, recipienteId, desabilitado, exigeRecip, onConfirm]);
 
-  const dec = () => setQtd((q) => Math.max(1, q - 1));
-  const inc = () => setQtd((q) => Math.min(maxByStock, q + 1));
+  // dec/inc saíram com a barra: quem move o número agora é o QuantidadeStepper.
 
   // Faixa de stats: só o que se aplica ao item (máx. 4).
   const stats = [];
@@ -223,41 +222,29 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
 
           {(cat.descricao || cat.efeito) && <hr className="det-sec-divider" />}
 
+          {/* A LOJA NÃO TINHA STEPPER (17/09/2026): tinha dois botões com uma
+              BARRA arrastável no meio, como um controle de volume — o quarto
+              desenho diferente para a mesma pergunta. "Onde houver seletor de
+              quantidade, use esse design": o do BarEditPopover, que virou o
+              QuantidadeStepper de 01-core/helpers.jsx.
+
+              Com a barra some o `role="slider"` e o clique proporcional. O
+              teto continua dito em palavras ao lado do número — inclusive o ∞
+              de estoque ilimitado, que a barra não sabia desenhar (ela ficava
+              com a classe is-infinito e vazia). */}
           <div className="loja-qtd-row">
             <span className="loja-qtd-lbl">{en ? 'Quantity' : 'Quantidade'}</span>
-            <span className="loja-qtd-val-lbl">
-              {qtd} <span className="loja-qtd-max">{en ? 'of' : 'de'} {stockNull ? '∞' : maxByStock}</span>
-            </span>
           </div>
-          <div className="loja-qtd-ctrl">
-            <button type="button" className="btn-icon btn-sm" onClick={dec} disabled={qtd <= 1} aria-label="−">−</button>
-            <div
-              className={'loja-qtd-bar fp-bar-track' + (stockNull ? ' is-infinito' : '')}
-              role="slider"
-              aria-label={en ? 'Quantity' : 'Quantidade'}
-              aria-valuemin={1}
-              aria-valuemax={stockNull ? undefined : maxByStock}
-              aria-valuenow={qtd}
-              tabIndex={stockNull ? -1 : 0}
-              style={{ '--bar-c': '#C9A44E' }}
-              onClick={(e) => {
-                if (stockNull) return;
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-                const v = Math.round(1 + pct * (maxByStock - 1));
-                setQtd(Math.max(1, Math.min(maxByStock, v)));
-              }}
-              onKeyDown={(e) => {
-                if (stockNull) return;
-                if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); inc(); }
-                if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); dec(); }
-              }}>
-              {!stockNull && (
-                <div className="loja-qtd-bar-fill fp-bar-fill" aria-hidden="true" style={{ width: `${maxByStock > 1 ? ((qtd - 1) / (maxByStock - 1)) * 100 : 100}%` }} />
-              )}
-            </div>
-            <button type="button" className="btn-icon btn-sm" onClick={inc} disabled={qtd >= maxByStock} aria-label="+">+</button>
-          </div>
+          <QuantidadeStepper
+            value={qtd}
+            min={1}
+            max={stockNull ? undefined : maxByStock}
+            onChange={setQtd}
+            /* Estoque ilimitado não tem teto para dizer, e "de ∞" era só um
+               símbolo ocupando lugar: fica o número escolhido, sozinho. */
+            centro={stockNull ? qtd : <>{qtd} <span className="qtd-de-max">{en ? 'of' : 'de'} {maxByStock}</span></>}
+            label={en ? 'Quantity' : 'Quantidade'}
+          />
 
           {exigeRecip && !semRecipienteCompat && (
             <div className="loja-recips">
@@ -390,6 +377,52 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
   };
 
   useEffect(() => { recarregarLoja(selectedId); }, [selectedId]);
+
+  /* ── Loja fechada enquanto o Mestre edita (15/09/2026) ──────────────
+     "Enquanto o mestre estiver editando a loja, ela automaticamente fecha e
+     bloqueia para compra dos jogadores para impedir erros."
+
+     A marca é `estoque_loja.editando_em` (ver lojaEmEdicao, 01-core). Lê uma
+     vez, acompanha por realtime — `historias` já está na publicação — e ainda
+     reavalia de tempos em tempos, porque o cadeado vence pelo relógio quando a
+     tela do Mestre morre sem avisar. */
+  const [marcaEdicao, setMarcaEdicao] = useState(null);
+  const [tickEdicao, setTickEdicao] = useState(0);
+  const historiaDaLoja = loja && loja.ok ? loja.historia_id : null;
+  useEffect(() => {
+    if (!historiaDaLoja) { setMarcaEdicao(null); return undefined; }
+    let vivo = true;
+    const marcaDe = (linha) => (linha && linha.estoque_loja && !Array.isArray(linha.estoque_loja)
+      ? (linha.estoque_loja.editando_em || null) : null);
+    (async () => {
+      const { data } = await supabaseClient
+        .from('historias').select('estoque_loja').eq('id', historiaDaLoja).maybeSingle();
+      if (vivo) setMarcaEdicao(marcaDe(data));
+    })();
+    const canal = (typeof supabaseClient.channel === 'function')
+      ? supabaseClient
+        .channel('loja_edicao_' + historiaDaLoja)
+        .on('postgres_changes', {
+          event: 'UPDATE', schema: 'public', table: 'historias', filter: 'id=eq.' + historiaDaLoja,
+        }, (payload) => {
+          if (!vivo) return;
+          setMarcaEdicao(marcaDe(payload && payload.new));
+          recarregarLoja(selectedId);   // o Mestre acabou de mexer no estoque
+        })
+        .subscribe()
+      : null;
+    const relogio = setInterval(() => setTickEdicao((n) => n + 1), 30000);
+    return () => {
+      vivo = false;
+      clearInterval(relogio);
+      if (canal) supabaseClient.removeChannel(canal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historiaDaLoja]);
+  const lojaEmManutencao = useMemo(
+    () => lojaEmEdicao({ editando_em: marcaEdicao }),
+    [marcaEdicao, tickEdicao]
+  );
 
   const recarregarPj = async (pjId) => {
     const { data } = await supabaseClient
@@ -579,6 +612,14 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
 
       {loja === null ? (
         <Carregando lang={lang} />
+      ) : lojaEmManutencao ? (
+        /* Fechada: nem lista, nem botão de comprar (15/09/2026). */
+        <div className="loja-warn-empty loja-warn-edicao">
+          <i className="ti ti-lock" aria-hidden="true" />
+          <span>{en
+            ? 'The shop is closed: the Game Master is updating it.'
+            : 'A loja está fechada: o Mestre está atualizando o estoque.'}</span>
+        </div>
       ) : (semHistoria || estoqueLoja.length === 0) ? (
         <div className="loja-warn-empty">
           <span>{en

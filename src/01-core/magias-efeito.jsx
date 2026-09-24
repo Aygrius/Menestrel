@@ -512,6 +512,12 @@ function pedidoDeMagiaPendente(meta) {
   if (!meta || typeof meta !== 'object') return null;
   if (!meta.pendente) return null;
   if (meta.alvo_id == null || !meta.magia_key) return null;
+  /* Alvo tem que ser o ID de um personagem. Até 15/09/2026 a evocação no
+     PRÓPRIO PJ gravava alvo_id: 'self' e caía nesta fila; o Mestre clicava em
+     aplicar e o banco respondia "invalid input syntax for type bigint". Um
+     pedido assim não tem como ser atendido — some da fila em vez de ficar lá
+     dando erro. */
+  if (!/^\d+$/.test(String(meta.alvo_id))) return null;
   return {
     magia_key: meta.magia_key,
     magia: meta.magia || meta.magia_key,

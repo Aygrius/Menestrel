@@ -55,10 +55,13 @@ describe('fica quieto quando texto e motor concordam', () => {
     expect(container.querySelector('.best-painel-botao.com-problema')).toBeNull();
   });
 
-  it('a janela diz quantas estão em acordo', () => {
-    montar([MIRA_OK]);
+  /* "Remova o texto ... e '58 em acordo com o motor · 7 fora do motor'"
+     (usuário, 15/09/2026). */
+  it('a janela não traz mais o resumo "em acordo · fora do motor"', () => {
+    montar([MIRA_OK, DESCONHECIDA]);
     fireEvent.click(cabecalho());
-    expect(screen.getByText(/1 em acordo com o motor/)).toBeTruthy();
+    expect(screen.queryByText(/em acordo com o motor/)).toBeNull();
+    expect(screen.queryByText(/\d+ fora do motor/)).toBeNull();
   });
 });
 
@@ -163,15 +166,15 @@ describe('as que estão fora do motor vêm com o MOTIVO', () => {
   });
 });
 
-describe('a ajuda diz a regra INVERTIDA das técnicas', () => {
-  /* O guia de manutenção ensina "número muda sozinho" para magias. Se o
-     painel das técnicas não contradisser isso explicitamente, o Mestre edita
-     "por 5 rodadas" e acha que mudou o jogo. */
-  it('diz que o número mora no código', () => {
+describe('a ajuda', () => {
+  /* Até 15/09/2026 a janela avisava "AO CONTRÁRIO das magias: o número da
+     técnica mora no CÓDIGO…". O usuário pediu para remover: técnica nova
+     entra no motor. A divergência continua apontada item a item. */
+  it('não traz mais o aviso de que o número mora no código', () => {
     montar([MIRA_OK]);
     fireEvent.click(cabecalho());
-    expect(screen.getByText(/mora no CÓDIGO/)).toBeTruthy();
-    expect(screen.getByText(/AO CONTRÁRIO das magias/)).toBeTruthy();
+    expect(screen.queryByText(/mora no CÓDIGO/)).toBeNull();
+    expect(screen.queryByText(/AO CONTRÁRIO das magias/)).toBeNull();
   });
 
   it('e mostra qual motor está carregado neste navegador', () => {

@@ -27,7 +27,7 @@
 
 
 /* ============================== [23] HistoriasList — Mestre cria/lista suas histórias ============================== */
-function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovaHistoriaRef, onDentroDeMenu }) {
+function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovaHistoriaRef, onDentroDeMenu, onEntrarMesa = null }) {
   const th = t.historias;
   const { data: histData, isLoading: histLoading, error: histError, refetch } =
     window.useHistoriasData(currentUserId);
@@ -41,7 +41,6 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
   const [excluindo, setExcluindo] = useState(null);     // história alvo do confirm de delete ou null
   const [deleteError, setDeleteError] = useState(null);
   const [lojaAberta, setLojaAberta] = useState(null);  // história com loja aberta como página
-  const [gerenciandoLore, setGerenciandoLore] = useState(null); // história sendo gerenciada no diário/lore
   const [gerenciandoConvites, setGerenciandoConvites] = useState(null); // história gerenciando convites
   const [batalhando, setBatalhando] = useState(null); // história com console de batalha aberto
 
@@ -51,7 +50,7 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
   // inicial — dentro de um menu interno da aventura eles desapareceriam, daí
   // não há mais risco de o pill mostrar uma mesa e o conteúdo abaixo mostrar
   // outra.
-  const dentroDeMenu = !!(lojaAberta || gerenciandoLore || batalhando || gerenciandoConvites);
+  const dentroDeMenu = !!(lojaAberta || batalhando || gerenciandoConvites);
   useEffect(() => {
     if (onDentroDeMenu) onDentroDeMenu(dentroDeMenu);
   }, [dentroDeMenu, onDentroDeMenu]);
@@ -124,18 +123,6 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
     );
   }
 
-  // ── View de página: lore aberta substitui a lista inteira (mesmo padrão da loja)
-  if (gerenciandoLore) {
-    return (
-      <GerenciarLoreView
-        historia={gerenciandoLore}
-        lang={lang}
-        onClose={() => setGerenciandoLore(null)}
-        onChanged={() => refetch()}
-      />
-    );
-  }
-
   // ── View de página: console de batalha substitui a lista inteira (mesmo padrão da loja)
   if (batalhando) {
     return (
@@ -189,10 +176,15 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
               onEdit={() => setEditando(h)}
               onDelete={() => setExcluindo(h)}
               onManageLoja={() => setLojaAberta(h)}
-              onManageLore={() => setGerenciandoLore(h)}
               onManageConvites={() => setGerenciandoConvites(h)}
               onBatalhas={() => setBatalhando(h)}
               onTogglePausar={() => togglePausar(h)}
+              /* ENTRAR NA MESA (20/09/2026). Com o dropdown do topo removido,
+                 o card É o seletor: clicar nele é o gesto que antes era
+                 escolher na lista. Só faz sentido quando a lista mostra mais
+                 de uma — estando dentro de uma mesa, a lista já está filtrada
+                 nela, e um clique que não leva a lugar nenhum engana. */
+              onEntrar={!mesaAtivaId && onEntrarMesa ? () => onEntrarMesa(h.id) : null}
             />
           ))}
         </div>
@@ -238,7 +230,7 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
   );
 }
 
-function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja, onManageLore, onManageConvites, onBatalhas, onTogglePausar }) {
+function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja, onManageConvites, onBatalhas, onTogglePausar, onEntrar = null }) {
   const th = t.historias;
   const protags = (h.protagonista_ids || [])
     .map((id) => personagens.find((x) => x.id === id))
@@ -257,12 +249,48 @@ function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja,
   // Antes era só um useState local (nunca persistia, resetava a cada render).
   // Agora vem direto da coluna historias.pausada — refetch() no toggle mantém sincronizado.
   const pausada = !!h.pausada;
+  /* O WRAPPER EXISTE PELO FILETE (20/09/2026). O card sobe 3px no hover, mas a
+     elevação não pode morar no próprio .hist-card: ele tem `backdrop-filter`,
+     e um elemento que combina backdrop-filter com transform perde o ::before
+     de 2px do topo — o filete de gradiente some justamente enquanto o mouse
+     está em cima. É a mesma razão pela qual o card de personagem eleva pelo
+     .pj-card-wrap e não por si mesmo. */
+  /* O clique que ENTRA na mesa é o do card inteiro, mas ele não pode roubar os
+     botões de dentro (Loja, Convites, Batalhas, editar, excluir). `closest` no
+     alvo resolve: veio de dentro de um botão, o card não se mete. É mais
+     robusto que stopPropagation em cada botão — um botão novo entra na regra
+     sozinho, sem ninguém lembrar de blindá-lo. */
+  const aoClicarNoCard = onEntrar
+    ? (e) => { if (!e.target.closest('button')) onEntrar(); }
+    : undefined;
+
   return (
+    <>
+    <div
+      className={'hist-card-wrap' + (onEntrar ? ' is-entravel' : '')}
+      onClick={aoClicarNoCard}
+      role={onEntrar ? 'button' : undefined}
+      tabIndex={onEntrar ? 0 : undefined}
+      onKeyDown={onEntrar ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEntrar(); } } : undefined}
+      aria-label={onEntrar ? (lang === 'en' ? `Open table ${h.titulo}` : `Entrar na mesa ${h.titulo}`) : undefined}
+    >
     <article className="hist-card">
       <header className="hist-card-head">
 
-        {/* Botões de contexto (esquerda) */}
-        {(onBatalhas || onManageConvites || onManageLore || onManageLoja) && (
+        {/* Botões de contexto (esquerda).
+
+            O "Lore" (ícone de livro) saiu daqui em 17/09/2026, a pedido do
+            usuário. Ele abria o GerenciarLoreView como página sobre a lista, e
+            ficou redundante no mesmo dia em que o Mestre ganhou as seções
+            Lugares e NPCs na própria barra lateral: é a MESMA tela, travada
+            num tipo e lendo a mesa ativa, a um clique em vez de três.
+
+            A terceira aba daquela tela — Criatura, que disponibilizava
+            criatura pra história — não tinha equivalente no menu lateral, e
+            por isso não foi só uma remoção: a função virou o botão de olho da
+            tabela de Criaturas (09-bestiario/bestiario.jsx). Ver
+            lore-fora-do-card.test.jsx. */}
+        {(onBatalhas || onManageConvites || onManageLoja) && (
           <div className="hist-card-actions">
             {onBatalhas && (
               <button className="btn-icon btn-sm" onClick={onBatalhas} aria-label={th.card.batalhas}
@@ -276,12 +304,6 @@ function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja,
                 <i className="ti ti-mail" />
               </button>
             )}
-            {onManageLore && (
-              <button className="btn-icon btn-sm" onClick={onManageLore} aria-label={th.card.lore}
-                onMouseEnter={(e) => abrirTip(e, th.card.loreTip)} onMouseLeave={fecharTip}>
-                <i className="ti ti-book" />
-              </button>
-            )}
             {onManageLoja && (
               <button className="btn-icon btn-sm" onClick={onManageLoja} aria-label={th.card.loja}
                 onMouseEnter={(e) => abrirTip(e, interpolate(th.card.lojaTip, { qtd: qtdLoja }))} onMouseLeave={fecharTip}>
@@ -293,14 +315,10 @@ function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja,
 
         {/* Título + protagonistas em linha (sem data, sem eyebrow) */}
         <div className="hist-card-head-main">
-          <div className="hist-title">
-            {h.titulo}
-            {pausada && (
-              <span className="hist-pausada-badge">
-                {en ? 'Paused' : 'Pausada'}
-              </span>
-            )}
-          </div>
+          {/* Sem o selo "Pausada" (20/09/2026, pedido do usuário). O estado
+              não some da tela: o botão de ação ao lado já alterna entre pausar
+              e iniciar, com o ícone e o tooltip dizendo qual é qual. */}
+          <div className="hist-title">{h.titulo}</div>
           {protags.length > 0 && (
             <div className="hist-card-protags">
               {protags.join(' · ')}
@@ -337,12 +355,26 @@ function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja,
                 <i className="ti ti-trash" />
               </button>
             )}
-            <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
           </div>
         )}
 
       </header>
     </article>
+    </div>
+    {/* O BALÃO FICA FORA DO WRAPPER (20/09/2026), e isto é obrigatório, não
+        arrumação: o .hist-card-wrap ganhou `transform` para subir 3px no
+        hover, e transform cria BLOCO DE CONTENÇÃO para descendentes
+        `position: fixed`. O .mn-tip é fixed com coordenadas de viewport
+        (getBoundingClientRect), então dentro do wrapper ele passava a medir a
+        partir do canto do card e aterrissava em cima dele — tapando o filete
+        de 2px do topo, que foi reportado quatro vezes como "o card perde a
+        borda colorida no hover".
+
+        Mesma armadilha que o .pj-card-wrap documenta desde 17/09/2026. Aqui
+        basta ser IRMÃO do wrapper: o .hist-grid que o contém não tem
+        transform nenhum, então o fixed volta a medir pelo viewport. */}
+    <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} abaixo />
+    </>
   );
 }
 
@@ -421,8 +453,10 @@ const LOJA_CHIP_ICON = {
   Diario:        'ti-notebook',
   Instrumentos:  'ti-music',
   Itens:         'ti-box',
-  Minerais:      'ti-gem',
-  Moedas:        'ti-coin',
+  // ti-gem NÃO existe no Tabler v3 — o chip de Minerais saía vazio (15/09/2026).
+  // Mesma escolha do bestiário (CHIP_ICON, 09-bestiario/bestiario.jsx).
+  Minerais:      'ti-diamond',
+  Moedas:        'ti-coins',
   Propriedades:  'ti-home',
   Recipientes:   'ti-bucket',
   'Serviços':    'ti-tools',
@@ -675,7 +709,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
   }, [comercioSelId]);
 
   const PAGE_SIZE_ESTOQUE = 7;
-  const PAGE_SIZE_CAT     = 7;
+  const PAGE_SIZE_CAT     = 10;   // 15/09/2026, a pedido do usuário
 
   const catalogoBySlug = useMemo(() => {
     const map = {};
@@ -707,7 +741,10 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
 
   const {
     sorted: catalogoSorted, sortKey: sortKeyCat, sortDir: sortDirCat, toggleSort: toggleSortCat,
-  } = useLojaSort(catalogo, { nome: (it) => it.nome, preco: (it) => it.valor_latao ?? 0 });
+  } = useLojaSort(catalogo, {
+    nome: (it) => it.nome, grupo: (it) => it.grupo || '',
+    valor: (it) => it.valor_latao ?? 0, preco: (it) => it.valor_latao ?? 0,
+  });
 
   const normalize = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const termos = useMemo(() => normalize(busca).split(/\s+/).filter(Boolean), [busca]);
@@ -822,25 +859,60 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     setConfirmRemoverComercio(null);
   };
 
-  const salvar = async () => {
+  /* ── Salvar sozinho, e fechar a loja enquanto edita (15/09/2026) ──
+     "Ao adicionar um item, salvar automaticamente. Remover botão de salvar."
+     e "Enquanto o mestre estiver editando a loja, ela automaticamente fecha e
+     bloqueia para compra dos jogadores para impedir erros."
+
+     Toda mudança em lojaData (item, comércio, renomear, mostrar/ocultar) cai
+     no debounce abaixo. Junto vai `editando_em`, o carimbo que fecha a loja
+     para os jogadores; um intervalo o renova enquanto a tela está aberta, e a
+     saída o apaga. Sem renovação ele expira sozinho (LOJA_EDICAO_TTL_MS), para
+     uma aba fechada no tapa não deixar a loja trancada. */
+  const gravarLoja = React.useCallback(async (dados, editando) => {
     setSaving(true);
     setError(null);
+    const payload = { ...dados, editando_em: editando ? new Date().toISOString() : null };
     const { error } = await supabaseClient
       .from('historias')
-      .update({ estoque_loja: lojaData })
+      .update({ estoque_loja: payload })
       .eq('id', historia.id);
     setSaving(false);
     if (error) {
       console.error('[loja] save falhou:', error);
       setError(error.message);
-    } else {
-      onSaved();
+      return false;
     }
-  };
+    return true;
+  }, [historia.id]);
+
+  // Cópia viva para o heartbeat e para a saída (que rodam fora do render).
+  const lojaDataRef = useRef(lojaData);
+  useEffect(() => { lojaDataRef.current = lojaData; }, [lojaData]);
+
+  const primeiroSalvamento = useRef(true);
+  useEffect(() => {
+    if (primeiroSalvamento.current) { primeiroSalvamento.current = false; return undefined; }
+    const id = setTimeout(() => { gravarLoja(lojaData, true); }, 400);
+    return () => clearTimeout(id);
+  }, [lojaData, gravarLoja]);
+
+  // Cadeado: carimba ao entrar, renova enquanto edita, solta ao sair.
+  useEffect(() => {
+    gravarLoja(lojaDataRef.current, true);
+    const id = setInterval(() => { gravarLoja(lojaDataRef.current, true); }, Math.floor(LOJA_EDICAO_TTL_MS / 3));
+    return () => {
+      clearInterval(id);
+      supabaseClient.from('historias')
+        .update({ estoque_loja: { ...lojaDataRef.current, editando_em: null } })
+        .eq('id', historia.id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historia.id]);
 
   if (!Table) {
     return (
-      <div className="loja-mng-v3-page">
+      <div className="fp-page"><div className="fp-card loja-mng-v3-page">
         <div className="fp-card-top">
           <header className="ms-header loja-mng-v3-page-header">
             <button type="button" className="btn-icon btn-sm" onClick={onClose} aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
@@ -852,18 +924,24 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
         <div className="loja-mng-v3-fallback">
           Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.
         </div>
-      </div>
+      </div></div>
     );
   }
 
+  /* Mesmo invólucro das outras páginas do Mestre (fp-page > fp-card), como o
+     GerenciarLoreView — sem ele a loja ficava sem a moldura do card e o
+     cabeçalho parecia de outro sistema (15/09/2026). */
   return (
-    <div className="loja-mng-v3-page">
+    <div className="fp-page">
+    <div className="fp-card loja-mng-v3-page">
       <div className="fp-card-top">
         <header className="ms-header loja-mng-v3-page-header">
           <button
             type="button"
             className="btn-icon btn-sm"
-            onClick={onClose}
+            /* Sai E recarrega a lista: com o autosave não há mais botão de
+               salvar, e voltar não pode deixar o menu com dados velhos. */
+            onClick={() => (onSaved ? onSaved() : onClose())}
             aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
             <i className="ti ti-arrow-left" />
           </button>
@@ -874,78 +952,69 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
             </div>
             <h2 className="ms-title">{tl.shop}</h2>
           </div>
+          {/* O botão Salvar saiu em 15/09/2026: tudo grava sozinho. Fica só o
+              aviso de que a gravação está em curso. */}
+          <span className="loja-mng-v4-salvando" aria-live="polite">{saving ? tl.saving : ''}</span>
           <button
             type="button"
-            className="btn-primary btn-sm"
-            onClick={salvar}
-            disabled={saving}>
-            {saving ? tl.saving : tl.save}
+            className="btn-icon btn-sm"
+            {...propsTip(abrirTip, fecharTip, en ? 'New commerce' : 'Novo comércio')}
+            aria-label={en ? 'New commerce' : 'Novo comércio'}
+            onClick={() => { setNomeComercioInput(''); setModalComercio('criar'); }}>
+            <i className="ti ti-plus" aria-hidden="true" />
           </button>
         </header>
       </div>
 
-      {/* Modal de criar/renomear comércio */}
+      {/* Modais no ModalShell (15/09/2026): eram markup próprio
+          (loja-comercio-modal), com cara diferente do resto do sistema. */}
         {modalComercio && (
-          <div className="loja-comercio-modal-backdrop" onClick={() => { setModalComercio(null); setNomeComercioInput(''); }}>
-            <div className="loja-comercio-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="loja-comercio-modal-title">
-                {modalComercio === 'criar'
-                  ? (en ? 'New commerce' : 'Novo comércio')
-                  : (en ? 'Rename commerce' : 'Renomear comércio')}
-              </div>
-              <input
-                className="loja-comercio-modal-input"
-                type="text"
-                autoFocus
-                placeholder={en ? 'e.g. Tavern of Saravossa' : 'ex: Taverna de Saravossa'}
-                value={nomeComercioInput}
-                onChange={(e) => setNomeComercioInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') modalComercio === 'criar' ? criarComercio() : renomearComercio();
-                  if (e.key === 'Escape') { setModalComercio(null); setNomeComercioInput(''); }
-                }}
-                maxLength={60}
-              />
-              <div className="loja-comercio-modal-actions">
-                <button type="button" className="btn-ghost btn-sm" onClick={() => { setModalComercio(null); setNomeComercioInput(''); }}>
-                  {en ? 'Cancel' : 'Cancelar'}
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary btn-sm"
-                  disabled={!nomeComercioInput.trim()}
-                  onClick={modalComercio === 'criar' ? criarComercio : renomearComercio}>
-                  {modalComercio === 'criar' ? (en ? 'Create' : 'Criar') : (en ? 'Rename' : 'Renomear')}
-                </button>
-              </div>
-            </div>
-          </div>
+          <ModalShell
+            title={modalComercio === 'criar'
+              ? (en ? 'New commerce' : 'Novo comércio')
+              : (en ? 'Rename commerce' : 'Renomear comércio')}
+            lang={lang}
+            size="sm"
+            onClose={() => { setModalComercio(null); setNomeComercioInput(''); }}
+            onCancel={() => { setModalComercio(null); setNomeComercioInput(''); }}
+            onConfirm={modalComercio === 'criar' ? criarComercio : renomearComercio}
+            confirmLabel={modalComercio === 'criar' ? (en ? 'Create' : 'Criar') : (en ? 'Rename' : 'Renomear')}
+            confirmDisabled={!nomeComercioInput.trim()}>
+            <label className="diario-field-label" htmlFor="loja-nome-comercio">
+              {en ? 'Name' : 'Nome'}
+            </label>
+            <input
+              id="loja-nome-comercio"
+              className="diario-input"
+              type="text"
+              autoFocus
+              placeholder={en ? 'e.g. Tavern of Saravossa' : 'ex: Taverna de Saravossa'}
+              value={nomeComercioInput}
+              onChange={(e) => setNomeComercioInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { modalComercio === 'criar' ? criarComercio() : renomearComercio(); } }}
+              maxLength={60}
+            />
+          </ModalShell>
         )}
 
-        {/* Modal de confirmação de remoção */}
+        {/* Confirmação de exclusão do comércio */}
         {confirmRemoverComercio && (() => {
           const c = lojaData.comercios.find((x) => x.id === confirmRemoverComercio);
           return (
-            <div className="loja-comercio-modal-backdrop" onClick={() => setConfirmRemoverComercio(null)}>
-              <div className="loja-comercio-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="loja-comercio-modal-title" style={{ color: '#E57373' }}>
-                  {en ? 'Remove commerce?' : 'Remover comércio?'}
-                </div>
-                <p className="loja-comercio-modal-desc">
-                  {en
-                    ? `"${c?.nome}" and all its items will be permanently removed.`
-                    : `"${c?.nome}" e todos os seus itens serão removidos permanentemente.`}
-                </p>
-                <div className="loja-comercio-modal-actions">
-                  <button type="button" className="btn-ghost btn-sm" onClick={() => setConfirmRemoverComercio(null)}>
-                    {en ? 'Cancel' : 'Cancelar'}
-                  </button>
-                  <button type="button" className="btn-danger btn-sm" onClick={() => removerComercio(confirmRemoverComercio)}>
-                    {en ? 'Remove' : 'Remover'}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ModalShell
+              title={en ? 'Delete commerce?' : 'Excluir comércio?'}
+              lang={lang}
+              size="sm"
+              onClose={() => setConfirmRemoverComercio(null)}
+              onCancel={() => setConfirmRemoverComercio(null)}
+              onConfirm={() => removerComercio(confirmRemoverComercio)}
+              confirmLabel={en ? 'Delete' : 'Excluir'}>
+              <p className="subhead">
+                {en
+                  ? `"${c?.nome}" and all its items will be permanently removed.`
+                  : `"${c?.nome}" e todos os seus itens serão removidos permanentemente.`}
+              </p>
+            </ModalShell>
           );
         })()}
 
@@ -957,21 +1026,8 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
 
               {/* ══════ SIDEBAR — lista de comércios ══════ */}
               <aside className="loja-mng-v4-sidebar">
-                <div className="loja-mng-v4-sidebar-header">
-                  <span className="loja-mng-v4-sidebar-title">
-                    <i className="ti ti-store" aria-hidden="true" />
-                    {en ? 'Commerces' : 'Comércios'}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn-icon btn-sm"
-                    {...propsTip(abrirTip, fecharTip, en ? 'New commerce' : 'Novo comércio')}
-                    aria-label={en ? 'New commerce' : 'Novo comércio'}
-                    onClick={() => { setNomeComercioInput(''); setModalComercio('criar'); }}>
-                    <i className="ti ti-plus" aria-hidden="true" />
-                  </button>
-                </div>
-
+                {/* O título "Comércios" e o + saíram daqui em 15/09/2026: o +
+                    agora mora na linha do título da página, à direita. */}
                 {lojaData.comercios.length === 0 ? (
                   <div className="loja-mng-v4-sidebar-empty">
                     <i className="ti ti-store-off" aria-hidden="true" />
@@ -999,35 +1055,11 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                         <span className="loja-mng-v4-sidebar-nome">{c.nome}</span>
                         <span className="loja-mng-v4-sidebar-count">{c.itens.length}</span>
 
-                        {/* Ações: toggle + renomear + remover — visíveis no hover */}
-                        <span className="loja-mng-v4-sidebar-actions" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className={'btn-icon btn-sm loja-mng-v4-toggle-btn' + (c.ativo ? ' is-ativo' : '')}
-                            {...propsTip(abrirTip, fecharTip, c.ativo
-                              ? (en ? 'Hide from players' : 'Ocultar dos jogadores')
-                              : (en ? 'Show to players' : 'Mostrar para jogadores'))}
-                            aria-label={c.ativo ? (en ? 'Disable' : 'Desabilitar') : (en ? 'Enable' : 'Habilitar')}
-                            onClick={() => toggleAtivo(c.id)}>
-                            <i className={'ti ' + (c.ativo ? 'ti-eye' : 'ti-eye-off')} aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-icon btn-sm"
-                            {...propsTip(abrirTip, fecharTip, en ? 'Rename' : 'Renomear')}
-                            aria-label={en ? 'Rename' : 'Renomear'}
-                            onClick={() => { setNomeComercioInput(c.nome); setModalComercio({ id: c.id, nome: c.nome }); }}>
-                            <i className="ti ti-pencil" aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-icon btn-sm loja-mng-v4-remove-btn"
-                            {...propsTip(abrirTip, fecharTip, en ? 'Remove commerce' : 'Remover comércio')}
-                            aria-label={en ? 'Remove commerce' : 'Remover comércio'}
-                            onClick={() => setConfirmRemoverComercio(c.id)}>
-                            <i className="ti ti-trash" aria-hidden="true" />
-                          </button>
-                        </span>
+                        {/* As ações saíram daqui em 15/09/2026 ("os botões de
+                            editar e excluir loja estão repetidos, eu quero eles
+                            junto com o título, e não a esquerda"): a lista só
+                            escolhe o comércio; mostrar/ocultar, renomear e
+                            excluir moram na linha do título, à direita. */}
                       </li>
                     ))}
                   </ul>
@@ -1058,23 +1090,44 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                 ) : (
                   <>
                     {/* Cabeçalho do comércio selecionado com badge de status */}
+                    {/* Título + ações na MESMA linha (15/09/2026): "coloque os
+                        botões 'mostrar para jogadores', 'renomear' e 'excluir'
+                        inline com o título da loja, e remover 'oculto dos
+                        jogadores'". O selo escrito saiu; o estado continua no
+                        ícone do olho e no seu tooltip. */}
                     <div className="loja-mng-v4-comercio-header">
                       <span className="loja-mng-v4-comercio-nome">
                         {comercioSel.nome}
                       </span>
-                      <span
-                        className={'loja-mng-v4-status-badge' + (comercioSel.ativo ? ' is-ativo' : ' is-oculto')}
-                        onClick={() => toggleAtivo(comercioSel.id)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleAtivo(comercioSel.id)}
-                        {...propsTip(abrirTip, fecharTip, comercioSel.ativo
-                          ? (en ? 'Click to hide from players' : 'Clique para ocultar dos jogadores')
-                          : (en ? 'Click to show to players' : 'Clique para mostrar para jogadores'))}>
-                        <i className={'ti ' + (comercioSel.ativo ? 'ti-eye' : 'ti-eye-off')} aria-hidden="true" />
-                        {comercioSel.ativo
-                          ? (en ? 'Visible to players' : 'Visível para jogadores')
-                          : (en ? 'Hidden from players' : 'Oculto dos jogadores')}
+                      <span className="loja-mng-v4-comercio-acoes">
+                        <button
+                          type="button"
+                          className={'btn-icon btn-sm loja-mng-v4-toggle-btn' + (comercioSel.ativo ? ' is-ativo' : '')}
+                          {...propsTip(abrirTip, fecharTip, comercioSel.ativo
+                            ? (en ? 'Hide from players' : 'Ocultar dos jogadores')
+                            : (en ? 'Show to players' : 'Mostrar para jogadores'))}
+                          aria-label={comercioSel.ativo
+                            ? (en ? 'Hide from players' : 'Ocultar dos jogadores')
+                            : (en ? 'Show to players' : 'Mostrar para jogadores')}
+                          onClick={() => toggleAtivo(comercioSel.id)}>
+                          <i className={'ti ' + (comercioSel.ativo ? 'ti-eye' : 'ti-eye-off')} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-icon btn-sm"
+                          {...propsTip(abrirTip, fecharTip, en ? 'Rename' : 'Renomear')}
+                          aria-label={en ? 'Rename' : 'Renomear'}
+                          onClick={() => { setNomeComercioInput(comercioSel.nome); setModalComercio({ id: comercioSel.id, nome: comercioSel.nome }); }}>
+                          <i className="ti ti-pencil" aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-icon btn-sm loja-mng-v4-remove-btn"
+                          {...propsTip(abrirTip, fecharTip, en ? 'Delete' : 'Excluir')}
+                          aria-label={en ? 'Delete' : 'Excluir'}
+                          onClick={() => setConfirmRemoverComercio(comercioSel.id)}>
+                          <i className="ti ti-trash" aria-hidden="true" />
+                        </button>
                       </span>
                     </div>
 
@@ -1123,46 +1176,58 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                           </div>
                         </div>
 
+                        {/* Valor e estoque agora em MODAL (15/09/2026): "Ao
+                            clicar no ícone do catálogo, abrir um modal para
+                            selecionar valor e estoque". Era uma gaveta inline
+                            acima da tabela. */}
                         {escolhido && (
-                          <div className="loja-mng-v3-drawer" role="region" aria-label={en ? 'Add' : 'Adicionar'}>
-                            <div className="loja-mng-v3-drawer-nome">
-                              {escolhido.nome}
-                              {escolhido.descricao && (
-                                <span className="loja-mng-v3-drawer-desc"> — {escolhido.descricao}</span>
-                              )}
-                            </div>
-                            {/* Badge mostrando destino */}
-                            <div className="loja-mng-v4-drawer-destino">
-                              <i className="ti ti-store" aria-hidden="true" />
-                              {en ? `Adding to: ` : `Adicionando em: `}
+                          <ModalShell
+                            title={<><i className="ti ti-shopping-bag det-title-ic" aria-hidden="true" /> {escolhido.nome}</>}
+                            lang={lang}
+                            size="sm"
+                            extraClass="loja-add-modal"
+                            onClose={() => { setEscolhido(null); setPrecoOverride(''); setEstoqueInicial(''); }}
+                            onCancel={() => { setEscolhido(null); setPrecoOverride(''); setEstoqueInicial(''); }}
+                            onConfirm={adicionarAoEstoque}
+                            confirmLabel={tl.addToShop}>
+                            {/* Textos no padrão do projeto (15/09/2026): subhead
+                                para o destino, `diario-field-label` em cada campo
+                                (é o rótulo que o resto dos modais usa) e a nota
+                                por último. Os espaços vêm das classes, não de
+                                margens soltas — antes o destino colava no rótulo
+                                do primeiro campo. */}
+                            {/* Só o nome do comércio: o prefixo "Adicionando em:"
+                                saiu a pedido do usuário (15/09/2026). */}
+                            <p className="subhead loja-add-modal-destino">
+                              <i className="ti ti-store" aria-hidden="true" />{' '}
                               <strong>{comercioSel.nome}</strong>
-                            </div>
-                            <div className="loja-mng-v3-drawer-fields">
-                              <label className="loja-mng-v3-drawer-field">
+                            </p>
+                            <div className="loja-add-modal-campos">
+                              <label className="loja-add-modal-campo">
+                                <span className="diario-field-label">{tl.price}</span>
                                 <input
-                                  type="number" min="0"
+                                  className="diario-input"
+                                  type="number" min="0" autoFocus
                                   placeholder={String(escolhido.valor_latao ?? 0)}
                                   value={precoOverride}
-                                  onChange={(e) => setPrecoOverride(e.target.value)} />
+                                  onChange={(ev) => setPrecoOverride(ev.target.value)}
+                                  onKeyDown={(ev) => { if (ev.key === 'Enter') adicionarAoEstoque(); }} />
                               </label>
-                              <label className="loja-mng-v3-drawer-field">
+                              {/* Sem o rótulo "Estoque" (15/09/2026, pedido do
+                                  usuário). O campo continua nomeado para quem
+                                  usa leitor de tela, e o ∞ diz o padrão. */}
+                              <label className="loja-add-modal-campo">
                                 <input
+                                  className="diario-input"
                                   type="number" min="0"
-                                  placeholder={tl.stock || '∞'}
+                                  placeholder="∞"
+                                  aria-label={tl.stock}
                                   value={estoqueInicial}
-                                  onChange={(e) => setEstoqueInicial(e.target.value)} />
+                                  onChange={(ev) => setEstoqueInicial(ev.target.value)}
+                                  onKeyDown={(ev) => { if (ev.key === 'Enter') adicionarAoEstoque(); }} />
                               </label>
-                              <div className="loja-mng-v3-drawer-actions">
-                                <button type="button" className="btn-ghost btn-sm"
-                                  onClick={() => { setEscolhido(null); setPrecoOverride(''); setEstoqueInicial(''); }}>
-                                  {tl.cancel || (en ? 'Cancel' : 'Cancelar')}
-                                </button>
-                                <button type="button" className="btn-primary btn-sm" onClick={adicionarAoEstoque}>
-                                  {tl.addToShop}
-                                </button>
-                              </div>
                             </div>
-                          </div>
+                     </ModalShell>
                         )}
 
                         <div className="loja-mng-v3-cat-list best best-auto" ref={catWrapRef} style={{ paddingBottom: totalPagesCat <= 1 ? 20 : 0 }}>
@@ -1172,9 +1237,17 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                             <>
                               <div className="best-table-wrap" ref={catListRef}>
                                 <Table>
+                                  {/* Duas colunas (15/09/2026): o nome numa, o
+                                      grupo na outra — "coloque 'águia' em uma
+                                      coluna e 'animais' em outra" —, e o preço
+                                      sai: quem define o valor é o modal. */}
                                   <TableHeader><TableRow>
                                     <LojaSortHead col="nome" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>{en ? 'Item' : 'Item'}</LojaSortHead>
-                                    <LojaSortHead col="preco" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>{en ? 'Price' : 'Preço'}</LojaSortHead>
+                                    <LojaSortHead col="grupo" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>{en ? 'Group' : 'Grupo'}</LojaSortHead>
+                                    {/* Valor de tabela, em latão (15/09/2026): é o
+                                        número que o modal usa como padrão quando o
+                                        Mestre deixa o preço em branco. */}
+                                    <LojaSortHead col="valor" sortKey={sortKeyCat} sortDir={sortDirCat} toggleSort={toggleSortCat}>{en ? 'Value' : 'Valor'}</LojaSortHead>
                                   </TableRow></TableHeader>
                                   <TableBody>
                                     {filtradosSlice.map((it) => {
@@ -1183,13 +1256,13 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                                       return (
                                         <TableRow key={it.slug} className={sel ? 'on' : ''} onClick={() => selecionarItem(it)} role="button" tabIndex={0} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && selecionarItem(it)}>
                                           <TableCell className="loja-mng-v3-td--nome">
-                                            <span className="loja-mng-v3-row-grupo">{it.grupo || '—'}</span>
                                             <span className="best-name">
                                               {it.nome}
                                               {mc && <span className={'loja-mng-v3-match loja-mng-v3-match--' + mc}>{' '}({mc === 'descricao' ? tl.inDesc : mc === 'origem' ? tl.inOrig : tl.inDetails})</span>}
                                             </span>
                                           </TableCell>
-                                          <TableCell className="loja-mng-v3-td--preco">{precoTextoLoja(it.valor_latao ?? 0, en)}</TableCell>
+                                          <TableCell className="loja-mng-v3-td--grupo">{it.grupo || '—'}</TableCell>
+                                          <TableCell className="loja-mng-v3-td--valor">{it.valor_latao ?? 0}</TableCell>
                                         </TableRow>
                                       );
                                     })}
@@ -1286,6 +1359,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
           {error && <div className="err-msg" style={{ marginTop: 12 }}>{error}</div>}
         </div>
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    </div>
     </div>
   );
 }

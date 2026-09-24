@@ -25,8 +25,68 @@ import './inventario-helpers.jsx';
 const G = globalThis;
 const LIM = G.COND_LIMITE;
 
-const AGUA    = { efeito_positivo: '35 Hidratação' };
-const CERVEJA = { efeito_positivo: '5 Energia Heroica', efeito_negativo: '5 Sobriedade, 1 Sono' };
+/* Os textos do catálogo REAL (lidos do banco em 15/09/2026). O formato é
+   PROSA — "Aumenta 35 de Hidratação e 1 de Sobriedade." —, e não a lista
+   curta "35 Hidratação" que as fixtures antigas deste arquivo usavam. Com o
+   parser velho NENHUM item do catálogo aplicava efeito: o verbo no começo
+   derrubava o casamento, e o " e " juntava dois pares num só. Era por isso
+   que "usar item não estava calculando" (usuário, 15/09/2026). */
+const AGUA    = { efeito_positivo: 'Aumenta 35 de Hidratação e 1 de Sobriedade.',
+                  efeito_negativo: 'Diminui 5 de Temperatura.' };
+const CERVEJA = { efeito_positivo: 'Aumenta 5 de Energia Heroica.',
+                  efeito_negativo: 'Diminui 5 de Sobriedade e 1 de Sono.' };
+
+/* O parser contra o texto REAL do catálogo (banco, 15/09/2026). Todas as
+   frases abaixo são cópias literais — inclusive os dois erros de digitação
+   que existem no banco ("deTemperatura" sem espaço, "Dimiuni" no lugar de
+   "Diminui"), porque é com esses textos que o jogo roda. */
+describe('parseEfeito — o formato do catálogo é PROSA', () => {
+  const chave = (s) => G.parseEfeito(s).map((e) => [e.key, e.valor]);
+
+  it('"Aumenta N de X e M de Y" devolve os DOIS pares', () => {
+    expect(chave('Aumenta 35 de Hidratação e 1 de Sobriedade.'))
+      .toEqual([['hidratacao', 35], ['euforia', 1]]);
+  });
+
+  it('lista com vírgulas e "e" no fim', () => {
+    expect(chave('Diminui 50 de Sanidade, 25 de Sobriedade e 5 de Reputação.'))
+      .toEqual([['sanidade', 50], ['euforia', 25], ['reputacao', 5]]);
+  });
+
+  it('vitalidade e condição no mesmo texto', () => {
+    expect(chave('Aumenta 3 de Energia Física, 40 de Energia Heroica, 40 de Karma e 10 de Saúde.'))
+      .toEqual([['ef', 3], ['eh', 40], ['ka', 40], ['vitalidade', 10]]);
+  });
+
+  it('aguenta os erros de digitação do banco', () => {
+    expect(chave('Aumenta 10 deTemperatura.')).toEqual([['termorregulacao', 10]]);
+    expect(chave('Dimiuni 20 de Energia Heroica e 25 de Reputação.'))
+      .toEqual([['eh', 20], ['reputacao', 25]]);
+  });
+
+  it('o formato curto antigo continua valendo', () => {
+    expect(chave('35 Hidratação')).toEqual([['hidratacao', 35]]);
+    expect(chave('5 Sobriedade, 1 Sono')).toEqual([['euforia', 5], ['animo', 1]]);
+    expect(chave('Reputação 1')).toEqual([['reputacao', 1]]);
+  });
+
+  it('texto sem número ou com rótulo desconhecido não vira efeito', () => {
+    expect(G.parseEfeito('Aumenta a coragem do portador.')).toEqual([]);
+    expect(G.parseEfeito('Aumenta 5 de Coragem.')).toEqual([]);
+    expect(G.parseEfeito(null)).toEqual([]);
+  });
+
+  /* O SINAL vem do CAMPO (efeito_positivo soma, efeito_negativo subtrai),
+     não do verbo — é assim desde sempre, e o banco tem "Diminui" escrito
+     dentro de efeito_negativo em todos os casos. */
+  it('o verbo não inverte o sinal: quem manda é o campo', () => {
+    const item = { efeito_positivo: 'Aumenta 5 de Reputação.', efeito_negativo: 'Diminui 2 de Reputação.' };
+    expect(G.efeitosDoItem(item, 1)).toEqual([
+      { scope: 'condicoes', key: 'reputacao', delta: 5 },
+      { scope: 'condicoes', key: 'reputacao', delta: -2 },
+    ]);
+  });
+});
 
 describe('aplicarEfeitosItem — condições na escala bidirecional', () => {
   it('condição nunca salva parte de 0 (neutro), não de 100 ("cheio")', () => {

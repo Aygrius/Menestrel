@@ -305,6 +305,51 @@ const TECNICA_EFEITO_MAP = {
   conduzir_oponente:  { modo: 'teste', alvo: 'inimigo', rodadas: 2, icone: '🫸',
                       dificuldade: 'medio',
                       efeitos: [{ tipo: 'conduzido', valor: true, casas: 5 }] },
+
+  /* ============================================================
+     15/09/2026 — as 7 técnicas de CRIATURA cadastradas pelo editor (sem
+     permissão de profissão). "As novas técnicas de combate podem ser
+     adicionadas ao motor." Cinco usam primitivas que já existiam; os dois
+     Botes estreiam `ao_acertar_ef`.
+     ============================================================ */
+  /* "permite atacar 3 vezes na mesma rodada": o ataque normal + 2 extras —
+     Golpe Duplo ("2 vezes") é ataque_extra 1. */
+  ataques_multiplos:  { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🐾',
+                      dificuldade: 'muito_dificil',
+                      efeitos: [{ tipo: 'ataque_extra', valor: 2 }] },
+  /* Os Botes: "Seu total é adicionado à sua coluna de ataque por 1 rodada, SE
+     ACERTAR A ENERGIA FÍSICA do alvo, ele [...] por 5 rodadas."
+
+     `ao_acertar_ef` mora no ATACANTE e carrega o que aplicar no alvo (`aplica`,
+     `rodadas`). aplicarGolpeEmAlvo o dispara quando o golpe chega à EF — golpe
+     que a EH ou a armadura seguram não conta — e consumirEfeitosDoGolpe o gasta
+     no golpe seguinte, acerte ou não. O `prefixo` é o id do status no alvo:
+     'veneno' faz o token mostrar o selo de Envenenado. */
+  bote:               { modo: 'total', alvo: 'self', rodadas: 1, icone: '🐍',
+                      efeitos: [{ tipo: 'mod_ataque', sinal: 1 },
+                                { tipo: 'ao_acertar_ef', valor: true, rodadas: 5, prefixo: 'veneno',
+                                  aplica: { tipo: 'dano_por_rodada', valor: 1 } }] },
+  bote_selvagem:      { modo: 'total', alvo: 'self', rodadas: 1, icone: '🐅',
+                      efeitos: [{ tipo: 'mod_ataque', sinal: 1 },
+                                { tipo: 'ao_acertar_ef', valor: true, rodadas: 5, prefixo: 'bote_selvagem',
+                                  aplica: { tipo: 'sem_acoes', valor: true } }] },
+  /* O texto no banco diz "Um teste de Carga SELVAGEM (Médio)…" — o nome da
+     irmã. A dificuldade e as rodadas batem; só o nome está trocado. */
+  carga_de_quadrupede: { modo: 'teste', alvo: 'inimigo', rodadas: 2, icone: '🐂',
+                      dificuldade: 'medio',
+                      efeitos: [{ tipo: 'ignora_eh', valor: true }] },
+  carga_selvagem:     { modo: 'total', alvo: 'self', rodadas: 4, icone: '🐺',
+                      efeitos: [{ tipo: 'mod_ataque', sinal: 1 }] },
+  /* "impede o alvo de agir e causa 2 de dano na energia física por 5
+     rodadas" — sem_acoes (a bandeira de Medo e Sono) e o dano_por_rodada do
+     Sangramento, no mesmo status. */
+  hipnose:            { modo: 'teste', alvo: 'inimigo', rodadas: 5, icone: '🌀',
+                      dificuldade: 'dificil',
+                      efeitos: [{ tipo: 'sem_acoes', valor: true },
+                                { tipo: 'dano_por_rodada', valor: 2 }] },
+  prender:            { modo: 'teste', alvo: 'inimigo', rodadas: 3, icone: '🪢',
+                      dificuldade: 'medio',
+                      efeitos: [{ tipo: 'sem_acoes', valor: true }] },
 };
 
 /* ── As que seguem FORA, e por quê ─────────────────────────────────

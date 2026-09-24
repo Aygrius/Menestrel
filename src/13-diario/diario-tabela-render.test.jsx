@@ -119,17 +119,23 @@ describe('Lugares mistura Reino e Cidade e as duas origens', () => {
     ]);
   });
 
-  it('um + só no cabeçalho, que abre a escolha entre Reino e Cidade', async () => {
+  /* 17/09/2026: "Novo reino e nova cidade serão a mesma coisa." (usuário)
+     O + abria um modal de escolha Reino/Cidade e SÓ ENTÃO o formulário — dois
+     passos para um campo. Agora abre o formulário direto, com o tipo como
+     primeiro campo dele (ver lugar-tipo-unico.test.jsx, que cobre o seletor).
+     O + continua sendo um só, que é o que este teste garantia antes. */
+  it('um + só no cabeçalho, que abre o formulário de lugar direto', async () => {
     await montar('lugar');
     const novos = document.querySelectorAll('.fp-card-top [aria-label="Novo"]');
     expect(novos).toHaveLength(1);
     fireEvent.click(novos[0]);
-    const janela = document.querySelector('[role="dialog"][aria-label="Novo lugar"]');
-    expect(janela).toBeTruthy();
-    expect([...janela.querySelectorAll('.diario-escolha-lugar button')].map((b) => b.textContent.trim()))
-      .toEqual(['Reino', 'Cidade']);
-    fireEvent.click([...janela.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cidade'));
-    expect(document.querySelector('[role="dialog"][aria-label="Nova Cidade"]')).toBeTruthy();
+    // Sem passar por nenhuma janela de escolha: o formulário já está aberto.
+    expect(document.querySelector('[role="dialog"][aria-label="Novo lugar"]')).toBeNull();
+    const form = document.querySelector('[role="dialog"][aria-label="Novo Reino"]');
+    expect(form).toBeTruthy();
+    // E o tipo é escolhível ali dentro, sem fechar e reabrir.
+    expect([...form.querySelectorAll('.diario-lugar-tipo input')].map((i) => i.value))
+      .toEqual(['reino', 'cidade']);
   });
 });
 

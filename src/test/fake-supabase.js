@@ -9,6 +9,8 @@
 
      from(t).select(cols)                     → awaitable (devolve a tabela)
        .in(col, ids) / .eq(col, val)          → encadeia e FILTRA
+       .not(col, 'is', null)                  → encadeia e FILTRA (só este
+                                                operador; ver `not` abaixo)
        .order(col)                            → encadeia (ordem é ignorada;
                                                 nenhum teste depende dela)
        .range(de, ate)                        → devolve a fatia, com o TETO
@@ -55,6 +57,18 @@ export function fakeSupabase(tabelas) {
           const arr = r[col];
           return Array.isArray(arr) && procurados.every((v) => arr.includes(v));
         });
+        return box;
+      },
+      /* not(col, 'is', null) — o único uso no app: "só as linhas em que a
+         coluna está preenchida". É como a montagem da batalha acha os itens
+         que viram animal (itens.criatura_id não nulo). Outros operadores
+         explodem em vez de filtrar errado em silêncio: um `not` ignorado
+         devolveria a tabela inteira e o teste passaria pelo motivo errado. */
+      not(col, op, val) {
+        if (op !== 'is' || val !== null) {
+          throw new Error(`fakeSupabase.not: só 'is null' está modelado (recebi ${op} ${String(val)})`);
+        }
+        linhas = linhas.filter((r) => r[col] != null);
         return box;
       },
       order() { return box; },

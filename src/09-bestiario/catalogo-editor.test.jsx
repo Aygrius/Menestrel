@@ -38,18 +38,35 @@ let listasFixture = { tecnicas: [], habilidades: [], magias: [] };
 // Chaves que o .like() de pré-checagem de colisão devolve. Vazio por
 // padrão: sem colisão, a chave derivada do nome passa direto.
 let chavesExistentesFixture = [];
+// Item Animal (15/09/2026): o catálogo de animais que a sincronização lê, TODAS
+// as escritas em ordem (a da criatura e a do item), e erro só nas de `itens`.
+let itensAnimaisFixture = [];
+let escritas = [];
+let erroItens = null;
 
 beforeAll(async () => {
   // Dublê do supabaseClient ANTES de carregar o editor.
   window.supabaseClient = {
     from: (tabela) => ({
-      insert: (payload) => { ultimoInsert = { tabela, payload }; return {
-        select: () => ({ single: async () => ({ data: { ...payload, id: 1 }, error: erroSimulado }) }) }; },
+      insert: (payload) => {
+        ultimoInsert = { tabela, payload };
+        escritas.push({ op: 'insert', tabela, payload });
+        const resposta = { data: { ...payload, id: 1 }, error: tabela === 'itens' ? erroItens : erroSimulado };
+        // Insert de item é aguardado direto; o da criatura, via .select().single().
+        return { select: () => ({ single: async () => resposta }), then: (ok, falha) => Promise.resolve(resposta).then(ok, falha) };
+      },
       // Registra tabela/payload E a coluna/valor usados no .eq() — sem isso
       // o caminho de EDIÇÃO inteiro ficava sem cobertura nenhuma.
-      update: (payload) => { ultimoUpdate = { tabela, payload }; return { eq: (col, val) => {
-        ultimoUpdate.eqCol = col; ultimoUpdate.eqVal = val; return {
-          select: () => ({ single: async () => ({ data: payload, error: erroSimulado }) }) }; } }; },
+      update: (payload) => {
+        const reg = { op: 'update', tabela, payload };
+        ultimoUpdate = reg;
+        escritas.push(reg);
+        return { eq: (col, val) => {
+          reg.eqCol = col; reg.eqVal = val;
+          const resposta = { data: { ...payload, [col]: val }, error: tabela === 'itens' ? erroItens : erroSimulado };
+          return { select: () => ({ single: async () => resposta }), then: (ok, falha) => Promise.resolve(resposta).then(ok, falha) };
+        } };
+      },
       // Leitura genérica (fetchTabelaPaginada): builder encadeável
       // eq/order que termina em .range() — mesmo contrato do PostgREST
       // real, só que devolvendo a fixture inteira numa página só.
@@ -59,15 +76,17 @@ beforeAll(async () => {
       } }) }),
       select: () => {
         const filtros = {};
+        const linhas = () => (tabela === 'itens'
+          ? [...itensArmasFixture, ...itensAnimaisFixture].filter((it) => Object.entries(filtros)
+              .every(([c, v]) => (v === null ? it[c] == null : it[c] === v)))
+          : (listasFixture[tabela] || []));
         const builder = {
           eq: (col, val) => { filtros[col] = val; return builder; },
+          is: (col, val) => { filtros[col] = val; return builder; },
           order: () => builder,
-          range: async () => ({
-            data: tabela === 'itens'
-              ? itensArmasFixture.filter((it) => !filtros.grupo || it.grupo === filtros.grupo)
-              : (listasFixture[tabela] || []),
-            error: null,
-          }),
+          range: async () => ({ data: linhas(), error: null }),
+          // Leitura aguardada sem .range() (a sincronização do item Animal).
+          then: (ok, falha) => Promise.resolve({ data: linhas(), error: null }).then(ok, falha),
           // Pré-checagem de colisão da chave automática: o editor pergunta
           // quais chaves já começam com a base antes de inserir.
           like: async () => ({ data: chavesExistentesFixture, error: null }),
@@ -85,6 +104,7 @@ afterEach(() => {
   cleanup(); ultimoInsert = null; ultimoUpdate = null; erroSimulado = null;
   ultimoDelete = null; linhasApagadas = 1;
   itensArmasFixture = []; chavesExistentesFixture = [];
+  itensAnimaisFixture = []; escritas = []; erroItens = null;
   listasFixture = { tecnicas: [], habilidades: [], magias: [] };
 });
 
@@ -203,55 +223,60 @@ const PEITORAL = { slug: 'peitoral_de_aco', nome: 'Peitoral de Aço', grupo: 'Ar
 const CALCA = { slug: 'calca_de_couro', nome: 'Calça de Couro', grupo: 'Armaduras', slot_equip: 'pernas', absorcao: 2, defesa: 1, tipo_armadura: 'L' };
 const PECAS = [ESPADA_LONGA, ARCO, PEITORAL, CALCA];
 
-const valor = (col) => document.querySelector(`input[name="${col}"]`).value;
 const digitar = (col, v) => fireEvent.change(document.querySelector(`input[name="${col}"]`), { target: { value: v } });
 const blocoEquip = () => document.querySelector('[data-lista="equipamento"]');
-const equipar = async (nome) => {
+const buscarEquip = async (nome) => {
   fireEvent.change(blocoEquip().querySelector('input'), { target: { value: nome } });
-  const li = await vi.waitFor(() => {
+  return vi.waitFor(() => {
     const achou = Array.from(document.querySelectorAll('.catalogo-lista-drop li'))
       .find((x) => x.firstChild && x.firstChild.textContent === nome);
     expect(achou, nome).toBeTruthy();
     return achou;
   });
-  fireEvent.click(li);
 };
+const equipar = async (nome) => fireEvent.click(await buscarEquip(nome));
 const salvar = () => fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+// A criatura gravada — insert ao criar, update ao editar.
+const payloadDaCriatura = async () => {
+  salvar();
+  await vi.waitFor(() => expect(ultimoInsert || ultimoUpdate).not.toBeNull());
+  return (ultimoInsert || ultimoUpdate).payload;
+};
+const COLS_CALCULADAS = ['ataque', 'energia_fisica', 'energia_heroica', 'resistencia_fisica', 'resistencia_magica',
+  'armadura', 'absorcao', 'defesa', 'velocidade', 'dano_l', 'dano_m', 'dano_p', 'dano_100'];
 
 /* "Os campos Ataque, Energia Física, Energia Heroica, Tipo de Armadura,
    Absorção, Defesa, Velocidade, L, M, P e Dano 100% são calculados
-   automaticamente com base nas informações inseridas." (usuário, 14/09/2026) */
+   automaticamente com base nas informações inseridas." (usuário, 14/09/2026)
+
+   E desde 15/09/2026 ficam FORA do modal: "não precisa mostrar os campos
+   preenchidos automaticamente, mas mostre ao expandir a criatura na tabela."
+   A conta continua indo para o banco — é pelo payload que se verifica. */
 describe('campos calculados (criaturas)', () => {
-  it('EF, EH, RF, RM e VB saem dos atributos', () => {
+  it('não aparecem no modal', () => {
     montar({ tabela: 'criaturas', linha: null });
+    COLS_CALCULADAS.forEach((col) => expect(document.querySelector(`input[name="${col}"]`), col).toBeNull());
+    expect(document.querySelector('[data-dano-arma]')).toBeNull();
+    expect(document.querySelector('.campo-calculado')).toBeNull();
+  });
+
+  it('EF, EH e VB saem dos atributos e vão no payload; RF e RM não têm coluna', async () => {
+    montar({ tabela: 'criaturas', linha: null });
+    digitar('nome', 'Dradenar');
     digitar('peso', '6000'); digitar('fisico', '4'); digitar('aura', '3');
     digitar('agilidade', '6'); digitar('estagio', '15');
-    expect(valor('energia_fisica')).toBe('159');
-    expect(valor('energia_heroica')).toBe('225');     // (12 + 3) × 15
-    expect(valor('resistencia_fisica')).toBe('19');   // 15 + 4
-    expect(valor('resistencia_magica')).toBe('18');   // 15 + 3
-    expect(valor('velocidade')).toBe('150');          // (4 + 6) × 15
+    const p = await payloadDaCriatura();
+    expect(p).toMatchObject({ energia_fisica: 159, energia_heroica: 225, velocidade: 150 });   // (12+3)×15 · (4+6)×15
+    expect('resistencia_fisica' in p).toBe(false);
+    expect('resistencia_magica' in p).toBe(false);
   });
 
-  it('todos são só leitura', () => {
+  it('sem nada equipado: sem ataque, Absorção 0, Defesa = Agilidade, Leve', async () => {
     montar({ tabela: 'criaturas', linha: null });
-    ['ataque', 'energia_fisica', 'energia_heroica', 'resistencia_fisica', 'resistencia_magica', 'armadura',
-      'absorcao', 'defesa', 'velocidade', 'dano_l', 'dano_m', 'dano_p', 'dano_100'].forEach((col) => {
-      const input = document.querySelector(`input[name="${col}"]`);
-      expect(input, col).toBeTruthy();
-      expect(input.readOnly && input.disabled, col).toBe(true);
+    digitar('nome', 'Lobo'); digitar('agilidade', '3');
+    expect(await payloadDaCriatura()).toMatchObject({
+      ataque: null, dano_l: null, dano_100: null, absorcao: 0, defesa: 3, armadura: 'L',
     });
-  });
-
-  it('sem nada equipado: sem ataque, Absorção 0, Defesa = Agilidade, Leve', () => {
-    montar({ tabela: 'criaturas', linha: null });
-    digitar('agilidade', '3');
-    expect(valor('ataque')).toBe('—');
-    expect(valor('dano_l')).toBe('—');
-    expect(valor('dano_100')).toBe('—');
-    expect(valor('absorcao')).toBe('0');
-    expect(valor('defesa')).toBe('3');
-    expect(valor('armadura')).toBe('Leve');
   });
 
   it('"Técnicas Especiais" agora se chama "Técnicas"', () => {
@@ -262,66 +287,73 @@ describe('campos calculados (criaturas)', () => {
 });
 
 describe('equipamento (criaturas)', () => {
-  it('equipar arma calcula Ataque, L/M/P e Dano 100%, com a conta do personagem', async () => {
+  it('equipar arma grava Ataque, L/M/P e Dano 100%, com a conta do personagem', async () => {
     itensArmasFixture = PECAS;
     montar({ tabela: 'criaturas', linha: null });
-    digitar('forca', '4');
+    digitar('nome', 'Orc'); digitar('forca', '4');
     await equipar('Espada Longa');
-    expect(valor('ataque')).toBe('Espada Longa');
-    expect([valor('dano_l'), valor('dano_m'), valor('dano_p')]).toEqual(['0', '4', '8']);   // FOR 4
-    expect(valor('dano_100')).toBe('32');                                                   // 28 + 4
-    expect(blocoEquip().querySelector('[data-slot="mao_d"] .catalogo-lista-chip-nome').textContent).toBe('Espada Longa');
+    expect(await payloadDaCriatura()).toMatchObject({
+      ataque: 'Espada Longa', dano_l: 0, dano_m: 4, dano_p: 8, dano_100: 32,   // FOR 4 · 28 + 4
+    });
   });
 
-  // "o 'dano 100%' deve aparecer para todos os tipos de equipamentos de ataque
-  // que a criatura tiver" (usuário, 14/09/2026)
-  it('uma caixa de Dano 100% por arma, com o nome dela', async () => {
+  /* "remova o identificador 'mão', etc do modal de editar criaturas"
+     (usuário, 15/09/2026) — nem na etiqueta, nem na busca. */
+  it('sem rótulo de lugar: a etiqueta é só o nome, e a busca não diz onde entra', async () => {
+    itensArmasFixture = PECAS;
+    montar({ tabela: 'criaturas', linha: null });
+    await equipar('Espada Longa');
+    await equipar('Peitoral de Aço');
+    const chips = [...blocoEquip().querySelectorAll('.catalogo-lista-chip')];
+    expect(chips.map((c) => c.textContent)).toEqual(['Espada Longa', 'Peitoral de Aço']);
+    expect(blocoEquip().querySelector('.catalogo-equip-slot')).toBeNull();
+    const li = await buscarEquip('Arco');
+    expect(li.textContent).toBe('Arco');
+  });
+
+  /* "Para as criaturas, não haverá limitação de equipamentos de ataque."
+     (usuário, 15/09/2026) — o arco de duas mãos entra ao lado da espada. */
+  it('armas sem limite: espada, arco de duas mãos e mordida entram juntos', async () => {
     const MORDIDA = { slug: 'mordida', nome: 'Mordida', grupo: 'Armas', slot_equip: 'maos', dano: 4, dano_l: 1, dano_m: 0, dano_p: -1, ajuste_atributo: 'FOR', maos_outras: 1 };
     itensArmasFixture = [...PECAS, MORDIDA];
     montar({ tabela: 'criaturas', linha: null });
-    digitar('forca', '4');
+    digitar('nome', 'Hydra'); digitar('forca', '4');
     await equipar('Espada Longa');
+    await equipar('Arco');
     await equipar('Mordida');
-    const caixas = [...document.querySelectorAll('[data-dano-arma]')];
-    expect(caixas.map((c) => c.querySelector('label').textContent)).toEqual(['Dano 100% · Espada Longa', 'Dano 100% · Mordida']);
-    expect(caixas.map((c) => c.querySelector('input').value)).toEqual(['32', '8']);
-    expect(valor('dano_100')).toBe('32');   // a coluna continua sendo a da primeira
+    expect(blocoEquip().querySelectorAll('.catalogo-lista-chip')).toHaveLength(3);
+    const p = await payloadDaCriatura();
+    expect(p.equipamento.map((e) => e.slug)).toEqual(['espada_longa', 'arco', 'mordida']);
+    expect(p.dano_100).toBe(32);   // a coluna continua sendo a da primeira
+  });
+
+  it('a mesma arma aparece bloqueada e não entra de novo', async () => {
+    itensArmasFixture = PECAS;
+    montar({ tabela: 'criaturas', linha: null });
+    await equipar('Espada Longa');
+    const li = await buscarEquip('Espada Longa');
+    expect(li.getAttribute('aria-disabled')).toBe('true');
+    expect(li.textContent).toMatch(/Esta arma já está equipada/);
+    fireEvent.click(li);
+    expect(blocoEquip().querySelectorAll('.catalogo-lista-chip')).toHaveLength(1);
   });
 
   it('armaduras somam absorção e defesa; o tipo é o do peitoral', async () => {
     itensArmasFixture = PECAS;
     montar({ tabela: 'criaturas', linha: null });
-    digitar('agilidade', '2');
+    digitar('nome', 'Cavaleiro'); digitar('agilidade', '2');
     await equipar('Calça de Couro');
-    expect(valor('armadura')).toBe('Leve');
     await equipar('Peitoral de Aço');
-    expect(valor('absorcao')).toBe('10');
-    expect(valor('defesa')).toBe('6');   // 3 + 1 + agilidade 2
-    expect(valor('armadura')).toBe('Pesado');
-  });
-
-  it('arma de duas mãos com a mão ocupada aparece bloqueada e não entra', async () => {
-    itensArmasFixture = PECAS;
-    montar({ tabela: 'criaturas', linha: null });
-    await equipar('Espada Longa');
-    fireEvent.change(blocoEquip().querySelector('input'), { target: { value: 'Arco' } });
-    const li = await vi.waitFor(() => {
-      const x = document.querySelector('.catalogo-lista-drop li[data-slug="arco"]');
-      expect(x).toBeTruthy();
-      return x;
-    });
-    expect(li.getAttribute('aria-disabled')).toBe('true');
-    expect(li.textContent).toMatch(/As duas mãos estão ocupadas/);
-    fireEvent.click(li);
-    expect(blocoEquip().querySelectorAll('.catalogo-lista-chip')).toHaveLength(1);
+    expect(await payloadDaCriatura()).toMatchObject({ absorcao: 10, defesa: 6, armadura: 'P' });   // 3 + 1 + agilidade 2
   });
 
   it('tirar a peça recalcula', async () => {
     itensArmasFixture = PECAS;
     montar({ tabela: 'criaturas', linha: null });
+    digitar('nome', 'Orc');
     await equipar('Espada Longa');
     fireEvent.click(blocoEquip().querySelector('.catalogo-lista-chip-x'));
-    expect(valor('ataque')).toBe('—');
+    expect(await payloadDaCriatura()).toMatchObject({ ataque: null, equipamento: [] });
   });
 
   it('grava o equipamento e todos os calculados — inclusive null quando não há arma', async () => {
@@ -343,12 +375,88 @@ describe('equipamento (criaturas)', () => {
     expect('tipo_armadura' in ultimoUpdate.payload).toBe(false);
   });
 
-  it('abre com o que está gravado', async () => {
+  it('abre com o que está gravado — inclusive peça antiga em mão', async () => {
     itensArmasFixture = PECAS;
     montar({ tabela: 'criaturas', linha: { id: 7, nome: 'Orc', forca: 2,
       equipamento: [{ slug: 'espada_longa', slot: 'mao_d' }] } });
-    await vi.waitFor(() => expect(valor('ataque')).toBe('Espada Longa'));
-    expect(valor('dano_100')).toBe('30');
+    await vi.waitFor(() => expect(blocoEquip().querySelector('.catalogo-lista-chip-nome').textContent).toBe('Espada Longa'));
+    expect(await payloadDaCriatura()).toMatchObject({ ataque: 'Espada Longa', dano_100: 30 });
+  });
+});
+
+/* "Os itens do tipo animal, e as criaturas, são em tese a mesma entrada no
+   banco" (usuário, 15/09/2026) — decisão: unificar de verdade. Salvar a
+   criatura cuida do item Animal. */
+describe('criatura e item Animal — a mesma entrada', () => {
+  const escolherTipo = (tipo) => {
+    const w = Array.from(document.querySelectorAll('.motor-field'))
+      .find((x) => (x.querySelector('span')?.textContent || '') === 'Tipo');
+    fireEvent.click(w.querySelector('.select-pill-btn'));
+    fireEvent.click(Array.from(document.querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === tipo));
+  };
+  const deItens = (op) => escritas.filter((e) => e.tabela === 'itens' && e.op === op);
+
+  it('criar um Animal cria o item, ligado pela criatura_id', async () => {
+    const onSalvo = vi.fn();
+    montar({ tabela: 'criaturas', linha: null, onSalvo });
+    digitar('nome', 'Cavalo de Guerra'); escolherTipo('Animal');
+    salvar();
+    await vi.waitFor(() => expect(onSalvo).toHaveBeenCalled());
+    expect(deItens('insert')).toHaveLength(1);
+    expect(deItens('insert')[0].payload).toMatchObject({
+      slug: 'cavalo_de_guerra', nome: 'Cavalo de Guerra', grupo: 'Animais', tipo: 'S', criatura_id: 1,
+    });
+  });
+
+  it('item Animal antigo, sem vínculo e com o mesmo nome, ganha o vínculo em vez de duplicar', async () => {
+    itensAnimaisFixture = [{ slug: 'cavalo', nome: 'Cavalo', grupo: 'Animais', criatura_id: null }];
+    const onSalvo = vi.fn();
+    montar({ tabela: 'criaturas', linha: null, onSalvo });
+    digitar('nome', 'cavalo'); escolherTipo('Animal');
+    salvar();
+    await vi.waitFor(() => expect(onSalvo).toHaveBeenCalled());
+    expect(deItens('insert')).toHaveLength(0);
+    expect(deItens('update')).toEqual([expect.objectContaining({ eqCol: 'slug', eqVal: 'cavalo',
+      payload: expect.objectContaining({ criatura_id: 1 }) })]);
+  });
+
+  it('renomear a criatura renomeia o item ligado — sem mexer no slug', async () => {
+    itensAnimaisFixture = [{ slug: 'pônei', nome: 'Pônei', grupo: 'Animais', criatura_id: 9 }];
+    const onSalvo = vi.fn();
+    montar({ tabela: 'criaturas', linha: { id: 9, nome: 'Pônei', tipo: 'Animal' }, onSalvo });
+    digitar('nome', 'Pônei das Montanhas');
+    salvar();
+    await vi.waitFor(() => expect(onSalvo).toHaveBeenCalled());
+    const up = deItens('update');
+    expect(up).toHaveLength(1);
+    expect(up[0]).toMatchObject({ eqCol: 'slug', eqVal: 'pônei' });
+    expect(up[0].payload.nome).toBe('Pônei das Montanhas');
+    expect('slug' in up[0].payload).toBe(false);
+  });
+
+  it('criatura que não é Animal e não tem item não gera item', async () => {
+    const onSalvo = vi.fn();
+    montar({ tabela: 'criaturas', linha: null, onSalvo });
+    digitar('nome', 'Dragão'); escolherTipo('Dragão');
+    salvar();
+    await vi.waitFor(() => expect(onSalvo).toHaveBeenCalled());
+    expect(escritas.filter((e) => e.tabela === 'itens')).toHaveLength(0);
+  });
+
+  it('item que falha: a criatura já está salva, o erro aparece, e salvar de novo ATUALIZA', async () => {
+    erroItens = { message: 'violates check constraint' };
+    const onSalvo = vi.fn();
+    montar({ tabela: 'criaturas', linha: null, onSalvo });
+    digitar('nome', 'Mula'); escolherTipo('Animal');
+    salvar();
+    await vi.waitFor(() => expect(screen.getByText(/Criatura salva, mas o item Animal não foi atualizado: violates/)).toBeTruthy());
+    expect(onSalvo).not.toHaveBeenCalled();
+    erroItens = null;
+    salvar();
+    await vi.waitFor(() => expect(onSalvo).toHaveBeenCalled());
+    const daCriatura = escritas.filter((e) => e.tabela === 'criaturas');
+    expect(daCriatura.map((e) => e.op)).toEqual(['insert', 'update']);
+    expect(daCriatura[1]).toMatchObject({ eqCol: 'id', eqVal: 1 });
   });
 });
 
@@ -590,12 +698,6 @@ describe('largura dos campos — área ocupa a largura cheia, o resto fica na co
     const input = document.querySelector('input[name="nome"]');
     expect(input.closest('.catalogo-campo-full')).toBeNull();
   });
-
-  it('campo `derivado` (criaturas) NÃO recebe a classe de largura cheia', () => {
-    montar({ tabela: 'criaturas', linha: null });
-    const input = document.querySelector('input[name="energia_fisica"]');
-    expect(input.closest('.catalogo-campo-full')).toBeNull();
-  });
 });
 
 describe('coluna do update (.eq) — chave certa por tabela', () => {
@@ -640,11 +742,11 @@ describe('coluna do update (.eq) — chave certa por tabela', () => {
      do catálogo. O que já estava gravado e não existe no catálogo ("Bote",
      "Esquiva 7") continua lá — nada some ao editar. */
 describe('criatura — tipo de armadura', () => {
-  it('um só campo "Tipo de Armadura", calculado (Leve/Médio/Pesado vêm do peitoral)', () => {
+  it('"Tipo de Armadura" é calculado (Leve/Médio/Pesado vêm do peitoral) e não aparece no modal', () => {
     montar({ tabela: 'criaturas', linha: null });
     const rotulos = Array.from(document.querySelectorAll('label, .motor-field > span'))
       .map((el) => el.textContent.trim());
-    expect(rotulos.filter((r) => r === 'Tipo de Armadura')).toHaveLength(1);
+    expect(rotulos, 'calculado fica fora do modal desde 15/09/2026').not.toContain('Tipo de Armadura');
     expect(rotulos, 'o campo "Armadura" de texto livre sai').not.toContain('Armadura');
     expect(window.descritorDe('criaturas').campos.find((c) => c.col === 'armadura').rotulos)
       .toEqual({ L: 'Leve', M: 'Médio', P: 'Pesado' });
@@ -670,10 +772,9 @@ describe('criatura — tipo de armadura', () => {
     dano, só 100, é óbvio." (usuário, 13/09/2026) — os três continuam
    gravados (a batalha os lê), sempre derivados do Dano 100% que está na tela. */
 describe('criatura — só o Dano 100% aparece', () => {
-  it('Dano 25/50/75 não são renderizados', () => {
+  it('nenhum dano é renderizado no modal (nem o 100%, desde 15/09/2026)', () => {
     montar({ tabela: 'criaturas', linha: null });
-    ['dano_25', 'dano_50', 'dano_75'].forEach((col) => expect(document.querySelector(`input[name="${col}"]`), col).toBeNull());
-    expect(document.querySelector('input[name="dano_100"]')).toBeTruthy();
+    ['dano_25', 'dano_50', 'dano_75', 'dano_100'].forEach((col) => expect(document.querySelector(`input[name="${col}"]`), col).toBeNull());
   });
 
   it('os três vão no payload calculados do Dano 100% da arma', async () => {
@@ -747,13 +848,29 @@ describe('criatura — Tipo, Subtipo e Plano em lista', () => {
     return Array.from(document.querySelectorAll('.select-pill-drop li')).map((li) => li.textContent.trim());
   };
 
+  /* ⚠️ SUBTIPO SAIU DESTA LISTA em 18/09/2026, e virou texto livre. Ele
+     declarava elementos (Fogo/Ar/Água/Terra/Celestial/Infernal) e os dados
+     nunca obedeceram: das ~218 criaturas, ~147 guardavam ESPÉCIE — Cavalo,
+     Goblin, Esqueleto, Gárgula — e só 15 um elemento. A lista fechada que
+     ninguém respeitava foi justamente o que fez a ficha do bestiário mostrar
+     "Elemento: Cavalo".
+
+     O elemento ganhou coluna própria, e é ELA que tem a lista fechada agora
+     (ver scripts/sql/criaturas-elemento-2026-09-18.sql). */
   it.each([
     ['Tipo', ['Animal', 'Construído', 'Celestial', 'Infernal', 'Místico', 'Dragão', 'Elemental', 'Monstro', 'Morto', 'Gigante', 'Civilizado']],
-    ['Subtipo', ['Fogo', 'Ar', 'Água', 'Terra', 'Celestial', 'Infernal']],
     ['Plano', ['Material', 'Infernal', 'Celestial', 'Elemental']],
+    ['Elemento', ['Fogo', 'Ar', 'Água', 'Terra']],
   ])('%s oferece exatamente a lista', (rotulo, lista) => {
     montar({ tabela: 'criaturas', linha: null });
     expect(abrir(rotulo)).toEqual(lista);
+  });
+
+  it('Subtipo é texto livre: guarda espécie, não elemento', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    // Sem pill de opções — é um <input> comum.
+    expect(pill('Subtipo')).toBeFalsy();
+    expect(document.querySelector('input[name="subtipo"]')).toBeTruthy();
   });
 
   it('valor gravado fora da lista aparece marcado e continua salvando igual', async () => {

@@ -157,7 +157,8 @@ function normalizarPilhas(itens, catalogoBySlug) {
     // recipiente é uma instância distinta e não se funde com outro.
     if (it.containerId) {
       if (container) { saida.push(it); continue; }
-      const chave = it.slug + '|' + it.containerId;
+      // Item consagrado não funde com o comum do mesmo slug (15/09/2026).
+      const chave = it.slug + '|' + it.containerId + '|' + bonusDoItem(it);
       if (idxPorChave.has(chave)) {
         const alvo = saida[idxPorChave.get(chave)];
         alvo.quantidade += it.quantidade;
@@ -279,11 +280,15 @@ const VESTE_SLOTS = {
   // Cintura: 3 casas, como na ficha (cinto + alforge + algibeira…). Era 1, e
   // com um cinto vestido o alforge dava "Slot cheio" (13/09/2026).
   cintura: { max: 3,  gastaSlot: true  }, // Cintura
-  orelha:  { max: 1,  gastaSlot: true  }, // Brinco (orelha)
-  brinco:  { max: 1,  gastaSlot: true  }, // alias de orelha (categoria_equip do banco)
+  /* 16/09/2026: o mapa do corpo na ficha tem DUAS casas de brinco e QUATRO de
+     joia, mas aqui o teto era 1 e 2 — o segundo brinco e o terceiro anel
+     nasciam com "Vestir" desabilitado por "slot cheio". Os números agora
+     acompanham as casas que a ficha desenha. */
+  orelha:  { max: 2,  gastaSlot: true  }, // Brincos (2 orelhas)
+  brinco:  { max: 2,  gastaSlot: true  }, // alias de orelha (categoria_equip do banco)
   pescoco: { max: 1,  gastaSlot: false }, // Colar (pescoço)
   colar:   { max: 1,  gastaSlot: false }, // alias de pescoco (categoria_equip do banco)
-  joia:    { max: 2,  gastaSlot: false }, // Joia (dedos)
+  joia:    { max: 4,  gastaSlot: false }, // Joias (4 dedos)
 };
 
 // O slot da peça vem do catálogo (cat.slot_equip). O banco grava alguns com
@@ -483,7 +488,7 @@ const PJ_COLS = 'id,nome,sobrenome,raca,profissao,forca_base,fisico_base,inventa
 
    Espelha o que `onInventarioChange` já fazia pro inventário. Cobertura:
    11-ficha/estado-handoff.test.js. */
-function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange, onEstadoChange, estadoAtualSeed, maximos }) {
+function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange, onEstadoChange, estadoAtualSeed, maximos, isMestre }) {
   const [pjs, setPjs] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [catalogo, setCatalogo] = useState(null);
@@ -626,6 +631,9 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     // (pjIdFixo ausente) a semente seria a do personagem errado.
     const semente = (pjIdFixo && selectedId === pjIdFixo) ? seedRef.current : null;
     setEstadoAtual(semente || pj.estado_atual || {});
+    // Base do patch: o que acreditamos estar gravado neste PJ (ver o autosave
+    // de estado_atual abaixo).
+    estadoBaseRef.current = pj.estado_atual || {};
   }, [selectedId]);
 
   // Fechar modais SÓ ao trocar de PJ — não a cada writeback do autosave em `pjs`.
@@ -680,6 +688,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const firstRenderEstado = useRef(true);
   const estadoRef = useRef(estadoAtual);
   const estadoDirtyRef = useRef(false);
+  // Último estado_atual que sabemos estar no banco — a base do patch.
+  const estadoBaseRef = useRef({});
   useEffect(() => { estadoRef.current = estadoAtual; }, [estadoAtual]);
   useEffect(() => {
     if (firstRenderEstado.current) { firstRenderEstado.current = false; return; }
@@ -689,18 +699,26 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     // foi feito aqui.
     if (onEstadoChange) onEstadoChange(estadoAtual);
     estadoDirtyRef.current = true;
+    /* Só o que MUDOU vai ao banco (15/09/2026): esta tela guardava o
+       estado_atual inteiro desde que o PJ foi carregado, e mandá-lo de volta
+       apagava o que o Mestre tivesse mexido na ficha nesse meio tempo — a
+       barra "voltava sozinha". `estadoBaseRef` é o último estado que sabemos
+       que está no banco; a diferença até ele é o patch. */
     const id = setTimeout(async () => {
-      const { error } = await supabaseClient.from('personagens').update({ estado_atual: estadoAtual }).eq('id', selectedId);
+      const patch = patchDeEstado(estadoBaseRef.current, estadoAtual);
+      if (Object.keys(patch).length === 0) { estadoDirtyRef.current = false; return; }
+      const { data, error } = await gravarEstadoAtual(selectedId, patch);
       if (!error) {
         estadoDirtyRef.current = false;
-        setPjs((arr) => arr.map((p) => p.id === selectedId ? { ...p, estado_atual: estadoAtual } : p));
+        estadoBaseRef.current = data;
+        setPjs((arr) => arr.map((p) => p.id === selectedId ? { ...p, estado_atual: data } : p));
       }
     }, 450);
     return () => clearTimeout(id);
   }, [estadoAtual, selectedId]);
   useEffect(() => () => {
     if (estadoDirtyRef.current && estadoRef.current && selRef.current) {
-      supabaseClient.from('personagens').update({ estado_atual: estadoRef.current }).eq('id', selRef.current);
+      gravarEstadoAtual(selRef.current, patchDeEstado(estadoBaseRef.current, estadoRef.current));
     }
   }, []);
 
@@ -958,7 +976,26 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }
   };
 
+  // Nome do PJ selecionado — usado nos textos do log da mesa.
+  const nomeDoPjSelecionado = () => {
+    const pjAtual = (pjs || []).find((p) => p.id === selectedId);
+    return pjAtual ? [pjAtual.nome, pjAtual.sobrenome].filter(Boolean).join(' ') : null;
+  };
+
   const destruirItem = (instanceId, quantidade) => {
+    /* Descartar vira linha na mesa (15/09/2026, pedido do usuário). Lê o item
+       ANTES de mexer no inventário: depois da remoção não há mais o que nomear. */
+    const alvo = inv?.itens.find((x) => x.instanceId === instanceId);
+    const catAlvo = alvo ? catalogoBySlug[alvo.slug] : null;
+    const qtdLog = quantidade ?? (alvo ? alvo.quantidade : 1);
+    const nomePjLog = nomeDoPjSelecionado();
+    if (catAlvo && nomePjLog) {
+      const quanto = qtdLog > 1 ? `${qtdLog}× ` : '';
+      const texto = lang === 'en'
+        ? `${nomePjLog} discarded ${quanto}${catAlvo.nome}.`
+        : `${nomePjLog} descartou ${quanto}${catAlvo.nome}.`;
+      registrarEventoMesa('item', texto, { item: catAlvo.nome, quantidade: qtdLog, instanceId, acao: 'descartar' });
+    }
     setInv((cur) => {
       const it = cur.itens.find((x) => x.instanceId === instanceId);
       if (!it) return cur;
@@ -1009,6 +1046,38 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         }],
       };
     });
+  };
+
+  /* Preparar carne (24/09/2026): 1 carne vira Ração, 2 Refeição, 3 Banquete —
+     ver prepararCarne (01-core/inventario-helpers.jsx). A troca vai para o
+     log da mesa, como o Usar. */
+  const prepararCarneAcao = (instanceId, resultado) => {
+    const novos = prepararCarne(inv?.itens, instanceId, resultado);
+    if (!novos) return;
+    setInv((cur) => ({ ...cur, itens: prepararCarne(cur.itens, instanceId, resultado) || cur.itens }));
+    const catPrato = catalogoBySlug[resultado];
+    const nomePj = nomeDoPjSelecionado();
+    if (catPrato && nomePj) {
+      const texto = lang === 'en'
+        ? `${nomePj} prepared 1× ${catPrato.nome}.`
+        : `${nomePj} preparou 1× ${catPrato.nome}.`;
+      registrarEventoMesa('item', texto, { item: catPrato.nome, quantidade: 1, acao: 'preparar' });
+    }
+  };
+
+  /* Sagração (15/09/2026): o Mestre sobe ou desce o bônus do item na escada
+     0 → 1 → 3 → 5 → 7 → 9. Grava na instância; o autosave leva ao banco. */
+  const ajustarBonus = (instanceId, direcao) => {
+    setInv((cur) => ({
+      ...cur,
+      itens: cur.itens.map((it) => {
+        if (it.instanceId !== instanceId) return it;
+        const novo = passoBonusItem(it.bonus, direcao);
+        if (novo === bonusDoItem(it)) return it;
+        const { bonus, ...resto } = it;
+        return novo > 0 ? { ...resto, bonus: novo } : resto;
+      }),
+    }));
   };
 
   const setObservacao = (instanceId, texto) => {
@@ -1177,6 +1246,23 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       setTransferError(error?.message || data?.motivo || 'Erro desconhecido');
       return { ok: false };
     }
+    /* Transferência vira linha na mesa (15/09/2026). Quem recebeu sai de
+       pjsHistoria, que é a mesma lista oferecida no modal. */
+    const catTransf = catalogoBySlug[instance.slug];
+    const nomePjTransf = nomeDoPjSelecionado();
+    const destino = (pjsHistoria || []).find((p) => String(p.id) === String(pjDestinoId));
+    if (catTransf && nomePjTransf && destino) {
+      const nomeDestino = [destino.nome, destino.sobrenome].filter(Boolean).join(' ');
+      const qtdTransf = Number(data.quantidade) || quantidade || instance.quantidade || 1;
+      const quanto = qtdTransf > 1 ? `${qtdTransf}× ` : '';
+      const texto = lang === 'en'
+        ? `${nomePjTransf} gave ${quanto}${catTransf.nome} to ${nomeDestino}.`
+        : `${nomePjTransf} entregou ${quanto}${catTransf.nome} para ${nomeDestino}.`;
+      registrarEventoMesa('item', texto, {
+        item: catTransf.nome, quantidade: qtdTransf, instanceId, acao: 'transferir',
+        destino_pj_id: destino.id, destino_nome: nomeDestino,
+      });
+    }
     // Recarregar todos os PJs do usuário para refletir ambos os inventários
     const { data: pjsAtualizados } = await supabaseClient
       .from('personagens')
@@ -1332,6 +1418,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onDespir={despir}
           onUsar={solicitarUsar}
           onPreparar={prepararAnimal}
+          onPrepararCarne={prepararCarneAcao}
           criaturaMontaria={criaturaDoItem(catalogoBySlug[instanceDetalhes.slug], criaturasMontaria)}
           onMontar={montar}
           onDesmontar={desmontar}
@@ -1343,6 +1430,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onVender={(id) => { setDetalhesId(null); setVendaInstanceId(id); }}
           onDestruir={solicitarDestruir}
           onObservacao={setObservacao}
+          onBonus={isMestre ? ajustarBonus : undefined}
           onMoverParaContainer={solicitarMover}
           onTransferir={(pjDestinoId, qtd) => solicitarTransferir(instanceDetalhes.instanceId, pjDestinoId, qtd)}
           transferError={transferError}
@@ -1969,7 +2057,8 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   // Monta o content do tooltip para um item/container.
   // Mostra apenas o NOME do item (a descrição vive no modal de detalhes).
   const tipContent = (it, cat) => {
-    return { title: cat ? cat.nome : `(? ${it.slug})` };
+    const b = bonusDoItem(it);
+    return { title: cat ? (b > 0 ? `${cat.nome} +${b}` : cat.nome) : `(? ${it.slug})` };
   };
 
   const renderContainerCard = (it, cat, idx) => {
@@ -2428,17 +2517,19 @@ function motivoAprenderLabel(motivo, en, dados) {
 function DetalhesItemModal({
   instance, catalogoBySlug, raca, slotsState, todosItens,
   containersDisponiveis, pjsHistoria, lang,
-  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onAprenderMagia, pjAprendiz, magiasDb, onDestruir, onObservacao,
+  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, onDestruir, onObservacao,
   onMoverParaContainer, onTransferir, transferError, onTransferReset,
   onVestir, onDespir,
   criaturaMontaria, onMontar, onDesmontar,
   onRemoverDoContainer, onAbrirDetalhesFilho, contexto,
   onVender, vendaAberta, podeVender,
+  onBonus,
 }) {
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const [confirmandoDestruir, setConfirmandoDestruir] = useState(false);
   const [confirmandoUsar, setConfirmandoUsar] = useState(false);
   const [confirmandoPreparar, setConfirmandoPreparar] = useState(false);
+  const [preparandoCarne, setPreparandoCarne] = useState(false);
   const [aprendendo, setAprendendo] = useState(false);
   const [aprenderErro, setAprenderErro] = useState(null);
   const [mostrarArmazenar, setMostrarArmazenar] = useState(false);
@@ -2461,6 +2552,7 @@ function DetalhesItemModal({
     setConfirmandoDestruir(false);
     setConfirmandoUsar(false);
     setConfirmandoPreparar(false);
+    setPreparandoCarne(false);
     setAprendendo(false);
     setAprenderErro(null);
     setMostrarArmazenar(false);
@@ -2489,6 +2581,11 @@ function DetalhesItemModal({
   const containerData = isContainer ? capacidadeContainer(instance, todosItens, catalogoBySlug) : null;
   const hasContainerContent = !!(containerData?.filhos?.length);
   const temMultiplos = instance.quantidade > 1;
+  // Carne que vira comida (24/09/2026): as receitas e quanto dela há no total.
+  const receitasCarne = receitasDaCarne(instance.slug);
+  const carneTotal = receitasCarne.length ? carneDisponivel(todosItens, instance.slug) : 0;
+  const destinoBonus = destinoBonusItem(cat);
+  const bonusItem = destinoBonus ? bonusDoItem(instance) : 0;
   /* Itens de defesa mostram a RESISTÊNCIA nos ícones, junto de ocupa e
      absorção (pedido do usuário, 12/09/2026). O número é a resistência atual
      da instância (a mesma conta da barra do card); o máximo vai no tooltip. */
@@ -2551,7 +2648,7 @@ function DetalhesItemModal({
 
   return (
     <ModalShell
-      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}</>}
+      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
       lang={lang}
       size="md"
       extraClass="modal-detalhes"
@@ -2664,6 +2761,40 @@ function DetalhesItemModal({
           </div>
         )}
 
+        {/* ── Sagração (15/09/2026) ───────────────────────────────
+            Bônus permanente do item: arma soma no dano, armadura e escudo na
+            absorção. Todos veem; só o Mestre (onBonus) sobe e desce, na
+            escada 0 → 1 → 3 → 5 → 7 → 9. */}
+        {!mostrarTransferir && !mostrarArmazenar && destinoBonus && (bonusItem > 0 || onBonus) && (
+          <div className="det-bonus" data-bonus={bonusItem}>
+            <span className="det-bonus-lbl">
+              <i className="ti ti-sparkles" aria-hidden="true" />
+              {en ? 'Consecration' : 'Sagração'}
+              <span className="det-bonus-onde">
+                {destinoBonus === 'dano' ? (en ? 'damage' : 'dano') : (en ? 'absorption' : 'absorção')}
+              </span>
+            </span>
+            <span className="det-bonus-ctrl">
+              {onBonus && (
+                <button type="button" className="btn-icon btn-sm" disabled={bonusItem === 0}
+                  aria-label={en ? 'Lower bonus' : 'Reduzir bônus'}
+                  onClick={() => onBonus(instance.instanceId, -1)}>
+                  <i className="ti ti-minus" aria-hidden="true" />
+                </button>
+              )}
+              <span className="det-bonus-val">+{bonusItem}</span>
+              {onBonus && (
+                <button type="button" className="btn-icon btn-sm"
+                  disabled={bonusItem === BONUS_ITEM_VALORES[BONUS_ITEM_VALORES.length - 1]}
+                  aria-label={en ? 'Raise bonus' : 'Aumentar bônus'}
+                  onClick={() => onBonus(instance.instanceId, 1)}>
+                  <i className="ti ti-plus" aria-hidden="true" />
+                </button>
+              )}
+            </span>
+          </div>
+        )}
+
         {/* ── Linha divisória ──────────────────────────────────── */}
         {!mostrarTransferir && !mostrarArmazenar &&(cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0 || mostraResistencia) &&
          (cat.descricao || cat.efeito) && (
@@ -2773,6 +2904,38 @@ function DetalhesItemModal({
                 <button className="btn-primary"
                   onClick={() => { onUsar(instance.instanceId); onClose(); }}>
                   {en ? 'Yes, use' : 'Sim, usar'}
+                </button>
+              </div>
+            </div>
+          ) : preparandoCarne ? (
+            /* Preparar carne (24/09/2026): as três receitas daquela carne. A
+               que pede mais carne do que o personagem tem fica desativada e
+               diz por quê. A conta soma todas as pilhas, não só esta. */
+            <div className="det-act-confirm">
+              <div className="det-act-confirm-title">
+                {en ? 'Prepare food' : 'Preparar alimento'}
+              </div>
+              <span className="det-act-confirm-lbl">
+                {en ? `You have ${carneTotal}× ${cat.nome}.` : `Você tem ${carneTotal}× ${cat.nome}.`}
+              </span>
+              <div className="det-act-confirm-btns det-receitas">
+                {receitasCarne.map((r) => {
+                  const prato = catalogoBySlug[r.resultado];
+                  const falta = carneTotal < r.custo;
+                  return (
+                    <button key={r.resultado} className="btn-primary"
+                      data-receita={r.resultado}
+                      disabled={falta || !prato}
+                      onClick={() => { onPrepararCarne(instance.instanceId, r.resultado); onClose(); }}
+                      {...propsTip(abrirTip, fecharTip, falta
+                        ? (en ? `Needs ${r.custo}× ${cat.nome}.` : `Precisa de ${r.custo}× ${cat.nome}.`)
+                        : ((prato && prato.efeito_positivo) || ''))}>
+                      {r.custo}× → {prato ? prato.nome : r.resultado}
+                    </button>
+                  );
+                })}
+                <button className="btn-ghost" onClick={() => setPreparandoCarne(false)}>
+                  {en ? 'Cancel' : 'Cancelar'}
                 </button>
               </div>
             </div>
@@ -2954,6 +3117,11 @@ function DetalhesItemModal({
                       {en ? 'Mount' : 'Montar'}
                     </button>
                   )
+                )}
+                {acoesPesadas && onPrepararCarne && receitasCarne.length > 0 && (
+                  <button className="btn-primary" onClick={() => setPreparandoCarne(true)}>
+                    {en ? 'Prepare' : 'Preparar'}
+                  </button>
                 )}
                 {acoesPesadas && ehAnimal && onPreparar && !instance.montado && (
                   <button className="btn-primary"
@@ -3547,25 +3715,16 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel, irreversivel 
     return () => window.removeEventListener('keydown', onKey);
   }, [qtd, onConfirm]);
 
-  const dec = () => setQtd((q) => Math.max(1, q - 1));
-  const inc = () => setQtd((q) => Math.min(max, q + 1));
-  const bump = (n) => setQtd((q) => Math.min(max, Math.max(1, q + n)));
+  /* O pill de estilo inline saiu em 17/09/2026: "onde houver seletor de
+     quantidade, use esse design" — o do BarEditPopover, que agora é o
+     QuantidadeStepper de 01-core/helpers.jsx. Com ele saíram o pillStyle e o
+     btnStyle locais, que eram a terceira cópia do mesmo desenho.
 
-  // Presets: valores fixos que façam sentido dentro do range disponível
-  const RAW_PRESETS = [1, 2, 5, 10, 15];
-  const presets = RAW_PRESETS.filter((n) => n <= max && n !== qtd);
-
-  const pillStyle = {
-    background: 'rgba(24,17,8,0.92)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-    border: '1px solid rgba(106,85,48,0.50)', borderRadius: 999, height: 40,
-    display: 'flex', alignItems: 'center', gap: 4, padding: '0 4px', width: '100%',
-  };
-  const btnStyle = (enabled) => ({
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 32, height: 32, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#C9A44E' : 'rgba(201,164,78,0.30)',
-    cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
-  });
+     E os chips de atalho (1, 2, 5, 10, Máx, zerar) saíram logo depois:
+     "remova os botões de filtro abaixo do seletor". Eu os tinha mantido
+     argumentando que eram atalho, não seletor — mas eram uma segunda maneira
+     de responder a mesma pergunta, logo abaixo da primeira, e o pedido era
+     justamente ter uma só. */
 
   return (
     <ModalShell
@@ -3577,54 +3736,23 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel, irreversivel 
       onConfirm={() => onConfirm(qtd)}
       confirmLabel={en ? 'Confirm' : 'Confirmar'}
     >
-      <p style={{
-        fontFamily: "'Lora', serif", fontSize: 13, fontStyle: 'italic',
-        color: 'var(--parchment-muted, #9C8F73)', marginBottom: 14,
-      }}>
+      {/* O texto padrão dos modais de quantidade (.loja-ficha-desc), no lugar
+          do itálico cinza de estilo inline que só esta tela usava. */}
+      <p className="loja-ficha-desc" style={{ margin: '0 0 14px' }}>
         {irreversivel
           ? (en ? 'Caution, this action is irreversible.' : 'Cuidado, essa ação é irreversível.')
           : (en ? 'How many?' : 'Quantos?')}
       </p>
 
-      {/* stepper pill */}
-      <div style={pillStyle}>
-        <button type="button" style={btnStyle(qtd > 1)} disabled={qtd <= 1}
-          onMouseDown={(e) => e.preventDefault()} onClick={dec} aria-label="-"
-          onMouseEnter={(e) => { if (qtd > 1) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-          <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 14 }} />
-        </button>
-        <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6', fontVariantNumeric: 'tabular-nums' }}>
-          {qtd} <span style={{ color: 'var(--parchment-muted, #9C8F73)', fontSize: 12 }}>{en ? `of ${max}` : `de ${max}`}</span>
-        </span>
-        <button type="button" style={btnStyle(qtd < max)} disabled={qtd >= max}
-          onMouseDown={(e) => e.preventDefault()} onClick={inc} aria-label="+"
-          onMouseEnter={(e) => { if (qtd < max) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-          <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
-        </button>
-      </div>
+      <QuantidadeStepper
+        value={qtd}
+        min={1}
+        max={max}
+        onChange={setQtd}
+        centro={<>{qtd} <span className="qtd-de-max">{en ? `of ${max}` : `de ${max}`}</span></>}
+        label={en ? 'Quantity' : 'Quantidade'}
+      />
 
-      {/* chips de preset */}
-      {presets.length > 0 && (
-        <div className="delta-stepper-chips" style={{ marginTop: 8 }}>
-          {presets.map((n) => (
-            <button type="button" key={n} className="delta-chip" onClick={() => setQtd(n)}>
-              {n}
-            </button>
-          ))}
-          {/* botão de máximo */}
-          {qtd < max && (
-            <button type="button" className="delta-chip" onClick={() => setQtd(max)}>
-              {en ? 'Max' : 'Máx'}
-            </button>
-          )}
-          {/* zerar para 1 */}
-          <button type="button" className="delta-chip delta-chip--reset" onClick={() => setQtd(1)} disabled={qtd <= 1} aria-label={en ? 'Reset' : 'Zerar'}>
-            <i className="ti ti-rotate" aria-hidden="true" />
-          </button>
-        </div>
-      )}
     </ModalShell>
   );
 }
@@ -3695,6 +3823,9 @@ Object.assign(window, {
   LeituraDocModal, urlLeituraDoc,
   // Slot de vestir do banco → casa da ficha ('costas' → 'capa'…).
   vesteSlotDe,
+  // Teto de peças por região — precisa bater com as casas que a ficha desenha
+  // (vestir-capacidade.test.js trava os dois lados juntos, 16/09/2026).
+  VESTE_SLOTS, vesteSlotState,
   // Pergaminho: o botão "Aprender" bloqueia quando não há o que ensinar.
   bloqueioPergaminho, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia,
   // A magia que o item carrega — o bestiário mostra nome e descrição.

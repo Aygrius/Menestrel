@@ -185,11 +185,12 @@ describe('a lista de fora do motor', () => {
       .forEach((k) => expect(window.tecnicaForaDoRegistro(k), k).toBeNull());
   });
 
-  it('registro e lista-de-fora cobrem as 58 do catálogo, sem sobra', () => {
+  it('registro e lista-de-fora cobrem as 65 do catálogo, sem sobra', () => {
     const ligadas = Object.keys(window.TECNICA_EFEITO_MAP).length;
     const fora = Object.keys(window.TECNICA_FORA_DO_REGISTRO).length;
-    // 58 + 0. Combate Montado e Luta as Cegas sairam da lista de fora em
-    // 12/09/2026; Provocar e Conduzir Oponente, em 14/09/2026.
-    expect(ligadas + fora).toBe(58);
+    // 65 + 0. Combate Montado e Luta as Cegas sairam da lista de fora em
+    // 12/09/2026; Provocar e Conduzir Oponente, em 14/09/2026; as 7 de
+    // criatura entraram direto no registro em 15/09/2026.
+    expect(ligadas + fora).toBe(65);
   });
 });

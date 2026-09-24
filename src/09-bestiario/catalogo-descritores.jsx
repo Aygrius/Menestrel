@@ -124,11 +124,30 @@ const CATALOGO_DESCRITORES = {
       { col: 'tipo',     tipo: 'opcoes', rotuloKey: 'campoTipo',
         opcoes: ['Animal', 'Construído', 'Celestial', 'Infernal', 'Místico', 'Dragão',
                  'Elemental', 'Monstro', 'Morto', 'Gigante', 'Civilizado'] },
-      { col: 'subtipo',  tipo: 'opcoes', rotuloKey: 'campoSubtipo',
-        opcoes: ['Fogo', 'Ar', 'Água', 'Terra', 'Celestial', 'Infernal'] },
+      /* ⚠️ SUBTIPO É ESPÉCIE, não elemento (levantado em 18/09/2026). A lista
+         fechada aqui declarava elementos e os dados nunca a obedeceram: das
+         ~218 criaturas, ~147 guardavam espécie (Cavalo, Goblin, Esqueleto,
+         Gárgula…) e só 15 um elemento. O elemento ganhou COLUNA PRÓPRIA
+         (`elemento`, logo abaixo) e aqueles 15 valores mudaram de lugar —
+         ver scripts/sql/criaturas-elemento-2026-09-18.sql.
+         Sem `opcoes`: espécie é texto livre, e uma lista fechada aqui foi
+         justamente o que produziu a confusão. */
+      { col: 'subtipo',  tipo: 'texto', rotuloKey: 'campoSubtipo' },
       { col: 'estagio', tipo: 'numero', rotuloKey: 'campoEstagio', min: 1, max: 60 },
       { col: 'plano',    tipo: 'opcoes', rotuloKey: 'campoPlano',
         opcoes: ['Material', 'Infernal', 'Celestial', 'Elemental'] },
+      /* Elemento (18/09/2026). Fica DEPOIS de plano, e não junto de subtipo,
+         por causa da grade de 4 colunas do editor: a primeira linha é
+         Nome · Tipo · Subtipo · Estágio desde 14/09/2026 ("'estágio' fica
+         inline com 'nome', 'tipo', etc."), e enfiar um campo no meio empurrava
+         o Estágio para a linha de baixo. Aqui ele fica ao lado de plano, que é
+         a outra classificação cosmológica da criatura.
+
+         São os quatro que a ficha do bestiário desenha com ícone (ti-flame,
+         ti-tornado, ti-droplet, ti-frustum). Valor fora da lista continua
+         aparecendo e cai na palavra, como em qualquer campo de opções. */
+      { col: 'elemento', tipo: 'opcoes', rotuloKey: 'campoElemento',
+        opcoes: ['Fogo', 'Ar', 'Água', 'Terra'] },
       { col: 'coletivo', tipo: 'opcoes', rotuloKey: 'campoColetivo',
         opcoes: ['Grupo Grande', 'Grupo Médio', 'Grupo Pequeno', 'Solitário'] },
       /* Montaria (14/09/2026): "uma nova característica das criaturas". É
@@ -138,6 +157,13 @@ const CATALOGO_DESCRITORES = {
       { col: 'montaria', tipo: 'opcoes', rotuloKey: 'campoMontaria',
         opcoes: ['Sim', 'Não'], booleano: true },
       { col: 'peso',    tipo: 'numero', rotuloKey: 'campoPeso',    min: 0 },
+      /* Altura (17/09/2026): a ficha do bestiário passou a listá-la em
+         Características, e a coluna não existia — ver
+         scripts/sql/criaturas-altura-2026-09-17.sql. Em METROS, com casas
+         decimais (0,80 da Águia), por isso `passo`: um campo de inteiros
+         arredondaria toda criatura pequena para 0 ou 1. Nasce vazia nas ~200
+         criaturas do catálogo e a ficha mostra "—" até alguém preencher. */
+      { col: 'altura',  tipo: 'numero', rotuloKey: 'campoAltura',  min: 0, passo: 0.01 },
       // intelecto é TEXT no banco, diferente dos outros seis atributos.
       { col: 'intelecto', tipo: 'texto', rotuloKey: 'campoIntelecto' },
       { col: 'aura',       tipo: 'numero', rotuloKey: 'campoAura',       min: -2, max: 10 },

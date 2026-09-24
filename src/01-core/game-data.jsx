@@ -386,7 +386,7 @@ function resistenciasBase(estagio, fisico, aura) {
 // Os ATRIBUTOS nunca são afetados por condição. O efeito das condições de
 // GRUPO (Sanidade/Reputação/Temperatura) não mora aqui — é aplicado no total
 // da habilidade, por totalHabilidadeComCondicoes.
-function calcularFicha(p, catalogoBySlug, condicoesAtuais) {
+function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau) {
   const racaData = GAME_DATA.racas[p.raca] || GAME_DATA.racas['Humano'];
   const profData = GAME_DATA.profissoes[p.profissao] || GAME_DATA.profissoes['Guerreiro'];
   const estagio = calcEstagio(p.experiencia ?? 0);
@@ -454,8 +454,17 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais) {
   // aí o poço não EXISTE, e o bônus de condição não o ressuscita (senão "sem
   // Karma" viraria condicional e o tooltip da ficha, mentira).
   const karma = atributosBase.aura < 1 ? 0 : Math.max(0, (resMagica + 1) * (auraC + 1) + dPoco.ka);
-  // VB — (11 × altura) + agilidade (+ Sono)
-  const veloc = Math.max(0, Math.floor(h * 11) + agilC + dPoco.vb);
+  /* VB — (11 × altura) + agilidade (+ Sono) − VENTO.
+     O vento é o único fator aqui que NÃO vem do personagem: ele é do clima da
+     mesa (historias.data_jogo_atual.tempo.vento), entra como parâmetro e sai
+     sozinho quando o vento para. Nada é gravado no PJ, e por isso não há o que
+     desfazer — ver 01-core/clima-desgaste.jsx.
+     Quem chama sem o parâmetro (os nove pontos anteriores a 20/09/2026)
+     continua com a conta de sempre: degrau ausente vale zero. */
+  const _ventoFn = (typeof penalidadeVentoVB === 'function' && penalidadeVentoVB)
+    || (typeof window !== 'undefined' && window.penalidadeVentoVB) || null;
+  const ventoVB = _ventoFn ? _ventoFn(ventoDegrau) : 0;
+  const veloc = Math.max(0, Math.floor(h * 11) + agilC + dPoco.vb - ventoVB);
 
   // AR     = soma das absorções dos equipamentos de defesa equipados.
   // Defesa = tipo do peitoral (slot 'peito') concatenado com AR. Ex: "L10".
@@ -472,7 +481,8 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais) {
       if (!pecaNoCorpo(it)) return;
       const c = catalogoBySlug[it.slug];
       if (!c) return;
-      absorcaoTotal += Number(c.absorcao || 0);
+      // + Sagração da peça (armadura e escudo, 15/09/2026).
+      absorcaoTotal += absorcaoDaPeca(it, c);
       defesaTotal   += Number(c.defesa   || 0);
       if (it.slot === 'peito' && c.tipo_armadura) {
         tipoPeitoral = c.tipo_armadura;
@@ -1113,6 +1123,70 @@ function pontosCaracterizacaoTotal(caracterizacao) {
   return PONTOS_CARACTERIZACAO_BASE + extra;
 }
 
+/* ============================================================
+   ÍCONES DE PROFISSÃO E DE TIPO DE CRIATURA (17/09/2026)
+   ============================================================
+   "Adicione o ícone da profissão dos personagens no card e na ficha" e "no
+    tabuleiro de batalha, ao invés de mostrar a primeira letra do nome da
+    criatura, mostre seu ícone de acordo com seu tipo." (usuário)
+
+   Os desenhos foram escolhidos pelo usuário, um a um. Ficam AQUI, e não em
+   cada tela, porque três telas os consomem — card (08), ficha (11) e tabuleiro
+   (12) — e um par profissão→ícone escrito três vezes é a receita de divergir
+   sem ninguém decidir (foi o que aconteceu com status→ícone dentro da própria
+   batalha; ver a nota de ICONE_STATUS).
+
+   Todos os nomes são do conjunto Tabler que o index.html carrega. Ícone
+   inventado não falha: vira quadrado vazio na tela — é a lição do
+   'ti-cloud-moon' que o VISIBILIDADE_ICONE tentou usar. */
+const ICONE_PROFISSAO = {
+  'Guerreiro':  'ti-shield',
+  'Rastreador': 'ti-bow',
+  'Sacerdote':  'ti-bible',
+  'Ladino':     'ti-sword',
+  'Bardo':      'ti-music',
+  'Mago':       'ti-crystal-ball',
+};
+
+/* Os dez tipos que a tabela `criaturas` usa hoje, todos nomeados pelo usuário
+   na segunda passada (17/09/2026). Ficaram de fora só Monstro e Gigante, que o
+   editor oferece e nenhuma criatura usa — esses caem na inicial do nome.
+
+   "Selvagem" saiu: era da primeira lista e não existe como tipo. Infernal e
+   Demônio dividem o mesmo pentagrama — são a mesma gente para quem olha o
+   tabuleiro. E o ti-ghost-2, que era do Místico, passou para o Elemental. */
+const ICONE_TIPO_CRIATURA = {
+  'Animal':     'ti-horse',
+  'Celestial':  'ti-cross',
+  'Infernal':   'ti-pentagram',
+  'Demônio':    'ti-pentagram',
+  'Dragão':     'ti-dragon',
+  'Civilizado': 'ti-user',
+  'Construído': 'ti-robot',
+  'Místico':    'ti-michelin-bib-gourmand',
+  'Morto':      'ti-coffin',
+  'Elemental':  'ti-ghost-2',
+};
+
+/* Busca tolerante a acento e caixa: o mesmo tipo aparece como 'Dragão' na
+   tabela e como 'dragao' em dado antigo, e uma das duas grafias sumiria. */
+function _chaveSemAcento(v) {
+  // Mesmo recorte de marcas combinantes de _normalizaTokenBonus, acima.
+  return String(v == null ? '' : v)
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+}
+function _buscaPorChave(mapa, valor) {
+  if (valor == null) return null;
+  if (mapa[valor]) return mapa[valor];
+  const alvo = _chaveSemAcento(valor);
+  if (!alvo) return null;
+  const achado = Object.keys(mapa).find((k) => _chaveSemAcento(k) === alvo);
+  return achado ? mapa[achado] : null;
+}
+
+function iconeProfissao(profissao) { return _buscaPorChave(ICONE_PROFISSAO, profissao); }
+function iconeTipoCriatura(tipo)   { return _buscaPorChave(ICONE_TIPO_CRIATURA, tipo); }
+
 Object.assign(window, {
   GAME_DATA, GRUPOS_HABILIDADES_ORDEM, ATRIBUTOS_KEYS, ATRIBUTOS_LABEL,
   calcEstagio, pontosDisponiveis, custoAtributo, pontosGastos, todosOsPontosGastos, altura, peso,
@@ -1135,4 +1209,5 @@ Object.assign(window, {
   resolverAcao, resolverResistencia, resistenciasBase,
   pontosCaracterizacaoTotal, gastoCaracterizacao,
   PONTOS_CARACTERIZACAO_BASE, CUSTO_CARACTERIZACAO, GANHO_CARACTERIZACAO,
+  ICONE_PROFISSAO, ICONE_TIPO_CRIATURA, iconeProfissao, iconeTipoCriatura,
 });

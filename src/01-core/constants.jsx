@@ -31,6 +31,13 @@ const FANTASY_WEEKDAYS = [
   'Saegaeti', 'Saverieto', 'Sivonte',
 ];
 
+/* Os FERIADOS do calendário não moram aqui: são os 44 de FERIADOS_FANTASY, em
+   10-shell/shell.jsx, junto do CalendarioFantasyModal que os desenha. Cheguei
+   a criar uma segunda tabela neste arquivo em 20/09/2026, sem ter achado a
+   primeira — duas fontes de verdade para a mesma lore, desfeito no mesmo dia.
+   Quem precisar consultar usa `feriadosDoDia(dia, mes)`, que devolve ARRAY:
+   há datas com mais de um feriado. */
+
 // Strings de copy só pro fluxo de auth
 const AUTH_COPY = {
   pt: {
@@ -102,6 +109,7 @@ const ADMIN_COPY = {
     campoNivel7: 'Nível 7',
     campoNivel9: 'Nível 9',
     campoSubtipo: 'Subtipo',
+    campoElemento: 'Elemento',
     campoPlano: 'Plano',
     campoForaDaLista: 'fora da lista',
     campoColetivo: 'Coletivo',
@@ -110,6 +118,7 @@ const ADMIN_COPY = {
     campoSemVinculo: '— nenhuma —',
     campoEstagio: 'Estágio',
     campoPeso: 'Peso',
+    campoAltura: 'Altura (m)',
     campoIntelecto: 'Intelecto',
     campoAura: 'Aura',
     campoCarisma: 'Carisma',
@@ -146,7 +155,7 @@ const ADMIN_COPY = {
     equipBuscar: 'Buscar arma ou armadura…',
     equipRemover: 'Tirar',
     equipVazio: 'Nada equipado.',
-    equipMaosOcupadas: 'As duas mãos estão ocupadas.',
+    equipJaEquipada: 'Esta arma já está equipada.',
     equipSlotOcupado: 'Já há uma peça nesse lugar.',
     equipSemSlot: 'Este item não tem onde ser equipado.',
     campoDano25: 'Dano 25%',
@@ -185,6 +194,7 @@ const ADMIN_COPY = {
     editorExcluir: 'Excluir',
     editorExcluirConfirmar: 'Confirmar exclusão',
     editorExcluindo: 'Excluindo…',
+    editorAnimalFalhou: 'Criatura salva, mas o item Animal não foi atualizado:',
     editorChaveVazia: 'O nome não gera uma chave válida — use ao menos uma letra ou número.',
     sections: {
       historias:     { label: 'Histórias',    desc: 'Suas campanhas, arcos e sessões' },
@@ -249,6 +259,7 @@ const ADMIN_COPY = {
     campoNivel7: 'Level 7',
     campoNivel9: 'Level 9',
     campoSubtipo: 'Subtype',
+    campoElemento: 'Element',
     campoPlano: 'Plane',
     campoForaDaLista: 'not in list',
     campoColetivo: 'Group Size',
@@ -257,6 +268,7 @@ const ADMIN_COPY = {
     campoSemVinculo: '— none —',
     campoEstagio: 'Stage',
     campoPeso: 'Weight',
+    campoAltura: 'Height (m)',
     campoIntelecto: 'Intellect',
     campoAura: 'Aura',
     campoCarisma: 'Charisma',
@@ -289,7 +301,7 @@ const ADMIN_COPY = {
     equipBuscar: 'Search weapon or armor…',
     equipRemover: 'Remove',
     equipVazio: 'Nothing equipped.',
-    equipMaosOcupadas: 'Both hands are busy.',
+    equipJaEquipada: 'This weapon is already equipped.',
     equipSlotOcupado: 'There is already a piece in that spot.',
     equipSemSlot: 'This item has nowhere to be equipped.',
     campoDano25: 'Damage 25%',
@@ -325,6 +337,7 @@ const ADMIN_COPY = {
     editorExcluir: 'Delete',
     editorExcluirConfirmar: 'Confirm delete',
     editorExcluindo: 'Deleting…',
+    editorAnimalFalhou: 'Creature saved, but its Animal item was not updated:',
     editorChaveVazia: 'This name does not yield a valid key — use at least one letter or digit.',
     sections: {
       historias:     { label: 'Stories',     desc: 'Your campaigns, arcs and sessions' },
@@ -377,6 +390,14 @@ const ADMIN_SECTIONS = {
   master: [
     { id: 'historias',     icon: 'Scroll' },
     { id: 'personagens_m', icon: 'Skull' },
+    /* Lugares e NPCs no menu do MESTRE (17/09/2026): "Não está aparecendo para
+       o mestre o menu NPCs e lugares, vinculados à história selecionada."
+       Eram só do Jogador; o Mestre tinha o mesmo conteúdo escondido atrás de
+       Histórias → card da mesa → "Lore". São o GerenciarLoreView travado num
+       tipo, lendo a mesa ativa (ver LoreDaMesa, 13-diario/diario.jsx).
+       Memórias não entra: memória é do personagem, não da mesa. */
+    { id: 'lugares',       icon: 'MapPin' },
+    { id: 'npcs',          icon: 'Users' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'itens',         icon: 'Sheet' },
     { id: 'itens_campanha', icon: 'Chest' },

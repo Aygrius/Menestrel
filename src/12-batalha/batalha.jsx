@@ -32,6 +32,24 @@
                              (position:fixed, z-index alto) por cima de
                              tudo — não precisou mudar.
 
+   ⚠️ ONDE MORA O PAINEL DE AÇÃO (17/09/2026) — releia antes de mexer:
+   De 30/08/2026 até aqui, "Ação" TROCAVA o conteúdo do popover do token
+   (TabuleiroMenu) pelo AcaoPanel, e a saída era o X do popover em modo
+   "voltar" (menuVoltar). Agora o painel é um ModalShell — AcaoModal, definido
+   logo depois do AcaoPanel — renderizado pelas DUAS views ao lado dos outros
+   modais delas, fora de `menuDe`. Pedido do usuário: "O modal de batalha, com
+   as ações, padronize ele usando o padrão de modal que já temos no sistema."
+
+   O popover NÃO virou modal, e isso é deliberado: ele guarda stats, pools,
+   Mover e Passar, e Mover exige clicar na GRADE com ele aberto — o backdrop
+   de um ModalShell comeria esse clique. Por isso o popover continua sem véu
+   (ver FORA_MAS_NOSSO em tabuleiro.jsx) e quem abre a Ação chama `fechar()`
+   junto, senão o card ficaria atrás do backdrop.
+
+   Duas props do TabuleiroBatalha ficaram sem consumidor nessa mudança,
+   `menuVoltar` e `abrirMenu`: as duas existiam só para o painel dentro do
+   menu. A capacidade segue em tabuleiro.jsx, documentada e testada.
+
    DB: tabela `batalhas` (migration 007). Vínculos de participantes
    vêm de historias.protagonista_ids (PJs) e historias.criatura_ids
    (criaturas) — migration 008.
@@ -375,7 +393,13 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
                 <div
                   key={it.key}
                   className={'hist-protag-item modo-qtd' + (ativa ? ' on' : '')}
+                  role="checkbox"
+                  aria-checked={ativa}
+                  tabIndex={0}
                   onClick={() => onQtd(it.key, ativa ? 0 : 1)}
+                  onKeyDown={(e) => {
+                    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onQtd(it.key, ativa ? 0 : 1); }
+                  }}
                 >
                   {/* Checkbox visual (não nativo) */}
                   <div className="part-check-visual">
@@ -384,17 +408,18 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
                   {/* Linha 1: nome + stepper inline (só quando ativa) */}
                   <div className="part-item-row1">
                     <span className="hist-protag-name">{it.nome}</span>
+                    {/* Era o SEXTO desenho de seletor de quantidade do sistema,
+                        e o mais escondido: só aparece na montagem da batalha, ao
+                        marcar uma criatura. Virou o do sistema como os outros
+                        (17/09/2026). O .part-qty-stepper em volta ficou só como
+                        caixa de posicionamento na linha do nome. */}
                     {ativa && (
                       <div className="part-qty-stepper" onClick={(e) => e.stopPropagation()}>
-                        <button type="button" className="part-qty-btn" disabled={qtd <= 1}
-                          onClick={() => onQtd(it.key, qtd - 1)} aria-label="-">
-                          <i className="ti ti-minus" aria-hidden="true" />
-                        </button>
-                        <span className="part-qty-val">{qtd}</span>
-                        <button type="button" className="part-qty-btn"
-                          onClick={() => onQtd(it.key, qtd + 1)} aria-label="+">
-                          <i className="ti ti-plus" aria-hidden="true" />
-                        </button>
+                        <QuantidadeStepper
+                          value={qtd} min={1}
+                          onChange={(v) => onQtd(it.key, v)}
+                          label={it.nome}
+                        />
                       </div>
                     )}
                   </div>
@@ -404,16 +429,35 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
                 </div>
               );
             }
-            // Modo PJ: checkbox original
+            /* Modo PJ. Usava <input type="checkbox"> nativo dentro de um
+               <label>, enquanto a criatura ao lado desenhava a própria caixa
+               (.part-check-visual) — dois desenhos pro mesmo gesto, na mesma
+               tela, um do sistema operacional e outro da paleta. Padronizado
+               no desenhado em 17/09/2026 ("O botão de seleção de criaturas e
+               de personagens está diferente, padronize").
+
+               Deixou de ser <label> junto com o input: sem controle nativo o
+               label não tem o que rotular, e o clique é do <div> inteiro,
+               como já era no modo criatura. `role`/`aria-checked` devolvem ao
+               leitor de tela o que o checkbox nativo dava de graça. */
             const on = sel.has(it.key);
             return (
-              <label
+              <div
                 key={it.key}
                 className={'hist-protag-item' + (on ? ' on' : '')}
+                role="checkbox"
+                aria-checked={on}
+                tabIndex={0}
+                onClick={() => onToggle(it.key)}
+                onKeyDown={(e) => {
+                  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onToggle(it.key); }
+                }}
               >
-                <input type="checkbox" checked={on} onChange={() => onToggle(it.key)} />
+                <div className="part-check-visual">
+                  {on && <i className="ti ti-check" aria-hidden="true" />}
+                </div>
                 <div className="hist-protag-name">{it.nome}</div>
-              </label>
+              </div>
             );
           })}
         </div>
@@ -432,8 +476,14 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
 
   // PJs: Set simples (checkbox — cada PJ entra 0 ou 1 vez)
   const [selPj, setSelPj] = useState(() => new Set(pjsVinc.map((p) => 'pj:' + p.id)));
-  // Criaturas: Map<key, qtd> — 0 = não inclusa, N ≥ 1 = N instâncias
-  const [qtdCri, setQtdCri] = useState(() => new Map(criaturasVinc.map((c) => ['cri:' + c.id, 1])));
+  /* Criaturas: Map<key, qtd> — 0 = não inclusa, N ≥ 1 = N instâncias.
+     Nascem em 0 desde 17/09/2026: "Por padrão, todas as criaturas ficam
+     desmarcadas." Era 1, e toda criatura vinculada à história entrava na
+     batalha por omissão — o Mestre tinha que DESMARCAR o que não queria, que
+     é o inverso do gesto natural quando o vínculo com a história é amplo e o
+     encontro é pequeno. Os PJs seguem pré-marcados (selPj, acima): numa
+     batalha da mesa eles entram, e o pedido era só sobre criaturas. */
+  const [qtdCri, setQtdCri] = useState(() => new Map(criaturasVinc.map((c) => ['cri:' + c.id, 0])));
   const [saving, setSaving] = useState(false);
 
   /* ANIMAIS DOS JOGADORES (14/09/2026): "o personagem irá controlar seus
@@ -905,24 +955,33 @@ function magiasConhecidasDoAtor(ator, catalogos) {
 
   if (ator.tipo === 'criatura') {
     const cri = catalogos.criById && catalogos.criById[ator.ref_id];
-    if (!cri || !cri.magia) return [];
-    /* Nível = ESTÁGIO da criatura (13/09/2026, nivelMagiaDeCriatura) — não
-       mais `magia_n`. "Se a criatura tem nível 7 e magia bola de fogo, o nível
-       da magia é 7." */
-    const nivel = (typeof nivelMagiaDeCriatura === 'function')
-      ? nivelMagiaDeCriatura(cri.estagio) : (Number(cri.estagio) || 1);
-    /* O casamento nome→magia mora em 01-core/magias-efeito.jsx, e não aqui,
-       porque a AUDITORIA do catálogo (auditarCriaturas) precisa usar
-       exatamente a mesma regra. Auditoria com cópia da lógica mente: diria
-       que está tudo certo enquanto a mesa vê a magia sumir.
-
-       `naoAchadas` é descartado aqui de propósito — o motor ignora em
-       silêncio, que é o fallback certo em combate. Quem reporta é o painel. */
-    const { achadas } = resolverNomesDeMagia(cri.magia, indiceMagiasPorNome(catalogos.magiasByKey));
-    return achadas.map((m) => ({ key: m.key, magia: m, nivel, passos: null, custo_karma: 0 }));
+    return magiasDaCriaturaCrua(cri, catalogos.magiasByKey);
   }
 
   return [];
+}
+
+/* Terceira do trio cri-based (ver habilidadesDaCriaturaCrua). O bestiário
+   mostra a seção Magias da criatura desde 17/09/2026, e precisa do MESMO
+   nível que o combate usa. */
+function magiasDaCriaturaCrua(cri, magiasByKey) {
+  if (!cri || !cri.magia) return [];
+  /* Nível = ESTÁGIO da criatura (13/09/2026, nivelMagiaDeCriatura) — não
+     mais `magia_n`. "Se a criatura tem nível 7 e magia bola de fogo, o nível
+     da magia é 7." A coluna magia_n segue no banco sem uso; quem mostrar a
+     magia de uma criatura tem que vir por aqui, senão exibe um número velho
+     (a Águia Real tem magia_n 9 e estágio 18). */
+  const nivel = (typeof nivelMagiaDeCriatura === 'function')
+    ? nivelMagiaDeCriatura(cri.estagio) : (Number(cri.estagio) || 1);
+  /* O casamento nome→magia mora em 01-core/magias-efeito.jsx, e não aqui,
+     porque a AUDITORIA do catálogo (auditarCriaturas) precisa usar
+     exatamente a mesma regra. Auditoria com cópia da lógica mente: diria
+     que está tudo certo enquanto a mesa vê a magia sumir.
+
+     `naoAchadas` é descartado aqui de propósito — o motor ignora em
+     silêncio, que é o fallback certo em combate. Quem reporta é o painel. */
+  const { achadas } = resolverNomesDeMagia(cri.magia, indiceMagiasPorNome(magiasByKey));
+  return achadas.map((m) => ({ key: m.key, magia: m, nivel, passos: null, custo_karma: 0 }));
 }
 
 /* ── Magias ofensivas conhecidas pelo combatente ───────────────────
@@ -1126,10 +1185,19 @@ function catalogoNomeadoPelaCriatura(csv, porKey) {
   return out;
 }
 
-function habilidadesDeCriatura(ator, catalogos) {
-  const cri = catalogos && catalogos.criById && catalogos.criById[ator && ator.ref_id];
+/* ── habilidades/técnicas a partir da LINHA CRUA da criatura ───────────────
+   Estas duas recebem a linha de `criaturas` direto, sem participante e sem o
+   objeto `catalogos` inteiro. Existem porque o BESTIÁRIO precisa dos mesmos
+   números (17/09/2026: "Habilidades — Sentidos: 16"), e ali não há batalha
+   nenhuma: a tela tem a linha na mão, não um `ator` com ref_id.
+
+   As versões `...DeCriatura` abaixo passaram a delegar para cá. A conta é UMA:
+   se a ficha do bestiário calculasse por conta própria, o 16 da consulta e o
+   16 do combate poderiam divergir sem ninguém decidir que deviam — e quem
+   olhasse os dois não saberia qual acreditar. */
+function habilidadesDaCriaturaCrua(cri, habilidadesByKey) {
   if (!cri || !cri.habilidades) return [];
-  const habsByKey = catalogos.habilidadesByKey || {};
+  const habsByKey = habilidadesByKey || {};
   const nivel = Number(cri.estagio) || 1;
   const atributos = atributosDaCriatura(cri);
   return catalogoNomeadoPelaCriatura(cri.habilidades, habsByKey).map((h) => ({
@@ -1140,13 +1208,18 @@ function habilidadesDeCriatura(ator, catalogos) {
   })).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
 }
 
-function tecnicasDeCriatura(ator, catalogos) {
-  const cri = catalogos.criById && catalogos.criById[ator.ref_id];
+function habilidadesDeCriatura(ator, catalogos) {
+  const cri = catalogos && catalogos.criById && catalogos.criById[ator && ator.ref_id];
+  return habilidadesDaCriaturaCrua(cri, catalogos && catalogos.habilidadesByKey);
+}
+
+// Ver a nota de habilidadesDaCriaturaCrua: mesma razão, mesmo par.
+function tecnicasDaCriaturaCrua(cri, tecnicasByKey) {
   if (!cri || !cri.tecnicas_especiais) return [];
   const atributos = atributosDaCriatura(cri);
   const nivel = Number(cri.estagio) || 1;
   const out = [];
-  catalogoNomeadoPelaCriatura(cri.tecnicas_especiais, catalogos.tecnicasByKey).forEach((t) => {
+  catalogoNomeadoPelaCriatura(cri.tecnicas_especiais, tecnicasByKey).forEach((t) => {
     const total = (typeof totalTecnica === 'function') ? totalTecnica(t, { [t.key]: nivel }, atributos) : null;
     out.push({
       fonte: 'tecnica',
@@ -1156,9 +1229,15 @@ function tecnicasDeCriatura(ator, catalogos) {
       grupo_armas: t.grupo_armas || null,
       grupo_armaduras: t.grupo_armaduras || null,
       efeito: t.efeito || null,
+      descricao: t.descricao || null,
     });
   });
   return out;
+}
+
+function tecnicasDeCriatura(ator, catalogos) {
+  const cri = catalogos.criById && catalogos.criById[ator.ref_id];
+  return tecnicasDaCriaturaCrua(cri, catalogos.tecnicasByKey);
 }
 
 function tecnicasDoAtor(ator, catalogos) {
@@ -1507,6 +1586,9 @@ function bonusIniciativaDe(p) {
 
 async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
   const pools = personagensPools || {};
+  // O vento da mesa na largada (ver useVentoDaBatalha): as viradas seguintes
+  // recarimbam com o vento corrente.
+  const ventoVbLargada = penalidadeVentoNaBatalha(dataJogo && dataJogo.tempo && dataJogo.tempo.vento);
   // Garante inst_id único em todos os participantes — inclusive batalhas antigas
   // criadas antes desta correção, que não têm inst_id no banco.
   // Bandos (formarBandos, idempotente) e um número de iniciativa por TIPO de
@@ -1625,7 +1707,7 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         // não volta pra bancada ao remontar), movimento cheio da rodada, e
         // foto/raça pro token. Ver 12-batalha/tabuleiro.jsx.
         pos: (p.pos && posValida(p.pos)) ? { x: p.pos.x, y: p.pos.y } : null,
-        mov_rest: movimentoBase(d.velocidade || 0),
+        mov_rest: movimentoBase(Math.max(0, (d.velocidade || 0) - ventoVbLargada)),
         foto_url: pj.foto_url || null,
         raca: pj.raca || null,
         // pa_rest ganha o bônus de velocidade JÁ NA RODADA 1 (paDaRodada):
@@ -1636,7 +1718,8 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         // viu o outro antes. Soma na velocidade, entao mexe tambem no passo
         // do tabuleiro e na acao extra acima de 30, que e coerente: quem
         // reagiu mais rapido esta mais rapido.
-        vb: (d.velocidade || 0) + bonusIni, pa_max: pa, pa_rest: paDaRodada(pa, (d.velocidade || 0) + bonusIni),
+        vb: (d.velocidade || 0) + bonusIni, pa_max: pa, pa_rest: paDaRodada(pa, (d.velocidade || 0) + bonusIni - ventoVbLargada),
+        vento_vb: ventoVbLargada,   // vento da mesa na largada — ver useVentoDaBatalha
         pa_tecnica_max: paTec, pa_tecnica_rest: paTec,
         eh: ehCur, eh_max: ehMax,
         ar: arCur, ar_max: arMax,
@@ -1649,7 +1732,13 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         rf: d.resistenciaFisica || 0,
         rm: d.resistenciaMagica || 0,
         status,
-        status_temp: [],   // Fase 6: array de { id, nome, icone, rodadas_rest }
+        /* O QUE ESTAVA NA FICHA ENTRA NO COMBATE (17/09/2026). Era sempre []:
+           quem saísse envenenado de uma luta chegava curado na seguinte. Os
+           vencidos ficam de fora — statusVigentes compara com a data da mesa,
+           o mesmo vencimento preguiçoso das magias de calendário. */
+        status_temp: (typeof statusVigentes === 'function'
+          ? statusVigentes(pj.estado_atual && pj.estado_atual.status, dataJogo)
+          : []).map((st) => ({ ...st })),
         tecnicas_usadas: [],   // Task 8: keys de técnicas Único já gastas nesta batalha
         tecnica_livre_usada: false,   // REGRA NOVA: ativação livre (0 PA) já usada nesta rodada
         pa_ataque_extra: 0,   // Fase 2: contador de ataques extras (Golpe Duplo etc.) da rodada
@@ -2619,14 +2708,33 @@ const ICONE_STATUS = {
   sangrando:  'ti-droplet',
   caido:      'ti-arrow-down-circle',
   evocando:   'ti-sparkles',
+  // 15/09/2026: "Ferido", colunas de penalidade por x rodadas.
+  ferido:     'ti-bandage',
 };
 const iconeStatus = (k) => ICONE_STATUS[k] || ICONE_STATUS.ativo;
+/* O card de personagem (08-personagens) também desenha status, e tem que usar
+   os MESMOS ícones — o par status→ícone já divergiu uma vez dentro desta fase
+   (ver a nota acima), não vai divergir de novo entre fases. A fase 12 carrega
+   depois da 08, então o card lê pelo window, em tempo de render. */
+if (typeof window !== 'undefined') { window.ICONE_STATUS = ICONE_STATUS; window.iconeStatus = iconeStatus; }
 
 /* ── Status que o Mestre aplica pelo menu de estado (puro) ──────────
    Envenenado e Sangrando são o MESMO mecanismo (dano direto na EF a cada
    virada, processarDanoPorRodada) com nomes diferentes; o prefixo do id é o
-   que o tabuleiro usa para escolher o selo. Caído é o `sem_acoes` que a
-   Falha Crítica já aplicava com o mesmo nome: sem ações, a vez passa. */
+   que o tabuleiro usa para escolher o selo. Caído é o `sem_acoes` que a Falha
+   Crítica já aplicava com o mesmo nome: sem ações, a vez passa.
+
+   Ferido (15/09/2026): "colunas de penalidade por x rodadas". É o mod_coluna
+   que a Falha Crítica usa em "Ações −7" — sai de TODAS as ações (arma, magia,
+   habilidade, técnica). `valor` são as colunas, sempre como penalidade.
+
+   FICA AQUI, e a ficha lê pelo window (17/09/2026). Tentei mudá-la para
+   01-core junto com o resto do status persistente, e foi erro meu: esta fase
+   a cita no Object.assign do fim do arquivo, que roda na CARGA do módulo — os
+   56 testes de batalha, que não importam a fase 01 inteira, quebraram todos de
+   uma vez. Como ponto de extensão o window resolve, e sem inverter a
+   dependência: a batalha é a dona do vocabulário de status, a ficha é que o
+   consome. */
 function statusAplicadoPeloMestre(tipo, valor, rodadas, tb) {
   const t = tb || {};
   const sufixo = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -2635,7 +2743,29 @@ function statusAplicadoPeloMestre(tipo, valor, rodadas, tb) {
     return { id: 'caido:' + sufixo, nome: t.caido || 'Caído', icone: '💫', rodadas_rest: r,
       efeito: { tipo: 'sem_acoes' } };
   }
+  /* DESMAIADO E MORTO (20/09/2026), marcáveis à mão pelo Mestre fora do
+     combate. Precisam de ramo PRÓPRIO por causa do `return` lá embaixo: ele
+     trata qualquer tipo desconhecido como veneno, e sem isto marcar "morto"
+     produziria um status chamado "Envenenado" com dano por rodada — em
+     silêncio, sem erro nenhum.
+
+     Os dois carregam `sem_acoes`, o mesmo efeito do caído: quem está
+     desmaiado ou morto não age, e a batalha já sabe resolver isso. */
+  if (tipo === 'desmaiado' || tipo === 'morto') {
+    const morto = tipo === 'morto';
+    return {
+      id: tipo + ':' + sufixo,
+      nome: (morto ? t.statusMorto : t.statusDesmaiado) || (morto ? 'Morto' : 'Desmaiado'),
+      icone: morto ? '💀' : '💤',
+      rodadas_rest: r,
+      efeito: { tipo: 'sem_acoes' },
+    };
+  }
   const v = Math.max(1, Number(valor) || 1);
+  if (tipo === 'ferido') {
+    return { id: 'ferido:' + sufixo, nome: t.ferido || 'Ferido', icone: '🤕', rodadas_rest: r,
+      efeito: { tipo: 'mod_coluna', valor: -v } };
+  }
   if (tipo === 'sangramento') {
     return { id: 'sangramento:' + sufixo, nome: t.sangrando || 'Sangrando', icone: '🩸', rodadas_rest: r,
       efeito: { tipo: 'dano_por_rodada', valor: v } };
@@ -2643,6 +2773,7 @@ function statusAplicadoPeloMestre(tipo, valor, rodadas, tb) {
   return { id: 'veneno:' + sufixo, nome: t.envenenado || 'Envenenado', icone: '☠', rodadas_rest: r,
     efeito: { tipo: 'dano_por_rodada', valor: v } };
 }
+if (typeof window !== 'undefined') window.statusAplicadoPeloMestre = statusAplicadoPeloMestre;
 
 /* ── Números do card do combatente (13/09/2026) ────────────────────
    "Remova os ícones de velocidade, defesa, etc, e use os números de
@@ -2709,7 +2840,7 @@ function NumerosDoCombatente({ p, tb, isEn, abrirTip, fecharTip }) {
   const ar = Number(p.ar) || 0;
   return (
     <>
-      <NumeroStat nome={nome('vb', isEn ? 'Speed' : 'Velocidade')} valor={p.vb}
+      <NumeroStat nome={nome('vb', isEn ? 'Speed' : 'Velocidade')} valor={(p.vb || 0) - (Number(p.vento_vb) || 0)}
         abrirTip={abrirTip} fecharTip={fecharTip} />
       <NumeroStat nome={nome('pa', (tb && tb.pa) || 'PA')} valor={p.pa_rest}
         detalhe={`${p.pa_rest || 0}/${p.pa_max || 0}`}
@@ -2818,6 +2949,7 @@ function iconeDoEfeito(s) {
   const id = typeof s.id === 'string' ? s.id : '';
   const tipo = s.efeito && s.efeito.tipo;
   if (id.startsWith('sangramento:')) return { ti: iconeStatus('sangrando') };
+  if (id.startsWith('ferido:')) return { ti: iconeStatus('ferido') };
   if (tipo === 'dano_por_rodada') return { ti: iconeStatus('envenenado') };
   if (tipo === 'sem_acoes') return { ti: iconeStatus('caido') };
   if (s.icone) return { emoji: s.icone };
@@ -2964,7 +3096,8 @@ function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip
               abrem o mesmo modal, com o tipo escolhido. */}
           {[['veneno', 'envenenado', tb.envenenado, 'poison'],
             ['sangramento', 'sangrando', tb.sangrando, 'sangra'],
-            ['caido', 'caido', tb.caido, 'caido']].map(([tipo, ic, nome, cls]) => (
+            ['caido', 'caido', tb.caido, 'caido'],
+            ['ferido', 'ferido', tb.ferido, 'ferido']].map(([tipo, ic, nome, cls]) => (
             <button key={tipo} className={'batalha-estado-drop-item ' + cls}
               onClick={() => { fecharTip(); onEnvenenar(tipo); setAberto(false); }}
               aria-label={nome}
@@ -3056,7 +3189,7 @@ function ataquesDoAtor(ator, catalogos) {
     //     grupo fica separado em bonus_ga e é somado por colunaAtaque — total
     //     idêntico ao `ap(v) = v + bonusGA` que a Ficha exibe;
     //   dano base dos tiers = dano100 da Ficha = dano da arma + Força +
-    //     Bônus manual do Mestre (estado_atual.bonusArmas[slug], clamp 0..9).
+    //     bônus de Sagração do item (it.bonus, via gerarAtaques).
     //
     // NÃO somar Agilidade aqui: gerarAtaques (01-core/inventario-helpers) JÁ
     // aplicou o atributo de ajuste da arma em dano_l/m/p. Somar de novo
@@ -3082,19 +3215,15 @@ function ataquesDoAtor(ator, catalogos) {
         const grupoSigla = arma && arma.grupo_armas ? arma.grupo_armas : null;
         const bonus = (typeof bonusGrupoArma === 'function')
           ? (bonusGrupoArma(grupoSigla, pj.grupos_armas || {}) || 0) : 0;
-        /* NÃO REMOVER por parecer código morto.
+        /* Bônus de SAGRAÇÃO da arma (15/09/2026): mora na instância do item
+           (it.bonus, 0/1/3/5/7/9) e o Mestre ajusta no modal do item. Entra no
+           dano100, a base de todos os tiers.
 
-           estado_atual.bonusArmas é LIDO aqui (entra no dano100, a base de
-           todos os tiers) e hoje não é ESCRITO por lugar nenhum: a tabela de
-           armas da ficha, que era o único editor manual, saiu em 11/09/2026
-           a pedido do usuário. A decisão dele foi manter o bônus valendo e
-           trocar a origem — passará a ser efeito de magia, ainda a construir.
-
-           Há 6 valores vivos no banco (Eco +5 cajado, Nihil +5 punhal e
-           arco, Yuldrous +5 marreta, Galadar +3 maça e clava) que continuam
-           afetando o dano em combate. Apagar esta linha mudaria o dano
-           desses personagens em silêncio. */
-        const bonusArma = Math.max(0, Math.min(9, Number(pj.estado_atual?.bonusArmas?.[a.slug]) || 0));
+           Até esta data vinha de estado_atual.bonusArmas[slug] — por slug, sem
+           editor desde 11/09/2026. Os 6 valores vivos (Eco +5 cajado, Nihil +5
+           punhal e arco, Yuldrous +5 marreta, Galadar +3 maça e clava) foram
+           para os itens: scripts/sql/bonus-item-sagracao-2026-09-15.sql. */
+        const bonusArma = Number(a.bonus) || 0;
         // grupo_sigla ANEXADO ao ataque: tipoCriticoDoGrupo (AcaoPanel) lê
         // arma.grupo_sigla pra escolher a tabela de crítico (CORTE/
         // PERFURACAO/ESMAGAMENTO/DESARMADO). O objeto vindo de gerarAtaques
@@ -3627,9 +3756,91 @@ function consumirModDano(p) {
   if (!st || !st.some(gasta)) return p;
   return { ...p, status_temp: st.filter((s) => !gasta(s)) };
 }
-// VB efetiva pra iniciativa: vb do snapshot + mod_vb de status. NÃO persiste.
+
+/* ── "Se acertar a energia física do alvo" (15/09/2026) ─────────────
+   Bote Venenoso e Bote Selvagem, técnicas de criatura: o total vai na coluna
+   de ataque, e o golpe que CHEGA À EF aplica no alvo o que o efeito
+   `ao_acertar_ef` do atacante carrega (veneno 1 × 5, sem ações × 5). Golpe que
+   a EH ou a armadura seguram inteiro não dispara — quem chama só chama com
+   dano na EF.
+
+   Pura: devolve o alvo com os status novos, ou o MESMO alvo. */
+function dispararAoAcertarEf(atacante, alvo) {
+  const st = (atacante && Array.isArray(atacante.status_temp)) ? atacante.status_temp : [];
+  const gatilhos = st.filter((s) => s && s.efeito && s.efeito.tipo === 'ao_acertar_ef' && s.efeito.aplica);
+  if (!gatilhos.length || !alvo) return alvo;
+  const novos = gatilhos.map((s) => ({
+    id: (s.efeito.prefixo || s.id) + ':' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    nome: s.nome, icone: s.icone,
+    rodadas_rest: Math.max(1, Number(s.efeito.rodadas) || 1),
+    efeito: { ...s.efeito.aplica },
+  }));
+  return { ...alvo, status_temp: [...(Array.isArray(alvo.status_temp) ? alvo.status_temp : []), ...novos] };
+}
+
+/* Tudo o que vale para UM golpe dado e é gasto nele: o bônus de Ataque
+   Impetuoso e o gatilho dos Botes. O bote É aquele golpe — errou, gastou.
+   O bônus na coluna de ataque do Bote é outro status e fica até a virada. */
+function consumirEfeitosDoGolpe(p) {
+  const semModDano = consumirModDano(p);
+  const st = (semModDano && Array.isArray(semModDano.status_temp)) ? semModDano.status_temp : null;
+  const gasta = (s) => s && s.efeito && s.efeito.tipo === 'ao_acertar_ef';
+  if (!st || !st.some(gasta)) return semModDano;
+  return { ...semModDano, status_temp: st.filter((s) => !gasta(s)) };
+}
+// VB efetiva pra iniciativa: vb do snapshot + mod_vb de status − vento. NÃO persiste.
 function vbEfetivo(p) {
-  return (p.vb || 0) + somaEfeitosStatus(p, 'mod_vb');
+  return (p.vb || 0) + somaEfeitosStatus(p, 'mod_vb') - (Number(p.vento_vb) || 0);
+}
+
+/* ── O vento da mesa na batalha (24/09/2026) ──────────────────────
+   "Corrija o vento em batalha, o vento pode mudar durante a batalha, e isso
+   também influencia." Fora da luta a penalidade mora em calcularFicha; aqui o
+   vb do snapshot é congelado na largada, então o vento entra à parte, em
+   `vento_vb` de cada PJ, e vbEfetivo o desconta — iniciativa, PA extra e
+   passo seguem juntos, como com qualquer mod_vb.
+
+   O vento é da MESA (historias.data_jogo_atual.tempo.vento) e o Mestre o muda
+   pela barra do topo a qualquer momento. As telas de batalha mantêm
+   `_ventoDaBatalha` em dia pelo realtime (useVentoDaBatalha), e quem vira a
+   rodada — Mestre ou Jogador — carimba o valor corrente nos PJs. Vale a partir
+   da virada seguinte, junto com a nova iniciativa: mudar no meio da rodada não
+   devolve nem tira PA já dado. undefined = ainda não lido: a virada mantém o
+   que já estava carimbado. Criaturas não sofrem, como na ficha: a regra do
+   pedido é sobre os personagens. */
+let _ventoDaBatalha;
+function penalidadeVentoNaBatalha(vento) {
+  const fn = (typeof penalidadeVentoVB === 'function' && penalidadeVentoVB)
+    || (typeof window !== 'undefined' && window.penalidadeVentoVB) || null;
+  return fn ? fn(vento) : 0;
+}
+function aplicarVentoNosPjs(participantes, vento) {
+  if (vento === undefined) return participantes;
+  const vb = penalidadeVentoNaBatalha(vento);
+  return participantes.map((p) => (p && p.tipo === 'pj' && (Number(p.vento_vb) || 0) !== vb
+    ? { ...p, vento_vb: vb } : p));
+}
+function definirVentoDaBatalha(vento) { _ventoDaBatalha = vento || null; }
+function useVentoDaBatalha(historiaId) {
+  useEffect(() => {
+    if (!historiaId) return undefined;
+    let cancel = false;
+    supabaseClient.from('historias').select('data_jogo_atual').eq('id', historiaId).maybeSingle()
+      .then(({ data }) => {
+        if (!cancel && data) definirVentoDaBatalha(data.data_jogo_atual?.tempo?.vento);
+      });
+    if (typeof supabaseClient.channel !== 'function') return () => { cancel = true; };
+    const channel = supabaseClient
+      .channel('batalha_vento_' + historiaId + '_' + Math.random().toString(36).slice(2))
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'historias', filter: 'id=eq.' + historiaId },
+        (payload) => {
+          const d = payload && payload.new && payload.new.data_jogo_atual;
+          if (d) definirVentoDaBatalha(d.tempo?.vento);
+        })
+      .subscribe();
+    return () => { cancel = true; _ventoDaBatalha = undefined; supabaseClient.removeChannel(channel); };
+  }, [historiaId]);
 }
 /* ── Velocidade que vale para ANDAR (puro) ─────────────────────────
    Montado, quem anda é o cavalo: o passo sai da velocidade DELE, e é para isso
@@ -3640,7 +3851,8 @@ function vbEfetivo(p) {
    reflexo: quem age é o cavaleiro. */
 function vbParaMovimento(p) {
   const montada = p && p.montaria && Number(p.montaria.velocidade);
-  if (montada > 0) return montada;
+  // O vento freia o cavalo também (24/09/2026): o carimbo mora no cavaleiro.
+  if (montada > 0) return Math.max(0, montada - (Number(p.vento_vb) || 0));
   return vbEfetivo(p);
 }
 /* RF/RM efetivas: o valor do snapshot mais os mod_rf/mod_rm de técnica.
@@ -3918,7 +4130,7 @@ function processarViradaDeRodada(p) {
      personagem legitimamente neutro e SOBRESCREVE.
 
    Cobertura: 12-batalha/ciclo-ficha-batalha.test.js. */
-function estadoAoEncerrar(estadoAtual, p) {
+function estadoAoEncerrar(estadoAtual, p, dataJogo) {
   if (!p || p.ausente) return null;
   const base = estadoAtual || {};
   const morto = p.status === 'morto';
@@ -3934,10 +4146,25 @@ function estadoAoEncerrar(estadoAtual, p) {
   };
   const temCondicoes = p.condicoes && typeof p.condicoes === 'object'
     && Object.keys(p.condicoes).length > 0;
+  /* O STATUS ATRAVESSA (17/09/2026): "o status da batalha também persiste
+     depois que a luta acaba". Até aqui só vitalidade e condições voltavam, e
+     quem saía envenenado chegava à ficha curado.
+
+     Quem não tinha prazo (rodadas_rest null = "até o fim da batalha") não
+     atravessa — o fim da batalha chegou. Os demais ganham vencimento no
+     calendário: ver statusAoEncerrarBatalha (01-core/status-efeito.jsx) para
+     por que uma rodada não vira um dia.
+
+     Morto NÃO precisa vir por aqui: ele já sobrevive pela EF no piso, e
+     montarSnapshots o remonta daí. */
+  const status = (typeof statusAoEncerrarBatalha === 'function')
+    ? statusAoEncerrarBatalha(p.status_temp, dataJogo)
+    : [];
   return {
     ...base,
     condicoes: temCondicoes ? { ...p.condicoes } : (base.condicoes || {}),
     vitalidade,
+    status,
   };
 }
 
@@ -3971,7 +4198,8 @@ function quebrarConcentracaoPorVeneno(participantes) {
 function montarNovaRodada(participantes) {
   // Veneno morde na EF, e dano na EF derruba a magia sustentada. Resolve
   // ANTES de renovar recursos — ver quebrarConcentracaoPorVeneno.
-  const base = quebrarConcentracaoPorVeneno(participantes);
+  // O vento corrente entra ANTES da virada: é ela que recalcula PA e passo.
+  const base = aplicarVentoNosPjs(quebrarConcentracaoPorVeneno(participantes), _ventoDaBatalha);
   const eventosRodada = [];
   const processados = base.map((p) => {
     const r = processarViradaDeRodada(p);
@@ -4245,10 +4473,10 @@ function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento,
 
            Vale por alvo: uma magia de dreno em vários alvos drena de cada um
            o que efetivamente furou até a EF daquele. */
-        if (drena) {
-          const naEf = Math.max(0, (Number(alvoAntes.ef) || 0) - (Number(next[alvoIdx].ef) || 0));
-          if (naEf > 0) next[atorIdx] = aplicarDrenoEh(next[atorIdx], naEf);
-        }
+        const naEf = Math.max(0, (Number(alvoAntes.ef) || 0) - (Number(next[alvoIdx].ef) || 0));
+        if (drena && naEf > 0) next[atorIdx] = aplicarDrenoEh(next[atorIdx], naEf);
+        // Os Botes: "se acertar a energia física do alvo" — mesma conta do dreno.
+        if (naEf > 0) next[alvoIdx] = dispararAoAcertarEf(next[atorIdx], next[alvoIdx]);
       }
   // E o golpe derruba a concentração do ALVO se furou até a EF dele ou se o
   // derrubou/matou. Dano contido em EH ou AR não quebra — mas zerar a EH
@@ -4403,6 +4631,11 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
     }
     // Quantas casas a condução anda — o registro sabe, o tabuleiro precisa.
     if (ef.tipo === 'conduzido' && ef.casas != null) efeito.casas = ef.casas;
+    /* Os Botes (15/09/2026): o que o golpe aplica NO ALVO viaja no efeito do
+       atacante — é flag, não escala com o total. Ver dispararAoAcertarEf. */
+    if (ef.tipo === 'ao_acertar_ef') {
+      Object.assign(efeito, { valor: true, aplica: ef.aplica, rodadas: ef.rodadas, prefixo: ef.prefixo });
+    }
     // Golpe Letal e as 5 irmãs (ignora_eh), Disparo Certeiro (ignora_armadura):
     // o efeito mora no ATACANTE (Fase 2, Task 8) e carrega alvo_inst_id pra
     // valer só contra o inimigo declarado — modsDoGolpe é quem lê isto.
@@ -5682,6 +5915,7 @@ function saidaDeCombate(participantes, ref, novoStatus) {
 function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = [], lang, onVoltar, onAtualizado, onHeaderActionsChange, onRolagemPendenteChange }) {
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
+  useVentoDaBatalha((historia && historia.id) || batalha.historia_id);   // o vento pesa na virada
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const [estado, setEstado] = useState(batalha.estado);
   const [participantes, setParticipantes] = useState(batalha.participantes || []);
@@ -6191,8 +6425,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       nomesAlvosExtras.push(next[exIdx].nome);
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
     });
-    // O bônus de Ataque Impetuoso foi usado neste golpe (em todos os alvos).
-    next[atorIdx] = consumirModDano(next[atorIdx]);
+    // O bônus de Ataque Impetuoso e o gatilho dos Botes foram usados neste golpe (em todos os alvos).
+    next[atorIdx] = consumirEfeitosDoGolpe(next[atorIdx]);
     // Debita PA (sempre 1) e karma (se for magia; a canalização já pagou).
     const k = resolvendoEvocacao ? 0 : Math.max(0, custo_karma || 0);
     // Fase 2 das técnicas: ataque extra (Golpe Duplo, Contra-Ataque,
@@ -6929,6 +7163,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   // Vale pras DUAS famílias de valor, que moram em lugares diferentes:
   //   • eh/ef/ar/karma → estado_atual.vitalidade
   //   • as 8 condicoes (Saúde/Sono/Hidratação/...) → estado_atual.condicoes
+  //   • o status temporário → estado_atual.status (17/09/2026), com
+  //     vencimento no calendário da mesa — por isso a data é buscada aqui, e
+  //     não reaproveitada da largada: a mesa pode ter avançado dias durante o
+  //     combate, e o vencimento tem que sair da data de AGORA.
   // Nenhuma das duas passa por historias.personagens_pools, que é legado e
   // por isso é LIMPO no passo 1 — mantê-lo preenchido faria montarSnapshots
   // preferi-lo a estado_atual e ignorar edição feita na ficha.
@@ -6942,6 +7180,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const participantesFinais = desmontarTodos(participantes);
     const pjsDaBatalha = participantesFinais.filter((p) => p.tipo === 'pj');
 
+    // Data do jogo AGORA — o vencimento do status persistido sai dela.
+    const { data: histAtual } = historia && historia.id
+      ? await supabaseClient.from('historias').select('data_jogo_atual').eq('id', historia.id).maybeSingle()
+      : { data: null };
+    const dataJogoFim = (histAtual && histAtual.data_jogo_atual) || null;
+
     // 0) Condições + Vitalidade. Persiste TANTO condicoes (Saúde/Sono/etc.)
     // QUANTO vitalidade (EF/EH/AR/Karma) em estado_atual, que é o que a ficha
     // lê. Reads+writes em paralelo: cada PJ é linha independente.
@@ -6954,7 +7198,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
         // Volta do combate pra ficha — ver estadoAoEncerrar. null = este
         // participante não deve escrever nada (PJ ausente/não carregado).
-        const novoEstado = estadoAoEncerrar(estadoAtual, p);
+        const novoEstado = estadoAoEncerrar(estadoAtual, p, dataJogoFim);
         if (!novoEstado) return { ok: true };
         const { error: condErr } = await supabaseClient
           .from('personagens').update({ estado_atual: novoEstado }).eq('id', p.ref_id);
@@ -7265,7 +7509,6 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           : p.atual ? (!minionPresoAoLider(p, participantes) ? movimentoDisponivel(p) : null)
           : (lutadorDaVez && conducaoDisponivel(p, lutadorDaVez) > 0 ? conducaoDisponivel(p, lutadorDaVez) : null))}
         onMover={estado === 'ativa' ? moverNoTabuleiro : undefined}
-        abrirMenu={chaveEvocacaoPronta && catalogos ? { i: idxProntoParaEvocar, chave: chaveEvocacaoPronta } : null}
         salvando={salvando}
         isEn={isEn}
         tb={tb}
@@ -7273,44 +7516,19 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         fecharTip={fecharTip}
         aviso={error}
         menuTravado={rolagemPendente}
-        /* O X volta pras ações iniciais em vez de fechar o card, quando é o
-           painel de Ação que está na tela. A condição é a MESMA do menuDe
-           logo abaixo — se divergirem, o X ou fecha quando devia voltar, ou
-           volta pra um painel que não está aberto. */
-        menuVoltar={(p) => (estado === 'ativa' && acaoOpen && catalogos
-            && ((p.atual && !ataqueContra) || (ataqueContra && current && p.inst_id === ataqueContra.id)))
-          ? () => setAcaoOpen(false) : null}
+        /* `menuVoltar` não é mais passado (17/09/2026): ele existia só pro
+           painel de Ação, que agora é um ModalShell à parte (AcaoModal, logo
+           abaixo) e tem o X dele. O TabuleiroMenu mantém a capacidade — é
+           genérica e testada em tabuleiro-menu.test.jsx —, só não há hoje
+           quem precise dela.
+
+           `abrirMenu` saiu pela mesma razão: ele abria o popover do token na
+           magia canalizada pronta, para que o painel aparecesse dentro dele.
+           Agora quem abre é o AcaoModal (pelo `acaoOpen` do efeito de
+           chaveEvocacaoPronta), e abrir o popover junto só deixaria um card
+           atrás do backdrop. */
         menuDe={(motorAberto || encerrarOpen) ? undefined : (p, i, fechar, mover) => {
           const fkey = p.inst_id || (p.tipo + ':' + p.ref_id + ':' + i);
-          // Painel de Ação: ocupa o menu inteiro de quem está agindo. Só faz
-          // sentido para o lutador da vez — é dele o PA que a ação gasta.
-          // Aberto a partir do avatar do INIMIGO, mora no menu do inimigo, mas
-          // o ator continua sendo o lutador da vez.
-          const painelNoInimigo = !!(ataqueContra && current && p.inst_id === ataqueContra.id);
-          if (estado === 'ativa' && acaoOpen && catalogos && ((p.atual && !ataqueContra) || painelNoInimigo)) {
-            return (
-              <AcaoPanel
-                key={painelNoInimigo ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba : 'proprio'}
-                alvoInicialId={painelNoInimigo ? ataqueContra.id : undefined}
-                abaInicial={painelNoInimigo ? ataqueContra.aba : undefined}
-                ator={painelNoInimigo ? current : p}
-                participantes={participantes}
-                catalogos={catalogos}
-                lang={lang}
-                visibilidade={visibilidade}
-                onAplicar={aplicarAcao}
-                onAplicarTeste={aplicarTeste}
-                onAplicarItem={aplicarItem}
-                onAplicarApoio={aplicarApoio}
-                onCancel={() => setAcaoOpen(false)}
-                onRolagemPendenteChange={setRolagemPendente}
-                rolagemSalva={rolagemSalva}
-                onRolagemSalvaChange={salvarRolagem}
-                abrirTip={abrirTip}
-                fecharTip={fecharTip}
-              />
-            );
-          }
           return (
           <div className={'batalha-fighter em-menu status-' + (p.status || 'ativo') + (p.atual && estado === 'ativa' ? ' atual' : '')}>
             <div className="batalha-fighter-main">
@@ -7438,7 +7656,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       // golpe na mão. Com a checagem antiga o Mestre não conseguia
                       // abrir o painel para gastá-lo — só passar a vez e perdê-lo.
                       disabled={salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente}
-                      onClick={() => setAcaoOpen(true)}
+                      // `fechar()` junto desde 17/09/2026: o painel virou
+                      // ModalShell e o popover do token ficaria aberto atrás
+                      // do backdrop, inalcançável e visível por baixo.
+                      onClick={() => { setAtaqueContra(null); setAcaoOpen(true); fechar(); }}
                       // Com rolagem pendente o motivo da trava importa mais que
                       // o nome do botão — é o único jeito de o Mestre entender
                       // por que "Ação" está apagado.
@@ -7465,7 +7686,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                   const podeConduzir = !!mover && !!lutadorDaVez && conducaoDisponivel(p, lutadorDaVez) > 0;
                   if (!temArma && !temMagia && !podeConduzir) return null;
                   const bloqueado = salvando || !temAcaoRestante(current) || rolagemPendente;
-                  const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); };
+                  // `fechar()`: ver a nota no botão "Ação" acima.
+                  const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); fechar(); };
                   return (
                     <div className="batalha-card-botoes batalha-menu-atacar">
                       {podeConduzir && (
@@ -7508,6 +7730,40 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     </div>
     <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
 
+    {/* Painel de Ação — ModalShell desde 17/09/2026 (era o conteúdo do popover
+        do token). Vive aqui fora, ao lado dos outros modais da view, e não
+        dentro de `menuDe`: o ator é UM (o lutador da vez), então não há razão
+        pra ele nascer de dentro da função que desenha o card de cada
+        participante.
+
+        `ataqueContra` continua mandando no alvo e na aba iniciais — quem clica
+        em "atacar com arma" no avatar do inimigo abre o painel já apontado
+        pra ele. O ator segue sendo `current` nos dois casos: quem paga o PA é
+        quem está na vez, nunca o alvo. */}
+    {estado === 'ativa' && acaoOpen && catalogos && current && (
+      <AcaoModal
+        key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba : 'proprio'}
+        alvoInicialId={ataqueContra ? ataqueContra.id : undefined}
+        abaInicial={ataqueContra ? ataqueContra.aba : undefined}
+        ator={current}
+        participantes={participantes}
+        catalogos={catalogos}
+        lang={lang}
+        visibilidade={visibilidade}
+        onAplicar={aplicarAcao}
+        onAplicarTeste={aplicarTeste}
+        onAplicarItem={aplicarItem}
+        onAplicarApoio={aplicarApoio}
+        travado={rolagemPendente}
+        onClose={() => setAcaoOpen(false)}
+        onRolagemPendenteChange={setRolagemPendente}
+        rolagemSalva={rolagemSalva}
+        onRolagemSalvaChange={salvarRolagem}
+        abrirTip={abrirTip}
+        fecharTip={fecharTip}
+      />
+    )}
+
     {/* Envenenar — modal próprio desde 01/09/2026. Fica FORA do card de
         propósito: são dois campos, e o menu do token é estreito demais pra
         eles numa faixa inline (o de rodadas passava despercebido). */}
@@ -7515,8 +7771,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       // Envenenado, Sangrando ou Caído (13/09/2026). Caído não tem dano.
       const tipoSt = venenoOpen.tipo || 'veneno';
       const semDano = tipoSt === 'caido';
-      const icSt = tipoSt === 'sangramento' ? 'sangrando' : tipoSt === 'caido' ? 'caido' : 'envenenado';
-      const nomeSt = tipoSt === 'sangramento' ? tb.sangrando : tipoSt === 'caido' ? tb.caido : tb.envenenado;
+      // Ferido (15/09/2026): o número são colunas de penalidade, não dano.
+      const ferido = tipoSt === 'ferido';
+      const icSt = tipoSt === 'sangramento' ? 'sangrando' : tipoSt === 'caido' ? 'caido' : ferido ? 'ferido' : 'envenenado';
+      const nomeSt = tipoSt === 'sangramento' ? tb.sangrando : tipoSt === 'caido' ? tb.caido : ferido ? tb.ferido : tb.envenenado;
       return (
       <ModalShell
         title={<><i className={'ti ' + iconeStatus(icSt)} aria-hidden="true" /> {nomeSt}</>}
@@ -7531,7 +7789,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         <div className="batalha-campos-modal">
           {!semDano && (
           <label className="batalha-campo-modal">
-            <span>{isEn ? 'Damage' : 'Dano'}</span>
+            <span>{ferido ? tb.feridoColunas : (isEn ? 'Damage' : 'Dano')}</span>
             <input type="number" min="1" value={venenoVal} autoFocus
               onChange={(e) => setVenenoVal(e.target.value)} />
           </label>
@@ -7544,7 +7802,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         </div>
         {/* O nome do combatente e o total ("21 no total (7 × 3)") saíram em
             14/09/2026, a pedido do usuário. */}
-        <p className="batalha-modal-nota">{semDano ? tb.caidoNota : tb.venenoDireto}</p>
+        <p className="batalha-modal-nota">{semDano ? tb.caidoNota : ferido ? tb.feridoNota : tb.venenoDireto}</p>
       </ModalShell>
       );
     })()}
@@ -8087,23 +8345,19 @@ function QuantityStepper({ value, onChange, min = 1, max = Infinity, step = 1, d
   const inc = () => { if (disabled) return; const v = clamp((Number(value) || 0) + step); if (v !== value) onChange(v); };
 
   // pillStyle e btnStyle migrados para index.css (.qty-stepper-pill, .qty-stepper-btn)
-  const podeDec = !disabled && (Number(value) || 0) > min;
-  const podeInc = !disabled && (Number(value) || 0) < max;
 
   return (
     <div className="motor-field">
       {label && <span>{label}</span>}
-      <div className="qty-stepper-pill">
-        <button type="button" className="qty-stepper-btn" disabled={!podeDec}
-          onMouseDown={(e) => e.preventDefault()} onClick={dec} aria-label="-">
-          <i className="ti ti-minus" aria-hidden="true" />
-        </button>
-        <span className="qty-stepper-val">{value}</span>
-        <button type="button" className="qty-stepper-btn" disabled={!podeInc}
-          onMouseDown={(e) => e.preventDefault()} onClick={inc} aria-label="+">
-          <i className="ti ti-plus" aria-hidden="true" />
-        </button>
-      </div>
+      {/* O pill próprio saiu em 17/09/2026: o desenho do sistema é um só, e
+          mora em 01-core (QuantidadeStepper). Esta função continua existindo
+          pela ASSINATURA — dezenas de chamadas passam min/max/step/label —,
+          mas o que ela desenha agora é o mesmo de todo o resto. */}
+      <QuantidadeStepper
+        value={value} onChange={onChange}
+        min={min} max={max === Infinity ? undefined : max} step={step}
+        disabled={disabled} label={label}
+      />
     </div>
   );
 }
@@ -10033,6 +10287,56 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   );
 }
 
+/* ============================== AcaoModal — o painel de Ação no modal do sistema ==============================
+   "O modal de batalha, com as ações, padronize ele usando o padrão de modal
+   que já temos no sistema." (usuário, 17/09/2026)
+
+   Até aqui o AcaoPanel era `children` do TabuleiroMenu: clicar em "Ação"
+   trocava o conteúdo do popover ancorado no avatar pelo painel, e a saída era
+   o X do popover em modo "voltar" (menuVoltar). Funcionava, mas era o único
+   painel do sistema com moldura própria — e a maior: abas, dois selects,
+   prévia de efeito e rodapé, num popover que já precisava de uma função
+   dedicada (posicionarMenu) para achar onde caber.
+
+   Três coisas que este invólucro tem que acertar, todas herdadas do popover:
+
+   `travado` → `onClose = null`. Com rolagem pendente o X tem que SUMIR, não
+   ficar desabilitado: era o que `menuTravado` fazia, e o rodapé do painel é
+   que explica o desaparecimento ("já rolou, continue em Atacar"). Um X cinza
+   convida ao clique e não explica nada.
+
+   SEM footer do ModalShell. O AcaoPanel tem o próprio rodapé (.atacar-footer:
+   dado, resultado, confirmar) e NÃO tem Cancelar — saiu em 02/09/2026. Passar
+   onCancel/onConfirm daria dois rodapés e dois botões primários na mesma
+   tela. Por isso o X é a única saída, e por isso ele não pode faltar: a prop
+   `onCancel` que o AcaoPanel declara nunca foi usada lá dentro.
+
+   O TÍTULO nomeia o ator. No popover não precisava — o painel nascia grudado
+   no avatar de quem agia. Solto no meio da tela, sem o nome, o Mestre perde
+   de quem é o PA que a ação vai gastar.
+
+   O menu do token segue popover, com stats, pools, Mover e Passar: mover
+   exige clicar na grade, e o backdrop do ModalShell comeria esse clique. Quem
+   abre a Ação fecha o menu antes (ver o `fechar()` nos dois call sites).
+
+   Cobertura: acao-modal.test.jsx. */
+function AcaoModal({ travado, onClose, ...props }) {
+  const lang = props.lang || 'pt';
+  const tb = tBat(lang);
+  const ator = props.ator;
+  return (
+    <ModalShell
+      title={`${tb.acao}: ${(ator && ator.nome) || ''}`}
+      lang={lang}
+      size="lg"
+      extraClass="acao-modal"
+      onClose={travado ? null : onClose}
+    >
+      <AcaoPanel {...props} onCancel={onClose} />
+    </ModalShell>
+  );
+}
+
 
 
 
@@ -10059,6 +10363,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
 function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
+  // O Jogador também vira a rodada (passar/desistir): precisa do vento corrente.
+  useVentoDaBatalha(batalha && batalha.historia_id);
   // O jogador LÊ a visibilidade; quem a define é o Mestre. Vem por prop e se
   // atualiza sozinha pelo realtime, como o resto da batalha.
   const visibilidade = batalha.visibilidade || 'clara';
@@ -10406,8 +10712,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       nomesAlvosExtras.push(next[exIdx].nome);
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
     });
-    // O bônus de Ataque Impetuoso foi usado neste golpe (em todos os alvos).
-    next[atorIdx] = consumirModDano(next[atorIdx]);
+    // O bônus de Ataque Impetuoso e o gatilho dos Botes foram usados neste golpe (em todos os alvos).
+    next[atorIdx] = consumirEfeitosDoGolpe(next[atorIdx]);
     if (dano > 0) {
       // Se o ALVO ficou morto/desmaiado e era o atual, passa a vez dele.
       // Só o alvo PRINCIPAL: um alvo extra não pode ser o atual, porque o
@@ -11026,8 +11332,6 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                 : mesmoParticipante(p, meuParticipante) ? movimentoDisponivel(p)
                 : (conducaoDisponivel(p, meuParticipante) > 0 ? conducaoDisponivel(p, meuParticipante) : null))}
               onMover={moverNoTabuleiroJogador}
-              abrirMenu={chaveEvocacaoPronta && catalogos
-                ? { i: participantes.indexOf(meuParticipante), chave: chaveEvocacaoPronta } : null}
               salvando={salvando}
               isEn={isEn}
               tb={tb}
@@ -11035,40 +11339,11 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
               fecharTip={fecharTip}
               aviso={erro}
               menuTravado={rolagemPendente}
-              /* Idem card do Jogador — mesma condição do menuDe abaixo. */
-              menuVoltar={(p) => (acaoOpen && meuParticipante && ehMinhaVez && souAtivo && catalogos
-                && ((mesmoParticipante(p, meuParticipante) && !ataqueContra)
-                  || (ataqueContra && p.inst_id === ataqueContra.id)))
-                ? () => setAcaoOpen(false) : null}
+              /* `menuVoltar`/`abrirMenu` saíram em 17/09/2026 pelas mesmas
+                 razões da tela do Mestre: o painel de Ação é um ModalShell
+                 próprio agora (o AcaoModal no fim desta view) e tem o X dele. */
               menuDe={(p, i, fechar, mover) => {
                 const ehEu = meuParticipante && mesmoParticipante(p, meuParticipante);
-                // Mesma troca do Mestre: o painel toma o menu do próprio PJ —
-                // ou o do inimigo, quando o ataque partiu do avatar dele.
-                const painelNoInimigo = !!(ataqueContra && p.inst_id === ataqueContra.id);
-                if (acaoOpen && ehMinhaVez && souAtivo && catalogos && ((ehEu && !ataqueContra) || painelNoInimigo)) {
-                  return (
-                    <AcaoPanel
-                      key={painelNoInimigo ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba : 'proprio'}
-                      alvoInicialId={painelNoInimigo ? ataqueContra.id : undefined}
-                      abaInicial={painelNoInimigo ? ataqueContra.aba : undefined}
-                      ator={meuParticipante}
-                      participantes={participantes}
-                      catalogos={catalogos}
-                      lang={lang}
-                      visibilidade={visibilidade}
-                      onAplicar={handleAcao}
-                      onAplicarTeste={handleTeste}
-                      onAplicarItem={handleItem}
-                      onAplicarApoio={handleApoio}
-                      onCancel={() => { setAcaoOpen(false); setRolagemPendente(false); }}
-                      onRolagemPendenteChange={setRolagemPendente}
-                      rolagemSalva={rolagemSalva}
-                      onRolagemSalvaChange={salvarRolagem}
-                      abrirTip={abrirTip}
-                      fecharTip={fecharTip}
-                    />
-                  );
-                }
                 return (
                   <div className={'batalha-fighter em-menu status-' + (p.status || 'ativo') + (p.atual ? ' atual' : '')}>
                     <div className="batalha-fighter-main">
@@ -11121,7 +11396,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                           const podeConduzir = !!mover && conducaoDisponivel(p, meuParticipante) > 0;
                           if (!temArma && !temMagia && !podeConduzir) return null;
                           const bloqueado = salvando || rolagemPendente;
-                          const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); };
+                          // `fechar()`: o painel é ModalShell desde 17/09/2026
+                          // e o popover ficaria atrás do backdrop.
+                          const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); fechar(); };
                           return (
                             <div className="batalha-card-botoes batalha-menu-atacar batalha-head-acoes">
                               {podeConduzir && (
@@ -11178,6 +11455,33 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         )}
       </div>
       </div>
+      {/* Painel de Ação — ModalShell desde 17/09/2026, igual ao do Mestre.
+          O ator é SEMPRE `meuParticipante`: o Jogador só age pelo próprio PJ,
+          mesmo quando abriu o painel pelo avatar de um inimigo (aí
+          `ataqueContra` só escolhe alvo e aba iniciais). */}
+      {acaoOpen && ehMinhaVez && souAtivo && catalogos && meuParticipante && (
+        <AcaoModal
+          key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba : 'proprio'}
+          alvoInicialId={ataqueContra ? ataqueContra.id : undefined}
+          abaInicial={ataqueContra ? ataqueContra.aba : undefined}
+          ator={meuParticipante}
+          participantes={participantes}
+          catalogos={catalogos}
+          lang={lang}
+          visibilidade={visibilidade}
+          onAplicar={handleAcao}
+          onAplicarTeste={handleTeste}
+          onAplicarItem={handleItem}
+          onAplicarApoio={handleApoio}
+          travado={rolagemPendente}
+          onClose={() => { setAcaoOpen(false); setRolagemPendente(false); }}
+          onRolagemPendenteChange={setRolagemPendente}
+          rolagemSalva={rolagemSalva}
+          onRolagemSalvaChange={salvarRolagem}
+          abrirTip={abrirTip}
+          fecharTip={fecharTip}
+        />
+      )}
       {/* Tooltip do menu do token (botões só-ícone). Portal, então pode ficar
           no fim da árvore — sai por cima do menu de qualquer jeito. */}
       <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
@@ -11202,6 +11506,13 @@ Object.assign(window, {
   // é componente. Exposto à parte pro teste de render softlock-acao.test.jsx,
   // que verifica que o painel nunca fica sem saída com uma rolagem pendente.
   AcaoPanel,
+  // O invólucro de modal do painel (17/09/2026) — ver acao-modal.test.jsx.
+  AcaoModal,
+  /* Mesma razão, para a tela de montagem (17/09/2026): o pedido "criaturas
+     desmarcadas por padrão" e "padronize o botão de seleção" só se verifica
+     renderizando — o primeiro é o valor inicial de um Map de state, o segundo
+     é qual elemento desenha a caixa. Ver seletor-combatentes.test.jsx. */
+  NovaBatalhaView, ParticipantSection,
   // Chips de efeitos temporários, nas telas do Mestre e do jogador (13/09/2026).
   StatusTempChips,
   // Idem: componente, não função pura. A prévia é o único lugar que mostra
@@ -11244,6 +11555,12 @@ Object.assign(window, {
     magiasDeApoioDoAtor, magiasOfensivasDoAtor, magiasConhecidasDoAtor,
     // Técnicas do combatente — PJ e, desde 13/09/2026, criatura.
     tecnicasDoAtor, habilidadesDeCriatura, motivoArmaTecnica,
+    /* O trio cri-based (17/09/2026): as mesmas contas, a partir da LINHA de
+       `criaturas` em vez de um participante de batalha. O bestiário usa este
+       trio para as seções Habilidades, Técnicas e Magias da ficha — uma
+       implementação só, para o número da consulta e o do combate não
+       divergirem. Ver criatura-ficha-secoes.test.jsx. */
+    habilidadesDaCriaturaCrua, tecnicasDaCriaturaCrua, magiasDaCriaturaCrua,
     aplicarEfeitoApoio, quebrarConcentracao,
     // 13/09/2026: texto do golpe diz "errou"; eco da rolagem do jogador.
     textoResultadoGolpe, textoGolpeNaMesa, nomeCurtoNaMesa, ecoAoGravar, ecoDepoisDoSnapshot, assinaturaDaRolagem,
@@ -11326,7 +11643,7 @@ Object.assign(window, {
     // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
     FC_AUTODANO_FATOR, danoAutoinfligido, interpolarFalhaCritica,
-    somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, consumirEvitaGolpe, consumirModDano, vbEfetivo,
+    somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, consumirEvitaGolpe, consumirModDano, consumirEfeitosDoGolpe, dispararAoAcertarEf, vbEfetivo, aplicarVentoNosPjs, definirVentoDaBatalha,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
     // Task 6a (Fase 2): bloqueios de turno puros — sem_atacar tira só a aba
     // Arma, sem_tecnicas tira só a aba Técnica. Nenhum dos dois é sem_acoes.

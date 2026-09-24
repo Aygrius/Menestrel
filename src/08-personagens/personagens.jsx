@@ -1,19 +1,14 @@
 /* ============================================================
    PERSONAGENS — Fichas de personagem do Jogador + ações do Mestre
    ============================================================
-   13 componentes — aba "Personagens" do console, modais de ações
-   do Mestre, e o wizard de criação/edição em múltiplos steps.
+   Aba "Personagens" do console, modal de exclusão e o wizard de
+   criação/edição em múltiplos steps.
 
    ── Listagem ───────────────────────────────────────────────
    - PersonagensList        — orquestrador da aba (lista PJs do
                               user, ou todos se Mestre)
-   - PersonagemCard         — card individual (XP, moedas, ações)
+   - PersonagemCard         — card individual (o clique abre a ficha)
    - ConfirmarExclusaoModal — confirmação de delete
-
-   ── Ações do Mestre ────────────────────────────────────────
-   - DarExperienciaModal    — Mestre adiciona XP a um PJ
-   - DarMoedasModal         — Mestre concede ou subtrai moedas
-                              (usa MOEDA_ORDEM + moedasToLatao)
 
    ── Wizard de criação/edição (NovoPersonagemModal) ─────────
    - NovoPersonagemModal    — shell do wizard (header, body
@@ -35,7 +30,6 @@
    - React (useState/useEffect desestruturados)
    - supabaseClient (01-core/supabase.jsx)
    - GAME_DATA, calcEstagio (01-core/game-data.jsx)
-   - MOEDA_ORDEM, moedasToLatao (01-core/inventario-helpers.jsx)
    - Icon (ainda no app.jsx, runtime)
 
    Consumidores no app.jsx:
@@ -196,19 +190,22 @@ function temLevelUpPendente(p) {
 //   - 'player' → mostra só PJs do próprio user
 //   - 'master' → mostra TODOS os PJs (RLS permite SELECT all)
 //                e dá acesso a botões de Editar e Dar XP em qualquer um
-function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onLimiteFreeChange, onFichaAberta, onNomePjAtivo }) {
+function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onLimiteFreeChange, onFichaAberta, onNomePjAtivo, voltarToken = 0 }) {
   const isMaster = profile === 'master';
   const [modalOpen, setModalOpen] = useState(false);
   const [toDelete, setToDelete] = useState(null);
   const [toEdit, setToEdit] = useState(null);
-  const [toGiveXp, setToGiveXp] = useState(null); 
-  const [toGiveMoedas, setToGiveMoedas] = useState(null); 
   const [convidarPj, setConvidarPj] = useState(null);
   const [fichaAbertoId, setFichaAbertoId] = useState(null); 
 
 // PJ ativo do jogador (lido do profile carregado pelo shell).
   // Setar local + persistir em profiles. Voltar pra lista é só setar null
   // localmente — o pj_ativo_id no banco mantém o último ativo.
+  /* Começa na ficha do ativo (17/09/2026): "sempre que clicar no menu
+     'personagens' vai entrar na ficha direto". O valor já vinha do
+     pj_ativo_id; o que faltava era não perdê-lo quando o perfil chega depois
+     do primeiro render — ver o efeito logo abaixo. Quem sai da ficha pelo
+     botão Sair desativa, e aí cai na lista para escolher outro. */
   const [pjAtivoIdLocal, setPjAtivoIdLocal] = useState(
     !isMaster ? (userProfile?.pj_ativo_id || null) : null
   );
@@ -228,6 +225,31 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
           (p) => (pjData?.historiaIdPorPersonagem?.[p.id]) === mesaAtivaId
         )
   );
+  /* Os cards acompanham o banco (24/09/2026): o relógio e o clima da mesa
+     gravam nos PJs (desgaste, 10-shell) e a lista, em cache do React Query,
+     seguia mostrando as barras velhas. Um evento por PJ chega junto quando o
+     Mestre mexe na hora — o debounce junta tudo num refetch só. A RLS do
+     realtime já limita os eventos às linhas que este usuário pode ler. */
+  const idsDaLista = useMemo(
+    () => new Set((pjData?.personagens ?? []).map((p) => String(p.id))),
+    [pjData]
+  );
+  const idsDaListaRef = useRef(idsDaLista);
+  idsDaListaRef.current = idsDaLista;
+  useEffect(() => {
+    if (!currentUserId || typeof supabaseClient.channel !== 'function') return undefined;
+    let timer = null;
+    const channel = supabaseClient
+      .channel('cards_pjs_' + currentUserId + '_' + Math.random().toString(36).slice(2))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'personagens' }, (payload) => {
+        const id = payload && payload.new && payload.new.id;
+        if (id != null && !idsDaListaRef.current.has(String(id))) return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => { refetch(); }, 300);
+      })
+      .subscribe();
+    return () => { if (timer) clearTimeout(timer); supabaseClient.removeChannel(channel); };
+  }, [currentUserId]);
   const profilesMap = pjData?.profilesMap ?? {};
   const error = pjError ? pjError.message : null;
   // idsComMesa volta como array do cache; reconstrói o Set que o .has() espera.
@@ -236,21 +258,10 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
     [pjData]
   );
 
-  // História pausada → só alimenta a tag "Pausada" no card (puramente
-  // informativa pro Mestre; ele mantém acesso total mesmo com a história
-  // pausada). O bloqueio de verdade é do lado do Jogador, dentro da ficha
-  // (11-ficha/ficha.jsx bloqueia o ACESSO inteiro quando isMestre é falso).
-  // Reaproveita o mesmo hook-ponte que 06-historias/historias.jsx usa pra
-  // ler historias (não precisa de mudança em bridge.ts: a query de lá já
-  // traz a linha inteira, então h.pausada aparece assim que a coluna
-  // existir no banco). RLS por mestre_id filtra sozinho pro Jogador (SELECT
-  // em historias volta [] sem erro), então é seguro chamar o hook
-  // incondicionalmente aqui.
-  const { data: histData } = window.useHistoriasData(currentUserId);
-  const historiaIdsPausadas = useMemo(
-    () => new Set((histData?.historias ?? []).filter((h) => h.pausada).map((h) => h.id)),
-    [histData]
-  );
+  /* A leitura de histórias pausadas saiu daqui em 17/09/2026. Ela servia ao
+     selo "Pausada" do card e, depois, ao aviso do Mestre — os dois já foram.
+     A pausa é assunto da ficha, que a lê de historiaPj e tranca o Jogador
+     (11-ficha/ficha.jsx). Esta lista não precisa saber. */
 
   // "Novo personagem" só existe pro Jogador (Mestre não cria PJ pra si) e só
   // na view de lista — quando o Jogador já tem um PJ ativo, a tela mostra a
@@ -319,6 +330,51 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
     !isMaster ? (userProfile?.pj_ativo_id || null) : null
   );
 
+  /* ESCOLHER É ENTRAR (17/09/2026): "remova o botão 'selecionar personagem',
+     pois clicar na ficha já é selecionar ele". Escolher e abrir eram dois
+     gestos — o clique no card ativava e devolvia o jogador à mesma lista, com
+     um card agora marcado. Agora o clique faz as duas coisas, que é o que ele
+     sempre quis dizer. `setPjAtivoIdLocal` já estava aqui; o que mudou foi o
+     card, que não oferece mais o meio-caminho. */
+  /* O PERFIL CHEGA DEPOIS DO PRIMEIRO RENDER. Os dois estados acima nascem de
+     `userProfile?.pj_ativo_id`, que costuma ser null nessa primeira passada —
+     e um initialState só roda uma vez. Sem este efeito, o jogador com PJ ativo
+     caía na LISTA em vez de entrar na ficha, que é justamente o contrário do
+     pedido de 17/09/2026.
+
+     A ref guarda o último valor VINDO DO SERVIDOR: assim o efeito só age
+     quando o servidor muda de ideia, e não desfaz um "Sair" local enquanto o
+     prop ainda traz o id antigo. */
+  const pjAtivoDoServidor = useRef(!isMaster ? (userProfile?.pj_ativo_id ?? undefined) : undefined);
+  useEffect(() => {
+    if (isMaster) return;
+    const doServidor = userProfile?.pj_ativo_id ?? null;
+    if (pjAtivoDoServidor.current === doServidor) return;
+    pjAtivoDoServidor.current = doServidor;
+    setPjAtivoNoPerfil(doServidor);
+    setPjAtivoIdLocal(doServidor);
+  }, [isMaster, userProfile?.pj_ativo_id]);
+
+  /* O MENU É A SAÍDA DO MESTRE (17/09/2026): "o mestre ainda pode clicar no
+     menu 'personagens' e voltar a seleção de personagens, não precisa do botão
+     de voltar. Quem persiste no personagem escolhido é o jogador."
+
+     `voltarToken` sobe a cada toque na barra lateral (ver o .mc-navitem em
+     10-shell). Clicar na seção já aberta não rerenderizava nada — `setCurrentId`
+     com o mesmo valor —, então o Mestre dentro de uma ficha não tinha como
+     voltar. Agora o toque fecha a ficha aberta.
+
+     Só do MESTRE: o PJ do Jogador persiste de propósito, e é por isso que a
+     seção dele entra direto na ficha do ativo. Fechá-la a cada clique no menu
+     desfaria o pedido anterior. O guard do primeiro render existe porque o
+     token nasce em 0 e o efeito roda na montagem. */
+  const tokenVisto = useRef(voltarToken);
+  useEffect(() => {
+    if (tokenVisto.current === voltarToken) return;
+    tokenVisto.current = voltarToken;
+    if (isMaster) setFichaAbertoId(null);
+  }, [voltarToken, isMaster]);
+
   const ativarPj = async (pjId) => {
     // Com alguém ativo, ativar outro não faz nada: desative primeiro.
     if (pjAtivoNoPerfil && pjAtivoNoPerfil !== pjId) return;
@@ -335,9 +391,16 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
     setPjAtivoIdLocal(null);
     await persistirPjAtivo(null);
   };
-  const voltarParaLista = () => {
-    // só navegação local — não mexe no banco. pj_ativo_id segue salvo.
-    setPjAtivoIdLocal(null);
+  /* SAIR (17/09/2026): "adicionar um botão dentro da ficha, ao lado de loja,
+     chamado 'sair' para escolher outro personagem."
+
+     Sair DESATIVA. Antes isto era só navegação local — voltava à lista com o
+     PJ ainda ativo, e como a seção "Personagens" agora entra direto na ficha
+     do ativo, um voltar que não desativasse devolveria o jogador à ficha no
+     clique seguinte: não haveria como trocar de personagem. Desativar é o que
+     "escolher outro" pede, e é a mesma porta que o botão Desativar usava. */
+  const voltarParaLista = async () => {
+    await desativarPj();
   };
   /* `trocarPjAtivo` SAIU em 12/09/2026. Trocava o PJ ativo direto, sem
      desativar — exatamente o que a regra nova proíbe. Estava morto (a ficha
@@ -465,12 +528,10 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
             isOwn={currentUserId && p.user_id === currentUserId}
             playerName={profilesMap[p.user_id] || '—'}
             semMesa={!isMaster && !idsComMesa.has(p.id)}
-            pausado={isMaster && historiaIdsPausadas.has(pjData?.historiaIdPorPersonagem?.[p.id])}
+
             onEntrarMesa={!isMaster ? () => setConvidarPj({ id: p.id, nome: p.nome, sobrenome: p.sobrenome }) : undefined}
             onEdit={() => setToEdit(p)}
             onDelete={() => setToDelete(p)}
-            onGiveXp={() => setToGiveXp(p)}
-            onGiveMoedas={() => setToGiveMoedas(p)}
             /* Ativo/inativo, o termo que o usuário pediu. O card do ativo
                mostra "Desativar"; os outros ficam bloqueados enquanto houver
                um ativo — e dizem por quê. */
@@ -483,6 +544,12 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
                a partir do próprio card (o clique no ativo não faz nada). */
             onAbrir={!isMaster && pjAtivoNoPerfil === p.id ? () => setPjAtivoIdLocal(p.id) : undefined}
             ultimoCapitulo={!isMaster ? pjData?.ultimoCapituloPorPersonagem?.[p.id] : undefined}
+            /* HISTÓRIA PAUSADA: o Mestre entra DIRETO (17/09/2026 — "não
+               precisa de mostrar 'história pausada' para o mestre, na hora de
+               entrar no personagem"). Ele é quem pausou a mesa e segue
+               administrando-a; o aviso só o fazia confirmar o óbvio a cada
+               ficha. Quem a pausa tranca é o Jogador, na própria ficha
+               (11-ficha/ficha.jsx, tela "História pausada"). */
             onAbrirFicha={isMaster ? () => setFichaAbertoId(p.id) : undefined}
             lang={lang} />
         ))}
@@ -530,88 +597,195 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
         />
       )}
 
-      {toGiveXp && (
-        <DarExperienciaModal
-          personagem={toGiveXp}
-          lang={lang}
-          onCancel={() => setToGiveXp(null)}
-          onSaved={() => { setToGiveXp(null); refetch(); }}
-        />
-      )}
-      {toGiveMoedas && (
-        <DarMoedasModal
-          personagem={toGiveMoedas}
-          lang={lang}
-          onCancel={() => setToGiveMoedas(null)}
-          onSaved={() => { setToGiveMoedas(null); refetch(); }}
-        />
-      )}
     </div>
   );
 }
 
-function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGiveMoedas, onAtivar, onDesativar, onAbrir, ultimoCapitulo, ativo, bloqueadoPorOutroAtivo, onAbrirFicha, onEntrarMesa, semMesa, pausado, lang, playerName }) {
-  const ficha = calcularFicha(p);
+/* AS CONDIÇÕES SAÍRAM DO CARD em 17/09/2026: "Remova as informações de
+   vitalidade 'insano', 'desonrado', etc." Elas continuam na ficha, que é onde
+   se lê e se edita cada uma das oito; no card viravam uma faixa de rótulos
+   narrativos competindo com o que o card existe para dizer. O que fica no
+   canto direito do topo é o STATUS (abaixo), que é outra coisa. */
+
+/* O CARD NÃO TEM MAIS TOOLTIP NENHUM (17/09/2026): "não precisa mostrar
+   tooltip no card de personagens."
+
+   Saíram os quatro — vitais, status, estágio e o motivo do card bloqueado — e
+   com eles o PortalTooltip local, que existia só para escapar do transform do
+   .pj-card-wrap (transform cria bloco de contenção para descendentes fixed, e
+   era isso que deslocava o balão). A armadilha do transform continua descrita
+   na regra de CSS, para quem puser o próximo fixed ali dentro.
+
+   O que o tooltip dizia agora está escrito: os poços têm o nome por extenso,
+   o status traz o nome ao lado do ícone, e o estágio vem depois do nome. */
+
+/* ============================== Status do personagem no card ==============================
+   "Quando eu disse sobre o status, eu digo o status que ficou de batalha:
+    ferido, envenenado, desmaiado, morto, etc. E esta informação fica no lado
+    direito no topo." (usuário, 17/09/2026)
+
+   São DUAS famílias, com origens diferentes:
+
+   • MORTO e DESMAIADO não são guardados em lugar nenhum — são LIDOS da
+     vitalidade, exatamente como o motor de batalha faz ao montar o snapshot
+     (montarSnapshots, 12-batalha/batalha.jsx): EF no piso é morto, EF zerada
+     ou EH zerada é desmaiado. Por isso já funcionam aqui sem nada novo: quem
+     persiste é a EF, e o status é consequência dela.
+
+   • FERIDO, ENVENENADO, SANGRANDO, CAÍDO e os demais são efeitos temporários,
+     e moram em estado_atual.status — mesma forma dos efeitos do participante
+     de batalha: { id, nome, icone, rodadas_rest, efeito }.
+
+   O ícone sai do mapa da própria batalha (ICONE_STATUS, pelo window: a fase 12
+   carrega depois desta), para o mesmo status nunca ter dois desenhos. */
+const EF_MORTE_CARD = -15;   // espelha EF_MORTE de 12-batalha/batalha.jsx
+
+function statusBaseDoPj(efAtual, maxEF, ehAtual, maxEH) {
+  if (maxEF <= 0) return null;
+  if (efAtual <= EF_MORTE_CARD) return 'morto';
+  if (efAtual <= 0 || (maxEH > 0 && ehAtual <= 0)) return 'desmaiado';
+  return null;
+}
+
+/* Ícone de um efeito guardado: pelo id (que carrega o tipo como prefixo, do
+   jeito que statusAplicadoPeloMestre monta), depois pelo efeito, depois pelo
+   emoji que veio junto. Mesma escada de iconeDoEfeito na batalha. */
+function iconeDoStatusCard(st) {
+  const mapa = (typeof window !== 'undefined' && window.ICONE_STATUS) || {};
+  const id = typeof st.id === 'string' ? st.id : '';
+  const tipo = st.efeito && st.efeito.tipo;
+  if (id.startsWith('sangramento:')) return { ti: mapa.sangrando };
+  if (id.startsWith('ferido:'))      return { ti: mapa.ferido };
+  if (id.startsWith('veneno:'))      return { ti: mapa.envenenado };
+  if (tipo === 'dano_por_rodada')    return { ti: mapa.envenenado };
+  if (tipo === 'sem_acoes')          return { ti: mapa.caido };
+  if (mapa[id])                      return { ti: mapa[id] };
+  if (st.icone)                      return { emoji: st.icone };
+  return { ti: 'ti-bolt' };
+}
+
+function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesativar, onAbrir, ultimoCapitulo, ativo, bloqueadoPorOutroAtivo, onAbrirFicha, onEntrarMesa, semMesa, lang, playerName }) {
+  /* As condições entram no cálculo (17/09/2026), como já entravam na ficha
+     (11-ficha/ficha.jsx): sem elas o card anunciaria uma EF máxima que a ficha
+     do mesmo personagem contradiz na linha seguinte. */
+  const ficha = calcularFicha(p, undefined, p.estado_atual?.condicoes);
   const titulo = tituloDoPersonagem(p);
   const levelUp = temLevelUpPendente(p);
   const fotoUrl = p.foto_url || p.foto || p.avatar_url || null;
   const inicial = (p.nome || '?').trim().charAt(0).toUpperCase();
   const en = lang === 'en';
-  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
+  // Sem tooltip no card (17/09/2026) — ver a nota acima do bloco de status.
 
-  // Degradê contínuo de cor baseado no ratio EF atual / EF máxima.
-  // Sem estado_atual → considera cheio (ratio 1).
+  const atividadePj = ((typeof window !== 'undefined' && window.ATIVIDADES) || [])
+    .find((a) => a.id === p.estado_atual?.atividade?.tipo) || null;
+
   const maxEF = Number(ficha.derivadas?.energiaFisica) || 0;
   const efAtual = p.estado_atual?.vitalidade?.ef != null
     ? Number(p.estado_atual.vitalidade.ef)
     : maxEF;
-  const efRatio = maxEF > 0 ? Math.max(0, Math.min(1, efAtual / maxEF)) : 1;
   const maxEH = Number(ficha.derivadas?.energiaHeroica) || 0;
   const ehAtual = p.estado_atual?.vitalidade?.eh != null
     ? Number(p.estado_atual.vitalidade.eh)
     : maxEH;
 
-  // Três âncoras de cor:
-  //   0%   → púrpura  rgb(107, 20,128)
-  //   50%  → carmesim rgb(139, 26, 26)
-  //   100% → dourado  rgb(201,164, 78)  (#C9A44E — ouro Pedra & Bronze)
-  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
-  const lerpRGB = (r1,g1,b1, r2,g2,b2, t) => [lerp(r1,r2,t), lerp(g1,g2,t), lerp(b1,b2,t)];
-  const [hr, hg, hb] = efRatio < 0.5
-    ? lerpRGB(107,20,128, 139,26,26,  efRatio / 0.5)
-    : lerpRGB(139,26,26,  201,164,78, (efRatio - 0.5) / 0.5);
+  /* A BORDA DEIXOU DE SER TERMÔMETRO (17/09/2026): "Como agora o card dos
+     personagens está maior, remova os efeitos de borda relativos à saúde e
+     energia". Tingir a moldura era o recurso de quando o card era um de três
+     por linha, sem espaço para números. Com um card por linha há espaço, e
+     quem diz a saúde são as barras de EF/EH/Karma — a borda voltou a ser só
+     borda, e o pulso do crítico (.pj-card--ef-critico) foi junto.
 
-  const healthStyle = {
-    '--pj-health-r': hr,
-    '--pj-health-g': hg,
-    '--pj-health-b': hb,
-    /* O ativo fica sem a cor de saúde na borda: inline ganha do CSS, e a
-       borda dele é a dourada de .pj-card--ativo. A saúde do ativo aparece
-       na barra de EF. */
-    ...(ativo ? null : {
-      borderColor: `rgba(${hr},${hg},${hb},0.55)`,
-      boxShadow:   `0 0 24px rgba(${hr},${hg},${hb},0.20)`,
-    }),
-    transition:  'border-color .4s ease, box-shadow .4s ease',
-  };
-  const pulsoClass = efRatio < 0.25 ? ' pj-card--ef-critico' : '';
+     O DEGRADÊ DE SAÚDE FOI JUNTO, e não migrou para dentro da barra como eu
+     tinha feito primeiro: com a cor saindo do ratio de EF, cada card exibia
+     uma barra de cor diferente e a lista virava um mosaico. Quem diz o nível é
+     o PREENCHIMENTO; a cor é identidade do poço, fixa, e sai da mesma tabela
+     que a ficha usa (FICHA_VIT_COLORS, 11-ficha/ficha.jsx). */
 
   /* A seta de evoluir só aparece no personagem ATIVO (ou, para o Mestre, em
      qualquer um — ele não tem PJ ativo). O invólucro precisa saber disso
      para marcar o card (.pj-card-wrap--seta). */
   const mostrarSetaEvoluir = !!(levelUp && onEdit && (isMaster || ativo));
 
-  const podeSelecionar = !!(onAtivar && !bloqueadoPorOutroAtivo && !ativo);
+  /* `!isMaster`: o Mestre não ativa PJ nenhum — ele não tem personagem ativo.
+     A lista já não lhe passa `onAtivar`, mas o card não deve depender disso:
+     quem recebesse os dois ganharia o clique de ativar por cima do de abrir a
+     ficha, e o Mestre ficaria sem porta. */
+  const podeSelecionar = !!(onAtivar && !isMaster && !bloqueadoPorOutroAtivo && !ativo);
+
+  /* O CARD INTEIRO É A PORTA DA FICHA (17/09/2026): "Remova do card dos
+     personagens o botão de ficha, agora, ao clicar no card, irá entrar na
+     ficha." O botão de ícone saiu do cabeçalho e o alvo virou o card.
+
+     Quem abre depende de quem olha: o Mestre entra na ficha de qualquer PJ
+     (onAbrirFicha); o Jogador entra na do SEU ativo (onAbrir). No card de um
+     personagem que ele ainda não ativou, o clique continua sendo o de sempre —
+     ativar —, porque não há ficha para abrir antes de escolher o personagem. */
+  const abrirFichaPeloCard = isMaster ? onAbrirFicha : (ativo ? onAbrir : undefined);
+  const cliqueNoCard = podeSelecionar ? onAtivar : (bloqueadoPorOutroAtivo ? undefined : abrirFichaPeloCard);
   const nomeCompleto = [p.nome, p.sobrenome].filter(Boolean).join(' ');
 
-  /* Vitais do ativo (12/09/2026). O card ativo ocupa a linha inteira e, só
-     com nome e uma linha de meta, era uma faixa larga e vazia. Energia física
-     e heroica é o que o jogador quer saber de relance sobre quem está em jogo.
-     A barra de EF usa a mesma cor de saúde que já tinge a borda do card. */
+  /* Vitais (12/09/2026; de TODOS os cards e com Karma desde 17/09/2026:
+     "adicione um pouco mais de informações dos personagens, como ef, eh, karma
+     e condição"). Eram só do ativo porque só ele ocupava a linha inteira —
+     agora todos ocupam.
+
+     Karma some de quem não conjura (SEM_KARMA, a mesma regra da ficha) e de
+     quem tem o poço zerado por Aura abaixo de 1: barra vazia que nunca enche
+     não é informação, é ruído. */
+  const _SEM_KARMA = (typeof window !== 'undefined' && window.SEM_KARMA) || new Set();
+  const maxKA = _SEM_KARMA.has(p.profissao) ? 0 : (Number(ficha.derivadas?.karmamax) || 0);
+  const kaAtual = p.estado_atual?.vitalidade?.ka != null
+    ? Number(p.estado_atual.vitalidade.ka)
+    : maxKA;
+  /* A cor de cada poço sai da tabela da ficha — mesma EF vermelha, mesma EH
+     amarela, mesmo Karma azul nas duas telas. */
+  const _VIT_CORES = (typeof window !== 'undefined' && window.FICHA_VIT_COLORS) || {};
+  /* POR EXTENSO (17/09/2026): "Ao invés de escrever EH, escreva 'Energia
+     Heroica'". A sigla economizava uma linha que o card não precisava
+     economizar — com um card por linha e três colunas, o nome inteiro cabe. */
   const vitais = [
-    { k: 'ef', rotulo: en ? 'Physical energy' : 'Energia física', atual: efAtual, max: maxEF, cor: `rgb(${hr},${hg},${hb})` },
-    { k: 'eh', rotulo: en ? 'Heroic energy' : 'Energia heroica', atual: ehAtual, max: maxEH },
-  ].filter((v) => v.max > 0);
+    { k: 'ef', rotulo: en ? 'Physical Energy' : 'Energia Física', atual: efAtual, max: maxEF },
+    { k: 'eh', rotulo: en ? 'Heroic Energy' : 'Energia Heroica',  atual: ehAtual, max: maxEH },
+    { k: 'ka', rotulo: 'Karma',                                   atual: kaAtual, max: maxKA },
+  ].filter((v) => v.max > 0).map((v) => ({ ...v, cor: _VIT_CORES[v.k] || 'var(--gold)' }));
+
+  /* Condições alteradas (17/09/2026). São as mesmas oito da ficha, na mesma
+     ordem; o card mostra só as que SAÍRAM do neutro — oito chips sempre
+     acesos, quase todos em zero, não diriam nada. O rótulo narrativo
+     ("Desidratado", "Sonolento") vem de fichaEstadoLabel, a tabela da ficha,
+     pelo window: esta fase carrega antes da 11-ficha. */
+  /* STATUS (17/09/2026) — o canto direito do topo. Morto/Desmaiado saem da
+     vitalidade; o resto, de estado_atual.status. Ver statusBaseDoPj acima. */
+  // As palavras são as da batalha: COPY[lang].batalha.statusMorto/statusDesmaiado.
+  const _tb = ((typeof COPY !== 'undefined' ? COPY[lang] : null)
+    || (window.COPY && window.COPY[lang]) || {}).batalha || {};
+  const _rotuloBase = { morto: _tb.statusMorto, desmaiado: _tb.statusDesmaiado };
+  const base = statusBaseDoPj(efAtual, maxEF, ehAtual, maxEH);
+  /* DEDUPE DERIVADO × MANUAL (20/09/2026). Desde que o Mestre pode marcar
+     desmaiado e morto à mão, o MESMO estado pode chegar por dois caminhos: a
+     vitalidade o deriva e a marca o repete. Dois chips idênticos lado a lado
+     não informam nada e parecem defeito.
+
+     Quem sobrevive é o DERIVADO, e não por ordem de chegada: ele é o `grave`,
+     que pinta em carmim. Sem o nome escrito ao lado (o chip é só ícone desde
+     hoje), a cor é a única coisa que separa um desmaio real de um efeito
+     qualquer — deixar passar o chip manual apagaria essa distinção.
+
+     Não há conflito na outra direção: não existe marca manual de "são/ativo",
+     então derivado e manual só podem coincidir, nunca se contradizer. */
+  const _tipoDe = (typeof window !== 'undefined' && window.tipoDoStatus) || (() => null);
+  const statusPj = [
+    ...(base ? [{ chave: base, nome: _rotuloBase[base] || base, icone: { ti: (window.ICONE_STATUS || {})[base] }, grave: true }] : []),
+    ...((Array.isArray(p.estado_atual?.status) ? p.estado_atual.status : [])
+      .filter((st) => !base || _tipoDe(st) !== base)
+      .map((st, i) => ({
+        chave: (st && st.id) || 'st' + i,
+        nome: (st && st.nome) || '?',
+        icone: iconeDoStatusCard(st || {}),
+        rodadas: st && st.rodadas_rest,
+        grave: false,
+      }))),
+  ];
 
   /* Último capítulo (pedido do usuário, 12/09/2026): "no card de personagem
      principal, adicione o último capítulo da história". Só no ativo — é ele
@@ -623,15 +797,8 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
   return (
     <div className={'pj-card-wrap' + (ativo ? ' pj-card-wrap--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card-wrap--inerte' : '') + (mostrarSetaEvoluir ? ' pj-card-wrap--seta' : '')}>
     <article
-      className={'pj-card' + pulsoClass + (levelUp ? ' pj-card--levelup' : '') + (ativo ? ' pj-card--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card--inerte' : '') + (podeSelecionar ? ' is-clickable' : '')}
-      style={healthStyle}
-      onClick={podeSelecionar ? onAtivar : undefined}
-      /* O bloqueado continua SEM frase no card — o usuário mandou tirar. O
-         motivo aparece só para quem pousa o mouse nele, que é quem perguntou. */
-      onMouseEnter={bloqueadoPorOutroAtivo
-        ? (e) => abrirTip(e, en ? 'Deactivate your active character to choose this one' : 'Desative o personagem ativo para escolher este')
-        : undefined}
-      onMouseLeave={bloqueadoPorOutroAtivo ? fecharTip : undefined}
+      className={'pj-card' + (levelUp ? ' pj-card--levelup' : '') + (ativo ? ' pj-card--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card--inerte' : '') + (cliqueNoCard ? ' is-clickable' : '')}
+      onClick={cliqueNoCard}
     >
       {bloqueadoPorOutroAtivo && (
         <span className="pj-card-cadeado" aria-hidden="true"><i className="ti ti-lock" /></span>
@@ -645,40 +812,11 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
         </div>
         <div className="pj-card-info">
           <header className="pj-card-head">
-            <div className="pj-card-actions">
-              {isMaster && (
-                <button
-                  className="btn-icon btn-sm pj-card-action pj-card-action-moedas"
-                  onClick={(e) => { e.stopPropagation(); onGiveMoedas(); }}
-                  aria-label={en ? 'Coins' : 'Moedas'}
-                  onMouseEnter={(e) => { e.stopPropagation(); abrirTip(e, en ? 'Coins' : 'Moedas'); }}
-                  onMouseLeave={fecharTip}>
-                  <i className="ti ti-coins" aria-hidden="true" />
-                </button>
-              )}
-              {isMaster && (
-                <button
-                  className="btn-icon btn-sm pj-card-action pj-card-action-xp"
-                  onClick={(e) => { e.stopPropagation(); onGiveXp(); }}
-                  aria-label={en ? 'Experience' : 'Experiência'}
-                  onMouseEnter={(e) => { e.stopPropagation(); abrirTip(e, en ? 'Experience' : 'Experiência'); }}
-                  onMouseLeave={fecharTip}>
-                  <i className="ti ti-star" aria-hidden="true" />
-                </button>
-              )}
-              {isMaster && onAbrirFicha && (
-                <button
-                  className="btn-icon btn-sm pj-card-action pj-card-action-ficha"
-                  onClick={(e) => { e.stopPropagation(); onAbrirFicha(); }}
-                  aria-label={en ? 'Sheet' : 'Ficha'}
-                  onMouseEnter={(e) => { e.stopPropagation(); abrirTip(e, en ? 'Sheet' : 'Ficha'); }}
-                  onMouseLeave={fecharTip}>
-                  <i className="ti ti-file-description" aria-hidden="true" />
-                </button>
-              )}
-              {/* Editar (lápis) e Excluir (lixeira) removidos do card — edição via ficha do PJ ativo */}
-              <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-            </div>
+            {/* Moedas, Experiência e Ficha saíram do card em 17/09/2026:
+                as moedas agora entram pela loja, a experiência virou barra
+                clicável dentro da ficha, e a ficha abre no clique do card.
+                Com eles foi a barra de ações inteira — sobrou o Tooltip, que
+                é quem explica o card bloqueado por outro ativo. */}
             {/* Selo ATIVO — elemento de verdade, e não um ::after (ver a
                 nota de 12/09/2026 no CSS). Saiu do canto do card e virou o
                 sobrescrito do nome: no canto era uma pílula de 10px disputando
@@ -690,7 +828,68 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
                 {en ? 'Active character' : 'Personagem ativo'}
               </span>
             )}
-            <div className="pj-name">{nomeCompleto}</div>
+            {/* ESTÁGIO EM EVIDÊNCIA (17/09/2026): "O estágio pode ter mais
+                evidência." Era a primeira palavra da linha de meta, em cinza e
+                do mesmo tamanho da raça e do título — o número que mede o
+                personagem lido como legenda. Agora é selo ao lado do nome, e
+                saiu da linha de meta.
+
+                Ao LADO do nome, e não no canto do card: o canto superior
+                direito é do selo de evoluir (.pj-evoluiu), que sobe 14px acima
+                da borda e ainda espalha um anel de radar em volta. */}
+            <div className="pj-name-linha">
+              {/* "O estágio pode ficar escrito junto com o nome, assim:
+                  Lysandra Vel'Thals 9" (usuário, 17/09/2026). Era um selo em
+                  pílula ao lado; virou o número dourado logo depois do nome,
+                  dentro do mesmo elemento — o estágio lido como parte de quem
+                  o personagem é, não como etiqueta pendurada. */}
+              <div className="pj-name">
+                {/* O TÍTULO ANTES DO NOME (17/09/2026): "mostre o título do
+                    personagem junto com o nome, por exemplo: Guardião Lirael
+                    Vel'Thalas". Era mais um item da linha de meta, entre a
+                    profissão e o dono, com o mesmo peso de tudo. Como prefixo
+                    do nome ele vira o que é: um tratamento. */}
+                {titulo && <span className="pj-name-titulo">{titulo} </span>}
+                {nomeCompleto}
+                <span className="pj-name-estagio"
+                  aria-label={en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}
+                >{ficha.estagio}</span>
+              </div>
+              {/* ATIVIDADE (24/09/2026): dormindo, meditando… Com nome, ao
+                  contrário dos status: é o que o personagem está FAZENDO, e um
+                  ícone de lua sozinho não diria se ele dorme ou medita. */}
+              {atividadePj && (
+                <span className="pj-atividade-selo" data-atividade={atividadePj.id}>
+                  <i className={'ti ' + atividadePj.icon} aria-hidden="true" />
+                  {en ? atividadePj.en : atividadePj.pt}
+                </span>
+              )}
+              {/* STATUS, no canto direito do topo. */}
+              {statusPj.length > 0 && (
+                <div className="pj-card-status" aria-label="Status">
+                  {/* SÓ O ÍCONE (20/09/2026, pedido do usuário): sem o nome ao
+                      lado, sem fundo e sem borda.
+
+                      Sem tooltip também — o card não tem balão nenhum desde
+                      17/09/2026 ("não precisa mostrar tooltip no card de
+                      personagens"), e o `transform` do .pj-card-wrap quebraria
+                      o posicionamento de um .mn-tip, que é position:fixed. O
+                      nome sobrevive no `aria-label`, para quem lê por leitor
+                      de tela; na tela, o ícone responde sozinho. */}
+                  {statusPj.map((st) => (
+                    <span
+                      key={st.chave}
+                      className={'pj-status-chip' + (st.grave ? ' is-grave' : '')}
+                      aria-label={st.nome}
+                    >
+                      {st.icone.emoji
+                        ? <span className="pj-status-emoji" aria-hidden="true">{st.icone.emoji}</span>
+                        : <i className={'ti ' + (st.icone.ti || 'ti-bolt')} aria-hidden="true" />}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </header>
           {/* Estágio, raça/profissão e título — 12/09/2026.
 
@@ -699,22 +898,40 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
               todos os cards de um mesmo dono. Isto é o que distingue um
               personagem do outro. */}
           <div className="pj-meta">
-            <span>{en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}</span>
-            {(p.raca || p.profissao) && <span className="sep">·</span>}
+            {/* O estágio saiu daqui e virou selo (ver .pj-name-estagio acima). */}
+            {/* O ícone da profissão (17/09/2026) vem antes da linha, e não
+                colado à palavra: é o desenho que distingue um Mago de um
+                Guerreiro num relance, antes de ler. Profissão sem ícone
+                mapeado simplesmente não desenha nada. Ver ICONE_PROFISSAO
+                (01-core/game-data.jsx). */}
+            {(() => {
+              const ic = (typeof iconeProfissao === 'function' ? iconeProfissao : window.iconeProfissao)?.(p.profissao);
+              return ic ? <i className={'ti ' + ic + ' pj-meta-profissao-ic'} aria-hidden="true" /> : null;
+            })()}
             {(p.raca || p.profissao) && <span>{[p.raca, p.profissao].filter(Boolean).join(' ')}</span>}
-            {titulo && <span className="sep">·</span>}
-            {titulo && <span>{titulo}</span>}
             {/* O dono só interessa ao Mestre. Na lista do jogador todos os
                 cards traziam o nome DELE, repetido card a card. */}
             {isMaster && <span className="sep">·</span>}
             {isMaster && <span>{playerName}</span>}
-            {pausado && <span className="pj-card-pausada">{en ? 'Paused' : 'Pausada'}</span>}
+            {/* O selo "Pausada" saiu em 17/09/2026 e o aviso que o substituiu
+                durou poucas horas: o Mestre entra direto, porque é ele quem
+                pausa a mesa. Quem a pausa tranca é o Jogador, na própria ficha
+                (11-ficha/ficha.jsx). */}
           </div>
 
-          {ativo && vitais.length > 0 && (
+          {/* OS TRÊS POÇOS, LADO A LADO E NA LARGURA TODA (17/09/2026). Com um
+              card por linha sobra largura: as barras dividem o card em três em
+              vez de se espremer num bloco de 220px à esquerda. O rótulo é a
+              sigla — "Energia física" por extenso roubava a linha do número, e
+              o nome inteiro está no tooltip. */}
+          {vitais.length > 0 && (
             <div className="pj-vitais">
               {vitais.map((v) => (
-                <div key={v.k} className={'pj-vital pj-vital--' + v.k}>
+                <div
+                  key={v.k}
+                  className={'pj-vital pj-vital--' + v.k}
+                  style={{ '--vit-c': v.cor }}
+                >
                   <div className="pj-vital-top">
                     <span className="pj-vital-rot">{v.rotulo}</span>
                     <span className="pj-vital-num">{v.atual}<span className="pj-vital-max">/{v.max}</span></span>
@@ -722,16 +939,14 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
                   <div className="pj-vital-barra">
                     <span
                       className="pj-vital-fill"
-                      style={{
-                        width: `${Math.max(0, Math.min(100, (v.atual / v.max) * 100))}%`,
-                        ...(v.cor ? { background: v.cor } : null),
-                      }}
+                      style={{ width: `${Math.max(0, Math.min(100, (v.atual / v.max) * 100))}%` }}
                     />
                   </div>
                 </div>
               ))}
             </div>
           )}
+
         </div>
 
         {/* Ações do ATIVO — refeitas em 12/09/2026.
@@ -784,26 +999,11 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
         </section>
       )}
 
-      {/* Selecionar personagem (pedido do usuário, 11/09/2026). O clique no
-          card continua funcionando; o botão torna a ação nomeada.
-
-          Pílula centralizada no rodapé, ou nada — o bloqueado simplesmente
-          não oferece ação, porque não há ação. Em repouso a pílula é
-          discreta: três botões dourados lado a lado numa grade gritavam
-          todos ao mesmo tempo. Ela acende quando o mouse chega no card (ver
-          .pj-card.is-clickable:hover no CSS), que é quando a escolha
-          acontece. */}
-      {podeSelecionar && (
-        <div className="pj-card-foot">
-          <button
-            type="button"
-            className="btn-ghost btn-sm pj-card-selecionar"
-            onClick={(e) => { e.stopPropagation(); onAtivar(); }}>
-            <i className="ti ti-user-check" aria-hidden="true" />
-            {en ? 'Select character' : 'Selecionar personagem'}
-          </button>
-        </div>
-      )}
+      {/* O botão "Selecionar personagem" saiu em 17/09/2026: "remova o botão
+          'selecionar personagem', pois clicar na ficha já é selecionar ele".
+          Ele nomeava uma ação que o card inteiro já fazia, e desde que o
+          clique passou a ABRIR a ficha (e não só marcar o card) a pílula
+          virava um segundo caminho para o mesmo lugar. */}
     </article>
 
       {/* Seta de evolução — é o caminho do JOGADOR pra gastar os pontos do
@@ -826,8 +1026,6 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
           className="pj-evoluiu"
           onClick={(e) => { e.stopPropagation(); onEdit(); }}
           aria-label={en ? 'Click here to level up your character!' : 'Clique aqui para evoluir seu personagem!'}
-          onMouseEnter={(e) => { e.stopPropagation(); abrirTip(e, en ? 'Click here to level up your character!' : 'Clique aqui para evoluir seu personagem!'); }}
-          onMouseLeave={fecharTip}
         >
           <i className="ti ti-arrow-big-up-lines" aria-hidden="true" />
         </button>
@@ -836,6 +1034,15 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onGiveXp, onGive
     </div>
   );
 }
+
+/* O AvisoHistoriaPausadaModal viveu poucas horas, em 17/09/2026. Nasceu para
+   substituir o selo "Pausada" do card ("adicione um aviso quando o usuário
+   tentar acessar a ficha") e saiu no mesmo dia: "não precisa de mostrar
+   'história pausada' para o mestre, na hora de entrar no personagem".
+
+   Era do Mestre, e o Mestre é quem pausa a mesa — avisá-lo do que ele mesmo
+   fez, a cada ficha, é só um clique a mais. O aviso que importa é o do
+   Jogador, e esse é a própria ficha que dá (11-ficha/ficha.jsx). */
 
 // ---------- Modal de confirmação de exclusão ----------
 function ConfirmarExclusaoModal({ personagem, lang, onCancel, onConfirm }) {
@@ -859,315 +1066,20 @@ function ConfirmarExclusaoModal({ personagem, lang, onCancel, onConfirm }) {
   );
 }
 
-// ---------- DeltaStepper — variante EDITÁVEL do padrão pill (nosso seletor de valores) ----------
-// Mesma pele "pill" do QuantityStepper e do stepper de condição do
-// BarEditPopover (ambos cópias locais de 12-batalha/batalha.jsx, o segundo
-// em 11-ficha/ficha.jsx): fundo escuro translúcido com blur, borda dourada
-// fraca, botões circulares dourados. Diferença: aqui o valor no meio é um
-// <input> de verdade, não <span> — conceder XP/moedas precisa aceitar
-// qualquer número digitado, não só clique em -1/+1/preset. Delta pode ser
-// negativo (Mestre também subtrai). `presets`, se passado, desenha uma
-// fileira de chips "+N" abaixo (SOMA ao valor atual, não substitui, diferente
-// dos presets de condição que saltam pro valor exato) + botão de zerar via
-// `onReset`. Usado hoje em DarExperienciaModal (com presets) e, uma
-// instância por linha, em DarMoedasModal (sem presets).
-function DeltaStepper({ value, onChange, presets, onReset, inputClassName }) {
-  const d = parseInt(value, 10) || 0;
-  const dec = () => onChange(d - 1);
-  const inc = () => onChange(d + 1);
-  const bump = (n) => onChange(d + n);
+/* DeltaStepper, DarExperienciaModal e DarMoedasModal saíram em 17/09/2026.
 
-  const pillStyle = {
-    background: 'rgba(24,17,8,0.92)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-    border: '1px solid rgba(106,85,48,0.50)', borderRadius: 999, height: 32,
-    display: 'flex', alignItems: 'center', gap: 4, padding: '0 4px', width: '100%',
-  };
-  const btnStyle = {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 32, height: 32, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: '#C9A44E', cursor: 'pointer', transition: 'background .15s, color .15s',
-  };
+   Moedas: "o sistema de moedas será por meio da loja" — o Mestre não concede
+   mais moedas de dentro do card; quem move o saldo é a compra/venda na loja
+   (RPC comprar_item / vender_item), e a RPC mestre_ajustar_moedas deixou de
+   ter chamador no front.
 
-  return (
-    <div className="delta-stepper">
-      <div style={pillStyle}>
-        <button type="button" style={btnStyle}
-          onMouseDown={(e) => e.preventDefault()} onClick={dec} aria-label="-"
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-          <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 14 }} />
-        </button>
-        <input
-          type="number"
-          className={'delta-stepper-input' + (inputClassName ? ' ' + inputClassName : '')}
-          value={value}
-          onChange={(e) => onChange(e.target.value === '' || e.target.value === '-' ? e.target.value : (parseInt(e.target.value, 10) || 0))}
-        />
-        <button type="button" style={btnStyle}
-          onMouseDown={(e) => e.preventDefault()} onClick={inc} aria-label="+"
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-          <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
-        </button>
-      </div>
-      {presets && presets.length > 0 && (
-        <div className="delta-stepper-chips">
-          {presets.map((n) => (
-            <button type="button" key={n} className="delta-chip" onClick={() => bump(n)}>+{n}</button>
-          ))}
-          {onReset && (
-            <button type="button" className="delta-chip delta-chip--reset" onClick={onReset} disabled={d === 0} aria-label={'Zerar'}>
-              <i className="ti ti-rotate" aria-hidden="true" />
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+   Experiência: "ao clicar sobre a barra de experiência dentro da ficha o
+   mestre será capaz de aumentar e diminuir a experiência como as outras
+   barras" — a concessão virou a barra de Estágio da ficha
+   (11-ficha/ficha.jsx), que também é quem registra na mesa o evento em
+   destaque de subir de estágio, antes disparado aqui.
 
-/* ============================== [15] DarExperienciaModal — Mestre concede XP a um personagem ============================== */
-function DarExperienciaModal({ personagem, lang, onCancel, onSaved }) {
-  const en = lang === 'en';
-  const [delta, setDelta] = useState(0);          // começa em 0: nada de concessão acidental
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Escape e travamento de scroll já são responsabilidade do ModalShell — não duplicar aqui.
-
-  const xpAtual      = personagem.experiencia || 0;
-  const d            = parseInt(delta, 10) || 0;
-  const xpNovo       = Math.max(0, xpAtual + d);  // XP nunca negativo
-  const estAtual     = calcEstagio(xpAtual);
-  const estNovo      = calcEstagio(xpNovo);
-  const subiuEstagio = estNovo > estAtual;
-  const caiuEstagio  = estNovo < estAtual;
-  const semMudanca   = xpNovo === xpAtual;
-
-  const fullName = `${personagem.nome}${personagem.sobrenome ? ' ' + personagem.sobrenome : ''}`;
-
-  const CHIPS = [1, 2, 5, 10, 15];
-
-  const salvar = async () => {
-    setSaving(true);
-    setError(null);
-    const { error } = await supabaseClient
-      .from('personagens')
-      .update({ experiencia: xpNovo })
-      .eq('id', personagem.id);
-    setSaving(false);
-    if (error) {
-      console.error('[xp] update falhou:', error);
-      setError(error.message);
-    } else {
-      onSaved();
-    }
-  };
-
-  return (
-    <ModalShell
-      title={<><i className="ti ti-star xp-give-title-ic" aria-hidden="true" /> {en ? 'Experience' : 'Experiência'}</>}
-      lang={lang}
-      size="sm"
-      onClose={onCancel}
-      onCancel={onCancel}
-      onConfirm={salvar}
-      confirmLabel={saving ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Grant' : 'Conceder')}
-      confirmDisabled={saving || semMudanca}
-    >
-      <div className="xp-give">
-        <p className="xp-give-sub">
-          {en
-            ? <>Award experience to <strong>{fullName}.</strong></>
-            : <>Conceder experiência para <strong>{fullName}</strong>.</>}
-        </p>
-
-        {/* Valor a conceder: stepper + atalhos */}
-        <div className="xp-amount">
-          <DeltaStepper
-            value={delta}
-            onChange={setDelta}
-            presets={CHIPS}
-            onReset={() => setDelta(0)}
-          />
-        </div>
-
-        {subiuEstagio && (
-          <div className="xp-levelup">
-            <i className="ti ti-stars" aria-hidden="true" />
-            <span>
-              {en
-                ? <><strong>{fullName}</strong> will advance to stage {estNovo}.</>
-                : <><strong>{fullName}</strong> vai evoluir para o estágio {estNovo}.</>}
-            </span>
-          </div>
-        )}
-
-        {error && <div className="err-msg xp-give-err">{error}</div>}
-      </div>
-    </ModalShell>
-  );
-}
-
-/* ============================== [16] DarMoedasModal: Mestre concede ou subtrai moedas de um PJ ============================== */
-/* Rótulos dos motivos da RPC mestre_ajustar_moedas. (inalterado) */
-function motivoAjusteMoedaLabel(motivo, info, lang) {
-  const en = lang === 'en';
-  const den = en
-    ? { ouro: 'gold', prata: 'silver', cobre: 'copper', latao: 'brass' }
-    : { ouro: 'ouro', prata: 'prata', cobre: 'cobre', latao: 'latao' };
-  const d = info && info.denom ? den[info.denom] : '';
-  if (motivo === 'sem_bolsa_com_espaco') return en
-    ? `No bag with room for the ${d} (get a pouch first)`
-    : `Sem bolsa com espaco para o ${d} (adquira uma bolsa antes)`;
-  if (motivo === 'moeda_insuficiente') return en
-    ? `Not enough ${d}: has ${info?.tem ?? 0}, asked ${info?.pedido ?? 0}`
-    : `${d} insuficiente: tem ${info?.tem ?? 0}, pediu ${info?.pedido ?? 0}`;
-  if (motivo === 'pj_nao_encontrado') return en ? 'Character not found' : 'Personagem nao encontrado';
-  return motivo;
-}
-
-function DarMoedasModal({ personagem, lang, onCancel, onSaved }) {
-  const en = lang === 'en';
-  const [coinVals, setCoinVals] = useState(null);   // { slug: valor_latao } do grupo Moedas
-  const [deltas, setDeltas] = useState({ ouro: 0, prata: 0, cobre: 0, latao: 0 });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Valores das moedas do catalogo (uma vez). Saldo e derivado dos itens-moeda.
-  useEffect(() => {
-    let vivo = true;
-    supabaseClient.from('itens').select('slug,valor_latao').eq('grupo', 'Moedas')
-      .then(({ data }) => {
-        if (!vivo) return;
-        const m = {};
-        (data || []).forEach((r) => { m[r.slug] = Number(r.valor_latao || 0); });
-        setCoinVals(m);
-      });
-    return () => { vivo = false; };
-  }, []);
-
-  // Saldo atual por denominacao = soma dos itens-moeda do PJ, agrupados por valor.
-  const moedasAtuais = useMemo(() => {
-    const m = { ouro: 0, prata: 0, cobre: 0, latao: 0 };
-    if (!coinVals) return m;
-    for (const it of (personagem.inventario?.itens || [])) {
-      const v = coinVals[it.slug];
-      if (v == null) continue;
-      const q = Number(it.quantidade || 1);
-      if (v === 1000) m.ouro += q; else if (v === 100) m.prata += q;
-      else if (v === 10) m.cobre += q; else if (v === 1) m.latao += q;
-    }
-    return m;
-  }, [coinVals, personagem]);
-
-  // Escape e travamento de scroll já são responsabilidade do ModalShell — não duplicar aqui.
-
-  const labels = en
-    ? { ouro: 'Gold Coin', prata: 'Silver Coin', cobre: 'Copper Coin', latao: 'Brass Coin' }
-    : { ouro: 'Moeda de Ouro', prata: 'Moeda de Prata', cobre: 'Moeda de Cobre', latao: 'Moeda de Latão' };
-
-  const PRESETS_MOEDA = [1, 2, 5, 10, 15];
-
-  const novosValores = {
-    ouro:  (moedasAtuais.ouro  || 0) + (parseInt(deltas.ouro,  10) || 0),
-    prata: (moedasAtuais.prata || 0) + (parseInt(deltas.prata, 10) || 0),
-    cobre: (moedasAtuais.cobre || 0) + (parseInt(deltas.cobre, 10) || 0),
-    latao: (moedasAtuais.latao || 0) + (parseInt(deltas.latao, 10) || 0),
-  };
-  const denomNegativa = MOEDA_ORDEM.find((k) => novosValores[k] < 0);
-  const totalAtual  = moedasToLatao(moedasAtuais);
-  const totalNovo   = moedasToLatao(novosValores);
-  const netChange   = totalNovo - totalAtual;
-  const haDelta = MOEDA_ORDEM.some((k) => (parseInt(deltas[k], 10) || 0) !== 0);
-
-  const fullName = `${personagem.nome}${personagem.sobrenome ? ' ' + personagem.sobrenome : ''}`;
-  const nf = (n) => n.toLocaleString(en ? 'en-US' : 'pt-BR');
-
-  const salvar = async () => {
-    if (denomNegativa) return;
-    setSaving(true);
-    setError(null);
-    const deltasInt = {
-      ouro:  parseInt(deltas.ouro,  10) || 0, prata: parseInt(deltas.prata, 10) || 0,
-      cobre: parseInt(deltas.cobre, 10) || 0, latao: parseInt(deltas.latao, 10) || 0,
-    };
-    const { data, error } = await supabaseClient.rpc('mestre_ajustar_moedas', {
-      p_pj_id: personagem.id, p_deltas: deltasInt,
-    });
-    setSaving(false);
-    if (error || !data?.ok) {
-      const motivo = (data && data.motivo) || (error && error.message) || 'erro_desconhecido';
-      setError(motivoAjusteMoedaLabel(motivo, data, lang));
-      return;
-    }
-    onSaved();
-  };
-
-  if (!coinVals) {
-    return (
-      <ModalShell title={en ? 'Coins' : 'Moedas'} lang={lang} size="sm" onClose={onCancel} onCancel={onCancel}>
-        <Carregando lang={lang} compacto />
-      </ModalShell>
-    );
-  }
-
-  return (
-    <ModalShell
-      title={<><i className="ti ti-coins gc-title-ic" aria-hidden="true" /> {en ? 'Coins' : 'Moedas'}</>}
-      lang={lang}
-      size="sm"
-      onClose={onCancel}
-      onCancel={onCancel}
-      onConfirm={salvar}
-      confirmLabel={saving ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Apply' : 'Aplicar')}
-      confirmDisabled={saving || !haDelta || !!denomNegativa}
-    >
-      <div className="give-coins">
-        <p className="give-coins-sub">
-          {en
-            ? <>Adjust the coins of <strong>{fullName}</strong>.</>
-            : <>Ajuste a algibeira de <strong>{fullName}</strong>.</>}
-        </p>
-
-        <div className="gc-rows">
-          {MOEDA_ORDEM.map((tipo, idx) => {
-            const dv  = parseInt(deltas[tipo], 10) || 0;
-            const neg = novosValores[tipo] < 0;
-            return (
-              <div key={tipo} style={{ marginBottom: idx < MOEDA_ORDEM.length - 1 ? 18 : 0 }}>
-                {/* label acima, igual ao padrão give-xp-sub */}
-                <p style={{
-                  fontFamily: "'Lora', serif", fontSize: 13,
-                  color: 'var(--parchment-muted, #9C8F73)', marginBottom: 8,
-                  fontStyle: 'italic',
-                }}>
-                  {labels[tipo]}
-                </p>
-                <DeltaStepper
-                  value={deltas[tipo]}
-                  onChange={(v) => setDeltas((d) => ({ ...d, [tipo]: v }))}
-                  inputClassName={neg ? 'is-err' : dv > 0 ? 'is-pos' : ''}
-                  presets={PRESETS_MOEDA}
-                  onReset={() => setDeltas((d) => ({ ...d, [tipo]: 0 }))}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        {denomNegativa && (
-          <div className="err-msg gc-err" style={{ marginTop: 14 }}>
-            {en
-              ? `Cannot make ${labels[denomNegativa]} negative — the character has only ${moedasAtuais[denomNegativa] || 0}.`
-              : `A moeda ${labels[denomNegativa]} ficaria negativa, e o personagem só possui ${moedasAtuais[denomNegativa] || 0}.`}
-          </div>
-        )}
-        {error && <div className="err-msg gc-err" style={{ marginTop: 14 }}>{error}</div>}
-      </div>
-    </ModalShell>
-  );
-}
+   O DeltaStepper era usado só pelos dois, e foi junto. */
 
 /* ============================== [17] NovoPersonagemModal: wizard de criação em 3 passos ============================== */
 function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = null, isMaster = false }) {
@@ -3282,7 +3194,6 @@ Object.assign(window, {
   // 13/09/2026: snapshot atrasado da batalha não substitui o novo.
   maisNovaOuIgual,
   PersonagensList, PersonagemCard, ConfirmarExclusaoModal,
-  DarExperienciaModal, DarMoedasModal,
   NovoPersonagemModal,
   StepIdentidade, StepAtributos, StepGruposArmas, StepHabilidades, AprimoramentoInline,
   StepMagias, StepTecnicas, StepRevisao,

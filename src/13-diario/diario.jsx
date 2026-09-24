@@ -26,10 +26,10 @@
                             agora MESCLA as CÓPIAS (CRUD completo, como
                             sempre) com o catálogo GLOBAL (migration 016 —
                             listar_catalogo_global passou a ser buscada
-                            direto aqui, não só dentro do
-                            SelecionarBaseModal): entradas globais
-                            aparecem com tag "Mundo", checkbox + ver, SEM
-                            lápis/lixeira — mesmo padrão que a aba
+                            direto aqui): entradas globais aparecem com a
+                            Fonte "Mundo", olho + lápis, SEM lixeira (o
+                            lápis forka — 17/09/2026; excluir_lore_entrada
+                            recusa apagar global) — mesmo padrão que a aba
                             Criatura já usava pra `criaturas`. Ver nota
                             "CATÁLOGO GLOBAL NA LISTA" abaixo. O form de
                             Novo/Editar item CONTINUA como ModalShell por
@@ -45,15 +45,23 @@
      .best-toolbar/.best-chip/.best-empty já existentes no index.css —
      este arquivo só ADICIONA classes novas prefixadas .diario- pro grid
      de cards (pokedex), sem reinventar o que já existe.
-   - ⚠️ NÃO depende de BestLoading/BestErrorBox/BestNoKit/useFitPageSize/
-     useSort/SortHead/BestPagination de 09-bestiario/bestiario.jsx: esses
-     helpers existem só no escopo do módulo bestiario.jsx — o
-     Object.assign(window,{...}) de lá expõe SÓ as 5 Lists
-     (CriaturasList/MagiasList/HabilidadesList/TecnicasList/ItensList),
-     não os helpers internos. Este arquivo declara suas PRÓPRIAS versões
-     locais (DiarioLoading/DiarioErrorBox, prefixo diario- pra não colidir),
-     já que o Diário usa grid de cards, não tabela paginada — não precisa
-     de useFitPageSize/useSort/BestPagination de qualquer forma.
+   - ⚠️ DEPENDE do vocabulário de tabela que 09-bestiario/bestiario.jsx
+     EXPÕE de propósito: useFitPageSize, useSort, SortHead, BestPagination,
+     BestBuscaENovo. Carregue bestiario.jsx antes deste arquivo (main.tsx já
+     faz; testes que renderizam DiarioView ou GerenciarLoreView precisam do
+     import).
+
+     Este comentário dizia o OPOSTO até 17/09/2026 — "não depende, usa grid
+     de cards, não tabela paginada". Isso deixou de valer em duas etapas: o
+     Diário do Jogador virou tabela em 12/09/2026 (e o bestiário passou a
+     exportar os helpers justamente por isso), e a tela do Mestre
+     (GerenciarLoreView) virou tabela em 17/09/2026. Ficou desatualizado no
+     meio e mandou um teste renderizar a tela sem os helpers, que quebrou com
+     "useSort is not defined".
+
+     O que continua local aqui: DiarioLoading/DiarioErrorBox (prefixo
+     diario- pra não colidir com BestLoading/BestErrorBox, que seguem
+     privados do bestiário).
 
    ⚠️ MODELO DE DADOS (migration 014/015) — releia antes de mexer:
    reinos/cidades/npcs são um catálogo GLOBAL (tabelas próprias, slug
@@ -67,7 +75,9 @@
    automaticamente <origem>-h<historia_id>). Mestre nunca edita o global
    direto; "editar" um global na UI dispara fork automático por baixo
    (salvar_lore_entrada decide isso sozinha, comparando o p_id contra
-   historia_id NULL/setado — ver SelecionarBaseModal e a RPC). 3 seeds
+   historia_id NULL/setado — ver a RPC). É por isso que o lápis vale também
+   nas linhas "Mundo" da tabela desde 17/09/2026: editar um global e salvar
+   devolve uma cópia da mesa. 3 seeds
    vazios (novo-reino/nova-cidade/novo-npc, globais) servem de base
    padrão quando o Mestre clica "Novo" sem escolher uma entrada do
    catálogo como ponto de partida.
@@ -80,8 +90,7 @@
    ⚠️ CATÁLOGO GLOBAL NA LISTA (migration 016, ver
    016_catalogo_global_atributos_e_limpeza.sql) — releia antes de mexer:
    "mostrar o catálogo global direto em GerenciarLoreView" tinha ficado
-   explicitamente "a definir" numa rodada anterior (só existia dentro do
-   SelecionarBaseModal, pro fluxo de fork). Migration 016 fechou isso:
+   explicitamente "a definir" numa rodada anterior. Migration 016 fechou isso:
    carregar() agora busca listar_catalogo_global nos 3 tipos (reino/
    cidade/npc) em paralelo com listar_lore_historia, guarda em
    catalogoGlobal (state novo, { reino:[], cidade:[], npc:[] }), e a
@@ -102,8 +111,8 @@
 
    Migration 016 TAMBÉM: (a) faz listar_catalogo_global devolver
    `atributos` por tipo (antes só id/nome/descricao/imagem_url) — efeito
-   colateral bom, SelecionarBaseModal passa a herdar os campos certos ao
-   forkar um global, o que antes sempre resultava em atributos:{}; (b)
+   colateral bom, o fork de um global passa a herdar os campos certos, o que
+   antes sempre resultava em atributos:{}; (b)
    dropa 3 assinaturas ANTIGAS (bigint) de excluir_lore_entrada/
    importar_diario/salvar_lore_entrada que ficaram órfãs da 014/015
    (CREATE OR REPLACE não substitui função quando o tipo de parâmetro
@@ -127,13 +136,13 @@
    - excluir_entrada_diario(p_id)
    - listar_lore_historia(p_historia_id)              — Mestre, só CÓPIAS da história
    - listar_catalogo_global(p_tipo)                   — Mestre, catálogo GLOBAL;
-                          usada pelo SelecionarBaseModal E (migration 016)
-                          direto em carregar() pra listar a tela principal;
+                          usada em carregar() pra listar a tela principal;
                           devolve atributos por tipo desde a 016
    - salvar_lore_entrada(p_id?, p_historia_id, p_tipo, p_nome, p_descricao,
                           p_imagem_url, p_atributos, p_slug_origem?) — Mestre;
                           ramifica internamente: cria fork (p_id null, usa
-                          p_slug_origem ou o seed vazio do tipo), edita
+                          p_slug_origem — que NENHUMA tela passa desde
+                          17/09/2026 — ou o seed vazio do tipo), edita
                           direto (p_id já é cópia minha), ou fork automático
                           (p_id é um global — Mestre não percebe a diferença)
    - excluir_lore_entrada(p_id)                       — Mestre, bloqueia exclusão de global
@@ -230,6 +239,102 @@ function novoDoTipo(tipo) {
 function diarioTipoLabel(tipo, lang) {
   const l = lang === 'en' ? 'en' : 'pt';
   return DIARIO_TIPO_LABEL[l][tipo] || tipo;
+}
+
+/* ---------- VISIBILIDADE DE UMA ENTRADA (17/09/2026) ----------------------
+   "Do lado do botão de editar (lápis), vamos adicionar um botão de ver (olho),
+   onde teremos um modal para permitir quem pode ver aquela entrada, na
+   história selecionada." (usuário)
+
+   "Quem vê" estava em DUAS colunas que ninguém olhava juntas:
+
+     historias.<tipo>_ids     — disponibilizada pra história? (era o checkbox
+                                da linha, que saiu junto com esta mudança)
+     historias.lore_acesso_pj — { "tipo:ref_id": [pj_id...] }, a liberação
+                                individual, que morava dentro da ficha da
+                                entrada, no bloco "Liberar para"
+
+   E a regra que as liga é ASSIMÉTRICA — chave ausente ou lista vazia quer
+   dizer "todos os protagonistas veem", não "ninguém vê". É o que
+   listar_diario_disponivel faz no banco (migration 017). Então o estado real
+   é UM DE TRÊS, não duas caixas independentes:
+
+     ninguem — id fora de <tipo>_ids. Quem não está disponibilizado não é
+               visto por PJ nenhum, dê no que der o acesso_pj.
+     todos   — id dentro, nenhum PJ listado.
+     alguns  — id dentro, e a lista tem gente.
+
+   Estas duas funções são o ÚNICO lugar que conhece a assimetria: o modal
+   escolhe um dos três nomes, elas traduzem para as colunas. E `ninguem`
+   LIMPA a chave do acesso_pj de propósito — sem isso, um "só a Thalia vê"
+   desligado e religado meses depois voltaria com a Thalia marcada, e o Mestre
+   não teria como saber por quê.
+
+   Cobertura: visibilidade-entrada.test.js. */
+const VIS_CAMPO = {
+  criatura: 'criatura_ids',
+  reino:    'reino_ids',
+  cidade:   'cidade_ids',
+  npc:      'npc_ids',
+};
+
+function chaveAcessoPj(tipo, refId) {
+  return `${tipo}:${String(refId)}`;
+}
+
+/* Comparação por TEXTO porque criatura_ids é bigint[] (números) e as outras
+   três são text[] (slugs) — o mesmo código serve às quatro. Onde o valor é
+   GRAVADO, o original é preservado: ver patchDeVisibilidade. */
+function visibilidadeDaEntrada(historia, tipo, refId) {
+  const campo = VIS_CAMPO[tipo];
+  const ids = (historia && campo && historia[campo]) || [];
+  const disponivel = ids.some((x) => String(x) === String(refId));
+  if (!disponivel) return { modo: 'ninguem', pjIds: [] };
+  const acesso = (historia && historia.lore_acesso_pj) || {};
+  const lista = acesso[chaveAcessoPj(tipo, refId)];
+  const pjIds = Array.isArray(lista) ? lista : [];
+  return { modo: pjIds.length > 0 ? 'alguns' : 'todos', pjIds };
+}
+
+/* Devolve só as colunas que MUDAM, para um único UPDATE. A versão anterior
+   fazia um update por clique de checkbox — marcar três PJs eram quatro
+   idas ao banco (uma do disponibilizar, três do liberar), cada uma podendo
+   falhar no meio e deixar o estado pela metade. */
+function patchDeVisibilidade(historia, tipo, refId, modo, pjIds) {
+  const campo = VIS_CAMPO[tipo];
+  if (!campo) throw new Error(`patchDeVisibilidade: tipo sem coluna de visibilidade: ${tipo}`);
+  if (modo !== 'ninguem' && modo !== 'todos' && modo !== 'alguns') {
+    throw new Error(`patchDeVisibilidade: modo desconhecido: ${modo}`);
+  }
+  const idsAtuais = (historia && historia[campo]) || [];
+  const acessoAtual = (historia && historia.lore_acesso_pj && typeof historia.lore_acesso_pj === 'object')
+    ? historia.lore_acesso_pj : {};
+  const chave = chaveAcessoPj(tipo, refId);
+  const acesso = { ...acessoAtual };
+
+  if (modo === 'ninguem') {
+    delete acesso[chave];
+    return {
+      [campo]: idsAtuais.filter((x) => String(x) !== String(refId)),
+      lore_acesso_pj: acesso,
+    };
+  }
+
+  // Disponibiliza sem duplicar, preservando o valor original dos que já estão
+  // (não converter bigint pra texto na volta).
+  const ids = idsAtuais.some((x) => String(x) === String(refId))
+    ? [...idsAtuais]
+    : [...idsAtuais, refId];
+
+  /* "alguns" com lista vazia É "todos" — a coluna não sabe representar
+     "disponibilizado para ninguém em particular". Deixar a chave com []
+     gravado seria escrever um estado que o banco lê como "todos" de
+     qualquer forma, com a aparência de outra coisa na tela. */
+  const lista = Array.isArray(pjIds) ? pjIds : [];
+  if (modo === 'alguns' && lista.length > 0) acesso[chave] = [...lista];
+  else delete acesso[chave];
+
+  return { [campo]: ids, lore_acesso_pj: acesso };
 }
 
 // ---------- Helpers de dados ----------
@@ -434,7 +539,7 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
     'aura', 'forca', 'fisico', 'carisma', 'agilidade', 'intelecto', 'percepcao',
     'energia_fisica', 'energia_heroica', 'velocidade', 'defesa', 'armadura', 'absorcao', 'peso', 'estagio',
     'ataque', 'dano_l', 'dano_m', 'dano_p', 'dano_25', 'dano_50', 'dano_75', 'dano_100',
-    'subtipo', 'grupo', 'plano', 'coletivo', 'magia', 'magia_n', 'tecnicas_especiais', 'habilidades',
+    'subtipo', 'elemento', 'grupo', 'plano', 'coletivo', 'magia', 'magia_n', 'tecnicas_especiais', 'habilidades',
     'tipo', 'ref_id', 'id', 'nome', 'subtitulo', 'descricao', 'imagem_url',
     'comentario', 'jaImportado', 'diario_entrada_id', 'personagem_id',
     'criatura_id', 'created_at', 'updated_at', 'atributos',
@@ -465,13 +570,22 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
         </>
       )}
 
-      {/* META: plano + coletivo — mesmo padrão diario-det-attr do NPC */}
-      {(get('plano') || get('coletivo')) && (
+      {/* META: plano + elemento + coletivo — mesmo padrão diario-det-attr do NPC.
+          `elemento` entrou em 18/09/2026 com a coluna nova; sem esta linha ele
+          cairia no bloco de "extras", que só sabe imprimir a chave crua
+          ("elemento") em vez de um rótulo traduzido. */}
+      {(get('plano') || get('elemento') || get('coletivo')) && (
         <div className="diario-det-attrs" style={{ marginBottom: 14 }}>
           {get('plano') && (
             <div className="diario-det-attr">
               <span className="diario-det-attr-k">{en ? 'Plane' : 'Plano'}</span>
               <span className="diario-det-attr-v">{fmt('plano')}</span>
+            </div>
+          )}
+          {get('elemento') && (
+            <div className="diario-det-attr">
+              <span className="diario-det-attr-k">{en ? 'Element' : 'Elemento'}</span>
+              <span className="diario-det-attr-v">{fmt('elemento')}</span>
             </div>
           )}
           {get('coletivo') && (
@@ -648,6 +762,32 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
   );
 }
 
+/* ---------- DetalheMoldura — modal OU linha expandida ---------------------
+   A mesma ficha serve dois lugares desde 17/09/2026: o modal que o Jogador
+   abre no Diário, e a EXPANSÃO DA LINHA nas tabelas do Mestre ("as
+   informações dentro de NPCs e lugares vão ser mostradas quando expandir a
+   entrada" — usuário).
+
+   Só a moldura muda; o corpo, que ramifica em quatro layouts por tipo
+   (criatura, npc, reino, cidade) e passa de 500 linhas, é o mesmo. Fatiá-lo
+   em componentes por tipo seria a refatoração maior — e, para este pedido,
+   sem ganho: o que a linha expandida precisa é exatamente o que o modal
+   mostra, menos o modal.
+
+   ⚠️ Componente de MÓDULO, não uma função criada dentro do
+   DetalheEntradaModal. Criada lá dentro, a identidade mudaria a cada render e
+   o React desmontaria e remontaria a ficha inteira — as abas (Descrição /
+   Rumores / Ficha) voltariam à primeira a cada tecla digitada em qualquer
+   lugar da tela acima. */
+function DetalheMoldura({ inline, title, lang, onClose, children }) {
+  if (inline) return <div className="diario-det-inline">{children}</div>;
+  return (
+    <ModalShell title={title} lang={lang} size="lg" onClose={onClose}>
+      {children}
+    </ModalShell>
+  );
+}
+
 // ---------- DetalheEntradaModal: ficha completa da entrada (criatura/lore) ----------
 // Para criaturas → delega a CriaturaFicha (layout rico de bestiário).
 // Para NPCs/reinos/cidades → layout genérico com grade de atributos.
@@ -660,11 +800,23 @@ function DetalheEntradaModal({
   onImport, importLabel, importIcon, importDisabled,
   onDelete, deleteLabel, onArte,
   lore,
-  // Props de liberação por PJ (usados apenas quando aberto pelo Mestre via GerenciarLoreView)
-  protagonistas,      // [{ id, nome }] — lista de PJs da história
-  loreAcessoPj,       // objeto jsonb { "tipo:ref_id": [pj_id, ...] }
-  onToggleLiberarPj,  // (tipo, refId, pjId, ligar) => void
-  savingVinculo,      // boolean — desabilita checkboxes durante save
+  /* `inline` (17/09/2026): sem o modal em volta, pra caber na linha expandida
+     da tabela. Ver DetalheMoldura acima. Sem título e sem X — quem abre a
+     linha a fecha clicando nela de novo, e o nome já está na primeira
+     coluna. */
+  inline,
+  /* SAÍRAM em 17/09/2026: `protagonistas`, `loreAcessoPj`, `onToggleLiberarPj`
+     e `savingVinculo`, com o bloco "Liberar para" que elas alimentavam.
+
+     Aquele bloco era METADE da resposta a "quem vê esta entrada" — a lista de
+     PJs liberados, escondida no fim da ficha —, e a outra metade era o
+     checkbox de disponibilizar, na linha da lista. As duas viraram um lugar
+     só: o PermissaoEntradaModal, que o botão de olho abre. Ficha é ficha;
+     permissão é permissão.
+
+     Quem procurar a liberação por PJ aqui: ela está em
+     patchDeVisibilidade/visibilidadeDaEntrada (topo deste arquivo), que é o
+     único lugar que sabe traduzir os três estados para as duas colunas. */
 }) {
   const en = lang === 'en';
   const loreBySlug = React.useMemo(() => {
@@ -679,48 +831,6 @@ function DetalheEntradaModal({
   const [abaModal, setAbaModal] = useState('descricao');
   const [abaReino, setAbaReino] = useState('descricao');
   const [abaCidade, setAbaCidade] = useState('descricao');
-
-  // Bloco "Liberar para" — só aparece quando o Mestre abre o modal via GerenciarLoreView
-  // (protagonistas !== undefined). Mostra checkboxes dos PJs da história.
-  // A chave do jsonb lore_acesso_pj é "tipo:ref_id" (ex: "npc:arissia-h3").
-  const isMestreView = Array.isArray(protagonistas) && typeof onToggleLiberarPj === 'function';
-  // Ref da chave de liberação: tipos NOVOS (item/magia/habilidade/tecnica)
-  // usam NOME — mesma chave "tipo:nome" do filtro da RPC
-  // listar_diario_disponivel (migration 019). Entradas desses tipos não têm
-  // ref_id/id; sem este desvio a chave virava "item:"/"item:undefined" e o
-  // seletor ficava surdo (lia uma chave, gravava outra).
-  const liberarRef = (entrada.tipo === 'item' || TREINAMENTO_TIPOS.has(entrada.tipo))
-    ? (entrada.nome ?? '')
-    : (entrada.ref_id ?? entrada.id ?? '');
-  const liberarChave = `${entrada.tipo}:${String(liberarRef)}`;
-  const liberadosPara = (isMestreView && loreAcessoPj && Array.isArray(loreAcessoPj[liberarChave]))
-    ? loreAcessoPj[liberarChave]
-    : [];
-
-  const liberarPjBloco = isMestreView && protagonistas.length > 0 && (
-    <div className="diario-liberar-wrap">
-      <div className="diario-liberar-label">
-        <i className="ti ti-lock-open-2" aria-hidden="true" style={{ color: 'var(--gold)', fontSize: 13 }} />
-        {lang === 'en' ? 'Release to' : 'Liberar para'}
-      </div>
-      <div className="diario-liberar-lista">
-        {protagonistas.map((pj) => {
-          const marcado = liberadosPara.includes(pj.id);
-          return (
-            <label key={pj.id} className={'diario-liberar-item' + (marcado ? ' diario-liberar-item--on' : '')}>
-              <input
-                type="checkbox"
-                checked={marcado}
-                disabled={!!savingVinculo}
-                onChange={(ev) => onToggleLiberarPj(entrada.tipo, liberarRef, pj.id, ev.target.checked)}
-              />
-              <span className="diario-liberar-nome">{pj.nome}</span>
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
 
   const acoes = (onImport || onEditNote || onDelete || onArte) && (
     <div className="det-actions">
@@ -765,7 +875,7 @@ function DetalheEntradaModal({
       ? `${entrada.nome} ${_est}`
       : entrada.nome;
     return (
-      <ModalShell title={<DiarioModalNome entrada={entrada} nomeOverride={tituloModal} />} lang={lang} size="lg" onClose={onClose}>
+      <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} nomeOverride={tituloModal} />} lang={lang} onClose={onClose}>
         {/* subtitulo = tipo da criatura (ex: "Humanoide") — preservado abaixo do título */}
         {entrada.subtitulo && (
           <div className="diario-det-sub" style={{ marginTop: -8, marginBottom: 14 }}>
@@ -810,9 +920,8 @@ function DetalheEntradaModal({
             )}
           </div>
         )}
-        {liberarPjBloco}
         {acoes}
-      </ModalShell>
+      </DetalheMoldura>
     );
   }
 
@@ -821,10 +930,25 @@ function DetalheEntradaModal({
     'tipo', 'ref_id', 'id', 'nome', 'subtitulo', 'descricao', 'imagem_url',
     'comentario', 'jaImportado', 'diario_entrada_id', 'personagem_id',
     'criatura_id', 'created_at', 'updated_at', 'atributos',
-    '_global', // marcador client-side (GerenciarLoreView), não é dado real
     // campos de metadado interno — não exibir no modal
     'slug', 'compartilhado', 'criado_por_personagem_id', 'criado_por_nome',
   ]);
+
+  /* PREFIXO `_` = CAMPO DA TELA, NÃO DA ENTRADA. Regra, não lista: a grade de
+     atributos monta varrendo Object.entries(entrada), então qualquer campo que
+     uma tela pendure no objeto aparece como atributo do NPC.
+
+     `_global` (migration 016) era a única exceção e estava nominalmente no
+     JA_EXIBIDOS. Em 17/09/2026 a tabela do Mestre passou a pendurar cinco:
+     _fonte, _tipoLabel, _raca, _cidade e _visibilidade, derivados para o
+     SortHead poder ordenar por eles. Os cinco vazaram para a ficha da linha
+     expandida como " fonte", " visibilidade", " visModo" — com espaço no
+     lugar do underscore, porque rotulo() troca `_` por espaço, o que também
+     fez o vazamento passar despercebido numa leitura rápida.
+
+     Uma lista nominal voltaria a ficar para trás na próxima coluna derivada.
+     A regra não fica. */
+  const ehCampoDeTela = (k) => k.startsWith('_');
 
   const LABELS = {
     grupo: en ? 'Group' : 'Grupo',
@@ -886,7 +1010,7 @@ function DetalheEntradaModal({
     }
   }
   for (const [k, v] of Object.entries(entrada)) {
-    if (JA_EXIBIDOS.has(k)) continue;
+    if (JA_EXIBIDOS.has(k) || ehCampoDeTela(k)) continue;
     if (BOOL_CAMPOS.has(k)) { if (v === true || v === 'true') eCapital = true; continue; }
     if ((entrada.tipo === 'reino' || entrada.tipo === 'cidade') && REINO_PARAGRAFO_CAMPOS.has(k)) continue;
     if (entrada.tipo === 'npc' && NPC_PARAGRAFO_CAMPOS.has(k)) continue;
@@ -943,7 +1067,7 @@ function DetalheEntradaModal({
 
   if (entrada.tipo === 'npc') {
     return (
-      <ModalShell title={<DiarioModalNome entrada={entrada} />} lang={lang} size="lg" onClose={onClose}>
+      <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} />} lang={lang} onClose={onClose}>
         {/* Abas — mesmo estilo do "Editar História" */}
         <div className="hist-modal-tabs">
           <button
@@ -1049,9 +1173,8 @@ function DetalheEntradaModal({
           </div>
         )}
 
-        {liberarPjBloco}
         {acoes}
-      </ModalShell>
+      </DetalheMoldura>
     );
   }
 
@@ -1127,7 +1250,7 @@ function DetalheEntradaModal({
     };
 
     return (
-      <ModalShell title={<DiarioModalNome entrada={entrada} />} lang={lang} size="lg" onClose={onClose}>
+      <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} />} lang={lang} onClose={onClose}>
         {/* Abas — mesmo estilo do "Editar História" */}
         <div className="hist-modal-tabs">
           {REINO_ABAS.map(({ key, label }) => (
@@ -1142,9 +1265,8 @@ function DetalheEntradaModal({
           ))}
         </div>
         {renderReinoAba()}
-        {liberarPjBloco}
         {acoes}
-      </ModalShell>
+      </DetalheMoldura>
     );
   }
 
@@ -1220,7 +1342,7 @@ function DetalheEntradaModal({
   // Modal enxuto sem abas nem grade de atributos.
   if (['item', 'magia', 'habilidade', 'tecnica'].includes(entrada.tipo)) {
     return (
-      <ModalShell title={<DiarioModalNome entrada={entrada} />} lang={lang} size="lg" onClose={onClose}>
+      <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} />} lang={lang} onClose={onClose}>
         <div className="diario-det">
           {entrada.imagem_url && (
             <div className="diario-det-art">
@@ -1237,14 +1359,13 @@ function DetalheEntradaModal({
             </p>
           )}
         </div>
-        {liberarPjBloco}
         {acoes}
-      </ModalShell>
+      </DetalheMoldura>
     );
   }
 
   return (
-    <ModalShell title={<DiarioModalNome entrada={entrada} />} lang={lang} size="lg" onClose={onClose}>
+    <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} />} lang={lang} onClose={onClose}>
       {/* Abas — mesmo estilo do "Editar História" */}
       <div className="hist-modal-tabs">
         {CIDADE_ABAS.map(({ key, label }) => (
@@ -1259,9 +1380,8 @@ function DetalheEntradaModal({
         ))}
       </div>
       {renderCidadeAba()}
-      {liberarPjBloco}
       {acoes}
-    </ModalShell>
+    </DetalheMoldura>
   );
 }
 
@@ -1513,8 +1633,6 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
      "vão seguir o mesmo padrão das demais páginas 'itens', 'magias', etc, no
      que diz respeito aos botões de filtro, botão de buscar, etc." A coluna
      continua e ordena pelo cabeçalho. */
-  // Lugares: o + abre a escolha entre Reino e Cidade (um + só no cabeçalho).
-  const [escolhendoLugar,     setEscolhendoLugar]     = useState(false);
   /* tipoFixo (12/09/2026): as secoes Lugares/Personagens/Memorias da barra
      lateral sao este mesmo Diario travado num tipo so. Deixar de ser uma aba
      dentro da ficha e virar tres destinos foi decisao do usuario — e o codigo
@@ -1522,7 +1640,6 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   const [tipoAba,             setTipoAba]             = useState(tipoFixo || 'memoria');
   const [tipoNovo,            setTipoNovo]            = useState(null);
   const [editando,            setEditando]            = useState(null);
-  const [slugOrigemEscolhido, setSlugOrigemEscolhido] = useState(null);
   const [savingVinculo,       setSavingVinculo]       = useState(false);
   const [page,                setPage]                = useState(1);
   const [query,               setQuery]               = useState('');
@@ -1663,13 +1780,11 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
       p_descricao:                 editando.descricao,
       p_imagem_url:                editando.imagem_url || null,
       p_atributos:                 editando.atributos || {},
-      p_slug_origem:               slugOrigemEscolhido,
       p_criado_por_personagem_id:  pjId,
     });
     if (err) { setError(err.message); return; }
     if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
     setEditando(null);
-    setSlugOrigemEscolhido(null);
     setTipoNovo(null);
     await carregar();
   };
@@ -1791,9 +1906,12 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   const cidadesDaHistoria = (lore || []).filter((e) => e.tipo === 'cidade');
   const tipoReal = tipoNovo || (LUGAR_TIPOS.has(tipoAba) ? null : tipoAba);
 
-  const abrirNovoLugar = (tipo) => {
-    setTipoNovo(tipo);
-    setSlugOrigemEscolhido(null);
+  /* O + de Lugares abre o formulário DIRETO (17/09/2026). Antes abria um modal
+     de escolha Reino/Cidade e só então o formulário — dois passos para um
+     campo. O tipo é o primeiro campo do LoreEntradaForm agora; 'reino' é o
+     padrão só porque alguma opção tem que vir marcada. */
+  const abrirNovoLugar = () => {
+    setTipoNovo('reino');
     setEditando({});
   };
 
@@ -1811,9 +1929,13 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         tipo={tipoReal || tipoAba}
         entrada={editando}
         onChange={setEditando}
+        // O seletor de Reino/Cidade grava aqui: é `tipoNovo` que salvarLore lê
+        // como p_tipo. Ver a nota em LoreEntradaForm.
+        onTipoChange={setTipoNovo}
         reinosDaHistoria={reinosDaHistoria}
         cidadesDaHistoria={cidadesDaHistoria}
         t={COPY[lang] || COPY.pt}
+        lang={lang}
       />
       {error && <div className="err-msg diario-err-mt">{error}</div>}
     </ModalShell>
@@ -1831,9 +1953,9 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     : tipoAba === 'memoria'
       ? { onNovo: () => setMemoriaAberta({}), dica: en ? 'New memory' : 'Nova memória', desativado: false }
     : tipoAba === 'lugar'
-      ? { onNovo: () => setEscolhendoLugar(true), dica: en ? 'New place' : 'Novo lugar', desativado: !historiaId }
+      ? { onNovo: abrirNovoLugar, dica: en ? 'New place' : 'Novo lugar', desativado: !historiaId }
     : tipoAba === 'npc'
-      ? { onNovo: () => { setSlugOrigemEscolhido(null); setEditando({}); },
+      ? { onNovo: () => { setEditando({}); },
           dica: en ? 'New NPC' : 'Novo NPC', desativado: !historiaId }
     : null;
 
@@ -1992,7 +2114,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
                 <button className="btn-icon btn-sm"
                   onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Edit' : 'Editar' })}
                   onMouseLeave={fecharTip}
-                  onClick={() => { setTipoNovo(e.tipo); setEditando({ ...e }); setSlugOrigemEscolhido(refId); }}>
+                  onClick={() => { setTipoNovo(e.tipo); setEditando({ ...e }); }}>
                   <i className="ti ti-pencil" aria-hidden="true" />
                 </button>
                 <button className="btn-icon btn-danger btn-sm"
@@ -2036,21 +2158,6 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         />
       )}
       {formModal}
-      {escolhendoLugar && (
-        <ModalShell title={en ? 'New place' : 'Novo lugar'} lang={lang} size="sm"
-          onClose={() => setEscolhendoLugar(false)} onCancel={() => setEscolhendoLugar(false)}>
-          <div className="diario-escolha-lugar">
-            <button type="button" className="btn-ghost"
-              onClick={() => { setEscolhendoLugar(false); abrirNovoLugar('reino'); }}>
-              <i className="ti ti-flag" aria-hidden="true" /> {en ? 'Kingdom' : 'Reino'}
-            </button>
-            <button type="button" className="btn-ghost"
-              onClick={() => { setEscolhendoLugar(false); abrirNovoLugar('cidade'); }}>
-              <i className="ti ti-building-castle" aria-hidden="true" /> {en ? 'City' : 'Cidade'}
-            </button>
-          </div>
-        </ModalShell>
-      )}
       {memoriaAberta !== null && (
         <MemoriaModal
           memoria={memoriaAberta.id ? memoriaAberta : null}
@@ -2182,92 +2289,24 @@ function ArteModal({ entrada, lang, onClose, onSaved }) {
   );
 }
 
-// ---------- SelecionarBaseModal: tela de escolha de base do fork ----------
-// Aberta ao clicar "Novo X" em GerenciarLoreView. O Mestre escolhe entre
-// começar em branco (seed vazio do tipo) ou usar uma entrada do catálogo
-// GLOBAL como ponto de partida (herda os campos, sobrescreve o que quiser
-// depois no LoreEntradaForm). Não lista cópias de outras histórias — só
-// o catálogo global em si (listar_catalogo_global).
-function SelecionarBaseModal({ tipo, lang, onClose, onEscolher }) {
-  const en = lang === 'en';
-  const [entradas, setEntradas] = useState(null);
-  const [error, setError] = useState(null);
-  const [query, setQuery] = useState('');
+/* A SelecionarBaseModal viveu neste ponto do arquivo até 17/09/2026.
 
-  useEffect(() => {
-    let cancelado = false;
-    (async () => {
-      const { data, error: err } = await supabaseClient.rpc('listar_catalogo_global', { p_tipo: tipo });
-      if (cancelado) return;
-      if (err) { setError(err.message); setEntradas([]); return; }
-      if (data && data.ok === false) { setError(data.motivo || 'erro'); setEntradas([]); return; }
-      setEntradas((data && data.entradas) || []);
-    })();
-    return () => { cancelado = true; };
-  }, [tipo]);
+   Era a tela de "escolher a base do fork": ao clicar no + de um reino, cidade
+   ou NPC, ela perguntaria "começar em branco, ou partir de uma entrada do
+   catálogo do mundo?", e a escolhida seria copiada como ponto de partida
+   (p_slug_origem em salvar_lore_entrada).
 
-  const q = query.trim().toLowerCase();
-  const filtradas = (entradas || []).filter((e) => !q || e.nome.toLowerCase().includes(q));
+   Nunca foi RENDERIZADA por ninguém. O + sempre foi direto ao formulário
+   vazio, e o comentário dela ainda dizia "Aberta ao clicar Novo X em
+   GerenciarLoreView" — descrição de um fluxo que não existia. Ficou
+   inalcançável por tempo indeterminado, com lista, busca e tudo pronto.
 
-  return (
-    <ModalShell
-      title={en ? `New ${diarioTipoLabel(tipo, lang)} — choose a base` : `${novoDoTipo(tipo)} ${diarioTipoLabel(tipo, lang)} — escolha uma base`}
-      lang={lang}
-      onClose={onClose}
-      onCancel={onClose}
-      cancelLabel={en ? 'Cancel' : 'Cancelar'}
-    >
-      <p className="diario-modal-desc">
-        {en
-          ? 'Start from scratch or copy an entry from the world catalog as a starting point — you can edit everything afterwards.'
-          : 'Comece em branco ou copie uma entrada do catálogo do mundo como ponto de partida — você pode editar tudo depois.'}
-      </p>
-
-      <button
-        type="button"
-        className="diario-vinculo-item diario-vinculo-item--mestre diario-vinculo-item--base"
-        onClick={() => onEscolher(null, null)}
-      >
-        <span className="diario-vinculo-nome">{en ? 'Start from scratch' : 'Começar em branco'}</span>
-      </button>
-
-      {entradas === null ? (
-        <DiarioLoading lang={lang} />
-      ) : error ? (
-        <DiarioErrorBox error={error} hint={en ? 'Could not load the world catalog.' : 'Não foi possível carregar o catálogo do mundo.'} />
-      ) : entradas.length === 0 ? (
-        <div className="best-empty diario-empty-md">
-          {en ? 'No entries in the world catalog yet.' : 'Nenhuma entrada no catálogo do mundo ainda.'}
-        </div>
-      ) : (
-        <>
-          <div className="best-search diario-search-mb">
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={en ? 'Search…' : 'Buscar…'}
-              aria-label={en ? 'Search' : 'Buscar'}
-            />
-          </div>
-          <div className="diario-vinculo-list diario-vinculo-list--scroll">
-            {filtradas.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                className="diario-vinculo-item diario-vinculo-item--mestre"
-                onClick={() => onEscolher(e.id, e)}
-              >
-                <span className="diario-vinculo-nome">{e.nome}</span>
-                <i className="ti ti-copy" aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </ModalShell>
-  );
-}
+   Removida quando o objetivo dela ganhou um caminho melhor: o lápis nas linhas
+   "Mundo" da tabela (ver `editavel` em GerenciarLoreView). Partir de uma
+   entrada do mundo agora é ver a entrada na tabela, clicar no lápis e editar —
+   sem escolher a base antes de poder olhar o que se está escolhendo. O fork em
+   si continua no banco, pelo p_id: salvar_lore_entrada, ao receber o slug de um
+   global, cai em `slug_base := p_id → criar_copia_*`. */
 
 // ---------- SelectPill — cópia local de 12-batalha/batalha.jsx ----------
 // SelectPill não é exportado via window pelo batalha.jsx (só BatalhasHistoriaView
@@ -2359,27 +2398,19 @@ function QuantityStepper({ value, onChange, min = 1, max = Infinity, step = 1, d
 
   // estilos movidos para CSS (.qty-stepper-pill, .qty-stepper-btn)
 
-  const podeDec = !disabled && (Number(value) || 0) > min;
-  const podeInc = !disabled && (Number(value) || 0) < max;
 
   return (
     <div className="motor-field">
       {label && <span>{label}</span>}
-      <div className="qty-stepper-pill">
-        <button type="button" className={"qty-stepper-btn" + (!podeDec ? " is-disabled" : "")} disabled={!podeDec}
-          onMouseDown={(e) => e.preventDefault()} onClick={dec}
-          aria-label="-">
-          <i className="ti ti-minus" aria-hidden="true" />
-        </button>
-        <span className="qty-stepper-val">
-          {value}
-        </span>
-        <button type="button" className={"qty-stepper-btn" + (!podeInc ? " is-disabled" : "")} disabled={!podeInc}
-          onMouseDown={(e) => e.preventDefault()} onClick={inc}
-          aria-label="+">
-          <i className="ti ti-plus" aria-hidden="true" />
-        </button>
-      </div>
+      {/* O pill próprio saiu em 17/09/2026: o desenho do sistema é um só, e
+          mora em 01-core (QuantidadeStepper). Esta função continua existindo
+          pela ASSINATURA — dezenas de chamadas passam min/max/step/label —,
+          mas o que ela desenha agora é o mesmo de todo o resto. */}
+      <QuantidadeStepper
+        value={value} onChange={onChange}
+        min={min} max={max === Infinity ? undefined : max} step={step}
+        disabled={disabled} label={label}
+      />
     </div>
   );
 }
@@ -2391,7 +2422,24 @@ function QuantityStepper({ value, onChange, min = 1, max = Infinity, step = 1, d
 // com as opções limitadas às CÓPIAS da própria história (decisão
 // combinada: Mestre só liga a algo que ele mesmo já "importou"/forkou
 // antes, não ao catálogo global direto).
-function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaHistoria, t }) {
+/* `onTipoChange` (17/09/2026): "Novo reino e nova cidade serão a mesma coisa,
+   então pode usar uma única tabela." (usuário)
+
+   Reino e cidade deixaram de ter dois botões "Novo" (Mestre) e um modalzinho
+   de escolha antes do formulário (Jogador): são um "Lugar" só, e o tipo é o
+   PRIMEIRO CAMPO daqui. Como as duas telas já compartilhavam este formulário,
+   pôr o seletor nele resolveu a bifurcação nas duas de uma vez — em vez de
+   dois arranjos que começariam a divergir.
+
+   No banco nada mudou: reinos e cidades continuam em tabelas próprias e
+   salvar_lore_entrada segue recebendo p_tipo (decisão explícita do usuário,
+   "só na tela").
+
+   Só na CRIAÇÃO. Trocar o tipo de um lugar que já existe não é mudar um
+   campo: é mover a linha de uma tabela pra outra, levando o slug e as FKs que
+   apontam pra ela (cidade.reino, npc.cidade, npc.origem). Sem `onTipoChange`
+   ou com `entrada.id` preenchido, o seletor não aparece. */
+function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistoria, cidadesDaHistoria, t, lang }) {
   // i18n-sync (Fase 3.1, 07/2026): strings vêm de t.lore.form (COPY[lang]),
   // padrão de 05-convites — este form era PT-only. Fallback defensivo pro
   // COPY global cobre call sites que ainda não passem a prop.
@@ -2402,8 +2450,37 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
   const set = (patch) => onChange({ ...v, ...patch });
   const setAttr = (k, val) => onChange({ ...v, atributos: { ...(v.atributos || {}), [k]: val } });
 
+  // Um lugar NOVO escolhe aqui se é reino ou cidade. Ver a nota acima.
+  const escolheTipoLugar = typeof onTipoChange === 'function'
+    && LUGAR_TIPOS.has(tipo)
+    && !(entrada && entrada.id);
+
   return (
     <>
+      {escolheTipoLugar && (
+        <>
+          <label className="diario-field-label">{tl.tipoDeLugar}</label>
+          <div className="diario-lugar-tipo" role="radiogroup" aria-label={tl.tipoDeLugar}>
+            {[
+              { valor: 'reino',  icone: DIARIO_TIPO_ICON.reino },
+              { valor: 'cidade', icone: DIARIO_TIPO_ICON.cidade },
+            ].map((o) => (
+              <label key={o.valor} className={'diario-lugar-tipo-op' + (tipo === o.valor ? ' on' : '')}>
+                <input
+                  type="radio"
+                  name="diario-lugar-tipo"
+                  value={o.valor}
+                  checked={tipo === o.valor}
+                  onChange={() => onTipoChange(o.valor)}
+                />
+                <i className={'ti ' + o.icone} aria-hidden="true" />
+                {diarioTipoLabel(o.valor, lang)}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+
       <label className="diario-field-label">{tl.nome}</label>
       <input className="diario-input" type="text" value={v.nome} onChange={(e) => set({ nome: e.target.value })} autoFocus />
 
@@ -2546,24 +2623,12 @@ function LoreEntradaForm({ tipo, entrada, onChange, reinosDaHistoria, cidadesDaH
   );
 }
 
-// ---------- LorePaginacao — paginação da lista de criaturas/lore (padrão best-pag) ----------
-function LorePaginacao({ safePage, totalPages, setPage, lang }) {
-  const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
-  const en = lang === 'en';
-  const items = Array.from({ length: totalPages }, (_, i) => i + 1)
-    .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
-    .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx - 1] > 1) acc.push('…'); acc.push(p); return acc; }, []);
-  return (
-    <div className="best-pag">
-      <button className="best-page-btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1} {...propsTip(abrirTip, fecharTip, en ? 'Previous' : 'Anterior')}>‹</button>
-      {items.map((p, idx) => p === '…'
-        ? <span key={`ell-${idx}`} className="best-page-ellipsis">…</span>
-        : <button key={p} className={'best-page-btn' + (p === safePage ? ' is-active' : '')} onClick={() => setPage(p)}>{p}</button>)}
-      <button className="best-page-btn" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} {...propsTip(abrirTip, fecharTip, en ? 'Next' : 'Próxima')}>›</button>
-      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-    </div>
-  );
-}
+
+/* A LorePaginacao — uma paginação .best-pag escrita à mão aqui — viveu neste
+   ponto do arquivo até 17/09/2026. Ela existia porque a tela do Mestre era
+   uma lista solta, não uma tabela do catálogo. Com a tela virando tabela
+   padrão, a paginação passou a ser a BestPagination do bestiário, a mesma de
+   Itens e Magias — o mesmo motivo pelo qual a busca virou BestBuscaENovo. */
 
 /* O formulário "Nova Criatura" viveu aqui até 10/09/2026. Ele fazia
    .from('criaturas').insert() direto e estava QUEBRADO em produção por DOIS
@@ -2575,6 +2640,127 @@ function LorePaginacao({ safePage, totalPages, setPage, lang }) {
    no Bestiário, pelo editor de catálogo do admin. As fórmulas derivadas dele
    viraram 09-bestiario/criatura-formulas.jsx. */
 
+/* ---------- PermissaoEntradaModal — o modal do botão de olho -------------
+   "Do lado do botão de editar (lápis), vamos adicionar um botão de ver (olho),
+   onde teremos um modal para permitir quem pode ver aquela entrada, na
+   história selecionada." (usuário, 17/09/2026)
+
+   O olho MUDOU DE FUNÇÃO nesta rodada. Ele abria a ficha da entrada; a ficha
+   é o que a EXPANSÃO DA LINHA mostra agora, que era o outro pedido do mesmo
+   dia ("as informações dentro de NPCs e lugares vão ser mostradas quando
+   expandir a entrada"). O olho ficou livre para a permissão.
+
+   Três rádios, não caixas de seleção, porque os três estados são exclusivos —
+   é o que as colunas do banco sabem representar (ver visibilidadeDaEntrada).
+   Oferecer "ninguém" e "só a Thalia" marcáveis juntos convidaria a um estado
+   que não existe.
+
+   O Salvar entrega UM patch, pra UM update. A versão anterior gravava por
+   clique de checkbox, dentro da ficha: marcar três PJs eram quatro idas ao
+   banco (o disponibilizar, mais uma por PJ), cada uma podendo falhar no meio
+   e deixar a permissão pela metade.
+
+   Sem protagonista nenhum, "alguns" não é oferecido: não há quem escolher, e
+   o Salvar ficaria travado para sempre sem dizer por quê.
+
+   Cobertura: permissao-entrada-modal.test.jsx. */
+function PermissaoEntradaModal({ entrada, historia, protagonistas, lang, onClose, onSalvar, salvando }) {
+  const en = lang === 'en';
+  const tp = ((COPY[lang] || COPY.pt).lore || {}).permissao || {};
+  const pjs = Array.isArray(protagonistas) ? protagonistas : [];
+
+  /* O tipo REAL, não o da aba: "lugar" é uma aba que mistura reino e cidade,
+     e a coluna a escrever depende de qual dos dois a entrada é. */
+  const tipo = entrada.tipo;
+  const refId = entrada.id;
+
+  const inicial = visibilidadeDaEntrada(historia, tipo, refId);
+  const [modo, setModo] = useState(inicial.modo);
+  const [pjIds, setPjIds] = useState(inicial.pjIds);
+
+  const togglePj = (id) => setPjIds((prev) => (
+    prev.some((x) => String(x) === String(id))
+      ? prev.filter((x) => String(x) !== String(id))
+      : [...prev, id]
+  ));
+
+  // "alguns" sem ninguém marcado é "todos" disfarçado — ver patchDeVisibilidade.
+  const faltaEscolher = modo === 'alguns' && pjIds.length === 0;
+
+  const opcoes = [
+    { valor: 'ninguem', rotulo: tp.ninguem, dica: tp.ninguemDica, icone: 'ti-eye-off' },
+    { valor: 'todos',   rotulo: tp.todos,   dica: tp.todosDica,   icone: 'ti-users' },
+    // Sem PJs na história não há terceira opção.
+    ...(pjs.length > 0
+      ? [{ valor: 'alguns', rotulo: tp.alguns, dica: tp.algunsDica, icone: 'ti-user-check' }]
+      : []),
+  ];
+
+  return (
+    <ModalShell
+      title={`${tp.titulo}: ${entrada.nome || ''}`}
+      lang={lang}
+      size="sm"
+      extraClass="diario-permissao-modal"
+      onClose={onClose}
+      onCancel={onClose}
+      cancelDisabled={!!salvando}
+      onConfirm={() => onSalvar(patchDeVisibilidade(historia, tipo, refId, modo, pjIds))}
+      confirmDisabled={!!salvando || faltaEscolher}
+    >
+      <div className="diario-permissao-opcoes" role="radiogroup">
+        {opcoes.map((o) => (
+          <label key={o.valor} className={'diario-permissao-opcao' + (modo === o.valor ? ' on' : '')}>
+            <input
+              type="radio"
+              name="diario-permissao"
+              value={o.valor}
+              checked={modo === o.valor}
+              disabled={!!salvando}
+              onChange={() => setModo(o.valor)}
+            />
+            <span className="diario-permissao-texto">
+              <span className="diario-permissao-rotulo">
+                <i className={'ti ' + o.icone} aria-hidden="true" />
+                {o.rotulo}
+              </span>
+              <span className="diario-permissao-dica">{o.dica}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {modo === 'alguns' && (
+        <div className="diario-liberar-wrap diario-liberar-wrap--modal">
+          <div className="diario-liberar-lista">
+            {pjs.map((pj) => {
+              const on = pjIds.some((x) => String(x) === String(pj.id));
+              return (
+                <label key={pj.id} className={'diario-liberar-item' + (on ? ' diario-liberar-item--on' : '')}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    disabled={!!salvando}
+                    onChange={() => togglePj(pj.id)}
+                  />
+                  <span className="diario-liberar-nome">{pj.nome}</span>
+                </label>
+              );
+            })}
+          </div>
+          {faltaEscolher && (
+            <div className="diario-permissao-aviso">{tp.escolhaAlguem}</div>
+          )}
+        </div>
+      )}
+
+      {pjs.length === 0 && (
+        <div className="diario-permissao-aviso">{tp.semProtagonistas}</div>
+      )}
+    </ModalShell>
+  );
+}
+
 // ---------- GerenciarLoreView (Mestre) — página, não modal ----------
 // Segue o mesmo molde de src/06-historias/historias.jsx::GerenciarLojaView:
 // header .ms-header + classe própria (seta de voltar, eyebrow, título da
@@ -2583,10 +2769,24 @@ function LorePaginacao({ safePage, totalPages, setPage, lang }) {
 // ModalShell normal por cima da página (decisão explícita — não amassar
 // nesse outro padrão).
 
-function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
+/* `tipoFixo` (17/09/2026): "Não está aparecendo para o mestre o menu NPCs e
+   lugares, vinculados à história selecionada." (usuário)
+
+   O Mestre já administrava este Lore, mas só por dentro — Histórias → card da
+   mesa → botão "Lore". O menu lateral dele não tinha as duas seções que o
+   Jogador tem há tempos. Agora tem, e são ESTA MESMA tela travada num tipo:
+   mesmo caminho que o DiarioView do Jogador tomou em 12/09/2026, e pelo mesmo
+   motivo — não é tela nova, é a escolha de aba que deixa de ser oferecida.
+
+   Com tipoFixo, também some o "voltar": quem chegou pelo menu lateral não veio
+   de lugar nenhum. É por isso que o botão depende de `onClose`, e não de uma
+   flag própria. */
+function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
   const en = lang === 'en';
-  const PAGE_SIZE = 10;
-  const [tipoAba, setTipoAba] = useState('npc'); // npc | reino | cidade | criatura (disponibilizar)
+  // Fallback: quantas linhas mostrar antes de useFitPageSize medir a tela.
+  // Mesmo arranjo do DiarioView do Jogador.
+  const PAGE_SIZE_FALLBACK = 10;
+  const [tipoAba, setTipoAba] = useState(tipoFixo || 'npc'); // npc | lugar | criatura (disponibilizar)
   const [lore, setLore] = useState(null);
   const [criaturas, setCriaturas] = useState(null);
   // Catálogo GLOBAL (canônico) de reino/cidade/npc — migration 016. Só
@@ -2595,16 +2795,24 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
   const [catalogoGlobal, setCatalogoGlobal] = useState({ reino: [], cidade: [], npc: [] });
   const [error, setError] = useState(null);
   const [editando, setEditando] = useState(null);
-  const [slugOrigemEscolhido, setSlugOrigemEscolhido] = useState(null);
   const [savingVinculo, setSavingVinculo] = useState(false);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
-  const [viewingLore, setViewingLore] = useState(null);
   const [tipoNovo, setTipoNovo] = useState(null);
+  /* A linha ABERTA, por chave (17/09/2026). O `viewingLore` que existia aqui
+     era a entrada aberta no modal de ficha — a ficha virou a expansão da
+     linha ("as informações dentro de NPCs e lugares vão ser mostradas quando
+     expandir a entrada", usuário), e o modal saiu junto com o olho antigo.
+     Uma chave e não a entrada inteira: a lista se recarrega (carregar()) e uma
+     referência velha manteria a linha aberta mostrando dados de antes. */
+  const [expandida, setExpandida] = useState(null);
+  // A entrada cuja PERMISSÃO está aberta — o novo papel do olho.
+  const [permissaoDe, setPermissaoDe] = useState(null);
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(80);
-  // Protagonistas da história — carregados uma vez, usados no seletor de liberação por PJ
+  // Protagonistas da história — carregados uma vez, usados no modal de permissão
   const [protagonistas, setProtagonistas] = useState([]);
-  useEffect(() => { setPage(1); setQuery(''); }, [tipoAba]);
+  const wrapRef = React.useRef(null);
+  useEffect(() => { setPage(1); setQuery(''); setExpandida(null); }, [tipoAba]);
 
   const carregar = async () => {
     setError(null); 
@@ -2668,12 +2876,10 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
       p_descricao: editando.descricao,
       p_imagem_url: editando.imagem_url || null,
       p_atributos: editando.atributos || {},
-      p_slug_origem: slugOrigemEscolhido,
     });
     if (err) { setError(err.message); return; }
     if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
     setEditando(null);
-    setSlugOrigemEscolhido(null);
     setTipoNovo(null);
     await carregar();
     if (onChanged) onChanged();
@@ -2687,93 +2893,42 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
     if (onChanged) onChanged();
   };
 
-  const toggleDisponibilizar = async (tipo, id, ligar) => {
+  /* salvarVisibilidade — grava o patch que o PermissaoEntradaModal montou.
+     Substituiu `toggleDisponibilizar` e `toggleLiberarPj` (17/09/2026): as
+     duas escreviam em `historias` por CLIQUE, uma a coluna <tipo>_ids e a
+     outra a lore_acesso_pj, e liberar uma entrada pra três PJs eram quatro
+     updates em sequência — cada um podendo falhar no meio e deixar a
+     permissão pela metade. Agora o modal decide tudo e entrega um patch só.
+
+     ⚠️ .select() é ESSENCIAL, e não é zelo: sem ele um UPDATE bloqueado por
+     RLS volta como SUCESSO com 0 linhas afetadas, sem erro. O checkbox antigo
+     "marcava" na tela e nada persistia — o personagem nunca via a entrada e
+     ninguém sabia por quê. Com .select() dá pra detectar o caso E ler o valor
+     que o banco realmente gravou. */
+  const salvarVisibilidade = async (patch) => {
     setSavingVinculo(true);
     setError(null);
-    // Mapeamento de tipo -> coluna em historias (migration 014/015):
-    // criatura_ids (bigint[], já existente) continua igual; reino/cidade/
-    // npc agora têm colunas próprias (text[], por slug) em vez do antigo
-    // lore_ids genérico.
-    const campo = {
-      criatura:   'criatura_ids',
-      reino:      'reino_ids',
-      cidade:     'cidade_ids',
-      npc:        'npc_ids',
-      item:       'item_ids',
-      magia:      'magia_ids',
-      habilidade: 'habilidade_ids',
-      tecnica:    'tecnica_ids',
-    }[tipo];
-    const atual = historia[campo] || [];
-    const novo = ligar ? [...new Set([...atual, id])] : atual.filter((x) => x !== id);
-    // ⚠️ .select() é ESSENCIAL: sem ele, um UPDATE bloqueado por RLS retorna
-    // sucesso com 0 linhas afetadas (sem erro). O checkbox "marcava" via
-    // mutação local, mas nada persistia — e o personagem nunca via a entrada.
-    // Com .select() detectamos esse caso e o valor real gravado no banco.
+    const colunas = ['id', ...Object.keys(patch)].join(', ');
     const { data: rows, error: err } = await supabaseClient
       .from('historias')
-      .update({ [campo]: novo })
+      .update(patch)
       .eq('id', historia.id)
-      .select(`id, ${campo}`);
+      .select(colunas);
     setSavingVinculo(false);
     if (err) { setError(err.message); return; }
     if (!rows || rows.length === 0) {
-      // Persistência falhou silenciosamente (0 linhas). Quase sempre RLS na
-      // tabela historias. A correção definitiva é uma RPC SECURITY DEFINER
-      // pra gravar a coluna — mas aqui pelo menos deixamos o erro visível.
       setError(en
         ? 'Could not save: the update affected 0 rows (likely an RLS/permission rule on "historias"). A SECURITY DEFINER RPC is needed to write this column.'
         : 'Não foi possível salvar: o update não afetou nenhuma linha (provável regra de RLS/permissão em "historias"). É preciso uma RPC SECURITY DEFINER pra gravar essa coluna no banco.');
       return;
     }
-    // Reflete o valor REAL retornado pelo banco (não o otimista), pra tela e
-    // persistência ficarem sempre em sincronia.
-    historia[campo] = rows[0][campo] || novo;
+    // O valor REAL do banco, não o otimista — tela e persistência em sincronia.
+    Object.keys(patch).forEach((k) => {
+      historia[k] = rows[0][k] !== undefined ? rows[0][k] : patch[k];
+    });
+    setPermissaoDe(null);
     setLore((prev) => [...(prev || [])]); // força re-render
     if (onChanged) onChanged();
-  };
-
-  // toggleLiberarPj — grava em historias.lore_acesso_pj (jsonb) a lista de
-  // pj_ids que podem ver/importar uma entrada específica de lore.
-  // Chave do jsonb: "<tipo>:<ref_id>" — mesmo padrão tipo:ref_id usado no
-  // importados_set de montarCatalogoDisponivel.
-  // Quando `ligar=true`: adiciona pjId à lista; quando false: remove.
-  // Se a lista ficar vazia, remove a chave do objeto (não deixa array vazio).
-  const toggleLiberarPj = async (tipo, refId, pjId, ligar) => {
-    setSavingVinculo(true);
-    setError(null);
-    const chave = `${tipo}:${String(refId)}`;
-    const atual = (historia.lore_acesso_pj && typeof historia.lore_acesso_pj === 'object')
-      ? { ...historia.lore_acesso_pj }
-      : {};
-    const listaAtual = Array.isArray(atual[chave]) ? atual[chave] : [];
-    let novaLista;
-    if (ligar) {
-      novaLista = [...new Set([...listaAtual, pjId])];
-    } else {
-      novaLista = listaAtual.filter((x) => x !== pjId);
-    }
-    const novoObj = { ...atual };
-    if (novaLista.length > 0) {
-      novoObj[chave] = novaLista;
-    } else {
-      delete novoObj[chave];
-    }
-    const { data: rows, error: err } = await supabaseClient
-      .from('historias')
-      .update({ lore_acesso_pj: novoObj })
-      .eq('id', historia.id)
-      .select('id, lore_acesso_pj');
-    setSavingVinculo(false);
-    if (err) { setError(err.message); return; }
-    if (!rows || rows.length === 0) {
-      setError(en
-        ? 'Could not save access: update affected 0 rows (check RLS on "historias").'
-        : 'Não foi possível salvar o acesso: update não afetou nenhuma linha (verifique RLS em "historias").');
-      return;
-    }
-    historia.lore_acesso_pj = rows[0].lore_acesso_pj || novoObj;
-    setLore((prev) => [...(prev || [])]); // força re-render
   };
 
   // ── Form de Novo/Editar item — CONTINUA como ModalShell por cima da página
@@ -2783,6 +2938,13 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
   // liga a algo que ele mesmo já forkou antes, não ao catálogo global direto).
   const reinosDaHistoria = (lore || []).filter((e) => e.tipo === 'reino');
   const cidadesDaHistoria = (lore || []).filter((e) => e.tipo === 'cidade');
+
+  /* As palavras do título saem de ADMIN_COPY, as mesmas da barra lateral —
+     mesmo arranjo do DiarioView do Jogador: se "NPCs" virar outra coisa, o
+     menu e o título da página mudam juntos. */
+  const tituloDaSecao = tipoFixo
+    ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[{ lugar: 'lugares', npc: 'npcs' }[tipoFixo]] || {}).label
+    : null;
 
   const formModal = editando && (
     <ModalShell
@@ -2794,13 +2956,34 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
       onCancel={() => { setEditando(null); setTipoNovo(null); }}
       onConfirm={salvarLore}
     >
+      {/* EDITANDO UM GLOBAL: salvar não altera o catálogo do mundo, cria uma
+          CÓPIA desta mesa (salvar_lore_entrada forka quando p_id é global).
+          O aviso existe porque o efeito é visível — a lista passa a ter duas
+          linhas com o mesmo nome, uma "Mundo" e uma "Mesa" — e sem explicação
+          isso parece bug. O desenho quer que o Mestre "não perceba a
+          diferença" no MECANISMO, não que ele seja pego de surpresa pelo
+          resultado. */}
+      {editando._global && (
+        <div className="diario-fork-aviso">
+          <i className="ti ti-info-circle" aria-hidden="true" />
+          <span>
+            {en
+              ? 'This entry belongs to the world catalog. Saving creates a copy for this table — the original stays untouched.'
+              : 'Esta entrada é do catálogo do mundo. Salvar cria uma cópia desta mesa — o original fica intacto.'}
+          </span>
+        </div>
+      )}
       <LoreEntradaForm
         tipo={tipoNovo || tipoAba}
         entrada={editando}
         onChange={setEditando}
+        // Idem DiarioView: o seletor Reino/Cidade grava em `tipoNovo`, que é o
+        // que salvarLore manda como p_tipo.
+        onTipoChange={setTipoNovo}
         reinosDaHistoria={reinosDaHistoria}
         cidadesDaHistoria={cidadesDaHistoria}
         t={COPY[lang] || COPY.pt}
+        lang={lang}
       />
       {error && <div className="err-msg diario-err-mt">{error}</div>}
     </ModalShell>
@@ -2810,195 +2993,402 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged }) {
     tipoAba === 'lugar' ? LUGAR_TIPOS.has(e.tipo) : e.tipo === tipoAba
   );
 
+  /* ── A LISTA, que virou TABELA (17/09/2026) ─────────────────────────────
+     "A página e tabela de NPCs e lugares será igual a de criaturas, itens,
+     etc. Isso quer dizer que será uma tabela com colunas, botão de buscar e
+     '+'. Isso quer dizer que as informações dentro de NPCs e lugares vão ser
+     mostradas quando expandir a entrada." (usuário)
+
+     Era uma .diario-vinculo-list: uma linha solta por entrada, com checkbox,
+     nome e os botões. Agora são as MESMAS peças das outras páginas do
+     catálogo — as que o bestiário exporta de propósito (ver a nota "O
+     VOCABULÁRIO DA TABELA" no fim de 09-bestiario/bestiario.jsx):
+     BestBuscaENovo no cabeçalho, DiarioTabela (UI.Table + SortHead), a linha
+     de detalhe .best-detail e BestPagination. Escrever uma tabela parecida
+     aqui é como as duas telas começam a divergir sem ninguém decidir que
+     deviam.
+
+     A COLUNA DE CHECKBOX SAIU. Ela ligava historias.<tipo>_ids, metade da
+     resposta a "quem vê isto" — a outra metade morava dentro da ficha, no
+     bloco "Liberar para". As duas viraram um lugar só, o modal do olho
+     (PermissaoEntradaModal), e a coluna Visibilidade só MOSTRA o resultado.
+
+     PAGE_SIZE vem de useFitPageSize, não do 10 fixo de antes: é o que faz a
+     tabela ocupar a altura da página como as outras. */
+  const q = query.trim().toLowerCase();
+
+  /* Lista única por aba. Nas abas de lore, cópias da história + catálogo
+     GLOBAL (migration 016) na mesma tabela; globais entram com `_global` e a
+     coluna Fonte diz "Mundo". Na aba Criatura, o bestiário inteiro. */
+  /* ⚠️ `tipo` na criatura é AMBÍGUO: na tabela `criaturas` ele é o tipo do
+     bestiário (Animal, Dragão, Morto…), e aqui a tela precisa do tipo de
+     ENTRADA ('criatura') pra achar a coluna de visibilidade. O do bestiário
+     vira `tipo_criatura` antes de ser sobrescrito — a mesma armadilha que
+     token-icone-criatura.test.jsx documenta no tabuleiro, onde o tipo do
+     bestiário viaja como `raca`. */
+  const listaCrua = tipoAba === 'criatura'
+    ? (criaturas || []).map((c) => ({ ...c, tipo_criatura: c.tipo, tipo: 'criatura' }))
+    : (() => {
+        const tiposDoBloco = tipoAba === 'lugar' ? ['reino', 'cidade'] : [tipoAba];
+        const globais = tiposDoBloco.flatMap((t) =>
+          (catalogoGlobal[t] || []).map((g) => ({ ...g, tipo: t, _global: true }))
+        );
+        return [...globais, ...loreDoTipo];
+      })();
+
+  const attrDe = (e, k) => {
+    const a = e.atributos && typeof e.atributos === 'object' ? e.atributos : {};
+    const v = a[k] != null && a[k] !== '' ? a[k] : e[k];
+    return v == null || v === '' ? '—' : String(v);
+  };
+
+  /* Campos como npc.cidade guardam o SLUG do lugar, não o nome. Na coluna
+     Localização o slug não serve ("brann-h3"), então resolve pelo nome —
+     mesma tradução que DetalheEntradaModal faz com loreBySlug, aqui contra
+     cópias e globais juntos. Slug sem lugar correspondente cai no próprio
+     slug: melhor um identificador feio que um travessão mentindo que o campo
+     está vazio. */
+  const nomePorSlug = {};
+  [...(lore || []), ...catalogoGlobal.reino, ...catalogoGlobal.cidade, ...catalogoGlobal.npc]
+    .forEach((x) => { if (x && x.id) nomePorSlug[x.id] = x.nome; });
+  const nomeDeSlug = (e, k) => {
+    const v = attrDe(e, k);
+    if (v === '—') return v;
+    const nome = nomePorSlug[v] || v;
+    return nome.charAt(0).toUpperCase() + nome.slice(1);
+  };
+
+  const rotuloFonte = (e) => (e._global
+    ? (en ? 'World' : 'Mundo')
+    : (en ? 'Table' : 'Mesa'));
+
+  /* A coluna Visibilidade: o estado que o modal do olho edita, legível na
+     tabela. Sem ela o Mestre teria que abrir entrada por entrada pra saber o
+     que os jogadores enxergam — que era justamente o problema do checkbox
+     mais o bloco escondido na ficha. */
+  const rotuloVisibilidade = (vis) => {
+    const tp = ((COPY[lang] || COPY.pt).lore || {}).permissao || {};
+    if (vis.modo === 'ninguem') return tp.ninguem;
+    if (vis.modo === 'todos') return tp.todos;
+    // "alguns": o número diz mais que o rótulo — 1 de 4 é diferente de 3 de 4.
+    return `${vis.pjIds.length}/${protagonistas.length || vis.pjIds.length}`;
+  };
+
+  // Ordenação e busca: mesmas peças das outras tabelas.
+  const listaFiltrada = listaCrua
+    .filter((e) => !q || (e.nome || '').toLowerCase().includes(q))
+    .map((e) => {
+      const refId = e.id;
+      const vis = visibilidadeDaEntrada(historia, e.tipo, refId);
+      return {
+        ...e,
+        /* Campos derivados existem pra que o SortHead ordene por eles: o
+           useSort ordena pelo VALOR da chave da coluna, não por uma função
+           de comparação por coluna. Sem `_raca`/`_cidade` aqui, clicar
+           naqueles dois cabeçalhos ordenaria por undefined — ou seja, não
+           ordenaria, sem dizer por quê. */
+        _fonte: rotuloFonte(e),
+        _tipoLabel: diarioTipoLabel(e.tipo, lang),
+        _raca: attrDe(e, 'raca'),
+        _cidade: nomeDeSlug(e, 'cidade'),
+        _visibilidade: rotuloVisibilidade(vis),
+        _visModo: vis.modo,
+      };
+    });
+
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(listaFiltrada);
+  const lista = sorted || listaFiltrada;
+  const porPagina = useFitPageSize(wrapRef, { fallback: PAGE_SIZE_FALLBACK });
+  const totalPages = Math.max(1, Math.ceil(lista.length / porPagina));
+  const safePage = Math.min(page, totalPages);
+  const pagina = lista.slice((safePage - 1) * porPagina, safePage * porPagina);
+
+  const cols = [
+    { key: 'nome', label: en ? 'Name' : 'Nome' },
+    // Lugares mistura Reino e Cidade — a coluna diz qual é. Mesma decisão da
+    // tabela do Jogador.
+    ...(tipoAba === 'lugar' ? [{ key: '_tipoLabel', label: en ? 'Type' : 'Tipo' }] : []),
+    ...(tipoAba === 'npc' ? [
+      { key: '_raca', label: en ? 'Race' : 'Raça' },
+      { key: '_cidade', label: en ? 'Location' : 'Localização' },
+    ] : []),
+    ...(tipoAba === 'criatura' ? [
+      { key: 'tipo_criatura', label: en ? 'Kind' : 'Tipo' },
+      { key: 'estagio', label: en ? 'Stage' : 'Estágio' },
+    ] : []),
+    { key: '_visibilidade', label: en ? 'Visibility' : 'Visibilidade' },
+    ...(tipoAba === 'criatura' ? [] : [{ key: '_fonte', label: en ? 'Source' : 'Fonte' }]),
+    { key: 'acoes', label: '', ordena: false, style: { width: 120 } },
+  ];
+
+  const chaveDa = (e) => `${e._global ? 'g' : 'c'}:${e.tipo}:${String(e.id)}`;
+
+  const { TableRow, TableCell } = (typeof UI !== 'undefined' ? UI : {});
+
+  const linhaDe = (e) => {
+    const chave = chaveDa(e);
+    const aberta = expandida === chave;
+    /* EDITAR vale para os dois, global incluído (17/09/2026). A pergunta do
+       usuário — "como o mestre vai editar os reinos e cidades, e npcs se não
+       tem o botão de edição?" — não tinha resposta: o lápis só existia nas
+       cópias da mesa, e a única outra porta — a SelecionarBaseModal, tela de
+       "escolher a base do fork" — nunca foi renderizada por ninguém (removida
+       em 17/09/2026; ver a nota no lugar em que ela ficava). Não havia caminho
+       até uma entrada do catálogo do mundo.
+
+       Ligar o lápis no global foi suficiente porque o banco já fazia a parte
+       difícil: salvar_lore_entrada, ao receber o slug de um global em p_id,
+       cai no ramo `slug_base := p_id → criar_copia_*` e FORKA (conferido na
+       definição da função, não só no comentário). O Mestre edita e sai com uma
+       cópia da mesa.
+
+       EXCLUIR é que continua só nas cópias, e não por esquecimento:
+       excluir_lore_entrada recusa apagar global, então uma lixeira ali abriria
+       para dar erro. */
+    const editavel = tipoAba !== 'criatura';
+    const excluivel = editavel && !e._global;
+    return (
+      <React.Fragment key={chave}>
+        <TableRow
+          style={{ cursor: 'pointer' }}
+          onClick={() => setExpandida(aberta ? null : chave)}
+        >
+          <TableCell className="best-name">{e.nome}</TableCell>
+          {tipoAba === 'lugar' && <TableCell>{e._tipoLabel}</TableCell>}
+          {tipoAba === 'npc' && <TableCell>{attrDe(e, 'raca')}</TableCell>}
+          {tipoAba === 'npc' && <TableCell>{nomeDeSlug(e, 'cidade')}</TableCell>}
+          {tipoAba === 'criatura' && <TableCell>{e.tipo_criatura || e.raca || '—'}</TableCell>}
+          {tipoAba === 'criatura' && <TableCell>{e.estagio != null ? e.estagio : '—'}</TableCell>}
+          <TableCell>
+            <span className={'diario-vis-chip diario-vis-chip--' + e._visModo}>
+              {e._visibilidade}
+            </span>
+          </TableCell>
+          {tipoAba !== 'criatura' && <TableCell>{e._fonte}</TableCell>}
+          <TableCell className="diario-td-acoes" onClick={(ev) => ev.stopPropagation()}>
+            {/* O OLHO É PERMISSÃO desde 17/09/2026, não mais "ver a ficha" —
+                a ficha é a expansão da linha. */}
+            <button className="btn-icon btn-sm"
+              onMouseEnter={(ev) => abrirTip(ev, { desc: ((COPY[lang] || COPY.pt).lore || {}).permissao?.titulo })}
+              onMouseLeave={fecharTip}
+              onClick={() => setPermissaoDe(e)}>
+              <i className="ti ti-eye" aria-hidden="true" />
+            </button>
+            {editavel && (
+              <button className="btn-icon btn-sm"
+                onMouseEnter={(ev) => abrirTip(ev, {
+                  desc: e._global
+                    // O tooltip já conta o que vai acontecer, antes do clique.
+                    ? (en ? 'Edit (creates a copy for this table)' : 'Editar (cria uma cópia desta mesa)')
+                    : (en ? 'Edit' : 'Editar'),
+                })}
+                onMouseLeave={fecharTip}
+                onClick={() => { setTipoNovo(e.tipo); setEditando(e); }}>
+                <i className="ti ti-pencil" aria-hidden="true" />
+              </button>
+            )}
+            {excluivel && (
+              <button className="btn-icon btn-danger btn-sm"
+                onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Delete' : 'Excluir' })}
+                onMouseLeave={fecharTip}
+                onClick={() => excluirLore(e.id)}>
+                <i className="ti ti-trash" aria-hidden="true" />
+              </button>
+            )}
+          </TableCell>
+        </TableRow>
+        {aberta && (
+          <TableRow className="best-detail">
+            <TableCell colSpan={cols.length}>
+              {/* A MESMA ficha do modal do Jogador, sem o modal em volta. */}
+              <DetalheEntradaModal
+                inline
+                entrada={e}
+                lang={lang}
+                lore={[...(lore || []), ...catalogoGlobal.reino, ...catalogoGlobal.cidade, ...catalogoGlobal.npc]}
+              />
+            </TableCell>
+          </TableRow>
+        )}
+      </React.Fragment>
+    );
+  };
+
+  /* O + do cabeçalho. Na aba Criatura não há: o bestiário é catálogo global e
+     criatura nova se cria na página Criaturas, não aqui — aqui só se decide
+     quem a vê. */
+  const podeCriar = tipoAba !== 'criatura';
+  const dicaNovo = tipoAba === 'lugar'
+    ? (en ? 'New place' : 'Novo lugar')
+    : (en ? `New ${diarioTipoLabel(tipoAba, lang)}` : `${novoDoTipo(tipoAba)} ${diarioTipoLabel(tipoAba, lang)}`);
+
+  /* Um + SÓ para Lugares (17/09/2026): "Novo reino e nova cidade serão a mesma
+     coisa." Eram dois botões no cabeçalho; o tipo é o primeiro campo do
+     formulário agora (ver LoreEntradaForm), e 'reino' é só o padrão marcado. */
+  const abrirNovoLugar = () => {
+    setTipoNovo(tipoAba === 'lugar' ? 'reino' : tipoAba);
+    setEditando({});
+  };
+
   return (
     <div className="fp-page">
       <div className="fp-card lore-mng-page">
         <div className="fp-card-top">
           <header className="ms-header lore-mng-page-header">
-        <button
-          type="button"
-          className="btn-icon btn-sm"
-          onClick={onClose}
-          aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
-          <i className="ti ti-arrow-left" />
-        </button>
-        <div className="lore-mng-page-title-wrap">
-          <div className="lore-mng-page-eyebrow">
-            <i className="ti ti-book-2" aria-hidden="true" />
-            {historia.titulo}
-          </div>
-          <h2 className="ms-title lore-mng-page-h2">Lore</h2>
-        </div>
-        {tipoAba === 'criatura' ? null
-        : tipoAba === 'lugar' ? (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn-primary btn-sm" onClick={() => { setTipoNovo('reino'); setSlugOrigemEscolhido(null); setEditando({}); }}>
-              {en ? 'New Kingdom' : 'Novo Reino'}
-            </button>
-            <button className="btn-primary btn-sm" onClick={() => { setTipoNovo('cidade'); setSlugOrigemEscolhido(null); setEditando({}); }}>
-              {en ? 'New City' : 'Nova Cidade'}
-            </button>
-          </div>
-        ) : (
-          <button className="btn-primary btn-sm" onClick={() => { setSlugOrigemEscolhido(null); setEditando({}); }}>
-            {en ? `New ${diarioTipoLabel(tipoAba, lang)}` : `${novoDoTipo(tipoAba)} ${diarioTipoLabel(tipoAba, lang)}`}
-          </button>
-        )}
+            {onClose && (
+              <button
+                type="button"
+                className="btn-icon btn-sm"
+                onClick={onClose}
+                aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
+                <i className="ti ti-arrow-left" />
+              </button>
+            )}
+            <div className="lore-mng-page-title-wrap">
+              <div className="lore-mng-page-eyebrow">
+                <i className="ti ti-book-2" aria-hidden="true" />
+                {historia.titulo}
+              </div>
+              {/* Como página do menu lateral, o título é o nome da seção — as
+                  mesmas palavras do menu, tiradas do mesmo ADMIN_COPY. */}
+              <h2 className="ms-title lore-mng-page-h2">{tituloDaSecao || 'Lore'}</h2>
+            </div>
+            {/* Busca + "+" no cabeçalho: a MESMA peça das cinco listas do
+                bestiário (BestBuscaENovo), não uma barra própria abaixo do
+                título como era aqui até 17/09/2026. */}
+            <BestBuscaENovo
+              ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
+              placeholder={en ? 'Search…' : 'Buscar…'}
+              query={query}
+              setQuery={(v) => { setQuery(v); setPage(1); setExpandida(null); }}
+              podeCriar={podeCriar}
+              onNovo={abrirNovoLugar}
+              dicaNovo={dicaNovo} />
           </header>
         </div>
         <div className="lore-mng-page-body">
-        {lore === null ? (
-          <DiarioLoading lang={lang} />
-        ) : (
-          <>
+          {lore === null ? (
+            <DiarioLoading lang={lang} />
+          ) : (
+            <>
+              {/* As sub-abas só existem sem tipoFixo — quem chega pelo menu
+                  lateral já escolheu a seção.
 
-            <div className="lore-mng-toolbar">
-              <div className="diario-subtabs" role="tablist">
-                {DIARIO_TIPOS.map((t) => (
-                  <button key={t} className={tipoAba === t ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} onClick={() => setTipoAba(t)}>
-                    {diarioTipoLabel(t, lang)}
-                  </button>
-                ))}
-              </div>
-              <div className="best-search">
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-                  placeholder={en ? 'Search…' : 'Buscar…'}
-                  aria-label={en ? 'Search' : 'Buscar'}
-                />
-                {query && (
-                  <button
-                    type="button"
-                    className="best-search-clear"
-                    onClick={() => { setQuery(''); setPage(1); }}
-                    aria-label={en ? 'Clear' : 'Limpar'}>
-                    <i className="ti ti-x" aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-            </div>
+                  ⚠️ HOJE NINGUÉM CHEGA SEM tipoFixo. O único call site que não
+                  o passava era Histórias → card da mesa → botão "Lore", e o
+                  botão saiu em 17/09/2026; o LoreDaMesa (o caminho do menu
+                  lateral) sempre passa 'lugar' ou 'npc'. Ou seja: estas
+                  sub-abas e a aba Criatura abaixo estão sem porta.
 
-            {error && <div className="err-msg diario-err-mb">{error}</div>}
-
-            {tipoAba === 'criatura' ? (() => {
-              const q = query.trim().toLowerCase();
-              const lista = (criaturas || []).filter((c) => !q || c.nome.toLowerCase().includes(q));
-              const totalPages = Math.max(1, Math.ceil(lista.length / PAGE_SIZE));
-              const safePage = Math.min(page, totalPages);
-              const pagina = lista.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-              return (
-                <>
-                  {lista.length === 0 && q ? (
-                    <div className="best-empty diario-empty-lg">{en ? `No creature matches "${query}".` : `Nenhuma criatura corresponde a "${query}".`}</div>
-                  ) : (
-                    <>
-                      <div className="diario-vinculo-list diario-vinculo-list--full">
-                        {pagina.map((c) => {
-                          const ligado = (historia.criatura_ids || []).includes(c.id);
-                          return (
-                            <div key={c.id} className="diario-vinculo-item diario-vinculo-item--mestre">
-                              <input type="checkbox" checked={ligado} disabled={savingVinculo} onChange={(e) => toggleDisponibilizar('criatura', c.id, e.target.checked)} />
-                              <span className="diario-vinculo-nome">{c.nome}</span>
-                              <button className="btn-icon btn-sm"
-                                onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
-                                onMouseLeave={fecharTip}
-                                onClick={async () => {
-                                  const { data } = await supabaseClient.from('criaturas').select('*').eq('id', c.id).maybeSingle();
-                                  setViewingLore(data ? { ...data, tipo: 'criatura', ref_id: data.id } : { ...c, tipo: 'criatura', ref_id: c.id });
-                                }}>
-                                <i className="ti ti-eye" aria-hidden="true" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <LorePaginacao safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />
-                    </>
-                  )}
-                </>
-              );
-            })() : (() => {
-              const q = query.trim().toLowerCase();
-              // Aba Lugares: combina reino + cidade numa única lista
-              const tiposDoBloco = tipoAba === 'lugar' ? ['reino', 'cidade'] : [tipoAba];
-              const globaisDoTipo = tiposDoBloco.flatMap((t) =>
-                (catalogoGlobal[t] || []).map((g) => ({ ...g, tipo: t, _global: true }))
-              );
-              const combinado = [...globaisDoTipo, ...loreDoTipo]
-                .filter((e) => !q || (e.nome || '').toLowerCase().includes(q))
-                .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', en ? 'en' : 'pt'));
-              if (combinado.length === 0) return (
-                <div className="best-empty diario-empty-lg">
-                  {q ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`) : (en ? 'Nothing registered yet.' : 'Nada cadastrado ainda.')}
-                </div>
-              );
-              const totalPages = Math.max(1, Math.ceil(combinado.length / PAGE_SIZE));
-              const safePage = Math.min(page, totalPages);
-              const pagina = combinado.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-              return (
-                <>
-                  <div className="diario-vinculo-list diario-vinculo-list--full">
-                    {pagina.map((e) => {
-                      const campoIds = { reino: 'reino_ids', cidade: 'cidade_ids', npc: 'npc_ids' }[e.tipo];
-                      const ligado = (historia[campoIds] || []).includes(e.id);
-                      return (
-                        <div key={(e._global ? 'g-' : 'c-') + e.tipo + '-' + e.id} className="diario-vinculo-item diario-vinculo-item--mestre">
-                          <input type="checkbox" checked={ligado} disabled={savingVinculo}
-                            onChange={(ev) => toggleDisponibilizar(e.tipo, e.id, ev.target.checked)} />
-                          <span className="diario-vinculo-nome">{e.nome}</span>
-                          <button className="btn-icon btn-sm"
-                            onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'View' : 'Ver' })}
-                            onMouseLeave={fecharTip}
-                            onClick={() => setViewingLore(e)}>
-                            <i className="ti ti-eye" aria-hidden="true" />
-                          </button>
-                          {!e._global && (
-                            <>
-                              <button className="btn-icon btn-sm"
-                                onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Edit' : 'Editar' })}
-                                onMouseLeave={fecharTip}
-                                onClick={() => { setTipoNovo(e.tipo); setEditando(e); }}>
-                                <i className="ti ti-pencil" aria-hidden="true" />
-                              </button>
-                              <button className="btn-icon btn-danger btn-sm"
-                                onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Delete' : 'Excluir' })}
-                                onMouseLeave={fecharTip}
-                                onClick={() => excluirLore(e.id)}>
-                                <i className="ti ti-trash" aria-hidden="true" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
+                  A aba Criatura em particular NÃO é mais a casa de
+                  "disponibilizar criatura pra história" — isso virou o botão
+                  de olho da tabela de Criaturas (09-bestiario/bestiario.jsx),
+                  que é a tabela padrão delas. O que sobrou aqui é uma segunda
+                  implementação da mesma coisa, inalcançável. Quem for mexer
+                  nisto: a decisão de tirar o botão e a de mover a função foram
+                  a MESMA; se a aba voltar a ter porta, ela é que deve sair. */}
+              {!tipoFixo && (
+                <div className="lore-mng-toolbar">
+                  <div className="diario-subtabs" role="tablist">
+                    {DIARIO_TIPOS.map((t) => (
+                      <button key={t} className={tipoAba === t ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} onClick={() => setTipoAba(t)}>
+                        {diarioTipoLabel(t, lang)}
+                      </button>
+                    ))}
                   </div>
-                  <LorePaginacao safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />
-                </>
-              );
-            })()}
-          </>
-        )}
-      </div>
+                </div>
+              )}
 
-      {viewingLore && (
-        <DetalheEntradaModal
-          entrada={viewingLore}
-          lang={lang}
-          lore={[...(lore || []), ...catalogoGlobal.reino, ...catalogoGlobal.cidade, ...catalogoGlobal.npc]}
-          onClose={() => setViewingLore(null)}
-          protagonistas={protagonistas}
-          loreAcessoPj={historia.lore_acesso_pj || {}}
-          onToggleLiberarPj={toggleLiberarPj}
-          savingVinculo={savingVinculo}
-        />
-      )}
+              {error && <div className="err-msg diario-err-mb">{error}</div>}
+
+              {pagina.length === 0 ? (
+                <div className="best-empty diario-empty-lg">
+                  {q
+                    ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`)
+                    : (en ? 'Nothing registered yet.' : 'Nada cadastrado ainda.')}
+                </div>
+              ) : (
+                <>
+                  <DiarioTabela cols={cols} wrapRef={wrapRef} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>
+                    {pagina.map(linhaDe)}
+                  </DiarioTabela>
+                  <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {permissaoDe && (
+          <PermissaoEntradaModal
+            entrada={permissaoDe}
+            historia={historia}
+            protagonistas={protagonistas}
+            lang={lang}
+            salvando={savingVinculo}
+            onClose={() => setPermissaoDe(null)}
+            onSalvar={salvarVisibilidade}
+          />
+        )}
         {formModal}
-      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+        <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
       </div>
     </div>
   );
 }
 
-Object.assign(window, { DiarioView, GerenciarLoreView });
+/* ============================== LoreDaMesa — o Lore como seção do menu ==============================
+   O GerenciarLoreView precisa da LINHA INTEIRA da história (npc_ids,
+   criatura_ids, lore_acesso_pj, protagonista_ids…), e o que o AdminConsole tem
+   em mãos é só `{ id, titulo }` — a lista do seletor de mesa é estreita de
+   propósito. Em vez de alargá-la para todo mundo, quem precisa do resto vai
+   buscar: é este componente.
+
+   Sem mesa selecionada não há Lore de mesa nenhuma, e a tela diz isso em vez
+   de aparecer vazia — mesmo contrato das seções do Jogador sem PJ ativo. */
+function LoreDaMesa({ historiaId, lang, tipoFixo, vazio }) {
+  const [historia, setHistoria] = useState(null);   // null = carregando
+  const [erro, setErro] = useState(null);
+  useEffect(() => {
+    if (!historiaId) return undefined;
+    let cancel = false;
+    setHistoria(null); setErro(null);
+    (async () => {
+      const { data, error } = await supabaseClient
+        .from('historias').select('*').eq('id', historiaId).maybeSingle();
+      if (cancel) return;
+      if (error) { setErro(error.message); return; }
+      setHistoria(data || null);
+    })();
+    return () => { cancel = true; };
+  }, [historiaId]);
+
+  if (!historiaId) return vazio || null;
+  if (erro) return <DiarioErrorBox error={erro} hint={lang === 'en' ? 'Could not load the table lore.' : 'Não consegui carregar o lore da mesa.'} />;
+  if (!historia) return <DiarioLoading lang={lang} />;
+  return (
+    <GerenciarLoreView
+      historia={historia}
+      lang={lang}
+      tipoFixo={tipoFixo}
+      key={tipoFixo + ':' + historia.id}
+    />
+  );
+}
+
+Object.assign(window, {
+  DiarioView, GerenciarLoreView, LoreDaMesa,
+  // O modal do botão de olho (17/09/2026). Exposto porque a CriaturasList
+  // (09-bestiario) também o abre — ver permissao-entrada-modal.test.jsx.
+  PermissaoEntradaModal,
+  /* O formulário compartilhado pelas duas telas de lore. Exposto pro teste do
+     seletor Reino/Cidade (lugar-tipo-unico.test.jsx), que é justamente sobre
+     o formulário ser UM — se cada tela tivesse o seu, o pedido "reino e
+     cidade são a mesma coisa" teria que ser resolvido duas vezes. */
+  LoreEntradaForm,
+  /* Núcleo PURO da visibilidade de uma entrada (17/09/2026). Num objeto
+     próprio pra não disputar nomes no window com as outras fases —
+     12-batalha já tem uma `proximaVisibilidade`, que é a da luz da batalha e
+     não tem nada a ver com esta. Ver visibilidade-entrada.test.js. */
+  DiarioVisibilidade: { visibilidadeDaEntrada, patchDeVisibilidade, chaveAcessoPj, VIS_CAMPO },
+});

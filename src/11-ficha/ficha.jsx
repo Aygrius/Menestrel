@@ -88,12 +88,32 @@
    suave deslizante (CSS) + ponta clara. Barra esgotada (val 0) vira
    trilho vazio discreto. Sem canvas — leitura limpa. */
 
+/* Profissões SEM Karma (15/09/2026, decisão do usuário): a barra não aparece
+   na ficha delas. Guerreiro e Ladino não conjuram — o poço existia e ficava
+   sempre vazio. */
+const SEM_KARMA = new Set(['Guerreiro', 'Ladino']);
+
+/* Cor de NÍVEL (15/09/2026): roxo embaixo, branco no meio, verde em cima.
+   Vale para toda barra sem cor própria e tinge o ícone de TODAS elas — o
+   círculo colorido atrás do ícone saiu. */
+const COR_NIVEL_BAIXO = '#9150A0';
+const COR_NIVEL_MEIO  = '#E8DDC6';
+const COR_NIVEL_ALTO  = '#3E9B52';
+function corNivelBarra(pct) {
+  const p = Number(pct) || 0;
+  if (p >= 0.6) return COR_NIVEL_ALTO;
+  if (p >= 0.25) return COR_NIVEL_MEIO;
+  return COR_NIVEL_BAIXO;
+}
+
+/* Cores FIXAS por stat (decisão do usuário, valendo também para o combate):
+   EF vermelha, EH amarela, Karma azul, resistência de item branca. */
 const FICHA_VIT_COLORS = {
   ef: '#ae2f20',   // Energia Física — ember quente (Pedra & Bronze)
-  eh: '#4e98c9',   // Energia Heroica — ouro-velho
+  eh: '#E3C34D',   // Energia Heroica — amarela
   ar: '#8c8d8e',   // Armadura — aço frio
-  res: '#8c8d8e',  // Resistência da armadura (a barra que substituiu AR, 12/09/2026)
-  ka: '#9150A0',   // Karma — ametista discreta
+  res: '#E8DDC6',  // Resistência do item — branca
+  ka: '#4B7BD4',   // Karma — azul
   velocidade: '#4a8f5c',  // Velocidade — verde (agilidade)
   rf: '#a86b3c',          // Resistência Física — bronze/cobre
   rm: '#5a4a8f',          // Resistência Mágica — índigo (perto de Karma, mas distinto)
@@ -155,8 +175,8 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
         const _span = b.max - _lo;
         const pct = _span > 0 ? Math.max(0, Math.min(1, (b.val - _lo) / _span)) : 0;
         const empty = pct <= 0;
-        const estadoLbl = fichaEstadoLabel(b.key, b.val, b.max, en, b.min);
-        const sufixoEstado = estadoLbl ? ` — ${estadoLbl}` : '';
+        /* As legendas narrativas ("Disposto", "Corajoso", "Ferido"…) saíram das
+           barras em 15/09/2026, a pedido do usuário: o número já diz tudo. */
         // Teto 0 = não há o que editar (AR sem armadura equipada, KA com a
         // Aura abaixo de 1). abrirEdicaoBarra já recusava, mas em SILÊNCIO: a
         // linha continuava com cara de botão, cursor de clique e papel de
@@ -170,7 +190,12 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
         const abrir = podeAbrir
           ? (e) => onEdit(b, scope, e.currentTarget.getBoundingClientRect())
           : undefined;
-        const tipContent = hasHover ? { desc: b.tip ?? (estadoLbl || undefined) } : null;
+        /* SÓ HÁ TOOLTIP SE HOUVER TEXTO (17/09/2026): "os tooltips das barras
+           na ficha estão bugados, onde não há texto, aparece um tooltip
+           vazio." `{ desc: undefined }` é um objeto — portanto verdadeiro —,
+           então a barra sem `tip` (a maioria: EF, EH, Combate, Estágio)
+           abria um balão com nada dentro. */
+        const tipContent = (hasHover && b.tip) ? { desc: b.tip } : null;
 
         // Cor da barra: b.color quando definido pelo pai (condições, combatBars),
         // senão cor fixa da chave (EF/EH/AR/KA/Estágio).
@@ -180,11 +205,9 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
         // verde cheio · cinza médio · vermelho baixo. Aplica-se a TODAS as
         // barras (incluindo EF/EH/AR/KA) via style inline, sobrescrevendo o
         // color-mix do CSS que usava --bar-c (cor fixa da barra).
-        const iconBgColor = pct >= 0.6
-          ? 'rgba(0,133,15,0.22)'
-          : pct >= 0.25
-          ? 'rgba(140,130,110,0.20)'
-          : 'rgba(135,0,0,0.28)';
+        /* Ícone SEMPRE dourado (16/09/2026): sem círculo e sem mudar de cor
+           com o nível — quem conta o nível é o preenchimento da barra. */
+        const iconColor = '#C9A44E';
 
         return (
           <div
@@ -197,7 +220,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
             onKeyDown={podeAbrir ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(e); }
             } : undefined}
-            {...propsTip(abrirTip, fecharTip, !hasHover && podeAbrir ? `${b.val}/${b.max}${sufixoEstado}` : undefined)}
+            {...propsTip(abrirTip, fecharTip, !hasHover && podeAbrir ? `${b.val}/${b.max}` : undefined)}
           >
             <span className="fp-bar-name-label">
               {b.label}
@@ -207,7 +230,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
             <div className="fp-bar-pill">
               {b.icon && (
                 <span className="fp-bar-icon" aria-hidden="true"
-                  style={{ background: iconBgColor }}>
+                  style={{ color: iconColor }}>
                   <i className={'ti ' + b.icon} />
                 </span>
               )}
@@ -217,7 +240,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
                 onMouseLeave={hasHover && tipContent ? onHoverEnd : undefined}
                 onFocus={hasHover && tipContent ? (e) => onHover(e, tipContent) : undefined}
                 onBlur={hasHover && tipContent ? onHoverEnd : undefined}
-                {...propsTip(abrirTip, fecharTip, !hasHover && !editable ? `${b.val}${showValue ? '/' + b.max : ''}${sufixoEstado}` : undefined)}
+                {...propsTip(abrirTip, fecharTip, !hasHover && !editable ? `${b.val}${showValue ? '/' + b.max : ''}` : undefined)}
               >
                 {!empty && (
                   <div className="fp-bar-fill" style={{ width: (pct * 100) + '%' }}>
@@ -242,6 +265,31 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
    ajusta o valor ATUAL (0..max) por slider, SEM tocar no máximo (que é
    derivado por calcularFicha). O valor escolhido sobe via onChange; o pai
    persiste com debounce. Fecha no Esc, clique fora, scroll ou no ×. */
+/* Caixa flutuante que se fecha sozinha: clique fora, Escape ou scroll. Mesmo
+   comportamento do editor de barra, extraído para o menu da peça equipada usar
+   igual (15/09/2026). */
+function FechaAoSair({ onClose, children, ...props }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onScroll = () => onClose();
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onScroll);
+    window.addEventListener('scroll', onScroll, true);
+    // Adia o listener de clique para não capturar o mesmo clique que abriu.
+    const t = setTimeout(() => document.addEventListener('mousedown', onDown), 0);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('scroll', onScroll, true);
+      clearTimeout(t);
+      document.removeEventListener('mousedown', onDown);
+    };
+  }, [onClose]);
+  return <div ref={ref} role="dialog" onClick={(e) => e.stopPropagation()} {...props}>{children}</div>;
+}
+
 function BarEditPopover({ item, scope, anchor, lang, onChange, onClose }) {
   const en = lang === 'en';
   const min = Math.round(Number(item.min) || 0);
@@ -277,7 +325,9 @@ function BarEditPopover({ item, scope, anchor, lang, onChange, onClose }) {
   // Mesma largura pros dois escopos agora que vit e cond compartilham o
   // mesmo layout (stepper + presets) — "mesmo modal" de fato, não só
   // visual parecido.
-  const W = 296;
+  // Largura só para não encostar na borda da tela: o popover agora é o
+  // stepper nu (ver fp-bar-pop--nu), bem mais estreito que o card antigo.
+  const W = 150;
   const vw = (typeof window !== 'undefined' ? window.innerWidth : 360);
   let left = anchor ? anchor.left : 0;
   let top = anchor ? anchor.bottom + 8 : 0;
@@ -288,7 +338,6 @@ function BarEditPopover({ item, scope, anchor, lang, onChange, onClose }) {
   const cor = isCond
     ? _corCondicao(val)
     : (item.color || FICHA_VIT_COLORS[item.key] || '#888');
-  const estadoLbl = fichaEstadoLabel(item.key, val, max, en, item.min);
 
   // ── Stepper -/valor/+ — agora usado em condições E em vitalidade (antes
   // vitalidade tinha um slider simples à parte; unificado a pedido). Mesmo
@@ -296,77 +345,329 @@ function BarEditPopover({ item, scope, anchor, lang, onChange, onClose }) {
   // translúcido, botões circulares dourados, texto Lora). Duplicado AQUI
   // porque 11-ficha carrega ANTES de 12-batalha (não tem como importar) —
   // mesmo padrão já usado pelos helpers locais de 13-diario/diario.jsx.
-  const podeDec = val > min;
-  const podeInc = val < max;
 
-  // Cards de preset: condição (min<0, faixa bidirecional -COND_LIMITE..+COND_LIMITE)
-  // mantém a fórmula de extremos + meio-caminho + 1/5-caminho + neutro (hoje dá
-  // [-50, -25, -10, 0, +10, +25, +50]). Vitalidade (min=0) usa 0/25/50/75/100%
-  // do máximo — a fórmula da condição degeneraria em zeros repetidos com min=0.
-  // Set no fim descarta duplicata (max pequeno tipo 1-3 pode arredondar pro
-  // mesmo preset mais de uma vez, nos dois casos).
-  const rawPresets = min < 0
-    ? [min, Math.round(min / 2), Math.round(min / 5), 0, Math.round(max / 5), Math.round(max / 2), max]
-    : [0, Math.round(max / 6), Math.round(max / 3), Math.round(max / 2), Math.round(max * 2 / 3), Math.round(max * 5 / 6), max];
-  const presets = [...new Set(rawPresets)];
+  /* Os botões de valor pré-determinado (0, 25%, 50%… / −50, −25, 0, +25, +50)
+     saíram em 15/09/2026, a pedido do usuário — e com eles o card em volta: o
+     que flutua agora é só o input. */
   // Pill central: condição mostra +/- (faixa com sinal, sempre ±COND_LIMITE);
   // vitalidade mostra val/max (o teto varia por PJ/stat, vale mais mostrar).
-  const centerLabel = isCond ? (val > 0 ? `+${val}` : String(val)) : `${val} / ${max}`;
-  // Cor dos cards de preset: p === 0 é sempre cinza (neutro/vazio), em qualquer escopo.
-  // Condição: cor por sinal (corCondicao). Vitalidade: cor fixa da barra.
-  const corPreset = (p) => p === 0 ? '#8c8d8e' : (isCond ? _corCondicao(p) : cor);
+  /* Estágio mostra só o XP (17/09/2026): o teto aqui é o fim da tabela de
+     estágios, um "2185" que não diz nada sobre o personagem e só empurraria o
+     número que interessa para o canto do pill.
 
+     E sem a sigla "XP" desde 20/09/2026, a pedido do usuário: o seletor abre
+     a partir da barra de experiência, então dizer de novo o que se está
+     editando é repetição. Os outros escopos também mostram só números. */
+  const isXp = scope === 'estagio';
+  const centerLabel = isCond
+    ? (val > 0 ? `+${val}` : String(val))
+    : isXp ? String(val) : `${val} / ${max}`;
   return (
     <div
       ref={ref}
-      className="fp-bar-pop"
-      style={{ position: 'fixed', left, top, width: W, overflow: 'hidden', '--pop-accent': cor }}
+      /* `fp-bar-pop--nu`: sem moldura, sem fundo, sem largura fixa — o
+         stepper flutua sozinho sobre a ficha (15/09/2026). */
+      className="fp-bar-pop fp-bar-pop--nu"
+      style={{ position: 'fixed', left, top, '--pop-accent': cor }}
       role="dialog"
       aria-label={item.label}
       onClick={(e) => e.stopPropagation()}
     >
-      {estadoLbl && <div className="fp-bar-pop-estado">{estadoLbl}</div>}
+      {/* Este popover é a ORIGEM do desenho, e agora o consome como todo
+          mundo: QuantidadeStepper (01-core/helpers.jsx). Manter a cópia aqui
+          faria a referência divergir do que ela referencia. */}
+      <QuantidadeStepper
+        value={val}
+        min={min}
+        max={max}
+        onChange={aplicar}
+        centro={centerLabel}
+        label={item.label}
+      />
+    </div>
+  );
+}
 
-      <div className="fp-pop-stepper">
-        <button type="button" className="fp-step-btn" disabled={!podeDec}
-          onMouseDown={(e) => e.preventDefault()} onClick={() => aplicar(val - 1)} aria-label="-">
-          <i className="ti ti-minus" aria-hidden="true" />
-        </button>
-        <span className="fp-pop-stepper-label">
-          {centerLabel}
-        </span>
-        <button type="button" className="fp-step-btn" disabled={!podeInc}
-          onMouseDown={(e) => e.preventDefault()} onClick={() => aplicar(val + 1)} aria-label="+">
-          <i className="ti ti-plus" aria-hidden="true" />
-        </button>
-      </div>
-      <div className="fp-pop-presets">
-        {presets.map((p) => {
-          const ativo = val === p;
-          const corP = corPreset(p);
-          return (
-            <button
-              key={p}
-              type="button"
-              onClick={() => aplicar(p)}
-              aria-pressed={ativo}
-              className="fp-pop-preset-btn"
-              style={{
-                border: `1px solid ${corP}`,
-                background: ativo ? corP : 'rgba(24,17,8,0.6)',
-                color: ativo ? '#1C1407' : '#E8DDC6',
-                fontWeight: ativo ? 700 : 500,
-              }}
+
+/* ============================== [11] Status persistente ==============================
+   "O status da batalha também persiste depois que a luta acaba, mas o mestre
+    pode remover e adicionar fora da batalha também." (usuário, 17/09/2026)
+
+   Esta é a metade "fora da batalha". O que se aplica aqui é O MESMO objeto que
+   o menu de estado do combate aplica — statusAplicadoPeloMestre, lido do
+   window porque a fase 12 carrega depois desta —, e por isso um "Ferido" posto
+   na ficha entra no combate seguinte com o mod_coluna certo.
+
+   Diferença de unidade, e é a única: em combate o Mestre conta RODADAS; aqui
+   ele conta DIAS do calendário, que é o grão que o mundo fora da luta tem. Ver
+   01-core/status-efeito.jsx.
+
+   O Jogador vê os status e não mexe — mesma regra das barras de vitalidade. */
+/* ── FichaStatusSeletor — o círculo na fileira das abas ───────────────────
+   "O novo seletor de status deve ser um círculo, como é 'temperatura' no topo
+    da página, e pode ficar ao lado do menu 'ficha'." (usuário, 17/09/2026)
+
+   É o pill do clima (.cdj-tempo, 10-shell/shell.jsx): círculo só com ícone, o
+   clique abre a escada inteira. Passou por "+" e por um pill com texto antes
+   de chegar aqui.
+
+   Mora na fileira das abas e não no painel de status porque aplicar status é
+   ação do Mestre sobre a ficha, como as abas são navegação sobre a ficha — o
+   painel lá embaixo mostra o que está valendo. Quem tem o passo 2 é ele: o
+   clima resolve no clique, o status precisa de um prazo, e o modal o pede. */
+function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
+  const en = lang === 'en';
+  const [aberta, setAberta] = useState(false);
+  const [escolhido, setEscolhido] = useState(null);   // tipo aguardando o modal
+  const dropRef = useRef(null);
+
+  const TIPOS = (typeof window !== 'undefined' && window.STATUS_MESTRE_TIPOS) || [];
+  const vigentes = (typeof window !== 'undefined' && window.statusVigentes)
+    ? window.statusVigentes(lista, dataJogo) : (lista || []);
+  const tb = ((typeof COPY !== 'undefined' ? COPY[lang] : null) || {}).batalha || {};
+  const _tipoDe = (typeof window !== 'undefined' && window.tipoDoStatus) || (() => null);
+
+  /* "Nunca acumular o mesmo mais de uma vez": quem já está no personagem sai
+     da lista. Reaplicar substituiria em silêncio — melhor não oferecer, e
+     deixar o Mestre remover antes, se o que ele quer é renovar o prazo. */
+  const jaTem = new Set(vigentes.map((st) => _tipoDe(st)).filter(Boolean));
+  const disponiveis = TIPOS.filter((t) => !jaTem.has(t.tipo));
+
+  // Fecha no clique fora e no Escape — igual ao dropdown do clima.
+  useEffect(() => {
+    if (!aberta) return undefined;
+    const fora = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setAberta(false); };
+    const esc = (e) => { if (e.key === 'Escape') setAberta(false); };
+    document.addEventListener('mousedown', fora);
+    window.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc); };
+  }, [aberta]);
+
+  // Com os quatro aplicados não há o que oferecer, e o círculo some.
+  if (disponiveis.length === 0) return null;
+
+  return (
+    <div className="fp-status-wrap" ref={dropRef}>
+      <button
+        type="button"
+        className={'fp-status-seletor' + (aberta ? ' is-open' : '')}
+        onClick={() => setAberta((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={aberta}
+        aria-label={en ? 'Apply status' : 'Aplicar status'}
+      >
+        <i className="ti ti-bolt" aria-hidden="true" />
+      </button>
+      {aberta && (
+        <ul className="fp-status-opcoes" role="listbox" aria-label="Status">
+          {disponiveis.map((t) => (
+            <li
+              key={t.tipo}
+              role="option"
+              aria-selected="false"
+              data-status={t.tipo}
+              className="fp-status-opcao"
+              onClick={() => { setAberta(false); setEscolhido(t); }}
             >
-              {isCond ? (p > 0 ? `+${p}` : p) : p}
-            </button>
-          );
-        })}
+              <i className={'ti ' + t.ic} aria-hidden="true" />
+              <span>{tb[t.chaveCopy] || t.chaveCopy}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {escolhido && (
+        <StatusPrazoModal
+          def={escolhido}
+          lang={lang}
+          onCancel={() => setEscolhido(null)}
+          onConfirm={(valor, dias) => {
+            const fabrica = typeof window !== 'undefined' && window.statusAplicadoPeloMestre;
+            setEscolhido(null);
+            if (!fabrica) return;
+            /* Em combate o 3º argumento são rodadas; fora dele o prazo é o
+               dias do modal, e a contagem de rodadas fica valendo 1 — é o que
+               a próxima batalha encontra para descontar por virada. */
+            onAdicionar(fabrica(escolhido.tipo, valor, 1, tb), dias);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* O painel mostra o que está VALENDO. Quem aplica é o círculo na fileira das
+   abas (FichaStatusSeletor, acima); aqui ficam os chips e o x de remover. */
+/* ── FichaAtividadeSeletor — o que o personagem está fazendo ───────────────
+   "Adicione um botão na ficha para o jogador escolher entre as condições:
+    Dormindo, Meditando, Orando, Estudando, Treinando." (usuário, 24/09/2026)
+
+   Mesmo círculo do status, ao lado dele. Diferente do status, o JOGADOR
+   também mexe (é o personagem dele descansando), e o círculo mostra a
+   atividade ligada com o nome ao lado — fica ligada até alguém tirar. Quem
+   recupera é o relógio da mesa (recuperacaoPorAtividade, 01-core/
+   clima-desgaste.jsx), a cada hora que o Mestre avança. */
+function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher }) {
+  const en = lang === 'en';
+  const [aberta, setAberta] = useState(false);
+  const dropRef = useRef(null);
+  const LISTA = (typeof window !== 'undefined' && window.ATIVIDADES) || [];
+  const atual = LISTA.find((a) => a.id === (atividade && atividade.tipo)) || null;
+  const nomeDe = (a) => (en ? a.en : a.pt);
+
+  useEffect(() => {
+    if (!aberta) return undefined;
+    const fora = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setAberta(false); };
+    const esc = (e) => { if (e.key === 'Escape') setAberta(false); };
+    document.addEventListener('mousedown', fora);
+    window.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc); };
+  }, [aberta]);
+
+  // Quem não pode mexer só vê a atividade ligada — e nada, se não houver.
+  if (!podeEditar && !atual) return null;
+
+  const escolher = (id) => { setAberta(false); onEscolher(id); };
+
+  return (
+    <div className="fp-status-wrap fp-atividade-wrap" ref={dropRef}>
+      <button
+        type="button"
+        className={'fp-status-seletor' + (aberta ? ' is-open' : '') + (atual ? ' is-ativo' : '')}
+        onClick={() => { if (podeEditar) setAberta((v) => !v); }}
+        disabled={!podeEditar}
+        aria-haspopup="listbox"
+        aria-expanded={aberta}
+        aria-label={atual ? nomeDe(atual) : (en ? 'Choose activity' : 'Escolher atividade')}
+        data-atividade={atual ? atual.id : ''}
+      >
+        <i className={'ti ' + (atual ? atual.icon : 'ti-moon')} aria-hidden="true" />
+      </button>
+      {atual && <span className="fp-atividade-nome">{nomeDe(atual)}</span>}
+      {aberta && (
+        <ul className="fp-status-opcoes" role="listbox" aria-label={en ? 'Activity' : 'Atividade'}>
+          {LISTA.map((a) => (
+            <li
+              key={a.id}
+              role="option"
+              aria-selected={!!(atual && atual.id === a.id)}
+              data-atividade={a.id}
+              className={'fp-status-opcao' + (atual && atual.id === a.id ? ' is-atual' : '')}
+              onClick={() => escolher(a.id)}
+            >
+              <i className={'ti ' + a.icon} aria-hidden="true" />
+              <span>{nomeDe(a)}</span>
+            </li>
+          ))}
+          {atual && (
+            <li role="option" aria-selected="false" data-atividade="" className="fp-status-opcao"
+              onClick={() => escolher(null)}>
+              <i className="ti ti-x" aria-hidden="true" />
+              <span>{en ? 'None' : 'Nenhuma'}</span>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function FichaStatusPainel({ lista, dataJogo, podeEditar, lang, onRemover }) {
+  const en = lang === 'en';
+  const vigentes = (typeof window !== 'undefined' && window.statusVigentes)
+    ? window.statusVigentes(lista, dataJogo) : (lista || []);
+
+  return (
+    <div className="fp-status">
+      <div className="fp-status-lista">
+        {/* Sem status, sem texto — para ninguém (17/09/2026). Primeiro a frase
+            saiu só do Jogador; agora sai também do Mestre, que tem o círculo
+            de status na fileira das abas e não precisa de legenda para saber
+            onde aplicar. */}
+        {vigentes.map((st) => (
+          <span key={st.id} className="fp-status-chip">
+            <span className="fp-status-emoji" aria-hidden="true">{st.icone}</span>
+            {st.nome}
+            {st.vence_em && (
+              <em className="fp-status-prazo">{formatarDataFantasy(st.vence_em, lang)}</em>
+            )}
+            {podeEditar && (
+              <button type="button" className="fp-status-x"
+                onClick={() => onRemover(st.id)}
+                aria-label={(en ? 'Remove ' : 'Remover ') + st.nome}>
+                <i className="ti ti-x" aria-hidden="true" />
+              </button>
+            )}
+          </span>
+        ))}
       </div>
     </div>
   );
 }
 
+/* O passo 2 do seletor: "após selecionar, um modal para informar quantos dias
+   permanecerá assim". O prazo é o motivo do modal e vem primeiro; o valor do
+   efeito (dano por rodada, colunas de penalidade) só aparece para quem tem um,
+   porque sem ele o status entraria mecanicamente vazio. */
+function StatusPrazoModal({ def, lang, onCancel, onConfirm }) {
+  const en = lang === 'en';
+  const [dias, setDias] = useState(1);
+  const [valor, setValor] = useState(1);
+  const tb = ((typeof COPY !== 'undefined' ? COPY[lang] : null) || {}).batalha || {};
+  const nome = tb[def.chaveCopy] || def.chaveCopy;
+
+  return (
+    <ModalShell
+      title={<><i className={'ti ' + def.ic} aria-hidden="true" /> {nome}</>}
+      lang={lang}
+      size="sm"
+      onClose={onCancel}
+      onCancel={onCancel}
+      /* Mínimo 1 (revisão de 24/09/2026): o prazo vence quando a data CHEGA
+         ao dia do vencimento (statusVigentes), então 0 dias gravava um status
+         que já nascia vencido e sumia da ficha na hora. 1 dia = até o Mestre
+         virar o dia. */
+      onConfirm={() => onConfirm(valor, Math.max(1, Number(dias) || 1))}
+      confirmLabel={en ? 'Apply' : 'Aplicar'}
+    >
+      <div className="fp-status-modal">
+        {/* A pergunta e os rótulos vestem o texto da LOJA (17/09/2026): a
+            frase usa .loja-ficha-desc, os rótulos usam .loja-qtd-lbl. Dois
+            modais que perguntam "quantos" não podem falar com vozes
+            diferentes. */}
+        <p className="loja-ficha-desc" style={{ margin: 0 }}>
+          {en
+            ? <>How many days will the character stay <strong>{nome}</strong>?</>
+            : <>Por quantos dias o personagem ficará <strong>{nome}</strong>?</>}
+        </p>
+        {/* Os <input type="number"> nus saíram em 17/09/2026 — eram o quinto
+            desenho para a mesma pergunta. Agora é o seletor do sistema
+            (QuantidadeStepper, 01-core/helpers.jsx), o mesmo da barra de EF. */}
+        <div className="fp-status-campos">
+          <div className="fp-status-campo">
+            <span className="loja-qtd-lbl">{en ? 'Days' : 'Dias'}</span>
+            <QuantidadeStepper
+              value={dias} min={1} onChange={setDias}
+              label={en ? 'Days' : 'Dias'}
+            />
+          </div>
+          {!def.semValor && (
+            <div className="fp-status-campo">
+              <span className="loja-qtd-lbl">{en ? def.rotuloValor.en : def.rotuloValor.pt}</span>
+              <QuantidadeStepper
+                value={valor} min={1} onChange={setValor}
+                label={en ? def.rotuloValor.en : def.rotuloValor.pt}
+              />
+            </div>
+          )}
+        </div>
+        {/* O "Sem prazo — até o Mestre remover" saiu em 17/09/2026. O prazo é
+            sempre em dias agora; `statusComVencimento` continua entendendo
+            null como eterno, e é assim que um status guardado sem vencimento
+            (de dado antigo) segue valendo — só não há mais como criar um. */}
+      </div>
+    </ModalShell>
+  );
+}
 
 /* ============================== [11] Divisor ornamental ============================== */
 function FpDivider({ label, icon }) {
@@ -729,8 +1030,14 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, l
     setNivelSel(n);
   };
 
+  /* O id do próprio PJ, NÃO a palavra 'self' (15/09/2026).
+
+     Era 'self', e isso fazia a evocação em si mesmo parecer evocação em
+     terceiro: `emMim` comparava com pj.id, dava falso, o efeito não pousava,
+     e o pedido ia para a fila do Mestre com alvo_id='self'. Ao aprovar, o
+     banco recusava: invalid input syntax for type bigint: "self". */
   const ALVOS = [
-    { id: 'self', nome: (en ? '(You) ' : '(Você) ') + [eu?.nome, eu?.sobrenome].filter(Boolean).join(' '), foto_url: eu?.foto_url },
+    { id: String(eu?.id ?? 'self'), nome: (en ? '(You) ' : '(Você) ') + [eu?.nome, eu?.sobrenome].filter(Boolean).join(' '), foto_url: eu?.foto_url },
     ...((colegas || []).map((c) => ({ id: String(c.id), nome: [c.nome, c.sobrenome].filter(Boolean).join(' '), foto_url: c.foto_url }))),
   ];
 
@@ -1242,7 +1549,18 @@ function FichaInfoView({
             if (pj.idade != null) return <Row label={en ? 'Age' : 'Idade'} value={pj.idade} />;
             return null;
           })()}
-          <Row label={en ? 'Profession'     : 'Profissão'}      value={pj.profissao} />
+          {/* Profissão com o desenho dela (17/09/2026) — o mesmo do card, da
+              mesma tabela, para as duas telas não divergirem. */}
+          <Row label={en ? 'Profession' : 'Profissão'} value={(() => {
+            const ic = (typeof iconeProfissao === 'function' ? iconeProfissao : window.iconeProfissao)?.(pj.profissao);
+            if (!pj.profissao) return null;
+            return (
+              <span className="fp-profissao">
+                {ic && <i className={'ti ' + ic} aria-hidden="true" />}
+                {pj.profissao}
+              </span>
+            );
+          })()} />
           <Row label={en ? 'Group'          :  'Grupo'}         value={pj.especializacao} />
           <Row label={en ? 'Kingdom'        : 'Reino'}          value={pj.reino} />
           <Row label={en ? 'God'            : 'Deus'}           value={pj.deus} />
@@ -1673,7 +1991,12 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
             <Row label={en ? 'Name' : 'Nome'} value={c.nome} />
             {instancia && instancia.observacao && <Row label={en ? 'Note' : 'Anotação'} value={instancia.observacao} />}
             <Row label={en ? 'Mount' : 'Montaria'} value={c.montaria === true ? (en ? 'Yes' : 'Sim') : (en ? 'No' : 'Não')} />
-            <Row label={en ? 'Type' : 'Tipo'} value={[c.tipo, c.subtipo].filter(Boolean).join(' · ')} />
+            {/* `elemento` entrou em 18/09/2026, junto com a coluna nova. Esta
+                linha mostrava "Animal · Ar" para a Águia porque o ELEMENTO
+                morava em `subtipo`; a migração o mudou de coluna, e sem
+                incluí-lo aqui as 15 criaturas elementais perderiam o dado na
+                ficha do animal. `subtipo` continua: ele é a espécie. */}
+            <Row label={en ? 'Type' : 'Tipo'} value={[c.tipo, c.subtipo, c.elemento].filter(Boolean).join(' · ')} />
             <Row label={en ? 'Stage' : 'Estágio'} value={c.estagio} />
             <Row label={en ? 'Weight' : 'Peso'} value={vazio(c.peso) ? null : `${c.peso} kg`} />
           </>
@@ -1818,6 +2141,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const [tecnicas, setTecnicas] = useState(null);
   const [habilidades, setHabilidades] = useState(null);
   const [historiaPj, setHistoriaPj] = useState(null);       // { id, protagonista_ids } — história em que o PJ ativo está
+  /* FALSE até a história ser buscada. Sem este sinal, `pausada` é undefined
+     durante o carregamento e o gate de pausa abaixo deixa a ficha INTEIRA
+     renderizar por um instante — com autosave e edição ligados. O Jogador
+     "não entrar" numa aventura pausada (17/09/2026) tem que valer também
+     nesse instante. */
+  const [historiaResolvida, setHistoriaResolvida] = useState(false);
   const [pjsDaHistoria, setPjsDaHistoria] = useState([]);   // [{id, nome, sobrenome, foto_url}] — outros protagonistas (alvos possíveis p/ magia)
   const [error, setError] = useState(null);
   const [eqErro, setEqErro] = useState(null);
@@ -1827,7 +2156,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const [fotoUploading, setFotoUploading] = useState(false);
   const [fotoErro, setFotoErro] = useState(null);
   const [editBar, setEditBar] = useState(null); // { item, scope, anchor } — popover de edição de barra
-  const [menuPecaId, setMenuPecaId] = useState(null);   // instanceId da peça equipada/vestida com menu de ação aberto (confirma desequipar/despir)
+  const [menuPecaId, setMenuPecaId] = useState(null);
+  // Retângulo da casa clicada: o menu da peça flutua ancorado nela.
+  const [menuPecaAnchor, setMenuPecaAnchor] = useState(null);   // instanceId da peça equipada/vestida com menu de ação aberto (confirma desequipar/despir)
   const [contFichaId, setContFichaId] = useState(null); // instanceId do container cujo conteúdo está aberto na ficha
   const [detalheCintoId, setDetalheCintoId] = useState(null); // instanceId do item (dentro do cinto) com detalhes abertos
   const [magiaDetalheKey, setMagiaDetalheKey] = useState(null); // key da magia com modal de detalhes aberto (fora de combate)
@@ -1852,6 +2183,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const cintoBtnRef = useRef(null);
   const fileFotoRef = useRef(null);
   const estadoTimer = useRef(null);
+  // Patch acumulado de estado_atual esperando o debounce (ver salvarEstadoAtual).
+  const patchEstadoRef = useRef({});
   useEffect(() => {
     if (!fpFull) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') setFpFull(false); };
@@ -1923,12 +2256,20 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       const histRes = await supabaseClient.from('historias')
         .select('id, protagonista_ids, pausada, data_jogo_atual').contains('protagonista_ids', [pjAtivoId]).maybeSingle();
       if (cancel) return;
+      setHistoriaResolvida(true);
       if (!histRes.error && histRes.data) {
         setHistoriaPj(histRes.data);
         const outrosIds = (histRes.data.protagonista_ids || []).filter((id) => id !== pjAtivoId);
         if (outrosIds.length > 0) {
-          const colegasRes = await supabaseClient.from('personagens')
-            .select('id, nome, sobrenome, foto_url').in('id', outrosIds);
+          /* Pela RPC, não pelo SELECT direto (15/09/2026).
+
+             A RLS de `personagens` só deixa o dono e o Mestre lerem: para o
+             JOGADOR, o select dos colegas voltava VAZIO, sem erro — a janela
+             de magia oferecia só "(Você)" e evocar num colega era impossível.
+             get_pjs_historia é SECURITY DEFINER e devolve os outros PJs da
+             mesma história; é a mesma porta que o inventário usa para
+             transferir item. */
+          const colegasRes = await supabaseClient.rpc('get_pjs_historia', { p_pj_id: pjAtivoId });
           if (cancel) return;
           setPjsDaHistoria(colegasRes.error ? [] : (colegasRes.data || []));
         } else {
@@ -1941,6 +2282,64 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     })();
     return () => { cancel = true; };
   }, [currentUserId, pjAtivoId, en]);
+
+  /* A ficha ABERTA acompanha o banco (24/09/2026). O relógio e o clima da mesa
+     gravam no estado_atual do PJ pela tela do Mestre (10-shell, desgaste), e a
+     ficha só lia a linha ao abrir: as barras ficavam paradas até recarregar,
+     parecendo que o clima não fazia nada.
+
+     Só o estado_atual é trazido — inventário e o resto têm os próprios
+     autosaves, e trocar a linha inteira atropelaria o que está em debounce.
+     Pela mesma razão, o patch ainda pendente (patchEstadoRef) é reaplicado por
+     cima do que chegou: o clique do usuário não pode sumir com o evento. A
+     linha é relida em vez de usar o payload porque ele pode vir sem jsonb
+     grande (TOAST). */
+  useEffect(() => {
+    if (!pjAtivoId || typeof supabaseClient.channel !== 'function') return undefined;
+    let cancel = false;
+    const channel = supabaseClient
+      .channel('ficha_pj_' + pjAtivoId + '_' + Math.random().toString(36).slice(2))
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'personagens', filter: 'id=eq.' + pjAtivoId },
+        async () => {
+          const { data, error: err } = await supabaseClient
+            .from('personagens').select('estado_atual').eq('id', pjAtivoId).maybeSingle();
+          if (cancel || err || !data) return;
+          const novo = mesclarEstado(data.estado_atual, patchEstadoRef.current);
+          setPj((prev) => (prev && prev.id === pjAtivoId ? { ...prev, estado_atual: novo } : prev));
+        })
+      .subscribe();
+    return () => { cancel = true; supabaseClient.removeChannel(channel); };
+  }, [pjAtivoId]);
+
+  /* A ficha ABERTA acompanha a MESA (revisão de 24/09/2026). historiaPj era
+     lido uma vez, ao abrir, e três coisas ficavam velhas enquanto o Mestre
+     mexia na barra do topo:
+       • o vento — a Velocidade só mudava depois de recarregar;
+       • a data — status vencidos continuavam na ficha, e um status novo
+         contava o prazo a partir do dia VELHO (vencia antes da hora);
+       • a pausa — o Jogador seguia dentro de uma mesa já pausada.
+     O UPDATE traz a linha nova inteira; só estes campos são copiados. */
+  const historiaPjId = historiaPj && historiaPj.id;
+  useEffect(() => {
+    if (!historiaPjId || typeof supabaseClient.channel !== 'function') return undefined;
+    const channel = supabaseClient
+      .channel('ficha_mesa_' + historiaPjId + '_' + Math.random().toString(36).slice(2))
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'historias', filter: 'id=eq.' + historiaPjId },
+        (payload) => {
+          const nova = payload && payload.new;
+          if (!nova) return;
+          setHistoriaPj((prev) => (prev && prev.id === nova.id ? {
+            ...prev,
+            ...('data_jogo_atual' in nova ? { data_jogo_atual: nova.data_jogo_atual } : {}),
+            ...('pausada' in nova ? { pausada: nova.pausada } : {}),
+            ...('protagonista_ids' in nova ? { protagonista_ids: nova.protagonista_ids } : {}),
+          } : prev));
+        })
+      .subscribe();
+    return () => { supabaseClient.removeChannel(channel); };
+  }, [historiaPjId]);
 
   // Fecha dropdown clicando fora.
   useEffect(() => {
@@ -2040,6 +2439,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   if (!pj || catalogo === null || magias === null || tecnicas === null || habilidades === null) {
     return <Carregando lang={lang} />;
   }
+  /* O Jogador espera a história ser resolvida ANTES de ver qualquer coisa —
+     ver historiaResolvida. O Mestre não espera: ele entra em mesa pausada de
+     qualquer jeito, e para ele esta busca só alimenta a lista de alvos. */
+  if (!isMestre && !historiaResolvida) {
+    return <Carregando lang={lang} />;
+  }
 
   // História pausada pelo Mestre → bloqueia o ACESSO à ficha, mas só pro
   // Jogador. isMestre=true SEMPRE passa reto, mesmo com a história pausada
@@ -2069,7 +2474,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // 3º argumento (condições atuais): cascateia o efeito de condição pra
   // atributos, EF/EH/RF/RM/Karma/Velocidade e totais de habilidade/magia/
   // técnica — todos derivam de `ficha.atributos`/`ficha.derivadas` abaixo.
-  const ficha = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes);
+  /* O VENTO DA MESA entra na Velocidade Base (20/09/2026). É o único fator da
+     ficha que não vem do personagem: sai de historias.data_jogo_atual.tempo e
+     penaliza 1 a 4 pontos enquanto sopra, voltando sozinho quando para. Nada
+     é gravado no PJ — ver 01-core/clima-desgaste.jsx.
+     PJ fora de mesa não tem clima, e aí o parâmetro é undefined: a conta é a
+     de sempre. */
+  const ventoDaMesa = historiaPj?.data_jogo_atual?.tempo?.vento;
+  const ficha = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes, ventoDaMesa);
   const ataques = gerarAtaques(pj, catalogoBySlug, magiasByKey, ficha.atributos);
 
   const slotsState = getSlotsState(pj.inventario?.itens || [], catalogoBySlug, pj.raca);
@@ -2084,7 +2496,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // Mesmo critério de calcArmadura e calcularFicha — ver pecaNoCorpo.
   const _absorcaoEquipadaPre = (pj.inventario?.itens || []).reduce((soma, it) => {
     const cat = pecaNoCorpo(it) ? catalogoBySlug[it.slug] : null;
-    return soma + (cat ? (Number(cat.absorcao) || 0) : 0);
+    return soma + (cat ? absorcaoDaPeca(it, cat) : 0);
   }, 0);
   const maximosVitalidade = {
     ef: Number(_dPre.energiaFisica) || 0,
@@ -2097,15 +2509,29 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // salvarEstadoAtual: grava personagens.estado_atual com debounce (mesmo
   // espírito do autosave de inventário). Usada tanto pela edição manual do
   // Mestre (aplicarEstado, mais abaixo) quanto pelos efeitos de item abaixo.
+  /* Grava só o que MUDOU (15/09/2026). Antes mandava o objeto inteiro montado
+     sobre a cópia carregada ao abrir a ficha — e apagava o que o inventário do
+     jogador, a fila de magia ou a batalha tivessem gravado nesse meio tempo.
+     Era isso que fazia a barra "voltar sozinha" depois de alterada.
+     Ver patchDeEstado/gravarEstadoAtual (01-core/inventario-helpers.jsx). */
   const salvarEstadoAtual = (novoEstado) => {
     if (!pj) return;
     const id = pj.id;
+    const patch = patchDeEstado(pj.estado_atual, novoEstado);
     setPj((prev) => (prev ? { ...prev, estado_atual: novoEstado } : prev)); // otimista
+    if (Object.keys(patch).length === 0) return;
+    // Acumula entre disparos: cliques seguidos no mesmo popover viram um
+    // patch só, e nenhum deles se perde no debounce.
+    patchEstadoRef.current = mesclarEstado(patchEstadoRef.current, patch);
     if (estadoTimer.current) clearTimeout(estadoTimer.current);
     estadoTimer.current = setTimeout(async () => {
-      const { error: err } = await supabaseClient
-        .from('personagens').update({ estado_atual: novoEstado }).eq('id', id);
-      if (err) setEqErro(err.message);
+      const pendente = patchEstadoRef.current;
+      patchEstadoRef.current = {};
+      const { data, error: err } = await gravarEstadoAtual(id, pendente);
+      if (err) { setEqErro(err.message); return; }
+      // O que voltou é a linha do banco com o patch aplicado: traz junto o que
+      // outra tela mudou, em vez de deixar a ficha com um retrato velho.
+      if (data) setPj((prev) => (prev && prev.id === id ? { ...prev, estado_atual: data } : prev));
     }, 400); // mesmo espírito do debounce de inventário
   };
   // aplicarEstadoEfeito — porta de gravação SEM o gate de isMestre: aplica
@@ -2232,6 +2658,17 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const it = itens.find((x) => x.instanceId === instanceId);
     if (!it) return;
     const qtdRemover = quantidade ?? it.quantidade;
+    /* Descartar vira linha na mesa (15/09/2026) — o mesmo texto do Inventário,
+       porque o item pode sair por qualquer uma das duas telas. */
+    const catDescartado = catalogoBySlug[it.slug];
+    const nomePjDescarte = [pj.nome, pj.sobrenome].filter(Boolean).join(' ');
+    if (catDescartado && nomePjDescarte) {
+      const quanto = qtdRemover > 1 ? `${qtdRemover}× ` : '';
+      registrarEventoMesa('item', en
+        ? `${nomePjDescarte} discarded ${quanto}${catDescartado.nome}.`
+        : `${nomePjDescarte} descartou ${quanto}${catDescartado.nome}.`,
+        { item: catDescartado.nome, quantidade: qtdRemover, instanceId, acao: 'descartar' });
+    }
     if (qtdRemover >= it.quantidade) {
       // remoção total: tira o item (e filhos, caso fosse container — não é, dentro do cinto)
       salvarItensFicha(itens.filter((x) => x.instanceId !== instanceId && x.containerId !== instanceId));
@@ -2315,7 +2752,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     if (!mag) return;
     const nomePj = [pj?.nome, pj?.sobrenome].filter(Boolean).join(' ');
     const nomeAlvo = alvo ? alvo.nome : null;
-    const emMim = !alvo || String(alvo.id) === String(pj.id);
+    /* 'self' ainda é aceito aqui por segurança: foi o id que a janela usou
+       até 15/09/2026, e uma aba aberta desde antes continua mandando ele. */
+    const emMim = !alvo || String(alvo.id) === String(pj.id) || String(alvo.id) === 'self';
 
     const motivo = (typeof motivoNaoAplicaNaFicha === 'function')
       ? motivoNaoAplicaNaFicha(mag, nivel) : 'narrativa';
@@ -2448,8 +2887,57 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // efeito_positivo/negativo de item (usar/vestir/despir), pois isso não é
   // edição manual da barra — é consequência mecânica de uma ação de item.
   const podeEditarEstado = !!isMestre;
+  /* Resistência de UMA peça (15/09/2026): "quero poder escolher qual parte da
+     armadura vou remover a resistência". A durabilidade mora na instância do
+     item (`res`), então é lá que se grava — a barra da ficha é só a soma. */
+  const ajustarResistenciaDaPeca = (instanceId, novoValor) => {
+    if (!podeEditarEstado || !pj) return;
+    const itens = pj.inventario?.itens || [];
+    const alvo = itens.find((it) => it.instanceId === instanceId);
+    if (!alvo) return;
+    const max = Number(catalogoBySlug[alvo.slug]?.resistencia) || 0;
+    const v = Math.max(0, Math.min(max, Math.round(Number(novoValor) || 0)));
+    salvarItensFicha(itens.map((it) => (it.instanceId === instanceId ? { ...it, res: v } : it)));
+  };
+  /* EXPERIÊNCIA (17/09/2026). A barra de Estágio é a única do conjunto que NÃO
+     mora em estado_atual: o XP é coluna da tabela (personagens.experiencia), e
+     é ela que o popover grava. Sem debounce — clicar de novo antes do update
+     anterior voltar é raro aqui (XP se concede uma vez, não é dano em cascata),
+     e o valor gravado é absoluto, então o último clique manda de qualquer jeito.
+
+     Subir de estágio vira linha EM DESTAQUE na mesa. O disparo morava no
+     DarExperienciaModal (08-personagens), que saiu junto com o botão do card;
+     veio para cá inteiro porque é aqui que a experiência muda agora. */
+  const salvarExperiencia = async (xpNovo) => {
+    if (!podeEditarEstado || !pj) return;
+    const xpAntes = Number(pj.experiencia) || 0;
+    const xp = Math.max(0, Math.round(Number(xpNovo) || 0));
+    if (xp === xpAntes) return;
+    const id = pj.id;
+    setPj((prev) => (prev && prev.id === id ? { ...prev, experiencia: xp } : prev)); // otimista
+    const { error: err } = await supabaseClient
+      .from('personagens').update({ experiencia: xp }).eq('id', id);
+    if (err) {
+      console.error('[xp] update falhou:', err);
+      setEqErro(err.message);
+      setPj((prev) => (prev && prev.id === id ? { ...prev, experiencia: xpAntes } : prev));
+      return;
+    }
+    const estAntes = calcEstagio(xpAntes);
+    const estDepois = calcEstagio(xp);
+    // Só sobe: descer de estágio não vira festa.
+    if (estDepois > estAntes) {
+      const nomeCompleto = [pj.nome, pj.sobrenome].filter(Boolean).join(' ');
+      registrarEventoMesa('sistema',
+        en ? `${nomeCompleto} reached stage ${estDepois}!`
+           : `${nomeCompleto} alcançou o estágio ${estDepois}!`,
+        { destaque: true, icone: 'ti-star', pj_id: id, estagio_de: estAntes, estagio_para: estDepois });
+    }
+  };
+
   const aplicarEstado = (scope, key, val) => {
     if (!podeEditarEstado || !pj) return;
+    if (scope === 'estagio') { salvarExperiencia(val); return; }
     const base = pj.estado_atual || {};
     const novo = {
       ...base,
@@ -2462,11 +2950,47 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     else novo.vitalidade[key] = val;
     salvarEstadoAtual(novo);
   };
+  /* STATUS PERSISTENTE (17/09/2026) — a metade "fora da batalha". Grava em
+     estado_atual.status, que é o mesmo lugar de onde montarSnapshots puxa os
+     efeitos ao começar o combate seguinte. */
+  const dataJogoDaMesa = (historiaPj && historiaPj.data_jogo_atual) || null;
+  const adicionarStatus = (bruto, dias) => {
+    if (!podeEditarEstado || !pj || !bruto) return;
+    const comPrazo = window.statusComVencimento(bruto, dataJogoDaMesa, dias);
+    const lista = window.comStatusPersistente(pj.estado_atual && pj.estado_atual.status, comPrazo);
+    salvarEstadoAtual({ ...(pj.estado_atual || {}), status: lista });
+  };
+  /* Atividade (24/09/2026). O jogador mexe no próprio personagem, o Mestre em
+     qualquer um da mesa. Grava a atividade INTEIRA, sem as horas de sono que
+     sobraram: trocar de atividade ou acordar zera o ciclo de 8h. */
+  const podeEscolherAtividade = !!isMestre || (!!pj && !!currentUserId && pj.user_id === currentUserId);
+  const definirAtividade = (tipo) => {
+    if (!podeEscolherAtividade || !pj) return;
+    const antes = (pj.estado_atual && pj.estado_atual.atividade && pj.estado_atual.atividade.tipo) || null;
+    if (antes === (tipo || null)) return;
+    salvarEstadoAtual({ ...(pj.estado_atual || {}), atividade: tipo ? { tipo, horas_sono: 0 } : null });
+    const texto = window.textoEventoAtividade && window.textoEventoAtividade(pj.nome, antes, tipo, en);
+    if (texto && historiaPj && historiaPj.id && typeof supabaseClient.rpc === 'function') {
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaPj.id, p_tipo: 'sistema', p_texto: texto,
+        p_meta: { atividade: { de: antes, para: tipo || null } },
+      }).then(({ error: e }) => { if (e) console.error('[ficha] registrar atividade falhou:', e); });
+    }
+  };
+  const removerStatus = (id) => {
+    if (!podeEditarEstado || !pj) return;
+    const lista = window.semStatusPersistente(pj.estado_atual && pj.estado_atual.status, id);
+    salvarEstadoAtual({ ...(pj.estado_atual || {}), status: lista });
+  };
+
   const abrirEdicaoBarra = (item, scope, anchor) => {
     if (!podeEditarEstado) return;
     if ((item.max ?? 0) === 0) return; // sem armadura / KA sem karma — nada a editar
     if (item.semEdicao) return;          // derivada das peças (resistência da armadura)
-    setEditBar({ item, scope, anchor });
+    /* `edit` (Estágio): o que a barra DESENHA não é o que o popover EDITA —
+       a barra mostra o progresso dentro do estágio, o popover mexe no XP
+       total. Quem não traz `edit` continua editando o próprio val/max. */
+    setEditBar({ item: item.edit ? { ...item, ...item.edit } : item, scope, anchor });
   };
 
   // Armadura (AR): pool de absorção. Usa campo derivado se existir;
@@ -2474,7 +2998,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const _d = ficha.derivadas || {};
   const absorcaoEquipada = (pj.inventario?.itens || []).reduce((soma, it) => {
     const cat = (it && (it.slot || it.vestido)) ? catalogoBySlug[it.slug] : null;
-    return soma + (cat ? (Number(cat.absorcao) || 0) : 0);
+    return soma + (cat ? absorcaoDaPeca(it, cat) : 0);
   }, 0);
   const arVal = Number(_d.armadura ?? _d.ar ?? absorcaoEquipada) || 0;
   const arMax = Number(_d.armaduramax ?? _d.armadura_max ?? _d.armaduraMax ?? arVal) || arVal;
@@ -2499,16 +3023,29 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const estagioFaltaPct = Math.round((1 - estagioPct) * 100);
   // Sem o número no rótulo (14/09/2026, a pedido do usuário); o tooltip
   // continua dizendo em qual estágio o personagem está e quanto falta.
+  /* A BARRA MOSTRA O PROGRESSO DENTRO DO ESTÁGIO, MAS O QUE SE EDITA É O XP
+     TOTAL (17/09/2026): "ao clicar sobre a barra de experiência dentro da ficha
+     o mestre será capaz de aumentar e diminuir a experiência como as outras
+     barras". Se o popover trabalhasse no val/max da barra, o Mestre ficaria
+     preso dentro do estágio atual — e conceder experiência é justamente o que
+     faz o personagem SAIR dele. Daí o `edit`: a faixa que o popover usa, do
+     zero ao teto da última faixa da tabela de estágios. */
+  const xpMaximo = Math.max(xpTotal, (_estagiosTbl[_estagiosTbl.length - 1] || { max: 0 }).max || 0);
   const estagioBars = [{
     key: 'estagio',
-    label: (en ? 'Stage' : 'Estágio'),
+    /* "Onde está escrito 'Estágio' deve ser 'Experiência'" (usuário,
+       17/09/2026). A barra mede o XP dentro do estágio e é por ela que o
+       Mestre concede experiência — o estágio em si é o NÚMERO, que aparece ao
+       lado do nome no card. O rótulo agora diz o que se lê e o que se edita. */
+    label: (en ? 'Experience' : 'Experiência'),
     val: estagioXpAtual,
     max: estagioSpan,
+    edit: { val: xpTotal, min: 0, max: xpMaximo },
     tip: (en ? `Stage ${estagioNum} — ${estagioFaltaPct}% left` : `Estágio ${estagioNum} — ${estagioFaltaPct}% para o estágio ${estagioNum+1}`),
-    color: '#C9A44E',
+    color: corNivelBarra(estagioPct),
     icon: 'ti-star',
   }];
-  const elEstagio = <FichaVitBars bars={estagioBars} scope="estagio" en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
+  const elEstagio = <FichaVitBars bars={estagioBars} scope="estagio" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
 
   // Estado atual salvo (valor corrente das barras) — separado do máximo derivado.
   const _est   = pj.estado_atual || {};
@@ -2548,43 +3085,18 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const montariaAtual = animaisPj.find((a) => a.instancia.montado && a.criatura.montaria === true) || null;
   const ehDaMontaria = montariaAtual ? Math.max(0, Number(montariaAtual.criatura.energia_heroica) || 0) : 0;
   const vitBars = [
-    { key: 'ef', label: en ? 'Physical Energy' : 'Energia Física', val: _clampVal(_vitAt.ef ?? maxEF, maxEF), max: maxEF, icon: 'ti-heart' },
+    { key: 'ef', label: en ? 'Physical Energy' : 'Energia Física', val: _clampVal(_vitAt.ef ?? maxEF, maxEF), max: maxEF, icon: 'ti-heartbeat' },
     { key: 'eh', label: en ? 'Heroic Energy' : 'Energia Heroica',
-      val: _clampVal(_vitAt.eh ?? maxEH, maxEH) + ehDaMontaria, max: maxEH + ehDaMontaria, icon: 'ti-heart',
+      val: _clampVal(_vitAt.eh ?? maxEH, maxEH) + ehDaMontaria, max: maxEH + ehDaMontaria, icon: 'ti-bolt',
       ...(ehDaMontaria > 0 ? { tip: en
         ? `Includes ${ehDaMontaria} from ${montariaAtual.criatura.nome} (mount).`
         : `Inclui ${ehDaMontaria} de ${montariaAtual.criatura.nome} (montaria).` } : {}) },
-    /* ARMADURA (12/09/2026): a barra deixou de ser a absorção. Com a regra do
-       limiar, a absorção é um número FIXO — golpe até ele é bloqueado, acima
-       dele gasta resistência — e nunca esvazia, então a barra ficava sempre
-       cheia e não dizia nada. O que se GASTA é a resistência das peças, e é
-       ela que a barra mostra agora. A absorção vira o selo ao lado do nome,
-       com o bônus de elixir quando há (o elixir continua valendo).
-       O selo (ícone + número) saiu em 14/09/2026, a pedido do usuário: a
-       absorção fica só no tooltip da barra. */
-    (() => {
-      const _pecasFn = (typeof pecasDeArmadura !== 'undefined' ? pecasDeArmadura : null) || window.pecasDeArmadura || null;
-      const pecas = _pecasFn ? _pecasFn(pj, catalogoBySlug) : [];
-      const resMax = pecas.reduce((s, pc) => s + pc.res_max, 0);
-      const resCur = pecas.reduce((s, pc) => s + pc.res, 0);
-      /* PISO NO EQUIPAMENTO (14/09/2026): "Porque o Yuldrous tem 21 de
-         absorção e 32 de resistência?" — estado_atual.vitalidade.ar guardava
-         21, sobra do tempo em que a absorção era poça que esvaziava. O valor
-         gravado só pode SOMAR (elixir de Absorção); abaixo do que as peças dão
-         ele é velho e não vale. */
-      const absAtual = Math.max(arMax, Math.round(Number(_vitAt.ar ?? arVal) || 0));
-      const bonus = Math.max(0, absAtual - arMax);
-      const absTxt = bonus > 0 ? `${arMax} (+${bonus})` : String(absAtual);
-      return {
-        key: 'res', label: en ? 'Armor' : 'Armadura', val: resCur, max: resMax, icon: 'ti-shield',
-        semEdicao: true,
-        tip: resMax === 0 && absAtual === 0
-          ? (en ? 'No armor equipped.' : 'Nenhuma armadura equipada.')
-          : (en
-            ? `Absorption ${absTxt} · Durability ${resCur}/${resMax}`
-            : `Absorção ${absTxt} · Resistência ${resCur}/${resMax}`),
-      };
-    })(),
+    /* A barra de Armadura (resistência + absorção) SAIU em 15/09/2026:
+       "pode remover a barra de defesa e resistência que fica debaixo de
+       energia heroica. O personagem vai acompanhar sua defesa e resistência
+       nos slots." Cada peça mostra a própria durabilidade na casa do corpo,
+       e é lá que o Mestre a gerencia agora (ver o menu da peça). */
+
     // KA com teto 0 não é "karma gasto", é karma INEXISTENTE: a fórmula zera
     // o pool quando a Aura do PJ é menor que 1. Sem esta explicação o Mestre
     // clica na barra e nada acontece — foi o relato de 03/09/2026 ("não
@@ -2596,7 +3108,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         ? (en ? 'No Karma: this character’s Aura is below 1.'
               : 'Sem Karma: a Aura deste personagem é menor que 1.')
         : undefined },
-  ];
+  /* Guerreiro e Ladino não têm Karma (15/09/2026, decisão do usuário): eles
+     não conjuram, e a barra só ocupava espaço com um poço que nunca é usado.
+     Some da ficha em vez de aparecer vazia. */
+  ].filter((b) => !(b.key === 'ka' && SEM_KARMA.has(pj.profissao)));
 
   // Velocidade/Resistência Física/Resistência Mágica como barras (a pedido
   // do usuário — antes eram fp2Stat, linha rótulo:valor simples). Defesa
@@ -2611,15 +3126,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // ── Helpers de cor especializados por condição ─────────────────────────────
   // Cada função recebe o valor bruto e retorna uma cor CSS interpolada.
 
-  // Peso: 0% → verde, 100% → vermelho (continuo, sem sinal).
-  // pct = _cargaPct (0..100).
-  const corPesoCarga = (pct) => {
-    const t = Math.max(0, Math.min(1, (pct ?? 0) / 100));
-    const r = Math.round(t < 0.5 ? (t * 2) * 160 : 160 + (t - 0.5) * 2 * 94);
-    const g = Math.round(t < 0.5 ? 160 - (t * 2) * 30 : 130 - (t - 0.5) * 2 * 130);
-    const b = Math.round(t < 0.5 ? 30 * (1 - t * 2) : 0);
-    return `rgb(${r},${g},${b})`;
-  };
+  // (corPesoCarga saiu em 15/09/2026: Peso passou a usar a régua de nível
+  //  roxo/branco/verde, igual às barras de vitalidade.)
 
   // Temperatura: baixo(-COND_LIMITE) = azul claro, meio(0) = verde, alto(+COND_LIMITE) = vermelho.
   // val = valor bruto no intervalo [-limite..+limite].
@@ -2672,7 +3180,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       const tipPeso = (en ? `${pesoVal} / ${capVal}` : `${pesoVal} / ${capVal}`)
         + (estadoPeso ? ` — ${estadoPeso}` : '');
       // Peso: gradiente contínuo verde (0%) → vermelho (100%) baseado em _cargaPct.
-      return { key: 'peso', label: en ? 'Weight' : 'Peso', val: pesoVal, max: capVal || 1, color: corPesoCarga(_cargaPct), icon: 'ti-weight', tip: tipPeso };
+      return { key: 'peso', label: en ? 'Weight' : 'Peso', val: pesoVal, max: capVal || 1, color: corNivelBarra(1 - (_cargaPct / 100)), icon: 'ti-weight', tip: tipPeso };
     })(),
   ];
   const elCombate = <FichaVitBars bars={combatBars} scope="combate" en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
@@ -2805,7 +3313,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // o slot é considerado preenchido para não esconder itens equipados.
     const filled = !!it;
     const catOk = filled && !!cat;
-    const abs = catOk ? (Number(cat.absorcao) || 0) : 0;
+    const abs = catOk ? absorcaoDaPeca(it, cat) : 0;
+    // Sagração da peça (15/09/2026): o tooltip mostra o total e o bônus à parte.
+    const bonusSag = catOk ? bonusDoItem(it) : 0;
+    const comBonus = (base) => (bonusSag > 0 ? `${Number(base) + bonusSag} (+${bonusSag})` : base);
     /* Resistência (durabilidade) da peça — mesma barra do inventário.
 
        É na ficha que o jogador olha a armadura antes de entrar em combate,
@@ -2834,8 +3345,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       title: cat.nome || it.slug,
       desc: [cat.descricao, cat.efeito ? `${en ? 'Effect' : 'Efeito'}: ${cat.efeito}` : null].filter(Boolean).join(' '),
       stats: [
-        cat.dano != null ? { label: en ? 'Damage' : 'Dano', value: cat.dano } : null,
-        Number(cat.absorcao) > 0 ? { label: en ? 'Absorb' : 'Absorção', value: cat.absorcao } : null,
+        cat.dano != null ? { label: en ? 'Damage' : 'Dano', value: destinoBonusItem(cat) === 'dano' ? comBonus(cat.dano) : cat.dano } : null,
+        Number(cat.absorcao) > 0 ? { label: en ? 'Absorb' : 'Absorção', value: destinoBonusItem(cat) === 'absorcao' ? comBonus(cat.absorcao) : cat.absorcao } : null,
         resMax > 0 ? { label: en ? 'Durability' : 'Resistência', value: `${resAtual}/${resMax}` } : null,
       ].filter(Boolean),
     } : null;
@@ -2850,7 +3361,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           ...fpItemBgStyle(bg, ghost),
           ...(!filled || !podeEditarInv ? { cursor: 'default' } : {}),
         }}
-        onClick={filled && podeEditarInv ? () => { fecharTip(); setMenuPecaId(it.instanceId); setJoiasOpen(false); setBrincosOpen(false); setCintoOpen(false); } : undefined}
+        onClick={filled && podeEditarInv ? (ev) => { fecharTip(); setMenuPecaAnchor(ev.currentTarget.getBoundingClientRect()); setMenuPecaId(it.instanceId); } : undefined}
         onMouseEnter={filled && tipContent ? (e) => abrirTip(e, tipContent) : undefined}
         onMouseLeave={filled && tipContent ? fecharTip : undefined}
         onFocus={filled && tipContent ? (e) => abrirTip(e, tipContent) : undefined}
@@ -3135,7 +3646,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                     ? fpItemBgStyle(FP_REGION_BG['orelha'], brincosItens.length === 0)
                     : {}),
                 }}
+                /* Sem brinco equipado não há o que mostrar: o clique não abre
+                   nada (16/09/2026, pedido do usuário). */
                 onClick={() => {
+                  if (brincosItens.length === 0) return;
                   if (brincosBtnRef.current) setBrincosRect(brincosBtnRef.current.getBoundingClientRect());
                   setBrincosOpen((v) => !v);
                 }}
@@ -3209,6 +3723,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                     : {}),
                 }}
                 onClick={() => {
+                  if (roupasItens.length === 0) return;   // sem roupa, não abre
                   if (roupasBtnRef.current) setRoupasRect(roupasBtnRef.current.getBoundingClientRect());
                   setRoupasOpen((v) => !v);
                 }}
@@ -3262,6 +3777,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                     : {}),
                 }}
                 onClick={() => {
+                  if (dedosItens.length === 0) return;   // sem joia, não abre
                   if (joiasBtnRef.current) setJoiasRect(joiasBtnRef.current.getBoundingClientRect());
                   setJoiasOpen((v) => !v);
                 }}
@@ -3315,6 +3831,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                     : {}),
                 }}
                 onClick={() => {
+                  if (cintoItens.length === 0) return;   // sem cinto, não abre
                   if (cintoBtnRef.current) setCintoRect(cintoBtnRef.current.getBoundingClientRect());
                   setCintoOpen((v) => !v);
                 }}
@@ -3412,6 +3929,19 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       <section className="fp2-panel fp2-vit-section">
         <div className="fp2-panel-body fp2-vit-band">{elVit}</div>
       </section>
+      {/* Status logo abaixo da vitalidade: é dela que Morto e Desmaiado saem,
+          e é ali que o Mestre já está quando mexe no estado do personagem. */}
+      <section className="fp2-panel">
+        <div className="fp2-panel-body fp2-vit-band">
+          <FichaStatusPainel
+            lista={pj.estado_atual && pj.estado_atual.status}
+            dataJogo={dataJogoDaMesa}
+            podeEditar={podeEditarEstado}
+            lang={lang}
+            onRemover={removerStatus}
+          />
+        </div>
+      </section>
       <section className="fp2-panel">
         <div className="fp2-panel-body fp2-vit-band">{elCombate}</div>
       </section>
@@ -3451,20 +3981,33 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   };
   const fpTabsEl = (
     <header className="ms-header ficha-page-header">
-      <button
-        type="button"
-        className="btn-icon btn-sm"
-        onClick={onVoltar}
-        aria-label={en ? 'Back to characters' : 'Voltar aos personagens'}
-        onMouseEnter={tabTipLabel(en ? 'Back to characters' : 'Voltar aos personagens')}
-        onMouseLeave={fecharTabTip}>
-        <i className="ti ti-arrow-left" aria-hidden="true" />
-      </button>
+      {/* NÃO HÁ SETA DE VOLTAR (17/09/2026). Ela saiu quando o "Sair" nomeado
+          entrou, voltou por um momento para o Mestre — que tinha ficado sem
+          saída — e saiu de vez quando o usuário apontou o caminho certo: "o
+          mestre ainda pode clicar no menu 'personagens' e voltar a seleção de
+          personagens".
+
+          Era preciso uma mudança para isso valer: clicar na seção já aberta
+          não fazia nada, porque `setCurrentId` recebia o mesmo valor. Agora a
+          barra lateral conta os toques e a lista do Mestre fecha a ficha
+          (`voltarToken`, 08-personagens/personagens.jsx).
+
+          O Jogador segue com o "Sair" na fileira das abas: para ele sair
+          significa DESLIGAR o personagem, e isso precisa de um gesto próprio —
+          "quem persiste no personagem escolhido é o jogador". */}
       <div className="fp-flex-fill">
         {/* O número do estágio, dourado, ao lado do nome saiu em 14/09/2026
             (pedido do usuário). O estágio segue em Informações → Derivadas. */}
         <div className="ficha-page-eyebrow">{en ? 'Character' : 'Personagem'}</div>
-        <h2 className="ms-title" style={{ margin: 0 }}>{nomeCompleto}</h2>
+        <h2 className="ms-title" style={{ margin: 0 }}>
+          {/* O mesmo ícone do card, no cabeçalho: quem abre a ficha continua
+              vendo de que profissão é o personagem sem ir às Informações. */}
+          {(() => {
+            const ic = (typeof iconeProfissao === 'function' ? iconeProfissao : window.iconeProfissao)?.(pj.profissao);
+            return ic ? <i className={'ti ' + ic + ' fp-titulo-profissao-ic'} aria-hidden="true" /> : null;
+          })()}
+          {nomeCompleto}
+        </h2>
       </div>
       <div className="diario-subtabs" role="tablist" style={{ margin: 0 }}>
         {navSlot /* slot p/ o botão "Batalha" (08-personagens/FichaComBatalha) */}
@@ -3472,6 +4015,24 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           onClick={() => setFpTab('ficha')}>
           {en ? 'Sheet' : 'Ficha'}
         </button>
+        {/* O círculo de status, ao lado de "Ficha" (17/09/2026). Só o Mestre o
+            vê: é ele quem aplica. Não é aba — não seleciona nada —, por isso
+            fica fora do role="tab". */}
+        {podeEditarEstado && (
+          <FichaStatusSeletor
+            lista={pj.estado_atual && pj.estado_atual.status}
+            dataJogo={dataJogoDaMesa}
+            lang={lang}
+            onAdicionar={adicionarStatus}
+          />
+        )}
+        {/* A atividade (24/09/2026): Mestre e dono do personagem escolhem. */}
+        <FichaAtividadeSeletor
+          atividade={pj.estado_atual && pj.estado_atual.atividade}
+          podeEditar={podeEscolherAtividade}
+          lang={lang}
+          onEscolher={definirAtividade}
+        />
         {/* Texto, como as outras abas. Era ícone só, e o rótulo vivia no
             tooltip — a aba destoava das vizinhas e exigia hover pra saber o
             que era (08/09/2026). Sem tooltip: com o nome escrito, é redundante. */}
@@ -3494,6 +4055,29 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           onClick={() => setFpTab('loja')}>
           {en ? 'Shop' : 'Loja'}
         </button>
+        {/* SAIR É DO JOGADOR (17/09/2026): "o botão de 'sair' não precisa
+            mostrar para o mestre, pois ele não precisa selecionar o
+            personagem."
+
+            Sair quer dizer "desligar este personagem para escolher outro" — um
+            gesto que só existe para quem TEM personagem ativo. Para o Mestre a
+            mesma porta significa apenas fechar a ficha alheia, e para isso ele
+            tem a seta neutra no canto do cabeçalho: ela voltou junto com esta
+            mudança, porque sem ela o Mestre ficava sem saída nenhuma.
+
+            Não é aba — não seleciona nada, sai da tela —, por isso fica fora
+            do role="tab" e ganha a pele de saída.
+
+            SÓ O TEXTO (20/09/2026): "remova o botão de sair, deixe apenas o
+            texto 'sair'" (usuário). O que saiu foi o ÍCONE de logout — a pele
+            de btn-ghost continua, que é o fundo dos outros itens da fileira
+            ("está sem o fundo igual os outros menus", mesmo dia). Cheguei a
+            tirar as duas coisas e ficou destoando do resto da barra. */}
+        {!isMestre && (
+          <button type="button" className="btn-ghost btn-sm fp-tab-sair" onClick={onVoltar}>
+            {en ? 'Leave' : 'Sair'}
+          </button>
+        )}
         {/* A aba DIÁRIO saiu da ficha para TODOS em 12/09/2026. Primeiro do
             Jogador (virou Lugares, Personagens e Memórias na barra lateral);
             depois também do Mestre, a pedido do usuário. A liberação de lore
@@ -3607,7 +4191,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
               desequiparFicha) apagava o efeito do item usado no Inventário.
               `estadoAtualSeed` fecha o sentido inverso — ver o cabeçalho do
               InventarioList e 11-ficha/estado-handoff.test.js. */}
-          <InventarioList ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} onInventarioChange={(novoInv) => setPj((prev) => prev ? { ...prev, inventario: novoInv } : prev)} onEstadoChange={(novoEstado) => setPj((prev) => prev ? { ...prev, estado_atual: novoEstado } : prev)} estadoAtualSeed={pj?.estado_atual} maximos={{ ef: maxEF, eh: maxEH, ka: maxKA, ar: arMax }} />
+          <InventarioList ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} onInventarioChange={(novoInv) => setPj((prev) => prev ? { ...prev, inventario: novoInv } : prev)} onEstadoChange={(novoEstado) => setPj((prev) => prev ? { ...prev, estado_atual: novoEstado } : prev)} estadoAtualSeed={pj?.estado_atual} maximos={{ ef: maxEF, eh: maxEH, ka: maxKA, ar: arMax }} isMestre={!!isMestre} />
         </div>
       ) : fpTab === 'loja' ? (
         <div className="fp-invtab">
@@ -3692,23 +4276,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           aria-label={en ? 'Jewel slots' : 'Slots de joia'}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Card visual — overflow:hidden clipa o ::before no border-radius */}
-          <div className="fp2-joias-card">
-            {/* Cabeçalho */}
-            <div className="fp2-joias-card-head">
-              <span className="fp2-slot-lbl">
-                {en ? 'Accessories' : 'Acessórios'}
-              </span>
-              <button
-                type="button"
-                className="btn-icon btn-sm"
-                onClick={() => setJoiasOpen(false)}
-                aria-label={en ? 'Close' : 'Fechar'}
-              >
-                <i className="ti ti-x" aria-hidden="true" />
-              </button>
-            </div>
-
+          {/* Sem card (16/09/2026): só os slots, flutuando. */}
+          <div className="fp2-slot-flutuante">
             {/* 4 slots em linha única */}
             <div className="fp2-slot-cluster">
               {Array.from({ length: 4 }).map((_, idx) =>
@@ -3718,7 +4287,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           </div>
 
           {/* Seta: irmã do card, fora do overflow:hidden — aponta para o botão */}
-          <div className="fp2-joias-arrow" aria-hidden="true" />
         </div>
       </div>,
       /* portal dentro de #root para que "#root .menestrel-ui .*" case */
@@ -3743,13 +4311,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           aria-label={en ? 'Earring slots' : 'Slots de brinco'}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="fp2-joias-card" style={{ '--joias-card-w': '174px', '--joias-cols': 2 }}>
-            <div className="fp2-joias-card-head">
-              <span className="fp2-slot-lbl">{en ? 'Earrings' : 'Brincos'}</span>
-              <button type="button" className="btn-icon btn-sm" onClick={() => setBrincosOpen(false)} aria-label={en ? 'Close' : 'Fechar'}>
-                <i className="ti ti-x" aria-hidden="true" />
-              </button>
-            </div>
+          {/* Sem card (16/09/2026): só os slots, flutuando. */}
+          <div className="fp2-slot-flutuante">
             {/* 2 slots em linha */}
             <div className="fp2-slot-cluster">
               {Array.from({ length: 2 }).map((_, idx) =>
@@ -3757,7 +4320,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
               )}
             </div>
           </div>
-          <div className="fp2-joias-arrow" aria-hidden="true" />
         </div>
       </div>,
       document.getElementById('root') || document.body
@@ -3781,13 +4343,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           aria-label={en ? 'Garment slots' : 'Slots de roupa'}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="fp2-joias-card" style={{ '--joias-card-w': '174px', '--joias-cols': 2 }}>
-            <div className="fp2-joias-card-head">
-              <span className="fp2-slot-lbl">{en ? 'Garments' : 'Roupas'}</span>
-              <button type="button" className="btn-icon btn-sm" onClick={() => setRoupasOpen(false)} aria-label={en ? 'Close' : 'Fechar'}>
-                <i className="ti ti-x" aria-hidden="true" />
-              </button>
-            </div>
+          {/* Sem card (16/09/2026): só os slots, flutuando. */}
+          <div className="fp2-slot-flutuante">
             {/* 2 slots em linha */}
             <div className="fp2-slot-cluster">
               {Array.from({ length: 2 }).map((_, idx) =>
@@ -3795,7 +4352,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
               )}
             </div>
           </div>
-          <div className="fp2-joias-arrow" aria-hidden="true" />
         </div>
       </div>,
       document.getElementById('root') || document.body
@@ -3819,13 +4375,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           aria-label={en ? 'Belt slots' : 'Slots de cinto'}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="fp2-joias-card" style={{ '--joias-card-w': '252px', '--joias-cols': 3 }}>
-            <div className="fp2-joias-card-head">
-              <span className="fp2-slot-lbl">{en ? 'Belt' : 'Cinto'}</span>
-              <button type="button" className="btn-icon btn-sm" onClick={() => setCintoOpen(false)} aria-label={en ? 'Close' : 'Fechar'}>
-                <i className="ti ti-x" aria-hidden="true" />
-              </button>
-            </div>
+          {/* Sem card (16/09/2026): só os slots, flutuando. */}
+          <div className="fp2-slot-flutuante">
             {/* 3 slots em linha */}
             <div className="fp2-slot-cluster">
               {Array.from({ length: 3 }).map((_, idx) =>
@@ -3833,7 +4384,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
               )}
             </div>
           </div>
-          <div className="fp2-joias-arrow" aria-hidden="true" />
         </div>
       </div>,
       document.getElementById('root') || document.body
@@ -3845,35 +4395,103 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       {menuPecaId && (() => {
         const it = itensPj.find((x) => x.instanceId === menuPecaId);
         if (!it) return null;
+        // Sem card e sem backdrop: fecha no clique fora, no Escape e no scroll,
+        // igual ao editor de barra (ver FechaAoSair, logo abaixo).
         const cat = catalogoBySlug[it.slug];
         const nome = cat?.nome || it.slug;
         const isCont = !!cat && _ehContainer(cat);
         const despirLbl = it.vestido ? (en ? 'Take off' : 'Despir') : (en ? 'Unequip' : 'Desequipar');
         const despirIc  = it.vestido ? 'ti-shirt-off' : 'ti-shield-off';
         const fechar = () => setMenuPecaId(null);
-        return (
-          <ModalShell title={nome} lang={lang} size="sm" onClose={fechar}>
-              {(cat?.descricao || cat?.efeito) && (
-                <div className="det-desc">
-                  {cat.descricao && <p>{cat.descricao}</p>}
-                  {cat.efeito && <p className="det-efeito">{en ? 'Effect' : 'Efeito'}: {cat.efeito}</p>}
-                </div>
+        /* Menu da peça equipada (15/09/2026): "Ao clicar nos equipamentos de
+           defesa e ataque, aparece o input flutuante 'despir' ou a barra de
+           gerenciar resistência. Para o jogador, apenas a barra de despir."
+           Sem card: flutua ancorado na casa do corpo, como o editor de barra. */
+        const resMaxPeca = Number(cat?.resistencia) || 0;
+        const resPeca = Number.isFinite(Number(it.res))
+          ? Math.max(0, Math.min(resMaxPeca, Number(it.res))) : resMaxPeca;
+        /* PEÇA VESTIDA NÃO TEM STEPPER (20/09/2026): "anéis, roupas, etc, não
+           precisam do seletor de bônus, pois eles não recebem bônus."
+
+           A condição que faltava é `!it.vestido`. O stepper é de RESISTÊNCIA —
+           o desgaste de armadura e arma —, e aparecia em qualquer peça que
+           tivesse `resistencia` preenchida no catálogo, o que inclui joias e
+           roupas que nunca vão usá-la.
+
+           `vestido` é exatamente o corte certo: ele separa joia e acessório
+           (que se VESTEM) de arma, escudo e armadura (que se EQUIPAM) — ver
+           `ehVestimenta` em 01-core/inventario-helpers.jsx. */
+        const podeGerenciarRes = podeEditarEstado && resMaxPeca > 0 && !it.vestido;
+        const ancora = menuPecaAnchor;
+        /* 300, e não os 190 de antes (20/09/2026): o pop deixou de ser uma
+           COLUNA estreita e virou uma LINHA — botão, e às vezes o stepper de
+           resistência, lado a lado. Com o número velho o clamp achava que
+           cabia onde não cabia, e perto da borda direita o pop saía da tela.
+
+           É um número, não uma medida: quem mudar o conteúdo do pop precisa
+           revisitá-lo. Medir de verdade exigiria renderizar antes de
+           posicionar, e um pop que pisca no lugar errado é pior que uma
+           constante generosa. */
+        const larguraMenu = 300;
+        const vw = (typeof window !== 'undefined' ? window.innerWidth : 360);
+        let left = ancora ? ancora.left : 0;
+        if (left + larguraMenu > vw - 10) left = Math.max(10, vw - 10 - larguraMenu);
+        if (left < 10) left = 10;
+        /* POR PORTAL, e não inline na árvore da ficha (20/09/2026).
+
+           O pop é `position: fixed`, e fixed é frágil a ancestrais: basta um
+           `transform`, um `filter`, um `backdrop-filter` ou um `overflow`
+           qualquer no caminho para ele deixar de medir pela janela, ser
+           recortado ou ficar preso num contexto de empilhamento — tudo isso
+           sem erro nenhum no console.
+
+           O sintoma foi "não consigo clicar no despir dos anéis", e os anéis
+           são justamente o caso mais fundo: as casas deles moram DENTRO de
+           outro portal (o card flutuante de joias), e o pop nascia numa parte
+           completamente diferente da árvore.
+
+           Tentei antes corrigir por parâmetro — largura do clamp,
+           pointer-events explícito — e não bastou. Este é o mesmo remédio que
+           o card de joias, os atalhos e os brincos já usam nesta fase, e pela
+           mesma razão: quem é `fixed` sobe para a raiz. */
+        return ReactDOM.createPortal(
+          /* O invólucro `.menestrel-ui` não é decoração: as regras do pop são
+             `#root .menestrel-ui .fp-peca-pop`, descendentes. Fora do wrapper,
+             o pop perderia a pele inteira e os tokens do tema junto. Mesmo
+             invólucro que o portal do card de joias usa. */
+          <div className="menestrel-ui">
+          <FechaAoSair onClose={() => setMenuPecaId(null)} className="fp-peca-pop" aria-label={nome}
+            style={{ position: 'fixed', left, top: ancora ? ancora.bottom + 8 : 0 }}>
+            <div className="fp-peca-pop-acoes">
+              {isCont && (
+                <button type="button" className="btn-ghost btn-sm"
+                  onClick={() => { setMenuPecaId(null); setContFichaId(it.instanceId); }}>
+                  {en ? 'Open' : 'Abrir'}
+                </button>
               )}
-              <div className="det-actions" style={{ marginTop: 0 }}>
-                <div className="det-act-row">
-                  {isCont && (
-                    <button className="btn-primary"
-                      onClick={() => { setMenuPecaId(null); setContFichaId(it.instanceId); }}>
-                      {en ? 'Open' : 'Abrir'}
-                    </button>
-                  )}
-                  <button className={isCont ? 'btn-ghost' : 'btn-primary'}
-                    onClick={() => { setMenuPecaId(null); desequiparFicha(it.instanceId); }}>
-                    {despirLbl}
-                  </button>
-                </div>
+              <button type="button" className="btn-ghost btn-sm"
+                onClick={() => { setMenuPecaId(null); desequiparFicha(it.instanceId); }}>
+                {despirLbl}
+              </button>
+            </div>
+            {podeGerenciarRes && (
+              <div className="fp-pop-stepper fp-peca-pop-res">
+                <button type="button" className="fp-step-btn" disabled={resPeca <= 0}
+                  aria-label={`${en ? 'Lower durability' : 'Reduzir resistência'} ${nome}`}
+                  onClick={() => ajustarResistenciaDaPeca(it.instanceId, resPeca - 1)}>
+                  <i className="ti ti-minus" aria-hidden="true" />
+                </button>
+                <span className="fp-pop-stepper-label">{resPeca} / {resMaxPeca}</span>
+                <button type="button" className="fp-step-btn" disabled={resPeca >= resMaxPeca}
+                  aria-label={`${en ? 'Raise durability' : 'Aumentar resistência'} ${nome}`}
+                  onClick={() => ajustarResistenciaDaPeca(it.instanceId, resPeca + 1)}>
+                  <i className="ti ti-plus" aria-hidden="true" />
+                </button>
               </div>
-          </ModalShell>
+            )}
+          </FechaAoSair>
+          </div>,
+          document.getElementById('root') || document.body
         );
       })()}
 
@@ -4034,6 +4652,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           onClose={() => setEditBar(null)}
         />
       )}
+
     </>
   );
 }
@@ -4051,3 +4670,23 @@ window.FichaAnimaisView = FichaAnimaisView;
 window.HabilidadeDetalhesModal = HabilidadeDetalhesModal;
 // E a da magia, pelo teste dos atributos em tooltip (magia-detalhes-tooltip.test.jsx).
 window.MagiaDetalhesModal = MagiaDetalhesModal;
+// As barras e o popover de edição, pelo teste da experiência clicável
+// (experiencia-barra.test.jsx): montá-los isolados dispensa o fetch do PJ.
+window.FichaVitBars = FichaVitBars;
+window.BarEditPopover = BarEditPopover;
+/* A regra de quem NÃO tem Karma e a tabela de rótulos narrativos das barras
+   são conhecimento da ficha, mas o card de personagem (08-personagens) passou
+   a mostrar vitais e condições em 17/09/2026 e precisa das mesmas palavras —
+   duas cópias da tabela é como as duas telas começam a divergir sem ninguém
+   decidir que deviam. O card lê pelo window porque carrega ANTES desta fase. */
+window.SEM_KARMA = SEM_KARMA;
+window.fichaEstadoLabel = fichaEstadoLabel;
+/* E a cor de cada poço: EF/EH/Karma têm que ser as MESMAS no card e na ficha.
+   Duas tabelas é como as duas telas começam a divergir sem ninguém decidir. */
+window.FICHA_VIT_COLORS = FICHA_VIT_COLORS;
+// O painel de status à parte, pelo teste do Mestre mexendo fora do combate
+// (status-painel.test.jsx): montá-lo isolado dispensa o fetch do PJ.
+window.FichaStatusPainel = FichaStatusPainel;
+window.FichaAtividadeSeletor = FichaAtividadeSeletor;
+// E o círculo de status, pelo mesmo teste (status-painel.test.jsx).
+window.FichaStatusSeletor = FichaStatusSeletor;

@@ -62,3 +62,41 @@ describe('linhasQueCabem', () => {
     expect(linhasQueCabem({ ...base, rowH: 84 })).toBe(6);
   });
 });
+
+/* ============================================================
+   Dez linhas por página (20/09/2026)
+   ============================================================
+   "Nas tabelas de técnicas, magias, habilidades, etc, eu quero 10 itens por
+    página." (usuário)
+
+   `useFitPageSize` media a altura visível e ajustava a página ao que coubesse.
+   A ideia era boa e o preço era alto: o número mudava com o tamanho da janela,
+   com a rolagem e ao expandir uma linha, então a mesma tabela paginava
+   diferente em cada máquina — e a página atual saltava sozinha quando a conta
+   mudava. Os testes de `linhasQueCabem` acima documentam um bug inteiro
+   nascido disso.
+
+   A conta continua ali, testada, e sem chamador: se o ajuste automático um dia
+   voltar, volta com o bug já mapeado.
+   ============================================================ */
+describe('a página é fixa em 10', () => {
+  it('sem opções, devolve 10', () => {
+    expect(globalThis.useFitPageSize({ current: null })).toBe(10);
+  });
+
+  /* Não mede nada: nem a janela, nem o elemento. É isso que a torna
+     previsível — e é o que este teste trava. */
+  it('não depende da altura da janela', () => {
+    const antes = window.innerHeight;
+    try {
+      window.innerHeight = 200;
+      expect(globalThis.useFitPageSize({ current: null })).toBe(10);
+      window.innerHeight = 4000;
+      expect(globalThis.useFitPageSize({ current: null })).toBe(10);
+    } finally { window.innerHeight = antes; }
+  });
+
+  it('`fallback` continua sendo a porta para outro valor', () => {
+    expect(globalThis.useFitPageSize({ current: null }, { fallback: 25 })).toBe(25);
+  });
+});

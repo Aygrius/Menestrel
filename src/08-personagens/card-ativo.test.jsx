@@ -47,8 +47,6 @@ function montar(props) {
       playerName="Richard"
       onEdit={() => {}}
       onDelete={() => {}}
-      onGiveXp={() => {}}
-      onGiveMoedas={() => {}}
       {...props}
     />
   );
@@ -89,9 +87,14 @@ describe('ativo, inativo e bloqueado', () => {
     expect(container.querySelector('.pj-card-wrap--ativo')).not.toBeNull();
   });
 
-  it('o inativo oferece selecionar, sem selo', () => {
+  /* O botão "Selecionar personagem" saiu em 17/09/2026 ("clicar na ficha já é
+     selecionar ele") e com ele o rodapé do card. O que resta é o card inteiro
+     clicável — e o selo, que continua só do ativo. */
+  it('o inativo é clicável inteiro, sem botão e sem selo', () => {
     const { container } = montar({ onAtivar: () => {} });
-    expect(screen.getByRole('button', { name: /Selecionar/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Selecionar/ })).toBeNull();
+    expect(container.querySelector('.pj-card-foot')).toBeNull();
+    expect(container.querySelector('.pj-card.is-clickable')).not.toBeNull();
     expect(container.querySelector('.pj-card-selo')).toBeNull();
   });
 

@@ -76,15 +76,23 @@ describe('RF, RM e VB', () => {
 });
 
 describe('slotParaPeca — onde a peça entra', () => {
-  it('arma vai para a mão direita, depois a esquerda, depois não cabe', () => {
-    expect(F.slotParaPeca(CAT.adaga, [], CAT)).toEqual({ slot: 'mao_d' });
-    expect(F.slotParaPeca(CAT.adaga, [{ slug: 'adaga', slot: 'mao_d' }], CAT)).toEqual({ slot: 'mao_e' });
-    expect(F.slotParaPeca(CAT.escudo_broquel,
-      [{ slug: 'adaga', slot: 'mao_d' }, { slug: 'adaga', slot: 'mao_e' }], CAT)).toEqual({ motivo: 'maos_ocupadas' });
+  /* "Para as criaturas, não haverá limitação de equipamentos de ataque."
+     (usuário, 15/09/2026) — criatura não tem duas mãos. */
+  it('arma não tem limite: duas mãos, arco de duas mãos, e mais', () => {
+    const tres = [{ slug: 'adaga', slot: 'arma' }, { slug: 'espada_longa', slot: 'arma' }];
+    expect(F.slotParaPeca(CAT.adaga, [], CAT)).toEqual({ slot: 'arma' });
+    expect(F.slotParaPeca(CAT.arco, tres, CAT)).toEqual({ slot: 'arma' });
+    expect(F.slotParaPeca(CAT.arco, [{ slug: 'adaga', slot: 'mao_d' }, { slug: 'espada_longa', slot: 'mao_e' }], CAT))
+      .toEqual({ slot: 'arma' });
   });
-  it('arma de duas mãos precisa das duas livres, e depois ocupa as duas', () => {
-    expect(F.slotParaPeca(CAT.arco, [{ slug: 'adaga', slot: 'mao_d' }], CAT)).toEqual({ motivo: 'maos_ocupadas' });
-    expect(F.slotParaPeca(CAT.adaga, [{ slug: 'arco', slot: 'mao_d' }], CAT)).toEqual({ motivo: 'maos_ocupadas' });
+  it('a mesma arma não entra duas vezes', () => {
+    expect(F.slotParaPeca(CAT.adaga, [{ slug: 'adaga', slot: 'arma' }], CAT)).toEqual({ motivo: 'ja_equipada' });
+  });
+  it('escudo: um só, mesmo com armas equipadas — e o gravado em mão conta', () => {
+    const armas = [{ slug: 'adaga', slot: 'arma' }, { slug: 'arco', slot: 'arma' }];
+    expect(F.slotParaPeca(CAT.escudo_broquel, armas, CAT)).toEqual({ slot: 'escudo' });
+    expect(F.slotParaPeca(CAT.escudo_broquel, [{ slug: 'escudo_broquel', slot: 'escudo' }], CAT)).toEqual({ motivo: 'slot_ocupado' });
+    expect(F.slotParaPeca(CAT.escudo_broquel, [{ slug: 'escudo_broquel', slot: 'mao_e' }], CAT)).toEqual({ motivo: 'slot_ocupado' });
   });
   it('armadura vai no próprio slot, uma por slot', () => {
     expect(F.slotParaPeca(CAT.peitoral_de_aco, [], CAT)).toEqual({ slot: 'peito' });
@@ -150,6 +158,16 @@ describe('derivadosDoEquipamento — a conta do personagem', () => {
       catalogoBySlug: CAT, atributos: at,
     });
     expect(comEscudo.danos_100.map((d) => d.slug)).toEqual(['adaga']);
+  });
+
+  it('armas sem limite: depois das mãos antigas, as de slot "arma" na ordem equipada', () => {
+    const r = F.derivadosDoEquipamento({
+      equipamento: [{ slug: 'arco', slot: 'arma' }, { slug: 'adaga', slot: 'mao_e' },
+        { slug: 'espada_longa', slot: 'arma' }],
+      catalogoBySlug: CAT, atributos: at,
+    });
+    expect(r.danos_100.map((d) => d.slug)).toEqual(['adaga', 'arco', 'espada_longa']);
+    expect(r.ataque).toBe('Adaga');
   });
 
   it('peça fora do catálogo é ignorada', () => {

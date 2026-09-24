@@ -56,7 +56,7 @@ const CATALOGO = {
 };
 
 // PJ modelado no Yuldrous (id 64): Anão/Sacerdote, bônus de grupo EP 4 / CD 4 /
-// CM 1, bônus manual do Mestre 3 na marreta.
+// CM 1, Sagração 3 na marreta — na instância do item desde 15/09/2026.
 const PJ = {
   id: 64, nome: 'Yuldrous', raca: 'Anão', reino: 'Verrogar',
   profissao: 'Sacerdote', especializacao: 'Ordem de Crezir', deus: 'Crezir',
@@ -66,10 +66,10 @@ const PJ = {
   habilidades: {}, habilidades_bonus: {}, magias: {}, tecnicas: {},
   aprimoramentos: {}, caracterizacao: {},
   grupos_armas: { CD: 4, CI: 1, CM: 1, EM: 1, EP: 4 },
-  estado_atual: { bonusArmas: { marreta_de_guerra: 3 }, condicoes: {} },
+  estado_atual: { condicoes: {} },
   inventario: {
     itens: [
-      { slug: 'marreta_de_guerra', slot: 'mao_d', equipado: true },
+      { slug: 'marreta_de_guerra', slot: 'mao_d', equipado: true, bonus: 3 },
       { slug: 'arco_curto',        slot: 'mao_e', equipado: true },
       { slug: 'machado_pesado',    slot: 'mao_d', equipado: true },
       { slug: 'cota_de_malha',     slot: 'peito', equipado: true },
@@ -104,7 +104,7 @@ describe('Arsenal: batalha espelha a Ficha', () => {
     }
   }
 
-  it('dano100 (tier 100%) também espelha a Ficha: dano + Força + bônus do Mestre', () => {
+  it('dano100 (tier 100%) também espelha a Ficha: dano + Força + Sagração do item', () => {
     const ficha = window.calcularFicha(PJ, CATALOGO, PJ.estado_atual.condicoes);
     const esperado = CATALOGO.marreta_de_guerra.dano + ficha.atributos.forca + 3;
     const naBatalha = M.ataquesDoAtor(ATOR, CATALOGOS).find((x) => x.slug === 'marreta_de_guerra');

@@ -132,9 +132,21 @@ describe('a fiação nos dois menus do tabuleiro', () => {
     expect(fonte).toContain("rotulo={isEn ? 'Attack' : 'Atacar'}");
   });
 
-  it('os dois menus passam alvo e aba iniciais ao painel', () => {
-    expect(fonte.match(/alvoInicialId=\{painelNoInimigo \? ataqueContra\.id : undefined\}/g)).toHaveLength(2);
-    expect(fonte.match(/abaInicial=\{painelNoInimigo \? ataqueContra\.aba : undefined\}/g)).toHaveLength(2);
+  /* 17/09/2026: o painel virou ModalShell (AcaoModal) e saiu de dentro de
+     `menuDe`. Com isso `painelNoInimigo` deixou de existir: ele respondia
+     "este card é o do inimigo que recebeu o clique?", pergunta que só fazia
+     sentido quando o painel morava no card de alguém. O modal é um só na
+     tela, então basta `ataqueContra` — e é ele que decide alvo e aba. */
+  it('as duas visões passam alvo e aba iniciais ao painel', () => {
+    expect(fonte.match(/alvoInicialId=\{ataqueContra \? ataqueContra\.id : undefined\}/g)).toHaveLength(2);
+    expect(fonte.match(/abaInicial=\{ataqueContra \? ataqueContra\.aba : undefined\}/g)).toHaveLength(2);
+  });
+
+  it('e o painel não mora mais no card de um participante', () => {
+    expect(fonte).not.toMatch(/painelNoInimigo/);
+    // O ator do modal: `current` no Mestre, `meuParticipante` no Jogador —
+    // nunca o alvo. Quem paga o PA é quem está na vez.
+    expect(fonte.match(/<AcaoModal\b/g)).toHaveLength(2);
   });
 
   it('fechar o painel limpa o alvo escolhido, nas duas visões', () => {

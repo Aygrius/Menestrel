@@ -181,12 +181,53 @@ function pecaNoCorpo(it) {
   return !!(it && (it.equipado || it.vestido));
 }
 
+/* ── Bônus de SAGRAÇÃO, por item (15/09/2026) ──────────────────────
+   "A magia Sagração concede bônus a equipamentos de defesa e equipamentos de
+   ataque, esse bônus é permanente. [...] preciso de uma forma do mestre
+   alterar o bônus manualmente." Decisões do usuário:
+     • arma                → soma no DANO;
+     • armadura e escudo   → soma na ABSORÇÃO;
+     • valores             → 0, 1, 3, 5, 7 e 9 (o 1 entrou na correção do
+                             mesmo dia — são os níveis da Sagração).
+
+   Mora na INSTÂNCIA (`it.bonus`), não no slug: duas adagas iguais têm cada
+   uma o seu, e a adaga comprada amanhã nasce comum. Substitui
+   estado_atual.bonusArmas[slug], que era por slug e só de arma
+   (scripts/sql/bonus-item-sagracao-2026-09-15.sql migra os valores). */
+const BONUS_ITEM_VALORES = [0, 1, 3, 5, 7, 9];
+
+function bonusDoItem(it) {
+  const v = Number(it && it.bonus);
+  return BONUS_ITEM_VALORES.includes(v) ? v : 0;
+}
+
+// Onde o bônus do item entra: 'dano', 'absorcao' ou null (item sem bônus).
+function destinoBonusItem(cat) {
+  if (!cat) return null;
+  if (cat.grupo === 'Armas' && cat.dano != null) return 'dano';
+  if (cat.grupo === 'Armaduras') return 'absorcao';
+  return null;
+}
+
+// Próximo valor da escada 0 → 1 → 3 → 5 → 7 → 9, para cima (+1) ou para baixo (−1).
+function passoBonusItem(atual, direcao) {
+  const i = BONUS_ITEM_VALORES.indexOf(bonusDoItem({ bonus: atual }));
+  const j = Math.max(0, Math.min(BONUS_ITEM_VALORES.length - 1, i + (direcao < 0 ? -1 : 1)));
+  return BONUS_ITEM_VALORES[j];
+}
+
+// Absorção de UMA peça: a do catálogo + o bônus de Sagração da instância.
+function absorcaoDaPeca(it, cat) {
+  const base = Number(cat?.absorcao || 0);
+  return destinoBonusItem(cat) === 'absorcao' ? base + bonusDoItem(it) : base;
+}
+
 function calcArmadura(p, catalogoBySlug) {
   if (!catalogoBySlug || !p?.inventario?.itens) return 0;
   return p.inventario.itens.reduce((sum, it) => {
     if (!pecaNoCorpo(it)) return sum;
     const cat = catalogoBySlug[it.slug];
-    return sum + Number(cat?.absorcao || 0);
+    return sum + absorcaoDaPeca(it, cat);
   }, 0);
 }
 
@@ -240,6 +281,55 @@ function pecasDeArmadura(p, catalogoBySlug) {
     out.push({ instanceId: it.instanceId, slug: it.slug, res: atual, res_max: max });
     return out;
   }, []);
+}
+
+/* ── Editar a RESISTÊNCIA total da armadura (15/09/2026) ───────────
+   "Na ficha do personagem, eu consigo editar a EF, KA, etc, mas não consigo
+   editar a barra de resistência das armaduras." (usuário)
+
+   A barra não é uma pool em estado_atual: ela é a soma do `res` das peças no
+   corpo. Editar o TOTAL precisa dizer de qual peça sai (ou entra) cada ponto,
+   e a ordem segue o que o combate já faz:
+
+     gastar   tira da peça MAIS INTEIRA primeiro (mesma regra de
+              desgastarArmadura, 12-batalha: assim nenhuma peça quebra
+              enquanto outra está nova);
+     consertar enche a peça MAIS DANIFICADA primeiro — o avesso.
+
+   Puro: recebe as peças (pecasDeArmadura) e o total desejado, devolve a lista
+   com o `res` de cada uma. Total fora da faixa é preso entre 0 e a soma dos
+   máximos. */
+function distribuirResistencia(pecas, novoTotal) {
+  const lista = (Array.isArray(pecas) ? pecas : []).map((p) => ({
+    ...p,
+    res: Math.max(0, Math.min(Number(p.res_max) || 0, Number(p.res) || 0)),
+    res_max: Math.max(0, Number(p.res_max) || 0),
+  }));
+  if (lista.length === 0) return lista;
+  const teto = lista.reduce((s, p) => s + p.res_max, 0);
+  const alvo = Math.max(0, Math.min(teto, Math.round(Number(novoTotal) || 0)));
+  let atual = lista.reduce((s, p) => s + p.res, 0);
+
+  // Laço de um ponto por vez: são no máximo algumas dezenas, e assim a regra
+  // fica idêntica à do desgaste em combate, sem conta de proporção.
+  while (atual > alvo) {
+    let i = -1; let maior = 0;
+    lista.forEach((p, k) => { if (p.res > maior) { maior = p.res; i = k; } });
+    if (i < 0) break;
+    lista[i].res -= 1;
+    atual -= 1;
+  }
+  while (atual < alvo) {
+    let i = -1; let menorFalta = Infinity;
+    lista.forEach((p, k) => {
+      const falta = p.res_max - p.res;
+      if (falta > 0 && p.res < menorFalta) { menorFalta = p.res; i = k; }
+    });
+    if (i < 0) break;
+    lista[i].res += 1;
+    atual += 1;
+  }
+  return lista;
 }
 
 /* Resistência de CRIATURA — derivada, porque a tabela `criaturas` não tem
@@ -298,6 +388,9 @@ function gerarAtaques(p, catalogoBySlug, magiasByKey, atributos) {
       dano_m:  Number(cat.dano_m || 0) + atrVal,
       dano_p:  Number(cat.dano_p || 0) + atrVal,
       dano:    cat.dano,
+      // Sagração da instância (15/09/2026). Separado de `dano`, que continua
+      // sendo o do catálogo: quem soma é a batalha, junto da Força.
+      bonus:   bonusDoItem(it),
     };
     ataques.push(entry);
 
@@ -333,6 +426,96 @@ function gerarAtaques(p, catalogoBySlug, magiasByKey, atributos) {
   }
 
   return ataques;
+}
+
+/* ── Gravar estado_atual SEM apagar o que outra tela mudou (15/09/2026) ──
+   "Alguns atributos da barra de vitalidade não estão salvando quando eu
+   altero." (usuário)
+
+   A causa é perda de atualização, não a barra: QUATRO telas escrevem
+   personagens.estado_atual — a ficha (edição do Mestre e efeito de item), o
+   inventário (usar/vestir), a fila de aprovação de magia e o encerramento da
+   batalha — e cada uma mandava o objeto INTEIRO, montado sobre a cópia que
+   carregou quando abriu. Quem grava por último apaga o que as outras fizeram
+   nesse meio tempo: o Mestre mexe na barra, o jogador usa um item com a ficha
+   aberta desde antes, e a barra "volta sozinha".
+
+   A correção é gravar só o que MUDOU:
+     patchDeEstado   diferença entre o estado antes e depois (só as chaves
+                     tocadas, incluindo dentro de vitalidade/condicoes);
+     mesclarEstado   aplica esse patch sobre uma base, sem tocar no resto;
+     gravarEstadoAtual  relê a linha ANTES de escrever e mescla o patch nela.
+
+   Continua havendo uma janela de corrida do tamanho de uma ida ao banco (o
+   jeito definitivo é uma função no servidor que faça o merge em SQL), mas o
+   caso real — cópia velha de minutos atrás — deixa de existir. */
+const ESTADO_SUBOBJETOS = ['vitalidade', 'condicoes'];
+
+function patchDeEstado(antes, depois) {
+  const a = antes || {};
+  const d = depois || {};
+  const patch = {};
+  Object.keys(d).forEach((k) => {
+    if (ESTADO_SUBOBJETOS.includes(k)) {
+      const sa = a[k] || {};
+      const sd = d[k] || {};
+      const sub = {};
+      Object.keys(sd).forEach((kk) => { if (sd[kk] !== sa[kk]) sub[kk] = sd[kk]; });
+      if (Object.keys(sub).length) patch[k] = sub;
+    } else if (d[k] !== a[k]) {
+      patch[k] = d[k];
+    }
+  });
+  return patch;
+}
+
+function mesclarEstado(base, patch) {
+  const b = base || {};
+  const p = patch || {};
+  const out = { ...b };
+  Object.keys(p).forEach((k) => {
+    out[k] = ESTADO_SUBOBJETOS.includes(k) ? { ...(b[k] || {}), ...(p[k] || {}) } : p[k];
+  });
+  return out;
+}
+
+// Lê a linha, mescla o patch e grava. Devolve { data: estadoGravado, error }.
+// Patch vazio não vai ao banco.
+async function gravarEstadoAtual(pjId, patch) {
+  if (!pjId || !patch || Object.keys(patch).length === 0) return { data: null, error: null };
+  /* try/catch porque isto é chamado de autosave e de flush de desmontagem, sem
+     ninguém esperando a promessa: um throw do cliente (rede fora, stub de
+     teste) viraria unhandled rejection em vez de erro tratado. */
+  try {
+    const { data: linha, error: erroLeitura } = await supabaseClient
+      .from('personagens').select('estado_atual').eq('id', pjId).maybeSingle();
+    if (erroLeitura) return { data: null, error: erroLeitura };
+    const novo = mesclarEstado(linha && linha.estado_atual, patch);
+    const { error } = await supabaseClient
+      .from('personagens').update({ estado_atual: novo }).eq('id', pjId);
+    return { data: error ? null : novo, error: error || null };
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+  }
+}
+
+/* ── Loja fechada enquanto o Mestre edita (15/09/2026) ─────────────
+   "Enquanto o mestre estiver editando a loja, ela automaticamente fecha e
+   bloqueia para compra dos jogadores para impedir erros." (usuário)
+
+   A marca vive no próprio estoque_loja (jsonb): `editando_em`, carimbo de
+   tempo que a tela de gestão renova enquanto está aberta e apaga ao sair.
+   É um carimbo, e não um booleano, porque aba fechada no tapa não avisa
+   ninguém: sem renovação o cadeado cai sozinho em LOJA_EDICAO_TTL_MS. */
+const LOJA_EDICAO_TTL_MS = 3 * 60 * 1000;
+
+function lojaEmEdicao(estoqueLoja, agora) {
+  const marca = estoqueLoja && !Array.isArray(estoqueLoja) ? estoqueLoja.editando_em : null;
+  if (!marca) return false;
+  const t = Date.parse(marca);
+  if (!Number.isFinite(t)) return false;
+  const ref = agora ? (agora instanceof Date ? agora.getTime() : Number(agora)) : Date.now();
+  return ref - t < LOJA_EDICAO_TTL_MS;
 }
 
 // ── Efeitos de item (efeito_positivo / efeito_negativo do catálogo) ────────
@@ -383,25 +566,57 @@ const EFEITO_CONDICAO_MAP = {
 // conhecido são ignoradas silenciosamente (não derruba o resto do parse —
 // texto livre pode ganhar labels novos no catálogo antes do código ser
 // atualizado).
+/* O catálogo escreve em PROSA (leitura do banco, 15/09/2026):
+
+     "Aumenta 35 de Hidratação e 1 de Sobriedade."
+     "Diminui 50 de Sanidade, 25 de Sobriedade e 5 de Reputação."
+
+   e NENHUM dos 140 itens com efeito usa mais a lista curta "35 Hidratação".
+   O parser antigo só entendia a lista curta, então o verbo no começo e o
+   " e " no meio faziam TODO item do catálogo aplicar efeito nenhum, calado —
+   "usar item não está calculando corretamente" (usuário, 15/09/2026). Os
+   testes não pegaram porque as fixtures deles estavam no formato curto.
+
+   O que este parse aceita agora:
+     • verbo na frente (Aumenta/Diminui/Restaura/Reduz…), que é ignorado: o
+       SINAL vem do CAMPO (efeito_positivo soma, efeito_negativo subtrai);
+     • separação por vírgula, ponto-e-vírgula ou " e ";
+     • "de" antes do rótulo, inclusive colado ("10 deTemperatura", que é
+       como dois chapéus estão gravados);
+     • rótulo sem acento ou com caixa diferente;
+     • o formato curto antigo, nas duas ordens ("35 Hidratação", "Reputação 1").
+   Parte que não casa é ignorada, como antes: texto livre pode ganhar rótulo
+   novo no catálogo antes de o código aprender. */
+const semAcento = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+// Rótulo normalizado → { scope, key }, para casar sem depender de acento/caixa.
+const EFEITO_CONDICAO_NORM = Object.entries(EFEITO_CONDICAO_MAP)
+  .reduce((acc, [label, info]) => { acc[semAcento(label)] = info; return acc; }, {});
+const RE_VERBO = /^(aumenta|aumente|adiciona|restaura|recupera|soma|ganha|diminui|dimiuni|diminua|reduz|reduza|perde|subtrai)\b/i;
+
 function parseEfeito(str) {
   if (!str || typeof str !== 'string') return [];
   const out = [];
-  for (const parteRaw of str.split(',')) {
-    const parte = parteRaw.trim();
+  // " e " separa pares como a vírgula; nenhum rótulo do mapa contém " e "
+  // solto ("Energia Heroica" tem a palavra colada, não isolada).
+  for (const parteRaw of str.split(/,|;|\se\s/i)) {
+    let parte = parteRaw.replace(/[.!]+\s*$/, '').trim();
+    if (!parte) continue;
+    parte = parte.replace(RE_VERBO, '').trim();
     if (!parte) continue;
     let valor, label;
-    let m = parte.match(/^([\d]+(?:[.,]\d+)?)\s+(.+)$/); // "35 Hidratação"
+    let m = parte.match(/^([\d]+(?:[.,]\d+)?)\s*(.+)$/);   // "35 Hidratação" / "35 de Hidratação"
     if (m) {
       valor = Number(m[1].replace(',', '.'));
-      label = m[2].trim();
+      label = m[2];
     } else {
-      m = parte.match(/^(.+?)\s+([\d]+(?:[.,]\d+)?)$/); // "Reputação 1"
+      m = parte.match(/^(.+?)\s+([\d]+(?:[.,]\d+)?)$/);    // "Reputação 1"
       if (!m) continue;
-      label = m[1].trim();
+      label = m[1];
       valor = Number(m[2].replace(',', '.'));
     }
     if (!Number.isFinite(valor)) continue;
-    const info = EFEITO_CONDICAO_MAP[label];
+    // "de Hidratação" e "deTemperatura" (sem espaço, como está no banco).
+    const info = EFEITO_CONDICAO_NORM[semAcento(String(label).replace(/^de\s*/i, ''))];
     if (!info) continue;
     out.push({ scope: info.scope, key: info.key, valor });
   }
@@ -514,14 +729,77 @@ function ehFlecha(cat) {
   return /^flechas?(\s|_|$)/.test(nome);
 }
 
+/* ============================== Preparar carne (24/09/2026) ==============================
+   "Os itens Carne, Carne Celestial, etc. devem ter um botão para os
+    personagens prepararem o alimento." 1 carne vira Ração, 2 viram Refeição,
+   3 viram Banquete. As carnes especiais seguem as MESMAS quantidades, mas cada
+   uma tem os pratos próprios (scripts/sql/refeicoes-especiais-2026-09-24.sql). */
+const RECEITAS_CARNE = {
+  carne:           ['racao',           'refeicao',           'banquete'],
+  carne_celestial: ['racao_sagrada',   'refeicao_sagrada',   'banquete_sagrado'],
+  carne_demoniaca: ['racao_profana',   'refeicao_profana',   'banquete_profano'],
+  carne_draconica: ['racao_elemental', 'refeicao_elemental', 'banquete_elemental'],
+  carne_mistica:   ['racao_magica',    'refeicao_magica',    'banquete_magico'],
+};
+
+// [{ resultado: slug, custo: carnes }] — vazio para o que não é carne.
+function receitasDaCarne(slug) {
+  const pratos = RECEITAS_CARNE[slug];
+  return pratos ? pratos.map((resultado, i) => ({ resultado, custo: i + 1 })) : [];
+}
+
+// Quantas unidades daquela carne o personagem tem, somando todas as pilhas.
+function carneDisponivel(itens, slug) {
+  return (itens || []).reduce((s, it) => s + (it && it.slug === slug ? (Number(it.quantidade) || 0) : 0), 0);
+}
+
+/* A lista de itens depois de preparar \`resultado\` a partir da pilha clicada.
+   Gasta primeiro a pilha clicada, completa com as outras pilhas da mesma
+   carne, e acumula o prato numa pilha igual solta na bolsa (mesma regra do
+   preparar animal). Devolve null quando não dá: carne insuficiente ou prato
+   que não é receita daquela carne. */
+function prepararCarne(itens, instanceId, resultado, novoId) {
+  const lista = itens || [];
+  const clicado = lista.find((x) => x.instanceId === instanceId);
+  if (!clicado) return null;
+  const receita = receitasDaCarne(clicado.slug).find((r) => r.resultado === resultado);
+  if (!receita || carneDisponivel(lista, clicado.slug) < receita.custo) return null;
+
+  let falta = receita.custo;
+  const ordem = [clicado, ...lista.filter((x) => x !== clicado && x.slug === clicado.slug)];
+  const gasto = new Map();
+  ordem.forEach((x) => {
+    if (falta <= 0) return;
+    const tira = Math.min(falta, Number(x.quantidade) || 0);
+    gasto.set(x.instanceId, tira);
+    falta -= tira;
+  });
+  const restantes = lista
+    .map((x) => (gasto.has(x.instanceId) ? { ...x, quantidade: x.quantidade - gasto.get(x.instanceId) } : x))
+    .filter((x) => x.quantidade > 0);
+
+  const pilha = restantes.find((x) => x.slug === resultado && !x.containerId && !x.slot && !x.equipado && !x.vestido);
+  if (pilha) {
+    return restantes.map((x) => (x === pilha ? { ...x, quantidade: x.quantidade + 1 } : x));
+  }
+  return [...restantes, {
+    instanceId: (novoId || novoInstanceId)(), slug: resultado, quantidade: 1,
+    equipado: false, slot: null, containerId: null, observacao: null,
+  }];
+}
+
 Object.assign(window, {
+  RECEITAS_CARNE, receitasDaCarne, carneDisponivel, prepararCarne,
   ehFlecha,
   MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas,
   fetchTabelaPaginada, fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,
   podeMoverParaContainer, pecaNoCorpo, calcArmadura, AJUSTE_KEY, gerarAtaques,
+  BONUS_ITEM_VALORES, bonusDoItem, destinoBonusItem, passoBonusItem, absorcaoDaPeca,
+  patchDeEstado, mesclarEstado, gravarEstadoAtual,
+  LOJA_EDICAO_TTL_MS, lojaEmEdicao,
   calcResistenciaArmadura, resistenciaDeCriatura, FATOR_RESISTENCIA_CRIATURA,
-  pecasDeArmadura,
+  pecasDeArmadura, distribuirResistencia,
   EFEITO_CONDICAO_MAP, parseEfeito, efeitosDoItem, aplicarDeltaCondicao,
   aplicarEfeitosItem, aplicarEfeitosNaFicha,
 });

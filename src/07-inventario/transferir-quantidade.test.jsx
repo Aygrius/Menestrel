@@ -129,7 +129,10 @@ describe('transferir: primeiro o aliado, depois a quantidade', () => {
     // Transferir tem volta: nada de "irreversível".
     expect(screen.queryByText(/irreversível/)).toBeFalsy();
 
-    fireEvent.click(screen.getByText('2'));
+    /* Os chips de atalho (1, 2, 5, 10, Máx) saíram em 17/09/2026 — "remova os
+       botões de filtro abaixo do seletor". Quem move o número agora é o
+       seletor do sistema, e a escolha se faz pelo +. */
+    fireEvent.click(screen.getByLabelText('+'));
     fireEvent.click(screen.getByText('Confirmar'));
 
     await waitFor(() => expect(chamadasRpc.length).toBe(1));

@@ -9,8 +9,8 @@
    abria — o card lateral que as chamava saiu num redesenho antigo, e o que
    sobrou foi código morto. Fora de combate o jogador não tinha onde clicar.
 
-   Os botões empilham na coluna direita, abaixo dos dados e da música
-   (top 16 → D20, 76 → D10, 136 → música, 196 em diante → estes). Cada um abre
+   Os botões empilham na coluna direita, abaixo dos dados
+   (top 16 → D20, 76 → D10, 136 em diante → estes). Cada um abre
    uma lista com busca, à esquerda do botão; escolher uma linha fecha a lista
    e entrega a chave para a ficha, que abre a janela que já existia. Nenhuma
    regra de jogo mora aqui: este componente só escolhe.
@@ -71,7 +71,7 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
   const listas = { habilidade: habilidades, magia: magias, item: itens };
   const visiveis = ATALHOS_TIPOS.filter((t) => (listas[t.id] || []).length > 0);
 
-  // Fecha no Esc e no clique fora — o mesmo trato do mini-player de música.
+  // Fecha no Esc e no clique fora — o mesmo trato dos demais flutuantes.
   React.useEffect(() => {
     if (!aberto) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') setAberto(null); };

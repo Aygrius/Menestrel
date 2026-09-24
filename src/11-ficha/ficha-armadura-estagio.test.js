@@ -20,10 +20,17 @@ describe('ficha — barras de Armadura e Estágio', () => {
     expect(fonte).not.toContain('fp-bar-badge');
   });
 
-  it('o rótulo do Estágio não leva o número; o tooltip continua dizendo', () => {
+  /* O rótulo virou "Experiência" em 17/09/2026 ("onde está escrito 'Estágio'
+     deve ser 'Experiência'"). A barra mede o XP dentro do estágio e é por ela
+     que o Mestre concede experiência; o estágio em si é o NÚMERO, que aparece
+     ao lado do nome no card. O tooltip é que continua nomeando o estágio — e
+     segue sem número no rótulo, que é o que este teste guarda desde
+     14/09/2026. */
+  it('o rótulo é Experiência e não leva número; o tooltip é que diz o estágio', () => {
     const ini = fonte.indexOf('const estagioBars = [{');
     const trecho = fonte.slice(ini, fonte.indexOf('}];', ini));
-    expect(trecho).toContain("label: (en ? 'Stage' : 'Estágio')");
+    expect(trecho).toContain("label: (en ? 'Experience' : 'Experiência')");
+    expect(trecho).not.toContain("'Estágio')");
     expect(trecho).toMatch(/tip:.*Estágio \$\{estagioNum\}/);
   });
 });

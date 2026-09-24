@@ -234,34 +234,24 @@ function linhasQueCabem(m) {
   return Math.max(m.min, Math.floor(alturaUtil / m.rowH));
 }
 
-/* Quantas linhas cabem na altura visível (em vez de PAGE_SIZE fixo). */
+/* DEZ LINHAS, SEMPRE (20/09/2026): "nas tabelas de técnicas, magias,
+   habilidades, etc, eu quero 10 itens por página."
+
+   Este hook media a altura visível e ajustava a página ao que coubesse na
+   tela. A ideia era boa e o preço era alto: o número de linhas mudava com o
+   tamanho da janela, com a rolagem e ao expandir uma linha, então a mesma
+   tabela paginava diferente em cada máquina — e a página atual saltava
+   sozinha quando a conta mudava (ver o comentário de linhasQueCabem, que
+   documenta um bug inteiro nascido disso).
+
+   Número fixo resolve os dois: previsível para quem usa, estável para quem
+   mantém. `opts.fallback` continua sendo a porta para quem precisar de outro
+   valor; hoje todos os chamadores usam 10.
+
+   `linhasQueCabem` fica logo acima, ainda testada: a conta não tem culpa, e
+   um dia pode voltar a servir para outra coisa. */
 function useFitPageSize(wrapRef, opts) {
-  const o = opts || {};
-  const reserved = o.reserved != null ? o.reserved : 96;
-  const min = o.min || 3;
-  const fallbackRowH = o.rowH || 42;
-  const rowHRef = React.useRef(null);
-  const [size, setSize] = useState(o.fallback || 10);
-  const calc = () => {
-    const w = wrapRef.current;
-    if (!w) return null;
-    if (rowHRef.current == null) {
-      const r = w.querySelector('tbody tr:not(.best-detail)');
-      if (r) { const h = r.getBoundingClientRect().height; if (h > 0) rowHRef.current = h; }
-    }
-    const rowH = rowHRef.current || fallbackRowH;
-    const thead = w.querySelector('thead');
-    const headH = thead ? thead.getBoundingClientRect().height : 40;
-    const top = w.getBoundingClientRect().top;
-    return linhasQueCabem({ innerHeight: window.innerHeight, top, reserved, headH, rowH, min });
-  };
-  useEffect(() => { const n = calc(); if (n != null && n !== size) setSize(n); });
-  useEffect(() => {
-    const onResize = () => { const n = calc(); if (n != null) setSize((prev) => prev === n ? prev : n); };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  return size;
+  return (opts && opts.fallback) || 10;
 }
 
 /* Ordenação por clique no cabeçalho. */
@@ -384,6 +374,39 @@ function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, d
     </div>
   );
 }
+/* ── BestBotaoPermissao — o olho (17/09/2026) ───────────────────────────────
+   "Do lado do botão de editar (lápis), vamos adicionar um botão de ver (olho),
+   onde teremos um modal para permitir quem pode ver aquela entrada, na
+   história selecionada." (usuário)
+
+   Irmão do BestBotaoEditar, e igual a ele no essencial: só o ícone, o rótulo
+   no aria-label, e stopPropagation no clique — sem isso o clique subiria para
+   a <tr>, que é o gesto de expandir a linha, e o modal abriria com a ficha
+   escancarada atrás dele.
+
+   O rótulo sai do mesmo COPY do modal (lore.permissao.titulo), pra que o
+   tooltip do botão e o título da janela não possam divergir. */
+function BestBotaoPermissao({ lang, onClick, disabled }) {
+  const rotulo = (((typeof COPY !== 'undefined' && (COPY[lang] || COPY.pt)) || {}).lore || {})
+    .permissao?.titulo || (lang === 'en' ? 'Who can see' : 'Quem pode ver');
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
+  return (
+    <>
+      <button
+        type="button"
+        className="btn-icon btn-sm"
+        aria-label={rotulo}
+        disabled={disabled}
+        onClick={(e) => { e.stopPropagation(); fecharTip(); onClick(); }}
+        {...propsTip(abrirTip, fecharTip, rotulo)}
+      >
+        <i className="ti ti-eye" aria-hidden="true" />
+      </button>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    </>
+  );
+}
+
 function BestBotaoEditar({ ac, onClick }) {
   return (
     <button
@@ -398,7 +421,20 @@ function BestBotaoEditar({ ac, onClick }) {
 }
 
 // ---------- Bestiário ----------
-function CriaturasList({ ac, lang, modoJogador }) {
+/* `historiaId` (17/09/2026): a mesa ativa do Mestre, que habilita o BOTÃO DE
+   OLHO — "do lado do botão de editar (lápis), vamos adicionar um botão de ver
+   (olho), onde teremos um modal para permitir quem pode ver aquela entrada, na
+   história selecionada" (usuário).
+
+   Por que a criatura entrou nesse escopo: disponibilizar criatura pra história
+   era a aba "Criatura" do GerenciarLoreView, alcançável só por Histórias →
+   card da mesa → botão "Lore" — o botão que saiu no mesmo dia. A função mudou
+   de casa em vez de desaparecer, e esta é a tabela padrão das criaturas.
+
+   Sem mesa, sem olho: "na história selecionada" não existe sem uma
+   selecionada, e um olho que abrisse pra falhar no salvar seria pior que
+   nenhum. Ver criatura-permissao-olho.test.jsx. */
+function CriaturasList({ ac, lang, modoJogador, historiaId }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } = (typeof UI !== 'undefined' ? UI : {});
   const [criaturas, setCriaturas] = useState(null);
   const [error, setError] = useState(null);
@@ -411,6 +447,57 @@ function CriaturasList({ ac, lang, modoJogador }) {
   const ehAdmin = useEhAdmin();
   const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
+
+  /* ── Permissão por história (o olho) ────────────────────────────────────
+     A linha INTEIRA da história, não só o id: o modal precisa de
+     criatura_ids, lore_acesso_pj e dos protagonistas. Mesmo motivo pelo qual
+     LoreDaMesa existe em 13-diario — o que o AdminConsole tem em mãos é só a
+     mesa ativa. */
+  const podeGerirVisibilidade = !modoJogador && !!historiaId;
+  const [historia, setHistoria] = useState(null);
+  const [protagonistas, setProtagonistas] = useState([]);
+  const [permissaoDe, setPermissaoDe] = useState(null);
+  const [salvandoVis, setSalvandoVis] = useState(false);
+
+  useEffect(() => {
+    if (!podeGerirVisibilidade) { setHistoria(null); setProtagonistas([]); return undefined; }
+    const cancel = { atual: false };
+    (async () => {
+      const { data, error: err } = await supabaseClient
+        .from('historias').select('*').eq('id', historiaId).maybeSingle();
+      if (cancel.atual) return;
+      if (err) { setError(err.message); return; }
+      setHistoria(data || null);
+      const ids = (data && data.protagonista_ids) || [];
+      if (!ids.length) { setProtagonistas([]); return; }
+      const { data: pjs } = await supabaseClient
+        .from('personagens').select('id, nome').in('id', ids).order('nome');
+      if (!cancel.atual) setProtagonistas(pjs || []);
+    })();
+    return () => { cancel.atual = true; };
+  }, [podeGerirVisibilidade, historiaId]);
+
+  /* Um UPDATE só, com o patch que o modal montou — ver patchDeVisibilidade em
+     13-diario/diario.jsx. O .select() não é zelo: sem ele um UPDATE barrado
+     por RLS volta como sucesso com 0 linhas e a tela mente que salvou. */
+  const salvarVisibilidade = async (patch) => {
+    if (!historia) return;
+    setSalvandoVis(true);
+    setError(null);
+    const colunas = ['id', ...Object.keys(patch)].join(', ');
+    const { data: rows, error: err } = await supabaseClient
+      .from('historias').update(patch).eq('id', historia.id).select(colunas);
+    setSalvandoVis(false);
+    if (err) { setError(err.message); return; }
+    if (!rows || rows.length === 0) {
+      setError(lang === 'en'
+        ? 'Could not save: the update affected 0 rows (likely an RLS rule on "historias").'
+        : 'Não foi possível salvar: o update não afetou nenhuma linha (provável regra de RLS em "historias").');
+      return;
+    }
+    setHistoria((ant) => ({ ...ant, ...patch, ...rows[0] }));
+    setPermissaoDe(null);
+  };
 
   // Extraído do useEffect original SEM mudar comportamento (mesmo guard de
   // cancelamento, só que via objeto em vez da variável de closure) — assim dá
@@ -433,6 +520,65 @@ function CriaturasList({ ac, lang, modoJogador }) {
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query]);
 
+  /* Armas do catálogo para montar os ataques da linha expandida — uma arma,
+     um ataque (ataquesDaCriatura). Só carrega na primeira expansão. Enquanto
+     não chega, ataquesDaCriatura cai no ataque único das colunas gravadas. */
+  const [armasPorSlug, setArmasPorSlug] = useState(null);
+  /* Tooltip do projeto (nunca o `title` nativo — ver tooltip-padrao.test.js):
+     o nome comprido da arma é cortado com reticências na caixa, e o inteiro
+     aparece aqui. Serve também à sigla MON (Montaria). */
+  const [tipStat, mostrarTipStat, esconderTipStat] = useBestTip();
+  /* SEM o filtro `grupo = 'Armas'` desde 17/09/2026: a mesma leitura serve
+     agora a DUAS seções da ficha. Ataques só quer armas, mas Equipamentos
+     mostra o nome de qualquer peça que a criatura vista — e uma armadura
+     ficaria como slug cru ("cota-de-malha") se o catálogo viesse filtrado.
+     Uma leitura paginada a mais por tela é mais barato que duas leituras. */
+  useEffect(() => {
+    if (expandida == null || armasPorSlug || typeof fetchTabelaPaginada !== 'function') return undefined;
+    let cancelado = false;
+    fetchTabelaPaginada('itens', { colunas: 'slug, nome, grupo, dano, dano_l, dano_m, dano_p, ajuste_atributo' })
+      .then(({ data }) => {
+        if (cancelado) return;
+        const m = {};
+        (data || []).forEach((it) => { m[it.slug] = it; });
+        setArmasPorSlug(m);
+      });
+    return () => { cancelado = true; };
+  }, [expandida, armasPorSlug]);
+
+  /* ── Catálogos das seções Habilidades, Técnicas e Magias (17/09/2026) ────
+     O banco guarda só os NOMES na linha da criatura ("Sentidos, Rastrear"); o
+     número sai do estágio e dos atributos, pelas mesmas funções da batalha
+     (o trio ...DaCriaturaCrua). Para isso é preciso o catálogo de cada um.
+
+     Preguiçoso e uma vez só, no mesmo molde do armasPorSlug acima: quem abre
+     a tela para buscar uma criatura não paga por três leituras que só a ficha
+     usa. As três em paralelo — não dependem uma da outra. */
+  const [catalogosFicha, setCatalogosFicha] = useState(null);
+  useEffect(() => {
+    if (expandida == null || catalogosFicha) return undefined;
+    let cancelado = false;
+    (async () => {
+      const [habs, tecs, mags] = await Promise.all([
+        supabaseClient.from('habilidades').select('key, nome, grupo, ajuste, descricao'),
+        supabaseClient.from('tecnicas').select('key, nome, uso, efeito, descricao, grupo_armas, grupo_armaduras'),
+        supabaseClient.from('magias').select('key, nome, descricao'),
+      ]);
+      if (cancelado) return;
+      const porKey = (rows) => {
+        const m = {};
+        (rows || []).forEach((r) => { if (r && r.key) m[r.key] = r; });
+        return m;
+      };
+      setCatalogosFicha({
+        habilidadesByKey: porKey(habs.data),
+        tecnicasByKey: porKey(tecs.data),
+        magiasByKey: porKey(mags.data),
+      });
+    })();
+    return () => { cancelado = true; };
+  }, [expandida, catalogosFicha]);
+
   if (!Table) return <BestNoKit />;
   if (criaturas === null) return <BestLoading lang={lang} />;
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'criaturas' table exists in Supabase." : "Confira se a tabela 'criaturas' existe no Supabase."} />;
@@ -451,23 +597,298 @@ function CriaturasList({ ac, lang, modoJogador }) {
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   // Colunas da linha. Os 7 atributos e a descrição vivem no painel expansível.
+  /* COLUNAS (17/09/2026): "eu quero apenas as colunas de 'visibilidade',
+     'classe', 'estágio', além dos botões de ver e editar." (usuário)
+
+     Eram dez. As sete de números (EF, EH, AB, DF, AR, VB, PS) desceram para a
+     ficha da linha expandida, em seções com subtítulo — ver SECOES_DA_FICHA.
+     Uma tabela de catálogo serve para ACHAR a criatura; comparar números é o
+     que a ficha faz, e ali cabe o rótulo inteiro.
+
+     Nome fica porque é o identificador da linha e é onde mora o chevron de
+     expandir. Visibilidade entra sob a MESMA condição do olho (mesa
+     selecionada): sem mesa não existe "quem vê nesta história" para mostrar. */
   const cols = [
-    { key: 'nome',            label: lang === 'en' ? 'Name' : 'Nome',     full: lang === 'en' ? 'Name' : 'Nome' },
-    { key: 'tipo',            label: lang === 'en' ? 'Class' : 'Classe',  full: lang === 'en' ? 'Class' : 'Classe' },
-    { key: 'estagio',         label: 'Est',    full: lang === 'en' ? 'Stage' : 'Estágio' },
-    { key: 'energia_fisica',  label: 'EF',     full: 'Energia Física' },
-    { key: 'energia_heroica', label: 'EH',     full: 'Energia Heroica' },
-    { key: 'absorcao',        label: 'AB',     full: 'Absorção' },
-    { key: 'defesa',          label: 'DF',     full: 'Defesa' },
-    { key: 'armadura',        label: 'AR',     full: 'Armadura' },
-    { key: 'velocidade',      label: 'VB',     full: 'Velocidade' },
-    { key: 'peso',            label: 'PS',     full: 'Peso' },
-  ];
-  const atributos = [
-    { key: 'intelecto', label: 'INT' }, { key: 'aura', label: 'AUR' }, { key: 'carisma', label: 'CAR' },
-    { key: 'forca', label: 'FOR' }, { key: 'fisico', label: 'FIS' }, { key: 'agilidade', label: 'AGI' }, { key: 'percepcao', label: 'PER' },
+    { key: 'nome',    label: lang === 'en' ? 'Name' : 'Nome' },
+    ...(podeGerirVisibilidade
+      ? [{ key: '_visibilidade', label: lang === 'en' ? 'Visibility' : 'Visibilidade' }]
+      : []),
+    { key: 'tipo',    label: lang === 'en' ? 'Class' : 'Classe' },
+    { key: 'estagio', label: lang === 'en' ? 'Stage' : 'Estágio' },
   ];
   const fmt = (v) => (v === null || v === undefined || v === '' ? '—' : v);
+  /* Calculados (15/09/2026): "No modal de editar criaturas, não precisa
+     mostrar os campos preenchidos automaticamente, mas mostre ao expandir a
+     criatura na tabela." Os gravados vêm da linha; RF e RM não têm coluna e
+     saem da mesma conta do editor. */
+  /* Rótulos ABREVIADOS (15/09/2026): "padronize o tamanho dos atributos,
+     abreviando as palavras". São as mesmas siglas das colunas da tabela, e a
+     armadura mostra a SIGLA (L/M/P), não "Leve" — o nome por extenso fazia a
+     caixa dela ser o dobro das outras. */
+  /* Quantos botões a coluna de ações tem: 0 (nenhum), 1 (só lápis ou só olho)
+     ou 2. O número decide a largura do cabeçalho — e a EXISTÊNCIA da coluna,
+     que antes era `ehAdmin` sozinho. */
+  const temAcoes = (ehAdmin ? 1 : 0) + (podeGerirVisibilidade ? 1 : 0);
+
+  /* ── A FICHA EM SEÇÕES (17/09/2026) ────────────────────────────────────
+     "O restante das informações eu quero descritas, use cards depois de cada
+     subtítulo (com tooltip)." (usuário, que ditou as oito seções e a ordem)
+
+     ⚠️ RÓTULOS POR EXTENSO. Isto REVERTE 15/09/2026 ("padronize o tamanho dos
+     atributos, abreviando as palavras"), o pedido que criou os EF/RF/AGI. Eles
+     existiam porque cada card era uma célula de faixa apertada, do tamanho da
+     coluna da tabela; agora as seções são largas e o nome inteiro cabe. Quem
+     encontrar aquele comentário antigo em outro lugar: ele valia para a faixa
+     única, que não existe mais aqui.
+
+     O tooltip diz O QUE O CAMPO É — decisão do usuário entre explicar o campo
+     e mostrar a conta. Para habilidade, técnica e magia, a explicação é a
+     `descricao` do próprio catálogo, que já existe e já é mantida.
+
+     `armadura` é a única de valor TEXTO nas Informações, e mostra a SIGLA que
+     o banco guarda (L/M/P). Chegou a mostrar a palavra, traduzida pelo mapa do
+     editor de catálogo; o usuário preferiu a sigla ("Leve = L", 17/09/2026), e
+     com isso decodificá-la passou a ser trabalho do tooltip — que é por onde o
+     card diz "L leve, M médio, P pesado". */
+  const en = lang === 'en';
+  const fmtAltura = (v) => (v == null || v === ''
+    ? '—'
+    // Metro com duas casas e vírgula decimal: 0,80 — a unidade do jogo.
+    : Number(v).toFixed(2).replace('.', ','));
+
+  /* O texto do chip de Visibilidade. Mesmo critério das tabelas de NPCs e
+     Lugares: "ninguém"/"todos" pelo nome, e a liberação individual pela
+     PROPORÇÃO (1/2), porque 1 de 4 e 3 de 4 são situações diferentes e um
+     rótulo só não as distingue. */
+  const rotuloVisibilidade = (vis) => {
+    const tp = ((COPY[lang] || COPY.pt).lore || {}).permissao || {};
+    if (vis.modo === 'ninguem') return tp.ninguem;
+    if (vis.modo === 'todos') return tp.todos;
+    return `${vis.pjIds.length}/${protagonistas.length || vis.pjIds.length}`;
+  };
+
+  /* Ícone da CLASSE: o mesmo mapa do token do tabuleiro
+     (ICONE_TIPO_CRIATURA, 01-core/game-data.jsx). Devolve null para tipo sem
+     ícone mapeado, e aí o card cai na palavra. */
+  const iconeDeClasse = (tipo) => (
+    (typeof iconeTipoCriatura === 'function' ? iconeTipoCriatura(tipo) : null) || null
+  );
+
+  /* Ícone do ELEMENTO (17/09/2026, ícones ditados pelo usuário).
+     Lê a coluna `elemento`, que nasceu em 18/09/2026 justamente por causa
+     deste card: antes o valor saía de `subtipo`, que declarava elementos no
+     editor e guardava ESPÉCIE nos dados (~147 de ~218 diziam "Cavalo",
+     "Goblin", "Esqueleto"), e o card mostrava espécie sob o rótulo Elemento.
+     Ver scripts/sql/criaturas-elemento-2026-09-18.sql.
+     Quem não casa com os quatro cai na palavra — 203 criaturas estão sem
+     elemento informado, e "—" é a verdade ali.
+     A chave é comparada sem acento e em minúsculas porque "Água" aparece
+     escrita das duas formas em catálogos de jogo. */
+  const ELEMENTO_ICONE = {
+    fogo:  'ti-flame',
+    ar:    'ti-tornado',
+    agua:  'ti-droplet',
+    terra: 'ti-frustum',
+  };
+  const iconeDeElemento = (v) => {
+    if (!v) return null;
+    const chave = String(v).trim().toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return ELEMENTO_ICONE[chave] || null;
+  };
+
+  /* "Grupo Pequeno" → "Pequeno" (17/09/2026). O rótulo do card já é "Grupo";
+     o prefixo no valor gastava metade da caixa repetindo a palavra. Só o
+     prefixo sai — "Solitário", que não o tem, passa intacto, e um valor novo
+     na coluna `coletivo` que não comece com "Grupo " também. */
+  const semPrefixoGrupo = (v) => (v == null || v === ''
+    ? v
+    : String(v).replace(/^Grupo\s+/i, ''));
+
+  /* O trio cri-based vive em 12-batalha, que carrega DEPOIS desta fase. Em
+     tempo de render isso não é problema (main.tsx já carregou tudo), mas uma
+     tela que monte só o bestiário — como bestiario-admin.test.jsx faz —
+     encontraria `window.MotorBatalha` indefinido e quebraria a linha
+     expandida inteira.
+
+     Guarda com `typeof`, a mesma convenção dos outros globais entre fases
+     (ver `iconeTipoCriatura` em 12-batalha/tabuleiro.jsx): sem o motor, as
+     três seções que dependem dele vêm vazias, e o resto da ficha — que é a
+     maior parte — continua de pé. Degradar é melhor que sumir. */
+  const doMotor = (fn, ...args) => {
+    const m = (typeof MotorBatalha !== 'undefined' && MotorBatalha)
+      || (typeof window !== 'undefined' && window.MotorBatalha);
+    return (m && typeof m[fn] === 'function') ? (m[fn](...args) || []) : [];
+  };
+
+  const SECOES_DA_FICHA = (row) => {
+    const cri = catalogosFicha || {};
+    /* `card(rotulo, valor, nomeInteiro, explicacao)`.
+       O tooltip junta os dois últimos: quando o rótulo é uma SIGLA (Int, EF), o
+       nome inteiro vem primeiro — é a primeira coisa que alguém quer ao parar
+       o mouse num "Int" —, e a explicação vem depois. Onde o rótulo já é a
+       palavra (Características, Habilidades, Ataques), `nomeInteiro` é null e
+       sobra só a explicação: repetir "Estágio — Estágio" não informa nada.
+
+       O par sigla+tooltip é o pedido de 17/09/2026 ("Int (tooltip Intelecto)");
+       a explicação é o de mais cedo no mesmo dia, quando o usuário escolheu
+       que o tooltip diz "o que aquilo significa". As duas coisas cabem juntas
+       e nenhuma precisou ser desfeita. */
+    /* `icone` (5º arg, 17/09/2026): quando presente, o VALOR do card é o
+       glifo em vez do texto — é o pedido "para a classe, use o ícone, para o
+       elemento, use os ícones". O texto correspondente vai para o tooltip
+       (via `nomeInteiro`), e é obrigatório fazer isso: um ícone sozinho não se
+       explica, e "Classe: 🐴" sem legenda vale menos que a palavra. */
+    const card = (label, val, nomeInteiro, explicacao, icone) => ({
+      label, val, icone,
+      tip: [nomeInteiro, explicacao].filter(Boolean).join(' — '),
+    });
+    const listaEquip = (typeof CriaturaFormulas !== 'undefined'
+      && CriaturaFormulas.listaEquipamento)
+      ? CriaturaFormulas.listaEquipamento(row.equipamento) : [];
+    const itens = armasPorSlug || {};
+
+    return [
+      {
+        titulo: en ? 'Attributes' : 'Atributos',
+        cards: [
+          card('INT', row.intelecto, en ? 'Intellect' : 'Intelecto',
+            en ? 'Reasoning and learning.' : 'Raciocínio e aprendizado.'),
+          card('AUR', row.aura, 'Aura',
+            en ? 'Magical presence — feeds Heroic Energy and Magic Resistance.' : 'Presença mágica — alimenta a Energia Heroica e a Resistência Mágica.'),
+          card('CAR', row.carisma, en ? 'Charisma' : 'Carisma',
+            en ? 'Influence over others.' : 'Influência sobre os outros.'),
+          card('FOR', row.forca, en ? 'Strength' : 'Força',
+            en ? 'Raw power — weighs on melee damage.' : 'Força bruta — pesa no dano corpo a corpo.'),
+          card('FIS', row.fisico, en ? 'Physique' : 'Físico',
+            en ? 'Body and stamina — feeds Physical Energy and Physical Resistance.' : 'Corpo e resistência — alimenta a Energia Física e a Resistência Física.'),
+          card('AGI', row.agilidade, en ? 'Agility' : 'Agilidade',
+            en ? 'Speed and reflexes.' : 'Rapidez e reflexo.'),
+          card('PER', row.percepcao, en ? 'Perception' : 'Percepção',
+            en ? 'What the creature notices around it.' : 'O que a criatura nota em volta.'),
+        ],
+      },
+      {
+        titulo: en ? 'Information' : 'Informações',
+        cards: [
+          card('EF', row.energia_fisica, en ? 'Physical Energy' : 'Energia Física',
+            en ? 'The body’s pool — it runs out and the creature falls.' : 'A reserva do corpo — zera e a criatura cai.'),
+          card('EH', row.energia_heroica, en ? 'Heroic Energy' : 'Energia Heroica',
+            en ? 'The pool that absorbs the blow before the body does.' : 'A reserva que absorve o golpe antes do corpo.'),
+          card('RF', CriaturaFormulas.resistenciaFisica(row), en ? 'Physical Resistance' : 'Resistência Física',
+            en ? 'How much physical damage it endures.' : 'O quanto ela aguenta de dano físico.'),
+          card('RM', CriaturaFormulas.resistenciaMagica(row), en ? 'Magic Resistance' : 'Resistência Mágica',
+            en ? 'How much magical damage it endures.' : 'O quanto ela aguenta de dano mágico.'),
+          /* O VALOR é a sigla que o banco guarda (L/M/P), não a palavra
+             (17/09/2026: "Leve = L"). Com o valor abreviado, decodificá-lo
+             passa a ser trabalho do tooltip — daí as três palavras nele. */
+          card('AR', row.armadura, en ? 'Armor' : 'Armadura',
+            en ? 'Armor class: L light, M medium, P heavy.' : 'Classe da armadura: L leve, M médio, P pesado.'),
+          card('AB', row.absorcao, en ? 'Absorption' : 'Absorção',
+            en ? 'Damage the armor swallows on every hit.' : 'Dano que a armadura engole em cada acerto.'),
+          card('DF', row.defesa, en ? 'Defense' : 'Defesa',
+            en ? 'How hard it is to hit.' : 'O quanto ela é difícil de acertar.'),
+          card('VB', row.velocidade, en ? 'Speed' : 'Velocidade',
+            en ? 'How far it moves in a round.' : 'O quanto ela anda numa rodada.'),
+        ],
+      },
+      {
+        titulo: en ? 'Traits' : 'Características',
+        cards: [
+          card(en ? 'Stage' : 'Estágio', row.estagio, null,
+            en ? 'The creature’s level — it sets ability, technique and spell levels.' : 'O nível da criatura — é ele que dá o nível das habilidades, técnicas e magias.'),
+          card(en ? 'Weight' : 'Peso', row.peso, null,
+            en ? 'In kilograms.' : 'Em quilos.'),
+          card(en ? 'Height' : 'Altura', fmtAltura(row.altura), null,
+            en ? 'In meters.' : 'Em metros.'),
+          /* CLASSE E ELEMENTO viram ÍCONE (17/09/2026). A palavra sai do card
+             e vai para o tooltip — obrigatoriamente, porque um glifo sozinho
+             não se explica.
+
+             A classe reusa ICONE_TIPO_CRIATURA (01-core/game-data.jsx), o
+             mesmo mapa do token do tabuleiro: dois mapas discordariam e a
+             mesma criatura teria ícones diferentes na consulta e na batalha.
+             Ele cobre os 10 tipos que o catálogo usa de fato; 'Gigante' e
+             'Monstro', que o editor oferece e ninguém usa, caem na palavra. */
+          card(en ? 'Class' : 'Classe',
+            row.tipo, row.tipo,
+            en ? 'What kind of creature it is — animal, undead, dragon…' : 'Que tipo de criatura ela é — animal, morto, dragão…',
+            iconeDeClasse(row.tipo)),
+          /* Coluna PRÓPRIA desde 18/09/2026. Lia `subtipo`, que declarava
+             elementos no editor e guardava ESPÉCIE nos dados — o card dizia
+             "Elemento: Cavalo" para a maior parte do catálogo. Ver
+             scripts/sql/criaturas-elemento-2026-09-18.sql. */
+          card(en ? 'Element' : 'Elemento',
+            row.elemento, row.elemento,
+            en ? 'The element it belongs to.' : 'O elemento a que ela pertence.',
+            iconeDeElemento(row.elemento)),
+          /* O valor perde o "Grupo " (17/09/2026: "Grupo Pequeno = Pequeno").
+             O rótulo do card já diz Grupo; repeti-lo no valor gastava metade da
+             caixa dizendo duas vezes a mesma coisa. "Solitário" não tem o
+             prefixo e passa intacto. */
+          card(en ? 'Group' : 'Grupo', semPrefixoGrupo(row.coletivo), null,
+            en ? 'Whether it shows up alone or in a band.' : 'Se ela aparece sozinha ou em bando.'),
+          /* Montaria não estava na lista ditada, e aparecia na faixa antiga
+             como o chip "MON". Virou card em vez de desaparecer: é uma
+             característica, e é ela que o inventário lê para oferecer
+             "Montar". */
+          card(en ? 'Mount' : 'Montaria',
+            row.montaria === true ? (en ? 'Yes' : 'Sim') : (en ? 'No' : 'Não'), null,
+            en ? 'Whether it can be ridden.' : 'Se ela pode ser montada.'),
+        ],
+      },
+      {
+        titulo: en ? 'Abilities' : 'Habilidades',
+        // O total vem da MESMA função da batalha — ver o trio no batalha.jsx.
+        cards: doMotor('habilidadesDaCriaturaCrua', row, cri.habilidadesByKey)
+          .map((h) => card(h.nome, h.total, null, h.descricao)),
+      },
+      {
+        titulo: en ? 'Combat Techniques' : 'Técnicas de Combate',
+        cards: doMotor('tecnicasDaCriaturaCrua', row, cri.tecnicasByKey)
+          .map((t) => card(t.nome, t.total, null, t.descricao || t.efeito)),
+      },
+      {
+        titulo: en ? 'Equipment' : 'Equipamentos',
+        /* SÓ EQUIPAMENTO DE DEFESA (17/09/2026: "são equipamentos de defesa,
+           no caso da Águia não tem nenhum"). A coluna `equipamento` guarda as
+           duas coisas na mesma lista — o bico e a garra da Águia são itens do
+           grupo Armas —, e as armas já têm a seção Ataques, com o dano. Listar
+           as duas vezes fazia a Águia parecer equipada com armadura.
+
+           `grupo !== 'Armas'` é o MESMO discriminador que criatura-formulas usa
+           (ehArma) para decidir o que vira ataque e o que vira absorção/defesa.
+           Peça cujo slug não está no catálogo fica de fora: sem o item não há
+           como saber se é arma ou proteção, e chutar erraria para um dos
+           lados. */
+        cards: listaEquip
+          .map((p) => ({ p, it: itens[p.slug] }))
+          .filter(({ it }) => it && it.grupo !== 'Armas')
+          .map(({ p, it }) => card(
+            it.nome,
+            // O slot é o "valor" do card: onde a peça está vestida.
+            p.slot || '—',
+            null,
+            en ? `Equipped in: ${p.slot || '—'}` : `Equipado em: ${p.slot || '—'}`
+          )),
+      },
+      {
+        titulo: en ? 'Spells' : 'Magias',
+        /* O valor é o NÍVEL em que a criatura conjura, e ele sai do ESTÁGIO
+           (nivelMagiaDeCriatura), não da coluna `magia_n` — abandonada em
+           13/09/2026 e ainda preenchida no banco com valores velhos. */
+        cards: doMotor('magiasDaCriaturaCrua', row, cri.magiasByKey)
+          .map((m) => card(m.magia.nome, m.nivel, null, m.magia.descricao)),
+      },
+      {
+        titulo: en ? 'Attacks' : 'Ataques',
+        // O número é o Dano 100% da arma, como na faixa antiga.
+        cards: (CriaturaFormulas.ataquesDaCriatura(row, itens) || [])
+          .map((a) => card(a.nome, a.dano_100, null,
+            en ? 'Damage at 100% of the Heroic Energy.' : 'Dano a 100% da Energia Heroica.')),
+      },
+    ];
+  };
 
   return (
     <div className="fp-page">
@@ -489,7 +910,11 @@ function CriaturasList({ ac, lang, modoJogador }) {
             <Table>
               <TableHeader><TableRow>
                 {cols.map((c) => <SortHead key={c.key} col={c.key} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{c.label}</SortHead>)}
-                {ehAdmin && <TableHead style={{ width: 40 }} />}
+                {/* Uma coluna de ações para o lápis e/ou o olho. `temAcoes`
+                    em vez de `ehAdmin` sozinho: o olho depende de mesa
+                    selecionada, não de ser admin, e sem ele o cabeçalho
+                    ficava com uma coluna a menos que as linhas. */}
+                {temAcoes && <TableHead style={{ width: temAcoes === 2 ? 80 : 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((row) => {
@@ -499,25 +924,94 @@ function CriaturasList({ ac, lang, modoJogador }) {
                       <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : row.id)}>
                         {cols.map((c) => c.key === 'nome' ? (
                           <TableCell key={c.key} className="best-name"><span className="best-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>›</span>{fmt(row[c.key])}</TableCell>
+                        ) : c.key === '_visibilidade' ? (
+                          /* O MESMO chip das tabelas de NPCs e Lugares — o
+                             estado que o olho edita, legível na linha. Vem de
+                             13-diario porque "quem vê" tem uma regra só. */
+                          <TableCell key={c.key}>{(() => {
+                            const vis = window.DiarioVisibilidade.visibilidadeDaEntrada(historia, 'criatura', row.id);
+                            return (
+                              <span className={'diario-vis-chip diario-vis-chip--' + vis.modo}>
+                                {rotuloVisibilidade(vis)}
+                              </span>
+                            );
+                          })()}</TableCell>
                         ) : (
                           <TableCell key={c.key}>{fmt(row[c.key])}</TableCell>
                         ))}
-                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(row)} /></TableCell>}
+                        {temAcoes && (
+                          <TableCell className="best-td-acoes" onClick={(ev) => ev.stopPropagation()}>
+                            {/* O olho vem ANTES do lápis, como nas tabelas de
+                                NPCs e Lugares — a ordem é a mesma nas três. */}
+                            {podeGerirVisibilidade && (
+                              <BestBotaoPermissao
+                                lang={lang}
+                                onClick={() => setPermissaoDe(row)}
+                                disabled={!historia} />
+                            )}
+                            {ehAdmin && <BestBotaoEditar ac={ac} onClick={() => setEditando(row)} />}
+                          </TableCell>
+                        )}
                       </TableRow>
                       {isOpen && (
-                        <TableRow className="best-detail"><TableCell colSpan={cols.length + (ehAdmin ? 1 : 0)}>
-                          <div className="best-detail-stats">
-                            {atributos.map((a) => (
-                              <div className="best-stat" key={a.key}><span className="best-stat-lbl">{a.label}</span><span className="best-stat-val">{fmt(row[a.key])}</span></div>
-                            ))}
-                            {/* Montaria (14/09/2026): característica da criatura. */}
-                            {row.montaria === true && (
-                              <div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Mount' : 'Montaria'}</span><span className="best-stat-val">{lang === 'en' ? 'Yes' : 'Sim'}</span></div>
-                            )}
-                          </div>
+                        <TableRow className="best-detail"><TableCell colSpan={cols.length + (temAcoes ? 1 : 0)}>
+                          {/* A descrição ABRE a ficha, como no exemplo que o
+                              usuário escreveu: o nome, o parágrafo, e só então
+                              os números. Antes vinha por último, depois das
+                              faixas de cards. */}
                           {row.descricao
                             ? <TextoDoBanco texto={row.descricao} className="best-desc" />
                             : <p className="best-desc" style={{ opacity: 0.55 }}>{lang === 'en' ? 'No description yet.' : 'Sem descrição ainda.'}</p>}
+                          {/* Enquanto os catálogos não chegam, as três seções
+                              que dependem deles vêm vazias — e "vazio" ali
+                              significaria "esta criatura não tem magia", que é
+                              mentira diferente de "ainda estou carregando". */}
+                          {!catalogosFicha ? (
+                            <div className="best-secao-vazia">{lang === 'en' ? 'Loading…' : 'Carregando…'}</div>
+                          ) : SECOES_DA_FICHA(row)
+                            /* SEÇÃO VAZIA NÃO APARECE (17/09/2026): "se a
+                               criatura não possui magia ou equipamentos, não
+                               precisa mostrar o título e -". Chegou a mostrar
+                               o subtítulo com um travessão, por causa de como
+                               o exemplo foi escrito; o usuário viu na tela e
+                               preferiu sem. Vale para qualquer seção — a
+                               Águia perde Equipamentos e Magias, um dragão sem
+                               técnica perderia Técnicas de Combate. As três
+                               primeiras nunca somem: sempre têm cards. */
+                            .filter((s) => s.cards.length > 0)
+                            .map((s) => (
+                            <div className="best-secao" key={s.titulo}>
+                              <h4 className="best-secao-titulo">{s.titulo}</h4>
+                              <div className="best-detail-stats">
+                                {s.cards.map((c, i) => (
+                                  <div className="best-stat" key={c.label + '_' + i}>
+                                    {/* O tooltip mora no RÓTULO, que é o que
+                                        pede explicação — e é o padrão do
+                                        projeto (useBestTip, nunca o `title`
+                                        nativo: ver tooltip-padrao.test.js).
+                                        `data-tip` deixa o texto legível ao
+                                        teste sem abrir o tooltip. */}
+                                    <span className="best-stat-lbl"
+                                      data-tip={c.tip || c.label}
+                                      onMouseEnter={(e) => mostrarTipStat(e, c.tip || c.label)}
+                                      onMouseLeave={esconderTipStat}>{c.label}</span>
+                                    {/* Ícone no lugar do texto (classe,
+                                        elemento). A palavra vai no aria-label
+                                        porque o tooltip não é anunciado por
+                                        leitor de tela: sem ele, "Classe" ficaria
+                                        com valor vazio para quem não vê o
+                                        glifo. */}
+                                    <span className="best-stat-val"
+                                      aria-label={c.icone ? (c.val == null ? undefined : String(c.val)) : undefined}>
+                                      {c.icone
+                                        ? <i className={'ti ' + c.icone} aria-hidden="true" />
+                                        : fmt(c.val)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
                         </TableCell></TableRow>
                       )}
                     </React.Fragment>
@@ -540,6 +1034,22 @@ function CriaturasList({ ac, lang, modoJogador }) {
         onCancel={() => setEditando(undefined)}
       />
     )}
+    {/* O modal do olho vem de 13-diario: é o MESMO que as tabelas de NPCs e
+        Lugares abrem, e "quem pode ver" tem uma regra só (as colunas
+        historias.<tipo>_ids + lore_acesso_pj, ver visibilidadeDaEntrada). Uma
+        segunda cópia aqui é como as duas começariam a discordar. */}
+    {permissaoDe && historia && (
+      <PermissaoEntradaModal
+        entrada={{ id: permissaoDe.id, tipo: 'criatura', nome: permissaoDe.nome }}
+        historia={historia}
+        protagonistas={protagonistas}
+        lang={lang}
+        salvando={salvandoVis}
+        onClose={() => setPermissaoDe(null)}
+        onSalvar={salvarVisibilidade}
+      />
+    )}
+    <BestTip tip={tipStat} />
     </div>
   );
 }
@@ -1415,19 +1925,10 @@ function TecnicasAuditoriaPainel({ tecnicas, lang, onRecarregar }) {
       onAbrir={() => setAberto(true)} onFechar={() => setAberto(false)}
       acoesTopo={<BotaoReconferir en={en} onRecarregar={onRecarregar} recarregando={recarregando}
         conferidoEm={conferidoEm} onClick={reconferir} />}>
+        {/* O resumo "N em acordo com o motor · N fora do motor" e o aviso de que
+            o número mora no código saíram em 15/09/2026, a pedido do usuário:
+            técnica nova entra no motor, e a janela só lista o que pede ação. */}
         <div className="best-aud-corpo">
-          <p className="best-aud-resumo">
-            {temProblema
-              ? (en ? `${s.divergente} diverging` : `${s.divergente} divergente(s)`)
-              : (en ? `${s.ok} in sync` : `${s.ok} em acordo com o motor`)}
-            {' · '}
-            {en ? `${s.fora} unmapped` : `${s.fora} fora do motor`}
-          </p>
-          <p className="best-aud-ajuda">
-            {en
-              ? 'UNLIKE spells: a technique\'s numbers live in CODE. Editing the text changes what the screen promises, not what the engine does — tell me and I change both.'
-              : 'AO CONTRÁRIO das magias: o número da técnica mora no CÓDIGO. Editar o texto muda o que a tela promete, não o que o motor faz — me avise e eu mudo os dois.'}
-          </p>
           <p className="best-aud-ajuda best-aud-motor">
             {en
               ? <>Engine loaded in this browser: <strong>{noMotor} techniques</strong> registered.</>
@@ -1885,7 +2386,7 @@ Object.assign(window, {
   TecnicasList, ItensList, useEhAdmin,
   // Detalhe do item (14/09/2026) — também na página de itens da campanha.
   BestItemArmazenamento, BestItemMagia, useMagiasParaItens, temArmazenamentoItem,
-  linhasQueCabem, paragrafosDe, TextoDoBanco, textoListaVazia,
+  linhasQueCabem, useFitPageSize, paragrafosDe, TextoDoBanco, textoListaVazia,
   /* O VOCABULÁRIO DA TABELA, exposto em 12/09/2026.
 
      As telas Lugares/Personagens/Memórias (13-diario) passaram a ser "uma

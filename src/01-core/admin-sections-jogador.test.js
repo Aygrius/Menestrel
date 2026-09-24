@@ -74,10 +74,19 @@ describe('o que entrou: as três do ex-Diário', () => {
     expect(ADMIN_SECTIONS.player.map((s) => s.id)).toContain(id);
   });
 
-  it('são só do JOGADOR — o Mestre vê o diário pela ficha do PJ', () => {
-    ['lugares', 'npcs', 'memorias'].forEach((id) => {
-      expect(ADMIN_SECTIONS.master.map((s) => s.id), id).not.toContain(id);
+  /* Eram as três só do Jogador até 17/09/2026, quando Lugares e NPCs também
+     viraram destino do Mestre ("Não está aparecendo para o mestre o menu NPCs
+     e lugares, vinculados à história selecionada"). Mesmo nome, outra tela: o
+     Mestre vê o lore DA MESA (LoreDaMesa → GerenciarLoreView), o Jogador vê o
+     diário DO PERSONAGEM. Memórias não atravessou — memória é do personagem. */
+  it('Lugares e NPCs também são do Mestre, pela mesa ativa', () => {
+    ['lugares', 'npcs'].forEach((id) => {
+      expect(ADMIN_SECTIONS.master.map((s) => s.id), id).toContain(id);
     });
+  });
+
+  it('memórias continua só do Jogador', () => {
+    expect(ADMIN_SECTIONS.master.map((s) => s.id)).not.toContain('memorias');
   });
 
   it('cada uma tem ícone próprio, sem repetir as vizinhas', () => {
@@ -86,13 +95,20 @@ describe('o que entrou: as três do ex-Diário', () => {
   });
 });
 
-describe('ADMIN_SECTIONS.master — as 8 seções', () => {
+describe('ADMIN_SECTIONS.master — as dez seções', () => {
   it('mantém a ordem, com Histórias primeiro', () => {
     const ids = ADMIN_SECTIONS.master.map((s) => s.id);
     expect(ids).toEqual([
-      'historias', 'personagens_m', 'criaturas', 'itens',
+      'historias', 'personagens_m', 'lugares', 'npcs', 'criaturas', 'itens',
       'itens_campanha', 'magias', 'tecnicas', 'habilidades',
     ]);
+  });
+
+  /* Mesma exigência da barra do Jogador: com a sidebar só de ícones, dois
+     ícones iguais são dois destinos indistinguíveis. */
+  it('cada seção do Mestre tem ícone próprio', () => {
+    const icones = ADMIN_SECTIONS.master.map((s) => s.icon);
+    expect(new Set(icones).size, 'ícone repetido na barra do Mestre').toBe(icones.length);
   });
 });
 

@@ -24,15 +24,21 @@
    ============================================================ */
 
 /* ── Geometria do tabuleiro ─────────────────────────────────────────────
-   Grid de 55×35 células. Cada participante ocupa um bloco de 2×2 — por
+   Grid de 50×35 células. Cada participante ocupa um bloco de 2×2 — por
    isso todo clamp de posição é contra (COLS - TOKEN) e (ROWS - TOKEN), e
    as distâncias de borda descontam (TOKEN - 1).
 
    14/09/2026 (usuário): "O avatar dos participantes devem ter 2x2 [...] O
    tabuleiro deve ter 55x35." Os valores do bundle recuperado eram 70×35 e
    token 3×3 — o avatar já era DESENHADO com 2 células (TAB_TOKEN_ESCALA),
-   mas ocupava 3×3, e sobrava uma célula fantasma em volta de cada um. */
-const TAB_COLS   = 55;      // largura do tabuleiro, em células
+   mas ocupava 3×3, e sobrava uma célula fantasma em volta de cada um.
+
+   17/09/2026 (usuário): "O tabuleiro terá 50x35 posições, e estará
+   centralizado na tela." As cinco colunas que saíram são as que faziam o
+   grid passar da largura útil na maioria das telas — no zoom padrão (0.5)
+   50 células dão 1000px, que caem dentro do corpo da página, e aí a
+   centralização tem o que centralizar. Ver `sobra` no render. */
+const TAB_COLS   = 50;      // largura do tabuleiro, em células
 const TAB_ROWS   = 35;      // altura do tabuleiro, em células
 const TAB_TOKEN  = 2;       // lado do token, em células (2×2)
 const TAB_CELULA = 40;      // px por célula no zoom 1×
@@ -265,7 +271,9 @@ function movimentoDisponivel(p) {
   if (!p) return 0;
   const n = movimentosFeitos(p);
   if (n >= MOVIMENTOS_POR_RODADA) return 0;
-  if (n === 0) return Number.isFinite(p.mov_rest) ? p.mov_rest : movimentoBase(p.vb);
+  // Sem mov_rest gravado (snapshot antigo): o passo cheio, pela mesma conta
+  // do 2º movimento — com vento, magia e montaria, não o vb cru.
+  if (n === 0) return Number.isFinite(p.mov_rest) ? p.mov_rest : passoCompleto(p);
   return (p.pa_rest || 0) > 0 ? passoCompleto(p) : 0;
 }
 
@@ -451,7 +459,12 @@ function distanciaEntre(a, b) {
 function alvoNoAlcance(ator, alvo, alcance) {
   const d = distanciaEntre(ator, alvo);
   if (d == null) return true;
-  return d <= Math.max(1, Math.floor(Number(alcance) || 0) || 1);
+  /* Alcance 0 é Pessoal e vale 0 (revisão de 24/09/2026 — o `Math.max(1, …)`
+     de antes o transformava em 1, e a magia Pessoal aceitava o vizinho).
+     Ausente ou ilegível continua sendo corpo a corpo. */
+  const n = Number(alcance);
+  const limite = (alcance != null && Number.isFinite(n)) ? Math.max(0, Math.floor(n)) : 1;
+  return d <= limite;
 }
 
 /* ── Régua numerada do tabuleiro (13/09/2026) ─────────────────────────
@@ -488,6 +501,15 @@ function ReguaTabuleiro({ eixo, total, cel, deslocamento }) {
 }
 
 /* ── Token: avatar redondo + status + nome + barras EF/EH/AR ───────── */
+
+/* Fundo e tinta do rosto do token (17/09/2026): "fundo preto e ícone branco".
+   Branco aqui é o #E8DDC6 que a paleta Pedra & Bronze já usa para texto sobre
+   escuro (BestTip, .batalha-token-menu) — branco puro sobre preto puro brigaria
+   com o resto da tela. As duas moram fora do componente porque o token
+   re-renderiza a cada dano, movimento e virada de rodada. */
+const TOKEN_FUNDO = '#000000';
+const TOKEN_TINTA = '#E8DDC6';
+
 /* ── Selos de estado temporário no token (puro) ────────────────────
    O tabuleiro é a única coisa que todo mundo vê igual. Veneno e sangramento
    são o mesmo mecanismo (dano_por_rodada); o prefixo do id separa os dois
@@ -500,10 +522,13 @@ function selosDoToken(p) {
   const sangra = porRodada.some((s) => idTxt(s).startsWith('sangramento:'));
   const veneno = porRodada.some((s) => !idTxt(s).startsWith('sangramento:'));
   const caido = st.some((s) => s.efeito && s.efeito.tipo === 'sem_acoes');
+  // Ferido (15/09/2026): o mod_coluna que o Mestre aplica pelo menu de estado.
+  const ferido = st.some((s) => idTxt(s).startsWith('ferido:'));
   const selos = [];
   if (veneno) selos.push({ classe: 'batalha-token-selo-veneno', nome: 'Envenenado', icone: 'ti-flask-2', cor: '#7fd66b' });
   if (sangra) selos.push({ classe: 'batalha-token-selo-sangrando', nome: 'Sangrando', icone: 'ti-droplet', cor: '#e05a4f' });
   if (caido) selos.push({ classe: 'batalha-token-selo-caido', nome: 'Caído', icone: 'ti-arrow-down-circle', cor: '#e8c26b' });
+  if (ferido) selos.push({ classe: 'batalha-token-selo-ferido', nome: 'Ferido', icone: 'ti-bandage', cor: '#d98b5f' });
   if (p && p.evocando) selos.push({ classe: 'batalha-token-selo-evocando', nome: 'Evocando', icone: 'ti-sparkles', cor: '#9fb8ff' });
   return selos;
 }
@@ -581,6 +606,19 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
   const m = meta || {};
   const foto = p.foto_url || m.foto_url || null;
   const inicial = ((p.nome || '?').trim()[0] || '?').toUpperCase();
+  /* ÍCONE POR TIPO DE CRIATURA (17/09/2026): "ao invés de mostrar a primeira
+     letra do nome da criatura, mostre seu ícone de acordo com seu tipo."
+
+     Cuidado com o nome: `p.tipo` aqui é 'pj' | 'criatura' (o QUE o participante
+     é), não o tipo da criatura. O tipo do bestiário viaja como `raca` — o
+     snapshot grava `raca: c.tipo` (montarSnapshots) e o metaTokens repete
+     isso para a montagem, onde os participantes ainda são crus.
+
+     Só criatura troca a letra pelo desenho: para um PJ, `raca` é Humano/Elfo,
+     que não está nesta tabela. E tipo sem ícone mapeado continua na inicial —
+     nem todos os tipos do bestiário foram nomeados. */
+  const _iconeTipo = (typeof iconeTipoCriatura === 'function' ? iconeTipoCriatura : (typeof window !== 'undefined' && window.iconeTipoCriatura)) || (() => null);
+  const iconeCriatura = p.tipo === 'criatura' ? _iconeTipo(p.raca || m.raca) : null;
   const status = p.status || 'ativo';
   const fora = status === 'morto' || status === 'desistiu';
   const grande = size >= 24;
@@ -647,7 +685,13 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
              dourada do avatar, deixe apenas o pulsar para indicar de quem é a
              vez." O selecionado continua maior (scale no avatar, acima). */
           boxShadow: '0 1px 4px rgba(0,0,0,.5)',
-          background: 'linear-gradient(135deg, rgba(184,112,46,.95), rgba(122,94,42,.95))',
+          /* Preto liso (17/09/2026): "O avatar dos combatentes deve ser fundo
+             preto e ícone branco, (com exceção daqueles que possuem foto)."
+             Era um gradiente bronze com o glifo escuro por cima, e os ícones
+             de tipo de criatura — que nasceram dois dias antes — ficavam de
+             traço fino sobre fundo médio. A exceção da foto se resolve
+             sozinha: ela cobre o rosto inteiro (objectFit cover). */
+          background: TOKEN_FUNDO,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         },
       }, foto
@@ -655,9 +699,20 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
             src: foto, alt: '', draggable: false,
             style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
           })
+        : iconeCriatura
+        ? React.createElement('i', {
+            className: 'ti ' + iconeCriatura,
+            'aria-hidden': 'true',
+            style: {
+              color: TOKEN_TINTA, lineHeight: 1, userSelect: 'none',
+              // Um pouco menor que a letra: o glifo do ícone ocupa a caixa
+              // inteira, a letra não.
+              fontSize: Math.max(10, Math.round(size * 0.44)),
+            },
+          })
         : React.createElement('span', {
             style: {
-              fontFamily: 'Cinzel, serif', fontWeight: 700, color: '#1C1407',
+              fontFamily: 'Cinzel, serif', fontWeight: 700, color: TOKEN_TINTA,
               fontSize: Math.max(10, Math.round(size * 0.48)), lineHeight: 1, userSelect: 'none',
             },
           }, inicial),
@@ -797,13 +852,18 @@ function TabuleiroMenu({ alvoEl, onFechar, rotuloFechar, rotuloVoltar, travado, 
     // menu de dono.
     //
     // ⚠️ A lista abaixo precisa citar TODA UI que o menu abre por PORTAL.
-    // Portal quebra a contenção do DOM: o overlay do dado, o dropdown de
-    // estado e o tooltip são disparados de dentro do menu mas nascem fora
-    // dele, então `closest('.batalha-token-menu')` não os alcança e o clique
-    // parecia "clique fora". Foi o que aconteceu com o Confirmar da rolagem
-    // (30/08/2026): fechava o menu, o AcaoPanel desmontava e o d20 sumia
-    // junto com o estado dele — o Mestre tinha que rolar de novo. Quem
-    // adicionar um portal novo aqui dentro tem que incluí-lo nesta lista.
+    // Portal quebra a contenção do DOM: o dropdown de estado e o tooltip são
+    // disparados de dentro do menu mas nascem fora dele, então
+    // `closest('.batalha-token-menu')` não os alcança e o clique parecia
+    // "clique fora". Quem adicionar um portal novo aqui dentro tem que
+    // incluí-lo nesta lista.
+    //
+    // O caso que deu origem a isto foi o Confirmar da rolagem (30/08/2026):
+    // fechava o menu, o AcaoPanel desmontava e o d20 sumia junto com o estado
+    // dele — o Mestre tinha que rolar de novo. Esse caso não passa mais por
+    // aqui: desde 17/09/2026 o painel de Ação é um ModalShell (AcaoModal), e
+    // ModalShell não fecha por clique fora, de propósito. `.dado-overlay-backdrop`
+    // fica na lista porque a rolagem também é usada FORA do painel de Ação.
     const FORA_MAS_NOSSO = [
       '.batalha-token-menu',            // o próprio menu
       '.batalha-tabuleiro-wrap',        // o grid: mover e trocar de token
@@ -872,21 +932,29 @@ function TabuleiroMenu({ alvoEl, onFechar, rotuloFechar, rotuloVoltar, travado, 
    menuTravado    : bool — enquanto true o menu NÃO fecha por nenhuma via (X,
                     Escape, clique fora, clique na grade, clique em outro
                     token). Existe por causa da regra "rolou, não rola de
-                    novo": o d20 mora no estado do painel dentro do menu, e
-                    fechar o menu desmontava o painel — o resultado sumia e
-                    dava pra escapar da ação sem gastar PA.
+                    novo": o d20 morava no estado do painel de Ação, que morava
+                    DENTRO do menu, e fechar o menu desmontava o painel — o
+                    resultado sumia e dava pra escapar da ação sem gastar PA.
+                    Desde 17/09/2026 o painel é um ModalShell à parte
+                    (AcaoModal, batalha.jsx) e quem o tranca é o `travado` DELE;
+                    as duas views continuam passando `rolagemPendente` aqui
+                    porque o card do token também não deve fechar no meio de
+                    uma rolagem.
    menuVoltar     : (p, indice) => (() => void) | null — quando devolve uma
-                    função, o X do menu VOLTA um nível (fecha o painel de Ação
-                    e devolve as ações iniciais) em vez de fechar o menu.
+                    função, o X do menu VOLTA um nível em vez de fechar o menu.
                     Devolvendo null o X fecha normalmente, como sempre fez.
                     É por participante, e não global, pelo mesmo motivo que
-                    menuDe é: o painel pertence a UM lutador. Com um valor
-                    global, abrir o painel de quem está na vez e depois clicar
-                    noutro token deixaria o X daquele outro card "voltando"
-                    para um painel que nem está na tela — e o card ficaria sem
-                    saída nenhuma.
+                    menuDe é: o conteúdo do menu pertence a UM lutador. Com um
+                    valor global, abrir um nível em quem está na vez e depois
+                    clicar noutro token deixaria o X daquele outro card
+                    "voltando" para algo que nem está na tela — e o card
+                    ficaria sem saída nenhuma.
                     Escape e clique fora seguem fechando o menu inteiro em
                     qualquer nível: são gestos de "sair", não de "voltar".
+                    ⚠️ NINGUÉM passa esta prop hoje: o único nível que existia
+                    era o painel de Ação, que saiu do menu em 17/09/2026. A
+                    capacidade fica porque é genérica e testada
+                    (tabuleiro-menu.test.jsx).
    menuDe         : (p, indice, fechar, armarMovimento) => ReactNode — conteúdo
                     do menu. `armarMovimento` é null quando o participante não
                     pode mover; quando existe, é o "Mover" (fecha o menu e
@@ -914,15 +982,41 @@ function TabuleiroBatalha({
   // grade não chega no destino — ele acerta o menu. Por isso abrir o menu NÃO
   // arma mais o movimento; quem arma é o botão "Mover" de dentro dele, que
   // fecha o menu e libera a grade.
-  const [menuAberto, setMenuAberto] = useState(null);   // índice com menu aberto
-  const [movendoInterno, setMovendoInterno] = useState(null);   // índice armado pra mover
+  /* O menu aberto e o Mover armado guardam QUEM, não a posição na lista
+     (revisão de 24/09/2026). A virada de rodada reordena os participantes por
+     velocidade, e uma atualização vinda de outra tela chegava com o menu
+     aberto: guardado pelo índice, o menu trocava de dono sozinho e o Mover ia
+     para quem caísse naquele índice. Por fora a API continua em índices —
+     `menuAberto`/`movendo` abaixo são derivados da chave a cada render. */
+  const chaveDe = (p) => (p ? (p.inst_id || (p.tipo + ':' + p.ref_id)) : null);
+  const idxDaChave = (ch) => {
+    if (ch == null) return null;
+    const e = entradas.find((x) => chaveDe(x.p) === ch);
+    return e ? e.i : null;
+  };
+  const chaveDoIdx = (i) => {
+    if (i == null) return null;
+    const e = entradas.find((x) => x.i === i);
+    return e ? chaveDe(e.p) : null;
+  };
+  const [menuChave, setMenuChave] = useState(null);
+  const menuAberto = idxDaChave(menuChave);   // índice com menu aberto (derivado)
+  const setMenuAberto = (v) => setMenuChave((prev) => {
+    const novo = typeof v === 'function' ? v(idxDaChave(prev)) : v;
+    return chaveDoIdx(novo);
+  });
+  const [movendoChave, setMovendoChave] = useState(null);
   const controlado = movendoControlado !== undefined && typeof onMovendoChange === 'function';
-  const movendo = controlado ? movendoControlado : movendoInterno;
+  // Controlado (montagem, onde ninguém reordena) segue em índice, como antes.
+  const movendo = controlado ? movendoControlado : idxDaChave(movendoChave);
   // Aceita valor ou função, como o setState que ele substitui.
-  const setMovendo = React.useCallback((v) => {
-    if (!controlado) { setMovendoInterno(v); return; }
+  const setMovendo = (v) => {
+    if (!controlado) {
+      setMovendoChave((prev) => chaveDoIdx(typeof v === 'function' ? v(idxDaChave(prev)) : v));
+      return;
+    }
     onMovendoChange(typeof v === 'function' ? v(movendoControlado) : v);
-  }, [controlado, onMovendoChange, movendoControlado]);
+  };
   const scrollRef = useRef(null);
   // Um ref por token (chave = índice do participante), para o menu se ancorar
   // no avatar. Guardado em Map porque a lista muda de tamanho entre rodadas.
@@ -932,10 +1026,16 @@ function TabuleiroBatalha({
     if (!r) { r = React.createRef(); tokenRefs.current.set(i, r); }
     return r;
   }, []);
-  const fecharMenu = React.useCallback(() => setMenuAberto(null), []);
+  const fecharMenu = React.useCallback(() => setMenuChave(null), []);
   /* Abrir o menu de um token por fora (13/09/2026): a magia canalizada que
-     ficou pronta abre o painel de quem evoca na vez dele. `abrirMenu` é
-     { i, chave }; a chave muda uma vez por ocasião, e só aí o menu abre. */
+     ficou pronta abria o painel de quem evoca na vez dele. `abrirMenu` é
+     { i, chave }; a chave muda uma vez por ocasião, e só aí o menu abre.
+
+     ⚠️ NINGUÉM passa esta prop hoje. O caso de uso era esse — e, desde
+     17/09/2026, a magia pronta abre o AcaoModal direto (pelo `acaoOpen` das
+     duas views), não o popover. Abrir o popover junto deixaria um card atrás
+     do backdrop do modal. A capacidade fica porque é barata e o gatilho
+     "abrir o menu de alguém por fora" tende a voltar. */
   const chaveAbrirMenu = abrirMenu ? abrirMenu.chave : null;
   useEffect(() => {
     if (abrirMenu && abrirMenu.i != null) { setMovendo(null); setMenuAberto(abrirMenu.i); }
@@ -943,10 +1043,11 @@ function TabuleiroBatalha({
   }, [chaveAbrirMenu]);
   // "Mover": fecha o menu e deixa o token armado. O clique seguinte na grade
   // é que move.
-  const armarMovimento = React.useCallback(() => {
+  // Sem useCallback: setMovendo lê a lista ATUAL para traduzir índice em chave.
+  const armarMovimento = () => {
     setMovendo(menuAberto);
-    setMenuAberto(null);
-  }, [menuAberto]);
+    setMenuChave(null);
+  };
 
   const cel = TAB_CELULA * TAB_ZOOMS[TAB_ZOOM_PADRAO];
   const largura = TAB_COLS * cel;
@@ -954,6 +1055,41 @@ function TabuleiroBatalha({
   // Réguas acompanham o arraste (13/09/2026): a posição de rolagem move os
   // números das bordas junto do grid.
   const [rolagemXY, setRolagemXY] = useState({ x: 0, y: 0 });
+
+  /* CENTRALIZAÇÃO (17/09/2026): "O tabuleiro [...] estará centralizado na
+     tela." Com 50 colunas o grid passou a caber na largura útil da maioria
+     das telas, e no que sobrava ele ficava encostado à esquerda.
+
+     A centralização é `margin:auto` no grid, não `justify-content:center` no
+     container: centralizar por flex um conteúdo que ROLA torna o começo do
+     overflow inalcançável (o pan não consegue voltar ao canto 1,1). Com
+     margin:auto as margens colapsam para 0 quando o conteúdo é maior, e o pan
+     continua íntegro.
+
+     `sobra` é metade do espaço vago, e existe porque as RÉGUAS ficam FORA da
+     área que rola: elas se posicionam por `rolagemXY`, que não sabe da
+     margem. Sem descontar a sobra, os números descolariam do grid exatamente
+     nas telas em que a centralização aparece. */
+  const [sobra, setSobra] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    const medirSobra = () => setSobra((ant) => {
+      const x = Math.max(0, (el.clientWidth - largura) / 2);
+      const y = Math.max(0, (el.clientHeight - altura) / 2);
+      return (ant.x === x && ant.y === y) ? ant : { x, y };
+    });
+    medirSobra();
+    if (typeof ResizeObserver === 'undefined') {
+      // jsdom e navegadores antigos: sem observer, o resize da janela já cobre
+      // o caso que interessa (a área muda de tamanho).
+      window.addEventListener('resize', medirSobra);
+      return () => window.removeEventListener('resize', medirSobra);
+    }
+    const ro = new ResizeObserver(medirSobra);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [largura, altura]);
   const aoRolar = React.useCallback((ev) => {
     const el = ev.currentTarget;
     setRolagemXY((a) => (a.x === el.scrollLeft && a.y === el.scrollTop ? a : { x: el.scrollLeft, y: el.scrollTop }));
@@ -995,7 +1131,7 @@ function TabuleiroBatalha({
     // eslint-disable-next-line
   }, []);
 
-  const aoClicarToken = React.useCallback((entrada) => {
+  const aoClicarToken = (entrada) => {
     // Travado: com um menu ABERTO, o clique no token não fecha nem troca de
     // dono — é o painel aberto que a trava protege. Abrir a partir do nada
     // segue permitido: "travado e fechado" não existe no fluxo real (o painel
@@ -1010,7 +1146,7 @@ function TabuleiroBatalha({
     }
     setMovendo(null);
     setMenuAberto((atual) => (atual === entrada.i ? null : entrada.i));
-  }, [menuDe, menuTravado, menuAberto]);
+  };
 
   // Pan por arrasto. `arrastou` distingue arraste de clique — sem isso,
   // soltar o mouse depois de arrastar movia o token.
@@ -1111,13 +1247,17 @@ function TabuleiroBatalha({
        célula x=0 é a coluna 1). */
     React.createElement('div', { className: 'batalha-tabuleiro-quadro' },
       React.createElement('div', { className: 'batalha-tabuleiro-regua-canto', 'aria-hidden': 'true' }),
-      React.createElement(ReguaTabuleiro, { eixo: 'col', total: TAB_COLS, cel, deslocamento: rolagemXY.x }),
-      React.createElement(ReguaTabuleiro, { eixo: 'lin', total: TAB_ROWS, cel, deslocamento: rolagemXY.y }),
+      // `- sobra`: o grid centralizado começa `sobra` px adentro da área que
+      // rola, e as réguas vivem fora dela. Ver o comentário de `sobra`.
+      React.createElement(ReguaTabuleiro, { eixo: 'col', total: TAB_COLS, cel, deslocamento: rolagemXY.x - sobra.x }),
+      React.createElement(ReguaTabuleiro, { eixo: 'lin', total: TAB_ROWS, cel, deslocamento: rolagemXY.y - sobra.y }),
     React.createElement('div', {
       ref: scrollRef, className: 'batalha-tabuleiro-scroll',
       style: {
         overflow: 'hidden', borderRadius: 12, border: '1px solid rgba(201,164,78,.25)',
         background: 'rgba(10,8,4,.55)', touchAction: 'none',
+        // Flex só para o `margin:auto` do grid ter efeito nos dois eixos.
+        display: 'flex',
       },
       onScroll: aoRolar,
       onMouseDown: panInicio, onMouseMove: panMove, onMouseUp: panFim, onMouseLeave: panFim,
@@ -1127,6 +1267,10 @@ function TabuleiroBatalha({
         onClick: aoClicarGrid,
         style: {
           position: 'relative', width: largura, height: altura,
+          // `flex:none` para o grid não ser esticado nem encolhido pelo flex
+          // do container; `margin:auto` é o que o centraliza quando sobra
+          // espaço, sem prender o começo do overflow quando não sobra.
+          flex: 'none', margin: 'auto',
           cursor: alvoMover ? 'crosshair' : 'default',
           // grade dupla: linha forte a cada 5 células, fraca a cada 1
           backgroundImage: [

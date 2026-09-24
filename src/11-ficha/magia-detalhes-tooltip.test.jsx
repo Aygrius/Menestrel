@@ -10,6 +10,9 @@
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
@@ -35,6 +38,57 @@ const montar = (abrirTip = vi.fn()) => render(
       colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={abrirTip} fecharTip={() => {}} />
   </div>
 ).container.ownerDocument.body;
+
+/* Bug de 15/09/2026: "Usar magia em outros personagens da mesma mesa está
+   dando erro, e na hora do mestre aprovar aparece: Erro: invalid input syntax
+   for type bigint: 'self'." (usuário)
+
+   A opção "(Você)" tinha id 'self'. A ficha comparava com pj.id, dava
+   diferente, e tratava a evocação em si mesmo como evocação em terceiro: o
+   efeito não pousava, o pedido ia para a fila do Mestre e aplicar estourava
+   no banco. */
+describe('alvo da evocação', () => {
+  const evocar = (alvoNome, colegas = []) => {
+    const onEvocar = vi.fn();
+    const b = render(
+      <div className="menestrel-ui">
+        <Modal magia={MAGIA} passos={1} nivelMagiaEfetivoFn={() => 1}
+          eu={{ id: 7, nome: 'Yuldrous', sobrenome: "Alma D'Machado" }} colegas={colegas}
+          lang="pt" onClose={() => {}} onEvocar={onEvocar} abrirTip={() => {}} fecharTip={() => {}} />
+      </div>
+    ).container.ownerDocument.body;
+    const alvo = [...b.querySelectorAll('.det-opt-card')].find((c) => c.textContent.includes(alvoNome));
+    expect(alvo, alvoNome).toBeTruthy();
+    fireEvent.click(alvo);
+    fireEvent.click([...b.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Evocar'));
+    return onEvocar;
+  };
+
+  it('escolher a si mesmo manda o ID do personagem, não "self"', () => {
+    const onEvocar = evocar('(Você)');
+    expect(onEvocar).toHaveBeenCalledTimes(1);
+    expect(onEvocar.mock.calls[0][0].alvo.id).toBe('7');
+  });
+
+  it('os colegas da mesa aparecem como alvo, com o id deles', () => {
+    const onEvocar = evocar('Eco', [{ id: 42, nome: 'Eco', sobrenome: 'Vedrenne' }]);
+    expect(onEvocar.mock.calls[0][0].alvo.id).toBe('42');
+  });
+
+  /* A outra metade do mesmo bug: a lista de colegas vinha de um SELECT em
+     `personagens`, que a RLS devolve VAZIO para o jogador (só o dono e o
+     Mestre leem). Resultado: a janela só oferecia "(Você)". Quem enxerga os
+     outros PJs da mesa é a RPC get_pjs_historia (SECURITY DEFINER), a mesma
+     que o inventário usa para transferir item. Teste de FONTE porque montar a
+     FichaPersonagem inteira exigiria o banco. */
+  it('os colegas vêm da RPC, não de um select direto em personagens', () => {
+    const fonte = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'ficha.jsx'), 'utf8');
+    const ini = fonte.indexOf('const outrosIds =');
+    const trecho = fonte.slice(ini, fonte.indexOf('setPjsDaHistoria([]);', ini));
+    expect(trecho).toContain("rpc('get_pjs_historia'");
+    expect(trecho).not.toMatch(/from\('personagens'\)/);
+  });
+});
 
 describe('atributos da magia', () => {
   it('só o ícone: nenhum texto ao lado', () => {
