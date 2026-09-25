@@ -2243,9 +2243,9 @@ function ItensList({ ac, lang, modoJogador }) {
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'itens' table exists in Supabase." : "Confira se a tabela 'itens' existe no Supabase."} />;
   if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
-  const q = query.trim().toLowerCase();
+  // Nome E descrição (24/09/2026) — ver itemCasaBusca (01-core/inventario-helpers.jsx).
   let filtered = (itensSorted || []).filter((it) => {
-    if (q && !(it.nome || '').toLowerCase().includes(q)) return false;
+    if (!itemCasaBusca(it, query)) return false;
     return true;
   });
   if (modoJogador) filtered = filtered.filter((it) => conhecido.itens.has(it.slug));
@@ -2321,7 +2321,6 @@ function ItensList({ ac, lang, modoJogador }) {
                             </div>
                           )}
                           {it.descricao && <TextoDoBanco texto={it.descricao} className="best-desc" />}
-                          {it.efeito && <p className="best-efeito">{it.efeito}</p>}
                           <BestItemMagia item={it} magias={magias} lang={lang} />
                           {/* itens.doc_url guarda o link do CONTEÚDO do item — hoje só os
                               três livros da campanha o usam, apontando pro texto da obra.

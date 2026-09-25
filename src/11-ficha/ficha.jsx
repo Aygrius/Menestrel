@@ -3343,7 +3343,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // Hover/foco mostra o tooltip de detalhes (Descrição/Absorção/Dano).
     const tipContent = filled && cat ? {
       title: cat.nome || it.slug,
-      desc: [cat.descricao, cat.efeito ? `${en ? 'Effect' : 'Efeito'}: ${cat.efeito}` : null].filter(Boolean).join(' '),
+      desc: cat.descricao || '',
       stats: [
         cat.dano != null ? { label: en ? 'Damage' : 'Dano', value: destinoBonusItem(cat) === 'dano' ? comBonus(cat.dano) : cat.dano } : null,
         Number(cat.absorcao) > 0 ? { label: en ? 'Absorb' : 'Absorção', value: destinoBonusItem(cat) === 'absorcao' ? comBonus(cat.absorcao) : cat.absorcao } : null,

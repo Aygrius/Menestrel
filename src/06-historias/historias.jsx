@@ -768,7 +768,9 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
       if (grupoFiltroEstoque && cat?.grupo !== grupoFiltroEstoque) return false;
       if (termosEstoque.length === 0) return true;
       const nome = normalize(cat?.nome || e.slug);
-      return termosEstoque.every((t) => nome.includes(t));
+      // Nome E descrição (24/09/2026), como o catálogo logo acima.
+      const desc = normalize((cat && cat.descricao) || '');
+      return termosEstoque.every((t) => nome.includes(t) || desc.includes(t));
     });
   }, [estoqueSorted, termosEstoque, catalogoBySlug, grupoFiltroEstoque]);
 

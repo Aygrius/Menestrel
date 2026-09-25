@@ -245,7 +245,9 @@ const CATALOGO_DESCRITORES = {
       { col: 'icone',     tipo: 'texto', rotuloKey: 'campoIcone', formato: 'icone' },
       { col: 'doc_url',   tipo: 'texto', rotuloKey: 'campoDocUrl' },
       { col: 'descricao', tipo: 'area', rotuloKey: 'campoDescricao', linhas: 3 },
-      { col: 'efeito',          tipo: 'area', rotuloKey: 'campoEfeito',          linhas: 2 },
+      /* 'efeito' SAIU dos itens em 25/09/2026: vazio nos 1003 itens, e nenhuma
+         regra o lia — o que o jogo aplica é efeito_positivo/efeito_negativo.
+         A coluna segue no banco, vazia. */
       { col: 'efeito_positivo', tipo: 'area', rotuloKey: 'campoEfeitoPositivo',  linhas: 2 },
       { col: 'efeito_negativo', tipo: 'area', rotuloKey: 'campoEfeitoNegativo',  linhas: 2 },
       { col: 'valor_latao', tipo: 'numero', rotuloKey: 'campoValorLatao', min: 0 },

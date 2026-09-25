@@ -1676,7 +1676,7 @@ function EquipadoBoard({ itens, catalogoBySlug, lang, onAbrir }) {
           const nome = cat ? cat.nome : (it ? it.slug : '');
           const slotLabel = slotLabels[slot] || slot;
           const tipContent = filled && cat ? {
-            desc: [cat.descricao, cat.efeito ? `${en ? 'Effect' : 'Efeito'}: ${cat.efeito}` : null].filter(Boolean).join(' ') || null,
+            desc: cat.descricao || null,
             clamp: true,
           } : <span style={{ fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6' }}>{slotLabel}</span>;   // slot vazio → React element com Lora
           return (
@@ -2044,7 +2044,8 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
       const cat = catalogoBySlug[it.slug];
       const g = cat?.grupo || (en ? 'Other' : 'Outros');
       if (grupoSel && g !== grupoSel) return false;
-      if (q && !normTxt(cat?.nome || it.slug).includes(q)) return false;
+      // Nome E descrição (24/09/2026) — ver itemCasaBusca.
+      if (q && !itemCasaBusca(cat, q, it.slug)) return false;
       return true;
     });
     const emUso = (it) => (it.slot || it.vestido) ? 0 : 1;
@@ -2797,18 +2798,14 @@ function DetalhesItemModal({
 
         {/* ── Linha divisória ──────────────────────────────────── */}
         {!mostrarTransferir && !mostrarArmazenar &&(cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0 || mostraResistencia) &&
-         (cat.descricao || cat.efeito) && (
+         cat.descricao && (
           <hr className="det-sec-divider" />
         )}
 
         {/* ── Seção B: Descrição ───────────────────────────────── */}
-        {!mostrarTransferir && !mostrarArmazenar &&(cat.descricao || cat.efeito) && (
+        {!mostrarTransferir && !mostrarArmazenar && cat.descricao && (
           <div className="det-sec-b">
-            <span className="det-sec-desc-val">
-              {cat.descricao}
-              {cat.descricao && cat.efeito ? ' ' : ''}
-              {cat.efeito && <em>{en ? 'Effect' : 'Efeito'}: {cat.efeito}</em>}
-            </span>
+            <span className="det-sec-desc-val">{cat.descricao}</span>
           </div>
         )}
 

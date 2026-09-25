@@ -729,6 +729,20 @@ function ehFlecha(cat) {
   return /^flechas?(\s|_|$)/.test(nome);
 }
 
+/* ============================== Busca de item (24/09/2026) ==============================
+   "A barra de pesquisa de item deve buscar a descrição também." Uma regra
+   para todas as buscas de item (bestiário, itens de campanha, inventário,
+   loja, estoque da loja), a mesma que o catálogo da tela da história já
+   usava: sem acento e sem caixa, e cada palavra digitada precisa aparecer no
+   nome OU na descrição. `reserva` é o texto quando não há catálogo (slug). */
+const _semAcento = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function itemCasaBusca(cat, busca, reserva) {
+  const termos = _semAcento(busca).split(/\s+/).filter(Boolean);
+  if (termos.length === 0) return true;
+  const texto = _semAcento(cat ? `${cat.nome || ''} ${cat.descricao || ''}` : reserva);
+  return termos.every((t) => texto.includes(t));
+}
+
 /* ============================== Preparar carne (24/09/2026) ==============================
    "Os itens Carne, Carne Celestial, etc. devem ter um botão para os
     personagens prepararem o alimento." 1 carne vira Ração, 2 viram Refeição,
@@ -789,6 +803,7 @@ function prepararCarne(itens, instanceId, resultado, novoId) {
 }
 
 Object.assign(window, {
+  itemCasaBusca,
   RECEITAS_CARNE, receitasDaCarne, carneDisponivel, prepararCarne,
   ehFlecha,
   MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas,

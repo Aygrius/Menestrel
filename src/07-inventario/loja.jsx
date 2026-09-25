@@ -212,15 +212,9 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
       extraClass="modal-loja"
       onClose={onClose}
     >
-          {(cat.descricao || cat.efeito) && (
-            <p className="loja-ficha-desc">
-              {cat.descricao}
-              {cat.descricao && cat.efeito ? ' ' : ''}
-              {cat.efeito && <em>{en ? 'Effect' : 'Efeito'}: {cat.efeito}</em>}
-            </p>
-          )}
+          {cat.descricao && <p className="loja-ficha-desc">{cat.descricao}</p>}
 
-          {(cat.descricao || cat.efeito) && <hr className="det-sec-divider" />}
+          {cat.descricao && <hr className="det-sec-divider" />}
 
           {/* A LOJA NÃO TINHA STEPPER (17/09/2026): tinha dois botões com uma
               BARRA arrastável no meio, como um controle de volume — o quarto
@@ -598,7 +592,8 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
     const cat = catalogoBySlug[e.slug];
     const g = cat.grupo || (en ? 'Other' : 'Outros');
     if (grupoSel && g !== grupoSel) return false;
-    if (q && !normTxt(cat.nome).includes(q)) return false;
+    // Nome E descrição (24/09/2026) — ver itemCasaBusca.
+    if (q && !itemCasaBusca(cat, q)) return false;
     return true;
   });
 

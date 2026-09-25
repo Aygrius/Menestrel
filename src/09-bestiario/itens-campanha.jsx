@@ -553,10 +553,10 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
     if (itensError) return <IcErrorBox error={itensError} hint={en ? "Make sure the 'itens_historia' table and RPCs exist in Supabase." : "Confira se a tabela 'itens_historia' e as RPCs existem no Supabase."} />;
 
     const gruposDisponiveis = Array.from(new Set(itens.map((i) => i.grupo).filter(Boolean))).sort();
-    const q = query.trim().toLowerCase();
     const filtered = (itensSorted || []).filter((it) => {
       if (grupoFiltro !== 'all' && it.grupo !== grupoFiltro) return false;
-      if (q && !(it.nome || '').toLowerCase().includes(q)) return false;
+      // Nome E descrição (24/09/2026) — ver itemCasaBusca.
+      if (!itemCasaBusca(it, query)) return false;
       return true;
     });
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -635,7 +635,6 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
                               </div>
                             )}
                             {it.descricao && <p className="best-desc">{it.descricao}</p>}
-                            {it.efeito && <p className="best-efeito">{it.efeito}</p>}
                             <BestItemMagia item={it} magias={magias} lang={lang} />
                             {it.efeito_positivo && <p className="best-efeito" style={{ color: '#7FB07F' }}>+ {it.efeito_positivo}</p>}
                             {it.efeito_negativo && <p className="best-efeito" style={{ color: '#C98A8A' }}>− {it.efeito_negativo}</p>}
