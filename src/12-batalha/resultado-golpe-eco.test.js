@@ -62,15 +62,37 @@ describe('textoGolpeNaMesa — a frase inteira', () => {
     expect(M.textoGolpeNaMesa({
       ator: LIRAEL, alvoNome: 'Lobo Adulto', acaoNome: 'Arco Élfico', tipo: 'arma',
       resultado: R(7), dano: 35, alvosExtras: [], msgCritico,
-    })).toBe('Lirael atacou Lobo Adulto com Arco Élfico e causou 35 de dano. '
+    })).toBe('Lirael atacou Lobo com arco élfico e causou 35 de dano. '
       + 'Você provoca uma perfuração na perna do oponente com 12 de dano adicional, ele terá -4 por 1 dia.');
   });
 
-  it('criatura mantém o nome inteiro; sem crítico, a frase fecha com ponto', () => {
+  /* 27/09/2026: "No nome, identifique sempre com o primeiro nome, mesmo para
+     criaturas." — "Lobo atacou lirael com garras e errou." */
+  it('criatura também pelo primeiro nome; o golpe em minúsculas', () => {
     expect(M.textoGolpeNaMesa({
-      ator: { tipo: 'criatura', nome: 'Lobo Adulto' }, alvoNome: 'Lirael', acaoNome: 'Mordida', tipo: 'arma',
+      ator: { tipo: 'criatura', nome: 'Lobo Adulto' }, alvoNome: "Lirael Vel'Thalas", acaoNome: 'Garras', tipo: 'arma',
       resultado: R(1), dano: 0,
-    })).toBe('Lobo Adulto atacou Lirael com Mordida e errou.');
+    })).toBe('Lobo atacou Lirael com garras e errou.');
+  });
+
+  it('o ataque genérico da criatura ("Lobo Adulto ataque") sai da frase', () => {
+    expect(M.textoGolpeNaMesa({
+      ator: { tipo: 'criatura', nome: 'Lobo Adulto' }, alvoNome: 'Lirael', acaoNome: 'Lobo Adulto ataque', tipo: 'arma',
+      resultado: R(1), dano: 0,
+    })).toBe('Lobo atacou Lirael e errou.');
+  });
+
+  // "Vampiro atacou Haalin com presas e causou 25 de dano na energia física."
+  it('diz em que energia o dano caiu', () => {
+    const base = { ator: { tipo: 'criatura', nome: 'Vampiro' }, alvoNome: 'Haalin', acaoNome: 'Presas', tipo: 'arma', resultado: R(4), dano: 25 };
+    expect(M.textoGolpeNaMesa({ ...base, ondeDano: { eh: 0, ef: 25 } }))
+      .toBe('Vampiro atacou Haalin com presas e causou 25 de dano na energia física.');
+    expect(M.textoGolpeNaMesa({ ...base, ondeDano: { eh: 25, ef: 0 } }))
+      .toBe('Vampiro atacou Haalin com presas e causou 25 de dano na energia heroica.');
+    expect(M.textoGolpeNaMesa({ ...base, ondeDano: { eh: 10, ef: 15 } }))
+      .toBe('Vampiro atacou Haalin com presas e causou 25 de dano (10 na energia heroica e 15 na energia física).');
+    expect(M.textoGolpeNaMesa({ ...base, ondeDano: { eh: 0, ef: 0 } }))
+      .toBe('Vampiro atacou Haalin com presas e acertou, mas a armadura segurou o golpe.');
   });
 
   it('magia e golpe em vários alvos', () => {
@@ -80,7 +102,7 @@ describe('textoGolpeNaMesa — a frase inteira', () => {
     expect(M.textoGolpeNaMesa({
       ator: LIRAEL, alvoNome: 'Lobo', acaoNome: 'Espada', tipo: 'arma', resultado: R(4), dano: 9,
       alvosExtras: ['Lobo 2', 'Lobo 3'],
-    })).toBe('Lirael atacou Lobo com Espada e causou 9 de dano, e também atingiu Lobo 2, Lobo 3.');
+    })).toBe('Lirael atacou Lobo com espada e causou 9 de dano, e também atingiu Lobo 2, Lobo 3.');
   });
 
   it('nenhum texto de crítico sobra com "(N EF)" no fim', () => {

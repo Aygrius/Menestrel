@@ -466,7 +466,8 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
 // magias + experiencia (13/09/2026): o botão "Aprender" do pergaminho precisa
 // saber se o PJ já tem o nível, se falta o anterior e o estágio — ver
 // bloqueioPergaminho.
-const PJ_COLS = 'id,nome,sobrenome,raca,profissao,forca_base,fisico_base,inventario,estado_atual,magias,experiencia,especializacao';
+// foto_url (27/09/2026): o card do alvo na aba Usar mostrava só a inicial.
+const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,profissao,forca_base,fisico_base,inventario,estado_atual,magias,experiencia,especializacao';
 
 // ── InventarioList ────────────────────────────────────────────────────────────
 /* `onEstadoChange` / `estadoAtualSeed` — handoff de estado_atual com quem
@@ -513,7 +514,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const [magiasDb, setMagiasDb] = useState(null);
   useEffect(() => {
     let vivo = true;
-    Promise.resolve(supabaseClient.from('magias').select('key,nome,custo,permissao,tipo,descricao,nivel_1,nivel_3,nivel_5,nivel_7,nivel_9'))
+    Promise.resolve(supabaseClient.from('magias').select('key,nome,custo,permissao,tipo,descricao,itens_necessarios,nivel_1,nivel_3,nivel_5,nivel_7,nivel_9'))
       .then((res) => { if (vivo && res && !res.error && Array.isArray(res.data)) setMagiasDb(res.data); })
       .catch(() => {});
     return () => { vivo = false; };
@@ -535,35 +536,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // ≠ user_id do PJ), então o botão "Aprender" deve ficar oculto.
   const [authUserIsOwner, setAuthUserIsOwner] = useState(false);
 
-  /* Venda (13/09/2026): negociações ABERTAS deste PJ — o botão do item vira
-     "Negociação" — e qual item está com o VendaModal aberto. Quando o Mestre
-     aceita, o Realtime avisa e o inventário é relido do banco: o item saiu e
-     as moedas entraram no servidor, e a cópia local (que o autosave grava)
-     não pode continuar com o retrato velho. */
-  const [vendasAbertas, setVendasAbertas] = useState([]);
-  const [vendaInstanceId, setVendaInstanceId] = useState(null);
-  const carregarVendasAbertas = React.useCallback(async (pjId) => {
-    try {
-      const res = await supabaseClient.from('vendas_item').select('id,instance_id,status,vez')
-        .eq('pj_id', pjId).eq('status', 'aberta');
-      setVendasAbertas(res && !res.error && Array.isArray(res.data) ? res.data : []);
-    } catch (_) { setVendasAbertas([]); }
-  }, []);
-  useEffect(() => {
-    if (!selectedId) { setVendasAbertas([]); return undefined; }
-    carregarVendasAbertas(selectedId);
-    if (typeof supabaseClient.channel !== 'function') return undefined;
-    const ch = supabaseClient
-      .channel('vendas_pj_' + selectedId + '_' + Math.random().toString(36).slice(2, 8))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas_item', filter: 'pj_id=eq.' + selectedId },
-        (payload) => {
-          carregarVendasAbertas(selectedId);
-          if (payload && payload.new && payload.new.status === 'aceita') recarregarInventario();
-        })
-      .subscribe();
-    return () => { supabaseClient.removeChannel(ch); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  /* A negociação com o Mestre (vendas_item, 13/09/2026) saiu em 27/09/2026:
+     vender agora é PUBLICAR na loja da aventura (ver publicarNaLoja). */
 
   // Carregar PJs + catálogo
   useEffect(() => {
@@ -888,8 +862,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }));
     // Reverte o efeito aplicado ao vestir (inverte sinal: positivo vira negativo e vice-versa).
     if (cat && (cat.efeito_positivo || cat.efeito_negativo)) {
-      const catInvertido = { efeito_positivo: cat.efeito_negativo, efeito_negativo: cat.efeito_positivo };
-      setEstadoAtual((cur) => aplicarEfeitosItem(cur, catInvertido, 1, maximos));
+      setEstadoAtual((cur) => desfazerEfeitosItem(cur, cat, 1, maximos));
     }
   };
 
@@ -968,7 +941,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     // quantidade/efeito por ora — só o nome do PJ e do item, como pedido.
     if (cat) {
       const pjAtual = (pjs || []).find((p) => p.id === selectedId);
-      const nomePj = pjAtual ? [pjAtual.nome, pjAtual.sobrenome].filter(Boolean).join(' ') : null;
+      const nomePj = pjAtual ? primeiroNome(pjAtual.nome) : null;
       if (nomePj) {
         const texto = lang === 'en' ? `${nomePj} used ${cat.nome}` : `${nomePj} usou ${cat.nome}.`;
         registrarEventoMesa('item', texto, { item: cat.nome, quantidade, instanceId });
@@ -979,7 +952,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // Nome do PJ selecionado — usado nos textos do log da mesa.
   const nomeDoPjSelecionado = () => {
     const pjAtual = (pjs || []).find((p) => p.id === selectedId);
-    return pjAtual ? [pjAtual.nome, pjAtual.sobrenome].filter(Boolean).join(' ') : null;
+    // Só o primeiro nome no log da mesa (27/09/2026).
+    return pjAtual ? primeiroNome(pjAtual.nome) : null;
   };
 
   const destruirItem = (instanceId, quantidade) => {
@@ -1080,13 +1054,6 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }));
   };
 
-  const setObservacao = (instanceId, texto) => {
-    setInv((cur) => ({
-      ...cur,
-      itens: cur.itens.map((it) => it.instanceId === instanceId ? { ...it, observacao: texto || null } : it),
-    }));
-  };
-
   // Fase 3 — mover item para/de container (com split parcial e validação de capacidade)
   const moverParaContainer = (instanceId, containerId, quantidade) => {
     setInv((cur) => {
@@ -1157,7 +1124,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }
   };
 
-  const solicitarMover = (instanceId, containerId) => {
+  const solicitarMover = (instanceId, containerId, qtd) => {
     const it = inv?.itens.find((x) => x.instanceId === instanceId);
     if (!it) return;
     let maxPossivel = it.quantidade;
@@ -1175,6 +1142,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       }
     }
     if (maxPossivel <= 0) return; // sem espaço — bloqueia silenciosamente
+    // Quantidade escolhida no seletor da própria janela (27/09/2026): vai direto,
+    // limitada ao que cabe no recipiente.
+    if (qtd != null) {
+      moverParaContainer(instanceId, containerId, Math.max(1, Math.min(maxPossivel, qtd)));
+      return 'feito';
+    }
     if (maxPossivel === 1 && it.quantidade === 1) {
       // único, cabe certinho: move direto
       moverParaContainer(instanceId, containerId, 1);
@@ -1279,7 +1252,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   };
 
   // Relê os PJs e o inventário do selecionado — depois de uma mudança feita no
-  // servidor (venda aceita).
+  // servidor (item publicado na loja).
   const recarregarInventario = async () => {
     const { data: pjsAtualizados } = await supabaseClient
       .from('personagens')
@@ -1291,6 +1264,22 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       const pjAtual = pjsAtualizados.find((p) => p.id === selRef.current);
       if (pjAtual) setInv(pjAtual.inventario);
     }
+  };
+
+  /* VENDER = PUBLICAR NA LOJA (27/09/2026): "o jogador irá 'publicar' os itens
+     na loja pelo preço que ele quiser, outros jogadores ou o mestre podem
+     comprar dele. A ação não precisa acontecer na mesma hora, o item ficará na
+     loja da aventura." O item sai do inventário no servidor (RPC
+     publicar_item_loja) e fica reservado no anúncio até alguém comprar ou o
+     dono retirar — então o inventário é relido. */
+  const publicarNaLoja = async (instanceId, quantidade, precoLatao) => {
+    const { data, error } = await supabaseClient.rpc('publicar_item_loja', {
+      p_pj_id: selectedId, p_instance_id: instanceId,
+      p_quantidade: quantidade, p_preco_latao: precoLatao,
+    });
+    if (error || !data || !data.ok) return { ok: false, motivo: (data && data.motivo) || (error && error.message) };
+    await recarregarInventario();
+    return { ok: true };
   };
 
   // Fase 7 — usar pergaminho de magia (aprende magia Perdida/Ancestral).
@@ -1424,12 +1413,11 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onDesmontar={desmontar}
           onAprenderMagia={authUserIsOwner ? aprenderMagiaPergaminho : undefined}
           pjAprendiz={(pjs || []).find((x) => x.id === selectedId) || null}
+          usuario={(() => { const p = (pjs || []).find((x) => x.id === selectedId); return p ? { nome: [p.nome, p.sobrenome].filter(Boolean).join(' '), foto_url: p.foto_url } : null; })()}
           magiasDb={magiasDb}
-          vendaAberta={vendasAbertas.some((v) => v.instance_id === instanceDetalhes.instanceId)}
           podeVender={{ ehDono: authUserIsOwner, historiaId }}
-          onVender={(id) => { setDetalhesId(null); setVendaInstanceId(id); }}
+          onVender={publicarNaLoja}
           onDestruir={solicitarDestruir}
-          onObservacao={setObservacao}
           onBonus={isMestre ? ajustarBonus : undefined}
           onMoverParaContainer={solicitarMover}
           onTransferir={(pjDestinoId, qtd) => solicitarTransferir(instanceDetalhes.instanceId, pjDestinoId, qtd)}
@@ -1452,23 +1440,6 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         />
       )}
 
-      {vendaInstanceId && (() => {
-        const it = inv?.itens.find((x) => x.instanceId === vendaInstanceId);
-        const aberta = vendasAbertas.find((v) => v.instance_id === vendaInstanceId);
-        if (!it && !aberta) return null;
-        return (
-          <VendaModal
-            lang={lang}
-            papel={authUserIsOwner ? 'jogador' : 'mestre'}
-            pjId={selectedId}
-            instance={it || null}
-            cat={it ? catalogoBySlug[it.slug] : null}
-            vendaId={aberta ? aberta.id : null}
-            onClose={() => { setVendaInstanceId(null); carregarVendasAbertas(selectedId); }}
-            onConcluida={() => { recarregarInventario(); carregarVendasAbertas(selectedId); }}
-          />
-        );
-      })()}
 
       {acaoPendente && (() => {
         const it = inv?.itens.find((x) => x.instanceId === acaoPendente.instanceId);
@@ -1678,7 +1649,7 @@ function EquipadoBoard({ itens, catalogoBySlug, lang, onAbrir }) {
           const tipContent = filled && cat ? {
             desc: cat.descricao || null,
             clamp: true,
-          } : <span style={{ fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6' }}>{slotLabel}</span>;   // slot vazio → React element com Lora
+          } : <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF' }}>{slotLabel}</span>;   // slot vazio → React element com Lora
           return (
             <button
               key={slot}
@@ -2093,7 +2064,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         onMouseLeave={fecharTip}
         onPointerDown={(e) => onCardPointerDown(e, idx, it.instanceId)}
         onPointerMove={(e) => onCardPointerMove(e, idx, it.instanceId)}>
-        {it.quantidade > 1 && <span className="inv-card-qty">{it.quantidade}</span>}
+        {it.quantidade > 1 && <QtdDoCard n={it.quantidade} />}
         <span className="inv-card-head">
           <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
         </span>
@@ -2136,7 +2107,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         onMouseLeave={fecharTip}
         onPointerDown={(e) => onCardPointerDown(e, idx, it.instanceId)}
         onPointerMove={(e) => onCardPointerMove(e, idx, it.instanceId)}>
-        {it.quantidade > 1 && <span className="inv-card-qty">{it.quantidade}</span>}
+        {it.quantidade > 1 && <QtdDoCard n={it.quantidade} />}
         <span className="inv-card-head">
           <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
         </span>
@@ -2153,12 +2124,8 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           </span>
         )}
         <span className="inv-card-pills">
-          {cat?.tipo === 'L' && (
-            <span className="inv-pill liq"><i className="ti ti-droplet" aria-hidden="true" /></span>
-          )}
-          {it.observacao && (
-            <span className="inv-pill nor"><i className="ti ti-feather" aria-hidden="true" /></span>
-          )}
+          {/* O selo de LÍQUIDO (gota azul no topo esquerdo) saiu em 26/09/2026:
+              "no caso do item tipo água, remova o ícone no topo esquerdo". */}
           {/* Equipado (arma/armadura no slot) e vestido (roupa) agora aparecem
               no mesmo grid da bolsa — este pill é o que distingue de um item
               solto. Mesmos glifos do EquipadoBoard/VestesBoard (ti-shield/ti-shirt). */}
@@ -2173,6 +2140,10 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           {/* Montaria em uso (14/09/2026) — mesmo selo dourado do "em uso". */}
           {it.montado && (
             <span className="inv-pill eq" role="img" aria-label={en ? 'Mounted' : 'Montado'}><i className="ti ti-horse" aria-hidden="true" /></span>
+          )}
+          {/* Elo Permanente (27/09/2026) — o animal ligado ao personagem. */}
+          {temElo(it) && (
+            <span className="inv-pill eq inv-pill--elo" role="img" aria-label={en ? 'Permanent bond' : 'Elo Permanente'}><i className="ti ti-link" aria-hidden="true" /></span>
           )}
         </span>
         {/* Barra de RESISTÊNCIA (durabilidade) — mesmo molde da barra de
@@ -2418,6 +2389,60 @@ function animaisDoPersonagem(itens, catalogoBySlug, criaturasPorId) {
     return criatura ? { instancia, cat, criatura } : null;
   }).filter(Boolean);
 }
+/* ── ELO PERMANENTE com o animal (27/09/2026) ─────────────────────────────
+   "Teremos um status nos animais, mesmo aqueles que não se pode montar, que
+    é resultado de magias que criam um Elo Permanente com o animal." A magia
+   é quem cria (Elo Animal, evocada na ficha com o animal como alvo); o
+   Mestre pode desfazer. Mora na INSTÂNCIA do animal no inventário:
+     elo: { permanente: true, magia, conjurador_pj_id, conjurador_nome, desde }
+   Regras da magia (descrição de Elo Animal): o nível limita o estágio do
+   animal (nível 1 → estágio 3, 3 → 5, 5 → 7, 7 → 9, 9 → 11) e só se tem 3
+   elos permanentes ao mesmo tempo. A resistência mágica do animal fica na
+   mesa, como as outras magias narrativas. */
+const MAGIAS_ELO_PERMANENTE = ['elo_animal'];
+const ELO_MAX_PERMANENTES = 3;
+const magiaCriaElo = (m) => !!m && MAGIAS_ELO_PERMANENTE.includes(m.key);
+const eloTetoEstagio = (nivel) => (Number(nivel) || 0) + 2;
+const temElo = (instancia) => !!(instancia && instancia.elo && instancia.elo.permanente);
+// Por que este animal não pode receber o elo agora (null = pode).
+function bloqueioElo(animal, nivel, elosAtuais) {
+  if (!animal) return 'sem_animal';
+  if (temElo(animal.instancia)) return 'ja_tem_elo';
+  const est = Number(animal.criatura && animal.criatura.estagio) || 0;
+  if (nivel != null && est > eloTetoEstagio(nivel)) return 'estagio_alto';
+  if ((Number(elosAtuais) || 0) >= ELO_MAX_PERMANENTES) return 'limite_elos';
+  return null;
+}
+function motivoEloLabel(motivo, en, nivel) {
+  const m = {
+    ja_tem_elo:   en ? 'Already bonded' : 'Já tem elo',
+    estagio_alto: en ? `Above stage ${eloTetoEstagio(nivel)}` : `Acima do estágio ${eloTetoEstagio(nivel)}`,
+    limite_elos:  en ? `Limit of ${ELO_MAX_PERMANENTES} bonds` : `Limite de ${ELO_MAX_PERMANENTES} elos`,
+  };
+  return m[motivo] || '';
+}
+// Grava o elo na instância. Pilha de animais se divide: o elo é com UM deles.
+function comEloNoAnimal(itens, instanceId, elo) {
+  const lista = Array.isArray(itens) ? itens.slice() : [];
+  const idx = lista.findIndex((it) => it.instanceId === instanceId);
+  if (idx < 0) return lista;
+  const it = lista[idx];
+  if ((Number(it.quantidade) || 1) > 1) {
+    lista[idx] = { ...it, quantidade: it.quantidade - 1 };
+    lista.push({ ...it, instanceId: novoInstanceId(), quantidade: 1, montado: false, elo });
+  } else {
+    lista[idx] = { ...it, elo };
+  }
+  return lista;
+}
+function semEloNoAnimal(itens, instanceId) {
+  return (Array.isArray(itens) ? itens : []).map((it) => {
+    if (it.instanceId !== instanceId) return it;
+    const { elo, ...resto } = it;
+    return resto;
+  });
+}
+
 /* Carrega as criaturas pelos ids (a linha inteira: a ficha mostra tudo).
    `ids` entra como string ordenada para o efeito não refazer a cada render. */
 function useCriaturasPorIds(ids) {
@@ -2515,16 +2540,84 @@ function motivoAprenderLabel(motivo, en, dados) {
   return map[motivo] || (en ? 'Could not learn the spell.' : 'Não foi possível aprender a magia.');
 }
 
+/* ── QtdDoCard — a quantidade no canto do card do quadriculado (26/09/2026):
+   'os números de quantidade no quadriculado devem usar os ícones
+   ti-number-N-small'. O Tabler tem de 0 a 100; acima disso não há ícone, e o
+   número volta a ser escrito. O leitor de tela lê o número pelo aria-label. */
+function QtdDoCard({ n }) {
+  const v = Number(n);
+  const temIcone = Number.isInteger(v) && v >= 0 && v <= 100;
+  return (
+    <span className="inv-card-qty" data-qtd={v} aria-label={String(v)}>
+      {temIcone ? <i className={'ti ti-number-' + v + '-small'} aria-hidden="true" /> : v}
+    </span>
+  );
+}
+
+/* ── GradeDoRecipiente — o conteúdo de um recipiente no QUADRICULADO do
+   inventário (26/09/2026): "Ao clicar na aba conteúdo de um item, quero ver o
+   quadriculado igual do inventário." Os mesmos cards (.inv-card: ícone,
+   quantidade, selos, faísca de mágico, barra de resistência) na mesma grade
+   (.inv-bag-grid--slots), com as casas vazias completando as linhas. Sem
+   arrastar: aqui se olha e se abre o item. */
+function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fecharTip }) {
+  const en = lang === 'en';
+  const COLS = 13;   // o corpo do modal tem 752px: 13 casas de 50px
+  const lista = filhos || [];
+  const total = Math.max(COLS * 2, Math.ceil(lista.length / COLS) * COLS);
+  return (
+    <div className="inv-bag-grid inv-bag-grid--slots det-grade-recipiente">
+      {lista.map((it) => {
+        const cat = catalogoBySlug[it.slug];
+        const nome = (cat && cat.nome) || it.slug;
+        const resMax = Number((cat && cat.resistencia) || 0);
+        const resAtual = Number.isFinite(Number(it.res)) ? Math.max(0, Math.min(resMax, Number(it.res))) : resMax;
+        const resPct = resMax > 0 ? Math.round((resAtual / resMax) * 100) : 0;
+        return (
+          <button key={it.instanceId} type="button" data-filho={it.instanceId}
+            className={'inv-card' + (cat && cat.magico ? ' inv-card--magico' : '')}
+            onClick={() => onAbrir && onAbrir(it.instanceId)}
+            aria-label={nome + (it.quantidade > 1 ? ' ×' + it.quantidade : '')}
+            {...propsTip(abrirTip, fecharTip, { title: nome })}>
+            {it.quantidade > 1 && <QtdDoCard n={it.quantidade} />}
+            <span className="inv-card-head">
+              <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
+            </span>
+            {cat && cat.magico && (
+              <span className="inv-faisca" role="img" aria-label={en ? 'Magic' : 'Mágico'}>
+                <i className="ti ti-sparkles" aria-hidden="true" />
+              </span>
+            )}
+            <span className="inv-card-pills">
+            </span>
+            {resMax > 0 && (
+              <span className="inv-res-bar" data-baixa={resPct <= 25 ? 2 : (resPct <= 50 ? 1 : 0)} aria-hidden="true">
+                <span style={{ width: resPct + '%' }} />
+              </span>
+            )}
+          </button>
+        );
+      })}
+      {Array.from({ length: total - lista.length }).map((_, i) => (
+        <span key={'vazio-' + i} className="inv-slot-ghost" aria-hidden="true" />
+      ))}
+    </div>
+  );
+}
+
 function DetalhesItemModal({
   instance, catalogoBySlug, raca, slotsState, todosItens,
   containersDisponiveis, pjsHistoria, lang,
-  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, onDestruir, onObservacao,
+  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, onDestruir,
   onMoverParaContainer, onTransferir, transferError, onTransferReset,
   onVestir, onDespir,
   criaturaMontaria, onMontar, onDesmontar,
   onRemoverDoContainer, onAbrirDetalhesFilho, contexto,
-  onVender, vendaAberta, podeVender,
+  onVender, podeVender,
   onBonus,
+  /* Quem usa o item — o card da aba Usar (26/09/2026). { nome, foto_url }.
+     O uso de item vale para o próprio personagem, então há um card só. */
+  usuario,
 }) {
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const [confirmandoDestruir, setConfirmandoDestruir] = useState(false);
@@ -2540,6 +2633,24 @@ function DetalhesItemModal({
   const [armazContId, setArmazContId] = useState('');
   // Janela de leitura do livro (itens.doc_url), 13/09/2026.
   const [lendo, setLendo] = useState(false);
+  /* A NOTA DO ITEM saiu por completo em 26/09/2026 ("remova completamente o
+     sistema de nota dos itens"). O campo `observacao` que já estiver gravado
+     nas instâncias fica no banco, sem tela. */
+  // A aba Usar: o card do alvo marcado (1º clique); o 2º clique usa.
+  const [alvoUsoSel, setAlvoUsoSel] = useState(false);
+  /* A QUANTIDADE DENTRO DA JANELA (27/09/2026): "Ao clicar para usar água, eu
+     vi que abriu outro modal para selecionar quantidade. O seletor de
+     quantidade deve aparecer no modal de selecionar alvo." Pilha: o mesmo
+     QuantidadeStepper aparece na aba Usar e nas etapas de Descartar,
+     Transferir e Armazenar; a ação sai com a quantidade escolhida, sem a
+     segunda janela. */
+  const [qtdAcao, setQtdAcao] = useState(1);
+  // Vender = publicar na loja (27/09/2026): quantidade e preço pedidos.
+  const [mostrarVender, setMostrarVender] = useState(false);
+  const [vendaQtd, setVendaQtd] = useState(1);
+  const [vendaPreco, setVendaPreco] = useState(0);
+  const [publicando, setPublicando] = useState(false);
+  const [vendaErro, setVendaErro] = useState(null);
   const en = lang === 'en';
   const slotLabels = SLOT_LABELS[en ? 'en' : 'pt'];
   // contexto==='ficha' mostra só as ações locais (Usar/Descartar); as pesadas
@@ -2561,6 +2672,7 @@ function DetalhesItemModal({
     setTransfPjId('');
     setArmazContId('');
     setLendo(false);
+    setAlvoUsoSel(false);
   }, [instance?.instanceId]);
 
   if (!instance) return null;
@@ -2582,6 +2694,13 @@ function DetalhesItemModal({
   const containerData = isContainer ? capacidadeContainer(instance, todosItens, catalogoBySlug) : null;
   const hasContainerContent = !!(containerData?.filhos?.length);
   const temMultiplos = instance.quantidade > 1;
+  const maxQtdAcao = Math.max(1, Number(instance.quantidade) || 1);
+  const seletorQtd = temMultiplos ? (
+    <QuantidadeStepper value={Math.min(qtdAcao, maxQtdAcao)} min={1} max={maxQtdAcao}
+      onChange={setQtdAcao} label={en ? 'Quantity' : 'Quantidade'}
+      centro={<>{Math.min(qtdAcao, maxQtdAcao)} <span className="qtd-de-max">{en ? 'of' : 'de'} {maxQtdAcao}</span></>} />
+  ) : null;
+  const qtdEscolhida = temMultiplos ? Math.min(qtdAcao, maxQtdAcao) : undefined;
   // Carne que vira comida (24/09/2026): as receitas e quanto dela há no total.
   const receitasCarne = receitasDaCarne(instance.slug);
   const carneTotal = receitasCarne.length ? carneDisponivel(todosItens, instance.slug) : 0;
@@ -2647,934 +2766,533 @@ function DetalhesItemModal({
     ? (catalogoBySlug[containerAtual.slug]?.nome || containerAtual.slug)
     : null;
 
-  return (
-    <ModalShell
-      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
-      lang={lang}
-      size="md"
-      extraClass="modal-detalhes"
-      onClose={onClose}
-    >
-        {/* ── Seção A: Atributos inline ──── */}
-        {/* Na transferência, a janela mostra só a escolha do destinatário:
-            ícones, descrição e conteúdo saem (pedido do usuário, 12/09/2026). */}
-        {!mostrarTransferir && !mostrarArmazenar &&(cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0 || mostraResistencia) && (
-          <div className="det-sec-a">
-            {cat.ocupa != null && (
-              <span className="det-sec-chip"
-                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Takes up' : 'Ocupa', desc: fmtNum(cat.ocupa) })}
-                onMouseLeave={fecharTip}
-                tabIndex={0}
-                onFocus={(e) => abrirTip(e, { title: en ? 'Takes up' : 'Ocupa', desc: fmtNum(cat.ocupa) })}
-                onBlur={fecharTip}>
-                <span className="det-sec-ic-box det-sec-ic--ocupa">
-                  <i className="ti ti-package-import" aria-hidden="true" />
-                </span>
-                <span className="det-sec-val">{fmtNum(cat.ocupa)}</span>
-              </span>
-            )}
-            {cat.armazena != null && (
-              <span className="det-sec-chip">
-                <span className="det-sec-ic-box det-sec-ic--armazena">
-                  <i className="ti ti-box" aria-hidden="true" />
-                </span>
-                <span className="det-sec-val">{fmtNum(cat.armazena)}</span>
-              </span>
-            )}
-            {Number(cat.absorcao) > 0 && (
-              <span className="det-sec-chip"
-                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Absorbs' : 'Absorção', desc: String(cat.absorcao) })}
-                onMouseLeave={fecharTip}
-                tabIndex={0}
-                onFocus={(e) => abrirTip(e, { title: en ? 'Absorbs' : 'Absorção', desc: String(cat.absorcao) })}
-                onBlur={fecharTip}>
-                <span className="det-sec-ic-box">
-                  <i className="ti ti-shield-half" aria-hidden="true" />
-                </span>
-                <span className="det-sec-val">{cat.absorcao}</span>
-              </span>
-            )}
-            {mostraResistencia && (
-              <span className="det-sec-chip det-sec-chip--resistencia"
-                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Durability' : 'Resistência', desc: `${resAtualItem}/${resMaxItem}` })}
-                onMouseLeave={fecharTip}
-                tabIndex={0}
-                onFocus={(e) => abrirTip(e, { title: en ? 'Durability' : 'Resistência', desc: `${resAtualItem}/${resMaxItem}` })}
-                onBlur={fecharTip}>
-                <span className={'det-sec-ic-box' + (resAtualItem < resMaxItem ? ' det-sec-ic--neg' : '')}>
-                  <i className="ti ti-hammer" aria-hidden="true" />
-                </span>
-                <span className="det-sec-val">{resAtualItem}</span>
-              </span>
-            )}
-            {cat.dano && (
-              <span className="det-sec-chip">
-                <span className="det-sec-ic-box">
-                  <i className="ti ti-sword" aria-hidden="true" />
-                </span>
-                <span className="det-sec-val">{cat.dano}</span>
-              </span>
-            )}
-            {/* Efeito é TEXTO, e texto não cabe num selo de canto (pedido do
-                usuário, 11/09/2026: "quando houver um efeito no item, não
-                precisa mostrar qual efeito é, o efeito vira tooltip").
+  /* ── O MODAL NOVO (26/09/2026) ──────────────────────────────────────────
+     "Eu quero que o modal de itens na ficha, na loja e no inventário, abram
+      um modal igual [ao do Comércio]. Mas junto do X, teremos os seguintes
+      ícones [...] Não teremos mais o rodapé." (usuário)
+     A janela é o BestDetalheModal (09-bestiario) com o MESMO corpo do Comércio
+     (BestItemFicha) — Descrição, Efeitos, Características, Magia — e as abas
+     saem dele. As ações são ícones ao lado do X, com o nome e o motivo do
+     bloqueio no tooltip. Uma ação que precisa de escolha (descartar, usar,
+     preparar, transferir, armazenar, comentar) troca o CORPO pela etapa, com
+     Cancelar/Confirmar dentro dela — não há mais rodapé. */
+  const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || window.BestDetalheModal;
+  const Ficha = (typeof BestItemFicha !== 'undefined' && BestItemFicha) || window.BestItemFicha;
+  const Linha = (typeof BestLinha !== 'undefined' && BestLinha) || window.BestLinha;
+  const etapaAberta = confirmandoDestruir || confirmandoUsar || preparandoCarne || confirmandoPreparar
+    || mostrarTransferir || mostrarArmazenar || mostrarVender;
+  const fecharEtapas = () => {
+    fecharTip();
+    setConfirmandoDestruir(false); setConfirmandoUsar(false); setPreparandoCarne(false);
+    setConfirmandoPreparar(false); setMostrarTransferir(false); setMostrarArmazenar(false);
+    setMostrarVender(false); setVendaErro(null); setQtdAcao(1);
+    setTransfPjId(''); setArmazContId('');
+    if (onTransferReset) onTransferReset();
+  };
+  const abrirEtapa = (setter) => { fecharEtapas(); setter(true); };
 
-                Os chips numéricos acima continuam com o número no canto —
-                número cabe. Estes três viram só o ícone, e o conteúdo sai no
-                hover. Sem o texto ao lado, a linha de atributos para de
-                quebrar quando o item tem efeito longo. */}
-            {cat.efeito_positivo && (
-              <span className="det-sec-chip det-sec-chip--efeito"
-                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Positive effect' : 'Efeito positivo', desc: cat.efeito_positivo })}
-                onMouseLeave={fecharTip}
-                tabIndex={0}
-                onFocus={(e) => abrirTip(e, { title: en ? 'Positive effect' : 'Efeito positivo', desc: cat.efeito_positivo })}
-                onBlur={fecharTip}>
-                <span className="det-sec-ic-box det-sec-ic--pos">
-                  <i className="ti ti-plus" aria-hidden="true" />
-                </span>
-              </span>
-            )}
-            {cat.efeito_negativo && (
-              <span className="det-sec-chip det-sec-chip--efeito"
-                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Negative effect' : 'Efeito negativo', desc: cat.efeito_negativo })}
-                onMouseLeave={fecharTip}
-                tabIndex={0}
-                onFocus={(e) => abrirTip(e, { title: en ? 'Negative effect' : 'Efeito negativo', desc: cat.efeito_negativo })}
-                onBlur={fecharTip}>
-                <span className="det-sec-ic-box det-sec-ic--neg">
-                  <i className="ti ti-minus" aria-hidden="true" />
-                </span>
-              </span>
-            )}
-            {(cat.magia || cat.nivel_magia != null) && (
-              <span className="det-sec-chip det-sec-chip--efeito"
-                onMouseEnter={(e) => abrirTip(e, { title: en ? 'Spell' : 'Magia', desc: [cat.magia, cat.nivel_magia].filter((x) => x != null && x !== '').join(' ') || null })}
-                onMouseLeave={fecharTip}
-                tabIndex={0}
-                onFocus={(e) => abrirTip(e, { title: en ? 'Spell' : 'Magia', desc: [cat.magia, cat.nivel_magia].filter((x) => x != null && x !== '').join(' ') || null })}
-                onBlur={fecharTip}>
-                <span className="det-sec-ic-box ">
-                  <i className="ti ti-sparkle" aria-hidden="true" />
-                </span>
-              </span>
-            )}
-          </div>
-        )}
+  // ── Os ícones, na ordem pedida; os que o pedido não listava vão ao fim. ──
+  const motivoVenda = (acoesPesadas && onVender && cat.grupo !== 'Moedas')
+    ? bloqueioVenda(instance, { ...(podeVender || {}), temConteudo: hasContainerContent })
+    : null;
+  const bloqueioAprender = ehPergaminhoMagia
+    ? bloqueioPergaminho(cat, pjAprendiz, { magiasDb, noInventario: acoesPesadas, podeAprender: !!onAprenderMagia })
+    : null;
+  const podeUsar = consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && !ehFlecha(cat);
+  const acoesTopo = [
+    acoesPesadas && onVender && cat.grupo !== 'Moedas' && {
+      chave: 'vender', icone: 'ti-coins', ativo: mostrarVender,
+      rotulo: en ? 'Sell in the shop' : 'Vender na loja',
+      dica: motivoVenda ? { title: en ? 'Sell' : 'Vender', desc: motivoVendaLabel(motivoVenda, en) } : null,
+      desativado: !!motivoVenda,
+      // Começa pela pilha inteira e pelo valor de tabela; clicar de novo fecha.
+      onClick: () => {
+        if (mostrarVender) { fecharEtapas(); return; }
+        const q = Math.max(1, Number(instance.quantidade) || 1);
+        setVendaQtd(q); setVendaPreco(Number(cat.valor_latao) || 0);
+        abrirEtapa(setMostrarVender);
+      },
+    },
+    {
+      chave: 'descartar', icone: 'ti-trash', perigo: true, armado: confirmandoDestruir,
+      rotulo: en ? 'Discard' : 'Descartar',
+      // Pilha: vai direto pra janela de quantidade (a padrão).
+      onClick: () => (confirmandoDestruir ? fecharEtapas() : abrirEtapa(setConfirmandoDestruir)),
+    },
+    acoesPesadas && pjsHistoria.length > 0 && !instance.vestido && !instance.montado && {
+      chave: 'transferir', icone: 'ti-share-3', ativo: mostrarTransferir,
+      rotulo: en ? 'Transfer' : 'Transferir',
+      // Clicar de novo fecha a escolha (26/09/2026 — não há mais Cancelar).
+      onClick: () => (mostrarTransferir ? fecharEtapas() : abrirEtapa(setMostrarTransferir)),
+    },
+    acoesPesadas && equipavel && (instance.equipado ? {
+      chave: 'desequipar', icone: 'ti-shield-off', rotulo: en ? 'Unequip' : 'Desequipar',
+      onClick: () => onDesequipar(instance.instanceId),
+    } : {
+      chave: 'equipar', icone: 'ti-shield', rotulo: en ? 'Equip' : 'Equipar',
+      desativado: !podeEquipar,
+      dica: bloqueioEquipar ? { title: en ? 'Equip' : 'Equipar', desc: bloqueioEquipar } : null,
+      onClick: () => onEquipar(instance.instanceId),
+    }),
+    acoesPesadas && vestivel && (instance.vestido ? {
+      chave: 'despir', icone: 'ti-shirt-off', rotulo: en ? 'Take off' : 'Despir',
+      onClick: () => onDespir(instance.instanceId),
+    } : {
+      chave: 'vestir', icone: 'ti-shirt', rotulo: en ? 'Wear' : 'Vestir',
+      desativado: !podeVestir,
+      dica: bloqueioVestir ? { title: en ? 'Wear' : 'Vestir', desc: bloqueioVestir } : null,
+      onClick: () => onVestir(instance.instanceId),
+    }),
+    acoesPesadas && !isContainer && !instance.equipado && !instance.vestido && !instance.montado && {
+      chave: 'armazenar', icone: 'ti-download', ativo: mostrarArmazenar,
+      rotulo: en ? 'Store' : 'Armazenar',
+      desativado: !temOndeArmazenar,
+      dica: !temOndeArmazenar ? { title: en ? 'Store' : 'Armazenar', desc: en ? 'No compatible container in inventory' : 'Nenhum recipiente compatível no inventário' } : null,
+      // Clicar de novo fecha a escolha (26/09/2026 — não há mais Cancelar).
+      onClick: () => (mostrarArmazenar ? fecharEtapas() : abrirEtapa(setMostrarArmazenar)),
+    },
+    /* Usar saiu dos ícones em 26/09/2026: "Comportamento igual da magia, ao
+       clicar no card do alvo, o card fica selecionado e vermelho, se clicar
+       novamente [o item] é usado." — ver a aba Usar, abaixo. */
+    acoesPesadas && onPrepararCarne && receitasCarne.length > 0 && {
+      chave: 'preparar-carne', icone: 'ti-meat', ativo: preparandoCarne,
+      rotulo: en ? 'Prepare' : 'Preparar',
+      onClick: () => abrirEtapa(setPreparandoCarne),
+    },
+    acoesPesadas && ehAnimal && onPreparar && !instance.montado && {
+      chave: 'preparar', icone: 'ti-meat', ativo: confirmandoPreparar,
+      rotulo: en ? 'Prepare' : 'Preparar',
+      onClick: () => abrirEtapa(setConfirmandoPreparar),
+    },
+    // ── Os que o pedido não listava (continuam existindo) ──
+    acoesPesadas && criaturaMontaria && onMontar && (instance.montado ? {
+      chave: 'desmontar', icone: 'ti-horse-toy', rotulo: en ? 'Dismount' : 'Desmontar',
+      onClick: () => onDesmontar(instance.instanceId),
+    } : {
+      chave: 'montar', icone: 'ti-horse-toy', rotulo: en ? 'Mount' : 'Montar',
+      onClick: () => onMontar(instance.instanceId),
+    }),
+    ehPergaminhoMagia && {
+      chave: 'aprender', icone: 'ti-school',
+      rotulo: aprendendo ? (en ? 'Learning…' : 'Aprendendo…') : (en ? 'Learn' : 'Aprender'),
+      desativado: aprendendo || !!bloqueioAprender,
+      dica: bloqueioAprender ? { title: en ? 'Learn' : 'Aprender', desc: motivoAprenderLabel(bloqueioAprender.motivo, en, bloqueioAprender) } : null,
+      onClick: async () => {
+        setAprendendo(true); setAprenderErro(null);
+        const r = await onAprenderMagia(instance.instanceId);
+        if (r?.ok) { onClose(); return; }
+        setAprendendo(false);
+        setAprenderErro(motivoAprenderLabel(r?.motivo, en));
+      },
+    },
+    cat.doc_url && {
+      chave: 'ler', icone: 'ti-book', rotulo: en ? 'Read' : 'Ler',
+      onClick: () => setLendo(true),
+    },
+  ];
 
-        {/* ── Sagração (15/09/2026) ───────────────────────────────
-            Bônus permanente do item: arma soma no dano, armadura e escudo na
-            absorção. Todos veem; só o Mestre (onBonus) sobe e desce, na
-            escada 0 → 1 → 3 → 5 → 7 → 9. */}
-        {!mostrarTransferir && !mostrarArmazenar && destinoBonus && (bonusItem > 0 || onBonus) && (
-          <div className="det-bonus" data-bonus={bonusItem}>
-            <span className="det-bonus-lbl">
-              <i className="ti ti-sparkles" aria-hidden="true" />
-              {en ? 'Consecration' : 'Sagração'}
-              <span className="det-bonus-onde">
-                {destinoBonus === 'dano' ? (en ? 'damage' : 'dano') : (en ? 'absorption' : 'absorção')}
-              </span>
+  // ── Linhas da INSTÂNCIA dentro de Características ──
+  const ondeEsta = instance.montado ? (en ? 'Mounted' : 'Montado')
+    : instance.equipado ? (en ? 'Equipped' : 'Equipado') + (instance.slot && slotLabels[instance.slot] ? ` · ${slotLabels[instance.slot]}` : '')
+    : instance.vestido ? (en ? 'Worn' : 'Vestido')
+    : containerAtualNome ? (en ? `In ${containerAtualNome}` : `Em ${containerAtualNome}`)
+    : null;
+  const linhasDaInstancia = Linha ? (
+    <>
+      {instance.quantidade > 1 && <Linha rotulo={en ? 'Quantity' : 'Quantidade'} valor={instance.quantidade} />}
+      {ondeEsta && <Linha rotulo={en ? 'Where' : 'Onde está'} valor={ondeEsta} />}
+      {temElo(instance) && (
+        <Linha rotulo={en ? 'Permanent bond' : 'Elo Permanente'}
+          valor={<><i className="ti ti-link" aria-hidden="true" /> {instance.elo.conjurador_nome || (en ? 'yes' : 'sim')}</>} />
+      )}
+      {/* Sagração (15/09/2026): todos veem; só o Mestre (onBonus) mexe. */}
+      {/* O seletor do bônus SOZINHO NA LINHA e em PÍLULA (27/09/2026): "O
+          seletor de aumentar bônus de uma arma deve ficar sozinho em uma linha,
+          e os cantos devem ser arredondados como nos outros seletores." Linha
+          larga (não divide a fileira com outra característica) e as classes do
+          QuantidadeStepper; os botões seguem pulando pelos degraus da tabela
+          (BONUS_ITEM_VALORES), por isso não é o componente em si. */}
+      {destinoBonus && (bonusItem > 0 || onBonus) && (
+        <Linha largo rotulo={(en ? 'Consecration' : 'Sagração') + ' · ' + (destinoBonus === 'dano' ? (en ? 'damage' : 'dano') : (en ? 'absorption' : 'absorção'))}
+          valor={onBonus ? (
+            <span className="fp-pop-stepper det-bonus det-bonus-pilula" role="group" data-bonus={bonusItem}
+              aria-label={en ? 'Consecration bonus' : 'Bônus de sagração'}>
+              <button type="button" className="fp-step-btn" disabled={bonusItem === 0}
+                aria-label={en ? 'Lower bonus' : 'Reduzir bônus'}
+                onClick={() => onBonus(instance.instanceId, -1)}>
+                <i className="ti ti-minus" aria-hidden="true" />
+              </button>
+              <span className="fp-pop-stepper-label det-bonus-val">+{bonusItem}</span>
+              <button type="button" className="fp-step-btn"
+                disabled={bonusItem === BONUS_ITEM_VALORES[BONUS_ITEM_VALORES.length - 1]}
+                aria-label={en ? 'Raise bonus' : 'Aumentar bônus'}
+                onClick={() => onBonus(instance.instanceId, 1)}>
+                <i className="ti ti-plus" aria-hidden="true" />
+              </button>
             </span>
-            <span className="det-bonus-ctrl">
-              {onBonus && (
-                <button type="button" className="btn-icon btn-sm" disabled={bonusItem === 0}
-                  aria-label={en ? 'Lower bonus' : 'Reduzir bônus'}
-                  onClick={() => onBonus(instance.instanceId, -1)}>
-                  <i className="ti ti-minus" aria-hidden="true" />
-                </button>
-              )}
-              <span className="det-bonus-val">+{bonusItem}</span>
-              {onBonus && (
-                <button type="button" className="btn-icon btn-sm"
-                  disabled={bonusItem === BONUS_ITEM_VALORES[BONUS_ITEM_VALORES.length - 1]}
-                  aria-label={en ? 'Raise bonus' : 'Aumentar bônus'}
-                  onClick={() => onBonus(instance.instanceId, 1)}>
-                  <i className="ti ti-plus" aria-hidden="true" />
-                </button>
-              )}
-            </span>
-          </div>
-        )}
-
-        {/* ── Linha divisória ──────────────────────────────────── */}
-        {!mostrarTransferir && !mostrarArmazenar &&(cat.ocupa != null || cat.armazena != null || cat.efeito_positivo || cat.efeito_negativo || cat.magia || cat.nivel_magia != null || cat.dano || Number(cat.absorcao) > 0 || mostraResistencia) &&
-         cat.descricao && (
-          <hr className="det-sec-divider" />
-        )}
-
-        {/* ── Seção B: Descrição ───────────────────────────────── */}
-        {!mostrarTransferir && !mostrarArmazenar && cat.descricao && (
-          <div className="det-sec-b">
-            <span className="det-sec-desc-val">{cat.descricao}</span>
-          </div>
-        )}
-
-        {/* ── Magia do pergaminho (13/09/2026) ─────────────────────
-            "No pergaminho de magias para serem aprendidas, mostre a descrição
-            da magia." Descrição geral, um <p> por parágrafo como na ficha, e o
-            texto do nível que o pergaminho ensina. */}
-        {!mostrarTransferir && !mostrarArmazenar && ehPergaminhoMagia && (() => {
-          const magia = magiaDoItem(cat, magiasDb);
-          const textoNivel = magia ? magia['nivel_' + Number(cat.nivel_magia)] : null;
-          if (!magia || (!magia.descricao && !textoNivel)) return null;
-          return (
-            <div className="det-magia-pergaminho">
-              <div className="det-sec-head">
-                <span>{magia.nome} · {en ? 'Level' : 'Nível'} {cat.nivel_magia}</span>
-              </div>
-              <div className="det-desc">
-                {String(magia.descricao || '').split(/\r?\n/).map((p) => p.trim()).filter(Boolean)
-                  .map((p, i) => <p key={i}>{p}</p>)}
-                {textoNivel && <p className="det-efeito">{textoNivel}</p>}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ── Conteúdo do container ────────────────────────────── */}
-        {/* Só renderiza quando há itens dentro; container vazio = sem bloco,
-            sem espaçamento fantasma (o margin-top de det-actions abaixo fica 0). */}
-        {!mostrarTransferir && !mostrarArmazenar &&hasContainerContent && (
-          <div className="det-container-content">
-            <div className="cont-list">
-              {containerData.filhos.map((it) => {
-                const fc = catalogoBySlug[it.slug];
-                return (
-                  <div key={it.instanceId} className="cont-row">
-                    <div className="cont-row-info">
-                      <span className="cont-row-nome">{fc?.nome || it.slug}{fc?.magico && ' ✦'}</span>
-                      {it.quantidade > 1 && <span className="inv-card-qty">{it.quantidade}</span>}
-                    </div>
-                    <div className="cont-row-actions">
-                      <button className="btn-icon btn-sm inv-act-btn" onClick={() => onAbrirDetalhesFilho?.(it.instanceId)}
-                        {...propsTip(abrirTip, fecharTip, en ? 'Details' : 'Detalhes')}
-                        aria-label={en ? 'Details' : 'Detalhes'}>
-                        <i className="ti ti-eye" aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* (Armazenar em container agora é uma ação na lista abaixo) */}
-
-        {/* ── Ações do item — Modelo C: lista descritiva ───────────── */}
-        {/* margin-top só existe quando há conteúdo de container acima; caso
-            contrário o espaçamento vem apenas do margin-bottom do det-sec-b. */}
-        {lendo && cat.doc_url && (
-          <LeituraDocModal titulo={cat.nome} docUrl={cat.doc_url} lang={lang} onClose={() => setLendo(false)} />
-        )}
-        <div className="det-actions" style={!hasContainerContent ? { marginTop: 0 } : undefined}>
-          {confirmandoDestruir ? (
-            <div className="det-act-confirm">
-              <div className="det-act-confirm-title">
-                {en ? 'Destroy item' : 'Destruir item'}
-              </div>
-              <span className="det-act-confirm-lbl">
-                {en ? 'Destroy this item permanently?' : 'Destruir este item permanentemente?'}
-              </span>
-              <div className="det-act-confirm-btns">
-                <button className="btn-ghost" onClick={() => setConfirmandoDestruir(false)}>
-                  {en ? 'Cancel' : 'Cancelar'}
-                </button>
-                <button className="btn-danger"
-                  onClick={() => { onDestruir(instance.instanceId); onClose(); }}>
-                  {en ? 'Yes, destroy' : 'Sim, destruir'}
-                </button>
-              </div>
-            </div>
-          ) : confirmandoUsar ? (
-            <div className="det-act-confirm">
-              <div className="det-act-confirm-title">
-                {en ? 'Use item' : 'Usar item'}
-              </div>
-              <span className="det-act-confirm-lbl">
-                {en ? 'Use this item?' : 'Usar este item?'}
-              </span>
-              <div className="det-act-confirm-btns">
-                <button className="btn-ghost" onClick={() => setConfirmandoUsar(false)}>
-                  {en ? 'Cancel' : 'Cancelar'}
-                </button>
-                <button className="btn-primary"
-                  onClick={() => { onUsar(instance.instanceId); onClose(); }}>
-                  {en ? 'Yes, use' : 'Sim, usar'}
-                </button>
-              </div>
-            </div>
-          ) : preparandoCarne ? (
-            /* Preparar carne (24/09/2026): as três receitas daquela carne. A
-               que pede mais carne do que o personagem tem fica desativada e
-               diz por quê. A conta soma todas as pilhas, não só esta. */
-            <div className="det-act-confirm">
-              <div className="det-act-confirm-title">
-                {en ? 'Prepare food' : 'Preparar alimento'}
-              </div>
-              <span className="det-act-confirm-lbl">
-                {en ? `You have ${carneTotal}× ${cat.nome}.` : `Você tem ${carneTotal}× ${cat.nome}.`}
-              </span>
-              <div className="det-act-confirm-btns det-receitas">
-                {receitasCarne.map((r) => {
-                  const prato = catalogoBySlug[r.resultado];
-                  const falta = carneTotal < r.custo;
-                  return (
-                    <button key={r.resultado} className="btn-primary"
-                      data-receita={r.resultado}
-                      disabled={falta || !prato}
-                      onClick={() => { onPrepararCarne(instance.instanceId, r.resultado); onClose(); }}
-                      {...propsTip(abrirTip, fecharTip, falta
-                        ? (en ? `Needs ${r.custo}× ${cat.nome}.` : `Precisa de ${r.custo}× ${cat.nome}.`)
-                        : ((prato && prato.efeito_positivo) || ''))}>
-                      {r.custo}× → {prato ? prato.nome : r.resultado}
-                    </button>
-                  );
-                })}
-                <button className="btn-ghost" onClick={() => setPreparandoCarne(false)}>
-                  {en ? 'Cancel' : 'Cancelar'}
-                </button>
-              </div>
-            </div>
-          ) : confirmandoPreparar ? (
-            <div className="det-act-confirm">
-              <div className="det-act-confirm-title">
-                {en ? 'Prepare animal' : 'Preparar animal'}
-              </div>
-              <span className="det-act-confirm-lbl">
-                {en
-                  ? `Slaughter and process ${cat.nome}? You will receive ${cat.consumiveis_peso || 1}× ${cat.consumiveis}.`
-                  : `Abater e preparar ${cat.nome}? Você receberá ${cat.consumiveis_peso || 1}× ${cat.consumiveis}.`}
-              </span>
-              <div className="det-act-confirm-btns">
-                <button className="btn-ghost" onClick={() => setConfirmandoPreparar(false)}>
-                  {en ? 'Cancel' : 'Cancelar'}
-                </button>
-                <button className="btn-primary"
-                  onClick={() => { onPreparar(instance.instanceId); onClose(); }}>
-                  {en ? 'Yes, prepare' : 'Sim, preparar'}
-                </button>
-              </div>
-            </div>
-          ) : mostrarTransferir ? (
-            <div className="det-transf">
-              {/* Mini cards com foto e nome — o mesmo seletor do alvo de magia
-                  (det-opt-grid / det-opt-card), no lugar do <select> (pedido
-                  do usuário, 12/09/2026). Sem foto, a inicial do nome. */}
-              <div className="det-opt-grid" role="radiogroup" aria-label={en ? 'Recipient' : 'Destinatário'}>
-                {(pjsHistoria || []).map((pj) => {
-                  const id = String(pj.id);
-                  const nome = [pj.nome, pj.sobrenome].filter(Boolean).join(' ');
-                  const selecionado = transfPjId === id;
-                  const detalhe = [pj.raca, pj.profissao].filter(Boolean).join(' · ');
-                  return (
-                    <button
-                      type="button"
-                      key={id}
-                      role="radio"
-                      aria-checked={selecionado}
-                      data-pj-id={id}
-                      className={'det-opt-card' + (selecionado ? ' det-opt-card--sel' : '')}
-                      disabled={transferindo}
-                      onClick={() => { setTransfPjId(id); onTransferReset && onTransferReset(); }}
-                      onMouseEnter={(e) => abrirTip(e, { title: nome, desc: detalhe || null })}
-                      onMouseLeave={fecharTip}
-                      onFocus={(e) => abrirTip(e, { title: nome, desc: detalhe || null })}
-                      onBlur={fecharTip}
-                    >
-                      {pj.foto_url ? (
-                        <img className="det-opt-foto" src={pj.foto_url} alt="" />
-                      ) : (
-                        <span className="det-opt-foto det-opt-foto--vazia">{(nome || '?').trim().slice(0, 1).toUpperCase()}</span>
-                      )}
-                      <span className="det-opt-nome">{nome}</span>
-                      {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, #C9A44E)' }} />}
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Primeiro o aliado; a quantidade vem DEPOIS, na janela padrão de
-                  quantidade (QuantidadeModal), quando a pilha tem mais de uma
-                  unidade (pedido do usuário, 12/09/2026). */}
-              {transferError && <div className="transf-error">{motivoTransferenciaLabel(transferError, en)}</div>}
-              <div className="det-act-confirm-btns">
-                <button className="btn-ghost" disabled={transferindo}
-                  onClick={() => { setMostrarTransferir(false); setTransfPjId(''); onTransferReset && onTransferReset(); }}>
-                  {en ? 'Cancel' : 'Cancelar'}
-                </button>
-                <button className="btn-primary" disabled={transferindo || !transfPjId}
-                  onClick={async () => {
-                    setTransferindo(true);
-                    const res = await onTransferir(transfPjId);
-                    setTransferindo(false);
-                    if (res?.ok) onClose();   // item saiu do inventário deste PJ
-                  }}>
-                  {transferindo ? (en ? 'Sending…' : 'Enviando…') : (en ? 'Confirm' : 'Confirmar')}
-                </button>
-              </div>
-            </div>
-          ) : mostrarArmazenar ? (
-            <div className="det-armazenar">
-              {/* Cards clicáveis dos compartimentos — o mesmo seletor da
-                  transferência (det-opt-grid / det-opt-card), no lugar do
-                  <select> (pedido do usuário, 13/09/2026). O ícone é o do item;
-                  o espaço usado vai no tooltip e o compartimento onde o item
-                  já está fica marcado e desativado. */}
-              <div className="det-opt-grid" role="radiogroup" aria-label={en ? 'Compartment' : 'Compartimento'}>
-                {opcoesContainer.map((c) => {
-                  const cc = catalogoBySlug[c.slug];
-                  const nome = cc?.nome || c.slug;
-                  const { usado, armazena: cap } = capacidadeContainer(c, todosItens, catalogoBySlug);
-                  const atual = c.instanceId === instance.containerId;
-                  const selecionado = armazContId === c.instanceId;
-                  const detalhe = (en ? 'Space: ' : 'Espaço: ') + used(usado, cap)
-                    + (atual ? (en ? ' · the item is already here' : ' · o item já está aqui') : '');
-                  return (
-                    <button
-                      type="button"
-                      key={c.instanceId}
-                      role="radio"
-                      aria-checked={selecionado}
-                      data-container-id={c.instanceId}
-                      className={'det-opt-card' + (selecionado || atual ? ' det-opt-card--sel' : '')}
-                      disabled={atual}
-                      onClick={() => setArmazContId(c.instanceId)}
-                      onMouseEnter={(e) => abrirTip(e, { title: nome, desc: detalhe })}
-                      onMouseLeave={fecharTip}
-                      onFocus={(e) => abrirTip(e, { title: nome, desc: detalhe })}
-                      onBlur={fecharTip}
-                    >
-                      <span className="det-opt-foto det-opt-foto--vazia">
-                        <i className={'ti ' + invItemIcon(cc)} aria-hidden="true" />
-                      </span>
-                      <span className="det-opt-nome">{nome}</span>
-                      {(selecionado || atual) && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, #C9A44E)' }} />}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="det-act-confirm-btns">
-                <button className="btn-ghost"
-                  onClick={() => { fecharTip(); setMostrarArmazenar(false); setArmazContId(''); }}>
-                  {en ? 'Cancel' : 'Cancelar'}
-                </button>
-                <button className="btn-primary" disabled={!armazContId}
-                  onClick={() => {
-                    fecharTip();
-                    const r = handleContainerChange(armazContId);
-                    // Moveu direto: fecha a janela (13/09/2026). Pilha: fecha
-                    // quando a quantidade for confirmada (executarAcaoPendente).
-                    if (r === 'feito') { onClose(); return; }
-                    setMostrarArmazenar(false);
-                    setArmazContId('');
-                  }}>
-                  {en ? 'Confirm' : 'Confirmar'}
-                </button>
-              </div>
-            </div>
           ) : (
-            <>
-              {/* Botões — todos na mesma linha, proporcionais; Descartar entra no final */}
-              <div className="det-act-row">
-                {/* Equipar / Desequipar / Usar */}
-                {acoesPesadas && equipavel && (
-                  instance.equipado ? (
-                    <button className="btn-primary"
-                      onClick={() => onDesequipar(instance.instanceId)}>
-                      {en ? 'Unequip' : 'Desequipar'}
-                    </button>
-                  ) : (
-                    <button className="btn-primary"
-                      disabled={!podeEquipar}
-                      onClick={() => onEquipar(instance.instanceId)}
-                      {...propsTip(abrirTip, fecharTip, bloqueioEquipar || '')}>
-                      {en ? 'Equip' : 'Equipar'}
-                    </button>
-                  )
-                )}
-                {/* Flecha não tem Usar: o ataque com arco a gasta (14/09/2026). */}
-                {consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && !ehFlecha(cat) && (
-                  <button className="btn-primary"
-                    // Pilha: vai direto pra janela de quantidade (a padrão).
-                    onClick={() => {
-                      if (temMultiplos) onUsar(instance.instanceId);
-                      else setConfirmandoUsar(true);
-                    }}>
-                    {en ? 'Use' : 'Usar'}
-                  </button>
-                )}
-                {/* Montar / Desmontar — animal cuja criatura é montaria. */}
-                {acoesPesadas && criaturaMontaria && onMontar && (
-                  instance.montado ? (
-                    <button className="btn-primary" onClick={() => onDesmontar(instance.instanceId)}>
-                      {en ? 'Dismount' : 'Desmontar'}
-                    </button>
-                  ) : (
-                    <button className="btn-primary" onClick={() => onMontar(instance.instanceId)}>
-                      {en ? 'Mount' : 'Montar'}
-                    </button>
-                  )
-                )}
-                {acoesPesadas && onPrepararCarne && receitasCarne.length > 0 && (
-                  <button className="btn-primary" onClick={() => setPreparandoCarne(true)}>
-                    {en ? 'Prepare' : 'Preparar'}
-                  </button>
-                )}
-                {acoesPesadas && ehAnimal && onPreparar && !instance.montado && (
-                  <button className="btn-primary"
-                    onClick={() => setConfirmandoPreparar(true)}>
-                    {en ? 'Prepare' : 'Preparar'}
-                  </button>
-                )}
-                {/* APRENDER aparece em TODO pergaminho de magia (13/09/2026):
-                    quando não dá, fica desativado e o tooltip diz por quê. */}
-                {ehPergaminhoMagia && (() => {
-                  const bloqueio = bloqueioPergaminho(cat, pjAprendiz, {
-                    magiasDb, noInventario: acoesPesadas, podeAprender: !!onAprenderMagia,
-                  });
-                  return (
-                  <button className="btn-primary"
-                    data-aprender-bloqueio={bloqueio ? bloqueio.motivo : undefined}
-                    disabled={aprendendo || !!bloqueio}
-                    {...propsTip(abrirTip, fecharTip, bloqueio ? motivoAprenderLabel(bloqueio.motivo, en, bloqueio) : '')}
-                    onClick={async () => {
-                      setAprendendo(true);
-                      setAprenderErro(null);
-                      const r = await onAprenderMagia(instance.instanceId);
-                      if (r?.ok) { onClose(); return; }
-                      setAprendendo(false);
-                      setAprenderErro(motivoAprenderLabel(r?.motivo, en));
-                    }}>
-                    {aprendendo ? (en ? 'Learning…' : 'Aprendendo…') : (en ? 'Learn' : 'Aprender')}
-                  </button>
-                  );
-                })()}
+            <span className="det-bonus det-bonus-ctrl" data-bonus={bonusItem}>
+              <span className="det-bonus-val">+{bonusItem}</span>
+            </span>
+          )} />
+      )}
+    </>
+  ) : null;
 
-                {/* Vestir / Despir */}
-                {acoesPesadas && vestivel && (
-                  instance.vestido ? (
-                    <button className="btn-primary"
-                      onClick={() => onDespir(instance.instanceId)}>
-                      {en ? 'Take off' : 'Despir'}
-                    </button>
-                  ) : (
-                    <button className="btn-primary"
-                      disabled={!podeVestir}
-                      onClick={() => onVestir(instance.instanceId)}
-                      {...propsTip(abrirTip, fecharTip, bloqueioVestir || '')}>
-                      {en ? 'Wear' : 'Vestir'}
-                    </button>
-                  )
-                )}
-
-                {/* Ler — livro com conteúdo no Google Docs (itens.doc_url).
-                    Vale na ficha e no inventário: ler não gasta nem move nada. */}
-                {cat.doc_url && (
-                  <button className="btn-primary" onClick={() => setLendo(true)}>
-                    {en ? 'Read' : 'Ler'}
-                  </button>
-                )}
-
-                {/* Transferir */}
-                {acoesPesadas && pjsHistoria.length > 0 && !instance.vestido && !instance.montado && (
-                  <button className="btn-ghost" onClick={() => { onTransferReset && onTransferReset(); setMostrarTransferir(true); }}>
-                    {en ? 'Transfer' : 'Transferir'}
-                  </button>
-                )}
-
-                {/* Armazenar em */}
-                {acoesPesadas && !isContainer && !instance.equipado && !instance.vestido && !instance.montado && (
-                  <button className="btn-ghost"
-                    disabled={!temOndeArmazenar}
-                    onClick={() => setMostrarArmazenar(true)}
-                    {...propsTip(abrirTip, fecharTip, !temOndeArmazenar
-                      ? (en ? 'No compatible container in inventory' : 'Nenhum recipiente compatível no inventário')
-                      : '')}>
-                    {en ? 'Store' : 'Armazenar'}
-                  </button>
-                )}
-
-                {/* Vender — negociação com o Mestre (13/09/2026). Aparece
-                    sempre (menos em moedas); quando não dá, desativado com o
-                    motivo no tooltip. Com negociação aberta, vira "Negociação"
-                    e abre o andamento. */}
-                {acoesPesadas && onVender && cat.grupo !== 'Moedas' && (() => {
-                  const motivo = bloqueioVenda(instance, {
-                    ...(podeVender || {}), temConteudo: hasContainerContent, vendaAberta: !!vendaAberta,
-                  });
-                  return (
-                    <button className="btn-ghost"
-                      data-venda-bloqueio={motivo || undefined}
-                      disabled={!!motivo}
-                      onClick={() => { fecharTip(); onVender(instance.instanceId); }}
-                      {...propsTip(abrirTip, fecharTip, motivo ? motivoVendaLabel(motivo, en) : '')}>
-                      {vendaAberta ? (en ? 'Negotiation' : 'Negociação') : (en ? 'Sell' : 'Vender')}
-                    </button>
-                  );
-                })()}
-
-                {/* Descartar — mesma linha dos demais botões */}
-                <button className="btn-danger"
-                  // Pilha: vai direto pra janela de quantidade (a padrão).
-                  onClick={() => {
-                    if (temMultiplos) onDestruir(instance.instanceId);
-                    else setConfirmandoDestruir(true);
-                  }}>
-                  {en ? 'Descart' : 'Descartar'}
-                </button>
-              </div>
-
-              {aprenderErro && (
-                <div className="err-msg" style={{ marginTop: 10 }}>{aprenderErro}</div>
-              )}
-            </>
-          )}
+  // ── Seções da instância depois da magia: Conteúdo e Nota ──
+  const secoesDepois = (
+    <>
+      {hasContainerContent && (
+        <div className="best-secao det-container-content" data-aba={en ? 'Contents' : 'Conteúdo'}>
+          {/* O quadriculado do inventário (26/09/2026), no lugar da lista. */}
+          <GradeDoRecipiente filhos={containerData.filhos} catalogoBySlug={catalogoBySlug} lang={lang}
+            onAbrir={onAbrirDetalhesFilho} abrirTip={abrirTip} fecharTip={fecharTip} />
         </div>
+      )}
+      {aprenderErro && <div className="err-msg">{aprenderErro}</div>}
+    </>
+  );
 
+  /* ── A etapa de uma ação (troca o corpo) ──
+     27/09/2026: "Nos modais, quando precisar de botão de confirme, use os
+     botões em um rodapé. Mas não precisa de título como 'Descartar item'."
+     O corpo fica só com a pergunta; Cancelar e a confirmação vão para o
+     rodapé da janela (BestDetalheModal `rodape`). */
+  let rodapeEtapa = null;
+  const etapa = (texto, conteudo, confirmar) => {
+    rodapeEtapa = { esquerda: cancelar, direita: confirmar || null };
+    return (
+      <div className="det-etapa">
+        {texto && <span className="det-act-confirm-lbl">{texto}</span>}
+        {conteudo}
+      </div>
+    );
+  };
+  const cancelar = (
+    <button type="button" className="btn-ghost btn-md" onClick={fecharEtapas}>{en ? 'Cancel' : 'Cancelar'}</button>
+  );
+
+  let corpoEtapa = null;
+  if (confirmandoDestruir) {
+    corpoEtapa = etapa(temMultiplos
+        ? (en ? 'How many to discard permanently?' : 'Quantos descartar permanentemente?')
+        : (en ? 'Discard this item permanently?' : 'Descartar este item permanentemente?'), null,
+      <button type="button" className="btn-danger btn-md" onClick={() => { onDestruir(instance.instanceId, qtdEscolhida); onClose(); }}>{en ? 'Discard' : 'Descartar'}</button>);
+    // O seletor no centro do rodapé, como em Usar/Transferir/Armazenar (27/09/2026).
+    rodapeEtapa.centro = seletorQtd;
+  } else if (confirmandoUsar) {
+    corpoEtapa = etapa(en ? 'Use this item?' : 'Usar este item?', null,
+      <button type="button" className="btn-primary btn-md" onClick={() => { onUsar(instance.instanceId); onClose(); }}>{en ? 'Use' : 'Usar'}</button>);
+  } else if (preparandoCarne) {
+    /* Preparar carne (24/09/2026): as três receitas daquela carne. A que
+       pede mais carne do que o personagem tem fica desativada e diz por quê.
+       As receitas são a escolha (ficam no corpo); o rodapé só tem Cancelar. */
+    corpoEtapa = etapa(en ? `You have ${carneTotal}× ${cat.nome}.` : `Você tem ${carneTotal}× ${cat.nome}.`,
+      <div className="det-act-confirm-btns det-receitas">
+        {receitasCarne.map((r) => {
+          const prato = catalogoBySlug[r.resultado];
+          const falta = carneTotal < r.custo;
+          return (
+            <button key={r.resultado} className="btn-primary" data-receita={r.resultado}
+              disabled={falta || !prato}
+              onClick={() => { onPrepararCarne(instance.instanceId, r.resultado); onClose(); }}
+              {...propsTip(abrirTip, fecharTip, falta
+                ? (en ? `Needs ${r.custo}× ${cat.nome}.` : `Precisa de ${r.custo}× ${cat.nome}.`)
+                : ((prato && prato.efeito_positivo) || ''))}>
+              {r.custo}× → {prato ? prato.nome : r.resultado}
+            </button>
+          );
+        })}
+      </div>);
+  } else if (confirmandoPreparar) {
+    corpoEtapa = etapa(en ? `Slaughter and process ${cat.nome}? You will receive ${cat.consumiveis_peso || 1}× ${cat.consumiveis}.`
+         : `Abater e preparar ${cat.nome}? Você receberá ${cat.consumiveis_peso || 1}× ${cat.consumiveis}.`, null,
+      <button type="button" className="btn-primary btn-md" onClick={() => { onPreparar(instance.instanceId); onClose(); }}>{en ? 'Prepare' : 'Preparar'}</button>);
+  } else if (mostrarVender) {
+    /* PUBLICAR NA LOJA (27/09/2026), sem títulos ("Preço", "Valor de
+       tabela") — Cancelar e Pôr à venda no rodapé. Pilha divisível escolhe
+       quantos; equipável vai inteiro. O preço é de CADA unidade (quem compra
+       pode levar só parte) e começa no de tabela. */
+    const maxQtd = Math.max(1, Number(instance.quantidade) || 1);
+    const divisivel = !equipavel && !isContainer && maxQtd > 1;
+    const valorUnit = Number(cat.valor_latao) || 0;
+    const publicar = async () => {
+      setPublicando(true); setVendaErro(null);
+      const res = await onVender(instance.instanceId, divisivel ? vendaQtd : maxQtd, vendaPreco);
+      setPublicando(false);
+      if (res && res.ok) { onClose(); return; }
+      setVendaErro(motivoVendaLabel(res && res.motivo, en));
+    };
+    /* INLINE (27/09/2026): "Em vender, coloque os inputs inline, e remova o
+       texto 'preço de cada um' mantenha o texto 'Total'." Quantidade e as
+       quatro moedas numa linha só (quebra em tela estreita). */
+    corpoEtapa = (
+      <div className="det-etapa det-venda">
+        <div className="det-venda-linha">
+          <PrecoMoedasInput latao={vendaPreco} onChange={setVendaPreco} lang={lang} disabled={publicando} />
+        </div>
+        {divisivel && vendaQtd > 1 && vendaPreco > 0 && (
+          <span className="det-venda-nota">
+            Total
+            <MoedaPills latao={vendaPreco * vendaQtd} lang={lang} tamanho="sm" />
+          </span>
+        )}
+        {vendaErro && <div className="err-msg">{vendaErro}</div>}
+      </div>
+    );
+    rodapeEtapa = {
+      esquerda: cancelar,
+      // A quantidade no centro do rodapé, como nas outras ações (27/09/2026).
+      centro: divisivel ? (
+        <QuantidadeStepper value={vendaQtd} min={1} max={maxQtd} label={en ? 'Quantity' : 'Quantidade'}
+          centro={<>{vendaQtd} <span className="qtd-de-max">{en ? 'of' : 'de'} {maxQtd}</span></>}
+          onChange={setVendaQtd} />
+      ) : null,
+      direita: (
+        <button type="button" className="btn-primary btn-md" data-publicar disabled={publicando || !(vendaPreco > 0)} onClick={publicar}>
+          {publicando ? (en ? 'Publishing…' : 'Publicando…') : (en ? 'Put up for sale' : 'Pôr à venda')}
+        </button>
+      ),
+    };
+  } else if (mostrarTransferir) {
+    /* TRANSFERIR: o clique no card MARCA o destinatário (vermelho); quem
+       transfere é o botão do rodapé (27/09/2026, "adicione o rodapé com o botão
+       de confirmar em transferir, usar, armazenar, etc."). Até ali o 2º clique
+       no card transferia, com a dica "clique aqui novamente". */
+    const transferirPara = async (id) => {
+      setTransferindo(true);
+      const res = await onTransferir(id, qtdEscolhida);
+      setTransferindo(false);
+      if (res?.ok) onClose();   // item saiu do inventário deste PJ
+    };
+    /* O PADRÃO DO USAR (27/09/2026): "O mesmo padrão que nós criamos para usar
+       um item, que é o card do personagem com sua foto e nome, e do lado o
+       seletor de quantidade, aplique isso em transferir, armazenar, etc."
+       Cards em pílula e o seletor na mesma linha (.det-uso-linha). */
+    /* TRÊS CARDS POR LINHA (27/09/2026): "No modal de transferir, eu quero 3
+       cards por linha." O seletor de quantidade foi para o centro do rodapé,
+       como no Usar, e a grade ocupa a largura toda. */
+    corpoEtapa = (
+      <div className="det-etapa det-uso">
+        <div className="det-uso-alvos det-uso-alvos--grade" role="radiogroup" aria-label={en ? 'Recipient' : 'Destinatário'}>
+          {(pjsHistoria || []).map((pj) => {
+            const id = String(pj.id);
+            const nome = [pj.nome, pj.sobrenome].filter(Boolean).join(' ');
+            const selecionado = transfPjId === id;
+            return (
+              <button type="button" key={id} role="radio" aria-checked={selecionado} data-pj-id={id}
+                className={'det-opt-card det-opt-card--pilula' + (selecionado ? ' det-opt-card--sel' : '')}
+                disabled={transferindo}
+                onClick={() => { setTransfPjId(id); onTransferReset && onTransferReset(); }}>
+                {pj.foto_url
+                  ? <img className="det-opt-foto" src={pj.foto_url} alt="" />
+                  : <span className="det-opt-foto det-opt-foto--vazia">{(nome || '?').trim().slice(0, 1).toUpperCase()}</span>}
+                <span className="det-opt-nome">{nome}</span>
+              </button>
+            );
+          })}
+        </div>
+        {transferError && <div className="transf-error">{motivoTransferenciaLabel(transferError, en)}</div>}
+      </div>
+    );
+    rodapeEtapa = {
+      esquerda: cancelar,
+      centro: seletorQtd,
+      direita: (
+        <button type="button" className="btn-primary btn-md" data-confirmar="transferir"
+          disabled={!transfPjId || transferindo} onClick={() => transferirPara(transfPjId)}>
+          {transferindo ? (en ? 'Sending…' : 'Enviando…') : (en ? 'Transfer' : 'Transferir')}
+        </button>
+      ),
+    };
+  } else if (mostrarArmazenar) {
+    /* ARMAZENAR no mesmo padrão da transferência: o card marca o recipiente,
+       o botão do rodapé armazena (27/09/2026). */
+    const armazenarEm = (contId) => {
+      fecharTip();
+      const r = onMoverParaContainer(instance.instanceId, contId || null, qtdEscolhida);
+      // Moveu direto: fecha a janela. Pilha: fecha quando a quantidade for
+      // confirmada (executarAcaoPendente).
+      if (r === 'feito') { onClose(); return; }
+      fecharEtapas();
+    };
+    corpoEtapa = (
+      <div className="det-etapa det-uso">
+        <div className="det-uso-alvos det-uso-alvos--grade" role="radiogroup" aria-label={en ? 'Compartment' : 'Compartimento'}>
+          {opcoesContainer.map((c) => {
+            const cc = catalogoBySlug[c.slug];
+            const nome = cc?.nome || c.slug;
+            const { usado, armazena: cap } = capacidadeContainer(c, todosItens, catalogoBySlug);
+            const atual = c.instanceId === instance.containerId;
+            const selecionado = armazContId === c.instanceId;
+            const detalhe = (en ? 'Space: ' : 'Espaço: ') + used(usado, cap)
+              + (atual ? (en ? ' · the item is already here' : ' · o item já está aqui') : '');
+            return (
+              <button type="button" key={c.instanceId} role="radio" aria-checked={selecionado}
+                data-container-id={c.instanceId}
+                className={'det-opt-card det-opt-card--pilula' + (selecionado ? ' det-opt-card--sel' : '')}
+                disabled={atual}
+                onClick={() => setArmazContId(c.instanceId)}
+                onMouseEnter={(e) => abrirTip(e, { title: nome, desc: detalhe })}
+                onMouseLeave={fecharTip}>
+                <span className="det-opt-foto det-opt-foto--vazia"><i className={'ti ' + invItemIcon(cc)} aria-hidden="true" /></span>
+                <span className="det-opt-nome">{nome}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+    rodapeEtapa = {
+      esquerda: cancelar,
+      centro: seletorQtd,
+      direita: (
+        <button type="button" className="btn-primary btn-md" data-confirmar="armazenar"
+          disabled={!armazContId} onClick={() => armazenarEm(armazContId)}>
+          {en ? 'Store' : 'Armazenar'}
+        </button>
+      ),
+    };
+  }
+
+  /* USAR com rodapé (27/09/2026): o card marca o alvo; "Usar" no rodapé
+     executa, com a quantidade do seletor — que mora no CENTRO do rodapé,
+     menor ("o seletor de quantidade eu quero no rodapé, no centro, menor").
+     `aba`: o rodapé só aparece na aba Usar, não em Descrição/Características. */
+  const rodapeUsar = (!etapaAberta && podeUsar && onUsar) ? {
+    aba: en ? 'Use' : 'Usar',
+    esquerda: null,
+    centro: seletorQtd,
+    direita: (
+      <button type="button" className="btn-primary btn-md" data-confirmar="usar"
+        disabled={!alvoUsoSel}
+        onClick={() => { onUsar(instance.instanceId, qtdEscolhida); onClose(); }}>
+        {en ? 'Use' : 'Usar'}
+      </button>
+    ),
+  } : null;
+
+  return (
+    <>
+      <Janela
+        title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
+        lang={lang}
+        onClose={onClose}
+        acoes={acoesTopo}
+        rodape={etapaAberta ? rodapeEtapa : rodapeUsar}>
+        {!etapaAberta && podeUsar && onUsar && (
+          <div className="best-secao det-uso">
+            <h4 className="best-secao-titulo">{en ? 'Use' : 'Usar'}</h4>
+            {/* O ALVO E A QUANTIDADE NA MESMA LINHA (27/09/2026): "o card do
+                alvo, teremos a foto e o primeiro nome, o seletor de quantidade
+                ficará inline com o alvo. O card terá as bordas arredondadas
+                como o card de seletor." Card em pílula (a mesma altura e raio
+                do QuantidadeStepper), o seletor ocupa o resto da linha. */}
+            <div className="det-uso-linha">
+              {(() => {
+                // Nome completo (27/09/2026): o card cresceu na largura para caber.
+                const nome = String((usuario && usuario.nome) || '').trim() || '—';
+                const inicial = String(nome).trim().slice(0, 1).toUpperCase();
+                return (
+                  <button type="button" data-alvo-uso="eu"
+                    className={'det-opt-card det-opt-card--pilula' + (alvoUsoSel ? ' det-opt-card--sel' : '')}
+                    aria-pressed={alvoUsoSel} aria-label={nome}
+                    onClick={() => setAlvoUsoSel((v) => !v)}>
+                    {usuario && usuario.foto_url
+                      ? <img className="det-opt-foto" src={usuario.foto_url} alt="" />
+                      : <span className="det-opt-foto det-opt-foto--vazia">{inicial}</span>}
+                    <span className="det-opt-nome">{nome}</span>
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+        {etapaAberta ? corpoEtapa : (
+          <Ficha it={cat} lang={lang} magias={magiasDb}
+            linhasDaInstancia={linhasDaInstancia}
+            resistenciaTexto={mostraResistencia ? `${resAtualItem}/${resMaxItem}` : null}
+            depois={secoesDepois} />
+        )}
+      </Janela>
+      {lendo && cat.doc_url && (
+        <LeituraDocModal titulo={cat.nome} docUrl={cat.doc_url} lang={lang} onClose={() => setLendo(false)} />
+      )}
       <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-    </ModalShell>
+    </>
   );
 }
 /* ============================================================
-   VENDA DE ITEM — negociação com o Mestre (13/09/2026)
+   VENDA DE ITEM — publicar na loja da aventura (27/09/2026)
    ============================================================
-   "Adicione um botão de vender o item do inventário, abrindo um modal para
-   negociar e registrar o preço de venda. O mestre poderá aceitar, recusar a
-   proposta ou negociar." (usuário)
+   "O jogador irá 'publicar' os itens na loja pelo preço que ele quiser,
+   outros jogadores ou o mestre podem comprar dele. A ação não precisa
+   acontecer na mesma hora, o item ficará na loja da aventura." (usuário)
 
-   O estado vive em public.vendas_item e só muda pelas RPCs (ver
-   scripts/sql/vendas-item-negociacao.sql):
-     propor_venda_item     o dono propõe quantidade + preço; a vez vai ao Mestre;
-     responder_venda_item  quem tem a vez aceita, recusa ou contrapropõe (a
-                           vez troca); o dono pode cancelar a qualquer hora.
-   Aceitar tira o item e deposita as moedas no servidor, de uma vez. Cada passo
-   grava na mesa_log — é o que notifica a mesa.
-
-   O mesmo VendaModal serve aos dois lados: `papel` 'jogador' (inventário) ou
-   'mestre' (fila da Central de Mensagens, ou o inventário do jogador aberto
-   pelo Mestre).
+   Substituiu a negociação com o Mestre (vendas_item). O estado vive em
+   public.anuncios_loja e só muda pelas RPCs (scripts/sql/anuncios-loja-
+   2026-09-27.sql): publicar_item_loja (o item sai do inventário),
+   retirar_item_loja (volta ao dono) e comprar_item_anunciado (jogador paga e
+   leva; o Mestre paga e o item sai do jogo). A vitrine é a LojaJogador.
    ============================================================ */
-const VENDA_COLS = 'id,historia_id,pj_id,pj_nome,instance_id,slug,item_nome,quantidade,valor_tabela_latao,preco_latao,vez,status,rodadas,created_at,updated_at';
-
 function motivoVendaLabel(motivo, en) {
   const map = {
     nao_autenticado:         en ? 'Sign in again.'                                          : 'Entre de novo na sua conta.',
     nao_e_dono:              en ? 'Only the character’s owner can sell.'                    : 'Só o dono do personagem pode vender.',
-    sem_historia:            en ? 'The character is not in an adventure — no GM to buy it.' : 'O personagem não está numa aventura — não há Mestre para comprar.',
+    sem_historia:            en ? 'The character is not in an adventure — there is no shop to sell in.' : 'O personagem não está numa aventura — não há loja onde vender.',
     preco_invalido:          en ? 'Enter a price above zero.'                               : 'Informe um preço maior que zero.',
     mesmo_preco:             en ? 'That is already the price on the table.'                 : 'Esse já é o preço na mesa.',
     item_indisponivel:       en ? 'The item is no longer in the inventory.'                 : 'O item não está mais no inventário.',
     item_nao_existe:         en ? 'Item not found in the catalog.'                          : 'Item não encontrado no catálogo.',
     moeda_nao_vende:         en ? 'Coins cannot be sold.'                                   : 'Moedas não se vendem.',
-    item_em_uso:             en ? 'Unequip or take off the item first.'                     : 'Desequipe ou dispa o item antes de vender.',
+    item_em_uso:             en ? 'Unequip, take off or dismount the item first.'           : 'Desequipe, dispa ou desmonte o item antes de vender.',
     recipiente_com_itens:    en ? 'Empty the container first.'                              : 'Esvazie o recipiente antes de vender.',
     quantidade_invalida:     en ? 'Invalid quantity.'                                       : 'Quantidade inválida.',
     quantidade_indisponivel: en ? 'That quantity is no longer in the inventory.'            : 'Essa quantidade não está mais no inventário.',
-    ja_em_negociacao:        en ? 'This item is already being negotiated.'                  : 'Este item já está em negociação.',
-    sem_espaco_moedas:       en ? 'No room in a purse for the coins.'                       : 'Não há espaço numa bolsa para as moedas.',
-    venda_nao_encontrada:    en ? 'Negotiation not found.'                                  : 'Negociação não encontrada.',
-    venda_encerrada:         en ? 'This negotiation is already closed.'                     : 'Esta negociação já foi encerrada.',
-    nao_e_sua_vez:           en ? 'Waiting for the other side to answer.'                   : 'Aguardando o outro lado responder.',
-    sem_permissao:           en ? 'You cannot answer this negotiation.'                     : 'Você não pode responder esta negociação.',
-    acao_invalida:           en ? 'Invalid action.'                                         : 'Ação inválida.',
     pj_nao_encontrado:       en ? 'Character not found.'                                    : 'Personagem não encontrado.',
   };
-  return map[motivo] || (en ? 'Could not complete the sale.' : 'Não foi possível concluir a venda.');
+  return map[motivo] || (en ? 'Could not put the item up for sale.' : 'Não foi possível pôr o item à venda.');
 }
 
 // Por que o botão "Vender" não dá (null = dá). Espelha as recusas da RPC que
-// dependem só da tela. Com negociação aberta, nunca bloqueia: abre o andamento.
+// dependem só da tela.
 function bloqueioVenda(instance, opcoes) {
   const o = opcoes || {};
-  if (o.vendaAberta) return null;
   if (!o.ehDono) return 'nao_e_dono';
   if (!o.historiaId) return 'sem_historia';
-  if (instance && (instance.equipado || instance.vestido)) return 'item_em_uso';
+  if (instance && (instance.equipado || instance.vestido || instance.montado)) return 'item_em_uso';
   if (o.temConteudo) return 'recipiente_com_itens';
   return null;
 }
 
-// O que `papel` pode fazer agora. Na vez dele: aceitar, negociar, recusar.
-// Fora da vez, o jogador ainda pode desistir; o Mestre só espera.
-function vendaAcoesDisponiveis(venda, papel) {
-  if (!venda || venda.status !== 'aberta') return [];
-  if (venda.vez === papel) return ['aceitar', 'contrapropor', 'recusar'];
-  return papel === 'jogador' ? ['cancelar'] : [];
-}
-
-// Quatro campos (ouro, prata, cobre, latão) → total em latão. Remonte com
-// `key` para recomeçar de outro valor.
+// Ouro, prata, cobre e latão → total em latão. Remonte com `key` para
+// recomeçar de outro valor.
+/* Os quatro campos viraram o SELETOR DE QUANTIDADE da casa (27/09/2026): "Colocar
+   o item à venda usa um input sem o seletor de quantidade, eu digo em relação
+   à quantidade de moedas e quantidade de itens." Um QuantidadeStepper por
+   moeda, com o ícone da moeda (sem borda) e o número no meio. */
 function PrecoMoedasInput({ latao, onChange, lang, disabled }) {
   const en = lang === 'en';
   const [campos, setCampos] = useState(() => latoesToMoedas(Math.max(0, Math.round(Number(latao) || 0))));
   const nomes = en
     ? { ouro: 'Gold', prata: 'Silver', cobre: 'Copper', latao: 'Brass' }
     : { ouro: 'Ouro', prata: 'Prata', cobre: 'Cobre', latao: 'Latão' };
-  const mudar = (k, valor) => {
-    const n = Math.max(0, parseInt(String(valor).replace(/\D/g, ''), 10) || 0);
-    const novo = { ...campos, [k]: n };
+  const mudar = (k, n) => {
+    const novo = { ...campos, [k]: Math.max(0, Math.round(Number(n) || 0)) };
     setCampos(novo);
     if (onChange) onChange(moedasToLatao(novo));
   };
   return (
     <div className="venda-moedas">
       {MOEDA_ORDEM.map((k) => (
-        <label key={k} className={'venda-moeda venda-moeda--' + k}>
-          <span className="venda-moeda-nome"><i className="ti ti-coins" aria-hidden="true" /> {nomes[k]}</span>
-          <input type="text" inputMode="numeric" placeholder="0" disabled={disabled}
-            aria-label={nomes[k]}
-            value={campos[k] ? String(campos[k]) : ''}
-            onChange={(e) => mudar(k, e.target.value)} />
-        </label>
+        <QuantidadeStepper key={k} className={'venda-moeda venda-moeda--' + k}
+          value={campos[k] || 0} min={0} max={k === 'ouro' ? Infinity : 9999}
+          disabled={disabled} label={nomes[k]} onChange={(n) => mudar(k, n)}
+          centro={<span className="venda-moeda-centro">
+            <i className="ti ti-coins" style={{ color: MOEDA_COR[k] }} aria-hidden="true" />{campos[k] || 0}
+          </span>} />
       ))}
     </div>
-  );
-}
-
-function VendaModal({ lang, papel, pjId, instance, cat, vendaId, onClose, onConcluida }) {
-  const en = lang === 'en';
-  const [venda, setVenda] = useState(undefined);   // undefined carregando · null nenhuma aberta
-  const [catLocal, setCatLocal] = useState(cat || null);
-  const [qtd, setQtd] = useState(1);
-  const [preco, setPreco] = useState(0);
-  const [mensagem, setMensagem] = useState('');
-  const [negociando, setNegociando] = useState(false);
-  const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState(null);
-  const sufixo = useRef(Math.random().toString(36).slice(2, 8));
-
-  const instanceId = instance ? instance.instanceId : null;
-  const maxQtd = instance ? Math.max(1, Number(instance.quantidade) || 1) : 1;
-  const equipavel = !!(catLocal && catLocal.categoria_equip);
-  const valorUnit = Number(catLocal && catLocal.valor_latao) || 0;
-
-  const carregar = React.useCallback(async () => {
-    try {
-      let q = supabaseClient.from('vendas_item').select(VENDA_COLS);
-      q = vendaId
-        ? q.eq('id', vendaId)
-        : q.eq('pj_id', pjId).eq('instance_id', instanceId).eq('status', 'aberta');
-      const { data, error } = await q.maybeSingle();
-      setVenda(error ? null : (data || null));
-    } catch (_) { setVenda(null); }
-  }, [vendaId, pjId, instanceId]);
-
-  useEffect(() => { carregar(); }, [carregar]);
-
-  // Proposta nova: começa pela pilha inteira (equipável é indivisível) e pelo
-  // valor de tabela; mudar a quantidade recomeça o preço.
-  useEffect(() => { setQtd(maxQtd); }, [maxQtd]);
-  useEffect(() => { setPreco(valorUnit * qtd); }, [valorUnit, qtd]);
-
-  // Quem abre pela fila (Mestre) não tem o item do catálogo em mãos.
-  useEffect(() => {
-    if (catLocal || !venda || !venda.slug) return;
-    let vivo = true;
-    Promise.resolve(supabaseClient.from('itens').select('*').eq('slug', venda.slug).maybeSingle())
-      .then((res) => { if (vivo && res && res.data) setCatLocal(res.data); })
-      .catch(() => {});
-    return () => { vivo = false; };
-  }, [venda && venda.slug, catLocal]);
-
-  // A resposta do outro lado chega sem recarregar.
-  useEffect(() => {
-    const id = venda && venda.id;
-    if (!id || typeof supabaseClient.channel !== 'function') return undefined;
-    const ch = supabaseClient
-      .channel('venda_' + id + '_' + sufixo.current)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vendas_item', filter: 'id=eq.' + id },
-        (payload) => { if (payload && payload.new) setVenda((v) => ({ ...(v || {}), ...payload.new })); })
-      .subscribe();
-    return () => { supabaseClient.removeChannel(ch); };
-  }, [venda && venda.id]);
-
-  const falhou = (data, error) => {
-    setErro(motivoVendaLabel((data && data.motivo) || (error && error.message), en));
-    if (data && (data.motivo === 'ja_em_negociacao' || data.motivo === 'venda_encerrada')) carregar();
-  };
-
-  const propor = async () => {
-    setEnviando(true); setErro(null);
-    const { data, error } = await supabaseClient.rpc('propor_venda_item', {
-      p_pj_id: pjId, p_instance_id: instanceId, p_quantidade: qtd,
-      p_preco_latao: preco, p_mensagem: mensagem.trim() || null,
-    });
-    setEnviando(false);
-    if (error || !data || !data.ok) { falhou(data, error); return; }
-    setMensagem('');
-    await carregar();
-  };
-
-  const responder = async (acao) => {
-    setEnviando(true); setErro(null);
-    const { data, error } = await supabaseClient.rpc('responder_venda_item', {
-      p_venda_id: venda.id, p_acao: acao,
-      p_preco_latao: acao === 'contrapropor' ? preco : null,
-      p_mensagem: mensagem.trim() || null,
-    });
-    setEnviando(false);
-    if (error || !data || !data.ok) { falhou(data, error); return; }
-    setMensagem('');
-    setNegociando(false);
-    if (data.status === 'aceita' && onConcluida) onConcluida();
-    if (data.status !== 'aberta') { onClose(); return; }
-    await carregar();
-  };
-
-  const nomeItem = (catLocal && catLocal.nome) || (venda && (venda.item_nome || venda.slug)) || '';
-  const quantidade = venda ? Number(venda.quantidade) : qtd;
-  const valorTabela = venda && venda.valor_tabela_latao != null ? Number(venda.valor_tabela_latao) : valorUnit * quantidade;
-  const acoes = vendaAcoesDisponiveis(venda, papel);
-  const nomePj = (venda && venda.pj_nome) || (en ? 'Player' : 'Jogador');
-  const quemFoi = (autor) => (autor === 'mestre' ? (en ? 'GM' : 'Mestre') : nomePj);
-  const verbo = (r) => ({
-    propor:       en ? 'asked' : 'pediu',
-    contrapropor: r.autor === 'mestre' ? (en ? 'offered' : 'ofereceu') : (en ? 'asked' : 'pediu'),
-    aceitar:      en ? 'accepted' : 'aceitou',
-    recusar:      en ? 'refused' : 'recusou',
-    cancelar:     en ? 'gave up' : 'desistiu',
-  }[r.acao] || r.acao);
-  const statusFechado = venda && venda.status !== 'aberta' ? ({
-    aceita:    en ? 'Sold.' : 'Vendido.',
-    recusada:  en ? 'Refused.' : 'Recusada.',
-    cancelada: en ? 'Cancelled.' : 'Cancelada.',
-  }[venda.status]) : null;
-
-  const campoMensagem = (
-    <textarea className="venda-mensagem" rows={2} maxLength={500} value={mensagem} disabled={enviando}
-      placeholder={en ? 'Message (optional)' : 'Mensagem (opcional)'}
-      onChange={(e) => setMensagem(e.target.value)} />
-  );
-
-  return (
-    <ModalShell
-      title={<><i className={'ti ' + invItemIcon(catLocal) + ' det-title-ic'} aria-hidden="true" /> {venda ? (en ? 'Negotiate ' : 'Negociar ') : (en ? 'Sell ' : 'Vender ')}{nomeItem}</>}
-      lang={lang}
-      size="md"
-      extraClass="modal-detalhes modal-venda"
-      onClose={onClose}
-    >
-      <div className="venda-resumo">
-        <span className="venda-resumo-item">
-          <span className="venda-rot">{en ? 'Quantity' : 'Quantidade'}</span>
-          <strong>{quantidade}</strong>
-        </span>
-        <span className="venda-resumo-item">
-          <span className="venda-rot">{en ? 'List value' : 'Valor de tabela'}</span>
-          <MoedaPills latao={valorTabela} lang={lang} tamanho="sm" mostrarGratis />
-        </span>
-        {venda && (
-          <span className="venda-resumo-item">
-            <span className="venda-rot">{en ? 'On the table' : 'Na mesa'}</span>
-            <MoedaPills latao={Number(venda.preco_latao) || 0} lang={lang} tamanho="sm" />
-          </span>
-        )}
-      </div>
-
-      {venda === undefined && (
-        <p className="venda-status">{en ? 'Loading…' : 'Carregando…'}</p>
-      )}
-
-      {/* Proposta nova */}
-      {venda === null && (
-        papel !== 'jogador' || !instance ? (
-          <p className="venda-status">{en ? 'No open negotiation.' : 'Nenhuma negociação aberta.'}</p>
-        ) : (
-          <div className="venda-form">
-            {!equipavel && maxQtd > 1 && (
-              <div className="venda-qtd">
-                <span className="venda-rot">{en ? 'How many?' : 'Quantos?'}</span>
-                <button type="button" className="btn-ghost btn-sm" disabled={enviando || qtd <= 1}
-                  onClick={() => setQtd((q) => Math.max(1, q - 1))} aria-label="-"><i className="ti ti-minus" aria-hidden="true" /></button>
-                <strong>{qtd} <span className="venda-rot">{en ? `of ${maxQtd}` : `de ${maxQtd}`}</span></strong>
-                <button type="button" className="btn-ghost btn-sm" disabled={enviando || qtd >= maxQtd}
-                  onClick={() => setQtd((q) => Math.min(maxQtd, q + 1))} aria-label="+"><i className="ti ti-plus" aria-hidden="true" /></button>
-              </div>
-            )}
-            <span className="venda-rot">{en ? 'Asking price' : 'Preço pedido'}</span>
-            <PrecoMoedasInput key={'novo-' + qtd + '-' + valorUnit} latao={valorUnit * qtd} onChange={setPreco} lang={lang} disabled={enviando} />
-            {campoMensagem}
-            {erro && <div className="err-msg">{erro}</div>}
-            <div className="det-act-confirm-btns">
-              <button className="btn-ghost" disabled={enviando} onClick={onClose}>{en ? 'Cancel' : 'Cancelar'}</button>
-              <button className="btn-primary" disabled={enviando || !(preco > 0)} onClick={propor}>
-                {enviando ? (en ? 'Sending…' : 'Enviando…') : (en ? 'Offer to the GM' : 'Propor ao Mestre')}
-              </button>
-            </div>
-          </div>
-        )
-      )}
-
-      {/* Negociação existente */}
-      {venda && (
-        <>
-          <p className="venda-status" data-venda-vez={venda.vez}>
-            {statusFechado
-              || (venda.vez === papel
-                ? (en ? 'Your turn: accept, negotiate or refuse.' : 'Sua vez: aceite, negocie ou recuse.')
-                : (papel === 'jogador'
-                  ? (en ? 'Waiting for the GM.' : 'Aguardando o Mestre.')
-                  : (en ? `Waiting for ${nomePj}.` : `Aguardando ${nomePj}.`)))}
-          </p>
-
-          <ol className="venda-rodadas">
-            {(Array.isArray(venda.rodadas) ? venda.rodadas : []).map((r, i) => (
-              <li key={i} className={'venda-rodada venda-rodada--' + r.autor}>
-                <span className="venda-rodada-linha">
-                  <strong>{quemFoi(r.autor)}</strong> {verbo(r)}
-                  {(r.acao === 'propor' || r.acao === 'contrapropor' || r.acao === 'aceitar') && (
-                    <> <MoedaPills latao={Number(r.preco_latao) || 0} lang={lang} tamanho="sm" /></>
-                  )}
-                </span>
-                {r.mensagem && <span className="venda-rodada-msg">“{r.mensagem}”</span>}
-              </li>
-            ))}
-          </ol>
-
-          {negociando ? (
-            <div className="venda-form">
-              <span className="venda-rot">{papel === 'mestre' ? (en ? 'Your offer' : 'Sua oferta') : (en ? 'Your price' : 'Seu preço')}</span>
-              <PrecoMoedasInput key={'contra-' + venda.id + '-' + venda.preco_latao} latao={venda.preco_latao}
-                onChange={setPreco} lang={lang} disabled={enviando} />
-              {campoMensagem}
-              {erro && <div className="err-msg">{erro}</div>}
-              <div className="det-act-confirm-btns">
-                <button className="btn-ghost" disabled={enviando} onClick={() => { setNegociando(false); setErro(null); }}>{en ? 'Back' : 'Voltar'}</button>
-                <button className="btn-primary" disabled={enviando || !(preco > 0) || preco === Number(venda.preco_latao)}
-                  onClick={() => responder('contrapropor')}>
-                  {enviando ? (en ? 'Sending…' : 'Enviando…') : (en ? 'Send offer' : 'Enviar proposta')}
-                </button>
-              </div>
-            </div>
-          ) : acoes.length > 0 ? (
-            <>
-              {erro && <div className="err-msg">{erro}</div>}
-              <div className="det-act-confirm-btns venda-acoes">
-                {acoes.includes('recusar') && (
-                  <button className="btn-danger" disabled={enviando} onClick={() => responder('recusar')}>{en ? 'Refuse' : 'Recusar'}</button>
-                )}
-                {acoes.includes('cancelar') && (
-                  <button className="btn-danger" disabled={enviando} onClick={() => responder('cancelar')}>{en ? 'Give up selling' : 'Desistir da venda'}</button>
-                )}
-                {acoes.includes('contrapropor') && (
-                  <button className="btn-ghost" disabled={enviando}
-                    onClick={() => { setPreco(Number(venda.preco_latao) || 0); setNegociando(true); setErro(null); }}>
-                    {en ? 'Negotiate' : 'Negociar'}
-                  </button>
-                )}
-                {acoes.includes('aceitar') && (
-                  <button className="btn-primary" disabled={enviando} onClick={() => responder('aceitar')}>
-                    {enviando ? (en ? 'Sending…' : 'Enviando…') : (en ? 'Accept' : 'Aceitar')}
-                  </button>
-                )}
-              </div>
-            </>
-          ) : (
-            erro && <div className="err-msg">{erro}</div>
-          )}
-        </>
-      )}
-    </ModalShell>
   );
 }
 
@@ -3805,7 +3523,7 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel, irreversivel 
       background: rgba(24,17,8,0.95);
       border: 1px solid rgba(201,164,78,0.70);
       box-shadow: 0 6px 20px rgba(0,0,0,0.55), 0 0 12px rgba(201,164,78,0.30);
-      color: #C9A44E;
+      color: #E0BE68;
       font-size: 22px;
     }
     .inv-drag-ghost .inv-card-ic { display: flex; }
@@ -3831,7 +3549,9 @@ Object.assign(window, {
   criaturaDoItem, itemMontado, useCriaturasMontaria,
   // Aba Animais da ficha: todos os animais vinculados a criatura.
   animaisDoPersonagem, useCriaturasPorIds,
-  VendaModal, PrecoMoedasInput, motivoVendaLabel, bloqueioVenda, vendaAcoesDisponiveis,
+  PrecoMoedasInput, motivoVendaLabel, bloqueioVenda,
+  MAGIAS_ELO_PERMANENTE, ELO_MAX_PERMANENTES, magiaCriaElo, eloTetoEstagio, temElo, bloqueioElo,
+  motivoEloLabel, comEloNoAnimal, semEloNoAnimal,
   // ↓ expostos para a Loja (07-inventario/loja.jsx) consumir via window:
   fmtNum, calcCarga, invItemIcon, recipienteAceitaSlug, usePortalTooltip, PortalTooltip,
   useGridDimensions,

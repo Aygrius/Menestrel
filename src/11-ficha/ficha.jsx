@@ -164,7 +164,14 @@ function fichaEstadoLabel(key, val, max, en, min) {
   return lista[1];
 }
 
-function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd }) {
+/* `semNome` (27/09/2026): "Remova o nome das barras [...] Adicione um tooltip
+   para informar o que é a barra." Nas barras de condição o nome sai de cima
+   e vai para o tooltip, junto com o valor — a barra inteira responde ao hover.
+   No mesmo dia valeu também para Vitalidade (EF/EH/Karma) e Experiência:
+   "Remova o nome das barras da ficha (ef, eh, etc)". A barra com `edit`
+   (Experiência) desenha o progresso no estágio mas conta XP total — é esse
+   que o tooltip mostra, e não o "6 de 14" de dentro da faixa. */
+function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd, semNome }) {
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const editable = typeof onEdit === 'function';
   const hasHover = typeof onHover === 'function';
@@ -195,7 +202,14 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
            vazio." `{ desc: undefined }` é um objeto — portanto verdadeiro —,
            então a barra sem `tip` (a maioria: EF, EH, Combate, Estágio)
            abria um balão com nada dentro. */
-        const tipContent = (hasHover && b.tip) ? { desc: b.tip } : null;
+        const tipContent = !hasHover ? null
+          : semNome
+            ? { title: b.label, desc: [b.edit && b.edit.val != null ? `${b.edit.val} XP` : `${b.val} ${en ? 'of' : 'de'} ${b.max}`, b.tip].filter(Boolean).join(' — ') }
+            : (b.tip ? { desc: b.tip } : null);
+        const hoverTip = hasHover && tipContent ? {
+          onMouseEnter: (e) => onHover(e, tipContent), onMouseLeave: onHoverEnd,
+          onFocus: (e) => onHover(e, tipContent), onBlur: onHoverEnd,
+        } : {};
 
         // Cor da barra: b.color quando definido pelo pai (condições, combatBars),
         // senão cor fixa da chave (EF/EH/AR/KA/Estágio).
@@ -222,12 +236,14 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
             } : undefined}
             {...propsTip(abrirTip, fecharTip, !hasHover && podeAbrir ? `${b.val}/${b.max}` : undefined)}
           >
+            {!semNome && (
             <span className="fp-bar-name-label">
               {b.label}
               {/* O selo ao lado do nome (a absorção da armadura, 12/09/2026)
                   saiu em 14/09/2026: a absorção fica no tooltip da barra. */}
             </span>
-            <div className="fp-bar-pill">
+            )}
+            <div className="fp-bar-pill" aria-label={semNome ? b.label : undefined} {...(semNome ? hoverTip : {})}>
               {b.icon && (
                 <span className="fp-bar-icon" aria-hidden="true"
                   style={{ color: iconColor }}>
@@ -236,10 +252,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd 
               )}
               <div
                 className={'fp-bar-track' + (empty ? ' is-empty' : '')}
-                onMouseEnter={hasHover && tipContent ? (e) => onHover(e, tipContent) : undefined}
-                onMouseLeave={hasHover && tipContent ? onHoverEnd : undefined}
-                onFocus={hasHover && tipContent ? (e) => onHover(e, tipContent) : undefined}
-                onBlur={hasHover && tipContent ? onHoverEnd : undefined}
+                {...(semNome ? {} : hoverTip)}
                 {...propsTip(abrirTip, fecharTip, !hasHover && !editable ? `${b.val}${showValue ? '/' + b.max : ''}` : undefined)}
               >
                 {!empty && (
@@ -359,8 +372,9 @@ function BarEditPopover({ item, scope, anchor, lang, onChange, onClose }) {
      a partir da barra de experiência, então dizer de novo o que se está
      editando é repetição. Os outros escopos também mostram só números. */
   const isXp = scope === 'estagio';
+  // Condição: 0..100, sem sinal desde 27/09/2026.
   const centerLabel = isCond
-    ? (val > 0 ? `+${val}` : String(val))
+    ? String(val)
     : isXp ? String(val) : `${val} / ${max}`;
   return (
     <div
@@ -420,6 +434,9 @@ function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
   const [aberta, setAberta] = useState(false);
   const [escolhido, setEscolhido] = useState(null);   // tipo aguardando o modal
   const dropRef = useRef(null);
+  // Tooltip no círculo (27/09/2026): "Falta o tooltip em alguns: nos botões
+  // de dormindo, envenenado, etc." Todo botão só-ícone da fileira tem nome.
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(80);
 
   const TIPOS = (typeof window !== 'undefined' && window.STATUS_MESTRE_TIPOS) || [];
   const vigentes = (typeof window !== 'undefined' && window.statusVigentes)
@@ -451,13 +468,15 @@ function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
       <button
         type="button"
         className={'fp-status-seletor' + (aberta ? ' is-open' : '')}
-        onClick={() => setAberta((v) => !v)}
+        onClick={() => { fecharTip(); setAberta((v) => !v); }}
         aria-haspopup="listbox"
         aria-expanded={aberta}
         aria-label={en ? 'Apply status' : 'Aplicar status'}
+        {...(aberta ? {} : propsTip(abrirTip, fecharTip, en ? 'Apply status (poisoned, stunned…)' : 'Aplicar status (envenenado, atordoado…)'))}
       >
         <i className="ti ti-bolt" aria-hidden="true" />
       </button>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
       {aberta && (
         <ul className="fp-status-opcoes" role="listbox" aria-label="Status">
           {disponiveis.map((t) => (
@@ -510,6 +529,7 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher }) {
   const en = lang === 'en';
   const [aberta, setAberta] = useState(false);
   const dropRef = useRef(null);
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(80);   // o nome no hover (27/09/2026)
   const LISTA = (typeof window !== 'undefined' && window.ATIVIDADES) || [];
   const atual = LISTA.find((a) => a.id === (atividade && atividade.tipo)) || null;
   const nomeDe = (a) => (en ? a.en : a.pt);
@@ -533,15 +553,21 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher }) {
       <button
         type="button"
         className={'fp-status-seletor' + (aberta ? ' is-open' : '') + (atual ? ' is-ativo' : '')}
-        onClick={() => { if (podeEditar) setAberta((v) => !v); }}
-        disabled={!podeEditar}
+        onClick={() => { fecharTip(); if (podeEditar) setAberta((v) => !v); }}
+        /* aria-disabled em vez de disabled: botão desativado não recebe o
+           hover, e quem só olha também precisa do tooltip com o nome. */
+        aria-disabled={!podeEditar || undefined}
         aria-haspopup="listbox"
         aria-expanded={aberta}
         aria-label={atual ? nomeDe(atual) : (en ? 'Choose activity' : 'Escolher atividade')}
         data-atividade={atual ? atual.id : ''}
+        {...(aberta ? {} : propsTip(abrirTip, fecharTip, atual
+          ? { title: nomeDe(atual), desc: en ? 'Current activity' : 'Atividade atual' }
+          : (en ? 'Choose activity (sleeping, meditating…)' : 'Escolher atividade (dormindo, meditando…)')))}
       >
         <i className={'ti ' + (atual ? atual.icon : 'ti-moon')} aria-hidden="true" />
       </button>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
       {atual && <span className="fp-atividade-nome">{nomeDe(atual)}</span>}
       {aberta && (
         <ul className="fp-status-opcoes" role="listbox" aria-label={en ? 'Activity' : 'Atividade'}>
@@ -743,32 +769,32 @@ const COND_ICON_RULES = [
   {
     key: 'vitalidade',
     check: (val) => {
-      if (val < -25) return { icon: 'ti-heart-down', color: '#ef4444' };
-      if (val < 0)    return { icon: 'ti-heart-down', color: '#f97316' };
+      if (val < -25) return { icon: 'ti-medical-cross', color: '#F26A6A' };
+      if (val < 0)    return { icon: 'ti-medical-cross', color: '#f97316' };
       return null;
     },
   },
   {
     key: 'animo',
     check: (val) => {
-      if (val < -25) return { icon: 'ti-bed', color: '#ef4444' };
-      if (val < 0)    return { icon: 'ti-bed', color: '#f97316' };
+      if (val < -25) return { icon: 'ti-zzz', color: '#F26A6A' };
+      if (val < 0)    return { icon: 'ti-zzz', color: '#f97316' };
       return null;
     },
   },
   {
     key: 'hidratacao',
     check: (val) => {
-      if (val < -25) return { icon: 'ti-droplet-down', color: '#ef4444' };
-      if (val < 0)    return { icon: 'ti-droplet-down', color: '#f97316' };
+      if (val < -25) return { icon: 'ti-bottle', color: '#F26A6A' };
+      if (val < 0)    return { icon: 'ti-bottle', color: '#f97316' };
       return null;
     },
   },
   {
     key: 'nutricao',
     check: (val) => {
-      if (val < -25) return { icon: 'ti-meat', color: '#ef4444' };
-      if (val < 0)    return { icon: 'ti-meat', color: '#f97316' };
+      if (val < -25) return { icon: 'ti-bowl-spoon', color: '#F26A6A' };
+      if (val < 0)    return { icon: 'ti-bowl-spoon', color: '#f97316' };
       return null;
     },
   },
@@ -778,23 +804,23 @@ const COND_ICON_RULES = [
     // distinção de ícone sun/snow. Ver nota de rótulo em ConditionIcons.
     key: 'termorregulacao',
     check: (val) => {
-      if (val < -25) return { icon: 'ti-temperature', color: '#ef4444' };
-      if (val < 0)    return { icon: 'ti-temperature', color: '#f97316' };
+      if (val < -25) return { icon: 'ti-sun-high', color: '#F26A6A' };
+      if (val < 0)    return { icon: 'ti-sun-high', color: '#f97316' };
       return null;
     },
   },
   {
     key: 'euforia',
     check: (val) => {
-      if (val < -25) return { icon: 'ti-glass-full', color: '#ef4444' };
-      if (val < 0)    return { icon: 'ti-glass-full', color: '#f97316' };
+      if (val < -25) return { icon: 'ti-cannabis', color: '#F26A6A' };
+      if (val < 0)    return { icon: 'ti-cannabis', color: '#f97316' };
       return null;
     },
   },
   {
     key: 'sanidade',
     check: (val) => {
-      if (val < -25) return { icon: 'ti-mood-sick', color: '#ef4444' };
+      if (val < -25) return { icon: 'ti-mood-sick', color: '#F26A6A' };
       if (val < 0)    return { icon: 'ti-mood-sick', color: '#f97316' };
       return null;
     },
@@ -805,7 +831,7 @@ const COND_ICON_RULES = [
     key: 'reputacao',
     check: (val) => {
       if (val > 0) return { icon: 'ti-thumb-up', color: '#22c55e' };
-      if (val < 0) return { icon: 'ti-thumb-down', color: '#ef4444' };
+      if (val < 0) return { icon: 'ti-thumb-down', color: '#F26A6A' };
       return null;
     },
   },
@@ -814,8 +840,8 @@ const COND_ICON_RULES = [
     // esgotamento): < 50% nada · 50–75% laranja · > 75% vermelho.
     key: 'peso',
     check: (pct) => {
-      if (pct > 0.75) return { icon: 'ti-weight', color: '#ef4444' };
-      if (pct >= 0.50) return { icon: 'ti-weight', color: '#f97316' };
+      if (pct > 0.75) return { icon: 'ti-stack-2', color: '#F26A6A' };
+      if (pct >= 0.50) return { icon: 'ti-stack-2', color: '#f97316' };
       return null;
     },
   },
@@ -995,7 +1021,7 @@ function iconeNumeroFicha(n) {
    (curar/dano/buff fica para quando a resolução de magia for implementada,
    junto com técnicas de combate — ver onResultado de habilidade como
    referência do padrão a seguir). */
-function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, lang, onClose, onEvocar, abrirTip, fecharTip }) {
+function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, animais, elosAtuais, lang, onClose, onEvocar, abrirTip, fecharTip }) {
   const en = lang === 'en';
   const m = magia;
   const possui = passos != null;
@@ -1015,15 +1041,7 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, l
   // Alvo escolhido: 'self' (o próprio PJ) ou o id (string) de um colega.
   const [alvoSel, setAlvoSel] = useState(null);
 
-  // Esc fecha + trava o scroll do fundo, igual ao comportamento padrão do
-  // ModalShell (aqui montado via classes ms-* puras, sem o componente em si).
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prevOverflow; };
-  }, [onClose]);
+  // Esc e o scroll do fundo: o BestDetalheModal cuida (26/09/2026).
 
   const escolherNivel = (n) => {
     if (n > nivelAtual) return; // bloqueado: acima do nível possuído
@@ -1036,9 +1054,24 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, l
      terceiro: `emMim` comparava com pj.id, dava falso, o efeito não pousava,
      e o pedido ia para a fila do Mestre com alvo_id='self'. Ao aprovar, o
      banco recusava: invalid input syntax for type bigint: "self". */
-  const ALVOS = [
-    { id: String(eu?.id ?? 'self'), nome: (en ? '(You) ' : '(Você) ') + [eu?.nome, eu?.sobrenome].filter(Boolean).join(' '), foto_url: eu?.foto_url },
-    ...((colegas || []).map((c) => ({ id: String(c.id), nome: [c.nome, c.sobrenome].filter(Boolean).join(' '), foto_url: c.foto_url }))),
+  /* ELO PERMANENTE (27/09/2026): a magia que cria elo (Elo Animal) tem como
+     alvo os ANIMAIS do personagem, não os protagonistas. O card diz o
+     estágio e, quando não dá, o porquê — estágio acima do nível escolhido,
+     elo já feito ou o limite de 3 (bloqueioElo, 07-inventario). */
+  const criaElo = typeof window.magiaCriaElo === 'function' && window.magiaCriaElo(m);
+  /* ALCANCE PESSOAL (27/09/2026): "Magias de uso 'pessoal' só podem ser
+     usados no próprio evocador." Os colegas saem da lista — o mesmo teste da
+     aba Apoio da batalha (12-batalha/batalha.jsx) e do tabuleiro (alcance 0). */
+  const soEmSi = /pessoal/i.test(m.alcance || '');
+  const ALVOS = criaElo
+    ? (animais || []).map((a) => ({
+        id: 'animal:' + a.instancia.instanceId, tipo: 'animal', instanceId: a.instancia.instanceId,
+        nome: (a.cat && a.cat.nome) || a.criatura.nome, estagio: a.criatura.estagio,
+        bloqueio: window.bloqueioElo(a, nivelSel, elosAtuais),
+      }))
+    : [
+    { id: String(eu?.id ?? 'self'), nome: [eu?.nome, eu?.sobrenome].filter(Boolean).join(' ') /* só o nome (26/09/2026, sem o '(Você)') */, foto_url: eu?.foto_url },
+    ...((soEmSi ? [] : colegas || []).map((c) => ({ id: String(c.id), nome: [c.nome, c.sobrenome].filter(Boolean).join(' '), foto_url: c.foto_url }))),
   ];
 
   const FICHA_TXT = [
@@ -1050,166 +1083,105 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, l
 
   const podeEvocar = possui && nivelSel != null && alvoSel != null;
 
-  return (
-    <div className="ms-backdrop" role="presentation">
-      <div className="ms-modal ms-md modal-detalhes" role="dialog" aria-modal="true" aria-label={m.nome}>
-        <div className="ms-header">
-          <h3 className="ms-title">
-            <i className="ti ti-comet det-title-ic" aria-hidden="true" style={{ marginRight: 8 }} />
-            {m.nome}
-          </h3>
-          <button type="button" className="ms-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
-            <i className="ti ti-x" aria-hidden="true" />
+  /* PADRÃO DOS MODAIS (26/09/2026) — o modelo único de janela
+     (BestDetalheModal), com as abas de detalhe do Treinamento.
+     Janela de USAR (pedido do usuário, mesmo dia): "coloque os níveis junto
+     com descrição, e chama tudo de descrição. Adicione uma aba nova, que
+     será a principal: onde será possível escolher o alvo e o nível. O botão
+     ao lado do x é para executar a magia."
+     Então: aba Evocar (primeira) com nível e alvo; Descrição com os níveis
+     aprendidos; Características. O ícone Evocar executa — desativado até
+     haver nível e alvo, com o motivo no tooltip. */
+  const Janela = window.BestDetalheModal;
+  const Corpo = window.BestMagiaFicha;
+  const Linha = window.BestLinha;
+  const niveisPermitidos = possui ? new Set([1, 3, 5, 7, 9].filter((n) => n <= nivelAtual)) : null;
+  // O card de alvo marcado, para a dica "clique aqui novamente" (26/09/2026).
+  const [alvoDicaEl, setAlvoDicaEl] = useState(null);
+  const _Dica = window.DicaNoAlvo;
+  const evocar = () => {
+    if (!podeEvocar) return;
+    const alvo = ALVOS.find((a) => a.id === alvoSel) || null;
+    if (onEvocar) onEvocar({ nivel: nivelSel, alvo });
+    onClose();
+  };
+
+  const abaPrincipal = possui && onEvocar ? (
+    <div className="best-secao det-uso">
+      <h4 className="best-secao-titulo">{en ? 'Cast' : 'Evocar'}</h4>
+      {/* Sem os títulos 'Nível' e 'Alvo' (26/09/2026). Nível e alvo marcam em
+          vermelho; clicar DE NOVO no alvo marcado evoca — o card é a ação,
+          não há ícone ao lado do X. */}
+      {NIVEIS.map((nv) => {
+        const selecionado = nv.n === nivelSel;
+        return (
+          <button type="button" key={nv.n}
+            className={'det-stat mag-nivel-card' + (selecionado ? ' mag-nivel-card--sel' : '')}
+            onClick={() => escolherNivel(nv.n)} aria-pressed={selecionado}>
+            <span className="mag-nivel-titulo">
+              <i className={'ti ' + iconeNumeroFicha(nv.n)} aria-hidden="true" style={{ fontSize: 20 }} />
+              {nv.titulo}
+              {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--gold, #E0BE68)' }} />}
+            </span>
           </button>
-        </div>
-
-        <div className="ms-body">
-          {/* Só o ícone; o texto sai no tooltip, com o nome do campo de título
-              — igual aos efeitos da janela de item (pedido do usuário,
-              12/09/2026). Texto ao lado quebrava a linha. */}
-          {(possui || FICHA_TXT.length > 0) && (
-            <div className="det-sec-a">
-              {/* O NÍVEL, no mesmo card do total da habilidade, antes dos
-                  atributos (pedido do usuário, 14/09/2026: "igual em
-                  habilidades, como um ícone junto com os demais"). Morava num
-                  selo ao lado do nome. "Nível" sai no tooltip. */}
-              {possui && (
-                <span className="det-sec-chip det-hab-total det-mag-nivel"
-                  onMouseEnter={(e) => abrirTip(e, { desc: en ? 'Level' : 'Nível' })}
-                  onMouseLeave={fecharTip}
-                  onFocus={(e) => abrirTip(e, { desc: en ? 'Level' : 'Nível' })}
-                  onBlur={fecharTip}
-                  tabIndex={0}
-                >
-                  <span className="det-sec-ic-box det-hab-total-num"
-                    aria-label={(en ? 'Level: ' : 'Nível: ') + nivelAtual}>
-                    {iconeNumeroFicha(nivelAtual)
-                      ? <i className={'ti ' + iconeNumeroFicha(nivelAtual)} aria-hidden="true" />
-                      : nivelAtual}
-                  </span>
-                </span>
-              )}
-              {FICHA_TXT.map((f) => (
-                <span key={f.lbl} className="det-sec-chip det-sec-chip--efeito"
-                  aria-label={`${f.lbl}: ${f.val}`}
-                  onMouseEnter={(e) => abrirTip(e, { title: f.lbl, desc: f.val })}
-                  onMouseLeave={fecharTip}
-                  onFocus={(e) => abrirTip(e, { title: f.lbl, desc: f.val })}
-                  onBlur={fecharTip}
-                  tabIndex={0}
-                >
-                  <span className="det-sec-ic-box">
-                    <i className={'ti ' + f.ic} aria-hidden="true" />
-                  </span>
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Um <p> por parágrafo do banco (pedido do usuário, 12/09/2026):
-              "Itens necessários: …" e as listas de Adestramento e Sono vinham
-              coladas no texto corrido. */}
-          {m.descricao && (
-            <div className="det-desc">
-              {String(m.descricao).split(/\r?\n/).map((p) => p.trim()).filter(Boolean)
-                .map((p, i) => <p key={i}>{p}</p>)}
-            </div>
-          )}
-
-          {NIVEIS.length > 0 && (
-            <div className="det-sec-head">
-              <span>{en ? 'Levels' : 'Níveis'}</span>
-            </div>
-          )}
-
-          {NIVEIS.map((nv) => {
-            const bloqueado = nv.n > nivelAtual;
-            const selecionado = nv.n === nivelSel;
-            const tipNivel = (en ? 'Level ' : 'Nível ') + nv.n + (bloqueado ? (en ? ' (locked)' : ' (bloqueado)') : '');
+        );
+      })}
+      <div className="det-opt-grid det-alvos">
+        {criaElo && ALVOS.length === 0 && (
+          <p className="best-desc">{en ? 'The character has no animals to bond with.' : 'O personagem não tem animais para criar o elo.'}</p>
+        )}
+        {ALVOS.map((a) => {
+          if (a.tipo === 'animal') {
+            const selecionado = alvoSel === a.id && !a.bloqueio;
+            const sub = a.bloqueio ? window.motivoEloLabel(a.bloqueio, en, nivelSel) : ((en ? 'Stage ' : 'Estágio ') + (a.estagio ?? '—'));
             return (
-              <button
-                type="button"
-                key={nv.n}
-                className={'det-stat mag-nivel-card' + (selecionado ? ' mag-nivel-card--sel' : '') + (bloqueado ? ' mag-nivel-card--locked' : '')}
-                onClick={() => escolherNivel(nv.n)}
-                aria-disabled={bloqueado}
+              <button type="button" key={a.id} data-animal={a.instanceId}
+                className={'det-opt-card' + (selecionado ? ' det-opt-card--sel' : '') + (a.bloqueio ? ' det-opt-card--off' : '')}
+                aria-disabled={!!a.bloqueio || undefined}
+                ref={(el) => { if (selecionado && el) setAlvoDicaEl(el); }}
+                onClick={() => { if (a.bloqueio) return; if (selecionado && nivelSel != null) evocar(); else setAlvoSel(a.id); }}
                 aria-pressed={selecionado}
-                onMouseEnter={(e) => abrirTip(e, { desc: tipNivel })}
-                onMouseLeave={fecharTip}
-                onFocus={(e) => abrirTip(e, { desc: tipNivel })}
-                onBlur={fecharTip}
-              >
-                <span className="mag-nivel-titulo">
-                  <i className={'ti ' + iconeNumeroFicha(nv.n)} aria-hidden="true" style={{ fontSize: 20 }} />
-                  {nv.titulo}
-                  {bloqueado && <i className="ti ti-lock" aria-hidden="true" style={{ marginLeft: 'auto', fontSize: 14 }} />}
-                  {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--gold, #C9A44E)' }} />}
-                </span>
-                {nv.valor && <p className="fp-mag-nivel-valor">{nv.valor}</p>}
+                aria-label={a.nome + ' — ' + sub}>
+                <span className="det-opt-foto det-opt-foto--vazia"><i className="ti ti-paw" aria-hidden="true" /></span>
+                <span className="det-opt-nome">{a.nome}<span className="det-opt-sub">{sub}</span></span>
+                {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, #E0BE68)' }} />}
               </button>
             );
-          })}
-
-          {nivelSel != null && (
-            <>
-              <div className="det-sec-head">
-                <span>{en ? 'Target' : 'Alvo'}</span>
-              </div>
-              <div className="det-opt-grid">
-                {ALVOS.map((a) => {
-                  const selecionado = alvoSel === a.id;
-                  const iniciais = (a.nome || '?').trim().slice(0, 1).toUpperCase();
-                  return (
-                    <button
-                      type="button"
-                      key={a.id}
-                      className={'det-opt-card' + (selecionado ? ' det-opt-card--sel' : '')}
-                      onClick={() => setAlvoSel(a.id)}
-                      aria-pressed={selecionado}
-                      onMouseEnter={(e) => abrirTip(e, { desc: a.nome })}
-                      onMouseLeave={fecharTip}
-                      onFocus={(e) => abrirTip(e, { desc: a.nome })}
-                      onBlur={fecharTip}
-                    >
-                      {a.foto_url ? (
-                        <img className="det-opt-foto" src={a.foto_url} alt="" />
-                      ) : (
-                        <span className="det-opt-foto det-opt-foto--vazia">{iniciais}</span>
-                      )}
-                      <span className="det-opt-nome">{a.nome}</span>
-                      {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, #C9A44E)' }} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="ms-footer">
-          <div className="ms-footer-left">
-            <button type="button" className="btn-ghost" onClick={onClose}>
-              {en ? 'Close' : 'Fechar'}
+          }
+          const selecionado = alvoSel === a.id;
+          // Sem o '(Você) ' na frente, senão a inicial vira '(' (26/09/2026).
+          const iniciais = (a.nome || '?').replace(/^\([^)]*\)\s*/, '').trim().slice(0, 1).toUpperCase();
+          return (
+            <button type="button" key={a.id}
+              className={'det-opt-card' + (selecionado ? ' det-opt-card--sel' : '')}
+              ref={(el) => { if (selecionado && el) setAlvoDicaEl(el); }}
+              onClick={() => { if (selecionado && nivelSel != null) evocar(); else setAlvoSel(a.id); }}
+              aria-pressed={selecionado}
+              aria-label={selecionado ? (en ? 'Click again to cast on ' : 'Clique de novo para evocar em ') + a.nome : a.nome}>
+              {a.foto_url
+                ? <img className="det-opt-foto" src={a.foto_url} alt="" />
+                : <span className="det-opt-foto det-opt-foto--vazia">{iniciais}</span>}
+              <span className="det-opt-nome">{a.nome}</span>
+              {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, #E0BE68)' }} />}
             </button>
-          </div>
-          <div className="ms-footer-right">
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={!podeEvocar}
-              onClick={() => {
-                if (!podeEvocar) return;
-                const alvo = ALVOS.find((a) => a.id === alvoSel) || null;
-                if (onEvocar) onEvocar({ nivel: nivelSel, alvo });
-                onClose();
-              }}
-            >
-              {en ? 'Cast' : 'Evocar'}
-            </button>
-          </div>
-        </div>
+          );
+        })}
       </div>
     </div>
+  ) : null;
+
+  if (!Janela || !Corpo) return null;
+  return (
+    <Janela
+      title={<><i className="ti ti-comet det-title-ic" aria-hidden="true" /> {m.nome}</>}
+      lang={lang}
+      onClose={onClose}
+      acoes={[]}>
+      {abaPrincipal}
+      {_Dica && alvoSel != null && nivelSel != null && <_Dica alvo={alvoDicaEl} texto={en ? 'Click here again to cast' : 'Clique aqui novamente para evocar'} />}
+      <Corpo m={m} lang={lang} niveisPermitidos={niveisPermitidos} niveisNaDescricao
+        linhasExtras={Linha ? <Linha rotulo={en ? 'Your level' : 'Seu nível'} valor={possui ? nivelAtual : (en ? 'Not learned' : 'Não aprendida')} /> : null} />
+    </Janela>
   );
 }
 
@@ -1226,7 +1198,7 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, l
    (abrirTip/fecharTip).
    "Usar" chama onUsar({ nome, total, dificuldade }) -> o pai (FichaPersonagem)
    abre o RolagemD20Overlay (dado no centro da tela) e resolve via resolverAcao. */
-function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abrirTip, fecharTip }) {
+function HabilidadeDetalhesModal({ habilidade, total, nivel, lang, onClose, onUsar, abrirTip, fecharTip }) {
   const en = lang === 'en';
   const h = habilidade;
 
@@ -1237,18 +1209,14 @@ function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abr
     { id: 'muito_dificil', lbl: en ? 'Very hard' : 'Muito difícil' },
     { id: 'absurdo', lbl: en ? 'Absurd' : 'Absurdo' },
   ];
-  // Padrão razoável: começa em "Médio" (nem o mais fácil, nem o mais difícil).
-  const [dificuldadeSel, setDificuldadeSel] = useState('medio');
+  /* Nenhuma marcada de início (26/09/2026): o 1º clique marca o card (em
+     vermelho) e o 2º, no mesmo card, rola — igual ao alvo da magia. Com Médio
+     pré-marcado, um clique só em Médio já rolaria. */
+  const [dificuldadeSel, setDificuldadeSel] = useState(null);
+  // O card marcado, para a dica "clique aqui novamente" (26/09/2026).
+  const [difDicaEl, setDifDicaEl] = useState(null);
 
-  // Esc fecha + trava o scroll do fundo, igual ao comportamento padrão do
-  // ModalShell (aqui montado via classes ms-* puras, sem o componente em si).
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prevOverflow; };
-  }, [onClose]);
+  // Esc e o scroll do fundo: o BestDetalheModal cuida (26/09/2026).
 
   const ATRIBUTO_LBL = {
     intelecto: en ? 'Intellect' : 'Intelecto',
@@ -1272,116 +1240,56 @@ function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abr
   // O total com sinal de menos de verdade ("−2", não hífen).
   const totalTxt = total == null ? null : (total < 0 ? `−${Math.abs(total)}` : String(total));
 
+  /* PADRÃO DOS MODAIS (26/09/2026) — ver MagiaDetalhesModal acima: aba Usar
+     (a principal) com a dificuldade, depois as abas de detalhe do Treinamento
+     (BestHabilidadeFicha) com o total do personagem. O ícone Usar, ao lado
+     do X, rola o dado. */
+  const Janela = window.BestDetalheModal;
+  const Corpo = window.BestHabilidadeFicha;
+  const Linha = window.BestLinha;
+  if (!Janela || !Corpo) return null;
   return (
-    <div className="ms-backdrop" role="presentation">
-      <div className="ms-modal ms-md modal-detalhes" role="dialog" aria-modal="true" aria-label={h.nome}>
-        <div className="ms-header">
-          <h3 className="ms-title">
-            <i className="ti ti-bolt det-title-ic" aria-hidden="true" style={{ marginRight: 8 }} />
-            {h.nome}
-          </h3>
-          <button type="button" className="ms-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
-            <i className="ti ti-x" aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="ms-body">
-          {/* O TOTAL num card pequeno, igual aos atributos da janela de item
-              (pedido do usuário, 12/09/2026): ícone na caixa e o número no
-              canto. Negativo usa a caixa vermelha de efeito negativo. */}
-          {(totalTxt != null || FICHA_TXT.length > 0) && (
-            <div className="det-sec-a">
-              {totalTxt != null && (
-                <span className="det-sec-chip det-hab-total"
-                  onMouseEnter={(e) => abrirTip(e, { desc: 'Total' })}
-                  onMouseLeave={fecharTip}
-                  onFocus={(e) => abrirTip(e, { desc: 'Total' })}
-                  onBlur={fecharTip}
-                  tabIndex={0}
-                >
-                  {/* O próprio número É o ícone, dentro da caixa (pedido do
-                      usuário, 12/09/2026). "Total" sai no tooltip. Desde
-                      14/09/2026 é o ti-number-N-small; negativo (fora da
-                      família do Tabler) segue escrito, com o sinal. */}
-                  <span className={'det-sec-ic-box det-hab-total-num' + (total < 0 ? ' det-sec-ic--neg' : '')}
-                    aria-label={`Total: ${totalTxt}`}>
-                    {iconeNumeroFicha(total)
-                      ? <i className={'ti ' + iconeNumeroFicha(total)} aria-hidden="true" />
-                      : totalTxt}
-                  </span>
-                </span>
-              )}
-              {/* Restrição: só o ícone, o texto no tooltip — como os atributos
-                  da magia e os efeitos do item (pedido do usuário, 12/09/2026). */}
-              {FICHA_TXT.map((f) => (
-                <span key={f.lbl} className="det-sec-chip det-sec-chip--efeito"
-                  aria-label={`${f.lbl}: ${f.val}`}
-                  onMouseEnter={(e) => abrirTip(e, { title: f.lbl, desc: f.val })}
-                  onMouseLeave={fecharTip}
-                  onFocus={(e) => abrirTip(e, { title: f.lbl, desc: f.val })}
-                  onBlur={fecharTip}
-                  tabIndex={0}
-                >
-                  <span className="det-sec-ic-box">
-                    <i className={'ti ' + f.ic} aria-hidden="true" />
-                  </span>
-                </span>
-              ))}
-            </div>
-          )}
-
-          {h.descricao && (
-            <div className="det-desc">
-              <p>{h.descricao}</p>
-            </div>
-          )}
-
-          <div className="det-sec-head">
-            <span>{en ? 'Difficulty' : 'Dificuldade'}</span>
-          </div>
-          {/* Botões selecionáveis em vez de dropdown (pedido do usuário,
-              12/09/2026): as cinco cabem numa linha e ficam à vista. Mesmo
-              card da escolha de alvo da magia (det-opt-card). */}
-          <div className="det-opt-grid det-dif-grid" role="radiogroup"
-            aria-label={en ? 'Difficulty' : 'Dificuldade'}>
+    <Janela
+      title={<><i className="ti ti-bolt det-title-ic" aria-hidden="true" /> {h.nome}</>}
+      lang={lang}
+      onClose={onClose}
+      /* Sem ícone de ação (26/09/2026): 'só clicar no card da dificuldade o
+         dado vai rolar' — o card É a ação. */
+      acoes={[]}>
+      {onUsar && (
+        <div className="best-secao det-uso">
+          <h4 className="best-secao-titulo">{en ? 'Use' : 'Usar'}</h4>
+          <div className="det-opt-grid det-dif-grid" role="radiogroup" aria-label={en ? 'Difficulty' : 'Dificuldade'}>
             {DIFICULDADES.map((d) => {
               const selecionado = dificuldadeSel === d.id;
               return (
-                <button
-                  type="button"
-                  key={d.id}
-                  role="radio"
-                  aria-checked={selecionado}
+                <button type="button" key={d.id} role="radio" aria-checked={selecionado}
                   data-dificuldade={d.id}
                   className={'det-opt-card det-dif-card' + (selecionado ? ' det-opt-card--sel' : '')}
-                  onClick={() => setDificuldadeSel(d.id)}
-                >
+                  ref={(el) => { if (selecionado && el) setDifDicaEl(el); }}
+                  // 1º clique marca; 2º clique no mesmo card rola (26/09/2026).
+                  aria-label={selecionado ? (en ? 'Click again to roll: ' : 'Clique de novo para rolar: ') + d.lbl : d.lbl}
+                  onClick={() => {
+                    if (selecionado) onUsar({ nome: h.nome, total: total, dificuldade: d.id });
+                    else setDificuldadeSel(d.id);
+                  }}>
                   <span className="det-opt-nome">{d.lbl}</span>
                 </button>
               );
             })}
           </div>
         </div>
-
-        <div className="ms-footer">
-          <div className="ms-footer-left">
-            <button type="button" className="btn-ghost" onClick={onClose}>
-              {en ? 'Close' : 'Fechar'}
-            </button>
-          </div>
-          <div className="ms-footer-right">
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={!dificuldadeSel}
-              onClick={() => onUsar && onUsar({ nome: h.nome, total: total, dificuldade: dificuldadeSel })}
-            >
-              {en ? 'Use' : 'Usar'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+      )}
+      {window.DicaNoAlvo && dificuldadeSel && <window.DicaNoAlvo alvo={difDicaEl} texto={en ? 'Click here again to roll' : 'Clique aqui novamente para rolar'} />}
+      {/* As mesmas linhas da consulta pelo Conhecimento: Nível e Total. */}
+      <Corpo h={h} lang={lang}
+        linhasExtras={Linha ? (
+          <>
+            <Linha rotulo={en ? 'Level' : 'Nível'} valor={nivel || (en ? 'Not learned' : 'Não aprendida')} />
+            {totalTxt != null && <Linha rotulo="Total" valor={totalTxt} />}
+          </>
+        ) : null} />
+    </Janela>
   );
 }
 
@@ -1414,9 +1322,13 @@ function HabilidadeDetalhesModal({ habilidade, total, lang, onClose, onUsar, abr
 // clique nenhum. Mover para cá quebra esse ciclo — FichaInfoView continua
 // re-renderizando no foco/tooltip, mas ColTitleNav é o MESMO tipo entre
 // renders, então React só atualiza o botão existente em vez de trocá-lo.
-const ColTitleNav = ({ mainLabel, pages, page, onNext, abrirTip, fecharTip, en }) => {
+/* `subComoTitulo` (27/09/2026, ficha dos animais): "remova os subtítulos
+   'identidade', 'coice', eles serão os títulos." A página atual vira o título
+   da coluna; embaixo ficam só os traços de página, quando há mais de uma. */
+const ColTitleNav = ({ mainLabel: mainLabelProp, pages, page, onNext, abrirTip, fecharTip, en, subComoTitulo }) => {
   const multi = pages.length > 1;
   const sub = pages[page] || pages[0];
+  const mainLabel = subComoTitulo ? sub.label : mainLabelProp;
   return (
     <div className="fp-col-title-nav">
 
@@ -1437,11 +1349,19 @@ const ColTitleNav = ({ mainLabel, pages, page, onNext, abrirTip, fecharTip, en }
           </button>
       </div>
 
-      {/* Sub-label sempre visível; indicadores e seta só aparecem quando multi */}
-      <div className="fp-col-title-sub-row">
+      {/* Sub-label visível; indicadores e seta só aparecem quando multi.
+          Coluna SEM submenu (Atributos, 26/09/2026) — uma página só, com o
+          mesmo nome da coluna — não repete o nome embaixo. */}
+      {/* Com o título vindo da página (subComoTitulo), a faixa dos traços
+          existe SEMPRE — vazia na coluna de página única —, para a linha sob
+          o título ficar na mesma altura em todas as colunas (27/09/2026). */}
+      {(subComoTitulo || !(!multi && sub.label === mainLabel)) && (
+      <div className={'fp-col-title-sub-row' + (subComoTitulo ? ' fp-col-title-sub-row--fixa' : '')}>
+        {!subComoTitulo && (
         <span className="fp-col-title-sub">
           {sub.label}
         </span>
+        )}
         {/* Indicadores: traços largos=ativo, curtos=inativo — só quando há >1 página */}
         {multi && (
           <div className="fp-col-title-dots">
@@ -1451,6 +1371,7 @@ const ColTitleNav = ({ mainLabel, pages, page, onNext, abrirTip, fecharTip, en }
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };
@@ -1464,6 +1385,12 @@ function FichaInfoView({
   nivelMagiaEfetivoFn, totalHabilidadeFn, totalTecnicaFn,
   bonusHabilidades, titulo,
   historiaPj,
+  // 'personagem' | 'conhecimento' — as duas abas que dividiram Informações.
+  parte = 'personagem',
+  /* Clicar numa habilidade, técnica ou magia do Conhecimento abre a janela
+     de detalhe dela (26/09/2026, "ao clicar em cada habilidade, magia,
+     técnica, será possível abrir o modal com a descrição"). */
+  onAbrirHabilidade, onAbrirTecnica, onAbrirMagia,
 }) {
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const _d = derivadas || {};
@@ -1476,6 +1403,11 @@ function FichaInfoView({
   const [col5Page, setCol5Page] = useState(0);
 
   // ── helpers visuais ──────────────────────────────────────────────
+  // Linha que abre a janela de detalhe: clique e Enter/Espaço.
+  const clicavel = (fn) => (fn ? {
+    role: 'button', tabIndex: 0, onClick: fn,
+    onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } },
+  } : {});
   const Row = ({ label, value }) => (
     <div className="fp-row">
       <span className="fp-row-label">{label}</span>
@@ -1498,10 +1430,18 @@ function FichaInfoView({
   });
   if (caract.historica) tractosFlat.push({ grupo: 'historica', nome: caract.historica });
 
+  /* 26/09/2026 — Informações virou DUAS abas ("Personagem" e
+     "Conhecimento"), três colunas cada:
+       Personagem   Identidade (Identificação, Caracterizações) · Atributos ·
+                    Complemento (Derivadas, Grupo de Armas, Habilidades
+                    Aperfeiçoadas)
+       Conhecimento Habilidades (os seis grupos) · Técnicas (Básicas,
+                    Avançadas) · Magias (Básicas, Avançadas)
+     As páginas pedidas existem SEMPRE, mesmo vazias (dizem "Nenhuma…"): a
+     coluna tem o mesmo mapa para todo personagem. */
   const col1Pages = [
-    { key: 'identidade',      label: en ? 'Identity'        : 'Identidade'       },
-    { key: 'atributos',       label: en ? 'Attributes'      : 'Atributos'        },
-    ...(tractosFlat.length > 0 ? [{ key: 'caract', label: en ? 'Traits' : 'Caracterizações' }] : []),
+    { key: 'identidade', label: en ? 'Identification' : 'Identificação' },
+    { key: 'caract',     label: en ? 'Traits'         : 'Caracterizações' },
   ];
   const col1Idx = col1Page % col1Pages.length;
   const col1Sub = col1Pages[col1Idx].key;
@@ -1509,7 +1449,7 @@ function FichaInfoView({
   const col1 = (
     <div className="fp-col-pad-l">
       <ColTitleNav
-        mainLabel={en ? 'Identity' : 'Identidade'}
+        mainLabel={en ? 'Identity' : 'Identidade'} subComoTitulo
         pages={col1Pages}
         page={col1Idx}
         onNext={() => setCol1Page((p) => (p + 1) % col1Pages.length)}
@@ -1567,22 +1507,32 @@ function FichaInfoView({
         </>
       )}
 
-      {col1Sub === 'atributos' && (
-        <>
-          <Row label={en ? 'Intellect'  : 'Intelecto'}  value={atributosFinais?.intelecto  ?? '—'} />
-          <Row label="Aura"                              value={atributosFinais?.aura        ?? '—'} />
-          <Row label={en ? 'Charisma'   : 'Carisma'}    value={atributosFinais?.carisma     ?? '—'} />
-          <Row label={en ? 'Strength'   : 'Força'}      value={atributosFinais?.forca       ?? '—'} />
-          <Row label={en ? 'Body'       : 'Físico'}     value={atributosFinais?.fisico      ?? '—'} />
-          <Row label={en ? 'Perception' : 'Percepção'}  value={atributosFinais?.percepcao   ?? '—'} />
-          <Row label={en ? 'Agility'    : 'Agilidade'}  value={atributosFinais?.agilidade   ?? '—'} />
-        </>
-      )}
-
-      {col1Sub === 'caract' && tractosFlat.map((t, i) => {
+      {col1Sub === 'caract' && (tractosFlat.length === 0 ? (
+        <div className="fp-col-empty">{en ? 'No traits.' : 'Nenhuma caracterização.'}</div>
+      ) : tractosFlat.map((t, i) => {
         const nome = t.nome ? t.nome.charAt(0).toUpperCase() + t.nome.slice(1) : t.nome;
         return <Row key={i} label={GRUPO_LABEL[t.grupo] || t.grupo} value={nome} />;
-      })}
+      }))}
+    </div>
+  );
+
+  // ── Atributos — coluna própria, sem submenu (26/09/2026) ──────────────
+  const colAtributos = (
+    <div>
+      <ColTitleNav
+        mainLabel={en ? 'Attributes' : 'Atributos'} subComoTitulo
+        pages={[{ key: 'atributos', label: en ? 'Attributes' : 'Atributos' }]}
+        page={0}
+        onNext={() => {}}
+        abrirTip={abrirTip} fecharTip={fecharTip} en={en}
+      />
+      <Row label={en ? 'Intellect'  : 'Intelecto'}  value={atributosFinais?.intelecto  ?? '—'} />
+      <Row label="Aura"                              value={atributosFinais?.aura        ?? '—'} />
+      <Row label={en ? 'Charisma'   : 'Carisma'}    value={atributosFinais?.carisma     ?? '—'} />
+      <Row label={en ? 'Strength'   : 'Força'}      value={atributosFinais?.forca       ?? '—'} />
+      <Row label={en ? 'Body'       : 'Físico'}     value={atributosFinais?.fisico      ?? '—'} />
+      <Row label={en ? 'Perception' : 'Percepção'}  value={atributosFinais?.percepcao   ?? '—'} />
+      <Row label={en ? 'Agility'    : 'Agilidade'}  value={atributosFinais?.agilidade   ?? '—'} />
     </div>
   );
 
@@ -1605,18 +1555,32 @@ function FichaInfoView({
     ...idiomasAprim.filter((id) => !idiomasNativos.includes(id)),
   ];
 
+  /* HABILIDADES APERFEIÇOADAS: o que as quatro habilidades de aprimoramento
+     renderam (pj.aprimoramentos: idioma, religiao, arte, sabedoria) — a antiga
+     página Idiomas era só a primeira delas. Os idiomas de nascença entram
+     marcados "Nativo". */
+  const APRIM_LABEL = {
+    idioma: en ? 'Language' : 'Idioma', religiao: en ? 'Religion' : 'Religião',
+    arte: en ? 'Art' : 'Arte', sabedoria: en ? 'Wisdom' : 'Sabedoria',
+  };
+  const aperfeicoadas = [
+    ...idiomasTodos.map((nome) => ({ tipo: 'idioma', nome, nativo: idiomasNativos.includes(nome) })),
+    ...['religiao', 'arte', 'sabedoria'].flatMap((k) =>
+      (pj.aprimoramentos?.[k] || []).filter(Boolean).map((nome) => ({ tipo: k, nome }))),
+  ];
+
   const col2Pages = [
-    { key: 'derivadas',   label: en ? 'Stats'         : 'Derivadas'      },
-    ...(gaEntries.length > 0    ? [{ key: 'armas',   label: en ? 'Weapon Groups' : 'Grupos de Armas' }] : []),
-    ...(idiomasTodos.length > 0 ? [{ key: 'idiomas', label: en ? 'Languages'    : 'Idiomas'          }] : []),
+    { key: 'derivadas', label: en ? 'Stats'          : 'Derivadas' },
+    { key: 'armas',     label: en ? 'Weapon Groups'  : 'Grupo de Armas' },
+    { key: 'aperf',     label: en ? 'Improved Skills' : 'Habilidades Aperfeiçoadas' },
   ];
   const col2Idx = col2Page % col2Pages.length;
   const col2Sub = col2Pages[col2Idx].key;
 
   const col2 = (
-    <div>
+    <div className="fp-col-pad-r">
       <ColTitleNav
-        mainLabel={en ? 'Stats' : 'Derivadas'}
+        mainLabel={en ? 'Complement' : 'Complemento'} subComoTitulo
         pages={col2Pages}
         page={col2Idx}
         onNext={() => setCol2Page((p) => (p + 1) % col2Pages.length)}
@@ -1634,24 +1598,24 @@ function FichaInfoView({
         </>
       )}
 
-      {col2Sub === 'armas' && gaEntries.map(([sigla, val]) => {
+      {col2Sub === 'armas' && (gaEntries.length === 0 ? (
+        <div className="fp-col-empty">{en ? 'No weapon groups.' : 'Nenhum grupo de armas.'}</div>
+      ) : gaEntries.map(([sigla, val]) => {
         const nomeGrupo = _gaByS[sigla]?.nome || sigla;
         return <Row key={sigla} label={nomeGrupo} value={String(val)} />;
-      })}
+      }))}
 
-      {col2Sub === 'idiomas' && idiomasTodos.map((idioma) => {
-        const isNativo = idiomasNativos.includes(idioma);
-        return (
-          <div key={idioma} className="fp-idioma-row">
-            <span className="fp-idioma-nome">{idioma}</span>
-            {isNativo && (
-              <span className="fp-idioma-tag">
-                {en ? 'Native' : 'Nativo'}
-              </span>
-            )}
-          </div>
-        );
-      })}
+      {col2Sub === 'aperf' && (aperfeicoadas.length === 0 ? (
+        <div className="fp-col-empty">{en ? 'None yet.' : 'Nenhuma ainda.'}</div>
+      ) : aperfeicoadas.map((a) => (
+        <div key={a.tipo + ':' + a.nome} className="fp-row">
+          <span className="fp-row-label">{APRIM_LABEL[a.tipo]}</span>
+          <span className="fp-row-value">
+            {a.nome}
+            {a.nativo && <span className="fp-idioma-tag">{en ? 'Native' : 'Nativo'}</span>}
+          </span>
+        </div>
+      )))}
     </div>
   );
 
@@ -1674,10 +1638,21 @@ function FichaInfoView({
      ela daria hoje — a mesma conta dos atalhos da ficha, só sem os pontos
      ("nada impede que ele faça o teste com o total negativo").
      Grupo sem nenhuma habilidade no catálogo continua de fora. */
+  /* O GRUPO É O TÍTULO (27/09/2026): "'habilidades profissionais',
+     'habilidades de influência' será o título ao invés de 'habilidades'". */
+  const TITULO_GRUPO_HAB = {
+    Profissional: ['Habilidades Profissionais', 'Professional Skills'],
+    'Influência': ['Habilidades de Influência', 'Influence Skills'],
+    Conhecimento: ['Habilidades de Conhecimento', 'Knowledge Skills'],
+    Geral: ['Habilidades Gerais', 'General Skills'],
+    Manobra: ['Habilidades de Manobra', 'Maneuver Skills'],
+    'Subterfúgio': ['Habilidades de Subterfúgio', 'Subterfuge Skills'],
+  };
+  const tituloGrupoHab = (g) => (TITULO_GRUPO_HAB[g] ? TITULO_GRUPO_HAB[g][en ? 1 : 0] : (en ? `${g} Skills` : `Habilidades de ${g}`));
   const col3Pages = Object.keys(habPorGrupo)
     .map((grupo) => {
       const lista = habPorGrupo[grupo] || [];
-      return lista.length > 0 ? { key: grupo, label: grupo, lista } : null;
+      return lista.length > 0 ? { key: grupo, label: tituloGrupoHab(grupo), lista } : null;
     })
     .filter(Boolean);
 
@@ -1685,9 +1660,9 @@ function FichaInfoView({
   const col3Current = col3Pages[col3Idx] || null;
 
   const col3 = (
-    <div>
+    <div className="fp-col-pad-l">
       <ColTitleNav
-        mainLabel={en ? 'Skills' : 'Habilidades'}
+        mainLabel={en ? 'Skills' : 'Habilidades'} subComoTitulo
         pages={col3Pages.length > 0 ? col3Pages : [{ key: 'empty', label: '—' }]}
         page={col3Idx}
         onNext={() => setCol3Page((p) => (p + 1) % Math.max(col3Pages.length, 1))}
@@ -1700,8 +1675,9 @@ function FichaInfoView({
             ? totalHabilidadeFn(h.key, pjHabilidades, atributosFinais, bonusHabilidades, habsByKey, {})
             : (pjHabilidades[h.key] ?? '—');
           return (
-            <div key={h.key} className={'fp-row' + (aprendida ? '' : ' fp-row--nao-aprendida')}
-              data-aprendida={aprendida}>
+            <div key={h.key} className={'fp-row' + (aprendida ? '' : ' fp-row--nao-aprendida') + (onAbrirHabilidade ? ' fp-row--abre' : '')}
+              data-aprendida={aprendida}
+              {...clicavel(onAbrirHabilidade && (() => onAbrirHabilidade(h.key)))}>
               <span className="fp-row-label">{h.nome}</span>
               <span className="fp-row-value">{String(total)}</span>
             </div>
@@ -1748,22 +1724,21 @@ function FichaInfoView({
     Object.prototype.hasOwnProperty.call(pjTecnicas, t.key)
   );
   const magPossuidas = catalogoMag.filter((m) => pjMagias[m.key] != null);
-  const col5Existe = magPossuidas.length > 0;
 
   const tecBasicas   = tecPossuidas.filter((t) => !tecEsAvancada(t));
   const tecAvancadas = tecPossuidas.filter((t) =>  tecEsAvancada(t));
   const col4Pages = [
-    ...(tecBasicas.length   > 0 ? [{ key: 'basicas',   label: en ? 'Basic'    : 'Básicas',   items: tecBasicas   }] : []),
-    ...(tecAvancadas.length > 0 ? [{ key: 'avancadas', label: en ? 'Advanced' : 'Avançadas', items: tecAvancadas }] : []),
-    ...(tecBasicas.length === 0 && tecAvancadas.length === 0 ? [{ key: 'vazio', label: '—', items: [] }] : []),
+    // "Técnicas Básicas" é o título (27/09/2026).
+    { key: 'basicas',   label: en ? 'Basic Techniques'    : 'Técnicas Básicas',   items: tecBasicas   },
+    { key: 'avancadas', label: en ? 'Advanced Techniques' : 'Técnicas Avançadas', items: tecAvancadas },
   ];
   const col4Idx  = col4Pages.length > 0 ? (col4Page % col4Pages.length) : 0;
   const col4Current = col4Pages[col4Idx] || col4Pages[0];
 
   const col4 = (
-    <div className={col5Existe ? undefined : 'fp-col-pad-r'}>
+    <div>
       <ColTitleNav
-        mainLabel={en ? 'Techniques' : 'Técnicas'}
+        mainLabel={en ? 'Techniques' : 'Técnicas'} subComoTitulo
         pages={col4Pages}
         page={col4Idx}
         onNext={() => setCol4Page((p) => (p + 1) % col4Pages.length)}
@@ -1775,7 +1750,13 @@ function FichaInfoView({
         </div>
       ) : col4Current.items.map((t) => {
         const tot = totalTecnicaFn ? totalTecnicaFn(t, pjTecnicas, atributosFinais) : '—';
-        return <Row key={t.key} label={t.nome} value={tot != null ? String(tot) : '—'} />;
+        return (
+          <div key={t.key} className={'fp-row' + (onAbrirTecnica ? ' fp-row--abre' : '')}
+            {...clicavel(onAbrirTecnica && (() => onAbrirTecnica(t.key)))}>
+            <span className="fp-row-label">{t.nome}</span>
+            <span className="fp-row-value">{tot != null ? String(tot) : '—'}</span>
+          </div>
+        );
       })}
     </div>
   );
@@ -1787,36 +1768,46 @@ function FichaInfoView({
   const magBasicas   = magPossuidas.filter((m) => !magEsAvancada(m));
   const magAvancadas = magPossuidas.filter((m) =>  magEsAvancada(m));
   const col5Pages = [
-    ...(magBasicas.length   > 0 ? [{ key: 'basicas',   label: en ? 'Basic'    : 'Básicas',   items: magBasicas   }] : []),
-    ...(magAvancadas.length > 0 ? [{ key: 'avancadas', label: en ? 'Advanced' : 'Avançadas', items: magAvancadas }] : []),
+    // "Magias Básicas" é o título (27/09/2026).
+    { key: 'basicas',   label: en ? 'Basic Spells'    : 'Magias Básicas',   items: magBasicas   },
+    { key: 'avancadas', label: en ? 'Advanced Spells' : 'Magias Avançadas', items: magAvancadas },
   ];
   const col5Idx     = col5Pages.length > 0 ? (col5Page % col5Pages.length) : 0;
   const col5Current = col5Pages[col5Idx] || col5Pages[0];
 
-  const col5 = !col5Existe ? null : (
+  const col5 = (
     <div className="fp-col-pad-r">
       <ColTitleNav
-        mainLabel={en ? 'Spells' : 'Magias'}
+        mainLabel={en ? 'Spells' : 'Magias'} subComoTitulo
         pages={col5Pages.length > 0 ? col5Pages : [{ key: 'vazio', label: '—' }]}
         page={col5Idx}
         onNext={() => setCol5Page((p) => (p + 1) % Math.max(col5Pages.length, 1))}
         abrirTip={abrirTip} fecharTip={fecharTip} en={en}
       />
+      {(col5Current?.items || []).length === 0 && (
+        <div className="fp-col-empty">{en ? 'No spells.' : 'Nenhuma magia.'}</div>
+      )}
       {(col5Current?.items || []).map((m) => {
         const passos = pjMagias[m.key];
         const nivel = nivelMagiaEfetivoFn ? nivelMagiaEfetivoFn(passos) : '—';
-        return <Row key={m.key} label={m.nome} value={nivel != null ? String(nivel) : '—'} />;
+        return (
+          <div key={m.key} className={'fp-row' + (onAbrirMagia ? ' fp-row--abre' : '')}
+            {...clicavel(onAbrirMagia && (() => onAbrirMagia(m.key)))}>
+            <span className="fp-row-label">{m.nome}</span>
+            <span className="fp-row-value">{nivel != null ? String(nivel) : '—'}</span>
+          </div>
+        );
       })}
     </div>
   );
 
   return (
-    <div className={'fp-info-grid ' + (col5 ? 'fp-info-grid--5' : 'fp-info-grid--4')}>
-      {col1}
-      {col2}
-      {col3}
-      {col4}
-      {col5}
+    <div className="fp-info-grid fp-info-grid--3" data-parte={parte}>
+      {parte === 'conhecimento' ? (
+        <>{col3}{col4}{col5}</>
+      ) : (
+        <>{col1}{colAtributos}{col2}</>
+      )}
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
@@ -1839,7 +1830,7 @@ function FichaInfoView({
    das abas. Os números são os do catálogo: fora de combate o animal não
    apanha nem gasta energia. */
 function FichaAnimaisView({ animais, en, podeEditar, onMontar, onDesmontar,
-  catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey }) {
+  catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey, onDesfazerElo }) {
   const lista = Array.isArray(animais) ? animais : [];
   const [selId, setSelId] = useState(null);
   // Abre no montado; senão no primeiro. Animal que saiu do inventário cai no primeiro.
@@ -1879,6 +1870,10 @@ function FichaAnimaisView({ animais, en, podeEditar, onMontar, onDesmontar,
                 {a.instancia.montado && (
                   <i className="ti ti-horse fp-animais-tag" role="img" aria-label={en ? 'Mounted' : 'Montado'} />
                 )}
+                {/* Elo Permanente (27/09/2026), ao lado do nome, como o montado. */}
+                {window.temElo && window.temElo(a.instancia) && (
+                  <i className="ti ti-link fp-animais-tag" role="img" aria-label={en ? 'Permanent bond' : 'Elo Permanente'} />
+                )}
               </button>
             );
           })}
@@ -1888,7 +1883,8 @@ function FichaAnimaisView({ animais, en, podeEditar, onMontar, onDesmontar,
       {/* key: trocar de animal zera a página de cada coluna. */}
       <FichaCriaturaSheet key={inst.instanceId} criatura={atual.criatura} instancia={inst} en={en}
         catalogoBySlug={catalogoBySlug} habsByKey={habsByKey}
-        tecnicasByKey={tecnicasByKey} magiasByKey={magiasByKey} />
+        tecnicasByKey={tecnicasByKey} magiasByKey={magiasByKey}
+        onDesfazerElo={onDesfazerElo} />
     </div>
   );
 }
@@ -1923,8 +1919,19 @@ function capacidadesDaCriatura(c, habsByKey, tecnicasByKey, magiasByKey) {
    do ColTitleNav (ver o comentário dele): declaradas dentro da ficha, virariam
    um tipo novo a cada render do tooltip e a seta deixaria de responder. */
 const vazioAnimal = (v) => v === null || v === undefined || v === '';
-const AnimalRow = ({ label, value }) => (
-  <div className="fp-row">
+// O item do catálogo pelo nome (sem acento e caixa) — a criatura guarda NOMES.
+function itemDoCatalogoPorNome(mapa, nome) {
+  const norm = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const alvo = norm(nome);
+  return Object.values(mapa || {}).find((o) => o && norm(o.nome) === alvo) || null;
+}
+// `onAbrir` (27/09/2026): a linha abre a janela de consulta — clique e Enter/Espaço.
+const AnimalRow = ({ label, value, onAbrir }) => (
+  <div className={'fp-row' + (onAbrir ? ' fp-row--abre' : '')}
+    {...(onAbrir ? {
+      role: 'button', tabIndex: 0, onClick: onAbrir,
+      onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAbrir(); } },
+    } : {})}>
     <span className="fp-row-label">{label}</span>
     <span className="fp-row-value">{vazioAnimal(value) ? '—' : value}</span>
   </div>
@@ -1932,17 +1939,23 @@ const AnimalRow = ({ label, value }) => (
 const AnimalColuna = ({ titulo, paginas, pagina, onNext, abrirTip, fecharTip, en, children }) => (
   <div>
     <ColTitleNav mainLabel={titulo} pages={paginas} page={pagina} onNext={onNext}
-      abrirTip={abrirTip} fecharTip={fecharTip} en={en} />
+      abrirTip={abrirTip} fecharTip={fecharTip} en={en} subComoTitulo />
     {children}
   </div>
 );
 
-function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey }) {
+function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey, onDesfazerElo }) {
   const c = criatura || {};
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const [pag1, setPag1] = useState(0);
   const [pag3, setPag3] = useState(0);
   const [pag4, setPag4] = useState(0);
+  /* CONSULTA NA FICHA DO ANIMAL (27/09/2026): "assim como é do personagem, ao
+     clicar nas habilidades, técnicas e magias, será possível abrir um modal
+     com a explicação." A mesma janela do Conhecimento do personagem
+     (BestDetalheModal + BestHabilidadeFicha/Tecnica/Magia), com o total do
+     animal em Características. { tipo: 'hab'|'tec'|'mag', obj, valor } */
+  const [consulta, setConsulta] = useState(null);
 
   const vazio = vazioAnimal;
   const Row = AnimalRow;
@@ -1969,7 +1982,7 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
   const ataques = _ataques(c, catalogoBySlug);
   const col3Pages = ataques.length
     ? ataques.map((a, i) => ({ key: 'atq' + i, label: a.nome }))
-    : [{ key: 'vazio', label: '—' }];
+    : [{ key: 'vazio', label: en ? 'Attacks' : 'Ataques' }];
   const i3 = pag3 % col3Pages.length;
   const atq = ataques[i3] || null;
 
@@ -1980,7 +1993,7 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
     { key: 'tec', label: en ? 'Techniques' : 'Técnicas', itens: cap.tecnicas },
     { key: 'mag', label: en ? 'Spells' : 'Magias', itens: cap.magias },
   ].filter((g) => g.itens.length > 0);
-  const col4Pages = col4Grupos.length ? col4Grupos : [{ key: 'vazio', label: '—', itens: [] }];
+  const col4Pages = col4Grupos.length ? col4Grupos : [{ key: 'vazio', label: en ? 'Abilities' : 'Capacidades', itens: [] }];
   const i4 = pag4 % col4Pages.length;
 
   return (
@@ -1989,14 +2002,38 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
         {col1Pages[i1].key === 'identidade' && (
           <>
             <Row label={en ? 'Name' : 'Nome'} value={c.nome} />
-            {instancia && instancia.observacao && <Row label={en ? 'Note' : 'Anotação'} value={instancia.observacao} />}
             <Row label={en ? 'Mount' : 'Montaria'} value={c.montaria === true ? (en ? 'Yes' : 'Sim') : (en ? 'No' : 'Não')} />
+            {/* Elo Permanente (27/09/2026): com quem e desde quando. O Mestre
+                desfaz pelo x (onDesfazerElo só chega para ele). */}
+            {window.temElo && window.temElo(instancia) && (
+              <div className="fp-row fp-row--elo">
+                <span className="fp-row-label"><i className="ti ti-link" aria-hidden="true" /> {en ? 'Permanent bond' : 'Elo Permanente'}</span>
+                <span className="fp-row-value">
+                  {instancia.elo.conjurador_nome || '—'}
+                  {onDesfazerElo && (
+                    <button type="button" className="fp-status-x" data-desfazer-elo
+                      onClick={() => onDesfazerElo(instancia.instanceId)}
+                      aria-label={en ? 'Undo bond' : 'Desfazer elo'}
+                      {...propsTip(abrirTip, fecharTip, en ? 'Undo bond' : 'Desfazer elo')}>
+                      <i className="ti ti-x" aria-hidden="true" />
+                    </button>
+                  )}
+                </span>
+              </div>
+            )}
+            {window.temElo && window.temElo(instancia) && instancia.elo.desde && typeof formatarDataFantasy === 'function' && (
+              <Row label={en ? 'Bonded since' : 'Elo desde'} value={formatarDataFantasy(instancia.elo.desde, en ? 'en' : 'pt')} />
+            )}
             {/* `elemento` entrou em 18/09/2026, junto com a coluna nova. Esta
                 linha mostrava "Animal · Ar" para a Águia porque o ELEMENTO
                 morava em `subtipo`; a migração o mudou de coluna, e sem
                 incluí-lo aqui as 15 criaturas elementais perderiam o dado na
                 ficha do animal. `subtipo` continua: ele é a espécie. */}
-            <Row label={en ? 'Type' : 'Tipo'} value={[c.tipo, c.subtipo, c.elemento].filter(Boolean).join(' · ')} />
+            {/* Três coisas diferentes, três linhas (27/09/2026): "no tipo 'Animal ·
+                Cavalo · Terra' sendo que isso são 3 coisas diferentes". */}
+            <Row label={en ? 'Type' : 'Tipo'} value={c.tipo} />
+            <Row label={en ? 'Species' : 'Espécie'} value={c.subtipo} />
+            <Row label={en ? 'Element' : 'Elemento'} value={c.elemento} />
             <Row label={en ? 'Stage' : 'Estágio'} value={c.estagio} />
             <Row label={en ? 'Weight' : 'Peso'} value={vazio(c.peso) ? null : `${c.peso} kg`} />
           </>
@@ -2046,9 +2083,38 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
 
       <AnimalColuna titulo={en ? 'Abilities' : 'Capacidades'} paginas={col4Pages} pagina={i4} onNext={proxima(setPag4, col4Pages.length)} {...navProps}>
         {col4Pages[i4].itens.length
-          ? col4Pages[i4].itens.map((it, i) => <Row key={it.nome + i} label={it.nome} value={it.valor} />)
+          ? col4Pages[i4].itens.map((it, i) => {
+              // O nome vem do texto da criatura: acha o item no catálogo do grupo aberto.
+              const tipo = col4Pages[i4].key;
+              const mapa = tipo === 'hab' ? habsByKey : tipo === 'tec' ? tecnicasByKey : magiasByKey;
+              const obj = itemDoCatalogoPorNome(mapa, it.nome);
+              return <Row key={it.nome + i} label={it.nome} value={it.valor}
+                onAbrir={obj ? () => setConsulta({ tipo, obj, valor: it.valor }) : undefined} />;
+            })
           : vazioCol(en ? 'No skills, techniques or spells.' : 'Sem habilidades, técnicas ou magias.')}
       </AnimalColuna>
+
+      {consulta && (() => {
+        const Janela = window.BestDetalheModal;
+        const Linha = window.BestLinha;
+        const Corpo = consulta.tipo === 'hab' ? window.BestHabilidadeFicha
+          : consulta.tipo === 'tec' ? window.BestTecnicaFicha : window.BestMagiaFicha;
+        if (!Janela || !Corpo) return null;
+        const lang = en ? 'en' : 'pt';
+        const rotulo = consulta.tipo === 'mag' ? (en ? 'Level' : 'Nível') : 'Total';
+        const extras = Linha && !vazio(consulta.valor)
+          ? <Linha rotulo={(c.nome ? c.nome + ' · ' : '') + rotulo} valor={consulta.valor} /> : null;
+        const fechar = () => setConsulta(null);
+        const nivelMag = Number(consulta.valor) || 0;
+        return (
+          <Janela title={consulta.obj.nome} lang={lang} onClose={fechar}>
+            {consulta.tipo === 'hab' && <Corpo h={consulta.obj} lang={lang} linhasExtras={extras} />}
+            {consulta.tipo === 'tec' && <Corpo t={consulta.obj} lang={lang} linhasExtras={extras} />}
+            {consulta.tipo === 'mag' && <Corpo m={consulta.obj} lang={lang} linhasExtras={extras}
+              niveisPermitidos={nivelMag ? new Set([1, 3, 5, 7, 9].filter((n) => n <= nivelMag)) : null} />}
+          </Janela>
+        );
+      })()}
 
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
@@ -2079,6 +2145,11 @@ function TooltipFlipGuard() {
     })();
 
     function avaliar(el) {
+      /* Balão que escolheu abrir À ESQUERDA (Tooltip esquerda — os atalhos
+         da borda direita) não é de cima nem de baixo: o guarda o reescrevia
+         para 'above' e o pedido "tooltips para a esquerda" não pegava
+         (26/09/2026). */
+      if (el.dataset.tipFlip === 'left') return;
       // mede a altura real e o top inline (fixed) para decidir o flip
       const top = parseFloat(el.style.top) || el.getBoundingClientRect().top;
       const h = el.offsetHeight;
@@ -2106,7 +2177,7 @@ function TooltipFlipGuard() {
   return null;
 }
 
-function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, isMestre, navSlot }) {
+function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, isMestre, navSlot, onBatalha }) {
   const en = lang === 'en';
 
   // Globals de fases anteriores — acesso via window para robustez,
@@ -2162,7 +2233,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const [contFichaId, setContFichaId] = useState(null); // instanceId do container cujo conteúdo está aberto na ficha
   const [detalheCintoId, setDetalheCintoId] = useState(null); // instanceId do item (dentro do cinto) com detalhes abertos
   const [magiaDetalheKey, setMagiaDetalheKey] = useState(null); // key da magia com modal de detalhes aberto (fora de combate)
-  const [habilidadeDetalheKey, setHabilidadeDetalheKey] = useState(null); // key da habilidade com modal de detalhes aberto (fora de combate)
+  const [habilidadeDetalheKey, setHabilidadeDetalheKey] = useState(null);
+  /* A CONSULTA aberta pelo Conhecimento (26/09/2026): { tipo, key }, tipo
+     'hab' | 'tec' | 'mag'. É a janela de LER — descrição, efeito,
+     características, a do Treinamento —, não a de usar: "não o modal para
+     usar a habilidade ou magia" (usuário). Usar continua nos atalhos. */
+  const [consulta, setConsulta] = useState(null); // key da habilidade com modal de detalhes aberto (fora de combate)
   const [rolagem, setRolagem] = useState(null); // { nome, total, dificuldade } -> overlay do dado d20 no centro da tela (RolagemD20Overlay)
   const [acaoQtd, setAcaoQtd] = useState(null);               // { tipo:'usar'|'destruir', instanceId, max } p/ QuantidadeModal
   const [capView, setCapView] = useState('atrib');  // 'atrib' | 'mag' | 'tec' | 'hab' — card lateral direito
@@ -2617,8 +2693,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // Reputação) ao desequipar pelo mapa corporal — mesma lógica do "despir"
     // da aba Inventário (07-inventario/inventario.jsx).
     if (it?.vestido && cat && (cat.efeito_positivo || cat.efeito_negativo)) {
-      const catInvertido = { efeito_positivo: cat.efeito_negativo, efeito_negativo: cat.efeito_positivo };
-      aplicarEstadoEfeito(catInvertido, 1);
+      const novo = desfazerEfeitosItem(pj.estado_atual, cat, 1, maximosVitalidade);
+      if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
     }
   };
   // Container vestido (ex.: cinto): retirar um item de dentro o devolve à mochila
@@ -2645,7 +2721,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // Notifica a mesa — mesmo padrão do InventarioList (07-inventario):
     // só "Usar" gera notificação. Texto combinado: "Victor usou Água".
     if (cat) {
-      const nomePj = [pj?.nome, pj?.sobrenome].filter(Boolean).join(' ');
+      const nomePj = primeiroNome(pj?.nome);   // o log usa o primeiro nome (27/09/2026)
       if (nomePj) {
         const texto = en ? `${nomePj} used ${cat.nome}` : `${nomePj} usou ${cat.nome}.`;
         registrarEventoMesa('item', texto, { item: cat.nome, quantidade, instanceId });
@@ -2750,7 +2826,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     if (!magiaDetalheKey) return;
     const mag = magiasByKey[magiaDetalheKey];
     if (!mag) return;
-    const nomePj = [pj?.nome, pj?.sobrenome].filter(Boolean).join(' ');
+    const nomePj = primeiroNome(pj?.nome);   // o log usa o primeiro nome (27/09/2026)
     const nomeAlvo = alvo ? alvo.nome : null;
     /* 'self' ainda é aceito aqui por segurança: foi o id que a janela usou
        até 15/09/2026, e uma aba aberta desde antes continua mandando ele. */
@@ -2824,10 +2900,25 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                 : ' — aguardando o Mestre aplicar no alvo.')
           : (SUFIXO[motivo] || ''));
 
+    /* ELO PERMANENTE (27/09/2026): evocada num animal do personagem, a magia
+       grava o elo na instância dele — é o status que a ficha do animal, a aba
+       e o inventário mostram. O karma já saiu acima, como em toda evocação. */
+    const eloCriado = !!(alvo && alvo.tipo === 'animal' && podeEditarInv
+      && typeof window.magiaCriaElo === 'function' && window.magiaCriaElo(mag));
+    if (eloCriado) {
+      salvarItensFicha(window.comEloNoAnimal(pj.inventario?.itens, alvo.instanceId, {
+        permanente: true, magia: mag.key, conjurador_pj_id: pj.id, conjurador_nome: nomePj,
+        desde: (historiaPj && historiaPj.data_jogo_atual) || null,
+      }));
+    }
+
     const texto = (en
       ? `${nomePj} cast the spell ${mag.nome} level ${nivel}${nomeAlvo ? ` on ${nomeAlvo}` : ''}.`
       : `${nomePj} usou a magia ${mag.nome} nível ${nivel}${nomeAlvo ? ` em ${nomeAlvo}` : ''}.`)
-      + sufixo;
+      + (eloCriado
+          ? (en ? ' A permanent bond was created (the animal may resist — resolve at the table).'
+                : ' Um Elo Permanente foi criado (o animal pode resistir — resolva na mesa).')
+          : sufixo);
 
     /* A forma do `meta` mora em metaDeEvocacao (01-core), e não aqui: quem
        PRODUZ o pedido é esta tela, quem o CONSOME é o painel do Mestre, e a
@@ -2846,16 +2937,20 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // no tom da mesa; quem de fato gravou (auth.uid()) é validado server-side.
   const aoResolverTesteHabilidade = (res) => {
     if (!rolagem) return;
-    const nomePj = [pj?.nome, pj?.sobrenome].filter(Boolean).join(' ');
+    const nomePj = primeiroNome(pj?.nome);   // o log usa o primeiro nome (27/09/2026)
     const difEntry = (window.D20_DIF_LABEL || {})[rolagem.dificuldade];
     const difEfetiva = difEntry ? (en ? difEntry.en : difEntry.pt) : rolagem.dificuldade;
     // Com magia de dificuldade ativa, o log mostra de onde saiu: "Médio → Fácil".
     const escEntry = rolagem.dificuldade_escolhida && rolagem.dificuldade_escolhida !== rolagem.dificuldade
       ? (window.D20_DIF_LABEL || {})[rolagem.dificuldade_escolhida] : null;
     const difLbl = escEntry ? `${en ? escEntry.en : escEntry.pt} → ${difEfetiva}` : difEfetiva;
+    /* "Galadar usou furtividade, mas falhou." (27/09/2026). A dificuldade
+       sai da frase e fica no meta (dificuldade, dificuldade_escolhida). */
+    void difLbl;
+    const hab = String(rolagem.nome || '').toLocaleLowerCase(en ? 'en-US' : 'pt-BR');
     const texto = en
-      ? `${nomePj} used ${rolagem.nome} (${difLbl}) and got ${res.sucesso ? 'a success' : 'a failure'}.`
-      : `${nomePj} usou ${rolagem.nome} (${difLbl}) e obteve uma ${res.sucesso ? 'sucesso' : 'falha'}.`;
+      ? (res.sucesso ? `${nomePj} used ${hab} and succeeded.` : `${nomePj} used ${hab}, but failed.`)
+      : (res.sucesso ? `${nomePj} usou ${hab} e teve sucesso.` : `${nomePj} usou ${hab}, mas falhou.`);
     /* Magia "para o próximo teste" (Avaliação, Faro…) some depois dele — só a
        que valia NESTA habilidade (consumirMagiasDoTeste, 01-core). */
     const ativasAntes = (pj.estado_atual && pj.estado_atual.magias_ativas) || [];
@@ -2927,7 +3022,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const estDepois = calcEstagio(xp);
     // Só sobe: descer de estágio não vira festa.
     if (estDepois > estAntes) {
-      const nomeCompleto = [pj.nome, pj.sobrenome].filter(Boolean).join(' ');
+      const nomeCompleto = primeiroNome(pj.nome);   // o log usa o primeiro nome (27/09/2026)
       registrarEventoMesa('sistema',
         en ? `${nomeCompleto} reached stage ${estDepois}!`
            : `${nomeCompleto} alcançou o estágio ${estDepois}!`,
@@ -2944,7 +3039,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       vitalidade: { ...(base.vitalidade || {}) },
       condicoes: { ...(base.condicoes || {}) },
     };
-    if (scope === 'cond') novo.condicoes[key] = val;
+    // Frio e Calor são os dois lados da Temperatura (−100 frio … +100 calor).
+    if (scope === 'cond' && key === 'frio') novo.condicoes.termorregulacao = -Math.max(0, val);
+    else if (scope === 'cond' && key === 'calor') novo.condicoes.termorregulacao = Math.max(0, val);
+    else if (scope === 'cond') novo.condicoes[key] = val;
     // A barra de EH mostra própria + montaria; grava-se só a do personagem.
     else if (key === 'eh' && ehDaMontaria > 0) novo.vitalidade.eh = Math.max(0, val - ehDaMontaria);
     else novo.vitalidade[key] = val;
@@ -3045,7 +3143,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     color: corNivelBarra(estagioPct),
     icon: 'ti-star',
   }];
-  const elEstagio = <FichaVitBars bars={estagioBars} scope="estagio" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
+  const elEstagio = <FichaVitBars bars={estagioBars} scope="estagio" semNome onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
 
   // Estado atual salvo (valor corrente das barras) — separado do máximo derivado.
   const _est   = pj.estado_atual || {};
@@ -3085,7 +3183,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const montariaAtual = animaisPj.find((a) => a.instancia.montado && a.criatura.montaria === true) || null;
   const ehDaMontaria = montariaAtual ? Math.max(0, Number(montariaAtual.criatura.energia_heroica) || 0) : 0;
   const vitBars = [
-    { key: 'ef', label: en ? 'Physical Energy' : 'Energia Física', val: _clampVal(_vitAt.ef ?? maxEF, maxEF), max: maxEF, icon: 'ti-heartbeat' },
+    { key: 'ef', label: en ? 'Physical Energy' : 'Energia Física', val: _clampVal(_vitAt.ef ?? maxEF, maxEF), max: maxEF, icon: 'ti-heart' },
     { key: 'eh', label: en ? 'Heroic Energy' : 'Energia Heroica',
       val: _clampVal(_vitAt.eh ?? maxEH, maxEH) + ehDaMontaria, max: maxEH + ehDaMontaria, icon: 'ti-bolt',
       ...(ehDaMontaria > 0 ? { tip: en
@@ -3103,7 +3201,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // consigo alterar o karma do Yuldrous"). Desde 08/09/2026 a Aura não é
     // mais derrubada por condição: só o valor de ficha manda, e o bônus de
     // Hidratação/Sobriedade não ressuscita um poço que não existe.
-    { key: 'ka', label: en ? 'Karma' : 'Karma', val: _clampVal(_vitAt.ka ?? maxKA, maxKA), max: maxKA, icon: 'ti-sparkle-highlight',
+    { key: 'ka', label: en ? 'Karma' : 'Karma', val: _clampVal(_vitAt.ka ?? maxKA, maxKA), max: maxKA, icon: 'ti-sparkles',
       tip: maxKA === 0
         ? (en ? 'No Karma: this character’s Aura is below 1.'
               : 'Sem Karma: a Aura deste personagem é menor que 1.')
@@ -3164,38 +3262,43 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     return `rgb(${r},${g},${b})`;
   };
 
-  const combatBars = [
-    // Velocidade removida: barra de Peso (carga) ocupa seu lugar (decisão de produto).
-    // val/max = peso atual e capacidade reais (kg); pct = val/max = _cargaPct/100.
-    // tip: linha "X / Y kg" + rótulo de estado (Pesado / Sobrecarregado) — mesmo
-    // conteúdo que o inventário exibia no tooltip da barra de carga.
-    (() => {
-      const pesoVal = Math.round(_carga.peso * 10) / 10;
-      const capVal  = Math.round(_carga.capacidade * 10) / 10;
-      const estadoPeso = _carga.over
-        ? (en ? 'Heavy' : 'Pesado!')
-        : _cargaPct > 75
-          ? (en ? 'Overloaded!' : 'Sobrecarregado!')
-          : null;
-      const tipPeso = (en ? `${pesoVal} / ${capVal}` : `${pesoVal} / ${capVal}`)
-        + (estadoPeso ? ` — ${estadoPeso}` : '');
-      // Peso: gradiente contínuo verde (0%) → vermelho (100%) baseado em _cargaPct.
-      return { key: 'peso', label: en ? 'Weight' : 'Peso', val: pesoVal, max: capVal || 1, color: corNivelBarra(1 - (_cargaPct / 100)), icon: 'ti-weight', tip: tipPeso };
-    })(),
-  ];
+  /* A barra de Peso foi para a DIREITA, com as outras, e se chama Pesado
+     (27/09/2026). O painel da esquerda que só a mostrava sai junto. */
+  const combatBars = [];
   const elCombate = <FichaVitBars bars={combatBars} scope="combate" en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
 
-  // Condições (-COND_LIMITE..+COND_LIMITE, 0 = neutro). ATUAL editável em
-  // estado_atual.condicoes; sem valor salvo → 0 (neutro, era 100/"cheio").
+  /* AS BARRAS DE VITALIDADE da direita (27/09/2026): "Agora as barras vão de
+     0 a 100. 0 é o mundo ideal e 100 é o pior cenário. Todas as barras de
+     vitalidade são roxas." Nomes do mal: Doença, Sono, Sede, Fome, Frio,
+     Calor, Vício, Loucura, Desonra, Pesado. A Temperatura (−100..+100) vira
+     Frio e Calor: quando o calor chega a 0 e a temperatura cai mais, enche o
+     frio, e vice-versa.
+     27/09/2026: "nenhum valor pode chegar a negativo, e não precisa informar
+     isso no tooltip. Se um item me protege 1 de desonra, quer dizer que o
+     máximo que a barra chega é 99." A proteção das vestimentas é TETO: a barra
+     mostra o gravado limitado a 100 − proteção (o mesmo de
+     ficha.condicoesEfetivas), sem texto de proteção no tooltip. O editor do
+     Mestre também para no teto (`edit.max`). */
+  const _t = Number(_condAt.termorregulacao) || 0;
+  const _prot = ficha.protecoes || {};
+  const _teto = (k) => Math.max(0, 100 - (Number(_prot[k]) || 0));
+  const _barra = (v, k) => _clampVal(v ?? 0, k ? _teto(k) : 100, 0);
+  const _editTeto = (k) => (_teto(k) < 100 ? { edit: { max: _teto(k) } } : {});
+  const _pesoVal = Math.round(_carga.peso * 10) / 10;
+  const _capVal  = Math.round(_carga.capacidade * 10) / 10;
   const condBars = [
-    { key: 'vitalidade', label: en ? 'Health' : 'Saúde', val: _clampVal(_condAt.vitalidade ?? 0, _COND_LIMITE, -_COND_LIMITE), max: _COND_LIMITE, min: -_COND_LIMITE, icon: 'ti-heart' },
-    { key: 'animo', label: en ? 'Sleep' : 'Sono', val: _clampVal(_condAt.animo ?? 0, _COND_LIMITE, -_COND_LIMITE), max: _COND_LIMITE, min: -_COND_LIMITE, icon: 'ti-bed' },
-    { key: 'hidratacao', label: en ? 'Hydration' : 'Hidratação', val: _clampVal(_condAt.hidratacao ?? 0, _COND_LIMITE, -_COND_LIMITE), max: _COND_LIMITE, min: -_COND_LIMITE, icon: 'ti-droplet' },
-    { key: 'nutricao', label: en ? 'Feeding' : 'Alimentação', val: _clampVal(_condAt.nutricao ?? 0, _COND_LIMITE, -_COND_LIMITE), max: _COND_LIMITE, min: -_COND_LIMITE, icon: 'ti-meat' },
-    { key: 'termorregulacao', label: en ? 'Temperature' : 'Temperatura', val: _clampVal(_condAt.termorregulacao ?? 0, _COND_LIMITE, -_COND_LIMITE), max: _COND_LIMITE, min: -_COND_LIMITE, icon: 'ti-temperature' },
-    { key: 'euforia', label: en ? 'Sobriety' : 'Sobriedade', val: _clampVal(_condAt.euforia ?? 0, _COND_LIMITE, -_COND_LIMITE), max: _COND_LIMITE, min: -_COND_LIMITE, icon: 'ti-glass-full' },
-    { key: 'sanidade', label: en ? 'Sanity' : 'Sanidade', val: _clampVal(_condAt.sanidade ?? 0, _COND_LIMITE, -_COND_LIMITE), max: _COND_LIMITE, min: -_COND_LIMITE, icon: 'ti-mood-neutral' },
-    { key: 'reputacao', label: en ? 'Reputation' : 'Reputação', val: _clampVal(_condAt.reputacao ?? 0, _COND_LIMITE, -_COND_LIMITE), max: _COND_LIMITE, min: -_COND_LIMITE, icon: 'ti-users' },
+    { key: 'vitalidade', label: en ? 'Illness' : 'Doença', val: _barra(_condAt.vitalidade, 'vitalidade'), max: 100, icon: 'ti-virus', ..._editTeto('vitalidade') },
+    { key: 'animo', label: en ? 'Sleepiness' : 'Sono', val: _barra(_condAt.animo, 'animo'), max: 100, icon: 'ti-zzz', ..._editTeto('animo') },
+    { key: 'hidratacao', label: en ? 'Thirst' : 'Sede', val: _barra(_condAt.hidratacao, 'hidratacao'), max: 100, icon: 'ti-bottle', ..._editTeto('hidratacao') },
+    { key: 'nutricao', label: en ? 'Hunger' : 'Fome', val: _barra(_condAt.nutricao, 'nutricao'), max: 100, icon: 'ti-apple', ..._editTeto('nutricao') },
+    { key: 'frio', label: en ? 'Cold' : 'Frio', val: _barra(Math.max(0, -_t), 'frio'), max: 100, icon: 'ti-snowflake', ..._editTeto('frio') },
+    { key: 'calor', label: en ? 'Heat' : 'Calor', val: _barra(Math.max(0, _t), 'calor'), max: 100, icon: 'ti-sun-high', ..._editTeto('calor') },
+    { key: 'euforia', label: en ? 'Addiction' : 'Vício', val: _barra(_condAt.euforia, 'euforia'), max: 100, icon: 'ti-pill', ..._editTeto('euforia') },
+    { key: 'sanidade', label: en ? 'Madness' : 'Loucura', val: _barra(_condAt.sanidade, 'sanidade'), max: 100, icon: 'ti-mood-angry', ..._editTeto('sanidade') },
+    { key: 'reputacao', label: en ? 'Dishonor' : 'Desonra', val: _barra(_condAt.reputacao, 'reputacao'), max: 100, icon: 'ti-thumb-down', ..._editTeto('reputacao') },
+    // Pesado: a carga em % da capacidade — derivada do inventário, sem edição.
+    { key: 'pesado', label: en ? 'Burden' : 'Pesado', val: _barra(Math.round(_cargaPct)), max: 100, icon: 'ti-stack-2', semEdicao: true,
+      tip: `${_pesoVal} / ${_capVal}` + (_carga.over ? (en ? ' — overloaded' : ' — sobrecarregado') : '') },
   ];
 
   // ── Ocupação das casas do mapa corporal ────────────────────
@@ -3430,25 +3533,15 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // (ex.: Magias, em PJ sem magia) não tiver conteúdo.
   const triCount = [temHab, temMag, temTec].filter(Boolean).length;
 
-  const elVit = <FichaVitBars bars={vitBars} scope="vit" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
+  const elVit = <FichaVitBars bars={vitBars} scope="vit" semNome onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
 
   // Condições com o MESMO visual das barras de vitalidade (FichaVitBars).
   // Cor padrão: por SINAL (negativo vermelho / neutro / positivo verde — corCondicao).
   // Exceções com regra de cor própria:
   //   termorregulacao → corTemperatura (azul claro ↔ verde ↔ vermelho)
   //   euforia (sobriedade) → corSobriedade (verde baixo → vermelho alto)
-  const condVitBars = condBars
-    .map((c) => {
-      let color;
-      if (c.key === 'termorregulacao') {
-        color = corTemperatura(c.val, _COND_LIMITE);
-      } else if (c.key === 'euforia') {
-        color = corSobriedade(c.val, _COND_LIMITE);
-      } else {
-        color = _corCondicao(c.val);
-      }
-      return { ...c, color };
-    });
+  // Todas roxas (27/09/2026).
+  const condVitBars = condBars.map((c) => ({ ...c, color: _corCondicao(c.val) }));
   /* MAGIAS ATIVAS (degrau 3, 12/09/2026). Magia de duração de calendário
      evocada fora de combate fica aqui, com a data em que vence — e vale na
      próxima batalha.
@@ -3467,7 +3560,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
   const elCond = (
     <div className="fp-cond-vit">
-      <FichaVitBars bars={condVitBars} scope="cond" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />
+      <FichaVitBars bars={condVitBars} scope="cond" semNome onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />
       {magiasAtivas.length > 0 && (
         <div className="fp-magias-ativas">
           <div className="fp-magias-ativas-tit">
@@ -3943,9 +4036,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         </div>
       </section>
       <section className="fp2-panel">
-        <div className="fp2-panel-body fp2-vit-band">{elCombate}</div>
-      </section>
-      <section className="fp2-panel">
         <div className="fp2-panel-body fp2-vit-band">{elEstagio}</div>
       </section>
     </div>
@@ -4010,10 +4100,23 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         </h2>
       </div>
       <div className="diario-subtabs" role="tablist" style={{ margin: 0 }}>
-        {navSlot /* slot p/ o botão "Batalha" (08-personagens/FichaComBatalha) */}
-        <button type="button" className={fpTab === 'ficha' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'ficha'}
+        {/* ÍCONES NO LUGAR DO TEXTO (27/09/2026): "Nos botões da ficha, vamos
+            usar ícone ao invés de texto, mas use tooltip em todos." O nome
+            de cada um mora no tooltip e no aria-label. */}
+        {navSlot /* slot legado; a Batalha agora vem por onBatalha */}
+        {onBatalha && (
+          <button type="button" className="fp-tab-ic fp-tab-batalha btn-sm" data-aba-ficha="batalha"
+            aria-label={en ? 'Battle' : 'Batalha'}
+            {...propsTip(abrirTabTip, fecharTabTip, en ? 'Battle' : 'Batalha')}
+            onClick={onBatalha}>
+            <i className="ti ti-sword" aria-hidden="true" />
+          </button>
+        )}
+        <button type="button" className={'fp-tab-ic ' + (fpTab === 'ficha' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'ficha'}
+          data-aba-ficha="ficha" aria-label={en ? 'Sheet' : 'Ficha'}
+          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Sheet' : 'Ficha')}
           onClick={() => setFpTab('ficha')}>
-          {en ? 'Sheet' : 'Ficha'}
+          <i className="ti ti-user" aria-hidden="true" />
         </button>
         {/* O círculo de status, ao lado de "Ficha" (17/09/2026). Só o Mestre o
             vê: é ele quem aplica. Não é aba — não seleciona nada —, por isso
@@ -4036,24 +4139,41 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         {/* Texto, como as outras abas. Era ícone só, e o rótulo vivia no
             tooltip — a aba destoava das vizinhas e exigia hover pra saber o
             que era (08/09/2026). Sem tooltip: com o nome escrito, é redundante. */}
-        <button type="button" className={fpTab === 'info' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'info'}
+        {/* Informações virou DUAS abas em 26/09/2026: Personagem (identidade,
+            atributos, complemento) e Conhecimento (habilidades, técnicas,
+            magias). Ver FichaInfoView, prop `parte`. */}
+        <button type="button" className={'fp-tab-ic ' + (fpTab === 'info' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'info'}
+          data-aba-ficha="info" aria-label={en ? 'Character' : 'Personagem'}
+          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Character' : 'Personagem')}
           onClick={() => setFpTab('info')}>
-          {en ? 'Information' : 'Informações'}
+          <i className="ti ti-file-text" aria-hidden="true" />
+        </button>
+        <button type="button" className={'fp-tab-ic ' + (fpTab === 'conhecimento' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'conhecimento'}
+          data-aba-ficha="conhecimento" aria-label={en ? 'Knowledge' : 'Conhecimento'}
+          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Knowledge' : 'Conhecimento')}
+          onClick={() => setFpTab('conhecimento')}>
+          <i className="ti ti-book" aria-hidden="true" />
         </button>
         {/* Página extra dos animais (e da montaria) — só quando o PJ tem algum. */}
         {animaisPj.length > 0 && (
-          <button type="button" className={fpTab === 'animais' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'animais'}
+          <button type="button" className={'fp-tab-ic ' + (fpTab === 'animais' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'animais'}
+            data-aba-ficha="animais" aria-label={en ? 'Animals' : 'Animais'}
+            {...propsTip(abrirTabTip, fecharTabTip, en ? 'Animals' : 'Animais')}
             onClick={() => setFpTab('animais')}>
-            {en ? 'Animals' : 'Animais'}
+            <i className="ti ti-paw" aria-hidden="true" />
           </button>
         )}
-        <button type="button" className={fpTab === 'inventario' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'inventario'}
+        <button type="button" className={'fp-tab-ic ' + (fpTab === 'inventario' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'inventario'}
+          data-aba-ficha="inventario" aria-label={en ? 'Inventory' : 'Inventário'}
+          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Inventory' : 'Inventário')}
           onClick={() => setFpTab('inventario')}>
-          {en ? 'Inventory' : 'Inventário'}
+          <i className="ti ti-moneybag" aria-hidden="true" />
         </button>
-        <button type="button" className={fpTab === 'loja' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} role="tab" aria-selected={fpTab === 'loja'}
+        <button type="button" className={'fp-tab-ic ' + (fpTab === 'loja' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'loja'}
+          data-aba-ficha="loja" aria-label={en ? 'Shop' : 'Loja'}
+          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Shop' : 'Loja')}
           onClick={() => setFpTab('loja')}>
-          {en ? 'Shop' : 'Loja'}
+          <i className="ti ti-coin" aria-hidden="true" />
         </button>
         {/* SAIR É DO JOGADOR (17/09/2026): "o botão de 'sair' não precisa
             mostrar para o mestre, pois ele não precisa selecionar o
@@ -4084,15 +4204,19 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             para os PJs não mora aqui — é do GerenciarLoreView, na história. */}
       </div>
       {onEditar && (
-        <button type="button" className="btn-ghost btn-sm"
+        <button type="button" className="fp-tab-ic btn-ghost btn-sm" data-aba-ficha="editar"
+          aria-label={en ? 'Edit' : 'Editar'}
+          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Edit' : 'Editar')}
           onClick={onEditar}>
-          {en ? 'Edit' : 'Editar'}
+          <i className="ti ti-pencil" aria-hidden="true" />
         </button>
       )}
       {onExcluir && (
-        <button type="button" className="btn-danger btn-sm"
+        <button type="button" className="fp-tab-ic btn-danger btn-sm" data-aba-ficha="excluir"
+          aria-label={en ? 'Delete' : 'Excluir'}
+          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Delete' : 'Excluir')}
           onClick={onExcluir}>
-          {en ? 'Delete' : 'Excluir'}
+          <i className="ti ti-trash" aria-hidden="true" />
         </button>
       )}
     </header>
@@ -4109,11 +4233,11 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      item continuam sendo o que o PJ tem — esses não se usam sem ter. */
   const _AtalhosFicha = (typeof AtalhosFicha !== 'undefined' ? AtalhosFicha : null) || window.AtalhosFicha || null;
   const _itemUsavel = (typeof itemUsavelNoAtalho !== 'undefined' ? itemUsavelNoAtalho : null) || window.itemUsavelNoAtalho || (() => false);
-  const mostrarAtalhos = !!_AtalhosFicha && podeEditarFoto && (fpTab === 'ficha' || fpTab === 'info');
+  const mostrarAtalhos = !!_AtalhosFicha && podeEditarFoto && (fpTab === 'ficha' || fpTab === 'info' || fpTab === 'conhecimento');
   const atalhoHabilidades = mostrarAtalhos
     ? Object.values(habsByKey).map((h) => ({
         key: h.key, nome: h.nome, grupo: h.grupo,
-        total: (_totHabCond || _totHab)(h.key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes),
+        total: (_totHabCond || _totHab)(h.key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes),
       }))
     : [];
   const atalhoMagias = mostrarAtalhos
@@ -4144,9 +4268,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           {fpTabsEl}
         </div>
 
-      {fpTab === 'info' ? (
+      {(fpTab === 'info' || fpTab === 'conhecimento') ? (
         <div className="fp-invtab fp-info-tab">
           <FichaInfoView
+            key={fpTab}
+            parte={fpTab === 'conhecimento' ? 'conhecimento' : 'personagem'}
+            onAbrirHabilidade={(key) => setConsulta({ tipo: 'hab', key })}
+            onAbrirTecnica={(key) => setConsulta({ tipo: 'tec', key })}
+            onAbrirMagia={(key) => setConsulta({ tipo: 'mag', key })}
             pj={pj}
             en={en}
             atributosFinais={atributosFinais}
@@ -4175,6 +4304,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         <div className="fp-invtab fp-info-tab">
           <FichaAnimaisView animais={animaisPj} en={en} podeEditar={podeEditarInv}
             onMontar={montarFicha} onDesmontar={desmontarFicha}
+            onDesfazerElo={isMestre && podeEditarInv
+              ? (id) => salvarItensFicha(window.semEloNoAnimal(pj.inventario?.itens, id)) : undefined}
             catalogoBySlug={catalogoBySlug} habsByKey={habsByKey}
             tecnicasByKey={tecnicasByKey} magiasByKey={magiasByKey} />
         </div>
@@ -4195,7 +4326,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         </div>
       ) : fpTab === 'loja' ? (
         <div className="fp-invtab">
-          <LojaJogador ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} />
+          <LojaJogador ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} isMestre={!!isMestre} />
         </div>
       ) : (
       <div className="fp2-sheet">
@@ -4534,7 +4665,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             onClose={() => setDetalheCintoId(null)}
             onUsar={solicitarUsarFicha}
             onDestruir={solicitarDestruirFicha}
-            onObservacao={() => {}}
+            /* Sem Comentar na ficha (26/09/2026): era uma função vazia — o
+               ícone aparecia e não fazia nada. A nota se edita no Inventário. */
+            usuario={{ nome: [pj.nome, pj.sobrenome].filter(Boolean).join(' '), foto_url: pj.foto_url }}
             onEquipar={() => ({ ok: false })}
             onDesequipar={() => {}}
             onVestir={() => ({ ok: false })}
@@ -4581,12 +4714,65 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             nivelMagiaEfetivoFn={_nivelMag}
             eu={{ id: pj.id, nome: pj.nome, sobrenome: pj.sobrenome, foto_url: pj.foto_url }}
             colegas={pjsDaHistoria}
+            animais={animaisPj}
+            elosAtuais={animaisPj.filter((a) => window.temElo && window.temElo(a.instancia)).length}
             lang={lang}
             onClose={() => setMagiaDetalheKey(null)}
             onEvocar={aoEvocarMagia}
             abrirTip={abrirTip}
             fecharTip={fecharTip}
           />
+        );
+      })()}
+
+      {/* CONSULTA pelo Conhecimento (26/09/2026) — a janela do Treinamento
+          (BestHabilidadeFicha / BestTecnicaFicha / BestMagiaFicha), com o que
+          o personagem tem no começo de Características. */}
+      {consulta && (() => {
+        const Janela = window.BestDetalheModal;
+        const Linha = window.BestLinha;
+        if (!Janela) return null;
+        const fechar = () => setConsulta(null);
+        const linhas = (pares) => (Linha ? <>{pares.map(([r, v]) => <Linha key={r} rotulo={r} valor={v} />)}</> : null);
+        const naoTem = en ? 'Not learned' : 'Não aprendida';
+        if (consulta.tipo === 'hab') {
+          const hab = habsByKey[consulta.key];
+          const Corpo = window.BestHabilidadeFicha;
+          if (!hab || !Corpo) return null;
+          const nivel = (pj.habilidades || {})[consulta.key] || 0;
+          const total = (_totHabCond || _totHab)(consulta.key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes);
+          return (
+            <Janela title={hab.nome} lang={lang} onClose={fechar}>
+              <Corpo h={hab} lang={lang} linhasExtras={linhas([
+                [en ? 'Level' : 'Nível', nivel || naoTem], [en ? 'Total' : 'Total', total]])} />
+            </Janela>
+          );
+        }
+        if (consulta.tipo === 'tec') {
+          const tec = tecnicasByKey[consulta.key];
+          const Corpo = window.BestTecnicaFicha;
+          if (!tec || !Corpo) return null;
+          const nivel = (pj.tecnicas || {})[consulta.key] || 0;
+          const total = _totTec ? _totTec(tec, pj.tecnicas || {}, atributosFinais) : null;
+          return (
+            <Janela title={tec.nome} lang={lang} onClose={fechar}>
+              <Corpo t={tec} lang={lang} linhasExtras={linhas([
+                [en ? 'Level' : 'Nível', nivel || naoTem],
+                ...(total != null ? [[en ? 'Total' : 'Total', total]] : [])])} />
+            </Janela>
+          );
+        }
+        const mag = magiasByKey[consulta.key];
+        const Corpo = window.BestMagiaFicha;
+        if (!mag || !Corpo) return null;
+        const passos = (pj.magias || {})[consulta.key];
+        const nivel = passos ? _nivelMag(passos) : 0;
+        return (
+          <Janela title={mag.nome} lang={lang} onClose={fechar}>
+            <Corpo m={mag} lang={lang}
+              niveisPermitidos={nivel ? new Set([1, 3, 5, 7, 9].filter((n) => n <= nivel)) : null}
+              linhasExtras={linhas([[en ? 'Your level' : 'Seu nível', nivel || naoTem]])} />
+          </Janela>
         );
       })()}
 
@@ -4598,11 +4784,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       {habilidadeDetalheKey && (() => {
         const hab = habsByKey[habilidadeDetalheKey];
         if (!hab) return null;
-        const total = (_totHabCond || _totHab)(habilidadeDetalheKey, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes);
+        const total = (_totHabCond || _totHab)(habilidadeDetalheKey, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes);
         return (
           <HabilidadeDetalhesModal
             habilidade={hab}
             total={total}
+            nivel={(pj.habilidades || {})[habilidadeDetalheKey] || 0}
             lang={lang}
             onClose={() => setHabilidadeDetalheKey(null)}
             /* A dificuldade que VALE: a escolhida, deslocada pelas magias de

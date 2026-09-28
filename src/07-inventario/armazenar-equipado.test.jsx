@@ -17,7 +17,15 @@ import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
 import '../10-shell/shell.jsx';
+import '../01-core/select-pill.jsx';
 import '../07-inventario/inventario.jsx';
+// O modal de item é o BestDetalheModal do bestiário desde 26/09/2026.
+import '../09-bestiario/ataques-criatura.jsx';
+import '../09-bestiario/criatura-formulas.jsx';
+import '../09-bestiario/conhecido-jogador.jsx';
+import '../09-bestiario/catalogo-descritores.jsx';
+import '../09-bestiario/catalogo-editor.jsx';
+import '../09-bestiario/bestiario.jsx';
 import { fakeSupabase } from '../test/fake-supabase.js';
 
 window.UI = { ...window.UI, Input: (props) => <input {...props} /> };
@@ -67,7 +75,8 @@ function montar(itens) {
 // que se quer guardar (o recipiente tem a barra .inv-cont-bar).
 const card = (container) => Array.from(container.querySelectorAll('.inv-grid-wrap .inv-card'))
   .find((el) => !el.querySelector('.inv-cont-bar'));
-const botao = (txt) => Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === txt);
+// Ações viraram ícones ao lado do X (26/09/2026): o nome mora no aria-label.
+const botao = (txt) => Array.from(document.querySelectorAll('button')).find((b) => (b.textContent.trim() === txt || b.getAttribute('aria-label') === txt));
 
 async function guardar(container, item, destinoNome) {
   fireEvent.click(card(container));
@@ -77,7 +86,11 @@ async function guardar(container, item, destinoNome) {
   const opcao = Array.from(document.querySelectorAll('.det-opt-card')).find((b) => b.textContent.includes(destinoNome));
   expect(opcao, `o recipiente vestido "${destinoNome}" aparece como opção`).toBeTruthy();
   fireEvent.click(opcao);
-  fireEvent.click(botao('Confirmar'));
+  // O card marca; Armazenar no rodapé confirma (27/09/2026).
+  expect(opcao.classList.contains('det-opt-card--sel')).toBe(true);
+  const confirmar = document.querySelector('.ms-footer [data-confirmar="armazenar"]');
+  expect(confirmar.disabled).toBe(false);
+  fireEvent.click(confirmar);
 }
 
 describe('armazenar em recipiente vestido', () => {

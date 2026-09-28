@@ -48,19 +48,27 @@ describe('condições: Inventário e Batalha concordam no mesmo item', () => {
     expect(dentro.condicoes[chave]).toBe(fora.condicoes[chave]);
   });
 
-  it('partem do mesmo default quando a condição nunca foi salva (0 = neutro)', () => {
-    const cat = { efeito_positivo: '7 Sanidade' };
+  // Escala 0 (ideal) … 100 (pior) desde 27/09/2026.
+  it('partem do mesmo default quando a condição nunca foi salva (0 = ideal)', () => {
+    const cat = { efeito_negativo: 'Aumenta 7 de Loucura.' };
     expect(G.aplicarEfeitosItem({}, cat, 1, {}).condicoes.sanidade).toBe(7);
     expect(G.MotorBatalha.aplicarEfeitoItemSnapshot(snap(), cat, 1).condicoes.sanidade).toBe(7);
   });
 
-  it('saturam no mesmo teto e no mesmo piso', () => {
-    const muito = { efeito_positivo: '99 Hidratação' };
-    const menos = { efeito_negativo: '99 Hidratação' };
+  it('saturam no mesmo teto (100) e no mesmo piso (0)', () => {
+    const muito = { efeito_negativo: 'Aumenta 150 de Sede.' };
+    const menos = { efeito_positivo: 'Reduz 150 de Sede.' };
     expect(G.aplicarEfeitosItem({}, muito, 1, {}).condicoes.hidratacao).toBe(LIM);
     expect(G.MotorBatalha.aplicarEfeitoItemSnapshot(snap(), muito, 1).condicoes.hidratacao).toBe(LIM);
-    expect(G.aplicarEfeitosItem({}, menos, 1, {}).condicoes.hidratacao).toBe(-LIM);
-    expect(G.MotorBatalha.aplicarEfeitoItemSnapshot(snap(), menos, 1).condicoes.hidratacao).toBe(-LIM);
+    expect(G.aplicarEfeitosItem({ condicoes: { hidratacao: 40 } }, menos, 1, {}).condicoes.hidratacao).toBe(0);
+    expect(G.MotorBatalha.aplicarEfeitoItemSnapshot(snap({ condicoes: { hidratacao: 40 } }), menos, 1).condicoes.hidratacao).toBe(0);
+  });
+
+  it('Frio e Calor chegam à Temperatura nas duas telas', () => {
+    const sopa = { efeito_positivo: 'Reduz 20 de Frio.' };
+    const antes = { termorregulacao: -30 };
+    expect(G.aplicarEfeitosItem({ condicoes: antes }, sopa, 1, {}).condicoes.termorregulacao).toBe(-10);
+    expect(G.MotorBatalha.aplicarEfeitoItemSnapshot(snap({ condicoes: antes }), sopa, 1).condicoes.termorregulacao).toBe(-10);
   });
 });
 

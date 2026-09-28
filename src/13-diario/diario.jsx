@@ -221,11 +221,13 @@ const DIARIO_TIPO_ICON = {
   personagem:  'ti-users',
 };
 
+/* Reinos e Conhecidos desde 26/09/2026 (eram Lugares e NPCs). Só o rótulo
+   mudou: os tipos no banco continuam 'lugar'/'npc'. */
 const DIARIO_TIPO_LABEL = {
-  pt: { criatura: 'Criatura', npc: 'NPC', lugar: 'Lugar', reino: 'Reino', cidade: 'Cidade',
+  pt: { criatura: 'Criatura', npc: 'Conhecido', lugar: 'Reino', reino: 'Reino', cidade: 'Cidade',
         memoria: 'Memória', item: 'Item', treinamento: 'Treinamento',
         magia: 'Magia', habilidade: 'Habilidade', tecnica: 'Técnica', personagem: 'Personagem' },
-  en: { criatura: 'Creature', npc: 'NPC', lugar: 'Place', reino: 'Kingdom', cidade: 'City',
+  en: { criatura: 'Creature', npc: 'Acquaintance', lugar: 'Kingdom', reino: 'Kingdom', cidade: 'City',
         memoria: 'Memory', item: 'Item', treinamento: 'Training',
         magia: 'Spell', habilidade: 'Ability', tecnica: 'Technique', personagem: 'Character' },
 };
@@ -455,7 +457,7 @@ function ComentarioModal({ entrada, lang, onClose, onSaved }) {
     });
     setSaving(false);
     if (err) { setError(err.message); return; }
-    if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
+    if (data && data.ok === false) { setError(motivoLoreLegivel(data.motivo)); return; }
     onSaved({ ...entrada, comentario: texto });
   };
 
@@ -463,6 +465,7 @@ function ComentarioModal({ entrada, lang, onClose, onSaved }) {
     <ModalShell
       title={en ? `Notes — ${entrada.nome}` : `Anotações — ${entrada.nome}`}
       lang={lang}
+      size="lg"
       onClose={onClose}
       onCancel={onClose}
       cancelLabel={en ? 'Cancel' : 'Cancelar'}
@@ -519,20 +522,11 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
   ];
 
   const THRESH = [
-    { pct: '25%',  key: 'dano_25',  bg: '#B8472F',                 w: '25%'  },
-    { pct: '50%',  key: 'dano_50',  bg: '#B8702E',                 w: '50%'  },
-    { pct: '75%',  key: 'dano_75',  bg: '#C9A44E',                 w: '75%'  },
-    { pct: '100%', key: 'dano_100', bg: 'rgba(232,221,198,0.35)',   w: '100%' },
+    { pct: '25%',  key: 'dano_25'  },
+    { pct: '50%',  key: 'dano_50'  },
+    { pct: '75%',  key: 'dano_75'  },
+    { pct: '100%', key: 'dano_100' },
   ];
-
-  // Codificação de cor dos orbs de atributo
-  const orbStyle = (k) => {
-    const n = Number(get(k));
-    if (isNaN(n) || get(k) === null) return { bg: 'rgba(232,221,198,0.03)', border: 'rgba(232,221,198,0.08)', color: '#7A5E2A' };
-    if (n < 0) return { bg: 'rgba(184,70,47,0.14)', border: 'rgba(184,70,47,0.35)', color: '#F0A6A0' };
-    if (n === 0) return { bg: 'rgba(201,164,78,0.05)', border: 'rgba(201,164,78,0.15)', color: '#9C8F73' };
-    return { bg: 'rgba(201,164,78,0.10)', border: 'rgba(201,164,78,0.30)', color: '#C9A44E' };
-  };
 
   // Campos mapeados explicitamente (não duplicar no bloco extras)
   const MAPEADOS = new Set([
@@ -550,8 +544,6 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
   );
 
   const hasCombate  = get('ataque') || get('dano_l') !== null || get('dano_m') !== null || get('dano_p') !== null || THRESH.some(({ key }) => get(key) !== null);
-  const hasDanoLMP  = ['dano_l', 'dano_m', 'dano_p'].some((k) => get(k) !== null);
-  const hasThresh   = THRESH.some(({ key }) => get(key) !== null);
 
   return (
     <div className="cficha">
@@ -564,190 +556,97 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
       )}
 
       {/* Descrição — acima dos atributos; oculta na aba Ficha (hideDescricao=true) */}
+      {/* Com o título "Descrição" (26/09/2026), como nas janelas do catálogo. */}
       {!hideDescricao && entrada.descricao && (
-        <>
-          <p className="cficha-desc">{entrada.descricao}</p>
-        </>
+        window.BestDescricao
+          ? <window.BestDescricao texto={entrada.descricao} lang={lang} />
+          : <p className="cficha-desc">{entrada.descricao}</p>
       )}
 
-      {/* META: plano + elemento + coletivo — mesmo padrão diario-det-attr do NPC.
-          `elemento` entrou em 18/09/2026 com a coluna nova; sem esta linha ele
-          cairia no bloco de "extras", que só sabe imprimir a chave crua
-          ("elemento") em vez de um rótulo traduzido. */}
-      {(get('plano') || get('elemento') || get('coletivo')) && (
-        <div className="diario-det-attrs" style={{ marginBottom: 14 }}>
-          {get('plano') && (
-            <div className="diario-det-attr">
-              <span className="diario-det-attr-k">{en ? 'Plane' : 'Plano'}</span>
-              <span className="diario-det-attr-v">{fmt('plano')}</span>
+      {/* LISTAS POR EXTENSO (26/09/2026): "Sem minicards, e com listas por
+          extenso." A mesma ficha da janela do bestiário — Características,
+          Atributos e Informações em três colunas; Combate, Técnicas, Magias e
+          Habilidades embaixo. Eram bolhas de atributo, caixas de energia, selos
+          de dano e pílulas. As peças vêm do bestiário (09), que carrega antes. */}
+      {(() => {
+        const FL = window.BestFichaLista;
+        const Li = window.BestLinha;
+        if (!FL || !Li) return null;
+        const semGrupo = (v) => (v == null ? null
+          : String(v).split(',').map((p) => p.trim().replace(/^Grupo\s+/i, '')).filter(Boolean).join(', '));
+        const armadura = (get('armadura') || 'L') + (get('defesa') !== null ? String(get('defesa')) : '');
+        const peso = get('peso') !== null && Number.isFinite(Number(get('peso')))
+          ? String(Number(get('peso'))).replace('.', ',') + 'kg' : null;
+        const nomes = (k) => (get(k) ? String(get(k)).split(',').map((x) => x.trim()).filter(Boolean) : []);
+        const nivelMagia = get('estagio') !== null && typeof nivelMagiaDeCriatura === 'function'
+          ? nivelMagiaDeCriatura(get('estagio')) : null;
+        const tecnicas = nomes('tecnicas_especiais');
+        const magias = nomes('magia');
+        const habilidades = nomes('habilidades');
+        return (
+          <>
+            <div className="best-ficha-topo">
+              <FL titulo={en ? 'Traits' : 'Características'}>
+                <Li rotulo={en ? 'Plane' : 'Plano'} valor={get('plano')} />
+                <Li rotulo={en ? 'Element' : 'Elemento'} valor={get('elemento')} />
+                <Li rotulo={en ? 'Group' : 'Grupo'} valor={semGrupo(get('coletivo'))} />
+                <Li rotulo={en ? 'Weight' : 'Peso'} valor={peso} />
+              </FL>
+              <FL titulo={en ? 'Attributes' : 'Atributos'}>
+                {ATRIBUTOS.map(({ key, label }) => <Li key={key} rotulo={label} valor={fmt(key)} />)}
+              </FL>
+              <FL titulo={en ? 'Information' : 'Informações'}>
+                {/* Estágio em Informações (26/09/2026), como no bestiário. */}
+                <Li rotulo={en ? 'Stage' : 'Estágio'} valor={get('estagio')} />
+                <Li rotulo={en ? 'Physical Energy' : 'Energia Física'} valor={fmt('energia_fisica')} />
+                <Li rotulo={en ? 'Heroic Energy' : 'Energia Heroica'} valor={fmt('energia_heroica')} />
+                {/* Armadura + Defesa num valor só: "L2" (26/09/2026). */}
+                <Li rotulo={en ? 'Armor' : 'Armadura'} valor={armadura} />
+                <Li rotulo={en ? 'Absorption' : 'Absorção'} valor={fmt('absorcao')} />
+                <Li rotulo={en ? 'Speed' : 'Velocidade'} valor={fmt('velocidade')} />
+              </FL>
             </div>
-          )}
-          {get('elemento') && (
-            <div className="diario-det-attr">
-              <span className="diario-det-attr-k">{en ? 'Element' : 'Elemento'}</span>
-              <span className="diario-det-attr-v">{fmt('elemento')}</span>
-            </div>
-          )}
-          {get('coletivo') && (
-            <div className="diario-det-attr">
-              <span className="diario-det-attr-k">{en ? 'Group' : 'Coletivo'}</span>
-              <span className="diario-det-attr-v">{fmt('coletivo')}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ATRIBUTOS — mesmo padrão diario-det-attr do NPC */}
-      <div className="diario-det-attrs" style={{ gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 14 }}>
-        {ATRIBUTOS.map(({ key, label }) => (
-          <div key={key} className="diario-det-attr">
-            <span className="diario-det-attr-k">{label}</span>
-            <span className="diario-det-attr-v">{fmt(key)}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* ENERGIA & MOBILIDADE */}
-      {/* STATS — 6 itens em linha única: energias + velocidade + defesa(+armadura) + peso */}
-      <div className="cficha-stat-grid">
-        {/* Energias — sem prefixo, sem barra */}
-        {[
-          { key: 'energia_fisica',  label: 'Energ. Física'  },
-          { key: 'energia_heroica', label: 'Energ. Heroica' },
-          { key: 'absorcao',        label: 'Absorção'        },
-          { key: 'velocidade',      label: 'Velocidade'      },
-        ].map(({ key, label }) => (
-          <div key={key} className="cficha-stat cficha-stat--energy">
-            <div className="cficha-stat-val">{fmt(key)}</div>
-            <div className="cficha-stat-lbl">{label}</div>
-          </div>
-        ))}
-        {/* Defesa + Armadura fundidos → "L2" */}
-        <div className="cficha-stat cficha-stat--energy">
-          <div className="cficha-stat-val">
-            {[get('armadura'), get('defesa')].filter((v) => v !== null).map(String).join('') || '—'}
-          </div>
-          <div className="cficha-stat-lbl">Defesa</div>
-        </div>
-        {/* Peso */}
-        <div className="cficha-stat cficha-stat--energy">
-          <div className="cficha-stat-val">{fmt('peso')}</div>
-          <div className="cficha-stat-lbl">Peso</div>
-        </div>
-      </div>
-
-      {/* COMBATE */}
-      {hasCombate && (
-        <>
-          {/* Tipo de ataque + dano L/M/P na mesma linha */}
-          {(get('ataque') || hasDanoLMP) && (
-            <div className="cficha-combate-row">
-              {get('ataque') && (
-                <div className="cficha-ataque">
-                  <i className="ti ti-sword cficha-ataque-icon" aria-hidden="true" />
-                  <div className="cficha-ataque-val">{fmt('ataque')}</div>
-                </div>
-              )}
-
-              {hasDanoLMP && (
-                <div className="cficha-dano-row">
-                  {[
-                    { key: 'dano_l', label: 'L', cls: 'cficha-dano--l' },
-                    { key: 'dano_m', label: 'M', cls: 'cficha-dano--m' },
-                    { key: 'dano_p', label: 'P', cls: 'cficha-dano--p' },
-                  ].filter(({ key }) => get(key) !== null).map(({ key, label, cls }) => (
-                    <div key={key} className={'cficha-dano ' + cls}>
-                      <div className="cficha-dano-val">{label}{fmt(key)}</div>
-                    </div>
+            <div className="best-ficha-listas best-ficha-listas--2">
+              {hasCombate && (
+                <FL titulo={en ? 'Combat' : 'Combate'}>
+                  <Li rotulo={en ? 'Attack' : 'Ataque'} valor={get('ataque')} />
+                  <Li rotulo={en ? 'Damage vs light armor' : 'Dano contra armadura leve'} valor={get('dano_l')} />
+                  <Li rotulo={en ? 'Damage vs medium armor' : 'Dano contra armadura média'} valor={get('dano_m')} />
+                  <Li rotulo={en ? 'Damage vs heavy armor' : 'Dano contra armadura pesada'} valor={get('dano_p')} />
+                  {THRESH.map(({ pct, key }) => (
+                    <Li key={key} rotulo={(en ? 'Damage ' : 'Dano ') + pct} valor={get(key)} />
                   ))}
-                </div>
+                </FL>
+              )}
+              {tecnicas.length > 0 && (
+                <FL titulo={en ? 'Special Techniques' : 'Técnicas Especiais'}>
+                  {tecnicas.map((t) => <Li key={t} rotulo={t} soRotulo />)}
+                </FL>
+              )}
+              {magias.length > 0 && (
+                <FL titulo={en ? 'Spells' : 'Magias'}>
+                  {/* Nível das magias = estágio da criatura (13/09/2026), o mesmo
+                      que a batalha usa — não mais magia_n. */}
+                  {magias.map((m) => (
+                    <Li key={m} rotulo={m} valor={nivelMagia != null ? (en ? 'Level ' : 'Nível ') + nivelMagia : null} soRotulo />
+                  ))}
+                </FL>
+              )}
+              {habilidades.length > 0 && (
+                <FL titulo={en ? 'Abilities' : 'Habilidades'}>
+                  {habilidades.map((h) => <Li key={h} rotulo={h} soRotulo />)}
+                </FL>
+              )}
+              {/* Campos extras não mapeados (future-proof: novos campos do DB aparecem aqui) */}
+              {extras.length > 0 && (
+                <FL titulo={en ? 'Other' : 'Outros'}>
+                  {extras.map(([k, v]) => <Li key={k} rotulo={k.replace(/_/g, ' ')} valor={String(v)} />)}
+                </FL>
               )}
             </div>
-          )}
-
-          {hasThresh && (
-            <div className="cficha-thresh">
-              <div className="cficha-thresh-grid">
-                {THRESH.filter(({ key }) => get(key) !== null).map(({ pct, key, bg, w }) => (
-                  <div key={key} className="cficha-thresh-item">
-                    <div className="cficha-thresh-row">
-                      <span className="cficha-thresh-pct">{pct}</span>
-                      <span className="cficha-thresh-num">{fmt(key)}</span>
-                    </div>
-                    <div className="cficha-thresh-bar">
-                      <div className="cficha-thresh-fill" style={{ width: w, background: bg }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Campos extras não mapeados (future-proof: novos campos do DB aparecem aqui) */}
-      {extras.length > 0 && (
-        <>
-          <div className="cficha-extras">
-            {extras.map(([k, v]) => (
-              <div key={k} className="cficha-extra-row">
-                <span className="cficha-extra-k">{k.replace(/_/g, ' ')}</span>
-                <span className="cficha-extra-v">{String(v)}</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* TÉCNICAS ESPECIAIS */}
-      {get('tecnicas_especiais') && (
-        <div className="cficha-abilities">
-          <div className="cficha-abilities-head">
-            <i className="ti ti-bolt cficha-abilities-icon" aria-hidden="true" />
-            <span className="cficha-abilities-lbl">{en ? 'Special Techniques' : 'Técnicas Especiais'}</span>
-          </div>
-          <div className="cficha-pill-list">
-            {fmt('tecnicas_especiais').split(',').map((t) => (
-              <span key={t} className="cficha-pill cficha-pill--tech">{t.trim()}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* MAGIAS */}
-      {get('magia') && (
-        <div className="cficha-abilities">
-          <div className="cficha-abilities-head">
-            <i className="ti ti-sparkles cficha-abilities-icon" aria-hidden="true" />
-            <span className="cficha-abilities-lbl">{en ? 'Spells' : 'Magias'}</span>
-            {/* Nível das magias = estágio da criatura (13/09/2026), o mesmo
-                que a batalha usa — não mais `magia_n`. */}
-            {get('estagio') !== null && typeof nivelMagiaDeCriatura === 'function' && (
-              <span className="cficha-badge cficha-badge--magia-n">{nivelMagiaDeCriatura(get('estagio'))}</span>
-            )}
-          </div>
-          <div className="cficha-pill-list">
-            {fmt('magia').split(',').map((m) => (
-              <span key={m} className="cficha-pill cficha-pill--magia">{m.trim()}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* HABILIDADES */}
-      {get('habilidades') && (
-        <div className="cficha-abilities">
-          <div className="cficha-abilities-head">
-            <i className="ti ti-star cficha-abilities-icon" aria-hidden="true" />
-            <span className="cficha-abilities-lbl">{en ? 'Abilities' : 'Habilidades'}</span>
-          </div>
-          <div className="cficha-pill-list">
-            {fmt('habilidades').split(',').map((h) => (
-              <span key={h} className="cficha-pill cficha-pill--hab">{h.trim()}</span>
-            ))}
-          </div>
-        </div>
-      )}
+          </>
+        );
+      })()}
 
       {/* Anotação do jogador */}
       {entrada.comentario && (
@@ -779,12 +678,27 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
    o React desmontaria e remontaria a ficha inteira — as abas (Descrição /
    Rumores / Ficha) voltariam à primeira a cada tecla digitada em qualquer
    lugar da tela acima. */
-function DetalheMoldura({ inline, title, lang, onClose, children }) {
+/* Portal para #root desde 26/09/2026: a tabela do Mestre passou a abrir a
+   ficha em janela a partir de uma linha de <tbody>, onde uma <div> não pode
+   morar. O stopPropagation é porque evento de React atravessa o portal pela
+   árvore de componentes — o clique na janela chegaria ao onClick da linha e a
+   fecharia. */
+/* `acoesTopo` (26/09/2026): o lápis e o olho, que saíram das linhas das
+   tabelas, entram no cabeçalho ao lado do X e com a pele dele — "o ícone de
+   lápis e olho fica junto com o x". [{ icone, rotulo, onClick }]. */
+/* O MODELO ÚNICO (26/09/2026): "Eu não quero ter vários modelos de modal
+   para magias, itens, habilidades, etc." — a moldura do Diário é o próprio
+   BestDetalheModal (09-bestiario): cabeçalho com os ícones ao lado do X, e
+   as abas saem das seções (.best-secao com título) que o conteúdo desenha.
+   O BestDetalheModal já faz o portal e segura o clique. */
+function DetalheMoldura({ inline, title, lang, onClose, acoesTopo, children }) {
   if (inline) return <div className="diario-det-inline">{children}</div>;
+  const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || window.BestDetalheModal;
+  const acoes = (acoesTopo || []).filter(Boolean);
   return (
-    <ModalShell title={title} lang={lang} size="lg" onClose={onClose}>
+    <Janela title={title} lang={lang} onClose={onClose} acoes={acoes}>
       {children}
-    </ModalShell>
+    </Janela>
   );
 }
 
@@ -800,6 +714,7 @@ function DetalheEntradaModal({
   onImport, importLabel, importIcon, importDisabled,
   onDelete, deleteLabel, onArte,
   lore,
+  acoesTopo,
   /* `inline` (17/09/2026): sem o modal em volta, pra caber na linha expandida
      da tabela. Ver DetalheMoldura acima. Sem título e sem X — quem abre a
      linha a fecha clicando nela de novo, e o nome já está na primeira
@@ -825,47 +740,60 @@ function DetalheEntradaModal({
     return m;
   }, [lore]);
 
-  // Estados de abas — ANTES de qualquer return condicional (Rules of Hooks).
-  // abaModal: criatura (ficha/descricao) e NPC (ficha/descricao/rumores).
-  // abaReino / abaCidade: seus respectivos modais com 5 abas cada.
-  const [abaModal, setAbaModal] = useState('descricao');
-  const [abaReino, setAbaReino] = useState('descricao');
-  const [abaCidade, setAbaCidade] = useState('descricao');
+  // As abas manuais (abaModal/abaReino/abaCidade) saíram em 26/09/2026: o
+  // BestDetalheModal gera as abas a partir das seções.
 
-  const acoes = (onImport || onEditNote || onDelete || onArte) && (
-    <div className="det-actions">
-      <div className="det-act-row">
-        {onImport && (
-          <button
-            type="button"
-            className="det-act det-act-primary"
-            onClick={() => { if (!importDisabled) onImport(); }}
-            disabled={importDisabled}
-          >
-            <i className={'ti ' + (importIcon || 'ti-download')} aria-hidden="true" />
-            <span className="det-act-lbl">{importLabel || (en ? 'Import' : 'Importar')}</span>
-          </button>
-        )}
-        {onEditNote && (
-          <button type="button" className="det-act" onClick={onEditNote}>
-            <i className="ti ti-edit" aria-hidden="true" />
-            <span className="det-act-lbl">{entrada.comentario ? (en ? 'Edit note' : 'Editar anotação') : (en ? 'Add note' : 'Anotar')}</span>
-          </button>
-        )}
-        {onArte && (
-          <button type="button" className="det-act" onClick={onArte}>
-            <i className="ti ti-photo" aria-hidden="true" />
-            <span className="det-act-lbl">{en ? 'Set artwork' : 'Definir arte'}</span>
-          </button>
-        )}
-        {onDelete && (
-          <button type="button" className="det-act danger" onClick={onDelete}>
-            <i className="ti ti-trash" aria-hidden="true" />
-            <span className="det-act-lbl">{deleteLabel || (en ? 'Remove from collection' : 'Remover da coleção')}</span>
-          </button>
-        )}
-      </div>
+  /* As ações do jogador (Importar, Anotar, Arte, Remover) viraram ÍCONES ao
+     lado do X em 26/09/2026 — o modelo único de janela, sem rodapé nem
+     fileira de botões no corpo. */
+  const acoesIcones = [
+    onImport && { chave: 'importar', icone: importIcon || 'ti-download',
+      rotulo: importLabel || (en ? 'Import' : 'Importar'),
+      desativado: !!importDisabled, onClick: () => { if (!importDisabled) onImport(); } },
+    onEditNote && { chave: 'anotar', icone: 'ti-message-2',
+      rotulo: entrada.comentario ? (en ? 'Edit note' : 'Editar anotação') : (en ? 'Add note' : 'Anotar'),
+      onClick: onEditNote },
+    onArte && { chave: 'arte', icone: 'ti-photo', rotulo: en ? 'Set artwork' : 'Definir arte', onClick: onArte },
+    onDelete && { chave: 'remover', icone: 'ti-trash', perigo: true,
+      rotulo: deleteLabel || (en ? 'Remove from collection' : 'Remover da coleção'), onClick: onDelete },
+  ].filter(Boolean);
+  const todasAcoes = [...(acoesTopo || []), ...acoesIcones];
+
+  // ── Peças das abas (o BestDetalheModal gera uma aba por seção com título) ──
+  const Lista = (typeof BestFichaLista !== 'undefined' && BestFichaLista) || window.BestFichaLista;
+  const Linha = (typeof BestLinha !== 'undefined' && BestLinha) || window.BestLinha;
+  const paragrafos = (texto) => String(texto).split(/\n+/).map((p, i) => <p key={i} className="diario-det-desc">{p}</p>);
+  const secao = (titulo, conteudo, cls) => (
+    <div className={'best-secao diario-secao' + (cls ? ' ' + cls : '')}>
+      <h4 className="best-secao-titulo">{titulo}</h4>
+      {conteudo}
     </div>
+  );
+  const arte = entrada.imagem_url ? (
+    <div className="diario-det-art"><img src={entrada.imagem_url} alt={entrada.nome} /></div>
+  ) : null;
+  const secaoDescricao = (antes) => secao(en ? 'Description' : 'Descrição', (
+    <>
+      {antes}
+      {arte}
+      {entrada.descricao ? paragrafos(entrada.descricao) : (
+        <p className="diario-det-desc diario-det-vazio">{en ? 'No description available.' : 'Nenhuma descrição disponível.'}</p>
+      )}
+    </>
+  ), 'best-secao--descricao');
+  const secaoCaracteristicas = (linhas) => (Lista && Linha && linhas.length > 0 ? (
+    <Lista titulo={en ? 'Traits' : 'Características'} colunas={2}>
+      {linhas.map(([k, v], i) => <Linha key={i} rotulo={k} valor={v} />)}
+    </Lista>
+  ) : null);
+  const secaoTexto = (titulo, texto) => (texto ? secao(titulo, paragrafos(texto)) : null);
+  const secaoNota = entrada.comentario
+    ? secao(en ? 'Your notes' : 'Suas anotações', <p className="diario-det-desc">{entrada.comentario}</p>, 'diario-det-nota')
+    : null;
+  const moldura = (titulo, conteudo) => (
+    <DetalheMoldura inline={inline} title={titulo} lang={lang} onClose={onClose} acoesTopo={todasAcoes}>
+      {conteudo}
+    </DetalheMoldura>
   );
 
   // Criaturas: layout rico de bestiário
@@ -874,55 +802,15 @@ function DetalheEntradaModal({
     const tituloModal = (_est != null && String(_est) !== '' && String(_est) !== '—')
       ? `${entrada.nome} ${_est}`
       : entrada.nome;
-    return (
-      <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} nomeOverride={tituloModal} />} lang={lang} onClose={onClose}>
-        {/* subtitulo = tipo da criatura (ex: "Humanoide") — preservado abaixo do título */}
-        {entrada.subtitulo && (
-          <div className="diario-det-sub" style={{ marginTop: -8, marginBottom: 14 }}>
-            {entrada.subtitulo}
-          </div>
-        )}
-        {/* Abas Ficha / Descrição */}
-        <div className="hist-modal-tabs">
-          <button
-            type="button"
-            className={'hist-modal-tab' + (abaModal === 'ficha' ? ' is-active' : '')}
-            onClick={() => setAbaModal('ficha')}
-          >
-            {en ? 'Sheet' : 'Ficha'}
-          </button>
-          <button
-            type="button"
-            className={'hist-modal-tab' + (abaModal === 'descricao' ? ' is-active' : '')}
-            onClick={() => setAbaModal('descricao')}
-          >
-            {en ? 'Description' : 'Descrição'}
-          </button>
-        </div>
-        {/* ABA: FICHA — stats sem a descrição em prosa (vai na aba Descrição) */}
-        {abaModal === 'ficha' && <CriaturaFicha entrada={entrada} lang={lang} hideDescricao />}
-        {/* ABA: DESCRIÇÃO */}
-        {abaModal === 'descricao' && (
-          <div className="diario-det">
-            {entrada.imagem_url && (
-              <div className="diario-det-art">
-                <img src={entrada.imagem_url} alt={entrada.nome} />
-              </div>
-            )}
-            {entrada.descricao ? (
-              entrada.descricao.split(/\n+/).map((par, i) => (
-                <p key={i} className="diario-det-desc">{par}</p>
-              ))
-            ) : (
-              <p className="diario-det-desc" style={{ fontStyle: 'italic', color: 'var(--muted-foreground)' }}>
-                {en ? 'No description available.' : 'Nenhuma descrição disponível.'}
-              </p>
-            )}
-          </div>
-        )}
-        {acoes}
-      </DetalheMoldura>
-    );
+    /* Descrição primeiro, como em todo modal do catálogo; a ficha da
+       criatura (CriaturaFicha) traz as próprias seções, cada uma uma aba. */
+    return moldura(<DiarioModalNome entrada={entrada} nomeOverride={tituloModal} />, (
+      <>
+        {secaoDescricao(entrada.subtitulo ? <div className="diario-det-sub">{entrada.subtitulo}</div> : null)}
+        <CriaturaFicha entrada={entrada} lang={lang} hideDescricao />
+        {secaoNota}
+      </>
+    ));
   }
 
   // NPCs, reinos, cidades: layout genérico com grade de atributos
@@ -974,16 +862,24 @@ function DetalheEntradaModal({
     familia: en ? 'Family' : 'Família',
     relacao: en ? 'Relationship' : 'Relação',
     status: en ? 'Status' : 'Status',
+    // Cidade — campos de 26/09/2026
+    governante: en ? 'Ruler' : 'Governante',
+    religiao: en ? 'Religion' : 'Religião',
+    // Reino — a capital (26/09/2026)
+    capital_cidade: en ? 'Capital' : 'Capital',
   };
   const rotulo = (k) => {
     const base = LABELS[k] || k.replace(/_/g, ' ');
     return base.charAt(0).toUpperCase() + base.slice(1);
   };
 
-  const SLUG_CAMPOS = new Set(['cidade', 'origem', 'reino']);
+  // capital_cidade (26/09/2026): a capital do reino, gravada pelo slug da cidade.
+  const SLUG_CAMPOS = new Set(['cidade', 'origem', 'reino', 'capital_cidade']);
   const BOOL_CAMPOS = new Set(['capital']);
   // Campos texto-longo de reino/cidade — saem da grade genérica e ganham aba própria.
-  const REINO_PARAGRAFO_CAMPOS = new Set(['governo', 'cultura', 'historia_recente', 'rumores']);
+  // `resumo` (26/09/2026) sai da grade: abre a aba Descrição, antes do texto.
+  // economia e defesas (cidade, 26/09/2026) também são texto longo: ganham aba.
+  const REINO_PARAGRAFO_CAMPOS = new Set(['governo', 'cultura', 'historia_recente', 'rumores', 'resumo', 'economia', 'defesas']);
   // Campos texto-longo do NPC que ganham aba própria (não aparecem na grade).
   const NPC_PARAGRAFO_CAMPOS = new Set(['rumores']);
   // Campos ocultos no modal Cidade (redundantes ou irrelevantes para o contexto).
@@ -998,7 +894,7 @@ function DetalheEntradaModal({
   const attrs = entrada.atributos && typeof entrada.atributos === 'object' ? entrada.atributos : null;
   // Campos NPC com posição fixa na grade — não entram em pares (evita duplicata
   // quando o campo existe tanto em entrada.atributos quanto em entrada direto).
-  const NPC_FIXOS_KEYS = new Set(['deus', 'raca', 'profissao', 'origem', 'cidade', 'idade', 'familia', 'relacao', 'status']);
+  const NPC_FIXOS_KEYS = new Set(['deus', 'raca', 'profissao', 'origem', 'cidade', 'reino', 'idade', 'familia', 'relacao', 'status']);
   if (attrs) {
     for (const [k, v] of Object.entries(attrs)) {
       if (BOOL_CAMPOS.has(k)) { if (v === true || v === 'true') eCapital = true; continue; }
@@ -1040,11 +936,14 @@ function DetalheEntradaModal({
   // Grade fixa do NPC — 3 colunas × 2 linhas (6 células), campos sempre na
   // mesma posição independente de preenchimento. Só exibe a linha se ao menos
   // um dos campos dela tiver valor.
+  const NPC_SO_SE_GRAVADO = new Set(['cidade', 'familia', 'relacao', 'status']);
   const NPC_GRADE = [
     [
       { key: 'deus',     label: en ? 'God'        : 'Deus'        },
       { key: 'raca',     label: en ? 'Race'        : 'Raça'        },
       { key: 'cidade',   label: en ? 'Location'    : 'Localização' },
+      // O reino do conhecido (26/09/2026) — slug, resolvido para o nome.
+      { key: 'reino',    label: en ? 'Kingdom'     : 'Reino'       },
     ],
     [
       { key: 'origem',   label: en ? 'Hometown'    : 'Cidade Natal' },
@@ -1066,323 +965,65 @@ function DetalheEntradaModal({
   });
 
   if (entrada.tipo === 'npc') {
-    return (
-      <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} />} lang={lang} onClose={onClose}>
-        {/* Abas — mesmo estilo do "Editar História" */}
-        <div className="hist-modal-tabs">
-          <button
-            type="button"
-            className={'hist-modal-tab' + (abaModal === 'descricao' ? ' is-active' : '')}
-            onClick={() => setAbaModal('descricao')}
-          >
-            {en ? 'Description' : 'Descrição'}
-          </button>
-          <button
-            type="button"
-            className={'hist-modal-tab' + (abaModal === 'rumores' ? ' is-active' : '')}
-            onClick={() => setAbaModal('rumores')}
-          >
-            {en ? 'Rumors' : 'Rumores'}
-          </button>
-          <button
-            type="button"
-            className={'hist-modal-tab' + (abaModal === 'ficha' ? ' is-active' : '')}
-            onClick={() => setAbaModal('ficha')}
-          >
-            {en ? 'Sheet' : 'Ficha'}
-          </button>
-        </div>
-
-        {/* ABA: FICHA */}
-        {abaModal === 'ficha' && (
-          <div className="diario-det">
-            {entrada.imagem_url && (
-              <div className="diario-det-art">
-                <img src={entrada.imagem_url} alt={entrada.nome} />
-              </div>
-            )}
-
-            {/* Grade fixa de atributos NPC — 3 colunas, posição determinística */}
-            <div className="diario-det-attrs diario-det-attrs--npc">
-              {NPC_GRADE.flat().map(({ key, label }) => (
-                <div key={key} className="diario-det-attr">
-                  <span className="diario-det-attr-k">{label}</span>
-                  <span className="diario-det-attr-v">{fmtAttr(key) || '—'}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Campos extras do JSONB não cobertos pela grade fixa */}
-            {paresExtras.length > 0 && (
-              <div className="diario-det-attrs">
-                {paresExtras.map(([k, v], i) => (
-                  <div key={i} className="diario-det-attr">
-                    <span className="diario-det-attr-k">{k}</span>
-                    <span className="diario-det-attr-v">{v}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {entrada.comentario && (
-              <div className="diario-det-nota">
-                <div className="diario-det-nota-lbl">
-                  <i className="ti ti-quote" aria-hidden="true" />
-                  {en ? 'Your notes' : 'Suas anotações'}
-                </div>
-                <p>{entrada.comentario}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ABA: DESCRIÇÃO */}
-        {abaModal === 'descricao' && (
-          <div className="diario-det">
-            {entrada.imagem_url && (
-              <div className="diario-det-art">
-                <img src={entrada.imagem_url} alt={entrada.nome} />
-              </div>
-            )}
-            {entrada.descricao ? (
-              <div>
-                {entrada.descricao.split(/\n+/).map((par, i) => (
-                  <p key={i} className="diario-det-desc">{par}</p>
-                ))}
-              </div>
-            ) : (
-              <p className="diario-det-desc" style={{ fontStyle: 'italic', color: 'var(--muted-foreground)' }}>
-                {en ? 'No description available.' : 'Nenhuma descrição disponível.'}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* ABA: RUMORES */}
-        {abaModal === 'rumores' && (
-          <div className="diario-det">
-            {(attrs?.rumores ?? entrada.rumores) ? (
-              (attrs?.rumores ?? entrada.rumores).split(/\n+/).map((par, i) => (
-                <p key={i} className="diario-det-desc">{par}</p>
-              ))
-            ) : (
-              <p className="diario-det-desc" style={{ fontStyle: 'italic', color: 'var(--muted-foreground)' }}>
-                {en ? 'No rumors available.' : 'Nenhum rumor disponível.'}
-              </p>
-            )}
-          </div>
-        )}
-
-        {acoes}
-      </DetalheMoldura>
-    );
+    /* Descrição · Características · Rumores · Suas anotações. Localização,
+       Família, Relação e Status só aparecem se já tiverem valor gravado (saíram
+       do formulário em 26/09/2026). */
+    const linhasNpc = [
+      ...NPC_GRADE.flat().filter(({ key }) => !NPC_SO_SE_GRAVADO.has(key) || fmtAttr(key))
+        .map(({ key, label }) => [label, fmtAttr(key) || '—']),
+      ...paresExtras,
+    ];
+    return moldura(<DiarioModalNome entrada={entrada} />, (
+      <>
+        {secaoDescricao(null)}
+        {secaoCaracteristicas(linhasNpc)}
+        {secaoTexto(en ? 'Rumors' : 'Rumores', attrs?.rumores ?? entrada.rumores)}
+        {secaoNota}
+      </>
+    ));
   }
 
-  // Reinos: abas Descrição · Cultura · Governo · História Recente · Rumores.
-  // Cidades: layout original (sem abas — só descrição + atributos).
-  const REINO_ABAS = [
-    { key: 'descricao',       label: en ? 'Description'    : 'Descrição'        },
-    { key: 'cultura',         label: en ? 'Culture'        : 'Cultura'           },
-    { key: 'governo',         label: en ? 'Government'     : 'Governo'           },
-    { key: 'historia_recente',label: en ? 'Recent History' : 'História Recente'  },
-    { key: 'rumores',         label: en ? 'Rumors'         : 'Rumores'           },
-  ];
-  const emptyMsg = (en ? 'No content available.' : 'Nenhum conteúdo disponível.');
 
   if (entrada.tipo === 'reino') {
-    const renderReinoAba = () => {
-      if (abaReino === 'descricao') {
-        return (
-          <div className="diario-det">
-            {entrada.imagem_url && (
-              <div className="diario-det-art">
-                <img src={entrada.imagem_url} alt={entrada.nome} />
-              </div>
-            )}
-            {pares.length > 0 && (
-              <div className="diario-det-attrs">
-                {pares.map(([k, v], i) => (
-                  <div key={i} className="diario-det-attr">
-                    <span className="diario-det-attr-k">{k}</span>
-                    <span className="diario-det-attr-v">{v}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {entrada.descricao ? (
-              entrada.descricao.split(/\n+/).map((par, i) => (
-                <p key={i} className="diario-det-desc">{par}</p>
-              ))
-            ) : (
-              <p className="diario-det-desc" style={{ fontStyle:'italic', color:'var(--muted-foreground)' }}>{emptyMsg}</p>
-            )}
-            {entrada.comentario && (
-              <div className="diario-det-nota">
-                <div className="diario-det-nota-lbl">
-                  <i className="ti ti-quote" aria-hidden="true" />
-                  {en ? 'Your notes' : 'Suas anotações'}
-                </div>
-                <p>{entrada.comentario}</p>
-              </div>
-            )}
-          </div>
-        );
-      }
-      // Abas de texto longo — cultura, governo, historia_recente, rumores
-      const textoMap = {
-        cultura:          attrs?.cultura          ?? entrada.cultura,
-        governo:          attrs?.governo          ?? entrada.governo,
-        historia_recente: attrs?.historia_recente ?? entrada.historia_recente,
-        rumores:          attrs?.rumores          ?? entrada.rumores,
-      };
-      const texto = textoMap[abaReino];
-      return (
-        <div className="diario-det">
-          {texto ? (
-            texto.split(/\n+/).map((par, i) => (
-              <p key={i} className="diario-det-desc">{par}</p>
-            ))
-          ) : (
-            <p className="diario-det-desc" style={{ fontStyle:'italic', color:'var(--muted-foreground)' }}>{emptyMsg}</p>
-          )}
-        </div>
-      );
-    };
-
-    return (
-      <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} />} lang={lang} onClose={onClose}>
-        {/* Abas — mesmo estilo do "Editar História" */}
-        <div className="hist-modal-tabs">
-          {REINO_ABAS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              className={'hist-modal-tab' + (abaReino === key ? ' is-active' : '')}
-              onClick={() => setAbaReino(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {renderReinoAba()}
-        {acoes}
-      </DetalheMoldura>
-    );
+    /* Descrição (com o resumo) · Características · Cultura · Governo ·
+       História Recente · Rumores · Suas anotações. Aba de texto vazia não
+       aparece — era uma aba inteira dizendo "nenhum conteúdo". */
+    const resumoReino = attrs?.resumo ?? entrada.resumo;
+    return moldura(<DiarioModalNome entrada={entrada} />, (
+      <>
+        {secaoDescricao(resumoReino ? <p className="diario-det-resumo">{resumoReino}</p> : null)}
+        {secaoCaracteristicas(pares)}
+        {secaoTexto(en ? 'Culture' : 'Cultura', attrs?.cultura ?? entrada.cultura)}
+        {secaoTexto(en ? 'Government' : 'Governo', attrs?.governo ?? entrada.governo)}
+        {secaoTexto(en ? 'Recent History' : 'História Recente', attrs?.historia_recente ?? entrada.historia_recente)}
+        {secaoTexto(en ? 'Rumors' : 'Rumores', attrs?.rumores ?? entrada.rumores)}
+        {secaoNota}
+      </>
+    ));
   }
 
-  // Cidades — 5 abas: Descrição · Cultura · Governo · História Recente · Rumores
-  const CIDADE_ABAS = [
-    { key: 'descricao',        label: en ? 'Description'    : 'Descrição'        },
-    { key: 'cultura',          label: en ? 'Culture'        : 'Cultura'           },
-    { key: 'governo',          label: en ? 'Government'     : 'Governo'           },
-    { key: 'historia_recente', label: en ? 'Recent History' : 'História Recente'  },
-    { key: 'rumores',          label: en ? 'Rumors'         : 'Rumores'           },
-  ];
-  const emptyMsgCidade = (en ? 'No content available.' : 'Nenhum conteúdo disponível.');
-
-  const renderCidadeAba = () => {
-    if (abaCidade === 'descricao') {
-      return (
-        <div className="diario-det">
-          {entrada.imagem_url && (
-            <div className="diario-det-art">
-              <img src={entrada.imagem_url} alt={entrada.nome} />
-            </div>
-          )}
-          {pares.length > 0 && (
-            <div className="diario-det-attrs">
-              {pares.map(([k, v], i) => (
-                <div key={i} className="diario-det-attr">
-                  <span className="diario-det-attr-k">{k}</span>
-                  <span className="diario-det-attr-v">{v}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {entrada.descricao ? (
-            entrada.descricao.split(/\n+/).map((par, i) => (
-              <p key={i} className="diario-det-desc">{par}</p>
-            ))
-          ) : (
-            <p className="diario-det-desc" style={{ fontStyle:'italic', color:'var(--muted-foreground)' }}>{emptyMsgCidade}</p>
-          )}
-          {entrada.comentario && (
-            <div className="diario-det-nota">
-              <div className="diario-det-nota-lbl">
-                <i className="ti ti-quote" aria-hidden="true" />
-                {en ? 'Your notes' : 'Suas anotações'}
-              </div>
-              <p>{entrada.comentario}</p>
-            </div>
-          )}
-        </div>
-      );
-    }
-    const textoMapCidade = {
-      cultura:          attrs?.cultura          ?? entrada.cultura,
-      governo:          attrs?.governo          ?? entrada.governo,
-      historia_recente: attrs?.historia_recente ?? entrada.historia_recente,
-      rumores:          attrs?.rumores          ?? entrada.rumores,
-    };
-    const textoCidade = textoMapCidade[abaCidade];
-    return (
-      <div className="diario-det">
-        {textoCidade ? (
-          textoCidade.split(/\n+/).map((par, i) => (
-            <p key={i} className="diario-det-desc">{par}</p>
-          ))
-        ) : (
-          <p className="diario-det-desc" style={{ fontStyle:'italic', color:'var(--muted-foreground)' }}>{emptyMsgCidade}</p>
-        )}
-      </div>
-    );
-  };
-
-  // Item / Magia / Habilidade / Técnica — catálogo simples (só nome + descrição).
-  // Modal enxuto sem abas nem grade de atributos.
+  // Item / Magia / Habilidade / Técnica do diário — só a descrição.
   if (['item', 'magia', 'habilidade', 'tecnica'].includes(entrada.tipo)) {
-    return (
-      <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} />} lang={lang} onClose={onClose}>
-        <div className="diario-det">
-          {entrada.imagem_url && (
-            <div className="diario-det-art">
-              <img src={entrada.imagem_url} alt={entrada.nome} />
-            </div>
-          )}
-          {entrada.descricao ? (
-            entrada.descricao.split(/\n+/).map((par, i) => (
-              <p key={i} className="diario-det-desc">{par}</p>
-            ))
-          ) : (
-            <p className="diario-det-desc" style={{ fontStyle: 'italic', color: 'var(--muted-foreground)' }}>
-              {en ? 'No description available.' : 'Nenhuma descrição disponível.'}
-            </p>
-          )}
-        </div>
-        {acoes}
-      </DetalheMoldura>
-    );
+    return moldura(<DiarioModalNome entrada={entrada} />, (
+      <>
+        {secaoDescricao(null)}
+        {secaoNota}
+      </>
+    ));
   }
 
-  return (
-    <DetalheMoldura inline={inline} title={<DiarioModalNome entrada={entrada} />} lang={lang} onClose={onClose}>
-      {/* Abas — mesmo estilo do "Editar História" */}
-      <div className="hist-modal-tabs">
-        {CIDADE_ABAS.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            className={'hist-modal-tab' + (abaCidade === key ? ' is-active' : '')}
-            onClick={() => setAbaCidade(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {renderCidadeAba()}
-      {acoes}
-    </DetalheMoldura>
-  );
+  /* Cidade: Descrição · Características · Economia · Defesas · Rumores ·
+     Suas anotações (os campos que a tabela cidades tem de verdade). */
+  return moldura(<DiarioModalNome entrada={entrada} />, (
+    <>
+      {secaoDescricao(null)}
+      {secaoCaracteristicas(pares)}
+      {secaoTexto(en ? 'Economy' : 'Economia', attrs?.economia ?? entrada.economia)}
+      {secaoTexto(en ? 'Defenses' : 'Defesas', attrs?.defesas ?? entrada.defesas)}
+      {secaoTexto(en ? 'Rumors' : 'Rumores', attrs?.rumores ?? entrada.rumores)}
+      {secaoNota}
+    </>
+  ));
 }
 
 // ---------- MemoriaModal ----------
@@ -1411,7 +1052,7 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved }) {
     });
     setSaving(false);
     if (err) { setError(err.message); return; }
-    if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
+    if (data && data.ok === false) { setError(motivoLoreLegivel(data.motivo)); return; }
     onSaved(data && data.entrada ? data.entrada : { ...memoria, titulo, comentario: conteudo });
   };
 
@@ -1419,6 +1060,7 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved }) {
     <ModalShell
       title={isEdit ? (en ? 'Edit memory' : 'Editar memória') : (en ? 'New memory' : 'Nova memória')}
       lang={lang}
+      size="lg"
       onClose={onClose}
       onCancel={onClose}
       cancelLabel={en ? 'Cancel' : 'Cancelar'}
@@ -1722,7 +1364,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   // Só Personagens e Lugares misturam as duas origens. Memória é sempre do
   // jogador e criatura/item/treinamento sempre da aventura: nessas a coluna
   // repetiria a mesma palavra em todas as linhas.
-  const temOrigem = tipoAba === 'npc' || tipoAba === 'lugar';
+  const temOrigem = tipoAba === 'npc' || tipoAba === 'lugar' || LUGAR_TIPOS.has(tipoAba);
   const { lista: listaDaAba } = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     const casa = (nome) => !q || String(nome || '').toLowerCase().includes(q);
@@ -1783,7 +1425,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
       p_criado_por_personagem_id:  pjId,
     });
     if (err) { setError(err.message); return; }
-    if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
+    if (data && data.ok === false) { setError(motivoLoreLegivel(data.motivo)); return; }
     setEditando(null);
     setTipoNovo(null);
     await carregar();
@@ -1793,7 +1435,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     setError(null);
     const { data, error: err } = await supabaseClient.rpc('excluir_lore_entrada', { p_id: id });
     if (err) { setError(err.message); return; }
-    if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
+    if (data && data.ok === false) { setError(motivoLoreLegivel(data.motivo)); return; }
     await carregar();
   };
 
@@ -1904,7 +1546,8 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
 
   const reinosDaHistoria  = (lore || []).filter((e) => e.tipo === 'reino');
   const cidadesDaHistoria = (lore || []).filter((e) => e.tipo === 'cidade');
-  const tipoReal = tipoNovo || (LUGAR_TIPOS.has(tipoAba) ? null : tipoAba);
+  // Reinos e Cidades viraram páginas próprias (26/09/2026): o tipo é o da aba.
+  const tipoReal = tipoNovo || (tipoAba === 'lugar' ? null : tipoAba);
 
   /* O + de Lugares abre o formulário DIRETO (17/09/2026). Antes abria um modal
      de escolha Reino/Cidade e só então o formulário — dois passos para um
@@ -1921,6 +1564,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         ? (en ? `Edit ${diarioTipoLabel(tipoReal || tipoAba, lang)}` : `Editar ${diarioTipoLabel(tipoReal || tipoAba, lang)}`)
         : (en ? `New ${diarioTipoLabel(tipoReal || tipoAba, lang)}` : `${novoDoTipo(tipoReal || tipoAba)} ${diarioTipoLabel(tipoReal || tipoAba, lang)}`)}
       lang={lang}
+      size="lg"
       onClose={() => { setEditando(null); setTipoNovo(null); }}
       onCancel={() => { setEditando(null); setTipoNovo(null); }}
       onConfirm={salvarLore}
@@ -1931,7 +1575,8 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         onChange={setEditando}
         // O seletor de Reino/Cidade grava aqui: é `tipoNovo` que salvarLore lê
         // como p_tipo. Ver a nota em LoreEntradaForm.
-        onTipoChange={setTipoNovo}
+        // O seletor Reino/Cidade só na aba mista; Reinos e Cidades já têm o tipo (26/09/2026).
+        onTipoChange={tipoAba === 'lugar' ? setTipoNovo : undefined}
         reinosDaHistoria={reinosDaHistoria}
         cidadesDaHistoria={cidadesDaHistoria}
         t={COPY[lang] || COPY.pt}
@@ -1954,6 +1599,10 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
       ? { onNovo: () => setMemoriaAberta({}), dica: en ? 'New memory' : 'Nova memória', desativado: false }
     : tipoAba === 'lugar'
       ? { onNovo: abrirNovoLugar, dica: en ? 'New place' : 'Novo lugar', desativado: !historiaId }
+    : LUGAR_TIPOS.has(tipoAba)
+      ? { onNovo: () => { setTipoNovo(tipoAba); setEditando({}); },
+          dica: en ? `New ${diarioTipoLabel(tipoAba, lang)}` : `${novoDoTipo(tipoAba)} ${diarioTipoLabel(tipoAba, lang)}`,
+          desativado: !historiaId }
     : tipoAba === 'npc'
       ? { onNovo: () => { setEditando({}); },
           dica: en ? 'New NPC' : 'Novo NPC', desativado: !historiaId }
@@ -1962,7 +1611,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   /* Título da PÁGINA, quando ela é uma (tipoFixo). As palavras saem de
      ADMIN_COPY, as mesmas da barra lateral: se um dia "Memórias" virar outra
      coisa, o menu e o título da página mudam juntos. */
-  const SECAO_DO_TIPO = { lugar: 'lugares', npc: 'npcs', memoria: 'memorias' };
+  const SECAO_DO_TIPO = { lugar: 'lugares', reino: 'lugares', cidade: 'cidades', npc: 'npcs', memoria: 'memorias' };
   const tituloDaSecao = tipoFixo
     ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[SECAO_DO_TIPO[tipoFixo]] || {}).label
     : null;
@@ -2051,7 +1700,10 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
       };
       return (
         <TableRow key={c.id} style={{ cursor: 'pointer' }} onClick={abrir}>
-          <TableCell className="best-name">{c.nome}</TableCell>
+          <TableCell className="best-name">
+            <i className={'ti ' + ((typeof iconeTipoCriatura === 'function' && iconeTipoCriatura(c.tipo)) || 'ti-paw') + ' best-item-ic'} aria-hidden="true" />
+            {c.nome}
+          </TableCell>
           <TableCell className="diario-td-acoes" onClick={(ev) => ev.stopPropagation()}>
             {botaoVer(abrir)}
             {souDono && (importados.has(`criatura:${c.id}`)
@@ -2095,6 +1747,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
                 onChange={(ev) => toggleCompartilhar(e.tipo, refId, ev.target.checked)}
               />
             )}
+            <i className={'ti ' + (DIARIO_TIPO_ICON[e.tipo] || 'ti-point') + ' best-item-ic'} aria-hidden="true" />
             {e.nome}
           </TableCell>
           {tipoAba === 'lugar' && <TableCell>{diarioTipoLabel(e.tipo, lang)}</TableCell>}
@@ -2244,7 +1897,7 @@ function ArteModal({ entrada, lang, onClose, onSaved }) {
     });
     setSaving(false);
     if (err) { setError(err.message); return; }
-    if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
+    if (data && data.ok === false) { setError(motivoLoreLegivel(data.motivo)); return; }
     onSaved(url.trim() || null);
   };
 
@@ -2252,6 +1905,7 @@ function ArteModal({ entrada, lang, onClose, onSaved }) {
     <ModalShell
       title={en ? `Artwork — ${entrada.nome}` : `Arte — ${entrada.nome}`}
       lang={lang}
+      size="lg"
       onClose={onClose}
       onCancel={onClose}
       cancelLabel={en ? 'Cancel' : 'Cancelar'}
@@ -2314,75 +1968,8 @@ function ArteModal({ entrada, lang, onClose, onSaved }) {
 // versões locais (ver nota no cabeçalho), copiamos aqui pra uso no LoreEntradaForm.
 // Se o SelectPill for futuramente movido para um módulo compartilhado (ex: shell.jsx),
 // remover esta cópia e usar o import compartilhado.
-function SelectPill({ options = [], value, onChange, placeholder, disabled, label }) {
-  const [open, setOpen] = useState(false);
-  const ref = React.useRef(null);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const selected = options.find((o) => String(o.value) === String(value));
-  const displayLabel = selected
-    ? (selected.labelBotao != null ? selected.labelBotao : selected.label)
-    : (placeholder || '—');
-
-  const pillStyle = {
-    background: 'rgba(24,17,8,0.92)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-    border: '1px solid rgba(106,85,48,0.50)', borderRadius: 999, height: 40,
-    fontFamily: "'Lora', serif", fontSize: 13, flexShrink: 0, width: '100%',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-    color: '#E8DDC6', padding: '0 12px 0 16px', cursor: disabled ? 'default' : 'pointer',
-    outline: 'none', outlineOffset: 0, boxShadow: 'none', appearance: 'none', WebkitAppearance: 'none',
-    WebkitTapHighlightColor: 'transparent', transition: 'border-color .15s',
-  };
-
-  const dropStyle = {
-    position: 'absolute', top: 'calc(100% + 4px)', left: 0, minWidth: '100%',
-    background: 'rgba(18,12,5,0.98)', border: '1px solid rgba(201,164,78,0.20)', borderRadius: 8,
-    padding: 4, margin: 0, listStyle: 'none', zIndex: 200,
-    boxShadow: '0 16px 40px -12px rgba(0,0,0,0.9)',
-    maxHeight: 220, overflowY: 'auto',
-  };
-
-  return (
-    <div className="motor-field" ref={ref} style={{ position: 'relative' }}>
-      {label && <span>{label}</span>}
-      <button type="button" className="select-pill-btn" data-open={open ? 'true' : 'false'} style={pillStyle} disabled={disabled}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={(e) => { e.currentTarget.blur(); !disabled && setOpen((v) => !v); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
-        <i className="ti ti-chevron-down" aria-hidden="true"
-           style={{ fontSize: 12, color: '#C9A44E', opacity: 0.7, flexShrink: 0,
-                    transition: 'transform .15s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-      </button>
-      {open && (
-        <ul className="select-pill-drop" style={dropStyle}>
-          {options.map((opt) => {
-            const active = String(opt.value) === String(value);
-            return (
-              <li key={opt.value}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-                  borderRadius: 6, cursor: 'pointer', fontFamily: "'Lora', serif", fontSize: 13,
-                  color: active ? '#C9A44E' : '#C8BCAA', background: 'transparent', whiteSpace: 'pre-wrap' }}
-                onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(201,164,78,0.10)'; e.currentTarget.style.color = '#E8DDC6'; } }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = active ? '#C9A44E' : '#C8BCAA'; }}
-                onClick={() => { onChange(opt.value); setOpen(false); }}>
-                {active && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
-                {!active && <span style={{ width: 20, flexShrink: 0 }} />}
-                {opt.label}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
+/* SelectPill mora em 01-core/select-pill.jsx desde 25/09/2026 — uma peça só
+   para o sistema inteiro, com a pele do seletor de data. */
 
 // ---------- QuantityStepper — cópia local de 12-batalha/batalha.jsx ----------
 // Mesmo padrão do SelectPill acima: batalha.jsx não exporta QuantityStepper via
@@ -2481,14 +2068,97 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
         </>
       )}
 
-      <label className="diario-field-label">{tl.nome}</label>
-      <input className="diario-input" type="text" value={v.nome} onChange={(e) => set({ nome: e.target.value })} autoFocus />
+      {/* CONHECIDO: Nome, Raça e Idade na MESMA linha, Raça e Idade menores
+          (26/09/2026). Os outros tipos seguem com o Nome sozinho. */}
+      {tipo === 'npc' ? (
+        <div className="diario-form-linha-nome">
+          <div>
+            <label className="diario-field-label">{tl.nome}</label>
+            <input className="diario-input" type="text" value={v.nome} onChange={(e) => set({ nome: e.target.value })} autoFocus />
+          </div>
+          <div>
+            <label className="diario-field-label">{tl.raca}</label>
+              <SelectPill
+                value={v.atributos?.raca || ''}
+                onChange={(val) => setAttr('raca', val || '')}
+                options={[
+                  { value: '', label: '—' },
+                  ...(typeof GAME_DATA !== 'undefined' && GAME_DATA.racas
+                    ? Object.keys(GAME_DATA.racas).map((r) => ({ value: r, label: r }))
+                    : []),
+                ]}
+              />
+          </div>
+          <div>
+            <label className="diario-field-label">{tl.idade}</label>
+            <input className="diario-input" type="text" value={v.atributos?.idade || ''} onChange={(e) => setAttr('idade', e.target.value)} />
+          </div>
+        </div>
+      ) : tipo === 'cidade' ? (
+        /* CIDADE: Reino na linha do Nome (26/09/2026, "o input reino fica
+           inline com nome"). */
+        <div className="diario-form-linha-nome diario-form-linha-nome--cidade">
+          <div>
+            <label className="diario-field-label">{tl.nome}</label>
+            <input className="diario-input" type="text" value={v.nome} onChange={(e) => set({ nome: e.target.value })} autoFocus />
+          </div>
+          <div>
+            <label className="diario-field-label">{tl.reino}</label>
+            <SelectPill
+              value={v.atributos?.reino || ''}
+              onChange={(val) => setAttr('reino', val || null)}
+              options={[
+                { value: '', label: '—' },
+                ...(reinosDaHistoria || []).map((r) => ({ value: r.id, label: r.nome })),
+              ]}
+            />
+          </div>
+        </div>
+      ) : tipo === 'reino' ? (
+        /* REINO: a Capital na linha do Nome (26/09/2026, "adicione um dropdown
+           do lado de nome, inline, para selecionar a capital, do catálogo de
+           cidades"). Grava o slug da cidade em reinos.capital, que as
+           listagens devolvem como capital_cidade — ver reino-capital-2026-09-26.sql. */
+        <div className="diario-form-linha-nome diario-form-linha-nome--cidade">
+          <div>
+            <label className="diario-field-label">{tl.nome}</label>
+            <input className="diario-input" type="text" value={v.nome} onChange={(e) => set({ nome: e.target.value })} autoFocus />
+          </div>
+          <div>
+            <label className="diario-field-label">{tl.capitalDoReino || 'Capital'}</label>
+            <SelectPill
+              value={v.atributos?.capital_cidade || ''}
+              onChange={(val) => setAttr('capital_cidade', val || '')}
+              options={[
+                { value: '', label: '—' },
+                ...(cidadesDaHistoria || []).map((c) => ({ value: c.id, label: c.nome })),
+              ]}
+            />
+          </div>
+        </div>
+      ) : (
+        <>
+          <label className="diario-field-label">{tl.nome}</label>
+          <input className="diario-input" type="text" value={v.nome} onChange={(e) => set({ nome: e.target.value })} autoFocus />
+        </>
+      )}
+
+      {/* Resumo do reino (26/09/2026, "no modal de editar reino, adicione um
+          campo para resumo") — coluna reinos.resumo. */}
+      {tipo === 'reino' && (
+        <>
+          <label className="diario-field-label diario-field-label--mt">{tl.resumo || 'Resumo'}</label>
+          <textarea className="diario-textarea" rows={2} value={v.atributos?.resumo || ''} onChange={(e) => setAttr('resumo', e.target.value)} />
+        </>
+      )}
 
       <label className="diario-field-label diario-field-label--mt">{tl.descricao}</label>
       <textarea className="diario-textarea" rows={5} value={v.descricao} onChange={(e) => set({ descricao: e.target.value })} />
 
-      <label className="diario-field-label diario-field-label--mt">{tl.imagem}</label>
-      <input className="diario-input" type="text" value={v.imagem_url || ''} onChange={(e) => set({ imagem_url: e.target.value })} placeholder="https://…" />
+      {/* Sem campo de Imagem desde 26/09/2026 — saiu do reino ("remova o
+          input 'imagem', 'ícone'"), do conhecido ("remover input de imagem") e
+          da cidade ("remover input de url de imagem"). O que já estiver gravado
+          continua no registro; só não se edita mais por aqui. */}
 
       {tipo === 'npc' && (
         <div className="diario-form-grid">
@@ -2505,27 +2175,20 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
               ]}
             />
           </div>
+          {/* Localização, Família, Relação e Status saíram do formulário
+              (26/09/2026, "remova os inputs relação, status, localização e
+              família"). O que já estiver gravado fica no registro. */}
+          {/* O reino do conhecido (26/09/2026, "adicione um campo para vincular
+              o personagem a um reino") — coluna npcs.reino, pelo slug, como a
+              cidade. */}
           <div>
-            <label className="diario-field-label">{tl.raca}</label>
+            <label className="diario-field-label">{tl.reino}</label>
             <SelectPill
-              value={v.atributos?.raca || ''}
-              onChange={(val) => setAttr('raca', val || '')}
+              value={v.atributos?.reino || ''}
+              onChange={(val) => setAttr('reino', val || '')}
               options={[
                 { value: '', label: '—' },
-                ...(typeof GAME_DATA !== 'undefined' && GAME_DATA.racas
-                  ? Object.keys(GAME_DATA.racas).map((r) => ({ value: r, label: r }))
-                  : []),
-              ]}
-            />
-          </div>
-          <div>
-            <label className="diario-field-label">{tl.localizacao}</label>
-            <SelectPill
-              value={v.atributos?.cidade || ''}
-              onChange={(val) => setAttr('cidade', val || null)}
-              options={[
-                { value: '', label: '—' },
-                ...(cidadesDaHistoria || []).map((c) => ({ value: c.id, label: c.nome })),
+                ...(reinosDaHistoria || []).map((r) => ({ value: r.id, label: r.nome })),
               ]}
             />
           </div>
@@ -2544,22 +2207,6 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
             <label className="diario-field-label">{tl.classeSocial}</label>
             <input className="diario-input" type="text" value={v.atributos?.profissao || ''} onChange={(e) => setAttr('profissao', e.target.value)} />
           </div>
-          <div>
-            <label className="diario-field-label">{tl.idade}</label>
-            <input className="diario-input" type="text" value={v.atributos?.idade || ''} onChange={(e) => setAttr('idade', e.target.value)} />
-          </div>
-          <div>
-            <label className="diario-field-label">{tl.familia}</label>
-            <input className="diario-input" type="text" value={v.atributos?.familia || ''} onChange={(e) => setAttr('familia', e.target.value)} />
-          </div>
-          <div>
-            <label className="diario-field-label">{tl.relacao}</label>
-            <input className="diario-input" type="text" value={v.atributos?.relacao || ''} onChange={(e) => setAttr('relacao', e.target.value)} />
-          </div>
-          <div>
-            <label className="diario-field-label">{tl.status}</label>
-            <input className="diario-input" type="text" value={v.atributos?.status || ''} onChange={(e) => setAttr('status', e.target.value)} />
-          </div>
           <div className="diario-form-col-span">
             <label className="diario-field-label">{tl.rumores}</label>
             <textarea className="diario-textarea" rows={3} value={v.atributos?.rumores || ''} onChange={(e) => setAttr('rumores', e.target.value)} />
@@ -2568,10 +2215,6 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
       )}
       {tipo === 'reino' && (
         <div className="diario-form-grid">
-          <div>
-            <label className="diario-field-label">{tl.icone}</label>
-            <input className="diario-input" type="text" value={v.atributos?.icone || ''} onChange={(e) => setAttr('icone', e.target.value)} placeholder="https://…" />
-          </div>
           <div className="diario-form-col-span">
             <label className="diario-field-label">{tl.governo}</label>
             <textarea className="diario-textarea" rows={3} value={v.atributos?.governo || ''} onChange={(e) => setAttr('governo', e.target.value)} />
@@ -2593,25 +2236,44 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
       {tipo === 'cidade' && (
         <div className="diario-form-grid">
           <div>
-            <label className="diario-field-label">{tl.reino}</label>
-            <SelectPill
-              value={v.atributos?.reino || ''}
-              onChange={(val) => setAttr('reino', val || null)}
-              options={[
-                { value: '', label: '—' },
-                ...(reinosDaHistoria || []).map((r) => ({ value: r.id, label: r.nome })),
-              ]}
-            />
-          </div>
-          <div>
             <label className="diario-field-label">{tl.populacao}</label>
             <input className="diario-input" type="number" min="0" value={v.atributos?.populacao ?? ''} onChange={(e) => setAttr('populacao', e.target.value === '' ? null : Number(e.target.value))} />
           </div>
+          {/* Capital em dropdown Sim/Não (26/09/2026); era checkbox. */}
           <div>
-            <label className="diario-field-label">
-              <input type="checkbox" checked={!!v.atributos?.capital} onChange={(e) => setAttr('capital', e.target.checked)} className="diario-checkbox-inline" />
-              {tl.capitalDoReino}
-            </label>
+            <label className="diario-field-label">{tl.capitalDoReino}</label>
+            <SelectPill
+              value={v.atributos?.capital === true || v.atributos?.capital === 'true' ? 'sim' : 'nao'}
+              onChange={(val) => setAttr('capital', val === 'sim')}
+              options={[{ value: 'nao', label: 'Não' }, { value: 'sim', label: 'Sim' }]}
+            />
+          </div>
+          {/* Campos novos da cidade (26/09/2026): Governante, Religião,
+              Economia e Defesas — escolhidos pelo usuário. */}
+          <div>
+            <label className="diario-field-label">{tl.governante || 'Governante'}</label>
+            <input className="diario-input" type="text" value={v.atributos?.governante || ''} onChange={(e) => setAttr('governante', e.target.value)} />
+          </div>
+          <div>
+            <label className="diario-field-label">{tl.religiao || 'Religião'}</label>
+            <SelectPill
+              value={v.atributos?.religiao || ''}
+              onChange={(val) => setAttr('religiao', val || '')}
+              options={[
+                { value: '', label: '—' },
+                ...(typeof GAME_DATA !== 'undefined' && GAME_DATA.deuses
+                  ? GAME_DATA.deuses.map((d) => ({ value: d, label: d }))
+                  : []),
+              ]}
+            />
+          </div>
+          <div className="diario-form-col-span">
+            <label className="diario-field-label">{tl.economia || 'Economia'}</label>
+            <textarea className="diario-textarea" rows={2} value={v.atributos?.economia || ''} onChange={(e) => setAttr('economia', e.target.value)} />
+          </div>
+          <div className="diario-form-col-span">
+            <label className="diario-field-label">{tl.defesas || 'Defesas'}</label>
+            <textarea className="diario-textarea" rows={2} value={v.atributos?.defesas || ''} onChange={(e) => setAttr('defesas', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
             <label className="diario-field-label">{tl.rumores}</label>
@@ -2689,10 +2351,11 @@ function PermissaoEntradaModal({ entrada, historia, protagonistas, lang, onClose
 
   const opcoes = [
     { valor: 'ninguem', rotulo: tp.ninguem, dica: tp.ninguemDica, icone: 'ti-eye-off' },
-    { valor: 'todos',   rotulo: tp.todos,   dica: tp.todosDica,   icone: 'ti-users' },
+    // Os mesmos ícones da coluna Visibilidade (26/09/2026): ti-eye / ti-eye-off / ti-eye-exclamation.
+    { valor: 'todos',   rotulo: tp.todos,   dica: tp.todosDica,   icone: 'ti-eye' },
     // Sem PJs na história não há terceira opção.
     ...(pjs.length > 0
-      ? [{ valor: 'alguns', rotulo: tp.alguns, dica: tp.algunsDica, icone: 'ti-user-check' }]
+      ? [{ valor: 'alguns', rotulo: tp.alguns, dica: tp.algunsDica, icone: 'ti-eye-exclamation' }]
       : []),
   ];
 
@@ -2718,12 +2381,12 @@ function PermissaoEntradaModal({ entrada, historia, protagonistas, lang, onClose
               checked={modo === o.valor}
               disabled={!!salvando}
               onChange={() => setModo(o.valor)}
+              aria-label={o.rotulo}
             />
-            <span className="diario-permissao-texto">
-              <span className="diario-permissao-rotulo">
-                <i className={'ti ' + o.icone} aria-hidden="true" />
-                {o.rotulo}
-              </span>
+            {/* Sem o título ("Ninguém", "Todos os protagonistas"…) — 27/09/2026:
+                "Deixe apenas o ícone e o texto." O nome fica no aria-label. */}
+            <span className="diario-permissao-texto diario-permissao-texto--so-dica">
+              <i className={'ti ' + o.icone} aria-hidden="true" />
               <span className="diario-permissao-dica">{o.dica}</span>
             </span>
           </label>
@@ -2787,6 +2450,16 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
   // Mesmo arranjo do DiarioView do Jogador.
   const PAGE_SIZE_FALLBACK = 10;
   const [tipoAba, setTipoAba] = useState(tipoFixo || 'npc'); // npc | lugar | criatura (disponibilizar)
+  // A lixeira da ficha armada no primeiro clique (26/09/2026) — a chave da entrada.
+  const [lixeiraArmada, setLixeiraArmada] = useState(null);
+  /* SEM MESA (26/09/2026: "quando não selecionei uma aventura, não consigo ver
+     o menu diário"). Sem história a página mostra o catálogo do MUNDO só para
+     leitura: salvar_lore_entrada exige uma história (até para o admin) e a
+     visibilidade é por mesa — olho, lápis, lixeira e + ficam para quando o
+     Mestre entrar numa aventura. */
+  const semMesa = !historia;
+  // Admin edita a entrada do MUNDO direto, sem cópia (26/09/2026) — muda o aviso.
+  const ehAdmin = (typeof window !== 'undefined' && typeof window.useEhAdmin === 'function') ? window.useEhAdmin() : false;
   const [lore, setLore] = useState(null);
   const [criaturas, setCriaturas] = useState(null);
   // Catálogo GLOBAL (canônico) de reino/cidade/npc — migration 016. Só
@@ -2823,7 +2496,9 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
       { data: cidadeGData, error: cidadeGErr },
       { data: npcGData, error: npcGErr },
     ] = await Promise.all([
-      supabaseClient.rpc('listar_lore_historia', { p_historia_id: historia.id }),
+      semMesa
+        ? Promise.resolve({ data: { entradas: [] }, error: null })
+        : supabaseClient.rpc('listar_lore_historia', { p_historia_id: historia.id }),
       supabaseClient.from('criaturas').select('id, nome, tipo').order('nome'),
       supabaseClient.rpc('listar_catalogo_global', { p_tipo: 'reino' }),
       supabaseClient.rpc('listar_catalogo_global', { p_tipo: 'cidade' }),
@@ -2851,7 +2526,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
     // no seletor de liberação por PJ dentro de DetalheEntradaModal (Mestre).
     // protagonista_ids vem do objeto historia passado como prop; se não tiver
     // ou estiver vazio, o seletor ficará vazio mas não quebra.
-    const pjIds = historia.protagonista_ids || [];
+    const pjIds = (historia && historia.protagonista_ids) || [];
     if (pjIds.length > 0) {
       const { data: pjData } = await supabaseClient
         .from('personagens')
@@ -2864,13 +2539,14 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
     }
   };
 
-  useEffect(() => { carregar(); }, [historia.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar(); }, [historia && historia.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const salvarLore = async () => {
     const tipoReal = tipoNovo || tipoAba;
     const { data, error: err } = await supabaseClient.rpc('salvar_lore_entrada', {
       p_id: editando.id ?? null,
-      p_historia_id: historia.id,
+      // Sem aventura (admin): null — o banco grava no mundo (lore-admin-sem-aventura-2026-09-26.sql).
+      p_historia_id: historia ? historia.id : null,
       p_tipo: tipoReal,
       p_nome: editando.nome,
       p_descricao: editando.descricao,
@@ -2878,7 +2554,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
       p_atributos: editando.atributos || {},
     });
     if (err) { setError(err.message); return; }
-    if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
+    if (data && data.ok === false) { setError(motivoLoreLegivel(data.motivo)); return; }
     setEditando(null);
     setTipoNovo(null);
     await carregar();
@@ -2888,7 +2564,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
   const excluirLore = async (id) => {
     const { data, error: err } = await supabaseClient.rpc('excluir_lore_entrada', { p_id: id });
     if (err) { setError(err.message); return; }
-    if (data && data.ok === false) { setError(data.motivo || 'erro'); return; }
+    if (data && data.ok === false) { setError(motivoLoreLegivel(data.motivo)); return; }
     await carregar();
     if (onChanged) onChanged();
   };
@@ -2936,14 +2612,26 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
   // LoreEntradaForm (cidade.reino, npc.origem/cidade) — limitadas às
   // CÓPIAS já existentes nesta história (decisão combinada: Mestre só
   // liga a algo que ele mesmo já forkou antes, não ao catálogo global direto).
-  const reinosDaHistoria = (lore || []).filter((e) => e.tipo === 'reino');
-  const cidadesDaHistoria = (lore || []).filter((e) => e.tipo === 'cidade');
+  /* As OPÇÕES de Reino, Localização e Cidade Natal: as cópias desta mesa E o
+     catálogo do mundo — a mesma lista que a tabela de Reinos mostra (26/09/2026:
+     "o input de reino não mostra as opções" — só entravam as cópias da mesa, e
+     uma mesa sem cópia nenhuma via a lista vazia). Mesmo nome nas duas fontes
+     vira uma opção só, a da mesa: é a versão que esta história usa. */
+  const semRepetirNome = (daMesa, doMundo) => {
+    const vistos = new Set(daMesa.map((e) => String(e.nome || '').toLowerCase()));
+    return [...daMesa, ...doMundo.filter((e) => !vistos.has(String(e.nome || '').toLowerCase()))]
+      .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'));
+  };
+  const reinosDaHistoria = semRepetirNome(
+    (lore || []).filter((e) => e.tipo === 'reino'), catalogoGlobal.reino || []);
+  const cidadesDaHistoria = semRepetirNome(
+    (lore || []).filter((e) => e.tipo === 'cidade'), catalogoGlobal.cidade || []);
 
   /* As palavras do título saem de ADMIN_COPY, as mesmas da barra lateral —
      mesmo arranjo do DiarioView do Jogador: se "NPCs" virar outra coisa, o
      menu e o título da página mudam juntos. */
   const tituloDaSecao = tipoFixo
-    ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[{ lugar: 'lugares', npc: 'npcs' }[tipoFixo]] || {}).label
+    ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[{ lugar: 'lugares', reino: 'lugares', cidade: 'cidades', npc: 'npcs' }[tipoFixo]] || {}).label
     : null;
 
   const formModal = editando && (
@@ -2952,6 +2640,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
         ? (en ? `Edit ${diarioTipoLabel(tipoNovo || tipoAba, lang)}` : `Editar ${diarioTipoLabel(tipoNovo || tipoAba, lang)}`)
         : (en ? `New ${diarioTipoLabel(tipoNovo || tipoAba, lang)}` : `${novoDoTipo(tipoNovo || tipoAba)} ${diarioTipoLabel(tipoNovo || tipoAba, lang)}`)}
       lang={lang}
+      size="lg"
       onClose={() => { setEditando(null); setTipoNovo(null); }}
       onCancel={() => { setEditando(null); setTipoNovo(null); }}
       onConfirm={salvarLore}
@@ -2963,7 +2652,13 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
           isso parece bug. O desenho quer que o Mestre "não perceba a
           diferença" no MECANISMO, não que ele seja pego de surpresa pelo
           resultado. */}
-      {editando._global && (
+      {/* 26/09/2026 ("não faremos mais uma cópia, vamos editar realmente a
+          entrada"): o ADMIN edita o mundo direto — salvar_lore_entrada só
+          forka para quem não é admin. O aviso diz qual dos dois vai acontecer. */}
+      {/* Para o admin, nenhum aviso: ele edita a entrada de verdade, que é o
+          esperado ("por que ainda aparece 'Esta entrada é do catálogo do
+          mundo'?", 26/09/2026). O aviso fica só para quem ganha uma CÓPIA. */}
+      {editando._global && !ehAdmin && (
         <div className="diario-fork-aviso">
           <i className="ti ti-info-circle" aria-hidden="true" />
           <span>
@@ -2979,7 +2674,8 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
         onChange={setEditando}
         // Idem DiarioView: o seletor Reino/Cidade grava em `tipoNovo`, que é o
         // que salvarLore manda como p_tipo.
-        onTipoChange={setTipoNovo}
+        // O seletor Reino/Cidade só na aba mista; Reinos e Cidades já têm o tipo (26/09/2026).
+        onTipoChange={tipoAba === 'lugar' ? setTipoNovo : undefined}
         reinosDaHistoria={reinosDaHistoria}
         cidadesDaHistoria={cidadesDaHistoria}
         t={COPY[lang] || COPY.pt}
@@ -3058,9 +2754,6 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
     return nome.charAt(0).toUpperCase() + nome.slice(1);
   };
 
-  const rotuloFonte = (e) => (e._global
-    ? (en ? 'World' : 'Mundo')
-    : (en ? 'Table' : 'Mesa'));
 
   /* A coluna Visibilidade: o estado que o modal do olho edita, legível na
      tabela. Sem ela o Mestre teria que abrir entrada por entrada pra saber o
@@ -3087,10 +2780,10 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
            de comparação por coluna. Sem `_raca`/`_cidade` aqui, clicar
            naqueles dois cabeçalhos ordenaria por undefined — ou seja, não
            ordenaria, sem dizer por quê. */
-        _fonte: rotuloFonte(e),
         _tipoLabel: diarioTipoLabel(e.tipo, lang),
         _raca: attrDe(e, 'raca'),
         _cidade: nomeDeSlug(e, 'cidade'),
+        _reino: nomeDeSlug(e, 'reino'),
         _visibilidade: rotuloVisibilidade(vis),
         _visModo: vis.modo,
       };
@@ -3105,20 +2798,22 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
 
   const cols = [
     { key: 'nome', label: en ? 'Name' : 'Nome' },
-    // Lugares mistura Reino e Cidade — a coluna diz qual é. Mesma decisão da
-    // tabela do Jogador.
-    ...(tipoAba === 'lugar' ? [{ key: '_tipoLabel', label: en ? 'Type' : 'Tipo' }] : []),
-    ...(tipoAba === 'npc' ? [
-      { key: '_raca', label: en ? 'Race' : 'Raça' },
-      { key: '_cidade', label: en ? 'Location' : 'Localização' },
-    ] : []),
+    /* Tipo saiu com a aba mista: Reinos e Cidades são páginas próprias
+       desde 26/09/2026. */
+    /* Conhecidos (26/09/2026): "remova a coluna fonte e localização, e
+       adicione a coluna reino". */
+    /* Raça e Reino saíram de Conhecidos em 26/09/2026 ("remover as colunas
+       Raça e Reino") — moram na ficha. */
     ...(tipoAba === 'criatura' ? [
       { key: 'tipo_criatura', label: en ? 'Kind' : 'Tipo' },
       { key: 'estagio', label: en ? 'Stage' : 'Estágio' },
     ] : []),
-    { key: '_visibilidade', label: en ? 'Visibility' : 'Visibilidade' },
-    ...(tipoAba === 'criatura' ? [] : [{ key: '_fonte', label: en ? 'Source' : 'Fonte' }]),
-    { key: 'acoes', label: '', ordena: false, style: { width: 120 } },
+    /* Visibilidade virou ÍCONE AO LADO DO NOME (26/09/2026: "o ícone de
+       visibilidade ficará junto com o nome para indicar quem pode ver"). */
+    /* Fonte saiu de todas as abas em 26/09/2026 ("remova a coluna fonte" em
+       Conhecidos; "esqueceu de retirar 'fonte' também de reinos"). */
+    /* A coluna de ações saiu em 26/09/2026: olho, lápis e lixeira moram no
+       cabeçalho da ficha, ao lado do X. */
   ];
 
   const chaveDa = (e) => `${e._global ? 'g' : 'c'}:${e.tipo}:${String(e.id)}`;
@@ -3145,7 +2840,8 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
        EXCLUIR é que continua só nas cópias, e não por esquecimento:
        excluir_lore_entrada recusa apagar global, então uma lixeira ali abriria
        para dar erro. */
-    const editavel = tipoAba !== 'criatura';
+    // Sem aventura, só o ADMIN edita — e edita o mundo (26/09/2026).
+    const editavel = tipoAba !== 'criatura' && (!semMesa || ehAdmin);
     const excluivel = editavel && !e._global;
     return (
       <React.Fragment key={chave}>
@@ -3153,62 +2849,56 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
           style={{ cursor: 'pointer' }}
           onClick={() => setExpandida(aberta ? null : chave)}
         >
-          <TableCell className="best-name">{e.nome}</TableCell>
-          {tipoAba === 'lugar' && <TableCell>{e._tipoLabel}</TableCell>}
-          {tipoAba === 'npc' && <TableCell>{attrDe(e, 'raca')}</TableCell>}
-          {tipoAba === 'npc' && <TableCell>{nomeDeSlug(e, 'cidade')}</TableCell>}
+          <TableCell className="best-name">
+            {/* O tipo da entrada (26/09/2026): reino, cidade, conhecido — ou a
+                classe, na aba de criaturas. */}
+            <i className={'ti ' + (tipoAba === 'criatura'
+              ? ((typeof iconeTipoCriatura === 'function' && iconeTipoCriatura(e.tipo_criatura)) || 'ti-paw')
+              : (DIARIO_TIPO_ICON[e.tipo] || 'ti-point')) + ' best-item-ic'} aria-hidden="true" />
+            {/* Quem pode ver, ao lado do nome — olho = todos, olho riscado =
+                ninguém, olho com exclamação = alguns. O texto vai no tooltip. */}
+            {!semMesa && (
+              <span className={'diario-vis-ic diario-vis-ic--' + e._visModo}
+                role="img" aria-label={e._visibilidade}
+                onMouseEnter={(ev) => abrirTip(ev, { desc: e._visibilidade })}
+                onMouseLeave={fecharTip}>
+                <i className={'ti ' + ({ todos: 'ti-eye', ninguem: 'ti-eye-off' }[e._visModo] || 'ti-eye-exclamation')} aria-hidden="true" />
+              </span>
+            )}
+            {e.nome}
+          </TableCell>
           {tipoAba === 'criatura' && <TableCell>{e.tipo_criatura || e.raca || '—'}</TableCell>}
           {tipoAba === 'criatura' && <TableCell>{e.estagio != null ? e.estagio : '—'}</TableCell>}
-          <TableCell>
-            <span className={'diario-vis-chip diario-vis-chip--' + e._visModo}>
-              {e._visibilidade}
-            </span>
-          </TableCell>
-          {tipoAba !== 'criatura' && <TableCell>{e._fonte}</TableCell>}
-          <TableCell className="diario-td-acoes" onClick={(ev) => ev.stopPropagation()}>
-            {/* O OLHO É PERMISSÃO desde 17/09/2026, não mais "ver a ficha" —
-                a ficha é a expansão da linha. */}
-            <button className="btn-icon btn-sm"
-              onMouseEnter={(ev) => abrirTip(ev, { desc: ((COPY[lang] || COPY.pt).lore || {}).permissao?.titulo })}
-              onMouseLeave={fecharTip}
-              onClick={() => setPermissaoDe(e)}>
-              <i className="ti ti-eye" aria-hidden="true" />
-            </button>
-            {editavel && (
-              <button className="btn-icon btn-sm"
-                onMouseEnter={(ev) => abrirTip(ev, {
-                  desc: e._global
-                    // O tooltip já conta o que vai acontecer, antes do clique.
-                    ? (en ? 'Edit (creates a copy for this table)' : 'Editar (cria uma cópia desta mesa)')
-                    : (en ? 'Edit' : 'Editar'),
-                })}
-                onMouseLeave={fecharTip}
-                onClick={() => { setTipoNovo(e.tipo); setEditando(e); }}>
-                <i className="ti ti-pencil" aria-hidden="true" />
-              </button>
-            )}
-            {excluivel && (
-              <button className="btn-icon btn-danger btn-sm"
-                onMouseEnter={(ev) => abrirTip(ev, { desc: en ? 'Delete' : 'Excluir' })}
-                onMouseLeave={fecharTip}
-                onClick={() => excluirLore(e.id)}>
-                <i className="ti ti-trash" aria-hidden="true" />
-              </button>
-            )}
-          </TableCell>
         </TableRow>
+        {/* Janela, não linha expandida, desde 26/09/2026 ("ao clicar no item
+            da tabela, vai abrir um modal ao invés de expandir"). É a MESMA
+            ficha do modal do Jogador — DetalheMoldura cuida do portal. */}
         {aberta && (
-          <TableRow className="best-detail">
-            <TableCell colSpan={cols.length}>
-              {/* A MESMA ficha do modal do Jogador, sem o modal em volta. */}
-              <DetalheEntradaModal
-                inline
-                entrada={e}
-                lang={lang}
-                lore={[...(lore || []), ...catalogoGlobal.reino, ...catalogoGlobal.cidade, ...catalogoGlobal.npc]}
-              />
-            </TableCell>
-          </TableRow>
+          <DetalheEntradaModal
+            entrada={e}
+            lang={lang}
+            onClose={() => { setExpandida(null); setLixeiraArmada(null); }}
+            acoesTopo={[
+              !semMesa && { icone: 'ti-eye', rotulo: ((COPY[lang] || COPY.pt).lore || {}).permissao?.titulo || (en ? 'Who can see' : 'Quem pode ver'),
+                /* Fecha a ficha antes (26/09/2026): as duas janelas têm a mesma camada e a
+                   ficha, montada por último, cobria a de permissão — o olho "não abria". */
+                onClick: () => { setExpandida(null); setPermissaoDe(e); } },
+              editavel && { icone: 'ti-pencil', rotulo: en ? 'Edit' : 'Editar',
+                onClick: () => { setExpandida(null); setTipoNovo(e.tipo); setEditando(e); } },
+              /* A lixeira também, ao lado do X (26/09/2026, "o ícone de excluir
+                 deve ficar ao lado do botão x"). Só nas cópias da mesa:
+                 excluir_lore_entrada recusa apagar entrada do mundo. */
+              /* Dois cliques, como o Excluir do editor do catálogo: ao lado do X,
+                 um clique errado não pode apagar. O primeiro arma (lixeira com
+                 X, em vermelho); o segundo apaga. */
+              excluivel && (lixeiraArmada === chave
+                ? { icone: 'ti-trash-x', rotulo: en ? 'Click again to delete' : 'Clique de novo para excluir', perigo: true, armado: true,
+                    onClick: () => { setLixeiraArmada(null); setExpandida(null); excluirLore(e.id); } }
+                : { icone: 'ti-trash', rotulo: en ? 'Delete' : 'Excluir', perigo: true,
+                    onClick: () => setLixeiraArmada(chave) }),
+            ]}
+            lore={[...(lore || []), ...catalogoGlobal.reino, ...catalogoGlobal.cidade, ...catalogoGlobal.npc]}
+          />
         )}
       </React.Fragment>
     );
@@ -3217,9 +2907,9 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
   /* O + do cabeçalho. Na aba Criatura não há: o bestiário é catálogo global e
      criatura nova se cria na página Criaturas, não aqui — aqui só se decide
      quem a vê. */
-  const podeCriar = tipoAba !== 'criatura';
+  const podeCriar = tipoAba !== 'criatura' && (!semMesa || ehAdmin);
   const dicaNovo = tipoAba === 'lugar'
-    ? (en ? 'New place' : 'Novo lugar')
+    ? (en ? 'New kingdom or city' : 'Novo reino ou cidade')
     : (en ? `New ${diarioTipoLabel(tipoAba, lang)}` : `${novoDoTipo(tipoAba)} ${diarioTipoLabel(tipoAba, lang)}`);
 
   /* Um + SÓ para Lugares (17/09/2026): "Novo reino e nova cidade serão a mesma
@@ -3246,8 +2936,12 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
             )}
             <div className="lore-mng-page-title-wrap">
               <div className="lore-mng-page-eyebrow">
-                <i className="ti ti-book-2" aria-hidden="true" />
-                {historia.titulo}
+                <i className={'ti ' + (semMesa ? 'ti-world' : 'ti-book-2')} aria-hidden="true" />
+                {semMesa
+                  ? (ehAdmin
+                    ? (en ? 'World catalog — enter an adventure to share' : 'Catálogo do mundo — entre numa aventura para liberar')
+                    : (en ? 'World catalog — enter an adventure to edit or share' : 'Catálogo do mundo — entre numa aventura para editar ou liberar'))
+                  : historia.titulo}
               </div>
               {/* Como página do menu lateral, o título é o nome da seção — as
                   mesmas palavras do menu, tiradas do mesmo ADMIN_COPY. */}
@@ -3346,6 +3040,22 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
 
    Sem mesa selecionada não há Lore de mesa nenhuma, e a tela diz isso em vez
    de aparecer vazia — mesmo contrato das seções do Jogador sem PJ ativo. */
+/* O motivo que as RPCs de lore devolvem, em português (26/09/2026). Era
+   mostrado cru — 'origem_nao_encontrada' na cara do Mestre. Motivo sem
+   tradução segue como veio: melhor o código que uma frase genérica. */
+const MOTIVOS_LORE = {
+  reino_obrigatorio: 'Escolha o reino desta cidade.',
+  nome_obrigatorio: 'Dê um nome à entrada.',
+  sem_permissao_historia: 'Você não é o Mestre desta aventura.',
+  origem_nao_encontrada: 'A entrada de origem não existe mais.',
+  copia_ja_existe: 'Esta aventura já tem uma cópia desta entrada.',
+  entrada_nao_encontrada: 'Entrada não encontrada.',
+  nao_autenticado: 'Sua sessão expirou. Entre de novo.',
+};
+function motivoLoreLegivel(motivo) {
+  return MOTIVOS_LORE[motivo] || motivo || 'erro';
+}
+
 function LoreDaMesa({ historiaId, lang, tipoFixo, vazio }) {
   const [historia, setHistoria] = useState(null);   // null = carregando
   const [erro, setErro] = useState(null);
@@ -3363,7 +3073,11 @@ function LoreDaMesa({ historiaId, lang, tipoFixo, vazio }) {
     return () => { cancel = true; };
   }, [historiaId]);
 
-  if (!historiaId) return vazio || null;
+  /* Sem mesa, o catálogo do mundo em leitura (26/09/2026) — ver `semMesa` em
+     GerenciarLoreView. `vazio` fica para quem quiser a tela vazia. */
+  if (!historiaId) return vazio === undefined
+    ? <GerenciarLoreView historia={null} lang={lang} tipoFixo={tipoFixo} key={tipoFixo + ':mundo'} />
+    : (vazio || null);
   if (erro) return <DiarioErrorBox error={erro} hint={lang === 'en' ? 'Could not load the table lore.' : 'Não consegui carregar o lore da mesa.'} />;
   if (!historia) return <DiarioLoading lang={lang} />;
   return (
@@ -3378,6 +3092,8 @@ function LoreDaMesa({ historiaId, lang, tipoFixo, vazio }) {
 
 Object.assign(window, {
   DiarioView, GerenciarLoreView, LoreDaMesa,
+  // A janela de detalhe (26/09/2026) — exposta para testes e pré-visualização.
+  DetalheEntradaModal,
   // O modal do botão de olho (17/09/2026). Exposto porque a CriaturasList
   // (09-bestiario) também o abre — ver permissao-entrada-modal.test.jsx.
   PermissaoEntradaModal,
@@ -3391,4 +3107,6 @@ Object.assign(window, {
      12-batalha já tem uma `proximaVisibilidade`, que é a da luz da batalha e
      não tem nada a ver com esta. Ver visibilidade-entrada.test.js. */
   DiarioVisibilidade: { visibilidadeDaEntrada, patchDeVisibilidade, chaveAcessoPj, VIS_CAMPO },
+  // A ficha de criatura em lista (26/09/2026) — exposta pro fichas-em-lista.test.jsx.
+  CriaturaFicha,
 });

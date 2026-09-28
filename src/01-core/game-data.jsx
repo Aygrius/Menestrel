@@ -382,7 +382,7 @@ function resistenciasBase(estagio, fisico, aura) {
 // Calcula a ficha completa a partir dos campos editáveis.
 // Para os derivados, atributos negativos contam como 0 (não altera `atributos`).
 // condicoesAtuais (opcional): pj.estado_atual?.condicoes. Quando informado,
-// soma os deltas de CONDICOES_POCO_MAP nos poços EF/EH/KA/VB (ver [14.5]).
+// aplica os malefícios de CONDICOES_MALEFICIO nos poços e em RF/RM (ver [14.5]).
 // Os ATRIBUTOS nunca são afetados por condição. O efeito das condições de
 // GRUPO (Sanidade/Reputação/Temperatura) não mora aqui — é aplicado no total
 // da habilidade, por totalHabilidadeComCondicoes.
@@ -412,8 +412,22 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau) {
   // `atributosBase` porque metade do app lê um e metade lê o outro.
   const atributos = atributosBase;
 
-  // Deltas de condição aplicados nos POÇOS, não nos atributos.
-  const dPoco = deltasPocosPorCondicoes(condicoesAtuais);
+  /* Deltas de condição aplicados nos POÇOS, não nos atributos. Com o
+     catálogo em mãos, entram a carga (barra Pesado, % da capacidade) e a
+     proteção das vestimentas (27/09/2026). */
+  const _itens = (p && p.inventario && Array.isArray(p.inventario.itens)) ? p.inventario.itens : null;
+  const _cargaFn = (typeof window !== 'undefined' && window.calcCarga) || null;
+  const _protFn = (typeof protecoesVestidas === 'function' && protecoesVestidas)
+    || (typeof window !== 'undefined' && window.protecoesVestidas) || null;
+  let pesadoPct = 0;
+  if (catalogoBySlug && _itens && _cargaFn) {
+    try { pesadoPct = Math.max(0, Math.min(100, Number(_cargaFn(_itens, catalogoBySlug, p.forca_base, p.fisico_base).pct) || 0)); }
+    catch (_) { pesadoPct = 0; }
+  }
+  const protecoes = (catalogoBySlug && _itens && _protFn) ? _protFn(_itens, catalogoBySlug) : {};
+  const condicoesComCarga = { ...(condicoesAtuais || {}), pesado: pesadoPct };
+  const dPoco = deltasPocosPorCondicoes(condicoesComCarga, protecoes);
+  const condicoesEfetivas = barrasDeCondicao(condicoesComCarga, protecoes);
 
   // Versões usadas nas fórmulas derivadas (EF/EH/RF/RM/Karma/Velocidade):
   // atributo negativo conta como 0, nunca como penalidade extra.
@@ -449,7 +463,10 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau) {
   // RF/RM — ver resistenciasBase (mesma fórmula usada pelas criaturas em
   // 12-batalha/montarSnapshots; não duplicar a conta aqui). Nenhuma condição
   // mexe em RF/RM: são derivados puros de estágio + atributo.
-  const { rf: resFisica, rm: resMagica } = resistenciasBase(estagio, fisicoC, auraC);
+  const _res = resistenciasBase(estagio, fisicoC, auraC);
+  // Fome tira RF; Sede tira RM (27/09/2026). A base continua a mesma fórmula.
+  const resFisica = Math.max(0, _res.rf + dPoco.rf);
+  const resMagica = Math.max(0, _res.rm + dPoco.rm);
   // KA — (RM + 1) × (aura + 1), + Hidratação/Sobriedade. Sem karma se aura < 1:
   // aí o poço não EXISTE, e o bônus de condição não o ressuscita (senão "sem
   // Karma" viraria condicional e o tooltip da ficha, mentira).
@@ -506,6 +523,9 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau) {
     peso: pesoVal,
     atributos,
     atributosBase,
+    // As barras como a ficha as mostra (0..100, Frio/Calor, proteção descontada).
+    condicoesEfetivas,
+    protecoes,
     derivadas: {
       energiaFisica: ef,
       energiaHeroica: eh,
@@ -961,129 +981,119 @@ function resolverResistencia(ataque, defesa) {
 }
 
 /* ============================== [14.5] Efeito de CONDIÇÕES sobre poços e habilidades ============================== */
-/* Escala de condição: -COND_LIMITE..+COND_LIMITE (COND_LIMITE em helpers.jsx),
-   0 = neutro.
+/* ESCALA 0–100, SÓ MALEFÍCIO (27/09/2026, usuário):
+     "Agora as barras vão de 0 a 100. 0 é o mundo ideal e 100 é o pior
+      cenário. [...] a barra no 0 não trará benefício, mas a barra 25, 50, 75
+      e 100 vão trazer malefícios."
+   Os nomes passaram a dizer o MAL: Doença (vitalidade), Sono (animo), Sede
+   (hidratacao), Fome (nutricao), Vício (euforia), Loucura (sanidade),
+   Desonra (reputacao). As chaves no banco ficam as mesmas.
+   Temperatura (termorregulacao) tem sinal: −100 frio … +100 calor, e vira DUAS
+   barras — Frio e Calor. Pesado é a carga, em % da capacidade.
 
-   REGRA NOVA (decisão de 08/09/2026, substitui CONDICOES_ATRIBUTO_MAP): a
-   condição NÃO mexe mais em atributo. O modelo antigo mandava a condição pro
-   atributo e deixava o atributo cascatear pros derivados — o efeito real
-   ficava indireto e difícil de prever (Hidratação negativa derrubava a Aura,
-   que zerava o Karma inteiro; Temperatura mexia na Agilidade, que mexia na
-   Defesa). Agora cada condição bate DIRETO no que deve afetar:
+   Malefício por barra (decisão do usuário, mesmo dia), em DEGRAUS: 25 → 25%
+   do máximo, 50 → 50%, 75 → 75%, 100 → 100%.
+     Doença → Energia Física      Sono → Velocidade      Sede → Resistência Mágica
+     Fome → Resistência Física    Vício → Karma          Loucura → Energia Heroica
+     Frio → Velocidade            Calor → Energia Heroica  Pesado → Velocidade
+     Desonra → habilidades de Influência (×0,5 no máximo)
+   O máximo nos poços é 6 (o de antes); em RF/RM, 4 — as resistências são
+   números pequenos, e −6 as zeraria já no começo do jogo.
 
-     - 5 condições somam em poços derivados (EF / VB / KA / EH);
-     - 3 condições multiplicam um PAR de grupos de habilidade.
+   PROTEÇÃO (vestimentas): "Protege 25 de Frio" põe o TETO da barra em 75
+   enquanto a peça está vestida (protecoesVestidas, 01-core/inventario-helpers).
+   Era desconto até 27/09/2026 — ver barrasDeCondicao. */
 
-   Os 6 grupos ficam cobertos por exatamente um par, então uma habilidade
-   nunca recebe mais de um multiplicador.
-
-   PROPORCIONAL AO NÍVEL DA BARRA (14/09/2026, usuário): "Para todas as barras
-   de vitalidade, faça com que o ganho e a perda seja proporcional ao nível da
-   barra." Até então eram degraus (±3 até 24, ±6 a partir de 25; ×0,75/×1,25 e
-   ×0,5/×1,5). Agora a barra cheia (±COND_LIMITE) dá o efeito máximo — o mesmo
-   do antigo degrau extremo — e o meio da barra dá metade. */
-
-// Faixa de intensidade de uma condição: -2 (extremo negativo), -1 (brando
-// negativo), 0 (neutro), +1 (brando positivo), +2 (extremo positivo).
-// Os extremos são INCLUSIVOS: -25 já é faixa forte, assim como +25.
-// Não entra mais na conta dos efeitos (que é proporcional, ver acima); fica
-// para quem precisa de uma leitura em degraus.
-const COND_FAIXA_EXTREMA = 25;
-function faixaCondicao(valor) {
+const COND_DEGRAU = 25;
+// 0 (< 25), 1 (25–49), 2 (50–74), 3 (75–99), 4 (100).
+function degrauCondicao(valor) {
   const v = Number(valor);
-  if (!Number.isFinite(v) || v === 0) return 0;
-  if (v <= -COND_FAIXA_EXTREMA) return -2;
-  if (v < 0) return -1;
-  if (v < COND_FAIXA_EXTREMA) return 1;
-  return 2;
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  return Math.min(4, Math.floor(v / COND_DEGRAU));
 }
-
-// Fração da barra, de -1 (vazia) a +1 (cheia). 0 = neutro.
+// Compat: quem lia a "faixa" em degraus recebe o degrau novo (0..4).
+function faixaCondicao(valor) { return degrauCondicao(valor); }
+// Fração da barra, 0 (ideal) a 1 (pior).
 function proporcaoCondicao(valor) {
-  const lim = (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null)
-    ?? (typeof window !== 'undefined' ? window.COND_LIMITE : null) ?? 50;
   const v = Number(valor);
-  if (!Number.isFinite(v) || v === 0) return 0;
-  return Math.max(-1, Math.min(1, v / lim));
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  return Math.min(1, v / 100);
 }
 
-// Efeito máximo num poço, com a barra no extremo.
-const COND_DELTA_MAX = 6;
+const _cond100 = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0; };
 
-/* Condições que somam em poços derivados. Cada lado da barra (`neg`, `pos`)
-   lista os poços que ele move; `max` é o efeito com a barra no extremo
-   (padrão COND_DELTA_MAX). O sinal acompanha o da barra, exceto em `bonus`,
-   que é ganho dos dois lados.
-
-   Sobriedade é o caso pedido pelo usuário: os DOIS lados são bônus, só mudam
-   de poço (bêbado rende Energia Heroica, sóbrio rende Karma).
-   Alimentação (14/09/2026): "Negativo perde velocidade e karma, positivo ganha
-   3 EF." */
-const CONDICOES_POCO_MAP = {
-  vitalidade: { neg: [{ poco: 'ef' }], pos: [{ poco: 'ef' }] },               // Saúde       → Energia Física
-  animo:      { neg: [{ poco: 'vb' }], pos: [{ poco: 'vb' }] },               // Sono        → Velocidade
-  hidratacao: { neg: [{ poco: 'ka' }], pos: [{ poco: 'ka' }] },               // Hidratação  → Karma
-  nutricao:   { neg: [{ poco: 'vb' }, { poco: 'ka' }], pos: [{ poco: 'ef', max: 3 }] },   // Alimentação → VB e KA (−) / EF (+)
-  euforia:    { neg: [{ poco: 'eh', bonus: true }], pos: [{ poco: 'ka' }] },  // Sobriedade  → EH (−) / KA (+)
-};
-
-/* Condições que multiplicam grupos de habilidade. `direto` acompanha o sinal
-   da condição (positiva → bônus), `inverso` é o espelho. */
-const CONDICOES_GRUPO_MAP = {
-  sanidade:        { direto: 'Conhecimento', inverso: 'Manobra' },
-  reputacao:       { direto: 'Influência',   inverso: 'Subterfúgio' },
-  termorregulacao: { direto: 'Geral',        inverso: 'Profissional' },
-};
-
-// Lookup grupo → { condicao, papel } (consultas O(1) em modificadorGrupoPorCondicoes).
-const CONDICOES_GRUPO_POR_GRUPO = {};
-Object.entries(CONDICOES_GRUPO_MAP).forEach(([condKey, par]) => {
-  CONDICOES_GRUPO_POR_GRUPO[par.direto]  = { condicao: condKey, papel: 'direto' };
-  CONDICOES_GRUPO_POR_GRUPO[par.inverso] = { condicao: condKey, papel: 'inverso' };
-});
-
-// Variação máxima do multiplicador, com a barra no extremo: ×1,5 / ×0,5.
-const COND_MULT_VARIACAO_MAX = 0.5;
-
-// Soma dos deltas de poço de TODAS as condições. Devolve sempre o objeto
-// completo (poço sem condição = 0), então o caller não precisa de guarda.
-// Poços acumulam: Hidratação +6 e Sobriedade +6 dão +12 de Karma.
-// Arredondamento ao inteiro mais próximo: a barra a +25 (metade) dá +3.
-function deltasPocosPorCondicoes(condicoes) {
-  const out = { ef: 0, eh: 0, ka: 0, vb: 0 };
-  if (!condicoes) return out;
-  Object.entries(CONDICOES_POCO_MAP).forEach(([condKey, regra]) => {
-    const p = proporcaoCondicao(condicoes[condKey]);
-    if (p === 0) return;
-    (p < 0 ? regra.neg : regra.pos).forEach((alvo) => {
-      const intensidade = Math.round((alvo.max ?? COND_DELTA_MAX) * Math.abs(p));
-      if (intensidade === 0) return;
-      out[alvo.poco] += (alvo.bonus || p > 0) ? intensidade : -intensidade;
-    });
+/* As barras como o jogador as vê: 0..100, com Frio/Calor saídos da
+   Temperatura e a proteção das vestimentas já descontada. `pesado` vem em
+   condicoes.pesado quando quem chama sabe a carga (calcularFicha sabe). */
+function barrasDeCondicao(condicoes, protecoes) {
+  const c = condicoes || {};
+  const p = protecoes || {};
+  const t = Number(c.termorregulacao) || 0;
+  const out = {
+    vitalidade: _cond100(c.vitalidade), animo: _cond100(c.animo),
+    hidratacao: _cond100(c.hidratacao), nutricao: _cond100(c.nutricao),
+    euforia: _cond100(c.euforia), sanidade: _cond100(c.sanidade),
+    reputacao: _cond100(c.reputacao),
+    frio: _cond100(-t), calor: _cond100(t), pesado: _cond100(c.pesado),
+  };
+  /* A PROTEÇÃO É TETO, NÃO DESCONTO (27/09/2026): "Se um item me protege 1
+     de desonra, quer dizer que o máximo que a barra chega é 99." Até então a
+     peça subtraía da barra — com 0 de Desonra e proteção 1, o efetivo virava
+     −1 e o tooltip mostrava o negativo. Agora a barra só não passa de
+     100 − proteção, e nunca desce de 0. */
+  Object.keys(out).forEach((k) => {
+    const prot = Number(p[k]) || 0;
+    if (prot > 0) out[k] = Math.min(out[k], Math.max(0, 100 - prot));
   });
   return out;
 }
 
-// Multiplicador aplicado ao total de uma habilidade pelo seu GRUPO.
-// Grupo fora dos 3 pares, condição em 0 ou ausente → 1 (neutro).
-function modificadorGrupoPorCondicoes(grupo, condicoes) {
-  if (!condicoes) return 1;
-  const regra = CONDICOES_GRUPO_POR_GRUPO[grupo];
-  if (!regra) return 1;
-  const p = proporcaoCondicao(condicoes[regra.condicao]);
-  if (p === 0) return 1;
-  const direto = 1 + COND_MULT_VARIACAO_MAX * p;
-  return regra.papel === 'direto' ? direto : 2 - direto;
+const COND_DELTA_MAX = 6;
+const COND_MULT_VARIACAO_MAX = 0.5;
+const CONDICOES_MALEFICIO = {
+  vitalidade: { poco: 'ef' },
+  animo:      { poco: 'vb' },
+  hidratacao: { poco: 'rm', max: 4 },
+  nutricao:   { poco: 'rf', max: 4 },
+  euforia:    { poco: 'ka' },
+  sanidade:   { poco: 'eh' },
+  frio:       { poco: 'vb' },
+  calor:      { poco: 'eh' },
+  pesado:     { poco: 'vb' },
+  reputacao:  { grupo: 'Influência' },
+};
+
+// O que cada barra tira, no degrau em que está. Sempre o objeto inteiro.
+function deltasPocosPorCondicoes(condicoes, protecoes) {
+  const out = { ef: 0, eh: 0, ka: 0, vb: 0, rf: 0, rm: 0 };
+  if (!condicoes) return out;
+  const barras = barrasDeCondicao(condicoes, protecoes);
+  Object.entries(CONDICOES_MALEFICIO).forEach(([k, r]) => {
+    if (!r.poco) return;
+    const d = degrauCondicao(barras[k]);
+    if (!d) return;
+    out[r.poco] -= Math.round((r.max ?? COND_DELTA_MAX) * d / 4);
+  });
+  return out;
+}
+
+// Multiplicador no total da habilidade pelo GRUPO: Desonra → Influência.
+function modificadorGrupoPorCondicoes(grupo, condicoes, protecoes) {
+  if (!condicoes || !grupo) return 1;
+  const entrada = Object.entries(CONDICOES_MALEFICIO).find(([, r]) => r.grupo === grupo);
+  if (!entrada) return 1;
+  const d = degrauCondicao(barrasDeCondicao(condicoes, protecoes)[entrada[0]]);
+  return d ? 1 - COND_MULT_VARIACAO_MAX * d / 4 : 1;
 }
 
 // Wrapper de totalHabilidade que aplica o modificador de grupo por condição
 // (Sanidade / Reputação / Temperatura). Os atributos NÃO são afetados por
 // condição desde 08/09/2026, então `atributos` pode vir direto de
 // calcularFicha sem tratamento extra.
-function totalHabilidadeComCondicoes(habKey, habilidadesObj, atributos, bonusObj, habilidadesByKey, condicoes) {
+function totalHabilidadeComCondicoes(habKey, habilidadesObj, atributos, bonusObj, habilidadesByKey, condicoes, protecoes) {
   const base = totalHabilidade(habKey, habilidadesObj, atributos, bonusObj, habilidadesByKey);
   const h = habilidadesByKey?.[habKey];
-  const mult = modificadorGrupoPorCondicoes(h?.grupo, condicoes);
+  const mult = modificadorGrupoPorCondicoes(h?.grupo, condicoes, protecoes);
   return mult === 1 ? base : Math.round(base * mult);
 }
 
@@ -1185,7 +1195,75 @@ function _buscaPorChave(mapa, valor) {
 }
 
 function iconeProfissao(profissao) { return _buscaPorChave(ICONE_PROFISSAO, profissao); }
-function iconeTipoCriatura(tipo)   { return _buscaPorChave(ICONE_TIPO_CRIATURA, tipo); }
+/* Classe pode ter várias desde 26/09/2026 ("Místico, Dragão"): o token usa
+   a PRIMEIRA que tiver ícone. */
+function iconeTipoCriatura(tipo) {
+  const partes = String(tipo == null ? '' : tipo).split(',').map((p) => p.trim()).filter(Boolean);
+  for (const p of partes) { const ic = _buscaPorChave(ICONE_TIPO_CRIATURA, p); if (ic) return ic; }
+  return _buscaPorChave(ICONE_TIPO_CRIATURA, tipo);
+}
+
+/* ── ELEMENTOS (26/09/2026, regras do usuário) ──────────────────────────────
+   "Sacerdotes são do elemento luz. Rastreadores são do elemento terra.
+    Guerreiros são do elemento fogo. Magos são do elemento escuridão. Bardos
+    são do elemento água. Ladinos são do elemento ar."
+
+   "O elemento fogo causa 10% mais dano no elemento ar. O ar causa 10% mais
+    dano na terra. A água causa 10% mais dano no fogo. A terra causa 10% mais
+    dano na água. A luz causa 15% mais dano na escuridão. A escuridão causa 5%
+    mais dano no fogo, ar, água e terra."
+
+   Quem tem mais de um elemento (criatura "Fogo, Luz") usa a MELHOR vantagem
+   entre os pares — não soma: Fogo+Luz contra Ar+Escuridão dá 15%, não 25%.
+   Ver danoFinal (12-batalha/batalha.jsx). */
+const ELEMENTO_PROFISSAO = {
+  'Sacerdote': 'Luz', 'Rastreador': 'Terra', 'Guerreiro': 'Fogo',
+  'Mago': 'Escuridão', 'Bardo': 'Água', 'Ladino': 'Ar',
+};
+const VANTAGEM_ELEMENTAL = {
+  fogo: { ar: 10 },
+  ar: { terra: 10 },
+  agua: { fogo: 10 },
+  terra: { agua: 10 },
+  luz: { escuridao: 15 },
+  escuridao: { fogo: 5, ar: 5, agua: 5, terra: 5 },
+};
+/* "Fogo, Luz" / ['Água'] / 'agua' → ['fogo','luz'] / ['agua'] — sem acento,
+   minúsculo. Aceita string CSV ou lista. */
+function chavesDeElemento(v) {
+  const lista = Array.isArray(v) ? v : String(v == null ? '' : v).split(',');
+  return lista.map((x) => String(x || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+    .filter(Boolean);
+}
+function elementoDaProfissao(profissao) { return ELEMENTO_PROFISSAO[profissao] || null; }
+/* A vantagem em % do golpe (elementos de quem bate) contra o alvo. 0 = nenhuma. */
+function bonusElemental(elementosDoGolpe, elementosDoAlvo) {
+  const golpe = chavesDeElemento(elementosDoGolpe);
+  const alvo = chavesDeElemento(elementosDoAlvo);
+  let melhor = 0;
+  golpe.forEach((g) => alvo.forEach((a) => {
+    const pct = (VANTAGEM_ELEMENTAL[g] || {})[a] || 0;
+    if (pct > melhor) melhor = pct;
+  }));
+  return melhor;
+}
+
+/* A PATENTE da criatura pelo estágio (25/09/2026, pedido do usuário): um
+   ícone ao lado do nome — 1–5 C, 6–10 B, 11–15 A, 16–20 S, 21–25 X, 26–30 ✱.
+   Acima de 30 fica no topo da escala; sem estágio válido, sem ícone. */
+const ICONE_ESTAGIO_CRIATURA = [
+  [5,  'ti-hexagon-letter-c'],
+  [10, 'ti-hexagon-letter-b'],
+  [15, 'ti-hexagon-letter-a'],
+  [20, 'ti-hexagon-letter-s'],
+  [25, 'ti-hexagon-letter-x'],
+  [Infinity, 'ti-hexagon-asterisk'],
+];
+function iconeEstagioCriatura(estagio) {
+  const n = Number(estagio);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return ICONE_ESTAGIO_CRIATURA.find(([teto]) => n <= teto)[1];
+}
 
 Object.assign(window, {
   GAME_DATA, GRUPOS_HABILIDADES_ORDEM, ATRIBUTOS_KEYS, ATRIBUTOS_LABEL,
@@ -1194,8 +1272,7 @@ Object.assign(window, {
   calcularFicha, tituloDoPersonagem, pontosHabilidadesTotal, gastoHabilidades,
   qtdHabilidades, limiteQtdHabilidades, nivelHabilidade, totalHabilidade,
   calcBonusHabilidadesRacaReino,
-  CONDICOES_POCO_MAP, CONDICOES_GRUPO_MAP, CONDICOES_GRUPO_POR_GRUPO,
-  faixaCondicao, proporcaoCondicao, deltasPocosPorCondicoes,
+  faixaCondicao, proporcaoCondicao, deltasPocosPorCondicoes, degrauCondicao, barrasDeCondicao, CONDICOES_MALEFICIO,
   modificadorGrupoPorCondicoes, totalHabilidadeComCondicoes,
   MAGIAS_POR_PROFISSAO, profissaoUsaMagia, pontosMagiasTotal, gastoMagias,
   podeAcessarMagia, nivelMagiaEfetivo, magiaEhAvancada, magiaEhTravada,
@@ -1210,4 +1287,6 @@ Object.assign(window, {
   pontosCaracterizacaoTotal, gastoCaracterizacao,
   PONTOS_CARACTERIZACAO_BASE, CUSTO_CARACTERIZACAO, GANHO_CARACTERIZACAO,
   ICONE_PROFISSAO, ICONE_TIPO_CRIATURA, iconeProfissao, iconeTipoCriatura,
+  ICONE_ESTAGIO_CRIATURA, iconeEstagioCriatura,
+  ELEMENTO_PROFISSAO, VANTAGEM_ELEMENTAL, chavesDeElemento, elementoDaProfissao, bonusElemental,
 });

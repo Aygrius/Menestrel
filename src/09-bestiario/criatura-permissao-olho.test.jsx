@@ -118,15 +118,22 @@ const montar = (props = {}) => render(
 const pronta = () => waitFor(() => expect(document.querySelector('tbody tr')).toBeTruthy());
 const linhas = () => [...document.querySelectorAll('tbody tr:not(.best-detail)')];
 const linhaDe = (nome) => linhas().find((tr) => (tr.textContent || '').includes(nome));
-const olhoDe = (nome) => linhaDe(nome).querySelector('.ti-eye');
+/* O olho e o lápis moram no CABEÇALHO DA JANELA desde 26/09/2026 ("o ícone de
+   lápis deve aparecer do lado do x de fechar o modal"): abre a ficha pela
+   linha e acha o ícone ao lado do X. */
+const cabecalho = () => document.querySelector('.modal-best-detalhe .ms-header');
+const abrirFicha = (nome) => fireEvent.click(linhaDe(nome));
+const olhoDe = (nome) => { abrirFicha(nome); return cabecalho().querySelector('.ti-eye'); };
 
 describe('com mesa selecionada, o olho aparece ao lado do lápis', () => {
-  it('uma linha tem os dois botões', async () => {
+  it('olho e lápis no cabeçalho da janela, antes do X — e não na linha', async () => {
     stubBanco(); montar({ historiaId: 13 });
     await pronta();
-    const tr = linhaDe('Lobisomem');
-    expect(tr.querySelector('.ti-eye')).toBeTruthy();
-    expect(tr.querySelector('.ti-pencil')).toBeTruthy();
+    expect(linhaDe('Lobisomem').querySelector('button .ti-eye, button .ti-pencil')).toBeNull();
+    abrirFicha('Lobisomem');
+    await waitFor(() => expect(cabecalho().querySelector('.ti-pencil')).toBeTruthy());
+    const botoes = [...cabecalho().querySelectorAll('button.ms-close')].map((b) => b.querySelector('i').className);
+    expect(botoes).toEqual(['ti ti-eye', 'ti ti-pencil', 'ti ti-x']);
   });
 
   it('o olho abre o modal de permissão da criatura', async () => {
@@ -157,13 +164,14 @@ describe('com mesa selecionada, o olho aparece ao lado do lápis', () => {
     expect(marcado.value).toBe('ninguem');
   });
 
-  /* O clique no olho não pode expandir a linha junto: a <tr> inteira é o
-     gesto de expandir, e o modal subiria com a ficha aberta atrás dele. */
-  it('clicar no olho não expande a linha', async () => {
+  it('o lápis fecha a ficha e abre o editor', async () => {
     stubBanco(); montar({ historiaId: 13 });
     await pronta();
-    fireEvent.click(olhoDe('Balor').closest('button'));
-    expect(document.querySelector('.best-detail')).toBeNull();
+    abrirFicha('Balor');
+    await waitFor(() => expect(cabecalho().querySelector('.ti-pencil')).toBeTruthy());
+    fireEvent.click(cabecalho().querySelector('.ti-pencil').closest('button'));
+    expect(document.querySelector('.modal-best-detalhe')).toBeNull();
+    expect(document.querySelector('.modal-catalogo')).toBeTruthy();
   });
 
   it('salvar grava criatura_ids na história, num update só', async () => {
@@ -181,13 +189,32 @@ describe('com mesa selecionada, o olho aparece ao lado do lápis', () => {
   });
 });
 
+/* "Você não adicionou o ícone nas criaturas" (usuário, 26/09/2026): quem pode
+   ver, ao lado do nome, como em Reinos — olho = todos, olho riscado = ninguém. */
+describe('o ícone de quem pode ver, ao lado do nome', () => {
+  it('com mesa: olho na liberada, olho riscado na que ninguém vê', async () => {
+    stubBanco(); montar({ historiaId: 13 });
+    await pronta();
+    await waitFor(() => expect(linhaDe('Lobisomem').querySelector('.best-name .diario-vis-ic')).toBeTruthy());
+    expect(linhaDe('Lobisomem').querySelector('.diario-vis-ic i').className).toBe('ti ti-eye');
+    expect(linhaDe('Balor').querySelector('.diario-vis-ic i').className).toBe('ti ti-eye-off');
+  });
+
+  it('sem mesa, não há ícone', async () => {
+    stubBanco(); montar({ historiaId: null });
+    await pronta();
+    expect(document.querySelector('.best-name .diario-vis-ic')).toBeNull();
+  });
+});
+
 describe('sem mesa selecionada não há "história selecionada"', () => {
   it('o olho não aparece', async () => {
     stubBanco(); montar({ historiaId: null });
     await pronta();
-    expect(document.querySelector('tbody .ti-eye')).toBeNull();
+    abrirFicha('Lobisomem');
     // O lápis continua: editar o catálogo não depende de mesa.
-    expect(document.querySelector('tbody .ti-pencil')).toBeTruthy();
+    await waitFor(() => expect(cabecalho().querySelector('.ti-pencil')).toBeTruthy());
+    expect(cabecalho().querySelector('.ti-eye')).toBeNull();
   });
 });
 
@@ -212,11 +239,11 @@ describe('o Jogador não vê o olho', () => {
     );
   });
 
-  it('e é ela que decide o botão na linha', () => {
-    const i = fonte.indexOf('<BestBotaoPermissao');
+  it('e é ela que decide o olho no cabeçalho da janela', () => {
+    const i = fonte.indexOf("icone: 'ti-eye'");
     expect(i).toBeGreaterThan(-1);
-    // A condição imediatamente antes do botão é a porta, não outra coisa.
-    expect(fonte.slice(i - 200, i)).toMatch(/podeGerirVisibilidade && \(/);
+    // A condição imediatamente antes do olho é a porta, não outra coisa.
+    expect(fonte.slice(i - 40, i)).toMatch(/podeGerirVisibilidade && \{ $/);
   });
 });
 

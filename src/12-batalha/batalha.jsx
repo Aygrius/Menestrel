@@ -1525,9 +1525,9 @@ function aplicarDanoCascata(dano, p, mods) {
    divergir do mapa real caso ganhe/perca um label. Fallback hardcoded só
    se o helper ainda não tiver carregado (não deveria acontecer na ordem
    real de import, mas evita undefined.values() quebrar o snapshot). */
-const CONDICOES_KEYS = (typeof EFEITO_CONDICAO_MAP === 'object' && EFEITO_CONDICAO_MAP)
-  ? Object.values(EFEITO_CONDICAO_MAP).filter((v) => v.scope === 'condicoes').map((v) => v.key)
-  : ['reputacao', 'animo', 'sanidade', 'vitalidade', 'hidratacao', 'euforia', 'termorregulacao', 'nutricao'];
+/* As chaves GRAVADAS (27/09/2026). O mapa de rótulos ganhou Frio e Calor, que
+   não são barras no banco — são os dois lados de termorregulacao. */
+const CONDICOES_KEYS = ['reputacao', 'animo', 'sanidade', 'vitalidade', 'hidratacao', 'euforia', 'termorregulacao', 'nutricao'];
 
 
 /* ── Monta o snapshot de combate de cada participante ───────────
@@ -1696,12 +1696,16 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
       const _COND_LIMITE = (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null) ?? window.COND_LIMITE ?? 50;
       const condBase = (pj.estado_atual && pj.estado_atual.condicoes) || {};
       const condicoes = {};
+      // 0..100; a Temperatura tem sinal (−100 frio … +100 calor).
       CONDICOES_KEYS.forEach((k) => {
         const v = Number(condBase[k]);
-        condicoes[k] = Number.isFinite(v) ? Math.max(-_COND_LIMITE, Math.min(_COND_LIMITE, v)) : 0;
+        const piso = k === 'termorregulacao' ? -_COND_LIMITE : 0;
+        condicoes[k] = Number.isFinite(v) ? Math.max(piso, Math.min(_COND_LIMITE, v)) : 0;
       });
       const snapPj = {
         tipo: 'pj', ref_id: p.ref_id, nome: p.nome,
+        // O elemento do PJ é o da profissão (26/09/2026) — ver danoFinal.
+        elemento: (typeof elementoDaProfissao === 'function' ? elementoDaProfissao(pj.profissao) : null),
         inst_id: p.inst_id,   // garantido por partsComInstId acima
         // TABULEIRO: posição herdada do participante (quem já estava colocado
         // não volta pra bancada ao remontar), movimento cheio da rodada, e
@@ -1767,6 +1771,8 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
     const efCri = minion ? poolDeMinion(c.energia_fisica) : (c.energia_fisica || 0);
     return {
       tipo: 'criatura', ref_id: p.ref_id, nome: p.nome,
+      // O elemento da criatura (26/09/2026; pode ser "Fogo, Luz") — ver danoFinal.
+      elemento: c.elemento || null,
       inst_id: p.inst_id,   // garantido por partsComInstId acima
       ...(p.bando ? { bando: p.bando } : {}),
       // TABULEIRO (ver bloco equivalente do PJ acima). Criatura não tem foto;
@@ -1849,7 +1855,8 @@ function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
   for (const ef of efeitos) {
     const delta = ef.delta;
     if (ef.scope === 'condicoes') {
-      novo.condicoes[ef.key] = aplicarDeltaCondicao(novo.condicoes[ef.key], delta);
+      // Frio/Calor mexem na Temperatura — a mesma porta da ficha.
+      novo.condicoes = condicoesComDelta(novo.condicoes, ef.key, delta);
     } else if (ef.scope === 'vitalidade') {
       // eh/ef/ka (Karma) no snapshot — clamp no _max do snapshot (respeita
       // sequela já presente: se eh_max já está reduzido, não estoura ele).
@@ -2873,7 +2880,7 @@ const POOLS_DO_CARD = [
   { pool: 'ef',  campo: 'ef',    icone: 'ti-heart',             nome: ['Energia Física', 'Physical Energy'] },
   { pool: 'eh',  campo: 'eh',    icone: 'ti-heart',             nome: ['Energia Heroica', 'Heroic Energy'] },
   { pool: 'res', campo: 'res',   icone: 'ti-shield',            nome: ['Resistência da armadura', 'Armor durability'] },
-  { pool: 'ka',  campo: 'karma', icone: 'ti-sparkle-highlight', nome: ['Karma', 'Karma'] },
+  { pool: 'ka',  campo: 'karma', icone: 'ti-sparkles',           nome: ['Karma', 'Karma'] },
 ];
 
 function fracaoDaPool(valor, max) {
@@ -3260,30 +3267,53 @@ function ataquesDoAtor(ator, catalogos) {
    uma perfuração na perna do oponente com 12 de dano adicional, ele terá -4
    por 1 dia." O nome do resultado (Absurdo, Rotineiro) saiu; o erro continua
    dito. */
-function textoResultadoGolpe(resultado, dano) {
+/* ONDE o dano caiu (27/09/2026): "Vampiro atacou Haalin com presas e causou
+   25 de dano na energia física." `onde` = { eh, ef } que o alvo perdeu no
+   golpe (antes − depois de aplicarGolpeEmAlvo). Sem `onde`, a frase de antes. */
+function textoResultadoGolpe(resultado, dano, onde) {
   if (!resultado) return '';
   if (resultado.erra) return ' e errou';
-  return Number(dano) > 0 ? ` e causou ${dano} de dano` : ' e acertou, sem causar dano';
+  if (!(Number(dano) > 0)) return ' e acertou, sem causar dano';
+  if (!onde) return ` e causou ${dano} de dano`;
+  const eh = Math.max(0, Number(onde.eh) || 0), ef = Math.max(0, Number(onde.ef) || 0);
+  if (eh > 0 && ef > 0) return ` e causou ${dano} de dano (${eh} na energia heroica e ${ef} na energia física)`;
+  if (ef > 0) return ` e causou ${dano} de dano na energia física`;
+  if (eh > 0) return ` e causou ${dano} de dano na energia heroica`;
+  return ' e acertou, mas a armadura segurou o golpe';
 }
 
-// PJ pelo primeiro nome ("Lirael", não "Lirael Vel'Thalas"); criatura inteira
-// ("Lobo Adulto" é o nome dela, não nome e sobrenome).
+// O nome no log: SEMPRE o primeiro, também de criatura (27/09/2026 — "Lobo
+// Adulto" vira "Lobo"). Era só dos PJs.
 function nomeCurtoNaMesa(p) {
-  const nome = String((p && p.nome) || '').trim();
-  if (!p || p.tipo !== 'pj') return nome;
-  return nome.split(/\s+/)[0] || nome;
+  return primeiroNome(p && p.nome);
 }
 
-function textoGolpeNaMesa({ ator, alvoNome, acaoNome, tipo, resultado, dano, alvosExtras, msgCritico }) {
+/* O nome do golpe em minúsculas ("com garras", "com presas" — 27/09/2026). O
+   ataque genérico da criatura sem nome ("Lobo Adulto ataque") não entra: a
+   frase fica "Lobo atacou Lirael e errou". */
+function nomeDoGolpeNaFrase(acaoNome, ator) {
+  const n = String(acaoNome || '').trim();
+  if (!n) return '';
+  const generico = ator && ator.nome && n.toLowerCase() === (String(ator.nome) + ' ataque').toLowerCase();
+  if (generico || / ataque$/i.test(n)) return '';
+  return n.toLocaleLowerCase('pt-BR');
+}
+
+function textoGolpeNaMesa({ ator, alvoNome, acaoNome, tipo, resultado, dano, alvosExtras, msgCritico, ondeDano }) {
   const quem = nomeCurtoNaMesa(ator);
-  let texto = tipo === 'magia'
-    ? `${quem} conjurou ${acaoNome} em ${alvoNome}`
-    : `${quem} atacou ${alvoNome} com ${acaoNome || 'arma'}`;
-  texto += textoResultadoGolpe(resultado, dano);
+  const alvo = primeiroNome(alvoNome);
+  let texto;
+  if (tipo === 'magia') {
+    texto = `${quem} conjurou ${acaoNome} em ${alvo}`;
+  } else {
+    const golpe = nomeDoGolpeNaFrase(acaoNome, ator);
+    texto = golpe ? `${quem} atacou ${alvo} com ${golpe}` : `${quem} atacou ${alvo}`;
+  }
+  texto += textoResultadoGolpe(resultado, dano, ondeDano);
   // Golpe Giratório: o mesmo giro alcançou mais gente. O dano de cada um é
   // resolvido contra a defesa DELE (ver aplicarGolpeEmAlvo), por isso o texto
   // não repete o número do alvo principal.
-  if (tipo !== 'magia' && alvosExtras && alvosExtras.length) texto += `, e também atingiu ${alvosExtras.join(', ')}`;
+  if (tipo !== 'magia' && alvosExtras && alvosExtras.length) texto += `, e também atingiu ${alvosExtras.map(primeiroNome).join(', ')}`;
   texto += '.';
   if (msgCritico) texto += ` ${msgCritico}`;
   return texto;
@@ -3808,6 +3838,45 @@ function vbEfetivo(p) {
    devolve nem tira PA já dado. undefined = ainda não lido: a virada mantém o
    que já estava carimbado. Criaturas não sofrem, como na ficha: a regra do
    pedido é sobre os personagens. */
+/* ── SAQUE (25/09/2026) ──────────────────────────────────────────
+   "Quando a criatura for derrotada no tabuleiro, o jogador poderá saquear o
+    inimigo derrotado." Decisões do usuário no mesmo dia:
+     • derrotada = morta OU desmaiada;
+     • quem saqueia: PJ de pé ENCOSTADO nela no tabuleiro — sem tabuleiro
+       (algum dos dois sem posição), qualquer PJ da batalha; não gasta PA;
+     • SÓ NA VEZ DELE (correção do mesmo dia): "Só dá para saquear na sua vez,
+       ou seja, isso impede dois jogadores de saquear ao mesmo tempo". Com um
+       saqueador por vez, a anotação `saqueado` não tem mais disputa;
+     • item a item — o que um pega some para os outros.
+   O que a criatura tem sai do cadastro (criaturas.equipamento: armas, peças e
+   mochila — ver saqueDisponivel em 09-bestiario/criatura-formulas.jsx). O que
+   já saiu fica anotado NA INSTÂNCIA da batalha (`saqueado` = { slug: qtd }):
+   três Goblins são três saques. */
+function podeSaquear(saqueador, alvo) {
+  if (!saqueador || !alvo || saqueador.tipo !== 'pj' || alvo.tipo !== 'criatura') return false;
+  if ((saqueador.status || 'ativo') !== 'ativo' || saqueador.ausente || saqueador.fugiu) return false;
+  if (!saqueador.atual) return false;
+  const st = alvo.status || 'ativo';
+  if (st !== 'morto' && st !== 'desmaiado') return false;
+  if (alvo.ausente) return false;
+  // distanciaEntre (tabuleiro.jsx) é null quando algum dos dois está fora do grid.
+  const d = typeof distanciaEntre === 'function' ? distanciaEntre(saqueador, alvo) : null;
+  return d == null ? true : d <= 1;
+}
+
+function saqueadoresDe(alvo, participantes) {
+  return (participantes || []).filter((p) => podeSaquear(p, alvo));
+}
+
+function anotarSaque(participantes, alvoInstId, slug, qtd) {
+  const n = Math.max(1, Math.trunc(Number(qtd) || 1));
+  return (participantes || []).map((p) => {
+    if (!p || p.inst_id !== alvoInstId) return p;
+    const antes = p.saqueado || {};
+    return { ...p, saqueado: { ...antes, [slug]: (Number(antes[slug]) || 0) + n } };
+  });
+}
+
 let _ventoDaBatalha;
 function penalidadeVentoNaBatalha(vento) {
   const fn = (typeof penalidadeVentoVB === 'function' && penalidadeVentoVB)
@@ -3894,7 +3963,15 @@ function danoFinal(danoBase, atacante, alvo, elemento) {
   /* mod_dano (Ataque Impetuoso, 12/09/2026): bônus PLANO do atacante, somado
      antes dos percentuais — "+4 de dano" com Brutalizar +50% dá (base+4)×1,5.
      Só vale para golpe que acertou (base > 0), e é gasto em consumirModDano. */
-  const comBonus = (base + somaEfeitosStatus(atacante, 'mod_dano')) * (1 + somaDanoPct(atacante) / 100);
+  /* VANTAGEM ELEMENTAL (26/09/2026): fogo > ar > terra > água > fogo em 10%,
+     luz > escuridão em 15%, escuridão > os quatro em 5% (bonusElemental,
+     01-core/game-data.jsx). O golpe carrega o elemento da MAGIA quando ela
+     tem um; senão, o de quem bate (profissão do PJ, elemento da criatura). O
+     percentual entra somado aos outros percentuais do atacante — a regra do
+     sistema é aditiva (ver somaDanoPct). */
+  const pctElemental = typeof bonusElemental === 'function'
+    ? bonusElemental(elemento || (atacante && atacante.elemento), alvo && alvo.elemento) : 0;
+  const comBonus = (base + somaEfeitosStatus(atacante, 'mod_dano')) * (1 + (somaDanoPct(atacante) + pctElemental) / 100);
   const aposMaximo = comBonus + somaEfeitosStatus(alvo, 'mod_dano_max');
   /* Proteção elemental (Piroproteção, Aeroproteção, Armadura Elemental) entra
      AQUI, junto do outro modificador PLANO e antes dos percentuais — a mesma
@@ -5126,11 +5203,9 @@ function aplicarCondicoesDaMagia(alvoP, magia, nivel) {
     // Nível cujo texto não traz a unidade: Doenças mexe em Saúde nos níveis
     // 1 a 7 e troca para coluna de ataque no 9. Não inventa zero.
     if (bruto == null || !ef.condicao) return;
-    const delta = (ef.sinal || 1) * bruto;
-    const atual = (out.condicoes || {})[ef.condicao];
-    const novo = (typeof aplicarDeltaCondicao === 'function')
-      ? aplicarDeltaCondicao(atual, delta) : (Number(atual) || 0) + delta;
-    out = { ...out, condicoes: { ...(out.condicoes || {}), [ef.condicao]: novo } };
+    // sinal +1 = melhora = TIRA da barra (0 ideal … 100 pior, 27/09/2026).
+    const delta = -(ef.sinal || 1) * bruto;
+    out = { ...out, condicoes: condicoesComDelta(out.condicoes, ef.condicao, delta) };
   });
   return out;
 }
@@ -5912,6 +5987,92 @@ function saidaDeCombate(participantes, ref, novoStatus) {
 }
 
 /* ============================== Condução (Fase 4b: turnos + iniciativa) ============================== */
+/* ── A JANELA DE SAQUE (25/09/2026) ─────────────────────────────────
+   Uma para as duas telas. O que a criatura ainda tem sai de saqueDisponivel
+   (criatura-formulas.jsx) sobre o cadastro dela menos o que já foi tirado
+   desta instância. Quem recebe: no Mestre, o PJ escolhido entre os que podem
+   saquear; no Jogador, o próprio (a lista chega com um só). `onPegar` faz a
+   gravação e devolve { error } — a janela só mostra o motivo. */
+function SaqueModal({ alvo, criatura, catalogoBySlug, saqueadores, isEn, lang, onPegar, onClose }) {
+  const F = (typeof CriaturaFormulas !== 'undefined') ? CriaturaFormulas : window.CriaturaFormulas;
+  const itens = F ? F.saqueDisponivel(criatura && criatura.equipamento, alvo && alvo.saqueado) : [];
+  const [destinoId, setDestinoId] = useState(saqueadores[0] ? saqueadores[0].inst_id : null);
+  const [qtds, setQtds] = useState({});
+  const [pegando, setPegando] = useState(null);
+  const [erro, setErro] = useState(null);
+  const destino = saqueadores.find((p) => p.inst_id === destinoId) || saqueadores[0] || null;
+  const nomeDo = (slug) => (catalogoBySlug && catalogoBySlug[slug] && catalogoBySlug[slug].nome) || slug;
+
+  const pegar = async (slug, disponivel) => {
+    if (!destino || pegando) return;
+    const qtd = Math.min(disponivel, Math.max(1, qtds[slug] || 1));
+    setPegando(slug); setErro(null);
+    const r = await onPegar(destino, slug, qtd);
+    setPegando(null);
+    if (r && r.error) { setErro(r.error.message || String(r.error)); return; }
+    setQtds((q) => ({ ...q, [slug]: 1 }));
+  };
+
+  return (
+    <ModalShell
+      title={<><i className="ti ti-backpack" aria-hidden="true" /> {(isEn ? 'Loot: ' : 'Saquear: ') + ((alvo && alvo.nome) || '')}</>}
+      lang={lang} size="sm" onClose={onClose} onCancel={onClose}
+      cancelLabel={isEn ? 'Close' : 'Fechar'}>
+      <div className="saque-modal">
+        {saqueadores.length > 1 && (
+          <SelectPill label={isEn ? 'Who takes it' : 'Quem pega'} value={destinoId}
+            onChange={setDestinoId}
+            options={saqueadores.map((p) => ({ value: p.inst_id, label: p.nome }))} />
+        )}
+        {itens.length === 0
+          ? <p className="saque-vazio">{isEn ? 'Nothing left to loot.' : 'Nada para saquear.'}</p>
+          : (
+            <ul className="saque-lista">
+              {itens.map(({ slug, qtd }) => {
+                const escolhida = Math.min(qtd, Math.max(1, qtds[slug] || 1));
+                return (
+                  <li key={slug} className="saque-item" data-slug={slug}>
+                    <span className="saque-nome">{nomeDo(slug)}</span>
+                    <span className="saque-qtd">{qtd > 1 ? `× ${qtd}` : ''}</span>
+                    {qtd > 1 && (
+                      <span className="saque-passo">
+                        <button type="button" aria-label={isEn ? 'One less' : 'Um a menos'} disabled={escolhida <= 1}
+                          onClick={() => setQtds((q) => ({ ...q, [slug]: escolhida - 1 }))}><i className="ti ti-minus" aria-hidden="true" /></button>
+                        <span className="saque-passo-n">{escolhida}</span>
+                        <button type="button" aria-label={isEn ? 'One more' : 'Um a mais'} disabled={escolhida >= qtd}
+                          onClick={() => setQtds((q) => ({ ...q, [slug]: escolhida + 1 }))}><i className="ti ti-plus" aria-hidden="true" /></button>
+                      </span>
+                    )}
+                    <button type="button" className="btn-primary saque-pegar" disabled={!destino || !!pegando}
+                      onClick={() => pegar(slug, qtd)}>
+                      {pegando === slug ? '…' : (isEn ? 'Take' : 'Pegar')}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        {erro && <p className="saque-erro" role="alert">{erro}</p>}
+      </div>
+    </ModalShell>
+  );
+}
+
+/* Grava o saque no inventário do PJ: lê a linha agora (não a cópia da tela),
+   soma e grava — ver adicionarAoInventario. Devolve { error }. */
+async function gravarSaqueNoPj(pjId, slug, qtd) {
+  const { data, error } = await supabaseClient.from('personagens').select('inventario').eq('id', pjId).maybeSingle();
+  if (error || !data) return { error: error || new Error('PJ não encontrado.') };
+  const novo = adicionarAoInventario(data.inventario, slug, qtd);
+  const { error: erroUp } = await supabaseClient.from('personagens').update({ inventario: novo }).eq('id', pjId);
+  return { error: erroUp || null };
+}
+
+function textoSaque(pjNome, qtd, itemNome, alvoNome, en) {
+  return en ? `${pjNome} looted ${qtd}× ${itemNome} from ${alvoNome}.`
+    : `${pjNome} saqueou ${qtd}× ${itemNome} de ${alvoNome}.`;
+}
+
 function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = [], lang, onVoltar, onAtualizado, onHeaderActionsChange, onRolagemPendenteChange }) {
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
@@ -5999,6 +6160,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
      tempo, o update do dado podia chegar DEPOIS e deixar a rolagem já usada
      na coluna. Cada gravação espera a anterior terminar. */
   const filaGravacao = React.useRef(Promise.resolve());
+  const [saqueDe, setSaqueDe] = useState(null);   // inst_id da criatura sendo saqueada (25/09/2026)
   const persistir = async (campos, locais) => {
     const baseParticipantes = participantes;
     const baseLog = log;
@@ -6411,7 +6573,13 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     if (resolvendoEvocacao) next[atorIdx] = soltarEvocacao(next[atorIdx]);
     // Atacar É uma ação: derruba a concentração de quem ataca.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
+    const alvoAntesDoGolpe = next[alvoIdx];
     next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+    // Onde o dano caiu no alvo principal — o log diz "na energia física" (27/09/2026).
+    const ondeDano = {
+      eh: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.eh) || 0) - (Number(next[alvoIdx] && next[alvoIdx].eh) || 0)),
+      ef: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.ef) || 0) - (Number(next[alvoIdx] && next[alvoIdx].ef) || 0)),
+    };
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -6495,7 +6663,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       const atorNome = participantes[atorIdx].nome;
       const texto = textoGolpeNaMesa({
         ator: participantes[atorIdx], alvoNome: alvo.nome, acaoNome: nomeAcao, tipo,
-        resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico,
+        resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico, ondeDano,
       });
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
@@ -6749,11 +6917,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         tipoEvento = 'teste';
         const resLabel = payload.resultado === 'resistiu' ? 'Resistiu'
           : payload.resultado === 'falhou' ? 'Não resistiu' : 'Empate — role de novo';
-        texto = `${testador.nome} testou resistência (${(payload.resistencia_tipo || '').toUpperCase()}) → ${resLabel} (d20 ${payload.d20})`;
+        texto = `${primeiroNome(testador.nome)} testou resistência (${(payload.resistencia_tipo || '').toUpperCase()}) → ${resLabel} (d20 ${payload.d20})`;
       } else {
         tipoEvento = 'teste';
         const resNome = payload.resultado ? payload.resultado.pt : null;
-        texto = `${testador.nome} usou ${payload.nome || payload.chave}`;
+        texto = `${primeiroNome(testador.nome)} usou ${payload.nome || payload.chave}`;
         if (resNome) texto += ` → ${resNome}`;
         /* VEREDITO do teste de habilidade (12/09/2026). A mensagem dizia a
            qualidade ("→ Difícil") e parava aí; quem lia não sabia se aquilo
@@ -6866,7 +7034,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
     // Notifica a Central de Mensagens da Mesa (fire-and-forget — mesmo padrão das demais ações).
     if (historia && historia.id) {
-      const texto = `${atorSnap.nome} usou ${nome}`;
+      const texto = `${primeiroNome(atorSnap.nome)} usou ${nome}`;
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
         p_tipo: 'item',
@@ -7711,6 +7879,16 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                     </div>
                   );
                 })()}
+                {/* SAQUEAR (25/09/2026): criatura morta ou desmaiada, e o PJ da vez
+                    encostado nela — só ele saqueia (saqueadoresDe já filtra). */}
+                {estado === 'ativa' && p.tipo === 'criatura' && catalogos
+                  && saqueadoresDe(p, participantes).length > 0 && (
+                  <div className="batalha-card-botoes">
+                    <BotaoAcaoMenu icone="ti-backpack" rotulo={isEn ? 'Loot' : 'Saquear'}
+                      disabled={salvando} onClick={() => { setSaqueDe(p.inst_id); fechar(); }}
+                      abrirTip={abrirTip} fecharTip={fecharTip} />
+                  </div>
+                )}
               </div>
 
               {/* O Envenenado virou MODAL (01/09/2026) e é renderizado fora do
@@ -7729,6 +7907,31 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
     </div>
     <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    {saqueDe && catalogos && (() => {
+      const alvo = participantes.find((q) => q.inst_id === saqueDe);
+      if (!alvo) return null;
+      const saqueadores = saqueadoresDe(alvo, participantes);
+      return (
+        <SaqueModal alvo={alvo} criatura={catalogos.criById[alvo.ref_id]}
+          catalogoBySlug={catalogos.catalogoBySlug} saqueadores={saqueadores}
+          isEn={isEn} lang={lang} onClose={() => setSaqueDe(null)}
+          onPegar={async (pj, slug, qtd) => {
+            const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd);
+            if (r.error) return r;
+            const next = anotarSaque(participantes, alvo.inst_id, slug, qtd);
+            await persistir({ participantes: next }, () => setParticipantes(next));
+            const hid = (historia && historia.id) || batalha.historia_id;
+            if (hid) {
+              const item = (catalogos.catalogoBySlug[slug] || {}).nome || slug;
+              supabaseClient.rpc('registrar_evento_mesa', {
+                p_historia_id: hid, p_tipo: 'item', p_texto: textoSaque(pj.nome, qtd, item, alvo.nome, isEn),
+                p_meta: { batalha_id: batalha.id, acao: 'saquear', item, quantidade: qtd },
+              }).then(({ error: e }) => { if (e) console.error('[batalha] log do saque falhou:', e); });
+            }
+            return {};
+          }} />
+      );
+    })()}
 
     {/* Painel de Ação — ModalShell desde 17/09/2026 (era o conteúdo do popover
         do token). Vive aqui fora, ao lado dos outros modais da view, e não
@@ -8167,58 +8370,6 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
   ), document.querySelector('.menestrel-ui') || document.body);
 }
 
-/* ── Portal da lista do SelectPill ─────────────────────────────────
-   Tira o dropdown de dentro do painel de Ação. Sem isto a lista nasce
-   `position:absolute` dentro do menu do token, que tem `overflow: auto`:
-   ela era recortada na borda do card e, com opções demais, criava barra de
-   rolagem no MODAL inteiro em vez de rolar só a si mesma.
-
-   Mede o botão a cada scroll/resize (o tabuleiro é panorâmico e o menu
-   acompanha o token), e vira pra cima quando não cabe embaixo. Monta dentro
-   de .menestrel-ui, não no body: as regras do pill são escopadas em
-   "#root .menestrel-ui" e no body a lista sairia sem estilo — mesmo alvo que
-   PortalTooltip e EstadoDropPortal usam. */
-function SelectPillDrop({ anchorRef, dropRef, children }) {
-  const [pos, setPos] = React.useState(null);
-  React.useLayoutEffect(() => {
-    const medir = () => {
-      const el = anchorRef && anchorRef.current;
-      if (!el || !el.isConnected) { setPos(null); return; }
-      const r = el.getBoundingClientRect();
-      const abaixo = window.innerHeight - r.bottom - 8;
-      const paraCima = abaixo < 180 && r.top > abaixo;
-      const p = { left: r.left, largura: r.width, paraCima,
-                  top: paraCima ? r.top - 4 : r.bottom + 4,
-                  maxH: Math.max(120, (paraCima ? r.top : abaixo) - 12) };
-      setPos((ant) => (ant && ant.left === p.left && ant.top === p.top
-        && ant.largura === p.largura && ant.paraCima === p.paraCima && ant.maxH === p.maxH) ? ant : p);
-    };
-    medir();
-    window.addEventListener('scroll', medir, true);
-    window.addEventListener('resize', medir);
-    return () => {
-      window.removeEventListener('scroll', medir, true);
-      window.removeEventListener('resize', medir);
-    };
-  }, [anchorRef]);
-  if (!pos) return null;
-  return ReactDOM.createPortal(
-    <div className="select-pill-drop-portal" ref={dropRef}
-      style={{ position: 'fixed', left: pos.left, top: pos.top, width: pos.largura,
-               maxHeight: pos.maxH, zIndex: 9800,
-               transform: pos.paraCima ? 'translateY(-100%)' : 'none' }}>
-      {children}
-    </div>,
-    document.querySelector('.menestrel-ui') || document.body
-  );
-}
-
-/* ============================== SelectPill — dropdown no estilo FantasyDatePicker ============================== */
-/*
-   Drop-in replacement para <select>. Mesmo visual pill do datepicker:
-   fundo escuro translúcido, borda-radius 999, dropdown customizado com lista absoluta.
-   Props: options [{value, label}], value, onChange(value), placeholder?, disabled?
-*/
 /* ── Seletor de nível da magia em BARRA (14/09/2026) ─────────────────
    "Coloque um seletor de nível em barra, 1,3,5,7,9 quando existir, mudando a
    cor da linha de verde no 1, amarelo no 5 e 9 no vermelho." Substitui o
@@ -8262,74 +8413,8 @@ function NivelMagiaBarra({ niveis, valor, onChange, disabled, isEn }) {
   );
 }
 
-function SelectPill({ options = [], value, onChange, placeholder, disabled, label }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const dropRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    // A lista vive em PORTAL, fora de ref.current. Sem olhar o dropRef aqui,
-    // o mousedown numa opção contava como "clique fora": fechava a lista antes
-    // do onClick do <li> e a seleção nunca acontecia.
-    const handler = (e) => {
-      const noBotao = ref.current && ref.current.contains(e.target);
-      const naLista = dropRef.current && dropRef.current.contains(e.target);
-      if (!noBotao && !naLista) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const selected = options.find((o) => String(o.value) === String(value));
-  // displayLabel (botão fechado) pode divergir do label da lista aberta —
-  // usado pra opções tipo "— nenhuma —": a lista mostra o traço (item
-  // continua identificável/clicável), o botão fechado mostra vazio.
-  const displayLabel = selected
-    ? (selected.labelBotao != null ? selected.labelBotao : selected.label)
-    : (placeholder || '—');
-
-  // pillStyle e dropStyle migrados para index.css (.select-pill-btn, .select-pill-drop)
-
-  return (
-    <div className="motor-field" ref={ref} style={{ position: 'relative' }}>
-      {label && <span>{label}</span>}
-      <button type="button" className="select-pill-btn" data-open={open ? 'true' : 'false'} disabled={disabled}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={(e) => { e.currentTarget.blur(); !disabled && setOpen((v) => !v); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}>
-        <span className="select-pill-btn-label">{displayLabel}</span>
-        <i className="ti ti-chevron-down select-pill-btn-ic" aria-hidden="true" />
-      </button>
-      {/* O dropdown sai por PORTAL (02/09/2026). Era `position: absolute`
-          dentro do painel, e o menu do token tem `overflow: auto` — a lista
-          ficava PRESA lá dentro: recortada na borda e empurrando barra de
-          rolagem quando tinha opções demais. Portal + position:fixed medido
-          do botão tira a lista do fluxo e ela passa por cima de tudo. */}
-      {open && (
-        <SelectPillDrop anchorRef={ref} dropRef={dropRef}>
-          <ul className="select-pill-drop">
-            {options.map((opt) => {
-              const active = String(opt.value) === String(value);
-              // Opção desativada (13/09/2026): fica visível com o motivo no
-              // rótulo, mas não se escolhe. `disabled` já vinha das magias de
-              // Ritual e era ignorado aqui — dava para escolhê-las.
-              return (
-                <li key={opt.value} className={(active ? 'active' : '') + (opt.disabled ? ' disabled' : '')}
-                  aria-disabled={opt.disabled ? 'true' : undefined}
-                  onClick={() => { if (opt.disabled) return; onChange(opt.value); setOpen(false); }}>
-                  {opt.label}
-                  {active && <i className="ti ti-check select-pill-check" />}
-                  {!active && <span className="select-pill-spacer" />}
-                </li>
-              );
-            })}
-          </ul>
-        </SelectPillDrop>
-      )}
-    </div>
-  );
-}
+/* SelectPill mora em 01-core/select-pill.jsx desde 25/09/2026 — uma peça só
+   para o sistema inteiro, com a pele do seletor de data. */
 
 /* ============================== QuantityStepper — seletor de quantidade, mesmo visual do SelectPill ============================== */
 /*
@@ -10147,7 +10232,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           </button>
           {resCritico && (
             <span className="dado-ov-trigger-chip"
-              style={{ color: tipoCritico === 'alvo' ? '#808080' : '#10b020',
+              style={{ color: tipoCritico === 'alvo' ? '#949494' : '#10b020',
                        borderColor: tipoCritico === 'alvo' ? '#808080' : '#10b020' }}>
               {isEn ? resCritico.en : resCritico.pt}
               {msgCritico && <span className="critico-chip-msg">{msgCritico}</span>}
@@ -10512,6 +10597,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // Fila das gravações: rolar e aplicar saem colados (ação automática depois
   // do dado) e duas RPCs em voo podem chegar ao banco fora de ordem.
   const filaGravacao = React.useRef(Promise.resolve());
+  const [saqueDe, setSaqueDe] = useState(null);   // inst_id da criatura sendo saqueada (25/09/2026)
   const persistJogador = async (campos, opcoes) => {
     if (!batalha) return false;
     const manterAberto = !!(opcoes && opcoes.manterAberto);
@@ -10698,7 +10784,13 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     let eventosVirada = [];
     // Atacar quebra a concentração de quem ataca — espelha aplicarAcao.
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
+    const alvoAntesDoGolpe = next[alvoIdx];
     next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+    // Onde o dano caiu no alvo principal — o log diz "na energia física" (27/09/2026).
+    const ondeDano = {
+      eh: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.eh) || 0) - (Number(next[alvoIdx] && next[alvoIdx].eh) || 0)),
+      ef: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.ef) || 0) - (Number(next[alvoIdx] && next[alvoIdx].ef) || 0)),
+    };
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -10771,7 +10863,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (historiaId) {
       const texto = textoGolpeNaMesa({
         ator: meuParticipante, alvoNome: alvo.nome, acaoNome: nomeAcao, tipo,
-        resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico,
+        resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico, ondeDano,
       });
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
@@ -10969,10 +11061,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       if (tipo_teste === 'resistencia') {
         const resLabel = payload.resultado === 'resistiu' ? 'Resistiu'
           : payload.resultado === 'falhou' ? 'Não resistiu' : 'Empate — role de novo';
-        texto = `${meuParticipante.nome} testou resistência (${(payload.resistencia_tipo || '').toUpperCase()}) → ${resLabel} (d20 ${payload.d20})`;
+        texto = `${primeiroNome(meuParticipante.nome)} testou resistência (${(payload.resistencia_tipo || '').toUpperCase()}) → ${resLabel} (d20 ${payload.d20})`;
       } else {
         const resNome = payload.resultado ? payload.resultado.pt : null;
-        texto = `${meuParticipante.nome} usou ${payload.nome || payload.chave}`;
+        texto = `${primeiroNome(meuParticipante.nome)} usou ${payload.nome || payload.chave}`;
         if (resNome) texto += ` → ${resNome}`;
         /* VEREDITO do teste de habilidade (12/09/2026). A mensagem dizia a
            qualidade ("→ Difícil") e parava aí; quem lia não sabia se aquilo
@@ -11054,7 +11146,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Notifica a Central de Mensagens da Mesa (fire-and-forget — mesmo padrão do Mestre).
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      const texto = `${meuParticipante.nome} usou ${nome}`;
+      const texto = `${primeiroNome(meuParticipante.nome)} usou ${nome}`;
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'item',
@@ -11192,7 +11284,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'sistema',
-        p_texto: `${meuParticipante.nome} passou a vez`,
+        p_texto: `${primeiroNome(meuParticipante.nome)} passou a vez`,
         p_meta: { batalha_id: batalha.id, rodada, autor_nome: meuParticipante.nome },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (passar) falhou:', rpcErr);
@@ -11247,7 +11339,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'aviso',
-        p_texto: `${meuParticipante.nome} desistiu da batalha`,
+        p_texto: `${primeiroNome(meuParticipante.nome)} desistiu da batalha`,
         p_meta: { batalha_id: batalha.id, rodada, autor_nome: meuParticipante.nome },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (desistir) falhou:', rpcErr);
@@ -11307,12 +11399,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                 quem é, como para qualquer outro combatente. */}
             {ehMinhaVez && souAtivo ? (
               <div className="batalha-vez-msg minha-vez">
-                <i className="ti ti-player-play btn-ic-mr" aria-hidden="true" style={{ color: '#C9A44E' }} />
+                <i className="ti ti-player-play btn-ic-mr" aria-hidden="true" style={{ color: '#E0BE68' }} />
                 {tb.eASuaVez}
               </div>
             ) : current ? (
               <div className="batalha-vez-msg">
-                <i className="ti ti-clock btn-ic-mr" aria-hidden="true" style={{ color: '#C9A44E' }} />
+                <i className="ti ti-clock btn-ic-mr" aria-hidden="true" style={{ color: '#E0BE68' }} />
                 {interpolate(tb.eAVezDe, { nome: current.nome })}
               </div>
             ) : null}
@@ -11422,6 +11514,17 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                           (NumerosDoCombatente). Velocidade, ações e armadura dos
                           OUTROS não aparecem para o jogador (14/09/2026): do
                           adversário ele vê só o estado, na linha do nome. */}
+                      {/* SAQUEAR (25/09/2026): na minha vez, meu PJ de pé encostado
+                          numa criatura morta ou desmaiada. Não gasta PA. */}
+                      {!ehEu && meuParticipante && catalogos && podeSaquear(meuParticipante, p) && (
+                        <div className="batalha-menu-acoes batalha-card-barra batalha-menu-saque">
+                          <div className="batalha-card-botoes">
+                            <BotaoAcaoMenu icone="ti-backpack" rotulo={isEn ? 'Loot' : 'Saquear'}
+                              disabled={salvando} onClick={() => { setSaqueDe(p.inst_id); fechar(); }}
+                              abrirTip={abrirTip} fecharTip={fecharTip} />
+                          </div>
+                        </div>
+                      )}
                       {ehEu && (
                       <div className="batalha-menu-acoes batalha-card-barra">
                         <div className="batalha-fighter-stats">
@@ -11482,6 +11585,28 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           fecharTip={fecharTip}
         />
       )}
+      {saqueDe && catalogos && meuParticipante && (() => {
+        const alvo = participantes.find((q) => q.inst_id === saqueDe);
+        if (!alvo || !podeSaquear(meuParticipante, alvo)) return null;
+        return (
+          <SaqueModal alvo={alvo} criatura={catalogos.criById[alvo.ref_id]}
+            catalogoBySlug={catalogos.catalogoBySlug} saqueadores={[meuParticipante]}
+            isEn={isEn} lang={lang} onClose={() => setSaqueDe(null)}
+            onPegar={async (pj, slug, qtd) => {
+              const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd);
+              if (r.error) return r;
+              await persistJogador({ participantes: anotarSaque(participantes, alvo.inst_id, slug, qtd) }, { manterAberto: true });
+              if (batalha.historia_id) {
+                const item = (catalogos.catalogoBySlug[slug] || {}).nome || slug;
+                supabaseClient.rpc('registrar_evento_mesa', {
+                  p_historia_id: batalha.historia_id, p_tipo: 'item', p_texto: textoSaque(pj.nome, qtd, item, alvo.nome, isEn),
+                  p_meta: { batalha_id: batalha.id, acao: 'saquear', item, quantidade: qtd },
+                }).then(({ error: e }) => { if (e) console.error('[batalha-jogador] log do saque falhou:', e); });
+              }
+              return {};
+            }} />
+        );
+      })()}
       {/* Tooltip do menu do token (botões só-ícone). Portal, então pode ficar
           no fim da árvore — sai por cima do menu de qualquer jeito. */}
       <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
@@ -11527,6 +11652,7 @@ Object.assign(window, {
   // teste de regressão do "Livre" em tecnica-efeitos.test.js — ela também
   // vive dentro de MotorBatalha, mas o teste chama via window direto.
   tecnicasCompativeisComArma,
+  SaqueModal,   // janela de saque (25/09/2026) — exposta para o teste de tela
   MotorBatalha: {
     EF_MORTE, pontosAcaoPJ, pontosAcaoTecnicaPJ, paDaRodada,
     aplicarDanoCascata, ordenarIniciativa,
@@ -11644,6 +11770,7 @@ Object.assign(window, {
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
     FC_AUTODANO_FATOR, danoAutoinfligido, interpolarFalhaCritica,
     somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, consumirEvitaGolpe, consumirModDano, consumirEfeitosDoGolpe, dispararAoAcertarEf, vbEfetivo, aplicarVentoNosPjs, definirVentoDaBatalha,
+    podeSaquear, saqueadoresDe, anotarSaque, textoSaque,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
     // Task 6a (Fase 2): bloqueios de turno puros — sem_atacar tira só a aba
     // Arma, sem_tecnicas tira só a aba Técnica. Nenhum dos dois é sem_acoes.

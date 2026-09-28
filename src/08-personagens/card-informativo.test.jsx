@@ -133,8 +133,11 @@ describe('os vitais deixaram de ser privilégio do personagem ativo', () => {
 
   it('o número é o do estado atual, não o máximo', () => {
     montar({}, { ...PJ, estado_atual: { vitalidade: { ef: 3 } } });
-    const ef = document.querySelector('.pj-vital--ef .pj-vital-num');
-    expect(ef.textContent).toMatch(/^3\//);
+    // Só a barra desde 26/09/2026: o número mora no meter, não no texto.
+    const ef = document.querySelector('.pj-vital--ef');
+    expect(ef.getAttribute('aria-valuenow')).toBe('3');
+    expect(ef.textContent).toBe('');
+    expect(document.querySelector('.pj-vital-rot')).toBeNull();
   });
 
   /* Guerreiro e Ladino não conjuram: a barra existia e ficava sempre vazia —
@@ -201,7 +204,8 @@ describe('o card usa a largura que tem', () => {
      continua valendo — mudou QUAL coisa. Em 20/09 o usuário pediu a pele do
      .pj-meta ("a mesma fonte tamanho e cor de 'elfo-florestal rastreador'"),
      primeiro para o rótulo e logo depois para o número: Lora 13px no marrom
-     claro, no lugar do Cinzel 15px creme. */
+     claro, no lugar do Cinzel 15px creme. Em 25/09 a pele toda subiu para
+     Merriweather (--font-body), --fs-base e o marrom claro #BFAF8E. */
   it('rótulo, valor e máximo vestem a pele da linha de raça e profissão', () => {
     /* Os MESMOS seletores aparecem duas vezes no arquivo: a regra base e uma
        dentro de `@media (max-width: 560px)`, que só reduz o tamanho junto com
@@ -215,13 +219,14 @@ describe('o card usa a largura que tem', () => {
     const meta = regra('#root .menestrel-ui .pj-meta { display:');
 
     // A referência que o usuário citou: a linha de raça e profissão.
-    expect(meta).toMatch(/font-family:\s*'Lora'/);
-    expect(meta).toMatch(/font-size:\s*15px/);
+    // 25/09: a pele subiu junto com o resto — Merriweather, --fs-base, #BFAF8E.
+    expect(meta).toMatch(/font-family:\s*var\(--font-body\)/);
+    expect(meta).toMatch(/font-size:\s*var\(--fs-base\)/);
 
     // E os poços vestem exatamente ela — inclusive o peso, que já foi 600.
-    expect(r).toMatch(/font-family:\s*'Lora'/);
-    expect(r).toMatch(/font-size:\s*15px/);
-    expect(r).toMatch(/color:\s*#9C8F73/);
+    expect(r).toMatch(/font-family:\s*var\(--font-body\)/);
+    expect(r).toMatch(/font-size:\s*var\(--fs-base\)/);
+    expect(r).toMatch(/color:\s*#BFAF8E/);
     expect(r).toMatch(/font-weight:\s*400/);
   });
 });
@@ -229,11 +234,28 @@ describe('o card usa a largura que tem', () => {
 /* "O estágio pode ficar escrito junto com o nome, assim: Lysandra Vel'Thals 9"
    (usuário, 17/09/2026). Passou por selo em pílula antes de chegar aqui; o que
    ele queria é o número colado ao nome, lido como parte dele. */
-describe('o estágio é escrito junto com o nome', () => {
-  it('o nome termina no número do estágio', () => {
+/* 26/09/2026 — quatro linhas: 'Elarion Dornes / Elfo-Dourado • Estágio 27 /
+   Mago • Necromante / Richard Rossati'. O estágio saiu do nome e voltou por
+   extenso, ao lado da raça; o título saiu da frente do nome. */
+describe('o card em quatro linhas', () => {
+  it('o nome vem sozinho', () => {
     const { container } = montar({});
-    expect(container.querySelector('.pj-name').textContent).toBe('Thalia de Auren5');
-    expect(container.querySelector('.pj-name .pj-name-estagio').textContent).toBe('5');
+    expect(container.querySelector('.pj-name').textContent).toBe('Thalia de Auren');
+    expect(container.querySelector('.pj-name-estagio')).toBeNull();
+  });
+
+  it('raça • Estágio N, depois profissão • título', () => {
+    const { container } = montar({}, { ...PJ, profissao: 'Mago', especializacao: 'Colégio Necromântico' });
+    expect(container.querySelector('.pj-meta--raca').textContent).toBe('Humano•Estágio 5');
+    expect(container.querySelector('.pj-meta--profissao').textContent).toBe('Mago•Necromante');
+  });
+
+  it('o jogador na última linha, só para o Mestre', () => {
+    const { container } = montar({ isMaster: true, playerName: 'Richard Rossati' });
+    expect(container.querySelector('.pj-meta--jogador').textContent).toBe('Richard Rossati');
+    cleanup();
+    const r = montar({ playerName: 'Richard Rossati' });
+    expect(r.container.querySelector('.pj-meta--jogador')).toBeNull();
   });
 
   it('e a pílula de selo não existe mais', () => {
@@ -241,11 +263,6 @@ describe('o estágio é escrito junto com o nome', () => {
     expect(container.querySelector('.pj-card-estagio')).toBeNull();
   });
 
-  it('e saiu da linha de meta, que ficou com raça, profissão e título', () => {
-    const { container } = montar({});
-    expect(container.querySelector('.pj-meta').textContent).not.toMatch(/Estágio/);
-    expect(container.querySelector('.pj-meta').textContent).toMatch(/Humano Mago/);
-  });
 });
 
 /* "Quando eu disse sobre o status, eu digo o status que ficou de batalha:
@@ -375,7 +392,7 @@ describe('o ícone da profissão', () => {
   it('e profissão sem desenho não deixa um quadrado vazio', () => {
     const { container } = montar({}, { ...PJ, profissao: 'Alquimista' });
     expect(container.querySelector('.pj-meta-profissao-ic')).toBeNull();
-    expect(container.querySelector('.pj-meta').textContent).toMatch(/Alquimista/);
+    expect(container.querySelector('.pj-meta--profissao').textContent).toMatch(/Alquimista/);
   });
 });
 

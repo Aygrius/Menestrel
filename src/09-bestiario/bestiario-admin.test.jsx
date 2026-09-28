@@ -98,7 +98,10 @@ describe('TecnicasList — botão "Novo" e lápis de edição', () => {
     montar();
     await esperarLista();
     expect(document.querySelector('.btn-icon.btn-sm[aria-label="Novo"]')).toBeTruthy();
-    expect(document.querySelector('.btn-icon.btn-sm[aria-label="Editar"]')).toBeTruthy();
+    // O lápis mora no cabeçalho da janela desde 26/09/2026, não na linha.
+    expect(document.querySelector('tbody [aria-label="Editar"]')).toBeNull();
+    fireEvent.click(document.querySelector('tbody tr'));
+    await vi.waitFor(() => expect(document.querySelector('.modal-best-detalhe .ms-acao[aria-label="Editar"]')).toBeTruthy());
   });
 
   it('somem quando eh_admin devolve false', async () => {
@@ -106,7 +109,9 @@ describe('TecnicasList — botão "Novo" e lápis de edição', () => {
     montar();
     await esperarLista();
     expect(document.querySelector('[aria-label="Novo"]')).toBeNull();
-    expect(document.querySelector('.btn-icon.btn-sm[aria-label="Editar"]')).toBeNull();
+    fireEvent.click(document.querySelector('tbody tr'));
+    await vi.waitFor(() => expect(document.querySelector('.modal-best-detalhe')).toBeTruthy());
+    expect(document.querySelector('.modal-best-detalhe [aria-label="Editar"]')).toBeNull();
   });
 });
 
@@ -256,28 +261,27 @@ describe('CriaturasList — a linha expandida mostra os calculados', () => {
     return card && card.querySelector('.best-stat-val').textContent.trim();
   };
 
-  /* Atributos e Informações usam SIGLA, com o nome inteiro no tooltip
-     (17/09/2026: "Int (tooltip Intelecto)", "EF (tooltip Energia Física)").
-     Características e as seções de nome próprio seguem com as palavras — a
-     correção foi dirigida a duas seções, não à ficha toda. */
-  it('as seções aparecem, com sigla em CAIXA ALTA em Atributos', async () => {
+  /* Atributos e Informações POR EXTENSO desde 26/09/2026 ("INT o nome por
+     extenso 'Intelecto'. EH = Energia Heroica."). De 17/09 até ali eram
+     siglas, com o nome no tooltip. */
+  it('as seções aparecem, com os atributos por extenso', async () => {
     await expandir();
     await vi.waitFor(() => expect(secao('Atributos')).toBeTruthy());
-    expect(par('Atributos', 'FIS')).toBe('3');
-    expect(par('Atributos', 'FOR')).toBe('4');
+    expect(par('Atributos', 'Físico')).toBe('3');
+    expect(par('Atributos', 'Força')).toBe('4');
   });
 
   it('as Informações, com as resistências calculadas', async () => {
     await expandir();
     await vi.waitFor(() => expect(secao('Informações')).toBeTruthy());
-    expect(par('Informações', 'EF')).toBe('30');
-    expect(par('Informações', 'RF')).toBe('7');   // estágio 4 + físico 3
-    expect(par('Informações', 'RM')).toBe('5');   // estágio 4 + aura 1
-    expect(par('Informações', 'AB')).toBe('6');
-    expect(par('Informações', 'DF')).toBe('3');
-    expect(par('Informações', 'VB')).toBe('16');
-    // O valor da armadura é a SIGLA que o banco guarda, não a palavra.
-    expect(par('Informações', 'AR')).toBe('M');
+    expect(par('Informações', 'Energia Física')).toBe('30');
+    expect(par('Informações', 'Resistência Física')).toBe('7');   // estágio 4 + físico 3
+    expect(par('Informações', 'Resistência Mágica')).toBe('5');   // estágio 4 + aura 1
+    expect(par('Informações', 'Absorção')).toBe('6');
+    expect(par('Informações', 'Velocidade')).toBe('16');
+    // Armadura + Defesa num valor só (26/09/2026): a sigla M e a defesa 3.
+    expect(par('Informações', 'Armadura')).toBe('M3');
+    expect(par('Informações', 'Defesa')).toBeUndefined();
   });
 
   it('os Ataques saem do equipamento, com o dano somado ao atributo', async () => {
@@ -303,9 +307,9 @@ describe('CriaturasList — a linha expandida mostra os calculados', () => {
     expect(secao('Técnicas de Combate')).toBeUndefined();
     expect(secao('Magias')).toBeUndefined();
     // E o resto da ficha continua de pé, com os dados do Ogro.
-    expect(par('Características', 'Estágio')).toBe('4');
-    expect(par('Informações', 'EF')).toBe('30');
-    // Gigante não tem ícone mapeado, então a Classe cai na palavra.
+    expect(par('Informações', 'Estágio')).toBe('4');
+    expect(par('Informações', 'Energia Física')).toBe('30');
+    // A Classe é a palavra (26/09/2026 — os ícones saíram).
     expect(par('Características', 'Classe')).toBe('Gigante');
   });
 });

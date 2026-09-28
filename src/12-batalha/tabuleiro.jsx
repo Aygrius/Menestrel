@@ -758,7 +758,7 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
       style: {
         // Um pouco maior desde 14/09/2026 (era size × 0.26): ~12px no zoom padrão.
         pointerEvents: 'none', marginTop: 6, textAlign: 'center', maxWidth: size * 2.6, lineHeight: 1.12,
-        fontFamily: 'Lora, serif', fontSize: Math.max(9, Math.round(size * 0.32)),
+        fontFamily: 'var(--font-body)', fontSize: Math.max(9, Math.round(size * 0.32)),
         color: 'var(--foreground, #f2e8d5)', textShadow: '0 1px 2px rgba(0,0,0,.85)',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       },
@@ -1255,7 +1255,7 @@ function TabuleiroBatalha({
       ref: scrollRef, className: 'batalha-tabuleiro-scroll',
       style: {
         overflow: 'hidden', borderRadius: 12, border: '1px solid rgba(201,164,78,.25)',
-        background: 'rgba(10,8,4,.55)', touchAction: 'none',
+        background: 'rgba(23,18,9,.55)', touchAction: 'none',
         // Flex só para o `margin:auto` do grid ter efeito nos dois eixos.
         display: 'flex',
       },

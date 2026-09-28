@@ -121,7 +121,9 @@ describe('a rolagem é salva quando o dado assenta, não no Confirmar', () => {
   // reabre — e é isso que estas asserções impedem.
   const corpoDoOverlay = () => {
     const ini = fonte.indexOf('function DadoOverlay');
-    const fim = fonte.indexOf('function SelectPill');
+    // SelectPill saiu daqui em 25/09/2026 (01-core/select-pill.jsx): o fim do
+    // DadoOverlay agora é a tabela de cores do nível de magia, logo depois.
+    const fim = fonte.indexOf('const COR_NIVEL_MAGIA');
     expect(ini).toBeGreaterThan(-1);
     expect(fim).toBeGreaterThan(ini);
     return fonte.slice(ini, fim);

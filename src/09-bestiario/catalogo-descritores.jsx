@@ -27,7 +27,37 @@
 const GRUPOS_ARMAS_SIGLAS = Array.isArray(GRUPOS_ARMAS)
   ? GRUPOS_ARMAS.map((g) => g.sigla) : [];
 const OPCOES_GRUPO_ARMAS = ['Livre', ...GRUPOS_ARMAS_SIGLAS];
-const OPCOES_GRUPO_ARMADURAS = ['Livre', 'L', 'M', 'P'];
+// Sigla no banco, palavra na tela (26/09/2026: "'L' vira 'Armaduras leves'").
+const OPCOES_GRUPO_ARMADURAS = ['Livre', { value: 'L', label: 'Armaduras leves' },
+  { value: 'M', label: 'Armaduras médias' }, { value: 'P', label: 'Armaduras pesadas' }];
+/* PERMISSÃO em opções (26/09/2026: "no input 'permissão', cada classe é uma
+   opção"). Cada profissão seguida das suas especializações, recuadas — a
+   mesma árvore de GAME_DATA.especializacoes que o wizard usa. Conferido no
+   banco no mesmo dia: todo valor de magias.permissao e tecnicas.permissao é
+   um destes nomes; o que um dia não for continua aparecendo (CatalogoMulti
+   mostra o valor fora da lista) e pode ser tirado. */
+/* Listas fechadas do editor de magias (26/09/2026, pedido do usuário). */
+const OPCOES_TIPO_MAGIA = ['Básica', 'Perdida', 'Ancestral'];
+const RODADAS_MAGIA = ['1 rodada', '2 rodadas', '3 rodadas', '4 rodadas', '5 rodadas',
+  '10 rodadas', '15 rodadas', '30 rodadas'];
+const OPCOES_EVOCACAO = ['Instantânea', ...RODADAS_MAGIA];
+const OPCOES_ALCANCE = ['Toque', '2 metros', '5 metros', '10 metros', '15 metros',
+  '20 metros', '50 metros', '100 metros', '1 quilômetro'];
+const OPCOES_DURACAO = ['Variável', 'Instantânea', ...RODADAS_MAGIA];
+
+// Raças e reinos do GAME_DATA — vantagem/desvantagem das habilidades.
+const OPCOES_RACA_REINO = (typeof GAME_DATA !== 'undefined')
+  ? [...Object.keys(GAME_DATA.racas || {}), ...(GAME_DATA.reinos || [])] : [];
+
+const OPCOES_PERMISSAO = (() => {
+  const esp = (typeof GAME_DATA !== 'undefined' && GAME_DATA.especializacoes) || {};
+  const out = [];
+  Object.keys(esp).forEach((prof) => {
+    out.push({ value: prof, label: prof });
+    (esp[prof] || []).forEach((e) => out.push({ value: e.esp, label: e.esp, recuo: true }));
+  });
+  return out;
+})();
 /* Chave no banco ('agilidade'), nome na tela ('Agilidade') — 14/09/2026: "No
    input 'ajuste', deve mostrar o atributo com a primeira letra maiúscula."
    O nome vem de ATRIBUTOS_LABEL (game-data.jsx), com acento: Força, Físico,
@@ -50,9 +80,14 @@ const CATALOGO_DESCRITORES = {
       { col: 'custo', tipo: 'numero', rotuloKey: 'campoCusto', obrigatorio: true, min: 1, max: 2 },
       { col: 'uso',   tipo: 'opcoes', rotuloKey: 'campoUso',   opcoes: ['Único', 'Intermitente', 'Livre'] },
       { col: 'ajuste',          tipo: 'opcoes', rotuloKey: 'campoAjuste',    opcoes: OPCOES_ATRIBUTO },
-      { col: 'grupo_armas',     tipo: 'opcoes', rotuloKey: 'campoArmas',     opcoes: OPCOES_GRUPO_ARMAS },
-      { col: 'grupo_armaduras', tipo: 'opcoes', rotuloKey: 'campoArmaduras', opcoes: OPCOES_GRUPO_ARMADURAS },
-      { col: 'permissao', tipo: 'texto', rotuloKey: 'campoPermissao' },
+      /* VÁRIOS grupos (26/09/2026: "no modal de editar técnicas, deve ser
+         possível selecionar mais de um grupo de arma"). O banco já guardava
+         "PL, PM, PP" — o dropdown de escolha única mostrava um e, ao salvar,
+         apagava os outros. "Livre" (serve com qualquer arma) é exclusivo. */
+      /* Armas e armaduras NA MESMA LINHA (26/09/2026) — `largura: 'meia'`. */
+      { col: 'grupo_armas',     tipo: 'multiopcoes', rotuloKey: 'campoArmas', opcoes: OPCOES_GRUPO_ARMAS, exclusiva: 'Livre', largura: 'meia' },
+      { col: 'grupo_armaduras', tipo: 'opcoes', rotuloKey: 'campoArmaduras', opcoes: OPCOES_GRUPO_ARMADURAS, largura: 'meia' },
+      { col: 'permissao', tipo: 'multiopcoes', rotuloKey: 'campoPermissao', opcoes: OPCOES_PERMISSAO },
       { col: 'descricao', tipo: 'area',  rotuloKey: 'campoDescricao', linhas: 3 },
       { col: 'efeito',    tipo: 'area',  rotuloKey: 'campoEfeito',    linhas: 3 },
     ],
@@ -72,8 +107,12 @@ const CATALOGO_DESCRITORES = {
       /* nivel_inicial saiu do formulário em 14/09/2026 (pedido do usuário). A
          coluna fica no banco com default 0 — é o valor das 42 habilidades — e o
          criador de personagem continua lendo (h.nivel_inicial ?? 0). */
-      { col: 'vantagem',    tipo: 'area', rotuloKey: 'campoVantagem',    linhas: 2 },
-      { col: 'desvantagem', tipo: 'area', rotuloKey: 'campoDesvantagem', linhas: 2 },
+      /* Vantagem e Desvantagem: seletor de Raça e Reino (26/09/2026, pedido do
+         usuário). Grava a mesma CSV de antes ("Anão, Portis"), que é o que
+         calcBonusHabilidadesRacaReino lê. Valor antigo fora da lista (há
+         profissões gravadas, que nunca deram bônus) aparece marcado. */
+      { col: 'vantagem',    tipo: 'multiopcoes', rotuloKey: 'campoVantagem',    opcoes: OPCOES_RACA_REINO, largura: 'meia' },
+      { col: 'desvantagem', tipo: 'multiopcoes', rotuloKey: 'campoDesvantagem', opcoes: OPCOES_RACA_REINO, largura: 'meia' },
       // restricao também saiu do formulário (14/09/2026, pedido do usuário); a
       // coluna fica no banco, e campo fora do descritor nunca vai no payload.
       { col: 'descricao',   tipo: 'area', rotuloKey: 'campoDescricao',   linhas: 3 },
@@ -87,14 +126,25 @@ const CATALOGO_DESCRITORES = {
     campos: [
       { col: 'key',      tipo: 'texto', rotuloKey: 'campoChave', obrigatorio: true, somenteNovo: true, autoDeNome: true },
       { col: 'nome',     tipo: 'texto', rotuloKey: 'campoNome',  obrigatorio: true },
-      { col: 'tipo',     tipo: 'texto', rotuloKey: 'campoTipo' },
-      { col: 'evocacao', tipo: 'texto', rotuloKey: 'campoEvocacao' },
-      { col: 'alcance',  tipo: 'texto', rotuloKey: 'campoAlcance' },
-      { col: 'duracao',  tipo: 'texto', rotuloKey: 'campoDuracao' },
-      // custo é texto no banco (ex.: "1/turno"), não número.
-      { col: 'custo',     tipo: 'texto',  rotuloKey: 'campoCusto' },
-      { col: 'permissao', tipo: 'texto',  rotuloKey: 'campoPermissao' },
+      /* Tipo, Evocação, Alcance, Duração e Custo viraram DROPDOWN (26/09/2026),
+         com as listas do usuário. Valor já gravado fora da lista ("Pessoal",
+         "Ritual", "1 hora"…) não se perde: o editor o mostra como primeira
+         opção, marcado "fora da lista" (ver CatalogoCampo, tipo 'opcoes'). */
+      { col: 'tipo',     tipo: 'opcoes', rotuloKey: 'campoTipo', opcoes: OPCOES_TIPO_MAGIA },
+      { col: 'evocacao', tipo: 'opcoes', rotuloKey: 'campoEvocacao', opcoes: OPCOES_EVOCACAO },
+      { col: 'alcance',  tipo: 'opcoes', rotuloKey: 'campoAlcance', opcoes: OPCOES_ALCANCE },
+      { col: 'duracao',  tipo: 'opcoes', rotuloKey: 'campoDuracao', opcoes: OPCOES_DURACAO },
+      // custo é texto no banco; as opções são as strings '1'…'4'.
+      { col: 'custo',     tipo: 'opcoes', rotuloKey: 'campoCusto', opcoes: ['1', '2', '3', '4'] },
+      // Dano ao lado de Custo (26/09/2026).
       { col: 'dano',      tipo: 'numero', rotuloKey: 'campoDano', min: 0 },
+      { col: 'permissao', tipo: 'multiopcoes', rotuloKey: 'campoPermissao', opcoes: OPCOES_PERMISSAO },
+      /* Itens do ritual (26/09/2026): "fica em um input próprio, com dropdown
+         para selecionar quais itens do catálogo". Era a última frase da
+         descrição — ver scripts/sql/magias-itens-necessarios-2026-09-26.sql.
+         Grava "Vela (7), Hidromel (1)"; `quantidade` põe o (n) em cada um.
+         Logo abaixo de Permissão desde 26/09/2026. */
+      { col: 'itens_necessarios', tipo: 'lista', rotuloKey: 'campoItensNecessarios', fonte: 'itens', quantidade: true },
       { col: 'descricao', tipo: 'area',   rotuloKey: 'campoDescricao', linhas: 3 },
       { col: 'nivel_1', tipo: 'area', rotuloKey: 'campoNivel1', linhas: 2 },
       { col: 'nivel_3', tipo: 'area', rotuloKey: 'campoNivel3', linhas: 2 },
@@ -121,9 +171,6 @@ const CATALOGO_DESCRITORES = {
          do usuário). Valor gravado que não está na lista (ex.: tipo "Demônio",
          subtipo "Lobo", plano "Astral") continua aparecendo, marcado como fora
          da lista, e só muda se alguém escolher outro — ver CatalogoCampo. */
-      { col: 'tipo',     tipo: 'opcoes', rotuloKey: 'campoTipo',
-        opcoes: ['Animal', 'Construído', 'Celestial', 'Infernal', 'Místico', 'Dragão',
-                 'Elemental', 'Monstro', 'Morto', 'Gigante', 'Civilizado'] },
       /* ⚠️ SUBTIPO É ESPÉCIE, não elemento (levantado em 18/09/2026). A lista
          fechada aqui declarava elementos e os dados nunca a obedeceram: das
          ~218 criaturas, ~147 guardavam espécie (Cavalo, Goblin, Esqueleto,
@@ -133,8 +180,47 @@ const CATALOGO_DESCRITORES = {
          Sem `opcoes`: espécie é texto livre, e uma lista fechada aqui foi
          justamente o que produziu a confusão. */
       { col: 'subtipo',  tipo: 'texto', rotuloKey: 'campoSubtipo' },
-      { col: 'estagio', tipo: 'numero', rotuloKey: 'campoEstagio', min: 1, max: 60 },
-      { col: 'plano',    tipo: 'opcoes', rotuloKey: 'campoPlano',
+      /* UMA LINHA SÓ (25/09/2026): "Nome, Subtipo, Estágio, Montaria, Peso e
+         Altura devem ficar inline, sendo Estágio, Montaria, Peso e Altura,
+         inputs menores." `largura: 'curta'` = meia coluna da grade do editor
+         (.catalogo-campo-curto, catalogo-editor.jsx). */
+      { col: 'estagio', tipo: 'numero', rotuloKey: 'campoEstagio', min: 1, max: 60, largura: 'curta' },
+      /* Montaria (14/09/2026): "uma nova característica das criaturas". É
+         boolean no banco; `booleano` faz o editor mostrar Sim/Não e gravar
+         true/false (linhaParaForm e salvar, catalogo-editor.jsx). A batalha
+         (ehMontaria) e o inventário (botão Montar no animal) leem daqui. */
+      { col: 'montaria', tipo: 'opcoes', rotuloKey: 'campoMontaria',
+        opcoes: ['Sim', 'Não'], booleano: true, largura: 'curta' },
+      { col: 'peso',    tipo: 'numero', rotuloKey: 'campoPeso',    min: 0, largura: 'curta' },
+      /* Altura (17/09/2026): a ficha do bestiário passou a listá-la em
+         Características, e a coluna não existia — ver
+         scripts/sql/criaturas-altura-2026-09-17.sql. Em METROS, com casas
+         decimais (0,80 da Águia), por isso `passo`: um campo de inteiros
+         arredondaria toda criatura pequena para 0 ou 1. Nasce vazia nas ~200
+         criaturas do catálogo e a ficha mostra "—" até alguém preencher. */
+      { col: 'altura',  tipo: 'numero', rotuloKey: 'campoAltura',  min: 0, passo: 0.01, largura: 'curta' },
+      /* NOME · SUBTIPO · ESTÁGIO NA MESMA LINHA (25/09/2026): desde que o Tipo
+         virou fileira de botões (largura cheia) ele partia a primeira linha;
+         agora vem logo depois dela.
+
+         `botoes` (25/09/2026): "transforme o plano, tipo, grupo e atributos
+         como você fez com elemento. As opções viram botões seletores." Uma
+         escolha só, como antes — muda a forma, não a regra.
+
+         MENOS TIPOS (25/09/2026): "Gigante vai virar Civilizado. Construído e
+         Monstro vão virar Místico." As criaturas foram migradas no banco —
+         ver scripts/sql/criaturas-tipos-intelecto-2026-09-25.sql. */
+      /* DROPDOWN DE MÚLTIPLA ESCOLHA (26/09/2026): "use dropdown menu, dando
+         opção de selecionar mais de um campo nas criaturas" — Classe, Plano e
+         Grupo, decididos pelo usuário no mesmo dia. Grava "Místico, Dragão"
+         na mesma coluna de texto; valor antigo de um só segue válido. Quem lê
+         a classe (submenu, ícone do token, item Animal) separa pela vírgula. */
+      /* Classe, Plano, Elemento e Grupo NA MESMA LINHA (26/09/2026) — `largura:
+         'quarto'`, um quarto da linha cada. */
+      { col: 'tipo',     tipo: 'multiopcoes', rotuloKey: 'campoTipo', largura: 'quarto',
+        opcoes: ['Animal', 'Celestial', 'Infernal', 'Místico', 'Dragão',
+                 'Elemental', 'Morto', 'Civilizado'] },
+      { col: 'plano',    tipo: 'multiopcoes', rotuloKey: 'campoPlano', largura: 'quarto',
         opcoes: ['Material', 'Infernal', 'Celestial', 'Elemental'] },
       /* Elemento (18/09/2026). Fica DEPOIS de plano, e não junto de subtipo,
          por causa da grade de 4 colunas do editor: a primeira linha é
@@ -146,38 +232,37 @@ const CATALOGO_DESCRITORES = {
          São os quatro que a ficha do bestiário desenha com ícone (ti-flame,
          ti-tornado, ti-droplet, ti-frustum). Valor fora da lista continua
          aparecendo e cai na palavra, como em qualquer campo de opções. */
-      { col: 'elemento', tipo: 'opcoes', rotuloKey: 'campoElemento',
-        opcoes: ['Fogo', 'Ar', 'Água', 'Terra'] },
-      { col: 'coletivo', tipo: 'opcoes', rotuloKey: 'campoColetivo',
+      /* Luz e Escuridão entraram em 25/09/2026 (pedido do usuário), e no
+         mesmo dia o campo virou MÚLTIPLA escolha: "permita selecionar mais de
+         uma opção". Grava na mesma coluna de texto, separado por vírgula
+         ("Fogo, Luz") — valor antigo de um elemento só segue válido. */
+      { col: 'elemento', tipo: 'multiopcoes', rotuloKey: 'campoElemento', largura: 'quarto',
+        opcoes: ['Fogo', 'Ar', 'Água', 'Terra', 'Luz', 'Escuridão'] },
+      { col: 'coletivo', tipo: 'multiopcoes', rotuloKey: 'campoColetivo', largura: 'quarto',
         opcoes: ['Grupo Grande', 'Grupo Médio', 'Grupo Pequeno', 'Solitário'] },
-      /* Montaria (14/09/2026): "uma nova característica das criaturas". É
-         boolean no banco; `booleano` faz o editor mostrar Sim/Não e gravar
-         true/false (linhaParaForm e salvar, catalogo-editor.jsx). A batalha
-         (ehMontaria) e o inventário (botão Montar no animal) leem daqui. */
-      { col: 'montaria', tipo: 'opcoes', rotuloKey: 'campoMontaria',
-        opcoes: ['Sim', 'Não'], booleano: true },
-      { col: 'peso',    tipo: 'numero', rotuloKey: 'campoPeso',    min: 0 },
-      /* Altura (17/09/2026): a ficha do bestiário passou a listá-la em
-         Características, e a coluna não existia — ver
-         scripts/sql/criaturas-altura-2026-09-17.sql. Em METROS, com casas
-         decimais (0,80 da Águia), por isso `passo`: um campo de inteiros
-         arredondaria toda criatura pequena para 0 ou 1. Nasce vazia nas ~200
-         criaturas do catálogo e a ficha mostra "—" até alguém preencher. */
-      { col: 'altura',  tipo: 'numero', rotuloKey: 'campoAltura',  min: 0, passo: 0.01 },
-      // intelecto é TEXT no banco, diferente dos outros seis atributos.
-      { col: 'intelecto', tipo: 'texto', rotuloKey: 'campoIntelecto' },
-      { col: 'aura',       tipo: 'numero', rotuloKey: 'campoAura',       min: -2, max: 10 },
-      { col: 'carisma',    tipo: 'numero', rotuloKey: 'campoCarisma',    min: -2, max: 10 },
-      { col: 'forca',      tipo: 'numero', rotuloKey: 'campoForca',      min: -2, max: 10 },
-      { col: 'fisico',     tipo: 'numero', rotuloKey: 'campoFisico',     min: -2, max: 10 },
-      { col: 'agilidade',  tipo: 'numero', rotuloKey: 'campoAgilidade',  min: -2, max: 10 },
-      { col: 'percepcao',  tipo: 'numero', rotuloKey: 'campoPercepcao',  min: -2, max: 10 },
+      /* ATRIBUTOS (25/09/2026): "os atributos podem variar entre -2 e 8 (no
+         caso das criaturas)". `escala` = [mín, máx]: desde 26/09/2026 o
+         editor desenha um DROPDOWN com os valores (eram botões redondos). intelecto é TEXT no banco, diferente dos outros
+         seis — o editor grava texto nele, número nos demais. */
+      { col: 'intelecto', tipo: 'texto',  rotuloKey: 'campoIntelecto', escala: [-2, 8] },
+      { col: 'aura',       tipo: 'numero', rotuloKey: 'campoAura',       min: -2, max: 8, escala: [-2, 8] },
+      { col: 'carisma',    tipo: 'numero', rotuloKey: 'campoCarisma',    min: -2, max: 8, escala: [-2, 8] },
+      { col: 'forca',      tipo: 'numero', rotuloKey: 'campoForca',      min: -2, max: 8, escala: [-2, 8] },
+      { col: 'fisico',     tipo: 'numero', rotuloKey: 'campoFisico',     min: -2, max: 8, escala: [-2, 8] },
+      { col: 'agilidade',  tipo: 'numero', rotuloKey: 'campoAgilidade',  min: -2, max: 8, escala: [-2, 8] },
+      { col: 'percepcao',  tipo: 'numero', rotuloKey: 'campoPercepcao',  min: -2, max: 8, escala: [-2, 8] },
       { col: 'descricao', tipo: 'area', rotuloKey: 'campoDescricao', linhas: 3 },
       /* Armas e armaduras do catálogo de itens (14/09/2026). É delas que saem
          Ataque, L/M/P, Dano 100%, Absorção, Defesa e Tipo de Armadura — ver
          derivadosDoEquipamento em criatura-formulas.jsx. As armas naturais
          (Presas, Garras…) são itens do catálogo como as outras. */
-      { col: 'equipamento', tipo: 'equipamento', rotuloKey: 'campoEquipamento' },
+      /* Dois campos na MESMA coluna desde 25/09/2026: "Adicione um novo campo
+         abaixo de equipamento, que vai se chamar Ataque, para englobar as
+         armas de ataque. E em Equipamento ficará apenas os demais itens."
+         `parte` diz o que cada um mostra e aceita — ver partesDoEquipamento e
+         slotParaPeca em criatura-formulas.jsx. */
+      { col: 'equipamento', tipo: 'equipamento', parte: 'itens',  rotuloKey: 'campoEquipamento' },
+      { col: 'equipamento', tipo: 'equipamento', parte: 'ataque', rotuloKey: 'campoArmasAtaque' },
       /* Escolhidas na lista do catálogo (13/09/2026): "Quero poder escolher
          quais técnicas, habilidades e magias a criatura possui, escolhendo na
          lista que temos disponíveis." Grava o MESMO texto separado por
@@ -222,6 +307,13 @@ const CATALOGO_DESCRITORES = {
     tabela: 'itens',
     rotuloKey: 'tabItens',
     chave: 'slug',
+    /* CAMPOS POR GRUPO (26/09/2026): "cada tipo de item possui seus campos
+       próprios. Ou seja, um item tipo 'consumíveis' não precisa mostrar no
+       modal de editar campos tipo 'dano'." Campo com `grupos` só aparece
+       para esses grupos; sem `grupos`, em todos. O mapa saiu do próprio
+       catálogo (quais colunas cada grupo preenche, conferido no banco no mesmo
+       dia). Valor já gravado aparece mesmo fora do grupo — nada some da tela
+       sem alguém ver (ver campoDoGrupo em catalogo-editor.jsx). */
     campos: [
       { col: 'slug', tipo: 'texto', rotuloKey: 'campoSlug', obrigatorio: true, somenteNovo: true, autoDeNome: true },
       { col: 'nome', tipo: 'texto', rotuloKey: 'campoNome', obrigatorio: true },
@@ -232,7 +324,17 @@ const CATALOGO_DESCRITORES = {
       // opcoesNormalizadas no fim do arquivo.
       { col: 'tipo',      tipo: 'opcoes', rotuloKey: 'campoTipo',
         opcoes: [{ value: 'S', label: 'Sólido' }, { value: 'L', label: 'Líquido' }] },
-      { col: 'tipo_item', tipo: 'texto', rotuloKey: 'campoTipoItem' },
+      /* O que o recipiente (ou a vestimenta com bolso) ACEITA guardar — virou
+         LISTA em 27/09/2026 ("'tipo de item' deve permitir selecionar
+         consumíveis"). Era texto livre: tinha que se digitar "Consumíveis"
+         exatamente, com acento, para a regra de recipientePodeGuardar casar.
+         As opções são os grupos do catálogo; vazio = aceita qualquer um.
+         MAIS DE UM desde 27/09/2026 ("deve permitir selecionar até mais de um
+         tipo de item"): "Consumíveis, Moedas", pela vírgula, como os outros
+         campos multiopcoes. A regra lê a lista (tiposAceitos, 01-core). */
+      { col: 'tipo_item', grupos: ['Recipientes', 'Vestimentas'], tipo: 'multiopcoes', rotuloKey: 'campoTipoItem',
+        opcoes: ['Animais', 'Armaduras', 'Armas', 'Consumíveis', 'Diario', 'Instrumentos', 'Itens',
+          'Minerais', 'Moedas', 'Propriedades', 'Recipientes', 'Serviços', 'Transportes', 'Vestimentas'] },
       // Os três valores vêm de um SELECT DISTINCT em 11/09/2026: Comum 489,
       // Raro 105, Mágico 78. Os 75 vazios foram preenchidos com Comum pelo
       // script scripts/sql/itens-origem-tipo-armadura-fix.sql.
@@ -243,32 +345,31 @@ const CATALOGO_DESCRITORES = {
          formato: 'icone' → o editor aceita "ti-paw", "ti ti-paw", o <i> colado
          do site do Tabler ou só "paw", grava "ti-paw" e mostra a prévia. */
       { col: 'icone',     tipo: 'texto', rotuloKey: 'campoIcone', formato: 'icone' },
-      { col: 'doc_url',   tipo: 'texto', rotuloKey: 'campoDocUrl' },
-      { col: 'descricao', tipo: 'area', rotuloKey: 'campoDescricao', linhas: 3 },
+      { col: 'doc_url', grupos: ['Itens', 'Diario'],   tipo: 'texto', rotuloKey: 'campoDocUrl' },
       /* 'efeito' SAIU dos itens em 25/09/2026: vazio nos 1003 itens, e nenhuma
          regra o lia — o que o jogo aplica é efeito_positivo/efeito_negativo.
          A coluna segue no banco, vazia. */
-      { col: 'efeito_positivo', tipo: 'area', rotuloKey: 'campoEfeitoPositivo',  linhas: 2 },
-      { col: 'efeito_negativo', tipo: 'area', rotuloKey: 'campoEfeitoNegativo',  linhas: 2 },
+      { col: 'efeito_positivo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoPositivo',  linhas: 2 },
+      { col: 'efeito_negativo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoNegativo',  linhas: 2 },
       { col: 'valor_latao', tipo: 'numero', rotuloKey: 'campoValorLatao', min: 0 },
-      { col: 'ocupa',       tipo: 'numero', rotuloKey: 'campoOcupa',      min: 0 },
-      { col: 'armazena',    tipo: 'numero', rotuloKey: 'campoArmazena',   min: 0 },
-      { col: 'forca_req',   tipo: 'numero', rotuloKey: 'campoForcaReq',   min: 0 },
-      { col: 'dano',        tipo: 'numero', rotuloKey: 'campoDano',       min: 0 },
-      { col: 'alcance',     tipo: 'numero', rotuloKey: 'campoAlcance',    min: 0 },
-      { col: 'defesa',      tipo: 'numero', rotuloKey: 'campoDefesa',     min: 0 },
-      { col: 'absorcao',    tipo: 'numero', rotuloKey: 'campoAbsorcao',   min: 0 },
-      { col: 'resistencia', tipo: 'numero', rotuloKey: 'campoResistencia', min: 0 },
-      { col: 'dano_l', tipo: 'numero', rotuloKey: 'campoDanoL', min: 0 },
-      { col: 'dano_m', tipo: 'numero', rotuloKey: 'campoDanoM', min: 0 },
-      { col: 'dano_p', tipo: 'numero', rotuloKey: 'campoDanoP', min: 0 },
+      { col: 'ocupa', grupos: ['Armas', 'Armaduras', 'Vestimentas', 'Consumíveis', 'Instrumentos', 'Itens', 'Minerais', 'Moedas', 'Recipientes', 'Diario'],       tipo: 'numero', rotuloKey: 'campoOcupa',      min: 0 },
+      { col: 'armazena', grupos: ['Vestimentas', 'Itens', 'Propriedades', 'Recipientes', 'Transportes'],    tipo: 'numero', rotuloKey: 'campoArmazena',   min: 0 },
+      { col: 'forca_req', grupos: ['Armas', 'Armaduras'],   tipo: 'numero', rotuloKey: 'campoForcaReq',   min: 0 },
+      { col: 'dano', grupos: ['Armas'],        tipo: 'numero', rotuloKey: 'campoDano',       min: 0 },
+      { col: 'alcance', grupos: ['Armas'],     tipo: 'numero', rotuloKey: 'campoAlcance',    min: 0 },
+      { col: 'defesa', grupos: ['Armaduras'],      tipo: 'numero', rotuloKey: 'campoDefesa',     min: 0 },
+      { col: 'absorcao', grupos: ['Armaduras'],    tipo: 'numero', rotuloKey: 'campoAbsorcao',   min: 0 },
+      { col: 'resistencia', grupos: ['Armas', 'Armaduras', 'Vestimentas'], tipo: 'numero', rotuloKey: 'campoResistencia', min: 0 },
+      { col: 'dano_l', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoL', min: 0 },
+      { col: 'dano_m', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoM', min: 0 },
+      { col: 'dano_p', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoP', min: 0 },
       { col: 'nivel_magia', tipo: 'numero', rotuloKey: 'campoNivelMagia', min: 0 },
-      { col: 'consumiveis',       tipo: 'numero', rotuloKey: 'campoConsumiveis',      min: 0 },
-      { col: 'consumiveis_peso',  tipo: 'numero', rotuloKey: 'campoConsumiveisPeso',  min: 0 },
+      { col: 'consumiveis', grupos: ['Animais'],       tipo: 'numero', rotuloKey: 'campoConsumiveis',      min: 0 },
+      { col: 'consumiveis_peso', grupos: ['Animais'],  tipo: 'numero', rotuloKey: 'campoConsumiveisPeso',  min: 0 },
       /* Vínculo com a criatura (14/09/2026). O animal à venda É a criatura do
          bestiário: as características (montaria inclusive) ficam SÓ nela e o
          item herda por aqui. scripts/sql/itens-criatura-vinculo-2026-09-14.sql */
-      { col: 'criatura_id', tipo: 'referencia', rotuloKey: 'campoCriatura', fonte: 'criaturas' },
+      { col: 'criatura_id', grupos: ['Animais'], tipo: 'referencia', rotuloKey: 'campoCriatura', fonte: 'criaturas' },
       /* SOMENTE LEITURA, e não é preferência — é o banco.
          itens.magico é coluna GERADA:
            magico boolean GENERATED ALWAYS AS (magia IS NOT NULL AND magia <> '')
@@ -282,27 +383,27 @@ const CATALOGO_DESCRITORES = {
       { col: 'magia',  tipo: 'texto',  rotuloKey: 'campoMagia' },
       // Mesmo AJUSTE_KEY de 01-core/inventario-helpers.jsx (FIS desde 14/09/2026,
       // com as armas naturais). Sigla no banco, nome na tela.
-      { col: 'ajuste_atributo', tipo: 'opcoes', rotuloKey: 'campoAjusteAtributo',
+      { col: 'ajuste_atributo', grupos: ['Armas'], tipo: 'opcoes', rotuloKey: 'campoAjusteAtributo',
         opcoes: [{ value: 'AGI', label: 'Agilidade' }, { value: 'AUR', label: 'Aura' },
                  { value: 'FIS', label: 'Físico' }, { value: 'FOR', label: 'Força' },
                  { value: 'PER', label: 'Percepção' }] },
-      { col: 'grupo_armas',   tipo: 'opcoes', rotuloKey: 'campoArmas',        opcoes: OPCOES_GRUPO_ARMAS },
+      { col: 'grupo_armas', grupos: ['Armas'],   tipo: 'opcoes', rotuloKey: 'campoArmas',        opcoes: OPCOES_GRUPO_ARMAS },
       /* Sigla no banco, palavra na tela — mesmo tratamento de `tipo`.
          NÃO usa OPCOES_GRUPO_ARMADURAS (que tem 'Livre'): 'Livre' faz sentido
          em tecnicas.grupo_armaduras, onde significa "serve com qualquer
          armadura", e nenhum sentido aqui, onde a coluna diz QUE armadura a
          peça É. */
-      { col: 'tipo_armadura', tipo: 'opcoes', rotuloKey: 'campoTipoArmadura',
+      { col: 'tipo_armadura', grupos: ['Armas', 'Armaduras'], tipo: 'opcoes', rotuloKey: 'campoTipoArmadura',
         opcoes: [{ value: 'L', label: 'Leve' },
                  { value: 'M', label: 'Médio' },
                  { value: 'P', label: 'Pesado' }] },
       /* Listas fechadas iguais às CHECK do banco (itens_categoria_equip_chk e
          itens_slot_equip_chk) — eram texto livre e qualquer outro valor
          derrubava o salvar. Sigla no banco, palavra na tela. */
-      { col: 'categoria_equip',    tipo: 'opcoes', rotuloKey: 'campoCategoriaEquip',
+      { col: 'categoria_equip', grupos: ['Armas', 'Armaduras'],    tipo: 'opcoes', rotuloKey: 'campoCategoriaEquip',
         opcoes: [{ value: 'arma', label: 'Arma' }, { value: 'escudo', label: 'Escudo' },
                  { value: 'armadura', label: 'Armadura' }] },
-      { col: 'slot_equip',         tipo: 'opcoes', rotuloKey: 'campoSlotEquip',
+      { col: 'slot_equip', grupos: ['Armas', 'Armaduras', 'Vestimentas', 'Instrumentos'],         tipo: 'opcoes', rotuloKey: 'campoSlotEquip',
         opcoes: [{ value: 'maos', label: 'Mãos' }, { value: 'cabeca', label: 'Cabeça' },
                  { value: 'peito', label: 'Peito' }, { value: 'pernas', label: 'Pernas' },
                  { value: 'pes', label: 'Pés' }, { value: 'ombros', label: 'Ombros' },
@@ -310,10 +411,12 @@ const CATALOGO_DESCRITORES = {
                  { value: 'costas', label: 'Costas' }, { value: 'cintura', label: 'Cintura' },
                  { value: 'pescoco', label: 'Pescoço' }, { value: 'orelhas', label: 'Orelhas' },
                  { value: 'dedos', label: 'Dedos' }] },
-      { col: 'grupo_equipamento',  tipo: 'texto', rotuloKey: 'campoGrupoEquipamento' },
-      { col: 'maos_pequenino', tipo: 'numero', rotuloKey: 'campoMaosPequenino', min: 0, max: 2 },
-      { col: 'maos_anao',      tipo: 'numero', rotuloKey: 'campoMaosAnao',      min: 0, max: 2 },
-      { col: 'maos_outras',    tipo: 'numero', rotuloKey: 'campoMaosOutras',    min: 0, max: 2 },
+      { col: 'grupo_equipamento', grupos: ['Armas', 'Armaduras'],  tipo: 'texto', rotuloKey: 'campoGrupoEquipamento' },
+      { col: 'maos_pequenino', grupos: ['Armas', 'Armaduras', 'Instrumentos'], tipo: 'numero', rotuloKey: 'campoMaosPequenino', min: 0, max: 2 },
+      { col: 'maos_anao', grupos: ['Armas', 'Armaduras', 'Instrumentos'],      tipo: 'numero', rotuloKey: 'campoMaosAnao',      min: 0, max: 2 },
+      { col: 'maos_outras', grupos: ['Armas', 'Armaduras', 'Instrumentos'],    tipo: 'numero', rotuloKey: 'campoMaosOutras',    min: 0, max: 2 },
+      // A descrição fica POR ÚLTIMO no editor de itens (26/09/2026).
+      { col: 'descricao', tipo: 'area', rotuloKey: 'campoDescricao', linhas: 3 },
     ],
   },
 };
@@ -338,7 +441,8 @@ function descritorDe(tabela) {
 function opcoesNormalizadas(campo) {
   const lista = (campo && campo.opcoes) || [];
   return lista.map((o) => (
-    (o && typeof o === 'object') ? { value: o.value, label: o.label } : { value: o, label: o }
+    // `recuo`: especialização abaixo da profissão, na lista de permissão (26/09/2026).
+    (o && typeof o === 'object') ? { value: o.value, label: o.label, ...(o.recuo ? { recuo: true } : {}) } : { value: o, label: o }
   ));
 }
 

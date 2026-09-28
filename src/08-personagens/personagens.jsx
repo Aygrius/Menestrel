@@ -136,29 +136,8 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     );
   }
 
-  // Botão "Batalha" — só quando há batalha ativa do PJ. Renderizado
-  // nativamente na barra de abas da ficha via prop `navSlot`. Sem portal:
-  // o alvo `.fp-tabs` não existe mais (hoje é `.diario-subtabs`), e injetar
-  // por querySelector é frágil. Sem hooks aqui embaixo → não quebra a ordem
-  // de hooks quando `viewBatalha` dispara o return antecipado lá em cima.
-  const btnBatalha = (!carregando && batalhaAtiva) ? (
-    <button
-      type="button"
-      onClick={() => setViewBatalha(true)}
-      style={{
-        background: 'linear-gradient(135deg,#B8472F 0%,#8B1A10 100%)',
-        color: '#F8E8DC', fontFamily: "'Lora',serif", fontWeight: 600,
-        fontSize: 13, border: 'none', borderRadius: 999,
-        padding: '0 16px', height: 32, cursor: 'pointer',
-        boxShadow: '0 4px 16px -6px rgba(184,70,47,0.7)',
-        display: 'inline-flex', alignItems: 'center', gap: 4,
-        animation: 'batalha-pulse 2s ease-in-out infinite',
-        flexShrink: 0, whiteSpace: 'nowrap',
-      }}>
-      <i className="ti ti-swords" aria-hidden="true" style={{ fontSize: 13 }} />
-      {isEn ? 'Battle' : 'Batalha'}
-    </button>
-  ) : null;
+  // Batalha — só quando há batalha ativa do PJ. A ficha desenha o ícone
+  // (ti-sword, com tooltip) na fileira de abas, via `onBatalha` (27/09/2026).
 
   return (
     <FichaPersonagem
@@ -170,7 +149,9 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
       onEditar={onEditar}
       onExcluir={onExcluir}
-      navSlot={btnBatalha}
+      /* A Batalha virou ícone (ti-sword) com tooltip na fileira da ficha
+         (27/09/2026) — quem desenha é a própria ficha, que tem o tooltip. */
+      onBatalha={(!carregando && batalhaAtiva) ? () => setViewBatalha(true) : null}
     />
   );
 }
@@ -843,18 +824,10 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
                   pílula ao lado; virou o número dourado logo depois do nome,
                   dentro do mesmo elemento — o estágio lido como parte de quem
                   o personagem é, não como etiqueta pendurada. */}
-              <div className="pj-name">
-                {/* O TÍTULO ANTES DO NOME (17/09/2026): "mostre o título do
-                    personagem junto com o nome, por exemplo: Guardião Lirael
-                    Vel'Thalas". Era mais um item da linha de meta, entre a
-                    profissão e o dono, com o mesmo peso de tudo. Como prefixo
-                    do nome ele vira o que é: um tratamento. */}
-                {titulo && <span className="pj-name-titulo">{titulo} </span>}
-                {nomeCompleto}
-                <span className="pj-name-estagio"
-                  aria-label={en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}
-                >{ficha.estagio}</span>
-              </div>
+              {/* SÓ O NOME (26/09/2026). O título e o estágio, que andavam
+                  colados a ele, desceram para as linhas de baixo — ver o
+                  bloco .pj-meta-linhas. */}
+              <div className="pj-name">{nomeCompleto}</div>
               {/* ATIVIDADE (24/09/2026): dormindo, meditando… Com nome, ao
                   contrário dos status: é o que o personagem está FAZENDO, e um
                   ícone de lua sozinho não diria se ele dorme ou medita. */}
@@ -897,8 +870,22 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
               card mostrava só o nome do jogador, que é a mesma palavra em
               todos os cards de um mesmo dono. Isto é o que distingue um
               personagem do outro. */}
-          <div className="pj-meta">
-            {/* O estágio saiu daqui e virou selo (ver .pj-name-estagio acima). */}
+          {/* QUATRO LINHAS (26/09/2026, pedido do usuário):
+                Elarion Dornes
+                Elfo-Dourado • Estágio 27
+                Mago • Necromante
+                Richard Rossati
+              O estágio volta por extenso, ao lado da raça; o título (da
+              especialização) segue a profissão; o jogador fica sozinho na
+              última linha — e continua só para o Mestre: na lista do Jogador
+              seria o nome dele repetido em todo card. */}
+          <div className="pj-meta-linhas">
+          <div className="pj-meta pj-meta--raca">
+            {p.raca && <span>{p.raca}</span>}
+            {p.raca && <span className="sep" aria-hidden="true">•</span>}
+            <span>{en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}</span>
+          </div>
+          <div className="pj-meta pj-meta--profissao">
             {/* O ícone da profissão (17/09/2026) vem antes da linha, e não
                 colado à palavra: é o desenho que distingue um Mago de um
                 Guerreiro num relance, antes de ler. Profissão sem ícone
@@ -908,15 +895,17 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
               const ic = (typeof iconeProfissao === 'function' ? iconeProfissao : window.iconeProfissao)?.(p.profissao);
               return ic ? <i className={'ti ' + ic + ' pj-meta-profissao-ic'} aria-hidden="true" /> : null;
             })()}
-            {(p.raca || p.profissao) && <span>{[p.raca, p.profissao].filter(Boolean).join(' ')}</span>}
-            {/* O dono só interessa ao Mestre. Na lista do jogador todos os
-                cards traziam o nome DELE, repetido card a card. */}
-            {isMaster && <span className="sep">·</span>}
-            {isMaster && <span>{playerName}</span>}
+            {p.profissao && <span>{p.profissao}</span>}
+            {p.profissao && titulo && <span className="sep" aria-hidden="true">•</span>}
+            {titulo && <span className="pj-meta-titulo">{titulo}</span>}
             {/* O selo "Pausada" saiu em 17/09/2026 e o aviso que o substituiu
                 durou poucas horas: o Mestre entra direto, porque é ele quem
                 pausa a mesa. Quem a pausa tranca é o Jogador, na própria ficha
                 (11-ficha/ficha.jsx). */}
+          </div>
+          {isMaster && playerName && (
+            <div className="pj-meta pj-meta--jogador"><span>{playerName}</span></div>
+          )}
           </div>
 
           {/* OS TRÊS POÇOS, LADO A LADO E NA LARGURA TODA (17/09/2026). Com um
@@ -927,15 +916,21 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
           {vitais.length > 0 && (
             <div className="pj-vitais">
               {vitais.map((v) => (
+                /* SÓ A BARRA (26/09/2026): "remova 'Energia Física', 'Energia
+                   Heroica', etc, deixe apenas a barra." A cor diz qual poço é
+                   (a mesma da ficha); nome e valor seguem para leitor de tela
+                   no role="meter". */
                 <div
                   key={v.k}
                   className={'pj-vital pj-vital--' + v.k}
                   style={{ '--vit-c': v.cor }}
+                  role="meter"
+                  aria-label={v.rotulo}
+                  aria-valuemin={0}
+                  aria-valuemax={v.max}
+                  aria-valuenow={v.atual}
+                  aria-valuetext={`${v.atual}/${v.max}`}
                 >
-                  <div className="pj-vital-top">
-                    <span className="pj-vital-rot">{v.rotulo}</span>
-                    <span className="pj-vital-num">{v.atual}<span className="pj-vital-max">/{v.max}</span></span>
-                  </div>
                   <div className="pj-vital-barra">
                     <span
                       className="pj-vital-fill"
@@ -1676,144 +1671,17 @@ const WIZ_RACA_FOTO = {
 // MenestrelSelect que nunca chegou a ser construído (ver skill, seção
 // "Padrão de dropdown/select"). Portal alvo: o `.menestrel-ui` mais próximo
 // do botão (mantém o escopo dos seletores CSS `#root .menestrel-ui …`).
-function SelectPill({ options = [], value, onChange, placeholder, disabled, label }) {
-  const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState(null);
-  const btnRef = React.useRef(null);
-  const panelRef = React.useRef(null);
+/* SelectPill mora em 01-core/select-pill.jsx desde 25/09/2026 — uma peça só
+   para o sistema inteiro, com a pele do seletor de data. */
 
-  const recalc = () => {
-    if (!btnRef.current) return;
-    const r = btnRef.current.getBoundingClientRect();
-    const PANEL_MAX  = 200; // altura máxima desejada do painel
-    const GAP        = 4;
-    const spaceBelow = window.innerHeight - r.bottom - GAP;
-    const spaceAbove = r.top - GAP;
-    // Abre acima quando não há espaço suficiente abaixo E há mais espaço acima
-    const openUp = spaceBelow < PANEL_MAX && spaceAbove > spaceBelow;
-    const maxH   = openUp
-      ? Math.min(PANEL_MAX, spaceAbove)
-      : Math.min(PANEL_MAX, spaceBelow);
-    setCoords({
-      top:    openUp ? undefined : r.bottom + GAP,
-      bottom: openUp ? window.innerHeight - r.top + GAP : undefined,
-      left:   r.left,
-      width:  r.width,
-      maxH,
-    });
-  };
-
-  React.useEffect(() => {
-    if (!open) return;
-    recalc();
-    // Clique fora fecha — "fora" agora precisa considerar o botão E o painel
-    // portalizado (que não é mais descendente do wrapper no DOM).
-    const handler = (e) => {
-      if (btnRef.current && btnRef.current.contains(e.target)) return;
-      if (panelRef.current && panelRef.current.contains(e.target)) return;
-      setOpen(false);
-    };
-    // Scroll não borbulha (bubbling) — só captura (capture:true) pega o
-    // scroll do corpo rolável do modal por trás do botão.
-    document.addEventListener('mousedown', handler);
-    window.addEventListener('scroll', recalc, true);
-    window.addEventListener('resize', recalc);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      window.removeEventListener('scroll', recalc, true);
-      window.removeEventListener('resize', recalc);
-    };
-  }, [open]);
-
-  const selected = options.find((o) => String(o.value) === String(value));
-  const displayLabel = selected
-    ? (selected.labelBotao != null ? selected.labelBotao : selected.label)
-    : (placeholder || '—');
-
-  const pillStyle = {
-    background: 'rgba(24,17,8,0.92)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-    border: '1px solid rgba(106,85,48,0.50)', borderRadius: 999, height: 32,
-    fontFamily: "'Lora', serif", fontSize: 13, flexShrink: 0, width: '100%',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-    color: '#E8DDC6', padding: '0 12px 0 16px', cursor: disabled ? 'default' : 'pointer',
-    outline: 'none', outlineOffset: 0, boxShadow: 'none', appearance: 'none', WebkitAppearance: 'none',
-    WebkitTapHighlightColor: 'transparent', transition: 'border-color .15s',
-  };
-
-  const dropStyle = coords ? {
-    position: 'fixed',
-    top: coords.top, bottom: coords.bottom,
-    left: coords.left, width: coords.width,
-    background: 'rgba(18,12,5,0.98)', border: '1px solid rgba(201,164,78,0.20)', borderRadius: 8,
-    padding: 4, margin: 0, listStyle: 'none', zIndex: 9999,
-    boxShadow: '0 16px 40px -12px rgba(0,0,0,0.9)',
-    maxHeight: coords.maxH, overflowY: 'auto',
-  } : null;
-
-  return (
-    <div className="motor-field" style={{ position: 'relative' }}>
-      {label && <span>{label}</span>}
-      <button type="button" className="select-pill-btn" data-open={open ? 'true' : 'false'} style={pillStyle} disabled={disabled}
-        ref={btnRef}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={(e) => { e.currentTarget.blur(); !disabled && setOpen((v) => !v); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
-        <i className="ti ti-chevron-down" aria-hidden="true"
-           style={{ fontSize: 12, color: '#C9A44E', opacity: 0.7, flexShrink: 0,
-                    transition: 'transform .15s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-      </button>
-      {open && coords && ReactDOM.createPortal(
-        <ul className="select-pill-drop menestrel-ui" ref={panelRef} style={dropStyle}>
-          {options.map((opt) => {
-            const active = String(opt.value) === String(value);
-            const optDisabled = !!opt.disabled;
-            if (!opt.label) return null;
-            return (
-              <li key={opt.value}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 10px',
-                  borderRadius: 6, cursor: optDisabled ? 'not-allowed' : 'pointer', fontFamily: "'Lora', serif", fontSize: 13,
-                  color: active ? '#C9A44E' : optDisabled ? 'rgba(200,188,170,0.30)' : '#C8BCAA',
-                  background: 'transparent', whiteSpace: 'pre-wrap', userSelect: 'none' }}
-                onMouseEnter={(e) => { if (!active && !optDisabled) { e.currentTarget.style.background = 'rgba(201,164,78,0.10)'; e.currentTarget.style.color = '#E8DDC6'; } }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = active ? '#C9A44E' : optDisabled ? 'rgba(200,188,170,0.30)' : '#C8BCAA'; }}
-                onClick={() => { if (!optDisabled) { onChange(opt.value); setOpen(false); } }}>
-                <span>{opt.label}</span>
-                {active && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
-              </li>
-            );
-          })}
-        </ul>,
-        // .menestrel-ui mais próximo do botão — mantém os seletores CSS
-        // `#root .menestrel-ui …` válidos. document.body só entra como rede
-        // de segurança (não deveria disparar: todo componente do projeto
-        // nasce dentro de .menestrel-ui).
-        // Portal vai direto pro document.body pra escapar de qualquer
-        // overflow:hidden ou backdrop-filter do ancestral (o .modal-backdrop
-        // com backdrop-filter cria stacking context e confina position:fixed
-        // mesmo que o elemento esteja fora do overflow:hidden do .modal-wizard).
-        // A classe menestrel-ui no <ul> garante que os seletores CSS
-        // `#root .menestrel-ui .select-pill-drop` continuem válidos.
-        document.body
-      )}
-    </div>
-  );
-}
-
-// wizInputStyle — MESMOS valores do pillStyle do SelectPill acima, pra que os
-// <input> de Nome/Sobrenome fiquem pixel-a-pixel iguais aos SelectPill de
-// Raça/Gênero, travados (isEdit) ou não. As divergências que existiam com a
-// classe .wiz-field-locked (background sólido, borda mais fraca, sem
-// backdrop-filter, opacity 0.55 em vez de 0.45) somem porque aqui o estilo é
-// inline (vence a cascata) e replica o pill exatamente.
+// wizInputStyle — Nome/Sobrenome ficam dentro de .motor-field, e a pele vem
+// do CAMPO ÚNICO (index.css, tokens --campo-*, 25/09/2026): a mesma do
+// SelectPill de Raça/Gênero ao lado. Aqui só o que é deste campo: travado
+// (isEdit) apaga e troca o cursor. Antes o inline copiava a pele antiga do
+// SelectPill (vidro com filete bronze), que o dropdown único já tinha trocado.
 function wizInputStyle(locked) {
   return {
-    background: 'rgba(24,17,8,0.92)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-    border: '1px solid rgba(106,85,48,0.50)', borderRadius: 999, height: 32,
-    fontFamily: "'Lora', serif", fontSize: 13, flexShrink: 0, width: '100%',
-    color: '#E8DDC6', padding: '0 16px',
-    outline: 'none', outlineOffset: 0, boxShadow: 'none',
-    WebkitTapHighlightColor: 'transparent', transition: 'border-color .15s',
+    width: '100%', flexShrink: 0,
     opacity: locked ? 0.45 : 1, cursor: locked ? 'not-allowed' : 'text',
   };
 }
@@ -1946,8 +1814,8 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
       </div>*/}
 
       <div className="wiz-col">
-        {/* Nome e Sobrenome inline — <input> recebe wizInputStyle (cópia exata
-            do pillStyle do SelectPill) via inline, ficando idêntico aos campos
+        {/* Nome e Sobrenome inline — <input> com a pele do CAMPO ÚNICO (a mesma
+            do SelectPill, via .motor-field), ficando idêntico aos campos
             de Raça/Gênero. Sem a classe .wiz-field-locked de propósito: era ela
             que divergia o estilo (fundo/borda/opacity). */}
         <div className="wiz-row-2col">
@@ -2055,7 +1923,7 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
                   const v = e.target.value === '' ? null : Number(e.target.value);
                   update('data_nasc', { ...(form.data_nasc || {}), dia: v });
                 }}
-                style={{ ...wizInputStyle(false), width: 64 }}
+                className="diario-input" style={{ ...wizInputStyle(false), width: 64 }}
               />
               <input
                 type="number" placeholder="Mês" min={1} max={13} step={1}
@@ -2065,7 +1933,7 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
                   const v = e.target.value === '' ? null : Number(e.target.value);
                   update('data_nasc', { ...(form.data_nasc || {}), mes: v });
                 }}
-                style={{ ...wizInputStyle(false), width: 64 }}
+                className="diario-input" style={{ ...wizInputStyle(false), width: 64 }}
               />
               <input
                 type="number" placeholder="Ano"
@@ -2075,7 +1943,7 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
                   const v = e.target.value === '' ? null : Number(e.target.value);
                   update('data_nasc', { ...(form.data_nasc || {}), ano: v });
                 }}
-                style={{ ...wizInputStyle(false), flex: 1 }}
+                className="diario-input" style={{ ...wizInputStyle(false), flex: 1 }}
               />
             </div>
           )}
@@ -2240,14 +2108,14 @@ function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isE
 
   // Estilos do stepper pill — mesmo padrão de BarEditPopover / batalha
   const pillStyle = {
-    background: 'rgba(24,17,8,0.92)', border: '1px solid rgba(106,85,48,0.50)',
+    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
     borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
     justifyContent: 'space-between', gap: 4, padding: '0 4px',
   };
   const btnStyle = (enabled) => ({
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#C9A44E' : 'rgba(201,164,78,0.30)',
+    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
     cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
   });
 
@@ -2276,9 +2144,9 @@ function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isE
                 onClick={() => incrementar(k, -1)} aria-label="−"
                 onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 14 }} />
+                <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
               </button>
-              <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
                 {base}
               </span>
               <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
@@ -2287,7 +2155,7 @@ function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isE
                 {...propsTip(abrirTip, fecharTip, base >= 6 ? (lang === 'en' ? 'Maximum value' : 'Valor máximo') : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
                 onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
+                <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
               </button>
             </div>
           </div>
@@ -2338,14 +2206,14 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
   );
 
   const pillStyle = {
-    background: 'rgba(24,17,8,0.92)', border: '1px solid rgba(106,85,48,0.50)',
+    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
     borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
     justifyContent: 'space-between', gap: 4, padding: '0 4px',
   };
   const btnStyle = (enabled) => ({
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#C9A44E' : 'rgba(201,164,78,0.30)',
+    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
     cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
   });
 
@@ -2374,9 +2242,9 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
             onClick={() => mudarNivel(g.sigla, -1)} aria-label="−"
             onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 14 }} />
+            <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
           </button>
-          <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
             {nivel}
           </span>
           <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
@@ -2385,7 +2253,7 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
             {...propsTip(abrirTip, fecharTip, acimaDoEstagio ? (lang === 'en' ? `Max for stage (${estagio})` : `Máximo do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
             onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
+            <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
           </button>
         </div>
       </div>
@@ -2485,14 +2353,14 @@ function StepHabilidades({
   };
 
   const pillStyle = {
-    background: 'rgba(24,17,8,0.92)', border: '1px solid rgba(106,85,48,0.50)',
+    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
     borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
     justifyContent: 'space-between', gap: 4, padding: '0 4px',
   };
   const btnStyle = (enabled) => ({
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#C9A44E' : 'rgba(201,164,78,0.30)',
+    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
     cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
   });
 
@@ -2549,9 +2417,9 @@ function StepHabilidades({
                 onClick={() => mudarNivel(h.key, -1)} aria-label="−"
                 onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 14 }} />
+                <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
               </button>
-              <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
                 {nivelAtual}
               </span>
               <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
@@ -2560,7 +2428,7 @@ function StepHabilidades({
                 {...propsTip(abrirTip, fecharTip, !podeMaisEstagio ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
                 onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
+                <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
               </button>
             </div>
             {/* Vagas de aprimoramento da própria habilidade, quando ela for
@@ -2752,14 +2620,14 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
     : disponiveis.filter((m) => !magiaEhAvancada(m));
 
   const pillStyle = {
-    background: 'rgba(24,17,8,0.92)', border: '1px solid rgba(106,85,48,0.50)',
+    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
     borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
     justifyContent: 'space-between', gap: 4, padding: '0 4px',
   };
   const btnStyle = (enabled) => ({
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#C9A44E' : 'rgba(201,164,78,0.30)',
+    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
     cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
   });
 
@@ -2788,6 +2656,8 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
               { rotulo: lang === 'en' ? 'Range' : 'Alcance', valor: m.alcance },
               { rotulo: lang === 'en' ? 'Duration' : 'Duração', valor: m.duracao },
               { rotulo: lang === 'en' ? 'Cost' : 'Custo', valor: m.custo },
+              // Itens do ritual: campo próprio desde 26/09/2026.
+              { rotulo: lang === 'en' ? 'Required items' : 'Itens necessários', valor: m.itens_necessarios },
             ],
             descricao: m.descricao,
             // Nível apagado pelo admin não aparece na ficha da magia — se
@@ -2804,9 +2674,9 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
             onClick={() => mudarPasso(m.key, -1)} aria-label="−"
             onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 14 }} />
+            <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
           </button>
-          <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
             {passos > 0 ? nivelMagiaEfetivo(passos) : 0}
           </span>
           <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
@@ -2815,7 +2685,7 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
             {...propsTip(abrirTip, fecharTip, !temProximoNivel && passos < 5 ? (lang === 'en' ? 'This spell has no further level' : 'Esta magia não tem nível seguinte') : !podeMaisEstagio && passos < 5 ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
             onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
+            <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
           </button>
         </div>
       </div>
@@ -2898,14 +2768,14 @@ function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalP
   // Técnica é 1 tela só — lista em coluna única.
 
   const pillStyle = {
-    background: 'rgba(24,17,8,0.92)', border: '1px solid rgba(106,85,48,0.50)',
+    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
     borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
     justifyContent: 'space-between', gap: 4, padding: '0 4px',
   };
   const btnStyle = (enabled) => ({
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#C9A44E' : 'rgba(201,164,78,0.30)',
+    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
     cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
   });
 
@@ -2938,9 +2808,9 @@ function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalP
             onClick={() => mudarPasso(t.key, -1)} aria-label="−"
             onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 14 }} />
+            <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
           </button>
-          <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
             {passos}
           </span>
           <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
@@ -2949,7 +2819,7 @@ function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalP
             {...propsTip(abrirTip, fecharTip, acimaDoEstagio ? (lang === 'en' ? `Max for stage (${estagio})` : `Máximo do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
             onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 14 }} />
+            <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
           </button>
         </div>
       </div>

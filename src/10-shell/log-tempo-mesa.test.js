@@ -102,13 +102,19 @@ describe('textoEventoData — a data muda, e o feriado vai junto', () => {
    Repare no vocabulário, que o usuário separou: "TEMPO" é o relógio, "CLIMA"
    é a condição atmosférica. A trilha (Água, Vento, Temperatura) sai da frase
    — os nomes dos degraus já dizem de qual eixo se está falando. */
-describe('textoEventoHora — de que hora para que hora', () => {
-  it('diz de onde para onde', () => {
-    expect(textoEventoHora(12, 13, false)).toBe('O tempo mudou de 12h para 13h.');
+/* 27/09/2026: "Agora são 13h da tarde." — no lugar de "A hora da mesa agora
+   é 13h." e de "O tempo mudou de 12h para 13h.". */
+describe('textoEventoHora — a hora com o período do dia', () => {
+  it('o exemplo do usuário', () => {
+    expect(textoEventoHora(12, 13, false)).toBe('Agora são 13h da tarde.');
   });
 
-  it('a meia-noite é 0h, não some', () => {
-    expect(textoEventoHora(23, 0, false)).toContain('para 0h');
+  it('manhã, noite, madrugada; 1h no singular; meia-noite e meio-dia', () => {
+    expect(textoEventoHora(8, 9, false)).toBe('Agora são 9h da manhã.');
+    expect(textoEventoHora(19, 20, false)).toBe('Agora são 20h da noite.');
+    expect(textoEventoHora(0, 1, false)).toBe('Agora é 1h da madrugada.');
+    expect(textoEventoHora(23, 0, false)).toBe('Agora é meia-noite.');
+    expect(textoEventoHora(11, 12, false)).toBe('Agora é meio-dia.');
   });
 
   it('e fala inglês quando pedido', () => {
@@ -130,23 +136,24 @@ describe('textoEventoHora — de que hora para que hora', () => {
 });
 
 describe('textoEventoTempo — de que degrau para que degrau', () => {
-  it('nomeia os dois degraus, sem a trilha', () => {
+  // "O clima era desértico e agora ficou árido." (27/09/2026)
+  it('o exemplo do usuário', () => {
     expect(textoEventoTempo('agua', 'desertico', 'arido', false))
-      .toBe('O clima mudou de Desértico para Árido.');
+      .toBe('O clima era desértico e agora ficou árido.');
   });
 
   it('vale para as três trilhas', () => {
     expect(textoEventoTempo('vento', 'leves', 'tornado', false))
-      .toBe('O clima mudou de Ventos leves para Tornado.');
+      .toBe('O clima era ventos leves e agora ficou tornado.');
     expect(textoEventoTempo('temperatura', 'agradavel', 'calor_extremo', false))
-      .toBe('O clima mudou de Agradável para Calor extremo.');
+      .toBe('O clima era agradável e agora ficou calor extremo.');
   });
 
   /* Mesa sem aquela trilha definida cai no degrau PADRÃO, que é o que a barra
      já mostrava — dizer "de nada para Árido" seria mentira. */
   it('sem degrau anterior, parte do padrão da trilha', () => {
     expect(textoEventoTempo('agua', null, 'arido', false))
-      .toBe('O clima mudou de Fresco para Árido.');
+      .toBe('O clima era fresco e agora ficou árido.');
   });
 
   it('degrau desconhecido não vira evento', () => {

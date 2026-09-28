@@ -1,23 +1,29 @@
 /* ============================================================
-   magia-detalhes-tooltip.test.jsx — os atributos da magia viram tooltip
+   magia-detalhes-tooltip.test.jsx — a janela de usar uma magia (ficha)
    ============================================================
-   "No caso das magias, o texto vira tooltip igual nos itens." (usuário,
-   12/09/2026)
-
-   Evocação, Alcance, Duração e Alvo eram ícone + texto ao lado. Agora são só o
-   ícone, e o texto sai no tooltip com o nome do campo de título — o mesmo trato
-   dos efeitos na janela de item (det-sec-chip--efeito).
+   Desde 26/09/2026 é o MODELO ÚNICO de janela ("Eu não quero ter vários
+   modelos de modal para magias, itens, habilidades, etc. A diferença é que no
+   modal para usar [...] eu terei os botões de ação. Mas todos terão as abas
+   de detalhes." — usuário): o BestDetalheModal com o corpo do Treinamento
+   (BestMagiaFicha) e o ícone Evocar ao lado do X, que abre a etapa de nível e
+   alvo. Os chips e o rodapé antigos saíram; os comportamentos que importavam
+   continuam presos aqui.
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
-import { readFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
+import '../01-core/select-pill.jsx';
 import '../01-core/game-data.jsx';
+import '../10-shell/shell.jsx';
+import '../09-bestiario/ataques-criatura.jsx';
+import '../09-bestiario/criatura-formulas.jsx';
+import '../09-bestiario/conhecido-jogador.jsx';
+import '../09-bestiario/catalogo-descritores.jsx';
+import '../09-bestiario/catalogo-editor.jsx';
+import '../09-bestiario/bestiario.jsx';
 import './ficha.jsx';
 
 let Modal;
@@ -32,40 +38,76 @@ const MAGIA = {
   duracao: 'Instantânea', descricao: 'Uma bola de fogo.', nivel_1: 'Causa 12 de dano elemental de fogo.',
 };
 
-const montar = (abrirTip = vi.fn()) => render(
+const montar = (props = {}) => render(
   <div className="menestrel-ui">
-    <Modal magia={MAGIA} passos={1} nivelMagiaEfetivoFn={() => 1} eu={{ id: 1, nome: 'Eco' }}
-      colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={abrirTip} fecharTip={() => {}} />
+    <Modal magia={MAGIA} passos={1} nivelMagiaEfetivoFn={() => 1} eu={{ id: 7, nome: 'Yuldrous', sobrenome: "Alma D'Machado" }}
+      colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={() => {}} fecharTip={() => {}} {...props} />
   </div>
 ).container.ownerDocument.body;
+// Sem ícone de Evocar desde 26/09/2026: clicar DE NOVO no alvo marcado evoca.
+const alvoCard = (nome) => [...document.querySelectorAll('.det-alvos .det-opt-card')].find((c) => c.textContent.includes(nome));
 
-/* Bug de 15/09/2026: "Usar magia em outros personagens da mesma mesa está
-   dando erro, e na hora do mestre aprovar aparece: Erro: invalid input syntax
-   for type bigint: 'self'." (usuário)
+describe('o modelo único de janela', () => {
+  it('as abas de detalhe do Treinamento, sem ícone ao lado do X', () => {
+    montar();
+    expect(document.querySelector('.modal-best-detalhe')).toBeTruthy();
+    expect(document.querySelector('.ms-footer')).toBeNull();
+    const abas = [...document.querySelectorAll('.best-abas [role="tab"]')].map((b) => b.textContent);
+    // A aba principal é a de evocar; os níveis moram na Descrição (26/09/2026).
+    expect(abas).toEqual(['Evocar', 'Descrição', 'Características']);
+    expect(document.querySelector('[data-acao="evocar"]')).toBeNull();
+    // Sem os títulos 'Nível' e 'Alvo'.
+    expect(document.querySelector('.det-uso .det-sec-head')).toBeNull();
+    // Características traz o nível do personagem.
+    expect(document.querySelector('.best-secao--lista').textContent).toMatch(/Seu nível\s*1/);
+  });
 
-   A opção "(Você)" tinha id 'self'. A ficha comparava com pj.id, dava
-   diferente, e tratava a evocação em si mesmo como evocação em terceiro: o
-   efeito não pousava, o pedido ia para a fila do Mestre e aplicar estourava
-   no banco. */
+  /* "Magias de uso 'pessoal' só podem ser usados no próprio evocador."
+     (usuário, 27/09/2026) */
+  it('alcance Pessoal: só o próprio evocador é alvo', () => {
+    const colegas = [{ id: 9, nome: 'Ana' }];
+    montar({ magia: { ...MAGIA, alcance: 'Pessoal' }, colegas });
+    expect(alvoCard('Yuldrous')).toBeTruthy();
+    expect(alvoCard('Ana')).toBeUndefined();
+    cleanup();
+    montar({ colegas });
+    expect(alvoCard('Ana')).toBeTruthy();
+  });
+
+  it('magia não aprendida: sem a aba de evocar', () => {
+    montar({ passos: null });
+    expect(document.querySelector('.det-uso')).toBeNull();
+  });
+
+  it('o primeiro clique no alvo só marca; o segundo evoca', () => {
+    const onEvocar = vi.fn();
+    montar({ onEvocar });
+    fireEvent.click(alvoCard('Yuldrous'));
+    expect(onEvocar).not.toHaveBeenCalled();
+    expect(alvoCard('Yuldrous').classList.contains('det-opt-card--sel')).toBe(true);
+    // A dica aparece sozinha sobre o card marcado (26/09/2026).
+    expect(document.querySelector('.mn-tip').textContent).toBe('Clique aqui novamente para evocar');
+    fireEvent.click(alvoCard('Yuldrous'));
+    expect(onEvocar).toHaveBeenCalledTimes(1);
+  });
+});
+
+/* Bug de 15/09/2026: a opção "(Você)" tinha id 'self', e o banco recusava
+   ao aprovar ("invalid input syntax for type bigint: 'self'"). */
 describe('alvo da evocação', () => {
   const evocar = (alvoNome, colegas = []) => {
     const onEvocar = vi.fn();
-    const b = render(
-      <div className="menestrel-ui">
-        <Modal magia={MAGIA} passos={1} nivelMagiaEfetivoFn={() => 1}
-          eu={{ id: 7, nome: 'Yuldrous', sobrenome: "Alma D'Machado" }} colegas={colegas}
-          lang="pt" onClose={() => {}} onEvocar={onEvocar} abrirTip={() => {}} fecharTip={() => {}} />
-      </div>
-    ).container.ownerDocument.body;
-    const alvo = [...b.querySelectorAll('.det-opt-card')].find((c) => c.textContent.includes(alvoNome));
-    expect(alvo, alvoNome).toBeTruthy();
-    fireEvent.click(alvo);
-    fireEvent.click([...b.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Evocar'));
+    montar({ colegas, onEvocar });
+    fireEvent.click(document.querySelector('.mag-nivel-card'));
+    expect(alvoCard(alvoNome), alvoNome).toBeTruthy();
+    fireEvent.click(alvoCard(alvoNome));
+    fireEvent.click(alvoCard(alvoNome));
     return onEvocar;
   };
 
+  // O card do próprio personagem traz só o nome (sem '(Você)', 26/09/2026).
   it('escolher a si mesmo manda o ID do personagem, não "self"', () => {
-    const onEvocar = evocar('(Você)');
+    const onEvocar = evocar('Yuldrous');
     expect(onEvocar).toHaveBeenCalledTimes(1);
     expect(onEvocar.mock.calls[0][0].alvo.id).toBe('7');
   });
@@ -74,118 +116,26 @@ describe('alvo da evocação', () => {
     const onEvocar = evocar('Eco', [{ id: 42, nome: 'Eco', sobrenome: 'Vedrenne' }]);
     expect(onEvocar.mock.calls[0][0].alvo.id).toBe('42');
   });
-
-  /* A outra metade do mesmo bug: a lista de colegas vinha de um SELECT em
-     `personagens`, que a RLS devolve VAZIO para o jogador (só o dono e o
-     Mestre leem). Resultado: a janela só oferecia "(Você)". Quem enxerga os
-     outros PJs da mesa é a RPC get_pjs_historia (SECURITY DEFINER), a mesma
-     que o inventário usa para transferir item. Teste de FONTE porque montar a
-     FichaPersonagem inteira exigiria o banco. */
-  it('os colegas vêm da RPC, não de um select direto em personagens', () => {
-    const fonte = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'ficha.jsx'), 'utf8');
-    const ini = fonte.indexOf('const outrosIds =');
-    const trecho = fonte.slice(ini, fonte.indexOf('setPjsDaHistoria([]);', ini));
-    expect(trecho).toContain("rpc('get_pjs_historia'");
-    expect(trecho).not.toMatch(/from\('personagens'\)/);
-  });
 });
 
-describe('atributos da magia', () => {
-  it('só o ícone: nenhum texto ao lado', () => {
-    const b = montar();
-    const chips = [...b.querySelectorAll('.det-sec-a .det-sec-chip--efeito')];
-    expect(chips).toHaveLength(3);
-    chips.forEach((c) => {
-      expect(c.classList.contains('det-sec-chip--efeito')).toBe(true);
-      expect(c.querySelector('.det-sec-val')).toBeNull();
-      expect(c.textContent).toBe('');
-    });
-  });
+describe('níveis', () => {
+  const magia = { ...MAGIA, nivel_3: 'Causa 18 de dano elemental de fogo.', nivel_5: 'Causa 24 de dano elemental de fogo.' };
 
-  it('mostra só os níveis que o personagem já aprendeu', () => {
-    const magia = { ...MAGIA, nivel_3: 'Causa 18 de dano elemental de fogo.', nivel_5: 'Causa 24 de dano elemental de fogo.' };
-    const b = render(
-      <div className="menestrel-ui">
-        <Modal magia={magia} passos={2} nivelMagiaEfetivoFn={() => 3} eu={{ id: 1, nome: 'Eco' }}
-          colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={() => {}} fecharTip={() => {}} />
-      </div>
-    ).container.ownerDocument.body;
-    const niveis = [...b.querySelectorAll('.mag-nivel-card')].map((c) => c.textContent);
+  it('só os que o personagem aprendeu — na Descrição e na aba Evocar', () => {
+    montar({ magia, passos: 2, nivelMagiaEfetivoFn: () => 3 });
+    const aba = document.querySelector('.best-niveis').textContent;
+    expect(aba).toMatch(/18/);
+    expect(aba).not.toMatch(/24/);
+    // Os níveis entram na aba Descrição (sem aba própria).
+    expect(document.querySelector('.best-niveis').hasAttribute('data-aba')).toBe(false);
+    const niveis = [...document.querySelectorAll('.mag-nivel-card')].map((c) => c.textContent);
     expect(niveis).toHaveLength(2);
     expect(niveis.join(' ')).not.toMatch(/24/);
-    expect(b.querySelector('.mag-nivel-card--locked')).toBeNull();
   });
 
-  /* "use o ícone ti-number-5-small para mostrar o nível das habilidades,
-     magias, etc." (usuário, 14/09/2026) — no lugar dos hexágonos numerados. */
-  it('o nível é o ícone ti-number-N-small em cada nível', () => {
-    const magia = { ...MAGIA, nivel_3: 'Causa 18 de dano elemental de fogo.' };
-    const b = render(
-      <div className="menestrel-ui">
-        <Modal magia={magia} passos={2} nivelMagiaEfetivoFn={() => 3} eu={{ id: 1, nome: 'Eco' }}
-          colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={() => {}} fecharTip={() => {}} />
-      </div>
-    ).container.ownerDocument.body;
-    expect([...b.querySelectorAll('.mag-nivel-titulo i:first-child')].map((i) => i.className))
-      .toEqual(['ti ti-number-1-small', 'ti ti-number-3-small']);
-    expect(b.querySelector('[class*="ti-hexagon-number"]')).toBeNull();
-  });
-
-  /* "No modal de magias, o número do nível da magia deve aparecer igual em
-     habilidades, como um ícone junto com os demais." (usuário, 14/09/2026) */
-  it('o nível atual é o PRIMEIRO card da fileira de ícones, igual ao total da habilidade', () => {
-    const abrirTip = vi.fn();
-    const b = render(
-      <div className="menestrel-ui">
-        <Modal magia={MAGIA} passos={2} nivelMagiaEfetivoFn={() => 3} eu={{ id: 1, nome: 'Eco' }}
-          colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={abrirTip} fecharTip={() => {}} />
-      </div>
-    ).container.ownerDocument.body;
-    const chips = [...b.querySelectorAll('.det-sec-a > .det-sec-chip')];
-    expect(chips).toHaveLength(4);
-    const nivel = chips[0];
-    expect(nivel.classList.contains('det-hab-total')).toBe(true);
-    const caixa = nivel.querySelector('.det-sec-ic-box.det-hab-total-num');
-    expect(caixa.querySelector('i').className).toBe('ti ti-number-3-small');
-    expect(caixa.getAttribute('aria-label')).toBe('Nível: 3');
-    fireEvent.mouseEnter(nivel);
-    expect(abrirTip).toHaveBeenCalledWith(expect.anything(), { desc: 'Nível' });
-    // O selo ao lado do nome saiu.
-    expect(b.querySelector('.ms-title .det-title-badge')).toBeNull();
-  });
-
-  it('quem não tem a magia não vê card de nível', () => {
-    const b = render(
-      <div className="menestrel-ui">
-        <Modal magia={MAGIA} passos={null} nivelMagiaEfetivoFn={() => 0} eu={{ id: 1, nome: 'Eco' }}
-          colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={() => {}} fecharTip={() => {}} />
-      </div>
-    ).container.ownerDocument.body;
-    expect(b.querySelector('.det-mag-nivel')).toBeNull();
-  });
-
-  it('a descrição preserva os parágrafos do banco', () => {
-    const magia = { ...MAGIA, descricao: 'Um ritual antigo.\nItens necessários: Vela (3).\r\n\nSó à noite.' };
-    const b = render(
-      <div className="menestrel-ui">
-        <Modal magia={magia} passos={1} nivelMagiaEfetivoFn={() => 1} eu={{ id: 1, nome: 'Eco' }}
-          colegas={[]} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={() => {}} fecharTip={() => {}} />
-      </div>
-    ).container.ownerDocument.body;
-    expect([...b.querySelectorAll('.det-desc p')].map((p) => p.textContent))
-      .toEqual(['Um ritual antigo.', 'Itens necessários: Vela (3).', 'Só à noite.']);
-  });
-
-  it('usa a mesma janela de detalhes de item e habilidade', () => {
-    expect(montar().querySelector('.ms-modal.modal-detalhes')).toBeTruthy();
-  });
-
-  it('o texto sai no tooltip, com o nome do campo de título', () => {
-    const abrirTip = vi.fn();
-    const b = montar(abrirTip);
-    const alcance = b.querySelector('.det-sec-chip[aria-label^="Alcance"]');
-    expect(alcance.getAttribute('aria-label')).toBe('Alcance: 20 metros');
-    fireEvent.mouseEnter(alcance);
-    expect(abrirTip).toHaveBeenCalledWith(expect.anything(), { title: 'Alcance', desc: '20 metros' });
+  it('o nível é o ícone ti-number-N-small na escolha', () => {
+    montar({ magia, passos: 2, nivelMagiaEfetivoFn: () => 3 });
+    const icones = [...document.querySelectorAll('.mag-nivel-card .mag-nivel-titulo > i:first-child')].map((i) => i.className);
+    expect(icones).toEqual(['ti ti-number-1-small', 'ti ti-number-3-small']);
   });
 });

@@ -61,30 +61,433 @@ function useBestTip() {
   const hide = React.useCallback(() => { clearTimeout(timerRef.current); setTip(null); }, []);
   return [tip, show, hide];
 }
+/* QUEBRA DE LINHA (26/09/2026): "arrume o tooltip para não ser uma linha só".
+   Era `white-space: nowrap` — a explicação dos cards da criatura saía numa
+   faixa atravessando a tela. Agora: largura máxima e, quando o chamador manda
+   `{ titulo, texto }` (as linhas da ficha da criatura), o título em destaque
+   na primeira linha e o texto embaixo. Texto solto (chips) sai como veio.
+   Estruturado, e não cortado no primeiro " — ": várias explicações têm
+   travessão no meio. E o balão não sai da janela — a seta continua
+   apontando para o rótulo mesmo quando o balão é empurrado. */
+const BEST_TIP_MARGEM = 12;
 function BestTip({ tip }) {
+  const ref = React.useRef(null);
+  const [desvio, setDesvio] = React.useState(0);
+  const desvioRef = React.useRef(0);
+  React.useLayoutEffect(() => {
+    if (!tip || !ref.current) { desvioRef.current = 0; setDesvio(0); return; }
+    // Mede a caixa SEM o desvio que ela carrega do balão anterior.
+    const caixa = ref.current.getBoundingClientRect();
+    const esq = caixa.left - desvioRef.current;
+    const dir = caixa.right - desvioRef.current;
+    const largura = window.innerWidth;
+    let d = 0;
+    if (esq < BEST_TIP_MARGEM) d = BEST_TIP_MARGEM - esq;
+    else if (dir > largura - BEST_TIP_MARGEM) d = (largura - BEST_TIP_MARGEM) - dir;
+    desvioRef.current = d;
+    setDesvio(d);
+  }, [tip]);
   if (!tip) return null;
   const { rect, label } = tip;
   const left = rect.left + rect.width / 2;
   const top  = rect.bottom + 6;
+  const estruturado = label && typeof label === 'object';
+  const nome = estruturado ? label.titulo : null;
+  const explicacao = estruturado ? label.texto : String(label == null ? '' : label);
   return ReactDOM.createPortal(
-    <div style={{
-      position: 'fixed', left, top, transform: 'translateX(-50%)',
-      zIndex: 9999, pointerEvents: 'none', whiteSpace: 'nowrap',
-      background: '#141009', borderRadius: 6, padding: '6px 10px',
-      fontFamily: "'Lora', serif", fontSize: 12, color: '#E8DDC6',
+    <div ref={ref} role="tooltip" style={{
+      position: 'fixed', left: left + desvio, top, transform: 'translateX(-50%)',
+      zIndex: 9999, pointerEvents: 'none',
+      width: 'max-content', maxWidth: 280, whiteSpace: 'normal', textAlign: 'left',
+      background: '#201A0F', border: '1px solid rgba(138,110,64,0.45)', borderRadius: 6, padding: '7px 11px',
+      boxShadow: '0 6px 18px rgba(0,0,0,0.45)',
+      fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', lineHeight: 1.45, color: '#F1E6CF',
       animation: 'fpItemTipIn .12s ease-out',
     }}>
-      {/* seta apontando para cima */}
+      {/* seta apontando para cima — acompanha o rótulo, não o centro do balão */}
       <div style={{
-        position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+        position: 'absolute', bottom: '100%', left: `calc(50% - ${desvio}px)`, transform: 'translateX(-50%)',
         borderWidth: 5, borderStyle: 'solid',
-        borderColor: 'transparent transparent #141009 transparent',
+        borderColor: 'transparent transparent #201A0F transparent',
         width: 0, height: 0,
       }} />
-      {label}
+      {nome && <div style={{ fontWeight: 700, color: '#E0BE68', marginBottom: 2 }}>{nome}</div>}
+      <div>{explicacao}</div>
     </div>,
     document.body
   );
+}
+
+/* ── BestDetalheModal — a ficha da linha abre numa janela ──
+   "Nas tabelas lugares, NPCs, criaturas, itens, magias, técnicas,
+   habilidades, ao clicar no item da tabela, vai abrir um modal ao invés de
+   expandir." (usuário, 26/09/2026)
+
+   O corpo é o MESMO que a linha expandida mostrava; só a moldura mudou. O
+   corpo guarda a classe `best-detail` porque é ela que diz "aqui mora a ficha"
+   (e os testes a procuram por ela).
+
+   Classes ms-* montadas à mão, como BestPainelModal (painel-modal.jsx): esta
+   fase carrega antes do shell.jsx e os testes das listas não montam o shell.
+   Portal para #root pelo mesmo motivo de lá — e porque quem abre é uma linha
+   de <tbody>, onde uma <div> não pode morar. */
+/* Toda janela tem 800px (ms-lg) desde 26/09/2026 — a da criatura era larga.
+
+   `acoes` (26/09/2026): "o ícone de lápis deve aparecer do lado do x de
+   fechar o modal, com a mesma aparência do x". Lista de { icone, rotulo,
+   onClick, desativado } — cada uma vira um botão .ms-close ao lado do X. As
+   linhas das tabelas perderam o lápis (e o olho) no mesmo dia. */
+/* ── ABAS NOS MODAIS DE DETALHE (26/09/2026) ─────────────────────────────
+   "Em todos os modais de conhecidos, reinos, itens, magias, técnicas, etc,
+    use as abas de navegação para cada título 'características', 'descrição',
+    etc." (usuário). Os do Diário já tinham abas; estes cinco (e os itens da
+   campanha) mostravam as seções uma embaixo da outra.
+
+   As abas SAEM DO QUE FOI DESENHADO, não de uma lista por modal: cada
+   `.best-secao` com título vira uma aba, e `[data-aba]` dá nome a um bloco
+   sem título (os níveis da magia). Assim a seção que some por estar vazia
+   (criatura sem magia) some da barra junto, e um modal novo ganha abas sem
+   ninguém lembrar de configurá-las.
+
+   Grades que embrulham seções (as três colunas do topo da criatura) viram
+   `display: contents` com a classe `best-abas-embrulho` — a seção visível
+   ocupa a largura toda em vez de uma coluna. O que não tem título e vem
+   antes da primeira seção (o "Carregando…") fica na primeira aba.
+
+   Um MutationObserver refaz a leitura: o conteúdo da criatura chega depois
+   (catálogos), e isso não rerenderiza este componente. */
+function unidadesDasAbas(corpo) {
+  const unidades = [];
+  const soltos = [];
+  const ehAba = (el) => (el.matches('.best-secao') && el.querySelector(':scope > .best-secao-titulo'))
+    || el.hasAttribute('data-aba');
+  const tituloDe = (el) => (el.getAttribute('data-aba')
+    || el.querySelector(':scope > .best-secao-titulo').textContent).trim();
+  /* Seção sem conteúdo (só o título) não vira aba em branco (26/09/2026):
+     a criatura do Diário ganhava uma 'Características' vazia. Fica escondida;
+     se o conteúdo chegar depois, a próxima leitura a mostra. */
+  const vazia = (el) => ![...el.children].some((c) => !c.classList.contains('best-secao-titulo')
+    && (c.textContent.trim() || c.querySelector('img, button, input, textarea')));
+  const percorrer = (pai) => {
+    [...pai.children].forEach((el) => {
+      if (ehAba(el) && vazia(el)) {
+        el.hidden = true;
+      } else if (ehAba(el)) {
+        unidades.push({ titulo: tituloDe(el), els: [el] });
+      } else if (el.querySelector('.best-secao, [data-aba]')) {
+        el.classList.add('best-abas-embrulho');
+        percorrer(el);
+      } else if (unidades.length) {
+        unidades[unidades.length - 1].els.push(el);
+      } else {
+        soltos.push(el);
+      }
+    });
+  };
+  percorrer(corpo);
+  if (unidades.length) unidades[0].els.unshift(...soltos);
+  return unidades;
+}
+
+function useAbasDoCorpo(corpoRef) {
+  const [titulos, setTitulos] = React.useState([]);
+  const [ativa, setAtiva] = React.useState(0);
+  const aplicar = React.useCallback(() => {
+    const corpo = corpoRef.current;
+    if (!corpo) return;
+    const unidades = unidadesDasAbas(corpo);
+    const nomes = unidades.map((u) => u.titulo);
+    setTitulos((antes) => (antes.join('|') === nomes.join('|') ? antes : nomes));
+    const comAbas = unidades.length > 1;
+    corpo.classList.toggle('best-com-abas', comAbas);
+    const idx = Math.min(ativa, Math.max(0, unidades.length - 1));
+    unidades.forEach((u, i) => u.els.forEach((el) => { el.hidden = comAbas && i !== idx; }));
+  }, [corpoRef, ativa]);
+  React.useLayoutEffect(() => { aplicar(); });
+  React.useEffect(() => {
+    const corpo = corpoRef.current;
+    if (!corpo || typeof MutationObserver === 'undefined') return undefined;
+    const obs = new MutationObserver((muts) => {
+      // Só mudança de filhos: o `hidden` que a própria aplicar() põe não conta.
+      if (muts.some((m) => m.type === 'childList')) aplicar();
+    });
+    obs.observe(corpo, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, [aplicar, corpoRef]);
+  const idx = Math.min(ativa, Math.max(0, titulos.length - 1));
+  return { titulos, ativa: idx, setAtiva };
+}
+
+/* `rodape` (27/09/2026): "Nos modais, quando precisar de botão de confirme,
+   use os botões em um rodapé." Só aparece quando a etapa aberta pede
+   confirmação — { esquerda, direita }: Cancelar à esquerda, a ação à direita,
+   o mesmo .ms-footer do ModalShell. Sem etapa, a janela segue sem rodapé.
+   27/09/2026: `centro` (o seletor de quantidade do Usar, "no rodapé, no
+   centro, menor") e `aba` — "O rodapé só aparece na aba usar": com `aba`, o
+   rodapé só se mostra quando a aba ativa tem esse título. */
+function BestDetalheModal({ title, lang, onClose, acoes, rodape, children }) {
+  const en = lang === 'en';
+  const [tipAcao, abrirTipAcao, fecharTipAcao, manterTipAcao] = useTooltip(60);
+  const corpoRef = React.useRef(null);
+  const abas = useAbasDoCorpo(corpoRef);
+  const fecharRef = React.useRef(onClose);
+  React.useEffect(() => { fecharRef.current = onClose; }, [onClose]);
+  const fundoRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || !fecharRef.current) return;
+      /* Só a janela de CIMA fecha: o "Ler" do item abre outra por cima desta,
+         e um Escape fechava as duas. */
+      /* 'De cima' = a aberta por último (pilha de janelas, 26/09/2026 — ver
+         empilharJanela em 01-core/helpers.jsx), não a última do documento. */
+      if (window.ehJanelaDaFrente(fundoRef.current)) fecharRef.current();
+    };
+    window.empilharJanela(fundoRef.current);
+    window.addEventListener('keydown', onKey);
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = antes; };
+  }, []);
+
+  const alvo = (typeof document !== 'undefined') && (document.getElementById('root') || document.body);
+  if (!alvo) return null;
+  return ReactDOM.createPortal(
+    /* stopPropagation: evento de React atravessa o portal pela árvore de
+       componentes, e o clique aqui dentro chegaria ao onClick da linha que
+       abriu a janela — fechando-a no primeiro clique. */
+    <div className="menestrel-ui ms-backdrop" ref={fundoRef} onClick={(e) => e.stopPropagation()}>
+      <div className="ms-modal ms-lg modal-best-detalhe" role="dialog" aria-modal="true"
+        aria-label={typeof title === 'string' ? title : undefined}>
+        <div className="ms-header">
+          <h3 className="ms-title">{title}</h3>
+          {/* As ações ganharam DICA (26/09/2026): no modal de item do inventário
+              são até onze ícones lado a lado, e o ícone sozinho não diz qual é
+              qual — nem por que Equipar está desativado. `dica` é o conteúdo do
+              tooltip (padrão propsTip); sem ela, o próprio rótulo. Botão
+              desativado fica num <span> para o tooltip ainda abrir no hover. */}
+          {(acoes || []).filter(Boolean).map((a) => {
+            const botao = (
+              <button key={a.chave || a.icone} type="button"
+                className={'ms-close ms-acao' + (a.perigo ? ' ms-acao--perigo' : '') + (a.armado ? ' is-armado' : '') + (a.ativo ? ' is-ativo' : '')}
+                onClick={a.onClick} data-acao={a.chave || undefined}
+                disabled={!!a.desativado} aria-label={a.rotulo}
+                {...(a.desativado ? {} : propsTip(abrirTipAcao, fecharTipAcao, a.dica || a.rotulo))}>
+                <i className={'ti ' + a.icone} aria-hidden="true" />
+              </button>
+            );
+            return a.desativado ? (
+              <span key={a.chave || a.icone} className="ms-acao-embrulho" {...propsTip(abrirTipAcao, fecharTipAcao, a.dica || a.rotulo)}>{botao}</span>
+            ) : botao;
+          })}
+          <button type="button" className="ms-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        </div>
+        {abas.titulos.length > 1 && (
+          <div className="hist-modal-tabs best-abas" role="tablist">
+            {abas.titulos.map((t, i) => (
+              <button key={t + i} type="button" role="tab" aria-selected={i === abas.ativa}
+                className={'hist-modal-tab' + (i === abas.ativa ? ' is-active' : '')}
+                onClick={() => abas.setAtiva(i)}>
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="ms-body best-detail" ref={corpoRef}>{children}</div>
+        {rodape && (!rodape.aba || abas.titulos.length < 2 || abas.titulos[abas.ativa] === rodape.aba) && (
+          <div className={'ms-footer' + (rodape.centro ? ' ms-footer--centro' : '')}>
+            <div className="ms-footer-left">{rodape.esquerda}</div>
+            {rodape.centro && <div className="ms-footer-center">{rodape.centro}</div>}
+            <div className="ms-footer-right">{rodape.direita}</div>
+          </div>
+        )}
+        <Tooltip tip={tipAcao} onEnter={manterTipAcao} onLeave={fecharTipAcao} />
+      </div>
+    </div>,
+    alvo
+  );
+}
+
+/* ── BestFichaLista / BestLinha — a ficha em LISTA, por extenso (26/09/2026) ──
+   "Eu quero que esse mesmo tipo de alteração seja feito para magias, itens,
+   criaturas, etc. Sem minicards, e com listas por extenso." (usuário)
+
+   A mesma lista da ficha da criatura (best-stat--linha): nome à esquerda,
+   valor à direita, filete entre as linhas. Linha sem valor NÃO aparece — um
+   "Alcance: —" numa magia que não tem alcance só ocupa lugar. `colunas={2}`
+   reparte as linhas em dois trilhos para a janela larga não esticar cada
+   linha de ponta a ponta. Exposta no window: o Diário (13) usa as duas. */
+/* `soRotulo`: a linha é o próprio nome (uma técnica, uma habilidade) e o valor,
+   se houver, é complemento — ela aparece mesmo sem ele. */
+/* `largo`: numa lista de duas colunas, a linha ocupa as duas — para valor
+   comprido, como os itens necessários de uma magia. */
+function BestLinha({ rotulo, valor, soRotulo, largo }) {
+  const semValor = valor == null || valor === '';
+  if (semValor && !soRotulo) return null;
+  return (
+    <li className={'best-stat best-stat--linha' + (largo ? ' best-stat--largo' : '')}>
+      <span className="best-stat-lbl">{rotulo}</span>
+      {!semValor && <span className="best-stat-val">{valor}</span>}
+    </li>
+  );
+}
+function BestFichaLista({ titulo, colunas = 1, children }) {
+  return (
+    <div className="best-secao best-secao--lista">
+      {titulo && <h4 className="best-secao-titulo">{titulo}</h4>}
+      <ul className={'best-lista' + (colunas === 2 ? ' best-lista--2col' : '')}>{children}</ul>
+    </div>
+  );
+}
+
+/* ── BestDescricao — a descrição com o título "Descrição" (26/09/2026) ──
+   "Já que você colocou o texto 'Efeito', coloque acima o texto 'Descrição'.
+   Isso vale para habilidades, magias, etc." (usuário) — a mesma seção, com o
+   mesmo subtítulo das outras, em toda janela de catálogo. `vazio`: o texto
+   que aparece quando não há descrição (a criatura diz "Sem descrição ainda.");
+   sem ele, a seção inteira some. */
+function BestDescricao({ texto, lang, vazio }) {
+  const tem = texto != null && String(texto).trim() !== '';
+  if (!tem && !vazio) return null;
+  return (
+    <div className="best-secao best-secao--descricao">
+      <h4 className="best-secao-titulo">{lang === 'en' ? 'Description' : 'Descrição'}</h4>
+      {tem
+        ? <TextoDoBanco texto={texto} className="best-desc" />
+        : <p className="best-desc" style={{ opacity: 0.55 }}>{vazio}</p>}
+    </div>
+  );
+}
+
+/* Siglas que o banco guarda, por extenso — para os VALORES das listas
+   (o atributo de ajuste de uma arma é "FOR"; o grupo de uma técnica, "CM,CL"). */
+const SIGLA_ATRIBUTO_EXTENSO = {
+  INT: ['Intelecto', 'Intellect'], AUR: ['Aura', 'Aura'], CAR: ['Carisma', 'Charisma'],
+  FOR: ['Força', 'Strength'], FIS: ['Físico', 'Physique'], AGI: ['Agilidade', 'Agility'],
+  PER: ['Percepção', 'Perception'],
+};
+function atributoPorExtenso(v, en) {
+  if (v == null || v === '') return null;
+  const chave = String(v).trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const par = SIGLA_ATRIBUTO_EXTENSO[chave];
+  if (par) return en ? par[1] : par[0];
+  // Chave por nome ("forca") — o formato de habilidades.ajuste.
+  const porNome = (typeof ATRIBUTOS_LABEL !== 'undefined' && ATRIBUTOS_LABEL[String(v).trim().toLowerCase()]) || null;
+  return porNome || String(v);
+}
+/* Grupo de armaduras da técnica por extenso (26/09/2026: "'L' vira
+   'Armaduras leves'"). */
+const ARMADURA_EXTENSO = { L: ['Armaduras leves', 'Light armor'], M: ['Armaduras médias', 'Medium armor'], P: ['Armaduras pesadas', 'Heavy armor'] };
+
+/* ── abreviarExclusividade — "Guerreiro, Academia de Arqueiros" → "Gue, Arq" ──
+   "Mude o texto 'quem aprende' para 'Exclusividade', e informe o nome das
+   profissões de forma abreviada com 3 letras, por exemplo Assassino vira Ass.
+   Ao invés de mostrar 'Academia de Arqueiros', mostre o título abreviado
+   'Arq'." (usuário, 26/09/2026)
+
+   Profissão: as 3 primeiras letras do nome. Especialização: as 3 primeiras do
+   TÍTULO (GAME_DATA.especializacoes: Academia de Arqueiros → Arqueiro → Arq).
+   Três títulos colidiam com outro nome nas 3 letras e ganharam abreviação
+   própria: Ladrão (≠ Ladino, "Lad"), Filho do Mar e Filho da Terra (≠
+   Filósofo, "Fil"). Nome que não é profissão nem especialização passa inteiro. */
+const ABREV_EXCECOES = { 'Ladrão': 'Ldr', 'Filho do Mar': 'FMa', 'Filho da Terra': 'FTe' };
+function abreviarExclusividade(permissao) {
+  if (permissao == null || String(permissao).trim() === '') return null;
+  const esp = (typeof GAME_DATA !== 'undefined' && GAME_DATA.especializacoes) || {};
+  const mapa = {};
+  Object.keys(esp).forEach((prof) => {
+    mapa[prof] = prof.slice(0, 3);
+    (esp[prof] || []).forEach((e) => { mapa[e.esp] = ABREV_EXCECOES[e.titulo] || String(e.titulo).slice(0, 3); });
+  });
+  return String(permissao).split(',').map((p) => p.trim()).filter(Boolean)
+    .map((p) => mapa[p] || p).join(', ');
+}
+
+/* Alcance da magia abreviado (26/09/2026: "'5 quilômetros' vira '5 km'"):
+   quilômetros → km, metros → m. "Toque", "Pessoal", "Variável" passam. */
+function abreviarAlcance(v) {
+  if (v == null || v === '') return v;
+  return String(v)
+    .replace(/(\d)\s*quil[ôo]metros?\b/gi, '$1 km')
+    .replace(/(\d)\s*metros?\b/gi, '$1 m');
+}
+/* "CM,CL" → "Corte Médio, Corte Leve" pelo GRUPOS_ARMAS (game-data); "L,M" →
+   "Leve, Média". "Livre" e valor desconhecido passam como vieram. */
+function siglasPorExtenso(v, tipo, en) {
+  if (v == null || v === '') return null;
+  const nomeArma = (s) => {
+    const g = Array.isArray(typeof GRUPOS_ARMAS !== 'undefined' ? GRUPOS_ARMAS : null)
+      ? GRUPOS_ARMAS.find((x) => x.sigla === s) : null;
+    return g ? ((en && g.nomeEn) || g.nome) : s;
+  };
+  return String(v).split(',').map((p) => p.trim()).filter(Boolean).map((s) => {
+    if (tipo === 'armadura') { const a = ARMADURA_EXTENSO[s.toUpperCase()]; return a ? (en ? a[1] : a[0]) : s; }
+    return nomeArma(s);
+  }).join(', ');
+}
+
+/* ── Eficácia da arma contra cada armadura (26/09/2026) ──
+   "Ao abrir um item de arma, é preciso informar se a arma é boa contra
+   armaduras leves, armaduras médias e armaduras pesadas." (usuário)
+   São os modificadores dano_l / dano_m / dano_p da arma — o que ela soma à
+   coluna de ataque contra aquele tipo de armadura (colunaAtaque, 12-batalha).
+   Positivo = boa, zero = normal, negativo = fraca; o número vem junto. */
+function eficaciaContraArmadura(v, en) {
+  if (v == null || v === '' || !Number.isFinite(Number(v))) return null;
+  const n = Number(v);
+  const num = n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '0';
+  const palavra = n > 0 ? (en ? 'Good' : 'Boa') : n < 0 ? (en ? 'Weak' : 'Fraca') : (en ? 'Normal' : 'Normal');
+  return `${palavra} (${num})`;
+}
+function ehArma(it) {
+  return !!it && (it.categoria_equip === 'arma' || it.grupo === 'Armas');
+}
+
+/* "CM,CL" → "CM, CL": a sigla como o banco guarda, só com o espaço. */
+function siglasDeArma(v) {
+  if (v == null || v === '') return null;
+  return String(v).split(',').map((p) => p.trim()).filter(Boolean).join(', ');
+}
+
+/* ── separarItensNecessarios — a lista de componentes sai da descrição ──
+   "No caso das magias, Itens necessários será extraído da descrição e irá
+   virar um item na lista." (usuário, 26/09/2026)
+
+   42 das 235 magias terminam a descrição com "Itens necessários: Vela (7),
+   Hidromel (1)." — às vezes "Itens necessários para:" ou "para o ritual:", às
+   vezes na mesma linha do parágrafo anterior (conferido no banco em
+   26/09/2026: a frase é sempre a ÚLTIMA). Devolve o texto sem ela e a lista,
+   sem o ponto final. Descrição sem a frase passa intacta, itens = null. */
+const RE_ITENS_NECESSARIOS = /\s*Itens necess[áa]rios[^:\n]*:\s*([^\n]+?)\.?\s*$/i;
+function separarItensNecessarios(descricao) {
+  const texto = descricao == null ? '' : String(descricao);
+  const m = texto.match(RE_ITENS_NECESSARIOS);
+  if (!m) return { texto: descricao, itens: null };
+  return { texto: texto.slice(0, m.index).trimEnd(), itens: m[1].trim() };
+}
+
+/* ── categoriaTecnica — Básica ou Especializada (26/09/2026) ──
+   O banco não tem essa coluna; a regra, escolhida pelo usuário, sai da
+   `permissao`: ESPECIALIZADA é a técnica que só academias/guildas aprendem
+   ("Academia de Cavaleiros"). Se alguma PROFISSÃO pode ("Guerreiro, Guilda
+   de Ladrões"), ou se não há restrição, é BÁSICA. As profissões vêm de
+   GAME_DATA.profissoes, a mesma lista do wizard. */
+function categoriaTecnica(t) {
+  const profissoes = new Set(Object.keys((typeof GAME_DATA !== 'undefined' && GAME_DATA.profissoes) || {}));
+  const partes = String((t && t.permissao) || '').split(',').map((p) => p.trim()).filter(Boolean);
+  if (partes.length === 0) return 'basica';
+  return partes.some((p) => profissoes.has(p)) ? 'basica' : 'especializada';
+}
+
+/* Ícone da MAGIA pelo tipo, ao lado do nome na tabela (26/09/2026, "adicione o
+   ícone … para os outros menus também"). Não reusa CHIP_ICON: lá Perdida é
+   ti-eye-off, que na tabela se confundiria com o olho de visibilidade. */
+const ICONE_TIPO_MAGIA = { 'Básica': 'ti-wand', 'Ancestral': 'ti-hourglass', 'Perdida': 'ti-book-off' };
+/* O ícone ao lado do nome (26/09/2026) — mesmo desenho do ícone do item. */
+function IconeDoNome({ icone }) {
+  return <i className={'ti ' + (icone || 'ti-point') + ' best-item-ic'} aria-hidden="true" />;
 }
 
 /* ── Mapa de ícones Tabler por categoria/contexto ── */
@@ -282,7 +685,7 @@ function SortHead({ col, sortKey, sortDir, toggleSort, children }) {
     <th onClick={() => toggleSort(col)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         {children}
-        <span style={{ fontSize: 10, opacity: active ? 1 : 0.3, color: active ? '#9A7B2E' : 'inherit' }}>
+        <span style={{ fontSize: 'var(--fs-2xs)', opacity: active ? 1 : 0.3, color: active ? '#B59136' : 'inherit' }}>
           {active && sortDir === 'desc' ? '▼' : '▲'}
         </span>
       </span>
@@ -333,9 +736,10 @@ function BestPageHeader({ eyebrow, title, right }) {
   );
 }
 
-// ── BestBotaoNovo / BestBotaoEditar — controles do admin nas 5 listas ──────
+// ── BestBotaoNovo — o + do admin nas 5 listas ──────────────────────────────
 // Convenção compartilhada: o + no cabeçalho abre o editor em criação
-// (linha null), o lápis em cada linha abre em edição (linha = o registro).
+// (linha null); o lápis, que abre em edição, fica no cabeçalho da janela
+// do registro desde 26/09/2026.
 // Só o símbolo desde 14/09/2026 (pedido do usuário); "Novo" fica no
 // aria-label, para leitor de tela e teste.
 // `dica`: o tooltip do + (14/09/2026) — "Nova magia", "Novo item"... Sem ela,
@@ -374,51 +778,10 @@ function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, d
     </div>
   );
 }
-/* ── BestBotaoPermissao — o olho (17/09/2026) ───────────────────────────────
-   "Do lado do botão de editar (lápis), vamos adicionar um botão de ver (olho),
-   onde teremos um modal para permitir quem pode ver aquela entrada, na
-   história selecionada." (usuário)
-
-   Irmão do BestBotaoEditar, e igual a ele no essencial: só o ícone, o rótulo
-   no aria-label, e stopPropagation no clique — sem isso o clique subiria para
-   a <tr>, que é o gesto de expandir a linha, e o modal abriria com a ficha
-   escancarada atrás dele.
-
-   O rótulo sai do mesmo COPY do modal (lore.permissao.titulo), pra que o
-   tooltip do botão e o título da janela não possam divergir. */
-function BestBotaoPermissao({ lang, onClick, disabled }) {
-  const rotulo = (((typeof COPY !== 'undefined' && (COPY[lang] || COPY.pt)) || {}).lore || {})
-    .permissao?.titulo || (lang === 'en' ? 'Who can see' : 'Quem pode ver');
-  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
-  return (
-    <>
-      <button
-        type="button"
-        className="btn-icon btn-sm"
-        aria-label={rotulo}
-        disabled={disabled}
-        onClick={(e) => { e.stopPropagation(); fecharTip(); onClick(); }}
-        {...propsTip(abrirTip, fecharTip, rotulo)}
-      >
-        <i className="ti ti-eye" aria-hidden="true" />
-      </button>
-      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-    </>
-  );
-}
-
-function BestBotaoEditar({ ac, onClick }) {
-  return (
-    <button
-      type="button"
-      className="btn-icon btn-sm"
-      aria-label={ac.editorEditar}
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-    >
-      <i className="ti ti-pencil" aria-hidden="true" />
-    </button>
-  );
-}
+/* O OLHO e o LÁPIS de cada linha (BestBotaoPermissao, BestBotaoEditar)
+   saíram em 26/09/2026: "remove o ícone de lápis da tabela, o ícone de lápis
+   deve aparecer do lado do x de fechar o modal, com a mesma aparência do x".
+   Moram agora no cabeçalho da janela — ver `acoes` no BestDetalheModal. */
 
 // ---------- Bestiário ----------
 /* `historiaId` (17/09/2026): a mesa ativa do Mestre, que habilita o BOTÃO DE
@@ -434,7 +797,7 @@ function BestBotaoEditar({ ac, onClick }) {
    Sem mesa, sem olho: "na história selecionada" não existe sem uma
    selecionada, e um olho que abrisse pra falhar no salvar seria pior que
    nenhum. Ver criatura-permissao-olho.test.jsx. */
-function CriaturasList({ ac, lang, modoJogador, historiaId }) {
+function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } = (typeof UI !== 'undefined' ? UI : {});
   const [criaturas, setCriaturas] = useState(null);
   const [error, setError] = useState(null);
@@ -518,7 +881,7 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
     carregarCriaturas(cancelRef);
     return () => { cancelRef.atual = true; };
   }, []);
-  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
+  useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
 
   /* Armas do catálogo para montar os ataques da linha expandida — uma arma,
      um ataque (ataquesDaCriatura). Só carrega na primeira expansão. Enquanto
@@ -528,6 +891,20 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
      o nome comprido da arma é cortado com reticências na caixa, e o inteiro
      aparece aqui. Serve também à sigla MON (Montaria). */
   const [tipStat, mostrarTipStat, esconderTipStat] = useBestTip();
+
+  /* Quem pode ver a criatura na mesa ativa (26/09/2026) — o mesmo cálculo e
+     os mesmos rótulos das tabelas do Diário (visibilidadeDaEntrada, 13-diario;
+     global em tempo de render). Sem mesa, ou para o Jogador: null. */
+  const visibilidadeDaCriatura = (row) => {
+    const V = typeof window !== 'undefined' && window.DiarioVisibilidade;
+    if (!podeGerirVisibilidade || !historia || !V) return null;
+    const vis = V.visibilidadeDaEntrada(historia, 'criatura', row.id);
+    const tp = (((typeof COPY !== 'undefined' && (COPY[lang] || COPY.pt)) || {}).lore || {}).permissao || {};
+    const rotulo = vis.modo === 'ninguem' ? (tp.ninguem || (lang === 'en' ? 'Nobody' : 'Ninguém'))
+      : vis.modo === 'todos' ? (tp.todos || (lang === 'en' ? 'Everyone' : 'Todos'))
+      : `${vis.pjIds.length}/${protagonistas.length || vis.pjIds.length}`;
+    return { modo: vis.modo, rotulo };
+  };
   /* SEM o filtro `grupo = 'Armas'` desde 17/09/2026: a mesma leitura serve
      agora a DUAS seções da ficha. Ataques só quer armas, mas Equipamentos
      mostra o nome de qualquer peça que a criatura vista — e uma armadura
@@ -584,14 +961,26 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
   if (error) return <BestErrorBox error={error} hint={lang === 'en' ? "Make sure the 'criaturas' table exists in Supabase." : "Confira se a tabela 'criaturas' existe no Supabase."} />;
   if (modoJogador && carregandoConhecido) return <BestLoading lang={lang} />;
 
-  const q = query.trim().toLowerCase();
+  /* A BUSCA olha nome, classe, subtipo, elemento, montaria e plano
+     (26/09/2026, pedido do usuário) — sem acento e sem caixa: "dragao" acha
+     "Dragão". Montaria entra como palavra: "montaria" acha as que podem ser
+     montadas. */
+  const semAcento = (v) => String(v == null ? '' : v).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const q = semAcento(query.trim());
+  const textoDaBusca = (c) => semAcento([
+    c.nome, c.tipo, c.subtipo, c.elemento, c.plano,
+    c.montaria === true ? (lang === 'en' ? 'mount' : 'montaria') : '',
+  ].filter(Boolean).join(' '));
   let filtered = (criaturasSorted || []).filter((c) => {
-    if (q && !(c.nome || '').toLowerCase().includes(q)) return false;
+    if (q && !textoDaBusca(c).includes(q)) return false;
     return true;
   });
   // Criatura só aparece pro jogador se o Mestre a liberou na história dele
   // (historias.criatura_ids + lore_acesso_pj — ver criaturasLiberadas).
   if (modoJogador) filtered = filtered.filter((c) => conhecido.criaturas.has(c.id));
+  // Submenu de Criaturas (26/09/2026): a classe da criatura (`tipo`).
+  // Classe pode ter várias ("Místico, Dragão", 26/09/2026): aparece em cada uma.
+  if (filtro) filtered = filtered.filter((c) => String(c.tipo || '').split(',').map((p) => p.trim()).includes(filtro));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -610,11 +999,14 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
      selecionada): sem mesa não existe "quem vê nesta história" para mostrar. */
   const cols = [
     { key: 'nome',    label: lang === 'en' ? 'Name' : 'Nome' },
-    ...(podeGerirVisibilidade
-      ? [{ key: '_visibilidade', label: lang === 'en' ? 'Visibility' : 'Visibilidade' }]
-      : []),
-    { key: 'tipo',    label: lang === 'en' ? 'Class' : 'Classe' },
-    { key: 'estagio', label: lang === 'en' ? 'Stage' : 'Estágio' },
+    /* A coluna Visibilidade SAIU em 25/09/2026 ("Remova a coluna
+       visibilidade"). O olho da linha continua sendo onde se decide quem vê. */
+    /* A coluna Classe SAIU em 26/09/2026 ("na tabela criaturas, criar um
+       submenu com a classe. E remover coluna classe da tabela"): a classe
+       agora é o submenu por onde se chega na lista. */
+    /* SÓ O NOME desde 26/09/2026 ("em todas as tabelas de itens, magias,
+       etc, remova as colunas e deixe apenas o nome e o botão de editar").
+       Subtipo, elemento, plano e estágio moram na lista da janela. */
   ];
   const fmt = (v) => (v === null || v === undefined || v === '' ? '—' : v);
   /* Calculados (15/09/2026): "No modal de editar criaturas, não precisa
@@ -628,7 +1020,6 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
   /* Quantos botões a coluna de ações tem: 0 (nenhum), 1 (só lápis ou só olho)
      ou 2. O número decide a largura do cabeçalho — e a EXISTÊNCIA da coluna,
      que antes era `ehAdmin` sozinho. */
-  const temAcoes = (ehAdmin ? 1 : 0) + (podeGerirVisibilidade ? 1 : 0);
 
   /* ── A FICHA EM SEÇÕES (17/09/2026) ────────────────────────────────────
      "O restante das informações eu quero descritas, use cards depois de cada
@@ -655,55 +1046,21 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
     ? '—'
     // Metro com duas casas e vírgula decimal: 0,80 — a unidade do jogo.
     : Number(v).toFixed(2).replace('.', ','));
-
-  /* O texto do chip de Visibilidade. Mesmo critério das tabelas de NPCs e
-     Lugares: "ninguém"/"todos" pelo nome, e a liberação individual pela
-     PROPORÇÃO (1/2), porque 1 de 4 e 3 de 4 são situações diferentes e um
-     rótulo só não as distingue. */
-  const rotuloVisibilidade = (vis) => {
-    const tp = ((COPY[lang] || COPY.pt).lore || {}).permissao || {};
-    if (vis.modo === 'ninguem') return tp.ninguem;
-    if (vis.modo === 'todos') return tp.todos;
-    return `${vis.pjIds.length}/${protagonistas.length || vis.pjIds.length}`;
-  };
-
-  /* Ícone da CLASSE: o mesmo mapa do token do tabuleiro
-     (ICONE_TIPO_CRIATURA, 01-core/game-data.jsx). Devolve null para tipo sem
-     ícone mapeado, e aí o card cai na palavra. */
-  const iconeDeClasse = (tipo) => (
-    (typeof iconeTipoCriatura === 'function' ? iconeTipoCriatura(tipo) : null) || null
-  );
-
-  /* Ícone do ELEMENTO (17/09/2026, ícones ditados pelo usuário).
-     Lê a coluna `elemento`, que nasceu em 18/09/2026 justamente por causa
-     deste card: antes o valor saía de `subtipo`, que declarava elementos no
-     editor e guardava ESPÉCIE nos dados (~147 de ~218 diziam "Cavalo",
-     "Goblin", "Esqueleto"), e o card mostrava espécie sob o rótulo Elemento.
-     Ver scripts/sql/criaturas-elemento-2026-09-18.sql.
-     Quem não casa com os quatro cai na palavra — 203 criaturas estão sem
-     elemento informado, e "—" é a verdade ali.
-     A chave é comparada sem acento e em minúsculas porque "Água" aparece
-     escrita das duas formas em catálogos de jogo. */
-  const ELEMENTO_ICONE = {
-    fogo:  'ti-flame',
-    ar:    'ti-tornado',
-    agua:  'ti-droplet',
-    terra: 'ti-frustum',
-  };
-  const iconeDeElemento = (v) => {
-    if (!v) return null;
-    const chave = String(v).trim().toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '');
-    return ELEMENTO_ICONE[chave] || null;
-  };
+  /* A unidade vai no valor desde 26/09/2026 ("4kg", "0,80m"), colada ao
+     número. Peso sem casas fixas: 4kg, 0,5kg. */
+  const fmtAlturaM = (v) => (v == null || v === '' ? '—' : fmtAltura(v) + 'm');
+  const fmtPeso = (v) => (v == null || v === '' || !Number.isFinite(Number(v))
+    ? '—'
+    : String(Number(v)).replace('.', ',') + 'kg');
 
   /* "Grupo Pequeno" → "Pequeno" (17/09/2026). O rótulo do card já é "Grupo";
      o prefixo no valor gastava metade da caixa repetindo a palavra. Só o
      prefixo sai — "Solitário", que não o tem, passa intacto, e um valor novo
      na coluna `coletivo` que não comece com "Grupo " também. */
+  // Parte por parte: o grupo pode ter vários desde 26/09/2026.
   const semPrefixoGrupo = (v) => (v == null || v === ''
     ? v
-    : String(v).replace(/^Grupo\s+/i, ''));
+    : String(v).split(',').map((p) => p.trim().replace(/^Grupo\s+/i, '')).filter(Boolean).join(', '));
 
   /* O trio cri-based vive em 12-batalha, que carrega DEPOIS desta fase. Em
      tempo de render isso não é problema (main.tsx já carregou tudo), mas uma
@@ -748,80 +1105,41 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
       ? CriaturaFormulas.listaEquipamento(row.equipamento) : [];
     const itens = armasPorSlug || {};
 
+    /* LAYOUT DA FICHA (25/09/2026): "Ao clicar em uma criatura e abrir suas
+       informações, eu quero três colunas: Características - Atributos -
+       Informações. O restante das informações não precisa ser card, quero que
+       seja listas com quatro colunas: Técnicas de Combate - Habilidades -
+       Ataques - Magias." Equipamentos, que não estava no pedido, vira lista de
+       largura cheia embaixo (escolha do usuário na mesma data).
+       `grupo` diz onde a seção mora: 'topo' (cards, 3 colunas), 'listas'
+       (nome · valor, 4 colunas) ou 'extra' (lista, largura cheia). */
     return [
       {
-        titulo: en ? 'Attributes' : 'Atributos',
-        cards: [
-          card('INT', row.intelecto, en ? 'Intellect' : 'Intelecto',
-            en ? 'Reasoning and learning.' : 'Raciocínio e aprendizado.'),
-          card('AUR', row.aura, 'Aura',
-            en ? 'Magical presence — feeds Heroic Energy and Magic Resistance.' : 'Presença mágica — alimenta a Energia Heroica e a Resistência Mágica.'),
-          card('CAR', row.carisma, en ? 'Charisma' : 'Carisma',
-            en ? 'Influence over others.' : 'Influência sobre os outros.'),
-          card('FOR', row.forca, en ? 'Strength' : 'Força',
-            en ? 'Raw power — weighs on melee damage.' : 'Força bruta — pesa no dano corpo a corpo.'),
-          card('FIS', row.fisico, en ? 'Physique' : 'Físico',
-            en ? 'Body and stamina — feeds Physical Energy and Physical Resistance.' : 'Corpo e resistência — alimenta a Energia Física e a Resistência Física.'),
-          card('AGI', row.agilidade, en ? 'Agility' : 'Agilidade',
-            en ? 'Speed and reflexes.' : 'Rapidez e reflexo.'),
-          card('PER', row.percepcao, en ? 'Perception' : 'Percepção',
-            en ? 'What the creature notices around it.' : 'O que a criatura nota em volta.'),
-        ],
-      },
-      {
-        titulo: en ? 'Information' : 'Informações',
-        cards: [
-          card('EF', row.energia_fisica, en ? 'Physical Energy' : 'Energia Física',
-            en ? 'The body’s pool — it runs out and the creature falls.' : 'A reserva do corpo — zera e a criatura cai.'),
-          card('EH', row.energia_heroica, en ? 'Heroic Energy' : 'Energia Heroica',
-            en ? 'The pool that absorbs the blow before the body does.' : 'A reserva que absorve o golpe antes do corpo.'),
-          card('RF', CriaturaFormulas.resistenciaFisica(row), en ? 'Physical Resistance' : 'Resistência Física',
-            en ? 'How much physical damage it endures.' : 'O quanto ela aguenta de dano físico.'),
-          card('RM', CriaturaFormulas.resistenciaMagica(row), en ? 'Magic Resistance' : 'Resistência Mágica',
-            en ? 'How much magical damage it endures.' : 'O quanto ela aguenta de dano mágico.'),
-          /* O VALOR é a sigla que o banco guarda (L/M/P), não a palavra
-             (17/09/2026: "Leve = L"). Com o valor abreviado, decodificá-lo
-             passa a ser trabalho do tooltip — daí as três palavras nele. */
-          card('AR', row.armadura, en ? 'Armor' : 'Armadura',
-            en ? 'Armor class: L light, M medium, P heavy.' : 'Classe da armadura: L leve, M médio, P pesado.'),
-          card('AB', row.absorcao, en ? 'Absorption' : 'Absorção',
-            en ? 'Damage the armor swallows on every hit.' : 'Dano que a armadura engole em cada acerto.'),
-          card('DF', row.defesa, en ? 'Defense' : 'Defesa',
-            en ? 'How hard it is to hit.' : 'O quanto ela é difícil de acertar.'),
-          card('VB', row.velocidade, en ? 'Speed' : 'Velocidade',
-            en ? 'How far it moves in a round.' : 'O quanto ela anda numa rodada.'),
-        ],
-      },
-      {
         titulo: en ? 'Traits' : 'Características',
+        grupo: 'topo',
         cards: [
-          card(en ? 'Stage' : 'Estágio', row.estagio, null,
-            en ? 'The creature’s level — it sets ability, technique and spell levels.' : 'O nível da criatura — é ele que dá o nível das habilidades, técnicas e magias.'),
-          card(en ? 'Weight' : 'Peso', row.peso, null,
+          /* Com a unidade no valor (26/09/2026): "4kg", "0,80m". */
+          card(en ? 'Weight' : 'Peso', fmtPeso(row.peso), null,
             en ? 'In kilograms.' : 'Em quilos.'),
-          card(en ? 'Height' : 'Altura', fmtAltura(row.altura), null,
+          card(en ? 'Height' : 'Altura', fmtAlturaM(row.altura), null,
             en ? 'In meters.' : 'Em metros.'),
-          /* CLASSE E ELEMENTO viram ÍCONE (17/09/2026). A palavra sai do card
-             e vai para o tooltip — obrigatoriamente, porque um glifo sozinho
-             não se explica.
-
-             A classe reusa ICONE_TIPO_CRIATURA (01-core/game-data.jsx), o
-             mesmo mapa do token do tabuleiro: dois mapas discordariam e a
-             mesma criatura teria ícones diferentes na consulta e na batalha.
-             Ele cobre os 10 tipos que o catálogo usa de fato; 'Gigante' e
-             'Monstro', que o editor oferece e ninguém usa, caem na palavra. */
-          card(en ? 'Class' : 'Classe',
-            row.tipo, row.tipo,
-            en ? 'What kind of creature it is — animal, undead, dragon…' : 'Que tipo de criatura ela é — animal, morto, dragão…',
-            iconeDeClasse(row.tipo)),
+          /* CLASSE E ELEMENTO POR EXTENSO (26/09/2026: "Classe o nome por
+             extenso. Elemento o nome por extenso."). De 17/09 até aqui eram
+             ícones, com a palavra no tooltip. */
+          card(en ? 'Class' : 'Classe', row.tipo, null,
+            en ? 'What kind of creature it is — animal, undead, dragon…' : 'Que tipo de criatura ela é — animal, morto, dragão…'),
+          /* Subtipo e Plano saíram da TABELA em 26/09/2026 (a tabela ficou só
+             com o nome) e vieram morar aqui. */
+          card(en ? 'Subtype' : 'Subtipo', row.subtipo, null,
+            en ? 'The species or lineage within the class.' : 'A espécie ou linhagem dentro da classe.'),
           /* Coluna PRÓPRIA desde 18/09/2026. Lia `subtipo`, que declarava
              elementos no editor e guardava ESPÉCIE nos dados — o card dizia
              "Elemento: Cavalo" para a maior parte do catálogo. Ver
              scripts/sql/criaturas-elemento-2026-09-18.sql. */
-          card(en ? 'Element' : 'Elemento',
-            row.elemento, row.elemento,
-            en ? 'The element it belongs to.' : 'O elemento a que ela pertence.',
-            iconeDeElemento(row.elemento)),
+          card(en ? 'Element' : 'Elemento', row.elemento, null,
+            en ? 'The element it belongs to.' : 'O elemento a que ela pertence.'),
+          card(en ? 'Plane' : 'Plano', row.plano, null,
+            en ? 'The plane of existence it comes from.' : 'O plano de existência de onde ela vem.'),
           /* O valor perde o "Grupo " (17/09/2026: "Grupo Pequeno = Pequeno").
              O rótulo do card já diz Grupo; repeti-lo no valor gastava metade da
              caixa dizendo duas vezes a mesma coisa. "Solitário" não tem o
@@ -832,24 +1150,100 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
              como o chip "MON". Virou card em vez de desaparecer: é uma
              característica, e é ela que o inventário lê para oferecer
              "Montar". */
+          /* Por extenso (26/09/2026). Na mesma manhã tinha virado S/N. */
           card(en ? 'Mount' : 'Montaria',
             row.montaria === true ? (en ? 'Yes' : 'Sim') : (en ? 'No' : 'Não'), null,
             en ? 'Whether it can be ridden.' : 'Se ela pode ser montada.'),
         ],
       },
       {
+        titulo: en ? 'Attributes' : 'Atributos',
+        grupo: 'topo',
+        cards: [
+          card(en ? 'Intellect' : 'Intelecto', row.intelecto, null,
+            en ? 'Reasoning and learning.' : 'Raciocínio e aprendizado.'),
+          card('Aura', row.aura, null,
+            en ? 'Magical presence — feeds Heroic Energy and Magic Resistance.' : 'Presença mágica — alimenta a Energia Heroica e a Resistência Mágica.'),
+          card(en ? 'Charisma' : 'Carisma', row.carisma, null,
+            en ? 'Influence over others.' : 'Influência sobre os outros.'),
+          card(en ? 'Strength' : 'Força', row.forca, null,
+            en ? 'Raw power — weighs on melee damage.' : 'Força bruta — pesa no dano corpo a corpo.'),
+          card(en ? 'Physique' : 'Físico', row.fisico, null,
+            en ? 'Body and stamina — feeds Physical Energy and Physical Resistance.' : 'Corpo e resistência — alimenta a Energia Física e a Resistência Física.'),
+          card(en ? 'Agility' : 'Agilidade', row.agilidade, null,
+            en ? 'Speed and reflexes.' : 'Rapidez e reflexo.'),
+          card(en ? 'Perception' : 'Percepção', row.percepcao, null,
+            en ? 'What the creature notices around it.' : 'O que a criatura nota em volta.'),
+        ],
+      },
+      {
+        titulo: en ? 'Information' : 'Informações',
+        grupo: 'topo',
+        cards: [
+          /* Estágio mora em Informações desde 26/09/2026 ("'Estágio' fica
+             junto com informações"); era a primeira linha de Características. */
+          card(en ? 'Stage' : 'Estágio', row.estagio, null,
+            en ? 'The creature’s level — it sets ability, technique and spell levels.' : 'O nível da criatura — é ele que dá o nível das habilidades, técnicas e magias.'),
+          card(en ? 'Physical Energy' : 'Energia Física', row.energia_fisica, null,
+            en ? 'The body’s pool — it runs out and the creature falls.' : 'A reserva do corpo — zera e a criatura cai.'),
+          card(en ? 'Heroic Energy' : 'Energia Heroica', row.energia_heroica, null,
+            en ? 'The pool that absorbs the blow before the body does.' : 'A reserva que absorve o golpe antes do corpo.'),
+          card(en ? 'Physical Resistance' : 'Resistência Física', CriaturaFormulas.resistenciaFisica(row), null,
+            en ? 'How much physical damage it endures.' : 'O quanto ela aguenta de dano físico.'),
+          card(en ? 'Magic Resistance' : 'Resistência Mágica', CriaturaFormulas.resistenciaMagica(row), null,
+            en ? 'How much magical damage it endures.' : 'O quanto ela aguenta de dano mágico.'),
+          /* ARMADURA + DEFESA num valor só (26/09/2026: "A Armadura é L2,
+             (Armadura + Defesa)"): a sigla que o banco guarda (L/M/P; nula
+             conta como L, como no resto do app) colada à defesa — "L2", "L-1".
+             O card Defesa separado saiu. */
+          card(en ? 'Armor' : 'Armadura',
+            (row.armadura || 'L') + (row.defesa == null || row.defesa === '' ? '' : String(row.defesa)), null,
+            en ? 'Armor class (L light, M medium, P heavy) and defense — how hard it is to hit.'
+               : 'Classe da armadura (L leve, M médio, P pesado) e defesa — o quanto ela é difícil de acertar.'),
+          card(en ? 'Absorption' : 'Absorção', row.absorcao, null,
+            en ? 'Damage the armor swallows on every hit.' : 'Dano que a armadura engole em cada acerto.'),
+          card(en ? 'Speed' : 'Velocidade', row.velocidade, null,
+            en ? 'How far it moves in a round.' : 'O quanto ela anda numa rodada.'),
+        ],
+      },
+      {
+        titulo: en ? 'Combat Techniques' : 'Técnicas de Combate',
+        grupo: 'listas',
+        tooltip: true,
+        cards: doMotor('tecnicasDaCriaturaCrua', row, cri.tecnicasByKey)
+          .map((t) => card(t.nome, t.total, null, t.descricao || t.efeito)),
+      },
+      {
         titulo: en ? 'Abilities' : 'Habilidades',
+        grupo: 'listas',
+        tooltip: true,
         // O total vem da MESMA função da batalha — ver o trio no batalha.jsx.
         cards: doMotor('habilidadesDaCriaturaCrua', row, cri.habilidadesByKey)
           .map((h) => card(h.nome, h.total, null, h.descricao)),
       },
       {
-        titulo: en ? 'Combat Techniques' : 'Técnicas de Combate',
-        cards: doMotor('tecnicasDaCriaturaCrua', row, cri.tecnicasByKey)
-          .map((t) => card(t.nome, t.total, null, t.descricao || t.efeito)),
+        titulo: en ? 'Attacks' : 'Ataques',
+        grupo: 'listas',
+        /* O número é o DANO TOTAL do ataque: o dano da arma somado à Força da
+           criatura (ataquesDaCriatura, criatura-formulas.jsx). Sem tooltip
+           desde 26/09/2026 — ver `tooltip` nas seções. */
+        cards: (CriaturaFormulas.ataquesDaCriatura(row, itens) || [])
+          .map((a) => card(a.nome, a.dano_100, null,
+            en ? 'Damage at 100% of the Heroic Energy.' : 'Dano a 100% da Energia Heroica.')),
+      },
+      {
+        titulo: en ? 'Spells' : 'Magias',
+        grupo: 'listas',
+        tooltip: true,
+        /* O valor é o NÍVEL em que a criatura conjura, e ele sai do ESTÁGIO
+           (nivelMagiaDeCriatura), não da coluna `magia_n` — abandonada em
+           13/09/2026 e ainda preenchida no banco com valores velhos. */
+        cards: doMotor('magiasDaCriaturaCrua', row, cri.magiasByKey)
+          .map((m) => card(m.magia.nome, m.nivel, null, m.magia.descricao)),
       },
       {
         titulo: en ? 'Equipment' : 'Equipamentos',
+        grupo: 'extra',
         /* SÓ EQUIPAMENTO DE DEFESA (17/09/2026: "são equipamentos de defesa,
            no caso da Águia não tem nenhum"). A coluna `equipamento` guarda as
            duas coisas na mesma lista — o bico e a garra da Águia são itens do
@@ -861,31 +1255,21 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
            Peça cujo slug não está no catálogo fica de fora: sem o item não há
            como saber se é arma ou proteção, e chutar erraria para um dos
            lados. */
+        /* MOCHILA (25/09/2026): o que a criatura carrega — qualquer item, com
+           quantidade, e também a arma de reserva (na mochila ela não é ataque,
+           é carga). O valor do card é a quantidade. */
         cards: listaEquip
-          .map((p) => ({ p, it: itens[p.slug] }))
-          .filter(({ it }) => it && it.grupo !== 'Armas')
-          .map(({ p, it }) => card(
-            it.nome,
-            // O slot é o "valor" do card: onde a peça está vestida.
-            p.slot || '—',
-            null,
-            en ? `Equipped in: ${p.slot || '—'}` : `Equipado em: ${p.slot || '—'}`
-          )),
-      },
-      {
-        titulo: en ? 'Spells' : 'Magias',
-        /* O valor é o NÍVEL em que a criatura conjura, e ele sai do ESTÁGIO
-           (nivelMagiaDeCriatura), não da coluna `magia_n` — abandonada em
-           13/09/2026 e ainda preenchida no banco com valores velhos. */
-        cards: doMotor('magiasDaCriaturaCrua', row, cri.magiasByKey)
-          .map((m) => card(m.magia.nome, m.nivel, null, m.magia.descricao)),
-      },
-      {
-        titulo: en ? 'Attacks' : 'Ataques',
-        // O número é o Dano 100% da arma, como na faixa antiga.
-        cards: (CriaturaFormulas.ataquesDaCriatura(row, itens) || [])
-          .map((a) => card(a.nome, a.dano_100, null,
-            en ? 'Damage at 100% of the Heroic Energy.' : 'Dano a 100% da Energia Heroica.')),
+          .map((p) => ({ p, it: itens[p.slug], mochila: p.slot === 'mochila' }))
+          .filter(({ it, mochila }) => it && (mochila || it.grupo !== 'Armas'))
+          .map(({ p, it, mochila }) => (mochila
+            ? card(it.nome, `${Number(p.qtd) || 1}×`, null, en ? 'Carried in the pack.' : 'Carregado na mochila.')
+            : card(
+              it.nome,
+              // O slot é o "valor" do card: onde a peça está vestida.
+              p.slot || '—',
+              null,
+              en ? `Equipped in: ${p.slot || '—'}` : `Equipado em: ${p.slot || '—'}`
+            ))),
       },
     ];
   };
@@ -893,7 +1277,7 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-criaturas">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Creatures' : 'Criaturas'}
+      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={titulo || (lang === 'en' ? 'Creatures' : 'Criaturas')}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search creature…' : 'Buscar criatura…'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
@@ -910,11 +1294,6 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
             <Table>
               <TableHeader><TableRow>
                 {cols.map((c) => <SortHead key={c.key} col={c.key} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{c.label}</SortHead>)}
-                {/* Uma coluna de ações para o lápis e/ou o olho. `temAcoes`
-                    em vez de `ehAdmin` sozinho: o olho depende de mesa
-                    selecionada, não de ser admin, e sem ele o cabeçalho
-                    ficava com uma coluna a menos que as linhas. */}
-                {temAcoes && <TableHead style={{ width: temAcoes === 2 ? 80 : 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((row) => {
@@ -923,96 +1302,118 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
                     <React.Fragment key={row.id}>
                       <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : row.id)}>
                         {cols.map((c) => c.key === 'nome' ? (
-                          <TableCell key={c.key} className="best-name"><span className="best-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>›</span>{fmt(row[c.key])}</TableCell>
-                        ) : c.key === '_visibilidade' ? (
-                          /* O MESMO chip das tabelas de NPCs e Lugares — o
-                             estado que o olho edita, legível na linha. Vem de
-                             13-diario porque "quem vê" tem uma regra só. */
-                          <TableCell key={c.key}>{(() => {
-                            const vis = window.DiarioVisibilidade.visibilidadeDaEntrada(historia, 'criatura', row.id);
-                            return (
-                              <span className={'diario-vis-chip diario-vis-chip--' + vis.modo}>
-                                {rotuloVisibilidade(vis)}
-                              </span>
-                            );
-                          })()}</TableCell>
+                          <TableCell key={c.key} className="best-name">
+                            {/* A PATENTE (C, B, A, S… pelo estágio) saiu em 26/09/2026
+                                ("pode remover aqueles ícones de C,A,B,S"). No lugar, o
+                                ícone de QUEM PODE VER na mesa ativa, como em Reinos —
+                                só com mesa selecionada, que é onde a pergunta existe. */}
+                            {/* A classe da criatura (26/09/2026) — o mesmo ícone do token. */}
+                            <IconeDoNome icone={iconeTipoCriatura(row.tipo) || 'ti-paw'} />
+                            {(() => {
+                              const vis = visibilidadeDaCriatura(row);
+                              if (!vis) return null;
+                              return (
+                                <span className={'diario-vis-ic diario-vis-ic--' + vis.modo}
+                                  role="img" aria-label={vis.rotulo}
+                                  onMouseEnter={(e) => mostrarTipStat(e, vis.rotulo)}
+                                  onMouseLeave={esconderTipStat}>
+                                  <i className={'ti ' + ({ todos: 'ti-eye', ninguem: 'ti-eye-off' }[vis.modo] || 'ti-eye-exclamation')} aria-hidden="true" />
+                                </span>
+                              );
+                            })()}
+                            {fmt(row[c.key])}</TableCell>
                         ) : (
                           <TableCell key={c.key}>{fmt(row[c.key])}</TableCell>
                         ))}
-                        {temAcoes && (
-                          <TableCell className="best-td-acoes" onClick={(ev) => ev.stopPropagation()}>
-                            {/* O olho vem ANTES do lápis, como nas tabelas de
-                                NPCs e Lugares — a ordem é a mesma nas três. */}
-                            {podeGerirVisibilidade && (
-                              <BestBotaoPermissao
-                                lang={lang}
-                                onClick={() => setPermissaoDe(row)}
-                                disabled={!historia} />
-                            )}
-                            {ehAdmin && <BestBotaoEditar ac={ac} onClick={() => setEditando(row)} />}
-                          </TableCell>
-                        )}
                       </TableRow>
                       {isOpen && (
-                        <TableRow className="best-detail"><TableCell colSpan={cols.length + (temAcoes ? 1 : 0)}>
+                        <BestDetalheModal title={row.nome} lang={lang} onClose={() => setExpandida(null)}
+                          acoes={[
+                            /* O olho vem ANTES do lápis, como nas janelas de
+                               Reinos e Conhecidos. */
+                            podeGerirVisibilidade && { icone: 'ti-eye', rotulo: lang === 'en' ? 'Who can see' : 'Quem pode ver',
+                              onClick: () => { setExpandida(null); setPermissaoDe(row); }, desativado: !historia },
+                            ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
+                              onClick: () => { setExpandida(null); setEditando(row); } },
+                          ]}>
                           {/* A descrição ABRE a ficha, como no exemplo que o
                               usuário escreveu: o nome, o parágrafo, e só então
                               os números. Antes vinha por último, depois das
                               faixas de cards. */}
-                          {row.descricao
-                            ? <TextoDoBanco texto={row.descricao} className="best-desc" />
-                            : <p className="best-desc" style={{ opacity: 0.55 }}>{lang === 'en' ? 'No description yet.' : 'Sem descrição ainda.'}</p>}
+                          <BestDescricao texto={row.descricao} lang={lang}
+                            vazio={lang === 'en' ? 'No description yet.' : 'Sem descrição ainda.'} />
                           {/* Enquanto os catálogos não chegam, as três seções
                               que dependem deles vêm vazias — e "vazio" ali
                               significaria "esta criatura não tem magia", que é
                               mentira diferente de "ainda estou carregando". */}
                           {!catalogosFicha ? (
                             <div className="best-secao-vazia">{lang === 'en' ? 'Loading…' : 'Carregando…'}</div>
-                          ) : SECOES_DA_FICHA(row)
+                          ) : (() => {
                             /* SEÇÃO VAZIA NÃO APARECE (17/09/2026): "se a
                                criatura não possui magia ou equipamentos, não
-                               precisa mostrar o título e -". Chegou a mostrar
-                               o subtítulo com um travessão, por causa de como
-                               o exemplo foi escrito; o usuário viu na tela e
-                               preferiu sem. Vale para qualquer seção — a
-                               Águia perde Equipamentos e Magias, um dragão sem
-                               técnica perderia Técnicas de Combate. As três
-                               primeiras nunca somem: sempre têm cards. */
-                            .filter((s) => s.cards.length > 0)
-                            .map((s) => (
-                            <div className="best-secao" key={s.titulo}>
-                              <h4 className="best-secao-titulo">{s.titulo}</h4>
-                              <div className="best-detail-stats">
-                                {s.cards.map((c, i) => (
-                                  <div className="best-stat" key={c.label + '_' + i}>
-                                    {/* O tooltip mora no RÓTULO, que é o que
-                                        pede explicação — e é o padrão do
-                                        projeto (useBestTip, nunca o `title`
-                                        nativo: ver tooltip-padrao.test.js).
-                                        `data-tip` deixa o texto legível ao
-                                        teste sem abrir o tooltip. */}
-                                    <span className="best-stat-lbl"
-                                      data-tip={c.tip || c.label}
-                                      onMouseEnter={(e) => mostrarTipStat(e, c.tip || c.label)}
-                                      onMouseLeave={esconderTipStat}>{c.label}</span>
-                                    {/* Ícone no lugar do texto (classe,
-                                        elemento). A palavra vai no aria-label
-                                        porque o tooltip não é anunciado por
-                                        leitor de tela: sem ele, "Classe" ficaria
-                                        com valor vazio para quem não vê o
-                                        glifo. */}
-                                    <span className="best-stat-val"
-                                      aria-label={c.icone ? (c.val == null ? undefined : String(c.val)) : undefined}>
-                                      {c.icone
-                                        ? <i className={'ti ' + c.icone} aria-hidden="true" />
-                                        : fmt(c.val)}
-                                    </span>
-                                  </div>
-                                ))}
+                               precisa mostrar o título e -". Nas quatro colunas
+                               de lista a coluna vazia some e as outras seguem
+                               no lugar delas — a grade é fixa, então Ataques
+                               fica sempre na terceira coluna. As três do topo
+                               nunca somem: sempre têm cards. */
+                            const secoes = SECOES_DA_FICHA(row).filter((s) => s.cards.length > 0);
+                            const doGrupo = (g) => secoes.filter((s) => s.grupo === g);
+                            /* O tooltip mora no RÓTULO, que é o que pede
+                               explicação — e é o padrão do projeto
+                               (useBestTip, nunca o `title` nativo: ver
+                               tooltip-padrao.test.js). `data-tip` deixa o
+                               texto legível ao teste sem abrir o tooltip.
+
+                               SÓ em Técnicas, Habilidades e Magias desde
+                               26/09/2026 ("não precisa de tooltip nos demais
+                               itens") — as seções com `tooltip: true`. */
+                            const rotulo = (c, comTip) => (comTip ? (
+                              <span className="best-stat-lbl"
+                                data-tip={c.tip || c.label}
+                                onMouseEnter={(e) => mostrarTipStat(e, c.tip ? { titulo: c.label, texto: c.tip } : c.label)}
+                                onMouseLeave={esconderTipStat}>{c.label}</span>
+                            ) : (
+                              <span className="best-stat-lbl">{c.label}</span>
+                            ));
+                            const valor = (c) => (
+                              /* Ícone no lugar do texto (classe, elemento). A
+                                 palavra vai no aria-label porque o tooltip não
+                                 é anunciado por leitor de tela. */
+                              <span className="best-stat-val"
+                                aria-label={c.icone ? (c.val == null ? undefined : String(c.val)) : undefined}>
+                                {c.icone
+                                  ? (Array.isArray(c.icone)
+                                    ? c.icone.map((ic, k) => <i key={k} className={'ti ' + ic} aria-hidden="true" />)
+                                    : <i className={'ti ' + c.icone} aria-hidden="true" />)
+                                  : fmt(c.val)}
+                              </span>
+                            );
+                            /* Lista: uma linha por entrada, nome à esquerda e o valor à direita.
+                               O TOPO também é lista desde 26/09/2026 ("remova o minicard dentro
+                               de criaturas e transforme em listas") — as três colunas continuam,
+                               só os mini-cards saíram. */
+                            const secaoLista = (s) => (
+                              <div className="best-secao best-secao--lista" key={s.titulo}>
+                                <h4 className="best-secao-titulo">{s.titulo}</h4>
+                                <ul className="best-lista">
+                                  {s.cards.map((c, i) => (
+                                    <li className="best-stat best-stat--linha" key={c.label + '_' + i}>{rotulo(c, s.tooltip)}{valor(c)}</li>
+                                  ))}
+                                </ul>
                               </div>
-                            </div>
-                          ))}
-                        </TableCell></TableRow>
+                            );
+                            const listas = doGrupo('listas');
+                            const extra = doGrupo('extra');
+                            return (
+                              <>
+                                <div className="best-ficha-topo">{doGrupo('topo').map(secaoLista)}</div>
+                                {/* Duas colunas desde 26/09/2026: a janela tem a largura padrão (800px). */}
+                                {listas.length > 0 && <div className="best-ficha-listas best-ficha-listas--2">{listas.map(secaoLista)}</div>}
+                                {extra.length > 0 && <div className="best-ficha-extra">{extra.map(secaoLista)}</div>}
+                              </>
+                            );
+                          })()}
+                        </BestDetalheModal>
                       )}
                     </React.Fragment>
                   );
@@ -1078,16 +1479,16 @@ function CriaturasList({ ac, lang, modoJogador, historiaId }) {
 const badgeStyle = { background: '#F5ECD4', color: '#8A6B12', border: '1px solid #D8CCB4', fontWeight: 700 };
 
 function BestNoKit() {
-  return <div style={{ padding: 24, color: '#9C8F73', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
+  return <div style={{ padding: 24, color: '#BFAF8E', fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)', lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
 }
 function BestLoading({ lang }) {
   return <Carregando lang={lang} />;
 }
 function BestErrorBox({ error, hint }) {
   return (
-    <div style={{ border: '1px solid rgba(200,33,44,0.4)', background: 'rgba(200,33,44,0.10)', borderRadius: 6, padding: '16px 18px', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
-      <div style={{ color: '#F0A6A0', fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{error}</div>
-      <div style={{ color: '#9C8F73', fontSize: 13, lineHeight: 1.5 }}>{hint}</div>
+    <div style={{ border: '1px solid rgba(200,33,44,0.4)', background: 'rgba(200,33,44,0.10)', borderRadius: 6, padding: '16px 18px', fontFamily: "var(--font-body)" }}>
+      <div style={{ color: '#F0A6A0', fontWeight: 600, fontSize: 'var(--fs-md)', marginBottom: 6 }}>{error}</div>
+      <div style={{ color: '#BFAF8E', fontSize: 'var(--fs-sm)', lineHeight: 1.5 }}>{hint}</div>
     </div>
   );
 }
@@ -1603,7 +2004,7 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
 }
 
 /* ============================== [18] MagiasList — Mestre vê todas as magias do banco; jogador só as compradas ============================== */
-function MagiasList({ ac, lang, modoJogador }) {
+function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [magias, setMagias] = useState(null);
   const { sorted: magiasSorted, sortKey, sortDir, toggleSort } = useSort(magias);
@@ -1629,7 +2030,7 @@ function MagiasList({ ac, lang, modoJogador }) {
     carregarMagias(cancelRef);
     return () => { cancelRef.atual = true; };
   }, []);
-  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
+  useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
 
   if (!Table) return <BestNoKit />;
   if (magias === null) return <BestLoading lang={lang} />;
@@ -1642,6 +2043,8 @@ function MagiasList({ ac, lang, modoJogador }) {
     return true;
   });
   if (modoJogador) filtered = filtered.filter((m) => conhecido.magias.has(m.key));
+  // Submenu de Treinamento › Magias (26/09/2026): Básica | Ancestral | Perdida.
+  if (filtro) filtered = filtered.filter((m) => m.tipo === filtro);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -1649,7 +2052,7 @@ function MagiasList({ ac, lang, modoJogador }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Spells' : 'Magias'}
+      <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Spells' : 'Magias')}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search spell…' : 'Buscar magia…'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
@@ -1675,12 +2078,6 @@ function MagiasList({ ac, lang, modoJogador }) {
             <Table>
               <TableHeader><TableRow>
                 <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
-                <SortHead col='tipo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Type' : 'Tipo'}</SortHead>
-                <SortHead col='evocacao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Evocation' : 'Evocação'}</SortHead>
-                <SortHead col='alcance' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Range' : 'Alcance'}</SortHead>
-                <SortHead col='duracao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Duration' : 'Duração'}</SortHead>
-                <SortHead col='custo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Cost' : 'Custo'}</SortHead>
-                {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((m) => {
@@ -1688,13 +2085,7 @@ function MagiasList({ ac, lang, modoJogador }) {
                   return (
                     <React.Fragment key={m.id}>
                       <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : m.key)}>
-                        <TableCell className="best-name"><span className="best-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>›</span>{m.nome}</TableCell>
-                        <TableCell>{m.tipo || '—'}</TableCell>
-                        <TableCell>{m.evocacao || '—'}</TableCell>
-                        <TableCell>{m.alcance || '—'}</TableCell>
-                        <TableCell>{m.duracao || '—'}</TableCell>
-                        <TableCell className="best-cost">{m.custo}</TableCell>
-                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(m)} /></TableCell>}
+                        <TableCell className="best-name"><IconeDoNome icone={ICONE_TIPO_MAGIA[m.tipo] || 'ti-sparkles'} />{m.nome}</TableCell>
                       </TableRow>
                       {isOpen && (() => {
                         // Modo jogador: só os níveis que ele COMPROU (spec §3 "só os níveis
@@ -1706,18 +2097,11 @@ function MagiasList({ ac, lang, modoJogador }) {
                           ? new Set(NIVEIS_MAGIA.slice(0, conhecido.magias.get(m.key) || 0))
                           : null;
                         return (
-                        <TableRow className="best-detail"><TableCell colSpan={6 + (ehAdmin ? 1 : 0)}>
-                          {m.permissao && <div className="best-permissao">{m.permissao}</div>}
-                          {m.descricao && <TextoDoBanco texto={m.descricao} className="best-desc" />}
-                          <div className="best-niveis">
-                            {[{ n: 1, t: m.nivel_1 }, { n: 3, t: m.nivel_3 }, { n: 5, t: m.nivel_5 }, { n: 7, t: m.nivel_7 }, { n: 9, t: m.nivel_9 }]
-                              .filter((x) => x.t)
-                              .filter((x) => !niveisPermitidos || niveisPermitidos.has(x.n))
-                              .map((x) => (
-                              <div key={x.n} className="best-nivel"><span className="best-nivel-n">{x.n}</span><span className="best-nivel-t">{x.t}</span></div>
-                            ))}
-                          </div>
-                        </TableCell></TableRow>
+                        <BestDetalheModal title={m.nome} lang={lang} onClose={() => setExpandida(null)}
+                          acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
+                            onClick: () => { setExpandida(null); setEditando(m); } }]}>
+                          <BestMagiaFicha m={m} lang={lang} niveisPermitidos={niveisPermitidos} />
+                        </BestDetalheModal>
                         );
                       })()}
                     </React.Fragment>
@@ -1736,6 +2120,8 @@ function MagiasList({ ac, lang, modoJogador }) {
         linha={editando}
         lang={lang}
         onSalvo={() => { setEditando(undefined); carregarMagias(); }}
+        // Lixeira ao lado do X (26/09/2026) — ver catalogos-admin-delete-2026-09-26.sql.
+        onExcluido={() => { setEditando(undefined); setExpandida(null); carregarMagias(); }}
         onCancel={() => setEditando(undefined)}
       />
     )}
@@ -1744,7 +2130,7 @@ function MagiasList({ ac, lang, modoJogador }) {
 }
 
 /* ============================== [19] HabilidadesList — Mestre vê todas as habilidades (DB); jogador só as que tem ============================== */
-function HabilidadesList({ ac, lang, modoJogador }) {
+function HabilidadesList({ ac, lang, modoJogador, filtro, titulo }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [habilidades, setHabilidades] = useState(null);
   const { sorted: habSorted, sortKey, sortDir, toggleSort } = useSort(habilidades);
@@ -1770,7 +2156,7 @@ function HabilidadesList({ ac, lang, modoJogador }) {
     carregarHabilidades(cancelRef);
     return () => { cancelRef.atual = true; };
   }, []);
-  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
+  useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
 
   if (!Table) return <BestNoKit />;
   if (habilidades === null) return <BestLoading lang={lang} />;
@@ -1785,6 +2171,8 @@ function HabilidadesList({ ac, lang, modoJogador }) {
     return true;
   });
   if (modoJogador) filtered = filtered.filter((h) => conhecido.habilidades.has(h.key));
+  // Submenu de Treinamento › Habilidades (26/09/2026): o grupo da habilidade.
+  if (filtro) filtered = filtered.filter((h) => h.grupo === filtro);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -1792,7 +2180,7 @@ function HabilidadesList({ ac, lang, modoJogador }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Skills' : 'Habilidades'}
+      <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Skills' : 'Habilidades')}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search skill…' : 'Buscar habilidade…'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
@@ -1806,37 +2194,28 @@ function HabilidadesList({ ac, lang, modoJogador }) {
             <Table>
               <TableHeader><TableRow>
                 <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
-                <SortHead col='grupo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Category' : 'Categoria'}</SortHead>
-                <SortHead col='ajuste' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Attribute' : 'Atributo'}</SortHead>
-                <SortHead col='vantagem' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Advantage' : 'Vantagem'}</SortHead>
-                <SortHead col='desvantagem' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Disadvantage' : 'Desvantagem'}</SortHead>
-                <SortHead col='custo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Cost' : 'Custo'}</SortHead>
-                {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((h) => {
                   const isOpen = expandida === h.key;
-                  // Só a descrição: a restrição de uso saiu do detalhe em 14/09/2026
-                  // (pedido do usuário). A coluna segue no banco e no editor.
-                  const temDetalhe = !!h.descricao;
+                  /* Toda habilidade abre desde 26/09/2026: a janela ganhou a lista
+                     por extenso (grupo, atributo, vantagem…), que não depende da
+                     descrição. A restrição de uso continua fora (14/09/2026). */
+                  const temDetalhe = true;
                   return (
                     <React.Fragment key={h.key}>
                       <TableRow className={isOpen ? 'on' : ''} style={temDetalhe ? { cursor: 'pointer' } : undefined} onClick={temDetalhe ? () => setExpandida(isOpen ? null : h.key) : undefined}>
                         <TableCell className="best-name">
-                          {temDetalhe && <span className="best-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>›</span>}
+                          <IconeDoNome icone={CHIP_ICON[h.grupo] || 'ti-bolt'} />
                           {h.nome}
                         </TableCell>
-                        <TableCell>{h.grupo || '—'}</TableCell>
-                        <TableCell>{ATRIBUTOS_LABEL[h.ajuste] || '—'}</TableCell>
-                        <TableCell>{h.vantagem || '—'}</TableCell>
-                        <TableCell>{h.desvantagem || '—'}</TableCell>
-                        <TableCell className="best-cost">{h.custo}</TableCell>
-                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(h)} /></TableCell>}
                       </TableRow>
                       {isOpen && temDetalhe && (
-                        <TableRow className="best-detail"><TableCell colSpan={6 + (ehAdmin ? 1 : 0)}>
-                          {h.descricao && <TextoDoBanco texto={h.descricao} className="best-desc" />}
-                        </TableCell></TableRow>
+                        <BestDetalheModal title={h.nome} lang={lang} onClose={() => setExpandida(null)}
+                          acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
+                            onClick: () => { setExpandida(null); setEditando(h); } }]}>
+                          <BestHabilidadeFicha h={h} lang={lang} />
+                        </BestDetalheModal>
                       )}
                     </React.Fragment>
                   );
@@ -1854,6 +2233,8 @@ function HabilidadesList({ ac, lang, modoJogador }) {
         linha={editando}
         lang={lang}
         onSalvo={() => { setEditando(undefined); carregarHabilidades(); }}
+        // Lixeira ao lado do X (26/09/2026) — ver catalogos-admin-delete-2026-09-26.sql.
+        onExcluido={() => { setEditando(undefined); setExpandida(null); carregarHabilidades(); }}
         onCancel={() => setEditando(undefined)}
       />
     )}
@@ -1981,7 +2362,7 @@ function TecnicasAuditoriaPainel({ tecnicas, lang, onRecarregar }) {
   );
 }
 
-function TecnicasList({ ac, lang, modoJogador }) {
+function TecnicasList({ ac, lang, modoJogador, filtro, titulo }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [tecnicas, setTecnicas] = useState(null);
   const { sorted: tecnicasSorted, sortKey, sortDir, toggleSort } = useSort(tecnicas);
@@ -2007,7 +2388,7 @@ function TecnicasList({ ac, lang, modoJogador }) {
     carregarTecnicas(cancelRef);
     return () => { cancelRef.atual = true; };
   }, []);
-  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
+  useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
 
   if (!Table) return <BestNoKit />;
   if (tecnicas === null) return <BestLoading lang={lang} />;
@@ -2020,6 +2401,8 @@ function TecnicasList({ ac, lang, modoJogador }) {
     return true;
   });
   if (modoJogador) filtered = filtered.filter((t) => conhecido.tecnicas.has(t.key));
+  // Submenu de Treinamento › Técnicas (26/09/2026) — ver categoriaTecnica.
+  if (filtro) filtered = filtered.filter((t) => categoriaTecnica(t) === filtro);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -2027,7 +2410,7 @@ function TecnicasList({ ac, lang, modoJogador }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Techniques' : 'Técnicas'}
+      <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Techniques' : 'Técnicas')}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search technique…' : 'Buscar técnica…'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
@@ -2047,11 +2430,6 @@ function TecnicasList({ ac, lang, modoJogador }) {
             <Table>
               <TableHeader><TableRow>
                 <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
-                <SortHead col='uso' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Use' : 'Uso'}</SortHead>
-                <SortHead col='grupo_armas' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Weapons' : 'Armas'}</SortHead>
-                <SortHead col='grupo_armaduras' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Armors' : 'Armaduras'}</SortHead>
-                <SortHead col='custo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Cost' : 'Custo'}</SortHead>
-                {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((t) => {
@@ -2059,24 +2437,14 @@ function TecnicasList({ ac, lang, modoJogador }) {
                   return (
                     <React.Fragment key={t.id || t.key}>
                       <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : t.key)}>
-                        <TableCell className="best-name"><span className="best-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>›</span>{t.nome}</TableCell>
-                        <TableCell>{t.uso || '—'}</TableCell>
-                        <TableCell>{t.grupo_armas || '—'}</TableCell>
-                        <TableCell>{t.grupo_armaduras || '—'}</TableCell>
-                        <TableCell className="best-cost">{t.custo}</TableCell>
-                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(t)} /></TableCell>}
+                        <TableCell className="best-name"><IconeDoNome icone={CHIP_ICON[t.uso] || 'ti-swords'} />{t.nome}</TableCell>
                       </TableRow>
                       {isOpen && (
-                        <TableRow className="best-detail"><TableCell colSpan={5 + (ehAdmin ? 1 : 0)}>
-                          {t.permissao && <div className="best-permissao">{t.permissao}</div>}
-                          {t.descricao && <TextoDoBanco texto={t.descricao} className="best-desc" />}
-                          {/* O campo `efeito` NÃO aparece aqui (pedido do usuário,
-                              11/09/2026): ele descreve o que acontece na resolução
-                              do golpe, e o lugar disso é a mesa, na hora do combate
-                              — o painel de ação já o mostra ao selecionar a técnica.
-                              No catálogo ele só duplicava a descrição e antecipava
-                              mecânica que o jogador não precisa ler ali. */}
-                        </TableCell></TableRow>
+                        <BestDetalheModal title={t.nome} lang={lang} onClose={() => setExpandida(null)}
+                          acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
+                            onClick: () => { setExpandida(null); setEditando(t); } }]}>
+                          <BestTecnicaFicha t={t} lang={lang} />
+                        </BestDetalheModal>
                       )}
                     </React.Fragment>
                   );
@@ -2094,6 +2462,8 @@ function TecnicasList({ ac, lang, modoJogador }) {
         linha={editando}
         lang={lang}
         onSalvo={() => { setEditando(undefined); carregarTecnicas(); }}
+        // Lixeira ao lado do X (26/09/2026) — ver catalogos-admin-delete-2026-09-26.sql.
+        onExcluido={() => { setEditando(undefined); setExpandida(null); carregarTecnicas(); }}
         onCancel={() => setEditando(undefined)}
       />
     )}
@@ -2118,19 +2488,14 @@ function temArmazenamentoItem(it) {
 function BestItemArmazenamento({ item, lang }) {
   if (!temArmazenamentoItem(item)) return null;
   const en = lang === 'en';
-  const fmt = (v) => Number(v).toFixed(1);
-  // Rótulo em TEXTO, como os demais quadros (pedido do usuário, 14/09/2026:
-  // "ao invés de mostrar um ícone e tooltip, eu quero o texto 'ocupa'").
-  const quadro = (rotulo, valor) => (
-    <div className="best-stat">
-      <span className="best-stat-lbl">{rotulo}</span>
-      <span className="best-stat-val">{valor}</span>
-    </div>
-  );
+  // Vírgula decimal, como a altura (0,80m) e o peso (0,5kg).
+  const fmt = (v) => Number(v).toFixed(1).replace('.', ',');
+  // Rótulo em TEXTO (14/09/2026: "eu quero o texto 'ocupa'"); linha de lista
+  // desde 26/09/2026 — quem a usa monta a BestFichaLista em volta.
   return (
     <>
-      {item.ocupa != null && item.ocupa !== '' && quadro(en ? 'Takes up' : 'Ocupa', fmt(item.ocupa))}
-      {Number(item.armazena) > 0 && quadro(en ? 'Stores' : 'Armazena', fmt(item.armazena))}
+      {item.ocupa != null && item.ocupa !== '' && <BestLinha rotulo={en ? 'Takes up' : 'Ocupa'} valor={fmt(item.ocupa)} />}
+      {Number(item.armazena) > 0 && <BestLinha rotulo={en ? 'Stores' : 'Armazena'} valor={fmt(item.armazena)} />}
     </>
   );
 }
@@ -2153,6 +2518,152 @@ function useCriaturasPorId() {
   return mapa;
 }
 
+/* ── BestItemFicha — o corpo da janela de um item (26/09/2026) ──────────────
+   "Quando clico em um item das páginas, comércio, etc. Ele abre um modal muito
+    bonito com abas. Eu quero que o modal de itens na ficha, na loja e no
+    inventário, abram um modal igual." (usuário)
+   Era JSX solto dentro de ItensList; saiu para cá para o Comércio e o
+   inventário (DetalhesItemModal, 07-inventario) desenharem O MESMO corpo —
+   Descrição, Efeitos, Características e a magia do item —, e as abas do
+   BestDetalheModal saem dele sozinhas. `antes` e `depois` são seções da
+   instância (sagração, conteúdo do recipiente, nota), que o catálogo não tem. */
+/* ── BestTecnicaFicha — o corpo da janela de uma técnica (26/09/2026) ──
+   Saiu de TecnicasList para a ficha (aba Conhecimento) abrir a MESMA janela ao
+   clicar numa técnica. `linhasExtras` entra no começo de Características —
+   na ficha, o nível comprado e o total do personagem. */
+/* ── BestMagiaFicha / BestHabilidadeFicha — os corpos das janelas do
+   Treinamento (26/09/2026). Saíram de MagiasList e HabilidadesList para a
+   ficha (aba Conhecimento) abrir a MESMA janela de consulta — descrição,
+   efeito, características —, e não a janela de usar ("não o modal para usar
+   a habilidade ou magia"). `linhasExtras` entra no começo de Características:
+   na ficha, o que o personagem tem (nível, total). `niveisPermitidos`
+   (Set) limita os níveis mostrados; sem ele, todos. */
+/* Os níveis ficam na Descrição em TODA janela de magia desde 26/09/2026
+   ("o modal de usar magia e magia, assim como todos os outros, devem ser o
+   mesmo"). A opção continua para quem precisar da aba separada. */
+function BestMagiaFicha({ m, lang, niveisPermitidos, linhasExtras, niveisNaDescricao = true }) {
+  /* `niveisNaDescricao` (26/09/2026, janela de usar da ficha): "coloque os
+     níveis junto com descrição, e chama tudo de descrição". Sem o data-aba, o
+     bloco dos níveis entra na aba da seção anterior — a Descrição. */
+  const niveis = (
+    <div className="best-niveis" data-aba={niveisNaDescricao ? undefined : (lang === 'en' ? 'Levels' : 'Níveis')}>
+      {[{ n: 1, t: m.nivel_1 }, { n: 3, t: m.nivel_3 }, { n: 5, t: m.nivel_5 }, { n: 7, t: m.nivel_7 }, { n: 9, t: m.nivel_9 }]
+        .filter((x) => x.t)
+        .filter((x) => !niveisPermitidos || niveisPermitidos.has(x.n))
+        .map((x) => (
+        <div key={x.n} className="best-nivel"><span className="best-nivel-n">{x.n}</span><span className="best-nivel-t">{x.t}</span></div>
+      ))}
+    </div>
+  );
+  return (
+    <>
+      <BestDescricao texto={separarItensNecessarios(m.descricao).texto} lang={lang} />
+      {niveisNaDescricao && niveis}
+      {/* Lista por extenso (26/09/2026), no lugar da faixa de permissão. */}
+      <BestFichaLista titulo={lang === 'en' ? 'Traits' : 'Características'} colunas={2}>
+        {linhasExtras}
+        <BestLinha rotulo={lang === 'en' ? 'Type' : 'Tipo'} valor={m.tipo} />
+        <BestLinha rotulo={lang === 'en' ? 'Evocation' : 'Evocação'} valor={m.evocacao} />
+        <BestLinha rotulo={lang === 'en' ? 'Range' : 'Alcance'} valor={abreviarAlcance(m.alcance)} />
+        <BestLinha rotulo={lang === 'en' ? 'Duration' : 'Duração'} valor={m.duracao} />
+        <BestLinha rotulo={lang === 'en' ? 'Cost' : 'Custo'} valor={m.custo} />
+        {/* Por extenso e numa linha inteira (26/09/2026): 'a linha Exclusividade ocupa uma linha só, igual Itens Necessários, e agora não precisa mais abreviar'. */}
+        <BestLinha rotulo={lang === 'en' ? 'Exclusivity' : 'Exclusividade'} valor={String(m.permissao || '').split(',').map((x) => x.trim()).filter(Boolean).join(', ')} largo />
+        {/* Tirado do fim da descrição — ver separarItensNecessarios. */}
+        <BestLinha rotulo={lang === 'en' ? 'Required items' : 'Itens necessários'} valor={m.itens_necessarios || separarItensNecessarios(m.descricao).itens} largo />
+      </BestFichaLista>
+      {!niveisNaDescricao && niveis}
+    </>
+  );
+}
+
+function BestHabilidadeFicha({ h, lang, linhasExtras }) {
+  return (
+    <>
+      <BestDescricao texto={h.descricao} lang={lang} />
+      <BestFichaLista titulo={lang === 'en' ? 'Traits' : 'Características'} colunas={2}>
+        {linhasExtras}
+        {/* Sem 'Grupo' (26/09/2026, 'em características das habilidades, remova grupo'). */}
+        <BestLinha rotulo={lang === 'en' ? 'Attribute' : 'Atributo'} valor={atributoPorExtenso(h.ajuste, lang === 'en')} />
+        <BestLinha rotulo={lang === 'en' ? 'Advantage' : 'Vantagem'} valor={h.vantagem} />
+        <BestLinha rotulo={lang === 'en' ? 'Disadvantage' : 'Desvantagem'} valor={h.desvantagem} />
+        <BestLinha rotulo={lang === 'en' ? 'Cost' : 'Custo'} valor={h.custo} />
+      </BestFichaLista>
+    </>
+  );
+}
+
+function BestTecnicaFicha({ t, lang, linhasExtras }) {
+  return (
+    <>
+      <BestDescricao texto={t.descricao} lang={lang} />
+      {/* O EFEITO VOLTOU (26/09/2026: "ao clicar na técnica e mostrar
+          sua descrição, mostre também seu efeito"). De 11/09 até aqui
+          ficava só na mesa, no painel de ação. */}
+      {t.efeito && (
+        <div className="best-secao best-secao--efeito">
+          <h4 className="best-secao-titulo">{lang === 'en' ? 'Effect' : 'Efeito'}</h4>
+          <TextoDoBanco texto={t.efeito} className="best-desc" />
+        </div>
+      )}
+      <BestFichaLista titulo={lang === 'en' ? 'Traits' : 'Características'} colunas={2}>
+        {linhasExtras}
+        <BestLinha rotulo={lang === 'en' ? 'Category' : 'Categoria'}
+          valor={categoriaTecnica(t) === 'especializada' ? (lang === 'en' ? 'Specialized' : 'Especializada') : (lang === 'en' ? 'Basic' : 'Básica')} />
+        <BestLinha rotulo={lang === 'en' ? 'Use' : 'Uso'} valor={t.uso} />
+        {/* Armas em SIGLA (26/09/2026: "pode abreviar as armas 'PL, PM'"). */}
+        <BestLinha rotulo={lang === 'en' ? 'Weapon groups' : 'Grupos de armas'} valor={siglasDeArma(t.grupo_armas)} />
+        <BestLinha rotulo={lang === 'en' ? 'Armor' : 'Armaduras'} valor={siglasPorExtenso(t.grupo_armaduras, 'armadura', lang === 'en')} />
+        <BestLinha rotulo={lang === 'en' ? 'Cost' : 'Custo'} valor={t.custo} />
+        <BestLinha rotulo={lang === 'en' ? 'Exclusivity' : 'Exclusividade'} valor={String(t.permissao || '').split(',').map((x) => x.trim()).filter(Boolean).join(', ')} largo />
+      </BestFichaLista>
+    </>
+  );
+}
+
+function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, resistenciaTexto, depois }) {
+  return (
+    <>
+      <BestDescricao texto={it.descricao} lang={lang} />
+      {/* EFEITOS (26/09/2026). A janela nunca os mostrava — e três das
+          cinco diárias de Serviços não têm descrição: o texto delas
+          ("Aumenta 1 de Energia Física…") mora no efeito positivo. */}
+      {/* Os EFEITOS entram em Características desde 26/09/2026 ("una as abas
+          efeito positivo e efeito negativo em características"). Moram lá
+          como linhas de largura inteira — ver o começo da lista. */}
+      {/* Lista por extenso (26/09/2026) — eram mini-cards. Ocupa/Armazena
+          e Criatura/Montaria vêm dos mesmos componentes, agora em linhas. */}
+      <BestFichaLista titulo={lang === 'en' ? 'Traits' : 'Características'} colunas={2}>
+        {/* Linhas da INSTÂNCIA (inventário): quantidade, onde está, sagração. */}
+        {linhasDaInstancia}
+        <BestLinha rotulo={lang === 'en' ? 'Positive effect' : 'Efeito positivo'} valor={it.efeito_positivo} largo />
+        <BestLinha rotulo={lang === 'en' ? 'Negative effect' : 'Efeito negativo'} valor={it.efeito_negativo} largo />
+        {/* Sem "Grupo" (26/09/2026, "não precisa mostrar o grupo"). */}
+        <BestLinha rotulo={lang === 'en' ? 'Value' : 'Valor'} valor={it.valor_latao ?? null} />
+        <BestItemArmazenamento item={it} lang={lang} />
+        <BestItemCriatura item={it} criaturasPorId={criaturasPorId} lang={lang} />
+        <BestLinha rotulo={lang === 'en' ? 'Damage' : 'Dano'} valor={it.dano} />
+        {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs light armor' : 'Contra armaduras leves'} valor={eficaciaContraArmadura(it.dano_l, lang === 'en')} />}
+        {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs medium armor' : 'Contra armaduras médias'} valor={eficaciaContraArmadura(it.dano_m, lang === 'en')} />}
+        {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs heavy armor' : 'Contra armaduras pesadas'} valor={eficaciaContraArmadura(it.dano_p, lang === 'en')} />}
+        <BestLinha rotulo={lang === 'en' ? 'Range' : 'Alcance'} valor={it.alcance != null && it.alcance > 0 ? it.alcance : null} />
+        <BestLinha rotulo={lang === 'en' ? 'Attribute' : 'Atributo'} valor={atributoPorExtenso(it.ajuste_atributo, lang === 'en')} />
+        <BestLinha rotulo={lang === 'en' ? 'Defense' : 'Defesa'} valor={it.defesa} />
+        <BestLinha rotulo={lang === 'en' ? 'Absorption' : 'Absorção'} valor={it.absorcao} />
+        {/* Resistência do item (26/09/2026) — o quanto ele aguenta antes de quebrar. */}
+        <BestLinha rotulo={lang === 'en' ? 'Durability' : 'Resistência'} valor={resistenciaTexto != null ? resistenciaTexto : it.resistencia} />
+        <BestLinha rotulo={lang === 'en' ? 'Minimum strength' : 'Força mínima'} valor={it.forca_req != null && it.forca_req !== 0 ? it.forca_req : null} />
+        {/* Mãos só no ESCUDO (14/09/2026). */}
+        <BestLinha rotulo={lang === 'en' ? 'Hands (Halfling)' : 'Mãos (Pequenino)'} valor={it.categoria_equip === 'escudo' ? (it.maos_pequenino != null ? `${it.maos_pequenino} ${lang === 'en' ? (it.maos_pequenino === 1 ? 'hand' : 'hands') : (it.maos_pequenino === 1 ? 'mão' : 'mãos')}` : (lang === 'en' ? 'Cannot use' : 'Não pode usar')) : null} />
+        <BestLinha rotulo={lang === 'en' ? 'Hands (Dwarf)' : 'Mãos (Anão)'} valor={it.categoria_equip === 'escudo' ? (it.maos_anao != null ? `${it.maos_anao} ${lang === 'en' ? (it.maos_anao === 1 ? 'hand' : 'hands') : (it.maos_anao === 1 ? 'mão' : 'mãos')}` : (lang === 'en' ? 'Cannot use' : 'Não pode usar')) : null} />
+        <BestLinha rotulo={lang === 'en' ? 'Hands (Others)' : 'Mãos (Outros)'} valor={it.categoria_equip === 'escudo' ? (it.maos_outras != null ? `${it.maos_outras} ${lang === 'en' ? (it.maos_outras === 1 ? 'hand' : 'hands') : (it.maos_outras === 1 ? 'mão' : 'mãos')}` : (lang === 'en' ? 'Cannot use' : 'Não pode usar')) : null} />
+      </BestFichaLista>
+      <BestItemMagia item={it} magias={magias} lang={lang} />
+      {depois}
+    </>
+  );
+}
+
 function BestItemCriatura({ item, criaturasPorId, lang }) {
   if (!item || item.criatura_id == null) return null;
   const c = (criaturasPorId || {})[item.criatura_id];
@@ -2160,10 +2671,8 @@ function BestItemCriatura({ item, criaturasPorId, lang }) {
   const en = lang === 'en';
   return (
     <>
-      <div className="best-stat"><span className="best-stat-lbl">{en ? 'Creature' : 'Criatura'}</span><span className="best-stat-val">{c.nome}</span></div>
-      {c.montaria === true && (
-        <div className="best-stat"><span className="best-stat-lbl">{en ? 'Mount' : 'Montaria'}</span><span className="best-stat-val">{en ? 'Yes' : 'Sim'}</span></div>
-      )}
+      <BestLinha rotulo={en ? 'Creature' : 'Criatura'} valor={c.nome} />
+      {c.montaria === true && <BestLinha rotulo={en ? 'Mount' : 'Montaria'} valor={en ? 'Yes' : 'Sim'} />}
     </>
   );
 }
@@ -2188,7 +2697,9 @@ function BestItemMagia({ item, magias, lang }) {
   const nivel = item.nivel_magia != null && item.nivel_magia !== '' ? Number(item.nivel_magia) : null;
   const textoNivel = magia && nivel != null ? magia['nivel_' + nivel] : null;
   return (
-    <div className="best-magia">
+    /* Aba própria (26/09/2026): com as abas do modal, a magia do item ficava
+       grudada em Características. */
+    <div className="best-magia" data-aba={en ? 'Spell' : 'Magia'}>
       {/* Só "Bola de Fogo · Nível 9" — sem ícone nem rótulo "Magia" (14/09/2026). */}
       <div className="best-magia-head">
         <span className="best-magia-nome">
@@ -2197,13 +2708,17 @@ function BestItemMagia({ item, magias, lang }) {
         </span>
       </div>
       {magia && magia.descricao && <TextoDoBanco texto={magia.descricao} className="best-desc" />}
+      {/* Itens do ritual (pergaminho): campo próprio desde 26/09/2026. */}
+      {magia && magia.itens_necessarios && (
+        <p className="det-itens-ritual"><strong>{en ? 'Required items: ' : 'Itens necessários: '}</strong>{magia.itens_necessarios}</p>
+      )}
       {textoNivel && <p className="best-efeito">{textoNivel}</p>}
     </div>
   );
 }
 
 /* ============================== [21] ItensList — Mestre vê todos os itens; jogador só os que possui ============================== */
-function ItensList({ ac, lang, modoJogador }) {
+function ItensList({ ac, lang, modoJogador, filtro, titulo }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [itens, setItens] = useState(null);
   const { sorted: itensSorted, sortKey, sortDir, toggleSort } = useSort(itens);
@@ -2236,7 +2751,7 @@ function ItensList({ ac, lang, modoJogador }) {
   const magias = useMagiasParaItens();
   // Criatura vinculada aos animais — de onde vem a característica Montaria.
   const criaturasPorId = useCriaturasPorId();
-  useEffect(() => { setPage(1); setExpandida(null); }, [query]);
+  useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
 
   if (!Table) return <BestNoKit />;
   if (itens === null) return <BestLoading lang={lang} />;
@@ -2249,6 +2764,8 @@ function ItensList({ ac, lang, modoJogador }) {
     return true;
   });
   if (modoJogador) filtered = filtered.filter((it) => conhecido.itens.has(it.slug));
+  // Submenu de Comércio (26/09/2026): o grupo do item.
+  if (filtro) filtered = filtered.filter((it) => it.grupo === filtro);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -2256,7 +2773,7 @@ function ItensList({ ac, lang, modoJogador }) {
   return (
     <div className="fp-page">
     <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={lang === 'en' ? 'Items' : 'Itens'}
+      <BestPageHeader eyebrow={lang === 'en' ? 'TRADE' : 'COMÉRCIO'} title={titulo || (lang === 'en' ? 'Items' : 'Itens')}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search item…' : 'Buscar item…'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
@@ -2272,56 +2789,25 @@ function ItensList({ ac, lang, modoJogador }) {
             <Table>
               <TableHeader><TableRow>
                 <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
-                <SortHead col='grupo' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Group' : 'Grupo'}</SortHead>
-                <SortHead col='valor_latao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Value' : 'Valor'}</SortHead>
-                {ehAdmin && <TableHead style={{ width: 40 }} />}
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((it) => {
                   const isOpen = expandida === it.slug;
-                  const isContainer = ehContainer(it);
-                  const equipavel = !!it.categoria_equip;
-                  const temArmazenamento = temArmazenamentoItem(it);
-                  const temCriatura = it.criatura_id != null && !!criaturasPorId[it.criatura_id];
                   return (
                     <React.Fragment key={it.id || it.slug}>
                       <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : it.slug)}>
                         <TableCell className="best-name">
-                          <span className="best-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}><i class="ti ti-chevron-right"></i></span>
+                          {/* O ícone do item ao lado do nome (26/09/2026). Item sem ícone
+                              próprio usa o do grupo (CHIP_ICON), o mesmo do submenu. */}
+                          <i className={'ti ' + (it.icone || CHIP_ICON[it.grupo] || 'ti-box') + ' best-item-ic'} aria-hidden="true" />
                           {it.nome}
                         </TableCell>
-                        <TableCell>{it.grupo || '—'}</TableCell>
-                        <TableCell>{it.valor_latao ?? 0}</TableCell>
-                        {ehAdmin && <TableCell><BestBotaoEditar ac={ac} onClick={() => setEditando(it)} /></TableCell>}
                       </TableRow>
                       {isOpen && (
-                        <TableRow className="best-detail"><TableCell colSpan={3 + (ehAdmin ? 1 : 0)}>
-                          {(equipavel || temArmazenamento || temCriatura) && (
-                            <div className="best-detail-stats">
-                              {/* Ocupa/Armazena num quadro, junto dos demais (14/09/2026) —
-                                  era uma coluna da tabela. Ver BestItemArmazenamento. */}
-                              <BestItemArmazenamento item={it} lang={lang} />
-                              <BestItemCriatura item={it} criaturasPorId={criaturasPorId} lang={lang} />
-                              {/* Mãos só no ESCUDO: na arma saiu (pedido de 14/09/2026). */}
-                              {it.categoria_equip === 'escudo' && (
-                                <div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Halfling' : 'Pequenino'}</span><span className="best-stat-val">{it.maos_pequenino != null ? `${it.maos_pequenino} ${lang === 'en' ? (it.maos_pequenino === 1 ? 'hand' : 'hands') : (it.maos_pequenino === 1 ? 'mão' : 'mãos')}` : <span style={{ color: '#C0392B', fontWeight: 700 }}>✗</span>}</span></div>
-                              )}
-                              {it.categoria_equip === 'escudo' && (
-                                <div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Dwarf' : 'Anão'}</span><span className="best-stat-val">{it.maos_anao != null ? `${it.maos_anao} ${lang === 'en' ? (it.maos_anao === 1 ? 'hand' : 'hands') : (it.maos_anao === 1 ? 'mão' : 'mãos')}` : <span style={{ color: '#C0392B', fontWeight: 700 }}>✗</span>}</span></div>
-                              )}
-                              {it.categoria_equip === 'escudo' && (
-                                <div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Others' : 'Outros'}</span><span className="best-stat-val">{it.maos_outras != null ? `${it.maos_outras} ${lang === 'en' ? (it.maos_outras === 1 ? 'hand' : 'hands') : (it.maos_outras === 1 ? 'mão' : 'mãos')}` : <span style={{ color: '#C0392B', fontWeight: 700 }}>✗</span>}</span></div>
-                              )}
-                              {it.dano != null && (<div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Damage' : 'Dano'}</span><span className="best-stat-val">{it.dano}</span></div>)}
-                              {it.alcance != null && it.alcance > 0 && (<div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Range' : 'Alcance'}</span><span className="best-stat-val">{it.alcance}</span></div>)}
-                              {it.ajuste_atributo && (<div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Attribute' : 'Atributo'}</span><span className="best-stat-val">{it.ajuste_atributo}</span></div>)}
-                              {it.defesa != null && (<div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Defense' : 'Defesa'}</span><span className="best-stat-val">{it.defesa}</span></div>)}
-                              {it.absorcao != null && (<div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Absorption' : 'Absorção'}</span><span className="best-stat-val">{it.absorcao}</span></div>)}
-                              {it.forca_req != null && it.forca_req !== 0 && (<div className="best-stat"><span className="best-stat-lbl">{lang === 'en' ? 'Strength' : 'Força'}</span><span className="best-stat-val">{it.forca_req > 0 ? `${it.forca_req}` : it.forca_req}</span></div>)}
-                            </div>
-                          )}
-                          {it.descricao && <TextoDoBanco texto={it.descricao} className="best-desc" />}
-                          <BestItemMagia item={it} magias={magias} lang={lang} />
+                        <BestDetalheModal title={it.nome} lang={lang} onClose={() => setExpandida(null)}
+                          acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
+                            onClick: () => { setExpandida(null); setEditando(it); } }]}>
+                          <BestItemFicha it={it} lang={lang} magias={magias} criaturasPorId={criaturasPorId} />
                           {/* itens.doc_url guarda o link do CONTEÚDO do item — hoje só os
                               três livros da campanha o usam, apontando pro texto da obra.
                               Até 11/09/2026 o campo existia no editor e nenhuma tela o lia:
@@ -2352,7 +2838,7 @@ function ItensList({ ac, lang, modoJogador }) {
                               </p>
                             );
                           })()}
-                        </TableCell></TableRow>
+                        </BestDetalheModal>
                       )}
                     </React.Fragment>
                   );
@@ -2370,6 +2856,9 @@ function ItensList({ ac, lang, modoJogador }) {
         linha={editando}
         lang={lang}
         onSalvo={() => { setEditando(undefined); carregarItens(); }}
+        /* Excluir item (26/09/2026): "igual em criaturas" — a lixeira ao lado do X
+           do editor, dois cliques. Ver podeExcluir no CatalogoEditor. */
+        onExcluido={() => { setEditando(undefined); setExpandida(null); carregarItens(); }}
         onCancel={() => setEditando(undefined)}
       />
     )}
@@ -2398,4 +2887,12 @@ Object.assign(window, {
   // 14/09/2026: o cabeçalho "busca + ferramentas + +" também serve às páginas
   // Lugares, NPCs e Memórias (13-diario/diario.jsx).
   BestBuscaENovo, BestBotaoNovo,
+  // 26/09/2026: a ficha da linha abre em janela — também em itens da campanha.
+  BestDetalheModal, BestItemFicha, BestTecnicaFicha, BestMagiaFicha, BestHabilidadeFicha,
+  // 26/09/2026: o filtro Básica/Especializada do submenu de Técnicas.
+  categoriaTecnica,
+  // 26/09/2026: a ficha em lista, por extenso — o Diário e itens da campanha usam.
+  BestFichaLista, BestLinha, BestDescricao, atributoPorExtenso, separarItensNecessarios,
+  abreviarExclusividade, abreviarAlcance, eficaciaContraArmadura, ehArma,
+  IconeDoNome, ICONE_TIPO_MAGIA,
 });

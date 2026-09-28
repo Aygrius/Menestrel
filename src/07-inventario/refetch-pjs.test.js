@@ -50,7 +50,8 @@ describe('refetch de personagens em InventarioList', () => {
     const cols = m[1].split(',').map((s) => s.trim());
     // calcCarga lê forca_base/fisico_base; o autosave de estado semeia de
     // estado_atual; o resto identifica e desenha o PJ.
-    for (const c of ['id', 'nome', 'sobrenome', 'raca', 'profissao',
+    // foto_url: o card do alvo na aba Usar (27/09/2026, "a foto do personagem não aparece").
+    for (const c of ['id', 'nome', 'sobrenome', 'foto_url', 'raca', 'profissao',
                      'forca_base', 'fisico_base', 'inventario', 'estado_atual']) {
       expect(cols, `PJ_COLS sem ${c}`).toContain(c);
     }

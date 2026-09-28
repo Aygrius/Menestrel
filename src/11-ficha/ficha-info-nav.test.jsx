@@ -92,18 +92,18 @@ describe('FichaInfoView — seta de navegação (ColTitleNav)', () => {
     montar();
     const btn = document.querySelector('.fp-col-title-nav-btn');
     expect(btn).toBeTruthy();
-    const rotuloAntes = document.querySelector('.fp-col-title-sub').textContent;
+    const rotuloAntes = document.querySelector('.fp-col-title-main').textContent;
 
     fireEvent.click(btn);
 
-    expect(document.querySelector('.fp-col-title-sub').textContent).not.toBe(rotuloAntes);
+    expect(document.querySelector('.fp-col-title-main').textContent).not.toBe(rotuloAntes);
   });
 
   it('a sequência real de um clique de mouse (mousedown→foco→mouseup→click) avança a página', () => {
     montar();
     const btn = document.querySelector('.fp-col-title-nav-btn');
     expect(btn).toBeTruthy();
-    const rotuloAntes = document.querySelector('.fp-col-title-sub').textContent;
+    const rotuloAntes = document.querySelector('.fp-col-title-main').textContent;
 
     // Sequência real do navegador ao clicar num <button>: mousedown foca o
     // elemento (o jsdom não faz isso sozinho, por isso o fireEvent.focus
@@ -117,7 +117,7 @@ describe('FichaInfoView — seta de navegação (ColTitleNav)', () => {
     fireEvent.mouseUp(btn);
     fireEvent.click(btn);
 
-    expect(document.querySelector('.fp-col-title-sub').textContent).not.toBe(rotuloAntes);
+    expect(document.querySelector('.fp-col-title-main').textContent).not.toBe(rotuloAntes);
   });
 });
 
@@ -130,13 +130,15 @@ describe('FichaInfoView — Habilidades mostra o catálogo inteiro', () => {
     { key: 'oratoria',    nome: 'Oratória',    grupo: 'Influência' },
   ];
   const linhas = () => {
+    // O título da coluna é o grupo aberto (27/09/2026): "Habilidades de Subterfúgio".
     const col = [...document.querySelectorAll('.fp-col-title-main')]
-      .find((el) => el.textContent === 'Habilidades').closest('.fp-col-title-nav').parentElement;
+      .find((el) => el.textContent.startsWith('Habilidades')).closest('.fp-col-title-nav').parentElement;
     return [...col.querySelectorAll('.fp-row')];
   };
 
   it('a não aprendida aparece, apagada, com o total que daria', () => {
     montar({
+      parte: 'conhecimento',
       catalogoHab: HABS,
       pjHabilidades: { furtividade: 2 },
       totalHabilidadeFn: (key) => (key === 'furtividade' ? 4 : -1),
@@ -149,9 +151,118 @@ describe('FichaInfoView — Habilidades mostra o catálogo inteiro', () => {
   });
 
   it('grupo sem nenhuma habilidade aprendida também tem página', () => {
-    montar({ catalogoHab: HABS, pjHabilidades: {} });
-    const subs = [...document.querySelectorAll('.fp-col-title-sub')].map((s) => s.textContent);
-    expect(subs).toContain('Subterfúgio');
+    montar({ parte: 'conhecimento', catalogoHab: HABS, pjHabilidades: {} });
+    const titulos = [...document.querySelectorAll('.fp-col-title-main')].map((s) => s.textContent);
+    expect(titulos).toContain('Habilidades de Subterfúgio');
     expect(document.body.textContent).not.toMatch(/Nenhuma habilidade\./);
+  });
+});
+
+/* 26/09/2026 — Informações virou duas abas, três colunas cada:
+   Personagem: Identidade (Identificação, Caracterizações) · Atributos (sem
+   submenu) · Complemento (Derivadas, Grupo de Armas, Habilidades
+   Aperfeiçoadas). Conhecimento: Habilidades (seis grupos) · Técnicas
+   (Básicas, Avançadas) · Magias (Básicas, Avançadas). */
+describe('FichaInfoView — Personagem e Conhecimento', () => {
+  const colunas = () => [...document.querySelectorAll('.fp-col-title-main')].map((e) => e.textContent);
+  const colDe = (titulo) => [...document.querySelectorAll('.fp-col-title-main')]
+    .find((e) => e.textContent === titulo).closest('.fp-col-title-nav');
+  const subsDe = (titulo) => {
+    const col = colDe(titulo);
+    const btn = col.querySelector('.fp-col-title-nav-btn');
+    const vistos = [];
+    for (let i = 0; i < 8; i++) {
+      const sub = col.querySelector('.fp-col-title-sub');
+      const t = sub ? sub.textContent : null;
+      if (vistos.includes(t)) break;
+      vistos.push(t);
+      fireEvent.click(btn);
+    }
+    return vistos;
+  };
+
+  it('Personagem: as três colunas e seus submenus', () => {
+    montar({ parte: 'personagem' });
+    /* 27/09/2026 ("faça o mesmo em 'personagem'"): a página aberta é o
+       título, como no Conhecimento; sem subtítulo. */
+    expect(colunas()).toEqual(['Identificação', 'Atributos', 'Derivadas']);
+    expect(document.querySelector('.fp-col-title-sub')).toBeNull();
+    const titulosAoAvancar = (i) => {
+      const vistos = [];
+      for (let k = 0; k < 8; k++) {
+        const t = colunas()[i];
+        if (vistos.includes(t)) break;
+        vistos.push(t);
+        fireEvent.click(document.querySelectorAll('.fp-col-title-nav-btn')[i]);
+      }
+      return vistos;
+    };
+    expect(titulosAoAvancar(0)).toEqual(['Identificação', 'Caracterizações']);
+    expect(titulosAoAvancar(1)).toEqual(['Atributos']);   // sem submenu
+    expect(titulosAoAvancar(2)).toEqual(['Derivadas', 'Grupo de Armas', 'Habilidades Aperfeiçoadas']);
+  });
+
+  it('Conhecimento: Habilidades, Técnicas e Magias, mesmo sem nada comprado', () => {
+    montar({
+      parte: 'conhecimento',
+      catalogoHab: ['Profissional', 'Subterfúgio', 'Manobra', 'Influência', 'Conhecimento', 'Geral']
+        .map((g, i) => ({ key: 'h' + i, nome: 'H' + i, grupo: g })),
+    });
+    /* 27/09/2026: "'habilidades profissionais', 'habilidades de influência'
+       será o título ao invés de 'habilidades'. Em técnicas, será 'técnicas
+       básicas'. 'Magias básicas'." A página aberta É o título; sem subtítulo. */
+    expect(colunas()).toEqual(['Habilidades Profissionais', 'Técnicas Básicas', 'Magias Básicas']);
+    expect(document.querySelector('.fp-col-title-sub')).toBeNull();
+    const titulosAoAvancar = (i) => {
+      const vistos = [];
+      for (let k = 0; k < 8; k++) {
+        const t = colunas()[i];
+        if (vistos.includes(t)) break;
+        vistos.push(t);
+        fireEvent.click(document.querySelectorAll('.fp-col-title-nav-btn')[i]);
+      }
+      return vistos;
+    };
+    expect(titulosAoAvancar(0)).toEqual(['Habilidades Profissionais', 'Habilidades de Subterfúgio', 'Habilidades de Manobra',
+      'Habilidades de Influência', 'Habilidades de Conhecimento', 'Habilidades Gerais']);
+    expect(titulosAoAvancar(1)).toEqual(['Técnicas Básicas', 'Técnicas Avançadas']);
+    expect(titulosAoAvancar(2)).toEqual(['Magias Básicas', 'Magias Avançadas']);
+  });
+
+  it('Habilidades Aperfeiçoadas junta idiomas, religião, arte e sabedoria', () => {
+    montar({ pj: { ...props().pj, reino: 'Portis', aprimoramentos: { religiao: ['Blator'], arte: ['Música'] } } });
+    const col = colDe('Derivadas');   // a coluna abre na 1ª página, que é o título
+    fireEvent.click(col.querySelector('.fp-col-title-nav-btn'));
+    fireEvent.click(col.querySelector('.fp-col-title-nav-btn'));
+    const txt = col.parentElement.textContent;
+    expect(txt).toContain('Khuzdul');
+    expect(txt).toContain('Nativo');
+    expect(txt).toContain('Blator');
+    expect(txt).toContain('Música');
+  });
+});
+
+/* "No menu 'conhecimento' dentro de ficha, ao clicar em cada habilidade,
+   magia, técnica, será possível abrir o modal com a descrição." (26/09/2026) */
+describe('FichaInfoView — Conhecimento abre o detalhe', () => {
+  it('habilidade, técnica e magia avisam qual foi clicada (clique e Enter)', () => {
+    const abertas = [];
+    montar({
+      parte: 'conhecimento',
+      catalogoHab: [{ key: 'furtividade', nome: 'Furtividade', grupo: 'Profissional' }],
+      catalogoTec: [{ key: 'golpe', nome: 'Golpe Duplo', permissao: 'Guerreiro' }],
+      catalogoMag: [{ key: 'luz', nome: 'Luz', permissao: 'Mago' }],
+      pjTecnicas: { golpe: 1 }, pjMagias: { luz: 1 },
+      onAbrirHabilidade: (k) => abertas.push('hab:' + k),
+      onAbrirTecnica: (k) => abertas.push('tec:' + k),
+      onAbrirMagia: (k) => abertas.push('mag:' + k),
+    });
+    const linha = (nome) => [...document.querySelectorAll('.fp-row--abre')]
+      .find((r) => r.querySelector('.fp-row-label').textContent === nome);
+    fireEvent.click(linha('Furtividade'));
+    fireEvent.click(linha('Golpe Duplo'));
+    fireEvent.keyDown(linha('Luz'), { key: 'Enter' });
+    expect(abertas).toEqual(['hab:furtividade', 'tec:golpe', 'mag:luz']);
+    expect(linha('Luz').getAttribute('role')).toBe('button');
   });
 });

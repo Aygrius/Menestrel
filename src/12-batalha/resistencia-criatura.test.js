@@ -66,9 +66,10 @@ describe('resistenciasBase — fórmula compartilhada com o PJ', () => {
       habilidades: {}, magias: {}, tecnicas: {}, aprimoramentos: {},
       grupos_armas: {}, inventario: { itens: [] }, caracterizacao: {},
       estado_atual: {
+        // Barras zeradas: desde 27/09/2026 a Fome tira RF e a Sede, RM.
         condicoes: {
-          animo: -25, euforia: 0, nutricao: 25, sanidade: 25,
-          reputacao: 10, hidratacao: 25, vitalidade: 25, termorregulacao: 0,
+          animo: 0, euforia: 0, nutricao: 0, sanidade: 0,
+          reputacao: 0, hidratacao: 0, vitalidade: 0, termorregulacao: 0,
         },
       },
     };

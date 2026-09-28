@@ -41,7 +41,7 @@
       palavra vive no tooltip e no aria-label — o teste cobre os três, porque
       um ícone sem nenhum dos dois é um card ilegível.
    ============================================================ */
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
@@ -216,11 +216,86 @@ const valorDe = (det, titulo, rotulo) => {
   return par[1];
 };
 
-describe('a tabela guarda só o mínimo', () => {
-  it('Nome, Visibilidade, Classe e Estágio — nada mais', async () => {
+/* "Ao clicar no item da tabela, vai abrir um modal ao invés de expandir"
+   (usuário, 26/09/2026). A moldura é a BestDetalheModal, a mesma das tabelas
+   de magias, técnicas, habilidades e itens. */
+describe('o submenu de classe filtra a tabela', () => {
+  it('com filtro Animal, só as criaturas da classe — e o título diz a classe', async () => {
+    stubBanco(); montar({ filtro: 'Místico', titulo: 'Místicos' });
+    await pronta();
+    const nomes = linhas().map((tr) => tr.querySelector('.best-name').textContent.trim());
+    expect(nomes).toEqual(['Águia Real']);
+    expect(document.querySelector('.fp-card-top .ms-title').textContent).toBe('Místicos');
+  });
+});
+
+describe('a ficha abre numa janela', () => {
+  it('fora da tabela, com o nome no título', async () => {
     stubBanco(); montar();
     await pronta();
-    expect(cabecalho()).toEqual(['Nome', 'Visibilidade', 'Classe', 'Estágio']);
+    const det = await abrir('Águia');
+    expect(det.closest('table'), 'a ficha não pode morar dentro da tabela').toBeNull();
+    const janela = det.closest('[role="dialog"]');
+    expect(janela).toBeTruthy();
+    expect(janela.querySelector('.ms-title').textContent).toBe('Águia');
+  });
+
+  it('clicar dentro não fecha; o X fecha', async () => {
+    stubBanco(); montar();
+    await pronta();
+    const det = await abrir('Águia');
+    /* Evento de React atravessa o portal: sem o stopPropagation da janela, o
+       clique chegava ao onClick da linha, que a fechava. */
+    fireEvent.click(det);
+    expect(document.querySelector('.best-detail')).toBeTruthy();
+    // O X é o último botão do cabeçalho — antes dele vêm o olho e o lápis (26/09/2026).
+    fireEvent.click(document.querySelector('.modal-best-detalhe .ms-close[aria-label="Fechar"]'));
+    expect(document.querySelector('.best-detail')).toBeNull();
+  });
+
+  it('Escape fecha', async () => {
+    stubBanco(); montar();
+    await pronta();
+    await abrir('Águia');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(document.querySelector('.best-detail')).toBeNull();
+  });
+});
+
+/* "Arrume o tooltip para não ser uma linha só" (usuário, 26/09/2026). Era
+   white-space: nowrap — a explicação atravessava a tela numa faixa. */
+describe('o tooltip dos rótulos quebra linha', () => {
+  /* Só Técnicas, Habilidades e Magias têm tooltip desde 26/09/2026 ("não
+     precisa de tooltip nos demais itens"); o teste usa uma habilidade. */
+  it('o nome da linha em destaque em cima, a explicação embaixo, com largura máxima', async () => {
+    stubBanco(); montar();
+    await pronta();
+    const det = await abrir('Águia');
+    const rot = [...secao(det, 'Habilidades').querySelectorAll('.best-stat-lbl')].find((l) => l.textContent === 'Sentidos');
+    fireEvent.mouseEnter(rot);
+    const tip = await vi.waitFor(() => {
+      const t = document.querySelector('[role="tooltip"]');
+      expect(t).toBeTruthy();
+      return t;
+    });
+    expect(tip.style.whiteSpace).toBe('normal');
+    expect(tip.style.maxWidth).toBe('280px');
+    const [nome, explicacao] = [...tip.children].filter((c) => c.textContent);
+    expect(nome.textContent).toBe('Sentidos');
+    expect(explicacao.textContent).toBe('Perceber o que escapa aos outros.');
+  });
+});
+
+describe('a tabela guarda só o mínimo', () => {
+  // Subtipo, Elemento e Plano voltaram em 25/09/2026 (pedido do usuário).
+  // Visibilidade saiu em 25/09/2026 ("Remova a coluna visibilidade"); o olho fica.
+  /* SÓ O NOME desde 26/09/2026: "em todas as tabelas de itens, magias, etc,
+     remova as colunas e deixe apenas o nome e o botão de editar". Classe virou
+     o submenu; subtipo, elemento, plano e estágio foram para a janela. */
+  it('só a coluna Nome — e os botões', async () => {
+    stubBanco(); montar();
+    await pronta();
+    expect(cabecalho()).toEqual(['Nome']);
   });
 
   it('as colunas de números saíram', async () => {
@@ -234,28 +309,21 @@ describe('a tabela guarda só o mínimo', () => {
     });
   });
 
-  it('e os dois botões continuam na linha', async () => {
+  /* Os dois botões saíram da linha em 26/09/2026 e foram para o cabeçalho da
+     janela, ao lado do X (ver criatura-permissao-olho.test.jsx). */
+  it('a linha não tem mais botões', async () => {
     stubBanco(); montar();
     await pronta();
     const tr = linhaDe('Águia');
-    expect(tr.querySelector('.ti-eye'), 'botão de ver').toBeTruthy();
-    expect(tr.querySelector('.ti-pencil'), 'botão de editar').toBeTruthy();
+    // Botões, não ícones: o olho de VISIBILIDADE ao lado do nome é um ícone só.
+    expect(tr.querySelector('button .ti-eye'), 'botão de ver').toBeNull();
+    expect(tr.querySelector('button .ti-pencil'), 'botão de editar').toBeNull();
   });
 
-  it('a Visibilidade mostra o chip, igual às tabelas de NPCs e Lugares', async () => {
-    stubBanco(); montar();
-    await pronta();
-    // criatura_ids tem a 15 (Águia) e nenhuma lista por PJ → todos.
-    expect(linhaDe('Águia').querySelector('.diario-vis-chip--todos')).toBeTruthy();
-    expect(linhaDe('Águia Real').querySelector('.diario-vis-chip--ninguem')).toBeTruthy();
-  });
-
-  /* Sem mesa não há "visibilidade nesta história" para mostrar — a coluna
-     aparece sob a mesma condição do olho. */
   it('sem mesa selecionada, a coluna Visibilidade não existe', async () => {
     stubBanco(); montar({ historiaId: null });
     await pronta();
-    expect(cabecalho()).toEqual(['Nome', 'Classe', 'Estágio']);
+    expect(cabecalho()).toEqual(['Nome']);
   });
 });
 
@@ -265,22 +333,64 @@ describe('as oito seções, na ordem que o usuário ditou', () => {
     await pronta();
     const det = await abrir('Águia');
     /* A Águia não tem magia, e o equipamento dela é só arma — as duas seções
-       não aparecem. Sobram seis, na mesma ordem. */
+       não aparecem. Sobram seis, na ordem de 25/09/2026 — depois da
+       Descrição, que ganhou título em 26/09/2026. */
     expect([...det.querySelectorAll('.best-secao-titulo')].map((t) => t.textContent.trim()))
       .toEqual([
-        'Atributos', 'Informações', 'Características',
-        'Habilidades', 'Técnicas de Combate', 'Ataques',
+        'Descrição',
+        'Características', 'Atributos', 'Informações',
+        'Técnicas de Combate', 'Habilidades', 'Ataques',
       ]);
+  });
+
+  /* "Eu quero três colunas: Características - Atributos - Informações. O
+     restante das informações não precisa ser card, quero que seja listas com
+     quatro colunas: Técnicas de Combate - Habilidades - Ataques - Magias."
+     (usuário, 25/09/2026). Equipamentos: lista de largura cheia, embaixo. */
+  /* Sem mini-cards desde 26/09/2026 ("remova o minicard dentro de criaturas
+     e transforme em listas"): o topo mantém as três colunas, mas cada uma é
+     lista nome · valor, igual às de baixo. */
+  it('topo com três seções em lista; embaixo, listas', async () => {
+    stubBanco(); montar();
+    await pronta();
+    const det = await abrir('Águia Real');
+    const titulos = (sel) => [...det.querySelectorAll(sel + ' .best-secao-titulo')].map((t) => t.textContent.trim());
+    expect(titulos('.best-ficha-topo')).toEqual(['Características', 'Atributos', 'Informações']);
+    const doTopo = [...det.querySelectorAll('.best-ficha-topo .best-stat')];
+    expect(doTopo.length).toBeGreaterThan(0);
+    doTopo.forEach((li) => {
+      expect(li.tagName).toBe('LI');
+      expect(li.classList.contains('best-stat--linha')).toBe(true);
+    });
+    expect(det.querySelector('.best-ficha-topo .best-detail-stats'), 'sobrou mini-card no topo').toBeNull();
+    // A Águia Real tem magia e não tem ataque: a coluna Ataques some.
+    expect(titulos('.best-ficha-listas')).toEqual(['Técnicas de Combate', 'Habilidades', 'Magias']
+      .filter((t) => secao(det, t)));
+    det.querySelectorAll('.best-ficha-listas .best-stat').forEach((li) => {
+      expect(li.tagName).toBe('LI');
+      expect(li.classList.contains('best-stat--linha')).toBe(true);
+    });
+  });
+
+  it('Equipamentos vira lista de largura cheia, depois das quatro colunas', async () => {
+    stubBanco(); montar();
+    await pronta();
+    const det = await abrir('Couraçado');
+    const eq = secao(det, 'Equipamentos');
+    expect(eq, 'seção Equipamentos').toBeTruthy();
+    expect(eq.closest('.best-ficha-extra')).toBeTruthy();
+    expect(eq.querySelector('ul.best-lista li.best-stat--linha')).toBeTruthy();
   });
 
   it('a descrição vem antes das seções', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
-    const desc = det.querySelector('.best-desc');
-    expect(desc.textContent).toMatch(/ave de rapina/);
-    expect(desc.compareDocumentPosition(det.querySelector('.best-secao'))
-      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // A descrição é a PRIMEIRA seção, com o título "Descrição" (26/09/2026).
+    const primeira = det.querySelector('.best-secao');
+    expect(primeira.classList.contains('best-secao--descricao')).toBe(true);
+    expect(primeira.querySelector('.best-secao-titulo').textContent).toBe('Descrição');
+    expect(primeira.querySelector('.best-desc').textContent).toMatch(/ave de rapina/);
   });
 });
 
@@ -293,96 +403,118 @@ describe('as oito seções, na ordem que o usuário ditou', () => {
    segue com as palavras (Estágio, Elemento, Montaria), e Habilidades/Técnicas/
    Magias/Ataques têm nomes próprios no rótulo. A correção foi dirigida a duas
    seções, não à ficha toda. */
-describe('Atributos e Informações usam sigla', () => {
-  it('Atributos: as sete siglas, em CAIXA ALTA', async () => {
+/* POR EXTENSO (26/09/2026): "INT o nome por extenso 'Intelecto'. EH =
+   Energia Heroica." De 17/09 até aqui o rótulo era a sigla, com o nome no
+   tooltip; agora o rótulo é o nome e o tooltip fica só com a explicação. */
+describe('Atributos e Informações por extenso', () => {
+  it('Atributos: os sete nomes inteiros', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
     expect(cardsDe(det, 'Atributos')).toEqual([
-      ['INT', 'i'], ['AUR', '0'], ['CAR', '1'], ['FOR', '0'],
-      ['FIS', '0'], ['AGI', '2'], ['PER', '4'],
+      ['Intelecto', 'i'], ['Aura', '0'], ['Carisma', '1'], ['Força', '0'],
+      ['Físico', '0'], ['Agilidade', '2'], ['Percepção', '4'],
     ]);
   });
 
-  it('e o tooltip abre a sigla, começando pelo nome inteiro', async () => {
+  it('sem tooltip (26/09/2026: só Técnicas, Habilidades e Magias têm)', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
-    // O nome vem PRIMEIRO: é o que se quer ao parar o mouse num "INT".
-    expect(tipDe(det, 'Atributos', 'INT')).toMatch(/^Intelecto/);
-    expect(tipDe(det, 'Informações', 'EF')).toMatch(/^Energia Física/);
-    // E a explicação continua ali, atrás do nome.
-    expect(tipDe(det, 'Atributos', 'INT')).toMatch(/Racioc[íi]nio/);
+    expect(cardDe(det, 'Atributos', 'Intelecto').querySelector('[data-tip]')).toBeNull();
+    expect(cardDe(det, 'Informações', 'Energia Heroica').querySelector('[data-tip]')).toBeNull();
   });
 
-  /* As seções de nome próprio não ganharam sigla nenhuma. */
-  it('Características segue com as palavras', async () => {
+  it('nenhuma sigla sobrou como rótulo', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
-    const rotulos = cardsDe(det, 'Características').map(([l]) => l);
-    expect(rotulos).toContain('Estágio');
-    expect(rotulos).toContain('Elemento');
-    expect(rotulos).toContain('Montaria');
+    const rotulos = [...cardsDe(det, 'Atributos'), ...cardsDe(det, 'Informações')].map(([l]) => l);
+    for (const sigla of ['INT', 'AUR', 'CAR', 'FOR', 'FIS', 'AGI', 'PER', 'EF', 'EH', 'RF', 'RM', 'AR', 'AB', 'DF', 'VB']) {
+      expect(rotulos).not.toContain(sigla);
+    }
   });
 });
 
 describe('Informações', () => {
-  it('as oito, com as resistências calculadas', async () => {
+  it('as sete, com as resistências calculadas — Defesa mora dentro de Armadura', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
     expect(cardsDe(det, 'Informações').map(([l]) => l)).toEqual([
-      'EF', 'EH', 'RF', 'RM', 'AR', 'AB', 'DF', 'VB',
+      // Estágio abre Informações desde 26/09/2026 ("fica junto com informações").
+      'Estágio', 'Energia Física', 'Energia Heroica', 'Resistência Física', 'Resistência Mágica',
+      'Armadura', 'Absorção', 'Velocidade',
     ]);
     // RF = estágio + físico = 1 + 0; RM = estágio + aura = 1 + 0.
-    expect(valorDe(det, 'Informações', 'RF'))
+    expect(valorDe(det, 'Informações', 'Resistência Física'))
       .toBe(String(window.CriaturaFormulas.resistenciaFisica(AGUIA)));
-    expect(valorDe(det, 'Informações', 'RM'))
+    expect(valorDe(det, 'Informações', 'Resistência Mágica'))
       .toBe(String(window.CriaturaFormulas.resistenciaMagica(AGUIA)));
   });
 
-  /* "Leve = L" (17/09/2026): o valor é a sigla que o banco guarda. Mostrava a
-     palavra, com o mapa do editor de catálogo — o usuário preferiu a sigla, e
-     aí decodificá-la virou trabalho do tooltip. */
-  it('a armadura mostra a sigla "L", e o tooltip decodifica', async () => {
+  /* "A Armadura é L2, (Armadura + Defesa)" (usuário, 26/09/2026). */
+  it('a armadura é a sigla colada à defesa: "L2"', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
-    expect(valorDe(det, 'Informações', 'AR')).toBe('L');
-    const tip = tipDe(det, 'Informações', 'AR');
-    expect(tip).toMatch(/^Armadura/);
-    expect(tip, 'o tooltip tem que dizer o que L significa').toMatch(/L leve/i);
+    expect(valorDe(det, 'Informações', 'Armadura')).toBe('L2');
+    // Sem tooltip desde 26/09/2026.
+    expect(cardDe(det, 'Informações', 'Armadura').querySelector('[data-tip]')).toBeNull();
+  });
+
+  it('defesa negativa fica "L-1"; armadura vazia conta como L', async () => {
+    stubBanco({ criaturas: [{ ...AGUIA, armadura: null, defesa: -1 }] });
+    montar();
+    await pronta();
+    const det = await abrir('Águia');
+    expect(valorDe(det, 'Informações', 'Armadura')).toBe('L-1');
   });
 });
 
 describe('Características', () => {
+  /* 26/09/2026: "4kg" ao invés de "4", altura "0,80m", Classe, Elemento,
+     Grupo e Montaria por extenso. Grupo continua sem o prefixo "Grupo "
+     (17/09/2026: "Grupo Pequeno = Pequeno"). */
   it('Estágio, Peso, Altura, Classe, Elemento, Grupo e Montaria', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
-    /* "Grupo Pequeno = Pequeno" (17/09/2026): o rótulo do card já diz Grupo,
-       e o prefixo no valor gastava metade da caixa repetindo a palavra. */
-    /* Classe e Elemento entram com valor VAZIO no texto: o valor deles é um
-       ícone (ver o describe de ícones abaixo). A ordem e os outros cinco é o
-       que este teste guarda. */
     expect(cardsDe(det, 'Características')).toEqual([
-      ['Estágio', '1'], ['Peso', '4'], ['Altura', '0,80'],
-      ['Classe', ''], ['Elemento', ''], ['Grupo', 'Pequeno'],
-      ['Montaria', 'Não'],
+      // Estágio foi para Informações em 26/09/2026.
+      ['Peso', '4kg'], ['Altura', '0,80m'],
+      // Subtipo e Plano vieram da tabela (26/09/2026). A Águia não tem subtipo.
+      ['Classe', 'Animal'], ['Subtipo', '—'], ['Elemento', 'Ar'], ['Plano', 'Material'],
+      ['Grupo', 'Pequeno'], ['Montaria', 'Não'],
     ]);
   });
 
-  it('"Solitário" não tem prefixo e passa intacto', async () => {
+  it('"Solitário" passa intacto', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia Real');
     expect(valorDe(det, 'Características', 'Grupo')).toBe('Solitário');
   });
 
+  it('montaria que pode ser montada diz Sim', async () => {
+    stubBanco({ criaturas: [{ ...AGUIA, montaria: true }] });
+    montar();
+    await pronta();
+    const det = await abrir('Águia');
+    expect(valorDe(det, 'Características', 'Montaria')).toBe('Sim');
+  });
+
+  it('peso fracionado usa vírgula: 0,5kg', async () => {
+    stubBanco({ criaturas: [{ ...AGUIA, peso: 0.5 }] });
+    montar();
+    await pronta();
+    const det = await abrir('Águia');
+    expect(valorDe(det, 'Características', 'Peso')).toBe('0,5kg');
+  });
+
   /* A coluna `altura` nasceu vazia nas ~200 criaturas do catálogo
      (scripts/sql/criaturas-altura-2026-09-17.sql). "—" distingue "não
-     preenchida" de "mede zero". */
+     preenchida" de "mede zero" — e sem unidade: "—m" não diz nada. */
   it('altura não preenchida vira travessão, não 0', async () => {
     stubBanco(); montar();
     await pronta();
@@ -527,91 +659,44 @@ describe('seção sem nada não aparece', () => {
   });
 });
 
-/* ── Classe e Elemento como ÍCONE ──────────────────────────────────────────
-   "Para a classe, use o ícone, para o elemento, use os ícones: fogo =
-   ti-flame, ar = ti-tornado, água = ti-droplet, terra = ti-frustum"
-   (usuário, 17/09/2026). */
-describe('Classe e Elemento são ícone', () => {
-  it('a classe reusa o ícone do token do tabuleiro', async () => {
-    stubBanco(); montar();
-    await pronta();
-    const det = await abrir('Águia');
-    // Animal → ti-horse, o MESMO mapa de ICONE_TIPO_CRIATURA.
-    expect(iconeDe(det, 'Características', 'Classe'))
-      .toBe('ti ' + window.iconeTipoCriatura('Animal'));
-  });
-
-  it('o elemento usa os quatro ícones ditados', async () => {
-    const casos = [['Fogo', 'ti-flame'], ['Ar', 'ti-tornado'], ['Água', 'ti-droplet'], ['Terra', 'ti-frustum']];
-    for (const [elemento, icone] of casos) {
-      stubBanco({ criaturas: [{ ...AGUIA, elemento }] });
-      montar();
-      await pronta();
-      const det = await abrir('Águia');
-      expect(iconeDe(det, 'Características', 'Elemento'), elemento).toBe('ti ' + icone);
-      cleanup();
-    }
-  });
-
-  /* A comparação é sem acento: "agua" e "Água" aparecem escritas das duas
-     formas em catálogo de jogo. */
-  it('acento não atrapalha', async () => {
-    stubBanco({ criaturas: [{ ...AGUIA, elemento: 'agua' }] });
-    montar();
-    await pronta();
-    const det = await abrir('Águia');
-    expect(iconeDe(det, 'Características', 'Elemento')).toBe('ti ti-droplet');
-  });
-
-  /* A coluna `elemento` é lista fechada no editor, mas aceita valor fora da
-     lista (como qualquer campo de opções). Quem não casa com um dos quatro
-     cai na PALAVRA — inventar um ícone seria pior que mostrar o texto.
-     Até 18/09/2026 este card lia `subtipo`, que guarda ESPÉCIE ("Cavalo",
-     "Goblin") — e por isso mostrava espécie sob o rótulo Elemento. */
-  it('valor que não é elemento cai na palavra', async () => {
-    stubBanco({ criaturas: [{ ...AGUIA, elemento: 'Etéreo' }] });
-    montar();
-    await pronta();
-    const det = await abrir('Águia');
-    expect(iconeDe(det, 'Características', 'Elemento')).toBeNull();
-    expect(valorDe(det, 'Características', 'Elemento')).toBe('Etéreo');
-  });
-
-  it('classe sem ícone mapeado também cai na palavra', async () => {
-    // Gigante e Monstro existem no editor e ninguém usa — não têm ícone.
-    stubBanco({ criaturas: [{ ...AGUIA, tipo: 'Gigante' }] });
+/* ── Classe e Elemento por extenso ───────────────────────────────────────
+   De 17/09/2026 até 26/09/2026 eram ícones ("para a classe, use o ícone, para
+   o elemento, use os ícones"). Voltaram à palavra: "Classe o nome por
+   extenso. Elemento o nome por extenso." */
+describe('Classe e Elemento por extenso', () => {
+  it('sem glifo no valor: a palavra que o banco guarda', async () => {
+    stubBanco({ criaturas: [{ ...AGUIA, elemento: 'Fogo, Luz' }] });
     montar();
     await pronta();
     const det = await abrir('Águia');
     expect(iconeDe(det, 'Características', 'Classe')).toBeNull();
-    expect(valorDe(det, 'Características', 'Classe')).toBe('Gigante');
-  });
-
-  /* Um glifo sem nome é um card ilegível: a palavra tem que estar no tooltip
-     (para quem vê) E no aria-label (para quem não vê). */
-  it('o ícone carrega a palavra no tooltip e no aria-label', async () => {
-    stubBanco(); montar();
-    await pronta();
-    const det = await abrir('Águia');
-    expect(tipDe(det, 'Características', 'Classe')).toMatch(/^Animal/);
-    expect(nomeAcessivelDe(det, 'Características', 'Classe')).toBe('Animal');
-    expect(tipDe(det, 'Características', 'Elemento')).toMatch(/^Ar/);
-    expect(nomeAcessivelDe(det, 'Características', 'Elemento')).toBe('Ar');
+    expect(iconeDe(det, 'Características', 'Elemento')).toBeNull();
+    expect(valorDe(det, 'Características', 'Classe')).toBe('Animal');
+    expect(valorDe(det, 'Características', 'Elemento')).toBe('Fogo, Luz');
   });
 });
 
-describe('todo card tem tooltip', () => {
-  /* Tooltip do projeto, nunca o `title` nativo — a regra vale desde
-     tooltip-padrao.test.js. Aqui o que se exige é que TODO card tenha por onde
-     abrir um: um card sem explicação é um número sem legenda. */
-  it('nenhum card fica sem onMouseEnter', async () => {
+/* "Não precisa de tooltip nos demais itens" (usuário, 26/09/2026): só as
+   linhas de Técnicas, Habilidades e Magias explicam o que são. */
+describe('tooltip só em Técnicas, Habilidades e Magias', () => {
+  it('as outras seções não têm', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
-    const cards = [...det.querySelectorAll('.best-stat')];
-    expect(cards.length).toBeGreaterThan(20);
-    const semTip = cards.filter((c) => !c.querySelector('[data-tip]'));
-    expect(semTip.map((c) => c.textContent), 'cards sem tooltip').toEqual([]);
+    for (const t of ['Características', 'Atributos', 'Informações', 'Ataques']) {
+      expect(secao(det, t).querySelectorAll('[data-tip]'), t).toHaveLength(0);
+    }
+  });
+
+  it('Técnicas e Habilidades têm, em toda linha', async () => {
+    stubBanco(); montar();
+    await pronta();
+    const det = await abrir('Águia');
+    for (const t of ['Técnicas de Combate', 'Habilidades']) {
+      const linhas = [...secao(det, t).querySelectorAll('.best-stat')];
+      expect(linhas.length, t).toBeGreaterThan(0);
+      expect(linhas.filter((c) => !c.querySelector('[data-tip]')), t).toEqual([]);
+    }
   });
 
   it('e nenhum usa o title nativo', async () => {
@@ -629,5 +714,51 @@ describe('todo card tem tooltip', () => {
       .find((c) => c.textContent.includes('Sentidos'));
     expect(card.querySelector('[data-tip]').getAttribute('data-tip'))
       .toMatch(/Perceber o que escapa/);
+  });
+});
+
+/* Patente pelo estágio ao lado do nome (25/09/2026). */
+/* A patente (C, B, A, S… pelo estágio) saiu em 26/09/2026: "pode remover
+   aqueles ícones de C,A,B,S das criaturas". No lugar, o ícone de quem pode ver
+   (criatura-permissao-olho.test.jsx). */
+describe('a tabela não mostra mais a patente', () => {
+  it('nenhum hexágono de estágio no nome', async () => {
+    stubBanco(); montar();
+    await pronta();
+    expect(linhaDe('Águia').querySelector('.best-patente, [class*="ti-hexagon"]')).toBeNull();
+  });
+});
+
+/* "A barra de busca de criaturas filtra por nome, classe, subtipo, elemento,
+   montaria e plano." (usuário, 26/09/2026) — sem acento e sem caixa. */
+describe('a busca de criaturas olha além do nome', () => {
+  const buscar = (txt) => fireEvent.change(document.querySelector('.fp-card-top input[type="search"]'), { target: { value: txt } });
+  const nomes = () => linhas().map((tr) => tr.querySelector('.best-name').textContent.trim()).sort();
+
+  it('pela classe, sem acento', async () => {
+    stubBanco(); montar();
+    await pronta();
+    buscar('mistico');
+    expect(nomes()).toEqual(['Águia Real']);
+  });
+
+  it('pelo elemento e pelo plano', async () => {
+    stubBanco({ criaturas: [{ ...AGUIA, elemento: 'Ar' }, { ...AGUIA_REAL, elemento: 'Fogo', plano: 'Elemental' }] });
+    montar();
+    await pronta();
+    buscar('fogo');
+    expect(nomes()).toEqual(['Águia Real']);
+    buscar('elemental');
+    expect(nomes()).toEqual(['Águia Real']);
+  });
+
+  it('pelo subtipo, e "montaria" acha as que podem ser montadas', async () => {
+    stubBanco({ criaturas: [{ ...AGUIA, subtipo: 'Ave' }, { ...AGUIA_REAL, montaria: true }] });
+    montar();
+    await pronta();
+    buscar('ave');
+    expect(nomes()).toEqual(['Águia']);
+    buscar('montaria');
+    expect(nomes()).toEqual(['Águia Real']);
   });
 });

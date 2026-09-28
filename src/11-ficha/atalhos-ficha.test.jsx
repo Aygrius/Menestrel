@@ -73,8 +73,10 @@ describe('a lista', () => {
     fireEvent.click(fab(c, 'habilidade'));
     const nomes = [...c.querySelectorAll('.at-linha-nome')].map((n) => n.textContent);
     expect(nomes).toEqual(['Alfabetização', 'Furtividade']);
-    expect(c.querySelector('.at-linha-meta-lbl').textContent).toBe('Total');
+    // Só o número desde 26/09/2026; o nome fica no aria-label.
+    expect(c.querySelector('.at-linha-meta-lbl')).toBeNull();
     expect(c.querySelector('.at-linha-meta-val').textContent).toBe('3');
+    expect(c.querySelector('.at-linha-meta').getAttribute('aria-label')).toBe('Total: 3');
   });
 
   it('não mostra o grupo embaixo do nome (pedido do usuário, 12/09/2026)', () => {
@@ -96,14 +98,15 @@ describe('a lista', () => {
     expect(c.querySelector('.at-vazio').textContent).toMatch(/Nenhuma habilidade/);
   });
 
-  it('magia mostra o nível; item mostra a quantidade — com o nome escrito', () => {
+  /* 26/09/2026: "'QUANTIDADE 30' vira 'x30'. Em magia fica '9'. Em
+     habilidade fica '-10'." E o título "Itens 2" do painel saiu. */
+  it('magia mostra só o nível; item mostra xN; sem título no painel', () => {
     const c = montar();
     fireEvent.click(fab(c, 'magia'));
-    expect(c.querySelector('.at-linha-meta-lbl').textContent).toBe('Nível');
     expect(c.querySelector('.at-linha-meta-val').textContent).toBe('3');
+    expect(c.querySelector('.at-panel-head')).toBeNull();
     fireEvent.click(fab(c, 'item'));
-    expect(c.querySelector('.at-linha-meta-lbl').textContent).toBe('Quantidade');
-    expect(c.querySelector('.at-linha-meta-val').textContent).toBe('2');
+    expect(c.querySelector('.at-linha-meta-val').textContent).toBe('x2');
   });
 
   it('Esc fecha', () => {
@@ -154,7 +157,8 @@ describe('a ficha liga os atalhos às janelas que já existiam', () => {
   });
 
   it('só o dono, e só fora das abas que têm cópia própria do inventário', () => {
-    expect(fonte).toMatch(/mostrarAtalhos = [^;]*podeEditarFoto && \(fpTab === 'ficha' \|\| fpTab === 'info'\)/);
+    // 'info' (Personagem) e 'conhecimento' dividiram Informações em 26/09/2026.
+    expect(fonte).toMatch(/mostrarAtalhos = [^;]*podeEditarFoto && \(fpTab === 'ficha' \|\| fpTab === 'info' \|\| fpTab === 'conhecimento'\)/);
   });
 
   it('o main carrega os atalhos antes da ficha', () => {

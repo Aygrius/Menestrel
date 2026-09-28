@@ -43,6 +43,9 @@ let chavesExistentesFixture = [];
 let itensAnimaisFixture = [];
 let escritas = [];
 let erroItens = null;
+// Excluir item (26/09/2026): quantos personagens o carregam, e o que foi perguntado.
+let usoFixture = 0;
+let ultimoContains = null;
 
 beforeAll(async () => {
   // Dublê do supabaseClient ANTES de carregar o editor.
@@ -90,6 +93,11 @@ beforeAll(async () => {
           // Pré-checagem de colisão da chave automática: o editor pergunta
           // quais chaves já começam com a base antes de inserir.
           like: async () => ({ data: chavesExistentesFixture, error: null }),
+          // Contagem de uso do item antes de excluir: `inventario @> {itens:[{slug}]}`.
+          contains: (col, val) => {
+            ultimoContains = { tabela, col, val };
+            return { then: (ok, falha) => Promise.resolve({ count: usoFixture, error: null }).then(ok, falha) };
+          },
         };
         return builder;
       },
@@ -105,6 +113,7 @@ afterEach(() => {
   ultimoDelete = null; linhasApagadas = 1;
   itensArmasFixture = []; chavesExistentesFixture = [];
   itensAnimaisFixture = []; escritas = []; erroItens = null;
+  usoFixture = 0; ultimoContains = null;
   listasFixture = { tecnicas: [], habilidades: [], magias: [] };
 });
 
@@ -114,6 +123,17 @@ const montar = (props = {}) => render(
       onSalvo={() => {}} onCancel={() => {}} {...props} />
   </div>
 );
+/* Campo de múltipla escolha = SelectPillMulti (26/09/2026, "mantenha o
+   dropdown menu para selecionar mais de uma opção"). Abre a lista pelo botão
+   e lê/clica as opções, que moram em portal. */
+const abrirMulti = (col) => {
+  const btn = document.querySelector('[data-multi="' + col + '"] .select-pill-btn');
+  if (btn.getAttribute('data-open') !== 'true') fireEvent.click(btn);
+};
+const opcoesMulti = (col) => { abrirMulti(col); return [...document.querySelectorAll('.select-pill-drop li')]; };
+const nomesMulti = (col) => opcoesMulti(col).map((li) => li.textContent.trim());
+const marcadosMulti = (col) => opcoesMulti(col).filter((li) => li.getAttribute('aria-selected') === 'true').map((li) => li.textContent.trim());
+const clicarMulti = (col, nome) => fireEvent.click(opcoesMulti(col).find((li) => li.textContent.trim() === nome));
 const campoPorRotulo = (re) => Array.from(document.querySelectorAll('label, .motor-field'))
   .find((el) => re.test(el.textContent || ''));
 
@@ -125,7 +145,8 @@ describe('montagem a partir do descritor', () => {
     // que desde 11/09/2026 é derivado do nome e não é mais renderizado.
     const visiveis = d.campos.filter((c) => !c.autoDeNome);
     expect(visiveis.length, 'o descritor precisa ter 1 campo automático').toBe(d.campos.length - 1);
-    const controles = document.querySelectorAll('input, textarea, .select-pill-btn');
+    // .catalogo-multi: grupo de botões (grupos de armas, 26/09/2026) — um controle.
+    const controles = document.querySelectorAll('input, textarea, .select-pill-btn, .catalogo-multi');
     expect(controles.length).toBeGreaterThanOrEqual(visiveis.length);
   });
 
@@ -223,10 +244,42 @@ const PEITORAL = { slug: 'peitoral_de_aco', nome: 'Peitoral de Aço', grupo: 'Ar
 const CALCA = { slug: 'calca_de_couro', nome: 'Calça de Couro', grupo: 'Armaduras', slot_equip: 'pernas', absorcao: 2, defesa: 1, tipo_armadura: 'L' };
 const PECAS = [ESPADA_LONGA, ARCO, PEITORAL, CALCA];
 
-const digitar = (col, v) => fireEvent.change(document.querySelector(`input[name="${col}"]`), { target: { value: v } });
-const blocoEquip = () => document.querySelector('[data-lista="equipamento"]');
+/* DROPDOWNS desde 26/09/2026 (eram botões): atributos são dropdown de uma
+   escolha (data-escala); Classe, Plano e Grupo, dropdown de várias
+   (data-multi). "Digitar" num deles é escolher a opção na lista. */
+const escolherNaLista = (bloco, v, col) => {
+  const btn = bloco.querySelector('.select-pill-btn');
+  if (btn.getAttribute('data-open') !== 'true') fireEvent.click(btn);
+  const li = Array.from(document.querySelectorAll('.select-pill-drop li')).find((x) => x.textContent.trim() === String(v));
+  if (!li) throw new Error(`sem opção "${v}" em ${col}`);
+  fireEvent.click(li);
+};
+const digitar = (col, v) => {
+  const escala = document.querySelector(`[data-escala="${col}"]`);
+  if (escala) { escolherNaLista(escala, v, col); return; }
+  const multi = document.querySelector(`[data-multi="${col}"]`);
+  if (multi) {
+    // Só marca se ainda não estiver marcado — "digitar" é deixar o valor lá.
+    const btn = multi.querySelector('.select-pill-btn');
+    if (btn.getAttribute('data-open') !== 'true') fireEvent.click(btn);
+    const li = Array.from(document.querySelectorAll('.select-pill-drop li')).find((x) => x.textContent.trim() === String(v));
+    if (!li) throw new Error(`sem opção "${v}" em ${col}`);
+    if (li.getAttribute('aria-selected') !== 'true') fireEvent.click(li);
+    fireEvent.click(btn);
+    return;
+  }
+  fireEvent.change(document.querySelector(`input[name="${col}"]`), { target: { value: v } });
+};
+/* Dois campos desde 25/09/2026: "Ataque" (armas) e "Equipamento" (peças e
+   mochila), na mesma coluna. O padrão é o bloco de Ataque; buscarEquip escolhe
+   pelo grupo do item na fixture. */
+const blocoEquip = (parte = 'ataque') => document.querySelector(`[data-lista="equipamento-${parte}"]`);
+const parteDoItem = (nome) => {
+  const it = (itensArmasFixture || []).find((x) => x.nome === nome);
+  return it && it.grupo === 'Armas' ? 'ataque' : 'itens';
+};
 const buscarEquip = async (nome) => {
-  fireEvent.change(blocoEquip().querySelector('input'), { target: { value: nome } });
+  fireEvent.change(blocoEquip(parteDoItem(nome)).querySelector('input'), { target: { value: nome } });
   return vi.waitFor(() => {
     const achou = Array.from(document.querySelectorAll('.catalogo-lista-drop li'))
       .find((x) => x.firstChild && x.firstChild.textContent === nome);
@@ -304,8 +357,9 @@ describe('equipamento (criaturas)', () => {
     montar({ tabela: 'criaturas', linha: null });
     await equipar('Espada Longa');
     await equipar('Peitoral de Aço');
-    const chips = [...blocoEquip().querySelectorAll('.catalogo-lista-chip')];
-    expect(chips.map((c) => c.textContent)).toEqual(['Espada Longa', 'Peitoral de Aço']);
+    // Equipamento vem antes de Ataque na tela (o Ataque fica "abaixo de equipamento").
+    const chips = [...document.querySelectorAll('[data-lista^="equipamento-"] .catalogo-lista-chip')];
+    expect(chips.map((c) => c.textContent)).toEqual(['Peitoral de Aço', 'Espada Longa']);
     expect(blocoEquip().querySelector('.catalogo-equip-slot')).toBeNull();
     const li = await buscarEquip('Arco');
     expect(li.textContent).toBe('Arco');
@@ -388,12 +442,8 @@ describe('equipamento (criaturas)', () => {
    banco" (usuário, 15/09/2026) — decisão: unificar de verdade. Salvar a
    criatura cuida do item Animal. */
 describe('criatura e item Animal — a mesma entrada', () => {
-  const escolherTipo = (tipo) => {
-    const w = Array.from(document.querySelectorAll('.motor-field'))
-      .find((x) => (x.querySelector('span')?.textContent || '') === 'Tipo');
-    fireEvent.click(w.querySelector('.select-pill-btn'));
-    fireEvent.click(Array.from(document.querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === tipo));
-  };
+  // Tipo em botões desde 25/09/2026.
+  const escolherTipo = (tipo) => digitar('tipo', tipo);
   const deItens = (op) => escritas.filter((e) => e.tabela === 'itens' && e.op === op);
 
   it('criar um Animal cria o item, ligado pela criatura_id', async () => {
@@ -462,17 +512,24 @@ describe('criatura e item Animal — a mesma entrada', () => {
 
 /* "No rodapé adicionar um botão para excluir." (usuário, 14/09/2026) */
 describe('excluir (criaturas)', () => {
-  const botaoExcluir = () => screen.queryAllByRole('button').find((b) => /Excluir|Confirmar exclusão/.test(b.textContent));
+  const botaoExcluir = () => screen.queryAllByRole('button').find((b) => /Excluir|Confirmar exclusão/.test(b.getAttribute('aria-label') || ''));
 
   it('só aparece editando uma criatura, no rodapé', () => {
     montar({ tabela: 'criaturas', linha: null, onExcluido: () => {} });
     expect(botaoExcluir()).toBeUndefined();
     cleanup();
-    montar({ tabela: 'tecnicas', linha: { key: 'mira', nome: 'Mira', custo: 1 }, onExcluido: () => {} });
+    // Sem onExcluido quem chama não sabe o que fazer depois: não há lixeira.
+    montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Lobo' } });
     expect(botaoExcluir()).toBeUndefined();
     cleanup();
+    // Técnicas, magias e habilidades também excluem desde 26/09/2026.
+    montar({ tabela: 'tecnicas', linha: { key: 'mira', nome: 'Mira', custo: 1 }, onExcluido: () => {} });
+    expect(botaoExcluir().closest('.ms-header')).toBeTruthy();
+    cleanup();
     montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Lobo' }, onExcluido: () => {} });
-    expect(botaoExcluir().closest('.ms-footer')).toBeTruthy();
+    // Ícone ao lado do X desde 26/09/2026, não mais no rodapé.
+    expect(botaoExcluir().closest('.ms-header')).toBeTruthy();
+    expect(botaoExcluir().closest('.ms-footer')).toBeNull();
   });
 
   it('dois cliques: o primeiro arma, o segundo apaga e avisa', async () => {
@@ -480,7 +537,9 @@ describe('excluir (criaturas)', () => {
     montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Lobo' }, onExcluido });
     fireEvent.click(botaoExcluir());
     expect(ultimoDelete).toBeNull();
-    expect(botaoExcluir().textContent).toMatch(/Confirmar exclusão/);
+    expect(botaoExcluir().getAttribute('aria-label')).toMatch(/Confirmar exclusão/);
+    expect(botaoExcluir().classList.contains('is-armado')).toBe(true);
+    expect(document.querySelector('.catalogo-aviso-uso').textContent).toMatch(/Clique de novo na lixeira/);
     fireEvent.click(botaoExcluir());
     await vi.waitFor(() => expect(onExcluido).toHaveBeenCalledTimes(1));
     expect(ultimoDelete).toEqual({ tabela: 'criaturas', col: 'id', val: 3 });
@@ -494,6 +553,101 @@ describe('excluir (criaturas)', () => {
     fireEvent.click(botaoExcluir());
     await vi.waitFor(() => expect(document.querySelector('.err-msg')).toBeTruthy());
     expect(onExcluido).not.toHaveBeenCalled();
+  });
+});
+
+/* "Adicione um botão de excluir itens, igual em criaturas." (usuário, 26/09/2026) */
+/* "No modal de editar técnicas, deve ser possível selecionar mais de um grupo
+   de arma." (usuário, 26/09/2026). O banco já guardava "PL, PM, PP"; o
+   dropdown de escolha única mostrava um e apagava os outros ao salvar. */
+describe('técnica: vários grupos de armas', () => {
+  const marcado = (sigla) => marcadosMulti('grupo_armas').includes(sigla);
+  const salvarEPegar = async () => {
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    return ultimoUpdate.payload.grupo_armas;
+  };
+
+  it('abre com os grupos gravados marcados, e salvar não perde nenhum', async () => {
+    montar({ linha: { key: 'aparar', nome: 'Aparar', custo: 2, grupo_armas: 'CM, CP, EM, EP' } });
+    expect(marcadosMulti('grupo_armas')).toEqual(['CM', 'CP', 'EM', 'EP']);
+    expect(await salvarEPegar()).toBe('CM, CP, EM, EP');
+  });
+
+  it('marcar mais um soma, na ordem da lista', async () => {
+    montar({ linha: { key: 'aparar', nome: 'Aparar', custo: 2, grupo_armas: 'CM' } });
+    clicarMulti('grupo_armas', 'CL');
+    expect(await salvarEPegar()).toBe('CL, CM');
+  });
+
+  it('"Livre" é exclusivo: marcá-lo limpa as siglas, e marcar uma sigla o tira', async () => {
+    montar({ linha: { key: 'aparar', nome: 'Aparar', custo: 2, grupo_armas: 'CM, CL' } });
+    clicarMulti('grupo_armas', 'Livre');
+    expect(marcado('CM')).toBe(false);
+    clicarMulti('grupo_armas', 'PL');
+    expect(marcado('Livre')).toBe(false);
+    expect(await salvarEPegar()).toBe('PL');
+  });
+});
+
+/* "No input 'permissão', cada classe é uma opção." (usuário, 26/09/2026) */
+describe('permissão em opções: profissões e especializações', () => {
+  it('técnica: a lista traz cada profissão seguida das suas especializações', () => {
+    montar({ linha: { key: 'carga', nome: 'Carga', custo: 2, permissao: 'Academia de Cavaleiros' } });
+    const nomes = nomesMulti('permissao');
+    expect(nomes.slice(0, 5)).toEqual(['Guerreiro', 'Academia de Soldados', 'Academia de Arqueiros', 'Academia de Cavaleiros', 'Academia de Gladiadores']);
+    expect(nomes).toEqual(expect.arrayContaining(['Mago', 'Colégio Necromântico', 'Sacerdote', 'Ordem de Lena']));
+    expect(marcadosMulti('permissao')).toEqual(['Academia de Cavaleiros']);
+  });
+
+  it('marcar mais uma grava separado por vírgula', async () => {
+    montar({ linha: { key: 'carga', nome: 'Carga', custo: 2, permissao: 'Academia de Cavaleiros' } });
+    clicarMulti('permissao', 'Guerreiro');
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.permissao).toBe('Guerreiro, Academia de Cavaleiros');
+  });
+
+  it('magia também', () => {
+    montar({ tabela: 'magias', linha: { key: 'bola', nome: 'Bola de Fogo', permissao: 'Mago, Colégio Elemental' } });
+    expect(marcadosMulti('permissao')).toEqual(['Mago', 'Colégio Elemental']);
+  });
+});
+
+describe('excluir (itens)', () => {
+  const botaoExcluir = () => screen.queryAllByRole('button').find((b) => /Excluir|Confirmar exclusão/.test(b.getAttribute('aria-label') || ''));
+  const ADAGA = { slug: 'adaga', nome: 'Adaga', grupo: 'Armas' };
+
+  it('aparece editando um item, no rodapé — igual à criatura', () => {
+    montar({ tabela: 'itens', linha: null, onExcluido: () => {} });
+    expect(botaoExcluir()).toBeUndefined();
+    cleanup();
+    montar({ tabela: 'itens', linha: ADAGA, onExcluido: () => {} });
+    // Ícone ao lado do X desde 26/09/2026, não mais no rodapé.
+    expect(botaoExcluir().closest('.ms-header')).toBeTruthy();
+    expect(botaoExcluir().closest('.ms-footer')).toBeNull();
+  });
+
+  it('o primeiro clique conta quem carrega o item e avisa; o segundo apaga pelo slug', async () => {
+    usoFixture = 3;
+    const onExcluido = vi.fn();
+    montar({ tabela: 'itens', linha: ADAGA, onExcluido });
+    fireEvent.click(botaoExcluir());
+    expect(ultimoDelete).toBeNull();
+    await vi.waitFor(() => expect(document.querySelector('.catalogo-aviso-uso').textContent).toMatch(/personagens/));
+    expect(ultimoContains).toEqual({ tabela: 'personagens', col: 'inventario', val: { itens: [{ slug: 'adaga' }] } });
+    expect(document.querySelector('.catalogo-aviso-uso').textContent).toMatch(/3 personagens carregam este item/);
+    fireEvent.click(botaoExcluir());
+    await vi.waitFor(() => expect(onExcluido).toHaveBeenCalledTimes(1));
+    expect(ultimoDelete).toEqual({ tabela: 'itens', col: 'slug', val: 'adaga' });
+  });
+
+  it('item que ninguém carrega só pede o segundo clique, sem falar de personagens', async () => {
+    usoFixture = 0;
+    montar({ tabela: 'itens', linha: ADAGA, onExcluido: () => {} });
+    fireEvent.click(botaoExcluir());
+    await vi.waitFor(() => expect(ultimoContains).toBeTruthy());
+    expect(document.querySelector('.catalogo-aviso-uso').textContent).not.toMatch(/personage/);
   });
 });
 
@@ -790,11 +944,15 @@ describe('criatura — só o Dano 100% aparece', () => {
 
 describe('criatura — a primeira linha da grade', () => {
   /* "'estágio' fica inline com 'nome', 'tipo', etc." (usuário, 14/09/2026) */
-  it('Nome, Tipo, Subtipo e Estágio são os quatro primeiros campos', () => {
+  // "Nome, Subtipo, Estágio, Montaria, Peso e Altura devem ficar inline, sendo
+  // Estágio, Montaria, Peso e Altura, inputs menores." (25/09/2026)
+  it('Nome, Subtipo, Estágio, Montaria, Peso e Altura abrem a grade; os quatro últimos são curtos', () => {
     montar({ tabela: 'criaturas', linha: null });
-    const rotulos = Array.from(document.querySelectorAll('.catalogo-form-grid > *')).slice(0, 4)
-      .map((el) => (el.querySelector('label, .motor-field > span') || {}).textContent);
-    expect(rotulos).toEqual(['Nome', 'Tipo', 'Subtipo', 'Estágio']);
+    const filhos = Array.from(document.querySelectorAll('.catalogo-form-grid > *')).slice(0, 7);
+    const rotulos = filhos.map((el) => (el.querySelector('label, .motor-field > span') || {}).textContent);
+    expect(rotulos).toEqual(['Nome', 'Subtipo', 'Estágio', 'Montaria', 'Peso', 'Altura (m)', 'Tipo']);
+    expect(filhos.map((el) => el.classList.contains('catalogo-campo-curto')))
+      .toEqual([false, false, true, true, true, true, false]);
   });
 });
 
@@ -838,15 +996,15 @@ describe('itens — ícone no formato do banco', () => {
    dropdown: Animal, Construído, Celestial, Infernal, Místico, Dragão, Elemental,
    Monstro, Morto, Gigante, Civilizado / Subtipo é um dropdown: Fogo, Ar, Água,
    Terra, Celestial, Infernal" (usuário, 14/09/2026) */
+/* Tipo, Plano e Grupo viraram BOTÕES de escolha única em 25/09/2026 ("as
+   opções viram botões seletores"). A regra é a mesma do dropdown de antes. */
 describe('criatura — Tipo, Subtipo e Plano em lista', () => {
-  const pill = (rotulo) => Array.from(document.querySelectorAll('.motor-field'))
-    .find((w) => (w.querySelector('span')?.textContent || '') === rotulo);
-  const abrir = (rotulo) => {
-    const w = pill(rotulo);
-    expect(w, rotulo).toBeTruthy();
-    fireEvent.click(w.querySelector('.select-pill-btn'));
-    return Array.from(document.querySelectorAll('.select-pill-drop li')).map((li) => li.textContent.trim());
-  };
+  /* Classe, Plano e Grupo: DROPDOWN DE VÁRIAS desde 26/09/2026 ("use dropdown
+     menu, dando opção de selecionar mais de um campo nas criaturas"). */
+  const COL = { Tipo: 'tipo', Plano: 'plano', Grupo: 'coletivo', Subtipo: 'subtipo' };
+  const pill = (rotulo) => document.querySelector(`[data-multi="${COL[rotulo]}"]`);
+  const abrir = (rotulo) => { expect(pill(rotulo), rotulo).toBeTruthy(); return nomesMulti(COL[rotulo]); };
+  const marcado = (rotulo) => marcadosMulti(COL[rotulo]);
 
   /* ⚠️ SUBTIPO SAIU DESTA LISTA em 18/09/2026, e virou texto livre. Ele
      declarava elementos (Fogo/Ar/Água/Terra/Celestial/Infernal) e os dados
@@ -858,9 +1016,9 @@ describe('criatura — Tipo, Subtipo e Plano em lista', () => {
      O elemento ganhou coluna própria, e é ELA que tem a lista fechada agora
      (ver scripts/sql/criaturas-elemento-2026-09-18.sql). */
   it.each([
-    ['Tipo', ['Animal', 'Construído', 'Celestial', 'Infernal', 'Místico', 'Dragão', 'Elemental', 'Monstro', 'Morto', 'Gigante', 'Civilizado']],
+    // Gigante → Civilizado; Construído e Monstro → Místico (25/09/2026).
+    ['Tipo', ['Animal', 'Celestial', 'Infernal', 'Místico', 'Dragão', 'Elemental', 'Morto', 'Civilizado']],
     ['Plano', ['Material', 'Infernal', 'Celestial', 'Elemental']],
-    ['Elemento', ['Fogo', 'Ar', 'Água', 'Terra']],
   ])('%s oferece exatamente a lista', (rotulo, lista) => {
     montar({ tabela: 'criaturas', linha: null });
     expect(abrir(rotulo)).toEqual(lista);
@@ -875,20 +1033,67 @@ describe('criatura — Tipo, Subtipo e Plano em lista', () => {
 
   it('valor gravado fora da lista aparece marcado e continua salvando igual', async () => {
     montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Balor', tipo: 'Demônio', plano: 'Infernal' } });
-    expect(pill('Tipo').querySelector('.select-pill-btn').textContent).toMatch(/Demônio \(fora da lista\)/);
-    expect(abrir('Tipo')[0]).toBe('Demônio (fora da lista)');
+    // Fora da lista: aparece no fim da lista, marcado, e continua salvando igual.
+    expect(marcado('Tipo')).toEqual(['Demônio']);
+    expect(abrir('Tipo').at(-1)).toBe('Demônio');
     salvar();
     await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
     expect(ultimoUpdate.payload).toMatchObject({ tipo: 'Demônio', plano: 'Infernal' });
   });
 
-  it('escolher da lista troca o valor', async () => {
+  it('marcar mais uma classe soma, na ordem da lista; o valor antigo fica no fim', async () => {
     montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Balor', tipo: 'Demônio' } });
-    abrir('Tipo');
-    fireEvent.click(Array.from(document.querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === 'Infernal'));
+    clicarMulti('tipo', 'Infernal');
     salvar();
     await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
-    expect(ultimoUpdate.payload.tipo).toBe('Infernal');
+    expect(ultimoUpdate.payload.tipo).toBe('Infernal, Demônio');
+  });
+
+  it('Plano e Grupo também aceitam vários', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Fênix', plano: 'Material', coletivo: 'Solitário' } });
+    clicarMulti('plano', 'Elemental');
+    clicarMulti('coletivo', 'Grupo Pequeno');
+    salvar();
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.plano).toBe('Material, Elemental');
+    expect(ultimoUpdate.payload.coletivo).toBe('Grupo Pequeno, Solitário');
+  });
+});
+
+/* "No input de elemento das criaturas, permita selecionar mais de uma opção."
+   (usuário, 25/09/2026). Luz e Escuridão entraram no mesmo dia. Grava na
+   mesma coluna de texto, separado por vírgula: um valor antigo ("Terra")
+   continua sendo lido como uma escolha só. */
+describe('criatura — Elemento de múltipla escolha', () => {
+  const marcados = () => marcadosMulti('elemento');
+  const clicar = (nome) => clicarMulti('elemento', nome);
+
+  it('oferece os seis elementos', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    expect(nomesMulti('elemento')).toEqual(['Fogo', 'Ar', 'Água', 'Terra', 'Luz', 'Escuridão']);
+  });
+
+  it('abre com o que está gravado — inclusive valor antigo de um só', () => {
+    montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Golem', elemento: 'Terra' } });
+    expect(marcados()).toEqual(['Terra']);
+  });
+
+  it('marca mais de um e grava separado por vírgula, na ordem da lista', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Fênix', elemento: 'Luz' } });
+    clicar('Fogo');
+    expect(marcados()).toEqual(['Fogo', 'Luz']);
+    salvar();
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.elemento).toBe('Fogo, Luz');
+  });
+
+  it('desmarcar tudo grava vazio (null)', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Golem', elemento: 'Terra' } });
+    clicar('Terra');
+    expect(marcados()).toEqual([]);
+    salvar();
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.elemento).toBeNull();
   });
 });
 
@@ -950,5 +1155,185 @@ describe('criatura — técnicas, habilidades e magias escolhidas na lista', () 
     buscar('habilidades', 'Voar');
     fireEvent.keyDown(blocoDe('habilidades').querySelector('input'), { key: 'Enter' });
     expect(chips('habilidades')).toEqual([]);
+  });
+});
+
+/* Atributos em botões de −2 a 8 (25/09/2026): "os atributos podem variar
+   entre -2 e 8 (no caso das criaturas)". Intelecto é texto no banco. */
+/* Dropdown desde 26/09/2026 (eram botões redondos). */
+describe('criatura — atributos em dropdown', () => {
+  const bloco = (col) => document.querySelector(`[data-escala="${col}"]`);
+  const valores = (col) => {
+    fireEvent.click(bloco(col).querySelector('.select-pill-btn'));
+    const v = Array.from(document.querySelectorAll('.select-pill-drop li')).map((li) => li.textContent.trim());
+    fireEvent.click(bloco(col).querySelector('.select-pill-btn'));
+    return v;
+  };
+
+  it('cada atributo oferece −2 a 8', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    ['intelecto', 'aura', 'carisma', 'forca', 'fisico', 'agilidade', 'percepcao'].forEach((col) => {
+      expect(valores(col), col).toEqual(['—', '-2', '-1', '0', '1', '2', '3', '4', '5', '6', '7', '8']);
+    });
+  });
+
+  it('grava número nos seis e texto no intelecto', async () => {
+    montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Golem', forca: 1, intelecto: '1' } });
+    digitar('forca', '7');
+    digitar('intelecto', '3');
+    salvar();
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.forca).toBe(7);
+    expect(ultimoUpdate.payload.intelecto).toBe('3');
+  });
+
+  it('valor antigo fora da faixa aparece marcado', () => {
+    montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Titã', forca: 10 } });
+    expect(bloco('forca').querySelector('.select-pill-btn-label').textContent).toBe('10 (fora da lista)');
+  });
+});
+
+/* Ataque × Equipamento (25/09/2026): a mochila aceita qualquer item do
+   catálogo, com quantidade; peça cujo lugar no corpo está ocupado vai para a
+   mochila em vez de ser recusada. */
+describe('criatura — mochila do Equipamento', () => {
+  const CORDA = { slug: 'corda', nome: 'Corda', grupo: 'Itens' };
+  const PEITORAL2 = { slug: 'peitoral_velho', nome: 'Peitoral Velho', grupo: 'Armaduras', slot_equip: 'peito', absorcao: 4, defesa: 1, tipo_armadura: 'M' };
+
+  it('item comum entra com quantidade, e + / − mudam a conta', async () => {
+    itensArmasFixture = [...PECAS, CORDA];
+    montar({ tabela: 'criaturas', linha: null });
+    digitar('nome', 'Bandido');
+    await equipar('Corda');
+    const chip = () => blocoEquip('itens').querySelector('[data-slug="corda"]');
+    expect(chip().querySelector('.catalogo-lista-chip-nome').textContent).toBe('1× Corda');
+    fireEvent.click(chip().querySelector('[aria-label^="Um a mais"]'));
+    fireEvent.click(chip().querySelector('[aria-label^="Um a mais"]'));
+    expect(chip().querySelector('.catalogo-lista-chip-nome').textContent).toBe('3× Corda');
+    fireEvent.click(chip().querySelector('[aria-label^="Um a menos"]'));
+    const p = await payloadDaCriatura();
+    expect(p.equipamento).toEqual([{ slug: 'corda', slot: 'mochila', qtd: 2 }]);
+  });
+
+  it('o Ataque só oferece armas', async () => {
+    itensArmasFixture = [...PECAS, CORDA];
+    montar({ tabela: 'criaturas', linha: null });
+    fireEvent.change(blocoEquip('ataque').querySelector('input'), { target: { value: 'Corda' } });
+    expect(document.querySelectorAll('.catalogo-lista-drop li')).toHaveLength(0);
+  });
+
+  it('peça com o lugar ocupado vai para a mochila e não soma absorção', async () => {
+    itensArmasFixture = [...PECAS, PEITORAL2];
+    montar({ tabela: 'criaturas', linha: null });
+    digitar('nome', 'Cavaleiro');
+    await equipar('Peitoral de Aço');
+    await equipar('Peitoral Velho');
+    const p = await payloadDaCriatura();
+    expect(p.equipamento).toEqual([
+      { slug: 'peitoral_de_aco', slot: 'peito' },
+      { slug: 'peitoral_velho', slot: 'mochila', qtd: 1 },
+    ]);
+    expect(p.absorcao).toBe(8);
+  });
+});
+
+/* 25/09/2026: "No modal de editar criaturas, nome, subtipo e estágio ficam
+   inline" e "remova o V do card elemento selecionado". */
+describe('criatura — primeira linha e elemento sem ✓', () => {
+  it('Nome, Subtipo e Estágio são os três primeiros campos, antes do Tipo', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    const nomes = Array.from(document.querySelectorAll('input[name], [data-escolha], [data-multi], [data-escala]'))
+      .map((el) => el.getAttribute('name') || el.getAttribute('data-escolha') || el.getAttribute('data-multi') || el.getAttribute('data-escala'));
+    // Montaria é dropdown (sem name); Peso e Altura entram na mesma linha.
+    expect(nomes.slice(0, 6)).toEqual(['nome', 'subtipo', 'estagio', 'peso', 'altura', 'tipo']);
+  });
+
+  /* 26/09/2026: nenhum campo da criatura é mais fileira de botões — tudo é
+     dropdown ("use dropdown menu … nas criaturas"). */
+  it('não sobra fileira de botões: atributos, classe, plano e grupo são dropdown', () => {
+    montar({ tabela: 'criaturas', linha: null });
+    expect(document.querySelectorAll('[data-escolha]')).toHaveLength(0);
+    for (const col of ['forca', 'intelecto']) expect(document.querySelector(`[data-escala="${col}"] .select-pill-btn`), col).toBeTruthy();
+    for (const col of ['tipo', 'plano', 'coletivo', 'elemento']) expect(document.querySelector(`[data-multi="${col}"] .select-pill-btn`), col).toBeTruthy();
+  });
+
+  it('elemento marcado não leva ✓', () => {
+    montar({ tabela: 'criaturas', linha: { id: 5, nome: 'Fênix', elemento: 'Fogo' } });
+    const fogo = opcoesMulti('elemento').find((li) => li.textContent.trim() === 'Fogo');
+    expect(fogo.getAttribute('aria-selected')).toBe('true');
+    expect(fogo.querySelector('.ti-check')).toBeNull();
+  });
+});
+
+/* "Cada tipo de item possui seus campos próprios. Ou seja, um item tipo
+   'consumíveis' não precisa mostrar no modal de editar campos tipo 'dano'."
+   (usuário, 26/09/2026) */
+describe('itens: cada grupo com os seus campos', () => {
+  const tem = (col) => !!document.querySelector(`input[name="${col}"]`);
+
+  it('Consumível não mostra dano, defesa nem grupo de armas', () => {
+    montar({ tabela: 'itens', linha: { slug: 'pocao', nome: 'Poção', grupo: 'Consumíveis' } });
+    for (const col of ['dano', 'alcance', 'defesa', 'absorcao', 'forca_req']) expect(tem(col), col).toBe(false);
+    expect(tem('ocupa')).toBe(true);
+    expect(document.querySelector('.catalogo-form-grid').textContent).not.toMatch(/Grupo de Armas|Ajuste/i);
+  });
+
+  it('Arma mostra dano e alcance; Armadura, defesa e absorção', () => {
+    montar({ tabela: 'itens', linha: { slug: 'espada', nome: 'Espada', grupo: 'Armas' } });
+    expect(tem('dano')).toBe(true);
+    expect(tem('alcance')).toBe(true);
+    expect(tem('defesa')).toBe(false);
+    cleanup();
+    montar({ tabela: 'itens', linha: { slug: 'cota', nome: 'Cota', grupo: 'Armaduras' } });
+    expect(tem('defesa')).toBe(true);
+    expect(tem('absorcao')).toBe(true);
+    expect(tem('dano')).toBe(false);
+  });
+
+  it('valor já gravado fora do grupo continua aparecendo — nada some sem alguém ver', () => {
+    montar({ tabela: 'itens', linha: { slug: 'bomba', nome: 'Bomba', grupo: 'Consumíveis', dano: 12 } });
+    expect(tem('dano')).toBe(true);
+  });
+
+  it('item novo sem grupo mostra só os campos comuns', () => {
+    montar({ tabela: 'itens', linha: null });
+    expect(tem('nome')).toBe(true);
+    expect(tem('valor_latao')).toBe(true);
+    expect(tem('dano')).toBe(false);
+  });
+
+  it('o preço é "Valor", sem "latão"', () => {
+    montar({ tabela: 'itens', linha: { slug: 'pocao', nome: 'Poção', grupo: 'Consumíveis' } });
+    const rot = document.querySelector('input[name="valor_latao"]').closest('.motor-field, div').textContent;
+    expect(rot).not.toMatch(/lat[ãa]o/i);
+  });
+});
+
+/* "Os itens necessários para realizar o ritual fica em um input próprio, com
+   dropdown para selecionar quais itens do catálogo." (usuário, 26/09/2026) */
+describe('magia: itens do ritual com quantidade', () => {
+  const bloco = () => document.querySelector('[data-lista="itens_necessarios"]');
+  const chips = () => [...bloco().querySelectorAll('.catalogo-lista-chip')].map((c) => [
+    c.querySelector('.catalogo-lista-chip-nome').textContent,
+    (c.querySelector('.catalogo-lista-qtd-n') || { textContent: null }).textContent,
+  ]);
+
+  it('abre com o que está gravado: nome e quantidade separados', () => {
+    montar({ tabela: 'magias', linha: { key: 'aprisionar', nome: 'Aprisionar', itens_necessarios: 'Vela (7), Hidromel (1)' } });
+    expect(chips()).toEqual([['Vela', '7'], ['Hidromel', '1']]);
+  });
+
+  it('+ e − mudam a quantidade, e grava no mesmo formato', async () => {
+    montar({ tabela: 'magias', linha: { key: 'aprisionar', nome: 'Aprisionar', itens_necessarios: 'Vela (7), Hidromel (1)' } });
+    fireEvent.click(bloco().querySelector('[aria-label="Um a mais: Vela"]'));
+    expect(bloco().querySelector('[aria-label="Um a menos: Hidromel"]').disabled).toBe(true);
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
+    expect(ultimoUpdate.payload.itens_necessarios).toBe('Vela (8), Hidromel (1)');
+  });
+
+  it('quantidade que não é número passa como veio, sem botões', () => {
+    montar({ tabela: 'magias', linha: { key: 'x', nome: 'X', itens_necessarios: 'Carcaça (Variável)' } });
+    expect(chips()).toEqual([['Carcaça (Variável)', null]]);
   });
 });

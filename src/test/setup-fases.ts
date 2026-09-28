@@ -46,3 +46,8 @@ g.supabaseClient = new Proxy(
     },
   }
 );
+
+/* O dropdown único do sistema (25/09/2026) — as fases o usam como global,
+   como no app (main.tsx). Só define funções na carga: não depende da ordem
+   dos imports acima. */
+import '../01-core/select-pill.jsx';

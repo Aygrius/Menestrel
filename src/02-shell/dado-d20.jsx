@@ -3,8 +3,8 @@
  * Fase 02 (shell/primitivos visuais) — Dado d20 "Gema Facetada"
  * ----------------------------------------------------------------------------
  * Dado de 20 faces translúcido (icosaedro facetado em SVG) para o sistema
- * Tagmar. NÃO reage a clique — a rolagem é disparada só via ref (ex.: botão
- * "Rolar de novo"), com animação e sorteio de 1..20.
+ * Tagmar. NÃO reage a clique — a rolagem é disparada só via ref (a janela
+ * rola ao abrir), com animação e sorteio de 1..20.
  * Segue a convenção visual do projeto: 1 acende em brasa (Falha Crítica) e 20
  * brilha em ouro (Absurdo) — combinando com resolverAcao/resolverResistencia
  * (1 = Falha Crítica, 20 = crítico) de src/01-core/game-data.jsx.
@@ -267,7 +267,7 @@ var DadoD20 = React.forwardRef(function DadoD20(props, ref) {
      - dificuldade: string      id: facil | medio | dificil | muito_dificil | absurdo — ignorado se livre
      - livre?: boolean          modo "Rolamento Livre" (a pedido do usuário): não chama
                                  resolverAcao, não mostra rótulo de dificuldade nem
-                                 Sucesso/Falha — só o dado + "Rolar de novo"/"Concluir".
+                                 Sucesso/Falha — só o dado + "Concluir".
                                  total/dificuldade ficam sem uso nesse modo.
      - lang: 'pt' | 'en'
      - onClose: () => void
@@ -342,6 +342,12 @@ function RolagemD20Overlay(props) {
     if (props.onResultado) props.onResultado(r);
   }
 
+  // O crítico dá direito a rolar de novo (ver o botão no fim).
+  function ehCritico(r) {
+    if (!r) return false;
+    if (livre) return r.d20 === 1 || r.d20 === 20;
+    return r.codigo === "FC" || !!r.critico;
+  }
   function rolarDeNovo() {
     setResultado(null);
     if (dadoRef.current) dadoRef.current.roll();
@@ -418,10 +424,17 @@ function RolagemD20Overlay(props) {
         </div>
 
         <div style={{ display: "flex", gap: "clamp(8px, 2vw, 12px)", flexWrap: "wrap", justifyContent: "center", marginTop: 10 }}>
-          <button type="button" className="btn-ghost" onClick={rolarDeNovo} disabled={!resultado}>
-            <i className="ti ti-refresh" aria-hidden="true" style={{ marginRight: 6, verticalAlign: "-2px" }} />
-            {en ? "Roll again" : "Rolar de novo"}
-          </button>
+          {/* "Rolar de novo" SÓ NO CRÍTICO (26/09/2026): primeiro o botão saiu
+              ("remova os botões rolar de novo"), depois voltou com regra —
+              "falhas críticas e sucessos críticos dão direito a rolar o dado
+              novamente". Crítico = Falha Crítica (FC; o 1 no dado sempre é) ou
+              Absurdo (o 20 sempre é). No modo livre, sem tabela, o 1 e o 20. */}
+          {ehCritico(resultado) && (
+            <button type="button" className="btn-ghost" data-rolar-de-novo="1" onClick={rolarDeNovo}>
+              <i className="ti ti-refresh" aria-hidden="true" style={{ marginRight: 6, verticalAlign: "-2px" }} />
+              {en ? "Roll again (critical)" : "Rolar de novo (crítico)"}
+            </button>
+          )}
           <button type="button" className="btn-primary" onClick={onClose}>
             {en ? "Done" : "Concluir"}
           </button>

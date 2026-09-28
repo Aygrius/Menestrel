@@ -37,9 +37,12 @@
 
 const SONO_INICIO = 20;   // primeira hora que cansa
 const SONO_FIM = 8;       // primeira hora que não cansa mais
-const SONO_POR_HORA = -2;
-const FOME_POR_HORA = -1;
-const SEDE_POR_HORA = -1;
+/* ESCALA NOVA (27/09/2026): as barras vão de 0 (ideal) a 100 (pior), então
+   o relógio SOBE Fome, Sede e Sono. Temperatura segue com sinal (frio −,
+   calor +); o frio sobe a Doença e o calor, a Sede. */
+const SONO_POR_HORA = 2;
+const FOME_POR_HORA = 1;
+const SEDE_POR_HORA = 1;
 
 /* Por degrau de temperatura: quanto muda a termorregulação, quanto o calor
    tira de hidratação ALÉM da perda de base e quanto o frio tira de saúde.
@@ -47,11 +50,11 @@ const SEDE_POR_HORA = -1;
    24/09/2026: "Calor leve -2 de hidratação por hora, e calor extremo é -5.
    Frio leve -1 de saúde por hora, e frio extremo é -3." */
 const TEMPERATURA_EFEITO = {
-  frio_extremo:  { termorregulacao: -10, hidratacao: 0,  vitalidade: -3 },
-  frio_leve:     { termorregulacao: -5,  hidratacao: 0,  vitalidade: -1 },
-  agradavel:     { termorregulacao: 0,   hidratacao: 0,  vitalidade: 0 },
-  calor_leve:    { termorregulacao: 5,   hidratacao: -2, vitalidade: 0 },
-  calor_extremo: { termorregulacao: 10,  hidratacao: -5, vitalidade: 0 },
+  frio_extremo:  { termorregulacao: -10, hidratacao: 0, vitalidade: 3 },
+  frio_leve:     { termorregulacao: -5,  hidratacao: 0, vitalidade: 1 },
+  agradavel:     { termorregulacao: 0,   hidratacao: 0, vitalidade: 0 },
+  calor_leve:    { termorregulacao: 5,   hidratacao: 2, vitalidade: 0 },
+  calor_extremo: { termorregulacao: 10,  hidratacao: 5, vitalidade: 0 },
 };
 
 /* O vento não desgasta: penaliza a Velocidade Base enquanto sopra, e some
@@ -65,7 +68,9 @@ const CHUVA_AGUA = { tempestade: 2, chuva_fina: 1 };
 const _lim = () => (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null)
   ?? (typeof window !== 'undefined' ? window.COND_LIMITE : null) ?? 50;
 
-const _trava = (v) => { const L = _lim(); return Math.max(-L, Math.min(L, v)); };
+// Barra comum: 0..100. Temperatura: −100..+100 (_travaTemp).
+const _trava = (v) => { const L = _lim(); return Math.max(0, Math.min(L, v)); };
+const _travaTemp = (v) => { const L = _lim(); return Math.max(-L, Math.min(L, v)); };
 
 const _num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
@@ -120,7 +125,7 @@ function decaimentoPorHoras(condicoes, horaInicial, horas, tempo, atividade) {
     ...base,
     nutricao: _trava(nutricao),
     hidratacao: _trava(hidratacao),
-    termorregulacao: _trava(termo),
+    termorregulacao: _travaTemp(termo),
     animo: _trava(animo),
     ...(temperatura.vitalidade ? { vitalidade: _trava(vitalidade) } : {}),
   };
@@ -187,7 +192,7 @@ function tiqueDeClima(condicoes, trilhaChave, degrauId) {
   if (!ef) return base;
   return {
     ...base,
-    termorregulacao: _trava(_num(base.termorregulacao) + ef.termorregulacao),
+    termorregulacao: _travaTemp(_num(base.termorregulacao) + ef.termorregulacao),
     hidratacao: _trava(_num(base.hidratacao) + ef.hidratacao),
     ...(ef.vitalidade ? { vitalidade: _trava(_num(base.vitalidade) + ef.vitalidade) } : {}),
   };
@@ -261,8 +266,9 @@ function recuperacaoPorAtividade(estado, horas, ctx) {
     if (!efeitos || vezes <= 0) return;
     efeitos.forEach((ef) => {
       const ganho = Math.max(0, ef.base + (ef.attr ? _num(attrs[ef.attr]) : 0)) * vezes;
+      // Descansar, orar, estudar TIRAM da barra (0 é o ideal, 27/09/2026).
       if (ef.cond) {
-        condicoes[ef.cond] = _trava(_num(condicoes[ef.cond]) + ganho);
+        condicoes[ef.cond] = _trava(_num(condicoes[ef.cond]) - ganho);
         return;
       }
       if (ef.vit === 'ka' && c.semKarma) return;

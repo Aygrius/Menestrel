@@ -427,8 +427,8 @@ function BestTip({ tip }) {
     <div style={{
       position: 'fixed', left, top, transform: 'translateX(-50%)',
       zIndex: 9999, pointerEvents: 'none', whiteSpace: 'nowrap',
-      background: '#141009', borderRadius: 6, padding: '6px 10px',
-      fontFamily: "'Lora', serif", fontSize: 12, color: '#E8DDC6',
+      background: '#201A0F', borderRadius: 6, padding: '6px 10px',
+      fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: '#F1E6CF',
       animation: 'fpItemTipIn .12s ease-out',
     }}>
       <div style={{
@@ -514,7 +514,7 @@ function LojaSortHead({ col, sortKey, sortDir, toggleSort, children, ...rest }) 
     <th onClick={() => toggleSort(col)} className="loja-sort-th" {...rest}>
       <span>
         {children}
-        <span className="loja-sort-indicator" style={{ opacity: active ? 1 : 0.3, color: active ? '#9A7B2E' : 'inherit' }}>
+        <span className="loja-sort-indicator" style={{ opacity: active ? 1 : 0.3, color: active ? '#B59136' : 'inherit' }}>
           {active && sortDir === 'desc' ? '▼' : '▲'}
         </span>
       </span>

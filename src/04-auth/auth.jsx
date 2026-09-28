@@ -20,7 +20,7 @@
 const AUTH_GRAD   = 'linear-gradient(90deg,#B8472F,#B8702E,#C9A44E,#B8862E,#7A5E2A)';
 const AUTH_GOLD   = '#C9A44E';
 const AUTH_FD     = "'Cinzel',serif";
-const AUTH_FB     = "'Lora',serif";
+const AUTH_FB     = "var(--font-body)";
 const AUTH_BORDER = 'rgba(255,255,255,0.10)';
 const AUTH_MUTED  = '#9C8F73';
 const AUTH_INK    = '#E8DDC6';
@@ -43,7 +43,7 @@ const GoogleIcon = (props) => (
 const MarcaMenestrel = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
     <i className="ti ti-currency-monero" aria-hidden="true"
-       style={{ fontSize: 40, lineHeight: 1, color: '#C9A44E' }} />
+       style={{ fontSize: 40, lineHeight: 1, color: '#E0BE68' }} />
     <span style={{ fontFamily: AUTH_FB, fontWeight: 400, fontSize: 34, color: AUTH_INK, lineHeight: 1 }}>Menestrel</span>
   </div>
 );
@@ -84,13 +84,13 @@ function LoginPage({ lang = 'pt', setLang, authCopy, shader = true, shaderKind =
       )}
       <div aria-hidden="true" style={{ position: 'absolute', width: 420, height: 420, left: -110, top: -80, pointerEvents: 'none', filter: 'blur(60px)', background: 'radial-gradient(closest-side,#B8862E45,transparent)' }} />
       <div aria-hidden="true" style={{ position: 'absolute', width: 420, height: 420, right: -110, bottom: -80, pointerEvents: 'none', filter: 'blur(60px)', background: 'radial-gradient(closest-side,#7A5E2A33,transparent)' }} />
-      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(to bottom, rgba(24,18,8,.35) 0%, transparent 26%, transparent 68%, #15120C 100%)' }} />
+      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(to bottom, rgba(37,28,12,.35) 0%, transparent 26%, transparent 68%, #201C12 100%)' }} />
 
       {/* ── Cartão de login ── */}
       <div
         style={{
           position: 'relative', zIndex: 2, width: 'min(440px, 100%)',
-          background: 'rgba(34,29,21,0.82)',
+          background: 'rgba(45,38,28,0.82)',
           backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
           border: `1px solid ${AUTH_BORDER}`, borderRadius: 6,
           padding: 'clamp(28px,5vw,40px) clamp(22px,4vw,34px) 26px',
@@ -102,7 +102,7 @@ function LoginPage({ lang = 'pt', setLang, authCopy, shader = true, shaderKind =
 
         <MarcaMenestrel />
 
-        <div style={{ fontFamily: AUTH_FD, fontSize: 13, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', backgroundImage: AUTH_GRAD, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', marginTop: 22 }}>
+        <div style={{ fontFamily: AUTH_FD, fontSize: 'var(--fs-sm)', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', backgroundImage: AUTH_GRAD, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', marginTop: 22 }}>
           {ac.eyebrow}
         </div>
 
@@ -111,7 +111,7 @@ function LoginPage({ lang = 'pt', setLang, authCopy, shader = true, shaderKind =
           <div style={{ padding: '26px 0 10px' }}>
             <div aria-hidden="true" style={{ width: 46, height: 46, margin: '0 auto', borderRadius: 999, border: '3px solid rgba(255,255,255,0.12)', borderTopColor: AUTH_GOLD, animation: 'spin 0.9s linear infinite' }} />
             <h1 style={{ fontFamily: AUTH_FD, fontSize: 24, fontWeight: 400, color: AUTH_INK, margin: '22px 0 0' }}>{ac.redirecting}</h1>
-            <p style={{ fontFamily: AUTH_FB, fontSize: 15, color: AUTH_MUTED, margin: '8px 0 0' }}>{ac.aguarde}</p>
+            <p style={{ fontFamily: AUTH_FB, fontSize: 'var(--fs-base)', color: AUTH_MUTED, margin: '8px 0 0' }}>{ac.aguarde}</p>
           </div>
         ) : (
           /* ══ estado normal ══ */
@@ -119,7 +119,7 @@ function LoginPage({ lang = 'pt', setLang, authCopy, shader = true, shaderKind =
             <h1 style={{ fontFamily: AUTH_FD, fontSize: 'clamp(23px,3.4vw,27px)', fontWeight: 700, lineHeight: 1.25, color: AUTH_INK, margin: '10px 0 0' }}>
               {ac.title}
             </h1>
-            <p style={{ fontFamily: AUTH_FB, fontSize: 15.5, lineHeight: 1.65, color: AUTH_MUTED, margin: '12px 0 0' }}>
+            <p style={{ fontFamily: AUTH_FB, fontSize: 'var(--fs-base)', lineHeight: 1.65, color: AUTH_MUTED, margin: '12px 0 0' }}>
               {ac.sub}
             </p>
 
@@ -144,17 +144,17 @@ function LoginPage({ lang = 'pt', setLang, authCopy, shader = true, shaderKind =
 
         <div aria-hidden="true" style={{ height: 1, background: AUTH_BORDER, margin: '24px 0 14px' }} />
 
-        <p style={{ fontFamily: AUTH_FB, fontSize: 13, lineHeight: 1.55, color: '#7E7258', margin: 0 }}>
+        <p style={{ fontFamily: AUTH_FB, fontSize: 'var(--fs-sm)', lineHeight: 1.55, color: '#A19478', margin: 0 }}>
           {ac.consent}
         </p>
 
         {setLang && (
           <div role="group" aria-label="Idioma" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16 }}>
             <button type="button" onClick={() => setLang('pt')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: AUTH_FB, fontSize: 14, color: lang === 'pt' ? AUTH_GOLD : AUTH_MUTED, padding: '4px 6px' }}>PT</button>
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: AUTH_FB, fontSize: 'var(--fs-md)', color: lang === 'pt' ? AUTH_GOLD : AUTH_MUTED, padding: '4px 6px' }}>PT</button>
             <span aria-hidden="true" style={{ width: 1, height: 14, background: AUTH_BORDER }} />
             <button type="button" onClick={() => setLang('en')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: AUTH_FB, fontSize: 14, color: lang === 'en' ? AUTH_GOLD : AUTH_MUTED, padding: '4px 6px' }}>EN</button>
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: AUTH_FB, fontSize: 'var(--fs-md)', color: lang === 'en' ? AUTH_GOLD : AUTH_MUTED, padding: '4px 6px' }}>EN</button>
           </div>
         )}
       </div>

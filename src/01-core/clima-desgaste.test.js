@@ -22,6 +22,9 @@
       hora, mas o relógio não andou; se a âncora andasse junto, a próxima
       virada cobraria de menos.
    ============================================================ */
+/* ESCALA NOVA (27/09/2026): as barras vão de 0 (ideal) a 100 (pior). O
+   relógio SOBE Fome, Sede e Sono; o frio sobe a Doença; o calor sobe a Sede.
+   A Temperatura segue com sinal (−100 frio … +100 calor). */
 import { describe, it, expect, beforeAll } from 'vitest';
 import './constants.jsx';
 import './helpers.jsx';
@@ -54,10 +57,10 @@ describe('noiteDeSono — quais horas cansam', () => {
 });
 
 describe('decaimentoPorHoras — as quatro barras', () => {
-  it('uma hora amena tira 1 de fome e 1 de sede, e mais nada', () => {
+  it('uma hora amena sobe 1 de fome e 1 de sede, e mais nada', () => {
     const d = decaimentoPorHoras(zerado(), 12, 1, AMENO);
-    expect(d.nutricao).toBe(-1);
-    expect(d.hidratacao).toBe(-1);
+    expect(d.nutricao).toBe(1);
+    expect(d.hidratacao).toBe(1);
     expect(d.termorregulacao).toBe(0);
     expect(d.animo).toBe(0);
   });
@@ -80,16 +83,16 @@ describe('decaimentoPorHoras — as quatro barras', () => {
      duas barras; são a mesma. O calor não substitui a perda de base, soma. */
   /* 24/09/2026: "Calor leve -2 de hidratação por hora, e calor extremo é -5".
      Continua somando na perda de base. */
-  it('calor extremo desidrata 6 por hora, calor leve 3 — a base soma', () => {
-    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'calor_extremo' }).hidratacao).toBe(-6);
-    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'calor_leve' }).hidratacao).toBe(-3);
+  it('calor extremo dá 6 de sede por hora, calor leve 3 — a base soma', () => {
+    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'calor_extremo' }).hidratacao).toBe(6);
+    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'calor_leve' }).hidratacao).toBe(3);
   });
 
   /* 24/09/2026: "Frio leve -1 de saúde por hora, e frio extremo é -3". */
-  it('frio extremo tira 3 de saúde por hora; frio leve, 1', () => {
-    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'frio_extremo' }).vitalidade).toBe(-3);
-    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'frio_leve' }).vitalidade).toBe(-1);
-    expect(decaimentoPorHoras({ vitalidade: -49 }, 12, 5, { temperatura: 'frio_extremo' }).vitalidade).toBe(-50);
+  it('frio extremo dá 3 de doença por hora; frio leve, 1', () => {
+    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'frio_extremo' }).vitalidade).toBe(3);
+    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'frio_leve' }).vitalidade).toBe(1);
+    expect(decaimentoPorHoras({ vitalidade: 99 }, 12, 5, { temperatura: 'frio_extremo' }).vitalidade).toBe(100);
   });
 
   it('calor e clima ameno não mexem na saúde', () => {
@@ -98,11 +101,11 @@ describe('decaimentoPorHoras — as quatro barras', () => {
   });
 
   it('frio não mexe na sede além da base', () => {
-    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'frio_extremo' }).hidratacao).toBe(-1);
+    expect(decaimentoPorHoras(zerado(), 12, 1, { temperatura: 'frio_extremo' }).hidratacao).toBe(1);
   });
 
-  it('a noite tira 2 de sono por hora', () => {
-    expect(decaimentoPorHoras(zerado(), 22, 1, AMENO).animo).toBe(-2);
+  it('a noite dá 2 de sono por hora', () => {
+    expect(decaimentoPorHoras(zerado(), 22, 1, AMENO).animo).toBe(2);
     expect(decaimentoPorHoras(zerado(), 14, 1, AMENO).animo).toBe(0);
   });
 });
@@ -111,8 +114,8 @@ describe('a janela do sono conta hora a hora', () => {
   /* ARMADILHA 2. 16 horas cruzadas, 12 delas na janela. */
   it('de 18h a 10h do dia seguinte: 16 horas, 24 de sono', () => {
     const d = decaimentoPorHoras(zerado(), 18, 16, AMENO);
-    expect(d.animo).toBe(-24);
-    expect(d.nutricao).toBe(-16);
+    expect(d.animo).toBe(24);
+    expect(d.nutricao).toBe(16);
   });
 
   it('uma tarde inteira não tira sono nenhum', () => {
@@ -120,27 +123,28 @@ describe('a janela do sono conta hora a hora', () => {
   });
 
   it('a noite inteira tira 24', () => {
-    expect(decaimentoPorHoras(zerado(), 20, 12, AMENO).animo).toBe(-24);
+    expect(decaimentoPorHoras(zerado(), 20, 12, AMENO).animo).toBe(24);
   });
 
   it('a virada de 23h para 0h não perde a conta', () => {
-    expect(decaimentoPorHoras(zerado(), 23, 2, AMENO).animo).toBe(-4);
+    expect(decaimentoPorHoras(zerado(), 23, 2, AMENO).animo).toBe(4);
   });
 });
 
-describe('o teto de ±50 segura os saltos grandes', () => {
-  it('72 horas de fome param no fundo da barra', () => {
-    const d = decaimentoPorHoras(zerado(), 12, 72, AMENO);
-    expect(d.nutricao).toBe(-50);
-    expect(d.hidratacao).toBe(-50);
+describe('o teto de 100 segura os saltos grandes', () => {
+  it('150 horas de fome param no pior da barra', () => {
+    const d = decaimentoPorHoras(zerado(), 12, 150, AMENO);
+    expect(d.nutricao).toBe(100);
+    expect(d.hidratacao).toBe(100);
   });
 
-  it('e o calor não estoura por cima', () => {
-    expect(decaimentoPorHoras(zerado(), 12, 72, { temperatura: 'calor_extremo' }).termorregulacao).toBe(50);
+  it('e a temperatura para em ±100', () => {
+    expect(decaimentoPorHoras(zerado(), 12, 72, { temperatura: 'calor_extremo' }).termorregulacao).toBe(100);
+    expect(decaimentoPorHoras(zerado(), 12, 72, { temperatura: 'frio_extremo' }).termorregulacao).toBe(-100);
   });
 
-  it('quem já está no fundo continua no fundo', () => {
-    const cheio = { nutricao: -50, hidratacao: -50, termorregulacao: 0, animo: -50 };
+  it('quem já está no pior continua no pior', () => {
+    const cheio = { nutricao: 100, hidratacao: 100, termorregulacao: 0, animo: 100 };
     expect(decaimentoPorHoras(cheio, 22, 5, AMENO)).toEqual(cheio);
   });
 });
@@ -149,23 +153,23 @@ describe('condições que o motor não conhece ficam intactas', () => {
   /* São oito barras no jsonb; o relógio mexe em quatro. Sanidade, euforia,
      reputação e vitalidade não podem ser apagadas de passagem. */
   it('sanidade, euforia, reputação e vitalidade passam ilesas', () => {
-    const antes = { ...zerado(), sanidade: 20, euforia: -10, reputacao: 30, vitalidade: 5 };
+    const antes = { ...zerado(), sanidade: 20, euforia: 10, reputacao: 30, vitalidade: 5 };
     const d = decaimentoPorHoras(antes, 12, 5, AMENO);
     expect(d.sanidade).toBe(20);
-    expect(d.euforia).toBe(-10);
+    expect(d.euforia).toBe(10);
     expect(d.reputacao).toBe(30);
     expect(d.vitalidade).toBe(5);
   });
 
   it('condições ausentes começam do zero em vez de virar NaN', () => {
     const d = decaimentoPorHoras({}, 12, 1, AMENO);
-    expect(d.nutricao).toBe(-1);
+    expect(d.nutricao).toBe(1);
     expect(Number.isNaN(d.hidratacao)).toBe(false);
   });
 
   it('mesa sem clima definido só sofre o desgaste de base', () => {
     const d = decaimentoPorHoras(zerado(), 12, 1, null);
-    expect(d.nutricao).toBe(-1);
+    expect(d.nutricao).toBe(1);
     expect(d.termorregulacao).toBe(0);
   });
 });
@@ -229,20 +233,20 @@ describe('proximoInstante — hora menor vira o dia', () => {
 });
 
 describe('tiqueDeClima — mudar o degrau cobra uma hora na hora', () => {
-  it('ligar calor extremo cobra +10 de temperatura e −5 de sede', () => {
+  it('ligar calor extremo cobra +10 de temperatura e +5 de sede', () => {
     const d = tiqueDeClima(zerado(), 'temperatura', 'calor_extremo');
     expect(d.termorregulacao).toBe(10);
-    expect(d.hidratacao).toBe(-5);
+    expect(d.hidratacao).toBe(5);
   });
 
-  it('ligar frio extremo cobra −10 de temperatura e −3 de saúde', () => {
+  it('ligar frio extremo cobra −10 de temperatura e +3 de doença', () => {
     const d = tiqueDeClima(zerado(), 'temperatura', 'frio_extremo');
     expect(d.termorregulacao).toBe(-10);
-    expect(d.vitalidade).toBe(-3);
+    expect(d.vitalidade).toBe(3);
   });
 
-  it('ligar frio leve cobra −1 de saúde; calor não mexe nela', () => {
-    expect(tiqueDeClima(zerado(), 'temperatura', 'frio_leve').vitalidade).toBe(-1);
+  it('ligar frio leve cobra +1 de doença; calor não mexe nela', () => {
+    expect(tiqueDeClima(zerado(), 'temperatura', 'frio_leve').vitalidade).toBe(1);
     expect(tiqueDeClima({ vitalidade: 4 }, 'temperatura', 'calor_leve').vitalidade).toBe(4);
   });
 

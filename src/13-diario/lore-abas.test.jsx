@@ -48,7 +48,7 @@ describe('GerenciarLoreView — abas', () => {
       expect(bs.length).toBeGreaterThan(0);
       return bs;
     });
-    expect(abas.map((b) => b.textContent.trim())).toEqual(['Criatura', 'NPC', 'Lugar']);
+    expect(abas.map((b) => b.textContent.trim())).toEqual(['Criatura', 'Conhecido', 'Reino']) // rótulos de 26/09/2026;
     expect(document.body.textContent).not.toMatch(/Treinamento/);
     // E nenhum catálogo de item/magia/habilidade/técnica é carregado por aqui.
     expect(consultadas.filter((t) => ['itens', 'itens_historia', 'magias', 'habilidades', 'tecnicas'].includes(t)))

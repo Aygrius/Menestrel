@@ -197,7 +197,10 @@ function useTooltip(delay = 80) {
     const r = (e?.currentTarget || e?.target || e)?.getBoundingClientRect?.() ?? e;
     const x = r ? (r.left + r.width / 2) : (e?.clientX ?? 0);
     const y = r ? r.top : (e?.clientY ?? 0);
-    setTip({ x, y, content });
+    // lx/ly: a borda esquerda e o meio da âncora — para o balão à esquerda.
+    const lx = r ? r.left : x;
+    const ly = r ? (r.top + (r.height || 0) / 2) : y;
+    setTip({ x, y, lx, ly, content });
   };
   const fecharTip = () => { clear(); timer.current = setTimeout(() => setTip(null), delay); };
   const manterTip = () => clear();
@@ -231,15 +234,19 @@ function useTooltip(delay = 80) {
    com seta para cima e tudo, e que o TooltipFlipGuard da ficha aplica sozinho
    quando o balão sairia pelo topo da viewport. A diferença é que aqui a
    decisão é FIXA, não medida — o botão está sempre no alto do card. */
-function Tooltip({ tip, onEnter, onLeave, abaixo = false }) {
+/* `esquerda` (26/09/2026): abre o balão À ESQUERDA da âncora, centrado na
+   altura dela — para o que mora colado à borda direita da tela (os atalhos
+   flutuantes da ficha: "Tooltips para a esquerda"). */
+function Tooltip({ tip, onEnter, onLeave, abaixo = false, esquerda = false }) {
   if (!tip) return null;
   const { x, y, content } = tip;
   const rich = content && typeof content === 'object' && !React.isValidElement(content);
+  const pos = esquerda && tip.lx != null ? { left: tip.lx, top: tip.ly } : { left: x, top: y };
   return (
     <div
       className="mn-tip"
-      data-tip-flip={abaixo ? 'below' : undefined}
-      style={{ position: 'fixed', left: x, top: y }}
+      data-tip-flip={esquerda ? 'left' : (abaixo ? 'below' : undefined)}
+      style={{ position: 'fixed', ...pos }}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
     >
@@ -261,6 +268,61 @@ function Tooltip({ tip, onEnter, onLeave, abaixo = false }) {
       )}
     </div>
   );
+}
+
+// ── Pilha de janelas: a aberta por ÚLTIMO fica na frente ─────────────────────
+/* 26/09/2026: "Ao clicar em usar item, e depois clicar em excluir, o modal
+   fica atrás." O ModalShell (quantidade, confirmações) é desenhado onde é
+   chamado; o BestDetalheModal (item, magia…) vai por portal para o fim da
+   página. Com a mesma camada (z-index 120), ganhava quem vinha depois NO
+   DOCUMENTO — e a janela nova abria atrás da de detalhe.
+   Agora cada janela, ao abrir, recebe um número de ordem e sobe uma camada
+   acima das abertas: a mais recente fica na frente em qualquer arranjo. O Esc
+   fecha só a de ordem mais alta (a da frente), não a última do documento. */
+let _ordemJanela = 0;
+function empilharJanela(el) {
+  if (!el) return;
+  const abertas = document.querySelectorAll('.ms-backdrop[data-ordem]').length;
+  _ordemJanela += 1;
+  el.dataset.ordem = String(_ordemJanela);
+  el.style.zIndex = String(120 + abertas + 1);
+}
+function ehJanelaDaFrente(el) {
+  if (!el || !el.dataset.ordem) return true;
+  const minha = Number(el.dataset.ordem);
+  /* Janela DENTRO de outra (aninhada no React) está sempre acima dela — e o
+     React monta a de dentro primeiro, então ela recebe o número menor. Entre
+     janelas independentes, vale a ordem de abertura. */
+  return ![...document.querySelectorAll('.ms-backdrop[data-ordem]')].some((o) => {
+    if (o === el) return false;
+    if (el.contains(o)) return true;       // aninhada em mim: está na frente
+    if (o.contains(el)) return false;      // eu estou dentro dela
+    return Number(o.dataset.ordem) > minha;
+  });
+}
+
+// ── DicaNoAlvo — um tooltip que aparece SOZINHO sobre um elemento ────────────
+/* 26/09/2026: "Ao selecionar um card e ele ficar vermelho, mostre um tooltip
+   dizendo 'clique aqui novamente para usar'." Não depende de hover: aparece
+   enquanto o card estiver marcado. Usa o mesmo balão (Tooltip, position:
+   fixed), então não é cortado pela borda do corpo do modal. Acompanha rolagem
+   e redimensionamento. `alvo` é o elemento (via ref callback). */
+function DicaNoAlvo({ alvo, texto }) {
+  const [pos, setPos] = useState(null);
+  React.useLayoutEffect(() => {
+    if (!alvo) { setPos(null); return undefined; }
+    const medir = () => {
+      if (!alvo.isConnected) { setPos(null); return; }
+      const r = alvo.getBoundingClientRect();
+      setPos({ x: r.left + r.width / 2, y: r.top });
+    };
+    medir();
+    window.addEventListener('scroll', medir, true);
+    window.addEventListener('resize', medir);
+    return () => { window.removeEventListener('scroll', medir, true); window.removeEventListener('resize', medir); };
+  }, [alvo]);
+  if (!pos || !texto) return null;
+  return <Tooltip tip={{ x: pos.x, y: pos.y, content: texto }} />;
 }
 
 // ── propsTip ─────────────────────────────────────────────────────────────────
@@ -285,7 +347,7 @@ function propsTip(abrirTip, fecharTip, content) {
   return { onMouseEnter: abrir, onMouseLeave: fecharTip, onFocus: abrir, onBlur: fecharTip };
 }
 
-Object.assign(window, { calcDiaSemanaFantasy, feriadoDe, useTweaks, useTooltip, Tooltip, propsTip, Carregando,
+Object.assign(window, { calcDiaSemanaFantasy, feriadoDe, useTweaks, useTooltip, Tooltip, DicaNoAlvo, empilharJanela, ehJanelaDaFrente, propsTip, Carregando,
   somarDiasFantasy, dataFantasyParaAbsoluto, absolutoParaDataFantasy, formatarDataFantasy,
   FANTASY_DIAS_ANO });
 
@@ -313,15 +375,17 @@ Object.assign(window, { interpolate });
 // pra combinar com a paleta "Pedra & Bronze"). Compartilhado entre
 // 11-ficha/ficha.jsx e 12-batalha/batalha.jsx pra nunca divergir a cor de
 // uma condição entre as duas telas.
-const COND_LIMITE = 50;
-function corCondicao(val) {
-  const v = Number(val) || 0;
-  if (v > 0) return '#00850f';
-  if (v < 0) return '#870000';
-  return '#8c8d8e';
+/* ESCALA NOVA (27/09/2026): "Agora as barras vão de 0 a 100. 0 é o mundo
+   ideal e 100 é o pior cenário. Todas as barras de vitalidade são roxas."
+   COND_LIMITE é o TETO (100). A Temperatura é a única com sinal: −100 (frio)
+   a +100 (calor); a ficha a desenha como duas barras (Frio e Calor). */
+const COND_LIMITE = 100;
+const COND_ROXO = '#8E5BD6';
+function corCondicao() {
+  return COND_ROXO;
 }
 
-Object.assign(window, { corCondicao, COND_LIMITE });
+Object.assign(window, { corCondicao, COND_LIMITE, COND_ROXO });
 /* ============================================================
    QuantidadeStepper — O seletor de quantidade do sistema
    ============================================================
@@ -375,3 +439,17 @@ function QuantidadeStepper({
 }
 
 Object.assign(window, { QuantidadeStepper });
+
+/* primeiroNome — o nome no LOG DA MESA (27/09/2026): "No nome, identifique
+   sempre com o primeiro nome, mesmo para criaturas." "Lirael Vel'Thalas" →
+   "Lirael"; "Lobo Adulto" → "Lobo". */
+function primeiroNome(nome) {
+  const n = String(nome == null ? '' : nome).trim();
+  const partes = n.split(/\s+/);
+  const primeiro = partes[0] || n;
+  // O número do bando fica ("Lobo Adulto 2" → "Lobo 2"), senão dois lobos
+  // viram o mesmo "Lobo" no log.
+  const ultimo = partes[partes.length - 1];
+  return partes.length > 1 && /^\d+$/.test(ultimo) ? `${primeiro} ${ultimo}` : primeiro;
+}
+Object.assign(window, { primeiroNome });

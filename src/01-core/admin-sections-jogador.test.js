@@ -99,7 +99,8 @@ describe('ADMIN_SECTIONS.master — as dez seções', () => {
   it('mantém a ordem, com Histórias primeiro', () => {
     const ids = ADMIN_SECTIONS.master.map((s) => s.id);
     expect(ids).toEqual([
-      'historias', 'personagens_m', 'lugares', 'npcs', 'criaturas', 'itens',
+      // Cidades entrou em 26/09/2026, logo depois de Reinos (lugares).
+      'historias', 'personagens_m', 'lugares', 'cidades', 'npcs', 'criaturas', 'itens',
       'itens_campanha', 'magias', 'tecnicas', 'habilidades',
     ]);
   });

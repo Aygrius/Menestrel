@@ -4,7 +4,8 @@
    - FANTASY_MONTHS / FANTASY_WEEKDAYS — calendário fantasy
    - AUTH_COPY — strings do fluxo de login Google
    - ADMIN_COPY — strings do console administrativo
-   - ADMIN_SECTIONS — seções do sidebar por perfil (master/player)
+   - ADMIN_SECTIONS — seções (destinos) por perfil (master/player)
+   - ADMIN_MENU — a árvore do menu lateral por cima delas (grupos e filtros)
 
    TWEAKS_DEFAULTS NÃO foi movido porque o bloco EDITMODE-BEGIN/END
    é reescrito pelo host em disco — mover risca quebrar essa integração.
@@ -158,6 +159,14 @@ const ADMIN_COPY = {
     equipJaEquipada: 'Esta arma já está equipada.',
     equipSlotOcupado: 'Já há uma peça nesse lugar.',
     equipSemSlot: 'Este item não tem onde ser equipado.',
+    // Ataque × Equipamento (25/09/2026)
+    campoArmasAtaque: 'Ataque',
+    equipBuscarArma: 'Buscar arma…',
+    equipBuscarItem: 'Buscar armadura ou item…',
+    equipNaoEArma: 'Só armas entram em Ataque.',
+    equipNaMochila: 'na mochila',
+    equipMenos: 'Um a menos',
+    equipMais: 'Um a mais',
     campoDano25: 'Dano 25%',
     campoDano50: 'Dano 50%',
     campoDano75: 'Dano 75%',
@@ -169,7 +178,8 @@ const ADMIN_COPY = {
     campoDocUrl: 'Link do conteúdo',
     campoEfeitoPositivo: 'Efeito Positivo',
     campoEfeitoNegativo: 'Efeito Negativo',
-    campoValorLatao: 'Valor em Latão',
+    campoValorLatao: 'Valor',
+    campoItensNecessarios: 'Itens necessários',
     campoOcupa: 'Ocupa',
     campoArmazena: 'Armazena',
     campoForcaReq: 'Força Requerida',
@@ -214,8 +224,11 @@ const ADMIN_COPY = {
       convites:      { label: 'Convites',     desc: 'Aceite convites e veja suas mesas ativas' },
       aventuras:     { label: 'Histórias',    desc: 'As aventuras vividas pelos seus personagens' },
       /* Vieram do Diário em 12/09/2026 — antes eram abas dentro da ficha. */
-      lugares:       { label: 'Lugares',      desc: 'Os reinos e cidades que seu personagem conhece' },
-      npcs:          { label: 'NPCs',         desc: 'As pessoas que seu personagem conheceu' },
+      /* Reinos e Conhecidos (26/09/2026): eram Lugares e NPCs. O id da
+         seção não mudou — só o nome que a tela mostra. */
+      lugares:       { label: 'Reinos',       desc: 'Os reinos que seu personagem conhece' },
+      npcs:          { label: 'Conhecidos',   desc: 'As pessoas que seu personagem conheceu' },
+      cidades:       { label: 'Cidades',      desc: 'As cidades do mundo e de quem elas são' },
       memorias:      { label: 'Memórias',     desc: 'O que seu personagem escreveu sobre o que viveu' },
     }
   },
@@ -304,6 +317,13 @@ const ADMIN_COPY = {
     equipJaEquipada: 'This weapon is already equipped.',
     equipSlotOcupado: 'There is already a piece in that spot.',
     equipSemSlot: 'This item has nowhere to be equipped.',
+    campoArmasAtaque: 'Attack',
+    equipBuscarArma: 'Search weapon…',
+    equipBuscarItem: 'Search armor or item…',
+    equipNaoEArma: 'Only weapons go in Attack.',
+    equipNaMochila: 'in the pack',
+    equipMenos: 'One less',
+    equipMais: 'One more',
     campoDano25: 'Damage 25%',
     campoDano50: 'Damage 50%',
     campoDano75: 'Damage 75%',
@@ -315,7 +335,8 @@ const ADMIN_COPY = {
     campoDocUrl: 'Content link',
     campoEfeitoPositivo: 'Positive Effect',
     campoEfeitoNegativo: 'Negative Effect',
-    campoValorLatao: 'Brass Value',
+    campoValorLatao: 'Value',
+    campoItensNecessarios: 'Required items',
     campoOcupa: 'Occupies',
     campoArmazena: 'Stores',
     campoForcaReq: 'Required Strength',
@@ -354,8 +375,9 @@ const ADMIN_COPY = {
       convites:      { label: 'Invites',     desc: 'Accept invites and see your active tables' },
       aventuras:     { label: 'Stories',     desc: 'Adventures lived by your characters' },
       /* Vieram do Diário em 12/09/2026 — antes eram abas dentro da ficha. */
-      lugares:       { label: 'Places',      desc: 'The kingdoms and cities your character knows' },
-      npcs:          { label: 'NPCs',        desc: 'The people your character has met' },
+      lugares:       { label: 'Kingdoms',    desc: 'The kingdoms and cities your character knows' },
+      npcs:          { label: 'Acquaintances', desc: 'The people your character has met' },
+      cidades:       { label: 'Cities',      desc: 'The cities of the world and who holds them' },
       memorias:      { label: 'Memories',    desc: 'What your character wrote about what they lived' },
     }
   }
@@ -397,6 +419,8 @@ const ADMIN_SECTIONS = {
        tipo, lendo a mesa ativa (ver LoreDaMesa, 13-diario/diario.jsx).
        Memórias não entra: memória é do personagem, não da mesa. */
     { id: 'lugares',       icon: 'MapPin' },
+    // Cidades (26/09/2026): página própria no Diário, separada de Reinos.
+    { id: 'cidades',       icon: 'Cidade' },
     { id: 'npcs',          icon: 'Users' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'itens',         icon: 'Sheet' },
@@ -413,6 +437,8 @@ const ADMIN_SECTIONS = {
     { id: 'aventuras',     icon: 'BookOpen' },
     // Vieram do Diário (era aba dentro da ficha) em 12/09/2026.
     { id: 'lugares',       icon: 'MapPin' },
+    // Cidades (26/09/2026): página própria no Diário, separada de Reinos.
+    { id: 'cidades',       icon: 'Cidade' },
     { id: 'npcs',          icon: 'Users' },
     { id: 'memorias',      icon: 'Feather' },
     // Catálogos filtrados pelo que o jogador conhece/possui (spec
@@ -426,4 +452,132 @@ const ADMIN_SECTIONS = {
   ],
 };
 
-Object.assign(window, { FANTASY_MONTHS, FANTASY_WEEKDAYS, AUTH_COPY, ADMIN_COPY, ADMIN_SECTIONS, PLANO_FREE_LIMITES });
+/* ============================================================
+   ADMIN_MENU — a árvore do menu lateral (26/09/2026)
+   ============================================================
+   "Magias, Técnicas e Habilidades vão virar um submenu de Treinamento.
+    Magias Básicas, Ancestrais e Perdidas serão submenus de Magias. Técnicas
+    Básicas e Especializadas, de Técnicas. Habilidades de Profissão, de
+    Influência, etc, de Habilidades. Lugares e NPCs vão ser um submenu de
+    Diário [Reinos e Conhecidos]. Itens vira submenu de Comércio; Armas,
+    Minerais, Consumíveis, etc serão submenus de Comércio." (usuário)
+
+   ADMIN_SECTIONS continua sendo a lista de DESTINOS (o que existe, por
+   perfil); esta árvore só diz como se chega neles. Cada folha aponta para uma
+   seção e, opcionalmente, um `filtro` que a lista aplica:
+     magias      → magias.tipo       ('Básica' | 'Ancestral' | 'Perdida')
+     tecnicas    → categoriaTecnica  ('basica' | 'especializada', pela permissão)
+     habilidades → habilidades.grupo ('Profissional', 'Influência', …)
+     itens       → itens.grupo       ('Armas', 'Minerais', …)
+   Sem folha "Todas" (26/09/2026: "você criou um Todas que eu não pedi"):
+   cada subgrupo lista só as divisões que o usuário ditou.
+
+   Nó: { secao }                        — folha no topo (ícone de ADMIN_SECTIONS)
+       { id, icon, rotulo, filhos }     — grupo (abre o painel ao lado da barra)
+       { secao, rotulo, filhos }        — subgrupo (segunda coluna do painel)
+       { secao, filtro?, rotulo, titulo? } — folha dentro do painel
+   `rotulo` é o texto do painel; `titulo`, quando existe, é o título da página
+   ("Básicas" no painel de Magias, "Magias Básicas" no topo da tabela). */
+const R = (pt, en) => ({ pt, en });
+
+const MENU_MAGIAS = {
+  secao: 'magias', rotulo: R('Magias', 'Spells'), filhos: [
+    { secao: 'magias', filtro: 'Básica', rotulo: R('Básicas', 'Basic'), titulo: R('Magias Básicas', 'Basic Spells') },
+    { secao: 'magias', filtro: 'Ancestral', rotulo: R('Ancestrais', 'Ancestral'), titulo: R('Magias Ancestrais', 'Ancestral Spells') },
+    { secao: 'magias', filtro: 'Perdida', rotulo: R('Perdidas', 'Lost'), titulo: R('Magias Perdidas', 'Lost Spells') },
+  ],
+};
+const MENU_TECNICAS = {
+  secao: 'tecnicas', rotulo: R('Técnicas', 'Techniques'), filhos: [
+    { secao: 'tecnicas', filtro: 'basica', rotulo: R('Básicas', 'Basic'), titulo: R('Técnicas Básicas', 'Basic Techniques') },
+    { secao: 'tecnicas', filtro: 'especializada', rotulo: R('Especializadas', 'Specialized'), titulo: R('Técnicas Especializadas', 'Specialized Techniques') },
+  ],
+};
+const MENU_HABILIDADES = {
+  secao: 'habilidades', rotulo: R('Habilidades', 'Skills'), filhos: [
+    ...[
+      ['Profissional', 'Profissão', 'Profession', 'de Profissão'],
+      ['Influência', 'Influência', 'Influence', 'de Influência'],
+      ['Conhecimento', 'Conhecimento', 'Knowledge', 'de Conhecimento'],
+      ['Manobra', 'Manobra', 'Maneuver', 'de Manobra'],
+      ['Subterfúgio', 'Subterfúgio', 'Subterfuge', 'de Subterfúgio'],
+      ['Geral', 'Gerais', 'General', 'Gerais'],
+    ].map(([filtro, pt, en, dePt]) => ({
+      secao: 'habilidades', filtro, rotulo: R(pt, en), titulo: R('Habilidades ' + dePt, en + ' Skills'),
+    })),
+  ],
+};
+const TREINAMENTO = {
+  id: 'treinamento', icon: 'Treino', rotulo: R('Treinamento', 'Training'),
+  filhos: [MENU_MAGIAS, MENU_TECNICAS, MENU_HABILIDADES],
+};
+/* A ordem é de uso, não alfabética: o que se compra para a aventura primeiro,
+   o que é raro ou administrativo (Moedas, Diário) por último. */
+const COMERCIO = {
+  id: 'comercio', icon: 'Comercio', rotulo: R('Comércio', 'Trade'),
+  filhos: [
+    ...[
+      ['Armas', 'Armas', 'Weapons'], ['Armaduras', 'Armaduras', 'Armor'],
+      ['Vestimentas', 'Vestimentas', 'Clothing'], ['Consumíveis', 'Consumíveis', 'Consumables'],
+      ['Itens', 'Itens', 'Items'], ['Recipientes', 'Recipientes', 'Containers'],
+      ['Instrumentos', 'Instrumentos', 'Instruments'], ['Minerais', 'Minerais', 'Minerals'],
+      ['Animais', 'Animais', 'Animals'], ['Transportes', 'Transportes', 'Transport'],
+      ['Propriedades', 'Propriedades', 'Properties'], ['Serviços', 'Serviços', 'Services'],
+      // "Diário" saiu do Comércio em 26/09/2026 ("remova o submenu Diário").
+      ['Moedas', 'Moedas', 'Coins'],
+    ].map(([filtro, pt, en]) => ({ secao: 'itens', filtro, rotulo: R(pt, en) })),
+  ],
+};
+/* Criaturas por CLASSE (26/09/2026): "Na tabela criaturas, criar um submenu
+   com a classe." As nove classes que o catálogo usa (criaturas.tipo),
+   em ordem alfabética; o rótulo no plural, como os grupos de Comércio. */
+const CRIATURAS = {
+  id: 'bestiario', icon: 'Tower', rotulo: R('Criaturas', 'Creatures'),
+  filhos: [
+    ['Animal', 'Animais', 'Animals'], ['Celestial', 'Celestiais', 'Celestials'],
+    ['Civilizado', 'Civilizados', 'Civilized'], ['Demônio', 'Demônios', 'Demons'],
+    ['Dragão', 'Dragões', 'Dragons'], ['Elemental', 'Elementais', 'Elementals'],
+    ['Infernal', 'Infernais', 'Infernals'], ['Místico', 'Místicos', 'Mystics'],
+    ['Morto', 'Mortos', 'Undead'],
+  ].map(([filtro, pt, en]) => ({ secao: 'criaturas', filtro, rotulo: R(pt, en) })),
+};
+const diario = (comMemorias) => ({
+  id: 'diario', icon: 'Diario', rotulo: R('Diário', 'Journal'),
+  filhos: [
+    { secao: 'lugares', rotulo: R('Reinos', 'Kingdoms') },
+    { secao: 'cidades', rotulo: R('Cidades', 'Cities') },
+    { secao: 'npcs', rotulo: R('Conhecidos', 'Acquaintances') },
+    // Memórias é do personagem, não da mesa — só o Jogador tem.
+    ...(comMemorias ? [{ secao: 'memorias', rotulo: R('Memórias', 'Memories') }] : []),
+  ],
+});
+
+const ADMIN_MENU = {
+  master: [
+    { secao: 'historias' },
+    { secao: 'personagens_m' },
+    diario(false),
+    CRIATURAS,
+    COMERCIO,
+    TREINAMENTO,
+  ],
+  player: [
+    { secao: 'personagens_j' },
+    CRIATURAS,
+    { secao: 'aventuras' },
+    diario(true),
+    COMERCIO,
+    TREINAMENTO,
+  ],
+};
+
+/* As folhas da árvore, achatadas — quem precisa saber "este destino está no
+   menu?" ou "qual o título desta página?" pergunta aqui. */
+function folhasDoMenu(nos) {
+  const out = [];
+  const visitar = (n) => { if (n.filhos) n.filhos.forEach(visitar); else if (n.secao) out.push(n); };
+  (nos || []).forEach(visitar);
+  return out;
+}
+
+Object.assign(window, { FANTASY_MONTHS, FANTASY_WEEKDAYS, AUTH_COPY, ADMIN_COPY, ADMIN_SECTIONS, ADMIN_MENU, folhasDoMenu, PLANO_FREE_LIMITES });

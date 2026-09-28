@@ -14,6 +14,7 @@ import { queryClient } from './data/queryClient'
 
 import './bootstrap-globals'      // 1º: popula os globais antes das fases
 import './index.css'              // Tailwind v4 + tokens + re-skins "Grimório" (ESSENCIAL)
+import './tabler-filled.css'      // ícones Tabler PREENCHIDOS onde houver (27/09/2026)
 import './components/ui-bridge'   // expõe o kit shadcn no window.UI (depois do bootstrap)
 
 // ── fases + app.jsx, NA ORDEM EXATA do index.html antigo ──
@@ -21,6 +22,7 @@ import './01-core/copy.jsx'
 import './01-core/constants.jsx'
 import './01-core/helpers.jsx'
 import './01-core/inventario-helpers.jsx'
+import './01-core/select-pill.jsx'       // o dropdown único do sistema (25/09/2026)
 import './01-core/supabase.jsx'
 import './01-core/clima-desgaste.jsx'   // o relógio da mesa desgasta o PJ (20/09/2026)
 import './01-core/game-data.jsx'

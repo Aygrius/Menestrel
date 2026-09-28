@@ -18,7 +18,15 @@ import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
 import '../10-shell/shell.jsx';
+import '../01-core/select-pill.jsx';
 import '../07-inventario/inventario.jsx';
+// O modal de item é o BestDetalheModal do bestiário desde 26/09/2026.
+import '../09-bestiario/ataques-criatura.jsx';
+import '../09-bestiario/criatura-formulas.jsx';
+import '../09-bestiario/conhecido-jogador.jsx';
+import '../09-bestiario/catalogo-descritores.jsx';
+import '../09-bestiario/catalogo-editor.jsx';
+import '../09-bestiario/bestiario.jsx';
 
 let Modal;
 beforeAll(() => {
@@ -51,30 +59,39 @@ describe('pergaminho mostra a descrição da magia', () => {
 
   it('descrição geral, em parágrafos, e o texto do nível do pergaminho', () => {
     abrir(PERG, inst, { magiasDb: MAGIAS });
-    const bloco = document.querySelector('.det-magia-pergaminho');
+    // O bloco é o do Comércio (BestItemMagia) desde 26/09/2026, numa aba própria.
+    const bloco = document.querySelector('.best-magia');
     expect(bloco).toBeTruthy();
-    expect(bloco.querySelectorAll('.det-desc p:not(.det-efeito)')).toHaveLength(2);
+    expect(bloco.getAttribute('data-aba')).toBe('Magia');
     expect(bloco.textContent).toMatch(/Vôo · Nível 3/);
     expect(bloco.textContent).toMatch(/Você flutua pelo ar\./);
-    expect(bloco.querySelector('.det-efeito').textContent).toBe('Voa por 3 rodadas.');
+    expect(bloco.querySelector('.best-efeito').textContent).toBe('Voa por 3 rodadas.');
     expect(bloco.textContent).not.toMatch(/Voa por 1 rodada\./);
     expect(bloco.textContent).not.toMatch(/Voa por 5 rodadas\./);
   });
 
-  it('sem o catálogo de magias, não há bloco', () => {
+  // Sem o catálogo, sobra o nome e o nível — como no Comércio (26/09/2026).
+  it('sem o catálogo de magias, só o nome e o nível', () => {
     abrir(PERG, inst, {});
-    expect(document.querySelector('.det-magia-pergaminho')).toBeNull();
+    const bloco = document.querySelector('.best-magia');
+    expect(bloco.textContent).toMatch(/Vôo · Nível 3/);
+    expect(bloco.querySelector('.best-efeito')).toBeNull();
   });
 
-  it('item mágico que só carrega a magia (não é pergaminho) não ganha o bloco', () => {
+  /* Mudou em 26/09/2026: o modal do inventário é o do Comércio, que mostra a
+     magia de QUALQUER item mágico (o anel conjura aquilo) — o que fica só no
+     pergaminho é o ícone Aprender. */
+  it('item mágico que só carrega a magia mostra a magia, sem Aprender', () => {
     const anel = { slug: 'anel_voo', nome: 'Anel', grupo: 'Itens', magia: 'Vôo', nivel_magia: 3 };
     abrir(anel, { instanceId: 'a1', slug: anel.slug, quantidade: 1 }, { magiasDb: MAGIAS });
-    expect(document.querySelector('.det-magia-pergaminho')).toBeNull();
+    expect(document.querySelector('.best-magia').textContent).toMatch(/Vôo · Nível 3/);
+    expect(document.querySelector('[data-acao="aprender"]')).toBeNull();
   });
 });
 
 describe('vestir: slots gravados no catálogo', () => {
-  const botaoVestir = () => [...document.querySelectorAll('button')].find((b) => b.textContent === 'Vestir');
+  // Ícone ao lado do X desde 26/09/2026: o nome mora no aria-label.
+  const botaoVestir = () => [...document.querySelectorAll('button')].find((b) => b.textContent === 'Vestir' || b.getAttribute('aria-label') === 'Vestir');
 
   it.each([
     ['capa_simples', 'costas'],

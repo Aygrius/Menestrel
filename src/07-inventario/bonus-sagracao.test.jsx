@@ -21,13 +21,23 @@ import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
 import '../10-shell/shell.jsx';
+import '../01-core/select-pill.jsx';
 import '../07-inventario/inventario.jsx';
+// O modal de item é o BestDetalheModal do bestiário desde 26/09/2026.
+import '../09-bestiario/ataques-criatura.jsx';
+import '../09-bestiario/criatura-formulas.jsx';
+import '../09-bestiario/conhecido-jogador.jsx';
+import '../09-bestiario/catalogo-descritores.jsx';
+import '../09-bestiario/catalogo-editor.jsx';
+import '../09-bestiario/bestiario.jsx';
 
 let Modal;
 beforeAll(() => {
   Modal = window.DetalhesItemModal;
   expect(Modal).toBeTypeOf('function');
 });
+// Sagração virou linha de Características (26/09/2026): o <li> tem o rótulo.
+const bonusLi = () => { const b = document.querySelector('.det-bonus'); return b ? b.closest('li') : null; };
 afterEach(cleanup);
 
 const ESPADA = { slug: 'espada_longa', nome: 'Espada Longa', grupo: 'Armas', categoria_equip: 'arma', slot_equip: 'maos', dano: 28, dano_l: -4, dano_m: 0, dano_p: 4, ajuste_atributo: 'FOR' };
@@ -142,8 +152,8 @@ describe('no inventário de verdade: o Mestre ajusta, o banco grava', () => {
 
   it('jogador: sem controle de Sagração', async () => {
     await montar(false);
-    await vi.waitFor(() => expect(document.querySelector('.modal-detalhes')).toBeTruthy());
-    expect(document.querySelector('.det-bonus')).toBeNull();
+    await vi.waitFor(() => expect(document.querySelector('.modal-best-detalhe')).toBeTruthy());
+    expect(bonusLi()).toBeNull();
   });
 });
 
@@ -165,7 +175,7 @@ describe('o modal do item', () => {
   it('o Mestre vê − / + e o valor; cada clique pede um passo da escada', () => {
     const onBonus = vi.fn();
     abrir(ESPADA, { instanceId: 'e1', slug: 'espada_longa', quantidade: 1, bonus: 3 }, { onBonus });
-    const bloco = document.querySelector('.det-bonus');
+    const bloco = bonusLi();
     expect(bloco.textContent).toMatch(/Sagração/);
     expect(bloco.textContent).toMatch(/dano/);
     expect(bloco.querySelector('.det-bonus-val').textContent).toBe('+3');
@@ -176,7 +186,7 @@ describe('o modal do item', () => {
 
   it('nas pontas o botão fica desativado', () => {
     abrir(PEITORAL, { instanceId: 'p1', slug: 'peitoral_de_aco', quantidade: 1 }, { onBonus: noop });
-    expect(document.querySelector('.det-bonus').textContent).toMatch(/absorção/);
+    expect(bonusLi().textContent).toMatch(/absorção/);
     expect(botao('Reduzir bônus').disabled).toBe(true);
     cleanup();
     abrir(PEITORAL, { instanceId: 'p1', slug: 'peitoral_de_aco', quantidade: 1, bonus: 9 }, { onBonus: noop });
@@ -192,11 +202,11 @@ describe('o modal do item', () => {
 
   it('item comum, para o jogador: nada de Sagração', () => {
     abrir(ESPADA, { instanceId: 'e1', slug: 'espada_longa', quantidade: 1 });
-    expect(document.querySelector('.det-bonus')).toBeNull();
+    expect(bonusLi()).toBeNull();
   });
 
   it('item que não é arma nem armadura: nem para o Mestre', () => {
     abrir(CORDA, { instanceId: 'c1', slug: 'corda', quantidade: 1 }, { onBonus: noop });
-    expect(document.querySelector('.det-bonus')).toBeNull();
+    expect(bonusLi()).toBeNull();
   });
 });

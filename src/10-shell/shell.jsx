@@ -99,7 +99,7 @@ function FantasyDatePicker({ value, onChange, disabled = false }) {
   // quatro campos precisam da mesma pele dos SelectPill vizinhos.
   const pill = {
     borderRadius: 999, height: 32, outline: 'none',
-    fontFamily: "'Lora', serif", fontSize: 13, flexShrink: 0,
+    fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', flexShrink: 0,
     ...(disabled ? { opacity: 0.45, cursor: 'not-allowed' } : null),
   };
 
@@ -108,22 +108,22 @@ function FantasyDatePicker({ value, onChange, disabled = false }) {
   const dropBtn = {
     ...pill,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%',
-    color: '#E8DDC6', textAlign: 'left',
+    color: '#F1E6CF', textAlign: 'left',
     padding: '0 12px 0 16px', cursor: disabled ? 'not-allowed' : 'pointer',
   };
 
   const dropItem = (active) => ({
     display: 'flex', alignItems: 'center', gap: 8,
     padding: '3px 8px', borderRadius: 6, cursor: 'pointer',
-    fontFamily: "'Lora', serif", fontSize: 13,
-    color: active ? '#C9A44E' : '#C8BCAA',
+    fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)',
+    color: active ? '#E0BE68' : '#C8BCAA',
     background: 'transparent',
     whiteSpace: 'nowrap',
   });
 
   const chevron = (open) => (
     <i className="ti ti-chevron-down" aria-hidden="true"
-       style={{ fontSize: 12, color: '#C9A44E', opacity: 0.7, flexShrink: 0,
+       style={{ fontSize: 'var(--fs-xs)', color: '#E0BE68', opacity: 0.7, flexShrink: 0,
                 transition: 'transform .15s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
   );
 
@@ -145,12 +145,12 @@ function FantasyDatePicker({ value, onChange, disabled = false }) {
             {Array.from({ length: maxDias }, (_, i) => i + 1).map((d) => (
               <li key={d}
                 style={dropItem(d === val.dia)}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(106,85,48,0.12)'; e.currentTarget.style.color = '#E8DDC6'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(138,110,64,0.12)'; e.currentTarget.style.color = '#E8DDC6'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = d === val.dia ? '#C9A44E' : '#C8BCAA'; }}
                 onClick={() => { update('dia', d); setDiaOpen(false); }}
               >
                 {d}
-                {d === val.dia && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
+                {d === val.dia && <i className="ti ti-check" style={{ fontSize: 'var(--fs-xs)', color: '#E0BE68', flexShrink: 0 }} />}
               </li>
             ))}
           </FdpDrop>
@@ -175,7 +175,7 @@ function FantasyDatePicker({ value, onChange, disabled = false }) {
                 onClick={() => { update('mes', m.n); setMesOpen(false); }}
               >
                 {m.nome}
-                {m.n === val.mes && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
+                {m.n === val.mes && <i className="ti ti-check" style={{ fontSize: 'var(--fs-xs)', color: '#E0BE68', flexShrink: 0 }} />}
               </li>
             ))}
           </FdpDrop>
@@ -188,7 +188,7 @@ function FantasyDatePicker({ value, onChange, disabled = false }) {
         readOnly
         className="fdp-semana"
         value={`✦ ${diaSemana}`}
-        style={{ ...pill, color: '#C9A44E', cursor: 'default', padding: '0 16px', width: '100%' }}
+        style={{ ...pill, color: '#E0BE68', cursor: 'default', padding: '0 16px', width: '100%' }}
       />
 
       {/* Ano */}
@@ -200,7 +200,7 @@ function FantasyDatePicker({ value, onChange, disabled = false }) {
         disabled={disabled}
         readOnly={disabled}
         onChange={(e) => { if (!disabled) update('ano', e.target.value); }}
-        style={{ ...pill, color: '#E8DDC6', padding: '0 16px', width: '100%' }}
+        style={{ ...pill, color: '#F1E6CF', padding: '0 16px', width: '100%' }}
       />
     </div>
   );
@@ -244,6 +244,11 @@ const Icon = {
   MapPin:   TI_cls('ti-map-pin'),       // Lugares
   Users:    TI_cls('ti-users'),         // Personagens (NPCs) conhecidos
   Feather:  TI_cls('ti-feather'),       // Memórias
+  // Os três grupos do menu (26/09/2026) — ver ADMIN_MENU em 01-core/constants.jsx.
+  Treino:   TI_cls('ti-target-arrow'),  // Treinamento (Magias, Técnicas, Habilidades)
+  Comercio: TI_cls('ti-scale'),         // Comércio (Itens por grupo)
+  Diario:   TI_cls('ti-notebook'),      // Diário (Reinos, Cidades, Conhecidos, Memórias)
+  Cidade:   TI_cls('ti-building-castle'), // Cidades (26/09/2026)
 
   // ── Logo / cabeçalho ─────────────────────────────────────────────────────────
   Skull:   TI_cls('ti-id'),           // Logo ornamental
@@ -292,19 +297,19 @@ function AdminEmpty({ ac, sectionLabel }) {
   const lineR = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, rgba(201,164,78,0.45), transparent)' };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '64px 24px', minHeight: 280 }}>
-      <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 300, color: '#C9A44E' }}>
+      <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 300, color: '#E0BE68' }}>
         <span style={lineL} />
         <Icon.Ornament style={{ width: 56, height: 22, flex: '0 0 auto' }} />
         <span style={lineR} />
       </div>
-      <p style={{ margin: 0, fontSize: 15, color: '#9C8F73', lineHeight: 1.6, maxWidth: 420 }}>{ac.empty_sub}</p>
+      <p style={{ margin: 0, fontSize: 'var(--fs-base)', color: '#BFAF8E', lineHeight: 1.6, maxWidth: 420 }}>{ac.empty_sub}</p>
       <button
         disabled
         {...propsTip(abrirTip, fecharTip, ac.coming_soon)}
-        style={{ marginTop: 16, fontFamily: "'Lora', serif", fontWeight: 400, fontSize: 15, color: '#9C8F73', background: 'rgba(232,221,198,0.05)', border: '1px solid rgba(232,221,198,0.12)', borderRadius: 6, padding: '11px 20px', cursor: 'not-allowed', opacity: 0.7 }}>
+        style={{ marginTop: 16, fontFamily: "var(--font-body)", fontWeight: 400, fontSize: 'var(--fs-base)', color: '#BFAF8E', background: 'rgba(232,221,198,0.05)', border: '1px solid rgba(232,221,198,0.12)', borderRadius: 6, padding: '11px 20px', cursor: 'not-allowed', opacity: 0.7 }}>
         + {ac.create} {sectionLabel ? `· ${sectionLabel}` : ''}
       </button>
-      <div style={{ marginTop: 10, fontSize: 15, color: 'rgba(156,143,115,0.7)' }}>{ac.coming_soon}</div>
+      <div style={{ marginTop: 10, fontSize: 'var(--fs-base)', color: 'rgba(156,143,115, 1)' }}>{ac.coming_soon}</div>
       <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
@@ -338,11 +343,11 @@ function FichasJogador({ ac, lang, currentUserId }) {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, gap: 10, color: '#9C8F73' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, gap: 10, color: '#BFAF8E' }}>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.4" style={{ animation: 'spin 1s linear infinite' }}>
           <path d="M12 2 A10 10 0 0 1 22 12" strokeLinecap="round" />
         </svg>
-        <span style={{ fontFamily: "'Lora', serif", fontSize: 15 }}>
+        <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-base)' }}>
           {lang === 'en' ? 'Loading sheets…' : 'Carregando fichas…'}
         </span>
       </div>
@@ -354,10 +359,10 @@ function FichasJogador({ ac, lang, currentUserId }) {
     const lineR = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, rgba(201,164,78,0.45), transparent)' };
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '64px 24px', minHeight: 260 }}>
-        <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 300, color: '#C9A44E' }}>
+        <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 300, color: '#E0BE68' }}>
           <span style={lineL} /><Icon.Ornament style={{ width: 56, height: 22, flex: '0 0 auto' }} /><span style={lineR} />
         </div>
-        <p style={{ margin: 0, fontSize: 15, color: '#9C8F73', lineHeight: 1.6, maxWidth: 420 }}>
+        <p style={{ margin: 0, fontSize: 'var(--fs-base)', color: '#BFAF8E', lineHeight: 1.6, maxWidth: 420 }}>
           {lang === 'en'
             ? 'No characters yet. Create one in Personagens.'
             : 'Nenhum personagem ainda. Crie um em Personagens.'}
@@ -366,7 +371,7 @@ function FichasJogador({ ac, lang, currentUserId }) {
     );
   }
 
-  const FB = "'Lora', serif";
+  const FB = "var(--font-body)";
 
   return (
     <>
@@ -386,7 +391,7 @@ function FichasJogador({ ac, lang, currentUserId }) {
             <div
               key={p.id}
               className="fj-card"
-              style={{ cursor: 'pointer', position: 'relative', background: 'linear-gradient(180deg, #221D15 0%, #181308 100%)', border: '1px solid rgba(106,85,48,0.30)', borderRadius: 6, padding: 18, boxShadow: '0 16px 40px -28px rgba(8,6,2,0.8)' }}
+              style={{ cursor: 'pointer', position: 'relative', background: 'linear-gradient(180deg, #2D261C 0%, #251E0C 100%)', border: '1px solid rgba(138,110,64,0.30)', borderRadius: 6, padding: 18, boxShadow: '0 16px 40px -28px rgba(8,6,2,0.8)' }}
               onClick={() => setFichaAberta(p)}
               {...propsTip(abrirTip, fecharTip, lang === 'en' ? 'Open sheet' : 'Abrir ficha')}
             >
@@ -397,17 +402,17 @@ function FichasJogador({ ac, lang, currentUserId }) {
                     fontFamily: "'Cinzel', serif",
                     fontWeight: 700,
                     fontSize: 16,
-                    color: '#C9A44E',
+                    color: '#E0BE68',
                     lineHeight: 1.2,
                   }}>
                     {p.nome}
                   </div>
                   {titulo && (
-                    <div style={{ fontSize: 13, color: '#9C8F73', textTransform: 'uppercase', marginTop: 2 }}>
+                    <div style={{ fontSize: 'var(--fs-sm)', color: '#BFAF8E', textTransform: 'uppercase', marginTop: 2 }}>
                       {titulo}
                     </div>
                   )}
-                  <div style={{ fontSize: 13, color: '#9C8F73', marginTop: 4 }}>
+                  <div style={{ fontSize: 'var(--fs-sm)', color: '#BFAF8E', marginTop: 4 }}>
                     {p.profissao} · {p.raca} · {lang === 'en' ? 'Stage' : 'Estágio'} {estagio}
                   </div>
                 </div>
@@ -416,10 +421,10 @@ function FichasJogador({ ac, lang, currentUserId }) {
                   border: '1px solid rgba(201,164,78,0.28)',
                   borderRadius: 6,
                   padding: '3px 9px',
-                  fontSize: 13,
+                  fontSize: 'var(--fs-sm)',
                   fontFamily: FB,
                   fontWeight: 400,
-                  color: '#C9A44E',
+                  color: '#E0BE68',
                   whiteSpace: 'nowrap',
                   fontVariantNumeric: 'tabular-nums',
                 }}>
@@ -428,7 +433,7 @@ function FichasJogador({ ac, lang, currentUserId }) {
               </div>
 
               {/* Divisor ornamental */}
-              <div style={{ borderTop: '1px solid rgba(106,85,48,0.30)', marginBottom: 12 }} />
+              <div style={{ borderTop: '1px solid rgba(138,110,64,0.30)', marginBottom: 12 }} />
 
               {/* Derivadas principais */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px 10px', marginBottom: 12 }}>
@@ -441,8 +446,8 @@ function FichasJogador({ ac, lang, currentUserId }) {
                   { label: 'VB',  val: derivadas.velocidade },
                 ].map(({ label, val }) => (
                   <div key={label} style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 9, textTransform: 'uppercase', color: '#9C8F73' }}>{label}</div>
-                    <div style={{ fontSize: 15, fontFamily: FB, color: '#E8DDC6', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{val}</div>
+                    <div style={{ fontSize: 'var(--fs-2xs)', textTransform: 'uppercase', color: '#BFAF8E' }}>{label}</div>
+                    <div style={{ fontSize: 'var(--fs-base)', fontFamily: FB, color: '#F1E6CF', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{val}</div>
                   </div>
                 ))}
               </div>
@@ -451,13 +456,13 @@ function FichasJogador({ ac, lang, currentUserId }) {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px' }}>
                 {ATRIBUTOS_KEYS.map((k) => (
                   <div key={k} style={{
-                    fontSize: 13,
+                    fontSize: 'var(--fs-sm)',
                     fontFamily: FB,
                     fontVariantNumeric: 'tabular-nums',
-                    color: atributos[k] >= 0 ? '#9C8F73' : '#C0563F',
+                    color: atributos[k] >= 0 ? '#BFAF8E' : '#D08271',
                   }}>
                     <span style={{ opacity: 0.6 }}>{ATRIBUTOS_LABEL[k].slice(0, 3).toUpperCase()} </span>
-                    <span style={{ color: atributos[k] > 0 ? '#C9A44E' : 'inherit' }}>
+                    <span style={{ color: atributos[k] > 0 ? '#E0BE68' : 'inherit' }}>
                       {atributos[k] > 0 ? '+' : ''}{atributos[k]}
                     </span>
                   </div>
@@ -466,19 +471,19 @@ function FichasJogador({ ac, lang, currentUserId }) {
 
               {/* Defesa/Absorção se disponível */}
               {(derivadas.defesa || derivadas.absorcao > 0) && (
-                <div style={{ marginTop: 10, display: 'flex', gap: 12, fontSize: 13, color: '#9C8F73', fontFamily: FB, fontVariantNumeric: 'tabular-nums' }}>
-                  <span>DEF <strong style={{ color: '#E8DDC6' }}>{derivadas.defesa}</strong></span>
-                  <span>AR <strong style={{ color: '#E8DDC6' }}>{derivadas.absorcao}</strong></span>
+                <div style={{ marginTop: 10, display: 'flex', gap: 12, fontSize: 'var(--fs-sm)', color: '#BFAF8E', fontFamily: FB, fontVariantNumeric: 'tabular-nums' }}>
+                  <span>DEF <strong style={{ color: '#F1E6CF' }}>{derivadas.defesa}</strong></span>
+                  <span>AR <strong style={{ color: '#F1E6CF' }}>{derivadas.absorcao}</strong></span>
                 </div>
               )}
 
               {/* Indicador "abrir ficha" */}
               <div style={{
                 position: 'absolute', bottom: 10, right: 12,
-                fontSize: 9, color: '#9C8F73', textTransform: 'uppercase',
+                fontSize: 'var(--fs-2xs)', color: '#BFAF8E', textTransform: 'uppercase',
                 display: 'flex', alignItems: 'center', gap: 4,
               }}>
-                <Icon.Info style={{ fontSize: 12, lineHeight: 1 }} />
+                <Icon.Info style={{ fontSize: 'var(--fs-xs)', lineHeight: 1 }} />
                 {lang === 'en' ? 'view sheet' : 'ver ficha'}
               </div>
             </div>
@@ -606,14 +611,14 @@ function ModalShell({
     MODAIS_ABERTOS.push(entrada);
     const onKey = (e) => {
       if (e.key !== 'Escape' || !onCloseRef.current) return;
-      const meu = backdropRef.current;
-      const temOutroAcima = meu && MODAIS_ABERTOS.some((o) => (
-        o !== entrada && o.current
-        && (meu.compareDocumentPosition(o.current) & Node.DOCUMENT_POSITION_FOLLOWING)
-      ));
-      if (temOutroAcima) return;
+      /* 'De cima' = a aberta por último (pilha de janelas, 26/09/2026 — ver
+         empilharJanela em 01-core/helpers.jsx). Pela posição no documento, o
+         modal de item (portal no fim da página) roubava o Esc da janela de
+         quantidade aberta por cima dele. */
+      if (!window.ehJanelaDaFrente(backdropRef.current)) return;
       onCloseRef.current();
     };
+    window.empilharJanela(backdropRef.current);
     window.addEventListener('keydown', onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -698,12 +703,12 @@ function ModalShell({
 const MENU_ITEM_STYLE = {
   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
   padding: '7px 6px', borderRadius: 6, border: 'none', background: 'transparent',
-  color: '#E8DDC6', fontFamily: "'Lora',serif", fontSize: 13,
+  color: '#F1E6CF', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)',
   cursor: 'pointer', textAlign: 'left', transition: 'background .14s ease',
 };
 
 // Linha de menu com hover via ESTADO (não via CSS :hover). O reset global do projeto,
-// `.menestrel-ui :where(button){background:none}`, define o fundo do botão como estilo de baixa
+// `.menestrel-ui :where(button){background: none}`, define o fundo do botão como estilo de baixa
 // especificidade, mas qualquer `background` inline (como o `transparent` do estilo-base) venceria
 // um `.mc-usermenu button:hover` de CSS. Aplicando o fundo do hover INLINE via estado, a iluminação
 // sempre vence. Definido FORA do UserMenu para ser um tipo de componente estável (não remonta a
@@ -816,15 +821,15 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
         <MenuRow onClick={() => { setRoleOpen((v) => !v); setLangOpen(false); }}>
           <Icon.Profile style={{ fontSize: 16, lineHeight: 1 }} />
           {t.roleLabel}
-          <i className="ti ti-chevron-down" style={{ fontSize: 14, opacity: 0.6, transition: 'transform .14s ease', transform: roleOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
+          <i className="ti ti-chevron-down" style={{ fontSize: 'var(--fs-md)', opacity: 0.6, transition: 'transform .14s ease', transform: roleOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
         </MenuRow>
         {roleOpen && (
           <div className="mc-um-submenu">
             <MenuRow onClick={() => { onSetProfile('master'); setRoleOpen(false); }}>
-              {t.master} {profile === 'master' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E', marginLeft: 'auto' }} />}
+              {t.master} {profile === 'master' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: '#E0BE68', marginLeft: 'auto' }} />}
             </MenuRow>
             <MenuRow onClick={() => { onSetProfile('player'); setRoleOpen(false); }}>
-              {t.player} {profile === 'player' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E', marginLeft: 'auto' }} />}
+              {t.player} {profile === 'player' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: '#E0BE68', marginLeft: 'auto' }} />}
             </MenuRow>
           </div>
         )}
@@ -848,15 +853,15 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
         <MenuRow onClick={() => { setLangOpen((v) => !v); setRoleOpen(false); }}>
           <Icon.Language style={{ fontSize: 16, lineHeight: 1 }} />
           {t.language}
-          <i className="ti ti-chevron-down" style={{ fontSize: 14, opacity: 0.6, transition: 'transform .14s ease', transform: langOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
+          <i className="ti ti-chevron-down" style={{ fontSize: 'var(--fs-md)', opacity: 0.6, transition: 'transform .14s ease', transform: langOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
         </MenuRow>
         {langOpen && (
           <div className="mc-um-submenu">
             <MenuRow onClick={() => { setLang('pt'); setLangOpen(false); onClose(); }}>
-              Português (Brasil) {lang === 'pt' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E', marginLeft: 'auto' }} />}
+              Português (Brasil) {lang === 'pt' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: '#E0BE68', marginLeft: 'auto' }} />}
             </MenuRow>
             <MenuRow onClick={() => { setLang('en'); setLangOpen(false); onClose(); }}>
-              English {lang === 'en' && <Icon.Check style={{ fontSize: 14, lineHeight: 1, color: '#C9A44E', marginLeft: 'auto' }} />}
+              English {lang === 'en' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: '#E0BE68', marginLeft: 'auto' }} />}
             </MenuRow>
           </div>
         )}
@@ -879,7 +884,7 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
       <hr />
 
       <MenuRow danger onClick={() => { onClose(); onLogout(); }} extraStyle={{ color: '#E08A7C' }}>
-        <Icon.Logout style={{ fontSize: 16, lineHeight: 1, color: '#C0563F' }} />
+        <Icon.Logout style={{ fontSize: 16, lineHeight: 1, color: '#D08271' }} />
         {t.logout}
       </MenuRow>
     </div>,
@@ -910,6 +915,101 @@ function useNavTooltip(delay) {
   }, []);
   return [tip, abrirTip, fecharTip, manterTip];
 }
+/* ── NavMenuPainel — o submenu da barra lateral (26/09/2026) ──────────────
+   A barra é só de ícones, então os grupos do ADMIN_MENU (Diário, Comércio,
+   Treinamento) abrem um painel AO LADO dela: primeira coluna com os filhos do
+   grupo; filho que também tem filhos (Magias, Técnicas, Habilidades) abre uma
+   segunda coluna ao passar o mouse ou clicar. Escolher uma folha navega e
+   fecha. Clique fora ou Escape fecha sem navegar.
+
+   Portal para #root: a .mc-sidebar tem backdrop-filter, e um position:fixed
+   dentro dela seria posicionado — e recortado — por ela, não pela janela. */
+function NavMenuPainel({ grupo, ancora, lang, folhaAtual, onEscolher, onFechar }) {
+  const ref = useRef(null);
+  const fecharRef = useRef(onFechar);
+  useEffect(() => { fecharRef.current = onFechar; }, [onFechar]);
+  const rot = (n) => (n.rotulo && (n.rotulo[lang] || n.rotulo.pt)) || '';
+  const contemAtual = (n) => !!folhaAtual && !!n.filhos && n.filhos.includes(folhaAtual);
+  // Abre já no subgrupo onde a página atual mora ("Magias", se estou em Magias Básicas).
+  const [sub, setSub] = useState(() => grupo.filhos.find(contemAtual) || null);
+  useEffect(() => { setSub(grupo.filhos.find(contemAtual) || null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [grupo]);
+
+  const margem = 16;
+  const [top, setTop] = useState(Math.max(margem, ancora.top - 8));
+  /* Comércio tem 15 linhas: aberto pelo ícone de baixo, o painel passaria da
+     janela. Depois de medir, sobe o quanto faltar — sem sair do topo. */
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const alto = el.getBoundingClientRect().height;
+    const ideal = Math.max(margem, ancora.top - 8);
+    setTop(Math.max(margem, Math.min(ideal, window.innerHeight - alto - margem)));
+  }, [ancora, sub]);
+
+  useEffect(() => {
+    const onDown = (e) => {
+      if (ref.current && ref.current.contains(e.target)) return;
+      // O próprio ícone de grupo decide (abre outro ou fecha este) no seu clique.
+      if (e.target.closest && e.target.closest('.mc-navgrupo')) return;
+      fecharRef.current();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') fecharRef.current(); };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey); };
+  }, []);
+  /* Teclado: o foco entra no painel ao abrir, no item da página atual se ele
+     estiver à vista. Subgrupo NÃO abre por foco — só por mouse ou Enter —,
+     senão este foco inicial abriria o primeiro subgrupo por cima do atual. */
+  useEffect(() => {
+    const el = ref.current;
+    const alvo = el && (el.querySelector('.mc-menu-item.is-atual') || el.querySelector('.mc-menu-item'));
+    if (alvo) alvo.focus();
+  }, [grupo]);
+
+  const chave = (n, i) => (n.secao || n.id || '') + ':' + (n.filtro || '') + ':' + i;
+  const folha = (n, i) => (
+    <button key={chave(n, i)} type="button" role="menuitem"
+      className={'mc-menu-item' + (n === folhaAtual ? ' is-atual' : '')}
+      aria-current={n === folhaAtual ? 'page' : undefined}
+      onClick={() => onEscolher(n)}>
+      <span>{rot(n)}</span>
+    </button>
+  );
+
+  const painel = (
+    <div className="menestrel-ui mc-menu-painel" ref={ref} role="menu" aria-label={rot(grupo)}
+      style={{ top, left: ancora.right + 12, maxHeight: `calc(100vh - ${margem * 2}px)` }}>
+      <div className="mc-menu-col">
+        {/* Sem título em cima (26/09/2026: "remova o treinamento e deixe apenas
+            os menus") — o nome do grupo segue no aria-label do painel. */}
+        {grupo.filhos.map((n, i) => (n.filhos ? (
+          <button key={chave(n, i)} type="button" role="menuitem"
+            aria-haspopup="menu" aria-expanded={sub === n}
+            className={'mc-menu-item mc-menu-item--pai' + (sub === n ? ' is-open' : '') + (contemAtual(n) ? ' is-atual' : '')}
+            onMouseEnter={() => setSub(n)}
+            onClick={() => setSub(n)}>
+            <span>{rot(n)}</span>
+            <i className="ti ti-chevron-right" aria-hidden="true" />
+          </button>
+        ) : (
+          <React.Fragment key={chave(n, i)}>
+            {/* Folha na primeira coluna fecha a segunda ao passar o mouse. */}
+            <div onMouseEnter={() => setSub(null)}>{folha(n, i)}</div>
+          </React.Fragment>
+        )))}
+      </div>
+      {sub && (
+        <div className="mc-menu-col mc-menu-col--sub" role="menu" aria-label={rot(sub)}>
+          {sub.filhos.map(folha)}
+        </div>
+      )}
+    </div>
+  );
+  const alvo = document.getElementById('root') || document.body;
+  return ReactDOM.createPortal(painel, alvo);
+}
+
 function NavTooltip({ tip, onEnter, onLeave }) {
   if (!tip) return null;
   const { rect, content } = tip;
@@ -932,7 +1032,7 @@ function NavTooltip({ tip, onEnter, onLeave }) {
      As cores vivem em constantes porque a seta repete as duas, e seta fora de
      sincronia com o balão é o defeito clássico deste arranjo. */
   const TIP_FUNDO = '#120D06';
-  const TIP_ARO   = 'rgba(106,85,48,0.35)';
+  const TIP_ARO   = 'rgba(138,110,64,0.35)';
   return ReactDOM.createPortal(
     <div
       style={{
@@ -943,7 +1043,7 @@ function NavTooltip({ tip, onEnter, onLeave }) {
         borderRadius: 6, padding: '10px 12px',
         pointerEvents: 'none', whiteSpace: 'nowrap',
         animation: 'fpItemTipIn .12s ease-out',
-        fontFamily: "'Lora', serif", fontSize: 12, color: '#E8DDC6',
+        fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: '#F1E6CF',
       }}
     >
       {/* Seta apontando para a esquerda — duas camadas: a de trás (6px) faz o
@@ -988,16 +1088,14 @@ function NavTooltip({ tip, onEnter, onLeave }) {
    Tipos de evento (`tipo`) — mesmo enum da tabela mesa_log:
    magia, ataque, tecnica, item, teste, sistema, aviso.
 
-   Comportamento (compactado a pedido do usuário — ocupar pouco espaço):
-   - Retraído: botão circular flutuante (canto inferior direito) com
-     badge de não-lidas.
-   - Mensagem nova chega → abre a gaveta automaticamente, mostra, depois
-     retrai sozinha após alguns segundos.
-   - Gaveta SEM cabeçalho (só a lista) e com ALTURA FIXA pequena (ver
-     .cm-drawer no CSS) — mostra só algumas mensagens por vez, scroll
-     interno pra ver as mais antigas. Mais recente no topo.
-   - Exibe as últimas 20 mensagens (a tabela no banco não tem esse teto —
-     ver listar_eventos_mesa — só a UI mantém a janela de 20).
+   Comportamento (27/09/2026 — a gaveta do rodapé saiu):
+   - Sino flutuante (canto inferior direito) com badge de não-lidas (e dos
+     pedidos esperando o Mestre).
+   - Evento novo chega → um CARD no centro da tela, na cor da categoria
+     (LOG_CATEGORIAS); o anterior sai com fade-out, e o card sai sozinho.
+   - O sino abre o HISTÓRICO num modal (BestDetalheModal), em lista, com a
+     fila de aprovação do Mestre no topo. Mais recente primeiro; as últimas
+     100 (a tabela no banco não tem teto — ver listar_eventos_mesa).
 */
 const MSG_TIPO_ICON = {
   magia: 'ti-meteor',
@@ -1013,17 +1111,74 @@ const MSG_TIPO_ICON = {
    quando um personagem evoluir um estágio." O evento marca `meta.destaque` e a
    linha ganha moldura dourada e o próprio ícone — subir de estágio acontece
    poucas vezes numa campanha e não pode passar batido no meio do feed. */
-function MensagemEvento({ msg }) {
-  const iconClass = msg.icone || MSG_TIPO_ICON[msg.tipo] || MSG_TIPO_ICON.sistema;
+/* ── CATEGORIAS DO LOG, cada uma com a sua cor (27/09/2026) ──────────────
+   "Cada tipo de log terá uma cor: Batalha: vermelho. Informativo: Azul. Crie
+    os demais." (usuário). A categoria sai do `tipo` da mesa_log e do meta:
+   tudo o que a batalha grava leva meta.batalha_id, então rodada, fuga,
+   desistência e teste de combate caem em Batalha, qualquer que seja o tipo.
+     batalha      vermelho  ataque, técnica e tudo com batalha_id
+     magia        verde-água (arcano)
+     item         verde     itens, compra e venda
+     teste        âmbar     testes de habilidade fora da luta
+     aviso        laranja   avisos
+     informativo  azul      sistema (clima, relógio, atividade…)
+     destaque     ouro      meta.destaque (subir de estágio) */
+const LOG_CATEGORIAS = {
+  batalha:     { cor: '#D0583F', pt: 'Batalha',     en: 'Battle',  icone: 'ti-swords' },
+  magia:       { cor: '#4FB3A5', pt: 'Magia',       en: 'Magic',   icone: 'ti-meteor' },
+  item:        { cor: '#7FB05A', pt: 'Item',        en: 'Item',    icone: 'ti-backpack' },
+  teste:       { cor: '#D9A441', pt: 'Teste',       en: 'Test',    icone: 'ti-dice' },
+  aviso:       { cor: '#E07B39', pt: 'Aviso',       en: 'Warning', icone: 'ti-alert-triangle' },
+  informativo: { cor: '#5B92CF', pt: 'Informativo', en: 'Info',    icone: 'ti-info-circle' },
+  destaque:    { cor: '#E0BE68', pt: 'Destaque',    en: 'Highlight', icone: 'ti-star' },
+};
+function categoriaDoLog(tipo, meta) {
+  const m = meta && typeof meta === 'object' ? meta : {};
+  if (m.destaque) return 'destaque';
+  if (m.batalha_id != null || tipo === 'ataque' || tipo === 'tecnica') return 'batalha';
+  if (tipo === 'magia') return 'magia';
+  if (tipo === 'item') return 'item';
+  if (tipo === 'teste') return 'teste';
+  if (tipo === 'aviso') return 'aviso';
+  return 'informativo';
+}
+
+function MensagemEvento({ msg, lang }) {
+  const cat = LOG_CATEGORIAS[msg.categoria] || LOG_CATEGORIAS.informativo;
+  // O ícone é o da CATEGORIA (a cor manda); meta.icone ainda vence.
+  const iconClass = msg.icone || cat.icone || MSG_TIPO_ICON[msg.tipo] || MSG_TIPO_ICON.sistema;
   return (
-    <div className={'cm-msg' + (msg.destaque ? ' cm-msg--destaque' : '')}>
+    <div className={'cm-msg cm-msg--' + (msg.categoria || 'informativo') + (msg.destaque ? ' cm-msg--destaque' : '')}
+      style={{ '--log-cor': cat.cor }}>
       <div className="cm-msg-icon">
         <i className={'ti ' + iconClass} aria-hidden="true" />
       </div>
       <div className="cm-msg-body">
+        <span className="cm-msg-cat">{lang === 'en' ? cat.en : cat.pt}</span>
         {msg.hora && <span className="cm-msg-hora">{msg.hora}</span>}
         <span className="cm-msg-texto">{msg.texto}</span>
       </div>
+    </div>
+  );
+}
+
+/* ── O CARD NO CENTRO DA TELA (27/09/2026) ────────────────────────────────
+   "Cada log será um card, que irá aparecer no centro da tela. Assim que um
+    novo log aparecer, o log anterior desaparece com fade-out." Um card por
+   evento que CHEGA (o histórico da carga não vira card). Ele também sai
+   sozinho depois de alguns segundos, para não ficar sobre a mesa; e não
+   pega clique — a tela embaixo continua usável. */
+function LogCard({ msg, saindo, lang }) {
+  const cat = LOG_CATEGORIAS[msg.categoria] || LOG_CATEGORIAS.informativo;
+  const iconClass = msg.icone || cat.icone;
+  return (
+    <div className={'cm-card' + (saindo ? ' is-saindo' : '')} style={{ '--log-cor': cat.cor }}
+      data-categoria={msg.categoria} role="status">
+      <div className="cm-card-topo">
+        <i className={'ti ' + iconClass} aria-hidden="true" />
+        <span className="cm-card-cat">{lang === 'en' ? cat.en : cat.pt}</span>
+      </div>
+      <p className="cm-card-texto">{msg.texto}</p>
     </div>
   );
 }
@@ -1044,6 +1199,7 @@ function linhaParaMensagem(row, lang) {
     hora: dataHora,
     // Quem grava o evento decide o destaque e pode pedir um ícone próprio.
     destaque: !!meta.destaque,
+    categoria: categoriaDoLog(row.tipo, meta),
     icone: typeof meta.icone === 'string' && /^ti-[a-z0-9-]+$/.test(meta.icone) ? meta.icone : null,
   };
 }
@@ -1174,91 +1330,8 @@ function FilaAprovacaoMagia({ lang, historiaId, pedidos, onRespondido }) {
   );
 }
 
-/* ============================================================
-   FILA DE VENDAS — negociação de item com o Mestre (13/09/2026)
-   ============================================================
-   As negociações ABERTAS da mesa em que é a vez de quem está olhando: para o
-   Mestre, as propostas e contrapropostas dos jogadores; para o jogador, as
-   ofertas do Mestre (a RLS de vendas_item já limita o jogador aos PJs dele).
-   "Negociar" abre o VendaModal (07-inventario) — aceitar, recusar ou
-   contrapropor. O Realtime da tabela mantém a fila em dia. */
-function precoCurtoVenda(latao, lang) {
-  const t = Math.max(0, Math.round(Number(latao) || 0));
-  const m = { ouro: Math.floor(t / 1000), prata: Math.floor((t % 1000) / 100), cobre: Math.floor((t % 100) / 10), latao: t % 10 };
-  const suf = lang === 'en' ? { ouro: 'g', prata: 's', cobre: 'c', latao: 'b' } : { ouro: 'o', prata: 'p', cobre: 'c', latao: 'l' };
-  const partes = ['ouro', 'prata', 'cobre', 'latao'].filter((k) => m[k] > 0).map((k) => `${m[k]}${suf[k]}`);
-  return partes.length ? partes.join(' ') : `0${suf.latao}`;
-}
-
-function FilaVendas({ lang, historiaId, papel }) {
-  const en = lang === 'en';
-  const [vendas, setVendas] = useState([]);
-  const [aberta, setAberta] = useState(null);
-  const sufixo = useRef(Math.random().toString(36).slice(2, 8));
-
-  const carregar = React.useCallback(async () => {
-    try {
-      const res = await supabaseClient.from('vendas_item')
-        .select('id,pj_id,pj_nome,item_nome,slug,quantidade,preco_latao,vez,status')
-        .eq('historia_id', historiaId).eq('status', 'aberta')
-        .order('created_at', { ascending: true });
-      setVendas(res && !res.error && Array.isArray(res.data) ? res.data : []);
-    } catch (_) { setVendas([]); }
-  }, [historiaId]);
-
-  useEffect(() => {
-    if (!historiaId) { setVendas([]); return undefined; }
-    carregar();
-    if (typeof supabaseClient.channel !== 'function') return undefined;
-    const ch = supabaseClient
-      .channel('vendas_hist_' + historiaId + '_' + sufixo.current)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas_item', filter: 'historia_id=eq.' + historiaId },
-        () => carregar())
-      .subscribe();
-    return () => { supabaseClient.removeChannel(ch); };
-  }, [historiaId, carregar]);
-
-  const minhaVez = vendas.filter((v) => v.vez === papel);
-  const Modal = typeof window !== 'undefined' ? window.VendaModal : null;
-  const alvo = typeof document !== 'undefined' ? (document.getElementById('root') || document.body) : null;
-
-  if (minhaVez.length === 0 && !aberta) return null;
-
-  const modal = aberta && Modal ? (
-    <div className="menestrel-ui">
-      <Modal lang={lang} papel={papel} pjId={aberta.pj_id} vendaId={aberta.id}
-        onClose={() => { setAberta(null); carregar(); }} />
-    </div>
-  ) : null;
-
-  return (
-    <>
-      {minhaVez.length > 0 && (
-        <div className="cm-fila cm-fila--vendas">
-          <div className="cm-fila-titulo">
-            <i className="ti ti-coins" aria-hidden="true" />
-            {en ? 'Sales waiting for you' : 'Vendas esperando você'} · {minhaVez.length}
-          </div>
-          {minhaVez.map((v) => (
-            <div key={v.id} className="cm-fila-item" data-venda-id={v.id}>
-              <span className="cm-fila-texto">
-                {papel === 'mestre' && v.pj_nome ? `${v.pj_nome} → ` : ''}
-                <strong>{Number(v.quantidade) > 1 ? `${v.quantidade}× ` : ''}{v.item_nome || v.slug}</strong>
-                {' · '}{precoCurtoVenda(v.preco_latao, lang)}
-              </span>
-              <span className="cm-fila-acoes">
-                <button type="button" className="btn-primary btn-sm" onClick={() => setAberta(v)}>
-                  {en ? 'Negotiate' : 'Negociar'}
-                </button>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      {modal && (alvo && ReactDOM && ReactDOM.createPortal ? ReactDOM.createPortal(modal, alvo) : modal)}
-    </>
-  );
-}
+/* A FILA DE VENDAS (negociação com o Mestre) saiu em 27/09/2026: vender
+   agora é publicar na loja da aventura (07-inventario/loja.jsx). */
 
 function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = false }) {
   const [mensagens, setMensagens] = useState([]);
@@ -1272,8 +1345,11 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
       ? pedidosDeMagiaAbertos(linhasCruas) : []),
     [ehMestre, linhasCruas]
   );
-  const [aberto, setAberto] = useState(false);
+  const [aberto, setAberto] = useState(false);   // o modal do histórico
   const [naoLidas, setNaoLidas] = useState(0);
+  // Os cards no centro: o atual e, por um instante, o anterior saindo.
+  const [cards, setCards] = useState([]);
+  const cardTimersRef = React.useRef([]);
   const retrairTimeoutRef = React.useRef(null);
   const vistosRef = React.useRef(new Set()); // ids já inseridos — evita duplicar entre carga inicial e Realtime
   // AudioContext reutilizável. Criado (e desbloqueado) na primeira interação
@@ -1283,6 +1359,7 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
   // Limpa timeout pendente ao desmontar.
   useEffect(() => () => {
     if (retrairTimeoutRef.current) clearTimeout(retrairTimeoutRef.current);
+    cardTimersRef.current.forEach(clearTimeout);
     if (audioCtxRef.current) { try { audioCtxRef.current.close(); } catch (_) {} }
   }, []);
 
@@ -1334,18 +1411,23 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
     } catch (_) {}
   };
 
-  const abrirGaveta = (autoRetrair) => {
-    setAberto(true);
-    setNaoLidas(0);
-    if (retrairTimeoutRef.current) clearTimeout(retrairTimeoutRef.current);
-    if (autoRetrair) {
-      retrairTimeoutRef.current = setTimeout(() => setAberto(false), 6000);
-    }
-  };
+  const abrirHistorico = () => { setAberto(true); setNaoLidas(0); };
+  const fecharHistorico = () => setAberto(false);
 
-  const fecharGaveta = () => {
-    setAberto(false);
-    if (retrairTimeoutRef.current) { clearTimeout(retrairTimeoutRef.current); retrairTimeoutRef.current = null; }
+  /* Chegou um evento: o card anterior começa a sumir (fade-out) e o novo
+     entra. Sai sozinho em CARD_MS; o anterior é removido quando o fade acaba. */
+  const CARD_MS = 6000, FADE_MS = 450;
+  const mostrarCard = (msg) => {
+    setCards((prev) => [...prev.map((c) => ({ ...c, saindo: true })), { msg, saindo: false }]);
+    cardTimersRef.current.push(setTimeout(() => {
+      setCards((prev) => prev.filter((c) => !c.saindo || c.msg.id === msg.id));
+    }, FADE_MS));
+    cardTimersRef.current.push(setTimeout(() => {
+      setCards((prev) => prev.map((c) => (c.msg.id === msg.id ? { ...c, saindo: true } : c)));
+      cardTimersRef.current.push(setTimeout(() => {
+        setCards((prev) => prev.filter((c) => c.msg.id !== msg.id));
+      }, FADE_MS));
+    }, CARD_MS));
   };
 
   // Carrega histórico (listar_eventos_mesa) e assina Realtime sempre que a
@@ -1356,13 +1438,15 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
     setMensagens([]);
     setNaoLidas(0);
     setAberto(false);
+    setCards([]);
     if (!historiaId) return undefined;
 
     let cancel = false;
     (async () => {
       const { data, error } = await supabaseClient.rpc('listar_eventos_mesa', { p_historia_id: historiaId });
       if (cancel || error || !data) return;
-      const ordenado = [...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20);
+      // O modal do sino mostra as últimas 100 (antes a gaveta mostrava 20).
+      const ordenado = [...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 100);
       ordenado.forEach((row) => vistosRef.current.add(row.id));
       setMensagens(ordenado.map((row) => linhaParaMensagem(row, lang)));
       /* A FILA DO MESTRE (degrau 2, 12/09/2026). Varre o log INTEIRO, não só
@@ -1380,13 +1464,14 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
         const row = payload.new;
         if (!row || vistosRef.current.has(row.id)) return;
         vistosRef.current.add(row.id);
-        setMensagens((prev) => [linhaParaMensagem(row, lang), ...prev].slice(0, 20));
+        const msg = linhaParaMensagem(row, lang);
+        setMensagens((prev) => [msg, ...prev].slice(0, 100));
         // A fila acompanha em tempo real: um pedido novo aparece para o
         // Mestre sem recarregar, e a resposta some da fila do mesmo jeito.
         setLinhasCruas((prev) => [...prev, row]);
         setNaoLidas((n) => n + 1);
         tocarSino(); // sino suave — AudioContext já desbloqueado pelo FAB
-        abrirGaveta(true); // chegou mensagem nova -> expande e depois retrai sozinha
+        mostrarCard(msg); // o card no centro (27/09/2026), no lugar da gaveta
       })
       .subscribe();
 
@@ -1396,51 +1481,53 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
 
   if (!historiaId) return null; // sem mesa resolvida — nada pra acompanhar
 
+  const Janela = window.BestDetalheModal;
+  const en = lang === 'en';
   return (
-    <div className="menestrel-ui cm-root">
-      {/* Botão flutuante — sempre visível, retraído ou não */}
+    <div className="menestrel-ui cm-root" style={{ '--cm-sidebar': sidebarLargura + 'px' }}>
+      {/* O card do evento que acabou de chegar, no centro da área da página. */}
+      <div className="cm-cards" aria-live="polite">
+        {cards.map((c) => <LogCard key={c.msg.id} msg={c.msg} saindo={c.saindo} lang={lang} />)}
+      </div>
+
+      {/* O sino abre o HISTÓRICO num modal (27/09/2026): "Ao clicar o ícone
+          do sino para ver os logs antigos, abrir um modal com os logs em lista." */}
       <button
         type="button"
         className={'cm-fab' + (aberto ? ' is-active' : '')}
-        onClick={() => { aberto ? fecharGaveta() : abrirGaveta(false); }}
-        aria-label={lang === 'en' ? 'Table messages' : 'Mensagens da mesa'}
+        onClick={() => (aberto ? fecharHistorico() : abrirHistorico())}
+        aria-label={en ? 'Table log' : 'Log da mesa'}
         aria-expanded={aberto}
       >
         <i className="ti ti-bell" aria-hidden="true" />
-        {naoLidas > 0 && (
-          <span className="cm-fab-badge">{naoLidas > 9 ? '9+' : naoLidas}</span>
+        {(naoLidas > 0 || pedidosAbertos.length > 0) && (
+          <span className="cm-fab-badge">{Math.max(naoLidas, pedidosAbertos.length) > 9 ? '9+' : Math.max(naoLidas, pedidosAbertos.length)}</span>
         )}
       </button>
 
-      {/* Gaveta — faixa fixa no rodapé, altura fixa pequena (ver CSS cm-drawer)
-          + scroll interno. Sem cabeçalho — só a lista de mensagens (decisão
-          combinada com o usuário pra ocupar menos espaço na tela). */}
-      <div
-        className={'cm-drawer' + (aberto ? ' is-open' : '')}
-        role="log"
-        aria-live="polite"
-        aria-label={lang === 'en' ? 'Table messages' : 'Mensagens da mesa'}
-      >
-        <div className="cm-drawer-body" style={{ paddingLeft: `calc(${sidebarLargura}px + max(20px, (100vw - ${sidebarLargura}px - 1060px) / 2))`, paddingRight: `max(20px, (100vw - ${sidebarLargura}px - 1060px) / 2)` }}>
-          {/* A fila vem ANTES do feed e só para o Mestre: é a única coisa
-              aqui que pede ação, e o feed rola. */}
-          {ehMestre && (
-            <FilaAprovacaoMagia
-              lang={lang}
-              historiaId={historiaId}
-              pedidos={pedidosAbertos}
-              onRespondido={() => { /* o realtime traz a resposta e a fila encolhe */ }}
-            />
-          )}
-          {/* Vendas de item: para os dois lados, só as da vez de quem olha. */}
-          <FilaVendas lang={lang} historiaId={historiaId} papel={ehMestre ? 'mestre' : 'jogador'} />
-          {mensagens.length === 0 ? (
-            <div className="cm-empty">{lang === 'en' ? 'No messages yet.' : 'Nenhuma mensagem ainda.'}</div>
-          ) : (
-            mensagens.map((m) => <MensagemEvento key={m.id} msg={m} />)
-          )}
-        </div>
-      </div>
+      {aberto && Janela && (
+        <Janela
+          title={<><i className="ti ti-bell det-title-ic" aria-hidden="true" /> {en ? 'Table log' : 'Log da mesa'}</>}
+          lang={lang}
+          onClose={fecharHistorico}>
+          <div className="cm-log-lista" role="log" aria-label={en ? 'Table log' : 'Log da mesa'}>
+            {/* A fila do Mestre vem antes: é a única coisa aqui que pede ação. */}
+            {ehMestre && (
+              <FilaAprovacaoMagia
+                lang={lang}
+                historiaId={historiaId}
+                pedidos={pedidosAbertos}
+                onRespondido={() => { /* o realtime traz a resposta e a fila encolhe */ }}
+              />
+            )}
+            {mensagens.length === 0 ? (
+              <div className="cm-empty">{en ? 'No messages yet.' : 'Nenhuma mensagem ainda.'}</div>
+            ) : (
+              mensagens.map((m) => <MensagemEvento key={m.id} msg={m} lang={lang} />)
+            )}
+          </div>
+        </Janela>
+      )}
     </div>
   );
 }
@@ -1580,17 +1667,24 @@ function textoEventoData(data, en) {
 
    Mesa que ainda não tinha hora não tem "de onde", e a frase vira só o
    destino em vez de inventar um ponto de partida. */
+/* "Agora são 13h da tarde." (27/09/2026, no lugar de "A hora da mesa agora é
+   13h." e de "O tempo mudou de 12h para 13h."). O período do dia dá o
+   contexto que o "de onde" dava; 0h e 12h viram meia-noite e meio-dia. */
+function periodoDoDia(h, en) {
+  if (h >= 1 && h <= 4) return en ? 'at night' : 'da madrugada';
+  if (h >= 5 && h <= 11) return en ? 'in the morning' : 'da manhã';
+  if (h >= 13 && h <= 17) return en ? 'in the afternoon' : 'da tarde';
+  return en ? 'in the evening' : 'da noite';
+}
 function textoEventoHora(horaAnterior, horaNova, en) {
   const nova = Number(horaNova);
   if (!Number.isFinite(nova)) return '';
   const antes = Number(horaAnterior);
-  if (!Number.isFinite(antes)) {
-    return en ? `Table time is now ${nova}h.` : `A hora da mesa agora é ${nova}h.`;
-  }
-  if (antes === nova) return '';
-  return en
-    ? `Time moved from ${antes}h to ${nova}h.`
-    : `O tempo mudou de ${antes}h para ${nova}h.`;
+  if (Number.isFinite(antes) && antes === nova) return '';
+  if (nova === 0) return en ? 'It is now midnight.' : 'Agora é meia-noite.';
+  if (nova === 12) return en ? 'It is now noon.' : 'Agora é meio-dia.';
+  if (en) return `It is now ${nova}h ${periodoDoDia(nova, true)}.`;
+  return `${nova === 1 ? 'Agora é' : 'Agora são'} ${nova}h ${periodoDoDia(nova, false)}.`;
 }
 
 function textoEventoLocal(local, en) {
@@ -1620,11 +1714,12 @@ function textoEventoTempo(trilhaChave, degrauAnterior, degrauNovo, en) {
   const antes = trilha.degraus.find((d) => d.id === degrauAnterior)
     || trilha.degraus.find((d) => d.id === trilha.padrao);
   if (!antes || antes.id === novo.id) return '';
-  const de = en ? antes.en : antes.pt;
-  const para = en ? novo.en : novo.pt;
+  /* "O clima era desértico e agora ficou árido." (27/09/2026) */
+  const de = (en ? antes.en : antes.pt).toLowerCase();
+  const para = (en ? novo.en : novo.pt).toLowerCase();
   return en
-    ? `The weather changed from ${de} to ${para}.`
-    : `O clima mudou de ${de} para ${para}.`;
+    ? `The weather was ${de} and is now ${para}.`
+    : `O clima era ${de} e agora ficou ${para}.`;
 }
 
 // Modal de calendário fantasy — visão de todos os meses com feriados destacados.
@@ -2394,8 +2489,84 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
   const [carregando, setCarregando] = useState(true);
   const [editando, setEditando] = useState(null); // null | 'data' | 'local'
   const [rascunho, setRascunho] = useState({ dia: 1, mes: 1, ano: 0, local: '' });
+  /* LUGARES DO CATÁLOGO para o local (26/09/2026): "no input de selecionar o
+     local, na história, eu quero um dropdown menu com os lugares do
+     catálogo". Reinos e cidades do mundo mais as cópias desta aventura,
+     carregados quando o campo abre. O local continua gravado como TEXTO (o
+     nome), então o que já estava salvo segue valendo — e, se não estiver no
+     catálogo, aparece como primeira opção. */
+  const [lugares, setLugares] = useState(null);
+  /* RECARREGA A CADA ABERTURA (26/09/2026): 'criei vários reinos e cidades, mas
+     eles não aparecem no seletor'. A lista era carregada na primeira vez e
+     guardada até recarregar a página. Ao fechar o campo ela é descartada, e a
+     próxima abertura busca de novo — o que foi criado no Diário entra. */
+  useEffect(() => { if (editando !== 'local') setLugares(null); }, [editando, historiaId]);
+  useEffect(() => {
+    if (editando !== 'local' || lugares) return undefined;
+    let cancel = false;
+    /* TODOS OS LUGARES (27/09/2026): "ainda não está buscando todos os lugares
+       do catálogo". A lista vinha só do mundo + da mesa aberta, e os reinos
+       criados no Diário de OUTRA aventura do mesmo Mestre ficavam de fora
+       (os 18 da aventura 24 não apareciam nas outras). Agora: o mundo e todas
+       as aventuras deste Mestre. A RLS de reinos/cidades deixa ler tudo; o
+       filtro por dono é daqui, para não listar o mundo de outros Mestres. */
+    (async () => {
+      let meus = [];
+      try {
+        const { data: au } = await supabaseClient.auth.getUser();
+        const uid = au && au.user && au.user.id;
+        if (uid) {
+          const { data: hs } = await supabaseClient.from('historias').select('id').eq('mestre_id', uid);
+          meus = (hs || []).map((h) => h.id);
+        }
+      } catch (_) { meus = []; }
+      if (historiaId && !meus.includes(historiaId)) meus.push(historiaId);
+      const filtro = meus.length ? `historia_id.is.null,historia_id.in.(${meus.join(',')})` : 'historia_id.is.null';
+      const buscar = async (tabela, cols) => {
+        try { return await supabaseClient.from(tabela).select(cols).or(filtro); } catch (_) { return { data: null }; }
+      };
+      const [r, c] = await Promise.all([
+        buscar('reinos', 'slug,nome,historia_id'),
+        buscar('cidades', 'slug,nome,reino,historia_id'),
+      ]);
+      if (cancel) return;
+      const modelos = new Set(['novo-reino', 'nova-cidade']);
+      const reinos = ((r && r.data) || []).filter((e) => !modelos.has(e.slug));
+      const cidades = ((c && c.data) || []).filter((e) => !modelos.has(e.slug));
+      const nomePorSlug = {};
+      reinos.forEach((e) => { if (e.slug) nomePorSlug[e.slug] = e.nome; });
+      const vistos = new Set();
+      const lista = [];
+      const incluir = (nome, reinoSlug) => {
+        const n = String(nome || '').trim();
+        if (!n || vistos.has(n.toLowerCase())) return;
+        vistos.add(n.toLowerCase());
+        const reino = reinoSlug ? (nomePorSlug[reinoSlug] || reinoSlug) : null;
+        lista.push({ value: n, label: reino ? `${n} — ${reino}` : n, labelBotao: n });
+      };
+      reinos.forEach((e) => incluir(e.nome, null));
+      cidades.forEach((e) => incluir(e.nome, e.reino));
+      lista.sort((a, b) => a.value.localeCompare(b.value, 'pt'));
+      setLugares(lista);
+    })();
+    return () => { cancel = true; };
+  }, [editando, lugares, historiaId]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState(null);
+  // O seletor de local fecha ao clicar fora (ou Esc) sem ter escolhido.
+  const localRef = useRef(null);
+  useEffect(() => {
+    if (editando !== 'local') return undefined;
+    const fora = (e) => {
+      if (localRef.current && localRef.current.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('.select-pill-drop-portal')) return;
+      setEditando(null);
+    };
+    const esc = (e) => { if (e.key === 'Escape') setEditando(null); };
+    document.addEventListener('mousedown', fora);
+    window.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc); };
+  }, [editando]);
   const [tempoAberto, setTempoAberto] = useState(null); // chave da trilha com a lista aberta
   const [horaAberta, setHoraAberta] = useState(false); // lista das 24 horas
   const [calendarioAberto, setCalendarioAberto] = useState(false);
@@ -2653,7 +2824,8 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     ]);
   };
 
-  const salvar = async () => {
+  const salvar = async (sobrepor) => {
+    const rascunhoFinal = { ...rascunho, ...(sobrepor || {}) };
     setSalvando(true);
     setErro(null);
     // Guardado ANTES do update: é com ele que se decide o que mudou de fato e,
@@ -2664,7 +2836,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
        mostra. Sem isso, editar o local apagava a condição do tempo. */
     const payload = {
       ...(dataAtual || {}),
-      dia: rascunho.dia, mes: rascunho.mes, ano: rascunho.ano, local: rascunho.local.trim(),
+      dia: rascunhoFinal.dia, mes: rascunhoFinal.mes, ano: rascunhoFinal.ano, local: String(rascunhoFinal.local || '').trim(),
       tempo: (dataAtual && dataAtual.tempo) || undefined,
     };
     const { error } = await supabaseClient
@@ -3022,52 +3194,27 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
         )
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', pointerEvents: 'auto' }}>
-          {/* Input local — pill escuro para edição */}
-          <input
-            type="text"
-            value={rascunho.local}
-            onChange={(e) => setRascunho((r) => ({ ...r, local: e.target.value }))}
-            placeholder={en ? 'Current location' : 'Local atual'}
-            autoFocus
-            style={{
-              background: 'rgba(24,17,8,0.92)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-              border: 'none', borderRadius: 999, height: 32, outline: 'none',
-              fontFamily: "'Lora', serif", fontSize: 13, color: '#E8DDC6',
-              padding: '0 16px', width: 160, flexShrink: 0,
-            }}
-          />
-          {/* Cancelar — btn-ghost padrão do sistema */}
-          <button
-            type="button"
-            className="cdj-pill-btn"
-            onClick={() => setEditando(null)}
-            disabled={salvando}
-            style={{
-              background: 'rgba(106,85,48,0.12)',
-              border: 'none', borderRadius: 999, height: 32, outline: 'none',
-              fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
-              color: '#E8DDC6', padding: '0 20px', cursor: 'pointer', opacity: salvando ? 0.5 : 1,
-            }}
-          >
-            {en ? 'Cancel' : 'Cancelar'}
-          </button>
-          {/* Salvar — btn-primary padrão do sistema */}
-          <button
-            type="button"
-            className="cdj-pill-btn-salvar"
-            onClick={salvar}
-            disabled={salvando}
-            style={{
-              background: salvando ? 'rgba(201,164,78,0.5)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
-              border: 'none', borderRadius: 999, height: 32, outline: 'none',
-              fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
-              color: '#1C1407', padding: '0 20px', cursor: salvando ? 'default' : 'pointer',
-            }}
-          >
-            {salvando ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Save' : 'Salvar')}
-          </button>
+          {/* O local é um DROPDOWN com os lugares do catálogo (26/09/2026) —
+              era um texto livre. Ver `lugares` acima. */}
+          {/* ESCOLHER JÁ GRAVA (27/09/2026): "Não precisa de botão de
+              salvar/cancelar, ao selecionar já mudará o local." Sair sem
+              escolher: clicar fora ou Esc (efeito localFora, acima). */}
+          <div className="cdj-local-select" ref={localRef}>
+            <SelectPill
+              value={rascunho.local}
+              disabled={salvando}
+              onChange={(v) => { setRascunho((r) => ({ ...r, local: v })); salvar({ local: v }); }}
+              placeholder={lugares ? (en ? 'Current location' : 'Local atual') : (en ? 'Loading…' : 'Carregando…')}
+              options={(() => {
+                const ops = lugares || [];
+                const atual = (rascunho.local || '').trim();
+                return atual && !ops.some((o) => o.value === atual)
+                  ? [{ value: atual, label: atual }, ...ops] : ops;
+              })()}
+            />
+          </div>
           {erro && (
-            <span style={{ color: '#E08A6F', fontFamily: "'Lora', serif", fontSize: 12, flexBasis: '100%' }}>
+            <span style={{ color: '#E08A6F', fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', flexBasis: '100%' }}>
               {erro}
             </span>
           )}
@@ -3090,8 +3237,8 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
             pointerEvents: 'auto',
             background: limiteFreeHistoria ? 'rgba(201,164,78,0.25)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
             border: 'none', borderRadius: 999, height: 32, outline: 'none',
-            fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
-            color: limiteFreeHistoria ? '#9C8F73' : '#1C1407',
+            fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', fontWeight: 600, flexShrink: 0,
+            color: limiteFreeHistoria ? '#BFAF8E' : '#1C1407',
             padding: '0 18px 0 14px', cursor: limiteFreeHistoria ? 'help' : 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
@@ -3110,8 +3257,8 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
             pointerEvents: 'auto',
             background: limiteFreePersonagem ? 'rgba(201,164,78,0.25)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
             border: 'none', borderRadius: 999, height: 32, outline: 'none',
-            fontFamily: "'Lora', serif", fontSize: 13, fontWeight: 600, flexShrink: 0,
-            color: limiteFreePersonagem ? '#9C8F73' : '#1C1407',
+            fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', fontWeight: 600, flexShrink: 0,
+            color: limiteFreePersonagem ? '#BFAF8E' : '#1C1407',
             padding: '0 18px 0 14px', cursor: limiteFreePersonagem ? 'help' : 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
@@ -3152,12 +3299,14 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
 
   const aoResultado = (res) => {
     if (!historiaId) return;
-    const nome  = nomeUsuario || (en ? 'Someone' : 'Alguém');
+    const nome  = primeiroNome(nomeUsuario) || (en ? 'Someone' : 'Alguém');
     const valor = res.d20 ?? res.d10;
     const tipo  = res.d20 != null ? 'd20' : 'd10';
+    const faces = tipo === 'd20' ? 20 : 10;
+    /* "Lirael fez um rolamento livre e obteve 17 de 20." (27/09/2026) */
     const texto = en
-      ? `${nome} made a free ${tipo} roll and got ${valor}.`
-      : `${nome} fez um rolamento livre de ${tipo} e obteve ${valor}.`;
+      ? `${nome} made a free roll and got ${valor} out of ${faces}.`
+      : `${nome} fez um rolamento livre e obteve ${valor} de ${faces}.`;
     supabaseClient
       .rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
@@ -3368,13 +3517,35 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     try { localStorage.setItem('menestrel.section', currentId); } catch (e) {}
   }, [currentId]);
 
+  /* O FILTRO da folha do menu (26/09/2026): "Magias Básicas" é a seção
+     `magias` com filtro 'Básica'. Vazio = a lista inteira. Persiste como a
+     seção, para o F5 voltar à mesma página. */
+  const [secaoFiltro, setSecaoFiltro] = useState(() => {
+    try { return localStorage.getItem('menestrel.sectionFiltro') || ''; }
+    catch (e) { return ''; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('menestrel.sectionFiltro', secaoFiltro); } catch (e) {}
+  }, [secaoFiltro]);
+  const menu = (typeof ADMIN_MENU !== 'undefined' && ADMIN_MENU[profile]) || [];
+  const folhas = typeof folhasDoMenu === 'function' ? folhasDoMenu(menu) : [];
+  /* A folha aberta. Filtro que não existe na seção atual (ficou de uma visita
+     antiga, ou a seção veio por outro caminho) cai na PRIMEIRA folha da
+     seção — não há "Todas" desde 26/09/2026. */
+  const folhaAtual = folhas.find((f) => f.secao === currentId && (f.filtro || '') === secaoFiltro)
+    || folhas.find((f) => f.secao === currentId) || null;
+  const filtroAtual = folhaAtual ? (folhaAtual.filtro || '') : '';
+  const tituloDaFolha = folhaAtual && (folhaAtual.titulo || (folhaAtual.filtro ? folhaAtual.rotulo : null));
+  const tituloPagina = tituloDaFolha ? (tituloDaFolha[lang] || tituloDaFolha.pt) : undefined;
+  const [painelMenu, setPainelMenu] = useState(null); // { grupo, rect } | null
+
   const current = sections.find((s) => s.id === currentId) || { id: currentId };
   const sectionMeta = ac.sections[current.id] || { label: current.id };
   /* Seções sem o teto de 860px. Lugares/NPCs/Memórias entraram em 12/09/2026:
      viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
      tabela saía mais estreita que a das outras ("a largura da tabela em
      lugares, npcs está menor que em itens, magias" — usuário). */
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'npcs', 'memorias', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'npcs', 'memorias', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
@@ -3593,7 +3764,40 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           </div>
 
           <nav className="mc-nav">
-            {sections.map((s) => {
+            {/* A barra lê a ÁRVORE (ADMIN_MENU) desde 26/09/2026: folhas de
+                topo seguem sendo botões de seção; grupos (Diário, Comércio,
+                Treinamento) abrem o painel ao lado — ver NavMenuPainel. */}
+            {menu.map((no) => {
+              if (no.filhos) {
+                const IconGrupo = Icon[no.icon] || Icon.Scroll;
+                const rotuloGrupo = no.rotulo[lang] || no.rotulo.pt;
+                const aberto = !!(painelMenu && painelMenu.grupo.id === no.id);
+                const contemAtual = !!folhaAtual && folhasDoMenu([no]).includes(folhaAtual);
+                return (
+                  <button
+                    key={no.id}
+                    type="button"
+                    className={'mc-navitem mc-navgrupo' + (contemAtual ? ' is-active' : '') + (aberto ? ' is-open' : '')}
+                    aria-haspopup="menu"
+                    aria-expanded={aberto}
+                    onClick={(e) => {
+                      fecharNavTip();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setPainelMenu(aberto ? null : { grupo: no, rect });
+                    }}
+                    aria-label={rotuloGrupo}
+                    onMouseEnter={(e) => { if (!aberto) abrirNavTip(e, { title: rotuloGrupo }); }}
+                    onMouseLeave={fecharNavTip}
+                    onFocus={(e) => { if (!aberto) abrirNavTip(e, { title: rotuloGrupo }); }}
+                    onBlur={fecharNavTip}
+                  >
+                    <IconGrupo />
+                    <span>{rotuloGrupo}</span>
+                  </button>
+                );
+              }
+              const s = sections.find((x) => x.id === no.secao);
+              if (!s) return null;
               const IconComp = Icon[s.icon] || Icon.Scroll;
               const meta = ac.sections[s.id] || { label: s.id };
               // "convites" agora abre modal em vez de navegar para uma aba
@@ -3603,10 +3807,12 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                   key={s.id}
                   className={'mc-navitem' + (!isConvites && currentId === s.id ? ' is-active' : '')}
                   onClick={() => {
+                    setPainelMenu(null);
                     if (isConvites) {
                       setConviteModalAberto(true);
                     } else {
                       setCurrentId(s.id);
+                      setSecaoFiltro('');
                       /* O TOQUE NO MENU CONTA, mesmo na seção já aberta
                          (17/09/2026). `setCurrentId` com o mesmo valor não
                          rerenderiza nada, então clicar em "Personagens" de
@@ -3630,6 +3836,21 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               );
             })}
           </nav>
+          {painelMenu && (
+            <NavMenuPainel
+              grupo={painelMenu.grupo}
+              ancora={painelMenu.rect}
+              lang={lang}
+              folhaAtual={folhaAtual}
+              onEscolher={(folha) => {
+                setPainelMenu(null);
+                setCurrentId(folha.secao);
+                setSecaoFiltro(folha.filtro || '');
+                setNavToken((t) => t + 1);
+              }}
+              onFechar={() => setPainelMenu(null)}
+            />
+          )}
 
           <div
             className="mc-user"
@@ -3646,12 +3867,12 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ) : (
               <div
                 ref={avatarRef}
-                style={{ width: 30, height: 30, borderRadius: 999, display: 'grid', placeItems: 'center', background: 'rgba(106,85,48,0.35)', border: '1px solid rgba(106,85,48,0.50)', color: '#E8DDC6', fontWeight: 400, fontSize: 13, flexShrink: 0, cursor: 'pointer' }}>
+                style={{ width: 30, height: 30, borderRadius: 999, display: 'grid', placeItems: 'center', background: 'rgba(138,110,64,0.35)', border: '1px solid rgba(138,110,64,0.50)', color: '#F1E6CF', fontWeight: 400, fontSize: 'var(--fs-sm)', flexShrink: 0, cursor: 'pointer' }}>
                 {firstName.charAt(0).toUpperCase()}
               </div>
             )}
             <span className="mc-user-name">{firstName}</span>
-            <Icon.ChevronRight style={{ fontSize: 14, opacity: 0.6, flexShrink: 0 }} />
+            <Icon.ChevronRight style={{ fontSize: 'var(--fs-md)', opacity: 0.6, flexShrink: 0 }} />
 
             {userMenuOpen && (
               <UserMenu
@@ -3688,7 +3909,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                  alcançava por Histórias → card da mesa → botão "Lore"; o
                  botão saiu no mesmo dia e a função veio pra cá. O Jogador
                  recebe o id igual e a CriaturasList ignora (modoJogador). */
-              <CriaturasList ac={ac} lang={lang} modoJogador={profile === 'player'} historiaId={mesaAtivaId} />
+              <CriaturasList ac={ac} lang={lang} modoJogador={profile === 'player'} historiaId={mesaAtivaId} filtro={filtroAtual} titulo={tituloPagina} />
             ) : current.id === 'personagens_j' ? (
               <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onLimiteFreeChange={setLimiteFreePersonagens} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo} />
             ) : current.id === 'personagens_m' ? (
@@ -3699,18 +3920,18 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ) : current.id === 'fichas' ? (
               <FichasJogador ac={ac} lang={lang} currentUserId={user.id} />
             ) : current.id === 'magias' ? (
-              <MagiasList ac={ac} lang={lang} modoJogador={profile === 'player'} />
+              <MagiasList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={filtroAtual} titulo={tituloPagina} />
             ) : current.id === 'habilidades' ? (
-              <HabilidadesList ac={ac} lang={lang} modoJogador={profile === 'player'} />
+              <HabilidadesList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={filtroAtual} titulo={tituloPagina} />
             ) : current.id === 'tecnicas' ? (
-              <TecnicasList ac={ac} lang={lang} modoJogador={profile === 'player'} />
+              <TecnicasList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={filtroAtual} titulo={tituloPagina} />
             ) : current.id === 'itens' ? (
-              <ItensList ac={ac} lang={lang} modoJogador={profile === 'player'} />
+              <ItensList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={filtroAtual} titulo={tituloPagina} />
             ) : current.id === 'itens_campanha' ? (
               <ItensCampanhaManager ac={ac} lang={lang} />
             ) : current.id === 'historias' ? (
               <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} onEntrarMesa={setMesaAtivaId} />
-            ) : (current.id === 'lugares' || current.id === 'npcs' || current.id === 'memorias') ? (
+            ) : (current.id === 'lugares' || current.id === 'cidades' || current.id === 'npcs' || current.id === 'memorias') ? (
               /* AS TRÊS QUE VIERAM DO DIÁRIO. Para o JOGADOR são o mesmo
                  DiarioView travado num tipo (ver `tipoFixo`), e sem personagem
                  ativo não há diário de ninguém — a tela diz isso em vez de
@@ -3725,8 +3946,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 <LoreDaMesa
                   historiaId={mesaAtivaId}
                   lang={lang}
-                  tipoFixo={current.id === 'lugares' ? 'lugar' : 'npc'}
-                  vazio={<AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />}
+                  tipoFixo={{ lugares: 'reino', cidades: 'cidade' }[current.id] || 'npc'}
                 />
               ) : !pjAtivo ? (
                 <AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />
@@ -3736,7 +3956,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                   lang={lang}
                   currentUserId={user.id}
                   isMestre={false}
-                  tipoFixo={current.id === 'lugares' ? 'lugar' : current.id === 'npcs' ? 'npc' : 'memoria'}
+                  tipoFixo={{ lugares: 'reino', cidades: 'cidade', npcs: 'npc' }[current.id] || 'memoria'}
                   key={current.id + ':' + pjAtivo.id}
                 />
               )
@@ -4016,12 +4236,12 @@ function App() {
 }
 
 Object.assign(window, {
-  ModalShell,
+  ModalShell, NavMenuPainel,
   FantasyDatePicker, AdminEmpty, FichasJogador, AdminConsole, App,
   CentralMensagens, CardDataJogoAtual, RolagemLivreFab,
   // A linha do feed e o conversor de evento — expostos para o teste do
   // destaque (log-eventos.test.jsx) montar só eles.
-  MensagemEvento, linhaParaMensagem,
+  LOG_CATEGORIAS, categoriaDoLog, LogCard, MensagemEvento, linhaParaMensagem,
   // Puras, expostas pro teste da luz por horário (10-shell/luz-do-horario.test.js).
   periodoDaHora, faseDoPeriodo, horaDoJogo, luzDaHora, estiloLuzFundo,
   // Pura, exposta pro teste do clima (10-shell/clima-efeitos.test.js).

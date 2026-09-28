@@ -63,7 +63,7 @@ const cvStatusBadge = (s) => {
     ativo:    { background: 'rgba(123,224,160,0.16)', color: '#7BE0A0', border: '1px solid rgba(123,224,160,0.40)', fontWeight: 600 },
     usado:    { background: 'rgba(110,138,166,0.18)',  color: '#9DB6CE', border: '1px solid rgba(110,138,166,0.40)',  fontWeight: 600 },
     revogado: { background: 'rgba(200,33,44,0.16)',   color: '#F0A6A0', border: '1px solid rgba(200,33,44,0.40)',   fontWeight: 600 },
-    expirado: { background: 'rgba(232,221,198,0.08)', color: '#9C8F73', border: '1px solid rgba(232,221,198,0.16)', fontWeight: 600 },
+    expirado: { background: 'rgba(232,221,198,0.08)', color: '#BFAF8E', border: '1px solid rgba(232,221,198,0.16)', fontWeight: 600 },
   };
   return map[s] || map.expirado;
 };
@@ -208,7 +208,7 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
           </header>
         </div>
         <div className="cv-mng-page-body">
-        <p style={{ margin: '0 20px 20px', fontSize: 13, color: '#9C8F73', lineHeight: 1.5 }}>
+        <p style={{ margin: '0 20px 20px', fontSize: 'var(--fs-sm)', color: '#BFAF8E', lineHeight: 1.5 }}>
           {/* TODO-INTERPOLATE */}
           {interpolate(tc.mng.descricao, { tituloHistoria: historia.titulo })}
         </p>
@@ -235,16 +235,16 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
                           className="cv-chip"
                           onClick={() => copiarCodigo(c.id, c.codigo)}
                           disabled={s !== 'ativo'}
-                          style={{ height: 32, padding: '0 10px', fontSize: 12, color: '#E8DDC6', background: 'rgba(106,85,48,0.12)', border: '1px solid transparent' }}
-                          onMouseEnter={(e) => { if (s === 'ativo') { e.currentTarget.style.color = '#C9A44E'; e.currentTarget.style.background = 'rgba(106,85,48,0.20)'; abrirTip(e, tc.mng.copiar); } }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = '#E8DDC6'; e.currentTarget.style.background = 'rgba(106,85,48,0.12)'; fecharTip(); }}>
+                          style={{ height: 32, padding: '0 10px', fontSize: 'var(--fs-xs)', color: '#F1E6CF', background: 'rgba(138,110,64,0.12)', border: '1px solid transparent' }}
+                          onMouseEnter={(e) => { if (s === 'ativo') { e.currentTarget.style.color = '#C9A44E'; e.currentTarget.style.background = 'rgba(138,110,64,0.20)'; abrirTip(e, tc.mng.copiar); } }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = '#E8DDC6'; e.currentTarget.style.background = 'rgba(138,110,64,0.12)'; fecharTip(); }}>
                           <span>{c.codigo}</span>
                           {copiouId === c.id && <span className="cv-copiado">{tc.mng.copiado}</span>}
                         </button>
                       </TableCell>
                       <TableCell>
                         {(() => { const { border: _b, ...bs } = cvStatusBadge(s); return (
-                          <span style={{ ...bs, display: 'inline-flex', alignItems: 'center', height: 32, padding: '0 12px', borderRadius: 6, fontSize: 12, fontFamily: "'Lora', serif" }}>
+                          <span style={{ ...bs, display: 'inline-flex', alignItems: 'center', height: 32, padding: '0 12px', borderRadius: 6, fontSize: 'var(--fs-xs)', fontFamily: "var(--font-body)" }}>
                             {statusLabel(s)}
                           </span>
                         ); })()}
@@ -252,9 +252,9 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
                       <TableCell style={{ whiteSpace: 'nowrap' }}>{fmtData(c.expira_em)}</TableCell>
                       <TableCell>
                         {c.usado_por ? (
-                          <span style={{ fontFamily: "'Lora', serif", fontSize: 13, color: '#C7B79A' }}>
+                          <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#C7B79A' }}>
                             {c.usado_por_nome || c.usado_por.slice(0, 8)}
-                            {c.personagem_nome && <span style={{ color: '#9C8F73' }}>{` (${c.personagem_nome})`}</span>}
+                            {c.personagem_nome && <span style={{ color: '#BFAF8E' }}>{` (${c.personagem_nome})`}</span>}
                           </span>
                         ) : '—'}
                       </TableCell>
@@ -475,11 +475,11 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
   // ── Carregando
   if (mesas === null) {
     return (
-      <div className="menestrel-ui" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, gap: 10, color: '#9C8F73' }}>
+      <div className="menestrel-ui" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, gap: 10, color: '#BFAF8E' }}>
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ animation: 'spin 1s linear infinite' }}>
           <path d="M12 2 A10 10 0 0 1 22 12" strokeLinecap="round" />
         </svg>
-        <span style={{ fontFamily: "'Lora', serif", fontSize: 14 }}>
+        <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)' }}>
           {lang === 'en' ? 'Loading adventures…' : 'Carregando aventuras…'}
         </span>
       </div>
@@ -490,8 +490,8 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
   if (mesas.length === 0) {
     return (
       <div className="menestrel-ui" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '64px 24px', minHeight: 260, gap: 14 }}>
-        <div style={{ fontSize: 40, color: '#C9A44E', lineHeight: 1 }}>✦</div>
-        <p style={{ margin: 0, fontFamily: "'Lora', serif", fontSize: 15, color: '#9C8F73', lineHeight: 1.6, maxWidth: 400 }}>
+        <div style={{ fontSize: 40, color: '#E0BE68', lineHeight: 1 }}>✦</div>
+        <p style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: 'var(--fs-base)', color: '#BFAF8E', lineHeight: 1.6, maxWidth: 400 }}>
           {lang === 'en'
             ? 'No adventures yet. Accept an invite using the Invites button in the menu.'
             : 'Nenhuma aventura ainda. Aceite um convite pelo botão Convites no menu.'}
@@ -516,13 +516,13 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
                 <div style={{ marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, flexShrink: 0 }}>
                   {pjs.map((pj) => (
                     <span key={pj.id} style={{
-                      fontFamily: "'Lora', serif", fontSize: 12, color: '#DCC9A6',
-                      background: 'rgba(122,94,42,0.22)', border: '1px solid rgba(106,85,48,0.35)',
+                      fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: '#DCC9A6',
+                      background: 'rgba(122,94,42,0.22)', border: '1px solid rgba(138,110,64,0.35)',
                       borderRadius: 999, padding: '3px 10px', display: 'inline-flex', alignItems: 'center', gap: 5,
                     }}>
-                      <i className="ti ti-user" aria-hidden="true" style={{ fontSize: 11 }} />
+                      <i className="ti ti-user" aria-hidden="true" style={{ fontSize: 'var(--fs-2xs)' }} />
                       {pj.nome}{pj.sobrenome ? ' ' + pj.sobrenome : ''}
-                      {pj.profissao && <span style={{ color: '#9C8F73' }}> · {pj.profissao}</span>}
+                      {pj.profissao && <span style={{ color: '#BFAF8E' }}> · {pj.profissao}</span>}
                     </span>
                   ))}
                 </div>
@@ -534,7 +534,7 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
               {m.introducao && (
                 <>
                   <div className="cv-mesa-eyebrow">
-                    <i className="ti ti-book" aria-hidden="true" style={{ marginRight: 5, fontSize: 11 }} />
+                    <i className="ti ti-book" aria-hidden="true" style={{ marginRight: 5, fontSize: 'var(--fs-2xs)' }} />
                     {lang === 'en' ? 'Introduction' : 'Introdução'}
                   </div>
                   <p className="cv-mesa-intro">{m.introducao}</p>
@@ -559,7 +559,7 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
                       <div key={cap.id || i} className="cv-mesa-capitulo">
                         {cap.titulo && (
                           <h4 className="cv-mesa-capitulo-titulo">
-                            <span style={{ opacity: 0.5, marginRight: 8, fontSize: 11, fontFamily: "'Lora', serif", fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                            <span style={{ opacity: 0.5, marginRight: 8, fontSize: 'var(--fs-2xs)', fontFamily: "var(--font-body)", fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
                               {lang === 'en' ? `Ch. ${i + 1}` : `Cap. ${i + 1}`}
                             </span>
                             {cap.titulo}
@@ -567,7 +567,7 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
                         )}
                         {dataFmt && (
                           <div className="cv-mesa-data" style={{ marginBottom: 6 }}>
-                            <i className="ti ti-calendar-event" aria-hidden="true" style={{ fontSize: 11, marginRight: 5, opacity: 0.7 }} />
+                            <i className="ti ti-calendar-event" aria-hidden="true" style={{ fontSize: 'var(--fs-2xs)', marginRight: 5, opacity: 0.7 }} />
                             {dataFmt}
                           </div>
                         )}
@@ -580,7 +580,7 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
 
               {/* Sem capítulos ainda */}
               {(!m.introducao && (!Array.isArray(m.capitulos) || m.capitulos.length === 0)) && (
-                <p style={{ fontFamily: "'Lora', serif", fontSize: 13, color: '#6E6147', fontStyle: 'italic', margin: 0 }}>
+                <p style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#A49372', fontStyle: 'italic', margin: 0 }}>
                   {lang === 'en' ? 'The story has not been written yet.' : 'A história ainda não foi narrada.'}
                 </p>
               )}

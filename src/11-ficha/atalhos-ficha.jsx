@@ -121,10 +121,14 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
   /* O número de cada linha vem com o NOME do que ele é (pedido do usuário,
      12/09/2026): "Total" na habilidade, "Nível" na magia, "Quantidade" no
      item. Sozinho, o número não dizia de onde vinha. */
+  /* SÓ O NÚMERO desde 26/09/2026 ("'QUANTIDADE 30' vira 'x30'. Em magia fica
+     '9'. Em habilidade fica '-10'"): o rótulo sai; o item ganha o "x" da
+     quantidade, que é o que distingue as três leituras. O nome continua no
+     aria-label, para quem usa leitor de tela. */
   const metaDaLinha = (tipo, l) => {
-    if (tipo === 'habilidade') return l.total != null ? { lbl: 'Total', val: l.total } : null;
-    if (tipo === 'magia') return l.nivel != null ? { lbl: en ? 'Level' : 'Nível', val: l.nivel } : null;
-    return l.quantidade != null ? { lbl: en ? 'Quantity' : 'Quantidade', val: l.quantidade } : null;
+    if (tipo === 'habilidade') return l.total != null ? { lbl: 'Total', val: String(l.total) } : null;
+    if (tipo === 'magia') return l.nivel != null ? { lbl: en ? 'Level' : 'Nível', val: String(l.nivel) } : null;
+    return l.quantidade != null ? { lbl: en ? 'Quantity' : 'Quantidade', val: 'x' + l.quantidade } : null;
   };
 
   return (
@@ -152,11 +156,8 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
       {tipoAberto && (
         <div className="at-panel" style={{ '--at-i': indiceAberto }} role="dialog"
           aria-label={en ? tipoAberto.en : tipoAberto.pt}>
-          <div className="at-panel-head">
-            <i className={'ti ' + tipoAberto.icone} aria-hidden="true" />
-            <span className="at-panel-titulo">{en ? tipoAberto.en : tipoAberto.pt}</span>
-            <span className="at-panel-conta">{(listas[tipoAberto.id] || []).length}</span>
-          </div>
+          {/* O título com ícone e contagem ("Itens 2") saiu em 26/09/2026 —
+              o botão aceso ao lado já diz qual lista está aberta. */}
           <input
             ref={buscaRef}
             type="text"
@@ -184,8 +185,7 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
                     <span className="at-linha-nome">{l.nome}</span>
                   </span>
                   {meta && (
-                    <span className="at-linha-meta">
-                      <span className="at-linha-meta-lbl">{meta.lbl}</span>
+                    <span className="at-linha-meta" aria-label={meta.lbl + ': ' + meta.val}>
                       <span className="at-linha-meta-val">{meta.val}</span>
                     </span>
                   )}
@@ -195,7 +195,8 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
           </div>
         </div>
       )}
-      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+      {/* À esquerda (26/09/2026): os botões moram na borda direita da tela. */}
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} esquerda />
     </div>
   );
 }

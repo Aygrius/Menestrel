@@ -70,6 +70,31 @@ describe('a barra de Estágio virou clicável', () => {
   });
 });
 
+/* "Remova o nome das barras da ficha (ef, eh, etc), adicione um tooltip para
+   informar o que é a barra." (usuário, 27/09/2026) */
+describe('as barras da ficha não levam nome — ele vai para o tooltip', () => {
+  it('com semNome, não há rótulo visível e o pill se chama pelo nome', () => {
+    render(<FichaVitBars bars={[BARRA_ESTAGIO]} scope="estagio" semNome en={false} onHover={() => {}} />);
+    expect(document.querySelector('.fp-bar-name-label')).toBeNull();
+    expect(document.querySelector('.fp-bar-pill').getAttribute('aria-label')).toBe('Experiência');
+  });
+
+  it('o tooltip diz o nome e, na Experiência, o XP total', () => {
+    const dicas = [];
+    render(<FichaVitBars bars={[BARRA_ESTAGIO]} scope="estagio" semNome en={false}
+      onHover={(e, tip) => dicas.push(tip)} />);
+    act(() => { document.querySelector('.fp-bar-pill').dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
+    expect(dicas[0]).toEqual({ title: 'Experiência', desc: '52 XP' });
+  });
+
+  it('Vitalidade (EF/EH/Karma) e Experiência passam semNome', () => {
+    for (const el of ['const elVit =', 'const elEstagio =']) {
+      const i = fonte.indexOf(el);
+      expect(fonte.slice(i, fonte.indexOf('\n', i))).toMatch(/ semNome /);
+    }
+  });
+});
+
 describe('o popover da experiência mexe no XP total', () => {
   const montarPop = (onChange) => render(
     <BarEditPopover item={{ ...BARRA_ESTAGIO, ...BARRA_ESTAGIO.edit }} scope="estagio"

@@ -90,7 +90,7 @@ describe('o NavTooltip do shell veste a MESMA pele', () => {
 
   it('usa as mesmas duas cores do .mn-tip', () => {
     expect(blocoNav).toMatch(/TIP_FUNDO\s*=\s*'#120D06'/i);
-    expect(blocoNav).toMatch(/TIP_ARO\s*=\s*'rgba\(106,85,48,0\.35\)'/);
+    expect(blocoNav).toMatch(/TIP_ARO\s*=\s*'rgba\(138,110,64,0\.35\)'/);
   });
 
   it('e o fundo dele também é opaco, sem blur', () => {
@@ -113,7 +113,7 @@ describe('as duas famílias não podem divergir', () => {
   /* É o defeito que aconteceu: o .mn-tip foi corrigido e o NavTooltip ficou
      para trás — e era justamente o NavTooltip que o pill do clima usava. */
   it('o mesmo par fundo/aro aparece nos dois arquivos', () => {
-    for (const cor of ['#120D06', 'rgba(106,85,48,0.35)']) {
+    for (const cor of ['#120D06', 'rgba(138,110,64,0.35)']) {
       expect(css, 'falta ' + cor + ' no CSS do tooltip').toContain(cor);
       expect(blocoNav, 'falta ' + cor + ' no NavTooltip').toContain(cor);
     }

@@ -218,8 +218,15 @@ describe('a hora sobrevive às outras edições da barra', () => {
     const { updates } = montar({ inicial: { ...BASE, hora: 20 } });
     await waitFor(() => expect(botao()).toBeTruthy());
     act(() => { document.querySelector('.cdj-local').closest('button').click(); });
-    await waitFor(() => expect(document.querySelector('.cdj-pill-btn-salvar')).toBeTruthy());
-    act(() => { document.querySelector('.cdj-pill-btn-salvar').click(); });
+    // Sem Salvar desde 27/09/2026: escolher o lugar na lista já grava.
+    await waitFor(() => expect(document.querySelector('.cdj-local-select .select-pill-btn')).toBeTruthy());
+    act(() => { document.querySelector('.cdj-local-select .select-pill-btn').click(); });
+    const opcao = await waitFor(() => {
+      const o = document.querySelector('.select-pill-drop-portal [role="option"]');
+      expect(o).toBeTruthy();
+      return o;
+    });
+    act(() => { opcao.click(); });
     await waitFor(() => expect(updates).toHaveLength(1));
     expect(updates[0].hora).toBe(20);
   });

@@ -25,47 +25,8 @@
 // ---------- SelectPill — cópia local, mesmo padrão de diario.jsx/batalha.jsx/
 // personagens.jsx/ficha.jsx: o projeto não compartilha este componente via
 // window, cada fase que precisa dele carrega a própria cópia. ----------
-function SelectPill({ options = [], value, onChange, placeholder, disabled, label }) {
-  const [open, setOpen] = React.useState(false);
-  const ref = React.useRef(null);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const selected = options.find((o) => String(o.value) === String(value));
-  const displayLabel = selected ? selected.label : (placeholder || '—');
-
-  return (
-    <div className="motor-field" ref={ref} style={{ position: 'relative' }}>
-      {label && <span>{label}</span>}
-      <button type="button" className="select-pill-btn" data-open={open ? 'true' : 'false'} disabled={disabled}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={(e) => { e.currentTarget.blur(); !disabled && setOpen((v) => !v); }}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((v) => !v); } }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
-        <i className="ti ti-chevron-down" aria-hidden="true" />
-      </button>
-      {open && (
-        <ul className="select-pill-drop">
-          {options.map((opt) => {
-            const active = String(opt.value) === String(value);
-            return (
-              <li key={opt.value}
-                onClick={() => { onChange(opt.value); setOpen(false); }}>
-                {active && <i className="ti ti-check" aria-hidden="true" />}
-                {opt.label}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
+/* SelectPill mora em 01-core/select-pill.jsx desde 25/09/2026 — uma peça só
+   para o sistema inteiro, com a pele do seletor de data. */
 
 // ---------- Equipamento de criatura (14/09/2026) ----------
 /* "deve ser possível equipar a criatura com armas e armaduras." O valor é a
@@ -80,35 +41,66 @@ function SelectPill({ options = [], value, onChange, placeholder, disabled, labe
 
    `catalogo` são os itens de Armas e Armaduras, com as colunas que a conta
    usa; `porSlug` é o mesmo catálogo indexado. */
-const EQUIP_MOTIVO = { ja_equipada: 'equipJaEquipada', slot_ocupado: 'equipSlotOcupado', sem_slot: 'equipSemSlot' };
+const EQUIP_MOTIVO = { ja_equipada: 'equipJaEquipada', slot_ocupado: 'equipSlotOcupado', sem_slot: 'equipSemSlot', nao_e_arma: 'equipNaoEArma' };
 
-function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t }) {
+/* `parte` (25/09/2026): o mesmo jsonb aparece em DOIS campos — 'ataque' (as
+   armas) e 'itens' (peças vestidas e mochila). Cada um mostra só a sua parte,
+   mas edita a lista inteira: o índice da etiqueta é o da lista completa, para
+   tirar a peça certa. Sem `parte`, o comportamento de antes (tudo junto). */
+function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t, parte }) {
   const [busca, setBusca] = React.useState('');
   const lista = Array.isArray(valor) ? valor : [];
+  const F = CriaturaFormulas;
+  const partes = parte ? F.partesDoEquipamento(lista, porSlug) : null;
+  const daParte = parte === 'ataque' ? partes.ataque
+    : parte === 'itens' ? [...partes.vestido, ...partes.mochila] : lista;
+  const visiveis = lista.map((e, i) => ({ e, i })).filter(({ e }) => daParte.includes(e));
   const termo = listaChave(busca);
+  const doCampo = parte === 'ataque' ? (catalogo || []).filter((it) => it.grupo === 'Armas') : (catalogo || []);
   const sugestoes = termo
-    ? (catalogo || []).filter((it) => listaChave(it.nome).includes(termo)).slice(0, 40)
+    ? doCampo.filter((it) => listaChave(it.nome).includes(termo)).slice(0, 40)
     : [];
+  const placeholder = parte === 'ataque' ? t.equipBuscarArma : parte === 'itens' ? t.equipBuscarItem : t.equipBuscar;
 
   const equipar = (it) => {
-    const r = CriaturaFormulas.slotParaPeca(it, lista, porSlug);
+    const r = F.slotParaPeca(it, lista, porSlug, parte);
     if (!r.slot) return;
-    onChange([...lista, { slug: it.slug, slot: r.slot }]);
+    onChange(r.slot === F.SLOT_MOCHILA ? F.guardarNaMochila(lista, it.slug, 1) : [...lista, { slug: it.slug, slot: r.slot }]);
     setBusca('');
   };
   const tirar = (idx) => onChange(lista.filter((_, i) => i !== idx));
+  // Quantidade da mochila: menos 1 até 1 (abaixo disso é o X), mais 1 sem teto.
+  const mudarQtd = (idx, delta) => onChange(lista.map((e, i) => (i === idx
+    ? { ...e, qtd: Math.max(1, (Number(e.qtd) || 1) + delta) } : e)));
 
   return (
-    <div className="catalogo-campo-full catalogo-lista catalogo-equipamento" data-lista="equipamento">
+    <div className="catalogo-campo-full catalogo-lista catalogo-equipamento"
+      data-lista={parte ? 'equipamento-' + parte : 'equipamento'}>
       <label className="diario-field-label">{label}</label>
       <div className="catalogo-lista-caixa">
-        {lista.map((e, i) => {
+        {visiveis.map(({ e, i }) => {
           const cat = porSlug && porSlug[e.slug];
+          const nome = cat ? cat.nome : e.slug;
+          const naMochila = e.slot === F.SLOT_MOCHILA;
+          const qtd = Number(e.qtd) || 1;
           return (
-            <span key={e.slug + ':' + e.slot + ':' + i} className="catalogo-lista-chip" data-slot={e.slot}>
-              <span className="catalogo-lista-chip-nome">{cat ? cat.nome : e.slug}</span>
+            <span key={e.slug + ':' + e.slot + ':' + i} className={'catalogo-lista-chip' + (naMochila ? ' catalogo-lista-chip--mochila' : '')}
+              data-slot={e.slot} data-slug={e.slug}>
+              {naMochila && (
+                <button type="button" className="catalogo-lista-chip-x" disabled={qtd <= 1}
+                  aria-label={`${t.equipMenos}: ${nome}`} onClick={() => mudarQtd(i, -1)}>
+                  <i className="ti ti-minus" aria-hidden="true" />
+                </button>
+              )}
+              <span className="catalogo-lista-chip-nome">{naMochila ? `${qtd}× ${nome}` : nome}</span>
+              {naMochila && (
+                <button type="button" className="catalogo-lista-chip-x"
+                  aria-label={`${t.equipMais}: ${nome}`} onClick={() => mudarQtd(i, 1)}>
+                  <i className="ti ti-plus" aria-hidden="true" />
+                </button>
+              )}
               <button type="button" className="catalogo-lista-chip-x"
-                aria-label={`${t.equipRemover} ${cat ? cat.nome : e.slug}`} onClick={() => tirar(i)}>
+                aria-label={`${t.equipRemover} ${nome}`} onClick={() => tirar(i)}>
                 <i className="ti ti-x" aria-hidden="true" />
               </button>
             </span>
@@ -116,20 +108,20 @@ function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t }) {
         })}
         <div className="catalogo-lista-busca">
           <input className="diario-input" type="text" value={busca}
-            placeholder={t.equipBuscar} aria-label={`${label}: ${t.equipBuscar}`}
+            placeholder={placeholder} aria-label={`${label}: ${placeholder}`}
             onChange={(e) => setBusca(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') setBusca('');
               if (e.key === 'Enter') {
                 e.preventDefault();
-                const primeira = sugestoes.find((it) => CriaturaFormulas.slotParaPeca(it, lista, porSlug).slot);
+                const primeira = sugestoes.find((it) => F.slotParaPeca(it, lista, porSlug, parte).slot);
                 if (primeira) equipar(primeira);
               }
             }} />
           {sugestoes.length > 0 && (
             <ul className="select-pill-drop catalogo-lista-drop">
               {sugestoes.map((it) => {
-                const r = CriaturaFormulas.slotParaPeca(it, lista, porSlug);
+                const r = F.slotParaPeca(it, lista, porSlug, parte);
                 return (
                   <li key={it.slug} data-slug={it.slug} aria-disabled={!r.slot}
                     className={r.slot ? undefined : 'catalogo-equip-bloqueado'}
@@ -137,6 +129,7 @@ function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t }) {
                     onClick={() => equipar(it)}>
                     {it.nome}
                     {!r.slot && <span className="catalogo-equip-onde">{t[EQUIP_MOTIVO[r.motivo]] || ''}</span>}
+                    {r.slot === F.SLOT_MOCHILA && <span className="catalogo-equip-onde">{t.equipNaMochila}</span>}
                   </li>
                 );
               })}
@@ -165,10 +158,18 @@ const listaChave = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '
   .toLowerCase().replace(/\s+\d+$/, '').trim();
 const listaSeparar = (csv) => String(csv || '').split(',').map((s) => s.trim()).filter(Boolean);
 
+/* `quantidade` (26/09/2026, itens do ritual da magia): cada escolhido é
+   "Nome (n)". O chip mostra o nome e − n +; o catálogo é conferido pelo NOME,
+   sem o (n). Quantidade que não é número ("Carcaça (Variável)") passa como
+   veio, sem os botões. */
+const RE_QTD = /^(.*?)\s*\((\d+)\)\s*$/;
+const partesDoItem = (v) => { const m = String(v).match(RE_QTD); return m ? { nome: m[1], qtd: Number(m[2]) } : { nome: String(v), qtd: null }; };
 function CatalogoLista({ campo, label, valor, onChange, disabled, nomes, t }) {
   const [busca, setBusca] = React.useState('');
   const escolhidos = listaSeparar(valor);
-  const chavesEscolhidas = new Set(escolhidos.map(listaChave));
+  const comQtd = !!campo.quantidade;
+  const nomeBase = (v) => (comQtd ? partesDoItem(v).nome : v);
+  const chavesEscolhidas = new Set(escolhidos.map((v) => listaChave(nomeBase(v))));
   const doCatalogo = new Set((nomes || []).map(listaChave));
   const termo = listaChave(busca);
   const sugestoes = termo
@@ -176,19 +177,32 @@ function CatalogoLista({ campo, label, valor, onChange, disabled, nomes, t }) {
     : [];
 
   const gravar = (lista) => onChange(lista.join(', '));
-  const adicionar = (nome) => { gravar([...escolhidos, nome]); setBusca(''); };
+  const adicionar = (nome) => { gravar([...escolhidos, comQtd ? `${nome} (1)` : nome]); setBusca(''); };
   const remover = (idx) => gravar(escolhidos.filter((_, i) => i !== idx));
+  const mudarQtd = (idx, delta) => gravar(escolhidos.map((v, i) => {
+    if (i !== idx) return v;
+    const p = partesDoItem(v);
+    return `${p.nome} (${Math.max(1, (p.qtd || 1) + delta)})`;
+  }));
 
   return (
     <div className="catalogo-campo-full catalogo-lista" data-lista={campo.col}>
       <label className="diario-field-label">{label}</label>
       <div className="catalogo-lista-caixa">
         {escolhidos.map((nome, i) => {
-          const fora = nomes && nomes.length > 0 && !doCatalogo.has(listaChave(nome));
+          const fora = nomes && nomes.length > 0 && !doCatalogo.has(listaChave(nomeBase(nome)));
+          const p = comQtd ? partesDoItem(nome) : null;
           return (
             <span key={nome + i} className={'catalogo-lista-chip' + (fora ? ' catalogo-lista-chip--fora' : '')}>
               {fora && <i className="ti ti-alert-circle catalogo-lista-chip-aviso" role="img" aria-label={t.listaForaCatalogo} />}
-              <span className="catalogo-lista-chip-nome">{nome}</span>
+              <span className="catalogo-lista-chip-nome">{p && p.qtd != null ? p.nome : nome}</span>
+              {p && p.qtd != null && (
+                <span className="catalogo-lista-qtd">
+                  <button type="button" disabled={disabled || p.qtd <= 1} aria-label={`Um a menos: ${p.nome}`} onClick={() => mudarQtd(i, -1)}>−</button>
+                  <span className="catalogo-lista-qtd-n">{p.qtd}</span>
+                  <button type="button" disabled={disabled} aria-label={`Um a mais: ${p.nome}`} onClick={() => mudarQtd(i, +1)}>+</button>
+                </span>
+              )}
               <button type="button" className="catalogo-lista-chip-x" disabled={disabled}
                 aria-label={`${t.listaRemover} ${nome}`} onClick={() => remover(i)}>
                 <i className="ti ti-x" aria-hidden="true" />
@@ -217,16 +231,132 @@ function CatalogoLista({ campo, label, valor, onChange, disabled, nomes, t }) {
   );
 }
 
+/* ---------- CatalogoMulti — várias opções de uma lista fechada (25/09/2026) ----------
+   "No input de elemento das criaturas, permita selecionar mais de uma opção."
+   Um botão por opção, de liga/desliga, com a pele da pílula do dropdown. O
+   valor é texto separado por vírgula, sempre na ORDEM DA LISTA (não na ordem
+   do clique): "Fogo, Luz" e "Luz, Fogo" não viram dois valores diferentes.
+   Escolha gravada fora da lista (catálogo antigo) aparece e pode ser tirada.
+
+   DROPDOWN desde 26/09/2026 ("mantenha o dropdown menu para selecionar mais
+   de uma opção"): o SelectPillMulti (01-core/select-pill.jsx), a mesma pílula
+   dos outros campos, que marca sem fechar. Eram botões lado a lado. As regras
+   de ordem, de valor fora da lista e de `exclusiva` continuam aqui. */
+function CatalogoMulti({ campo, label, valor, onChange, disabled }) {
+  const normalizadas = opcoesNormalizadas(campo);
+  const opcoes = normalizadas.map((o) => String(o.value));
+  const escolhidos = listaSeparar(valor);
+  const marcado = new Set(escolhidos.map(listaChave));
+  const fora = escolhidos.filter((v) => !opcoes.some((o) => listaChave(o) === listaChave(v)));
+  const todas = [...normalizadas, ...fora.map((v) => ({ value: v, label: v }))];
+  const aplicar = (novos) => {
+    const proximo = new Set(novos.map(listaChave));
+    /* `exclusiva` (26/09/2026): a opção que não convive com as outras — o
+       "Livre" dos grupos de armas da técnica. Marcá-la limpa as demais;
+       marcar outra a tira. */
+    const ex = campo.exclusiva != null ? listaChave(campo.exclusiva) : null;
+    const adicionada = [...proximo].find((k) => !marcado.has(k));
+    if (ex && adicionada) {
+      if (adicionada === ex) { proximo.clear(); proximo.add(ex); } else proximo.delete(ex);
+    }
+    const naOrdem = [...opcoes, ...fora].filter((o) => proximo.has(listaChave(o)));
+    onChange(naOrdem.join(', '));
+  };
+  const Multi = (typeof SelectPillMulti !== 'undefined' && SelectPillMulti) || window.SelectPillMulti;
+  return (
+    <div className="catalogo-campo-full catalogo-multi" data-multi={campo.col}>
+      <label className="diario-field-label">{label}</label>
+      <Multi options={todas} disabled={disabled}
+        values={todas.map((o) => String(o.value)).filter((o) => marcado.has(listaChave(o)))}
+        onChange={aplicar} />
+    </div>
+  );
+}
+
+/* ---------- CatalogoEscolha / CatalogoEscala — botões de escolha única (25/09/2026) ----------
+   "No modal de editar criaturas, transforme o plano, tipo, grupo e atributos
+    como você fez com elemento. As opções viram botões seletores. No caso dos
+    atributos, os atributos podem variar entre -2 e 8." (usuário)
+
+   Mesma pele do CatalogoMulti, mas UMA escolha: clicar noutro troca; clicar
+   no marcado desmarca (o campo pode ficar vazio, como no dropdown de antes).
+   Valor gravado fora da lista/faixa (tipo "Demônio", atributo 10) aparece
+   como botão extra, marcado — nada some da tela sem alguém ver. */
+/* `redondo` (25/09/2026): "Os botões de atributo devem ser um círculo
+   perfeito igual para todos os números." A escala de -2 a 8 desenha círculos
+   do mesmo diâmetro; as listas de palavras seguem em pílula. */
+function BotoesEscolha({ campo, label, itens, valor, onEscolher, disabled, t, redondo }) {
+  const atual = valor == null ? '' : String(valor);
+  const fora = atual !== '' && !itens.some((i) => String(i.value) === atual)
+    ? [{ value: atual, label: `${atual} (${(t && t.campoForaDaLista) || '—'})` }] : [];
+  return (
+    <div className="catalogo-campo-full catalogo-multi" data-escolha={campo.col}>
+      <label className="diario-field-label">{label}</label>
+      <div className={'catalogo-multi-opcoes' + (redondo ? ' catalogo-multi-opcoes--redondo' : '')}
+        role="radiogroup" aria-label={label}>
+        {[...fora, ...itens].map((o) => {
+          const on = String(o.value) === atual;
+          return (
+            <button key={String(o.value)} type="button" role="radio" aria-checked={on} disabled={disabled}
+              className={'catalogo-multi-opcao' + (on ? ' is-on' : '')}
+              onClick={() => onEscolher(on ? '' : o.value)}>
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CatalogoEscolha({ campo, label, valor, onChange, disabled, t }) {
+  return (
+    <BotoesEscolha campo={campo} label={label} t={t} disabled={disabled || !!campo.somenteLeitura}
+      itens={opcoesNormalizadas(campo)} valor={valor} onEscolher={onChange} />
+  );
+}
+
+function CatalogoEscala({ campo, label, valor, onChange, disabled, t }) {
+  const [min, max] = campo.escala;
+  const itens = [];
+  for (let n = min; n <= max; n++) itens.push({ value: n, label: String(n) });
+  // O banco de intelecto é texto: grava "3", não 3.
+  const gravar = (v) => onChange(v === '' ? '' : (campo.tipo === 'texto' ? String(v) : v));
+  /* DROPDOWN desde 26/09/2026 (eram botões redondos): a mesma pílula dos
+     outros campos. "—" deixa o atributo vazio, como o clique no botão marcado
+     fazia. Valor fora da faixa aparece marcado, para não sumir da tela. */
+  const atualEscala = valor === '' || valor == null ? '' : String(valor).trim();
+  const foraEscala = atualEscala !== '' && !itens.some((i) => String(i.value) === atualEscala)
+    ? [{ value: atualEscala, label: `${atualEscala} (${(t && t.campoForaDaLista) || '—'})` }] : [];
+  const opcoesEscala = [{ value: '', label: '—' }, ...foraEscala,
+    ...itens.map((i) => ({ value: String(i.value), label: i.label }))];
+  return (
+    <div className="catalogo-escala" data-escala={campo.col}>
+      <SelectPill label={label} value={atualEscala} disabled={disabled} options={opcoesEscala}
+        onChange={(v) => gravar(v === '' ? '' : (campo.tipo === 'texto' ? v : Number(v)))} />
+    </div>
+  );
+}
+
 // ---------- CatalogoCampo — um controle por tipo do descritor ----------
 function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t, equip }) {
   if (campo.tipo === 'equipamento') {
-    return <CatalogoEquipamento label={label} valor={valor} onChange={onChange}
+    return <CatalogoEquipamento label={label} valor={valor} onChange={onChange} parte={campo.parte}
       catalogo={equip && equip.catalogo} porSlug={equip && equip.porSlug} t={t} />;
   }
   /* Campo `derivado` não chega aqui desde 15/09/2026: "No modal de editar
      criaturas, não precisa mostrar os campos preenchidos automaticamente, mas
      mostre ao expandir a criatura na tabela." A conta continua rodando e indo
      no payload (ver salvar); quem mostra é a linha expandida da CriaturasList. */
+  if (campo.tipo === 'opcoes' && campo.botoes) {
+    return <CatalogoEscolha campo={campo} label={label} valor={valor} onChange={onChange} disabled={disabled} t={t} />;
+  }
+  if (campo.escala) {
+    return <CatalogoEscala campo={campo} label={label} valor={valor} onChange={onChange} disabled={disabled} t={t} />;
+  }
+  if (campo.tipo === 'multiopcoes') {
+    return <CatalogoMulti campo={campo} label={label} valor={valor} onChange={onChange} disabled={disabled} />;
+  }
   if (campo.tipo === 'lista') {
     return <CatalogoLista campo={campo} label={label} valor={valor} onChange={onChange}
       disabled={disabled} nomes={nomes} t={t} />;
@@ -405,7 +535,8 @@ async function sincronizarAnimalDaCriatura(criatura) {
     }
     return null;
   }
-  if (criatura.tipo !== 'Animal') return null;
+  // Classe pode ter várias desde 26/09/2026 ("Animal, Místico").
+  if (!listaSeparar(criatura.tipo).some((c) => listaChave(c) === listaChave('Animal'))) return null;
 
   const { data: soltos, error: e2 } = await itens().select('slug, nome').eq('grupo', 'Animais').is('criatura_id', null);
   if (e2) return e2.message;
@@ -435,6 +566,17 @@ async function sincronizarAnimalDaCriatura(criatura) {
 /* As colunas que a conta do equipamento lê (criatura-formulas.jsx) e a busca
    mostra. `itens` passa de 1000 linhas: fetchTabelaPaginada. */
 const COLUNAS_EQUIP = 'slug, nome, grupo, slot_equip, categoria_equip, dano, dano_l, dano_m, dano_p, ajuste_atributo, absorcao, defesa, tipo_armadura, maos_outras';
+
+/* Campo específico de um grupo (itens: `grupos`, 26/09/2026) só aparece
+   quando o item é desse grupo — ou quando já tem valor gravado, para nada
+   sumir da tela sem alguém ver. Item sem grupo escolhido mostra só os comuns. */
+function campoDoGrupo(campo, form) {
+  if (!Array.isArray(campo.grupos)) return true;
+  if (campo.grupos.includes(form && form.grupo)) return true;
+  const v = form ? form[campo.col] : null;
+  if (Array.isArray(v)) return v.length > 0;
+  return !(v == null || v === '' || v === 0 || v === '0');
+}
 
 // ---------- CatalogoEditor ----------
 /* `onExcluido` (14/09/2026): "No rodapé adicionar um botão para excluir." Só
@@ -467,9 +609,12 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
   React.useEffect(() => {
     if (!temEquipamento) return undefined;
     let cancelado = false;
-    Promise.all(['Armas', 'Armaduras'].map((grupo) => (
-      fetchTabelaPaginada('itens', { colunas: COLUNAS_EQUIP, filtros: [['grupo', grupo]], ordem: ['nome'] })
-    ))).then((respostas) => {
+    /* O catálogo INTEIRO desde 25/09/2026: a mochila da criatura aceita
+       qualquer item ("inclusive itens comuns disponíveis no catálogo"). O
+       campo Ataque filtra as armas na tela. */
+    Promise.all([
+      fetchTabelaPaginada('itens', { colunas: COLUNAS_EQUIP, ordem: ['nome'] }),
+    ]).then((respostas) => {
       if (cancelado) return;
       setEquipCatalogo(respostas.flatMap((r) => (r && r.data) || [])
         .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt')));
@@ -653,9 +798,30 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
   // Excluir: só criaturas, só editando. `.select()` pelo mesmo motivo do
   // toggleDisponibilizar do Lore: DELETE barrado pela RLS volta sem erro e
   // com zero linhas — sem conferir, a janela fecharia e a criatura ficaria.
-  const podeExcluir = descritor.tabela === 'criaturas' && !!linha && typeof onExcluido === 'function';
+  /* ITENS também desde 26/09/2026 ("adicione um botão de excluir itens,
+     igual em criaturas"). O risco que fez os catálogos nascerem sem DELETE é
+     o slug dentro do JSON das fichas: o item some do inventário de quem o
+     carrega (a tela pula slug sem catálogo, não quebra). Por isso o primeiro
+     clique, além de armar, CONTA quantos personagens o têm — a confirmação
+     diz o preço antes de ele ser pago. Precisa da política
+     scripts/sql/itens-admin-delete.sql no banco. */
+  // Magias, técnicas e habilidades desde 26/09/2026 (catalogos-admin-delete-2026-09-26.sql).
+  const TABELAS_EXCLUIVEIS = ['criaturas', 'itens', 'magias', 'tecnicas', 'habilidades'];
+  const podeExcluir = TABELAS_EXCLUIVEIS.includes(descritor.tabela) && !!linha && typeof onExcluido === 'function';
+  const [emUso, setEmUso] = React.useState(null); // nº de personagens com o item; null = não contado
   const excluir = async () => {
-    if (!confirmandoExcluir) { setConfirmandoExcluir(true); return; }
+    if (!confirmandoExcluir) {
+      setConfirmandoExcluir(true);
+      if (descritor.tabela === 'itens' && linha.slug) {
+        /* `inventario @> {"itens":[{"slug":…}]}`. A contagem vê o que a RLS
+           deixa ver — é um aviso, não uma trava. */
+        const { count, error: errUso } = await supabaseClient
+          .from('personagens').select('id', { count: 'exact', head: true })
+          .contains('inventario', { itens: [{ slug: linha.slug }] });
+        setEmUso(errUso ? null : (count || 0));
+      }
+      return;
+    }
     setExcluindo(true); setError(null);
     const idCol = descritor.chave || 'id';
     const { data, error: err } = await supabaseClient
@@ -669,11 +835,18 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
     }
     onExcluido(linha);
   };
+  /* Ícone AO LADO DO X desde 26/09/2026 ("o botão de excluir é um ícone ao
+     lado do botão de x do modal") — era um botão com texto no rodapé. Mesma
+     pele das ações do BestDetalheModal (ms-close ms-acao). Continua em dois
+     cliques: o primeiro arma (lixeira com X, em vermelho) e o aviso no corpo
+     diz o que vai acontecer; o segundo exclui. */
+  const rotuloExcluir = excluindo ? t.editorExcluindo : (confirmandoExcluir ? t.editorExcluirConfirmar : t.editorExcluir);
   const botaoExcluir = podeExcluir ? (
-    <button type="button" className={confirmandoExcluir ? 'btn-danger btn-md' : 'btn-ghost btn-md catalogo-btn-excluir'}
-      onClick={excluir} disabled={saving || excluindo}>
-      <i className="ti ti-trash" aria-hidden="true" />{' '}
-      {excluindo ? t.editorExcluindo : (confirmandoExcluir ? t.editorExcluirConfirmar : t.editorExcluir)}
+    <button type="button"
+      className={'ms-close ms-acao ms-acao--perigo catalogo-btn-excluir' + (confirmandoExcluir ? ' is-armado' : '')}
+      onClick={excluir} disabled={saving || excluindo}
+      aria-label={rotuloExcluir}>
+      <i className={'ti ' + (confirmandoExcluir ? 'ti-trash-x' : 'ti-trash')} aria-hidden="true" />
     </button>
   ) : null;
 
@@ -686,10 +859,25 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
       onConfirm={salvar}
       confirmLabel={saving ? t.editorSalvando : undefined}
       confirmDisabled={saving || excluindo || !obrigatoriosOk}
-      footerBeforeConfirm={botaoExcluir}>
+      headerExtra={botaoExcluir}>
+      {/* A lixeira armada avisa NO TOPO, perto do ícone que foi clicado — o
+          formulário é longo e o fim dele fica fora da tela. Com itens, diz
+          também quantos personagens perdem o item. */}
+      {confirmandoExcluir && !excluindo && (
+        <div className="err-msg catalogo-aviso-uso" role="alert">
+          {lang === 'en' ? 'Click the trash again to delete. ' : 'Clique de novo na lixeira para excluir. '}
+          {emUso > 0 && (lang === 'en'
+            ? `${emUso} character${emUso === 1 ? ' carries' : 's carry'} this item. Deleting it removes it from ${emUso === 1 ? 'that inventory' : 'those inventories'}.`
+            : `${emUso} personage${emUso === 1 ? 'm carrega' : 'ns carregam'} este item. Excluir o tira ${emUso === 1 ? 'desse inventário' : 'desses inventários'}.`)}
+        </div>
+      )}
       <div className="catalogo-form-grid">
-        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto && campo.tipo !== 'derivado').map((campo) => (
-          <CatalogoCampo key={campo.col} campo={campo}
+        {/* `largura: 'curta'` (25/09/2026): meia coluna da grade — Estágio,
+            Montaria, Peso e Altura cabem na linha de Nome e Subtipo. */}
+        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto && campo.tipo !== 'derivado' && campoDoGrupo(campo, form)).map((campo) => {
+          const chave = campo.col + (campo.parte ? ':' + campo.parte : '');
+          const el = (
+          <CatalogoCampo key={chave} campo={campo}
             label={t[campo.rotuloKey] || campo.col}
             valor={valorDoCampo(campo)}
             onChange={(v) => onChangeCampo(campo, v)}
@@ -699,7 +887,19 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
             equip={campo.tipo === 'equipamento' ? { catalogo: equipCatalogo, porSlug: equipPorSlug } : undefined}
             t={t}
           />
-        ))}
+          );
+          /* `meia` (26/09/2026): metade da linha — dois campos lado a lado. */
+          /* `quarto` (26/09/2026): um quarto da linha — quatro lado a lado. */
+          if (campo.largura === 'quarto') {
+            return <div key={chave} className="catalogo-campo-quarto" data-campo={campo.col}>{el}</div>;
+          }
+          if (campo.largura === 'meia') {
+            return <div key={chave} className="catalogo-campo-meia" data-campo={campo.col}>{el}</div>;
+          }
+          return campo.largura === 'curta'
+            ? <div key={chave} className="catalogo-campo-curto" data-campo={campo.col}>{el}</div>
+            : el;
+        })}
       </div>
       {error && <div className="err-msg">{error}</div>}
     </ModalShell>

@@ -25,49 +25,35 @@ import './inventario-helpers.jsx';
 const G = globalThis;
 const LIM = G.COND_LIMITE;
 
-/* Os textos do catálogo REAL (lidos do banco em 15/09/2026). O formato é
-   PROSA — "Aumenta 35 de Hidratação e 1 de Sobriedade." —, e não a lista
-   curta "35 Hidratação" que as fixtures antigas deste arquivo usavam. Com o
-   parser velho NENHUM item do catálogo aplicava efeito: o verbo no começo
-   derrubava o casamento, e o " e " juntava dois pares num só. Era por isso
-   que "usar item não estava calculando" (usuário, 15/09/2026). */
-const AGUA    = { efeito_positivo: 'Aumenta 35 de Hidratação e 1 de Sobriedade.',
-                  efeito_negativo: 'Diminui 5 de Temperatura.' };
+/* ESCALA NOVA (27/09/2026): as barras dizem o MAL e vão de 0 (ideal) a 100
+   (pior). O catálogo foi reescrito: "Reduz 35 de Sede e 1 de Vício",
+   "Aumenta 5 de Vício e 1 de Sono", "Protege 25 de Frio". O SINAL vem do
+   VERBO, que vale para as partes seguintes até aparecer outro; sem verbo,
+   vale o campo. Os rótulos ANTIGOS (Hidratação, Saúde…) ainda são lidos, com
+   o sentido invertido — texto que ninguém reescreveu continua certo. */
+const AGUA    = { efeito_positivo: 'Reduz 35 de Sede e 5 de Calor.' };
 const CERVEJA = { efeito_positivo: 'Aumenta 5 de Energia Heroica.',
-                  efeito_negativo: 'Diminui 5 de Sobriedade e 1 de Sono.' };
+                  efeito_negativo: 'Aumenta 5 de Vício e 1 de Sono.' };
 
-/* O parser contra o texto REAL do catálogo (banco, 15/09/2026). Todas as
-   frases abaixo são cópias literais — inclusive os dois erros de digitação
-   que existem no banco ("deTemperatura" sem espaço, "Dimiuni" no lugar de
-   "Diminui"), porque é com esses textos que o jogo roda. */
-describe('parseEfeito — o formato do catálogo é PROSA', () => {
+describe('parseEfeito — prosa, com o verbo dando o sinal', () => {
   const chave = (s) => G.parseEfeito(s).map((e) => [e.key, e.valor]);
 
-  it('"Aumenta N de X e M de Y" devolve os DOIS pares', () => {
-    expect(chave('Aumenta 35 de Hidratação e 1 de Sobriedade.'))
-      .toEqual([['hidratacao', 35], ['euforia', 1]]);
+  it('"Reduz N de X e M de Y" devolve os DOIS pares', () => {
+    expect(chave('Reduz 35 de Sede e 5 de Calor.')).toEqual([['hidratacao', 35], ['calor', 5]]);
   });
 
-  it('lista com vírgulas e "e" no fim', () => {
-    expect(chave('Diminui 50 de Sanidade, 25 de Sobriedade e 5 de Reputação.'))
+  it('lista com vírgulas e "e" no fim, com os nomes novos', () => {
+    expect(chave('Aumenta 50 de Loucura, 25 de Vício e 5 de Desonra.'))
       .toEqual([['sanidade', 50], ['euforia', 25], ['reputacao', 5]]);
   });
 
   it('vitalidade e condição no mesmo texto', () => {
-    expect(chave('Aumenta 3 de Energia Física, 40 de Energia Heroica, 40 de Karma e 10 de Saúde.'))
+    expect(chave('Aumenta 3 de Energia Física, 40 de Energia Heroica e 40 de Karma; reduz 10 de Doença.'))
       .toEqual([['ef', 3], ['eh', 40], ['ka', 40], ['vitalidade', 10]]);
   });
 
   it('aguenta os erros de digitação do banco', () => {
-    expect(chave('Aumenta 10 deTemperatura.')).toEqual([['termorregulacao', 10]]);
-    expect(chave('Dimiuni 20 de Energia Heroica e 25 de Reputação.'))
-      .toEqual([['eh', 20], ['reputacao', 25]]);
-  });
-
-  it('o formato curto antigo continua valendo', () => {
-    expect(chave('35 Hidratação')).toEqual([['hidratacao', 35]]);
-    expect(chave('5 Sobriedade, 1 Sono')).toEqual([['euforia', 5], ['animo', 1]]);
-    expect(chave('Reputação 1')).toEqual([['reputacao', 1]]);
+    expect(chave('Dimiuni 20 de Energia Heroica e 25 de Desonra.')).toEqual([['eh', 20], ['reputacao', 25]]);
   });
 
   it('texto sem número ou com rótulo desconhecido não vira efeito', () => {
@@ -76,61 +62,85 @@ describe('parseEfeito — o formato do catálogo é PROSA', () => {
     expect(G.parseEfeito(null)).toEqual([]);
   });
 
-  /* O SINAL vem do CAMPO (efeito_positivo soma, efeito_negativo subtrai),
-     não do verbo — é assim desde sempre, e o banco tem "Diminui" escrito
-     dentro de efeito_negativo em todos os casos. */
-  it('o verbo não inverte o sinal: quem manda é o campo', () => {
-    const item = { efeito_positivo: 'Aumenta 5 de Reputação.', efeito_negativo: 'Diminui 2 de Reputação.' };
+  it('o verbo dá o sinal e vale para as partes seguintes', () => {
+    const item = { efeito_positivo: 'Aumenta 5 de Energia Heroica; reduz 10 de Sono e 5 de Loucura.' };
     expect(G.efeitosDoItem(item, 1)).toEqual([
-      { scope: 'condicoes', key: 'reputacao', delta: 5 },
-      { scope: 'condicoes', key: 'reputacao', delta: -2 },
+      { scope: 'vitalidade', key: 'eh', delta: 5 },
+      { scope: 'condicoes', key: 'animo', delta: -10 },
+      { scope: 'condicoes', key: 'sanidade', delta: -5 },
     ]);
+  });
+
+  it('sem verbo, vale o campo (positivo soma, negativo subtrai)', () => {
+    expect(G.efeitosDoItem({ efeito_negativo: '5 Energia Física' }, 1))
+      .toEqual([{ scope: 'vitalidade', key: 'ef', delta: -5 }]);
+  });
+
+  it('rótulo ANTIGO é lido ao contrário: "Aumenta 35 de Hidratação" mata a sede', () => {
+    expect(G.efeitosDoItem({ efeito_positivo: 'Aumenta 35 de Hidratação.' }, 1))
+      .toEqual([{ scope: 'condicoes', key: 'hidratacao', delta: -35 }]);
+    expect(G.efeitosDoItem({ efeito_negativo: 'Diminui 20 de Sanidade.' }, 1))
+      .toEqual([{ scope: 'condicoes', key: 'sanidade', delta: 20 }]);
+  });
+
+  it('"Protege" não é efeito de usar — é a proteção da vestimenta', () => {
+    const capa = { efeito_positivo: 'Protege 25 de Frio e 4 de Desonra.' };
+    expect(G.efeitosDoItem(capa, 1)).toEqual([]);
+    expect(G.protecoesDoItem(capa)).toEqual({ frio: 25, reputacao: 4 });
   });
 });
 
-describe('aplicarEfeitosItem — condições na escala bidirecional', () => {
-  it('condição nunca salva parte de 0 (neutro), não de 100 ("cheio")', () => {
-    const novo = G.aplicarEfeitosItem({}, AGUA, 1, {});
-    expect(novo.condicoes.hidratacao).toBe(35);
+describe('protecoesVestidas — só o que está no corpo', () => {
+  const cat = { capa: { efeito_positivo: 'Protege 25 de Frio.' }, anel: { efeito_positivo: 'Protege 2 de Desonra.' } };
+  it('soma as peças vestidas; a guardada não conta', () => {
+    const itens = [
+      { slug: 'capa', vestido: true }, { slug: 'anel', vestido: true }, { slug: 'capa' },
+    ];
+    expect(G.protecoesVestidas(itens, cat)).toEqual({ frio: 25, reputacao: 2 });
   });
+});
 
-  it('efeito negativo desce abaixo de zero em vez de parar no piso 0', () => {
+describe('aplicarEfeitosItem — condições na escala 0..100', () => {
+  it('parte de 0 e só sobe o que o item manda', () => {
     const novo = G.aplicarEfeitosItem({}, CERVEJA, 1, {});
-    expect(novo.condicoes.euforia).toBe(-5);
-    expect(novo.condicoes.animo).toBe(-1);
+    expect(novo.condicoes.euforia).toBe(5);
+    expect(novo.condicoes.animo).toBe(1);
   });
 
-  it('acumula sobre o valor já salvo, com sinal', () => {
-    const est = { condicoes: { hidratacao: -20 } };
-    expect(G.aplicarEfeitosItem(est, AGUA, 1, {}).condicoes.hidratacao).toBe(15);
+  it('reduzir não passa de 0 (o ideal)', () => {
+    expect(G.aplicarEfeitosItem({ condicoes: { hidratacao: 20 } }, AGUA, 1, {}).condicoes.hidratacao).toBe(0);
   });
 
-  it('satura nos DOIS extremos da escala (-COND_LIMITE..+COND_LIMITE)', () => {
-    const teto = G.aplicarEfeitosItem({ condicoes: { hidratacao: 40 } }, AGUA, 1, {});
-    expect(teto.condicoes.hidratacao).toBe(LIM);
-
-    const veneno = { efeito_negativo: '40 Saúde' };
-    const piso = G.aplicarEfeitosItem({ condicoes: { vitalidade: -30 } }, veneno, 1, {});
-    expect(piso.condicoes.vitalidade).toBe(-LIM);
+  it('satura em 100 (o pior)', () => {
+    const veneno = { efeito_negativo: 'Aumenta 40 de Doença.' };
+    expect(G.aplicarEfeitosItem({ condicoes: { vitalidade: 80 } }, veneno, 1, {}).condicoes.vitalidade).toBe(LIM);
   });
 
-  it('quantidade multiplica o delta (3 cervejas = -15 de Sobriedade)', () => {
-    expect(G.aplicarEfeitosItem({}, CERVEJA, 3, {}).condicoes.euforia).toBe(-15);
+  it('quantidade multiplica o delta (3 cervejas = 15 de Vício)', () => {
+    expect(G.aplicarEfeitosItem({}, CERVEJA, 3, {}).condicoes.euforia).toBe(15);
   });
 
-  it('vestir e despir a MESMA peça volta ao ponto de partida', () => {
-    const manto = { efeito_positivo: '10 Reputação' };
-    const invertido = { efeito_positivo: manto.efeito_negativo, efeito_negativo: manto.efeito_positivo };
-    const vestido = G.aplicarEfeitosItem({ condicoes: { reputacao: 4 } }, manto, 1, {});
-    expect(vestido.condicoes.reputacao).toBe(14);
-    const despido = G.aplicarEfeitosItem(vestido, invertido, 1, {});
-    expect(despido.condicoes.reputacao).toBe(4);
+  it('Frio e Calor mexem na Temperatura: reduzir para no zero, não passa ao outro lado', () => {
+    const calor = { condicoes: { termorregulacao: 3 } };
+    expect(G.aplicarEfeitosItem(calor, AGUA, 1, {}).condicoes.termorregulacao).toBe(0);
+    const sopa = { efeito_positivo: 'Reduz 20 de Frio.' };
+    expect(G.aplicarEfeitosItem({ condicoes: { termorregulacao: -30 } }, sopa, 1, {}).condicoes.termorregulacao).toBe(-10);
+    expect(G.aplicarEfeitosItem({ condicoes: { termorregulacao: 10 } }, sopa, 1, {}).condicoes.termorregulacao).toBe(10);
+    const gelo = { efeito_negativo: 'Aumenta 15 de Frio.' };
+    expect(G.aplicarEfeitosItem({ condicoes: { termorregulacao: 5 } }, gelo, 1, {}).condicoes.termorregulacao).toBe(-10);
+  });
+
+  it('vestir e despir a MESMA peça volta ao ponto de partida (o despir nega os deltas)', () => {
+    const colar = { efeito_negativo: 'Aumenta 5 de Desonra.' };
+    const vestido = G.aplicarEfeitosItem({ condicoes: { reputacao: 4 } }, colar, 1, {});
+    expect(vestido.condicoes.reputacao).toBe(9);
+    expect(G.desfazerEfeitosItem(vestido, colar, 1, {}).condicoes.reputacao).toBe(4);
   });
 
   it('não muta o estado_atual recebido', () => {
-    const est = { condicoes: { hidratacao: 5 } };
+    const est = { condicoes: { hidratacao: 50 } };
     G.aplicarEfeitosItem(est, AGUA, 1, {});
-    expect(est.condicoes.hidratacao).toBe(5);
+    expect(est.condicoes.hidratacao).toBe(50);
   });
 
   it('item sem efeito devolve o MESMO objeto (chamadores dependem disso)', () => {

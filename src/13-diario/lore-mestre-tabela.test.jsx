@@ -19,8 +19,10 @@
       bloco "Liberar para". As duas foram para o modal do olho, e a tabela
       ganhou uma coluna Visibilidade que só MOSTRA o resultado.
 
-   2. O OLHO DEIXOU DE ABRIR A FICHA. A ficha é a expansão da linha agora, e
-      o olho é permissão (PermissaoEntradaModal).
+   2. O OLHO DEIXOU DE ABRIR A FICHA. A ficha abre ao clicar na linha, e o
+      olho é permissão (PermissaoEntradaModal). Até 26/09/2026 a ficha era a
+      expansão da linha; desde então abre numa janela ("ao clicar no item da
+      tabela, vai abrir um modal ao invés de expandir").
 
    3. GLOBAL NÃO GANHA LIXEIRA — mas ganha LÁPIS. A lista antiga não dava
       nenhum dos dois, e isso deixava o catálogo do mundo sem forma de editar:
@@ -29,7 +31,7 @@
       17/09/2026 e forka pelo p_id; a lixeira continua fora porque
       excluir_lore_entrada recusa apagar global.
    ============================================================ */
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
@@ -69,7 +71,7 @@ const HISTORIA = {
 };
 
 const NPCS = [
-  { id: 'arissia-h13', tipo: 'npc', nome: 'Arissia', descricao: 'A alquimista.', atributos: { raca: 'Humano', cidade: 'brann-h13' } },
+  { id: 'arissia-h13', tipo: 'npc', nome: 'Arissia', descricao: 'A alquimista.', atributos: { raca: 'Humano', cidade: 'brann-h13', reino: 'verrogar-h13' } },
   { id: 'gorm-h13',    tipo: 'npc', nome: 'Gorm',    descricao: '', atributos: { raca: 'Anão' } },
 ];
 const LUGARES = [
@@ -79,12 +81,13 @@ const LUGARES = [
 const NPC_GLOBAL = { id: 'mundo-npc', nome: 'Andarilho', descricao: '', atributos: {} };
 
 let chamadasRpc;
-function stubBanco({ historia = HISTORIA, entradas = [...NPCS, ...LUGARES], globais = {} } = {}) {
+function stubBanco({ historia = HISTORIA, entradas = [...NPCS, ...LUGARES], globais = {}, admin = false } = {}) {
   chamadasRpc = [];
   globalThis.supabaseClient = {
     rpc: async (nome, args) => {
       chamadasRpc.push({ nome, args });
       if (nome === 'listar_lore_historia') return { data: { ok: true, entradas }, error: null };
+      if (nome === 'eh_admin') return { data: admin, error: null };
       if (nome === 'listar_catalogo_global') {
         return { data: { ok: true, entradas: globais[args?.p_tipo] || [] }, error: null };
       }
@@ -118,6 +121,13 @@ const linhas = () => [...document.querySelectorAll('tbody tr:not(.best-detail)')
 const celulas = (tr) => [...tr.querySelectorAll('td')].map((t) => t.textContent.trim());
 const linhaDe = (nome) => linhas().find((tr) => celulas(tr)[0] === nome);
 const acao = (tr, classe) => tr.querySelector(`.diario-td-acoes .${classe}`);
+/* Olho e lápis moram no CABEÇALHO DA FICHA desde 26/09/2026 ("o ícone de lápis
+   e olho fica junto com o x"): abre a ficha pela linha e clica no ícone. */
+const acaoNaFicha = (classe) => document.querySelector(`.ms-backdrop .ms-acao .${classe}`);
+const abrirAcao = (nome, classe) => {
+  fireEvent.click(linhaDe(nome));
+  fireEvent.click(acaoNaFicha(classe).closest('button'));
+};
 
 describe('é a tabela padrão, com as peças das outras páginas', () => {
   it('tem a moldura, o cabeçalho e a busca do catálogo', async () => {
@@ -137,96 +147,115 @@ describe('é a tabela padrão, com as peças das outras páginas', () => {
     expect(document.querySelectorAll('tbody input[type="checkbox"]')).toHaveLength(0);
   });
 
-  it('NPCs: Nome, Raça, Localização, Visibilidade, Fonte', async () => {
+  /* 26/09/2026: "na tabela de conhecidos, remova a coluna fonte e
+     localização, e adicione a coluna reino". */
+  /* Visibilidade virou ícone ao lado do nome em 26/09/2026. */
+  /* Raça e Reino saíram em 26/09/2026 ("da página de conhecidos, remover as
+     colunas Raça e Reino"); sem coluna de ações — tudo foi para a ficha. */
+  it('Conhecidos: só o Nome', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    expect(cabecalho()).toEqual(['Nome', 'Raça', 'Localização', 'Visibilidade', 'Fonte']);
+    expect(cabecalho()).toEqual(['Nome']);
+    expect(celulas(linhaDe('Arissia'))).toEqual(['Arissia']);
   });
 
-  it('Lugares mistura Reino e Cidade, e a coluna Tipo diz qual é', async () => {
-    stubBanco(); montar('lugar');
+  /* Reinos e Cidades viraram páginas próprias em 26/09/2026: sem coluna Tipo
+     e sem Visibilidade (que foi para o lado do nome). */
+  it('Reinos: só reinos, só o Nome', async () => {
+    stubBanco(); montar('reino');
     await pronta();
-    expect(cabecalho()).toEqual(['Nome', 'Tipo', 'Visibilidade', 'Fonte']);
-    expect(celulas(linhaDe('Verrogar'))[1]).toBe('Reino');
-    expect(celulas(linhaDe('Brann'))[1]).toBe('Cidade');
+    expect(cabecalho()).toEqual(['Nome']);
+    expect(linhaDe('Verrogar')).toBeTruthy();
+    expect(linhaDe('Brann')).toBeFalsy();
   });
 
-  /* O slug não serve na coluna: "brann-h13" não é um lugar que o Mestre
-     reconheça. */
-  it('a Localização do NPC mostra o NOME da cidade, não o slug', async () => {
-    stubBanco(); montar('npc');
+  it('Cidades: só cidades', async () => {
+    stubBanco(); montar('cidade');
     await pronta();
-    expect(celulas(linhaDe('Arissia'))[2]).toBe('Brann');
+    expect(linhaDe('Brann')).toBeTruthy();
+    expect(linhaDe('Verrogar')).toBeFalsy();
   });
 
-  it('atributo ausente vira travessão, não vazio', async () => {
-    stubBanco(); montar('npc');
-    await pronta();
-    expect(celulas(linhaDe('Gorm'))[2]).toBe('—');
-  });
+
 });
 
+/* Em Conhecidos a coluna é só ÍCONE desde 26/09/2026: olho = todos, olho
+   riscado = ninguém, olho com exclamação = alguns. O texto de antes continua
+   no aria-label (e no tooltip). */
 describe('a coluna Visibilidade lê o estado real das duas colunas do banco', () => {
-  it('liberada só pra um PJ mostra a proporção', async () => {
+  const vis = (nome) => linhaDe(nome).querySelector('.diario-vis-ic');
+
+  it('liberada só pra um PJ: olho com exclamação, e a proporção no rótulo', async () => {
     stubBanco(); montar('npc');
     await pronta();
     // npc_ids tem Arissia E lore_acesso_pj lista só a Thalia → 1 de 2.
-    expect(linhaDe('Arissia').querySelector('.diario-vis-chip').textContent.trim()).toBe('1/2');
-    expect(linhaDe('Arissia').querySelector('.diario-vis-chip--alguns')).toBeTruthy();
+    expect(vis('Arissia').querySelector('i').className).toBe('ti ti-eye-exclamation');
+    expect(vis('Arissia').getAttribute('aria-label')).toBe('1/2');
+    expect(vis('Arissia').textContent.trim(), 'só o ícone, sem texto').toBe('');
   });
 
-  it('não disponibilizada mostra "Ninguém"', async () => {
+  it('não disponibilizada: olho riscado, "Ninguém" no rótulo', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    expect(linhaDe('Gorm').querySelector('.diario-vis-chip').textContent.trim()).toBe('Ninguém');
-    expect(linhaDe('Gorm').querySelector('.diario-vis-chip--ninguem')).toBeTruthy();
+    expect(vis('Gorm').querySelector('i').className).toBe('ti ti-eye-off');
+    expect(vis('Gorm').getAttribute('aria-label')).toBe('Ninguém');
   });
 
-  it('disponibilizada sem lista mostra "Todos os protagonistas"', async () => {
+  it('disponibilizada sem lista: olho, "Todos os protagonistas" no rótulo', async () => {
     const semLista = { ...HISTORIA, lore_acesso_pj: {} };
     stubBanco({ historia: semLista });
     montar('npc', { historia: semLista });
     await pronta();
-    const chip = linhaDe('Arissia').querySelector('.diario-vis-chip');
-    expect(chip.className).toMatch(/diario-vis-chip--todos/);
-    expect(chip.textContent.trim()).toBe('Todos os protagonistas');
+    expect(vis('Arissia').querySelector('i').className).toBe('ti ti-eye');
+    expect(vis('Arissia').getAttribute('aria-label')).toBe('Todos os protagonistas');
+  });
+
+  it('Reinos também: o ícone ao lado do nome', async () => {
+    stubBanco(); montar('reino');
+    await pronta();
+    expect(linhaDe('Verrogar').querySelector('.diario-vis-chip')).toBeNull();
+    expect(linhaDe('Verrogar').querySelector('.best-name .diario-vis-ic i.ti')).toBeTruthy();
   });
 });
 
-describe('a ficha é a expansão da linha', () => {
-  it('a linha nasce fechada', async () => {
+/* Janela desde 26/09/2026: "ao clicar no item da tabela, vai abrir um modal
+   ao invés de expandir" (usuário). Até ali a ficha era a expansão da linha. */
+const ficha = () => document.querySelector('.ms-backdrop [role="dialog"]');
+
+describe('a ficha abre numa janela', () => {
+  it('nada nasce aberto', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    expect(document.querySelector('.best-detail')).toBeNull();
+    expect(ficha()).toBeNull();
   });
 
-  it('clicar na linha abre a ficha ali mesmo, sem modal', async () => {
+  it('clicar na linha abre a ficha numa janela, fora da tabela', async () => {
     stubBanco(); montar('npc');
     await pronta();
     fireEvent.click(linhaDe('Arissia'));
-    const detalhe = document.querySelector('.best-detail');
-    expect(detalhe).toBeTruthy();
-    expect(detalhe.querySelector('.diario-det-inline')).toBeTruthy();
-    // Sem ModalShell em volta: a ficha está DENTRO da tabela.
-    expect(document.querySelector('.ms-backdrop')).toBeNull();
-    expect(detalhe.textContent).toMatch(/A alquimista/);
+    const janela = ficha();
+    expect(janela).toBeTruthy();
+    expect(janela.closest('table'), 'a janela não pode morar dentro da tabela').toBeNull();
+    expect(document.querySelector('.diario-det-inline')).toBeNull();
+    expect(janela.textContent).toMatch(/A alquimista/);
   });
 
-  it('clicar de novo fecha', async () => {
+  it('clicar dentro da janela não a fecha', async () => {
     stubBanco(); montar('npc');
     await pronta();
     fireEvent.click(linhaDe('Arissia'));
-    expect(document.querySelector('.best-detail')).toBeTruthy();
-    fireEvent.click(linhaDe('Arissia'));
-    expect(document.querySelector('.best-detail')).toBeNull();
+    /* Evento de React atravessa o portal: sem o stopPropagation da moldura o
+       clique chegava ao onClick da linha, que fechava a janela. */
+    fireEvent.click(ficha().querySelector('.ms-body'));
+    expect(ficha()).toBeTruthy();
   });
 
-  it('só uma linha aberta por vez', async () => {
+  it('o X fecha a janela', async () => {
     stubBanco(); montar('npc');
     await pronta();
     fireEvent.click(linhaDe('Arissia'));
-    fireEvent.click(linhaDe('Gorm'));
-    expect(document.querySelectorAll('.best-detail')).toHaveLength(1);
+    fireEvent.click(ficha().querySelector('.ms-close[aria-label="Fechar"]'));
+    expect(ficha()).toBeNull();
   });
 });
 
@@ -234,7 +263,7 @@ describe('o olho é permissão, não ficha', () => {
   it('abre o modal de quem pode ver', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    fireEvent.click(acao(linhaDe('Arissia'), 'ti-eye').closest('button'));
+    abrirAcao('Arissia', 'ti-eye');
     const modal = document.querySelector('.diario-permissao-modal');
     expect(modal).toBeTruthy();
     /* Escopado ao modal: a página também tem um .ms-title (o nome da seção,
@@ -246,7 +275,7 @@ describe('o olho é permissão, não ficha', () => {
   it('e abre no estado que a linha mostrava', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    fireEvent.click(acao(linhaDe('Arissia'), 'ti-eye').closest('button'));
+    abrirAcao('Arissia', 'ti-eye');
     const marcado = [...document.querySelectorAll('.diario-permissao-modal input[type="radio"]')]
       .find((r) => r.checked);
     expect(marcado.value).toBe('alguns');
@@ -255,23 +284,41 @@ describe('o olho é permissão, não ficha', () => {
   /* Clicar no olho não deve abrir a linha junto: os dois gestos vivem na
      mesma <tr>, e sem stopPropagation o modal subiria com a ficha aberta
      atrás dele. */
-  it('clicar no olho não expande a linha', async () => {
+  it('o olho da ficha abre a permissão por cima dela', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    fireEvent.click(acao(linhaDe('Gorm'), 'ti-eye').closest('button'));
-    expect(document.querySelector('.best-detail')).toBeNull();
+    abrirAcao('Gorm', 'ti-eye');
+    expect(document.querySelector('.diario-permissao-modal')).toBeTruthy();
+    /* "Quando clico no olho dentro do modal, a tela não está abrindo"
+       (26/09/2026): a ficha ficava aberta e, montada por último na mesma
+       camada, cobria a permissão. Agora a ficha fecha: só sobra uma janela. */
+    expect(document.querySelectorAll('.ms-backdrop')).toHaveLength(1);
   });
 });
 
 describe('cópia e global não têm as mesmas ações', () => {
-  it('cópia da história tem olho, lápis e lixeira', async () => {
+  /* Olho, lápis e lixeira no cabeçalho da ficha, ao lado do X (26/09/2026:
+     "o ícone de excluir deve ficar ao lado do botão x"). */
+  it('cópia da história tem olho, lápis e lixeira — na ficha, não na linha', async () => {
     stubBanco(); montar('npc');
     await pronta();
     const tr = linhaDe('Arissia');
-    expect(acao(tr, 'ti-eye')).toBeTruthy();
-    expect(acao(tr, 'ti-pencil')).toBeTruthy();
-    expect(acao(tr, 'ti-trash')).toBeTruthy();
-    expect(celulas(tr)[4]).toBe('Mesa');
+    expect(tr.querySelector('button')).toBeNull();
+    fireEvent.click(tr);
+    expect(acaoNaFicha('ti-eye')).toBeTruthy();
+    expect(acaoNaFicha('ti-pencil')).toBeTruthy();
+    expect(acaoNaFicha('ti-trash')).toBeTruthy();
+  });
+
+  it('a lixeira pede dois cliques: o primeiro arma, o segundo apaga', async () => {
+    stubBanco(); montar('npc');
+    await pronta();
+    fireEvent.click(linhaDe('Arissia'));
+    fireEvent.click(acaoNaFicha('ti-trash').closest('button'));
+    expect(chamadasRpc.some((c) => c.nome === 'excluir_lore_entrada')).toBe(false);
+    expect(acaoNaFicha('ti-trash-x')).toBeTruthy();
+    fireEvent.click(acaoNaFicha('ti-trash-x').closest('button'));
+    await waitFor(() => expect(chamadasRpc.some((c) => c.nome === 'excluir_lore_entrada')).toBe(true));
   });
 
   /* O global GANHA lápis (17/09/2026). Sem ele o Mestre não tinha como editar
@@ -292,17 +339,17 @@ describe('cópia e global não têm as mesmas ações', () => {
     montar('npc');
     await pronta();
     const tr = linhaDe('Andarilho');
-    expect(acao(tr, 'ti-eye')).toBeTruthy();
-    expect(acao(tr, 'ti-pencil'), 'o global tem que ser editável').toBeTruthy();
-    expect(acao(tr, 'ti-trash'), 'excluir_lore_entrada recusa global').toBeNull();
-    expect(celulas(tr)[4]).toBe('Mundo');
+    fireEvent.click(tr);
+    expect(acaoNaFicha('ti-trash'), 'excluir_lore_entrada recusa global').toBeNull();
+    expect(acaoNaFicha('ti-eye')).toBeTruthy();
+    expect(acaoNaFicha('ti-pencil'), 'o global tem que ser editável').toBeTruthy();
   });
 
   it('o lápis do global abre o formulário com os dados dele', async () => {
     stubBanco({ globais: { npc: [{ ...NPC_GLOBAL, nome: 'Andarilho', descricao: 'Vem de longe.' }] } });
     montar('npc');
     await pronta();
-    fireEvent.click(acao(linhaDe('Andarilho'), 'ti-pencil').closest('button'));
+    abrirAcao('Andarilho', 'ti-pencil');
     const form = document.querySelector('.ms-backdrop');
     expect(form).toBeTruthy();
     expect(form.querySelector('.diario-input').value).toBe('Andarilho');
@@ -316,7 +363,7 @@ describe('cópia e global não têm as mesmas ações', () => {
     stubBanco({ globais: { npc: [NPC_GLOBAL] } });
     montar('npc');
     await pronta();
-    fireEvent.click(acao(linhaDe('Andarilho'), 'ti-pencil').closest('button'));
+    abrirAcao('Andarilho', 'ti-pencil');
     const aviso = document.querySelector('.diario-fork-aviso');
     expect(aviso, 'o aviso do fork não apareceu').toBeTruthy();
     expect(aviso.textContent).toMatch(/c[óo]pia/i);
@@ -325,16 +372,16 @@ describe('cópia e global não têm as mesmas ações', () => {
   it('editar uma cópia da mesa não mostra aviso nenhum', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    fireEvent.click(acao(linhaDe('Arissia'), 'ti-pencil').closest('button'));
+    abrirAcao('Arissia', 'ti-pencil');
     expect(document.querySelector('.diario-fork-aviso')).toBeNull();
   });
 
-  it('mas a ficha do global expande igual', async () => {
+  it('mas a ficha do global abre igual', async () => {
     stubBanco({ globais: { npc: [NPC_GLOBAL] } });
     montar('npc');
     await pronta();
     fireEvent.click(linhaDe('Andarilho'));
-    expect(document.querySelector('.best-detail .diario-det-inline')).toBeTruthy();
+    expect(ficha()).toBeTruthy();
   });
 });
 
@@ -349,7 +396,7 @@ describe('cópia e global não têm as mesmas ações', () => {
    ATRIBUTOS do NPC, ao lado de Raça e Idade — dados da tela vazando como
    dados do mundo. O `_global` já era assim desde a migration 016 e já tinha
    uma exceção nominal; agora a regra é o prefixo. */
-describe('a ficha expandida não mostra os campos da tabela', () => {
+describe('a ficha não mostra os campos da tabela', () => {
   /* ⚠️ A grade de atributos vive na aba FICHA, e a ficha abre na aba
      Descrição. Sem clicar em Ficha não existe um único .diario-det-attr-k na
      tela, e a asserção passa por vazio — foi exatamente o que aconteceu na
@@ -358,10 +405,10 @@ describe('a ficha expandida não mostra os campos da tabela', () => {
     stubBanco(); montar('npc');
     await pronta();
     fireEvent.click(linhaDe('Arissia'));
-    const detalhe = document.querySelector('.best-detail');
-    fireEvent.click([...detalhe.querySelectorAll('.hist-modal-tab')]
-      .find((b) => b.textContent.trim() === 'Ficha'));
-    const rotulos = [...detalhe.querySelectorAll('.diario-det-attr-k')]
+    const detalhe = ficha();
+    // Desde 26/09/2026 a grade é a aba Características (a mesma lista dos
+    // outros modais) — .best-stat-lbl dentro de .best-secao--lista.
+    const rotulos = [...detalhe.querySelectorAll('.best-secao--lista .best-stat-lbl')]
       .map((k) => k.textContent);
     // Se a grade vier vazia, o teste abaixo não está medindo nada.
     expect(rotulos.length, 'a grade de atributos veio vazia').toBeGreaterThan(0);
@@ -382,8 +429,10 @@ describe('a ficha expandida não mostra os campos da tabela', () => {
 
   it('e os atributos de verdade continuam lá', async () => {
     const rotulos = await rotulosDaFicha();
-    // A grade fixa do NPC tem Raça; é ela que prova que o filtro não comeu tudo.
-    expect(rotulos.map((r) => r.trim())).toEqual(expect.arrayContaining(['Raça', 'Status']));
+    // A grade fixa do NPC tem Raça e Deus; é ela que prova que o filtro não
+    // comeu tudo. (Status saiu do formulário em 26/09/2026 e só aparece na
+    // ficha se tiver valor gravado.)
+    expect(rotulos.map((r) => r.trim())).toEqual(expect.arrayContaining(['Raça', 'Deus']));
   });
 });
 
@@ -433,7 +482,7 @@ describe('o payload de salvar_lore_entrada', () => {
   it('editar uma cópia da mesa: p_id é o slug da cópia', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    fireEvent.click(acao(linhaDe('Arissia'), 'ti-pencil').closest('button'));
+    abrirAcao('Arissia', 'ti-pencil');
     digitarNome('Arissia, a Alquimista');
     clicarSalvar();
     await waitFor(() => expect(salvarRpc()).toHaveLength(1));
@@ -446,7 +495,7 @@ describe('o payload de salvar_lore_entrada', () => {
     stubBanco({ globais: { npc: [NPC_GLOBAL] } });
     montar('npc');
     await pronta();
-    fireEvent.click(acao(linhaDe('Andarilho'), 'ti-pencil').closest('button'));
+    abrirAcao('Andarilho', 'ti-pencil');
     digitarNome('Andarilho da Mesa');
     clicarSalvar();
     await waitFor(() => expect(salvarRpc()).toHaveLength(1));
@@ -467,5 +516,118 @@ describe('o payload de salvar_lore_entrada', () => {
     await waitFor(() => expect(salvarRpc()).toHaveLength(1));
     // 'lugar' é uma ABA que mistura os dois; a RPC recusa tipo_invalido.
     expect(salvarRpc()[0].args.p_tipo).toBe('cidade');
+  });
+});
+
+/* "Por que na hora de editar conhecido ainda aparece 'Esta entrada é do
+   catálogo do mundo…' e o input de reino não mostra as opções?" (usuário,
+   26/09/2026) */
+describe('editar conhecido: as opções e o aviso', () => {
+  const REINO_MUNDO = { id: 'abadom', tipo: 'reino', nome: 'Abadom', descricao: '', atributos: {} };
+  const CIDADE_MUNDO = { id: 'porto-livre', tipo: 'cidade', nome: 'Porto Livre', descricao: '', atributos: {} };
+  const abrirEdicao = async (nome) => {
+    abrirAcao(nome, 'ti-pencil');
+    await vi.waitFor(() => expect(document.querySelector('.ms-backdrop .diario-input')).toBeTruthy());
+  };
+  const opcoesDe = (rotulo) => {
+    const campo = [...document.querySelectorAll('.ms-backdrop .diario-field-label')]
+      .find((l) => l.textContent.trim() === rotulo).parentElement;
+    fireEvent.click(campo.querySelector('.select-pill-btn'));
+    const nomes = [...document.querySelectorAll('.select-pill-drop li')].map((li) => li.textContent.trim());
+    fireEvent.click(campo.querySelector('.select-pill-btn'));
+    return nomes;
+  };
+
+  it('Reino oferece os da mesa E os do mundo, sem repetir nome', async () => {
+    stubBanco({ globais: { reino: [REINO_MUNDO, { ...REINO_MUNDO, id: 'verrogar', nome: 'Verrogar' }] } });
+    montar('npc');
+    await pronta();
+    await abrirEdicao('Arissia');
+    // Verrogar existe na mesa e no mundo: uma opção só.
+    expect(opcoesDe('Reino')).toEqual(['—', 'Abadom', 'Verrogar']);
+  });
+
+  it('Cidade Natal também traz as cidades do mundo', async () => {
+    stubBanco({ globais: { cidade: [CIDADE_MUNDO] } });
+    montar('npc');
+    await pronta();
+    await abrirEdicao('Arissia');
+    expect(opcoesDe('Cidade Natal')).toEqual(['—', 'Brann', 'Porto Livre']);
+  });
+
+  it('admin editando uma entrada do mundo: sem aviso nenhum', async () => {
+    stubBanco({ globais: { npc: [NPC_GLOBAL] }, admin: true });
+    montar('npc');
+    await pronta();
+    // O eh_admin responde depois da montagem; dá tempo de ele chegar.
+    await vi.waitFor(() => expect(chamadasRpc.some((c) => c.nome === 'eh_admin')).toBe(true));
+    await new Promise((ok) => setTimeout(ok, 0));
+    abrirAcao('Andarilho', 'ti-pencil');
+    expect(document.querySelector('.diario-fork-aviso')).toBeNull();
+  });
+});
+
+/* "Você se esqueceu de alterar os ícones ao clicar em editar a visualização."
+   (usuário, 26/09/2026) — o modal do olho usa os MESMOS três ícones da coluna. */
+describe('o modal de visibilidade fala a língua da coluna', () => {
+  it('ninguém = olho riscado, todos = olho, alguns = olho com exclamação', async () => {
+    stubBanco(); montar('npc');
+    await pronta();
+    abrirAcao('Arissia', 'ti-eye');
+    const icones = [...document.querySelectorAll('.diario-permissao-modal .diario-permissao-opcao i.ti')]
+      .map((i) => i.className.replace('ti ', '').split(' ')[0]);
+    expect(icones).toEqual(['ti-eye-off', 'ti-eye', 'ti-eye-exclamation']);
+  });
+});
+
+/* SEM AVENTURA (26/09/2026): "quando não selecionei uma aventura, não consigo
+   ver o menu diário". Sem mesa a página mostrava a tela vazia; agora mostra o
+   catálogo do MUNDO, só para leitura — salvar_lore_entrada exige uma história
+   e a visibilidade é por mesa. */
+describe('sem mesa: o catálogo do mundo', () => {
+  it('quem não é admin só lê: sem olho, lápis, lixeira nem +', async () => {
+    stubBanco({ globais: { npc: [NPC_GLOBAL] }, admin: false });
+    render(<GerenciarLoreView historia={null} lang="pt" tipoFixo="npc" />);
+    await pronta();
+    expect(celulas(linhaDe('Andarilho'))[0]).toBe('Andarilho');
+    expect(chamadasRpc.some((c) => c.nome === 'listar_lore_historia')).toBe(false);
+    expect(document.querySelector('.diario-vis-ic')).toBeNull();
+    expect(document.querySelector('.lore-mng-page-eyebrow').textContent).toMatch(/Catálogo do mundo/);
+    expect(document.querySelector('.best-botao-novo')).toBeNull();
+    fireEvent.click(linhaDe('Andarilho'));
+    expect(acaoNaFicha('ti-eye')).toBeNull();
+    expect(acaoNaFicha('ti-pencil')).toBeNull();
+    expect(acaoNaFicha('ti-trash')).toBeNull();
+  });
+
+  /* "Eu quero o botão de editar, ao lado do x, e adicionar, mesmo fora da
+     aventura, para o admin." (usuário, 26/09/2026) */
+  it('o admin edita e adiciona no mundo; salvar vai sem história', async () => {
+    stubBanco({ globais: { npc: [NPC_GLOBAL] }, admin: true });
+    render(<GerenciarLoreView historia={null} lang="pt" tipoFixo="npc" />);
+    await pronta();
+    await waitFor(() => expect(document.querySelector('.best-botao-novo')).toBeTruthy());
+    fireEvent.click(linhaDe('Andarilho'));
+    expect(acaoNaFicha('ti-pencil')).toBeTruthy();
+    expect(acaoNaFicha('ti-eye')).toBeNull();     // visibilidade é por aventura
+    expect(acaoNaFicha('ti-trash')).toBeNull();   // global não se exclui
+    fireEvent.click(acaoNaFicha('ti-pencil').closest('button'));
+    const salvar = await waitFor(() => {
+      const b = [...document.querySelectorAll('.ms-backdrop button')].find((x) => /Salvar|Confirmar/.test(x.textContent));
+      expect(b).toBeTruthy();
+      return b;
+    });
+    fireEvent.click(salvar);
+    await waitFor(() => expect(chamadasRpc.some((c) => c.nome === 'salvar_lore_entrada')).toBe(true));
+    const chamada = chamadasRpc.find((c) => c.nome === 'salvar_lore_entrada');
+    expect(chamada.args.p_historia_id).toBeNull();
+    expect(chamada.args.p_id).toBe('mundo-npc');
+  });
+
+  it('LoreDaMesa sem historiaId mostra o mundo, não a tela vazia', async () => {
+    stubBanco({ globais: { reino: [{ id: 'mundo-reino', nome: 'Verrogar', atributos: {} }] } });
+    render(<window.LoreDaMesa historiaId={null} lang="pt" tipoFixo="reino" />);
+    await pronta();
+    expect(linhaDe('Verrogar')).toBeTruthy();
   });
 });

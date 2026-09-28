@@ -153,8 +153,9 @@ function podeMoverParaContainer(itemCat, containerCat, containerInst, todosItens
   // tipo_item: recipiente pode restringir por GRUPO do item (além do tipo S/L
   // acima). Ex.: container com tipo_item='Consumíveis' só aceita itens cujo
   // catálogo tenha grupo='Consumíveis'. NULL/vazio = sem restrição extra.
-  if (containerCat?.tipo_item && itemCat?.grupo !== containerCat.tipo_item) {
-    return { ok: false, motivo: `só aceita ${containerCat.tipo_item}` };
+  const aceitos = tiposAceitos(containerCat);
+  if (aceitos.length && !aceitos.includes(itemCat?.grupo)) {
+    return { ok: false, motivo: `só aceita ${aceitos.join(', ')}` };
   }
   const { livre } = capacidadeContainer(containerInst, todosItens, catalogoBySlug);
   const ocupa = Number(itemCat?.ocupa || 0);
@@ -542,15 +543,29 @@ function lojaEmEdicao(estoqueLoja, agora) {
 // o mesmo item não dê números diferentes nas duas telas.
 //
 // Mapa label (como aparece no banco, PT, com acento) → { scope, key }.
+/* NOMES NOVOS (27/09/2026): as barras dizem o MAL e vão de 0 (ideal) a 100.
+   "Reduz 35 de Sede" melhora; "Aumenta 20 de Vício" piora. Frio e Calor são
+   os dois lados da Temperatura (condicoesComDelta cuida do sinal).
+   Os rótulos ANTIGOS ficam, com `inverte`: "Aumenta 35 de Hidratação" ainda
+   quer dizer matar a sede. Texto de item de campanha que ninguém reescreveu
+   continua funcionando do jeito que foi pensado. */
 const EFEITO_CONDICAO_MAP = {
-  'Reputação':       { scope: 'condicoes',  key: 'reputacao' },
+  'Doença':          { scope: 'condicoes',  key: 'vitalidade' },
   'Sono':            { scope: 'condicoes',  key: 'animo' },
-  'Sanidade':        { scope: 'condicoes',  key: 'sanidade' },
-  'Saúde':           { scope: 'condicoes',  key: 'vitalidade' },
-  'Hidratação':      { scope: 'condicoes',  key: 'hidratacao' },
-  'Sobriedade':      { scope: 'condicoes',  key: 'euforia' },
+  'Sede':            { scope: 'condicoes',  key: 'hidratacao' },
+  'Fome':            { scope: 'condicoes',  key: 'nutricao' },
+  'Vício':           { scope: 'condicoes',  key: 'euforia' },
+  'Loucura':         { scope: 'condicoes',  key: 'sanidade' },
+  'Desonra':         { scope: 'condicoes',  key: 'reputacao' },
+  'Frio':            { scope: 'condicoes',  key: 'frio' },
+  'Calor':           { scope: 'condicoes',  key: 'calor' },
+  'Reputação':       { scope: 'condicoes',  key: 'reputacao', inverte: true },
+  'Sanidade':        { scope: 'condicoes',  key: 'sanidade', inverte: true },
+  'Saúde':           { scope: 'condicoes',  key: 'vitalidade', inverte: true },
+  'Hidratação':      { scope: 'condicoes',  key: 'hidratacao', inverte: true },
+  'Sobriedade':      { scope: 'condicoes',  key: 'euforia', inverte: true },
   'Temperatura':     { scope: 'condicoes',  key: 'termorregulacao' },
-  'Alimentação':     { scope: 'condicoes',  key: 'nutricao' },
+  'Alimentação':     { scope: 'condicoes',  key: 'nutricao', inverte: true },
   'Energia Heroica': { scope: 'vitalidade', key: 'eh' },
   'Energia Física':  { scope: 'vitalidade', key: 'ef' },
   'Karma':           { scope: 'vitalidade', key: 'ka' },
@@ -591,16 +606,28 @@ const semAcento = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 // Rótulo normalizado → { scope, key }, para casar sem depender de acento/caixa.
 const EFEITO_CONDICAO_NORM = Object.entries(EFEITO_CONDICAO_MAP)
   .reduce((acc, [label, info]) => { acc[semAcento(label)] = info; return acc; }, {});
-const RE_VERBO = /^(aumenta|aumente|adiciona|restaura|recupera|soma|ganha|diminui|dimiuni|diminua|reduz|reduza|perde|subtrai)\b/i;
+const RE_VERBO = /^(aumenta|aumente|adiciona|restaura|recupera|soma|ganha|causa|diminui|dimiuni|diminua|reduz|reduza|perde|subtrai|remove|cura|protege)\b/i;
+/* O SINAL VEM DO VERBO (27/09/2026). Com as barras de mal (0..100), "Reduz 35
+   de Sede" mora no efeito POSITIVO e tira da barra — o campo não diz mais o
+   sinal sozinho. O verbo vale para as partes seguintes até aparecer outro:
+   "Reduz 35 de Sede e 5 de Calor". Sem verbo, vale o campo, como antes. */
+const SINAL_DO_VERBO = {
+  aumenta: 1, aumente: 1, adiciona: 1, restaura: 1, recupera: 1, soma: 1, ganha: 1, causa: 1,
+  diminui: -1, dimiuni: -1, diminua: -1, reduz: -1, reduza: -1, perde: -1, subtrai: -1, remove: -1, cura: -1,
+  protege: 'protecao',
+};
 
 function parseEfeito(str) {
   if (!str || typeof str !== 'string') return [];
   const out = [];
+  let verboAtual = null;   // o sinal do último verbo visto (vale para as partes seguintes)
   // " e " separa pares como a vírgula; nenhum rótulo do mapa contém " e "
   // solto ("Energia Heroica" tem a palavra colada, não isolada).
   for (const parteRaw of str.split(/,|;|\se\s/i)) {
     let parte = parteRaw.replace(/[.!]+\s*$/, '').trim();
     if (!parte) continue;
+    const mv = parte.match(RE_VERBO);
+    if (mv) verboAtual = SINAL_DO_VERBO[mv[1].toLowerCase()] ?? null;
     parte = parte.replace(RE_VERBO, '').trim();
     if (!parte) continue;
     let valor, label;
@@ -618,7 +645,11 @@ function parseEfeito(str) {
     // "de Hidratação" e "deTemperatura" (sem espaço, como está no banco).
     const info = EFEITO_CONDICAO_NORM[semAcento(String(label).replace(/^de\s*/i, ''))];
     if (!info) continue;
-    out.push({ scope: info.scope, key: info.key, valor });
+    if (verboAtual === 'protecao') {
+      out.push({ scope: 'protecao', key: info.key === 'termorregulacao' ? 'frio' : info.key, valor });
+      continue;
+    }
+    out.push({ scope: info.scope, key: info.key, valor, verbo: verboAtual, inverte: !!info.inverte });
   }
   return out;
 }
@@ -635,10 +666,60 @@ function parseEfeito(str) {
 // continuar divergindo era a conta.
 function efeitosDoItem(cat, quantidade) {
   const qtd = Number(quantidade) || 1;
+  // Sinal: o do verbo; sem verbo, o do campo (positivo soma, negativo subtrai).
+  // Rótulo antigo de barra (inverte) vira o contrário: "+35 Hidratação" = −35 de Sede.
+  const doCampo = (e, campo) => {
+    const s = (e.verbo === 1 || e.verbo === -1) ? e.verbo : campo;
+    return e.inverte ? -s : s;
+  };
   return [
-    ...parseEfeito(cat?.efeito_positivo).map((e) => ({ ...e, sinal: 1 })),
-    ...parseEfeito(cat?.efeito_negativo).map((e) => ({ ...e, sinal: -1 })),
-  ].map((e) => ({ scope: e.scope, key: e.key, delta: e.valor * e.sinal * qtd }));
+    ...parseEfeito(cat?.efeito_positivo).map((e) => ({ ...e, sinal: doCampo(e, 1) })),
+    ...parseEfeito(cat?.efeito_negativo).map((e) => ({ ...e, sinal: doCampo(e, -1) })),
+  ].filter((e) => e.scope !== 'protecao')
+    .map((e) => ({ scope: e.scope, key: e.key, delta: e.valor * e.sinal * qtd }));
+}
+
+/* PROTEÇÃO DAS VESTIMENTAS (27/09/2026, decisão do usuário): "Protege 25 de
+   Frio" limita a barra de Frio a 75 (teto, desde 27/09/2026 — antes
+   descontava 25) enquanto a peça está VESTIDA. Nada é
+   gravado na ficha — tirou a roupa, a proteção some. { chaveDaBarra: total } */
+function protecoesDoItem(cat) {
+  const out = {};
+  [cat && cat.efeito_positivo, cat && cat.efeito_negativo].forEach((txt) => {
+    parseEfeito(txt).forEach((e) => {
+      if (e.scope !== 'protecao') return;
+      out[e.key] = (out[e.key] || 0) + e.valor;
+    });
+  });
+  return out;
+}
+function protecoesVestidas(itens, catalogoBySlug) {
+  const out = {};
+  (Array.isArray(itens) ? itens : []).forEach((it) => {
+    if (!it || !(it.vestido || it.equipado)) return;
+    const prot = protecoesDoItem(catalogoBySlug && catalogoBySlug[it.slug]);
+    Object.entries(prot).forEach(([k, v]) => { out[k] = (out[k] || 0) + v; });
+  });
+  return out;
+}
+
+/* O delta numa barra, já com a escala nova: 0..100, e Frio/Calor mexendo na
+   Temperatura (−100..+100). "Reduz 20 de Frio" aquece até o zero, não passa
+   para o calor; "Aumenta 20 de Frio" esfria. Devolve um NOVO objeto. */
+function condicoesComDelta(condicoes, key, delta) {
+  const c = { ...(condicoes || {}) };
+  const d = Number(delta) || 0;
+  const trava = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
+  if (key === 'frio' || key === 'calor' || key === 'termorregulacao') {
+    let t = Number(c.termorregulacao) || 0;
+    if (key === 'termorregulacao') t += d;
+    else if (key === 'calor') t = d >= 0 ? t + d : (t > 0 ? Math.max(0, t + d) : t);
+    else t = d >= 0 ? t - d : (t < 0 ? Math.min(0, t - d) : t);
+    c.termorregulacao = trava(t, -100, 100);
+    return c;
+  }
+  c[key] = trava((Number(c[key]) || 0) + d, 0, 100);
+  return c;
 }
 
 // aplicarDeltaCondicao — soma `delta` numa das 8 condições respeitando a
@@ -653,10 +734,10 @@ function efeitosDoItem(cat, quantidade) {
 // COND_LIMITE vem de helpers.jsx via window (cada fase é um módulo próprio
 // sob o Vite; o `const` de lá não vaza pro escopo daqui) — mesmo padrão
 // defensivo já usado em ficha.jsx e batalha.jsx.
+// Compat: uma barra simples (0..100). Frio/Calor passam por condicoesComDelta.
 function aplicarDeltaCondicao(atual, delta) {
-  const lim = (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null) ?? window.COND_LIMITE ?? 50;
   const base = Number.isFinite(Number(atual)) ? Number(atual) : 0;
-  return Math.max(-lim, Math.min(lim, base + delta));
+  return Math.max(0, Math.min(100, base + (Number(delta) || 0)));
 }
 
 // aplicarEfeitosItem — aplica os efeitos de UM item (ver efeitosDoItem) sobre
@@ -691,7 +772,7 @@ function aplicarEfeitosNaFicha(estadoAtual, efeitos, maximos) {
   for (const ef of efeitos) {
     const delta = ef.delta;
     if (ef.scope === 'condicoes') {
-      novo.condicoes[ef.key] = aplicarDeltaCondicao(novo.condicoes[ef.key], delta);
+      novo.condicoes = condicoesComDelta(novo.condicoes, ef.key, delta);
     } else if (ef.scope === 'vitalidade') {
       const max = Number(mx[ef.key]);
       const tetoOk = Number.isFinite(max) ? max : Infinity;
@@ -713,6 +794,15 @@ function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
   return aplicarEfeitosNaFicha(estadoAtual, efeitosDoItem(cat, quantidade), maximos);
 }
 
+/* Desfaz o que aplicarEfeitosItem fez — o DESPIR de uma vestimenta. Nega os
+   deltas (27/09/2026). Antes se trocava efeito_positivo por efeito_negativo,
+   o que parou de inverter quando o sinal passou a vir do VERBO ("Aumenta 1
+   de Desonra" continua "Aumenta" no outro campo). */
+function desfazerEfeitosItem(estadoAtual, cat, quantidade, maximos) {
+  const efs = efeitosDoItem(cat, quantidade).map((e) => ({ ...e, delta: -e.delta }));
+  return aplicarEfeitosNaFicha(estadoAtual, efs, maximos);
+}
+
 /* FLECHA (14/09/2026): "O item flecha é usado automaticamente ao atacar usando
    arco, remova o botão usar do item flecha no inventário." É consumível no
    catálogo (grupo Consumíveis), mas não se USA pela mão: quem gasta é o ataque
@@ -727,6 +817,26 @@ function ehFlecha(cat) {
   const nome = String(cat.nome || cat.slug || '')
     .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
   return /^flechas?(\s|_|$)/.test(nome);
+}
+
+/* ============================== Item novo no inventário (25/09/2026) ==============================
+   O inventário inteiro depois de receber `qtd` de `slug`: soma numa pilha
+   SOLTA igual (fora de recipiente, slot, equipado e vestido) ou cria a
+   instância — a mesma regra do preparar animal e do preparar carne. Nasceu
+   para o saque da batalha, que grava no PJ de fora do InventarioList.
+   Preserva o resto do jsonb (moedas etc.). */
+function adicionarAoInventario(inventario, slug, qtd, novoId) {
+  const inv = inventario || {};
+  const itens = Array.isArray(inv.itens) ? inv.itens : [];
+  const n = Math.max(1, Math.trunc(Number(qtd) || 1));
+  const pilha = itens.find((x) => x && x.slug === slug && !x.containerId && !x.slot && !x.equipado && !x.vestido);
+  if (pilha) {
+    return { ...inv, itens: itens.map((x) => (x === pilha ? { ...x, quantidade: (Number(x.quantidade) || 0) + n } : x)) };
+  }
+  return { ...inv, itens: [...itens, {
+    instanceId: (novoId || novoInstanceId)(), slug, quantidade: n,
+    equipado: false, slot: null, containerId: null, observacao: null,
+  }] };
 }
 
 /* ============================== Busca de item (24/09/2026) ==============================
@@ -802,8 +912,18 @@ function prepararCarne(itens, instanceId, resultado, novoId) {
   }];
 }
 
+/* tiposAceitos — os grupos que um recipiente aceita (itens.tipo_item). Desde
+   27/09/2026 pode ser mais de um, separados por vírgula ("Consumíveis,
+   Moedas"). Lista vazia = aceita qualquer grupo. */
+function tiposAceitos(containerCat) {
+  return String((containerCat && containerCat.tipo_item) || '')
+    .split(',').map((t) => t.trim()).filter(Boolean);
+}
+Object.assign(window, { tiposAceitos });
+
+Object.assign(window, { protecoesDoItem, protecoesVestidas, condicoesComDelta, desfazerEfeitosItem });
 Object.assign(window, {
-  itemCasaBusca,
+  itemCasaBusca, adicionarAoInventario,
   RECEITAS_CARNE, receitasDaCarne, carneDisponivel, prepararCarne,
   ehFlecha,
   MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas,

@@ -12,7 +12,15 @@ import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
 import '../10-shell/shell.jsx';
+import '../01-core/select-pill.jsx';
 import '../07-inventario/inventario.jsx';
+// O modal de item é o BestDetalheModal do bestiário desde 26/09/2026.
+import '../09-bestiario/ataques-criatura.jsx';
+import '../09-bestiario/criatura-formulas.jsx';
+import '../09-bestiario/conhecido-jogador.jsx';
+import '../09-bestiario/catalogo-descritores.jsx';
+import '../09-bestiario/catalogo-editor.jsx';
+import '../09-bestiario/bestiario.jsx';
 
 let Modal;
 beforeAll(() => { Modal = window.DetalhesItemModal; expect(Modal).toBeTypeOf('function'); });
@@ -39,7 +47,8 @@ const abrir = (instance, todosItens, extra) => render(
     {...extra}
   />,
 );
-const botaoPreparar = () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Preparar');
+// Ícone ao lado do X desde 26/09/2026: o nome mora no aria-label.
+const botaoPreparar = () => Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Preparar' || b.getAttribute('aria-label') === 'Preparar');
 
 describe('Preparar na carne', () => {
   it('abre as três receitas e desativa a que falta carne', () => {

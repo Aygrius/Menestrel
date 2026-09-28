@@ -9,12 +9,15 @@
    - LojaJogador         — vitrine (banner da mesa, seletor de PJ,
                            busca + chips de categoria, grid de itens)
    - CompraLojaModal     — modal de compra (padrão de modal da casa)
+   - AnuncioLojaModal    — um item que um aventureiro pôs à venda (27/09/2026):
+                           comprar (jogador leva; Mestre tira do jogo) ou retirar
    - Helpers de preço:    precoMoedaTexto, moedasPorExtenso,
                           motivoCompraLabel, PrecoMoedas (módulo-locais)
 
    Depende de:
    - React (useState/useEffect/useMemo/useRef desestruturados)
-   - supabaseClient + RPCs get_loja_pj / comprar_item
+   - supabaseClient + RPCs get_loja_pj / comprar_item /
+     comprar_item_anunciado / retirar_item_loja; tabela anuncios_loja
    - 01-core/inventario-helpers.jsx: MOEDA_ORDEM, latoesToMoedas
    - GLOBAIS de 07-inventario/inventario.jsx (carregado ANTES):
      fmtNum, calcCarga, invItemIcon, recipienteAceitaSlug, MoedaPills, CabecalhoInvLoja
@@ -29,7 +32,7 @@
 // Redesenho "balcão do mercador" (v2) + revisões (v3):
 // - Banner da mesa (eyebrow MESA + título Cinzel) com seletor de PJ em dropdown
 //   (substitui as inv-pj-tabs nesta aba; o inventário continua com as tabs).
-// - Fontes: Lora (--font-body) em todo o texto; Cinzel SÓ em títulos
+// - Fontes: Merriweather (--font-body) em todo o texto; Cinzel SÓ em títulos
 //   (título do banner e h3 do modal, que herda de `.modal h3`).
 // - Moedas do PJ: MoedaPills (mesmo trilho visual do inventário).
 // - Preço 0 latão = item gratuito ("Grátis"), no card e no modal.
@@ -133,6 +136,8 @@ function PrecoMoedas({ latao, lang, mudo }) {
 function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, livreL, recipientes, comprando, erro, onConfirm, onClose }) {
   const en = lang === 'en';
   const [qtd, setQtd] = useState(1);
+  // A etapa de compra, aberta pelo ícone Comprar ao lado do X (26/09/2026).
+  const [comprarAberto, setComprarAberto] = useState(false);
   const [recipienteId, setRecipienteId] = useState(() => {
     // Pré-seleciona quando só existe 1 recipiente compatível com espaço.
     const aptos = (recipientes || []).filter((r) => r.livre > 0);
@@ -182,11 +187,11 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
   // Escape já é responsabilidade do ModalShell. Mantemos só o atalho Enter=confirmar aqui.
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Enter' && !desabilitado) onConfirm(qtd, exigeRecip ? recipienteId : null);
+      if (e.key === 'Enter' && comprarAberto && !desabilitado) onConfirm(qtd, exigeRecip ? recipienteId : null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [qtd, recipienteId, desabilitado, exigeRecip, onConfirm]);
+  }, [qtd, recipienteId, desabilitado, exigeRecip, onConfirm, comprarAberto]);
 
   // dec/inc saíram com a barra: quem move o número agora é o QuantidadeStepper.
 
@@ -204,18 +209,16 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
     `${en ? 'stock' : 'estoque'} ${stockNull ? '∞' : stockNum}`,
   ].join(' · ');
 
-  return (
-    <ModalShell
-      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}</>}
-      lang={lang}
-      size="md"
-      extraClass="modal-loja"
-      onClose={onClose}
-    >
-          {cat.descricao && <p className="loja-ficha-desc">{cat.descricao}</p>}
-
-          {cat.descricao && <hr className="det-sec-divider" />}
-
+  /* O MODAL DA LOJA no molde do Comércio (26/09/2026): "Eu quero que o modal
+     de itens na ficha, na loja e no inventário, abram um modal igual." O
+     corpo é a ficha do item (BestItemFicha, com preço e estoque em
+     Características); o ícone Comprar, ao lado do X, troca o corpo pela etapa
+     de compra — o formulário de antes, com Cancelar/Comprar dentro dela. */
+  const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || window.BestDetalheModal;
+  const Ficha = (typeof BestItemFicha !== 'undefined' && BestItemFicha) || window.BestItemFicha;
+  const Linha = (typeof BestLinha !== 'undefined' && BestLinha) || window.BestLinha;
+  const formulario = (
+        <>
           {/* A LOJA NÃO TINHA STEPPER (17/09/2026): tinha dois botões com uma
               BARRA arrastável no meio, como um controle de volume — o quarto
               desenho diferente para a mesma pergunta. "Onde houver seletor de
@@ -226,9 +229,6 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
               teto continua dito em palavras ao lado do número — inclusive o ∞
               de estoque ilimitado, que a barra não sabia desenhar (ela ficava
               com a classe is-infinito e vazia). */}
-          <div className="loja-qtd-row">
-            <span className="loja-qtd-lbl">{en ? 'Quantity' : 'Quantidade'}</span>
-          </div>
           <QuantidadeStepper
             value={qtd}
             min={1}
@@ -284,7 +284,7 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
                 ? <strong className="gratis">{en ? 'Free' : 'Gratuito'}</strong>
                 : <strong className="total"><MoedaPills latao={custoTotal} lang={lang} tamanho="sm" /></strong>}
             </div>
-            <div className="loja-resumo-row">
+            <div className="loja-resumo-row loja-resumo-row--tem">
               <span>{en ? 'You have' : 'Você tem'}</span>
               <strong><MoedaPills latao={totalLatao} lang={lang} mostrarGratis tamanho="sm" /></strong>
             </div>
@@ -296,21 +296,184 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
             </div>
           )}
 
-          <div className="det-act-row">
-            <button type="button" className="btn-ghost" onClick={onClose} disabled={!!comprando}>
-              {en ? 'Cancel' : 'Cancelar'}
-            </button>
-            <button type="button" className="btn-primary" onClick={() => onConfirm(qtd, exigeRecip ? recipienteId : null)} disabled={desabilitado}>
-              {comprando ? <i className="ti ti-loader" aria-hidden="true" /> : (en ? 'Buy' : 'Comprar')}
-            </button>
-          </div>
-    </ModalShell>
+        </>
   );
+
+  return (
+    <Janela
+      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}</>}
+      lang={lang}
+      onClose={onClose}
+      acoes={[{
+        chave: 'comprar', icone: 'ti-shopping-cart', ativo: comprarAberto,
+        rotulo: en ? 'Buy' : 'Comprar',
+        onClick: () => setComprarAberto((v) => !v),
+      }]}
+      /* Botões de confirmação no rodapé (27/09/2026). */
+      rodape={comprarAberto ? {
+        esquerda: (
+          <button type="button" className="btn-ghost btn-md" onClick={() => setComprarAberto(false)} disabled={!!comprando}>
+            {en ? 'Cancel' : 'Cancelar'}
+          </button>
+        ),
+        direita: (
+          <button type="button" className="btn-primary btn-md" data-comprar onClick={() => onConfirm(qtd, exigeRecip ? recipienteId : null)} disabled={desabilitado}>
+            {comprando ? <i className="ti ti-loader" aria-hidden="true" /> : (en ? 'Buy' : 'Comprar')}
+          </button>
+        ),
+      } : null}>
+      {comprarAberto ? (
+        <div className="det-etapa modal-loja">{formulario}</div>
+      ) : (
+        <Ficha it={cat} lang={lang}
+          linhasDaInstancia={Linha ? (
+            <>
+              <Linha rotulo={en ? 'Price' : 'Preço'}
+                valor={gratis ? (en ? 'Free' : 'Gratuito') : <MoedaPills latao={preco} lang={lang} tamanho="sm" />} />
+              <Linha rotulo={en ? 'Stock' : 'Estoque'} valor={stockNull ? '∞' : stockNum} />
+            </>
+          ) : null} />
+      )}
+    </Janela>
+  );
+}
+
+/* ── AnuncioLojaModal — o item que um aventureiro pôs à venda (27/09/2026) ──
+   "O jogador irá 'publicar' os itens na loja pelo preço que ele quiser,
+   outros jogadores ou o mestre podem comprar dele." A mesma janela dos
+   outros itens (BestDetalheModal + BestItemFicha), com Preço, Quantidade e
+   Vendedor em Características. As ações moram ao lado do X:
+     Comprar  — abre a etapa de compra IGUAL à da loja do Mestre (27/09/2026):
+                o seletor de quantidade (pode levar só parte; o resto fica à
+                venda), preço de cada um, total e o que se tem, com Cancelar e
+                Comprar no rodapé. Outro jogador leva o item; o Mestre compra
+                e o item sai do jogo;
+     Retirar  — o dono (o resto volta ao inventário) ou o Mestre, em dois
+                cliques como o Descartar. */
+function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compraDoMestre, ocupado, erro, onComprar, onRetirar, onClose, totalLatao, moedasHeld }) {
+  const en = lang === 'en';
+  const [armado, setArmado] = useState(null);   // 'retirar' | null
+  const [comprando, setComprando] = useState(false);   // a etapa de compra aberta
+  const [qtdCompra, setQtdCompra] = useState(1);
+  const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || window.BestDetalheModal;
+  const Ficha = (typeof BestItemFicha !== 'undefined' && BestItemFicha) || window.BestItemFicha;
+  const Linha = (typeof BestLinha !== 'undefined' && BestLinha) || window.BestLinha;
+  const preco = Number(anuncio.preco_latao) || 0;
+  const qtd = Number(anuncio.quantidade) || 1;
+  const item = cat || { nome: anuncio.item_nome || anuncio.slug, slug: anuncio.slug };
+  const clique = (qual, fazer) => () => {
+    if (ocupado) return;
+    setComprando(false);
+    if (armado === qual) { setArmado(null); fazer(); } else setArmado(qual);
+  };
+  const custo = preco * qtdCompra;
+  const semMoeda = !compraDoMestre && Number(totalLatao || 0) < custo;
+  const naoFecha = !compraDoMestre && !semMoeda && !moedasFechamExato(custo, moedasHeld);
+  const dicaComprar = compraDoMestre
+    ? (en ? 'Buy as the GM — the seller gets the coins and the item leaves the game.' : 'Comprar como Mestre — o vendedor recebe as moedas e o item sai do jogo.')
+    : (en ? 'Buy — the coins go to the seller.' : 'Comprar — as moedas vão para o vendedor.');
+  const acoes = [
+    podeComprar && {
+      chave: 'comprar', icone: 'ti-shopping-cart', ativo: comprando, desativado: !!ocupado,
+      rotulo: en ? 'Buy' : 'Comprar',
+      dica: { title: en ? 'Buy' : 'Comprar', desc: dicaComprar },
+      onClick: () => { setArmado(null); setQtdCompra(1); setComprando((v) => !v); },
+    },
+    podeRetirar && {
+      chave: 'retirar', icone: 'ti-arrow-back-up', perigo: true, armado: armado === 'retirar', desativado: !!ocupado,
+      rotulo: en ? 'Withdraw' : 'Retirar',
+      dica: armado === 'retirar'
+        ? (en ? 'Click here again to withdraw' : 'Clique aqui novamente para retirar')
+        : { title: en ? 'Withdraw' : 'Retirar', desc: en ? 'Take it off the shop; the item goes back to the seller.' : 'Tirar da loja; o item volta para o vendedor.' },
+      onClick: clique('retirar', onRetirar),
+    },
+  ];
+  return (
+    <Janela
+      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {item.nome}</>}
+      lang={lang} onClose={onClose} acoes={acoes}
+      rodape={comprando ? {
+        esquerda: (
+          <button type="button" className="btn-ghost btn-md" onClick={() => setComprando(false)} disabled={!!ocupado}>
+            {en ? 'Cancel' : 'Cancelar'}
+          </button>
+        ),
+        direita: (
+          <button type="button" className="btn-primary btn-md" data-comprar disabled={!!ocupado || semMoeda || naoFecha}
+            onClick={() => onComprar(qtdCompra)}>
+            {ocupado ? <i className="ti ti-loader" aria-hidden="true" /> : (en ? 'Buy' : 'Comprar')}
+          </button>
+        ),
+      } : null}>
+      {comprando ? (
+        <div className="det-etapa modal-loja">
+          {qtd > 1 && (
+            <QuantidadeStepper value={qtdCompra} min={1} max={qtd} onChange={setQtdCompra}
+              centro={<>{qtdCompra} <span className="qtd-de-max">{en ? 'of' : 'de'} {qtd}</span></>}
+              label={en ? 'Quantity' : 'Quantidade'} />
+          )}
+          <div className="loja-resumo">
+            <div className="loja-resumo-row">
+              <span>{en ? 'Unit price' : 'Preço unitário'}</span>
+              <strong className="total"><MoedaPills latao={preco} lang={lang} tamanho="sm" /></strong>
+            </div>
+            <div className="loja-resumo-row">
+              <span>{`Total (${qtdCompra})`}</span>
+              <strong className="total"><MoedaPills latao={custo} lang={lang} tamanho="sm" /></strong>
+            </div>
+            {!compraDoMestre && (
+              <div className="loja-resumo-row loja-resumo-row--tem">
+                <span>{en ? 'You have' : 'Você tem'}</span>
+                <strong><MoedaPills latao={totalLatao} lang={lang} mostrarGratis tamanho="sm" /></strong>
+              </div>
+            )}
+          </div>
+          {(erro || semMoeda || naoFecha) && (
+            <div className="err-msg">
+              {erro || (semMoeda
+                ? (en ? 'Not enough coin.' : 'Moedas insuficientes.')
+                : (en ? 'Your coins can’t make the exact price (no change)' : 'Suas moedas não fecham o valor exato (sem troco)'))}
+            </div>
+          )}
+        </div>
+      ) : (
+      <>
+      {erro && <div className="err-msg">{erro}</div>}
+      <Ficha it={item} lang={lang}
+        linhasDaInstancia={Linha ? (
+          <>
+            <Linha rotulo={qtd > 1 ? (en ? 'Price (each)' : 'Preço (cada)') : (en ? 'Price' : 'Preço')} valor={<MoedaPills latao={preco} lang={lang} tamanho="sm" />} />
+            {qtd > 1 && <Linha rotulo={en ? 'Quantity' : 'Quantidade'} valor={qtd} />}
+            <Linha rotulo={en ? 'Seller' : 'Vendedor'} valor={anuncio.vendedor_nome || (en ? 'An adventurer' : 'Um aventureiro')} />
+          </>
+        ) : null} />
+      </>
+      )}
+    </Janela>
+  );
+}
+
+// Motivos das RPCs dos anúncios, em texto de gente.
+function motivoAnuncioLabel(motivo, lang) {
+  const en = lang === 'en';
+  const m = {
+    anuncio_encerrado:          en ? 'Someone got there first — this item is no longer for sale.' : 'Alguém chegou antes — este item não está mais à venda.',
+    anuncio_nao_encontrado:     en ? 'Listing not found.'                                     : 'Anúncio não encontrado.',
+    sem_permissao:              en ? 'You cannot do this with this listing.'                   : 'Você não pode fazer isso com este anúncio.',
+    proprio_anuncio:            en ? 'This is your own item.'                                  : 'Este item é seu.',
+    aventura_diferente:         en ? 'The character is not in this adventure.'                 : 'O personagem não está nesta aventura.',
+    moedas_insuficientes:       en ? 'Not enough coin.'                                        : 'Moedas insuficientes.',
+    moedas_nao_fecham:          en ? 'Your coins can’t make the exact price (no change given).' : 'Suas moedas não fecham o valor exato (sem troco).',
+    vendedor_sem_espaco_moedas: en ? 'The seller has no room in a purse for the coins.'        : 'O vendedor não tem espaço numa bolsa para as moedas.',
+    nao_e_dono:                 en ? 'Only the character’s owner can buy.'                     : 'Só o dono do personagem pode comprar.',
+    pj_nao_encontrado:          en ? 'Character not found.'                                    : 'Personagem não encontrado.',
+  };
+  return m[motivo] || (en ? 'Could not complete it.' : 'Não foi possível concluir.');
 }
 
 // Lista o estoque_loja da história em que o PJ é protagonista (via RPC).
 // Compra valida moedas e capacidade no servidor (RPC comprar_item).
-function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
+function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const en = lang === 'en';
   const [pjs, setPjs] = useState(null);
@@ -418,6 +581,44 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
     [marcaEdicao, tickEdicao]
   );
 
+  /* ── Anúncios dos aventureiros (27/09/2026) ──────────────────────────
+     Os itens que os jogadores puseram à venda nesta aventura. Ficam na loja
+     até alguém comprar ou o dono retirar; o Realtime mantém a vitrine em dia
+     para todos. `authUid` diz quem está olhando: o dono do anúncio retira,
+     os outros compram, o Mestre faz as duas coisas. */
+  const [anuncios, setAnuncios] = useState([]);
+  const [anuncioAberto, setAnuncioAberto] = useState(null);
+  const [anuncioOcupado, setAnuncioOcupado] = useState(false);
+  const [anuncioErro, setAnuncioErro] = useState(null);
+  const [authUid, setAuthUid] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    Promise.resolve(supabaseClient.auth && supabaseClient.auth.getUser ? supabaseClient.auth.getUser() : null)
+      .then((r) => { if (vivo) setAuthUid((r && r.data && r.data.user && r.data.user.id) || null); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+  const carregarAnuncios = React.useCallback(async () => {
+    if (!historiaDaLoja) { setAnuncios([]); return; }
+    try {
+      const res = await supabaseClient.from('anuncios_loja')
+        .select('id,historia_id,vendedor_pj_id,vendedor_user_id,vendedor_nome,item,slug,item_nome,quantidade,preco_latao,created_at')
+        .eq('historia_id', historiaDaLoja).eq('status', 'aberto')
+        .order('created_at', { ascending: true });
+      setAnuncios(res && !res.error && Array.isArray(res.data) ? res.data : []);
+    } catch (_) { setAnuncios([]); }
+  }, [historiaDaLoja]);
+  useEffect(() => {
+    carregarAnuncios();
+    if (!historiaDaLoja || typeof supabaseClient.channel !== 'function') return undefined;
+    const ch = supabaseClient
+      .channel('anuncios_' + historiaDaLoja + '_' + Math.random().toString(36).slice(2, 8))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'anuncios_loja', filter: 'historia_id=eq.' + historiaDaLoja },
+        () => carregarAnuncios())
+      .subscribe();
+    return () => { supabaseClient.removeChannel(ch); };
+  }, [historiaDaLoja, carregarAnuncios]);
+
   const recarregarPj = async (pjId) => {
     const { data } = await supabaseClient
       .from('personagens')
@@ -502,7 +703,8 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
         if (!ehContainer(c)) return false;
         if ((c.tipo === 'L' ? 'L' : 'S') !== tipoItem) return false;
         // tipo_item: recipiente só aceita itens do grupo declarado (se houver).
-        if (c.tipo_item && itemCat?.grupo !== c.tipo_item) return false;
+        const aceitos = tiposAceitos(c);   // pode ser mais de um (27/09/2026)
+        if (aceitos.length && !aceitos.includes(itemCat?.grupo)) return false;
         // Recipiente líquido só guarda um tipo por vez.
         return recipienteAceitaSlug(it, itemCat.slug, inventario.itens, catalogoBySlug);
       })
@@ -554,6 +756,33 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
     setTimeout(() => setFeedback(null), 2500);
   };
 
+  const nomeDoAnuncio = (a) => (catalogoBySlug[a.slug] && catalogoBySlug[a.slug].nome) || a.item_nome || a.slug;
+  const comprarAnuncio = async (a, qtd) => {
+    setAnuncioOcupado(true); setAnuncioErro(null);
+    const { data, error } = await supabaseClient.rpc('comprar_item_anunciado', {
+      p_anuncio_id: a.id, p_pj_id: isMestre ? null : selectedId, p_quantidade: qtd || null,
+    });
+    setAnuncioOcupado(false);
+    if (error || !data || !data.ok) { setAnuncioErro(motivoAnuncioLabel((data && data.motivo) || (error && error.message), lang)); carregarAnuncios(); return; }
+    setAnuncioAberto(null);
+    if (!isMestre) await recarregarPj(selectedId);
+    await carregarAnuncios();
+    const q = Number(qtd || a.quantidade) > 1 ? (qtd || a.quantidade) + ' ' : '';
+    setFeedback(en ? `Bought ${q}${nomeDoAnuncio(a)}.` : `Você comprou ${q}${nomeDoAnuncio(a)}.`);
+    setTimeout(() => setFeedback(null), 2500);
+  };
+  const retirarAnuncio = async (a) => {
+    setAnuncioOcupado(true); setAnuncioErro(null);
+    const { data, error } = await supabaseClient.rpc('retirar_item_loja', { p_anuncio_id: a.id });
+    setAnuncioOcupado(false);
+    if (error || !data || !data.ok) { setAnuncioErro(motivoAnuncioLabel((data && data.motivo) || (error && error.message), lang)); carregarAnuncios(); return; }
+    setAnuncioAberto(null);
+    if (a.vendedor_pj_id === selectedId) await recarregarPj(selectedId);
+    await carregarAnuncios();
+    setFeedback(en ? `${nomeDoAnuncio(a)} is back in the inventory.` : `${nomeDoAnuncio(a)} voltou ao inventário.`);
+    setTimeout(() => setFeedback(null), 2500);
+  };
+
   // ── Render ────────────────────────────────────────────────
   if (pjs === null || catalogo === null) {
     return <Carregando lang={lang} />;
@@ -585,6 +814,10 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
       const g = catalogoBySlug[e.slug].grupo || (en ? 'Other' : 'Outros');
       m.set(g, (m.get(g) || 0) + 1);
     }
+    for (const a of anuncios) {
+      const g = (catalogoBySlug[a.slug] && catalogoBySlug[a.slug].grupo) || (en ? 'Other' : 'Outros');
+      m.set(g, (m.get(g) || 0) + 1);
+    }
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   })();
   const q = normTxt(busca);
@@ -594,6 +827,13 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
     if (grupoSel && g !== grupoSel) return false;
     // Nome E descrição (24/09/2026) — ver itemCasaBusca.
     if (q && !itemCasaBusca(cat, q)) return false;
+    return true;
+  });
+  const anunciosVisiveis = anuncios.filter((a) => {
+    const cat = catalogoBySlug[a.slug];
+    const g = (cat && cat.grupo) || (en ? 'Other' : 'Outros');
+    if (grupoSel && g !== grupoSel) return false;
+    if (q && !(cat ? itemCasaBusca(cat, q) : normTxt(a.item_nome || a.slug).includes(q))) return false;
     return true;
   });
 
@@ -615,7 +855,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
             ? 'The shop is closed: the Game Master is updating it.'
             : 'A loja está fechada: o Mestre está atualizando o estoque.'}</span>
         </div>
-      ) : (semHistoria || estoqueLoja.length === 0) ? (
+      ) : (semHistoria || (estoqueLoja.length === 0 && anuncios.length === 0)) ? (
         <div className="loja-warn-empty">
           <span>{en
             ? 'The Game Master has not listed any items yet'
@@ -656,11 +896,11 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
                 </button>
               ))}
             </div>
-            <div className="best-count">{visiveis.length} de {entradas.length}</div>
+            <div className="best-count">{visiveis.length + anunciosVisiveis.length} de {entradas.length + anuncios.length}</div>
           </div>
 
           {/* ── Vitrine — grid com ref sempre montado (mesmo padrão do inventário) ── */}
-          {(() => {
+          {entradas.length > 0 && (() => {
             const filled = visiveis.length;
             const total  = Math.max(lojaGridTotal, Math.ceil(Math.max(filled, 1) / lojaGridCols) * lojaGridCols);
             const ghosts = total - filled;
@@ -701,12 +941,67 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
               </div>
             );
           })()}
+
+          {/* ── Vendidos por aventureiros (27/09/2026): a mesma grade, com a
+              busca e a categoria valendo também aqui. */}
+          {anunciosVisiveis.length > 0 && (
+            <>
+              <div className="loja-anuncios-titulo">
+                <i className="ti ti-users" aria-hidden="true" />
+                {en ? 'Sold by adventurers' : 'Vendidos por aventureiros'}
+                <span className="loja-anuncios-n">· {anunciosVisiveis.length}</span>
+              </div>
+              <div className="loja-grid loja-grid--slots rpg-grid--slots loja-grid--anuncios"
+                style={{ gridTemplateColumns: `repeat(${lojaGridCols}, 50px)` }}>
+                {anunciosVisiveis.map((a) => {
+                  const cat = catalogoBySlug[a.slug];
+                  const meu = !!authUid && a.vendedor_user_id === authUid;
+                  const preco = Number(a.preco_latao) || 0;
+                  const semMoeda = !meu && !isMestre && totalLatao < preco;
+                  return (
+                    <button key={a.id} type="button" data-anuncio-id={a.id}
+                      className={'loja-it' + (meu ? ' loja-it--meu' : '') + (semMoeda ? ' sem-moeda' : '') + (cat && cat.magico ? ' loja-it--magico' : '')}
+                      onMouseEnter={(e) => abrirTip(e, {
+                        title: nomeDoAnuncio(a) + (Number(a.quantidade) > 1 ? ' ×' + a.quantidade : ''),
+                        desc: (meu ? (en ? 'Your item · ' : 'Seu item · ') : ((a.vendedor_nome || '') + ' · ')) + precoMoedaTexto(preco, lang)
+                          + (Number(a.quantidade) > 1 ? (en ? ' each' : ' cada') : ''),
+                        hint: semMoeda ? (en ? 'Not enough coin' : 'Moedas insuficientes') : null,
+                      })}
+                      onMouseLeave={fecharTip}
+                      onClick={() => { fecharTip(); setAnuncioErro(null); setAnuncioAberto(a.id); }}>
+                      {Number(a.quantidade) > 1 && <span className="inv-card-qty">{a.quantidade}</span>}
+                      <span className="loja-it-head">
+                        <span className="loja-it-tile"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </>
       )}
 
       {window.PortalTooltip
         ? <window.PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
         : <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />}
+
+      {anuncioAberto && (() => {
+        const a = anuncios.find((x) => x.id === anuncioAberto);
+        if (!a) return null;
+        const meu = !!authUid && a.vendedor_user_id === authUid;
+        return (
+          <AnuncioLojaModal anuncio={a} cat={catalogoBySlug[a.slug] || null} lang={lang}
+            podeComprar={!meu && (isMestre || !!selectedId)}
+            podeRetirar={meu || !!isMestre}
+            compraDoMestre={!!isMestre}
+            ocupado={anuncioOcupado} erro={anuncioErro}
+            totalLatao={totalLatao} moedasHeld={moedas}
+            onComprar={(qtd) => comprarAnuncio(a, qtd)}
+            onRetirar={() => retirarAnuncio(a)}
+            onClose={() => { setAnuncioAberto(null); setAnuncioErro(null); }} />
+        );
+      })()}
 
       {compraAberta && (() => {
         const entry = estoqueLoja.find((e) => e.entryId === compraAberta);
@@ -736,5 +1031,5 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo }) {
 
 
 Object.assign(window, {
-  LojaJogador, CompraLojaModal,
+  LojaJogador, CompraLojaModal, AnuncioLojaModal, motivoAnuncioLabel,
 });

@@ -430,8 +430,10 @@ function efeitosDeMagiaNaFicha(magia, nivel) {
         if (bruto != null) out.push({ scope: 'vitalidade', key: 'ef', delta: -bruto });
         break;
       case 'mod_condicao':
+        /* `sinal` no registro é "melhora (+1) / piora (−1)". Com as barras de
+           mal (0..100, 27/09/2026), melhorar é TIRAR da barra. */
         if (bruto != null && ef.condicao) {
-          out.push({ scope: 'condicoes', key: ef.condicao, delta: (ef.sinal || 1) * bruto });
+          out.push({ scope: 'condicoes', key: ef.condicao, delta: -(ef.sinal || 1) * bruto });
         }
         break;
       default:

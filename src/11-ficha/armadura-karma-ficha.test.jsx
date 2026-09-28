@@ -128,7 +128,7 @@ describe('o editor de barra é só o input flutuante', () => {
     // Botão e stepper dividem UMA regra, que é o que garante que não divirjam.
     const peles = regra('#root .menestrel-ui .fp-peca-pop-acoes .btn-ghost,\n#root .menestrel-ui .fp-peca-pop .fp-pop-stepper {');
     expect(peles, 'falta o fundo do tooltip').toMatch(/background:\s*#120D06/);
-    expect(peles, 'falta o aro do tooltip').toMatch(/border:\s*1px solid rgba\(106,85,48,0\.35\)/);
+    expect(peles, 'falta o aro do tooltip').toMatch(/border:\s*1px solid rgba\(138,110,64,0\.35\)/);
   });
 
   /* DECISÃO REVERTIDA, e de propósito.
@@ -149,7 +149,7 @@ describe('o editor de barra é só o input flutuante', () => {
     const i = css.indexOf('#root .menestrel-ui .fp-pop-stepper {');
     const regra = css.slice(i, css.indexOf('}', i));
     expect(regra, 'o fundo do tooltip').toMatch(/background:\s*#120D06/);
-    expect(regra, 'o aro do tooltip').toMatch(/border:\s*1px solid rgba\(106,85,48,0\.35\)/);
+    expect(regra, 'o aro do tooltip').toMatch(/border:\s*1px solid rgba\(138,110,64,0\.35\)/);
     expect(regra, 'e a pílula de sempre').toMatch(/border-radius:\s*999px/);
   });
 });

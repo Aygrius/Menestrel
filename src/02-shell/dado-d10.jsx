@@ -316,11 +316,6 @@ function RolagemD10Overlay(props) {
     if (props.onResultado) props.onResultado(r);
   }
 
-  function rolarDeNovo() {
-    setResultado(null);
-    if (dadoRef.current) dadoRef.current.roll();
-  }
-
   return (
     <div
       className="menestrel-ui"
@@ -401,10 +396,8 @@ function RolagemD10Overlay(props) {
           display: "flex", gap: "clamp(8px, 2vw, 12px)",
           flexWrap: "wrap", justifyContent: "center", marginTop: 10,
         }}>
-          <button type="button" className="btn-ghost" onClick={rolarDeNovo} disabled={!resultado}>
-            <i className="ti ti-refresh" aria-hidden="true" style={{ marginRight: 6, verticalAlign: "-2px" }} />
-            {en ? "Roll again" : "Rolar de novo"}
-          </button>
+          {/* "Rolar de novo" saiu em 26/09/2026 ("remova os botões rolar de novo dos
+              dados animados"): a rolagem vale a primeira vez. */}
           <button type="button" className="btn-primary" onClick={onClose}>
             {en ? "Done" : "Concluir"}
           </button>

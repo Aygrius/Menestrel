@@ -1070,20 +1070,21 @@ describe('Doenças — as duas peças novas', () => {
   const vitima = (over = {}) => ({ ...alvo(), condicoes: { vitalidade: 0 }, ...over });
 
   describe('a ponte com a condição Saúde', () => {
-    it('"Reduz 25 de Saúde" desce a condição', () => {
+    // Escala 0..100 (27/09/2026): "Reduz 25 de Saúde" = Doença +25.
+    it('"Reduz 25 de Saúde" sobe a Doença', () => {
       const r = M.aplicarCondicoesDaMagia(vitima(), DOENCAS, 1);
-      expect(r.condicoes.vitalidade).toBe(-25);
+      expect(r.condicoes.vitalidade).toBe(25);
     });
 
     it('parte de onde a ficha estava, não de zero', () => {
       const r = M.aplicarCondicoesDaMagia(vitima({ condicoes: { vitalidade: 10 } }), DOENCAS, 1);
-      expect(r.condicoes.vitalidade).toBe(-15);
+      expect(r.condicoes.vitalidade).toBe(35);
     });
 
-    it('respeita o piso da escala de condição', () => {
-      // aplicarDeltaCondicao é a MESMA função dos itens: o clamp é um só.
-      const r = M.aplicarCondicoesDaMagia(vitima({ condicoes: { vitalidade: -40 } }), DOENCAS, 1);
-      expect(r.condicoes.vitalidade).toBeGreaterThanOrEqual(-50);
+    it('respeita o teto da escala de condição', () => {
+      // condicoesComDelta é a MESMA função dos itens: o clamp é um só.
+      const r = M.aplicarCondicoesDaMagia(vitima({ condicoes: { vitalidade: 90 } }), DOENCAS, 1);
+      expect(r.condicoes.vitalidade).toBe(100);
     });
 
     it('não vira status_temp — condição acontece e acaba', () => {
@@ -1102,7 +1103,7 @@ describe('Doenças — as duas peças novas', () => {
       // estiver encadeada ali, Doenças não faz nada na mesa.
       const r = M.aplicarEfeitoApoio(vitima(),
         { key: 'doencas', nome: 'Doenças', nivel: 1, catalogo: DOENCAS }, 'c1');
-      expect(r.condicoes.vitalidade).toBe(-25);
+      expect(r.condicoes.vitalidade).toBe(25);
     });
   });
 

@@ -215,8 +215,15 @@ describe('o tempo sobrevive às outras edições da barra', () => {
     await waitFor(() => expect(pills()).toHaveLength(3));
     // Abre o formulário inline do local e salva sem mudar nada.
     act(() => { document.querySelector('.cdj-local').closest('button').click(); });
-    await waitFor(() => expect(document.querySelector('.cdj-pill-btn-salvar')).toBeTruthy());
-    act(() => { document.querySelector('.cdj-pill-btn-salvar').click(); });
+    // Sem Salvar desde 27/09/2026: escolher o lugar na lista já grava.
+    await waitFor(() => expect(document.querySelector('.cdj-local-select .select-pill-btn')).toBeTruthy());
+    act(() => { document.querySelector('.cdj-local-select .select-pill-btn').click(); });
+    const opcao = await waitFor(() => {
+      const o = document.querySelector('.select-pill-drop-portal [role="option"]');
+      expect(o).toBeTruthy();
+      return o;
+    });
+    act(() => { opcao.click(); });
     await waitFor(() => expect(updates).toHaveLength(1));
     expect(updates[0].tempo).toEqual({ agua: 'tempestade', vento: 'tornado' });
   });

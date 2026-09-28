@@ -54,7 +54,7 @@ const IC_ATRIBUTOS     = ['FOR', 'FIS', 'AGI', 'PER', 'INT', 'AUR', 'CAR'];
 
 // Altura do sistema: 32px (12/09/2026). A textarea da descrição sobrescreve
 // `height` com `auto` — ela é multilinha.
-const IC_INP = { width: '100%', height: 32, padding: '0 10px', fontFamily: "'Lora', serif", fontSize: 13, boxSizing: 'border-box' };
+const IC_INP = { width: '100%', height: 32, padding: '0 10px', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', boxSizing: 'border-box' };
 
 function icMotivoMsg(motivo, lang) {
   const en = lang === 'en';
@@ -125,7 +125,7 @@ function IcSortHead({ col, sortKey, sortDir, toggleSort, children }) {
     <th onClick={() => toggleSort(col)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         {children}
-        <span style={{ fontSize: 10, opacity: active ? 1 : 0.3, color: active ? '#9A7B2E' : 'inherit' }}>
+        <span style={{ fontSize: 'var(--fs-2xs)', opacity: active ? 1 : 0.3, color: active ? '#B59136' : 'inherit' }}>
           {active && sortDir === 'desc' ? '▼' : '▲'}
         </span>
       </span>
@@ -134,18 +134,18 @@ function IcSortHead({ col, sortKey, sortDir, toggleSort, children }) {
 }
 
 function IcLoading({ text }) {
-  return <div style={{ textAlign: 'center', color: '#9C8F73', padding: 40, fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: 14 }}>{text}</div>;
+  return <div style={{ textAlign: 'center', color: '#BFAF8E', padding: 40, fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)' }}>{text}</div>;
 }
 function IcErrorBox({ error, hint }) {
   return (
-    <div style={{ border: '1px solid rgba(200,33,44,0.4)', background: 'rgba(200,33,44,0.10)', borderRadius: 12, padding: '16px 18px', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
-      <div style={{ color: '#F0A6A0', fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{error}</div>
-      {hint && <div style={{ color: '#9C8F73', fontSize: 13, lineHeight: 1.5 }}>{hint}</div>}
+    <div style={{ border: '1px solid rgba(200,33,44,0.4)', background: 'rgba(200,33,44,0.10)', borderRadius: 12, padding: '16px 18px', fontFamily: "var(--font-body)" }}>
+      <div style={{ color: '#F0A6A0', fontWeight: 600, fontSize: 'var(--fs-md)', marginBottom: 6 }}>{error}</div>
+      {hint && <div style={{ color: '#BFAF8E', fontSize: 'var(--fs-sm)', lineHeight: 1.5 }}>{hint}</div>}
     </div>
   );
 }
 function IcNoKit() {
-  return <div style={{ padding: 24, color: '#9C8F73', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
+  return <div style={{ padding: 24, color: '#BFAF8E', fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)', lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
 }
 function IcPagination({ page, safePage, totalPages, setPage, setExpandida, lang }) {
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
@@ -169,7 +169,7 @@ function IcPagination({ page, safePage, totalPages, setPage, setExpandida, lang 
 // ---------- Helpers visuais do editor ----------
 function IcSecao({ children }) {
   return (
-    <div style={{ gridColumn: '1 / -1', marginTop: 10, fontFamily: "'Cinzel', serif", fontSize: 13, letterSpacing: '.04em', color: 'var(--gold-bright, #C9A44E)', borderBottom: '1px solid rgba(106,85,48,0.30)', paddingBottom: 6 }}>
+    <div style={{ gridColumn: '1 / -1', marginTop: 10, fontFamily: "'Cinzel', serif", fontSize: 'var(--fs-sm)', letterSpacing: '.04em', color: 'var(--gold-bright, #E0BE68)', borderBottom: '1px solid rgba(138,110,64,0.30)', paddingBottom: 6 }}>
       {children}
     </div>
   );
@@ -177,73 +177,26 @@ function IcSecao({ children }) {
 function IcCampo({ label, hint, span, children }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 5, gridColumn: span === 'full' ? '1 / -1' : 'auto', minWidth: 0 }}>
-      <span style={{ fontFamily: "'Lora', serif", fontSize: 12.5, color: 'var(--parchment-muted, #C9B98F)' }}>{label}</span>
+      <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: 'var(--parchment-muted, #C9B98F)' }}>{label}</span>
       {children}
-      {hint && <span style={{ fontFamily: "'Lora', serif", fontSize: 11, color: '#9C8F73' }}>{hint}</span>}
+      {hint && <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-2xs)', color: '#BFAF8E' }}>{hint}</span>}
     </label>
   );
 }
+/* Casca do SelectPill (25/09/2026): o dropdown próprio daqui (borda, lista
+   absoluta recortada no modal) virou o único do sistema, com a pele do
+   seletor de data. Mantém o contrato antigo — opções em texto, "— nenhum —"
+   opcional e onChange no formato de evento — para os campos não mudarem. */
 function IcSelect({ value, onChange, options, lang, includeEmpty }) {
-  const withEmpty = includeEmpty !== false;
   const en = lang === 'en';
-  const [open, setOpen] = useState(false);
-  const ref = React.useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-  const select = (v) => { onChange({ target: { value: v } }); setOpen(false); };
-  const isEmpty = !value;
-  const displayLabel = value || (en ? '— none —' : '— nenhum —');
+  const vazio = en ? '— none —' : '— nenhum —';
+  const opcoes = [
+    ...(includeEmpty !== false ? [{ value: '', label: vazio, labelBotao: vazio }] : []),
+    ...(options || []).map((v) => ({ value: v, label: v })),
+  ];
   return (
-    <div style={{ position: 'relative', width: '100%' }} ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        style={{
-          width: '100%', display: 'inline-flex', alignItems: 'center', gap: 8,
-          height: 34, padding: '0 10px 0 12px', boxSizing: 'border-box',
-          background: 'rgba(12,9,4,0.40)', border: open ? '1px solid rgba(201,164,78,0.50)' : '1px solid rgba(106,85,48,0.35)', borderRadius: 6,
-          color: isEmpty ? '#9C8F73' : '#E8DDC6', fontFamily: "'Lora', serif", fontSize: 13,
-          cursor: 'pointer', transition: 'border-color .15s ease', textAlign: 'left',
-        }}
-      >
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayLabel}</span>
-        <i className="ti ti-chevron-down" style={{ fontSize: 12, color: '#C9A44E', opacity: 0.7, flexShrink: 0, transition: 'transform .15s ease', transform: open ? 'rotate(180deg)' : 'none' }} />
-      </button>
-      {open && (
-        <ul role="listbox" style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-          background: 'rgba(18,12,5,0.98)', backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(201,164,78,0.20)', borderRadius: 8,
-          padding: 4, margin: 0, listStyle: 'none',
-          boxShadow: '0 16px 40px -12px rgba(0,0,0,0.9), 0 0 0 1px rgba(201,164,78,0.06)',
-          zIndex: 55, maxHeight: 200, overflowY: 'auto',
-        }}>
-          {withEmpty && (
-            <li role="option" aria-selected={isEmpty} onClick={() => select('')}
-              style={{ padding: '8px 12px', borderRadius: 6, color: isEmpty ? '#C9A44E' : '#9C8F73', fontFamily: "'Lora', serif", fontSize: 13, cursor: 'pointer' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,164,78,0.10)'; e.currentTarget.style.color = '#E8DDC6'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.color = isEmpty ? '#C9A44E' : '#9C8F73'; }}
-            >{en ? '— none —' : '— nenhum —'}</li>
-          )}
-          {options.map((v) => (
-            <li key={v} role="option" aria-selected={value === v} onClick={() => select(v)}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6, color: value === v ? '#C9A44E' : '#C8BCAA', fontFamily: "'Lora', serif", fontSize: 13, cursor: 'pointer' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,164,78,0.10)'; e.currentTarget.style.color = '#E8DDC6'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.color = value === v ? '#C9A44E' : '#C8BCAA'; }}
-            >
-              {value === v && <i className="ti ti-check" style={{ fontSize: 12, color: '#C9A44E', flexShrink: 0 }} />}
-              {v}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <SelectPill options={opcoes} value={value || ''} placeholder={vazio}
+      onChange={(v) => onChange({ target: { value: v } })} />
   );
 }
 
@@ -349,7 +302,7 @@ function ItemCampanhaModal({ item, historiaId, lang, onClose, onSaved }) {
             <IcCampo label={en ? 'Container accepts (group)' : 'Recipiente aceita (grupo)'} hint={en ? 'Restrict by item group. Blank = any.' : 'Restringe por grupo. Vazio = qualquer.'}>
               <input style={IC_INP} value={form.tipo_item} onChange={set('tipo_item')} />
             </IcCampo>
-            <IcCampo label={en ? 'Value (in latão)' : 'Valor (em latão)'} hint="1 ouro = 1000 latão">
+            <IcCampo label={en ? 'Value' : 'Valor'} hint="1 ouro = 1000 latão">
               <input type="number" step="1" style={IC_INP} value={form.valor_latao} onChange={set('valor_latao')} />
             </IcCampo>
 
@@ -481,7 +434,7 @@ function ConfirmarExclusaoItemModal({ item, lang, onClose, onDeleted }) {
           <button className="ms-close" onClick={onClose} disabled={saving} aria-label={en ? 'Close' : 'Fechar'}>×</button>
         </div>
         <div className="ms-body">
-          <p style={{ margin: 0, fontFamily: "'Lora', serif", fontSize: 14, lineHeight: 1.5, color: 'var(--parchment)' }}>
+          <p style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)', lineHeight: 1.5, color: 'var(--parchment)' }}>
             {en
               ? <>Delete <strong>{item.nome}</strong> from this campaign? This can’t be undone.</>
               : <>Excluir <strong>{item.nome}</strong> desta campanha? Isso não pode ser desfeito.</>}
@@ -541,6 +494,13 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
   // Magia do item mágico por extenso (14/09/2026) — mesma peça do Bestiário.
   const magias = (window.useMagiasParaItens || (() => []))();
   const BestItemArmazenamento = window.BestItemArmazenamento || (() => null);
+  // A ficha em lista, por extenso (26/09/2026) — vem do bestiário.
+  const BestFichaLista = window.BestFichaLista || (({ children }) => <ul>{children}</ul>);
+  const BestLinha = window.BestLinha || (() => null);
+  const BestDescricao = window.BestDescricao || (({ texto }) => (texto ? <p className="best-desc">{texto}</p> : null));
+  const atributoPorExtenso = window.atributoPorExtenso || ((v) => v);
+  const eficaciaContraArmadura = window.eficaciaContraArmadura || (() => null);
+  const ehArma = window.ehArma || (() => false);
   const BestItemMagia = window.BestItemMagia || (() => null);
 
   if (!Table) return <IcNoKit />;
@@ -588,65 +548,56 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
               <Table>
                 <TableHeader><TableRow>
                   <IcSortHead col="nome" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{en ? 'Name' : 'Nome'}</IcSortHead>
-                  <IcSortHead col="grupo" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{en ? 'Group' : 'Grupo'}</IcSortHead>
-                  <IcSortHead col="categoria_equip" sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{en ? 'Type' : 'Tipo'}</IcSortHead>
-                  <TableHead>{en ? 'Value' : 'Valor'}</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
                   {pageSlice.map((it) => {
                     const isOpen = expandida === it.id;
-                    const equipavel = !!it.categoria_equip;
                     const tipoLabel = it.categoria_equip
                       ? it.categoria_equip
                       : (it.magico ? (en ? 'magic' : 'mágico') : (it.armazena > 0 ? (en ? 'container' : 'recipiente') : '—'));
-                    const temArmazenamento = !!window.temArmazenamentoItem && window.temArmazenamentoItem(it);
                     return (
                       <React.Fragment key={it.id}>
                         <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : it.id)}>
                           <TableCell className="best-name">
-                            <span className="best-chevron" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>›</span>
+                            {/* O ícone do item ao lado do nome (26/09/2026). */}
+                            <i className={'ti ' + (it.icone || 'ti-box') + ' best-item-ic'} aria-hidden="true" />
                             {it.nome}
                           </TableCell>
-                          <TableCell>{it.grupo || '—'}</TableCell>
-                          <TableCell>{tipoLabel}</TableCell>
-                          <TableCell>{it.valor_latao ?? 0}</TableCell>
                         </TableRow>
                         {isOpen && (
-                          <TableRow className="best-detail"><TableCell colSpan={4}>
-                            {(equipavel || temArmazenamento) && (
-                              <div className="best-detail-stats">
-                                <BestItemArmazenamento item={it} lang={lang} />
-                                {it.slot_equip && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Slot' : 'Uso'}</span><span className="best-stat-val">{it.slot_equip}</span></div>)}
-                                {it.dano != null && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Damage' : 'Dano'}</span><span className="best-stat-val">{it.dano}</span></div>)}
-                                {it.alcance != null && it.alcance > 0 && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Range' : 'Alcance'}</span><span className="best-stat-val">{it.alcance}</span></div>)}
-                                {it.ajuste_atributo && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Attribute' : 'Atributo'}</span><span className="best-stat-val">{it.ajuste_atributo}</span></div>)}
-                                {it.defesa != null && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Defense' : 'Defesa'}</span><span className="best-stat-val">{it.defesa}</span></div>)}
-                                {it.absorcao != null && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Absorption' : 'Absorção'}</span><span className="best-stat-val">{it.absorcao}</span></div>)}
-                                {it.forca_req != null && it.forca_req !== 0 && (<div className="best-stat"><span className="best-stat-lbl">{en ? 'Min. Strength' : 'Força Mín.'}</span><span className="best-stat-val">{it.forca_req}</span></div>)}
-                              </div>
-                            )}
-                            {/* Mãos só no escudo: na arma saiu (14/09/2026). */}
-                            {it.categoria_equip === 'escudo' && (
-                              <div className="best-maos">
-                                <span className="best-stat-lbl">{en ? 'Hands' : 'Mãos'}</span>
-                                <span>{en ? 'Halfling' : 'Pequenino'} {it.maos_pequenino ?? '✗'}</span>
-                                <span>{en ? 'Dwarf' : 'Anão'} {it.maos_anao ?? '✗'}</span>
-                                <span>{en ? 'Other' : 'Outros'} {it.maos_outras ?? '✗'}</span>
-                              </div>
-                            )}
-                            {it.descricao && <p className="best-desc">{it.descricao}</p>}
+                          <BestDetalheModal title={it.nome} lang={lang} onClose={() => setExpandida(null)}
+                            /* Editar e Excluir no cabeçalho, ao lado do X (26/09/2026) —
+                               eram botões no fim do corpo. Excluir abre a confirmação. */
+                            acoes={[
+                              { icone: 'ti-pencil', rotulo: en ? 'Edit' : 'Editar', onClick: () => { setExpandida(null); setEditing(it); } },
+                              { icone: 'ti-trash', rotulo: en ? 'Delete' : 'Excluir', perigo: true, onClick: () => { setExpandida(null); setDeleting(it); } },
+                            ]}>
+                            <BestDescricao texto={it.descricao} lang={lang} />
+                            {/* Lista por extenso (26/09/2026), a mesma do catálogo — eram mini-cards. */}
+                            <BestFichaLista titulo={en ? 'Traits' : 'Características'} colunas={2}>
+                              {/* Sem "Grupo" (26/09/2026, "não precisa mostrar o grupo"). */}
+                              <BestLinha rotulo={en ? 'Type' : 'Tipo'} valor={tipoLabel === '—' ? null : tipoLabel} />
+                              <BestLinha rotulo={en ? 'Value' : 'Valor'} valor={it.valor_latao ?? null} />
+                              <BestItemArmazenamento item={it} lang={lang} />
+                              <BestLinha rotulo={en ? 'Slot' : 'Uso'} valor={it.slot_equip} />
+                              <BestLinha rotulo={en ? 'Damage' : 'Dano'} valor={it.dano} />
+                              {ehArma(it) && <BestLinha rotulo={en ? 'Vs light armor' : 'Contra armaduras leves'} valor={eficaciaContraArmadura(it.dano_l, en)} />}
+                              {ehArma(it) && <BestLinha rotulo={en ? 'Vs medium armor' : 'Contra armaduras médias'} valor={eficaciaContraArmadura(it.dano_m, en)} />}
+                              {ehArma(it) && <BestLinha rotulo={en ? 'Vs heavy armor' : 'Contra armaduras pesadas'} valor={eficaciaContraArmadura(it.dano_p, en)} />}
+                              <BestLinha rotulo={en ? 'Range' : 'Alcance'} valor={it.alcance != null && it.alcance > 0 ? it.alcance : null} />
+                              <BestLinha rotulo={en ? 'Attribute' : 'Atributo'} valor={atributoPorExtenso(it.ajuste_atributo, en)} />
+                              <BestLinha rotulo={en ? 'Defense' : 'Defesa'} valor={it.defesa} />
+                              <BestLinha rotulo={en ? 'Absorption' : 'Absorção'} valor={it.absorcao} />
+                              <BestLinha rotulo={en ? 'Durability' : 'Resistência'} valor={it.resistencia} />
+                              <BestLinha rotulo={en ? 'Minimum strength' : 'Força mínima'} valor={it.forca_req != null && it.forca_req !== 0 ? it.forca_req : null} />
+                              <BestLinha rotulo={en ? 'Hands (Halfling)' : 'Mãos (Pequenino)'} valor={it.categoria_equip === 'escudo' ? (it.maos_pequenino != null ? `${it.maos_pequenino} ${en ? (it.maos_pequenino === 1 ? 'hand' : 'hands') : (it.maos_pequenino === 1 ? 'mão' : 'mãos')}` : (en ? 'Cannot use' : 'Não pode usar')) : null} />
+                              <BestLinha rotulo={en ? 'Hands (Dwarf)' : 'Mãos (Anão)'} valor={it.categoria_equip === 'escudo' ? (it.maos_anao != null ? `${it.maos_anao} ${en ? (it.maos_anao === 1 ? 'hand' : 'hands') : (it.maos_anao === 1 ? 'mão' : 'mãos')}` : (en ? 'Cannot use' : 'Não pode usar')) : null} />
+                              <BestLinha rotulo={en ? 'Hands (Others)' : 'Mãos (Outros)'} valor={it.categoria_equip === 'escudo' ? (it.maos_outras != null ? `${it.maos_outras} ${en ? (it.maos_outras === 1 ? 'hand' : 'hands') : (it.maos_outras === 1 ? 'mão' : 'mãos')}` : (en ? 'Cannot use' : 'Não pode usar')) : null} />
+                            </BestFichaLista>
                             <BestItemMagia item={it} magias={magias} lang={lang} />
                             {it.efeito_positivo && <p className="best-efeito" style={{ color: '#7FB07F' }}>+ {it.efeito_positivo}</p>}
                             {it.efeito_negativo && <p className="best-efeito" style={{ color: '#C98A8A' }}>− {it.efeito_negativo}</p>}
-                            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-                              <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setEditing(it); }}>
-                                <i className="ti ti-pencil" /> {en ? 'Edit' : 'Editar'}
-                              </button>
-                              <button className="btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); setDeleting(it); }}>
-                                <i className="ti ti-trash" /> {en ? 'Delete' : 'Excluir'}
-                              </button>
-                            </div>
-                          </TableCell></TableRow>
+                          </BestDetalheModal>
                         )}
                       </React.Fragment>
                     );
@@ -679,8 +630,8 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
             </button>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--gold-bright, #C9A44E)', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-              <i className="ti ti-backpack" style={{ fontSize: 12 }} />
+            <div style={{ fontFamily: "'Cinzel', serif", fontSize: 'var(--fs-2xs)', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--gold-bright, #E0BE68)', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+              <i className="ti ti-backpack" style={{ fontSize: 'var(--fs-xs)' }} />
               {en ? 'Campaign Items' : 'Itens da Campanha'}
             </div>
             <h3 className="ms-title">{tituloHistoria || '—'}</h3>

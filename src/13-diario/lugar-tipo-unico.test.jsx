@@ -20,10 +20,11 @@
    (slugs, FKs de cidade.reino e npc.cidade apontando pra ela). O seletor só
    aparece na criação, e este teste trava isso.
    ============================================================ */
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { render, cleanup, screen } from '@testing-library/react';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/helpers.jsx';
+import '../01-core/select-pill.jsx';
 import '../01-core/game-data.jsx';
 import '../10-shell/shell.jsx';
 import './diario.jsx';
@@ -147,5 +148,22 @@ describe('as duas telas perderam a bifurcação', () => {
   it('o + de Lugares abre o formulário já num tipo, nas duas telas', () => {
     expect(fonte.match(/const abrirNovoLugar = \(\) =>/g)).toHaveLength(2);
     expect(fonte).not.toMatch(/abrirNovoLugar\('(reino|cidade)'\)/);
+  });
+});
+
+/* "No modal de editar/criar reino, adicione um dropdown do lado de nome,
+   inline, para selecionar a capital, do catálogo de cidades." (26/09/2026) */
+describe('reino: a capital na linha do nome', () => {
+  it('o dropdown lista as cidades e grava capital_cidade', () => {
+    const onChange = vi.fn();
+    render(<window.LoreEntradaForm tipo="reino" entrada={{ nome: 'Verrogar', descricao: '', atributos: {} }}
+      onChange={onChange} lang="pt"
+      cidadesDaHistoria={[{ id: 'brann', nome: 'Brann' }, { id: 'farzelo', nome: 'Farzelo' }]} />);
+    const linha = document.querySelector('.diario-form-linha-nome');
+    expect(linha.textContent).toContain('Capital');
+    fireEvent.click(linha.querySelector('.select-pill-btn'));
+    const opcao = [...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.includes('Farzelo'));
+    fireEvent.click(opcao);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ atributos: { capital_cidade: 'farzelo' } }));
   });
 });

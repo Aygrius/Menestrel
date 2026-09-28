@@ -87,9 +87,74 @@ function listaEquipamento(equipamento) {
 const ehArma = (cat) => !!cat && cat.grupo === 'Armas';
 const ehEscudo = (cat) => !!cat && !ehArma(cat) && cat.slot_equip === 'maos';
 
-// Onde a peça entra. Devolve { slot } ou { motivo } quando não cabe.
-function slotParaPeca(cat, equipamento, catalogoBySlug) {
+/* ── ATAQUE, VESTIDO E MOCHILA (25/09/2026) ─────────────────────────────
+   "Adicione um novo campo abaixo de equipamento, que vai se chamar Ataque,
+    para englobar as armas de ataque. E em Equipamento ficará apenas os demais
+    itens que a criatura possui (inclusive itens comuns disponíveis no
+    catálogo)." (usuário)
+
+   Continua tudo em criaturas.equipamento — o banco e as criaturas antigas não
+   mudam. A lista ganha um terceiro tipo de entrada:
+     { slug, slot: 'mochila', qtd }   item carregado, com quantidade
+   A mochila NÃO entra em conta nenhuma: não soma absorção nem defesa e não
+   vira ataque. É o que a criatura carrega — e o que se saqueia dela. */
+const SLOT_MOCHILA = 'mochila';
+
+function partesDoEquipamento(equipamento, catalogoBySlug) {
+  const cats = catalogoBySlug || {};
+  const out = { ataque: [], vestido: [], mochila: [] };
+  listaEquipamento(equipamento).forEach((e) => {
+    if (e.slot === SLOT_MOCHILA) out.mochila.push(e);
+    else if (SLOTS_DE_ARMA.includes(e.slot) && ehArma(cats[e.slug])) out.ataque.push(e);
+    else out.vestido.push(e);
+  });
+  return out;
+}
+
+// Soma na pilha da mochila, ou cria. Devolve uma lista nova.
+function guardarNaMochila(equipamento, slug, qtd) {
+  const lista = listaEquipamento(equipamento);
+  const n = Math.max(1, Math.trunc(Number(qtd) || 1));
+  const i = lista.findIndex((e) => e.slot === SLOT_MOCHILA && e.slug === slug);
+  if (i < 0) return [...lista, { slug, slot: SLOT_MOCHILA, qtd: n }];
+  return lista.map((e, k) => (k === i ? { ...e, qtd: (Number(e.qtd) || 1) + n } : e));
+}
+
+/* O que ainda dá para saquear de uma criatura derrotada (25/09/2026):
+   tudo o que ela tem — armas, peças e mochila — JUNTADO POR ITEM (a espada
+   empunhada e a de reserva são "2 Espadas"), menos o que já foi tirado
+   (`saqueado` = { slug: quantidade }, anotado no participante da batalha).
+   Na ordem em que aparecem; item esgotado some. */
+function saqueDisponivel(equipamento, saqueado) {
+  const tirado = saqueado || {};
+  const total = new Map();
+  listaEquipamento(equipamento).forEach((e) => {
+    const n = e.slot === SLOT_MOCHILA ? Math.max(1, Math.trunc(Number(e.qtd) || 1)) : 1;
+    total.set(e.slug, (total.get(e.slug) || 0) + n);
+  });
+  const out = [];
+  total.forEach((n, slug) => {
+    const resta = n - (Number(tirado[slug]) || 0);
+    if (resta > 0) out.push({ slug, qtd: resta });
+  });
+  return out;
+}
+
+/* Onde a peça entra. Devolve { slot } ou { motivo } quando não cabe.
+   `parte` (25/09/2026) diz de qual campo do editor ela vem:
+     'ataque'  só arma — o resto é recusado com 'nao_e_arma';
+     'itens'   peça vestível vai para o corpo se o lugar estiver livre; peça
+               com o lugar ocupado, arma reserva e item comum vão para a
+               MOCHILA — nada é recusado, porque carregar não tem limite;
+     ausente   a regra de antes (quem chama sem parte não muda). */
+function slotParaPeca(cat, equipamento, catalogoBySlug, parte) {
   if (!cat) return { motivo: 'item_desconhecido' };
+  if (parte === 'ataque' && !ehArma(cat)) return { motivo: 'nao_e_arma' };
+  if (parte === 'itens') {
+    if (ehArma(cat)) return { slot: SLOT_MOCHILA };
+    const r = slotParaPeca(cat, equipamento, catalogoBySlug);
+    return r.slot ? r : { slot: SLOT_MOCHILA };
+  }
   const lista = listaEquipamento(equipamento);
   // A mesma arma duas vezes seria o mesmo ataque repetido — quase sempre um
   // Enter a mais na busca, não intenção.
@@ -119,7 +184,9 @@ function armasEquipadas(pecas) {
 function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {}) {
   const at = atributos || {};
   const cats = catalogoBySlug || {};
+  // A mochila fica fora da conta (25/09/2026): é carregada, não vestida.
   const pecas = listaEquipamento(equipamento)
+    .filter((e) => e.slot !== SLOT_MOCHILA)
     .map((e) => ({ ...e, cat: cats[e.slug] }))
     .filter((e) => e.cat);
 
@@ -233,5 +300,6 @@ Object.assign(window, {
        repetir o filtro `e && e.slug` — duas leituras do mesmo jsonb, com
        chance de discordarem sobre o que conta como peça. */
     listaEquipamento,
+    SLOT_MOCHILA, partesDoEquipamento, guardarNaMochila, saqueDisponivel,
   },
 });

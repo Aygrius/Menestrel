@@ -94,9 +94,10 @@ describe('a magia vira efeito no formato que a ficha já sabe aplicar', () => {
       .toEqual([{ scope: 'vitalidade', key: 'ef', delta: -4 }]);
   });
 
+  // "Reduz 25 de Saúde" = a Doença SOBE 25 (escala 0..100, 27/09/2026).
   it('condição de ficha vira delta na condição', () => {
     expect(window.efeitosDeMagiaNaFicha(DOENCAS, 1))
-      .toContainEqual({ scope: 'condicoes', key: 'vitalidade', delta: -25 });
+      .toContainEqual({ scope: 'condicoes', key: 'vitalidade', delta: 25 });
   });
 
   it('EFEITO DURADOURO não vira nada — precisa de rodada, que não existe aqui', () => {

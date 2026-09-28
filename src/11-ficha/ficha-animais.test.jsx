@@ -61,23 +61,25 @@ describe('FichaAnimaisView', () => {
     const abas = [...document.querySelectorAll('[role="tab"]')];
     expect(abas.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true']);
     fireEvent.click(abas[0]);
-    expect(coluna('Animal').textContent).toContain('Lobo Alfa');
+    // O subtítulo virou o título (27/09/2026): a 1ª coluna abre em "Identidade".
+    expect(coluna('Identidade').textContent).toContain('Lobo Alfa');
+    expect(document.querySelector('.fp-col-title-sub')).toBeNull();
   });
 
   it('a seta de Ataques passa por todos os ataques (clique real)', () => {
     montar();
     fireEvent.click(document.querySelectorAll('[role="tab"]')[0]);
-    const col = coluna('Ataques');
-    expect(col.querySelector('.fp-col-title-sub').textContent).toBe('Presas');
+    // O nome do ataque É o título da coluna ("remova os subtítulos … 'coice'").
+    const col = coluna('Presas');
     const btn = col.querySelector('.fp-col-title-nav-btn');
     fireEvent.mouseDown(btn); fireEvent.focus(btn); fireEvent.mouseUp(btn); fireEvent.click(btn);
-    expect(coluna('Ataques').querySelector('.fp-col-title-sub').textContent).toBe('Garras');
+    expect(coluna('Garras')).toBeTruthy();
   });
 
   it('Capacidades mostra a habilidade com o total da regra da criatura', () => {
     montar();
     fireEvent.click(document.querySelectorAll('[role="tab"]')[0]);
-    const linha = [...coluna('Capacidades').querySelectorAll('.fp-row')]
+    const linha = [...coluna('Habilidades').querySelectorAll('.fp-row')]
       .find((r) => r.textContent.includes('Rastrear'));
     expect(linha).toBeTruthy();
     expect(linha.querySelector('.fp-row-value').textContent).not.toBe('—');

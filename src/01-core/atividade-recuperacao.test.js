@@ -28,7 +28,7 @@ const ctx = (extra) => ({
   ...extra,
 });
 const est = (atividade, extra) => ({
-  condicoes: { animo: 0, sanidade: 0, reputacao: 0 },
+  condicoes: { animo: 60, sanidade: 60, reputacao: 60 },
   vitalidade: { ef: 0, eh: 0, ka: 0 },
   atividade: atividade ? { tipo: atividade } : undefined,
   ...extra,
@@ -52,8 +52,9 @@ describe('sem atividade não recupera nada', () => {
 });
 
 describe('Dormindo', () => {
-  it('sono +5 por hora', () => {
-    expect(recuperacaoPorAtividade(est('dormindo'), 3, ctx()).condicoes.animo).toBe(15);
+  // Escala 0 (ideal) … 100 (pior) desde 27/09/2026: dormir TIRA sono.
+  it('sono −5 por hora', () => {
+    expect(recuperacaoPorAtividade(est('dormindo'), 3, ctx()).condicoes.animo).toBe(45);
   });
 
   it('a cada 8h: EH 10+Car, EF 1+Fís, KA 5+Aura', () => {
@@ -91,9 +92,9 @@ describe('Dormindo', () => {
     expect(d.vitalidade).toEqual({ ef: 30, eh: 60, ka: 40 });
   });
 
-  it('sono para em +50', () => {
-    const d = recuperacaoPorAtividade(est('dormindo', { condicoes: { animo: 48 } }), 2, ctx());
-    expect(d.condicoes.animo).toBe(50);
+  it('sono para em 0 (o ideal)', () => {
+    const d = recuperacaoPorAtividade(est('dormindo', { condicoes: { animo: 3 } }), 2, ctx());
+    expect(d.condicoes.animo).toBe(0);
   });
 });
 
@@ -107,14 +108,14 @@ describe('Meditando', () => {
 });
 
 describe('Orando, Estudando, Treinando', () => {
-  it('orando: sanidade +5 por hora', () => {
-    expect(recuperacaoPorAtividade(est('orando'), 2, ctx()).condicoes.sanidade).toBe(10);
+  it('orando: loucura −5 por hora', () => {
+    expect(recuperacaoPorAtividade(est('orando'), 2, ctx()).condicoes.sanidade).toBe(50);
   });
-  it('estudando: reputação +5 por hora', () => {
-    expect(recuperacaoPorAtividade(est('estudando'), 2, ctx()).condicoes.reputacao).toBe(10);
+  it('estudando: desonra −5 por hora', () => {
+    expect(recuperacaoPorAtividade(est('estudando'), 2, ctx()).condicoes.reputacao).toBe(50);
   });
-  it('treinando: reputação +5 por hora', () => {
-    expect(recuperacaoPorAtividade(est('treinando'), 2, ctx()).condicoes.reputacao).toBe(10);
+  it('treinando: desonra −5 por hora', () => {
+    expect(recuperacaoPorAtividade(est('treinando'), 2, ctx()).condicoes.reputacao).toBe(50);
   });
   it('não tocam na energia', () => {
     expect(recuperacaoPorAtividade(est('orando'), 8, ctx()).vitalidade).toEqual({ ef: 0, eh: 0, ka: 0 });
@@ -143,12 +144,12 @@ describe('atributo negativo', () => {
 describe('dormindo substitui o cansaço da noite', () => {
   it('decaimentoPorHoras não tira sono de quem dorme', () => {
     expect(decaimentoPorHoras({ animo: 0 }, 22, 4, null, 'dormindo').animo).toBe(0);
-    expect(decaimentoPorHoras({ animo: 0 }, 22, 4, null).animo).toBe(-8);
+    expect(decaimentoPorHoras({ animo: 0 }, 22, 4, null).animo).toBe(8);
   });
   it('fome e sede seguem valendo', () => {
     const d = decaimentoPorHoras({ nutricao: 0, hidratacao: 0 }, 22, 4, null, 'dormindo');
-    expect(d.nutricao).toBe(-4);
-    expect(d.hidratacao).toBe(-4);
+    expect(d.nutricao).toBe(4);
+    expect(d.hidratacao).toBe(4);
   });
 });
 

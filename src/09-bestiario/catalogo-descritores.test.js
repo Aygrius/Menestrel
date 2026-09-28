@@ -21,7 +21,9 @@ beforeAll(() => {
 // Cópia do schema. `id` e `created_at` NÃO entram em descritor (são do banco).
 const COLUNAS = {
   criaturas: ['nome','tipo','estagio','energia_fisica','energia_heroica','absorcao','armadura','defesa','velocidade','peso','ataque','dano_l','dano_m','dano_p','dano_25','dano_50','dano_75','dano_100','intelecto','aura','carisma','forca','fisico','agilidade','percepcao','tipo_armadura','descricao','subtipo','plano','coletivo','magia','magia_n','tecnicas_especiais','habilidades','equipamento','montaria','altura','elemento'],
-  magias: ['key','nome','evocacao','alcance','duracao','custo','tipo','permissao','descricao','nivel_1','nivel_3','nivel_5','nivel_7','nivel_9','dano'],
+  magias: ['key','nome','evocacao','alcance','duracao','custo','tipo','permissao','descricao','nivel_1','nivel_3','nivel_5','nivel_7','nivel_9','dano',
+    // Itens do ritual, coluna própria desde 26/09/2026.
+    'itens_necessarios'],
   tecnicas: ['key','nome','custo','permissao','uso','grupo_armas','grupo_armaduras','descricao','efeito','ajuste'],
   habilidades: ['key','nome','grupo','ajuste','custo','nivel_inicial','vantagem','desvantagem','restricao','descricao'],
   itens: ['slug','nome','grupo','ocupa','armazena','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia','descricao','magico','categoria_equip','slot_equip','grupo_equipamento','maos_pequenino','maos_anao','maos_outras','forca_req','dano','alcance','ajuste_atributo','defesa','absorcao','tipo_armadura','dano_l','dano_m','dano_p','grupo_armas','origem','resistencia','icone','consumiveis','consumiveis_peso','doc_url','criatura_id'],
@@ -43,8 +45,10 @@ const CHAVE = { criaturas: null, magias: 'key', tecnicas: 'key', habilidades: 'k
 // `lista` (13/09/2026): nomes escolhidos do catálogo, gravados com vírgula.
 // `equipamento` (14/09/2026): armas e armaduras da criatura.
 // `referencia` (14/09/2026): uma linha de outra tabela, pelo id (itens.criatura_id).
-const TIPOS = ['texto', 'area', 'numero', 'opcoes', 'derivado', 'lista', 'equipamento', 'referencia'];
-const FONTES_LISTA = ['tecnicas', 'habilidades', 'magias'];
+// 'multiopcoes' (25/09/2026): várias escolhas de uma lista fechada — o elemento da criatura.
+const TIPOS = ['texto', 'area', 'numero', 'opcoes', 'multiopcoes', 'derivado', 'lista', 'equipamento', 'referencia'];
+// 'itens': os itens do ritual da magia escolhem do catálogo de itens (26/09/2026).
+const FONTES_LISTA = ['tecnicas', 'habilidades', 'magias', 'itens'];
 
 describe('CATALOGO_DESCRITORES', () => {
   it('cobre exatamente as 5 tabelas', () => {
@@ -91,7 +95,7 @@ describe('CATALOGO_DESCRITORES', () => {
 
   it('campo de opções tem lista não vazia', () => {
     for (const [tab, d] of Object.entries(MAP)) {
-      for (const c of d.campos.filter((x) => x.tipo === 'opcoes')) {
+      for (const c of d.campos.filter((x) => x.tipo === 'opcoes' || x.tipo === 'multiopcoes')) {
         expect(Array.isArray(c.opcoes) && c.opcoes.length > 0, `${tab}.${c.col}`).toBe(true);
       }
     }
@@ -174,9 +178,25 @@ describe('CATALOGO_DESCRITORES', () => {
     }
   });
 
-  it('grupo_armaduras oferece Livre, L, M e P', () => {
+  /* Sigla no banco, palavra na tela desde 26/09/2026 ("'L' vira 'Armaduras
+     leves'"). */
+  it('grupo_armaduras oferece Livre, L, M e P — com as palavras na tela', () => {
     const campo = MAP.tecnicas.campos.find((c) => c.col === 'grupo_armaduras');
-    expect(campo.opcoes.sort()).toEqual(['L', 'Livre', 'M', 'P'].sort());
+    expect(opcoesNormalizadas(campo)).toEqual([
+      { value: 'Livre', label: 'Livre' },
+      { value: 'L', label: 'Armaduras leves' },
+      { value: 'M', label: 'Armaduras médias' },
+      { value: 'P', label: 'Armaduras pesadas' },
+    ]);
+  });
+
+  it('na técnica, grupo de armas e de armaduras dividem a linha', () => {
+    const larg = (col) => MAP.tecnicas.campos.find((c) => c.col === col).largura;
+    expect([larg('grupo_armas'), larg('grupo_armaduras')]).toEqual(['meia', 'meia']);
+  });
+
+  it('no item, a descrição é o último campo', () => {
+    expect(MAP.itens.campos.at(-1).col).toBe('descricao');
   });
 });
 
@@ -264,8 +284,13 @@ describe('descritorDe', () => {
 /* "'estágio' fica inline com 'nome', 'tipo', etc." (usuário, 14/09/2026):
    na grade de 4 colunas, a primeira linha é Nome · Tipo · Subtipo · Estágio. */
 describe('criaturas — ordem e equipamento', () => {
-  it('os quatro primeiros campos são nome, tipo, subtipo e estágio', () => {
-    expect(MAP.criaturas.campos.slice(0, 4).map((c) => c.col)).toEqual(['nome', 'tipo', 'subtipo', 'estagio']);
+  // Nome · Subtipo · Estágio · Montaria · Peso · Altura na mesma linha, Tipo
+  // (botões) logo depois — 25/09/2026. Os quatro últimos da linha são curtos.
+  it('a primeira linha é nome, subtipo, estágio, montaria, peso e altura; depois o tipo', () => {
+    expect(MAP.criaturas.campos.slice(0, 7).map((c) => c.col))
+      .toEqual(['nome', 'subtipo', 'estagio', 'montaria', 'peso', 'altura', 'tipo']);
+    expect(MAP.criaturas.campos.filter((c) => c.largura === 'curta').map((c) => c.col))
+      .toEqual(['estagio', 'montaria', 'peso', 'altura']);
   });
   it('tem o campo de equipamento, antes dos calculados', () => {
     const cols = MAP.criaturas.campos.map((c) => c.col);
@@ -313,5 +338,38 @@ describe('habilidades — sem nível inicial no formulário', () => {
   // "Ainda há um campo escrito 'restrição' no modal de editar habilidades." (14/09/2026)
   it('nem restricao', () => {
     expect(MAP.habilidades.campos.map((c) => c.col)).not.toContain('restricao');
+  });
+});
+
+/* Editor de magias (26/09/2026): Tipo, Evocação, Alcance, Duração e Custo
+   viram dropdown com as listas do usuário; Dano ao lado de Custo; Itens
+   necessários logo abaixo de Permissão. */
+describe('magias: dropdowns e ordem do editor', () => {
+  const campo = (col) => descritorDe('magias').campos.find((c) => c.col === col);
+  const valores = (col) => campo(col).opcoes.map((o) => (typeof o === 'object' ? o.value : o));
+  it('as cinco listas fechadas', () => {
+    expect(valores('tipo')).toEqual(['Básica', 'Perdida', 'Ancestral']);
+    expect(valores('evocacao')).toEqual(['Instantânea', '1 rodada', '2 rodadas', '3 rodadas', '4 rodadas', '5 rodadas', '10 rodadas', '15 rodadas', '30 rodadas']);
+    expect(valores('alcance')).toEqual(['Toque', '2 metros', '5 metros', '10 metros', '15 metros', '20 metros', '50 metros', '100 metros', '1 quilômetro']);
+    expect(valores('duracao')).toEqual(['Variável', 'Instantânea', '1 rodada', '2 rodadas', '3 rodadas', '4 rodadas', '5 rodadas', '10 rodadas', '15 rodadas', '30 rodadas']);
+    expect(valores('custo')).toEqual(['1', '2', '3', '4']);
+    ['tipo', 'evocacao', 'alcance', 'duracao', 'custo'].forEach((c) => expect(campo(c).tipo).toBe('opcoes'));
+  });
+  it('Dano depois de Custo; Itens necessários depois de Permissão', () => {
+    const ordem = descritorDe('magias').campos.map((c) => c.col);
+    expect(ordem.indexOf('dano')).toBe(ordem.indexOf('custo') + 1);
+    expect(ordem.indexOf('itens_necessarios')).toBe(ordem.indexOf('permissao') + 1);
+  });
+});
+
+describe('habilidades: vantagem e desvantagem por Raça e Reino', () => {
+  it('multisseleção com as raças e os reinos do GAME_DATA', () => {
+    ['vantagem', 'desvantagem'].forEach((col) => {
+      const c = descritorDe('habilidades').campos.find((x) => x.col === col);
+      expect(c.tipo).toBe('multiopcoes');
+      expect(c.opcoes).toContain('Anão');
+      expect(c.opcoes).toContain('Porto Livre');
+      expect(c.opcoes.length).toBe(Object.keys(window.GAME_DATA.racas).length + window.GAME_DATA.reinos.length);
+    });
   });
 });

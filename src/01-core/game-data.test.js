@@ -258,126 +258,94 @@ describe('bonusPontosRaca — equalização', () => {
   });
 });
 
-/* ─────────────── condições → poços e grupos de habilidade ───────────────── */
-/* Regra nova (decisão de 08/09/2026): condição NÃO mexe mais em atributo.
-   Cada uma bate direto num poço derivado (EF/VB/KA/AR/EH) ou num par de
-   grupos de habilidade, em 4 faixas. Substitui CONDICOES_ATRIBUTO_MAP. */
-describe('faixaCondicao', () => {
-  it('0 é neutro', () => {
-    expect(G.faixaCondicao(0)).toBe(0);
+/* ─────────────── condições → malefícios (escala 0–100) ───────────────── */
+/* 27/09/2026 (usuário): "Agora as barras vão de 0 a 100. 0 é o mundo ideal e
+   100 é o pior cenário. [...] a barra no 0 não trará benefício, mas a barra
+   25, 50, 75 e 100 vão trazer malefícios." Malefício por barra: Doença→EF,
+   Sono→Velocidade, Sede→RM, Fome→RF, Vício→Karma, Loucura→EH,
+   Desonra→Influência, Frio→Velocidade, Calor→EH, Pesado→Velocidade. */
+describe('degrauCondicao — 25/50/75/100', () => {
+  it('abaixo de 25 não pesa; cada 25 é um degrau; 100 é o último', () => {
+    expect([0, 24, 25, 49, 50, 74, 75, 99, 100].map(G.degrauCondicao)).toEqual([0, 0, 1, 1, 2, 2, 3, 3, 4]);
   });
-
-  it('extremos são inclusivos: ±25 já cai na faixa forte', () => {
-    expect(G.faixaCondicao(-25)).toBe(-2);
-    expect(G.faixaCondicao(-50)).toBe(-2);
-    expect(G.faixaCondicao(25)).toBe(2);
-    expect(G.faixaCondicao(50)).toBe(2);
-  });
-
-  it('faixa branda entre 0 (exclusivo) e o extremo (exclusivo)', () => {
-    expect(G.faixaCondicao(-24)).toBe(-1);
-    expect(G.faixaCondicao(-1)).toBe(-1);
-    expect(G.faixaCondicao(1)).toBe(1);
-    expect(G.faixaCondicao(24)).toBe(1);
-  });
-
-  it('ausente ou não numérico = neutro', () => {
-    expect(G.faixaCondicao(null)).toBe(0);
-    expect(G.faixaCondicao(undefined)).toBe(0);
-    expect(G.faixaCondicao('x')).toBe(0);
+  it('negativo, ausente ou não numérico = 0', () => {
+    expect(G.degrauCondicao(-10)).toBe(0);
+    expect(G.degrauCondicao(null)).toBe(0);
+    expect(G.degrauCondicao('x')).toBe(0);
   });
 });
 
-describe('deltasPocosPorCondicoes', () => {
-  const zero = { ef: 0, eh: 0, ka: 0, vb: 0 };
+describe('barrasDeCondicao — Frio e Calor saem da Temperatura', () => {
+  it('temperatura negativa enche o Frio; positiva, o Calor', () => {
+    expect(G.barrasDeCondicao({ termorregulacao: -30 })).toMatchObject({ frio: 30, calor: 0 });
+    expect(G.barrasDeCondicao({ termorregulacao: 40 })).toMatchObject({ frio: 0, calor: 40 });
+  });
+  /* A proteção é TETO desde 27/09/2026: "Se um item me protege 1 de desonra,
+     quer dizer que o máximo que a barra chega é 99." Antes descontava (e o
+     efetivo podia ficar negativo). */
+  it('a proteção das vestimentas é o teto da barra, e nada fica negativo', () => {
+    expect(G.barrasDeCondicao({ reputacao: 100 }, { reputacao: 1 }).reputacao).toBe(99);
+    expect(G.barrasDeCondicao({ reputacao: 40 }, { reputacao: 5 }).reputacao).toBe(40);
+    expect(G.barrasDeCondicao({ reputacao: 0 }, { reputacao: 1 }).reputacao).toBe(0);
+    expect(G.barrasDeCondicao({ termorregulacao: -30 }, { frio: 25 }).frio).toBe(30);
+    expect(G.barrasDeCondicao({ termorregulacao: -100 }, { frio: 25 }).frio).toBe(75);
+    expect(G.barrasDeCondicao({ termorregulacao: -30 }, { frio: 120 }).frio).toBe(0);
+  });
+});
 
-  it('sem condições → todos os poços em 0', () => {
+describe('deltasPocosPorCondicoes — só malefício, em degraus', () => {
+  const zero = { ef: 0, eh: 0, ka: 0, vb: 0, rf: 0, rm: 0 };
+
+  it('sem condições → nada', () => {
     expect(G.deltasPocosPorCondicoes(null)).toEqual(zero);
     expect(G.deltasPocosPorCondicoes({})).toEqual(zero);
   });
 
-  /* "Para todas as barras de vitalidade, faça com que o ganho e a perda seja
-     proporcional ao nível da barra." (usuário, 14/09/2026) — barra cheia (±50)
-     dá ±6, metade dá ±3, arredondando ao inteiro mais próximo. */
-  it('proporcional ao nível da barra: ±50 → ±6, ±25 → ±3', () => {
-    expect(G.deltasPocosPorCondicoes({ vitalidade: 50 }).ef).toBe(6);
-    expect(G.deltasPocosPorCondicoes({ vitalidade: 25 }).ef).toBe(3);
-    expect(G.deltasPocosPorCondicoes({ vitalidade: -25 }).ef).toBe(-3);
-    expect(G.deltasPocosPorCondicoes({ vitalidade: -50 }).ef).toBe(-6);
-    expect(G.deltasPocosPorCondicoes({ vitalidade: 10 }).ef).toBe(1);    // 6 × 0,2
-    expect(G.deltasPocosPorCondicoes({ vitalidade: -40 }).ef).toBe(-5);  // 6 × 0,8
-    expect(G.deltasPocosPorCondicoes({ vitalidade: 2 }).ef).toBe(0);     // 0,24 arredonda a 0
-    expect(G.proporcaoCondicao(99)).toBe(1);                               // fora da escala, teto
+  it('Doença tira Energia Física: 25 → 2, 50 → 3, 75 → 5, 100 → 6', () => {
+    expect([24, 25, 50, 75, 100].map((v) => G.deltasPocosPorCondicoes({ vitalidade: v }).ef)).toEqual([0, -2, -3, -5, -6]);
   });
 
-  it('cada condição bate no seu poço: Saúde→EF, Sono→VB, Hidratação→KA', () => {
-    expect(G.deltasPocosPorCondicoes({ vitalidade: 50, animo: -50, hidratacao: 25 }))
-      .toEqual({ ef: 6, eh: 0, ka: 3, vb: -6 });
+  it('cada barra no seu alvo', () => {
+    expect(G.deltasPocosPorCondicoes({ animo: 100 })).toEqual({ ...zero, vb: -6 });
+    expect(G.deltasPocosPorCondicoes({ hidratacao: 100 })).toEqual({ ...zero, rm: -4 });
+    expect(G.deltasPocosPorCondicoes({ nutricao: 100 })).toEqual({ ...zero, rf: -4 });
+    expect(G.deltasPocosPorCondicoes({ euforia: 100 })).toEqual({ ...zero, ka: -6 });
+    expect(G.deltasPocosPorCondicoes({ sanidade: 100 })).toEqual({ ...zero, eh: -6 });
+    expect(G.deltasPocosPorCondicoes({ termorregulacao: -100 })).toEqual({ ...zero, vb: -6 });   // Frio
+    expect(G.deltasPocosPorCondicoes({ termorregulacao: 100 })).toEqual({ ...zero, eh: -6 });    // Calor
+    expect(G.deltasPocosPorCondicoes({ pesado: 75 })).toEqual({ ...zero, vb: -5 });
   });
 
-  // "Alimentação: Negativo perde velocidade e karma, positivo ganha 3 EF."
-  // (usuário, 14/09/2026)
-  it('Alimentação: negativa tira Velocidade e Karma; positiva dá até 3 de EF', () => {
-    expect(G.deltasPocosPorCondicoes({ nutricao: -50 })).toEqual({ ...zero, vb: -6, ka: -6 });
-    expect(G.deltasPocosPorCondicoes({ nutricao: -25 })).toEqual({ ...zero, vb: -3, ka: -3 });
-    expect(G.deltasPocosPorCondicoes({ nutricao: 50 })).toEqual({ ...zero, ef: 3 });
-    expect(G.deltasPocosPorCondicoes({ nutricao: 25 })).toEqual({ ...zero, ef: 2 });   // 1,5 arredonda a 2
+  it('RF e RM têm teto de 4: 25 → 1, 50 → 2, 75 → 3, 100 → 4', () => {
+    expect([25, 50, 75, 100].map((v) => G.deltasPocosPorCondicoes({ hidratacao: v }).rm)).toEqual([-1, -2, -3, -4]);
   });
 
-  it('Sobriedade é bônus dos DOIS lados: negativa dá EH, positiva dá KA', () => {
-    expect(G.deltasPocosPorCondicoes({ euforia: -50 })).toEqual({ ...zero, eh: 6 });
-    expect(G.deltasPocosPorCondicoes({ euforia: -25 })).toEqual({ ...zero, eh: 3 });
-    expect(G.deltasPocosPorCondicoes({ euforia: 25 })).toEqual({ ...zero, ka: 3 });
-    expect(G.deltasPocosPorCondicoes({ euforia: 50 })).toEqual({ ...zero, ka: 6 });
+  it('Sono, Frio e Pesado se somam na Velocidade', () => {
+    expect(G.deltasPocosPorCondicoes({ animo: 100, termorregulacao: -50, pesado: 25 }).vb).toBe(-6 - 3 - 2);
   });
 
-  it('Hidratação e Sobriedade acumulam no mesmo poço de Karma', () => {
-    expect(G.deltasPocosPorCondicoes({ hidratacao: 50, euforia: 50 }).ka).toBe(12);
-    expect(G.deltasPocosPorCondicoes({ hidratacao: -50, euforia: 50 }).ka).toBe(0);
-  });
-
-  it('condições de grupo não geram delta de poço', () => {
-    expect(G.deltasPocosPorCondicoes({ sanidade: -50, reputacao: 50, termorregulacao: -50 }))
-      .toEqual(zero);
+  it('Desonra não mexe em poço (é Influência) e a proteção entra', () => {
+    expect(G.deltasPocosPorCondicoes({ reputacao: 100 })).toEqual(zero);
+    // Teto: Frio 100 com proteção 25 pesa como Frio 75; abaixo do teto, nada muda.
+    expect(G.deltasPocosPorCondicoes({ termorregulacao: -100 }, { frio: 25 }).vb)
+      .toBe(G.deltasPocosPorCondicoes({ termorregulacao: -75 }).vb);
+    expect(G.deltasPocosPorCondicoes({ termorregulacao: -50 }, { frio: 25 }).vb)
+      .toBe(G.deltasPocosPorCondicoes({ termorregulacao: -50 }).vb);
   });
 });
 
-describe('modificadorGrupoPorCondicoes', () => {
-  it('neutro sem condição, com condição 0, ou pra grupo não pareado', () => {
+describe('modificadorGrupoPorCondicoes — Desonra rege Influência', () => {
+  it('sem Desonra ou fora de Influência = 1', () => {
     expect(G.modificadorGrupoPorCondicoes('Influência', null)).toBe(1);
-    expect(G.modificadorGrupoPorCondicoes('Influência', { reputacao: 0 })).toBe(1);
-    expect(G.modificadorGrupoPorCondicoes('Combate', { reputacao: -30 })).toBe(1);
+    expect(G.modificadorGrupoPorCondicoes('Influência', { reputacao: 20 })).toBe(1);
+    expect(G.modificadorGrupoPorCondicoes('Conhecimento', { reputacao: 100 })).toBe(1);
   });
-
-  // Proporcional desde 14/09/2026: ±50 → ×1,5/×0,5; ±25 → ×1,25/×0,75.
-  it('o grupo direto acompanha o sinal, na proporção da barra; o inverso espelha', () => {
-    expect(G.modificadorGrupoPorCondicoes('Influência', { reputacao: -50 })).toBe(0.5);
-    expect(G.modificadorGrupoPorCondicoes('Influência', { reputacao: -25 })).toBe(0.75);
-    expect(G.modificadorGrupoPorCondicoes('Influência', { reputacao: 25 })).toBe(1.25);
-    expect(G.modificadorGrupoPorCondicoes('Influência', { reputacao: 50 })).toBe(1.5);
-    expect(G.modificadorGrupoPorCondicoes('Influência', { reputacao: 10 })).toBeCloseTo(1.1);
-    expect(G.modificadorGrupoPorCondicoes('Subterfúgio', { reputacao: -50 })).toBe(1.5);
-    expect(G.modificadorGrupoPorCondicoes('Subterfúgio', { reputacao: -25 })).toBe(1.25);
-    expect(G.modificadorGrupoPorCondicoes('Subterfúgio', { reputacao: 25 })).toBe(0.75);
-    expect(G.modificadorGrupoPorCondicoes('Subterfúgio', { reputacao: 50 })).toBe(0.5);
+  it('25 → ×0,875, 50 → ×0,75, 75 → ×0,625, 100 → ×0,5', () => {
+    expect([25, 50, 75, 100].map((v) => G.modificadorGrupoPorCondicoes('Influência', { reputacao: v }))).toEqual([0.875, 0.75, 0.625, 0.5]);
   });
-
-  it('Sanidade rege Conhecimento/Manobra; Temperatura rege Geral/Profissional', () => {
-    expect(G.modificadorGrupoPorCondicoes('Conhecimento', { sanidade: -50 })).toBe(0.5);
-    expect(G.modificadorGrupoPorCondicoes('Manobra', { sanidade: -50 })).toBe(1.5);
-    expect(G.modificadorGrupoPorCondicoes('Geral', { termorregulacao: 25 })).toBe(1.25);
-    expect(G.modificadorGrupoPorCondicoes('Profissional', { termorregulacao: 25 })).toBe(0.75);
-  });
-
-  it('os 6 grupos estão cobertos e cada um responde a uma condição só', () => {
-    const cond = { sanidade: 50, reputacao: -50, termorregulacao: 50, vitalidade: -50 };
-    expect(G.modificadorGrupoPorCondicoes('Conhecimento', cond)).toBe(1.5);
-    expect(G.modificadorGrupoPorCondicoes('Manobra', cond)).toBe(0.5);
-    expect(G.modificadorGrupoPorCondicoes('Influência', cond)).toBe(0.5);
-    expect(G.modificadorGrupoPorCondicoes('Subterfúgio', cond)).toBe(1.5);
-    expect(G.modificadorGrupoPorCondicoes('Geral', cond)).toBe(1.5);
-    expect(G.modificadorGrupoPorCondicoes('Profissional', cond)).toBe(0.5);
-    expect(G.GRUPOS_HABILIDADES_ORDEM.every((g) => G.CONDICOES_GRUPO_POR_GRUPO[g])).toBe(true);
+  it('joias que protegem a honra limitam o degrau pelo teto', () => {
+    expect(G.modificadorGrupoPorCondicoes('Influência', { reputacao: 100 }, { reputacao: 30 })).toBe(0.75);
+    expect(G.modificadorGrupoPorCondicoes('Influência', { reputacao: 50 }, { reputacao: 30 })).toBe(0.75);
   });
 });
 
@@ -395,74 +363,69 @@ describe('calcularFicha (smoke — Humano Guerreiro, estágio 1)', () => {
     expect(f.atributos.fisico).toBe(1);
   });
 
-  it('derivadas congeladas: EF 18, EH 14, karma 0, velocidade 19', () => {
+  it('derivadas congeladas: EF 18, EH 14, karma 0, velocidade 19, RF 2, RM 1', () => {
     const d = G.calcularFicha(pj, null).derivadas;
     expect(d.energiaFisica).toBe(18);
     expect(d.energiaHeroica).toBe(14);
     expect(d.karma).toBe(0);
     expect(d.velocidade).toBe(19);
+    expect(d.resistenciaFisica).toBe(2);
+    expect(d.resistenciaMagica).toBe(1);
   });
 
-  it('condição NÃO mexe mais em atributo — só no poço derivado', () => {
-    const f = G.calcularFicha(pj, null, { nutricao: -3, vitalidade: 2 });
-    expect(f.atributos.forca).toBe(2);   // Alimentação negativa não toca a Força
-    expect(f.atributos.fisico).toBe(1);  // Saúde positiva não toca o Físico
+  it('condição NÃO mexe em atributo — só no que a barra tira', () => {
+    const f = G.calcularFicha(pj, null, { nutricao: 100, vitalidade: 100 });
     expect(f.atributos).toEqual(f.atributosBase);
   });
 
-  it('Saúde soma no EF; Sono soma na Velocidade', () => {
-    expect(G.calcularFicha(pj, null, { vitalidade: 25 }).derivadas.energiaFisica).toBe(21);
-    expect(G.calcularFicha(pj, null, { vitalidade: -50 }).derivadas.energiaFisica).toBe(12);
-    expect(G.calcularFicha(pj, null, { animo: -25 }).derivadas.velocidade).toBe(16);
-    expect(G.calcularFicha(pj, null, { animo: 50 }).derivadas.velocidade).toBe(25);
+  it('barra em 0 não dá benefício nenhum', () => {
+    expect(G.calcularFicha(pj, null, { vitalidade: 0, animo: 0 }).derivadas)
+      .toEqual(G.calcularFicha(pj, null).derivadas);
   });
 
-  it('Alimentação positiva soma no EF; negativa tira da Velocidade', () => {
-    expect(G.calcularFicha(pj, null, { nutricao: 50 }).derivadas.energiaFisica).toBe(21);
-    expect(G.calcularFicha(pj, null, { nutricao: -50 }).derivadas.velocidade).toBe(13);
+  it('Doença tira EF; Sono tira Velocidade; Fome tira RF (com piso 0)', () => {
+    expect(G.calcularFicha(pj, null, { vitalidade: 50 }).derivadas.energiaFisica).toBe(15);
+    expect(G.calcularFicha(pj, null, { animo: 100 }).derivadas.velocidade).toBe(13);
+    expect(G.calcularFicha(pj, null, { nutricao: 25 }).derivadas.resistenciaFisica).toBe(1);
+    expect(G.calcularFicha(pj, null, { nutricao: 100 }).derivadas.resistenciaFisica).toBe(0);
   });
 
-  it('Sobriedade negativa soma no EH; positiva, no Karma', () => {
-    expect(G.calcularFicha(pj, null, { euforia: -50 }).derivadas.energiaHeroica).toBe(20);
-    expect(G.calcularFicha(pj, null, { euforia: -50 }).derivadas.karma).toBe(0); // aura 0
+  it('Loucura e Calor tiram EH; Frio tira Velocidade', () => {
+    expect(G.calcularFicha(pj, null, { sanidade: 100 }).derivadas.energiaHeroica).toBe(8);
+    expect(G.calcularFicha(pj, null, { termorregulacao: 50 }).derivadas.energiaHeroica).toBe(11);
+    expect(G.calcularFicha(pj, null, { termorregulacao: -75 }).derivadas.velocidade).toBe(14);
+  });
+
+  it('com Aura ≥ 1, Vício tira Karma; a Sede tira RM (que entra no Karma)', () => {
+    const mago = { ...pj, aura_base: 2 };
+    expect(G.calcularFicha(mago, null).derivadas.karma).toBe(12);
+    expect(G.calcularFicha(mago, null, { euforia: 100 }).derivadas.karma).toBe(6);
+    expect(G.calcularFicha(mago, null, { hidratacao: 50 }).derivadas.resistenciaMagica).toBe(1);
+  });
+
+  it('Aura < 1 mantém o Karma zerado', () => {
+    expect(G.calcularFicha(pj, null, { euforia: 100 }).derivadas.karma).toBe(0);
   });
 
   it('poço nunca fica negativo (piso 0)', () => {
     const fraco = { ...pj, fisico_base: -2, agilidade_base: -2, percepcao_base: -2 };
-    const d = G.calcularFicha(fraco, null, { animo: -50 }).derivadas;
+    const d = G.calcularFicha(fraco, null, { animo: 100, vitalidade: 100 }).derivadas;
     expect(d.velocidade).toBeGreaterThanOrEqual(0);
     expect(d.energiaFisica).toBeGreaterThanOrEqual(0);
   });
 
-  it('Aura < 1 mantém o Karma zerado — condição não ressuscita o poço', () => {
-    expect(G.calcularFicha(pj, null, { hidratacao: 50, euforia: 50 }).derivadas.karma).toBe(0);
-  });
-
-  it('com Aura ≥ 1, Hidratação e Sobriedade somam no Karma', () => {
-    const mago = { ...pj, aura_base: 2 };
-    expect(G.calcularFicha(mago, null).derivadas.karma).toBe(12);
-    expect(G.calcularFicha(mago, null, { hidratacao: 50 }).derivadas.karma).toBe(18);
-    expect(G.calcularFicha(mago, null, { hidratacao: -50 }).derivadas.karma).toBe(6);
-    expect(G.calcularFicha(mago, null, { hidratacao: -50, euforia: 50 }).derivadas.karma).toBe(12);
-    // Alimentação negativa também tira Karma (14/09/2026).
-    expect(G.calcularFicha(mago, null, { nutricao: -25 }).derivadas.karma).toBe(9);
-  });
-
-  // "Alimentação não deve alterar a absorção" (usuário, 14/09/2026) — o caso
-  // da Lirael: 10 de equipamento, Alimentação −50, a ficha mostrava 4.
-  it('Alimentação não mexe na Absorção', () => {
+  it('condição não mexe na Absorção nem na Defesa', () => {
     const cat = { colete: { absorcao: 4 }, calca: { absorcao: 2 } };
     const vestido = { ...pj, inventario: { itens: [
       { slug: 'colete', slot: 'peito', equipado: true }, { slug: 'calca', slot: 'pernas', equipado: true },
     ] } };
-    expect(G.calcularFicha(vestido, cat, { nutricao: -50 }).derivadas.absorcao).toBe(6);
-    expect(G.calcularFicha(vestido, cat, { nutricao: 50 }).derivadas.absorcao).toBe(6);
-    expect(G.calcularFicha(pj, {}, { nutricao: 30 }).derivadas.armadura).toBe(0);
+    expect(G.calcularFicha(vestido, cat, { nutricao: 100 }).derivadas.absorcao).toBe(6);
+    expect(G.calcularFicha(pj, {}, { termorregulacao: -100 }).derivadas.defesa)
+      .toBe(G.calcularFicha(pj, {}).derivadas.defesa);
   });
 
-  it('Temperatura não mexe mais na Agilidade nem na Defesa', () => {
-    expect(G.calcularFicha(pj, {}, { termorregulacao: -50 }).derivadas.defesa)
-      .toBe(G.calcularFicha(pj, {}).derivadas.defesa);
+  it('as barras efetivas vêm junto (a ficha desenha com elas)', () => {
+    expect(G.calcularFicha(pj, null, { termorregulacao: -20 }).condicoesEfetivas).toMatchObject({ frio: 20, calor: 0 });
   });
 
   it('sem condições, o 3º argumento omitido é idêntico ao comportamento antigo', () => {

@@ -90,7 +90,7 @@ describe('o menu do Mestre ganhou os dois destinos', () => {
    contrato no fonte — mesmo caminho de log-eventos.test.jsx. */
 describe('o shell manda cada perfil para a tela certa', () => {
   const shell = readFileSync(resolve(raiz, '10-shell/shell.jsx'), 'utf8');
-  const i = shell.indexOf("(current.id === 'lugares' || current.id === 'npcs' || current.id === 'memorias')");
+  const i = shell.indexOf("(current.id === 'lugares' || current.id === 'cidades' || current.id === 'npcs' || current.id === 'memorias')");
   const trecho = shell.slice(i, i + 2200);
 
   it('Mestre em Lugares/NPCs cai no lore da MESA ativa', () => {
@@ -103,6 +103,13 @@ describe('o shell manda cada perfil para a tela certa', () => {
   it('e o Jogador segue no diário do PJ ativo', () => {
     expect(trecho).toMatch(/<DiarioView/);
     expect(trecho).toMatch(/pj=\{pjAtivo\}/);
+  });
+
+  /* Reinos mostra só reinos e Cidades só cidades desde 26/09/2026 — era a aba
+     mista 'lugar'. */
+  it('Reinos vai com o tipo reino, Cidades com o tipo cidade', () => {
+    expect(trecho).toMatch(/\{ lugares: 'reino', cidades: 'cidade' \}/);
+    expect(trecho).not.toMatch(/tipoFixo=\{current\.id === 'lugares' \? 'lugar'/);
   });
 });
 
@@ -162,14 +169,14 @@ describe('travado num tipo, a tela do Mestre deixa de oferecer a escolha', () =>
     stubBanco();
     montar('lugar');
     await waitFor(() => expect(document.querySelector('.lore-mng-page-h2')).toBeTruthy());
-    expect(document.querySelector('.lore-mng-page-h2').textContent).toBe('Lugares');
+    expect(document.querySelector('.lore-mng-page-h2').textContent).toBe('Reinos'); // era Lugares até 26/09/2026
   });
 
-  it('e em NPCs o título acompanha', async () => {
+  it('e em Conhecidos (ex-NPCs) o título acompanha', async () => {
     stubBanco();
     montar('npc');
     await waitFor(() => expect(document.querySelector('.lore-mng-page-h2')).toBeTruthy());
-    expect(document.querySelector('.lore-mng-page-h2').textContent).toBe('NPCs');
+    expect(document.querySelector('.lore-mng-page-h2').textContent).toBe('Conhecidos');
   });
 
   it('vindo de Histórias, o título continua sendo "Lore"', async () => {
