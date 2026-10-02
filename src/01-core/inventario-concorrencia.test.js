@@ -270,3 +270,80 @@ describe('criarGravadorInventario', () => {
     expect(t.personagens[0].inventario.itens).toEqual([]);
   });
 });
+
+describe('criarGravadorInventario — resposta perdida (02/10/2026)', () => {
+  // A escrita chega ao banco, mas o cliente recebe erro de rede. A próxima
+  // gravação não pode mesclar contra a base velha: contaria a mudança de novo.
+  function falharRespostaDaPrimeiraEscrita(fake) {
+    let falhar = true;
+    return {
+      ...fake,
+      from: (nome) => {
+        const tabela = fake.from(nome);
+        if (nome !== 'personagens') return tabela;
+        return {
+          ...tabela,
+          update: (campos) => {
+            const b = tabela.update(campos);
+            if (!falhar) return b;
+            falhar = false;
+            const thenReal = b.then;
+            b.then = (res, rej) => thenReal((x) => x)
+              .then(() => ({ data: null, error: new Error('rede') }))
+              .then(res, rej);
+            return b;
+          },
+        };
+      },
+    };
+  }
+
+  it('gravou mas a resposta se perdeu; a edição seguinte não conta a quantidade duas vezes', async () => {
+    const t = { personagens: [pj([it_('f', { quantidade: 10 })], 0)] };
+    globalThis.supabaseClient = falharRespostaDaPrimeiraEscrita(fakeSupabase(t));
+    const g = window.criarGravadorInventario();
+    g.carregar(1, t.personagens[0].inventario, 0);
+    g.alterar(1, inv([it_('f', { quantidade: 8 })]));     // usou 2
+    expect((await g.salvar(1)).ok).toBe(false);            // chegou ao banco, a resposta não
+    expect(t.personagens[0].inventario.itens[0].quantidade).toBe(8);
+    g.alterar(1, inv([it_('f', { quantidade: 7 })]));     // usou mais 1
+    const r = await g.salvar(1);
+    expect(r.ok).toBe(true);
+    expect(t.personagens[0].inventario.itens[0].quantidade).toBe(7);
+    expect(g.sujo(1)).toBe(false);
+  });
+
+  it('a escrita que falhou não chegou e o banco mudou por fora: mescla normal', async () => {
+    const t = { personagens: [pj([it_('f', { quantidade: 10 })], 0)] };
+    const fake = fakeSupabase(t);
+    let falhar = true;
+    globalThis.supabaseClient = { ...fake, from: (n) => { if (falhar) { falhar = false; throw new Error('rede'); } return fake.from(n); } };
+    const g = window.criarGravadorInventario();
+    g.carregar(1, t.personagens[0].inventario, 0);
+    g.alterar(1, inv([it_('f', { quantidade: 8 })]));
+    expect((await g.salvar(1)).ok).toBe(false);            // não chegou
+    // A batalha gasta 1 por fora.
+    await fake.from('personagens').update({ inventario: inv([it_('f', { quantidade: 9 })]) }).eq('id', 1);
+    const r = await g.salvar(1);
+    expect(r.ok).toBe(true);
+    expect(t.personagens[0].inventario.itens[0].quantidade).toBe(7);
+  });
+
+  it('se a releitura falhar, não grava', async () => {
+    const t = { personagens: [pj([it_('f', { quantidade: 10 })], 0)] };
+    const fake = fakeSupabase(t);
+    globalThis.supabaseClient = falharRespostaDaPrimeiraEscrita(fake);
+    const g = window.criarGravadorInventario();
+    g.carregar(1, t.personagens[0].inventario, 0);
+    g.alterar(1, inv([it_('f', { quantidade: 8 })]));
+    expect((await g.salvar(1)).ok).toBe(false);
+    g.alterar(1, inv([it_('f', { quantidade: 7 })]));
+    globalThis.supabaseClient = { ...fake, from: () => { throw new Error('fora do ar'); } };
+    expect((await g.salvar(1)).ok).toBe(false);
+    expect(t.personagens[0].inventario.itens[0].quantidade).toBe(8);
+    // De volta: ainda reconhece a escrita perdida e não conta duas vezes.
+    globalThis.supabaseClient = fake;
+    expect((await g.salvar(1)).ok).toBe(true);
+    expect(t.personagens[0].inventario.itens[0].quantidade).toBe(7);
+  });
+});

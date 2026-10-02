@@ -182,9 +182,26 @@ function criarGravadorInventario() {
       const tarefa = fila.then(async () => {
         const r = regs[pjId];
         if (!r) return { ok: true, gravou: false, enviado: null, inventario: null, versao: 0 };
+        /* A gravação anterior falhou (02/10/2026): pode ter chegado ao banco
+           com a resposta perdida. Se o banco está exatamente no que foi
+           enviado, aquilo vira a base — senão a mescla contra a base velha
+           contaria a mesma mudança duas vezes (10→8, depois 7 viraria 5).
+           Se está diferente, não chegou (ou foi atropelada): segue a base
+           velha e o conflito mescla normalmente. Releitura com erro: não
+           grava e guarda a dúvida para a próxima. */
+        if (r.talvezGravado) {
+          let atual;
+          try { atual = await lerInventarioComVersao(pjId); } catch (e) { atual = { error: e }; }
+          if (atual.error) return { ok: false, error: erroDe(atual.error) };
+          if (mesmoValor(atual.inventario, r.talvezGravado)) {
+            r.base = atual.inventario;
+            r.versao = atual.versao;
+          }
+          r.talvezGravado = null;
+        }
         const enviado = r.local;
         const res = await gravarInventario(pjId, { base: r.base, local: enviado, versao: r.versao });
-        if (!res.ok) return res;
+        if (!res.ok) { r.talvezGravado = enviado; return res; }
         r.base = res.inventario;
         r.versao = res.versao;
         r.local = r.local === enviado ? res.inventario : mesclarInventario(enviado, r.local, res.inventario);
