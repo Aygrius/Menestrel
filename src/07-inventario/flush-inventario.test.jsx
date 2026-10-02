@@ -55,9 +55,9 @@ const novoPj = (id, nome, itens) => ({
   estado_atual: {},
 });
 
-function montar(pjs, props) {
+function montar(pjs, props, catalogo = CATALOGO) {
   const tabelas = {
-    personagens: pjs, itens: CATALOGO,
+    personagens: pjs, itens: catalogo,
     historias: [{ id: 9, protagonista_ids: pjs.map((p) => p.id) }],
     __authUserId: USER,
     __rpc: { get_pjs_historia: [], get_loja_pj: { ok: true, historia_titulo: 'Mesa' } },
@@ -87,6 +87,37 @@ const cordaGravada = (tabelas, pjId) => {
   return pj.inventario.itens.find((it) => it.instanceId === 'cor-1');
 };
 
+/* Trava a PRIMEIRA escrita do inventário em voo (mesma técnica do teste do
+   gravador): `comecou` resolve quando alguém consome o update; o banco só
+   recebe a escrita depois de `liberar()`. Escritas de estado_atual passam. */
+function travarPrimeiraEscritaDoInventario() {
+  const fake = globalThis.supabaseClient;
+  let liberar;
+  const liberada = new Promise((r) => { liberar = r; });
+  let sinalizar;
+  const comecou = new Promise((r) => { sinalizar = r; });
+  let travar = true;
+  globalThis.supabaseClient = {
+    ...fake,
+    from: (nome) => {
+      const tabela = fake.from(nome);
+      if (nome !== 'personagens') return tabela;
+      return {
+        ...tabela,
+        update: (campos) => {
+          const b = tabela.update(campos);
+          if (!travar || !('inventario' in campos)) return b;
+          travar = false;
+          const thenReal = b.then;
+          b.then = (res, rej) => { sinalizar(); return liberada.then(() => thenReal(res, rej)); };
+          return b;
+        },
+      };
+    },
+  };
+  return { fake, comecou, liberar };
+}
+
 describe('flush do inventário', () => {
   it('sair da tela antes do debounce grava a alteração', async () => {
     const { container, tabelas, unmount } = montar([novoPj(1, 'Aldren', itensIniciais())], { pjIdFixo: 1 });
@@ -110,6 +141,31 @@ describe('flush do inventário', () => {
     // E o PJ novo não recebe o inventário do anterior.
     await new Promise((r) => setTimeout(r, 600));
     expect(tabelas.personagens.find((p) => p.id === 2).inventario.itens).toEqual([]);
+  });
+});
+
+describe('gravação em voo', () => {
+  const cardAlforge = (container) => Array.from(container.querySelectorAll('.inv-grid-wrap .inv-card'))
+    .find((el) => el.querySelector('.inv-cont-bar'));
+
+  it('desfazer a mudança enquanto ela grava também chega ao banco', async () => {
+    const pj = { ...novoPj(1, 'Aldren', itensIniciais()), inventario_versao: 0 };
+    const { container, tabelas } = montar([pj], { pjIdFixo: 1 });
+    await waitFor(() => expect(screen.getByText('2 de 2')).toBeTruthy());
+    const trava = travarPrimeiraEscritaDoInventario();
+    const alforge = () => tabelas.personagens[0].inventario.itens.find((x) => x.instanceId === 'alf-1');
+
+    fireEvent.click(cardAlforge(container));
+    await waitFor(() => expect(botao('Despir')).toBeTruthy());
+    fireEvent.click(botao('Despir'));
+    await trava.comecou;                       // o autosave mandou "despido" e está em voo
+    await waitFor(() => expect(botao('Vestir')).toBeTruthy());
+    fireEvent.click(botao('Vestir'));          // desfaz: a tela volta a ser a base antiga
+    trava.liberar();
+
+    // 1ª gravação (despido) e depois a do desfazer (vestido de novo).
+    await waitFor(() => expect(tabelas.personagens[0].inventario_versao).toBe(2), { timeout: 2500 });
+    expect(alforge().vestido).toBe(true);
   });
 });
 

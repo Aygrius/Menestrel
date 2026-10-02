@@ -651,9 +651,19 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (!r.ok) { setSaving('error'); return; }
     setPjs((arr) => (arr || []).map((p) => (p.id === pjId ? { ...p, inventario: r.inventario, inventario_versao: r.versao } : p)));
     if (r.gravou) { setSaving('saved'); setTimeout(() => setSaving('idle'), 1500); }
-    if (selRef.current !== pjId || !r.enviado || mesmoValor(r.inventario, r.enviado)) return;
-    // Veio mudança de fora: a tela passa a mostrar, por cima do que mudou nela.
-    setInv((cur) => (cur === r.enviado ? r.inventario : mesclarInventario(r.enviado, cur, r.inventario)));
+    if (selRef.current === pjId && r.enviado && !mesmoValor(r.inventario, r.enviado)) {
+      // Veio mudança de fora: a tela passa a mostrar, por cima do que mudou
+      // nela. O `inv` novo faz o autosave rodar de novo se sobrar diferença.
+      setInv((cur) => (cur === r.enviado ? r.inventario : mesclarInventario(r.enviado, cur, r.inventario)));
+      return;
+    }
+    /* A tela mudou DURANTE a gravação e o `inv` não vai mudar de novo
+       (02/10/2026): equipar, e desequipar com o equipar em voo, deixa a tela
+       igual à base antiga — o autosave achou que não havia o que gravar.
+       Agora a base é o que foi gravado, a diferença existe: grava de novo.
+       Sem loop: só sobra diferença se a tela mudou durante esta gravação. */
+    const g = gravadorRef.current;
+    if (g.sujo(pjId)) g.salvar(pjId).then((r2) => aplicarGravacao(pjId, r2));
   };
   useEffect(() => {
     if (autosavePjRef.current !== selectedId) { autosavePjRef.current = selectedId; return; }
