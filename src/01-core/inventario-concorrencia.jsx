@@ -125,6 +125,12 @@ async function gravarInventario(pjId, { base, local, versao } = {}) {
       if (r.ok) return { ...r, gravou: true };
       const atual = await lerInventarioComVersao(pjId);
       if (atual.error) return { ok: false, error: erroDe(atual.error) };
+      // Reenvio depois de resposta perdida: a gravação anterior já chegou ao
+      // banco (R já é exatamente o que queríamos), só a resposta se perdeu.
+      // Mesclar de novo contaria a mesma mudança (ex.: quantidade) duas vezes.
+      if (mesmoValor(atual.inventario, local)) {
+        return { ok: true, inventario: atual.inventario, versao: atual.versao, gravou: false };
+      }
       alvo = mesclarInventario(base, local, atual.inventario);
       v = atual.versao;
     }
@@ -157,4 +163,37 @@ async function alterarInventario(pjId, fn) {
   }
 }
 
-Object.assign(window, { mesmoValor, mesclarInventario, gravarInventario, alterarInventario });
+/* Gravador por PJ para a tela que segura cópia (InventarioList). O autosave,
+   o flush ao sair e o flush ao trocar de PJ podem se sobrepor na mesma aba;
+   cada um calculando a diferença a partir de uma base velha contaria a mesma
+   mudança duas vezes. Aqui: uma gravação por vez, cada uma partindo da última
+   base que o banco confirmou, e o que a tela mudou DURANTE a gravação é
+   rebaseado por cima do resultado. */
+function criarGravadorInventario() {
+  const regs = {};
+  let fila = Promise.resolve();
+  return {
+    carregar(pjId, inventario, versao) { regs[pjId] = { base: inventario, versao: Number(versao) || 0, local: inventario }; },
+    tem(pjId) { return !!regs[pjId]; },
+    alterar(pjId, local) { if (regs[pjId]) regs[pjId].local = local; },
+    atual(pjId) { return regs[pjId] ? regs[pjId].local : null; },
+    sujo(pjId) { const r = regs[pjId]; return !!r && !mesmoValor(r.base, r.local); },
+    salvar(pjId) {
+      const tarefa = fila.then(async () => {
+        const r = regs[pjId];
+        if (!r) return { ok: true, gravou: false, enviado: null, inventario: null, versao: 0 };
+        const enviado = r.local;
+        const res = await gravarInventario(pjId, { base: r.base, local: enviado, versao: r.versao });
+        if (!res.ok) return res;
+        r.base = res.inventario;
+        r.versao = res.versao;
+        r.local = r.local === enviado ? res.inventario : mesclarInventario(enviado, r.local, res.inventario);
+        return { ok: true, gravou: res.gravou, enviado, inventario: res.inventario, versao: res.versao };
+      });
+      fila = tarefa.catch(() => {});
+      return tarefa;
+    },
+  };
+}
+
+Object.assign(window, { mesmoValor, mesclarInventario, gravarInventario, alterarInventario, criarGravadorInventario });

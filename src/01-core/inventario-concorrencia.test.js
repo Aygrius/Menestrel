@@ -131,6 +131,17 @@ describe('gravarInventario', () => {
     expect(r.ok).toBe(false);
     expect(r.error.message).toBe('rede fora');
   });
+  it('reenvio depois de resposta perdida não conta a quantidade duas vezes', async () => {
+    const t = { personagens: [pj([it_('f', { quantidade: 10 })], 0)] };
+    globalThis.supabaseClient = fakeSupabase(t);
+    const B = t.personagens[0].inventario;
+    const L = inv([it_('f', { quantidade: 8 })]);
+    // A primeira gravação chegou ao banco, mas a resposta se perdeu.
+    await globalThis.supabaseClient.from('personagens').update({ inventario: L }).eq('id', 1);
+    const r = await window.gravarInventario(1, { base: B, local: L, versao: 0 });
+    expect(r.ok).toBe(true);
+    expect(t.personagens[0].inventario.itens[0].quantidade).toBe(8);
+  });
 });
 
 describe('alterarInventario', () => {
@@ -169,5 +180,58 @@ describe('alterarInventario', () => {
     globalThis.supabaseClient = fakeSupabase({ personagens: [] });
     const r = await window.alterarInventario(1, (i) => i);
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('criarGravadorInventario', () => {
+  it('duas gravações do mesmo PJ em voo não contam a quantidade duas vezes', async () => {
+    const t = { personagens: [pj([it_('f', { quantidade: 10 })], 0)] };
+    globalThis.supabaseClient = fakeSupabase(t);
+    const g = window.criarGravadorInventario();
+    g.carregar(1, t.personagens[0].inventario, 0);
+    g.alterar(1, inv([it_('f', { quantidade: 8 })]));     // usou 2
+    const p1 = g.salvar(1);                                 // autosave em voo
+    g.alterar(1, inv([it_('f', { quantidade: 7 })]));     // usou mais 1 enquanto gravava
+    const p2 = g.salvar(1);                                 // flush ao sair
+    await Promise.all([p1, p2]);
+    expect(t.personagens[0].inventario.itens[0].quantidade).toBe(7);
+    expect(g.sujo(1)).toBe(false);
+  });
+
+  it('o que mudou por fora aparece no local depois de gravar', async () => {
+    const t = { personagens: [pj([it_('corda'), it_('f', { quantidade: 10 })], 0)] };
+    globalThis.supabaseClient = fakeSupabase(t);
+    const g = window.criarGravadorInventario();
+    g.carregar(1, t.personagens[0].inventario, 0);
+    await globalThis.supabaseClient.from('personagens')
+      .update({ inventario: inv([it_('corda'), it_('f', { quantidade: 9 })]) }).eq('id', 1);
+    g.alterar(1, inv([it_('corda', { containerId: 'alforge' }), it_('f', { quantidade: 10 })]));
+    const r = await g.salvar(1);
+    expect(r.ok).toBe(true);
+    expect(g.atual(1).itens).toEqual([it_('corda', { containerId: 'alforge' }), it_('f', { quantidade: 9 })]);
+  });
+
+  it('sem mudança local, salvar não grava', async () => {
+    const t = { personagens: [pj([it_('a')], 3)] };
+    globalThis.supabaseClient = fakeSupabase(t);
+    const g = window.criarGravadorInventario();
+    g.carregar(1, t.personagens[0].inventario, 3);
+    const r = await g.salvar(1);
+    expect(r).toMatchObject({ ok: true, gravou: false });
+    expect(t.personagens[0].inventario_versao).toBe(3);
+  });
+
+  it('falha numa gravação não trava a fila', async () => {
+    let falhar = true;
+    const t = { personagens: [pj([it_('a')], 0)] };
+    const fake = fakeSupabase(t);
+    globalThis.supabaseClient = { ...fake, from: (n) => { if (falhar) { falhar = false; throw new Error('rede'); } return fake.from(n); } };
+    const g = window.criarGravadorInventario();
+    g.carregar(1, t.personagens[0].inventario, 0);
+    g.alterar(1, inv([]));
+    expect((await g.salvar(1)).ok).toBe(false);
+    expect(g.sujo(1)).toBe(true);
+    expect((await g.salvar(1)).ok).toBe(true);
+    expect(t.personagens[0].inventario.itens).toEqual([]);
   });
 });
