@@ -99,7 +99,8 @@ update({ inventario }).eq('id', pjId).eq('inventario_versao', versaoLida)
 Uma linha de volta = gravou. Zero linhas = conflito: relê, refaz, tenta de novo,
 até 3 tentativas; depois devolve erro.
 
-Helpers em `src/01-core/inventario-helpers.jsx` (expostos no `window`):
+Helpers em `src/01-core/inventario-concorrencia.jsx`, importado por
+`src/01-core/inventario-helpers.jsx` (expostos no `window`):
 
 - `mesclarInventario(base, local, remoto)` — seção 1.
 - `gravarInventario(pjId, { base, local, versao })` — para quem segura cópia. Se
@@ -108,6 +109,11 @@ Helpers em `src/01-core/inventario-helpers.jsx` (expostos no `window`):
   `{ ok, inventario, versao }` ou `{ ok: false, error }`.
 - `alterarInventario(pjId, fn)` — para mudança pontual. Lê `(R, versão)`, grava
   `fn(R)` com a trava; em conflito, repete com o dado novo. Mesmo retorno.
+- `criarGravadorInventario()` — gravador por PJ da tela de Inventário: uma
+  gravação por vez, cada uma partindo da última base confirmada. Se uma
+  gravação falha, o gravador lembra o que mandou e, antes da próxima, relê: se
+  o banco está exatamente nisso (a escrita chegou, a resposta se perdeu), vira
+  a base — senão a mudança seria contada duas vezes.
 
 ## 3. Integração
 
@@ -119,7 +125,9 @@ Helpers em `src/01-core/inventario-helpers.jsx` (expostos no `window`):
 - Rebase ao terminar: com o resultado M, `inv = mesclarInventario(enviado,
   invAtualNaTela, M)`, `base = M`, `versao = nova`. Sem mudança no meio-tempo, a
   tela passa a mostrar M (aparece o que mudou por fora). Sem diferença local,
-  nada é gravado — o autosave não entra em laço.
+  nada é gravado — o autosave não entra em laço. Se a tela mudou durante a
+  gravação (ex.: desfez o que estava sendo gravado), outra gravação é agendada
+  ao terminar a primeira; o flush ao trocar de PJ também rebaseia a tela.
 
 **Ficha (`salvarItensFicha`):** base = `pj.inventario` exibido; local = base com
 a peça desequipada/despida; versão = `pj.inventario_versao`. Só a peça vai ao

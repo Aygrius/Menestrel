@@ -128,6 +128,10 @@ async function gravarInventario(pjId, { base, local, versao } = {}) {
       // Reenvio depois de resposta perdida: a gravação anterior já chegou ao
       // banco (R já é exatamente o que queríamos), só a resposta se perdeu.
       // Mesclar de novo contaria a mesma mudança (ex.: quantidade) duas vezes.
+      // LIMITE ACEITO (02/10/2026): daqui não dá para distinguir "a minha
+      // escrita perdida chegou" de "outra tela fez a mudança idêntica" —
+      // B=10 e as duas gastam 1: fica 9, não 8. Raro, e preferível a contar
+      // em dobro toda resposta perdida.
       if (mesmoValor(atual.inventario, local)) {
         return { ok: true, inventario: atual.inventario, versao: atual.versao, gravou: false };
       }

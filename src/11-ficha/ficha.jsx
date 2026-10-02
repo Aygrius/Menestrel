@@ -22,8 +22,9 @@
    Ficha, ao lado do Arsenal.
 
    Desequipar uma peça (clique na casa) devolve o item ao
-   inventário (limpa equipado/slot) e salva direto em
-   personagens.inventario.
+   inventário (limpa equipado/slot) e grava só essa mudança por
+   gravarInventario (trava de versão + mescla), sem sobrescrever o
+   que mudou por fora (02/10/2026).
 
    Os 7 atributos-base NÃO são exibidos aqui (vivem no wizard de
    criação, fase 08). Todos os números da ficha são derivados.
