@@ -1958,21 +1958,12 @@ function consumirDoInventario(itens, slug, qtd) {
    Relê a linha imediatamente antes de escrever, pra baixa partir sempre do
    estado corrente. Devolve { ok, inventario } ou { ok:false, error }.
 
-   ⚠️ Ainda é read-then-write, não atômico: duas baixas exatamente simultâneas
-   podem se perder. Fechar isso de vez pede uma RPC que faça a conta no
-   servidor (como comprar_item/transfer_item já fazem). O que esta função
-   elimina é a janela LONGA — de minutos — que era o problema real.
+   Grava com a trava de versão (alterarInventario, 02/10/2026): escrita
+   simultânea é reaplicada, não perdida.
    Cobertura: 12-batalha/consumo-item.test.js. */
 async function consumirItemDoPJ(pjId, slug, qtd) {
-  const { data, error } = await supabaseClient
-    .from('personagens').select('inventario').eq('id', pjId).maybeSingle();
-  if (error) return { ok: false, error };
-  const inv = (data && data.inventario) || {};
-  const novoInv = { ...inv, itens: consumirDoInventario(inv.itens || [], slug, qtd) };
-  const { error: upErr } = await supabaseClient
-    .from('personagens').update({ inventario: novoInv }).eq('id', pjId);
-  if (upErr) return { ok: false, error: upErr };
-  return { ok: true, inventario: novoInv };
+  const r = await alterarInventario(pjId, (inv) => ({ ...inv, itens: consumirDoInventario(inv.itens || [], slug, qtd) }));
+  return r.ok ? { ok: true, inventario: r.inventario } : { ok: false, error: r.error };
 }
 
 /* ── O pergaminho some depois de lido ──────────────────────────────
@@ -2022,7 +2013,7 @@ function aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntes, venenoEf) {
 
 /* Efeito colateral do golpe de ARMA no inventário do PJ: o arco gasta a
    flecha disparada (acertando ou não — flecha atirada é flecha gasta); a arma
-   untada gasta uma das 15 ações do veneno. Mesma escrita relida de
+   untada gasta uma das 15 ações do veneno. Mesma escrita com trava de
    consumirItemDoPJ, e o cache da batalha acompanha. */
 async function gastarMunicaoEVeneno(ator, arma, catalogos) {
   if (!ator || ator.tipo !== 'pj' || !arma) return;
@@ -2037,15 +2028,9 @@ async function gastarMunicaoEVeneno(ator, arma, catalogos) {
     return;
   }
   if (arma.veneno && arma.instanceId && typeof gastarAcaoDoVeneno === 'function') {
-    const { data, error } = await supabaseClient
-      .from('personagens').select('inventario').eq('id', ator.ref_id).maybeSingle();
-    if (error) { console.error('[batalha] leitura do veneno falhou:', error); return; }
-    const inv = (data && data.inventario) || {};
-    const novoInv = { ...inv, itens: gastarAcaoDoVeneno(inv.itens || [], arma.instanceId) };
-    const { error: upErr } = await supabaseClient
-      .from('personagens').update({ inventario: novoInv }).eq('id', ator.ref_id);
-    if (upErr) { console.error('[batalha] gasto do veneno falhou:', upErr); return; }
-    atualizarCache(novoInv);
+    const r = await alterarInventario(ator.ref_id, (inv) => ({ ...inv, itens: gastarAcaoDoVeneno(inv.itens || [], arma.instanceId) }));
+    if (!r.ok) { console.error('[batalha] gasto do veneno falhou:', r.error); return; }
+    atualizarCache(r.inventario);
   }
 }
 
@@ -6330,14 +6315,11 @@ function SaqueModal({ alvo, criatura, catalogoBySlug, saqueadores, isEn, lang, o
   );
 }
 
-/* Grava o saque no inventário do PJ: lê a linha agora (não a cópia da tela),
-   soma e grava — ver adicionarAoInventario. Devolve { error }. */
+/* Grava o saque no inventário do PJ: soma no inventário do banco e grava com
+   a trava de versão — ver adicionarAoInventario. Devolve { error }. */
 async function gravarSaqueNoPj(pjId, slug, qtd) {
-  const { data, error } = await supabaseClient.from('personagens').select('inventario').eq('id', pjId).maybeSingle();
-  if (error || !data) return { error: error || new Error('PJ não encontrado.') };
-  const novo = adicionarAoInventario(data.inventario, slug, qtd);
-  const { error: erroUp } = await supabaseClient.from('personagens').update({ inventario: novo }).eq('id', pjId);
-  return { error: erroUp || null };
+  const r = await alterarInventario(pjId, (inv) => adicionarAoInventario(inv, slug, qtd));
+  return { error: r.ok ? null : r.error };
 }
 
 function textoSaque(pjNome, qtd, itemNome, alvoNome, en) {
@@ -7850,15 +7832,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const donos = Object.keys(mortosPorDono);
     if (donos.length > 0) {
       const resultadosAni = await Promise.all(donos.map(async (donoId) => {
-        const { data: pjRow, error: invErr } = await supabaseClient
-          .from('personagens').select('inventario').eq('id', donoId).maybeSingle();
-        if (invErr) return { ok: false, error: invErr };
-        const inv = pjRow && pjRow.inventario;
-        const novoInv = inventarioSemAnimaisMortos(inv, mortosPorDono[donoId]);
-        if (!novoInv || novoInv === inv) return { ok: true };
-        const { error: upInvErr } = await supabaseClient
-          .from('personagens').update({ inventario: novoInv }).eq('id', donoId);
-        return upInvErr ? { ok: false, error: upInvErr } : { ok: true };
+        const r = await alterarInventario(donoId, (inv) => inventarioSemAnimaisMortos(inv, mortosPorDono[donoId]));
+        return r.ok ? { ok: true } : { ok: false, error: r.error };
       }));
       const falhaAni = resultadosAni.find((r) => !r.ok);
       if (falhaAni) { setSalvando(false); setError(falhaAni.error.message); return; }

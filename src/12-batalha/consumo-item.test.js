@@ -91,6 +91,30 @@ describe('consumirItemDoPJ', () => {
     expect(r.ok).toBe(false);
     expect(escreveu).toBe(false);
   });
+
+  it('grava com a trava de versão: outra escrita no meio é reaplicada, não perdida', async () => {
+    const tabelas = { personagens: [{ ...pjCom([poc('a', 5)]), inventario_versao: 0 }] };
+    const fake = fakeSupabase(tabelas);
+    // Entre a leitura e a escrita desta baixa, outra tela gasta 2 (versão vai a 1).
+    const fromOriginal = fake.from;
+    let interferiu = false;
+    fake.from = (nome) => {
+      const t = fromOriginal(nome);
+      const upd = t.update;
+      t.update = (campos) => {
+        if (!interferiu) {
+          interferiu = true;
+          tabelas.personagens[0] = { ...pjCom([poc('a', 3)]), inventario_versao: 1 };
+        }
+        return upd(campos);
+      };
+      return t;
+    };
+    globalThis.supabaseClient = fake;
+    const r = await M().consumirItemDoPJ(1, 'pocao', 1);
+    expect(r.ok).toBe(true);
+    expect(tabelas.personagens[0].inventario.itens).toEqual([poc('a', 2)]);
+  });
 });
 
 describe('os dois lados usam a função', () => {
@@ -103,5 +127,9 @@ describe('os dois lados usam a função', () => {
     expect((fonte.match(/consumirItemDoPJ\(/g) || []).length).toBeGreaterThanOrEqual(3);
     // E ninguém montou o inventário a partir do cache de novo.
     expect(fonte).not.toMatch(/const invAtual = \(pjAtual\.inventario/);
+  });
+
+  it('ninguém na batalha grava o inventário sem a trava', () => {
+    expect(fonte).not.toMatch(/\.update\(\{\s*inventario:/);
   });
 });
