@@ -2704,18 +2704,23 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
   // ── Desequipar / Despir direto da ficha ───────────────────
   // Clique numa casa preenchida limpa as flags da peça (volta ao
-  // inventário) e persiste o JSONB inteiro em personagens.inventario.
+  // inventário) e persiste em personagens.inventario só a mudança (gravarInventario).
   // Dono do PJ OU Mestre — mesmo critério da aba Inventário, que passa
   // currentUserId={pj.user_id} pro InventarioList quando isMestre.
   const podeEditarInv = podeEditarFoto || !!isMestre;
   const salvarItensFicha = async (novosItens) => {
-    const novoInv = { ...(pj.inventario || {}), itens: novosItens };
+    const base = pj.inventario || {};
+    const novoInv = { ...base, itens: novosItens };
     const anterior = pj;
     setEqErro(null);
     setPj((prev) => ({ ...prev, inventario: novoInv }));
-    const { error: err } = await supabaseClient
-      .from('personagens').update({ inventario: novoInv }).eq('id', pj.id);
-    if (err) { setPj(anterior); setEqErro(err.message); }
+    // Só a peça mexida vai ao banco, mesclada com o que mudou por fora — a
+    // cópia da Ficha pode estar velha (02/10/2026).
+    const r = await gravarInventario(pj.id, { base, local: novoInv, versao: pj.inventario_versao });
+    if (!r.ok) { setPj(anterior); setEqErro(r.error.message); return; }
+    setPj((prev) => (prev.inventario === novoInv
+      ? { ...prev, inventario: r.inventario, inventario_versao: r.versao }
+      : { ...prev, inventario_versao: r.versao }));
   };
   const desequiparFicha = (instanceId) => {
     if (!podeEditarInv) return;
