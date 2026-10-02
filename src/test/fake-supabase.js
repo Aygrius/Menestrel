@@ -16,6 +16,10 @@
        .limit(n)                              → encadeia e corta em n linhas
        .range(de, ate)                        → devolve a fatia, com o TETO
                                                 de 1000 do PostgREST
+     from(t).update(campos).eq(..)[.eq(..)][.select()]
+                                            → grava ao ser consumido; em
+                                              personagens imita o gatilho
+                                              de inventario_versao
 
    O `.range` importa: desde que as leituras de catálogo passaram por
    fetchTabelaPaginada (01/09/2026), quem não modela range recebe undefined
@@ -98,25 +102,39 @@ export function fakeSupabase(tabelas) {
     },
     from: (nome) => ({
       select: (colunas) => resultado(nome, colunas),
-      // update(campos).eq(col, val) — grava NA TABELA em memória, para que uma
-      // leitura seguinte enxergue o efeito. É isso que permite testar
-      // read-before-write: o teste mexe na tabela "por fora" entre a carga e a
-      // escrita e verifica quem venceu.
-      // Preguiçoso como o supabase-js: só grava quando alguém consome a
-      // consulta (await/.then). Um update "solto", sem then, não grava nada —
-      // igual em produção, onde isso escondeu o flush do inventário (02/10/2026).
-      update: (campos) => ({
-        eq: (col, val) => ({
+      // update(campos).eq(...)[.eq(...)][.select(cols)] — grava NA TABELA em
+      // memória quando consumido (await/.then), como o supabase-js. Em
+      // `personagens` imita o gatilho personagens_inventario_versao
+      // (scripts/sql/inventario-versao-2026-10-02.sql): a versão sobe quando o
+      // inventário muda e o cliente nunca a escolhe. Coluna ausente vale 0,
+      // como o default do banco.
+      update: (campos) => {
+        const filtros = [];
+        let comRetorno = false;
+        const valorDe = (linha, col) => (nome === 'personagens' && col === 'inventario_versao'
+          ? (Number(linha[col]) || 0) : linha[col]);
+        const b = {
+          eq(col, val) { filtros.push([col, val]); return b; },
+          select() { comRetorno = true; return b; },
           then: (res, rej) => {
             const linhas = linhasDe(nome);
-            let n = 0;
+            const afetadas = [];
             for (let i = 0; i < linhas.length; i++) {
-              if (linhas[i][col] === val) { linhas[i] = { ...linhas[i], ...campos }; n++; }
+              if (!filtros.every(([c, v]) => valorDe(linhas[i], c) === v)) continue;
+              const antes = linhas[i];
+              const depois = { ...antes, ...campos };
+              if (nome === 'personagens') {
+                const v = Number(antes.inventario_versao) || 0;
+                depois.inventario_versao = JSON.stringify(depois.inventario) !== JSON.stringify(antes.inventario) ? v + 1 : v;
+              }
+              linhas[i] = depois;
+              afetadas.push(depois);
             }
-            return Promise.resolve({ data: null, error: null, count: n }).then(res, rej);
+            return Promise.resolve({ data: comRetorno ? afetadas : null, error: null, count: afetadas.length }).then(res, rej);
           },
-        }),
-      }),
+        };
+        return b;
+      },
     }),
   };
 }
