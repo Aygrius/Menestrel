@@ -186,14 +186,49 @@ describe('alterarInventario', () => {
 describe('criarGravadorInventario', () => {
   it('duas gravações do mesmo PJ em voo não contam a quantidade duas vezes', async () => {
     const t = { personagens: [pj([it_('f', { quantidade: 10 })], 0)] };
-    globalThis.supabaseClient = fakeSupabase(t);
+    const fake = fakeSupabase(t);
+    // Trava a PRIMEIRA escrita em 'personagens' logo que ela começa (quando
+    // alguém dá await nela), pra garantir que a 2ª alteração e o 2º salvar
+    // aconteçam com a 1ª escrita genuinamente em voo — não só enfileirados
+    // antes de qualquer microtask rodar.
+    let liberarPrimeiraEscrita;
+    const primeiraEscritaLiberada = new Promise((r) => { liberarPrimeiraEscrita = r; });
+    let sinalizarInicio;
+    const primeiraEscritaComecou = new Promise((r) => { sinalizarInicio = r; });
+    const enviados = [];
+    let travarProxima = true;
+    globalThis.supabaseClient = {
+      ...fake,
+      from: (nome) => {
+        const tabela = fake.from(nome);
+        if (nome !== 'personagens') return tabela;
+        return {
+          ...tabela,
+          update: (campos) => {
+            const b = tabela.update(campos);
+            if (!travarProxima) return b;
+            travarProxima = false;
+            enviados.push(campos.inventario);
+            const thenReal = b.then;
+            b.then = (res, rej) => {
+              sinalizarInicio();
+              return primeiraEscritaLiberada.then(() => thenReal(res, rej));
+            };
+            return b;
+          },
+        };
+      },
+    };
     const g = window.criarGravadorInventario();
     g.carregar(1, t.personagens[0].inventario, 0);
     g.alterar(1, inv([it_('f', { quantidade: 8 })]));     // usou 2
-    const p1 = g.salvar(1);                                 // autosave em voo
-    g.alterar(1, inv([it_('f', { quantidade: 7 })]));     // usou mais 1 enquanto gravava
-    const p2 = g.salvar(1);                                 // flush ao sair
+    const p1 = g.salvar(1);                                 // autosave; trava na 1ª escrita
+    await primeiraEscritaComecou;                           // espera a 1ª escrita realmente começar
+    g.alterar(1, inv([it_('f', { quantidade: 7 })]));     // usou mais 1 enquanto a 1ª gravava
+    const p2 = g.salvar(1);                                 // flush ao sair, atrás na fila
+    liberarPrimeiraEscrita();                                // libera a 1ª escrita
     await Promise.all([p1, p2]);
+    expect(enviados[0].itens[0].quantidade).toBe(8);        // a 1ª escrita mandou 8, não 7
     expect(t.personagens[0].inventario.itens[0].quantidade).toBe(7);
     expect(g.sujo(1)).toBe(false);
   });
