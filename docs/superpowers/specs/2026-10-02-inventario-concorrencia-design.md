@@ -1,6 +1,6 @@
 # Gravações concorrentes no inventário — design
 
-Data: 02/10/2026 · Status: aprovado em conversa, aguardando revisão da spec
+Data: 02/10/2026 · Status: implementado em 02/10/2026 (plano docs/superpowers/plans/2026-10-02-inventario-concorrencia.md)
 
 ## Problema
 
