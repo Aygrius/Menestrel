@@ -13,6 +13,7 @@
                                                 operador; ver `not` abaixo)
        .order(col)                            → encadeia (ordem é ignorada;
                                                 nenhum teste depende dela)
+       .limit(n)                              → encadeia e corta em n linhas
        .range(de, ate)                        → devolve a fatia, com o TETO
                                                 de 1000 do PostgREST
 
@@ -72,6 +73,7 @@ export function fakeSupabase(tabelas) {
         return box;
       },
       order() { return box; },
+      limit(n) { linhas = linhas.slice(0, n); return box; },
       maybeSingle: () => Promise.resolve({ data: linhas[0] ?? null, error: null }),
       single: () => Promise.resolve({ data: linhas[0] ?? null, error: null }),
       range(de, ate) {
@@ -100,15 +102,20 @@ export function fakeSupabase(tabelas) {
       // leitura seguinte enxergue o efeito. É isso que permite testar
       // read-before-write: o teste mexe na tabela "por fora" entre a carga e a
       // escrita e verifica quem venceu.
+      // Preguiçoso como o supabase-js: só grava quando alguém consome a
+      // consulta (await/.then). Um update "solto", sem then, não grava nada —
+      // igual em produção, onde isso escondeu o flush do inventário (02/10/2026).
       update: (campos) => ({
-        eq: (col, val) => {
-          const linhas = linhasDe(nome);
-          let n = 0;
-          for (let i = 0; i < linhas.length; i++) {
-            if (linhas[i][col] === val) { linhas[i] = { ...linhas[i], ...campos }; n++; }
-          }
-          return Promise.resolve({ data: null, error: null, count: n });
-        },
+        eq: (col, val) => ({
+          then: (res, rej) => {
+            const linhas = linhasDe(nome);
+            let n = 0;
+            for (let i = 0; i < linhas.length; i++) {
+              if (linhas[i][col] === val) { linhas[i] = { ...linhas[i], ...campos }; n++; }
+            }
+            return Promise.resolve({ data: null, error: null, count: n }).then(res, rej);
+          },
+        }),
       }),
     }),
   };

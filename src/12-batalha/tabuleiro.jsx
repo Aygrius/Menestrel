@@ -1112,9 +1112,14 @@ function TabuleiroBatalha({
      tem token nem lugar na bancada; anda dentro do token do cavaleiro. */
   const _emUso = (window.MotorBatalha && window.MotorBatalha.ehMontariaEmUso) || (() => false);
   const participantesTab = entradas.map((e) => e.p);
-  const visivel = (e) => !e.p.fugiu && !_emUso(e.p, participantesTab);
+  /* Reforço chegando (29/09/2026) não é token nem vai à bancada: só o ponto
+     de chegada aparece, esmaecido — e só para o Mestre, porque a tela do
+     Jogador nem o recebe nas entradas. */
+  const chegando = (p) => p.status === 'chegando';
+  const visivel = (e) => !e.p.fugiu && !chegando(e.p) && !_emUso(e.p, participantesTab);
   const noTabuleiro = entradas.filter((e) => posValida(e.p.pos) && visivel(e));
   const naBancada   = entradas.filter((e) => !posValida(e.p.pos) && !e.p.ausente && visivel(e));
+  const pontosDeChegada = entradas.filter((e) => chegando(e.p) && posValida(e.p.pos_entrada));
   const metaDe = (p) => (meta || {})[p.tipo + ':' + p.ref_id] || null;
 
   // Centraliza a rolagem no "centro de massa" dos tokens ao abrir.
@@ -1347,6 +1352,26 @@ function TabuleiroBatalha({
              menuDe) clicar noutro token continua trocando quem posiciona. */
           atravessavel: movendoArmado,
           onSelect: () => aoClicarToken(e),
+        }))),
+        // Ponto de chegada dos reforços: o token esmaecido, sem clique — o
+        // ponto se remarca pela lista "Chegam na próxima rodada".
+        pontosDeChegada.map((e) => React.createElement('div', {
+          key: 'chegada:' + (e.p.inst_id || e.p.tipo + ':' + e.p.ref_id + ':' + e.i),
+          className: 'batalha-token-chegando',
+          'aria-hidden': 'true',
+          style: {
+            position: 'absolute',
+            left: (e.p.pos_entrada.x + TAB_TOKEN / 2) * cel,
+            top:  (e.p.pos_entrada.y + TAB_TOKEN / 2) * cel,
+            transform: 'translate(-50%, -50%)',
+            transition: 'left .15s ease, top .15s ease',
+            zIndex: 1, pointerEvents: 'none',
+          },
+        }, React.createElement(TabuleiroToken, {
+          p: e.p, meta: metaDe(e.p),
+          size: Math.max(14, Math.round(TAB_TOKEN_ESCALA * cel * 0.95)),
+          selecionado: e.i === movendo, atual: false, podeSel: false,
+          onSelect: () => {},
         })))
       )
     )),

@@ -315,196 +315,6 @@ function AdminEmpty({ ac, sectionLabel }) {
   );
 }
 
-// ---------- FichasJogador: fichas dos personagens do jogador ----------
-// Exibe cards de ficha para cada personagem do jogador. Clicar num card
-// abre o modal de visualização completa (PersonagemFichaModal / onVerFicha).
-// Depende de: calcularFicha, ATRIBUTOS_KEYS, ATRIBUTOS_LABEL (game-data.jsx)
-//             supabaseClient (global), Icon (este arquivo)
-function FichasJogador({ ac, lang, currentUserId }) {
-  const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
-  const [personagens, setPersonagens] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [fichaAberta, setFichaAberta] = useState(null); // personagem selecionado pro modal
-
-  // Busca os personagens do jogador logado
-  useEffect(() => {
-    if (!currentUserId) return;
-    (async () => {
-      setLoading(true);
-      const { data, error } = await supabaseClient
-        .from('personagens')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .order('nome');
-      if (!error && data) setPersonagens(data);
-      setLoading(false);
-    })();
-  }, [currentUserId]);
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, gap: 10, color: '#BFAF8E' }}>
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.4" style={{ animation: 'spin 1s linear infinite' }}>
-          <path d="M12 2 A10 10 0 0 1 22 12" strokeLinecap="round" />
-        </svg>
-        <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-base)' }}>
-          {lang === 'en' ? 'Loading sheets…' : 'Carregando fichas…'}
-        </span>
-      </div>
-    );
-  }
-
-  if (!personagens.length) {
-    const lineL = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, transparent, rgba(201,164,78,0.45))' };
-    const lineR = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, rgba(201,164,78,0.45), transparent)' };
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '64px 24px', minHeight: 260 }}>
-        <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 300, color: '#E0BE68' }}>
-          <span style={lineL} /><Icon.Ornament style={{ width: 56, height: 22, flex: '0 0 auto' }} /><span style={lineR} />
-        </div>
-        <p style={{ margin: 0, fontSize: 'var(--fs-base)', color: '#BFAF8E', lineHeight: 1.6, maxWidth: 420 }}>
-          {lang === 'en'
-            ? 'No characters yet. Create one in Personagens.'
-            : 'Nenhum personagem ainda. Crie um em Personagens.'}
-        </p>
-      </div>
-    );
-  }
-
-  const FB = "var(--font-body)";
-
-  return (
-    <>
-      {/* Grid de cards de ficha */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: 20,
-      }}>
-        {personagens.map((p) => {
-          // Calcula derivadas sem catálogo de itens (versão rápida p/ card)
-          const ficha = calcularFicha(p, null);
-          const { estagio, atributos, derivadas } = ficha;
-          const titulo = tituloDoPersonagem(p);
-
-          return (
-            <div
-              key={p.id}
-              className="fj-card"
-              style={{ cursor: 'pointer', position: 'relative', background: 'linear-gradient(180deg, #2D261C 0%, #251E0C 100%)', border: '1px solid rgba(138,110,64,0.30)', borderRadius: 6, padding: 18, boxShadow: '0 16px 40px -28px rgba(8,6,2,0.8)' }}
-              onClick={() => setFichaAberta(p)}
-              {...propsTip(abrirTip, fecharTip, lang === 'en' ? 'Open sheet' : 'Abrir ficha')}
-            >
-              {/* Cabeçalho do card */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div>
-                  <div style={{
-                    fontFamily: "'Cinzel', serif",
-                    fontWeight: 700,
-                    fontSize: 16,
-                    color: '#E0BE68',
-                    lineHeight: 1.2,
-                  }}>
-                    {p.nome}
-                  </div>
-                  {titulo && (
-                    <div style={{ fontSize: 'var(--fs-sm)', color: '#BFAF8E', textTransform: 'uppercase', marginTop: 2 }}>
-                      {titulo}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 'var(--fs-sm)', color: '#BFAF8E', marginTop: 4 }}>
-                    {p.profissao} · {p.raca} · {lang === 'en' ? 'Stage' : 'Estágio'} {estagio}
-                  </div>
-                </div>
-                <div style={{
-                  background: 'rgba(201,164,78,0.12)',
-                  border: '1px solid rgba(201,164,78,0.28)',
-                  borderRadius: 6,
-                  padding: '3px 9px',
-                  fontSize: 'var(--fs-sm)',
-                  fontFamily: FB,
-                  fontWeight: 400,
-                  color: '#E0BE68',
-                  whiteSpace: 'nowrap',
-                  fontVariantNumeric: 'tabular-nums',
-                }}>
-                  {p.experiencia ?? 0} XP
-                </div>
-              </div>
-
-              {/* Divisor ornamental */}
-              <div style={{ borderTop: '1px solid rgba(138,110,64,0.30)', marginBottom: 12 }} />
-
-              {/* Derivadas principais */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px 10px', marginBottom: 12 }}>
-                {[
-                  { label: 'EF',  val: derivadas.energiaFisica },
-                  { label: 'EH',  val: derivadas.energiaHeroica },
-                  { label: 'RF',  val: derivadas.resistenciaFisica },
-                  { label: 'RM',  val: derivadas.resistenciaMagica },
-                  { label: 'KA',  val: derivadas.karma },
-                  { label: 'VB',  val: derivadas.velocidade },
-                ].map(({ label, val }) => (
-                  <div key={label} style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 'var(--fs-2xs)', textTransform: 'uppercase', color: '#BFAF8E' }}>{label}</div>
-                    <div style={{ fontSize: 'var(--fs-base)', fontFamily: FB, color: '#F1E6CF', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{val}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Atributos */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px' }}>
-                {ATRIBUTOS_KEYS.map((k) => (
-                  <div key={k} style={{
-                    fontSize: 'var(--fs-sm)',
-                    fontFamily: FB,
-                    fontVariantNumeric: 'tabular-nums',
-                    color: atributos[k] >= 0 ? '#BFAF8E' : '#D08271',
-                  }}>
-                    <span style={{ opacity: 0.6 }}>{ATRIBUTOS_LABEL[k].slice(0, 3).toUpperCase()} </span>
-                    <span style={{ color: atributos[k] > 0 ? '#E0BE68' : 'inherit' }}>
-                      {atributos[k] > 0 ? '+' : ''}{atributos[k]}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Defesa/Absorção se disponível */}
-              {(derivadas.defesa || derivadas.absorcao > 0) && (
-                <div style={{ marginTop: 10, display: 'flex', gap: 12, fontSize: 'var(--fs-sm)', color: '#BFAF8E', fontFamily: FB, fontVariantNumeric: 'tabular-nums' }}>
-                  <span>DEF <strong style={{ color: '#F1E6CF' }}>{derivadas.defesa}</strong></span>
-                  <span>AR <strong style={{ color: '#F1E6CF' }}>{derivadas.absorcao}</strong></span>
-                </div>
-              )}
-
-              {/* Indicador "abrir ficha" */}
-              <div style={{
-                position: 'absolute', bottom: 10, right: 12,
-                fontSize: 'var(--fs-2xs)', color: '#BFAF8E', textTransform: 'uppercase',
-                display: 'flex', alignItems: 'center', gap: 4,
-              }}>
-                <Icon.Info style={{ fontSize: 'var(--fs-xs)', lineHeight: 1 }} />
-                {lang === 'en' ? 'view sheet' : 'ver ficha'}
-              </div>
-            </div>
-          );
-        })}
-        <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-      </div>
-
-      {/* Modal de ficha completa — delega ao PersonagemFichaModal existente */}
-      {fichaAberta && typeof PersonagemFichaModal !== 'undefined' && (
-        <PersonagemFichaModal
-          personagem={fichaAberta}
-          lang={lang}
-          ac={ac}
-          onClose={() => setFichaAberta(null)}
-        />
-      )}
-    </>
-  );
-}
-
 /* ============================== [10] ModalShell — padrão único de modal do projeto (header / body / footer) ==============================
    Substitui a função ModalShell em src/10-shell/shell.jsx (procure por `function ModalShell({`).
 
@@ -919,8 +729,12 @@ function useNavTooltip(delay) {
    A barra é só de ícones, então os grupos do ADMIN_MENU (Diário, Comércio,
    Treinamento) abrem um painel AO LADO dela: primeira coluna com os filhos do
    grupo; filho que também tem filhos (Magias, Técnicas, Habilidades) abre uma
-   segunda coluna ao passar o mouse ou clicar. Escolher uma folha navega e
-   fecha. Clique fora ou Escape fecha sem navegar.
+   segunda coluna ao passar o mouse. Escolher uma folha navega e fecha. Clique
+   fora ou Escape fecha sem navegar.
+
+   TRÊS COLUNAS desde 29/09/2026: nó `navega` (ADMIN_MENU) navega no clique e
+   abre a coluna seguinte no mouse — Magias (todas) › Básicas (só básicas) ›
+   Mago (as básicas do Mago). Pelo teclado, a seta para a direita abre.
 
    Portal para #root: a .mc-sidebar tem backdrop-filter, e um position:fixed
    dentro dela seria posicionado — e recortado — por ela, não pela janela. */
@@ -929,10 +743,17 @@ function NavMenuPainel({ grupo, ancora, lang, folhaAtual, onEscolher, onFechar }
   const fecharRef = useRef(onFechar);
   useEffect(() => { fecharRef.current = onFechar; }, [onFechar]);
   const rot = (n) => (n.rotulo && (n.rotulo[lang] || n.rotulo.pt)) || '';
-  const contemAtual = (n) => !!folhaAtual && !!n.filhos && n.filhos.includes(folhaAtual);
-  // Abre já no subgrupo onde a página atual mora ("Magias", se estou em Magias Básicas).
-  const [sub, setSub] = useState(() => grupo.filhos.find(contemAtual) || null);
-  useEffect(() => { setSub(grupo.filhos.find(contemAtual) || null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [grupo]);
+  // Em qualquer profundidade — e o próprio nó conta, quando ele é o destino.
+  const contemAtual = (n) => !!folhaAtual && !!n.filhos && folhasDoMenu([n]).includes(folhaAtual);
+  // Abre já no caminho da página atual ("Magias › Básicas", se estou nas Básicas do Mago).
+  const subInicial = () => grupo.filhos.find(contemAtual) || null;
+  const sub2Inicial = (de) => (de && de.filhos.find((n) => n.filhos && contemAtual(n))) || null;
+  const [sub, setSub] = useState(subInicial);
+  const [sub2, setSub2] = useState(() => sub2Inicial(subInicial()));
+  useEffect(() => {
+    const s1 = subInicial(); setSub(s1); setSub2(sub2Inicial(s1));
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [grupo]);
 
   const margem = 16;
   const [top, setTop] = useState(Math.max(margem, ancora.top - 8));
@@ -944,7 +765,7 @@ function NavMenuPainel({ grupo, ancora, lang, folhaAtual, onEscolher, onFechar }
     const alto = el.getBoundingClientRect().height;
     const ideal = Math.max(margem, ancora.top - 8);
     setTop(Math.max(margem, Math.min(ideal, window.innerHeight - alto - margem)));
-  }, [ancora, sub]);
+  }, [ancora, sub, sub2]);
 
   useEffect(() => {
     const onDown = (e) => {
@@ -977,31 +798,45 @@ function NavMenuPainel({ grupo, ancora, lang, folhaAtual, onEscolher, onFechar }
     </button>
   );
 
+  // Item que abre a coluna seguinte. Clique: navega se o nó é destino
+  // (`navega`), senão só abre. Mouse e seta para a direita: abre.
+  const pai = (n, i, abrir, aberto) => (
+    <button key={chave(n, i)} type="button" role="menuitem"
+      aria-haspopup="menu" aria-expanded={aberto}
+      aria-current={n === folhaAtual ? 'page' : undefined}
+      className={'mc-menu-item mc-menu-item--pai' + (aberto ? ' is-open' : '') + (contemAtual(n) ? ' is-atual' : '')}
+      onMouseEnter={abrir}
+      onClick={() => (n.navega ? onEscolher(n) : abrir())}
+      onKeyDown={(e) => { if (e.key === 'ArrowRight') { e.preventDefault(); abrir(); } }}>
+      <span>{rot(n)}</span>
+      <i className="ti ti-chevron-right" aria-hidden="true" />
+    </button>
+  );
+  // Folha numa coluna fecha a coluna seguinte ao passar o mouse.
+  const folhaQueFecha = (n, i, fechar) => (
+    <div key={chave(n, i)} onMouseEnter={fechar}>{folha(n, i)}</div>
+  );
+
   const painel = (
     <div className="menestrel-ui mc-menu-painel" ref={ref} role="menu" aria-label={rot(grupo)}
       style={{ top, left: ancora.right + 12, maxHeight: `calc(100vh - ${margem * 2}px)` }}>
       <div className="mc-menu-col">
         {/* Sem título em cima (26/09/2026: "remova o treinamento e deixe apenas
             os menus") — o nome do grupo segue no aria-label do painel. */}
-        {grupo.filhos.map((n, i) => (n.filhos ? (
-          <button key={chave(n, i)} type="button" role="menuitem"
-            aria-haspopup="menu" aria-expanded={sub === n}
-            className={'mc-menu-item mc-menu-item--pai' + (sub === n ? ' is-open' : '') + (contemAtual(n) ? ' is-atual' : '')}
-            onMouseEnter={() => setSub(n)}
-            onClick={() => setSub(n)}>
-            <span>{rot(n)}</span>
-            <i className="ti ti-chevron-right" aria-hidden="true" />
-          </button>
-        ) : (
-          <React.Fragment key={chave(n, i)}>
-            {/* Folha na primeira coluna fecha a segunda ao passar o mouse. */}
-            <div onMouseEnter={() => setSub(null)}>{folha(n, i)}</div>
-          </React.Fragment>
-        )))}
+        {grupo.filhos.map((n, i) => (n.filhos
+          ? pai(n, i, () => { if (sub !== n) { setSub(n); setSub2(null); } }, sub === n)
+          : folhaQueFecha(n, i, () => { setSub(null); setSub2(null); })))}
       </div>
       {sub && (
         <div className="mc-menu-col mc-menu-col--sub" role="menu" aria-label={rot(sub)}>
-          {sub.filhos.map(folha)}
+          {sub.filhos.map((n, i) => (n.filhos
+            ? pai(n, i, () => setSub2(n), sub2 === n)
+            : folhaQueFecha(n, i, () => setSub2(null))))}
+        </div>
+      )}
+      {sub && sub2 && sub.filhos.includes(sub2) && (
+        <div className="mc-menu-col mc-menu-col--sub mc-menu-col--sub2" role="menu" aria-label={rot(sub2)}>
+          {sub2.filhos.map(folha)}
         </div>
       )}
     </div>
@@ -3545,7 +3380,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
      tabela saía mais estreita que a das outras ("a largura da tabela em
      lugares, npcs está menor que em itens, magias" — usuário). */
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'npcs', 'memorias', 'fichas', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'npcs', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
@@ -3619,7 +3454,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         const pjAtivoId = prof && prof.pj_ativo_id;
         if (!pjAtivoId) { setMinhasHistorias([]); setDataNascPjAtivo(null); setPjAtivo(null); return; }
         const [histRes, pjRes] = await Promise.all([
-          supabaseClient.from('historias').select('id, titulo').contains('protagonista_ids', [pjAtivoId]).maybeSingle(),
+          // O PJ pode estar em mais de uma história: vale a mais nova (como o bridge.ts). Sem o limit, o maybeSingle dava erro e a tela ficava vazia (02/10/2026).
+          supabaseClient.from('historias').select('id, titulo').contains('protagonista_ids', [pjAtivoId]).order('created_at', { ascending: false }).limit(1).maybeSingle(),
           // A linha INTEIRA agora: as seções Lugares/Personagens/Memórias
           // (ex-Diário) precisam do PJ, não só da data de nascimento.
           supabaseClient.from('personagens').select('*').eq('id', pjAtivoId).maybeSingle(),
@@ -3917,8 +3753,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                  por um botão dentro dela — "quem persiste no personagem
                  escolhido é o jogador". Por isso o token só chega aqui. */
               <PersonagensList ac={ac} t={t} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} voltarToken={navToken} />
-            ) : current.id === 'fichas' ? (
-              <FichasJogador ac={ac} lang={lang} currentUserId={user.id} />
             ) : current.id === 'magias' ? (
               <MagiasList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={filtroAtual} titulo={tituloPagina} />
             ) : current.id === 'habilidades' ? (
@@ -4237,7 +4071,7 @@ function App() {
 
 Object.assign(window, {
   ModalShell, NavMenuPainel,
-  FantasyDatePicker, AdminEmpty, FichasJogador, AdminConsole, App,
+  FantasyDatePicker, AdminEmpty, AdminConsole, App,
   CentralMensagens, CardDataJogoAtual, RolagemLivreFab,
   // A linha do feed e o conversor de evento — expostos para o teste do
   // destaque (log-eventos.test.jsx) montar só eles.

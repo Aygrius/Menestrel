@@ -25,6 +25,8 @@ import textoTecnicas from '../../docs/sugestoes-tecnicas.md?raw';
 import textoItens from '../../docs/sugestoes-itens.md?raw';
 // "Análise para diminuir as magias pouco interessantes e fundir as parecidas" (12/09/2026).
 import textoEstudoMagias from '../../docs/estudo-magias.md?raw';
+// Acesso e equilíbrio por profissão (29/09/2026): "Coloque o estudo na página de magias."
+import textoEquilibrioMagias from '../../docs/estudo-magias-profissoes.md?raw';
 // Botão + janela dos painéis (14/09/2026). Importado aqui também para os testes
 // que montam só este arquivo.
 import './painel-modal.jsx';
@@ -176,7 +178,8 @@ function MarkdownSimples({ texto }) {
    que abre o documento numa janela (BestPainelModal, painel-modal.jsx). Antes
    era uma faixa recolhível entre o cabeçalho e a tabela. `rotulo` é o texto
    curto do botão; `titulo`, o da janela. */
-function SugestoesPainel({ lang, texto, titulo, rotulo, arquivo }) {
+// `ajuda`: troca a linha de cima quando o documento já foi aplicado.
+function SugestoesPainel({ lang, texto, titulo, rotulo, arquivo, ajuda }) {
   const [aberto, setAberto] = React.useState(false);
   const en = lang === 'en';
   if (!texto) return null;
@@ -188,7 +191,7 @@ function SugestoesPainel({ lang, texto, titulo, rotulo, arquivo }) {
       aberto={aberto} onAbrir={() => setAberto(true)} onFechar={() => setAberto(false)}>
       <div className="best-aud-corpo sug-painel">
         <p className="best-aud-ajuda">
-          {en
+          {ajuda ? (en ? ajuda.en : ajuda.pt) : en
             ? `New entries and adaptations — proposals, nothing applied. Reference document (${arquivo}); live numbers come from the catalog itself.`
             : `Novidades e adaptações — propostas, nada aplicado. Documento de referência (${arquivo}); os números ao vivo vêm do próprio catálogo.`}
         </p>
@@ -219,6 +222,16 @@ function EstudoMagiasPainel({ lang, texto }) {
     titulo={{ pt: 'Estudo: enxugar e melhorar as magias', en: 'Study: trimming and improving spells' }} arquivo="docs/estudo-magias.md" />;
 }
 
+function EquilibrioMagiasPainel({ lang, texto }) {
+  return <SugestoesPainel lang={lang} texto={texto != null ? texto : textoEquilibrioMagias}
+    rotulo={{ pt: 'Equilíbrio', en: 'Balance' }}
+    titulo={{ pt: 'Estudo: magias por profissão', en: 'Study: spells by profession' }} arquivo="docs/estudo-magias-profissoes.md"
+    ajuda={{
+      pt: 'Quantas magias cada profissão alcança e se a ordem Mago > Sacerdote > Bardo = Rastreador se sustenta. As mudanças de permissão da §4 foram aplicadas em 29/09/2026 (§5). Documento de referência (docs/estudo-magias-profissoes.md).',
+      en: 'How many spells each profession reaches and whether Mage > Priest > Bard = Ranger holds. The permission changes in §4 were applied on 09/29/2026 (§5). Reference document (docs/estudo-magias-profissoes.md).',
+    }} />;
+}
+
 Object.assign(window, {
-  EstudoMagiasPainel, SugestoesPainel, MagiasSugestoesPainel, TecnicasSugestoesPainel, ItensSugestoesPainel, MarkdownSimples,
+  EstudoMagiasPainel, EquilibrioMagiasPainel, SugestoesPainel, MagiasSugestoesPainel, TecnicasSugestoesPainel, ItensSugestoesPainel, MarkdownSimples,
 });

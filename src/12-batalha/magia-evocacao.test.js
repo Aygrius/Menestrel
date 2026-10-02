@@ -378,7 +378,7 @@ describe('faseDeEvocacao — a mesma resposta para as duas abas e os dois lados'
 
   it('evocando OUTRA magia não faz esta virar resolução', () => {
     const p = M.iniciarEvocacao(conj(), CANAL, 5, ['a1'], 5);
-    expect(M.faseDeEvocacao(p, { key: 'dardos_de_gelo', evocacao: '1 rodada' })).toBe('largada');
+    expect(M.faseDeEvocacao(p, { key: 'dardos_de_gelo', evocacao: '2 rodadas' })).toBe('largada');
   });
 });
 

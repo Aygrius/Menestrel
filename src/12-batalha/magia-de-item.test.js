@@ -194,12 +194,16 @@ describe('o consumo do pergaminho está ligado nos dois lados', () => {
   });
 
   it('apoio: Mestre e Jogador consomem', () => {
-    const n = (fonte.match(/if \(passo\.fase !== 'iniciou'\) consumirItemDaMagia/g) || []).length;
+    // A magia de 1 rodada gasta o item ao ser GUARDADA (28/09/2026); a
+    // resolução dela, no fim da rodada, não gasta de novo.
+    const n = (fonte.match(/if \(passo\.fase !== 'iniciou'( && !resolvendoPendente)?\) consumirItemDaMagia/g) || []).length;
     expect(n, 'Mestre e Jogador').toBe(2);
+    expect((fonte.match(/consumirItemDaMagia\((participantes\[atorIdx\]|meuParticipante), magia, catalogos\);\n\s+next = guardarMagiaPendente/g) || []).length,
+      'a guarda da 1 rodada, nos dois lados').toBe(2);
   });
 
   it('ataque: Mestre e Jogador consomem', () => {
-    const n = (fonte.match(/if \(tipo === 'magia'\) consumirItemDaMagia/g) || []).length;
+    const n = (fonte.match(/if \(tipo === 'magia'( && !resolvendoPendente)?\) consumirItemDaMagia/g) || []).length;
     expect(n, 'Mestre e Jogador').toBe(2);
   });
 

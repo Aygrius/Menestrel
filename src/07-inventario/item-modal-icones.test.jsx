@@ -8,7 +8,7 @@
    (usuário, 26/09/2026)
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
-import { render, cleanup, fireEvent } from '@testing-library/react';
+import { render, cleanup, fireEvent, screen } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
@@ -56,7 +56,8 @@ describe('o modal do item do inventário', () => {
   it('os ícones ao lado do X, na ordem pedida', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 });
     // Sem Comentar desde 26/09/2026 (a nota do item saiu por completo).
-    expect(acoes()).toEqual(['vender', 'descartar', 'transferir', 'equipar', 'armazenar']);
+    // Transferir saiu em 28/09/2026: agora é arrastar o item até o amigo.
+    expect(acoes()).toEqual(['vender', 'descartar', 'equipar', 'armazenar']);
     // O nome de cada um mora no rótulo acessível (e no tooltip).
     expect(document.querySelector('[data-acao="vender"]').getAttribute('aria-label')).toBe('Vender na loja');
     expect(document.querySelector('[data-acao="vender"] i').className).toContain('ti-coins');
@@ -243,5 +244,35 @@ describe('aba Conteúdo: o quadriculado do inventário', () => {
     expect(qtd.getAttribute('aria-label')).toBe('3');
     fireEvent.click(grade.querySelector('[data-filho="a"]'));
     expect(onAbrirDetalhesFilho).toHaveBeenCalledWith('a');
+  });
+});
+
+/* ABATER (28/09/2026): "quando um animal é abatido [...] vai virar a carne do
+   seu tipo [...] metade do peso total do animal. O item porém não irá para o
+   inventário, ele irá para a loja." A conta é da RPC; a janela só pergunta. */
+describe('abater o animal manda a carne para a loja', () => {
+  const LOBO = { slug: 'lobo', nome: 'Lobo', grupo: 'Animais', criatura_id: 5, valor_latao: 30 };
+  const inst = { instanceId: 'l1', slug: 'lobo', quantidade: 1 };
+  const abrirLobo = (onPreparar) => render(
+    <Modal instance={inst} catalogoBySlug={{ lobo: LOBO }} raca="Humano" slotsState={{}} todosItens={[inst]}
+      containersDisponiveis={[]} pjsHistoria={[]} lang="pt" onClose={noop} onEquipar={noop} onDesequipar={noop}
+      onUsar={noop} onDestruir={noop} onMoverParaContainer={noop} onVestir={noop} onDespir={noop}
+      onRemoverDoContainer={noop} onAbrirDetalhesFilho={noop} onPreparar={onPreparar} />,
+  );
+
+  it('o ícone Abater aparece para o animal ligado a uma criatura, e o texto fala da loja', async () => {
+    const onPreparar = vi.fn(async () => ({ ok: true }));
+    abrirLobo(onPreparar);
+    fireEvent.click(document.querySelector('[data-acao="preparar"]'));
+    expect(document.querySelector('.det-etapa').textContent).toMatch(/vai para a loja da aventura/);
+    fireEvent.click(document.querySelector('[data-confirmar="abater"]'));
+    expect(onPreparar).toHaveBeenCalledWith('l1');
+  });
+
+  it('criatura sem carne: a janela diz o porquê', async () => {
+    abrirLobo(async () => ({ ok: false, motivo: 'sem_carne' }));
+    fireEvent.click(document.querySelector('[data-acao="preparar"]'));
+    fireEvent.click(document.querySelector('[data-confirmar="abater"]'));
+    expect(await screen.findByText('Esta criatura não rende carne.')).toBeTruthy();
   });
 });

@@ -866,11 +866,12 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre }) {
           {/* ── Busca + chips de categoria — mesmo padrão best-toolbar do bestiário ── */}
           <div className="best-toolbar">
             <div className="best-search">
+              <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
               <Input
                 type="search"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder={en ? 'Search' : 'Buscar…'}
+                placeholder={en ? 'Search' : 'Buscar'}
               />
             </div>
             <div className="best-chips">

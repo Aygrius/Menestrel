@@ -188,7 +188,9 @@ describe('a rolagem é salva quando o dado assenta, não no Confirmar', () => {
     expect(comLog.length).toBeGreaterThan(3);
     for (const t of comLog) {
       expect(t, 'persist com log precisa limpar a rolagem: ' + t.slice(0, 70))
-        .toMatch(/rolagem_pendente: null|comMinhaRolagem\([^,]+, null\)|rodada: novaR/);
+        // A magia de 1 rodada que SAI no fim da rodada (28/09/2026) é
+        // aplicada na vez de outro — a rolagem em aberto é dele, não se mexe.
+        .toMatch(/rolagem_pendente: null|comMinhaRolagem\([^,]+, null\)|rodada: novaR|a rolagem é de quem está agindo/);
     }
   });
 

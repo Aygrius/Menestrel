@@ -133,7 +133,7 @@ const ADMIN_COPY = {
     campoMagia: 'Magia',
     campoMagiaN: 'Nível das Magias',
     // Seletor de lista do editor (técnicas/habilidades/magias da criatura).
-    listaBuscar: 'Buscar para adicionar…',
+    listaBuscar: 'Buscar',
     listaRemover: 'Remover',
     listaForaCatalogo: 'Não está no catálogo',
     // Só "Técnicas" desde 14/09/2026 (pedido do usuário). A coluna segue tecnicas_especiais.
@@ -153,7 +153,6 @@ const ADMIN_COPY = {
     campoEquipamento: 'Equipamento',
     campoResistenciaFisica: 'Resistência Física',
     campoResistenciaMagica: 'Resistência Mágica',
-    equipBuscar: 'Buscar arma ou armadura…',
     equipRemover: 'Tirar',
     equipVazio: 'Nada equipado.',
     equipJaEquipada: 'Esta arma já está equipada.',
@@ -161,8 +160,6 @@ const ADMIN_COPY = {
     equipSemSlot: 'Este item não tem onde ser equipado.',
     // Ataque × Equipamento (25/09/2026)
     campoArmasAtaque: 'Ataque',
-    equipBuscarArma: 'Buscar arma…',
-    equipBuscarItem: 'Buscar armadura ou item…',
     equipNaoEArma: 'Só armas entram em Ataque.',
     equipNaMochila: 'na mochila',
     equipMenos: 'Um a menos',
@@ -294,7 +291,7 @@ const ADMIN_COPY = {
     campoAtaque: 'Attack',
     campoMagia: 'Magic',
     campoMagiaN: 'Spell Level',
-    listaBuscar: 'Search to add…',
+    listaBuscar: 'Search',
     listaRemover: 'Remove',
     listaForaCatalogo: 'Not in the catalog',
     campoTecnicasEspeciais: 'Techniques',
@@ -311,15 +308,12 @@ const ADMIN_COPY = {
     campoEquipamento: 'Equipment',
     campoResistenciaFisica: 'Physical Resistance',
     campoResistenciaMagica: 'Magic Resistance',
-    equipBuscar: 'Search weapon or armor…',
     equipRemover: 'Remove',
     equipVazio: 'Nothing equipped.',
     equipJaEquipada: 'This weapon is already equipped.',
     equipSlotOcupado: 'There is already a piece in that spot.',
     equipSemSlot: 'This item has nowhere to be equipped.',
     campoArmasAtaque: 'Attack',
-    equipBuscarArma: 'Search weapon…',
-    equipBuscarItem: 'Search armor or item…',
     equipNaoEArma: 'Only weapons go in Attack.',
     equipNaMochila: 'in the pack',
     equipMenos: 'One less',
@@ -480,21 +474,48 @@ const ADMIN_SECTIONS = {
    ("Básicas" no painel de Magias, "Magias Básicas" no topo da tabela). */
 const R = (pt, en) => ({ pt, en });
 
+/* CLICÁVEL E COM FILHOS (29/09/2026): "quero que seja possível clicar em
+   magias e ver todas as magias, ou passar o mouse e abrir para básicas e
+   clicar pra ver só as básicas, e depois das básicas, ter as profissões, e
+   clicar para ver só as profissões. Isso para técnicas, habilidades, etc."
+   (usuário). `navega: true` faz o nó com filhos ser destino também: clicar
+   navega, passar o mouse abre a coluna seguinte. Decisões do usuário no
+   mesmo dia: as profissões numa TERCEIRA coluna, e a profissão conta as
+   especializações dela (Mago + os Colégios).
+
+   O filtro de profissão viaja no mesmo texto: "Básica|Mago" — tipo, barra,
+   profissão. As listas separam (separarFiltroMenu, 09-bestiario). */
+const PROFISSOES_EN = { Bardo: 'Bard', Guerreiro: 'Warrior', Ladino: 'Rogue', Mago: 'Mage', Rastreador: 'Ranger', Sacerdote: 'Priest' };
+// Uma divisão (Básicas…) que também abre as profissões. `de`: o título da página.
+const divisaoComProfissoes = (secao, filtro, rotulo, titulo, profissoes) => ({
+  secao, filtro, rotulo, titulo, navega: true,
+  filhos: profissoes.map((p) => ({
+    secao, filtro: filtro + '|' + p, rotulo: R(p, PROFISSOES_EN[p]),
+    titulo: R(titulo.pt + ' do ' + p, PROFISSOES_EN[p] + ' ' + titulo.en),
+  })),
+});
+// Quem conjura (MAGIAS_POR_PROFISSAO, 01-core/game-data.jsx), em ordem alfabética.
+const PROFISSOES_MAGIA = ['Bardo', 'Mago', 'Rastreador', 'Sacerdote'];
 const MENU_MAGIAS = {
-  secao: 'magias', rotulo: R('Magias', 'Spells'), filhos: [
-    { secao: 'magias', filtro: 'Básica', rotulo: R('Básicas', 'Basic'), titulo: R('Magias Básicas', 'Basic Spells') },
-    { secao: 'magias', filtro: 'Ancestral', rotulo: R('Ancestrais', 'Ancestral'), titulo: R('Magias Ancestrais', 'Ancestral Spells') },
-    { secao: 'magias', filtro: 'Perdida', rotulo: R('Perdidas', 'Lost'), titulo: R('Magias Perdidas', 'Lost Spells') },
+  secao: 'magias', rotulo: R('Magias', 'Spells'), navega: true, filhos: [
+    divisaoComProfissoes('magias', 'Básica', R('Básicas', 'Basic'), R('Magias Básicas', 'Basic Spells'), PROFISSOES_MAGIA),
+    divisaoComProfissoes('magias', 'Ancestral', R('Ancestrais', 'Ancestral'), R('Magias Ancestrais', 'Ancestral Spells'), PROFISSOES_MAGIA),
+    divisaoComProfissoes('magias', 'Perdida', R('Perdidas', 'Lost'), R('Magias Perdidas', 'Lost Spells'), PROFISSOES_MAGIA),
   ],
 };
+/* Técnica básica é para as seis profissões. Especializada só cita academias e
+   guildas — do Guerreiro e do Ladino —, então só as duas aparecem ali. */
 const MENU_TECNICAS = {
-  secao: 'tecnicas', rotulo: R('Técnicas', 'Techniques'), filhos: [
-    { secao: 'tecnicas', filtro: 'basica', rotulo: R('Básicas', 'Basic'), titulo: R('Técnicas Básicas', 'Basic Techniques') },
-    { secao: 'tecnicas', filtro: 'especializada', rotulo: R('Especializadas', 'Specialized'), titulo: R('Técnicas Especializadas', 'Specialized Techniques') },
+  secao: 'tecnicas', rotulo: R('Técnicas', 'Techniques'), navega: true, filhos: [
+    divisaoComProfissoes('tecnicas', 'basica', R('Básicas', 'Basic'), R('Técnicas Básicas', 'Basic Techniques'),
+      ['Bardo', 'Guerreiro', 'Ladino', 'Mago', 'Rastreador', 'Sacerdote']),
+    divisaoComProfissoes('tecnicas', 'especializada', R('Especializadas', 'Specialized'), R('Técnicas Especializadas', 'Specialized Techniques'),
+      ['Guerreiro', 'Ladino']),
   ],
 };
+// Habilidade não tem profissão no banco: clicar abre todas; os grupos, como antes.
 const MENU_HABILIDADES = {
-  secao: 'habilidades', rotulo: R('Habilidades', 'Skills'), filhos: [
+  secao: 'habilidades', rotulo: R('Habilidades', 'Skills'), navega: true, filhos: [
     ...[
       ['Profissional', 'Profissão', 'Profession', 'de Profissão'],
       ['Influência', 'Influência', 'Influence', 'de Influência'],
@@ -535,7 +556,9 @@ const CRIATURAS = {
   id: 'bestiario', icon: 'Tower', rotulo: R('Criaturas', 'Creatures'),
   filhos: [
     ['Animal', 'Animais', 'Animals'], ['Celestial', 'Celestiais', 'Celestials'],
-    ['Civilizado', 'Civilizados', 'Civilized'], ['Demônio', 'Demônios', 'Demons'],
+    // Demônio saiu em 28/09/2026: "Criaturas 'Infernais' e 'Demônios' são a mesma
+    // classe, o certo é 'Infernais'."
+    ['Civilizado', 'Civilizados', 'Civilized'],
     ['Dragão', 'Dragões', 'Dragons'], ['Elemental', 'Elementais', 'Elementals'],
     ['Infernal', 'Infernais', 'Infernals'], ['Místico', 'Místicos', 'Mystics'],
     ['Morto', 'Mortos', 'Undead'],
@@ -575,7 +598,12 @@ const ADMIN_MENU = {
    menu?" ou "qual o título desta página?" pergunta aqui. */
 function folhasDoMenu(nos) {
   const out = [];
-  const visitar = (n) => { if (n.filhos) n.filhos.forEach(visitar); else if (n.secao) out.push(n); };
+  // Nó `navega` é destino E abre filhos: entra antes deles, então é ele o
+  // destino "sem filtro" da seção (clicar em Magias = todas).
+  const visitar = (n) => {
+    if (n.filhos) { if (n.navega && n.secao) out.push(n); n.filhos.forEach(visitar); }
+    else if (n.secao) out.push(n);
+  };
   (nos || []).forEach(visitar);
   return out;
 }

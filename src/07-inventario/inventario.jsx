@@ -565,7 +565,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       const [pjsRes, lojaRes, histRes] = await Promise.all([
         supabaseClient.rpc('get_pjs_historia', { p_pj_id: selectedId }),
         supabaseClient.rpc('get_loja_pj', { p_pj_id: selectedId }),
-        supabaseClient.from('historias').select('id').contains('protagonista_ids', [selectedId]).maybeSingle(),
+        // O PJ pode estar em mais de uma história: vale a mais nova (como o bridge.ts). Sem o limit, o maybeSingle dava erro e a tela ficava vazia (02/10/2026).
+        supabaseClient.from('historias').select('id').contains('protagonista_ids', [selectedId]).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       ]);
       setPjsHistoria(pjsRes.data || []);
       setMesaTitulo(lojaRes.data?.ok ? (lojaRes.data.historia_titulo || null) : null);
@@ -648,12 +649,22 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }, 450);
     return () => clearTimeout(id);
   }, [inv, selectedId]);
-  // Flush ao desmontar (troca de aba/PJ): persiste a última alteração.
+  /* Flush ao desmontar E ao trocar de PJ: persiste a última alteração que o
+     debounce acima cancelou. A limpeza roda antes das cargas do PJ novo, então
+     os refs ainda apontam para o PJ antigo. O `.then` é obrigatório: a
+     consulta do supabase-js só vai ao servidor quando alguém a consome — sem
+     ele, este flush nunca gravava nada (02/10/2026). */
   useEffect(() => () => {
-    if (dirtyRef.current && invRef.current && selRef.current) {
-      supabaseClient.from('personagens').update({ inventario: invRef.current }).eq('id', selRef.current);
-    }
-  }, []);
+    if (!dirtyRef.current || !invRef.current || !selRef.current) return;
+    const pjId = selRef.current;
+    const inventario = invRef.current;
+    dirtyRef.current = false;
+    supabaseClient.from('personagens').update({ inventario }).eq('id', pjId)
+      .then(({ error }) => {
+        if (error) { console.error('[inventario] flush falhou:', error); return; }
+        setPjs((arr) => (arr || []).map((p) => (p.id === pjId ? { ...p, inventario } : p)));
+      });
+  }, [selectedId]);
 
   // Save de estado_atual (Reputação, Sono, EH/EF, ...) — mesmo padrão de
   // debounce/flush do inventário, mas COLUNA separada (estado_atual). Só
@@ -690,11 +701,16 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }, 450);
     return () => clearTimeout(id);
   }, [estadoAtual, selectedId]);
+  // Flush ao desmontar e ao trocar de PJ — mesmo motivo do flush do inventário.
   useEffect(() => () => {
-    if (estadoDirtyRef.current && estadoRef.current && selRef.current) {
-      gravarEstadoAtual(selRef.current, patchDeEstado(estadoBaseRef.current, estadoRef.current));
-    }
-  }, []);
+    if (!estadoDirtyRef.current || !estadoRef.current || !selRef.current) return;
+    const pjId = selRef.current;
+    estadoDirtyRef.current = false;
+    gravarEstadoAtual(pjId, patchDeEstado(estadoBaseRef.current, estadoRef.current)).then(({ data, error }) => {
+      if (error || !data) return;
+      setPjs((arr) => (arr || []).map((p) => (p.id === pjId ? { ...p, estado_atual: data } : p)));
+    });
+  }, [selectedId]);
 
   // Catálogo indexado
   const catalogoBySlug = useMemo(() => {
@@ -983,43 +999,28 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     });
   };
 
-  // Fase — preparar animal: remove 1 unidade do animal e adiciona o item resultante
-  // (cat.consumiveis = slug, cat.consumiveis_peso = quantidade) na bag do personagem.
-  const prepararAnimal = (instanceId) => {
-    const it = inv?.itens.find((x) => x.instanceId === instanceId);
-    const cat = it ? catalogoBySlug[it.slug] : null;
-    if (!it || !cat?.consumiveis) return;
-    const slugResultado = cat.consumiveis;
-    const qtdResultado = Number(cat.consumiveis_peso) || 1;
-    setInv((cur) => {
-      const itens = cur.itens
-        .map((x) => x.instanceId === instanceId
-          ? { ...x, quantidade: x.quantidade - 1 }
-          : x)
-        .filter((x) => x.quantidade > 0);
-      // Tenta acumular com item igual já solto na bag (mesmo slug, sem container, sem slot)
-      const existente = itens.find((x) => x.slug === slugResultado && !x.containerId && !x.slot && !x.equipado && !x.vestido);
-      if (existente) {
-        return {
-          ...cur,
-          itens: itens.map((x) => x.instanceId === existente.instanceId
-            ? { ...x, quantidade: x.quantidade + qtdResultado }
-            : x),
-        };
-      }
-      return {
-        ...cur,
-        itens: [...itens, {
-          instanceId: novoInstanceId(),
-          slug: slugResultado,
-          quantidade: qtdResultado,
-          equipado: false,
-          slot: null,
-          containerId: null,
-          observacao: null,
-        }],
-      };
+  /* ENVENENAR (28/09/2026): a conta mora em envenenarNoInventario (01-core),
+     pura; aqui ela vira o inventário novo, que o autosave grava. */
+  const envenenar = (venenoId, alvoId, qtd) => {
+    if (!inv) return { ok: false };
+    const r = envenenarNoInventario(inv.itens, venenoId, alvoId, qtd, catalogoBySlug);
+    if (r.ok) setInv((cur) => ({ ...cur, itens: r.itens }));
+    return r;
+  };
+
+  /* ABATER O ANIMAL (28/09/2026): "quando um animal é abatido, seja em
+     combate, seja no inventário, ele automaticamente vai virar a carne do seu
+     tipo [...] metade do peso total do animal. O item porém não irá para o
+     inventário, ele irá para a loja." A conta e o anúncio moram na RPC
+     abater_animal (a carne sai do tipo e do peso da CRIATURA ligada ao
+     item); aqui o inventário só se relê. A mesa recebe a linha do servidor. */
+  const prepararAnimal = async (instanceId) => {
+    const { data, error } = await supabaseClient.rpc('abater_animal', {
+      p_pj_id: selectedId, p_instance_id: instanceId,
     });
+    if (error || !data || !data.ok) return { ok: false, motivo: (data && data.motivo) || (error && error.message) };
+    await recarregarInventario();
+    return { ok: true, slug: data.slug, quantidade: data.quantidade };
   };
 
   /* Preparar carne (24/09/2026): 1 carne vira Ração, 2 Refeição, 3 Banquete —
@@ -1157,21 +1158,19 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     return 'pendente';   // a janela do item fecha quando a quantidade for confirmada
   };
 
-  // Transferir com pilha > 1: pergunta quantidade (mesmo padrão das outras
-  // três ações acima). Devolve uma Promise porque o botão "Confirmar" do
-  // modal de transferência (DetalhesItemModal) já esperava uma Promise de
-  // transferirItem pra saber quando fechar — aqui ela só demora mais a
-  // resolver, até o usuário confirmar (ou cancelar) o QuantidadeModal que
-  // aparece por cima. Item avulso (quantidade 1) transfere direto, sem
-  // seletor a mais — coerente com usar/destruir/mover.
-  const solicitarTransferir = (instanceId, pjDestinoId, qtd) => {
+  /* TRANSFERIR = ARRASTAR PARA O AMIGO (28/09/2026): "para transferir um item
+     para um amigo, só precisa arrastar o item do inventário para o card do
+     amigo, ao soltar, será perguntado a quantidade que será enviada. O botão
+     transferir do modal do item pode sair, pois este será a única maneira."
+     O card do amigo é o AmigosFab (11-ficha/amigos-fab.jsx); só aparece quem
+     selou o pacto de amizade, e a RPC transfer_item recusa (sem_pacto) quem
+     não selou. A pergunta vem SEMPRE — com um item só, é a confirmação de que
+     o soltar foi de propósito. */
+  const soltarNoAmigo = (instanceId, pjDestinoId) => {
     const it = inv?.itens.find((x) => x.instanceId === instanceId);
-    if (!it || it.quantidade <= 1) return transferirItem(instanceId, pjDestinoId, null);
-    // Quantidade escolhida no seletor da própria janela: vai direto.
-    if (qtd != null) return transferirItem(instanceId, pjDestinoId, null, qtd);
-    return new Promise((resolve) => {
-      setAcaoPendente({ tipo: 'transferir', instanceId, max: it.quantidade, extra: { pjDestinoId, resolve } });
-    });
+    if (!it || !pjDestinoId) return;
+    setTransferError(null);
+    setAcaoPendente({ tipo: 'transferir', instanceId, max: Math.max(1, it.quantidade || 1), extra: { pjDestinoId } });
   };
 
   // Executa a ação que estava aguardando escolha de quantidade
@@ -1182,13 +1181,9 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (tipo === 'destruir') destruirItem(instanceId, qtd);
     if (tipo === 'mover')    moverParaContainer(instanceId, extra?.containerId ?? null, qtd);
     if (tipo === 'transferir') {
-      // O botão "Confirmar" do modal de transferência (DetalhesItemModal)
-      // está com uma Promise pendurada em extra.resolve — resolve ela agora
-      // pra ele saber se pode fechar (res.ok) ou ficar mostrando o erro.
+      // Falhou: a janela fica aberta, com o motivo (transferError) nela.
       const res = await transferirItem(instanceId, extra?.pjDestinoId, null, qtd);
-      extra?.resolve?.(res);
-      setAcaoPendente(null);
-      if (res?.ok) setDetalhesId(null);
+      if (res?.ok) setAcaoPendente(null);
       return;
     }
     setAcaoPendente(null);
@@ -1354,6 +1349,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             mudarQtd={mudarQtd}
             onAbrirDetalhes={(id) => setDetalhesId(id)}
             onAbrirContainer={(id) => setContainerAberto(id)}
+            onSoltarNoAmigo={authUserIsOwner ? soltarNoAmigo : null}
             lang={lang}
             onReordenarItens={(novaOrdem) => {
               // novaOrdem: array de instanceIds representando a nova sequência
@@ -1417,12 +1413,10 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           magiasDb={magiasDb}
           podeVender={{ ehDono: authUserIsOwner, historiaId }}
           onVender={publicarNaLoja}
+          onEnvenenar={envenenar}
           onDestruir={solicitarDestruir}
           onBonus={isMestre ? ajustarBonus : undefined}
           onMoverParaContainer={solicitarMover}
-          onTransferir={(pjDestinoId, qtd) => solicitarTransferir(instanceDetalhes.instanceId, pjDestinoId, qtd)}
-          transferError={transferError}
-          onTransferReset={() => setTransferError(null)}
           onRemoverDoContainer={(id) => solicitarMover(id, null)}
           onAbrirDetalhesFilho={(id) => setDetalhesId(id)}
         />
@@ -1445,13 +1439,15 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         const it = inv?.itens.find((x) => x.instanceId === acaoPendente.instanceId);
         const cat = it ? catalogoBySlug[it.slug] : null;
         const nome = cat?.nome || it?.slug || '';
+        const destino = (pjsHistoria || []).find((p) => String(p.id) === String(acaoPendente.extra?.pjDestinoId));
+        const nomeDestino = destino ? destino.nome : (lang === 'en' ? 'your friend' : 'seu amigo');
         const titulosPt = {
           usar:       `Usar ${nome}`,
           destruir:   `Destruir ${nome}`,
           mover:      acaoPendente.extra?.containerId
             ? `Armazenar ${nome}`
             : `Retirar ${nome}`,
-          transferir: `Transferir ${nome}`,
+          transferir: `Enviar ${nome} para ${nomeDestino}`,
         };
         const titulosEn = {
           usar:       `Use ${nome}`,
@@ -1459,7 +1455,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           mover:      acaoPendente.extra?.containerId
             ? `Store ${nome}`
             : `Take out ${nome}`,
-          transferir: `Transfer ${nome}`,
+          transferir: `Send ${nome} to ${nomeDestino}`,
         };
         const t = (lang === 'en' ? titulosEn : titulosPt)[acaoPendente.tipo];
         return (
@@ -1468,12 +1464,9 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             max={acaoPendente.max}
             lang={lang}
             irreversivel={acaoPendente.tipo === 'usar' || acaoPendente.tipo === 'destruir'}
+            erro={acaoPendente.tipo === 'transferir' && transferError ? motivoTransferenciaLabel(transferError, lang === 'en') : null}
             onConfirm={executarAcaoPendente}
             onCancel={() => {
-              // Cancelar transferência resolve a Promise pendente com ok:false —
-              // senão o botão "Confirmar" do det-transf (DetalhesItemModal) fica
-              // com "Enviando…" preso pra sempre, esperando uma Promise que nunca ia terminar.
-              if (acaoPendente.tipo === 'transferir') acaoPendente.extra?.resolve?.({ ok: false });
               setAcaoPendente(null);
             }}
           />
@@ -1811,7 +1804,7 @@ function useGridDimensions() {
   return [setGridEl, dims];
 }
 
-function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirContainer, lang, onReordenarItens }) {
+function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirContainer, lang, onReordenarItens, onSoltarNoAmigo }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const en = lang === 'en';
   const [busca, setBusca] = useState('');
@@ -1842,6 +1835,9 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   const pointerStartRef = React.useRef(null);
   // Sinaliza que o próximo 'click' (sintético, pós-arraste) deve ser ignorado.
   const suppressClickRef = React.useRef(false);
+  // Soltar no card do amigo: lido por ref nos listeners globais do arraste.
+  const soltarNoAmigoRef = React.useRef(onSoltarNoAmigo);
+  soltarNoAmigoRef.current = onSoltarNoAmigo;
 
   // Evita que o tooltip apareça durante o arraste
   const abrirTipSafe = React.useCallback((e, content) => {
@@ -1876,10 +1872,25 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   React.useEffect(() => {
     if (!drag) return;
 
+    /* O CARD DO AMIGO também é destino (28/09/2026): "para transferir um item
+       para um amigo, só precisa arrastar o item do inventário para o card do
+       amigo". Os cards moram no AmigosFab (11-ficha/amigos-fab.jsx), fora
+       desta árvore: acha-se pelo data-amigo-pj-id sob o ponteiro, e o aceso
+       é uma classe posta direto no elemento. */
+    const amigoSobPonto = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      return el ? el.closest('[data-amigo-pj-id]') : null;
+    };
+    const acenderAmigo = (el) => {
+      document.querySelectorAll('[data-amigo-pj-id].is-alvo').forEach((a) => { if (a !== el) a.classList.remove('is-alvo'); });
+      if (el) el.classList.add('is-alvo');
+    };
+
     const onMove = (e) => {
       const x = e.clientX, y = e.clientY;
       dragRef.current = { ...dragRef.current, x, y };
       setDrag((d) => (d ? { ...d, x, y } : d));
+      acenderAmigo(soltarNoAmigoRef.current ? amigoSobPonto(x, y) : null);
       const idx = slotIdxFromPoint(x, y);
       overIdxRef.current = idx;
       setOverIdx(idx);
@@ -1890,7 +1901,10 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
       const d = dragRef.current;
       const target = overIdxRef.current;
       const houveArraste = !!d;
-      if (d) commitReorder(d.fromIdx, target);
+      const amigo = d && soltarNoAmigoRef.current ? amigoSobPonto(e.clientX, e.clientY) : null;
+      acenderAmigo(null);
+      if (amigo) soltarNoAmigoRef.current(d.instanceId, Number(amigo.getAttribute('data-amigo-pj-id')));
+      else if (d) commitReorder(d.fromIdx, target);
       dragRef.current = null;
       overIdxRef.current = null;
       setDrag(null);
@@ -1911,6 +1925,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     };
 
     const onCancel = () => {
+      acenderAmigo(null);
       dragRef.current = null;
       overIdxRef.current = null;
       pointerStartRef.current = null;
@@ -2030,7 +2045,8 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   // Mostra apenas o NOME do item (a descrição vive no modal de detalhes).
   const tipContent = (it, cat) => {
     const b = bonusDoItem(it);
-    return { title: cat ? (b > 0 ? `${cat.nome} +${b}` : cat.nome) : `(? ${it.slug})` };
+    const nomeV = cat ? nomeComVeneno(cat.nome, it) : '';
+    return { title: cat ? (b > 0 ? `${nomeV} +${b}` : nomeV) : `(? ${it.slug})` };
   };
 
   const renderContainerCard = (it, cat, idx) => {
@@ -2198,11 +2214,12 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
       {/* ── Busca + chips de categoria — mesmo padrão best-toolbar do bestiário ── */}
       <div className="best-toolbar">
         <div className="best-search">
+          <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
           <Input
             type="search"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder={en ? 'Search' : 'Buscar…'}
+            placeholder={en ? 'Search' : 'Buscar'}
           />
         </div>
         <div className="best-chips">
@@ -2349,9 +2366,21 @@ function chaveDaMagiaPorNome(nome) {
    que CARREGAM (Livro das Revelações, anéis, armas, o Alaúde…) — são para usar,
    não para aprender, e ganhavam o botão "Aprender". No catálogo, os 286
    pergaminhos são exatamente os Consumíveis com magia. A RPC
-   usar_pergaminho_magia tem a mesma trava (scripts/sql/pergaminho-so-consumivel.sql). */
+   usar_pergaminho_magia tem a mesma trava (scripts/sql/pergaminho-so-consumivel.sql).
+   E o SLUG pergaminho_ desde 28/09/2026: os frascos alquímicos também são
+   consumíveis com magia, mas se ARREMESSAM ou se BEBEM na batalha — não se
+   aprendem. A RPC ganhou a mesma trava (frascos-amuletos-venenos-2026-09-28.sql). */
 function ehPergaminhoDeMagia(cat) {
-  return !!(cat && cat.magia && cat.nivel_magia != null && cat.grupo === 'Consumíveis');
+  return !!(cat && cat.magia && cat.nivel_magia != null && cat.grupo === 'Consumíveis'
+    && String(cat.slug || '').startsWith('pergaminho_'));
+}
+/* Consumível com magia que NÃO é pergaminho — os frascos alquímicos
+   (28/09/2026): "para ser usado em batalha". Fora de combate não há o que
+   usar; na batalha a magia aparece na aba Magia/Apoio, sem karma, e o frasco
+   some (magiasDeItensDoAtor / consumirItemDaMagia, 12-batalha). */
+function ehItemDeMagiaEmBatalha(cat) {
+  return !!(cat && cat.magia && cat.nivel_magia != null && cat.grupo === 'Consumíveis'
+    && !ehPergaminhoDeMagia(cat));
 }
 // A magia do catálogo que o item nomeia (itens.magia guarda o NOME).
 function magiaDoItem(cat, magiasDb) {
@@ -2609,11 +2638,13 @@ function DetalhesItemModal({
   instance, catalogoBySlug, raca, slotsState, todosItens,
   containersDisponiveis, pjsHistoria, lang,
   onClose, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, onDestruir,
-  onMoverParaContainer, onTransferir, transferError, onTransferReset,
+  onMoverParaContainer,
   onVestir, onDespir,
   criaturaMontaria, onMontar, onDesmontar,
   onRemoverDoContainer, onAbrirDetalhesFilho, contexto,
   onVender, podeVender,
+  // Veneno na arma ou na flecha (28/09/2026): (venenoId, alvoId, qtd) → { ok, motivo? }.
+  onEnvenenar,
   onBonus,
   /* Quem usa o item — o card da aba Usar (26/09/2026). { nome, foto_url }.
      O uso de item vale para o próprio personagem, então há um card só. */
@@ -2623,13 +2654,15 @@ function DetalhesItemModal({
   const [confirmandoDestruir, setConfirmandoDestruir] = useState(false);
   const [confirmandoUsar, setConfirmandoUsar] = useState(false);
   const [confirmandoPreparar, setConfirmandoPreparar] = useState(false);
+  const [abaterErro, setAbaterErro] = useState(null);
+  const [abatendo, setAbatendo] = useState(false);
   const [preparandoCarne, setPreparandoCarne] = useState(false);
   const [aprendendo, setAprendendo] = useState(false);
   const [aprenderErro, setAprenderErro] = useState(null);
   const [mostrarArmazenar, setMostrarArmazenar] = useState(false);
-  const [mostrarTransferir, setMostrarTransferir] = useState(false);
-  const [transfPjId, setTransfPjId] = useState('');
-  const [transferindo, setTransferindo] = useState(false);
+  // Envenenar arma ou flecha com este veneno (28/09/2026): o alvo marcado.
+  const [mostrarEnvenenar, setMostrarEnvenenar] = useState(false);
+  const [envAlvoId, setEnvAlvoId] = useState('');
   const [armazContId, setArmazContId] = useState('');
   // Janela de leitura do livro (itens.doc_url), 13/09/2026.
   const [lendo, setLendo] = useState(false);
@@ -2668,9 +2701,8 @@ function DetalhesItemModal({
     setAprendendo(false);
     setAprenderErro(null);
     setMostrarArmazenar(false);
-    setMostrarTransferir(false);
-    setTransfPjId('');
-    setArmazContId('');
+    setMostrarEnvenenar(false);
+    setArmazContId(''); setEnvAlvoId('');
     setLendo(false);
     setAlvoUsoSel(false);
   }, [instance?.instanceId]);
@@ -2684,7 +2716,8 @@ function DetalhesItemModal({
   const equipavel = !!categoria && !ehVestimenta(cat);
   const consumivel = (cat.grupo === 'Consumíveis') || cat.tipo === 'L';
   // Animal preparável: grupo Animais com slug de resultado definido no catálogo.
-  const ehAnimal = cat.grupo === 'Animais' && !!cat.consumiveis;
+  // Animal ligado a uma criatura: é dela que saem a carne e o peso (28/09/2026).
+  const ehAnimal = cat.grupo === 'Animais' && cat.criatura_id != null;
   // Pergaminho de magia: consumível que declara magia + nivel_magia. Item mágico
   // de outro grupo com magia (livro, anel, arma) NÃO é pergaminho.
   const ehPergaminhoMagia = ehPergaminhoDeMagia(cat);
@@ -2701,6 +2734,13 @@ function DetalhesItemModal({
       centro={<>{Math.min(qtdAcao, maxQtdAcao)} <span className="qtd-de-max">{en ? 'of' : 'de'} {maxQtdAcao}</span></>} />
   ) : null;
   const qtdEscolhida = temMultiplos ? Math.min(qtdAcao, maxQtdAcao) : undefined;
+  // O que este veneno pode untar: as armas (menos o arco) e as flechas comuns.
+  const alvosDoVeneno = ehVenenoDeArma(cat)
+    ? (todosItens || []).filter((x) => {
+        const c = x && catalogoBySlug[x.slug];
+        return c && (armaAceitaVeneno(c) || c.slug === 'flecha') && (Number(x.quantidade) || 0) > 0;
+      })
+    : [];
   // Carne que vira comida (24/09/2026): as receitas e quanto dela há no total.
   const receitasCarne = receitasDaCarne(instance.slug);
   const carneTotal = receitasCarne.length ? carneDisponivel(todosItens, instance.slug) : 0;
@@ -2780,14 +2820,13 @@ function DetalhesItemModal({
   const Ficha = (typeof BestItemFicha !== 'undefined' && BestItemFicha) || window.BestItemFicha;
   const Linha = (typeof BestLinha !== 'undefined' && BestLinha) || window.BestLinha;
   const etapaAberta = confirmandoDestruir || confirmandoUsar || preparandoCarne || confirmandoPreparar
-    || mostrarTransferir || mostrarArmazenar || mostrarVender;
+    || mostrarArmazenar || mostrarVender || mostrarEnvenenar;
   const fecharEtapas = () => {
     fecharTip();
     setConfirmandoDestruir(false); setConfirmandoUsar(false); setPreparandoCarne(false);
-    setConfirmandoPreparar(false); setMostrarTransferir(false); setMostrarArmazenar(false);
-    setMostrarVender(false); setVendaErro(null); setQtdAcao(1);
-    setTransfPjId(''); setArmazContId('');
-    if (onTransferReset) onTransferReset();
+    setConfirmandoPreparar(false); setMostrarArmazenar(false); setMostrarEnvenenar(false);
+    setMostrarVender(false); setVendaErro(null); setQtdAcao(1); setAbaterErro(null);
+    setArmazContId(''); setEnvAlvoId('');
   };
   const abrirEtapa = (setter) => { fecharEtapas(); setter(true); };
 
@@ -2798,7 +2837,9 @@ function DetalhesItemModal({
   const bloqueioAprender = ehPergaminhoMagia
     ? bloqueioPergaminho(cat, pjAprendiz, { magiasDb, noInventario: acoesPesadas, podeAprender: !!onAprenderMagia })
     : null;
-  const podeUsar = consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && !ehFlecha(cat);
+  // Frasco alquímico e flecha não se usam pela mão (28/09/2026).
+  const podeUsar = consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && !ehFlecha(cat)
+    && !ehItemDeMagiaEmBatalha(cat);
   const acoesTopo = [
     acoesPesadas && onVender && cat.grupo !== 'Moedas' && {
       chave: 'vender', icone: 'ti-coins', ativo: mostrarVender,
@@ -2818,12 +2859,6 @@ function DetalhesItemModal({
       rotulo: en ? 'Discard' : 'Descartar',
       // Pilha: vai direto pra janela de quantidade (a padrão).
       onClick: () => (confirmandoDestruir ? fecharEtapas() : abrirEtapa(setConfirmandoDestruir)),
-    },
-    acoesPesadas && pjsHistoria.length > 0 && !instance.vestido && !instance.montado && {
-      chave: 'transferir', icone: 'ti-share-3', ativo: mostrarTransferir,
-      rotulo: en ? 'Transfer' : 'Transferir',
-      // Clicar de novo fecha a escolha (26/09/2026 — não há mais Cancelar).
-      onClick: () => (mostrarTransferir ? fecharEtapas() : abrirEtapa(setMostrarTransferir)),
     },
     acoesPesadas && equipavel && (instance.equipado ? {
       chave: 'desequipar', icone: 'ti-shield-off', rotulo: en ? 'Unequip' : 'Desequipar',
@@ -2851,6 +2886,18 @@ function DetalhesItemModal({
       // Clicar de novo fecha a escolha (26/09/2026 — não há mais Cancelar).
       onClick: () => (mostrarArmazenar ? fecharEtapas() : abrirEtapa(setMostrarArmazenar)),
     },
+    /* ENVENENAR (28/09/2026): "Itens venenosos (Blueta, Leopis, Theonia) podem
+       ser usados em armas e flechas". O card marca a arma ou a pilha de
+       flechas; o rodapé envenena. */
+    acoesPesadas && onEnvenenar && ehVenenoDeArma(cat) && {
+      chave: 'envenenar', icone: 'ti-skull', ativo: mostrarEnvenenar,
+      rotulo: en ? 'Poison a weapon or arrows' : 'Envenenar arma ou flechas',
+      desativado: alvosDoVeneno.length === 0,
+      dica: alvosDoVeneno.length === 0
+        ? { title: en ? 'Poison' : 'Envenenar', desc: en ? 'No weapon or arrow in the inventory.' : 'Nenhuma arma ou flecha no inventário.' }
+        : null,
+      onClick: () => (mostrarEnvenenar ? fecharEtapas() : abrirEtapa(setMostrarEnvenenar)),
+    },
     /* Usar saiu dos ícones em 26/09/2026: "Comportamento igual da magia, ao
        clicar no card do alvo, o card fica selecionado e vermelho, se clicar
        novamente [o item] é usado." — ver a aba Usar, abaixo. */
@@ -2861,7 +2908,7 @@ function DetalhesItemModal({
     },
     acoesPesadas && ehAnimal && onPreparar && !instance.montado && {
       chave: 'preparar', icone: 'ti-meat', ativo: confirmandoPreparar,
-      rotulo: en ? 'Prepare' : 'Preparar',
+      rotulo: en ? 'Slaughter' : 'Abater',
       onClick: () => abrirEtapa(setConfirmandoPreparar),
     },
     // ── Os que o pedido não listava (continuam existindo) ──
@@ -2936,6 +2983,11 @@ function DetalhesItemModal({
             </span>
           )} />
       )}
+      {/* Arma untada (28/09/2026): qual veneno e quantas ações ainda restam. */}
+      {venenoDaArma(instance) && (
+        <Linha rotulo={en ? 'Poison' : 'Veneno'}
+          valor={`${venenoDaArma(instance).nome} · ${venenoDaArma(instance).acoes} ${en ? 'actions' : 'ações'}`} />
+      )}
     </>
   ) : null;
 
@@ -3005,9 +3057,25 @@ function DetalhesItemModal({
         })}
       </div>);
   } else if (confirmandoPreparar) {
-    corpoEtapa = etapa(en ? `Slaughter and process ${cat.nome}? You will receive ${cat.consumiveis_peso || 1}× ${cat.consumiveis}.`
-         : `Abater e preparar ${cat.nome}? Você receberá ${cat.consumiveis_peso || 1}× ${cat.consumiveis}.`, null,
-      <button type="button" className="btn-primary btn-md" onClick={() => { onPreparar(instance.instanceId); onClose(); }}>{en ? 'Prepare' : 'Preparar'}</button>);
+    /* ABATER (28/09/2026): a carne do tipo da criatura, metade do peso, vai
+       para a loja da aventura à venda por você — não para a mochila. Quanto
+       rendeu, o servidor diz na mesa. */
+    const abater = async () => {
+      setAbatendo(true); setAbaterErro(null);
+      const r = await onPreparar(instance.instanceId);
+      setAbatendo(false);
+      if (r && r.ok) { onClose(); return; }
+      setAbaterErro(r && r.motivo === 'sem_carne'
+        ? (en ? 'This creature yields no meat.' : 'Esta criatura não rende carne.')
+        : (r && r.motivo) || (en ? 'Could not slaughter.' : 'Não foi possível abater.'));
+    };
+    corpoEtapa = etapa(
+      en ? `Slaughter ${cat.nome}? Its meat — half the animal's weight — goes to the adventure shop, for sale by you.`
+         : `Abater ${cat.nome}? A carne — metade do peso do animal — vai para a loja da aventura, à venda por você.`,
+      abaterErro ? <div className="err-msg">{abaterErro}</div> : null,
+      <button type="button" className="btn-primary btn-md" data-confirmar="abater" disabled={abatendo} onClick={abater}>
+        {abatendo ? (en ? 'Slaughtering…' : 'Abatendo…') : (en ? 'Slaughter' : 'Abater')}
+      </button>);
   } else if (mostrarVender) {
     /* PUBLICAR NA LOJA (27/09/2026), sem títulos ("Preço", "Valor de
        tabela") — Cancelar e Pôr à venda no rodapé. Pilha divisível escolhe
@@ -3016,6 +3084,10 @@ function DetalhesItemModal({
     const maxQtd = Math.max(1, Number(instance.quantidade) || 1);
     const divisivel = !equipavel && !isContainer && maxQtd > 1;
     const valorUnit = Number(cat.valor_latao) || 0;
+    /* Item SEM valor de tabela vende por 0 (28/09/2026: "Itens que não tem
+       valor são vendidos e negociados com valor 0"); o que tem valor segue
+       pedindo preço maior que zero — a mesma regra de publicar_item_loja. */
+    const precoValido = vendaPreco > 0 || (valorUnit === 0 && vendaPreco === 0);
     const publicar = async () => {
       setPublicando(true); setVendaErro(null);
       const res = await onVender(instance.instanceId, divisivel ? vendaQtd : maxQtd, vendaPreco);
@@ -3049,59 +3121,63 @@ function DetalhesItemModal({
           onChange={setVendaQtd} />
       ) : null,
       direita: (
-        <button type="button" className="btn-primary btn-md" data-publicar disabled={publicando || !(vendaPreco > 0)} onClick={publicar}>
+        <button type="button" className="btn-primary btn-md" data-publicar disabled={publicando || !precoValido} onClick={publicar}>
           {publicando ? (en ? 'Publishing…' : 'Publicando…') : (en ? 'Put up for sale' : 'Pôr à venda')}
         </button>
       ),
     };
-  } else if (mostrarTransferir) {
-    /* TRANSFERIR: o clique no card MARCA o destinatário (vermelho); quem
-       transfere é o botão do rodapé (27/09/2026, "adicione o rodapé com o botão
-       de confirmar em transferir, usar, armazenar, etc."). Até ali o 2º clique
-       no card transferia, com a dica "clique aqui novamente". */
-    const transferirPara = async (id) => {
-      setTransferindo(true);
-      const res = await onTransferir(id, qtdEscolhida);
-      setTransferindo(false);
-      if (res?.ok) onClose();   // item saiu do inventário deste PJ
+  } else if (mostrarEnvenenar) {
+    /* ENVENENAR (28/09/2026). Arma: 1 dose, e ela carrega o veneno pelas
+       próximas 15 ações. Flechas: 1 dose por flecha — o seletor do rodapé diz
+       quantas, até o que houver de dose e de flecha. */
+    const alvoSel = alvosDoVeneno.find((x) => x.instanceId === envAlvoId) || null;
+    const ehFlechaSel = !!(alvoSel && alvoSel.slug === 'flecha');
+    const maxFlechas = ehFlechaSel ? Math.max(1, Math.min(maxQtdAcao, Number(alvoSel.quantidade) || 1)) : 1;
+    const qtdFlechas = Math.min(qtdAcao, maxFlechas);
+    const envenenarAgora = () => {
+      if (!alvoSel) return;
+      const r = onEnvenenar(instance.instanceId, alvoSel.instanceId, ehFlechaSel ? qtdFlechas : 1);
+      if (r && r.ok) onClose();
     };
-    /* O PADRÃO DO USAR (27/09/2026): "O mesmo padrão que nós criamos para usar
-       um item, que é o card do personagem com sua foto e nome, e do lado o
-       seletor de quantidade, aplique isso em transferir, armazenar, etc."
-       Cards em pílula e o seletor na mesma linha (.det-uso-linha). */
-    /* TRÊS CARDS POR LINHA (27/09/2026): "No modal de transferir, eu quero 3
-       cards por linha." O seletor de quantidade foi para o centro do rodapé,
-       como no Usar, e a grade ocupa a largura toda. */
     corpoEtapa = (
       <div className="det-etapa det-uso">
-        <div className="det-uso-alvos det-uso-alvos--grade" role="radiogroup" aria-label={en ? 'Recipient' : 'Destinatário'}>
-          {(pjsHistoria || []).map((pj) => {
-            const id = String(pj.id);
-            const nome = [pj.nome, pj.sobrenome].filter(Boolean).join(' ');
-            const selecionado = transfPjId === id;
+        <div className="det-uso-alvos det-uso-alvos--grade" role="radiogroup" aria-label={en ? 'Weapon or arrows' : 'Arma ou flechas'}>
+          {alvosDoVeneno.map((x) => {
+            const cx = catalogoBySlug[x.slug];
+            const nome = nomeComVeneno(cx?.nome || x.slug, x);
+            const selecionado = envAlvoId === x.instanceId;
+            const v = venenoDaArma(x);
+            const detalhe = cx && cx.slug === 'flecha'
+              ? (en ? `${x.quantidade} arrows` : `${x.quantidade} flechas`)
+              : v ? (en ? `Already poisoned with ${v.nome} (${v.acoes} actions). It will be replaced.`
+                        : `Já envenenada com ${v.nome} (${v.acoes} ações). O veneno será trocado.`)
+                  : (en ? 'Poisoned for the next 15 actions.' : 'Envenenada pelas próximas 15 ações.');
             return (
-              <button type="button" key={id} role="radio" aria-checked={selecionado} data-pj-id={id}
+              <button type="button" key={x.instanceId} role="radio" aria-checked={selecionado}
+                data-envenenar-id={x.instanceId}
                 className={'det-opt-card det-opt-card--pilula' + (selecionado ? ' det-opt-card--sel' : '')}
-                disabled={transferindo}
-                onClick={() => { setTransfPjId(id); onTransferReset && onTransferReset(); }}>
-                {pj.foto_url
-                  ? <img className="det-opt-foto" src={pj.foto_url} alt="" />
-                  : <span className="det-opt-foto det-opt-foto--vazia">{(nome || '?').trim().slice(0, 1).toUpperCase()}</span>}
-                <span className="det-opt-nome">{nome}</span>
+                onClick={() => { setEnvAlvoId(x.instanceId); setQtdAcao(1); }}
+                onMouseEnter={(e) => abrirTip(e, { title: nome, desc: detalhe })}
+                onMouseLeave={fecharTip}>
+                <span className="det-opt-foto det-opt-foto--vazia"><i className={'ti ' + invItemIcon(cx)} aria-hidden="true" /></span>
+                <span className="det-opt-nome">{nome}{cx && cx.slug === 'flecha' ? ` ×${x.quantidade}` : ''}</span>
               </button>
             );
           })}
         </div>
-        {transferError && <div className="transf-error">{motivoTransferenciaLabel(transferError, en)}</div>}
       </div>
     );
     rodapeEtapa = {
       esquerda: cancelar,
-      centro: seletorQtd,
+      centro: ehFlechaSel && maxFlechas > 1 ? (
+        <QuantidadeStepper value={qtdFlechas} min={1} max={maxFlechas} onChange={setQtdAcao}
+          label={en ? 'Arrows' : 'Flechas'}
+          centro={<>{qtdFlechas} <span className="qtd-de-max">{en ? 'of' : 'de'} {maxFlechas}</span></>} />
+      ) : null,
       direita: (
-        <button type="button" className="btn-primary btn-md" data-confirmar="transferir"
-          disabled={!transfPjId || transferindo} onClick={() => transferirPara(transfPjId)}>
-          {transferindo ? (en ? 'Sending…' : 'Enviando…') : (en ? 'Transfer' : 'Transferir')}
+        <button type="button" className="btn-primary btn-md" data-confirmar="envenenar"
+          disabled={!alvoSel} onClick={envenenarAgora}>
+          {en ? 'Poison' : 'Envenenar'}
         </button>
       ),
     };
@@ -3175,7 +3251,7 @@ function DetalhesItemModal({
   return (
     <>
       <Janela
-        title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
+        title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {nomeComVeneno(cat.nome, instance)}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
         lang={lang}
         onClose={onClose}
         acoes={acoesTopo}
@@ -3369,6 +3445,7 @@ function motivoTransferenciaLabel(motivo, en) {
     mesmo_personagem:   en ? 'Pick another character.'                                 : 'Escolha outro personagem.',
     quantidade_invalida: en ? 'Invalid quantity.'                                      : 'Quantidade inválida.',
     sem_bolsa_destino:  en ? 'The recipient has no purse for coins.'                   : 'O destinatário não tem bolsa para as moedas.',
+    sem_pacto:          en ? 'You have not sealed a friendship pact with this character.' : 'Vocês ainda não selaram um pacto de amizade.',
     instancia_nao_encontrada: en ? 'Item not found in the inventory.'                  : 'Item não encontrado no inventário.',
   };
   return M[motivo] || motivo;
@@ -3421,7 +3498,8 @@ function LeituraDocModal({ titulo, docUrl, lang, onClose }) {
    usuário): usar, descartar, guardar/retirar e transferir passam todos por
    ela, na ficha e no inventário. `irreversivel` decide só o aviso — transferir
    e guardar têm volta, e dizer "irreversível" ali era mentira. */
-function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel, irreversivel = true }) {
+
+function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel, irreversivel = true, erro = null }) {
   const [qtd, setQtd] = useState(1);
   const en = lang === 'en';
   useEffect(() => {
@@ -3467,6 +3545,7 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel, irreversivel 
         centro={<>{qtd} <span className="qtd-de-max">{en ? `of ${max}` : `de ${max}`}</span></>}
         label={en ? 'Quantity' : 'Quantidade'}
       />
+      {erro && <div className="transf-error" role="alert">{erro}</div>}
 
     </ModalShell>
   );
@@ -3542,7 +3621,7 @@ Object.assign(window, {
   // (vestir-capacidade.test.js trava os dois lados juntos, 16/09/2026).
   VESTE_SLOTS, vesteSlotState,
   // Pergaminho: o botão "Aprender" bloqueia quando não há o que ensinar.
-  bloqueioPergaminho, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia,
+  bloqueioPergaminho, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia, ehItemDeMagiaEmBatalha,
   // A magia que o item carrega — o bestiário mostra nome e descrição.
   magiaDoItem,
   // Montaria: a ficha abre a aba da montaria a partir daqui.

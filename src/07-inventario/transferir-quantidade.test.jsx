@@ -100,51 +100,72 @@ async function abrirPocao(container) {
   await screen.findByText('Poção');
 }
 
-// Abre a janela da Poção, entra na transferência, escolhe a Ana e confirma.
-// `mais`: quantos cliques no + do seletor da própria janela (pilha).
-async function iniciarTransferencia(container, mais = 0) {
-  await abrirPocao(container);
-  // Ícone ao lado do X desde 26/09/2026; o corpo com abas some na etapa.
-  expect(document.querySelector('.best-detail')).toBeTruthy();
-  fireEvent.click(document.querySelector('[data-acao="transferir"]'));
-  // Na transferência a janela fica só com os destinatários.
-  expect(document.querySelector('.best-secao--descricao')).toBeNull();
-  expect(document.querySelector('.best-secao--lista')).toBeNull();
-  for (let i = 0; i < mais; i++) fireEvent.click(document.querySelector('.ms-footer-center .fp-pop-stepper [aria-label="+"]'));
-  const card = await screen.findByRole('radio', { name: /Ana/ });
-  expect(card.querySelector('img.det-opt-foto').getAttribute('src')).toBe('https://x/ana.png');
-  fireEvent.click(card);
-  expect(card.getAttribute('aria-checked')).toBe('true');
-  // Primeiro o aliado; a quantidade ainda não foi perguntada.
-  expect(screen.queryByText('Transferir Poção')).toBeFalsy();
-  // Transferir no rodapé confirma (27/09/2026); o card só marca.
-  fireEvent.click(document.querySelector('.ms-footer [data-confirmar="transferir"]'));
+/* TRANSFERIR = ARRASTAR PARA O AMIGO (28/09/2026): "para transferir um item
+   para um amigo, só precisa arrastar o item do inventário para o card do
+   amigo, ao soltar, será perguntado a quantidade que será enviada. O botão
+   transferir do modal do item pode sair, pois este será a única maneira."
+   O card do amigo mora no AmigosFab (11-ficha); aqui ele é um elemento com
+   data-amigo-pj-id, e elementFromPoint aponta para ele. */
+if (typeof window.PointerEvent === 'undefined') {
+  window.PointerEvent = class extends MouseEvent {
+    constructor(tipo, init = {}) { super(tipo, init); this.pointerId = init.pointerId ?? 1; }
+  };
 }
 
-describe('transferir: primeiro o aliado, depois a quantidade', () => {
-  it('pilha de 1 unidade transfere direto, sem janela de quantidade (p_quantidade: null)', async () => {
-    const chamadasRpc = [];
-    const { container } = montar(1, chamadasRpc);
-    await iniciarTransferencia(container);
+function cardDoAmigo() {
+  const el = document.createElement('div');
+  el.setAttribute('data-amigo-pj-id', String(PJ_DESTINO_ID));
+  document.body.appendChild(el);
+  return el;
+}
 
-    await waitFor(() => expect(chamadasRpc.length).toBe(1));
-    expect(chamadasRpc[0].p_quantidade).toBe(null);
-    expect(screen.queryByText('Transferir Poção')).toBeFalsy();
+async function arrastarParaAmigo(container, amigo) {
+  await waitFor(() => expect(container.querySelector('.inv-card')).toBeTruthy());
+  const card = container.querySelector('.inv-card');
+  const original = document.elementFromPoint;
+  document.elementFromPoint = (x) => (x > 300 ? amigo : card);
+  fireEvent.pointerDown(card, { button: 0, clientX: 10, clientY: 10 });
+  fireEvent.pointerMove(card, { clientX: 40, clientY: 40 });
+  fireEvent.pointerMove(window, { clientX: 400, clientY: 40 });
+  expect(amigo.classList.contains('is-alvo')).toBe(true);
+  fireEvent.pointerUp(window, { clientX: 400, clientY: 40 });
+  document.elementFromPoint = original;
+  expect(amigo.classList.contains('is-alvo')).toBe(false);
+}
+
+describe('transferir: arrastar o item até o card do amigo', () => {
+  afterEach(() => document.querySelectorAll('[data-amigo-pj-id]').forEach((el) => el.remove()));
+
+  it('o modal do item não tem mais o botão Transferir', async () => {
+    const { container } = montar(5, []);
+    await abrirPocao(container);
+    expect(document.querySelector('[data-acao="transferir"]')).toBeNull();
   });
 
-  /* 27/09/2026: "O seletor de quantidade deve aparecer no modal de selecionar
-     alvo." — a pilha escolhe quantos NA etapa de transferir; sem a segunda
-     janela ("Transferir Poção"). */
-  it('pilha de N>1: o seletor fica na etapa e a escolha vai direto', async () => {
+  it('soltar no amigo pergunta a quantidade e envia o escolhido', async () => {
     const chamadasRpc = [];
     const { container } = montar(5, chamadasRpc);
-    await iniciarTransferencia(container, 1);
+    await arrastarParaAmigo(container, cardDoAmigo());
+
+    await screen.findByText('Enviar Poção para Ana');
+    expect(chamadasRpc).toHaveLength(0);
+    fireEvent.click(document.querySelector('.fp-pop-stepper [aria-label="+"]'));
+    fireEvent.click(screen.getByText('Confirmar'));
 
     await waitFor(() => expect(chamadasRpc.length).toBe(1));
-    expect(screen.queryByText('Transferir Poção')).toBeFalsy();
     expect(chamadasRpc[0].p_quantidade).toBe(2);
     expect(chamadasRpc[0].p_instance_id).toBe('corda-1');
-    expect(chamadasRpc[0].p_to_pj_id).toBe(String(PJ_DESTINO_ID));
+    expect(Number(chamadasRpc[0].p_to_pj_id)).toBe(PJ_DESTINO_ID);
+    await waitFor(() => expect(screen.queryByText('Enviar Poção para Ana')).toBeFalsy());
+  });
+
+  it('item único também pergunta — é a confirmação do soltar', async () => {
+    const chamadasRpc = [];
+    const { container } = montar(1, chamadasRpc);
+    await arrastarParaAmigo(container, cardDoAmigo());
+    await screen.findByText('Enviar Poção para Ana');
+    fireEvent.click(screen.getByText('Cancelar'));
+    expect(chamadasRpc).toHaveLength(0);
   });
 });
 

@@ -92,15 +92,12 @@ describe('Cidade', () => {
     expect(rotulos().filter((r) => r === 'Reino')).toHaveLength(1);
   });
 
-  it('Capital é dropdown Sim/Não e grava booleano', () => {
-    const onChange = vi.fn();
-    montar('cidade', { atributos: { capital: false } }, onChange);
+  // 28/09/2026: "Remova do card de criação de cidades, o campo 'capital' pois
+  // ele é informado na criação do reino."
+  it('a cidade não tem mais o campo Capital', () => {
+    montar('cidade', { atributos: { capital: false } });
     expect(document.querySelector('input[type="checkbox"]')).toBeNull();
-    fireEvent.click(campoDe('Capital').querySelector('.select-pill-btn'));
-    const opcoes = [...document.querySelectorAll('.select-pill-drop li')].map((li) => li.textContent.trim());
-    expect(opcoes).toEqual(['Não', 'Sim']);
-    fireEvent.click([...document.querySelectorAll('.select-pill-drop li')].find((li) => li.textContent.trim() === 'Sim'));
-    expect(onChange.mock.calls.at(-1)[0].atributos.capital).toBe(true);
+    expect(rotulos()).not.toContain('Capital');
   });
 
   it('os campos novos: Governante, Religião, Economia, Defesas e Rumores', () => {

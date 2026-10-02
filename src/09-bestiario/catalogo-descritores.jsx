@@ -40,8 +40,8 @@ const OPCOES_GRUPO_ARMADURAS = ['Livre', { value: 'L', label: 'Armaduras leves' 
 const OPCOES_TIPO_MAGIA = ['Básica', 'Perdida', 'Ancestral'];
 const RODADAS_MAGIA = ['1 rodada', '2 rodadas', '3 rodadas', '4 rodadas', '5 rodadas',
   '10 rodadas', '15 rodadas', '30 rodadas'];
-const OPCOES_EVOCACAO = ['Instantânea', ...RODADAS_MAGIA];
-const OPCOES_ALCANCE = ['Toque', '2 metros', '5 metros', '10 metros', '15 metros',
+const OPCOES_EVOCACAO = ['Instantânea', ...RODADAS_MAGIA, 'Ritual'];
+const OPCOES_ALCANCE = ['Pessoal', 'Toque', '2 metros', '5 metros', '10 metros', '15 metros',
   '20 metros', '50 metros', '100 metros', '1 quilômetro'];
 const OPCOES_DURACAO = ['Variável', 'Instantânea', ...RODADAS_MAGIA];
 
@@ -136,8 +136,9 @@ const CATALOGO_DESCRITORES = {
       { col: 'duracao',  tipo: 'opcoes', rotuloKey: 'campoDuracao', opcoes: OPCOES_DURACAO },
       // custo é texto no banco; as opções são as strings '1'…'4'.
       { col: 'custo',     tipo: 'opcoes', rotuloKey: 'campoCusto', opcoes: ['1', '2', '3', '4'] },
-      // Dano ao lado de Custo (26/09/2026).
-      { col: 'dano',      tipo: 'numero', rotuloKey: 'campoDano', min: 0 },
+      /* Dano saiu do editor em 29/09/2026 ("Eu quero que você remova este
+         campo"): o dano vem do texto de cada nível (efeitosNoNivel). A coluna
+         segue no banco e o motor ainda a lê como reserva — danoMagiaNoNivel. */
       { col: 'permissao', tipo: 'multiopcoes', rotuloKey: 'campoPermissao', opcoes: OPCOES_PERMISSAO },
       /* Itens do ritual (26/09/2026): "fica em um input próprio, com dropdown
          para selecionar quais itens do catálogo". Era a última frase da
@@ -337,9 +338,10 @@ const CATALOGO_DESCRITORES = {
           'Minerais', 'Moedas', 'Propriedades', 'Recipientes', 'Serviços', 'Transportes', 'Vestimentas'] },
       // Os três valores vêm de um SELECT DISTINCT em 11/09/2026: Comum 489,
       // Raro 105, Mágico 78. Os 75 vazios foram preenchidos com Comum pelo
-      // script scripts/sql/itens-origem-tipo-armadura-fix.sql.
+      // script scripts/sql/itens-origem-tipo-armadura-fix.sql. "Alquímico" entrou
+      // em 28/09/2026, com os frascos (scripts/sql/frascos-amuletos-venenos-2026-09-28.sql).
       { col: 'origem',    tipo: 'opcoes', rotuloKey: 'campoOrigem',
-        opcoes: ['Comum', 'Raro', 'Mágico'] },
+        opcoes: ['Comum', 'Raro', 'Mágico', 'Alquímico'] },
       /* O banco só aceita "ti-nome" (itens_icone_formato_chk: ^ti-[a-z0-9-]+$).
          Texto livre fazia o insert falhar com o erro do Postgres (14/09/2026).
          formato: 'icone' → o editor aceita "ti-paw", "ti ti-paw", o <i> colado
@@ -364,8 +366,10 @@ const CATALOGO_DESCRITORES = {
       { col: 'dano_m', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoM', min: 0 },
       { col: 'dano_p', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoP', min: 0 },
       { col: 'nivel_magia', tipo: 'numero', rotuloKey: 'campoNivelMagia', min: 0 },
-      { col: 'consumiveis', grupos: ['Animais'],       tipo: 'numero', rotuloKey: 'campoConsumiveis',      min: 0 },
-      { col: 'consumiveis_peso', grupos: ['Animais'],  tipo: 'numero', rotuloKey: 'campoConsumiveisPeso',  min: 0 },
+      /* 'consumiveis' e 'consumiveis_peso' SAÍRAM em 28/09/2026: a carne do
+         abate sai do tipo e do peso da CRIATURA ligada (RPC abater_animal) —
+         "não precisa de um dropdown para isso, a conversão é automática". As
+         colunas seguem no banco, sem uso. */
       /* Vínculo com a criatura (14/09/2026). O animal à venda É a criatura do
          bestiário: as características (montaria inclusive) ficam SÓ nela e o
          item herda por aqui. scripts/sql/itens-criatura-vinculo-2026-09-14.sql */
@@ -380,7 +384,12 @@ const CATALOGO_DESCRITORES = {
          O valor se resolve sozinho a partir de `magia`: preencheu, é mágico. */
       { col: 'magico', tipo: 'opcoes', rotuloKey: 'campoMagico',
         opcoes: ['Sim', 'Não'], somenteLeitura: true },
-      { col: 'magia',  tipo: 'texto',  rotuloKey: 'campoMagia' },
+      /* DROPDOWN com as magias do sistema (28/09/2026: "no campo magia, mostrar
+         um dropdown com as magias do sistema"). O banco guarda o NOME da magia
+         (magiaDoItem casa pelo nome); a lista vem da tabela `fonte` quando o
+         editor abre e entra depois do "nenhuma" daqui. */
+      { col: 'magia',  tipo: 'opcoes', rotuloKey: 'campoMagia', fonte: 'magias',
+        opcoes: [{ value: '', label: '—' }] },
       // Mesmo AJUSTE_KEY de 01-core/inventario-helpers.jsx (FIS desde 14/09/2026,
       // com as armas naturais). Sigla no banco, nome na tela.
       { col: 'ajuste_atributo', grupos: ['Armas'], tipo: 'opcoes', rotuloKey: 'campoAjusteAtributo',
@@ -411,7 +420,6 @@ const CATALOGO_DESCRITORES = {
                  { value: 'costas', label: 'Costas' }, { value: 'cintura', label: 'Cintura' },
                  { value: 'pescoco', label: 'Pescoço' }, { value: 'orelhas', label: 'Orelhas' },
                  { value: 'dedos', label: 'Dedos' }] },
-      { col: 'grupo_equipamento', grupos: ['Armas', 'Armaduras'],  tipo: 'texto', rotuloKey: 'campoGrupoEquipamento' },
       { col: 'maos_pequenino', grupos: ['Armas', 'Armaduras', 'Instrumentos'], tipo: 'numero', rotuloKey: 'campoMaosPequenino', min: 0, max: 2 },
       { col: 'maos_anao', grupos: ['Armas', 'Armaduras', 'Instrumentos'],      tipo: 'numero', rotuloKey: 'campoMaosAnao',      min: 0, max: 2 },
       { col: 'maos_outras', grupos: ['Armas', 'Armaduras', 'Instrumentos'],    tipo: 'numero', rotuloKey: 'campoMaosOutras',    min: 0, max: 2 },

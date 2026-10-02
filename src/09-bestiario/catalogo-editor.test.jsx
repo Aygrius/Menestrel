@@ -14,7 +14,7 @@
    de src/08-personagens/wizard-layout.test.jsx.
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
@@ -1335,5 +1335,25 @@ describe('magia: itens do ritual com quantidade', () => {
   it('quantidade que não é número passa como veio, sem botões', () => {
     montar({ tabela: 'magias', linha: { key: 'x', nome: 'X', itens_necessarios: 'Carcaça (Variável)' } });
     expect(chips()).toEqual([['Carcaça (Variável)', null]]);
+  });
+});
+
+/* 28/09/2026: "No modal de editar itens, no campo magia, mostrar um dropdown
+   com as magias do sistema." O banco guarda o NOME da magia. */
+describe('itens: Magia em dropdown com as magias do sistema', () => {
+  it('lista "—" e as magias, e grava o nome escolhido', async () => {
+    listasFixture = { ...listasFixture, magias: [{ nome: 'Bola de Fogo' }, { nome: 'Faro' }] };
+    const onSalvo = vi.fn();
+    montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magia: 'Faro' }, onSalvo });
+    const pill = await waitFor(() => {
+      const p = Array.from(document.querySelectorAll('.select-pill-btn')).find((b) => b.textContent.trim() === 'Faro');
+      expect(p).toBeTruthy();
+      return p;
+    });
+    fireEvent.click(pill);
+    const opcoes = Array.from(document.querySelectorAll('.select-pill-drop li')).map((li) => li.textContent.trim());
+    expect(opcoes).toEqual(['—', 'Bola de Fogo', 'Faro']);
+    fireEvent.click(Array.from(document.querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === 'Bola de Fogo'));
+    expect(pill.textContent.trim()).toBe('Bola de Fogo');
   });
 });

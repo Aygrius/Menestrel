@@ -61,7 +61,11 @@ function montar() {
         };
         return box;
       },
-      update: (campos) => ({ eq: async () => { escritas.push(campos.estoque_loja); return { error: null }; } }),
+      // Preguiçoso como o supabase-js: a escrita só acontece no then (await ou
+      // .then). Gravar já no eq() escondia o cadeado que nunca era solto.
+      update: (campos) => ({ eq: () => ({
+        then: (ok, falha) => { escritas.push(campos.estoque_loja); return Promise.resolve({ error: null }).then(ok, falha); },
+      }) }),
     }),
   };
   const r = render(<div className="menestrel-ui">

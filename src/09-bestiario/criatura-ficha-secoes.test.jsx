@@ -262,27 +262,35 @@ describe('a ficha abre numa janela', () => {
   });
 });
 
-/* "Arrume o tooltip para não ser uma linha só" (usuário, 26/09/2026). Era
-   white-space: nowrap — a explicação atravessava a tela numa faixa. */
-describe('o tooltip dos rótulos quebra linha', () => {
-  /* Só Técnicas, Habilidades e Magias têm tooltip desde 26/09/2026 ("não
-     precisa de tooltip nos demais itens"); o teste usa uma habilidade. */
-  it('o nome da linha em destaque em cima, a explicação embaixo, com largura máxima', async () => {
+/* O TOOLTIP VIROU JANELA (28/09/2026): "No card das criaturas, a descrição
+   das magias, habilidades e técnicas deixam de ser um tooltip para virar um
+   modal ao ser clicado." A janela é a de consulta do Treinamento, por cima da
+   ficha da criatura. */
+describe('Técnica, Habilidade e Magia abrem janela ao clicar', () => {
+  it('clicar na habilidade abre a janela com a descrição e o total', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
-    const rot = [...secao(det, 'Habilidades').querySelectorAll('.best-stat-lbl')].find((l) => l.textContent === 'Sentidos');
-    fireEvent.mouseEnter(rot);
-    const tip = await vi.waitFor(() => {
-      const t = document.querySelector('[role="tooltip"]');
-      expect(t).toBeTruthy();
-      return t;
-    });
-    expect(tip.style.whiteSpace).toBe('normal');
-    expect(tip.style.maxWidth).toBe('280px');
-    const [nome, explicacao] = [...tip.children].filter((c) => c.textContent);
-    expect(nome.textContent).toBe('Sentidos');
-    expect(explicacao.textContent).toBe('Perceber o que escapa aos outros.');
+    const linha = [...secao(det, 'Habilidades').querySelectorAll('.best-stat')]
+      .find((c) => c.textContent.includes('Sentidos'));
+    expect(linha.getAttribute('role')).toBe('button');
+    fireEvent.click(linha);
+    const janelas = document.querySelectorAll('[role="dialog"]');
+    expect(janelas.length).toBe(2);
+    const consulta = janelas[janelas.length - 1];
+    expect(consulta.querySelector('.ms-title').textContent).toMatch(/Sentidos/);
+    expect(consulta.textContent).toMatch(/Perceber o que escapa aos outros\./);
+    expect(consulta.textContent).toMatch(/Total/);
+  });
+
+  it('Escape fecha só a janela de cima', async () => {
+    stubBanco(); montar();
+    await pronta();
+    const det = await abrir('Águia');
+    fireEvent.click([...secao(det, 'Habilidades').querySelectorAll('.best-stat')][0]);
+    expect(document.querySelectorAll('[role="dialog"]').length).toBe(2);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(document.querySelectorAll('[role="dialog"]').length).toBe(1);
   });
 });
 
@@ -338,7 +346,8 @@ describe('as oito seções, na ordem que o usuário ditou', () => {
     expect([...det.querySelectorAll('.best-secao-titulo')].map((t) => t.textContent.trim()))
       .toEqual([
         'Descrição',
-        'Características', 'Atributos', 'Informações',
+        // Características e Informações viraram a aba Ficha (28/09/2026).
+        'Características', 'Informações', 'Atributos',
         'Técnicas de Combate', 'Habilidades', 'Ataques',
       ]);
   });
@@ -355,7 +364,8 @@ describe('as oito seções, na ordem que o usuário ditou', () => {
     await pronta();
     const det = await abrir('Águia Real');
     const titulos = (sel) => [...det.querySelectorAll(sel + ' .best-secao-titulo')].map((t) => t.textContent.trim());
-    expect(titulos('.best-ficha-topo')).toEqual(['Características', 'Atributos', 'Informações']);
+    // Características e Informações dividem a aba Ficha (28/09/2026), cada uma com o seu título.
+    expect(titulos('.best-ficha-topo')).toEqual(['Características', 'Informações', 'Atributos']);
     const doTopo = [...det.querySelectorAll('.best-ficha-topo .best-stat')];
     expect(doTopo.length).toBeGreaterThan(0);
     doTopo.forEach((li) => {
@@ -676,26 +686,26 @@ describe('Classe e Elemento por extenso', () => {
   });
 });
 
-/* "Não precisa de tooltip nos demais itens" (usuário, 26/09/2026): só as
-   linhas de Técnicas, Habilidades e Magias explicam o que são. */
-describe('tooltip só em Técnicas, Habilidades e Magias', () => {
-  it('as outras seções não têm', async () => {
+/* Tooltip em nenhuma seção desde 28/09/2026: Técnicas, Habilidades e Magias,
+   que eram as únicas com tooltip, passaram a abrir janela ao clicar. */
+describe('nenhuma linha da ficha tem tooltip', () => {
+  it('nem as listas de catálogo', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
-    for (const t of ['Características', 'Atributos', 'Informações', 'Ataques']) {
+    for (const t of ['Características', 'Atributos', 'Informações', 'Ataques', 'Técnicas de Combate', 'Habilidades']) {
       expect(secao(det, t).querySelectorAll('[data-tip]'), t).toHaveLength(0);
     }
   });
 
-  it('Técnicas e Habilidades têm, em toda linha', async () => {
+  it('Técnicas e Habilidades: toda linha abre janela', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
     for (const t of ['Técnicas de Combate', 'Habilidades']) {
       const linhas = [...secao(det, t).querySelectorAll('.best-stat')];
       expect(linhas.length, t).toBeGreaterThan(0);
-      expect(linhas.filter((c) => !c.querySelector('[data-tip]')), t).toEqual([]);
+      expect(linhas.filter((c) => c.getAttribute('role') !== 'button'), t).toEqual([]);
     }
   });
 
@@ -704,16 +714,6 @@ describe('tooltip só em Técnicas, Habilidades e Magias', () => {
     await pronta();
     const det = await abrir('Águia');
     expect(det.querySelectorAll('.best-stat [title]')).toHaveLength(0);
-  });
-
-  it('a habilidade explica com a descrição do catálogo', async () => {
-    stubBanco(); montar();
-    await pronta();
-    const det = await abrir('Águia');
-    const card = [...secao(det, 'Habilidades').querySelectorAll('.best-stat')]
-      .find((c) => c.textContent.includes('Sentidos'));
-    expect(card.querySelector('[data-tip]').getAttribute('data-tip'))
-      .toMatch(/Perceber o que escapa/);
   });
 });
 
@@ -760,5 +760,31 @@ describe('a busca de criaturas olha além do nome', () => {
     expect(nomes()).toEqual(['Águia']);
     buscar('montaria');
     expect(nomes()).toEqual(['Águia Real']);
+  });
+});
+
+/* ABAS UNIDAS (28/09/2026): "Informações e Características viram uma aba só
+   chamada Ficha", "Habilidades, Técnicas, Ataques e Magias viram uma aba só
+   chamada Combate" — e "apesar de ter unido as abas, identifique o que é o
+   que": dentro de cada aba, as seções mantêm o subtítulo. */
+describe('as abas Ficha e Combate', () => {
+  it('as abas são Descrição, Ficha, Atributos e Combate', async () => {
+    stubBanco(); montar();
+    await pronta();
+    await abrir('Águia');
+    const abas = [...document.querySelectorAll('.best-abas [role="tab"]')].map((b) => b.textContent.trim());
+    expect(abas).toEqual(['Descrição', 'Ficha', 'Atributos', 'Combate']);
+  });
+
+  it('dentro de Combate, cada lista com o seu subtítulo', async () => {
+    stubBanco(); montar();
+    await pronta();
+    const det = await abrir('Águia');
+    const combate = det.querySelector('[data-aba="Combate"]');
+    expect([...combate.querySelectorAll('.best-secao-titulo')].map((t) => t.textContent.trim()))
+      .toEqual(['Técnicas de Combate', 'Habilidades', 'Ataques']);
+    const ficha = det.querySelector('[data-aba="Ficha"]');
+    expect([...ficha.querySelectorAll('.best-secao-titulo')].map((t) => t.textContent.trim()))
+      .toEqual(['Características', 'Informações']);
   });
 });

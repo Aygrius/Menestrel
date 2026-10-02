@@ -1,183 +1,132 @@
-# Itens para batalha — estatística, sugestões novas e adaptações
+# Itens para batalha — o que falta de verdade
 
-**Levantado em 12/09/2026** a partir do catálogo de produção (747 itens). Nada
-aqui foi aplicado: são propostas para você decidir.
+**Refeito em 28/09/2026** a partir do catálogo de produção (1.035 itens),
+depois de entrarem os frascos alquímicos, os amuletos elementais, as flechas
+envenenadas e o veneno em arma. A pergunta desta revisão é uma só: **ainda é
+necessário criar itens novos?** Resposta curta: **quase nada** — o que falta
+é ajustar os que já existem.
 
-Em combate, um item faz efeito por **dois caminhos independentes** (ver
-`docs/manutencao-magias.md` §8):
+Em combate, um item faz efeito por **dois caminhos**:
 
 | Caminho | Como | Onde vale |
 |---|---|---|
-| **Efeito** | `efeito_positivo` / `efeito_negativo` — "25 Energia Heroica" | aba **Item** da batalha, e na ficha |
-| **Magia** | `magia` + `nivel_magia` | abas **Magia / Apoio**, com o item em uso (equipado ou vestido; pergaminho vale na mão e some ao ser lido) |
+| **Efeito** | `efeito_positivo` / `efeito_negativo` — "Aumenta 20 de Energia Física" | aba **Item** da batalha, e na ficha |
+| **Magia** | `magia` + `nivel_magia` | abas **Magia / Apoio**, sem karma: item em uso (equipado ou vestido); consumível vale na mochila e some ao ser usado |
 
 ---
 
-## 1. O que o catálogo mostra
+## 1. O catálogo hoje
 
-| Grupo | Itens | Com efeito | Com magia |
-|---|---|---|---|
-| Itens | 210 | 0 | 3 |
-| Consumíveis | 97 | 52 | 6 (pergaminhos) |
-| Vestimentas | 92 | 84 | 19 |
-| Armas | 75 | 0 | 22 |
-| Animais | 68 | 0 | 0 |
-| Armaduras | 63 | 0 | 0 |
-| outros | 142 | 4 | 5 |
-
-### O vocabulário de efeito
-
-O leitor de efeito conhece **12 rótulos**: Energia Heroica, Energia Física,
-Absorção, Karma, Saúde, Sanidade, Sono, Alimentação, Hidratação, Temperatura,
-Sobriedade, Reputação.
-
-Só os **cinco primeiros** mexem em algo que a batalha usa. E todos são
-**instantâneos**: não existe item que dê coluna de ataque, defesa, velocidade
-ou resistência por algumas rodadas.
-
-### Os desequilíbrios que saltam
-
-1. **Das 22 armas mágicas, 14 concedem magia que o motor não aplica.** A arma
-   "tem" a magia, e em batalha ela não faz nada:
-
-   | Arma | Valor | Magia concedida | Por que não vale em combate |
-   |---|---|---|---|
-   | Foice Longa Reshanta | 39.500 | Caçada Marcada | narrativa |
-   | Tridente de Theobomos | 25.500 | Hidrotolerância | narrativa |
-   | Espada Jagan | 21.000 | Aura Ameaçadora | ritual |
-   | Cimitarra Daeva do Mar | 19.000 | Solo Divino | ritual |
-   | Espada Montante Kronagar | 14.000 | Intuição | narrativa |
-   | Espada Montante Vampirus Escarlate | 14.000 | Marca da Morte | narrativa |
-   | Clava Hongor-Tun | 12.000 | Modificar Espírito | narrativa |
-   | Mangual do Dragão | 5.900 | Invocar Instrumento | narrativa |
-   | Malho Coração de Lena | 4.000 | Toque de Fúria | sistema |
-   | Cetro Dourado | 3.000 | Prisão Púrpura | ritual |
-   | Cajado Líbano da Luz | 2.000 | Purificação | sistema |
-   | Cajado Necroptum | 2.000 | Necroanimação | ritual |
-   | Punhal de Ocantir | 2.000 | Criação | invocação |
-   | Punhal dos Mortos | 2.000 | Cárcere de Almas | ritual |
-
-2. **Das 19 vestimentas mágicas, 10 concedem magia fora do motor** — Anel das
-   Outras Memórias (Clarividência), Bracelete da Maldição de Menard (Marca da
-   Morte), Tiara do Conhecimento de Palier (Milagre Análogo), entre outras.
-3. **Não há consumível ofensivo.** Nenhuma bomba, óleo, veneno de lâmina ou
-   flecha especial — e a batalha **já tem** a ação *Envenenar* do Mestre, que
-   nenhum item alimenta.
-4. **As poções de combate não têm preço.** Elixir de Blator, de Maira, de
-   Cambu, de Cruine, de Unicórnio… estão sem `valor_latao`: a loja não
-   consegue vendê-las.
-5. **Dois pergaminhos concedem magia fora do motor** — Milagre Análogo e
-   Nutrição Natural.
-
----
-
-## 2. Itens novos sugeridos
-
-### 2.1 Poções de combate, em três tamanhos
-
-Usam só rótulos que o leitor conhece — funcionam na aba Item **hoje**. Valores
-em latão, para a loja.
-
-| Item | Grupo | Efeito positivo | Efeito negativo | Valor |
+| Grupo | Itens | Com efeito | Com magia | Sem valor |
 |---|---|---|---|---|
-| Poção Menor de Vigor | Consumíveis | 10 Energia Física | | 40 |
-| Poção de Vigor | Consumíveis | 25 Energia Física | 5 Sono | 120 |
-| Poção Maior de Vigor | Consumíveis | 50 Energia Física | 10 Sono | 400 |
-| Tônico Heroico Menor | Consumíveis | 10 Energia Heroica | | 40 |
-| Tônico Heroico | Consumíveis | 20 Energia Heroica | 5 Sobriedade | 120 |
-| Tônico Heroico Maior | Consumíveis | 35 Energia Heroica | 10 Sobriedade | 400 |
-| Unguento de Couraça | Consumíveis | 10 Absorção | | 90 |
-| Pó Arcano | Consumíveis | 5 Karma | 5 Sanidade | 150 |
-| Ração de Campanha | Consumíveis | 50 Alimentação, 5 Energia Física | | 12 |
+| Consumíveis | 402 | 63 | 12 frascos + 286 pergaminhos | 307 |
+| Itens | 195 | 0 | 3 | 19 |
+| Vestimentas | 95 | 84 | 23 | 28 |
+| Armas | 84 | 0 | 22 | 10 |
+| Animais | 74 | 0 | 0 | 13 |
+| Armaduras | 63 | 0 | 0 | 0 |
+| outros | 122 | 4 | 5 | 6 |
 
-### 2.2 Pergaminhos de combate
+### O que a revisão de 12/09 pedia e já existe
 
-O caminho do pergaminho já existe: `magia` + `nivel_magia`, lido na mão e
-consumido. Estes apontam para magias **do motor**, uma de cada perfil:
+| Pedido de 12/09 | Situação em 28/09 |
+|---|---|
+| Consumível ofensivo (bomba, óleo, veneno) | **Feito** — 6 frascos de dano, 3 flechas envenenadas e o veneno de lâmina (15 ações) |
+| Proteção por elemento | **Feito** — 4 amuletos (Brasa, Rocha, Maré, Vento) e 6 frascos de suporte |
+| Poções de combate em três tamanhos | **Não precisa** — os 16 elixires já cobrem Energia Física (5 a 100), Energia Heroica (25 e 50), Absorção (5 a 30) e Karma (5 a 100) |
+| Pergaminhos de combate | **Não precisa** — os frascos fazem esse papel para dano e proteção elemental, sem ensinar a magia |
+| Arma de dano por elemento | **Não precisa** — Narya, Nenya, Vilya e Khazad (anéis) e os frascos cobrem os quatro elementos; Sagae e Impetusion, ar e celestial |
+| Item que causa dano | **Feito** — pelo caminho da magia (frasco) |
+| Item que aplica veneno | **Feito** — arma e flecha envenenadas, só quando o golpe chega à Energia Física |
 
-| Item | Magia | Nível | Para |
-|---|---|---|---|
-| Pergaminho de Curas Físicas | Curas Físicas | 3 | cura (perfil Sacerdote) |
-| Pergaminho de Bênção | Bênção | 1 | suporte |
-| Pergaminho de Bola de Fogo | Bola de Fogo | 3 | ataque (perfil Mago) |
-| Pergaminho de Piroproteção | Piroproteção | 3 | proteção de fogo |
-| Pergaminho de Medo | Medo | 1 | controle |
-| Pergaminho de Aeroproteção | Aeroproteção | 3 | proteção de ar |
+---
 
-### 2.3 Armas e vestimentas por elemento
+## 2. O que ainda falta
 
-Uma arma de cada elemento, concedendo a magia de dano do elemento, e um
-amuleto de cada elemento, concedendo a proteção. Todas as magias citadas já
-estão no motor.
+### 2.1 Preço dos elixires
 
-| Item | Grupo | Magia | Nível |
-|---|---|---|---|
-| Lâmina Ardente | Armas | Piromanipulação | 3 |
-| Martelo Sísmico | Armas | Geomanipulação | 3 |
-| Tridente das Correntes | Armas | Hidromanipulação | 3 |
-| Arco dos Ventos | Armas | Aeromanipulação | 3 |
-| Maça Solar | Armas | Lâmina de Luz | 3 |
-| Adaga do Abismo | Armas | Manipulação Infernal (Ancestral — vale pelo item) | 1 |
-| Amuleto da Brasa | Vestimentas | Piroproteção | 3 |
-| Amuleto da Rocha | Vestimentas | Geoproteção | 3 |
-| Amuleto da Maré | Vestimentas | Hidroproteção | 3 |
-| Amuleto do Vento | Vestimentas | Aeroproteção | 3 |
+Os 16 elixires estão sem `valor_latao`. Pela regra nova, item sem valor se
+vende por **0** — e na loja do Mestre sai **de graça**. Régua sugerida
+(25 de energia ≈ 120 latão; 100 de energia ≈ 1.500 latão):
 
-> O item concede a magia **sem custar karma** e **no nível do item** — é o que
-> torna Manipulação Infernal, travada para compra, alcançável por uma adaga.
+| Elixir | Efeito | Valor sugerido |
+|---|---|---|
+| Diatrimis | 5 Energia Física | 25 |
+| Selimon | 5 Absorção, −5 Sono, −10 Desonra | 40 |
+| Fada | 5 Karma, −5 Sono | 60 |
+| Seinoniz | 15 Energia Física | 70 |
+| Maira | 20 Energia Física | 95 |
+| Cruine | 20 Energia Física, −4 Doença | 110 |
+| Blator | 25 Energia Heroica | 120 |
+| Cambu | 25 Absorção | 120 |
+| Vouxiz | 30 Absorção | 150 |
+| Dragão | 10 Karma, −5 Sono | 150 |
+| Antredom | 50 Energia Heroica | 400 |
+| Ganis | −100 Sede, −10 Sono, −10 Frio | 60 |
+| Udoviom | −15 Sono, −100 Fome | 60 |
+| Unicórnio | −100 Doença | 500 |
+| Morrigalti | 100 Energia Física | 1.500 |
+| Palier | 100 Karma, −100 Vício | 1.500 |
+
+### 2.2 Virote para besta e arlabesta
+
+A munição agora é completa para o **arco** (todo ataque gasta uma flecha).
+A **Besta** e a **Arlabesta** atiram virote, que o catálogo não tem — por isso
+continuam atirando de graça. Para fechar a regra, basta **um item novo**:
+
+| Item | Grupo | Ocupa | Valor | Observação |
+|---|---|---|---|---|
+| Virote | Consumíveis | 0,1 | 2 | e o motor passa a gastá-lo como gasta a flecha |
+
+Com ele, os três venenos também poderiam virar **virote envenenado** — o
+mesmo caminho da flecha.
 
 ---
 
 ## 3. Adaptações dos itens existentes
 
-### 3.1 Trocar a magia das armas caras por uma que valha em combate
+### 3.1 Armas mágicas cuja magia a batalha não aplica
 
-A magia narrativa pode continuar na **descrição** do item; o campo `magia`
-passa a apontar para uma magia do motor com o mesmo tema.
+**14 das 22 armas mágicas** concedem uma magia narrativa ou de ritual: em
+combate, não fazem nada. A magia pode continuar na **descrição**; o campo
+`magia` passa a apontar para uma magia do motor com o mesmo tema.
 
 | Arma | Hoje | Sugestão |
 |---|---|---|
-| Foice Longa Reshanta | Caçada Marcada | **Ataque Infernal** (dano + sangramento) |
-| Tridente de Theobomos | Hidrotolerância | **Hidromanipulação** |
-| Espada Jagan | Aura Ameaçadora | **Ruído Extenuante** (penalidade de ataque e velocidade) |
-| Cimitarra Daeva do Mar | Solo Divino | **Hidromanipulação** |
-| Espada Montante Kronagar | Intuição | **Barreira Mística** |
-| Espada Montante Vampirus Escarlate | Marca da Morte | **Toque Gélido** (dano que drena energia heroica — vampírico) |
-| Clava Hongor-Tun | Modificar Espírito | **Medo** |
+| Reshanta | Caçada Marcada | **Ataque Infernal** |
+| Vampirus Escarlate | Caçada Marcada | **Toque Gélido** (drena energia heroica — vampírico) |
+| Tridente de Theobomos | Respiração Arcana | **Hidromanipulação** |
+| Jagan | Aura Ameaçadora | **Medo** |
+| Daeva do Mar | Solo Divino | **Dardos de Gelo** |
+| Kronagar | Intuição | **Barreira Mística** |
+| Hongor-Tun | Modificar Espírito | **Geomanipulação** |
 | Mangual do Dragão | Invocar Instrumento | **Piromanipulação** |
-| Malho Coração de Lena | Toque de Fúria | **Curas Heroicas** |
+| Coração de Lena | Toque de Fúria | **Curas Heroicas** |
 | Cetro Dourado | Prisão Púrpura | **Corrente** |
-| Cajado Líbano da Luz | Purificação | **Curas Espirituais** |
-| Cajado Necroptum | Necroanimação | **Campo de Trevas** |
+| Líbano da Luz | Purificação | **Curas Espirituais** |
+| Necroptum | Necroanimação | **Campo de Trevas** |
 | Punhal de Ocantir | Criação | **Putrefação** |
 | Punhal dos Mortos | Cárcere de Almas | **Carne em Vermes** |
 
-Mesmo tratamento cabe às 10 vestimentas mágicas fora do motor; o critério é o
-mesmo — manter o tema, trocar para uma magia que a batalha aplica.
+### 3.2 Vestimentas mágicas fora do motor
 
-### 3.2 Dar preço às poções
-
-Elixir de Blator, Cambu, Cruine, Maira, Unicórnio, Vouxiz, Antredom, Diatrimis,
-Morrigalti, Palier, Seinoniz, Selimon e Udoviom estão sem `valor_latao`. Pela
-tabela de 2.1 como régua: **25 de energia → ~120 latão**, **100 de energia →
-~1.500 latão**.
-
-### 3.3 Pergaminhos que não fazem nada
-
-- **Pergaminho Milagre Análogo** e **Pergaminho Nutrição Natural** concedem
-  magias fora do motor. Trocar por Curas Físicas e Curas Heroicas, ou esperar o
-  sistema de porcentagem (que liga Nutrição Natural).
+**9 das 23** (os amuletos novos já valem): Benção de Sevides (Controle
+Climático), Coroa Abad'Dorim (Convivência), Desejo de Lena (Manjar de Lena),
+Lágrimas de Ganis (Respiração Arcana), Maldição de Menard (Caçada Marcada),
+Outras Memórias (Clarividência), Sombra de Maira (Mimetismo Animal), Tiara do
+Conhecimento (Milagre Análogo) e Traje Selimônio (Modificar Espírito). Mesmo
+critério: manter o tema, trocar para uma magia que a batalha aplica — ou
+deixar como está, se o valor delas é fora de combate.
 
 ---
 
 ## 4. O que precisaria de sistema
 
-Estas não cabem no vocabulário de hoje; ficam registradas para quando valer a
-pena.
-
 | Peça | O que permitiria |
 |---|---|
 | **Efeito de item com duração** ("Coluna de Ataque 1 por 3 rodadas") | óleo de afiar, tônico de agilidade, incenso de foco |
-| **Item que causa dano** ("Dano 12 Fogo" num alvo) | frasco de fogo alquímico, bomba de estilhaços |
-| **Item que aplica veneno** ligado à ação *Envenenar* | veneno de lâmina, dardo envenenado |
 | **Escuridão por item** | bomba de fumaça, que o tabuleiro já saberia desenhar |
+
+> Conclusão: **não é necessário criar mais itens de batalha**. O único item
+> novo que faz falta é o **Virote**; o resto é dar preço aos elixires e
+> apontar a magia das armas caras para uma que a batalha aplica.

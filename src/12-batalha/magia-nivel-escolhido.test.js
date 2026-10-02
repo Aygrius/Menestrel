@@ -178,7 +178,7 @@ describe('os ícones de visibilidade EXISTEM', () => {
   });
 
   it('o tooltip diz o nome e o que custa', () => {
-    const tb = { visib_total: 'Escuridão total', coluna: 'de coluna' };
+    const tb = { visib_total: 'Escuridão total', colunaPenalidade: 'de coluna' };
     expect(M.textoVisibilidade('total', tb)).toBe('Escuridão total · -4 de coluna');
   });
 

@@ -50,7 +50,7 @@ describe('criatura mostra o ícone do seu tipo', () => {
 
   it.each([
     ['Animal', 'ti-horse'], ['Celestial', 'ti-cross'], ['Infernal', 'ti-pentagram'],
-    ['Demônio', 'ti-pentagram'], ['Construído', 'ti-robot'],
+    ['Construído', 'ti-robot'],
     ['Místico', 'ti-michelin-bib-gourmand'], ['Civilizado', 'ti-user'],
     ['Elemental', 'ti-ghost-2'],
   ])('%s desenha %s', (tipo, ic) => {

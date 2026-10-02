@@ -33,9 +33,11 @@ import '../09-bestiario/catalogo-editor.jsx';
 import '../09-bestiario/bestiario.jsx';
 
 const MAGIAS = [
-  { key: 'bola', nome: 'Bola de Fogo', tipo: 'Básica' },
-  { key: 'runa', nome: 'Runa Antiga', tipo: 'Ancestral' },
-  { key: 'necro', nome: 'Necromancia', tipo: 'Perdida' },
+  { key: 'bola', nome: 'Bola de Fogo', tipo: 'Básica', permissao: 'Mago' },
+  { key: 'runa', nome: 'Runa Antiga', tipo: 'Ancestral', permissao: 'Mago' },
+  { key: 'necro', nome: 'Necromancia', tipo: 'Perdida', permissao: 'Colégio Necromântico' },
+  { key: 'ilusao', nome: 'Ilusão', tipo: 'Básica', permissao: 'Colégio Ilusionista' },
+  { key: 'cura', nome: 'Cura', tipo: 'Básica', permissao: 'Sacerdote' },
 ];
 const TECNICAS = [
   { key: 'mira', nome: 'Mira', permissao: 'Guerreiro, Rastreador' },
@@ -112,11 +114,15 @@ describe('ADMIN_MENU — a árvore', () => {
 
   /* Sem "Todas" (26/09/2026): "você criou um Todas que eu não pedi". Cada
      subgrupo tem só as divisões ditadas, e toda folha filtra. */
-  it('nenhuma folha é "Todas": toda folha dentro de um grupo tem filtro', () => {
+  /* Exceção de 29/09/2026: "quero que seja possível clicar em magias e ver
+     todas as magias" — Magias, Técnicas e Habilidades são destino sem filtro.
+     Continua sem folha chamada "Todas". */
+  it('nenhuma folha é "Todas": só Magias, Técnicas e Habilidades abrem sem filtro', () => {
     for (const perfil of ['master', 'player']) {
       for (const id of ['treinamento', 'comercio', 'bestiario']) {
         const folhas = window.folhasDoMenu([grupo(perfil, id)]);
-        expect(folhas.every((f) => !!f.filtro), `${perfil}/${id}`).toBe(true);
+        const semFiltro = folhas.filter((f) => !f.filtro).map((f) => f.rotulo.pt);
+        expect(semFiltro, `${perfil}/${id}`).toEqual(id === 'treinamento' ? ['Magias', 'Técnicas', 'Habilidades'] : []);
         expect(folhas.map((f) => f.rotulo.pt)).not.toEqual(expect.arrayContaining(['Todas']));
         expect(folhas.map((f) => f.rotulo.pt)).not.toEqual(expect.arrayContaining(['Todos']));
       }
@@ -155,11 +161,11 @@ describe('ADMIN_MENU — a árvore', () => {
   });
 
   /* "Na tabela criaturas, criar um submenu com a classe." (26/09/2026) */
-  it('Criaturas › as nove classes do catálogo, nos dois perfis', () => {
+  it('Criaturas › as oito classes do catálogo (Demônio virou Infernal em 28/09/2026), nos dois perfis', () => {
     for (const perfil of ['master', 'player']) {
       const c = grupo(perfil, 'bestiario');
       expect(c.filhos.map((f) => f.filtro)).toEqual(
-        ['Animal', 'Celestial', 'Civilizado', 'Demônio', 'Dragão', 'Elemental', 'Infernal', 'Místico', 'Morto']);
+        ['Animal', 'Celestial', 'Civilizado', 'Dragão', 'Elemental', 'Infernal', 'Místico', 'Morto']);
       expect(c.filhos.every((f) => f.secao === 'criaturas')).toBe(true);
       expect(window.ADMIN_MENU[perfil].some((n) => n.secao === 'criaturas'), 'Criaturas solta no topo').toBe(false);
     }
@@ -197,12 +203,12 @@ const titulo = () => document.querySelector('.fp-card-top .ms-title').textConten
 describe('cada folha filtra a lista', () => {
   it('Magias Básicas', async () => {
     await montar(window.MagiasList, { filtro: 'Básica', titulo: 'Magias Básicas' });
-    expect(nomes()).toEqual(['Bola de Fogo']);
+    expect(nomes()).toEqual(['Bola de Fogo', 'Cura', 'Ilusão']);
     expect(titulo()).toBe('Magias Básicas');
   });
   it('Magias sem filtro mostra todas, com o título de sempre', async () => {
     await montar(window.MagiasList, {});
-    expect(nomes()).toHaveLength(3);
+    expect(nomes()).toHaveLength(5);
     expect(titulo()).toBe('Magias');
   });
   it('Técnicas Especializadas', async () => {
@@ -216,6 +222,18 @@ describe('cada folha filtra a lista', () => {
   it('Habilidades de Influência', async () => {
     await montar(window.HabilidadesList, { filtro: 'Influência' });
     expect(nomes()).toEqual(['Lábia']);
+  });
+  it('Magias Básicas do Mago: a profissão e os Colégios dela', async () => {
+    await montar(window.MagiasList, { filtro: 'Básica|Mago' });
+    expect(nomes()).toEqual(['Bola de Fogo', 'Ilusão']);
+  });
+  it('Técnicas Básicas do Guerreiro (a sem permissão vale para todos)', async () => {
+    await montar(window.TecnicasList, { filtro: 'basica|Guerreiro' });
+    expect(nomes()).toEqual(['Golpe Livre', 'Mira', 'Punhal Oculto']);
+  });
+  it('Técnicas Especializadas do Guerreiro (as Academias)', async () => {
+    await montar(window.TecnicasList, { filtro: 'especializada|Guerreiro' });
+    expect(nomes()).toEqual(['Carga de Lança']);
   });
   it('Comércio › Minerais', async () => {
     await montar(window.ItensList, { filtro: 'Minerais', titulo: 'Minerais' });
@@ -248,7 +266,7 @@ describe('NavMenuPainel', () => {
 
   it('escolher a folha entrega a seção e o filtro', () => {
     const { onEscolher } = abrir('master', 'treinamento');
-    fireEvent.click(document.querySelector('.mc-menu-item--pai'));
+    fireEvent.mouseEnter(document.querySelector('.mc-menu-item--pai'));
     const perdidas = [...document.querySelectorAll('.mc-menu-col--sub .mc-menu-item')].find((b) => b.textContent.trim() === 'Perdidas');
     fireEvent.click(perdidas);
     expect(onEscolher).toHaveBeenCalledTimes(1);
@@ -261,6 +279,33 @@ describe('NavMenuPainel', () => {
     const sub = document.querySelector('.mc-menu-col--sub');
     expect(sub.getAttribute('aria-label')).toBe('Técnicas');
     expect(sub.querySelector('.is-atual').textContent.trim()).toBe('Básicas');
+  });
+
+  /* "clicar em magias e ver todas as magias, ou passar o mouse e abrir para
+     básicas e clicar pra ver só as básicas, e depois das básicas, ter as
+     profissões" (usuário, 29/09/2026). Terceira coluna; a profissão conta as
+     especializações dela. */
+  it('clicar em Magias navega para todas', () => {
+    const { onEscolher } = abrir('master', 'treinamento');
+    fireEvent.click(document.querySelector('.mc-menu-item--pai'));
+    expect(onEscolher).toHaveBeenCalledTimes(1);
+    expect(onEscolher.mock.calls[0][0].secao).toBe('magias');
+    expect(onEscolher.mock.calls[0][0].filtro).toBeUndefined();
+  });
+
+  it('Básicas: clicar navega; passar o mouse abre as profissões', () => {
+    const { onEscolher } = abrir('master', 'treinamento');
+    fireEvent.mouseEnter(document.querySelector('.mc-menu-item--pai'));
+    const basicas = () => [...document.querySelectorAll('.mc-menu-col')[1].querySelectorAll('.mc-menu-item')]
+      .find((b) => b.textContent.trim() === 'Básicas');
+    fireEvent.mouseEnter(basicas());
+    const cols = document.querySelectorAll('.mc-menu-col');
+    expect(cols).toHaveLength(3);
+    expect(itens(cols[2])).toEqual(['Bardo', 'Mago', 'Rastreador', 'Sacerdote']);
+    fireEvent.click([...cols[2].querySelectorAll('.mc-menu-item')][1]);
+    expect(onEscolher.mock.calls[0][0]).toMatchObject({ secao: 'magias', filtro: 'Básica|Mago' });
+    fireEvent.click(basicas());
+    expect(onEscolher.mock.calls[1][0]).toMatchObject({ secao: 'magias', filtro: 'Básica' });
   });
 
   it('Diário é uma coluna só, de folhas', () => {
@@ -290,7 +335,7 @@ describe('o painel não tem título', () => {
   it('nem na primeira coluna, nem na segunda', () => {
     render(<window.NavMenuPainel grupo={window.ADMIN_MENU.master.find((n) => n.id === 'treinamento')}
       ancora={{ top: 100, right: 64 }} lang="pt" folhaAtual={null} onEscolher={() => {}} onFechar={() => {}} />);
-    fireEvent.click(document.querySelector('.mc-menu-item--pai'));
+    fireEvent.mouseEnter(document.querySelector('.mc-menu-item--pai'));
     expect(document.querySelectorAll('.mc-menu-titulo')).toHaveLength(0);
     expect(document.querySelector('.mc-menu-painel').textContent).not.toMatch(/Treinamento/);
   });

@@ -1,0 +1,12 @@
+-- ============================================================================
+-- DEMÔNIO VIRA INFERNAL (28/09/2026)
+--
+-- "Criaturas 'Infernais' e 'Demônios' são a mesma classe, o certo é
+--  'Infernais'." (usuário)
+--
+-- As 7 criaturas de tipo 'Demônio' passam a 'Infernal' (que já tinha 7). O
+-- código deixou de conhecer 'Demônio': o submenu de Criaturas, os ícones e as
+-- magias que miram a raça (Aura Divina, Esconjuração — so_racas) usam
+-- 'Infernal'.
+-- ============================================================================
+update public.criaturas set tipo = 'Infernal' where tipo = 'Demônio';

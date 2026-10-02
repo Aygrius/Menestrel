@@ -364,3 +364,27 @@ describe('estatísticas do catálogo', () => {
     expect(fogo.querySelectorAll('td')[1].textContent).toBe('1');
   });
 });
+
+describe('Painel da página de magias', () => {
+  /* "Pode remover 'verificação, sugestões, estudo e equilíbrio' da página de
+     magias. Mas mantenha um botão chamado 'painel' com resumo e tamanho do
+     catálogo completo." (usuário, 29/09/2026) */
+  it('um botão "Painel" que abre as estatísticas, sem a verificação', () => {
+    const P = window.MagiasPainel;
+    expect(P, 'MagiasPainel não foi exposto no window').toBeDefined();
+    const { container } = render(
+      <div className="menestrel-ui"><P lang="pt" magias={[
+        { key: 'bola_de_fogo', nome: 'Bola de Fogo', permissao: 'Mago', tipo: 'Básica',
+          nivel_1: 'Causa 12 de dano elemental de fogo.' },
+        { key: 'x_perdida', nome: 'X', permissao: 'Sacerdote', tipo: 'Perdida', nivel_1: 'Algo.' },
+      ]} /></div>
+    );
+    const botao = container.querySelector('.best-painel-abrir');
+    expect(botao.textContent).toMatch(/Painel/);
+    fireEvent.click(botao);
+    const janela = document.querySelector('[role="dialog"]');
+    expect(janela.querySelector('.best-est-titulo').textContent).toMatch(/Estatísticas do catálogo · 2/);
+    expect(janela.querySelector('.best-est-profissoes')).toBeTruthy();
+    expect(janela.textContent).not.toMatch(/Conferir novamente/);
+  });
+});

@@ -43,7 +43,8 @@ const TABELAS = {
     { slug: 'estalagem', nome: 'Diária em Estalagem Popular', grupo: 'Serviços', icone: 'ti-home',
       descricao: null, efeito_positivo: 'Aumenta 1 de Energia Física.' },
     { slug: 'adaga', nome: 'Adaga', grupo: 'Armas', dano: 4, ajuste_atributo: 'FOR', valor_latao: 50, descricao: 'Lâmina curta.',
-    ocupa: 1, categoria_equip: 'arma' }],
+    ocupa: 1, categoria_equip: 'arma', grupo_armas: 'CL' },
+    { slug: 'agua', nome: 'Água', grupo: 'Consumíveis', ocupa: 0.1, descricao: 'Um gole.' }],
 };
 
 beforeAll(() => {
@@ -167,15 +168,22 @@ describe('janelas do catálogo', () => {
     });
   });
 
-  it('Item: sem mini-card, e o atributo "FOR" vira "Força"', async () => {
+  /* 28/09/2026: "o botão ocupa deve mostrar o '3.0' como '3', mantenha apenas
+     o '0.1' como '0.1' [...] O card de atributo, deve mostrar 'Agi' ao invés
+     de 'AGI'. Adicione o 'Grupo', 'CL' como card." */
+  it('Item: sem mini-card; atributo em sigla curta, ocupa sem ",0" e o grupo de armas', async () => {
     const det = await abrir(window.ItensList, 'Adaga');
     semMiniCard(det);
     const mapa = Object.fromEntries(linhas(det));
-    expect(mapa['Atributo']).toBe('Força');
+    expect(mapa['Atributo']).toBe('For');
     expect(mapa['Dano']).toBe('4');
-    expect(mapa['Ocupa']).toBe('1,0');
-    // Sem "Grupo" desde 26/09/2026 ("no modal de itens, não precisa mostrar o grupo").
-    expect(mapa['Grupo']).toBeUndefined();
+    expect(mapa['Ocupa']).toBe('1');
+    expect(mapa['Grupo']).toBe('CL');
+  });
+
+  it('Item: ocupa fracionário mantém a casa decimal', async () => {
+    const det = await abrir(window.ItensList, 'Água');
+    expect(Object.fromEntries(linhas(det))['Ocupa']).toBe('0,1');
   });
 });
 

@@ -2292,6 +2292,27 @@ function StepHabilidades({
   const [detalhe, setDetalhe] = useState(null);
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
 
+  // Agrupa habilidadesDb por `grupo`, na ordem canônica GRUPOS_HABILIDADES_ORDEM.
+  // Dentro de cada grupo, ordena por nome (estável). O banco já manda ordenado
+  // por nome, então só precisamos do bucket por grupo. Fica ANTES dos
+  // returns de loading/erro: hook depois de return condicional quebra o React
+  // quando habilidadesDb sai de null.
+  const porGrupo = useMemo(() => {
+    const buckets = {};
+    GRUPOS_HABILIDADES_ORDEM.forEach((g) => { buckets[g] = []; });
+    for (const h of (habilidadesDb || [])) {
+      const g = h.grupo;
+      if (!buckets[g]) buckets[g] = []; // bucket extra se vier grupo desconhecido
+      buckets[g].push(h);
+    }
+    // Mantém ordem da const + qualquer grupo extra no final
+    const ordem = [
+      ...GRUPOS_HABILIDADES_ORDEM,
+      ...Object.keys(buckets).filter((g) => !GRUPOS_HABILIDADES_ORDEM.includes(g)),
+    ];
+    return ordem.filter((g) => buckets[g] && buckets[g].length > 0).map((g) => [g, buckets[g]]);
+  }, [habilidadesDb]);
+
   // Loading: habilidadesDb === null enquanto o useEffect carrega.
   if (habilidadesDb === null) {
     return (
@@ -2309,25 +2330,6 @@ function StepHabilidades({
       </div>
     );
   }
-
-  // Agrupa habilidadesDb por `grupo`, na ordem canônica GRUPOS_HABILIDADES_ORDEM.
-  // Dentro de cada grupo, ordena por nome (estável). O banco já manda ordenado
-  // por nome, então só precisamos do bucket por grupo.
-  const porGrupo = useMemo(() => {
-    const buckets = {};
-    GRUPOS_HABILIDADES_ORDEM.forEach((g) => { buckets[g] = []; });
-    for (const h of (habilidadesDb || [])) {
-      const g = h.grupo;
-      if (!buckets[g]) buckets[g] = []; // bucket extra se vier grupo desconhecido
-      buckets[g].push(h);
-    }
-    // Mantém ordem da const + qualquer grupo extra no final
-    const ordem = [
-      ...GRUPOS_HABILIDADES_ORDEM,
-      ...Object.keys(buckets).filter((g) => !GRUPOS_HABILIDADES_ORDEM.includes(g)),
-    ];
-    return ordem.filter((g) => buckets[g] && buckets[g].length > 0).map((g) => [g, buckets[g]]);
-  }, [habilidadesDb]);
 
   // Aumenta/diminui o nível comprado de uma habilidade em `delta` (±1).
   // Única restrição: o nível final (nivel_inicial + comprado) nunca pode passar
@@ -2565,11 +2567,14 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
   // que não se pode comprar só gerava dúvida sobre por que o botão + não
   // respondia (decisão de 08/09/2026: não listar).
   const especializacao = form.especializacao || null;
-  const disponiveis = magiasDb.filter((m) =>
-    podeAcessarMagia(m, form.profissao, especializacao) && !magiaEhTravada(m)
-  );
-
   const compradas = form.magias || {};
+  const temAcesso = (m) => podeAcessarMagia(m, form.profissao, especializacao);
+  /* A já comprada continua na lista mesmo sem acesso (reforma de permissões
+     de 29/09/2026): o custo dela segue somado em gastoMagias, e sumir com ela
+     faria os pontos parecerem gastos em nada. Ela só não sobe — mudarPasso. */
+  const disponiveis = magiasDb.filter((m) =>
+    !magiaEhTravada(m) && (temAcesso(m) || (compradas[m.key] || 0) > 0)
+  );
   const cfg = MAGIAS_POR_PROFISSAO[form.profissao] || {};
 
   // Stepper de passos (0..5). Cada passo representa um nível efetivo da magia
@@ -2594,6 +2599,8 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
     // É RARIDADE, não a aba: uma magia de especialização pode ser Básica e
     // comprável, e uma de profissão pode ser Perdida e travada.
     if (delta > 0 && magiaEhTravada(magiasDb.find((x) => x.key === key))) return;
+    // Sem acesso (a permissão mudou depois da compra): fica no nível que tem.
+    if (delta > 0 && !temAcesso(magiasDb.find((x) => x.key === key) || {})) return;
 
     // Bloqueia a compra se não houver pontos suficientes
     if (delta > 0 && gastoMagias({ ...compradas, [key]: proposto }, magiasDb) > magTotalPontos) return;
@@ -2643,7 +2650,8 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
     const temProximoNivel = passos + 1 <= passosDisponiveis;
     const podeMaisEstagio = passos < 5 && nivelMagiaEfetivo(passos + 1) <= estagio;
     const semSaldoPraMais = passos < 5 && gastoMagias({ ...compradas, [m.key]: passos + 1 }, magiasDb) > magTotalPontos;
-    const podeMais = temProximoNivel && podeMaisEstagio && !semSaldoPraMais;
+    const semAcesso = !temAcesso(m);
+    const podeMais = !semAcesso && temProximoNivel && podeMaisEstagio && !semSaldoPraMais;
     const podeMenos = passos > 0 && !(isEdit && passos <= originalPasso);
     return (
       <div key={m.key} className="wiz-item">
@@ -2682,7 +2690,7 @@ function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPo
           <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => mudarPasso(m.key, +1)} aria-label="+"
-            {...propsTip(abrirTip, fecharTip, !temProximoNivel && passos < 5 ? (lang === 'en' ? 'This spell has no further level' : 'Esta magia não tem nível seguinte') : !podeMaisEstagio && passos < 5 ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
+            {...propsTip(abrirTip, fecharTip, semAcesso && passos < 5 ? (lang === 'en' ? 'Your profession no longer reaches this spell' : 'Sua profissão não alcança mais esta magia') : !temProximoNivel && passos < 5 ? (lang === 'en' ? 'This spell has no further level' : 'Esta magia não tem nível seguinte') : !podeMaisEstagio && passos < 5 ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
             onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
             <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />

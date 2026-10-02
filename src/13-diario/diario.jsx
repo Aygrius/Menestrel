@@ -586,14 +586,14 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
         return (
           <>
             <div className="best-ficha-topo">
+              {/* ABA FICHA (28/09/2026): Características e Informações numa aba só,
+                  cada uma com o seu subtítulo — como no bestiário. */}
+              <div className="best-ficha-aba" data-aba={en ? 'Sheet' : 'Ficha'}>
               <FL titulo={en ? 'Traits' : 'Características'}>
                 <Li rotulo={en ? 'Plane' : 'Plano'} valor={get('plano')} />
                 <Li rotulo={en ? 'Element' : 'Elemento'} valor={get('elemento')} />
                 <Li rotulo={en ? 'Group' : 'Grupo'} valor={semGrupo(get('coletivo'))} />
                 <Li rotulo={en ? 'Weight' : 'Peso'} valor={peso} />
-              </FL>
-              <FL titulo={en ? 'Attributes' : 'Atributos'}>
-                {ATRIBUTOS.map(({ key, label }) => <Li key={key} rotulo={label} valor={fmt(key)} />)}
               </FL>
               <FL titulo={en ? 'Information' : 'Informações'}>
                 {/* Estágio em Informações (26/09/2026), como no bestiário. */}
@@ -605,8 +605,13 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
                 <Li rotulo={en ? 'Absorption' : 'Absorção'} valor={fmt('absorcao')} />
                 <Li rotulo={en ? 'Speed' : 'Velocidade'} valor={fmt('velocidade')} />
               </FL>
+              </div>
+              <FL titulo={en ? 'Attributes' : 'Atributos'}>
+                {ATRIBUTOS.map(({ key, label }) => <Li key={key} rotulo={label} valor={fmt(key)} />)}
+              </FL>
             </div>
-            <div className="best-ficha-listas best-ficha-listas--2">
+            {/* Uma aba só, "Combate", como no bestiário (28/09/2026). */}
+            <div className="best-ficha-listas best-ficha-listas--2" data-aba={en ? 'Combat' : 'Combate'}>
               {hasCombate && (
                 <FL titulo={en ? 'Combat' : 'Combate'}>
                   <Li rotulo={en ? 'Attack' : 'Ataque'} valor={get('ataque')} />
@@ -863,7 +868,6 @@ function DetalheEntradaModal({
     relacao: en ? 'Relationship' : 'Relação',
     status: en ? 'Status' : 'Status',
     // Cidade — campos de 26/09/2026
-    governante: en ? 'Ruler' : 'Governante',
     religiao: en ? 'Religion' : 'Religião',
     // Reino — a capital (26/09/2026)
     capital_cidade: en ? 'Capital' : 'Capital',
@@ -985,14 +989,13 @@ function DetalheEntradaModal({
 
 
   if (entrada.tipo === 'reino') {
-    /* Descrição (com o resumo) · Características · Cultura · Governo ·
+    /* Descrição (com o resumo) · Cultura · Governo ·
        História Recente · Rumores · Suas anotações. Aba de texto vazia não
        aparece — era uma aba inteira dizendo "nenhum conteúdo". */
     const resumoReino = attrs?.resumo ?? entrada.resumo;
     return moldura(<DiarioModalNome entrada={entrada} />, (
       <>
         {secaoDescricao(resumoReino ? <p className="diario-det-resumo">{resumoReino}</p> : null)}
-        {secaoCaracteristicas(pares)}
         {secaoTexto(en ? 'Culture' : 'Cultura', attrs?.cultura ?? entrada.cultura)}
         {secaoTexto(en ? 'Government' : 'Governo', attrs?.governo ?? entrada.governo)}
         {secaoTexto(en ? 'Recent History' : 'História Recente', attrs?.historia_recente ?? entrada.historia_recente)}
@@ -1618,15 +1621,12 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
 
   const rotuloOrigem = (o) => (o === 'pessoal' ? (en ? 'Personal' : 'Pessoal') : (en ? 'Adventure' : 'Aventura'));
 
-  // Sigla fica em maiúsculas: "Buscar NPC…", não "Buscar npc…".
-  const rotuloTipo = diarioTipoLabel(tipoAba, lang);
-  const rotuloBusca = rotuloTipo === rotuloTipo.toUpperCase() ? rotuloTipo : rotuloTipo.toLowerCase();
   /* Busca + o +, juntos — o cabeçalho de Itens e Magias (BestBuscaENovo,
      09-bestiario/bestiario.jsx). Sem chips de filtro e sem o "X de Y". */
   const buscaENovo = (
     <BestBuscaENovo
       ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
-      placeholder={en ? `Search ${rotuloBusca}…` : `Buscar ${rotuloBusca}…`}
+      placeholder={en ? 'Search' : 'Buscar'}
       query={query}
       setQuery={(v) => { setQuery(v); setPage(1); }}
       podeCriar={!!criar && !criar.desativado}
@@ -2238,15 +2238,6 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
           <div>
             <label className="diario-field-label">{tl.populacao}</label>
             <input className="diario-input" type="number" min="0" value={v.atributos?.populacao ?? ''} onChange={(e) => setAttr('populacao', e.target.value === '' ? null : Number(e.target.value))} />
-          </div>
-          {/* Capital em dropdown Sim/Não (26/09/2026); era checkbox. */}
-          <div>
-            <label className="diario-field-label">{tl.capitalDoReino}</label>
-            <SelectPill
-              value={v.atributos?.capital === true || v.atributos?.capital === 'true' ? 'sim' : 'nao'}
-              onChange={(val) => setAttr('capital', val === 'sim')}
-              options={[{ value: 'nao', label: 'Não' }, { value: 'sim', label: 'Sim' }]}
-            />
           </div>
           {/* Campos novos da cidade (26/09/2026): Governante, Religião,
               Economia e Defesas — escolhidos pelo usuário. */}
@@ -2952,7 +2943,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
                 título como era aqui até 17/09/2026. */}
             <BestBuscaENovo
               ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
-              placeholder={en ? 'Search…' : 'Buscar…'}
+              placeholder={en ? 'Search' : 'Buscar'}
               query={query}
               setQuery={(v) => { setQuery(v); setPage(1); setExpandida(null); }}
               podeCriar={podeCriar}

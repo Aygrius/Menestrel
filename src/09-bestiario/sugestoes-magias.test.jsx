@@ -15,6 +15,7 @@ import documento from '../../docs/sugestoes-magias.md?raw';
 import docTecnicas from '../../docs/sugestoes-tecnicas.md?raw';
 import docItens from '../../docs/sugestoes-itens.md?raw';
 import docEstudo from '../../docs/estudo-magias.md?raw';
+import docEquilibrio from '../../docs/estudo-magias-profissoes.md?raw';
 // helpers: o botão da janela usa o tooltip do projeto (useTooltip/propsTip).
 import '../01-core/helpers.jsx';
 import './sugestoes-magias.jsx';
@@ -116,9 +117,12 @@ describe('técnicas e itens — os outros dois documentos', () => {
   /* "Faça sugestões de técnicas e itens para uso em batalha." (usuário) */
   it.each([
     ['TecnicasSugestoesPainel', /Sugestões de técnicas/, /Formação de Escudos/],
-    ['ItensSugestoesPainel', /Sugestões de itens para batalha/, /Poção Menor de Vigor/],
+    // Refeito em 28/09/2026: "refaça as sugestões de itens. Veja se realmente é necessário adicionar mais itens."
+    ['ItensSugestoesPainel', /Sugestões de itens para batalha/, /não é necessário criar mais itens de batalha/],
     // "Análise para diminuir as magias pouco interessantes e fundir as parecidas."
     ['EstudoMagiasPainel', /Estudo: enxugar e melhorar as magias/, /Dificuldade de habilidade — 22 magias viram 6/],
+    // "Coloque o estudo na página de magias." (29/09/2026)
+    ['EquilibrioMagiasPainel', /Estudo: magias por profissão/, /Confraria de Arautos tem uma magia só/],
   ])('%s abre o documento certo', (nome, titulo, conteudo) => {
     const P = window[nome];
     const { container } = render(<div className="menestrel-ui"><P lang="pt" /></div>);
@@ -128,7 +132,7 @@ describe('técnicas e itens — os outros dois documentos', () => {
     expect(janela.textContent).toMatch(conteudo);
   });
 
-  it.each([['técnicas', docTecnicas], ['itens', docItens], ['estudo', docEstudo]])('o documento de %s renderiza sem markdown cru', (_, doc) => {
+  it.each([['técnicas', docTecnicas], ['itens', docItens], ['estudo', docEstudo], ['equilíbrio', docEquilibrio]])('o documento de %s renderiza sem markdown cru', (_, doc) => {
     const c = render(<div className="menestrel-ui"><Md texto={doc} /></div>).container;
     expect(c.textContent).not.toMatch(/\*\*/);
     expect(c.textContent).not.toMatch(/\|\s*---/);

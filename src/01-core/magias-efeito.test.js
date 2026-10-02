@@ -189,9 +189,9 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
   });
 
   const ALVOS_VALIDOS = ['self', 'aliado', 'inimigo'];
-  // Cópia de SELECT DISTINCT tipo FROM criaturas, 11/09/2026.
+  // Cópia de SELECT DISTINCT tipo FROM criaturas, 11/09/2026 — Demônio virou Infernal em 28/09/2026.
   const RACAS_VALIDAS = ['Animal', 'Civilizado', 'Místico', 'Dragão',
-                         'Elemental', 'Morto', 'Demônio', 'Construído', 'Celestial'];
+                         'Elemental', 'Morto', 'Infernal', 'Construído', 'Celestial'];
   const TIPOS_VALIDOS = ['dano', 'reducao_dano', 'cura_pool', 'dreno_eh',
                          'mod_ataque', 'mod_defesa', 'mod_vb',
                          'mod_rf', 'mod_rm', 'mod_eh_temp',
@@ -547,7 +547,7 @@ describe('as três magias de CONTROLE da Fase 2', () => {
   });
 
   it('só Esconjuração restringe raça e estágio', () => {
-    expect(MAP.esconjuracao.so_racas).toEqual(['Morto', 'Demônio']);
+    expect(MAP.esconjuracao.so_racas).toEqual(['Morto', 'Infernal']);
     expect(MAP.esconjuracao.teto_estagio).toBe(true);
     expect(MAP.medo.so_racas).toBeUndefined();
     expect(MAP.sono.teto_estagio).toBeUndefined();

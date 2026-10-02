@@ -4291,7 +4291,7 @@
 #root .menestrel-ui .loja-mng-v3-cat-list .best-table-wrap .moeda-pills { flex-wrap: nowrap; }
 #root .menestrel-ui .loja-mng-v3-toolbar { flex-shrink: 0; display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 20px 20px 20px 20px; margin-bottom: 2px; }
 #root .menestrel-ui .loja-mng-v3-search { position: relative; display: flex; align-items: center; flex: 0 0 200px; }
-#root .menestrel-ui .loja-mng-v3-search .ti-search { position: absolute; left: 10px; font-size: var(--fs-sm); color: var(--parchment-dim); pointer-events: none; }
+#root .menestrel-ui .loja-mng-v3-search .busca-ic { position: absolute; left: 10px; font-size: var(--fs-sm); color: var(--parchment-dim); pointer-events: none; }
 #root .menestrel-ui .loja-mng-v3-search input { width: 100%; height: 32px; padding: 0 32px 0 28px; background: rgba(138,110,64,0.12); border: none; color: #F1E6CF; font-family: var(--font-body); font-size: var(--fs-sm); border-radius: 999px; transition: background .16s ease, color .16s ease, outline .12s ease; box-sizing: border-box; }
 #root .menestrel-ui .loja-mng-v3-search input::placeholder { color: #A89878; opacity: 1; }
 #root .menestrel-ui .loja-mng-v3-search input:hover { background: rgba(138,110,64,0.20); }
@@ -6410,6 +6410,114 @@ body:not(:has(.rl-root)) .menestrel-ui.at-root { --at-topo: 16px; }
   .menestrel-ui.at-root .at-fab { right: 12px; width: 46px; height: 46px; font-size: 19px; }
   .menestrel-ui.at-root .at-panel { right: 66px; max-width: calc(100vw - 82px); }
 }
+
+/* ---- AmigosFab — pacto de amizade e cards dos amigos (11-ficha/amigos-fab.jsx) ----
+   O espelho dos atalhos na borda ESQUERDA, logo depois da sidebar (64px): o
+   botão do pacto no topo, um card redondo por amigo embaixo, 60px entre eles.
+   O card é destino do arraste do inventário: .is-alvo acende quando o item
+   está sobre ele (28/09/2026). */
+.menestrel-ui.amg-root {
+  position: fixed; inset: 0; z-index: 71; pointer-events: none;
+  --amg-esq: 80px; --amg-topo: 16px; --amg-passo: 60px; --amg-tam: 52px;
+}
+.menestrel-ui.amg-root .amg-fab,
+.menestrel-ui.amg-root .amg-amigo {
+  position: absolute; left: var(--amg-esq);
+  top: calc(var(--amg-topo) + var(--amg-i, 0) * var(--amg-passo));
+  z-index: 54; pointer-events: auto;
+  width: var(--amg-tam); height: var(--amg-tam); border-radius: 999px;
+}
+.menestrel-ui.amg-root .amg-fab {
+  border: 2px solid transparent;
+  background: rgba(37,26,12,0.50); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: #E0BE68; font-size: 22px; display: grid; place-items: center; cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.menestrel-ui.amg-root .amg-fab:hover { background: rgba(50,36,14,0.60); }
+.menestrel-ui.amg-root .amg-fab.is-aberto { background: rgba(50,36,14,0.70); border-color: rgba(201,164,78,0.45); }
+.menestrel-ui.amg-root .amg-fab i { line-height: 1; }
+.menestrel-ui.amg-root .amg-badge {
+  position: absolute; top: -2px; right: -2px; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: #B8452F; color: #F8EEDC;
+  font-family: var(--font-body); font-size: var(--fs-2xs); font-weight: 700; line-height: 18px; text-align: center;
+  box-shadow: 0 0 0 2px rgba(18,13,6,0.9);
+}
+
+/* O amigo: a foto num aro de couro e ouro. */
+.menestrel-ui.amg-root .amg-amigo {
+  padding: 2px; box-sizing: border-box;
+  background: linear-gradient(145deg, rgba(224,190,104,0.55), rgba(120,88,40,0.55));
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.menestrel-ui.amg-root .amg-amigo:focus-visible { outline: 2px solid #E0BE68; outline-offset: 2px; }
+.menestrel-ui.amg-root .amg-avatar {
+  display: grid; place-items: center; width: 100%; height: 100%; border-radius: 999px; object-fit: cover;
+  background: rgba(37,26,12,0.85); color: #E0BE68;
+  font-family: 'Cinzel', serif; font-size: var(--fs-md); font-weight: 600;
+}
+/* Item sobre o card: o aro acende e o card cresce um pouco — é ali que solta. */
+.menestrel-ui.amg-root .amg-amigo.is-alvo {
+  transform: scale(1.12);
+  background: linear-gradient(145deg, #F2D58A, #C9A44E);
+  box-shadow: 0 0 0 4px rgba(224,190,104,0.28), 0 0 22px rgba(224,190,104,0.55);
+}
+
+/* O painel do pacto abre à DIREITA do botão — a coluna mora na esquerda. */
+.menestrel-ui.amg-root .amg-panel {
+  position: absolute; top: var(--amg-topo); left: calc(var(--amg-esq) + var(--amg-tam) + 8px);
+  z-index: 54; pointer-events: auto;
+  width: 320px; max-width: calc(100vw - var(--amg-esq) - var(--amg-tam) - 24px);
+  max-height: calc(100vh - var(--amg-topo) - 16px);
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  background: rgba(18,13,6,0.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(138,110,64,0.35); border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  animation: maPanelIn .15s ease-out;
+}
+.menestrel-ui.amg-root .amg-lista {
+  flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
+  margin: 0 -4px; padding: 0 4px;
+  scrollbar-width: thin; scrollbar-color: rgba(201,164,78,0.35) transparent;
+}
+.menestrel-ui.amg-root .amg-linha {
+  display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 6px;
+  font-family: var(--font-body); color: #C8BCAA;
+}
+.menestrel-ui.amg-root .amg-linha-foto {
+  display: grid; place-items: center; flex-shrink: 0; width: 34px; height: 34px; border-radius: 999px; object-fit: cover;
+  background: rgba(37,26,12,0.85); color: #E0BE68; border: 1px solid rgba(201,164,78,0.35);
+  font-family: 'Cinzel', serif; font-size: var(--fs-sm); font-weight: 600;
+}
+.menestrel-ui.amg-root .amg-linha-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.menestrel-ui.amg-root .amg-linha-nome { font-size: var(--fs-sm); color: #F1E6CF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menestrel-ui.amg-root .amg-linha-estado { font-size: var(--fs-2xs); color: #A5926B; }
+.menestrel-ui.amg-root .amg-linha-estado--selado { color: #E0BE68; }
+.menestrel-ui.amg-root .amg-linha-estado--recebido { color: #D9A56A; }
+.menestrel-ui.amg-root .amg-linha-acoes { display: inline-flex; gap: 6px; flex-shrink: 0; }
+.menestrel-ui.amg-root .amg-acao {
+  height: 28px; padding: 0 10px; border-radius: 999px; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600; white-space: nowrap;
+  color: #1C140A; background: #C9A44E; border: 1px solid #C9A44E;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.menestrel-ui.amg-root .amg-acao:hover { background: #E0BE68; border-color: #E0BE68; }
+.menestrel-ui.amg-root .amg-acao--sec { color: #C8BCAA; background: transparent; border-color: rgba(232,221,198,0.18); }
+.menestrel-ui.amg-root .amg-acao--sec:hover { color: #F1E6CF; background: rgba(201,164,78,0.10); border-color: rgba(201,164,78,0.40); }
+.menestrel-ui.amg-root .amg-acao:disabled { opacity: .5; cursor: default; }
+/* Selar pacto: só o ícone do menu, num botão redondo. */
+.menestrel-ui.amg-root .amg-acao--ic { width: 28px; padding: 0; display: inline-grid; place-items: center; font-size: 16px; }
+/* Proposta já enviada: o mesmo ícone, cinza — clicar retira a proposta. */
+.menestrel-ui.amg-root .amg-acao--pendente { color: #8C8478; background: rgba(140,132,120,0.14); border-color: rgba(140,132,120,0.35); }
+.menestrel-ui.amg-root .amg-acao--pendente:hover { color: #C8BCAA; background: rgba(140,132,120,0.24); border-color: rgba(140,132,120,0.55); }
+.menestrel-ui.amg-root .amg-erro { margin: 0; font-family: var(--font-body); font-size: var(--fs-xs); color: #D08271; }
+
+@media (max-width: 640px) {
+  .menestrel-ui.amg-root { --amg-esq: 76px; --amg-topo: 12px; --amg-passo: 56px; --amg-tam: 46px; }
+  .menestrel-ui.amg-root .amg-fab { font-size: 19px; }
+}
+/* Na batalha o tabuleiro ocupa a tela — como o card de data da mesa. */
+body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 
 /* ---- Keyframe utilitário — spinner genérico usado em loading states do shell ---- */
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -11062,3 +11170,111 @@ body:not(:has(.rl-root)) .menestrel-ui.at-root { --at-topo: 16px; }
    ficha e do animal o título é a própria página, e a coluna sem páginas não
    tinha a faixa — a linha dourada abaixo do título subia e desalinhava. */
 #root .menestrel-ui .fp-col-title-sub-row--fixa { height: 3px; margin-top: 4px; }
+
+/* ---- BARRAS DE BUSCA: "Buscar" e o funil por dentro, à esquerda ----
+   28/09/2026: "Em todas as barras de pesquisa do projeto o placeholder deve
+   ser 'Buscar' e ter esse ícone à esquerda <i class='ti ti-filter-2'>" e
+   "O ícone é dentro da barra". O ícone mora no invólucro de cada barra
+   (.best-search, .catalogo-lista-busca, .at-busca-wrap, .loja-mng-v3-search),
+   posicionado sobre o campo; o texto começa depois dele. */
+#root .menestrel-ui .best-search,
+#root .menestrel-ui .catalogo-lista-busca,
+.menestrel-ui.at-root .at-busca-wrap { position: relative; }
+.menestrel-ui.at-root .at-busca-wrap { flex-shrink: 0; }
+#root .menestrel-ui .best-search > .busca-ic,
+#root .menestrel-ui .catalogo-lista-busca > .busca-ic,
+.menestrel-ui.at-root .at-busca-wrap > .busca-ic {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%); z-index: 1;
+  font-size: var(--fs-sm); line-height: 1; color: #A89878; pointer-events: none;
+}
+#root .menestrel-ui .best-search input,
+#root .menestrel-ui .catalogo-lista-busca input,
+.menestrel-ui.at-root .at-busca-wrap .at-busca { padding-left: 32px; }
+
+/* ---- Itens do ritual na janela de evocar (11-ficha, MagiaDetalhesModal) ----
+   28/09/2026: o ritual consome os itens necessários; faltando algum, avisa.
+   Mesma pele das seções da janela; o aviso ganha o tom de alerta. */
+#root .menestrel-ui .det-ritual {
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(138,110,64,0.10); border: 1px solid rgba(138,110,64,0.28);
+}
+#root .menestrel-ui .det-ritual--falta { background: rgba(184,69,47,0.10); border-color: rgba(208,130,113,0.45); }
+#root .menestrel-ui .det-ritual-titulo {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 6px;
+  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 600; color: #F1E6CF;
+}
+#root .menestrel-ui .det-ritual-titulo .ti { color: #E0BE68; font-size: 16px; }
+#root .menestrel-ui .det-ritual--falta .det-ritual-titulo .ti { color: #D08271; }
+#root .menestrel-ui .det-ritual-lista {
+  margin: 0; padding: 0 0 0 24px; font-family: var(--font-body); font-size: var(--fs-sm); color: #C8BCAA;
+}
+#root .menestrel-ui .det-ritual-lista li.is-falta { color: #E3A596; }
+
+/* Técnica, Habilidade e Magia no card da criatura abrem a janela de consulta
+   ao clicar (28/09/2026) — era tooltip. A linha diz que é clicável. */
+/* Sem fundo no hover (28/09/2026: "quando eu passo o mouse sob uma habilidade
+   ou magia, o fundo muda de cor, eu não quero isso"). Fica o cursor; o
+   teclado ganha só o contorno. */
+/* O rótulo da linha tem cursor: default próprio (.best-stat--linha
+   .best-stat-lbl) e cobre quase toda a linha — sem repetir o pointer nele,
+   a mão só aparecia no número (29/09/2026). */
+#root .menestrel-ui .best-stat--abre,
+#root .menestrel-ui .best-stat--abre .best-stat-lbl { cursor: pointer; }
+#root .menestrel-ui .best-stat--abre:focus-visible { outline: 1px solid rgba(201,164,78,0.55); outline-offset: 2px; border-radius: 6px; }
+
+/* ABAS UNIDAS DA CRIATURA (Ficha, Combate — 28/09/2026). "Na Ficha da
+   criatura, entre grupo e estágio não tem linha. Em combate nada tem linha.
+   Não sei o que é magia, habilidade ou técnica." (usuário)
+   1. O subtítulo volta DENTRO da aba unida: a regra geral esconde o título da
+      seção porque ele já está na aba — aqui a aba tem várias seções, e o
+      título é o que diz qual é qual.
+   2. O traço da última fileira só some na ÚLTIMA seção da aba; entre uma
+      seção e a próxima ele separa (Grupo | Estágio).
+   3. O Combate empilha as seções (Técnicas, Habilidades, Ataques, Magias),
+      cada uma com a lista em duas colunas — lado a lado ficavam quatro
+      colunas estreitas demais. */
+#root .menestrel-ui .best-detail.best-com-abas [data-aba] > .best-secao > .best-secao-titulo { display: block; margin: 0 0 8px; }
+#root .menestrel-ui .best-detail.best-com-abas [data-aba] > .best-secao:not(:last-child) > .best-lista { clip-path: none; margin-bottom: 0; }
+#root .menestrel-ui .best-detail.best-com-abas [data-aba] > .best-secao + .best-secao { margin-top: 18px; }
+#root .menestrel-ui .best-detail.best-com-abas .best-ficha-listas[data-aba] { display: block; margin-top: 0; }
+
+/* REFORÇOS A CAMINHO (29/09/2026) — quem o Mestre acrescenta no meio da
+   batalha e entra na próxima rodada. O painel usa a moldura tracejada da
+   bancada: é gente fora do tabuleiro, esperando lugar. O ponto de chegada
+   no tabuleiro é o próprio token, esmaecido e com anel tracejado. */
+#root .menestrel-ui .batalha-chegada {
+  margin-top: 12px; padding: 10px 12px 12px; border-radius: 10px;
+  border: 1px dashed rgba(201,164,78,.35); background: rgba(201,164,78,.05);
+}
+#root .menestrel-ui .batalha-chegada-titulo {
+  margin: 0 0 8px; font-family: 'Cinzel', serif; font-size: var(--fs-sm); font-weight: 600;
+  letter-spacing: .02em; color: #E0BE68;
+}
+#root .menestrel-ui .batalha-chegada-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+#root .menestrel-ui .batalha-chegada-item {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 4px 6px; border-radius: 8px; transition: background .15s ease;
+}
+#root .menestrel-ui .batalha-chegada-item.is-marcando { background: rgba(201,164,78,.10); }
+#root .menestrel-ui .batalha-chegada-nome {
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-body); font-size: var(--fs-sm); color: #F1E6CF;
+}
+#root .menestrel-ui .batalha-chegada-meta {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-body); font-size: var(--fs-xs); color: #C8BCAA;
+}
+#root .menestrel-ui .batalha-chegada-meta.is-sem-ponto { color: #D9B77A; font-style: italic; }
+#root .menestrel-ui .batalha-chegada-item .btn-icon.is-ativo {
+  opacity: 1; color: var(--gold-bright, #E0BF6A); border-color: var(--gold, #C9A44E); background: rgba(201,164,78,.12);
+}
+#root .menestrel-ui .batalha-chegada-dica {
+  margin: 8px 0 0; font-family: var(--font-body); font-size: var(--fs-xs); color: #E0BE68;
+}
+#root .menestrel-ui .batalha-token-chegando { opacity: .5; }
+#root .menestrel-ui .batalha-token-chegando .batalha-token-avatar {
+  outline: 2px dashed rgba(224,190,104,.85); outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .batalha-chegada-item, #root .menestrel-ui .batalha-token-chegando { transition: none !important; }
+}

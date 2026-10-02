@@ -45,7 +45,7 @@
 
 
 /* ============================== [22] Itens da Campanha — listas de opção ============================== */
-const IC_ORIGENS       = ['Comum', 'Raro', 'Mágico'];
+const IC_ORIGENS       = ['Comum', 'Raro', 'Mágico', 'Alquímico'];
 const IC_CATEGORIAS    = ['arma', 'escudo', 'armadura'];
 const IC_SLOTS         = ['bracos', 'cabeca', 'dedos', 'maos', 'ombros', 'orelha', 'peito', 'pernas', 'pes', 'pescoco', 'cintura', 'colar', 'joia', 'brinco', 'capa'];
 const IC_TIPOS_SL      = ['S', 'L'];
@@ -207,10 +207,10 @@ function ItemCampanhaModal({ item, historiaId, lang, onClose, onSaved }) {
   const blank = {
     nome: '', slug: '', grupo: '', origem: '', icone: '', descricao: '',
     ocupa: '', armazena: '', tipo: '', tipo_item: '', valor_latao: '',
-    categoria_equip: '', slot_equip: '', grupo_equipamento: '', grupo_armas: '', forca_req: '', ajuste_atributo: '',
+    categoria_equip: '', slot_equip: '', grupo_armas: '', forca_req: '', ajuste_atributo: '',
     dano: '', dano_l: '', dano_m: '', dano_p: '', alcance: '', defesa: '', absorcao: '', resistencia: '', tipo_armadura: '',
     maos_pequenino: '', maos_anao: '', maos_outras: '',
-    efeito: '', efeito_positivo: '', efeito_negativo: '', magia: '', nivel_magia: '',
+    efeito_positivo: '', efeito_negativo: '', magia: '', nivel_magia: '',
   };
   const fromItem = () => {
     const f = { ...blank };
@@ -313,9 +313,6 @@ function ItemCampanhaModal({ item, historiaId, lang, onClose, onSaved }) {
             <IcCampo label="Slot">
               <IcSelect value={form.slot_equip} onChange={set('slot_equip')} options={IC_SLOTS} lang={lang} />
             </IcCampo>
-            <IcCampo label={en ? 'Equipment group' : 'Grupo de equipamento'}>
-              <input style={IC_INP} value={form.grupo_equipamento} onChange={set('grupo_equipamento')} />
-            </IcCampo>
             <IcCampo label={en ? 'Weapon group' : 'Grupo de armas'} hint={en ? 'Sigla, e.g. CM, CL.' : 'Sigla, ex.: CM, CL.'}>
               <input style={IC_INP} value={form.grupo_armas} onChange={set('grupo_armas')} />
             </IcCampo>
@@ -365,9 +362,6 @@ function ItemCampanhaModal({ item, historiaId, lang, onClose, onSaved }) {
             </IcCampo>
 
             <IcSecao>{en ? 'Effects & magic' : 'Efeitos & magia'}</IcSecao>
-            <IcCampo label={en ? 'Effect (free text)' : 'Efeito (texto livre)'} span="full">
-              <input style={IC_INP} value={form.efeito} onChange={set('efeito')} />
-            </IcCampo>
             <IcCampo label={en ? 'Positive effect' : 'Efeito positivo'} hint={en ? 'e.g. 35 Hidratação, 5 Temperatura' : 'ex.: 35 Hidratação, 5 Temperatura'}>
               <input style={IC_INP} value={form.efeito_positivo} onChange={set('efeito_positivo')} />
             </IcCampo>
@@ -526,7 +520,7 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
     return (
       <>
         <div className="best-toolbar">
-          <div className="best-search"><Input type="search" placeholder={en ? 'Search item…' : 'Buscar item…'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+          <div className="best-search"><i className="ti ti-filter-2 busca-ic" aria-hidden="true" /><Input type="search" placeholder={en ? 'Search' : 'Buscar'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
           <div className="best-chips">
             <button className={'best-chip' + (grupoFiltro === 'all' ? ' is-active' : '')} onClick={() => setGrupoFiltro('all')}>{en ? 'All' : 'Todos'}</button>
             {gruposDisponiveis.map((g) => (

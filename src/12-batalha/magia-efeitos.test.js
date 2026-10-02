@@ -236,8 +236,8 @@ describe('restrição de alvo por raça — regra, não sugestão', () => {
   const cri = (raca) => ({ inst_id: 'x', tipo: 'criatura', raca, status: 'ativo' });
   const pj  = () => ({ inst_id: 'p', tipo: 'pj', raca: 'Humano', status: 'ativo' });
 
-  it('Aura Divina aceita Demônio e Morto', () => {
-    expect(M.alvoPermitidoParaMagia(cri('Demônio'), 'aura_divina').pode).toBe(true);
+  it('Aura Divina aceita Infernal e Morto', () => {
+    expect(M.alvoPermitidoParaMagia(cri('Infernal'), 'aura_divina').pode).toBe(true);
     expect(M.alvoPermitidoParaMagia(cri('Morto'), 'aura_divina').pode).toBe(true);
   });
 
@@ -247,7 +247,7 @@ describe('restrição de alvo por raça — regra, não sugestão', () => {
   });
 
   it('Aura Divina nunca acerta um PJ', () => {
-    // Um PJ tem raça de personagem (Humano, Elfo…), nunca Demônio ou Morto.
+    // Um PJ tem raça de personagem (Humano, Elfo…), nunca Infernal ou Morto.
     // A restrição simplesmente não dispara sobre personagens — e está certo.
     expect(M.alvoPermitidoParaMagia(pj(), 'aura_divina').pode).toBe(false);
   });
@@ -346,9 +346,9 @@ describe('área: o raio vem depois, e o código já espera por ele', () => {
 
   it('a área RESPEITA a restrição de raça', () => {
     // Aura Divina com raio não pode pegar o companheiro animal do grupo.
-    const mistos = [noTab(1, { raca: 'Demônio' }), noTab(2, { raca: 'Animal' })];
+    const mistos = [noTab(1, { raca: 'Infernal' }), noTab(2, { raca: 'Animal' })];
     const r = M.alvosDeArea({ key: 'aura_divina', raio: 20 }, { x: 1, y: 1 }, mistos);
-    expect(r.map((p) => p.raca)).toEqual(['Demônio']);
+    expect(r.map((p) => p.raca)).toEqual(['Infernal']);
   });
 });
 
@@ -632,7 +632,7 @@ describe('Esconjuração — raça E teto de estágio', () => {
   });
 
   it('o teto sobe com o nível', () => {
-    expect(M.alvoPermitidoParaMagia(cri('Demônio', 9), 'esconjuracao', ESC, 5).pode).toBe(true);
+    expect(M.alvoPermitidoParaMagia(cri('Infernal', 9), 'esconjuracao', ESC, 5).pode).toBe(true);
   });
 
   it('raça errada é recusada antes do estágio', () => {
@@ -681,8 +681,8 @@ describe('Aura Divina é AURA, não projétil de área', () => {
 
   it('respeita a restrição de raça', () => {
     const r = M.alvosDeAura(AURA_CAT, conjurador,
-      [conjurador, noTab(5, { raca: 'Animal' }), noTab(6, { raca: 'Demônio' })], 1);
-    expect(r.map((p) => p.raca)).toEqual(['Demônio']);
+      [conjurador, noTab(5, { raca: 'Animal' }), noTab(6, { raca: 'Infernal' })], 1);
+    expect(r.map((p) => p.raca)).toEqual(['Infernal']);
   });
 
   it('sem posição no tabuleiro devolve null — a UI cai em alvo único', () => {
@@ -1041,7 +1041,7 @@ describe('aura hostil exclui o conjurador; aura protetora não', () => {
   });
 
   it('Aura Divina: o conjurador fica FORA', () => {
-    const alvo = p('d1', 1, { raca: 'Demônio' });
+    const alvo = p('d1', 1, { raca: 'Infernal' });
     const r = M.alvosDeAura(cat('aura_divina', '25 metros'), conj, [conj, alvo], 1);
     expect(r.map((x) => x.inst_id)).not.toContain('c1');
     expect(r.map((x) => x.inst_id)).toContain('d1');

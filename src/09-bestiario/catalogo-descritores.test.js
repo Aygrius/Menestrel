@@ -261,11 +261,11 @@ describe('itens — os campos que mudaram em 11/09/2026', () => {
       .toEqual(['Leve', 'Médio', 'Pesado']);
   });
 
-  it('origem é dropdown com os três valores reais do banco', () => {
+  it('origem é dropdown com os valores do banco (Alquímico desde 28/09/2026)', () => {
     const campo = campoDe('origem');
     expect(campo.tipo).toBe('opcoes');
     expect(window.opcoesNormalizadas(campo).map((o) => o.value))
-      .toEqual(['Comum', 'Raro', 'Mágico']);
+      .toEqual(['Comum', 'Raro', 'Mágico', 'Alquímico']);
   });
 });
 
@@ -349,15 +349,17 @@ describe('magias: dropdowns e ordem do editor', () => {
   const valores = (col) => campo(col).opcoes.map((o) => (typeof o === 'object' ? o.value : o));
   it('as cinco listas fechadas', () => {
     expect(valores('tipo')).toEqual(['Básica', 'Perdida', 'Ancestral']);
-    expect(valores('evocacao')).toEqual(['Instantânea', '1 rodada', '2 rodadas', '3 rodadas', '4 rodadas', '5 rodadas', '10 rodadas', '15 rodadas', '30 rodadas']);
-    expect(valores('alcance')).toEqual(['Toque', '2 metros', '5 metros', '10 metros', '15 metros', '20 metros', '50 metros', '100 metros', '1 quilômetro']);
+    expect(valores('evocacao')).toEqual(['Instantânea', '1 rodada', '2 rodadas', '3 rodadas', '4 rodadas', '5 rodadas', '10 rodadas', '15 rodadas', '30 rodadas', 'Ritual']);
+    expect(valores('alcance')).toEqual(['Pessoal', 'Toque', '2 metros', '5 metros', '10 metros', '15 metros', '20 metros', '50 metros', '100 metros', '1 quilômetro']);
     expect(valores('duracao')).toEqual(['Variável', 'Instantânea', '1 rodada', '2 rodadas', '3 rodadas', '4 rodadas', '5 rodadas', '10 rodadas', '15 rodadas', '30 rodadas']);
     expect(valores('custo')).toEqual(['1', '2', '3', '4']);
     ['tipo', 'evocacao', 'alcance', 'duracao', 'custo'].forEach((c) => expect(campo(c).tipo).toBe('opcoes'));
   });
-  it('Dano depois de Custo; Itens necessários depois de Permissão', () => {
+  /* Dano saiu do editor em 29/09/2026 ("Eu quero que você remova este campo"):
+     o dano da magia vem do texto de cada nível. */
+  it('sem Dano; Itens necessários depois de Permissão', () => {
     const ordem = descritorDe('magias').campos.map((c) => c.col);
-    expect(ordem.indexOf('dano')).toBe(ordem.indexOf('custo') + 1);
+    expect(ordem).not.toContain('dano');
     expect(ordem.indexOf('itens_necessarios')).toBe(ordem.indexOf('permissao') + 1);
   });
 });

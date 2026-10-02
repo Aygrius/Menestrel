@@ -295,7 +295,7 @@ function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja,
             {onBatalhas && (
               <button className="btn-icon btn-sm" onClick={onBatalhas} aria-label={th.card.batalhas}
                 onMouseEnter={(e) => abrirTip(e, th.card.batalhas)} onMouseLeave={fecharTip}>
-                <i className="ti ti-swords" />
+                <i className="ti ti-sword" />
               </button>
             )}
             {onManageConvites && (
@@ -307,7 +307,7 @@ function HistoriaCard({ h, personagens, t, lang, onEdit, onDelete, onManageLoja,
             {onManageLoja && (
               <button className="btn-icon btn-sm" onClick={onManageLoja} aria-label={th.card.loja}
                 onMouseEnter={(e) => abrirTip(e, interpolate(th.card.lojaTip, { qtd: qtdLoja }))} onMouseLeave={fecharTip}>
-                <i className="ti ti-shopping-bag" />
+                <i className="ti ti-building-store" />
               </button>
             )}
           </div>
@@ -905,9 +905,12 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
     const id = setInterval(() => { gravarLoja(lojaDataRef.current, true); }, Math.floor(LOJA_EDICAO_TTL_MS / 3));
     return () => {
       clearInterval(id);
+      // O `.then` dispara a consulta: sem ele o supabase-js nunca a envia e o
+      // cadeado só caía pelo TTL (02/10/2026).
       supabaseClient.from('historias')
         .update({ estoque_loja: { ...lojaDataRef.current, editando_em: null } })
-        .eq('id', historia.id);
+        .eq('id', historia.id)
+        .then(({ error }) => { if (error) console.error('[loja] soltar cadeado falhou:', error); });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historia.id]);
@@ -949,7 +952,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
           </button>
           <div className="loja-mng-v3-header-content">
             <div className="loja-mng-v3-page-eyebrow">
-              <i className="ti ti-shopping-bag" aria-hidden="true" />
+              <i className="ti ti-building-store" aria-hidden="true" />
               {historia.titulo}
             </div>
             <h2 className="ms-title">{tl.shop}</h2>
@@ -1157,11 +1160,11 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                       <section className="loja-mng-v3-panel loja-mng-v3-panel--cat" style={{ display: abaLoja === 'catalogo' ? 'flex' : 'none' }}>
                         <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltro !== '' ? 20 : undefined }}>
                           <div className="loja-mng-v3-search">
-                            <i className="ti ti-search" aria-hidden="true" />
+                            <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
                             <input
                               ref={buscaRef}
                               type="search"
-                              placeholder={tl.search}
+                              placeholder={en ? 'Search' : 'Buscar'}
                               value={busca}
                               onChange={(e) => setBusca(e.target.value)} />
                             {busca && (
@@ -1281,8 +1284,8 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                       <section className="loja-mng-v3-panel" style={{ display: abaLoja === 'estoque' ? 'flex' : 'none' }}>
                         <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltroEstoque !== '' ? 20 : undefined }}>
                           <div className="loja-mng-v3-search">
-                            <i className="ti ti-search" aria-hidden="true" />
-                            <input type="search" placeholder={en ? 'Search…' : 'Buscar…'} value={buscaEstoque} onChange={(e) => setBuscaEstoque(e.target.value)} />
+                            <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+                            <input type="search" placeholder={en ? 'Search' : 'Buscar'} value={buscaEstoque} onChange={(e) => setBuscaEstoque(e.target.value)} />
                             {buscaEstoque && (
                               <button type="button" className="loja-mng-v3-search-clear" onClick={() => setBuscaEstoque('')} aria-label={tl.clear}>
                                 <i className="ti ti-x" aria-hidden="true" />

@@ -30,7 +30,9 @@ const SAGAE = {
   dano_l: 0, dano_m: 1, dano_p: 3, ajuste_atributo: 'FOR', grupo_armas: 'CM',
 };
 const RELAMPAGO = {
-  key: 'relampago', nome: 'Relâmpago', alcance: '100 metros', evocacao: '1 rodada', duracao: 'Instantânea',
+  // '2 rodadas' na fixture desde 28/09/2026: a de 1 rodada deixou de ser canalização
+  // (rola na vez, o efeito sai no fim da rodada) e estes testes são da LARGADA.
+  key: 'relampago', nome: 'Relâmpago', alcance: '100 metros', evocacao: '2 rodadas', duracao: 'Instantânea',
   descricao: 'Um raio.',
   nivel_1: 'Causa 28 de dano elemental de ar.', nivel_3: 'Causa 32 de dano elemental de ar.',
   nivel_5: 'Causa 36 de dano elemental de ar.', nivel_7: 'Causa 40 de dano elemental de ar.',

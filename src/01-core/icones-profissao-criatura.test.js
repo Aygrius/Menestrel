@@ -64,7 +64,6 @@ describe('tipos de criatura', () => {
     ['Animal',     'ti-horse'],
     ['Celestial',  'ti-cross'],
     ['Infernal',   'ti-pentagram'],
-    ['Demônio',    'ti-pentagram'],
     ['Dragão',     'ti-dragon'],
     ['Civilizado', 'ti-user'],
     ['Construído', 'ti-robot'],
@@ -105,7 +104,7 @@ describe('os nomes têm a cara de um ícone Tabler', () => {
       ...Object.entries(window.ICONE_PROFISSAO),
       ...Object.entries(window.ICONE_TIPO_CRIATURA),
     ];
-    expect(todos.length).toBe(16);
+    expect(todos.length).toBe(15);   // Demônio saiu em 28/09/2026 (virou Infernal)
     for (const [chave, ic] of todos) {
       expect(ic, chave + ' tem nome de ícone malformado').toMatch(/^ti-[a-z0-9-]+$/);
     }

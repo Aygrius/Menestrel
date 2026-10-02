@@ -379,8 +379,14 @@ function gerarAtaques(p, catalogoBySlug, magiasByKey, atributos) {
     const entry = {
       origem:  'arma',
       icone:   '⚔',
-      nome:    cat.nome || it.slug,
+      // "Espada envenenada" enquanto o veneno durar (28/09/2026).
+      nome:    nomeComVeneno(cat.nome || it.slug, it),
       slug:    it.slug,
+      // A instância e o veneno viajam com o ataque: a batalha gasta a ação do
+      // veneno NESTA arma, e o arco precisa saber que é arco.
+      instanceId: it.instanceId,
+      veneno:  venenoDaArma(it),
+      arco:    ehArco(cat),
       tipo:    it.slot === 'mao_d' ? 'mão direita' : 'mão esquerda',
       slot:    it.slot,
       alcance: cat.alcance || 0,
@@ -819,6 +825,202 @@ function ehFlecha(cat) {
   return /^flechas?(\s|_|$)/.test(nome);
 }
 
+/* ============================== MUNIÇÃO E VENENO (28/09/2026) ==============================
+   "Itens venenosos (Blueta, Leopis, Theonia) podem ser usados em armas e
+    flechas, que se tornam (flecha envenenada, espada envenenada, etc). A
+    flecha só pode ser usada uma vez, mas a arma aplica o efeito nas próximas
+    15 ações (que persiste entre combates diferentes)." (usuário)
+
+   Decisões do usuário no mesmo dia:
+     • 1 dose de veneno = 1 flecha envenenada;
+     • munição completa: todo ataque com ARCO gasta uma flecha, e sem flecha
+       o arco não ataca;
+     • o veneno só age se o golpe chegar à EF (passou pela EH e pela
+       armadura), e o que ele faz é tirar Energia Física.
+
+   A FLECHA envenenada é item do catálogo (flecha_envenenada_<veneno>): pilha
+   própria, que o inventário, a loja e a transferência já sabem tratar. A
+   ARMA envenenada é a própria instância com `veneno` = { slug, nome, ef,
+   acoes } — mora no inventário, então atravessa combates sem mais nada. */
+const VENENO_ACOES_ARMA = 15;
+// Veneno → a flecha que ele unta.
+const FLECHA_DO_VENENO = {
+  secrecao_blueta: 'flecha_envenenada_blueta',
+  secrecao_leopis: 'flecha_envenenada_leopis',
+  secrecao_theonia: 'flecha_envenenada_theonia',
+};
+function ehVenenoDeArma(cat) {
+  return !!(cat && FLECHA_DO_VENENO[cat.slug]);
+}
+// O arco é a arma que dispara flecha (a besta e a arlabesta usariam virote,
+// que o catálogo não tem). Pelo slug, como o ehFlecha é pelo nome.
+function ehArco(cat) {
+  return !!(cat && /^arco(_|$)/.test(String(cat.slug || '')));
+}
+// "Diminui 5 de Energia Física; aumenta 50 de Doença." → 5. Só a EF: é o
+// que o veneno faz no golpe (decisão do usuário).
+function venenoEfDoItem(cat) {
+  const m = /diminui\s+(\d+)\s+de\s+energia\s+f[ií]sica/i.exec(String((cat && cat.efeito_negativo) || ''));
+  return m ? Number(m[1]) : 0;
+}
+// Arma que aceita veneno: arma de verdade, que não seja arco (quem leva o
+// veneno no arco é a flecha).
+function armaAceitaVeneno(cat) {
+  return !!(cat && cat.grupo === 'Armas' && cat.categoria_equip === 'arma' && !ehArco(cat));
+}
+// Veneno ainda ativo na instância da arma (ações > 0), ou null.
+function venenoDaArma(it) {
+  const v = it && it.veneno;
+  return v && Number(v.acoes) > 0 && Number(v.ef) > 0 ? v : null;
+}
+/* "Espada envenenada", "Punhal envenenado". O gênero sai da primeira palavra:
+   terminada em -a é feminina, mais as femininas que não terminam em -a. */
+const FEMININAS_SEM_A = new Set(['foice', 'rede']);
+function nomeComVeneno(nome, it) {
+  if (!venenoDaArma(it)) return nome;
+  const primeira = String(nome || '').trim().split(/\s+/)[0]
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const fem = primeira.endsWith('a') || FEMININAS_SEM_A.has(primeira);
+  return `${nome} ${fem ? 'envenenada' : 'envenenado'}`;
+}
+
+/* Aplica 1+ doses do veneno `venenoId` na instância `alvoId` (pura).
+   Arma: gasta 1 dose e a arma passa a carregar o veneno por 15 ações (troca
+   o que houver). Flecha: `qtd` doses viram `qtd` flechas envenenadas, na
+   MESMA pilha/recipiente das flechas de origem. Devolve { ok, itens } ou
+   { ok:false, motivo }. */
+function envenenarNoInventario(itens, venenoId, alvoId, qtd, catalogoBySlug, novoId) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const veneno = lista.find((x) => x && x.instanceId === venenoId);
+  const alvo = lista.find((x) => x && x.instanceId === alvoId);
+  const catV = veneno && catalogoBySlug[veneno.slug];
+  const catA = alvo && catalogoBySlug[alvo.slug];
+  if (!veneno || !ehVenenoDeArma(catV)) return { ok: false, motivo: 'nao_e_veneno' };
+  if (!alvo || !catA) return { ok: false, motivo: 'alvo_invalido' };
+  const doses = Number(veneno.quantidade) || 0;
+  const baixarVeneno = (arr, n) => arr
+    .map((x) => (x === veneno ? { ...x, quantidade: doses - n } : x))
+    .filter((x) => !(x.instanceId === venenoId && x.quantidade <= 0));
+
+  if (armaAceitaVeneno(catA)) {
+    const novoVeneno = { slug: catV.slug, nome: catV.nome, ef: venenoEfDoItem(catV), acoes: VENENO_ACOES_ARMA };
+    const comArma = lista.map((x) => (x === alvo ? { ...x, veneno: novoVeneno } : x));
+    return { ok: true, itens: baixarVeneno(comArma, 1) };
+  }
+  if (catA.slug === 'flecha') {
+    const n = Math.min(Math.max(1, Math.floor(Number(qtd) || 1)), doses, Number(alvo.quantidade) || 0);
+    if (n < 1) return { ok: false, motivo: 'quantidade_invalida' };
+    const slugNova = FLECHA_DO_VENENO[catV.slug];
+    let out = baixarVeneno(lista, n)
+      .map((x) => (x === alvo ? { ...x, quantidade: (Number(alvo.quantidade) || 0) - n } : x))
+      .filter((x) => !(x.instanceId === alvoId && x.quantidade <= 0));
+    const lugar = alvo.containerId || null;
+    const pilha = out.find((x) => x.slug === slugNova && (x.containerId || null) === lugar && !x.equipado && !x.vestido);
+    if (pilha) out = out.map((x) => (x === pilha ? { ...x, quantidade: (Number(x.quantidade) || 0) + n } : x));
+    else out = [...out, { instanceId: (novoId || novoInstanceId)(), slug: slugNova, quantidade: n,
+      equipado: false, slot: null, containerId: lugar, observacao: null }];
+    return { ok: true, itens: out, quantidade: n };
+  }
+  return { ok: false, motivo: 'alvo_invalido' };
+}
+
+/* As flechas que o PJ carrega, por tipo (em qualquer recipiente): o que o
+   seletor do arco oferece na batalha. [{ slug, nome, quantidade, venenoEf }] */
+function flechasNoInventario(itens, catalogoBySlug) {
+  const por = {};
+  (Array.isArray(itens) ? itens : []).forEach((it) => {
+    const cat = it && catalogoBySlug && catalogoBySlug[it.slug];
+    if (!cat || !ehFlecha(cat) || !((Number(it.quantidade) || 0) > 0)) return;
+    if (!por[it.slug]) {
+      // "Flecha Envenenada (Blueta)" → "Blueta": o nome do veneno, para a mesa.
+      const venenoNome = (/\(([^)]+)\)/.exec(cat.nome || '') || [])[1] || null;
+      por[it.slug] = { slug: it.slug, nome: cat.nome || it.slug, quantidade: 0, venenoEf: venenoEfDoItem(cat), venenoNome };
+    }
+    por[it.slug].quantidade += Number(it.quantidade) || 0;
+  });
+  // A comum primeiro; as envenenadas depois, pelo nome.
+  return Object.values(por).sort((a, b) => (a.venenoEf - b.venenoEf) || a.nome.localeCompare(b.nome, 'pt'));
+}
+
+/* ============================== ITENS DO RITUAL (28/09/2026) ==============================
+   "Magias do tipo 'Ritual' consomem os itens necessários automaticamente do
+    inventário, se o evocador não tiver os itens, ele será avisado." (usuário)
+
+   O texto do catálogo é "Vela (7), Hidromel (1), Sangue Demoníaco (1)". Duas
+   variações existem: alternativa ("Quartzo (1) ou Safira (1)" — basta uma) e
+   quantidade "(Variável)", que vale 1 (o Mestre decide o resto na mesa).
+   O item casa pelo NOME do catálogo, sem acento e sem caixa. */
+const normRitual = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+function itensDoRitual(texto) {
+  return String(texto || '').split(',').map((parte) => parte.trim()).filter(Boolean).map((parte) => ({
+    opcoes: parte.split(/\s+ou\s+/i).map((op) => {
+      const m = /^(.*?)\s*\(([^)]*)\)\s*$/.exec(op.trim());
+      const nome = (m ? m[1] : op).trim();
+      const n = m ? parseInt(m[2], 10) : NaN;
+      return { nome, qtd: Number.isFinite(n) && n > 0 ? n : 1 };
+    }).filter((op) => op.nome),
+  })).filter((g) => g.opcoes.length);
+}
+// Quantas unidades do item de nome `nome` o inventário tem, e em quais slugs.
+function contarPorNome(itens, nome, catalogoBySlug) {
+  const alvo = normRitual(nome);
+  let total = 0;
+  const slugs = new Set();
+  (Array.isArray(itens) ? itens : []).forEach((it) => {
+    const cat = it && catalogoBySlug && catalogoBySlug[it.slug];
+    if (!cat || normRitual(cat.nome) !== alvo || it.equipado || it.vestido) return;
+    total += Number(it.quantidade) || 0;
+    slugs.add(it.slug);
+  });
+  return { total, slugs: [...slugs] };
+}
+/* Confere o ritual contra o inventário. Para cada grupo, escolhe a primeira
+   alternativa que o PJ tem na quantidade pedida. Devolve
+   { ok, faltam: [{ nome, precisa, tem }], gastos: [{ nome, qtd, slugs }] }. */
+function conferirItensDoRitual(texto, itens, catalogoBySlug) {
+  const faltam = [];
+  const gastos = [];
+  itensDoRitual(texto).forEach((g) => {
+    const achada = g.opcoes.map((op) => ({ op, c: contarPorNome(itens, op.nome, catalogoBySlug) }))
+      .find(({ op, c }) => c.total >= op.qtd);
+    if (achada) { gastos.push({ nome: achada.op.nome, qtd: achada.op.qtd, slugs: achada.c.slugs }); return; }
+    const op = g.opcoes[0];
+    faltam.push({ nome: g.opcoes.map((o) => o.nome).join(' ou '), precisa: op.qtd,
+      tem: contarPorNome(itens, op.nome, catalogoBySlug).total });
+  });
+  return { ok: faltam.length === 0, faltam, gastos };
+}
+/* Tira do inventário o que o ritual gasta (pura). Só consome se nada falta:
+   ritual pela metade não existe. Devolve { ok, itens, faltam }. */
+function consumirItensDoRitual(itens, texto, catalogoBySlug) {
+  const conf = conferirItensDoRitual(texto, itens, catalogoBySlug);
+  if (!conf.ok) return { ok: false, itens, faltam: conf.faltam };
+  let out = Array.isArray(itens) ? [...itens] : [];
+  conf.gastos.forEach(({ qtd, slugs }) => {
+    let resta = qtd;
+    out = out.map((it) => {
+      if (resta <= 0 || !it || !slugs.includes(it.slug) || it.equipado || it.vestido) return it;
+      const q = Number(it.quantidade) || 0;
+      const baixa = Math.min(q, resta);
+      resta -= baixa;
+      return { ...it, quantidade: q - baixa };
+    }).filter((it) => !it || !slugs.includes(it.slug) || (Number(it.quantidade) || 0) > 0);
+  });
+  return { ok: true, itens: out, faltam: [] };
+}
+
+/* Gasta 1 ação do veneno da arma `instanceId` (pura). Chegou a 0, o veneno
+   sai da instância e a arma volta a ser só a arma. */
+function gastarAcaoDoVeneno(itens, instanceId) {
+  return (Array.isArray(itens) ? itens : []).map((x) => {
+    if (!x || x.instanceId !== instanceId || !x.veneno) return x;
+    const acoes = (Number(x.veneno.acoes) || 0) - 1;
+    if (acoes > 0) return { ...x, veneno: { ...x.veneno, acoes } };
+    const { veneno, ...semVeneno } = x;
+    return semVeneno;
+  });
+}
+
 /* ============================== Item novo no inventário (25/09/2026) ==============================
    O inventário inteiro depois de receber `qtd` de `slug`: soma numa pilha
    SOLTA igual (fora de recipiente, slot, equipado e vestido) ou cria a
@@ -925,7 +1127,9 @@ Object.assign(window, { protecoesDoItem, protecoesVestidas, condicoesComDelta, d
 Object.assign(window, {
   itemCasaBusca, adicionarAoInventario,
   RECEITAS_CARNE, receitasDaCarne, carneDisponivel, prepararCarne,
-  ehFlecha,
+  ehFlecha, ehArco, ehVenenoDeArma, venenoEfDoItem, armaAceitaVeneno, venenoDaArma, nomeComVeneno,
+  envenenarNoInventario, flechasNoInventario, gastarAcaoDoVeneno, FLECHA_DO_VENENO, VENENO_ACOES_ARMA,
+  itensDoRitual, conferirItensDoRitual, consumirItensDoRitual,
   MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas,
   fetchTabelaPaginada, fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,

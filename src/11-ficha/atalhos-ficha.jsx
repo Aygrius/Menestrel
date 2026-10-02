@@ -158,15 +158,18 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
           aria-label={en ? tipoAberto.en : tipoAberto.pt}>
           {/* O título com ícone e contagem ("Itens 2") saiu em 26/09/2026 —
               o botão aceso ao lado já diz qual lista está aberta. */}
-          <input
-            ref={buscaRef}
-            type="text"
-            className="at-busca"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder={en ? tipoAberto.buscaEn : tipoAberto.buscaPt}
-            aria-label={en ? tipoAberto.buscaEn : tipoAberto.buscaPt}
-          />
+          <div className="at-busca-wrap">
+            <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+            <input
+              ref={buscaRef}
+              type="text"
+              className="at-busca"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder={en ? 'Search' : 'Buscar'}
+              aria-label={en ? tipoAberto.buscaEn : tipoAberto.buscaPt}
+            />
+          </div>
           <div className="at-lista" role="list">
             {linhas.length === 0 ? (
               <p className="at-vazio">{en ? tipoAberto.vazioEn : tipoAberto.vazioPt}</p>

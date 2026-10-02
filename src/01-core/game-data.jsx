@@ -1162,14 +1162,13 @@ const ICONE_PROFISSAO = {
    na segunda passada (17/09/2026). Ficaram de fora só Monstro e Gigante, que o
    editor oferece e nenhuma criatura usa — esses caem na inicial do nome.
 
-   "Selvagem" saiu: era da primeira lista e não existe como tipo. Infernal e
-   Demônio dividem o mesmo pentagrama — são a mesma gente para quem olha o
+   "Selvagem" saiu: era da primeira lista e não existe como tipo. Demônio virou
+   Infernal em 28/09/2026 ("são a mesma classe") e ficou só o pentagrama — são a mesma gente para quem olha o
    tabuleiro. E o ti-ghost-2, que era do Místico, passou para o Elemental. */
 const ICONE_TIPO_CRIATURA = {
   'Animal':     'ti-horse',
   'Celestial':  'ti-cross',
   'Infernal':   'ti-pentagram',
-  'Demônio':    'ti-pentagram',
   'Dragão':     'ti-dragon',
   'Civilizado': 'ti-user',
   'Construído': 'ti-robot',

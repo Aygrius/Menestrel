@@ -1039,7 +1039,7 @@ const MAGIA_EFEITO_MAP = {
      frase não é "teste de resistência mágica"; há teste de regressão pra
      isso não passar a casar depois. */
   aura_divina:        { alvo: 'inimigo', alvos: 'escolha', icone: '🕊️',
-                        so_racas: ['Demônio', 'Morto'], area: 'aura',
+                        so_racas: ['Infernal', 'Morto'], area: 'aura',
                         efeitos: [{ tipo: 'mod_ataque', unidade: 'coluna', sinal: -1 }] },
   // PARCIAL de propósito: a raça é verificável, "sob Elo Animal" não é —
   // Elo Animal é narrativa nesta fase e não grava status nenhum. A metade
@@ -1167,7 +1167,7 @@ const MAGIA_EFEITO_MAP = {
   // "repele mortos-vivos e demônios" + "Afeta criaturas de até estágio N".
   // A raça é regra (so_racas); o estágio é teto lido do texto do nível.
   esconjuracao:       { alvo: 'inimigo', alvos: 1, icone: '✝️',
-                        so_racas: ['Morto', 'Demônio'], teto_estagio: true,
+                        so_racas: ['Morto', 'Infernal'], teto_estagio: true,
                         efeitos: [{ tipo: 'sem_acoes', valor: true }] },
   /* Sono é a única das três que é concentração de VERDADE: a coluna diz
      'Variável' e o nível NÃO traz duração — traz "Altera N condições do

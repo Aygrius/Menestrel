@@ -17,10 +17,6 @@ Merriweather no corpo, tokens `--fs-*` para tamanho e a paleta escopada em
 Pedido do usuário em 27/09/2026: "Eu instalei alguns plugins agora, e a partir
 de agora quero que eles sejam sempre usados no projeto." Sem esperar pedido:
 
-- **`claude-mem-cowork`** — no início de toda tarefa, rodar `mem-search` com o
-  assunto (tela, fase, feature) para puxar o que já foi feito e decidido em
-  sessões anteriores. Se a busca falhar por falta de credenciais, avisar o
-  usuário e sugerir `mem-setup` (precisa dos valores do cmem.ai).
 - **`cartographer`** — o mapa da base fica em `docs/CODEBASE_MAP.md`. Consultar
   o mapa antes de explorar o código às cegas; depois de mudanças estruturais
   (arquivo/pasta nova, fase nova em `src/NN-*`, módulo movido ou removido),
@@ -28,3 +24,7 @@ de agora quero que eles sejam sempre usados no projeto." Sem esperar pedido:
 - **`claude-code-setup`** — ao notar tarefa repetitiva que caberia em hook,
   skill, subagente ou MCP, rodar `claude-automation-recommender` e propor a
   automação ao usuário (sem aplicar sozinho).
+
+**Não usar `claude-mem-cowork`** (`mem-search`/`mem-setup`): o cmem.ai é pago.
+Pedido do usuário em 29/09/2026: "Não quero usar mem-setup porque é pago." Não
+rodar a busca nem sugerir a configuração.

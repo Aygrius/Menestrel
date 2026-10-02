@@ -317,11 +317,12 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
       {/* Filtro inline com bulk actions — mesma linha */}
       <div className="part-section-filter-row">
         <div className="best-search">
+          <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
           <Input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={tb.filtrar}
+            placeholder={isEn ? 'Search' : 'Buscar'}
           />
         </div>
         <div className="part-section-bulk">
@@ -470,12 +471,16 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
 // onCriar      — callback assíncrono que recebe o array de participantes
 // criarRef     — ref exposto ao pai para que ele possa acionar criar() via ModalShell footer
 // onStateChange— notifica o pai sempre que saving/canConfirm mudam (para controlar confirmDisabled/confirmLabel)
-function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onStateChange }) {
+/* Também escolhe os REFORÇOS da batalha em andamento (29/09/2026): aí os PJs
+   nascem desmarcados (`pjsMarcados`), o texto de cima é outro (`intro`) e os
+   bandos continuam a numeração dos que já lutam (`bandosExistentes`). */
+function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onStateChange,
+  pjsMarcados = true, intro = null, bandosExistentes = [] }) {
   const tb = tBat(isEn ? 'en' : 'pt'); // i18n-sync (Fase 3.3): este componente recebe o boolean
   const nomePj = (p) => `${p.nome}${p.sobrenome ? ' ' + p.sobrenome : ''}`;
 
   // PJs: Set simples (checkbox — cada PJ entra 0 ou 1 vez)
-  const [selPj, setSelPj] = useState(() => new Set(pjsVinc.map((p) => 'pj:' + p.id)));
+  const [selPj, setSelPj] = useState(() => new Set(pjsMarcados ? pjsVinc.map((p) => 'pj:' + p.id) : []));
   /* Criaturas: Map<key, qtd> — 0 = não inclusa, N ≥ 1 = N instâncias.
      Nascem em 0 desde 17/09/2026: "Por padrão, todas as criaturas ficam
      desmarcadas." Era 1, e toda criatura vinculada à história entrava na
@@ -551,7 +556,7 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
   const criar = async () => {
     setSaving(true);
     // 5+ criaturas iguais viram bandos de líder + 4 minions (formarBandos).
-    const participantes = formarBandos([
+    const participantes = formarBandosDeReforco(bandosExistentes, [
       ...pjsVinc.filter((p) => selPj.has('pj:' + p.id))
         .map((p) => ({ tipo: 'pj', ref_id: p.id, nome: nomePj(p) })),
       // Animais escolhidos dos PJs (fora de bando: formarBandos pula dono_pj).
@@ -595,7 +600,7 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
   return (
     <>
       <p className="subhead nova-batalha-intro">
-        {tb.essaEAHora}
+        {intro || tb.essaEAHora}
       </p>
       <ParticipantSection
         label={tb.jogadores}
@@ -1990,6 +1995,69 @@ function consumirItemDaMagia(ator, magia, catalogos) {
   });
 }
 
+/* ── Veneno do golpe de ARMA (28/09/2026) ──────────────────────────
+   "Afeta a EF, apenas se o golpe acertar a EF. Ou seja, tem que passar pela
+   EH e pela Armadura." (usuário) De onde vem o veneno: da flecha disparada
+   (arma.flecha.venenoEf) ou da arma untada (arma.veneno.ef, ver
+   envenenarNoInventario em 01-core). Zero = golpe sem veneno. */
+function venenoDoGolpe(tipo, arma) {
+  if (tipo !== 'arma' || !arma) return 0;
+  if (arma.flecha) return Math.max(0, Number(arma.flecha.venenoEf) || 0);
+  return arma.veneno ? Math.max(0, Number(arma.veneno.ef) || 0) : 0;
+}
+
+/* Pura: o golpe já foi aplicado (aplicarGolpeEmAlvo); se ele tirou EF do
+   alvo, o veneno tira mais `venenoEf` de EF — direto, sem EH nem armadura,
+   que o golpe já furou. Devolve { next, aplicado }. */
+function aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntes, venenoEf) {
+  const depois = next[alvoIdx];
+  if (!(venenoEf > 0) || !alvoAntes || !depois) return { next, aplicado: 0 };
+  const naEf = (Number(alvoAntes.ef) || 0) - (Number(depois.ef) || 0);
+  if (!(naEf > 0)) return { next, aplicado: 0 };
+  const out = [...next];
+  out[alvoIdx] = aplicarDanoDiretoEF(venenoEf, depois);
+  const aplicado = Math.max(0, (Number(depois.ef) || 0) - (Number(out[alvoIdx].ef) || 0));
+  return { next: out, aplicado };
+}
+
+/* Efeito colateral do golpe de ARMA no inventário do PJ: o arco gasta a
+   flecha disparada (acertando ou não — flecha atirada é flecha gasta); a arma
+   untada gasta uma das 15 ações do veneno. Mesma escrita relida de
+   consumirItemDoPJ, e o cache da batalha acompanha. */
+async function gastarMunicaoEVeneno(ator, arma, catalogos) {
+  if (!ator || ator.tipo !== 'pj' || !arma) return;
+  const atualizarCache = (inventario) => {
+    const cache = catalogos && catalogos.pjById && catalogos.pjById[ator.ref_id];
+    if (cache) catalogos.pjById[ator.ref_id] = { ...cache, inventario };
+  };
+  if (arma.flecha && arma.flecha.slug) {
+    const r = await consumirItemDoPJ(ator.ref_id, arma.flecha.slug, 1);
+    if (!r.ok) { console.error('[batalha] gasto de flecha falhou:', r.error); return; }
+    atualizarCache(r.inventario);
+    return;
+  }
+  if (arma.veneno && arma.instanceId && typeof gastarAcaoDoVeneno === 'function') {
+    const { data, error } = await supabaseClient
+      .from('personagens').select('inventario').eq('id', ator.ref_id).maybeSingle();
+    if (error) { console.error('[batalha] leitura do veneno falhou:', error); return; }
+    const inv = (data && data.inventario) || {};
+    const novoInv = { ...inv, itens: gastarAcaoDoVeneno(inv.itens || [], arma.instanceId) };
+    const { error: upErr } = await supabaseClient
+      .from('personagens').update({ inventario: novoInv }).eq('id', ator.ref_id);
+    if (upErr) { console.error('[batalha] gasto do veneno falhou:', upErr); return; }
+    atualizarCache(novoInv);
+  }
+}
+
+// A frase do veneno que vai junto do golpe na mesa.
+function textoVenenoDoGolpe(arma, aplicado, isEn) {
+  if (!(aplicado > 0)) return '';
+  const nome = (arma && arma.flecha && arma.flecha.venenoNome) || (arma && arma.veneno && arma.veneno.nome) || (isEn ? 'The poison' : 'O veneno');
+  return isEn
+    ? ` ${nome} poison dealt ${aplicado} damage to physical energy.`
+    : ` O veneno (${nome}) causou ${aplicado} de dano na energia física.`;
+}
+
 /* ── usePortalTooltip + PortalTooltip — padrão único de tooltip do sistema ──
    Usa portal no .menestrel-ui para escapar de overflow:hidden.
    Mesma implementação de 13-diario/diario.jsx.                              */
@@ -2109,7 +2177,7 @@ function proximaVisibilidade(v) {
 function textoVisibilidade(v, tb) {
   const nome = (tb && tb['visib_' + v]) || v;
   const pen = VISIBILIDADE_PENALIDADE[v];
-  return pen ? `${nome} · ${pen} ${(tb && tb.coluna) || 'de coluna'}` : nome;
+  return pen ? `${nome} · ${pen} ${(tb && tb.colunaPenalidade) || 'de coluna'}` : nome;
 }
 
 /* Este combatente enxerga NESTE nível de escuridão?
@@ -2996,7 +3064,9 @@ function BotaoEfeito({ icone, fracao, dica, classeExtra, onClick, abrirTip, fech
 
 function StatusTempChips({ p, tb, somenteLeitura, onRemover, abrirTip, fecharTip }) {
   const lista = Array.isArray(p && p.status_temp) ? p.status_temp : [];
-  const ev = p && p.evocando;
+  // A magia de 1 rodada que espera o fim da rodada aparece como evocação também.
+  const ev = p && (p.evocando || (p.magia_pendente && { magia_nome: p.magia_pendente.magia_nome,
+    magia_key: p.magia_pendente.magia_key, rodadas_rest: 0, fim_da_rodada: true }));
   if (!lista.length && !ev) return null;
   const t = tb || {};
   /* EVOCANDO (13/09/2026) não é status_temp: é o próprio estado da
@@ -3005,7 +3075,8 @@ function StatusTempChips({ p, tb, somenteLeitura, onRemover, abrirTip, fecharTip
   const chipEvocando = ev ? (() => {
     const nome = ev.magia_nome || ev.magia_key;
     const n = Number(ev.rodadas_rest) || 0;
-    const dica = n > 0 ? interpolate(t.magiaEvocando || '{nome} — {n}', { nome, n })
+    const dica = ev.fim_da_rodada ? (t.magiaFimDaRodada || 'sai no fim da rodada')
+      : n > 0 ? interpolate(t.magiaEvocando || '{nome} — {n}', { nome, n })
       : interpolate(t.magiaPronta || '{nome}', { nome });
     return (
       <BotaoEfeito key="evocando" icone={{ ti: iconeStatus('evocando') }}
@@ -3150,7 +3221,8 @@ function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip
    NÃO confundir com proximoAtivo, logo abaixo: apanhar e AGIR são coisas
    diferentes. Quem desmaiou ou desistiu vira alvo, mas não ganha a vez. */
 function podeSerAtacado(p) {
-  return !!p && p.status !== 'morto';
+  // Reforço ainda chegando (ehReforco) não está em cena — 29/09/2026.
+  return !!p && p.status !== 'morto' && p.status !== STATUS_CHEGANDO;
 }
 
 /* ── próximo participante ATIVO na ordem de iniciativa ────────── */
@@ -4272,12 +4344,131 @@ function quebrarConcentracaoPorVeneno(participantes) {
   return out;
 }
 
+/* ── REFORÇOS: quem chega no meio da batalha (29/09/2026) ──────────
+   "Durante a batalha, novos combatentes podem aparecer, sejam criaturas,
+   sejam personagens (que ainda não entraram). Crie uma opção para o mestre
+   adicionar novos combatentes, que vão entrar na próxima rodada no
+   tabuleiro." (usuário). Decisões dele no mesmo dia: o Mestre marca o ponto
+   de chegada, e os jogadores não veem quem vem.
+
+   O reforço mora em `participantes`, já como snapshot (montarSnapshots na
+   hora de adicionar), com status 'chegando' e SEM pos — o ponto marcado
+   fica em pos_entrada. Sem pos ele não ocupa célula nem entra em alcance;
+   fora de 'ativo' não ganha a vez (proximoAtivo); e podeSerAtacado o
+   recusa. Quem o põe em cena é montarNovaRodada, que Mestre e Jogador
+   chamam igual — por isso a entrada não depende de quem virou a rodada. */
+const STATUS_CHEGANDO = 'chegando';
+function ehReforco(p) { return !!p && p.status === STATUS_CHEGANDO; }
+
+// Snapshot → reforço. O status que o snapshot calculou (um PJ pode chegar já
+// caído) fica guardado e volta na entrada.
+function prepararReforcos(snaps, rodadaAtual) {
+  return (snaps || []).map((s) => {
+    const { pos, ...resto } = s;
+    return {
+      ...resto,
+      status: STATUS_CHEGANDO,
+      status_ao_entrar: s.status || 'ativo',
+      pos: null,
+      pos_entrada: posValida(pos) ? { x: pos.x, y: pos.y } : null,
+      entra_na_rodada: (Number(rodadaAtual) || 0) + 1,
+      // Fim da fila até a virada, que reordena todo mundo por iniciativa.
+      ordem: 9999,
+      atual: false,
+    };
+  });
+}
+
+/* Bandos só DENTRO da leva que chega: formarBandos agrupa toda criatura
+   solta que recebe, e os goblins que já lutam seriam renomeados e
+   amarrados aos novos no meio da luta. Os bandos já formados entram só
+   para a numeração ("líder 2") continuar a conta. */
+function formarBandosDeReforco(participantesAtuais, novos) {
+  const jaEmBando = (participantesAtuais || []).filter((p) => p && p.bando);
+  return formarBandos([...jaEmBando, ...(novos || [])]).slice(jaEmBando.length);
+}
+
+// Célula livre mais próxima de `alvo`, em anéis. Null só com o tabuleiro cheio.
+function celulaLivreProxima(alvo, participantes, quem) {
+  const T = (window.MotorTabuleiro || {});
+  const cols = T.TAB_COLS || 50, rows = T.TAB_ROWS || 35;
+  const base = posValida(alvo) ? alvo
+    : { x: Math.floor(cols / 2) - 1, y: Math.floor(rows / 2) - 1 };
+  for (let r = 0; r <= Math.max(cols, rows); r++) {
+    const anel = [];
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        anel.push({ x: base.x + dx, y: base.y + dy, d: dx * dx + dy * dy });
+      }
+    }
+    anel.sort((a, b) => a.d - b.d);
+    const achou = anel.find((c) => posValida({ x: c.x, y: c.y })
+      && !celulaOcupada({ x: c.x, y: c.y }, participantes, quem));
+    if (achou) return { x: achou.x, y: achou.y };
+  }
+  return null;
+}
+
+// De onde o reforço parte: o ponto dele; senão o do líder; senão o de alguém
+// da mesma leva (mesma criatura); senão o de qualquer um que chega junto.
+// Nenhum ponto: celulaLivreProxima cai no centro do tabuleiro.
+function pontoDeEntrada(r, chegando) {
+  if (posValida(r.pos_entrada)) return r.pos_entrada;
+  const lider = r.bando && r.bando.lider
+    && chegando.find((q) => q.inst_id === r.bando.lider && posValida(q.pos_entrada));
+  if (lider) return lider.pos_entrada;
+  const par = chegando.find((q) => q.tipo === r.tipo && String(q.ref_id) === String(r.ref_id)
+    && posValida(q.pos_entrada));
+  if (par) return par.pos_entrada;
+  const qualquer = chegando.find((q) => posValida(q.pos_entrada));
+  return qualquer ? qualquer.pos_entrada : null;
+}
+
+/* Põe em cena todo reforço. Líderes e soltos primeiro; o minion parte da
+   posição em que o líder acabou de entrar e bandoSegueLider o arruma em
+   volta. A montaria de quem chega montado vai para a célula do cavaleiro.
+   `entraram`: os nomes para o log (minion não entra na lista — o líder o
+   representa). */
+function entrarReforcos(participantes) {
+  if (!Array.isArray(participantes) || !participantes.some(ehReforco)) {
+    return { participantes, entraram: [] };
+  }
+  const chegando = participantes.filter(ehReforco);
+  let out = participantes.slice();
+  const entraram = [];
+  const entrar = (i, pos) => {
+    const { status_ao_entrar, pos_entrada, entra_na_rodada, ...resto } = out[i];
+    out[i] = { ...resto, status: status_ao_entrar || 'ativo', pos };
+  };
+  const minion = (p) => papelNoBando(p) === 'minion';
+  out.forEach((p, i) => {
+    if (!ehReforco(p) || minion(p)) return;
+    entrar(i, celulaLivreProxima(pontoDeEntrada(p, chegando), out, p));
+    entraram.push(p.nome);
+  });
+  out.forEach((p, i) => {
+    if (!ehReforco(p)) return;
+    const lider = p.bando && out.find((q) => q.inst_id === p.bando.lider && !ehReforco(q));
+    const origem = lider && posValida(lider.pos) ? lider.pos : pontoDeEntrada(p, chegando);
+    entrar(i, celulaLivreProxima(origem, out, p));
+  });
+  chegando.forEach((r) => {
+    if (papelNoBando(r) === 'lider') out = bandoSegueLider(out, r.inst_id);
+    if (r.montaria) out = montariaSegue(out, r.inst_id);
+  });
+  return { participantes: out, entraram };
+}
+
 function montarNovaRodada(participantes) {
+  // Reforços entram PRIMEIRO: assim a virada lhes dá PA, passo e vento pela
+  // mesma conta de todo mundo, e a iniciativa já os põe na fila.
+  const { participantes: comReforcos, entraram } = entrarReforcos(participantes);
   // Veneno morde na EF, e dano na EF derruba a magia sustentada. Resolve
   // ANTES de renovar recursos — ver quebrarConcentracaoPorVeneno.
   // O vento corrente entra ANTES da virada: é ela que recalcula PA e passo.
-  const base = aplicarVentoNosPjs(quebrarConcentracaoPorVeneno(participantes), _ventoDaBatalha);
-  const eventosRodada = [];
+  const base = aplicarVentoNosPjs(quebrarConcentracaoPorVeneno(comReforcos), _ventoDaBatalha);
+  const eventosRodada = entraram.map((nome) => ({ nome, entrou: true }));
   const processados = base.map((p) => {
     const r = processarViradaDeRodada(p);
     if (r.eventos.length) eventosRodada.push({ nome: p.nome, eventos: r.eventos, total: r.total });
@@ -4308,8 +4499,10 @@ function montarNovaRodada(participantes) {
    — a EF caía sozinha, sem nada explicando. */
 function entradaLogViradaRodada(eventos, rodadaNova) {
   if (!eventos || !eventos.length) return null;
+  // Reforço que chegou (entrarReforcos) vem antes do dano por rodada.
   const texto = eventos
-    .map((e) => `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`)
+    .map((e) => (e.entrou ? `${e.nome} entrou na batalha`
+      : `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`))
     .join('; ');
   return { rodada: rodadaNova, ts: Date.now(), acao: 'sistema', texto };
 }
@@ -4988,6 +5181,10 @@ function faseDeEvocacao(ator, magia) {
   const ev = evocacaoEmRodadas(cat);
   if (ev.bloqueada) return 'bloqueada';
   if (!ev.rodadas) return 'resolucao';
+  /* 1 RODADA rola AGORA (28/09/2026): "A rolagem do dado é na vez do jogador
+     normalmente, o efeito da magia que é no final da rodada." Não é
+     canalização: quem guarda o efeito para depois é guardarMagiaPendente. */
+  if (ev.rodadas === 1) return 'resolucao';
   const evocandoEsta = !!(ator && ator.evocando && magia && ator.evocando.magia_key === magia.key);
   if (!evocandoEsta) return 'largada';
   /* Já está canalizando ESTA magia. Com o contador em zero, resolve.
@@ -5069,7 +5266,7 @@ function textoPassoDeApoioComCura(fase, nomeAtor, magia, nomeAlvo, resistiu, his
    foi gasto.
 
    Devolve { participantes, fase } com fase 'iniciou' | 'resolveu' | 'perdeu'. */
-function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhouTeste) {
+function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhouTeste, jaPago) {
   const next = [...arr];
   const ator = next[atorIdx];
   const k = Math.max(0, custoKarma || 0);
@@ -5077,15 +5274,20 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhou
   const ev = evocacaoEmRodadas(cat);
   const evocandoEsta = !!(ator.evocando && ator.evocando.magia_key === magia.key);
 
-  // 1. Largada da canalização.
-  if (ev.rodadas > 0 && !evocandoEsta) {
+  // 1. Largada da canalização. A de 1 rodada não canaliza: rola na vez e o
+  // efeito sai no fim da rodada (magia pendente, 28/09/2026). `jaPago`: é a
+  // resolução dessa pendente, que já cobrou PA, karma e Oferenda.
+  if (ev.rodadas > 1 && !evocandoEsta && !jaPago) {
     next[atorIdx] = iniciarEvocacao(ator, { ...cat, key: magia.key },
       magia.nivel, [next[alvoIdx] && next[alvoIdx].inst_id].filter(Boolean), k);
     return { participantes: next, fase: 'iniciou' };
   }
 
   // 2. Resolução. Quem estava canalizando já pagou na largada.
-  if (evocandoEsta) {
+  if (jaPago) {
+    const { magia_pendente, ...semPendente } = ator;
+    next[atorIdx] = semPendente;
+  } else if (evocandoEsta) {
     const { evocando, ...semEvocacao } = ator;
     next[atorIdx] = semEvocacao;
   } else {
@@ -5097,7 +5299,7 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhou
   }
   // A magia SAIU: queima a Oferenda, que vale para uma só. Vem depois do
   // débito porque o nível ampliado já foi lido lá atrás, na montagem da lista.
-  next[atorIdx] = consumirOferenda(next[atorIdx]);
+  if (!jaPago) next[atorIdx] = consumirOferenda(next[atorIdx]);
 
   /* AURA: o efeito não é num alvo escolhido, é em TODOS os válidos dentro do
      raio a partir do conjurador. Aura Divina é a única da Fase 1/2 assim.
@@ -5809,7 +6011,17 @@ function quebrarEvocacao(participantes, atorInstId, motivo) {
   if (!atorInstId || !Array.isArray(participantes)) return participantes;
   let mudou = false;
   const next = participantes.map((p) => {
-    if (!p.evocando || p.inst_id !== atorInstId) return p;
+    if (p.inst_id !== atorInstId) return p;
+    /* A magia de 1 rodada que espera o fim da rodada (magia_pendente) cai
+       pelos MESMOS gatilhos: até sair, ela ainda está sendo evocada. */
+    if (p.magia_pendente && !p.evocando) {
+      mudou = true;
+      const { magia_pendente, ...resto } = p;
+      return { ...resto, evocacao_quebrada: { magia_key: magia_pendente.magia_key,
+        ...(magia_pendente.magia_nome ? { magia_nome: magia_pendente.magia_nome } : {}),
+        motivo: motivo || 'acao' } };
+    }
+    if (!p.evocando) return p;
     mudou = true;
     const { evocando, ...resto } = p;
     return { ...resto,
@@ -5818,6 +6030,66 @@ function quebrarEvocacao(participantes, atorInstId, motivo) {
         motivo: motivo || 'acao' } };
   });
   return mudou ? next : participantes;
+}
+
+/* ── Magia de 1 RODADA: o efeito espera o fim da rodada (28/09/2026) ──
+   "Magias instantâneas são conjuradas no exato momento da ação do evocador,
+    magias de evocação 1 rodada são executadas antes do último combatente da
+    rodada." e "A rolagem do dado é na vez do jogador normalmente, o efeito da
+    magia que é no final da rodada." (usuário)
+
+   Na vez do conjurador: o dado rola, PA, karma e Oferenda saem, e o PEDIDO
+   inteiro (o mesmo payload que aplicaria a magia agora) fica guardado em
+   `magia_pendente`. Quando a vez chega ao último da ordem — ou a rodada vira,
+   se o último era o próprio conjurador —, o painel do Mestre reaplica o
+   pedido pelo MESMO handler, marcado como resolução (sem cobrar de novo).
+   Até lá a magia cai pelos gatilhos da evocação (quebrarEvocacao). */
+function ehEvocacaoDeFimDaRodada(magia) {
+  const cat = (magia && magia.catalogo) || magia;
+  return !!cat && evocacaoEmRodadas(cat).rodadas === 1;
+}
+// O alvo guardado só com o que mesmoParticipante precisa — o snapshot inteiro
+// iria para o jsonb da batalha à toa.
+function alvoMinimo(p) {
+  return p ? { inst_id: p.inst_id || null, tipo: p.tipo, ref_id: p.ref_id, nome: p.nome } : null;
+}
+/* Pura: cobra o que a magia custa e guarda o pedido. `tipo` 'acao' (aba
+   Magia) ou 'apoio'. Devolve o novo array. */
+function guardarMagiaPendente(arr, atorIdx, tipo, payload, custoKarma, rodadaAtual) {
+  const next = [...arr];
+  const ator = next[atorIdx];
+  if (!ator) return arr;
+  const magia = payload && payload.magia;
+  const k = Math.max(0, Number(custoKarma) || 0);
+  const guardado = {
+    ...payload,
+    alvo: alvoMinimo(payload.alvo),
+    ...(payload.ator ? { ator: alvoMinimo(payload.ator) } : {}),
+  };
+  next[atorIdx] = consumirOferenda({
+    ...ator,
+    pa_rest: Math.max(0, (Number(ator.pa_rest) || 0) - 1),
+    karma: Math.max(0, (Number(ator.karma) || 0) - k),
+    magia_pendente: {
+      tipo, rodada: rodadaAtual,
+      magia_key: magia && magia.key, magia_nome: (magia && magia.nome) || null,
+      payload: guardado,
+    },
+  });
+  return next;
+}
+/* Qual pendente sai AGORA (puro)? A de uma rodada anterior sai já; a desta
+   rodada sai quando a vez está com o último da ordem e ele não é o próprio
+   conjurador (aí ela espera a virada). Devolve o participante ou null. */
+function pendenteParaResolver(participantes, rodadaAtual) {
+  const lista = Array.isArray(participantes) ? participantes : [];
+  const comPendente = lista.filter((p) => p && p.magia_pendente);
+  if (!comPendente.length) return null;
+  const antiga = comPendente.find((p) => (Number(p.magia_pendente.rodada) || 0) < (Number(rodadaAtual) || 0));
+  if (antiga) return antiga;
+  const atual = lista.find((p) => p && p.atual);
+  if (!atual || proximoAtivo(lista, atual.ordem)) return null;   // ainda não é o último
+  return comPendente.find((p) => p.inst_id !== atual.inst_id) || null;
 }
 
 /* ── A evocação que CHEGOU A ZERO sai do conjurador (puro) ──────────
@@ -6106,6 +6378,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const [venenoVal,     setVenenoVal]     = useState('');
   const [venenoRodadas, setVenenoRodadas] = useState(3);
   const [encerrarOpen,  setEncerrarOpen]  = useState(false); // painel inline com toggle de restaurar
+  // Reforços (29/09/2026): o modal de quem chega e o ponto sendo marcado
+  // (índice do reforço em `participantes`; null = ninguém).
+  const [reforcoOpen, setReforcoOpen] = useState(false);
+  const [reforcoState, setReforcoState] = useState({ saving: false, canConfirm: false, total: 0 });
+  const reforcoRef = useRef(null);
+  const [marcandoChegada, setMarcandoChegada] = useState(null);
   const [catalogos, setCatalogos] = useState(null);
   const [acaoOpen, setAcaoOpen] = useState(false);
   /* Ataque a partir do avatar do INIMIGO (12/09/2026): { id, aba } de quem foi
@@ -6273,37 +6551,45 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // eslint-disable-next-line
   }, [batalha && batalha.id]);
 
-    const iniciar = async () => {
+  /* O que montarSnapshots precisa além da lista: as pools da história, o
+     catálogo de magias e a data do jogo. Serve à largada (iniciar) e aos
+     reforços que chegam no meio da luta (adicionarReforcos, 29/09/2026). */
+  const carregarBaseDosSnapshots = async () => {
+    // Lê personagens_pools fresh da história (Fase 6: pools persistidos).
+    let pools = null;
+    if (historia && historia.id) {
+      const { data: histRow } = await supabaseClient
+        .from('historias').select('personagens_pools').eq('id', historia.id).maybeSingle();
+      pools = histRow ? (histRow.personagens_pools || {}) : null;
+    }
+    /* DEGRAU 3: magia de calendário evocada antes da luta entra valendo.
+       Para transformá-la em status o motor precisa do TEXTO DO NÍVEL (o
+       catálogo) e da data do jogo, que é quem diz se ela já venceu. As duas
+       são buscadas na largada (e na chegada de reforços) — não na montagem,
+       onde ninguém ainda tem efeito para semear. */
+    const [magRes, histData] = await Promise.all([
+      supabaseClient.from('magias').select('*'),
+      historia && historia.id
+        ? supabaseClient.from('historias').select('data_jogo_atual').eq('id', historia.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    const magiasByKey = {};
+    (magRes.data || []).forEach((m) => { magiasByKey[m.key] = m; });
+    const dataJogo = (histData && histData.data && histData.data.data_jogo_atual) || null;
+
+    return { pools, magiasByKey, dataJogo };
+  };
+
+  const iniciar = async () => {
     setIniciando(true); setError(null);
     try {
-      // Lê personagens_pools fresh da história (Fase 6: pools persistidos).
-      let pools = null;
-      if (historia && historia.id) {
-        const { data: histRow } = await supabaseClient
-          .from('historias').select('personagens_pools').eq('id', historia.id).maybeSingle();
-        pools = histRow ? (histRow.personagens_pools || {}) : null;
-      }
+      const { pools, magiasByKey, dataJogo } = await carregarBaseDosSnapshots();
       // `participantes` (estado), NÃO `batalha.participantes` (prop).
       // O estado é inicializado da prop uma única vez (useState lá em cima) e
       // nunca ressincronizado, então é ELE que acumula o posicionamento do
       // setup — posicionarNoSetup escreve `pos` nele. Ler a prop aqui
       // ressuscitava a lista sem posição nenhuma, e todo mundo voltava para a
       // bancada assim que a batalha começava.
-      /* DEGRAU 3: magia de calendário evocada antes da luta entra valendo.
-         Para transformá-la em status o motor precisa do TEXTO DO NÍVEL (o
-         catálogo) e da data do jogo, que é quem diz se ela já venceu. As duas
-         só são buscadas aqui, na largada — não na montagem, onde ninguém
-         ainda tem efeito para semear. */
-      const [magRes, histData] = await Promise.all([
-        supabaseClient.from('magias').select('*'),
-        historia && historia.id
-          ? supabaseClient.from('historias').select('data_jogo_atual').eq('id', historia.id).maybeSingle()
-          : Promise.resolve({ data: null }),
-      ]);
-      const magiasByKey = {};
-      (magRes.data || []).forEach((m) => { magiasByKey[m.key] = m; });
-      const dataJogo = (histData && histData.data && histData.data.data_jogo_atual) || null;
-
       const snaps = await montarSnapshots(participantes || [], pools, magiasByKey, dataJogo);
       // EFETIVA: magia de velocidade ativa desde antes da luta já conta na ordem.
       let ordenados = ordenarIniciativaEfetiva(snaps);
@@ -6361,6 +6647,56 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     setError(null);
     persistir({ participantes: next }, () => setParticipantes(next));
     return true;
+  };
+
+  /* ── REFORÇOS (29/09/2026) — ver prepararReforcos/entrarReforcos ──
+     Escolher quem chega é o mesmo NovaBatalhaView da montagem, só com quem
+     da história ainda não está na luta. O snapshot sai AGORA (as pools e o
+     calendário de agora); a entrada em cena fica para a virada. Nada vai ao
+     log aqui: os jogadores descobrem quando o reforço entra. */
+  const pjsForaDaBatalha = ((historia && historia.protagonista_ids) || [])
+    .map((id) => personagens.find((p) => p.id === id)).filter(Boolean)
+    .filter((pj) => !participantes.some((p) => p.tipo === 'pj' && String(p.ref_id) === String(pj.id)));
+  const criaturasDaHistoria = ((historia && historia.criatura_ids) || [])
+    .map((id) => criaturas.find((c) => c.id === id)).filter(Boolean);
+
+  const adicionarReforcos = async (crus) => {
+    setError(null);
+    try {
+      const { pools, magiasByKey, dataJogo } = await carregarBaseDosSnapshots();
+      const snaps = await montarSnapshots(crus, pools, magiasByKey, dataJogo);
+      const next = [...participantes, ...prepararReforcos(snaps, rodada)];
+      await persistir({ participantes: next }, () => setParticipantes(next));
+      setReforcoOpen(false);
+      // Já arma o ponto do primeiro que chega — o minion segue o líder.
+      const primeiro = next.findIndex((p, i) => i >= participantes.length && papelNoBando(p) !== 'minion');
+      setMarcandoChegada(primeiro >= 0 ? primeiro : null);
+    } catch (e) {
+      setError((e && e.message) || String(e));
+    }
+  };
+
+  // O clique no tabuleiro só grava o ponto; ocupado ou não, a célula livre
+  // mais próxima é resolvida na entrada (entrarReforcos).
+  const marcarPontoDeChegada = (p, idx, destino) => {
+    if (salvando) return false;
+    if (!posValida(destino)) { setError(motivoMovimento('fora_do_tabuleiro', isEn)); return false; }
+    const next = participantes.map((q, i) => (i === idx ? { ...q, pos_entrada: { x: destino.x, y: destino.y } } : q));
+    setError(null);
+    persistir({ participantes: next }, () => setParticipantes(next));
+    return true;
+  };
+
+  // Tirar da chegada leva junto o bando do líder e o animal do PJ.
+  const removerReforco = (idx) => {
+    const r = participantes[idx];
+    if (!ehReforco(r) || salvando) return;
+    const sai = (q) => ehReforco(q) && (mesmoParticipante(q, r)
+      || (!!r.inst_id && !!q.bando && q.bando.lider === r.inst_id)
+      || (r.tipo === 'pj' && q.dono_pj != null && String(q.dono_pj) === String(r.ref_id)));
+    const next = participantes.filter((q) => !sai(q));
+    setMarcandoChegada(null);
+    persistir({ participantes: next }, () => setParticipantes(next));
   };
 
   const moverNoTabuleiro = (p, idx, destino) => {
@@ -6521,9 +6857,25 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       if (idxAtor >= 0 && magia) concluirEvocacaoPerdida(idxAtor, magia);
       return;
     }
+    // Resolução da magia de 1 rodada guardada (magia_pendente): o conjurador
+    // não é o da vez — vem pelo inst_id — e nada se cobra de novo.
+    const resolvendoPendente = !!payload.pendente_resolucao;
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
-    const atorIdx = participantes.findIndex((p) => p.atual);
+    const atorIdx = resolvendoPendente
+      ? participantes.findIndex((p) => p.inst_id === payload.ator_inst_id)
+      : participantes.findIndex((p) => p.atual);
+    if (resolvendoPendente && atorIdx >= 0 && (alvoIdx < 0 || !podeSerAtacado(participantes[alvoIdx]))) {
+      descartarPendente(atorIdx);
+      return;
+    }
     if (alvoIdx < 0 || atorIdx < 0) return;
+    /* MAGIA DE 1 RODADA na vez do conjurador (28/09/2026): o dado já rolou;
+       o efeito espera o fim da rodada. Cobra, guarda o pedido e passa. */
+    if (!resolvendoPendente && tipo === 'magia' && magia && ehEvocacaoDeFimDaRodada(magia)
+        && !participantes[atorIdx].evocando) {   // canalização antiga em curso segue o caminho dela
+      guardarPendente(atorIdx, 'acao', payload, custo_karma);
+      return;
+    }
     // Combate Não Letal (sem_critico): o Absurdo saiu na tabela, mas quem
     // ativou escolheu subjugar — resolve como golpe normal.
     const critico = criticoBruto && criticoPermitido(participantes[atorIdx]);
@@ -6562,7 +6914,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     /* `participantes[atorIdx]`, não `ator`: `ator` é um const declarado mais
        abaixo nesta função, e lê-lo aqui lançava ReferenceError (TDZ) — toda
        magia de ataque do Mestre morria calada no clique (13/09/2026). */
-    if (tipo === 'magia') consumirItemDaMagia(participantes[atorIdx], magia, catalogos);
+    if (tipo === 'magia' && !resolvendoPendente) consumirItemDaMagia(participantes[atorIdx], magia, catalogos);
     let next = [...participantes];
     /* RESOLUÇÃO DA CANALIZAÇÃO (13/09/2026): o karma foi pago na largada e não
        se cobra de novo, e a evocação sai do conjurador ANTES da quebra de
@@ -6572,7 +6924,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       && next[atorIdx].evocando.magia_key === magia.key;
     if (resolvendoEvocacao) next[atorIdx] = soltarEvocacao(next[atorIdx]);
     // Atacar É uma ação: derruba a concentração de quem ataca.
-    next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
+    if (!resolvendoPendente) next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     const alvoAntesDoGolpe = next[alvoIdx];
     next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
     // Onde o dano caiu no alvo principal — o log diz "na energia física" (27/09/2026).
@@ -6580,6 +6932,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       eh: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.eh) || 0) - (Number(next[alvoIdx] && next[alvoIdx].eh) || 0)),
       ef: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.ef) || 0) - (Number(next[alvoIdx] && next[alvoIdx].ef) || 0)),
     };
+    // Veneno (flecha ou arma untada): só se o golpe chegou à EF (28/09/2026).
+    const venenoEf = venenoDoGolpe(tipo, arma);
+    const venenoPrincipal = aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntesDoGolpe, venenoEf);
+    next = venenoPrincipal.next;
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -6591,8 +6947,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const nomesAlvosExtras = [];
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
+      const exAntes = next[exIdx];
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+      next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
     });
+    // O arco gasta a flecha; a arma untada, uma ação do veneno.
+    if (tipo === 'arma') gastarMunicaoEVeneno(next[atorIdx], arma, catalogos);
     // O bônus de Ataque Impetuoso e o gatilho dos Botes foram usados neste golpe (em todos os alvos).
     next[atorIdx] = consumirEfeitosDoGolpe(next[atorIdx]);
     // Debita PA (sempre 1) e karma (se for magia; a canalização já pagou).
@@ -6601,10 +6961,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Flechadas Múltiplas) consome pa_ataque_extra em vez de pa_rest — só
     // na aba Arma. Técnica, magia, habilidade e item continuam pagando
     // pa_rest (ver aplicarTeste/aplicarEfeitoItem, que não tocam este bloco).
-    next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
+    if (resolvendoPendente) {
+      // A pendente já pagou na vez do conjurador; aqui ela só sai dele.
+      const { magia_pendente, ...semPendente } = next[atorIdx];
+      next[atorIdx] = semPendente;
+    } else next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
     // Magia ofensiva tambem queima a Oferenda: ela vale para UMA magia, seja
     // ela de ataque ou de apoio.
-    if (tipo === 'magia') next[atorIdx] = consumirOferenda(next[atorIdx]);
+    if (tipo === 'magia' && !resolvendoPendente) next[atorIdx] = consumirOferenda(next[atorIdx]);
 
     // Falha Crítica (q=0): a consequência do segundo dado cai no PRÓPRIO
     // atacante (Fase 1.1) — dano pulando EH + status mecânico da tabela.
@@ -6637,6 +7001,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
       ...(nomesAlvosExtras.length ? { alvos_extras_nomes: nomesAlvosExtras } : {}),
       arma_nome: nomeAcao,                       // mantém nome do campo p/ retrocompat do render
+      ...(venenoPrincipal.aplicado > 0 ? { veneno_ef: venenoPrincipal.aplicado } : {}),
       coluna, d20,
       resultado: resultado ? resultado.codigo : null,
       resultado_nome: resultado ? resultado.pt : null,
@@ -6664,7 +7029,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       const texto = textoGolpeNaMesa({
         ator: participantes[atorIdx], alvoNome: alvo.nome, acaoNome: nomeAcao, tipo,
         resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico, ondeDano,
-      });
+      }) + textoVenenoDoGolpe(arma, venenoPrincipal.aplicado, lang === 'en');
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
         p_tipo: tipo === 'magia' ? 'magia' : 'ataque',
@@ -6695,12 +7060,82 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       });
     }
 
+    // A resolução da pendente acontece na vez de OUTRO: não mexe na rolagem
+    // nem no painel de quem está agindo.
+    if (resolvendoPendente) {
+      persistir({ participantes: next, log: novoLog /* pendente: a rolagem é de quem está agindo */ }, () => { setParticipantes(next); setLog(novoLog); });
+      return;
+    }
     if (viraRodada) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
     setRolagemSalva(null);
     persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
       setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
     });
   };
+
+  /* MAGIA DE 1 RODADA — a guarda e a resolução (28/09/2026). Ver
+     guardarMagiaPendente/pendenteParaResolver. Guardar é uma ação como
+     qualquer outra: derruba a concentração anterior, gasta o frasco ou o
+     pergaminho, loga e passa a vez quando o PA acaba. */
+  const guardarPendente = (atorIdx, tipoPendente, payload, custoKarma) => {
+    const magia = payload.magia;
+    let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
+    consumirItemDaMagia(participantes[atorIdx], magia, catalogos);
+    next = guardarMagiaPendente(next, atorIdx, tipoPendente, payload, custoKarma, rodada);
+    const ator = next[atorIdx];
+    const texto = lang === 'en'
+      ? `${primeiroNome(ator.nome)} cast ${magia.nome} — the spell takes effect at the end of the round.`
+      : `${primeiroNome(ator.nome)} evocou ${magia.nome} — a magia sai no fim da rodada.`;
+    const entry = { rodada, ts: Date.now(), acao: 'sistema', texto,
+      autor_tipo: ator.tipo, autor_ref_id: ator.ref_id, autor_nome: ator.nome,
+      magia_key: magia.key, fase_evocacao: 'pendente' };
+    const novoLog = [...log, entry];
+    if (historia && historia.id) {
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historia.id, p_tipo: 'magia', p_texto: texto,
+        p_meta: { batalha_id: batalha.id, rodada, magia_key: magia.key, fase_evocacao: 'pendente' },
+      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha] registrar_evento_mesa (pendente) falhou:', rpcErr); });
+    }
+    let viraRodada = false;
+    if ((!temAcaoRestante(ator) || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual) {
+      const prox = proximoAtivo(next, ator.ordem);
+      if (prox) next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
+      else viraRodada = true;
+    }
+    if (viraRodada) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
+    setRolagemSalva(null);
+    persistir({ participantes: next, log: novoLog, rolagem_pendente: null }, () => {
+      setParticipantes(next); setLog(novoLog); setAcaoOpen(false);
+    });
+  };
+  // A pendente perdeu o alvo (morreu, fugiu): sai sem efeito, e a mesa sabe.
+  const descartarPendente = (atorIdx) => {
+    const ator = participantes[atorIdx];
+    if (!ator || !ator.magia_pendente) return;
+    const { magia_pendente, ...semPendente } = ator;
+    const next = participantes.map((p, i) => (i === atorIdx ? semPendente : p));
+    const texto = lang === 'en'
+      ? `${primeiroNome(ator.nome)}'s ${magia_pendente.magia_nome || 'spell'} fizzled — the target is gone.`
+      : `A magia ${magia_pendente.magia_nome || ''} de ${primeiroNome(ator.nome)} se perdeu — o alvo não está mais lá.`;
+    const novoLog = [...log, { rodada, ts: Date.now(), acao: 'sistema', texto }];
+    persistir({ participantes: next, log: novoLog /* pendente: a rolagem é de quem está agindo */ }, () => { setParticipantes(next); setLog(novoLog); });
+  };
+  /* Quem resolve é SÓ o painel do Mestre, para a magia não sair duas vezes
+     (o Jogador guarda, nunca resolve). Uma por vez: cada persistência muda
+     `participantes` e o efeito roda de novo para a próxima. */
+  const resolvendoPendenteRef = React.useRef(null);
+  useEffect(() => {
+    if (!participantes || !participantes.length || estado !== 'ativa' || !catalogos) return;
+    const p = pendenteParaResolver(participantes, rodada);
+    if (!p) { resolvendoPendenteRef.current = null; return; }
+    const chave = p.inst_id + ':' + p.magia_pendente.rodada + ':' + p.magia_pendente.magia_key;
+    if (resolvendoPendenteRef.current === chave) return;
+    resolvendoPendenteRef.current = chave;
+    const pedido = { ...p.magia_pendente.payload, pendente_resolucao: true, ator_inst_id: p.inst_id };
+    if (p.magia_pendente.tipo === 'apoio') aplicarApoio(pedido);
+    else aplicarAcao(pedido);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [participantes, rodada, estado, !!catalogos]);
 
   /* Largada da canalização de uma magia OFENSIVA (lado Mestre).
      Espelha o ramo 'iniciou' de passoDeApoio, com a persistência deste lado.
@@ -7080,23 +7515,38 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   // cascata, e o dado só entra quando a magia exige teste de resistência.
   const aplicarApoio = (payload) => {
     const { ator, alvo, magia, custo_karma, resistencia, d20, resistiu, falhou_teste } = payload;
-    const atorIdx = participantes.findIndex((p) => mesmoParticipante(p, ator));
+    // Resolução da magia de 1 rodada guardada — ver aplicarAcao.
+    const resolvendoPendente = !!payload.pendente_resolucao;
+    const atorIdx = resolvendoPendente
+      ? participantes.findIndex((p) => p.inst_id === payload.ator_inst_id)
+      : participantes.findIndex((p) => mesmoParticipante(p, ator));
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
+    if (resolvendoPendente && atorIdx >= 0
+        && (alvoIdx < 0 || ['morto', 'desistiu'].includes(participantes[alvoIdx].status))) {
+      descartarPendente(atorIdx);
+      return;
+    }
     if (atorIdx < 0 || alvoIdx < 0) return;
+    // Magia de 1 rodada na vez do conjurador: o efeito espera o fim da rodada.
+    if (!resolvendoPendente && ehEvocacaoDeFimDaRodada(magia) && !participantes[atorIdx].evocando) {
+      guardarPendente(atorIdx, 'apoio', payload, custo_karma);
+      return;
+    }
 
     // Lançar uma magia é uma ação: derruba qualquer concentração ANTERIOR
     // deste conjurador antes de aplicar a nova. Ninguém sustenta duas.
-    let next = quebrarAntesDoApoio(participantes, atorIdx, magia);
+    // (A pendente que agora sai já fez isso na vez dela.)
+    let next = resolvendoPendente ? [...participantes] : quebrarAntesDoApoio(participantes, atorIdx, magia);
 
     const k = Math.max(0, custo_karma || 0);
     // Larga a canalização OU resolve — a decisão é de passoDeApoio, e é a
     // mesma nos dois lados (ver handleApoio no BatalhaJogadorView).
-    const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu, falhou_teste);
+    const passo = passoDeApoio(next, atorIdx, alvoIdx, magia, k, resistiu, falhou_teste, resolvendoPendente);
     next = passo.participantes;
     /* Pergaminho gasta na RESOLUÇÃO, não na largada: quem começa a canalizar
        e é interrompido não perdeu o papel. Falhar no teste ou perder o alvo,
        sim — o pergaminho foi lido. */
-    if (passo.fase !== 'iniciou') consumirItemDaMagia(ator, magia, catalogos);
+    if (passo.fase !== 'iniciou' && !resolvendoPendente) consumirItemDaMagia(ator, magia, catalogos);
 
     const entry = {
       rodada, ts: Date.now(),
@@ -7126,6 +7576,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         });
     }
 
+    // A pendente sai na vez de OUTRO: não passa vez nem mexe no painel dele.
+    if (resolvendoPendente) {
+      persistir({ participantes: next, log: novoLog /* pendente: a rolagem é de quem está agindo */ }, () => { setParticipantes(next); setLog(novoLog); });
+      return;
+    }
     // Mesma regra de fim de turno das outras ações.
     let viraRodada = false;
     const a = next[atorIdx];
@@ -7295,6 +7750,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           onMouseEnter={(e) => abrirTip(e, textoVisibilidade(visibilidade, tb))}
           onMouseLeave={fecharTip}>
           <i className={'ti ' + VISIBILIDADE_ICONE[visibilidade]} aria-hidden="true" />
+        </button>
+        {/* REFORÇOS (29/09/2026): quem chega entra na próxima rodada. */}
+        <button type="button" className="btn-icon btn-ghost btn-sm" data-acao="reforcos"
+          disabled={salvando || rolagemPendente}
+          onClick={() => { fecharTip(); setReforcoOpen(true); }}
+          aria-label={tb.adicionarCombatentes}
+          onMouseEnter={(e) => abrirTip(e, tb.adicionarCombatentes)} onMouseLeave={fecharTip}>
+          <i className="ti ti-circle-plus" aria-hidden="true" />
         </button>
         <button type="button" className="btn-icon btn-ghost btn-sm" disabled={salvando || rolagemPendente} onClick={novaRodada}
           onMouseEnter={(e) => abrirTip(e, tb.novaRodada)} onMouseLeave={fecharTip}>
@@ -7670,13 +8133,20 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         /* Conduzir Oponente (14/09/2026): o adversário conduzido por quem está
            na vez também é selecionável, e o halo dele é o que a condução anda.
            Mesma condição em moverNoTabuleiro, que desvia para a condução. */
-        podeSelecionar={(p) => !salvando && estado === 'ativa' && (
+        /* Marcando o ponto de um reforço (29/09/2026): o tabuleiro passa a ser
+           controlado por aqui e o clique na grade vira o ponto de chegada —
+           o mesmo gesto do posicionamento da montagem, sem halo nem custo. */
+        {...(marcandoChegada != null && estado === 'ativa'
+          ? { movendoControlado: marcandoChegada, onMovendoChange: setMarcandoChegada }
+          : {})}
+        podeSelecionar={(p) => !salvando && estado === 'ativa' && (marcandoChegada != null ? ehReforco(p) : (
           (!!p.atual && movimentoDisponivel(p) > 0 && !minionPresoAoLider(p, participantes))
-          || (!p.atual && !!lutadorDaVez && conducaoDisponivel(p, lutadorDaVez) > 0))}
-        alcanceDe={(p) => (estado !== 'ativa' ? null
+          || (!p.atual && !!lutadorDaVez && conducaoDisponivel(p, lutadorDaVez) > 0)))}
+        alcanceDe={(p) => (estado !== 'ativa' || ehReforco(p) ? null
           : p.atual ? (!minionPresoAoLider(p, participantes) ? movimentoDisponivel(p) : null)
           : (lutadorDaVez && conducaoDisponivel(p, lutadorDaVez) > 0 ? conducaoDisponivel(p, lutadorDaVez) : null))}
-        onMover={estado === 'ativa' ? moverNoTabuleiro : undefined}
+        onMover={estado !== 'ativa' ? undefined
+          : marcandoChegada != null ? marcarPontoDeChegada : moverNoTabuleiro}
         salvando={salvando}
         isEn={isEn}
         tb={tb}
@@ -7905,8 +8375,82 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         }}
       />
 
+      {/* REFORÇOS A CAMINHO (29/09/2026) — só nesta tela, a do Mestre: a do
+          Jogador nem recebe quem está chegando. Minion não tem linha (segue o
+          líder, que mostra "+N do bando"), nem a montaria já em uso. */}
+      {estado === 'ativa' && participantes.some(ehReforco) && (() => {
+        const linhas = participantes.map((p, i) => ({ p, i }))
+          .filter(({ p }) => ehReforco(p) && papelNoBando(p) !== 'minion' && !ehMontariaEmUso(p, participantes));
+        const marcando = marcandoChegada != null ? participantes[marcandoChegada] : null;
+        return (
+          <section className="batalha-chegada" aria-label={tb.chegamNaRodada.replace('{n}', rodada + 1)}>
+            <h4 className="batalha-chegada-titulo">{tb.chegamNaRodada.replace('{n}', rodada + 1)}</h4>
+            <ul className="batalha-chegada-lista">
+              {linhas.map(({ p, i }) => {
+                const doBando = p.bando && p.bando.papel === 'lider'
+                  ? participantes.filter((q) => ehReforco(q) && q.bando && q.bando.lider === p.inst_id && q.inst_id !== p.inst_id).length : 0;
+                const temPonto = posValida(p.pos_entrada);
+                const ativo = marcandoChegada === i;
+                return (
+                  <li key={p.inst_id || p.tipo + ':' + p.ref_id} className={'batalha-chegada-item' + (ativo ? ' is-marcando' : '')}>
+                    <span className="batalha-chegada-nome">{p.nome}</span>
+                    <span className={'batalha-chegada-meta' + (temPonto ? '' : ' is-sem-ponto')}>
+                      {[doBando > 0 ? tb.doBando.replace('{n}', doBando) : null,
+                        temPonto ? tb.pontoMarcado : tb.semPontoChegada].filter(Boolean).join(' · ')}
+                    </span>
+                    <button type="button" className={'btn-icon btn-ghost btn-sm' + (ativo ? ' is-ativo' : '')}
+                      aria-pressed={ativo} aria-label={tb.marcarPontoDeChegada + ': ' + p.nome}
+                      disabled={salvando}
+                      onClick={() => { fecharTip(); setMarcandoChegada(ativo ? null : i); }}
+                      onMouseEnter={(e) => abrirTip(e, tb.marcarPontoDeChegada)} onMouseLeave={fecharTip}>
+                      <i className="ti ti-map-pin" aria-hidden="true" />
+                    </button>
+                    <button type="button" className="btn-icon btn-ghost btn-sm"
+                      aria-label={tb.removerReforco + ': ' + p.nome} disabled={salvando}
+                      onClick={() => { fecharTip(); removerReforco(i); }}
+                      onMouseEnter={(e) => abrirTip(e, tb.removerReforco)} onMouseLeave={fecharTip}>
+                      <i className="ti ti-circle-x" aria-hidden="true" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {marcando && ehReforco(marcando) && (
+              <p className="batalha-chegada-dica" role="status">
+                {tb.cliqueOndeSurge.replace('{n}', marcando.nome)}
+              </p>
+            )}
+          </section>
+        );
+      })()}
+
     </div>
     <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    {/* Quem chega (29/09/2026): o mesmo seletor da montagem, só com quem da
+        história ainda não está na luta. Confirma no rodapé. */}
+    {reforcoOpen && (
+      <ModalShell
+        title={<><i className="ti ti-circle-plus" aria-hidden="true" /> {tb.adicionarCombatentes}</>}
+        lang={lang} size="md"
+        onClose={() => { if (!reforcoState.saving) setReforcoOpen(false); }}
+        onCancel={() => { if (!reforcoState.saving) setReforcoOpen(false); }}
+        cancelDisabled={reforcoState.saving}
+        onConfirm={() => { if (reforcoRef.current) reforcoRef.current(); }}
+        confirmLabel={tb.adicionar}
+        confirmDisabled={!reforcoState.canConfirm}>
+        <NovaBatalhaView
+          isEn={isEn}
+          pjsVinc={pjsForaDaBatalha}
+          criaturasVinc={criaturasDaHistoria}
+          pjsMarcados={false}
+          intro={tb.reforcosIntro}
+          bandosExistentes={participantes.filter((p) => p.bando)}
+          criarRef={reforcoRef}
+          onStateChange={setReforcoState}
+          onCriar={adicionarReforcos}
+        />
+      </ModalShell>
+    )}
     {saqueDe && catalogos && (() => {
       const alvo = participantes.find((q) => q.inst_id === saqueDe);
       if (!alvo) return null;
@@ -8117,11 +8661,14 @@ function _injetarD20Style() {
    Usa window.DadoD20 se disponível (carregado antes); caso contrário renderiza
    o SVG inline idêntico ao original para que batalha.jsx seja auto-suficiente. */
 const DadoD20Bat = React.forwardRef(function DadoD20Bat(props, ref) {
-  // Prefere o componente global já carregado pelo dado-d20.jsx
-  if (window.DadoD20) {
-    return React.createElement(window.DadoD20, Object.assign({}, props, { ref }));
-  }
-  // Fallback inline — cópia fiel do SVG do dado-d20.jsx
+  // Prefere o componente global já carregado pelo dado-d20.jsx. O fallback é
+  // outro componente: hook depois de return condicional quebra o React.
+  const Comp = window.DadoD20 || DadoD20BatInline;
+  return React.createElement(Comp, Object.assign({}, props, { ref }));
+});
+
+// Fallback inline — cópia fiel do SVG do dado-d20.jsx
+const DadoD20BatInline = React.forwardRef(function DadoD20BatInline(props, ref) {
   const { size, disabled, onRoll, initialValue = 20, ariaLabel = 'Rolar dado de 20 faces', className = '' } = props;
   const [value, setValue] = useState(initialValue);
   const [rolling, setRolling] = useState(false);
@@ -8447,92 +8994,6 @@ function QuantityStepper({ value, onChange, min = 1, max = Infinity, step = 1, d
   );
 }
 
-/* ============================== Motor de Resolução (Fase 5a) ============================== */
-function MotorResolucao({ lang }) {
-  const isEn = lang === 'en';
-  const tb = tBat(lang); // i18n-sync (Fase 3.3)
-  const [modo, setModo] = useState('acao');
-  const [coluna, setColuna] = useState(0);
-  const [ataque, setAtaque] = useState(10);
-  const [defesa, setDefesa] = useState(10);
-  const [d20, setD20] = useState(null);
-
-  const trocaModo = (m) => { setModo(m); setD20(null); };
-
-  const resAcao = d20 != null ? resolverAcao(coluna, d20) : null;
-  const alvoResist = resolverResistencia(ataque, defesa);
-  const resResist = d20 == null ? null
-    : (d20 === alvoResist ? 'empate' : (d20 > alvoResist ? 'resistiu' : 'falhou'));
-
-  return (
-    <div className="motor">
-      <div className="motor-tabs">
-        <button className={modo === 'acao' ? 'on' : ''} onClick={() => trocaModo('acao')}>
-          {tb.acao}
-        </button>
-        <button className={modo === 'resistencia' ? 'on' : ''} onClick={() => trocaModo('resistencia')}>
-          {tb.resistencia}
-        </button>
-      </div>
-
-      {modo === 'acao' ? (
-        <div className="motor-body">
-          <label className="motor-field">
-            <span>{tb.colunaDeAcao7}</span>
-            <input type="number" value={coluna}
-              onChange={(e) => setColuna(Math.max(-7, Math.min(50, parseInt(e.target.value || '0', 10) || 0)))} />
-          </label>
-          <Dado value={d20} onChange={setD20} lang={lang} />
-          {resAcao && (
-            <div className="motor-result" style={{ borderColor: resAcao.cor }}>
-              <span className="motor-swatch" style={{ background: resAcao.cor }} />
-              <div>
-                <div className="motor-result-nome">{isEn ? resAcao.en : resAcao.pt}</div>
-                <div className="motor-result-meta">
-                  {tb.coluna} {resAcao.coluna} · d20 {resAcao.d20} ·{' '}
-                  {resAcao.erra ? (tb.erra) : `${Math.round(resAcao.dano * 100)}% ${tb.dano3}`}
-                  {resAcao.autodano ? (tb.autoDano) : ''}
-                  {resAcao.critico ? (tb.critico2) : ''}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="motor-body">
-          <div className="motor-row2">
-            <label className="motor-field">
-              <span>{tb.forcaDeAtaque1}</span>
-              <input type="number" value={ataque} onChange={(e) => setAtaque(_clamp1a20(e.target.value))} />
-            </label>
-            <label className="motor-field">
-              <span>{tb.defesaResist120}</span>
-              <input type="number" value={defesa} onChange={(e) => setDefesa(_clamp1a20(e.target.value))} />
-            </label>
-          </div>
-          <div className="motor-alvo">
-            {tb.alvoNoD20}: <strong>{alvoResist}</strong>{' '}
-            <span className="motor-alvo-hint">({tb.resisteSeD20Alvo})</span>
-          </div>
-          <Dado value={d20} onChange={setD20} lang={lang} />
-          {resResist && (
-            <div className={'motor-result resist-' + resResist}>
-              <div className="motor-result-nome">
-                {resResist === 'empate' ? (tb.empateRoleDeNovo)
-                  : resResist === 'resistiu' ? (tb.resistiu)
-                  : (tb.naoResistiu)}
-              </div>
-              <div className="motor-result-meta">
-                d20 {d20} {resResist === 'empate' ? '=' : (d20 > alvoResist ? '>' : '<')} {alvoResist}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ============================== Painel "Ação" (Fase 5c) ============================== */
 /* Tabs: Arma | Magia. Técnica vive como sub-select dentro de Arma     */
 /* (modificador anexado ao golpe), filtrada por grupo_armas.           */
@@ -8666,6 +9127,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       if (!consumivel) return;
       // Flecha não se usa pela aba Item: o ataque com arco a gasta (14/09/2026).
       if (typeof ehFlecha === 'function' && ehFlecha(cat)) return;
+      // Frasco alquímico e pergaminho disparam MAGIA: moram nas abas Magia e
+      // Apoio (magiasDeItensDoAtor), não aqui — a mesma regra dos atalhos da
+      // ficha (itemUsavelNoAtalho). 28/09/2026.
+      if (cat.magia && cat.nivel_magia != null) return;
       if (!porSlug[it.slug]) {
         porSlug[it.slug] = {
           slug: it.slug, instanceId: it.instanceId, nome: cat.nome || it.slug,
@@ -8822,6 +9287,21 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
 
   // ── Tab ARMA ───────────────────────────────────────────────
   const arma = armas[armaIdx] || null;
+  /* MUNIÇÃO DO ARCO (28/09/2026): "Implementar munição completa" — todo
+     ataque com arco gasta uma flecha, e sem flecha o arco não ataca. Com mais
+     de um tipo (comum, envenenada), o jogador escolhe qual disparar. */
+  const flechasDoArco = useMemo(() => {
+    if (!arma || !arma.arco || !pj || typeof flechasNoInventario !== 'function') return null;
+    return flechasNoInventario((pj.inventario && pj.inventario.itens) || [], (catalogos && catalogos.catalogoBySlug) || {});
+  }, [arma, pj, catalogos]);
+  const [flechaSlug, setFlechaSlug] = useState(null);
+  const flechaEscolhida = flechasDoArco
+    ? (flechasDoArco.find((f) => f.slug === flechaSlug) || flechasDoArco[0] || null) : null;
+  const semFlecha = tab === 'arma' && !!flechasDoArco && flechasDoArco.length === 0;
+  // Magia de 1 rodada: o dado rola na vez, o efeito sai no fim da rodada (28/09/2026).
+  const avisoFimDaRodada = isEn
+    ? 'The spell takes effect at the end of the round, before the last combatant acts. Attacking or taking Physical Energy damage until then drops it.'
+    : 'A magia sai no fim da rodada, antes do último combatente agir. Atacar ou levar dano na Energia Física até lá a derruba.';
   const tecnicasCompat = useMemo(
     () => tecnicasCompativeisComArma(tecnicas, arma, catalogos),
     [tecnicas, arma, catalogos]
@@ -8940,6 +9420,16 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const foraDeAlcance = !!(alcanceAcao != null && alvo && !alvoNoAlcance(ator, alvo, alcanceAcao));
   // Magia pronta, alvo caído ou longe: não há dado a rolar, só concluir sem efeito.
   const evocacaoAlvoPerdido = resolvendoEvocacao && (!alvo || foraDeAlcance);
+  /* ALCANCE DO APOIO (28/09/2026): "Magias de alcance 'Toque' só podem ser
+     usadas em combate se os personagens estiverem menos de 1m de distância."
+     A aba Apoio não conferia distância nenhuma — Toque alcançava o aliado do
+     outro lado do tabuleiro. Toque é 1 (tokens encostados, ver parseAlcance);
+     os alcances em metros valem igual. Em si mesmo, sempre alcança. "Pessoal"
+     continua sendo identidade (alvosApoio só oferece o conjurador). */
+  const alcanceApoio = (tab === 'apoio' && apoioSel && apoioSel.alcance)
+    ? parseAlcance(apoioSel.alcance) : null;
+  const apoioForaDeAlcance = !!(alcanceApoio != null && alvoApoio && alvoApoio !== ator
+    && !alvoNoAlcance(ator, alvoApoio, alcanceApoio));
 
   // ── Cálculos por tab ───────────────────────────────────────
   // Arma: coluna = dano_categoria + bônus_grupo − defesa_valor (clamp [-7,50]).
@@ -9217,7 +9707,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
          que são o que a largada compromete.
 
          Ritual nunca confirma: não se evoca em batalha. */
-      ? (magiaBloqueada ? false
+      ? ((magiaBloqueada || semFlecha) ? false
          : evocacaoAlvoPerdido ? !semPA
          : magiaEmLargada
            ? (!semKarma && !semPA && alvo && !foraDeAlcance)
@@ -9240,6 +9730,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
          outra vez — daí a checagem só valer na largada. */
       ? (!semPA && !!apoioSel && !!alvoApoio
          && !apoioSel.evocacao_bloqueada
+         && !apoioForaDeAlcance
          && !evocacaoPendente
          && (evocandoAgora || (ator.karma || 0) >= apoioSel.custo_karma)
          && (!apoioSel.resistencia || (d20 != null && resResist !== 'empate'))
@@ -9424,7 +9915,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     } else {
       onAplicar({
         tipo: 'arma',
-        arma, tecnica, alvo,
+        // A flecha disparada viaja com a arma: o motor a gasta e lê o veneno dela.
+        arma: flechaEscolhida ? { ...arma, flecha: flechaEscolhida } : arma,
+        tecnica, alvo,
         // Golpe Giratório: só os que ainda são opção válida. O motor
         // reaplica o teto — regra que só existe na UI não é regra.
         alvos_extras: alvosExtrasValidos,
@@ -9494,7 +9987,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     /* Fora de alcance não rola (13/09/2026): o Atacar já exigia alcance, o
        dado não — rolar prendia o painel numa ação que nunca poderia ser
        aplicada. */
-    : tab === 'arma' ? !(arma && alvo) || foraDeAlcance
+    : tab === 'arma' ? !(arma && alvo) || foraDeAlcance || semFlecha
     // Largada de canalização e Ritual não rolam nada: o dado é o golpe, e o
     // golpe só acontece quando a magia sai.
     : tab === 'magia' ? (!magia || !alvo || magiaEmLargada || magiaBloqueada || foraDeAlcance)
@@ -9502,7 +9995,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     : tab === 'tecnica_teste' ? (!tecnicaTesteSel || !tecBloqueio.pode
         || (tecPrecisaAlvo && tecAlvosEscolhidos.length === 0))
     : tab === 'resistencia' ? alvoResist == null
-    : tab === 'apoio' ? alvoResist == null
+    : tab === 'apoio' ? alvoResist == null || apoioForaDeAlcance
     : true;
   /* Só o ícone do dado (02/09/2026); o rótulo vai pro tooltip do sistema. O
      d20 cru fica FORA do botão — dentro dele o círculo esticava em pílula. */
@@ -9698,6 +10191,17 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
                 label: a.nome,
               }))}
             />
+            {/* Qual flecha o arco dispara (28/09/2026). Só aparece com arco e
+                flecha no inventário; sem nenhuma, o rodapé avisa. */}
+            {flechasDoArco && flechasDoArco.length > 0 && (
+              <SelectPill
+                label={isEn ? 'Arrow' : 'Flecha'}
+                value={flechaEscolhida ? flechaEscolhida.slug : ''}
+                disabled={temRolagemPendente}
+                onChange={(v) => setFlechaSlug(v)}
+                options={flechasDoArco.map((f) => ({ value: f.slug, label: `${f.nome} ×${f.quantidade}` }))}
+              />
+            )}
             <SelectPill
               label={tb.alvo}
               value={alvoIdx}
@@ -9827,6 +10331,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           )}
           {faseMagiaPainel === 'bloqueada' && (
             <p className="acao-karma-line">{tb.magiaRitual}</p>
+          )}
+          {/* 1 rodada: rola agora, o efeito sai no fim da rodada (28/09/2026). */}
+          {magia && magia.evocacao_rodadas === 1 && !resolvendoEvocacao && (
+            <p className="acao-karma-line">{avisoFimDaRodada}</p>
           )}
 
           {semKarma && (
@@ -10100,7 +10608,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             )}
             {/* Aviso da largada: o jogador precisa saber ANTES de gastar o
                 karma que vai ficar preso N rodadas, e o que derruba. */}
-            {!evocandoAgora && apoioSel && apoioSel.evocacao_rodadas > 0 && (
+            {!evocandoAgora && apoioSel && apoioSel.evocacao_rodadas === 1 && (
+              <p className="acao-karma-line">{avisoFimDaRodada}</p>
+            )}
+            {!evocandoAgora && apoioSel && apoioSel.evocacao_rodadas > 1 && (
               <p className="acao-karma-line">
                 {interpolate(tb.magiaEvocacaoAviso, { n: apoioSel.evocacao_rodadas })}
               </p>
@@ -10326,7 +10837,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           dos seletores (14/09/2026) — o resultado da rolagem, os avisos e, nas
           abas sem dado na linha (Magia, Apoio), o dado e o confirmar. */}
       {((!dadoNaLinha && tab !== 'item' && mostraDado) || res || resResist
-        || temRolagemPendente || foraDeAlcance || confirmarNoRodape) && (
+        || temRolagemPendente || foraDeAlcance || semFlecha || apoioForaDeAlcance || confirmarNoRodape) && (
       <div className="atacar-footer">
         {/* I5 (revisão final): modo 'total' NÃO rola dado (spec §6); largada de
             magia canalizada e Ritual também não (13/09/2026) — ver mostraDado. */}
@@ -10355,6 +10866,19 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
                           : tb.verboUsar;
                   return interpolate(tb.jaRolouContinueEm, { v });
                 })()}
+          </span>
+        )}
+        {apoioForaDeAlcance && (
+          <span className="batalha-fora-alcance">
+            {/^\s*toque/i.test(apoioSel.alcance || '')
+              ? (isEn ? 'Touch spell — the target must be right next to you.' : 'Magia de toque — o alvo precisa estar encostado em você.')
+              : interpolate(isEn ? 'Target out of reach ({dist} m - the spell reaches {alc} m)' : 'Alvo fora de alcance ({dist} m - a magia alcança {alc} m)',
+                  { dist: distanciaEntre(ator, alvoApoio), alc: alcanceApoio })}
+          </span>
+        )}
+        {semFlecha && (
+          <span className="batalha-fora-alcance">
+            {isEn ? 'No arrows — the bow needs arrows in the inventory.' : 'Sem flechas — o arco precisa de flechas no inventário.'}
           </span>
         )}
         {foraDeAlcance && (
@@ -10729,6 +11253,11 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const alvoIdx = participantes.findIndex((p) => mesmoParticipante(p, alvo));
     const atorIdx = participantes.findIndex((p) => mesmoParticipante(p, meuParticipante));
     if (alvoIdx < 0 || atorIdx < 0) return;
+    // Magia de 1 rodada: guarda; quem resolve no fim da rodada é o Mestre.
+    if (tipo === 'magia' && magia && ehEvocacaoDeFimDaRodada(magia) && !participantes[atorIdx].evocando) {
+      guardarPendenteJogador(atorIdx, 'acao', payload, custo_karma);
+      return;
+    }
     // Combate Não Letal (sem_critico): o Absurdo saiu na tabela, mas quem
     // ativou escolheu subjugar — resolve como golpe normal.
     const critico = criticoBruto && criticoPermitido(participantes[atorIdx]);
@@ -10791,6 +11320,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       eh: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.eh) || 0) - (Number(next[alvoIdx] && next[alvoIdx].eh) || 0)),
       ef: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.ef) || 0) - (Number(next[alvoIdx] && next[alvoIdx].ef) || 0)),
     };
+    // Veneno (flecha ou arma untada): só se o golpe chegou à EF (28/09/2026).
+    const venenoEf = venenoDoGolpe(tipo, arma);
+    const venenoPrincipal = aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntesDoGolpe, venenoEf);
+    next = venenoPrincipal.next;
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
     // armadura e EH dentro de aplicarGolpeEmAlvo; o dano base é o mesmo.
@@ -10802,8 +11335,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const nomesAlvosExtras = [];
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
+      const exAntes = next[exIdx];
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+      next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
     });
+    // O arco gasta a flecha; a arma untada, uma ação do veneno.
+    if (tipo === 'arma') gastarMunicaoEVeneno(next[atorIdx], arma, catalogos);
     // O bônus de Ataque Impetuoso e o gatilho dos Botes foram usados neste golpe (em todos os alvos).
     next[atorIdx] = consumirEfeitosDoGolpe(next[atorIdx]);
     if (dano > 0) {
@@ -10844,6 +11381,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       acao: tipo, alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
       ...(nomesAlvosExtras.length ? { alvos_extras_nomes: nomesAlvosExtras } : {}),
       arma_nome: nomeAcao, coluna, d20,
+      ...(venenoPrincipal.aplicado > 0 ? { veneno_ef: venenoPrincipal.aplicado } : {}),
       resultado: resultado ? resultado.codigo : null,
       resultado_nome: resultado ? resultado.pt : null,
       dano, critico,
@@ -10864,7 +11402,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       const texto = textoGolpeNaMesa({
         ator: meuParticipante, alvoNome: alvo.nome, acaoNome: nomeAcao, tipo,
         resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico, ondeDano,
-      });
+      }) + textoVenenoDoGolpe(arma, venenoPrincipal.aplicado, lang === 'en');
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: tipo === 'magia' ? 'magia' : 'ataque',
@@ -11184,6 +11722,11 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const atorIdx = participantes.findIndex((q) => mesmoParticipante(q, ator));
     const alvoIdx = participantes.findIndex((q) => mesmoParticipante(q, alvo));
     if (atorIdx < 0 || alvoIdx < 0) return;
+    // Magia de 1 rodada: guarda; quem resolve no fim da rodada é o Mestre.
+    if (ehEvocacaoDeFimDaRodada(magia) && !participantes[atorIdx].evocando) {
+      guardarPendenteJogador(atorIdx, 'apoio', payload, custo_karma);
+      return;
+    }
 
     // Lançar magia derruba a concentração anterior deste conjurador.
     let next = quebrarAntesDoApoio(participantes, atorIdx, magia);
@@ -11238,6 +11781,34 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       // MESMO log — senão a EF cai sozinha, sem nada explicando.
       log: registrarViradaNoLog([...log, entry], eventosVirada, rodadaNova),
       ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
+  };
+
+  /* MAGIA DE 1 RODADA do lado Jogador (28/09/2026): cobra e guarda o pedido
+     (guardarMagiaPendente). O efeito sai pelo painel do Mestre quando a vez
+     chegar ao último da ordem — a mesma regra, um só lugar que resolve. */
+  const guardarPendenteJogador = (atorIdx, tipoPendente, payload, custoKarma) => {
+    const magia = payload.magia;
+    let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
+    consumirItemDaMagia(meuParticipante, magia, catalogos);
+    next = guardarMagiaPendente(next, atorIdx, tipoPendente, payload, custoKarma, rodada);
+    const rVez = autoPassarSeNecessario(next, next[atorIdx]);
+    next = rVez.participantes;
+    const texto = lang === 'en'
+      ? `${primeiroNome(meuParticipante.nome)} cast ${magia.nome} — the spell takes effect at the end of the round.`
+      : `${primeiroNome(meuParticipante.nome)} evocou ${magia.nome} — a magia sai no fim da rodada.`;
+    const entry = { rodada, ts: Date.now(), acao: 'sistema', texto,
+      autor_tipo: meuParticipante.tipo, autor_ref_id: meuParticipante.ref_id, autor_nome: meuParticipante.nome,
+      magia_key: magia.key, fase_evocacao: 'pendente' };
+    const historiaId = batalha && batalha.historia_id;
+    if (historiaId) {
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId, p_tipo: 'magia', p_texto: texto,
+        p_meta: { batalha_id: batalha.id, rodada, magia_key: magia.key, fase_evocacao: 'pendente' },
+      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (pendente) falhou:', rpcErr); });
+    }
+    persistJogador({ participantes: comMinhaRolagem(next, null),
+      log: registrarViradaNoLog([...log, entry], rVez.eventos, rVez.rodadaNova),
+      ...(rVez.rodadaNova != null ? { rodada: rVez.rodadaNova } : {}) });
   };
 
   const moverNoTabuleiroJogador = (p, idx, destino) => {
@@ -11411,7 +11982,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
             {/* Tabuleiro: o jogador enxerga todos os tokens, mas só o dele
                 é selecionável, e só quando for a vez. */}
             <TabuleiroBatalha
-              entradas={participantes.map((p, i) => ({ p, i }))}
+              // Reforço chegando fica de fora: surpresa até a virada (29/09/2026).
+              entradas={participantes.map((p, i) => ({ p, i })).filter((e) => !ehReforco(e.p))}
               meta={{}}
               visibilidade={visibilidade}
               /* O próprio token, e — Conduzir Oponente (14/09/2026) — o do
@@ -11627,6 +12199,9 @@ function tBat(lang) {
 
 Object.assign(window, {
   BatalhasHistoriaView, BatalhaJogadorView,
+  // tabuleiro.jsx chama as duas soltas (passo da montaria, bloqueio de
+  // sem_acoes): sem estarem no window, o typeof de lá dava sempre falso.
+  vbParaMovimento, statusTemEfeito,
   // AcaoPanel NÃO entra em MotorBatalha (que é contrato de funções puras):
   // é componente. Exposto à parte pro teste de render softlock-acao.test.jsx,
   // que verifica que o painel nunca fica sem saída com uma rolagem pendente.
@@ -11654,6 +12229,9 @@ Object.assign(window, {
   tecnicasCompativeisComArma,
   SaqueModal,   // janela de saque (25/09/2026) — exposta para o teste de tela
   MotorBatalha: {
+    // Reforços que chegam no meio da batalha (29/09/2026) — reforcos.test.js.
+    STATUS_CHEGANDO, ehReforco, prepararReforcos, formarBandosDeReforco,
+    entrarReforcos, celulaLivreProxima,
     EF_MORTE, pontosAcaoPJ, pontosAcaoTecnicaPJ, paDaRodada,
     aplicarDanoCascata, ordenarIniciativa,
     // mesmoParticipante é usado também pelo tabuleiro (12-batalha/tabuleiro.jsx)
@@ -11667,7 +12245,7 @@ Object.assign(window, {
     ehMontaria, montariasDisponiveis, montar, desmontar, montariaSegue, vbParaMovimento,
     // Animais do personagem e combatente único (14/09/2026).
     animaisParaBatalha, participanteDeAnimal, amarrarMontariasIniciais, derrubarCavaleiros,
-    inventarioSemAnimaisMortos, ehMontariaEmUso, proximoAtivo, desmontarTodos,
+    inventarioSemAnimaisMortos, ehMontariaEmUso, desmontarTodos,
     bonusIniciativaDe, BONUS_INICIATIVA_MAX,
     // 13/09/2026: bandos (líder + 4 minions) e iniciativa por tipo de criatura.
     BANDO_TAMANHO, MINION_DIVISOR, papelNoBando, formarBandos, poolDeMinion,
@@ -11814,6 +12392,8 @@ Object.assign(window, {
     // duas compartilham efeitosDoItem/aplicarDeltaCondicao justamente por
     // isso, e efeito-item-escala.test.js trava o acordo entre elas.
     aplicarEfeitoItemSnapshot, consumirDoInventario, consumirItemDoPJ,
+    venenoDoGolpe, aplicarVenenoSeChegouEf, gastarMunicaoEVeneno, textoVenenoDoGolpe,
+    ehEvocacaoDeFimDaRodada, guardarMagiaPendente, pendenteParaResolver,
     // Edição manual das pools pelo card (clique na barra) — mesma regra de
     // status que o consumo de item usa. Ver edicao-pool.test.js.
     statusPorPools, valorPoolEditado,

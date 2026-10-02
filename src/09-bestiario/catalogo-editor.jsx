@@ -60,7 +60,8 @@ function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t, par
   const sugestoes = termo
     ? doCampo.filter((it) => listaChave(it.nome).includes(termo)).slice(0, 40)
     : [];
-  const placeholder = parte === 'ataque' ? t.equipBuscarArma : parte === 'itens' ? t.equipBuscarItem : t.equipBuscar;
+  // Toda barra de busca diz só "Buscar" (28/09/2026).
+  const placeholder = t.listaBuscar;
 
   const equipar = (it) => {
     const r = F.slotParaPeca(it, lista, porSlug, parte);
@@ -107,6 +108,7 @@ function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t, par
           );
         })}
         <div className="catalogo-lista-busca">
+          <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
           <input className="diario-input" type="text" value={busca}
             placeholder={placeholder} aria-label={`${label}: ${placeholder}`}
             onChange={(e) => setBusca(e.target.value)}
@@ -211,6 +213,7 @@ function CatalogoLista({ campo, label, valor, onChange, disabled, nomes, t }) {
           );
         })}
         <div className="catalogo-lista-busca">
+          <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
           <input className="diario-input" type="text" value={busca} disabled={disabled}
             placeholder={t.listaBuscar} aria-label={`${label}: ${t.listaBuscar}`}
             onChange={(e) => setBusca(e.target.value)}
@@ -396,8 +399,14 @@ function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t
        banco — "Demônio", "Lobo", "Astral" — não pode sumir da tela nem ser
        trocado sem ninguém ver. Ele entra como primeira opção, marcado, e só
        muda se alguém escolher outra. */
-    const opcoes = opcoesNormalizadas(campo);
-    const foraDaLista = valor != null && valor !== '' && !opcoes.some((o) => String(o.value) === String(valor));
+    /* Lista vinda do banco (campo.fonte): os nomes entram depois das opções
+       fixas. Enquanto carregam, o valor gravado não é tratado como "fora da
+       lista" — só não chegou ainda. */
+    const opcoes = campo.fonte
+      ? [...opcoesNormalizadas(campo), ...(nomes || []).map((n) => ({ value: n, label: n }))]
+      : opcoesNormalizadas(campo);
+    const foraDaLista = valor != null && valor !== '' && !(campo.fonte && !nomes)
+      && !opcoes.some((o) => String(o.value) === String(valor));
     const opcoesComAtual = foraDaLista
       ? [{ value: valor, label: `${valor} (${t.campoForaDaLista})` }, ...opcoes]
       : opcoes;
@@ -599,6 +608,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
   const [error, setError] = React.useState(null);
   const [confirmandoExcluir, setConfirmandoExcluir] = React.useState(false);
   const [excluindo, setExcluindo] = React.useState(false);
+  const [emUso, setEmUso] = React.useState(null); // nº de personagens com o item; null = não contado
   // Criatura criada cujo item Animal falhou: o modal fica aberto com o erro, e
   // o próximo Salvar precisa ATUALIZAR essa linha — inserir de novo duplicaria.
   const [criadaAgora, setCriadaAgora] = React.useState(null);
@@ -641,7 +651,8 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
   const [nomesPorFonte, setNomesPorFonte] = React.useState({});
   React.useEffect(() => {
     if (!descritor) return;
-    const fontes = [...new Set(descritor.campos.filter((c) => c.tipo === 'lista').map((c) => c.fonte))];
+    // `opcoes` com `fonte` (itens.magia, 28/09/2026): dropdown com os nomes da tabela.
+    const fontes = [...new Set(descritor.campos.filter((c) => c.tipo === 'lista' || (c.tipo === 'opcoes' && c.fonte)).map((c) => c.fonte))];
     let cancelado = false;
     fontes.forEach((fonte) => {
       fetchTabelaPaginada(fonte, { colunas: 'nome', ordem: ['nome'] })
@@ -808,7 +819,6 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
   // Magias, técnicas e habilidades desde 26/09/2026 (catalogos-admin-delete-2026-09-26.sql).
   const TABELAS_EXCLUIVEIS = ['criaturas', 'itens', 'magias', 'tecnicas', 'habilidades'];
   const podeExcluir = TABELAS_EXCLUIVEIS.includes(descritor.tabela) && !!linha && typeof onExcluido === 'function';
-  const [emUso, setEmUso] = React.useState(null); // nº de personagens com o item; null = não contado
   const excluir = async () => {
     if (!confirmandoExcluir) {
       setConfirmandoExcluir(true);
@@ -882,7 +892,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
             valor={valorDoCampo(campo)}
             onChange={(v) => onChangeCampo(campo, v)}
             disabled={!!(campo.somenteNovo && linha)}
-            nomes={campo.tipo === 'lista' ? nomesPorFonte[campo.fonte] : undefined}
+            nomes={campo.fonte && (campo.tipo === 'lista' || campo.tipo === 'opcoes') ? nomesPorFonte[campo.fonte] : undefined}
             refs={campo.tipo === 'referencia' ? refsPorFonte[campo.fonte] : undefined}
             equip={campo.tipo === 'equipamento' ? { catalogo: equipCatalogo, porSlug: equipPorSlug } : undefined}
             t={t}

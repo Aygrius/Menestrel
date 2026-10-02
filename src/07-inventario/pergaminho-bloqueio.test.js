@@ -147,3 +147,14 @@ describe('motivoAprenderLabel', () => {
     expect(label(motivo, false)).toMatch(texto);
   });
 });
+
+/* Frascos alquímicos (28/09/2026): consumíveis com magia que se ARREMESSAM ou
+   se BEBEM na batalha — não se aprendem nem se "usam" fora de combate. */
+describe('frasco alquímico não é pergaminho', () => {
+  const FRASCO = { slug: 'frasco_incendiario', grupo: 'Consumíveis', magia: 'Frasco Incendiário', nivel_magia: 3 };
+  it('sem o slug pergaminho_, não vira "Aprender"', () => {
+    expect(window.ehPergaminhoDeMagia(FRASCO)).toBe(false);
+    expect(window.ehItemDeMagiaEmBatalha(FRASCO)).toBe(true);
+    expect(window.ehItemDeMagiaEmBatalha(OFERENDA_1)).toBe(false);
+  });
+});

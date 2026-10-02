@@ -28,23 +28,6 @@ function calcDiaSemanaFantasy(ano, mes, dia) {
   return FANTASY_WEEKDAYS[(total + 3) % 7];
 }
 
-/* ── Feriado de uma data ───────────────────────────────────────────
-   Devolve o nome da data comemorativa, ou null em dia comum. A tabela é
-   FERIADOS (constants.jsx) — lore fixa do mundo, a mesma em qualquer mesa.
-
-   Só dia e mês entram na conta: feriado repete todo ano. E a validação é
-   estrita de propósito — a data vem de um jsonb do banco, e a barra do topo
-   chama isto a cada render, então uma data pela metade tem que devolver null
-   em vez de derrubar o console. */
-function feriadoDe(mes, dia, en) {
-  if (!Number.isInteger(mes) || !Number.isInteger(dia)) return null;
-  const m = FANTASY_MONTHS[mes - 1];
-  if (!m || dia < 1 || dia > m.dias) return null;
-  const f = FERIADOS[mes + '-' + dia];
-  if (!f) return null;
-  return en ? f.en : f.pt;
-}
-
 /* ── Somar dias no calendário fantasy ──────────────────────────────
    O ano tem 361 dias: 12 meses de 30 mais o Dia de Cruine, que é o mês 13 com
    um dia só. Contar "3 dias a partir de hoje" na mão erra o Cruine, então a
@@ -347,7 +330,7 @@ function propsTip(abrirTip, fecharTip, content) {
   return { onMouseEnter: abrir, onMouseLeave: fecharTip, onFocus: abrir, onBlur: fecharTip };
 }
 
-Object.assign(window, { calcDiaSemanaFantasy, feriadoDe, useTweaks, useTooltip, Tooltip, DicaNoAlvo, empilharJanela, ehJanelaDaFrente, propsTip, Carregando,
+Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, DicaNoAlvo, empilharJanela, ehJanelaDaFrente, propsTip, Carregando,
   somarDiasFantasy, dataFantasyParaAbsoluto, absolutoParaDataFantasy, formatarDataFantasy,
   FANTASY_DIAS_ANO });
 

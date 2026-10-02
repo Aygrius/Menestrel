@@ -103,7 +103,9 @@ describe('NPCs: uma tabela só', () => {
   it('a busca do cabeçalho filtra a tabela', async () => {
     await montar('npc');
     const busca = document.querySelector('.fp-card-top .best-search input[type="search"]');
-    expect(busca.getAttribute('placeholder')).toBe('Buscar conhecido…') // NPC virou Conhecido em 26/09/2026;
+    // Toda barra de busca diz só "Buscar", com o funil dentro (28/09/2026).
+    expect(busca.getAttribute('placeholder')).toBe('Buscar');
+    expect(busca.parentElement.querySelector('.busca-ic.ti-filter-2')).toBeTruthy();
     fireEvent.change(busca, { target: { value: 'bor' } });
     expect(linhas()).toEqual([['Borin', 'Aventura']]);
   });

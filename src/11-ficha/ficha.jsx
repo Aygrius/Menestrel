@@ -1021,7 +1021,16 @@ function iconeNumeroFicha(n) {
    (curar/dano/buff fica para quando a resolução de magia for implementada,
    junto com técnicas de combate — ver onResultado de habilidade como
    referência do padrão a seguir). */
-function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, animais, elosAtuais, lang, onClose, onEvocar, abrirTip, fecharTip }) {
+/* O texto dos itens do RITUAL de uma magia, ou null se ela não é Ritual.
+   Coluna própria desde 26/09/2026; as antigas o têm no fim da descrição. */
+function ritualDaMagia(m) {
+  if (!m || !/ritual/i.test(m.evocacao || '')) return null;
+  const sep = (typeof window !== 'undefined' && window.separarItensNecessarios) || null;
+  const texto = m.itens_necessarios || (sep ? sep(m.descricao).itens : null);
+  return texto && String(texto).trim() ? String(texto).trim() : null;
+}
+
+function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, animais, elosAtuais, lang, onClose, onEvocar, abrirTip, fecharTip, ritual }) {
   const en = lang === 'en';
   const m = magia;
   const possui = passos != null;
@@ -1081,7 +1090,8 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
     { ic: 'ti-crosshair', lbl: en ? 'Target' : 'Alvo', val: m.alvo },
   ].filter((f) => f.val);
 
-  const podeEvocar = possui && nivelSel != null && alvoSel != null;
+  // Ritual sem os itens não evoca (28/09/2026) — o aviso aparece na aba Evocar.
+  const podeEvocar = possui && nivelSel != null && alvoSel != null && (!ritual || ritual.ok);
 
   /* PADRÃO DOS MODAIS (26/09/2026) — o modelo único de janela
      (BestDetalheModal), com as abas de detalhe do Treinamento.
@@ -1109,6 +1119,29 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
   const abaPrincipal = possui && onEvocar ? (
     <div className="best-secao det-uso">
       <h4 className="best-secao-titulo">{en ? 'Cast' : 'Evocar'}</h4>
+      {/* ITENS DO RITUAL (28/09/2026): "Magias do tipo 'Ritual' consomem os
+          itens necessários automaticamente do inventário, se o evocador não
+          tiver os itens, ele será avisado." O que falta vem em destaque, e o
+          ritual não sai enquanto faltar alguma coisa. */}
+      {ritual && (
+        <div className={'det-ritual' + (ritual.ok ? '' : ' det-ritual--falta')} role={ritual.ok ? undefined : 'alert'}>
+          <p className="det-ritual-titulo">
+            <i className={'ti ' + (ritual.ok ? 'ti-candle' : 'ti-alert-triangle')} aria-hidden="true" />
+            {ritual.ok
+              ? (en ? 'The ritual will consume:' : 'O ritual vai consumir:')
+              : (en ? 'Missing items for the ritual:' : 'Faltam itens para o ritual:')}
+          </p>
+          <ul className="det-ritual-lista">
+            {ritual.ok
+              ? ritual.gastos.map((g) => <li key={g.nome}>{g.nome} ×{g.qtd}</li>)
+              : ritual.faltam.map((f) => (
+                  <li key={f.nome} className="is-falta">
+                    {f.nome} — {en ? `you have ${f.tem} of ${f.precisa}` : `você tem ${f.tem} de ${f.precisa}`}
+                  </li>
+                ))}
+          </ul>
+        </div>
+      )}
       {/* Sem os títulos 'Nível' e 'Alvo' (26/09/2026). Nível e alvo marcam em
           vermelho; clicar DE NOVO no alvo marcado evoca — o card é a ação,
           não há ícone ao lado do X. */}
@@ -2329,8 +2362,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       // protagonista_ids contém o id do PJ). Não há historia_id direto em
       // personagens — o vínculo só existe nesse array. Usado para listar
       // os outros personagens da mesa como alvos possíveis de magia.
+      // O PJ pode estar em mais de uma história: vale a mais nova (como o bridge.ts). Sem o limit, o maybeSingle dava erro e a tela ficava vazia (02/10/2026).
       const histRes = await supabaseClient.from('historias')
-        .select('id, protagonista_ids, pausada, data_jogo_atual').contains('protagonista_ids', [pjAtivoId]).maybeSingle();
+        .select('id, protagonista_ids, pausada, data_jogo_atual').contains('protagonista_ids', [pjAtivoId]).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (cancel) return;
       setHistoriaResolvida(true);
       if (!histRes.error && histRes.data) {
@@ -2494,7 +2528,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   );
   const catalogoMag = useMemo(
     () => Object.values(magiasByKey)
-      .filter((m) => _podeMagia_fn(m, pj?.profissao, pj?.especializacao || null))
+      // A já comprada fica mesmo quando a permissão mudou depois (reforma de
+      // 29/09/2026): ninguém perde de vista o que tem e usa na batalha.
+      .filter((m) => magKeysPossuidas.has(m.key) || _podeMagia_fn(m, pj?.profissao, pj?.especializacao || null))
       .sort(_porPosseDepoisNome(magKeysPossuidas)),
     [magiasByKey, pj?.profissao, pj?.especializacao, magKeysPossuidas]
   );
@@ -2826,6 +2862,18 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     if (!magiaDetalheKey) return;
     const mag = magiasByKey[magiaDetalheKey];
     if (!mag) return;
+    /* RITUAL (28/09/2026): os itens necessários saem da mochila no ato. Faltou
+       algum, a evocação não acontece — a janela já avisava, e isto é a trava
+       de verdade. `itensDepois` segue adiante para o Elo não gravar por cima. */
+    let itensDepois = pj.inventario?.itens || [];
+    let gastouRitual = false;
+    const textoRitual = podeEditarFoto ? ritualDaMagia(mag) : null;
+    if (textoRitual && typeof consumirItensDoRitual === 'function') {
+      const r = consumirItensDoRitual(itensDepois, textoRitual, catalogoBySlug);
+      if (!r.ok) return;
+      itensDepois = r.itens;
+      gastouRitual = true;
+    }
     const nomePj = primeiroNome(pj?.nome);   // o log usa o primeiro nome (27/09/2026)
     const nomeAlvo = alvo ? alvo.nome : null;
     /* 'self' ainda é aceito aqui por segurança: foi o id que a janela usou
@@ -2906,10 +2954,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const eloCriado = !!(alvo && alvo.tipo === 'animal' && podeEditarInv
       && typeof window.magiaCriaElo === 'function' && window.magiaCriaElo(mag));
     if (eloCriado) {
-      salvarItensFicha(window.comEloNoAnimal(pj.inventario?.itens, alvo.instanceId, {
+      salvarItensFicha(window.comEloNoAnimal(itensDepois, alvo.instanceId, {
         permanente: true, magia: mag.key, conjurador_pj_id: pj.id, conjurador_nome: nomePj,
         desde: (historiaPj && historiaPj.data_jogo_atual) || null,
       }));
+    } else if (gastouRitual) {
+      salvarItensFicha(itensDepois);
     }
 
     const texto = (en
@@ -2918,7 +2968,13 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       + (eloCriado
           ? (en ? ' A permanent bond was created (the animal may resist — resolve at the table).'
                 : ' Um Elo Permanente foi criado (o animal pode resistir — resolva na mesa).')
-          : sufixo);
+          : sufixo)
+      // O que o ritual consumiu vai junto na mesa (28/09/2026).
+      + (gastouRitual
+          ? (en ? ' Ritual items used: ' : ' Itens do ritual consumidos: ')
+            + conferirItensDoRitual(textoRitual, pj.inventario?.itens || [], catalogoBySlug)
+                .gastos.map((g) => `${g.nome} ×${g.qtd}`).join(', ') + '.'
+          : '');
 
     /* A forma do `meta` mora em metaDeEvocacao (01-core), e não aqui: quem
        PRODUZ o pedido é esta tela, quem o CONSOME é o painel do Mestre, e a
@@ -4360,6 +4416,13 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     )}
     <TooltipFlipGuard />
 
+    {/* Pacto de amizade e os cards dos amigos, na borda esquerda (28/09/2026).
+        Em TODAS as abas: é no Inventário que se arrasta o item até o amigo. */}
+    {podeEditarFoto && pjAtivoId && typeof AmigosFab !== 'undefined' && ReactDOM.createPortal(
+      <AmigosFab lang={lang} pjId={pjAtivoId} />,
+      document.getElementById('root') || document.body
+    )}
+
     {/* Atalhos flutuantes — Habilidade, Magia e Item, na coluna dos dados.
         Portal em #root pelo mesmo motivo dos tooltips: .fp-page.is-full é
         position:fixed e prenderia os botões num contexto de empilhamento. */}
@@ -4707,8 +4770,15 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       {magiaDetalheKey && (() => {
         const mag = magiasByKey[magiaDetalheKey];
         if (!mag) return null;
+        /* Ritual: os itens necessários, conferidos contra o inventário do dono
+           (28/09/2026). O texto mora em itens_necessarios ou, nas magias
+           antigas, no fim da descrição (separarItensNecessarios). */
+        const textoRitual = ritualDaMagia(mag);
+        const ritual = textoRitual && podeEditarFoto && typeof conferirItensDoRitual === 'function'
+          ? conferirItensDoRitual(textoRitual, pj.inventario?.itens || [], catalogoBySlug) : null;
         return (
           <MagiaDetalhesModal
+            ritual={ritual}
             magia={mag}
             passos={(pj.magias || {})[magiaDetalheKey] ?? null}
             nivelMagiaEfetivoFn={_nivelMag}
