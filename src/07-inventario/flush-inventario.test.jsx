@@ -112,3 +112,46 @@ describe('flush do inventário', () => {
     expect(tabelas.personagens.find((p) => p.id === 2).inventario.itens).toEqual([]);
   });
 });
+
+describe('mescla com o que mudou por fora', () => {
+  const CAT_FLECHA = [...CATALOGO, { slug: 'flecha', nome: 'Flecha', grupo: 'Consumíveis', tipo: 'S', ocupa: 0.1 }];
+  // Dentro do alforge: item solto é desmembrado pela normalização de pilhas;
+  // consumível em armazenamento fica empilhado. Busca pelo slug, não pelo id.
+  const flecha = (q) => ({ instanceId: 'fle-1', slug: 'flecha', quantidade: q, vestido: false, equipado: false, slot: null, containerId: 'alf-1' });
+  const qtdFlecha = (itens) => itens.filter((x) => x.slug === 'flecha').reduce((s, x) => s + (Number(x.quantidade) || 0), 0);
+
+  it('guardar a corda enquanto a batalha gasta uma flecha: as duas valem', async () => {
+    const pj = { ...novoPj(1, 'Aldren', [...itensIniciais(), flecha(10)]), inventario_versao: 0 };
+    const tabelas = {
+      personagens: [pj], itens: CAT_FLECHA, historias: [{ id: 9, protagonista_ids: [1] }],
+      __authUserId: USER, __rpc: { get_pjs_historia: [], get_loja_pj: { ok: true, historia_titulo: 'Mesa' } },
+    };
+    globalThis.supabaseClient = fakeSupabase(tabelas);
+    const vistos = [];
+    const { container } = render(<InventarioList ac={{}} lang="pt" currentUserId={USER} pjIdFixo={1}
+      onInventarioChange={(i) => vistos.push(i)} maximos={{ ef: 20, eh: 14, ka: 0, ar: 0 }} />);
+    await waitFor(() => expect(container.querySelector('.inv-grid-wrap .inv-card')).toBeTruthy());
+
+    // A batalha gasta uma flecha direto no banco (versão sobe).
+    const atual = tabelas.personagens[0].inventario;
+    const pilha = atual.itens.find((x) => x.slug === 'flecha');
+    const daBatalha = { ...atual, itens: atual.itens.map((x) => (x === pilha ? { ...x, quantidade: x.quantidade - 1 } : x)) };
+    await globalThis.supabaseClient.from('personagens').update({ inventario: daBatalha }).eq('id', 1);
+
+    await guardarCorda(container);
+    await waitFor(() => expect(cordaGravada(tabelas, 1).containerId).toBe('alf-1'));
+    expect(qtdFlecha(tabelas.personagens[0].inventario.itens)).toBe(9);
+    // E a tela passou a mostrar a flecha gasta (chega ao pai pelo onInventarioChange).
+    await waitFor(() => expect(qtdFlecha(vistos[vistos.length - 1].itens)).toBe(9));
+  });
+
+  it('gravar sem mudança de fora não dispara uma segunda gravação', async () => {
+    const pj = { ...novoPj(1, 'Aldren', itensIniciais()), inventario_versao: 0 };
+    const { container, tabelas } = montar([pj], { pjIdFixo: 1 });
+    await waitFor(() => expect(screen.getByText('2 de 2')).toBeTruthy());
+    await guardarCorda(container);
+    await waitFor(() => expect(cordaGravada(tabelas, 1).containerId).toBe('alf-1'));
+    await new Promise((r) => { setTimeout(r, 1200); });
+    expect(tabelas.personagens[0].inventario_versao).toBe(1);
+  });
+});

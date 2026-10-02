@@ -467,7 +467,18 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
 // saber se o PJ já tem o nível, se falta o anterior e o estágio — ver
 // bloqueioPergaminho.
 // foto_url (27/09/2026): o card do alvo na aba Usar mostrava só a inicial.
-const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,profissao,forca_base,fisico_base,inventario,estado_atual,magias,experiencia,especializacao';
+const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,profissao,forca_base,fisico_base,inventario,estado_atual,magias,experiencia,especializacao,inventario_versao';
+
+// Inventário com os campos que a tela espera, sem mexer no objeto de origem.
+const INV_VAZIO = () => ({ moedas: { ouro: 0, prata: 0, cobre: 0, latao: 0 }, itens: [] });
+function invComPadroes(inventario) {
+  const inv = inventario || INV_VAZIO();
+  return {
+    ...inv,
+    moedas: inv.moedas || INV_VAZIO().moedas,
+    itens: Array.isArray(inv.itens) ? inv.itens : [],
+  };
+}
 
 // ── InventarioList ────────────────────────────────────────────────────────────
 /* `onEstadoChange` / `estadoAtualSeed` — handoff de estado_atual com quem
@@ -586,6 +597,9 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // pjsRef garante que lemos o `pjs` mais recente sem precisar listá-lo nas deps.
   const pjsRef = useRef(pjs);
   useEffect(() => { pjsRef.current = pjs; }, [pjs]);
+  // Gravações do inventário por PJ: fila, base confirmada e rebase (02/10/2026).
+  const gravadorRef = useRef(null);
+  if (!gravadorRef.current) gravadorRef.current = criarGravadorInventario();
   // Semente do pai, em ref pelo mesmo motivo de pjsRef: entra na carga abaixo
   // sem virar dependência dela — listá-la re-semearia a cada render do pai,
   // atropelando o efeito de item recém aplicado aqui.
@@ -596,10 +610,11 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (!pjsAtual || !selectedId) { setInv(null); setEstadoAtual(null); return; }
     const pj = pjsAtual.find((p) => p.id === selectedId);
     if (!pj) return;
-    const inventario = pj.inventario || { moedas: { ouro: 0, prata: 0, cobre: 0, latao: 0 }, itens: [] };
-    if (!inventario.moedas) inventario.moedas = { ouro: 0, prata: 0, cobre: 0, latao: 0 };
-    if (!Array.isArray(inventario.itens)) inventario.itens = [];
-    setInv(inventario);
+    // O gravador já conhece o PJ (voltando a ele): vale o que ele tem, que
+    // inclui gravação ainda na fila. Senão, o que veio do banco.
+    const g = gravadorRef.current;
+    if (!g.tem(pj.id)) g.carregar(pj.id, invComPadroes(pj.inventario), pj.inventario_versao);
+    setInv(g.atual(pj.id));
     // Semente do pai vence a linha do banco quando existe: a Ficha atualiza
     // pj.estado_atual otimisticamente, então ela é sempre pelo menos tão nova
     // quanto o banco. Só vale pro PJ FIXO — com o seletor de vários PJs
@@ -622,48 +637,46 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     setContainerAberto(null);
   }, [selectedId]);
 
-  // Save com debounce. Sincroniza a ficha (onInventarioChange) na hora
-  // e dá FLUSH do save pendente ao desmontar — senão trocar de aba logo
-  // após equipar cancelava o setTimeout e a alteração se perdia.
-  const firstRender = useRef(true);
-  const invRef = useRef(inv);
+  /* Autosave pelo gravador (02/10/2026): debounce de 450ms; grava só o que
+     esta tela mudou, mesclado com o que mudou por fora; o que a tela mudou
+     durante a gravação é rebaseado, e o que veio de fora aparece na tela. */
+  // PJ da última execução do autosave. Na troca de PJ o efeito roda uma vez
+  // com o `inv` do PJ ANTERIOR (a carga do novo ainda não renderizou); essa
+  // execução é pulada, senão o gravador do PJ novo receberia o inventário
+  // do outro. Cobre também a carga inicial (o antigo firstRender).
+  const autosavePjRef = useRef(null);
   const selRef = useRef(selectedId);
-  const dirtyRef = useRef(false);
-  useEffect(() => { invRef.current = inv; }, [inv]);
   useEffect(() => { selRef.current = selectedId; }, [selectedId]);
+  const aplicarGravacao = (pjId, r) => {
+    if (!r.ok) { setSaving('error'); return; }
+    setPjs((arr) => (arr || []).map((p) => (p.id === pjId ? { ...p, inventario: r.inventario, inventario_versao: r.versao } : p)));
+    if (r.gravou) { setSaving('saved'); setTimeout(() => setSaving('idle'), 1500); }
+    if (selRef.current !== pjId || !r.enviado || mesmoValor(r.inventario, r.enviado)) return;
+    // Veio mudança de fora: a tela passa a mostrar, por cima do que mudou nela.
+    setInv((cur) => (cur === r.enviado ? r.inventario : mesclarInventario(r.enviado, cur, r.inventario)));
+  };
   useEffect(() => {
-    if (firstRender.current) { firstRender.current = false; return; }
+    if (autosavePjRef.current !== selectedId) { autosavePjRef.current = selectedId; return; }
     if (!inv || !selectedId) return;
     if (onInventarioChange) onInventarioChange(inv);
-    dirtyRef.current = true;
+    const g = gravadorRef.current;
+    g.alterar(selectedId, inv);
+    if (!g.sujo(selectedId)) return;
     setSaving('saving');
-    const id = setTimeout(async () => {
-      const { error } = await supabaseClient.from('personagens').update({ inventario: inv }).eq('id', selectedId);
-      if (error) { setSaving('error'); }
-      else {
-        dirtyRef.current = false;
-        setSaving('saved');
-        setPjs((arr) => arr.map((p) => p.id === selectedId ? { ...p, inventario: inv } : p));
-        setTimeout(() => setSaving('idle'), 1500);
-      }
-    }, 450);
+    const pjId = selectedId;
+    const id = setTimeout(() => { g.salvar(pjId).then((r) => aplicarGravacao(pjId, r)); }, 450);
     return () => clearTimeout(id);
   }, [inv, selectedId]);
-  /* Flush ao desmontar E ao trocar de PJ: persiste a última alteração que o
-     debounce acima cancelou. A limpeza roda antes das cargas do PJ novo, então
-     os refs ainda apontam para o PJ antigo. O `.then` é obrigatório: a
-     consulta do supabase-js só vai ao servidor quando alguém a consome — sem
-     ele, este flush nunca gravava nada (02/10/2026). */
+  /* Flush ao desmontar E ao trocar de PJ: o debounce acima foi cancelado; o
+     gravador já tem o último local deste PJ e grava na fila. */
   useEffect(() => () => {
-    if (!dirtyRef.current || !invRef.current || !selRef.current) return;
     const pjId = selRef.current;
-    const inventario = invRef.current;
-    dirtyRef.current = false;
-    supabaseClient.from('personagens').update({ inventario }).eq('id', pjId)
-      .then(({ error }) => {
-        if (error) { console.error('[inventario] flush falhou:', error); return; }
-        setPjs((arr) => (arr || []).map((p) => (p.id === pjId ? { ...p, inventario } : p)));
-      });
+    const g = gravadorRef.current;
+    if (!pjId || !g.sujo(pjId)) return;
+    g.salvar(pjId).then((r) => {
+      if (!r.ok) { console.error('[inventario] flush falhou:', r.error); return; }
+      setPjs((arr) => (arr || []).map((p) => (p.id === pjId ? { ...p, inventario: r.inventario, inventario_versao: r.versao } : p)));
+    });
   }, [selectedId]);
 
   // Save de estado_atual (Reputação, Sono, EH/EF, ...) — mesmo padrão de
@@ -1239,9 +1252,13 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       .order('created_at', { ascending: true });
     if (pjsAtualizados) {
       setPjs(pjsAtualizados);
+      // O banco mudou por uma RPC: quem não tem gravação pendente recarrega
+      // a base; quem tem, mescla na próxima gravação (02/10/2026).
+      const g = gravadorRef.current;
+      pjsAtualizados.forEach((p) => { if (!g.sujo(p.id)) g.carregar(p.id, invComPadroes(p.inventario), p.inventario_versao); });
       // Atualizar inv local do PJ remetente
       const pjAtual = pjsAtualizados.find((p) => p.id === selectedId);
-      if (pjAtual) setInv(pjAtual.inventario);
+      if (pjAtual) setInv(g.atual(pjAtual.id));
     }
     return { ok: true };
   };
@@ -1256,8 +1273,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       .order('created_at', { ascending: true });
     if (pjsAtualizados) {
       setPjs(pjsAtualizados);
+      // O banco mudou por uma RPC: quem não tem gravação pendente recarrega
+      // a base; quem tem, mescla na próxima gravação (02/10/2026).
+      const g = gravadorRef.current;
+      pjsAtualizados.forEach((p) => { if (!g.sujo(p.id)) g.carregar(p.id, invComPadroes(p.inventario), p.inventario_versao); });
       const pjAtual = pjsAtualizados.find((p) => p.id === selRef.current);
-      if (pjAtual) setInv(pjAtual.inventario);
+      if (pjAtual) setInv(g.atual(pjAtual.id));
     }
   };
 
@@ -1297,8 +1318,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       .order('created_at', { ascending: true });
     if (pjsAtualizados) {
       setPjs(pjsAtualizados);
+      // O banco mudou por uma RPC: quem não tem gravação pendente recarrega
+      // a base; quem tem, mescla na próxima gravação (02/10/2026).
+      const g = gravadorRef.current;
+      pjsAtualizados.forEach((p) => { if (!g.sujo(p.id)) g.carregar(p.id, invComPadroes(p.inventario), p.inventario_versao); });
       const pjAtual = pjsAtualizados.find((p) => p.id === selectedId);
-      if (pjAtual) setInv(pjAtual.inventario);
+      if (pjAtual) setInv(g.atual(pjAtual.id));
     }
     return { ok: true, magiaNome: data.magia_nome, nivel: data.nivel };
   };
