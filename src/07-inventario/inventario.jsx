@@ -678,14 +678,17 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     return () => clearTimeout(id);
   }, [inv, selectedId]);
   /* Flush ao desmontar E ao trocar de PJ: o debounce acima foi cancelado; o
-     gravador já tem o último local deste PJ e grava na fila. */
+     gravador já tem o último local deste PJ e grava na fila. O resultado
+     passa por aplicarGravacao (02/10/2026): quem voltou a este PJ com o
+     flush em voo vê o que mudou por fora — senão a tela seguia com a cópia
+     velha e a próxima edição gravava a flecha gasta de volta. */
   useEffect(() => () => {
     const pjId = selRef.current;
     const g = gravadorRef.current;
     if (!pjId || !g.sujo(pjId)) return;
     g.salvar(pjId).then((r) => {
-      if (!r.ok) { console.error('[inventario] flush falhou:', r.error); return; }
-      setPjs((arr) => (arr || []).map((p) => (p.id === pjId ? { ...p, inventario: r.inventario, inventario_versao: r.versao } : p)));
+      if (!r.ok) console.error('[inventario] flush falhou:', r.error);
+      aplicarGravacao(pjId, r);
     });
   }, [selectedId]);
 

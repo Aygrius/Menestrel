@@ -201,6 +201,36 @@ describe('mescla com o que mudou por fora', () => {
     await waitFor(() => expect(qtdFlecha(vistos[vistos.length - 1].itens)).toBe(9));
   });
 
+  it('flush ao trocar de PJ: a mudança de fora aparece ao voltar (a flecha não volta)', async () => {
+    const vistos = [];
+    const { container, tabelas } = montar([
+      { ...novoPj(1, 'Aldren', [...itensIniciais(), flecha(10)]), inventario_versao: 0 },
+      novoPj(2, 'Brena', []),
+    ], { onInventarioChange: (i) => vistos.push(i) }, CAT_FLECHA);
+    await waitFor(() => expect(card(container)).toBeTruthy());
+    const trava = travarPrimeiraEscritaDoInventario();
+    const aba = (nome) => Array.from(document.querySelectorAll('.inv-pj-tab')).find((b) => b.textContent.includes(nome));
+
+    await guardarCorda(container);
+    fireEvent.click(aba('Brena'));             // antes do debounce: o flush grava o PJ 1...
+    await trava.comecou;                       // ...e fica em voo
+
+    // A batalha gasta uma flecha do PJ 1 enquanto o flush está em voo.
+    const atual = tabelas.personagens[0].inventario;
+    const daBatalha = { ...atual, itens: atual.itens.map((x) => (x.slug === 'flecha' ? { ...x, quantidade: x.quantidade - 1 } : x)) };
+    await trava.fake.from('personagens').update({ inventario: daBatalha }).eq('id', 1);
+
+    fireEvent.click(aba('Aldren'));            // volta ao PJ 1 com o flush ainda em voo
+    // A corda está no alforge: o único card solto é o do próprio alforge.
+    await waitFor(() => expect(container.querySelector('.inv-grid-wrap .inv-card')).toBeTruthy());
+    trava.liberar();
+
+    await waitFor(() => expect(cordaGravada(tabelas, 1).containerId).toBe('alf-1'));
+    expect(qtdFlecha(tabelas.personagens[0].inventario.itens)).toBe(9);
+    // A tela do PJ 1 passa a mostrar a flecha gasta por fora.
+    await waitFor(() => expect(qtdFlecha(vistos[vistos.length - 1].itens)).toBe(9), { timeout: 2000 });
+  });
+
   it('gravar sem mudança de fora não dispara uma segunda gravação', async () => {
     const pj = { ...novoPj(1, 'Aldren', itensIniciais()), inventario_versao: 0 };
     const { container, tabelas } = montar([pj], { pjIdFixo: 1 });
