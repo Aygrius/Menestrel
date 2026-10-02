@@ -36,6 +36,10 @@
    arquivo que use esses identificadores.
    ============================================================ */
 
+// Mescla e trava de versão do inventário (02/10/2026). Importado daqui para
+// chegar a todo mundo que já importa os helpers (app e testes).
+import './inventario-concorrencia.jsx';
+
 // ── Moedas ──────────────────────────────────────────────────────────────────
 const MOEDA_FATOR = { ouro: 1000, prata: 100, cobre: 10, latao: 1 };
 const MOEDA_ORDEM = ['ouro', 'prata', 'cobre', 'latao'];
