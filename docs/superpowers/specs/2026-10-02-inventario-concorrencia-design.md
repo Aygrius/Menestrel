@@ -114,6 +114,16 @@ Helpers em `src/01-core/inventario-concorrencia.jsx`, importado por
   gravação falha, o gravador lembra o que mandou e, antes da próxima, relê: se
   o banco está exatamente nisso (a escrita chegou, a resposta se perdeu), vira
   a base — senão a mudança seria contada duas vezes.
+  **Limite aceito:** se a resposta perdida for a de uma nova tentativa depois
+  de um conflito, o banco guarda a mescla (não o enviado), a conferência não
+  casa e a mudança pode ser contada duas vezes. Exige conflito e rede caindo
+  na mesma gravação. Correção conhecida: `gravarInventario` devolver o último
+  alvo tentado. O mesmo vale se outra tela gravar por cima depois da escrita
+  perdida (sem chave de idempotência no servidor, indistinguível).
+- **Limite aceito (Ficha):** a base da Ficha é o `pj.inventario` exibido, que
+  recebe as edições ainda não salvas da aba de Inventário embutida. Se a Ficha
+  gravar antes do flush dessa aba (rede lenta), quantidades e moedas dessas
+  edições podem ser contadas duas vezes.
 
 ## 3. Integração
 

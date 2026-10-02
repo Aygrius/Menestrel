@@ -192,7 +192,15 @@ function criarGravadorInventario() {
            contaria a mesma mudança duas vezes (10→8, depois 7 viraria 5).
            Se está diferente, não chegou (ou foi atropelada): segue a base
            velha e o conflito mescla normalmente. Releitura com erro: não
-           grava e guarda a dúvida para a próxima. */
+           grava e guarda a dúvida para a próxima.
+           LIMITE ACEITO: se a resposta perdida foi a de uma nova tentativa
+           depois de um conflito, o que chegou ao banco é a MESCLA, não o
+           enviado — a conferência acima não casa e a mudança ainda pode ser
+           contada duas vezes. Exige conflito e rede caindo na mesma gravação.
+           Correção conhecida: gravarInventario devolver o último alvo tentado
+           e conferir contra ele. Também cai aqui quem gravou por cima depois
+           da escrita perdida — sem chave de idempotência no servidor, não há
+           como distinguir. */
         if (r.talvezGravado) {
           let atual;
           try { atual = await lerInventarioComVersao(pjId); } catch (e) { atual = { error: e }; }
