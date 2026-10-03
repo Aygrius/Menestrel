@@ -469,6 +469,7 @@ function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compra
 function motivoAnuncioLabel(motivo, lang) {
   const en = lang === 'en';
   const m = {
+    item_indisponivel:          en ? 'The seller no longer has this item.'                     : 'O vendedor não tem mais este item.',
     anuncio_encerrado:          en ? 'Someone got there first — this item is no longer for sale.' : 'Alguém chegou antes — este item não está mais à venda.',
     anuncio_nao_encontrado:     en ? 'Listing not found.'                                     : 'Anúncio não encontrado.',
     sem_permissao:              en ? 'You cannot do this with this listing.'                   : 'Você não pode fazer isso com este anúncio.',
@@ -524,7 +525,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
       const [itRes, pjRes] = await Promise.all([
         fetchCatalogoCompleto(),
         alvoId
-          ? supabaseClient.from('personagens').select('id,nome,sobrenome,raca,profissao,forca_base,fisico_base,inventario').eq('id', alvoId).single()
+          ? supabaseClient.from('personagens').select('*').eq('id', alvoId).single()
           : Promise.resolve({ data: null, error: null }),
       ]);
       if (itRes.error) { setError(itRes.error.message); setCatalogo([]); return; }
@@ -632,10 +633,37 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
     return () => { supabaseClient.removeChannel(ch); };
   }, [historiaDaLoja, carregarAnuncios]);
 
+  /* VENDAS A RESGATAR (02/10/2026): "Quando o item for vendido, o dinheiro
+     fica pendente de ser resgatado pelo jogador que o vendeu." O valor mora em
+     personagens.vendas_a_resgatar (latão) e a RPC resgatar_vendas o deposita
+     na bolsa — o que não couber continua pendente. Por isso as consultas do
+     PJ aqui são select('*'): a coluna vem quando existe. */
+  const [resgatando, setResgatando] = useState(false);
+  const [resgateErro, setResgateErro] = useState(null);
+  const resgatarVendas = async () => {
+    if (!selectedId || resgatando) return;
+    setResgatando(true); setResgateErro(null); setFeedback(null);
+    const { data, error } = await supabaseClient.rpc('resgatar_vendas', { p_pj_id: selectedId });
+    setResgatando(false);
+    if (error || !data || !data.ok) {
+      const motivo = (data && data.motivo) || (error && error.message);
+      setResgateErro(motivo === 'sem_espaco_moedas'
+        ? (en ? 'No room in a purse for the coins.' : 'Não há espaço numa bolsa para as moedas.')
+        : (en ? 'Could not collect the coins.' : 'Não foi possível resgatar as moedas.'));
+      return;
+    }
+    await recarregarPj(selectedId);
+    const txt = precoMoedaTexto(Number(data.resgatado) || 0, lang);
+    setFeedback(Number(data.restante) > 0
+      ? (en ? `You collected ${txt}. The rest did not fit in your purse.` : `Você resgatou ${txt}. O resto não coube na bolsa.`)
+      : (en ? `You collected ${txt}.` : `Você resgatou ${txt}.`));
+    setTimeout(() => setFeedback(null), 3000);
+  };
+
   const recarregarPj = async (pjId) => {
     const { data } = await supabaseClient
       .from('personagens')
-      .select('id,nome,sobrenome,raca,profissao,forca_base,fisico_base,inventario')
+      .select('*')
       .eq('id', pjId)
       .single();
     if (data) {
@@ -842,6 +870,23 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
       <CabecalhoInvLoja moedas={moedas} carga={carga} lang={lang} />
 
       {feedback && <div className="loja-feedback">{feedback}</div>}
+
+      {/* O que os aventureiros pagaram pelos itens deste PJ (02/10/2026). Só o
+          dono resgata — o Mestre, vendo a loja do jogador, não vê o botão. */}
+      {!isMestre && Number(pjSelecionado?.vendas_a_resgatar) > 0 && (
+        <div className="loja-resgate" role="status">
+          <i className="ti ti-coins" aria-hidden="true" />
+          <span className="loja-resgate-texto">
+            {en ? 'You have ' : 'Você tem '}
+            <MoedaPills latao={Number(pjSelecionado.vendas_a_resgatar)} lang={lang} tamanho="sm" />
+            {en ? ' in sales to collect' : ' em vendas para resgatar'}
+          </span>
+          <button type="button" className="btn-primary btn-sm" onClick={resgatarVendas} disabled={resgatando} data-resgatar>
+            {resgatando ? <i className="ti ti-loader" aria-hidden="true" /> : (en ? 'Collect' : 'Resgatar')}
+          </button>
+          {resgateErro && <span className="loja-resgate-erro" role="alert">{resgateErro}</span>}
+        </div>
+      )}
 
       {loja === null ? (
         <Carregando lang={lang} />

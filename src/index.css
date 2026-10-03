@@ -3928,6 +3928,14 @@
   color: #E0BE68; text-shadow: 0 0 4px rgba(201,164,78,0.55);
   font-size: 16px; font-weight: 700;
 }
+/* À venda na loja (02/10/2026): a etiqueta no mesmo molde do E — só o
+   glifo, sem caixa —, em pergaminho apagado: o item está travado, não em
+   destaque. O card também esmaece um pouco. */
+#root .menestrel-ui .inv-pill.inv-pill--venda {
+  background: transparent; border-color: transparent;
+  color: #D9C9A8; text-shadow: 0 0 4px rgba(0,0,0,0.7); font-size: 13px;
+}
+#root .menestrel-ui .inv-card:has(.inv-pill--venda) .inv-card-ic { opacity: 0.55; }
 #root .menestrel-ui .inv-pill.vst {
   background: rgba(71,170,216,0.16); color: rgba(71,170,216, 0.91);
   border-color: rgba(71,170,216,0.40);
@@ -11127,6 +11135,18 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   #root .menestrel-ui .loja-compra-valor { margin-bottom: 8px; }
 }
 
+/* Vendas a resgatar (02/10/2026): faixa no topo da loja com o valor e o
+   botão Resgatar — na pele da .loja-feedback, em ouro em vez de verde. */
+#root .menestrel-ui .loja-resgate {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin: 16px 20px 0;
+  padding: 10px 14px; border-radius: 6px;
+  background: rgba(201,164,78,0.10); border: 1px solid rgba(201,164,78,0.35);
+  font-family: var(--font-body); font-size: var(--fs-sm); color: #F1E6CF;
+}
+#root .menestrel-ui .loja-resgate > .ti { color: #E0BE68; font-size: var(--fs-md); }
+#root .menestrel-ui .loja-resgate-texto { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 auto; flex-wrap: wrap; }
+#root .menestrel-ui .loja-resgate-texto .moeda-pill-nome { display: none; }
+#root .menestrel-ui .loja-resgate-erro { flex-basis: 100%; color: #E08A6F; font-size: var(--fs-xs); }
 #root .menestrel-ui .loja-it--meu { box-shadow: inset 0 -2px 0 var(--gold, #C9A44E); }
 
 /* O rodapé de confirmação do modal unificado (27/09/2026) alinha com o corpo:

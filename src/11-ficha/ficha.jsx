@@ -2745,6 +2745,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const usarItemFicha = (instanceId, quantidade = 1) => {
     if (!podeEditarInv) return;
     const it = (pj.inventario?.itens || []).find((x) => x.instanceId === instanceId);
+    if (estaAVenda(it)) return;   // à venda na loja: travado (02/10/2026)
     const cat = it ? catalogoBySlug[it.slug] : null;
     salvarItensFicha((pj.inventario?.itens || [])
       .map((it) => it.instanceId === instanceId ? { ...it, quantidade: it.quantidade - quantidade } : it)
@@ -4298,7 +4299,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       }))
     : [];
   const atalhoItens = mostrarAtalhos
-    ? itensPj.filter((it) => _itemUsavel(catalogoBySlug[it.slug])).map((it) => ({
+    // Sem o que está à venda na loja (02/10/2026): travado até retirar.
+    ? itensPj.filter((it) => !estaAVenda(it) && _itemUsavel(catalogoBySlug[it.slug])).map((it) => ({
         id: it.instanceId, nome: catalogoBySlug[it.slug].nome, quantidade: it.quantidade,
         icone: _itemIcon(catalogoBySlug[it.slug]),
       }))

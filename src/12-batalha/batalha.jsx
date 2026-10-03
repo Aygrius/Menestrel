@@ -906,7 +906,7 @@ function magiasDeItensDoAtor(ator, catalogos) {
   const out = [];
   const jaVistos = new Set();
   itens.forEach((it) => {
-    if (!it || (it.quantidade || 0) <= 0) return;
+    if (!it || (it.quantidade || 0) <= 0 || estaAVenda(it)) return;
     const cat = catBySlug[it.slug];
     if (!cat || !cat.magia) return;
     const consumivel = (cat.grupo === 'Consumíveis') || cat.tipo === 'L';
@@ -1938,7 +1938,8 @@ function consumirDoInventario(itens, slug, qtd) {
   let restante = Math.max(0, Number(qtd) || 0);
   const out = [];
   for (const it of (itens || [])) {
-    if (!it || it.slug !== slug || restante <= 0) { out.push(it); continue; }
+    // À venda (02/10/2026): a baixa nunca sai da pilha travada na loja.
+    if (!it || it.slug !== slug || restante <= 0 || estaAVenda(it)) { out.push(it); continue; }
     const q = Number(it.quantidade) || 0;
     const baixa = Math.min(q, restante);
     restante -= baixa;
@@ -2358,7 +2359,7 @@ function animaisParaBatalha(pj, itensPorSlug, criaturasPorId) {
   const out = [];
   itens.forEach((it) => {
     const cat = it && (itensPorSlug || {})[it.slug];
-    if (!cat || cat.criatura_id == null) return;
+    if (!cat || cat.criatura_id == null || estaAVenda(it)) return;
     const cri = (criaturasPorId || {})[cat.criatura_id];
     if (!cri) return;
     const qtd = Math.max(1, Number(it.quantidade) || 1);
@@ -9094,7 +9095,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     const catBySlug = (catalogos && catalogos.catalogoBySlug) || {};
     const porSlug = {};
     pj.inventario.itens.forEach((it) => {
-      if (!it || (it.quantidade || 0) <= 0) return;
+      if (!it || (it.quantidade || 0) <= 0 || estaAVenda(it)) return;
       const cat = catBySlug[it.slug];
       if (!cat) return;
       if (typeof ehContainer === 'function' && ehContainer(cat)) return;   // recipiente — nunca consumível
@@ -12366,7 +12367,7 @@ Object.assign(window, {
     // MESMO resultado que aplicarEfeitosItem (01-core) pro mesmo item — as
     // duas compartilham efeitosDoItem/aplicarDeltaCondicao justamente por
     // isso, e efeito-item-escala.test.js trava o acordo entre elas.
-    aplicarEfeitoItemSnapshot, consumirDoInventario, consumirItemDoPJ,
+    aplicarEfeitoItemSnapshot, consumirDoInventario, consumirItemDoPJ, magiasDeItensDoAtor,
     venenoDoGolpe, aplicarVenenoSeChegouEf, gastarMunicaoEVeneno, textoVenenoDoGolpe,
     ehEvocacaoDeFimDaRodada, guardarMagiaPendente, pendenteParaResolver,
     // Edição manual das pools pelo card (clique na barra) — mesma regra de

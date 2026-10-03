@@ -134,6 +134,17 @@ function novoInstanceId() {
 }
 
 // ── Container (nesting 1 nível, S/L exclusivos) ─────────────────────────────
+/* ITEM À VENDA (02/10/2026): o anúncio da loja não tira mais o item do
+   inventário — a instância ganha anuncio_id e fica travada até ser vendida ou
+   retirada (scripts/sql/venda-pendente-2026-10-02.sql). Quem consome, lista
+   para uso ou empilha passa por aqui e ignora o que está à venda. */
+function estaAVenda(it) {
+  return !!(it && it.anuncio_id != null);
+}
+function itensLivres(itens) {
+  return (Array.isArray(itens) ? itens : []).filter((it) => it && !estaAVenda(it));
+}
+
 function ehContainer(cat) {
   return !!(cat && cat.armazena != null && Number(cat.armazena) > 0);
 }
@@ -936,7 +947,7 @@ function flechasNoInventario(itens, catalogoBySlug) {
   const por = {};
   (Array.isArray(itens) ? itens : []).forEach((it) => {
     const cat = it && catalogoBySlug && catalogoBySlug[it.slug];
-    if (!cat || !ehFlecha(cat) || !((Number(it.quantidade) || 0) > 0)) return;
+    if (!cat || !ehFlecha(cat) || estaAVenda(it) || !((Number(it.quantidade) || 0) > 0)) return;
     if (!por[it.slug]) {
       // "Flecha Envenenada (Blueta)" → "Blueta": o nome do veneno, para a mesa.
       const venenoNome = (/\(([^)]+)\)/.exec(cat.nome || '') || [])[1] || null;
@@ -974,7 +985,7 @@ function contarPorNome(itens, nome, catalogoBySlug) {
   const slugs = new Set();
   (Array.isArray(itens) ? itens : []).forEach((it) => {
     const cat = it && catalogoBySlug && catalogoBySlug[it.slug];
-    if (!cat || normRitual(cat.nome) !== alvo || it.equipado || it.vestido) return;
+    if (!cat || normRitual(cat.nome) !== alvo || it.equipado || it.vestido || estaAVenda(it)) return;
     total += Number(it.quantidade) || 0;
     slugs.add(it.slug);
   });
@@ -1005,7 +1016,7 @@ function consumirItensDoRitual(itens, texto, catalogoBySlug) {
   conf.gastos.forEach(({ qtd, slugs }) => {
     let resta = qtd;
     out = out.map((it) => {
-      if (resta <= 0 || !it || !slugs.includes(it.slug) || it.equipado || it.vestido) return it;
+      if (resta <= 0 || !it || !slugs.includes(it.slug) || it.equipado || it.vestido || estaAVenda(it)) return it;
       const q = Number(it.quantidade) || 0;
       const baixa = Math.min(q, resta);
       resta -= baixa;
@@ -1082,7 +1093,7 @@ function receitasDaCarne(slug) {
 
 // Quantas unidades daquela carne o personagem tem, somando todas as pilhas.
 function carneDisponivel(itens, slug) {
-  return (itens || []).reduce((s, it) => s + (it && it.slug === slug ? (Number(it.quantidade) || 0) : 0), 0);
+  return (itens || []).reduce((s, it) => s + (it && it.slug === slug && !estaAVenda(it) ? (Number(it.quantidade) || 0) : 0), 0);
 }
 
 /* A lista de itens depois de preparar \`resultado\` a partir da pilha clicada.
@@ -1133,6 +1144,7 @@ Object.assign(window, { protecoesDoItem, protecoesVestidas, condicoesComDelta, d
 Object.assign(window, {
   itemCasaBusca, adicionarAoInventario,
   RECEITAS_CARNE, receitasDaCarne, carneDisponivel, prepararCarne,
+  estaAVenda, itensLivres,
   ehFlecha, ehArco, ehVenenoDeArma, venenoEfDoItem, armaAceitaVeneno, venenoDaArma, nomeComVeneno,
   envenenarNoInventario, flechasNoInventario, gastarAcaoDoVeneno, FLECHA_DO_VENENO, VENENO_ACOES_ARMA,
   itensDoRitual, conferirItensDoRitual, consumirItensDoRitual,

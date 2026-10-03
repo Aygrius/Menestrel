@@ -148,6 +148,9 @@ function normalizarPilhas(itens, catalogoBySlug) {
   const idxLoose = new Map();    // pilhas soltas acumuláveis: por slug
   let mudou = false;
   for (const it of itens) {
+    // À venda (02/10/2026): instância intacta — não funde, não explode. O
+    // anúncio aponta para ela pelo anuncio_id.
+    if (estaAVenda(it)) { saida.push(it); continue; }
     const cat = catalogoBySlug?.[it.slug];
     const container = ehContainer(cat);
 
@@ -260,7 +263,7 @@ function recipienteAceitaSlug(cont, novoSlug, itens, catalogoBySlug) {
    O que não cabe fica na casa de origem: entra o que couber (decisão do
    usuário). Pura. Devolve { ok, itens, qtd, total } ou { ok:false, motivo,
    texto? } — motivo: recipiente | em_uso | outro_liquido | regra | sem_espaco
-   | invalido. */
+   | invalido | a_venda. */
 function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug) {
   const lista = Array.isArray(itens) ? itens : [];
   const it = lista.find((x) => x && x.instanceId === instanceId);
@@ -269,6 +272,7 @@ function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug) {
   const catC = cont && catalogoBySlug[cont.slug];
   if (!it || !cont || !catI || !catC || it === cont || it.containerId === containerId) return { ok: false, motivo: 'invalido' };
   if (ehContainer(catI)) return { ok: false, motivo: 'recipiente' };
+  if (estaAVenda(it)) return { ok: false, motivo: 'a_venda' };
   if (it.equipado || it.vestido || it.montado) return { ok: false, motivo: 'em_uso' };
   if (!recipienteAceitaSlug(cont, it.slug, lista, catalogoBySlug)) return { ok: false, motivo: 'outro_liquido' };
   const pode = podeMoverParaContainer(catI, catC, cont, lista, catalogoBySlug);
@@ -1151,6 +1155,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (!r.ok) {
       const motivos = {
         recipiente: en ? 'Containers do not go inside other containers.' : 'Recipientes não entram em outros recipientes.',
+        a_venda: en ? 'This item is for sale in the shop. Withdraw it first.' : 'Este item está à venda na loja. Retire o anúncio antes.',
         em_uso: en ? 'Take the item off before storing it.' : 'Tire o item do corpo antes de guardá-lo.',
         outro_liquido: en ? `${nomeCont} already holds another liquid.` : `${nomeCont} já guarda outro líquido.`,
         sem_espaco: en ? `No room in ${nomeCont}.` : `Não há espaço em ${nomeCont}.`,
@@ -1279,6 +1284,10 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const soltarNoAmigo = (instanceId, pjDestinoId) => {
     const it = inv?.itens.find((x) => x.instanceId === instanceId);
     if (!it || !pjDestinoId) return;
+    if (estaAVenda(it)) {
+      avisar(lang === 'en' ? 'This item is for sale in the shop. Withdraw it first.' : 'Este item está à venda na loja. Retire o anúncio antes.', 'recusa');
+      return;
+    }
     setTransferError(null);
     setAcaoPendente({ tipo: 'transferir', instanceId, max: Math.max(1, it.quantidade || 1), extra: { pjDestinoId } });
   };
@@ -2210,8 +2219,10 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
         </span>
         {/* Container vestido (ex.: cinto) também entra no grid — mesmo pill de "em uso". */}
-        {(it.slot || it.vestido) && (
+        {(it.slot || it.vestido || estaAVenda(it)) && (
           <span className="inv-card-pills">
+            {/* À venda na loja (02/10/2026): o selo de etiqueta. */}
+            {estaAVenda(it) && <span className="inv-pill inv-pill--venda" role="img" aria-label={en ? 'For sale' : 'À venda'}><i className="ti ti-tag" aria-hidden="true" /></span>}
             {(it.slot || it.vestido) && <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><i className="ti ti-letter-e-small" aria-hidden="true" /></span>}
           </span>
         )}
@@ -2266,6 +2277,8 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           </span>
         )}
         <span className="inv-card-pills">
+          {/* À venda na loja (02/10/2026): o selo de etiqueta. */}
+          {estaAVenda(it) && <span className="inv-pill inv-pill--venda" role="img" aria-label={en ? 'For sale' : 'À venda'}><i className="ti ti-tag" aria-hidden="true" /></span>}
           {/* O selo de LÍQUIDO (gota azul no topo esquerdo) saiu em 26/09/2026:
               "no caso do item tipo água, remova o ícone no topo esquerdo". */}
           {/* Equipado (arma/armadura no slot) e vestido (roupa) agora aparecem
@@ -2539,7 +2552,8 @@ function itemMontado(itens) {
    `criaturasPorId` = { [id]: linha de criaturas }. */
 function animaisDoPersonagem(itens, catalogoBySlug, criaturasPorId) {
   const mapa = criaturasPorId || {};
-  return (Array.isArray(itens) ? itens : []).map((instancia) => {
+  // Animal à venda (02/10/2026) não é companheiro: está travado na loja.
+  return itensLivres(itens).map((instancia) => {
     const cat = catalogoBySlug && catalogoBySlug[instancia.slug];
     const criatura = cat && cat.criatura_id != null ? mapa[cat.criatura_id] : null;
     return criatura ? { instancia, cat, criatura } : null;
@@ -3064,9 +3078,21 @@ function DetalhesItemModal({
       onClick: () => setLendo(true),
     },
   ];
+  /* À VENDA NA LOJA (02/10/2026): travado até retirar o anúncio — decisão do
+     usuário. Toda ação fica desativada com o motivo na dica; ler um livro
+     não mexe no item e continua valendo. */
+  const aVenda = estaAVenda(instance);
+  const dicaAVenda = en ? 'For sale in the shop — withdraw the listing to use it.' : 'À venda na loja — retire o anúncio para usar.';
+  const acoesDaJanela = aVenda
+    ? acoesTopo.filter(Boolean).map((a) => (a.chave === 'ler' ? a : {
+      ...a, ativo: false, armado: false, desativado: true, onClick: () => {},
+      dica: { title: a.rotulo, desc: dicaAVenda },
+    }))
+    : acoesTopo;
 
   // ── Linhas da INSTÂNCIA dentro de Características ──
-  const ondeEsta = instance.montado ? (en ? 'Mounted' : 'Montado')
+  const ondeEsta = aVenda ? (en ? 'For sale in the shop' : 'À venda na loja')
+    : instance.montado ? (en ? 'Mounted' : 'Montado')
     : instance.equipado ? (en ? 'Equipped' : 'Equipado') + (instance.slot && slotLabels[instance.slot] ? ` · ${slotLabels[instance.slot]}` : '')
     : instance.vestido ? (en ? 'Worn' : 'Vestido')
     : containerAtualNome ? (en ? `In ${containerAtualNome}` : `Em ${containerAtualNome}`)
@@ -3381,7 +3407,7 @@ function DetalhesItemModal({
         title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {nomeComVeneno(cat.nome, instance)}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
         lang={lang}
         onClose={onClose}
-        acoes={acoesTopo}
+        acoes={acoesDaJanela}
         rodape={etapaAberta ? rodapeEtapa : rodapeUsar}>
         {!etapaAberta && podeUsar && onUsar && (
           <div className="best-secao det-uso">
@@ -3448,6 +3474,7 @@ function motivoVendaLabel(motivo, en) {
     item_indisponivel:       en ? 'The item is no longer in the inventory.'                 : 'O item não está mais no inventário.',
     item_nao_existe:         en ? 'Item not found in the catalog.'                          : 'Item não encontrado no catálogo.',
     moeda_nao_vende:         en ? 'Coins cannot be sold.'                                   : 'Moedas não se vendem.',
+    item_ja_a_venda:         en ? 'This item is already for sale.'                         : 'Este item já está à venda.',
     item_em_uso:             en ? 'Unequip, take off or dismount the item first.'           : 'Desequipe, dispa ou desmonte o item antes de vender.',
     recipiente_com_itens:    en ? 'Empty the container first.'                              : 'Esvazie o recipiente antes de vender.',
     quantidade_invalida:     en ? 'Invalid quantity.'                                       : 'Quantidade inválida.',
@@ -3463,6 +3490,7 @@ function bloqueioVenda(instance, opcoes) {
   const o = opcoes || {};
   if (!o.ehDono) return 'nao_e_dono';
   if (!o.historiaId) return 'sem_historia';
+  if (estaAVenda(instance)) return 'item_ja_a_venda';
   if (instance && (instance.equipado || instance.vestido || instance.montado)) return 'item_em_uso';
   if (o.temConteudo) return 'recipiente_com_itens';
   return null;
@@ -3562,6 +3590,7 @@ function motivoTransferenciaLabel(motivo, en) {
     quantidade_invalida: en ? 'Invalid quantity.'                                      : 'Quantidade inválida.',
     sem_bolsa_destino:  en ? 'The recipient has no purse for coins.'                   : 'O destinatário não tem bolsa para as moedas.',
     sem_pacto:          en ? 'You have not sealed a friendship pact with this character.' : 'Vocês ainda não selaram um pacto de amizade.',
+    item_a_venda:       en ? 'This item is for sale in the shop. Withdraw it first.'    : 'Este item está à venda na loja. Retire o anúncio antes.',
     instancia_nao_encontrada: en ? 'Item not found in the inventory.'                  : 'Item não encontrado no inventário.',
   };
   return M[motivo] || motivo;
@@ -3729,7 +3758,7 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel, irreversivel 
 Object.assign(window, {
   InventarioList, EquipadoBoard, VestesBoard, MoedaPills,
   CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, ContainerModal, QuantidadeModal,
-  guardarNoRecipiente,
+  guardarNoRecipiente, normalizarPilhas,
   // Leitura de livro (itens.doc_url) — o bestiário também abre por aqui.
   LeituraDocModal, urlLeituraDoc,
   // Slot de vestir do banco → casa da ficha ('costas' → 'capa'…).

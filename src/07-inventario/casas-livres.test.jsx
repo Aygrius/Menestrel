@@ -183,3 +183,21 @@ describe('casas livres dentro da mochila', () => {
     expect(chamadas).toEqual([['cor-1', 4]]);
   });
 });
+
+/* Item à venda (02/10/2026): continua na grade, com o selo de etiqueta, e
+   não entra em mochila — "travado até retirar o anúncio". Mudar de casa pode. */
+describe('item à venda na grade', () => {
+  it('mostra o selo, não entra na mochila e muda de casa normalmente', async () => {
+    const { container, tabelas } = montar([
+      it_('alj-1', 'aljava', { casa: 0 }),
+      it_('fle-1', 'flecha', { quantidade: 5, casa: 2, anuncio_id: 9 }),
+    ]);
+    await waitFor(() => expect(casa(container, 2).querySelector('.inv-pill--venda')).toBeTruthy());
+    arrastar(container, 2, 0);
+    await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/à venda/));
+    expect(gravado(tabelas, 'fle-1')).toMatchObject({ containerId: null, anuncio_id: 9 });
+    arrastar(container, 2, 5);
+    await waitFor(() => expect(gravado(tabelas, 'fle-1').casa).toBe(5));
+    expect(gravado(tabelas, 'fle-1').anuncio_id).toBe(9);
+  });
+});

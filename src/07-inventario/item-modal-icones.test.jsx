@@ -276,3 +276,23 @@ describe('abater o animal manda a carne para a loja', () => {
     expect(await screen.findByText('Esta criatura não rende carne.')).toBeTruthy();
   });
 });
+
+/* À venda na loja (02/10/2026): o item fica no inventário, travado até
+   retirar o anúncio — decisão do usuário. Toda ação vem desativada, com o
+   motivo; "Onde está" diz que está à venda. */
+describe('item à venda na janela do inventário', () => {
+  it('todas as ações desativadas, com o motivo, e "À venda na loja" em Onde está', () => {
+    abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1, anuncio_id: 7 });
+    const botoes = [...document.querySelectorAll('.ms-header [data-acao]')];
+    expect(botoes.length).toBeGreaterThan(0);
+    for (const b of botoes) expect(b.disabled || b.getAttribute('aria-disabled') === 'true').toBe(true);
+    fireEvent.click([...document.querySelectorAll('.best-abas [role="tab"]')].find((b) => b.textContent === 'Características'));
+    expect(document.body.textContent).toMatch(/À venda na loja/);
+  });
+
+  it('item livre segue com as ações ativas', () => {
+    abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 });
+    const botoes = [...document.querySelectorAll('.ms-header [data-acao]')];
+    expect(botoes.some((b) => !b.disabled && b.getAttribute('aria-disabled') !== 'true')).toBe(true);
+  });
+});
