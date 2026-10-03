@@ -2248,6 +2248,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const [seletorOpen, setSeletorOpen] = useState(false);
   const [fpFull, setFpFull] = useState(false);
   const [fpTab, setFpTab] = useState('ficha');
+  // Onde a Loja põe a busca: no cabeçalho, entre o nome e os botões (02/10/2026).
+  const [slotBuscaLoja, setSlotBuscaLoja] = useState(null);
   const [fotoUploading, setFotoUploading] = useState(false);
   const [fotoErro, setFotoErro] = useState(null);
   const [editBar, setEditBar] = useState(null); // { item, scope, anchor } — popover de edição de barra
@@ -4145,6 +4147,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           {nomeCompleto}
         </h2>
       </div>
+      {/* A BUSCA DA LOJA mora aqui, na linha do nome e dos botões (02/10/2026):
+          "O input de buscar pode ficar inline com o nome da loja e os botões
+          de controle." A LojaJogador desenha o campo neste espaço por portal. */}
+      {fpTab === 'loja' && <div className="ficha-page-busca" ref={setSlotBuscaLoja} />}
       <div className="diario-subtabs" role="tablist" style={{ margin: 0 }}>
         {/* ÍCONES NO LUGAR DO TEXTO (27/09/2026): "Nos botões da ficha, vamos
             usar ícone ao invés de texto, mas use tooltip em todos." O nome
@@ -4372,7 +4378,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         </div>
       ) : fpTab === 'loja' ? (
         <div className="fp-invtab">
-          <LojaJogador ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} isMestre={!!isMestre} />
+          <LojaJogador ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} isMestre={!!isMestre} slotBusca={slotBuscaLoja} />
         </div>
       ) : (
       <div className="fp2-sheet">

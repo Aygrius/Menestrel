@@ -918,7 +918,7 @@
 #root .menestrel-ui .loja-it.is-esgotado::before { display:none; }
 /* moeda como ícone + ×qtd (sem "Ouro"/"Prata"): card da loja, modal de compra e coluna de valor do bestiário */
 #root .menestrel-ui .loja-it-foot .moeda-pill-nome,
-#root .menestrel-ui .loja-resumo .moeda-pill-nome,
+#root .menestrel-ui .loja-compra-grade .moeda-pill-nome,
 #root .menestrel-ui .best-table-wrap .moeda-pill-nome { display:none; }
 #root .menestrel-ui .loja-it.sem-moeda .loja-it-foot .moeda-pill-ic { color: #F0A6A0; }
 #root .menestrel-ui .loja-it.sem-moeda .loja-it-foot .moeda-pill-qtd { color: #F0A6A0; }
@@ -965,8 +965,6 @@
 
 /* recipientes */
 #root .menestrel-ui .loja-recips { margin-top:14px; display:flex; flex-direction:column; gap:7px; }
-#root .menestrel-ui .loja-recips-lbl { font-size: var(--fs-xs); color: #BFAF8E; }
-#root .menestrel-ui .loja-recips-lbl span { color: #A89878; }
 #root .menestrel-ui .loja-recip { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background: rgba(232,221,198,0.03); border:1px solid rgba(232,221,198,0.10); border-radius: 6px; padding:9px 12px; color: #F1E6CF; font-size: var(--fs-sm); cursor:pointer; }
 #root .menestrel-ui .loja-recip .ti { color: #A89878; font-size:17px; }
 #root .menestrel-ui .loja-recip:hover:not(:disabled) { border-color:rgba(201,164,78,0.35); }
@@ -981,15 +979,6 @@
 #root .menestrel-ui .loja-recip-livre.off { color: #F0A6A0; }
 
 /* resumo */
-#root .menestrel-ui .loja-resumo { margin-top:16px; background: rgba(25,19,8,0.45); border:1px solid rgba(138,110,64,0.30); border-radius: 6px; padding:11px 14px; font-size: var(--fs-xs); }
-#root .menestrel-ui .loja-resumo-row { align-items:center; font-size: var(--fs-sm); display:flex; justify-content:space-between; gap:14px; padding:2px 0; color: #F1E6CF; }
-#root .menestrel-ui .loja-resumo-row span { color: #BFAF8E; flex:none; }
-#root .menestrel-ui .loja-resumo-row strong { font-weight:400; text-align:right; }
-#root .menestrel-ui .loja-resumo-row strong.total { color: #E0BE68; }
-#root .menestrel-ui .loja-resumo-row strong.gratis { color: #7BE0A0; font-family:var(--font-body); font-size: var(--fs-sm); }
-#root .menestrel-ui .loja-resumo-row.fim { border-top:1px solid rgba(232,221,198,0.08); margin-top:4px; padding-top:5px; }
-#root .menestrel-ui .loja-resumo-row strong.sobra { color: #7BE0A0; }
-#root .menestrel-ui .loja-resumo-row strong.falta { color: #F0A6A0; }
 /* mensagem de erro acima do footer: respiro embaixo pra não colar na linha
    do det-act-row (que tem border-top como separador) */
 #root .menestrel-ui .modal-loja .err-msg { margin: 14px 0 0; }
@@ -11096,11 +11085,48 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .venda-moedas .venda-moeda-centro { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
 #root .menestrel-ui .venda-moedas .venda-moeda-centro .ti { font-size: var(--fs-md); }
 #root .menestrel-ui .det-etapa.modal-loja { display: flex; flex-direction: column; gap: 16px; }
-#root .menestrel-ui .loja-anuncios-titulo {
-  display: flex; align-items: center; gap: 8px; margin: 20px 0 10px;
-  font-family: var(--font-title); font-size: var(--fs-sm); letter-spacing: .04em; color: #E0BE68;
+/* LOJA, 02/10/2026 ─────────────────────────────────────────────────────────
+   A busca mora no cabeçalho da Ficha, na linha do nome e dos botões ("O input
+   de buscar pode ficar inline com o nome da loja e os botões de controle").
+   O espaço (.ficha-page-busca) cresce entre os dois e encosta o campo nos
+   botões; fora da Ficha a busca fica numa linha própria acima da grade. */
+#root .menestrel-ui .ficha-page-busca { flex: 1 1 auto; display: flex; justify-content: flex-end; min-width: 0; }
+#root .menestrel-ui .ficha-page-busca .loja-busca { width: min(260px, 100%); }
+#root .menestrel-ui .loja-busca-linha { padding: 16px 20px 0; }
+#root .menestrel-ui .loja-busca-linha .loja-busca { max-width: 260px; }
+/* Sem a linha de busca e chips, a vitrine encosta no cabeçalho: o respiro
+   que a linha dava vem para a própria grade. */
+#root .menestrel-ui .fp-invtab .loja .loja-grid--slots { margin-top: 16px; }
+
+/* A etapa de compra em duas colunas: rótulo | controle, com os rótulos na
+   mesma coluna — quantidade, recipientes e valores começam na mesma reta. */
+#root .menestrel-ui .loja-compra-desc {
+  margin: 0; color: var(--parchment, #F1E6CF); font-family: var(--font-body);
+  font-size: var(--fs-sm); line-height: 1.6; max-width: 62ch;
 }
-#root .menestrel-ui .loja-anuncios-titulo .loja-anuncios-n { font-family: var(--font-body); font-size: var(--fs-xs); color: var(--parchment-dim, #BFAF8E); }
+#root .menestrel-ui .loja-compra-grade {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 20px; row-gap: 12px;
+  align-items: center; padding: 14px 16px; border-radius: 6px;
+  background: rgba(25,19,8,0.45); border: 1px solid rgba(138,110,64,0.30);
+}
+#root .menestrel-ui .loja-compra-linha { display: contents; }
+#root .menestrel-ui .loja-compra-rotulo {
+  display: flex; flex-direction: column; gap: 2px; min-width: 112px;
+  color: #BFAF8E; font-family: var(--font-body); font-size: var(--fs-sm);
+}
+#root .menestrel-ui .loja-compra-nota { color: #A89878; font-size: var(--fs-xs); }
+#root .menestrel-ui .loja-compra-valor { display: flex; align-items: center; min-width: 0; color: #F1E6CF; font-size: var(--fs-sm); }
+#root .menestrel-ui .loja-compra-linha--topo .loja-compra-rotulo { align-self: start; padding-top: 8px; }
+#root .menestrel-ui .loja-compra-valor .fp-pop-stepper { width: 100%; max-width: 260px; }
+#root .menestrel-ui .loja-compra-valor .loja-recips { margin-top: 0; width: 100%; }
+#root .menestrel-ui .loja-compra-valor .gratis { color: #7BE0A0; font-weight: 400; }
+#root .menestrel-ui .loja-compra-texto { color: #F1E6CF; }
+@media (max-width: 520px) {
+  #root .menestrel-ui .loja-compra-grade { grid-template-columns: minmax(0, 1fr); row-gap: 6px; }
+  #root .menestrel-ui .loja-compra-rotulo { min-width: 0; }
+  #root .menestrel-ui .loja-compra-valor { margin-bottom: 8px; }
+}
+
 #root .menestrel-ui .loja-it--meu { box-shadow: inset 0 -2px 0 var(--gold, #C9A44E); }
 
 /* O rodapé de confirmação do modal unificado (27/09/2026) alinha com o corpo:
@@ -11109,8 +11135,8 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 
 /* "Você tem" na compra (27/09/2026): as moedas com o ícone ti-coins solto,
    sem a caixa com borda das pílulas — o que o personagem carrega, não um preço. */
-#root .menestrel-ui .loja-resumo-row--tem .moeda-pill-ic { border: none; background: none; width: auto; }
-#root .menestrel-ui .loja-resumo-row--tem .moeda-pill { gap: 6px; }
+#root .menestrel-ui .loja-compra-linha--tem .moeda-pill-ic { border: none; background: none; width: auto; }
+#root .menestrel-ui .loja-compra-linha--tem .moeda-pill { gap: 6px; }
 #root .menestrel-ui .det-venda-nota .moeda-pill-nome { display: none; }
 #root .menestrel-ui .det-venda-nota .moeda-pill-ic { border: none; background: none; width: auto; }
 #root .menestrel-ui .det-venda-nota .moeda-pill { gap: 6px; }

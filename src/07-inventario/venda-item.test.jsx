@@ -151,7 +151,10 @@ describe('a janela do anúncio na loja', () => {
     expect(acoes()).toEqual(['comprar']);
     fireEvent.click(document.querySelector('[data-acao="comprar"]'));
     expect(onComprar).not.toHaveBeenCalled();
-    expect(document.querySelector('.loja-resumo')).toBeTruthy();
+    // Desde 02/10/2026: a descrição abre a etapa e os valores vêm na grade
+    // rótulo | controle ("alinhe os inputs, mostre a descrição do item").
+    expect(document.querySelector('.modal-loja .loja-compra-grade')).toBeTruthy();
+    expect(document.querySelector('.modal-loja .loja-compra-desc').textContent).toBe('Uma lâmina reta.');
     expect([...document.querySelectorAll('.ms-footer button')].map((x) => x.textContent)).toEqual(['Cancelar', 'Comprar']);
     // 1110 não fecha com 5 ouros (sem troco): Comprar desativado
     expect(document.querySelector('.ms-footer [data-comprar]').disabled).toBe(true);

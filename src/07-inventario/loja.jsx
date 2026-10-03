@@ -133,6 +133,27 @@ function PrecoMoedas({ latao, lang, mudo }) {
 // h3 (Cinzel via `.modal h3`) + subhead, corpo (descrição, stats, quantidade,
 // recipientes), resumo por extenso, err-msg e footer com Cancelar à esquerda
 // do botão principal. Validação por quantidade aqui; a final é da RPC.
+/* A ETAPA DE COMPRA em duas colunas (02/10/2026): "melhore o modal, alinhe
+   os inputs, mostre a descrição do item." A descrição abre a etapa; cada
+   linha é rótulo | controle, e os rótulos dividem a mesma coluna — o seletor
+   de quantidade, os recipientes e os valores começam todos na mesma reta.
+   Usado pelo item do mercador e pelo do aventureiro. */
+function DescricaoNaCompra({ texto }) {
+  const t = String(texto || '').trim();
+  return t ? <p className="loja-compra-desc">{t}</p> : null;
+}
+function LinhaDaCompra({ rotulo, nota, topo, tem, children }) {
+  return (
+    <div className={'loja-compra-linha' + (topo ? ' loja-compra-linha--topo' : '') + (tem ? ' loja-compra-linha--tem' : '')}>
+      <span className="loja-compra-rotulo">
+        {rotulo}
+        {nota && <span className="loja-compra-nota">{nota}</span>}
+      </span>
+      <div className="loja-compra-valor">{children}</div>
+    </div>
+  );
+}
+
 function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, livreL, recipientes, comprando, erro, onConfirm, onClose }) {
   const en = lang === 'en';
   const [qtd, setQtd] = useState(1);
@@ -219,75 +240,64 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
   const Linha = (typeof BestLinha !== 'undefined' && BestLinha) || window.BestLinha;
   const formulario = (
         <>
-          {/* A LOJA NÃO TINHA STEPPER (17/09/2026): tinha dois botões com uma
-              BARRA arrastável no meio, como um controle de volume — o quarto
-              desenho diferente para a mesma pergunta. "Onde houver seletor de
-              quantidade, use esse design": o do BarEditPopover, que virou o
-              QuantidadeStepper de 01-core/helpers.jsx.
+          <DescricaoNaCompra texto={cat.descricao} />
+          <div className="loja-compra-grade">
+            {/* O seletor de quantidade é o QuantidadeStepper do sistema (17/09/2026).
+                Estoque ilimitado não diz teto: fica o número escolhido, sozinho. */}
+            <LinhaDaCompra rotulo={en ? 'Quantity' : 'Quantidade'}>
+              <QuantidadeStepper
+                value={qtd}
+                min={1}
+                max={stockNull ? undefined : maxByStock}
+                onChange={setQtd}
+                centro={stockNull ? qtd : <>{qtd} <span className="qtd-de-max">{en ? 'of' : 'de'} {maxByStock}</span></>}
+                label={en ? 'Quantity' : 'Quantidade'}
+              />
+            </LinhaDaCompra>
 
-              Com a barra some o `role="slider"` e o clique proporcional. O
-              teto continua dito em palavras ao lado do número — inclusive o ∞
-              de estoque ilimitado, que a barra não sabia desenhar (ela ficava
-              com a classe is-infinito e vazia). */}
-          <QuantidadeStepper
-            value={qtd}
-            min={1}
-            max={stockNull ? undefined : maxByStock}
-            onChange={setQtd}
-            /* Estoque ilimitado não tem teto para dizer, e "de ∞" era só um
-               símbolo ocupando lugar: fica o número escolhido, sozinho. */
-            centro={stockNull ? qtd : <>{qtd} <span className="qtd-de-max">{en ? 'of' : 'de'} {maxByStock}</span></>}
-            label={en ? 'Quantity' : 'Quantidade'}
-          />
+            {exigeRecip && !semRecipienteCompat && (
+              <LinhaDaCompra topo rotulo={en ? 'Store in' : 'Guardar em'}
+                nota={en ? `needs ${fmtNum(ocupaTotal)} free` : `precisa de ${fmtNum(ocupaTotal)} livre`}>
+                <div className="loja-recips">
+                  {(recipientes || []).map((r) => {
+                    const cabe = ocupaTotal <= r.livre + 0.0001;
+                    const sel = r.inst.instanceId === recipienteId;
+                    const pct = r.cap > 0 ? Math.min(100, Math.round(((r.cap - r.livre) / r.cap) * 100)) : 100;
+                    return (
+                      <button
+                        key={r.inst.instanceId}
+                        type="button"
+                        className={'loja-recip' + (sel ? ' sel' : '') + (cabe ? '' : ' off')}
+                        disabled={!cabe}
+                        onClick={() => setRecipienteId(sel ? '' : r.inst.instanceId)}>
+                        <i className={'ti ' + (sel ? 'ti-circle-check' : 'ti-circle')} aria-hidden="true" />
+                        <span className="loja-recip-nome">{r.nome}</span>
+                        <span className="loja-recip-bar" aria-hidden="true">
+                          <span className={'loja-recip-fill' + (cabe ? '' : ' cheio')} style={{ width: pct + '%' }} />
+                        </span>
+                        <span className={'loja-recip-livre' + (cabe ? '' : ' off')}>
+                          {fmtNum(r.livre)} {en ? 'free' : 'livre'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </LinhaDaCompra>
+            )}
 
-          {exigeRecip && !semRecipienteCompat && (
-            <div className="loja-recips">
-              <div className="loja-recips-lbl">
-                {en ? 'Store in' : 'Guardar em'}{' '}
-                <span>({en ? `needs ${fmtNum(ocupaTotal)} free` : `precisa de ${fmtNum(ocupaTotal)} livre`})</span>
-              </div>
-              {(recipientes || []).map((r) => {
-                const cabe = ocupaTotal <= r.livre + 0.0001;
-                const sel = r.inst.instanceId === recipienteId;
-                const pct = r.cap > 0 ? Math.min(100, Math.round(((r.cap - r.livre) / r.cap) * 100)) : 100;
-                return (
-                  <button
-                    key={r.inst.instanceId}
-                    type="button"
-                    className={'loja-recip' + (sel ? ' sel' : '') + (cabe ? '' : ' off')}
-                    disabled={!cabe}
-                    onClick={() => setRecipienteId(sel ? '' : r.inst.instanceId)}>
-                    <i className={'ti ' + (sel ? 'ti-circle-check' : 'ti-circle')} aria-hidden="true" />
-                    <span className="loja-recip-nome">{r.nome}</span>
-                    <span className="loja-recip-bar" aria-hidden="true">
-                      <span className={'loja-recip-fill' + (cabe ? '' : ' cheio')} style={{ width: pct + '%' }} />
-                    </span>
-                    <span className={'loja-recip-livre' + (cabe ? '' : ' off')}>
-                      {fmtNum(r.livre)} {en ? 'free' : 'livre'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="loja-resumo">
-            <div className="loja-resumo-row">
-              <span>{en ? 'Unit price' : 'Preço unitário'}</span>
+            <LinhaDaCompra rotulo={en ? 'Unit price' : 'Preço unitário'}>
               {gratis
                 ? <strong className="gratis">{en ? 'Free' : 'Gratuito'}</strong>
-                : <strong className="total"><MoedaPills latao={preco} lang={lang} tamanho="sm" /></strong>}
-            </div>
-            <div className="loja-resumo-row">
-              <span>{en ? `Total (${qtd})` : `Total (${qtd})`}</span>
+                : <MoedaPills latao={preco} lang={lang} tamanho="sm" />}
+            </LinhaDaCompra>
+            <LinhaDaCompra rotulo={`Total (${qtd})`}>
               {gratis
                 ? <strong className="gratis">{en ? 'Free' : 'Gratuito'}</strong>
-                : <strong className="total"><MoedaPills latao={custoTotal} lang={lang} tamanho="sm" /></strong>}
-            </div>
-            <div className="loja-resumo-row loja-resumo-row--tem">
-              <span>{en ? 'You have' : 'Você tem'}</span>
-              <strong><MoedaPills latao={totalLatao} lang={lang} mostrarGratis tamanho="sm" /></strong>
-            </div>
+                : <MoedaPills latao={custoTotal} lang={lang} tamanho="sm" />}
+            </LinhaDaCompra>
+            <LinhaDaCompra tem rotulo={en ? 'You have' : 'Você tem'}>
+              <MoedaPills latao={totalLatao} lang={lang} mostrarGratis tamanho="sm" />
+            </LinhaDaCompra>
           </div>
 
           {(motivos.length > 0 || erro) && (
@@ -295,7 +305,6 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
               {erro ? motivoCompraLabel(erro.motivo, erro.info, lang) : motivos.join(' · ')}
             </div>
           )}
-
         </>
   );
 
@@ -407,25 +416,28 @@ function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compra
       } : null}>
       {comprando ? (
         <div className="det-etapa modal-loja">
-          {qtd > 1 && (
-            <QuantidadeStepper value={qtdCompra} min={1} max={qtd} onChange={setQtdCompra}
-              centro={<>{qtdCompra} <span className="qtd-de-max">{en ? 'of' : 'de'} {qtd}</span></>}
-              label={en ? 'Quantity' : 'Quantidade'} />
-          )}
-          <div className="loja-resumo">
-            <div className="loja-resumo-row">
-              <span>{en ? 'Unit price' : 'Preço unitário'}</span>
-              <strong className="total"><MoedaPills latao={preco} lang={lang} tamanho="sm" /></strong>
-            </div>
-            <div className="loja-resumo-row">
-              <span>{`Total (${qtdCompra})`}</span>
-              <strong className="total"><MoedaPills latao={custo} lang={lang} tamanho="sm" /></strong>
-            </div>
+          <DescricaoNaCompra texto={item.descricao} />
+          <div className="loja-compra-grade">
+            <LinhaDaCompra rotulo={en ? 'Seller' : 'Vendedor'}>
+              <span className="loja-compra-texto">{anuncio.vendedor_nome || (en ? 'An adventurer' : 'Um aventureiro')}</span>
+            </LinhaDaCompra>
+            {qtd > 1 && (
+              <LinhaDaCompra rotulo={en ? 'Quantity' : 'Quantidade'}>
+                <QuantidadeStepper value={qtdCompra} min={1} max={qtd} onChange={setQtdCompra}
+                  centro={<>{qtdCompra} <span className="qtd-de-max">{en ? 'of' : 'de'} {qtd}</span></>}
+                  label={en ? 'Quantity' : 'Quantidade'} />
+              </LinhaDaCompra>
+            )}
+            <LinhaDaCompra rotulo={qtd > 1 ? (en ? 'Price (each)' : 'Preço (cada)') : (en ? 'Price' : 'Preço')}>
+              <MoedaPills latao={preco} lang={lang} tamanho="sm" />
+            </LinhaDaCompra>
+            <LinhaDaCompra rotulo={`Total (${qtdCompra})`}>
+              <MoedaPills latao={custo} lang={lang} tamanho="sm" />
+            </LinhaDaCompra>
             {!compraDoMestre && (
-              <div className="loja-resumo-row loja-resumo-row--tem">
-                <span>{en ? 'You have' : 'Você tem'}</span>
-                <strong><MoedaPills latao={totalLatao} lang={lang} mostrarGratis tamanho="sm" /></strong>
-              </div>
+              <LinhaDaCompra tem rotulo={en ? 'You have' : 'Você tem'}>
+                <MoedaPills latao={totalLatao} lang={lang} mostrarGratis tamanho="sm" />
+              </LinhaDaCompra>
             )}
           </div>
           {(erro || semMoeda || naoFecha) && (
@@ -473,7 +485,9 @@ function motivoAnuncioLabel(motivo, lang) {
 
 // Lista o estoque_loja da história em que o PJ é protagonista (via RPC).
 // Compra valida moedas e capacidade no servidor (RPC comprar_item).
-function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre }) {
+/* `slotBusca` (02/10/2026): o elemento do cabeçalho da Ficha onde a busca
+   mora, na linha do nome e dos botões. Sem ele, a busca fica acima da grade. */
+function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const en = lang === 'en';
   const [pjs, setPjs] = useState(null);
@@ -481,7 +495,6 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre }) {
   const [catalogo, setCatalogo] = useState(null);
   const [loja, setLoja] = useState(null);          // { ok, historia_id, historia_titulo, estoque } | { ok:false, motivo }
   const [busca, setBusca] = useState('');
-  const [grupoSel, setGrupoSel] = useState(null);  // null = todos
   const [comprando, setComprando] = useState(null); // entryId em compra (loading)
   const [compraAberta, setCompraAberta] = useState(null); // entryId do popup de compra
   const [erroCompra, setErroCompra] = useState(null);
@@ -805,34 +818,19 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre }) {
   const semHistoria = loja && loja.ok === false && loja.motivo === 'sem_historia';
   const estoqueLoja = (loja?.ok && Array.isArray(loja.estoque)) ? loja.estoque : [];
 
-  // Entradas válidas (com catálogo), grupos com contagem e filtro busca+chip
+  // Entradas válidas (com catálogo) e filtro da busca. Os chips de grupo saíram
+  // em 02/10/2026 ("não há necessidade de ter botões de filtro").
   const normTxt = (s) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
   const entradas = estoqueLoja.filter((e) => catalogoBySlug[e.slug]);
-  const grupos = (() => {
-    const m = new Map();
-    for (const e of entradas) {
-      const g = catalogoBySlug[e.slug].grupo || (en ? 'Other' : 'Outros');
-      m.set(g, (m.get(g) || 0) + 1);
-    }
-    for (const a of anuncios) {
-      const g = (catalogoBySlug[a.slug] && catalogoBySlug[a.slug].grupo) || (en ? 'Other' : 'Outros');
-      m.set(g, (m.get(g) || 0) + 1);
-    }
-    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  })();
   const q = normTxt(busca);
   const visiveis = entradas.filter((e) => {
     const cat = catalogoBySlug[e.slug];
-    const g = cat.grupo || (en ? 'Other' : 'Outros');
-    if (grupoSel && g !== grupoSel) return false;
     // Nome E descrição (24/09/2026) — ver itemCasaBusca.
     if (q && !itemCasaBusca(cat, q)) return false;
     return true;
   });
   const anunciosVisiveis = anuncios.filter((a) => {
     const cat = catalogoBySlug[a.slug];
-    const g = (cat && cat.grupo) || (en ? 'Other' : 'Outros');
-    if (grupoSel && g !== grupoSel) return false;
     if (q && !(cat ? itemCasaBusca(cat, q) : normTxt(a.item_nome || a.slug).includes(q))) return false;
     return true;
   });
@@ -863,46 +861,32 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre }) {
         </div>
       ) : (
         <>
-          {/* ── Busca + chips de categoria — mesmo padrão best-toolbar do bestiário ── */}
-          <div className="best-toolbar">
-            <div className="best-search">
-              <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
-              <Input
-                type="search"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder={en ? 'Search' : 'Buscar'}
-              />
-            </div>
-            <div className="best-chips">
-              <button
-                type="button"
-                className={'best-chip best-chip--icon' + (grupoSel === null ? ' is-active' : '')}
-                onClick={() => setGrupoSel(null)}
-                onMouseEnter={(e) => abrirTip(e, { desc: en ? 'All' : 'Todos' })}
-                onMouseLeave={fecharTip}
-                aria-label={en ? 'All' : 'Todos'}>
-                <i className="ti ti-layout-grid" aria-hidden="true" />
-              </button>
-              {grupos.map(([g, n]) => (
-                <button
-                  key={g}
-                  type="button"
-                  className={'best-chip best-chip--icon' + (grupoSel === g ? ' is-active' : '')}
-                  onClick={() => setGrupoSel(grupoSel === g ? null : g)}
-                  onMouseEnter={(e) => abrirTip(e, { desc: g })}
-                  onMouseLeave={fecharTip}
-                  aria-label={g}>
-                  <i className={'ti ' + invItemIcon({ grupo: g })} aria-hidden="true" />
-                </button>
-              ))}
-            </div>
-            <div className="best-count">{visiveis.length + anunciosVisiveis.length} de {entradas.length + anuncios.length}</div>
-          </div>
+          {/* ── BUSCA (02/10/2026): na linha do nome e dos botões da Ficha, por
+              portal no slotBusca; fora da Ficha, acima da grade. Os chips de
+              grupo saíram — "não há necessidade de ter botões de filtro". ── */}
+          {(() => {
+            const campo = (
+              <div className="best-search loja-busca">
+                <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+                <Input
+                  type="search"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder={en ? 'Search the shop' : 'Buscar na loja'}
+                  aria-label={en ? 'Search the shop' : 'Buscar na loja'}
+                />
+              </div>
+            );
+            return slotBusca ? ReactDOM.createPortal(campo, slotBusca) : <div className="loja-busca-linha">{campo}</div>;
+          })()}
 
-          {/* ── Vitrine — grid com ref sempre montado (mesmo padrão do inventário) ── */}
-          {entradas.length > 0 && (() => {
-            const filled = visiveis.length;
+          {/* ── VITRINE ÚNICA (02/10/2026): "Os itens vendidos por aventureiros
+              devem aparecer no mesmo local onde aparecem os demais itens, e não
+              abaixo com outro título." Primeiro o estoque do mercador, depois os
+              anúncios, com o mesmo ícone de item ("não altere o ícone do item
+              quando é vendido por um personagem"); o vendedor está no tooltip. ── */}
+          {(() => {
+            const filled = visiveis.length + anunciosVisiveis.length;
             const total  = Math.max(lojaGridTotal, Math.ceil(Math.max(filled, 1) / lojaGridCols) * lojaGridCols);
             const ghosts = total - filled;
             return (
@@ -936,32 +920,14 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre }) {
                     </button>
                   );
                 })}
-                {Array.from({ length: ghosts }).map((_, i) => (
-                  <span key={'ghost-' + i} className="inv-slot-ghost" aria-hidden="true" />
-                ))}
-              </div>
-            );
-          })()}
-
-          {/* ── Vendidos por aventureiros (27/09/2026): a mesma grade, com a
-              busca e a categoria valendo também aqui. */}
-          {anunciosVisiveis.length > 0 && (
-            <>
-              <div className="loja-anuncios-titulo">
-                <i className="ti ti-users" aria-hidden="true" />
-                {en ? 'Sold by adventurers' : 'Vendidos por aventureiros'}
-                <span className="loja-anuncios-n">· {anunciosVisiveis.length}</span>
-              </div>
-              <div className="loja-grid loja-grid--slots rpg-grid--slots loja-grid--anuncios"
-                style={{ gridTemplateColumns: `repeat(${lojaGridCols}, 50px)` }}>
                 {anunciosVisiveis.map((a) => {
                   const cat = catalogoBySlug[a.slug];
                   const meu = !!authUid && a.vendedor_user_id === authUid;
                   const preco = Number(a.preco_latao) || 0;
                   const semMoeda = !meu && !isMestre && totalLatao < preco;
                   return (
-                    <button key={a.id} type="button" data-anuncio-id={a.id}
-                      className={'loja-it' + (meu ? ' loja-it--meu' : '') + (semMoeda ? ' sem-moeda' : '') + (cat && cat.magico ? ' loja-it--magico' : '')}
+                    <button key={'anuncio-' + a.id} type="button" data-anuncio-id={a.id}
+                      className={'loja-it loja-it--anuncio' + (meu ? ' loja-it--meu' : '') + (semMoeda ? ' sem-moeda' : '') + (cat && cat.magico ? ' loja-it--magico' : '')}
                       onMouseEnter={(e) => abrirTip(e, {
                         title: nomeDoAnuncio(a) + (Number(a.quantidade) > 1 ? ' ×' + a.quantidade : ''),
                         desc: (meu ? (en ? 'Your item · ' : 'Seu item · ') : ((a.vendedor_nome || '') + ' · ')) + precoMoedaTexto(preco, lang)
@@ -977,9 +943,12 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre }) {
                     </button>
                   );
                 })}
+                {Array.from({ length: ghosts }).map((_, i) => (
+                  <span key={'ghost-' + i} className="inv-slot-ghost" aria-hidden="true" />
+                ))}
               </div>
-            </>
-          )}
+            );
+          })()}
         </>
       )}
 
