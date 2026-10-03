@@ -252,6 +252,44 @@ function recipienteAceitaSlug(cont, novoSlug, itens, catalogoBySlug) {
   );
 }
 
+/* ARRASTAR PARA A MOCHILA (02/10/2026): "Pegar um item, arrastar e soltar
+   dentro de uma mochila, irá colocar este item dentro da mochila, respeitando
+   as regras dos itens." (usuário). As regras são as do botão Armazenar —
+   recipiente não entra em recipiente, item em uso não é guardado, tipo e
+   grupo aceito batem (podeMoverParaContainer), líquido um só por recipiente.
+   O que não cabe fica na casa de origem: entra o que couber (decisão do
+   usuário). Pura. Devolve { ok, itens, qtd, total } ou { ok:false, motivo,
+   texto? } — motivo: recipiente | em_uso | outro_liquido | regra | sem_espaco
+   | invalido. */
+function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const it = lista.find((x) => x && x.instanceId === instanceId);
+  const cont = lista.find((x) => x && x.instanceId === containerId);
+  const catI = it && catalogoBySlug[it.slug];
+  const catC = cont && catalogoBySlug[cont.slug];
+  if (!it || !cont || !catI || !catC || it === cont || it.containerId === containerId) return { ok: false, motivo: 'invalido' };
+  if (ehContainer(catI)) return { ok: false, motivo: 'recipiente' };
+  if (it.equipado || it.vestido || it.montado) return { ok: false, motivo: 'em_uso' };
+  if (!recipienteAceitaSlug(cont, it.slug, lista, catalogoBySlug)) return { ok: false, motivo: 'outro_liquido' };
+  const pode = podeMoverParaContainer(catI, catC, cont, lista, catalogoBySlug);
+  if (!pode.ok) {
+    return /sem espaço/.test(pode.motivo || '') ? { ok: false, motivo: 'sem_espaco' } : { ok: false, motivo: 'regra', texto: pode.motivo };
+  }
+  const total = it.quantidade || 1;
+  const ocupa = Number(catI.ocupa || 0);
+  const { livre } = capacidadeContainer(cont, lista, catalogoBySlug);
+  // Tolerância para float (0.1 × 10 dá 0.9999…), a mesma do moverParaContainer.
+  const qtd = Math.min(total, ocupa > 0 ? Math.floor((livre + 0.0001) / ocupa) : total);
+  if (qtd <= 0) return { ok: false, motivo: 'sem_espaco' };
+  const out = qtd === total
+    ? lista.map((x) => (x === it ? { ...x, containerId, casa: undefined } : x))
+    : [
+      ...lista.map((x) => (x === it ? { ...x, quantidade: total - qtd } : x)),
+      { instanceId: novoInstanceId(), slug: it.slug, quantidade: qtd, equipado: false, slot: null, containerId, observacao: it.observacao || null },
+    ];
+  return { ok: true, itens: posicionarCasas(out), qtd, total };
+}
+
 // Ordem canônica dos slots de equipamento (paper-doll do quadro "Equipado").
 const SLOT_ORDER = ['cabeca', 'ombros', 'peito', 'mao_d', 'mao_e', 'maos', 'pernas', 'pes'];
 
@@ -752,7 +790,10 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // pelo autosave, pois altera `inv`.
   useEffect(() => {
     if (!inv || !catalogoBySlug) return;
-    const normalizados = normalizarPilhas(inv.itens, catalogoBySlug);
+    // Depois das pilhas, as CASAS (02/10/2026): quem não tem casa — item
+    // novo, unidade que a pilha separou, inventário antigo — ganha a primeira
+    // livre do seu lugar. Ver 01-core/inventario-casas.jsx.
+    const normalizados = posicionarCasas(normalizarPilhas(inv.itens, catalogoBySlug));
     if (normalizados !== inv.itens) setInv({ ...inv, itens: normalizados });
   }, [inv, catalogoBySlug]);
 
@@ -1082,6 +1123,49 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   };
 
   // Fase 3 — mover item para/de container (com split parcial e validação de capacidade)
+  /* ARRASTAR NA GRADE (02/10/2026) — casas livres e soltar na mochila.
+     O aviso é curto e some sozinho: diz quanto entrou, ou por que não entrou. */
+  const [avisoInv, setAvisoInv] = useState(null);
+  const avisoTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(avisoTimerRef.current), []);
+  const avisar = (texto, tipo) => {
+    clearTimeout(avisoTimerRef.current);
+    setAvisoInv({ texto, tipo, id: Date.now() });
+    avisoTimerRef.current = setTimeout(() => setAvisoInv(null), 3200);
+  };
+  const moverCasa = (instanceId, casa) => {
+    setInv((cur) => {
+      if (!cur) return cur;
+      const itens = moverParaCasa(cur.itens, instanceId, casa);
+      return itens === cur.itens ? cur : { ...cur, itens };
+    });
+  };
+  const guardarArrastando = (instanceId, containerId) => {
+    if (!inv) return;
+    const en = lang === 'en';
+    const r = guardarNoRecipiente(inv.itens, instanceId, containerId, catalogoBySlug);
+    const it = inv.itens.find((x) => x.instanceId === instanceId);
+    const cont = inv.itens.find((x) => x.instanceId === containerId);
+    const nome = (it && catalogoBySlug[it.slug]?.nome) || (it && it.slug) || '';
+    const nomeCont = (cont && catalogoBySlug[cont.slug]?.nome) || (cont && cont.slug) || '';
+    if (!r.ok) {
+      const motivos = {
+        recipiente: en ? 'Containers do not go inside other containers.' : 'Recipientes não entram em outros recipientes.',
+        em_uso: en ? 'Take the item off before storing it.' : 'Tire o item do corpo antes de guardá-lo.',
+        outro_liquido: en ? `${nomeCont} already holds another liquid.` : `${nomeCont} já guarda outro líquido.`,
+        sem_espaco: en ? `No room in ${nomeCont}.` : `Não há espaço em ${nomeCont}.`,
+        regra: `${nomeCont}: ${r.texto || ''}`,
+      };
+      if (motivos[r.motivo]) avisar(motivos[r.motivo], 'recusa');
+      return;
+    }
+    setInv((cur) => (cur ? { ...cur, itens: r.itens } : cur));
+    avisar(r.qtd === r.total
+      ? (en ? `Stored in ${nomeCont}: ${nome}${r.total > 1 ? ` ×${r.total}` : ''}.` : `Guardado em ${nomeCont}: ${nome}${r.total > 1 ? ` ×${r.total}` : ''}.`)
+      : (en ? `Stored in ${nomeCont}: ${r.qtd} of ${r.total} ${nome}. The rest did not fit.`
+            : `Guardado em ${nomeCont}: ${r.qtd} de ${r.total} ${nome}. O resto não coube.`), 'ok');
+  };
+
   const moverParaContainer = (instanceId, containerId, quantidade) => {
     setInv((cur) => {
       const itens = [...cur.itens];
@@ -1389,32 +1473,15 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             onAbrirContainer={(id) => setContainerAberto(id)}
             onSoltarNoAmigo={authUserIsOwner ? soltarNoAmigo : null}
             lang={lang}
-            onReordenarItens={(novaOrdem) => {
-              // novaOrdem: array de instanceIds representando a nova sequência
-              // dos itens visíveis (soltos, não equipados, não em container).
-              // Reconstrói inv.itens preservando itens invisíveis (equipados,
-              // em container) na posição relativa entre si, inserindo os
-              // reordenados nos slots de itens visíveis.
-              setInv((prev) => {
-                if (!prev) return prev;
-                // Equipados/vestidos agora aparecem no grid visível junto com o
-                // resto (mesma regra de itensVisiveis em InvItemsTable) — só o
-                // que está dentro de container fica de fora (tratamento próprio
-                // no ContainerModal).
-                const visivelSet = new Set(
-                  prev.itens
-                    .filter((it) => !it.containerId)
-                    .map((it) => it.instanceId)
-                );
-                const byId = Object.fromEntries(prev.itens.map((it) => [it.instanceId, it]));
-                // itens que NÃO fazem parte do grid visível (mantêm posição relativa)
-                const invisíveis = prev.itens.filter((it) => !visivelSet.has(it.instanceId));
-                // itens visíveis na nova ordem
-                const reordenados = novaOrdem.map((id) => byId[id]).filter(Boolean);
-                return { ...prev, itens: [...reordenados, ...invisíveis] };
-              });
-            }}
+            onMoverCasa={moverCasa}
+            onGuardarEm={guardarArrastando}
           />
+          {avisoInv && (
+            <div key={avisoInv.id} className={'inv-aviso inv-aviso--' + avisoInv.tipo} role="status">
+              <i className={'ti ' + (avisoInv.tipo === 'ok' ? 'ti-package-import' : 'ti-alert-triangle')} aria-hidden="true" />
+              <span>{avisoInv.texto}</span>
+            </div>
+          )}
         </>
       )}
 
@@ -1469,6 +1536,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onClose={() => setContainerAberto(null)}
           onRemoverDoContainer={(id) => solicitarMover(id, null)}
           onAbrirDetalhes={(id) => { setContainerAberto(null); setDetalhesId(id); }}
+          onMoverCasa={moverCasa}
         />
       )}
 
@@ -1842,7 +1910,14 @@ function useGridDimensions() {
   return [setGridEl, dims];
 }
 
-function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirContainer, lang, onReordenarItens, onSoltarNoAmigo }) {
+/* CASAS LIVRES (02/10/2026): a grade deixou de ser lista compacta. Cada item
+   fica na sua `casa` (01-core/inventario-casas.jsx); soltar numa casa vazia
+   leva o item para lá, sobre outro item troca os dois, sobre um recipiente
+   guarda dentro (onGuardarEm, regras do Armazenar). */
+/* `lugar` (02/10/2026): null = o inventário solto; o instanceId de um
+   recipiente = a grade de DENTRO dele (o ContainerModal usa assim, com
+   semFerramentas: sem busca/filtro, sem guardar e sem soltar no amigo). */
+function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirContainer, lang, onMoverCasa, onGuardarEm, onSoltarNoAmigo, lugar = null, semFerramentas = false }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const en = lang === 'en';
   const [busca, setBusca] = useState('');
@@ -1867,7 +1942,11 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   // Refs pra ler valores atuais dentro dos listeners globais sem closure stale.
   const dragRef = React.useRef(null);
   const overIdxRef = React.useRef(null);
-  const itensFiltradosRef = React.useRef([]);
+  // Casa→item e id→item da grade, e o catálogo, lidos pelos listeners do arraste.
+  const porCasaRef = React.useRef(new Map());
+  const porIdRef = React.useRef(new Map());
+  const catalogoBySlugRef = React.useRef(catalogoBySlug);
+  catalogoBySlugRef.current = catalogoBySlug;
   // Guarda o ponto onde o ponteiro desceu + se o limiar de arraste foi cruzado.
   // Enquanto não cruzar (~6px), tratamos como clique (abre detalhes).
   const pointerStartRef = React.useRef(null);
@@ -1894,17 +1973,26 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     return Number.isFinite(idx) ? idx : null;
   }, []);
 
-  // Efetiva a reordenação a partir do índice de origem e destino.
-  const commitReorder = React.useCallback((fromIdx, targetIdx) => {
-    const currentFiltered = itensFiltradosRef.current;
-    if (fromIdx === null || targetIdx === null || fromIdx === targetIdx) return;
-    const arr = [...currentFiltered];
-    if (fromIdx < 0 || fromIdx >= arr.length) return;
-    const [moved] = arr.splice(fromIdx, 1);
-    const insertAt = Math.min(Math.max(targetIdx, 0), arr.length);
-    arr.splice(insertAt, 0, moved);
-    if (onReordenarItens) onReordenarItens(arr.map((it) => it.instanceId));
-  }, [onReordenarItens]);
+  // Soltou na casa `targetIdx`: sobre um recipiente, guarda dentro (o item
+  // arrastado não sendo recipiente); senão vai para a casa — vazia, ou trocando
+  // com quem estiver nela.
+  const moverCasaRef = React.useRef(onMoverCasa);
+  moverCasaRef.current = onMoverCasa;
+  const guardarEmRef = React.useRef(onGuardarEm);
+  guardarEmRef.current = onGuardarEm;
+  const commitSoltar = React.useCallback((instanceId, targetIdx) => {
+    if (targetIdx === null || targetIdx === undefined) return;
+    const arrastado = porIdRef.current.get(instanceId);
+    if (!arrastado || arrastado.casa === targetIdx) return;
+    const alvo = porCasaRef.current.get(targetIdx);
+    const catAlvo = alvo && catalogoBySlugRef.current[alvo.slug];
+    const catArr = catalogoBySlugRef.current[arrastado.slug];
+    if (alvo && ehContainer(catAlvo) && !ehContainer(catArr) && guardarEmRef.current) {
+      guardarEmRef.current(instanceId, alvo.instanceId);
+      return;
+    }
+    if (moverCasaRef.current) moverCasaRef.current(instanceId, targetIdx);
+  }, []);
 
   // Handlers globais (montados só enquanto um arraste está ativo).
   React.useEffect(() => {
@@ -1942,7 +2030,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
       const amigo = d && soltarNoAmigoRef.current ? amigoSobPonto(e.clientX, e.clientY) : null;
       acenderAmigo(null);
       if (amigo) soltarNoAmigoRef.current(d.instanceId, Number(amigo.getAttribute('data-amigo-pj-id')));
-      else if (d) commitReorder(d.fromIdx, target);
+      else if (d) commitSoltar(d.instanceId, target);
       dragRef.current = null;
       overIdxRef.current = null;
       setDrag(null);
@@ -1980,7 +2068,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
     };
-  }, [drag ? drag.instanceId : null, commitReorder, slotIdxFromPoint]);
+  }, [drag ? drag.instanceId : null, commitSoltar, slotIdxFromPoint]);
 
   // pointerdown num card: registra o ponto de partida. O arraste só COMEÇA de
   // fato (setDrag) quando o ponteiro se move além do limiar — assim um clique
@@ -2039,7 +2127,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   // resto da bolsa — só o que está DENTRO de um container some daqui (tem
   // tela própria, o ContainerModal). O pill "eq"/"vst" no card (ver
   // renderItemCard/renderContainerCard) é o que distingue visualmente.
-  const itensVisiveis = (itens || []).filter((it) => !it.containerId);
+  const itensVisiveis = (itens || []).filter((it) => (it.containerId || null) === lugar);
 
   // Chips de categoria (grupos presentes na bolsa)
   const grupos = useMemo(() => {
@@ -2056,28 +2144,26 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   const normTxt = (s) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
   const q = normTxt(busca);
 
-  // Itens filtrados pela busca + chip de grupo, com os EM USO na frente
-  // (pedido do usuário, 11/09/2026). Equipado e vestido contam igual — é a
-  // mesma distinção que o selo E faz.
-  //
-  // A ordenação é ESTÁVEL (sort só compara o par em-uso/solto): dentro de
-  // cada bloco a ordem manual que o jogador arrastou continua valendo, e é
-  // ela que commitReorder persiste.
-  const itensFiltrados = useMemo(() => {
-    const visiveis = itensVisiveis.filter((it) => {
-      const cat = catalogoBySlug[it.slug];
-      const g = cat?.grupo || (en ? 'Other' : 'Outros');
-      if (grupoSel && g !== grupoSel) return false;
-      // Nome E descrição (24/09/2026) — ver itemCasaBusca.
-      if (q && !itemCasaBusca(cat, q, it.slug)) return false;
-      return true;
-    });
-    const emUso = (it) => (it.slot || it.vestido) ? 0 : 1;
-    return visiveis.slice().sort((a, b) => emUso(a) - emUso(b));
-  }, [itensVisiveis, catalogoBySlug, grupoSel, q, en]);
+  // Itens que batem com a busca + chip de grupo. Desde 02/10/2026 a busca NÃO
+  // tira ninguém do lugar: quem não bate fica apagado na sua casa e segue
+  // arrastável (decisão do usuário). Saiu também o "em uso na frente" de
+  // 11/09/2026 — com casas livres, cada item fica onde o jogador deixou.
+  const itensFiltrados = useMemo(() => itensVisiveis.filter((it) => {
+    const cat = catalogoBySlug[it.slug];
+    const g = cat?.grupo || (en ? 'Other' : 'Outros');
+    if (grupoSel && g !== grupoSel) return false;
+    // Nome E descrição (24/09/2026) — ver itemCasaBusca.
+    if (q && !itemCasaBusca(cat, q, it.slug)) return false;
+    return true;
+  }), [itensVisiveis, catalogoBySlug, grupoSel, q, en]);
+  const idsQueBatem = useMemo(() => new Set(itensFiltrados.map((it) => it.instanceId)), [itensFiltrados]);
 
-  // Mantém a ref sempre atualizada para o commitReorder ler sem closure stale.
-  itensFiltradosRef.current = itensFiltrados;
+  // Cada item na sua casa. Quem ainda não tem (antes do efeito de normalização
+  // do InventarioList gravar) ganha a primeira livre só para desenhar.
+  const posicionados = useMemo(() => posicionarCasas(itensVisiveis), [itensVisiveis]);
+  const porCasa = useMemo(() => new Map(posicionados.map((it) => [it.casa, it])), [posicionados]);
+  porCasaRef.current = porCasa;
+  porIdRef.current = new Map(posicionados.map((it) => [it.instanceId, it]));
 
   // Monta o content do tooltip para um item/container.
   // Mostra apenas o NOME do item (a descrição vive no modal de detalhes).
@@ -2087,7 +2173,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     return { title: cat ? (b > 0 ? `${nomeV} +${b}` : nomeV) : `(? ${it.slug})` };
   };
 
-  const renderContainerCard = (it, cat, idx) => {
+  const renderContainerCard = (it, cat, idx, extra = '') => {
     const filhos = itens.filter((f) => f.containerId === it.instanceId);
     let usado = 0;
     for (const f of filhos) {
@@ -2111,6 +2197,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           + (isBeingDragged ? ' inv-card--dragging' : '')
           + (isDropTarget ? ' inv-card--drop-target' : '')
           + (isHolding ? ' inv-card--holding' : '')
+          + extra
         }
         style={{ touchAction: 'none' }}
         onClick={() => onCardClick(it.instanceId)}
@@ -2135,7 +2222,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     );
   };
 
-  const renderItemCard = (it, cat, idx) => {
+  const renderItemCard = (it, cat, idx, extra = '') => {
     const resMax = Number(cat?.resistencia || 0);
     const resAtual = Number.isFinite(Number(it.res))
       ? Math.max(0, Math.min(resMax, Number(it.res))) : resMax;
@@ -2154,6 +2241,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           + (isBeingDragged ? ' inv-card--dragging' : '')
           + (isDropTarget ? ' inv-card--drop-target' : '')
           + (isHolding ? ' inv-card--holding' : '')
+          + extra
         }
         style={{ touchAction: 'none' }}
         onClick={() => onCardClick(it.instanceId)}
@@ -2221,14 +2309,22 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     );
   };
 
+  /* Classe extra do card (02/10/2026): apagado = não bate com a busca/filtro, mas segue
+     na sua casa e arrastável (decisão do usuário); guardar = um item está
+     sendo arrastado sobre este recipiente e, solto, entra nele. */
   const renderCard = (it, idx) => {
     const cat = catalogoBySlug[it.slug];
+    const apagado = !idsQueBatem.has(it.instanceId);
+    const arrastado = drag && porIdRef.current.get(drag.instanceId);
+    const guardar = !!(arrastado && arrastado.instanceId !== it.instanceId && overIdx === idx
+      && ehContainer(cat) && !ehContainer(catalogoBySlug[arrastado.slug]));
+    const extra = (apagado ? ' inv-card--apagado' : '') + (guardar ? ' inv-card--guardar' : '');
     return ehContainer(cat)
-      ? renderContainerCard(it, cat, idx)
-      : renderItemCard(it, cat, idx);
+      ? renderContainerCard(it, cat, idx, extra)
+      : renderItemCard(it, cat, idx, extra);
   };
 
-  if (itensVisiveis.length === 0) {
+  if (itensVisiveis.length === 0 && !lugar) {
     return (
       <div className="loja-warn-empty">
         <span>{en ? 'You have no possessions.' : 'Você não tem nenhum pertence.'}</span>
@@ -2250,6 +2346,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         }
       }}>
       {/* ── Busca + chips de categoria — mesmo padrão best-toolbar do bestiário ── */}
+      {!semFerramentas && (
       <div className="best-toolbar">
         <div className="best-search">
           <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
@@ -2285,40 +2382,32 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         </div>
         <div className="best-count">{itensFiltrados.length} de {itensVisiveis.length}</div>
       </div>
+      )}
 
       {/* ── Grid flat com slots fantasmas (ref sempre montado para o ResizeObserver) ── */}
-      {itensFiltrados.length === 0 ? (
-        <div
-          ref={setGridEl}
-          className="inv-bag-grid inv-bag-grid--slots"
-          style={{ gridTemplateColumns: `repeat(${cols}, 50px)` }}>
-          {Array.from({ length: totalSlots }).map((_, i) => (
-            <span key={'ghost-' + i} className="inv-slot-ghost" aria-hidden="true" />
-          ))}
-        </div>
-      ) : (() => {
-        // Garante múltiplo de cols e pelo menos totalSlots (calculado pelo ResizeObserver)
-        const filled = itensFiltrados.length;
-        const total  = Math.max(totalSlots, Math.ceil(Math.max(filled, 1) / cols) * cols);
-        const ghosts = total - filled;
+      {(() => {
+        // Casas livres (02/10/2026): a casa i mostra o item que mora nela ou
+        // fica vazia — e cada vazia é um destino de verdade (antes, toda vazia
+        // queria dizer "o fim da lista"). A grade cobre pelo menos a área
+        // visível (totalSlots) e cresce até a casa mais alta ocupada; com
+        // tudo cheio, ganha mais uma linha para sempre haver onde soltar.
+        const maiorCasa = posicionados.reduce((m, it) => Math.max(m, it.casa), -1);
+        let total = Math.max(totalSlots, Math.ceil((maiorCasa + 1) / cols) * cols);
+        if (posicionados.length >= total) total += cols;
         return (
           <div
             ref={setGridEl}
             className="inv-bag-grid inv-bag-grid--slots"
             style={{ gridTemplateColumns: `repeat(${cols}, 50px)` }}>
-            {itensFiltrados.map((it, idx) => renderCard(it, idx))}
-            {Array.from({ length: ghosts }).map((_, i) => {
-              // O inventário é uma lista COMPACTA (itens preenchem do início, sem
-              // buracos). Qualquer célula vazia representa o mesmo destino: o FIM
-              // da lista (índice = filled). Por isso todos os fantasmas recebem
-              // data-slot-idx=filled e soltar em qualquer um move o item pro fim.
-              // O realce visual, porém, fica só no 1º vazio (onde o item cairá).
-              const isGhostTarget = i === 0 && overIdx === filled && drag && drag.fromIdx !== filled - 1;
+            {Array.from({ length: total }, (_, i) => {
+              const it = porCasa.get(i);
+              if (it) return renderCard(it, i);
+              const alvo = overIdx === i && drag;
               return (
                 <span
-                  key={'ghost-' + i}
-                  data-slot-idx={filled}
-                  className={'inv-slot-ghost' + (isGhostTarget ? ' inv-slot-ghost--drop-target' : '')}
+                  key={'casa-' + i}
+                  data-slot-idx={i}
+                  className={'inv-slot-ghost' + (alvo ? ' inv-slot-ghost--drop-target' : '')}
                   aria-hidden="true"
                 />
               );
@@ -2329,7 +2418,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
 
       {/* ── Fantasma que segue o cursor durante o arraste ── */}
       {drag && (() => {
-        const it = itensFiltrados[drag.fromIdx];
+        const it = porIdRef.current.get(drag.instanceId);
         if (!it) return null;
         const cat = catalogoBySlug[it.slug];
         return ReactDOM.createPortal(
@@ -3414,7 +3503,7 @@ function PrecoMoedasInput({ latao, onChange, lang, disabled }) {
 function used(usado, cap) { return `${fmtNum(usado)}/${fmtNum(cap)}`; }
 
 // ── ContainerModal (Fase 3) ──────────────────────────────────────────────────
-function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClose, onRemoverDoContainer, onAbrirDetalhes }) {
+function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClose, onRemoverDoContainer, onAbrirDetalhes, onMoverCasa }) {
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const en = lang === 'en';
   const cat = catalogoBySlug[containerInst?.slug];
@@ -3438,31 +3527,20 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
           {cat.descricao}
         </div>
 
-        {/* Lista de itens dentro */}
-
-        <div className="cont-list">
-          {filhos.map((it) => {
-            const fc = catalogoBySlug[it.slug];
-            const ocupa = Number(fc?.ocupa || 0) * it.quantidade;
-            const presoNoContainer = fc?.grupo === 'Consumíveis' || fc?.grupo === 'Moedas';
-            return (
-              <div key={it.instanceId} className="cont-row">
-                <div className="cont-row-info">
-                  <span className="cont-row-nome">{fc?.nome || it.slug}{fc?.magico && ' ✦'}</span>
-                  {it.quantidade > 1 && <span className="inv-card-qty">×{it.quantidade}</span>}
-                </div>
-                <div className="cont-row-actions">
-                  {onAbrirDetalhes && (
-                  <button className="btn-icon btn-sm inv-act-btn" onClick={() => onAbrirDetalhes(it.instanceId)}
-                    {...propsTip(abrirTip, fecharTip, en ? 'Details' : 'Detalhes')}
-                    aria-label={en ? 'Details' : 'Detalhes'}>
-                    <i className="ti ti-eye" aria-hidden="true" />
-                  </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        {/* O conteúdo em CASAS LIVRES (02/10/2026), como o inventário: o
+            jogador espalha os itens pela grade da mochila. Só mover aqui
+            dentro (decisão do usuário) — tirar continua pelo botão da janela
+            do item. Clicar no item abre essa janela. */}
+        <div className="cont-grade">
+          <InvItemsTable
+            itens={todosItens}
+            lugar={containerInst.instanceId}
+            semFerramentas
+            catalogoBySlug={catalogoBySlug}
+            lang={lang}
+            onAbrirDetalhes={onAbrirDetalhes || (() => {})}
+            onMoverCasa={onMoverCasa}
+          />
         </div>
 
       <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
@@ -3651,6 +3729,7 @@ function QuantidadeModal({ titulo, max, lang, onConfirm, onCancel, irreversivel 
 Object.assign(window, {
   InventarioList, EquipadoBoard, VestesBoard, MoedaPills,
   CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, ContainerModal, QuantidadeModal,
+  guardarNoRecipiente,
   // Leitura de livro (itens.doc_url) — o bestiário também abre por aqui.
   LeituraDocModal, urlLeituraDoc,
   // Slot de vestir do banco → casa da ficha ('costas' → 'capa'…).

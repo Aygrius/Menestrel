@@ -597,14 +597,26 @@ function precoTextoLoja(latao, en) {
 // ── migrarEstoqueLoja — normaliza formato antigo (array flat) para o novo
 // (objeto com array de comércios). Idempotente.
 // Formato novo: { comercios: [{id, nome, ativo, itens:[{entryId,slug,...}]}] }
+// Entrada sem entryId (02/10/2026) ganha um: a chuva gravava a água assim, e
+// o balcão do jogador não abre nem vende o que não tem entryId.
+function comEntryId(itens) {
+  const lista = Array.isArray(itens) ? itens : [];
+  return lista.some((e) => e && !e.entryId)
+    ? lista.map((e) => (e && !e.entryId ? { ...e, entryId: novoInstanceId() } : e))
+    : lista;
+}
 function migrarEstoqueLoja(raw) {
   if (!raw) return { comercios: [] };
   // Já no formato novo
   if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.comercios)) {
-    return raw;
+    const comercios = raw.comercios.map((c) => {
+      const itens = comEntryId(c && c.itens);
+      return itens === (c && c.itens) ? c : { ...c, itens };
+    });
+    return comercios.every((c, i) => c === raw.comercios[i]) ? raw : { ...raw, comercios };
   }
   // Formato legado: array flat de entradas → migra para 1 comércio padrão "Estoque"
-  const itens = Array.isArray(raw) ? raw : [];
+  const itens = comEntryId(Array.isArray(raw) ? raw : []);
   return {
     comercios: itens.length > 0
       ? [{ id: novoInstanceId(), nome: 'Estoque', ativo: true, itens }]
@@ -1678,6 +1690,6 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
 
 Object.assign(window, {
   HistoriasList, HistoriaCard,
-  ConfirmarExclusaoHistoriaModal, GerenciarLojaView,
+  ConfirmarExclusaoHistoriaModal, GerenciarLojaView, migrarEstoqueLoja,
   NovaHistoriaModal,
 });

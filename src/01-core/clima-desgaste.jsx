@@ -206,6 +206,53 @@ function aguaPorHoraDeChuva(degrauId) {
   return CHUVA_AGUA[degrauId] || 0;
 }
 
+/* A água da chuva entra na loja da mesa (pura). CORREÇÃO de 02/10/2026: a
+   versão anterior só conhecia o formato ANTIGO de historias.estoque_loja
+   (array flat); no formato atual — { comercios: [{ id, nome, ativo, itens }] }
+   — lia "nada" e gravava só a água por cima, apagando a loja inteira.
+
+   Soma na entrada de água que já existir (a primeira, em qualquer comércio);
+   sem ela, cria a entrada no primeiro comércio ativo (ou no primeiro); sem
+   comércio, cria um "Estoque" ativo. Toda entrada sai com entryId — sem ele
+   o balcão não abre nem vende o item. Estoque null (infinito) segue null.
+   Formato antigo vira o atual, como faz migrarEstoqueLoja (06-historias). */
+function somarAguaNaLoja(estoqueLoja, ganho, novoId) {
+  if (!(Number(ganho) > 0)) return estoqueLoja;
+  const gerarId = novoId || (() => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const atual = estoqueLoja && !Array.isArray(estoqueLoja) && Array.isArray(estoqueLoja.comercios)
+    ? estoqueLoja
+    : {
+      ...(estoqueLoja && !Array.isArray(estoqueLoja) ? estoqueLoja : {}),
+      comercios: Array.isArray(estoqueLoja) && estoqueLoja.length
+        ? [{ id: gerarId(), nome: 'Estoque', ativo: true, itens: estoqueLoja }]
+        : [],
+    };
+  const comercios = atual.comercios.map((c) => ({ ...c, itens: Array.isArray(c.itens) ? c.itens : [] }));
+  const somar = (it) => ({
+    ...it,
+    entryId: it.entryId || gerarId(),
+    estoque: it.estoque == null ? null : (Number(it.estoque) || 0) + Number(ganho),
+  });
+  const ci = comercios.findIndex((c) => c.itens.some((it) => it && it.slug === 'agua'));
+  if (ci >= 0) {
+    let feito = false;
+    comercios[ci] = {
+      ...comercios[ci],
+      itens: comercios[ci].itens.map((it) => {
+        if (feito || !it || it.slug !== 'agua') return it;
+        feito = true;
+        return somar(it);
+      }),
+    };
+    return { ...atual, comercios };
+  }
+  const nova = { entryId: gerarId(), slug: 'agua', estoque: Number(ganho) };
+  const alvo = comercios.findIndex((c) => c.ativo) >= 0 ? comercios.findIndex((c) => c.ativo) : (comercios.length ? 0 : -1);
+  if (alvo < 0) return { ...atual, comercios: [{ id: gerarId(), nome: 'Estoque', ativo: true, itens: [nova] }] };
+  comercios[alvo] = { ...comercios[alvo], itens: [...comercios[alvo].itens, nova] };
+  return { ...atual, comercios };
+}
+
 /* ============================== Atividades — o descanso recupera ==============================
    Pedido do usuário (24/09/2026): o jogador escolhe na ficha o que o
    personagem está fazendo, e cada hora que o relógio da mesa anda recupera.
@@ -313,6 +360,6 @@ function textoEventoAtividade(nome, de, para, en) {
 Object.assign(window, {
   ATIVIDADES, ATIVIDADE_EFEITO, recuperacaoPorAtividade, textoEventoAtividade,
   noiteDeSono, decaimentoPorHoras, horasEntre, proximoInstante,
-  tiqueDeClima, penalidadeVentoVB, aguaPorHoraDeChuva,
+  tiqueDeClima, penalidadeVentoVB, aguaPorHoraDeChuva, somarAguaNaLoja,
   TEMPERATURA_EFEITO, VENTO_VB, CHUVA_AGUA,
 });

@@ -219,10 +219,9 @@ describe('a hora sobrevive às outras edições da barra', () => {
     await waitFor(() => expect(botao()).toBeTruthy());
     act(() => { document.querySelector('.cdj-local').closest('button').click(); });
     // Sem Salvar desde 27/09/2026: escolher o lugar na lista já grava.
-    await waitFor(() => expect(document.querySelector('.cdj-local-select .select-pill-btn')).toBeTruthy());
-    act(() => { document.querySelector('.cdj-local-select .select-pill-btn').click(); });
+    // A lista abre embaixo do pill (02/10/2026).
     const opcao = await waitFor(() => {
-      const o = document.querySelector('.select-pill-drop-portal [role="option"]');
+      const o = document.querySelector('.cdj-local-lista [role="option"]');
       expect(o).toBeTruthy();
       return o;
     });

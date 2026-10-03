@@ -373,26 +373,15 @@ describe('o card não tem tooltip', () => {
   });
 });
 
-/* "Adicione o ícone da profissão dos personagens no card e na ficha."
-   (usuário, 17/09/2026). A tabela mora em 01-core/game-data.jsx porque card,
-   ficha e tabuleiro a consomem. */
-describe('o ícone da profissão', () => {
-  it('abre a linha de meta, com o desenho da profissão', () => {
+/* O ícone da profissão entrou no card e na ficha em 17/09/2026 e saiu em
+   02/10/2026: "Remova o ícone das profissões na ficha e na lista de
+   personagens." (usuário). A profissão segue escrita na linha de meta. */
+describe('a profissão no card', () => {
+  it('aparece só por escrito, sem ícone', () => {
     const { container } = montar({});   // PJ é Mago
-    const ic = container.querySelector('.pj-meta .pj-meta-profissao-ic');
-    expect(ic, 'não achei o ícone na linha de meta').toBeTruthy();
-    expect(ic.className).toContain(window.iconeProfissao('Mago'));
-  });
-
-  it('muda com a profissão', () => {
-    const { container } = montar({}, { ...PJ, profissao: 'Guerreiro' });
-    expect(container.querySelector('.pj-meta-profissao-ic').className).toContain('ti-shield');
-  });
-
-  it('e profissão sem desenho não deixa um quadrado vazio', () => {
-    const { container } = montar({}, { ...PJ, profissao: 'Alquimista' });
-    expect(container.querySelector('.pj-meta-profissao-ic')).toBeNull();
-    expect(container.querySelector('.pj-meta--profissao').textContent).toMatch(/Alquimista/);
+    const linha = container.querySelector('.pj-meta--profissao');
+    expect(linha.textContent).toMatch(/Mago/);
+    expect(linha.querySelector('i')).toBeNull();
   });
 });
 

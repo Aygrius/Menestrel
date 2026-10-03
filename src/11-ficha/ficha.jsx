@@ -1523,18 +1523,8 @@ function FichaInfoView({
             if (pj.idade != null) return <Row label={en ? 'Age' : 'Idade'} value={pj.idade} />;
             return null;
           })()}
-          {/* Profissão com o desenho dela (17/09/2026) — o mesmo do card, da
-              mesma tabela, para as duas telas não divergirem. */}
-          <Row label={en ? 'Profession' : 'Profissão'} value={(() => {
-            const ic = (typeof iconeProfissao === 'function' ? iconeProfissao : window.iconeProfissao)?.(pj.profissao);
-            if (!pj.profissao) return null;
-            return (
-              <span className="fp-profissao">
-                {ic && <i className={'ti ' + ic} aria-hidden="true" />}
-                {pj.profissao}
-              </span>
-            );
-          })()} />
+          {/* Sem o ícone da profissão desde 02/10/2026 (pedido do usuário). */}
+          <Row label={en ? 'Profession' : 'Profissão'} value={pj.profissao} />
           <Row label={en ? 'Group'          :  'Grupo'}         value={pj.especializacao} />
           <Row label={en ? 'Kingdom'        : 'Reino'}          value={pj.reino} />
           <Row label={en ? 'God'            : 'Deus'}           value={pj.deus} />
@@ -4152,12 +4142,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             (pedido do usuário). O estágio segue em Informações → Derivadas. */}
         <div className="ficha-page-eyebrow">{en ? 'Character' : 'Personagem'}</div>
         <h2 className="ms-title" style={{ margin: 0 }}>
-          {/* O mesmo ícone do card, no cabeçalho: quem abre a ficha continua
-              vendo de que profissão é o personagem sem ir às Informações. */}
-          {(() => {
-            const ic = (typeof iconeProfissao === 'function' ? iconeProfissao : window.iconeProfissao)?.(pj.profissao);
-            return ic ? <i className={'ti ' + ic + ' fp-titulo-profissao-ic'} aria-hidden="true" /> : null;
-          })()}
           {nomeCompleto}
         </h2>
       </div>

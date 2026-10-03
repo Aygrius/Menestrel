@@ -55,16 +55,16 @@ function montar(mundo) {
 }
 
 const abrirLocal = () => act(() => { document.querySelector('.cdj-local').closest('button').click(); });
-const abrirLista = async () => {
-  await waitFor(() => expect(document.querySelector('.cdj-local-select .select-pill-btn')).toBeTruthy());
-  await waitFor(() => expect(document.querySelector('.cdj-local-select').textContent).not.toMatch(/Carregando/));
-  act(() => { document.querySelector('.cdj-local-select .select-pill-btn').click(); });
-  return waitFor(() => {
-    const li = [...document.querySelectorAll('.select-pill-drop-portal [role="option"]')];
-    expect(li.length).toBeGreaterThan(0);
-    return li;
-  });
-};
+// Desde 02/10/2026 clicar no local abre a lista EMBAIXO do pill, como a
+// hora e o clima — a barra não é mais trocada por um seletor.
+const abrirLista = () => waitFor(() => {
+  const lista = document.querySelector('.cdj-local-wrap .cdj-local-lista');
+  expect(lista).toBeTruthy();
+  expect(lista.textContent).not.toMatch(/Carregando/);
+  const li = [...lista.querySelectorAll('[role="option"]')];
+  expect(li.length).toBeGreaterThan(0);
+  return li;
+});
 
 describe('o local da mesa vem do catálogo inteiro do Mestre', () => {
   it('mundo + todas as aventuras dele; a cidade com o reino ao lado; sem os modelos', async () => {

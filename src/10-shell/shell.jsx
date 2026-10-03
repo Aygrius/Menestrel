@@ -2605,9 +2605,12 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     }));
   };
 
-  /* Chuva coletada. O estoque é reescrito inteiro, então a entrada da água é
-     somada à que existir em vez de substituí-la — e nasce com preço nenhum,
-     herdando o do catálogo, porque água da chuva não tem dono. */
+  /* Chuva coletada. A entrada da água é somada à que existir — e nasce com
+     preço nenhum, herdando o do catálogo, porque água da chuva não tem dono.
+     CORREÇÃO de 02/10/2026: isto lia estoque_loja como array flat (formato
+     antigo); no formato de comércios virava "[]" e a gravação apagava a loja
+     inteira da mesa. A conta agora é somarAguaNaLoja (01-core/clima-desgaste),
+     que conhece os dois formatos e não toca em nenhum outro item. */
   const aplicarChuvaNaLoja = async (horas, tempo) => {
     const porHora = aguaPorHoraDeChuva(tempo && tempo.agua);
     if (porHora <= 0 || horas <= 0) return;
@@ -2615,11 +2618,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     const { data: hist, error } = await supabaseClient
       .from('historias').select('estoque_loja').eq('id', historiaId).maybeSingle();
     if (error || !hist) { console.error('[desgaste] não consegui ler a loja:', error); return; }
-    const estoque = Array.isArray(hist.estoque_loja) ? hist.estoque_loja : [];
-    const i = estoque.findIndex((it) => it && it.slug === 'agua');
-    const novo = i >= 0
-      ? estoque.map((it, k) => k === i ? { ...it, estoque: (Number(it.estoque) || 0) + ganho } : it)
-      : [...estoque, { slug: 'agua', estoque: ganho }];
+    const novo = somarAguaNaLoja(hist.estoque_loja, ganho, novoInstanceId);
     const { error: erroUp } = await supabaseClient
       .from('historias').update({ estoque_loja: novo }).eq('id', historiaId);
     if (erroUp) console.error('[desgaste] não consegui gravar a loja:', erroUp);
@@ -2862,8 +2861,12 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
       })()}
       {/* `dataAtual` pode existir carregando SÓ o tempo (Mestre que mexeu no
           clima antes de definir a data). Data mesmo é a que tem dia. */}
-      {editando === null ? (
-        historiaId && (
+      {/* A barra fica de pé enquanto o local é escolhido (02/10/2026): "A
+          barra de localização no topo deve ter o comportamento como as
+          demais." Antes, clicar no local trocava a barra INTEIRA por um
+          seletor; agora ele abre a lista embaixo do pill, como a hora e o
+          clima. */}
+      {historiaId && (
           <>
             <button
               type="button"
@@ -2892,16 +2895,59 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
               )}
             </button>
             {dataAtual && dataAtual.local && (
-              <button
-                type="button"
-                className={'cdj-bar' + (podeEditar ? ' is-editavel' : '')}
-                onClick={() => abrirEdicao('local')}
-                disabled={!podeEditar}
-                aria-label={en ? 'Current in-game location' : 'Local atual do jogo'}
-              >
-                <i className="ti ti-map-pin" aria-hidden="true" />
-                <span className="cdj-local">{dataAtual.local}</span>
-              </button>
+              <div className="cdj-local-wrap" ref={localRef}>
+                <button
+                  type="button"
+                  className={'cdj-bar' + (podeEditar ? ' is-editavel' : '') + (editando === 'local' ? ' is-open' : '')}
+                  onClick={() => {
+                    if (editando === 'local') { setEditando(null); return; }
+                    // O tooltip do pill taparia a primeira linha da lista.
+                    fecharTip();
+                    abrirEdicao('local');
+                  }}
+                  disabled={!podeEditar}
+                  aria-label={en ? 'Current in-game location' : 'Local atual do jogo'}
+                  aria-haspopup={podeEditar ? 'listbox' : undefined}
+                  aria-expanded={podeEditar ? editando === 'local' : undefined}
+                >
+                  <i className="ti ti-map-pin" aria-hidden="true" />
+                  <span className="cdj-local">{dataAtual.local}</span>
+                </button>
+                {/* Os lugares do catálogo (26/09/2026), na pele da lista do
+                    clima. ESCOLHER JÁ GRAVA (27/09/2026); clicar fora ou Esc
+                    fecha sem mudar (efeito localFora, acima). */}
+                {editando === 'local' && (
+                  <ul className="cdj-local-lista" role="listbox" aria-label={en ? 'Current location' : 'Local atual'}>
+                    {lugares === null ? (
+                      <li className="cdj-local-aviso">{en ? 'Loading…' : 'Carregando…'}</li>
+                    ) : (() => {
+                      const atual = String(dataAtual.local || '').trim();
+                      const ops = lugares.some((o) => o.value === atual) ? lugares : [{ value: atual, label: atual }, ...lugares];
+                      return ops.map((o) => {
+                        const ativa = o.value === atual;
+                        return (
+                          <li
+                            key={o.value}
+                            role="option"
+                            aria-selected={ativa}
+                            aria-disabled={salvando || undefined}
+                            className={'cdj-tempo-opcao' + (ativa ? ' is-ativa' : '')}
+                            onClick={() => {
+                              if (salvando) return;
+                              setRascunho((r) => ({ ...r, local: o.value }));
+                              salvar({ local: o.value });
+                            }}
+                          >
+                            <span className="cdj-tempo-opcao-nome">{o.label}</span>
+                            {ativa && <i className="ti ti-check cdj-tempo-check" aria-hidden="true" />}
+                          </li>
+                        );
+                      });
+                    })()}
+                    {erro && <li className="cdj-local-aviso cdj-local-aviso--erro" role="alert">{erro}</li>}
+                  </ul>
+                )}
+              </div>
             )}
             {/* A HORA DO JOGO — ao lado da data, do local e do clima.
                 Era o botão que ALTERNAVA dia↔noite (17/09/2026); virou o
@@ -3026,34 +3072,6 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
               />
             )}
           </>
-        )
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', pointerEvents: 'auto' }}>
-          {/* O local é um DROPDOWN com os lugares do catálogo (26/09/2026) —
-              era um texto livre. Ver `lugares` acima. */}
-          {/* ESCOLHER JÁ GRAVA (27/09/2026): "Não precisa de botão de
-              salvar/cancelar, ao selecionar já mudará o local." Sair sem
-              escolher: clicar fora ou Esc (efeito localFora, acima). */}
-          <div className="cdj-local-select" ref={localRef}>
-            <SelectPill
-              value={rascunho.local}
-              disabled={salvando}
-              onChange={(v) => { setRascunho((r) => ({ ...r, local: v })); salvar({ local: v }); }}
-              placeholder={lugares ? (en ? 'Current location' : 'Local atual') : (en ? 'Loading…' : 'Carregando…')}
-              options={(() => {
-                const ops = lugares || [];
-                const atual = (rascunho.local || '').trim();
-                return atual && !ops.some((o) => o.value === atual)
-                  ? [{ value: atual, label: atual }, ...ops] : ops;
-              })()}
-            />
-          </div>
-          {erro && (
-            <span style={{ color: '#E08A6F', fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', flexBasis: '100%' }}>
-              {erro}
-            </span>
-          )}
-        </div>
       )}
       {/* "Nova história" só FORA de uma mesa (20/09/2026). Dentro dela a lista
           mostra um card só — o da mesa ativa — e um botão de criar ali dentro

@@ -886,15 +886,8 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
             <span>{en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}</span>
           </div>
           <div className="pj-meta pj-meta--profissao">
-            {/* O ícone da profissão (17/09/2026) vem antes da linha, e não
-                colado à palavra: é o desenho que distingue um Mago de um
-                Guerreiro num relance, antes de ler. Profissão sem ícone
-                mapeado simplesmente não desenha nada. Ver ICONE_PROFISSAO
-                (01-core/game-data.jsx). */}
-            {(() => {
-              const ic = (typeof iconeProfissao === 'function' ? iconeProfissao : window.iconeProfissao)?.(p.profissao);
-              return ic ? <i className={'ti ' + ic + ' pj-meta-profissao-ic'} aria-hidden="true" /> : null;
-            })()}
+            {/* O ícone da profissão que abria esta linha saiu em 02/10/2026
+                (pedido do usuário); a profissão fica só por escrito. */}
             {p.profissao && <span>{p.profissao}</span>}
             {p.profissao && titulo && <span className="sep" aria-hidden="true">•</span>}
             {titulo && <span className="pj-meta-titulo">{titulo}</span>}

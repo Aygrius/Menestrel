@@ -833,10 +833,6 @@
 /* ---- ContainerModal + conteúdo de container no DetalhesItemModal ---- */
 #root .menestrel-ui .cont-title { color: #F1E6CF; font-family:'Cinzel', serif; }
 #root .menestrel-ui .cont-empty { color: #BFAF8E; }
-#root .menestrel-ui .cont-row { background: rgba(138,110,64,0.10); border:1px solid rgba(138,110,64,0.22); border-radius: 999px; }
-#root .menestrel-ui .cont-row-nome { color: #F1E6CF; }
-/* espaçamento entre os ícones de detalhes (olho) e remover (×) de cada item */
-#root .menestrel-ui .cont-row-actions { display:flex; align-items:center; gap:6px; }
 #root .menestrel-ui .cont-cap-bar { background: rgba(232,221,198,0.08); border-radius:999px; }
 #root .menestrel-ui .cont-cap-fill { background: #C9A44E; border-radius:999px; }
 
@@ -1286,10 +1282,6 @@
 #root .menestrel-ui .fp-portrait-mono { color: #E0BE68; }
 #root .menestrel-ui .fp-portrait-edit { background: rgba(25,19,8,0.60); color: #F1E6CF; }
 #root .menestrel-ui .fp-name { color: #F1E6CF; font-family:'Cinzel', serif; }
-/* O mesmo ícone no cabeçalho da ficha e na linha "Profissão" das Informações. */
-#root .menestrel-ui .fp-titulo-profissao-ic { color: var(--gold, #E0BE68); font-size: 0.85em; margin-right: 8px; vertical-align: -1px; }
-#root .menestrel-ui .fp-profissao { display: inline-flex; align-items: center; gap: 6px; }
-#root .menestrel-ui .fp-profissao > i { color: var(--gold, #E0BE68); font-size: var(--fs-md); line-height: 1; }
 #root .menestrel-ui .fp-title { color: #E0BE68; }
 #root .menestrel-ui .fp-stage { color: #BFAF8E; }
 #root .menestrel-ui .fp-meta { color: #BFAF8E; }
@@ -3581,15 +3573,12 @@
 #root .menestrel-ui .cont-cap-bar { height: 6px; overflow: hidden; margin-bottom: 6px; border: 1px solid var(--rule); }
 #root .menestrel-ui .cont-cap-fill { height: 100%; transition: width .3s ease; }
 #root .menestrel-ui .cont-cap-label { font-family: var(--font-body); font-size: var(--fs-base); color: var(--parchment-dim); text-align: right; }
-#root .menestrel-ui .cont-list { display: flex; flex-direction: column; gap: 6px; }
 #root .menestrel-ui .cont-meta { font-family: var(--font-body); font-size: var(--fs-base); margin-bottom: 4px; }
 #root .menestrel-ui .cont-cap-nums { font-family: var(--font-body); font-size: var(--fs-base); margin-bottom: 4px; }
 #root .menestrel-ui .cont-title { font-size: var(--fs-base); margin-bottom: 4px; }
-#root .menestrel-ui .cont-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 6px 5px 20px; transition: border-color .15s; }
-#root .menestrel-ui .cont-row:hover { border-color: var(--gold); }
-#root .menestrel-ui .cont-row-info { display: flex; flex-direction: row; align-items: baseline; gap: 6px; min-width: 0; }
-#root .menestrel-ui .cont-row-nome { font-family: var(--font-body); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#root .menestrel-ui .cont-row-meta { font-family: var(--font-body); font-size: var(--fs-sm); text-transform: uppercase; color: var(--parchment-dim); }
+/* A grade de casas dentro da mochila aberta (02/10/2026): a mesma do
+   inventário, sem a barra de busca; respiro em relação à descrição. */
+#root .menestrel-ui .cont-grade { margin-top: 12px; }
 #root .menestrel-ui .inv-divider { display: flex; align-items: center; gap: 14px; }
 #root .menestrel-ui .inv-divider-ln { flex: 1; height: 1px; }
 #root .menestrel-ui .inv-divider-lbl { font-family: 'Cinzel', serif; font-weight: 400; font-size: 24px; display: flex; align-items: center; gap: 9px; white-space: nowrap; }
@@ -3636,6 +3625,38 @@
 }
 
 /* Slot vazio / fantasma: célula de pedra escura rebaixada */
+/* CASAS LIVRES (02/10/2026) — ver InvItemsTable.
+   Apagado: não bate com a busca/filtro, mas fica na casa e segue arrastável.
+   Guardar: o item arrastado está sobre este recipiente e, solto, entra nele —
+   realce mais forte que o da troca, e o card cresce um pouco. */
+#root .menestrel-ui .inv-card.inv-card--apagado { opacity: 0.28; filter: saturate(0.45); }
+#root .menestrel-ui .inv-card.inv-card--apagado:hover { opacity: 0.6; }
+#root .menestrel-ui .inv-card.inv-card--guardar {
+  outline: 2px solid #E0BE68; outline-offset: -2px;
+  background: rgba(224,190,104,0.20) !important;
+  box-shadow: inset 0 0 0 1px rgba(224,190,104,0.35), 0 4px 14px rgba(0,0,0,0.45) !important;
+  transform: scale(1.06); transition: transform .12s cubic-bezier(.2,.8,.2,1);
+}
+/* O aviso do arrastar: quanto entrou na mochila, ou por que não entrou.
+   Pílula de couro no rodapé, some sozinha (3,2s). */
+#root .menestrel-ui .inv-aviso {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 80;
+  display: flex; align-items: center; gap: 10px; max-width: min(520px, calc(100vw - 32px));
+  padding: 10px 18px; border-radius: 999px;
+  background: rgba(28,19,8,0.97); border: 1px solid rgba(201,164,78,0.35);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+  color: #F1E6CF; font-family: var(--font-body); font-size: var(--fs-sm); line-height: 1.4;
+  animation: inv-aviso-entra .22s cubic-bezier(.2,.8,.2,1);
+}
+#root .menestrel-ui .inv-aviso i { font-size: var(--fs-md); line-height: 1; flex-shrink: 0; color: #E0BE68; }
+#root .menestrel-ui .inv-aviso--recusa { border-color: rgba(224,138,111,0.45); }
+#root .menestrel-ui .inv-aviso--recusa i { color: #E08A6F; }
+@keyframes inv-aviso-entra { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .inv-aviso { animation: none; }
+  #root .menestrel-ui .inv-card.inv-card--guardar { transform: none; }
+}
+
 #root .menestrel-ui .inv-slot-ghost {
   display: block;
   aspect-ratio: 1 / 1;
@@ -3799,7 +3820,6 @@
 }
 #root .menestrel-ui .inv-card { overflow: hidden; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; aspect-ratio: 1 / 1; padding: 6px 4px; text-align: center; cursor: pointer; width: 100%; font-family: var(--font-body); }
 #root .menestrel-ui .inv-card-ic { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-#root .menestrel-ui .cont-row-info .inv-card-qty { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; color: #BFAF8E; }
 #root .menestrel-ui .inv-card-pills { position: absolute; top: 3px; left: 3px; display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
 
 /* Chips de atributo no modal de detalhes: o NÚMERO passa a morar DENTRO do
@@ -4096,8 +4116,6 @@
   #root .menestrel-ui .det-stat { font-size: var(--fs-xs); padding: 3px 8px; }
   #root .menestrel-ui .det-estado { gap: 10px; }
   #root .menestrel-ui .det-maos-info { font-size: var(--fs-xs); }
-  #root .menestrel-ui .cont-row { flex-wrap: wrap; gap: 8px; }
-  #root .menestrel-ui .cont-row-info { width: 100%; }
   /* inv-bag-grid: auto-fill já adapta ao espaço disponível — sem override necessário */
 }
 
@@ -4535,9 +4553,6 @@
    a ter estágio, raça, profissão e título. */
 #root .menestrel-ui .pj-meta > span { white-space: nowrap; }
 #root .menestrel-ui .pj-meta .sep { opacity: 0.5; }
-/* Ícone da profissão (17/09/2026) — abre a linha de meta, no ouro do sistema.
-   Ver ICONE_PROFISSAO (01-core/game-data.jsx). */
-#root .menestrel-ui .pj-meta-profissao-ic { font-size: var(--fs-md); line-height: 1; color: var(--gold, #E0BE68); flex-shrink: 0; }
 #root .menestrel-ui .wiz-steps { display: flex; align-items: center; gap: 6px; margin-bottom: 28px; }
 #root .menestrel-ui .wiz-step { display: flex; align-items: center; gap: 10px; background: transparent; border: 0; color: var(--parchment-dim); padding: 6px 4px; cursor: default; font-family: 'Cinzel', serif; font-size: 24px; }
 #root .menestrel-ui .wiz-step.active { color: var(--parchment); }
@@ -5633,6 +5648,18 @@
   position: relative; z-index: 1; flex: 1; width: 0; height: 100%; overflow-y: auto;
    margin-top: 70px;
 }
+/* Sem história selecionada (02/10/2026) a barra de data/clima não tem nada a
+   mostrar — fica VAZIA ou nem é montada — e os 70px reservados para ela viravam
+   um vão acima do card. Sem barra com conteúdo: o conteúdo fica com o respiro
+   padrão de 20px, o mesmo da Batalha. Convites fica de fora: ali o recuo já é
+   zero (regra abaixo). A primeira versão olhava só a barra vazia (:empty) e
+   não pegava o caso da barra ausente — visto na lista de personagens do
+   Mestre fora da mesa. */
+body:not(:has(.menestrel-ui.cdj-root:not(:empty))) #root .menestrel-ui .mc-main:not(:has(.cv-jog)) { margin-top: 20px; }
+/* Na lista de personagens o respiro já vem de dentro: os 30px de padding do
+   .pjs que guardam o brilho do selo de evolução (ver a regra do .pjs abaixo).
+   Sem a barra, a margem zera e o card fica a 30px do topo. */
+body:not(:has(.menestrel-ui.cdj-root:not(:empty))) #root .menestrel-ui .mc-main:has(.pjs) { margin-top: 0; }
 /* Na aba Convites o pill flutuante de data/local não aparece — remove o espaço reservado para ele */
 #root .menestrel-ui .mc-main:has(.cv-jog) { margin-top: 0; }
 /* No TABULEIRO de batalha o pill de data/local sai de cena: ele é fixed no
@@ -5971,6 +5998,28 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.cdj-root { display: none; }
 .menestrel-ui.cdj-root .cdj-hora-opcao[data-periodo="noite"] { color: #8E9BD8; opacity: .72; }
 .menestrel-ui.cdj-root .cdj-hora-opcao:hover { background: rgba(201,164,78,0.10); color: #F1E6CF; opacity: 1; }
 .menestrel-ui.cdj-root .cdj-hora-opcao.is-ativa { color: #E0BE68; background: rgba(201,164,78,0.12); opacity: 1; }
+
+/* O LOCAL abre a lista embaixo do pill, como a hora e o clima (02/10/2026).
+   Mesma pele da .cdj-tempo-lista (as linhas reusam .cdj-tempo-opcao); ancorada
+   à esquerda do pill, e com teto de altura porque o catálogo de reinos e
+   cidades passa fácil de vinte linhas. */
+.menestrel-ui.cdj-root .cdj-local-wrap { position: relative; display: inline-flex; }
+.menestrel-ui.cdj-root .cdj-local-wrap .cdj-bar.is-open { color: #E0BE68; background: linear-gradient(rgba(201,164,78,0.12), rgba(201,164,78,0.12)), var(--mc-veu-card, rgba(18,13,6,0.52)); }
+.menestrel-ui.cdj-root .cdj-local-lista {
+  position: absolute; top: calc(100% + 6px); left: 0;
+  min-width: 100%; width: max-content; max-width: min(360px, 90vw);
+  max-height: min(360px, 60vh); overflow-y: auto; overscroll-behavior: contain;
+  background: rgba(32,21,9,0.98); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: none; border-radius: 6px;
+  padding: 4px; margin: 0; list-style: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  scrollbar-width: thin; scrollbar-color: rgba(201,164,78,0.35) transparent;
+  z-index: 54; pointer-events: auto;
+}
+.menestrel-ui.cdj-root .cdj-local-lista .cdj-tempo-opcao { white-space: normal; }
+.menestrel-ui.cdj-root .cdj-local-aviso { padding: 5px 10px; color: #BFAF8E; font-family: var(--font-body); font-size: var(--fs-sm); }
+.menestrel-ui.cdj-root .cdj-local-aviso--erro { color: #E08A6F; }
+.menestrel-ui.cdj-root:has(.cdj-local-lista) { z-index: 73; }
 
 .menestrel-ui.cdj-root .cdj-data,
 .menestrel-ui.cdj-root .cdj-local {
@@ -10809,8 +10858,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   #root .menestrel-ui .gp-prof-grid { grid-template-columns: 1fr; }
 }
 
-/* O local da história como dropdown do catálogo (26/09/2026). */
-#root .menestrel-ui .cdj-local-select { width: 240px; flex-shrink: 0; pointer-events: auto; }
 #root .menestrel-ui .gp-esp-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 
 /* ABAS SEM SALTO (26/09/2026): "quando clico em descrição e características,

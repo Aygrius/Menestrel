@@ -268,3 +268,26 @@ describe('a loja fecha enquanto o Mestre edita', () => {
     await waitFor(() => expect(escritas[escritas.length - 1].editando_em).toBeNull());
   });
 });
+
+/* Entrada sem entryId (02/10/2026): a chuva gravava a água assim, e o balcão
+   do jogador não abre nem vende o que não tem entryId. A conversão da gestão
+   dá um a quem não tem — no formato antigo e no atual — sem mexer no resto. */
+describe('migrarEstoqueLoja dá entryId a quem não tem', () => {
+  const M = (raw) => window.migrarEstoqueLoja(raw);
+  it('formato atual: a entrada sem entryId ganha um; as outras ficam iguais', () => {
+    const com = { entryId: 'e1', slug: 'corda', estoque: 3 };
+    const out = M({ comercios: [{ id: 'c1', nome: 'Estoque', ativo: true, itens: [com, { slug: 'agua', estoque: 2 }] }], editando_em: null });
+    expect(out.comercios[0].itens[0]).toBe(com);
+    expect(out.comercios[0].itens[1]).toMatchObject({ slug: 'agua', estoque: 2 });
+    expect(out.comercios[0].itens[1].entryId).toBeTruthy();
+    expect(out.editando_em).toBeNull();
+  });
+  it('formato antigo: vira o comércio "Estoque", todos com entryId', () => {
+    const out = M([{ slug: 'agua', estoque: 2 }]);
+    expect(out.comercios[0].itens[0].entryId).toBeTruthy();
+  });
+  it('nada a mudar devolve o mesmo objeto', () => {
+    const raw = { comercios: [{ id: 'c1', nome: 'F', ativo: true, itens: [{ entryId: 'e', slug: 'x' }] }] };
+    expect(M(raw)).toBe(raw);
+  });
+});
