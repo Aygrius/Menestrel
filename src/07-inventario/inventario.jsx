@@ -509,7 +509,8 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
 // atual de cada magia e o estágio — ver bloqueioAprenderNoInventario.
 // foto_url (27/09/2026): o card do alvo na aba Usar mostrava só a inicial.
 // intelecto_base + aura_base (22/10/2026): orçamento de magia (pontosMagiasTotal).
-const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,profissao,forca_base,fisico_base,intelecto_base,aura_base,inventario,estado_atual,magias,experiencia,especializacao,inventario_versao';
+// deus (22/10/2026): regra dos milagres na janela Estudar (sem religião, sem milagre).
+const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,inventario,estado_atual,magias,experiencia,especializacao,inventario_versao';
 
 // Inventário com os campos que a tela espera, sem mexer no objeto de origem.
 const INV_VAZIO = () => ({ moedas: { ouro: 0, prata: 0, cobre: 0, latao: 0 }, itens: [] });

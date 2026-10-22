@@ -89,3 +89,50 @@ describe('milagre em área', () => {
     expect(r.map((p) => p.nome)).toEqual(['Ana', 'Bia']);
   });
 });
+
+/* Revisão final (22/10/2026): o bloqueio de USO lia a ficha, e a Licantropia
+   conjurada no meio da batalha muda a forma no SNAPSHOT do participante. A
+   forma do snapshot vence; sem o campo (snapshot antigo), cai na ficha. */
+describe('forma atual na batalha', () => {
+  it('Sacerdote que virou lobisomem na luta não usa milagre', () => {
+    const lista = M.magiasDeApoioDoAtor({ ...PJ, subraca: 'Lobisomem' },
+      catalogos({ profissao: 'Sacerdote', deus: 'Lena', magias: { curas_fisicas: 1 } }));
+    expect(lista.find((m) => m.key === 'curas_fisicas').bloqueio_milagre).toEqual({ motivo: 'milagre_lobisomem' });
+  });
+  it('snapshot com forma nula vence a sub-raça da ficha (transformação acabou)', () => {
+    const lista = M.magiasDeApoioDoAtor({ ...PJ, subraca: null },
+      catalogos({ profissao: 'Sacerdote', deus: 'Lena', subraca: null, magias: { curas_fisicas: 1 },
+        estado_atual: { magias_ativas: [{ key: 'licantropia_lupina' }] } }));
+    expect(lista.find((m) => m.key === 'curas_fisicas').bloqueio_milagre).toBeNull();
+  });
+});
+
+/* Revisão final (22/10/2026): batalha montada antes do deploy tem snapshot
+   SEM o campo `deus`. Ausência não é "sem religião": não dá para conferir,
+   então libera — a mesma convenção do teto de estágio (snapshot antigo). */
+describe('snapshot antigo, sem deus', () => {
+  it('PJ sem o campo deus continua alvo de milagre', () => {
+    expect(M.alvoPermitidoParaMagia({ tipo: 'pj', elemento: 'Luz' }, 'curas_fisicas', CURA, 1).pode).toBe(true);
+  });
+  it('com o campo deus nulo, continua barrado', () => {
+    expect(M.alvoPermitidoParaMagia({ tipo: 'pj', deus: null, elemento: 'Luz' }, 'curas_fisicas', CURA, 1).pode).toBe(false);
+  });
+});
+
+/* Revisão final (22/10/2026): milagre de DANO (Fogo Divino, Flecha Divina…)
+   usa a aba Magia, cujo alvo é a lista de ataque — a regra de alvo não
+   passava por lá. motivoAlvoMagiaOfensiva diz se o alvo escolhido serve. */
+describe('milagre ofensivo', () => {
+  const FOGO_DIVINO = { key: 'fogo_divino', nome: 'Fogo Divino', classe: 'Milagre', nivel_1: 'Causa 4 de dano.' };
+  const magiaSel = { key: 'fogo_divino', nivel: 1, catalogo: FOGO_DIVINO };
+  it('vampiro não é alvo de Fogo Divino', () => {
+    expect(M.motivoAlvoMagiaOfensiva({ tipo: 'pj', deus: 'Lena', subraca: 'Vampiro' }, magiaSel)).toBe('alvo_milagre_vampiro');
+  });
+  it('criatura comum é alvo', () => {
+    expect(M.motivoAlvoMagiaOfensiva({ tipo: 'criatura', subtipo: null }, magiaSel)).toBeNull();
+  });
+  it('feitiço não liga', () => {
+    expect(M.motivoAlvoMagiaOfensiva({ tipo: 'pj', deus: null },
+      { key: 'piromanipulacao', nivel: 1, catalogo: FOGO })).toBeNull();
+  });
+});

@@ -1031,7 +1031,7 @@ function ritualDaMagia(m) {
   return texto && String(texto).trim() ? String(texto).trim() : null;
 }
 
-function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, animais, elosAtuais, lang, onClose, onEvocar, abrirTip, fecharTip, ritual }) {
+function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, animais, elosAtuais, lang, onClose, onEvocar, abrirTip, fecharTip, ritual, dataJogo }) {
   const en = lang === 'en';
   const m = magia;
   const possui = passos != null;
@@ -1079,8 +1079,8 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
      receber sai da lista de alvos. Regra em 01-core/game-data.jsx. */
   const ehMilagre = m.classe === 'Milagre';
   const _ap = window.atorMilagreDePj, _bm = window.bloqueioMilagre, _ab = window.alvoDeMilagreBloqueado;
-  const bloqueioMil = ehMilagre && _ap && _bm && eu ? _bm(_ap(eu)) : null;
-  const recebeMilagre = (pj) => !(ehMilagre && _ap && _ab && pj && _ab(_ap(pj)));
+  const bloqueioMil = ehMilagre && _ap && _bm && eu ? _bm(_ap(eu, dataJogo)) : null;
+  const recebeMilagre = (pj) => !(ehMilagre && _ap && _ab && pj && _ab(_ap(pj, dataJogo)));
   const ALVOS = criaElo
     ? (animais || []).map((a) => ({
         id: 'animal:' + a.instancia.instanceId, tipo: 'animal', instanceId: a.instancia.instanceId,
@@ -4824,7 +4824,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             magia={mag}
             passos={(pj.magias || {})[magiaDetalheKey] ?? null}
             nivelMagiaEfetivoFn={_nivelMag}
-            eu={{ id: pj.id, nome: pj.nome, sobrenome: pj.sobrenome, foto_url: pj.foto_url }}
+            /* profissão, deus, sub-raça e estado (22/10/2026): a regra dos
+               milagres precisa deles — sem o deus, todo milagre ficava
+               bloqueado como "sem religião". */
+            eu={{ id: pj.id, nome: pj.nome, sobrenome: pj.sobrenome, foto_url: pj.foto_url,
+              profissao: pj.profissao, deus: pj.deus, subraca: pj.subraca, estado_atual: pj.estado_atual }}
+            dataJogo={historiaPj?.data_jogo_atual}
             colegas={pjsDaHistoria}
             animais={animaisPj}
             elosAtuais={animaisPj.filter((a) => window.temElo && window.temElo(a.instancia)).length}

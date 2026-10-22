@@ -62,3 +62,20 @@ describe('Evocar milagre', () => {
     expect(nomesAlvos().join('|')).toMatch(/Bia/);
   });
 });
+
+/* Revisão final (22/10/2026): a Ficha passava como `eu` só id, nome e foto —
+   sem deus nem profissão, TODO milagre ficava bloqueado ("sem religião")
+   para todo mundo. O teste trava o formato real que a Ficha entrega. */
+import { readFileSync } from 'node:fs';
+describe('a Ficha entrega o personagem inteiro à regra', () => {
+  const fonte = readFileSync('src/11-ficha/ficha.jsx', 'utf8').replace(/\r\n/g, '\n');
+  const i = fonte.indexOf('<MagiaDetalhesModal\n            ritual={ritual}');
+  const bloco = fonte.slice(i, i + 1200);
+  it('eu leva profissão, deus, sub-raça e estado', () => {
+    expect(i).toBeGreaterThan(-1);
+    expect(bloco).toMatch(/eu=\{\{[^}]*profissao: pj\.profissao[^}]*deus: pj\.deus[^}]*subraca: pj\.subraca[^}]*estado_atual: pj\.estado_atual/);
+  });
+  it('e a data do jogo, para a Licantropia vencida não contar', () => {
+    expect(bloco).toMatch(/dataJogo=\{historiaPj\?\.data_jogo_atual\}/);
+  });
+});

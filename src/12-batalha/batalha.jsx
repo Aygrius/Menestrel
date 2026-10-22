@@ -1001,7 +1001,13 @@ function bloqueioMilagreDoAtor(ator, catalogos, magia) {
   if (!ator || !magia || magia.classe !== 'Milagre' || typeof bloqueioMilagre !== 'function') return null;
   if (ator.tipo === 'pj') {
     const pj = catalogos.pjById && catalogos.pjById[ator.ref_id];
-    return pj ? bloqueioMilagre(atorMilagreDePj(pj, catalogos.dataJogo)) : null;
+    if (!pj) return null;
+    const a = atorMilagreDePj(pj, catalogos.dataJogo);
+    /* A forma ATUAL mora no snapshot do participante: a Licantropia conjurada
+       no meio da luta muda ali, não na ficha. Snapshot antigo, sem o campo,
+       cai na ficha (revisão final, 22/10/2026). */
+    if (Object.prototype.hasOwnProperty.call(ator, 'subraca')) a.subraca = ator.subraca || null;
+    return bloqueioMilagre(a);
   }
   if (ator.tipo === 'criatura') {
     const cri = catalogos.criById && catalogos.criById[ator.ref_id];
@@ -5503,9 +5509,13 @@ function aplicarDrenoEh(conjurador, danoNaEf) {
 function alvoPermitidoParaMagia(alvoP, magiaKey, magia, nivel) {
   // Milagre (22/10/2026): vampiro, lobisomem e PJ sem religião não recebem.
   if (magia && magia.classe === 'Milagre' && alvoP && typeof alvoDeMilagreBloqueado === 'function') {
+    /* Snapshot montado antes de 22/10/2026 não tem `deus`: ausência não é
+       "sem religião" — não dá para conferir, então a religião libera (mesma
+       convenção do teto de estágio). Vampiro e lobisomem seguem valendo. */
+    const semCampoDeus = alvoP.tipo !== 'criatura' && !Object.prototype.hasOwnProperty.call(alvoP, 'deus');
     const atorAlvo = alvoP.tipo === 'criatura'
       ? { tipo: 'criatura', subtipo: alvoP.subtipo || null }
-      : { tipo: 'pj', deus: alvoP.deus, subraca: alvoP.subraca || null };
+      : { tipo: 'pj', deus: semCampoDeus ? '(sem registro)' : alvoP.deus, subraca: alvoP.subraca || null };
     const b = alvoDeMilagreBloqueado(atorAlvo);
     if (b) return { pode: false, motivo: b.motivo };
   }
@@ -5536,6 +5546,18 @@ function alvoPermitidoParaMagia(alvoP, magiaKey, magia, nivel) {
     }
   }
   return { pode: true, motivo: null };
+}
+
+/* Milagre de DANO (Fogo Divino, Flecha Divina…, revisão final de
+   22/10/2026): a aba Magia mira pela lista de ataque, que não passa por
+   alvoPermitidoParaMagia. Esta função responde para o alvo escolhido: null
+   = serve; senão o motivo (alvo_milagre_*). Só olha a regra dos milagres —
+   raça e estágio das magias de apoio não se aplicam ao ataque. */
+function motivoAlvoMagiaOfensiva(alvoP, magiaSel) {
+  const cat = magiaSel && magiaSel.catalogo;
+  if (!alvoP || !cat || cat.classe !== 'Milagre') return null;
+  const r = alvoPermitidoParaMagia(alvoP, null, cat, magiaSel.nivel);
+  return r.pode ? null : r.motivo;
 }
 
 /* O efeito INVERTE neste alvo? "Esta magia possui o efeito inverso em
@@ -9714,8 +9736,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const magiaEmLargada = faseMagiaPainel === 'largada';
   // 'presa' entra junto de 'bloqueada' na UI: nos dois casos não há o que
   // confirmar nem o que rolar. O aviso na tela é que difere.
+  // Milagre de dano num alvo que não recebe milagre (vampiro, lobisomem, sem religião).
+  const motivoAlvoMilagre = (tab === 'magia' && magia && alvo) ? motivoAlvoMagiaOfensiva(alvo, magia) : null;
   const magiaBloqueada = faseMagiaPainel === 'bloqueada' || faseMagiaPainel === 'presa'
-    || (tab === 'magia' && !!magia && !!magia.bloqueio_milagre);
+    || (tab === 'magia' && !!magia && !!magia.bloqueio_milagre)
+    || !!motivoAlvoMilagre;
 
   const podeAplicar =
     (tab === 'arma' || tab === 'magia')
@@ -10352,6 +10377,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           )}
           {motivoMilagre(magia) && (
             <p className="acao-karma-line">{motivoMilagre(magia)}</p>
+          )}
+          {motivoAlvoMilagre && typeof motivoMilagreLabel === 'function' && (
+            <p className="acao-karma-line">{motivoMilagreLabel(motivoAlvoMilagre, lang === 'en')}</p>
           )}
           {/* 1 rodada: rola agora, o efeito sai no fim da rodada (28/09/2026). */}
           {magia && magia.evocacao_rodadas === 1 && !resolvendoEvocacao && (
@@ -12306,7 +12334,7 @@ Object.assign(window, {
        gatilho que já derrubava concentração derruba canalização. */
     aplicarEfeitoMagia, aplicarCuraPool, aplicarDrenoEh, danoAposReducao,
     nivelComOferenda, consumirOferenda,
-    alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia,
+    alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia, motivoAlvoMagiaOfensiva,
     alvosDeArea, alvosDeAura, alvosNoRaio,
     resumoEfeitoMagia, textoEfeitoMagia, aplicarCurasDaMagia, aplicarCondicoesDaMagia,
     curaNaturalDaMagia, textoCuraNatural,

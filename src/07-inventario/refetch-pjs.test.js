@@ -54,7 +54,9 @@ describe('refetch de personagens em InventarioList', () => {
     // intelecto_base/aura_base: orçamento de magia na janela Estudar (22/10/2026).
     for (const c of ['id', 'nome', 'sobrenome', 'foto_url', 'raca', 'profissao',
                      'forca_base', 'fisico_base', 'intelecto_base', 'aura_base',
-                     'magias', 'experiencia', 'inventario', 'estado_atual']) {
+                     'magias', 'experiencia', 'inventario', 'estado_atual',
+                     // deus (22/10/2026): sem ele, a janela Estudar barrava todo milagre como 'sem religião'.
+                     'deus']) {
       expect(cols, `PJ_COLS sem ${c}`).toContain(c);
     }
   });
