@@ -578,7 +578,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   useEffect(() => {
     let vivo = true;
     if (typeof fetchTabelaPaginada !== 'function') return undefined;
-    Promise.resolve(fetchTabelaPaginada('livro_pergaminhos', { colunas: 'livro_slug,pergaminho_slug', ordem: ['livro_slug'] }))
+    Promise.resolve(fetchTabelaPaginada('livro_pergaminhos', { colunas: 'livro_slug,pergaminho_slug', ordem: ['livro_slug', 'pergaminho_slug'] }))
       .then((res) => { if (vivo && res && !res.error) setVinculos(vinculosDeLivros(res.data)); })
       .catch(() => {});
     return () => { vivo = false; };

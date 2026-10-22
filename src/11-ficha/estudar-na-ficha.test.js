@@ -30,3 +30,16 @@ describe('janela de item da ficha', () => {
     expect(fonte).toMatch(/\('livro_pergaminhos', \{ colunas: 'livro_slug,pergaminho_slug'/);
   });
 });
+
+/* Paginação estável (22/10/2026): o banco entrega 1000 linhas por página, e
+   a lista de vínculos só pagina sem pular nem repetir linha se vier sempre na
+   mesma ordem — por livro E por pergaminho (a chave inteira da tabela). */
+describe('leitura de livro_pergaminhos ordena pela chave inteira', () => {
+  it.each([
+    ['src/11-ficha/ficha.jsx'],
+    ['src/07-inventario/inventario.jsx'],
+  ])('%s', (arq) => {
+    const src = readFileSync(arq, 'utf8');
+    expect(src).toMatch(/'livro_pergaminhos', \{ colunas: 'livro_slug,pergaminho_slug', ordem: \['livro_slug', 'pergaminho_slug'\] \}/);
+  });
+});

@@ -2251,7 +2251,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const _paginada = (typeof fetchTabelaPaginada !== 'undefined' ? fetchTabelaPaginada : null) || window.fetchTabelaPaginada;
     const _vinc = window.vinculosDeLivros;
     if (!_paginada || !_vinc) return undefined;
-    Promise.resolve(_paginada('livro_pergaminhos', { colunas: 'livro_slug,pergaminho_slug', ordem: ['livro_slug'] }))
+    Promise.resolve(_paginada('livro_pergaminhos', { colunas: 'livro_slug,pergaminho_slug', ordem: ['livro_slug', 'pergaminho_slug'] }))
       .then((res) => { if (vivo && res && !res.error) setVinculosLivros(_vinc(res.data)); })
       .catch(() => {});
     return () => { vivo = false; };

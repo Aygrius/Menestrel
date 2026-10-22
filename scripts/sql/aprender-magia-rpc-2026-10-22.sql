@@ -10,8 +10,10 @@ BEGIN;
 
 -- Pontos por estágio. ESPELHO de pontosMagiasPorEstagio (01-core/game-data.jsx):
 -- mudar um sem o outro quebra o "Aprender" (a tela libera, a RPC recusa).
+-- search_path fixo (22/10/2026): o advisor do Supabase acusa função com
+-- search_path herdado de quem chama.
 CREATE OR REPLACE FUNCTION public._menestrel_pontos_magia_por_estagio(p_profissao text, p_intelecto int, p_aura int)
-RETURNS int LANGUAGE sql IMMUTABLE AS $$
+RETURNS int LANGUAGE sql IMMUTABLE SET search_path TO 'public' AS $$
   SELECT (CASE WHEN coalesce(p_aura, 0) < 0 THEN 0 ELSE
             CASE p_profissao
               WHEN 'Mago' THEN 8 WHEN 'Bardo' THEN 8
