@@ -9051,6 +9051,19 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   padding: 8px 0;
 }
 
+/* ── Pontos de magia gastos / total na coluna Magias (22/10/2026) ── */
+#root .menestrel-ui .fp-col-pontos {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+  padding: 2px 0 8px;
+}
+#root .menestrel-ui .fp-col-pontos strong {
+  color: var(--gold, #C9A44E);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#root .menestrel-ui .fp-col-pontos--excedido strong { color: #DD776B; }
+
 /* ── Valor de nível de magia dentro do card mag-nivel-card ── */
 #root .menestrel-ui .fp-mag-nivel-valor {
   margin: 0;

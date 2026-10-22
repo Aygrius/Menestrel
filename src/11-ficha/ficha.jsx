@@ -1799,6 +1799,12 @@ function FichaInfoView({
   const col5Idx     = col5Pages.length > 0 ? (col5Page % col5Pages.length) : 0;
   const col5Current = col5Pages[col5Idx] || col5Pages[0];
 
+  // Orçamento de magia (22/10/2026): aprende-se pelo item; aqui só se vê.
+  const _pontosMag = (typeof pontosMagiasTotal !== 'undefined' ? pontosMagiasTotal : null) || window.pontosMagiasTotal;
+  const _gastoMag  = (typeof gastoMagias !== 'undefined' ? gastoMagias : null) || window.gastoMagias;
+  const magTotal = _pontosMag && pj ? _pontosMag(pj.profissao, estagioNum, pj.intelecto_base, pj.aura_base) : null;
+  const magGasto = _gastoMag ? _gastoMag(pjMagias || {}, catalogoMag || []) : null;
+
   const col5 = (
     <div className="fp-col-pad-r">
       <ColTitleNav
@@ -1808,6 +1814,11 @@ function FichaInfoView({
         onNext={() => setCol5Page((p) => (p + 1) % Math.max(col5Pages.length, 1))}
         abrirTip={abrirTip} fecharTip={fecharTip} en={en}
       />
+      {magTotal != null && (
+        <div className={'fp-col-pontos' + (magGasto > magTotal ? ' fp-col-pontos--excedido' : '')}>
+          {en ? 'Magic points' : 'Pontos de magia'}: <strong>{magGasto} / {magTotal}</strong>
+        </div>
+      )}
       {(col5Current?.items || []).length === 0 && (
         <div className="fp-col-empty">{en ? 'No spells.' : 'Nenhuma magia.'}</div>
       )}
@@ -2221,8 +2232,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const _COND_LIMITE = (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null) ?? window.COND_LIMITE ?? 50;
   const _nivelMag   = (typeof nivelMagiaEfetivo      !== 'undefined' ? nivelMagiaEfetivo      : null) || window.nivelMagiaEfetivo      || (() => 0);
   const _totTec     = (typeof totalTecnica           !== 'undefined' ? totalTecnica           : null) || window.totalTecnica           || (() => 0);
-  const _usaMagia_fn = (typeof profissaoUsaMagia     !== 'undefined' ? profissaoUsaMagia     : null) || window.profissaoUsaMagia     || (() => true);
-  const _podeMagia_fn = (typeof podeAcessarMagia      !== 'undefined' ? podeAcessarMagia      : null) || window.podeAcessarMagia      || (() => true);
   const _itemIcon   = (typeof invItemIcon            !== 'undefined' ? invItemIcon            : null) || window.invItemIcon            || (() => 'ti-box');
   const _ehContainer    = (typeof ehContainer    !== 'undefined' ? ehContainer    : null) || window.ehContainer    || (() => false);
   const _ContainerModal = (typeof ContainerModal !== 'undefined' ? ContainerModal : null) || window.ContainerModal || null;
@@ -2519,13 +2528,13 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     () => Object.values(habsByKey).sort(_porPosseDepoisNome(habKeysPossuidas)),
     [habsByKey, habKeysPossuidas]
   );
+  // Só o que o PJ aprendeu (22/10/2026): sem permissão por profissão, o
+  // "catálogo alcançável" virou o catálogo inteiro — 239 linhas de "—".
   const catalogoMag = useMemo(
     () => Object.values(magiasByKey)
-      // A já comprada fica mesmo quando a permissão mudou depois (reforma de
-      // 29/09/2026): ninguém perde de vista o que tem e usa na batalha.
-      .filter((m) => magKeysPossuidas.has(m.key) || _podeMagia_fn(m, pj?.profissao, pj?.especializacao || null))
+      .filter((m) => magKeysPossuidas.has(m.key))
       .sort(_porPosseDepoisNome(magKeysPossuidas)),
-    [magiasByKey, pj?.profissao, pj?.especializacao, magKeysPossuidas]
+    [magiasByKey, magKeysPossuidas]
   );
   const catalogoTec = useMemo(
     () => Object.values(tecnicasByKey).sort(_porPosseDepoisNome(tecKeysPossuidas)),

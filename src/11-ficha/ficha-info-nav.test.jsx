@@ -266,3 +266,18 @@ describe('FichaInfoView — Conhecimento abre o detalhe', () => {
     expect(linha('Luz').getAttribute('role')).toBe('button');
   });
 });
+
+/* Reforma de 22/10/2026: magia se aprende pelo item, de qualquer profissão;
+   a ficha mostra o orçamento — pontos de magia gastos / total. */
+describe('FichaInfoView — pontos de magia', () => {
+  it('Guerreiro Int 1 Aura 0 no estágio 2: Luz 1 gasta 1 de 4', () => {
+    montar({
+      parte: 'conhecimento',
+      pj: { nome: 'Thalia', profissao: 'Guerreiro', intelecto_base: 1, aura_base: 0, magias: { luz: 1 }, caracterizacao: {} },
+      estagioNum: 2,
+      catalogoMag: [{ key: 'luz', nome: 'Luz', custo: 1 }],
+      pjMagias: { luz: 1 },
+    });
+    expect(document.querySelector('.fp-col-pontos').textContent).toMatch(/1\s*\/\s*4/);
+  });
+});
