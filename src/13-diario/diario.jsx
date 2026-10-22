@@ -197,8 +197,10 @@
    que o personagem tem. As colunas historias.item_ids/magia_ids/… ficam no
    banco, sem tela que as escreva. */
 const DIARIO_TIPOS = ['criatura', 'npc', 'lugar'];
-// Tipos reais que compõem a aba "Lugares"
-const LUGAR_TIPOS = new Set(['reino', 'cidade']);
+// Tipos reais de lugar (Locais desde 22/10/2026). A aba mista "lugar" segue
+// só com reino e cidade — ver LUGAR_TIPOS_ABA_MISTA.
+const LUGAR_TIPOS = new Set(['reino', 'cidade', 'local']);
+const LUGAR_TIPOS_ABA_MISTA = ['reino', 'cidade'];
 // Tipos reais que compõem a aba "Treinamento"
 const TREINAMENTO_TIPOS = new Set(['magia', 'habilidade', 'tecnica']);
 
@@ -212,6 +214,7 @@ const DIARIO_TIPO_ICON = {
   lugar:       'ti-map-pin',
   reino:       'ti-flag',
   cidade:      'ti-building-castle',
+  local:       'ti-mountain',
   memoria:     'ti-feather',
   item:        'ti-backpack',
   treinamento: 'ti-sword',
@@ -221,19 +224,21 @@ const DIARIO_TIPO_ICON = {
   personagem:  'ti-users',
 };
 
-/* Reinos e Conhecidos desde 26/09/2026 (eram Lugares e NPCs). Só o rótulo
-   mudou: os tipos no banco continuam 'lugar'/'npc'. */
+/* Reinos e Conhecidos desde 26/09/2026 (eram Lugares e NPCs); Conhecidos
+   virou Pessoas em 22/10/2026. Só o rótulo muda: os tipos no banco continuam
+   'lugar'/'npc'. */
 const DIARIO_TIPO_LABEL = {
-  pt: { criatura: 'Criatura', npc: 'Conhecido', lugar: 'Reino', reino: 'Reino', cidade: 'Cidade',
+  pt: { criatura: 'Criatura', npc: 'Pessoa', lugar: 'Reino', reino: 'Reino', cidade: 'Cidade', local: 'Local',
         memoria: 'Memória', item: 'Item', treinamento: 'Treinamento',
         magia: 'Magia', habilidade: 'Habilidade', tecnica: 'Técnica', personagem: 'Personagem' },
-  en: { criatura: 'Creature', npc: 'Acquaintance', lugar: 'Kingdom', reino: 'Kingdom', cidade: 'City',
+  en: { criatura: 'Creature', npc: 'Person', lugar: 'Kingdom', reino: 'Kingdom', cidade: 'City', local: 'Place',
         memoria: 'Memory', item: 'Item', treinamento: 'Training',
         magia: 'Spell', habilidade: 'Ability', tecnica: 'Technique', personagem: 'Character' },
 };
 
 // "Novo"/"Nova" concorda com o tipo: era "Novo Cidade" (corrigido em 14/09/2026).
-const DIARIO_TIPOS_FEMININOS = new Set(['cidade', 'memoria', 'criatura', 'magia', 'habilidade', 'tecnica']);
+// npc é "Pessoa" desde 22/10/2026: "Nova Pessoa".
+const DIARIO_TIPOS_FEMININOS = new Set(['cidade', 'npc', 'memoria', 'criatura', 'magia', 'habilidade', 'tecnica']);
 function novoDoTipo(tipo) {
   return DIARIO_TIPOS_FEMININOS.has(tipo) ? 'Nova' : 'Novo';
 }
@@ -241,6 +246,65 @@ function novoDoTipo(tipo) {
 function diarioTipoLabel(tipo, lang) {
   const l = lang === 'en' ? 'en' : 'pt';
   return DIARIO_TIPO_LABEL[l][tipo] || tipo;
+}
+
+/* ---------- AS COLUNAS DE CADA PÁGINA DE LORE (22/10/2026) -----------------
+   "Na página de cidades, adicione a coluna reino e população." · "Na página
+   de reinos, adicione a coluna capital." · "Na página de pessoas, adicione a
+   coluna raça, classe social, reino." (usuário). Locais é "parecido com
+   cidades": as mesmas duas.
+
+   Uma tabela só, lida pelas DUAS telas (Mestre e Jogador), para elas não
+   divergirem. `slug` = o campo guarda o slug de outra entrada e a célula
+   mostra o nome dela; `numero` = ordena como número.
+
+   Cada coluna vira um campo `_col_<campo>` na linha — o useSort ordena pelo
+   valor da chave, e o prefixo `_` mantém o campo fora da ficha (ver
+   ehCampoDeTela em DetalheEntradaModal). */
+const COLUNAS_LORE = {
+  reino: [
+    { campo: 'capital_cidade', pt: 'Capital', en: 'Capital', slug: true },
+  ],
+  cidade: [
+    { campo: 'reino', pt: 'Reino', en: 'Kingdom', slug: true },
+    { campo: 'populacao', pt: 'População', en: 'Population', numero: true },
+  ],
+  local: [
+    { campo: 'reino', pt: 'Reino', en: 'Kingdom', slug: true },
+    { campo: 'populacao', pt: 'População', en: 'Population', numero: true },
+  ],
+  npc: [
+    { campo: 'raca', pt: 'Raça', en: 'Race' },
+    { campo: 'profissao', pt: 'Classe Social', en: 'Social Class' },
+    { campo: 'reino', pt: 'Reino', en: 'Kingdom', slug: true },
+  ],
+};
+
+function colunasLoreDoTipo(tipo, en) {
+  return (COLUNAS_LORE[tipo] || []).map((c) => ({ key: '_col_' + c.campo, label: en ? c.en : c.pt }));
+}
+
+/* Os valores das colunas extras, já prontos para ordenar. Vazio é null; a
+   célula mostra "—". */
+function valoresColunasLore(e, nomePorSlug) {
+  const attrs = e.atributos && typeof e.atributos === 'object' ? e.atributos : {};
+  const out = {};
+  (COLUNAS_LORE[e.tipo] || []).forEach((c) => {
+    const bruto = attrs[c.campo] != null && attrs[c.campo] !== '' ? attrs[c.campo] : e[c.campo];
+    let v = bruto == null || bruto === '' ? null : bruto;
+    if (v != null && c.numero) v = Number(v);
+    else if (v != null) {
+      const s = String(c.slug ? (nomePorSlug[v] || v) : v);
+      v = s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    out['_col_' + c.campo] = v;
+  });
+  return out;
+}
+
+function celulaColunaLore(v, lang) {
+  if (v == null || v === '' || Number.isNaN(v)) return '—';
+  return typeof v === 'number' ? v.toLocaleString(lang === 'en' ? 'en-US' : 'pt-BR') : v;
 }
 
 /* ---------- VISIBILIDADE DE UMA ENTRADA (17/09/2026) ----------------------
@@ -277,6 +341,7 @@ const VIS_CAMPO = {
   criatura: 'criatura_ids',
   reino:    'reino_ids',
   cidade:   'cidade_ids',
+  local:    'local_ids',
   npc:      'npc_ids',
 };
 
@@ -882,12 +947,15 @@ function DetalheEntradaModal({
   const BOOL_CAMPOS = new Set(['capital']);
   // Campos texto-longo de reino/cidade — saem da grade genérica e ganham aba própria.
   // `resumo` (26/09/2026) sai da grade: abre a aba Descrição, antes do texto.
-  // economia e defesas (cidade, 26/09/2026) também são texto longo: ganham aba.
-  const REINO_PARAGRAFO_CAMPOS = new Set(['governo', 'cultura', 'historia_recente', 'rumores', 'resumo', 'economia', 'defesas']);
+  // economia (cidade, 26/09/2026) também é texto longo: ganha aba. Defesas
+  // saiu em 22/10/2026.
+  const REINO_PARAGRAFO_CAMPOS = new Set(['governo', 'cultura', 'historia_recente', 'rumores', 'resumo', 'economia']);
   // Campos texto-longo do NPC que ganham aba própria (não aparecem na grade).
   const NPC_PARAGRAFO_CAMPOS = new Set(['rumores']);
-  // Campos ocultos no modal Cidade (redundantes ou irrelevantes para o contexto).
+  // Campos ocultos no modal Cidade/Local (redundantes ou irrelevantes para o contexto).
   const CIDADE_EXCLUIR_CAMPOS = new Set(['reino', 'populacao']);
+  const ehLugar = LUGAR_TIPOS.has(entrada.tipo);
+  const ehCidadeOuLocal = entrada.tipo === 'cidade' || entrada.tipo === 'local';
   const resolverValor = (k, v) => {
     if (SLUG_CAMPOS.has(k) && loreBySlug[v]) { const n = loreBySlug[v]; return n.charAt(0).toUpperCase() + n.slice(1); }
     if (typeof v === 'string' && v.length > 0) return v.charAt(0).toUpperCase() + v.slice(1);
@@ -902,20 +970,20 @@ function DetalheEntradaModal({
   if (attrs) {
     for (const [k, v] of Object.entries(attrs)) {
       if (BOOL_CAMPOS.has(k)) { if (v === true || v === 'true') eCapital = true; continue; }
-      if ((entrada.tipo === 'reino' || entrada.tipo === 'cidade') && REINO_PARAGRAFO_CAMPOS.has(k)) continue;
+      if (ehLugar && REINO_PARAGRAFO_CAMPOS.has(k)) continue;
       if (entrada.tipo === 'npc' && NPC_PARAGRAFO_CAMPOS.has(k)) continue;
       if (entrada.tipo === 'npc' && NPC_FIXOS_KEYS.has(k)) continue; // renderizado na grade fixa
-      if (entrada.tipo === 'cidade' && CIDADE_EXCLUIR_CAMPOS.has(k)) continue;
+      if (ehCidadeOuLocal && CIDADE_EXCLUIR_CAMPOS.has(k)) continue;
       if (v != null && v !== '' && v !== false && typeof v !== 'object') pares.push([rotulo(k), resolverValor(k, String(v))]);
     }
   }
   for (const [k, v] of Object.entries(entrada)) {
     if (JA_EXIBIDOS.has(k) || ehCampoDeTela(k)) continue;
     if (BOOL_CAMPOS.has(k)) { if (v === true || v === 'true') eCapital = true; continue; }
-    if ((entrada.tipo === 'reino' || entrada.tipo === 'cidade') && REINO_PARAGRAFO_CAMPOS.has(k)) continue;
+    if (ehLugar && REINO_PARAGRAFO_CAMPOS.has(k)) continue;
     if (entrada.tipo === 'npc' && NPC_PARAGRAFO_CAMPOS.has(k)) continue;
     if (entrada.tipo === 'npc' && NPC_FIXOS_KEYS.has(k)) continue; // renderizado na grade fixa
-    if (entrada.tipo === 'cidade' && CIDADE_EXCLUIR_CAMPOS.has(k)) continue;
+    if (ehCidadeOuLocal && CIDADE_EXCLUIR_CAMPOS.has(k)) continue;
     if (v == null || v === '' || v === false || typeof v === 'object') continue;
     pares.push([rotulo(k), resolverValor(k, String(v))]);
   }
@@ -1015,14 +1083,14 @@ function DetalheEntradaModal({
     ));
   }
 
-  /* Cidade: Descrição · Características · Economia · Defesas · Rumores ·
-     Suas anotações (os campos que a tabela cidades tem de verdade). */
+  /* Cidade: Descrição · Características · Economia · Rumores · Suas
+     anotações (os campos que a tabela cidades tem de verdade). Defesas saiu
+     em 22/10/2026. Local é o mesmo molde — sem Economia, que ele não tem. */
   return moldura(<DiarioModalNome entrada={entrada} />, (
     <>
       {secaoDescricao(null)}
       {secaoCaracteristicas(pares)}
-      {secaoTexto(en ? 'Economy' : 'Economia', attrs?.economia ?? entrada.economia)}
-      {secaoTexto(en ? 'Defenses' : 'Defesas', attrs?.defesas ?? entrada.defesas)}
+      {entrada.tipo !== 'local' && secaoTexto(en ? 'Economy' : 'Economia', attrs?.economia ?? entrada.economia)}
       {secaoTexto(en ? 'Rumors' : 'Rumores', attrs?.rumores ?? entrada.rumores)}
       {secaoNota}
     </>
@@ -1264,7 +1332,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   const [memorias,      setMemorias]      = useState(null);
   // disponibilizados: o que o Mestre liberou por tipo (vem do disponivel)
   const [disponibilizados, setDisponibilizados] = useState({
-    npc: [], reino: [], cidade: [], item: [], magia: [], habilidade: [], tecnica: [],
+    npc: [], reino: [], cidade: [], local: [], item: [], magia: [], habilidade: [], tecnica: [],
   });
   // importados: Set de "tipo:ref_id" já na coleção do PJ
   const [importados,    setImportados]    = useState(new Set());
@@ -1329,6 +1397,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
         npc:        loreDisp.filter((e) => e.tipo === 'npc'),
         reino:      loreDisp.filter((e) => e.tipo === 'reino'),
         cidade:     loreDisp.filter((e) => e.tipo === 'cidade'),
+        local:      loreDisp.filter((e) => e.tipo === 'local'),
         item:       disp.itens       || [],
         magia:      disp.magias      || [],
         habilidade: disp.habilidades || [],
@@ -1389,7 +1458,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     // compartilhado por outro jogador) + o que o Mestre disponibilizou,
     // sem repetir o que já veio pela primeira lista.
     const loreDoTipo = (lore || []).filter((e) =>
-      tipoAba === 'lugar' ? LUGAR_TIPOS.has(e.tipo) : e.tipo === tipoAba
+      tipoAba === 'lugar' ? LUGAR_TIPOS_ABA_MISTA.includes(e.tipo) : e.tipo === tipoAba
     );
     const idsDoDiario = new Set(loreDoTipo.map((e) => String(e.slug || e.id)));
     const dispTipos = tipoAba === 'lugar' ? ['reino', 'cidade'] : [tipoAba];
@@ -1399,10 +1468,15 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     /* `origem` entra na linha (e não só na célula) para o cabeçalho poder
        ordenar por ela. Pessoal é o que ESTE personagem escreveu; o resto —
        Mestre ou outro jogador da mesa — chegou pela aventura. */
+    /* Nome de quem um slug aponta (a capital do reino, o reino da cidade):
+       tudo o que este personagem enxerga, dele ou liberado. */
+    const nomePorSlug = {};
+    [...(lore || []), ...Object.values(disponibilizados).flat()]
+      .forEach((x) => { const id = x && (x.slug || x.id); if (id != null) nomePorSlug[id] = x.nome; });
     const base = [
       ...loreDoTipo.map((e) => ({ ...e, origem: origemDaEntrada(e, pjId) })),
       ...doMestre.map((e) => ({ ...e, origem: 'aventura' })),
-    ].sort(porNome);
+    ].map((e) => ({ ...e, ...valoresColunasLore(e, nomePorSlug) })).sort(porNome);
     return { base, lista: base.filter((e) => casa(e.nome)) };
   }, [tipoAba, query, memorias, criaturas, lore, disponibilizados, pjId, en]);
 
@@ -1608,13 +1682,13 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
           desativado: !historiaId }
     : tipoAba === 'npc'
       ? { onNovo: () => { setEditando({}); },
-          dica: en ? 'New NPC' : 'Novo NPC', desativado: !historiaId }
+          dica: en ? 'New person' : 'Nova pessoa', desativado: !historiaId }
     : null;
 
   /* Título da PÁGINA, quando ela é uma (tipoFixo). As palavras saem de
      ADMIN_COPY, as mesmas da barra lateral: se um dia "Memórias" virar outra
      coisa, o menu e o título da página mudam juntos. */
-  const SECAO_DO_TIPO = { lugar: 'lugares', reino: 'lugares', cidade: 'cidades', npc: 'npcs', memoria: 'memorias' };
+  const SECAO_DO_TIPO = { lugar: 'lugares', reino: 'lugares', cidade: 'cidades', local: 'locais', npc: 'npcs', memoria: 'memorias' };
   const tituloDaSecao = tipoFixo
     ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[SECAO_DO_TIPO[tipoFixo]] || {}).label
     : null;
@@ -1719,6 +1793,8 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
       { key: 'nome', label: en ? 'Name' : 'Nome' },
       /* Lugares mistura Reino e Cidade — a coluna diz qual é. */
       ...(tipoAba === 'lugar' ? [{ key: 'tipo', label: en ? 'Type' : 'Tipo' }] : []),
+      // As colunas de cada página (22/10/2026) — ver COLUNAS_LORE.
+      ...colunasLoreDoTipo(tipoAba, en),
       { key: 'origem', label: en ? 'Origin' : 'Origem' },
       { key: 'acoes', label: '', ordena: false, style: { width: 140 } },
     ];
@@ -1751,6 +1827,9 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
             {e.nome}
           </TableCell>
           {tipoAba === 'lugar' && <TableCell>{diarioTipoLabel(e.tipo, lang)}</TableCell>}
+          {colunasLoreDoTipo(tipoAba, en).map((c) => (
+            <TableCell key={c.key}>{celulaColunaLore(e[c.key], lang)}</TableCell>
+          ))}
           {/* Quem registrou continua à mão no tooltip: "Aventura" junta o
               Mestre e os outros jogadores da mesa. */}
           <TableCell
@@ -2094,9 +2173,10 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
             <input className="diario-input" type="text" value={v.atributos?.idade || ''} onChange={(e) => setAttr('idade', e.target.value)} />
           </div>
         </div>
-      ) : tipo === 'cidade' ? (
+      ) : (tipo === 'cidade' || tipo === 'local') ? (
         /* CIDADE: Reino na linha do Nome (26/09/2026, "o input reino fica
-           inline com nome"). */
+           inline com nome"). LOCAL, igual (22/10/2026) — lá o reino é
+           opcional. */
         <div className="diario-form-linha-nome diario-form-linha-nome--cidade">
           <div>
             <label className="diario-field-label">{tl.nome}</label>
@@ -2239,8 +2319,8 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
             <label className="diario-field-label">{tl.populacao}</label>
             <input className="diario-input" type="number" min="0" value={v.atributos?.populacao ?? ''} onChange={(e) => setAttr('populacao', e.target.value === '' ? null : Number(e.target.value))} />
           </div>
-          {/* Campos novos da cidade (26/09/2026): Governante, Religião,
-              Economia e Defesas — escolhidos pelo usuário. */}
+          {/* Campos novos da cidade (26/09/2026): Governante, Religião e
+              Economia — escolhidos pelo usuário. Defesas saiu em 22/10/2026. */}
           <div>
             <label className="diario-field-label">{tl.governante || 'Governante'}</label>
             <input className="diario-input" type="text" value={v.atributos?.governante || ''} onChange={(e) => setAttr('governante', e.target.value)} />
@@ -2263,8 +2343,18 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
             <textarea className="diario-textarea" rows={2} value={v.atributos?.economia || ''} onChange={(e) => setAttr('economia', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
-            <label className="diario-field-label">{tl.defesas || 'Defesas'}</label>
-            <textarea className="diario-textarea" rows={2} value={v.atributos?.defesas || ''} onChange={(e) => setAttr('defesas', e.target.value)} />
+            <label className="diario-field-label">{tl.rumores}</label>
+            <textarea className="diario-textarea" rows={3} value={v.atributos?.rumores || ''} onChange={(e) => setAttr('rumores', e.target.value)} />
+          </div>
+        </div>
+      )}
+      {/* LOCAL (22/10/2026): a cidade sem governante, religião e economia
+          ("em locais não há governante, religião, economia, defesas"). */}
+      {tipo === 'local' && (
+        <div className="diario-form-grid">
+          <div>
+            <label className="diario-field-label">{tl.populacao}</label>
+            <input className="diario-input" type="number" min="0" value={v.atributos?.populacao ?? ''} onChange={(e) => setAttr('populacao', e.target.value === '' ? null : Number(e.target.value))} />
           </div>
           <div className="diario-form-col-span">
             <label className="diario-field-label">{tl.rumores}</label>
@@ -2456,7 +2546,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
   // Catálogo GLOBAL (canônico) de reino/cidade/npc — migration 016. Só
   // exibido (checkbox + ver), nunca editável/excluível por aqui, mesmo
   // padrão que `criaturas` já tinha. Chave por tipo pra casar com tipoAba.
-  const [catalogoGlobal, setCatalogoGlobal] = useState({ reino: [], cidade: [], npc: [] });
+  const [catalogoGlobal, setCatalogoGlobal] = useState({ reino: [], cidade: [], local: [], npc: [] });
   const [error, setError] = useState(null);
   const [editando, setEditando] = useState(null);
   const [savingVinculo, setSavingVinculo] = useState(false);
@@ -2485,6 +2575,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
       { data: critData, error: critErr },
       { data: reinoGData, error: reinoGErr },
       { data: cidadeGData, error: cidadeGErr },
+      { data: localGData, error: localGErr },
       { data: npcGData, error: npcGErr },
     ] = await Promise.all([
       semMesa
@@ -2493,6 +2584,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
       supabaseClient.from('criaturas').select('id, nome, tipo').order('nome'),
       supabaseClient.rpc('listar_catalogo_global', { p_tipo: 'reino' }),
       supabaseClient.rpc('listar_catalogo_global', { p_tipo: 'cidade' }),
+      supabaseClient.rpc('listar_catalogo_global', { p_tipo: 'local' }),
       supabaseClient.rpc('listar_catalogo_global', { p_tipo: 'npc' }),
     ]);
     if (loreErr) { setError(loreErr.message); return; }
@@ -2504,13 +2596,14 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
     // vê cópias/criaturas normalmente) — só loga e cai pra lista vazia
     // naquele tipo. Diferente de lore/criaturas, que bloqueiam a tela via
     // setError porque são o dado principal da aba.
-    [['reino', reinoGData, reinoGErr], ['cidade', cidadeGData, cidadeGErr], ['npc', npcGData, npcGErr]]
+    [['reino', reinoGData, reinoGErr], ['cidade', cidadeGData, cidadeGErr], ['local', localGData, localGErr], ['npc', npcGData, npcGErr]]
       .forEach(([t, data, err]) => {
         if (err || (data && data.ok === false)) console.error('listar_catalogo_global', t, err || data.motivo);
       });
     setCatalogoGlobal({
       reino: (reinoGData && reinoGData.ok !== false && reinoGData.entradas) || [],
       cidade: (cidadeGData && cidadeGData.ok !== false && cidadeGData.entradas) || [],
+      local: (localGData && localGData.ok !== false && localGData.entradas) || [],
       npc: (npcGData && npcGData.ok !== false && npcGData.entradas) || [],
     });
     // Protagonistas: carrega nomes dos PJs vinculados à história pra exibir
@@ -2622,7 +2715,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
      mesmo arranjo do DiarioView do Jogador: se "NPCs" virar outra coisa, o
      menu e o título da página mudam juntos. */
   const tituloDaSecao = tipoFixo
-    ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[{ lugar: 'lugares', reino: 'lugares', cidade: 'cidades', npc: 'npcs' }[tipoFixo]] || {}).label
+    ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[{ lugar: 'lugares', reino: 'lugares', cidade: 'cidades', local: 'locais', npc: 'npcs' }[tipoFixo]] || {}).label
     : null;
 
   const formModal = editando && (
@@ -2677,7 +2770,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
   );
 
   const loreDoTipo = (lore || []).filter((e) =>
-    tipoAba === 'lugar' ? LUGAR_TIPOS.has(e.tipo) : e.tipo === tipoAba
+    tipoAba === 'lugar' ? LUGAR_TIPOS_ABA_MISTA.includes(e.tipo) : e.tipo === tipoAba
   );
 
   /* ── A LISTA, que virou TABELA (17/09/2026) ─────────────────────────────
@@ -2736,7 +2829,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
      slug: melhor um identificador feio que um travessão mentindo que o campo
      está vazio. */
   const nomePorSlug = {};
-  [...(lore || []), ...catalogoGlobal.reino, ...catalogoGlobal.cidade, ...catalogoGlobal.npc]
+  [...(lore || []), ...catalogoGlobal.reino, ...catalogoGlobal.cidade, ...catalogoGlobal.local, ...catalogoGlobal.npc]
     .forEach((x) => { if (x && x.id) nomePorSlug[x.id] = x.nome; });
   const nomeDeSlug = (e, k) => {
     const v = attrDe(e, k);
@@ -2777,6 +2870,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
         _reino: nomeDeSlug(e, 'reino'),
         _visibilidade: rotuloVisibilidade(vis),
         _visModo: vis.modo,
+        ...valoresColunasLore(e, nomePorSlug),
       };
     });
 
@@ -2799,6 +2893,9 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
       { key: 'tipo_criatura', label: en ? 'Kind' : 'Tipo' },
       { key: 'estagio', label: en ? 'Stage' : 'Estágio' },
     ] : []),
+    /* As colunas de cada página (22/10/2026) — ver COLUNAS_LORE. Pessoas
+       ganhou de volta Raça e Reino, agora com Classe Social. */
+    ...colunasLoreDoTipo(tipoAba, en),
     /* Visibilidade virou ÍCONE AO LADO DO NOME (26/09/2026: "o ícone de
        visibilidade ficará junto com o nome para indicar quem pode ver"). */
     /* Fonte saiu de todas as abas em 26/09/2026 ("remova a coluna fonte" em
@@ -2860,6 +2957,9 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
           </TableCell>
           {tipoAba === 'criatura' && <TableCell>{e.tipo_criatura || e.raca || '—'}</TableCell>}
           {tipoAba === 'criatura' && <TableCell>{e.estagio != null ? e.estagio : '—'}</TableCell>}
+          {colunasLoreDoTipo(tipoAba, en).map((c) => (
+            <TableCell key={c.key}>{celulaColunaLore(e[c.key], lang)}</TableCell>
+          ))}
         </TableRow>
         {/* Janela, não linha expandida, desde 26/09/2026 ("ao clicar no item
             da tabela, vai abrir um modal ao invés de expandir"). É a MESMA
@@ -2888,7 +2988,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
                 : { icone: 'ti-trash', rotulo: en ? 'Delete' : 'Excluir', perigo: true,
                     onClick: () => setLixeiraArmada(chave) }),
             ]}
-            lore={[...(lore || []), ...catalogoGlobal.reino, ...catalogoGlobal.cidade, ...catalogoGlobal.npc]}
+            lore={[...(lore || []), ...catalogoGlobal.reino, ...catalogoGlobal.cidade, ...catalogoGlobal.local, ...catalogoGlobal.npc]}
           />
         )}
       </React.Fragment>

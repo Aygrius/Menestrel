@@ -227,8 +227,12 @@ const ADMIN_COPY = {
       /* Reinos e Conhecidos (26/09/2026): eram Lugares e NPCs. O id da
          seção não mudou — só o nome que a tela mostra. */
       lugares:       { label: 'Reinos',       desc: 'Os reinos que seu personagem conhece' },
-      npcs:          { label: 'Conhecidos',   desc: 'As pessoas que seu personagem conheceu' },
+      /* Pessoas (22/10/2026): eram Conhecidos — "Mude o menu 'conhecidos'
+         para 'pessoas'". O id continua npcs. */
+      npcs:          { label: 'Pessoas',      desc: 'As pessoas que seu personagem conheceu' },
       cidades:       { label: 'Cidades',      desc: 'As cidades do mundo e de quem elas são' },
+      // Locais (22/10/2026): como Cidades, sem governante, religião e economia.
+      locais:        { label: 'Locais',       desc: 'Os lugares do mundo que não são cidades' },
       memorias:      { label: 'Memórias',     desc: 'O que seu personagem escreveu sobre o que viveu' },
     }
   },
@@ -376,8 +380,9 @@ const ADMIN_COPY = {
       aventuras:     { label: 'Stories',     desc: 'Adventures lived by your characters' },
       /* Vieram do Diário em 12/09/2026 — antes eram abas dentro da ficha. */
       lugares:       { label: 'Kingdoms',    desc: 'The kingdoms and cities your character knows' },
-      npcs:          { label: 'Acquaintances', desc: 'The people your character has met' },
+      npcs:          { label: 'People',      desc: 'The people your character has met' },
       cidades:       { label: 'Cities',      desc: 'The cities of the world and who holds them' },
+      locais:        { label: 'Places',      desc: 'The places of the world that are not cities' },
       memorias:      { label: 'Memories',    desc: 'What your character wrote about what they lived' },
     }
   }
@@ -421,6 +426,8 @@ const ADMIN_SECTIONS = {
     { id: 'lugares',       icon: 'MapPin' },
     // Cidades (26/09/2026): página própria no Diário, separada de Reinos.
     { id: 'cidades',       icon: 'Cidade' },
+    // Locais (22/10/2026): florestas, ruínas, masmorras — o que não é cidade.
+    { id: 'locais',        icon: 'Local' },
     { id: 'npcs',          icon: 'Users' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'itens',         icon: 'Sheet' },
@@ -439,6 +446,7 @@ const ADMIN_SECTIONS = {
     { id: 'lugares',       icon: 'MapPin' },
     // Cidades (26/09/2026): página própria no Diário, separada de Reinos.
     { id: 'cidades',       icon: 'Cidade' },
+    { id: 'locais',        icon: 'Local' },
     { id: 'npcs',          icon: 'Users' },
     { id: 'memorias',      icon: 'Feather' },
     // Catálogos filtrados pelo que o jogador conhece/possui (spec
@@ -588,7 +596,8 @@ const diario = (comMemorias) => ({
   filhos: [
     { secao: 'lugares', rotulo: R('Reinos', 'Kingdoms') },
     { secao: 'cidades', rotulo: R('Cidades', 'Cities') },
-    { secao: 'npcs', rotulo: R('Conhecidos', 'Acquaintances') },
+    { secao: 'locais', rotulo: R('Locais', 'Places') },
+    { secao: 'npcs', rotulo: R('Pessoas', 'People') },
     // Memórias é do personagem, não da mesa — só o Jogador tem.
     ...(comMemorias ? [{ secao: 'memorias', rotulo: R('Memórias', 'Memories') }] : []),
   ],

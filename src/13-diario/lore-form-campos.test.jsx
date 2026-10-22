@@ -100,9 +100,22 @@ describe('Cidade', () => {
     expect(rotulos()).not.toContain('Capital');
   });
 
-  it('os campos novos: Governante, Religião, Economia, Defesas e Rumores', () => {
+  it('os campos novos: Governante, Religião, Economia e Rumores — Defesas saiu (22/10/2026)', () => {
     montar('cidade');
-    expect(rotulos()).toEqual(expect.arrayContaining(['Governante', 'Religião', 'Economia', 'Defesas', 'Rumores', 'População']));
+    expect(rotulos()).toEqual(expect.arrayContaining(['Governante', 'Religião', 'Economia', 'Rumores', 'População']));
+    expect(rotulos()).not.toContain('Defesas');
+  });
+});
+
+/* 22/10/2026: "adicione um novo chamado locais, parecido com cidades. Mas em
+   locais não há governante, religião, economia, defesas". */
+describe('Local', () => {
+  it('Nome e Reino na mesma linha, População e Rumores — nada de governante, religião, economia ou defesas', () => {
+    montar('local');
+    const linha = document.querySelector('.diario-form-linha-nome--cidade');
+    expect([...linha.querySelectorAll('.diario-field-label')].map((l) => l.textContent.trim())).toEqual(['Nome', 'Reino']);
+    expect(rotulos()).toEqual(expect.arrayContaining(['População', 'Rumores', 'Descrição']));
+    ['Governante', 'Religião', 'Economia', 'Defesas'].forEach((r) => expect(rotulos()).not.toContain(r));
   });
 });
 

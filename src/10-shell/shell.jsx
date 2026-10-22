@@ -249,6 +249,7 @@ const Icon = {
   Comercio: TI_cls('ti-scale'),         // Comércio (Itens por grupo)
   Diario:   TI_cls('ti-notebook'),      // Diário (Reinos, Cidades, Conhecidos, Memórias)
   Cidade:   TI_cls('ti-building-castle'), // Cidades (26/09/2026)
+  Local:    TI_cls('ti-mountain'),      // Locais (22/10/2026)
 
   // ── Logo / cabeçalho ─────────────────────────────────────────────────────────
   Skull:   TI_cls('ti-id'),           // Logo ornamental
@@ -3411,7 +3412,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
      tabela saía mais estreita que a das outras ("a largura da tabela em
      lugares, npcs está menor que em itens, magias" — usuário). */
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'npcs', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'locais', 'npcs', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
@@ -3796,7 +3797,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               <ItensCampanhaManager ac={ac} lang={lang} />
             ) : current.id === 'historias' ? (
               <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} onEntrarMesa={setMesaAtivaId} />
-            ) : (current.id === 'lugares' || current.id === 'cidades' || current.id === 'npcs' || current.id === 'memorias') ? (
+            ) : (current.id === 'lugares' || current.id === 'cidades' || current.id === 'locais' || current.id === 'npcs' || current.id === 'memorias') ? (
               /* AS TRÊS QUE VIERAM DO DIÁRIO. Para o JOGADOR são o mesmo
                  DiarioView travado num tipo (ver `tipoFixo`), e sem personagem
                  ativo não há diário de ninguém — a tela diz isso em vez de
@@ -3811,7 +3812,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 <LoreDaMesa
                   historiaId={mesaAtivaId}
                   lang={lang}
-                  tipoFixo={{ lugares: 'reino', cidades: 'cidade' }[current.id] || 'npc'}
+                  tipoFixo={{ lugares: 'reino', cidades: 'cidade', locais: 'local' }[current.id] || 'npc'}
                 />
               ) : !pjAtivo ? (
                 <AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />
@@ -3821,7 +3822,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                   lang={lang}
                   currentUserId={user.id}
                   isMestre={false}
-                  tipoFixo={{ lugares: 'reino', cidades: 'cidade', npcs: 'npc' }[current.id] || 'memoria'}
+                  tipoFixo={{ lugares: 'reino', cidades: 'cidade', locais: 'local', npcs: 'npc' }[current.id] || 'memoria'}
                   key={current.id + ':' + pjAtivo.id}
                 />
               )

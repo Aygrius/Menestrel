@@ -92,8 +92,9 @@ describe('NPCs: uma tabela só', () => {
 
   it('o que o jogador escreveu e o que veio da aventura aparecem juntos, marcados', async () => {
     await montar('npc');
-    expect(cabecalho()).toEqual(['Nome', 'Origem']);
-    expect(linhas()).toEqual([
+    // Raça, Classe Social e Reino desde 22/10/2026 ("na página de pessoas…").
+    expect(cabecalho()).toEqual(['Nome', 'Raça', 'Classe Social', 'Reino', 'Origem']);
+    expect(linhas().map((l) => [l[0], l[l.length - 1]])).toEqual([
       ['Arissia', 'Pessoal'],
       ['Borin', 'Aventura'],   // outro jogador compartilhou
       ['Cael', 'Aventura'],    // o Mestre liberou
@@ -107,7 +108,7 @@ describe('NPCs: uma tabela só', () => {
     expect(busca.getAttribute('placeholder')).toBe('Buscar');
     expect(busca.parentElement.querySelector('.busca-ic.ti-filter-2')).toBeTruthy();
     fireEvent.change(busca, { target: { value: 'bor' } });
-    expect(linhas()).toEqual([['Borin', 'Aventura']]);
+    expect(linhas().map((l) => [l[0], l[l.length - 1]])).toEqual([['Borin', 'Aventura']]);
   });
 });
 
@@ -165,7 +166,7 @@ describe('as mesmas peças de Itens e Magias', () => {
     const novo = acoes.querySelector('[aria-label="Novo"]');
     expect(novo.textContent.trim()).toBe('');
     fireEvent.mouseEnter(novo);
-    expect([...document.querySelectorAll('.mn-tip')].map((t) => t.textContent)).toContain('Novo NPC');
+    expect([...document.querySelectorAll('.mn-tip')].map((t) => t.textContent)).toContain('Nova pessoa');
     // As peças ficam soltas no card, como em Magias: .best é coluna flex.
     expect(card.querySelector(':scope > .best-table-wrap')).toBeTruthy();
     expect(card.querySelector(':scope > .best-pag')).toBeTruthy();

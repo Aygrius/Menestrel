@@ -165,7 +165,6 @@ const COPY = {
         governante: 'Governante',
         religiao: 'Religião',
         economia: 'Economia',
-        defesas: 'Defesas',
         reino: 'Reino',
         populacao: 'População',
         // Rótulo do dropdown Sim/Não (26/09/2026); era o texto de um checkbox.
@@ -734,7 +733,6 @@ const COPY = {
         governante: 'Ruler',
         religiao: 'Religion',
         economia: 'Economy',
-        defesas: 'Defenses',
         reino: 'Realm',
         populacao: 'Population',
         capitalDoReino: 'Capital',

@@ -152,28 +152,48 @@ describe('é a tabela padrão, com as peças das outras páginas', () => {
   /* Visibilidade virou ícone ao lado do nome em 26/09/2026. */
   /* Raça e Reino saíram em 26/09/2026 ("da página de conhecidos, remover as
      colunas Raça e Reino"); sem coluna de ações — tudo foi para a ficha. */
-  it('Conhecidos: só o Nome', async () => {
+  /* 22/10/2026: "Na página de pessoas, adicione a coluna raça, classe social,
+     reino." O reino é slug no banco; a célula mostra o nome. */
+  it('Pessoas: Nome, Raça, Classe Social e Reino', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    expect(cabecalho()).toEqual(['Nome']);
-    expect(celulas(linhaDe('Arissia'))).toEqual(['Arissia']);
+    expect(cabecalho()).toEqual(['Nome', 'Raça', 'Classe Social', 'Reino']);
+    expect(celulas(linhaDe('Arissia'))).toEqual(['Arissia', 'Humano', '—', 'Verrogar']);
   });
 
   /* Reinos e Cidades viraram páginas próprias em 26/09/2026: sem coluna Tipo
-     e sem Visibilidade (que foi para o lado do nome). */
-  it('Reinos: só reinos, só o Nome', async () => {
-    stubBanco(); montar('reino');
+     e sem Visibilidade (que foi para o lado do nome). Capital desde
+     22/10/2026 ("na página de reinos, adicione a coluna capital"). */
+  it('Reinos: só reinos, com a Capital', async () => {
+    stubBanco({ entradas: [...NPCS, { ...LUGARES[0], atributos: { capital_cidade: 'brann-h13' } }, LUGARES[1]] });
+    montar('reino');
     await pronta();
-    expect(cabecalho()).toEqual(['Nome']);
-    expect(linhaDe('Verrogar')).toBeTruthy();
+    expect(cabecalho()).toEqual(['Nome', 'Capital']);
+    expect(celulas(linhaDe('Verrogar'))).toEqual(['Verrogar', 'Brann']);
     expect(linhaDe('Brann')).toBeFalsy();
   });
 
-  it('Cidades: só cidades', async () => {
-    stubBanco(); montar('cidade');
+  // 22/10/2026: "Na página de cidades, adicione a coluna reino e população."
+  it('Cidades: só cidades, com Reino e População', async () => {
+    stubBanco({ entradas: [...NPCS, LUGARES[0], { ...LUGARES[1], atributos: { reino: 'verrogar-h13', populacao: 12000 } }] });
+    montar('cidade');
     await pronta();
-    expect(linhaDe('Brann')).toBeTruthy();
+    expect(cabecalho()).toEqual(['Nome', 'Reino', 'População']);
+    expect(celulas(linhaDe('Brann'))).toEqual(['Brann', 'Verrogar', '12.000']);
     expect(linhaDe('Verrogar')).toBeFalsy();
+  });
+
+  // 22/10/2026: Locais, "parecido com cidades" — o reino é opcional.
+  it('Locais: só locais, com Reino e População', async () => {
+    const FLORESTA = { id: 'floresta-h13', tipo: 'local', nome: 'Floresta Negra', descricao: '', atributos: { reino: null, populacao: null } };
+    stubBanco({ entradas: [...NPCS, ...LUGARES, FLORESTA] });
+    montar('local');
+    await pronta();
+    expect(document.querySelector('.lore-mng-page-h2').textContent).toBe('Locais');
+    expect(cabecalho()).toEqual(['Nome', 'Reino', 'População']);
+    expect(celulas(linhaDe('Floresta Negra'))).toEqual(['Floresta Negra', '—', '—']);
+    expect(linhaDe('Brann')).toBeFalsy();
+    expect(chamadasRpc.some((c) => c.nome === 'listar_catalogo_global' && c.args.p_tipo === 'local')).toBe(true);
   });
 
 
