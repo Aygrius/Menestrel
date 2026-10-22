@@ -26,11 +26,10 @@ import '../01-core/game-data.jsx';
 import '../10-shell/shell.jsx';
 import './personagens.jsx';
 
-let StepAtributos, StepTecnicas;
+let StepAtributos;
 beforeAll(() => {
-  ({ StepAtributos, StepTecnicas } = window);
+  ({ StepAtributos } = window);
   expect(StepAtributos, 'StepAtributos precisa estar no window').toBeDefined();
-  expect(StepTecnicas, 'StepTecnicas precisa estar no window').toBeDefined();
 });
 
 afterEach(() => cleanup());
@@ -177,39 +176,5 @@ describe('Escape com dois modais abertos', () => {
     );
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(fechados).toEqual(['wizard']);
-  });
-});
-
-describe('StepTecnicas — item sem detalhe e lista vazia', () => {
-  const tecnica = (over) => ({
-    key: 't1', nome: 'Golpe Duplo', custo: 1, permissao: 'Guerreiro',
-    uso: 'Ataque', descricao: 'Dois golpes numa ação.', ...over,
-  });
-
-  const montar = (tecnicasDb) => render(
-    <StepTecnicas
-      form={form} update={() => {}} lang="pt"
-      tecnicasDb={tecnicasDb} tecnicasError={null}
-      tecTotalPontos={10} tecGasto={0} tecRestantes={10} tecQtd={0}
-      isEdit={false} personagemExistente={null} atributosFinais={{}}
-    />
-  );
-
-  it('a técnica abre o modal com uso, custo e descrição', () => {
-    montar([tecnica()]);
-    fireEvent.click(screen.getByRole('button', { name: /Golpe Duplo/i }));
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.textContent).toMatch(/Dois golpes numa ação/i);
-    expect(dialog.textContent).toMatch(/Uso/i);
-    expect(dialog.textContent).toMatch(/Custo/i);
-  });
-
-  it('campo vazio do banco não vira linha em branco no modal', () => {
-    montar([tecnica({ grupo_armas: '', grupo_armaduras: null, efeito: undefined })]);
-    fireEvent.click(screen.getByRole('button', { name: /Golpe Duplo/i }));
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.textContent).not.toMatch(/Armas:/);
-    expect(dialog.textContent).not.toMatch(/Armaduras:/);
-    expect(dialog.textContent).not.toMatch(/Efeito:/);
   });
 });

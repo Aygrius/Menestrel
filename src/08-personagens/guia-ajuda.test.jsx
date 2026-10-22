@@ -57,6 +57,17 @@ describe('Ajuda — tópicos e regras', () => {
     expect(txt).toContain('Ordem de Plandis');
   });
 
+  it('técnicas e magias pelo item, com o treino (22/10/2026)', () => {
+    render(<Guia lang="pt" />);
+    const armas = document.getElementById('gp-armas').textContent;
+    expect(armas).toMatch(/pontos-base \+ Físico \+ Agilidade/);
+    expect(armas).toMatch(/3 dias de Treinando/);
+    expect(armas).not.toMatch(/Guerreiro 7 pontos/);
+    const magias = document.getElementById('gp-magias').textContent;
+    expect(magias).toMatch(/1 dia/);
+    expect(magias).toMatch(/Encanto praticando/);
+  });
+
   it('o simulador de elementos segue a regra do motor', () => {
     render(<Guia lang="pt" />);
     const txt = document.getElementById('gp-profissoes').textContent;

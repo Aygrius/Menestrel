@@ -17,7 +17,6 @@
    - StepAtributos          — distribuição de pontos
    - StepHabilidades        — escolha de habilidades + qtd
    - AprimoramentoInline    — vagas de idioma/religião/arte/sabedoria, dentro da habilidade-mãe
-   - StepTecnicas           — escolha de técnicas (carrega DB)
    - StepRevisao            — revisão final antes de salvar
 
    ── Helpers locais ─────────────────────────────────────────
@@ -1244,12 +1243,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
   const habGasto       = gastoHabilidades(form.habilidades, habilidadesByKey);
   const habRestantes   = habTotalPontos - habGasto;
 
-  // ---- Técnicas ----
-  const tecTotalPontos = pontosTecnicasTotal(form.profissao, estagioForm);
-  const tecGasto       = gastoTecnicas(form.tecnicas, tecnicasDb);
-  const tecRestantes   = tecTotalPontos - tecGasto;
-  const tecQtd         = qtdTecnicas(form.tecnicas);
-
   // ---- Grupos de Armas ----
   const grpTotalPontos = pontosGruposArmasTotal(form.profissao, estagioForm);
   const grpGasto       = gastoGruposArmas(form.grupos_armas);
@@ -1288,7 +1281,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       sub: g,
       label: lang === 'en' ? `${g} Group Skill` : `Habilidade do Grupo ${g}`,
     })),
-    { id: 'tecnicas', sub: null, label: SEC.tecnicas },
     { id: 'revisao',  sub: null, label: SEC.revisao  },
   ];
 
@@ -1350,10 +1342,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     ? `Você gastou ${habGasto} pontos em habilidades, mas só tem ${habTotalPontos}`
     : null;
 
-  const erroTecnicas = tecRestantes < 0
-    ? `Você gastou ${tecGasto} pontos em técnicas, mas só tem ${tecTotalPontos}`
-    : null;
-
   const erroGruposArmas = grpRestantes < 0
     ? `Você gastou ${grpGasto} pontos em grupos de armas, mas só tem ${grpTotalPontos}`
     : null;
@@ -1374,8 +1362,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     ) :
     currentId === 'atributos'    ? !erroAtributos :
     currentId === 'grupos_armas' ? !erroGruposArmas :
-    currentId === 'habilidades'  ? !erroHabilidades :
-    currentId === 'tecnicas'     ? !erroTecnicas : true;
+    currentId === 'habilidades'  ? !erroHabilidades : true;
 
   // Atributos finais usados nos Totais de habilidade/magia/técnica das telas
   // seguintes. O modificador racial NÃO é somado aqui: ele já está dentro de
@@ -1415,7 +1402,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       percepcao_base: form.percepcao_base,
       experiencia: form.experiencia,
       habilidades: form.habilidades || {},
-      tecnicas: form.tecnicas || {},
       grupos_armas: form.grupos_armas || {},
       aprimoramentos: form.aprimoramentos || {},
       caracterizacao: form.caracterizacao || {},
@@ -1425,6 +1411,9 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
        do wizard. Criação nasce sem nenhuma; edição NÃO manda a coluna — um
        wizard aberto antes de estudar um livro apagaria o que foi aprendido. */
     if (!isEdit) payload.magias = {};
+    /* Técnicas (22/10/2026): mesmo molde — aprendem-se pelo item e treinam
+       na fila (RPC aprender_tecnica + relógio da mesa). */
+    if (!isEdit) payload.tecnicas = {};
 
     // Marca que o jogador já viu o estágio atual — é isso que esconde o badge
     // "Pronto pra evoluir!" (temLevelUpPendente). O Mestre NÃO atualiza isso.
@@ -1434,7 +1423,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     // sumia e os pontos ficavam esquecidos, sem nada lembrando o jogador.
     if (isEdit && !isMaster && todosOsPontosGastos({
       atributos: restantes, habilidades: habRestantes,
-      tecnicas: tecRestantes, gruposArmas: grpRestantes,
+      gruposArmas: grpRestantes,
     })) {
       payload.nivel_visto = calcEstagio(form.experiencia);
     }
@@ -1483,8 +1472,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     <WizSaldo lang={lang} disponiveis={grpTotalPontos} gastos={grpGasto} restantes={grpRestantes} />
   ) : currentId === 'habilidades' ? (
     <WizSaldo lang={lang} disponiveis={habTotalPontos} gastos={habGasto} restantes={habRestantes} />
-  ) : currentId === 'tecnicas' ? (
-    <WizSaldo lang={lang} disponiveis={tecTotalPontos} gastos={tecGasto} restantes={tecRestantes} />
   ) : null;
 
   const wizStepper = (
@@ -1566,19 +1553,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
               habilidadesDb={habilidadesDb} habilidadesError={habilidadesError}
               habilidadesByKey={habilidadesByKey}
               bonusHabilidades={bonusHabilidades}
-              isEdit={isEdit}
-              personagemExistente={personagemExistente}
-            />
-          )}
-          {currentId === 'tecnicas' && (
-            <StepTecnicas
-              form={form} update={update} lang={lang}
-              atributosFinais={atributosFinais}
-              tecnicasDb={tecnicasDb} tecnicasError={tecnicasError}
-              tecTotalPontos={tecTotalPontos}
-              tecGasto={tecGasto}
-              tecRestantes={tecRestantes}
-              tecQtd={tecQtd}
               isEdit={isEdit}
               personagemExistente={personagemExistente}
             />
@@ -2502,134 +2476,6 @@ function AprimoramentoInline({ habKey, form, update, lang, slots }) {
   );
 }
 
-// ---- Step 4: Técnicas de Combate (todas as profissões) ----
-function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalPontos, tecGasto, tecRestantes, tecQtd, isEdit, personagemExistente, atributosFinais }) {
-  const [detalhe, setDetalhe] = useState(null); // técnica com o modal de explicação aberto
-  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
-
-  if (tecnicasDb === null) {
-    return <Carregando lang={lang} />;
-  }
-  if (tecnicasError) {
-    return (
-      <div className="admin-error">
-        <div className="err-msg">{tecnicasError}</div>
-        <div className="admin-error-hint">
-          {lang === 'en'
-            ? "Make sure the 'tecnicas' table exists in Supabase and has data imported."
-            : "Confira se a tabela 'tecnicas' existe no Supabase e se você importou os dados."}
-        </div>
-      </div>
-    );
-  }
-
-  const especializacao = form.especializacao || null;
-  const estagio = calcEstagio(form.experiencia);
-
-  // Filtra técnicas: a profissão (ou especialização) precisa estar listada em permissão
-  const disponiveis = tecnicasDb.filter((t) =>
-    podeAcessarTecnica(t, form.profissao, especializacao)
-  );
-
-  const compradas = form.tecnicas || {};
-
-  // Stepper 0/1: comprado ou não. Custo da técnica age como "nível mínimo"
-  // — não pode ser comprada se custo > estágio. Em edição, não deixa baixar
-  // de comprada para não-comprada (proteção contra perda de progresso).
-  const mudarPasso = (key, delta) => {
-    const atual = compradas[key] || 0;
-    const proposto = atual + delta;
-    if (proposto < 0) return;
-    if (isEdit && proposto < (personagemExistente?.tecnicas?.[key] || 0)) return;
-    if (proposto > estagio) return;
-    // Bloqueia a compra se não houver pontos suficientes
-    if (delta > 0 && gastoTecnicas({ ...compradas, [key]: proposto }, tecnicasDb) > tecTotalPontos) return;
-    const novoObj = { ...compradas };
-    if (proposto === 0) delete novoObj[key];
-    else                novoObj[key] = proposto;
-    update('tecnicas', novoObj);
-  };
-
-  // Técnica é 1 tela só — lista em coluna única.
-
-  const pillStyle = {
-    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
-    borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between', gap: 4, padding: '0 4px',
-  };
-  const btnStyle = (enabled) => ({
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
-    cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
-  });
-
-  const renderTabela = (lista) => lista.map((t) => {
-    const passos = compradas[t.key] || 0;
-    const originalPasso = personagemExistente?.tecnicas?.[t.key] || 0;
-    const acimaDoEstagio = passos >= estagio;
-    const semSaldoPraMais = !acimaDoEstagio && gastoTecnicas({ ...compradas, [t.key]: passos + 1 }, tecnicasDb) > tecTotalPontos;
-    const podeMais = !acimaDoEstagio && !semSaldoPraMais;
-    const podeMenos = passos > 0 && !(isEdit && passos <= originalPasso);
-    return (
-      <div key={t.key} className="wiz-item">
-        <NomeItem
-          nome={t.nome}
-          onAbrir={() => setDetalhe({
-            titulo: t.nome,
-            linhas: [
-              { rotulo: lang === 'en' ? 'Use' : 'Uso', valor: t.uso },
-              { rotulo: lang === 'en' ? 'Weapons' : 'Armas', valor: t.grupo_armas },
-              { rotulo: lang === 'en' ? 'Armor' : 'Armaduras', valor: t.grupo_armaduras },
-              { rotulo: lang === 'en' ? 'Cost' : 'Custo', valor: t.custo },
-              { rotulo: lang === 'en' ? 'Effect' : 'Efeito', valor: t.efeito },
-            ],
-            descricao: t.descricao,
-          })}
-        />
-        <div style={pillStyle}>
-          <button type="button" style={btnStyle(podeMenos)} disabled={!podeMenos}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => mudarPasso(t.key, -1)} aria-label="−"
-            onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-          </button>
-          <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
-            {passos}
-          </span>
-          <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => mudarPasso(t.key, +1)} aria-label="+"
-            {...propsTip(abrirTip, fecharTip, acimaDoEstagio ? (lang === 'en' ? `Max for stage (${estagio})` : `Máximo do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
-            onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-          </button>
-        </div>
-      </div>
-    );
-  });
-
-  return (
-    <div className="wiz-habs">
-      {disponiveis.length === 0 ? (
-        <div className="wiz-magias-empty">
-          {lang === 'en'
-            ? 'No techniques available for this profession yet.'
-            : 'Nenhuma técnica disponível para essa profissão ainda.'}
-        </div>
-      ) : (
-        <div className="wiz-habs-list wiz-lista-dupla">
-          {renderTabela(disponiveis)}
-        </div>
-      )}
-      <DetalheModal detalhe={detalhe} lang={lang} onClose={() => setDetalhe(null)} />
-      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-    </div>
-  );
-}
-
 // ---- Step 5: Revisão ----
 function StepRevisao({ form, lang, atributosFinais, magiasDb, tecnicasDb, habilidadesByKey, bonusHabilidades }) {
   const ficha = calcularFicha({
@@ -2796,15 +2642,13 @@ return (
           </section>
         )}
 
-        <section>
-          <div className="wiz-review-eyebrow">
-            {lang === 'en' ? 'Combat Techniques' : 'Técnicas de Combate'}
-          </div>
-          {tecCompradas.length === 0 ? (
-            <p className="wiz-review-empty">
-              {lang === 'en' ? 'No combat techniques acquired.' : 'Nenhuma técnica de combate adquirida.'}
-            </p>
-          ) : (
+        {/* Técnicas (22/10/2026): aprendem-se pelo item; só o resumo do que o
+            PJ já sabe, na edição. Sem técnica, a seção não aparece. */}
+        {tecCompradas.length > 0 && (
+          <section>
+            <div className="wiz-review-eyebrow">
+              {lang === 'en' ? 'Combat Techniques' : 'Técnicas de Combate'}
+            </div>
             <dl>
               {tecCompradas.map((t) => (
                 <div key={t.key}>
@@ -2813,8 +2657,8 @@ return (
                 </div>
               ))}
             </dl>
-          )}
-        </section>
+          </section>
+        )}
 
         <section>
           <div className="wiz-review-eyebrow">
@@ -2847,5 +2691,5 @@ Object.assign(window, {
   PersonagensList, PersonagemCard, ConfirmarExclusaoModal,
   NovoPersonagemModal,
   StepIdentidade, StepAtributos, StepGruposArmas, StepHabilidades, AprimoramentoInline,
-  StepTecnicas, StepRevisao,
+  StepRevisao,
 });

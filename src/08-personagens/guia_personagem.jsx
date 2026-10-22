@@ -442,12 +442,12 @@ function GuiaPersonagem({ lang = 'pt' }) {
               </tr>
             </thead>
             <tbody>
-              <tr><td>Guerreiro</td><td>14</td><td>12</td><td>15</td><td>14</td><td>12</td><td>7</td><td className="gp-muted">—</td><td>Fogo</td></tr>
-              <tr><td>Sacerdote</td><td>12</td><td>10</td><td>13</td><td>10</td><td>8</td><td>6</td><td>10 · Aura</td><td>Luz</td></tr>
-              <tr><td>Ladino</td><td>10</td><td>9</td><td>11</td><td>20</td><td>10</td><td>5</td><td className="gp-muted">—</td><td>Ar</td></tr>
-              <tr><td>Rastreador</td><td>10</td><td>9</td><td>11</td><td>16</td><td>10</td><td>6</td><td>8 · Percepção</td><td>Terra</td></tr>
-              <tr><td>Bardo</td><td>8</td><td>7</td><td>8</td><td>14</td><td>6</td><td>4</td><td>8 · Carisma</td><td>Água</td></tr>
-              <tr><td>Mago</td><td>6</td><td>5</td><td>6</td><td>10</td><td>4</td><td>2</td><td>14 · Intelecto</td><td>Escuridão</td></tr>
+              <tr><td>Guerreiro</td><td>14</td><td>12</td><td>15</td><td>14</td><td>12</td><td>4</td><td className="gp-muted">—</td><td>Fogo</td></tr>
+              <tr><td>Sacerdote</td><td>12</td><td>10</td><td>13</td><td>10</td><td>8</td><td>3</td><td>10 · Aura</td><td>Luz</td></tr>
+              <tr><td>Ladino</td><td>10</td><td>9</td><td>11</td><td>20</td><td>10</td><td>2</td><td className="gp-muted">—</td><td>Ar</td></tr>
+              <tr><td>Rastreador</td><td>10</td><td>9</td><td>11</td><td>16</td><td>10</td><td>3</td><td>8 · Percepção</td><td>Terra</td></tr>
+              <tr><td>Bardo</td><td>8</td><td>7</td><td>8</td><td>14</td><td>6</td><td>2</td><td>8 · Carisma</td><td>Água</td></tr>
+              <tr><td>Mago</td><td>6</td><td>5</td><td>6</td><td>10</td><td>4</td><td>1</td><td>14 · Intelecto</td><td>Escuridão</td></tr>
             </tbody>
           </table>
         </div>
@@ -458,17 +458,17 @@ function GuiaPersonagem({ lang = 'pt' }) {
         <div className="gp-prof-grid">
           {[
             { nome: 'Guerreiro', el: 'Fogo', icon: 'ti-flame', cls: 'gp-elem-0',
-              txt: 'O extremo marcial: a maior Energia Heroica (14 por estágio), o maior orçamento de armas (12) e de técnicas (7). Conjura pouco (1 ponto-base de magia por estágio), e compensa com a capacidade de continuar lutando quando qualquer outro já teria caído. Especializado, ganha uma ação extra por rodada só para técnicas.' },
+              txt: 'O extremo marcial: a maior Energia Heroica (14 por estágio), o maior orçamento de armas (12) e de técnicas (4 pontos-base). Conjura pouco (1 ponto-base de magia por estágio), e compensa com a capacidade de continuar lutando quando qualquer outro já teria caído. Especializado, ganha uma ação extra por rodada só para técnicas.' },
             { nome: 'Ladino', el: 'Ar', icon: 'ti-wind', cls: 'gp-elem-1',
               txt: 'O mestre das habilidades: 20 pontos por estágio, o maior orçamento do jogo. Energia Heroica mediana (10) — sobrevive desviando, não aguentando. Armas leves e técnicas afinadas com elas fazem o dano; especializado, também ganha a ação extra de técnica.' },
             { nome: 'Rastreador', el: 'Terra', icon: 'ti-mountain', cls: 'gp-elem-2',
-              txt: 'O caçador versátil: 16 pontos de habilidade, 10 de armas e 6 de técnicas por estágio, e magia mediana (5 pontos-base por estágio, mais Intelecto e Aura). A Percepção rende na Energia Heroica.' },
+              txt: 'O caçador versátil: 16 pontos de habilidade, 10 de armas e 3 pontos-base de técnicas por estágio, e magia mediana (5 pontos-base por estágio, mais Intelecto e Aura). A Percepção rende na Energia Heroica.' },
             { nome: 'Bardo', el: 'Água', icon: 'ti-droplet', cls: 'gp-elem-3',
               txt: 'A voz do grupo: magia farta (8 pontos-base por estágio, mais Intelecto e Aura) e 14 pontos de habilidade para influência e conhecimento. Energia Heroica baixa (8) e poucas armas (6) — luta melhor a partir da retaguarda.' },
             { nome: 'Mago', el: 'Escuridão', icon: 'ti-moon', cls: 'gp-elem-esc', largo: true,
-              txt: 'O extremo arcano: um orçamento alto de magia (8 pontos-base por estágio, mais Intelecto e Aura) e a menor Energia Heroica do jogo (6). Poucas armas (4) e técnicas (2). Vulnerável no confronto direto; protegido pelos aliados, poucos rivalizam com o poder dos seus encantamentos — e a Escuridão rende 5% contra os quatro elementos.' },
+              txt: 'O extremo arcano: um orçamento alto de magia (8 pontos-base por estágio, mais Intelecto e Aura) e a menor Energia Heroica do jogo (6). Poucas armas (4) e técnicas (1 ponto-base). Vulnerável no confronto direto; protegido pelos aliados, poucos rivalizam com o poder dos seus encantamentos — e a Escuridão rende 5% contra os quatro elementos.' },
             { nome: 'Sacerdote', el: 'Luz', icon: 'ti-sun', cls: 'gp-elem-luz', largo: true,
-              txt: 'O guardião divino: Energia Heroica alta (12), magia mediana (5 pontos-base por estágio, mais Intelecto e Aura) e um orçamento equilibrado de armas (8) e técnicas (6). A Aura alimenta a magia e o Karma ao mesmo tempo, e a Luz rende 15% contra criaturas da Escuridão.' },
+              txt: 'O guardião divino: Energia Heroica alta (12), magia mediana (5 pontos-base por estágio, mais Intelecto e Aura) e um orçamento equilibrado de armas (8) e técnicas (3 pontos-base). A Aura alimenta a magia e o Karma ao mesmo tempo, e a Luz rende 15% contra criaturas da Escuridão.' },
           ].map((p) => (
             <div key={p.nome} className={'gp-card gp-prof-card' + (p.largo ? ' gp-prof-card--largo' : '')}>
               <div className="gp-prof-top">
@@ -711,14 +711,16 @@ function GuiaPersonagem({ lang = 'pt' }) {
         <div className="gp-sub-section">
           <h3 className="gp-h3">Técnicas de combate</h3>
           <p className="gp-p">
-            Todas as profissões compram técnicas; muda o orçamento: Guerreiro 7 pontos por
-            estágio, Sacerdote e Rastreador 6, Ladino 5, Bardo 4, Mago 2. O teste é
+            Toda profissão pode aprender qualquer técnica — pelo item que a ensina: o
+            pergaminho da técnica ou um manual (do Guerreiro, da Academia, da Guilda… e o
+            Livro Geral de Técnicas de Combate). O item não se gasta. O teste é
             <b> nível comprado + atributo de ajuste</b>, e técnica sem treino rola com −7.
           </p>
           <ul className="gp-list">
             <li><b>Case a técnica com a arma.</b> Cada técnica lista os grupos de armas (e às vezes as armaduras) com que funciona. Uma técnica de Corte Médio não sai com uma adaga na mão.</li>
             <li><b>Profundidade vence largura.</b> O primeiro nível apaga o −7; depois disso, uma técnica no nível 4 decide mais combates que quatro no nível 1.</li>
-            <li><b>Permissão.</b> Como as magias, cada técnica diz quais profissões e especializações podem comprá-la.</li>
+            <li><b>Pontos.</b> Por estágio: pontos-base + Físico + Agilidade (atributo negativo conta 0). Base: Guerreiro 4, Rastreador e Sacerdote 3, Ladino e Bardo 2, Mago 1.</li>
+            <li><b>Treino.</b> O nível comprado entra na fila de treino e leva <b>3 dias de Treinando</b> por nível — só contam as horas do relógio da mesa com a atividade ligada. Enquanto o próximo treina, o nível já sabido continua valendo.</li>
           </ul>
         </div>
 
@@ -819,6 +821,7 @@ function GuiaPersonagem({ lang = 'pt' }) {
           <li><b>Pontos.</b> Por estágio: pontos-base + Intelecto + Aura (atributo negativo conta 0). Com Aura negativa, a base é 0.</li>
           <li><b>Passos.</b> O 1º passo é o nível 1, o 2º é o nível 3, e assim até o 5º, nível 9. Uma magia no nível 5 com custo 2 custa 10 pontos e gasta 5 de Karma por conjuração. Um nível por vez, nunca acima do estágio.</li>
           <li><b>Custos.</b> Básicas custam 1 ou 2 por nível; Perdidas, 2 ou 3; Ancestrais, 3 ou 4.</li>
+          <li><b>Treino.</b> O passo comprado entra na fila e leva <b>1 dia</b> na atividade da classe da magia: Feitiço estudando, Milagre orando, Transmutação meditando, Encanto praticando. Só contam as horas do relógio da mesa; o nível já sabido segue usável.</li>
           <li><b>Livros e pergaminhos.</b> As magias Básicas estão nos livros (de profissão, de deus, de Ordem, Colégio, Confraria ou Trilha). Perdidas e Ancestrais têm pergaminho próprio — de tempos em tempos um aparece na loja da história.</li>
           <li><b>Itens necessários.</b> Rituais pedem componentes: a magia lista os itens e as quantidades, e o Mestre confere se o personagem os tem antes da conjuração.</li>
           <li><b>Itens mágicos.</b> Anéis, cajados e armas que concedem magia conjuram de graça, sem Karma, no nível do item — desde que estejam em uso (empunhados ou vestidos).</li>
