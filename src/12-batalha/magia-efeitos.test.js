@@ -899,18 +899,18 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
     mod_ef_temp:     'aplicarEfeitoMagia + expirarEhTemp',
     mod_habilidade:  'somaModHabilidade (aba Habilidade)',
     mod_dano:        'danoFinal + consumirModDano',
+    // 22/10/2026: Licantropia Lupina vira Lobisomem — a sub-raça entra em
+    // calcularFicha, e montarSnapshots a fixa no snapshot da largada.
+    transformacao:   'subracaEfetiva → calcularFicha (montarSnapshots)',
   };
 
   /* Primitivas DECLARADAS e ainda SEM consumidor. A lista existe para o
      estado ser explícito em vez de surpresa — e para encolher, nunca crescer.
 
-     mod_atributo — Licantropia Lupina. O atributo chega ao combate pela
-     coluna de ataque (gerarAtaques aplica o `ajuste_atributo` da arma), e
-     ligá-lo exige passar modificadores por calcularFicha. Os poços derivados
-     (EF, defesa, RF) ficam congelados no snapshot e NÃO acompanhariam, o que
-     é uma inconsistência que precisa de decisão de regra antes de código.
-     O usuário avisou em 12/09/2026 que vai alterar a magia. */
-  const PENDENTES = { mod_atributo: 'Licantropia — ver comentário acima' };
+     Vazia desde 22/10/2026: o mod_atributo era da Licantropia Lupina, que
+     virou transformação em sub-raça (Lobisomem) — primitiva `transformacao`,
+     ligada acima. */
+  const PENDENTES = {};
 
   it('nenhuma primitiva do registro ficou sem consumidor por acidente', () => {
     const tipos = new Set();
@@ -925,8 +925,8 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
 
   it('a lista de pendentes não cresceu', () => {
     // Ela só deve encolher. Se precisar crescer, é decisão consciente — e o
-    // motivo vai no comentário, como o do mod_atributo.
-    expect(Object.keys(PENDENTES)).toEqual(['mod_atributo']);
+    // motivo vai no comentário.
+    expect(Object.keys(PENDENTES)).toEqual([]);
   });
 
   it('as primitivas LIGADAS realmente existem no motor', () => {

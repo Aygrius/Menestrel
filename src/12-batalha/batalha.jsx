@@ -1281,7 +1281,7 @@ function tecnicasDoAtor(ator, catalogos) {
   const pj = catalogos.pjById[ator.ref_id];
   if (!pj || !pj.tecnicas) return [];
   const ficha = (typeof calcularFicha === 'function')
-    ? calcularFicha(pj, catalogos.catalogoBySlug, ator.condicoes || pj.estado_atual?.condicoes) : { atributos: {} };
+    ? calcularFicha(pj, catalogos.catalogoBySlug, ator.condicoes || pj.estado_atual?.condicoes, undefined, ator.subraca) : { atributos: {} };
   const atributos = ficha.atributos || {};
   const out = [];
   Object.entries(pj.tecnicas).forEach(([key, nivel]) => {
@@ -1593,6 +1593,14 @@ function semearMagiasAtivas(snap, pj, magiasByKey, dataJogo) {
     if (!cat) return;
     out = aplicarEfeitoMagia(out, cat, a.nivel);
   });
+  /* A transformação que JÁ vinha da ficha é marcada: ela já está em
+     magias_ativas com o vencimento dela, e o fim da batalha não deve
+     renová-la (estadoAoEncerrar). Evocar de novo na luta troca o status por
+     um sem a marca — aí sim renova. */
+  if (out !== snap && Array.isArray(out.status_temp)) {
+    out = { ...out, status_temp: out.status_temp.map((s) => (
+      s && s.efeito && s.efeito.tipo === 'transformacao' ? { ...s, semeada: true } : s)) };
+  }
   return out;
 }
 
@@ -1653,7 +1661,23 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         CONDICOES_KEYS.forEach((k) => { condicoesVazias[k] = 0; });
         return { ...p, vb: 0, pa_max: 1, pa_rest: 1, eh: 0, eh_max: 0, ar: 0, ar_max: 0, ef: 0, ef_max: 0, karma: 0, karma_max: 0, condicoes: condicoesVazias, defesa_sigla: 'L', defesa_valor: 0, rf: 0, rm: 0, status: 'ativo', ausente: true };
       }
-      const d = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes).derivadas;
+      // Sub-raça (Vampiro/Lobisomem) fixada na largada com a data da mesa,
+      // e guardada no snapshot: os cálculos do combate leem ela de lá.
+      const subracaPj = subracaEfetiva(pj, dataJogo);
+      const d = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes, undefined, subracaPj).derivadas;
+      /* Os números de CADA forma, prontos para a troca no meio da luta
+         (ajustarFormaSnapshot). Chave '' = forma natural. */
+      const formas = {};
+      ['', ...Object.keys(GAME_DATA.subracas)].forEach((f) => {
+        const df = f === subracaPj || (f === '' && !subracaPj) ? d
+          : calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes, undefined, f || null).derivadas;
+        const def = /^[TLMP](-?\d+)$/.exec(String(df.defesa || ''));
+        formas[f] = {
+          ef: df.energiaFisica || 0, eh: df.energiaHeroica || 0, ka: df.karma || 0,
+          vb: df.velocidade || 0, rf: df.resistenciaFisica || 0, rm: df.resistenciaMagica || 0,
+          def: def ? parseInt(def[1], 10) : 0,
+        };
+      });
       const pa = pontosAcaoPJ(pj);
       // Ponto exclusivo de tecnica (Guerreiro/Ladino especializado). Pool
       // proprio porque um numero so nao sabe dizer que um ponto e restrito.
@@ -1750,6 +1774,9 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         mov_rest: movimentoBase(Math.max(0, (d.velocidade || 0) - ventoVbLargada)),
         foto_url: pj.foto_url || null,
         raca: pj.raca || null,
+        subraca: subracaPj,                                            // forma atual
+        subraca_base: GAME_DATA.subracas[pj.subraca] ? pj.subraca : null, // a do Mestre
+        formas,
         // pa_rest ganha o bônus de velocidade JÁ NA RODADA 1 (paDaRodada):
         // antes ele só entrava na virada, e o veloz agia uma vez a menos na
         // primeira rodada que em todas as outras.
@@ -3273,7 +3300,7 @@ function ataquesDoAtor(ator, catalogos) {
     if (!pj) return [];
     // Condições do SNAPSHOT (evoluem em combate — itens etc.), com fallback
     // pro estado_atual da ficha em snapshots legados sem `condicoes`.
-    const ficha = calcularFicha(pj, catalogos.catalogoBySlug, ator.condicoes || pj.estado_atual?.condicoes);
+    const ficha = calcularFicha(pj, catalogos.catalogoBySlug, ator.condicoes || pj.estado_atual?.condicoes, undefined, ator.subraca);
     let lista = [];
     try {
       lista = gerarAtaques(pj, catalogos.catalogoBySlug, catalogos.magiasByKey, ficha.atributos) || [];
@@ -4138,7 +4165,8 @@ function removerStatusTempParticipante(p, statusId) {
   const removidos = atual.filter((s) => s.id === statusId);
   if (!removidos.length) return null;
   const novoArr = atual.filter((s) => s.id !== statusId);
-  return statusPorPools(expirarEhTemp({ ...p, status_temp: novoArr }, removidos));
+  // Tirar a Licantropia na mão devolve o corpo de antes (ajustarFormaSnapshot).
+  return statusPorPools(ajustarFormaSnapshot(expirarEhTemp({ ...p, status_temp: novoArr }, removidos)));
 }
 // ordenarIniciativa usando a VB EFETIVA (mod_vb), preservando o vb real.
 function ordenarIniciativaEfetiva(snaps) {
@@ -4333,7 +4361,40 @@ function estadoAoEncerrar(estadoAtual, p, dataJogo) {
     condicoes: temCondicoes ? { ...p.condicoes } : (base.condicoes || {}),
     vitalidade,
     status,
+    ...transformacaoAoEncerrar(base.magias_ativas, p, dataJogo),
   };
+}
+
+/* A Licantropia ATRAVESSA a batalha (22/10/2026). Ela dura 1 dia, e o status
+   dela em combate não tem rodadas — sem isto, quem virou lobisomem na luta
+   voltava ao normal ao fim dela.
+
+     • evocada NA luta (status sem `semeada`) → vira magia ativa na ficha,
+       vencendo `dura_dias` depois da data do fim da batalha (renova se já
+       havia uma);
+     • vinda da ficha (`semeada`) → fica como estava, com o vencimento dela;
+     • tirada pelo Mestre durante a luta → sai também da ficha.
+
+   Snapshot antigo, sem `formas`, não mexe em nada. Devolve {} quando não há
+   o que mudar, para o spread do chamador não escrever a chave à toa. */
+function transformacaoAoEncerrar(ativasFicha, p, dataJogo) {
+  if (!p || !p.formas || typeof subracaDaMagia !== 'function') return {};
+  const ativas = Array.isArray(ativasFicha) ? ativasFicha : [];
+  const st = Array.isArray(p.status_temp) ? p.status_temp : [];
+  const transf = st.filter((s) => s && s.efeito && s.efeito.tipo === 'transformacao');
+  const semTransf = ativas.filter((a) => !(a && subracaDaMagia(a.key)));
+  if (transf.length === 0) {
+    return semTransf.length === ativas.length ? {} : { magias_ativas: semTransf };
+  }
+  const novas = transf.filter((s) => !s.semeada && s.magia_key && Number.isFinite(s.dura_dias));
+  if (novas.length === 0 || typeof somarDiasFantasy !== 'function') return {};
+  const s = novas[novas.length - 1];
+  const vence = somarDiasFantasy(dataJogo, s.dura_dias);
+  if (!vence) return {};   // mesa sem data: não há como vencer
+  return { magias_ativas: [
+    ...ativas.filter((a) => !(a && a.key === s.magia_key)),
+    { key: s.magia_key, nome: s.nome || s.magia_key, nivel: s.nivel, vence_em: vence },
+  ] };
 }
 
 /* ── Concentração derrubada pelo VENENO da virada (puro) ───────────
@@ -4552,6 +4613,64 @@ function aplicarFalhaCritica(atacante, objDano, q) {
   return { participante: p, dano };
 }
 
+/* ── Transformação no meio da luta (22/10/2026) ────────────────────
+   "Tem que ser possível transformar no meio da batalha." (usuário)
+
+   A forma que o PJ DEVE ter é a da última transformação em status_temp
+   (Licantropia → Lobisomem); sem nenhuma, a sub-raça permanente da largada
+   (`subraca_base`, a coluna personagens.subraca). Quando ela difere da forma
+   atual (`subraca`), o snapshot troca de corpo.
+
+   Os números de cada forma vêm PRONTOS do snapshot (`formas`, montado em
+   montarSnapshots com calcularFicha), e a troca soma a DIFERENÇA entre as
+   duas formas — não sobrescreve. Assim o dano já levado continua levado, e o
+   bônus de iniciativa e o que mais tiver mexido no vb ficam onde estão.
+
+   Trocar de forma não mata nem derruba ninguém: quem estava de pé com EF
+   positiva continua com pelo menos 1. Os ataques e testes leem a forma nova
+   pelo `subraca` do snapshot (calcularFicha(..., ator.subraca)). */
+function formaDesejadaSnapshot(p) {
+  const st = Array.isArray(p && p.status_temp) ? p.status_temp : [];
+  for (let i = st.length - 1; i >= 0; i--) {
+    const ef = st[i] && st[i].efeito;
+    if (ef && ef.tipo === 'transformacao' && ef.subraca) return ef.subraca;
+  }
+  return (p && p.subraca_base) || null;
+}
+
+function ajustarFormaSnapshot(p) {
+  if (!p || p.tipo !== 'pj' || !p.formas) return p;
+  const de = p.subraca || null;
+  const para = formaDesejadaSnapshot(p);
+  if (de === para) return p;
+  const a = p.formas[de || ''];
+  const b = p.formas[para || ''];
+  if (!a || !b) return p;
+  const d = (k) => (Number(b[k]) || 0) - (Number(a[k]) || 0);
+  // Poço: o máximo anda pela diferença, o atual anda junto (o dano levado
+  // fica), sem passar do máximo novo — e sem derrubar quem estava de pé.
+  const poco = (cur, max, delta, piso) => {
+    const novoMax = Math.max(0, (Number(max) || 0) + delta);
+    let novo = Math.min(novoMax, (Number(cur) || 0) + delta);
+    if ((Number(cur) || 0) > 0 && novo < piso) novo = Math.min(novoMax, piso);
+    return { cur: (Number(cur) || 0) > 0 ? novo : Math.min(novoMax, Number(cur) || 0), max: novoMax };
+  };
+  const ef = poco(p.ef, p.ef_max, d('ef'), 1);
+  const eh = poco(p.eh, p.eh_max, d('eh'), 0);
+  const ka = poco(p.karma, p.karma_max, d('ka'), 0);
+  return {
+    ...p,
+    subraca: para,
+    ef: ef.cur, ef_max: ef.max,
+    eh: eh.cur, eh_max: eh.max,
+    karma: ka.cur, karma_max: ka.max,
+    vb: (Number(p.vb) || 0) + d('vb'),
+    rf: Math.max(0, (Number(p.rf) || 0) + d('rf')),
+    rm: Math.max(0, (Number(p.rm) || 0) + d('rm')),
+    defesa_valor: (Number(p.defesa_valor) || 0) + d('def'),
+  };
+}
+
 /* ── Aplica um efeito de apoio (magia) num participante ────────────
    Só mexe em status_temp — o `vb` do snapshot fica intacto, exatamente como
    aplicarFalhaCritica faz acima. vbEfetivo soma os mod_vb na hora de ordenar
@@ -4585,7 +4704,8 @@ function aplicarEfeitoApoio(participante, magiaApoio, atorInstId) {
     // acontecem e acabam, então não são status_temp — mas têm que acontecer,
     // senão Curas Físicas e Doenças seriam magias que não fazem nada.
     const comCura = aplicarCurasDaMagia(comStatus, magiaCompleta, magiaApoio.nivel);
-    return aplicarCondicoesDaMagia(comCura, magiaCompleta, magiaApoio.nivel);
+    // Licantropia: o status de transformação acabou de entrar — troca o corpo.
+    return ajustarFormaSnapshot(aplicarCondicoesDaMagia(comCura, magiaCompleta, magiaApoio.nivel));
   }
 
   const atual = Array.isArray(participante.status_temp) ? participante.status_temp : [];
@@ -5072,7 +5192,14 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
         ...(dur.concentracao && opcoes && opcoes.fonteInstId
           ? { concentracao: { ator: opcoes.fonteInstId, magia_key: key } } : {}),
         ...(ef.consome_em ? { consome_em: ef.consome_em } : {}),
-        efeito: { tipo: ef.tipo, valor: ef.valor },
+        /* TRANSFORMAÇÃO (Licantropia, 22/10/2026): o status leva a forma,
+           e a duração em dias e o nível para o fim da batalha gravar a magia
+           ativa na ficha (estadoAoEncerrar) — 1 dia é mais que uma luta. */
+        ...(ef.tipo === 'transformacao' ? {
+          magia_key: key, nivel,
+          dura_dias: (typeof duracaoEmDiasDeJogo === 'function') ? duracaoEmDiasDeJogo(magia, nivel) : null,
+        } : {}),
+        efeito: { tipo: ef.tipo, valor: ef.valor, ...(ef.subraca ? { subraca: ef.subraca } : {}) },
       });
       return;
     }
@@ -9102,7 +9229,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     // "as condições devem ser alteradas conforme a luta avança" — habilidade,
     // técnica e RF/RM refletem o valor ATUAL da batalha, não o pré-batalha.
     return (typeof calcularFicha === 'function')
-      ? calcularFicha(pj, catalogos.catalogoBySlug, (ator && ator.condicoes) || pj.estado_atual?.condicoes) : null;
+      ? calcularFicha(pj, catalogos.catalogoBySlug, (ator && ator.condicoes) || pj.estado_atual?.condicoes, undefined, ator && ator.subraca) : null;
   }, [isPJ, pj, catalogos, ator]);
   const atributosFicha = (ficha && ficha.atributos) || {};
   const habilidadesAtor = useMemo(() => {
@@ -12386,7 +12513,9 @@ Object.assign(window, {
     quebrarConcentracaoPorVeneno,
     // Volta do combate pra ficha (o outro extremo de montarSnapshots) —
     // ver ciclo-ficha-batalha.test.js.
-    estadoAoEncerrar,
+    estadoAoEncerrar, transformacaoAoEncerrar,
+    // 22/10/2026: transformação (Licantropia) no meio da luta.
+    formaDesejadaSnapshot, ajustarFormaSnapshot,
     // saidaDeCombate é a regra compartilhada de desmaiar/morrer/desistir
     // entre mudarStatus (Mestre) e handleDesistir (Jogador) — ver
     // saida-de-combate.test.js.

@@ -728,10 +728,11 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
 
   // Peso/carga (barra abaixo do trilho de moedas). Independe do controle de
   // armazenamento S/L acima — esse continua gateando a compra (livreS/livreL).
-  const carga = useMemo(
-    () => calcCarga(inventario?.itens, catalogoBySlug, pjSelecionado?.forca_base, pjSelecionado?.fisico_base),
-    [inventario, catalogoBySlug, pjSelecionado]
-  );
+  // Força/Físico com a sub-raça aplicada (Vampiro/Lobisomem, 22/10/2026).
+  const carga = useMemo(() => {
+    const atr = pjSelecionado ? atributosEfetivosPJ(pjSelecionado) : {};
+    return calcCarga(inventario?.itens, catalogoBySlug, atr.forca, atr.fisico);
+  }, [inventario, catalogoBySlug, pjSelecionado]);
 
   // Recipientes do PJ compatíveis (mesmo tipo S/L + tipo_item, quando o
   // recipiente restringe por grupo) com um item da loja, com o espaço livre

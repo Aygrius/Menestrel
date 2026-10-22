@@ -2566,7 +2566,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
      ninguém acorda devendo quinhentas horas de fome. */
   const ancoraDe = (d) => (d && d.decaimento_em) || instanteDe(d);
 
-  const aplicarDesgasteNosPJs = async (horas, horaInicial, tempo) => {
+  const aplicarDesgasteNosPJs = async (horas, horaInicial, tempo, instanteNovo) => {
     if (horas <= 0) return;
     const { data: hist, error } = await supabaseClient
       .from('historias').select('protagonista_ids').eq('id', historiaId).maybeSingle();
@@ -2580,7 +2580,10 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     if (erroPjs || !pjs) { console.error('[desgaste] não consegui ler os PJs:', erroPjs); return; }
     const semKarma = window.SEM_KARMA || new Set(['Guerreiro', 'Ladino']);
     await Promise.all(pjs.map((pj) => {
-      const est = pj.estado_atual || {};
+      /* A Licantropia que venceu nesta virada sai do estado (22/10/2026): é o
+         que devolve o lobisomem à forma normal em telas que leem o PJ sem a
+         data da mesa (card do Mestre, por exemplo). */
+      const est = limparTransformacoesVencidas(pj.estado_atual || {}, instanteNovo);
       const tipoAtividade = est.atividade && est.atividade.tipo;
       const desgastado = { ...est, condicoes: decaimentoPorHoras(est.condicoes, horaInicial, horas, tempo, tipoAtividade) };
       /* O descanso vem DEPOIS do desgaste: o máximo de EF/EH/KA depende das
@@ -2588,7 +2591,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
          a hora deixou. */
       let novo = desgastado;
       if (tipoAtividade) {
-        const ficha = calcularFicha(pj, null, desgastado.condicoes);
+        const ficha = calcularFicha({ ...pj, estado_atual: est }, null, desgastado.condicoes);
         const d = ficha.derivadas || {};
         novo = recuperacaoPorAtividade(desgastado, horas, {
           atributos: ficha.atributos,
@@ -2653,7 +2656,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     const horas = horasEntre(ancora, instanteNovo);
     if (horas <= 0) return;
     await Promise.all([
-      aplicarDesgasteNosPJs(horas, horaDoJogo(ancora), tempo),
+      aplicarDesgasteNosPJs(horas, horaDoJogo(ancora), tempo, instanteNovo),
       aplicarChuvaNaLoja(horas, tempo),
     ]);
   };

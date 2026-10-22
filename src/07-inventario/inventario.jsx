@@ -510,7 +510,7 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
 // foto_url (27/09/2026): o card do alvo na aba Usar mostrava só a inicial.
 // intelecto_base + aura_base (22/10/2026): orçamento de magia (pontosMagiasTotal).
 // deus (22/10/2026): regra dos milagres na janela Estudar (sem religião, sem milagre).
-const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,inventario,estado_atual,magias,experiencia,especializacao,inventario_versao';
+const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,subraca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,inventario,estado_atual,magias,experiencia,especializacao,inventario_versao';
 
 // Inventário com os campos que a tela espera, sem mexer no objeto de origem.
 const INV_VAZIO = () => ({ moedas: { ouro: 0, prata: 0, cobre: 0, latao: 0 }, itens: [] });
@@ -1449,7 +1449,9 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // container continua sendo tratado pelo capacidadeContainer (intacto).
   const carga = useMemo(() => {
     const pjSel = pjs?.find((p) => p.id === selectedId);
-    return calcCarga(inv?.itens, catalogoBySlug, pjSel?.forca_base, pjSel?.fisico_base);
+    // Força/Físico com a sub-raça aplicada (Vampiro/Lobisomem, 22/10/2026).
+    const atr = pjSel ? atributosEfetivosPJ(pjSel) : {};
+    return calcCarga(inv?.itens, catalogoBySlug, atr.forca, atr.fisico);
   }, [inv, catalogoBySlug, pjs, selectedId]);
 
   // ── Render ────────────────────────────────────────────────

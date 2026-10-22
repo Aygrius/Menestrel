@@ -598,6 +598,78 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher }) {
   );
 }
 
+/* ── FichaSubracaValor — a sub-raça na Identificação (22/10/2026) ─────────
+   "Um personagem pode se transformar em vampiro permanentemente por vontade
+   do mestre" e em lobisomem pela Licantropia Lupina. O valor da linha
+   "Sub-raça"; para o Mestre ele é o próprio seletor, com a mesma lista do
+   seletor de atividade (.fp-status-opcoes) — escolher é um clique, sem modal.
+
+   Escolher aqui é a palavra final do Mestre: encerra também a Licantropia em
+   curso (ver definirSubraca em FichaPersonagem). `venceEm` só vem quando o
+   lobo é da magia, e aparece como prazo, igual ao do status. */
+const SUBRACA_ICONE = { Vampiro: 'ti-droplet', Lobisomem: 'ti-paw' };
+
+function FichaSubracaValor({ atual, venceEm, podeEditar, lang, onEscolher }) {
+  const en = lang === 'en';
+  const [aberta, setAberta] = useState(false);
+  const dropRef = useRef(null);
+  const NOMES = { Vampiro: en ? 'Vampire' : 'Vampiro', Lobisomem: en ? 'Werewolf' : 'Lobisomem' };
+  const nenhuma = en ? 'None' : 'Nenhuma';
+
+  useEffect(() => {
+    if (!aberta) return undefined;
+    const fora = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setAberta(false); };
+    const esc = (e) => { if (e.key === 'Escape') setAberta(false); };
+    document.addEventListener('mousedown', fora);
+    window.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc); };
+  }, [aberta]);
+
+  const rotulo = (
+    <>
+      {atual ? NOMES[atual] || atual : nenhuma}
+      {atual && venceEm && typeof formatarDataFantasy === 'function' && (
+        <em className="fp-status-prazo">{(en ? 'until ' : 'até ') + formatarDataFantasy(venceEm, lang)}</em>
+      )}
+    </>
+  );
+  if (!podeEditar) return <span className="fp-row-value">{rotulo}</span>;
+
+  const escolher = (s) => { setAberta(false); if (s !== atual || venceEm) onEscolher(s); };
+  const opcoes = [null, 'Vampiro', 'Lobisomem'];
+  return (
+    <span className="fp-row-value fp-status-wrap fp-subraca" ref={dropRef}>
+      <button
+        type="button"
+        className={'fp-subraca-btn' + (aberta ? ' is-open' : '')}
+        onClick={() => setAberta((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={aberta}
+        aria-label={(en ? 'Change sub-race: ' : 'Mudar sub-raça: ') + (atual ? NOMES[atual] : nenhuma)}
+      >
+        {rotulo}
+        <i className="ti ti-chevron-down" aria-hidden="true" />
+      </button>
+      {aberta && (
+        <ul className="fp-status-opcoes" role="listbox" aria-label={en ? 'Sub-race' : 'Sub-raça'}>
+          {opcoes.map((s) => (
+            <li
+              key={s || 'nenhuma'}
+              role="option"
+              aria-selected={s === atual}
+              className={'fp-status-opcao' + (s === atual ? ' is-atual' : '')}
+              onClick={() => escolher(s)}
+            >
+              <i className={'ti ' + (s ? SUBRACA_ICONE[s] : 'ti-x')} aria-hidden="true" />
+              <span>{s ? NOMES[s] : nenhuma}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </span>
+  );
+}
+
 function FichaStatusPainel({ lista, dataJogo, podeEditar, lang, onRemover }) {
   const en = lang === 'en';
   const vigentes = (typeof window !== 'undefined' && window.statusVigentes)
@@ -1439,6 +1511,9 @@ function FichaInfoView({
   nivelMagiaEfetivoFn, totalHabilidadeFn, totalTecnicaFn,
   bonusHabilidades, titulo,
   historiaPj,
+  // Sub-raça em vigor (22/10/2026): { atual, venceEm }. `onEscolherSubraca`
+  // só chega para o Mestre — sem ele a linha é só leitura.
+  subracaInfo, onEscolherSubraca, lang,
   // 'personagem' | 'conhecimento' — as duas abas que dividiram Informações.
   parte = 'personagem',
   /* Clicar numa habilidade, técnica ou magia do Conhecimento abre a janela
@@ -1516,6 +1591,20 @@ function FichaInfoView({
           <Row label={en ? 'Surname'        : 'Sobrenome'}      value={pj.sobrenome} />
           <Row label={en ? 'Title'          : 'Título'}         value={titulo || null} />
           <Row label={en ? 'Race'           : 'Raça'}           value={pj.raca} />
+          {/* Sub-raça: o Jogador só vê quando existe; o Mestre vê sempre,
+              porque a linha é onde ele transforma o personagem. */}
+          {(onEscolherSubraca || (subracaInfo && subracaInfo.atual)) && (
+            <div className="fp-row">
+              <span className="fp-row-label">{en ? 'Sub-race' : 'Sub-raça'}</span>
+              <FichaSubracaValor
+                atual={subracaInfo && subracaInfo.atual}
+                venceEm={subracaInfo && subracaInfo.venceEm}
+                podeEditar={!!onEscolherSubraca}
+                lang={lang || (en ? 'en' : 'pt')}
+                onEscolher={onEscolherSubraca}
+              />
+            </div>
+          )}
           <Row label={en ? 'Gender'         : 'Gênero'}         value={pj.genero} />
           {pesoPersonagem != null && (
             <Row label={en ? 'Weight' : 'Peso'} value={`${pesoPersonagem} kg`} />
@@ -2629,7 +2718,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      PJ fora de mesa não tem clima, e aí o parâmetro é undefined: a conta é a
      de sempre. */
   const ventoDaMesa = historiaPj?.data_jogo_atual?.tempo?.vento;
-  const ficha = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes, ventoDaMesa);
+  // Sub-raça com a data da mesa: a Licantropia vencida já não conta aqui.
+  const subracaAtual = subracaEfetiva(pj, historiaPj?.data_jogo_atual);
+  const ficha = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes, ventoDaMesa, subracaAtual);
   const ataques = gerarAtaques(pj, catalogoBySlug, magiasByKey, ficha.atributos);
 
   const slotsState = getSlotsState(pj.inventario?.itens || [], catalogoBySlug, pj.raca);
@@ -2681,6 +2772,37 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       // outra tela mudou, em vez de deixar a ficha com um retrato velho.
       if (data) setPj((prev) => (prev && prev.id === id ? { ...prev, estado_atual: data } : prev));
     }, 400); // mesmo espírito do debounce de inventário
+  };
+
+  /* SUB-RAÇA (22/10/2026). `venceEm` só existe quando o lobo vem da
+     Licantropia ainda vigente — a última magia de transformação da lista. */
+  const _ativasTransf = (typeof magiasAtivasVigentes === 'function'
+    ? magiasAtivasVigentes((pj.estado_atual && pj.estado_atual.magias_ativas) || [], historiaPj?.data_jogo_atual)
+    : []).filter((a) => a && subracaDaMagia(a.key));
+  const _transfMagia = _ativasTransf[_ativasTransf.length - 1] || null;
+  const subracaInfo = {
+    atual: subracaAtual,
+    venceEm: (_transfMagia && subracaDaMagia(_transfMagia.key) === subracaAtual && _transfMagia.vence_em) || null,
+  };
+  /* O Mestre decide (pedido do usuário: "O mestre do jogo pode mudar a
+     transformação dos personagens quando quiser"): a escolha vira a sub-raça
+     permanente e encerra a Licantropia em curso — senão o lobo da magia
+     continuaria vencendo a escolha dele até o prazo acabar. */
+  const definirSubraca = async (s) => {
+    const id = pj.id;
+    const est = pj.estado_atual || {};
+    const ativas = Array.isArray(est.magias_ativas) ? est.magias_ativas : [];
+    const semMagia = ativas.filter((a) => !(a && subracaDaMagia(a.key)));
+    if (semMagia.length !== ativas.length) salvarEstadoAtual({ ...est, magias_ativas: semMagia });
+    // A permanente mora na coluna `subraca`; um trigger no banco recusa
+    // quem não é Mestre da história do personagem.
+    const antes = pj.subraca || null;
+    setPj((prev) => (prev && prev.id === id ? { ...prev, subraca: s || null } : prev));   // otimista
+    const { error: err } = await supabaseClient.from('personagens').update({ subraca: s || null }).eq('id', id);
+    if (err) {
+      setPj((prev) => (prev && prev.id === id ? { ...prev, subraca: antes } : prev));
+      setEqErro(err.hint || err.message);
+    }
   };
   // aplicarEstadoEfeito — porta de gravação SEM o gate de isMestre: aplica
   // efeito_positivo/negativo de UM item (catálogo `cat`, multiplicado por
@@ -3258,7 +3380,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const _carga = (() => {
     if (!_calcCarga_fn) return { peso: 0, capacidade: 0, pct: 0, over: false };
     try {
-      const c = _calcCarga_fn(pj.inventario?.itens || [], catalogoBySlug, pj.forca_base, pj.fisico_base);
+      const c = _calcCarga_fn(pj.inventario?.itens || [], catalogoBySlug, ficha.atributosBase.forca, ficha.atributosBase.fisico);
       return (c && Number.isFinite(c.pct)) ? c : { peso: 0, capacidade: 0, pct: 0, over: false };
     } catch { return { peso: 0, capacidade: 0, pct: 0, over: false }; }
   })();
@@ -4395,6 +4517,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             bonusHabilidades={bonusHabilidades}
             titulo={titulo}
             historiaPj={historiaPj}
+            lang={lang}
+            subracaInfo={subracaInfo}
+            onEscolherSubraca={isMestre ? definirSubraca : undefined}
           />
         </div>
       ) : fpTab === 'animais' && animaisPj.length > 0 ? (

@@ -22,6 +22,17 @@ const GAME_DATA = {
     'Pequenino':      { mods: { intelecto: 0, aura: -2, carisma: 1, forca: -2, fisico: 0, agilidade: 2, percepcao: 1 }, altura: 1.14 },
   },
 
+  // SUB-RAÇAS (22/10/2026) — transformações que SUBSTITUEM os ajustes da raça
+  // enquanto valem; os pontos comprados ficam. Vampiro é permanente, por
+  // vontade do Mestre (coluna personagens.subraca); Lobisomem vem da magia
+  // Licantropia Lupina (temporário) ou do Mestre. Ver subracaEfetiva.
+  // Ficam FORA de `racas` de propósito: não aparecem no wizard nem entram no
+  // teto da equalização racial (bonusPontosRaca).
+  subracas: {
+    'Vampiro':   { mods: { intelecto: 0, aura: -1, carisma: 1, forca: -1, fisico: -2, agilidade: 2, percepcao: 1 }, altura: 1.77 },
+    'Lobisomem': { mods: { intelecto: -2, aura: -2, carisma: -2, forca: 2, fisico: 2, agilidade: 0, percepcao: 2 }, altura: 1.92 },
+  },
+
   reinos: [
     'Abadom', 'Acordo', 'Âmien', 'Azanti', 'Calco', 'Cidades-Estado', 'Conti', 'Dantsen', 'Eredra', 'Filanti', 'Levânia', 'Ludgrim', 'Luna', 'Marana', 'Plana', 'Portis', 'Porto Livre', 'Verrogar',
   ],
@@ -355,14 +366,76 @@ function _multGeneroFisico(genero) {
   return 1; // Neutro ou indefinido
 }
 
-function altura(raca, genero) {
-  const base = GAME_DATA.racas[raca]?.altura ?? 1.77;
+// `subraca` (opcional) troca a altura-base da raça pela da sub-raça; o gênero
+// continua valendo por cima, como em qualquer raça.
+function altura(raca, genero, subraca) {
+  const base = GAME_DATA.subracas[subraca]?.altura ?? GAME_DATA.racas[raca]?.altura ?? 1.77;
   return +(base * _multGeneroFisico(genero)).toFixed(2);
 }
-function peso(raca, genero) {
-  const h = altura(raca, genero);
-  const fator = raca === 'Anão' ? 40 : 28;
+function peso(raca, genero, subraca) {
+  const sub = GAME_DATA.subracas[subraca] ? subraca : null;
+  const h = altura(raca, genero, sub);
+  // O fator atarracado é do corpo de anão: transformado, o corpo é outro.
+  const fator = (raca === 'Anão' && !sub) ? 40 : 28;
   return Math.floor(h * h * fator);
+}
+
+// ── Sub-raça em vigor (22/10/2026) ──────────────────────────────────────
+// Uma magia de transformação ativa (Licantropia → Lobisomem) vence a
+// sub-raça permanente que o Mestre definiu (coluna `subraca`, que um trigger
+// no banco deixa só o Mestre da história mudar): o vampiro
+// que evoca Licantropia vira lobisomem por um dia e volta a vampiro depois.
+//
+// `dataJogo` é a data da mesa: a magia vence por comparação na leitura
+// (magiasAtivasVigentes). Sem data, ela é tratada como vigente — o mesmo
+// critério de toda magia ativa; o avanço do relógio pelo Mestre limpa as
+// vencidas (limparTransformacoesVencidas), então quem lê sem data não fica
+// com lobo eterno.
+function subracaEfetiva(p, dataJogo) {
+  const est = (p && p.estado_atual) || {};
+  const ativas = Array.isArray(est.magias_ativas) ? est.magias_ativas : [];
+  if (ativas.length && typeof subracaDaMagia === 'function') {
+    const vig = typeof magiasAtivasVigentes === 'function' ? magiasAtivasVigentes(ativas, dataJogo) : ativas;
+    for (let i = vig.length - 1; i >= 0; i--) {
+      const s = vig[i] && subracaDaMagia(vig[i].key);
+      if (s && GAME_DATA.subracas[s]) return s;
+    }
+  }
+  const fixa = p && p.subraca;
+  return GAME_DATA.subracas[fixa] ? fixa : null;
+}
+
+// Tira do estado as magias de transformação já vencidas na data `dataJogo`.
+// Devolve o MESMO objeto quando não há nada a tirar (quem chama compara
+// referência para decidir se grava).
+function limparTransformacoesVencidas(estado, dataJogo) {
+  const ativas = estado && Array.isArray(estado.magias_ativas) ? estado.magias_ativas : null;
+  if (!ativas || typeof magiasAtivasVigentes !== 'function' || typeof subracaDaMagia !== 'function') return estado;
+  const vig = new Set(magiasAtivasVigentes(ativas, dataJogo));
+  const depois = ativas.filter((a) => vig.has(a) || !subracaDaMagia(a && a.key));
+  return depois.length === ativas.length ? estado : { ...estado, magias_ativas: depois };
+}
+
+// Atributos com a sub-raça aplicada: tira o ajuste da raça (que já mora
+// embutido no X_base desde a criação, ver pontosGastos) e põe o da sub-raça.
+// Sem sub-raça, devolve os valores como vieram.
+function atributosComSubraca(baseVals, raca, subraca) {
+  const sub = GAME_DATA.subracas[subraca];
+  if (!sub) return { ...baseVals };
+  const modsRaca = GAME_DATA.racas[raca]?.mods || {};
+  const out = {};
+  ATRIBUTOS_KEYS.forEach((k) => {
+    out[k] = (baseVals[k] ?? 0) - (modsRaca[k] ?? 0) + (sub.mods[k] ?? 0);
+  });
+  return out;
+}
+
+// Os 7 atributos do PJ como valem agora (sub-raça aplicada). Para quem não
+// passa por calcularFicha — a carga do inventário e da loja, por exemplo.
+function atributosEfetivosPJ(p, dataJogo) {
+  const brutos = {};
+  ATRIBUTOS_KEYS.forEach((k) => { brutos[k] = (p && p[`${k}_base`]) ?? 0; });
+  return atributosComSubraca(brutos, p && p.raca, subracaEfetiva(p, dataJogo));
 }
 
 // RF/RM base — RF = estágio + físico, RM = estágio + aura, piso 0.
@@ -385,7 +458,10 @@ function resistenciasBase(estagio, fisico, aura) {
 // Os ATRIBUTOS nunca são afetados por condição. O efeito das condições de
 // GRUPO (Sanidade/Reputação/Temperatura) não mora aqui — é aplicado no total
 // da habilidade, por totalHabilidadeComCondicoes.
-function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau) {
+// subraca (opcional, 22/10/2026): a sub-raça em vigor (ver subracaEfetiva).
+// Omitida → lida do próprio PJ sem a data da mesa; quem tem a data em mãos
+// passa subracaEfetiva(p, dataJogo), e a batalha passa a do snapshot.
+function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca) {
   const racaData = GAME_DATA.racas[p.raca] || GAME_DATA.racas['Humano'];
   const profData = GAME_DATA.profissoes[p.profissao] || GAME_DATA.profissoes['Guerreiro'];
   const estagio = calcEstagio(p.experiencia ?? 0);
@@ -402,10 +478,15 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau) {
   // racaData.mods segue existindo em GAME_DATA e é usado pelo wizard
   // (08-personagens/personagens.jsx) pra preencher X_base ao trocar de
   // raça — não é lixo morto, só não entra mais nesta soma.
-  const atributosBase = {};
+  const _brutos = {};
   ATRIBUTOS_KEYS.forEach((k) => {
-    atributosBase[k] = p[`${k}_base`] ?? 0;
+    _brutos[k] = p[`${k}_base`] ?? 0;
   });
+  // Sub-raça (Vampiro/Lobisomem): troca o ajuste da raça pelo dela, e os
+  // pontos comprados ficam. Tudo daqui pra baixo — carga, poços, VB — usa o
+  // atributo já transformado.
+  const sub = subraca === undefined ? subracaEfetiva(p) : (GAME_DATA.subracas[subraca] ? subraca : null);
+  const atributosBase = atributosComSubraca(_brutos, p.raca, sub);
   // Condição não mexe em atributo desde 08/09/2026 (ver [14.5]) — o atributo
   // exibido é sempre o base. `atributos` continua existindo separado de
   // `atributosBase` porque metade do app lê um e metade lê o outro.
@@ -420,7 +501,7 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau) {
     || (typeof window !== 'undefined' && window.protecoesVestidas) || null;
   let pesadoPct = 0;
   if (catalogoBySlug && _itens && _cargaFn) {
-    try { pesadoPct = Math.max(0, Math.min(100, Number(_cargaFn(_itens, catalogoBySlug, p.forca_base, p.fisico_base).pct) || 0)); }
+    try { pesadoPct = Math.max(0, Math.min(100, Number(_cargaFn(_itens, catalogoBySlug, atributosBase.forca, atributosBase.fisico).pct) || 0)); }
     catch (_) { pesadoPct = 0; }
   }
   const protecoes = (catalogoBySlug && _itens && _protFn) ? _protFn(_itens, catalogoBySlug) : {};
@@ -441,8 +522,8 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau) {
   //   Feminino   → −10% de altura e peso; +10% no ehBase da profissão (arredondado pra baixo)
   //   Neutro     → sem modificador em altura/peso nem no ehBase
   const genero = p.genero;
-  const h = altura(p.raca, genero);
-  const pesoVal = peso(p.raca, genero);
+  const h = altura(p.raca, genero, sub);
+  const pesoVal = peso(p.raca, genero, sub);
 
   // Os derivados abaixo ganham Math.max(0, ...) porque o delta de condição
   // pode empurrar o poço abaixo de 0 de propósito, e o resto do app (cascata
@@ -518,6 +599,7 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau) {
 
   return {
     estagio,
+    subraca: sub,
     altura: h,
     peso: pesoVal,
     atributos,
@@ -1356,6 +1438,7 @@ Object.assign(window, {
   GAME_DATA, GRUPOS_HABILIDADES_ORDEM, ATRIBUTOS_KEYS, ATRIBUTOS_LABEL,
   calcEstagio, pontosDisponiveis, custoAtributo, pontosGastos, todosOsPontosGastos, altura, peso,
   bonusPontosRaca, pontosAtributosTotal,
+  subracaEfetiva, limparTransformacoesVencidas, atributosComSubraca, atributosEfetivosPJ,
   calcularFicha, tituloDoPersonagem, pontosHabilidadesTotal, gastoHabilidades,
   qtdHabilidades, limiteQtdHabilidades, nivelHabilidade, totalHabilidade,
   calcBonusHabilidadesRacaReino,

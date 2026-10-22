@@ -1357,21 +1357,14 @@ const MAGIA_EFEITO_MAP = {
                                     sinal: 1, consome_em: 'magia_evocada' },
                                   { tipo: 'cura_pool', unidade: 'ef', pool: 'ef', sinal: -1 },
                                   { tipo: 'sem_cura_ef', valor: true }] },
-  /* LICANTROPIA LUPINA: o atributo sobe e desce junto — Força e Físico para
-     cima, Intelecto e Carisma para baixo, nos três níveis. Por isso o sinal
-     mora aqui: o parser devolve só a magnitude ("diminui 2" vira 2).
-
-     `mod_atributo` entra na coluna de ataque, que é onde o atributo toca a
-     rodada — NÃO nos poços. Ver aplicarModsAtributo para o porquê. */
+  /* LICANTROPIA LUPINA (22/10/2026): transforma o evocador na sub-raça
+     Lobisomem enquanto durar — "1 dia" no catálogo, então vira magia ativa
+     com vencimento (magiaAtivaDaEvocacao). Os ajustes antigos (+2 Força,
+     +1 Físico, −2 Intelecto, −1 Carisma) saíram: quem decide os números agora
+     é GAME_DATA.subracas, lido por subracaEfetiva (game-data.jsx). Bandeira
+     sem número (`valor: true`): o texto do nível não precisa trazer unidade. */
   licantropia_lupina: { alvo: 'self', alvos: 1, icone: '🐺',
-                        efeitos: [{ tipo: 'mod_atributo', unidade: 'atr_forca',
-                                    atributo: 'forca', sinal: 1 },
-                                  { tipo: 'mod_atributo', unidade: 'atr_fisico',
-                                    atributo: 'fisico', sinal: 1 },
-                                  { tipo: 'mod_atributo', unidade: 'atr_intelecto',
-                                    atributo: 'intelecto', sinal: -1 },
-                                  { tipo: 'mod_atributo', unidade: 'atr_carisma',
-                                    atributo: 'carisma', sinal: -1 }] },
+                        efeitos: [{ tipo: 'transformacao', subraca: 'Lobisomem', valor: true }] },
 
   /* ── Cura (2) ──────────────────────────────────────────────────── */
   // "efeito inverso em mortos-vivos": a cura de EH vira dano na EH.
@@ -1572,6 +1565,14 @@ function magiaEfeitoDe(key) {
   return MAGIA_EFEITO_MAP[key] || null;
 }
 
+// A sub-raça em que a magia transforma o alvo, ou null. Hoje só a
+// Licantropia Lupina (→ Lobisomem); consumida por subracaEfetiva.
+function subracaDaMagia(key) {
+  const reg = magiaEfeitoDe(key);
+  const ef = reg && reg.efeitos.find((e) => e.tipo === 'transformacao');
+  return (ef && ef.subraca) || null;
+}
+
 /* ── Teto de estágio lido do texto do nível (Fase 2) ───────────────
    Esconjuração é a única da Fase 2 com teto de alvo por poder:
 
@@ -1598,7 +1599,7 @@ Object.assign(window, {
   classeDeDuracao, valeForaDeCombate, efeitosDeMagiaNaFicha, motivoNaoAplicaNaFicha, karmaDaEvocacaoForaDeCombate,
   pedidoDeMagiaPendente, metaDeEvocacao, pedidosDeMagiaAbertos,
   duracaoEmDiasDeJogo, magiaAtivaDaEvocacao, magiasAtivasVigentes,
-  MAGIA_EFEITO_MAP, magiaEfeitoDe, tetoEstagioNoNivel,
+  MAGIA_EFEITO_MAP, magiaEfeitoDe, subracaDaMagia, tetoEstagioNoNivel,
   DIFICULDADE_ORDEM, habilidadesDaDificuldade, passosDeDificuldade, deslocarDificuldade,
   efeitosDeDificuldade, magiaConsumidaNoTeste, passosDasMagiasAtivas, consumirMagiasDoTeste,
   aplicarMagiaNoEstado,
@@ -2101,11 +2102,11 @@ const MAGIA_FORA_DO_REGISTRO = {
   expulsao: { classe: 'sistema', motivo: 'Bane criaturas de outros planos.' },
   forma_espectral: { classe: 'sistema', motivo: 'Intangível: atravessa obstáculos e não ataca fisicamente.' },
   /* O texto já é legível ("Aumente 1 de atributo força" — o leitor aprendeu "de
-     atributo"), mas mod_atributo ainda NÃO tem consumidor no combate: é a
-     pendência da Licantropia (ver magia-efeitos.test.js, PENDENTES). Ligar a
-     magia agora a faria aparecer "no motor" sem fazer nada. */
+     atributo"), mas mod_atributo ainda NÃO tem consumidor no combate. A
+     Licantropia, que dividia a pendência, virou transformação em sub-raça
+     (22/10/2026). Ligar a magia agora a faria aparecer "no motor" sem fazer nada. */
   forca_sagrada: { classe: 'sistema', motivo:
-    'Atributo de combate ainda não tem consumidor no motor — a mesma pendência da Licantropia Lupina.' },
+    'Atributo de combate ainda não tem consumidor no motor.' },
   intercessao_divina: { classe: 'sistema', motivo: 'Reduz níveis de dano CRÍTICO — o motor não gradua crítico.' },
   julgamento_de_cruine: { classe: 'sistema', motivo: 'Dano em PORCENTAGEM da energia heroica e física — o leitor só lê números absolutos.' },
   nutricao_natural: { classe: 'sistema', motivo: 'Restaura PORCENTAGEM da energia heroica e física — o leitor só lê números absolutos.' },

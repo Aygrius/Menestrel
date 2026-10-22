@@ -882,6 +882,14 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
           <div className="pj-meta pj-meta--raca">
             {p.raca && <span>{p.raca}</span>}
             {p.raca && <span className="sep" aria-hidden="true">•</span>}
+            {/* Sub-raça em vigor (Vampiro/Lobisomem, 22/10/2026), logo depois
+                da raça: é a forma em que o personagem está agora. */}
+            {ficha.subraca && (
+              <>
+                <span>{en ? ({ Vampiro: 'Vampire', Lobisomem: 'Werewolf' }[ficha.subraca] || ficha.subraca) : ficha.subraca}</span>
+                <span className="sep" aria-hidden="true">•</span>
+              </>
+            )}
             <span>{en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}</span>
           </div>
           <div className="pj-meta pj-meta--profissao">

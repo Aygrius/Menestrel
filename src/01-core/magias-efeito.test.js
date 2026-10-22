@@ -202,6 +202,8 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // 12/09/2026: as primitivas que Oferenda e Licantropia
                          // trouxeram. Ver o comentario das entradas no mapa.
                          'mod_nivel_magia', 'sem_cura_ef', 'mod_atributo',
+                         // 22/10/2026: a Licantropia virou sub-raça Lobisomem.
+                         'transformacao',
                          // Doencas (12/09/2026): mexe numa das 8 CONDICOES da
                          // ficha (Saude), que nao e poco de combate.
                          'mod_condicao',
@@ -353,10 +355,6 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     relampago:          'Causa 28 de dano elemental de ar.',
     /* META e ATRIBUTO (12/09/2026). */
     oferenda:           'Aumenta 2 níveis da magia e reduz 1 de energia física.',
-    /* NIVEL 5, nao 1: Licantropia so menciona Fisico e Carisma a partir dele.
-       Unidade que so existe em nivel alto e caso real, e a conferencia tem
-       que usar um texto que exercite TODAS as declaradas. */
-    licantropia_lupina: 'Aumenta 2 no atributo Força e 1 no atributo Físico e diminui 2 no atributo Intelecto e 1 no atributo Carisma.',
     /* ══ VARREDURA DAS ÓRFÃS (12/09/2026). Cópias literais do banco. ══ */
     armadilha_natural:     'Cause 12 de dano base.',
     energia_primordial:    'Cause 36 de dano base.',
@@ -422,6 +420,8 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     medo:               'A magia tem duracao de 1 rodada.',
     esconjuracao:       'Afeta criaturas de estagio 1.',
     sono:               'Altera uma condicao do sono.',
+    // Bandeira desde 22/10/2026: vira a sub-raça Lobisomem. Cópia do banco.
+    licantropia_lupina: 'Transforma o evocador em Lobisomem.',
     // Varredura das magias que nenhum personagem conhecia (12/09/2026).
     // Fusão de 12/09/2026: 22 magias de dificuldade viraram 6.
     amizade:              'Reduza 1 nível de dificuldade de habilidades do grupo Influência.',
@@ -600,11 +600,12 @@ describe('auditarMagias — o verificador de manutenção do catálogo', () => {
   });
 
   it('a unidade precisa aparecer em ALGUM nível, não em todos', () => {
-    /* Licantropia só menciona Físico e Carisma a partir do nível 5. Exigir
-       todas em todos acusaria uma magia correta. */
-    const r = auditar([{ key: 'licantropia_lupina', nome: 'Licantropia Lupina',
-      nivel_1: 'Aumenta 1 no atributo Força e diminui 1 no atributo Intelecto.',
-      nivel_5: 'Aumenta 2 no atributo Força e 1 no atributo Físico e diminui 2 no atributo Intelecto e 1 no atributo Carisma.' }]);
+    /* Um nível baixo que só cita uma das unidades declaradas. Exigir todas em
+       todos acusaria uma magia correta. (Era a Licantropia até 22/10/2026,
+       quando ela virou transformação em sub-raça.) */
+    const r = auditar([{ key: 'super_resistencia', nome: 'Super Resistência',
+      nivel_1: 'Aumenta 1 de resistência física.',
+      nivel_5: 'Aumenta 1 de resistência física e 1 de resistência mágica.' }]);
     expect(r.quebrada).toHaveLength(0);
     expect(r.ok).toHaveLength(1);
   });

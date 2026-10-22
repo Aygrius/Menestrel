@@ -1354,6 +1354,27 @@
 #root .menestrel-ui .fp-status-opcao > i { font-size: var(--fs-base); color: var(--gold, #E0BE68); flex-shrink: 0; }
 
 #root .menestrel-ui .fp-status-modal { display: flex; flex-direction: column; gap: 16px; }
+
+/* Sub-raça na Identificação (22/10/2026): para o Mestre o VALOR da linha é o
+   seletor. Fica com cara de valor (mesma fonte e peso do .fp-row-value) e só
+   o chevron dourado diz que abre; a lista é a .fp-status-opcoes de sempre,
+   ancorada à direita como a linha. */
+#root .menestrel-ui .fp-subraca { justify-content: flex-end; }
+#root .menestrel-ui .fp-subraca-btn {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 0; border: none; background: none; cursor: pointer;
+  font: inherit; color: inherit; text-align: right;
+}
+#root .menestrel-ui .fp-subraca-btn > .ti {
+  align-self: center; font-size: var(--fs-xs); color: var(--gold, #E0BE68);
+  transition: transform .15s ease;
+}
+#root .menestrel-ui .fp-subraca-btn:hover,
+#root .menestrel-ui .fp-subraca-btn.is-open { color: var(--gold-bright, #E6C97A); }
+#root .menestrel-ui .fp-subraca-btn.is-open > .ti { transform: rotate(180deg); }
+#root .menestrel-ui .fp-subraca-btn:focus-visible { outline: 2px solid rgba(201,164,78,0.70); outline-offset: 2px; border-radius: 4px; }
+#root .menestrel-ui .fp-subraca .fp-status-prazo,
+#root .menestrel-ui .fp-row-value > .fp-status-prazo { margin-left: 6px; font-weight: 400; }
 #root .menestrel-ui .fp-status-campos { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
 #root .menestrel-ui .fp-status-campos { gap: 16px; }
 #root .menestrel-ui .fp-status-campo { display: flex; flex-direction: column; gap: 6px; flex: 1 1 140px; min-width: 130px; }
