@@ -95,11 +95,12 @@ begin
   v_nivel := v_alvo * 2 - 1;
 
   -- "Para no primeiro buraco" (passosDisponiveisMagia): todos os níveis até o alvo com texto.
-  v_texto_ok := v_magia.nivel_1 is not null
-    and (v_alvo < 2 or v_magia.nivel_3 is not null)
-    and (v_alvo < 3 or v_magia.nivel_5 is not null)
-    and (v_alvo < 4 or v_magia.nivel_7 is not null)
-    and (v_alvo < 5 or v_magia.nivel_9 is not null);
+  -- Texto em branco conta como ausente, como em passosDisponiveisMagia (JS).
+  v_texto_ok := nullif(btrim(v_magia.nivel_1), '') is not null
+    and (v_alvo < 2 or nullif(btrim(v_magia.nivel_3), '') is not null)
+    and (v_alvo < 3 or nullif(btrim(v_magia.nivel_5), '') is not null)
+    and (v_alvo < 4 or nullif(btrim(v_magia.nivel_7), '') is not null)
+    and (v_alvo < 5 or nullif(btrim(v_magia.nivel_9), '') is not null);
   if not v_texto_ok then
     return jsonb_build_object('ok', false, 'motivo', 'nivel_sem_texto');
   end if;

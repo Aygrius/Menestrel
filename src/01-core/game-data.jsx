@@ -2,7 +2,7 @@
    GAME_DATA — Dados estáticos do sistema (Tagmar)
    ============================================================
    Inclui GAME_DATA + constantes derivadas (ATRIBUTOS_KEYS,
-   ATRIBUTOS_LABEL, GRUPOS_HABILIDADES_ORDEM, MAGIAS_POR_PROFISSAO) e TODOS
+   ATRIBUTOS_LABEL, GRUPOS_HABILIDADES_ORDEM, MAGIAS_BASE_POR_PROFISSAO) e TODOS
    os helpers de cálculo intimamente acoplados (calcEstagio,
    calcularFicha, pontosHabilidadesTotal, etc — blocos [09]-[13]).
    ============================================================ */
@@ -311,9 +311,7 @@ function pontosAtributosTotal(estagio, raca) {
   return pontosDisponiveis(estagio) + bonusPontosRaca(raca);
 }
 /* Todos os pontos do estágio já foram distribuídos?
-   Recebe o SALDO (restantes) de cada pool do wizard. `usaMagia` false ignora
-   a pool de magia — profissão sem magia tem magRestantes calculado do mesmo
-   jeito, e contá-lo seguraria o badge pra sempre.
+   Recebe o SALDO (restantes) de cada pool do wizard.
 
    Serve pra decidir quando gravar `personagens.nivel_visto`, que é o que
    apaga o badge "Pronto pra evoluir!" (temLevelUpPendente). Antes o
@@ -322,8 +320,9 @@ function pontosAtributosTotal(estagio, raca) {
    esquecidos. Regra do usuário (01/09/2026): só some quando forem gastos. */
 function todosOsPontosGastos(saldos) {
   const s = saldos || {};
+  // Magia saiu daqui em 22/10/2026: aprende-se pelo item, não no wizard —
+  // sobra de ponto de magia não é pendência do estágio.
   const pools = [s.atributos, s.habilidades, s.tecnicas, s.gruposArmas];
-  if (s.usaMagia) pools.push(s.magias);
   return pools.every((r) => (Number(r) || 0) <= 0);
 }
 
@@ -652,23 +651,30 @@ function calcBonusHabilidadesRacaReino(raca, reino, habilidadesDb) {
 
 /* ============================== [11] Helpers de MAGIAS ============================== */
 
-// Profissões que podem usar magia, com o atributo regente e pontos por estágio.
-// Guerreiro e Ladino NÃO usam magia (omitidos de propósito).
-const MAGIAS_POR_PROFISSAO = {
-  'Bardo':      { atributo: 'carisma',   pontosPorEstagio:  8 },
-  'Mago':       { atributo: 'intelecto', pontosPorEstagio: 14 },
-  'Rastreador': { atributo: 'percepcao', pontosPorEstagio:  8 },
-  'Sacerdote':  { atributo: 'aura',      pontosPorEstagio: 10 },
+/* Pontos-base de magia por estágio (reforma de 22/10/2026). Pedido do
+   usuário: "qualquer profissão pode aprender qualquer magia" — pelo item que
+   a ensina (pergaminho ou livro, RPC aprender_magia). Faixas: alta (Mago,
+   Bardo), média (Rastreador, Sacerdote), baixa (Guerreiro, Ladino). */
+const MAGIAS_BASE_POR_PROFISSAO = {
+  'Mago': 8, 'Bardo': 8,
+  'Rastreador': 5, 'Sacerdote': 5,
+  'Guerreiro': 1, 'Ladino': 1,
 };
 
-function profissaoUsaMagia(profissao) {
-  return !!MAGIAS_POR_PROFISSAO[profissao];
+/* Por estágio = base + intelecto + aura, atributo negativo contando 0, e
+   "Personagem com Aura negativa tem base 0" (usuário, 22/10/2026).
+   Atributos = intelecto_base/aura_base GRAVADOS: o espelho SQL
+   (_menestrel_pontos_magia_por_estagio) não conhece os ajustes de sub-raça,
+   e as duas contas precisam bater. */
+function pontosMagiasPorEstagio(profissao, intelecto, aura) {
+  const a = Number(aura) || 0;
+  const i = Number(intelecto) || 0;
+  const base = a < 0 ? 0 : (MAGIAS_BASE_POR_PROFISSAO[profissao] || 0);
+  return base + Math.max(0, i) + Math.max(0, a);
 }
 
-function pontosMagiasTotal(profissao, estagio) {
-  const cfg = MAGIAS_POR_PROFISSAO[profissao];
-  if (!cfg) return 0;
-  return cfg.pontosPorEstagio * estagio;
+function pontosMagiasTotal(profissao, estagio, intelecto, aura) {
+  return pontosMagiasPorEstagio(profissao, intelecto, aura) * (Number(estagio) || 0);
 }
 
 function gastoMagias(magiasObj, magiasDb) {
@@ -680,16 +686,6 @@ function gastoMagias(magiasObj, magiasDb) {
   }, 0);
 }
 
-// "Permissão" é um campo CSV no banco (ex.: "Bardo, Mago, Confraria de Arautos").
-// Esta função diz se um personagem pode comprar a magia dado:
-//   - sua profissão atual
-//   - sua especialização (ou null, se ainda no estágio < 5)
-function podeAcessarMagia(magia, profissao, especializacao) {
-  if (!magia.permissao) return false;
-  const lista = magia.permissao.split(',').map((s) => s.trim()).filter(Boolean);
-  return lista.includes(profissao) || (!!especializacao && lista.includes(especializacao));
-}
-
 /* ── Magia BÁSICA x AVANÇADA ────────────────────────────────────────
    Regra do usuário (03/09/2026): "Avançada = Especialização".
 
@@ -699,8 +695,9 @@ function podeAcessarMagia(magia, profissao, especializacao) {
                Trilha…, Confraria…) — só quem entrou nela alcança.
 
    Isto NÃO tem relação com o campo `tipo` (Básica / Perdida / Ancestral),
-   que é raridade e vale por outro eixo: Perdida e Ancestral seguem travadas
-   à espera do item especial, sejam elas de profissão ou de especialização.
+   que é raridade e vale por outro eixo. Desde 22/10/2026 isto é só exibição
+   (as páginas Básicas/Avançadas da ficha): ninguém mais é impedido de
+   aprender por `permissao`.
    Confundir os dois eixos foi exatamente o bug: o criador filtrava a aba
    "Avançadas" por `tipo !== 'Básica'` — o MESMO critério que travava a
    compra —, então a aba só continha magia intravável e nada ali podia ser
@@ -718,14 +715,6 @@ function magiaEhAvancada(magia) {
   if (!magia || !magia.permissao) return false;
   return magia.permissao.split(',').map((s) => s.trim()).filter(Boolean)
     .some((nome) => _ESPECIALIZACOES_TODAS.has(nome));
-}
-
-// Raridade, eixo independente do acima: Perdida e Ancestral não se compram
-// com pontos — cada NÍVEL se aprende com um pergaminho próprio (itens
-// "Pergaminho <Magia> <N>", via RPC usar_pergaminho_magia; criados em
-// 12/09/2026 por scripts/sql/pergaminhos-por-nivel.sql).
-function magiaEhTravada(magia) {
-  return !!magia && magia.tipo !== 'Básica';
 }
 
 // Converte passos comprados (1..5) → nível efetivo (1, 3, 5, 7, 9).
@@ -758,6 +747,27 @@ function passosDisponiveisMagia(magia) {
     passos += 1;
   }
   return passos;
+}
+
+/* Por que este PJ não pode aprender o PRÓXIMO nível desta magia agora?
+   Mesmos motivos e mesma ordem da RPC aprender_magia — a tela antecipa a
+   recusa para o botão já nascer desativado com o porquê. null = pode. */
+function bloqueioAprenderMagia(magia, pj, magiasDb) {
+  if (!magia) return { motivo: 'magia_nao_encontrada' };
+  const magias = (pj && pj.magias) || {};
+  const passos = Number(magias[magia.key]) || 0;
+  if (passos >= 5) return { motivo: 'ja_no_maximo' };
+  const alvo = passos + 1;
+  if (alvo > passosDisponiveisMagia(magia)) return { motivo: 'nivel_sem_texto' };
+  const estagio = calcEstagio((pj && pj.experiencia) || 0);
+  if (nivelMagiaEfetivo(alvo) > estagio) return { motivo: 'acima_do_estagio' };
+  const lista = Array.isArray(magiasDb) && magiasDb.some((m) => m.key === magia.key)
+    ? magiasDb : [...(magiasDb || []), magia];
+  const total = pontosMagiasTotal(pj && pj.profissao, estagio, pj && pj.intelecto_base, pj && pj.aura_base);
+  const gasto = gastoMagias(magias, lista);
+  const gastoNovo = gastoMagias({ ...magias, [magia.key]: alvo }, lista);
+  if (gastoNovo > total) return { motivo: 'pontos_insuficientes', faltam: gastoNovo - total, gasto, total };
+  return null;
 }
 
 /* ============================== [12] Helpers de TÉCNICAS DE COMBATE ============================== */
@@ -799,7 +809,7 @@ function totalTecnica(tecnica, tecnicasObj, atributos) {
 }
 
 // Permissão CSV: profissão básica OU especialização (estágio 5+).
-// Mesma regra de `podeAcessarMagia`.
+// (Era a mesma regra de magia até 22/10/2026; magia hoje se aprende pelo item.)
 function podeAcessarTecnica(tecnica, profissao, especializacao) {
   if (!tecnica.permissao) return false;
   const lista = tecnica.permissao.split(',').map((s) => s.trim()).filter(Boolean);
@@ -1273,8 +1283,8 @@ Object.assign(window, {
   calcBonusHabilidadesRacaReino,
   faixaCondicao, proporcaoCondicao, deltasPocosPorCondicoes, degrauCondicao, barrasDeCondicao, CONDICOES_MALEFICIO,
   modificadorGrupoPorCondicoes, totalHabilidadeComCondicoes,
-  MAGIAS_POR_PROFISSAO, profissaoUsaMagia, pontosMagiasTotal, gastoMagias,
-  podeAcessarMagia, nivelMagiaEfetivo, magiaEhAvancada, magiaEhTravada,
+  MAGIAS_BASE_POR_PROFISSAO, pontosMagiasPorEstagio, pontosMagiasTotal, gastoMagias,
+  nivelMagiaEfetivo, magiaEhAvancada, bloqueioAprenderMagia,
   NIVEIS_MAGIA, passosDisponiveisMagia,
   TECNICAS_POR_PROFISSAO, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
   totalTecnica, podeAcessarTecnica,

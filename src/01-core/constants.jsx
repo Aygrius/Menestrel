@@ -494,7 +494,7 @@ const divisaoComProfissoes = (secao, filtro, rotulo, titulo, profissoes) => ({
     titulo: R(titulo.pt + ' do ' + p, PROFISSOES_EN[p] + ' ' + titulo.en),
   })),
 });
-// Quem conjura (MAGIAS_POR_PROFISSAO, 01-core/game-data.jsx), em ordem alfabética.
+// Profissões que DIFUNDEM magia (livros de profissão) — o menu do bestiário divide por elas; desde 22/10/2026 qualquer profissão aprende.
 const PROFISSOES_MAGIA = ['Bardo', 'Mago', 'Rastreador', 'Sacerdote'];
 const MENU_MAGIAS = {
   secao: 'magias', rotulo: R('Magias', 'Spells'), navega: true, filhos: [

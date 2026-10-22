@@ -439,23 +439,20 @@ describe('todosOsPontosGastos — quando o badge "Pronto pra evoluir!" some', ()
   // jogador. Abrir o wizard e salvar sem distribuir nada já apagava o
   // lembrete, e os pontos ficavam esquecidos. Decisão do usuário: "só deve
   // sumir quando os pontos forem gastos".
-  const cheio = { atributos: 0, habilidades: 0, magias: 0, tecnicas: 0, gruposArmas: 0, usaMagia: true };
+  const cheio = { atributos: 0, habilidades: 0, tecnicas: 0, gruposArmas: 0 };
 
   it('tudo distribuído → pode marcar como visto', () => {
     expect(G.todosOsPontosGastos(cheio)).toBe(true);
   });
 
   it('sobra em QUALQUER pool segura o badge', () => {
-    for (const pool of ['atributos', 'habilidades', 'magias', 'tecnicas', 'gruposArmas']) {
+    for (const pool of ['atributos', 'habilidades', 'tecnicas', 'gruposArmas']) {
       expect(G.todosOsPontosGastos({ ...cheio, [pool]: 1 }), `sobra em ${pool}`).toBe(false);
     }
   });
 
-  it('pool de magia é ignorada em profissão que não usa magia', () => {
-    // Guerreiro tem magRestantes calculado mesmo sem usar magia; contá-lo
-    // deixaria o badge presto pra sempre.
-    expect(G.todosOsPontosGastos({ ...cheio, magias: 5, usaMagia: false })).toBe(true);
-    expect(G.todosOsPontosGastos({ ...cheio, magias: 5, usaMagia: true })).toBe(false);
+  it('sobra de magia não segura o badge (aprende-se pelo item, 22/10/2026)', () => {
+    expect(G.todosOsPontosGastos({ ...cheio, magias: 5, usaMagia: true })).toBe(true);
   });
 
   it('saldo negativo (gastou além) conta como gasto', () => {
