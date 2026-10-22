@@ -131,6 +131,8 @@ const CATALOGO_DESCRITORES = {
          "Ritual", "1 hora"…) não se perde: o editor o mostra como primeira
          opção, marcado "fora da lista" (ver CatalogoCampo, tipo 'opcoes'). */
       { col: 'tipo',     tipo: 'opcoes', rotuloKey: 'campoTipo', opcoes: OPCOES_TIPO_MAGIA },
+      // Classe (22/10/2026): Feitiço (arcana), Milagre (divina), Encanto (artística), Transmutação (espiritual).
+      { col: 'classe',   tipo: 'opcoes', rotuloKey: 'campoClasse', obrigatorio: true, opcoes: ['Feitiço', 'Milagre', 'Encanto', 'Transmutação'] },
       { col: 'evocacao', tipo: 'opcoes', rotuloKey: 'campoEvocacao', opcoes: OPCOES_EVOCACAO },
       { col: 'alcance',  tipo: 'opcoes', rotuloKey: 'campoAlcance', opcoes: OPCOES_ALCANCE },
       { col: 'duracao',  tipo: 'opcoes', rotuloKey: 'campoDuracao', opcoes: OPCOES_DURACAO },

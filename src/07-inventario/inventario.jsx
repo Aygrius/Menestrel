@@ -3705,7 +3705,7 @@ function EstudarMagiaModal({ titulo, magias, pj, magiasDb, opcoes, lang, onApren
               onClick={() => escolher(m.key)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); escolher(m.key); } }}>
               <span className="estudar-nome">{m.nome}</span>
-              <span className="estudar-tipo">{m.tipo}</span>
+              <span className="estudar-tipo">{[m.tipo, m.classe].filter(Boolean).join(' · ')}</span>
               <span className="estudar-nivel">
                 {atual != null ? atual : '—'} → {proximo != null ? proximo : (en ? 'max' : 'máx.')}
               </span>

@@ -2663,6 +2663,7 @@ function BestMagiaFicha({ m, lang, niveisPermitidos, linhasExtras, niveisNaDescr
       <BestFichaLista titulo={lang === 'en' ? 'Traits' : 'Características'} colunas={2}>
         {linhasExtras}
         <BestLinha rotulo={lang === 'en' ? 'Type' : 'Tipo'} valor={m.tipo} />
+        <BestLinha rotulo={lang === 'en' ? 'Class' : 'Classe'} valor={m.classe} />
         <BestLinha rotulo={lang === 'en' ? 'Evocation' : 'Evocação'} valor={m.evocacao} />
         <BestLinha rotulo={lang === 'en' ? 'Range' : 'Alcance'} valor={abreviarAlcance(m.alcance)} />
         <BestLinha rotulo={lang === 'en' ? 'Duration' : 'Duração'} valor={m.duracao} />

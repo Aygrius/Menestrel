@@ -790,7 +790,7 @@ describe('apagar campo ao editar', () => {
 
   // O caso que originou o pedido: nível de magia é uma coluna de texto.
   it('nível de magia apagado chega como null', async () => {
-    montar({ tabela: 'magias', linha: { key: 'bola_de_fogo', nome: 'Bola de Fogo', nivel_1: 'Um', nivel_3: 'Três' } });
+    montar({ tabela: 'magias', linha: { key: 'bola_de_fogo', nome: 'Bola de Fogo', classe: 'Feitiço', nivel_1: 'Um', nivel_3: 'Três' } });
     fireEvent.change(document.querySelector('textarea[name="nivel_3"]'), { target: { value: '' } });
     fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
     await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
@@ -1390,7 +1390,7 @@ describe('magia: itens do ritual com quantidade', () => {
   });
 
   it('+ e − mudam a quantidade, e grava no mesmo formato', async () => {
-    montar({ tabela: 'magias', linha: { key: 'aprisionar', nome: 'Aprisionar', itens_necessarios: 'Vela (7), Hidromel (1)' } });
+    montar({ tabela: 'magias', linha: { key: 'aprisionar', nome: 'Aprisionar', classe: 'Milagre', itens_necessarios: 'Vela (7), Hidromel (1)' } });
     fireEvent.click(bloco().querySelector('[aria-label="Um a mais: Vela"]'));
     expect(bloco().querySelector('[aria-label="Um a menos: Hidromel"]').disabled).toBe(true);
     fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));

@@ -29,7 +29,7 @@ import '../13-diario/diario.jsx';
 
 const TABELAS = {
   magias: [
-    { key: 'bola', nome: 'Bola de Fogo', tipo: 'Básica', evocacao: 'Instantânea', alcance: '30m',
+    { key: 'bola', nome: 'Bola de Fogo', tipo: 'Básica', classe: 'Feitiço', evocacao: 'Instantânea', alcance: '30m',
       duracao: null, custo: 2, permissao: 'Mago', descricao: 'Uma esfera de fogo.', nivel_1: 'Um alvo.' },
     { key: 'aprisionar', nome: 'Aprisionar', tipo: 'Perdida', custo: 3,
       descricao: 'Prende o alvo num círculo.\nItens necessários: Vela (7), Hidromel (1), Sangue Demoníaco (1).' },
@@ -125,7 +125,8 @@ describe('janelas do catálogo', () => {
     const det = await abrir(window.MagiasList, 'Bola de Fogo');
     semMiniCard(det);
     expect(linhas(det)).toEqual([
-      ['Tipo', 'Básica'], ['Evocação', 'Instantânea'], ['Alcance', '30m'],
+      // Classe (22/10/2026): Feitiço, Milagre, Encanto ou Transmutação.
+      ['Tipo', 'Básica'], ['Classe', 'Feitiço'], ['Evocação', 'Instantânea'], ['Alcance', '30m'],
       // Exclusividade por extenso desde 26/09/2026 ("não precisa mais abreviar").
       ['Custo', '2'], ['Exclusividade', 'Mago'],
     ]);

@@ -20,7 +20,7 @@ let Modal;
 beforeAll(() => { Modal = window.EstudarMagiaModal; expect(Modal).toBeTypeOf('function'); });
 afterEach(cleanup);
 
-const BOLA = { key: 'bola_de_fogo', nome: 'Bola de Fogo', custo: 2, tipo: 'Básica',
+const BOLA = { key: 'bola_de_fogo', nome: 'Bola de Fogo', custo: 2, tipo: 'Básica', classe: 'Feitiço',
   nivel_1: 'a', nivel_3: 'b', nivel_5: 'c', nivel_7: 'd', nivel_9: 'e' };
 const LUZ = { key: 'luz', nome: 'Luz', custo: 1, tipo: 'Básica', nivel_1: 'a', nivel_3: 'b' };
 const DB = [BOLA, LUZ];
@@ -47,6 +47,8 @@ describe('EstudarMagiaModal', () => {
     const bola = linhas()[0];
     expect(bola.querySelector('.estudar-nivel').textContent).toMatch(/—\s*→\s*1/);
     expect(bola.querySelector('.estudar-custo').textContent).toMatch(/2/);
+    // Tipo e classe juntos (22/10/2026).
+    expect(bola.querySelector('.estudar-tipo').textContent).toBe('Básica · Feitiço');
   });
 
   it('sem escolha, o confirmar fica desativado', () => {
