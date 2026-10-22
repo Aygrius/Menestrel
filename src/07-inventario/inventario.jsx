@@ -3021,7 +3021,7 @@ function DetalhesItemModal({
   const ensinaTec = tecnicasQueOItemEnsina(cat, vinculos, catalogoBySlug, tecnicasDb);
   const ehPergaminhoQueEnsina = ehPergaminhoMagia || ehPergaminhoDeTecnica(cat);
   // Frasco alquímico e flecha não se usam pela mão (28/09/2026).
-  const podeUsar = consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && !ehFlecha(cat)
+  const podeUsar = consumivel && !equipavel && !isContainer && !ehPergaminhoQueEnsina && !ehFlecha(cat)
     && !ehItemDeMagiaEmBatalha(cat);
   const acoesTopo = [
     acoesPesadas && onVender && cat.grupo !== 'Moedas' && {

@@ -167,3 +167,17 @@ describe('vesteSlotDe — slot do banco → casa da ficha', () => {
   it.each([['costas', 'capa'], ['corpo', 'roupa'], ['orelhas', 'orelha'], ['dedos', 'joia'], ['cinto', 'cintura'], ['cintura', 'cintura'], ['pescoco', 'pescoco']])(
     '%s → %s', (banco, casa) => { expect(window.vesteSlotDe(banco)).toBe(casa); });
 });
+
+/* Pergaminho de técnica (22/10/2026): ensina sem se gastar — como o de magia,
+   não tem "Usar" (que baixaria a quantidade e sumiria com ele). */
+describe('pergaminho de técnica não se usa', () => {
+  const PERG_TEC = { slug: 'pergaminho_tecnica_golpe', nome: 'Pergaminho Golpe Duplo', grupo: 'Consumíveis', tecnica: 'Golpe Duplo' };
+  const inst = { instanceId: 't1', slug: PERG_TEC.slug, quantidade: 1 };
+  it('sem Usar; com Aprender', () => {
+    abrir(PERG_TEC, inst, { magiasDb: [], tecnicasDb: [{ key: 'golpe', nome: 'Golpe Duplo', custo: 2 }],
+      vinculos: {}, onAprenderMagia: async () => ({ ok: true }) });
+    expect(document.querySelector('[data-confirmar="usar"]')).toBeNull();
+    expect(document.querySelector('.det-uso')).toBeNull();
+    expect(document.querySelector('[data-acao="aprender"]')).toBeTruthy();
+  });
+});
