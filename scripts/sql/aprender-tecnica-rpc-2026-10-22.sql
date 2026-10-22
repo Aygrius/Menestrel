@@ -40,7 +40,8 @@ begin
   if v_uid is null then return jsonb_build_object('ok', false, 'motivo', 'nao_autenticado'); end if;
 
   select id, tecnicas, treinos, inventario, profissao, experiencia, fisico_base, agilidade_base
-    into v_pj from public.personagens where id = p_pj_id and user_id = v_uid;
+    into v_pj from public.personagens where id = p_pj_id and user_id = v_uid
+     for update;  -- trava: duas compras ou o relógio não se atropelam (22/10/2026)
   if not found then return jsonb_build_object('ok', false, 'motivo', 'pj_nao_encontrado'); end if;
 
   select elem into v_inst

@@ -56,7 +56,8 @@ begin
   select id, magias, treinos, inventario, profissao, experiencia, intelecto_base, aura_base, deus, subraca
     into v_pj
     from public.personagens
-   where id = p_pj_id and user_id = v_uid;
+   where id = p_pj_id and user_id = v_uid
+     for update;  -- trava: duas compras ou o relógio não se atropelam (22/10/2026)
   if not found then
     return jsonb_build_object('ok', false, 'motivo', 'pj_nao_encontrado');
   end if;

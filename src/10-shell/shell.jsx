@@ -2605,12 +2605,16 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
         });
       }
       /* FILA DE TREINO (22/10/2026): as horas na atividade ligada treinam as
-         técnicas e magias compradas; o nível concluído vira usável. Vai no
-         MESMO update — fila e níveis nunca se desencontram. */
-      const treino = (tipoAtividade && !morto && typeof aplicarTreinoNoPj === 'function')
-        ? aplicarTreinoNoPj(pj, tipoAtividade, horas) : null;
-      return supabaseClient.from('personagens').update({ estado_atual: novo, ...(treino || {}) }).eq('id', pj.id)
-        .then(({ error: e }) => { if (e) console.error('[desgaste] PJ', pj.id, e); });
+         técnicas e magias compradas; o nível concluído vira usável. A fila
+         anda NO BANCO (RPC avancar_treinos, linha travada) — regravar a
+         coluna daqui apagava a compra feita entre a leitura e a escrita. */
+      const treina = tipoAtividade && !morto && Array.isArray(pj.treinos) && pj.treinos.length > 0;
+      return Promise.all([
+        supabaseClient.from('personagens').update({ estado_atual: novo }).eq('id', pj.id)
+          .then(({ error: e }) => { if (e) console.error('[desgaste] PJ', pj.id, e); }),
+        treina && Promise.resolve(supabaseClient.rpc('avancar_treinos', { p_pj_id: pj.id, p_atividade: tipoAtividade, p_horas: horas }))
+          .then(({ error: e }) => { if (e) console.error('[treino] PJ', pj.id, e); }),
+      ]);
     }));
   };
 
