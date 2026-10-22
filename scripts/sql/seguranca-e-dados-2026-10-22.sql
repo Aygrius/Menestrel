@@ -27,14 +27,14 @@ ALTER FUNCTION public.batalhas_touch_updated_at() SET search_path = public;
 -- (e estoque_loja_flat, gerar_codigo_convite_v1, _menestrel_estagio,
 --  excluir_convite, reativar_convite — aplicado por laço sobre pg_proc.)
 
--- ── PENDENTE (precisa de autorização do usuário) ────────────
+-- ── APLICADO DEPOIS, COM AUTORIZAÇÃO DO USUÁRIO (opção A, 22/10/2026) ──
 
 -- CRÍTICO: mestre_ajustar_moedas é SECURITY DEFINER, não confere quem chama
 -- e está aberta a anon e authenticated — qualquer um dá ou tira moedas de
 -- qualquer PJ pela API. Sem chamador no front desde 17/09/2026.
--- REVOKE EXECUTE ON FUNCTION public.mestre_ajustar_moedas(bigint, jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.mestre_ajustar_moedas(bigint, jsonb) FROM PUBLIC, anon, authenticated;
 
 -- Leitura aberta ao anônimo (loja da mesa e colegas de um PJ qualquer);
 -- o front só chama logado.
--- REVOKE EXECUTE ON FUNCTION public.get_loja_pj(bigint) FROM PUBLIC, anon;
--- REVOKE EXECUTE ON FUNCTION public.get_pjs_historia(bigint) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_loja_pj(bigint) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_pjs_historia(bigint) FROM PUBLIC, anon;
