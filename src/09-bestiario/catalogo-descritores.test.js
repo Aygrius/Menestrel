@@ -360,10 +360,12 @@ describe('magias: dropdowns e ordem do editor', () => {
   });
   /* Dano saiu do editor em 29/09/2026 ("Eu quero que você remova este campo"):
      o dano da magia vem do texto de cada nível. */
-  it('sem Dano; Itens necessários depois de Permissão', () => {
+  // Sem Permissão desde 22/10/2026: os itens vêm logo depois do Custo.
+  it('sem Dano nem Permissão; Itens necessários depois do Custo', () => {
     const ordem = descritorDe('magias').campos.map((c) => c.col);
     expect(ordem).not.toContain('dano');
-    expect(ordem.indexOf('itens_necessarios')).toBe(ordem.indexOf('permissao') + 1);
+    expect(ordem).not.toContain('permissao');
+    expect(ordem.indexOf('itens_necessarios')).toBe(ordem.indexOf('custo') + 1);
   });
 });
 

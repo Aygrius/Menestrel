@@ -84,5 +84,7 @@ describe('regras antigas saíram', () => {
     expect(G.magiaEhTravada).toBeUndefined();
     expect(G.profissaoUsaMagia).toBeUndefined();
     expect(G.MAGIAS_POR_PROFISSAO).toBeUndefined();
+    // Básica x avançada pela permissão saiu em 22/10/2026 (a ficha divide por tipo).
+    expect(G.magiaEhAvancada).toBeUndefined();
   });
 });

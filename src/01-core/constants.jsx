@@ -500,14 +500,35 @@ const divisaoComProfissoes = (secao, filtro, rotulo, titulo, profissoes) => ({
     titulo: R(titulo.pt + ' do ' + p, PROFISSOES_EN[p] + ' ' + titulo.en),
   })),
 });
-// Profissões que DIFUNDEM magia (livros de profissão) — o menu do bestiário divide por elas; desde 22/10/2026 qualquer profissão aprende.
-const PROFISSOES_MAGIA = ['Bardo', 'Mago', 'Rastreador', 'Sacerdote'];
+/* Magias por CLASSE (22/10/2026): a permissão saiu das magias — qualquer
+   profissão aprende pelo item —, e o menu passou a dividir pela classe
+   (Feitiço, Milagre, Encanto, Transmutação) e, dentro dela, pelo tipo.
+   O filtro viaja como "tipo|classe": "|Feitiço" é a classe inteira,
+   "Básica|Feitiço" só os feitiços básicos (separarFiltroMenu, 09-bestiario).
+   Os rótulos concordam em gênero: Feitiços Básicos, Transmutações Básicas. */
+const CLASSES_MAGIA_MENU = [
+  { classe: 'Feitiço',      pl: R('Feitiços', 'Sorceries'),          fem: false },
+  { classe: 'Milagre',      pl: R('Milagres', 'Miracles'),           fem: false },
+  { classe: 'Encanto',      pl: R('Encantos', 'Enchantments'),       fem: false },
+  { classe: 'Transmutação', pl: R('Transmutações', 'Transmutations'), fem: true },
+];
+const TIPOS_MAGIA_MENU = [
+  { tipo: 'Básica',    m: 'Básicos',    f: 'Básicas',    en: 'Basic' },
+  { tipo: 'Ancestral', m: 'Ancestrais', f: 'Ancestrais', en: 'Ancestral' },
+  { tipo: 'Perdida',   m: 'Perdidos',   f: 'Perdidas',   en: 'Lost' },
+];
 const MENU_MAGIAS = {
-  secao: 'magias', rotulo: R('Magias', 'Spells'), navega: true, filhos: [
-    divisaoComProfissoes('magias', 'Básica', R('Básicas', 'Basic'), R('Magias Básicas', 'Basic Spells'), PROFISSOES_MAGIA),
-    divisaoComProfissoes('magias', 'Ancestral', R('Ancestrais', 'Ancestral'), R('Magias Ancestrais', 'Ancestral Spells'), PROFISSOES_MAGIA),
-    divisaoComProfissoes('magias', 'Perdida', R('Perdidas', 'Lost'), R('Magias Perdidas', 'Lost Spells'), PROFISSOES_MAGIA),
-  ],
+  secao: 'magias', rotulo: R('Magias', 'Spells'), navega: true,
+  filhos: CLASSES_MAGIA_MENU.map((c) => ({
+    secao: 'magias', filtro: '|' + c.classe, rotulo: c.pl, titulo: c.pl, navega: true,
+    filhos: TIPOS_MAGIA_MENU.map((t) => {
+      const adj = c.fem ? t.f : t.m;
+      return {
+        secao: 'magias', filtro: t.tipo + '|' + c.classe, rotulo: R(adj, t.en),
+        titulo: R(c.pl.pt + ' ' + adj, t.en + ' ' + c.pl.en),
+      };
+    }),
+  })),
 };
 /* Técnica básica é para as seis profissões. Especializada só cita academias e
    guildas — do Guerreiro e do Ladino —, então só as duas aparecem ali. */

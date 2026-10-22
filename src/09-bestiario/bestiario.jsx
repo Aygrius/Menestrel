@@ -1743,13 +1743,9 @@ function MagiasEstatisticas({ magias, lang }) {
     </div>
   );
 
-  // Profissões que não conjuram (Guerreiro, Ladino) só poluem a tabela.
-  const profs = Object.entries(e.porProfissao).filter(([, p]) => p.total > 0)
-    .sort((a, b) => b[1].total - a[1].total);
-  const espsPorProf = {};
-  Object.entries(e.porEspecializacao).forEach(([esp, v]) => {
-    (espsPorProf[v.profissao] = espsPorProf[v.profissao] || []).push([esp, v.total]);
-  });
+  // Por CLASSE desde 22/10/2026 (a permissão, que dava a profissão, saiu das magias).
+  // Classe sem nenhuma magia some da tabela, como as profissões que não conjuravam.
+  const classes = Object.entries(e.porClasse || {}).filter(([, p]) => p.total > 0);
 
   return (
     <div className="best-aud-secao best-est">
@@ -1763,8 +1759,7 @@ function MagiasEstatisticas({ magias, lang }) {
         itens={FORA.map((f) => [rot(f), e.porFuncao[f] || 0])} />
       <Chips titulo={en ? 'Rarity' : 'Raridade'}
         itens={Object.entries(e.porRaridade).map(([t, n]) => [
-          t === 'Básica' ? (en ? 'Basic (buyable)' : 'Básica (comprável)')
-            : t === '—' ? (en ? 'No type' : 'Sem tipo') : `${t} (${en ? 'special item' : 'item especial'})`, n])} />
+          t === '—' ? (en ? 'No type' : 'Sem tipo') : t, n])} />
       <Chips titulo={en ? 'Casting' : 'Evocação'}
         itens={[[en ? 'Instant' : 'Instantânea', e.porEvocacao.instantanea],
                 [en ? 'Channeled (rounds)' : 'Canalizada (rodadas)', e.porEvocacao.canalizada],
@@ -1775,31 +1770,29 @@ function MagiasEstatisticas({ magias, lang }) {
                 [en ? 'Calendar' : 'Calendário', e.porDuracao.calendario],
                 [en ? 'Permanent' : 'Permanente', e.porDuracao.permanente]]} />
 
-      <div className="best-est-grupo-tit">{en ? 'By profession' : 'Por profissão'}</div>
+      <div className="best-est-grupo-tit">{en ? 'By class' : 'Por classe'}</div>
       <div className="best-est-tabela-wrap">
-        <table className="best-est-tabela best-est-profissoes">
+        <table className="best-est-tabela best-est-classes">
           <thead>
             <tr>
-              <th>{en ? 'Profession' : 'Profissão'}</th>
+              <th>{en ? 'Class' : 'Classe'}</th>
               <th>Total</th>
               <th>{en ? 'Basic' : 'Básicas'}</th>
-              <th>{en ? 'Advanced' : 'Avançadas'}</th>
-              <th>{en ? 'Buyable' : 'Compráveis'}</th>
-              <th>{en ? 'Locked' : 'Travadas'}</th>
+              <th>{en ? 'Lost' : 'Perdidas'}</th>
+              <th>{en ? 'Ancestral' : 'Ancestrais'}</th>
               <th>{en ? 'In engine' : 'No motor'}</th>
               {FUNCOES_MOTOR.map((f) => <th key={f}>{rot(f)}</th>)}
               <th>{en ? 'Off engine' : 'Fora do motor'}</th>
             </tr>
           </thead>
           <tbody>
-            {profs.map(([nome, p]) => (
+            {classes.map(([nome, p]) => (
               <tr key={nome}>
                 <td className="best-est-nome">{nome}</td>
                 <td><strong>{p.total}</strong></td>
                 <td>{p.basicas}</td>
-                <td>{p.avancadas}</td>
-                <td>{p.compraveis}</td>
-                <td>{p.travadas}</td>
+                <td>{p.perdidas}</td>
+                <td>{p.ancestrais}</td>
                 <td>{p.noMotor}</td>
                 {FUNCOES_MOTOR.map((f) => (
                   <td key={f} className={p.funcoes[f] === 0 ? 'best-est-zero' : ''}>{p.funcoes[f]}</td>
@@ -1814,8 +1807,8 @@ function MagiasEstatisticas({ magias, lang }) {
           tooltip-padrao.test.js), e estas definições são o que torna a tabela legível. */}
       <p className="best-aud-ajuda best-est-legenda">
         {en
-          ? 'Total: reachable by the profession or one of its specializations. Basic: every member reaches. Advanced: only through a specialization. Locked: Lost or Ancestral, needs a special item. In orange: a role with no spell.'
-          : 'Total: alcançáveis pela profissão ou por uma especialização dela. Básicas: todo membro alcança. Avançadas: só por especialização. Travadas: Perdida ou Ancestral, dependem de item especial. Em laranja: função sem nenhuma magia.'}
+          ? 'Total: spells of the class. Basic, Lost and Ancestral: the rarity. Any profession learns any spell through the item that teaches it. In orange: a role with no spell.'
+          : 'Total: magias da classe. Básicas, Perdidas e Ancestrais: a raridade. Qualquer profissão aprende qualquer magia pelo item que a ensina. Em laranja: função sem nenhuma magia.'}
       </p>
 
       {/* POR ELEMENTO: "quero magias de proteção e dano por elemento" (usuário).
@@ -1840,31 +1833,7 @@ function MagiasEstatisticas({ magias, lang }) {
         </table>
       </div>
 
-      <div className="best-est-grupo-tit">{en ? 'By specialization' : 'Por especialização'}</div>
-      <ul className="best-aud-lista best-est-esps">
-        {profs.map(([nome]) => (espsPorProf[nome] || []).length > 0 && (
-          <li key={nome}><strong>{nome}</strong>
-            <span className="best-aud-det"> — {(espsPorProf[nome] || [])
-              .sort((a, b) => b[1] - a[1]).map(([esp, n]) => `${esp} ${n}`).join(' · ')}</span>
-          </li>
-        ))}
-      </ul>
 
-      {(e.semPermissao.length > 0 || Object.keys(e.permissaoDesconhecida).length > 0) && (
-        <>
-          <div className="best-est-grupo-tit">{en ? 'Nobody can buy' : 'Ninguém consegue comprar'}</div>
-          <ul className="best-aud-lista">
-            {e.semPermissao.length > 0 && (
-              <li><strong>{en ? 'No permission' : 'Sem permissão'}</strong>
-                <span className="best-aud-det"> — {e.semPermissao.join(', ')}</span></li>
-            )}
-            {Object.entries(e.permissaoDesconhecida).map(([nome, mags]) => (
-              <li key={nome}><strong>{en ? `Unknown "${nome}"` : `"${nome}" não é profissão nem especialização`}</strong>
-                <span className="best-aud-det"> — {mags.join(', ')}</span></li>
-            ))}
-          </ul>
-        </>
-      )}
     </div>
   );
 }
@@ -2144,11 +2113,12 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
     return true;
   });
   if (modoJogador) filtered = filtered.filter((m) => conhecido.magias.has(m.key));
-  // Submenu de Treinamento › Magias (26/09/2026): Básica | Ancestral | Perdida.
-  // Tipo e, desde 29/09/2026, a profissão (separarFiltroMenu).
+  // Submenu de Treinamento › Magias: "tipo|classe" (separarFiltroMenu). Por
+  // CLASSE desde 22/10/2026 — antes era a profissão, pela permissão que saiu.
   const fMenu = separarFiltroMenu(filtro);
+  const classeMenu = fMenu.profissao;
   if (fMenu.tipo) filtered = filtered.filter((m) => m.tipo === fMenu.tipo);
-  if (fMenu.profissao) filtered = filtered.filter((m) => alcancaProfissao(m.permissao, fMenu.profissao, false));
+  if (classeMenu) filtered = filtered.filter((m) => m.classe === classeMenu);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -2641,7 +2611,42 @@ function useCriaturasPorId() {
 /* Os níveis ficam na Descrição em TODA janela de magia desde 26/09/2026
    ("o modal de usar magia e magia, assim como todos os outros, devem ser o
    mesmo"). A opção continua para quem precisar da aba separada. */
+/* ── Livros que ensinam a magia (22/10/2026) ───────────────────────────
+   No lugar da Exclusividade: a permissão saiu das magias — qualquer
+   profissão aprende pelo item —, e o que interessa é DE ONDE se aprende.
+   Vínculos (livro_pergaminhos) e nomes dos livros vêm uma vez só e ficam
+   em cache: a ficha da magia abre muitas vezes. Falha = linha vazia. */
+let _livrosPorPergaminho = null;
+function carregarLivrosPorPergaminho() {
+  if (_livrosPorPergaminho) return _livrosPorPergaminho;
+  _livrosPorPergaminho = Promise.all([
+    fetchTabelaPaginada('livro_pergaminhos', { colunas: 'livro_slug,pergaminho_slug', ordem: ['livro_slug', 'pergaminho_slug'] }),
+    fetchTabelaPaginada('itens', { colunas: 'slug,nome', filtros: [['grupo', 'Itens']], ordem: ['nome'] }),
+  ]).then(([vinc, livros]) => {
+    const nome = {};
+    ((livros && livros.data) || []).forEach((l) => { nome[l.slug] = l.nome; });
+    const out = {};
+    ((vinc && vinc.data) || []).forEach((v) => {
+      if (!nome[v.livro_slug]) return;
+      (out[v.pergaminho_slug] = out[v.pergaminho_slug] || []).push(nome[v.livro_slug]);
+    });
+    return out;
+  }).catch(() => { _livrosPorPergaminho = null; return {}; });
+  return _livrosPorPergaminho;
+}
+function useLivrosDaMagia(key) {
+  const [livros, setLivros] = useState([]);
+  useEffect(() => {
+    let vivo = true;
+    if (!key || typeof fetchTabelaPaginada !== 'function') return undefined;
+    carregarLivrosPorPergaminho().then((mapa) => { if (vivo) setLivros((mapa && mapa['pergaminho_' + key]) || []); });
+    return () => { vivo = false; };
+  }, [key]);
+  return livros;
+}
+
 function BestMagiaFicha({ m, lang, niveisPermitidos, linhasExtras, niveisNaDescricao = true }) {
+  const livros = useLivrosDaMagia(m && m.key);
   /* `niveisNaDescricao` (26/09/2026, janela de usar da ficha): "coloque os
      níveis junto com descrição, e chama tudo de descrição". Sem o data-aba, o
      bloco dos níveis entra na aba da seção anterior — a Descrição. */
@@ -2668,8 +2673,8 @@ function BestMagiaFicha({ m, lang, niveisPermitidos, linhasExtras, niveisNaDescr
         <BestLinha rotulo={lang === 'en' ? 'Range' : 'Alcance'} valor={abreviarAlcance(m.alcance)} />
         <BestLinha rotulo={lang === 'en' ? 'Duration' : 'Duração'} valor={m.duracao} />
         <BestLinha rotulo={lang === 'en' ? 'Cost' : 'Custo'} valor={m.custo} />
-        {/* Por extenso e numa linha inteira (26/09/2026): 'a linha Exclusividade ocupa uma linha só, igual Itens Necessários, e agora não precisa mais abreviar'. */}
-        <BestLinha rotulo={lang === 'en' ? 'Exclusivity' : 'Exclusividade'} valor={String(m.permissao || '').split(',').map((x) => x.trim()).filter(Boolean).join(', ')} largo />
+        {/* Livros que ensinam (22/10/2026), numa linha inteira — no lugar da Exclusividade. */}
+        <BestLinha rotulo={lang === 'en' ? 'Books' : 'Livros'} valor={livros.join(', ')} largo />
         {/* Tirado do fim da descrição — ver separarItensNecessarios. */}
         {/* Só em Ritual (22/10/2026). */}
         {m.evocacao === 'Ritual' && (

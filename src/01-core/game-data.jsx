@@ -768,36 +768,9 @@ function gastoMagias(magiasObj, magiasDb) {
   }, 0);
 }
 
-/* ── Magia BÁSICA x AVANÇADA ────────────────────────────────────────
-   Regra do usuário (03/09/2026): "Avançada = Especialização".
-
-     básica    a `permissao` cita a PROFISSÃO (Mago, Bardo, Sacerdote,
-               Rastreador) — todo mundo daquela profissão alcança;
-     avançada  a `permissao` cita uma ESPECIALIZAÇÃO (Colégio…, Ordem…,
-               Trilha…, Confraria…) — só quem entrou nela alcança.
-
-   Isto NÃO tem relação com o campo `tipo` (Básica / Perdida / Ancestral),
-   que é raridade e vale por outro eixo. Desde 22/10/2026 isto é só exibição
-   (as páginas Básicas/Avançadas da ficha): ninguém mais é impedido de
-   aprender por `permissao`.
-   Confundir os dois eixos foi exatamente o bug: o criador filtrava a aba
-   "Avançadas" por `tipo !== 'Básica'` — o MESMO critério que travava a
-   compra —, então a aba só continha magia intravável e nada ali podia ser
-   comprado, com ou sem especialização.
-
-   Mora aqui, e não em cada tela, porque a ficha e o criador tinham cada uma
-   a sua definição de "avançada" e foi a divergência entre elas que produziu
-   o defeito. Uma definição só, um lugar só. */
-const _ESPECIALIZACOES_TODAS = new Set(
-  Object.values((GAME_DATA && GAME_DATA.especializacoes) || {})
-    .flatMap((lista) => lista.map((s) => s.esp))
-);
-
-function magiaEhAvancada(magia) {
-  if (!magia || !magia.permissao) return false;
-  return magia.permissao.split(',').map((s) => s.trim()).filter(Boolean)
-    .some((nome) => _ESPECIALIZACOES_TODAS.has(nome));
-}
+/* Magia básica x avançada pela permissão (03/09/2026) saiu em 22/10/2026:
+   a permissão deixou de existir nas magias, e a ficha divide pelo TIPO
+   (Básicas; Perdidas e Ancestrais). */
 
 // Converte passos comprados (1..5) → nível efetivo (1, 3, 5, 7, 9).
 function nivelMagiaEfetivo(passos) {
@@ -1445,7 +1418,7 @@ Object.assign(window, {
   faixaCondicao, proporcaoCondicao, deltasPocosPorCondicoes, degrauCondicao, barrasDeCondicao, CONDICOES_MALEFICIO,
   modificadorGrupoPorCondicoes, totalHabilidadeComCondicoes,
   MAGIAS_BASE_POR_PROFISSAO, pontosMagiasPorEstagio, pontosMagiasTotal, gastoMagias,
-  nivelMagiaEfetivo, magiaEhAvancada, bloqueioAprenderMagia,
+  nivelMagiaEfetivo, bloqueioAprenderMagia,
   CLASSES_MAGIA, atorMilagreDePj, atorMilagreDeCriatura, bloqueioMilagre, alvoDeMilagreBloqueado, motivoMilagreLabel,
   NIVEIS_MAGIA, passosDisponiveisMagia,
   TECNICAS_POR_PROFISSAO, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,

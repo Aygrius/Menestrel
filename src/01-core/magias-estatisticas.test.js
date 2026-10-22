@@ -6,9 +6,9 @@
    suporte, de ataque, etc."
 
    Trava as três regras que a estatística NÃO inventa, mas herda:
-     • profissão = permissão cita a profissão (básica) ou uma especialização
-       dela (avançada) — podeAcessarMagia / magiaEhAvancada;
-     • raridade  = Básica compra, Perdida e Ancestral travam — magiaEhTravada;
+     • classe    = magias.classe (Feitiço, Milagre, Encanto, Transmutação),
+       no lugar da permissão desde 22/10/2026;
+     • raridade  = o tipo (Básica, Perdida, Ancestral);
      • função    = o registro do motor; fora dele, a classe do motivo.
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -57,54 +57,50 @@ describe('funcaoDaMagia — a função sai do registro', () => {
 });
 
 describe('estatisticasMagias', () => {
+  /* Por CLASSE desde 22/10/2026: a permissão saiu das magias (qualquer
+     profissão aprende pelo item), e o eixo que ela alimentava — por profissão
+     e especialização — virou a classe (Feitiço, Milagre, Encanto,
+     Transmutação). */
   const CAT = [
-    { key: 'bola_de_fogo', nome: 'Bola de Fogo', permissao: 'Mago', tipo: 'Básica', evocacao: 'Instantânea', duracao: 'Instantânea' },
-    { key: 'dardos_de_gelo', nome: 'Dardos de Gelo', permissao: 'Colégio Elemental', tipo: 'Básica', evocacao: '1 rodada', duracao: 'Instantânea' },
-    // Cita a profissão E uma especialização dela: conta UMA vez, como básica.
-    { key: 'bencao', nome: 'Bênção', permissao: 'Sacerdote, Ordem de Lena', tipo: 'Básica', evocacao: 'Instantânea', duracao: '10 rodadas' },
-    { key: 'voo', nome: 'Vôo', permissao: 'Mago', tipo: 'Perdida', evocacao: 'Instantânea', duracao: 'Variável' },
-    { key: 'runas', nome: 'Runas', permissao: 'Colégio Elemental, Ordem de Lena', tipo: 'Básica', evocacao: 'Ritual', duracao: 'Permanente' },
-    { key: 'mestre_da_forja', nome: 'Mestre da Forja', permissao: null, tipo: null, evocacao: 'Ritual', duracao: 'Instantânea' },
-    { key: 'x', nome: 'Estranha', permissao: 'Ordem de Ninguém', tipo: 'Básica', evocacao: 'Instantânea', duracao: 'Instantânea' },
+    { key: 'bola_de_fogo', nome: 'Bola de Fogo', classe: 'Feitiço', tipo: 'Básica', evocacao: 'Instantânea', duracao: 'Instantânea' },
+    { key: 'dardos_de_gelo', nome: 'Dardos de Gelo', classe: 'Feitiço', tipo: 'Básica', evocacao: '1 rodada', duracao: 'Instantânea' },
+    { key: 'bencao', nome: 'Bênção', classe: 'Milagre', tipo: 'Básica', evocacao: 'Instantânea', duracao: '10 rodadas' },
+    { key: 'voo', nome: 'Vôo', classe: 'Feitiço', tipo: 'Perdida', evocacao: 'Instantânea', duracao: 'Variável' },
+    { key: 'runas', nome: 'Runas', classe: 'Encanto', tipo: 'Ancestral', evocacao: 'Ritual', duracao: 'Permanente' },
+    { key: 'mestre_da_forja', nome: 'Mestre da Forja', classe: null, tipo: null, evocacao: 'Ritual', duracao: 'Instantânea' },
   ];
 
-  it('conta por profissão: básica pela profissão, avançada pela especialização', () => {
+  it('conta por classe, com o tipo de cada uma', () => {
     const e = est(CAT);
-    expect(e.porProfissao.Mago).toMatchObject({ total: 4, basicas: 2, avancadas: 2, travadas: 1, compraveis: 3 });
-    expect(e.porProfissao.Sacerdote).toMatchObject({ total: 2, basicas: 1, avancadas: 1 });
+    expect(e.porClasse['Feitiço']).toMatchObject({ total: 3, basicas: 2, perdidas: 1, ancestrais: 0 });
+    expect(e.porClasse.Milagre).toMatchObject({ total: 1, basicas: 1 });
+    expect(e.porClasse.Encanto).toMatchObject({ total: 1, ancestrais: 1 });
   });
 
-  it('magia citando profissão e especialização dela conta uma vez só', () => {
-    expect(est([CAT[2]]).porProfissao.Sacerdote.total).toBe(1);
+  it('as quatro classes aparecem, mesmo zeradas', () => {
+    expect(est(CAT).porClasse['Transmutação'].total).toBe(0);
   });
 
-  it('função cruzada com profissão aponta o buraco', () => {
+  it('função cruzada com classe aponta o buraco', () => {
     const e = est(CAT);
-    expect(e.porProfissao.Mago.funcoes.ataque).toBe(2);
-    expect(e.porProfissao.Mago.funcoes.cura).toBe(0);
-    expect(e.porProfissao.Sacerdote.funcoes.suporte).toBe(1);
-  });
-
-  it('especialização conta à parte', () => {
-    expect(est(CAT).porEspecializacao['Colégio Elemental']).toEqual({ profissao: 'Mago', total: 2 });
+    expect(e.porClasse['Feitiço'].funcoes.ataque).toBe(2);
+    expect(e.porClasse['Feitiço'].funcoes.cura).toBe(0);
+    expect(e.porClasse.Milagre.funcoes.suporte).toBe(1);
   });
 
   it('raridade, evocação e duração', () => {
     const e = est(CAT);
-    expect(e.porRaridade).toMatchObject({ 'Básica': 5, Perdida: 1, '—': 1 });
-    expect(e.porEvocacao).toEqual({ instantanea: 4, canalizada: 1, ritual: 2 });
+    expect(e.porRaridade).toMatchObject({ 'Básica': 3, Perdida: 1, Ancestral: 1, '—': 1 });
+    expect(e.porEvocacao).toEqual({ instantanea: 3, canalizada: 1, ritual: 2 });
     expect(e.porDuracao.rodadas).toBe(1);
     expect(e.porDuracao.permanente).toBe(1);
   });
 
-  it('acusa quem ninguém consegue comprar', () => {
+  it('acusa magia sem classe; nada mais fala de permissão', () => {
     const e = est(CAT);
-    expect(e.semPermissao).toEqual(['Mestre da Forja']);
-    expect(e.permissaoDesconhecida).toEqual({ 'Ordem de Ninguém': ['Estranha'] });
-  });
-
-  it('Guerreiro e Ladino aparecem zerados, não somem', () => {
-    expect(est(CAT).porProfissao.Guerreiro.total).toBe(0);
+    expect(e.semClasse).toEqual(['Mestre da Forja']);
+    expect(e.porProfissao).toBeUndefined();
+    expect(e.semPermissao).toBeUndefined();
   });
 
   it('catálogo vazio não lança', () => {

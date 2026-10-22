@@ -141,7 +141,8 @@ const CATALOGO_DESCRITORES = {
       /* Dano saiu do editor em 29/09/2026 ("Eu quero que você remova este
          campo"): o dano vem do texto de cada nível (efeitosNoNivel). A coluna
          segue no banco e o motor ainda a lê como reserva — danoMagiaNoNivel. */
-      { col: 'permissao', tipo: 'multiopcoes', rotuloKey: 'campoPermissao', opcoes: OPCOES_PERMISSAO },
+      /* Permissão saiu das magias em 22/10/2026: qualquer profissão aprende
+         pelo item (livro ou pergaminho). Técnicas continuam com a delas. */
       /* Itens do ritual (26/09/2026): "fica em um input próprio, com dropdown
          para selecionar quais itens do catálogo". Era a última frase da
          descrição — ver scripts/sql/magias-itens-necessarios-2026-09-26.sql.

@@ -32,12 +32,13 @@ import '../09-bestiario/catalogo-descritores.jsx';
 import '../09-bestiario/catalogo-editor.jsx';
 import '../09-bestiario/bestiario.jsx';
 
+// Classe (22/10/2026) no lugar da permissão: o menu de Magias é por classe.
 const MAGIAS = [
-  { key: 'bola', nome: 'Bola de Fogo', tipo: 'Básica', permissao: 'Mago' },
-  { key: 'runa', nome: 'Runa Antiga', tipo: 'Ancestral', permissao: 'Mago' },
-  { key: 'necro', nome: 'Necromancia', tipo: 'Perdida', permissao: 'Colégio Necromântico' },
-  { key: 'ilusao', nome: 'Ilusão', tipo: 'Básica', permissao: 'Colégio Ilusionista' },
-  { key: 'cura', nome: 'Cura', tipo: 'Básica', permissao: 'Sacerdote' },
+  { key: 'bola', nome: 'Bola de Fogo', tipo: 'Básica', classe: 'Feitiço' },
+  { key: 'runa', nome: 'Runa Antiga', tipo: 'Ancestral', classe: 'Feitiço' },
+  { key: 'necro', nome: 'Necromancia', tipo: 'Perdida', classe: 'Feitiço' },
+  { key: 'ilusao', nome: 'Ilusão', tipo: 'Básica', classe: 'Feitiço' },
+  { key: 'cura', nome: 'Cura', tipo: 'Básica', classe: 'Milagre' },
 ];
 const TECNICAS = [
   { key: 'mira', nome: 'Mira', permissao: 'Guerreiro, Rastreador' },
@@ -129,10 +130,15 @@ describe('ADMIN_MENU — a árvore', () => {
     }
   });
 
-  it('Magias › Básicas, Ancestrais, Perdidas — com o tipo do banco', () => {
+  /* Por CLASSE desde 22/10/2026 (a permissão saiu das magias): Magias ›
+     Feitiços, Milagres, Encantos, Transmutações › Básicos/Ancestrais/Perdidos. */
+  it('Magias › as quatro classes, cada uma com os tipos do banco', () => {
     const magias = grupo('master', 'treinamento').filhos[0];
-    expect(rotulos(magias.filhos)).toEqual(['Básicas', 'Ancestrais', 'Perdidas']);
-    expect(magias.filhos.map((f) => f.filtro)).toEqual(['Básica', 'Ancestral', 'Perdida']);
+    expect(rotulos(magias.filhos)).toEqual(['Feitiços', 'Milagres', 'Encantos', 'Transmutações']);
+    expect(magias.filhos.map((f) => f.filtro)).toEqual(['|Feitiço', '|Milagre', '|Encanto', '|Transmutação']);
+    expect(rotulos(magias.filhos[0].filhos)).toEqual(['Básicos', 'Ancestrais', 'Perdidos']);
+    expect(magias.filhos[0].filhos.map((f) => f.filtro)).toEqual(['Básica|Feitiço', 'Ancestral|Feitiço', 'Perdida|Feitiço']);
+    expect(rotulos(magias.filhos[3].filhos)).toEqual(['Básicas', 'Ancestrais', 'Perdidas']);
   });
 
   it('Técnicas › Básicas, Especializadas', () => {
@@ -223,9 +229,13 @@ describe('cada folha filtra a lista', () => {
     await montar(window.HabilidadesList, { filtro: 'Influência' });
     expect(nomes()).toEqual(['Lábia']);
   });
-  it('Magias Básicas do Mago: a profissão e os Colégios dela', async () => {
-    await montar(window.MagiasList, { filtro: 'Básica|Mago' });
+  it('Feitiços Básicos: tipo e classe', async () => {
+    await montar(window.MagiasList, { filtro: 'Básica|Feitiço' });
     expect(nomes()).toEqual(['Bola de Fogo', 'Ilusão']);
+  });
+  it('Milagres: só a classe', async () => {
+    await montar(window.MagiasList, { filtro: '|Milagre' });
+    expect(nomes()).toEqual(['Cura']);
   });
   it('Técnicas Básicas do Guerreiro (a sem permissão vale para todos)', async () => {
     await montar(window.TecnicasList, { filtro: 'basica|Guerreiro' });
@@ -261,16 +271,16 @@ describe('NavMenuPainel', () => {
     expect(itens(cols()[0])).toEqual(['Magias', 'Técnicas', 'Habilidades']);
     fireEvent.mouseEnter([...cols()[0].querySelectorAll('.mc-menu-item')][0]);
     expect(cols()).toHaveLength(2);
-    expect(itens(cols()[1])).toEqual(['Básicas', 'Ancestrais', 'Perdidas']);
+    expect(itens(cols()[1])).toEqual(['Feitiços', 'Milagres', 'Encantos', 'Transmutações']);
   });
 
   it('escolher a folha entrega a seção e o filtro', () => {
     const { onEscolher } = abrir('master', 'treinamento');
     fireEvent.mouseEnter(document.querySelector('.mc-menu-item--pai'));
-    const perdidas = [...document.querySelectorAll('.mc-menu-col--sub .mc-menu-item')].find((b) => b.textContent.trim() === 'Perdidas');
-    fireEvent.click(perdidas);
+    const milagres = [...document.querySelectorAll('.mc-menu-col--sub .mc-menu-item')].find((b) => b.textContent.trim() === 'Milagres');
+    fireEvent.click(milagres);
     expect(onEscolher).toHaveBeenCalledTimes(1);
-    expect(onEscolher.mock.calls[0][0]).toMatchObject({ secao: 'magias', filtro: 'Perdida' });
+    expect(onEscolher.mock.calls[0][0]).toMatchObject({ secao: 'magias', filtro: '|Milagre' });
   });
 
   it('abre já no subgrupo da página atual, com a folha marcada', () => {
@@ -293,19 +303,19 @@ describe('NavMenuPainel', () => {
     expect(onEscolher.mock.calls[0][0].filtro).toBeUndefined();
   });
 
-  it('Básicas: clicar navega; passar o mouse abre as profissões', () => {
+  it('Feitiços: clicar navega; passar o mouse abre os tipos', () => {
     const { onEscolher } = abrir('master', 'treinamento');
     fireEvent.mouseEnter(document.querySelector('.mc-menu-item--pai'));
-    const basicas = () => [...document.querySelectorAll('.mc-menu-col')[1].querySelectorAll('.mc-menu-item')]
-      .find((b) => b.textContent.trim() === 'Básicas');
-    fireEvent.mouseEnter(basicas());
+    const feiticos = () => [...document.querySelectorAll('.mc-menu-col')[1].querySelectorAll('.mc-menu-item')]
+      .find((b) => b.textContent.trim() === 'Feitiços');
+    fireEvent.mouseEnter(feiticos());
     const cols = document.querySelectorAll('.mc-menu-col');
     expect(cols).toHaveLength(3);
-    expect(itens(cols[2])).toEqual(['Bardo', 'Mago', 'Rastreador', 'Sacerdote']);
-    fireEvent.click([...cols[2].querySelectorAll('.mc-menu-item')][1]);
-    expect(onEscolher.mock.calls[0][0]).toMatchObject({ secao: 'magias', filtro: 'Básica|Mago' });
-    fireEvent.click(basicas());
-    expect(onEscolher.mock.calls[1][0]).toMatchObject({ secao: 'magias', filtro: 'Básica' });
+    expect(itens(cols[2])).toEqual(['Básicos', 'Ancestrais', 'Perdidos']);
+    fireEvent.click([...cols[2].querySelectorAll('.mc-menu-item')][0]);
+    expect(onEscolher.mock.calls[0][0]).toMatchObject({ secao: 'magias', filtro: 'Básica|Feitiço' });
+    fireEvent.click(feiticos());
+    expect(onEscolher.mock.calls[1][0]).toMatchObject({ secao: 'magias', filtro: '|Feitiço' });
   });
 
   it('Diário é uma coluna só, de folhas', () => {

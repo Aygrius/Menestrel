@@ -341,21 +341,22 @@ describe('a hora prova que o botão rodou', () => {
 describe('estatísticas do catálogo', () => {
   /* "Na página de conferência, informa uma estatística de magias. Quantas
      magias para cada profissão, magias de suporte, de ataque, etc." */
-  it('aparecem ao abrir a conferência, com a tabela por profissão', () => {
+  // Por CLASSE desde 22/10/2026 (a permissão saiu das magias).
+  it('aparecem ao abrir a conferência, com a tabela por classe', () => {
     const { container } = render(
       <div className="menestrel-ui"><Painel lang="pt" magias={[
-        { key: 'bola_de_fogo', nome: 'Bola de Fogo', permissao: 'Mago', tipo: 'Básica',
+        { key: 'bola_de_fogo', nome: 'Bola de Fogo', classe: 'Feitiço', tipo: 'Básica',
           nivel_1: 'Causa 12 de dano elemental de fogo.' },
-        { key: 'curas_fisicas', nome: 'Curas Físicas', permissao: 'Sacerdote', tipo: 'Básica',
+        { key: 'curas_fisicas', nome: 'Curas Físicas', classe: 'Milagre', tipo: 'Básica',
           nivel_1: 'Restaura 10 de energia física.' },
       ]} /></div>
     );
     fireEvent.click(container.querySelector('.best-painel-abrir'));
     const janela = document.querySelector('[role="dialog"]');
     expect(janela.querySelector('.best-est-titulo').textContent).toMatch(/Estatísticas do catálogo · 2/);
-    const linhas = [...janela.querySelectorAll('.best-est-profissoes tbody tr')]
+    const linhas = [...janela.querySelectorAll('.best-est-classes tbody tr')]
       .map((tr) => tr.querySelector('td').textContent);
-    expect(linhas.sort()).toEqual(['Mago', 'Sacerdote']);
+    expect(linhas.sort()).toEqual(['Feitiço', 'Milagre']);
     expect(janela.textContent).toMatch(/Ataque 1/);
     expect(janela.textContent).toMatch(/Cura 1/);
     // e a tabela por elemento: Bola de Fogo é dano de fogo
@@ -374,9 +375,9 @@ describe('Painel da página de magias', () => {
     expect(P, 'MagiasPainel não foi exposto no window').toBeDefined();
     const { container } = render(
       <div className="menestrel-ui"><P lang="pt" magias={[
-        { key: 'bola_de_fogo', nome: 'Bola de Fogo', permissao: 'Mago', tipo: 'Básica',
+        { key: 'bola_de_fogo', nome: 'Bola de Fogo', classe: 'Feitiço', tipo: 'Básica',
           nivel_1: 'Causa 12 de dano elemental de fogo.' },
-        { key: 'x_perdida', nome: 'X', permissao: 'Sacerdote', tipo: 'Perdida', nivel_1: 'Algo.' },
+        { key: 'x_perdida', nome: 'X', classe: 'Milagre', tipo: 'Perdida', nivel_1: 'Algo.' },
       ]} /></div>
     );
     const botao = container.querySelector('.best-painel-abrir');
@@ -384,7 +385,7 @@ describe('Painel da página de magias', () => {
     fireEvent.click(botao);
     const janela = document.querySelector('[role="dialog"]');
     expect(janela.querySelector('.best-est-titulo').textContent).toMatch(/Estatísticas do catálogo · 2/);
-    expect(janela.querySelector('.best-est-profissoes')).toBeTruthy();
+    expect(janela.querySelector('.best-est-classes')).toBeTruthy();
     expect(janela.textContent).not.toMatch(/Conferir novamente/);
   });
 });

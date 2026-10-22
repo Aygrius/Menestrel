@@ -226,7 +226,8 @@ describe('FichaInfoView — Personagem e Conhecimento', () => {
     expect(titulosAoAvancar(0)).toEqual(['Habilidades Profissionais', 'Habilidades de Subterfúgio', 'Habilidades de Manobra',
       'Habilidades de Influência', 'Habilidades de Conhecimento', 'Habilidades Gerais']);
     expect(titulosAoAvancar(1)).toEqual(['Técnicas Básicas', 'Técnicas Avançadas']);
-    expect(titulosAoAvancar(2)).toEqual(['Magias Básicas', 'Magias Avançadas']);
+    // Por TIPO desde 22/10/2026 (a permissão, que dizia 'avançada', saiu das magias).
+    expect(titulosAoAvancar(2)).toEqual(['Magias Básicas', 'Magias Perdidas e Ancestrais']);
   });
 
   it('Habilidades Aperfeiçoadas junta idiomas, religião, arte e sabedoria', () => {
@@ -264,6 +265,19 @@ describe('FichaInfoView — Conhecimento abre o detalhe', () => {
     fireEvent.keyDown(linha('Luz'), { key: 'Enter' });
     expect(abertas).toEqual(['hab:furtividade', 'tec:golpe', 'mag:luz']);
     expect(linha('Luz').getAttribute('role')).toBe('button');
+  });
+});
+
+/* Páginas de magia por tipo (22/10/2026): Básicas; Perdidas e Ancestrais. */
+describe('FichaInfoView — magias por tipo', () => {
+  it('a Perdida vai para a segunda página', () => {
+    montar({ parte: 'conhecimento', pjMagias: { luz: 1, voo: 1 },
+      catalogoMag: [{ key: 'luz', nome: 'Luz', tipo: 'Básica' }, { key: 'voo', nome: 'Vôo', tipo: 'Perdida' }] });
+    const col = () => document.querySelectorAll('.fp-col-title-nav-btn')[2].closest('.fp-col-pad-r');
+    expect(col().textContent).toMatch(/Luz/);
+    expect(col().textContent).not.toMatch(/Vôo/);
+    fireEvent.click(document.querySelectorAll('.fp-col-title-nav-btn')[2]);
+    expect(col().textContent).toMatch(/Vôo/);
   });
 });
 

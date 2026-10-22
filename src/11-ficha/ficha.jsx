@@ -1835,20 +1835,13 @@ function FichaInfoView({
     ...(_espMap['Guerreiro'] || []).map((s) => s.esp),
     ...(_espMap['Ladino']    || []).map((s) => s.esp),
   ]);
-  // Magias avançadas = pertencentes a colégios, trilhas, ordens e confrarias.
-  // A definição saiu daqui em 03/09/2026 e virou magiaEhAvancada, em
-  // 01-core/game-data.jsx: o criador de personagem tinha OUTRA definição de
-  // "avançada" (`tipo !== 'Básica'`, que na verdade é raridade), e foi essa
-  // divergência que travou a compra de magia de especialização. Uma
-  // definição só, num lugar só — ver o comentário lá.
 
   const tecEsAvancada = (t) => {
     const lista = (t.permissao || '').split(',').map((s) => s.trim()).filter(Boolean);
     return lista.some((p) => SPECS_GUE_LAD.has(p));
   };
-  const _magAvancada_fn = (typeof magiaEhAvancada !== 'undefined' ? magiaEhAvancada : null)
-    || window.magiaEhAvancada || (() => false);
-  const magEsAvancada = (m) => _magAvancada_fn(m);
+  // Magias: por TIPO desde 22/10/2026 (ver Col 5 abaixo).
+  const magEsRara = (m) => !!m.tipo && m.tipo !== 'Básica';
 
   // ── Col 4 — Técnicas de Combate (Básicas / Avançadas por permissao) ─
   // Avançadas: reservadas pelas guildas de ladinos e academias de guerreiros
@@ -1894,16 +1887,16 @@ function FichaInfoView({
     </div>
   );
 
-  // ── Col 5 — Magias (Básicas / Avançadas por permissao) ─────────────
-  // Avançadas: dos colégios de magia, trilhas de rastreadores,
-  //            ordens de sacerdotes e confrarias de bardos (SPECS_MAGICAS)
-  // Básicas:   acessíveis pela profissão base (Mago, Bardo, Sacerdote, Rastreador)
-  const magBasicas   = magPossuidas.filter((m) => !magEsAvancada(m));
-  const magAvancadas = magPossuidas.filter((m) =>  magEsAvancada(m));
+  // ── Col 5 — Magias por TIPO (22/10/2026) ───────────────────────────
+  // Era Básicas / Avançadas pela permissão (avançada = de especialização). A
+  // permissão saiu das magias — qualquer profissão aprende pelo item —, e a
+  // divisão passou a ser a raridade: Básicas; Perdidas e Ancestrais.
+  const magBasicas = magPossuidas.filter((m) => !magEsRara(m));
+  const magRaras   = magPossuidas.filter((m) =>  magEsRara(m));
   const col5Pages = [
     // "Magias Básicas" é o título (27/09/2026).
-    { key: 'basicas',   label: en ? 'Basic Spells'    : 'Magias Básicas',   items: magBasicas   },
-    { key: 'avancadas', label: en ? 'Advanced Spells' : 'Magias Avançadas', items: magAvancadas },
+    { key: 'basicas', label: en ? 'Basic Spells' : 'Magias Básicas', items: magBasicas },
+    { key: 'raras',   label: en ? 'Lost and Ancestral Spells' : 'Magias Perdidas e Ancestrais', items: magRaras },
   ];
   const col5Idx     = col5Pages.length > 0 ? (col5Page % col5Pages.length) : 0;
   const col5Current = col5Pages[col5Idx] || col5Pages[0];

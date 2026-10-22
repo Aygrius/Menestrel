@@ -1724,12 +1724,10 @@ function auditarMagias(magiasDb) {
 
    Três eixos, cada um com a sua fonte, e nenhum inventado aqui:
 
-     PROFISSÃO  `permissao` (CSV). Uma magia conta para a profissão quando cita
-                a profissão (básica — todo membro alcança) OU uma especialização
-                dela (avançada). É a mesma regra de podeAcessarMagia e
-                magiaEhAvancada, em game-data.jsx.
-     RARIDADE   `tipo`: Básica se compra com pontos; Perdida e Ancestral
-                dependem de item especial (magiaEhTravada).
+     CLASSE     `classe` (Feitiço, Milagre, Encanto, Transmutação) — desde
+                22/10/2026, no lugar da profissão pela permissão, que saiu das
+                magias (qualquer profissão aprende pelo item).
+     RARIDADE   `tipo`: Básica, Perdida ou Ancestral.
      FUNÇÃO     o REGISTRO do motor, que é o único lugar onde "alvo inimigo" e
                 "causa dano" estão escritos sem ambiguidade. Magia fora do motor
                 cai na classe do motivo registrado (ritual, narrativa…). */
@@ -1773,26 +1771,19 @@ function funcaoDaMagia(magia) {
 
 function estatisticasMagias(magiasDb, gameData) {
   const lista = (Array.isArray(magiasDb) ? magiasDb : []).filter((m) => m && m.key);
-  const gd = gameData || (typeof GAME_DATA !== 'undefined' ? GAME_DATA : null);
-  const espPorProfissao = (gd && gd.especializacoes) || {};
-  const profissoes = Object.keys((gd && gd.profissoes) || espPorProfissao);
-  const espParaProfissao = {};
-  Object.entries(espPorProfissao).forEach(([prof, esps]) => {
-    (esps || []).forEach((e) => { espParaProfissao[e.esp] = prof; });
-  });
-
+  void gameData; // assinatura mantida; a classe mora na própria magia.
   const zeraFuncoes = () => Object.fromEntries(Object.keys(FUNCAO_DA_MAGIA).map((f) => [f, 0]));
-  const porProfissao = Object.fromEntries(profissoes.map((p) => [p, {
-    total: 0, basicas: 0, avancadas: 0, compraveis: 0, travadas: 0, noMotor: 0,
-    funcoes: zeraFuncoes(),
+  /* Por CLASSE (22/10/2026), no lugar de profissão/especialização: a
+     permissão saiu das magias — qualquer profissão aprende pelo item. */
+  const porClasse = Object.fromEntries(['Feitiço', 'Milagre', 'Encanto', 'Transmutação'].map((k) => [k, {
+    total: 0, basicas: 0, perdidas: 0, ancestrais: 0, noMotor: 0, funcoes: zeraFuncoes(),
   }]));
-  const porEspecializacao = {};
+  const semClasse = [];
   const porFuncao = zeraFuncoes();
   const porRaridade = {};
   const porEvocacao = { instantanea: 0, canalizada: 0, ritual: 0 };
   const porDuracao = { instantanea: 0, rodadas: 0, calendario: 0, permanente: 0 };
-  const semPermissao = [];
-  const permissaoDesconhecida = {};
+
   let noMotor = 0;
   /* POR ELEMENTO (12/09/2026): "quero magias de proteção e dano por elemento —
      fogo, terra, água, ar, celestial e infernal" (usuário). Conta só o que o
@@ -1821,7 +1812,6 @@ function estatisticasMagias(magiasDb, gameData) {
 
     const tipo = m.tipo || '—';
     porRaridade[tipo] = (porRaridade[tipo] || 0) + 1;
-    const travada = m.tipo !== 'Básica';
 
     const ev = String(m.evocacao || '');
     if (!ev || /instant[âa]nea/i.test(ev)) porEvocacao.instantanea += 1;
@@ -1831,39 +1821,20 @@ function estatisticasMagias(magiasDb, gameData) {
     const dur = classeDeDuracao(m, 1);
     porDuracao[dur] = (porDuracao[dur] || 0) + 1;
 
-    const nomes = String(m.permissao || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (!nomes.length) { semPermissao.push(m.nome || m.key); return; }
-
-    /* Uma magia conta UMA vez por profissão, mesmo citando a profissão e duas
-       especializações dela. "Básica" ganha de "avançada" quando os dois
-       aparecem: se a profissão está citada, todo membro alcança. */
-    const alcance = {};   // profissão → 'basica' | 'avancada'
-    nomes.forEach((nome) => {
-      if (porProfissao[nome]) { alcance[nome] = 'basica'; return; }
-      const prof = espParaProfissao[nome];
-      if (prof) {
-        if (!alcance[prof]) alcance[prof] = 'avancada';
-        const e = porEspecializacao[nome] || (porEspecializacao[nome] = { profissao: prof, total: 0 });
-        e.total += 1;
-        return;
-      }
-      (permissaoDesconhecida[nome] = permissaoDesconhecida[nome] || []).push(m.nome || m.key);
-    });
-    Object.entries(alcance).forEach(([prof, como]) => {
-      const p = porProfissao[prof];
-      if (!p) return;
-      p.total += 1;
-      if (como === 'basica') p.basicas += 1; else p.avancadas += 1;
-      if (travada) p.travadas += 1; else p.compraveis += 1;
-      if (ehMotor) p.noMotor += 1;
-      p.funcoes[funcao] += 1;
-    });
+    const k = porClasse[m.classe];
+    if (!k) { semClasse.push(m.nome || m.key); return; }
+    k.total += 1;
+    if (m.tipo === 'Perdida') k.perdidas += 1;
+    else if (m.tipo === 'Ancestral') k.ancestrais += 1;
+    else k.basicas += 1;
+    if (ehMotor) k.noMotor += 1;
+    k.funcoes[funcao] += 1;
   });
 
   return {
     total: lista.length, noMotor,
-    porProfissao, porEspecializacao, porFuncao, porRaridade, porEvocacao, porDuracao, porElemento,
-    semPermissao, permissaoDesconhecida,
+    porClasse, porFuncao, porRaridade, porEvocacao, porDuracao, porElemento,
+    semClasse,
   };
 }
 

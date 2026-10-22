@@ -45,7 +45,14 @@ const TABELAS = {
       descricao: null, efeito_positivo: 'Aumenta 1 de Energia Física.' },
     { slug: 'adaga', nome: 'Adaga', grupo: 'Armas', dano: 4, ajuste_atributo: 'FOR', valor_latao: 50, descricao: 'Lâmina curta.',
     ocupa: 1, categoria_equip: 'arma', grupo_armas: 'CL' },
-    { slug: 'agua', nome: 'Água', grupo: 'Consumíveis', ocupa: 0.1, descricao: 'Um gole.' }],
+    { slug: 'agua', nome: 'Água', grupo: 'Consumíveis', ocupa: 0.1, descricao: 'Um gole.' },
+    { slug: 'livro_do_mago', nome: 'Livro do Mago', grupo: 'Itens', descricao: 'Grimório.' },
+    { slug: 'livro_do_elementalista', nome: 'Livro Do Colégio Elemental', grupo: 'Itens', descricao: 'Grimório.' }],
+  // De onde se aprende (22/10/2026): no lugar da Exclusividade.
+  livro_pergaminhos: [
+    { livro_slug: 'livro_do_mago', pergaminho_slug: 'pergaminho_bola' },
+    { livro_slug: 'livro_do_elementalista', pergaminho_slug: 'pergaminho_bola' },
+  ],
 };
 
 beforeAll(() => {
@@ -129,20 +136,19 @@ describe('janelas do catálogo', () => {
     expect(li.classList.contains('best-stat--largo')).toBe(true);
   });
 
-  it('Magia: lista com tipo, evocação, alcance, custo e quem aprende — sem linha vazia', async () => {
+  /* A Exclusividade (permissão) saiu em 22/10/2026: qualquer profissão aprende
+     pelo item. No lugar, os LIVROS que ensinam a magia (livro_pergaminhos). */
+  it('Magia: lista com tipo, classe, evocação, alcance, custo e os livros — sem linha vazia', async () => {
     const det = await abrir(window.MagiasList, 'Bola de Fogo');
     semMiniCard(det);
-    expect(linhas(det)).toEqual([
-      // Classe (22/10/2026): Feitiço, Milagre, Encanto ou Transmutação.
+    await vi.waitFor(() => expect(linhas(det)).toEqual([
       ['Tipo', 'Básica'], ['Classe', 'Feitiço'], ['Evocação', 'Instantânea'], ['Alcance', '30m'],
-      // Exclusividade por extenso desde 26/09/2026 ("não precisa mais abreviar").
-      ['Custo', '2'], ['Exclusividade', 'Mago'],
-    ]);
-    // E numa linha inteira, igual Itens necessários.
-    const exc = [...det.querySelectorAll('.best-stat--linha')].find((li) => li.textContent.startsWith('Exclusividade'));
-    expect(exc.classList.contains('best-stat--largo')).toBe(true);
-    // A permissão saiu da faixa solta e mora na lista.
-    expect(det.querySelector('.best-permissao')).toBeNull();
+      ['Custo', '2'], ['Livros', 'Livro do Mago, Livro Do Colégio Elemental'],
+    ]));
+    // Numa linha inteira, igual Itens necessários.
+    const liv = [...det.querySelectorAll('.best-stat--linha')].find((li) => li.textContent.startsWith('Livros'));
+    expect(liv.classList.contains('best-stat--largo')).toBe(true);
+    expect(det.textContent).not.toMatch(/Exclusividade/);
   });
 
   it('Técnica: categoria e armaduras por extenso; armas em sigla', async () => {

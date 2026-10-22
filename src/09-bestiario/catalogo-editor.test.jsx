@@ -674,9 +674,11 @@ describe('permissão em opções: profissões e especializações', () => {
     expect(ultimoUpdate.payload.permissao).toBe('Guerreiro, Academia de Cavaleiros');
   });
 
-  it('magia também', () => {
-    montar({ tabela: 'magias', linha: { key: 'bola', nome: 'Bola de Fogo', permissao: 'Mago, Colégio Elemental' } });
-    expect(marcadosMulti('permissao')).toEqual(['Mago', 'Colégio Elemental']);
+  /* Magia NÃO tem mais permissão (22/10/2026): qualquer profissão aprende
+     pelo item; o campo saiu do editor de magias. Técnica continua. */
+  it('magia não tem o campo', () => {
+    montar({ tabela: 'magias', linha: { key: 'bola', nome: 'Bola de Fogo', classe: 'Feitiço' } });
+    expect(document.querySelector('[data-multi="permissao"]')).toBeNull();
   });
 });
 
