@@ -699,6 +699,11 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
      editando, os slugs já vinculados a esta linha. */
   const camposVinculo = descritor ? descritor.campos.filter((c) => c.tipo === 'vinculo') : [];
   const [candidatosVinculo, setCandidatosVinculo] = React.useState({}); // col → [{ slug, nome }]
+  /* col → true quando a lista vinculada desta linha CHEGOU. Sem isso, salvar
+     antes da leitura (ou com a leitura falhando) gravava a lista vazia por
+     cima — o delete + insert apagava todos os vínculos do livro. */
+  const [vinculoCarregado, setVinculoCarregado] = React.useState({});
+  const donoVinculo = linha && descritor ? linha[descritor.chave] : null;
   React.useEffect(() => {
     if (!descritor) return undefined;
     const campos = descritor.campos.filter((c) => c.tipo === 'vinculo');
@@ -710,17 +715,22 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
         const lista = (data || []).filter((r) => String(r.slug || '').startsWith(c.vinculo.prefixo));
         setCandidatosVinculo((m) => ({ ...m, [c.col]: lista }));
       });
-      const dono = linha && linha[descritor.chave];
-      if (dono) {
-        Promise.resolve(supabaseClient.from(c.vinculo.tabela).select(c.vinculo.alvo).eq(c.vinculo.dono, dono))
-          .then(({ data }) => {
-            if (cancelado) return;
-            setForm((f) => ({ ...f, [c.col]: (data || []).map((r) => r[c.vinculo.alvo]) }));
-          });
+      if (!donoVinculo) {
+        // Linha nova: não há o que ler — a lista vazia é a verdadeira.
+        setVinculoCarregado((m) => ({ ...m, [c.col]: true }));
+        return;
       }
+      Promise.resolve(supabaseClient.from(c.vinculo.tabela).select(c.vinculo.alvo).eq(c.vinculo.dono, donoVinculo))
+        .then(({ data, error: errLeitura }) => {
+          if (cancelado) return;
+          if (errLeitura) { setError(`${t.vinculoNaoCarregou} ${errLeitura.message || ''}`.trim()); return; }
+          setForm((f) => ({ ...f, [c.col]: (data || []).map((r) => r[c.vinculo.alvo]) }));
+          setVinculoCarregado((m) => ({ ...m, [c.col]: true }));
+        });
     });
     return () => { cancelado = true; };
-  }, [descritor, linha]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [descritor, donoVinculo]);
 
   const onChangeCampo = (campo, valor) => {
     setForm((f) => ({ ...f, [campo.col]: valor }));
@@ -835,11 +845,12 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
       : supabaseClient.from(descritor.tabela).insert(payload).select().single();
     const { data, error: err } = await query;
     if (err) { setSaving(false); setError(err.message); return; }
-    // Vínculos: troca a lista inteira do dono (delete + insert).
+    // Vínculos: troca a lista inteira do dono (delete + insert). Só quando a
+    // lista atual chegou e o campo vale para o grupo deste item.
     for (const c of camposVinculo) {
       const dono = data && data[descritor.chave];
       const escolhidos = Array.isArray(form[c.col]) ? form[c.col] : [];
-      if (!dono) continue;
+      if (!dono || !vinculoCarregado[c.col] || !campoDoGrupo(c, form)) continue;
       const { error: errDel } = await supabaseClient.from(c.vinculo.tabela).delete().eq(c.vinculo.dono, dono);
       if (errDel) { setSaving(false); setError(errDel.message); return; }
       if (escolhidos.length) {

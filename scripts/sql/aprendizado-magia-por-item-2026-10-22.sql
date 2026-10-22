@@ -74,9 +74,27 @@ SELECT DISTINCT ON (i.slug) i.slug AS antigo, 'pergaminho_' || m.key AS novo
    AND i.slug <> 'pergaminho_' || m.key
  ORDER BY i.slug, (i.slug LIKE 'pergaminho\_' || m.key || '\_%') DESC;
 
+-- 3b. Trava: anúncio aberto ou estoque de loja com pergaminho antigo ------
+-- O DELETE do passo 5 dispara itens_apos_excluir, que RETIRA o anúncio e
+-- APAGA a entrada do estoque_loja — o item à venda ficaria travado e o
+-- Mestre perderia o estoque sem conversão. Em 22/10/2026 havia zero casos;
+-- se aparecer algum, a transação para aqui e o caso é resolvido à mão.
+DO $$
+DECLARE n int;
+BEGIN
+  SELECT count(*) INTO n FROM public.anuncios_loja a
+   WHERE a.status NOT IN ('vendido', 'retirado')
+     AND (a.slug IN (SELECT antigo FROM _mapa_perg) OR a.item->>'slug' IN (SELECT antigo FROM _mapa_perg));
+  IF n > 0 THEN RAISE EXCEPTION '% anúncio(s) aberto(s) com pergaminho antigo — retirar antes', n; END IF;
+  SELECT count(*) INTO n FROM public.historias h, _mapa_perg mp
+   WHERE h.estoque_loja::text LIKE '%"' || mp.antigo || '"%';
+  IF n > 0 THEN RAISE EXCEPTION '% estoque(s) de loja com pergaminho antigo — trocar antes', n; END IF;
+END $$;
+
 -- 4. Instâncias nos inventários: troca o slug e deixa UMA por magia ------
--- (o item não se consome; cópias não têm uso). O trigger
--- personagens_inventario_versao sobe inventario_versao sozinho.
+-- (o item não se consome; cópias não têm uso). Só pergaminho de magia entra
+-- na deduplicação, e instância à venda (anuncio_id) nunca é descartada. O
+-- trigger personagens_inventario_versao sobe inventario_versao sozinho.
 WITH alvo AS (
   SELECT p.id, p.inventario
     FROM public.personagens p
@@ -93,8 +111,9 @@ WITH alvo AS (
     LEFT JOIN _mapa_perg mp ON mp.antigo = e.val->>'slug'
 ), numerado AS (
   SELECT id, ord, val,
-         row_number() OVER (PARTITION BY id, val->>'slug' ORDER BY ord) AS rn,
-         (val->>'slug') LIKE 'pergaminho\_%' AS eh_perg
+         -- A livre (sem anuncio_id) vem primeiro: é ela que fica.
+         row_number() OVER (PARTITION BY id, val->>'slug' ORDER BY (val ? 'anuncio_id'), ord) AS rn,
+         (val->>'slug') IN (SELECT novo FROM _mapa_perg) AND NOT (val ? 'anuncio_id') AS eh_perg
     FROM trocado
 ), novo AS (
   SELECT id, jsonb_agg(val ORDER BY ord) AS itens

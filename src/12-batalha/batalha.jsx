@@ -909,6 +909,11 @@ function magiasDeItensDoAtor(ator, catalogos) {
     if (!it || (it.quantidade || 0) <= 0 || estaAVenda(it)) return;
     const cat = catBySlug[it.slug];
     if (!cat || !cat.magia) return;
+    /* Pergaminho fica de fora (22/10/2026): virou o item de APRENDER a
+       magia — um por magia, todos os níveis, e não se gasta. Conjurado aqui
+       ele sumiria (consumirItemDaMagia) e levaria o aprendizado junto. */
+    const _ehPerg = (typeof window !== 'undefined' && window.ehPergaminhoDeMagia) || null;
+    if (_ehPerg ? _ehPerg(cat) : String(cat.slug || '').startsWith('pergaminho_')) return;
     const consumivel = (cat.grupo === 'Consumíveis') || cat.tipo === 'L';
     // Em uso, ou consumível na mochila. Anel no fundo da bolsa não vale.
     if (!consumivel && !it.equipado && !it.vestido) return;
@@ -9103,10 +9108,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       if (!consumivel) return;
       // Flecha não se usa pela aba Item: o ataque com arco a gasta (14/09/2026).
       if (typeof ehFlecha === 'function' && ehFlecha(cat)) return;
-      // Frasco alquímico e pergaminho disparam MAGIA: moram nas abas Magia e
-      // Apoio (magiasDeItensDoAtor), não aqui — a mesma regra dos atalhos da
-      // ficha (itemUsavelNoAtalho). 28/09/2026.
-      if (cat.magia && cat.nivel_magia != null) return;
+      // Frasco alquímico dispara MAGIA: mora nas abas Magia e Apoio
+      // (magiasDeItensDoAtor), não aqui — a mesma regra dos atalhos da ficha
+      // (itemUsavelNoAtalho). 28/09/2026. O pergaminho (nivel_magia nulo desde
+      // 22/10/2026) também fica fora: ele ensina, não se usa em combate.
+      if (cat.magia) return;
       if (!porSlug[it.slug]) {
         porSlug[it.slug] = {
           slug: it.slug, instanceId: it.instanceId, nome: cat.nome || it.slug,

@@ -71,6 +71,19 @@ describe('magiasQueOItemEnsina', () => {
   it('item mágico que só carrega a magia não ensina', () => {
     expect(W.magiasQueOItemEnsina(ANEL, VINC(W), CAT, MAGIAS)).toEqual([]);
   });
+  /* "o botão deve aparecer. No tooltip você informa porque não é possível
+     aprender" (13/09/2026): pergaminho de magia que sumiu do catálogo
+     continua com Aprender, numa linha que explica. */
+  it('pergaminho de magia apagada vira linha ausente, que bloqueia com magia_nao_encontrada', () => {
+    const PERG_SUMIU = { slug: 'pergaminho_sumiu', grupo: 'Consumíveis', magia: 'Sumiu', nivel_magia: null };
+    const r = W.magiasQueOItemEnsina(PERG_SUMIU, {}, CAT, MAGIAS);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ nome: 'Sumiu', ausente: true });
+    expect(W.bloqueioAprenderNoInventario(r[0], pj(), OP).motivo).toBe('magia_nao_encontrada');
+  });
+  it('sem o catálogo de magias carregado, ainda não há o que mostrar', () => {
+    expect(W.magiasQueOItemEnsina(PERG_VOO, {}, CAT, null)).toEqual([]);
+  });
 });
 
 const pj = (extra) => ({ id: 1, profissao: 'Guerreiro', experiencia: 100000, intelecto_base: 3, aura_base: 2, magias: {}, ...extra });

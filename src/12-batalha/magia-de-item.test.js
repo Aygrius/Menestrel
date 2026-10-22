@@ -16,7 +16,11 @@
                   magia — e o mesmo tratamento que as criaturas já tinham.
      NÍVEL        do item, 1..9. Não escala com o PJ: quem escalou foi o
                   artífice.
-     PERGAMINHO   some depois de lido, inclusive quando a magia falha.
+     CONSUMÍVEL   some depois de usado, inclusive quando a magia falha.
+                  Desde 22/10/2026 é o FRASCO: o pergaminho virou o item de
+                  aprender a magia (não se gasta) e saiu da batalha — ver
+                  pergaminho-batalha.test.jsx. O fixture PERGAMINHO abaixo
+                  guarda o nome antigo, mas é um frasco.
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/copy.jsx';
@@ -43,14 +47,14 @@ const BENCAO = { key: 'bencao', nome: 'Bênção', duracao: '10 rodadas',
 
 const ANEL = { slug: 'anel_narya', nome: 'Anel Narya', grupo: 'Vestimentas', tipo: 'S',
                magia: 'Piromanipulação', nivel_magia: 5 };
-const PERGAMINHO = { slug: 'pergaminho_bencao', nome: 'Pergaminho Bênção 1',
+const PERGAMINHO = { slug: 'frasco_bencao', nome: 'Frasco de Bênção',
                      grupo: 'Consumíveis', tipo: 'S', magia: 'Bênção', nivel_magia: 1 };
 const ESPADA = { slug: 'espada', nome: 'Espada', grupo: 'Armas', tipo: 'S' };
 
 const catalogos = (itens, magias = {}) => ({
   pjById: { 7: { id: 7, magias, inventario: { itens } } },
   magiasByKey: { piromanipulacao: PIRO, bencao: BENCAO },
-  catalogoBySlug: { anel_narya: ANEL, pergaminho_bencao: PERGAMINHO, espada: ESPADA },
+  catalogoBySlug: { anel_narya: ANEL, frasco_bencao: PERGAMINHO, espada: ESPADA },
 });
 const ATOR = { tipo: 'pj', ref_id: 7, inst_id: 'pj:7', nome: 'Mago' };
 
@@ -74,7 +78,7 @@ describe('quando o item concede a magia', () => {
 
   it('pergaminho concede sem estar vestido — não se veste um papel', () => {
     const r = M.magiasConhecidasDoAtor(ATOR,
-      catalogos([{ slug: 'pergaminho_bencao', quantidade: 1 }]));
+      catalogos([{ slug: 'frasco_bencao', quantidade: 1 }]));
     expect(r.map((x) => x.key)).toEqual(['bencao']);
   });
 
@@ -85,7 +89,7 @@ describe('quando o item concede a magia', () => {
 
   it('quantidade zero não concede', () => {
     expect(M.magiasConhecidasDoAtor(ATOR,
-      catalogos([{ slug: 'pergaminho_bencao', quantidade: 0 }]))).toEqual([]);
+      catalogos([{ slug: 'frasco_bencao', quantidade: 0 }]))).toEqual([]);
   });
 });
 
@@ -113,7 +117,7 @@ describe('o que o item empresta', () => {
 
   it('pergaminho é marcado como consumível', () => {
     const r = M.magiasConhecidasDoAtor(ATOR,
-      catalogos([{ slug: 'pergaminho_bencao', quantidade: 1 }]))[0];
+      catalogos([{ slug: 'frasco_bencao', quantidade: 1 }]))[0];
     expect(r.item.consumivel).toBe(true);
   });
 
@@ -137,7 +141,7 @@ describe('item e magia aprendida convivem', () => {
   });
 
   it('magia diferente soma às duas listas', () => {
-    const cat = catalogos([{ slug: 'pergaminho_bencao', quantidade: 1 }],
+    const cat = catalogos([{ slug: 'frasco_bencao', quantidade: 1 }],
                           { piromanipulacao: 3 });
     expect(M.magiasConhecidasDoAtor(ATOR, cat).map((x) => x.key).sort())
       .toEqual(['bencao', 'piromanipulacao']);
@@ -165,14 +169,14 @@ describe('a magia do item chega nas abas de ação', () => {
   });
 
   it('apoio: o pergaminho de Bênção aparece na aba Apoio', () => {
-    const cat = catalogos([{ slug: 'pergaminho_bencao', quantidade: 1 }]);
+    const cat = catalogos([{ slug: 'frasco_bencao', quantidade: 1 }]);
     const lista = M.magiasDeApoioDoAtor(ATOR, cat);
     expect(lista.map((x) => x.key)).toContain('bencao');
     expect(lista[0].item.consumivel).toBe(true);
   });
 
   it('e o catálogo viaja inteiro, então o efeito é o mesmo de sempre', () => {
-    const cat = catalogos([{ slug: 'pergaminho_bencao', quantidade: 1 }]);
+    const cat = catalogos([{ slug: 'frasco_bencao', quantidade: 1 }]);
     const m = M.magiasDeApoioDoAtor(ATOR, cat)[0];
     const alvo = { inst_id: 'a1', nome: 'Alvo', eh: 10, eh_max: 10, ef: 20, ef_max: 20,
                    status: 'ativo', status_temp: [] };

@@ -46,6 +46,8 @@ let erroItens = null;
 // Excluir item (26/09/2026): quantos personagens o carregam, e o que foi perguntado.
 let usoFixture = 0;
 let ultimoContains = null;
+// Tabela cuja LEITURA falha (vínculos do livro, 22/10/2026). null = nenhuma.
+let tabelaLeituraFalha = null;
 
 beforeAll(async () => {
   // Dublê do supabaseClient ANTES de carregar o editor.
@@ -97,7 +99,9 @@ beforeAll(async () => {
           order: () => builder,
           range: async () => ({ data: linhas(), error: null }),
           // Leitura aguardada sem .range() (a sincronização do item Animal).
-          then: (ok, falha) => Promise.resolve({ data: linhas(), error: null }).then(ok, falha),
+          then: (ok, falha) => Promise.resolve(tabela === tabelaLeituraFalha
+            ? { data: null, error: { message: 'leitura falhou' } }
+            : { data: linhas(), error: null }).then(ok, falha),
           // Pré-checagem de colisão da chave automática: o editor pergunta
           // quais chaves já começam com a base antes de inserir.
           like: async () => ({ data: chavesExistentesFixture, error: null }),
@@ -121,7 +125,7 @@ afterEach(() => {
   ultimoDelete = null; linhasApagadas = 1;
   itensArmasFixture = []; chavesExistentesFixture = [];
   itensAnimaisFixture = []; escritas = []; erroItens = null;
-  usoFixture = 0; ultimoContains = null;
+  usoFixture = 0; ultimoContains = null; tabelaLeituraFalha = null;
   listasFixture = { tecnicas: [], habilidades: [], magias: [] };
 });
 
@@ -180,6 +184,17 @@ describe('livro: pergaminhos vinculados', () => {
     // A coluna inventada nunca vai para a tabela itens.
     const upd = escritas.find((e) => e.tabela === 'itens' && e.op === 'update');
     expect('pergaminhos_do_livro' in upd.payload).toBe(false);
+  });
+
+  it('se os vínculos não carregaram, salvar o livro NÃO apaga os vínculos', async () => {
+    itensArmasFixture = [LIVRO, ...PERGS];
+    tabelaLeituraFalha = 'livro_pergaminhos';
+    montar({ tabela: 'itens', linha: LIVRO });
+    await waitFor(() => expect(document.querySelector('[data-lista="pergaminhos_do_livro"]')).toBeTruthy());
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await waitFor(() => expect(escritas.some((e) => e.tabela === 'itens' && e.op === 'update')).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(escritas.filter((e) => e.tabela === 'livro_pergaminhos')).toEqual([]);
   });
 
   it('item que não é do grupo Itens não mostra o campo', () => {

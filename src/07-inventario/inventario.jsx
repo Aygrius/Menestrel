@@ -2651,6 +2651,13 @@ function magiasQueOItemEnsina(cat, vinculos, catalogoBySlug, magiasDb) {
     const m = magiaDoItem(p, magiasDb);
     if (m && !vistas.has(m.key)) { vistas.add(m.key); out.push(m); }
   });
+  /* Pergaminho cuja magia sumiu do catálogo: o Aprender continua, numa linha
+     AUSENTE que explica o porquê (pedido de 13/09/2026). Só com o catálogo
+     já carregado — antes disso não dá para dizer que ela não existe. O livro
+     só esconde o vínculo que não resolve. */
+  if (!out.length && ehPergaminhoDeMagia(cat) && Array.isArray(magiasDb)) {
+    out.push({ key: 'ausente:' + cat.slug, nome: cat.magia, ausente: true });
+  }
   return out.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'));
 }
 
@@ -2659,7 +2666,7 @@ function bloqueioAprenderNoInventario(magia, pj, opcoes) {
   if (op.noInventario === false) return { motivo: 'aprender_no_inventario' };
   if (op.podeAprender === false) return { motivo: 'nao_e_dono' };
   if (op.aVenda) return { motivo: 'item_a_venda' };
-  if (!magia) return { motivo: 'magia_nao_encontrada' };
+  if (!magia || magia.ausente) return { motivo: 'magia_nao_encontrada' };
   if (!pj) return null;
   const _regra = (typeof window !== 'undefined' && window.bloqueioAprenderMagia) || null;
   return _regra ? _regra(magia, pj, op.magiasDb || []) : null;
