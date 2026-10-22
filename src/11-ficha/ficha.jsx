@@ -1073,6 +1073,14 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
      usados no próprio evocador." Os colegas saem da lista — o mesmo teste da
      aba Apoio da batalha (12-batalha/batalha.jsx) e do tabuleiro (alcance 0). */
   const soEmSi = /pessoal/i.test(m.alcance || '');
+  /* MILAGRE (22/10/2026): "Um personagem vampiro, lobisomem ou sem religião
+     não pode usar ou ser alvo de milagres" — e a Escuridão (o Mago) não
+     conjura. Quem não pode usar vê o porquê e não evoca; quem não pode
+     receber sai da lista de alvos. Regra em 01-core/game-data.jsx. */
+  const ehMilagre = m.classe === 'Milagre';
+  const _ap = window.atorMilagreDePj, _bm = window.bloqueioMilagre, _ab = window.alvoDeMilagreBloqueado;
+  const bloqueioMil = ehMilagre && _ap && _bm && eu ? _bm(_ap(eu)) : null;
+  const recebeMilagre = (pj) => !(ehMilagre && _ap && _ab && pj && _ab(_ap(pj)));
   const ALVOS = criaElo
     ? (animais || []).map((a) => ({
         id: 'animal:' + a.instancia.instanceId, tipo: 'animal', instanceId: a.instancia.instanceId,
@@ -1080,8 +1088,8 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
         bloqueio: window.bloqueioElo(a, nivelSel, elosAtuais),
       }))
     : [
-    { id: String(eu?.id ?? 'self'), nome: [eu?.nome, eu?.sobrenome].filter(Boolean).join(' ') /* só o nome (26/09/2026, sem o '(Você)') */, foto_url: eu?.foto_url },
-    ...((soEmSi ? [] : colegas || []).map((c) => ({ id: String(c.id), nome: [c.nome, c.sobrenome].filter(Boolean).join(' '), foto_url: c.foto_url }))),
+    ...(recebeMilagre(eu) ? [{ id: String(eu?.id ?? 'self'), nome: [eu?.nome, eu?.sobrenome].filter(Boolean).join(' ') /* só o nome (26/09/2026, sem o '(Você)') */, foto_url: eu?.foto_url }] : []),
+    ...((soEmSi ? [] : colegas || []).filter(recebeMilagre).map((c) => ({ id: String(c.id), nome: [c.nome, c.sobrenome].filter(Boolean).join(' '), foto_url: c.foto_url }))),
   ];
 
   const FICHA_TXT = [
@@ -1092,7 +1100,7 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
   ].filter((f) => f.val);
 
   // Ritual sem os itens não evoca (28/09/2026) — o aviso aparece na aba Evocar.
-  const podeEvocar = possui && nivelSel != null && alvoSel != null && (!ritual || ritual.ok);
+  const podeEvocar = possui && nivelSel != null && alvoSel != null && (!ritual || ritual.ok) && !bloqueioMil;
 
   /* PADRÃO DOS MODAIS (26/09/2026) — o modelo único de janela
      (BestDetalheModal), com as abas de detalhe do Treinamento.
@@ -1124,6 +1132,14 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
           itens necessários automaticamente do inventário, se o evocador não
           tiver os itens, ele será avisado." O que falta vem em destaque, e o
           ritual não sai enquanto faltar alguma coisa. */}
+      {bloqueioMil && (
+        <div className="det-ritual det-ritual--falta" role="alert">
+          <p className="det-ritual-titulo">
+            <i className="ti ti-alert-triangle" aria-hidden="true" />
+            {window.motivoMilagreLabel ? window.motivoMilagreLabel(bloqueioMil.motivo, en) : bloqueioMil.motivo}
+          </p>
+        </div>
+      )}
       {ritual && (
         <div className={'det-ritual' + (ritual.ok ? '' : ' det-ritual--falta')} role={ritual.ok ? undefined : 'alert'}>
           <p className="det-ritual-titulo">

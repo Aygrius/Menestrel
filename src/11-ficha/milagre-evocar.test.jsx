@@ -1,0 +1,64 @@
+/* ============================================================
+   milagre-evocar.test.jsx — o Evocar de um milagre na ficha (22/10/2026)
+   ============================================================
+   "Um personagem vampiro, lobisomem ou sem religião não pode usar ou ser
+   alvo de milagres." E a Escuridão (o Mago) não conjura. Fora da batalha,
+   quem não pode usar vê o porquê e não evoca; quem não pode receber não
+   aparece entre os alvos.
+   ============================================================ */
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { render, cleanup, fireEvent } from '@testing-library/react';
+import '../01-core/copy.jsx';
+import '../01-core/constants.jsx';
+import '../01-core/helpers.jsx';
+import '../01-core/inventario-helpers.jsx';
+import '../01-core/select-pill.jsx';
+import '../01-core/game-data.jsx';
+import '../10-shell/shell.jsx';
+import '../09-bestiario/ataques-criatura.jsx';
+import '../09-bestiario/criatura-formulas.jsx';
+import '../09-bestiario/conhecido-jogador.jsx';
+import '../09-bestiario/catalogo-descritores.jsx';
+import '../09-bestiario/catalogo-editor.jsx';
+import '../09-bestiario/bestiario.jsx';
+import './ficha.jsx';
+
+let Modal;
+beforeAll(() => { Modal = window.MagiaDetalhesModal; });
+afterEach(cleanup);
+
+const CURA = { key: 'curas_fisicas', nome: 'Curas Físicas', classe: 'Milagre', evocacao: 'Instantânea',
+  alcance: 'Toque', duracao: 'Instantânea', descricao: 'Cura.', nivel_1: 'Cura 4 pontos.' };
+const COLEGAS = [{ id: 2, nome: 'Bia', deus: null }, { id: 3, nome: 'Caio', deus: 'Lena' }];
+const montar = (props = {}) => render(
+  <div className="menestrel-ui">
+    <Modal magia={CURA} passos={1} nivelMagiaEfetivoFn={() => 1}
+      eu={{ id: 7, nome: 'Ana', profissao: 'Sacerdote', deus: 'Lena' }}
+      colegas={COLEGAS} lang="pt" onClose={() => {}} onEvocar={() => {}} abrirTip={() => {}} fecharTip={() => {}} {...props} />
+  </div>,
+);
+const nomesAlvos = () => [...document.querySelectorAll('.det-alvos .det-opt-card')].map((c) => c.textContent.trim());
+
+describe('Evocar milagre', () => {
+  it('colega sem religião não aparece como alvo', () => {
+    montar();
+    const nomes = nomesAlvos().join('|');
+    expect(nomes).toMatch(/Ana/);
+    expect(nomes).toMatch(/Caio/);
+    expect(nomes).not.toMatch(/Bia/);
+  });
+
+  it('Mago não evoca milagre: aviso com o motivo e o duplo clique não evoca', () => {
+    const onEvocar = vi.fn();
+    montar({ eu: { id: 7, nome: 'Ana', profissao: 'Mago', deus: 'Lena' }, onEvocar });
+    expect(document.body.textContent).toMatch(/A Escuridão não conjura milagres\./);
+    const card = [...document.querySelectorAll('.det-alvos .det-opt-card')][0];
+    if (card) { fireEvent.click(card); fireEvent.click(card); }
+    expect(onEvocar).not.toHaveBeenCalled();
+  });
+
+  it('feitiço não liga para religião', () => {
+    montar({ magia: { ...CURA, classe: 'Feitiço' } });
+    expect(nomesAlvos().join('|')).toMatch(/Bia/);
+  });
+});
