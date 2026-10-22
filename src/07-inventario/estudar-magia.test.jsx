@@ -72,7 +72,7 @@ describe('EstudarMagiaModal', () => {
     expect(confirmar().textContent).toMatch(/Bola de Fogo 1/);
     fireEvent.click(confirmar());
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(onAprender).toHaveBeenCalledWith('bola_de_fogo');
+    expect(onAprender).toHaveBeenCalledWith({ tipo: 'magia', key: 'bola_de_fogo' });
   });
 
   it('recusa da RPC aparece e a janela fica aberta', async () => {

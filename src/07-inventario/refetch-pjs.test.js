@@ -56,7 +56,9 @@ describe('refetch de personagens em InventarioList', () => {
                      'forca_base', 'fisico_base', 'intelecto_base', 'aura_base',
                      'magias', 'experiencia', 'inventario', 'estado_atual',
                      // deus (22/10/2026): sem ele, a janela Estudar barrava todo milagre como 'sem religião'.
-                     'deus']) {
+                     'deus',
+                     // tecnicas, treinos, agilidade_base (22/10/2026): Estudar técnicas e a fila de treino.
+                     'tecnicas', 'treinos', 'agilidade_base']) {
       expect(cols, `PJ_COLS sem ${c}`).toContain(c);
     }
   });

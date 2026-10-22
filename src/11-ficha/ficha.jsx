@@ -4900,6 +4900,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             /* Estudar/Aprender aparecem também aqui (22/10/2026); a janela
                explica que o aprendizado é feito no Inventário. */
             magiasDb={magias}
+            tecnicasDb={tecnicas}
             vinculos={vinculosLivros}
             pjAprendiz={pj}
             onMoverParaContainer={() => {}}

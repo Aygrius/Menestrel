@@ -3130,6 +3130,16 @@
 #root .menestrel-ui .modal-estudar .estudar-motivo {
   font-family: var(--font-body); font-size: var(--fs-xs); color: var(--parchment-muted, #BFAF8E); text-align: center; text-wrap: balance;
 }
+/* Em treino (22/10/2026): o nível já pago que ainda corre na fila. Linha
+   inteira, embaixo, em ouro apagado — informa sem competir com o próximo nível. */
+#root .menestrel-ui .modal-estudar .estudar-treino {
+  grid-column: 1 / -1; font-size: var(--fs-2xs); letter-spacing: 0.02em;
+  color: var(--gold-deep, #B8862E); font-variant-numeric: tabular-nums;
+}
+#root .menestrel-ui .modal-estudar .estudar-treino::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%;
+  background: currentColor; vertical-align: middle;
+}
 @media (max-width: 520px) {
   /* Celular: o tipo desce para baixo do nome; nível e custo seguem à direita. */
   #root .menestrel-ui .modal-estudar .estudar-linha { grid-template-columns: minmax(0, 1fr) 56px 36px; }

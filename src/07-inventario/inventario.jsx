@@ -510,7 +510,7 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
 // foto_url (27/09/2026): o card do alvo na aba Usar mostrava só a inicial.
 // intelecto_base + aura_base (22/10/2026): orçamento de magia (pontosMagiasTotal).
 // deus (22/10/2026): regra dos milagres na janela Estudar (sem religião, sem milagre).
-const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,subraca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,inventario,estado_atual,magias,experiencia,especializacao,inventario_versao';
+const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,subraca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,agilidade_base,inventario,estado_atual,magias,tecnicas,treinos,experiencia,especializacao,inventario_versao';
 
 // Inventário com os campos que a tela espera, sem mexer no objeto de origem.
 const INV_VAZIO = () => ({ moedas: { ouro: 0, prata: 0, cobre: 0, latao: 0 }, itens: [] });
@@ -570,6 +570,15 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     let vivo = true;
     Promise.resolve(supabaseClient.from('magias').select('key,nome,custo,tipo,classe,evocacao,descricao,itens_necessarios,nivel_1,nivel_3,nivel_5,nivel_7,nivel_9'))
       .then((res) => { if (vivo && res && !res.error && Array.isArray(res.data)) setMagiasDb(res.data); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+  // Técnicas (22/10/2026): a janela Estudar também ensina técnica (custo, nome).
+  const [tecnicasDb, setTecnicasDb] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    Promise.resolve(supabaseClient.from('tecnicas').select('key,nome,custo,descricao,efeito,ajuste'))
+      .then((res) => { if (vivo && res && !res.error && Array.isArray(res.data)) setTecnicasDb(res.data); })
       .catch(() => {});
     return () => { vivo = false; };
   }, []);
@@ -1419,12 +1428,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // Aprender magia com um item (22/10/2026): pergaminho ou livro, um nível
   // por vez, sem consumir (RPC aprender_magia — confere estágio, texto do
   // nível e pontos). Recarrega o PJ porque as magias vivem fora do inventário.
-  const aprenderMagiaComItem = async (instanceId, magiaKey) => {
-    const { data, error } = await supabaseClient.rpc('aprender_magia', {
-      p_pj_id: selectedId,
-      p_instance_id: instanceId,
-      p_magia_key: magiaKey,
-    });
+  /* Técnica ou magia (22/10/2026): as duas entram na fila de treino. */
+  const aprenderComItem = async (instanceId, alvo) => {
+    const ehTec = alvo && alvo.tipo === 'tecnica';
+    const { data, error } = await supabaseClient.rpc(ehTec ? 'aprender_tecnica' : 'aprender_magia', ehTec
+      ? { p_pj_id: selectedId, p_instance_id: instanceId, p_tecnica_key: alvo.key }
+      : { p_pj_id: selectedId, p_instance_id: instanceId, p_magia_key: alvo && alvo.key });
     if (error || !data?.ok) {
       return { ok: false, motivo: error?.message || data?.motivo || 'erro_desconhecido' };
     }
@@ -1534,10 +1543,11 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           criaturaMontaria={criaturaDoItem(catalogoBySlug[instanceDetalhes.slug], criaturasMontaria)}
           onMontar={montar}
           onDesmontar={desmontar}
-          onAprenderMagia={authUserIsOwner ? aprenderMagiaComItem : undefined}
+          onAprenderMagia={authUserIsOwner ? aprenderComItem : undefined}
           pjAprendiz={(pjs || []).find((x) => x.id === selectedId) || null}
           usuario={(() => { const p = (pjs || []).find((x) => x.id === selectedId); return p ? { nome: [p.nome, p.sobrenome].filter(Boolean).join(' '), foto_url: p.foto_url } : null; })()}
           magiasDb={magiasDb}
+          tecnicasDb={tecnicasDb}
           vinculos={vinculos}
           podeVender={{ ehDono: authUserIsOwner, historiaId }}
           onVender={publicarNaLoja}
@@ -2675,6 +2685,44 @@ function bloqueioAprenderNoInventario(magia, pj, opcoes) {
   return _regra ? _regra(magia, pj, op.magiasDb || []) : null;
 }
 
+/* ── TÉCNICAS PELO ITEM (22/10/2026) ──────────────────────────────────
+   "Toda técnica terá um pergaminho para aprender igual a magia" — o
+   pergaminho de técnica (slug pergaminho_tecnica_, itens.tecnica) ou um
+   Manual que o vincula (livro_pergaminhos). Mesmo molde das magias. */
+function ehPergaminhoDeTecnica(cat) {
+  return !!(cat && cat.tecnica && cat.grupo === 'Consumíveis'
+    && String(cat.slug || '').startsWith('pergaminho_tecnica_'));
+}
+function tecnicaDoItem(cat, tecnicasDb) {
+  if (!cat || !cat.tecnica || !Array.isArray(tecnicasDb)) return null;
+  const k = chaveDaMagiaPorNome(cat.tecnica);
+  return tecnicasDb.find((t) => t.key === k) || tecnicasDb.find((t) => chaveDaMagiaPorNome(t.nome) === k) || null;
+}
+function tecnicasQueOItemEnsina(cat, vinculos, catalogoBySlug, tecnicasDb) {
+  if (!cat) return [];
+  const pergaminhos = ehPergaminhoDeTecnica(cat)
+    ? [cat]
+    : ((vinculos && vinculos[cat.slug]) || []).map((sl) => catalogoBySlug && catalogoBySlug[sl])
+        .filter((pc) => pc && pc.tecnica);
+  const vistas = new Set();
+  const out = [];
+  pergaminhos.forEach((pc) => {
+    const t = tecnicaDoItem(pc, tecnicasDb);
+    if (t && !vistas.has(t.key)) { vistas.add(t.key); out.push(t); }
+  });
+  return out.sort((a, b2) => String(a.nome || '').localeCompare(String(b2.nome || ''), 'pt'));
+}
+function bloqueioTecnicaNoInventario(tecnica, pj, opcoes) {
+  const op = opcoes || {};
+  if (op.noInventario === false) return { motivo: 'aprender_no_inventario' };
+  if (op.podeAprender === false) return { motivo: 'nao_e_dono' };
+  if (op.aVenda) return { motivo: 'item_a_venda' };
+  if (!tecnica) return { motivo: 'tecnica_nao_encontrada' };
+  if (!pj) return null;
+  const _regra = (typeof window !== 'undefined' && window.bloqueioAprenderTecnica) || null;
+  return _regra ? _regra(tecnica, pj, op.tecnicasDb || []) : null;
+}
+
 function motivoAprenderLabel(motivo, en, dados) {
   // Milagre (22/10/2026): os textos moram com a regra, em game-data.jsx.
   const _mil = (typeof window !== 'undefined' && window.motivoMilagreLabel) || null;
@@ -2696,6 +2744,7 @@ function motivoAprenderLabel(motivo, en, dados) {
     pontos_insuficientes:   en ? 'Not enough magic points.'                           : 'Pontos de magia insuficientes.',
     acima_do_estagio:       en ? "The next level exceeds your character's stage."     : 'O próximo nível passa do seu estágio.',
     magia_nao_encontrada:   en ? 'Spell not found in the catalog.'                    : 'Magia não encontrada no catálogo.',
+    tecnica_nao_encontrada: en ? 'Technique not found in the catalog.'                : 'Técnica não encontrada no catálogo.',
     item_nao_encontrado:    en ? 'Item not found in your inventory.'                  : 'Item não encontrado no inventário.',
     pj_nao_encontrado:      en ? 'Character not found.'                               : 'Personagem não encontrado.',
     nao_autenticado:        en ? 'You are not signed in.'                             : 'Você não está autenticado.',
@@ -2771,7 +2820,7 @@ function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fe
 function DetalhesItemModal({
   instance, catalogoBySlug, raca, slotsState, todosItens,
   containersDisponiveis, pjsHistoria, lang,
-  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, vinculos, onDestruir,
+  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, tecnicasDb, vinculos, onDestruir,
   onMoverParaContainer,
   onVestir, onDespir,
   criaturaMontaria, onMontar, onDesmontar,
@@ -2969,6 +3018,8 @@ function DetalhesItemModal({
     : null;
   // O que este item ensina (pergaminho: a sua magia; livro: as vinculadas).
   const ensina = magiasQueOItemEnsina(cat, vinculos, catalogoBySlug, magiasDb);
+  const ensinaTec = tecnicasQueOItemEnsina(cat, vinculos, catalogoBySlug, tecnicasDb);
+  const ehPergaminhoQueEnsina = ehPergaminhoMagia || ehPergaminhoDeTecnica(cat);
   // Frasco alquímico e flecha não se usam pela mão (28/09/2026).
   const podeUsar = consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && !ehFlecha(cat)
     && !ehItemDeMagiaEmBatalha(cat);
@@ -3053,10 +3104,10 @@ function DetalhesItemModal({
     }),
     /* Aprender/Estudar (22/10/2026): sempre aparece quando o item ensina;
        o porquê de não dar mora na janela Estudar, linha a linha. */
-    ensina.length > 0 && {
-      chave: ehPergaminhoMagia ? 'aprender' : 'estudar',
+    (ensina.length + ensinaTec.length) > 0 && {
+      chave: ehPergaminhoQueEnsina ? 'aprender' : 'estudar',
       icone: 'ti-school',
-      rotulo: ehPergaminhoMagia ? (en ? 'Learn' : 'Aprender') : (en ? 'Study' : 'Estudar'),
+      rotulo: ehPergaminhoQueEnsina ? (en ? 'Learn' : 'Aprender') : (en ? 'Study' : 'Estudar'),
       onClick: () => setEstudando(true),
     },
     cat.doc_url && {
@@ -3432,15 +3483,17 @@ function DetalhesItemModal({
       {lendo && cat.doc_url && (
         <LeituraDocModal titulo={cat.nome} docUrl={cat.doc_url} lang={lang} onClose={() => setLendo(false)} />
       )}
-      {estudando && ensina.length > 0 && (
+      {estudando && (ensina.length + ensinaTec.length) > 0 && (
         <EstudarMagiaModal
           titulo={cat.nome}
           magias={ensina}
+          tecnicas={ensinaTec}
+          tecnicasDb={tecnicasDb}
           pj={pjAprendiz}
           magiasDb={magiasDb}
           opcoes={{ noInventario: acoesPesadas, podeAprender: !!onAprenderMagia, aVenda: estaAVenda(instance) }}
           lang={lang}
-          onAprender={(key) => onAprenderMagia(instance.instanceId, key)}
+          onAprender={(alvo) => onAprenderMagia(instance.instanceId, alvo)}
           onClose={() => setEstudando(false)}
         />
       )}
@@ -3644,34 +3697,76 @@ function LeituraDocModal({ titulo, docUrl, lang, onClose }) {
    continua escolhível: é escolhendo que o jogador lê o porquê no rodapé.
    Portal em #root pelo mesmo motivo do LeituraDocModal: abre de dentro da
    janela do item. */
-function EstudarMagiaModal({ titulo, magias, pj, magiasDb, opcoes, lang, onAprender, onClose }) {
+function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb, opcoes, lang, onAprender, onClose }) {
   const en = lang === 'en';
-  const lista = Array.isArray(magias) ? magias : [];
-  const [escolhida, setEscolhida] = useState(lista.length === 1 ? lista[0].key : null);
+  const listaMag = Array.isArray(magias) ? magias : [];
+  const listaTec = Array.isArray(tecnicas) ? tecnicas : [];
+  const treinos = (pj && Array.isArray(pj.treinos)) ? pj.treinos : [];
+  const unico = listaMag.length + listaTec.length === 1;
+  const [escolhida, setEscolhida] = useState(unico
+    ? (listaMag[0] ? 'magia:' + listaMag[0].key : 'tecnica:' + listaTec[0].key) : null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState(null);
 
   const estagio = pj ? calcEstagio(pj.experiencia || 0) : 0;
-  const total = pj ? pontosMagiasTotal(pj.profissao, estagio, pj.intelecto_base, pj.aura_base) : 0;
-  const gasto = pj ? gastoMagias(pj.magias || {}, magiasDb || []) : 0;
+  /* Fila de treino (22/10/2026): o que está em treino já foi pago — conta no
+     gasto e no próximo nível — mas ainda não é usável. */
+  const filaDe = (tipo, key) => treinos.filter((t) => t && t.tipo === tipo && t.key === key);
+  const tempoTexto = (h) => {
+    const n = Math.max(0, Math.ceil(Number(h) || 0));
+    const d = Math.floor(n / 24), r = n % 24;
+    return [d ? `${d} d` : '', r ? `${r} h` : ''].filter(Boolean).join(' ') || '0 h';
+  };
+  const emTreinoTexto = (tipo, key) => {
+    const f = filaDe(tipo, key);
+    if (!f.length) return null;
+    const horas = f.reduce((s, t) => s + (Number(t.horas_restantes) || 0), 0);
+    return `${en ? 'in training' : 'em treino'} · ${tempoTexto(horas)}`;
+  };
 
-  const linhas = lista.map((m) => {
-    const passos = Number(((pj && pj.magias) || {})[m.key]) || 0;
-    const atual = passos > 0 ? nivelMagiaEfetivo(passos) : null;
-    const proximo = passos < 5 ? nivelMagiaEfetivo(passos + 1) : null;
-    const custoPasso = proximo != null ? (m.custo || 0) * (proximo - (atual || 0)) : null;
-    const bloqueio = bloqueioAprenderNoInventario(m, pj, { ...(opcoes || {}), magiasDb });
-    return { m, atual, proximo, custoPasso, bloqueio };
-  });
-  const sel = linhas.find((l) => l.m.key === escolhida) || null;
+  const magPj = comFila(pj && pj.magias, treinos, 'magia');
+  const tecPj = comFila(pj && pj.tecnicas, treinos, 'tecnica');
+  const totalMag = pj ? pontosMagiasTotal(pj.profissao, estagio, pj.intelecto_base, pj.aura_base) : 0;
+  const gastoMag = pj ? gastoMagias(magPj, magiasDb || []) : 0;
+  const totalTec = pj ? pontosTecnicasTotal(pj.profissao, estagio, pj.fisico_base, pj.agilidade_base) : 0;
+  const gastoTec = pj ? gastoTecnicas(tecPj, tecnicasDb || []) : 0;
+
+  const linhas = [
+    ...listaMag.map((m) => {
+      const sabido = Number(((pj && pj.magias) || {})[m.key]) || 0;
+      const passos = Number(magPj[m.key]) || 0;
+      const atual = sabido > 0 ? nivelMagiaEfetivo(sabido) : null;
+      const base = passos > 0 ? nivelMagiaEfetivo(passos) : 0;
+      const proximo = passos < 5 ? nivelMagiaEfetivo(passos + 1) : null;
+      return {
+        id: 'magia:' + m.key, tipo: 'magia', m, atual, proximo,
+        custoPasso: proximo != null ? (m.custo || 0) * (proximo - base) : null,
+        rotuloTipo: [m.tipo, m.classe].filter(Boolean).join(' · '),
+        treino: emTreinoTexto('magia', m.key),
+        bloqueio: bloqueioAprenderNoInventario(m, pj, { ...(opcoes || {}), magiasDb }),
+      };
+    }),
+    ...listaTec.map((t) => {
+      const sabido = Number(((pj && pj.tecnicas) || {})[t.key]) || 0;
+      const nivel = Number(tecPj[t.key]) || 0;
+      return {
+        id: 'tecnica:' + t.key, tipo: 'tecnica', m: t,
+        atual: sabido > 0 ? sabido : null, proximo: nivel + 1, custoPasso: t.custo || 0,
+        rotuloTipo: en ? 'Technique' : 'Técnica',
+        treino: emTreinoTexto('tecnica', t.key),
+        bloqueio: bloqueioTecnicaNoInventario(t, pj, { ...(opcoes || {}), tecnicasDb }),
+      };
+    }),
+  ];
+  const sel = linhas.find((l) => l.id === escolhida) || null;
   const motivo = erro || (sel && sel.bloqueio
     ? motivoAprenderLabel(sel.bloqueio.motivo, en, sel.bloqueio) : null);
 
-  const escolher = (key) => { setEscolhida(key); setErro(null); };
+  const escolher = (id) => { setEscolhida(id); setErro(null); };
   const confirmar = async () => {
     if (!sel || sel.bloqueio || enviando) return;
     setEnviando(true); setErro(null);
-    const r = await onAprender(sel.m.key);
+    const r = await onAprender({ tipo: sel.tipo, key: sel.m.key });
     if (r && r.ok) { onClose(); return; }
     setEnviando(false);
     setErro(motivoAprenderLabel(r && r.motivo, en));
@@ -3696,25 +3791,34 @@ function EstudarMagiaModal({ titulo, magias, pj, magiasDb, opcoes, lang, onApren
         confirmDisabled={!sel || !!sel.bloqueio || enviando}
         footerCenter={motivo ? <span className="estudar-motivo" role="status">{motivo}</span> : null}
       >
-        <p className={'estudar-pontos' + (gasto > total ? ' estudar-pontos--excedido' : '')}>
-          <span>{en ? 'Magic points' : 'Pontos de magia'}</span>
-          <strong>{gasto} / {total}</strong>
-        </p>
-        <ul className="estudar-lista" role="radiogroup" aria-label={en ? 'Spells' : 'Magias'}>
-          {linhas.map(({ m, atual, proximo, custoPasso, bloqueio }) => (
-            <li key={m.key}
-              className={'estudar-linha' + (escolhida === m.key ? ' on' : '') + (bloqueio ? ' estudar-linha--bloqueada' : '')}
-              role="radio" aria-checked={escolhida === m.key} tabIndex={0}
-              onClick={() => escolher(m.key)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); escolher(m.key); } }}>
+        {listaMag.length > 0 && (
+          <p className={'estudar-pontos' + (gastoMag > totalMag ? ' estudar-pontos--excedido' : '')}>
+            <span>{en ? 'Magic points' : 'Pontos de magia'}</span>
+            <strong>{gastoMag} / {totalMag}</strong>
+          </p>
+        )}
+        {listaTec.length > 0 && (
+          <p className={'estudar-pontos' + (gastoTec > totalTec ? ' estudar-pontos--excedido' : '')}>
+            <span>{en ? 'Technique points' : 'Pontos de técnica'}</span>
+            <strong>{gastoTec} / {totalTec}</strong>
+          </p>
+        )}
+        <ul className="estudar-lista" role="radiogroup" aria-label={en ? 'What this item teaches' : 'O que este item ensina'}>
+          {linhas.map(({ id, m, atual, proximo, custoPasso, bloqueio, rotuloTipo, treino }) => (
+            <li key={id}
+              className={'estudar-linha' + (escolhida === id ? ' on' : '') + (bloqueio ? ' estudar-linha--bloqueada' : '')}
+              role="radio" aria-checked={escolhida === id} tabIndex={0}
+              onClick={() => escolher(id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); escolher(id); } }}>
               <span className="estudar-nome">{m.nome}</span>
-              <span className="estudar-tipo">{[m.tipo, m.classe].filter(Boolean).join(' · ')}</span>
+              <span className="estudar-tipo">{rotuloTipo}</span>
               <span className="estudar-nivel">
                 {atual != null ? atual : '—'} → {proximo != null ? proximo : (en ? 'max' : 'máx.')}
               </span>
               <span className="estudar-custo">
                 {custoPasso != null ? `+${custoPasso}` : '—'}
               </span>
+              {treino && <span className="estudar-treino">{treino}</span>}
             </li>
           ))}
         </ul>
@@ -3855,7 +3959,8 @@ Object.assign(window, {
   // (vestir-capacidade.test.js trava os dois lados juntos, 16/09/2026).
   VESTE_SLOTS, vesteSlotState,
   // O que o item ensina (livro/pergaminho) e por que não dá (22/10/2026).
-  vinculosDeLivros, magiasQueOItemEnsina, bloqueioAprenderNoInventario, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia, ehItemDeMagiaEmBatalha,
+  vinculosDeLivros, magiasQueOItemEnsina, bloqueioAprenderNoInventario,
+  ehPergaminhoDeTecnica, tecnicasQueOItemEnsina, bloqueioTecnicaNoInventario, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia, ehItemDeMagiaEmBatalha,
   // A magia que o item carrega — o bestiário mostra nome e descrição.
   magiaDoItem,
   // Montaria: a ficha abre a aba da montaria a partir daqui.
