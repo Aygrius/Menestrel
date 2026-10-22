@@ -165,9 +165,10 @@ total      = porEstagio × estágio
 base: Mago 8 · Bardo 8 · Rastreador 5 · Sacerdote 5 · Guerreiro 1 · Ladino 1
 ```
 
-Intelecto e aura **permanentes**: `X_base` com a sub-raça fixa
-(`personagens.subraca`) aplicada — transformação temporária não altera o
-orçamento.
+Intelecto e aura = `intelecto_base` / `aura_base` como gravados (raça
+incluída). A sub-raça fica de fora: os ajustes de raça/sub-raça vivem só em
+`GAME_DATA` (JS), e o espelho SQL não os conhece — usar o valor gravado é o
+que mantém JS e RPC idênticos. (Emenda de 22/10/2026, no plano.)
 
 - JS: `pontosMagiasTotal(profissao, estagio, atributos)` em `game-data.jsx`;
   `MAGIAS_POR_PROFISSAO` vira tabela de base com as 6 profissões.
@@ -194,9 +195,13 @@ Toda tela passa pela skill `impeccable` (identidade medieval, `.menestrel-ui`).
 - **Admin de itens**: livro ganha o campo *Pergaminhos deste livro*
   (multi-seleção de itens `pergaminho_*`), gravando em `livro_pergaminhos`.
 
-Saem do código: `podeAcessarMagia`, `magiaEhAvancada`, `magiaEhTravada`,
-`profissaoUsaMagia` e leituras de `permissao` (inclusive em
-`magias-efeito.jsx`, onde é citada).
+Saem do código as regras de **aprendizado** por permissão:
+`podeAcessarMagia`, `magiaEhTravada`, `profissaoUsaMagia` e o filtro por
+`permissao` na ficha, no criador e no inventário. Ficam, só como
+**informação**, as leituras de `permissao` no bestiário (filtro por
+profissão, "Exclusividade"), no painel de auditoria (`magias-efeito.jsx`) e
+na divisão Básicas/Avançadas da ficha (`magiaEhAvancada`) — elas somem
+junto com a coluna, na limpeza posterior. (Emenda de 22/10/2026, no plano.)
 
 ## 4. Migração de PJs existentes
 
