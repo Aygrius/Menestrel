@@ -658,20 +658,13 @@ describe('técnica: vários grupos de armas', () => {
 
 /* "No input 'permissão', cada classe é uma opção." (usuário, 26/09/2026) */
 describe('permissão em opções: profissões e especializações', () => {
-  it('técnica: a lista traz cada profissão seguida das suas especializações', () => {
-    montar({ linha: { key: 'carga', nome: 'Carga', custo: 2, permissao: 'Academia de Cavaleiros' } });
-    const nomes = nomesMulti('permissao');
-    expect(nomes.slice(0, 5)).toEqual(['Guerreiro', 'Academia de Soldados', 'Academia de Arqueiros', 'Academia de Cavaleiros', 'Academia de Gladiadores']);
-    expect(nomes).toEqual(expect.arrayContaining(['Mago', 'Colégio Necromântico', 'Sacerdote', 'Ordem de Lena']));
-    expect(marcadosMulti('permissao')).toEqual(['Academia de Cavaleiros']);
-  });
-
-  it('marcar mais uma grava separado por vírgula', async () => {
-    montar({ linha: { key: 'carga', nome: 'Carga', custo: 2, permissao: 'Academia de Cavaleiros' } });
-    clicarMulti('permissao', 'Guerreiro');
-    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
-    await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
-    expect(ultimoUpdate.payload.permissao).toBe('Guerreiro, Academia de Cavaleiros');
+  /* Técnica também saiu (22/10/2026): "Organize da mesma forma que você fez
+     com as magias." No lugar, o Tipo (Básica/Especializada). */
+  it('técnica não tem o campo; tem o Tipo', () => {
+    montar({ linha: { key: 'carga', nome: 'Carga', custo: 2, tipo: 'Especializada' } });
+    expect(document.querySelector('[data-multi="permissao"]')).toBeNull();
+    expect(campoPorRotulo(/Permissão/)).toBeUndefined();
+    expect(campoPorRotulo(/^Tipo/)).toBeTruthy();
   });
 
   /* Magia NÃO tem mais permissão (22/10/2026): qualquer profissão aprende

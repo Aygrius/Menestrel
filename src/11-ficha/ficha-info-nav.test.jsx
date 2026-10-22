@@ -251,7 +251,7 @@ describe('FichaInfoView — Conhecimento abre o detalhe', () => {
     montar({
       parte: 'conhecimento',
       catalogoHab: [{ key: 'furtividade', nome: 'Furtividade', grupo: 'Profissional' }],
-      catalogoTec: [{ key: 'golpe', nome: 'Golpe Duplo', permissao: 'Guerreiro' }],
+      catalogoTec: [{ key: 'golpe', nome: 'Golpe Duplo', tipo: 'Básica' }],
       catalogoMag: [{ key: 'luz', nome: 'Luz', permissao: 'Mago' }],
       pjTecnicas: { golpe: 1 }, pjMagias: { luz: 1 },
       onAbrirHabilidade: (k) => abertas.push('hab:' + k),
@@ -309,5 +309,23 @@ describe('FichaInfoView — pontos de magia com a fila', () => {
       pjMagias: { luz: 1 },
     });
     expect(document.querySelector('.fp-col-pontos').textContent).toMatch(/3\s*\/\s*24/);
+  });
+});
+
+/* Técnicas Avançadas = tipo Especializada (22/10/2026): a permissão saiu. */
+describe('FichaInfoView — técnicas pelo tipo', () => {
+  it('Especializada vai para Técnicas Avançadas; a permissão não conta', () => {
+    montar({ parte: 'conhecimento', pjTecnicas: { golpe: 1, furia: 1 },
+      catalogoTec: [
+        { key: 'golpe', nome: 'Golpe Duplo', tipo: 'Básica', permissao: 'Academia de Soldados' },
+        { key: 'furia', nome: 'Fúria', tipo: 'Especializada' },
+      ] });
+    const col = () => document.querySelectorAll('.fp-col-title-nav-btn')[1].closest('.fp-col-pad, .fp-col-pad-r, div');
+    const texto = () => document.body.textContent;
+    expect(texto()).toMatch(/Golpe Duplo/);
+    expect(texto()).not.toMatch(/Fúria/);
+    fireEvent.click(document.querySelectorAll('.fp-col-title-nav-btn')[1]);
+    expect(texto()).toMatch(/Fúria/);
+    expect(texto()).not.toMatch(/Golpe Duplo/);
   });
 });

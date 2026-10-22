@@ -36,7 +36,7 @@ const TABELAS = {
       descricao: 'Prende o alvo num círculo.\nItens necessários: Vela (7), Hidromel (1), Sangue Demoníaco (1).' },
   ],
   tecnicas: [{ key: 'lanca', nome: 'Carga de Lança', uso: 'Único', grupo_armas: 'CM,CL', grupo_armaduras: 'L,M',
-    custo: 3, permissao: 'Academia de Cavaleiros', descricao: 'Investida montada.',
+    custo: 3, tipo: 'Especializada', descricao: 'Investida montada.',
     efeito: 'Um teste de Carga (Difícil) ignora a energia heroica de 1 alvo por 1 rodada.' }],
   habilidades: [{ key: 'alq', nome: 'Alquimia', grupo: 'Conhecimento', ajuste: 'intelecto', vantagem: 'Poções',
     desvantagem: null, custo: 2, descricao: null }],
@@ -159,10 +159,8 @@ describe('janelas do catálogo', () => {
     // "Pode abreviar as armas 'PL, PM'" (26/09/2026).
     expect(mapa['Grupos de armas']).toBe('CM, CL');
     expect(mapa['Armaduras']).toBe('Armaduras leves, Armaduras médias');
-    // Por extenso e numa linha inteira desde 26/09/2026 ("não precisa mais abreviar").
-    expect(mapa['Exclusividade']).toBe('Academia de Cavaleiros');
-    const exc = [...det.querySelectorAll('.best-stat--linha')].find((li) => li.textContent.startsWith('Exclusividade'));
-    expect(exc.classList.contains('best-stat--largo')).toBe(true);
+    // A permissão saiu das técnicas (22/10/2026), como das magias.
+    expect(det.textContent).not.toMatch(/Exclusividade/);
   });
 
   /* "Ao clicar na técnica e mostrar sua descrição, mostre também seu efeito."
@@ -276,20 +274,6 @@ describe('ficha de criatura do Diário', () => {
    profissões de forma abreviada com 3 letras [...] mostre o título abreviado
    'Arq'" e "'5 quilômetros' vira '5 km'" (usuário, 26/09/2026). */
 describe('abreviações', () => {
-  const ex = (v) => window.abreviarExclusividade(v);
-  it('profissão: 3 letras; especialização: 3 letras do título', () => {
-    expect(ex('Guerreiro, Academia de Arqueiros')).toBe('Gue, Arq');
-    expect(ex('Guilda de Assassinos')).toBe('Ass');
-    expect(ex('Mago, Colégio Elemental')).toBe('Mag, Ele');
-  });
-  it('as três que colidiriam ganham abreviação própria', () => {
-    expect(ex('Ladino, Guilda de Ladrões')).toBe('Lad, Ldr');
-    expect(ex('Colégio Filosófico, Ordem de Ganis, Ordem de Sevides')).toBe('Fil, FMa, FTe');
-  });
-  it('nome desconhecido passa inteiro; vazio some', () => {
-    expect(ex('Ordem Nova')).toBe('Ordem Nova');
-    expect(ex('')).toBeNull();
-  });
   it('alcance: quilômetros → km, metros → m', () => {
     expect(window.abreviarAlcance('5 quilômetros')).toBe('5 km');
     expect(window.abreviarAlcance('20 metros')).toBe('20 m');

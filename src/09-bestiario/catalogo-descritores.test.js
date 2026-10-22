@@ -25,7 +25,8 @@ const COLUNAS = {
   magias: ['key','nome','evocacao','alcance','duracao','custo','tipo','classe','descricao','nivel_1','nivel_3','nivel_5','nivel_7','nivel_9','dano',
     // Itens do ritual, coluna própria desde 26/09/2026.
     'itens_necessarios'],
-  tecnicas: ['key','nome','custo','permissao','uso','grupo_armas','grupo_armaduras','descricao','efeito','ajuste'],
+  // tipo no lugar de permissao desde 22/10/2026.
+  tecnicas: ['key','nome','custo','tipo','uso','grupo_armas','grupo_armaduras','descricao','efeito','ajuste'],
   habilidades: ['key','nome','grupo','ajuste','custo','nivel_inicial','vantagem','desvantagem','restricao','descricao'],
   itens: ['slug','nome','grupo','ocupa','armazena','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia',
     // Técnica que o pergaminho ensina (22/10/2026).
@@ -392,5 +393,15 @@ describe('itens: Técnica do pergaminho (22/10/2026)', () => {
     expect(c.fonte).toBe('tecnicas');
     expect(c.grupos).toEqual(['Consumíveis']);
     expect(window.ADMIN_COPY.pt.campoTecnica).toBe('Técnica');
+  });
+});
+
+describe('técnicas: Tipo no lugar da Permissão (22/10/2026)', () => {
+  it('sem permissão; tipo Básica ou Especializada', () => {
+    const campos = descritorDe('tecnicas').campos;
+    expect(campos.map((c) => c.col)).not.toContain('permissao');
+    const t = campos.find((c) => c.col === 'tipo');
+    expect(t.tipo).toBe('opcoes');
+    expect(t.opcoes).toEqual(['Básica', 'Especializada']);
   });
 });

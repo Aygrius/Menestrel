@@ -91,7 +91,6 @@ const ADMIN_COPY = {
     campoAjuste: 'Ajuste',
     campoArmas: 'Grupo de Armas',
     campoArmaduras: 'Grupo de Armaduras',
-    campoPermissao: 'Permissão',
     campoDescricao: 'Descrição',
     campoEfeito: 'Efeito',
     campoGrupo: 'Grupo',
@@ -254,7 +253,6 @@ const ADMIN_COPY = {
     campoAjuste: 'Adjustment',
     campoArmas: 'Weapon Group',
     campoArmaduras: 'Armor Group',
-    campoPermissao: 'Permission',
     campoDescricao: 'Description',
     campoEfeito: 'Effect',
     campoGrupo: 'Group',
@@ -468,7 +466,7 @@ const ADMIN_SECTIONS = {
    perfil); esta árvore só diz como se chega neles. Cada folha aponta para uma
    seção e, opcionalmente, um `filtro` que a lista aplica:
      magias      → magias.tipo       ('Básica' | 'Ancestral' | 'Perdida')
-     tecnicas    → categoriaTecnica  ('basica' | 'especializada', pela permissão)
+     tecnicas    → categoriaTecnica  ('basica' | 'especializada', pelo tecnicas.tipo)
      habilidades → habilidades.grupo ('Profissional', 'Influência', …)
      itens       → itens.grupo       ('Armas', 'Minerais', …)
    Sem folha "Todas" (26/09/2026: "você criou um Todas que eu não pedi"):
@@ -492,16 +490,9 @@ const R = (pt, en) => ({ pt, en });
    especializações dela (Mago + os Colégios).
 
    O filtro de profissão viaja no mesmo texto: "Básica|Mago" — tipo, barra,
-   profissão. As listas separam (separarFiltroMenu, 09-bestiario). */
-const PROFISSOES_EN = { Bardo: 'Bard', Guerreiro: 'Warrior', Ladino: 'Rogue', Mago: 'Mage', Rastreador: 'Ranger', Sacerdote: 'Priest' };
-// Uma divisão (Básicas…) que também abre as profissões. `de`: o título da página.
-const divisaoComProfissoes = (secao, filtro, rotulo, titulo, profissoes) => ({
-  secao, filtro, rotulo, titulo, navega: true,
-  filhos: profissoes.map((p) => ({
-    secao, filtro: filtro + '|' + p, rotulo: R(p, PROFISSOES_EN[p]),
-    titulo: R(titulo.pt + ' do ' + p, PROFISSOES_EN[p] + ' ' + titulo.en),
-  })),
-});
+   profissão. As listas separam (separarFiltroMenu, 09-bestiario).
+   A coluna das profissões saiu em 22/10/2026, com a permissão: magias e
+   técnicas se aprendem pelo item, de qualquer profissão. */
 /* Magias por CLASSE (22/10/2026): a permissão saiu das magias — qualquer
    profissão aprende pelo item —, e o menu passou a dividir pela classe
    (Feitiço, Milagre, Encanto, Transmutação) e, dentro dela, pelo tipo.
@@ -532,14 +523,13 @@ const MENU_MAGIAS = {
     }),
   })),
 };
-/* Técnica básica é para as seis profissões. Especializada só cita academias e
-   guildas — do Guerreiro e do Ladino —, então só as duas aparecem ali. */
+/* Técnicas pelo TIPO (22/10/2026): a permissão saiu — qualquer profissão
+   aprende qualquer técnica pelo item —, e com ela a coluna das profissões,
+   como nas magias. Ficam as duas divisões que o usuário ditou. */
 const MENU_TECNICAS = {
   secao: 'tecnicas', rotulo: R('Técnicas', 'Techniques'), navega: true, filhos: [
-    divisaoComProfissoes('tecnicas', 'basica', R('Básicas', 'Basic'), R('Técnicas Básicas', 'Basic Techniques'),
-      ['Bardo', 'Guerreiro', 'Ladino', 'Mago', 'Rastreador', 'Sacerdote']),
-    divisaoComProfissoes('tecnicas', 'especializada', R('Especializadas', 'Specialized'), R('Técnicas Especializadas', 'Specialized Techniques'),
-      ['Guerreiro', 'Ladino']),
+    { secao: 'tecnicas', filtro: 'basica', rotulo: R('Básicas', 'Basic'), titulo: R('Técnicas Básicas', 'Basic Techniques') },
+    { secao: 'tecnicas', filtro: 'especializada', rotulo: R('Especializadas', 'Specialized'), titulo: R('Técnicas Especializadas', 'Specialized Techniques') },
   ],
 };
 // Habilidade não tem profissão no banco: clicar abre todas; os grupos, como antes.

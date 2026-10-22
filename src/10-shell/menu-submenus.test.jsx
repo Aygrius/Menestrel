@@ -40,11 +40,12 @@ const MAGIAS = [
   { key: 'ilusao', nome: 'Ilusão', tipo: 'Básica', classe: 'Feitiço' },
   { key: 'cura', nome: 'Cura', tipo: 'Básica', classe: 'Milagre' },
 ];
+// Tipo (22/10/2026) no lugar da permissão, como as magias.
 const TECNICAS = [
-  { key: 'mira', nome: 'Mira', permissao: 'Guerreiro, Rastreador' },
-  { key: 'livre', nome: 'Golpe Livre', permissao: null },
-  { key: 'lanca', nome: 'Carga de Lança', permissao: 'Academia de Cavaleiros' },
-  { key: 'misto', nome: 'Punhal Oculto', permissao: 'Guerreiro, Guilda de Ladrões' },
+  { key: 'mira', nome: 'Mira', tipo: 'Básica' },
+  { key: 'livre', nome: 'Golpe Livre', tipo: null },
+  { key: 'lanca', nome: 'Carga de Lança', tipo: 'Especializada' },
+  { key: 'misto', nome: 'Punhal Oculto', tipo: 'Básica' },
 ];
 const HABILIDADES = [
   { key: 'furt', nome: 'Furtividade', grupo: 'Subterfúgio' },
@@ -141,9 +142,11 @@ describe('ADMIN_MENU — a árvore', () => {
     expect(rotulos(magias.filhos[3].filhos)).toEqual(['Básicas', 'Ancestrais', 'Perdidas']);
   });
 
-  it('Técnicas › Básicas, Especializadas', () => {
+  it('Técnicas › Básicas, Especializadas — sem a coluna de profissões', () => {
     const tec = grupo('master', 'treinamento').filhos[1];
     expect(rotulos(tec.filhos)).toEqual(['Básicas', 'Especializadas']);
+    // A permissão saiu (22/10/2026): qualquer profissão aprende qualquer técnica.
+    tec.filhos.forEach((f) => expect(f.filhos).toBeUndefined());
   });
 
   it('Habilidades › os seis grupos do banco', () => {
@@ -187,15 +190,15 @@ describe('ADMIN_MENU — a árvore', () => {
 });
 
 /* ── A regra das técnicas ─────────────────────────────────────────────── */
-describe('categoriaTecnica — pela permissão', () => {
-  const cat = (permissao) => window.categoriaTecnica({ permissao });
-  it('sem restrição é básica', () => { expect(cat(null)).toBe('basica'); expect(cat('')).toBe('basica'); });
-  it('só profissões é básica', () => { expect(cat('Guerreiro, Rastreador')).toBe('basica'); });
-  it('só academias/guildas é especializada', () => {
-    expect(cat('Academia de Cavaleiros')).toBe('especializada');
-    expect(cat('Academia de Gladiadores, Guilda de Piratas')).toBe('especializada');
+describe('categoriaTecnica — pelo tipo', () => {
+  const cat = (tipo) => window.categoriaTecnica({ tipo });
+  it('Especializada é especializada', () => { expect(cat('Especializada')).toBe('especializada'); });
+  it('Básica, ou sem tipo, é básica', () => {
+    expect(cat('Básica')).toBe('basica'); expect(cat(null)).toBe('basica'); expect(cat('')).toBe('basica');
   });
-  it('mista (alguma profissão pode) é básica', () => { expect(cat('Guerreiro, Guilda de Ladrões')).toBe('basica'); });
+  it('a permissão não conta mais', () => {
+    expect(window.categoriaTecnica({ permissao: 'Academia de Cavaleiros' })).toBe('basica');
+  });
 });
 
 /* ── O filtro nas listas ──────────────────────────────────────────────── */
@@ -236,14 +239,6 @@ describe('cada folha filtra a lista', () => {
   it('Milagres: só a classe', async () => {
     await montar(window.MagiasList, { filtro: '|Milagre' });
     expect(nomes()).toEqual(['Cura']);
-  });
-  it('Técnicas Básicas do Guerreiro (a sem permissão vale para todos)', async () => {
-    await montar(window.TecnicasList, { filtro: 'basica|Guerreiro' });
-    expect(nomes()).toEqual(['Golpe Livre', 'Mira', 'Punhal Oculto']);
-  });
-  it('Técnicas Especializadas do Guerreiro (as Academias)', async () => {
-    await montar(window.TecnicasList, { filtro: 'especializada|Guerreiro' });
-    expect(nomes()).toEqual(['Carga de Lança']);
   });
   it('Comércio › Minerais', async () => {
     await montar(window.ItensList, { filtro: 'Minerais', titulo: 'Minerais' });

@@ -388,29 +388,6 @@ function atributoPorExtenso(v, en) {
    'Armaduras leves'"). */
 const ARMADURA_EXTENSO = { L: ['Armaduras leves', 'Light armor'], M: ['Armaduras médias', 'Medium armor'], P: ['Armaduras pesadas', 'Heavy armor'] };
 
-/* ── abreviarExclusividade — "Guerreiro, Academia de Arqueiros" → "Gue, Arq" ──
-   "Mude o texto 'quem aprende' para 'Exclusividade', e informe o nome das
-   profissões de forma abreviada com 3 letras, por exemplo Assassino vira Ass.
-   Ao invés de mostrar 'Academia de Arqueiros', mostre o título abreviado
-   'Arq'." (usuário, 26/09/2026)
-
-   Profissão: as 3 primeiras letras do nome. Especialização: as 3 primeiras do
-   TÍTULO (GAME_DATA.especializacoes: Academia de Arqueiros → Arqueiro → Arq).
-   Três títulos colidiam com outro nome nas 3 letras e ganharam abreviação
-   própria: Ladrão (≠ Ladino, "Lad"), Filho do Mar e Filho da Terra (≠
-   Filósofo, "Fil"). Nome que não é profissão nem especialização passa inteiro. */
-const ABREV_EXCECOES = { 'Ladrão': 'Ldr', 'Filho do Mar': 'FMa', 'Filho da Terra': 'FTe' };
-function abreviarExclusividade(permissao) {
-  if (permissao == null || String(permissao).trim() === '') return null;
-  const esp = (typeof GAME_DATA !== 'undefined' && GAME_DATA.especializacoes) || {};
-  const mapa = {};
-  Object.keys(esp).forEach((prof) => {
-    mapa[prof] = prof.slice(0, 3);
-    (esp[prof] || []).forEach((e) => { mapa[e.esp] = ABREV_EXCECOES[e.titulo] || String(e.titulo).slice(0, 3); });
-  });
-  return String(permissao).split(',').map((p) => p.trim()).filter(Boolean)
-    .map((p) => mapa[p] || p).join(', ');
-}
 
 /* Alcance da magia abreviado (26/09/2026: "'5 quilômetros' vira '5 km'"):
    quilômetros → km, metros → m. "Toque", "Pessoal", "Variável" passam. */
@@ -475,17 +452,13 @@ function separarItensNecessarios(descricao) {
   return { texto: texto.slice(0, m.index).trimEnd(), itens: m[1].trim() };
 }
 
-/* ── categoriaTecnica — Básica ou Especializada (26/09/2026) ──
-   O banco não tem essa coluna; a regra, escolhida pelo usuário, sai da
-   `permissao`: ESPECIALIZADA é a técnica que só academias/guildas aprendem
-   ("Academia de Cavaleiros"). Se alguma PROFISSÃO pode ("Guerreiro, Guilda
-   de Ladrões"), ou se não há restrição, é BÁSICA. As profissões vêm de
-   GAME_DATA.profissoes, a mesma lista do wizard. */
+/* ── categoriaTecnica — Básica ou Especializada ──
+   Coluna própria (tecnicas.tipo) desde 22/10/2026, como o tipo das magias:
+   a permissão saiu ("Organize da mesma forma que você fez com as magias").
+   O banco foi preenchido UMA vez pela regra de 26/09/2026 — especializada é
+   a técnica que só academias/guildas aprendiam. Sem tipo, básica. */
 function categoriaTecnica(t) {
-  const profissoes = new Set(Object.keys((typeof GAME_DATA !== 'undefined' && GAME_DATA.profissoes) || {}));
-  const partes = String((t && t.permissao) || '').split(',').map((p) => p.trim()).filter(Boolean);
-  if (partes.length === 0) return 'basica';
-  return partes.some((p) => profissoes.has(p)) ? 'basica' : 'especializada';
+  return (t && t.tipo) === 'Especializada' ? 'especializada' : 'basica';
 }
 
 /* O FILTRO DO MENU com profissão (29/09/2026): "Básica|Mago" — o tipo, uma
@@ -494,16 +467,6 @@ function categoriaTecnica(t) {
 function separarFiltroMenu(filtro) {
   const [tipo, profissao] = String(filtro || '').split('|');
   return { tipo: tipo || '', profissao: profissao || '' };
-}
-/* A permissão alcança alguém desta profissão? Cita a profissão ou uma das
-   especializações dela — decisão do usuário: "Mago" inclui os Colégios.
-   `vazioVale`: técnica sem permissão é de todos; magia sem permissão, de ninguém. */
-function alcancaProfissao(permissao, profissao, vazioVale) {
-  const partes = String(permissao || '').split(',').map((p) => p.trim()).filter(Boolean);
-  if (partes.length === 0) return !!vazioVale;
-  const esps = (((typeof GAME_DATA !== 'undefined' && GAME_DATA.especializacoes) || {})[profissao] || [])
-    .map((e) => e.esp);
-  return partes.some((p) => p === profissao || esps.includes(p));
 }
 
 /* Ícone da MAGIA pelo tipo, ao lado do nome na tabela (26/09/2026, "adicione o
@@ -2475,10 +2438,9 @@ function TecnicasList({ ac, lang, modoJogador, filtro, titulo }) {
   });
   if (modoJogador) filtered = filtered.filter((t) => conhecido.tecnicas.has(t.key));
   // Submenu de Treinamento › Técnicas (26/09/2026) — ver categoriaTecnica.
-  // Categoria e, desde 29/09/2026, a profissão (separarFiltroMenu).
+  // Sem a profissão desde 22/10/2026: a permissão saiu, como nas magias.
   const fMenu = separarFiltroMenu(filtro);
   if (fMenu.tipo) filtered = filtered.filter((t) => categoriaTecnica(t) === fMenu.tipo);
-  if (fMenu.profissao) filtered = filtered.filter((t) => alcancaProfissao(t.permissao, fMenu.profissao, true));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -2731,7 +2693,6 @@ function BestTecnicaFicha({ t, lang, linhasExtras }) {
         <BestLinha rotulo={lang === 'en' ? 'Weapon groups' : 'Grupos de armas'} valor={siglasDeArma(t.grupo_armas)} />
         <BestLinha rotulo={lang === 'en' ? 'Armor' : 'Armaduras'} valor={siglasPorExtenso(t.grupo_armaduras, 'armadura', lang === 'en')} />
         <BestLinha rotulo={lang === 'en' ? 'Cost' : 'Custo'} valor={t.custo} />
-        <BestLinha rotulo={lang === 'en' ? 'Exclusivity' : 'Exclusividade'} valor={String(t.permissao || '').split(',').map((x) => x.trim()).filter(Boolean).join(', ')} largo />
       </BestFichaLista>
     </>
   );
@@ -3008,9 +2969,9 @@ Object.assign(window, {
   // 26/09/2026: a ficha da linha abre em janela — também em itens da campanha.
   BestDetalheModal, BestItemFicha, BestTecnicaFicha, BestMagiaFicha, BestHabilidadeFicha,
   // 26/09/2026: o filtro Básica/Especializada do submenu de Técnicas.
-  categoriaTecnica, separarFiltroMenu, alcancaProfissao,
+  categoriaTecnica, separarFiltroMenu,
   // 26/09/2026: a ficha em lista, por extenso — o Diário e itens da campanha usam.
   BestFichaLista, BestLinha, BestDescricao, atributoPorExtenso, siglaAtributoItem, separarItensNecessarios,
-  abreviarExclusividade, abreviarAlcance, eficaciaContraArmadura, ehArma,
+  abreviarAlcance, eficaciaContraArmadura, ehArma,
   IconeDoNome, ICONE_TIPO_MAGIA,
 });

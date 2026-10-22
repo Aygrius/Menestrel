@@ -1850,28 +1850,12 @@ function FichaInfoView({
     </div>
   );
 
-  // ── Especialidades (construídas uma vez, usadas em col4 e col5) ────
-  // GAME_DATA.especializacoes contém todos os nomes de especialização
-  // por profissão. Usamos isso para distinguir Básica/Avançada sem
-  // depender de campos arbitrários como `custo` ou `tipo`.
-  const _gd = (typeof GAME_DATA !== 'undefined' ? GAME_DATA : null) || window.GAME_DATA || {};
-  const _espMap = _gd.especializacoes || {};
-  // Técnicas avançadas = reservadas pelas guildas de ladinos e academias de guerreiros
-  const SPECS_GUE_LAD = new Set([
-    ...(_espMap['Guerreiro'] || []).map((s) => s.esp),
-    ...(_espMap['Ladino']    || []).map((s) => s.esp),
-  ]);
-
-  const tecEsAvancada = (t) => {
-    const lista = (t.permissao || '').split(',').map((s) => s.trim()).filter(Boolean);
-    return lista.some((p) => SPECS_GUE_LAD.has(p));
-  };
+  // Técnica avançada pelo TIPO desde 22/10/2026 (tecnicas.tipo): a permissão saiu.
+  const tecEsAvancada = (t) => t.tipo === 'Especializada';
   // Magias: por TIPO desde 22/10/2026 (ver Col 5 abaixo).
   const magEsRara = (m) => !!m.tipo && m.tipo !== 'Básica';
 
-  // ── Col 4 — Técnicas de Combate (Básicas / Avançadas por permissao) ─
-  // Avançadas: reservadas pelas guildas de ladinos e academias de guerreiros
-  // Básicas:   acessíveis pela profissão base, sem especialização
+  // ── Col 4 — Técnicas de Combate (Básicas / Avançadas = tipo Especializada) ─
   const tecPossuidas = catalogoTec.filter((t) =>
     Object.prototype.hasOwnProperty.call(pjTecnicas, t.key)
   );

@@ -987,13 +987,6 @@ function totalTecnica(tecnica, tecnicasObj, atributos) {
   return comprado + atr;
 }
 
-// Permissão CSV: profissão básica OU especialização (estágio 5+).
-// (Era a mesma regra de magia até 22/10/2026; magia hoje se aprende pelo item.)
-function podeAcessarTecnica(tecnica, profissao, especializacao) {
-  if (!tecnica.permissao) return false;
-  const lista = tecnica.permissao.split(',').map((s) => s.trim()).filter(Boolean);
-  return lista.includes(profissao) || (!!especializacao && lista.includes(especializacao));
-}
 
 /* ============================== [12.5] Helpers de GRUPOS DE ARMAS ============================== */
 // Catálogo fixo dos 11 grupos. A sigla é o key (igual aos CSVs de origem do Tagmar).
@@ -1469,7 +1462,7 @@ Object.assign(window, {
   NIVEIS_MAGIA, passosDisponiveisMagia,
   TECNICAS_BASE_POR_PROFISSAO, pontosTecnicasPorEstagio, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
   ATIVIDADE_DA_CLASSE, HORAS_TREINO, nivelNaFila, comFila, bloqueioAprenderTecnica,
-  totalTecnica, podeAcessarTecnica,
+  totalTecnica,
   GRUPOS_ARMAS, GRUPOS_ARMAS_BY_SIGLA, GRUPOS_ARMAS_POR_PROFISSAO,
   pontosGruposArmasTotal, gastoGruposArmas, qtdGruposArmas, bonusGrupoArma,
   idiomasIniciais, slotsAprimoramento, opcoesAprimoramento,

@@ -30,12 +30,6 @@ const OPCOES_GRUPO_ARMAS = ['Livre', ...GRUPOS_ARMAS_SIGLAS];
 // Sigla no banco, palavra na tela (26/09/2026: "'L' vira 'Armaduras leves'").
 const OPCOES_GRUPO_ARMADURAS = ['Livre', { value: 'L', label: 'Armaduras leves' },
   { value: 'M', label: 'Armaduras médias' }, { value: 'P', label: 'Armaduras pesadas' }];
-/* PERMISSÃO em opções (26/09/2026: "no input 'permissão', cada classe é uma
-   opção"). Cada profissão seguida das suas especializações, recuadas — a
-   mesma árvore de GAME_DATA.especializacoes que o wizard usa. Conferido no
-   banco no mesmo dia: todo valor de magias.permissao e tecnicas.permissao é
-   um destes nomes; o que um dia não for continua aparecendo (CatalogoMulti
-   mostra o valor fora da lista) e pode ser tirado. */
 /* Listas fechadas do editor de magias (26/09/2026, pedido do usuário). */
 const OPCOES_TIPO_MAGIA = ['Básica', 'Perdida', 'Ancestral'];
 const RODADAS_MAGIA = ['1 rodada', '2 rodadas', '3 rodadas', '4 rodadas', '5 rodadas',
@@ -49,15 +43,8 @@ const OPCOES_DURACAO = ['Variável', 'Instantânea', ...RODADAS_MAGIA];
 const OPCOES_RACA_REINO = (typeof GAME_DATA !== 'undefined')
   ? [...Object.keys(GAME_DATA.racas || {}), ...(GAME_DATA.reinos || [])] : [];
 
-const OPCOES_PERMISSAO = (() => {
-  const esp = (typeof GAME_DATA !== 'undefined' && GAME_DATA.especializacoes) || {};
-  const out = [];
-  Object.keys(esp).forEach((prof) => {
-    out.push({ value: prof, label: prof });
-    (esp[prof] || []).forEach((e) => out.push({ value: e.esp, label: e.esp, recuo: true }));
-  });
-  return out;
-})();
+// Tipo da técnica (22/10/2026), no lugar da permissão — ver categoriaTecnica.
+const OPCOES_TIPO_TECNICA = ['Básica', 'Especializada'];
 /* Chave no banco ('agilidade'), nome na tela ('Agilidade') — 14/09/2026: "No
    input 'ajuste', deve mostrar o atributo com a primeira letra maiúscula."
    O nome vem de ATRIBUTOS_LABEL (game-data.jsx), com acento: Força, Físico,
@@ -78,6 +65,7 @@ const CATALOGO_DESCRITORES = {
       { col: 'key',   tipo: 'texto',  rotuloKey: 'campoChave', obrigatorio: true, somenteNovo: true, autoDeNome: true },
       { col: 'nome',  tipo: 'texto',  rotuloKey: 'campoNome',  obrigatorio: true },
       { col: 'custo', tipo: 'numero', rotuloKey: 'campoCusto', obrigatorio: true, min: 1, max: 2 },
+      { col: 'tipo',  tipo: 'opcoes', rotuloKey: 'campoTipo',  opcoes: OPCOES_TIPO_TECNICA },
       { col: 'uso',   tipo: 'opcoes', rotuloKey: 'campoUso',   opcoes: ['Único', 'Intermitente', 'Livre'] },
       { col: 'ajuste',          tipo: 'opcoes', rotuloKey: 'campoAjuste',    opcoes: OPCOES_ATRIBUTO },
       /* VÁRIOS grupos (26/09/2026: "no modal de editar técnicas, deve ser
@@ -87,7 +75,6 @@ const CATALOGO_DESCRITORES = {
       /* Armas e armaduras NA MESMA LINHA (26/09/2026) — `largura: 'meia'`. */
       { col: 'grupo_armas',     tipo: 'multiopcoes', rotuloKey: 'campoArmas', opcoes: OPCOES_GRUPO_ARMAS, exclusiva: 'Livre', largura: 'meia' },
       { col: 'grupo_armaduras', tipo: 'opcoes', rotuloKey: 'campoArmaduras', opcoes: OPCOES_GRUPO_ARMADURAS, largura: 'meia' },
-      { col: 'permissao', tipo: 'multiopcoes', rotuloKey: 'campoPermissao', opcoes: OPCOES_PERMISSAO },
       { col: 'descricao', tipo: 'area',  rotuloKey: 'campoDescricao', linhas: 3 },
       { col: 'efeito',    tipo: 'area',  rotuloKey: 'campoEfeito',    linhas: 3 },
     ],
