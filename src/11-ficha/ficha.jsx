@@ -1080,7 +1080,11 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
   const ehMilagre = m.classe === 'Milagre';
   const _ap = window.atorMilagreDePj, _bm = window.bloqueioMilagre, _ab = window.alvoDeMilagreBloqueado;
   const bloqueioMil = ehMilagre && _ap && _bm && eu ? _bm(_ap(eu, dataJogo)) : null;
-  const recebeMilagre = (pj) => !(ehMilagre && _ap && _ab && pj && _ab(_ap(pj, dataJogo)));
+  /* O colega chega de get_pjs_historia com as magias ativas soltas
+     (magias_ativas): o lobisomem da Licantropia também não recebe milagre. */
+  const comEstado = (pj) => (pj && !pj.estado_atual && Array.isArray(pj.magias_ativas)
+    ? { ...pj, estado_atual: { magias_ativas: pj.magias_ativas } } : pj);
+  const recebeMilagre = (pj) => !(ehMilagre && _ap && _ab && pj && _ab(_ap(comEstado(pj), dataJogo)));
   const ALVOS = criaElo
     ? (animais || []).map((a) => ({
         id: 'animal:' + a.instancia.instanceId, tipo: 'animal', instanceId: a.instancia.instanceId,

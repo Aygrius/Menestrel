@@ -14,6 +14,7 @@ import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/select-pill.jsx';
 import '../01-core/game-data.jsx';
+import '../01-core/magias-efeito.jsx';
 import '../10-shell/shell.jsx';
 import '../09-bestiario/ataques-criatura.jsx';
 import '../09-bestiario/criatura-formulas.jsx';
@@ -77,5 +78,16 @@ describe('a Ficha entrega o personagem inteiro à regra', () => {
   });
   it('e a data do jogo, para a Licantropia vencida não contar', () => {
     expect(bloco).toMatch(/dataJogo=\{historiaPj\?\.data_jogo_atual\}/);
+  });
+});
+
+/* "Transformado em Lobisomem, realmente a magia não vai funcionar nele."
+   (usuário, 22/10/2026) — o colega que conjurou a própria Licantropia sai da
+   lista de alvos de milagre. A lista de colegas traz as magias ativas dele
+   (get_pjs_historia.magias_ativas). Depende da sub-raça (subracaEfetiva). */
+describe('colega transformado', () => {
+  it.skipIf(typeof window.subracaEfetiva !== 'function')('colega com Licantropia ativa não é alvo de milagre', () => {
+    montar({ colegas: [{ id: 3, nome: 'Caio', deus: 'Lena', magias_ativas: [{ key: 'licantropia_lupina' }] }] });
+    expect(nomesAlvos().join('|')).not.toMatch(/Caio/);
   });
 });
