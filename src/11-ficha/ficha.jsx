@@ -2242,6 +2242,20 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const [todosPjs, setTodosPjs] = useState([]);
   const [catalogo, setCatalogo] = useState(null);
   const [magias, setMagias] = useState(null);
+  /* Livro → pergaminhos (22/10/2026): "Pode mostrar 'Estudar' no livro" —
+     a janela de item da ficha precisa dos vínculos para oferecer Estudar.
+     Falhar aqui só esconde o Estudar. */
+  const [vinculosLivros, setVinculosLivros] = useState({});
+  useEffect(() => {
+    let vivo = true;
+    const _paginada = (typeof fetchTabelaPaginada !== 'undefined' ? fetchTabelaPaginada : null) || window.fetchTabelaPaginada;
+    const _vinc = window.vinculosDeLivros;
+    if (!_paginada || !_vinc) return undefined;
+    Promise.resolve(_paginada('livro_pergaminhos', { colunas: 'livro_slug,pergaminho_slug', ordem: ['livro_slug'] }))
+      .then((res) => { if (vivo && res && !res.error) setVinculosLivros(_vinc(res.data)); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
   const [tecnicas, setTecnicas] = useState(null);
   const [habilidades, setHabilidades] = useState(null);
   const [historiaPj, setHistoriaPj] = useState(null);       // { id, protagonista_ids } — história em que o PJ ativo está
@@ -4743,6 +4757,11 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             onVestir={() => ({ ok: false })}
             onDespir={() => {}}
             onAprenderMagia={async () => ({ ok: false })}
+            /* Estudar/Aprender aparecem também aqui (22/10/2026); a janela
+               explica que o aprendizado é feito no Inventário. */
+            magiasDb={magias}
+            vinculos={vinculosLivros}
+            pjAprendiz={pj}
             onMoverParaContainer={() => {}}
             onTransferir={async () => ({ ok: false })}
             transferError={null}
