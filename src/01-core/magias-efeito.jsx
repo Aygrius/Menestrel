@@ -1132,7 +1132,8 @@ const MAGIA_EFEITO_MAP = {
   // "Cause 28 de dano base E, mais 1 de dano máximo na energia física POR
   // RODADA" — golpe imediato mais sangramento. dano_por_rodada é a mesma
   // primitiva do Sangramento das técnicas.
-  ataque_infernal:    { alvo: 'inimigo', alvos: 1, icone: '😈',
+  // Nictoataque (chave ataque_infernal até 22/10/2026; a chave segue o nome).
+  nictoataque:        { alvo: 'inimigo', alvos: 1, icone: '😈',
                         efeitos: [{ tipo: 'dano',            unidade: 'dano' },
                                   { tipo: 'dano_por_rodada', unidade: 'dano_max' }] },
   // "Reduza 1 de energia física por rodada" — só o sangramento.
@@ -2147,7 +2148,8 @@ const MAGIA_FORA_DO_REGISTRO = {
   unidade_natural: { classe: 'narrativa', motivo: 'Teleporte pela vegetação.' },
 
   /* ── Ritual ou fora de combate ──────────────────────────────────── */
-  abrigo: { classe: 'ritual', motivo: 'Ritual: localiza abrigo natural.' },
+  // Sobrevivente (chave abrigo até 22/10/2026).
+  sobrevivente: { classe: 'ritual', motivo: 'Ritual: localiza abrigo natural.' },
   ambiente_natural: { classe: 'ritual', motivo: 'Ritual: libera magias de ambiente natural.' },
   aprisionar: { classe: 'ritual', motivo: 'Ritual: prisão de escuridão com armadura própria.' },
   assombracao: { classe: 'ritual', motivo: 'Ritual: atrai mortos-vivos a um local.' },

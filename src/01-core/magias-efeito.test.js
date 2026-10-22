@@ -346,7 +346,7 @@ describe('o acordo entre o mapa e o texto do banco', () => {
        (Sono). Por isso as entradas declaram `valor: true` em vez de
        `unidade`, e o acordo mapa-parser abaixo as pula. */
     /* As sete de CRIATURA (12/09/2026). Copias literais do banco. */
-    ataque_infernal:    'Cause 28 de dano base e, mais 1 de dano máximo na energia física por rodada.',
+    nictoataque:        'Cause 28 de dano base e, mais 1 de dano máximo na energia física por rodada.',
     bastao_de_luz:      'Cause 20 de dano base.',
     campo_de_trevas:    'Reduza 1 de energia física por rodada.',
     geoprotecao:        'Reduz 16 de dano elemental da terra.',
