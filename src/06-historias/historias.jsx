@@ -1230,15 +1230,17 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                                   onChange={(ev) => setPrecoOverride(ev.target.value)}
                                   onKeyDown={(ev) => { if (ev.key === 'Enter') adicionarAoEstoque(); }} />
                               </label>
-                              {/* Sem o rótulo "Estoque" (15/09/2026, pedido do
-                                  usuário). O campo continua nomeado para quem
-                                  usa leitor de tela, e o ∞ diz o padrão. */}
+                              {/* Rótulo "Quantidade" (22/10/2026): sem ele o campo
+                                  ficava mais alto que o do Preço — "os campos
+                                  desalinhados, escreva 'quantidade' acima do
+                                  campo". Era sem rótulo desde 15/09/2026. O ∞
+                                  segue dizendo o padrão. */}
                               <label className="loja-add-modal-campo">
+                                <span className="diario-field-label">{en ? 'Quantity' : 'Quantidade'}</span>
                                 <input
                                   className="diario-input"
                                   type="number" min="0"
                                   placeholder="∞"
-                                  aria-label={tl.stock}
                                   value={estoqueInicial}
                                   onChange={(ev) => setEstoqueInicial(ev.target.value)}
                                   onKeyDown={(ev) => { if (ev.key === 'Enter') adicionarAoEstoque(); }} />

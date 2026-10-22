@@ -206,11 +206,11 @@ describe('adicionar item', () => {
     // Rótulos no padrão do projeto (diario-field-label), com o destino e a
     // nota em blocos próprios — nada colado (15/09/2026).
     const rotulos = [...modal.querySelectorAll('.loja-add-modal-campo > .diario-field-label')].map((s) => s.textContent);
-    // 15/09/2026: o rótulo "Estoque" saiu; o campo fica com aria-label e o ∞.
-    expect(rotulos).toEqual(['Preço']);
+    // 22/10/2026: "Quantidade" acima do segundo campo — sem rótulo ele ficava
+    // desalinhado do Preço. O ∞ continua dizendo o padrão.
+    expect(rotulos).toEqual(['Preço', 'Quantidade']);
     const campos = [...modal.querySelectorAll('.loja-add-modal-campo input')];
     expect(campos).toHaveLength(2);
-    expect(campos[1].getAttribute('aria-label')).toBe('Estoque');
     expect(campos[1].getAttribute('placeholder')).toBe('∞');
     expect(modal.textContent).not.toMatch(/Estoque/);
     // 15/09/2026: o prefixo "Adicionando em:" e a nota do rodapé saíram.
