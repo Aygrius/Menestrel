@@ -3622,6 +3622,95 @@ function LeituraDocModal({ titulo, docUrl, lang, onClose }) {
   return (alvo && ReactDOM && ReactDOM.createPortal) ? ReactDOM.createPortal(conteudo, alvo) : conteudo;
 }
 
+/* ── ESTUDAR (22/10/2026) ────────────────────────────────────────────
+   "o personagem poderá aprender a magia usando o item que a ensina" — o
+   livro abre a lista das magias vinculadas; o pergaminho, a sua. Escolhe-se
+   uma linha e confirma-se no rodapé (padrão dos modais: confirmação no
+   .ms-footer). Um nível por vez; o item não se gasta. A linha bloqueada
+   continua escolhível: é escolhendo que o jogador lê o porquê no rodapé.
+   Portal em #root pelo mesmo motivo do LeituraDocModal: abre de dentro da
+   janela do item. */
+function EstudarMagiaModal({ titulo, magias, pj, magiasDb, opcoes, lang, onAprender, onClose }) {
+  const en = lang === 'en';
+  const lista = Array.isArray(magias) ? magias : [];
+  const [escolhida, setEscolhida] = useState(lista.length === 1 ? lista[0].key : null);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState(null);
+
+  const estagio = pj ? calcEstagio(pj.experiencia || 0) : 0;
+  const total = pj ? pontosMagiasTotal(pj.profissao, estagio, pj.intelecto_base, pj.aura_base) : 0;
+  const gasto = pj ? gastoMagias(pj.magias || {}, magiasDb || []) : 0;
+
+  const linhas = lista.map((m) => {
+    const passos = Number(((pj && pj.magias) || {})[m.key]) || 0;
+    const atual = passos > 0 ? nivelMagiaEfetivo(passos) : null;
+    const proximo = passos < 5 ? nivelMagiaEfetivo(passos + 1) : null;
+    const custoPasso = proximo != null ? (m.custo || 0) * (proximo - (atual || 0)) : null;
+    const bloqueio = bloqueioAprenderNoInventario(m, pj, { ...(opcoes || {}), magiasDb });
+    return { m, atual, proximo, custoPasso, bloqueio };
+  });
+  const sel = linhas.find((l) => l.m.key === escolhida) || null;
+  const motivo = erro || (sel && sel.bloqueio
+    ? motivoAprenderLabel(sel.bloqueio.motivo, en, sel.bloqueio) : null);
+
+  const escolher = (key) => { setEscolhida(key); setErro(null); };
+  const confirmar = async () => {
+    if (!sel || sel.bloqueio || enviando) return;
+    setEnviando(true); setErro(null);
+    const r = await onAprender(sel.m.key);
+    if (r && r.ok) { onClose(); return; }
+    setEnviando(false);
+    setErro(motivoAprenderLabel(r && r.motivo, en));
+  };
+
+  const rotuloConfirmar = sel && sel.proximo != null
+    ? `${en ? 'Learn' : 'Aprender'} ${sel.m.nome} ${sel.proximo}`
+    : (en ? 'Learn' : 'Aprender');
+
+  const conteudo = (
+    <div className="menestrel-ui">
+      <ModalShell
+        title={<><i className="ti ti-school det-title-ic" aria-hidden="true" /> {titulo}</>}
+        lang={lang}
+        size="md"
+        extraClass="modal-estudar"
+        onClose={onClose}
+        onCancel={onClose}
+        cancelLabel={en ? 'Close' : 'Fechar'}
+        onConfirm={confirmar}
+        confirmLabel={enviando ? (en ? 'Learning…' : 'Aprendendo…') : rotuloConfirmar}
+        confirmDisabled={!sel || !!sel.bloqueio || enviando}
+        footerCenter={motivo ? <span className="estudar-motivo" role="status">{motivo}</span> : null}
+      >
+        <p className={'estudar-pontos' + (gasto > total ? ' estudar-pontos--excedido' : '')}>
+          <span>{en ? 'Magic points' : 'Pontos de magia'}</span>
+          <strong>{gasto} / {total}</strong>
+        </p>
+        <ul className="estudar-lista" role="radiogroup" aria-label={en ? 'Spells' : 'Magias'}>
+          {linhas.map(({ m, atual, proximo, custoPasso, bloqueio }) => (
+            <li key={m.key}
+              className={'estudar-linha' + (escolhida === m.key ? ' on' : '') + (bloqueio ? ' estudar-linha--bloqueada' : '')}
+              role="radio" aria-checked={escolhida === m.key} tabIndex={0}
+              onClick={() => escolher(m.key)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); escolher(m.key); } }}>
+              <span className="estudar-nome">{m.nome}</span>
+              <span className="estudar-tipo">{m.tipo}</span>
+              <span className="estudar-nivel">
+                {atual != null ? atual : '—'} → {proximo != null ? proximo : (en ? 'max' : 'máx.')}
+              </span>
+              <span className="estudar-custo">
+                {custoPasso != null ? `+${custoPasso}` : '—'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </ModalShell>
+    </div>
+  );
+  const alvo = (typeof document !== 'undefined') && (document.getElementById('root') || document.body);
+  return (alvo && ReactDOM && ReactDOM.createPortal) ? ReactDOM.createPortal(conteudo, alvo) : conteudo;
+}
+
 /* A JANELA PADRÃO de quantidade (padronizada em 12/09/2026, pedido do
    usuário): usar, descartar, guardar/retirar e transferir passam todos por
    ela, na ficha e no inventário. `irreversivel` decide só o aviso — transferir
@@ -3744,6 +3833,8 @@ Object.assign(window, {
   guardarNoRecipiente, normalizarPilhas,
   // Leitura de livro (itens.doc_url) — o bestiário também abre por aqui.
   LeituraDocModal, urlLeituraDoc,
+  // Janela Estudar: aprender magia de livro/pergaminho (22/10/2026).
+  EstudarMagiaModal,
   // Slot de vestir do banco → casa da ficha ('costas' → 'capa'…).
   vesteSlotDe,
   // Teto de peças por região — precisa bater com as casas que a ficha desenha
