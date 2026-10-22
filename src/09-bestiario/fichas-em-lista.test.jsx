@@ -31,7 +31,8 @@ const TABELAS = {
   magias: [
     { key: 'bola', nome: 'Bola de Fogo', tipo: 'Básica', classe: 'Feitiço', evocacao: 'Instantânea', alcance: '30m',
       duracao: null, custo: 2, permissao: 'Mago', descricao: 'Uma esfera de fogo.', nivel_1: 'Um alvo.' },
-    { key: 'aprisionar', nome: 'Aprisionar', tipo: 'Perdida', custo: 3,
+    // Ritual: só nele aparecem os itens necessários (22/10/2026).
+    { key: 'aprisionar', nome: 'Aprisionar', tipo: 'Perdida', evocacao: 'Ritual', custo: 3,
       descricao: 'Prende o alvo num círculo.\nItens necessários: Vela (7), Hidromel (1), Sangue Demoníaco (1).' },
   ],
   tecnicas: [{ key: 'lanca', nome: 'Carga de Lança', uso: 'Único', grupo_armas: 'CM,CL', grupo_armaduras: 'L,M',
@@ -113,6 +114,13 @@ describe('separarItensNecessarios', () => {
 });
 
 describe('janelas do catálogo', () => {
+  it('Magia que não é Ritual não mostra itens necessários, mesmo com itens gravados', async () => {
+    TABELAS.magias.push({ key: 'sobrev', nome: 'Sobrevivente', tipo: 'Básica', evocacao: '10 rodadas', custo: 1, itens_necessarios: 'Água (2)' });
+    const det = await abrir(window.MagiasList, 'Sobrevivente');
+    TABELAS.magias.pop();
+    expect(linhas(det).map((l) => l[0])).not.toContain('Itens necessários');
+  });
+
   it('Magia com componentes: a descrição perde a frase e a lista ganha a linha, larga', async () => {
     const det = await abrir(window.MagiasList, 'Aprisionar');
     expect(det.querySelector('.best-desc').textContent).not.toMatch(/Itens necess/);

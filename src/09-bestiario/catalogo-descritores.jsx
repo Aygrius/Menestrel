@@ -147,7 +147,9 @@ const CATALOGO_DESCRITORES = {
          descrição — ver scripts/sql/magias-itens-necessarios-2026-09-26.sql.
          Grava "Vela (7), Hidromel (1)"; `quantidade` põe o (n) em cada um.
          Logo abaixo de Permissão desde 26/09/2026. */
-      { col: 'itens_necessarios', tipo: 'lista', rotuloKey: 'campoItensNecessarios', fonte: 'itens', quantidade: true },
+      // Só em Ritual (22/10/2026): "O campo 'itens necessários' da magia só aparece quando ela é do tipo ritual."
+      { col: 'itens_necessarios', tipo: 'lista', rotuloKey: 'campoItensNecessarios', fonte: 'itens', quantidade: true,
+        quando: { col: 'evocacao', valor: 'Ritual' } },
       { col: 'descricao', tipo: 'area',   rotuloKey: 'campoDescricao', linhas: 3 },
       { col: 'nivel_1', tipo: 'area', rotuloKey: 'campoNivel1', linhas: 2 },
       { col: 'nivel_3', tipo: 'area', rotuloKey: 'campoNivel3', linhas: 2 },

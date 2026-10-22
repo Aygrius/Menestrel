@@ -2671,7 +2671,10 @@ function BestMagiaFicha({ m, lang, niveisPermitidos, linhasExtras, niveisNaDescr
         {/* Por extenso e numa linha inteira (26/09/2026): 'a linha Exclusividade ocupa uma linha só, igual Itens Necessários, e agora não precisa mais abreviar'. */}
         <BestLinha rotulo={lang === 'en' ? 'Exclusivity' : 'Exclusividade'} valor={String(m.permissao || '').split(',').map((x) => x.trim()).filter(Boolean).join(', ')} largo />
         {/* Tirado do fim da descrição — ver separarItensNecessarios. */}
-        <BestLinha rotulo={lang === 'en' ? 'Required items' : 'Itens necessários'} valor={m.itens_necessarios || separarItensNecessarios(m.descricao).itens} largo />
+        {/* Só em Ritual (22/10/2026). */}
+        {m.evocacao === 'Ritual' && (
+          <BestLinha rotulo={lang === 'en' ? 'Required items' : 'Itens necessários'} valor={m.itens_necessarios || separarItensNecessarios(m.descricao).itens} largo />
+        )}
       </BestFichaLista>
       {!niveisNaDescricao && niveis}
     </>
@@ -2812,7 +2815,7 @@ function BestItemMagia({ item, magias, lang }) {
       </div>
       {magia && magia.descricao && <TextoDoBanco texto={magia.descricao} className="best-desc" />}
       {/* Itens do ritual (pergaminho): campo próprio desde 26/09/2026. */}
-      {magia && magia.itens_necessarios && (
+      {magia && magia.itens_necessarios && magia.evocacao === 'Ritual' && (
         <p className="det-itens-ritual"><strong>{en ? 'Required items: ' : 'Itens necessários: '}</strong>{magia.itens_necessarios}</p>
       )}
       {textoNivel && <p className="best-efeito">{textoNivel}</p>}

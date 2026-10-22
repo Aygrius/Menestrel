@@ -1423,3 +1423,22 @@ describe('itens: Magia em dropdown com as magias do sistema', () => {
     expect(pill.textContent.trim()).toBe('Bola de Fogo');
   });
 });
+
+/* "O campo 'itens necessários' da magia só aparece quando ela é do tipo
+   ritual." (usuário, 22/10/2026). Como os campos por grupo dos itens: valor
+   já gravado continua visível — nada some da tela sem alguém ver. */
+describe('magia: itens necessários só em Ritual', () => {
+  const campo = () => document.querySelector('[data-lista="itens_necessarios"]');
+  it('Instantânea: sem o campo', () => {
+    montar({ tabela: 'magias', linha: { key: 'bola', nome: 'Bola', classe: 'Feitiço', evocacao: 'Instantânea' } });
+    expect(campo()).toBeNull();
+  });
+  it('Ritual: com o campo', () => {
+    montar({ tabela: 'magias', linha: { key: 'aprisionar', nome: 'Aprisionar', classe: 'Milagre', evocacao: 'Ritual' } });
+    expect(campo()).toBeTruthy();
+  });
+  it('não Ritual com itens já gravados: o campo continua, para não sumir nada', () => {
+    montar({ tabela: 'magias', linha: { key: 'x', nome: 'X', classe: 'Feitiço', evocacao: '10 rodadas', itens_necessarios: 'Água (2)' } });
+    expect(campo()).toBeTruthy();
+  });
+});

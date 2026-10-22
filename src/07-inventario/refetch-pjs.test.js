@@ -69,3 +69,11 @@ describe('refetch de personagens em InventarioList', () => {
     }
   });
 });
+
+/* Itens necessários só em Ritual (22/10/2026): a janela do pergaminho decide
+   pela evocação, então o catálogo enxuto de magias precisa trazê-la. */
+describe('catálogo enxuto de magias do inventário', () => {
+  it('traz a evocação', () => {
+    expect(fonte).toMatch(/from\('magias'\)\.select\('[^']*evocacao[^']*'\)/);
+  });
+});

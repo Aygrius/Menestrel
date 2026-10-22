@@ -568,7 +568,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const [magiasDb, setMagiasDb] = useState(null);
   useEffect(() => {
     let vivo = true;
-    Promise.resolve(supabaseClient.from('magias').select('key,nome,custo,tipo,classe,descricao,itens_necessarios,nivel_1,nivel_3,nivel_5,nivel_7,nivel_9'))
+    Promise.resolve(supabaseClient.from('magias').select('key,nome,custo,tipo,classe,evocacao,descricao,itens_necessarios,nivel_1,nivel_3,nivel_5,nivel_7,nivel_9'))
       .then((res) => { if (vivo && res && !res.error && Array.isArray(res.data)) setMagiasDb(res.data); })
       .catch(() => {});
     return () => { vivo = false; };

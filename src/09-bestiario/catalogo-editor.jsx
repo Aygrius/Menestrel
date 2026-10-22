@@ -594,8 +594,13 @@ const COLUNAS_EQUIP = 'slug, nome, grupo, slot_equip, categoria_equip, dano, dan
    quando o item é desse grupo — ou quando já tem valor gravado, para nada
    sumir da tela sem alguém ver. Item sem grupo escolhido mostra só os comuns. */
 function campoDoGrupo(campo, form) {
-  if (!Array.isArray(campo.grupos)) return true;
-  if (campo.grupos.includes(form && form.grupo)) return true;
+  /* `quando` (22/10/2026): o campo depende do valor de OUTRA coluna — os
+     itens necessários da magia só em Evocação Ritual. Mesma regra dos grupos:
+     valor já gravado continua visível. */
+  const condicional = Array.isArray(campo.grupos) || !!campo.quando;
+  if (!condicional) return true;
+  if (Array.isArray(campo.grupos) && campo.grupos.includes(form && form.grupo)) return true;
+  if (campo.quando && form && form[campo.quando.col] === campo.quando.valor) return true;
   const v = form ? form[campo.col] : null;
   if (Array.isArray(v)) return v.length > 0;
   return !(v == null || v === '' || v === 0 || v === '0');
