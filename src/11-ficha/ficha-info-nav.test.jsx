@@ -292,7 +292,7 @@ describe('FichaInfoView — pontos de magia', () => {
       catalogoMag: [{ key: 'luz', nome: 'Luz', custo: 1 }],
       pjMagias: { luz: 1 },
     });
-    expect(document.querySelector('.fp-col-pontos').textContent).toMatch(/1\s*\/\s*4/);
+    expect(document.querySelector('.fp-col-pontos--mag').textContent).toMatch(/1\s*\/\s*4/);
   });
 });
 
@@ -308,7 +308,37 @@ describe('FichaInfoView — pontos de magia com a fila', () => {
       catalogoMag: [{ key: 'luz', nome: 'Luz', custo: 1 }],
       pjMagias: { luz: 1 },
     });
-    expect(document.querySelector('.fp-col-pontos').textContent).toMatch(/3\s*\/\s*24/);
+    expect(document.querySelector('.fp-col-pontos--mag').textContent).toMatch(/3\s*\/\s*24/);
+  });
+});
+
+/* "Você adicionou a informação pontos de magia no menu conhecimento,
+   adicione pontos de técnicas ao lado." (usuário, 22/10/2026) — na coluna
+   Técnicas, com a mesma conta da janela Estudar: a fila conta no gasto. */
+describe("FichaInfoView — pontos de técnica", () => {
+  it("Guerreiro Fís 1 Agi 2 no estágio 2: Esquiva 1 (custo 2) gasta 2 de 14", () => {
+    montar({
+      parte: "conhecimento",
+      pj: { nome: "Thalia", profissao: "Guerreiro", fisico_base: 1, agilidade_base: 2, tecnicas: { esquiva: 1 }, caracterizacao: {} },
+      estagioNum: 2,
+      catalogoTec: [{ key: "esquiva", nome: "Esquiva", custo: 2, tipo: "Básica" }],
+      pjTecnicas: { esquiva: 1 },
+    });
+    const linha = document.querySelector(".fp-col-pontos--tec");
+    expect(linha.textContent).toMatch(/Pontos de técnica/);
+    expect(linha.textContent).toMatch(/2\s*\/\s*14/);
+  });
+
+  it("o nível em treino já foi pago: Esquiva 2 na fila gasta 4", () => {
+    montar({
+      parte: "conhecimento",
+      pj: { nome: "Thalia", profissao: "Guerreiro", fisico_base: 1, agilidade_base: 2, tecnicas: { esquiva: 1 }, caracterizacao: {},
+        treinos: [{ id: "t", tipo: "tecnica", key: "esquiva", nivel: 2, atividade: "treinando", horas_restantes: 8 }] },
+      estagioNum: 2,
+      catalogoTec: [{ key: "esquiva", nome: "Esquiva", custo: 2, tipo: "Básica" }],
+      pjTecnicas: { esquiva: 1 },
+    });
+    expect(document.querySelector(".fp-col-pontos--tec").textContent).toMatch(/4\s*\/\s*14/);
   });
 });
 

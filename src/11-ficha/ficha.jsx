@@ -1872,6 +1872,16 @@ function FichaInfoView({
   const col4Idx  = col4Pages.length > 0 ? (col4Page % col4Pages.length) : 0;
   const col4Current = col4Pages[col4Idx] || col4Pages[0];
 
+  /* Orçamento de técnica (22/10/2026), ao lado do de magia: "adicione pontos
+     de técnicas ao lado". Mesma conta da janela Estudar e da RPC — a fila de
+     treino já foi paga e entra no gasto. */
+  const _pontosTec = (typeof pontosTecnicasTotal !== 'undefined' ? pontosTecnicasTotal : null) || window.pontosTecnicasTotal;
+  const _gastoTec  = (typeof gastoTecnicas !== 'undefined' ? gastoTecnicas : null) || window.gastoTecnicas;
+  const _filaTec   = (typeof comFila !== 'undefined' ? comFila : null) || window.comFila;
+  const tecTotal = _pontosTec && pj ? _pontosTec(pj.profissao, estagioNum, pj.fisico_base, pj.agilidade_base) : null;
+  const tecPagas = _filaTec ? _filaTec(pjTecnicas || {}, pj && pj.treinos, 'tecnica') : (pjTecnicas || {});
+  const tecGasto = _gastoTec ? _gastoTec(tecPagas, catalogoTec || []) : null;
+
   const col4 = (
     <div>
       <ColTitleNav
@@ -1881,6 +1891,11 @@ function FichaInfoView({
         onNext={() => setCol4Page((p) => (p + 1) % col4Pages.length)}
         abrirTip={abrirTip} fecharTip={fecharTip} en={en}
       />
+      {tecTotal != null && (
+        <div className={'fp-col-pontos fp-col-pontos--tec' + (tecGasto > tecTotal ? ' fp-col-pontos--excedido' : '')}>
+          {en ? 'Technique points' : 'Pontos de técnica'}: <strong>{tecGasto} / {tecTotal}</strong>
+        </div>
+      )}
       {col4Current.items.length === 0 ? (
         <div className="fp-col-empty">
           {en ? 'No techniques.' : 'Nenhuma técnica.'}
@@ -1931,7 +1946,7 @@ function FichaInfoView({
         abrirTip={abrirTip} fecharTip={fecharTip} en={en}
       />
       {magTotal != null && (
-        <div className={'fp-col-pontos' + (magGasto > magTotal ? ' fp-col-pontos--excedido' : '')}>
+        <div className={'fp-col-pontos fp-col-pontos--mag' + (magGasto > magTotal ? ' fp-col-pontos--excedido' : '')}>
           {en ? 'Magic points' : 'Pontos de magia'}: <strong>{magGasto} / {magTotal}</strong>
         </div>
       )}
