@@ -32,10 +32,11 @@ describe('FichaAtividadeSeletor', () => {
     expect(escolhas).toEqual(['dormindo']);
   });
 
-  it('ligada, mostra o nome e oferece "Nenhuma" para parar', () => {
+  it('ligada, o círculo acende (sem o nome ao lado) e oferece "Nenhuma" para parar', () => {
     const escolhas = [];
     render(<Seletor atividade={{ tipo: 'meditando' }} podeEditar lang="pt" onEscolher={(t) => escolhas.push(t)} />);
-    expect(document.querySelector('.fp-atividade-nome').textContent).toBe('Meditando');
+    expect(document.querySelector('.fp-atividade-nome')).toBeNull();
+    expect(botao().getAttribute('aria-label')).toBe('Meditando');
     expect(botao().classList.contains('is-ativo')).toBe(true);
     act(() => { botao().click(); });
     const nenhuma = opcoes().find((li) => li.textContent === 'Nenhuma');
@@ -45,7 +46,7 @@ describe('FichaAtividadeSeletor', () => {
 
   it('quem não pode editar vê a atividade e não abre a lista', () => {
     render(<Seletor atividade={{ tipo: 'orando' }} podeEditar={false} lang="pt" onEscolher={() => {}} />);
-    expect(document.querySelector('.fp-atividade-nome').textContent).toBe('Orando');
+    expect(botao().getAttribute('data-atividade')).toBe('orando');
     act(() => { botao().click(); });
     expect(opcoes()).toHaveLength(0);
   });
@@ -57,13 +58,13 @@ describe('FichaAtividadeSeletor', () => {
 });
 
 /* "Ao clicar em treinando, não adicione o texto na barra de menus."
-   (usuário, 22/10/2026) — o círculo mostra o ícone; o nome ao lado sai só
-   para Treinando. */
-describe('Treinando sem o texto ao lado', () => {
-  it('ligado, não escreve o nome na barra', () => {
-    render(<Seletor atividade={{ tipo: 'treinando' }} podeEditar lang="pt" onEscolher={() => {}} />);
+   (usuário, 22/10/2026) — e depois para todas: "Remova a palavra
+   'Estudando', etc do menu atividade da ficha". O círculo mostra o ícone. */
+describe('nenhuma atividade escreve o nome ao lado', () => {
+  it.each(['dormindo', 'meditando', 'orando', 'estudando', 'treinando', 'praticando'])('%s ligado, não escreve o nome na barra', (tipo) => {
+    render(<Seletor atividade={{ tipo }} podeEditar lang="pt" onEscolher={() => {}} />);
     expect(document.querySelector('.fp-atividade-nome')).toBeNull();
-    expect(botao().getAttribute('data-atividade')).toBe('treinando');
+    expect(botao().getAttribute('data-atividade')).toBe(tipo);
   });
 });
 

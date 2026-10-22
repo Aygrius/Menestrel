@@ -1082,9 +1082,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
-  const [magiasDb, setMagiasDb] = useState(null);
-  const [tecnicasDb, setTecnicasDb] = useState(null);
-  const [tecnicasError, setTecnicasError] = useState(null);
   const [habilidadesDb, setHabilidadesDb] = useState(null);
   const [habilidadesError, setHabilidadesError] = useState(null);
   const [maxStep, setMaxStep] = useState(isEdit ? 999 : 1);
@@ -1134,46 +1131,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     caracterizacao: {},
     data_nasc: null, // { dia, mes, ano } | null
   });
-
-  // Carrega magias do banco uma vez — só para o resumo da Revisão na edição
-  // (desde 22/10/2026 magia não se compra aqui; aprende-se pelo item).
-  useEffect(() => {
-    let cancel = false;
-    (async () => {
-      const { data, error } = await supabaseClient
-        .from('magias')
-        .select('*')
-        .order('nome', { ascending: true });
-      if (cancel) return;
-      if (error) {
-        console.error('[magias] falha ao carregar:', error);
-        setMagiasDb([]);
-      } else {
-        setMagiasDb(data || []);
-      }
-    })();
-    return () => { cancel = true; };
-  }, []);
-
-  // Carrega técnicas do banco uma vez
-  useEffect(() => {
-    let cancel = false;
-    (async () => {
-      const { data, error } = await supabaseClient
-        .from('tecnicas')
-        .select('*')
-        .order('nome', { ascending: true });
-      if (cancel) return;
-      if (error) {
-        console.error('[tecnicas] falha ao carregar:', error);
-        setTecnicasError(error.message);
-        setTecnicasDb([]);
-      } else {
-        setTecnicasDb(data || []);
-      }
-    })();
-    return () => { cancel = true; };
-  }, []);
 
   // Carrega habilidades do banco uma vez
   useEffect(() => {
@@ -1561,8 +1518,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
             <StepRevisao
               form={form} lang={lang}
               atributosFinais={atributosFinais}
-              magiasDb={magiasDb}
-              tecnicasDb={tecnicasDb}
               habilidadesByKey={habilidadesByKey}
               bonusHabilidades={bonusHabilidades} />
           )}
@@ -2477,7 +2432,10 @@ function AprimoramentoInline({ habKey, form, update, lang, slots }) {
 }
 
 // ---- Step 5: Revisão ----
-function StepRevisao({ form, lang, atributosFinais, magiasDb, tecnicasDb, habilidadesByKey, bonusHabilidades }) {
+/* Sem Magias e Técnicas de Combate desde 22/10/2026 ("No modal de revisão de
+   editar personagem, remova magias e técnicas de combate") — elas se
+   aprendem pelo item e moram na ficha. */
+function StepRevisao({ form, lang, atributosFinais, habilidadesByKey, bonusHabilidades }) {
   const ficha = calcularFicha({
     raca: form.raca,
     genero: form.genero,
@@ -2501,36 +2459,6 @@ function StepRevisao({ form, lang, atributosFinais, magiasDb, tecnicasDb, habili
       const nivel = (h?.nivel_inicial || 0) + n;
       const total = totalHabilidade(key, hab, atributosFinais, bonusHabilidades, habilidadesByKey);
       return { key, nome: h?.nome || key, nivel, total };
-    })
-    .sort((a, b) => a.nome.localeCompare(b.nome));
-
-  // Resumo das magias compradas
-  const mag = form.magias || {};
-  const magCompradas = Object.entries(mag)
-    .filter(([_, p]) => (p || 0) > 0)
-    .map(([key, passos]) => {
-      const m = (magiasDb || []).find((x) => x.key === key);
-      return {
-        key,
-        nome: m?.nome || key,
-        nivel: nivelMagiaEfetivo(passos),
-        custo: m?.custo || 0,
-      };
-    })
-    .sort((a, b) => a.nome.localeCompare(b.nome));
-
-  // Resumo das técnicas compradas
-  const tec = form.tecnicas || {};
-  const tecCompradas = Object.entries(tec)
-    .filter(([_, v]) => (v || 0) > 0)
-    .map(([key, nivel]) => {
-      const t = (tecnicasDb || []).find((x) => x.key === key);
-      const total = t ? totalTecnica(t, tec, atributosFinais) : 0;
-      return {
-        key,
-        nome: t?.nome || key,
-        total,
-      };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
@@ -2624,42 +2552,6 @@ return (
           </dl>
         </section>
       )}        
-        {/* Magias (22/10/2026): aprendem-se pelo item; aqui só o resumo do
-            que o PJ já sabe, na edição. Sem magia, a seção não aparece. */}
-        {magCompradas.length > 0 && (
-          <section>
-            <div className="wiz-review-eyebrow">
-              {lang === 'en' ? 'Spells' : 'Magias'}
-            </div>
-            <dl>
-              {magCompradas.map((m) => (
-                <div key={m.key}>
-                  <dt>{m.nome}</dt>
-                  <dd>{m.nivel}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        )}
-
-        {/* Técnicas (22/10/2026): aprendem-se pelo item; só o resumo do que o
-            PJ já sabe, na edição. Sem técnica, a seção não aparece. */}
-        {tecCompradas.length > 0 && (
-          <section>
-            <div className="wiz-review-eyebrow">
-              {lang === 'en' ? 'Combat Techniques' : 'Técnicas de Combate'}
-            </div>
-            <dl>
-              {tecCompradas.map((t) => (
-                <div key={t.key}>
-                  <dt>{t.nome}</dt>
-                  <dd>{t.total >= 0 ? `${t.total}` : t.total}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        )}
-
         <section>
           <div className="wiz-review-eyebrow">
             {lang === 'en' ? 'Skills' : 'Habilidades'}

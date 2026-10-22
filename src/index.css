@@ -10258,9 +10258,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 }
 #root .menestrel-ui .fp-status-seletor:disabled,
 #root .menestrel-ui .fp-status-seletor[aria-disabled="true"] { cursor: default; }
-#root .menestrel-ui .fp-atividade-nome {
-  font-family: var(--font-body); font-size: var(--fs-sm); color: var(--gold, #E0BE68); white-space: nowrap;
-}
 #root .menestrel-ui .fp-status-opcao.is-atual { color: var(--parchment, #F1E6CF); background: rgba(201,164,78,0.14); }
 #root .menestrel-ui .pj-atividade-selo {
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;

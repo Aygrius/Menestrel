@@ -578,9 +578,10 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher, treino
         <i className={'ti ' + (atual ? atual.icon : 'ti-moon')} aria-hidden="true" />
       </button>
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-      {/* Treinando sem o nome ao lado (22/10/2026): "Ao clicar em treinando,
-          não adicione o texto na barra de menus." O ícone e a dica bastam. */}
-      {atual && atual.id !== 'treinando' && <span className="fp-atividade-nome">{nomeDe(atual)}</span>}
+      {/* Sem o nome ao lado do círculo (22/10/2026): primeiro só em
+          Treinando ("não adicione o texto na barra de menus"), depois em
+          todas ("Remova a palavra 'Estudando', etc do menu atividade da
+          ficha"). O ícone e a dica bastam. */}
       {aberta && (
         <ul className="fp-status-opcoes" role="listbox" aria-label={en ? 'Activity' : 'Atividade'}>
           {LISTA.map((a) => (
