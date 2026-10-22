@@ -140,6 +140,8 @@ describe('itemUsavelNoAtalho — só o que a janela deixaria Usar', () => {
     [{ grupo: 'Armas', categoria_equip: 'mao' }, false],
     [{ grupo: 'Consumíveis', armazena: 4 }, false],
     [{ grupo: 'Consumíveis', magia: 'faro', nivel_magia: 3 }, false],
+    // Pergaminho único (22/10/2026): nivel_magia nulo, continua fora do atalho.
+    [{ grupo: 'Consumíveis', slug: 'pergaminho_faro', magia: 'Faro', nivel_magia: null }, false],
     [{ grupo: 'Ferramentas' }, false],
     [null, false],
   ])('%j → %s', (cat, esperado) => {

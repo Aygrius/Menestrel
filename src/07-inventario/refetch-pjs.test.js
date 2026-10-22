@@ -51,8 +51,10 @@ describe('refetch de personagens em InventarioList', () => {
     // calcCarga lê forca_base/fisico_base; o autosave de estado semeia de
     // estado_atual; o resto identifica e desenha o PJ.
     // foto_url: o card do alvo na aba Usar (27/09/2026, "a foto do personagem não aparece").
+    // intelecto_base/aura_base: orçamento de magia na janela Estudar (22/10/2026).
     for (const c of ['id', 'nome', 'sobrenome', 'foto_url', 'raca', 'profissao',
-                     'forca_base', 'fisico_base', 'inventario', 'estado_atual']) {
+                     'forca_base', 'fisico_base', 'intelecto_base', 'aura_base',
+                     'magias', 'experiencia', 'inventario', 'estado_atual']) {
       expect(cols, `PJ_COLS sem ${c}`).toContain(c);
     }
   });

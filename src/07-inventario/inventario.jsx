@@ -505,11 +505,11 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
 // para a base; e `estado_atual` sumia do cache, de onde o autosave de estado
 // semeia ao trocar de PJ — podendo gravar {} por cima das condições no banco.
 // Cobertura: 07-inventario/refetch-pjs.test.js.
-// magias + experiencia (13/09/2026): o botão "Aprender" do pergaminho precisa
-// saber se o PJ já tem o nível, se falta o anterior e o estágio — ver
-// bloqueioPergaminho.
+// magias + experiencia (13/09/2026): a janela Estudar precisa saber o nível
+// atual de cada magia e o estágio — ver bloqueioAprenderNoInventario.
 // foto_url (27/09/2026): o card do alvo na aba Usar mostrava só a inicial.
-const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,profissao,forca_base,fisico_base,inventario,estado_atual,magias,experiencia,especializacao,inventario_versao';
+// intelecto_base + aura_base (22/10/2026): orçamento de magia (pontosMagiasTotal).
+const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,profissao,forca_base,fisico_base,intelecto_base,aura_base,inventario,estado_atual,magias,experiencia,especializacao,inventario_versao';
 
 // Inventário com os campos que a tela espera, sem mexer no objeto de origem.
 const INV_VAZIO = () => ({ moedas: { ouro: 0, prata: 0, cobre: 0, latao: 0 }, itens: [] });
@@ -560,15 +560,26 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const [acaoPendente, setAcaoPendente] = useState(null);
   /* Catálogo ENXUTO de magias (13/09/2026): só o que o botão "Aprender" do
      pergaminho precisa para dizer no tooltip por que não dá — custo (pontos) e
-     permissão (profissão/especialização). Falhar aqui não trava o inventário:
-     sem a lista, esses dois motivos ficam só com a RPC, como antes.
+     textos dos níveis. Falhar aqui não trava o inventário: sem a lista, os
+     motivos ficam só com a RPC.
      Descrição e texto dos níveis (13/09/2026): a janela do pergaminho mostra
      o que a magia faz. */
   const [magiasDb, setMagiasDb] = useState(null);
   useEffect(() => {
     let vivo = true;
-    Promise.resolve(supabaseClient.from('magias').select('key,nome,custo,permissao,tipo,descricao,itens_necessarios,nivel_1,nivel_3,nivel_5,nivel_7,nivel_9'))
+    Promise.resolve(supabaseClient.from('magias').select('key,nome,custo,tipo,descricao,itens_necessarios,nivel_1,nivel_3,nivel_5,nivel_7,nivel_9'))
       .then((res) => { if (vivo && res && !res.error && Array.isArray(res.data)) setMagiasDb(res.data); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+  /* Livro → pergaminhos (livro_pergaminhos, 22/10/2026): é o que dá ao livro
+     a ação "Estudar". Falhar aqui só esconde o Estudar dos livros. */
+  const [vinculos, setVinculos] = useState({});
+  useEffect(() => {
+    let vivo = true;
+    if (typeof fetchTabelaPaginada !== 'function') return undefined;
+    Promise.resolve(fetchTabelaPaginada('livro_pergaminhos', { colunas: 'livro_slug,pergaminho_slug', ordem: ['livro_slug'] }))
+      .then((res) => { if (vivo && res && !res.error) setVinculos(vinculosDeLivros(res.data)); })
       .catch(() => {});
     return () => { vivo = false; };
   }, []);
@@ -585,7 +596,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const criaturasMontaria = useCriaturasMontaria();
   // True quando auth.uid() === currentUserId, ou seja, o usuário logado
   // é o dono dos PJs listados. False quando um Mestre está vendo o inventário
-  // de outro jogador — nesse caso a RPC usar_pergaminho_magia falha (auth.uid()
+  // de outro jogador — nesse caso a RPC aprender_magia falha (auth.uid()
   // ≠ user_id do PJ), então o botão "Aprender" deve ficar oculto.
   const [authUserIsOwner, setAuthUserIsOwner] = useState(false);
 
@@ -1404,15 +1415,14 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     return { ok: true };
   };
 
-  // Fase 7 — usar pergaminho de magia (aprende magia Perdida/Ancestral).
-  // Validação + aplicação atômica no servidor (RPC usar_pergaminho_magia):
-  // checa pontos de magia, pré-requisito de nível, permissão e teto de estágio,
-  // grava o passo em personagens.magias e consome 1 pergaminho. Recarrega o PJ
-  // pra refletir a remoção (as magias vivem fora do inventário).
-  const aprenderMagiaPergaminho = async (instanceId) => {
-    const { data, error } = await supabaseClient.rpc('usar_pergaminho_magia', {
+  // Aprender magia com um item (22/10/2026): pergaminho ou livro, um nível
+  // por vez, sem consumir (RPC aprender_magia — confere estágio, texto do
+  // nível e pontos). Recarrega o PJ porque as magias vivem fora do inventário.
+  const aprenderMagiaComItem = async (instanceId, magiaKey) => {
+    const { data, error } = await supabaseClient.rpc('aprender_magia', {
       p_pj_id: selectedId,
       p_instance_id: instanceId,
+      p_magia_key: magiaKey,
     });
     if (error || !data?.ok) {
       return { ok: false, motivo: error?.message || data?.motivo || 'erro_desconhecido' };
@@ -1521,10 +1531,11 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           criaturaMontaria={criaturaDoItem(catalogoBySlug[instanceDetalhes.slug], criaturasMontaria)}
           onMontar={montar}
           onDesmontar={desmontar}
-          onAprenderMagia={authUserIsOwner ? aprenderMagiaPergaminho : undefined}
+          onAprenderMagia={authUserIsOwner ? aprenderMagiaComItem : undefined}
           pjAprendiz={(pjs || []).find((x) => x.id === selectedId) || null}
           usuario={(() => { const p = (pjs || []).find((x) => x.id === selectedId); return p ? { nome: [p.nome, p.sobrenome].filter(Boolean).join(' '), foto_url: p.foto_url } : null; })()}
           magiasDb={magiasDb}
+          vinculos={vinculos}
           podeVender={{ ehDono: authUserIsOwner, historiaId }}
           onVender={publicarNaLoja}
           onEnvenenar={envenenar}
@@ -2461,39 +2472,16 @@ function DetStat({ label, value }) {
 }
 
 // ── DetalhesItemModal — Fase 3: seção de container + botão transferir ─────────
-// Rótulo amigável pros motivos de falha da RPC usar_pergaminho_magia.
-/* ── O pergaminho ainda ensina algo a ESTE personagem? (13/09/2026) ──
-   "Depois que a magia é aprendida, qual é o comportamento do item? Acho que o
-   botão de aprender deve ficar bloqueado." (usuário)
-
-   A RPC usar_pergaminho_magia é quem decide de verdade, e consome o
-   pergaminho quando ensina. Mas ela só respondia DEPOIS do clique — o botão
-   ficava ativo num pergaminho que não tinha mais o que ensinar (Galadar
-   carrega "Pergaminho Oferenda 1" e já sabe Oferenda 1). Aqui a tela
-   antecipa as três recusas que dá pra saber sem ir ao banco, com os MESMOS
-   motivos da RPC:
-
-     ja_possui_nivel       o PJ já tem este nível ou maior;
-     falta_nivel_anterior  cada nível exige o anterior (nível 3 pede o 1);
-     acima_do_estagio      o nível do pergaminho passa do estágio do PJ.
-
-   Desde 13/09/2026 ("independente da situação, o botão deve aparecer. No
-   tooltip você informa porque não é possível aprender"), o botão aparece em
-   TODO pergaminho, e a tela antecipa também permissão e pontos — com o
-   catálogo enxuto de magias (`magiasDb`) e as mesmas contas da ficha
-   (podeAcessarMagia, pontosMagiasTotal, gastoMagias), que são as da RPC.
-
-   Devolve null (pode aprender) ou { motivo, ...números para o tooltip }.
-   A ORDEM é a de uma pergunta de cada vez, a mais decisiva primeiro:
-
-     aprender_no_inventario  a janela está na ficha, onde não se aprende;
-     nao_e_dono              só o dono do personagem aprende (a RPC exige);
-     magia_nao_encontrada    o nome no item não existe no catálogo;
-     ja_possui_nivel         já tem este nível ou maior;
-     magia_nao_permitida     outra profissão/especialização;
-     falta_nivel_anterior    o nível 3 pede o 1, e assim por diante;
-     acima_do_estagio        o nível passa do estágio;
-     pontos_insuficientes    { faltam, gasto, total }.
+/* ── O QUE O ITEM ENSINA (22/10/2026) ─────────────────────────────────
+   "todas as magias precisam ser aprendidas através do uso do item" — o
+   pergaminho da magia, ou um livro que vincula pergaminhos
+   (livro_pergaminhos: Livro do Mago, dos deuses, das Ordens…). Quem decide
+   de verdade é a RPC aprender_magia; a tela antecipa as recusas com os
+   MESMOS motivos para o botão nascer desativado com o porquê (pedido de
+   13/09/2026: "Independente da situação, o botão deve aparecer. No tooltip
+   você informa porque não é possível aprender"). Ordem: as da tela primeiro
+   (onde, quem, à venda), depois as da regra (bloqueioAprenderMagia,
+   01-core/game-data.jsx).
 
    A chave sai do NOME, pela mesma regra do catálogo (a key deriva do nome
    em todas as magias desde scripts/sql/magias-key-alinha-nome.sql). */
@@ -2501,17 +2489,12 @@ function chaveDaMagiaPorNome(nome) {
   return String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
-/* Pergaminho de magia = CONSUMÍVEL com magia + nível (13/09/2026).
-   Antes bastava ter magia e nível, mas ~50 itens mágicos guardam assim a magia
-   que CARREGAM (Livro das Revelações, anéis, armas, o Alaúde…) — são para usar,
-   não para aprender, e ganhavam o botão "Aprender". No catálogo, os 286
-   pergaminhos são exatamente os Consumíveis com magia. A RPC
-   usar_pergaminho_magia tem a mesma trava (scripts/sql/pergaminho-so-consumivel.sql).
-   E o SLUG pergaminho_ desde 28/09/2026: os frascos alquímicos também são
-   consumíveis com magia, mas se ARREMESSAM ou se BEBEM na batalha — não se
-   aprendem. A RPC ganhou a mesma trava (frascos-amuletos-venenos-2026-09-28.sql). */
+/* Pergaminho de magia = CONSUMÍVEL com magia e slug pergaminho_ (13/09 e
+   28/09/2026: anéis, armas e frascos também têm magia, mas não ensinam).
+   Desde 22/10/2026 há UM pergaminho por magia, para todos os níveis — o
+   nivel_magia é nulo, e por isso não entra mais na conta. */
 function ehPergaminhoDeMagia(cat) {
-  return !!(cat && cat.magia && cat.nivel_magia != null && cat.grupo === 'Consumíveis'
+  return !!(cat && cat.magia && cat.grupo === 'Consumíveis'
     && String(cat.slug || '').startsWith('pergaminho_'));
 }
 /* Consumível com magia que NÃO é pergaminho — os frascos alquímicos
@@ -2645,44 +2628,41 @@ function useCriaturasMontaria() {
   return lista;
 }
 
-function bloqueioPergaminho(cat, pj, opcoes) {
-  if (!ehPergaminhoDeMagia(cat)) return null;
+// Linhas de livro_pergaminhos → { livro_slug: [pergaminho_slug, …] }.
+function vinculosDeLivros(linhas) {
+  const out = {};
+  (Array.isArray(linhas) ? linhas : []).forEach((l) => {
+    if (!l || !l.livro_slug || !l.pergaminho_slug) return;
+    const lista = out[l.livro_slug] || (out[l.livro_slug] = []);
+    if (!lista.includes(l.pergaminho_slug)) lista.push(l.pergaminho_slug);
+  });
+  return out;
+}
+
+// As magias que o item ensina: o pergaminho, a sua; o livro, as vinculadas.
+function magiasQueOItemEnsina(cat, vinculos, catalogoBySlug, magiasDb) {
+  if (!cat) return [];
+  const pergaminhos = ehPergaminhoDeMagia(cat)
+    ? [cat]
+    : ((vinculos && vinculos[cat.slug]) || []).map((s) => catalogoBySlug && catalogoBySlug[s]).filter(Boolean);
+  const vistas = new Set();
+  const out = [];
+  pergaminhos.forEach((p) => {
+    const m = magiaDoItem(p, magiasDb);
+    if (m && !vistas.has(m.key)) { vistas.add(m.key); out.push(m); }
+  });
+  return out.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'));
+}
+
+function bloqueioAprenderNoInventario(magia, pj, opcoes) {
   const op = opcoes || {};
   if (op.noInventario === false) return { motivo: 'aprender_no_inventario' };
   if (op.podeAprender === false) return { motivo: 'nao_e_dono' };
+  if (op.aVenda) return { motivo: 'item_a_venda' };
+  if (!magia) return { motivo: 'magia_nao_encontrada' };
   if (!pj) return null;
-  const nivel = Number(cat.nivel_magia);
-  if (![1, 3, 5, 7, 9].includes(nivel)) return null;   // a RPC explica
-  const key = chaveDaMagiaPorNome(cat.magia);
-  const lista = Array.isArray(op.magiasDb) ? op.magiasDb : null;
-  const magia = magiaDoItem(cat, lista);
-  if (lista && lista.length && !magia) return { motivo: 'magia_nao_encontrada' };
-  const keyReal = magia ? magia.key : key;
-
-  const passosAlvo = (nivel + 1) / 2;
-  const passosAtual = Number((pj.magias || {})[keyReal]) || 0;
-  if (passosAtual >= passosAlvo) return { motivo: 'ja_possui_nivel' };
-
-  const g = (nome) => ((typeof window !== 'undefined' && window[nome]) || null);
-  const _podeAcessar = g('podeAcessarMagia');
-  if (magia && _podeAcessar && !_podeAcessar(magia, pj.profissao, pj.especializacao || null)) {
-    return { motivo: 'magia_nao_permitida' };
-  }
-  if (passosAtual < passosAlvo - 1) return { motivo: 'falta_nivel_anterior' };
-
-  const _calcEstagio = g('calcEstagio');
-  const estagio = (pj.experiencia != null && _calcEstagio) ? _calcEstagio(pj.experiencia) : null;
-  if (estagio != null && nivel > estagio) return { motivo: 'acima_do_estagio' };
-
-  const _pontos = g('pontosMagiasTotal');
-  const _gasto = g('gastoMagias');
-  if (magia && lista && estagio != null && _pontos && _gasto) {
-    const total = _pontos(pj.profissao, estagio);
-    const gasto = _gasto(pj.magias || {}, lista);
-    const gastoNovo = _gasto({ ...(pj.magias || {}), [keyReal]: passosAlvo }, lista);
-    if (gastoNovo > total) return { motivo: 'pontos_insuficientes', faltam: gastoNovo - total, gasto, total };
-  }
-  return null;
+  const _regra = (typeof window !== 'undefined' && window.bloqueioAprenderMagia) || null;
+  return _regra ? _regra(magia, pj, op.magiasDb || []) : null;
 }
 
 function motivoAprenderLabel(motivo, en, dados) {
@@ -2693,19 +2673,18 @@ function motivoAprenderLabel(motivo, en, dados) {
       : `Pontos de magia insuficientes: faltam ${dados.faltam} (usa ${dados.gasto} de ${dados.total}).`;
   }
   const map = {
-    nao_e_dono:             en ? 'Only the character’s owner can learn from this scroll.' : 'Só o dono do personagem pode aprender com este pergaminho.',
-    aprender_no_inventario: en ? 'Learn it from the Inventory.'                          : 'Aprenda pelo Inventário.',
-    ja_possui_nivel:      en ? 'You already know this spell at this level or higher.' : 'Você já tem essa magia neste nível ou superior.',
-    falta_nivel_anterior: en ? 'You must learn the previous level first.'            : 'Você precisa aprender o nível anterior primeiro.',
-    pontos_insuficientes: en ? 'Not enough magic points.'                            : 'Pontos de magia insuficientes.',
-    magia_nao_permitida:  en ? 'Your class cannot learn this spell.'                 : 'Sua profissão não pode aprender essa magia.',
-    acima_do_estagio:     en ? "Spell level exceeds your character's stage."         : 'O nível da magia passa do seu estágio.',
-    magia_nao_encontrada: en ? 'Spell not found in the catalog.'                     : 'Magia não encontrada no catálogo.',
-    item_nao_eh_pergaminho: en ? 'This item is not a spell scroll.'                  : 'Este item não é um pergaminho de magia.',
-    item_nao_encontrado:  en ? 'Scroll not found in your inventory.'                 : 'Pergaminho não encontrado no inventário.',
-    nivel_magia_invalido: en ? 'Invalid spell level on the scroll.'                  : 'Nível de magia inválido no pergaminho.',
-    pj_nao_encontrado:    en ? 'Character not found.'                                : 'Personagem não encontrado.',
-    nao_autenticado:      en ? 'You are not signed in.'                              : 'Você não está autenticado.',
+    nao_e_dono:             en ? 'Only the character’s owner can learn from this item.' : 'Só o dono do personagem pode aprender com este item.',
+    aprender_no_inventario: en ? 'Learn it from the Inventory.'                       : 'Aprenda pelo Inventário.',
+    item_a_venda:           en ? 'For sale in the shop — withdraw the listing first.' : 'À venda na loja — retire o anúncio para estudar.',
+    item_nao_ensina:        en ? 'This item does not teach this spell.'               : 'Este item não ensina essa magia.',
+    ja_no_maximo:           en ? 'You already know this spell at the highest level.'  : 'Você já tem essa magia no nível máximo.',
+    nivel_sem_texto:        en ? 'This spell has no next level.'                      : 'Essa magia não tem o próximo nível.',
+    pontos_insuficientes:   en ? 'Not enough magic points.'                           : 'Pontos de magia insuficientes.',
+    acima_do_estagio:       en ? "The next level exceeds your character's stage."     : 'O próximo nível passa do seu estágio.',
+    magia_nao_encontrada:   en ? 'Spell not found in the catalog.'                    : 'Magia não encontrada no catálogo.',
+    item_nao_encontrado:    en ? 'Item not found in your inventory.'                  : 'Item não encontrado no inventário.',
+    pj_nao_encontrado:      en ? 'Character not found.'                               : 'Personagem não encontrado.',
+    nao_autenticado:        en ? 'You are not signed in.'                             : 'Você não está autenticado.',
   };
   return map[motivo] || (en ? 'Could not learn the spell.' : 'Não foi possível aprender a magia.');
 }
@@ -2778,7 +2757,7 @@ function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fe
 function DetalhesItemModal({
   instance, catalogoBySlug, raca, slotsState, todosItens,
   containersDisponiveis, pjsHistoria, lang,
-  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, onDestruir,
+  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, vinculos, onDestruir,
   onMoverParaContainer,
   onVestir, onDespir,
   criaturaMontaria, onMontar, onDesmontar,
@@ -2798,8 +2777,8 @@ function DetalhesItemModal({
   const [abaterErro, setAbaterErro] = useState(null);
   const [abatendo, setAbatendo] = useState(false);
   const [preparandoCarne, setPreparandoCarne] = useState(false);
-  const [aprendendo, setAprendendo] = useState(false);
-  const [aprenderErro, setAprenderErro] = useState(null);
+  // Janela Estudar (22/10/2026): livro ou pergaminho que ensina magia.
+  const [estudando, setEstudando] = useState(false);
   const [mostrarArmazenar, setMostrarArmazenar] = useState(false);
   // Envenenar arma ou flecha com este veneno (28/09/2026): o alvo marcado.
   const [mostrarEnvenenar, setMostrarEnvenenar] = useState(false);
@@ -2839,8 +2818,7 @@ function DetalhesItemModal({
     setConfirmandoUsar(false);
     setConfirmandoPreparar(false);
     setPreparandoCarne(false);
-    setAprendendo(false);
-    setAprenderErro(null);
+    setEstudando(false);
     setMostrarArmazenar(false);
     setMostrarEnvenenar(false);
     setArmazContId(''); setEnvAlvoId('');
@@ -2975,9 +2953,8 @@ function DetalhesItemModal({
   const motivoVenda = (acoesPesadas && onVender && cat.grupo !== 'Moedas')
     ? bloqueioVenda(instance, { ...(podeVender || {}), temConteudo: hasContainerContent })
     : null;
-  const bloqueioAprender = ehPergaminhoMagia
-    ? bloqueioPergaminho(cat, pjAprendiz, { magiasDb, noInventario: acoesPesadas, podeAprender: !!onAprenderMagia })
-    : null;
+  // O que este item ensina (pergaminho: a sua magia; livro: as vinculadas).
+  const ensina = magiasQueOItemEnsina(cat, vinculos, catalogoBySlug, magiasDb);
   // Frasco alquímico e flecha não se usam pela mão (28/09/2026).
   const podeUsar = consumivel && !equipavel && !isContainer && !ehPergaminhoMagia && !ehFlecha(cat)
     && !ehItemDeMagiaEmBatalha(cat);
@@ -3060,18 +3037,13 @@ function DetalhesItemModal({
       chave: 'montar', icone: 'ti-horse-toy', rotulo: en ? 'Mount' : 'Montar',
       onClick: () => onMontar(instance.instanceId),
     }),
-    ehPergaminhoMagia && {
-      chave: 'aprender', icone: 'ti-school',
-      rotulo: aprendendo ? (en ? 'Learning…' : 'Aprendendo…') : (en ? 'Learn' : 'Aprender'),
-      desativado: aprendendo || !!bloqueioAprender,
-      dica: bloqueioAprender ? { title: en ? 'Learn' : 'Aprender', desc: motivoAprenderLabel(bloqueioAprender.motivo, en, bloqueioAprender) } : null,
-      onClick: async () => {
-        setAprendendo(true); setAprenderErro(null);
-        const r = await onAprenderMagia(instance.instanceId);
-        if (r?.ok) { onClose(); return; }
-        setAprendendo(false);
-        setAprenderErro(motivoAprenderLabel(r?.motivo, en));
-      },
+    /* Aprender/Estudar (22/10/2026): sempre aparece quando o item ensina;
+       o porquê de não dar mora na janela Estudar, linha a linha. */
+    ensina.length > 0 && {
+      chave: ehPergaminhoMagia ? 'aprender' : 'estudar',
+      icone: 'ti-school',
+      rotulo: ehPergaminhoMagia ? (en ? 'Learn' : 'Aprender') : (en ? 'Study' : 'Estudar'),
+      onClick: () => setEstudando(true),
     },
     cat.doc_url && {
       chave: 'ler', icone: 'ti-book', rotulo: en ? 'Read' : 'Ler',
@@ -3154,7 +3126,6 @@ function DetalhesItemModal({
             onAbrir={onAbrirDetalhesFilho} abrirTip={abrirTip} fecharTip={fecharTip} />
         </div>
       )}
-      {aprenderErro && <div className="err-msg">{aprenderErro}</div>}
     </>
   );
 
@@ -3446,6 +3417,18 @@ function DetalhesItemModal({
       </Janela>
       {lendo && cat.doc_url && (
         <LeituraDocModal titulo={cat.nome} docUrl={cat.doc_url} lang={lang} onClose={() => setLendo(false)} />
+      )}
+      {estudando && ensina.length > 0 && (
+        <EstudarMagiaModal
+          titulo={cat.nome}
+          magias={ensina}
+          pj={pjAprendiz}
+          magiasDb={magiasDb}
+          opcoes={{ noInventario: acoesPesadas, podeAprender: !!onAprenderMagia, aVenda: estaAVenda(instance) }}
+          lang={lang}
+          onAprender={(key) => onAprenderMagia(instance.instanceId, key)}
+          onClose={() => setEstudando(false)}
+        />
       )}
       <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </>
@@ -3766,8 +3749,8 @@ Object.assign(window, {
   // Teto de peças por região — precisa bater com as casas que a ficha desenha
   // (vestir-capacidade.test.js trava os dois lados juntos, 16/09/2026).
   VESTE_SLOTS, vesteSlotState,
-  // Pergaminho: o botão "Aprender" bloqueia quando não há o que ensinar.
-  bloqueioPergaminho, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia, ehItemDeMagiaEmBatalha,
+  // O que o item ensina (livro/pergaminho) e por que não dá (22/10/2026).
+  vinculosDeLivros, magiasQueOItemEnsina, bloqueioAprenderNoInventario, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia, ehItemDeMagiaEmBatalha,
   // A magia que o item carrega — o bestiário mostra nome e descrição.
   magiaDoItem,
   // Montaria: a ficha abre a aba da montaria a partir daqui.

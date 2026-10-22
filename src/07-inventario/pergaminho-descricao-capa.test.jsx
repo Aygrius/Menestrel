@@ -49,7 +49,8 @@ const abrir = (cat, instance, extra) => render(
 );
 
 describe('pergaminho mostra a descrição da magia', () => {
-  const PERG = { slug: 'pergaminho_voo_3', nome: 'Pergaminho Vôo 3', grupo: 'Consumíveis', magia: 'Vôo', nivel_magia: 3 };
+  // Pergaminho único desde 22/10/2026: ensina todos os níveis, nivel_magia nulo.
+  const PERG = { slug: 'pergaminho_voo', nome: 'Pergaminho Vôo', grupo: 'Consumíveis', magia: 'Vôo', nivel_magia: null };
   const inst = { instanceId: 'p1', slug: PERG.slug, quantidade: 1 };
   const MAGIAS = [{
     key: 'voo', nome: 'Vôo', custo: 2, permissao: 'Mago', tipo: 'Perdida',
@@ -57,25 +58,31 @@ describe('pergaminho mostra a descrição da magia', () => {
     nivel_1: 'Voa por 1 rodada.', nivel_3: 'Voa por 3 rodadas.', nivel_5: 'Voa por 5 rodadas.',
   }];
 
-  it('descrição geral, em parágrafos, e o texto do nível do pergaminho', () => {
+  it('descrição geral, sem nível fixo (o pergaminho ensina todos)', () => {
     abrir(PERG, inst, { magiasDb: MAGIAS });
     // O bloco é o do Comércio (BestItemMagia) desde 26/09/2026, numa aba própria.
     const bloco = document.querySelector('.best-magia');
-    expect(bloco).toBeTruthy();
     expect(bloco.getAttribute('data-aba')).toBe('Magia');
-    expect(bloco.textContent).toMatch(/Vôo · Nível 3/);
+    expect(bloco.textContent).toMatch(/Vôo/);
+    expect(bloco.textContent).not.toMatch(/Nível/);
     expect(bloco.textContent).toMatch(/Você flutua pelo ar\./);
-    expect(bloco.querySelector('.best-efeito').textContent).toBe('Voa por 3 rodadas.');
-    expect(bloco.textContent).not.toMatch(/Voa por 1 rodada\./);
-    expect(bloco.textContent).not.toMatch(/Voa por 5 rodadas\./);
+    expect(bloco.querySelector('.best-efeito')).toBeNull();
   });
 
-  // Sem o catálogo, sobra o nome e o nível — como no Comércio (26/09/2026).
-  it('sem o catálogo de magias, só o nome e o nível', () => {
-    abrir(PERG, inst, {});
-    const bloco = document.querySelector('.best-magia');
-    expect(bloco.textContent).toMatch(/Vôo · Nível 3/);
-    expect(bloco.querySelector('.best-efeito')).toBeNull();
+  it('o pergaminho tem a ação Aprender', () => {
+    abrir(PERG, inst, { magiasDb: MAGIAS, vinculos: {}, onAprenderMagia: async () => ({ ok: true }) });
+    expect(document.querySelector('[data-acao="aprender"]')).toBeTruthy();
+  });
+
+  it('livro com vínculo tem Estudar; livro sem vínculo não', () => {
+    const livro = { slug: 'livro_do_mago', nome: 'Livro do Mago', grupo: 'Itens' };
+    const catalogo = { [livro.slug]: livro, [PERG.slug]: PERG };
+    const inst2 = { instanceId: 'l1', slug: livro.slug, quantidade: 1 };
+    abrir(livro, inst2, { catalogoBySlug: catalogo, magiasDb: MAGIAS, vinculos: { livro_do_mago: ['pergaminho_voo'] } });
+    expect(document.querySelector('[data-acao="estudar"]')).toBeTruthy();
+    cleanup();
+    abrir(livro, inst2, { catalogoBySlug: catalogo, magiasDb: MAGIAS, vinculos: {} });
+    expect(document.querySelector('[data-acao="estudar"]')).toBeNull();
   });
 
   /* Mudou em 26/09/2026: o modal do inventário é o do Comércio, que mostra a
