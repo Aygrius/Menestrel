@@ -749,6 +749,79 @@ function passosDisponiveisMagia(magia) {
   return passos;
 }
 
+/* ── CLASSE DA MAGIA E A REGRA DOS MILAGRES (22/10/2026) ──────────────
+   "Feitiço = arcana (magos), Milagre = divina (sacerdotes), Encanto =
+   artística (bardos), Transmutação = espiritual (rastreadores). Um
+   personagem vampiro, lobisomem ou sem religião não pode usar ou ser alvo
+   de milagres. Uma criatura de elemento 'escuridão' não pode usar milagres."
+   Decisões do usuário: Escuridão vale para todo ator (Mago incluído);
+   criatura não tem religião e não é barrada por isso; quem não pode usar
+   por motivo PERMANENTE também não aprende; a Licantropia temporária só
+   barra o uso. Espelho SQL (só os permanentes): aprender_magia. */
+const CLASSES_MAGIA = ['Feitiço', 'Milagre', 'Encanto', 'Transmutação'];
+
+function _subracaDoPj(pj, dataJogo) {
+  if (typeof subracaEfetiva === 'function') return subracaEfetiva(pj, dataJogo);
+  return (pj && pj.subraca) || null;
+}
+
+function atorMilagreDePj(pj, dataJogo) {
+  return {
+    tipo: 'pj',
+    deus: (pj && pj.deus) || null,
+    subraca: _subracaDoPj(pj, dataJogo),
+    subraca_fixa: (pj && pj.subraca) || null,
+    subtipo: null,
+    elementos: chavesDeElemento(elementoDaProfissao(pj && pj.profissao)),
+  };
+}
+
+function atorMilagreDeCriatura(cri) {
+  return {
+    tipo: 'criatura', deus: null, subraca: null, subraca_fixa: null,
+    subtipo: (cri && cri.subtipo) || null,
+    elementos: chavesDeElemento(cri && cri.elemento),
+  };
+}
+
+function _forma(ator, permanente) {
+  if (!ator) return null;
+  if (ator.tipo === 'criatura') return ator.subtipo || null;
+  return permanente ? ator.subraca_fixa : ator.subraca;
+}
+
+function bloqueioMilagre(ator, opcoes) {
+  if (!ator) return null;
+  const forma = _forma(ator, !!(opcoes && opcoes.permanente));
+  if (forma === 'Vampiro') return { motivo: 'milagre_vampiro' };
+  if (forma === 'Lobisomem') return { motivo: 'milagre_lobisomem' };
+  if (ator.tipo === 'pj' && !String(ator.deus || '').trim()) return { motivo: 'milagre_sem_religiao' };
+  if ((ator.elementos || []).includes('escuridao')) return { motivo: 'milagre_escuridao' };
+  return null;
+}
+
+function alvoDeMilagreBloqueado(ator) {
+  if (!ator) return null;
+  const forma = _forma(ator, false);
+  if (forma === 'Vampiro') return { motivo: 'alvo_milagre_vampiro' };
+  if (forma === 'Lobisomem') return { motivo: 'alvo_milagre_lobisomem' };
+  if (ator.tipo === 'pj' && !String(ator.deus || '').trim()) return { motivo: 'alvo_milagre_sem_religiao' };
+  return null;
+}
+
+function motivoMilagreLabel(motivo, en) {
+  const t = {
+    milagre_vampiro:           ['Vampiros não usam milagres.', 'Vampires cannot use miracles.'],
+    milagre_lobisomem:         ['Lobisomens não usam milagres.', 'Werewolves cannot use miracles.'],
+    milagre_sem_religiao:      ['Sem religião, não há milagre.', 'Without a faith, there is no miracle.'],
+    milagre_escuridao:         ['A Escuridão não conjura milagres.', 'Darkness cannot cast miracles.'],
+    alvo_milagre_vampiro:      ['Vampiros não recebem milagres.', 'Vampires cannot receive miracles.'],
+    alvo_milagre_lobisomem:    ['Lobisomens não recebem milagres.', 'Werewolves cannot receive miracles.'],
+    alvo_milagre_sem_religiao: ['Sem religião, não recebe milagres.', 'Without a faith, cannot receive miracles.'],
+  }[motivo];
+  return t ? t[en ? 1 : 0] : null;
+}
+
 /* Por que este PJ não pode aprender o PRÓXIMO nível desta magia agora?
    Mesmos motivos e mesma ordem da RPC aprender_magia — a tela antecipa a
    recusa para o botão já nascer desativado com o porquê. null = pode. */
@@ -757,6 +830,11 @@ function bloqueioAprenderMagia(magia, pj, magiasDb) {
   const magias = (pj && pj.magias) || {};
   const passos = Number(magias[magia.key]) || 0;
   if (passos >= 5) return { motivo: 'ja_no_maximo' };
+  // Milagre (22/10/2026): bloqueio PERMANENTE impede aprender.
+  if (magia.classe === 'Milagre') {
+    const bm = bloqueioMilagre(atorMilagreDePj(pj), { permanente: true });
+    if (bm) return bm;
+  }
   const alvo = passos + 1;
   if (alvo > passosDisponiveisMagia(magia)) return { motivo: 'nivel_sem_texto' };
   const estagio = calcEstagio((pj && pj.experiencia) || 0);
@@ -1285,6 +1363,7 @@ Object.assign(window, {
   modificadorGrupoPorCondicoes, totalHabilidadeComCondicoes,
   MAGIAS_BASE_POR_PROFISSAO, pontosMagiasPorEstagio, pontosMagiasTotal, gastoMagias,
   nivelMagiaEfetivo, magiaEhAvancada, bloqueioAprenderMagia,
+  CLASSES_MAGIA, atorMilagreDePj, atorMilagreDeCriatura, bloqueioMilagre, alvoDeMilagreBloqueado, motivoMilagreLabel,
   NIVEIS_MAGIA, passosDisponiveisMagia,
   TECNICAS_POR_PROFISSAO, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
   totalTecnica, podeAcessarTecnica,

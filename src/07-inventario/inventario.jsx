@@ -567,7 +567,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const [magiasDb, setMagiasDb] = useState(null);
   useEffect(() => {
     let vivo = true;
-    Promise.resolve(supabaseClient.from('magias').select('key,nome,custo,tipo,descricao,itens_necessarios,nivel_1,nivel_3,nivel_5,nivel_7,nivel_9'))
+    Promise.resolve(supabaseClient.from('magias').select('key,nome,custo,tipo,classe,descricao,itens_necessarios,nivel_1,nivel_3,nivel_5,nivel_7,nivel_9'))
       .then((res) => { if (vivo && res && !res.error && Array.isArray(res.data)) setMagiasDb(res.data); })
       .catch(() => {});
     return () => { vivo = false; };
@@ -2673,6 +2673,10 @@ function bloqueioAprenderNoInventario(magia, pj, opcoes) {
 }
 
 function motivoAprenderLabel(motivo, en, dados) {
+  // Milagre (22/10/2026): os textos moram com a regra, em game-data.jsx.
+  const _mil = (typeof window !== 'undefined' && window.motivoMilagreLabel) || null;
+  const txtMilagre = _mil && _mil(motivo, en);
+  if (txtMilagre) return txtMilagre;
   // Pontos com os números: é o motivo que o jogador mais precisa entender.
   if (motivo === 'pontos_insuficientes' && dados && dados.faltam != null) {
     return en
