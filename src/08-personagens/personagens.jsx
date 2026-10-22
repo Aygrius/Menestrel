@@ -17,7 +17,6 @@
    - StepAtributos          — distribuição de pontos
    - StepHabilidades        — escolha de habilidades + qtd
    - AprimoramentoInline    — vagas de idioma/religião/arte/sabedoria, dentro da habilidade-mãe
-   - StepMagias             — escolha de magias (carrega DB)
    - StepTecnicas           — escolha de técnicas (carrega DB)
    - StepRevisao            — revisão final antes de salvar
 
@@ -1077,7 +1076,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [magiasDb, setMagiasDb] = useState(null);
-  const [magiasError, setMagiasError] = useState(null);
   const [tecnicasDb, setTecnicasDb] = useState(null);
   const [tecnicasError, setTecnicasError] = useState(null);
   const [habilidadesDb, setHabilidadesDb] = useState(null);
@@ -1130,7 +1128,8 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     data_nasc: null, // { dia, mes, ano } | null
   });
 
-  // Carrega magias do banco uma vez
+  // Carrega magias do banco uma vez — só para o resumo da Revisão na edição
+  // (desde 22/10/2026 magia não se compra aqui; aprende-se pelo item).
   useEffect(() => {
     let cancel = false;
     (async () => {
@@ -1141,7 +1140,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       if (cancel) return;
       if (error) {
         console.error('[magias] falha ao carregar:', error);
-        setMagiasError(error.message);
         setMagiasDb([]);
       } else {
         setMagiasDb(data || []);
@@ -1238,12 +1236,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
   const habGasto       = gastoHabilidades(form.habilidades, habilidadesByKey);
   const habRestantes   = habTotalPontos - habGasto;
 
-  // ---- Magias (só pra Bardo, Mago, Rastreador, Sacerdote) ----
-  const usaMagia       = profissaoUsaMagia(form.profissao);
-  const magTotalPontos = pontosMagiasTotal(form.profissao, estagioForm);
-  const magGasto       = gastoMagias(form.magias, magiasDb);
-  const magRestantes   = magTotalPontos - magGasto;
-
   // ---- Técnicas ----
   const tecTotalPontos = pontosTecnicasTotal(form.profissao, estagioForm);
   const tecGasto       = gastoTecnicas(form.tecnicas, tecnicasDb);
@@ -1288,10 +1280,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       sub: g,
       label: lang === 'en' ? `${g} Group Skill` : `Habilidade do Grupo ${g}`,
     })),
-    ...(usaMagia ? [
-      { id: 'magias', sub: 'basica',   label: lang === 'en' ? 'Basic Spells'    : 'Magias Básicas'   },
-      { id: 'magias', sub: 'avancada', label: lang === 'en' ? 'Advanced Spells' : 'Magias Avançadas' },
-    ] : []),
     { id: 'tecnicas', sub: null, label: SEC.tecnicas },
     { id: 'revisao',  sub: null, label: SEC.revisao  },
   ];
@@ -1308,14 +1296,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
   useEffect(() => {
     if (step > steps.length) setStep(steps.length);
   }, [step, steps.length]);
-
-  // Limpa magias do form quando a profissão deixa de usar magia
-  useEffect(() => {
-    if (!usaMagia && Object.keys(form.magias || {}).length > 0) {
-      setForm((f) => ({ ...f, magias: {} }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usaMagia]);
 
   const currentStep = steps[step - 1];
   const currentId = currentStep?.id;
@@ -1362,10 +1342,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     ? `Você gastou ${habGasto} pontos em habilidades, mas só tem ${habTotalPontos}`
     : null;
 
-  const erroMagias = magRestantes < 0
-    ? `Você gastou ${magGasto} pontos em magias, mas só tem ${magTotalPontos}`
-    : null;
-
   const erroTecnicas = tecRestantes < 0
     ? `Você gastou ${tecGasto} pontos em técnicas, mas só tem ${tecTotalPontos}`
     : null;
@@ -1391,7 +1367,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     currentId === 'atributos'    ? !erroAtributos :
     currentId === 'grupos_armas' ? !erroGruposArmas :
     currentId === 'habilidades'  ? !erroHabilidades :
-    currentId === 'magias'       ? !erroMagias :
     currentId === 'tecnicas'     ? !erroTecnicas : true;
 
   // Atributos finais usados nos Totais de habilidade/magia/técnica das telas
@@ -1432,13 +1407,16 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       percepcao_base: form.percepcao_base,
       experiencia: form.experiencia,
       habilidades: form.habilidades || {},
-      magias: usaMagia ? (form.magias || {}) : {},
       tecnicas: form.tecnicas || {},
       grupos_armas: form.grupos_armas || {},
       aprimoramentos: form.aprimoramentos || {},
       caracterizacao: form.caracterizacao || {},
       data_nasc: form.data_nasc ?? null,
     };
+    /* Magias (22/10/2026): aprendem-se pelo item (RPC aprender_magia), fora
+       do wizard. Criação nasce sem nenhuma; edição NÃO manda a coluna — um
+       wizard aberto antes de estudar um livro apagaria o que foi aprendido. */
+    if (!isEdit) payload.magias = {};
 
     // Marca que o jogador já viu o estágio atual — é isso que esconde o badge
     // "Pronto pra evoluir!" (temLevelUpPendente). O Mestre NÃO atualiza isso.
@@ -1447,8 +1425,8 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     // usuário, 01/09/2026). Antes bastava abrir o wizard e salvar: o badge
     // sumia e os pontos ficavam esquecidos, sem nada lembrando o jogador.
     if (isEdit && !isMaster && todosOsPontosGastos({
-      atributos: restantes, habilidades: habRestantes, magias: magRestantes,
-      tecnicas: tecRestantes, gruposArmas: grpRestantes, usaMagia,
+      atributos: restantes, habilidades: habRestantes,
+      tecnicas: tecRestantes, gruposArmas: grpRestantes,
     })) {
       payload.nivel_visto = calcEstagio(form.experiencia);
     }
@@ -1497,8 +1475,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     <WizSaldo lang={lang} disponiveis={grpTotalPontos} gastos={grpGasto} restantes={grpRestantes} />
   ) : currentId === 'habilidades' ? (
     <WizSaldo lang={lang} disponiveis={habTotalPontos} gastos={habGasto} restantes={habRestantes} />
-  ) : currentId === 'magias' ? (
-    <WizSaldo lang={lang} disponiveis={magTotalPontos} gastos={magGasto} restantes={magRestantes} />
   ) : currentId === 'tecnicas' ? (
     <WizSaldo lang={lang} disponiveis={tecTotalPontos} gastos={tecGasto} restantes={tecRestantes} />
   ) : null;
@@ -1582,18 +1558,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
               habilidadesDb={habilidadesDb} habilidadesError={habilidadesError}
               habilidadesByKey={habilidadesByKey}
               bonusHabilidades={bonusHabilidades}
-              isEdit={isEdit}
-              personagemExistente={personagemExistente}
-            />
-          )}
-          {currentId === 'magias' && (
-            <StepMagias
-              form={form} update={update} lang={lang}
-              sub={currentSub}
-              magiasDb={magiasDb} magiasError={magiasError}
-              magTotalPontos={magTotalPontos}
-              magGasto={magGasto}
-              magRestantes={magRestantes}
               isEdit={isEdit}
               personagemExistente={personagemExistente}
             />
@@ -2530,195 +2494,7 @@ function AprimoramentoInline({ habKey, form, update, lang, slots }) {
   );
 }
 
-// ---- Step 4: Magias (Bardo/Mago/Rastreador/Sacerdote) ----
-function StepMagias({ form, update, lang, sub, magiasDb, magiasError, magTotalPontos, magGasto, magRestantes, isEdit, personagemExistente }) {
-  const [detalhe, setDetalhe] = useState(null); // magia com o modal de explicação aberto
-  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
-  const estagio = calcEstagio(form.experiencia);
-
-  if (magiasDb === null) {
-    return <Carregando lang={lang} />;
-  }
-  if (magiasError) {
-    return (
-      <div className="admin-error">
-        <div className="err-msg">{magiasError}</div>
-        <div className="admin-error-hint">
-          {lang === 'en'
-            ? "Make sure the 'magias' table exists in Supabase and has data imported."
-            : "Confira se a tabela 'magias' existe no Supabase e se você importou os dados."}
-        </div>
-      </div>
-    );
-  }
-
-  // Filtra as magias que o personagem realmente pode COMPRAR. Dois crivos:
-  //   podeAcessarMagia  — a profissão (ou a especialização) alcança a magia;
-  //   magiaEhTravada    — a raridade permite comprar (só 'Básica' permite).
-  //
-  // A travada aparecia na lista esmaecida, com um selo de origem. Mostrar o
-  // que não se pode comprar só gerava dúvida sobre por que o botão + não
-  // respondia (decisão de 08/09/2026: não listar).
-  const especializacao = form.especializacao || null;
-  const compradas = form.magias || {};
-  const temAcesso = (m) => podeAcessarMagia(m, form.profissao, especializacao);
-  /* A já comprada continua na lista mesmo sem acesso (reforma de permissões
-     de 29/09/2026): o custo dela segue somado em gastoMagias, e sumir com ela
-     faria os pontos parecerem gastos em nada. Ela só não sobe — mudarPasso. */
-  const disponiveis = magiasDb.filter((m) =>
-    !magiaEhTravada(m) && (temAcesso(m) || (compradas[m.key] || 0) > 0)
-  );
-  const cfg = MAGIAS_POR_PROFISSAO[form.profissao] || {};
-
-  // Stepper de passos (0..5). Cada passo representa um nível efetivo da magia
-  // pela tabela 1→1, 2→3, 3→5, 4→7, 5→9 (`nivelMagiaEfetivo`).
-  // O nível efetivo NUNCA pode passar o ESTÁGIO do personagem.
-  // Em edição, não permite baixar abaixo do passo original salvo.
-  const mudarPasso = (key, delta) => {
-    const atual = compradas[key] || 0;
-    const proposto = atual + delta;
-    if (proposto < 0 || proposto > 5) return;
-    const originalPasso = personagemExistente?.magias?.[key] || 0;
-    if (isEdit && proposto < originalPasso) return;
-    if (proposto > 0 && nivelMagiaEfetivo(proposto) > estagio) return;
-    // Nível sem texto não se compra (ver passosDisponiveisMagia). Vale só
-    // pra SUBIR: quem já tinha o passo antes de o admin apagar o nível não
-    // é rebaixado à força — podeMenos/originalPasso seguem mandando na
-    // descida, e ninguém perde o que já comprou.
-    if (delta > 0 && proposto > passosDisponiveisMagia(magiasDb.find((x) => x.key === key))) return;
-
-    // Perdida/Ancestral não se compram com pontos: cada nível exige o seu
-    // pergaminho, usado no inventário (RPC usar_pergaminho_magia).
-    // É RARIDADE, não a aba: uma magia de especialização pode ser Básica e
-    // comprável, e uma de profissão pode ser Perdida e travada.
-    if (delta > 0 && magiaEhTravada(magiasDb.find((x) => x.key === key))) return;
-    // Sem acesso (a permissão mudou depois da compra): fica no nível que tem.
-    if (delta > 0 && !temAcesso(magiasDb.find((x) => x.key === key) || {})) return;
-
-    // Bloqueia a compra se não houver pontos suficientes
-    if (delta > 0 && gastoMagias({ ...compradas, [key]: proposto }, magiasDb) > magTotalPontos) return;
-    const novoObj = { ...compradas };
-    if (proposto === 0) delete novoObj[key];
-    else                novoObj[key] = proposto;
-    update('magias', novoObj);
-  };
-
-  // "Avançada = Especialização" (03/09/2026, regra do usuário): a aba separa
-  // por QUEM ALCANÇA a magia, não por raridade.
-  //   Básicas    permissao cita a profissão — todo Mago alcança
-  //   Avançadas  permissao cita a especialização — só o Colégio Necromântico
-  //
-  // Antes as duas abas eram filtradas por `tipo`, e "Avançadas" era
-  // `tipo !== 'Básica'` — o MESMO critério que trava a compra. A aba era, por
-  // construção, a lista do que ninguém podia comprar: um personagem com
-  // especialização e pontos sobrando não conseguia gastar um ponto ali, e as
-  // magias que a especialização realmente liberava estavam na aba "Básicas".
-  // A ficha, enquanto isso, já chamava essas de "Avançadas" — a divergência
-  // entre as duas telas é que fazia a compra parecer quebrada.
-  const disponiveisTela = sub === 'avancada'
-    ? disponiveis.filter((m) =>  magiaEhAvancada(m))
-    : disponiveis.filter((m) => !magiaEhAvancada(m));
-
-  const pillStyle = {
-    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
-    borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between', gap: 4, padding: '0 4px',
-  };
-  const btnStyle = (enabled) => ({
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
-    cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
-  });
-
-  const renderTabela = (lista) => lista.map((m) => {
-    const passos = compradas[m.key] || 0;
-    const originalPasso = personagemExistente?.magias?.[m.key] || 0;
-    // Sem estado "travada" aqui: `disponiveis` já descartou o que não se pode
-    // comprar. mudarPasso mantém a checagem de magiaEhTravada como rede — é a
-    // regra, e não custa nada.
-    // Teto de níveis que a magia realmente tem — o admin pode ter apagado
-    // um nível no editor de catálogo, e nível sem texto não se compra.
-    const passosDisponiveis = passosDisponiveisMagia(m);
-    const temProximoNivel = passos + 1 <= passosDisponiveis;
-    const podeMaisEstagio = passos < 5 && nivelMagiaEfetivo(passos + 1) <= estagio;
-    const semSaldoPraMais = passos < 5 && gastoMagias({ ...compradas, [m.key]: passos + 1 }, magiasDb) > magTotalPontos;
-    const semAcesso = !temAcesso(m);
-    const podeMais = !semAcesso && temProximoNivel && podeMaisEstagio && !semSaldoPraMais;
-    const podeMenos = passos > 0 && !(isEdit && passos <= originalPasso);
-    return (
-      <div key={m.key} className="wiz-item">
-        <NomeItem
-          nome={m.nome}
-          onAbrir={() => setDetalhe({
-            titulo: m.nome,
-            linhas: [
-              { rotulo: lang === 'en' ? 'Evocation' : 'Evocação', valor: m.evocacao },
-              { rotulo: lang === 'en' ? 'Range' : 'Alcance', valor: m.alcance },
-              { rotulo: lang === 'en' ? 'Duration' : 'Duração', valor: m.duracao },
-              { rotulo: lang === 'en' ? 'Cost' : 'Custo', valor: m.custo },
-              // Itens do ritual: campo próprio desde 26/09/2026.
-              { rotulo: lang === 'en' ? 'Required items' : 'Itens necessários', valor: m.itens_necessarios },
-            ],
-            descricao: m.descricao,
-            // Nível apagado pelo admin não aparece na ficha da magia — se
-            // não dá pra comprar, mostrar o rótulo vazio só confunde.
-            niveis: [
-              { n: 1, t: m.nivel_1 }, { n: 3, t: m.nivel_3 }, { n: 5, t: m.nivel_5 },
-              { n: 7, t: m.nivel_7 }, { n: 9, t: m.nivel_9 },
-            ].filter((x) => x.t != null && String(x.t).trim() !== ''),
-          })}
-        />
-        <div style={pillStyle}>
-          <button type="button" style={btnStyle(podeMenos)} disabled={!podeMenos}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => mudarPasso(m.key, -1)} aria-label="−"
-            onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-          </button>
-          <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
-            {passos > 0 ? nivelMagiaEfetivo(passos) : 0}
-          </span>
-          <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => mudarPasso(m.key, +1)} aria-label="+"
-            {...propsTip(abrirTip, fecharTip, semAcesso && passos < 5 ? (lang === 'en' ? 'Your profession no longer reaches this spell' : 'Sua profissão não alcança mais esta magia') : !temProximoNivel && passos < 5 ? (lang === 'en' ? 'This spell has no further level' : 'Esta magia não tem nível seguinte') : !podeMaisEstagio && passos < 5 ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
-            onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-          </button>
-        </div>
-      </div>
-    );
-  });
-
-  return (
-    <div className="wiz-habs">
-      {disponiveisTela.length === 0 ? (
-        <div className="wiz-magias-empty">
-          {sub === 'avancada'
-            /* A aba agora depende da ESPECIALIZAÇÃO, não da profissão: quem
-               ainda não escolheu uma (estágio < 5) não tem nada aqui, e o
-               texto tem que dizer isso — "para essa profissão" mandava o
-               usuário procurar o problema no lugar errado. */
-            ? (especializacao
-                ? (lang === 'en' ? `No advanced spells for ${especializacao} yet.` : `Nenhuma magia avançada de ${especializacao} ainda.`)
-                : (lang === 'en' ? 'Advanced spells come from a specialization, chosen at stage 5.' : 'As magias avançadas vêm da especialização, escolhida no estágio 5.'))
-            : (lang === 'en' ? 'No basic spells available for this profession yet.' : 'Nenhuma magia básica disponível para essa profissão ainda.')}
-        </div>
-      ) : (
-        <div className="wiz-habs-list wiz-lista-dupla">
-          {renderTabela(disponiveisTela)}
-        </div>
-      )}
-      <DetalheModal detalhe={detalhe} lang={lang} onClose={() => setDetalhe(null)} />
-      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-    </div>
-  );
-}
-
-// ---- Step 5: Técnicas de Combate (todas as profissões) ----
+// ---- Step 4: Técnicas de Combate (todas as profissões) ----
 function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalPontos, tecGasto, tecRestantes, tecQtd, isEdit, personagemExistente, atributosFinais }) {
   const [detalhe, setDetalhe] = useState(null); // técnica com o modal de explicação aberto
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
@@ -2846,7 +2622,7 @@ function StepTecnicas({ form, update, lang, tecnicasDb, tecnicasError, tecTotalP
   );
 }
 
-// ---- Step 6 (ou 5 se sem magia): Revisão ----
+// ---- Step 5: Revisão ----
 function StepRevisao({ form, lang, atributosFinais, magiasDb, tecnicasDb, habilidadesByKey, bonusHabilidades }) {
   const ficha = calcularFicha({
     raca: form.raca,
@@ -2994,25 +2770,21 @@ return (
           </dl>
         </section>
       )}        
-        {profissaoUsaMagia(form.profissao) && (
+        {/* Magias (22/10/2026): aprendem-se pelo item; aqui só o resumo do
+            que o PJ já sabe, na edição. Sem magia, a seção não aparece. */}
+        {magCompradas.length > 0 && (
           <section>
             <div className="wiz-review-eyebrow">
               {lang === 'en' ? 'Spells' : 'Magias'}
             </div>
-            {magCompradas.length === 0 ? (
-              <p className="wiz-review-empty">
-                {lang === 'en' ? 'No spells acquired.' : 'Nenhuma magia adquirida.'}
-              </p>
-            ) : (
-              <dl>
-                {magCompradas.map((m) => (
-                  <div key={m.key}>
-                    <dt>{m.nome}</dt>
-                    <dd>{m.nivel}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
+            <dl>
+              {magCompradas.map((m) => (
+                <div key={m.key}>
+                  <dt>{m.nome}</dt>
+                  <dd>{m.nivel}</dd>
+                </div>
+              ))}
+            </dl>
           </section>
         )}
 
@@ -3067,5 +2839,5 @@ Object.assign(window, {
   PersonagensList, PersonagemCard, ConfirmarExclusaoModal,
   NovoPersonagemModal,
   StepIdentidade, StepAtributos, StepGruposArmas, StepHabilidades, AprimoramentoInline,
-  StepMagias, StepTecnicas, StepRevisao,
+  StepTecnicas, StepRevisao,
 });

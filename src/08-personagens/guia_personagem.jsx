@@ -458,17 +458,17 @@ function GuiaPersonagem({ lang = 'pt' }) {
         <div className="gp-prof-grid">
           {[
             { nome: 'Guerreiro', el: 'Fogo', icon: 'ti-flame', cls: 'gp-elem-0',
-              txt: 'O extremo marcial: a maior Energia Heroica (14 por estágio), o maior orçamento de armas (12) e de técnicas (7). Não conjura, e compensa com a capacidade de continuar lutando quando qualquer outro já teria caído. Especializado, ganha uma ação extra por rodada só para técnicas.' },
+              txt: 'O extremo marcial: a maior Energia Heroica (14 por estágio), o maior orçamento de armas (12) e de técnicas (7). Conjura pouco (1 ponto-base de magia por estágio), e compensa com a capacidade de continuar lutando quando qualquer outro já teria caído. Especializado, ganha uma ação extra por rodada só para técnicas.' },
             { nome: 'Ladino', el: 'Ar', icon: 'ti-wind', cls: 'gp-elem-1',
               txt: 'O mestre das habilidades: 20 pontos por estágio, o maior orçamento do jogo. Energia Heroica mediana (10) — sobrevive desviando, não aguentando. Armas leves e técnicas afinadas com elas fazem o dano; especializado, também ganha a ação extra de técnica.' },
             { nome: 'Rastreador', el: 'Terra', icon: 'ti-mountain', cls: 'gp-elem-2',
-              txt: 'O caçador versátil: 16 pontos de habilidade, 10 de armas e 6 de técnicas por estágio, e magia regida pela Percepção (8 por estágio). A Percepção rende dobrado: alimenta a magia e a Energia Heroica.' },
+              txt: 'O caçador versátil: 16 pontos de habilidade, 10 de armas e 6 de técnicas por estágio, e magia mediana (5 pontos-base por estágio, mais Intelecto e Aura). A Percepção rende na Energia Heroica.' },
             { nome: 'Bardo', el: 'Água', icon: 'ti-droplet', cls: 'gp-elem-3',
-              txt: 'A voz do grupo: magia regida pelo Carisma (8 por estágio) e 14 pontos de habilidade para influência e conhecimento. Energia Heroica baixa (8) e poucas armas (6) — luta melhor a partir da retaguarda.' },
+              txt: 'A voz do grupo: magia farta (8 pontos-base por estágio, mais Intelecto e Aura) e 14 pontos de habilidade para influência e conhecimento. Energia Heroica baixa (8) e poucas armas (6) — luta melhor a partir da retaguarda.' },
             { nome: 'Mago', el: 'Escuridão', icon: 'ti-moon', cls: 'gp-elem-esc', largo: true,
-              txt: 'O extremo arcano: o maior orçamento de magia (14 por estágio, regida pelo Intelecto) e a menor Energia Heroica do jogo (6). Poucas armas (4) e técnicas (2). Vulnerável no confronto direto; protegido pelos aliados, poucos rivalizam com o poder dos seus encantamentos — e a Escuridão rende 5% contra os quatro elementos.' },
+              txt: 'O extremo arcano: um orçamento alto de magia (8 pontos-base por estágio, mais Intelecto e Aura) e a menor Energia Heroica do jogo (6). Poucas armas (4) e técnicas (2). Vulnerável no confronto direto; protegido pelos aliados, poucos rivalizam com o poder dos seus encantamentos — e a Escuridão rende 5% contra os quatro elementos.' },
             { nome: 'Sacerdote', el: 'Luz', icon: 'ti-sun', cls: 'gp-elem-luz', largo: true,
-              txt: 'O guardião divino: Energia Heroica alta (12), magia regida pela Aura (10 por estágio) e um orçamento equilibrado de armas (8) e técnicas (6). A Aura alimenta a magia e o Karma ao mesmo tempo, e a Luz rende 15% contra criaturas da Escuridão.' },
+              txt: 'O guardião divino: Energia Heroica alta (12), magia mediana (5 pontos-base por estágio, mais Intelecto e Aura) e um orçamento equilibrado de armas (8) e técnicas (6). A Aura alimenta a magia e o Karma ao mesmo tempo, e a Luz rende 15% contra criaturas da Escuridão.' },
           ].map((p) => (
             <div key={p.nome} className={'gp-card gp-prof-card' + (p.largo ? ' gp-prof-card--largo' : '')}>
               <div className="gp-prof-top">
@@ -798,28 +798,28 @@ function GuiaPersonagem({ lang = 'pt' }) {
       {/* ══ Magias ══ */}
       <section className="gp-section" id="gp-magias">
         <SectionHead icon="ti-wand" titulo="Magias">
-          Quatro profissões conjuram, cada uma regida por um atributo. Magia se aprende em passos e se paga em Karma.
+          Toda profissão pode aprender qualquer magia — pelo item que a ensina. Magia se aprende em passos e se paga em Karma.
         </SectionHead>
         <Essencial itens={[
           <>Cada passo abre um nível ímpar: <b>1, 3, 5, 7 e 9</b>.</>,
           <>Aprender custa <b>nível × custo da magia</b>; conjurar gasta <b>Karma igual ao nível</b>.</>,
-          <>Magias Perdidas e Ancestrais não se compram: chegam em <b>pergaminhos</b>.</>,
+          <>Aprende-se <b>estudando um livro</b> (Livro do Mago, do seu deus, da sua Ordem…) ou <b>um pergaminho</b>. O item não se gasta.</>,
         ]} />
         <div className="gp-table-wrap">
           <table className="gp-table">
-            <thead><tr><th>Profissão</th><th>Pontos por estágio</th><th>Atributo regente</th><th>Estilo natural</th></tr></thead>
+            <thead><tr><th>Profissão</th><th>Pontos-base por estágio</th></tr></thead>
             <tbody>
-              <tr><td>Mago</td><td>14</td><td>Intelecto</td><td>Grimório largo e profundo</td></tr>
-              <tr><td>Sacerdote</td><td>10</td><td>Aura</td><td>A Aura alimenta a magia e o Karma ao mesmo tempo</td></tr>
-              <tr><td>Bardo</td><td>8</td><td>Carisma</td><td>Poucas magias, bem escolhidas, de apoio e influência</td></tr>
-              <tr><td>Rastreador</td><td>8</td><td>Percepção</td><td>A Percepção rende dobrado: magia e Energia Heroica</td></tr>
+              <tr><td>Mago, Bardo</td><td>8</td></tr>
+              <tr><td>Rastreador, Sacerdote</td><td>5</td></tr>
+              <tr><td>Guerreiro, Ladino</td><td>1</td></tr>
             </tbody>
           </table>
         </div>
         <ul className="gp-list">
-          <li><b>Passos.</b> O 1º passo é o nível 1, o 2º é o nível 3, e assim até o 5º, nível 9. Uma magia no nível 5 com custo 2 custa 10 pontos para aprender e gasta 5 de Karma por conjuração.</li>
-          <li><b>Básicas e avançadas.</b> Magia básica é da profissão; avançada exige a especialização (um Colégio, uma Ordem, uma Trilha, uma Confraria).</li>
-          <li><b>Raridade.</b> Magias Perdidas e Ancestrais chegam em pergaminhos — de tempos em tempos um aparece na loja da história. Ao usar o pergaminho, o personagem aprende aquele passo para sempre.</li>
+          <li><b>Pontos.</b> Por estágio: pontos-base + Intelecto + Aura (atributo negativo conta 0). Com Aura negativa, a base é 0.</li>
+          <li><b>Passos.</b> O 1º passo é o nível 1, o 2º é o nível 3, e assim até o 5º, nível 9. Uma magia no nível 5 com custo 2 custa 10 pontos e gasta 5 de Karma por conjuração. Um nível por vez, nunca acima do estágio.</li>
+          <li><b>Custos.</b> Básicas custam 1 ou 2 por nível; Perdidas, 2 ou 3; Ancestrais, 3 ou 4.</li>
+          <li><b>Livros e pergaminhos.</b> As magias Básicas estão nos livros (de profissão, de deus, de Ordem, Colégio, Confraria ou Trilha). Perdidas e Ancestrais têm pergaminho próprio — de tempos em tempos um aparece na loja da história.</li>
           <li><b>Itens necessários.</b> Rituais pedem componentes: a magia lista os itens e as quantidades, e o Mestre confere se o personagem os tem antes da conjuração.</li>
           <li><b>Itens mágicos.</b> Anéis, cajados e armas que concedem magia conjuram de graça, sem Karma, no nível do item — desde que estejam em uso (empunhados ou vestidos).</li>
           <li><b>Elemento.</b> A magia leva o próprio elemento: um Mago (Escuridão) que lança uma magia de Fogo num alvo de Ar ganha os 10% do Fogo.</li>
@@ -883,8 +883,8 @@ function GuiaPersonagem({ lang = 'pt' }) {
               <tr><td>Raças robustas</td><td>Anão e Meio-Orc: Energia Física alta de nascença</td><td>Aura, Carisma e (no Anão) Agilidade em baixa</td></tr>
               <tr><td>Raças élficas</td><td>Aura, Intelecto e Percepção aflorados</td><td>Físico −1 em todas</td></tr>
               <tr><td>Humano</td><td>+4 pontos livres e nenhum atributo negativo</td><td>Nenhum talento de nascença</td></tr>
-              <tr><td>Guerreiro</td><td>Maior Energia Heroica, mais armas e técnicas</td><td>Nenhuma magia</td></tr>
-              <tr><td>Mago</td><td>14 pontos de magia por estágio</td><td>A menor Energia Heroica do jogo</td></tr>
+              <tr><td>Guerreiro</td><td>Maior Energia Heroica, mais armas e técnicas</td><td>Magia escassa: 1 ponto-base por estágio</td></tr>
+              <tr><td>Mago</td><td>8 pontos-base de magia por estágio, mais Intelecto e Aura</td><td>A menor Energia Heroica do jogo</td></tr>
               <tr><td>Ladino</td><td>20 pontos de habilidade por estágio</td><td>Energia Heroica mediana: sobrevive desviando</td></tr>
               <tr><td>Especialização</td><td>Magias e técnicas avançadas; +1 ação de técnica para Guerreiro e Ladino</td><td>Uma escola só, para sempre</td></tr>
               <tr><td>Atributo em +2</td><td>+2 em tudo que ele alimenta</td><td>3 pontos — o triplo do +1</td></tr>
