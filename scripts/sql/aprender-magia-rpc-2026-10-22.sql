@@ -47,12 +47,13 @@ declare
   v_gasto      int;
   v_gasto_novo int;
   v_texto_ok   boolean;
+  v_atividade  text;
 begin
   if v_uid is null then
     return jsonb_build_object('ok', false, 'motivo', 'nao_autenticado');
   end if;
 
-  select id, magias, inventario, profissao, experiencia, intelecto_base, aura_base, deus, subraca
+  select id, magias, treinos, inventario, profissao, experiencia, intelecto_base, aura_base, deus, subraca
     into v_pj
     from public.personagens
    where id = p_pj_id and user_id = v_uid;
@@ -105,7 +106,14 @@ begin
     end if;
   end if;
 
-  v_atual := coalesce((v_pj.magias->>v_magia.key)::int, 0);
+  -- Fila de treino (22/10/2026): o nível comprado e ainda em treino conta
+  -- como sabido para o próximo nível e para o gasto.
+  select greatest(coalesce((v_pj.magias->>v_magia.key)::int, 0),
+                  coalesce(max((t->>'nivel')::int), 0))
+    into v_atual
+    from jsonb_array_elements(coalesce(v_pj.treinos, '[]'::jsonb)) t
+   where t->>'tipo' = 'magia' and t->>'key' = v_magia.key;
+  v_atual := coalesce(v_atual, coalesce((v_pj.magias->>v_magia.key)::int, 0));
   if v_atual >= 5 then
     return jsonb_build_object('ok', false, 'motivo', 'ja_no_maximo');
   end if;
@@ -130,10 +138,16 @@ begin
 
   v_total := public._menestrel_pontos_magia_por_estagio(v_pj.profissao, v_pj.intelecto_base, v_pj.aura_base) * v_estagio;
 
-  select coalesce(sum((case when e.value::int > 0 then e.value::int * 2 - 1 else 0 end) * coalesce(m.custo, 0)), 0)
+  -- Gasto: por magia, o MAIOR entre sabido e fila (o que está em treino já foi pago).
+  with passos as (
+    select e.key, e.value::int p from jsonb_each_text(coalesce(v_pj.magias, '{}'::jsonb)) e
+    union all
+    select t->>'key', (t->>'nivel')::int from jsonb_array_elements(coalesce(v_pj.treinos, '[]'::jsonb)) t
+     where t->>'tipo' = 'magia'
+  ), maior as (select key, max(p) p from passos group by key)
+  select coalesce(sum((case when mx.p > 0 then mx.p * 2 - 1 else 0 end) * coalesce(m.custo, 0)), 0)
     into v_gasto
-    from jsonb_each_text(coalesce(v_pj.magias, '{}'::jsonb)) as e(key, value)
-    join public.magias m on m.key = e.key;
+    from maior mx join public.magias m on m.key = mx.key;
 
   v_gasto_novo := v_gasto
     - (case when v_atual > 0 then v_atual * 2 - 1 else 0 end) * coalesce(v_magia.custo, 0)
@@ -142,12 +156,20 @@ begin
     return jsonb_build_object('ok', false, 'motivo', 'pontos_insuficientes');
   end if;
 
+  /* Fila de treino (22/10/2026): o nível não vai direto para magias — entra
+     na fila, 24 h da atividade da classe (Feitiço estudando, Milagre orando,
+     Transmutação meditando, Encanto praticando). O relógio da mesa conclui. */
+  v_atividade := case v_magia.classe
+    when 'Feitiço' then 'estudando' when 'Milagre' then 'orando'
+    when 'Transmutação' then 'meditando' else 'praticando' end;
   update public.personagens
-     set magias = coalesce(magias, '{}'::jsonb) || jsonb_build_object(v_magia.key, v_alvo)
+     set treinos = coalesce(treinos, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+           'id', gen_random_uuid()::text, 'tipo', 'magia', 'key', v_magia.key, 'nivel', v_alvo,
+           'atividade', v_atividade, 'horas_restantes', 24, 'comprado_em', now()))
    where id = p_pj_id and user_id = v_uid;
 
   return jsonb_build_object('ok', true, 'magia', v_magia.key, 'magia_nome', v_magia.nome,
-                            'nivel', v_nivel, 'passos', v_alvo);
+                            'nivel', v_nivel, 'passos', v_alvo, 'horas', 24, 'atividade', v_atividade);
 end;
 $function$;
 
