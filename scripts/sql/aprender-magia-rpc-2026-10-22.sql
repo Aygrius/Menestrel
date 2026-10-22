@@ -52,7 +52,7 @@ begin
     return jsonb_build_object('ok', false, 'motivo', 'nao_autenticado');
   end if;
 
-  select id, magias, inventario, profissao, experiencia, intelecto_base, aura_base
+  select id, magias, inventario, profissao, experiencia, intelecto_base, aura_base, deus, subraca
     into v_pj
     from public.personagens
    where id = p_pj_id and user_id = v_uid;
@@ -73,7 +73,7 @@ begin
   end if;
   v_slug := v_inst->>'slug';
 
-  select key, nome, custo, nivel_1, nivel_3, nivel_5, nivel_7, nivel_9
+  select key, nome, custo, classe, nivel_1, nivel_3, nivel_5, nivel_7, nivel_9
     into v_magia
     from public.magias
    where key = p_magia_key;
@@ -87,6 +87,22 @@ begin
                        where lp.livro_slug = v_slug and lp.pergaminho_slug = v_perg_slug);
   if not v_ensina then
     return jsonb_build_object('ok', false, 'motivo', 'item_nao_ensina');
+  end if;
+
+  -- Milagre (22/10/2026): bloqueios PERMANENTES impedem aprender. A
+  -- Licantropia temporária só impede usar — fica com a tela (JS).
+  -- Espelho de bloqueioMilagre(…, { permanente: true }) em game-data.jsx.
+  if v_magia.classe = 'Milagre' then
+    if v_pj.subraca = 'Vampiro' then
+      return jsonb_build_object('ok', false, 'motivo', 'milagre_vampiro');
+    elsif v_pj.subraca = 'Lobisomem' then
+      return jsonb_build_object('ok', false, 'motivo', 'milagre_lobisomem');
+    elsif v_pj.deus is null or btrim(v_pj.deus) = '' then
+      return jsonb_build_object('ok', false, 'motivo', 'milagre_sem_religiao');
+    elsif v_pj.profissao = 'Mago' then
+      -- Elemento da profissão (ELEMENTO_PROFISSAO, game-data.jsx): só o Mago é Escuridão.
+      return jsonb_build_object('ok', false, 'motivo', 'milagre_escuridao');
+    end if;
   end if;
 
   v_atual := coalesce((v_pj.magias->>v_magia.key)::int, 0);
