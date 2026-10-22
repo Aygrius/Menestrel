@@ -1931,7 +1931,10 @@ function FichaInfoView({
   const _pontosMag = (typeof pontosMagiasTotal !== 'undefined' ? pontosMagiasTotal : null) || window.pontosMagiasTotal;
   const _gastoMag  = (typeof gastoMagias !== 'undefined' ? gastoMagias : null) || window.gastoMagias;
   const magTotal = _pontosMag && pj ? _pontosMag(pj.profissao, estagioNum, pj.intelecto_base, pj.aura_base) : null;
-  const magGasto = _gastoMag ? _gastoMag(pjMagias || {}, catalogoMag || []) : null;
+  // A fila de treino já foi paga: conta no gasto, como na janela Estudar e na RPC.
+  const _comFila = (typeof comFila !== 'undefined' ? comFila : null) || window.comFila;
+  const magPagas = _comFila ? _comFila(pjMagias || {}, pj && pj.treinos, 'magia') : (pjMagias || {});
+  const magGasto = _gastoMag ? _gastoMag(magPagas, catalogoMag || []) : null;
 
   const col5 = (
     <div className="fp-col-pad-r">

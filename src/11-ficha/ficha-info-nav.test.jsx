@@ -295,3 +295,19 @@ describe('FichaInfoView — pontos de magia', () => {
     expect(document.querySelector('.fp-col-pontos').textContent).toMatch(/1\s*\/\s*4/);
   });
 });
+
+/* A fila de treino já foi paga (22/10/2026): o gasto da ficha conta o nível
+   em treino, como a janela Estudar e a RPC aprender_magia. */
+describe('FichaInfoView — pontos de magia com a fila', () => {
+  it('Luz 1 sabida + Luz 2 (nível 3) em treino gasta 3', () => {
+    montar({
+      parte: 'conhecimento',
+      pj: { nome: 'Thalia', profissao: 'Mago', intelecto_base: 0, aura_base: 0, magias: { luz: 1 }, caracterizacao: {},
+        treinos: [{ id: 'a', tipo: 'magia', key: 'luz', nivel: 2, atividade: 'estudando', horas_restantes: 24 }] },
+      estagioNum: 3,
+      catalogoMag: [{ key: 'luz', nome: 'Luz', custo: 1 }],
+      pjMagias: { luz: 1 },
+    });
+    expect(document.querySelector('.fp-col-pontos').textContent).toMatch(/3\s*\/\s*24/);
+  });
+});

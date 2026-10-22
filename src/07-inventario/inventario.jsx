@@ -2661,7 +2661,12 @@ function magiasQueOItemEnsina(cat, vinculos, catalogoBySlug, magiasDb) {
   const vistas = new Set();
   const out = [];
   pergaminhos.forEach((p) => {
-    const m = magiaDoItem(p, magiasDb);
+    /* O SLUG manda, como na RPC aprender_magia (pergaminho_<key>): o nome
+       no campo magia pode ficar velho depois de renomear a magia. */
+    const sl = String(p.slug || '');
+    const porSlug = sl.startsWith('pergaminho_') && Array.isArray(magiasDb)
+      ? magiasDb.find((mg) => mg.key === sl.slice('pergaminho_'.length)) : null;
+    const m = porSlug || magiaDoItem(p, magiasDb);
     if (m && !vistas.has(m.key)) { vistas.add(m.key); out.push(m); }
   });
   /* Pergaminho cuja magia sumiu do catálogo: o Aprender continua, numa linha
@@ -2694,7 +2699,15 @@ function ehPergaminhoDeTecnica(cat) {
     && String(cat.slug || '').startsWith('pergaminho_tecnica_'));
 }
 function tecnicaDoItem(cat, tecnicasDb) {
-  if (!cat || !cat.tecnica || !Array.isArray(tecnicasDb)) return null;
+  if (!cat || !Array.isArray(tecnicasDb)) return null;
+  /* O SLUG manda, como na RPC aprender_tecnica: o nome no campo pode ficar
+     velho depois de renomear a técnica. */
+  const slug = String(cat.slug || '');
+  if (slug.startsWith('pergaminho_tecnica_')) {
+    const porSlug = tecnicasDb.find((t) => t.key === slug.slice('pergaminho_tecnica_'.length));
+    if (porSlug) return porSlug;
+  }
+  if (!cat.tecnica) return null;
   const k = chaveDaMagiaPorNome(cat.tecnica);
   return tecnicasDb.find((t) => t.key === k) || tecnicasDb.find((t) => chaveDaMagiaPorNome(t.nome) === k) || null;
 }
@@ -2728,11 +2741,22 @@ function motivoAprenderLabel(motivo, en, dados) {
   const _mil = (typeof window !== 'undefined' && window.motivoMilagreLabel) || null;
   const txtMilagre = _mil && _mil(motivo, en);
   if (txtMilagre) return txtMilagre;
+  /* Técnica (22/10/2026): a janela Estudar também ensina técnica — os
+     textos que falam de magia trocam de palavra (dados.tipo). */
+  const tec = !!(dados && dados.tipo === 'tecnica');
   // Pontos com os números: é o motivo que o jogador mais precisa entender.
   if (motivo === 'pontos_insuficientes' && dados && dados.faltam != null) {
+    const qual = en ? (tec ? 'technique' : 'magic') : (tec ? 'técnica' : 'magia');
     return en
-      ? `Not enough magic points: ${dados.faltam} short (using ${dados.gasto} of ${dados.total}).`
-      : `Pontos de magia insuficientes: faltam ${dados.faltam} (usa ${dados.gasto} de ${dados.total}).`;
+      ? `Not enough ${qual} points: ${dados.faltam} short (using ${dados.gasto} of ${dados.total}).`
+      : `Pontos de ${qual} insuficientes: faltam ${dados.faltam} (usa ${dados.gasto} de ${dados.total}).`;
+  }
+  if (tec) {
+    const mapTec = {
+      item_nao_ensina:      en ? 'This item does not teach this technique.' : 'Este item não ensina essa técnica.',
+      pontos_insuficientes: en ? 'Not enough technique points.'            : 'Pontos de técnica insuficientes.',
+    };
+    if (mapTec[motivo]) return mapTec[motivo];
   }
   const map = {
     nao_e_dono:             en ? 'Only the character’s owner can learn from this item.' : 'Só o dono do personagem pode aprender com este item.',
@@ -2749,7 +2773,9 @@ function motivoAprenderLabel(motivo, en, dados) {
     pj_nao_encontrado:      en ? 'Character not found.'                               : 'Personagem não encontrado.',
     nao_autenticado:        en ? 'You are not signed in.'                             : 'Você não está autenticado.',
   };
-  return map[motivo] || (en ? 'Could not learn the spell.' : 'Não foi possível aprender a magia.');
+  return map[motivo] || (tec
+    ? (en ? 'Could not learn the technique.' : 'Não foi possível aprender a técnica.')
+    : (en ? 'Could not learn the spell.' : 'Não foi possível aprender a magia.'));
 }
 
 /* ── QtdDoCard — a quantidade no canto do card do quadriculado (26/09/2026):
@@ -3760,7 +3786,7 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
   ];
   const sel = linhas.find((l) => l.id === escolhida) || null;
   const motivo = erro || (sel && sel.bloqueio
-    ? motivoAprenderLabel(sel.bloqueio.motivo, en, sel.bloqueio) : null);
+    ? motivoAprenderLabel(sel.bloqueio.motivo, en, { ...sel.bloqueio, tipo: sel.tipo }) : null);
 
   const escolher = (id) => { setEscolhida(id); setErro(null); };
   const confirmar = async () => {
@@ -3769,7 +3795,7 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
     const r = await onAprender({ tipo: sel.tipo, key: sel.m.key });
     if (r && r.ok) { onClose(); return; }
     setEnviando(false);
-    setErro(motivoAprenderLabel(r && r.motivo, en));
+    setErro(motivoAprenderLabel(r && r.motivo, en, { tipo: sel.tipo }));
   };
 
   const rotuloConfirmar = sel && sel.proximo != null

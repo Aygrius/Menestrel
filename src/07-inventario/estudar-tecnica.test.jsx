@@ -66,3 +66,40 @@ describe('janela Estudar com técnica', () => {
     expect(l.querySelector('.estudar-nivel').textContent).toMatch(/→\s*2/);
   });
 });
+
+/* O pergaminho vale pelo SLUG, como nas RPCs (22/10/2026): o campo de nome
+   (itens.magia / itens.tecnica) pode ficar velho depois de renomear a magia
+   ou a técnica — a janela não pode oferecer outra coisa que a RPC recusa. */
+describe('pergaminho achado pelo slug', () => {
+  it('técnica: slug manda, mesmo com nome velho no campo', () => {
+    const velho = { ...PERG_GOLPE, tecnica: 'Nome Antigo' };
+    expect(W.tecnicasQueOItemEnsina(velho, {}, { [velho.slug]: velho }, [GOLPE]).map((t) => t.key)).toEqual(['golpe']);
+  });
+  it('magia: slug manda, mesmo com nome velho no campo', () => {
+    const PRES = { key: 'pressagio_curativo', nome: 'Presságio', custo: 1, nivel_1: 'x' };
+    const OUTRA = { key: 'outra', nome: 'Outra', custo: 1, nivel_1: 'x' };
+    const perg = { slug: 'pergaminho_pressagio_curativo', grupo: 'Consumíveis', magia: 'Outra' };
+    expect(W.magiasQueOItemEnsina(perg, {}, { [perg.slug]: perg }, [PRES, OUTRA]).map((m) => m.key)).toEqual(['pressagio_curativo']);
+  });
+});
+
+/* Os motivos falam de TÉCNICA quando a linha é de técnica (22/10/2026). */
+describe('motivo da técnica', () => {
+  it('pontos insuficientes fala de técnica', () => {
+    const t = W.motivoAprenderLabel('pontos_insuficientes', false, { tipo: 'tecnica', faltam: 2, gasto: 4, total: 6 });
+    expect(t).toMatch(/Pontos de técnica insuficientes/);
+    expect(W.motivoAprenderLabel('pontos_insuficientes', false, { tipo: 'tecnica' })).toMatch(/técnica/);
+    expect(W.motivoAprenderLabel('item_nao_ensina', false, { tipo: 'tecnica' })).toMatch(/técnica/);
+    expect(W.motivoAprenderLabel('erro_qualquer', false, { tipo: 'tecnica' })).toMatch(/técnica/);
+  });
+  it('magia continua igual', () => {
+    expect(W.motivoAprenderLabel('pontos_insuficientes', false)).toBe('Pontos de magia insuficientes.');
+  });
+  it('a janela passa o tipo ao rótulo do bloqueio', () => {
+    const pj = { ...PJ, experiencia: 0, fisico_base: 0, agilidade_base: 0 };
+    const CARA = { key: 'golpe', nome: 'Golpe Duplo', custo: 9 };
+    render(<W.EstudarMagiaModal titulo="M" magias={[]} tecnicas={[CARA]} pj={pj}
+      magiasDb={[]} tecnicasDb={[CARA]} opcoes={OP} lang="pt" onAprender={async () => ({ ok: true })} onClose={() => {}} />);
+    expect(document.querySelector('.estudar-motivo').textContent).toMatch(/Pontos de técnica insuficientes/);
+  });
+});
