@@ -2589,6 +2589,10 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
       /* O descanso vem DEPOIS do desgaste: o máximo de EF/EH/KA depende das
          condições (fome tira karma, por exemplo), e vale o das condições que
          a hora deixou. */
+      // Morto não descansa nem treina: EF no piso da batalha (EF_MORTE, −15)
+      // ou a marca manual de "morto" do Mestre.
+      const morto = Number(est.vitalidade && est.vitalidade.ef) <= -15
+        || (Array.isArray(est.status) && est.status.some((st) => (window.tipoDoStatus || (() => null))(st) === 'morto'));
       let novo = desgastado;
       if (tipoAtividade) {
         const ficha = calcularFicha({ ...pj, estado_atual: est }, null, desgastado.condicoes);
@@ -2597,13 +2601,15 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
           atributos: ficha.atributos,
           maximos: { ef: Number(d.energiaFisica) || 0, eh: Number(d.energiaHeroica) || 0, ka: Number(d.karmamax) || 0 },
           semKarma: semKarma.has(pj.profissao),
-          // Morto não descansa: EF no piso da batalha (EF_MORTE, −15) ou a
-          // marca manual de "morto" do Mestre.
-          morto: Number(est.vitalidade && est.vitalidade.ef) <= -15
-            || (Array.isArray(est.status) && est.status.some((st) => (window.tipoDoStatus || (() => null))(st) === 'morto')),
+          morto,
         });
       }
-      return supabaseClient.from('personagens').update({ estado_atual: novo }).eq('id', pj.id)
+      /* FILA DE TREINO (22/10/2026): as horas na atividade ligada treinam as
+         técnicas e magias compradas; o nível concluído vira usável. Vai no
+         MESMO update — fila e níveis nunca se desencontram. */
+      const treino = (tipoAtividade && !morto && typeof aplicarTreinoNoPj === 'function')
+        ? aplicarTreinoNoPj(pj, tipoAtividade, horas) : null;
+      return supabaseClient.from('personagens').update({ estado_atual: novo, ...(treino || {}) }).eq('id', pj.id)
         .then(({ error: e }) => { if (e) console.error('[desgaste] PJ', pj.id, e); });
     }));
   };
