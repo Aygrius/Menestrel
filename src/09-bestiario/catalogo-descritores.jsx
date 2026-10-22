@@ -423,6 +423,12 @@ const CATALOGO_DESCRITORES = {
       { col: 'maos_pequenino', grupos: ['Armas', 'Armaduras', 'Instrumentos'], tipo: 'numero', rotuloKey: 'campoMaosPequenino', min: 0, max: 2 },
       { col: 'maos_anao', grupos: ['Armas', 'Armaduras', 'Instrumentos'],      tipo: 'numero', rotuloKey: 'campoMaosAnao',      min: 0, max: 2 },
       { col: 'maos_outras', grupos: ['Armas', 'Armaduras', 'Instrumentos'],    tipo: 'numero', rotuloKey: 'campoMaosOutras',    min: 0, max: 2 },
+      /* Livro → pergaminhos (22/10/2026): "Dentro desses livros, estarão
+         vinculadas os itens para aprendizado das magias". Não é coluna de
+         itens: vive em livro_pergaminhos, e o editor grava depois de salvar. */
+      { col: 'pergaminhos_do_livro', tipo: 'vinculo', rotuloKey: 'campoPergaminhosLivro', semColuna: true,
+        grupos: ['Itens'],
+        vinculo: { tabela: 'livro_pergaminhos', dono: 'livro_slug', alvo: 'pergaminho_slug', prefixo: 'pergaminho_' } },
       // A descrição fica POR ÚLTIMO no editor de itens (26/09/2026).
       { col: 'descricao', tipo: 'area', rotuloKey: 'campoDescricao', linhas: 3 },
     ],

@@ -73,10 +73,18 @@ beforeAll(async () => {
       // Leitura genérica (fetchTabelaPaginada): builder encadeável
       // eq/order que termina em .range() — mesmo contrato do PostgREST
       // real, só que devolvendo a fixture inteira numa página só.
-      delete: () => ({ eq: (col, val) => ({ select: async () => {
-        ultimoDelete = { tabela, col, val };
-        return { data: linhasApagadas ? [{ [col]: val }] : [], error: erroSimulado };
-      } }) }),
+      delete: () => ({ eq: (col, val) => ({
+        select: async () => {
+          ultimoDelete = { tabela, col, val };
+          return { data: linhasApagadas ? [{ [col]: val }] : [], error: erroSimulado };
+        },
+        // Delete aguardado direto, sem .select() (vínculos do livro, 22/10/2026).
+        then: (ok, falha) => {
+          ultimoDelete = { tabela, col, val };
+          escritas.push({ op: 'delete', tabela, col, val });
+          return Promise.resolve({ error: null }).then(ok, falha);
+        },
+      }) }),
       select: () => {
         const filtros = {};
         const linhas = () => (tabela === 'itens'
@@ -136,6 +144,49 @@ const marcadosMulti = (col) => opcoesMulti(col).filter((li) => li.getAttribute('
 const clicarMulti = (col, nome) => fireEvent.click(opcoesMulti(col).find((li) => li.textContent.trim() === nome));
 const campoPorRotulo = (re) => Array.from(document.querySelectorAll('label, .motor-field'))
   .find((el) => re.test(el.textContent || ''));
+
+/* Livro → pergaminhos (22/10/2026): "Dentro desses livros, estarão
+   vinculadas os itens para aprendizado das magias". O vínculo mora em
+   livro_pergaminhos; o editor do livro mostra por NOME e grava por SLUG,
+   trocando a lista inteira (delete + insert) depois de salvar a linha. */
+describe('livro: pergaminhos vinculados', () => {
+  const LIVRO = { slug: 'livro_do_mago', nome: 'Livro do Mago', grupo: 'Itens' };
+  const PERGS = [
+    { slug: 'pergaminho_luz', nome: 'Pergaminho Luz', grupo: 'Consumíveis' },
+    { slug: 'pergaminho_bola_de_fogo', nome: 'Pergaminho Bola de Fogo', grupo: 'Consumíveis' },
+  ];
+
+  it('carrega os vínculos, mostra por nome e grava a lista nova ao salvar', async () => {
+    itensArmasFixture = [LIVRO, ...PERGS];
+    listasFixture = { ...listasFixture, livro_pergaminhos: [{ pergaminho_slug: 'pergaminho_luz' }] };
+    montar({ tabela: 'itens', linha: LIVRO });
+    const caixa = await waitFor(() => {
+      const el = document.querySelector('[data-lista="pergaminhos_do_livro"]');
+      expect(el && el.textContent).toMatch(/Pergaminho Luz/);
+      return el;
+    });
+    const busca = caixa.querySelector('input');
+    fireEvent.change(busca, { target: { value: 'Bola' } });
+    fireEvent.click([...caixa.querySelectorAll('li')].find((li) => li.textContent === 'Pergaminho Bola de Fogo'));
+    fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
+    await waitFor(() => expect(escritas.some((e) => e.tabela === 'livro_pergaminhos' && e.op === 'insert')).toBe(true));
+    const del = escritas.find((e) => e.tabela === 'livro_pergaminhos' && e.op === 'delete');
+    expect(del).toMatchObject({ col: 'livro_slug', val: 'livro_do_mago' });
+    const ins = escritas.find((e) => e.tabela === 'livro_pergaminhos' && e.op === 'insert');
+    expect(ins.payload).toEqual([
+      { livro_slug: 'livro_do_mago', pergaminho_slug: 'pergaminho_luz' },
+      { livro_slug: 'livro_do_mago', pergaminho_slug: 'pergaminho_bola_de_fogo' },
+    ]);
+    // A coluna inventada nunca vai para a tabela itens.
+    const upd = escritas.find((e) => e.tabela === 'itens' && e.op === 'update');
+    expect('pergaminhos_do_livro' in upd.payload).toBe(false);
+  });
+
+  it('item que não é do grupo Itens não mostra o campo', () => {
+    montar({ tabela: 'itens', linha: { slug: 'adaga', nome: 'Adaga', grupo: 'Armas' } });
+    expect(document.querySelector('[data-lista="pergaminhos_do_livro"]')).toBeNull();
+  });
+});
 
 describe('montagem a partir do descritor', () => {
   it('renderiza um campo por entrada do descritor', () => {

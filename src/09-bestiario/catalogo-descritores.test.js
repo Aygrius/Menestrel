@@ -46,7 +46,9 @@ const CHAVE = { criaturas: null, magias: 'key', tecnicas: 'key', habilidades: 'k
 // `equipamento` (14/09/2026): armas e armaduras da criatura.
 // `referencia` (14/09/2026): uma linha de outra tabela, pelo id (itens.criatura_id).
 // 'multiopcoes' (25/09/2026): várias escolhas de uma lista fechada — o elemento da criatura.
-const TIPOS = ['texto', 'area', 'numero', 'opcoes', 'multiopcoes', 'derivado', 'lista', 'equipamento', 'referencia'];
+const TIPOS = ['texto', 'area', 'numero', 'opcoes', 'multiopcoes', 'derivado', 'lista', 'equipamento', 'referencia',
+  // vinculo (22/10/2026): lista guardada noutra tabela (livro_pergaminhos).
+  'vinculo'];
 // 'itens': os itens do ritual da magia escolhem do catálogo de itens (26/09/2026).
 const FONTES_LISTA = ['tecnicas', 'habilidades', 'magias', 'itens'];
 

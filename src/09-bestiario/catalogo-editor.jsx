@@ -364,6 +364,20 @@ function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t
     return <CatalogoLista campo={campo} label={label} valor={valor} onChange={onChange}
       disabled={disabled} nomes={nomes} t={t} />;
   }
+  /* Vínculo (22/10/2026): a mesma pílula da `lista`, por NOME na tela e por
+     SLUG no valor — os candidatos chegam em `refs.candidatos`. */
+  if (campo.tipo === 'vinculo') {
+    const cands = (refs && refs.candidatos) || [];
+    const porSlug = Object.fromEntries(cands.map((r) => [r.slug, r.nome]));
+    const porNome = Object.fromEntries(cands.map((r) => [r.nome, r.slug]));
+    const slugs = Array.isArray(valor) ? valor : [];
+    return (
+      <CatalogoLista campo={campo} label={label} disabled={disabled} t={t}
+        nomes={cands.map((r) => r.nome)}
+        valor={slugs.map((s) => porSlug[s] || s).join(', ')}
+        onChange={(texto) => onChange(listaSeparar(texto).map((n) => porNome[n] || n))} />
+    );
+  }
   /* Referência (14/09/2026): UMA linha de outra tabela, gravada pelo id —
      itens.criatura_id aponta o animal para a criatura do bestiário. `refs` é
      [{ id, nome }] da tabela `fonte`. Vazio = sem vínculo (null no banco). */
@@ -597,7 +611,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
 
   const camposVazios = React.useMemo(() => {
     const base = {};
-    (descritor ? descritor.campos : []).forEach((c) => { base[c.col] = c.tipo === 'equipamento' ? [] : ''; });
+    (descritor ? descritor.campos : []).forEach((c) => { base[c.col] = (c.tipo === 'equipamento' || c.tipo === 'vinculo') ? [] : ''; });
     return base;
   }, [descritor]);
 
@@ -679,6 +693,34 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
     });
     return () => { cancelado = true; };
   }, [descritor]);
+
+  /* Campos `vinculo` (livro_pergaminhos, 22/10/2026): a lista mora noutra
+     tabela. Carrega os candidatos (slug ↔ nome, pelo prefixo do slug) e,
+     editando, os slugs já vinculados a esta linha. */
+  const camposVinculo = descritor ? descritor.campos.filter((c) => c.tipo === 'vinculo') : [];
+  const [candidatosVinculo, setCandidatosVinculo] = React.useState({}); // col → [{ slug, nome }]
+  React.useEffect(() => {
+    if (!descritor) return undefined;
+    const campos = descritor.campos.filter((c) => c.tipo === 'vinculo');
+    if (!campos.length) return undefined;
+    let cancelado = false;
+    campos.forEach((c) => {
+      fetchTabelaPaginada(descritor.tabela, { colunas: 'slug, nome', ordem: ['nome'] }).then(({ data }) => {
+        if (cancelado) return;
+        const lista = (data || []).filter((r) => String(r.slug || '').startsWith(c.vinculo.prefixo));
+        setCandidatosVinculo((m) => ({ ...m, [c.col]: lista }));
+      });
+      const dono = linha && linha[descritor.chave];
+      if (dono) {
+        Promise.resolve(supabaseClient.from(c.vinculo.tabela).select(c.vinculo.alvo).eq(c.vinculo.dono, dono))
+          .then(({ data }) => {
+            if (cancelado) return;
+            setForm((f) => ({ ...f, [c.col]: (data || []).map((r) => r[c.vinculo.alvo]) }));
+          });
+      }
+    });
+    return () => { cancelado = true; };
+  }, [descritor, linha]);
 
   const onChangeCampo = (campo, valor) => {
     setForm((f) => ({ ...f, [campo.col]: valor }));
@@ -793,6 +835,19 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
       : supabaseClient.from(descritor.tabela).insert(payload).select().single();
     const { data, error: err } = await query;
     if (err) { setSaving(false); setError(err.message); return; }
+    // Vínculos: troca a lista inteira do dono (delete + insert).
+    for (const c of camposVinculo) {
+      const dono = data && data[descritor.chave];
+      const escolhidos = Array.isArray(form[c.col]) ? form[c.col] : [];
+      if (!dono) continue;
+      const { error: errDel } = await supabaseClient.from(c.vinculo.tabela).delete().eq(c.vinculo.dono, dono);
+      if (errDel) { setSaving(false); setError(errDel.message); return; }
+      if (escolhidos.length) {
+        const { error: errIns } = await supabaseClient.from(c.vinculo.tabela)
+          .insert(escolhidos.map((s) => ({ [c.vinculo.dono]: dono, [c.vinculo.alvo]: s })));
+        if (errIns) { setSaving(false); setError(errIns.message); return; }
+      }
+    }
     if (descritor.tabela === 'criaturas' && data) {
       const erroAnimal = await sincronizarAnimalDaCriatura(data);
       if (erroAnimal) {
@@ -893,7 +948,8 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
             onChange={(v) => onChangeCampo(campo, v)}
             disabled={!!(campo.somenteNovo && linha)}
             nomes={campo.fonte && (campo.tipo === 'lista' || campo.tipo === 'opcoes') ? nomesPorFonte[campo.fonte] : undefined}
-            refs={campo.tipo === 'referencia' ? refsPorFonte[campo.fonte] : undefined}
+            refs={campo.tipo === 'referencia' ? refsPorFonte[campo.fonte]
+              : campo.tipo === 'vinculo' ? { candidatos: candidatosVinculo[campo.col] || [] } : undefined}
             equip={campo.tipo === 'equipamento' ? { catalogo: equipCatalogo, porSlug: equipPorSlug } : undefined}
             t={t}
           />
