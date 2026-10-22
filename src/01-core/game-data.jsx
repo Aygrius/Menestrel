@@ -880,9 +880,51 @@ function motivoMilagreLabel(motivo, en) {
 /* Por que este PJ não pode aprender o PRÓXIMO nível desta magia agora?
    Mesmos motivos e mesma ordem da RPC aprender_magia — a tela antecipa a
    recusa para o botão já nascer desativado com o porquê. null = pode. */
+/* ── FILA DE TREINO (22/10/2026) ───────────────────────────────────────
+   O que se compra no Estudar entra em personagens.treinos e só vira usável
+   depois do tempo de jogo na atividade certa (avancarTreinos, clima-
+   desgaste.jsx). Já está PAGO: o gasto e o próximo nível contam a fila. */
+const ATIVIDADE_DA_CLASSE = { 'Feitiço': 'estudando', 'Milagre': 'orando', 'Transmutação': 'meditando', 'Encanto': 'praticando' };
+const HORAS_TREINO = { tecnica: 72, magia: 24 };
+
+// Maior nível desta técnica/magia na fila (0 se não houver).
+function nivelNaFila(treinos, tipo, key) {
+  return (Array.isArray(treinos) ? treinos : [])
+    .filter((t) => t && t.tipo === tipo && t.key === key)
+    .reduce((m, t) => Math.max(m, Number(t.nivel) || 0), 0);
+}
+
+// O objeto de níveis com a fila somada: cada key fica com o maior.
+function comFila(obj, treinos, tipo) {
+  const out = { ...(obj || {}) };
+  (Array.isArray(treinos) ? treinos : []).forEach((t) => {
+    if (!t || t.tipo !== tipo) return;
+    out[t.key] = Math.max(Number(out[t.key]) || 0, Number(t.nivel) || 0);
+  });
+  return out;
+}
+
+/* Por que este PJ não pode comprar o PRÓXIMO nível desta técnica? Mesmos
+   motivos e ordem da RPC aprender_tecnica. null = pode. */
+function bloqueioAprenderTecnica(tecnica, pj, tecnicasDb) {
+  if (!tecnica) return { motivo: 'tecnica_nao_encontrada' };
+  const niveis = comFila(pj && pj.tecnicas, pj && pj.treinos, 'tecnica');
+  const alvo = (Number(niveis[tecnica.key]) || 0) + 1;
+  const estagio = calcEstagio((pj && pj.experiencia) || 0);
+  if (alvo > estagio) return { motivo: 'acima_do_estagio' };
+  const lista = Array.isArray(tecnicasDb) && tecnicasDb.some((t) => t.key === tecnica.key)
+    ? tecnicasDb : [...(tecnicasDb || []), tecnica];
+  const total = pontosTecnicasTotal(pj && pj.profissao, estagio, pj && pj.fisico_base, pj && pj.agilidade_base);
+  const gasto = gastoTecnicas(niveis, lista);
+  const gastoNovo = gastoTecnicas({ ...niveis, [tecnica.key]: alvo }, lista);
+  if (gastoNovo > total) return { motivo: 'pontos_insuficientes', faltam: gastoNovo - total, gasto, total };
+  return null;
+}
+
 function bloqueioAprenderMagia(magia, pj, magiasDb) {
   if (!magia) return { motivo: 'magia_nao_encontrada' };
-  const magias = (pj && pj.magias) || {};
+  // A fila conta como aprendido (já foi pago), para o próximo passo e o gasto.
+  const magias = comFila(pj && pj.magias, pj && pj.treinos, 'magia');
   const passos = Number(magias[magia.key]) || 0;
   if (passos >= 5) return { motivo: 'ja_no_maximo' };
   // Milagre (22/10/2026): bloqueio PERMANENTE impede aprender.
@@ -904,20 +946,24 @@ function bloqueioAprenderMagia(magia, pj, magiasDb) {
 }
 
 /* ============================== [12] Helpers de TÉCNICAS DE COMBATE ============================== */
-// Diferente de magias, TODAS as profissões podem comprar técnicas.
-const TECNICAS_POR_PROFISSAO = {
-  'Guerreiro':  { pontosPorEstagio: 7 },
-  'Ladino':     {  pontosPorEstagio: 5 },
-  'Sacerdote':  {  pontosPorEstagio: 6 },
-  'Mago':       {  pontosPorEstagio: 2 },
-  'Rastreador': {  pontosPorEstagio: 6 },
-  'Bardo':      {  pontosPorEstagio: 4 },
+/* Pontos de técnica (reforma de 22/10/2026): base por profissão + Físico +
+   Agilidade, por estágio — atributo negativo conta 0, sem regra de base
+   zero. Bases mais baixas que a tabela antiga (7/5/6/2/6/4) porque agora os
+   atributos somam: com elas o orçamento fica perto do de antes e premia quem
+   investiu no corpo (decisão do usuário). Espelho SQL:
+   _menestrel_pontos_tecnica_por_estagio. Técnica se aprende pelo item
+   (aprender_tecnica) e entra na fila de treino. */
+const TECNICAS_BASE_POR_PROFISSAO = {
+  'Guerreiro': 4, 'Ladino': 2, 'Rastreador': 3, 'Sacerdote': 3, 'Bardo': 2, 'Mago': 1,
 };
 
-function pontosTecnicasTotal(profissao, estagio) {
-  const cfg = TECNICAS_POR_PROFISSAO[profissao];
-  if (!cfg) return 0;
-  return cfg.pontosPorEstagio * estagio;
+function pontosTecnicasPorEstagio(profissao, fisico, agilidade) {
+  return (TECNICAS_BASE_POR_PROFISSAO[profissao] || 0)
+    + Math.max(0, Number(fisico) || 0) + Math.max(0, Number(agilidade) || 0);
+}
+
+function pontosTecnicasTotal(profissao, estagio, fisico, agilidade) {
+  return pontosTecnicasPorEstagio(profissao, fisico, agilidade) * (Number(estagio) || 0);
 }
 
 function gastoTecnicas(tecnicasObj, tecnicasDb) {
@@ -1421,7 +1467,8 @@ Object.assign(window, {
   nivelMagiaEfetivo, bloqueioAprenderMagia,
   CLASSES_MAGIA, atorMilagreDePj, atorMilagreDeCriatura, bloqueioMilagre, alvoDeMilagreBloqueado, motivoMilagreLabel,
   NIVEIS_MAGIA, passosDisponiveisMagia,
-  TECNICAS_POR_PROFISSAO, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
+  TECNICAS_BASE_POR_PROFISSAO, pontosTecnicasPorEstagio, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
+  ATIVIDADE_DA_CLASSE, HORAS_TREINO, nivelNaFila, comFila, bloqueioAprenderTecnica,
   totalTecnica, podeAcessarTecnica,
   GRUPOS_ARMAS, GRUPOS_ARMAS_BY_SIGLA, GRUPOS_ARMAS_POR_PROFISSAO,
   pontosGruposArmasTotal, gastoGruposArmas, qtdGruposArmas, bonusGrupoArma,

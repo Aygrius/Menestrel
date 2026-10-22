@@ -269,6 +269,8 @@ const ATIVIDADES = [
   { id: 'orando',    pt: 'Orando',    en: 'Praying',    icon: 'ti-pray' },
   { id: 'estudando', pt: 'Estudando', en: 'Studying',   icon: 'ti-book' },
   { id: 'treinando', pt: 'Treinando', en: 'Training',   icon: 'ti-barbell' },
+  // Praticando (22/10/2026): é onde os ENCANTOS treinam (fila de treino).
+  { id: 'praticando', pt: 'Praticando', en: 'Practicing', icon: 'ti-music' },
 ];
 
 const HORAS_CICLO_SONO = 8;
@@ -282,6 +284,8 @@ const ATIVIDADE_EFEITO = {
   orando:    { hora: [{ cond: 'sanidade', base: 5 }] },
   estudando: { hora: [{ cond: 'reputacao', base: 5 }] },
   treinando: { hora: [{ cond: 'reputacao', base: 5 }] },
+  // "recupera igual estudando e treinando" (usuário, 22/10/2026).
+  praticando: { hora: [{ cond: 'reputacao', base: 5 }] },
 };
 
 /* O estado depois de `horas` horas na atividade gravada em est.atividade.
@@ -337,6 +341,48 @@ function recuperacaoPorAtividade(estado, horas, ctx) {
   return out;
 }
 
+/* ── FILA DE TREINO (22/10/2026) ─────────────────────────────────────────
+   "a técnica vai aparecer no menu treinando, e só vai efetivamente ficar
+   disponível para uso após [o] treinamento" (usuário). Técnica: 72 h de
+   Treinando por nível; magia: 24 h da atividade da classe. As horas que o
+   Mestre avança vão para o PRIMEIRO item da fila com a atividade ligada; a
+   sobra passa ao seguinte da mesma atividade. Outras atividades não andam. */
+function avancarTreinos(treinos, atividade, horas) {
+  const lista = Array.isArray(treinos) ? treinos.map((t) => ({ ...t })) : [];
+  let resto = Math.max(0, Number(horas) || 0);
+  const concluidos = [];
+  if (!atividade || resto <= 0) return { treinos: lista, concluidos };
+  for (const t of lista) {
+    if (resto <= 0) break;
+    if (!t || t.atividade !== atividade) continue;
+    const falta = Math.max(0, Number(t.horas_restantes) || 0);
+    const usa = Math.min(falta, resto);
+    t.horas_restantes = falta - usa;
+    resto -= usa;
+    if (t.horas_restantes <= 0) concluidos.push(t);
+  }
+  return { treinos: lista.filter((t) => !concluidos.includes(t)), concluidos };
+}
+
+/* O que muda no personagem quando o relógio anda `horas` com `atividade`
+   ligada: a fila nova e os níveis concluídos gravados em tecnicas/magias
+   (nunca rebaixa). null = nada mudou (quem chama não grava à toa). */
+function aplicarTreinoNoPj(pj, atividade, horas) {
+  const atual = Array.isArray(pj && pj.treinos) ? pj.treinos : [];
+  if (!atual.length) return null;
+  const { treinos, concluidos } = avancarTreinos(atual, atividade, horas);
+  const mudou = concluidos.length > 0
+    || treinos.some((t, i) => t.horas_restantes !== (atual.find((a) => a.id === t.id) || atual[i] || {}).horas_restantes);
+  if (!mudou) return null;
+  const tecnicas = { ...((pj && pj.tecnicas) || {}) };
+  const magias = { ...((pj && pj.magias) || {}) };
+  concluidos.forEach((c) => {
+    const alvo = c.tipo === 'tecnica' ? tecnicas : magias;
+    alvo[c.key] = Math.max(Number(alvo[c.key]) || 0, Number(c.nivel) || 0);
+  });
+  return { treinos, tecnicas, magias };
+}
+
 /* A linha do log da mesa quando a atividade muda: "Eco começou a dormir.",
    "Eco parou de meditar.", ou as duas coisas numa troca direta. */
 const ATIVIDADE_VERBO = {
@@ -345,6 +391,7 @@ const ATIVIDADE_VERBO = {
   orando:    { pt: 'orar',    en: 'praying' },
   estudando: { pt: 'estudar', en: 'studying' },
   treinando: { pt: 'treinar', en: 'training' },
+  praticando: { pt: 'praticar', en: 'practicing' },
 };
 function textoEventoAtividade(nome, de, para, en) {
   const quem = nome || (en ? 'The character' : 'O personagem');
@@ -359,6 +406,7 @@ function textoEventoAtividade(nome, de, para, en) {
 
 Object.assign(window, {
   ATIVIDADES, ATIVIDADE_EFEITO, recuperacaoPorAtividade, textoEventoAtividade,
+  avancarTreinos, aplicarTreinoNoPj,
   noiteDeSono, decaimentoPorHoras, horasEntre, proximoInstante,
   tiqueDeClima, penalidadeVentoVB, aguaPorHoraDeChuva, somarAguaNaLoja,
   TEMPERATURA_EFEITO, VENTO_VB, CHUVA_AGUA,

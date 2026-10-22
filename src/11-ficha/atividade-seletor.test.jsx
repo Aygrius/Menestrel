@@ -23,11 +23,11 @@ const botao = () => document.querySelector('.fp-atividade-wrap .fp-status-seleto
 const opcoes = () => Array.from(document.querySelectorAll('.fp-atividade-wrap .fp-status-opcao'));
 
 describe('FichaAtividadeSeletor', () => {
-  it('abre as cinco atividades e devolve a escolhida', () => {
+  it('abre as seis atividades (Praticando desde 22/10/2026) e devolve a escolhida', () => {
     const escolhas = [];
     render(<Seletor atividade={null} podeEditar lang="pt" onEscolher={(t) => escolhas.push(t)} />);
     act(() => { botao().click(); });
-    expect(opcoes().map((li) => li.textContent)).toEqual(['Dormindo', 'Meditando', 'Orando', 'Estudando', 'Treinando']);
+    expect(opcoes().map((li) => li.textContent)).toEqual(['Dormindo', 'Meditando', 'Orando', 'Estudando', 'Treinando', 'Praticando']);
     act(() => { opcoes()[0].click(); });
     expect(escolhas).toEqual(['dormindo']);
   });
