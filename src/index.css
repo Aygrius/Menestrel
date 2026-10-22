@@ -1985,6 +1985,18 @@
 #root .menestrel-ui .best-table-wrap tbody tr.on { background: rgba(201,164,78,0.12); }
 #root .menestrel-ui .best-name { color: #F1E6CF !important; font-weight: 400; cursor: pointer; }
 #root .menestrel-ui .best-cost { color: var(--gold); font-weight:700; white-space:nowrap; }
+/* Magias: Evocação, Alcance e Duração (22/10/2026). Números alinhados; no
+   celular as três colunas quebram linha em vez de empurrar a tabela para
+   fora do cartão (o wrap corta o que passa). */
+#root .menestrel-ui .best-magias .best-magia-dado { font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) {
+  #root .menestrel-ui .best-magias .best-table-wrap thead th:not(:first-child),
+  #root .menestrel-ui .best-magias .best-table-wrap tbody td.best-magia-dado {
+    white-space: normal; width: auto; padding: 8px 6px !important; font-size: var(--fs-xs);
+  }
+  #root .menestrel-ui .best-magias .best-table-wrap thead th:first-child,
+  #root .menestrel-ui .best-magias .best-table-wrap tbody td:first-child { min-width: 0; }
+}
 /* VALOR (preço via CofreMoedas): os pills ficam numa linha só — a coluna .best-auto
    (width:1px) auto-expande pra caber, em vez de quebrar pra baixo */
 #root .menestrel-ui .best-table-wrap .moeda-pills { flex-wrap:nowrap; }

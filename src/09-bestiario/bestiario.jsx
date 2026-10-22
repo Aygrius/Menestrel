@@ -697,7 +697,7 @@ function useSort(data) {
       const vb = b[sortKey] ?? '';
       const cmp = typeof va === 'number' && typeof vb === 'number'
         ? va - vb
-        : String(va).localeCompare(String(vb), 'pt-BR', { sensitivity: 'base' });
+        : String(va).localeCompare(String(vb), 'pt-BR', { sensitivity: 'base', numeric: true });
       return sortDir === 'asc' ? cmp : -cmp;
     });
   }, [data, sortKey, sortDir]);
@@ -2125,7 +2125,7 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
 
   return (
     <div className="fp-page">
-    <div className="fp-card best best-auto">
+    <div className="fp-card best best-auto best-magias">
       <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Spells' : 'Magias')}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search' : 'Buscar'}
@@ -2144,6 +2144,10 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
             <Table>
               <TableHeader><TableRow>
                 <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
+                {/* Evocação, Alcance e Duração (22/10/2026): pedido do usuário. */}
+                <SortHead col='evocacao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Casting' : 'Evocação'}</SortHead>
+                <SortHead col='alcance' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Range' : 'Alcance'}</SortHead>
+                <SortHead col='duracao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Duration' : 'Duração'}</SortHead>
               </TableRow></TableHeader>
               <TableBody>
                 {pageSlice.map((m) => {
@@ -2152,6 +2156,9 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
                     <React.Fragment key={m.id}>
                       <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : m.key)}>
                         <TableCell className="best-name"><IconeDoNome icone={ICONE_TIPO_MAGIA[m.tipo] || 'ti-sparkles'} />{m.nome}</TableCell>
+                        <TableCell className="best-magia-dado">{m.evocacao || '—'}</TableCell>
+                        <TableCell className="best-magia-dado">{abreviarAlcance(m.alcance) || '—'}</TableCell>
+                        <TableCell className="best-magia-dado">{m.duracao || '—'}</TableCell>
                       </TableRow>
                       {isOpen && (() => {
                         // Modo jogador: só os níveis que ele COMPROU (spec §3 "só os níveis
