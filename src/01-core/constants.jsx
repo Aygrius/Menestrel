@@ -131,6 +131,7 @@ const ADMIN_COPY = {
     campoTipoArmadura: 'Tipo de Armadura',
     campoAtaque: 'Ataque',
     campoMagia: 'Magia',
+    campoTecnica: 'Técnica',
     campoMagiaN: 'Nível das Magias',
     // Seletor de lista do editor (técnicas/habilidades/magias da criatura).
     listaBuscar: 'Buscar',
@@ -293,6 +294,7 @@ const ADMIN_COPY = {
     campoTipoArmadura: 'Armor Type',
     campoAtaque: 'Attack',
     campoMagia: 'Magic',
+    campoTecnica: 'Technique',
     campoMagiaN: 'Spell Level',
     listaBuscar: 'Search',
     listaRemover: 'Remove',

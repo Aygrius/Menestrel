@@ -395,6 +395,10 @@ const CATALOGO_DESCRITORES = {
          editor abre e entra depois do "nenhuma" daqui. */
       { col: 'magia',  tipo: 'opcoes', rotuloKey: 'campoMagia', fonte: 'magias',
         opcoes: [{ value: '', label: '—' }] },
+      /* Técnica que o pergaminho ensina (22/10/2026): mesmo molde do campo
+         Magia — o banco guarda o NOME; só os Consumíveis (pergaminhos). */
+      { col: 'tecnica', tipo: 'opcoes', rotuloKey: 'campoTecnica', fonte: 'tecnicas',
+        grupos: ['Consumíveis'], opcoes: [{ value: '', label: '—' }] },
       // Mesmo AJUSTE_KEY de 01-core/inventario-helpers.jsx (FIS desde 14/09/2026,
       // com as armas naturais). Sigla no banco, nome na tela.
       { col: 'ajuste_atributo', grupos: ['Armas'], tipo: 'opcoes', rotuloKey: 'campoAjusteAtributo',

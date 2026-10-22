@@ -8,6 +8,7 @@
    As listas de coluna abaixo são cópias do schema em 10/09/2026.
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
+import '../01-core/constants.jsx';
 import '../01-core/game-data.jsx';
 import './catalogo-descritores.jsx';
 
@@ -26,7 +27,9 @@ const COLUNAS = {
     'itens_necessarios'],
   tecnicas: ['key','nome','custo','permissao','uso','grupo_armas','grupo_armaduras','descricao','efeito','ajuste'],
   habilidades: ['key','nome','grupo','ajuste','custo','nivel_inicial','vantagem','desvantagem','restricao','descricao'],
-  itens: ['slug','nome','grupo','ocupa','armazena','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia','descricao','magico','categoria_equip','slot_equip','grupo_equipamento','maos_pequenino','maos_anao','maos_outras','forca_req','dano','alcance','ajuste_atributo','defesa','absorcao','tipo_armadura','dano_l','dano_m','dano_p','grupo_armas','origem','resistencia','icone','consumiveis','consumiveis_peso','doc_url','criatura_id'],
+  itens: ['slug','nome','grupo','ocupa','armazena','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia',
+    // Técnica que o pergaminho ensina (22/10/2026).
+    'tecnica','descricao','magico','categoria_equip','slot_equip','grupo_equipamento','maos_pequenino','maos_anao','maos_outras','forca_req','dano','alcance','ajuste_atributo','defesa','absorcao','tipo_armadura','dano_l','dano_m','dano_p','grupo_armas','origem','resistencia','icone','consumiveis','consumiveis_peso','doc_url','criatura_id'],
 };
 
 // NOT NULL sem default — o descritor tem que marcar obrigatorio.
@@ -378,5 +381,16 @@ describe('habilidades: vantagem e desvantagem por Raça e Reino', () => {
       expect(c.opcoes).toContain('Porto Livre');
       expect(c.opcoes.length).toBe(Object.keys(window.GAME_DATA.racas).length + window.GAME_DATA.reinos.length);
     });
+  });
+});
+
+describe('itens: Técnica do pergaminho (22/10/2026)', () => {
+  it('dropdown com as técnicas, só nos Consumíveis', () => {
+    const c = descritorDe('itens').campos.find((x) => x.col === 'tecnica');
+    expect(c, 'campo tecnica').toBeTruthy();
+    expect(c.tipo).toBe('opcoes');
+    expect(c.fonte).toBe('tecnicas');
+    expect(c.grupos).toEqual(['Consumíveis']);
+    expect(window.ADMIN_COPY.pt.campoTecnica).toBe('Técnica');
   });
 });
