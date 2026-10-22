@@ -473,7 +473,7 @@ function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
         aria-haspopup="listbox"
         aria-expanded={aberta}
         aria-label={en ? 'Apply status' : 'Aplicar status'}
-        {...(aberta ? {} : propsTip(abrirTip, fecharTip, en ? 'Apply status (poisoned, stunned…)' : 'Aplicar status (envenenado, atordoado…)'))}
+        {...(aberta ? {} : propsTip(abrirTip, fecharTip, en ? 'Status' : 'Status'))}
       >
         <i className="ti ti-bolt" aria-hidden="true" />
       </button>
@@ -564,12 +564,14 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher }) {
         data-atividade={atual ? atual.id : ''}
         {...(aberta ? {} : propsTip(abrirTip, fecharTip, atual
           ? { title: nomeDe(atual), desc: en ? 'Current activity' : 'Atividade atual' }
-          : (en ? 'Choose activity (sleeping, meditating…)' : 'Escolher atividade (dormindo, meditando…)')))}
+          : (en ? 'Activity' : 'Atividade')))}
       >
         <i className={'ti ' + (atual ? atual.icon : 'ti-moon')} aria-hidden="true" />
       </button>
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-      {atual && <span className="fp-atividade-nome">{nomeDe(atual)}</span>}
+      {/* Treinando sem o nome ao lado (22/10/2026): "Ao clicar em treinando,
+          não adicione o texto na barra de menus." O ícone e a dica bastam. */}
+      {atual && atual.id !== 'treinando' && <span className="fp-atividade-nome">{nomeDe(atual)}</span>}
       {aberta && (
         <ul className="fp-status-opcoes" role="listbox" aria-label={en ? 'Activity' : 'Atividade'}>
           {LISTA.map((a) => (
@@ -4378,7 +4380,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           data-aba-ficha="inventario" aria-label={en ? 'Inventory' : 'Inventário'}
           {...propsTip(abrirTabTip, fecharTabTip, en ? 'Inventory' : 'Inventário')}
           onClick={() => setFpTab('inventario')}>
-          <i className="ti ti-moneybag" aria-hidden="true" />
+          <i className="ti ti-briefcase-2" aria-hidden="true" />
         </button>
         <button type="button" className={'fp-tab-ic ' + (fpTab === 'loja' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'loja'}
           data-aba-ficha="loja" aria-label={en ? 'Shop' : 'Loja'}

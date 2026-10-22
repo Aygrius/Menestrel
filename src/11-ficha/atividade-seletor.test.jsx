@@ -55,3 +55,14 @@ describe('FichaAtividadeSeletor', () => {
     expect(botao()).toBeNull();
   });
 });
+
+/* "Ao clicar em treinando, não adicione o texto na barra de menus."
+   (usuário, 22/10/2026) — o círculo mostra o ícone; o nome ao lado sai só
+   para Treinando. */
+describe('Treinando sem o texto ao lado', () => {
+  it('ligado, não escreve o nome na barra', () => {
+    render(<Seletor atividade={{ tipo: 'treinando' }} podeEditar lang="pt" onEscolher={() => {}} />);
+    expect(document.querySelector('.fp-atividade-nome')).toBeNull();
+    expect(botao().getAttribute('data-atividade')).toBe('treinando');
+  });
+});
