@@ -994,6 +994,22 @@ function magiasDaCriaturaCrua(cri, magiasByKey) {
   return achadas.map((m) => ({ key: m.key, magia: m, nivel, passos: null, custo_karma: 0 }));
 }
 
+/* Milagre (22/10/2026): quem não pode usar continua VENDO a magia, desativada
+   com o motivo — Mago que aprendeu Curas antes da regra não fica sem saber
+   por que ela sumiu. Regra em 01-core/game-data.jsx (bloqueioMilagre). */
+function bloqueioMilagreDoAtor(ator, catalogos, magia) {
+  if (!ator || !magia || magia.classe !== 'Milagre' || typeof bloqueioMilagre !== 'function') return null;
+  if (ator.tipo === 'pj') {
+    const pj = catalogos.pjById && catalogos.pjById[ator.ref_id];
+    return pj ? bloqueioMilagre(atorMilagreDePj(pj, catalogos.dataJogo)) : null;
+  }
+  if (ator.tipo === 'criatura') {
+    const cri = catalogos.criById && catalogos.criById[ator.ref_id];
+    return cri ? bloqueioMilagre(atorMilagreDeCriatura(cri)) : null;
+  }
+  return null;
+}
+
 /* ── Magias ofensivas conhecidas pelo combatente ───────────────────
    Filtra as que entregam dano > 0 no nível efetivo. Vale para PJ e criatura
    desde 12/09/2026 — ver magiasConhecidasDoAtor. */
@@ -1019,6 +1035,7 @@ function magiasOfensivasDoAtor(ator, catalogos) {
       evocacao_bloqueada: evocacaoEmRodadas(m).bloqueada,
       alcance: m.alcance || null,
       max_alvos: tetoDeAlvosMagia(key),
+      bloqueio_milagre: bloqueioMilagreDoAtor(ator, catalogos, m),
       catalogo: m,
       // De onde a magia veio: null = o PJ a aprendeu; objeto = um item a
       // concede (ver magiasDeItensDoAtor). O painel mostra, e o pergaminho
@@ -1091,6 +1108,7 @@ function magiasDeApoioDoAtor(ator, catalogos) {
       // O objeto do catálogo viaja INTEIRO: aplicarEfeitoMagia lê o texto do
       // nível dele, não de campos pré-mastigados aqui.
       catalogo: m,
+      bloqueio_milagre: bloqueioMilagreDoAtor(ator, catalogos, m),
       item: item || null,
       niveis: niveisDisponiveis(m, nivel),
     });
@@ -1716,6 +1734,8 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         tipo: 'pj', ref_id: p.ref_id, nome: p.nome,
         // O elemento do PJ é o da profissão (26/09/2026) — ver danoFinal.
         elemento: (typeof elementoDaProfissao === 'function' ? elementoDaProfissao(pj.profissao) : null),
+        // Religião (22/10/2026): PJ sem deus não recebe milagre (alvoPermitidoParaMagia).
+        deus: pj.deus || null,
         inst_id: p.inst_id,   // garantido por partsComInstId acima
         // TABULEIRO: posição herdada do participante (quem já estava colocado
         // não volta pra bancada ao remontar), movimento cheio da rodada, e
@@ -1791,6 +1811,8 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
       mov_rest: movimentoBase(c.velocidade || 0),
       foto_url: null,
       raca: c.tipo || null,
+      // Subtipo (22/10/2026): Vampiro e Lobisomem não recebem milagre.
+      subtipo: c.subtipo || null,
       /* estagio entrou na Fase 2 das magias (12/09/2026): Esconjuração diz
          "Afeta criaturas de até estágio N", então a regra precisa do número.
          Já era lido aqui para derivar as resistências — só não era guardado.
@@ -5479,6 +5501,14 @@ function aplicarDrenoEh(conjurador, danoNaEf) {
    Molde de tecnicaPermitida: devolve { pode, motivo } pra UI pôr o motivo no
    tooltip em vez de só desabilitar sem explicação. */
 function alvoPermitidoParaMagia(alvoP, magiaKey, magia, nivel) {
+  // Milagre (22/10/2026): vampiro, lobisomem e PJ sem religião não recebem.
+  if (magia && magia.classe === 'Milagre' && alvoP && typeof alvoDeMilagreBloqueado === 'function') {
+    const atorAlvo = alvoP.tipo === 'criatura'
+      ? { tipo: 'criatura', subtipo: alvoP.subtipo || null }
+      : { tipo: 'pj', deus: alvoP.deus, subraca: alvoP.subraca || null };
+    const b = alvoDeMilagreBloqueado(atorAlvo);
+    if (b) return { pode: false, motivo: b.motivo };
+  }
   const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magiaKey) : null;
   if (!reg) return { pode: true, motivo: null };
 
@@ -9331,12 +9361,16 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
      ('m:3' ataque, 'a:1' efeito) porque os dois índices se repetem. */
   // Sem "· nível N" no nome desde 14/09/2026: o nível mora na barra
   // (NivelMagiaBarra), logo abaixo do seletor.
+  // Milagre bloqueado (22/10/2026): continua na lista, desativado com o motivo.
+  const motivoMilagre = (m) => (m && m.bloqueio_milagre && typeof motivoMilagreLabel === 'function'
+    ? motivoMilagreLabel(m.bloqueio_milagre.motivo, lang === 'en') : null);
   const opcaoMagia = (m) => (m.evocacao_bloqueada
     ? `${m.nome} · ${tb.magiaRitual}`
+    : motivoMilagre(m) ? `${m.nome} · ${motivoMilagre(m)}`
     : `${m.nome}${m.item ? ` · ${m.item.nome}` : ''}`);
   const opcoesMagias = [
-    ...magias.map((m, i) => ({ value: 'm:' + i, label: opcaoMagia(m), disabled: !!m.evocacao_bloqueada })),
-    ...magiasApoio.map((m, i) => ({ value: 'a:' + i, label: opcaoMagia(m), disabled: !!m.evocacao_bloqueada })),
+    ...magias.map((m, i) => ({ value: 'm:' + i, label: opcaoMagia(m), disabled: !!m.evocacao_bloqueada || !!m.bloqueio_milagre })),
+    ...magiasApoio.map((m, i) => ({ value: 'a:' + i, label: opcaoMagia(m), disabled: !!m.evocacao_bloqueada || !!m.bloqueio_milagre })),
   ];
   const valorMagiaEscolhida = tab === 'apoio' ? 'a:' + apoioIdx : 'm:' + magiaIdx;
   const escolherMagia = (v) => {
@@ -9680,7 +9714,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const magiaEmLargada = faseMagiaPainel === 'largada';
   // 'presa' entra junto de 'bloqueada' na UI: nos dois casos não há o que
   // confirmar nem o que rolar. O aviso na tela é que difere.
-  const magiaBloqueada = faseMagiaPainel === 'bloqueada' || faseMagiaPainel === 'presa';
+  const magiaBloqueada = faseMagiaPainel === 'bloqueada' || faseMagiaPainel === 'presa'
+    || (tab === 'magia' && !!magia && !!magia.bloqueio_milagre);
 
   const podeAplicar =
     (tab === 'arma' || tab === 'magia')
@@ -9712,6 +9747,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
          outra vez — daí a checagem só valer na largada. */
       ? (!semPA && !!apoioSel && !!alvoApoio
          && !apoioSel.evocacao_bloqueada
+         && !apoioSel.bloqueio_milagre
          && !apoioForaDeAlcance
          && !evocacaoPendente
          && (evocandoAgora || (ator.karma || 0) >= apoioSel.custo_karma)
@@ -10314,6 +10350,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           {faseMagiaPainel === 'bloqueada' && (
             <p className="acao-karma-line">{tb.magiaRitual}</p>
           )}
+          {motivoMilagre(magia) && (
+            <p className="acao-karma-line">{motivoMilagre(magia)}</p>
+          )}
           {/* 1 rodada: rola agora, o efeito sai no fim da rodada (28/09/2026). */}
           {magia && magia.evocacao_rodadas === 1 && !resolvendoEvocacao && (
             <p className="acao-karma-line">{avisoFimDaRodada}</p>
@@ -10600,6 +10639,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             )}
             {apoioSel && apoioSel.evocacao_bloqueada && (
               <p className="acao-karma-line">{tb.magiaRitual}</p>
+            )}
+            {motivoMilagre(apoioSel) && (
+              <p className="acao-karma-line">{motivoMilagre(apoioSel)}</p>
             )}
             {/* A metade que a Fase 1 não automatiza vai para a tela, não só
                 para o log — Força Mútua confere a raça, não o vínculo. */}
