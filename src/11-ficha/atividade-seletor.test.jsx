@@ -66,3 +66,23 @@ describe('Treinando sem o texto ao lado', () => {
     expect(botao().getAttribute('data-atividade')).toBe('treinando');
   });
 });
+
+/* "a técnica vai aparecer no menu treinando" (usuário, 22/10/2026): cada
+   atividade lista a sua fila de treino, com o tempo que falta. */
+describe('fila de treino no menu', () => {
+  it('Treinando mostra a técnica em treino e o tempo que falta', () => {
+    const treinos = [
+      { id: 't', tipo: 'tecnica', key: 'golpe', nivel: 1, atividade: 'treinando', horas_restantes: 36 },
+      { id: 'm', tipo: 'magia', key: 'cura', nivel: 1, atividade: 'orando', horas_restantes: 24 },
+    ];
+    const nomeDe = (t) => (t.key === 'golpe' ? 'Golpe Duplo' : 'Curas Físicas');
+    render(<Seletor atividade={null} podeEditar lang="pt" onEscolher={() => {}} treinos={treinos} nomeDoTreino={nomeDe} />);
+    act(() => { botao().click(); });
+    const treinando = opcoes().find((li) => li.getAttribute('data-atividade') === 'treinando');
+    expect(treinando.querySelector('.fp-treino-fila').textContent).toMatch(/Golpe Duplo.*1.*1 d 12 h/);
+    const orando = opcoes().find((li) => li.getAttribute('data-atividade') === 'orando');
+    expect(orando.querySelector('.fp-treino-fila').textContent).toMatch(/Curas Físicas.*1 d/);
+    const dormindo = opcoes().find((li) => li.getAttribute('data-atividade') === 'dormindo');
+    expect(dormindo.querySelector('.fp-treino-fila')).toBeNull();
+  });
+});

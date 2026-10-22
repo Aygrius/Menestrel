@@ -526,7 +526,16 @@ function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
    atividade ligada com o nome ao lado — fica ligada até alguém tirar. Quem
    recupera é o relógio da mesa (recuperacaoPorAtividade, 01-core/
    clima-desgaste.jsx), a cada hora que o Mestre avança. */
-function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher }) {
+/* Fila de treino no menu (22/10/2026): "a técnica vai aparecer no menu
+   treinando" — cada atividade lista o que treina nela (técnicas em
+   Treinando; magias na atividade da classe), com o tempo de jogo que falta. */
+function tempoDeTreino(horas) {
+  const n = Math.max(0, Math.ceil(Number(horas) || 0));
+  const d = Math.floor(n / 24), r = n % 24;
+  return [d ? `${d} d` : '', r ? `${r} h` : ''].filter(Boolean).join(' ') || '0 h';
+}
+
+function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher, treinos, nomeDoTreino }) {
   const en = lang === 'en';
   const [aberta, setAberta] = useState(false);
   const dropRef = useRef(null);
@@ -585,6 +594,21 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher }) {
             >
               <i className={'ti ' + a.icon} aria-hidden="true" />
               <span>{nomeDe(a)}</span>
+              {(() => {
+                const fila = (Array.isArray(treinos) ? treinos : []).filter((t) => t && t.atividade === a.id);
+                if (!fila.length) return null;
+                return (
+                  <ul className="fp-treino-fila" aria-label={en ? 'Training queue' : 'Fila de treino'}>
+                    {fila.map((t, i) => (
+                      <li key={t.id || i} className={'fp-treino-item' + (i === 0 ? ' is-agora' : '')}>
+                        <span className="fp-treino-nome">{nomeDoTreino ? nomeDoTreino(t) : t.key}</span>
+                        <span className="fp-treino-nivel">{en ? 'level' : 'nível'} {t.tipo === 'magia' ? (Number(t.nivel) * 2 - 1) : t.nivel}</span>
+                        <span className="fp-treino-tempo">{tempoDeTreino(t.horas_restantes)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
             </li>
           ))}
           {atual && (
@@ -4348,6 +4372,11 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           podeEditar={podeEscolherAtividade}
           lang={lang}
           onEscolher={definirAtividade}
+          treinos={pj.treinos}
+          nomeDoTreino={(t) => {
+            const cat = t.tipo === 'tecnica' ? tecnicasByKey[t.key] : magiasByKey[t.key];
+            return (cat && cat.nome) || t.key;
+          }}
         />
         {/* Texto, como as outras abas. Era ícone só, e o rótulo vivia no
             tooltip — a aba destoava das vizinhas e exigia hover pra saber o

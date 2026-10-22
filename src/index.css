@@ -1352,6 +1352,21 @@
 }
 #root .menestrel-ui .fp-status-opcao:hover { background: rgba(201,164,78,0.10); color: var(--parchment, #F1E6CF); }
 #root .menestrel-ui .fp-status-opcao > i { font-size: var(--fs-base); color: var(--gold, #E0BE68); flex-shrink: 0; }
+/* Fila de treino no menu de atividade (22/10/2026): embaixo do nome da
+   atividade, alinhada ao texto (não ao ícone). O primeiro da fila é o que
+   corre agora — ouro; os seguintes esperam, apagados. */
+#root .menestrel-ui .fp-status-opcao:has(.fp-treino-fila) { flex-wrap: wrap; row-gap: 2px; }
+#root .menestrel-ui .fp-treino-fila {
+  flex-basis: 100%; list-style: none; margin: 0; padding: 0 0 2px calc(var(--fs-base) + 8px);
+  display: flex; flex-direction: column; gap: 1px;
+}
+#root .menestrel-ui .fp-treino-item {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: baseline;
+  font-size: var(--fs-2xs); color: var(--parchment-muted, #BFAF8E); opacity: 0.7;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+#root .menestrel-ui .fp-treino-item.is-agora { color: var(--gold, #E0BE68); opacity: 1; }
+#root .menestrel-ui .fp-treino-nome { overflow: hidden; text-overflow: ellipsis; }
 
 #root .menestrel-ui .fp-status-modal { display: flex; flex-direction: column; gap: 16px; }
 
