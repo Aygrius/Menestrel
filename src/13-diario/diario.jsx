@@ -491,7 +491,7 @@ function DiarioModalNome({ entrada, nomeOverride }) {
           alt=""
           aria-hidden="true"
           style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover', flexShrink: 0,
-                   border: '1px solid rgba(201,164,78,0.22)', display: 'block' }}
+                   border: '1px solid rgba(var(--ouro-rgb),0.22)', display: 'block' }}
         />
       )}
       <i
@@ -1099,9 +1099,11 @@ function DetalheEntradaModal({
 
 // ---------- MemoriaModal ----------
 
-function MemoriaModal({ memoria, lang, pjId, onClose, onSaved }) {
+function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null }) {
   const en = lang === 'en';
   const isEdit = !!memoria;
+  // Excluir em dois cliques (23/10/2026): a lixeira saiu da linha da tabela.
+  const [excluirArmado, setExcluirArmado] = useState(false);
   const [titulo, setTitulo] = useState(memoria?.titulo || '');
   /* O corpo da memória mora em `diario_entradas.comentario` — o `conteudo` é
      só o nome do PARÂMETRO da RPC (p_conteudo). A tela lia `memoria.conteudo`,
@@ -1138,6 +1140,14 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved }) {
       onConfirm={salvar}
       confirmLabel={saving ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Save' : 'Salvar')}
       confirmDisabled={saving}
+      footerBeforeConfirm={isEdit && onExcluir ? (
+        <button type="button" className={'btn-ghost btn-md diario-excluir' + (excluirArmado ? ' is-armado' : '')}
+          onClick={() => (excluirArmado ? onExcluir(memoria) : setExcluirArmado(true))}
+          onMouseLeave={() => setExcluirArmado(false)}>
+          <i className={'ti ' + (excluirArmado ? 'ti-trash-x' : 'ti-trash')} aria-hidden="true" />
+          {excluirArmado ? (en ? 'Click again to delete' : 'Clique de novo para excluir') : (en ? 'Delete' : 'Excluir')}
+        </button>
+      ) : null}
     >
       <label className="diario-field-label">{en ? 'Title' : 'Título'}</label>
       <input
@@ -1158,6 +1168,89 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved }) {
       />
       {error && <div className="err-msg diario-err-mt">{error}</div>}
     </ModalShell>
+  );
+}
+
+/* ---------- O CARTÃO DO DIÁRIO (23/10/2026) ----------------------------------
+   As duas linhas do cartão — o que eram as colunas da tabela. A primeira em
+   partes separadas por ponto; a segunda, mais fraca, um texto só. Pessoas =
+   raça · classe social / reino; Reinos = capital / resumo; Cidades e Locais =
+   reino (· capital) / população. Servem ao Mestre (GerenciarLoreView) e ao
+   Jogador (DiarioView): as duas páginas mostram os mesmos cartões. */
+function attrLore(e, k) {
+  const a = e.atributos && typeof e.atributos === 'object' ? e.atributos : {};
+  const v = a[k] != null && a[k] !== '' ? a[k] : e[k];
+  return v == null || v === '' ? '—' : String(v);
+}
+function linhasDoCartaoLore(e, lang) {
+  const en = lang === 'en';
+  const col = (k) => e['_col_' + k];
+  const tem = (v) => v != null && v !== '' && !(typeof v === 'number' && Number.isNaN(v));
+  const so = (...xs) => xs.filter(tem);
+  if (e.tipo === 'npc') return [so(col('raca'), col('profissao')), tem(col('reino')) ? col('reino') : null];
+  if (e.tipo === 'reino') {
+    const resumo = attrLore(e, 'resumo');
+    return [
+      tem(col('capital_cidade')) ? ['Capital', col('capital_cidade')] : [],
+      resumo !== '—' ? resumo : (tem(col('capital_cidade')) ? null : (en ? 'No capital' : 'Sem capital')),
+    ];
+  }
+  if (e.tipo === 'cidade' || e.tipo === 'local') {
+    const pop = col('populacao');
+    const ehCapital = attrLore(e, 'capital') === 'true';
+    return [
+      so(col('reino'), ehCapital ? 'capital' : null),
+      tem(pop) && Number(pop) > 0 ? `${celulaColunaLore(pop, lang)} ${en ? 'inhabitants' : 'habitantes'}` : null,
+    ];
+  }
+  if (e.tipo === 'criatura') return [so(e.tipo_criatura || e.raca), e.estagio != null ? (en ? `Stage ${e.estagio}` : `Estágio ${e.estagio}`) : null];
+  return [[], null];
+}
+/* As MESMAS peças do cartão baixo de Personagens (.pj-card-wrap / .pj-card /
+   .pj-card-portrait / .pj-name / .pj-meta). `canto` é o sinal no canto do
+   nome ({ icone, rotulo }), onde o cartão de Personagens põe os status. */
+function CartaoDiario({ imagem, nome, linha1 = [], linha2 = null, canto = null, onAbrir, abrirTip, fecharTip }) {
+  return (
+    <div className="pj-card-wrap">
+      <article className="pj-card is-clickable diario-cartao" role="button" tabIndex={0}
+        onClick={onAbrir}
+        onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onAbrir(); } }}>
+        <div className="pj-card-body">
+          <div className={'pj-card-portrait' + (imagem ? '' : ' is-empty')}>
+            {imagem
+              ? <img src={imagem} alt="" className="pj-card-portrait-img" />
+              : <span className="pj-card-portrait-mono" aria-hidden="true">{String(nome || '?').trim().charAt(0).toUpperCase()}</span>}
+          </div>
+          <div className="pj-card-info">
+            <header className="pj-card-head">
+              <div className="pj-name-linha">
+                <div className="pj-name diario-cartao-nome">{nome}</div>
+                {canto && (
+                  <span className="pj-card-status diario-vis-ic" role="img" aria-label={canto.rotulo}
+                    onMouseEnter={abrirTip ? (ev) => abrirTip(ev, { desc: canto.rotulo }) : undefined}
+                    onMouseLeave={fecharTip}>
+                    <i className={'ti ' + canto.icone} aria-hidden="true" />
+                  </span>
+                )}
+              </div>
+            </header>
+            <div className="pj-meta-linhas">
+              {linha1.length > 0 && (
+                <div className="pj-meta pj-meta--quem diario-cartao-meta">
+                  {linha1.map((parte, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <span className="sep" aria-hidden="true">·</span>}
+                      <span>{parte}</span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
+              {linha2 && <div className="pj-meta pj-meta--estagio diario-cartao-meta">{linha2}</div>}
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
   );
 }
 
@@ -1361,6 +1454,8 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   const [viewingLore,         setViewingLore]         = useState(null);
   // confirmandoCancelar: chave "tipo:ref_id" da entrada aguardando confirmação
   const [confirmandoCancelar, setConfirmandoCancelar] = useState(null);
+  // A lixeira da janela da entrada, em dois cliques (23/10/2026).
+  const [lixeiraArmada,       setLixeiraArmada]       = useState(false);
   const [tip, abrirTip, fecharTip, manterTip]         = usePortalTooltip(80);
 
   // ── Fetch ─────────────────────────────────────────────────────
@@ -1935,21 +2030,94 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     );
   }
 
-  /* Na barra lateral é uma PÁGINA, com a mesma moldura de Itens, Magias e
-     Bestiário — as peças soltas direto no card, sem wrapper próprio, porque
-     .best é coluna flex e é ela que estica a tabela e centraliza o vazio. */
+  /* Na barra lateral é uma PÁGINA — EM CARTÕES desde 23/10/2026, como o
+     Diário do Mestre e Personagens: o trilho com a busca e o + acima, e cada
+     entrada num cartão. As ações que eram botões na linha (ver, importar,
+     compartilhar, editar, excluir) foram para o alto da janela da entrada;
+     a lixeira da memória, para o rodapé da janela dela. */
+  const POR_PAGINA_CARTOES = 10; // cinco fileiras de dois cartões
+  const totalCartoes = Math.max(1, Math.ceil(linhas.length / POR_PAGINA_CARTOES));
+  const paginaCartoes = Math.min(page, totalCartoes);
+  const cartoes = linhas.slice((paginaCartoes - 1) * POR_PAGINA_CARTOES, paginaCartoes * POR_PAGINA_CARTOES);
+  const naColecao = (e) => importados.has(`${e.tipo}:${String(e.slug || e.id)}`);
+  const cartaoDe = tipoAba === 'memoria'
+    ? (m) => (
+      <CartaoDiario key={m.id} nome={m.titulo || (en ? '(untitled)' : '(sem título)')}
+        linha2={resumoDeTexto(m.comentario, 140)} onAbrir={() => setMemoriaAberta(m)} />
+    )
+    : (e) => {
+      const meu = souDono && e.origem === 'pessoal';
+      const [l1, l2] = linhasDoCartaoLore(e, lang);
+      const canto = meu
+        ? (e.compartilhado
+          ? { icone: 'ti-users', rotulo: en ? 'Written by you · shared with the table' : 'Escrito por você · compartilhado com a mesa' }
+          : { icone: 'ti-feather', rotulo: en ? 'Written by you' : 'Escrito por você' })
+        : (souDono && naColecao(e) ? { icone: 'ti-bookmark', rotulo: en ? 'In your journal' : 'No seu diário' } : null);
+      return (
+        <CartaoDiario key={`${e.tipo}:${String(e.slug || e.id)}`} imagem={e.imagem_url || e.imagem || null}
+          nome={e.nome} linha1={l1} linha2={l2} canto={canto} abrirTip={abrirTip} fecharTip={fecharTip}
+          onAbrir={() => { setLixeiraArmada(false); setViewingLore(e); }} />
+      );
+    };
+
+  /* As ações da janela da entrada — o que eram os botões da linha. */
+  const acoesDaEntrada = (e) => {
+    if (!e || !souDono || e.tipo === 'criatura') return [];
+    const refId = e.slug || e.id;
+    const meu = e.origem === 'pessoal';
+    if (meu) {
+      return [
+        { icone: e.compartilhado ? 'ti-users' : 'ti-share',
+          rotulo: e.compartilhado ? (en ? 'Stop sharing with the table' : 'Parar de compartilhar com a mesa') : (en ? 'Share with the table' : 'Compartilhar com a mesa'),
+          onClick: () => { const ligar = !e.compartilhado; toggleCompartilhar(e.tipo, refId, ligar); setViewingLore({ ...e, compartilhado: ligar }); } },
+        { icone: 'ti-pencil', rotulo: en ? 'Edit' : 'Editar',
+          onClick: () => { setViewingLore(null); setTipoNovo(e.tipo); setEditando({ ...e }); } },
+        lixeiraArmada
+          ? { icone: 'ti-trash-x', rotulo: en ? 'Click again to delete' : 'Clique de novo para excluir', perigo: true, armado: true,
+              onClick: () => { setLixeiraArmada(false); setViewingLore(null); excluirLore(refId); } }
+          : { icone: 'ti-trash', rotulo: en ? 'Delete' : 'Excluir', perigo: true, onClick: () => setLixeiraArmada(true) },
+      ];
+    }
+    return [naColecao(e)
+      ? { icone: 'ti-bookmark-off', rotulo: en ? 'Remove from your journal' : 'Tirar do seu diário',
+          onClick: () => cancelarImport(e.tipo, refId) }
+      : { icone: 'ti-bookmark', rotulo: en ? 'Keep in your journal' : 'Guardar no seu diário',
+          onClick: () => importarEntrada(e.tipo, refId, e) }];
+  };
+
   return (
-    <div className="fp-page">
-      <div className="fp-card best best-auto">
-        <BestPageHeader
-          eyebrow={en ? 'JOURNAL' : 'DIÁRIO'}
-          title={tituloDaSecao}
-          right={buscaENovo}
+    <div className="pjs diario-pagina">
+      <div className="diario-pagina-barra cartoes-barra">{buscaENovo}</div>
+      {error && <div className="err-msg diario-err-mb">{error}</div>}
+      {cartoes.length === 0 ? (
+        <div className="best-empty diario-empty-lg">{textoVazio}</div>
+      ) : (
+        <>
+          <div className="pjs-grid diario-cartoes">{cartoes.map(cartaoDe)}</div>
+          <BestPagination page={page} safePage={paginaCartoes} totalPages={totalCartoes} setPage={setPage} lang={lang} />
+        </>
+      )}
+      {viewingLore && (
+        <DetalheEntradaModal
+          entrada={viewingLore}
+          lang={lang}
+          lore={[...(lore || []), ...Object.values(disponibilizados).flat()]}
+          acoesTopo={acoesDaEntrada(viewingLore)}
+          onClose={() => { setViewingLore(null); setLixeiraArmada(false); }}
         />
-        {erro}
-        {tabela}
-      </div>
-      {modais}
+      )}
+      {formModal}
+      {memoriaAberta !== null && (
+        <MemoriaModal
+          memoria={memoriaAberta.id ? memoriaAberta : null}
+          pjId={pjId}
+          lang={lang}
+          onClose={() => setMemoriaAberta(null)}
+          onSaved={() => { setMemoriaAberta(null); carregar(); }}
+          onExcluir={souDono ? (m) => { setMemoriaAberta(null); supabaseClient.rpc('excluir_entrada_diario', { p_id: m.id }).then(carregar); } : null}
+        />
+      )}
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }
@@ -2529,6 +2697,8 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
   const en = lang === 'en';
   // Fallback: quantas linhas mostrar antes de useFitPageSize medir a tela.
   // Mesmo arranjo do DiarioView do Jogador.
+  // 10 = cinco fileiras de dois cartões (23/10/2026, "vamos mostrar 5 linhas
+  //   de cards (ou menos) para não usar a barra" de rolagem).
   const PAGE_SIZE_FALLBACK = 10;
   const [tipoAba, setTipoAba] = useState(tipoFixo || 'npc'); // npc | lugar | criatura (disponibilizar)
   // A lixeira da ficha armada no primeiro clique (26/09/2026) — a chave da entrada.
@@ -2711,12 +2881,8 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
   const cidadesDaHistoria = semRepetirNome(
     (lore || []).filter((e) => e.tipo === 'cidade'), catalogoGlobal.cidade || []);
 
-  /* As palavras do título saem de ADMIN_COPY, as mesmas da barra lateral —
-     mesmo arranjo do DiarioView do Jogador: se "NPCs" virar outra coisa, o
-     menu e o título da página mudam juntos. */
-  const tituloDaSecao = tipoFixo
-    ? ((ADMIN_COPY[lang] || ADMIN_COPY.pt).sections[{ lugar: 'lugares', reino: 'lugares', cidade: 'cidades', local: 'locais', npc: 'npcs' }[tipoFixo]] || {}).label
-    : null;
+  /* O título da seção saiu da página em 23/10/2026: o topo do app já mostra
+     o nome da seção, como em Personagens. */
 
   const formModal = editando && (
     <ModalShell
@@ -2874,39 +3040,24 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
       };
     });
 
-  const { sorted, sortKey, sortDir, toggleSort } = useSort(listaFiltrada);
-  const lista = sorted || listaFiltrada;
-  const porPagina = useFitPageSize(wrapRef, { fallback: PAGE_SIZE_FALLBACK });
+  // Cartões não têm cabeçalho para ordenar: a ordem é a do nome (23/10/2026).
+  const lista = [...listaFiltrada].sort((a, b) =>
+    String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity: 'base', numeric: true }));
+  const porPagina = PAGE_SIZE_FALLBACK;
   const totalPages = Math.max(1, Math.ceil(lista.length / porPagina));
   const safePage = Math.min(page, totalPages);
   const pagina = lista.slice((safePage - 1) * porPagina, safePage * porPagina);
 
-  const cols = [
-    { key: 'nome', label: en ? 'Name' : 'Nome' },
-    /* Tipo saiu com a aba mista: Reinos e Cidades são páginas próprias
-       desde 26/09/2026. */
-    /* Conhecidos (26/09/2026): "remova a coluna fonte e localização, e
-       adicione a coluna reino". */
-    /* Raça e Reino saíram de Conhecidos em 26/09/2026 ("remover as colunas
-       Raça e Reino") — moram na ficha. */
-    ...(tipoAba === 'criatura' ? [
-      { key: 'tipo_criatura', label: en ? 'Kind' : 'Tipo' },
-      { key: 'estagio', label: en ? 'Stage' : 'Estágio' },
-    ] : []),
-    /* As colunas de cada página (22/10/2026) — ver COLUNAS_LORE. Pessoas
-       ganhou de volta Raça e Reino, agora com Classe Social. */
-    ...colunasLoreDoTipo(tipoAba, en),
-    /* Visibilidade virou ÍCONE AO LADO DO NOME (26/09/2026: "o ícone de
-       visibilidade ficará junto com o nome para indicar quem pode ver"). */
-    /* Fonte saiu de todas as abas em 26/09/2026 ("remova a coluna fonte" em
-       Conhecidos; "esqueceu de retirar 'fonte' também de reinos"). */
-    /* A coluna de ações saiu em 26/09/2026: olho, lápis e lixeira moram no
-       cabeçalho da ficha, ao lado do X. */
-  ];
+  /* As colunas da tabela viraram as linhas do cartão em 23/10/2026 — ver
+     linhasDoCartao. COLUNAS_LORE continua sendo a fonte dos valores. */
 
   const chaveDa = (e) => `${e._global ? 'g' : 'c'}:${e.tipo}:${String(e.id)}`;
 
-  const { TableRow, TableCell } = (typeof UI !== 'undefined' ? UI : {});
+  /* As duas linhas do cartão (23/10/2026): o que eram as colunas da tabela.
+     A primeira em partes separadas por ponto; a segunda, mais fraca, um
+     texto só. Pessoas = raça · classe social / reino; Reinos = capital /
+     resumo; Cidades e Locais = reino (· capital) / população. */
+  const linhasDoCartao = (e) => linhasDoCartaoLore(e, lang);
 
   const linhaDe = (e) => {
     const chave = chaveDa(e);
@@ -2931,36 +3082,62 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
     // Sem aventura, só o ADMIN edita — e edita o mundo (26/09/2026).
     const editavel = tipoAba !== 'criatura' && (!semMesa || ehAdmin);
     const excluivel = editavel && !e._global;
+    const imagem = e.imagem_url || e.imagem || null;
+    const [linha1, linha2] = linhasDoCartao(e);
+    const abrir = () => setExpandida(aberta ? null : chave);
     return (
       <React.Fragment key={chave}>
-        <TableRow
-          style={{ cursor: 'pointer' }}
-          onClick={() => setExpandida(aberta ? null : chave)}
-        >
-          <TableCell className="best-name">
-            {/* O tipo da entrada (26/09/2026): reino, cidade, conhecido — ou a
-                classe, na aba de criaturas. */}
-            <i className={'ti ' + (tipoAba === 'criatura'
-              ? ((typeof iconeTipoCriatura === 'function' && iconeTipoCriatura(e.tipo_criatura)) || 'ti-paw')
-              : (DIARIO_TIPO_ICON[e.tipo] || 'ti-point')) + ' best-item-ic'} aria-hidden="true" />
-            {/* Quem pode ver, ao lado do nome — olho = todos, olho riscado =
-                ninguém, olho com exclamação = alguns. O texto vai no tooltip. */}
-            {!semMesa && (
-              <span className={'diario-vis-ic diario-vis-ic--' + e._visModo}
-                role="img" aria-label={e._visibilidade}
-                onMouseEnter={(ev) => abrirTip(ev, { desc: e._visibilidade })}
-                onMouseLeave={fecharTip}>
-                <i className={'ti ' + ({ todos: 'ti-eye', ninguem: 'ti-eye-off' }[e._visModo] || 'ti-eye-exclamation')} aria-hidden="true" />
-              </span>
-            )}
-            {e.nome}
-          </TableCell>
-          {tipoAba === 'criatura' && <TableCell>{e.tipo_criatura || e.raca || '—'}</TableCell>}
-          {tipoAba === 'criatura' && <TableCell>{e.estagio != null ? e.estagio : '—'}</TableCell>}
-          {colunasLoreDoTipo(tipoAba, en).map((c) => (
-            <TableCell key={c.key}>{celulaColunaLore(e[c.key], lang)}</TableCell>
-          ))}
-        </TableRow>
+        {/* O CARTÃO (23/10/2026): as MESMAS peças do cartão baixo de
+            Personagens (.pj-card-wrap / .pj-card / .pj-card-portrait /
+            .pj-name / .pj-meta), dentro de um .pjs-grid — "os cards que eu
+            pedi para criar estão muito diferentes dos cards de personagens"
+            (usuário): a primeira versão tinha classes próprias e divergiu.
+            Retrato, nome com o olho de quem vê no canto e as duas linhas que
+            eram as colunas (ver linhasDoCartao). Clicar abre a mesma ficha. */}
+        <div className="pj-card-wrap">
+          <article className="pj-card is-clickable diario-cartao" role="button" tabIndex={0}
+            onClick={abrir}
+            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); } }}>
+            <div className="pj-card-body">
+              <div className={'pj-card-portrait' + (imagem ? '' : ' is-empty')}>
+                {imagem
+                  ? <img src={imagem} alt="" className="pj-card-portrait-img" />
+                  : <span className="pj-card-portrait-mono" aria-hidden="true">{String(e.nome || '?').trim().charAt(0).toUpperCase()}</span>}
+              </div>
+              <div className="pj-card-info">
+                <header className="pj-card-head">
+                  <div className="pj-name-linha">
+                    <div className="pj-name diario-cartao-nome">{e.nome}</div>
+                    {/* Quem pode ver, no canto — onde o cartão de Personagens
+                        põe os status: olho = todos, riscado = ninguém, com
+                        exclamação = alguns. O texto vai no tooltip. */}
+                    {!semMesa && (
+                      <span className={'pj-card-status diario-vis-ic diario-vis-ic--' + e._visModo}
+                        role="img" aria-label={e._visibilidade}
+                        onMouseEnter={(ev) => abrirTip(ev, { desc: e._visibilidade })}
+                        onMouseLeave={fecharTip}>
+                        <i className={'ti ' + ({ todos: 'ti-eye', ninguem: 'ti-eye-off' }[e._visModo] || 'ti-eye-exclamation')} aria-hidden="true" />
+                      </span>
+                    )}
+                  </div>
+                </header>
+                <div className="pj-meta-linhas">
+                  {linha1.length > 0 && (
+                    <div className="pj-meta pj-meta--quem diario-cartao-meta">
+                      {linha1.map((parte, i) => (
+                        <React.Fragment key={i}>
+                          {i > 0 && <span className="sep" aria-hidden="true">·</span>}
+                          <span>{parte}</span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                  {linha2 && <div className="pj-meta pj-meta--estagio diario-cartao-meta">{linha2}</div>}
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
         {/* Janela, não linha expandida, desde 26/09/2026 ("ao clicar no item
             da tabela, vai abrir um modal ao invés de expandir"). É a MESMA
             ficha do modal do Jogador — DetalheMoldura cuida do portal. */}
@@ -3011,113 +3188,78 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
     setEditando({});
   };
 
+  /* A PÁGINA (23/10/2026): como a de Personagens — os cartões direto na
+     página, sem o painel com cabeçalho em volta (o nome da seção já está no
+     topo). Fica uma barra fina acima da grade com a busca e o +. */
   return (
-    <div className="fp-page">
-      <div className="fp-card lore-mng-page">
-        <div className="fp-card-top">
-          <header className="ms-header lore-mng-page-header">
-            {onClose && (
-              <button
-                type="button"
-                className="btn-icon btn-sm"
-                onClick={onClose}
-                aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
-                <i className="ti ti-arrow-left" />
-              </button>
-            )}
-            <div className="lore-mng-page-title-wrap">
-              <div className="lore-mng-page-eyebrow">
-                <i className={'ti ' + (semMesa ? 'ti-world' : 'ti-book-2')} aria-hidden="true" />
-                {semMesa
-                  ? (ehAdmin
-                    ? (en ? 'World catalog — enter an adventure to share' : 'Catálogo do mundo — entre numa aventura para liberar')
-                    : (en ? 'World catalog — enter an adventure to edit or share' : 'Catálogo do mundo — entre numa aventura para editar ou liberar'))
-                  : historia.titulo}
-              </div>
-              {/* Como página do menu lateral, o título é o nome da seção — as
-                  mesmas palavras do menu, tiradas do mesmo ADMIN_COPY. */}
-              <h2 className="ms-title lore-mng-page-h2">{tituloDaSecao || 'Lore'}</h2>
-            </div>
-            {/* Busca + "+" no cabeçalho: a MESMA peça das cinco listas do
-                bestiário (BestBuscaENovo), não uma barra própria abaixo do
-                título como era aqui até 17/09/2026. */}
-            <BestBuscaENovo
-              ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
-              placeholder={en ? 'Search' : 'Buscar'}
-              query={query}
-              setQuery={(v) => { setQuery(v); setPage(1); setExpandida(null); }}
-              podeCriar={podeCriar}
-              onNovo={abrirNovoLugar}
-              dicaNovo={dicaNovo} />
-          </header>
-        </div>
-        <div className="lore-mng-page-body">
-          {lore === null ? (
-            <DiarioLoading lang={lang} />
-          ) : (
-            <>
-              {/* As sub-abas só existem sem tipoFixo — quem chega pelo menu
-                  lateral já escolheu a seção.
-
-                  ⚠️ HOJE NINGUÉM CHEGA SEM tipoFixo. O único call site que não
-                  o passava era Histórias → card da mesa → botão "Lore", e o
-                  botão saiu em 17/09/2026; o LoreDaMesa (o caminho do menu
-                  lateral) sempre passa 'lugar' ou 'npc'. Ou seja: estas
-                  sub-abas e a aba Criatura abaixo estão sem porta.
-
-                  A aba Criatura em particular NÃO é mais a casa de
-                  "disponibilizar criatura pra história" — isso virou o botão
-                  de olho da tabela de Criaturas (09-bestiario/bestiario.jsx),
-                  que é a tabela padrão delas. O que sobrou aqui é uma segunda
-                  implementação da mesma coisa, inalcançável. Quem for mexer
-                  nisto: a decisão de tirar o botão e a de mover a função foram
-                  a MESMA; se a aba voltar a ter porta, ela é que deve sair. */}
-              {!tipoFixo && (
-                <div className="lore-mng-toolbar">
-                  <div className="diario-subtabs" role="tablist">
-                    {DIARIO_TIPOS.map((t) => (
-                      <button key={t} className={tipoAba === t ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} onClick={() => setTipoAba(t)}>
-                        {diarioTipoLabel(t, lang)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {error && <div className="err-msg diario-err-mb">{error}</div>}
-
-              {pagina.length === 0 ? (
-                <div className="best-empty diario-empty-lg">
-                  {q
-                    ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`)
-                    : (en ? 'Nothing registered yet.' : 'Nada cadastrado ainda.')}
-                </div>
-              ) : (
-                <>
-                  <DiarioTabela cols={cols} wrapRef={wrapRef} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>
-                    {pagina.map(linhaDe)}
-                  </DiarioTabela>
-                  <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
-                </>
-              )}
-            </>
-          )}
-        </div>
-
-        {permissaoDe && (
-          <PermissaoEntradaModal
-            entrada={permissaoDe}
-            historia={historia}
-            protagonistas={protagonistas}
-            lang={lang}
-            salvando={savingVinculo}
-            onClose={() => setPermissaoDe(null)}
-            onSalvar={salvarVisibilidade}
-          />
+    <div className="pjs diario-pagina">
+      <div className="diario-pagina-barra cartoes-barra">
+        {/* Só quem veio de outra tela (Histórias → Lore) tem para onde voltar. */}
+        {onClose && (
+          <button type="button" className="btn-icon btn-sm" onClick={onClose}
+            aria-label={en ? 'Back to stories' : 'Voltar às histórias'}>
+            <i className="ti ti-arrow-left" />
+          </button>
         )}
-        {formModal}
-        <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+        {semMesa && (
+          <p className="diario-pagina-aviso">
+            <i className="ti ti-world" aria-hidden="true" />
+            {ehAdmin
+              ? (en ? 'World catalog — enter an adventure to share' : 'Catálogo do mundo — entre numa aventura para liberar')
+              : (en ? 'World catalog — enter an adventure to edit or share' : 'Catálogo do mundo — entre numa aventura para editar ou liberar')}
+          </p>
+        )}
+        {!tipoFixo && (
+          <div className="diario-subtabs" role="tablist">
+            {DIARIO_TIPOS.map((t) => (
+              <button key={t} className={tipoAba === t ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'} onClick={() => setTipoAba(t)}>
+                {diarioTipoLabel(t, lang)}
+              </button>
+            ))}
+          </div>
+        )}
+        <BestBuscaENovo
+          ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
+          placeholder={en ? 'Search' : 'Buscar'}
+          query={query}
+          setQuery={(v) => { setQuery(v); setPage(1); setExpandida(null); }}
+          podeCriar={podeCriar}
+          onNovo={abrirNovoLugar}
+          dicaNovo={dicaNovo} />
       </div>
+
+      {error && <div className="err-msg diario-err-mb">{error}</div>}
+
+      {lore === null ? (
+        <DiarioLoading lang={lang} />
+      ) : pagina.length === 0 ? (
+        <div className="best-empty diario-empty-lg">
+          {q
+            ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`)
+            : (en ? 'Nothing registered yet.' : 'Nada cadastrado ainda.')}
+        </div>
+      ) : (
+        <>
+          <div className="pjs-grid diario-cartoes" ref={wrapRef}>
+            {pagina.map(linhaDe)}
+          </div>
+          <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
+        </>
+      )}
+
+      {permissaoDe && (
+        <PermissaoEntradaModal
+          entrada={permissaoDe}
+          historia={historia}
+          protagonistas={protagonistas}
+          lang={lang}
+          salvando={savingVinculo}
+          onClose={() => setPermissaoDe(null)}
+          onSalvar={salvarVisibilidade}
+        />
+      )}
+      {formModal}
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
 }

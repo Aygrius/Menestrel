@@ -72,17 +72,20 @@ const montar = async (tipoFixo) => {
     </div>
   );
   await vi.waitFor(() => {
-    expect(document.querySelector('tbody tr') || document.querySelector('.best-empty')).toBeTruthy();
+    expect(document.querySelector('.diario-cartao') || document.querySelector('.best-empty')).toBeTruthy();
   });
 };
 
-const linhas = () => Array.from(document.querySelectorAll('tbody tr')).map((tr) =>
-  Array.from(tr.querySelectorAll('td')).map((td) => (td.textContent || '').trim()).filter(Boolean)
-);
-const cabecalho = () => Array.from(document.querySelectorAll('thead th'))
-  .map((th) => (th.textContent || '').replace(/[▲▼]/g, '').trim()).filter(Boolean);
+/* 23/10/2026: as páginas do Diário do Jogador viraram CARTÕES, como as do
+   Mestre e Personagens — o trilho com a busca e o + acima, um cartão por
+   entrada. A origem ("Pessoal") virou o sinal no canto do nome. */
+const cartoes = () => Array.from(document.querySelectorAll('.diario-cartao')).map((c) => ({
+  nome: (c.querySelector('.diario-cartao-nome').textContent || '').trim(),
+  canto: c.querySelector('.pj-card-status')?.getAttribute('aria-label') || null,
+  meta: Array.from(c.querySelectorAll('.pj-meta')).map((m) => (m.textContent || '').trim()),
+}));
 
-describe('NPCs: uma tabela só', () => {
+describe('NPCs: uma lista só', () => {
   it('não há mais o menu "Meu Diário" / "Informações da Aventura"', async () => {
     await montar('npc');
     const texto = document.body.textContent;
@@ -92,90 +95,84 @@ describe('NPCs: uma tabela só', () => {
 
   it('o que o jogador escreveu e o que veio da aventura aparecem juntos, marcados', async () => {
     await montar('npc');
-    // Raça, Classe Social e Reino desde 22/10/2026 ("na página de pessoas…").
-    expect(cabecalho()).toEqual(['Nome', 'Raça', 'Classe Social', 'Reino', 'Origem']);
-    expect(linhas().map((l) => [l[0], l[l.length - 1]])).toEqual([
-      ['Arissia', 'Pessoal'],
-      ['Borin', 'Aventura'],   // outro jogador compartilhou
-      ['Cael', 'Aventura'],    // o Mestre liberou
+    expect(cartoes().map((c) => [c.nome, c.canto])).toEqual([
+      ['Arissia', 'Escrito por você'],
+      ['Borin', null],   // outro jogador compartilhou
+      ['Cael', null],    // o Mestre liberou
     ]);
   });
 
-  it('a busca do cabeçalho filtra a tabela', async () => {
+  it('a busca do trilho filtra os cartões', async () => {
     await montar('npc');
-    const busca = document.querySelector('.fp-card-top .best-search input[type="search"]');
-    // Toda barra de busca diz só "Buscar", com o funil dentro (28/09/2026).
+    const busca = document.querySelector('.cartoes-barra .best-search input[type="search"]');
     expect(busca.getAttribute('placeholder')).toBe('Buscar');
-    expect(busca.parentElement.querySelector('.busca-ic.ti-filter-2')).toBeTruthy();
+    expect(busca.parentElement.querySelector('.busca-ic.ti-eye')).toBeTruthy();
     fireEvent.change(busca, { target: { value: 'bor' } });
-    expect(linhas().map((l) => [l[0], l[l.length - 1]])).toEqual([['Borin', 'Aventura']]);
+    expect(cartoes().map((c) => c.nome)).toEqual(['Borin']);
   });
 });
 
 describe('Lugares mistura Reino e Cidade e as duas origens', () => {
-  it('Tipo e Origem lado a lado', async () => {
+  it('os dois tipos, cada um com a sua origem', async () => {
     await montar('lugar');
-    expect(cabecalho()).toEqual(['Nome', 'Tipo', 'Origem']);
-    expect(linhas()).toEqual([
-      ['Reino do Norte', 'Reino', 'Aventura'],
-      ['Verrogar', 'Cidade', 'Pessoal'],
+    expect(cartoes().map((c) => [c.nome, c.canto])).toEqual([
+      ['Reino do Norte', null],
+      ['Verrogar', 'Escrito por você'],
     ]);
   });
 
   /* 17/09/2026: "Novo reino e nova cidade serão a mesma coisa." (usuário)
-     O + abria um modal de escolha Reino/Cidade e SÓ ENTÃO o formulário — dois
-     passos para um campo. Agora abre o formulário direto, com o tipo como
-     primeiro campo dele (ver lugar-tipo-unico.test.jsx, que cobre o seletor).
-     O + continua sendo um só, que é o que este teste garantia antes. */
-  it('um + só no cabeçalho, que abre o formulário de lugar direto', async () => {
+     O + abre o formulário direto, com o tipo como primeiro campo dele (ver
+     lugar-tipo-unico.test.jsx, que cobre o seletor). */
+  it('um + só no trilho, que abre o formulário de lugar direto', async () => {
     await montar('lugar');
-    const novos = document.querySelectorAll('.fp-card-top [aria-label="Novo"]');
+    const novos = document.querySelectorAll('.cartoes-barra [aria-label="Novo"]');
     expect(novos).toHaveLength(1);
     fireEvent.click(novos[0]);
-    // Sem passar por nenhuma janela de escolha: o formulário já está aberto.
     expect(document.querySelector('[role="dialog"][aria-label="Novo lugar"]')).toBeNull();
     const form = document.querySelector('[role="dialog"][aria-label="Novo Reino"]');
     expect(form).toBeTruthy();
-    // E o tipo é escolhível ali dentro, sem fechar e reabrir.
     expect([...form.querySelectorAll('.diario-lugar-tipo input')].map((i) => i.value))
       .toEqual(['reino', 'cidade']);
   });
 });
 
-describe('Memórias: só existe uma origem, então não há coluna', () => {
-  it('sem Origem', async () => {
+describe('Memórias: o título e o começo do texto', () => {
+  it('sem sinal de origem — memória é sempre do jogador', async () => {
     await montar('memoria');
-    expect(cabecalho()).toEqual(['Título', 'Trecho']);
+    expect(cartoes()).toEqual([{ nome: 'A noite em Verrogar', canto: null, meta: ['Chovia.'] }]);
   });
 });
 
-describe('as mesmas peças de Itens e Magias', () => {
-  it.each(['npc', 'lugar', 'memoria'])('%s: sem chips de filtro, sem contagem, sem barra abaixo do cabeçalho', async (tipo) => {
+describe('as mesmas peças de Personagens', () => {
+  it.each(['npc', 'lugar', 'memoria'])('%s: sem tabela, sem chips de filtro, sem contagem', async (tipo) => {
     await montar(tipo);
+    expect(document.querySelector('table')).toBeNull();
     expect(document.querySelector('.best-chips')).toBeNull();
     expect(document.querySelector('.best-count')).toBeNull();
-    expect(document.querySelector('.best-toolbar-bestiario')).toBeNull();
     expect(document.body.textContent).not.toMatch(/\d+ de \d+/);
+    expect(document.querySelector('.pjs-grid .pj-card-wrap .pj-card')).toBeTruthy();
   });
 
-  it('cabeçalho com a busca e o + (só o símbolo, com tooltip), tabela e paginação do bestiário', async () => {
+  it('o + (só o símbolo, com tooltip) no trilho', async () => {
     await montar('npc');
-    const card = document.querySelector('.fp-card.best.best-auto');
-    const acoes = card.querySelector('.fp-card-top .best-header-acoes');
-    expect(acoes.querySelector('.best-search input')).toBeTruthy();
-    const novo = acoes.querySelector('[aria-label="Novo"]');
+    const novo = document.querySelector('.cartoes-barra [aria-label="Novo"]');
     expect(novo.textContent.trim()).toBe('');
     fireEvent.mouseEnter(novo);
     expect([...document.querySelectorAll('.mn-tip')].map((t) => t.textContent)).toContain('Nova pessoa');
-    // As peças ficam soltas no card, como em Magias: .best é coluna flex.
-    expect(card.querySelector(':scope > .best-table-wrap')).toBeTruthy();
-    expect(card.querySelector(':scope > .best-pag')).toBeTruthy();
   });
 
   it('memórias: o + tem o tooltip "Nova memória"', async () => {
     await montar('memoria');
-    const novo = document.querySelector('.fp-card-top [aria-label="Novo"]');
+    const novo = document.querySelector('.cartoes-barra [aria-label="Novo"]');
     fireEvent.mouseEnter(novo);
     expect([...document.querySelectorAll('.mn-tip')].map((t) => t.textContent)).toContain('Nova memória');
+  });
+
+  it('as ações moram na janela da entrada: a própria compartilha, edita e exclui', async () => {
+    await montar('npc');
+    fireEvent.click(document.querySelector('.diario-cartao'));
+    const rotulos = [...document.querySelectorAll('[role="dialog"] button[aria-label]')].map((b) => b.getAttribute('aria-label'));
+    expect(rotulos).toEqual(expect.arrayContaining(['Compartilhar com a mesa', 'Editar', 'Excluir']));
   });
 });

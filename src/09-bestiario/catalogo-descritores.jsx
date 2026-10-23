@@ -306,26 +306,16 @@ const CATALOGO_DESCRITORES = {
        para esses grupos; sem `grupos`, em todos. O mapa saiu do próprio
        catálogo (quais colunas cada grupo preenche, conferido no banco no mesmo
        dia). Valor já gravado aparece mesmo fora do grupo — nada some da tela
-       sem alguém ver (ver campoDoGrupo em catalogo-editor.jsx). */
+       sem alguém ver (ver campoDoGrupo em catalogo-editor.jsx).
+
+       ORDEM (23/10/2026, "reajuste a ordem dos campos"): quem o item é (nome,
+       grupo, origem, ícone) → valor e espaço → arma → armadura → como se
+       equipa → magia → efeitos → vínculos → a descrição, por último (decisão
+       anterior do usuário, guardada em catalogo-descritores.test.js). */
     campos: [
       { col: 'slug', tipo: 'texto', rotuloKey: 'campoSlug', obrigatorio: true, somenteNovo: true, autoDeNome: true },
       { col: 'nome', tipo: 'texto', rotuloKey: 'campoNome', obrigatorio: true },
       { col: 'grupo', tipo: 'opcoes', rotuloKey: 'campoGrupo',
-        opcoes: ['Animais', 'Armaduras', 'Armas', 'Consumíveis', 'Diario', 'Instrumentos', 'Itens',
-          'Minerais', 'Moedas', 'Propriedades', 'Recipientes', 'Serviços', 'Transportes', 'Vestimentas'] },
-      // O banco guarda a SIGLA (S/L); a tela mostra a palavra. Ver
-      // opcoesNormalizadas no fim do arquivo.
-      { col: 'tipo',      tipo: 'opcoes', rotuloKey: 'campoTipo',
-        opcoes: [{ value: 'S', label: 'Sólido' }, { value: 'L', label: 'Líquido' }] },
-      /* O que o recipiente (ou a vestimenta com bolso) ACEITA guardar — virou
-         LISTA em 27/09/2026 ("'tipo de item' deve permitir selecionar
-         consumíveis"). Era texto livre: tinha que se digitar "Consumíveis"
-         exatamente, com acento, para a regra de recipientePodeGuardar casar.
-         As opções são os grupos do catálogo; vazio = aceita qualquer um.
-         MAIS DE UM desde 27/09/2026 ("deve permitir selecionar até mais de um
-         tipo de item"): "Consumíveis, Moedas", pela vírgula, como os outros
-         campos multiopcoes. A regra lê a lista (tiposAceitos, 01-core). */
-      { col: 'tipo_item', grupos: ['Recipientes', 'Vestimentas'], tipo: 'multiopcoes', rotuloKey: 'campoTipoItem',
         opcoes: ['Animais', 'Armaduras', 'Armas', 'Consumíveis', 'Diario', 'Instrumentos', 'Itens',
           'Minerais', 'Moedas', 'Propriedades', 'Recipientes', 'Serviços', 'Transportes', 'Vestimentas'] },
       // Os três valores vêm de um SELECT DISTINCT em 11/09/2026: Comum 489,
@@ -339,53 +329,26 @@ const CATALOGO_DESCRITORES = {
          formato: 'icone' → o editor aceita "ti-paw", "ti ti-paw", o <i> colado
          do site do Tabler ou só "paw", grava "ti-paw" e mostra a prévia. */
       { col: 'icone',     tipo: 'texto', rotuloKey: 'campoIcone', formato: 'icone' },
-      { col: 'doc_url', grupos: ['Itens', 'Diario'],   tipo: 'texto', rotuloKey: 'campoDocUrl' },
-      /* 'efeito' SAIU dos itens em 25/09/2026: vazio nos 1003 itens, e nenhuma
-         regra o lia — o que o jogo aplica é efeito_positivo/efeito_negativo.
-         A coluna segue no banco, vazia. */
-      { col: 'efeito_positivo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoPositivo',  linhas: 2 },
-      { col: 'efeito_negativo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoNegativo',  linhas: 2 },
       { col: 'valor_latao', tipo: 'numero', rotuloKey: 'campoValorLatao', min: 0 },
       { col: 'ocupa', grupos: ['Armas', 'Armaduras', 'Vestimentas', 'Consumíveis', 'Instrumentos', 'Itens', 'Minerais', 'Moedas', 'Recipientes', 'Diario'],       tipo: 'numero', rotuloKey: 'campoOcupa',      min: 0 },
+      // O banco guarda a SIGLA (S/L); a tela mostra a palavra. Ver
+      // opcoesNormalizadas no fim do arquivo.
+      { col: 'tipo',      tipo: 'opcoes', rotuloKey: 'campoTipo',
+        opcoes: [{ value: 'S', label: 'Sólido' }, { value: 'L', label: 'Líquido' }] },
       { col: 'armazena', grupos: ['Vestimentas', 'Itens', 'Propriedades', 'Recipientes', 'Transportes'],    tipo: 'numero', rotuloKey: 'campoArmazena',   min: 0 },
-      { col: 'forca_req', grupos: ['Armas', 'Armaduras'],   tipo: 'numero', rotuloKey: 'campoForcaReq',   min: 0 },
+      /* O que o recipiente (ou a vestimenta com bolso) ACEITA guardar — virou
+         LISTA em 27/09/2026 ("'tipo de item' deve permitir selecionar
+         consumíveis"). Era texto livre: tinha que se digitar "Consumíveis"
+         exatamente, com acento, para a regra de recipientePodeGuardar casar.
+         As opções são os grupos do catálogo; vazio = aceita qualquer um.
+         MAIS DE UM desde 27/09/2026 ("deve permitir selecionar até mais de um
+         tipo de item"): "Consumíveis, Moedas", pela vírgula, como os outros
+         campos multiopcoes. A regra lê a lista (tiposAceitos, 01-core). */
+      { col: 'tipo_item', grupos: ['Recipientes', 'Vestimentas'], tipo: 'multiopcoes', rotuloKey: 'campoTipoItem',
+        opcoes: ['Animais', 'Armaduras', 'Armas', 'Consumíveis', 'Diario', 'Instrumentos', 'Itens',
+          'Minerais', 'Moedas', 'Propriedades', 'Recipientes', 'Serviços', 'Transportes', 'Vestimentas'] },
       { col: 'dano', grupos: ['Armas'],        tipo: 'numero', rotuloKey: 'campoDano',       min: 0 },
       { col: 'alcance', grupos: ['Armas'],     tipo: 'numero', rotuloKey: 'campoAlcance',    min: 0 },
-      { col: 'defesa', grupos: ['Armaduras'],      tipo: 'numero', rotuloKey: 'campoDefesa',     min: 0 },
-      { col: 'absorcao', grupos: ['Armaduras'],    tipo: 'numero', rotuloKey: 'campoAbsorcao',   min: 0 },
-      { col: 'resistencia', grupos: ['Armas', 'Armaduras', 'Vestimentas'], tipo: 'numero', rotuloKey: 'campoResistencia', min: 0 },
-      { col: 'dano_l', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoL', min: 0 },
-      { col: 'dano_m', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoM', min: 0 },
-      { col: 'dano_p', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoP', min: 0 },
-      { col: 'nivel_magia', tipo: 'numero', rotuloKey: 'campoNivelMagia', min: 0 },
-      /* 'consumiveis' e 'consumiveis_peso' SAÍRAM em 28/09/2026: a carne do
-         abate sai do tipo e do peso da CRIATURA ligada (RPC abater_animal) —
-         "não precisa de um dropdown para isso, a conversão é automática". As
-         colunas seguem no banco, sem uso. */
-      /* Vínculo com a criatura (14/09/2026). O animal à venda É a criatura do
-         bestiário: as características (montaria inclusive) ficam SÓ nela e o
-         item herda por aqui. scripts/sql/itens-criatura-vinculo-2026-09-14.sql */
-      { col: 'criatura_id', grupos: ['Animais'], tipo: 'referencia', rotuloKey: 'campoCriatura', fonte: 'criaturas' },
-      /* SOMENTE LEITURA, e não é preferência — é o banco.
-         itens.magico é coluna GERADA:
-           magico boolean GENERATED ALWAYS AS (magia IS NOT NULL AND magia <> '')
-         O Postgres recusa qualquer UPDATE que a mencione, com
-         "column magico can only be updated to DEFAULT". O editor a mandava no
-         payload de TODA edição de item, então NENHUM item salvava — o erro
-         que o usuário reportou em 11/09/2026.
-         O valor se resolve sozinho a partir de `magia`: preencheu, é mágico. */
-      { col: 'magico', tipo: 'opcoes', rotuloKey: 'campoMagico',
-        opcoes: ['Sim', 'Não'], somenteLeitura: true },
-      /* DROPDOWN com as magias do sistema (28/09/2026: "no campo magia, mostrar
-         um dropdown com as magias do sistema"). O banco guarda o NOME da magia
-         (magiaDoItem casa pelo nome); a lista vem da tabela `fonte` quando o
-         editor abre e entra depois do "nenhuma" daqui. */
-      { col: 'magia',  tipo: 'opcoes', rotuloKey: 'campoMagia', fonte: 'magias',
-        opcoes: [{ value: '', label: '—' }] },
-      /* Técnica que o pergaminho ensina (22/10/2026): mesmo molde do campo
-         Magia — o banco guarda o NOME; só os Consumíveis (pergaminhos). */
-      { col: 'tecnica', tipo: 'opcoes', rotuloKey: 'campoTecnica', fonte: 'tecnicas',
-        grupos: ['Consumíveis'], opcoes: [{ value: '', label: '—' }] },
       // Mesmo AJUSTE_KEY de 01-core/inventario-helpers.jsx (FIS desde 14/09/2026,
       // com as armas naturais). Sigla no banco, nome na tela.
       { col: 'ajuste_atributo', grupos: ['Armas'], tipo: 'opcoes', rotuloKey: 'campoAjusteAtributo',
@@ -393,6 +356,12 @@ const CATALOGO_DESCRITORES = {
                  { value: 'FIS', label: 'Físico' }, { value: 'FOR', label: 'Força' },
                  { value: 'PER', label: 'Percepção' }] },
       { col: 'grupo_armas', grupos: ['Armas'],   tipo: 'opcoes', rotuloKey: 'campoArmas',        opcoes: OPCOES_GRUPO_ARMAS },
+      { col: 'dano_l', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoL', min: 0 },
+      { col: 'dano_m', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoM', min: 0 },
+      { col: 'dano_p', grupos: ['Armas'], tipo: 'numero', rotuloKey: 'campoDanoP', min: 0 },
+      { col: 'forca_req', grupos: ['Armas', 'Armaduras'],   tipo: 'numero', rotuloKey: 'campoForcaReq',   min: 0 },
+      { col: 'defesa', grupos: ['Armaduras'],      tipo: 'numero', rotuloKey: 'campoDefesa',     min: 0 },
+      { col: 'absorcao', grupos: ['Armaduras'],    tipo: 'numero', rotuloKey: 'campoAbsorcao',   min: 0 },
       /* Sigla no banco, palavra na tela — mesmo tratamento de `tipo`.
          NÃO usa OPCOES_GRUPO_ARMADURAS (que tem 'Livre'): 'Livre' faz sentido
          em tecnicas.grupo_armaduras, onde significa "serve com qualquer
@@ -416,15 +385,53 @@ const CATALOGO_DESCRITORES = {
                  { value: 'costas', label: 'Costas' }, { value: 'cintura', label: 'Cintura' },
                  { value: 'pescoco', label: 'Pescoço' }, { value: 'orelhas', label: 'Orelhas' },
                  { value: 'dedos', label: 'Dedos' }] },
+      { col: 'resistencia', grupos: ['Armas', 'Armaduras', 'Vestimentas'], tipo: 'numero', rotuloKey: 'campoResistencia', min: 0 },
       { col: 'maos_pequenino', grupos: ['Armas', 'Armaduras', 'Instrumentos'], tipo: 'numero', rotuloKey: 'campoMaosPequenino', min: 0, max: 2 },
       { col: 'maos_anao', grupos: ['Armas', 'Armaduras', 'Instrumentos'],      tipo: 'numero', rotuloKey: 'campoMaosAnao',      min: 0, max: 2 },
       { col: 'maos_outras', grupos: ['Armas', 'Armaduras', 'Instrumentos'],    tipo: 'numero', rotuloKey: 'campoMaosOutras',    min: 0, max: 2 },
+      /* DROPDOWN com as magias do sistema (28/09/2026: "no campo magia, mostrar
+         um dropdown com as magias do sistema"). O banco guarda o NOME da magia
+         (magiaDoItem casa pelo nome); a lista vem da tabela `fonte` quando o
+         editor abre e entra depois do "nenhuma" daqui. */
+      { col: 'magia',  tipo: 'opcoes', rotuloKey: 'campoMagia', fonte: 'magias', comNivel: 'nivel_magia',
+        opcoes: [{ value: '', label: '—' }] },
+      /* Fora da tela desde 23/10/2026: o nível vem junto com a magia escolhida
+         (campo magia, comNivel). Continua no payload — é o que se grava. */
+      { col: 'nivel_magia', tipo: 'numero', rotuloKey: 'campoNivelMagia', min: 0, oculto: true },
+      /* SOMENTE LEITURA, e não é preferência — é o banco.
+         itens.magico é coluna GERADA:
+           magico boolean GENERATED ALWAYS AS (magia IS NOT NULL AND magia <> '')
+         O Postgres recusa qualquer UPDATE que a mencione, com
+         "column magico can only be updated to DEFAULT". O editor a mandava no
+         payload de TODA edição de item, então NENHUM item salvava — o erro
+         que o usuário reportou em 11/09/2026.
+         O valor se resolve sozinho a partir de `magia`: preencheu, é mágico. */
+      { col: 'magico', tipo: 'opcoes', rotuloKey: 'campoMagico',
+        opcoes: ['Sim', 'Não'], somenteLeitura: true },
+      /* Técnica que o pergaminho ensina (22/10/2026): mesmo molde do campo
+         Magia — o banco guarda o NOME; só os Consumíveis (pergaminhos). */
+      { col: 'tecnica', tipo: 'opcoes', rotuloKey: 'campoTecnica', fonte: 'tecnicas',
+        grupos: ['Consumíveis'], opcoes: [{ value: '', label: '—' }] },
       /* Livro → pergaminhos (22/10/2026): "Dentro desses livros, estarão
          vinculadas os itens para aprendizado das magias". Não é coluna de
          itens: vive em livro_pergaminhos, e o editor grava depois de salvar. */
       { col: 'pergaminhos_do_livro', tipo: 'vinculo', rotuloKey: 'campoPergaminhosLivro', semColuna: true,
         grupos: ['Itens'],
         vinculo: { tabela: 'livro_pergaminhos', dono: 'livro_slug', alvo: 'pergaminho_slug', prefixo: 'pergaminho_' } },
+      /* 'efeito' SAIU dos itens em 25/09/2026: vazio nos 1003 itens, e nenhuma
+         regra o lia — o que o jogo aplica é efeito_positivo/efeito_negativo.
+         A coluna segue no banco, vazia. */
+      { col: 'efeito_positivo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoPositivo',  linhas: 2 },
+      { col: 'efeito_negativo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoNegativo',  linhas: 2 },
+      /* 'consumiveis' e 'consumiveis_peso' SAÍRAM em 28/09/2026: a carne do
+         abate sai do tipo e do peso da CRIATURA ligada (RPC abater_animal) —
+         "não precisa de um dropdown para isso, a conversão é automática". As
+         colunas seguem no banco, sem uso. */
+      /* Vínculo com a criatura (14/09/2026). O animal à venda É a criatura do
+         bestiário: as características (montaria inclusive) ficam SÓ nela e o
+         item herda por aqui. scripts/sql/itens-criatura-vinculo-2026-09-14.sql */
+      { col: 'criatura_id', grupos: ['Animais'], tipo: 'referencia', rotuloKey: 'campoCriatura', fonte: 'criaturas' },
+      { col: 'doc_url', grupos: ['Itens', 'Diario'],   tipo: 'texto', rotuloKey: 'campoDocUrl' },
       // A descrição fica POR ÚLTIMO no editor de itens (26/09/2026).
       { col: 'descricao', tipo: 'area', rotuloKey: 'campoDescricao', linhas: 3 },
     ],

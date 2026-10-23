@@ -1,0 +1,626 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-23T00:23:26.320Z",
+  "title": "Design System: Menestrel",
+  "extensions": {
+    "colorMeta": {
+      "couro-fundo": {
+        "role": "neutral",
+        "displayName": "Couro de Fundo",
+        "canonical": "oklch(20.2% 0.017 66.6)",
+        "tonalRamp": [
+          "#100A04",
+          "#2A221B",
+          "#463E36",
+          "#655C53",
+          "#857B73",
+          "#A69D93",
+          "#CCC2B9",
+          "#F7ECE2"
+        ]
+      },
+      "couro-painel": {
+        "role": "neutral",
+        "displayName": "Couro de Painel",
+        "canonical": "oklch(16.3% 0.017 77.6)",
+        "tonalRamp": [
+          "#0F0A04",
+          "#29231B",
+          "#453F36",
+          "#635D53",
+          "#837C72",
+          "#A49D93",
+          "#CAC3B8",
+          "#F5EDE2"
+        ]
+      },
+      "couro-cartao": {
+        "role": "neutral",
+        "displayName": "Couro de Cartão",
+        "canonical": "oklch(26.8% 0.024 69.2)",
+        "tonalRamp": [
+          "#120902",
+          "#2C2217",
+          "#483E32",
+          "#675B4F",
+          "#877B6E",
+          "#A99C8E",
+          "#CFC2B4",
+          "#FAECDD"
+        ]
+      },
+      "tinta": {
+        "role": "neutral",
+        "displayName": "Tinta",
+        "canonical": "oklch(92.8% 0.033 85.5)",
+        "tonalRamp": [
+          "#110A00",
+          "#2B2311",
+          "#483F2C",
+          "#665D49",
+          "#867C67",
+          "#A89D88",
+          "#CEC3AD",
+          "#F8EDD6"
+        ]
+      },
+      "tinta-2": {
+        "role": "neutral",
+        "displayName": "Tinta Segunda",
+        "canonical": "oklch(80.8% 0.046 87.2)",
+        "tonalRamp": [
+          "#130900",
+          "#2E2206",
+          "#4A3E22",
+          "#695C3F",
+          "#897C5E",
+          "#AB9D7E",
+          "#D1C3A3",
+          "#FCEDCC"
+        ]
+      },
+      "tinta-3": {
+        "role": "neutral",
+        "displayName": "Tinta Discreta",
+        "canonical": "oklch(67.1% 0.040 78.9)",
+        "tonalRamp": [
+          "#140800",
+          "#2E220B",
+          "#4B3D27",
+          "#6A5B44",
+          "#8A7B63",
+          "#AC9C83",
+          "#D2C2A8",
+          "#FDECD1"
+        ]
+      },
+      "tinta-escura": {
+        "role": "neutral",
+        "displayName": "Tinta Escura",
+        "canonical": "oklch(19.8% 0.027 79.0)",
+        "tonalRamp": [
+          "#110A01",
+          "#2B2315",
+          "#473E30",
+          "#665C4D",
+          "#867C6C",
+          "#A89D8C",
+          "#CEC2B1",
+          "#F8EDDB"
+        ]
+      },
+      "ouro": {
+        "role": "primary",
+        "displayName": "Ouro de Lei",
+        "canonical": "oklch(73.5% 0.113 86.0)",
+        "tonalRamp": [
+          "#190600",
+          "#371E00",
+          "#583900",
+          "#7A5700",
+          "#9B7718",
+          "#BD9946",
+          "#DFC07B",
+          "#FFECB3"
+        ]
+      },
+      "ouro-vivo": {
+        "role": "primary",
+        "displayName": "Ouro Vivo",
+        "canonical": "oklch(84.4% 0.104 89.9)",
+        "tonalRamp": [
+          "#170700",
+          "#351F00",
+          "#553B00",
+          "#745A00",
+          "#957A28",
+          "#B89B4D",
+          "#DCC27B",
+          "#FFEDB3"
+        ]
+      },
+      "cobre": {
+        "role": "primary",
+        "displayName": "Cobre",
+        "canonical": "oklch(61.2% 0.121 59.5)",
+        "tonalRamp": [
+          "#200000",
+          "#421400",
+          "#672E00",
+          "#8D4900",
+          "#B16926",
+          "#D18D54",
+          "#F2B686",
+          "#FFE3BB"
+        ]
+      },
+      "brasa": {
+        "role": "secondary",
+        "displayName": "Brasa",
+        "canonical": "oklch(71.5% 0.130 34.9)",
+        "tonalRamp": [
+          "#230000",
+          "#460B00",
+          "#6D2513",
+          "#953F2B",
+          "#BB5F48",
+          "#DA846F",
+          "#FBAE9B",
+          "#FFDDCC"
+        ]
+      },
+      "sangue": {
+        "role": "secondary",
+        "displayName": "Sangue",
+        "canonical": "oklch(49.5% 0.139 29.5)",
+        "tonalRamp": [
+          "#230000",
+          "#470A05",
+          "#6D241B",
+          "#963E33",
+          "#BC5D50",
+          "#DA8376",
+          "#FBADA0",
+          "#FFDCD1"
+        ]
+      },
+      "magia": {
+        "role": "tertiary",
+        "displayName": "Roxo Arcano",
+        "canonical": "oklch(70.2% 0.111 309.8)",
+        "tonalRamp": [
+          "#150023",
+          "#311344",
+          "#512C69",
+          "#714A8C",
+          "#9169AF",
+          "#B38BD2",
+          "#D7B3F2",
+          "#FEE1FF"
+        ]
+      },
+      "bronze": {
+        "role": "neutral",
+        "displayName": "Bronze",
+        "canonical": "oklch(46.2% 0.054 73.2)",
+        "tonalRamp": [
+          "#180600",
+          "#331F01",
+          "#513B1D",
+          "#70593B",
+          "#91795A",
+          "#B39A7A",
+          "#DABF9E",
+          "#FFEAC8"
+        ]
+      },
+      "ouro-vivo-fundo": {
+        "role": "primary",
+        "displayName": "Fundo Vivo",
+        "canonical": "rgba(201,164,78,0.12)"
+      },
+      "ouro-vivo-aro": {
+        "role": "primary",
+        "displayName": "Aro Vivo",
+        "canonical": "rgba(230,201,122,0.55)"
+      },
+      "brasa-fundo": {
+        "role": "secondary",
+        "displayName": "Fundo de Brasa",
+        "canonical": "rgba(162,59,47,0.16)"
+      },
+      "regua": {
+        "role": "neutral",
+        "displayName": "Régua",
+        "canonical": "rgba(138,110,64,0.28)"
+      },
+      "regua-forte": {
+        "role": "neutral",
+        "displayName": "Régua Forte",
+        "canonical": "rgba(138,110,64,0.50)"
+      },
+      "chao-celula": {
+        "role": "neutral",
+        "displayName": "Chão de Célula",
+        "canonical": "rgba(138,110,64,0.07)"
+      },
+      "couro-pilula": {
+        "role": "neutral",
+        "displayName": "Pílula de Couro",
+        "canonical": "rgba(138,110,64,0.12)"
+      },
+      "campo-tinta": {
+        "role": "neutral",
+        "displayName": "Tinta de Campo",
+        "canonical": "#E8DDC6"
+      },
+      "chao-celula-opaco": {
+        "role": "neutral",
+        "displayName": "Couro de Folha",
+        "canonical": "oklch(18.5% 0.017 70)",
+        "tonalRamp": [
+          "#0F0A04",
+          "#29221B",
+          "#453E36",
+          "#645C53",
+          "#847B72",
+          "#A59C92",
+          "#CBC2B8",
+          "#F6ECE1"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Título de Janela",
+        "purpose": "Título de modal/janela em Cinzel; único uso da Cinzel (≥18px)."
+      },
+      "value-lider": {
+        "displayName": "Número Líder",
+        "purpose": "O número que define o item (dano, defesa) no passe da janela de item; mede o conteúdo; 24px no celular. Um por passe."
+      },
+      "value-lg": {
+        "displayName": "Valor de Identidade",
+        "purpose": "Nome da escolha na primeira célula do passe; 20px no celular."
+      },
+      "value": {
+        "displayName": "Valor de Célula",
+        "purpose": "Valores do passe e títulos de seção, tabulares."
+      },
+      "body": {
+        "displayName": "Corpo",
+        "purpose": "Texto de leitura."
+      },
+      "body-ui": {
+        "displayName": "Interface",
+        "purpose": "Linhas do quadro, botões md, texto de interface."
+      },
+      "small": {
+        "displayName": "Pequeno",
+        "purpose": "Tabelas, botões sm e de rodapé, seletor de quantidade."
+      },
+      "caption": {
+        "displayName": "Legenda",
+        "purpose": "Tipo da linha, avisos de bloqueio e treino (14px); contadores (13px)."
+      },
+      "label": {
+        "displayName": "Rótulo de Célula",
+        "purpose": "Caixa-alta espaçada em tinta discreta: rótulo de célula e cabeçalho de coluna. Nunca Cinzel, nunca ouro."
+      },
+      "page-title": {
+        "displayName": "Título de Página",
+        "purpose": "Título do cabeçalho do console em Cinzel, sozinho, sem rótulo acima; 20px no celular."
+      },
+      "nav-label": {
+        "displayName": "Rótulo de Navegação",
+        "purpose": "Destinos do menu lateral; filhos de gaveta em 15px 500; barra inferior em 12px 700."
+      }
+    },
+    "shadows": [
+      {
+        "name": "modal",
+        "value": "0 30px 80px -24px rgba(8,6,2,0.82)",
+        "purpose": "Painel de modal sobre o backdrop (desfoque 6px, véu rgba(25,19,8,0.72))."
+      },
+      {
+        "name": "painel-flutuante",
+        "value": "0 20px 50px -16px rgba(8,6,2,0.85)",
+        "purpose": "Lista aberta de seleção."
+      },
+      {
+        "name": "aro-vivo",
+        "value": "inset 0 0 0 1px rgba(230,201,122,0.55)",
+        "purpose": "Aro da linha escolhida no quadro (não é elevação)."
+      },
+      {
+        "name": "aro-principal-bloqueada",
+        "value": "inset 0 0 0 1px rgba(201,164,78,0.35)",
+        "purpose": "Principal bloqueada da barra de ações: guarda o lugar sem acender (não é elevação)."
+      },
+      {
+        "name": "menu-seletor",
+        "value": "0 14px 36px rgba(0,0,0,0.55)",
+        "purpose": "Menu aberto do seletor de contexto."
+      },
+      {
+        "name": "folha-menu",
+        "value": "12px 0 40px rgba(0,0,0,0.5)",
+        "purpose": "Menu lateral como folha no celular, sobre véu rgba(10,8,4,0.62)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "mn-troca",
+        "value": "220ms cubic-bezier(.16,1,.3,1); opacity .4→1, translateY 5px→0",
+        "purpose": "Valor novo do passe assenta quando a escolha muda; nenhum com prefers-reduced-motion."
+      },
+      {
+        "name": "ms-rise",
+        "value": "180ms ease; opacity 0→1, translateY 6px→0 (fill backwards)",
+        "purpose": "Entrada do modal."
+      },
+      {
+        "name": "ms-fade",
+        "value": "180ms ease",
+        "purpose": "Entrada do backdrop."
+      },
+      {
+        "name": "estado",
+        "value": "150–160ms ease",
+        "purpose": "Hover/seleção de linha, botão e campo."
+      },
+      {
+        "name": "clique",
+        "value": "translateY(1px), 120ms",
+        "purpose": "Botão afunda ao clicar."
+      },
+      {
+        "name": "folha-menu",
+        "value": "240ms cubic-bezier(.16,1,.3,1); translateX(-102%)→0",
+        "purpose": "Folha do menu desliza da esquerda no celular."
+      },
+      {
+        "name": "gaveta-seta",
+        "value": "200ms ease; rotate 0→180deg",
+        "purpose": "Seta da gaveta do grupo Mesa ao abrir."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "celular",
+        "value": "560px"
+      },
+      {
+        "name": "tablet-em-pe",
+        "value": "768px"
+      },
+      {
+        "name": "tela-media",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão Primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação principal (Aprender, Salvar, Confirmar): pílula em degradê ouro→cobre; desativado vira pílula de couro.",
+      "html": "<div style=\"display:flex;gap:10px\"><button class=\"ds-btn-primary\">Aprender</button><button class=\"ds-btn-primary\" disabled>Aprender</button></div>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 20px;border-radius:999px;font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;font-weight:600;font-size:16px;line-height:1;cursor:pointer;transition:filter .16s ease,background .16s ease,color .16s ease,transform .12s ease;color:#1C1407;border:1px solid transparent;background:linear-gradient(135deg,#C9A44E 0%,#B8702E 100%);} .ds-btn-primary:hover:not(:disabled){background:linear-gradient(135deg,#D4B060 0%,#C47E3C 100%);filter:brightness(1.06);} .ds-btn-primary:disabled{background:rgba(138,110,64,0.16);color:#A3937A;cursor:not-allowed;} .ds-btn-primary:focus-visible{outline:2px solid rgba(201,164,78,0.65);outline-offset:2px;} .ds-btn-primary:active:not(:disabled){transform:translateY(1px);}"
+    },
+    {
+      "name": "Botão Secundário",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Cancelar, Voltar, Fechar: pílula de couro; hover acende o texto em ouro claro.",
+      "html": "<button class=\"ds-btn-ghost\">Fechar</button>",
+      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 20px;border-radius:999px;font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;font-weight:600;font-size:16px;line-height:1;cursor:pointer;transition:filter .16s ease,background .16s ease,color .16s ease,transform .12s ease;color:#F1E6CF;background:rgba(138,110,64,0.12);border:none;} .ds-btn-ghost:hover:not(:disabled){color:#E0BE68;background:rgba(138,110,64,0.20);} .ds-btn-ghost:focus-visible{outline:2px solid rgba(201,164,78,0.65);outline-offset:2px;} .ds-btn-ghost:active:not(:disabled){transform:translateY(1px);}"
+    },
+    {
+      "name": "Botão de Perigo",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Excluir, Destruir, Revogar.",
+      "html": "<button class=\"ds-btn-danger\">Descartar</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 20px;border-radius:999px;font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;font-weight:600;font-size:16px;line-height:1;cursor:pointer;transition:filter .16s ease,background .16s ease,color .16s ease,transform .12s ease;color:#F1E6CF;background:rgba(200,33,44,0.10);border:1px solid transparent;} .ds-btn-danger:hover:not(:disabled){color:#E0BE68;background:rgba(200,33,44,0.18);} .ds-btn-danger:focus-visible{outline:2px solid rgba(201,164,78,0.65);outline-offset:2px;} .ds-btn-danger:active:not(:disabled){transform:translateY(1px);}"
+    },
+    {
+      "name": "Campo Único",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "A única pele de campo de texto: pílula de couro sem borda visível; foco acende o aro em ouro.",
+      "html": "<input class=\"ds-campo\" placeholder=\"Buscar magia\" />",
+      "css": ".ds-campo{height:32px;padding:0 14px;border-radius:999px;background:rgba(138,110,64,0.12);color:#E8DDC6;border:1px solid transparent;font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;font-size:15px;transition:background-color .15s ease,border-color .15s ease;} .ds-campo::placeholder{color:#9C8F73;} .ds-campo:hover{background:rgba(138,110,64,0.20);} .ds-campo:focus{outline:none;border-color:rgba(201,164,78,0.55);}"
+    },
+    {
+      "name": "Seletor de Quantidade",
+      "kind": "custom",
+      "refersTo": "quantity-stepper",
+      "description": "QuantidadeStepper: o único seletor de quantidade — pílula com − e + em círculos nas pontas.",
+      "html": "<div class=\"ds-stepper\" role=\"group\" aria-label=\"Quantidade\"><button class=\"ds-step\" aria-label=\"-\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M5 12h14\"/></svg></button><span class=\"ds-step-val\">1 de 5</span><button class=\"ds-step\" aria-label=\"+\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg></button></div>",
+      "css": ".ds-stepper{width:220px;height:40px;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:0 4px;background:#120D06;border:1px solid rgba(138,110,64,0.35);border-radius:999px;} .ds-step{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:none;background:transparent;color:#E0BE68;cursor:pointer;transition:background .15s;} .ds-step:hover,.ds-step:focus-visible{background:rgba(201,164,78,0.16);outline:none;} .ds-step-val{flex:1;text-align:center;font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;font-size:15px;color:#F1E6CF;font-variant-numeric:tabular-nums;}"
+    },
+    {
+      "name": "Passe",
+      "kind": "custom",
+      "refersTo": "passe",
+      "description": "Cartão de embarque da entidade em foco: células rotuladas separadas por réguas, valor grande tabular.",
+      "html": "<div class=\"ds-passe\"><div class=\"ds-celula\"><span class=\"ds-rotulo ds-rotulo-magia\">Magia</span><span class=\"ds-valor ds-valor-lg\">Bola de Fogo</span></div><div class=\"ds-celula\"><span class=\"ds-rotulo\">Nível</span><span class=\"ds-valor\">3 → 5</span></div><div class=\"ds-celula\"><span class=\"ds-rotulo\">Custo</span><span class=\"ds-valor ds-vivo\">4</span></div><div class=\"ds-celula\"><span class=\"ds-rotulo\">Saldo de magia</span><span class=\"ds-valor\">351 → 347 <small>de 360</small></span></div></div>",
+      "css": ".ds-passe{--tinta:#F1E6CF;--tinta-2:#CDBF9F;--tinta-3:#A3937A;--vivo:#E6C97A;--vivo-aro:rgba(230,201,122,0.55);--alerta:#E8836A;--magia:#B48BD3;--regua:rgba(138,110,64,0.28);--regua-forte:rgba(138,110,64,0.50);--chao-celula:rgba(138,110,64,0.07);font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;font-variant-numeric:lining-nums tabular-nums;display:grid;grid-auto-flow:column;grid-template-columns:minmax(0,1fr);grid-auto-columns:auto;border:1px solid var(--regua-forte);border-radius:10px;background:var(--chao-celula);max-width:580px;} .ds-celula{display:flex;flex-direction:column;justify-content:center;gap:6px;padding:12px 16px;min-width:0;} .ds-celula+.ds-celula{border-left:1px solid var(--regua);} .ds-rotulo{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-3);line-height:1.2;} .ds-rotulo-magia{color:var(--magia);} .ds-valor{font-size:20px;font-weight:700;line-height:1.15;color:var(--tinta);white-space:nowrap;} .ds-valor-lg{font-size:24px;white-space:normal;} .ds-valor small{font-size:15px;font-weight:500;color:var(--tinta-2);} .ds-vivo{color:var(--vivo);}"
+    },
+    {
+      "name": "Quadro",
+      "kind": "custom",
+      "refersTo": "board-row",
+      "description": "Painel de partidas: grupo rotulado, linhas de 44px com régua, colunas tabulares; escolhida em ouro com aro, bloqueada diz o porquê em brasa.",
+      "html": "<div class=\"ds-quadro\" role=\"radiogroup\"><div class=\"ds-cabeca\"><span class=\"ds-rot\">Aprender agora 4</span><span class=\"ds-rot ds-num\">Nível</span><span class=\"ds-rot ds-num\">Custo</span></div><div class=\"ds-linha\" role=\"radio\" tabindex=\"-1\" aria-checked=\"false\"><span><b>Luz</b> <em class=\"ds-tipo\">Magia · Ilusionismo</em></span><span class=\"ds-num\">3 → 5</span><span class=\"ds-num\"><b>2</b></span></div><div class=\"ds-linha on\" role=\"radio\" tabindex=\"0\" aria-checked=\"true\"><span><b>Bola de Fogo</b> <em class=\"ds-tipo\">Magia · Evocação</em></span><span class=\"ds-num\">3 → 5</span><span class=\"ds-num\"><b>4</b></span></div><div class=\"ds-linha ds-bloq\" role=\"radio\" tabindex=\"-1\" aria-checked=\"false\"><span><b>Teleporte Maior</b> <em class=\"ds-tipo\">Magia · Transporte</em><br><small class=\"ds-motivo\">Sem o próximo nível no catálogo — peça ao Mestre.</small></span><span class=\"ds-num\">—</span><span class=\"ds-num\">—</span></div></div>",
+      "css": ".ds-quadro{--tinta:#F1E6CF;--tinta-2:#CDBF9F;--tinta-3:#A3937A;--vivo:#E6C97A;--vivo-aro:rgba(230,201,122,0.55);--alerta:#E8836A;--magia:#B48BD3;--regua:rgba(138,110,64,0.28);--regua-forte:rgba(138,110,64,0.50);--chao-celula:rgba(138,110,64,0.07);font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;font-variant-numeric:lining-nums tabular-nums;display:flex;flex-direction:column;max-width:580px;} .ds-cabeca,.ds-linha{display:grid;grid-template-columns:minmax(0,1fr) 76px 52px;gap:2px 16px;align-items:center;padding:8px 12px;} .ds-cabeca{padding-top:0;border-bottom:1px solid var(--regua-forte);} .ds-rot{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-3);} .ds-linha{min-height:44px;border-bottom:1px solid var(--regua);font-size:16px;color:var(--tinta);cursor:pointer;transition:background-color .15s ease,box-shadow .15s ease;} .ds-linha:hover{background:rgba(138,110,64,0.10);} .ds-linha.on{background:rgba(201,164,78,0.15);box-shadow:inset 0 0 0 1px var(--vivo-aro);border-bottom-color:transparent;border-radius:6px;} .ds-linha.on b{color:var(--vivo);} .ds-linha:focus-visible{outline:2px solid var(--vivo);outline-offset:-2px;border-radius:6px;} .ds-num{text-align:right;white-space:nowrap;} .ds-linha .ds-num:nth-child(2){color:var(--tinta-2);} .ds-tipo{font-style:normal;font-size:14px;color:var(--magia);margin-left:8px;} .ds-bloq b,.ds-bloq .ds-num{color:var(--tinta-3);} .ds-motivo{font-size:14px;color:var(--alerta);}"
+    },
+    {
+      "name": "Modal com Rodapé",
+      "kind": "card",
+      "refersTo": "modal",
+      "description": "ModalShell: título Cinzel 20/600, corpo com rolagem própria, confirmação no rodapé (Fechar à esquerda, primária à direita).",
+      "html": "<div class=\"ds-modal\"><header class=\"ds-mh\"><h2 class=\"ds-mt\">Grimório de Arnor</h2><button class=\"ds-x\" aria-label=\"Fechar\">×</button></header><div class=\"ds-mb\">O que este item ensina.</div><footer class=\"ds-mf\"><button class=\"ds-g\">Fechar</button><button class=\"ds-p\">Aprender Bola de Fogo 5</button></footer></div>",
+      "css": ".ds-modal{max-width:500px;display:flex;flex-direction:column;background:rgba(18,13,6,0.90);border:1px solid rgba(138,110,64,0.30);border-radius:6px;box-shadow:0 30px 80px -24px rgba(8,6,2,0.82);color:#F1E6CF;font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;} .ds-mh{display:flex;align-items:center;padding:20px;border-bottom:1px solid rgba(138,110,64,0.20);} .ds-mt{flex:1;margin:0;font-family:Cinzel,serif;font-weight:600;font-size:20px;line-height:1.2;letter-spacing:.01em;} .ds-x{background:none;border:none;color:#BFAF8E;font-size:18px;cursor:pointer;} .ds-x:hover{color:#F1E6CF;} .ds-mb{padding:20px 24px;font-size:16px;} .ds-mf{display:flex;justify-content:space-between;gap:10px;padding:20px;border-top:1px solid rgba(138,110,64,0.30);} .ds-g,.ds-p{height:46px;padding:0 20px;border-radius:999px;font-family:inherit;font-weight:600;font-size:15px;cursor:pointer;} .ds-g{background:rgba(138,110,64,0.12);color:#F1E6CF;border:1px solid transparent;} .ds-g:hover{color:#E0BE68;background:rgba(138,110,64,0.20);} .ds-p{background:linear-gradient(135deg,#C9A44E,#B8702E);color:#1C1407;border:1px solid transparent;} .ds-p:hover{background:linear-gradient(135deg,#D4B060,#C47E3C);} .ds-g:focus-visible,.ds-p:focus-visible{outline:2px solid rgba(201,164,78,0.65);outline-offset:2px;}"
+    },
+    {
+      "name": "Barra de Ações",
+      "kind": "custom",
+      "refersTo": "action-pill",
+      "description": "Barra com nome: pílulas de ícone + nome; principal em ouro primeiro e nunca reordenada; bloqueada apaga com aro tênue e diz o porquê em brasa embaixo; secundária bloqueada mostra o marcador de informação; Descartar por último.",
+      "html": "<div class=\"ds-faixa\"><div class=\"ds-acoes\" role=\"toolbar\"><button class=\"ds-acao ds-acao-principal\" disabled><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z\"/></svg>Equipar</button><button class=\"ds-acao\" disabled><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 11l5 5 5-5M12 4v12\"/></svg>Armazenar<svg class=\"ds-sinal\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 11v5M12 8h.01\" stroke=\"#120D06\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg></button><button class=\"ds-acao ds-acao-perigo\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3\"/></svg>Descartar</button></div><p class=\"ds-motivo ds-motivo-principal\"><strong>Equipar</strong> — Precisa de 1 mão livre; nenhuma livre.</p></div>",
+      "css": ".ds-faixa{padding:14px 20px;border-bottom:1px solid rgba(138,110,64,0.28);background:#120D06;font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;} .ds-acoes{display:flex;flex-wrap:wrap;gap:8px;} .ds-acao{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 16px 0 13px;border:1px solid transparent;border-radius:999px;cursor:pointer;background:rgba(138,110,64,0.13);color:#F1E6CF;font-family:inherit;font-size:15px;font-weight:700;line-height:1;white-space:nowrap;transition:background-color .15s ease,color .15s ease,box-shadow .15s ease,filter .15s ease;} .ds-acao svg{color:#CDBF9F;} .ds-acao:hover:not(:disabled){background:rgba(138,110,64,0.24);} .ds-acao:focus-visible{outline:2px solid #E6C97A;outline-offset:2px;} .ds-acao-principal{background:linear-gradient(135deg,#C9A44E 0%,#B8702E 100%);color:#1C1407;} .ds-acao-principal svg{color:#1C1407;} .ds-acao-principal:hover:not(:disabled){filter:brightness(1.1);} .ds-acao-perigo:hover:not(:disabled),.ds-acao-perigo:hover:not(:disabled) svg{color:#E8836A;} .ds-acao-perigo:hover:not(:disabled){background:rgba(162,59,47,0.16);} .ds-acao:disabled{cursor:not-allowed;background:rgba(138,110,64,0.07);color:#A3937A;} .ds-acao:disabled svg{color:#A3937A;} .ds-acao-principal:disabled{background:rgba(201,164,78,0.07);box-shadow:inset 0 0 0 1px rgba(201,164,78,0.35);} .ds-sinal{margin-left:-2px;} .ds-motivo{margin:10px 2px 0;font-size:14px;color:#CDBF9F;} .ds-motivo strong{color:#F1E6CF;font-weight:700;} .ds-motivo-principal,.ds-motivo-principal strong{color:#E8836A;}"
+    },
+    {
+      "name": "Passe do Item",
+      "kind": "custom",
+      "refersTo": "passe-value-lider",
+      "description": "Topo fixo da janela de item: texto primeiro, depois o número líder em 32px medindo o conteúdo, depois os demais; células alinhadas pelo topo.",
+      "html": "<div class=\"ds-ipasse\"><div class=\"ds-ic ds-ic-lider\"><span class=\"ds-irot\">Dano</span><span class=\"ds-ival\">12</span></div><div class=\"ds-ic\"><span class=\"ds-irot\">Grupo</span><span class=\"ds-ival\">CM</span></div><div class=\"ds-ic\"><span class=\"ds-irot\">Resistência</span><span class=\"ds-ival\">20</span></div><div class=\"ds-ic\"><span class=\"ds-irot\">Ocupa</span><span class=\"ds-ival\">1,5</span></div></div>",
+      "css": ".ds-ipasse{display:flex;align-items:stretch;max-width:640px;border:1px solid rgba(138,110,64,0.50);border-radius:10px;background:rgba(138,110,64,0.07);font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;font-variant-numeric:lining-nums tabular-nums;font-feature-settings:\"lnum\" 1;} .ds-ic{flex:1 1 auto;display:flex;flex-direction:column;justify-content:flex-start;gap:6px;padding:12px 16px;min-width:0;} .ds-ic+.ds-ic{border-left:1px solid rgba(138,110,64,0.28);} .ds-ic-lider{flex:0 0 auto;padding-right:28px;} .ds-irot{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#A3937A;line-height:1.2;} .ds-ival{font-size:20px;font-weight:700;line-height:1.15;color:#F1E6CF;white-space:nowrap;} .ds-ic-lider .ds-ival{font-size:32px;line-height:1;}"
+    },
+    {
+      "name": "Menu Lateral",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Mesa em Sessão: seletor de contexto no topo, destinos com ícone e rótulo, gaveta no grupo Mesa, régua, Livro de Regras com seta de filtros; ativo em fundo vivo e ícone em ouro, sem faixa lateral.",
+      "html": "<aside class=\"ds-nav\"><button class=\"ds-ident\"><span class=\"ds-brasao\">V</span><span class=\"ds-ident-nome\">A Vigília de Vertigo</span><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M8 9l4-4 4 4M16 15l-4 4-4-4\"/></svg></button><button class=\"ds-ni ds-on\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M3 21h18M5 21V8l3-2 4 3 4-3 3 2v13\"/></svg><span>Cena</span></button><button class=\"ds-ni\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4\"/></svg><span>Batalha</span></button><button class=\"ds-ni\" aria-expanded=\"true\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M3 21h18M3 7l2-4h14l2 4v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0zM5 21V11M19 21V11\"/></svg><span>Loja</span><svg class=\"ds-seta\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M6 15l6-6 6 6\"/></svg></button><div class=\"ds-filhos\"><button class=\"ds-ni ds-filho\">Estoque</button><button class=\"ds-ni ds-filho\">Itens da Campanha</button></div><div class=\"ds-regua\"></div><p class=\"ds-secao\">Livro de Regras</p><div class=\"ds-linha\"><button class=\"ds-ni\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 3l2.5 6H21l-5 4 2 7-6-4-6 4 2-7-5-4h6.5z\"/></svg><span>Magias</span></button><button class=\"ds-mais\" aria-label=\"Filtros de Magias\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M9 6l6 6-6 6\"/></svg></button></div></aside>",
+      "css": ".ds-nav{width:232px;display:flex;flex-direction:column;gap:2px;padding:18px 12px 12px;background:#1C150E;font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;} .ds-ident{display:flex;align-items:center;gap:10px;min-height:52px;margin-bottom:14px;padding:8px 6px 8px 8px;border:1px solid rgba(138,110,64,0.50);border-radius:10px;background:rgba(138,110,64,0.07);color:#F1E6CF;font-family:inherit;text-align:left;cursor:pointer;transition:background-color .15s ease;} .ds-ident:hover{background:rgba(138,110,64,0.15);} .ds-ident:focus-visible{outline:2px solid #E6C97A;outline-offset:2px;} .ds-ident svg{color:#A3937A;flex-shrink:0;} .ds-brasao{flex:0 0 36px;height:36px;border-radius:8px;display:grid;place-items:center;background:rgba(201,164,78,0.12);color:#E6C97A;font-family:Cinzel,serif;font-size:18px;font-weight:600;} .ds-ident-nome{flex:1;font-size:16px;font-weight:700;line-height:1.2;} .ds-ni{display:flex;align-items:center;gap:12px;width:100%;min-height:40px;padding:8px 10px;border:none;border-radius:8px;background:transparent;color:#CDBF9F;font-family:inherit;font-size:16px;font-weight:600;text-align:left;cursor:pointer;transition:background-color .15s ease,color .15s ease;} .ds-ni svg{color:#A3937A;transition:color .15s ease;flex-shrink:0;} .ds-ni:hover{background:rgba(138,110,64,0.12);color:#F1E6CF;} .ds-ni:hover svg{color:#CDBF9F;} .ds-ni:focus-visible{outline:2px solid #E6C97A;outline-offset:-2px;} .ds-on{background:rgba(201,164,78,0.12);color:#F1E6CF;} .ds-on svg{color:#E6C97A;} .ds-seta{margin-left:auto;} .ds-filhos{display:flex;flex-direction:column;gap:1px;margin:2px 0 6px;padding-left:31px;} .ds-filho{min-height:34px;padding:6px 10px;font-size:15px;font-weight:500;} .ds-regua{height:1px;margin:14px 10px 12px;background:rgba(138,110,64,0.28);} .ds-secao{margin:0;padding:0 10px 6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#A3937A;} .ds-linha{display:flex;align-items:center;gap:2px;} .ds-mais{flex:0 0 32px;height:32px;border:none;border-radius:8px;display:grid;place-items:center;background:transparent;color:#A3937A;cursor:pointer;transition:background-color .15s ease,color .15s ease;} .ds-mais:hover{background:rgba(138,110,64,0.12);color:#F1E6CF;} .ds-mais:focus-visible{outline:2px solid #E6C97A;outline-offset:-2px;}"
+    },
+    {
+      "name": "Faixa da Cena",
+      "kind": "custom",
+      "refersTo": "scene-pill",
+      "description": "Cabeçalho de página com só o título em Cinzel e, na mesma faixa, a cena escrita: data · local · hora por extenso · clima com a palavra ao lado do ícone.",
+      "html": "<header class=\"ds-topo\"><h1 class=\"ds-titulo\">Batalha</h1><div class=\"ds-cena\"><span class=\"ds-pil\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"4\" y=\"5\" width=\"16\" height=\"16\" rx=\"2\"/><path d=\"M16 3v4M8 3v4M4 11h16\"/></svg>12 de Cireal, 1270</span><span class=\"ds-pil\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z\"/><circle cx=\"12\" cy=\"10\" r=\"2.5\"/></svg>Porto de Calco</span><button class=\"ds-pil ds-edit\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"currentColor\" style=\"color:#E0B070\"><circle cx=\"12\" cy=\"12\" r=\"5\"/></svg>15h</button><button class=\"ds-pil ds-edit\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"color:#7FA9D4\"><path d=\"M7 18a4 4 0 0 1 0-8 6 6 0 0 1 11.5 1.5A3.5 3.5 0 0 1 18 18zM9 21l1-2M14 21l1-2\"/></svg>Chuva fina</button></div></header>",
+      "css": ".ds-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;height:70px;padding:0 28px;border-bottom:1px solid rgba(138,110,64,0.28);background:#1C150E;font-family:\"Alegreya Sans\",\"Segoe UI\",system-ui,sans-serif;} .ds-titulo{margin:0;font-family:Cinzel,serif;font-weight:600;font-size:22px;line-height:1.15;color:#F1E6CF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .ds-cena{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;} .ds-pil{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px 0 12px;border:none;border-radius:999px;background:rgba(18,13,6,0.80);backdrop-filter:blur(16px);color:#F1E6CF;font-family:inherit;font-size:15px;font-weight:600;white-space:nowrap;transition:background .16s ease,color .16s ease,transform .12s ease;} .ds-pil svg{color:#E0BE68;flex-shrink:0;} .ds-edit{cursor:pointer;} .ds-edit:hover{color:#E0BE68;background:linear-gradient(rgba(201,164,78,0.12),rgba(201,164,78,0.12)),rgba(18,13,6,0.80);} .ds-edit:focus-visible{outline:2px solid #E6C97A;outline-offset:2px;} .ds-edit:active{transform:translateY(1px);}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Quadro de Iniciativa",
+    "overview": "A interface é um documento de viagem medieval com um quadro de partidas. Cada entidade em foco (magia, item, combatente) é um **passe**: uma fileira de células rotuladas, rótulo pequeno em caixa-alta em cima, valor grande em algarismos tabulares embaixo, que mostra a decisão em números antes do clique. Cada lista é um **quadro**: grupos com cabeçalho rotulado e linhas de 44px separadas por réguas finas de bronze, colunas numéricas alinhadas à direita, ordenadas pelo que importa agora.\n\nO chão é couro escuro; a única estrutura é a régua de bronze. Ouro não é decoração: acende só no que está vivo (o escolhido, a ação primária, o foco). Brasa fala só do que mudou ou bloqueia, e diz o porquê na própria linha. Roxo marca magia. A ambientação medieval vive na paleta e no título em Cinzel; todo o resto é escrito para ser lido de relance, em notebook, tablet apoiado na mesa ou sessão online, com o jogo correndo.\n\nA paleta couro/ouro/brasa/magia é compromisso de marca fixado pelo usuário e não muda; fonte, escala e formato podem mudar. O sistema recusa a ficha-padrão de painéis escuros com abas e texto dourado em tudo.",
+    "keyCharacteristics": [
+      "Passe (células rotuladas) para a entidade em foco; quadro (linhas com régua) para listas.",
+      "Ouro só para estado vivo; brasa só para mudança ou bloqueio; roxo para magia.",
+      "Cinzel só em títulos de 18px para cima; corpo, rótulos e números em Alegreya Sans.",
+      "Algarismos alinhados e tabulares em toda a interface.",
+      "Estrutura por réguas, não por caixas; nada de card dentro de card.",
+      "Um desenho por pergunta: um botão, um campo, um seletor de quantidade, um modal.",
+      "Janela de item em página única: passe fixo no topo, barra de ações com nome, corpo sem abas.",
+      "Mesa em Sessão: a navegação nasce da mesa ativa (Mestre) ou do personagem ativo (Jogador), com rótulos sempre visíveis e a cena escrita no topo."
+    ],
+    "rules": [
+      {
+        "name": "The Ouro É Vivo Rule",
+        "body": "Ouro claro só no que está vivo agora: escolhido, ação primária, foco. Texto dourado em rótulo, título ou decoração está proibido. Quem não pode agir não acende: o botão primário desativado vira pílula de couro com tinta discreta, nunca ouro a 50%. Na barra de ações, a principal bloqueada guarda o lugar com um aro de ouro tênue (35%) sobre fundo quase apagado (7%) e texto em tinta discreta: marca o lugar, não acende.",
+        "section": "colors"
+      },
+      {
+        "name": "The Brasa Explica Rule",
+        "body": "Brasa só para o que mudou ou bloqueia, e sempre com o motivo escrito na própria linha. Bloqueado continua legível e escolhível; cede a vez em tinta discreta e diz por quê em brasa.",
+        "section": "colors"
+      },
+      {
+        "name": "The Paleta Fixa Rule",
+        "body": "Couro, ouro, brasa e roxo da magia são identidade de marca. Ajuste de tom é permitido para legibilidade; troca de família de cor não.",
+        "section": "colors"
+      },
+      {
+        "name": "The Cinzel Acima de 18 Rule",
+        "body": "Cinzel só em títulos de 18px para cima. Abaixo disso, o que era Cinzel vira rótulo em caixa-alta espaçada na Alegreya Sans. Número nunca em Cinzel.",
+        "section": "typography"
+      },
+      {
+        "name": "The Algarismo Tabular Rule",
+        "body": "Toda a interface `.menestrel-ui` usa algarismos alinhados e tabulares (`lining-nums tabular-nums`); colunas numéricas alinham à direita e não quebram linha. A raiz também declara `font-feature-settings: \"lnum\" 1`, para que o algarismo alinhado vença regras legadas que pedem só `tabular-nums`.",
+        "section": "typography"
+      },
+      {
+        "name": "The Texto à Esquerda Rule",
+        "body": "Texto corrido em modal é alinhado à esquerda com `text-wrap: pretty`, nunca justificado: sem hifenização confiável, o justificado abre rios entre as palavras.",
+        "section": "typography"
+      },
+      {
+        "name": "The Rótulo Discreto Rule",
+        "body": "Rótulo de célula nunca em Cinzel e nunca em ouro. A exceção é semântica: o rótulo de uma magia veste o roxo arcano.",
+        "section": "typography"
+      },
+      {
+        "name": "The Régua, Não Caixa Rule",
+        "body": "Estrutura é régua de bronze de 1px, não caixa. Nada de card dentro de card; o passe é o único contorno dentro do corpo de um modal.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Sem Brilho Rule",
+        "body": "Seleção e foco são aro e preenchimento, nunca glow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Passe Não Se Repete Rule",
+        "body": "Valor que está no passe não aparece de novo em Características.",
+        "section": "components"
+      },
+      {
+        "name": "The Principal Primeiro Rule",
+        "body": "A ação principal é escolhida pelo que o item existe para fazer, não pelo estado: vem primeiro e nunca troca de lugar. Bloqueada, apaga e diz o porquê; a barra não se reordena.",
+        "section": "components"
+      },
+      {
+        "name": "The Mesa Primeiro Rule",
+        "body": "A navegação nasce da mesa ativa (Mestre: Cena, Batalha, Personagens, Diário, Loja, Jogadores) ou do personagem ativo (Jogador: Ficha, Inventário, Loja, Diário, Mesa). Abaixo da régua, o Livro de Regras; a conta no pé. Itens da Campanha moram na Loja da mesa. Trocar e sair da mesa acontecem só no seletor de contexto.",
+        "section": "components"
+      },
+      {
+        "name": "The Rótulo Sempre Rule",
+        "body": "No desktop todo destino mostra ícone e rótulo; nome em tooltip não conta como rótulo. O trilho de 64px só de ícones (decisão de 12/09/2026) foi substituído pelo menu de 232px com rótulos por escolha do usuário em 22/10/2026.",
+        "section": "components"
+      },
+      {
+        "name": "The Título Sozinho Rule",
+        "body": "O cabeçalho de página tem só o título em Cinzel. Nada de rótulo em caixa-alta acima dele: o seletor de contexto já diz em que mesa ou personagem se está.",
+        "section": "components"
+      },
+      {
+        "name": "The Cena Por Extenso Rule",
+        "body": "Hora e clima se escrevem em palavras ao lado do ícone (usuário, 22/10/2026, revertendo a escolha de só ícone de 20/09/2026). A cena se lê de relance, sem passar o mouse.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "**Do** mostrar a entidade em foco como passe: células com rótulo de 12px em caixa-alta espaçada e valor de 20–24px tabular.",
+      "**Do** montar listas como quadro: linhas de 44px, régua de bronze entre elas, colunas numéricas de largura fixa alinhadas à direita.",
+      "**Do** marcar a linha escolhida com preenchimento de ouro a 15% e aro interno de 1px em ouro vivo.",
+      "**Do** escrever o motivo do bloqueio na própria linha, em brasa, antes do clique.",
+      "**Do** colocar os botões de confirmação no rodapé do modal: Cancelar à esquerda, primária à direita; empilhados no celular.",
+      "**Do** usar o QuantidadeStepper para toda escolha de quantidade, o Campo Único para todo campo e o sistema de botões para todo botão.",
+      "**Do** usar ícones Tabler, filled onde houver.",
+      "**Do** manter o texto em tinta discreta ou mais claro; legibilidade é requisito, não acabamento.",
+      "**Do** abrir a janela de item com o passe fixo (texto primeiro, número líder em 32px) e a barra de ações com nome, principal primeiro e Descartar por último.",
+      "**Do** escrever sempre, em brasa, por que a ação principal está bloqueada; nas secundárias, mostrar o marcador de informação e escrever o motivo ao toque.",
+      "**Do** alinhar texto corrido de modal à esquerda com `text-wrap: pretty`.",
+      "**Do** fazer a navegação nascer da mesa ativa (Mestre) ou do personagem ativo (Jogador), com o Livro de Regras abaixo de uma régua e a conta no pé.",
+      "**Do** mostrar ícone e rótulo em todo destino do menu no desktop; ativo com fundo vivo e ícone em ouro vivo.",
+      "**Do** escrever a hora e o clima por extenso na faixa da cena."
+    ],
+    "donts": [
+      "**Don't** usar Cinzel abaixo de 18px nem em números.",
+      "**Don't** usar ouro em rótulo, título ou decoração; ouro é só estado vivo.",
+      "**Don't** usar brasa para ênfase; ela significa mudou ou bloqueia.",
+      "**Don't** usar o roxo arcano fora de magia.",
+      "**Don't** aninhar cards nem cercar grupos com caixas; use régua.",
+      "**Don't** marcar seleção com barra lateral colorida; use preenchimento e aro.",
+      "**Don't** usar glow em seleção, foco ou hover.",
+      "**Don't** criar pele nova de modal, botão, campo ou seletor de quantidade.",
+      "**Don't** trocar a família de cor da paleta couro/ouro/brasa/magia.",
+      "**Don't** reordenar a barra de ações pelo estado nem esconder a principal quando bloqueada.",
+      "**Don't** repetir em Características um valor que já está no passe.",
+      "**Don't** dividir a janela de item em abas nem pôr a magia do item numa caixa.",
+      "**Don't** justificar texto corrido.",
+      "**Don't** pôr rótulo em caixa-alta (kicker) acima do título de página.",
+      "**Don't** voltar ao trilho só de ícones nem deixar o nome do destino só no tooltip.",
+      "**Don't** oferecer \"Sair da mesa\" fora do seletor de contexto."
+    ]
+  }
+}

@@ -91,7 +91,9 @@ describe('a etapa de publicar no modal do item', () => {
     expect(document.querySelector('.det-venda')).toBeTruthy();
     // sem campo de texto: só seletores (– N +) — 4 de moedas no corpo e o de
     // itens no centro do rodapé (27/09/2026)
-    expect(document.querySelector('.det-venda input')).toBeNull();
+    // 23/10/2026: o único campo de texto é o lugar da venda (Onde vender).
+    expect([...document.querySelectorAll('.det-venda input')].length).toBe(1);
+    expect(document.querySelector('.det-venda-lugar input')).toBeTruthy();
     expect(document.querySelectorAll('.det-venda-linha .fp-pop-stepper')).toHaveLength(4);
     expect(document.querySelector('.ms-footer-center .fp-pop-stepper').textContent).toMatch(/3\s*de 3/);
     expect(centros()).toEqual(['0', '0', '0', '5']);   // 5 latão cada
@@ -103,14 +105,14 @@ describe('a etapa de publicar no modal do item', () => {
     fireEvent.click(latao.querySelector('[aria-label="+"]'));
     expect(centros()).toEqual(['0', '0', '0', '6']);
     await act(async () => { fireEvent.click(document.querySelector('[data-publicar]')); });
-    expect(onVender).toHaveBeenCalledWith('p1', 3, 6);
+    expect(onVender).toHaveBeenCalledWith('p1', 3, 6, '');
   });
 
   it('sem títulos (Preço, Valor de tabela); Cancelar e Pôr à venda no rodapé', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 }, ESPADA, vi.fn());
     fireEvent.click(document.querySelector('[data-acao="vender"]'));
     expect(document.body.textContent).not.toMatch(/Valor de tabela|Preço/);
-    expect([...document.querySelectorAll('.ms-footer button')].map((x) => x.textContent)).toEqual(['Cancelar', 'Pôr à venda']);
+    expect([...document.querySelectorAll('.ms-footer button')].map((x) => x.textContent)).toEqual(['Cancelar', 'Propor ao comerciante']);
     expect(document.querySelector('.det-venda button[data-publicar]')).toBeNull();
   });
 
@@ -136,7 +138,7 @@ const ANUNCIO = { id: 9, slug: 'espada', item_nome: 'Espada Longa', quantidade: 
 const abrirAnuncio = (extra) => render(
   <Anuncio anuncio={ANUNCIO} cat={ESPADA} lang="pt" onClose={noop} onComprar={noop} onRetirar={noop} {...extra} />,
 );
-const acoes = () => [...document.querySelectorAll('.ms-header [data-acao]')].map((b) => b.getAttribute('data-acao'));
+const acoes = () => [...document.querySelectorAll('.mn-acoes [data-acao]')].map((b) => b.getAttribute('data-acao'));
 
 describe('a janela do anúncio na loja', () => {
   it('mostra preço e vendedor em Características', () => {

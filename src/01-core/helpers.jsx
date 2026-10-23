@@ -111,36 +111,66 @@ function formatarDataFantasy(d, lang) {
 
    `compacto` é para quem espera dentro de um modal pequeno: selo menor, sem
    filete, altura mínima menor. */
+/* SeloMenestrel — a marca do sistema (22/10/2026). Antes era o ícone Tabler
+   ti-currency-monero, que é o símbolo de uma criptomoeda; o usuário escolheu
+   um monograma em selo de cera. É SVG desenhado (não fonte) para sair igual
+   no login, no menu, na tela de carregamento e na aba do navegador
+   (public/favicon.svg repete o mesmo desenho).
+
+   A borda da cera é irregular de propósito — cera derramada não é círculo. Os
+   ids dos degradês saem de useId: o selo aparece mais de uma vez na página. */
+function SeloMenestrel({ size = 32, className = '', titulo = null }) {
+  const id = React.useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  return (
+    <svg viewBox="0 0 64 64" width={size} height={size} className={'mn-selo ' + className}
+      role={titulo ? 'img' : undefined} aria-label={titulo || undefined} aria-hidden={titulo ? undefined : 'true'}>
+      <defs>
+        <radialGradient id={id + 'c'} cx="38%" cy="32%" r="72%">
+          <stop offset="0" stopColor="#B4472C" />
+          <stop offset="0.55" stopColor="#8A2E1C" />
+          <stop offset="1" stopColor="#5C1B10" />
+        </radialGradient>
+      </defs>
+      <path fill={`url(#${id}c)`} d="M61.4 32.0C61.4 34.8 61.3 37.9 60.2 40.3C59.1 42.7 56.1 44.3 54.6 46.5C53.0 48.8 52.8 52.2 50.9 53.9C49.1 55.6 45.8 55.4 43.3 56.8C40.9 58.1 38.9 61.5 36.3 62.1C33.8 62.6 30.6 61.0 27.9 60.2C25.3 59.5 22.7 58.8 20.3 57.6C17.9 56.5 15.5 55.1 13.6 53.2C11.7 51.4 10.9 48.8 9.1 46.7C7.3 44.6 3.7 43.0 2.8 40.6C2.0 38.1 3.8 34.8 4.0 32.0C4.1 29.2 2.8 26.1 3.7 23.7C4.6 21.3 7.6 19.6 9.3 17.4C11.0 15.3 11.9 12.8 13.6 10.8C15.4 8.8 17.4 6.5 19.8 5.3C22.2 4.1 25.2 4.3 27.9 3.8C30.7 3.3 33.8 1.6 36.3 2.3C38.8 3.0 40.6 6.6 43.0 7.9C45.4 9.2 48.8 8.7 50.9 10.2C52.9 11.7 53.9 14.7 55.4 16.9C57.0 19.2 59.4 21.2 60.4 23.7C61.4 26.2 61.4 29.2 61.4 32.0Z" />
+      {/* O anel prensado: sombra por dentro, brilho por fora. */}
+      <circle cx="32" cy="32" r="21.5" fill="none" stroke="#4A140B" strokeOpacity="0.55" strokeWidth="2.2" />
+      <circle cx="32" cy="32.8" r="21.5" fill="none" stroke="#E9A27E" strokeOpacity="0.22" strokeWidth="1" />
+      {/* O monograma: um M de capitular, com serifas, em ouro. */}
+      <path d="M21.5 41.5V23.5L32 36.5L42.5 23.5V41.5M18.5 41.5h6M39.5 41.5h6M18.5 23.5h3M42.5 23.5h3"
+        fill="none" stroke="#E0BE68" strokeWidth="3" strokeLinecap="square" strokeLinejoin="miter" />
+    </svg>
+  );
+}
+
+/* useAlvoPortal — acha um elemento do DOM por id para servir de destino de
+   portal, mesmo quando ele nasce no MESMO commit de quem o procura (no
+   primeiro render ainda não está no DOM; o efeito tenta de novo e, achando,
+   rerenderiza). Usado pela barra de ações da ficha (22/10/2026). */
+function useAlvoPortal(id) {
+  const [alvo, setAlvo] = React.useState(() => (typeof document !== 'undefined' ? document.getElementById(id) : null));
+  React.useEffect(() => {
+    const el = document.getElementById(id);
+    if (el !== alvo) setAlvo(el);
+  });
+  return alvo;
+}
+
+/* CARREGANDO — opção A, "Respira" (23/10/2026, escolhida na prévia): o selo
+   novo grande no centro (132px; 72px no compacto), pulsando devagar, e um
+   arco de ouro correndo num trilho em volta. Saíram o anel de runas, os
+   losangos e o filete. Parado para quem pede menos movimento. */
 function Carregando({ lang, oQue, compacto }) {
   const txt = lang === 'en' ? 'Loading' : 'Carregando';
-  // 8 losangos no anel externo, um a cada 45°.
-  const estrelas = [0, 45, 90, 135, 180, 225, 270, 315];
   return (
     <div className={'mn-carregando' + (compacto ? ' mn-carregando--compacto' : '')} role="status" aria-live="polite">
       <div className="mn-carregando-selo" aria-hidden="true">
-        <svg viewBox="0 0 120 120" className="mn-carregando-svg">
-          <g className="mn-carregando-anel">
-            <circle cx="60" cy="60" r="55" className="mn-carregando-linha" />
-            <circle cx="60" cy="60" r="49" className="mn-carregando-runas" />
-            {estrelas.map((a) => (
-              <path key={a} d="M60 0 L64 5 L60 10 L56 5 Z" transform={`rotate(${a} 60 60)`} className="mn-carregando-losango" />
-            ))}
-          </g>
-          <circle cx="60" cy="60" r="41" className="mn-carregando-trilho" />
-          <circle cx="60" cy="60" r="41" className="mn-carregando-arco" pathLength="100" />
-          <circle cx="60" cy="60" r="33" className="mn-carregando-miolo" />
+        <svg viewBox="0 0 168 168" className="mn-carregando-svg">
+          <circle cx="84" cy="84" r="80" className="mn-carregando-trilho" />
+          <circle cx="84" cy="84" r="80" className="mn-carregando-arco" />
         </svg>
-        <i className="ti ti-currency-monero mn-carregando-marca" />
+        <SeloMenestrel className="mn-carregando-marca" size={compacto ? 72 : 132} />
       </div>
-      {!compacto && (
-        <div className="mn-carregando-filete" aria-hidden="true">
-          <span /><i /><span />
-        </div>
-      )}
-      <div className="mn-carregando-txt">
-        {oQue ? `${txt} ${oQue}` : txt}
-        <span className="mn-carregando-pontos" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span>
-      </div>
+      <div className="mn-carregando-txt">{oQue ? `${txt} ${oQue}` : txt}</div>
     </div>
   );
 }
@@ -326,11 +356,17 @@ function propsTip(abrirTip, fecharTip, content) {
         && !content.title && !content.desc && !content.hint
         && !(content.stats && content.stats.length));
   if (vazio) return {};
-  const abrir = (e) => abrirTip(e, content);
+  /* Sem balão nos trilhos de ações da ficha (23/10/2026: "Remova o tooltip do
+     trilho do personagem"): ali todo botão já diz o próprio nome. */
+  const abrir = (e) => {
+    const el = e && e.currentTarget;
+    if (el && el.closest && el.closest('.mc-acoes-ficha, .fp-abas-trilho')) return;
+    abrirTip(e, content);
+  };
   return { onMouseEnter: abrir, onMouseLeave: fecharTip, onFocus: abrir, onBlur: fecharTip };
 }
 
-Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, DicaNoAlvo, empilharJanela, ehJanelaDaFrente, propsTip, Carregando,
+Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, DicaNoAlvo, empilharJanela, ehJanelaDaFrente, propsTip, Carregando, SeloMenestrel, useAlvoPortal,
   somarDiasFantasy, dataFantasyParaAbsoluto, absolutoParaDataFantasy, formatarDataFantasy,
   FANTASY_DIAS_ANO });
 
@@ -394,10 +430,13 @@ Object.assign(window, { corCondicao, COND_LIMITE, COND_ROXO });
 
    `centro` permite o texto do meio: a ficha mostra "12 / 18", o inventário
    "3 de 5", o modal de status só o número. Quando não vem, mostra o valor.
+
+   `propsMenos`/`propsMais` vão para os botões: o assistente de personagem
+   pendura neles o tooltip de "Pontos insuficientes" (22/10/2026).
    ============================================================ */
 function QuantidadeStepper({
   value, onChange, min = 0, max = Infinity, step = 1,
-  centro, disabled, label, className,
+  centro, disabled, label, className, propsMenos, propsMais,
 }) {
   const v = Number(value) || 0;
   const podeDec = !disabled && v > min;
@@ -409,12 +448,12 @@ function QuantidadeStepper({
       <button type="button" className="fp-step-btn" disabled={!podeDec}
         /* onMouseDown/preventDefault: sem isto o clique tira o foco do campo
            que abriu o stepper e alguns popovers se fechavam sozinhos. */
-        onMouseDown={(e) => e.preventDefault()} onClick={() => ir(v - step)} aria-label="-">
+        onMouseDown={(e) => e.preventDefault()} onClick={() => ir(v - step)} aria-label="-" {...propsMenos}>
         <i className="ti ti-minus" aria-hidden="true" />
       </button>
       <span className="fp-pop-stepper-label">{centro == null ? v : centro}</span>
       <button type="button" className="fp-step-btn" disabled={!podeInc}
-        onMouseDown={(e) => e.preventDefault()} onClick={() => ir(v + step)} aria-label="+">
+        onMouseDown={(e) => e.preventDefault()} onClick={() => ir(v + step)} aria-label="+" {...propsMais}>
         <i className="ti ti-plus" aria-hidden="true" />
       </button>
     </div>

@@ -52,25 +52,12 @@ function montar(props) {
   );
 }
 
-describe('seta de evoluir', () => {
-  it('aparece no personagem ativo', () => {
-    const { container } = montar({ ativo: true, onDesativar: () => {} });
-    expect(container.querySelector('.pj-evoluiu')).not.toBeNull();
-  });
-
-  it('NÃO aparece em personagem bloqueado por outro ativo', () => {
-    const { container } = montar({ bloqueadoPorOutroAtivo: true });
-    expect(container.querySelector('.pj-evoluiu')).toBeNull();
-  });
-
-  it('NÃO aparece enquanto o jogador não escolheu ninguém', () => {
-    const { container } = montar({ onAtivar: () => {} });
-    expect(container.querySelector('.pj-evoluiu')).toBeNull();
-  });
-
-  it('aparece para o Mestre, que não tem PJ ativo', () => {
-    const { container } = montar({ isMaster: true });
-    expect(container.querySelector('.pj-evoluiu')).not.toBeNull();
+/* O "Evoluir" saiu do card em 23/10/2026: mora no trilho de ações da ficha. */
+describe('evoluir não mora no card', () => {
+  it('nem no ativo, nem para o Mestre', () => {
+    expect(montar({ ativo: true, onDesativar: () => {} }).container.querySelector('.pj-evoluiu')).toBeNull();
+    cleanup();
+    expect(montar({ isMaster: true }).container.querySelector('.pj-evoluiu')).toBeNull();
   });
 });
 
@@ -135,8 +122,5 @@ describe('ações e capítulo do ativo', () => {
     expect(container.querySelector('.pj-capitulo')).toBeNull();
   });
 
-  it('o ativo mostra as energias', () => {
-    const { container } = montar({ ativo: true, onDesativar: () => {} });
-    expect(container.querySelector('.pj-vitais')).not.toBeNull();
-  });
+  // As energias saíram do card em 23/10/2026 (ver card-informativo.test.jsx).
 });

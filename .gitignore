@@ -11,3 +11,6 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 .superpowers/
+
+# prévia local de componentes (sem login)
+preview/

@@ -134,18 +134,18 @@ function IcSortHead({ col, sortKey, sortDir, toggleSort, children }) {
 }
 
 function IcLoading({ text }) {
-  return <div style={{ textAlign: 'center', color: '#BFAF8E', padding: 40, fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)' }}>{text}</div>;
+  return <div style={{ textAlign: 'center', color: 'var(--tinta-2)', padding: 40, fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)' }}>{text}</div>;
 }
 function IcErrorBox({ error, hint }) {
   return (
     <div style={{ border: '1px solid rgba(200,33,44,0.4)', background: 'rgba(200,33,44,0.10)', borderRadius: 12, padding: '16px 18px', fontFamily: "var(--font-body)" }}>
       <div style={{ color: '#F0A6A0', fontWeight: 600, fontSize: 'var(--fs-md)', marginBottom: 6 }}>{error}</div>
-      {hint && <div style={{ color: '#BFAF8E', fontSize: 'var(--fs-sm)', lineHeight: 1.5 }}>{hint}</div>}
+      {hint && <div style={{ color: 'var(--tinta-2)', fontSize: 'var(--fs-sm)', lineHeight: 1.5 }}>{hint}</div>}
     </div>
   );
 }
 function IcNoKit() {
-  return <div style={{ padding: 24, color: '#BFAF8E', fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)', lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
+  return <div style={{ padding: 24, color: 'var(--tinta-2)', fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)', lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
 }
 function IcPagination({ page, safePage, totalPages, setPage, setExpandida, lang }) {
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
@@ -169,7 +169,7 @@ function IcPagination({ page, safePage, totalPages, setPage, setExpandida, lang 
 // ---------- Helpers visuais do editor ----------
 function IcSecao({ children }) {
   return (
-    <div style={{ gridColumn: '1 / -1', marginTop: 10, fontFamily: "'Cinzel', serif", fontSize: 'var(--fs-sm)', letterSpacing: '.04em', color: 'var(--gold-bright, #E0BE68)', borderBottom: '1px solid rgba(138,110,64,0.30)', paddingBottom: 6 }}>
+    <div style={{ gridColumn: '1 / -1', marginTop: 10, fontFamily: 'var(--font-body)', fontSize: 'var(--fs-rotulo)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 'var(--rotulo-espaco)', color: 'var(--gold-bright, var(--vivo))', borderBottom: '1px solid rgba(var(--bronze-rgb),0.30)', paddingBottom: 6 }}>
       {children}
     </div>
   );
@@ -179,7 +179,7 @@ function IcCampo({ label, hint, span, children }) {
     <label style={{ display: 'flex', flexDirection: 'column', gap: 5, gridColumn: span === 'full' ? '1 / -1' : 'auto', minWidth: 0 }}>
       <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: 'var(--parchment-muted, #C9B98F)' }}>{label}</span>
       {children}
-      {hint && <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-2xs)', color: '#BFAF8E' }}>{hint}</span>}
+      {hint && <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-2xs)', color: 'var(--tinta-2)' }}>{hint}</span>}
     </label>
   );
 }
@@ -302,8 +302,13 @@ function ItemCampanhaModal({ item, historiaId, lang, onClose, onSaved }) {
             <IcCampo label={en ? 'Container accepts (group)' : 'Recipiente aceita (grupo)'} hint={en ? 'Restrict by item group. Blank = any.' : 'Restringe por grupo. Vazio = qualquer.'}>
               <input style={IC_INP} value={form.tipo_item} onChange={set('tipo_item')} />
             </IcCampo>
-            <IcCampo label={en ? 'Value' : 'Valor'} hint="1 ouro = 1000 latão">
-              <input type="number" step="1" style={IC_INP} value={form.valor_latao} onChange={set('valor_latao')} />
+            {/* O valor na moeda escolhida no círculo do campo (23/10/2026,
+                CampoPreco); grava-se em latão, como antes. */}
+            <IcCampo label={en ? 'Value' : 'Valor'}>
+              {window.CampoPreco
+                ? <window.CampoPreco valor={form.valor_latao} lang={lang} name="valor_latao"
+                    onChange={(v) => setForm((f) => ({ ...f, valor_latao: v === '' ? '' : String(v) }))} />
+                : <input type="number" step="1" style={IC_INP} value={form.valor_latao} onChange={set('valor_latao')} />}
             </IcCampo>
 
             <IcSecao>{en ? 'Equipment' : 'Equipamento'}</IcSecao>
@@ -520,7 +525,7 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
     return (
       <>
         <div className="best-toolbar">
-          <div className="best-search"><i className="ti ti-filter-2 busca-ic" aria-hidden="true" /><Input type="search" placeholder={en ? 'Search' : 'Buscar'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+          <div className="best-search"><i className="ti ti-eye busca-ic" aria-hidden="true" /><Input type="search" placeholder={en ? 'Search' : 'Buscar'} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
           <div className="best-chips">
             <button className={'best-chip' + (grupoFiltro === 'all' ? ' is-active' : '')} onClick={() => setGrupoFiltro('all')}>{en ? 'All' : 'Todos'}</button>
             {gruposDisponiveis.map((g) => (
@@ -571,7 +576,7 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
                             <BestFichaLista titulo={en ? 'Traits' : 'Características'} colunas={2}>
                               {/* Sem "Grupo" (26/09/2026, "não precisa mostrar o grupo"). */}
                               <BestLinha rotulo={en ? 'Type' : 'Tipo'} valor={tipoLabel === '—' ? null : tipoLabel} />
-                              <BestLinha rotulo={en ? 'Value' : 'Valor'} valor={it.valor_latao ?? null} />
+                              <BestLinha rotulo={en ? 'Value' : 'Valor'} valor={(window.valorPorExtenso || ((v) => v ?? null))(it.valor_latao, en ? 'en' : 'pt')} />
                               <BestItemArmazenamento item={it} lang={lang} />
                               <BestLinha rotulo={en ? 'Slot' : 'Uso'} valor={it.slot_equip} />
                               <BestLinha rotulo={en ? 'Damage' : 'Dano'} valor={it.dano} />
@@ -624,7 +629,7 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
             </button>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Cinzel', serif", fontSize: 'var(--fs-2xs)', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--gold-bright, #E0BE68)', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+            <div style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--fs-rotulo)', fontWeight: 700, letterSpacing: 'var(--rotulo-espaco)', textTransform: 'uppercase', color: 'var(--gold-bright, var(--vivo))', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
               <i className="ti ti-backpack" style={{ fontSize: 'var(--fs-xs)' }} />
               {en ? 'Campaign Items' : 'Itens da Campanha'}
             </div>

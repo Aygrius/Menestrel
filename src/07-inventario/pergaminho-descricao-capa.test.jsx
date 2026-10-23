@@ -63,6 +63,7 @@ describe('pergaminho mostra a descrição da magia', () => {
     // O bloco é o do Comércio (BestItemMagia) desde 26/09/2026, numa aba própria.
     const bloco = document.querySelector('.best-magia');
     expect(bloco.getAttribute('data-aba')).toBe('Magia');
+    // Sem passe desde 23/10/2026: o nome da magia está na própria seção.
     expect(bloco.textContent).toMatch(/Vôo/);
     expect(bloco.textContent).not.toMatch(/Nível/);
     expect(bloco.textContent).toMatch(/Você flutua pelo ar\./);
@@ -91,7 +92,8 @@ describe('pergaminho mostra a descrição da magia', () => {
   it('item mágico que só carrega a magia mostra a magia, sem Aprender', () => {
     const anel = { slug: 'anel_voo', nome: 'Anel', grupo: 'Itens', magia: 'Vôo', nivel_magia: 3 };
     abrir(anel, { instanceId: 'a1', slug: anel.slug, quantidade: 1 }, { magiasDb: MAGIAS });
-    expect(document.querySelector('.best-magia').textContent).toMatch(/Vôo · Nível 3/);
+    expect(document.querySelector('.best-magia').textContent).toMatch(/Vôo/);
+    expect(document.querySelector('.best-magia').textContent).toMatch(/Você flutua pelo ar./);
     expect(document.querySelector('[data-acao="aprender"]')).toBeNull();
   });
 });

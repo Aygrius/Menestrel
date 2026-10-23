@@ -95,6 +95,8 @@ const linhas = (raiz) => [...raiz.querySelectorAll('.best-stat--linha')].map((li
   li.querySelector('.best-stat-lbl').textContent.trim(),
   (li.querySelector('.best-stat-val') || { textContent: '' }).textContent.trim(),
 ]);
+const passe = () => Object.fromEntries([...document.querySelectorAll('.item-passe .mn-celula')]
+  .map((c) => [c.getAttribute('data-celula'), c.querySelector('.mn-celula-valor').textContent]));
 const semMiniCard = (raiz) => {
   expect(raiz.querySelector('.best-detail-stats'), 'sobrou faixa de mini-cards').toBeNull();
   expect(raiz.querySelectorAll('.best-stat:not(.best-stat--linha)'), 'sobrou mini-card').toHaveLength(0);
@@ -184,18 +186,22 @@ describe('janelas do catálogo', () => {
   /* 28/09/2026: "o botão ocupa deve mostrar o '3.0' como '3', mantenha apenas
      o '0.1' como '0.1' [...] O card de atributo, deve mostrar 'Agi' ao invés
      de 'AGI'. Adicione o 'Grupo', 'CL' como card." */
-  it('Item: sem mini-card; atributo em sigla curta, ocupa sem ",0" e o grupo de armas', async () => {
+  /* Passe do item (22/10/2026): dano, grupo e ocupa sobem para o passe do
+     topo e saem da lista — "nada rotulado duas vezes". */
+  it('Item: sem mini-card; atributo em sigla curta na lista; dano, ocupa sem ",0" e grupo no passe', async () => {
     const det = await abrir(window.ItensList, 'Adaga');
     semMiniCard(det);
     const mapa = Object.fromEntries(linhas(det));
     expect(mapa['Atributo']).toBe('For');
-    expect(mapa['Dano']).toBe('4');
-    expect(mapa['Ocupa']).toBe('1');
-    expect(mapa['Grupo']).toBe('CL');
+    expect(mapa['Dano']).toBeUndefined();
+    expect(passe()).toMatchObject({ dano: '4', ocupa: '1', grupo: 'CL' });
   });
 
+  /* Item cujo único número é Ocupa não ganha passe (uma faixa vazia): o
+     Ocupa fica em Características. */
   it('Item: ocupa fracionário mantém a casa decimal', async () => {
     const det = await abrir(window.ItensList, 'Água');
+    expect(document.querySelector('.item-passe')).toBeNull();
     expect(Object.fromEntries(linhas(det))['Ocupa']).toBe('0,1');
   });
 });
@@ -353,8 +359,8 @@ describe('ícone ao lado do nome, em cada tabela', () => {
 describe('item com resistência', () => {
   it('a janela mostra a Resistência', async () => {
     TABELAS.itens = [...TABELAS.itens, { slug: 'escudo', nome: 'Escudo de Madeira', grupo: 'Armaduras', resistencia: 12 }];
-    const det = await abrir(window.ItensList, 'Escudo de Madeira');
-    expect(Object.fromEntries(linhas(det))['Resistência']).toBe('12');
+    await abrir(window.ItensList, 'Escudo de Madeira');
+    expect(passe().resistencia).toBe('12');
   });
 });
 
@@ -377,11 +383,13 @@ describe('abas nos modais de detalhe', () => {
     expect(document.querySelector('.best-abas [aria-selected="true"]').textContent).toBe('Características');
   });
 
-  it('técnica e item também ganham abas', async () => {
+  /* Item é página única desde 22/10/2026 ("passe + página única", usuário). */
+  it('técnica ganha abas; item é página única', async () => {
     await abrir(window.TecnicasList, 'Carga de Lança');
     expect(abas().length).toBeGreaterThan(1);
     cleanup();
     await abrir(window.ItensList, 'Adaga');
-    expect(abas()).toContain('Características');
+    expect(abas()).toEqual([]);
+    expect(document.querySelector('.modal-item .best-secao--lista')).toBeTruthy();
   });
 });

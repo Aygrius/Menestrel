@@ -59,6 +59,39 @@ function latoesToMoedas(total) {
   };
 }
 
+
+/* PREÇO POR EXTENSO (23/10/2026): "o custo da arma Hongor-Tun está como 12000
+   moedas, fica a pergunta, moedas de que? [...] seria mais interessante que o
+   preço fosse 12 moedas de ouro." (usuário). O valor continua gravado em latão
+   (1 ouro = 10 prata = 100 cobre = 1000 latão); o que se mostra é a quantia
+   nas moedas maiores: 12000 → "12 moedas de ouro", 5234 → "5 moedas de ouro,
+   2 de prata, 3 de cobre e 4 de latão". `zero` é o texto do 0. */
+function precoPorExtenso(latao, lang, zero) {
+  const en = lang === 'en';
+  const m = latoesToMoedas(Math.max(0, Math.round(Number(latao) || 0)));
+  const nomes = en
+    ? { ouro: 'gold', prata: 'silver', cobre: 'copper', latao: 'brass' }
+    : { ouro: 'ouro', prata: 'prata', cobre: 'cobre', latao: 'latão' };
+  const partes = MOEDA_ORDEM.filter((t) => m[t] > 0);
+  if (!partes.length) return zero != null ? zero : (en ? 'no coins' : 'nenhuma moeda');
+  const frag = partes.map((t, i) => {
+    const n = m[t].toLocaleString(en ? 'en-US' : 'pt-BR');
+    if (en) return i === 0 ? `${n} ${nomes[t]} coin${m[t] > 1 ? 's' : ''}` : `${n} ${nomes[t]}`;
+    return i === 0 ? `${n} moeda${m[t] > 1 ? 's' : ''} de ${nomes[t]}` : `${n} de ${nomes[t]}`;
+  });
+  if (frag.length === 1) return frag[0];
+  return frag.slice(0, -1).join(', ') + (en ? ' and ' : ' e ') + frag[frag.length - 1];
+}
+/* A ajuda embaixo dos campos de preço (23/10/2026): o Mestre digita o valor
+   (gravado em latão) e lê na hora a quantia nas moedas maiores. */
+function ajudaDoPreco(latao, lang) {
+  const en = lang === 'en';
+  const n = Math.round(Number(latao) || 0);
+  // Sem a palavra latão como unidade: o campo se chama só Valor (decisão
+  // anterior do usuário). Vazio ou 0 não leva ajuda.
+  if (n <= 0) return '';
+  return '= ' + precoPorExtenso(n, lang);
+}
 // ── Leitura de tabela inteira ───────────────────────────────────────────────
 // fetchTabelaPaginada — lê uma tabela INTEIRA em blocos de 1000.
 //
@@ -1148,7 +1181,7 @@ Object.assign(window, {
   ehFlecha, ehArco, ehVenenoDeArma, venenoEfDoItem, armaAceitaVeneno, venenoDaArma, nomeComVeneno,
   envenenarNoInventario, flechasNoInventario, gastarAcaoDoVeneno, FLECHA_DO_VENENO, VENENO_ACOES_ARMA,
   itensDoRitual, conferirItensDoRitual, consumirItensDoRitual,
-  MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas,
+  MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas, precoPorExtenso, ajudaDoPreco,
   fetchTabelaPaginada, fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,
   podeMoverParaContainer, pecaNoCorpo, calcArmadura, AJUSTE_KEY, gerarAtaques,

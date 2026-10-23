@@ -209,7 +209,7 @@ const montar = async (Componente, props) => {
   await vi.waitFor(() => expect(document.querySelector('tbody tr') || document.querySelector('.best-empty')).toBeTruthy());
 };
 const nomes = () => [...document.querySelectorAll('.best-name')].map((el) => el.textContent.replace('›', '').trim()).sort();
-const titulo = () => document.querySelector('.fp-card-top .ms-title').textContent;
+const titulo = () => document.querySelector('.fp-card-top h2').textContent;
 
 describe('cada folha filtra a lista', () => {
   it('Magias Básicas', async () => {

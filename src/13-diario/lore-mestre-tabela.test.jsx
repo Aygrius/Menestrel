@@ -112,13 +112,14 @@ const montar = (tipoFixo, extra = {}) => render(
   <GerenciarLoreView historia={HISTORIA} lang="pt" tipoFixo={tipoFixo} {...extra} />
 );
 
-const pronta = () => waitFor(() => expect(document.querySelector('.best-table-wrap')).toBeTruthy());
+/* CARTÕES desde 23/10/2026 ("O menu Diário [...] vai transformar cada item em
+   um card, igual em Personagens"): cada entrada é um .diario-cartao, e
+   "células" são o nome e as duas linhas do cartão. */
+const pronta = () => waitFor(() => expect(document.querySelector('.diario-cartoes')).toBeTruthy());
 /* Sem as setas de ordenação que o SortHead injeta, e sem a coluna de ações,
    que não tem rótulo — mesmo helper de diario-tabela-render.test.jsx. */
-const cabecalho = () => [...document.querySelectorAll('thead th')]
-  .map((th) => (th.textContent || '').replace(/[▲▼]/g, '').trim()).filter(Boolean);
-const linhas = () => [...document.querySelectorAll('tbody tr:not(.best-detail)')];
-const celulas = (tr) => [...tr.querySelectorAll('td')].map((t) => t.textContent.trim());
+const linhas = () => [...document.querySelectorAll('.diario-cartao')];
+const celulas = (c) => [...c.querySelectorAll('.diario-cartao-nome, .diario-cartao-meta')].map((t) => t.textContent.trim());
 const linhaDe = (nome) => linhas().find((tr) => celulas(tr)[0] === nome);
 const acao = (tr, classe) => tr.querySelector(`.diario-td-acoes .${classe}`);
 /* Olho e lápis moram no CABEÇALHO DA FICHA desde 26/09/2026 ("o ícone de lápis
@@ -133,10 +134,11 @@ describe('é a tabela padrão, com as peças das outras páginas', () => {
   it('tem a moldura, o cabeçalho e a busca do catálogo', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    expect(document.querySelector('.best-table-wrap')).toBeTruthy();
-    // A busca e o + no cabeçalho do card, não numa barra própria abaixo.
-    expect(document.querySelector('.fp-card-top .best-search')).toBeTruthy();
-    expect(document.querySelector('.fp-card-top [aria-label="Novo"]')).toBeTruthy();
+    expect(document.querySelector('.diario-cartoes')).toBeTruthy();
+    expect(document.querySelector('table'), 'a tabela saiu').toBeNull();
+    // A busca e o + na barra acima dos cartões (23/10/2026).
+    expect(document.querySelector('.diario-pagina-barra .best-search')).toBeTruthy();
+    expect(document.querySelector('.diario-pagina-barra [aria-label="Novo"]')).toBeTruthy();
   });
 
   it('a lista solta com checkbox não existe mais', async () => {
@@ -144,7 +146,7 @@ describe('é a tabela padrão, com as peças das outras páginas', () => {
     await pronta();
     expect(document.querySelector('.diario-vinculo-list')).toBeNull();
     // Nenhum checkbox na tabela: disponibilizar virou assunto do olho.
-    expect(document.querySelectorAll('tbody input[type="checkbox"]')).toHaveLength(0);
+    expect(document.querySelectorAll('.diario-cartao input[type="checkbox"]')).toHaveLength(0);
   });
 
   /* 26/09/2026: "na tabela de conhecidos, remova a coluna fonte e
@@ -157,8 +159,9 @@ describe('é a tabela padrão, com as peças das outras páginas', () => {
   it('Pessoas: Nome, Raça, Classe Social e Reino', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    expect(cabecalho()).toEqual(['Nome', 'Raça', 'Classe Social', 'Reino']);
-    expect(celulas(linhaDe('Arissia'))).toEqual(['Arissia', 'Humano', '—', 'Verrogar']);
+    // Raça · classe social na primeira linha, o reino na segunda.
+    expect(celulas(linhaDe('Arissia'))).toEqual(['Arissia', 'Humano', 'Verrogar']);
+    expect(celulas(linhaDe('Gorm'))).toEqual(['Gorm', 'Anão']);
   });
 
   /* Reinos e Cidades viraram páginas próprias em 26/09/2026: sem coluna Tipo
@@ -168,8 +171,7 @@ describe('é a tabela padrão, com as peças das outras páginas', () => {
     stubBanco({ entradas: [...NPCS, { ...LUGARES[0], atributos: { capital_cidade: 'brann-h13' } }, LUGARES[1]] });
     montar('reino');
     await pronta();
-    expect(cabecalho()).toEqual(['Nome', 'Capital']);
-    expect(celulas(linhaDe('Verrogar'))).toEqual(['Verrogar', 'Brann']);
+    expect(celulas(linhaDe('Verrogar'))).toEqual(['Verrogar', 'Capital·Brann']);
     expect(linhaDe('Brann')).toBeFalsy();
   });
 
@@ -178,8 +180,7 @@ describe('é a tabela padrão, com as peças das outras páginas', () => {
     stubBanco({ entradas: [...NPCS, LUGARES[0], { ...LUGARES[1], atributos: { reino: 'verrogar-h13', populacao: 12000 } }] });
     montar('cidade');
     await pronta();
-    expect(cabecalho()).toEqual(['Nome', 'Reino', 'População']);
-    expect(celulas(linhaDe('Brann'))).toEqual(['Brann', 'Verrogar', '12.000']);
+    expect(celulas(linhaDe('Brann'))).toEqual(['Brann', 'Verrogar', '12.000 habitantes']);
     expect(linhaDe('Verrogar')).toBeFalsy();
   });
 
@@ -189,9 +190,7 @@ describe('é a tabela padrão, com as peças das outras páginas', () => {
     stubBanco({ entradas: [...NPCS, ...LUGARES, FLORESTA] });
     montar('local');
     await pronta();
-    expect(document.querySelector('.lore-mng-page-h2').textContent).toBe('Locais');
-    expect(cabecalho()).toEqual(['Nome', 'Reino', 'População']);
-    expect(celulas(linhaDe('Floresta Negra'))).toEqual(['Floresta Negra', '—', '—']);
+    expect(celulas(linhaDe('Floresta Negra'))).toEqual(['Floresta Negra']);
     expect(linhaDe('Brann')).toBeFalsy();
     expect(chamadasRpc.some((c) => c.nome === 'listar_catalogo_global' && c.args.p_tipo === 'local')).toBe(true);
   });
@@ -230,11 +229,11 @@ describe('a coluna Visibilidade lê o estado real das duas colunas do banco', ()
     expect(vis('Arissia').getAttribute('aria-label')).toBe('Todos os protagonistas');
   });
 
-  it('Reinos também: o ícone ao lado do nome', async () => {
+  it('Reinos também: o olho no cartão', async () => {
     stubBanco(); montar('reino');
     await pronta();
     expect(linhaDe('Verrogar').querySelector('.diario-vis-chip')).toBeNull();
-    expect(linhaDe('Verrogar').querySelector('.best-name .diario-vis-ic i.ti')).toBeTruthy();
+    expect(linhaDe('Verrogar').querySelector('.diario-vis-ic i.ti')).toBeTruthy();
   });
 });
 
@@ -255,7 +254,7 @@ describe('a ficha abre numa janela', () => {
     fireEvent.click(linhaDe('Arissia'));
     const janela = ficha();
     expect(janela).toBeTruthy();
-    expect(janela.closest('table'), 'a janela não pode morar dentro da tabela').toBeNull();
+    expect(janela.closest('.diario-cartoes'), 'a janela não pode morar dentro da grade').toBeNull();
     expect(document.querySelector('.diario-det-inline')).toBeNull();
     expect(janela.textContent).toMatch(/A alquimista/);
   });
@@ -486,7 +485,7 @@ describe('o payload de salvar_lore_entrada', () => {
   it('criar do zero: sem p_id, e sem p_slug_origem na chamada', async () => {
     stubBanco(); montar('npc');
     await pronta();
-    fireEvent.click(document.querySelector('.fp-card-top [aria-label="Novo"]'));
+    fireEvent.click(document.querySelector('.diario-pagina-barra [aria-label="Novo"]'));
     digitarNome('Novo NPC');
     clicarSalvar();
     await waitFor(() => expect(salvarRpc()).toHaveLength(1));
@@ -528,7 +527,7 @@ describe('o payload de salvar_lore_entrada', () => {
   it('e o tipo do lugar vai como reino ou cidade, nunca "lugar"', async () => {
     stubBanco(); montar('lugar');
     await pronta();
-    fireEvent.click(document.querySelector('.fp-card-top [aria-label="Novo"]'));
+    fireEvent.click(document.querySelector('.diario-pagina-barra [aria-label="Novo"]'));
     // O formulário abre em reino; o seletor troca para cidade.
     fireEvent.click(document.querySelector('.diario-lugar-tipo input[value="cidade"]'));
     digitarNome('Porto Novo');
@@ -612,7 +611,7 @@ describe('sem mesa: o catálogo do mundo', () => {
     expect(celulas(linhaDe('Andarilho'))[0]).toBe('Andarilho');
     expect(chamadasRpc.some((c) => c.nome === 'listar_lore_historia')).toBe(false);
     expect(document.querySelector('.diario-vis-ic')).toBeNull();
-    expect(document.querySelector('.lore-mng-page-eyebrow').textContent).toMatch(/Catálogo do mundo/);
+    expect(document.querySelector('.diario-pagina-aviso').textContent).toMatch(/Catálogo do mundo/);
     expect(document.querySelector('.best-botao-novo')).toBeNull();
     fireEvent.click(linhaDe('Andarilho'));
     expect(acaoNaFicha('ti-eye')).toBeNull();

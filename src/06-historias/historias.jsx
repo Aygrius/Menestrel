@@ -27,7 +27,11 @@
 
 
 /* ============================== [23] HistoriasList — Mestre cria/lista suas histórias ============================== */
-function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovaHistoriaRef, onDentroDeMenu, onEntrarMesa = null }) {
+/* `vista` (22/10/2026, navegação "Mesa em Sessão"): a barra lateral do
+   Mestre leva DIRETO à Batalha, à Loja e aos Jogadores (convites) da mesa
+   ativa — antes eram botões dentro do card. Com `vista`, a lista abre já
+   nessa página; fechar chama `onFecharVista` (volta para a Cena). */
+function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovaHistoriaRef, onDentroDeMenu, onEntrarMesa = null, vista = null, onFecharVista = null, acaoMesa = null }) {
   const th = t.historias;
   const { data: histData, isLoading: histLoading, error: histError, refetch } =
     window.useHistoriasData(currentUserId);
@@ -38,6 +42,8 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editando, setEditando] = useState(null);       // história em edição (objeto) ou null
+  // Como a janela de edição abre: na aba Capítulos e/ou já com um capítulo novo (Cena).
+  const [editarComo, setEditarComo] = useState(null);
   const [excluindo, setExcluindo] = useState(null);     // história alvo do confirm de delete ou null
   const [deleteError, setDeleteError] = useState(null);
   const [lojaAberta, setLojaAberta] = useState(null);  // história com loja aberta como página
@@ -85,16 +91,43 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
   };
 
   // Limite do plano free (mesma regra que existia no botão flutuante antigo).
-  const limiteFree = userProfile?.plano === 'free' && (historias?.length ?? 0) >= PLANO_FREE_LIMITES.historias;
 
   // Expõe abrir() via ref pro botão "Nova história" do pill do topo (shell.jsx)
   // acionar de fora — mesmo padrão de criarRef em batalha.jsx. Respeita o
   // limite do plano free aqui dentro, então o chamador não precisa saber da regra.
   useEffect(() => {
     if (abrirNovaHistoriaRef) {
-      abrirNovaHistoriaRef.current = () => { if (!limiteFree) setModalOpen(true); };
+      abrirNovaHistoriaRef.current = () => setModalOpen(true);
     }
-  }, [abrirNovaHistoriaRef, limiteFree]);
+  }, [abrirNovaHistoriaRef]);
+
+  /* A PRIMEIRA MESA (22/10/2026). Quem escolhe "Vou mestrar" na primeira
+     entrada cai aqui sem mesa nenhuma. Criada a primeira pelo estado vazio, o
+     console já entra nela — senão o Mestre veria o card e teria de adivinhar
+     que precisa clicar nele para a navegação da mesa ganhar sentido. */
+  const criandoPrimeira = useRef(false);
+  useEffect(() => {
+    if (!criandoPrimeira.current || mesaAtivaId || !onEntrarMesa) return;
+    if (Array.isArray(historias) && historias.length === 1) {
+      criandoPrimeira.current = false;
+      onEntrarMesa(historias[0].id);
+    }
+  }, [historias, mesaAtivaId, onEntrarMesa]);
+
+  /* AÇÕES DA MESA PELO MENU (23/10/2026): Pausar, Editar e Excluir moram no
+     menu da mesa, na lateral. O pedido chega com um token novo a cada clique;
+     esta lista executa uma vez por token, na mesa ativa. */
+  const ultimoPedido = useRef(acaoMesa ? acaoMesa.token : null);
+  useEffect(() => {
+    if (!acaoMesa || acaoMesa.token === ultimoPedido.current || !Array.isArray(historias)) return;
+    const mesa = historias.find((h) => h.id === mesaAtivaId);
+    if (!mesa) return;
+    ultimoPedido.current = acaoMesa.token;
+    if (acaoMesa.acao === 'pausar') togglePausar(mesa);
+    else if (acaoMesa.acao === 'editar') { setEditarComo(null); setEditando(mesa); }
+    else if (acaoMesa.acao === 'excluir') setExcluindo(mesa);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acaoMesa, historias, mesaAtivaId]);
 
   if (historias === null) {
     return <Carregando lang={lang} />;
@@ -107,6 +140,31 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
           {th.lista.erroTabela}
         </div>
       </div>
+    );
+  }
+
+  // ── Vista pedida pela barra lateral (22/10/2026), sobre a mesa ativa.
+  const mesaDaVista = vista && mesaAtivaId ? historias.find((h) => h.id === mesaAtivaId) : null;
+  const fecharVista = () => { if (onFecharVista) onFecharVista(); };
+  if (mesaDaVista && vista === 'batalha') {
+    return (
+      <BatalhasHistoriaView historia={mesaDaVista} personagens={personagens} criaturas={criaturas}
+        lang={lang} currentUserId={currentUserId} onClose={fecharVista} />
+    );
+  }
+  if (mesaDaVista && vista === 'loja') {
+    /* O ESTOQUE NOVO (23/10/2026, aprovado na prévia): lojas por cidade e as
+       propostas de venda dos jogadores — ver 06-historias/estoque-mestre.jsx. */
+    const Estoque = window.EstoqueMestreView;
+    return Estoque
+      ? <Estoque historia={mesaDaVista} lang={lang} onChanged={() => refetch()} />
+      : <GerenciarLojaView historia={mesaDaVista} t={t} lang={lang}
+          onClose={fecharVista} onSaved={() => { refetch(); fecharVista(); }} />;
+  }
+  if (mesaDaVista && vista === 'convites') {
+    return (
+      <ConvitesHistoriaView historia={mesaDaVista} t={t} lang={lang}
+        onClose={fecharVista} onChanged={() => refetch()} />
     );
   }
 
@@ -160,7 +218,23 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
 
   return (
     <div className="hist">
-      {historiasFiltradas.length === 0 ? (
+      {historias.length === 0 ? (
+        <section className="hist-primeira" aria-labelledby="hist-primeira-titulo">
+          <SeloMenestrel size={56} />
+          <h2 id="hist-primeira-titulo" className="hist-primeira-titulo">{th.lista.primeiraMesaTitulo}</h2>
+          <p className="hist-primeira-texto">{th.lista.primeiraMesaTexto}</p>
+          <button type="button" className="btn-primary" onClick={() => { criandoPrimeira.current = true; setModalOpen(true); }}>
+            <i className="ti ti-plus" aria-hidden="true" />
+            {th.lista.criarMesa}
+          </button>
+        </section>
+      ) : (mesaAtivaId && historiasFiltradas.length === 1) ? (
+        /* A CENA É A CRÔNICA (23/10/2026): dentro de uma mesa, no lugar do card,
+           os capítulos — o em andamento em destaque, os anteriores numa lista. */
+        <CenaCronica h={historiasFiltradas[0]} personagens={personagens} lang={lang}
+          onEscrever={() => { setEditarComo({ pagina: 'capitulos' }); setEditando(historiasFiltradas[0]); }}
+          onNovoCapitulo={() => { setEditarComo({ pagina: 'capitulos', novo: true }); setEditando(historiasFiltradas[0]); }} />
+      ) : historiasFiltradas.length === 0 ? (
         <div className="pjs-empty">
           <p>{th.lista.comecarAventura}</p>
         </div>
@@ -175,9 +249,11 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
               lang={lang}
               onEdit={() => setEditando(h)}
               onDelete={() => setExcluindo(h)}
-              onManageLoja={() => setLojaAberta(h)}
-              onManageConvites={() => setGerenciandoConvites(h)}
-              onBatalhas={() => setBatalhando(h)}
+              /* Batalhas, Convites e Loja SAÍRAM do card (23/10/2026): moram na
+                 barra lateral da mesa (Batalha, Jogadores, Loja) — "Convites não
+                 precisa mais pois ele está no menu lateral à esquerda, loja
+                 também não precisa" (usuário). As páginas seguem abrindo pela
+                 `vista` que o menu manda. */
               onTogglePausar={() => togglePausar(h)}
               /* ENTRAR NA MESA (20/09/2026). Com o dropdown do topo removido,
                  o card É o seletor: clicar nele é o gesto que antes era
@@ -197,7 +273,7 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
           personagens={personagens}
           criaturas={criaturas}
           currentUserId={currentUserId}
-          onClose={() => setModalOpen(false)}
+          onClose={() => { criandoPrimeira.current = false; setModalOpen(false); }}
           onSaved={() => { setModalOpen(false); refetch(); }}
         />
       )}
@@ -210,6 +286,8 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
           criaturas={criaturas}
           currentUserId={currentUserId}
           historiaExistente={editando}
+          paginaInicial={editarComo ? editarComo.pagina : undefined}
+          novoCapitulo={!!(editarComo && editarComo.novo)}
           onClose={() => setEditando(null)}
           onSaved={() => { setEditando(null); refetch(); }}
         />
@@ -226,6 +304,214 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
         />
       )}
 
+    </div>
+  );
+}
+
+/* ── CenaCronica — a Cena da mesa EM CARTÕES (23/10/2026) ─────────────────────
+   "A página 'cena' [...] deve conter os cards, e uma reestruturação para
+   melhorar e aplicar nosso layout novo." Como Personagens, Batalhas e o
+   Diário: o trilho de busca (filtra pelo título e pelo texto) com o + que
+   abre um capítulo novo, e cada capítulo num cartão de Personagens — o
+   número no retrato, o título, a data e o começo do texto. O em andamento
+   (o último) vem primeiro, com o selo em ouro. Clicar abre o capítulo numa
+   janela, com o texto inteiro e o "Escrever". Saíram o título da mesa e a
+   fileira de protagonistas: o menu lateral diz a mesa, e os personagens têm
+   a página deles.
+
+   Antes (23/10/2026, aprovado na prévia): título e protagonistas no alto, o
+   capítulo em andamento em destaque e os anteriores numa lista que abria. */
+/* A MESA DO JOGADOR (23/10/2026) é esta mesma página, só de leitura
+   (`somenteLeitura`): sem o + e sem o "Escrever". E as ANOTAÇÕES: "Seria
+   interessante se o personagem pudesse fazer anotações próprias nos
+   capítulos" — cada jogador escreve a sua (`anotar`, assinada pelo
+   personagem em `autor`) e a mesa toda lê as de todos, o Mestre incluído
+   (tabela anotacoes_capitulo, presa ao id do capítulo). */
+const CENA_POR_PAGINA = 10; // cinco fileiras de dois cartões, sem rolagem
+function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somenteLeitura = false, anotar = false, userId = null, pjId = null, autor = '' }) {
+  const en = lang === 'en';
+  const caps = Array.isArray(h.capitulos) ? h.capitulos : [];
+  const [aberto, setAberto] = useState(null);
+  const [notas, setNotas] = useState(null); // null = carregando
+  const [minha, setMinha] = useState('');
+  const [salvandoNota, setSalvandoNota] = useState(false);
+  const [erroNota, setErroNota] = useState(null);
+  const [busca, setBusca] = useState('');
+  const [page, setPage] = useState(1);
+  const dataDe = (c) => (c && c.data_capitulo && typeof formatarDataFantasy === 'function'
+    ? formatarDataFantasy(c.data_capitulo, lang) : '');
+  const paragrafos = (txt) => String(txt || '').split(/\n+/).filter((x) => x.trim())
+    .map((par, i) => <p key={i} className="cena-cap-texto">{par}</p>);
+  const resumo = (txt) => String(txt || '').replace(/\s+/g, ' ').trim();
+  const semAcento = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const termo = semAcento(busca.trim());
+  // Do mais recente ao mais antigo; o último capítulo é o em andamento.
+  const todos = caps.map((c, i) => ({ c, n: i + 1, atual: i === caps.length - 1 })).reverse();
+  const lista = !termo ? todos : todos.filter(({ c }) => semAcento((c.titulo || '') + ' ' + (c.texto || '')).includes(termo));
+  const totalPages = Math.max(1, Math.ceil(lista.length / CENA_POR_PAGINA));
+  const safePage = Math.min(page, totalPages);
+  const pagina = lista.slice((safePage - 1) * CENA_POR_PAGINA, safePage * CENA_POR_PAGINA);
+  const BuscaENovo = window.BestBuscaENovo;
+  const Paginacao = window.BestPagination;
+  const capAberto = aberto != null ? todos.find((x) => x.n === aberto) : null;
+  const capId = capAberto && capAberto.c.id ? String(capAberto.c.id) : null;
+  const carregarNotas = async () => {
+    if (!capId || !h.id) { setNotas([]); return; }
+    const { data, error } = await supabaseClient.from('anotacoes_capitulo')
+      .select('id, user_id, autor, texto, updated_at')
+      .eq('historia_id', h.id).eq('capitulo_id', capId).order('created_at');
+    if (error) { setErroNota(error.message); setNotas([]); return; }
+    const lista = data || [];
+    setNotas(lista);
+    const m = lista.find((n) => n.user_id === userId);
+    setMinha(m ? m.texto : '');
+  };
+  useEffect(() => {
+    setNotas(null); setErroNota(null); setMinha('');
+    if (capId) carregarNotas();
+    /* eslint-disable-next-line */
+  }, [capId, h.id]);
+  const notaGuardada = ((notas || []).find((n) => n.user_id === userId) || {}).texto || '';
+  const salvarNota = async () => {
+    if (!capId || !userId) return;
+    setSalvandoNota(true); setErroNota(null);
+    const texto = minha.trim();
+    const { error } = texto
+      ? await supabaseClient.from('anotacoes_capitulo').upsert({
+          historia_id: h.id, capitulo_id: capId, user_id: userId, personagem_id: pjId || null,
+          autor: autor || null, texto, updated_at: new Date().toISOString(),
+        }, { onConflict: 'historia_id,capitulo_id,user_id' })
+      : await supabaseClient.from('anotacoes_capitulo').delete()
+          .eq('historia_id', h.id).eq('capitulo_id', capId).eq('user_id', userId);
+    setSalvandoNota(false);
+    if (error) { setErroNota(error.message); return; }
+    carregarNotas();
+  };
+  const outrasNotas = (notas || []).filter((n) => !anotar || n.user_id !== userId);
+
+  return (
+    <div className="pjs cena-cartoes">
+      {BuscaENovo && (
+        <div className="cartoes-barra">
+          <BuscaENovo
+            ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
+            placeholder={en ? 'Search' : 'Buscar'}
+            query={busca}
+            setQuery={(v) => { setBusca(v); setPage(1); }}
+            podeCriar={!somenteLeitura}
+            onNovo={onNovoCapitulo}
+            dicaNovo={en ? 'New chapter' : 'Novo capítulo'} />
+        </div>
+      )}
+      {caps.length === 0 ? (
+        <div className="best-empty">{somenteLeitura
+          ? (en ? 'No chapters yet. The chronicle begins when the Master writes it.' : 'Nenhum capítulo ainda. A crônica começa quando o Mestre escrever.')
+          : (en ? 'No chapters yet. Start the chronicle of this table with the +.' : 'Nenhum capítulo ainda. Comece a crônica desta mesa pelo +.')}</div>
+      ) : pagina.length === 0 ? (
+        <div className="best-empty">{en ? `No chapter matches "${busca.trim()}".` : `Nenhum capítulo com "${busca.trim()}".`}</div>
+      ) : (
+        <>
+          <div className="pjs-grid">
+            {pagina.map(({ c, n, atual }) => {
+              const abrir = () => setAberto(n);
+              return (
+                <div key={c.id || n} className="pj-card-wrap">
+                  <article className={'pj-card is-clickable cena-cartao' + (atual ? ' is-atual' : '')} role="button" tabIndex={0}
+                    onClick={abrir}
+                    onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); } }}>
+                    <div className="pj-card-body">
+                      <div className="pj-card-portrait is-empty cena-cartao-num" aria-hidden="true">
+                        <span className="pj-card-portrait-mono">{n}</span>
+                      </div>
+                      <div className="pj-card-info">
+                        <header className="pj-card-head">
+                          <div className="pj-name-linha">
+                            <div className="pj-name">{c.titulo || (en ? 'Untitled' : 'Sem título')}</div>
+                            {atual && <span className="pj-evoluiu cena-cartao-selo">{en ? 'In progress' : 'Em andamento'}</span>}
+                          </div>
+                        </header>
+                        <div className="pj-meta-linhas">
+                          <div className="pj-meta pj-meta--quem">
+                            <span>{en ? `Chapter ${n}` : `Capítulo ${n}`}</span>
+                            {dataDe(c) && (
+                              <>
+                                <span className="sep" aria-hidden="true">·</span>
+                                <span>{dataDe(c)}</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="pj-meta pj-meta--estagio">
+                            {resumo(c.texto) || (en ? 'No text yet.' : 'Sem texto ainda.')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              );
+            })}
+          </div>
+          {totalPages > 1 && Paginacao && (
+            <Paginacao page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />
+          )}
+        </>
+      )}
+
+      {capAberto && (
+        <ModalShell
+          title={capAberto.c.titulo || (en ? 'Untitled' : 'Sem título')}
+          lang={lang}
+          size="lg"
+          onClose={() => setAberto(null)}
+          onCancel={() => setAberto(null)}
+          cancelLabel={en ? 'Close' : 'Fechar'}
+          {...(somenteLeitura
+            ? (anotar && capId
+              ? { onConfirm: salvarNota, confirmLabel: salvandoNota ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Save note' : 'Salvar anotação'),
+                  confirmDisabled: salvandoNota || notas === null || minha.trim() === notaGuardada.trim() }
+              : {})
+            : { onConfirm: () => { setAberto(null); onEscrever(); }, confirmLabel: en ? 'Write' : 'Escrever' })}
+        >
+          <p className="cena-modal-meta">
+            {en ? `Chapter ${capAberto.n}` : `Capítulo ${capAberto.n}`}
+            {capAberto.atual ? (en ? ' · in progress' : ' · em andamento') : ''}
+            {dataDe(capAberto.c) ? ' · ' + dataDe(capAberto.c) : ''}
+          </p>
+          <div className="cena-modal-texto">
+            {paragrafos(capAberto.c.texto).length
+              ? paragrafos(capAberto.c.texto)
+              : <p className="cena-cap-texto">{en ? 'No text yet.' : 'Sem texto ainda.'}</p>}
+          </div>
+          {capId && (
+            <section className="cena-notas" aria-label={en ? 'Notes' : 'Anotações'}>
+              <h3 className="cena-notas-tit">{en ? 'Notes' : 'Anotações'}</h3>
+              {notas === null ? (
+                <p className="cena-notas-vazio">{en ? 'Loading notes…' : 'Carregando anotações…'}</p>
+              ) : (
+                <>
+                  {outrasNotas.length === 0 && !anotar && (
+                    <p className="cena-notas-vazio">{en ? 'No one has written notes on this chapter.' : 'Ninguém anotou nada neste capítulo.'}</p>
+                  )}
+                  {outrasNotas.map((n) => (
+                    <article key={n.id} className="cena-nota">
+                      <b className="cena-nota-autor">{n.autor || (n.user_id === h.mestre_id ? (en ? 'Master' : 'Mestre') : '—')}</b>
+                      {String(n.texto).split(/\n+/).filter((x) => x.trim()).map((par, i) => <p key={i} className="cena-nota-texto">{par}</p>)}
+                    </article>
+                  ))}
+                  {anotar && (
+                    <label className="cena-nota-minha">
+                      <span className="cena-nota-autor">{autor || (en ? 'Your note' : 'Sua anotação')}</span>
+                      <textarea value={minha} rows={4} onChange={(e) => setMinha(e.target.value)}
+                        placeholder={en ? 'What your character remembers, suspects or wants to do…' : 'O que seu personagem lembra, suspeita ou quer fazer…'} />
+                    </label>
+                  )}
+                </>
+              )}
+              {erroNota && <p className="cena-notas-erro" role="alert">{erroNota}</p>}
+            </section>
+          )}
+        </ModalShell>
+      )}
     </div>
   );
 }
@@ -428,7 +714,7 @@ function BestTip({ tip }) {
       position: 'fixed', left, top, transform: 'translateX(-50%)',
       zIndex: 9999, pointerEvents: 'none', whiteSpace: 'nowrap',
       background: '#201A0F', borderRadius: 6, padding: '6px 10px',
-      fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: '#F1E6CF',
+      fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: 'var(--tinta)',
       animation: 'fpItemTipIn .12s ease-out',
     }}>
       <div style={{
@@ -571,27 +857,14 @@ function LojaPagePagination({ page, safePage, totalPages, setPage, lang }) {
   );
 }
 
-// Helper local: converte latões em texto por extenso (ex: "2 moedas de prata")
-// Usa latoesToMoedas de 01-core/inventario-helpers.jsx (global).
+// Preço por extenso: só a primeira moeda leva a palavra (23/10/2026, usuário):
+// "1 moeda de ouro e 2 de prata", "1 moeda de ouro, 2 de prata e 3 de cobre".
+// A regra mora em precoPorExtenso (01-core); aqui só o zero vira Grátis.
 function precoTextoLoja(latao, en) {
-  if (!latao || latao <= 0) return en ? 'Free' : 'Grátis';
-  const fn = typeof latoesToMoedas === 'function' ? latoesToMoedas : (typeof window.latoesToMoedas === 'function' ? window.latoesToMoedas : null);
-  if (!fn) return String(latao);
-  const m = fn(Math.round(latao));
-  const nomes = en
-    ? { ouro: 'gold coin', prata: 'silver coin', cobre: 'copper coin', latao: 'brass coin' }
-    : { ouro: 'moeda de ouro', prata: 'moeda de prata', cobre: 'moeda de cobre', latao: 'moeda de latão' };
-  const ordem = ['ouro', 'prata', 'cobre', 'latao'];
-  const parts = ordem.filter((t) => m[t] > 0).map((t) => {
-    const n = m[t];
-    const nome = en
-      ? (n > 1 ? nomes[t] + 's' : nomes[t])
-      : (n > 1 ? nomes[t].replace('moeda', 'moedas') : nomes[t]);
-    return `${n} ${nome}`;
-  });
-  if (!parts.length) return en ? 'Free' : 'Grátis';
-  if (parts.length === 1) return parts[0];
-  return parts.slice(0, -1).join(', ') + (en ? ' and ' : ' e ') + parts[parts.length - 1];
+  const fn = (typeof precoPorExtenso === 'function' && precoPorExtenso) || window.precoPorExtenso;
+  const gratis = en ? 'Free' : 'Grátis';
+  if (!latao || latao <= 0) return gratis;
+  return fn ? fn(latao, en ? 'en' : 'pt', gratis) : String(latao);
 }
 
 // ── migrarEstoqueLoja — normaliza formato antigo (array flat) para o novo
@@ -1172,7 +1445,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                       <section className="loja-mng-v3-panel loja-mng-v3-panel--cat" style={{ display: abaLoja === 'catalogo' ? 'flex' : 'none' }}>
                         <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltro !== '' ? 20 : undefined }}>
                           <div className="loja-mng-v3-search">
-                            <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+                            <i className="ti ti-eye busca-ic" aria-hidden="true" />
                             <input
                               ref={buscaRef}
                               type="search"
@@ -1229,6 +1502,12 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                                   value={precoOverride}
                                   onChange={(ev) => setPrecoOverride(ev.target.value)}
                                   onKeyDown={(ev) => { if (ev.key === 'Enter') adicionarAoEstoque(); }} />
+                                {/* O valor lido nas moedas maiores (23/10/2026). Vazio = o do catálogo. */}
+                                {typeof window.ajudaDoPreco === 'function' && (
+                                  <span className="campo-preco-ajuda">
+                                    {window.ajudaDoPreco(precoOverride !== '' ? precoOverride : (escolhido.valor_latao ?? 0), en ? 'en' : 'pt')}
+                                  </span>
+                                )}
                               </label>
                               {/* Rótulo "Quantidade" (22/10/2026): sem ele o campo
                                   ficava mais alto que o do Preço — "os campos
@@ -1281,7 +1560,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                                             </span>
                                           </TableCell>
                                           <TableCell className="loja-mng-v3-td--grupo">{it.grupo || '—'}</TableCell>
-                                          <TableCell className="loja-mng-v3-td--valor">{it.valor_latao ?? 0}</TableCell>
+                                          <TableCell className="loja-mng-v3-td--valor">{precoTextoLoja(it.valor_latao ?? 0, en)}</TableCell>
                                         </TableRow>
                                       );
                                     })}
@@ -1298,7 +1577,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
                       <section className="loja-mng-v3-panel" style={{ display: abaLoja === 'estoque' ? 'flex' : 'none' }}>
                         <div className="loja-mng-v3-toolbar" style={{ paddingBottom: grupoFiltroEstoque !== '' ? 20 : undefined }}>
                           <div className="loja-mng-v3-search">
-                            <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+                            <i className="ti ti-eye busca-ic" aria-hidden="true" />
                             <input type="search" placeholder={en ? 'Search' : 'Buscar'} value={buscaEstoque} onChange={(e) => setBuscaEstoque(e.target.value)} />
                             {buscaEstoque && (
                               <button type="button" className="loja-mng-v3-search-clear" onClick={() => setBuscaEstoque('')} aria-label={tl.clear}>
@@ -1383,7 +1662,7 @@ function GerenciarLojaView({ historia, t: tc, lang, onClose, onSaved }) {
   );
 }
 
-function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSaved, historiaExistente = null }) {
+function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSaved, historiaExistente = null, paginaInicial = 'historia', novoCapitulo = false }) {
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const tn = t.historias.novaModal;
   const isEdit = !!historiaExistente;
@@ -1399,9 +1678,11 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
   // Mestre pode adicionar quantos quiser; cada capítulo tem título e corpo livre.
   const [capitulos, setCapitulos] = useState(() => {
     if (isEdit && Array.isArray(historiaExistente.capitulos) && historiaExistente.capitulos.length > 0) {
-      return historiaExistente.capitulos.map((c, i) => ({ id: c.id ?? `cap-${Date.now()}-${i}`, titulo: c.titulo ?? '', texto: c.texto ?? '', data_capitulo: c.data_capitulo ?? null }));
+      const lista = historiaExistente.capitulos.map((c, i) => ({ id: c.id ?? `cap-${Date.now()}-${i}`, titulo: c.titulo ?? '', texto: c.texto ?? '', data_capitulo: c.data_capitulo ?? null }));
+      // "Novo capítulo" da Cena (23/10/2026): a janela já abre com um em branco no fim.
+      return novoCapitulo ? [...lista, { id: `cap-${Date.now()}-novo`, titulo: '', texto: '', data_capitulo: null }] : lista;
     }
-    return [];
+    return novoCapitulo ? [{ id: `cap-${Date.now()}-novo`, titulo: '', texto: '', data_capitulo: null }] : [];
   });
 
   const addCapitulo = () =>
@@ -1436,7 +1717,7 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [pagina, setPagina] = useState('historia'); // 'historia' | 'capitulos'
+  const [pagina, setPagina] = useState(paginaInicial === 'capitulos' ? 'capitulos' : 'historia'); // 'historia' | 'capitulos'
 
   // Busca os reinos já cadastrados no diário desta história (RPC listar_lore_historia,
   // igual ao GerenciarLoreModal em diario.jsx) pra oferecer como dropdown no campo Reino.
@@ -1469,11 +1750,12 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
   const salvar = async () => {
     setSaving(true);
     setError(null);
-    // Serializa capítulos: descarta id interno (gerado só pra key/React), guarda apenas titulo+texto.
+    // Serializa capítulos com o id (23/10/2026: as anotações dos jogadores se
+    // prendem a ele — antes o id era descartado e mudava a cada salvamento).
     // Capítulos completamente vazios (sem título e sem texto) são descartados — o mestre clicou "+"
     // mas não digitou nada.
     const capitulosPayload = capitulos
-      .map(({ titulo: t, texto, data_capitulo }) => ({ titulo: t.trim(), texto: texto.trim(), data_capitulo: data_capitulo || null }))
+      .map(({ id, titulo: t, texto, data_capitulo }) => ({ id, titulo: t.trim(), texto: texto.trim(), data_capitulo: data_capitulo || null }))
       .filter(({ titulo: t, texto }) => t.length > 0 || texto.length > 0);
 
     const payload = {
@@ -1592,14 +1874,14 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
             </div>
           </div>
           <div className="wiz-row-2col">
-            <label className="wiz-field">
+            <div className="wiz-field">
               <span>{tn.dataInicio}</span>
-              <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
-            </label>
-            <label className="wiz-field">
+              <CampoData value={dataInicio} onChange={setDataInicio} lang={lang} aria-label={tn.dataInicio} />
+            </div>
+            <div className="wiz-field">
               <span>{tn.dataInicioJogo}</span>
               <FantasyDatePicker value={dataJogo} onChange={setDataJogo} lang={lang} />
-            </label>
+            </div>
           </div>
           <label className="wiz-field">
             <span>{en ? 'Introduction' : 'Introdução'}</span>
@@ -1693,5 +1975,5 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
 Object.assign(window, {
   HistoriasList, HistoriaCard,
   ConfirmarExclusaoHistoriaModal, GerenciarLojaView, migrarEstoqueLoja,
-  NovaHistoriaModal,
+  NovaHistoriaModal, CenaCronica,
 });

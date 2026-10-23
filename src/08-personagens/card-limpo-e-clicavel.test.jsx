@@ -119,18 +119,17 @@ describe('o clique no card abre a ficha', () => {
 /* "Na visão do mestre e do jogador, teremos apenas 1 card de personagem por
    linha." (usuário, 17/09/2026). jsdom não resolve cascata, então quem
    responde é a folha. */
-describe('um card por linha', () => {
+/* SUBSTITUÍDO em 23/10/2026: o cartão ficou baixo e a lista passou a DUAS
+   colunas (aprovado na prévia: "Ficou perfeito, pode aplicar"); em tela
+   estreita volta a uma. O ativo do Jogador segue na largura toda. */
+describe('duas colunas, uma em tela estreita', () => {
   const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'index.css'), 'utf8');
 
-  it('a grade tem uma coluna só', () => {
-    const i = css.indexOf('#root .menestrel-ui .pjs-grid {');
-    expect(i, 'não achei a regra da grade').toBeGreaterThan(-1);
-    const regra = css.slice(i, css.indexOf('}', i));
-    expect(regra).toMatch(/grid-template-columns:\s*1fr/);
-    expect(regra).not.toMatch(/repeat\(/);
+  it('a grade final tem duas colunas', () => {
+    expect(css).toMatch(/\.pjs-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   });
 
-  it('e não sobrou media query devolvendo colunas', () => {
-    expect(css).not.toMatch(/\.pjs-grid \{ grid-template-columns: repeat/);
+  it('e volta a uma coluna abaixo de 900px', () => {
+    expect(css).toMatch(/max-width: 900px\) \{ #root \.menestrel-ui \.pjs-grid \{ grid-template-columns: minmax\(0, 1fr\)/);
   });
 });

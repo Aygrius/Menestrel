@@ -78,24 +78,6 @@ describe('a moldura parou de medir a saúde', () => {
      do ratio de EF, então cada card exibia uma barra de cor diferente e a
      lista virava um mosaico. Quem diz o nível é a LARGURA do preenchimento; a
      cor é identidade do poço e não muda. */
-  it('a barra de EF tem a mesma cor com o PJ ferido ou inteiro', () => {
-    const corDe = (pj) => {
-      cleanup();
-      montar({}, pj);
-      return getComputedStyle(document.querySelector('.pj-vital--ef')).getPropertyValue('--vit-c').trim();
-    };
-    const ferido = corDe({ ...PJ, estado_atual: { vitalidade: { ef: 1 } } });
-    const inteiro = corDe(PJ);
-    expect(ferido).toBe(inteiro);
-    expect(ferido, 'a cor tem que sair da tabela da ficha').toBe(window.FICHA_VIT_COLORS.ef);
-  });
-
-  it('e o preenchimento é que acompanha o nível', () => {
-    montar({}, { ...PJ, estado_atual: { vitalidade: { ef: 1 } } });
-    const fill = document.querySelector('.pj-vital--ef .pj-vital-fill');
-    expect(fill.getAttribute('style')).toMatch(/width:/);
-    expect(fill.getAttribute('style')).not.toMatch(/background/);
-  });
 });
 
 /* "Está fora do nosso padrão de cores." (usuário, 17/09/2026) — o card tinha
@@ -103,12 +85,6 @@ describe('a moldura parou de medir a saúde', () => {
    regra que sobra é: cor de poço vem da tabela da ficha, e nada mais no card
    pinta fora dos tokens. */
 describe('as cores saem da tabela da ficha, não do card', () => {
-  it.each([['ef'], ['eh'], ['ka']])('a barra de %s usa a cor canônica', (k) => {
-    montar({});
-    const el = document.querySelector('.pj-vital--' + k);
-    expect(getComputedStyle(el).getPropertyValue('--vit-c').trim()).toBe(window.FICHA_VIT_COLORS[k]);
-  });
-
   /* corCondicao devolve #00850f / #870000 — cor de PREENCHIMENTO de barra.
      Como texto e aro de chip, é verde e vermelho puros dentro de um card
      "Pedra & Bronze". Nenhum chip pode vestir aquilo. */
@@ -121,31 +97,13 @@ describe('as cores saem da tabela da ficha, não do card', () => {
   });
 });
 
-describe('os vitais deixaram de ser privilégio do personagem ativo', () => {
-  it('qualquer card mostra EF, EH e Karma', () => {
+/* AS BARRAS SAÍRAM DO CARD (23/10/2026): "Melhore o card dos personagens,
+   remove as barras do card." EF, EH e Karma moram na ficha. */
+describe('o card não tem barras', () => {
+  it('nenhum poço no card, ativo ou não', () => {
     montar({});
-    expect(vitais()).toEqual([
-      expect.stringContaining('pj-vital--ef'),
-      expect.stringContaining('pj-vital--eh'),
-      expect.stringContaining('pj-vital--ka'),
-    ]);
-  });
-
-  it('o número é o do estado atual, não o máximo', () => {
-    montar({}, { ...PJ, estado_atual: { vitalidade: { ef: 3 } } });
-    // Só a barra desde 26/09/2026: o número mora no meter, não no texto.
-    const ef = document.querySelector('.pj-vital--ef');
-    expect(ef.getAttribute('aria-valuenow')).toBe('3');
-    expect(ef.textContent).toBe('');
-    expect(document.querySelector('.pj-vital-rot')).toBeNull();
-  });
-
-  /* Guerreiro e Ladino não conjuram: a barra existia e ficava sempre vazia —
-     a mesma regra (SEM_KARMA) que já tirava a barra da ficha deles. */
-  it('quem não conjura não ganha barra de Karma', () => {
-    montar({}, { ...PJ, profissao: 'Guerreiro' });
-    expect(document.querySelector('.pj-vital--ka')).toBeNull();
-    expect(document.querySelector('.pj-vital--ef')).toBeTruthy();
+    expect(document.querySelector('.pj-vitais')).toBeNull();
+    expect(document.querySelector('.pj-vital')).toBeNull();
   });
 });
 
@@ -226,7 +184,7 @@ describe('o card usa a largura que tem', () => {
     // E os poços vestem exatamente ela — inclusive o peso, que já foi 600.
     expect(r).toMatch(/font-family:\s*var\(--font-body\)/);
     expect(r).toMatch(/font-size:\s*var\(--fs-base\)/);
-    expect(r).toMatch(/color:\s*#BFAF8E/);
+    expect(r).toMatch(/color:\s*var\(--tinta-2\)/);
     expect(r).toMatch(/font-weight:\s*400/);
   });
 });
@@ -244,18 +202,20 @@ describe('o card em quatro linhas', () => {
     expect(container.querySelector('.pj-name-estagio')).toBeNull();
   });
 
-  it('raça • Estágio N, depois profissão • título', () => {
+  /* 23/10/2026 — DUAS linhas (cartão baixo, aprovado na prévia): quem é
+     (raça · profissão · título) e onde está (estágio · jogador). */
+  it('raça · profissão · título, depois Estágio N', () => {
     const { container } = montar({}, { ...PJ, profissao: 'Mago', especializacao: 'Colégio Necromântico' });
-    expect(container.querySelector('.pj-meta--raca').textContent).toBe('Humano•Estágio 5');
-    expect(container.querySelector('.pj-meta--profissao').textContent).toBe('Mago•Necromante');
+    expect(container.querySelector('.pj-meta--quem').textContent).toBe('Humano·Mago·Necromante');
+    expect(container.querySelector('.pj-meta--estagio').textContent).toBe('Estágio 5');
   });
 
-  it('o jogador na última linha, só para o Mestre', () => {
+  it('o jogador ao lado do estágio, só para o Mestre', () => {
     const { container } = montar({ isMaster: true, playerName: 'Richard Rossati' });
-    expect(container.querySelector('.pj-meta--jogador').textContent).toBe('Richard Rossati');
+    expect(container.querySelector('.pj-meta-jogador').textContent).toBe('Richard Rossati');
     cleanup();
     const r = montar({ playerName: 'Richard Rossati' });
-    expect(r.container.querySelector('.pj-meta--jogador')).toBeNull();
+    expect(r.container.querySelector('.pj-meta-jogador')).toBeNull();
   });
 
   it('e a pílula de selo não existe mais', () => {
@@ -348,11 +308,6 @@ describe('o card não tem tooltip', () => {
     return document.querySelector('.mn-tip');
   });
 
-  it('passar o mouse nos poços não abre balão', () => {
-    const { container } = montar({}, { ...PJ, estado_atual: { vitalidade: { ef: 5 } } });
-    expect(eventos(container.querySelector('.pj-vital')).filter(Boolean)).toHaveLength(0);
-  });
-
   it('nem no status', () => {
     const { container } = montar({}, { ...PJ, estado_atual: { status: [{ id: 'veneno:a', nome: 'Envenenado' }] } });
     expect(eventos(container.querySelector('.pj-status-chip')).filter(Boolean)).toHaveLength(0);
@@ -379,7 +334,7 @@ describe('o card não tem tooltip', () => {
 describe('a profissão no card', () => {
   it('aparece só por escrito, sem ícone', () => {
     const { container } = montar({});   // PJ é Mago
-    const linha = container.querySelector('.pj-meta--profissao');
+    const linha = container.querySelector('.pj-meta--quem');
     expect(linha.textContent).toMatch(/Mago/);
     expect(linha.querySelector('i')).toBeNull();
   });

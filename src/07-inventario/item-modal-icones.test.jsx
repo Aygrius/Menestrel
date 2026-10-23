@@ -42,25 +42,58 @@ const abrir = (instance, extra = {}) => render(
     {...extra}
   />,
 );
-const acoes = () => [...document.querySelectorAll('.ms-header [data-acao]')].map((b) => b.getAttribute('data-acao'));
+const acoes = () => [...document.querySelectorAll('.mn-acoes [data-acao]')].map((b) => b.getAttribute('data-acao'));
+/* Desde 23/10/2026 as características moram só na lista ("padronize"): as
+   "células" são as linhas dela, pelo rótulo. */
+const ROTULOS = { 'Dano': 'dano', 'Grupo': 'grupo', 'Onde está': 'onde', 'Quantidade': 'quantidade' };
+const celulas = () => Object.fromEntries([...document.querySelectorAll('.best-secao--lista .best-stat')]
+  .map((c) => [ROTULOS[c.querySelector('.best-stat-lbl').textContent] || c.querySelector('.best-stat-lbl').textContent,
+    (c.querySelector('.best-stat-val') || { textContent: '' }).textContent]));
 
+/* QUADRO DE INICIATIVA (22/10/2026) — três escolhas do usuário para a
+   janela do item: "Barra com nome", "Passe + página única" e Usar "direto no
+   rodapé". Os ícones mudos ao lado do X, as abas e o card do alvo saíram. */
 describe('o modal do item do inventário', () => {
-  it('é o modal com abas do Comércio, sem rodapé', () => {
+  it('sem passe no topo: página única, sem abas e sem rodapé', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 });
-    expect(document.querySelector('.modal-best-detalhe')).toBeTruthy();
+    expect(document.querySelector('.modal-best-detalhe.modal-item')).toBeTruthy();
     expect(document.querySelector('.ms-footer')).toBeNull();
-    const abas = [...document.querySelectorAll('.best-abas [role="tab"]')].map((b) => b.textContent);
-    expect(abas).toEqual(['Descrição', 'Características']);
+    expect(document.querySelector('.best-abas')).toBeNull();
+    // Os números da arma ficam em Características, como os de todo item.
+    expect(document.querySelector('.item-passe')).toBeNull();
+    expect(celulas()).toMatchObject({ dano: '12', grupo: 'CM' });
+    // Descrição e Características na mesma página, sem trocar de aba.
+    expect(document.body.textContent).toMatch(/Uma lâmina reta\./);
+    expect(document.querySelector('.best-secao--lista')).toBeTruthy();
   });
 
-  it('os ícones ao lado do X, na ordem pedida', () => {
+  it('a barra com nome: a principal primeiro, em ouro; Descartar por último', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 });
     // Sem Comentar desde 26/09/2026 (a nota do item saiu por completo).
     // Transferir saiu em 28/09/2026: agora é arrastar o item até o amigo.
-    expect(acoes()).toEqual(['vender', 'descartar', 'equipar', 'armazenar']);
-    // O nome de cada um mora no rótulo acessível (e no tooltip).
-    expect(document.querySelector('[data-acao="vender"]').getAttribute('aria-label')).toBe('Vender na loja');
+    // Transferir voltou como botão em 23/10/2026 (só para o dono, com onTransferir).
+    expect(acoes()).toEqual(['equipar', 'vender', 'armazenar', 'descartar']);
+    const equipar = document.querySelector('[data-acao="equipar"]');
+    expect(equipar.classList.contains('mn-acao--principal')).toBe(true);
+    // O nome está escrito no botão, não só no tooltip.
+    expect(document.querySelector('[data-acao="vender"]').textContent).toBe('Vender na loja');
     expect(document.querySelector('[data-acao="vender"] i').className).toContain('ti-coins');
+    // Nada de ação no cabeçalho além do X.
+    expect(document.querySelector('.ms-header [data-acao]')).toBeNull();
+  });
+
+  /* 23/10/2026: o motivo vai num balão, não escrito na página ("deve mostrar
+     um tooltip com a informação de porque está bloqueado"). */
+  it('ação bloqueada: o motivo aparece num balão ao tocar nela', () => {
+    abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 });
+    const armazenar = document.querySelector('[data-acao="armazenar"]');
+    expect(armazenar.disabled).toBe(true);
+    expect(document.querySelector('.mn-acoes-motivo')).toBeNull();
+    const embrulho = armazenar.closest('.mn-acao-embrulho');
+    expect(embrulho.getAttribute('aria-label')).toMatch(/Armazenar: Nenhum recipiente compatível/);
+    fireEvent.click(embrulho);
+    expect(document.querySelector('.mn-tip').textContent).toMatch(/Nenhum recipiente compatível/);
+    expect(document.querySelector('.mn-acoes-motivo')).toBeNull();
   });
 
   it('equipado: Desequipar no lugar de Equipar', () => {
@@ -68,14 +101,13 @@ describe('o modal do item do inventário', () => {
     expect(acoes()).toContain('desequipar');
     expect(acoes()).not.toContain('equipar');
     expect(document.querySelector('[data-acao="desequipar"] i').className).toContain('ti-shield-off');
+    expect(celulas().onde).toMatch(/Equipado/);
   });
 
   /* 'Remova completamente o sistema de nota dos itens.' (26/09/2026) */
-  it('sem nota: nem ícone, nem aba, mesmo com observacao antiga gravada', () => {
+  it('sem nota: nem ação, nem seção, mesmo com observacao antiga gravada', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1, observacao: 'Forjada por Parom.' });
     expect(document.querySelector('[data-acao="comentar"]')).toBeNull();
-    const abas = [...document.querySelectorAll('.best-abas [role="tab"]')].map((b) => b.textContent);
-    expect(abas).not.toContain('Nota');
     expect(document.body.textContent).not.toMatch(/Forjada por Parom/);
   });
 
@@ -86,7 +118,7 @@ describe('o modal do item do inventário', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 }, { onDestruir });
     expect(document.querySelector('.ms-footer')).toBeNull();
     fireEvent.click(document.querySelector('[data-acao="descartar"]'));
-    expect(document.querySelector('.best-abas')).toBeNull();
+    expect(document.querySelector('[data-acao="descartar"]').getAttribute('aria-pressed')).toBe('true');
     expect(document.querySelector('.det-act-confirm-title')).toBeNull();
     expect(document.querySelector('.det-etapa button')).toBeNull();
     const rodape = [...document.querySelectorAll('.ms-footer button')].map((x) => x.textContent);
@@ -100,89 +132,50 @@ describe('o modal do item do inventário', () => {
     fireEvent.click(document.querySelector('[data-acao="descartar"]'));
     fireEvent.click([...document.querySelectorAll('.ms-footer button')].find((x) => x.textContent === 'Cancelar'));
     expect(document.querySelector('.ms-footer')).toBeNull();
-    expect(document.querySelector('.best-abas')).toBeTruthy();
+    expect(document.querySelector('.best-secao--lista')).toBeTruthy();
   });
 });
 
-/* "Ao abrir um item para usar: comportamento igual da magia, ao clicar no
-   card do alvo, o card fica selecionado e vermelho, se clicar novamente [o
-   item] é usado. Ou seja, remova o ícone do lado do x." (26/09/2026) */
-describe('usar item: o card do alvo', () => {
+/* "Usar um item consumível: o alvo é sempre o próprio personagem" — Usar
+   direto no rodapé, sem aba Usar e sem card do alvo (usuário, 22/10/2026). */
+describe('usar item: direto no rodapé', () => {
   const POCAO = { slug: 'pocao', nome: 'Poção de Cura', grupo: 'Consumíveis', descricao: 'Cura 10.', efeito_positivo: 'Recupera 10 de EF.' };
-  const abrirPocao = (extra = {}) => render(
-    <Modal instance={{ instanceId: 'p1', slug: 'pocao', quantidade: 1 }} catalogoBySlug={{ pocao: POCAO }} raca="Humano"
-      slotsState={{}} todosItens={[{ instanceId: 'p1', slug: 'pocao', quantidade: 1 }]} containersDisponiveis={[]} pjsHistoria={[]}
+  const abrirPocao = (extra = {}, qtd = 1) => render(
+    <Modal instance={{ instanceId: 'p1', slug: 'pocao', quantidade: qtd }} catalogoBySlug={{ pocao: POCAO }} raca="Humano"
+      slotsState={{}} todosItens={[{ instanceId: 'p1', slug: 'pocao', quantidade: qtd }]} containersDisponiveis={[]} pjsHistoria={[]}
       lang="pt" onClose={noop} onEquipar={noop} onDesequipar={noop} onUsar={noop} onDestruir={noop}
       onMoverParaContainer={noop} onTransferir={noop} onTransferReset={noop} onVestir={noop} onDespir={noop}
       onRemoverDoContainer={noop} onAbrirDetalhesFilho={noop} usuario={{ nome: 'Thalia' }} {...extra} />,
   );
+  const usar = () => document.querySelector('.ms-footer [data-confirmar="usar"]');
 
-  it('sem ícone Usar; a aba Usar é a primeira, e o efeito mora em Características', () => {
+  it('sem ação Usar na barra, sem aba e sem card; o efeito mora em Características', () => {
     abrirPocao();
     expect(document.querySelector('[data-acao="usar"]')).toBeNull();
-    const abas = [...document.querySelectorAll('.best-abas [role="tab"]')].map((b) => b.textContent);
-    expect(abas).toEqual(['Usar', 'Descrição', 'Características']);
+    expect(document.querySelector('.best-abas')).toBeNull();
+    expect(document.querySelector('[data-alvo-uso]')).toBeNull();
     expect(document.querySelector('.best-secao--lista').textContent).toMatch(/Efeito positivo\s*Recupera 10 de EF\./);
   });
 
-  /* "adicione o rodapé com o botão de confirmar em transferir, usar,
-     armazenar, etc." (27/09/2026) — o card marca; Usar no rodapé executa. */
-  it('o card marca o alvo; Usar no rodapé usa e fecha', () => {
+  it('Usar no rodapé já vem ativo: um clique usa e fecha', () => {
     const onUsar = vi.fn(); const onClose = vi.fn();
     abrirPocao({ onUsar, onClose });
-    const card = () => document.querySelector('[data-alvo-uso="eu"]');
-    const usar = () => document.querySelector('.ms-footer [data-confirmar="usar"]');
-    expect(usar().disabled).toBe(true);
-    fireEvent.click(card());
-    expect(onUsar).not.toHaveBeenCalled();
-    expect(card().classList.contains('det-opt-card--sel')).toBe(true);
-    expect(document.querySelector('.mn-tip')).toBeNull();
+    expect(usar().disabled).toBe(false);
     fireEvent.click(usar());
     expect(onUsar).toHaveBeenCalledWith('p1', undefined);
     expect(onClose).toHaveBeenCalled();
   });
 
-  /* "O seletor de quantidade deve aparecer no modal de selecionar alvo."
-     (27/09/2026) — pilha: o seletor na aba Usar; sem a segunda janela. */
-  it('pilha: o seletor de quantidade fica na aba Usar e vai junto no uso', () => {
+  it('pilha: o seletor de quantidade no centro do rodapé vai junto no uso', () => {
     const onUsar = vi.fn();
-    render(
-      <Modal instance={{ instanceId: 'a1', slug: 'pocao', quantidade: 4 }} catalogoBySlug={{ pocao: POCAO }} raca="Humano"
-        slotsState={{}} todosItens={[{ instanceId: 'a1', slug: 'pocao', quantidade: 4 }]} containersDisponiveis={[]} pjsHistoria={[]}
-        lang="pt" onClose={noop} onEquipar={noop} onDesequipar={noop} onUsar={onUsar} onDestruir={noop}
-        onMoverParaContainer={noop} onTransferir={noop} onTransferReset={noop} onVestir={noop} onDespir={noop}
-        onRemoverDoContainer={noop} onAbrirDetalhesFilho={noop} usuario={{ nome: 'Thalia' }} />,
-    );
+    abrirPocao({ onUsar }, 4);
+    expect(celulas().quantidade).toBe('4');
     const stepper = document.querySelector('.ms-footer-center .fp-pop-stepper');
     expect(stepper.textContent).toMatch(/1\s*de 4/);
     fireEvent.click(stepper.querySelector('[aria-label="+"]'));
     fireEvent.click(stepper.querySelector('[aria-label="+"]'));
-    const card = document.querySelector('[data-alvo-uso="eu"]');
-    fireEvent.click(card);
-    fireEvent.click(document.querySelector('.ms-footer [data-confirmar="usar"]'));
-    expect(onUsar).toHaveBeenCalledWith('a1', 3);
-  });
-
-  /* "O rodapé só aparece na aba usar." (27/09/2026) */
-  it('o rodapé do Usar some nas outras abas', () => {
-    abrirPocao();
-    expect(document.querySelector('.ms-footer [data-confirmar="usar"]')).toBeTruthy();
-    const aba = (t) => [...document.querySelectorAll('.best-abas [role="tab"]')].find((b) => b.textContent === t);
-    fireEvent.click(aba('Descrição'));
-    expect(document.querySelector('.ms-footer')).toBeNull();
-    fireEvent.click(aba('Usar'));
-    expect(document.querySelector('.ms-footer [data-confirmar="usar"]')).toBeTruthy();
-  });
-
-  it('o card do alvo leva o nome completo do personagem (27/09/2026)', () => {
-    render(
-      <Modal instance={{ instanceId: 'a1', slug: 'pocao', quantidade: 1 }} catalogoBySlug={{ pocao: POCAO }} raca="Humano"
-        slotsState={{}} todosItens={[{ instanceId: 'a1', slug: 'pocao', quantidade: 1 }]} containersDisponiveis={[]} pjsHistoria={[]}
-        lang="pt" onClose={noop} onEquipar={noop} onDesequipar={noop} onUsar={noop} onDestruir={noop}
-        onMoverParaContainer={noop} onTransferir={noop} onTransferReset={noop} onVestir={noop} onDespir={noop}
-        onRemoverDoContainer={noop} onAbrirDetalhesFilho={noop} usuario={{ nome: 'Thalia Vento-Norte' }} />,
-    );
-    expect(document.querySelector('[data-alvo-uso="eu"] .det-opt-nome').textContent).toBe('Thalia Vento-Norte');
+    fireEvent.click(usar());
+    expect(onUsar).toHaveBeenCalledWith('p1', 3);
   });
 });
 
@@ -247,6 +240,32 @@ describe('aba Conteúdo: o quadriculado do inventário', () => {
   });
 });
 
+/* Recipiente (23/10/2026): a seção Conteúdo mostra quanto está ocupado e
+   aparece também vazia, com o caminho para guardar. */
+describe('seção Conteúdo do recipiente', () => {
+  const CAT = {
+    bolsa: { slug: 'bolsa', nome: 'Bolsa', grupo: 'Recipientes', armazena: 2 },
+    adaga: { slug: 'adaga', nome: 'Adaga', grupo: 'Armas', ocupa: 0.5 },
+  };
+  const abrir = (itens) => render(<Modal instance={itens[0]} catalogoBySlug={CAT} raca="Humano" slotsState={{}} todosItens={itens}
+    containersDisponiveis={[]} pjsHistoria={[]} lang="pt" onClose={noop} onEquipar={noop} onDesequipar={noop}
+    onUsar={noop} onDestruir={noop} onMoverParaContainer={noop} onVestir={noop} onDespir={noop}
+    onRemoverDoContainer={noop} onAbrirDetalhesFilho={noop} />);
+  it('vazio: medidor 0/2 e aviso, sem grade', () => {
+    abrir([{ instanceId: 'b', slug: 'bolsa', quantidade: 1 }]);
+    const secao = document.querySelector('.det-recipiente');
+    expect(secao.querySelector('.det-recip-num').textContent).toBe('0/2');
+    expect(secao.querySelector('.det-recip-vazio').textContent).toMatch(/^Vazio\./);
+    expect(secao.querySelector('.det-grade-recipiente')).toBeNull();
+  });
+  it('com itens: medidor do ocupado e a grade só completa a fileira', () => {
+    abrir([{ instanceId: 'b', slug: 'bolsa', quantidade: 1 }, { instanceId: 'a', slug: 'adaga', quantidade: 2, containerId: 'b' }]);
+    const secao = document.querySelector('.det-recipiente');
+    expect(secao.querySelector('.det-recip-num').textContent).toBe('1/2');
+    expect(secao.querySelectorAll('.det-grade-recipiente > *')).toHaveLength(5);
+  });
+});
+
 /* ABATER (28/09/2026): "quando um animal é abatido [...] vai virar a carne do
    seu tipo [...] metade do peso total do animal. O item porém não irá para o
    inventário, ele irá para a loja." A conta é da RPC; a janela só pergunta. */
@@ -281,18 +300,33 @@ describe('abater o animal manda a carne para a loja', () => {
    retirar o anúncio — decisão do usuário. Toda ação vem desativada, com o
    motivo; "Onde está" diz que está à venda. */
 describe('item à venda na janela do inventário', () => {
-  it('todas as ações desativadas, com o motivo, e "À venda na loja" em Onde está', () => {
+  it('todas as ações desativadas, com o motivo, e "À venda na loja" na lista', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1, anuncio_id: 7 });
-    const botoes = [...document.querySelectorAll('.ms-header [data-acao]')];
+    const botoes = [...document.querySelectorAll('.mn-acoes [data-acao]')];
     expect(botoes.length).toBeGreaterThan(0);
-    for (const b of botoes) expect(b.disabled || b.getAttribute('aria-disabled') === 'true').toBe(true);
-    fireEvent.click([...document.querySelectorAll('.best-abas [role="tab"]')].find((b) => b.textContent === 'Características'));
-    expect(document.body.textContent).toMatch(/À venda na loja/);
+    for (const b of botoes) expect(b.disabled).toBe(true);
+    expect(celulas().onde).toBe('À venda na loja');
+    // A principal (Equipar) segue em primeiro; o motivo vai no balão (23/10/2026).
+    expect(botoes[0].getAttribute('data-acao')).toBe('equipar');
+    expect(botoes[0].closest('.mn-acao-embrulho').getAttribute('aria-label')).toMatch(/Equipar: .*retire o anúncio/);
+    expect(document.querySelector('.mn-acoes-motivo')).toBeNull();
   });
 
   it('item livre segue com as ações ativas', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 });
-    const botoes = [...document.querySelectorAll('.ms-header [data-acao]')];
-    expect(botoes.some((b) => !b.disabled && b.getAttribute('aria-disabled') !== 'true')).toBe(true);
+    const botoes = [...document.querySelectorAll('.mn-acoes [data-acao]')];
+    expect(botoes.some((b) => !b.disabled)).toBe(true);
+  });
+});
+
+/* Revisão de 22/10/2026: a principal bloqueada não troca de lugar e diz o
+   porquê sem toque — no tablet, um botão apagado sem explicação falha mudo. */
+describe('principal bloqueada', () => {
+  it('Equipar sem mãos livres: primeiro na barra, apagado, motivo no balão', () => {
+    abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 }, { slotsState: { mao_d: 'x', mao_e: 'y' } });
+    expect(acoes()[0]).toBe('equipar');
+    expect(document.querySelector('[data-acao="equipar"]').disabled).toBe(true);
+    expect(document.querySelector('[data-acao="equipar"]').closest('.mn-acao-embrulho').getAttribute('aria-label'))
+      .toBe('Equipar: Precisa de 1 mão livre; nenhuma livre.');
   });
 });

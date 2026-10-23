@@ -58,21 +58,10 @@ function precoMoedaTexto(latao, lang) {
 
 // Valor por extenso pro modal de compra: "121 moedas de ouro, 3 de prata e
 // 4 de cobre" (en: "121 gold coins, 3 silver and 4 copper"). 0 → "nenhuma moeda".
+// A regra mora em 01-core (precoPorExtenso, 23/10/2026), usada também no
+// Valor dos itens; este nome fica pelos chamadores da loja.
 function moedasPorExtenso(latao, lang) {
-  const en = lang === 'en';
-  const m = latoesToMoedas(Math.max(0, Math.round(latao || 0)));
-  const nomes = en
-    ? { ouro: 'gold', prata: 'silver', cobre: 'copper', latao: 'brass' }
-    : { ouro: 'ouro', prata: 'prata', cobre: 'cobre', latao: 'latão' };
-  const parts = MOEDA_ORDEM.filter((t) => m[t] > 0);
-  if (!parts.length) return en ? 'no coins' : 'nenhuma moeda';
-  const frag = parts.map((t, i) => {
-    const n = m[t].toLocaleString(en ? 'en-US' : 'pt-BR');
-    if (en) return i === 0 ? `${n} ${nomes[t]} coin${m[t] > 1 ? 's' : ''}` : `${n} ${nomes[t]}`;
-    return i === 0 ? `${n} moeda${m[t] > 1 ? 's' : ''} de ${nomes[t]}` : `${n} de ${nomes[t]}`;
-  });
-  if (frag.length === 1) return frag[0];
-  return frag.slice(0, -1).join(', ') + (en ? ' and ' : ' e ') + frag[frag.length - 1];
+  return precoPorExtenso(latao, lang);
 }
 
 // Pagamento EXATO sem troco: dá pra fechar `custoLatao` com as moedas que o PJ
@@ -95,7 +84,7 @@ function motivoCompraLabel(motivo, info, lang) {
       item_nao_listado: 'Item not listed in this shop',
       item_nao_existe: 'Item not found',
       estoque_insuficiente: 'Out of stock',
-      moedas_insuficientes: info?.custo_latao ? `Not enough coin (cost: ${info.custo_latao} brass)` : 'Not enough coin',
+      moedas_insuficientes: info?.custo_latao ? `Not enough coin (cost: ${precoPorExtenso(info.custo_latao, 'en')})` : 'Not enough coin',
       espaco_insuficiente: info?.ocupa ? `Not enough space (needs ${info.ocupa}, free ${info.livre})` : 'Not enough space',
       recipiente_obrigatorio: 'Consumables and coins must go inside a container',
       moedas_nao_fecham: 'Your coins can’t make the exact price (no change given)',
@@ -111,7 +100,7 @@ function motivoCompraLabel(motivo, info, lang) {
     item_nao_listado: 'Item não está mais à venda',
     item_nao_existe: 'Item não encontrado',
     estoque_insuficiente: 'Estoque esgotado',
-    moedas_insuficientes: info?.custo_latao ? `Moedas insuficientes (custo: ${info.custo_latao} latão)` : 'Moedas insuficientes',
+    moedas_insuficientes: info?.custo_latao ? `Moedas insuficientes (custo: ${precoPorExtenso(info.custo_latao, 'pt')})` : 'Moedas insuficientes',
     espaco_insuficiente: info?.ocupa ? `Espaço insuficiente (precisa ${info.ocupa}, livre ${info.livre})` : 'Espaço insuficiente',
     recipiente_obrigatorio: 'Consumíveis e moedas precisam ir dentro de um recipiente',
     moedas_nao_fecham: 'Suas moedas não fecham o valor exato (sem troco)',
@@ -237,7 +226,6 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
      de compra — o formulário de antes, com Cancelar/Comprar dentro dela. */
   const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || window.BestDetalheModal;
   const Ficha = (typeof BestItemFicha !== 'undefined' && BestItemFicha) || window.BestItemFicha;
-  const Linha = (typeof BestLinha !== 'undefined' && BestLinha) || window.BestLinha;
   const formulario = (
         <>
           <DescricaoNaCompra texto={cat.descricao} />
@@ -308,13 +296,22 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
         </>
   );
 
+  /* O passe (22/10/2026): preço e estoque sobem para o topo, junto dos
+     números do item; Comprar vira a ação principal da barra. */
+  const _passeDoItem = (typeof passeDoItem !== 'undefined' && passeDoItem) || window.passeDoItem;
+  const passe = _passeDoItem ? _passeDoItem(cat, lang, { extras: [
+    { chave: 'preco', texto: true, rotulo: en ? 'Price' : 'Preço',
+      valor: gratis ? (en ? 'Free' : 'Gratuito') : <MoedaPills latao={preco} lang={lang} tamanho="sm" /> },
+    { chave: 'estoque', rotulo: en ? 'Stock' : 'Estoque', valor: stockNull ? '∞' : stockNum },
+  ] }) : { topo: null, omitir: [] };
   return (
     <Janela
       title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}</>}
       lang={lang}
       onClose={onClose}
+      topo={passe.topo} semAbas acoesEmBarra
       acoes={[{
-        chave: 'comprar', icone: 'ti-shopping-cart', ativo: comprarAberto,
+        chave: 'comprar', icone: 'ti-shopping-cart', ativo: comprarAberto, principal: true,
         rotulo: en ? 'Buy' : 'Comprar',
         onClick: () => setComprarAberto((v) => !v),
       }]}
@@ -334,14 +331,7 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
       {comprarAberto ? (
         <div className="det-etapa modal-loja">{formulario}</div>
       ) : (
-        <Ficha it={cat} lang={lang}
-          linhasDaInstancia={Linha ? (
-            <>
-              <Linha rotulo={en ? 'Price' : 'Preço'}
-                valor={gratis ? (en ? 'Free' : 'Gratuito') : <MoedaPills latao={preco} lang={lang} tamanho="sm" />} />
-              <Linha rotulo={en ? 'Stock' : 'Estoque'} valor={stockNull ? '∞' : stockNum} />
-            </>
-          ) : null} />
+        <Ficha it={cat} lang={lang} omitir={passe.omitir} />
       )}
     </Janela>
   );
@@ -366,7 +356,6 @@ function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compra
   const [qtdCompra, setQtdCompra] = useState(1);
   const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || window.BestDetalheModal;
   const Ficha = (typeof BestItemFicha !== 'undefined' && BestItemFicha) || window.BestItemFicha;
-  const Linha = (typeof BestLinha !== 'undefined' && BestLinha) || window.BestLinha;
   const preco = Number(anuncio.preco_latao) || 0;
   const qtd = Number(anuncio.quantidade) || 1;
   const item = cat || { nome: anuncio.item_nome || anuncio.slug, slug: anuncio.slug };
@@ -383,7 +372,7 @@ function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compra
     : (en ? 'Buy — the coins go to the seller.' : 'Comprar — as moedas vão para o vendedor.');
   const acoes = [
     podeComprar && {
-      chave: 'comprar', icone: 'ti-shopping-cart', ativo: comprando, desativado: !!ocupado,
+      chave: 'comprar', icone: 'ti-shopping-cart', ativo: comprando, desativado: !!ocupado, principal: true,
       rotulo: en ? 'Buy' : 'Comprar',
       dica: { title: en ? 'Buy' : 'Comprar', desc: dicaComprar },
       onClick: () => { setArmado(null); setQtdCompra(1); setComprando((v) => !v); },
@@ -391,16 +380,25 @@ function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compra
     podeRetirar && {
       chave: 'retirar', icone: 'ti-arrow-back-up', perigo: true, armado: armado === 'retirar', desativado: !!ocupado,
       rotulo: en ? 'Withdraw' : 'Retirar',
+      // Na barra, o segundo clique se anuncia no próprio botão.
+      rotuloArmado: en ? 'Click again to withdraw' : 'Clique de novo para retirar',
       dica: armado === 'retirar'
         ? (en ? 'Click here again to withdraw' : 'Clique aqui novamente para retirar')
         : { title: en ? 'Withdraw' : 'Retirar', desc: en ? 'Take it off the shop; the item goes back to the seller.' : 'Tirar da loja; o item volta para o vendedor.' },
       onClick: clique('retirar', onRetirar),
     },
   ];
+  // O passe (22/10/2026): preço, quantos e quem vende sobem para o topo.
+  const _passeDoItem = (typeof passeDoItem !== 'undefined' && passeDoItem) || window.passeDoItem;
+  const passe = _passeDoItem ? _passeDoItem(item, lang, { quantidade: qtd, extras: [
+    { chave: 'vendedor', texto: true, rotulo: en ? 'Seller' : 'Vendedor', valor: anuncio.vendedor_nome || (en ? 'An adventurer' : 'Um aventureiro') },
+    { chave: 'preco', rotulo: qtd > 1 ? (en ? 'Price (each)' : 'Preço (cada)') : (en ? 'Price' : 'Preço'), valor: <MoedaPills latao={preco} lang={lang} tamanho="sm" /> },
+  ] }) : { topo: null, omitir: [] };
   return (
     <Janela
       title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {item.nome}</>}
       lang={lang} onClose={onClose} acoes={acoes}
+      topo={passe.topo} semAbas acoesEmBarra
       rodape={comprando ? {
         esquerda: (
           <button type="button" className="btn-ghost btn-md" onClick={() => setComprando(false)} disabled={!!ocupado}>
@@ -451,14 +449,7 @@ function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compra
       ) : (
       <>
       {erro && <div className="err-msg">{erro}</div>}
-      <Ficha it={item} lang={lang}
-        linhasDaInstancia={Linha ? (
-          <>
-            <Linha rotulo={qtd > 1 ? (en ? 'Price (each)' : 'Preço (cada)') : (en ? 'Price' : 'Preço')} valor={<MoedaPills latao={preco} lang={lang} tamanho="sm" />} />
-            {qtd > 1 && <Linha rotulo={en ? 'Quantity' : 'Quantidade'} valor={qtd} />}
-            <Linha rotulo={en ? 'Seller' : 'Vendedor'} valor={anuncio.vendedor_nome || (en ? 'An adventurer' : 'Um aventureiro')} />
-          </>
-        ) : null} />
+      <Ficha it={item} lang={lang} omitir={passe.omitir} />
       </>
       )}
     </Janela>
@@ -490,12 +481,26 @@ function motivoAnuncioLabel(motivo, lang) {
    mora, na linha do nome e dos botões. Sem ele, a busca fica acima da grade. */
 function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
+  // O trilho de busca e moedas fora do painel, como no Inventário (23/10/2026).
+  const alvoTrilho = useAlvoPortal('fp-trilho-slot');
   const en = lang === 'en';
   const [pjs, setPjs] = useState(null);
   const [selectedId, setSelectedId] = useState(pjIdFixo || null);
   const [catalogo, setCatalogo] = useState(null);
   const [loja, setLoja] = useState(null);          // { ok, historia_id, historia_titulo, estoque } | { ok:false, motivo }
   const [busca, setBusca] = useState('');
+  // A grade da vitrine mede como a do Inventário (window.useGridDimensions).
+  const [setGradeLojaEl, gradeLoja] = (window.useGridDimensions || (() => [() => {}, { cols: 12 }]))();
+  // A casa escolhida na vitrine (painel à direita) e se a tela comporta o painel.
+  const [lojaSel, setLojaSel] = useState(null);
+  const [lojaLarga, setLojaLarga] = useState(() => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(min-width: 1180px)').matches);
+  useEffect(() => {
+    if (!window.matchMedia) return undefined;
+    const m = window.matchMedia('(min-width: 1180px)');
+    const f = () => setLojaLarga(m.matches);
+    m.addEventListener ? m.addEventListener('change', f) : m.addListener(f);
+    return () => { m.removeEventListener ? m.removeEventListener('change', f) : m.removeListener(f); };
+  }, []);
   const [comprando, setComprando] = useState(null); // entryId em compra (loading)
   const [compraAberta, setCompraAberta] = useState(null); // entryId do popup de compra
   const [erroCompra, setErroCompra] = useState(null);
@@ -868,7 +873,11 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
     <div className="loja">
 
       {/* ── Peso + Moedas: MESMO padrão do inventário (sem título da mesa) ── */}
-      <CabecalhoInvLoja moedas={moedas} carga={carga} lang={lang} />
+      {/* Balcão (22/10/2026): carga e bolsa à vista, o mesmo topo do inventário. */}
+      {/* MESMO PADRÃO DO INVENTÁRIO (23/10/2026): as moedas vão para o trilho
+          da busca, fora do painel, e a carga para o rodapé (BauCargaRodape, no
+          fim). Fora da ficha, sem o espaço do trilho, a bolsa fica no alto. */}
+      {!alvoTrilho && (typeof BauTopo === 'function' ? <BauTopo carga={carga} moedas={moedas} lang={lang} semBolsa={false} /> : <CabecalhoInvLoja moedas={moedas} carga={carga} lang={lang} />)}
 
       {feedback && <div className="loja-feedback">{feedback}</div>}
 
@@ -907,96 +916,128 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
         </div>
       ) : (
         <>
-          {/* ── BUSCA (02/10/2026): na linha do nome e dos botões da Ficha, por
-              portal no slotBusca; fora da Ficha, acima da grade. Os chips de
-              grupo saíram — "não há necessidade de ter botões de filtro". ── */}
+          {/* ── A LOJA EM CARTÕES (23/10/2026): "A página 'loja' deve conter os
+              cards, e uma reestruturação para melhorar e aplicar nosso layout
+              novo." A busca vira o trilho centralizado acima da grade (o
+              mesmo de Personagens, Cena e Diário); cada item é um cartão de
+              Personagens — o ícone no retrato, o nome, o preço por extenso e
+              o estoque (ou quem vende) nas duas linhas. Clicar abre a mesma
+              janela de compra, ou a do anúncio. O estoque do mercador vem
+              primeiro e os itens dos aventureiros depois, na mesma grade
+              (02/10/2026: "no mesmo local, e não abaixo com outro título"). ── */}
           {(() => {
-            const campo = (
-              <div className="best-search loja-busca">
-                <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
-                <Input
-                  type="search"
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  placeholder={en ? 'Search the shop' : 'Buscar na loja'}
-                  aria-label={en ? 'Search the shop' : 'Buscar na loja'}
-                />
+            const trilho = (
+              <div className="cartoes-barra inv-trilho loja-barra">
+                <div className="best-header-acoes">
+                  <div className="best-search">
+                    <i className="ti ti-eye busca-ic" aria-hidden="true" />
+                    <Input
+                      type="search"
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      placeholder={en ? 'Search' : 'Buscar'}
+                      aria-label={en ? 'Search the shop' : 'Buscar na loja'}
+                    />
+                  </div>
+                  {alvoTrilho && <div className="inv-trilho-moedas"><MoedaPills moedas={moedas} lang={lang} mostrarZeros tamanho="sm" /></div>}
+                </div>
               </div>
             );
-            return slotBusca ? ReactDOM.createPortal(campo, slotBusca) : <div className="loja-busca-linha">{campo}</div>;
+            return alvoTrilho ? ReactDOM.createPortal(trilho, alvoTrilho) : trilho;
           })()}
 
-          {/* ── VITRINE ÚNICA (02/10/2026): "Os itens vendidos por aventureiros
-              devem aparecer no mesmo local onde aparecem os demais itens, e não
-              abaixo com outro título." Primeiro o estoque do mercador, depois os
-              anúncios, com o mesmo ícone de item ("não altere o ícone do item
-              quando é vendido por um personagem"); o vendedor está no tooltip. ── */}
-          {(() => {
-            const filled = visiveis.length + anunciosVisiveis.length;
-            const total  = Math.max(lojaGridTotal, Math.ceil(Math.max(filled, 1) / lojaGridCols) * lojaGridCols);
-            const ghosts = total - filled;
+          {(visiveis.length + anunciosVisiveis.length) === 0 ? (
+            <div className="loja-warn-empty"><span>{en ? 'Nothing in the shop matches the search.' : 'Nada na loja combina com a busca.'}</span></div>
+          ) : (() => {
+            /* A LOJA COMO O INVENTÁRIO (23/10/2026): "A página de loja deve ser
+               parecida com a loja de inventário, com a diferença que os itens
+               da loja ainda não estão no inventário do personagem. Então não
+               teremos os cards." A mesma grade de casas e o mesmo painel do
+               item à direita; o painel traz preço, estoque e o Comprar. Na tela
+               estreita, sem painel, escolher a casa abre a janela de compra. */
+            const vitrine = [
+              ...visiveis.map((entry) => {
+                const cat = catalogoBySlug[entry.slug];
+                const preco = entry.preco_latao_override != null ? Number(entry.preco_latao_override) : Number(cat.valor_latao || 0);
+                const stockNull = entry.estoque == null;
+                const stockNum = stockNull ? Infinity : Number(entry.estoque);
+                const esgotado = !stockNull && stockNum <= 0;
+                return { chave: 'e:' + entry.entryId, tipo: 'estoque', entry, cat, nome: cat.nome, preco, stockNull, stockNum, esgotado,
+                  semMoeda: !esgotado && totalLatao < preco,
+                  abrir: () => { if (esgotado) return; setErroCompra(null); setCompraAberta(entry.entryId); } };
+              }),
+              ...anunciosVisiveis.map((a) => {
+                const cat = catalogoBySlug[a.slug] || null;
+                const meu = !!authUid && a.vendedor_user_id === authUid;
+                const preco = Number(a.preco_latao) || 0;
+                return { chave: 'a:' + a.id, tipo: 'anuncio', anuncio: a, cat, nome: nomeDoAnuncio(a), preco, meu,
+                  qtd: Number(a.quantidade) || 1, semMoeda: !meu && !isMestre && totalLatao < preco,
+                  abrir: () => { setAnuncioErro(null); setAnuncioAberto(a.id); } };
+              }),
+            ];
+            // As mesmas colunas e linhas do Inventário (23/10/2026: "padronize").
+            const COLS = gradeLoja.cols || 12;
+            const total = Math.max(gradeLoja.totalSlots || COLS * (window.LINHAS_BAU || 8), Math.ceil((vitrine.length + 1) / COLS) * COLS);
+            const sel = vitrine.find((v) => v.chave === lojaSel) || null;
             return (
-              <div
-                ref={setGridEl}
-                className="loja-grid loja-grid--slots rpg-grid--slots"
-                style={{ gridTemplateColumns: `repeat(${lojaGridCols}, 50px)` }}>
-                {visiveis.map((entry) => {
-                  const cat = catalogoBySlug[entry.slug];
-                  const preco = entry.preco_latao_override != null ? Number(entry.preco_latao_override) : Number(cat.valor_latao || 0);
-                  const stockNull = entry.estoque == null;
-                  const stockNum = stockNull ? Infinity : Number(entry.estoque);
-                  const esgotado = !stockNull && stockNum <= 0;
-                  const semMoeda = !esgotado && totalLatao < preco;
-                  const tipLoja = {
-                    title: cat.nome,
-                    hint: esgotado ? (en ? 'Out of stock' : 'Esgotado') : semMoeda ? (en ? 'Not enough coin' : 'Moedas insuficientes') : null,
-                  };
-                  return (
-                    <button
-                      key={entry.entryId}
-                      type="button"
-                      className={'loja-it' + (esgotado ? ' is-esgotado' : '') + (semMoeda ? ' sem-moeda' : '') + (cat?.magico ? ' loja-it--magico' : '')}
-                      disabled={esgotado}
-                      onMouseEnter={(e) => abrirTip(e, tipLoja)}
-                      onMouseLeave={fecharTip}
-                      onClick={() => { fecharTip(); setErroCompra(null); setCompraAberta(entry.entryId); }}>
-                      <span className="loja-it-head">
-                        <span className="loja-it-tile"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
-                      </span>
-                    </button>
-                  );
-                })}
-                {anunciosVisiveis.map((a) => {
-                  const cat = catalogoBySlug[a.slug];
-                  const meu = !!authUid && a.vendedor_user_id === authUid;
-                  const preco = Number(a.preco_latao) || 0;
-                  const semMoeda = !meu && !isMestre && totalLatao < preco;
-                  return (
-                    <button key={'anuncio-' + a.id} type="button" data-anuncio-id={a.id}
-                      className={'loja-it loja-it--anuncio' + (meu ? ' loja-it--meu' : '') + (semMoeda ? ' sem-moeda' : '') + (cat && cat.magico ? ' loja-it--magico' : '')}
-                      onMouseEnter={(e) => abrirTip(e, {
-                        title: nomeDoAnuncio(a) + (Number(a.quantidade) > 1 ? ' ×' + a.quantidade : ''),
-                        desc: (meu ? (en ? 'Your item · ' : 'Seu item · ') : ((a.vendedor_nome || '') + ' · ')) + precoMoedaTexto(preco, lang)
-                          + (Number(a.quantidade) > 1 ? (en ? ' each' : ' cada') : ''),
-                        hint: semMoeda ? (en ? 'Not enough coin' : 'Moedas insuficientes') : null,
-                      })}
-                      onMouseLeave={fecharTip}
-                      onClick={() => { fecharTip(); setAnuncioErro(null); setAnuncioAberto(a.id); }}>
-                      {Number(a.quantidade) > 1 && <span className="inv-card-qty">{a.quantidade}</span>}
-                      <span className="loja-it-head">
-                        <span className="loja-it-tile"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
-                      </span>
-                    </button>
-                  );
-                })}
-                {Array.from({ length: ghosts }).map((_, i) => (
-                  <span key={'ghost-' + i} className="inv-slot-ghost" aria-hidden="true" />
-                ))}
+              <div className={'bau-corpo loja-bau' + (lojaLarga ? ' bau-corpo--painel' : '')}>
+                <div className="inv-grid-wrap">
+                  <div ref={setGradeLojaEl} className="inv-bag-grid inv-bag-grid--slots" style={{ gridTemplateColumns: `repeat(${COLS}, 50px)` }}>
+                    {Array.from({ length: total }, (_, i) => {
+                      const v = vitrine[i];
+                      if (!v) return <span key={'g' + i} className="inv-slot-ghost" aria-hidden="true" />;
+                      return (
+                        <button key={v.chave} type="button"
+                          className={'inv-card loja-casa' + (sel && sel.chave === v.chave ? ' is-sel' : '') + (v.esgotado ? ' is-esgotado' : '') + (v.cat && v.cat.magico ? ' is-magico' : '')}
+                          aria-label={v.nome}
+                          onClick={() => (lojaLarga ? setLojaSel(v.chave) : v.abrir())}
+                          onDoubleClick={v.abrir}
+                          {...propsTip(abrirTip, fecharTip, v.nome)}>
+                          <span className="inv-card-head"><span className="inv-card-ic"><i className={'ti ' + invItemIcon(v.cat)} aria-hidden="true" /></span></span>
+                          {v.tipo === 'anuncio' && <span className="loja-casa-tag" aria-hidden="true"><i className="ti ti-tag" /></span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {lojaLarga && (
+                  <aside className="bau-painel loja-painel" aria-label={en ? 'Item' : 'Item'}>
+                    {!sel ? (
+                      <div className="bau-painel-vazio">
+                        <i className="ti ti-hand-click" aria-hidden="true" />
+                        <p>{en ? 'Choose an item from the shop to see it here.' : 'Escolha um item da loja para vê-lo aqui.'}</p>
+                      </div>
+                    ) : (
+                      <div className="loja-painel-corpo">
+                        <div className="loja-painel-cab">
+                          <span className={'loja-painel-ic' + (sel.cat && sel.cat.magico ? ' is-magico' : '')}><i className={'ti ' + invItemIcon(sel.cat)} aria-hidden="true" /></span>
+                          <div>
+                            <h3 className="loja-painel-nome">{sel.nome}</h3>
+                            {sel.cat && sel.cat.grupo && <p className="loja-painel-sub">{sel.cat.grupo}</p>}
+                          </div>
+                        </div>
+                        <dl className="loja-painel-dados">
+                          <div><dt>{en ? 'Price' : 'Preço'}</dt><dd><PrecoMoedas latao={sel.preco} lang={lang} mudo={sel.esgotado} />{sel.tipo === 'anuncio' && sel.qtd > 1 && <span className="loja-cartao-cada">{en ? 'each' : 'cada'}</span>}</dd></div>
+                          {sel.tipo === 'estoque'
+                            ? <div><dt>{en ? 'Stock' : 'Estoque'}</dt><dd>{sel.esgotado ? (en ? 'Sold out' : 'Esgotado') : sel.stockNull ? (en ? 'Unlimited' : 'Ilimitado') : sel.stockNum}</dd></div>
+                            : <div><dt>{en ? 'Seller' : 'Vendedor'}</dt><dd>{sel.meu ? (en ? 'You' : 'Você') : (sel.anuncio.vendedor_nome || (en ? 'an adventurer' : 'um aventureiro'))} · {en ? `${sel.qtd} available` : `${sel.qtd} à venda`}</dd></div>}
+                        </dl>
+                        {sel.cat && sel.cat.descricao && <p className="loja-painel-desc">{sel.cat.descricao}</p>}
+                        {sel.semMoeda && <p className="loja-painel-falta">{en ? 'Not enough coin' : 'A bolsa não alcança'}</p>}
+                        <button type="button" className="btn-primary loja-painel-botao" disabled={sel.esgotado} onClick={sel.abrir}>
+                          {sel.tipo === 'anuncio' && sel.meu ? (en ? 'Manage' : 'Gerenciar') : (en ? 'Buy' : 'Comprar')}
+                        </button>
+                      </div>
+                    )}
+                  </aside>
+                )}
               </div>
             );
           })()}
         </>
       )}
+
+      {alvoTrilho && typeof BauCargaRodape === 'function' && <BauCargaRodape carga={carga} lang={lang} />}
 
       {window.PortalTooltip
         ? <window.PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />

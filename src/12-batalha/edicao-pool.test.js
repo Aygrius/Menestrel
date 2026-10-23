@@ -208,7 +208,7 @@ describe('editor de pool — modal, não faixa inline', () => {
     // Desde 13/09/2026 quem fecha é o PoolBotao, no botão editável.
     const i = fonte.indexOf('function PoolBotao(');
     expect(i, 'PoolBotao precisa existir').toBeGreaterThan(-1);
-    const corpo = fonte.slice(i, i + 2000);
+    const corpo = fonte.slice(i, i + 4000);   // o modo linha (23/10/2026) veio antes
     const m = corpo.match(/<button type="button" className=\{classe\}[\s\S]*?onClick=\{\(e\) => \{ if \(fecharTip\) fecharTip\(\); onClick\(e\); \}\}/);
     expect(m, 'o botão de pool editável precisa fechar o tooltip no clique').not.toBeNull();
   });

@@ -135,7 +135,9 @@ describe('tooltip dos números: só o nome', () => {
    o nome, e o botão de X fica redondo igual os demais." */
 describe('pools viram botões com anel que diminui, ao lado do nome', () => {
   it('um círculo por pool, na linha do nome, com o anel na fração atual', async () => {
-    const menu = await cardDe([lutador({ ef: 5, ef_max: 10, eh: 5, eh_max: 5, res: 0, res_max: 4 })], 'Yuldrous');
+    // Com Karma (karma_max > 0): desde 23/10/2026 a pool de Karma só aparece
+    // para quem tem Karma — sem o poço, nada de "Karma 0/0".
+    const menu = await cardDe([lutador({ ef: 5, ef_max: 10, eh: 5, eh_max: 5, res: 0, res_max: 4, karma: 3, karma_max: 6 })], 'Yuldrous');
     expect(menu.querySelector('.batalha-pool-bar')).toBeNull();
     const botoes = [...menu.querySelectorAll('.batalha-pool-botao')];
     expect(botoes.map((b) => b.className.match(/\bpool-(ef|eh|res|ka)\b/)[1])).toEqual(['ef', 'eh', 'res', 'ka']);

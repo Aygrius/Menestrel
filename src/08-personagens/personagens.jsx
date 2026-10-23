@@ -55,7 +55,7 @@ function maisNovaOuIgual(nova, atual) {
    3. View de batalha do jogador com restrições (só age na vez do seu PJ)
    4. Mensagem "vez de X" quando não é a vez do PJ
 */
-function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir }) {
+function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, onEvoluir, abaPedida, abaToken, onAba }) {
   const isEn = lang === 'en';
   const [batalhaAtiva, setBatalhaAtiva] = useState(null);   // { id, estado, participantes, historia_id, ... }
   const [viewBatalha, setViewBatalha] = useState(false);    // true = mostra tela de batalha
@@ -147,14 +147,84 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
       onEditar={onEditar}
       onExcluir={onExcluir}
+      onEvoluir={onEvoluir}
       /* A Batalha virou ícone (ti-sword) com tooltip na fileira da ficha
          (27/09/2026) — quem desenha é a própria ficha, que tem o tooltip. */
       onBatalha={(!carregando && batalhaAtiva) ? () => setViewBatalha(true) : null}
+      abaPedida={abaPedida} abaToken={abaToken} onAba={onAba}
     />
   );
 }
 
 
+
+/* ============================== DarFichaModal (23/10/2026) ==============================
+   O Mestre criou um personagem pelo + da lista: escolhe a qual jogador da
+   mesa ele pertence. "Jogador da mesa" é o dono de algum personagem que já
+   está nela. A RPC mestre_dar_personagem passa o dono e põe o personagem na
+   mesa. O personagem já entrou na mesa ao ser criado; sem escolher ("Depois"),
+   a ficha fica com o Mestre, dentro da mesa, para ser dada mais tarde. */
+function jogadoresDaMesa(personagens, profilesMap, mestreId) {
+  const vistos = new Map();
+  (personagens || []).forEach((p) => {
+    if (!p.user_id || p.user_id === mestreId || vistos.has(p.user_id)) return;
+    vistos.set(p.user_id, { id: p.user_id, nome: profilesMap[p.user_id] || '—' });
+  });
+  return [...vistos.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+function DarFichaModal({ pj, historiaId, jogadores, lang, onClose, onDado }) {
+  const en = lang === 'en';
+  const [escolhido, setEscolhido] = useState(null);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState(null);
+  const nomePj = [pj.nome, pj.sobrenome].filter(Boolean).join(' ');
+  const dar = async () => {
+    if (!escolhido) return;
+    setSalvando(true); setErro(null);
+    const { data, error } = await supabaseClient.rpc('mestre_dar_personagem', {
+      p_historia_id: historiaId, p_personagem_id: pj.id, p_jogador_id: escolhido,
+    });
+    setSalvando(false);
+    if (error) { setErro(error.message); return; }
+    if (data && data.ok === false) {
+      setErro({
+        jogador_fora_da_mesa: en ? 'This player is not at this table.' : 'Este jogador não está nesta mesa.',
+        sem_permissao_historia: en ? 'You are not the Game Master of this table.' : 'Você não é o Mestre desta mesa.',
+      }[data.motivo] || data.motivo);
+      return;
+    }
+    onDado();
+  };
+  return (
+    <ModalShell
+      title={en ? `Give ${nomePj} to` : `Dar ${nomePj} para`}
+      lang={lang}
+      onClose={onClose}
+      onCancel={onClose}
+      cancelLabel={en ? 'Later' : 'Depois'}
+      onConfirm={dar}
+      confirmLabel={en ? 'Give sheet' : 'Dar a ficha'}
+      confirmDisabled={!escolhido || salvando}
+    >
+      {jogadores.length === 0 ? (
+        <p className="dar-ficha-vazio">
+          {en ? 'No player at this table yet. Invite one in Players.' : 'Ainda não há jogador nesta mesa. Convide em Jogadores.'}
+        </p>
+      ) : (
+        <div className="dar-ficha-lista" role="radiogroup">
+          {jogadores.map((j) => (
+            <label key={j.id} className={'dar-ficha-op' + (escolhido === j.id ? ' is-on' : '')}>
+              <input type="radio" name="dar-ficha" value={j.id} checked={escolhido === j.id} onChange={() => setEscolhido(j.id)} />
+              <span>{j.nome}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      {erro && <div className="err-msg">{erro}</div>}
+    </ModalShell>
+  );
+}
 
 /* ============================== [14] PersonagensList: cards dos personagens do jogador ============================== */
 // Detecta se o personagem subiu de estágio e ainda não foi "reconhecido" pelo jogador
@@ -169,13 +239,19 @@ function temLevelUpPendente(p) {
 //   - 'player' → mostra só PJs do próprio user
 //   - 'master' → mostra TODOS os PJs (RLS permite SELECT all)
 //                e dá acesso a botões de Editar e Dar XP em qualquer um
-function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onLimiteFreeChange, onFichaAberta, onNomePjAtivo, voltarToken = 0 }) {
+function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onFichaAberta, onNomePjAtivo, voltarToken = 0, abaFicha = null, abaToken = 0, onAbaFicha = null, sairToken = 0 }) {
   const isMaster = profile === 'master';
   const [modalOpen, setModalOpen] = useState(false);
   const [toDelete, setToDelete] = useState(null);
   const [toEdit, setToEdit] = useState(null);
   const [convidarPj, setConvidarPj] = useState(null);
   const [fichaAbertoId, setFichaAbertoId] = useState(null); 
+  /* BUSCA E + NA LISTA (23/10/2026): "Adicione a barra de pesquisa e botão de
+     + na página de personagens." O + do Jogador cria o personagem dele; o do
+     Mestre cria e, ao salvar, pergunta a qual jogador da mesa dar a ficha
+     ("o mestre pode dar a ficha para quem ele quiser que já está na mesa"). */
+  const [busca, setBusca] = useState('');
+  const [darFichaDe, setDarFichaDe] = useState(null);
 
 // PJ ativo do jogador (lido do profile carregado pelo shell).
   // Setar local + persistir em profiles. Voltar pra lista é só setar null
@@ -247,14 +323,10 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   // ficha em vez da lista, e criar um personagem novo não faz sentido nesse
   // contexto (mesmo padrão usado em "Nova história": o botão do pill do topo
   // só existe junto da tela que ele afeta).
-  const limiteFree = !isMaster && userProfile?.plano === 'free' && (personagens?.length ?? 0) >= PLANO_FREE_LIMITES.personagens;
   const dentroDeMenu = isMaster ? (fichaAbertoId != null) : (pjAtivoIdLocal != null);
   useEffect(() => {
     if (onDentroDeMenu) onDentroDeMenu(dentroDeMenu);
   }, [dentroDeMenu, onDentroDeMenu]);
-  useEffect(() => {
-    if (onLimiteFreeChange) onLimiteFreeChange(limiteFree);
-  }, [limiteFree, onLimiteFreeChange]);
   // Informa o AdminConsole quando a FichaPersonagem do Jogador está visível —
   // só então o RolagemLivreFab aparece. Mestre abrindo ficha alheia NÃO conta
   // (dado livre é vinculado ao PJ ativo do Jogador, não à conta/sessão).
@@ -278,9 +350,9 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   // historias.jsx. Respeita o limite do plano free aqui dentro.
   useEffect(() => {
     if (abrirNovoPersonagemRef) {
-      abrirNovoPersonagemRef.current = () => { if (!isMaster && !limiteFree) setModalOpen(true); };
+      abrirNovoPersonagemRef.current = () => { if (!isMaster) setModalOpen(true); };
     }
-  }, [abrirNovoPersonagemRef, isMaster, limiteFree]);
+  }, [abrirNovoPersonagemRef, isMaster]);
 
   const persistirPjAtivo = async (novoId) => {
     if (isMaster || !currentUserId) return;
@@ -381,6 +453,16 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   const voltarParaLista = async () => {
     await desativarPj();
   };
+  /* TROCAR DE PERSONAGEM pelo seletor do topo da barra lateral (22/10/2026):
+     o mesmo gesto do "Sair" da ficha — desativa e volta à lista para escolher.
+     Guard da montagem como o voltarToken: o token nasce em 0. */
+  const sairVisto = useRef(sairToken);
+  useEffect(() => {
+    if (sairVisto.current === sairToken) return;
+    sairVisto.current = sairToken;
+    if (!isMaster && pjAtivoIdLocal != null) voltarParaLista();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sairToken]);
   /* `trocarPjAtivo` SAIU em 12/09/2026. Trocava o PJ ativo direto, sem
      desativar — exatamente o que a regra nova proíbe. Estava morto (a ficha
      recebia o prop `onTrocar` e nunca o chamava), mas arma carregada na
@@ -444,6 +526,7 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
           onVoltar={() => setFichaAbertoId(null)}
           onEditar={pjAberto ? () => setToEdit(pjAberto) : undefined}
           onExcluir={pjAberto ? () => setToDelete(pjAberto) : undefined}
+          onEvoluir={pjAberto && temLevelUpPendente(pjAberto) ? () => setToEdit(pjAberto) : null}
         />
 
         {toEdit && (
@@ -483,7 +566,9 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   // ramo consegue definir toEdit/toDelete, e a lista (onde a seta vive) só
   // aparece quando NÃO há PJ ativo, ou seja, os dois estados são exclusivos.
   if (!isMaster && pjAtivoIdLocal != null) {
+    const pjAtivoObj = (personagens || []).find((x) => x.id === pjAtivoIdLocal) || null;
     return (
+      <>
       <FichaComBatalha
         key={pjAtivoIdLocal}
         ac={ac}
@@ -491,15 +576,50 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
         currentUserId={currentUserId}
         pjAtivoId={pjAtivoIdLocal}
         onVoltar={voltarParaLista}
-
+        /* Evoluir no trilho da ficha (23/10/2026) — saiu do card. */
+        onEvoluir={pjAtivoObj && temLevelUpPendente(pjAtivoObj) ? () => setToEdit(pjAtivoObj) : null}
+        abaPedida={abaFicha} abaToken={abaToken} onAba={onAbaFicha}
       />
+      {toEdit && (
+        <NovoPersonagemModal
+          lang={lang}
+          personagemExistente={toEdit}
+          isMaster={false}
+          onClose={() => setToEdit(null)}
+          onSaved={() => { setToEdit(null); refetch(); }}
+        />
+      )}
+      </>
     );
   }
 
+  const semAcentoPj = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const termoPj = semAcentoPj(busca.trim());
+  const listaVisivel = !termoPj ? personagens : personagens.filter((p) =>
+    semAcentoPj([p.nome, p.sobrenome, p.raca, p.profissao, isMaster ? profilesMap[p.user_id] : ''].join(' ')).includes(termoPj));
+  // O Mestre só cria com uma mesa escolhida: é a mesa que diz a quem dar a ficha.
+  const podeCriarPj = !isMaster || !!mesaAtivaId;
+  const BuscaENovo = window.BestBuscaENovo;
+
   return (
     <div className="pjs">
+      {BuscaENovo && (
+        <div className="cartoes-barra">
+          <BuscaENovo
+            ac={ac}
+            placeholder={lang === 'en' ? 'Search' : 'Buscar'}
+            query={busca}
+            setQuery={setBusca}
+            podeCriar={podeCriarPj}
+            onNovo={() => setModalOpen(true)}
+            dicaNovo={lang === 'en' ? 'New character' : 'Novo personagem'} />
+        </div>
+      )}
+      {termoPj && listaVisivel.length === 0 && (
+        <div className="best-empty">{lang === 'en' ? `No character matches "${busca.trim()}".` : `Nenhum personagem com "${busca.trim()}".`}</div>
+      )}
       <div className="pjs-grid">
-        {personagens.map((p) => (
+        {listaVisivel.map((p) => (
           <PersonagemCard
             key={p.id}
             p={p}
@@ -530,6 +650,9 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
                ficha. Quem a pausa tranca é o Jogador, na própria ficha
                (11-ficha/ficha.jsx, tela "História pausada"). */
             onAbrirFicha={isMaster ? () => setFichaAbertoId(p.id) : undefined}
+            /* Ficha ainda do Mestre (criada por ele e não dada): o botão
+               "Dar a ficha" no cartão (23/10/2026). */
+            onDarFicha={isMaster && mesaAtivaId && p.user_id === currentUserId ? () => setDarFichaDe(p) : undefined}
             lang={lang} />
         ))}
       </div>
@@ -537,13 +660,34 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
       {modalOpen && (
         <NovoPersonagemModal
           lang={lang}
+          isMaster={isMaster}
           onClose={() => setModalOpen(false)}
           onSaved={(novoPj) => {
             setModalOpen(false);
             refetch();
-            // Logo após criar, abre o "entrar em uma mesa" com o PJ novo.
-            if (novoPj) setConvidarPj(novoPj);
+            if (!novoPj) return;
+            // Mestre: o personagem já entra na mesa (23/10/2026, "Sim, já entra
+            // na mesa automaticamente") — a RPC com o próprio Mestre como dono
+            // só o põe em protagonista_ids — e então pergunta a quem dar a ficha.
+            // Jogador: o "entrar em uma mesa".
+            if (isMaster) {
+              supabaseClient.rpc('mestre_dar_personagem', {
+                p_historia_id: mesaAtivaId, p_personagem_id: novoPj.id, p_jogador_id: currentUserId,
+              }).then(() => refetch());
+              setDarFichaDe(novoPj);
+            } else setConvidarPj(novoPj);
           }}
+        />
+      )}
+
+      {darFichaDe && (
+        <DarFichaModal
+          pj={darFichaDe}
+          historiaId={mesaAtivaId}
+          jogadores={jogadoresDaMesa(personagens, profilesMap, currentUserId)}
+          lang={lang}
+          onClose={() => setDarFichaDe(null)}
+          onDado={() => { setDarFichaDe(null); refetch(); }}
         />
       )}
 
@@ -643,7 +787,7 @@ function iconeDoStatusCard(st) {
   return { ti: 'ti-bolt' };
 }
 
-function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesativar, onAbrir, ultimoCapitulo, ativo, bloqueadoPorOutroAtivo, onAbrirFicha, onEntrarMesa, semMesa, lang, playerName }) {
+function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesativar, onAbrir, ultimoCapitulo, ativo, bloqueadoPorOutroAtivo, onAbrirFicha, onEntrarMesa, onDarFicha, semMesa, lang, playerName }) {
   /* As condições entram no cálculo (17/09/2026), como já entravam na ficha
      (11-ficha/ficha.jsx): sem elas o card anunciaria uma EF máxima que a ficha
      do mesmo personagem contradiz na linha seguinte. */
@@ -708,11 +852,11 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
      e condição"). Eram só do ativo porque só ele ocupava a linha inteira —
      agora todos ocupam.
 
-     Karma some de quem não conjura (SEM_KARMA, a mesma regra da ficha) e de
-     quem tem o poço zerado por Aura abaixo de 1: barra vazia que nunca enche
-     não é informação, é ruído. */
-  const _SEM_KARMA = (typeof window !== 'undefined' && window.SEM_KARMA) || new Set();
-  const maxKA = _SEM_KARMA.has(p.profissao) ? 0 : (Number(ficha.derivadas?.karmamax) || 0);
+     Karma aparece para TODO personagem que tem o poço (23/10/2026: todos
+     podem usar magia, sem impedimento de profissão ou raça). Some só de quem
+     tem o poço zerado por Aura abaixo de 1: barra vazia que nunca enche não é
+     informação, é ruído. */
+  const maxKA = Number(ficha.derivadas?.karmamax) || 0;
   const kaAtual = p.estado_atual?.vitalidade?.ka != null
     ? Number(p.estado_atual.vitalidade.ka)
     : maxKA;
@@ -826,6 +970,18 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
                   colados a ele, desceram para as linhas de baixo — ver o
                   bloco .pj-meta-linhas. */}
               <div className="pj-name">{nomeCompleto}</div>
+              {/* EVOLUIR COM NOME (23/10/2026): a seta dourada saía por cima do
+                  rosto e o cartão ainda brilhava em ouro — dois sinais para a
+                  mesma coisa. Fica um botão só, ao lado do nome. A regra de
+                  quando aparece não mudou (ver mostrarSetaEvoluir). */}
+              {onDarFicha && (
+                <button type="button" className="pj-evoluiu pj-dar-ficha"
+                  onClick={(e) => { e.stopPropagation(); onDarFicha(); }}>
+                  {en ? 'Give sheet' : 'Dar a ficha'}
+                </button>
+              )}
+              {/* O "Evoluir" saiu do card (23/10/2026): mora no trilho de ações da
+                  ficha ("vai para o trilho na ficha do personagem"). */}
               {/* ATIVIDADE (24/09/2026): dormindo, meditando… Com nome, ao
                   contrário dos status: é o que o personagem está FAZENDO, e um
                   ícone de lua sozinho não diria se ele dorme ou medita. */}
@@ -877,69 +1033,43 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
               especialização) segue a profissão; o jogador fica sozinho na
               última linha — e continua só para o Mestre: na lista do Jogador
               seria o nome dele repetido em todo card. */}
+          {/* DUAS LINHAS (23/10/2026, cartão baixo, aprovado na prévia): quem o
+              personagem é (raça, sub-raça, profissão e título) e onde ele está
+              (estágio e, para o Mestre, o jogador). Eram quatro linhas e o
+              cartão crescia; o sentido de cada uma continua o mesmo. */}
           <div className="pj-meta-linhas">
-          <div className="pj-meta pj-meta--raca">
-            {p.raca && <span>{p.raca}</span>}
-            {p.raca && <span className="sep" aria-hidden="true">•</span>}
-            {/* Sub-raça em vigor (Vampiro/Lobisomem, 22/10/2026), logo depois
-                da raça: é a forma em que o personagem está agora. */}
-            {ficha.subraca && (
+          <div className="pj-meta pj-meta--quem">
+            {[
+              p.raca,
+              /* Sub-raça em vigor (Vampiro/Lobisomem, 22/10/2026), logo depois
+                 da raça: é a forma em que o personagem está agora. */
+              ficha.subraca && (en ? ({ Vampiro: 'Vampire', Lobisomem: 'Werewolf' }[ficha.subraca] || ficha.subraca) : ficha.subraca),
+              p.profissao,
+              titulo,
+            ].filter(Boolean).map((parte, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <span className="sep" aria-hidden="true">·</span>}
+                <span>{parte}</span>
+              </React.Fragment>
+            ))}
+          </div>
+          <div className="pj-meta pj-meta--estagio">
+            <span>{en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}</span>
+            {/* O jogador só para o Mestre: na lista do Jogador seria o nome dele
+                repetido em todo card. */}
+            {isMaster && playerName && (
               <>
-                <span>{en ? ({ Vampiro: 'Vampire', Lobisomem: 'Werewolf' }[ficha.subraca] || ficha.subraca) : ficha.subraca}</span>
-                <span className="sep" aria-hidden="true">•</span>
+                <span className="sep" aria-hidden="true">·</span>
+                <span className="pj-meta-jogador">{playerName}</span>
               </>
             )}
-            <span>{en ? `Stage ${ficha.estagio}` : `Estágio ${ficha.estagio}`}</span>
           </div>
-          <div className="pj-meta pj-meta--profissao">
-            {/* O ícone da profissão que abria esta linha saiu em 02/10/2026
-                (pedido do usuário); a profissão fica só por escrito. */}
-            {p.profissao && <span>{p.profissao}</span>}
-            {p.profissao && titulo && <span className="sep" aria-hidden="true">•</span>}
-            {titulo && <span className="pj-meta-titulo">{titulo}</span>}
-            {/* O selo "Pausada" saiu em 17/09/2026 e o aviso que o substituiu
-                durou poucas horas: o Mestre entra direto, porque é ele quem
-                pausa a mesa. Quem a pausa tranca é o Jogador, na própria ficha
-                (11-ficha/ficha.jsx). */}
-          </div>
-          {isMaster && playerName && (
-            <div className="pj-meta pj-meta--jogador"><span>{playerName}</span></div>
-          )}
           </div>
 
-          {/* OS TRÊS POÇOS, LADO A LADO E NA LARGURA TODA (17/09/2026). Com um
-              card por linha sobra largura: as barras dividem o card em três em
-              vez de se espremer num bloco de 220px à esquerda. O rótulo é a
-              sigla — "Energia física" por extenso roubava a linha do número, e
-              o nome inteiro está no tooltip. */}
-          {vitais.length > 0 && (
-            <div className="pj-vitais">
-              {vitais.map((v) => (
-                /* SÓ A BARRA (26/09/2026): "remova 'Energia Física', 'Energia
-                   Heroica', etc, deixe apenas a barra." A cor diz qual poço é
-                   (a mesma da ficha); nome e valor seguem para leitor de tela
-                   no role="meter". */
-                <div
-                  key={v.k}
-                  className={'pj-vital pj-vital--' + v.k}
-                  style={{ '--vit-c': v.cor }}
-                  role="meter"
-                  aria-label={v.rotulo}
-                  aria-valuemin={0}
-                  aria-valuemax={v.max}
-                  aria-valuenow={v.atual}
-                  aria-valuetext={`${v.atual}/${v.max}`}
-                >
-                  <div className="pj-vital-barra">
-                    <span
-                      className="pj-vital-fill"
-                      style={{ width: `${Math.max(0, Math.min(100, (v.atual / v.max) * 100))}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* AS BARRAS SAÍRAM DO CARD (23/10/2026): "Melhore o card dos
+              personagens, remove as barras do card." Física, Heroica e Karma
+              moram na ficha (os tubos do Resumo); o card fica com quem o
+              personagem é. */}
 
         </div>
 
@@ -1014,16 +1144,7 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
 
           O Mestre é exceção: para ele não existe PJ ativo (ele administra
           todos), então a seta segue como era. */}
-      {mostrarSetaEvoluir && (
-        <button
-          type="button"
-          className="pj-evoluiu"
-          onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          aria-label={en ? 'Click here to level up your character!' : 'Clique aqui para evoluir seu personagem!'}
-        >
-          <i className="ti ti-arrow-big-up-lines" aria-hidden="true" />
-        </button>
-      )}
+      {/* (O botão de evoluir mora ao lado do nome desde 23/10/2026.) */}
 
     </div>
   );
@@ -1261,17 +1382,19 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
   // Texto descritivo da tela atual (placeholder — troque os textos depois).
   // Chave = `${id}` ou `${id}:${sub}` quando a seção tem várias telas.
   const stepKey = currentId + (currentSub ? `:${currentSub}` : '');
+  /* Uma frase por tela (23/10/2026): eram parágrafos, e o da primeira tinha
+     um erro ("suas características do seu personagem"). */
   const DESCRICOES_TELA = {
-    'identidade:principal': 'Todo herói começa com uma boa história de origem. Defina seu nome, e suas características do seu personagem para dar vida a quem enfrentará os desafios da aventura. Depois de criado, ele estará pronto para participar de qualquer mesa.',
-    'identidade:fisica':    'Personalize a aparência do personagem com traços físicos opcionais. Cada escolha fortalece uma característica, mas reduz outra, tornando cada combinação única.',
-    'identidade:social':    'Defina como o personagem se relaciona com o mundo por meio de traços sociais opcionais. Cada escolha concede vantagens em um aspecto e limita outro.',
-    'identidade:pessoal':   'Dê personalidade ao personagem escolhendo traços opcionais que influenciam seu comportamento. Cada decisão fortalece uma característica em troca de outra.',
-    'identidade:historica': 'Escolha o legado histórico do seu povo de acordo com o reino de origem. Essa decisão representa as tradições e influências que acompanharam o personagem desde o nascimento.',
-    'atributos':            'Distribua seus pontos entre os atributos básicos para definir os pontos fortes e fracos do personagem.',
-    'grupos_armas':         'Escolha os grupos de armas em que o personagem possui treinamento. Quanto maior a proficiência, melhor será seu desempenho em combate.',
-    'habilidades':          'Invista pontos nas habilidades para especializar o personagem nas áreas que mais combinam com seu estilo de jogo.',
-    'magias':               'Escolha as magias que o personagem conhece e desenvolva seu domínio sobre as artes místicas.',
-    'tecnicas':             'Aprenda técnicas de combate que concedem novas opções táticas e tornam o personagem mais eficiente durante as batalhas.',
+    'identidade:principal': 'Quem é o seu herói: nome, origem e ofício.',
+    'identidade:fisica':    'Traços físicos opcionais: cada um fortalece uma característica e enfraquece outra.',
+    'identidade:social':    'Traços sociais opcionais: cada um dá vantagem num aspecto e limita outro.',
+    'identidade:pessoal':   'Traços de personalidade opcionais: cada um fortalece uma característica em troca de outra.',
+    'identidade:historica': 'O legado do seu povo, conforme o reino de origem.',
+    'atributos':            'Distribua os pontos entre os atributos básicos.',
+    'grupos_armas':         'Escolha os grupos de armas em que o personagem treinou.',
+    'habilidades':          'Invista pontos nas habilidades que combinam com seu estilo de jogo.',
+    'magias':               'Escolha as magias que o personagem conhece.',
+    'tecnicas':             'Escolha as técnicas de combate que o personagem domina.',
     'revisao':              '',
   };
   const descricaoTela = DESCRICOES_TELA[stepKey] || DESCRICOES_TELA[currentId] || '';  
@@ -1431,34 +1554,67 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     <WizSaldo lang={lang} disponiveis={habTotalPontos} gastos={habGasto} restantes={habRestantes} />
   ) : null;
 
+  /* AS FASES COM NOME (23/10/2026, modelo 3 da prévia): os 14 passos eram 14
+     tracinhos sem nome — só o tooltip dizia qual era qual, e não se via quanto
+     faltava. Agora o topo é um trilho com as cinco fases que os passos já
+     formavam (Identidade, Atributos, Armas, Habilidades, Revisão) e, abaixo,
+     o passo dentro da fase ("Grupo Manobra · 3 de 6"). A fase concluída ganha
+     o ✓ e continua clicável, como os tracinhos: leva ao primeiro passo dela. */
+  const FASE_DO_PASSO = {
+    identidade: lang === 'en' ? 'Identity' : 'Identidade',
+    atributos: lang === 'en' ? 'Attributes' : 'Atributos',
+    grupos_armas: lang === 'en' ? 'Weapons' : 'Armas',
+    habilidades: lang === 'en' ? 'Skills' : 'Habilidades',
+    revisao: lang === 'en' ? 'Review' : 'Revisão',
+  };
+  const fases = [];
+  steps.forEach((s, i) => {
+    const ultima = fases[fases.length - 1];
+    if (ultima && ultima.id === s.id) ultima.passos.push(i + 1);
+    else fases.push({ id: s.id, rotulo: FASE_DO_PASSO[s.id] || s.label, passos: [i + 1] });
+  });
+  const faseAtual = fases.find((f) => f.passos.includes(step)) || fases[0];
+  const posNaFase = faseAtual ? faseAtual.passos.indexOf(step) + 1 : 1;
+  const irPara = (n) => {
+    if (n === step) return;
+    if (n > step && !podeAvancar) return;
+    if (n > maxStep) return;
+    setStep(n);
+  };
   const wizStepper = (
-    <div className="wiz-progress-track">
-      {steps.map((s, i) => {
-        const n = i + 1;
-        const bloqueado = n > maxStep || (n > step && !podeAvancar);
-        return (
-          <button
-            key={i}
-            type="button"
-            {...propsTip(abrirTip, fecharTip, s.label)}
-            aria-label={s.label}
-            aria-current={step === n ? 'step' : undefined}
-            className={'wiz-progress-seg' + (step === n ? ' active' : '') + (step > n ? ' done' : '') + (bloqueado ? ' locked' : '')}
-            onClick={() => {
-              if (n === step) return;
-              if (n > step && !podeAvancar) return;
-              if (n > maxStep) return;
-              setStep(n);
-            }}
-          />
-        );
-      })}
+    <div className="wiz-fases-bloco">
+      <div className="wiz-fases" role="list">
+        {fases.map((f) => {
+          const n = f.passos[0];
+          const ativa = f === faseAtual;
+          const feita = step > f.passos[f.passos.length - 1];
+          const bloqueada = !ativa && (n > maxStep || (n > step && !podeAvancar));
+          return (
+            <button key={f.id} type="button" role="listitem"
+              aria-label={f.rotulo}
+              aria-current={ativa ? 'step' : undefined}
+              disabled={bloqueada}
+              className={'wiz-fase' + (ativa ? ' is-ativa' : '') + (feita ? ' is-feita' : '')}
+              onClick={() => irPara(n)}>
+              {feita && <i className="ti ti-check" aria-hidden="true" />}
+              <span>{f.rotulo}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="wiz-passo">
+        {/* Fase de um passo só com o mesmo nome (Revisão): não repete. */}
+        {currentStep?.label !== faseAtual?.rotulo && <span className="wiz-passo-nome">{currentStep?.label}</span>}
+        {faseAtual && faseAtual.passos.length > 1 && (
+          <span className="wiz-passo-n">{lang === 'en' ? `${posNaFase} of ${faseAtual.passos.length}` : `${posNaFase} de ${faseAtual.passos.length}`}</span>
+        )}
+      </div>
     </div>
   );
 
   return (
     <ModalShell
-      title={currentStep?.label}
+      title={isEdit ? (lang === 'en' ? 'Edit character' : 'Editar personagem') : (lang === 'en' ? 'New character' : 'Novo personagem')}
       lang={lang}
       size="md"
       extraClass="ms-wizard"
@@ -1850,16 +2006,18 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
 // ---- Barra de saldo do wizard (selo circular) ----
 // Anel = progresso de gastos sobre o disponível. Centro = pontos restantes.
 // `extra` é a 4ª métrica opcional (Treinados/Quantidade/Magias/Técnicas): { label, valor, warn? }.
+/* O saldo do rodapé em palavras (23/10/2026, modelo 3 da prévia): "Restam 4
+   de 12", no lugar do anel com o número. Negativo em brasa. */
 function WizSaldo({ lang, disponiveis, gastos, restantes, extra }) {
-  const pct = disponiveis > 0 ? Math.max(0, Math.min(100, (gastos / disponiveis) * 100)) : 0;
   const estado = restantes < 0 ? 'neg' : restantes === 0 ? 'ok' : '';
+  const en = lang === 'en';
   return (
     <div className="wiz-saldo">
-      <div className={'wiz-saldo-ring' + (estado ? ' ' + estado : '')} style={{ '--p': pct + '%' }}>
-        <div className="wiz-saldo-hole">
-          <span className="wiz-saldo-num">{restantes}</span>
-        </div>
-      </div>
+      <span className={'wiz-saldo-texto' + (estado ? ' is-' + estado : '')} role="status">
+        {restantes < 0
+          ? (en ? <>Over by <b>{-restantes}</b> of {disponiveis}</> : <>Passou <b>{-restantes}</b> de {disponiveis}</>)
+          : (en ? <><b>{restantes}</b> left of {disponiveis}</> : <>Restam <b>{restantes}</b> de {disponiveis}</>)}
+      </span>
       {extra && (
         <div className="wiz-saldo-stats">
           <div className={'wiz-saldo-stat accent' + (extra.warn ? ' warn' : '')}>
@@ -2000,19 +2158,6 @@ function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isE
     update(`${k}_base`, novo);
   };
 
-  // Estilos do stepper pill — mesmo padrão de BarEditPopover / batalha
-  const pillStyle = {
-    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
-    borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between', gap: 4, padding: '0 4px',
-  };
-  const btnStyle = (enabled) => ({
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
-    cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
-  });
-
   return (
     <div className="wiz-attrs wiz-lista-dupla">
       {ATRIBUTOS_KEYS.map((k) => {
@@ -2031,27 +2176,12 @@ function StepAtributos({ form, update, lang, gastos, totalPontos, restantes, isE
               onAbrir={descricao ? () => setDetalhe({ titulo: ATRIBUTOS_LABEL[k], descricao }) : null}
             />
 
-            {/* Stepper pill */}
-            <div style={pillStyle}>
-              <button type="button" style={btnStyle(podeMenos)} disabled={!podeMenos}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => incrementar(k, -1)} aria-label="−"
-                onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-              </button>
-              <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
-                {base}
-              </span>
-              <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => incrementar(k, +1)} aria-label="+"
-                {...propsTip(abrirTip, fecharTip, base >= 6 ? (lang === 'en' ? 'Maximum value' : 'Valor máximo') : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
-                onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-              </button>
-            </div>
+            {/* O seletor do sistema (22/10/2026). As regras de pontos e de
+                edição decidem os limites: travado, o teto/piso é o próprio valor. */}
+            <QuantidadeStepper value={base}
+              min={podeMenos ? -Infinity : base} max={podeMais ? Infinity : base}
+              onChange={(nv) => incrementar(k, nv - base)} label={ATRIBUTOS_LABEL[k]}
+              propsMais={propsTip(abrirTip, fecharTip, base >= 6 ? (lang === 'en' ? 'Maximum value' : 'Valor máximo') : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)} />
           </div>
         );
       })}
@@ -2099,18 +2229,6 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
     !NOMES_COLUNA1_PT.includes(g.nome) && !NOMES_COLUNA1_EN.includes(g.nomeEn || '')
   );
 
-  const pillStyle = {
-    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
-    borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between', gap: 4, padding: '0 4px',
-  };
-  const btnStyle = (enabled) => ({
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
-    cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
-  });
-
   const renderLista = (lista) => lista.map((g) => {
     const nivel = compradas[g.sigla] || 0;
     const original = personagemExistente?.grupos_armas?.[g.sigla] || 0;
@@ -2130,26 +2248,10 @@ function StepGruposArmas({ form, update, lang, grpTotalPontos, grpGasto, grpRest
             descricao: g.exemplos,
           }) : null}
         />
-        <div style={pillStyle}>
-          <button type="button" style={btnStyle(podeMenos)} disabled={!podeMenos}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => mudarNivel(g.sigla, -1)} aria-label="−"
-            onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-          </button>
-          <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
-            {nivel}
-          </span>
-          <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => mudarNivel(g.sigla, +1)} aria-label="+"
-            {...propsTip(abrirTip, fecharTip, acimaDoEstagio ? (lang === 'en' ? `Max for stage (${estagio})` : `Máximo do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
-            onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-            <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-          </button>
-        </div>
+        <QuantidadeStepper value={nivel}
+          min={podeMenos ? -Infinity : nivel} max={podeMais ? Infinity : nivel}
+          onChange={(nv) => mudarNivel(g.sigla, nv - nivel)} label={nomeMostrado}
+          propsMais={propsTip(abrirTip, fecharTip, acimaDoEstagio ? (lang === 'en' ? `Max for stage (${estagio})` : `Máximo do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)} />
       </div>
     );
   });
@@ -2248,18 +2350,6 @@ function StepHabilidades({
     update('habilidades', novoObj);
   };
 
-  const pillStyle = {
-    background: 'rgba(37,26,12,0.92)', border: '1px solid rgba(138,110,64,0.50)',
-    borderRadius: 999, height: 32, display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between', gap: 4, padding: '0 4px',
-  };
-  const btnStyle = (enabled) => ({
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 24, height: 24, flexShrink: 0, borderRadius: '50%', border: 'none',
-    background: 'transparent', color: enabled ? '#E0BE68' : 'rgba(201,164,78,0.30)',
-    cursor: enabled ? 'pointer' : 'default', transition: 'background .15s',
-  });
-
   const renderGrupo = ([categoria, lista]) => (
     <div className="wiz-hab-cat wiz-lista-dupla" key={categoria}>
       {lista.map((h) => {
@@ -2307,26 +2397,10 @@ function StepHabilidades({
                 descricao: h.descricao,
               }) : null}
             />
-            <div style={pillStyle}>
-              <button type="button" style={btnStyle(podeMenos)} disabled={!podeMenos}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => mudarNivel(h.key, -1)} aria-label="−"
-                onMouseEnter={(e) => { if (podeMenos) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                <i className="ti ti-minus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-              </button>
-              <span style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#F1E6CF', fontVariantNumeric: 'tabular-nums' }}>
-                {nivelAtual}
-              </span>
-              <button type="button" style={btnStyle(podeMais)} disabled={!podeMais}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => mudarNivel(h.key, +1)} aria-label="+"
-                {...propsTip(abrirTip, fecharTip, !podeMaisEstagio ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)}
-                onMouseEnter={(e) => { if (podeMais) e.currentTarget.style.background = 'rgba(201,164,78,0.16)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                <i className="ti ti-plus" aria-hidden="true" style={{ fontSize: 'var(--fs-md)' }} />
-              </button>
-            </div>
+            <QuantidadeStepper value={nivelAtual}
+              min={podeMenos ? -Infinity : nivelAtual} max={podeMais ? Infinity : nivelAtual}
+              onChange={(nv) => mudarNivel(h.key, nv - nivelAtual)}
+              propsMais={propsTip(abrirTip, fecharTip, !podeMaisEstagio ? (lang === 'en' ? `Cannot exceed stage (${estagio})` : `Não pode passar do estágio (${estagio})`) : semSaldoPraMais ? (lang === 'en' ? 'Not enough points' : 'Pontos insuficientes') : undefined)} />
             {/* Vagas de aprimoramento da própria habilidade, quando ela for
                 uma das quatro aprimoráveis. */}
             {GAME_DATA.aprimoramentoPorHab[h.key] && (
@@ -2489,7 +2563,7 @@ return (
           <div className="wiz-review-eyebrow">{lang === 'en' ? 'Identity' : 'Identidade'}</div>
           <dl>
             <div><dt>{lang === 'en' ? 'Race' : 'Raça'}</dt><dd>{form.raca}</dd></div>
-            <div><dt>{lang === 'en' ? 'Gender' : 'Gênero'}</dt><dd>{form.genero}</dd></div>
+            <div><dt>{lang === 'en' ? 'Gender' : 'Gênero'}</dt><dd>{form.genero || '—'}</dd></div>
             {form.data_nasc?.ano != null && (() => {
               const dn = form.data_nasc;
               const meses = typeof FANTASY_MONTHS !== 'undefined' ? FANTASY_MONTHS : null;

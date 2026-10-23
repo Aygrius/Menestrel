@@ -87,8 +87,10 @@ describe('as barras da ficha não levam nome — ele vai para o tooltip', () => 
     expect(dicas[0]).toEqual({ title: 'Experiência', desc: '52 XP' });
   });
 
-  it('Vitalidade (EF/EH/Karma) e Experiência passam semNome', () => {
-    for (const el of ['const elVit =', 'const elEstagio =']) {
+  /* A Vitalidade virou tubos com nome embaixo (23/10/2026, ver
+     tubos-medalhoes.test.jsx); a Experiência segue barra sem nome. */
+  it('Experiência passa semNome', () => {
+    for (const el of ['const elEstagio =']) {
       const i = fonte.indexOf(el);
       expect(fonte.slice(i, fonte.indexOf('\n', i))).toMatch(/ semNome /);
     }

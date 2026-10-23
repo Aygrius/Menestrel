@@ -265,7 +265,8 @@ describe('nenhuma porta de ação decide por PA cru', () => {
   });
 
   it('o botão Ação do token usa temAcaoRestante', () => {
-    expect(fonte).toMatch(/disabled=\{salvando \|\| !catalogos \|\| !temAcaoRestante\(p\)/);
+    // 23/10/2026: os botões nomeados do painel guardam a trava numa variável.
+    expect(fonte).toMatch(/(disabled=\{|const travado = )salvando \|\| !catalogos \|\| !temAcaoRestante\(p\)/);
   });
 });
 

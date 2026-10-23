@@ -34,7 +34,7 @@ function AvatarAmigo({ p, className }) {
     : <span className={className + ' amg-avatar--vazio'} aria-hidden="true">{(nome || '?').trim().slice(0, 1).toUpperCase()}</span>;
 }
 
-function AmigosFab({ lang, pjId }) {
+function AmigosFab({ lang, pjId, naBarra = false }) {
   const en = lang === 'en';
   const [lista, setLista] = React.useState([]);
   const [aberto, setAberto] = React.useState(false);
@@ -114,7 +114,8 @@ function AmigosFab({ lang, pjId }) {
         <button type="button" className="amg-acao amg-acao--ic amg-acao--pendente" disabled={esp}
           aria-label={en ? 'Cancel pact offer' : 'Cancelar proposta de pacto'}
           onClick={() => agir('desfazer_pacto', p.id)}>
-          <i className="ti ti-heart-handshake" aria-hidden="true" />
+          {/* A espera no próprio ícone: a ampulheta (23/10/2026, sem o texto "Aguardando resposta"). */}
+          <i className="ti ti-hourglass-high" aria-hidden="true" />
         </button>
       );
     }
@@ -132,17 +133,18 @@ function AmigosFab({ lang, pjId }) {
   const estadoTexto = (p) => ({
     selado:   en ? 'Friends' : 'Amigos',
     recebido: en ? 'Offers you a pact' : 'Propõe um pacto',
-    enviado:  en ? 'Waiting for an answer' : 'Aguardando resposta',
+    enviado:  null,   // a espera mora no ícone (ampulheta), 23/10/2026
     nenhum:   null,
   })[p.estado];
 
   return (
-    <div className="menestrel-ui amg-root" ref={rootRef}>
+    <div className={'menestrel-ui amg-root' + (naBarra ? ' mc-acao-grupo' : '')} ref={rootRef}>
       <button type="button" className={'amg-fab' + (aberto ? ' is-aberto' : '')}
         onClick={() => { fecharTip(); setAberto((v) => !v); }}
         aria-label={rotuloPacto} aria-expanded={aberto}
-        {...(aberto ? {} : propsTip(abrirTip, fecharTip, rotuloPacto))}>
+        {...(aberto || naBarra ? {} : propsTip(abrirTip, fecharTip, rotuloPacto))}>
         <i className="ti ti-heart-handshake" aria-hidden="true" />
+        {naBarra && <span className="mc-acao-rotulo">{en ? 'Friends' : 'Amigos'}</span>}
         {pedidos > 0 && <span className="amg-badge" aria-label={en ? `${pedidos} pending` : `${pedidos} pendente(s)`}>{pedidos}</span>}
       </button>
 
@@ -165,7 +167,7 @@ function AmigosFab({ lang, pjId }) {
           <div className="amg-lista" role="list">
             {lista.map((p) => (
               <div key={p.id} className="amg-linha" role="listitem">
-                <AvatarAmigo p={p} className="amg-linha-foto" />
+                {/* Sem foto (23/10/2026): a lista igual às de Habilidades e Magias. */}
                 <span className="amg-linha-texto">
                   <span className="amg-linha-nome">{nomeCompletoAmigo(p)}</span>
                   {estadoTexto(p) && <span className={'amg-linha-estado amg-linha-estado--' + p.estado}>{estadoTexto(p)}</span>}

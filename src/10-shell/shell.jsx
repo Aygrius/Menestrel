@@ -4,9 +4,10 @@
    O último arquivo da árvore de extração. Concentra tudo que
    ainda não tinha tema próprio:
 
-   - FantasyDatePicker — input de data fantasy (dia/mes/ano com
-                         dia da semana calculado). Reutilizável,
-                         mas hoje só usado pelo NovaHistoriaModal.
+   - FantasyDatePicker — campo de data do mundo (abre o calendário
+                         do mundo, com dia da semana e feriados).
+   - CampoData         — campo de data real ('AAAA-MM-DD'), digitável,
+                         com o mesmo quadro de calendário.
    - Icon              — namespace de ícones SVG ornamentais
                          (Skull, Sword, Crown, Flame, ...). É o
                          único símbolo deste arquivo exposto também
@@ -33,175 +34,407 @@
 
 
 
-// ─── FantasyDatePicker ──────────────────────────────────────────────────────
-// FdpDrop — portal com position:fixed para não ser cortado por overflow do modal.
-// listRef é necessário: o portal vive fora do DOM do anchorRef, então o handler
-// de mousedown precisa checar AMBOS para não fechar antes do onClick do item.
-function FdpDrop({ anchorRef, children, onClose }) {
-  const [pos, setPos] = React.useState(null);
-  const listRef = React.useRef(null);
+// ─── Calendários: CampoData (data real) e FantasyDatePicker (data do mundo) ───
+/* 22/10/2026 — "Os seletores de data, fictício ou não, podem ser melhores,
+   uma versão melhorada da versão de seletor de data do navegador" (usuário).
 
-  React.useEffect(() => {
-    const anchor = anchorRef.current;
-    if (!anchor) return;
-    const rect = anchor.getBoundingClientRect();
-    setPos({ top: rect.bottom + 4, left: rect.left, minWidth: rect.width });
+   Antes eram duas coisas sem parentesco: o <input type="date"> nativo (cada
+   navegador desenha um calendário diferente, em claro, fora da identidade) e
+   o FantasyDatePicker como quatro pílulas soltas — dia, mês, dia da semana e
+   ano —, sem nunca mostrar o MÊS como mês. Agora os dois são um campo só que
+   abre o mesmo quadro de calendário: grade da semana, dia escolhido em ouro,
+   setas para andar de mês, o título que vira a lista de meses, o ano
+   editável no cabeçalho e o teclado de um calendário de verdade (setas,
+   PageUp/PageDown, Home/End, Enter, Esc).
+
+   O que o navegador não faz e este faz: o calendário do mundo mostra o dia
+   da semana do mundo e os FERIADOS (ponto no dia, nome no rodapé); a data
+   real se digita direto (dd/mm/aaaa) ou se escolhe no quadro.
+
+   Navegar no quadro NÃO muda o valor — só escolher um dia muda. */
+
+/* O quadro abre num portal com position:fixed: os modais têm overflow e o
+   cortariam. Abre embaixo do campo; sem espaço, abre em cima. O clique fora
+   e o Esc fecham — o Esc é capturado antes do modal, para fechar só o
+   calendário e não a janela inteira. */
+function CalPopover({ anchorRef, onClose, children, rotulo }) {
+  const [pos, setPos] = React.useState(null);
+  const boxRef = React.useRef(null);
+
+  React.useLayoutEffect(() => {
+    const posicionar = () => {
+      const a = anchorRef.current; const b = boxRef.current;
+      if (!a) return;
+      const r = a.getBoundingClientRect();
+      const w = b ? b.offsetWidth : 328; const h = b ? b.offsetHeight : 360;
+      const vw = window.innerWidth; const vh = window.innerHeight;
+      let top = r.bottom + 6;
+      if (top + h > vh - 8 && r.top - h - 6 > 8) top = r.top - h - 6;
+      const left = Math.max(8, Math.min(r.left, vw - w - 8));
+      setPos({ top, left });
+    };
+    posicionar();
+    const id = requestAnimationFrame(posicionar);   // mede de novo já com o tamanho real
+    window.addEventListener('resize', posicionar);
+    window.addEventListener('scroll', posicionar, true);
+    return () => { cancelAnimationFrame(id); window.removeEventListener('resize', posicionar); window.removeEventListener('scroll', posicionar, true); };
   }, [anchorRef]);
 
   React.useEffect(() => {
-    const handler = (e) => {
+    const fora = (e) => {
       if (anchorRef.current && anchorRef.current.contains(e.target)) return;
-      if (listRef.current && listRef.current.contains(e.target)) return;
-      onClose();
+      if (boxRef.current && boxRef.current.contains(e.target)) return;
+      onClose(false);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const esc = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation(); e.preventDefault();
+      onClose(true);
+    };
+    document.addEventListener('mousedown', fora);
+    document.addEventListener('keydown', esc, true);
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc, true); };
   }, [anchorRef, onClose]);
 
-  if (!pos) return null;
-  const portalTarget = document.querySelector('.menestrel-ui') || document.body;
+  const alvo = document.querySelector('.menestrel-ui') || document.body;
   return ReactDOM.createPortal(
-    <ul ref={listRef} className="fdp-drop" style={{
-      position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.minWidth,
-      background: 'rgba(18,13,6,1)', border: 'none', borderRadius: 6,
-      padding: 4, margin: 0, listStyle: 'none', zIndex: 9999,
-      maxHeight: 220, overflowY: 'auto',
-    }}>
+    <div ref={boxRef} className="cal-pop" role="dialog" aria-label={rotulo}
+      style={{ top: pos ? pos.top : -9999, left: pos ? pos.left : -9999, visibility: pos ? 'visible' : 'hidden' }}>
       {children}
-    </ul>,
-    portalTarget
+    </div>,
+    alvo
   );
 }
 
-/* `disabled` (12/09/2026): a data de nascimento trava depois que o personagem
-   existe — "não devem ficar disponíveis para editar depois de criar o
-   personagem, mesmo para o mestre" (usuário). Os quatro campos continuam
-   visíveis, com a mesma pele esmaecida dos SelectPill travados do wizard. */
-function FantasyDatePicker({ value, onChange, disabled = false }) {
-  const val = value || { dia: 1, mes: 1, ano: 0 };
-  const maxDias = FANTASY_MONTHS[val.mes - 1]?.dias || 30;
-  const diaSemana = calcDiaSemanaFantasy(val.ano, val.mes, val.dia);
-  const [diaOpen, setDiaOpen] = useState(false);
-  const [mesOpen, setMesOpen] = useState(false);
-  const diaRef = React.useRef(null);
-  const mesRef = React.useRef(null);
+/* QuadroCalendario — o quadro em si, sem saber de que calendário se trata.
+   Quem chama diz quantos dias o mês tem, em que coluna cai o dia 1, os nomes
+   das colunas e dos meses, e o que marcar. */
+function QuadroCalendario({
+  lang, mes, ano, meses, semana, inicio, totalDias, anoMin = null,
+  selecionado = null, hoje = null, marcas = null, rotuloDia, diasDe,
+  onMes, onAno, onEscolher, rodape = null, acoes = null,
+}) {
+  const en = lang === 'en';
+  const [modo, setModo] = React.useState('dias');   // 'dias' | 'meses'
+  const [foco, setFoco] = React.useState(selecionado || hoje || 1);
+  const [anoTxt, setAnoTxt] = React.useState(String(ano));
+  const gradeRef = React.useRef(null);
+  const focarDepois = React.useRef(true);
 
-  const update = (k, v) => {
-    const next = { ...val, [k]: Number(v) };
-    const maxD = FANTASY_MONTHS[next.mes - 1]?.dias || 30;
-    if (next.dia > maxD) next.dia = maxD;
-    onChange(next);
+  React.useEffect(() => { setAnoTxt(String(ano)); }, [ano]);
+  React.useEffect(() => { setFoco((f) => Math.min(Math.max(1, f), totalDias)); }, [totalDias]);
+  React.useEffect(() => {
+    if (!focarDepois.current || modo !== 'dias') return;
+    focarDepois.current = false;
+    const b = gradeRef.current && gradeRef.current.querySelector('[data-dia="' + foco + '"]');
+    if (b) b.focus({ preventScroll: true });
+  }, [foco, modo, mes, ano]);
+
+  const nMeses = meses.length;
+  const andar = (delta) => {
+    let m = mes + delta; let a = ano;
+    if (m < 1) { m = nMeses; a -= 1; }
+    if (m > nMeses) { m = 1; a += 1; }
+    if (anoMin != null && a < anoMin) return null;
+    onMes(m, a);
+    return { m, a };
+  };
+  const confirmarAno = () => {
+    const n = parseInt(anoTxt, 10);
+    if (Number.isNaN(n) || (anoMin != null && n < anoMin)) { setAnoTxt(String(ano)); return; }
+    if (n !== ano) onAno(n);
   };
 
-  // Pill — forma e tipografia só. FUNDO e BORDA ficam no CSS (.fdp-grid, ver
-  // index.css): eles mudam por contexto, e estilo inline não pode ser
-  // sobreposto por folha de estilo. No wizard de personagem, por exemplo, os
-  // quatro campos precisam da mesma pele dos SelectPill vizinhos.
-  const pill = {
-    borderRadius: 999, height: 32, outline: 'none',
-    fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', flexShrink: 0,
-    ...(disabled ? { opacity: 0.45, cursor: 'not-allowed' } : null),
+  const teclado = (e) => {
+    const mover = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+    let alvo = null;
+    if (mover) alvo = foco + mover;
+    else if (e.key === 'Home') alvo = 1;
+    else if (e.key === 'End') alvo = totalDias;
+    else if (e.key === 'PageUp' || e.key === 'PageDown') {
+      e.preventDefault(); focarDepois.current = true; andar(e.key === 'PageUp' ? -1 : 1); return;
+    } else return;
+    e.preventDefault();
+    focarDepois.current = true;
+    // Passou da borda do mês: vira o mês e cai no dia correspondente dele.
+    if (alvo < 1) { const v = andar(-1); if (v) setFoco(Math.max(1, diasDe(v.m, v.a) + alvo)); return; }
+    if (alvo > totalDias) { const v = andar(1); if (v) setFoco(Math.min(diasDe(v.m, v.a), alvo - totalDias)); return; }
+    setFoco(alvo);
   };
 
-  // dropBtn — o pill dos seletores de dia/mês (classe .select-pill-btn, mesmo
-  // tipo do campo "Arma" em batalha.jsx).
-  const dropBtn = {
-    ...pill,
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%',
-    color: '#F1E6CF', textAlign: 'left',
-    padding: '0 12px 0 16px', cursor: disabled ? 'not-allowed' : 'pointer',
-  };
+  const celulas = [];
+  for (let i = 0; i < inicio; i++) celulas.push(<span key={'v' + i} className="cal-vazio" aria-hidden="true" />);
+  for (let d = 1; d <= totalDias; d++) {
+    const nomes = marcas ? marcas(d) : null;
+    celulas.push(
+      <button key={d} type="button" data-dia={d} tabIndex={d === foco ? 0 : -1}
+        className={'cal-dia' + (d === selecionado ? ' is-escolhido' : '') + (d === hoje ? ' is-hoje' : '') + (nomes && nomes.length ? ' tem-marca' : '')}
+        aria-pressed={d === selecionado}
+        aria-label={rotuloDia(d) + (nomes && nomes.length ? ' — ' + nomes.join(', ') : '')}
+        onFocus={() => setFoco(d)} onMouseEnter={() => setFoco(d)}
+        onClick={() => onEscolher(d)}>
+        {d}
+      </button>
+    );
+  }
 
-  const dropItem = (active) => ({
-    display: 'flex', alignItems: 'center', gap: 8,
-    padding: '3px 8px', borderRadius: 6, cursor: 'pointer',
-    fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)',
-    color: active ? '#E0BE68' : '#C8BCAA',
-    background: 'transparent',
-    whiteSpace: 'nowrap',
-  });
+  const nomesFoco = marcas ? marcas(foco) : null;
+  return (
+    <div className="cal-quadro">
+      <div className="cal-topo">
+        <button type="button" className="cal-titulo" aria-expanded={modo === 'meses'}
+          onClick={() => setModo((m) => (m === 'dias' ? 'meses' : 'dias'))}>
+          <span>{meses[mes - 1]?.nome}</span>
+          <i className="ti ti-chevron-down" aria-hidden="true" />
+        </button>
+        <input className="cal-ano" type="text" inputMode="numeric" value={anoTxt}
+          aria-label={en ? 'Year' : 'Ano'}
+          onChange={(e) => setAnoTxt(e.target.value.replace(/[^0-9-]/g, ''))}
+          onBlur={confirmarAno}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); confirmarAno(); }
+            if (e.key === 'ArrowUp') { e.preventDefault(); onAno(ano + 1); }
+            if (e.key === 'ArrowDown' && (anoMin == null || ano - 1 >= anoMin)) { e.preventDefault(); onAno(ano - 1); }
+          }} />
+        <div className="cal-setas">
+          <button type="button" className="cal-seta" aria-label={en ? 'Previous month' : 'Mês anterior'}
+            disabled={anoMin != null && ano <= anoMin && mes === 1} onClick={() => andar(-1)}>
+            <i className="ti ti-chevron-left" aria-hidden="true" />
+          </button>
+          <button type="button" className="cal-seta" aria-label={en ? 'Next month' : 'Próximo mês'} onClick={() => andar(1)}>
+            <i className="ti ti-chevron-right" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
 
-  const chevron = (open) => (
-    <i className="ti ti-chevron-down" aria-hidden="true"
-       style={{ fontSize: 'var(--fs-xs)', color: '#E0BE68', opacity: 0.7, flexShrink: 0,
-                transition: 'transform .15s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+      {modo === 'meses' ? (
+        <div className={'cal-meses' + (nMeses > 12 ? ' cal-meses--13' : '')}>
+          {meses.map((m) => (
+            <button key={m.n} type="button" className={'cal-mes' + (m.n === mes ? ' is-escolhido' : '')}
+              aria-pressed={m.n === mes}
+              onClick={() => { focarDepois.current = true; onMes(m.n, ano); setModo('dias'); }}>
+              {m.curto || m.nome}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="cal-semana" aria-hidden="true">
+            {semana.map((s, i) => <span key={i}>{s.curto}</span>)}
+          </div>
+          <div className="cal-grade" ref={gradeRef} role="group" aria-label={(meses[mes - 1]?.nome || '') + ' ' + ano} onKeyDown={teclado}>
+            {celulas}
+          </div>
+          {marcas && (
+            <p className="cal-marca-txt" aria-live="polite">
+              {nomesFoco && nomesFoco.length ? <><i className="ti ti-star" aria-hidden="true" /> {nomesFoco.join(' · ')}</> : ' '}
+            </p>
+          )}
+        </>
+      )}
+
+      {(rodape || acoes) && (
+        <div className="cal-rodape">
+          <span className="cal-rodape-txt">{rodape}</span>
+          {acoes}
+        </div>
+      )}
+    </div>
   );
+}
+
+/* ── CampoData — data REAL, valor 'AAAA-MM-DD' (o mesmo do input nativo, para
+   trocar um pelo outro sem mexer em quem grava). Digita-se dd/mm/aaaa (ou
+   mm/dd/yyyy em inglês) ou escolhe-se no quadro. */
+const MESES_REAIS = {
+  pt: ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'],
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+};
+const SEMANA_REAL = {
+  pt: ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'],
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+};
+function isoDeData(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function partesDeIso(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  if (!m) return null;
+  const a = +m[1], mes = +m[2], d = +m[3];
+  if (mes < 1 || mes > 12 || d < 1 || d > new Date(a, mes, 0).getDate()) return null;
+  return { a, mes, d };
+}
+function textoDeIso(s, en) {
+  const p = partesDeIso(s);
+  if (!p) return '';
+  const dd = String(p.d).padStart(2, '0'), mm = String(p.mes).padStart(2, '0');
+  return en ? `${mm}/${dd}/${p.a}` : `${dd}/${mm}/${p.a}`;
+}
+function isoDeTexto(t, en) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec((t || '').trim());
+  if (!m) return null;
+  const [d, mes] = en ? [+m[2], +m[1]] : [+m[1], +m[2]];
+  const iso = m[3] + '-' + String(mes).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  return partesDeIso(iso) ? iso : null;
+}
+// Põe as barras sozinho enquanto se digita: "23102026" → "23/10/2026".
+function mascaraData(t) {
+  const n = t.replace(/\D/g, '').slice(0, 8);
+  if (n.length <= 2) return n;
+  if (n.length <= 4) return n.slice(0, 2) + '/' + n.slice(2);
+  return n.slice(0, 2) + '/' + n.slice(2, 4) + '/' + n.slice(4);
+}
+
+function CampoData({ value, onChange, lang = 'pt', disabled = false, id, 'aria-label': ariaLabel }) {
+  const en = lang === 'en';
+  const [txt, setTxt] = React.useState(textoDeIso(value, en));
+  const [invalido, setInvalido] = React.useState(false);
+  const [aberto, setAberto] = React.useState(false);
+  const campoRef = React.useRef(null);
+  const botaoRef = React.useRef(null);
+  const p = partesDeIso(value);
+  const agora = new Date();
+  const [vista, setVista] = React.useState({ mes: p ? p.mes : agora.getMonth() + 1, ano: p ? p.a : agora.getFullYear() });
+
+  React.useEffect(() => { setTxt(textoDeIso(value, en)); setInvalido(false); }, [value, en]);
+
+  const confirmar = () => {
+    if (!txt.trim()) { setInvalido(false); if (value) onChange(''); return; }
+    const iso = isoDeTexto(txt, en);
+    if (!iso) { setInvalido(true); return; }
+    setInvalido(false);
+    if (iso !== value) onChange(iso);
+  };
+  const abrir = () => {
+    if (disabled) return;
+    const q = partesDeIso(value);
+    setVista({ mes: q ? q.mes : agora.getMonth() + 1, ano: q ? q.a : agora.getFullYear() });
+    setAberto(true);
+  };
+  const fechar = React.useCallback((devolverFoco) => {
+    setAberto(false);
+    if (devolverFoco && botaoRef.current) botaoRef.current.focus();
+  }, []);
+
+  const nomesMes = MESES_REAIS[en ? 'en' : 'pt'];
+  const nomesSemana = SEMANA_REAL[en ? 'en' : 'pt'];
+  const ehVistaAtual = (q) => q && q.mes === vista.mes && q.a === vista.ano;
+  const hojeP = { a: agora.getFullYear(), mes: agora.getMonth() + 1, d: agora.getDate() };
+  const escolher = (d) => {
+    onChange(vista.ano + '-' + String(vista.mes).padStart(2, '0') + '-' + String(d).padStart(2, '0'));
+    fechar(true);
+  };
+  const legivel = p
+    ? (en ? `${nomesSemana[new Date(p.a, p.mes - 1, p.d).getDay()]}, ${nomesMes[p.mes - 1]} ${p.d}, ${p.a}`
+          : `${nomesSemana[new Date(p.a, p.mes - 1, p.d).getDay()]}, ${p.d} de ${nomesMes[p.mes - 1]} de ${p.a}`)
+    : null;
 
   return (
-    /* Grid em CSS (.fdp-grid), não em style inline: inline vence folha de
-       estilo, e o wizard de personagem precisa reencaixar as colunas no ritmo
-       do formulário dele (ver .wiz-ident .fdp-grid no index.css). O padrão
-       abaixo é o mesmo de antes — nada muda onde já era usado. */
-    <div className="menestrel-ui fdp-grid">
+    <div ref={campoRef} className={'cal-campo' + (invalido ? ' is-invalido' : '') + (disabled ? ' is-travado' : '') + (aberto ? ' is-aberto' : '')}>
+      <input id={id} className="cal-campo-txt" type="text" inputMode="numeric" autoComplete="off"
+        placeholder={en ? 'mm/dd/yyyy' : 'dd/mm/aaaa'} value={txt} disabled={disabled}
+        aria-label={ariaLabel} aria-invalid={invalido || undefined}
+        onChange={(e) => { setTxt(mascaraData(e.target.value)); setInvalido(false); }}
+        onBlur={confirmar}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); confirmar(); }
+          if (e.key === 'ArrowDown' && e.altKey) { e.preventDefault(); abrir(); }
+        }} />
+      <button ref={botaoRef} type="button" className="cal-campo-btn" disabled={disabled}
+        aria-label={en ? 'Open calendar' : 'Abrir calendário'} aria-expanded={aberto}
+        onClick={() => (aberto ? fechar(false) : abrir())}>
+        <i className="ti ti-calendar" aria-hidden="true" />
+      </button>
+      {aberto && (
+        <CalPopover anchorRef={campoRef} onClose={fechar} rotulo={en ? 'Calendar' : 'Calendário'}>
+          <QuadroCalendario
+            lang={lang} mes={vista.mes} ano={vista.ano}
+            meses={nomesMes.map((nome, i) => ({ n: i + 1, nome: nome[0].toUpperCase() + nome.slice(1), curto: (nome[0].toUpperCase() + nome.slice(1, 3)) }))}
+            semana={nomesSemana.map((s) => ({ curto: s[0].toUpperCase(), inteiro: s }))}
+            inicio={new Date(vista.ano, vista.mes - 1, 1).getDay()}
+            totalDias={new Date(vista.ano, vista.mes, 0).getDate()}
+            diasDe={(m, a) => new Date(a, m, 0).getDate()}
+            anoMin={1}
+            selecionado={ehVistaAtual(p) ? p.d : null}
+            hoje={ehVistaAtual(hojeP) ? hojeP.d : null}
+            rotuloDia={(d) => en ? `${nomesMes[vista.mes - 1]} ${d}, ${vista.ano}` : `${d} de ${nomesMes[vista.mes - 1]} de ${vista.ano}`}
+            onMes={(m, a) => setVista({ mes: m, ano: a })}
+            onAno={(a) => setVista((v) => ({ ...v, ano: a }))}
+            onEscolher={escolher}
+            rodape={legivel}
+            acoes={<>
+              {value && <button type="button" className="cal-acao" onClick={() => { onChange(''); fechar(true); }}>{en ? 'Clear' : 'Limpar'}</button>}
+              <button type="button" className="cal-acao cal-acao--forte" onClick={() => { onChange(isoDeData(agora)); fechar(true); }}>{en ? 'Today' : 'Hoje'}</button>
+            </>}
+          />
+        </CalPopover>
+      )}
+      {invalido && <span className="cal-erro" role="alert">{en ? 'Invalid date' : 'Data inválida'}</span>}
+    </div>
+  );
+}
 
-      {/* Dia — dropdown customizado, mesmo tipo de seletor do SelectPill (ver "Arma") */}
-      <div ref={diaRef}>
-        <button type="button" className="select-pill-btn" data-open={diaOpen ? 'true' : 'false'} style={dropBtn} disabled={disabled} onClick={() => { if (disabled) return; setDiaOpen((v) => !v); setMesOpen(false); }}>
-          <span>{val.dia}</span>
-          {chevron(diaOpen)}
-        </button>
-        {diaOpen && !disabled && (
-          <FdpDrop anchorRef={diaRef} onClose={() => setDiaOpen(false)}>
-            {Array.from({ length: maxDias }, (_, i) => i + 1).map((d) => (
-              <li key={d}
-                style={dropItem(d === val.dia)}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(138,110,64,0.12)'; e.currentTarget.style.color = '#E8DDC6'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = d === val.dia ? '#C9A44E' : '#C8BCAA'; }}
-                onClick={() => { update('dia', d); setDiaOpen(false); }}
-              >
-                {d}
-                {d === val.dia && <i className="ti ti-check" style={{ fontSize: 'var(--fs-xs)', color: '#E0BE68', flexShrink: 0 }} />}
-              </li>
-            ))}
-          </FdpDrop>
-        )}
-      </div>
+/* ── FantasyDatePicker — data do MUNDO, valor { dia, mes, ano }. O ano tem
+   12 meses de 30 dias e o Dia de Cruine (mês 13, um dia só); a semana tem
+   sete dias com nome próprio (FANTASY_WEEKDAYS), e o dia 1 de cada mês cai
+   onde calcDiaSemanaFantasy disser.
 
-      {/* Mês — dropdown customizado, mesmo tipo de seletor do SelectPill (ver "Arma") */}
-      <div ref={mesRef}>
-        <button type="button" className="select-pill-btn" data-open={mesOpen ? 'true' : 'false'} style={dropBtn} disabled={disabled} onClick={() => { if (disabled) return; setMesOpen((v) => !v); setDiaOpen(false); }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {FANTASY_MONTHS[val.mes - 1]?.nome || ''}
-          </span>
-          {chevron(mesOpen)}
-        </button>
-        {mesOpen && !disabled && (
-          <FdpDrop anchorRef={mesRef} onClose={() => setMesOpen(false)}>
-            {FANTASY_MONTHS.map((m) => (
-              <li key={m.n}
-                style={dropItem(m.n === val.mes)}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(201,164,78,0.10)'; e.currentTarget.style.color = '#E8DDC6'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = m.n === val.mes ? '#C9A44E' : '#C8BCAA'; }}
-                onClick={() => { update('mes', m.n); setMesOpen(false); }}
-              >
-                {m.nome}
-                {m.n === val.mes && <i className="ti ti-check" style={{ fontSize: 'var(--fs-xs)', color: '#E0BE68', flexShrink: 0 }} />}
-              </li>
-            ))}
-          </FdpDrop>
-        )}
-      </div>
+   `disabled` (12/09/2026): a data de nascimento trava depois que o personagem
+   existe — "não devem ficar disponíveis para editar depois de criar o
+   personagem, mesmo para o mestre" (usuário). O campo continua visível. */
+function FantasyDatePicker({ value, onChange, disabled = false, lang = 'pt' }) {
+  const en = lang === 'en';
+  const val = value || { dia: 1, mes: 1, ano: 0 };
+  const [aberto, setAberto] = React.useState(false);
+  const [vista, setVista] = React.useState({ mes: val.mes, ano: val.ano });
+  const campoRef = React.useRef(null);
+  const botaoRef = React.useRef(null);
 
-      {/* Dia da semana */}
-      <input
-        type="text"
-        readOnly
-        className="fdp-semana"
-        value={`✦ ${diaSemana}`}
-        style={{ ...pill, color: '#E0BE68', cursor: 'default', padding: '0 16px', width: '100%' }}
-      />
+  const nomeMes = (n) => FANTASY_MONTHS[n - 1]?.nome || '';
+  const semanaDe = (ano, mes, dia) => calcDiaSemanaFantasy(ano, mes, dia);
+  const feriados = typeof feriadosDoDia === 'function' ? feriadosDoDia : () => [];
+  const abrir = () => { if (disabled) return; setVista({ mes: val.mes, ano: val.ano }); setAberto(true); };
+  const fechar = React.useCallback((devolverFoco) => {
+    setAberto(false);
+    if (devolverFoco && botaoRef.current) botaoRef.current.focus();
+  }, []);
+  // Cruine não é "de mês": é o próprio dia.
+  const extenso = (d, m, a) => (m === 13
+    ? `${nomeMes(13)}, ${en ? 'year' : 'ano'} ${a}`
+    : `${d} ${en ? 'of' : 'de'} ${nomeMes(m)}, ${en ? 'year' : 'ano'} ${a}`);
 
-      {/* Ano */}
-      <input
-        type="number"
-        min={0}
-        className="fdp-ano"
-        value={val.ano}
-        disabled={disabled}
-        readOnly={disabled}
-        onChange={(e) => { if (!disabled) update('ano', e.target.value); }}
-        style={{ ...pill, color: '#F1E6CF', padding: '0 16px', width: '100%' }}
-      />
+  const ehVista = val.mes === vista.mes && val.ano === vista.ano;
+  const feriadosVal = feriados(val.dia, val.mes);
+
+  return (
+    <div ref={campoRef} className="fdp-campo-wrap">
+      <button ref={botaoRef} type="button" className={'cal-campo cal-campo--botao fdp-campo' + (aberto ? ' is-aberto' : '')}
+        disabled={disabled} aria-haspopup="dialog" aria-expanded={aberto}
+        onClick={() => (aberto ? fechar(false) : abrir())}>
+        <span className="cal-campo-valor">{extenso(val.dia, val.mes, val.ano)}</span>
+        <span className="cal-campo-semana">{semanaDe(val.ano, val.mes, val.dia)}</span>
+        {feriadosVal.length > 0 && <i className="ti ti-star cal-campo-feriado" aria-label={feriadosVal.join(', ')} />}
+        <i className="ti ti-calendar cal-campo-icone" aria-hidden="true" />
+      </button>
+      {aberto && (
+        <CalPopover anchorRef={campoRef} onClose={fechar} rotulo={en ? 'World calendar' : 'Calendário do mundo'}>
+          <QuadroCalendario
+            lang={lang} mes={vista.mes} ano={vista.ano} anoMin={0}
+            meses={FANTASY_MONTHS.map((m) => ({ n: m.n, nome: m.nome, curto: m.nome.replace(/^(Mês d[aoe]s? |Dia de )/, '') }))}
+            semana={FANTASY_WEEKDAYS.map((s) => ({ curto: s.slice(0, 3), inteiro: s }))}
+            inicio={Math.max(0, FANTASY_WEEKDAYS.indexOf(semanaDe(vista.ano, vista.mes, 1)))}
+            totalDias={FANTASY_MONTHS[vista.mes - 1]?.dias || 30}
+            diasDe={(m) => FANTASY_MONTHS[m - 1]?.dias || 30}
+            selecionado={ehVista ? val.dia : null}
+            marcas={(d) => feriados(d, vista.mes)}
+            rotuloDia={(d) => `${semanaDe(vista.ano, vista.mes, d)}, ${extenso(d, vista.mes, vista.ano)}`}
+            onMes={(m, a) => setVista({ mes: m, ano: a })}
+            onAno={(a) => setVista((v) => ({ ...v, ano: a }))}
+            onEscolher={(d) => { onChange({ dia: d, mes: vista.mes, ano: vista.ano }); fechar(true); }}
+            rodape={`${semanaDe(val.ano, val.mes, val.dia)}, ${extenso(val.dia, val.mes, val.ano)}`}
+          />
+        </CalPopover>
+      )}
     </div>
   );
 }
@@ -294,23 +527,23 @@ window.Icon = Icon;
 // ---------- AdminEmpty: estado vazio (migrado · Pedra & Bronze) ----------
 function AdminEmpty({ ac, sectionLabel }) {
   const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
-  const lineL = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, transparent, rgba(201,164,78,0.45))' };
-  const lineR = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, rgba(201,164,78,0.45), transparent)' };
+  const lineL = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, transparent, rgba(var(--ouro-rgb),0.45))' };
+  const lineR = { flex: 1, height: 1, maxWidth: 90, background: 'linear-gradient(90deg, rgba(var(--ouro-rgb),0.45), transparent)' };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '64px 24px', minHeight: 280 }}>
-      <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 300, color: '#E0BE68' }}>
+      <div aria-hidden="true" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, width: '100%', maxWidth: 300, color: 'var(--vivo)' }}>
         <span style={lineL} />
         <Icon.Ornament style={{ width: 56, height: 22, flex: '0 0 auto' }} />
         <span style={lineR} />
       </div>
-      <p style={{ margin: 0, fontSize: 'var(--fs-base)', color: '#BFAF8E', lineHeight: 1.6, maxWidth: 420 }}>{ac.empty_sub}</p>
+      <p style={{ margin: 0, fontSize: 'var(--fs-base)', color: 'var(--tinta-2)', lineHeight: 1.6, maxWidth: 420 }}>{ac.empty_sub}</p>
       <button
         disabled
         {...propsTip(abrirTip, fecharTip, ac.coming_soon)}
-        style={{ marginTop: 16, fontFamily: "var(--font-body)", fontWeight: 400, fontSize: 'var(--fs-base)', color: '#BFAF8E', background: 'rgba(232,221,198,0.05)', border: '1px solid rgba(232,221,198,0.12)', borderRadius: 6, padding: '11px 20px', cursor: 'not-allowed', opacity: 0.7 }}>
+        style={{ marginTop: 16, fontFamily: "var(--font-body)", fontWeight: 400, fontSize: 'var(--fs-base)', color: 'var(--tinta-2)', background: 'rgba(var(--tinta-rgb),0.05)', border: '1px solid rgba(var(--tinta-rgb),0.12)', borderRadius: 6, padding: '11px 20px', cursor: 'not-allowed', opacity: 0.7 }}>
         + {ac.create} {sectionLabel ? `· ${sectionLabel}` : ''}
       </button>
-      <div style={{ marginTop: 10, fontSize: 'var(--fs-base)', color: 'rgba(156,143,115, 1)' }}>{ac.coming_soon}</div>
+      <div style={{ marginTop: 10, fontSize: 'var(--fs-base)', color: 'rgba(var(--tinta3-rgb), 1)' }}>{ac.coming_soon}</div>
       <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
   );
@@ -335,7 +568,7 @@ function AdminEmpty({ ac, sectionLabel }) {
      title          — string ou node, vai no header
      onClose        — opcional: handler do "x" e do Escape. Se omitido, o modal
                       NÃO mostra "x" e Escape não faz nada — usar só em casos
-                      de produto deliberadamente bloqueantes (ex.: PlanoEscolhaModal,
+                      de produto deliberadamente bloqueantes (ex.: o antigo PlanoEscolhaModal,
                       onboarding obrigatório). Na grande maioria dos modais, passar sempre.
      onCancel       — opcional: se presente, mostra botão Cancelar (footer, esquerda)
      cancelLabel    — opcional, default 'Cancelar' / 'Cancel' conforme `lang`
@@ -407,7 +640,7 @@ function ModalShell({
   const backdropRef = useRef(null);   // usado pra saber quem é o modal mais interno
 
   useEffect(() => {
-    // Sem onClose, o modal é bloqueante de propósito (ex.: PlanoEscolhaModal —
+    // Sem onClose, o modal é bloqueante de propósito (ex.: o antigo PlanoEscolhaModal —
     // onboarding obrigatório) — Escape não faz nada nesse caso.
     //
     // O Escape só vale pro modal mais INTERNO. Cada instância registra o
@@ -514,7 +747,7 @@ function ModalShell({
 const MENU_ITEM_STYLE = {
   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
   padding: '7px 6px', borderRadius: 6, border: 'none', background: 'transparent',
-  color: '#F1E6CF', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)',
+  color: 'var(--tinta)', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)',
   cursor: 'pointer', textAlign: 'left', transition: 'background .14s ease',
 };
 
@@ -545,7 +778,22 @@ function MenuRow({ children, onClick, disabled, danger, extraStyle, title }) {
   );
 }
 
-function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge, planoPago, lang, setLang, profile, onSetProfile, onHelp, onConvites, onLogout, onClose }) {
+/* AS PALETAS (23/10/2026). A ordem e os nomes são os do estudo; a amostra é
+   fundo, chão, tinta e a cor viva. O CSS de cada uma mora no fim de index.css
+   (:root[data-paleta="…"]). Sem escolha, vale PALETA_PADRAO. */
+const PALETAS = [
+  { id: 'couro', pt: 'Couro e Ouro', en: 'Leather and Gold', amostra: ['#120D06', '#17110A', '#F1E6CF', '#E0BE68'] },
+  { id: 'ferro', pt: 'Ferro e Brasa', en: 'Iron and Ember', amostra: ['#121212', '#1A1A1A', '#F0EEEA', '#F08A3C'] },
+];
+const PALETA_PADRAO = 'couro';
+function aplicarPaleta(id) {
+  const v = PALETAS.some((p) => p.id === id) ? id : PALETA_PADRAO;
+  document.documentElement.dataset.paleta = v;
+  try { localStorage.setItem('menestrel.paleta', v); } catch (e) {}
+  return v;
+}
+
+function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, setLang, profile, onSetProfile, podeTrocarPerfil = false, paleta = null, onSetPaleta = null, onHelp, onConvites, onLogout, onClose }) {
   const ref = React.useRef(null);
   const [pos, setPos] = useState(null);
 
@@ -579,12 +827,12 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
 
   const [langOpen, setLangOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
+  const [paletaOpen, setPaletaOpen] = useState(false);
 
   const t = {
     roleLabel: lang === 'en' ? 'Role'     : 'Perfil',
     master:    lang === 'en' ? 'Master'   : 'Mestre',
     player:    lang === 'en' ? 'Player'   : 'Jogador',
-    planLabel: lang === 'en' ? 'Plan'     : 'Plano',
     language:  lang === 'en' ? 'Language' : 'Idioma',
     help:      lang === 'en' ? 'Help'     : 'Ajuda',
     logout:    lang === 'en' ? 'Sign out' : 'Sair',
@@ -627,8 +875,8 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
         </div>
       </div>
 
-      {/* ── Perfil (Mestre / Jogador) — item de menu que expande inline ── */}
-      <div>
+      {/* ── Perfil (Mestre / Jogador) — só o administrador troca (23/10/2026) ── */}
+      {podeTrocarPerfil && <div>
         <MenuRow onClick={() => { setRoleOpen((v) => !v); setLangOpen(false); }}>
           <Icon.Profile style={{ fontSize: 16, lineHeight: 1 }} />
           {t.roleLabel}
@@ -637,14 +885,37 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
         {roleOpen && (
           <div className="mc-um-submenu">
             <MenuRow onClick={() => { onSetProfile('master'); setRoleOpen(false); }}>
-              {t.master} {profile === 'master' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: '#E0BE68', marginLeft: 'auto' }} />}
+              {t.master} {profile === 'master' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
             </MenuRow>
             <MenuRow onClick={() => { onSetProfile('player'); setRoleOpen(false); }}>
-              {t.player} {profile === 'player' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: '#E0BE68', marginLeft: 'auto' }} />}
+              {t.player} {profile === 'player' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
             </MenuRow>
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* ── Paleta (23/10/2026): "o usuário logado vai poder escolher qual
+          paleta ele quer, essa opção vai estar entre 'Perfil' e 'Convites'". ── */}
+      {onSetPaleta && <div>
+        <MenuRow onClick={() => { setPaletaOpen((v) => !v); setRoleOpen(false); setLangOpen(false); }}>
+          <i className="ti ti-palette" style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true" />
+          {lang === 'en' ? 'Palette' : 'Paleta'}
+          <i className="ti ti-chevron-down" style={{ fontSize: 'var(--fs-md)', opacity: 0.6, transition: 'transform .14s ease', transform: paletaOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
+        </MenuRow>
+        {paletaOpen && (
+          <div className="mc-um-submenu">
+            {PALETAS.map((p) => (
+              <MenuRow key={p.id} onClick={() => onSetPaleta(p.id)}>
+                <span className="mc-um-paleta-amostra" aria-hidden="true">
+                  {p.amostra.map((c, i) => <i key={i} style={{ background: c }} />)}
+                </span>
+                {lang === 'en' ? p.en : p.pt}
+                {paleta === p.id && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
+              </MenuRow>
+            ))}
+          </div>
+        )}
+      </div>}
 
       {/* ── Convites (12/09/2026) ────────────────────────────────────
           Saiu da barra lateral e veio para cá, a pedido do usuário. Convite
@@ -669,10 +940,10 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
         {langOpen && (
           <div className="mc-um-submenu">
             <MenuRow onClick={() => { setLang('pt'); setLangOpen(false); onClose(); }}>
-              Português (Brasil) {lang === 'pt' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: '#E0BE68', marginLeft: 'auto' }} />}
+              Português (Brasil) {lang === 'pt' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
             </MenuRow>
             <MenuRow onClick={() => { setLang('en'); setLangOpen(false); onClose(); }}>
-              English {lang === 'en' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: '#E0BE68', marginLeft: 'auto' }} />}
+              English {lang === 'en' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
             </MenuRow>
           </div>
         )}
@@ -680,13 +951,7 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, planoBadge
 
       <hr />
 
-      {/* ── Plano (desativado por enquanto, mostra valor atual) ── */}
-      <MenuRow disabled title={t.soon} extraStyle={{ opacity: 0.55 }}>
-        <i className="ti ti-credit-card" style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true" />
-        {t.planLabel}
-        <span className="mc-um-plan-badge">{planoBadge}</span>
-      </MenuRow>
-
+      {/* O item Plano saiu em 23/10/2026: não há mais plano gratuito nem Premium. */}
       <MenuRow onClick={() => { onClose(); if (onHelp) onHelp(); }}>
         <Icon.Help style={{ fontSize: 16, lineHeight: 1 }} />
         {t.help}
@@ -846,9 +1111,22 @@ function NavMenuPainel({ grupo, ancora, lang, folhaAtual, onEscolher, onFechar }
   return ReactDOM.createPortal(painel, alvo);
 }
 
-function NavTooltip({ tip, onEnter, onLeave }) {
+function NavTooltip({ tip, onEnter, onLeave, abaixo = false }) {
   if (!tip) return null;
   const { rect, content } = tip;
+  /* Nos trilhos (23/10/2026): o balão padrão do sistema (.mn-tip), abaixo do
+     botão — ao lado, ele cobria o botão vizinho do trilho. */
+  if (abaixo) {
+    const rotulo = typeof content === 'string' ? content : (content?.title || '');
+    if (!rotulo) return null;
+    return ReactDOM.createPortal(
+      <div className="mn-tip" data-tip-abaixo=""
+        style={{ left: rect.left + rect.width / 2, top: rect.bottom, zIndex: 9999, pointerEvents: 'none' }}>
+        <div className="mn-tip-title">{rotulo}</div>
+      </div>,
+      document.querySelector('#root .menestrel-ui') || document.body
+    );
+  }
   const left = rect.right + 10;
   const top  = rect.top + rect.height / 2;
   // content pode ser string ou { title }
@@ -867,8 +1145,8 @@ function NavTooltip({ tip, onEnter, onLeave }) {
 
      As cores vivem em constantes porque a seta repete as duas, e seta fora de
      sincronia com o balão é o defeito clássico deste arranjo. */
-  const TIP_FUNDO = '#120D06';
-  const TIP_ARO   = 'rgba(138,110,64,0.35)';
+  const TIP_FUNDO = 'var(--p-fundo)';
+  const TIP_ARO   = 'rgba(var(--bronze-rgb),0.35)';
   return ReactDOM.createPortal(
     <div
       style={{
@@ -879,7 +1157,7 @@ function NavTooltip({ tip, onEnter, onLeave }) {
         borderRadius: 6, padding: '10px 12px',
         pointerEvents: 'none', whiteSpace: 'nowrap',
         animation: 'fpItemTipIn .12s ease-out',
-        fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: '#F1E6CF',
+        fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: 'var(--tinta)',
       }}
     >
       {/* Seta apontando para a esquerda — duas camadas: a de trás (6px) faz o
@@ -1170,6 +1448,13 @@ function FilaAprovacaoMagia({ lang, historiaId, pedidos, onRespondido }) {
    agora é publicar na loja da aventura (07-inventario/loja.jsx). */
 
 function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = false }) {
+  /* ONDE MORA O SINO (23/10/2026): "para os jogadores na ficha deles, para o
+     mestre, no menu lateral esquerdo". O Jogador o tem na barra de ações da
+     ficha; o Mestre, como item do menu lateral. Sem nenhum dos dois na tela,
+     segue flutuando no canto. */
+  const alvoFicha = useAlvoPortal('mc-acoes-ficha');
+  const alvoLateral = useAlvoPortal('mc-sino-lateral');
+  const alvoBarra = ehMestre ? alvoLateral : alvoFicha;
   const [mensagens, setMensagens] = useState([]);
   // Linhas CRUAS do log — o `meta` que a fila de aprovação lê. As mensagens
   // acima são formato de exibição e perdem o meta de propósito.
@@ -1319,6 +1604,28 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
 
   const Janela = window.BestDetalheModal;
   const en = lang === 'en';
+  const qtdSino = Math.max(naoLidas, pedidosAbertos.length);
+  /* NA BARRA DE AÇÕES DA FICHA (23/10/2026): "Coloque o sino de notificações
+     na barra, depois de 'amigos'." Com a barra na tela, o sino entra nela como
+     os outros botões (ícone e nome); sem ela, segue flutuando no canto. */
+  const sinoNaBarra = alvoBarra && ehMestre ? ReactDOM.createPortal(
+    <button type="button" className={'mc-navitem cm-nav' + (aberto ? ' is-aberto' : '')}
+      onClick={() => (aberto ? fecharHistorico() : abrirHistorico())}
+      aria-label={en ? 'Notifications' : 'Notificações'} aria-expanded={aberto}>
+      <i className="ti ti-bell" aria-hidden="true" />
+      <span>{en ? 'Notifications' : 'Notificações'}</span>
+      {qtdSino > 0 && <span className="cm-nav-badge">{qtdSino > 9 ? '9+' : qtdSino}</span>}
+    </button>, alvoBarra)
+    : alvoBarra ? ReactDOM.createPortal(
+    <div className="menestrel-ui mc-acao-grupo cm-barra">
+      <button type="button" className={'mc-acao cm-acao' + (aberto ? ' is-aberto' : '')}
+        onClick={() => (aberto ? fecharHistorico() : abrirHistorico())}
+        aria-label={en ? 'Notifications' : 'Notificações'} aria-expanded={aberto}>
+        <i className="ti ti-bell" aria-hidden="true" />
+        <span className="mc-acao-rotulo">{en ? 'Notifications' : 'Notificações'}</span>
+        {qtdSino > 0 && <span className="amg-badge cm-acao-badge">{qtdSino > 9 ? '9+' : qtdSino}</span>}
+      </button>
+    </div>, alvoBarra) : null;
   return (
     <div className="menestrel-ui cm-root" style={{ '--cm-sidebar': sidebarLargura + 'px' }}>
       {/* O card do evento que acabou de chegar, no centro da área da página. */}
@@ -1328,7 +1635,8 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
 
       {/* O sino abre o HISTÓRICO num modal (27/09/2026): "Ao clicar o ícone
           do sino para ver os logs antigos, abrir um modal com os logs em lista." */}
-      <button
+      {sinoNaBarra}
+      {!alvoBarra && <button
         type="button"
         className={'cm-fab' + (aberto ? ' is-active' : '')}
         onClick={() => (aberto ? fecharHistorico() : abrirHistorico())}
@@ -1339,7 +1647,7 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
         {(naoLidas > 0 || pedidosAbertos.length > 0) && (
           <span className="cm-fab-badge">{Math.max(naoLidas, pedidosAbertos.length) > 9 ? '9+' : Math.max(naoLidas, pedidosAbertos.length)}</span>
         )}
-      </button>
+      </button>}
 
       {aberto && Janela && (
         <Janela
@@ -1796,31 +2104,38 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
       <div className="menestrel-ui">
       <div className="cal-modal">
 
-        {/* Header */}
+        {/* O CALENDÁRIO NO NOVO PADRÃO (23/10/2026): "Quero algo bonito,
+            moderno e condizente com nosso novo layout." O mês em destaque no
+            cabeçalho, a navegação num trilho (mês e ano), a grade de dias à
+            esquerda e a agenda à direita — o dia escolhido ou, sem dia, o que
+            acontece no mês. Mesmas ações e dados de antes. */}
         <div className="cal-header">
-          <div className="cal-header-left">
-            <i className="ti ti-calendar-month cal-header-icon" aria-hidden="true" />
-            {podeEditar ? (
-              <div className="cal-header-ano-nav">
-                <button
-                  className="cal-ano-btn"
-                  onClick={() => setAnoFoco((a) => Math.max(0, a - 1))}
-                  disabled={anoFoco <= 0}
-                  aria-label={en ? 'Previous year' : 'Ano anterior'}
-                >‹</button>
-                <span className="cal-header-title">
-                  {en ? `Year ${anoFoco}` : `Ano ${anoFoco}`}
-                </span>
-                <button
-                  className="cal-ano-btn"
-                  onClick={() => setAnoFoco((a) => a + 1)}
-                  aria-label={en ? 'Next year' : 'Próximo ano'}
-                >›</button>
-              </div>
-            ) : (
-              <span className="cal-header-title">
-                {en ? `Year ${anoFoco}` : `Ano ${anoFoco}`}
-              </span>
+          <div className="cal-titulo-bloco">
+            <span className="cal-titulo-mes">{nomeMes}</span>
+            <span className="cal-titulo-ano">{en ? `Year ${anoFoco}` : `Ano ${anoFoco}`}</span>
+          </div>
+          <div className="cal-trilho" role="group" aria-label={en ? 'Navigate' : 'Navegar'}>
+            <button className="cal-trilho-btn" onClick={() => trocarMes((m) => Math.max(1, m - 1))}
+              disabled={mesFoco === 1} aria-label={en ? 'Previous month' : 'Mês anterior'}>
+              <i className="ti ti-chevron-left" aria-hidden="true" />
+            </button>
+            <button className="cal-trilho-btn" onClick={() => trocarMes((m) => Math.min(totalMeses, m + 1))}
+              disabled={mesFoco === totalMeses} aria-label={en ? 'Next month' : 'Próximo mês'}>
+              <i className="ti ti-chevron-right" aria-hidden="true" />
+            </button>
+            {podeEditar && (
+              <>
+                <span className="cal-trilho-espaco" aria-hidden="true" />
+                <button className="cal-trilho-btn" onClick={() => setAnoFoco((a) => Math.max(0, a - 1))}
+                  disabled={anoFoco <= 0} aria-label={en ? 'Previous year' : 'Ano anterior'}>
+                  <i className="ti ti-chevrons-left" aria-hidden="true" />
+                </button>
+                <span className="cal-trilho-rotulo">{en ? 'Year' : 'Ano'}</span>
+                <button className="cal-trilho-btn" onClick={() => setAnoFoco((a) => a + 1)}
+                  aria-label={en ? 'Next year' : 'Próximo ano'}>
+                  <i className="ti ti-chevrons-right" aria-hidden="true" />
+                </button>
+              </>
             )}
           </div>
           <button className="cal-header-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
@@ -1828,34 +2143,19 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
           </button>
         </div>
 
-        {/* Navegação de mês */}
-        <div className="cal-nav">
-          <button
-            className="cal-nav-btn"
-            onClick={() => trocarMes((m) => Math.max(1, m - 1))}
-            disabled={mesFoco === 1}
-            aria-label={en ? 'Previous month' : 'Mês anterior'}
-          >‹</button>
-          <span className="cal-nav-mes">{nomeMes}</span>
-          <button
-            className="cal-nav-btn"
-            onClick={() => trocarMes((m) => Math.min(totalMeses, m + 1))}
-            disabled={mesFoco === totalMeses}
-            aria-label={en ? 'Next month' : 'Próximo mês'}
-          >›</button>
-        </div>
-
-        {/* Cabeçalho dos dias da semana */}
+        <div className="cal-corpo">
+        <div className="cal-mes-quadro">
+        {/* Cabeçalho dos dias da semana: as três primeiras letras. */}
         <div className="cal-weekdays">
           {DIAS_SEMANA_FULL.map((d) => (
-            <div key={d} className="cal-weekday">{d}</div>
+            <div key={d} className="cal-weekday">{String(d).slice(0, 3)}</div>
           ))}
         </div>
 
         {/* Grade de dias */}
         <div className="cal-grid">
           {celulas.map((dia, idx) => {
-            if (dia === null) return <div key={`off-${idx}`} />;
+            if (dia === null) return <div key={`off-${idx}`} className="cal-dia-vazio" aria-hidden="true" />;
             const ehHoje   = hoje && hoje.ano === anoFoco && hoje.mes === mesFoco && hoje.dia === dia;
             const feriados = feriadosPorDia[dia] || [];
             const temFeriado = feriados.length > 0;
@@ -1866,16 +2166,17 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
               'cal-dia',
               ehHoje   ? 'is-hoje'        : '',
               ehAniv   ? 'is-aniversario' : '',
-              (!ehHoje && !ehAniv && focado) ? 'is-focado' : '',
+              focado   ? 'is-focado'      : '',
             ].filter(Boolean).join(' ');
             return (
               <button
                 key={dia}
                 className={classes}
                 onClick={() => selecionarDia(dia)}
+                aria-pressed={focado}
                 aria-label={`${dia}${temFeriado ? ' — ' + feriados.join(', ') : ''}${ehAniv ? (en ? ' — Birthday' : ' — Aniversário') : ''}${temNota ? ' — ' + notasPorDia[dia] : ''}`}
               >
-                <span>{dia}</span>
+                <span className="cal-dia-num">{dia}</span>
                 {(temFeriado || ehAniv || temNota) && (
                   <div className="cal-dia-dots">
                     {temFeriado && <span className="cal-dot cal-dot-feriado" />}
@@ -1887,33 +2188,18 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
             );
           })}
         </div>
+        </div>{/* cal-mes-quadro */}
 
+        <aside className="cal-agenda">
         {/* Painel de detalhe do dia selecionado */}
         {temConteudoPainel && (
           <div className="cal-painel">
             <div className="cal-painel-eyebrow">
               <span className="cal-painel-dia-label">
-                {en ? `Day ${diaFoco}` : `Dia ${diaFoco}`}
+                <span className="cal-painel-dia-num">{diaFoco}</span>
+                <span className="cal-painel-dia-semana">{DIAS_SEMANA_FULL[(primeiroDiaSemana + diaFoco - 1) % 7]}</span>
               </span>
               <div className="cal-painel-acoes">
-                {podeEditar && onDefinirDataAtual && (
-                  (dataAtual && dataAtual.dia === diaFoco && dataAtual.mes === mesFoco && (dataAtual.ano ?? 0) === anoFoco) ? (
-                    <span className="cal-data-atual-tag">
-                      <i className="ti ti-map-pin-filled" aria-hidden="true" />
-                      {en ? 'Current date' : 'Data atual'}
-                    </span>
-                  ) : (
-                    <button
-                      className="cal-definir-data-btn"
-                      onClick={definirComoDataAtual}
-                      disabled={definindoData}
-                      {...propsTip(abrirTip, fecharTip, en ? 'Set as current date' : 'Definir como data atual')}
-                    >
-                      <i className="ti ti-calendar-check" aria-hidden="true" />
-                      <span>{definindoData ? (en ? 'Setting…' : 'Definindo…') : (en ? 'Set as current' : 'Definir como atual')}</span>
-                    </button>
-                  )
-                )}
                 {!inputAtivo && (
                   <button
                     className="cal-nota-del"
@@ -1926,6 +2212,24 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
                 )}
               </div>
             </div>
+
+            {podeEditar && onDefinirDataAtual && (
+              (dataAtual && dataAtual.dia === diaFoco && dataAtual.mes === mesFoco && (dataAtual.ano ?? 0) === anoFoco) ? (
+                <span className="cal-data-atual-tag">
+                  <i className="ti ti-map-pin-filled" aria-hidden="true" />
+                  {en ? 'Current date' : 'Data atual'}
+                </span>
+              ) : (
+                <button
+                  className="cal-definir-data-btn"
+                  onClick={definirComoDataAtual}
+                  disabled={definindoData}
+                >
+                  <i className="ti ti-calendar-check" aria-hidden="true" />
+                  <span>{definindoData ? (en ? 'Setting…' : 'Definindo…') : (en ? 'Set as current date' : 'Definir como data atual')}</span>
+                </button>
+              )
+            )}
 
             {/* Aniversário */}
             {diaFoco === diaAniversario && (
@@ -1984,21 +2288,25 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
                   disabled={salvando}
                   aria-label={en ? 'Save' : 'Salvar'}
                 >
-                  {salvando ? '…' : (en ? 'Save' : 'Ok')}
+                  {salvando ? '…' : (en ? 'Save' : 'Salvar')}
                 </button>
                 <button
                   className="cal-input-cancel"
                   onClick={() => { setInputAtivo(false); setRascunho(notasPorDia[diaFoco] || ''); }}
                   aria-label={en ? 'Cancel' : 'Cancelar'}
                 >
-                  ✕
+                  <i className="ti ti-x" aria-hidden="true" />
                 </button>
               </div>
+            )}
+
+            {!(feriadosPorDia[diaFoco] || []).length && diaFoco !== diaAniversario && !notasPorDia[diaFoco] && !inputAtivo && (
+              <p className="cal-agenda-vazio">{en ? 'Nothing on this day.' : 'Nada neste dia.'}</p>
             )}
           </div>
         )}
 
-        {/* Legenda do mês — visível quando nenhum dia está selecionado */}
+        {/* O mês — visível quando nenhum dia está selecionado */}
         {!diaFoco && (() => {
           // Mescla feriados, aniversário e notas numa lista plana ordenada por dia
           const itens = [];
@@ -2010,23 +2318,22 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
             itens.push({ dia: Number(dia), tipo: 'nota', texto })
           );
           itens.sort((a, b) => a.dia - b.dia);
-          if (itens.length === 0) return (
-            <div className="cal-vazio">
-              {en ? 'No holidays this month' : 'Nenhum feriado neste mês'}
-            </div>
-          );
           return (
             <div className="cal-legenda">
-              {itens.map((item, idx) => (
-                <div key={idx} className="cal-legenda-row">
-                  <span className={`cal-legenda-num-${item.tipo}`}>{item.dia}</span>
-                  <span className="cal-legenda-sep">·</span>
-                  <span className={`cal-legenda-nome-${item.tipo}`}>{item.texto}</span>
-                </div>
+              <p className="cal-agenda-rotulo">{en ? 'This month' : 'Neste mês'}</p>
+              {itens.length === 0 ? (
+                <p className="cal-agenda-vazio">{en ? 'No holidays this month' : 'Nenhum feriado neste mês'}</p>
+              ) : itens.map((item, idx) => (
+                <button key={idx} type="button" className={'cal-legenda-row is-' + item.tipo} onClick={() => selecionarDia(item.dia)}>
+                  <span className="cal-legenda-num">{item.dia}</span>
+                  <span className="cal-legenda-nome">{item.texto}</span>
+                </button>
               ))}
             </div>
           );
         })()}
+        </aside>
+        </div>{/* cal-corpo */}
       </div>{/* cal-modal */}
       </div>{/* menestrel-ui */}
       <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
@@ -2319,7 +2626,23 @@ function periodoDoJogo(data) {
    Sem historiaId (mesa não resolvida) não monta nada — mesmo contrato da
    CentralMensagens.
 */
-function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, limiteFreeHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, limiteFreePersonagem, esconderBotaoPersonagem, dataNascPjAtivo = null, onDataAtual = null }) {
+function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, esconderBotaoPersonagem, dataNascPjAtivo = null, onDataAtual = null }) {
+  /* A ALTURA REAL DA PÍLULA (revisão, 22/10/2026): no celular e no tablet ela
+     quebra em linhas — e "Novo personagem" pode abrir mais uma. Um número fixo
+     deixava o conteúdo por baixo dela. Ref de callback: acompanha o elemento
+     mesmo quando ele é recriado; publica a altura em --cdj-h no #root. */
+  const roCdj = React.useRef(null);
+  const medirCdj = React.useCallback((el) => {
+    if (roCdj.current) { roCdj.current.disconnect(); roCdj.current = null; }
+    /* Sem a faixa (fora de mesa), a altura dela é zero — e não o último valor
+       medido nem o padrão do CSS, que deixavam um vão acima do conteúdo. */
+    if (!el) { const r = document.getElementById('root'); if (r) r.style.setProperty('--cdj-h', '0px'); return; }
+    if (typeof ResizeObserver === 'undefined') return;
+    const raiz = el.closest('#root') || document.documentElement;
+    const ro = new ResizeObserver(() => raiz.style.setProperty('--cdj-h', Math.ceil(el.getBoundingClientRect().height) + 'px'));
+    ro.observe(el);
+    roCdj.current = ro;
+  }, []);
   const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const [dataAtual, setDataAtual] = useState(null); // { dia, mes, ano, local } | null
   const [carregando, setCarregando] = useState(true);
@@ -2579,7 +2902,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     const { data: pjs, error: erroPjs } = await supabaseClient
       .from('personagens').select('*').in('id', ids);
     if (erroPjs || !pjs) { console.error('[desgaste] não consegui ler os PJs:', erroPjs); return; }
-    const semKarma = window.SEM_KARMA || new Set(['Guerreiro', 'Ladino']);
+    const semKarma = window.SEM_KARMA || new Set();   // vazio desde 23/10/2026: todos podem ter Karma
     await Promise.all(pjs.map((pj) => {
       /* A Licantropia que venceu nesta virada sai do estado (22/10/2026): é o
          que devolve o lobisomem à forma normal em telas que leem o PJ sem a
@@ -2842,10 +3165,18 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
      uma história. O dropdown antigo se escondia com `length > 1` (uma lista de
      um item não serve pra nada), mas a porta de saída serve: sem ela, um
      Mestre de mesa única entrava e nunca mais via a tela de escolha. */
-  const mostrarSairMesa = profile === 'master' && mesaAtivaId && minhasHistorias && setMesaAtivaId && !esconderSeletorEBotaoNovo;
+  /* O "Sair" da mesa saiu da pílula em 22/10/2026 (usuário): mora no seletor
+     da mesa, no topo do menu lateral, junto de trocar de mesa e "Todas as
+     mesas". O bloco abaixo fica desligado em vez de apagado — a decisão de
+     20/09 e o porquê dela seguem no comentário. */
+  const mostrarSairMesa = false;
 
   return (
-    <div className="menestrel-ui cdj-root" style={{ left: sidebarLargura, transition: 'left .32s cubic-bezier(.4,0,.2,1)' }}>
+    <div className="menestrel-ui cdj-root" ref={medirCdj} style={{ left: sidebarLargura, transition: 'left .32s cubic-bezier(.4,0,.2,1)' }}>
+      {/* O TRILHO (23/10/2026): data, lugar, hora e tempo num trilho só, como a
+          barra de ações da ficha. A faixa .cdj-root continua da largura toda;
+          o trilho encolhe ao conteúdo dentro dela. */}
+      <div className="cdj-trilho">
       {/* SAIR DA MESA, no lugar do dropdown (20/09/2026). "Assim como o
           jogador escolhe o personagem, e continua com ele enquanto não clicar
           no botão sair. Isso deve acontecer com o mestre para a escolha a
@@ -2885,9 +3216,12 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
             <button
               type="button"
               className="cdj-bar is-editavel"
-              onClick={() => setCalendarioAberto(true)}
+              onClick={() => { fecharTip(); setCalendarioAberto(true); }}
               disabled={false}
               aria-label={en ? 'Current in-game date' : 'Data atual do jogo'}
+              /* Os balões do trilho do topo dizem O QUE é cada botão (23/10/2026):
+                 Calendário, Localização, Horário, Umidade, Vento, Temperatura. */
+              {...propsTip(abrirTip, fecharTip, en ? 'Calendar' : 'Calendário')}
             >
               <i className="ti ti-calendar-event" aria-hidden="true" />
               {dataAtual && dataAtual.dia ? (
@@ -2897,7 +3231,11 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                     const diaSemana = calcDiaSemanaFantasy(dataAtual.ano, dataAtual.mes, dataAtual.dia);
                     const nomeMesShort = nomeMes.replace(/^Mês /, '');
                     const diaSemanaCap = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1).toLowerCase();
-                    return `${diaSemanaCap}, ${dataAtual.dia} ${nomeMesShort} de ${dataAtual.ano}`;
+                    return (<>
+                      <span className="cdj-data-longa">{`${diaSemanaCap}, ${dataAtual.dia} ${nomeMesShort} de ${dataAtual.ano}`}</span>
+                      {/* No celular, a forma curta — a pílula inteira cabe. */}
+                      <span className="cdj-data-curta">{`${dataAtual.dia} ${nomeMesShort}`}</span>
+                    </>);
                   })()}
                 </span>
               ) : (
@@ -2914,13 +3252,15 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                   type="button"
                   className={'cdj-bar' + (podeEditar ? ' is-editavel' : '') + (editando === 'local' ? ' is-open' : '')}
                   onClick={() => {
+                    if (!podeEditar) return;
                     if (editando === 'local') { setEditando(null); return; }
                     // O tooltip do pill taparia a primeira linha da lista.
                     fecharTip();
                     abrirEdicao('local');
                   }}
-                  disabled={!podeEditar}
+                  aria-disabled={!podeEditar || undefined}
                   aria-label={en ? 'Current in-game location' : 'Local atual do jogo'}
+                  {...propsTip(abrirTip, fecharTip, en ? 'Location' : 'Localização')}
                   aria-haspopup={podeEditar ? 'listbox' : undefined}
                   aria-expanded={podeEditar ? editando === 'local' : undefined}
                 >
@@ -2993,7 +3333,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                       fecharTip();
                       setHoraAberta((v) => !v);
                     }}
-                    {...propsTip(abrirTip, fecharTip, texto)}
+                    {...propsTip(abrirTip, fecharTip, en ? 'Time' : 'Horário')}
                   >
                     {/* SÓ O ÍCONE (20/09/2026): "no botão de horário, não
                         precisa do texto '12h', deixe apenas o ícone. E o texto
@@ -3001,6 +3341,10 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                         hora exata vive no balão, que `texto` acima já monta
                         como "14h · Dia". */}
                     <i className={'ti ' + periodo.ic} aria-hidden="true" />
+                    {/* A HORA ESCRITA (22/10/2026, usuário: "Escrever"): a página
+                        diz onde a cena está sem precisar do balão. Desfaz o
+                        "só o ícone" de 20/09 acima, a pedido. */}
+                    <span className="cdj-hora-txt">{luz.hora}h</span>
                   </button>
                   {horaAberta && (
                     <ul className="cdj-hora-lista" role="listbox" aria-label={en ? 'In-game hour' : 'Hora do jogo'}>
@@ -3047,9 +3391,15 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                         fecharTip();
                         setTempoAberto(aberta ? null : trilha.chave);
                       }}
-                      {...propsTip(abrirTip, fecharTip, texto)}
+                      {...propsTip(abrirTip, fecharTip, ({
+                        agua: en ? 'Humidity' : 'Umidade',
+                        vento: en ? 'Wind' : 'Vento',
+                        temperatura: en ? 'Temperature' : 'Temperatura',
+                      })[trilha.chave] || nomeTrilha)}
                     >
                       <i className={'ti ' + degrau.ic} aria-hidden="true" />
+                      {/* O clima em palavras ao lado do ícone (22/10/2026). */}
+                      <span className="cdj-tempo-txt">{en ? degrau.en : degrau.pt}</span>
                     </button>
                     {aberta && (
                       <ul className="cdj-tempo-lista" role="listbox" aria-label={nomeTrilha}>
@@ -3098,15 +3448,13 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
           type="button"
           className="cdj-pill-btn-salvar"
           onClick={onNovaHistoria}
-          disabled={!!limiteFreeHistoria}
-          {...propsTip(abrirTip, fecharTip, limiteFreeHistoria ? (en ? `Free plan limit reached (${PLANO_FREE_LIMITES.historias} story)` : `Limite do plano free atingido (${PLANO_FREE_LIMITES.historias} história)`) : undefined)}
           style={{
             pointerEvents: 'auto',
-            background: limiteFreeHistoria ? 'rgba(201,164,78,0.25)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
+            background: 'linear-gradient(135deg,var(--ouro) 0%,var(--ouro-2) 100%)',
             border: 'none', borderRadius: 999, height: 32, outline: 'none',
             fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', fontWeight: 600, flexShrink: 0,
-            color: limiteFreeHistoria ? '#BFAF8E' : '#1C1407',
-            padding: '0 18px 0 14px', cursor: limiteFreeHistoria ? 'help' : 'pointer',
+            color: 'var(--sobre-vivo)',
+            padding: '0 18px 0 14px', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
         >
@@ -3118,22 +3466,21 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
           type="button"
           className="cdj-pill-btn-salvar"
           onClick={onNovoPersonagem}
-          disabled={!!limiteFreePersonagem}
-          {...propsTip(abrirTip, fecharTip, limiteFreePersonagem ? (en ? `Free plan limit reached (${PLANO_FREE_LIMITES.personagens} character)` : `Limite do plano free atingido (${PLANO_FREE_LIMITES.personagens} personagem)`) : undefined)}
           style={{
             pointerEvents: 'auto',
-            background: limiteFreePersonagem ? 'rgba(201,164,78,0.25)' : 'linear-gradient(135deg,#C9A44E 0%,#B8702E 100%)',
+            background: 'linear-gradient(135deg,var(--ouro) 0%,var(--ouro-2) 100%)',
             border: 'none', borderRadius: 999, height: 32, outline: 'none',
             fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', fontWeight: 600, flexShrink: 0,
-            color: limiteFreePersonagem ? '#BFAF8E' : '#1C1407',
-            padding: '0 18px 0 14px', cursor: limiteFreePersonagem ? 'help' : 'pointer',
+            color: 'var(--sobre-vivo)',
+            padding: '0 18px 0 14px', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
         >
           {en ? 'New character' : 'Novo personagem'}
         </button>
       )}
-      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+      </div>
+      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} abaixo />
     </div>
   );
 }
@@ -3161,6 +3508,8 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
   const [abertoD10, setAbertoD10] = useState(false);
   const en = lang === 'en';
 
+  /* Na barra de ações da ficha (22/10/2026), quando o console a oferece. */
+  const alvoAcoes = useAlvoPortal('mc-acoes-ficha');
   const _RolagemD20Overlay = (typeof RolagemD20Overlay !== 'undefined' ? RolagemD20Overlay : null) || window.RolagemD20Overlay || null;
   const _RolagemD10Overlay = (typeof RolagemD10Overlay !== 'undefined' ? RolagemD10Overlay : null) || window.RolagemD10Overlay || null;
 
@@ -3188,16 +3537,19 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
 
   return (
     <>
-      <div className="menestrel-ui rl-root">
+      {(() => { const dados = (
+      <div className={'menestrel-ui rl-root' + (alvoAcoes ? ' mc-acao-grupo' : '')}>
         {/* Fab D20 — .rl-fab garante pointer-events:auto */}
         <button
           type="button"
           className="rl-fab"
           onClick={() => setAbertoD20(true)}
           aria-label={en ? 'Free roll D20' : 'Rolamento livre D20'}
-          {...propsTip(abrirTip, fecharTip, 'D20')}
+          {...(alvoAcoes ? {} : propsTip(abrirTip, fecharTip, 'D20'))}
         >
+          {/* Na barra, com o nome, como Habilidades e Magias (23/10/2026). */}
           <i className="ti ti-number-20-small" aria-hidden="true" />
+          {alvoAcoes && <span className="mc-acao-rotulo">D20</span>}
         </button>
 
         {/* Fab D10 — também usa .rl-fab para herdar pointer-events:auto;
@@ -3205,15 +3557,16 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
         <button
           type="button"
           className="rl-fab"
-          style={{ top: 76 }}
+          style={alvoAcoes ? undefined : { top: 76 }}
           onClick={() => setAbertoD10(true)}
           aria-label={en ? 'Free roll D10' : 'Rolamento livre D10'}
-          {...propsTip(abrirTip, fecharTip, 'D10')}
+          {...(alvoAcoes ? {} : propsTip(abrirTip, fecharTip, 'D10'))}
         >
           <i className="ti ti-number-10-small" aria-hidden="true" />
+          {alvoAcoes && <span className="mc-acao-rotulo">D10</span>}
         </button>
         <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-      </div>
+      </div>); /* Os dados SAÍRAM da barra de ações da ficha (23/10/2026, pedido do usuário); fora da ficha seguem flutuando. */ return alvoAcoes ? null : dados; })()}
 
       {/* Overlay D20 */}
       {abertoD20 && _RolagemD20Overlay && (() => {
@@ -3292,12 +3645,34 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   // Prioridade de restauração: Supabase (userProfile prop) > localStorage > 'player' (novo usuário).
   // O valor inicial é um PALPITE: o AdminConsole monta antes de userProfile
   // chegar (App faz setUser(u) e só então `await carregarProfile(u)`).
-  const [profile, setProfile] = useState(() => {
+  /* MESTRE SÓ O ADMINISTRADOR (23/10/2026): "Apenas a conta richardnanet@gmail.com
+     poderá ser mestre ou jogador, todas as outras contas serão jogadores
+     automaticamente." O banco garante o mesmo (trg_mestre_somente_admin). */
+  const ehAdmin = String((user && user.email) || '').toLowerCase() === 'richardnanet@gmail.com';
+  const [profileEscolhido, setProfile] = useState(() => {
     if (userProfile && typeof userProfile.perfil_tipo === 'string') return userProfile.perfil_tipo;
     try { const s = localStorage.getItem('menestrel.profile'); if (s === 'master' || s === 'player') return s; }
     catch (e) {}
     return 'player'; // padrão para contas novas
   });
+
+  const profile = ehAdmin ? profileEscolhido : 'player';
+
+  /* A PALETA DO USUÁRIO (23/10/2026): a do perfil no servidor manda; antes
+     dela chegar, a da última visita (localStorage, já aplicada no index.html
+     para não piscar). Escolher grava em profiles.paleta. */
+  const [paleta, setPaleta] = useState(() => {
+    try { const v = localStorage.getItem('menestrel.paleta'); return PALETAS.some((p) => p.id === v) ? v : PALETA_PADRAO; } catch (e) { return PALETA_PADRAO; }
+  });
+  useEffect(() => { aplicarPaleta(paleta); }, [paleta]);
+  useEffect(() => {
+    if (userProfile && PALETAS.some((p) => p.id === userProfile.paleta)) setPaleta(userProfile.paleta);
+  }, [userProfile && userProfile.paleta]);
+  const escolherPaleta = async (id) => {
+    setPaleta(id);
+    const { error } = await supabaseClient.from('profiles').update({ paleta: id }).eq('id', user.id);
+    if (error) console.error('[paleta] não gravou:', error);
+  };
 
   // O que sabemos estar GRAVADO no servidor. null = ainda não sabemos — e
   // nesse estado não se escreve nada (ver devePersistirPerfil).
@@ -3360,11 +3735,21 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   // "inventario" e "loja" foram removidos do menu lateral.
   // "guia_personagem" é tratada como seção especial (fora do ADMIN_SECTIONS) — não aparece
   // no menu lateral, só é acessada via onHelp. Por isso o useEffect de guarda não a reverte.
-  const SECTIONS_OCULTAS = ['inventario', 'loja', 'itens_campanha'];
-  const SECTIONS_ESPECIAIS = ['guia_personagem'];
-  const sections = (ADMIN_SECTIONS[profile] || []).filter((s) => !SECTIONS_OCULTAS.includes(s.id));
+  /* MESA EM SESSÃO (22/10/2026): os destinos novos (Cena, Batalha, Loja da
+     mesa, Jogadores; Ficha, Inventário, Loja) vêm de SECOES_DA_MESA e entram
+     na FRENTE — a primeira seção é a porta de entrada de cada perfil. */
+  const SECTIONS_OCULTAS = [];
+  const SECTIONS_ESPECIAIS = ['guia_personagem', 'historias'];
+  const _extras = ((typeof SECOES_DA_MESA !== 'undefined' && SECOES_DA_MESA[profile]) || []).map((e) => ({ id: e.id, icone: e.icone, rotulo: e.rotulo }));
+  const sections = [
+    ..._extras,
+    ...(ADMIN_SECTIONS[profile] || []).filter((s) => !SECTIONS_OCULTAS.includes(s.id) && !_extras.some((e) => e.id === s.id)),
+  ];
   const [currentId, setCurrentId] = useState(() => {
-    try { return localStorage.getItem('menestrel.section') || sections[0].id; }
+    /* A porta antiga vira a nova (22/10/2026): quem parou em Histórias entra
+       na Cena; quem parou em Meus Personagens, na Ficha. */
+    const MIGRA = { historias: 'cena', personagens_j: 'ficha' };
+    try { const v = localStorage.getItem('menestrel.section'); return (v && (MIGRA[v] || v)) || sections[0].id; }
     catch (e) { return sections[0].id; }
   });
   useEffect(() => {
@@ -3394,13 +3779,18 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   useEffect(() => {
     try { localStorage.setItem('menestrel.sectionFiltro', secaoFiltro); } catch (e) {}
   }, [secaoFiltro]);
-  const menu = (typeof ADMIN_MENU !== 'undefined' && ADMIN_MENU[profile]) || [];
+  const nav = (typeof NAV_MESA !== 'undefined' && NAV_MESA[profile]) || { mesa: [], regras: [] };
+  const menu = [...nav.mesa, ...nav.regras];
   const folhas = typeof folhasDoMenu === 'function' ? folhasDoMenu(menu) : [];
   /* A folha aberta. Filtro que não existe na seção atual (ficou de uma visita
      antiga, ou a seção veio por outro caminho) cai na PRIMEIRA folha da
      seção — não há "Todas" desde 26/09/2026. */
+  /* No Livro de Regras (23/10/2026) filtro vazio quer dizer TODOS: o filtro
+     agora é escolhido no trilho, e sem ele a página abria só a primeira folha
+     (Criaturas mostrava só os animais, sem dizer). */
+  const LIVRO_SECOES = ['criaturas', 'itens', 'magias', 'tecnicas', 'habilidades'];
   const folhaAtual = folhas.find((f) => f.secao === currentId && (f.filtro || '') === secaoFiltro)
-    || folhas.find((f) => f.secao === currentId) || null;
+    || (LIVRO_SECOES.includes(currentId) ? null : folhas.find((f) => f.secao === currentId)) || null;
   const filtroAtual = folhaAtual ? (folhaAtual.filtro || '') : '';
   const tituloDaFolha = folhaAtual && (folhaAtual.titulo || (folhaAtual.filtro ? folhaAtual.rotulo : null));
   const tituloPagina = tituloDaFolha ? (tituloDaFolha[lang] || tituloDaFolha.pt) : undefined;
@@ -3412,7 +3802,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
      tabela saía mais estreita que a das outras ("a largura da tabela em
      lugares, npcs está menor que em itens, magias" — usuário). */
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'locais', 'npcs', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'locais', 'npcs', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'cena', 'batalha', 'loja_mesa', 'jogadores', 'ficha', 'inventario', 'loja'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
@@ -3440,7 +3830,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   // Mesma regra de limite que a HistoriasList aplica internamente — calculada
   // aqui também só pra decidir o estado visual (disabled + tooltip) do botão
   // do pill, que vive fora da HistoriasList.
-  const limiteFreeHistorias = userProfile?.plano === 'free' && (minhasHistorias?.length ?? 0) >= PLANO_FREE_LIMITES.historias;
   // Quando a HistoriasList está dentro de um menu interno da aventura (loja,
   // lore, batalhas, convites), o pill do topo inteiro (seletor de mesa +
   // "Nova história") fica escondido — esses controles só existem na tela
@@ -3454,7 +3843,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   // AdminConsole não tem uma query própria de personagens.
   const abrirNovoPersonagemRef = React.useRef(null);
   const [personagensDentroDeMenu, setPersonagensDentroDeMenu] = useState(false);
-  const [limiteFreePersonagens, setLimiteFreePersonagens] = useState(false);
   // true quando FichaPersonagem está montada (PersonagensList reporta via onFichaAberta)
   const [fichaAtiva, setFichaAtiva] = useState(false);
   // nome do PJ ativo (PersonagensList reporta via onNomePjAtivo) — usado na notificação de rolamento livre
@@ -3470,7 +3858,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     (async () => {
       if (profile === 'master') {
         const { data, error } = await supabaseClient
-          .from('historias').select('id, titulo').eq('mestre_id', user.id)
+          .from('historias').select('id, titulo, pausada').eq('mestre_id', user.id)
           .order('created_at', { ascending: false });
         if (cancel) return;
         /* Falha na busca NÃO vira lista vazia (15/09/2026: "às vezes o sistema
@@ -3538,7 +3926,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
 
      Só ícones, então o NOME de cada seção passa a viver inteiramente no
      tooltip — que já existia e já era acionado no hover (abrirNavTip). */
-  const SIDEBAR_LARGURA = 64;
+  // 232px com rótulos desde 22/10/2026 (Mesa em Sessão) — ver o comentário acima,
+  // que registra a decisão anterior (64px só de ícones) e por que mudou.
+  const SIDEBAR_LARGURA = 232;
 
   /* A LUZ DO FUNDO SEGUE O RELÓGIO DA MESA (20/09/2026). Quem carrega e assina
      `historias.data_jogo_atual` é o CardDataJogoAtual, lá embaixo na barra do
@@ -3552,11 +3942,167 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const avatarRef = React.useRef(null);
 
+  /* ── MESA EM SESSÃO (22/10/2026): estado da navegação nova ── */
+  // A aba que a ficha está mostrando (ela avisa) — o menu marca o item certo
+  // mesmo quando a troca de aba é feita lá dentro.
+  const [abaFichaAtual, setAbaFichaAtual] = useState(null);
+  const [sairToken, setSairToken] = useState(0);     // "Trocar de personagem"
+  const [identAberto, setIdentAberto] = useState(false);
+  // Ação da mesa pedida pelo menu (Pausar/Editar/Excluir, 23/10/2026): a Cena executa.
+  const [acaoMesa, setAcaoMesa] = useState(null);
+  // Gavetas do grupo da mesa (Diário; a Loja do Mestre): quais estão abertas.
+  const [gavetas, setGavetas] = useState({});
+  const [navAberta, setNavAberta] = useState(false); // celular: a folha "Mais"
+  /* Busca no Livro de Regras (22/10/2026): Ctrl+K em qualquer tela, ou o
+     campo do menu. `pedidoLivro` leva à lista a entrada escolhida, para ela
+     abrir a janela daquela linha (ver useAbrirDoLivro em 09-bestiario). */
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const [fichaTemAnimais, setFichaTemAnimais] = useState(false);
+  const [pedidoLivro, setPedidoLivro] = useState(null);
+  // A entrada escolhida na busca, aberta só em janela (23/10/2026).
+  const [livroFlutuante, setLivroFlutuante] = useState(null);
+  useEffect(() => {
+    const atalho = (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setBuscaAberta((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', atalho);
+    return () => document.removeEventListener('keydown', atalho);
+  }, []);
+  const identRef = React.useRef(null);
+  useEffect(() => {
+    if (!identAberto) return undefined;
+    const fora = (e) => { if (identRef.current && !identRef.current.contains(e.target)) setIdentAberto(false); };
+    const esc = (e) => { if (e.key === 'Escape') setIdentAberto(false); };
+    document.addEventListener('mousedown', fora);
+    window.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc); };
+  }, [identAberto]);
+
+  const ABAS_DA_FICHA = { ficha: 'ficha', inventario: 'inventario', loja: 'loja' };
+  // A seção que o menu MARCA: dentro da ficha, a aba aberta lá decide.
+  const secaoMarcada = (profile === 'player' && ABAS_DA_FICHA[currentId] && abaFichaAtual)
+    ? (abaFichaAtual === 'inventario' || abaFichaAtual === 'loja' ? abaFichaAtual : 'ficha')
+    : currentId;
+  const ir = (secao, filtro) => {
+    setPainelMenu(null); setNavAberta(false); setIdentAberto(false);
+    setPedidoLivro(null);
+    setCurrentId(secao);
+    setSecaoFiltro(filtro || '');
+    setNavToken((n) => n + 1);
+  };
+  // Ícones que dizem o que são (a crítica achou balança, alvo e morcego opacos).
+  const ICONE_NAV = {
+    cena: 'ti-building-castle', batalha: 'ti-swords', personagens_m: 'ti-users', loja_mesa: 'ti-building-store',
+    jogadores: 'ti-mail', ficha: 'ti-id', inventario: 'ti-briefcase-2', loja: 'ti-building-store',
+    ficha_ficha: 'ti-layout-dashboard', ficha_ident: 'ti-id', ficha_conhec: 'ti-book', ficha_comp: 'ti-paw',
+    aventuras: 'ti-map-2', criaturas: 'ti-skull', itens: 'ti-backpack', magias: 'ti-sparkles',
+    tecnicas: 'ti-sword', habilidades: 'ti-bolt', itens_campanha: 'ti-box', diario: 'ti-notebook',
+    bestiario: 'ti-skull', comercio: 'ti-backpack', historias: 'ti-books',
+  };
+  const iconeDe = (no) => ICONE_NAV[no.id] || ICONE_NAV[no.secao] || 'ti-point';
+  const rotuloDe = (no) => {
+    if (no.rotulo) return no.rotulo[lang] || no.rotulo.pt;
+    const e = _extras.find((x) => x.id === no.secao);
+    if (e) return e.rotulo[lang] || e.rotulo.pt;
+    if (profile === 'player' && no.secao === 'aventuras') return lang === 'en' ? 'Table' : 'Mesa';
+    return (ac.sections[no.secao] || { label: no.secao }).label;
+  };
+  // Destino de um nó com filhos: ele mesmo (se navega) ou a primeira folha.
+  const destinoDe = (no) => (no.navega ? no : (folhasDoMenu([no])[0] || no));
+  const contemSecao = (no) => folhasDoMenu([no]).some((f) => f.secao === secaoMarcada);
+  const mesaAtiva = (minhasHistorias || []).find((h) => h.id === mesaAtivaId) || null;
+  const nomePersonagem = (pjAtivo && [pjAtivo.nome, pjAtivo.sobrenome].filter(Boolean).join(' ')) || nomePjAtivo || null;
+  /* Vindo da busca, a lista abre INTEIRA (sem a folha do submenu): a entrada
+     escolhida pode ser de qualquer grupo, e não existe folha "Todos". */
+  const viaBusca = !!(pedidoLivro && pedidoLivro.secao === current.id);
+  const tituloAtual = (viaBusca ? null : tituloPagina) || rotuloDe({ secao: secaoMarcada });
+  useEffect(() => {
+    const g = nav.mesa.find((n) => n.filhos && contemSecao(n));
+    if (g) setGavetas((v) => (v[g.id] ? v : { ...v, [g.id]: true }));
+  },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [secaoMarcada]);
+
+  const itemNav = (no, extraClasse) => {
+    // As partes da ficha dividem a seção; quem marca é a aba aberta (23/10/2026).
+    const ativo = !no.filhos && no.secao === secaoMarcada
+      && (no.secao !== 'ficha' || !no.filtro || no.filtro === (abaFichaAtual || 'ficha'));
+    return (
+      <button key={(no.secao || no.id) + ':' + (no.filtro || '')} type="button"
+        className={'mc-navitem' + (extraClasse ? ' ' + extraClasse : '') + (ativo ? ' is-active' : '')}
+        aria-current={ativo ? 'page' : undefined}
+        onClick={() => { const d = destinoDe(no); ir(d.secao, d.filtro); }}>
+        <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
+        <span>{rotuloDe(no)}</span>
+      </button>
+    );
+  };
+  const renderNo = (no) => {
+    // Companheiros só quando o personagem tem algum (como Animais antes).
+    if (no.secao === 'ficha' && no.filtro === 'animais' && !fichaTemAnimais) return null;
+    if (!no.filhos) return itemNav(no);
+    // Grupo da MESA (Diário, Loja do Mestre): abre ali mesmo, como gaveta —
+    // são poucas folhas.
+    if (nav.mesa.includes(no)) {
+      const contem = contemSecao(no);
+      const aberta = !!gavetas[no.id];
+      return (
+        <div key={no.id} className="mc-navgaveta">
+          <button type="button" className={'mc-navitem' + (contem && !aberta ? ' is-active' : '')}
+            aria-expanded={aberta} onClick={() => setGavetas((v) => ({ ...v, [no.id]: !v[no.id] }))}>
+            <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
+            <span>{rotuloDe(no)}</span>
+            <i className={'ti ti-chevron-down mc-navseta' + (aberta ? ' is-aberta' : '')} aria-hidden="true" />
+          </button>
+          {aberta && (
+            <div className="mc-navfilhos">
+              {no.filhos.filter((f) => !(f.secao === 'ficha' && f.filtro === 'animais' && !fichaTemAnimais)).map((f) => {
+                /* Na gaveta da Ficha (23/10/2026) as folhas dividem a seção;
+                   quem marca é a aba aberta na ficha. */
+                const ativo = f.secao === secaoMarcada
+                  && (f.secao !== 'ficha' || !f.filtro || f.filtro === (abaFichaAtual || 'ficha'));
+                return (
+                  <button key={f.secao + ':' + (f.filtro || '')} type="button" className={'mc-navitem mc-navitem--filho' + (ativo ? ' is-active' : '')}
+                    aria-current={ativo ? 'page' : undefined} onClick={() => ir(f.secao, f.filtro)}>
+                    <span>{rotuloDe(f)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+    // Livro de Regras: clicar abre a lista; a seta abre os filtros ao lado.
+    const aberto = !!(painelMenu && painelMenu.grupo === no);
+    const contem = contemSecao(no);
+    return (
+      <div key={(no.secao || no.id) + ':grupo'} className="mc-navlinha">
+        <button type="button" className={'mc-navitem' + (contem ? ' is-active' : '')}
+          aria-current={contem ? 'page' : undefined}
+          onClick={() => { const d = destinoDe(no); ir(d.secao, d.filtro); }}>
+          <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
+          <span>{rotuloDe(no)}</span>
+        </button>
+        <button type="button" className={'mc-navgrupo mc-navmais' + (aberto ? ' is-open' : '')}
+          aria-haspopup="menu" aria-expanded={aberto}
+          aria-label={(lang === 'en' ? 'Filters of ' : 'Filtros de ') + rotuloDe(no)}
+          onClick={(e) => {
+            const rect = e.currentTarget.closest('.mc-navlinha').getBoundingClientRect();
+            setPainelMenu(aberto ? null : { grupo: no, rect });
+          }}>
+          <i className="ti ti-chevron-right" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  };
+
   const fullName = (user.user_metadata && user.user_metadata.full_name) || user.email;
   const firstName = fullName.split(' ')[0];
   const avatarUrl = user.user_metadata && (user.user_metadata.avatar_url || user.user_metadata.picture);
-  const planoPago = userProfile ? userProfile.plano === 'paid' : false;
-  const planoBadge = planoPago ? 'Premium' : (lang === 'en' ? 'Free' : 'Gratuito');
 
   return (
     <>
@@ -3619,129 +4165,193 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           ))}
 
           {/* Grade de pontos sutil */}
-          <div style={{ position: 'absolute', inset: 0, opacity: 0.1, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(201,164,78,0.6) 1px, transparent 0)', backgroundSize: '20px 20px' }} />
+          <div style={{ position: 'absolute', inset: 0, opacity: 0.1, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(var(--ouro-rgb),0.6) 1px, transparent 0)', backgroundSize: '20px 20px' }} />
         </div>
 
-        {/* SIDEBAR */}
-        <aside className="mc-sidebar">
-          {/* MARCA DO SISTEMA (12/09/2026). Era um anel em SVG com gradiente;
-              virou o dragão e, na mesma tarde, ti-currency-monero — que é o
-              que ficou. Sem círculo em volta, como o usuário pediu. */}
+        {/* MENU LATERAL — Mesa em Sessão (22/10/2026). Era um trilho de 64px só
+            de ícones, com o nome no tooltip ("sempre será pequeno", 12/09/2026).
+            A crítica de 22/10 mostrou o custo — ícones opacos, nada no toque — e
+            o usuário escolheu o menu com rótulos, nascendo da mesa (Mestre) ou do
+            personagem (Jogador). No celular ele vira a folha "Mais". */}
+        <aside className={'mc-sidebar' + (navAberta ? ' is-aberta' : '')} aria-label={lang === 'en' ? 'Navigation' : 'Navegação'}>
           <div className="mc-marca">
-            <i className="ti ti-currency-monero" aria-label="Menestrel" />
+            <span className="mc-marca-nome"><SeloMenestrel size={28} />Menestrel</span>
+            <button type="button" className="mc-navfechar" aria-label={lang === 'en' ? 'Close menu' : 'Fechar menu'}
+              onClick={() => setNavAberta(false)}>
+              <i className="ti ti-x" aria-hidden="true" />
+            </button>
           </div>
 
+          {/* IDENTIDADE: a mesa ativa (Mestre) ou o personagem ativo (Jogador). */}
+          <div className="mc-ident-wrap" ref={identRef}>
+            <button type="button" className="mc-ident" aria-haspopup="menu" aria-expanded={identAberto}
+              aria-label={(profile === 'master' ? (lang === 'en' ? 'Table: ' : 'Mesa: ') : (lang === 'en' ? 'Character: ' : 'Personagem: ')) + (profile === 'master' ? (mesaAtiva ? mesaAtiva.titulo : '—') : (nomePersonagem || '—'))}
+              onClick={() => setIdentAberto((v) => !v)}>
+              {/* O ESTÁGIO NO RETRATO (23/10/2026): saiu da faixa de experiência
+                  da ficha e virou um medalhão de ouro no canto da foto do
+                  personagem ativo — lido junto com quem ele é. */}
+              <span className="mc-ident-retrato">
+              {profile === 'player' && pjAtivo && typeof calcEstagio === 'function' && (
+                <span className="mc-ident-estagio" aria-label={(lang === 'en' ? 'Stage ' : 'Estágio ') + calcEstagio(Number(pjAtivo.experiencia) || 0)}>
+                  {calcEstagio(Number(pjAtivo.experiencia) || 0)}
+                </span>
+              )}
+              <span className="mc-ident-brasao" aria-hidden="true">
+                {profile === 'player' && pjAtivo && pjAtivo.foto_url
+                  ? <img src={pjAtivo.foto_url} alt="" />
+                  : profile === 'player'
+                    ? (nomePersonagem ? nomePersonagem.charAt(0).toUpperCase() : <i className="ti ti-user" />)
+                    : (mesaAtiva ? mesaAtiva.titulo.trim().charAt(0).toUpperCase() : <i className="ti ti-shield" />)}
+              </span>
+              </span>
+              <span className="mc-ident-txt">
+                <span className="mc-ident-nome">
+                  {profile === 'master'
+                    ? (mesaAtiva ? mesaAtiva.titulo : (lang === 'en' ? 'Choose a table' : 'Escolher mesa'))
+                    : (nomePersonagem || (lang === 'en' ? 'Choose a character' : 'Escolher personagem'))}
+                </span>
+              </span>
+              <i className="ti ti-selector mc-ident-seta" aria-hidden="true" />
+            </button>
+            {identAberto && (
+              <div className="mc-ident-menu" role="menu">
+                {profile === 'master' ? (
+                  <>
+                    {(minhasHistorias || []).map((h) => (
+                      <button key={h.id} type="button" role="menuitemradio" aria-checked={h.id === mesaAtivaId}
+                        className={'mc-menu-item' + (h.id === mesaAtivaId ? ' is-atual' : '')}
+                        onClick={() => { setMesaAtivaId(h.id); ir('cena'); }}>
+                        <span>{h.titulo}</span>
+                        {h.id === mesaAtivaId && <i className="ti ti-check" aria-hidden="true" />}
+                      </button>
+                    ))}
+                    {/* "Todas as mesas" saiu do menu (23/10/2026, pedido do usuário). */}
+                    {/* ESTA MESA (23/10/2026): Pausar, Editar e Excluir saíram do card
+                        da Cena e moram aqui, junto do nome da mesa. A ação vai para a
+                        Cena (HistoriasList), que é quem as executa (acaoMesa). */}
+                    {mesaAtivaId && (() => {
+                      const mesa = (minhasHistorias || []).find((h) => h.id === mesaAtivaId);
+                      const pedir = (acao) => { setIdentAberto(false); setAcaoMesa((a) => ({ acao, token: (a ? a.token : 0) + 1 })); ir('cena'); };
+                      return (
+                        <>
+                          <div className="mc-menu-regua" role="separator" />
+                          <p className="mc-menu-rotulo">{lang === 'en' ? 'This table' : 'Esta mesa'}</p>
+                          <button type="button" role="menuitem" className="mc-menu-item"
+                            onClick={() => {
+                              setMinhasHistorias((l) => (l || []).map((h) => (h.id === mesaAtivaId ? { ...h, pausada: !h.pausada } : h)));
+                              pedir('pausar');
+                            }}>
+                            <i className={'ti ' + (mesa && mesa.pausada ? 'ti-player-play' : 'ti-player-pause')} aria-hidden="true" />
+                            <span>{mesa && mesa.pausada ? (lang === 'en' ? 'Resume' : 'Retomar') : (lang === 'en' ? 'Pause' : 'Pausar')}</span>
+                          </button>
+                          <button type="button" role="menuitem" className="mc-menu-item" onClick={() => pedir('editar')}>
+                            <i className="ti ti-pencil" aria-hidden="true" /><span>{lang === 'en' ? 'Edit' : 'Editar'}</span>
+                          </button>
+                          <button type="button" role="menuitem" className="mc-menu-item mc-menu-item--perigo" onClick={() => pedir('excluir')}>
+                            <i className="ti ti-trash" aria-hidden="true" /><span>{lang === 'en' ? 'Delete' : 'Excluir'}</span>
+                          </button>
+                          <div className="mc-menu-regua" role="separator" />
+                        </>
+                      );
+                    })()}
+                    {mesaAtivaId && (
+                      <button type="button" role="menuitem" className="mc-menu-item" onClick={() => { setMesaAtivaId(null); ir('historias'); }}>
+                        <i className="ti ti-door-exit" aria-hidden="true" /><span>{lang === 'en' ? 'Leave' : 'Sair'}</span>
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <button type="button" role="menuitem" className="mc-menu-item" onClick={() => ir('ficha')}>
+                      <i className="ti ti-id" aria-hidden="true" /><span>{lang === 'en' ? 'Open sheet' : 'Abrir ficha'}</span>
+                    </button>
+                    <button type="button" role="menuitem" className="mc-menu-item"
+                      onClick={() => { setSairToken((n) => n + 1); ir('ficha'); }}>
+                      <i className="ti ti-arrows-exchange" aria-hidden="true" /><span>{lang === 'en' ? 'Switch character' : 'Trocar de personagem'}</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* MENU LATERAL REDESENHADO (23/10/2026, aprovado na prévia): a busca
+              no livro logo abaixo da mesa, sempre à mão; Criaturas, Itens,
+              Magias, Técnicas e Habilidades saíram do menu — a busca (Ctrl K)
+              acha qualquer entrada e o "Ver todos" de cada tipo abre a lista. */}
+          <button type="button" className="mc-navbusca mc-navbusca--topo" onClick={() => { setNavAberta(false); setBuscaAberta(true); }}
+            aria-keyshortcuts="Control+K">
+            <i className="ti ti-eye" aria-hidden="true" />
+            <span>{lang === 'en' ? 'Search' : 'Buscar'}</span>
+            <kbd>Ctrl K</kbd>
+          </button>
           <nav className="mc-nav">
-            {/* A barra lê a ÁRVORE (ADMIN_MENU) desde 26/09/2026: folhas de
-                topo seguem sendo botões de seção; grupos (Diário, Comércio,
-                Treinamento) abrem o painel ao lado — ver NavMenuPainel. */}
-            {menu.map((no) => {
-              if (no.filhos) {
-                const IconGrupo = Icon[no.icon] || Icon.Scroll;
-                const rotuloGrupo = no.rotulo[lang] || no.rotulo.pt;
-                const aberto = !!(painelMenu && painelMenu.grupo.id === no.id);
-                const contemAtual = !!folhaAtual && folhasDoMenu([no]).includes(folhaAtual);
-                return (
-                  <button
-                    key={no.id}
-                    type="button"
-                    className={'mc-navitem mc-navgrupo' + (contemAtual ? ' is-active' : '') + (aberto ? ' is-open' : '')}
-                    aria-haspopup="menu"
-                    aria-expanded={aberto}
-                    onClick={(e) => {
-                      fecharNavTip();
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setPainelMenu(aberto ? null : { grupo: no, rect });
-                    }}
-                    aria-label={rotuloGrupo}
-                    onMouseEnter={(e) => { if (!aberto) abrirNavTip(e, { title: rotuloGrupo }); }}
-                    onMouseLeave={fecharNavTip}
-                    onFocus={(e) => { if (!aberto) abrirNavTip(e, { title: rotuloGrupo }); }}
-                    onBlur={fecharNavTip}
-                  >
-                    <IconGrupo />
-                    <span>{rotuloGrupo}</span>
-                  </button>
-                );
-              }
-              const s = sections.find((x) => x.id === no.secao);
-              if (!s) return null;
-              const IconComp = Icon[s.icon] || Icon.Scroll;
-              const meta = ac.sections[s.id] || { label: s.id };
-              // "convites" agora abre modal em vez de navegar para uma aba
-              const isConvites = s.id === 'convites';
-              return (
-                <button
-                  key={s.id}
-                  className={'mc-navitem' + (!isConvites && currentId === s.id ? ' is-active' : '')}
-                  onClick={() => {
-                    setPainelMenu(null);
-                    if (isConvites) {
-                      setConviteModalAberto(true);
-                    } else {
-                      setCurrentId(s.id);
-                      setSecaoFiltro('');
-                      /* O TOQUE NO MENU CONTA, mesmo na seção já aberta
-                         (17/09/2026). `setCurrentId` com o mesmo valor não
-                         rerenderiza nada, então clicar em "Personagens" de
-                         dentro da ficha de um PJ não fazia absolutamente nada —
-                         e o Mestre, que não tem botão de sair, ficava sem
-                         caminho de volta. Este contador é o sinal de "você
-                         pediu esta seção de novo"; quem o escuta hoje é a
-                         lista de personagens do Mestre. */
-                      setNavToken((t) => t + 1);
-                    }
-                  }}
-                  aria-label={meta.label}
-                  onMouseEnter={(e) => abrirNavTip(e, { title: meta.label })}
-                  onMouseLeave={fecharNavTip}
-                  onFocus={(e) => abrirNavTip(e, { title: meta.label })}
-                  onBlur={fecharNavTip}
-                >
-                  <IconComp />
-                  <span>{meta.label}</span>
-                </button>
-              );
-            })}
+            <p className="mn-rotulo mc-nav-secao">{profile === 'master' ? (lang === 'en' ? 'Table' : 'Mesa') : (lang === 'en' ? 'Character' : 'Personagem')}</p>
+            {nav.mesa.map(renderNo)}
+            {/* O sino do Mestre (23/10/2026): a CentralMensagens desenha aqui. */}
+            {profile === 'master' && mesaAtivaId && (
+              <>
+                <div className="mc-nav-regua" role="separator" />
+                <div id="mc-sino-lateral" className="mc-sino-lateral" />
+              </>
+            )}
           </nav>
+          {buscaAberta && (
+            <BuscaLivro lang={lang} modoJogador={profile === 'player'} onClose={() => setBuscaAberta(false)}
+              onEscolher={(r) => {
+                /* Só a janela da entrada, sem sair da página (23/10/2026, "ao
+                   clicar em um item, ele volta a mostrar tabela, o certo
+                   deveria mostrar o modal, apenas"). A lista do tipo monta
+                   escondida (.livro-flutuante, abaixo) e abre a entrada; a
+                   janela vem por portal. A lista fica montada até a próxima
+                   escolha: Editar abre o editor a partir dela. */
+                setBuscaAberta(false);
+                setLivroFlutuante({ secao: r.secao, chave: r.novo ? null : r.chave, nome: r.novo ? null : r.nome, novo: !!r.novo, token: Date.now() });
+              }} />
+          )}
+          {/* Por portal na raiz do app: dentro do menu lateral, a janela fixa ficava presa a ele. */}
+          {livroFlutuante && ReactDOM.createPortal(
+            <div className="livro-flutuante" key={livroFlutuante.token}>
+              {(() => {
+                const Lista = { criaturas: CriaturasList, magias: MagiasList, habilidades: HabilidadesList,
+                  tecnicas: TecnicasList, itens: ItensList }[livroFlutuante.secao];
+                const Ctx = window.PainelLivroCtx;
+                const lista = Lista ? (
+                  <Lista ac={ac} lang={lang} modoJogador={profile === 'player'} historiaId={mesaAtivaId}
+                    filtro="" pedido={livroFlutuante} />
+                ) : null;
+                // Escondida: nem painel, nem trilho — só a janela da entrada.
+                return Ctx ? <Ctx.Provider value={{ el: null, desligado: true, dentro: false }}>{lista}</Ctx.Provider> : lista;
+              })()}
+            </div>,
+            document.querySelector('#root .menestrel-ui') || document.body
+          )}
           {painelMenu && (
             <NavMenuPainel
               grupo={painelMenu.grupo}
               ancora={painelMenu.rect}
               lang={lang}
               folhaAtual={folhaAtual}
-              onEscolher={(folha) => {
-                setPainelMenu(null);
-                setCurrentId(folha.secao);
-                setSecaoFiltro(folha.filtro || '');
-                setNavToken((t) => t + 1);
-              }}
+              onEscolher={(folha) => ir(folha.secao, folha.filtro)}
               onFechar={() => setPainelMenu(null)}
             />
           )}
 
-          <div
-            className="mc-user"
-            style={{ position: 'relative' }}
-            onClick={() => setUserMenuOpen((v) => !v)}
-            onMouseEnter={(e) => abrirNavTip(e, fullName || user.email)}
-            onMouseLeave={fecharNavTip}
-          >
-            {avatarUrl ? (
-              <img
-                ref={avatarRef}
-                src={avatarUrl} alt={firstName} referrerPolicy="no-referrer"
-                style={{ width: 30, height: 30, borderRadius: 999, objectFit: 'cover', border: '1px solid rgba(201,164,78,0.35)', flexShrink: 0, cursor: 'pointer' }} />
-            ) : (
-              <div
-                ref={avatarRef}
-                style={{ width: 30, height: 30, borderRadius: 999, display: 'grid', placeItems: 'center', background: 'rgba(138,110,64,0.35)', border: '1px solid rgba(138,110,64,0.50)', color: '#F1E6CF', fontWeight: 400, fontSize: 'var(--fs-sm)', flexShrink: 0, cursor: 'pointer' }}>
-                {firstName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <span className="mc-user-name">{firstName}</span>
-            <Icon.ChevronRight style={{ fontSize: 'var(--fs-md)', opacity: 0.6, flexShrink: 0 }} />
-
+          {/* A CONTA: um botão de verdade (a crítica achou um <div> sem teclado). */}
+          <div className="mc-user-wrap">
+            <button type="button" className="mc-user" aria-haspopup="menu" aria-expanded={userMenuOpen}
+              onClick={() => setUserMenuOpen((v) => !v)}>
+              {avatarUrl ? (
+                <img ref={avatarRef} className="mc-user-foto" src={avatarUrl} alt="" referrerPolicy="no-referrer" />
+              ) : (
+                <span ref={avatarRef} className="mc-user-foto mc-user-foto--vazia" aria-hidden="true">{firstName.charAt(0).toUpperCase()}</span>
+              )}
+              <span className="mc-user-txt">
+                <span className="mc-user-name">{firstName}</span>
+                <span className="mc-user-papel">{profile === 'master' ? (lang === 'en' ? 'Game Master' : 'Mestre') : (lang === 'en' ? 'Player' : 'Jogador')}</span>
+              </span>
+              <i className="ti ti-dots-vertical" aria-hidden="true" />
+            </button>
             {userMenuOpen && (
               <UserMenu
                 anchorRef={avatarRef}
@@ -3749,8 +4359,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 fullName={fullName !== user.email ? fullName : null}
                 avatarUrl={avatarUrl}
                 firstName={firstName}
-                planoBadge={planoBadge}
-                planoPago={planoPago}
+                podeTrocarPerfil={ehAdmin}
+                paleta={paleta}
+                onSetPaleta={escolherPaleta}
                 profile={profile}
                 onSetProfile={escolherPerfil}
                 lang={lang}
@@ -3767,9 +4378,97 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         {/* Tooltip do menu lateral */}
         <NavTooltip tip={navTip} onEnter={manterNavTip} onLeave={fecharNavTip} />
 
-        {/* CONTEÚDO (switch das abas — inalterado; estilo legado por enquanto) */}
+        {/* CABEÇALHO DE PÁGINA (22/10/2026): a faixa do topo diz onde se está —
+            a trilha (mesa ou personagem, e o grupo) e o título da página. A
+            pílula de data, clima e ações (CardDataJogoAtual) mora à direita
+            desta mesma faixa. */}
+        <header className="mc-topo">
+          <button type="button" className="mc-topo-menu" aria-label={lang === 'en' ? 'Open menu' : 'Abrir menu'}
+            onClick={() => setNavAberta(true)}>
+            <i className="ti ti-menu-2" aria-hidden="true" />
+          </button>
+          {/* Só o título (revisão, 22/10/2026): o rótulo em caixa-alta acima
+              dele era um "kicker" — o seletor do menu já diz a mesa ou o
+              personagem. */}
+          <div className="mc-topo-txt">
+            <h1 className="mc-topo-titulo">{tituloAtual}</h1>
+          </div>
+        </header>
+        {navAberta && <div className="mc-nav-veu" aria-hidden="true" onClick={() => setNavAberta(false)} />}
+
+        {/* CELULAR: barra inferior com os quatro primeiros destinos e "Mais". */}
+        <nav className="mc-barra-inferior" aria-label={lang === 'en' ? 'Quick navigation' : 'Navegação rápida'}>
+          {/* Gaveta conta pelo primeiro destino dela (Loja → Estoque); o
+              Diário fica no "Mais" — são várias folhas de mesmo peso. */}
+          {nav.mesa.filter((n) => n.id !== 'diario').slice(0, 4).map((no) => {
+            const d = destinoDe(no);
+            const ativo = no.filhos ? contemSecao(no) : no.secao === secaoMarcada;
+            return (
+              <button key={no.secao || no.id} type="button" className={'mc-barra-item' + (ativo ? ' is-active' : '')}
+                aria-current={ativo ? 'page' : undefined} onClick={() => ir(d.secao, d.filtro)}>
+                <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
+                <span>{rotuloDe(no)}</span>
+              </button>
+            );
+          })}
+          <button type="button" className="mc-barra-item" aria-expanded={navAberta} onClick={() => setNavAberta(true)}>
+            <i className="ti ti-dots" aria-hidden="true" />
+            <span>{lang === 'en' ? 'More' : 'Mais'}</span>
+          </button>
+        </nav>
+
         <main className="mc-main">
           <div className="mc-content" style={{ maxWidth: isWide ? 'none' : 860, paddingBottom: 80 }}>
+            {/* BARRA DE AÇÕES DA FICHA (22/10/2026): dados, atalhos e amigos
+                entram aqui por portal; vazia, ela some (:empty). Eram botões
+                redondos flutuando nas bordas, por cima do título e da marca. */}
+            {(fichaAtiva || current.id === 'personagens_m') && <div id="mc-acoes-ficha" className="mc-acoes-ficha" role="toolbar" aria-label={lang === 'en' ? 'Sheet actions' : 'Ações da ficha'} />}
+            {/* O TRILHO DO LIVRO DE REGRAS (23/10/2026): as cinco seções e a busca
+                da lista aberta (que a lista põe em #livro-trilho-busca). */}
+            {['criaturas', 'itens', 'magias', 'tecnicas', 'habilidades'].includes(current.id) && (
+              <div className="cartoes-barra livro-trilho">
+                <div className="best-header-acoes">
+                  <div id="livro-trilho-busca" className="livro-trilho-busca" />
+                  {[
+                    ['criaturas', 'ti-skull', 'Criaturas', 'Creatures'],
+                    ['itens', 'ti-backpack', 'Itens', 'Items'],
+                    ['magias', 'ti-sparkles', 'Magias', 'Spells'],
+                    ['tecnicas', 'ti-sword', 'Técnicas', 'Techniques'],
+                    ['habilidades', 'ti-bolt', 'Habilidades', 'Skills'],
+                  ].map(([s, ic, pt, enR]) => (
+                    <button key={s} type="button" className={'mc-acao' + (current.id === s ? ' is-ativo' : '')}
+                      aria-current={current.id === s ? 'page' : undefined} onClick={() => ir(s, '')}>
+                      <i className={'ti ' + ic} aria-hidden="true" />
+                      <span className="mc-acao-rotulo">{lang === 'en' ? enR : pt}</span>
+                    </button>
+                  ))}
+                  {/* O FILTRO (23/10/2026): as divisões do antigo menu (classe da
+                      criatura, grupo do item, classe e tipo da magia…), num seletor
+                      do trilho. "Todos" é o padrão. */}
+                  {(() => {
+                    const opcoes = [];
+                    const andar = (nos, nivel) => (nos || []).forEach((no) => {
+                      if (no.secao === current.id && no.filtro) opcoes.push({ filtro: no.filtro, rotulo: (no.rotulo && (no.rotulo[lang] || no.rotulo.pt)) || no.filtro, nivel });
+                      if (no.filhos) andar(no.filhos, no.secao === current.id && no.filtro ? nivel + 1 : nivel);
+                    });
+                    andar(nav.regras, 0);
+                    if (!opcoes.length) return null;
+                    return (
+                      <label className="livro-filtro">
+                        <i className="ti ti-filter" aria-hidden="true" />
+                        <select value={secaoFiltro || ''} aria-label={lang === 'en' ? 'Filter' : 'Filtro'}
+                          onChange={(e) => { setSecaoFiltro(e.target.value); setNavToken((n) => n + 1); }}>
+                          <option value="">{lang === 'en' ? 'All' : 'Todos'}</option>
+                          {opcoes.map((o) => (
+                            <option key={o.filtro} value={o.filtro}>{(o.nivel ? '\u2003' : '') + o.rotulo}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
             {current.id === 'criaturas' ? (
               /* `historiaId` (17/09/2026): habilita o botão de OLHO na tabela
                  — quem pode ver cada criatura NA MESA ATIVA. Disponibilizar
@@ -3777,26 +4476,47 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                  alcançava por Histórias → card da mesa → botão "Lore"; o
                  botão saiu no mesmo dia e a função veio pra cá. O Jogador
                  recebe o id igual e a CriaturasList ignora (modoJogador). */
-              <CriaturasList ac={ac} lang={lang} modoJogador={profile === 'player'} historiaId={mesaAtivaId} filtro={filtroAtual} titulo={tituloPagina} />
+              <CriaturasList ac={ac} lang={lang} modoJogador={profile === 'player'} historiaId={mesaAtivaId} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'criaturas' ? pedidoLivro : null} />
+            ) : (profile === 'player' && ABAS_DA_FICHA[current.id]) ? (
+              /* Ficha, Inventário e Loja (22/10/2026): a ficha do personagem
+                 ativo, aberta na aba que o menu pediu. Sem personagem ativo, a
+                 lista para escolher — "Ficha" é a porta do Jogador. */
+              <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo}
+                abaFicha={current.id === 'ficha' ? (filtroAtual || 'ficha') : ABAS_DA_FICHA[current.id]} abaToken={navToken}
+                onAbaFicha={(aba, extra) => { setAbaFichaAtual(aba); if (extra) setFichaTemAnimais(!!extra.temAnimais); }} sairToken={sairToken} />
+            ) : (profile === 'master' && ['cena', 'batalha', 'loja_mesa', 'jogadores'].includes(current.id)) ? (
+              /* A MESA ATIVA (22/10/2026): Cena é o card da história; Batalha,
+                 Loja e Jogadores abrem direto as páginas que eram botões dentro
+                 dele. Sem mesa escolhida, todas as mesas para escolher uma. */
+              <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu}
+                onEntrarMesa={(id) => { setMesaAtivaId(id); }}
+                acaoMesa={acaoMesa}
+                vista={{ batalha: 'batalha', loja_mesa: 'loja', jogadores: 'convites' }[current.id] || null}
+                onFecharVista={() => ir('cena')} />
             ) : current.id === 'personagens_j' ? (
-              <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onLimiteFreeChange={setLimiteFreePersonagens} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo} />
+              <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo} />
             ) : current.id === 'personagens_m' ? (
               /* `voltarToken`: o Mestre sai da ficha pelo próprio menu, e não
                  por um botão dentro dela — "quem persiste no personagem
                  escolhido é o jogador". Por isso o token só chega aqui. */
               <PersonagensList ac={ac} t={t} lang={lang} profile="master" currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} voltarToken={navToken} />
             ) : current.id === 'magias' ? (
-              <MagiasList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={filtroAtual} titulo={tituloPagina} />
+              <MagiasList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'magias' ? pedidoLivro : null} />
             ) : current.id === 'habilidades' ? (
-              <HabilidadesList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={filtroAtual} titulo={tituloPagina} />
+              <HabilidadesList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'habilidades' ? pedidoLivro : null} />
             ) : current.id === 'tecnicas' ? (
-              <TecnicasList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={filtroAtual} titulo={tituloPagina} />
+              <TecnicasList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'tecnicas' ? pedidoLivro : null} />
             ) : current.id === 'itens' ? (
-              <ItensList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={filtroAtual} titulo={tituloPagina} />
+              <ItensList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'itens' ? pedidoLivro : null} />
             ) : current.id === 'itens_campanha' ? (
-              <ItensCampanhaManager ac={ac} lang={lang} />
+              /* A mesa ativa (23/10/2026): sem ela a página buscava os itens de
+                 história nenhuma e ficava sempre vazia. */
+              <ItensCampanhaManager ac={ac} lang={lang} historiaId={mesaAtivaId}
+                tituloHistoria={((minhasHistorias || []).find((h) => h.id === mesaAtivaId) || {}).titulo} />
             ) : current.id === 'historias' ? (
-              <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} onEntrarMesa={setMesaAtivaId} />
+              /* "Todas as mesas" (seletor do topo): a lista inteira; entrar
+                 numa leva à Cena dela. */
+              <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={null} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} onEntrarMesa={(id) => { setMesaAtivaId(id); ir('cena'); }} />
             ) : (current.id === 'lugares' || current.id === 'cidades' || current.id === 'locais' || current.id === 'npcs' || current.id === 'memorias') ? (
               /* AS TRÊS QUE VIERAM DO DIÁRIO. Para o JOGADOR são o mesmo
                  DiarioView travado num tipo (ver `tipoFixo`), e sem personagem
@@ -3827,7 +4547,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 />
               )
             ) : current.id === 'aventuras' ? (
-              <AventurasJogador t={t} lang={lang} currentUserId={user.id} reloadToken={aventurasReloadToken} />
+              <AventurasJogador t={t} lang={lang} currentUserId={user.id} reloadToken={aventurasReloadToken}
+                mesaAtivaId={mesaAtivaId} pjAtivoId={pjAtivo ? pjAtivo.id : null} />
             ) : current.id === 'guia_personagem' ? (
               <GuiaPersonagem lang={lang} />
             ) : (
@@ -3856,13 +4577,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           mesaAtivaId={mesaAtivaId}
           setMesaAtivaId={setMesaAtivaId}
           profile={profile}
-          onNovaHistoria={current.id === 'historias' ? () => abrirNovaHistoriaRef.current && abrirNovaHistoriaRef.current() : null}
-          limiteFreeHistoria={limiteFreeHistorias}
-          esconderSeletorEBotaoNovo={current.id === 'historias' && historiasDentroDeMenu}
+          onNovaHistoria={(current.id === 'historias' || current.id === 'cena') ? () => abrirNovaHistoriaRef.current && abrirNovaHistoriaRef.current() : null}
+          esconderSeletorEBotaoNovo={(current.id === 'historias' || current.id === 'cena') && historiasDentroDeMenu}
           sidebarLargura={SIDEBAR_LARGURA}
-          onNovoPersonagem={current.id === 'personagens_j' ? () => abrirNovoPersonagemRef.current && abrirNovoPersonagemRef.current() : null}
-          limiteFreePersonagem={limiteFreePersonagens}
-          esconderBotaoPersonagem={current.id === 'personagens_j' && personagensDentroDeMenu}
+          onNovoPersonagem={(current.id === 'personagens_j' || current.id === 'ficha') ? () => abrirNovoPersonagemRef.current && abrirNovoPersonagemRef.current() : null}
+          esconderBotaoPersonagem={(current.id === 'personagens_j' || current.id === 'ficha') && personagensDentroDeMenu}
           dataNascPjAtivo={dataNascPjAtivo}
           onDataAtual={receberDataMesa}
         />
@@ -3906,13 +4625,13 @@ function App() {
   const [profile, setProfile] = useState(null); // { plano, plano_escolhido_em }
 
   // Carrega/recarrega o profile do usuário (chamada depois do login e
-  // depois de confirmar um plano no PlanoEscolhaModal).
+  // depois da escolha na PrimeiraEntrada).
   const carregarProfile = async (authUser) => {
     const userId = authUser && authUser.id;
     if (!userId) { setProfile(null); return; }
     const { data, error } = await supabaseClient
       .from('profiles')
-      .select('plano, plano_escolhido_em, pj_ativo_id, perfil_tipo')
+      .select('plano, plano_escolhido_em, pj_ativo_id, perfil_tipo, paleta')
       .eq('id', userId)
       .maybeSingle();
     if (error) {
@@ -4025,26 +4744,42 @@ function App() {
 
   // Logado → Admin Console. Deslogado → tela de login (única página pública).
   if (user) {
-    // Primeiro login (sem plano escolhido ainda) → onboarding sobreposto ao Console
-    const precisaEscolherPlano = profile && !profile.plano_escolhido_em;
-    return (
-      <>
-        <AdminConsole
-          user={user}
-          userProfile={profile}
-          onLogout={logout}
-          t={t}
+    /* Primeiro login (onboarding ainda não feito) → a PrimeiraEntrada NO
+       LUGAR do console, não por cima dele (22/10/2026). O console só monta
+       depois da escolha, já com o perfil certo em userProfile — se montasse
+       antes, adotaria o 'player' do servidor e não veria a troca para Mestre
+       (o AdminConsole só lê o perfil do servidor na primeira chegada). */
+    // A escolha Mestre/Jogador só existe para o administrador (23/10/2026); as
+    // outras contas entram direto como Jogador.
+    if (profile && !profile.plano_escolhido_em && String(user.email || '').toLowerCase() === 'richardnanet@gmail.com') {
+      const meta = user.user_metadata || {};
+      const nome = String(meta.full_name || meta.name || '').trim().split(/\s+/)[0] || null;
+      return (
+        <PrimeiraEntrada
           lang={lang}
           setLang={setLang}
+          userId={user.id}
+          nome={nome}
+          shader={tweaks.shader}
+          shaderKind={tweaks.shaderKind}
+          mode={mode}
+          onSair={logout}
+          onEscolhido={(papel) => {
+            try { localStorage.setItem('menestrel.profile', papel); } catch (e) {}
+            setProfile((p) => ({ ...p, perfil_tipo: papel, plano_escolhido_em: new Date().toISOString() }));
+          }}
         />
-        {precisaEscolherPlano && (
-          <PlanoEscolhaModal
-            lang={lang}
-            userId={user.id}
-            onChosen={() => carregarProfile(user)}
-          />
-        )}
-      </>
+      );
+    }
+    return (
+      <AdminConsole
+        user={user}
+        userProfile={profile}
+        onLogout={logout}
+        t={t}
+        lang={lang}
+        setLang={setLang}
+      />
     );
   }
 
@@ -4103,7 +4838,7 @@ function App() {
 
 Object.assign(window, {
   ModalShell, NavMenuPainel,
-  FantasyDatePicker, AdminEmpty, AdminConsole, App,
+  FantasyDatePicker, CampoData, AdminEmpty, AdminConsole, App,
   CentralMensagens, CardDataJogoAtual, RolagemLivreFab,
   // A linha do feed e o conversor de evento — expostos para o teste do
   // destaque (log-eventos.test.jsx) montar só eles.

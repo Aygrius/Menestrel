@@ -380,7 +380,7 @@ function RolagemD20Overlay(props) {
       >
         <div>
           {nome && (
-            <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: "var(--foreground)", letterSpacing: ".01em" }}>
+            <div style={{ fontFamily: "var(--font-title)", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: "var(--foreground)", letterSpacing: ".01em" }}>
               {nome}
             </div>
           )}
@@ -414,7 +414,7 @@ function RolagemD20Overlay(props) {
               }}
             >
               {resultado.sucesso != null && (
-                <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: resultado.sucesso ? "var(--gold)" : "var(--ember-bright, #B8472F)", letterSpacing: ".01em" }}>
+                <div style={{ fontFamily: "var(--font-title)", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: resultado.sucesso ? "var(--gold)" : "var(--ember-bright, #B8472F)", letterSpacing: ".01em" }}>
                   {resultado.sucesso ? (en ? "Success" : "Sucesso") : (en ? "Failure" : "Falha")}
                   <span style={{ color: "var(--muted-foreground)", fontWeight: 400 }}></span>
                 </div>

@@ -225,17 +225,20 @@ describe('o submenu de classe filtra a tabela', () => {
     await pronta();
     const nomes = linhas().map((tr) => tr.querySelector('.best-name').textContent.trim());
     expect(nomes).toEqual(['Águia Real']);
-    expect(document.querySelector('.fp-card-top .ms-title').textContent).toBe('Místicos');
+    expect(document.querySelector('.fp-card-top h2').textContent).toBe('Místicos');
   });
 });
 
 describe('a ficha abre numa janela', () => {
-  it('fora da tabela, com o nome no título', async () => {
+  /* 23/10/2026: no Livro de Regras a ficha abre no PAINEL ao lado da lista
+     (role=region), não numa janela por cima. */
+  it('fora da tabela, no painel, com o nome no título', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
     expect(det.closest('table'), 'a ficha não pode morar dentro da tabela').toBeNull();
-    const janela = det.closest('[role="dialog"]');
+    const janela = det.closest('[role="region"]');
+    expect(janela.closest('.livro-painel')).toBeTruthy();
     expect(janela).toBeTruthy();
     expect(janela.querySelector('.ms-title').textContent).toBe('Águia');
   });
@@ -275,8 +278,9 @@ describe('Técnica, Habilidade e Magia abrem janela ao clicar', () => {
       .find((c) => c.textContent.includes('Sentidos'));
     expect(linha.getAttribute('role')).toBe('button');
     fireEvent.click(linha);
+    // A consulta abre por cima, em janela; a ficha está no painel.
     const janelas = document.querySelectorAll('[role="dialog"]');
-    expect(janelas.length).toBe(2);
+    expect(janelas.length).toBe(1);
     const consulta = janelas[janelas.length - 1];
     expect(consulta.querySelector('.ms-title').textContent).toMatch(/Sentidos/);
     expect(consulta.textContent).toMatch(/Perceber o que escapa aos outros\./);
@@ -288,9 +292,10 @@ describe('Técnica, Habilidade e Magia abrem janela ao clicar', () => {
     await pronta();
     const det = await abrir('Águia');
     fireEvent.click([...secao(det, 'Habilidades').querySelectorAll('.best-stat')][0]);
-    expect(document.querySelectorAll('[role="dialog"]').length).toBe(2);
-    fireEvent.keyDown(window, { key: 'Escape' });
     expect(document.querySelectorAll('[role="dialog"]').length).toBe(1);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(document.querySelectorAll('[role="dialog"]').length).toBe(0);
+    expect(document.querySelector('.livro-painel .best-detail'), 'a ficha do painel fica').toBeTruthy();
   });
 });
 

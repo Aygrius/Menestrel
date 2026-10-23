@@ -63,7 +63,7 @@ const cvStatusBadge = (s) => {
     ativo:    { background: 'rgba(123,224,160,0.16)', color: '#7BE0A0', border: '1px solid rgba(123,224,160,0.40)', fontWeight: 600 },
     usado:    { background: 'rgba(110,138,166,0.18)',  color: '#9DB6CE', border: '1px solid rgba(110,138,166,0.40)',  fontWeight: 600 },
     revogado: { background: 'rgba(200,33,44,0.16)',   color: '#F0A6A0', border: '1px solid rgba(200,33,44,0.40)',   fontWeight: 600 },
-    expirado: { background: 'rgba(232,221,198,0.08)', color: '#BFAF8E', border: '1px solid rgba(232,221,198,0.16)', fontWeight: 600 },
+    expirado: { background: 'rgba(var(--tinta-rgb),0.08)', color: 'var(--tinta-2)', border: '1px solid rgba(var(--tinta-rgb),0.16)', fontWeight: 600 },
   };
   return map[s] || map.expirado;
 };
@@ -78,6 +78,10 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
   const [error, setError] = useState(null);
   const [copiouId, setCopiouId] = useState(null);
   const [tip, abrirTip, fecharTip, manterTip] = (window.usePortalTooltip || useTooltip)(60);
+  // Cartões (23/10/2026): busca, lixeira armada e as fotos dos personagens.
+  const [busca, setBusca] = useState('');
+  const [lixeira, setLixeira] = useState(null);
+  const [fotos, setFotos] = useState({});
 
   const carregar = async () => {
     setError(null);
@@ -92,6 +96,14 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
     }
     const arr = Array.isArray(data) ? data : (data ? JSON.parse(data) : []);
     setConvites(arr);
+    // A foto de cada personagem que entrou por convite — o retrato do cartão.
+    const ids = arr.map((c) => c.personagem_id).filter((v) => v != null);
+    if (ids.length) {
+      const { data: pjs } = await supabaseClient.from('personagens').select('id, foto_url').in('id', ids);
+      const mapa = {};
+      (pjs || []).forEach((pj) => { if (pj.foto_url) mapa[pj.id] = pj.foto_url; });
+      setFotos(mapa);
+    }
   };
 
   useEffect(() => { carregar(); /* eslint-disable-next-line */ }, [historia.id]);
@@ -179,110 +191,118 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
 
   const fechar = () => { onChanged?.(); onClose(); };
 
+  /* JOGADORES EM CARTÕES (23/10/2026): "A página de jogadores terá cards
+     também, igual em personagens e diário." Cada convite é um cartão de
+     Personagens (.pjs-grid / .pj-card): o retrato é o do personagem que
+     entrou por ele; sem uso, o envelope. O nome é o do jogador (ou o código,
+     enquanto ninguém usou). Clicar num convite ativo copia o código. A busca
+     e o + (gerar convite) na barra acima, como em Personagens. */
+  const semAcentoC = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const termo = semAcentoC(busca.trim());
+  const lista = (convites || []).filter((c) => !termo
+    || semAcentoC([c.codigo, c.usado_por_nome, c.personagem_nome].join(' ')).includes(termo));
+  const BuscaENovo = window.BestBuscaENovo;
+  const en = lang === 'en';
+
   return (
-    <div className="fp-page">
-      <div className="fp-card cv-mng-page">
-        <div className="fp-card-top">
-          <header className="ms-header cv-mng-page-header">
-        <button
-          type="button"
-          className="btn-icon btn-sm"
-          onClick={fechar}
-          aria-label={tc.mng.fechar}>
-          <i className="ti ti-arrow-left" />
-        </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="cv-mng-page-eyebrow">
-            <i className="ti ti-mail" aria-hidden="true" />
-            {historia.titulo}
-          </div>
-          <h2 className="ms-title" style={{ margin: 0 }}>{tc.mng.titulo}</h2>
+    <div className="pjs convites-cartoes-pagina">
+      {BuscaENovo && (
+        <div className="cartoes-barra">
+          <BuscaENovo
+            ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
+            placeholder={en ? 'Search' : 'Buscar'}
+            query={busca}
+            setQuery={setBusca}
+            podeCriar={!loading}
+            onNovo={gerarConvite}
+            dicaNovo={tc.mng.novoConvite} />
         </div>
-        <button
-          type="button"
-          className="btn-primary btn-sm"
-          onClick={gerarConvite}
-          disabled={loading}>
-          {loading ? tc.mng.gerando : tc.mng.novoConvite}
-        </button>
-          </header>
+      )}
+
+      {error && <div className="cv-err" style={{ marginBottom: 14 }}>{error}</div>}
+
+      {convites === null ? (
+        <div className="cv-mng-loading">{tc.mng.carregando}</div>
+      ) : lista.length === 0 ? (
+        <div className="best-empty">
+          {termo ? (en ? `No invite matches "${busca.trim()}".` : `Nenhum convite com "${busca.trim()}".`) : tc.mng.vazio}
         </div>
-        <div className="cv-mng-page-body">
-        <p style={{ margin: '0 20px 20px', fontSize: 'var(--fs-sm)', color: '#BFAF8E', lineHeight: 1.5 }}>
-          {/* TODO-INTERPOLATE */}
-          {interpolate(tc.mng.descricao, { tituloHistoria: historia.titulo })}
-        </p>
-
-        {error && <div className="cv-err" style={{ marginBottom: 14 }}>{error}</div>}
-
-        {convites === null ? (
-          <div className="cv-mng-loading">{tc.mng.carregando}</div>
-        ) : convites.length === 0 ? (
-          <div className="cv-mng-empty">{tc.mng.vazio}</div>
-        ) : !Table ? (
-          <div className="cv-mng-empty">{tc.mng.uiKitAusente}</div>
-        ) : (
-          <div className="cv-table-wrap">
-            <Table>
-
-              <TableBody>
-                {convites.map((c) => {
-                  const s = c.status_real || c.status;
-                  return (
-                    <TableRow key={c.id}>
-                      <TableCell>
-                        <button
-                          className="cv-chip"
-                          onClick={() => copiarCodigo(c.id, c.codigo)}
-                          disabled={s !== 'ativo'}
-                          style={{ height: 32, padding: '0 10px', fontSize: 'var(--fs-xs)', color: '#F1E6CF', background: 'rgba(138,110,64,0.12)', border: '1px solid transparent' }}
-                          onMouseEnter={(e) => { if (s === 'ativo') { e.currentTarget.style.color = '#C9A44E'; e.currentTarget.style.background = 'rgba(138,110,64,0.20)'; abrirTip(e, tc.mng.copiar); } }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = '#E8DDC6'; e.currentTarget.style.background = 'rgba(138,110,64,0.12)'; fecharTip(); }}>
-                          <span>{c.codigo}</span>
-                          {copiouId === c.id && <span className="cv-copiado">{tc.mng.copiado}</span>}
-                        </button>
-                      </TableCell>
-                      <TableCell>
-                        {(() => { const { border: _b, ...bs } = cvStatusBadge(s); return (
-                          <span style={{ ...bs, display: 'inline-flex', alignItems: 'center', height: 32, padding: '0 12px', borderRadius: 6, fontSize: 'var(--fs-xs)', fontFamily: "var(--font-body)" }}>
-                            {statusLabel(s)}
-                          </span>
-                        ); })()}
-                      </TableCell>
-                      <TableCell style={{ whiteSpace: 'nowrap' }}>{fmtData(c.expira_em)}</TableCell>
-                      <TableCell>
-                        {c.usado_por ? (
-                          <span style={{ fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)', color: '#C7B79A' }}>
-                            {c.usado_por_nome || c.usado_por.slice(0, 8)}
-                            {c.personagem_nome && <span style={{ color: '#BFAF8E' }}>{` (${c.personagem_nome})`}</span>}
-                          </span>
-                        ) : '—'}
-                      </TableCell>
-                      <TableCell>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {s === 'revogado' && (
-                            <button className="btn-icon btn-sm" onClick={() => reativarConvite(c.id)} disabled={loading} aria-label={tc.mng.reativar}
-                              onMouseEnter={(e) => abrirTip(e, tc.mng.reativar)} onMouseLeave={fecharTip}>
-                              <i className="ti ti-refresh" />
+      ) : (
+        <div className="pjs-grid">
+          {lista.map((c) => {
+            const st = c.status_real || c.status;
+            const ativo = st === 'ativo';
+            const foto = c.personagem_id != null ? fotos[c.personagem_id] : null;
+            const nome = c.usado_por ? (c.usado_por_nome || c.usado_por.slice(0, 8)) : c.codigo;
+            const armada = lixeira === c.id;
+            const copiar = () => { if (ativo) copiarCodigo(c.id, c.codigo); };
+            return (
+              <div key={c.id} className="pj-card-wrap">
+                <article className={'pj-card convite-cartao' + (ativo ? ' is-clickable' : '')}
+                  role={ativo ? 'button' : undefined} tabIndex={ativo ? 0 : undefined}
+                  onClick={copiar}
+                  onKeyDown={(ev) => { if (ativo && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); copiar(); } }}
+                  onMouseEnter={(ev) => { if (ativo) abrirTip(ev, tc.mng.copiar); }}
+                  onMouseLeave={fecharTip}>
+                  <div className="pj-card-body">
+                    <div className={'pj-card-portrait' + (foto ? '' : ' is-empty')}>
+                      {foto
+                        ? <img src={foto} alt="" className="pj-card-portrait-img" />
+                        : c.usado_por
+                          ? <span className="pj-card-portrait-mono" aria-hidden="true">{String(nome).charAt(0).toUpperCase()}</span>
+                          : <i className="ti ti-mail convite-cartao-envelope" aria-hidden="true" />}
+                    </div>
+                    <div className="pj-card-info">
+                      <header className="pj-card-head">
+                        <div className="pj-name-linha">
+                          <div className="pj-name">{nome}</div>
+                          <div className="convite-cartao-acoes" onClick={(ev) => ev.stopPropagation()}>
+                            {st === 'revogado' && (
+                              <button type="button" className="convite-cartao-botao" onClick={() => reativarConvite(c.id)} disabled={loading}
+                                aria-label={tc.mng.reativar}>
+                                <i className="ti ti-refresh" aria-hidden="true" />
+                              </button>
+                            )}
+                            {/* Excluir em dois cliques, como no Diário e em Batalhas. */}
+                            <button type="button" className={'convite-cartao-botao is-perigo' + (armada ? ' is-armada' : '')}
+                              disabled={loading}
+                              aria-label={armada ? (en ? 'Click again to delete' : 'Clique de novo para excluir') : tc.mng.remover}
+                              onClick={() => { if (armada) { setLixeira(null); excluirConvite(c.id); } else setLixeira(c.id); }}
+                              onMouseLeave={() => { if (armada) setLixeira(null); }}>
+                              <i className={'ti ' + (armada ? 'ti-trash-x' : 'ti-trash')} aria-hidden="true" />
                             </button>
-                          )}
-                          <button className="btn-icon btn-danger btn-sm" onClick={() => excluirConvite(c.id)} disabled={loading} aria-label={tc.mng.remover}>
-                            <i className="ti ti-trash" />
-                          </button>
+                          </div>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+                      </header>
+                      <div className="pj-meta-linhas">
+                        <div className="pj-meta pj-meta--quem">
+                          {c.personagem_nome && (
+                            <>
+                              <span>{c.personagem_nome}</span>
+                              <span className="sep" aria-hidden="true">·</span>
+                            </>
+                          )}
+                          {c.usado_por && <span className="convite-cartao-codigo">{c.codigo}</span>}
+                          {!c.usado_por && <span>{statusLabel(st)}</span>}
+                          {copiouId === c.id && <span className="convite-cartao-copiado">{tc.mng.copiado}</span>}
+                        </div>
+                        <div className="pj-meta pj-meta--estagio">
+                          {c.usado_por
+                            ? (en ? 'Joined on ' : 'Entrou em ') + fmtData(c.usado_em)
+                            : (ativo ? (en ? 'Expires on ' : 'Vale até ') : (en ? 'Expired on ' : 'Venceu em ')) + fmtData(c.expira_em)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            );
+          })}
         </div>
-        {window.PortalTooltip
-          ? <window.PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-          : null}
-      </div>
+      )}
+      {window.PortalTooltip
+        ? <window.PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+        : null}
     </div>
   );
 }
@@ -457,7 +477,7 @@ function ConviteModal({ t, lang, currentUserId, onClose, onAccepted }) {
    Props: t, lang, currentUserId, reloadToken (número que muda quando um convite é aceito,
           forçando o recarregamento da lista).
 */
-function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
+function AventurasJogador({ t, lang, currentUserId, reloadToken, mesaAtivaId = null, pjAtivoId = null }) {
   const [mesas, setMesas] = useState(null); // null = carregando; [] = vazio; [...] = lista
 
   const carregarMesas = async () => {
@@ -475,7 +495,7 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
   // ── Carregando
   if (mesas === null) {
     return (
-      <div className="menestrel-ui" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, gap: 10, color: '#BFAF8E' }}>
+      <div className="menestrel-ui" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, gap: 10, color: 'var(--tinta-2)' }}>
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ animation: 'spin 1s linear infinite' }}>
           <path d="M12 2 A10 10 0 0 1 22 12" strokeLinecap="round" />
         </svg>
@@ -490,8 +510,8 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
   if (mesas.length === 0) {
     return (
       <div className="menestrel-ui" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '64px 24px', minHeight: 260, gap: 14 }}>
-        <div style={{ fontSize: 40, color: '#E0BE68', lineHeight: 1 }}>✦</div>
-        <p style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: 'var(--fs-base)', color: '#BFAF8E', lineHeight: 1.6, maxWidth: 400 }}>
+        <div style={{ fontSize: 40, color: 'var(--vivo)', lineHeight: 1 }}>✦</div>
+        <p style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: 'var(--fs-base)', color: 'var(--tinta-2)', lineHeight: 1.6, maxWidth: 400 }}>
           {lang === 'en'
             ? 'No adventures yet. Accept an invite using the Invites button in the menu.'
             : 'Nenhuma aventura ainda. Aceite um convite pelo botão Convites no menu.'}
@@ -500,7 +520,22 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
     );
   }
 
-  // ── Lista de mesas / aventuras
+  /* A MESA DO JOGADOR NO PADRÃO NOVO (23/10/2026): os cartões de capítulos da
+     Cena do Mestre, só de leitura, com as anotações de cada personagem. */
+  const Cena = window.CenaCronica;
+  if (Cena) {
+    const m = mesas.find((x) => x.id === mesaAtivaId) || mesas[0];
+    const pjs = m.meus_pjs || [];
+    const pj = pjs.find((p) => pjAtivoId != null && p.id === pjAtivoId) || pjs[0] || null;
+    return (
+      <div className="hist">
+        <Cena key={m.id} h={m} lang={lang} somenteLeitura anotar userId={currentUserId}
+          pjId={pj ? pj.id : null} autor={pj ? [pj.nome, pj.sobrenome].filter(Boolean).join(' ') : ''} />
+      </div>
+    );
+  }
+
+  // ── Lista de mesas / aventuras (sem a Cena carregada)
   return (
     <div className="menestrel-ui cv-av-page">
       {mesas.map((m) => {
@@ -517,12 +552,12 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken }) {
                   {pjs.map((pj) => (
                     <span key={pj.id} style={{
                       fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: '#DCC9A6',
-                      background: 'rgba(122,94,42,0.22)', border: '1px solid rgba(138,110,64,0.35)',
+                      background: 'rgba(122,94,42,0.22)', border: '1px solid rgba(var(--bronze-rgb),0.35)',
                       borderRadius: 999, padding: '3px 10px', display: 'inline-flex', alignItems: 'center', gap: 5,
                     }}>
                       <i className="ti ti-user" aria-hidden="true" style={{ fontSize: 'var(--fs-2xs)' }} />
                       {pj.nome}{pj.sobrenome ? ' ' + pj.sobrenome : ''}
-                      {pj.profissao && <span style={{ color: '#BFAF8E' }}> · {pj.profissao}</span>}
+                      {pj.profissao && <span style={{ color: 'var(--tinta-2)' }}> · {pj.profissao}</span>}
                     </span>
                   ))}
                 </div>

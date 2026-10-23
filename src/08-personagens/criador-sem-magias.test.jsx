@@ -49,7 +49,9 @@ async function montar(props) {
   render(<div className="menestrel-ui"><window.NovoPersonagemModal lang="pt" onClose={() => {}} onSaved={() => {}} {...props} /></div>);
   await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
 }
-const passos = () => [...document.querySelectorAll('.wiz-progress-seg')].map((b) => b.getAttribute('aria-label'));
+// As fases do topo e o passo atual (23/10/2026: os tracinhos viraram fases com nome).
+const passos = () => [...document.querySelectorAll('.wiz-fase')].map((b) => b.getAttribute('aria-label'))
+  .concat([...document.querySelectorAll('.wiz-passo-nome')].map((s) => s.textContent));
 
 describe('criador sem magias', () => {
   it('Mago na criação: nenhum passo de magias', async () => {
@@ -71,7 +73,7 @@ describe('payload da edição', () => {
   it('não manda magias (a RPC aprender_magia grava por fora)', async () => {
     await montar({ personagemExistente: PJ, isMaster: true });
     // Edição: todos os passos liberados — vai direto à Revisão e salva.
-    const segs = [...document.querySelectorAll('.wiz-progress-seg')];
+    const segs = [...document.querySelectorAll('.wiz-fase')];
     await act(async () => { fireEvent.click(segs[segs.length - 1]); });
     const salvar = document.querySelector('.ms-footer .btn-primary');
     expect(salvar.textContent).toMatch(/Salvar/);

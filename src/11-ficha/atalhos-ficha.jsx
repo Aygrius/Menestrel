@@ -61,7 +61,7 @@ const ATALHOS_TIPOS = [
    - itens:       [{ id, nome, quantidade, icone }]
    - onHabilidade(key) / onMagia(key) / onItem(id)
    Lista vazia = botão não aparece (PJ sem magia não ganha um atalho morto). */
-function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabilidade, onMagia, onItem }) {
+function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabilidade, onMagia, onItem, naBarra = false }) {
   const en = lang === 'en';
   const [aberto, setAberto] = React.useState(null);   // 'habilidade' | 'magia' | 'item' | null
   const [busca, setBusca] = React.useState('');
@@ -133,7 +133,7 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
   };
 
   return (
-    <div className="menestrel-ui at-root" ref={rootRef}>
+    <div className={'menestrel-ui at-root' + (naBarra ? ' mc-acao-grupo' : '')} ref={rootRef}>
       {visiveis.map((t, i) => {
         const rotulo = en ? t.en : t.pt;
         const ativo = aberto === t.id;
@@ -147,9 +147,10 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
             aria-label={rotulo}
             aria-expanded={ativo}
             data-atalho={t.id}
-            {...(ativo ? {} : propsTip(abrirTip, fecharTip, rotulo))}
+            {...(ativo || naBarra ? {} : propsTip(abrirTip, fecharTip, rotulo))}
           >
             <i className={'ti ' + t.icone} aria-hidden="true" />
+            {naBarra && <span className="mc-acao-rotulo">{rotulo}</span>}
           </button>
         );
       })}
@@ -160,7 +161,7 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
           {/* O título com ícone e contagem ("Itens 2") saiu em 26/09/2026 —
               o botão aceso ao lado já diz qual lista está aberta. */}
           <div className="at-busca-wrap">
-            <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+            <i className="ti ti-eye busca-ic" aria-hidden="true" />
             <input
               ref={buscaRef}
               type="text"

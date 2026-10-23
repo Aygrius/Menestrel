@@ -55,7 +55,8 @@ describe('o tooltip do CSS deixou de usar a cor da página', () => {
   });
 
   it('veste o fundo escuro translúcido do painel flutuante', () => {
-    expect(blocoTip).toMatch(/--tip-fundo:\s*#120D06/i);
+    // Paletas (23/10/2026): o fundo é o token do painel de cada paleta.
+    expect(blocoTip).toMatch(/--tip-fundo:\s*var\(--p-fundo\)/i);
     expect(blocoTip).toMatch(/background:\s*var\(--tip-fundo\)/);
   });
 
@@ -89,8 +90,9 @@ describe('o NavTooltip do shell veste a MESMA pele', () => {
   });
 
   it('usa as mesmas duas cores do .mn-tip', () => {
-    expect(blocoNav).toMatch(/TIP_FUNDO\s*=\s*'#120D06'/i);
-    expect(blocoNav).toMatch(/TIP_ARO\s*=\s*'rgba\(138,110,64,0\.35\)'/);
+    // Paletas (23/10/2026): o fundo do painel de cada paleta.
+    expect(blocoNav).toMatch(/TIP_FUNDO\s*=\s*'var\(--p-fundo\)'/i);
+    expect(blocoNav).toMatch(/TIP_ARO\s*=\s*'rgba\(var\(--bronze-rgb\),0\.35\)'/);
   });
 
   it('e o fundo dele também é opaco, sem blur', () => {
@@ -113,21 +115,21 @@ describe('as duas famílias não podem divergir', () => {
   /* É o defeito que aconteceu: o .mn-tip foi corrigido e o NavTooltip ficou
      para trás — e era justamente o NavTooltip que o pill do clima usava. */
   it('o mesmo par fundo/aro aparece nos dois arquivos', () => {
-    for (const cor of ['#120D06', 'rgba(138,110,64,0.35)']) {
+    for (const cor of ['var(--p-fundo)', 'rgba(var(--bronze-rgb),0.35)']) {
       expect(css, 'falta ' + cor + ' no CSS do tooltip').toContain(cor);
       expect(blocoNav, 'falta ' + cor + ' no NavTooltip').toContain(cor);
     }
   });
 
-  it('o fundo do tooltip é mais escuro que o fundo do site', () => {
-    // --background: #15120C. O balão é #120D06 — abaixo em cada canal.
-    const m = css.match(/--background:\s*#([0-9A-Fa-f]{6})/);
-    expect(m, 'não achei o token --background').toBeTruthy();
-    const hex = (h) => [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
-    const pagina = hex(m[1]);
-    const t = blocoTip.match(/--tip-fundo:\s*#([0-9A-Fa-f]{6})/);
-    expect(t, 'o fundo do balão tem que ser um hex opaco').toBeTruthy();
-    const balao = hex(t[1]);
-    expect(balao.every((c, i) => c < pagina[i]), `balão ${balao} não é mais escuro que ${pagina}`).toBe(true);
+  /* Com as paletas (23/10/2026), a regra vale para CADA uma: o fundo do
+     painel (--p-fundo, o do balão) é mais escuro que o da página (--p-pagina). */
+  it.each(['couro', 'ferro'])('o fundo do tooltip é mais escuro que o fundo do site (%s)', (pal) => {
+    const i = css.indexOf(':root[data-paleta="' + pal + '"]');
+    expect(i, 'não achei a paleta ' + pal).toBeGreaterThan(-1);
+    const bloco = css.slice(i, css.indexOf('}', i));
+    const hex = (h) => [0, 2, 4].map((k) => parseInt(h.slice(k, k + 2), 16));
+    const pagina = hex(bloco.match(/--p-pagina:\s*#([0-9A-Fa-f]{6})/)[1]);
+    const balao = hex(bloco.match(/--p-fundo:\s*#([0-9A-Fa-f]{6})/)[1]);
+    expect(balao.every((c, k) => c <= pagina[k]) && balao.some((c, k) => c < pagina[k]), `balão ${balao} não é mais escuro que ${pagina}`).toBe(true);
   });
 });

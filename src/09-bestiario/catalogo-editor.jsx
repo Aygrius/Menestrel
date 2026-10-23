@@ -87,18 +87,13 @@ function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t, par
           return (
             <span key={e.slug + ':' + e.slot + ':' + i} className={'catalogo-lista-chip' + (naMochila ? ' catalogo-lista-chip--mochila' : '')}
               data-slot={e.slot} data-slug={e.slug}>
+              <span className="catalogo-lista-chip-nome">{nome}</span>
+              {/* O seletor do sistema, no tamanho do chip (22/10/2026). */}
               {naMochila && (
-                <button type="button" className="catalogo-lista-chip-x" disabled={qtd <= 1}
-                  aria-label={`${t.equipMenos}: ${nome}`} onClick={() => mudarQtd(i, -1)}>
-                  <i className="ti ti-minus" aria-hidden="true" />
-                </button>
-              )}
-              <span className="catalogo-lista-chip-nome">{naMochila ? `${qtd}× ${nome}` : nome}</span>
-              {naMochila && (
-                <button type="button" className="catalogo-lista-chip-x"
-                  aria-label={`${t.equipMais}: ${nome}`} onClick={() => mudarQtd(i, 1)}>
-                  <i className="ti ti-plus" aria-hidden="true" />
-                </button>
+                <QuantidadeStepper className="catalogo-lista-qtd" value={qtd} min={1}
+                  onChange={(nv) => mudarQtd(i, nv - qtd)}
+                  propsMenos={{ 'aria-label': `${t.equipMenos}: ${nome}` }}
+                  propsMais={{ 'aria-label': `${t.equipMais}: ${nome}` }} />
               )}
               <button type="button" className="catalogo-lista-chip-x"
                 aria-label={`${t.equipRemover} ${nome}`} onClick={() => tirar(i)}>
@@ -108,7 +103,7 @@ function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t, par
           );
         })}
         <div className="catalogo-lista-busca">
-          <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+          <i className="ti ti-eye busca-ic" aria-hidden="true" />
           <input className="diario-input" type="text" value={busca}
             placeholder={placeholder} aria-label={`${label}: ${placeholder}`}
             onChange={(e) => setBusca(e.target.value)}
@@ -199,11 +194,11 @@ function CatalogoLista({ campo, label, valor, onChange, disabled, nomes, t }) {
               {fora && <i className="ti ti-alert-circle catalogo-lista-chip-aviso" role="img" aria-label={t.listaForaCatalogo} />}
               <span className="catalogo-lista-chip-nome">{p && p.qtd != null ? p.nome : nome}</span>
               {p && p.qtd != null && (
-                <span className="catalogo-lista-qtd">
-                  <button type="button" disabled={disabled || p.qtd <= 1} aria-label={`Um a menos: ${p.nome}`} onClick={() => mudarQtd(i, -1)}>−</button>
-                  <span className="catalogo-lista-qtd-n">{p.qtd}</span>
-                  <button type="button" disabled={disabled} aria-label={`Um a mais: ${p.nome}`} onClick={() => mudarQtd(i, +1)}>+</button>
-                </span>
+                <QuantidadeStepper className="catalogo-lista-qtd" value={p.qtd} min={1} disabled={disabled}
+                  centro={<span className="catalogo-lista-qtd-n">{p.qtd}</span>}
+                  onChange={(nv) => mudarQtd(i, nv - p.qtd)}
+                  propsMenos={{ 'aria-label': `Um a menos: ${p.nome}` }}
+                  propsMais={{ 'aria-label': `Um a mais: ${p.nome}` }} />
               )}
               <button type="button" className="catalogo-lista-chip-x" disabled={disabled}
                 aria-label={`${t.listaRemover} ${nome}`} onClick={() => remover(i)}>
@@ -213,7 +208,7 @@ function CatalogoLista({ campo, label, valor, onChange, disabled, nomes, t }) {
           );
         })}
         <div className="catalogo-lista-busca">
-          <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+          <i className="ti ti-eye busca-ic" aria-hidden="true" />
           <input className="diario-input" type="text" value={busca} disabled={disabled}
             placeholder={t.listaBuscar} aria-label={`${label}: ${t.listaBuscar}`}
             onChange={(e) => setBusca(e.target.value)}
@@ -342,6 +337,61 @@ function CatalogoEscala({ campo, label, valor, onChange, disabled, t }) {
 }
 
 // ---------- CatalogoCampo — um controle por tipo do descritor ----------
+/* ── CampoIcone (23/10/2026) ──────────────────────────────────────────────
+   "No modal de editar item, o ícone também terá o mesmo estilo da moeda,
+   abrir para selecionar o ícone." (usuário). O nome continua digitável; o
+   círculo à direita do campo é o MESMO botão do seletor de quantidade
+   (.fp-step-btn) e mostra o ícone atual. Ele abre a grade com os ícones que o
+   catálogo já usa (lidos de itens.icone na primeira abertura). */
+let _iconesDoCatalogo = null;   // cache entre aberturas
+function CampoIcone({ valor, valido, previa, onChange, disabled, name, en }) {
+  const [aberto, setAberto] = React.useState(false);
+  const [icones, setIcones] = React.useState(_iconesDoCatalogo);
+  const caixaRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!aberto || icones) return undefined;
+    let cancelado = false;
+    fetchTabelaPaginada('itens', { colunas: 'icone', ordem: ['icone'] }).then(({ data }) => {
+      if (cancelado) return;
+      _iconesDoCatalogo = [...new Set((data || []).map((r) => r.icone).filter((i) => /^ti-[a-z0-9-]+$/.test(i || '')))].sort();
+      setIcones(_iconesDoCatalogo);
+    });
+    return () => { cancelado = true; };
+  }, [aberto, icones]);
+  React.useEffect(() => {
+    if (!aberto) return undefined;
+    const fora = (e) => { if (caixaRef.current && !caixaRef.current.contains(e.target)) setAberto(false); };
+    const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setAberto(false); } };
+    document.addEventListener('mousedown', fora);
+    window.addEventListener('keydown', esc, true);
+    return () => { document.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc, true); };
+  }, [aberto]);
+  return (
+    <div className="campo-preco campo-icone" ref={caixaRef}>
+      <input className="diario-input campo-preco-input" type="text" name={name} placeholder="ti-paw"
+        value={valor} onChange={(e) => onChange(e.target.value)} disabled={disabled} aria-invalid={!valido} />
+      <button type="button" className="fp-step-btn campo-preco-moeda" disabled={disabled}
+        aria-haspopup="listbox" aria-expanded={aberto}
+        aria-label={en ? 'Choose icon' : 'Escolher ícone'}
+        onClick={() => setAberto((a) => !a)}>
+        <i className={'ti ' + (previa || 'ti-photo')} aria-hidden="true" />
+      </button>
+      {aberto && (
+        <div className="campo-icone-grade" role="listbox" aria-label={en ? 'Icons' : 'Ícones'}>
+          {!icones && <span className="campo-icone-carregando">{en ? 'Loading…' : 'Carregando…'}</span>}
+          {(icones || []).map((ic) => (
+            <button key={ic} type="button" role="option" aria-selected={ic === previa} aria-label={ic}
+              className={'campo-icone-opcao' + (ic === previa ? ' is-on' : '')}
+              onClick={() => { onChange(ic); setAberto(false); }}>
+              <i className={'ti ' + ic} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t, equip }) {
   if (campo.tipo === 'equipamento') {
     return <CatalogoEquipamento label={label} valor={valor} onChange={onChange} parte={campo.parte}
@@ -416,13 +466,16 @@ function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t
     /* Lista vinda do banco (campo.fonte): os nomes entram depois das opções
        fixas. Enquanto carregam, o valor gravado não é tratado como "fora da
        lista" — só não chegou ainda. */
+    /* A fonte pode mandar opção pronta ({ value, label }): a magia COM o
+       nível (23/10/2026), "Nome|5" no valor e "Nome · Nível 5" na tela. */
     const opcoes = campo.fonte
-      ? [...opcoesNormalizadas(campo), ...(nomes || []).map((n) => ({ value: n, label: n }))]
+      ? [...opcoesNormalizadas(campo), ...(nomes || []).map((n) => (n && typeof n === 'object' ? n : { value: n, label: n }))]
       : opcoesNormalizadas(campo);
     const foraDaLista = valor != null && valor !== '' && !(campo.fonte && !nomes)
       && !opcoes.some((o) => String(o.value) === String(valor));
+    const rotuloAtual = campo.comNivel ? String(valor).replace(/\|(\d+)$/, ' · Nível $1').replace(/\|$/, '') : valor;
     const opcoesComAtual = foraDaLista
-      ? [{ value: valor, label: `${valor} (${t.campoForaDaLista})` }, ...opcoes]
+      ? [{ value: valor, label: `${rotuloAtual} (${t.campoForaDaLista})` }, ...opcoes]
       : opcoes;
     return (
       <SelectPill label={label} value={valor} onChange={onChange}
@@ -438,15 +491,23 @@ function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t
     return (
       <div className="catalogo-campo-icone">
         <label className="diario-field-label">{label}</label>
-        <div className="catalogo-icone-linha">
-          <input className="diario-input" type="text" name={campo.col} placeholder="ti-paw"
-            value={valor} onChange={(e) => onChange(e.target.value)} disabled={disabled}
-            aria-invalid={!n.valido} />
-          <span className="catalogo-icone-previa" aria-hidden="true">
-            {n.valido && n.valor ? <i className={'ti ' + n.valor} /> : null}
-          </span>
-        </div>
+        <CampoIcone valor={valor} valido={n.valido} previa={n.valido ? n.valor : ''}
+          onChange={onChange} disabled={disabled} name={campo.col}
+          en={t && t.campoValorLatao === 'Value'} />
         {!n.valido && <div className="catalogo-icone-erro" role="alert">{t.campoIconeInvalido}</div>}
+      </div>
+    );
+  }
+  /* VALOR NA MOEDA (23/10/2026): o número se digita na moeda escolhida no
+     círculo à direita do campo (CampoPreco, 07-inventario); grava-se em latão.
+     O idioma vem da cópia em uso (o campo não recebe `lang`). */
+  if (campo.col === 'valor_latao' && typeof window.CampoPreco === 'function') {
+    const CampoPreco = window.CampoPreco;
+    return (
+      <div>
+        <label className="diario-field-label">{label}</label>
+        <CampoPreco valor={valor} onChange={onChange} name={campo.col} disabled={disabled}
+          lang={t && t.campoValorLatao === 'Value' ? 'en' : 'pt'} />
       </div>
     );
   }
@@ -678,6 +739,23 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
         .then(({ data }) => {
           if (cancelado) return;
           setNomesPorFonte((m) => ({ ...m, [fonte]: [...new Set((data || []).map((r) => r.nome).filter(Boolean))] }));
+        });
+    });
+    /* MAGIA COM O NÍVEL (23/10/2026): "Remova o campo 'nível de magia' pois
+       ao selecionar a magia já seleciona também o nível" (usuário). Cada
+       magia vira uma opção por nível que ela tem (1, 3, 5, 7, 9 — as colunas
+       nivel_N preenchidas). */
+    descritor.campos.filter((c) => c.comNivel).forEach((c) => {
+      fetchTabelaPaginada(c.fonte, { colunas: 'nome, nivel_1, nivel_3, nivel_5, nivel_7, nivel_9', ordem: ['nome'] })
+        .then(({ data }) => {
+          if (cancelado) return;
+          const opcoes = [];
+          (data || []).forEach((r) => {
+            if (!r.nome) return;
+            [1, 3, 5, 7, 9].filter((n) => r['nivel_' + n] != null && String(r['nivel_' + n]).trim() !== '')
+              .forEach((n) => opcoes.push({ value: `${r.nome}|${n}`, label: `${r.nome} · ${lang === 'en' ? 'Level' : 'Nível'} ${n}` }));
+          });
+          setNomesPorFonte((m) => ({ ...m, [c.fonte + ':nivel']: opcoes }));
         });
     });
     return () => { cancelado = true; };
@@ -932,7 +1010,18 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
   ) : null;
 
   const tabLabel = t[descritor.rotuloKey] || descritor.tabela;
-  const titulo = `${tabLabel} — ${linha ? t.editorEditar : t.editorNovo}`;
+  /* O título diz o que se faz, com o gênero certo (23/10/2026): "Nova magia",
+     "Editar item" — era "Magias — Novo". */
+  const TITULO_EDITOR = {
+    criaturas:   ['Nova criatura', 'Editar criatura', 'New creature', 'Edit creature'],
+    itens:       ['Novo item', 'Editar item', 'New item', 'Edit item'],
+    magias:      ['Nova magia', 'Editar magia', 'New spell', 'Edit spell'],
+    tecnicas:    ['Nova técnica', 'Editar técnica', 'New technique', 'Edit technique'],
+    habilidades: ['Nova habilidade', 'Editar habilidade', 'New skill', 'Edit skill'],
+  }[descritor.tabela];
+  const titulo = TITULO_EDITOR
+    ? TITULO_EDITOR[(lang === 'en' ? 2 : 0) + (linha ? 1 : 0)]
+    : `${tabLabel} — ${linha ? t.editorEditar : t.editorNovo}`;
 
   return (
     <ModalShell title={titulo} lang={lang} size="lg" extraClass="modal-catalogo"
@@ -960,10 +1049,21 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
           const el = (
           <CatalogoCampo key={chave} campo={campo}
             label={t[campo.rotuloKey] || campo.col}
-            valor={valorDoCampo(campo)}
-            onChange={(v) => onChangeCampo(campo, v)}
+            valor={campo.comNivel
+              ? (form[campo.col] ? `${form[campo.col]}|${form[campo.comNivel] ?? ''}` : '')
+              : valorDoCampo(campo)}
+            onChange={campo.comNivel
+              /* "Nome|5" → magia e nivel_magia de uma vez; "—" limpa os dois. */
+              ? (v) => {
+                  const m = /^(.*)\|(\d*)$/.exec(String(v || ''));
+                  const nome = m ? m[1] : String(v || '');
+                  const nivel = m && m[2] !== '' ? Number(m[2]) : '';
+                  setForm((f) => ({ ...f, [campo.col]: nome, [campo.comNivel]: nome ? nivel : '' }));
+                }
+              : (v) => onChangeCampo(campo, v)}
             disabled={!!(campo.somenteNovo && linha)}
-            nomes={campo.fonte && (campo.tipo === 'lista' || campo.tipo === 'opcoes') ? nomesPorFonte[campo.fonte] : undefined}
+            nomes={campo.fonte && (campo.tipo === 'lista' || campo.tipo === 'opcoes')
+              ? nomesPorFonte[campo.comNivel ? campo.fonte + ':nivel' : campo.fonte] : undefined}
             refs={campo.tipo === 'referencia' ? refsPorFonte[campo.fonte]
               : campo.tipo === 'vinculo' ? { candidatos: candidatosVinculo[campo.col] || [] } : undefined}
             equip={campo.tipo === 'equipamento' ? { catalogo: equipCatalogo, porSlug: equipPorSlug } : undefined}

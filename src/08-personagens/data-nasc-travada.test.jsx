@@ -37,30 +37,26 @@ const PJ = { id: 'p1', user_id: 'u', nome: 'Thalia', raca: 'Humano', profissao: 
 async function montar(props) {
   render(<div className="menestrel-ui"><window.NovoPersonagemModal lang="pt" onClose={() => {}} onSaved={() => {}} {...props} /></div>);
   await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
-  const grade = document.querySelector('.fdp-grid');
-  return {
-    botoes: [...grade.querySelectorAll('button.select-pill-btn')],
-    ano: grade.querySelector('input.fdp-ano'),
-  };
+  /* Desde 22/10/2026 o seletor do mundo é UM campo que abre o calendário
+     (antes: pílulas de dia e mês e um input de ano). Travar o campo trava tudo. */
+  return { campo: document.querySelector('button.fdp-campo') };
 }
 
 describe('data de nascimento', () => {
   it('na criação, os campos ficam livres', async () => {
-    const { botoes, ano } = await montar({});
-    expect(botoes.every((b) => !b.disabled)).toBe(true);
-    expect(ano.disabled).toBe(false);
+    const { campo } = await montar({});
+    expect(campo).toBeTruthy();
+    expect(campo.disabled).toBe(false);
   });
 
   it('ao editar, trava — inclusive para o Mestre', async () => {
-    const { botoes, ano } = await montar({ personagemExistente: { ...PJ, data_nasc: { dia: 3, mes: 2, ano: 1180 } }, isMaster: true });
-    expect(botoes.length).toBe(2);
-    expect(botoes.every((b) => b.disabled)).toBe(true);
-    expect(ano.disabled).toBe(true);
+    const { campo } = await montar({ personagemExistente: { ...PJ, data_nasc: { dia: 3, mes: 2, ano: 1180 } }, isMaster: true });
+    expect(campo.disabled).toBe(true);
+    expect(campo.textContent).toContain('3 de Mês da Água, ano 1180');
   });
 
   it('personagem antigo sem data pode preencher uma vez', async () => {
-    const { botoes, ano } = await montar({ personagemExistente: { ...PJ, data_nasc: null }, isMaster: true });
-    expect(botoes.every((b) => !b.disabled)).toBe(true);
-    expect(ano.disabled).toBe(false);
+    const { campo } = await montar({ personagemExistente: { ...PJ, data_nasc: null }, isMaster: true });
+    expect(campo.disabled).toBe(false);
   });
 });

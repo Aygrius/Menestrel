@@ -104,6 +104,9 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
   // → aqui) — trava a seta de voltar enquanto durar, fechando a brecha de
   // sair da tela de combate pra escapar de gastar PA numa rolagem já feita.
   const [rolagemPendenteConducao, setRolagemPendenteConducao] = useState(false);
+  // Busca e lixeira armada da lista em cartões (23/10/2026).
+  const [buscaBat, setBuscaBat] = useState('');
+  const [lixeiraBat, setLixeiraBat] = useState(null);
 
   // Participantes vinculados à história (PJs + criaturas)
   const pjsVinc = (historia.protagonista_ids || [])
@@ -136,6 +139,119 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
     ativa:     tb.ativa,
     encerrada: tb.encerrada,
   }[e] || e);
+
+  /* A LISTA EM CARTÕES (23/10/2026): "A página de batalhas terá cards também,
+     igual em personagens e diário." Mesmas peças do cartão de Personagens
+     (.pjs-grid / .pj-card), sem o painel em volta, com a busca e o + numa
+     barra acima. Montar e conduzir seguem no painel de antes. */
+  if (view === 'lista' && !abrindo) {
+    const semAcentoB = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const termoB = semAcentoB(buscaBat.trim());
+    const tituloDe = (b) => (b.estado === 'setup'
+      ? tb.batalhaEmMontagem
+      : b.estado === 'ativa'
+        ? (isEn ? 'Battle in progress' : 'Batalha em andamento')
+        : tb.batalha);
+    const nomesDe = (b) => (Array.isArray(b.participantes) ? b.participantes : [])
+      .map((x) => x && (x.nome || (x.snapshot && x.snapshot.nome))).filter(Boolean);
+    const lista = (batalhas || []).filter((b) => !termoB
+      || semAcentoB([tituloDe(b), ...nomesDe(b)].join(' ')).includes(termoB));
+    const BuscaENovo = window.BestBuscaENovo;
+    return (
+      <div className="pjs batalha-cartoes-pagina">
+        {BuscaENovo && (
+          <div className="cartoes-barra">
+            <BuscaENovo
+              ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
+              placeholder={isEn ? 'Search' : 'Buscar'}
+              query={buscaBat}
+              setQuery={setBuscaBat}
+              podeCriar
+              onNovo={() => setView('nova')}
+              dicaNovo={tb.novaBatalha} />
+          </div>
+        )}
+        {error && <div className="err-msg">{error}</div>}
+        {batalhas === null ? (
+          <Carregando lang={lang} />
+        ) : lista.length === 0 ? (
+          <div className="best-empty">
+            {termoB
+              ? (isEn ? `No battle matches "${buscaBat.trim()}".` : `Nenhuma batalha com "${buscaBat.trim()}".`)
+              : tb.nenhumaBatalhaNestaHistoria}
+          </div>
+        ) : (
+          <div className="pjs-grid">
+            {lista.map((b) => {
+              const qtd = Array.isArray(b.participantes) ? b.participantes.length : 0;
+              const data = b.created_at
+                ? new Date(b.created_at).toLocaleDateString(tb.ptBr, { day: '2-digit', month: 'short', year: 'numeric' })
+                : '';
+              const nomes = nomesDe(b);
+              const armada = lixeiraBat === b.id;
+              const abrir = () => { fecharTip(); setAbrindo(b); };
+              return (
+                <div key={b.id} className="pj-card-wrap">
+                  <article className="pj-card is-clickable batalha-cartao" role="button" tabIndex={0}
+                    onClick={abrir}
+                    onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); } }}>
+                    <div className="pj-card-body">
+                      <div className={'pj-card-portrait is-empty batalha-cartao-retrato is-' + b.estado}>
+                        <i className="ti ti-swords" aria-hidden="true" />
+                      </div>
+                      <div className="pj-card-info">
+                        <header className="pj-card-head">
+                          <div className="pj-name-linha">
+                            <div className="pj-name">{tituloDe(b)}</div>
+                            {/* Excluir em dois cliques, como no Diário: o
+                                primeiro arma (lixeira com X), o segundo apaga. */}
+                            <button type="button"
+                              className={'batalha-cartao-lixeira' + (armada ? ' is-armada' : '')}
+                              aria-label={armada ? (isEn ? 'Click again to delete' : 'Clique de novo para excluir') : tb.excluir}
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                if (armada) { setLixeiraBat(null); excluirBatalha(b.id); }
+                                else setLixeiraBat(b.id);
+                              }}
+                              onMouseLeave={() => { if (armada) setLixeiraBat(null); }}>
+                              <i className={'ti ' + (armada ? 'ti-trash-x' : 'ti-trash')} aria-hidden="true" />
+                            </button>
+                          </div>
+                        </header>
+                        <div className="pj-meta-linhas">
+                          <div className="pj-meta pj-meta--quem">
+                            <span>{qtd} {tb.participantes}</span>
+                            {b.estado === 'ativa' && (
+                              <>
+                                <span className="sep" aria-hidden="true">·</span>
+                                <span>{(isEn ? 'Round ' : 'Rodada ') + (b.rodada || 1)}</span>
+                              </>
+                            )}
+                            {data && (
+                              <>
+                                <span className="sep" aria-hidden="true">·</span>
+                                <span>{data}</span>
+                              </>
+                            )}
+                          </div>
+                          {nomes.length > 0 && (
+                            <div className="pj-meta pj-meta--estagio">
+                              {nomes.slice(0, 4).join(', ') + (nomes.length > 4 ? (isEn ? ` and ${nomes.length - 4} more` : ` e mais ${nomes.length - 4}`) : '')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <PortalTooltip tip={tip} onEnter={() => {}} onLeave={fecharTip} />
+      </div>
+    );
+  }
 
   return (
     <div className="fp-page">
@@ -317,7 +433,7 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
       {/* Filtro inline com bulk actions — mesma linha */}
       <div className="part-section-filter-row">
         <div className="best-search">
-          <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+          <i className="ti ti-eye busca-ic" aria-hidden="true" />
           <Input
             type="search"
             value={q}
@@ -2955,10 +3071,31 @@ function NumeroStat({ nome, valor, detalhe, abrirTip, fecharTip }) {
 /* Os números do combatente, na ordem da fileira: velocidade, PA, defesa e —
    só para quem tem — absorção. Um componente para os dois cards (Mestre e
    Jogador), que já tinham divergido uma vez nestes mesmos chips. */
-function NumerosDoCombatente({ p, tb, isEn, abrirTip, fecharTip }) {
+function NumerosDoCombatente({ p, tb, isEn, abrirTip, fecharTip, celulas }) {
   const nome = (k, padrao) => (tb && tb.statNome && tb.statNome[k]) || padrao;
   const arMax = Number(p.ar_max) || 0;
   const ar = Number(p.ar) || 0;
+  /* CÉLULAS (23/10/2026, painel fixo da mesa): Ações, Movimento, Defesa e
+     Velocidade com o nome em cima e o número embaixo, centralizados — todos
+     do mesmo tamanho ("1/1" inteiro no mesmo corpo). */
+  if (celulas) {
+    const movFn = typeof movimentoDisponivel === 'function' ? movimentoDisponivel : null;
+    const cel = (rot, val, k) => (
+      <span key={k} className="batalha-cel">
+        <span className="batalha-cel-rot">{rot}</span>
+        <b className="batalha-cel-val">{val}</b>
+      </span>
+    );
+    return (
+      <span className="batalha-celulas">
+        {cel(isEn ? 'Actions' : 'Ações', <>{p.pa_rest || 0}<small>/{p.pa_max || 0}</small></>, 'pa')}
+        {movFn && cel(isEn ? 'Move' : 'Mov.', Math.max(0, Math.floor(Number(movFn(p)) || 0)), 'mov')}
+        {cel(isEn ? 'Defense' : 'Defesa', (p.defesa_sigla || '') + (p.defesa_valor ?? 0), 'def')}
+        {cel(isEn ? 'Speed' : 'Vel.', (p.vb || 0) - (Number(p.vento_vb) || 0), 'vb')}
+        {ar > 0 && cel(isEn ? 'Absorb.' : 'Absorção', ar, 'ar')}
+      </span>
+    );
+  }
   return (
     <>
       <NumeroStat nome={nome('vb', isEn ? 'Speed' : 'Velocidade')} valor={(p.vb || 0) - (Number(p.vento_vb) || 0)}
@@ -3003,10 +3140,32 @@ function fracaoDaPool(valor, max) {
   return Math.max(0, Math.min(1, (Number(valor) || 0) / m));
 }
 
-function PoolBotao({ def, valor, max, isEn, onClick, abrirTip, fecharTip }) {
+/* Nome curto da pool no painel da mesa (23/10/2026): o mesmo da ficha. */
+const NOME_CURTO_POOL = { ef: ['Física', 'Physical'], eh: ['Heroica', 'Heroic'], res: ['Armadura', 'Armor'], ka: ['Karma', 'Karma'] };
+const COR_POOL = { ef: '#A3291A', eh: '#4E9A3E', res: '#8c8d8e', ka: '#3558B0' };
+
+function PoolBotao({ def, valor, max, isEn, onClick, abrirTip, fecharTip, linha }) {
   const nome = isEn ? def.nome[1] : def.nome[0];
   const dica = `${nome} · ${Number(valor) || 0}/${Number(max) || 0}`;
   const pct = Math.round(fracaoDaPool(valor, max) * 100);
+  /* LINHA (23/10/2026, painel fixo da mesa): o anel sem número deu lugar a
+     nome, barra e valor — como na prévia aprovada. O clique continua editando
+     a pool (Mestre). */
+  if (linha) {
+    const cores = (typeof window !== 'undefined' && window.FICHA_VIT_COLORS) || {};
+    const cor = cores[def.pool === 'res' ? 'ar' : def.pool] || COR_POOL[def.pool];
+    const corpo = (
+      <>
+        <span className="batalha-pool-linha-nome">{(NOME_CURTO_POOL[def.pool] || [nome, nome])[isEn ? 1 : 0]}</span>
+        <span className="batalha-pool-linha-trilho" aria-hidden="true"><b style={{ width: pct + '%', background: cor }} /></span>
+        <span className="batalha-pool-linha-num">{Number(valor) || 0}<small>/{Number(max) || 0}</small></span>
+      </>
+    );
+    return onClick
+      ? <button type="button" className={'batalha-pool-linha pool-' + def.pool + ' editavel'} aria-label={dica}
+          onClick={(e) => { if (fecharTip) fecharTip(); onClick(e); }}>{corpo}</button>
+      : <span className={'batalha-pool-linha pool-' + def.pool} role="img" aria-label={dica}>{corpo}</span>;
+  }
   /* O ANEL (13/09/2026): "ao invés do fundo, eu quero uma borda que diminui.
      O restante do botão é igual os demais." A borda é um traço de SVG com
      pathLength 100 — o dasharray é a própria porcentagem —, partindo do topo
@@ -6367,12 +6526,12 @@ function quebrarConcentracaoPorDano(participantes, antes, depois) {
    quem monta tem `abrirTip`. O `title` nativo é o fallback — o card do
    Jogador não tinha tooltip nenhum até agora, e um ícone mudo ali seria
    pior que o texto que saiu. */
-function BotaoAcaoMenu({ icone, rotulo, variante, onClick, disabled, extraClasse, abrirTip, fecharTip }) {
-  const temTip = typeof abrirTip === 'function';
+function BotaoAcaoMenu({ icone, rotulo, variante, onClick, disabled, extraClasse, abrirTip, fecharTip, comRotulo }) {
+  const temTip = typeof abrirTip === 'function' && !comRotulo;
   return (
     <button
       type="button"
-      className={`btn-${variante || 'ghost'} btn-sm batalha-menu-acao-ic${extraClasse ? ' ' + extraClasse : ''}`}
+      className={`btn-${variante || 'ghost'} btn-sm ${comRotulo ? 'batalha-acao-nomeada' : 'batalha-menu-acao-ic'}${extraClasse ? ' ' + extraClasse : ''}`}
       /* Fecha o tooltip ANTES de agir. Vários destes botões trocam o que
          está na tela (Ação abre o painel e some com a fileira inteira): o
          botão desmonta com o tip aberto, o mouseleave nunca chega nele e o
@@ -6385,6 +6544,8 @@ function BotaoAcaoMenu({ icone, rotulo, variante, onClick, disabled, extraClasse
       onMouseLeave={temTip ? fecharTip : undefined}
     >
       <i className={'ti ' + icone} aria-hidden="true" />
+      {/* Com nome no painel da mesa (23/10/2026): botão com ícone e rótulo. */}
+      {comRotulo && <span className="batalha-acao-rotulo">{rotulo}</span>}
     </button>
   );
 }
@@ -6477,13 +6638,10 @@ function SaqueModal({ alvo, criatura, catalogoBySlug, saqueadores, isEn, lang, o
                     <span className="saque-nome">{nomeDo(slug)}</span>
                     <span className="saque-qtd">{qtd > 1 ? `× ${qtd}` : ''}</span>
                     {qtd > 1 && (
-                      <span className="saque-passo">
-                        <button type="button" aria-label={isEn ? 'One less' : 'Um a menos'} disabled={escolhida <= 1}
-                          onClick={() => setQtds((q) => ({ ...q, [slug]: escolhida - 1 }))}><i className="ti ti-minus" aria-hidden="true" /></button>
-                        <span className="saque-passo-n">{escolhida}</span>
-                        <button type="button" aria-label={isEn ? 'One more' : 'Um a mais'} disabled={escolhida >= qtd}
-                          onClick={() => setQtds((q) => ({ ...q, [slug]: escolhida + 1 }))}><i className="ti ti-plus" aria-hidden="true" /></button>
-                      </span>
+                      <QuantidadeStepper className="saque-passo" value={escolhida} min={1} max={qtd}
+                        onChange={(nv) => setQtds((q) => ({ ...q, [slug]: nv }))}
+                        propsMenos={{ 'aria-label': isEn ? 'One less' : 'Um a menos' }}
+                        propsMais={{ 'aria-label': isEn ? 'One more' : 'Um a mais' }} />
                     )}
                     <button type="button" className="btn-primary saque-pegar" disabled={!destino || !!pegando}
                       onClick={() => pegar(slug, qtd)}>
@@ -6512,6 +6670,72 @@ function textoSaque(pjNome, qtd, itemNome, alvoNome, en) {
     : `${pjNome} saqueou ${qtd}× ${itemNome} de ${alvoNome}.`;
 }
 
+/* ── IniciativaLista — a coluna da esquerda da mesa (23/10/2026) ─────────────
+   Redesenho aprovado na prévia: a ordem de iniciativa sempre à vista, uma
+   linha por combatente — ordem, retrato, nome, velocidade e três fios
+   (Física, Heroica e, para quem tem, Karma). A vez atual em ouro; inimigos
+   com o nome e o aro em brasa. Clicar escolhe quem aparece no painel da
+   direita. Fica fora da lista quem não tem vez própria: o minion (age com o
+   líder), o reforço que ainda não chegou e a montaria em uso (anda dentro do
+   cavaleiro) — esta vira um selo no retrato do cavaleiro. */
+function IniciativaLista({ participantes, meta, isEn, rodada, escolhido, onEscolher }) {
+  const lista = participantes.map((p, i) => ({ p, i }))
+    .filter(({ p }) => papelNoBando(p) !== 'minion' && p.status !== STATUS_CHEGANDO && !p.fugiu
+      && !ehMontariaEmUso(p, participantes))
+    .sort((a, b) => (a.p.ordem || 0) - (b.p.ordem || 0));
+  const fotoDe = (p) => p.foto_url || ((meta || {})[p.tipo + ':' + p.ref_id] || {}).foto_url || null;
+  const fio = (v, m, cor) => (m > 0 ? (
+    <i key={cor}><b style={{ width: Math.max(0, Math.min(100, ((Number(v) || 0) / m) * 100)) + '%', background: cor }} /></i>
+  ) : null);
+  const cores = window.FICHA_VIT_COLORS || { ef: '#A3291A', eh: '#4E9A3E', ka: '#3558B0' };
+  return (
+    <nav className="batalha-ini-col" aria-label={isEn ? 'Initiative' : 'Iniciativa'}>
+      <div className="batalha-ini-tit">
+        <span>{isEn ? 'Initiative' : 'Iniciativa'}</span>
+        {rodada > 0 && <span>{isEn ? 'Round' : 'Rodada'} {rodada}</span>}
+      </div>
+      <ol className="batalha-ini-lista">
+        {lista.map(({ p, i }, k) => {
+          const inimigo = p.tipo === 'criatura' && p.dono_pj == null;
+          const foto = fotoDe(p);
+          const montaria = p.montaria ? participantes.find((q) => q.inst_id === p.montaria.inst_id) : null;
+          const fora = p.status === 'morto' || p.status === 'fugiu' || p.status === 'inconsciente';
+          return (
+            <li key={p.inst_id || (p.tipo + ':' + p.ref_id + ':' + i)}>
+              <button type="button"
+                className={'batalha-ini-linha' + (p.atual ? ' is-atual' : '') + (i === escolhido ? ' is-escolhido' : '') + (fora ? ' is-fora' : '')}
+                aria-current={p.atual ? 'true' : undefined}
+                onClick={() => onEscolher(i)}>
+                <span className="batalha-ini-ordem">{k + 1}</span>
+                <span className="batalha-ini-ret">
+                  {foto
+                    ? <img src={foto} alt="" />
+                    : <span className={'batalha-ini-mono' + (inimigo ? ' is-inimigo' : '')}>{String(p.nome || '?').charAt(0)}</span>}
+                  {montaria && (
+                    <span className="batalha-ini-selo" aria-label={(isEn ? 'Mounted on ' : 'Montado em ') + montaria.nome}>
+                      <i className="ti ti-horse" aria-hidden="true" />
+                    </span>
+                  )}
+                </span>
+                <span className="batalha-ini-info">
+                  <span className={'batalha-ini-nome' + (inimigo ? ' is-inimigo' : '')}>{p.nome}</span>
+                  <span className="batalha-ini-fios" aria-hidden="true">
+                    {fio(p.ef, p.ef_max, cores.ef)}
+                    {fio(p.eh, p.eh_max, cores.eh)}
+                    {fio(p.karma, p.karma_max, cores.ka)}
+                  </span>
+                </span>
+                {/* A mesma velocidade do painel: já com o vento descontado. */}
+                <span className="batalha-ini-vel" aria-label={(isEn ? 'Speed ' : 'Velocidade ') + ((p.vb || 0) - (Number(p.vento_vb) || 0))}>{(p.vb || 0) - (Number(p.vento_vb) || 0)}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
 function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = [], lang, onVoltar, onAtualizado, onHeaderActionsChange, onRolagemPendenteChange }) {
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
@@ -6528,6 +6752,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState(null);
   const [motorAberto, setMotorAberto] = useState(false);
+  /* MESA EM TRÊS COLUNAS (23/10/2026, redesenho aprovado na prévia):
+     iniciativa à esquerda, tabuleiro no meio, o combatente escolhido no
+     painel fixo da direita. `painelEl` é o nó do painel (o tabuleiro desenha o
+     conteúdo do card lá dentro, por portal); `escolhidoChave` guarda QUEM está
+     escolhido — por chave, não por índice, porque a virada de rodada reordena
+     a lista. Sem escolha, vale quem está na vez. */
+  const [painelEl, setPainelEl] = useState(null);
+  const [escolhidoChave, setEscolhidoChave] = useState(null);
   /* Edição de pool pelo card: clique numa das 4 barras (EF/EH/AR/KA) abre um
      campo pro Mestre digitar o valor. Substituiu o par de botões coração
      (dano/cura) em 01/09/2026 — eram dois painéis, um que SUBTRAÍA com
@@ -8286,10 +8518,28 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           "Mover" para todo participante, fechava, não desenhava halo nenhum e
           o clique na grade era recusado com a mensagem fora da tela — parecia
           que o tabuleiro simplesmente não movia ninguém. */}
+      {(() => {
+        const chave = (q) => (q ? (q.inst_id || (q.tipo + ':' + q.ref_id)) : null);
+        const idxEscolhido = (() => {
+          const k = escolhidoChave != null ? participantes.findIndex((q) => chave(q) === escolhidoChave) : -1;
+          if (k >= 0) return k;
+          const a = participantes.findIndex((q) => q.atual);
+          return a >= 0 ? a : (participantes.length ? 0 : null);
+        })();
+        return (
+        <div className="batalha-mesa">
+          <IniciativaLista participantes={participantes} meta={metaTokens} isEn={isEn}
+            rodada={rodada} escolhido={idxEscolhido}
+            onEscolher={(i) => setEscolhidoChave(chave(participantes[i]))} />
+          <div className="batalha-mesa-centro">
       <TabuleiroBatalha
         entradas={participantes.map((p, i) => ({ p, i }))}
         meta={metaTokens}
         visibilidade={visibilidade}
+        semBancada
+        painelEl={painelEl}
+        selecionado={idxEscolhido}
+        onSelecionar={(i) => setEscolhidoChave(chave(participantes[i]))}
         /* Conduzir Oponente (14/09/2026): o adversário conduzido por quem está
            na vez também é selecionável, e o halo dele é o que a condução anda.
            Mesma condição em moverNoTabuleiro, que desvia para a condução. */
@@ -8336,18 +8586,26 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       estado já está no seletor da fileira de baixo. */}
                   {/* No menu cabe o nome inteiro — o card cortava no primeiro
                       nome por causa da largura da coluna, restrição que sumiu. */}
+                  {/* Retrato ao lado do nome no painel fixo (23/10/2026). */}
+                  {(() => {
+                    const foto = p.foto_url || ((metaTokens || {})[p.tipo + ':' + p.ref_id] || {}).foto_url;
+                    const inimigo = p.tipo === 'criatura' && p.dono_pj == null;
+                    return foto
+                      ? <img className="batalha-painel-ret" src={foto} alt="" />
+                      : <span className={'batalha-painel-ret batalha-painel-mono' + (inimigo ? ' is-inimigo' : '')} aria-hidden="true">{String(p.nome || '?').charAt(0)}</span>;
+                  })()}
                   <span className="batalha-fighter-nome">{p.nome}</span>
                   {/* POOLS AO LADO DO NOME desde 13/09/2026 ("Os 4 itens de eh,
                       ef, etc devem ficar inline com o nome"). Anel que diminui
                       (PoolBotao); a resistência só com peça de armadura, e não
                       se edita aqui (mora nas peças). */}
                   <span className="batalha-card-pools-nome">
-                    {POOLS_DO_CARD.filter((d) => d.pool !== 'res' || (p.res_max || 0) > 0).map((d) => {
+                    {POOLS_DO_CARD.filter((d) => (d.pool !== 'res' || (p.res_max || 0) > 0) && (d.pool !== 'ka' || (p.karma_max || 0) > 0)).map((d) => {
                       const valor = p[d.campo];
                       const maximo = p[d.campo + '_max'];
                       const sigla = d.pool === 'ka' ? 'KA' : d.pool.toUpperCase();
                       return (
-                        <PoolBotao key={d.pool} def={d} valor={valor} max={maximo} isEn={isEn}
+                        <PoolBotao key={d.pool} def={d} valor={valor} max={maximo} isEn={isEn} linha
                           abrirTip={abrirTip} fecharTip={fecharTip}
                           // Guarda ÍNDICE, nome, sigla e ícone: o editor é modal e
                           // vive fora do card, sem `p` nem `i` no escopo.
@@ -8439,36 +8697,40 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                   os números valem sempre; Mover/Ação/Passar só na vez dele. */}
               <div className="batalha-menu-acoes batalha-card-barra">
                 <div className="batalha-fighter-stats">
-                  <NumerosDoCombatente p={p} tb={tb} isEn={isEn} abrirTip={abrirTip} fecharTip={fecharTip} />
+                  <NumerosDoCombatente p={p} tb={tb} isEn={isEn} abrirTip={abrirTip} fecharTip={fecharTip} celulas />
                 </div>
-                {estado === 'ativa' && p.atual && (
-                  <div className="batalha-card-botoes">
-                    {mover && (
-                      <BotaoAcaoMenu icone="ti-footsteps" onClick={mover}
-                        rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')}
-                        abrirTip={abrirTip} fecharTip={fecharTip} />
-                    )}
-                    <BotaoAcaoMenu icone="ti-sword" variante="primary" rotulo={tb.acao}
-                      // Não é "tem PA", é "tem o que fazer": quem bancou um ataque
-                      // extra (Golpe Duplo e cia.) chega aqui com pa_rest 0 e um
-                      // golpe na mão. Com a checagem antiga o Mestre não conseguia
-                      // abrir o painel para gastá-lo — só passar a vez e perdê-lo.
-                      disabled={salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente}
-                      // `fechar()` junto desde 17/09/2026: o painel virou
-                      // ModalShell e o popover do token ficaria aberto atrás
-                      // do backdrop, inalcançável e visível por baixo.
-                      onClick={() => { setAtaqueContra(null); setAcaoOpen(true); fechar(); }}
-                      // Com rolagem pendente o motivo da trava importa mais que
-                      // o nome do botão — é o único jeito de o Mestre entender
-                      // por que "Ação" está apagado.
-                      abrirTip={(e, r) => abrirTip(e, rolagemPendente ? tb.concluaARolagemPendente : r)}
-                      fecharTip={fecharTip} />
-                    <BotaoAcaoMenu icone="ti-player-skip-forward" rotulo={tb.passar}
+                {/* AÇÕES COM NOME (23/10/2026, painel fixo): cada uma abre o painel
+                    de Ação já na aba dela; "Encerrar a vez" (o antigo Passar) é o
+                    único dourado. Só para quem está na vez, como antes. */}
+                {estado === 'ativa' && p.atual && (() => {
+                  const travado = salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente;
+                  const abrirAba = (aba) => { setAtaqueContra({ id: undefined, aba }); setAcaoOpen(true); fechar(); };
+                  const dicaTravado = (e, rot) => abrirTip(e, rolagemPendente ? tb.concluaARolagemPendente : rot);
+                  return (
+                  <div className="batalha-card-botoes batalha-acoes-nomeadas">
+                    <BotaoAcaoMenu icone="ti-sword" rotulo={isEn ? 'Attack' : 'Atacar'} comRotulo
+                      disabled={travado} onClick={() => abrirAba('arma')} abrirTip={dicaTravado} fecharTip={fecharTip} />
+                    <BotaoAcaoMenu icone="ti-sparkles" rotulo={isEn ? 'Spell' : 'Magia'} comRotulo
+                      disabled={travado} onClick={() => abrirAba('magia')} abrirTip={dicaTravado} fecharTip={fecharTip} />
+                    <BotaoAcaoMenu icone="ti-target-arrow" rotulo={isEn ? 'Technique' : 'Técnica'} comRotulo
+                      disabled={travado} onClick={() => abrirAba('tecnica_teste')} abrirTip={dicaTravado} fecharTip={fecharTip} />
+                    <BotaoAcaoMenu icone="ti-flask" rotulo="Item" comRotulo
+                      disabled={travado} onClick={() => abrirAba('item')} abrirTip={dicaTravado} fecharTip={fecharTip} />
+                    <BotaoAcaoMenu icone="ti-dice-5" rotulo={isEn ? 'Test' : 'Teste'} comRotulo
+                      disabled={travado} onClick={() => abrirAba('habilidade')} abrirTip={dicaTravado} fecharTip={fecharTip} />
+                    {mover
+                      ? <BotaoAcaoMenu icone="ti-walk" onClick={mover} comRotulo
+                          rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')} abrirTip={abrirTip} fecharTip={fecharTip} />
+                      : <BotaoAcaoMenu icone="ti-walk" disabled comRotulo
+                          rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')} abrirTip={abrirTip} fecharTip={fecharTip} />}
+                    <BotaoAcaoMenu icone="ti-check" variante="primary" comRotulo extraClasse="batalha-acao-encerrar"
+                      rotulo={isEn ? 'End turn' : 'Encerrar a vez'}
                       disabled={salvando || rolagemPendente}
                       onClick={() => { fechar(); passarVez(); }}
                       abrirTip={abrirTip} fecharTip={fecharTip} />
                   </div>
-                )}
+                  );
+                })()}
                 {/* ATACAR ESTE COMBATENTE (12/09/2026) — inline com o resto desde
                     13/09/2026, sem o "Fulano ataca com" e no mesmo fundo dos
                     outros círculos. No avatar de quem NÃO está na vez, o lutador
@@ -8489,19 +8751,19 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                   return (
                     <div className="batalha-card-botoes batalha-menu-atacar">
                       {podeConduzir && (
-                        <BotaoAcaoMenu icone="ti-arrows-move"
+                        <BotaoAcaoMenu icone="ti-arrows-move" comRotulo
                           rotulo={tb.conduzir || (isEn ? 'Lead' : 'Conduzir')}
                           disabled={salvando || rolagemPendente} onClick={mover}
                           abrirTip={abrirTip} fecharTip={fecharTip} />
                       )}
                       {temArma && (
-                        <BotaoAcaoMenu icone="ti-sword"
+                        <BotaoAcaoMenu icone="ti-sword" comRotulo
                           rotulo={isEn ? 'Attack with weapon' : 'Atacar com arma'}
                           disabled={bloqueado} onClick={() => abrir('arma')}
                           abrirTip={abrirTip} fecharTip={fecharTip} />
                       )}
                       {temMagia && (
-                        <BotaoAcaoMenu icone="ti-comet"
+                        <BotaoAcaoMenu icone="ti-comet" comRotulo
                           rotulo={isEn ? 'Attack with spell' : 'Atacar com magia'}
                           disabled={bloqueado} onClick={() => abrir('magia')}
                           abrirTip={abrirTip} fecharTip={fecharTip} />
@@ -8514,7 +8776,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                 {estado === 'ativa' && p.tipo === 'criatura' && catalogos
                   && saqueadoresDe(p, participantes).length > 0 && (
                   <div className="batalha-card-botoes">
-                    <BotaoAcaoMenu icone="ti-backpack" rotulo={isEn ? 'Loot' : 'Saquear'}
+                    <BotaoAcaoMenu icone="ti-backpack" comRotulo rotulo={isEn ? 'Loot' : 'Saquear'}
                       disabled={salvando} onClick={() => { setSaqueDe(p.inst_id); fechar(); }}
                       abrirTip={abrirTip} fecharTip={fecharTip} />
                   </div>
@@ -8534,6 +8796,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           );
         }}
       />
+          </div>
+          <aside className="batalha-mesa-painel" ref={setPainelEl} aria-label={isEn ? 'Combatant' : 'Combatente'} />
+        </div>
+        );
+      })()}
 
       {/* REFORÇOS A CAMINHO (29/09/2026) — só nesta tela, a do Mestre: a do
           Jogador nem recebe quem está chegando. Minion não tem linha (segue o
@@ -8695,17 +8962,22 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       >
         <div className="batalha-campos-modal">
           {!semDano && (
-          <label className="batalha-campo-modal">
+          /* O seletor do sistema no lugar do <input type="number"> (22/10/2026).
+             <div>, não <label>: um label com botões dentro repassa o clique
+             do rótulo para o "−". */
+          <div className="batalha-campo-modal">
             <span>{ferido ? tb.feridoColunas : (isEn ? 'Damage' : 'Dano')}</span>
-            <input type="number" min="1" value={venenoVal} autoFocus
-              onChange={(e) => setVenenoVal(e.target.value)} />
-          </label>
+            <QuantidadeStepper value={Number(venenoVal) || 0} min={1}
+              label={ferido ? tb.feridoColunas : (isEn ? 'Damage' : 'Dano')}
+              onChange={(nv) => setVenenoVal(String(nv))} />
+          </div>
           )}
-          <label className="batalha-campo-modal">
+          <div className="batalha-campo-modal">
             <span>{primeiraMaiuscula(tb.rodadas)}</span>
-            <input type="number" min="1" value={venenoRodadas} autoFocus={semDano}
-              onChange={(e) => setVenenoRodadas(e.target.value)} />
-          </label>
+            <QuantidadeStepper value={Number(venenoRodadas) || 0} min={1}
+              label={primeiraMaiuscula(tb.rodadas)}
+              onChange={setVenenoRodadas} />
+          </div>
         </div>
         {/* O nome do combatente e o total ("21 no total (7 × 3)") saíram em
             14/09/2026, a pedido do usuário. */}
@@ -8902,7 +9174,7 @@ const DadoD20BatInline = React.forwardRef(function DadoD20BatInline(props, ref) 
             <path d="M100,18 L100,62 M29,59 L100,62 L171,59 M62,130 L138,130 M100,62 L62,130 M100,62 L138,130 M29,141 L62,130 M171,141 L138,130 M100,182 L62,130 M100,182 L138,130" />
           </g>
           <text x="100" y="104" textAnchor="middle" dominantBaseline="middle"
-            fontFamily="'Cinzel', serif" fontWeight="700" fontSize="46"
+            fontFamily="var(--font-title)" fontWeight="700" fontSize="46"
             stroke="rgba(28,20,7,0.55)" strokeWidth="0.5" paintOrder="stroke"
             style={{ fill: numFill, transition: 'fill .25s' }}>
             {value}
@@ -9309,7 +9581,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const [tab, setTab] = useState(
     (salva && salva.tab)
     || (evMagiaIdx >= 0 ? 'magia' : (evApoioIdx >= 0 ? 'apoio' : null))
-    || ((abaInicial === 'arma' && armas.length > 0) || (abaInicial === 'magia' && podeMagia) ? abaInicial : null)
+    || ((abaInicial === 'arma' && armas.length > 0) || (abaInicial === 'magia' && podeMagia)
+      /* Os botões nomeados do painel da mesa (23/10/2026) abrem direto na aba. */
+      || (abaInicial === 'item' && !semItem) || abaInicial === 'habilidade' || abaInicial === 'tecnica_teste'
+      ? abaInicial : null)
     || (armas.length > 0 ? 'arma' : (podeMagia ? 'magia' : (!semItem ? 'item' : 'habilidade')))
   );
 
@@ -10688,23 +10963,24 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
                 disabled={temRolagemPendente}
                 onClick={() => { setResTipo('rm'); }}>RM</button>
             </div>
-            <label className="motor-field">
+            {/* Seletor do sistema no lugar do <input type="number"> (22/10/2026). */}
+            <div className="motor-field">
               <span>{tb.forcaDeAtaque}</span>
-              <input type="number" min="1" max="20" value={forcaAtaque} disabled={temRolagemPendente}
-                className="round"
-                onChange={(e) => { setForcaAtaque(_clamp1a20(e.target.value)); setD20(null); }} />
-            </label>
-            <label className="motor-field">
+              <QuantidadeStepper value={forcaAtaque} min={1} max={20} disabled={temRolagemPendente}
+                label={tb.forcaDeAtaque}
+                onChange={(nv) => { setForcaAtaque(_clamp1a20(nv)); setD20(null); }} />
+            </div>
+            <div className="motor-field">
               <span>
                 {tb.forcaDeDefesa}
                 <em className="atacar-resist-label">
                   ({resTipo.toUpperCase()}{isPJ ? ` · ${tb.auto}` : ''})
                 </em>
               </span>
-              <input type="number" min="1" max="20" value={forcaDefesa} disabled={isPJ || temRolagemPendente}
-                className="round"
-                onChange={(e) => { setForcaDefesa(_clamp1a20(e.target.value)); setD20(null); }} />
-            </label>
+              <QuantidadeStepper value={forcaDefesa} min={1} max={20} disabled={isPJ || temRolagemPendente}
+                label={tb.forcaDeDefesa}
+                onChange={(nv) => { setForcaDefesa(_clamp1a20(nv)); setD20(null); }} />
+            </div>
           </div>
         </>
       )}
@@ -12149,12 +12425,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                 quem é, como para qualquer outro combatente. */}
             {ehMinhaVez && souAtivo ? (
               <div className="batalha-vez-msg minha-vez">
-                <i className="ti ti-player-play btn-ic-mr" aria-hidden="true" style={{ color: '#E0BE68' }} />
+                <i className="ti ti-player-play btn-ic-mr" aria-hidden="true" style={{ color: 'var(--vivo)' }} />
                 {tb.eASuaVez}
               </div>
             ) : current ? (
               <div className="batalha-vez-msg">
-                <i className="ti ti-clock btn-ic-mr" aria-hidden="true" style={{ color: '#E0BE68' }} />
+                <i className="ti ti-clock btn-ic-mr" aria-hidden="true" style={{ color: 'var(--vivo)' }} />
                 {interpolate(tb.eAVezDe, { nome: current.nome })}
               </div>
             ) : null}
@@ -12201,7 +12477,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                           {/* Pools ao lado do nome (13/09/2026), só do próprio PJ e
                               só de leitura: o jogador não vê os números dos outros. */}
                           <span className="batalha-card-pools-nome">
-                            {ehEu && POOLS_DO_CARD.filter((d) => d.pool !== 'res' || (p.res_max || 0) > 0).map((d) => (
+                            {ehEu && POOLS_DO_CARD.filter((d) => (d.pool !== 'res' || (p.res_max || 0) > 0) && (d.pool !== 'ka' || (p.karma_max || 0) > 0)).map((d) => (
                               <PoolBotao key={d.pool} def={d} valor={p[d.campo]} max={p[d.campo + '_max']}
                                 isEn={isEn} abrirTip={abrirTip} fecharTip={fecharTip} />
                             ))}

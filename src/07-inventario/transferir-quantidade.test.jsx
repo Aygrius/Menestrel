@@ -136,10 +136,12 @@ async function arrastarParaAmigo(container, amigo) {
 describe('transferir: arrastar o item até o card do amigo', () => {
   afterEach(() => document.querySelectorAll('[data-amigo-pj-id]').forEach((el) => el.remove()));
 
-  it('o modal do item não tem mais o botão Transferir', async () => {
+  /* 23/10/2026: o botão voltou ("Eu não vi o botão de ação de transferir
+     item"); arrastar até o amigo continua valendo. */
+  it('o modal do item tem o botão Transferir para o dono', async () => {
     const { container } = montar(5, []);
     await abrirPocao(container);
-    expect(document.querySelector('[data-acao="transferir"]')).toBeNull();
+    expect(document.querySelector('[data-acao="transferir"]')).toBeTruthy();
   });
 
   it('soltar no amigo pergunta a quantidade e envia o escolhido', async () => {

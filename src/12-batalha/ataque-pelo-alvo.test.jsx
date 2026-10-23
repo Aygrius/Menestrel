@@ -128,7 +128,8 @@ describe('a fiação nos dois menus do tabuleiro', () => {
     expect(fonte.match(/className="batalha-card-botoes batalha-menu-atacar"/g)).toHaveLength(1);
     expect(fonte.match(/className="batalha-card-botoes batalha-menu-atacar batalha-head-acoes"/g)).toHaveLength(1);
     expect(fonte).not.toMatch(/batalha-menu-atacar-lbl/);
-    expect(fonte.match(/<BotaoAcaoMenu icone="ti-sword"\r?\n/g)).toHaveLength(1);
+    // 23/10/2026: no painel fixo os botões têm nome (comRotulo).
+    expect(fonte.match(/<BotaoAcaoMenu icone="ti-sword"( comRotulo)?\r?\n/g)).toHaveLength(1);
     expect(fonte).toContain("rotulo={isEn ? 'Attack' : 'Atacar'}");
   });
 

@@ -124,8 +124,9 @@ describe('LoreDaMesa', () => {
   it('com mesa, busca a linha inteira da história e abre o lore dela', async () => {
     stubBanco();
     render(<LoreDaMesa historiaId={13} lang="pt" tipoFixo="npc" />);
-    await waitFor(() => expect(document.querySelector('.lore-mng-page')).toBeTruthy());
-    expect(document.querySelector('.lore-mng-page-eyebrow').textContent).toMatch(/As Marcas do Passado/);
+    // Desde 23/10/2026 a página não repete o nome da mesa (está no menu
+    // lateral): basta que os cartões da história 13 apareçam.
+    await waitFor(() => expect(document.querySelector('.diario-pagina .diario-cartoes')).toBeTruthy());
   });
 });
 
@@ -143,7 +144,7 @@ describe('travado num tipo, a tela do Mestre deixa de oferecer a escolha', () =>
   it('sem as abas npc/lugar/criatura', async () => {
     stubBanco();
     montar('npc');
-    await waitFor(() => expect(document.querySelector('.lore-mng-page-body')).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('.diario-pagina')).toBeTruthy());
     expect(document.querySelector('.diario-subtabs')).toBeNull();
     expect(document.querySelector('.lore-mng-toolbar')).toBeNull();
   });
@@ -153,36 +154,25 @@ describe('travado num tipo, a tela do Mestre deixa de oferecer a escolha', () =>
   it('e sem o "voltar às histórias"', async () => {
     stubBanco();
     montar('npc');
-    await waitFor(() => expect(document.querySelector('.lore-mng-page-header')).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('.diario-pagina-barra')).toBeTruthy());
     expect(document.querySelector('[aria-label="Voltar às histórias"]')).toBeNull();
   });
 
   it('mas com ele quando vem de Histórias → Lore', async () => {
     stubBanco();
     render(<GerenciarLoreView historia={HISTORIA} lang="pt" onClose={() => {}} />);
-    await waitFor(() => expect(document.querySelector('.lore-mng-page-header')).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('.diario-pagina-barra')).toBeTruthy());
     expect(document.querySelector('[aria-label="Voltar às histórias"]')).toBeTruthy();
     expect(document.querySelector('.diario-subtabs')).toBeTruthy();
   });
 
-  it('o título é o nome da seção, as mesmas palavras do menu', async () => {
-    stubBanco();
-    montar('lugar');
-    await waitFor(() => expect(document.querySelector('.lore-mng-page-h2')).toBeTruthy());
-    expect(document.querySelector('.lore-mng-page-h2').textContent).toBe('Reinos'); // era Lugares até 26/09/2026
-  });
-
-  it('e em Pessoas (ex-Conhecidos, ex-NPCs) o título acompanha', async () => {
+  /* 23/10/2026: a página ficou como a de Personagens — os cartões direto na
+     página, sem o painel com título. O nome da seção é o do topo do app. */
+  it('sem painel nem título próprio: o topo do app já diz a seção', async () => {
     stubBanco();
     montar('npc');
-    await waitFor(() => expect(document.querySelector('.lore-mng-page-h2')).toBeTruthy());
-    expect(document.querySelector('.lore-mng-page-h2').textContent).toBe('Pessoas');
-  });
-
-  it('vindo de Histórias, o título continua sendo "Lore"', async () => {
-    stubBanco();
-    render(<GerenciarLoreView historia={HISTORIA} lang="pt" onClose={() => {}} />);
-    await waitFor(() => expect(document.querySelector('.lore-mng-page-h2')).toBeTruthy());
-    expect(document.querySelector('.lore-mng-page-h2').textContent).toBe('Lore');
+    await waitFor(() => expect(document.querySelector('.diario-pagina')).toBeTruthy());
+    expect(document.querySelector('.lore-mng-page-h2')).toBeNull();
+    expect(document.querySelector('.fp-card')).toBeNull();
   });
 });

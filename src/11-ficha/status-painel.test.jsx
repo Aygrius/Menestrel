@@ -125,9 +125,13 @@ describe('passo 1 — o seletor, um círculo no molde do clima', () => {
   /* "Deve ser um círculo, como é 'temperatura' no topo da página, e pode ficar
      ao lado do menu 'ficha'." Só ícone: na fileira das abas ele é a única
      coisa redonda, e isso já o distingue. */
-  it('é só ícone, sem rótulo escrito', () => {
+  /* 23/10/2026: o rótulo "Status" existe, mas só aparece no trilho de ações
+     (.fp-ativ-rotulo, escondido fora dele pelo CSS) — o mesmo da atividade. */
+  it('fora do trilho é ícone; o rótulo só se mostra na barra de ações', () => {
     montar();
-    expect(seletor().textContent).toBe('');
+    const rotulo = seletor().querySelector('.fp-ativ-rotulo');
+    expect(rotulo && rotulo.textContent).toBe('Status');
+    expect(rotulo.getAttribute('aria-hidden')).toBe('true');
     expect(seletor().querySelector('i')).toBeTruthy();
     expect(seletor().getAttribute('aria-label')).toBe('Aplicar status');
   });

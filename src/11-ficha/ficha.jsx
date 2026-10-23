@@ -89,10 +89,13 @@
    suave deslizante (CSS) + ponta clara. Barra esgotada (val 0) vira
    trilho vazio discreto. Sem canvas — leitura limpa. */
 
-/* Profissões SEM Karma (15/09/2026, decisão do usuário): a barra não aparece
-   na ficha delas. Guerreiro e Ladino não conjuram — o poço existia e ficava
-   sempre vazio. */
-const SEM_KARMA = new Set(['Guerreiro', 'Ladino']);
+/* Profissões SEM Karma: NENHUMA desde 23/10/2026. Até então Guerreiro e
+   Ladino não conjuravam e a barra sumia da ficha deles (15/09/2026). Agora
+   todos podem usar magia (sem impedimento de profissão nem de raça), e o
+   usuário pediu: "caso o personagem tenha karma, mostre a barra de karma de
+   todos". Quem mostra ou não a barra é o máximo de Karma (Aura), não a
+   profissão. O conjunto fica vazio para os leitores antigos (window.SEM_KARMA). */
+const SEM_KARMA = new Set();
 
 /* Cor de NÍVEL (15/09/2026): roxo embaixo, branco no meio, verde em cima.
    Vale para toda barra sem cor própria e tinge o ícone de TODAS elas — o
@@ -110,11 +113,13 @@ function corNivelBarra(pct) {
 /* Cores FIXAS por stat (decisão do usuário, valendo também para o combate):
    EF vermelha, EH amarela, Karma azul, resistência de item branca. */
 const FICHA_VIT_COLORS = {
-  ef: '#ae2f20',   // Energia Física — ember quente (Pedra & Bronze)
-  eh: '#E3C34D',   // Energia Heroica — amarela
+  // Física, Heroica e Karma nas cores dos tubos do Resumo (23/10/2026): a
+  // Heroica ficou verde. A mesma tabela pinta os cartões de personagem.
+  ef: '#A3291A',   // Energia Física — vermelho
+  eh: '#4E9A3E',   // Energia Heroica — verde
   ar: '#8c8d8e',   // Armadura — aço frio
   res: '#E8DDC6',  // Resistência do item — branca
-  ka: '#4B7BD4',   // Karma — azul
+  ka: '#3558B0',   // Karma — azul
   velocidade: '#4a8f5c',  // Velocidade — verde (agilidade)
   rf: '#a86b3c',          // Resistência Física — bronze/cobre
   rm: '#5a4a8f',          // Resistência Mágica — índigo (perto de Karma, mas distinto)
@@ -172,7 +177,9 @@ function fichaEstadoLabel(key, val, max, en, min) {
    "Remova o nome das barras da ficha (ef, eh, etc)". A barra com `edit`
    (Experiência) desenha o progresso no estágio mas conta XP total — é esse
    que o tooltip mostra, e não o "6 de 14" de dentro da faixa. */
-function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd, semNome }) {
+/* `numero` (22/10/2026): o valor ao lado da barra, sem o nome (que segue no
+   tooltip). Antes só aparecia ao passar o mouse — e no toque não há mouse. */
+function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd, semNome, numero }) {
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const editable = typeof onEdit === 'function';
   const hasHover = typeof onHover === 'function';
@@ -235,7 +242,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd,
             onKeyDown={podeAbrir ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(e); }
             } : undefined}
-            {...propsTip(abrirTip, fecharTip, !hasHover && podeAbrir ? `${b.val}/${b.max}` : undefined)}
+            {...propsTip(abrirTip, fecharTip, !hasHover && podeAbrir && !numero ? `${b.val}/${b.max}` : undefined)}
           >
             {!semNome && (
             <span className="fp-bar-name-label">
@@ -254,7 +261,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd,
               <div
                 className={'fp-bar-track' + (empty ? ' is-empty' : '')}
                 {...(semNome ? {} : hoverTip)}
-                {...propsTip(abrirTip, fecharTip, !hasHover && !editable ? `${b.val}${showValue ? '/' + b.max : ''}` : undefined)}
+                {...propsTip(abrirTip, fecharTip, !hasHover && !editable && !numero ? `${b.val}${showValue ? '/' + b.max : ''}` : undefined)}
               >
                 {!empty && (
                   <div className="fp-bar-fill" style={{ width: (pct * 100) + '%' }}>
@@ -262,6 +269,13 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd,
                   </div>
                 )}
               </div>
+              {numero && (
+                <span className="fp-bar-num" aria-hidden="true">
+                  {b.edit && b.edit.val != null
+                    ? <>{b.edit.val}{b.teto != null && <i>/{b.teto}</i>}</>
+                    : <>{b.val}<i>/{b.max}</i></>}
+                </span>
+              )}
             </div>
             {showValue && (
               <span className="fp-bar-val">{b.val}<i> de {b.max}</i></span>
@@ -270,6 +284,161 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd,
         );
       })}
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    </div>
+  );
+}
+
+/* ============================== [11] Tubos e medalhões do Resumo ============================== */
+/* O RESUMO REDESENHADO (23/10/2026), aprovado com o usuário na prévia
+   preview/resumo.html ("Perfeito, pode aplicar"):
+
+   - Energia (esquerda): Física, Heroica e Karma viram TUBOS de alquimista —
+     vidro antigo, três aros de ferro nos quartos (a graduação), remate em cima
+     e taça com pés embaixo. O líquido borbulha e tem o furta-cor oleoso. O
+     número fica no alto, só o valor ("3", não "3 de 14"); o nome embaixo, sem
+     ícone ("Física", "Heroica", "Karma").
+   - A Energia Física vai abaixo de zero (até −15, a morte — EF_MORTE da
+     batalha): em zero o personagem desmaia, e daí para baixo o líquido vira
+     vermelho escuro e enche conforme se aproxima do −15.
+   - Condições (direita): cada uma é um MEDALHÃO — a pintura no meio (por ora o
+     ícone; as pinturas do Figma entram aqui, ver .impeccable/arte-equipamentos.md)
+     e, em volta, um tubo curvado com o mesmo desenho, em roxo, até a
+     porcentagem. Sem texto: nome e valor ficam no tooltip.
+
+   Os dois seguem o contrato do FichaVitBars: `onEdit(b, scope, rect)` abre o
+   editor do Mestre, `onHover(e, tip)` mostra o tooltip, `semEdicao` (Pesado) e
+   teto 0 (Karma sem Aura) não abrem nada. */
+const EF_PISO = -15;   // a morte (EF_MORTE em 12-batalha/batalha.jsx)
+
+function usarAbrirMedida(b, scope, onEdit, onHover, onHoverEnd, en) {
+  const podeAbrir = typeof onEdit === 'function' && (b.max ?? 0) !== 0 && !b.semEdicao;
+  const abrir = podeAbrir ? (e) => onEdit(b, scope, e.currentTarget.getBoundingClientRect()) : undefined;
+  const dica = typeof onHover === 'function'
+    ? { title: b.label, desc: [b.descVal || `${b.val} ${en ? 'of' : 'de'} ${b.max}`, b.tip].filter(Boolean).join(' — ') }
+    : null;
+  return {
+    className: podeAbrir ? ' is-editable' : '',
+    props: {
+      onClick: abrir,
+      role: podeAbrir ? 'button' : undefined,
+      tabIndex: podeAbrir ? 0 : undefined,
+      'aria-label': `${b.label}: ${b.descVal || b.val}`,
+      onKeyDown: podeAbrir ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(e); } } : undefined,
+      ...(dica ? {
+        onMouseEnter: (e) => onHover(e, dica), onMouseLeave: onHoverEnd,
+        onFocus: (e) => onHover(e, dica), onBlur: onHoverEnd,
+      } : {}),
+    },
+  };
+}
+
+/* Bolhas que sobem pelo líquido do tubo: posição, tamanho e ritmo variam por
+   tubo para não andarem em fila. */
+const BOLHAS_TUBO = [[5, 3, 0], [14, 2, 1], [9, 2.5, 2], [18, 3.5, 3], [7, 1.8, 4], [15, 2.2, 0]];
+
+function FichaTubos({ bars, scope = 'vit', onEdit, en, onHover, onHoverEnd }) {
+  const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  return (
+    <div className="fp-tubos">
+      {bars.map((b, k) => {
+        const lo = b.min ?? 0;
+        // Abaixo de zero (só a EF): enche conforme se aproxima do piso.
+        const neg = lo < 0 && b.val <= 0;
+        const fracao = neg ? Math.min(1, b.val / lo) : (b.max > 0 ? Math.max(0, Math.min(1, b.val / b.max)) : 0);
+        const p = Math.round(fracao * 100);
+        const m = usarAbrirMedida(b, scope, onEdit, onHover, onHoverEnd, en);
+        const ferro = `${uid}f${k}`;
+        return (
+          <div key={b.key} className={'fp-tubo' + m.className} {...m.props}>
+            {/* Sem o número acima do tubo (23/10/2026, "remova o número acima
+                de cada tubo"): o valor fica no balão e no aria-label. */}
+            <div className="fp-tubo-peca" aria-hidden="true">
+              <svg width="40" height="26" viewBox="0 0 40 26">
+                <defs><linearGradient id={ferro} x1="0" x2="1"><stop offset="0" stopColor="#1A140E" /><stop offset=".35" stopColor="#5E4E3B" /><stop offset=".6" stopColor="#3A2F23" /><stop offset="1" stopColor="#140F0A" /></linearGradient></defs>
+                <circle cx="20" cy="4.5" r="3.6" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".8" />
+                <path d="M17,8 h6 l1.5,4 h-9 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".8" />
+                <path d="M8,12 h24 q2,0 2,2 v3 q0,2 -2,2 h-24 q-2,0 -2,-2 v-3 q0,-2 2,-2 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".9" />
+                <circle cx="11" cy="15.5" r="1.2" fill="#9C8466" /><circle cx="29" cy="15.5" r="1.2" fill="#9C8466" />
+                <path d="M10,19 h20 l-2,7 h-16 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".8" />
+              </svg>
+              <div className="fp-tubo-vidro">
+                <div className={'fp-tubo-liq' + (neg ? ' is-neg' : '')} style={{ '--c': b.color, height: p + '%' }}>
+                  {p >= 4 && BOLHAS_TUBO.map(([x, t, f], j) => (
+                    <i key={j} style={{ left: x + 'px', '--t': t + 'px', '--d': (1.9 + ((j * 7 + k * 3) % 5) * 0.45).toFixed(2) + 's', '--a': '-' + ((j * 1.3 + k * 0.7) % 3).toFixed(2) + 's' }} />
+                  ))}
+                </div>
+                {[[5, 18, 3], [16, 41, 2], [9, 67, 2.5], [18, 83, 2]].map(([x, y, r], j) => (
+                  <b key={j} style={{ left: (x + (k * 3 + j) % 4) + 'px', top: y + '%', width: r + 'px', height: r + 'px' }} />
+                ))}
+                {[25, 50, 75].map((q) => <span key={q} className="fp-tubo-aro" style={{ bottom: q + '%' }} />)}
+              </div>
+              <svg width="40" height="26" viewBox="0 0 40 26">
+                <path d="M12,0 h16 l2,6 h-20 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".8" />
+                <path d="M7,6 h26 q2,0 1,3 q-3,6 -14,6 q-11,0 -14,-6 q-1,-3 1,-3 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".9" />
+                <circle cx="20" cy="9.5" r="1.3" fill="#9C8466" />
+                <path d="M10,13 l-3,10 h5 l2,-8 z M30,13 l3,10 h-5 l-2,-8 z M18,15 h4 l.5,8 h-5 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".7" />
+              </svg>
+            </div>
+            <span className="fp-tubo-nome" aria-hidden="true">{b.nomeCurto || b.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Bolhas do medalhão: nascem dentro do anel, correm um trecho dele e somem. */
+const BOLHAS_ANEL = [2.6, 1.8, 2.2, 3, 1.6, 2.4, 2];
+
+function FichaMedalhoes({ bars, scope = 'cond', onEdit, en, onHover, onHoverEnd }) {
+  const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  return (
+    <div className="fp-medalhoes">
+      {bars.map((b, k) => {
+        const v = Math.max(0, Math.min(100, Math.round(Number(b.val) || 0)));
+        const m = usarAbrirMedida({ ...b, descVal: v + '%' }, scope, onEdit, onHover, onHoverEnd, en);
+        const rad = (v * 3.6 - 90) * Math.PI / 180;
+        const vidro = `${uid}v${k}`, ferro = `${uid}f${k}`;
+        return (
+          <div key={b.key} className={'fp-medalhao' + (v ? '' : ' is-zero') + m.className} {...m.props}>
+            <svg viewBox="0 0 86 86" aria-hidden="true">
+              <defs><radialGradient id={vidro} cx="43" cy="43" r="40.5" gradientUnits="userSpaceOnUse">
+                <stop offset=".827" stopColor="#0E120C" stopOpacity=".95" /><stop offset=".88" stopColor="#262C20" stopOpacity=".6" />
+                <stop offset=".95" stopColor="#1E2418" stopOpacity=".65" /><stop offset="1" stopColor="#0C0F0A" stopOpacity=".95" /></radialGradient></defs>
+              <circle cx="43" cy="43" r="42.2" fill="#17120C" stroke="#4A3D2E" strokeWidth="1.4" />
+              <circle cx="43" cy="43" r="37" fill="none" stroke={`url(#${vidro})`} strokeWidth="7" />
+            </svg>
+            {v > 0 && (
+              <div className="fp-medalhao-canal" style={{ '--p': v }} aria-hidden="true">
+                <div className="fp-medalhao-liq" style={{ '--a': '-' + (k * 0.9).toFixed(1) + 's' }}>
+                  {BOLHAS_ANEL.map((t, j) => (
+                    <i key={j} style={{ '--g': ((j * 51 + k * 23) % 360) + 'deg', '--t': t + 'px', '--d': (2.2 + ((j * 5 + k) % 4) * 0.5).toFixed(1) + 's', '--a2': '-' + ((j * 0.8 + k * 0.3) % 3).toFixed(1) + 's' }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <svg viewBox="0 0 86 86" className="fp-medalhao-sobre" aria-hidden="true">
+              <defs><linearGradient id={ferro} x1="0" x2="1"><stop offset="0" stopColor="#1A140E" /><stop offset=".35" stopColor="#5E4E3B" /><stop offset=".6" stopColor="#3A2F23" /><stop offset="1" stopColor="#140F0A" /></linearGradient></defs>
+              <path d="M17.2,24 A32,32 0 0 1 34,9.6" fill="none" stroke="rgba(235,240,220,.16)" strokeWidth="2" strokeLinecap="round" />
+              {v > 0 && v < 100 && (
+                <line x1={(43 + 33.6 * Math.cos(rad)).toFixed(2)} y1={(43 + 33.6 * Math.sin(rad)).toFixed(2)}
+                  x2={(43 + 40.4 * Math.cos(rad)).toFixed(2)} y2={(43 + 40.4 * Math.sin(rad)).toFixed(2)}
+                  stroke="#B49AE6" strokeWidth="1.6" strokeLinecap="round" opacity=".85" />
+              )}
+              {[90, 180, 270].map((a) => (
+                <g key={a} transform={`rotate(${a} 43 43)`}>
+                  <rect x="40.6" y="1.4" width="4.8" height="9.6" rx="1" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".6" />
+                  <circle cx="43" cy="6.2" r="1.1" fill="#9C8466" />
+                </g>
+              ))}
+              <rect x="39.4" y=".4" width="7.2" height="11.6" rx="1.6" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".7" />
+              <circle cx="43" cy="3.6" r="1.2" fill="#9C8466" /><circle cx="43" cy="8.6" r="1.2" fill="#9C8466" />
+            </svg>
+            {/* A face: aqui entra a pintura da condição (Figma) no lugar do ícone. */}
+            <div className="fp-medalhao-face" aria-hidden="true"><i className={'ti ' + b.icon} /></div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -476,6 +645,8 @@ function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
         {...(aberta ? {} : propsTip(abrirTip, fecharTip, en ? 'Status' : 'Status'))}
       >
         <i className="ti ti-bolt" aria-hidden="true" />
+        {/* Na barra de ações, ícone + texto como os vizinhos (23/10/2026). */}
+        <span className="mc-acao-rotulo fp-ativ-rotulo" aria-hidden="true">Status</span>
       </button>
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
       {aberta && (
@@ -576,6 +747,8 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher, treino
           : (en ? 'Activity' : 'Atividade')))}
       >
         <i className={'ti ' + (atual ? atual.icon : 'ti-moon')} aria-hidden="true" />
+        {/* O nome aparece só na barra de ações: "Atividades" (23/10/2026). */}
+        <span className="mc-acao-rotulo fp-ativ-rotulo" aria-hidden="true">{en ? 'Activities' : 'Atividades'}</span>
       </button>
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
       {/* Sem o nome ao lado do círculo (22/10/2026): primeiro só em
@@ -593,7 +766,7 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher, treino
               className={'fp-status-opcao' + (atual && atual.id === a.id ? ' is-atual' : '')}
               onClick={() => escolher(a.id)}
             >
-              <i className={'ti ' + a.icon} aria-hidden="true" />
+              {/* Só o nome (23/10/2026): os ícones saíram do submenu. */}
               <span>{nomeDe(a)}</span>
               {(() => {
                 const fila = (Array.isArray(treinos) ? treinos : []).filter((t) => t && t.atividade === a.id);
@@ -615,7 +788,6 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher, treino
           {atual && (
             <li role="option" aria-selected="false" data-atividade="" className="fp-status-opcao"
               onClick={() => escolher(null)}>
-              <i className="ti ti-x" aria-hidden="true" />
               <span>{en ? 'None' : 'Nenhuma'}</span>
             </li>
           )}
@@ -1086,6 +1258,53 @@ const FP_REGION_BG = {
   mao_e:   FP_ITEM_BG['escudo'],
 };
 
+/* ── Arte pintada dos slots (23/10/2026) ───────────────────────────────────
+   "Eu quero que a gente tenha pelo menos 3 versões de cada item equipável,
+   leve, médio e pesado" (usuário). Pinturas no estilo de ícone de inventário,
+   em public/equip/<peça>-<versão>.webp (320px). Armas e armaduras escolhem
+   a versão pelo tipo_armadura do catálogo (L/M/P; sem tipo, médio); joias e
+   roupas pelo valor (simples, ornado, nobre). A casa vazia mostra a versão do
+   meio, esmaecida. Peça sem arte pintada ainda cai nas fotos antigas
+   (FP_ITEM_BG/FP_REGION_BG). O que já foi pintado está em ARTE_PINTADA; a
+   lista do que falta mora em .impeccable/arte-equipamentos.md. */
+const ARTE_REGIAO = {
+  cabeca: 'elmo', ombros: 'ombreiras', peito: 'peitoral', bracos: 'bracos', maos: 'luvas',
+  pernas: 'pernas', pes: 'botas', mao_e: 'escudo', mao_d: 'arma',
+  orelha: 'brincos', brinco: 'brincos', pescoco: 'colar', colar: 'colar', capa: 'capa',
+  roupa: 'roupa', veste: 'roupa', cintura: 'cinto', cinto: 'cinto', dedos: 'anel', dedo: 'anel',
+};
+const ARTE_POR_RIQUEZA = new Set(['brincos', 'colar', 'capa', 'roupa', 'cinto', 'anel']);
+// Faixas de valor (em latões) das joias e roupas: até 500 simples, até 5000 ornado.
+const ARTE_FAIXA_SIMPLES = 500;
+const ARTE_FAIXA_ORNADO = 5000;
+const ARTE_PINTADA = new Set([
+  'elmo-leve', 'elmo-medio', 'elmo-pesado',
+  'ombreiras-leve', 'ombreiras-medio', 'ombreiras-pesado',
+  'peitoral-leve', 'peitoral-medio', 'peitoral-pesado',
+  'bracos-leve',
+]);
+function versaoDaArte(base, cat) {
+  if (ARTE_POR_RIQUEZA.has(base)) {
+    if (!cat) return 'ornado';
+    const v = Number(cat.valor_latao) || 0;
+    return v <= ARTE_FAIXA_SIMPLES ? 'simples' : (v <= ARTE_FAIXA_ORNADO ? 'ornado' : 'nobre');
+  }
+  const t = cat ? String(cat.tipo_armadura || '').trim().toUpperCase() : '';
+  return t === 'L' ? 'leve' : (t === 'P' ? 'pesado' : 'medio');
+}
+function arteDoSlot(regiao, cat) {
+  const base = ARTE_REGIAO[regiao];
+  if (!base) return null;
+  const nome = base + '-' + versaoDaArte(base, cat);
+  return ARTE_PINTADA.has(nome) ? '/equip/' + nome + '.webp' : null;
+}
+/* Para as casas que juntam várias peças (brincos, roupas, anéis, cinto): a
+   arte da primeira peça, ou a da região vazia. */
+function arteDaCasaAgrupada(regiao, itens, catalogoBySlug) {
+  const cat = itens && itens[0] ? catalogoBySlug[itens[0].slug] : null;
+  return arteDoSlot(regiao, cat) || FP_REGION_BG[regiao] || null;
+}
+
 const fpItemBgStyle = (img, faded) => img ? {
   backgroundImage: `linear-gradient(to top, ${faded
     ? 'rgba(10,8,5,0.92), rgba(10,8,5,0.62) 60%, rgba(10,8,5,0.80)'
@@ -1274,7 +1493,7 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
             <span className="mag-nivel-titulo">
               <i className={'ti ' + iconeNumeroFicha(nv.n)} aria-hidden="true" style={{ fontSize: 20 }} />
               {nv.titulo}
-              {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--gold, #E0BE68)' }} />}
+              {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--gold, var(--vivo))' }} />}
             </span>
           </button>
         );
@@ -1297,7 +1516,7 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
                 aria-label={a.nome + ' — ' + sub}>
                 <span className="det-opt-foto det-opt-foto--vazia"><i className="ti ti-paw" aria-hidden="true" /></span>
                 <span className="det-opt-nome">{a.nome}<span className="det-opt-sub">{sub}</span></span>
-                {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, #E0BE68)' }} />}
+                {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, var(--vivo))' }} />}
               </button>
             );
           }
@@ -1315,7 +1534,7 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
                 ? <img className="det-opt-foto" src={a.foto_url} alt="" />
                 : <span className="det-opt-foto det-opt-foto--vazia">{iniciais}</span>}
               <span className="det-opt-nome">{a.nome}</span>
-              {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, #E0BE68)' }} />}
+              {selecionado && <i className="ti ti-check" aria-hidden="true" style={{ color: 'var(--gold, var(--vivo))' }} />}
             </button>
           );
         })}
@@ -1995,10 +2214,16 @@ function FichaInfoView({
    com a mesma seta (ColTitleNav). Montaria ganha Montar/Desmontar na linha
    das abas. Os números são os do catálogo: fora de combate o animal não
    apanha nem gasta energia. */
+/* O NOME DO COMPANHEIRO (23/10/2026): "Dê a possibilidade do personagem nomear
+   seu companheiro animal, demônio, etc. O nome persiste se trocar, vender."
+   Mora na instância (instancia.apelido), que viaja inteira em transferir e
+   no anúncio da loja; companheiro com nome nunca empilha (normalizarPilhas e
+   transfer_item). */
 function FichaAnimaisView({ animais, en, podeEditar, onMontar, onDesmontar,
-  catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey, onDesfazerElo }) {
+  catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey, onDesfazerElo, onNomear }) {
   const lista = Array.isArray(animais) ? animais : [];
   const [selId, setSelId] = useState(null);
+  const [editandoNome, setEditandoNome] = useState(null); // { id, txt }
   // Abre no montado; senão no primeiro. Animal que saiu do inventário cai no primeiro.
   const atual = lista.find((a) => a.instancia.instanceId === selId)
     || lista.find((a) => a.instancia.montado) || lista[0] || null;
@@ -2010,7 +2235,8 @@ function FichaAnimaisView({ animais, en, podeEditar, onMontar, onDesmontar,
   lista.forEach((a) => {
     const base = a.cat.nome || a.criatura.nome;
     contagem[base] = (contagem[base] || 0) + 1;
-    rotulos[a.instancia.instanceId] = contagem[base] > 1 ? `${base} ${contagem[base]}` : base;
+    rotulos[a.instancia.instanceId] = a.instancia.apelido
+      || (contagem[base] > 1 ? `${base} ${contagem[base]}` : base);
   });
 
   const inst = atual.instancia;
@@ -2044,7 +2270,23 @@ function FichaAnimaisView({ animais, en, podeEditar, onMontar, onDesmontar,
             );
           })}
         </div>
-        {acao && <div className="fp-animais-acao">{acao}</div>}
+        <div className="fp-animais-acao">
+          {onNomear && (editandoNome && editandoNome.id === inst.instanceId ? (
+            <form className="fp-animais-nome" onSubmit={(e) => { e.preventDefault(); onNomear(inst.instanceId, editandoNome.txt.trim()); setEditandoNome(null); }}>
+              <input autoFocus maxLength={40} value={editandoNome.txt}
+                placeholder={atual.cat.nome || atual.criatura.nome}
+                aria-label={en ? 'Companion name' : 'Nome do companheiro'}
+                onChange={(e) => setEditandoNome({ id: inst.instanceId, txt: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Escape') setEditandoNome(null); }} />
+              <button type="submit" className="btn-primary btn-sm">{en ? 'Save' : 'Salvar'}</button>
+            </form>
+          ) : (
+            <button type="button" className="btn-ghost btn-sm" onClick={() => setEditandoNome({ id: inst.instanceId, txt: inst.apelido || '' })}>
+              <i className="ti ti-pencil" aria-hidden="true" /> {inst.apelido ? (en ? 'Rename' : 'Renomear') : (en ? 'Name' : 'Dar nome')}
+            </button>
+          ))}
+          {acao}
+        </div>
       </div>
       {/* key: trocar de animal zera a página de cada coluna. */}
       <FichaCriaturaSheet key={inst.instanceId} criatura={atual.criatura} instancia={inst} en={en}
@@ -2343,8 +2585,11 @@ function TooltipFlipGuard() {
   return null;
 }
 
-function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, isMestre, navSlot, onBatalha }) {
+function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, onEvoluir = null, isMestre, navSlot, onBatalha, abaPedida = null, abaToken = 0, onAba = null }) {
   const en = lang === 'en';
+  /* Barra de ações da ficha (22/10/2026): os atalhos e o pacto de amizade
+     moram nela quando o console a oferece (#mc-acoes-ficha, 10-shell). */
+  const alvoAcoes = useAlvoPortal('mc-acoes-ficha');
 
   // Globals de fases anteriores — acesso via window para robustez,
   // pois nem todas são exportadas explicitamente por Object.assign/window.X.
@@ -2401,7 +2646,17 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const [eqErro, setEqErro] = useState(null);
   const [seletorOpen, setSeletorOpen] = useState(false);
   const [fpFull, setFpFull] = useState(false);
-  const [fpTab, setFpTab] = useState('ficha');
+  const [fpTab, setFpTab] = useState(abaPedida || 'ficha');
+  /* A BARRA LATERAL ESCOLHE A ABA (22/10/2026, "Mesa em Sessão"): Ficha,
+     Inventário e Loja são destinos do menu do Jogador. `abaToken` sobe a cada
+     clique, para o mesmo destino reabrir a aba; `onAba` devolve a aba atual,
+     para o menu marcar o item certo quando a troca é feita aqui dentro. */
+  useEffect(() => { if (abaPedida) setFpTab(abaPedida); }, [abaPedida, abaToken]);
+  /* A gaveta da Ficha no menu só mostra Animais quando há animal (23/10/2026):
+     a ficha conta junto com a aba. O temAnimais é acertado no render, logo
+     depois de animaisPj (não pode ser hook: há retornos antes dali). */
+  const [temAnimais, setTemAnimais] = useState(null);
+  useEffect(() => { if (onAba) onAba(fpTab, { temAnimais: !!temAnimais }); }, [fpTab, onAba, temAnimais]);
   // Onde a Loja põe a busca: no cabeçalho, entre o nome e os botões (02/10/2026).
   const [slotBuscaLoja, setSlotBuscaLoja] = useState(null);
   const [fotoUploading, setFotoUploading] = useState(false);
@@ -3381,11 +3636,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     val: estagioXpAtual,
     max: estagioSpan,
     edit: { val: xpTotal, min: 0, max: xpMaximo },
+    // "133/ o valor para completar o próximo estágio" (23/10/2026).
+    teto: faixaEstagio.max,
     tip: (en ? `Stage ${estagioNum} — ${estagioFaltaPct}% left` : `Estágio ${estagioNum} — ${estagioFaltaPct}% para o estágio ${estagioNum+1}`),
     color: corNivelBarra(estagioPct),
     icon: 'ti-star',
   }];
-  const elEstagio = <FichaVitBars bars={estagioBars} scope="estagio" semNome onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
+  // Sem balão (23/10/2026, pedido do usuário): o número já está à direita.
+  const elEstagio = <FichaVitBars bars={estagioBars} scope="estagio" semNome numero onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} />;
 
   // Estado atual salvo (valor corrente das barras) — separado do máximo derivado.
   const _est   = pj.estado_atual || {};
@@ -3417,6 +3675,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // Animais do personagem (aba Animais, 14/09/2026): toda instância do
   // inventário vinculada a uma criatura. Sem nenhum, a aba não aparece.
   const animaisPj = (window.animaisDoPersonagem || (() => []))(pj.inventario?.itens, catalogoBySlug, criaturasDosAnimais);
+  if ((animaisPj.length > 0) !== temAnimais) setTemAnimais(animaisPj.length > 0);
   /* EH DA MONTARIA NA FICHA (15/09/2026): "Quando um jogador monta em um
      animal, a EH do animal é somada à sua" — na batalha e na ficha. Fora de
      combate o animal não gasta EH, então entra cheia: a barra mostra
@@ -3425,8 +3684,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const montariaAtual = animaisPj.find((a) => a.instancia.montado && a.criatura.montaria === true) || null;
   const ehDaMontaria = montariaAtual ? Math.max(0, Number(montariaAtual.criatura.energia_heroica) || 0) : 0;
   const vitBars = [
-    { key: 'ef', label: en ? 'Physical Energy' : 'Energia Física', val: _clampVal(_vitAt.ef ?? maxEF, maxEF), max: maxEF, icon: 'ti-heart' },
-    { key: 'eh', label: en ? 'Heroic Energy' : 'Energia Heroica',
+    // A EF vai até −15 (a morte, EF_MORTE da batalha): em 0 o personagem desmaia.
+    { key: 'ef', label: en ? 'Physical Energy' : 'Energia Física', nomeCurto: en ? 'Physical' : 'Física', color: FICHA_VIT_COLORS.ef,
+      val: _clampVal(_vitAt.ef ?? maxEF, maxEF, EF_PISO), min: EF_PISO, max: maxEF, icon: 'ti-heart' },
+    { key: 'eh', label: en ? 'Heroic Energy' : 'Energia Heroica', nomeCurto: en ? 'Heroic' : 'Heroica', color: FICHA_VIT_COLORS.eh,
       val: _clampVal(_vitAt.eh ?? maxEH, maxEH) + ehDaMontaria, max: maxEH + ehDaMontaria, icon: 'ti-bolt',
       ...(ehDaMontaria > 0 ? { tip: en
         ? `Includes ${ehDaMontaria} from ${montariaAtual.criatura.nome} (mount).`
@@ -3443,7 +3704,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // consigo alterar o karma do Yuldrous"). Desde 08/09/2026 a Aura não é
     // mais derrubada por condição: só o valor de ficha manda, e o bônus de
     // Hidratação/Sobriedade não ressuscita um poço que não existe.
-    { key: 'ka', label: en ? 'Karma' : 'Karma', val: _clampVal(_vitAt.ka ?? maxKA, maxKA), max: maxKA, icon: 'ti-sparkles',
+    { key: 'ka', label: en ? 'Karma' : 'Karma', nomeCurto: 'Karma', color: FICHA_VIT_COLORS.ka, val: _clampVal(_vitAt.ka ?? maxKA, maxKA), max: maxKA, icon: 'ti-sparkles',
       tip: maxKA === 0
         ? (en ? 'No Karma: this character’s Aura is below 1.'
               : 'Sem Karma: a Aura deste personagem é menor que 1.')
@@ -3451,7 +3712,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   /* Guerreiro e Ladino não têm Karma (15/09/2026, decisão do usuário): eles
      não conjuram, e a barra só ocupava espaço com um poço que nunca é usado.
      Some da ficha em vez de aparecer vazia. */
-  ].filter((b) => !(b.key === 'ka' && SEM_KARMA.has(pj.profissao)));
+  ];
 
   // Velocidade/Resistência Física/Resistência Mágica como barras (a pedido
   // do usuário — antes eram fp2Stat, linha rótulo:valor simples). Defesa
@@ -3683,7 +3944,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // Placeholder da região: aparece mesmo com a casa vazia (foto esmaecida)
     // e serve de fallback pra item equipado sem arte própria.
     const regionBg = FP_REGION_BG[regiao] || null;
-    const bg = itemBg || regionBg;
+    const bg = arteDoSlot(regiao, catOk ? cat : null) || itemBg || regionBg;
     const ghost = !filled && !!bg;   // casa vazia exibindo a arte do tipo de peça
     // Hover/foco mostra o tooltip de detalhes (Descrição/Absorção/Dano).
     const tipContent = filled && cat ? {
@@ -3775,15 +4036,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // (ex.: Magias, em PJ sem magia) não tiver conteúdo.
   const triCount = [temHab, temMag, temTec].filter(Boolean).length;
 
-  const elVit = <FichaVitBars bars={vitBars} scope="vit" semNome onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />;
+  // Os tubos do Resumo (23/10/2026) — ver FichaTubos.
+  // Tubos e medalhões sem balão (23/10/2026, pedido do usuário); o valor segue no aria-label.
+  const elVit = <FichaTubos bars={vitBars} scope="vit" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} />;
 
-  // Condições com o MESMO visual das barras de vitalidade (FichaVitBars).
-  // Cor padrão: por SINAL (negativo vermelho / neutro / positivo verde — corCondicao).
-  // Exceções com regra de cor própria:
-  //   termorregulacao → corTemperatura (azul claro ↔ verde ↔ vermelho)
-  //   euforia (sobriedade) → corSobriedade (verde baixo → vermelho alto)
-  // Todas roxas (27/09/2026).
-  const condVitBars = condBars.map((c) => ({ ...c, color: _corCondicao(c.val) }));
+  // As condições viraram medalhões (23/10/2026): o roxo é o do próprio
+  // medalhão, e a régua de cor por condição (corCondicao) deixaram de valer aqui.
   /* MAGIAS ATIVAS (degrau 3, 12/09/2026). Magia de duração de calendário
      evocada fora de combate fica aqui, com a data em que vence — e vale na
      próxima batalha.
@@ -3802,7 +4060,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
   const elCond = (
     <div className="fp-cond-vit">
-      <FichaVitBars bars={condVitBars} scope="cond" semNome onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} onHover={abrirTip} onHoverEnd={fecharTip} />
+      {/* Os medalhões do Resumo (23/10/2026) — ver FichaMedalhoes. */}
+      <FichaMedalhoes bars={condBars} scope="cond" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} />
       {magiasAtivas.length > 0 && (
         <div className="fp-magias-ativas">
           <div className="fp-magias-ativas-tit">
@@ -3977,8 +4236,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                 className={'inv-slot' + (brincosItens.length > 0 ? ' filled has-img' : ' empty')}
                 style={{
                   cursor: 'pointer',
-                  ...(FP_REGION_BG['orelha']
-                    ? fpItemBgStyle(FP_REGION_BG['orelha'], brincosItens.length === 0)
+                  ...(arteDaCasaAgrupada('orelha', brincosItens, catalogoBySlug)
+                    ? fpItemBgStyle(arteDaCasaAgrupada('orelha', brincosItens, catalogoBySlug), brincosItens.length === 0)
                     : {}),
                 }}
                 /* Sem brinco equipado não há o que mostrar: o clique não abre
@@ -4007,11 +4266,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                 <span className="inv-slot-meta">
                   <span className="inv-slot-lbl">{slotLbl('orelha')}</span>
                 </span>
-                {brincosItens.length > 0 && (
-                <span className="fp2-joias-badge is-active">
-                  {brincosItens.length}/2
-                </span>
-                )}
+                {/* O contador "N/máx" sobre o slot saiu em 23/10/2026 (pedido do usuário). */}
               </button>
             </div>
           </div>
@@ -4053,8 +4308,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                 className={'inv-slot' + (roupasItens.length > 0 ? ' filled has-img' : ' empty')}
                 style={{
                   cursor: 'pointer',
-                  ...(FP_REGION_BG['roupa']
-                    ? fpItemBgStyle(FP_REGION_BG['roupa'], roupasItens.length === 0)
+                  ...(arteDaCasaAgrupada('roupa', roupasItens, catalogoBySlug)
+                    ? fpItemBgStyle(arteDaCasaAgrupada('roupa', roupasItens, catalogoBySlug), roupasItens.length === 0)
                     : {}),
                 }}
                 onClick={() => {
@@ -4081,11 +4336,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                 <span className="inv-slot-meta">
                   <span className="inv-slot-lbl">{slotLbl('roupa')}</span>
                 </span>
-                {roupasItens.length > 0 && (
-                <span className="fp2-joias-badge is-active">
-                  {roupasItens.length}/2
-                </span>
-                )}
+                {/* O contador "N/máx" sobre o slot saiu em 23/10/2026 (pedido do usuário). */}
               </button>
             </div>
           </div>
@@ -4107,8 +4358,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                 className={'inv-slot' + (dedosItens.length > 0 ? ' filled has-img' : ' empty')}
                 style={{
                   cursor: 'pointer',
-                  ...(FP_REGION_BG['dedos']
-                    ? fpItemBgStyle(FP_REGION_BG['dedos'], dedosItens.length === 0)
+                  ...(arteDaCasaAgrupada('dedos', dedosItens, catalogoBySlug)
+                    ? fpItemBgStyle(arteDaCasaAgrupada('dedos', dedosItens, catalogoBySlug), dedosItens.length === 0)
                     : {}),
                 }}
                 onClick={() => {
@@ -4135,12 +4386,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                 <span className="inv-slot-meta">
                   <span className="inv-slot-lbl">{en ? 'Jewels' : 'Joias'}</span>
                 </span>
-                {/* Badge N/4 */}
-                {dedosItens.length > 0 && (
-                <span className="fp2-joias-badge is-active">
-                  {dedosItens.length}/4
-                </span>
-                )}
+                {/* O contador "N/máx" sobre o slot saiu em 23/10/2026 (pedido do usuário). */}
               </button>
             </div>
           </div>
@@ -4161,8 +4407,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                 className={'inv-slot' + (cintoItens.length > 0 ? ' filled has-img' : ' empty')}
                 style={{
                   cursor: 'pointer',
-                  ...(FP_REGION_BG['cintura']
-                    ? fpItemBgStyle(FP_REGION_BG['cintura'], cintoItens.length === 0)
+                  ...(arteDaCasaAgrupada('cintura', cintoItens, catalogoBySlug)
+                    ? fpItemBgStyle(arteDaCasaAgrupada('cintura', cintoItens, catalogoBySlug), cintoItens.length === 0)
                     : {}),
                 }}
                 onClick={() => {
@@ -4189,11 +4435,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                 <span className="inv-slot-meta">
                   <span className="inv-slot-lbl">{slotLbl('cintura')}</span>
                 </span>
-                {cintoItens.length > 0 && (
-                <span className="fp2-joias-badge is-active">
-                  {cintoItens.length}/3
-                </span>
-                )}
+                {/* O contador "N/máx" sobre o slot saiu em 23/10/2026 (pedido do usuário). */}
               </button>
             </div>
           </div>
@@ -4232,10 +4474,11 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const capPagAtual  = Math.min(capPage, capTotalPags - 1);
   const capFatia     = capLista.slice(capPagAtual * CAP_POR_PAG, capPagAtual * CAP_POR_PAG + CAP_POR_PAG);
 
-  const combatPanels = (    
+  const combatPanels = (
     <div className="fp2-combat-col">
       <section className="fp2-panel">
         <div className="fp2-panel-body">
+          <h3 className="fp-col-tit">{en ? 'Conditions' : 'Condições'}</h3>
           {elCond}
         </div>
       </section>
@@ -4262,7 +4505,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const vitCondCol = (
     <div className="fp2-vitcond-col fp2-vitcond-col--no-recip">
       <section className="fp2-panel fp2-vit-section">
-        <div className="fp2-panel-body fp2-vit-band">{elVit}</div>
+        <div className="fp2-panel-body fp2-vit-band">
+          <h3 className="fp-col-tit">{en ? 'Energies' : 'Energias'}</h3>
+          {elVit}
+        </div>
       </section>
       {/* Status logo abaixo da vitalidade: é dela que Morto e Desmaiado saem,
           e é ali que o Mestre já está quando mexe no estado do personagem. */}
@@ -4276,9 +4522,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             onRemover={removerStatus}
           />
         </div>
-      </section>
-      <section className="fp2-panel">
-        <div className="fp2-panel-body fp2-vit-band">{elEstagio}</div>
       </section>
     </div>
   );
@@ -4311,6 +4554,129 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     salvarItensFicha((pj.inventario?.itens || []).map((it) =>
       it.instanceId === instanceId ? { ...it, montado: false } : it));
   };
+  /* SEM CABEÇALHO NO CARTÃO (23/10/2026, "aproveite melhor a tela"): para o
+     Jogador no console, o nome já está no seletor do menu, as partes da ficha
+     são a gaveta Ficha e o Sair é "Trocar de personagem" no seletor. O que
+     sobra — Batalha, atividade e Editar — vai para a barra de ações. O Mestre,
+     olhando a ficha de outro, segue com o cabeçalho completo. */
+  const cabecalhoNoMenu = !isMestre && !!onAba && !!alvoAcoes;
+  const ctrlsNaBarra = cabecalhoNoMenu ? ReactDOM.createPortal(
+    <div className="menestrel-ui mc-acao-grupo fp-ctrl-grupo">
+      {onBatalha && (
+        /* Só o ícone (23/10/2026, pedido do usuário); o nome no tooltip. */
+        <button type="button" className="mc-acao mc-acao--batalha mc-acao--ic" data-aba-ficha="batalha" onClick={onBatalha}
+          aria-label={en ? 'Battle' : 'Batalha'} {...propsTip(abrirTabTip, fecharTabTip, en ? 'Battle' : 'Batalha')}>
+          <i className="ti ti-sword" aria-hidden="true" />
+        </button>
+      )}
+      <FichaAtividadeSeletor
+        atividade={pj.estado_atual && pj.estado_atual.atividade}
+        podeEditar={podeEscolherAtividade}
+        lang={lang}
+        onEscolher={definirAtividade}
+        treinos={pj.treinos}
+        nomeDoTreino={(t) => {
+          const cat = t.tipo === 'tecnica' ? tecnicasByKey[t.key] : magiasByKey[t.key];
+          return (cat && cat.nome) || t.key;
+        }}
+      />
+      {/* EVOLUIR NO TRILHO (23/10/2026): "O botão 'evoluir' que hoje existe no
+          card dos personagens, vai para o trilho na ficha do personagem." Só
+          aparece quando há estágio novo a distribuir (onEvoluir). */}
+      {onEvoluir && (
+        <button type="button" className="mc-acao mc-acao--evoluir" data-aba-ficha="evoluir" onClick={onEvoluir}>
+          <i className="ti ti-trending-up" aria-hidden="true" />
+          <span className="mc-acao-rotulo">{en ? 'Level up' : 'Evoluir'}</span>
+        </button>
+      )}
+      {onEditar && (
+        <button type="button" className="mc-acao" data-aba-ficha="editar" onClick={onEditar}>
+          <i className="ti ti-pencil" aria-hidden="true" />
+          <span className="mc-acao-rotulo">{en ? 'Edit' : 'Editar'}</span>
+        </button>
+      )}
+    </div>,
+    alvoAcoes
+  ) : null;
+  /* A BARRA DE AÇÕES TAMBÉM PARA O MESTRE (23/10/2026): "Adicione a barra na
+     ficha atualmente apenas para jogadores, para o mestre também." O Mestre
+     segue com o cabeçalho de abas, mas o status e a atividade saem dele para
+     a barra, ao lado dos atalhos (Habilidades, Magias, Itens). */
+  const mestreNaBarra = isMestre && !!alvoAcoes;
+  const statusEl = podeEditarEstado && (
+    <FichaStatusSeletor
+      lista={pj.estado_atual && pj.estado_atual.status}
+      dataJogo={dataJogoDaMesa}
+      lang={lang}
+      onAdicionar={adicionarStatus}
+    />
+  );
+  const atividadeEl = (
+    <FichaAtividadeSeletor
+      atividade={pj.estado_atual && pj.estado_atual.atividade}
+      podeEditar={podeEscolherAtividade}
+      lang={lang}
+      onEscolher={definirAtividade}
+      treinos={pj.treinos}
+      nomeDoTreino={(t) => {
+        const cat = t.tipo === 'tecnica' ? tecnicasByKey[t.key] : magiasByKey[t.key];
+        return (cat && cat.nome) || t.key;
+      }}
+    />
+  );
+  /* A FICHA DO MESTRE COMO A DO JOGADOR (23/10/2026): "sem o título e o menu
+     sem ser no trilho" (usuário). As abas, o status, a atividade, Editar e
+     Excluir moram no trilho de ações; o cabeçalho com o nome sai. */
+  // Ícone + texto, o padrão do trilho (23/10/2026).
+  const abaNoTrilho = (id, pt, enRot, icone) => (
+    <button key={id} type="button" role="tab" aria-selected={fpTab === id} data-aba-ficha={id}
+      className={'mc-acao fp-aba-trilho' + (fpTab === id ? ' is-ativo' : '')}
+      onClick={() => setFpTab(id)}>
+      <i className={'ti ' + icone} aria-hidden="true" />
+      <span className="mc-acao-rotulo">{en ? enRot : pt}</span>
+    </button>
+  );
+  /* Dois trilhos (23/10/2026): num só, as treze ações quebravam em duas
+     linhas. As abas ficam num trilho próprio acima do cartão (abasMestreEl);
+     o trilho de ações leva status, atividade, os atalhos, Editar e Excluir. */
+  const abasMestreEl = mestreNaBarra ? (
+    <div className="fp-abas-trilho" role="tablist" aria-label={en ? 'Sheet' : 'Ficha'}>
+      {abaNoTrilho('ficha', 'Ficha', 'Sheet', 'ti-layout-dashboard')}
+      {abaNoTrilho('info', 'Identificação', 'Identity', 'ti-id')}
+      {abaNoTrilho('conhecimento', 'Conhecimento', 'Knowledge', 'ti-book')}
+      {animaisPj.length > 0 && abaNoTrilho('animais', 'Companheiros', 'Companions', 'ti-paw')}
+      {abaNoTrilho('inventario', 'Inventário', 'Inventory', 'ti-briefcase-2')}
+      {abaNoTrilho('loja', 'Loja', 'Shop', 'ti-building-store')}
+    </div>
+  ) : null;
+  const ctrlsMestreNaBarra = mestreNaBarra ? ReactDOM.createPortal(
+    <div className="menestrel-ui mc-acao-grupo fp-ctrl-grupo fp-ctrl-grupo--mestre">
+      {statusEl}
+      {atividadeEl}
+      {/* EVOLUIR NO TRILHO (23/10/2026): "O botão 'evoluir' que hoje existe no
+          card dos personagens, vai para o trilho na ficha do personagem." Só
+          aparece quando há estágio novo a distribuir (onEvoluir). */}
+      {onEvoluir && (
+        <button type="button" className="mc-acao mc-acao--evoluir" data-aba-ficha="evoluir" onClick={onEvoluir}>
+          <i className="ti ti-trending-up" aria-hidden="true" />
+          <span className="mc-acao-rotulo">{en ? 'Level up' : 'Evoluir'}</span>
+        </button>
+      )}
+      {onEditar && (
+        <button type="button" className="mc-acao" data-aba-ficha="editar" onClick={onEditar}>
+          <i className="ti ti-pencil" aria-hidden="true" />
+          <span className="mc-acao-rotulo">{en ? 'Edit' : 'Editar'}</span>
+        </button>
+      )}
+      {onExcluir && (
+        <button type="button" className="mc-acao mc-acao--perigo" data-aba-ficha="excluir" onClick={onExcluir}>
+          <i className="ti ti-trash" aria-hidden="true" />
+          <span className="mc-acao-rotulo">{en ? 'Delete' : 'Excluir'}</span>
+        </button>
+      )}
+    </div>,
+    alvoAcoes
+  ) : null;
   const fpTabsEl = (
     <header className="ms-header ficha-page-header">
       {/* NÃO HÁ SETA DE VOLTAR (17/09/2026). Ela saiu quando o "Sair" nomeado
@@ -4330,7 +4696,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       <div className="fp-flex-fill">
         {/* O número do estágio, dourado, ao lado do nome saiu em 14/09/2026
             (pedido do usuário). O estágio segue em Informações → Derivadas. */}
-        <div className="ficha-page-eyebrow">{en ? 'Character' : 'Personagem'}</div>
+        {/* O rótulo 'Personagem' acima do nome saiu em 22/10/2026 (Título Sozinho):
+            o nome se basta, e o menu já diz que esta é a Ficha. */}
         <h2 className="ms-title" style={{ margin: 0 }}>
           {nomeCompleto}
         </h2>
@@ -4353,34 +4720,20 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           </button>
         )}
         <button type="button" className={'fp-tab-ic ' + (fpTab === 'ficha' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'ficha'}
-          data-aba-ficha="ficha" aria-label={en ? 'Sheet' : 'Ficha'}
-          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Sheet' : 'Ficha')}
+          data-aba-ficha="ficha"
           onClick={() => setFpTab('ficha')}>
-          <i className="ti ti-user" aria-hidden="true" />
+          {/* ABAS COM NOME (22/10/2026): o ícone sozinho obrigava a passar o
+              mouse em cada um. "Resumo" porque o cabeçalho da página já diz Ficha. */}
+          <span className="fp-tab-rotulo">{en ? 'Sheet' : 'Ficha'}</span>
         </button>
         {/* O círculo de status, ao lado de "Ficha" (17/09/2026). Só o Mestre o
             vê: é ele quem aplica. Não é aba — não seleciona nada —, por isso
             fica fora do role="tab". */}
-        {podeEditarEstado && (
-          <FichaStatusSeletor
-            lista={pj.estado_atual && pj.estado_atual.status}
-            dataJogo={dataJogoDaMesa}
-            lang={lang}
-            onAdicionar={adicionarStatus}
-          />
-        )}
+        {/* Com a barra de ações (Mestre, 23/10/2026), status e atividade
+            moram nela — ver ctrlsMestreNaBarra. */}
+        {!mestreNaBarra && statusEl}
         {/* A atividade (24/09/2026): Mestre e dono do personagem escolhem. */}
-        <FichaAtividadeSeletor
-          atividade={pj.estado_atual && pj.estado_atual.atividade}
-          podeEditar={podeEscolherAtividade}
-          lang={lang}
-          onEscolher={definirAtividade}
-          treinos={pj.treinos}
-          nomeDoTreino={(t) => {
-            const cat = t.tipo === 'tecnica' ? tecnicasByKey[t.key] : magiasByKey[t.key];
-            return (cat && cat.nome) || t.key;
-          }}
-        />
+        {!mestreNaBarra && atividadeEl}
         {/* Texto, como as outras abas. Era ícone só, e o rótulo vivia no
             tooltip — a aba destoava das vizinhas e exigia hover pra saber o
             que era (08/09/2026). Sem tooltip: com o nome escrito, é redundante. */}
@@ -4388,38 +4741,39 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             atributos, complemento) e Conhecimento (habilidades, técnicas,
             magias). Ver FichaInfoView, prop `parte`. */}
         <button type="button" className={'fp-tab-ic ' + (fpTab === 'info' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'info'}
-          data-aba-ficha="info" aria-label={en ? 'Character' : 'Personagem'}
-          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Character' : 'Personagem')}
+          data-aba-ficha="info"
           onClick={() => setFpTab('info')}>
-          <i className="ti ti-file-text" aria-hidden="true" />
+          <span className="fp-tab-rotulo">{en ? 'Identity' : 'Identificação'}</span>
         </button>
         <button type="button" className={'fp-tab-ic ' + (fpTab === 'conhecimento' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'conhecimento'}
-          data-aba-ficha="conhecimento" aria-label={en ? 'Knowledge' : 'Conhecimento'}
-          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Knowledge' : 'Conhecimento')}
+          data-aba-ficha="conhecimento"
           onClick={() => setFpTab('conhecimento')}>
-          <i className="ti ti-book" aria-hidden="true" />
+          <span className="fp-tab-rotulo">{en ? 'Knowledge' : 'Conhecimento'}</span>
         </button>
         {/* Página extra dos animais (e da montaria) — só quando o PJ tem algum. */}
         {animaisPj.length > 0 && (
           <button type="button" className={'fp-tab-ic ' + (fpTab === 'animais' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'animais'}
-            data-aba-ficha="animais" aria-label={en ? 'Animals' : 'Animais'}
-            {...propsTip(abrirTabTip, fecharTabTip, en ? 'Animals' : 'Animais')}
+            data-aba-ficha="animais"
             onClick={() => setFpTab('animais')}>
-            <i className="ti ti-paw" aria-hidden="true" />
+            <span className="fp-tab-rotulo">{en ? 'Companions' : 'Companheiros'}</span>
           </button>
         )}
+        {/* Inventário e Loja saem da fileira do JOGADOR quando o console os
+            oferece no menu lateral (onAba, 22/10/2026) — eram o mesmo destino
+            em dois lugares. O Mestre, olhando a ficha de outro, só tem estes. */}
+        {(isMestre || !onAba) && (<>
         <button type="button" className={'fp-tab-ic ' + (fpTab === 'inventario' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'inventario'}
-          data-aba-ficha="inventario" aria-label={en ? 'Inventory' : 'Inventário'}
-          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Inventory' : 'Inventário')}
+          data-aba-ficha="inventario"
           onClick={() => setFpTab('inventario')}>
-          <i className="ti ti-briefcase-2" aria-hidden="true" />
+          {/* Com nome, como as outras abas (23/10/2026, "abas com nome"). */}
+          <span className="fp-tab-rotulo">{en ? 'Inventory' : 'Inventário'}</span>
         </button>
         <button type="button" className={'fp-tab-ic ' + (fpTab === 'loja' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'loja'}
-          data-aba-ficha="loja" aria-label={en ? 'Shop' : 'Loja'}
-          {...propsTip(abrirTabTip, fecharTabTip, en ? 'Shop' : 'Loja')}
+          data-aba-ficha="loja"
           onClick={() => setFpTab('loja')}>
-          <i className="ti ti-coin" aria-hidden="true" />
+          <span className="fp-tab-rotulo">{en ? 'Shop' : 'Loja'}</span>
         </button>
+        </>)}
         {/* SAIR É DO JOGADOR (17/09/2026): "o botão de 'sair' não precisa
             mostrar para o mestre, pois ele não precisa selecionar o
             personagem."
@@ -4478,7 +4832,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      item continuam sendo o que o PJ tem — esses não se usam sem ter. */
   const _AtalhosFicha = (typeof AtalhosFicha !== 'undefined' ? AtalhosFicha : null) || window.AtalhosFicha || null;
   const _itemUsavel = (typeof itemUsavelNoAtalho !== 'undefined' ? itemUsavelNoAtalho : null) || window.itemUsavelNoAtalho || (() => false);
-  const mostrarAtalhos = !!_AtalhosFicha && podeEditarFoto && (fpTab === 'ficha' || fpTab === 'info' || fpTab === 'conhecimento');
+  // O Mestre também tem os atalhos na barra (23/10/2026).
+  const mostrarAtalhos = !!_AtalhosFicha && (podeEditarFoto || isMestre) && (fpTab === 'ficha' || fpTab === 'info' || fpTab === 'conhecimento');
   const atalhoHabilidades = mostrarAtalhos
     ? Object.values(habsByKey).map((h) => ({
         key: h.key, nome: h.nome, grupo: h.grupo,
@@ -4500,8 +4855,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
   return (
     <>
-    <div className={'menestrel-ui fp-page' + (fpFull ? ' is-full' : '') + ((fpTab === 'inventario' || fpTab === 'loja') ? ' is-inv' : '')}>
+    <div className={'menestrel-ui fp-page' + (fpFull ? ' is-full' : '') + ((fpTab === 'inventario' || fpTab === 'loja') ? ' is-inv' : '') + ((fpTab === 'inventario' || fpTab === 'loja') ? ' is-inventario' : '')}>
 
+      {abasMestreEl}
+      {/* O trilho de busca e moedas do Inventário mora fora do painel, logo
+          abaixo do trilho do topo (23/10/2026); a InvItemsTable o põe aqui. */}
+      {(fpTab === 'inventario' || fpTab === 'loja') && <div id="fp-trilho-slot" className="fp-trilho-slot" />}
       <div className="fp-card">
         <div className="fp-card-top">
           {pausado && (
@@ -4511,7 +4870,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                   : 'História pausada — o jogador está sem acesso a esta ficha agora.'}
             </div>
           )}
-          {fpTabsEl}
+          {cabecalhoNoMenu ? ctrlsNaBarra : mestreNaBarra
+            /* Sem cabeçalho: só o espaço da busca da Loja, que a LojaJogador
+               preenche por portal. */
+            ? (fpTab === 'loja' ? <div className="ficha-page-busca ficha-page-busca--solta" ref={setSlotBuscaLoja} /> : null)
+            : fpTabsEl}
+          {ctrlsMestreNaBarra}
         </div>
 
       {(fpTab === 'info' || fpTab === 'conhecimento') ? (
@@ -4553,6 +4917,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         <div className="fp-invtab fp-info-tab">
           <FichaAnimaisView animais={animaisPj} en={en} podeEditar={podeEditarInv}
             onMontar={montarFicha} onDesmontar={desmontarFicha}
+            onNomear={podeEditarInv ? (id, nome) => salvarItensFicha((pj.inventario?.itens || []).map((it) => {
+              if (it.instanceId !== id) return it;
+              const novo = { ...it };
+              if (nome) novo.apelido = nome; else delete novo.apelido;
+              return novo;
+            })) : undefined}
             onDesfazerElo={isMestre && podeEditarInv
               ? (id) => salvarItensFicha(window.semEloNoAnimal(pj.inventario?.itens, id)) : undefined}
             catalogoBySlug={catalogoBySlug} habsByKey={habsByKey}
@@ -4588,6 +4958,13 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             <div className="fp2-col-main">{equipRow}</div>
             <aside className="fp2-col-side">{combatPanels}</aside>
           </div>
+          {/* A Experiência saiu da coluna (23/10/2026): uma faixa simples no pé
+              do cartão, de ponta a ponta. A barra é a mesma — e o Mestre segue
+              concedendo XP por ela. */}
+          <div className="fp-xp-faixa">
+            <span className="fp-xp-rot">{en ? 'Experience' : 'Experiência'}</span>
+            {elEstagio}
+          </div>
                   </div>
       </div>
       )}
@@ -4612,8 +4989,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     {/* Pacto de amizade e os cards dos amigos, na borda esquerda (28/09/2026).
         Em TODAS as abas: é no Inventário que se arrasta o item até o amigo. */}
     {podeEditarFoto && pjAtivoId && typeof AmigosFab !== 'undefined' && ReactDOM.createPortal(
-      <AmigosFab lang={lang} pjId={pjAtivoId} />,
-      document.getElementById('root') || document.body
+      <AmigosFab lang={lang} pjId={pjAtivoId} naBarra={!!alvoAcoes} />,
+      alvoAcoes || document.getElementById('root') || document.body
     )}
 
     {/* Atalhos flutuantes — Habilidade, Magia e Item, na coluna dos dados.
@@ -4628,8 +5005,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         onHabilidade={(key) => setHabilidadeDetalheKey(key)}
         onMagia={(key) => setMagiaDetalheKey(key)}
         onItem={(id) => setDetalheCintoId(id)}
+        naBarra={!!alvoAcoes}
       />,
-      document.getElementById('root') || document.body
+      alvoAcoes || document.getElementById('root') || document.body
     )}
 
     {/* ── Card de Joias (portal) ──────────────────────────────────────────────
@@ -5134,6 +5512,8 @@ window.MagiaDetalhesModal = MagiaDetalhesModal;
 // As barras e o popover de edição, pelo teste da experiência clicável
 // (experiencia-barra.test.jsx): montá-los isolados dispensa o fetch do PJ.
 window.FichaVitBars = FichaVitBars;
+window.FichaTubos = FichaTubos;
+window.FichaMedalhoes = FichaMedalhoes;
 window.BarEditPopover = BarEditPopover;
 /* A regra de quem NÃO tem Karma e a tabela de rótulos narrativos das barras
    são conhecimento da ficha, mas o card de personagem (08-personagens) passou

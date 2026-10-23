@@ -158,9 +158,10 @@ describe('a ficha liga os atalhos às janelas que já existiam', () => {
     expect(fonte).toMatch(/onItem=\{\(id\) => setDetalheCintoId\(id\)\}/);
   });
 
-  it('só o dono, e só fora das abas que têm cópia própria do inventário', () => {
+  it('o dono e o Mestre, e só fora das abas que têm cópia própria do inventário', () => {
     // 'info' (Personagem) e 'conhecimento' dividiram Informações em 26/09/2026.
-    expect(fonte).toMatch(/mostrarAtalhos = [^;]*podeEditarFoto && \(fpTab === 'ficha' \|\| fpTab === 'info' \|\| fpTab === 'conhecimento'\)/);
+    // O Mestre também tem a barra desde 23/10/2026.
+    expect(fonte).toMatch(/mostrarAtalhos = [^;]*\(podeEditarFoto \|\| isMestre\) && \(fpTab === 'ficha' \|\| fpTab === 'info' \|\| fpTab === 'conhecimento'\)/);
   });
 
   it('o main carrega os atalhos antes da ficha', () => {

@@ -45,8 +45,9 @@ const AUTH_COPY = {
     signout:     'Sair',
     google_btn:  'Continuar com Google',
     redirecting: 'Forjando seu acesso...',
-    eyebrow:     'Mesa de RPG para Mestres & Jogadores',
-    title:       'Bem-vindo, menestrel',
+    lema:        'A regra é do sistema; a mesa fica com a história.',
+    feito:       'Feito para Tagmar · Mestres e Jogadores',
+    title:       'Entrar',
     sub:         'Entre com a sua conta Google para abrir o seu grimório.',
     aguarde:     'Aguarde um momento.',
     erro:        'Não foi possível iniciar o login. Tente novamente.',
@@ -56,8 +57,9 @@ const AUTH_COPY = {
     signout:     'Sign out',
     google_btn:  'Continue with Google',
     redirecting: 'Forging your access...',
-    eyebrow:     'RPG tabletop for Game Masters & Players',
-    title:       'Welcome, minstrel',
+    lema:        'The rules belong to the system; the table keeps the story.',
+    feito:       'Made for Tagmar · Game Masters and Players',
+    title:       'Sign in',
     sub:         'Sign in with your Google account to open your grimoire.',
     aguarde:     'Just a moment.',
     erro:        'Could not start the sign-in. Please try again.',
@@ -397,7 +399,7 @@ const ADMIN_COPY = {
 
    ⚠️ Isto é gate de UI. Um cliente que fale direto com o PostgREST não é
    barrado por aqui — a checagem no banco é assunto separado. */
-const PLANO_FREE_LIMITES = { historias: 1, personagens: 1 };
+// PLANO_FREE_LIMITES saiu em 23/10/2026: não há mais plano gratuito nem Premium.
 
 /* ── A BARRA LATERAL, reorganizada em 12/09/2026 ───────────────────
    Três mudanças pedidas pelo usuário, e cada uma tem uma razão de lugar:
@@ -622,6 +624,78 @@ const ADMIN_MENU = {
   ],
 };
 
+/* ============================================================
+   NAV_MESA — a navegação "Mesa em Sessão" (22/10/2026)
+   ============================================================
+   Crítica de 22/10/2026 (19/40): o menu misturava a mesa, o livro de regras
+   e a conta, com 54 destinos sem grupos, e enterrava a sessão ao vivo dentro
+   do card da história. Decisão do usuário, no mesmo dia: o MESTRE navega pela
+   mesa ativa (Cena, Batalha, Personagens, Diário, Loja, Jogadores); o JOGADOR,
+   pelo personagem ativo (Ficha, Inventário, Loja, Diário, Mesa). Abaixo de uma
+   régua, o Livro de Regras; a conta mora no avatar.
+
+   ADMIN_MENU continua sendo a árvore dos FILTROS (classes de magia, grupos de
+   itens…) — os nós do Livro de Regras são os mesmos objetos, e o painel ao
+   lado (NavMenuPainel) segue abrindo os filtros que o usuário ditou.
+
+   Destinos novos (não estão em ADMIN_SECTIONS; o console os soma):
+     cena, batalha, loja_mesa, jogadores — telas da história ativa (Mestre);
+     ficha, inventario, loja            — abas da ficha do personagem ativo. */
+const SECOES_DA_MESA = {
+  master: [
+    { id: 'cena',      icone: 'ti-building-castle',         rotulo: R('Cena', 'Scene') },
+    { id: 'batalha',   icone: 'ti-swords',         rotulo: R('Batalha', 'Battle') },
+    { id: 'loja_mesa', icone: 'ti-building-store', rotulo: R('Loja', 'Shop') },
+    { id: 'jogadores', icone: 'ti-mail',           rotulo: R('Jogadores', 'Players') },
+  ],
+  player: [
+    { id: 'ficha',      icone: 'ti-id',             rotulo: R('Ficha', 'Sheet') },
+    { id: 'inventario', icone: 'ti-briefcase-2',    rotulo: R('Inventário', 'Inventory') },
+    { id: 'loja',       icone: 'ti-building-store', rotulo: R('Loja', 'Shop') },
+  ],
+};
+const ROTULO_LIVRO = R('Livro de Regras', 'Rulebook');
+const NAV_MESA = {
+  master: {
+    mesa: [
+      { secao: 'cena' }, { secao: 'batalha' }, { secao: 'personagens_m' },
+      diario(false),
+      /* A Loja do Mestre é o Estoque, sem gaveta (23/10/2026): lojas por cidade e
+         propostas de venda. "Itens da Campanha" saiu do menu (não chegava a
+         lugar nenhum); a página continua no código. */
+      { secao: 'loja_mesa', rotulo: R('Loja', 'Shop') },
+      { secao: 'jogadores' },
+    ],
+    regras: [
+      CRIATURAS, { ...COMERCIO, rotulo: R('Itens', 'Items') },
+      MENU_MAGIAS, MENU_TECNICAS, MENU_HABILIDADES,
+    ],
+  },
+  player: {
+    mesa: [
+      /* A FICHA NO MENU (23/10/2026): "precisa repetir os menus na ficha, já
+         que estão na barra lateral?" (usuário). As partes da ficha viraram
+         a gaveta da Ficha; a fileira de abas no cartão saiu para o Jogador.
+         O filtro é a aba (FichaPersonagem: ficha/info/conhecimento/animais);
+         Animais só aparece quando o personagem tem algum (10-shell). */
+      /* SEM A GAVETA (23/10/2026): "resumo vira ficha, ele e os outros viram
+         menus fora do antigo ficha. O menu personagem vira 'Identificação'"
+         e Animais vira "Companheiros" (animais, enviados, demônios,
+         elementais — os seres sob controle do personagem). */
+      { id: 'ficha_ficha', secao: 'ficha', filtro: 'ficha', rotulo: R('Ficha', 'Sheet'), titulo: R('Ficha', 'Sheet') },
+      { id: 'ficha_ident', secao: 'ficha', filtro: 'info', rotulo: R('Identificação', 'Identity'), titulo: R('Identificação', 'Identity') },
+      { id: 'ficha_conhec', secao: 'ficha', filtro: 'conhecimento', rotulo: R('Conhecimento', 'Knowledge'), titulo: R('Conhecimento', 'Knowledge') },
+      { id: 'ficha_comp', secao: 'ficha', filtro: 'animais', rotulo: R('Companheiros', 'Companions'), titulo: R('Companheiros', 'Companions') },
+      { secao: 'inventario' }, { secao: 'loja' },
+      diario(true), { secao: 'aventuras' },
+    ],
+    regras: [
+      CRIATURAS, { ...COMERCIO, rotulo: R('Itens', 'Items') },
+      MENU_MAGIAS, MENU_TECNICAS, MENU_HABILIDADES,
+    ],
+  },
+};
+
 /* As folhas da árvore, achatadas — quem precisa saber "este destino está no
    menu?" ou "qual o título desta página?" pergunta aqui. */
 function folhasDoMenu(nos) {
@@ -636,4 +710,4 @@ function folhasDoMenu(nos) {
   return out;
 }
 
-Object.assign(window, { FANTASY_MONTHS, FANTASY_WEEKDAYS, AUTH_COPY, ADMIN_COPY, ADMIN_SECTIONS, ADMIN_MENU, folhasDoMenu, PLANO_FREE_LIMITES });
+Object.assign(window, { FANTASY_MONTHS, FANTASY_WEEKDAYS, AUTH_COPY, ADMIN_COPY, ADMIN_SECTIONS, ADMIN_MENU, folhasDoMenu, SECOES_DA_MESA, NAV_MESA, ROTULO_LIVRO });

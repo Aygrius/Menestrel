@@ -15,8 +15,14 @@ describe('barra de menus da ficha', () => {
     expect(fonte).not.toMatch(/Escolher atividade \(dormindo/);
     expect(fonte).toMatch(/: \(en \? 'Activity' : 'Atividade'\)\)\)\}/);
   });
-  it('inventário com ti-briefcase-2', () => {
-    const i = fonte.indexOf('data-aba-ficha="inventario"');
-    expect(fonte.slice(i, i + 400)).toMatch(/<i className="ti ti-briefcase-2"/);
+  /* 23/10/2026: "Pode remover os ícones" — as abas com nome ficam só com o
+     nome (o ti-briefcase-2 do Inventário saiu junto). */
+  it('abas com nome não levam ícone', () => {
+    for (const aba of ['ficha', 'info', 'conhecimento', 'animais', 'inventario', 'loja']) {
+      const i = fonte.indexOf(`data-aba-ficha="${aba}"`);
+      const trecho = fonte.slice(i, fonte.indexOf('</button>', i));
+      expect(trecho, aba).toMatch(/fp-tab-rotulo/);
+      expect(trecho, aba).not.toMatch(/<i className="ti /);
+    }
   });
 });

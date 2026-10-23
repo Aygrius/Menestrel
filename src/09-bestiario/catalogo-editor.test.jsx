@@ -1039,10 +1039,11 @@ describe('itens — ícone no formato do banco', () => {
     expect(ultimoInsert.payload.icone).toBe(gravado);
   });
 
-  it('mostra a prévia do ícone', () => {
+  // A prévia mora no círculo dentro do campo desde 23/10/2026 (CampoIcone).
+  it('mostra a prévia do ícone no círculo do campo', () => {
     montar({ tabela: 'itens', linha: null });
     digitar('icone', 'ti ti-paw');
-    expect(document.querySelector('.catalogo-icone-previa i').className).toBe('ti ti-paw');
+    expect(document.querySelector('.campo-icone .campo-preco-moeda i').className).toBe('ti ti-paw');
   });
 
   it('formato impossível avisa e não manda nada ao banco', async () => {
@@ -1267,10 +1268,13 @@ describe('criatura — mochila do Equipamento', () => {
     digitar('nome', 'Bandido');
     await equipar('Corda');
     const chip = () => blocoEquip('itens').querySelector('[data-slug="corda"]');
-    expect(chip().querySelector('.catalogo-lista-chip-nome').textContent).toBe('1× Corda');
+    /* A quantidade mora no seletor do sistema (22/10/2026), não no nome. */
+    const qtd = () => chip().querySelector('.fp-pop-stepper-label').textContent;
+    expect(chip().querySelector('.catalogo-lista-chip-nome').textContent).toBe('Corda');
+    expect(qtd()).toBe('1');
     fireEvent.click(chip().querySelector('[aria-label^="Um a mais"]'));
     fireEvent.click(chip().querySelector('[aria-label^="Um a mais"]'));
-    expect(chip().querySelector('.catalogo-lista-chip-nome').textContent).toBe('3× Corda');
+    expect(qtd()).toBe('3');
     fireEvent.click(chip().querySelector('[aria-label^="Um a menos"]'));
     const p = await payloadDaCriatura();
     expect(p.equipamento).toEqual([{ slug: 'corda', slot: 'mochila', qtd: 2 }]);
@@ -1402,20 +1406,27 @@ describe('magia: itens do ritual com quantidade', () => {
 /* 28/09/2026: "No modal de editar itens, no campo magia, mostrar um dropdown
    com as magias do sistema." O banco guarda o NOME da magia. */
 describe('itens: Magia em dropdown com as magias do sistema', () => {
-  it('lista "—" e as magias, e grava o nome escolhido', async () => {
-    listasFixture = { ...listasFixture, magias: [{ nome: 'Bola de Fogo' }, { nome: 'Faro' }] };
+  /* A magia vem COM o nível desde 23/10/2026 ("ao selecionar a magia já
+     seleciona também o nível"): uma opção por nível que a magia tem, e o
+     campo Nível de magia saiu da tela. */
+  it('lista "—" e cada magia com seus níveis; o nível vem junto', async () => {
+    listasFixture = { ...listasFixture, magias: [
+      { nome: 'Bola de Fogo', nivel_1: 'a', nivel_3: 'b' },
+      { nome: 'Faro', nivel_3: 'c' },
+    ] };
     const onSalvo = vi.fn();
-    montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magia: 'Faro' }, onSalvo });
+    montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magia: 'Faro', nivel_magia: 3 }, onSalvo });
     const pill = await waitFor(() => {
-      const p = Array.from(document.querySelectorAll('.select-pill-btn')).find((b) => b.textContent.trim() === 'Faro');
+      const p = Array.from(document.querySelectorAll('.select-pill-btn')).find((b) => b.textContent.trim() === 'Faro · Nível 3');
       expect(p).toBeTruthy();
       return p;
     });
+    expect(document.querySelector('input[name="nivel_magia"]')).toBeNull();
     fireEvent.click(pill);
     const opcoes = Array.from(document.querySelectorAll('.select-pill-drop li')).map((li) => li.textContent.trim());
-    expect(opcoes).toEqual(['—', 'Bola de Fogo', 'Faro']);
-    fireEvent.click(Array.from(document.querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === 'Bola de Fogo'));
-    expect(pill.textContent.trim()).toBe('Bola de Fogo');
+    expect(opcoes).toEqual(['—', 'Bola de Fogo · Nível 1', 'Bola de Fogo · Nível 3', 'Faro · Nível 3']);
+    fireEvent.click(Array.from(document.querySelectorAll('.select-pill-drop li')).find((li) => li.textContent.trim() === 'Bola de Fogo · Nível 1'));
+    expect(pill.textContent.trim()).toBe('Bola de Fogo · Nível 1');
   });
 });
 

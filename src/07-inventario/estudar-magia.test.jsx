@@ -36,9 +36,24 @@ const linhas = () => [...document.querySelectorAll('.estudar-linha')];
 const confirmar = () => document.querySelector('.ms-footer .btn-primary');
 
 describe('EstudarMagiaModal', () => {
-  it('mostra pontos gastos/total', () => {
+  /* Teclado (22/10/2026): um só ponto de Tab no quadro, e as setas escolhem. */
+  it('Tab entra numa linha só e as setas andam escolhendo', () => {
     abrir();
-    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/1\s*\/\s*11/);
+    expect(linhas().map((l) => l.tabIndex)).toEqual([0, -1]);
+    fireEvent.keyDown(linhas()[0], { key: 'ArrowDown' });
+    expect(linhas()[1].getAttribute('aria-checked')).toBe('true');
+    expect(linhas().map((l) => l.tabIndex)).toEqual([-1, 0]);
+    fireEvent.keyDown(linhas()[1], { key: 'ArrowDown' });   // volta ao começo
+    expect(linhas()[0].getAttribute('aria-checked')).toBe('true');
+  });
+
+  /* Saldo, não gasto (22/10/2026): o passe diz quanto SOBRA — 1 gasto de 11
+     são 10 livres — e, com uma escolha, quanto sobra depois dela. */
+  it('mostra o saldo de pontos e o saldo depois da escolha', () => {
+    abrir();
+    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/^10\s*de\s*11$/);
+    fireEvent.click(linhas()[0]);   // Bola de Fogo — custa 2
+    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/10\s*→\s*8\s*de\s*11/);
   });
 
   it('uma linha por magia com nível atual → próximo e custo do passo', () => {

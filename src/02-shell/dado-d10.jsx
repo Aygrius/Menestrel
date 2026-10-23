@@ -339,7 +339,7 @@ function RolagemD10Overlay(props) {
         {/* Título */}
         {nome && (
           <div style={{
-            fontFamily: "'Cinzel', serif", fontWeight: 700,
+            fontFamily: "var(--font-title)", fontWeight: 700,
             fontSize: "clamp(24px, 4.5vw, 38px)",
             color: "var(--foreground)", letterSpacing: ".01em", marginBottom: 4,
           }}>
@@ -377,7 +377,7 @@ function RolagemD10Overlay(props) {
               {/* Destaque visual no crítico/falha */}
               {(resultado.d10 === 10 || resultado.d10 === 1) && (
                 <div style={{
-                  fontFamily: "'Cinzel', serif", fontWeight: 700,
+                  fontFamily: "var(--font-title)", fontWeight: 700,
                   fontSize: "clamp(20px, 4vw, 32px)",
                   color: resultado.d10 === 10 ? "var(--gold)" : "var(--ember-bright, #B8472F)",
                   letterSpacing: ".01em",

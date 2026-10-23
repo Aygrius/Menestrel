@@ -80,7 +80,7 @@ describe('as camadas flutuantes ficam acima da área de conteúdo', () => {
 
 describe('a mesa ativa não troca sozinha', () => {
   it('erro ao listar histórias não vira lista vazia', () => {
-    const trecho = shell.slice(shell.indexOf("from('historias').select('id, titulo').eq('mestre_id'"));
+    const trecho = shell.slice(shell.indexOf("from('historias').select('id, titulo, pausada').eq('mestre_id'"));
     const ate = trecho.slice(0, trecho.indexOf('setMinhasHistorias') + 40);
     expect(ate).toMatch(/if \(error\) \{[^}]*return;/);
     expect(ate).not.toMatch(/setMinhasHistorias\(error \?/);

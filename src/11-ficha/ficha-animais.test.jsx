@@ -89,6 +89,7 @@ describe('FichaAnimaisView', () => {
     montar();
     expect(document.querySelector('.fp-animais-acao').textContent).toBe('Desmontar');
     fireEvent.click(document.querySelectorAll('[role="tab"]')[0]);
-    expect(document.querySelector('.fp-animais-acao')).toBeNull();
+    // A faixa fica (23/10/2026, o Dar nome mora nela); só o Desmontar some.
+    expect(document.querySelector('.fp-animais-acao').textContent).not.toMatch(/Desmontar/);
   });
 });

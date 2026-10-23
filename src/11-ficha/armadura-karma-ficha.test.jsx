@@ -127,8 +127,8 @@ describe('o editor de barra é só o input flutuante', () => {
 
     // Botão e stepper dividem UMA regra, que é o que garante que não divirjam.
     const peles = regra('#root .menestrel-ui .fp-peca-pop-acoes .btn-ghost,\n#root .menestrel-ui .fp-peca-pop .fp-pop-stepper {');
-    expect(peles, 'falta o fundo do tooltip').toMatch(/background:\s*#120D06/);
-    expect(peles, 'falta o aro do tooltip').toMatch(/border:\s*1px solid rgba\(138,110,64,0\.35\)/);
+    expect(peles, 'falta o fundo do tooltip').toMatch(/background:\s*var\(--p-fundo\)/);
+    expect(peles, 'falta o aro do tooltip').toMatch(/border:\s*1px solid rgba\(var\(--bronze-rgb\),0\.35\)/);
   });
 
   /* DECISÃO REVERTIDA, e de propósito.
@@ -148,8 +148,8 @@ describe('o editor de barra é só o input flutuante', () => {
     const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'index.css'), 'utf8');
     const i = css.indexOf('#root .menestrel-ui .fp-pop-stepper {');
     const regra = css.slice(i, css.indexOf('}', i));
-    expect(regra, 'o fundo do tooltip').toMatch(/background:\s*#120D06/);
-    expect(regra, 'o aro do tooltip').toMatch(/border:\s*1px solid rgba\(138,110,64,0\.35\)/);
+    expect(regra, 'o fundo do tooltip').toMatch(/background:\s*var\(--p-fundo\)/);
+    expect(regra, 'o aro do tooltip').toMatch(/border:\s*1px solid rgba\(var\(--bronze-rgb\),0\.35\)/);
     expect(regra, 'e a pílula de sempre').toMatch(/border-radius:\s*999px/);
   });
 });
@@ -265,15 +265,15 @@ describe('o menu da peça equipada', () => {
   });
 });
 
-describe('Karma some da ficha de quem não conjura', () => {
-  it('Guerreiro e Ladino estão na lista sem Karma', () => {
-    const i = fonte.indexOf('const SEM_KARMA =');
-    expect(fonte.slice(i, i + 120)).toMatch(/'Guerreiro'.*'Ladino'/);
+/* 23/10/2026: "Lembra que agora todos os personagens podem usar magia? [...]
+   caso o personagem tenha karma, mostre a barra de karma de todos." A lista
+   de profissões sem Karma ficou vazia e o filtro por profissão saiu. */
+describe('Karma não depende mais da profissão', () => {
+  it('nenhuma profissão está na lista sem Karma', () => {
+    expect(fonte).toMatch(/const SEM_KARMA = new Set\(\);/);
   });
 
-  it('a barra de Karma é filtrada por profissão', () => {
-    const i = fonte.indexOf("b.key === 'ka' && SEM_KARMA.has");
-    expect(i, 'o filtro tem que estar no vitBars').toBeGreaterThan(0);
-    expect(fonte.slice(i - 200, i)).toMatch(/\.filter\(/);
+  it('a barra de Karma não é filtrada por profissão', () => {
+    expect(fonte).not.toMatch(/b\.key === 'ka' && SEM_KARMA\.has/);
   });
 });

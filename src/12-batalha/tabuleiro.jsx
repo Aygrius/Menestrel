@@ -712,7 +712,7 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
           })
         : React.createElement('span', {
             style: {
-              fontFamily: 'Cinzel, serif', fontWeight: 700, color: TOKEN_TINTA,
+              fontFamily: 'var(--font-title)', fontWeight: 700, color: TOKEN_TINTA,
               fontSize: Math.max(10, Math.round(size * 0.48)), lineHeight: 1, userSelect: 'none',
             },
           }, inicial),
@@ -976,7 +976,14 @@ function TabuleiroBatalha({
   entradas, meta, podeSelecionar, alcanceDe, onMover, salvando, isEn, tb,
   abrirTip, fecharTip, menuDe, aviso, menuTravado, menuVoltar,
   movendoControlado, onMovendoChange, semBancada, abrirMenu, visibilidade,
+  painelEl, selecionado, onSelecionar,
 }) {
+  /* PAINEL FIXO (23/10/2026, redesenho da batalha): com `painelEl`, o conteúdo
+     do menu não abre num popover sobre o token — mora no painel da direita,
+     sempre aberto. Quem está escolhido vem de fora (`selecionado`, índice) e
+     muda por `onSelecionar` — a lista de iniciativa da esquerda também escolhe.
+     Clicar na grade ou mover não "fecha" nada: o painel fica. */
+  const externo = !!painelEl && typeof onSelecionar === 'function';
   // Duas coisas distintas, e essa distinção é o ponto: o menu é um popover
   // que cobre parte do tabuleiro, então enquanto ele está aberto o clique na
   // grade não chega no destino — ele acerta o menu. Por isso abrir o menu NÃO
@@ -1000,11 +1007,18 @@ function TabuleiroBatalha({
     return e ? chaveDe(e.p) : null;
   };
   const [menuChave, setMenuChave] = useState(null);
-  const menuAberto = idxDaChave(menuChave);   // índice com menu aberto (derivado)
-  const setMenuAberto = (v) => setMenuChave((prev) => {
-    const novo = typeof v === 'function' ? v(idxDaChave(prev)) : v;
-    return chaveDoIdx(novo);
-  });
+  const menuAberto = externo ? (selecionado ?? null) : idxDaChave(menuChave);   // índice com menu aberto (derivado)
+  const setMenuAberto = (v) => {
+    if (externo) {
+      const novo = typeof v === 'function' ? v(menuAberto) : v;
+      if (novo != null) onSelecionar(novo);   // o painel não fecha
+      return;
+    }
+    setMenuChave((prev) => {
+      const novo = typeof v === 'function' ? v(idxDaChave(prev)) : v;
+      return chaveDoIdx(novo);
+    });
+  };
   const [movendoChave, setMovendoChave] = useState(null);
   const controlado = movendoControlado !== undefined && typeof onMovendoChange === 'function';
   // Controlado (montagem, onde ninguém reordena) segue em índice, como antes.
@@ -1026,7 +1040,7 @@ function TabuleiroBatalha({
     if (!r) { r = React.createRef(); tokenRefs.current.set(i, r); }
     return r;
   }, []);
-  const fecharMenu = React.useCallback(() => setMenuChave(null), []);
+  const fecharMenu = React.useCallback(() => { if (!externo) setMenuChave(null); }, [externo]);
   /* Abrir o menu de um token por fora (13/09/2026): a magia canalizada que
      ficou pronta abria o painel de quem evoca na vez dele. `abrirMenu` é
      { i, chave }; a chave muda uma vez por ocasião, e só aí o menu abre.
@@ -1046,7 +1060,7 @@ function TabuleiroBatalha({
   // Sem useCallback: setMovendo lê a lista ATUAL para traduzir índice em chave.
   const armarMovimento = () => {
     setMovendo(menuAberto);
-    setMenuChave(null);
+    if (!externo) setMenuChave(null);
   };
 
   const cel = TAB_CELULA * TAB_ZOOMS[TAB_ZOOM_PADRAO];
@@ -1150,6 +1164,7 @@ function TabuleiroBatalha({
       return;
     }
     setMovendo(null);
+    if (externo) { onSelecionar(entrada.i); return; }
     setMenuAberto((atual) => (atual === entrada.i ? null : entrada.i));
   };
 
@@ -1397,8 +1412,28 @@ function TabuleiroBatalha({
         }))))
     ),
 
-    // menu do participante — só existe se o chamador mandou conteúdo
-    menuDe && entradaMenu && React.createElement(TabuleiroMenu, {
+    // menu do participante — no painel fixo (portal) ou no popover
+    /* Personagem e animais em CARDS IRMÃOS (23/10/2026): "ao invés de ter um
+       card dentro do outro, o card de animais fica abaixo do personagem, como
+       um segundo personagem." Escolher o dono ou um animal dele mostra o grupo
+       inteiro: o dono primeiro, os animais embaixo. Cada card tem o próprio
+       Mover — menos a montaria em uso, que anda dentro do cavaleiro. */
+    externo && menuDe && entradaMenu && ReactDOM.createPortal((() => {
+      const sel = entradaMenu.p;
+      const donoId = sel.tipo === 'pj' ? sel.ref_id : sel.dono_pj;
+      const grupo = donoId == null ? [entradaMenu] : [
+        ...entradas.filter((e) => e.p.tipo === 'pj' && String(e.p.ref_id) === String(donoId)),
+        ...entradas.filter((e) => e.p.dono_pj != null && String(e.p.dono_pj) === String(donoId) && !e.p.fugiu),
+      ];
+      const lista = grupo.length ? grupo : [entradaMenu];
+      return lista.map((e) => React.createElement('div', {
+        key: e.p.inst_id || (e.p.tipo + ':' + e.p.ref_id + ':' + e.i),
+        className: 'batalha-painel-card' + (e.i === entradaMenu.i ? ' is-escolhido' : ''),
+      }, menuDe(e.p, e.i, fecharMenu,
+        (onMover && !salvando && podeSelecionar(e.p) && !_emUso(e.p, participantesTab))
+          ? () => setMovendo(e.i) : null)));
+    })(), painelEl),
+    !externo && menuDe && entradaMenu && React.createElement(TabuleiroMenu, {
       alvoEl: refDoToken(entradaMenu.i), onFechar: fecharMenu,
       rotuloFechar: (tb && tb.fechar) || (isEn ? 'Close' : 'Fechar'),
       rotuloVoltar: (tb && tb.voltar) || (isEn ? 'Back' : 'Voltar'),

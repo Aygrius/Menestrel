@@ -181,7 +181,9 @@ describe('tabela do catálogo', () => {
     const linha = [...document.querySelectorAll('.loja-mng-v3-panel--cat tbody tr')]
       .find((tr) => tr.textContent.includes('Águia'));
     const celulas = [...linha.querySelectorAll('td')].map((td) => td.textContent.trim());
-    expect(celulas).toEqual(['Águia', 'Animais', '200']);
+    /* O valor nas moedas maiores (23/10/2026): 200 latão → "2 moedas de prata".
+       Continua UMA coluna de valor — só que legível. */
+    expect(celulas).toEqual(['Águia', 'Animais', '2 moedas de prata']);
   });
 });
 

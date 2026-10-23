@@ -129,11 +129,14 @@ describe('sair escolhe outro personagem', () => {
     const shell = readFileSync(resolve(aqui, '..', '10-shell', 'shell.jsx'), 'utf8');
     // A janela vai até o fim do onClick — o comentário que explica a regra
     // ocupa boa parte dele, e uma contagem fixa de caracteres não alcança.
-    const i = shell.lastIndexOf('mc-navitem');
-    const trecho = shell.slice(i, shell.indexOf('aria-label={meta.label}', i));
-    expect(trecho).toContain('setNavToken((t) => t + 1)');
-    // E sobe TAMBÉM quando a seção já é a atual — é esse o ponto.
-    expect(trecho).toContain('setCurrentId(s.id);');
+    /* Desde 22/10/2026 (Mesa em Sessão) todo item do menu navega pela função
+       `ir`, que sobe o token SEMPRE — também quando a seção já é a atual. */
+    const i = shell.indexOf('const ir = (secao, filtro) => {');
+    const trecho = shell.slice(i, shell.indexOf('};', i));
+    expect(trecho).toContain('setCurrentId(secao);');
+    expect(trecho).toContain('setNavToken((n) => n + 1);');
+    // E os itens do menu passam por ela.
+    expect(shell).toContain('onClick={() => { const d = destinoDe(no); ir(d.secao, d.filtro); }}');
   });
 
   /* Cada fatia vai só até o fim da PRÓPRIA tag: a linha do Jogador é longa, e

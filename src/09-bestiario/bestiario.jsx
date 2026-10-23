@@ -99,9 +99,9 @@ function BestTip({ tip }) {
       position: 'fixed', left: left + desvio, top, transform: 'translateX(-50%)',
       zIndex: 9999, pointerEvents: 'none',
       width: 'max-content', maxWidth: 280, whiteSpace: 'normal', textAlign: 'left',
-      background: '#201A0F', border: '1px solid rgba(138,110,64,0.45)', borderRadius: 6, padding: '7px 11px',
+      background: '#201A0F', border: '1px solid rgba(var(--bronze-rgb),0.45)', borderRadius: 6, padding: '7px 11px',
       boxShadow: '0 6px 18px rgba(0,0,0,0.45)',
-      fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', lineHeight: 1.45, color: '#F1E6CF',
+      fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', lineHeight: 1.45, color: 'var(--tinta)',
       animation: 'fpItemTipIn .12s ease-out',
     }}>
       {/* seta apontando para cima — acompanha o rótulo, não o centro do balão */}
@@ -111,7 +111,7 @@ function BestTip({ tip }) {
         borderColor: 'transparent transparent #201A0F transparent',
         width: 0, height: 0,
       }} />
-      {nome && <div style={{ fontWeight: 700, color: '#E0BE68', marginBottom: 2 }}>{nome}</div>}
+      {nome && <div style={{ fontWeight: 700, color: 'var(--vivo)', marginBottom: 2 }}>{nome}</div>}
       <div>{explicacao}</div>
     </div>,
     document.body
@@ -189,20 +189,23 @@ function unidadesDasAbas(corpo) {
   return unidades;
 }
 
-function useAbasDoCorpo(corpoRef) {
+/* `ligadas` (22/10/2026): a janela de ITEM é página única — "passe + página
+   única" (usuário). Desligadas, as seções seguem lidas (as vazias continuam
+   escondidas), mas nenhuma vira aba. */
+function useAbasDoCorpo(corpoRef, ligadas = true) {
   const [titulos, setTitulos] = React.useState([]);
   const [ativa, setAtiva] = React.useState(0);
   const aplicar = React.useCallback(() => {
     const corpo = corpoRef.current;
     if (!corpo) return;
     const unidades = unidadesDasAbas(corpo);
-    const nomes = unidades.map((u) => u.titulo);
+    const nomes = ligadas ? unidades.map((u) => u.titulo) : [];
     setTitulos((antes) => (antes.join('|') === nomes.join('|') ? antes : nomes));
-    const comAbas = unidades.length > 1;
+    const comAbas = ligadas && unidades.length > 1;
     corpo.classList.toggle('best-com-abas', comAbas);
     const idx = Math.min(ativa, Math.max(0, unidades.length - 1));
     unidades.forEach((u, i) => u.els.forEach((el) => { el.hidden = comAbas && i !== idx; }));
-  }, [corpoRef, ativa]);
+  }, [corpoRef, ativa, ligadas]);
   React.useLayoutEffect(() => { aplicar(); });
   React.useEffect(() => {
     const corpo = corpoRef.current;
@@ -225,11 +228,85 @@ function useAbasDoCorpo(corpoRef) {
    27/09/2026: `centro` (o seletor de quantidade do Usar, "no rodapé, no
    centro, menor") e `aba` — "O rodapé só aparece na aba usar": com `aba`, o
    rodapé só se mostra quando a aba ativa tem esse título. */
-function BestDetalheModal({ title, lang, onClose, acoes, rodape, children }) {
+/* QUADRO DE INICIATIVA (22/10/2026) — três opções para a janela de ITEM:
+     topo         — o passe (ItemPasse) entre o cabeçalho e o corpo; não rola.
+     semAbas      — página única: Descrição, Características e Magia seguidas.
+     acoesEmBarra — as ações saem de ícones mudos ao lado do X e viram uma
+                    faixa de botões com nome ("barra com nome", usuário). A
+                    `principal` acende em ouro; a desativada diz o porquê
+                    embaixo da faixa — no tablet não existe hover. */
+/* O motivo do bloqueio aparece quando se TOCA, passa o mouse ou foca a ação
+   apagada — escrito embaixo da faixa, não num tooltip (no tablet não há
+   hover). Fixo depois do toque, até tocar de novo; sempre visível seria
+   ruído ("Armazenar — nenhum recipiente" em todo item da mochila). O botão
+   segue `disabled`; quem recebe o gesto é o embrulho em volta dele. */
+/* O MOTIVO NUM BALÃO (23/10/2026): "O botão 'vender na loja' deve mostrar um
+   tooltip com a informação de porque está bloqueado, não precisa escrever na
+   página o motivo." A ação apagada abre o balão padrão (.mn-tip) ao passar o
+   mouse, focar ou tocar (no tablet não há hover: o toque abre e fecha). Saíram
+   a linha escrita embaixo da faixa e o "i" ao lado do nome. */
+/* compacta (23/10/2026, painel do item ao lado da grade: "os botões [...]
+   estão ocupando muito espaço"): uma fileira só — a principal com nome, as
+   outras só com o ícone e o nome no balão. */
+function BarraDeAcoes({ acoes, lang, compacta = false }) {
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
+  const [fixo, setFixo] = React.useState(null);
+  const lista = (acoes || []).filter(Boolean);
+  if (!lista.length) return null;
+  const textoDica = (d) => (d && typeof d === 'object' ? d.desc : d) || '';
+  const chaveDe = (a) => a.chave || a.icone;
+  return (
+    <div className={'mn-acoes-faixa' + (compacta ? ' mn-acoes-faixa--compacta' : '')}>
+      <div className="mn-acoes" role="toolbar" aria-label={lang === 'en' ? 'Item actions' : 'Ações do item'}>
+        {lista.map((a) => {
+          const k = chaveDe(a);
+          const botao = (
+            <button key={k} type="button" data-acao={a.chave || undefined}
+              className={'mn-acao' + (a.principal ? ' mn-acao--principal' : '') + (a.perigo ? ' mn-acao--perigo' : '')
+                + (a.ativo ? ' is-ativo' : '') + (a.armado ? ' is-armado' : '')}
+              aria-pressed={a.ativo || a.armado ? true : undefined}
+              aria-label={compacta && !a.principal ? (a.armado && a.rotuloArmado ? a.rotuloArmado : a.rotulo) : undefined}
+              {...(compacta && !a.principal && !a.desativado ? propsTip(abrirTip, fecharTip, a.armado && a.rotuloArmado ? a.rotuloArmado : a.rotulo) : {})}
+              disabled={!!a.desativado} onClick={a.onClick}>
+              <i className={'ti ' + a.icone} aria-hidden="true" />
+              <span>{a.armado && a.rotuloArmado ? a.rotuloArmado : a.rotulo}</span>
+            </button>
+          );
+          const dica = textoDica(a.dica);
+          if (!a.desativado || !dica) return botao;
+          const conteudo = { title: a.rotulo, desc: dica };
+          return (
+            <span key={k} className="mn-acao-embrulho" tabIndex={0} role="button"
+              aria-label={`${a.rotulo}: ${dica}`}
+              onClick={(e) => { if (fixo === k) { setFixo(null); fecharTip(); } else { setFixo(k); abrirTip(e, conteudo); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirTip(e, conteudo); } }}
+              onMouseEnter={(e) => abrirTip(e, conteudo)}
+              onMouseLeave={() => { if (fixo !== k) fecharTip(); }}
+              onFocus={(e) => abrirTip(e, conteudo)}
+              onBlur={() => { setFixo(null); fecharTip(); }}>
+              {botao}
+            </span>
+          );
+        })}
+      </div>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    </div>
+  );
+}
+
+/* `alvoPainel` (22/10/2026, inventário "Baú com painel"): um elemento do DOM
+   onde a janela entra como PAINEL — sem véu, sem travar a rolagem da página.
+   O Esc continua fechando. Sem ele, é a janela de sempre. */
+function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo, semAbas, acoesEmBarra, extraClass, alvoPainel: alvoPainelProp = null }) {
   const en = lang === 'en';
+  /* No Livro de Regras, a ficha abre no painel ao lado da lista (23/10/2026).
+     Uma janela aberta DE DENTRO do painel (a consulta de uma magia da
+     criatura) continua sendo janela por cima. */
+  const livro = React.useContext(PainelLivroCtx);
+  const alvoPainel = alvoPainelProp || (!livro.dentro && !livro.desligado && livro.el) || null;
   const [tipAcao, abrirTipAcao, fecharTipAcao, manterTipAcao] = useTooltip(60);
   const corpoRef = React.useRef(null);
-  const abas = useAbasDoCorpo(corpoRef);
+  const abas = useAbasDoCorpo(corpoRef, !semAbas);
   const fecharRef = React.useRef(onClose);
   React.useEffect(() => { fecharRef.current = onClose; }, [onClose]);
   const fundoRef = React.useRef(null);
@@ -246,18 +323,19 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children }) {
     window.empilharJanela(fundoRef.current);
     window.addEventListener('keydown', onKey);
     const antes = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = antes; };
+    if (!alvoPainel) document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); if (!alvoPainel) document.body.style.overflow = antes; };
   }, []);
 
-  const alvo = (typeof document !== 'undefined') && (document.getElementById('root') || document.body);
+  const alvo = alvoPainel || ((typeof document !== 'undefined') && (document.getElementById('root') || document.body));
   if (!alvo) return null;
+  const conteudoMarcado = (filhos) => <PainelLivroCtx.Provider value={{ el: null, desligado: livro.desligado, dentro: true }}>{filhos}</PainelLivroCtx.Provider>;
   return ReactDOM.createPortal(
     /* stopPropagation: evento de React atravessa o portal pela árvore de
        componentes, e o clique aqui dentro chegaria ao onClick da linha que
        abriu a janela — fechando-a no primeiro clique. */
-    <div className="menestrel-ui ms-backdrop" ref={fundoRef} onClick={(e) => e.stopPropagation()}>
-      <div className="ms-modal ms-lg modal-best-detalhe" role="dialog" aria-modal="true"
+    <div className={'menestrel-ui ' + (alvoPainel ? 'ms-painel' : 'ms-backdrop')} ref={fundoRef} onClick={(e) => e.stopPropagation()}>
+      <div className={"ms-modal ms-lg modal-best-detalhe" + ((topo || acoesEmBarra) ? " modal-item" : "") + (alvoPainel ? " modal-em-painel" : "") + (extraClass ? " " + extraClass : "")} role={alvoPainel ? 'region' : 'dialog'} aria-modal={alvoPainel ? undefined : 'true'}
         aria-label={typeof title === 'string' ? title : undefined}>
         <div className="ms-header">
           <h3 className="ms-title">{title}</h3>
@@ -266,7 +344,7 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children }) {
               qual — nem por que Equipar está desativado. `dica` é o conteúdo do
               tooltip (padrão propsTip); sem ela, o próprio rótulo. Botão
               desativado fica num <span> para o tooltip ainda abrir no hover. */}
-          {(acoes || []).filter(Boolean).map((a) => {
+          {!acoesEmBarra && (acoes || []).filter(Boolean).map((a) => {
             const botao = (
               <button key={a.chave || a.icone} type="button"
                 className={'ms-close ms-acao' + (a.perigo ? ' ms-acao--perigo' : '') + (a.armado ? ' is-armado' : '') + (a.ativo ? ' is-ativo' : '')}
@@ -284,6 +362,8 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children }) {
             <i className="ti ti-x" aria-hidden="true" />
           </button>
         </div>
+        {topo && <div className="best-topo">{topo}</div>}
+        {acoesEmBarra && <BarraDeAcoes acoes={acoes} lang={lang} compacta={!!alvoPainel} />}
         {abas.titulos.length > 1 && (
           <div className="hist-modal-tabs best-abas" role="tablist">
             {abas.titulos.map((t, i) => (
@@ -295,7 +375,7 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children }) {
             ))}
           </div>
         )}
-        <div className="ms-body best-detail" ref={corpoRef}>{children}</div>
+        <div className="ms-body best-detail" ref={corpoRef}>{conteudoMarcado(children)}</div>
         {rodape && (!rodape.aba || abas.titulos.length < 2 || abas.titulos[abas.ativa] === rodape.aba) && (
           <div className={'ms-footer' + (rodape.centro ? ' ms-footer--centro' : '')}>
             <div className="ms-footer-left">{rodape.esquerda}</div>
@@ -332,6 +412,14 @@ function BestLinha({ rotulo, valor, soRotulo, largo }) {
       {!semValor && <span className="best-stat-val">{valor}</span>}
     </li>
   );
+}
+/* Valor do item por extenso, nas moedas maiores (23/10/2026, ver
+   precoPorExtenso em 01-core): sem valor gravado, a linha some; 0 é "Sem valor". */
+function valorPorExtenso(latao, lang) {
+  if (latao == null || latao === '') return null;
+  const fn = (typeof precoPorExtenso === 'function' && precoPorExtenso) || window.precoPorExtenso;
+  const zero = lang === 'en' ? 'No value' : 'Sem valor';
+  return fn ? fn(latao, lang, zero) : String(latao);
 }
 function BestFichaLista({ titulo, colunas = 1, children }) {
   return (
@@ -711,14 +799,38 @@ function useEhAdmin() {
 // `right` é opcional: as 5 listas passam o botão "Novo" do admin ali quando
 // ehAdmin — BestPageHeader é privado deste arquivo, então isso não afeta
 // nenhum outro consumidor.
+/* Título Sozinho (22/10/2026): o nome da página já está no cabeçalho do
+   console (Cinzel, no alto). Repeti-lo aqui, com um rótulo em caixa-alta por
+   cima ("COMÉRCIO / Armas" sob "Armas"), era a mesma informação duas vezes.
+   O cabeçalho do quadro fica só com a busca e as ações; o título continua no
+   DOM para leitor de tela, que entra pela lista. */
+/* O LIVRO DE REGRAS NO PADRÃO NOVO (23/10/2026, opção A aprovada na prévia):
+   lista de nomes à esquerda e a ficha num painel à direita, e o trilho no alto
+   (as cinco seções + a busca). PainelLivroCtx diz a quem está dentro de uma
+   página do Livro onde fica o painel; `desligado` vale para a lista escondida
+   que a busca do menu monta só para abrir a janela (ver shell.jsx). */
+const PainelLivroCtx = React.createContext({ el: null, desligado: false, dentro: false });
+function LivroLayout({ children }) {
+  const pai = React.useContext(PainelLivroCtx);
+  const [el, setEl] = useState(null);
+  if (pai.desligado) return children;
+  return (
+    <PainelLivroCtx.Provider value={{ el, desligado: false, dentro: false }}>
+      <div className="livro-corpo">
+        <div className="livro-lista">{children}</div>
+        <aside ref={setEl} className="bau-painel livro-painel" aria-label="Ficha" />
+      </div>
+    </PainelLivroCtx.Provider>
+  );
+}
 function BestPageHeader({ eyebrow, title, right }) {
+  const ctx = React.useContext(PainelLivroCtx);
+  const alvoBusca = (typeof useAlvoPortal === 'function') ? useAlvoPortal('livro-trilho-busca') : null;
+  if (alvoBusca && !ctx.desligado) return <>{ReactDOM.createPortal(right, alvoBusca)}<h2 className="mn-so-leitor">{title}</h2></>;
   return (
     <div className="fp-card-top">
-      <header className="ms-header ficha-page-header">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="ficha-page-eyebrow">{eyebrow}</div>
-          <h2 className="ms-title" style={{ margin: 0 }}>{title}</h2>
-        </div>
+      <header className="ms-header ficha-page-header best-header-so-acoes">
+        <h2 className="mn-so-leitor">{title}</h2>
         {right}
       </header>
     </div>
@@ -760,7 +872,7 @@ function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, d
   return (
     <div className="best-header-acoes">
       <div className="best-search">
-        <i className="ti ti-filter-2 busca-ic" aria-hidden="true" />
+        <i className="ti ti-eye busca-ic" aria-hidden="true" />
         {Input && <Input type="search" placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)} />}
       </div>
       {ferramentas}
@@ -787,7 +899,7 @@ function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, d
    Sem mesa, sem olho: "na história selecionada" não existe sem uma
    selecionada, e um olho que abrisse pra falhar no salvar seria pior que
    nenhum. Ver criatura-permissao-olho.test.jsx. */
-function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo }) {
+function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo, pedido = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } = (typeof UI !== 'undefined' ? UI : {});
   const [criaturas, setCriaturas] = useState(null);
   const [error, setError] = useState(null);
@@ -872,6 +984,7 @@ function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo }) {
     return () => { cancelRef.atual = true; };
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
+  useAbrirDoLivro(pedido, query, setQuery, setExpandida, () => setEditando(null));
 
   /* Armas do catálogo para montar os ataques da linha expandida — uma arma,
      um ataque (ataquesDaCriatura). Só carrega na primeira expansão. Enquanto
@@ -1290,6 +1403,7 @@ function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo }) {
              o furo que a auditoria de magias não alcança (rename silencioso). */
           ferramentas={ehAdmin && <CriaturasAuditoriaPainel criaturas={criaturas} lang={lang} />} />} />
 
+      <LivroLayout>
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador, lang, oQue: 'criaturas', oQueEn: 'creature' })}</div>
       ) : (
@@ -1332,6 +1446,9 @@ function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo }) {
                       </TableRow>
                       {isOpen && (
                         <BestDetalheModal title={row.nome} lang={lang} onClose={() => setExpandida(null)}
+                          /* A criatura mantém o corpo anterior até a etapa do
+                             bestiário poder vê-la (22/10/2026). */
+                          extraClass="modal-criatura"
                           acoes={[
                             /* O olho vem ANTES do lápis, como nas janelas de
                                Reinos e Conhecidos. */
@@ -1466,6 +1583,7 @@ function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo }) {
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
+      </LivroLayout>
     </div>
     {editando !== undefined && (
       <CatalogoEditor
@@ -1521,7 +1639,7 @@ function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo }) {
 const badgeStyle = { background: '#F5ECD4', color: '#8A6B12', border: '1px solid #D8CCB4', fontWeight: 700 };
 
 function BestNoKit() {
-  return <div style={{ padding: 24, color: '#BFAF8E', fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)', lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
+  return <div style={{ padding: 24, color: 'var(--tinta-2)', fontFamily: "var(--font-body)", fontSize: 'var(--fs-md)', lineHeight: 1.5 }}>Componentes do kit não carregados. Confira o <code>src/components/ui-bridge.ts</code> e o import dele no <code>main.tsx</code>.</div>;
 }
 function BestLoading({ lang }) {
   return <Carregando lang={lang} />;
@@ -1530,7 +1648,7 @@ function BestErrorBox({ error, hint }) {
   return (
     <div style={{ border: '1px solid rgba(200,33,44,0.4)', background: 'rgba(200,33,44,0.10)', borderRadius: 6, padding: '16px 18px', fontFamily: "var(--font-body)" }}>
       <div style={{ color: '#F0A6A0', fontWeight: 600, fontSize: 'var(--fs-md)', marginBottom: 6 }}>{error}</div>
-      <div style={{ color: '#BFAF8E', fontSize: 'var(--fs-sm)', lineHeight: 1.5 }}>{hint}</div>
+      <div style={{ color: 'var(--tinta-2)', fontSize: 'var(--fs-sm)', lineHeight: 1.5 }}>{hint}</div>
     </div>
   );
 }
@@ -2037,7 +2155,7 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
 }
 
 /* ============================== [18] MagiasList — Mestre vê todas as magias do banco; jogador só as compradas ============================== */
-function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
+function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [magias, setMagias] = useState(null);
   const { sorted: magiasSorted, sortKey, sortDir, toggleSort } = useSort(magias);
@@ -2064,6 +2182,7 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
     return () => { cancelRef.atual = true; };
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
+  useAbrirDoLivro(pedido, query, setQuery, setExpandida, () => setEditando(null));
 
   if (!Table) return <BestNoKit />;
   if (magias === null) return <BestLoading lang={lang} />;
@@ -2099,6 +2218,7 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
              daqui a pedido do usuário. Ver MagiasPainel. */
           ferramentas={ehAdmin && <MagiasPainel magias={magias} lang={lang} />} />} />
 
+      <LivroLayout>
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'magias', oQueEn: 'spell' })}</div>
       ) : (
@@ -2149,6 +2269,7 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
+      </LivroLayout>
     </div>
     {editando !== undefined && (
       <CatalogoEditor
@@ -2166,7 +2287,7 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo }) {
 }
 
 /* ============================== [19] HabilidadesList — Mestre vê todas as habilidades (DB); jogador só as que tem ============================== */
-function HabilidadesList({ ac, lang, modoJogador, filtro, titulo }) {
+function HabilidadesList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [habilidades, setHabilidades] = useState(null);
   const { sorted: habSorted, sortKey, sortDir, toggleSort } = useSort(habilidades);
@@ -2193,6 +2314,7 @@ function HabilidadesList({ ac, lang, modoJogador, filtro, titulo }) {
     return () => { cancelRef.atual = true; };
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
+  useAbrirDoLivro(pedido, query, setQuery, setExpandida, () => setEditando(null));
 
   if (!Table) return <BestNoKit />;
   if (habilidades === null) return <BestLoading lang={lang} />;
@@ -2222,6 +2344,7 @@ function HabilidadesList({ ac, lang, modoJogador, filtro, titulo }) {
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
           dicaNovo={lang === 'en' ? 'New skill' : 'Nova habilidade'} />} />
 
+      <LivroLayout>
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'habilidades', oQueEn: 'skill' })}</div>
       ) : (
@@ -2262,6 +2385,7 @@ function HabilidadesList({ ac, lang, modoJogador, filtro, titulo }) {
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
+      </LivroLayout>
     </div>
     {editando !== undefined && (
       <CatalogoEditor
@@ -2398,7 +2522,7 @@ function TecnicasAuditoriaPainel({ tecnicas, lang, onRecarregar }) {
   );
 }
 
-function TecnicasList({ ac, lang, modoJogador, filtro, titulo }) {
+function TecnicasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [tecnicas, setTecnicas] = useState(null);
   const { sorted: tecnicasSorted, sortKey, sortDir, toggleSort } = useSort(tecnicas);
@@ -2425,6 +2549,7 @@ function TecnicasList({ ac, lang, modoJogador, filtro, titulo }) {
     return () => { cancelRef.atual = true; };
   }, []);
   useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
+  useAbrirDoLivro(pedido, query, setQuery, setExpandida, () => setEditando(null));
 
   if (!Table) return <BestNoKit />;
   if (tecnicas === null) return <BestLoading lang={lang} />;
@@ -2460,6 +2585,7 @@ function TecnicasList({ ac, lang, modoJogador, filtro, titulo }) {
             {typeof TecnicasSugestoesPainel === 'function' && <TecnicasSugestoesPainel lang={lang} />}
           </>)} />} />
 
+      <LivroLayout>
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'técnicas', oQueEn: 'technique' })}</div>
       ) : (
@@ -2493,6 +2619,7 @@ function TecnicasList({ ac, lang, modoJogador, filtro, titulo }) {
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
+      </LivroLayout>
     </div>
     {editando !== undefined && (
       <CatalogoEditor
@@ -2523,8 +2650,9 @@ function temArmazenamentoItem(it) {
   return !!it && ((tem(it.armazena) && Number(it.armazena) > 0) || tem(it.ocupa));
 }
 
-function BestItemArmazenamento({ item, lang }) {
+function BestItemArmazenamento({ item, lang, omitir }) {
   if (!temArmazenamentoItem(item)) return null;
+  const fora = new Set(omitir || []);
   const en = lang === 'en';
   // Vírgula decimal, como a altura (0,80m) e o peso (0,5kg). Inteiro sem casa
   // (28/09/2026: "mostrar o '3.0' como '3', mantenha apenas o '0.1' como '0.1'").
@@ -2533,8 +2661,8 @@ function BestItemArmazenamento({ item, lang }) {
   // desde 26/09/2026 — quem a usa monta a BestFichaLista em volta.
   return (
     <>
-      {item.ocupa != null && item.ocupa !== '' && <BestLinha rotulo={en ? 'Takes up' : 'Ocupa'} valor={fmt(item.ocupa)} />}
-      {Number(item.armazena) > 0 && <BestLinha rotulo={en ? 'Stores' : 'Armazena'} valor={fmt(item.armazena)} />}
+      {!fora.has('ocupa') && item.ocupa != null && item.ocupa !== '' && <BestLinha rotulo={en ? 'Takes up' : 'Ocupa'} valor={fmt(item.ocupa)} />}
+      {!fora.has('armazena') && Number(item.armazena) > 0 && <BestLinha rotulo={en ? 'Stores' : 'Armazena'} valor={fmt(item.armazena)} />}
     </>
   );
 }
@@ -2698,7 +2826,64 @@ function BestTecnicaFicha({ t, lang, linhasExtras }) {
   );
 }
 
-function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, resistenciaTexto, depois }) {
+/* ── O PASSE DO ITEM (22/10/2026) ──────────────────────────────────────────
+   "Passe + página única" (usuário): os números que se consultam no meio da
+   cena saem de Características e sobem para um passe fixo no topo da janela.
+   O que entra depende do item — arma: dano e grupo; armadura: defesa,
+   absorção e resistência; recipiente: quanto armazena; todos: quanto ocupa.
+   A instância soma "onde está" e a quantidade; a loja soma preço e estoque
+   (`extras`). O que vai para o passe NÃO se repete na lista (`omitir`). */
+function celulasDoItem(it, lang, opcoes) {
+  const { quantidade, onde, resistenciaTexto, extras } = opcoes || {};
+  const en = lang === 'en';
+  const fmt = (v) => String(Number(v)).replace('.', ',');
+  const tem = (v) => v != null && v !== '' && v !== 0 && v !== '0';
+  const c = [];
+  if (it.magia) {
+    const nv = it.nivel_magia != null && it.nivel_magia !== '' ? Number(it.nivel_magia) : null;
+    c.push({ chave: 'magia', rotulo: en ? 'Spell' : 'Magia', texto: true, lider: true,
+      valor: it.magia + (nv != null ? ` · ${en ? 'Level' : 'Nível'} ${nv}` : '') });
+  }
+  if (onde) c.push({ chave: 'onde', rotulo: en ? 'Where' : 'Onde está', valor: onde, texto: true });
+  (extras || []).filter(Boolean).forEach((e) => c.push(e));
+  if (Number(quantidade) > 1) c.push({ chave: 'quantidade', rotulo: en ? 'Quantity' : 'Quantidade', valor: Number(quantidade) });
+  if (ehArma(it) && tem(it.dano)) c.push({ chave: 'dano', rotulo: en ? 'Damage' : 'Dano', valor: it.dano, lider: true });
+  if (ehArma(it) && siglasDeArma(it.grupo_armas)) c.push({ chave: 'grupo', rotulo: en ? 'Group' : 'Grupo', valor: siglasDeArma(it.grupo_armas) });
+  if (tem(it.defesa)) c.push({ chave: 'defesa', rotulo: en ? 'Defense' : 'Defesa', valor: it.defesa, lider: !ehArma(it) });
+  if (tem(it.absorcao)) c.push({ chave: 'absorcao', rotulo: en ? 'Absorption' : 'Absorção', valor: it.absorcao });
+  if (Number(it.resistencia) > 0) c.push({ chave: 'resistencia', rotulo: en ? 'Durability' : 'Resistência', valor: resistenciaTexto != null ? resistenciaTexto : it.resistencia });
+  if (Number(it.armazena) > 0) c.push({ chave: 'armazena', rotulo: en ? 'Stores' : 'Armazena', valor: fmt(it.armazena) });
+  if (it.ocupa != null && it.ocupa !== '') c.push({ chave: 'ocupa', rotulo: en ? 'Takes up' : 'Ocupa', valor: fmt(it.ocupa) });
+  /* Um passe só com "Ocupa" é uma faixa vazia de 640px: sem passe, e o
+     Ocupa volta para Características. */
+  if (c.length === 1 && c[0].chave === 'ocupa') return [];
+  // Texto primeiro (onde está, preço, magia), depois o número que define o item.
+  return [...c.filter((x) => x.texto), ...c.filter((x) => !x.texto && x.lider), ...c.filter((x) => !x.texto && !x.lider)];
+}
+function ItemPasse({ celulas }) {
+  if (!celulas || !celulas.length) return null;
+  // Sem célula de texto nem líder, as numéricas dividem o passe por igual.
+  const igual = !celulas[0].texto && !celulas[0].lider;
+  return (
+    <div className={'mn-passe item-passe' + (igual ? ' mn-passe--igual' : '')}>
+      {celulas.map((c) => (
+        <div className={'mn-celula' + (c.lider ? ' mn-celula--lider' : '') + (c.texto ? ' mn-celula--texto' : '')} key={c.chave} data-celula={c.chave}>
+          <span className="mn-rotulo">{c.rotulo}</span>
+          <span className="mn-celula-valor">{c.valor}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+/* Para quem monta a janela: `topo` vai na BestDetalheModal, `omitir` na ficha. */
+function passeDoItem(it, lang, opcoes) {
+  const celulas = it ? celulasDoItem(it, lang, opcoes) : [];
+  return { topo: celulas.length ? <ItemPasse celulas={celulas} /> : null, omitir: celulas.map((c) => c.chave) };
+}
+
+function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, resistenciaTexto, depois, omitir }) {
+  const fora = new Set(omitir || []);
+  const se = (chave, linha) => (fora.has(chave) ? null : linha);
   return (
     <>
       <BestDescricao texto={it.descricao} lang={lang} />
@@ -2716,28 +2901,29 @@ function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, re
         <BestLinha rotulo={lang === 'en' ? 'Positive effect' : 'Efeito positivo'} valor={it.efeito_positivo} largo />
         <BestLinha rotulo={lang === 'en' ? 'Negative effect' : 'Efeito negativo'} valor={it.efeito_negativo} largo />
         {/* Sem "Grupo" (26/09/2026, "não precisa mostrar o grupo"). */}
-        <BestLinha rotulo={lang === 'en' ? 'Value' : 'Valor'} valor={it.valor_latao ?? null} />
-        <BestItemArmazenamento item={it} lang={lang} />
+        {/* O valor nas moedas maiores (23/10/2026): 12000 → "12 moedas de ouro". */}
+        <BestLinha rotulo={lang === 'en' ? 'Value' : 'Valor'} valor={valorPorExtenso(it.valor_latao, lang)} />
+        <BestItemArmazenamento item={it} lang={lang} omitir={omitir} />
         <BestItemCriatura item={it} criaturasPorId={criaturasPorId} lang={lang} />
-        <BestLinha rotulo={lang === 'en' ? 'Damage' : 'Dano'} valor={it.dano} />
+        {se('dano', <BestLinha rotulo={lang === 'en' ? 'Damage' : 'Dano'} valor={it.dano} />)}
         {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs light armor' : 'Contra armaduras leves'} valor={eficaciaContraArmadura(it.dano_l, lang === 'en')} />}
         {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs medium armor' : 'Contra armaduras médias'} valor={eficaciaContraArmadura(it.dano_m, lang === 'en')} />}
         {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs heavy armor' : 'Contra armaduras pesadas'} valor={eficaciaContraArmadura(it.dano_p, lang === 'en')} />}
         <BestLinha rotulo={lang === 'en' ? 'Range' : 'Alcance'} valor={it.alcance != null && it.alcance > 0 ? it.alcance : null} />
         <BestLinha rotulo={lang === 'en' ? 'Attribute' : 'Atributo'} valor={siglaAtributoItem(it.ajuste_atributo)} />
         {/* Grupo de armas em sigla (28/09/2026: "Adicione o 'Grupo', 'CL' como card"). */}
-        <BestLinha rotulo={lang === 'en' ? 'Group' : 'Grupo'} valor={ehArma(it) ? siglasDeArma(it.grupo_armas) : null} />
-        <BestLinha rotulo={lang === 'en' ? 'Defense' : 'Defesa'} valor={it.defesa} />
-        <BestLinha rotulo={lang === 'en' ? 'Absorption' : 'Absorção'} valor={it.absorcao} />
+        {se('grupo', <BestLinha rotulo={lang === 'en' ? 'Group' : 'Grupo'} valor={ehArma(it) ? siglasDeArma(it.grupo_armas) : null} />)}
+        {se('defesa', <BestLinha rotulo={lang === 'en' ? 'Defense' : 'Defesa'} valor={it.defesa} />)}
+        {se('absorcao', <BestLinha rotulo={lang === 'en' ? 'Absorption' : 'Absorção'} valor={it.absorcao} />)}
         {/* Resistência do item (26/09/2026) — o quanto ele aguenta antes de quebrar. */}
-        <BestLinha rotulo={lang === 'en' ? 'Durability' : 'Resistência'} valor={resistenciaTexto != null ? resistenciaTexto : it.resistencia} />
+        {se('resistencia', <BestLinha rotulo={lang === 'en' ? 'Durability' : 'Resistência'} valor={resistenciaTexto != null ? resistenciaTexto : it.resistencia} />)}
         <BestLinha rotulo={lang === 'en' ? 'Minimum strength' : 'Força mínima'} valor={it.forca_req != null && it.forca_req !== 0 ? it.forca_req : null} />
         {/* Mãos só no ESCUDO (14/09/2026). */}
         <BestLinha rotulo={lang === 'en' ? 'Hands (Halfling)' : 'Mãos (Pequenino)'} valor={it.categoria_equip === 'escudo' ? (it.maos_pequenino != null ? `${it.maos_pequenino} ${lang === 'en' ? (it.maos_pequenino === 1 ? 'hand' : 'hands') : (it.maos_pequenino === 1 ? 'mão' : 'mãos')}` : (lang === 'en' ? 'Cannot use' : 'Não pode usar')) : null} />
         <BestLinha rotulo={lang === 'en' ? 'Hands (Dwarf)' : 'Mãos (Anão)'} valor={it.categoria_equip === 'escudo' ? (it.maos_anao != null ? `${it.maos_anao} ${lang === 'en' ? (it.maos_anao === 1 ? 'hand' : 'hands') : (it.maos_anao === 1 ? 'mão' : 'mãos')}` : (lang === 'en' ? 'Cannot use' : 'Não pode usar')) : null} />
         <BestLinha rotulo={lang === 'en' ? 'Hands (Others)' : 'Mãos (Outros)'} valor={it.categoria_equip === 'escudo' ? (it.maos_outras != null ? `${it.maos_outras} ${lang === 'en' ? (it.maos_outras === 1 ? 'hand' : 'hands') : (it.maos_outras === 1 ? 'mão' : 'mãos')}` : (lang === 'en' ? 'Cannot use' : 'Não pode usar')) : null} />
       </BestFichaLista>
-      <BestItemMagia item={it} magias={magias} lang={lang} />
+      <BestItemMagia item={it} magias={magias} lang={lang} semCabeca={fora.has('magia')} />
       {depois}
     </>
   );
@@ -2768,7 +2954,7 @@ function useMagiasParaItens() {
   return magias;
 }
 
-function BestItemMagia({ item, magias, lang }) {
+function BestItemMagia({ item, magias, lang, semCabeca }) {
   if (!item || !item.magia) return null;
   const en = lang === 'en';
   const _magiaDoItem = window.magiaDoItem;
@@ -2779,13 +2965,15 @@ function BestItemMagia({ item, magias, lang }) {
     /* Aba própria (26/09/2026): com as abas do modal, a magia do item ficava
        grudada em Características. */
     <div className="best-magia" data-aba={en ? 'Spell' : 'Magia'}>
-      {/* Só "Bola de Fogo · Nível 9" — sem ícone nem rótulo "Magia" (14/09/2026). */}
-      <div className="best-magia-head">
+      {/* Página única (22/10/2026): a seção tem título como as outras; o nome
+          e o nível já estão no passe do topo, então não se repetem aqui. */}
+      {semCabeca && <h4 className="best-secao-titulo">{en ? 'Spell' : 'Magia'}</h4>}
+      {!semCabeca && <div className="best-magia-head">
         <span className="best-magia-nome">
           {magia ? magia.nome : item.magia}
           {nivel != null && ` · ${en ? 'Level' : 'Nível'} ${nivel}`}
         </span>
-      </div>
+      </div>}
       {magia && magia.descricao && <TextoDoBanco texto={magia.descricao} className="best-desc" />}
       {/* Itens do ritual (pergaminho): campo próprio desde 26/09/2026. */}
       {magia && magia.itens_necessarios && magia.evocacao === 'Ritual' && (
@@ -2797,7 +2985,7 @@ function BestItemMagia({ item, magias, lang }) {
 }
 
 /* ============================== [21] ItensList — Mestre vê todos os itens; jogador só os que possui ============================== */
-function ItensList({ ac, lang, modoJogador, filtro, titulo }) {
+function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [itens, setItens] = useState(null);
   const { sorted: itensSorted, sortKey, sortDir, toggleSort } = useSort(itens);
@@ -2831,6 +3019,7 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo }) {
   // Criatura vinculada aos animais — de onde vem a característica Montaria.
   const criaturasPorId = useCriaturasPorId();
   useEffect(() => { setPage(1); setExpandida(null); }, [query, filtro]);
+  useAbrirDoLivro(pedido, query, setQuery, setExpandida, () => setEditando(null));
 
   if (!Table) return <BestNoKit />;
   if (itens === null) return <BestLoading lang={lang} />;
@@ -2860,6 +3049,7 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo }) {
           /* Sugestões de itens para batalha. Itens não tem verificação. */
           ferramentas={ehAdmin && typeof ItensSugestoesPainel === 'function' && <ItensSugestoesPainel lang={lang} />} />} />
 
+      <LivroLayout>
       {filtered.length === 0 ? (
         <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'itens', oQueEn: 'item' })}</div>
       ) : (
@@ -2884,9 +3074,11 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo }) {
                       </TableRow>
                       {isOpen && (
                         <BestDetalheModal title={it.nome} lang={lang} onClose={() => setExpandida(null)}
+                          /* Passe + página única (22/10/2026), como na janela do inventário. */
+                          topo={passeDoItem(it, lang).topo} semAbas
                           acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
                             onClick: () => { setExpandida(null); setEditando(it); } }]}>
-                          <BestItemFicha it={it} lang={lang} magias={magias} criaturasPorId={criaturasPorId} />
+                          <BestItemFicha it={it} lang={lang} magias={magias} criaturasPorId={criaturasPorId} omitir={passeDoItem(it, lang).omitir} />
                           {/* itens.doc_url guarda o link do CONTEÚDO do item — hoje só os
                               três livros da campanha o usam, apontando pro texto da obra.
                               Até 11/09/2026 o campo existia no editor e nenhuma tela o lia:
@@ -2928,6 +3120,7 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo }) {
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
+      </LivroLayout>
     </div>
     {editando !== undefined && (
       <CatalogoEditor
@@ -2945,7 +3138,297 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo }) {
   );
 }
 
+/* ============================== BUSCA NO LIVRO DE REGRAS (22/10/2026) ==============================
+   Ctrl+K (ou o campo "Buscar no livro" do menu) abre uma busca única pelas
+   cinco listas do Livro de Regras: criaturas, itens, magias, técnicas e
+   habilidades. Antes, achar "Bola de Fogo" pedia saber que é magia, abrir a
+   lista certa e digitar lá. Escolher um resultado leva à lista dele e abre a
+   janela daquela entrada — o mesmo lugar onde se chegaria à mão.
+
+   O Jogador só vê o que conhece (useConhecidoDoJogador), a mesma regra das
+   listas: a busca não pode ser um atalho para o que o Mestre não revelou.
+
+   O índice (só chave e nome) carrega na primeira abertura e fica em memória
+   enquanto a página estiver aberta. */
+const LIVRO_TIPOS = [
+  { secao: 'criaturas',   icone: 'ti-skull',    pt: 'Criatura',   en: 'Creature',  conhecido: 'criaturas',   ptP: 'Criaturas',   enP: 'Creatures',  todos: ['Ver todas as criaturas', 'See all creatures'] },
+  { secao: 'itens',       icone: 'ti-backpack', pt: 'Item',       en: 'Item',      conhecido: 'itens',       ptP: 'Itens',       enP: 'Items',      todos: ['Ver todos os itens', 'See all items'] },
+  { secao: 'magias',      icone: 'ti-sparkles', pt: 'Magia',      en: 'Spell',     conhecido: 'magias',      ptP: 'Magias',      enP: 'Spells',     todos: ['Ver todas as magias', 'See all spells'] },
+  { secao: 'tecnicas',    icone: 'ti-sword',    pt: 'Técnica',    en: 'Technique', conhecido: 'tecnicas',    ptP: 'Técnicas',    enP: 'Techniques', todos: ['Ver todas as técnicas', 'See all techniques'] },
+  { secao: 'habilidades', icone: 'ti-bolt',     pt: 'Habilidade', en: 'Skill',     conhecido: 'habilidades', ptP: 'Habilidades', enP: 'Skills',     todos: ['Ver todas as habilidades', 'See all skills'] },
+];
+let indiceDoLivro = null;   // Promise<Array<{ secao, chave, nome }>>
+const NOVO_DO_TIPO = { criaturas: 'Nova criatura', itens: 'Novo item', magias: 'Nova magia', tecnicas: 'Nova técnica', habilidades: 'Nova habilidade' };
+function carregarIndiceDoLivro() {
+  if (indiceDoLivro) return indiceDoLivro;
+  /* O detalhe ao lado do nome (23/10/2026): o grupo do item, o tipo da
+     criatura, o tipo e a classe da magia, o grupo da habilidade. */
+  const junta = (...xs) => xs.filter((x) => x != null && String(x).trim() !== '').join(' · ');
+  const linhas = (secao, campo, detalhe) => ({ data, error }) => {
+    if (error) throw error;
+    return (data || []).map((r) => ({ secao, chave: r[campo], nome: r.nome || '', detalhe: detalhe ? detalhe(r) : '' }));
+  };
+  indiceDoLivro = Promise.all([
+    supabaseClient.from('criaturas').select('id, nome, tipo, subtipo').then(linhas('criaturas', 'id', (r) => junta(r.tipo, r.subtipo))),
+    fetchTabelaPaginada('itens', { colunas: 'slug, nome, grupo', ordem: ['nome'] }).then(linhas('itens', 'slug', (r) => junta(r.grupo))),
+    supabaseClient.from('magias').select('key, nome, tipo, classe').then(linhas('magias', 'key', (r) => junta(r.classe, r.tipo))),
+    supabaseClient.from('tecnicas').select('key, nome, tipo').then(linhas('tecnicas', 'key', (r) => junta(r.tipo))),
+    supabaseClient.from('habilidades').select('key, nome, grupo').then(linhas('habilidades', 'key', (r) => junta(r.grupo))),
+  ]).then((grupos) => grupos.flat()).catch((e) => { indiceDoLivro = null; throw e; });
+  return indiceDoLivro;
+}
+const semAcento = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+
+/* Começo do nome vale mais que começo de palavra, que vale mais que meio. */
+function buscarNoLivro(indice, termo, limite = 40) {
+  const q = semAcento(termo).trim();
+  if (!q) return [];
+  const pontos = [];
+  for (const r of indice) {
+    const n = semAcento(r.nome);
+    const i = n.indexOf(q);
+    if (i < 0) continue;
+    const peso = i === 0 ? 0 : (n[i - 1] === ' ' || n[i - 1] === '-' || n[i - 1] === '(') ? 1 : 2;
+    pontos.push({ r, peso });
+  }
+  pontos.sort((a, b) => a.peso - b.peso || a.r.nome.length - b.r.nome.length || a.r.nome.localeCompare(b.r.nome));
+  return pontos.slice(0, limite).map((p) => p.r);
+}
+
+/* O TIPO DENTRO DA PALETA (23/10/2026): "ao clicar [num tipo], não vai abrir
+   uma tabela com os itens, vai mostrar como se eu tivesse pesquisando. Não tem
+   mais página com tabela aqui." (usuário). Escolher Criaturas, Itens… lista
+   ali mesmo todas as entradas do tipo, com a mesma linha dos resultados (e a
+   mesma fonte — "deve ter as fontes iguais"); digitar filtra dentro do tipo.
+   A seta do grupo, ou apagar com o campo vazio, volta aos cinco tipos.
+
+   Antes: 23/10/2026, revisão do usuário — "remova o texto 'ver todos os
+   itens', e mostre apenas o nome [...] Remova também, ao digitar, os
+   filtros". Ficam os grupos por tipo, só com os nomes.
+
+   A PALETA (redesenho de 23/10/2026, aprovado na prévia): os itens do Livro
+   saíram do menu lateral e a busca virou o caminho único. Resultados
+   agrupados por tipo (a ordem dos grupos segue o melhor resultado de cada
+   um) e o trecho digitado em ouro. */
+function DestaqueNoNome({ nome, termo }) {
+  const q = semAcento(termo).trim();
+  const i = q ? semAcento(nome).indexOf(q) : -1;
+  if (i < 0) return nome;
+  return <>{nome.slice(0, i)}<mark>{nome.slice(i, i + q.length)}</mark>{nome.slice(i + q.length)}</>;
+}
+function BuscaLivro({ lang = 'pt', modoJogador = false, onClose, onEscolher }) {
+  const en = lang === 'en';
+  const [indice, setIndice] = useState(null);
+  const [erro, setErro] = useState(null);
+  const [termo, setTermo] = useState('');
+  // O tipo escolhido na paleta vazia (null = os cinco tipos / busca em tudo).
+  const [tipo, setTipo] = useState(null);
+  const [ativo, setAtivo] = useState(0);
+  const inputRef = useRef(null);
+  const listaRef = useRef(null);
+  const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
+  // Quem cria no catálogo (o mesmo teste do + que ficava nas páginas do Livro).
+  const podeCriar = useEhAdmin();
+
+  useEffect(() => {
+    let vivo = true;
+    carregarIndiceDoLivro().then((d) => { if (vivo) setIndice(d); })
+      .catch((e) => { console.error('[busca no livro]', e); if (vivo) setErro(e.message || String(e)); });
+    return () => { vivo = false; };
+  }, []);
+  useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+  useEffect(() => {
+    const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    document.addEventListener('keydown', esc, true);
+    return () => document.removeEventListener('keydown', esc, true);
+  }, [onClose]);
+
+  const visivel = useMemo(() => {
+    if (!indice) return null;
+    if (!modoJogador) return indice;
+    if (carregandoConhecido || !conhecido) return null;
+    return indice.filter((r) => {
+      const t = LIVRO_TIPOS.find((x) => x.secao === r.secao);
+      const set = t && conhecido[t.conhecido];
+      return set ? set.has(r.chave) : false;
+    });
+  }, [indice, modoJogador, carregandoConhecido, conhecido]);
+
+  const temTermo = !!termo.trim();
+  /* Os grupos. Com um tipo escolhido, um grupo só, com TODAS as entradas
+     dele (em ordem de nome, ou do melhor resultado se há termo). Sem tipo,
+     a busca em tudo, até 10 por grupo. */
+  const grupos = useMemo(() => {
+    if (!visivel) return [];
+    if (tipo) {
+      const doTipo = visivel.filter((r) => r.secao === tipo);
+      const itens = temTermo
+        ? buscarNoLivro(doTipo, termo, 100000)
+        : [...doTipo].sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR', { sensitivity: 'base' }));
+      return [{ secao: tipo, itens, total: itens.length }];
+    }
+    if (!temTermo) return [];
+    const ordem = [];
+    const por = {};
+    for (const r of buscarNoLivro(visivel, termo, 100000)) {
+      if (!por[r.secao]) { por[r.secao] = []; ordem.push(r.secao); }
+      por[r.secao].push(r);
+    }
+    return ordem.map((secao) => ({ secao, itens: por[secao].slice(0, 10), total: por[secao].length }));
+  }, [visivel, termo, temTermo, tipo]);
+  // As linhas navegáveis: os cinco tipos (paleta vazia) ou as entradas.
+  const mostraTipos = !tipo && !temTermo;
+  const plano = useMemo(() => (mostraTipos
+    ? LIVRO_TIPOS.map((t) => ({ tipoLinha: t.secao }))
+    : grupos.flatMap((g) => g.itens)), [mostraTipos, grupos]);
+  useEffect(() => { setAtivo(0); }, [termo, tipo]);
+  useEffect(() => {
+    const el = listaRef.current && listaRef.current.querySelector('[data-ativo="true"]');
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+  }, [ativo]);
+
+  const entrarNoTipo = (secao) => { setTipo(secao); setTermo(''); if (inputRef.current) inputRef.current.focus(); };
+  const voltarAosTipos = () => { setTipo(null); if (inputRef.current) inputRef.current.focus(); };
+  const escolher = (r) => {
+    if (!r) return;
+    if (r.tipoLinha) entrarNoTipo(r.tipoLinha);
+    else onEscolher(r);
+  };
+  const teclado = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setAtivo((a) => Math.min(a + 1, plano.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setAtivo((a) => Math.max(a - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); escolher(plano[ativo]); }
+    else if (e.key === 'Backspace' && !termo && tipo) { e.preventDefault(); voltarAosTipos(); }
+  };
+
+  const carregando = !erro && visivel === null;
+  const tipoAtual = tipo && LIVRO_TIPOS.find((x) => x.secao === tipo);
+  const idOpcao = (i) => 'busca-livro-op-' + i;
+  // Uma linha da paleta — a MESMA para tipo e entrada.
+  const linha = (i, chave, icone, nome, aoClicar, seta) => (
+    <li key={chave} id={idOpcao(i)} role="option" aria-selected={i === ativo}
+      data-ativo={i === ativo ? 'true' : undefined}
+      className={'busca-livro-linha' + (i === ativo ? ' is-ativa' : '')}
+      onMouseMove={() => { if (i !== ativo) setAtivo(i); }}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={aoClicar}>
+      <span className="busca-livro-ic"><i className={'ti ' + icone} aria-hidden="true" /></span>
+      <span className="busca-livro-nome">{nome}</span>
+      {seta && <i className="ti ti-arrow-right busca-livro-seta" aria-hidden="true" />}
+    </li>
+  );
+  let n = -1;
+  return ReactDOM.createPortal(
+    <div className="menestrel-ui busca-livro-veu" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="busca-livro" role="dialog" aria-modal="true" aria-label={en ? 'Search the rulebook' : 'Buscar no Livro de Regras'}>
+        <div className="busca-livro-campo">
+          <i className="ti ti-eye" aria-hidden="true" />
+          <input ref={inputRef} type="text" value={termo} onChange={(e) => setTermo(e.target.value)} onKeyDown={teclado}
+            placeholder={tipoAtual
+              ? (en ? 'Search in ' + tipoAtual.enP : 'Buscar em ' + tipoAtual.ptP)
+              : (en ? 'Creature, item, spell, technique or skill' : 'Criatura, item, magia, técnica ou habilidade')}
+            role="combobox" aria-expanded={plano.length > 0} aria-controls="busca-livro-lista"
+            aria-activedescendant={plano.length ? idOpcao(ativo) : undefined} autoComplete="off" spellCheck={false} />
+          {/* Sem as teclas desenhadas (23/10/2026, "despadronizados do nosso
+              sistema"): o fechar é o X dos nossos modais; Esc e as setas
+              continuam funcionando. */}
+          <button type="button" className="ms-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="busca-livro-corpo">
+          {erro ? (
+            <p className="busca-livro-aviso is-erro">{en ? 'Could not load the rulebook.' : 'Não foi possível carregar o Livro de Regras.'} {erro}</p>
+          ) : carregando ? (
+            <p className="busca-livro-aviso">{en ? 'Opening the rulebook…' : 'Abrindo o Livro de Regras…'}</p>
+          ) : mostraTipos ? (
+            <ul id="busca-livro-lista" ref={listaRef} className="busca-livro-lista" role="listbox">
+              {LIVRO_TIPOS.map((t, i) => linha(i, t.secao, t.icone, en ? t.enP : t.ptP, () => entrarNoTipo(t.secao), true))}
+            </ul>
+          ) : (
+            <ul id="busca-livro-lista" ref={listaRef} className="busca-livro-lista" role="listbox">
+              {grupos.map((g) => {
+                const t = LIVRO_TIPOS.find((x) => x.secao === g.secao);
+                return (
+                  <React.Fragment key={g.secao}>
+                    <li className="busca-livro-grupo" role="presentation">
+                      {tipo && (
+                        <button type="button" className="busca-livro-voltar" onClick={voltarAosTipos}
+                          aria-label={en ? 'Back to the types' : 'Voltar aos tipos'}>
+                          <i className="ti ti-arrow-left" aria-hidden="true" />
+                        </button>
+                      )}
+                      <span>{en ? t.enP : t.ptP} · {g.total}</span>
+                      {/* CRIAR (23/10/2026): com as páginas do Livro fora do
+                          menu, o + do catálogo mora aqui, no tipo escolhido. */}
+                      {tipo && podeCriar && (
+                        <button type="button" className="busca-livro-novo"
+                          onClick={() => onEscolher({ secao: tipo, novo: true })}>
+                          <i className="ti ti-plus" aria-hidden="true" />
+                          {en ? 'New ' + t.en.toLowerCase() : (NOVO_DO_TIPO[tipo] || 'Novo')}
+                        </button>
+                      )}
+                    </li>
+                    {g.itens.map((r) => {
+                      n += 1;
+                      return linha(n, r.secao + ':' + r.chave, t.icone, <DestaqueNoNome nome={r.nome} termo={termo} />, () => escolher(r));
+                    })}
+                  </React.Fragment>
+                );
+              })}
+              {plano.length === 0 && (
+                <li className="busca-livro-aviso" role="presentation">
+                  {temTermo
+                    ? (en ? 'Nothing named “' + termo.trim() + '” in the rulebook.' : 'Nada com “' + termo.trim() + '” no Livro de Regras.')
+                    : (en ? 'Nothing here yet.' : 'Nada aqui ainda.')}
+                  {modoJogador && (en ? ' You only see what your character knows.' : ' Você só vê o que seu personagem conhece.')}
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.querySelector('#root .menestrel-ui') || document.body
+  );
+}
+
+/* A lista abre a entrada que a busca pediu. `pedido` = { chave, nome, token }:
+   o nome vai para a busca da lista (assim a linha está na primeira página) e
+   a chave abre a janela. A janela só pode abrir DEPOIS que a lista reage à
+   busca nova — o efeito de [query] fecha a janela aberta —, por isso a chave
+   espera a busca chegar. */
+/* `pedido.novo` (23/10/2026): o "+ Nova criatura" da busca — a lista abre o
+   editor em branco (o mesmo + que ficava no trilho das páginas do Livro, que
+   saíram do menu). Qualquer pedido esquece o índice da busca: depois de
+   criar ou editar, a próxima busca já acha o nome novo. */
+function useAbrirDoLivro(pedido, query, setQuery, setExpandida, abrirNovo) {
+  const visto = useRef(null);
+  const pendente = useRef(null);
+  useEffect(() => {
+    if (!pedido || pedido.token === visto.current) return;
+    visto.current = pedido.token;
+    indiceDoLivro = null;
+    if (pedido.novo) { if (abrirNovo) abrirNovo(); return; }
+    // "Ver todos" da busca (23/10/2026): só a lista inteira, sem entrada a abrir.
+    if (pedido.chave == null) { setQuery(''); return; }
+    if (query === pedido.nome) { setExpandida(pedido.chave); return; }
+    pendente.current = pedido;
+    setQuery(pedido.nome);
+  }, [pedido]);
+  useEffect(() => {
+    const p = pendente.current;
+    if (!p || query !== p.nome) return;
+    pendente.current = null;
+    setExpandida(p.chave);
+  }, [query]);
+}
+
 Object.assign(window, {
+  PainelLivroCtx, LivroLayout,
+  valorPorExtenso,
+  BuscaLivro, buscarNoLivro,
   CriaturasList, MagiasList, HabilidadesList,
   // Exposto pro teste de render: e a tela que diz ao Mestre se a edicao dele
   // quebrou alguma magia no motor.
@@ -2967,7 +3450,7 @@ Object.assign(window, {
   // Lugares, NPCs e Memórias (13-diario/diario.jsx).
   BestBuscaENovo, BestBotaoNovo,
   // 26/09/2026: a ficha da linha abre em janela — também em itens da campanha.
-  BestDetalheModal, BestItemFicha, BestTecnicaFicha, BestMagiaFicha, BestHabilidadeFicha,
+  BestDetalheModal, BestItemFicha, ItemPasse, celulasDoItem, passeDoItem, BestTecnicaFicha, BestMagiaFicha, BestHabilidadeFicha,
   // 26/09/2026: o filtro Básica/Especializada do submenu de Técnicas.
   categoriaTecnica, separarFiltroMenu,
   // 26/09/2026: a ficha em lista, por extenso — o Diário e itens da campanha usam.
