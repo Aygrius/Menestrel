@@ -255,7 +255,43 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
 
   return (
     <div className="fp-page">
+      {/* O TRILHO DA CONDUÇÃO (23/10/2026, aprovado na prévia): sem o título
+          "Batalhas" (o menu lateral diz a mesa e a seção) e as ações com nome,
+          centralizadas, como nas outras páginas. A seta volta à lista. */}
+      {/* Na CRIAÇÃO também (23/10/2026): ← Batalhas e Criar batalha no trilho. */}
+      {view === 'nova' && !abrindo && (
+        <div className="cartoes-barra batalha-trilho">
+          <div className="best-header-acoes" role="toolbar" aria-label={tb.novaBatalha}>
+            <button type="button" className="mc-acao" onClick={() => setView('lista')}>
+              <i className="ti ti-arrow-left" aria-hidden="true" />
+              <span className="mc-acao-rotulo">{isEn ? 'Battles' : 'Batalhas'}</span>
+            </button>
+            <button type="button" className="mc-acao mc-acao--primaria"
+              disabled={!novaState.canConfirm}
+              onClick={() => { if (novaBatalhaRef.current) novaBatalhaRef.current(); }}>
+              <i className="ti ti-swords" aria-hidden="true" />
+              <span className="mc-acao-rotulo">{novaState.saving ? tb.criando : tb.criarBatalha}</span>
+            </button>
+          </div>
+        </div>
+      )}
+      {abrindo && (
+        <div className="cartoes-barra batalha-trilho">
+          <div className="best-header-acoes" role="toolbar" aria-label={isEn ? 'Battle' : 'Batalha'}>
+            <button type="button" className="mc-acao"
+              disabled={rolagemPendenteConducao}
+              onClick={() => { fecharTip(); setAbrindo(null); setHeaderActions(null); carregar(); }}
+              onMouseEnter={(e) => rolagemPendenteConducao && abrirTip(e, tb.concluaARolagemPendente)}
+              onMouseLeave={fecharTip}>
+              <i className="ti ti-arrow-left" aria-hidden="true" />
+              <span className="mc-acao-rotulo">{isEn ? 'Battles' : 'Batalhas'}</span>
+            </button>
+            {headerActions}
+          </div>
+        </div>
+      )}
       <div className="fp-card batalha-mng-page">
+        {!abrindo && view !== 'nova' && (
         <div className="fp-card-top">
           <header className="ms-header ficha-page-header">
         <button
@@ -292,11 +328,9 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
               : (tb.criarBatalha)}
           </button>
         )}
-        {abrindo && headerActions && (
-          <div className="batalha-header-acoes">{headerActions}</div>
-        )}
           </header>
         </div>
+        )}
         <div className="batalha-mng-page-body">
         {error && <div className="err-msg">{error}</div>}
 
@@ -421,6 +455,7 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
   if (items.length === 0) {
     return (
       <div className="part-section">
+        {label && <p className="part-section-titulo">{label}</p>}
         <div className="hist-protag-empty part-section-empty">
           {tb.nenhumVinculadoAEsta}
         </div>
@@ -428,8 +463,18 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
     );
   }
 
+  /* O NOME DA SEÇÃO (23/10/2026): só a dos animais tinha título; agora as
+     três, no rótulo do sistema, com quantos estão marcados. */
+  const titulo = label ? (
+    <p className="part-section-titulo">
+      {label}
+      {!modoQtd && <span className="part-section-titulo-n">{isEn ? `${selCount} of ${items.length}` : `${selCount} de ${items.length}`}</span>}
+    </p>
+  ) : null;
+
   return (
     <div className="part-section">
+      {titulo}
       {/* Filtro inline com bulk actions — mesma linha */}
       <div className="part-section-filter-row">
         <div className="best-search">
@@ -719,7 +764,7 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
         {intro || tb.essaEAHora}
       </p>
       <ParticipantSection
-        label={tb.jogadores}
+        label={isEn ? 'Characters' : 'Personagens'}
         items={pjItems}
         sel={selPj}
         onToggle={togglePj}
@@ -729,9 +774,8 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
       />
       {aniItems.length > 0 && (
         <>
-          <div className="part-section-eyebrow">{isEn ? "Players' animals" : 'Animais dos jogadores'}</div>
           <ParticipantSection
-            label={isEn ? "Players' animals" : 'Animais dos jogadores'}
+            label={isEn ? 'Companions' : 'Companheiros'}
             items={aniItems}
             sel={selAni}
             onToggle={toggleAni}
@@ -6692,7 +6736,6 @@ function IniciativaLista({ participantes, meta, isEn, rodada, escolhido, onEscol
     <nav className="batalha-ini-col" aria-label={isEn ? 'Initiative' : 'Iniciativa'}>
       <div className="batalha-ini-tit">
         <span>{isEn ? 'Initiative' : 'Iniciativa'}</span>
-        {rodada > 0 && <span>{isEn ? 'Round' : 'Rodada'} {rodada}</span>}
       </div>
       <ol className="batalha-ini-lista">
         {lista.map(({ p, i }, k) => {
@@ -6736,6 +6779,27 @@ function IniciativaLista({ participantes, meta, isEn, rodada, escolhido, onEscol
   );
 }
 
+/* O AMBIENTE DO TABULEIRO (24/10/2026): os seis fundos pintados no Figma
+   (public/batalha/fundo-*.webp), por baixo da grade. Escolhido no trilho. */
+const AMBIENTES_BATALHA = [
+  ['', 'Sem fundo', 'No background'], ['floresta', 'Floresta', 'Forest'], ['castelo', 'Castelo', 'Castle'],
+  ['cidade', 'Cidade', 'City'], ['montanha', 'Montanha', 'Mountain'], ['estrada', 'Estrada', 'Road'],
+  ['deserto', 'Deserto', 'Desert'],
+];
+/* Fora do trilho desde 24/10/2026: as primeiras pinturas ficaram ruins e foram
+   apagadas ("Depois voltamos nela"). Para religar, pôr o seletor de volta nas
+   ações da montagem e da condução e gerar os fundos em public/batalha/. */
+function SeletorAmbiente({ valor, onChange, isEn, disabled }) {
+  return (
+    <label className="batalha-ambiente">
+      <i className="ti ti-map-2" aria-hidden="true" />
+      <select value={valor || ''} disabled={disabled} aria-label={isEn ? 'Battlefield' : 'Ambiente'}
+        onChange={(e) => onChange(e.target.value)}>
+        {AMBIENTES_BATALHA.map(([v, pt, en]) => <option key={v} value={v}>{isEn ? en : pt}</option>)}
+      </select>
+    </label>
+  );
+}
 function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = [], lang, onVoltar, onAtualizado, onHeaderActionsChange, onRolagemPendenteChange }) {
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
@@ -6748,6 +6812,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
      participante: escuridão é do ambiente. 'clara' é o default e o valor de
      toda batalha que existia antes desta linha. */
   const [visibilidade, setVisibilidade] = useState(batalha.visibilidade || 'clara');
+  // O fundo pintado do tabuleiro (24/10/2026): o ambiente da batalha, nulo = sem fundo.
+  const [ambiente, setAmbiente] = useState(batalha.ambiente || '');
   const [iniciando, setIniciando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState(null);
@@ -8135,50 +8201,58 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       onHeaderActionsChange(null);
       return;
     }
+    /* Com nome desde 23/10/2026 (trilho da condução): o estado da luz no
+       próprio botão; o tooltip continua com o nome completo e a penalidade. */
+    const NOME_VISIB = isEn
+      ? { clara: 'Lit', parcial: 'Partial darkness', total: 'Total darkness', magica: 'Magical darkness' }
+      : { clara: 'Claro', parcial: 'Escuridão parcial', total: 'Escuridão total', magica: 'Escuridão mágica' };
     onHeaderActionsChange(
       <>
+        <span className="batalha-trilho-rodada">{isEn ? 'Round' : 'Rodada'} <b>{rodada || 1}</b></span>
         {/* VISIBILIDADE DO TABULEIRO. Um botão que cicla claro → parcial →
             total → mágica → claro. Ciclar em vez de abrir menu porque são
             quatro estados numa escada, e o ícone diz em qual você está: o
             Mestre acende a escuridão no meio da cena sem tirar a mão do
             teclado. O tooltip nomeia o estado e a penalidade. */}
         <button type="button"
-          className={'btn-icon btn-ghost btn-sm visib-' + visibilidade}
+          className={'mc-acao visib-' + visibilidade}
           disabled={salvando || rolagemPendente}
           onClick={() => { const p = proximaVisibilidade(visibilidade); setVisibilidade(p); persistir({ visibilidade: p }); }}
           onMouseEnter={(e) => abrirTip(e, textoVisibilidade(visibilidade, tb))}
           onMouseLeave={fecharTip}>
           <i className={'ti ' + VISIBILIDADE_ICONE[visibilidade]} aria-hidden="true" />
+          <span className="mc-acao-rotulo">{NOME_VISIB[visibilidade] || visibilidade}</span>
         </button>
         {/* REFORÇOS (29/09/2026): quem chega entra na próxima rodada. */}
-        <button type="button" className="btn-icon btn-ghost btn-sm" data-acao="reforcos"
+        <button type="button" className="mc-acao" data-acao="reforcos"
           disabled={salvando || rolagemPendente}
           onClick={() => { fecharTip(); setReforcoOpen(true); }}
           aria-label={tb.adicionarCombatentes}
           onMouseEnter={(e) => abrirTip(e, tb.adicionarCombatentes)} onMouseLeave={fecharTip}>
           <i className="ti ti-circle-plus" aria-hidden="true" />
+          <span className="mc-acao-rotulo" aria-hidden="true">{isEn ? 'Reinforcements' : 'Reforços'}</span>
         </button>
-        <button type="button" className="btn-icon btn-ghost btn-sm" disabled={salvando || rolagemPendente} onClick={novaRodada}
-          onMouseEnter={(e) => abrirTip(e, tb.novaRodada)} onMouseLeave={fecharTip}>
+        <button type="button" className="mc-acao" disabled={salvando || rolagemPendente} onClick={novaRodada}>
           <i className="ti ti-refresh" aria-hidden="true" />
+          <span className="mc-acao-rotulo">{isEn ? 'New round' : 'Nova rodada'}</span>
         </button>
         {/* ENCERRAR vira círculo com ícone (13/09/2026): "Remova o botão de
             encerrar no topo." Ele é o ÚNICO caminho para encerrar a batalha
             (leva o estado para a ficha e arquiva o log), então sai o botão
             vermelho com texto e fica o ícone, igual aos vizinhos — decisão do
             usuário. O clique abre o mesmo painel de confirmação. */}
-        <button type="button" className="btn-icon btn-ghost btn-sm batalha-encerrar-ic"
+        <button type="button" className="mc-acao batalha-encerrar-ic"
           disabled={salvando || rolagemPendente} onClick={() => { fecharTip(); encerrarBatalha(); }}
           aria-label={tb.encerrarBatalha || (isEn ? 'End battle' : 'Encerrar batalha')}
-          onMouseEnter={(e) => abrirTip(e, rolagemPendente ? tb.concluaARolagemPendente
-            : (tb.encerrarBatalha || (isEn ? 'End battle' : 'Encerrar batalha')))}
+          onMouseEnter={(e) => rolagemPendente && abrirTip(e, tb.concluaARolagemPendente)}
           onMouseLeave={fecharTip}>
           <i className="ti ti-door-exit" aria-hidden="true" />
+          <span className="mc-acao-rotulo" aria-hidden="true">{isEn ? 'End' : 'Encerrar'}</span>
         </button>
       </>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estado, acaoOpen, salvando, current, catalogos, participantes, iniciando, isEn, rolagemPendente]);
+  }, [estado, acaoOpen, salvando, current, catalogos, participantes, iniciando, isEn, rolagemPendente, rodada, visibilidade, ambiente]);
 
   // Encerra a batalha: leva o estado final pra ficha de cada PJ, limpa o
   // personagens_pools da história e arquiva o log pela RPC.
@@ -8408,6 +8482,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           onMovendoChange={setPosicionando}
           semBancada
           visibilidade={visibilidade}
+        ambiente={ambiente}
           podeSelecionar={() => !salvando}
           alcanceDe={() => null}
           onMover={posicionarNoSetup}
@@ -8536,6 +8611,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         entradas={participantes.map((p, i) => ({ p, i }))}
         meta={metaTokens}
         visibilidade={visibilidade}
+        ambiente={ambiente}
         semBancada
         painelEl={painelEl}
         selecionado={idxEscolhido}
@@ -8924,6 +9000,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         catalogos={catalogos}
         lang={lang}
         visibilidade={visibilidade}
+        ambiente={ambiente}
         onAplicar={aplicarAcao}
         onAplicarTeste={aplicarTeste}
         onAplicarItem={aplicarItem}
@@ -11432,6 +11509,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // O jogador LÊ a visibilidade; quem a define é o Mestre. Vem por prop e se
   // atualiza sozinha pelo realtime, como o resto da batalha.
   const visibilidade = batalha.visibilidade || 'clara';
+  // O jogador vê o mesmo fundo que o Mestre escolheu (24/10/2026).
+  const ambiente = batalha.ambiente || '';
   const [catalogos, setCatalogos] = useState(null);
   const [acaoOpen, setAcaoOpen] = useState(false);
   // Ataque a partir do avatar do inimigo — mesmo contrato da visão do Mestre.
@@ -12441,6 +12520,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
               entradas={participantes.map((p, i) => ({ p, i })).filter((e) => !ehReforco(e.p))}
               meta={{}}
               visibilidade={visibilidade}
+        ambiente={ambiente}
               /* O próprio token, e — Conduzir Oponente (14/09/2026) — o do
                  adversário que eu conduzo. */
               podeSelecionar={(p) => !salvando && podeAgir && ehMinhaVez && !!meuParticipante
@@ -12599,6 +12679,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           catalogos={catalogos}
           lang={lang}
           visibilidade={visibilidade}
+        ambiente={ambiente}
           onAplicar={handleAcao}
           onAplicarTeste={handleTeste}
           onAplicarItem={handleItem}

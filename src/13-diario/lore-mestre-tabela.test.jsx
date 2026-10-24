@@ -611,7 +611,8 @@ describe('sem mesa: o catálogo do mundo', () => {
     expect(celulas(linhaDe('Andarilho'))[0]).toBe('Andarilho');
     expect(chamadasRpc.some((c) => c.nome === 'listar_lore_historia')).toBe(false);
     expect(document.querySelector('.diario-vis-ic')).toBeNull();
-    expect(document.querySelector('.diario-pagina-aviso').textContent).toMatch(/Catálogo do mundo/);
+    // Sem o aviso "Catálogo do mundo — entre numa aventura…" (23/10/2026, a pedido do usuário).
+    expect(document.querySelector('.diario-pagina-aviso')).toBeNull();
     expect(document.querySelector('.best-botao-novo')).toBeNull();
     fireEvent.click(linhaDe('Andarilho'));
     expect(acaoNaFicha('ti-eye')).toBeNull();

@@ -1257,23 +1257,39 @@ function categoriaDoLog(tipo, meta) {
   return 'informativo';
 }
 
+/* A LINHA DO QUADRO (23/10/2026, modal de notificações no padrão novo): a
+   hora e o texto, numa régua. Eram três sinais para a mesma coisa — a faixa
+   colorida, o ícone e o rótulo "INFORMATIVO" em todas as linhas, em azul fora
+   da paleta. A categoria só aparece quando diz algo (não em "Informativo"),
+   em texto discreto; o aviso, em brasa. A data virou o cabeçalho do dia. */
 function MensagemEvento({ msg, lang }) {
   const cat = LOG_CATEGORIAS[msg.categoria] || LOG_CATEGORIAS.informativo;
-  // O ícone é o da CATEGORIA (a cor manda); meta.icone ainda vence.
-  const iconClass = msg.icone || cat.icone || MSG_TIPO_ICON[msg.tipo] || MSG_TIPO_ICON.sistema;
+  const categoria = msg.categoria || 'informativo';
   return (
-    <div className={'cm-msg cm-msg--' + (msg.categoria || 'informativo') + (msg.destaque ? ' cm-msg--destaque' : '')}
-      style={{ '--log-cor': cat.cor }}>
-      <div className="cm-msg-icon">
-        <i className={'ti ' + iconClass} aria-hidden="true" />
-      </div>
+    <div className={'cm-msg cm-msg--' + categoria + (msg.destaque ? ' cm-msg--destaque' : '')}>
+      <span className="cm-msg-hora">{msg.horaCurta || msg.hora}</span>
       <div className="cm-msg-body">
-        <span className="cm-msg-cat">{lang === 'en' ? cat.en : cat.pt}</span>
-        {msg.hora && <span className="cm-msg-hora">{msg.hora}</span>}
+        {(categoria !== 'informativo' || msg.icone) && (
+          <span className="cm-msg-cat">
+            {/* Ícone só quando o evento pede um próprio (meta.icone). */}
+            {msg.icone && <i className={'ti ' + msg.icone} aria-hidden="true" />}
+            {categoria !== 'informativo' && (lang === 'en' ? cat.en : cat.pt)}
+          </span>
+        )}
         <span className="cm-msg-texto">{msg.texto}</span>
       </div>
     </div>
   );
+}
+/* Os dias do quadro: "Hoje", "Ontem" ou a data. */
+function rotuloDoDia(iso, lang) {
+  const d = new Date(iso);
+  const hoje = new Date();
+  const ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
+  const mesmo = (a, b) => a.toDateString() === b.toDateString();
+  if (mesmo(d, hoje)) return lang === 'en' ? 'Today' : 'Hoje';
+  if (mesmo(d, ontem)) return lang === 'en' ? 'Yesterday' : 'Ontem';
+  return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 /* ── O CARD NO CENTRO DA TELA (27/09/2026) ────────────────────────────────
@@ -1311,6 +1327,8 @@ function linhaParaMensagem(row, lang) {
     tipo: row.tipo,
     texto: row.texto,
     hora: dataHora,
+    horaCurta: dt.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
+    criadoEm: row.created_at,
     // Quem grava o evento decide o destaque e pode pedir um ícone próprio.
     destaque: !!meta.destaque,
     categoria: categoriaDoLog(row.tipo, meta),
@@ -1640,7 +1658,7 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
         type="button"
         className={'cm-fab' + (aberto ? ' is-active' : '')}
         onClick={() => (aberto ? fecharHistorico() : abrirHistorico())}
-        aria-label={en ? 'Table log' : 'Log da mesa'}
+        aria-label={en ? 'Notifications' : 'Notificações'}
         aria-expanded={aberto}
       >
         <i className="ti ti-bell" aria-hidden="true" />
@@ -1651,10 +1669,10 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
 
       {aberto && Janela && (
         <Janela
-          title={<><i className="ti ti-bell det-title-ic" aria-hidden="true" /> {en ? 'Table log' : 'Log da mesa'}</>}
+          title={en ? 'Notifications' : 'Notificações'}
           lang={lang}
           onClose={fecharHistorico}>
-          <div className="cm-log-lista" role="log" aria-label={en ? 'Table log' : 'Log da mesa'}>
+          <div className="cm-log-lista" role="log" aria-label={en ? 'Notifications' : 'Notificações'}>
             {/* A fila do Mestre vem antes: é a única coisa aqui que pede ação. */}
             {ehMestre && (
               <FilaAprovacaoMagia
@@ -1667,7 +1685,16 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
             {mensagens.length === 0 ? (
               <div className="cm-empty">{en ? 'No messages yet.' : 'Nenhuma mensagem ainda.'}</div>
             ) : (
-              mensagens.map((m) => <MensagemEvento key={m.id} msg={m} lang={lang} />)
+              mensagens.map((m, i) => {
+                const dia = m.criadoEm ? rotuloDoDia(m.criadoEm, lang) : null;
+                const anterior = i > 0 && mensagens[i - 1].criadoEm ? rotuloDoDia(mensagens[i - 1].criadoEm, lang) : null;
+                return (
+                  <React.Fragment key={m.id}>
+                    {dia && dia !== anterior && <p className="cm-dia">{dia}</p>}
+                    <MensagemEvento msg={m} lang={lang} />
+                  </React.Fragment>
+                );
+              })
             )}
           </div>
         </Janela>
@@ -3640,6 +3667,11 @@ function devePersistirPerfil(noServidor, local) {
 function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   const ac = ADMIN_COPY[lang] || ADMIN_COPY.pt;
   const [navTip, abrirNavTip, fecharNavTip, manterNavTip] = useNavTooltip(60);
+  /* O MENU LATERAL (23/10/2026): sempre recolhido na coluna dos ícones e
+     expandido por cima da página ao passar o mouse (ou ao navegar com o
+     teclado dentro dele) — "Remova o botão de expandir o menu lateral, ele vai
+     ficar sempre retraído, e vai expandir ao passar o mouse." Só CSS
+     (.mc-sidebar:hover / :focus-within); ver index.css. */
 
   // Perfil persistido.
   // Prioridade de restauração: Supabase (userProfile prop) > localStorage > 'player' (novo usuário).
@@ -3779,8 +3811,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   useEffect(() => {
     try { localStorage.setItem('menestrel.sectionFiltro', secaoFiltro); } catch (e) {}
   }, [secaoFiltro]);
-  const nav = (typeof NAV_MESA !== 'undefined' && NAV_MESA[profile]) || { mesa: [], regras: [] };
-  const menu = [...nav.mesa, ...nav.regras];
+  const navBase = (typeof NAV_MESA !== 'undefined' && NAV_MESA[profile]) || { mesa: [], regras: [] };
+  const menu = [...navBase.mesa, ...navBase.regras];
   const folhas = typeof folhasDoMenu === 'function' ? folhasDoMenu(menu) : [];
   /* A folha aberta. Filtro que não existe na seção atual (ficou de uma visita
      antiga, ou a seção veio por outro caminho) cai na PRIMEIRA folha da
@@ -3823,6 +3855,13 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     try { const v = localStorage.getItem('menestrel.mesaAtivaId'); return v ? Number(v) : null; }
     catch (e) { return null; }
   });
+  /* SEM MESA, SÓ O QUE NÃO DEPENDE DELA (23/10/2026): "Quando não há mesa
+     selecionada, não precisa mostrar o menu cena, batalha, personagens, loja,
+     jogadores." Fica a Ambientação (o catálogo do mundo abre sem mesa). */
+  const SECOES_SO_COM_MESA = ['cena', 'batalha', 'personagens_m', 'loja_mesa', 'jogadores'];
+  const nav = profile === 'master' && !mesaAtivaId
+    ? { ...navBase, mesa: navBase.mesa.filter((n) => !SECOES_SO_COM_MESA.includes(n.secao)) }
+    : navBase;
   // Ref pra abrir o modal "Nova história" de fora — o botão fica no pill do
   // topo (CardDataJogoAtual), mas quem dono do modal continua sendo a
   // HistoriasList (regra de limite do plano free fica encapsulada lá).
@@ -3901,9 +3940,19 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      montada dentro do console ela só se deixaria observar montando o console
      inteiro. */
   useEffect(() => {
+    /* O JOGADOR SEGUE A MESA DO PERSONAGEM (23/10/2026): "em um navegador
+       aparece a trilha no topo, no outro não". A mesa do Jogador só vinha do
+       que estava salvo NAQUELE navegador; onde nunca tinha sido salva, ficava
+       sem mesa — e sem o trilho de data, clima e hora. O Jogador não escolhe
+       mesa: ela é a do personagem ativo (minhasHistorias, resolvida pelo PJ). */
+    if (profile === 'player' && Array.isArray(minhasHistorias) && minhasHistorias.length > 0) {
+      const doPj = minhasHistorias[0].id;
+      if (mesaAtivaId !== doPj) setMesaAtivaId(doPj);
+      return;
+    }
     const prox = proximaMesaAtiva(minhasHistorias, mesaAtivaId);
     if (prox !== undefined) setMesaAtivaId(prox);
-  }, [minhasHistorias, mesaAtivaId]);
+  }, [minhasHistorias, mesaAtivaId, profile]);
   /* Sair precisa SOBREVIVER à recarga, e para isso a chave tem que sumir do
      localStorage — não basta parar de gravar. Sem o remove, o Mestre saía da
      mesa, recarregava a página e voltava para dentro dela. */
@@ -3928,7 +3977,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      tooltip — que já existia e já era acionado no hover (abrirNavTip). */
   // 232px com rótulos desde 22/10/2026 (Mesa em Sessão) — ver o comentário acima,
   // que registra a decisão anterior (64px só de ícones) e por que mudou.
-  const SIDEBAR_LARGURA = 232;
+  // A coluna recolhida (23/10/2026): o menu abre por cima, a página não anda.
+  const SIDEBAR_LARGURA = 72;
 
   /* A LUZ DO FUNDO SEGUE O RELÓGIO DA MESA (20/09/2026). Quem carrega e assina
      `historias.data_jogo_atual` é o CardDataJogoAtual, lá embaixo na barra do
@@ -4034,6 +4084,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
       <button key={(no.secao || no.id) + ':' + (no.filtro || '')} type="button"
         className={'mc-navitem' + (extraClasse ? ' ' + extraClasse : '') + (ativo ? ' is-active' : '')}
         aria-current={ativo ? 'page' : undefined}
+       
         onClick={() => { const d = destinoDe(no); ir(d.secao, d.filtro); }}>
         <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
         <span>{rotuloDe(no)}</span>
@@ -4052,7 +4103,10 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
       return (
         <div key={no.id} className="mc-navgaveta">
           <button type="button" className={'mc-navitem' + (contem && !aberta ? ' is-active' : '')}
-            aria-expanded={aberta} onClick={() => setGavetas((v) => ({ ...v, [no.id]: !v[no.id] }))}>
+            aria-expanded={aberta}
+            onClick={() => {
+              setGavetas((v) => ({ ...v, [no.id]: !v[no.id] }));
+            }}>
             <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
             <span>{rotuloDe(no)}</span>
             <i className={'ti ti-chevron-down mc-navseta' + (aberta ? ' is-aberta' : '')} aria-hidden="true" />
@@ -4173,9 +4227,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             A crítica de 22/10 mostrou o custo — ícones opacos, nada no toque — e
             o usuário escolheu o menu com rótulos, nascendo da mesa (Mestre) ou do
             personagem (Jogador). No celular ele vira a folha "Mais". */}
-        <aside className={'mc-sidebar' + (navAberta ? ' is-aberta' : '')} aria-label={lang === 'en' ? 'Navigation' : 'Navegação'}>
+        <aside className={'mc-sidebar' + (navAberta ? ' is-aberta' : '') + (identAberto || userMenuOpen ? ' is-menu-aberto' : '')} aria-label={lang === 'en' ? 'Navigation' : 'Navegação'}>
           <div className="mc-marca">
-            <span className="mc-marca-nome"><SeloMenestrel size={28} />Menestrel</span>
+            <span className="mc-marca-nome"><SeloMenestrel size={28} /><span className="mc-marca-texto">Menestrel</span></span>
             <button type="button" className="mc-navfechar" aria-label={lang === 'en' ? 'Close menu' : 'Fechar menu'}
               onClick={() => setNavAberta(false)}>
               <i className="ti ti-x" aria-hidden="true" />
@@ -4186,6 +4240,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           <div className="mc-ident-wrap" ref={identRef}>
             <button type="button" className="mc-ident" aria-haspopup="menu" aria-expanded={identAberto}
               aria-label={(profile === 'master' ? (lang === 'en' ? 'Table: ' : 'Mesa: ') : (lang === 'en' ? 'Character: ' : 'Personagem: ')) + (profile === 'master' ? (mesaAtiva ? mesaAtiva.titulo : '—') : (nomePersonagem || '—'))}
+             
               onClick={() => setIdentAberto((v) => !v)}>
               {/* O ESTÁGIO NO RETRATO (23/10/2026): saiu da faixa de experiência
                   da ficha e virou um medalhão de ouro no canto da foto do
@@ -4279,14 +4334,15 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               no livro logo abaixo da mesa, sempre à mão; Criaturas, Itens,
               Magias, Técnicas e Habilidades saíram do menu — a busca (Ctrl K)
               acha qualquer entrada e o "Ver todos" de cada tipo abre a lista. */}
-          <button type="button" className="mc-navbusca mc-navbusca--topo" onClick={() => { setNavAberta(false); setBuscaAberta(true); }}
+          <button type="button" className="mc-navbusca mc-navbusca--topo" onClick={() => { fecharNavTip(); setNavAberta(false); setBuscaAberta(true); }}
             aria-keyshortcuts="Control+K">
             <i className="ti ti-eye" aria-hidden="true" />
             <span>{lang === 'en' ? 'Search' : 'Buscar'}</span>
             <kbd>Ctrl K</kbd>
           </button>
           <nav className="mc-nav">
-            <p className="mn-rotulo mc-nav-secao">{profile === 'master' ? (lang === 'en' ? 'Table' : 'Mesa') : (lang === 'en' ? 'Character' : 'Personagem')}</p>
+            {/* O rótulo "Personagem"/"Mesa" saiu (23/10/2026): só aparecia com
+                o menu aberto e empurrava os itens para baixo no hover. */}
             {nav.mesa.map(renderNo)}
             {/* O sino do Mestre (23/10/2026): a CentralMensagens desenha aqui. */}
             {profile === 'master' && mesaAtivaId && (
@@ -4340,7 +4396,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           {/* A CONTA: um botão de verdade (a crítica achou um <div> sem teclado). */}
           <div className="mc-user-wrap">
             <button type="button" className="mc-user" aria-haspopup="menu" aria-expanded={userMenuOpen}
-              onClick={() => setUserMenuOpen((v) => !v)}>
+             
+              onClick={() => { fecharNavTip(); setUserMenuOpen((v) => !v); }}>
               {avatarUrl ? (
                 <img ref={avatarRef} className="mc-user-foto" src={avatarUrl} alt="" referrerPolicy="no-referrer" />
               ) : (
@@ -4400,9 +4457,14 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         <nav className="mc-barra-inferior" aria-label={lang === 'en' ? 'Quick navigation' : 'Navegação rápida'}>
           {/* Gaveta conta pelo primeiro destino dela (Loja → Estoque); o
               Diário fica no "Mais" — são várias folhas de mesmo peso. */}
-          {nav.mesa.filter((n) => n.id !== 'diario').slice(0, 4).map((no) => {
+          {/* No celular (23/10/2026): as partes da ficha (Identificação,
+              Conhecimento, Companheiros) ficam no Mais — os quatro atalhos do
+              Jogador são Ficha, Inventário, Loja e Mesa —, e o destaque segue a
+              aba da ficha, como no menu lateral (antes as quatro acendiam juntas). */}
+          {nav.mesa.filter((n) => n.id !== 'diario' && !(n.secao === 'ficha' && n.filtro && n.filtro !== 'ficha')).slice(0, 4).map((no) => {
             const d = destinoDe(no);
-            const ativo = no.filhos ? contemSecao(no) : no.secao === secaoMarcada;
+            const ativo = no.filhos ? contemSecao(no) : (no.secao === secaoMarcada
+              && (no.secao !== 'ficha' || !no.filtro || no.filtro === (abaFichaAtual || 'ficha')));
             return (
               <button key={no.secao || no.id} type="button" className={'mc-barra-item' + (ativo ? ' is-active' : '')}
                 aria-current={ativo ? 'page' : undefined} onClick={() => ir(d.secao, d.filtro)}>
@@ -4570,7 +4632,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ativo (esconderBotaoPersonagem). */}
         <CardDataJogoAtual
           lang={lang}
-          historiaId={current.id === 'aventuras' || current.id === 'guia_personagem' ? null : mesaAtivaId}
+          /* A Mesa do jogador mostra a mesa ativa desde 23/10/2026 — o trilho
+             de data, clima e hora volta a aparecer nela. */
+          historiaId={current.id === 'guia_personagem' ? null : mesaAtivaId}
           podeEditar={profile === 'master'}
           userId={user.id}
           minhasHistorias={minhasHistorias}

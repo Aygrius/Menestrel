@@ -2007,6 +2007,15 @@ const LINHAS_BAU = 8;
 // (grid monta async, depois da RPC get_loja_pj): o ResizeObserver é anexado no
 // exato momento em que o elemento entra no DOM, qualquer que seja o timing.
 // Retorna [setGridEl, dims] — espalhe setGridEl como `ref` no <div> do grid.
+/* O ÍCONE DO ITEM (23/10/2026): a pintura do equipamento quando o item tem
+   uma (window.arteDoItem, 11-ficha), o glifo do Tabler quando não. Usado no
+   inventário, na loja e no estoque do Mestre. */
+function ItemIcone({ cat, icon }) {
+  const arte = cat && typeof window !== 'undefined' && window.arteDoItem ? window.arteDoItem(cat) : null;
+  return arte
+    ? <img className="inv-card-arte" src={arte} alt="" draggable="false" />
+    : <i className={'ti ' + icon} aria-hidden="true" />;
+}
 function useGridDimensions() {
   const [dims, setDims] = React.useState({ cols: 7, rows: 4, totalSlots: 28 });
   const elRef = React.useRef(null);
@@ -2053,6 +2062,10 @@ function useGridDimensions() {
       rows = Math.min(MAX_GRID_ROWS, Math.max(4, Math.floor((livreH + 6) / PASSO)));
       void card;
     }
+    /* NO CELULAR (23/10/2026) a página rola, então medir pela altura da tela
+       enchia o baú de fileiras vazias (11 com 16 itens). Lá a base é de 4
+       fileiras; quem usa a grade já soma as linhas dos itens + uma vazia. */
+    if (window.innerWidth <= 640) rows = 4;
     setDims((prev) =>
       (prev.cols === cols && prev.rows === rows) ? prev : { cols, rows, totalSlots: cols * rows }
     );
@@ -2334,7 +2347,16 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
 
   // Cada item na sua casa. Quem ainda não tem (antes do efeito de normalização
   // do InventarioList gravar) ganha a primeira livre só para desenhar.
-  const posicionados = useMemo(() => posicionarCasas(itensVisiveis), [itensVisiveis]);
+  /* NO CELULAR (23/10/2026) as casas guardadas vêm da grade larga do
+     computador (casa 103 = 6ª fileira lá, 21ª aqui, com 5 colunas): o baú
+     enchia de fileiras vazias até o item. Lá os itens seguem a ordem das
+     casas, sem os buracos — só na exibição; as casas salvas não mudam. */
+  const celular = typeof window !== 'undefined' && window.innerWidth <= 640;
+  const posicionados = useMemo(() => {
+    const p = posicionarCasas(itensVisiveis);
+    if (!celular) return p;
+    return [...p].sort((a, b) => a.casa - b.casa).map((it, i) => ({ ...it, casa: i }));
+  }, [itensVisiveis, celular]);
   const porCasa = useMemo(() => new Map(posicionados.map((it) => [it.casa, it])), [posicionados]);
   porCasaRef.current = porCasa;
   porIdRef.current = new Map(posicionados.map((it) => [it.instanceId, it]));
@@ -2381,7 +2403,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         onPointerMove={(e) => onCardPointerMove(e, idx, it.instanceId)}>
         {it.quantidade > 1 && <QtdDoCard n={it.quantidade} />}
         <span className="inv-card-head">
-          <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
+          <span className="inv-card-ic"><ItemIcone cat={cat} icon={invItemIcon(cat)} /></span>
         </span>
         {/* Container vestido (ex.: cinto) também entra no grid — mesmo pill de "em uso". */}
         {(it.slot || it.vestido || estaAVenda(it)) && (
@@ -2427,7 +2449,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         onPointerMove={(e) => onCardPointerMove(e, idx, it.instanceId)}>
         {it.quantidade > 1 && <QtdDoCard n={it.quantidade} />}
         <span className="inv-card-head">
-          <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
+          <span className="inv-card-ic"><ItemIcone cat={cat} icon={invItemIcon(cat)} /></span>
         </span>
         {/* A faísca é IRMÃ de .inv-card-pills, não filha.
 
@@ -2630,7 +2652,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
             className="inv-drag-ghost"
             style={{ left: drag.x, top: drag.y }}
             aria-hidden="true">
-            <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
+            <span className="inv-card-ic"><ItemIcone cat={cat} icon={invItemIcon(cat)} /></span>
           </div>,
           document.body
         );
@@ -3009,7 +3031,7 @@ function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fe
             {...propsTip(abrirTip, fecharTip, { title: nome })}>
             {it.quantidade > 1 && <QtdDoCard n={it.quantidade} />}
             <span className="inv-card-head">
-              <span className="inv-card-ic"><i className={'ti ' + invItemIcon(cat)} aria-hidden="true" /></span>
+              <span className="inv-card-ic"><ItemIcone cat={cat} icon={invItemIcon(cat)} /></span>
             </span>
             {cat && cat.magico && (
               <span className="inv-faisca" role="img" aria-label={en ? 'Magic' : 'Mágico'}>
@@ -4454,5 +4476,5 @@ Object.assign(window, {
   motivoEloLabel, comEloNoAnimal, semEloNoAnimal,
   // ↓ expostos para a Loja (07-inventario/loja.jsx) consumir via window:
   fmtNum, calcCarga, invItemIcon, recipienteAceitaSlug, usePortalTooltip, PortalTooltip,
-  useGridDimensions, LINHAS_BAU,
+  useGridDimensions, LINHAS_BAU, ItemIcone,
 });

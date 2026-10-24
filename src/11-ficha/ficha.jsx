@@ -390,6 +390,27 @@ function FichaTubos({ bars, scope = 'vit', onEdit, en, onHover, onHoverEnd }) {
 /* Bolhas do medalhão: nascem dentro do anel, correm um trecho dele e somem. */
 const BOLHAS_ANEL = [2.6, 1.8, 2.2, 3, 1.6, 2.4, 2];
 
+/* AS PINTURAS DAS CONDIÇÕES (23/10/2026): um objeto que representa a condição,
+   pintado no Figma no estilo dos equipamentos (o usuário testou retratos de
+   um personagem genérico e voltou aos objetos). A chave é a da condição em
+   condBars; a que ainda não tem pintura segue com o ícone. Lista e progresso
+   em .impeccable/arte-equipamentos.md. */
+/* Os objetos escolhidos pelo usuário (23/10/2026): Doença = frasco da peste,
+   Sono = lua cheia, Sede = frasco com água, Fome = pão, Frio = floco de neve,
+   Calor = sol quente, Vício = cerveja, Loucura = olho esbugalhado, Desonra =
+   medalha, Pesado = bolsa. */
+const ARTE_COND = {
+  vitalidade: '/cond/cond-doenca.webp',
+  animo: '/cond/cond-sono.webp',
+  hidratacao: '/cond/cond-sede.webp',
+  nutricao: '/cond/cond-fome.webp',
+  frio: '/cond/cond-frio.webp',
+  calor: '/cond/cond-calor.webp',
+  euforia: '/cond/cond-vicio.webp',
+  sanidade: '/cond/cond-loucura.webp',
+  reputacao: '/cond/cond-desonra.webp',
+  pesado: '/cond/cond-pesado.webp',
+};
 function FichaMedalhoes({ bars, scope = 'cond', onEdit, en, onHover, onHoverEnd }) {
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, '');
   return (
@@ -435,7 +456,11 @@ function FichaMedalhoes({ bars, scope = 'cond', onEdit, en, onHover, onHoverEnd 
               <circle cx="43" cy="3.6" r="1.2" fill="#9C8466" /><circle cx="43" cy="8.6" r="1.2" fill="#9C8466" />
             </svg>
             {/* A face: aqui entra a pintura da condição (Figma) no lugar do ícone. */}
-            <div className="fp-medalhao-face" aria-hidden="true"><i className={'ti ' + b.icon} /></div>
+            <div className={'fp-medalhao-face' + (ARTE_COND[b.key] ? ' tem-arte' : '')} aria-hidden="true">
+              {ARTE_COND[b.key]
+                ? <img src={ARTE_COND[b.key]} alt="" draggable="false" />
+                : <i className={'ti ' + b.icon} />}
+            </div>
           </div>
         );
       })}
@@ -1281,7 +1306,21 @@ const ARTE_PINTADA = new Set([
   'elmo-leve', 'elmo-medio', 'elmo-pesado',
   'ombreiras-leve', 'ombreiras-medio', 'ombreiras-pesado',
   'peitoral-leve', 'peitoral-medio', 'peitoral-pesado',
-  'bracos-leve',
+  'bracos-leve', 'bracos-medio', 'bracos-pesado',
+  'luvas-leve', 'luvas-medio', 'luvas-pesado',
+  'pernas-leve', 'pernas-medio', 'pernas-pesado',
+  'botas-leve', 'botas-medio', 'botas-pesado',
+  'escudo-leve', 'escudo-medio', 'escudo-pesado',
+  'arma-leve', 'arma-medio', 'arma-pesado',
+  'brincos-simples', 'brincos-ornado', 'brincos-nobre',
+  'colar-simples', 'colar-ornado', 'colar-nobre',
+  'capa-simples', 'capa-ornado', 'capa-nobre',
+  'roupa-simples', 'roupa-ornado', 'roupa-nobre',
+  'cinto-simples', 'cinto-ornado', 'cinto-nobre',
+  'anel-simples', 'anel-ornado', 'anel-nobre',
+  // as armas pelo tipo (23/10/2026) — ver ARMA_POR_NOME
+  'arma-arco', 'arma-besta', 'arma-lanca', 'arma-tridente', 'arma-maca', 'arma-martelo',
+  'arma-mangual', 'arma-cajado', 'arma-cetro', 'arma-chicote', 'arma-foice',
 ]);
 function versaoDaArte(base, cat) {
   if (ARTE_POR_RIQUEZA.has(base)) {
@@ -1292,12 +1331,105 @@ function versaoDaArte(base, cat) {
   const t = cat ? String(cat.tipo_armadura || '').trim().toUpperCase() : '';
   return t === 'L' ? 'leve' : (t === 'P' ? 'pesado' : 'medio');
 }
+/* A ARMA PELO TIPO (23/10/2026): "quando a arma equipada for um arco, mostre
+   nas duas mãos um arco, quando for um machado um machado, quando for uma
+   lança, uma lança". O catálogo não tem o tipo — grupo_armas é a família de
+   dano (CL, CM, PM…) —, então ele sai do nome; as armas de nome próprio vão
+   pela descrição do catálogo (Crissaegrim é rapieira, Galadhrim é arco…).
+   Arma de duas mãos já é espelhada nas duas casas (ocupanteDefesa). Sem tipo
+   reconhecido (arremesso, soqueira…), fica a pintura pelo peso, como antes. */
+const ARMA_POR_NOME = [
+  ['besta', /\b(besta|arlabesta)\b/],
+  ['arco', /\b(arco|galadhrim|impetusion)\b/],
+  ['tridente', /\btridente\b/],
+  ['lanca', /\b(lanca|pique|alabarda|arpao|ur)\b/],
+  ['machado', /\b(machado|machadinha|labris)\b/],
+  ['foice', /\b(foice|reshanta)\b/],
+  ['chicote', /\b(chicote|assassina de vampiros)\b/],
+  ['mangual', /\bmangual\b/],
+  ['martelo', /\b(martelo|marreta|malho)\b/],
+  ['maca', /\b(maca|clava|porrete|hongor-tun|estrela da manha)\b/],
+  ['cetro', /\bcetro\b/],
+  ['cajado', /\b(cajado|libano da luz|necroptum|coracao de lena)\b/],
+  ['adaga', /\b(adaga|punhal|faca)\b/],
+  ['espada', /\b(espada|montante|cimitarra|sabre|rapieira|crissaegrim|daeva do mar|jagan|kronagar|sagae|vampirus escarlate)\b/],
+];
+// Espada, adaga e machado usam as pinturas que já existiam.
+const ARMA_ARTE = { espada: 'arma-medio', adaga: 'arma-leve', machado: 'arma-pesado' };
+// Escudo também vem como categoria 'arma' no catálogo: fica com as pinturas de escudo.
+const ehEscudo = (cat) => !!cat && /\bescudo\b/i.test(String(cat.nome || ''));
+function tipoDaArma(cat) {
+  if (!cat || cat.categoria_equip !== 'arma' || ehEscudo(cat)) return null;
+  const n = String(cat.nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const achou = ARMA_POR_NOME.find(([, re]) => re.test(n));
+  return achou ? achou[0] : null;
+}
 function arteDoSlot(regiao, cat) {
   const base = ARTE_REGIAO[regiao];
   if (!base) return null;
+  if (regiao === 'mao_d' || regiao === 'mao_e') {
+    const tipo = tipoDaArma(cat);
+    if (tipo) {
+      const nomeArma = ARMA_ARTE[tipo] || ('arma-' + tipo);
+      if (ARTE_PINTADA.has(nomeArma)) return '/equip/' + nomeArma + '.webp';
+    }
+    if (ehEscudo(cat)) {
+      const nomeEscudo = 'escudo-' + versaoDaArte('escudo', cat);
+      return ARTE_PINTADA.has(nomeEscudo) ? '/equip/' + nomeEscudo + '.webp' : null;
+    }
+    // Arma sem tipo reconhecido na mão esquerda: a arte de arma pelo peso, não a de escudo.
+    if (cat && cat.categoria_equip === 'arma') {
+      const nomePeso = 'arma-' + versaoDaArte('arma', cat);
+      return ARTE_PINTADA.has(nomePeso) ? '/equip/' + nomePeso + '.webp' : null;
+    }
+  }
   const nome = base + '-' + versaoDaArte(base, cat);
   return ARTE_PINTADA.has(nome) ? '/equip/' + nome + '.webp' : null;
 }
+/* A PINTURA DE UM ITEM DO CATÁLOGO (23/10/2026): "vamos usar essas imagens no
+   slot do item no inventário e na loja". A mesma pintura da casa da Ficha,
+   escolhida pelo slot do catálogo — com cuidado com o que divide o slot:
+   instrumentos (mãos), coroas/tiaras/chapéus (cabeça), alforges e aljavas
+   (cintura), braceletes e broches (dedos) e as armas naturais das criaturas
+   ficam sem pintura (o ícone de sempre). Manopla é luva. */
+/* OS 20 CONSUMÍVEIS MAIS COMUNS (23/10/2026): os que mais aparecem nos
+   inventários dos personagens, com pintura própria em /itens/<slug>.webp.
+   Titânico = dracônico (vermelho e ouro), Profano = infernal (preto e brasa),
+   Sagrado = celestial (branco e ouro). */
+const ARTE_ITEM_SLUG = new Set([
+  'agua', 'racao', 'pederneira', 'tocha', 'flecha', 'lenha', 'hidromel',
+  'pena_draconica', 'couro_demoniaco', 'oleo_draconico', 'sangue_draconico', 'pena_demoniaca',
+  'marfim_demoniaca', 'oleo_demoniaco', 'couro_draconico', 'marfim_draconica', 'pena_celestial',
+  'carne_draconica', 'cogumelo_aria', 'erva_rubashi',
+  // os 20 mais comuns seguintes (24/10/2026)
+  'alforge', 'cantil', 'equipamento_de_viagem', 'odre', 'algibeira', 'algibeira_grande', 'bolsa',
+  'moeda_cobre', 'moeda_latao', 'moeda_prata', 'moeda_ouro', 'frasco', 'aljava', 'aljava_reforcada',
+  'pergaminho', 'bainha', 'cachimbo', 'carne_demoniaca', 'lamparina', 'sandalias',
+]);
+function arteDoItem(cat) {
+  if (!cat) return null;
+  if (cat.slug && ARTE_ITEM_SLUG.has(cat.slug)) return '/itens/' + cat.slug + '.webp';
+  const s = cat.slot_equip, c = cat.categoria_equip;
+  const n = String(cat.nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (s === 'maos') {
+    if (c !== 'arma' || cat.grupo_armas === 'Livre') return null;
+    return arteDoSlot(ehEscudo(cat) ? 'mao_e' : 'mao_d', cat);
+  }
+  if (c === 'armadura') {
+    if (s === 'bracos') return arteDoSlot(/manopla/.test(n) ? 'maos' : 'bracos', cat);
+    const reg = { cabeca: 'cabeca', ombros: 'ombros', peito: 'peito', pernas: 'pernas', pes: 'pes' }[s];
+    return reg ? arteDoSlot(reg, cat) : null;
+  }
+  if (s === 'pes') return /\bbotas?\b/.test(n) ? arteDoSlot('pes', cat) : null;
+  if (s === 'corpo') return arteDoSlot('roupa', cat);
+  if (s === 'costas') return arteDoSlot('capa', cat);
+  if (s === 'cintura') return /\bcint/.test(n) ? arteDoSlot('cinto', cat) : null;
+  if (s === 'orelhas') return arteDoSlot('brinco', cat);
+  if (s === 'pescoco') return arteDoSlot('colar', cat);
+  if (s === 'dedos') return /\b(anel|narya|nenya|vilya)\b/.test(n) ? arteDoSlot('dedo', cat) : null;
+  return null;
+}
+window.arteDoItem = arteDoItem;
 /* Para as casas que juntam várias peças (brincos, roupas, anéis, cinto): a
    arte da primeira peça, ou a da região vazia. */
 function arteDaCasaAgrupada(regiao, itens, catalogoBySlug) {

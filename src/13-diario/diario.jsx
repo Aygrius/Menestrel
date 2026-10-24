@@ -1998,38 +1998,6 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
     </>
   );
 
-  /* Dentro da ficha (Mestre) isto é uma ABA, e o cabeçalho é o da ficha —
-     repetir um aqui daria dois títulos empilhados. A aba ainda escolhe o
-     tipo; na barra lateral cada tipo é uma página própria. */
-  if (!tipoFixo) {
-    return (
-      <div className="diario-view">
-        <div className="lore-mng-page-body">
-          <p className="subhead">
-            {en
-              ? 'Use the journal as a personal glossary to organize characters, kingdoms, cities, items and other important details of your adventure. Then choose which of this information will be available for consultation during this story.'
-              : 'Use o diário como um glossário pessoal para organizar personagens, reinos, cidades, itens e outros detalhes importantes da sua aventura. Depois, escolha quais dessas informações ficarão disponíveis para consulta durante esta história.'}
-          </p>
-          <div className="lore-mng-toolbar">
-            <div className="diario-subtabs" role="tablist">
-              {['memoria', ...DIARIO_TIPOS].map((t) => (
-                <button key={t}
-                  className={tipoAba === t ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
-                  onClick={() => setTipoAba(t)}>
-                  {diarioTipoLabel(t, lang)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="best-toolbar-bestiario">{buscaENovo}</div>
-          {erro}
-          {tabela}
-        </div>
-        {modais}
-      </div>
-    );
-  }
-
   /* Na barra lateral é uma PÁGINA — EM CARTÕES desde 23/10/2026, como o
      Diário do Mestre e Personagens: o trilho com a busca e o + acima, e cada
      entrada num cartão. As ações que eram botões na linha (ver, importar,
@@ -2040,7 +2008,17 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
   const paginaCartoes = Math.min(page, totalCartoes);
   const cartoes = linhas.slice((paginaCartoes - 1) * POR_PAGINA_CARTOES, paginaCartoes * POR_PAGINA_CARTOES);
   const naColecao = (e) => importados.has(`${e.tipo}:${String(e.slug || e.id)}`);
-  const cartaoDe = tipoAba === 'memoria'
+  const abrirCriatura = async (c) => {
+    const { data } = await supabaseClient.from('criaturas').select('*').eq('id', c.id).maybeSingle();
+    setViewingLore(data ? { ...data, tipo: 'criatura', ref_id: data.id } : { ...c, tipo: 'criatura', ref_id: c.id });
+  };
+  const cartaoDe = tipoAba === 'criatura'
+    ? (c) => (
+      <CartaoDiario key={c.id} imagem={c.imagem_url || null} nome={c.nome}
+        linha1={[c.tipo, c.subtipo].filter(Boolean)} linha2={c.estagio != null ? (en ? `Stage ${c.estagio}` : `Estágio ${c.estagio}`) : null}
+        onAbrir={() => abrirCriatura(c)} />
+    )
+    : tipoAba === 'memoria'
     ? (m) => (
       <CartaoDiario key={m.id} nome={m.titulo || (en ? '(untitled)' : '(sem título)')}
         linha2={resumoDeTexto(m.comentario, 140)} onAbrir={() => setMemoriaAberta(m)} />
@@ -2084,6 +2062,72 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
       : { icone: 'ti-bookmark', rotulo: en ? 'Keep in your journal' : 'Guardar no seu diário',
           onClick: () => importarEntrada(e.tipo, refId, e) }];
   };
+
+  const grade = cartoes.length === 0 ? (
+    <div className="best-empty diario-empty-lg">{textoVazio}</div>
+  ) : (
+    <>
+      <div className="pjs-grid diario-cartoes">{cartoes.map(cartaoDe)}</div>
+      <BestPagination page={page} safePage={paginaCartoes} totalPages={totalCartoes} setPage={setPage} lang={lang} />
+    </>
+  );
+  const janelas = (
+    <>
+      {viewingLore && (
+        <DetalheEntradaModal
+          entrada={viewingLore}
+          lang={lang}
+          lore={[...(lore || []), ...Object.values(disponibilizados).flat()]}
+          acoesTopo={acoesDaEntrada(viewingLore)}
+          onClose={() => { setViewingLore(null); setLixeiraArmada(false); }}
+        />
+      )}
+      {formModal}
+      {memoriaAberta !== null && (
+        <MemoriaModal
+          memoria={memoriaAberta.id ? memoriaAberta : null}
+          pjId={pjId}
+          lang={lang}
+          onClose={() => setMemoriaAberta(null)}
+          onSaved={() => { setMemoriaAberta(null); carregar(); }}
+          onExcluir={souDono ? (m) => { setMemoriaAberta(null); supabaseClient.rpc('excluir_entrada_diario', { p_id: m.id }).then(carregar); } : null}
+        />
+      )}
+      <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+    </>
+  );
+
+  /* Dentro da ficha (Mestre) isto é uma ABA, e o cabeçalho é o da ficha. A
+     aba ainda escolhe o tipo; na barra lateral cada tipo é uma página própria.
+     EM CARTÕES desde 23/10/2026, como as páginas do jogador. */
+  if (!tipoFixo) {
+    return (
+      <div className="diario-view">
+        <div className="lore-mng-page-body">
+          <p className="subhead">
+            {en
+              ? 'Use the journal as a personal glossary to organize characters, kingdoms, cities, items and other important details of your adventure. Then choose which of this information will be available for consultation during this story.'
+              : 'Use o diário como um glossário pessoal para organizar personagens, reinos, cidades, itens e outros detalhes importantes da sua aventura. Depois, escolha quais dessas informações ficarão disponíveis para consulta durante esta história.'}
+          </p>
+          <div className="lore-mng-toolbar">
+            <div className="diario-subtabs" role="tablist">
+              {['memoria', ...DIARIO_TIPOS].map((t) => (
+                <button key={t}
+                  className={tipoAba === t ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
+                  onClick={() => setTipoAba(t)}>
+                  {diarioTipoLabel(t, lang)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="best-toolbar-bestiario">{buscaENovo}</div>
+          {error && <div className="err-msg diario-err-mb">{error}</div>}
+          <div className="pjs diario-pagina">{grade}</div>
+        </div>
+        {janelas}
+      </div>
+    );
+  }
 
   return (
     <div className="pjs diario-pagina">
@@ -3201,14 +3245,8 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
             <i className="ti ti-arrow-left" />
           </button>
         )}
-        {semMesa && (
-          <p className="diario-pagina-aviso">
-            <i className="ti ti-world" aria-hidden="true" />
-            {ehAdmin
-              ? (en ? 'World catalog — enter an adventure to share' : 'Catálogo do mundo — entre numa aventura para liberar')
-              : (en ? 'World catalog — enter an adventure to edit or share' : 'Catálogo do mundo — entre numa aventura para editar ou liberar')}
-          </p>
-        )}
+        {/* O aviso "Catálogo do mundo — entre numa aventura para liberar" saiu
+            em 23/10/2026, a pedido do usuário. */}
         {!tipoFixo && (
           <div className="diario-subtabs" role="tablist">
             {DIARIO_TIPOS.map((t) => (

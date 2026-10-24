@@ -993,7 +993,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
                           onClick={() => (lojaLarga ? setLojaSel(v.chave) : v.abrir())}
                           onDoubleClick={v.abrir}
                           {...propsTip(abrirTip, fecharTip, v.nome)}>
-                          <span className="inv-card-head"><span className="inv-card-ic"><i className={'ti ' + invItemIcon(v.cat)} aria-hidden="true" /></span></span>
+                          <span className="inv-card-head"><span className="inv-card-ic"><ItemIcone cat={v.cat} icon={invItemIcon(v.cat)} /></span></span>
                           {v.tipo === 'anuncio' && <span className="loja-casa-tag" aria-hidden="true"><i className="ti ti-tag" /></span>}
                         </button>
                       );

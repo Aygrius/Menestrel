@@ -975,7 +975,7 @@ function TabuleiroMenu({ alvoEl, onFechar, rotuloFechar, rotuloVoltar, travado, 
 function TabuleiroBatalha({
   entradas, meta, podeSelecionar, alcanceDe, onMover, salvando, isEn, tb,
   abrirTip, fecharTip, menuDe, aviso, menuTravado, menuVoltar,
-  movendoControlado, onMovendoChange, semBancada, abrirMenu, visibilidade,
+  movendoControlado, onMovendoChange, semBancada, abrirMenu, visibilidade, ambiente,
   painelEl, selecionado, onSelecionar,
 }) {
   /* PAINEL FIXO (23/10/2026, redesenho da batalha): com `painelEl`, o conteúdo
@@ -1298,11 +1298,15 @@ function TabuleiroBatalha({
             'linear-gradient(to bottom, rgba(201,164,78,.28) 1px, transparent 1px)',
             'linear-gradient(to right, rgba(201,164,78,.10) 1px, transparent 1px)',
             'linear-gradient(to bottom, rgba(201,164,78,.10) 1px, transparent 1px)',
+            // o ambiente pintado (24/10/2026), por baixo de tudo
+            ...(ambiente ? ['url(/batalha/fundo-' + ambiente + '.webp)'] : []),
           ].join(', '),
           backgroundSize: [
             cel * 5 + 'px ' + cel * 5 + 'px', cel * 5 + 'px ' + cel * 5 + 'px',
             cel + 'px ' + cel + 'px', cel + 'px ' + cel + 'px',
+            ...(ambiente ? ['100% 100%'] : []),
           ].join(', '),
+          backgroundRepeat: ambiente ? 'repeat, repeat, repeat, repeat, no-repeat' : undefined,
         },
       },
         /* ESCURIDÃO (13/09/2026): "Adicione um efeito para escurecer o

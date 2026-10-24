@@ -659,7 +659,10 @@ const NAV_MESA = {
   master: {
     mesa: [
       { secao: 'cena' }, { secao: 'batalha' }, { secao: 'personagens_m' },
-      diario(false),
+      /* AMBIENTAÇÃO (23/10/2026): "O menu diário pode ser alterado para
+         'Ambientação'. Diário será o menu pessoal de cada jogador, a respeito
+         da ambientação." Mesmas folhas (Reinos, Cidades, Locais, Pessoas). */
+      { ...diario(false), rotulo: R('Ambientação', 'Setting') },
       /* A Loja do Mestre é o Estoque, sem gaveta (23/10/2026): lojas por cidade e
          propostas de venda. "Itens da Campanha" saiu do menu (não chegava a
          lugar nenhum); a página continua no código. */

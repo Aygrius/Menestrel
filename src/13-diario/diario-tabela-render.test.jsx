@@ -176,3 +176,24 @@ describe('as mesmas peças de Personagens', () => {
     expect(rotulos).toEqual(expect.arrayContaining(['Compartilhar com a mesa', 'Editar', 'Excluir']));
   });
 });
+
+/* A aba Diário dentro da ficha, na visão do Mestre (23/10/2026): também em
+   cartões, com as sub-abas por tipo, e só leitura (o Mestre não é o autor). */
+describe('a aba Diário da ficha (Mestre)', () => {
+  it('cartões no lugar da tabela, sem o +', async () => {
+    render(
+      <div className="menestrel-ui">
+        <window.DiarioView pj={PJ} lang="pt" currentUserId="mestre" isMestre />
+      </div>
+    );
+    await vi.waitFor(() => {
+      expect(document.querySelector('.diario-cartao') || document.querySelector('.best-empty')).toBeTruthy();
+    });
+    expect(document.querySelector('table')).toBeNull();
+    expect(cartoes().map((c) => c.nome)).toEqual(['A noite em Verrogar']);
+    fireEvent.click([...document.querySelectorAll('.diario-subtabs button')].find((b) => /Pessoa|NPC/i.test(b.textContent)));
+    await vi.waitFor(() => expect(cartoes().length).toBe(3));
+    expect(cartoes().map((c) => c.canto)).toEqual([null, null, null]);
+    expect(document.querySelector('[aria-label="Novo"]')).toBeNull();
+  });
+});

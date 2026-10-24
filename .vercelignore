@@ -1,0 +1,24 @@
+# O que NÃO sobe com o `vercel` (23/10/2026). O envio passava de 100 MB por
+# causa das capturas de conferência em .impeccable/review (112 MB) — o limite
+# do envio pelo comando no plano gratuito. A Vercel só precisa do código para
+# construir o site (src, public, index.html, package*, configs).
+
+# dependências e build local (a Vercel instala e constrói)
+node_modules/
+dist/
+
+# segredos locais (a Vercel usa as variáveis do próprio projeto)
+.env
+.env*
+
+# design, prévias e capturas — nada disso vai para o site
+# (docs/ SOBE: o código importa os estudos de docs/*.md com ?raw)
+.impeccable/
+preview/
+.design-sync/
+.ds-sync/
+ds-bundle/
+.superpowers/
+.claude/
+TESTE-REGRESSAO.md
+1

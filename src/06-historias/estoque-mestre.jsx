@@ -361,7 +361,7 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
                     <button key={c.tipo + c.id} type="button" aria-label={c.cat.nome}
                       className={'inv-card loja-casa' + (escolhidaAqui ? ' is-sel' : '') + (c.tipo === 'catalogo' ? ' estoque-casa--catalogo' : '') + (c.cat.magico ? ' is-magico' : '')}
                       onClick={() => setSel(escolhidaAqui ? null : { tipo: c.tipo, id: c.id })}>
-                      <span className="inv-card-head"><span className="inv-card-ic"><i className={'ti ' + icone(c.cat)} aria-hidden="true" /></span></span>
+                      <span className="inv-card-head"><span className="inv-card-ic">{window.ItemIcone ? <window.ItemIcone cat={c.cat} icon={icone(c.cat)} /> : <i className={'ti ' + icone(c.cat)} aria-hidden="true" />}</span></span>
                       {c.tipo === 'entrada' && <span className="estoque-qtd">{c.it.estoque == null ? '∞' : c.it.estoque}</span>}
                       {c.tipo === 'catalogo' && <span className="estoque-mais" aria-hidden="true"><i className="ti ti-plus" /></span>}
                     </button>
