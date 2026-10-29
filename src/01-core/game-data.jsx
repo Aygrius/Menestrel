@@ -483,6 +483,8 @@ function resistenciasBase(estagio, fisico, aura) {
 /* `dataJogo` (06/10/2026) é a data da mesa, e serve só para saber quais
    bônus com prazo ainda valem. Sem ela, os que existem contam como vigentes —
    a mesma convenção das magias ativas; quem avança o relógio é o Mestre. */
+// Profissões que não sofrem a penalidade de karma (mod_kar < 0) das peças.
+const SEM_RESTRICAO_KARMA = new Set(['Sacerdote', 'Rastreador']);
 function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca, dataJogo) {
   const racaData = GAME_DATA.racas[p.raca] || GAME_DATA.racas['Humano'];
   const profData = GAME_DATA.profissoes[p.profissao] || GAME_DATA.profissoes['Guerreiro'];
@@ -623,7 +625,11 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca,
       absorcaoTotal += absorcaoDaPeca(it, c);
       defesaTotal   += Number(c.defesa   || 0);
       modVelTotal   += Number(c.mod_vel  || 0);
-      modKarTotal   += Number(c.mod_kar  || 0);
+      // Sacerdote e Rastreador usam qualquer armadura e arma sem restrição de
+      // karma (29/10/2026): a penalidade da peça não vale para eles; o bônus
+      // (joia de metal arcano) continua valendo.
+      const _kar = Number(c.mod_kar || 0);
+      if (!(_kar < 0 && SEM_RESTRICAO_KARMA.has(p.profissao))) modKarTotal += _kar;
       // 'peito' é o slot antigo do peitoral; desde 26/10/2026 a região é 'dorso'.
       if ((it.slot === 'peito' || it.slot === 'dorso') && c.tipo_armadura) {
         tipoPeitoral = c.tipo_armadura;

@@ -164,6 +164,20 @@ describe('calcularFicha — mods passivos das peças (26/10/2026)', () => {
     expect(com.velocidade).toBe(sem.velocidade + 7);
   });
 
+  it('Sacerdote e Rastreador ignoram a penalidade de karma, mas ganham o bônus', () => {
+    for (const profissao of ['Sacerdote', 'Rastreador']) {
+      const pj = (itens) => ({ ...PJ_BASE, profissao, inventario: { itens } });
+      const sem = G.calcularFicha(pj([]), CAT).derivadas;
+      const com = G.calcularFicha(pj([
+        { instanceId: 'p1', slug: 'peitoral', quantidade: 1, equipado: true, slot: 'dorso' },
+        { instanceId: 'm1', slug: 'machado', quantidade: 1, equipado: true, slot: 'mao_d' },
+        { instanceId: 'j1', slug: 'anel_ouro', quantidade: 1, vestido: true, vesteSlot: 'dedo' },
+      ]), CAT).derivadas;
+      expect(com.karma, profissao).toBe(sem.karma + 3);
+      expect(com.velocidade, 'a penalidade de velocidade continua').toBe(sem.velocidade - 4);
+    }
+  });
+
   it('a peça no SAQUE RÁPIDO não dá efeito nenhum', () => {
     const sem = G.calcularFicha(comItens([]), CAT).derivadas;
     const com = G.calcularFicha(comItens([

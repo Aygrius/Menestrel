@@ -192,6 +192,24 @@ describe('o relógio e o clima desgastam o bicho', () => {
     expect(out[0].condicoes.termorregulacao).toBeLessThan(0);   // frio
   });
 
+  /* O shell passa o INVENTÁRIO INTEIRO (29/10/2026): ler `{ moedas, itens }`
+     como lista vazia devolvia `[]`, e o relógio da mesa apagou três
+     inventários. O objeto volta igual quando não há bicho, e com os itens
+     desgastados quando há — nunca vazio. */
+  it('o inventário inteiro entra e não se perde', () => {
+    const pao = { instanceId: 'p1', slug: 'pao', quantidade: 1 };
+    const semBicho = { moedas: { ouro: 1 }, itens: [pao] };
+    expect(comDesgasteNosAnimais(semBicho, 6, 10, TEMPO_DESERTO, CATALOGO)).toBe(semBicho);
+    expect(comTiqueDeClimaNosAnimais(semBicho, 'temperatura', 'frio_extremo', CATALOGO)).toBe(semBicho);
+
+    const comBicho = { moedas: { ouro: 1 }, itens: [animal(), pao] };
+    const out = comDesgasteNosAnimais(comBicho, 6, 10, TEMPO_DESERTO, CATALOGO);
+    expect(out.moedas).toEqual({ ouro: 1 });
+    expect(out.itens).toHaveLength(2);
+    expect(out.itens[1]).toBe(pao);
+    expect(out.itens[0].condicoes.nutricao).toBeGreaterThan(0);
+  });
+
   it('tique que não muda nada devolve a MESMA lista', () => {
     // Trilha que o tique ignora (só temperatura cobra): nada a gravar.
     const itens = [animal({ condicoes: {} })];

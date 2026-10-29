@@ -165,8 +165,24 @@ function _animais(itens, catalogoBySlug) {
    O animal não tem `atividade` (dormir, meditar): é o jogador que escolhe isso
    na ficha dele, e o bicho não tem ficha de atividade. Então o parâmetro vai
    undefined e o sono do animal corre como o de quem está acordado. */
+/* O INVENTÁRIO INTEIRO TAMBÉM ENTRA (29/10/2026). O shell chama estas duas
+   pelo `alterarInventario`, que entrega `{ moedas, itens }` — não a lista. A
+   função lia "não é array" como lista vazia e devolvia `[]`, que o
+   compare-and-swap gravava por cima do inventário: avançar o relógio da mesa
+   apagou os itens de três personagens. Agora o objeto entra, só a lista dele
+   é tocada, e sem mudança volta o MESMO objeto (nada é gravado). */
+function _naLista(inv, fn) {
+  if (Array.isArray(inv)) return fn(inv);
+  if (!inv || typeof inv !== 'object' || !Array.isArray(inv.itens)) return inv;
+  const itens = fn(inv.itens);
+  return itens === inv.itens ? inv : { ...inv, itens };
+}
+
 function comDesgasteNosAnimais(itens, horas, horaInicial, tempo, catalogoBySlug) {
-  const lista = Array.isArray(itens) ? itens : [];
+  if (!Array.isArray(itens)) {
+    return _naLista(itens, (l) => comDesgasteNosAnimais(l, horas, horaInicial, tempo, catalogoBySlug));
+  }
+  const lista = itens;
   const n = Math.max(0, Math.trunc(Number(horas) || 0));
   if (!n) return lista;
   const decair = (typeof decaimentoPorHoras === 'function' ? decaimentoPorHoras : null)
@@ -192,7 +208,10 @@ function comDesgasteNosAnimais(itens, horas, horaInicial, tempo, catalogoBySlug)
    `tiqueDeClima` cobra SÓ o efeito do degrau, sem a fome e a sede de base,
    porque o relógio não andou. */
 function comTiqueDeClimaNosAnimais(itens, trilhaChave, degrauId, catalogoBySlug) {
-  const lista = Array.isArray(itens) ? itens : [];
+  if (!Array.isArray(itens)) {
+    return _naLista(itens, (l) => comTiqueDeClimaNosAnimais(l, trilhaChave, degrauId, catalogoBySlug));
+  }
+  const lista = itens;
   const tique = (typeof tiqueDeClima === 'function' ? tiqueDeClima : null) || window.tiqueDeClima;
   if (!tique) return lista;
   const alvos = new Set(_animais(lista, catalogoBySlug).map((it) => it.instanceId));
