@@ -110,3 +110,86 @@ describe('a mesa ativa não troca sozinha', () => {
     expect(globalThis.proximaMesaAtiva(null, 7)).toBeUndefined();
   });
 });
+
+/* ── O TRILHO DA CENA: SÓ ÍCONES (26/10/2026) ─────────────────────────────
+   Três pedidos do usuário, em dias e horas seguidas — e é por isso que este
+   bloco existe, com as datas na ordem:
+
+     23/10: "coloque o sino de notificações na barra, depois de 'amigos'."
+     22/10: "Escrever" — a hora e o clima ganharam a palavra ao lado do ícone.
+     26/10 (manhã): "o botão 'notificação' deve ter o ícone e a palavra escrita."
+     26/10 (tarde): "Localização, Horário, Umidade, Vento, Temperatura,
+                     Notificações vão ser somente ícones, e o tooltip será a
+                     informação dele."
+
+   O estado final é o último: só a DATA continua escrita no trilho; o resto é
+   ícone, e a informação vive no balão. O que quebra fácil aqui é a pílula
+   voltar a ter largura automática (sobra de quando havia texto), ou um balão
+   dizer só o rótulo — "Umidade" — em vez da informação. */
+describe('o trilho da cena é só de ícones, com a informação no balão', () => {
+  /* SÓ o ramo do TRILHO DA CENA. Os outros (trilho da ficha, menu lateral do
+     Mestre) são botões de menu e seguem com o nome escrito — o pedido era
+     sobre o trilho.
+
+     Em 28/10/2026 a ordem dos ramos mudou: o trilho da FICHA passou a vir
+     primeiro, porque o da cena está em toda tela da mesa e ganhava sempre —
+     e com ele o Jogador nunca via o sino junto de Status e Atividades. Então
+     a âncora deixou de ser o começo do encadeamento e passou a ser o `:
+     alvoCena ?`, que é onde este ramo de fato começa. */
+  const sino = (() => {
+    const i = shell.indexOf(': alvoCena ? ReactDOM.createPortal');
+    expect(i, 'o ramo do trilho da cena').toBeGreaterThan(-1);
+    const fim = shell.indexOf(': alvoLateral && ehMestre', i);
+    expect(fim, 'o ramo do trilho termina antes do sino do menu lateral').toBeGreaterThan(i);
+    return shell.slice(i, fim);
+  })();
+
+  it('o sino não escreve mais a palavra na pílula', () => {
+    expect(sino).toMatch(/cdj-bar cdj-sino/);
+    expect(sino).not.toMatch(/<span>\{en \? 'Notifications' : 'Notificações'\}<\/span>/);
+  });
+  it('e tem balão próprio — ele desenha por portal e não alcança o do trilho', () => {
+    expect(sino).toMatch(/propsTip\(abrirDicaSino, fecharDicaSino, rotuloSino\)/);
+    expect(sino).toMatch(/<NavTooltip tip=\{dicaSino\}/);
+  });
+  it('as pílulas de ícone voltaram à largura fixa', () => {
+    const i = css.indexOf('.menestrel-ui.cdj-root .cdj-bar.cdj-tempo,');
+    expect(i, 'o bloco de largura das pílulas de ícone').toBeGreaterThan(-1);
+    const regra = css.slice(i, css.indexOf('}', i));
+    expect(regra).toMatch(/width:\s*32px/);
+    expect(regra).toMatch(/padding:\s*0/);
+    // A regra de 22/10 que forçava largura automática não pode voltar.
+    expect(css).not.toMatch(/cdj-hora \{ width: auto !important/);
+  });
+  it('o contador do sino volta ao canto, sem esticar o botão', () => {
+    const i = css.indexOf('.menestrel-ui.cdj-root .cdj-sino-badge {');
+    const regra = css.slice(i, css.indexOf('}', i));
+    expect(regra).toMatch(/position:\s*absolute/);
+    expect(regra).toMatch(/background:\s*var\(--alerta\)/);
+  });
+  /* O balão é SÓ O TEXTO (26/10/2026, logo depois): "ao invés de 'Localização
+     Farzelo' será apenas 'Farzelo', ao invés de 'Horário 12h Dia' será
+     'Meio-Dia'." O ícone já diz a categoria; o rótulo no balão era eco. */
+  it('o balão do clima diz só o degrau', () => {
+    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, en \? degrau\.en : degrau\.pt\)/);
+    expect(shell).not.toMatch(/propsTip\(abrirTip, fecharTip, texto\)/);
+  });
+  it('o balão do local diz só o lugar', () => {
+    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, dataAtual\.local\)/);
+    expect(shell).not.toMatch(/'Localização'\) \+ ' · '/);
+  });
+  it('o balão da hora diz a hora por extenso: 12h é "Meio-Dia"', () => {
+    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, horaPorExtenso\(luz\.hora, en\)\)/);
+    expect(shell).toMatch(/if \(n === 12\) return en \? 'Noon' : 'Meio-Dia';/);
+    expect(shell).toMatch(/if \(n === 0\) return en \? 'Midnight' : 'Meia-Noite';/);
+    // O resto reusa o vocabulário que o log já usa ("13h da tarde").
+    expect(shell).toMatch(/return `\$\{n\}h \$\{periodoDoDia\(n, en\)\}`;/);
+  });
+  it('o balão do sino diz só a palavra — o contador já está na brasa', () => {
+    expect(shell).toMatch(/const rotuloSino = en \? 'Notifications' : 'Notificações';/);
+  });
+  it('a DATA continua escrita — é a única fora da lista', () => {
+    expect(shell).toMatch(/cdj-data-longa|cdj-data/);
+    expect(css).toMatch(/\.cdj-data-curta \{ display: none; \}/);
+  });
+});

@@ -195,17 +195,46 @@ function unidadesDasAbas(corpo) {
 function useAbasDoCorpo(corpoRef, ligadas = true) {
   const [titulos, setTitulos] = React.useState([]);
   const [ativa, setAtiva] = React.useState(0);
+  /* ── O FREIO DA MEDIÇÃO (27/10/2026) ──────────────────────────────────
+     "Quando eu clico na magia adestramento, a tela quebra." O console
+     apontava o `setTitulos` daqui, chamado pelo `useLayoutEffect` sem array
+     de dependências logo abaixo — isto é, depois de todo render.
+
+     O efeito PRECISA rodar sempre: o corpo da janela chega em renders
+     posteriores, e tirar as dependências quebrou as abas da criatura (teste
+     criatura-ficha-secoes). A guarda de igualdade segura o laço enquanto a
+     medição dá sempre a mesma resposta — e é aí que mora o problema: esta
+     medição MUTA o que mede (`unidadesDasAbas` esconde seção vazia, `aplicar`
+     esconde e mostra por aba). Função que muta o que mede pode, com o
+     conteúdo certo, nunca estabilizar.
+
+     Em vez de apostar que estabiliza, põe-se um teto: se a lista de títulos
+     mudar MUITAS vezes seguidas sem repetir, para de gravar e fica com a
+     última. A janela pode sair com uma aba a mais ou a menos; o que ela não
+     faz mais é derrubar a tela. O contador zera assim que duas medições
+     seguidas concordam, que é o caso normal. */
+  const giros = React.useRef(0);
   const aplicar = React.useCallback(() => {
     const corpo = corpoRef.current;
     if (!corpo) return;
     const unidades = unidadesDasAbas(corpo);
     const nomes = ligadas ? unidades.map((u) => u.titulo) : [];
-    setTitulos((antes) => (antes.join('|') === nomes.join('|') ? antes : nomes));
+    setTitulos((antes) => {
+      if (antes.join('|') === nomes.join('|')) { giros.current = 0; return antes; }
+      giros.current += 1;
+      // 20 é folgado para o conteúdo que chega em etapas e curto para o laço.
+      if (giros.current > 20) return antes;
+      return nomes;
+    });
     const comAbas = ligadas && unidades.length > 1;
     corpo.classList.toggle('best-com-abas', comAbas);
     const idx = Math.min(ativa, Math.max(0, unidades.length - 1));
     unidades.forEach((u, i) => u.els.forEach((el) => { el.hidden = comAbas && i !== idx; }));
   }, [corpoRef, ativa, ligadas]);
+  /* SEM dependências, e isso é deliberado: o corpo da janela chega em
+     renders posteriores (a criatura carrega o banco depois de abrir), e com
+     `[aplicar]` as abas dela saíam vazias — ver criatura-ficha-secoes. Quem
+     impede o laço é o teto do `giros`, lá em cima. */
   React.useLayoutEffect(() => { aplicar(); });
   React.useEffect(() => {
     const corpo = corpoRef.current;
@@ -297,7 +326,10 @@ function BarraDeAcoes({ acoes, lang, compacta = false }) {
 /* `alvoPainel` (22/10/2026, inventário "Baú com painel"): um elemento do DOM
    onde a janela entra como PAINEL — sem véu, sem travar a rolagem da página.
    O Esc continua fechando. Sem ele, é a janela de sempre. */
-function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo, semAbas, acoesEmBarra, extraClass, alvoPainel: alvoPainelProp = null }) {
+/* `arte` (26/10/2026, pedido do usuário): a pintura do item em tamanho grande
+   ANTES do título, no card que abre ao lado da grade do Inventário e da Loja.
+   Só no painel — na janela modal o passe já ocupa o topo. */
+function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo, semAbas, acoesEmBarra, extraClass, arte = null, alvoPainel: alvoPainelProp = null }) {
   const en = lang === 'en';
   /* No Livro de Regras, a ficha abre no painel ao lado da lista (23/10/2026).
      Uma janela aberta DE DENTRO do painel (a consulta de uma magia da
@@ -337,6 +369,15 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo,
     <div className={'menestrel-ui ' + (alvoPainel ? 'ms-painel' : 'ms-backdrop')} ref={fundoRef} onClick={(e) => e.stopPropagation()}>
       <div className={"ms-modal ms-lg modal-best-detalhe" + ((topo || acoesEmBarra) ? " modal-item" : "") + (alvoPainel ? " modal-em-painel" : "") + (extraClass ? " " + extraClass : "")} role={alvoPainel ? 'region' : 'dialog'} aria-modal={alvoPainel ? undefined : 'true'}
         aria-label={typeof title === 'string' ? title : undefined}>
+        {/* A pintura antes do título. Nasceu no painel do inventário
+            (25/10/2026) e passou a valer também na JANELA em 26/10/2026, a
+            pedido do usuário: "ao clicar no menu de livro de regras e abrir um
+            item, eu quero ver a imagem dele dentro do modal". */}
+        {arte && (
+          <div className="ms-arte" aria-hidden="true">
+            <img src={arte} alt="" draggable="false" />
+          </div>
+        )}
         <div className="ms-header">
           <h3 className="ms-title">{title}</h3>
           {/* As ações ganharam DICA (26/09/2026): no modal de item do inventário
@@ -402,24 +443,56 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo,
 /* `soRotulo`: a linha é o próprio nome (uma técnica, uma habilidade) e o valor,
    se houver, é complemento — ela aparece mesmo sem ele. */
 /* `largo`: numa lista de duas colunas, a linha ocupa as duas — para valor
-   comprido, como os itens necessários de uma magia. */
-function BestLinha({ rotulo, valor, soRotulo, largo }) {
+   comprido, como os itens necessários de uma magia.
+
+   `controle` (28/10/2026): a linha larga cujo valor é um SELETOR, não prosa.
+   Larga ela continua — mas prosa larga se lê empilhada (rótulo em cima, texto
+   usando o card inteiro, pedido do usuário) e seletor largo vira trilho: foi
+   o que aconteceu com a Sagração, que esticava o stepper por 390px. Com
+   `controle` o rótulo volta para a esquerda e o seletor fica do tamanho do
+   seletor de quantidade da loja, à direita. */
+function BestLinha({ rotulo, valor, soRotulo, largo, controle }) {
   const semValor = valor == null || valor === '';
   if (semValor && !soRotulo) return null;
   return (
-    <li className={'best-stat best-stat--linha' + (largo ? ' best-stat--largo' : '')}>
+    <li className={'best-stat best-stat--linha' + (largo ? ' best-stat--largo' : '')
+      + (controle ? ' best-stat--controle' : '')}>
       <span className="best-stat-lbl">{rotulo}</span>
       {!semValor && <span className="best-stat-val">{valor}</span>}
     </li>
   );
 }
 /* Valor do item por extenso, nas moedas maiores (23/10/2026, ver
-   precoPorExtenso em 01-core): sem valor gravado, a linha some; 0 é "Sem valor". */
+   precoPorExtenso em 01-core): sem valor gravado, a linha some; 0 é "Sem valor".
+
+   SÓ O TEXTO, ainda usado por quem precisa de uma frase (tooltip, aria). Na
+   TELA quem mostra o valor é `valorEmMoedas`, logo abaixo. */
 function valorPorExtenso(latao, lang) {
   if (latao == null || latao === '') return null;
   const fn = (typeof precoPorExtenso === 'function' && precoPorExtenso) || window.precoPorExtenso;
   const zero = lang === 'en' ? 'No value' : 'Sem valor';
   return fn ? fn(latao, lang, zero) : String(latao);
+}
+
+/* O VALOR EM MOEDAS, E NÃO POR EXTENSO (27/10/2026, pedido do usuário: "ainda
+   está aparecendo 'Valor 1 moeda de prata' na descrição de visualização do
+   item"). É o fecho do pedido anterior — "ao invés de escrever 'ícone 0
+   latão', deve aparecer como 'ícone 0'" —, que naquele dia eu li como sendo
+   só das pílulas e deixei esta linha de fora: ela é PROSA, e a prosa não tem
+   ícone para pôr no lugar da palavra.
+
+   Mas a frase era a última que ainda escrevia a denominação, e dizia o mesmo
+   preço num vocabulário diferente do resto da tela. Agora é a mesma pílula
+   que o Preço usa — ícone colorido e número, com a denominação no tooltip.
+
+   O zero continua em PALAVRA: "Sem valor" é um fato sobre o item, não uma
+   quantia, e uma pílula de 0 diria outra coisa. */
+function valorEmMoedas(latao, lang) {
+  if (latao == null || latao === '') return null;
+  const n = Number(latao) || 0;
+  if (n <= 0) return lang === 'en' ? 'No value' : 'Sem valor';
+  const Pills = window.MoedaPills;
+  return Pills ? <Pills latao={n} lang={lang} tamanho="sm" /> : valorPorExtenso(latao, lang);
 }
 function BestFichaLista({ titulo, colunas = 1, children }) {
   return (
@@ -521,6 +594,34 @@ function ehArma(it) {
 function siglasDeArma(v) {
   if (v == null || v === '') return null;
   return String(v).split(',').map((p) => p.trim()).filter(Boolean).join(', ');
+}
+
+/* O GRUPO DE ARMAS POR EXTENSO (27/10/2026, pedido do usuário: 'Grupo "PM"
+   vira "Perfuração Média"'). A sigla é de quem já conhece a tabela; na ficha
+   do item ela era duas letras sem nada que as explicasse. Os nomes já
+   existiam — GRUPOS_ARMAS em 01-core/game-data.jsx —, só não eram lidos aqui.
+
+   Sigla fora da tabela passa inteira: dado estranho no catálogo aparece como
+   está, em vez de sumir. */
+function gruposDeArmaPorExtenso(v, en) {
+  if (v == null || v === '') return null;
+  const mapa = (typeof GRUPOS_ARMAS_BY_SIGLA !== 'undefined' && GRUPOS_ARMAS_BY_SIGLA)
+    || window.GRUPOS_ARMAS_BY_SIGLA || {};
+  const nomes = String(v).split(',').map((p) => p.trim()).filter(Boolean).map((sigla) => {
+    const g = mapa[sigla.toUpperCase()];
+    return g ? (en ? g.nomeEn : g.nome) : sigla;
+  });
+  return nomes.length ? nomes.join(', ') : null;
+}
+
+/* O alcance do item é em METROS — é a unidade que a batalha usa para medir
+   distância ("os alcances em metros valem igual", 12-batalha) e a que as
+   magias já escrevem. O número sozinho não dizia de que unidade falava
+   (27/10/2026, pedido do usuário: "Alcance adicione o 'm' após o número"). */
+function alcanceEmMetros(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `${String(n).replace('.', ',')} m`;
 }
 
 /* ── separarItensNecessarios — a lista de componentes sai da descrição ──
@@ -2000,6 +2101,41 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
     () => (typeof auditarMagias === 'function' ? auditarMagias(magias || []) : null),
     [magias]
   );
+
+  /* ── O DANO QUE NÃO VEM DO TEXTO (27/10/2026) ───────────────────────────
+     Pedido do usuário, depois de eu levantar o risco ao desenhar a janela de
+     evocar: "faça essa verificação".
+
+     O motor lê o dano do TEXTO do nível (efeitosNoNivel, ancorado no verbo).
+     Quando o texto não entrega número, `danoMagiaNoNivel` cai na coluna
+     `dano` do banco — que, pelo comentário dela mesma, "costuma ser o do
+     nível 9". Resultado: uma magia pode atacar no nível 1 com o dano do 9, e
+     nada na tela diz isso.
+
+     A coluna saiu do editor em 29/09/2026 a pedido do usuário, justamente
+     para o dano vir do texto. Então toda linha desta lista é uma magia que
+     ainda depende do campo aposentado — e é por isso que ela merece estar
+     aqui, e não num relatório de uma vez só: o catálogo muda, e a conferência
+     tem de acompanhar.
+
+     Quem REDUZ dano (proteções) fica de fora de propósito: ali o fallback já
+     é suprimido pelo motor, e listá-las seria alarme falso. */
+  const noFallback = React.useMemo(() => {
+    const ler = (typeof efeitosNoNivel === 'function' ? efeitosNoNivel : window.efeitosNoNivel);
+    if (typeof ler !== 'function') return [];
+    return (magias || []).filter((m) => {
+      if (!m || !(Number(m.dano) > 0)) return false;
+      let temDano = false, reduz = false;
+      for (const n of [1, 3, 5, 7, 9]) {
+        if (!m['nivel_' + n]) continue;
+        let ef = {};
+        try { ef = ler(m, n) || {}; } catch (e) { ef = {}; }
+        if (ef.dano != null && Number(ef.dano) > 0) temDano = true;
+        if (ef.reducao_dano != null) reduz = true;
+      }
+      return !temDano && !reduz;
+    });
+  }, [magias]);
   // Tamanho do registro DESTE bundle — a identidade do motor carregado.
   const noMotor = (typeof MAGIA_EFEITO_MAP === 'object' && MAGIA_EFEITO_MAP)
     ? Object.keys(MAGIA_EFEITO_MAP).length : 0;
@@ -2061,6 +2197,17 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
           </p>
 
           <MagiasEstatisticas magias={magias} lang={lang} />
+
+          <Secao
+            titulo={en
+              ? '◆ Damage from the retired column — the level text gives no number'
+              : '◆ Dano pela coluna aposentada — o texto do nível não dá número'}
+            itens={noFallback}
+            detalhe={(x) => (
+              <span className="best-aud-det">
+                {en ? ' column ' : ' coluna '}<strong>{x.dano}</strong>
+              </span>
+            )} />
 
           <Secao
             titulo={en ? '⚠ Broken — in the engine but no longer readable' : '⚠ Quebradas — estão no motor e pararam de ser lidas'}
@@ -2848,7 +2995,13 @@ function celulasDoItem(it, lang, opcoes) {
   (extras || []).filter(Boolean).forEach((e) => c.push(e));
   if (Number(quantidade) > 1) c.push({ chave: 'quantidade', rotulo: en ? 'Quantity' : 'Quantidade', valor: Number(quantidade) });
   if (ehArma(it) && tem(it.dano)) c.push({ chave: 'dano', rotulo: en ? 'Damage' : 'Dano', valor: it.dano, lider: true });
-  if (ehArma(it) && siglasDeArma(it.grupo_armas)) c.push({ chave: 'grupo', rotulo: en ? 'Group' : 'Grupo', valor: siglasDeArma(it.grupo_armas) });
+  /* Por extenso aqui também (27/10/2026): a célula do passe e a linha de
+     Características são o MESMO dado, e quando o passe mostra o Grupo a
+     linha some (ver `omitir`) — deixar a sigla aqui seria deixá-la como a
+     única leitura possível em metade dos casos. */
+  if (ehArma(it) && gruposDeArmaPorExtenso(it.grupo_armas, en)) {
+    c.push({ chave: 'grupo', rotulo: en ? 'Group' : 'Grupo', valor: gruposDeArmaPorExtenso(it.grupo_armas, en) });
+  }
   if (tem(it.defesa)) c.push({ chave: 'defesa', rotulo: en ? 'Defense' : 'Defesa', valor: it.defesa, lider: !ehArma(it) });
   if (tem(it.absorcao)) c.push({ chave: 'absorcao', rotulo: en ? 'Absorption' : 'Absorção', valor: it.absorcao });
   if (Number(it.resistencia) > 0) c.push({ chave: 'resistencia', rotulo: en ? 'Durability' : 'Resistência', valor: resistenciaTexto != null ? resistenciaTexto : it.resistencia });
@@ -2878,8 +3031,20 @@ function ItemPasse({ celulas }) {
 /* Para quem monta a janela: `topo` vai na BestDetalheModal, `omitir` na ficha. */
 function passeDoItem(it, lang, opcoes) {
   const celulas = it ? celulasDoItem(it, lang, opcoes) : [];
-  return { topo: celulas.length ? <ItemPasse celulas={celulas} /> : null, omitir: celulas.map((c) => c.chave) };
+  const omitir = celulas.map((c) => c.chave);
+  /* O PREÇO NÃO SE DIZ DUAS VEZES (27/10/2026, pedido do usuário: "não precisa
+     repetir em 'características' o preço, pois ele já aparece no topo do
+     modal"). Quem monta a janela da loja põe o Preço no passe; "Valor" em
+     Características é o mesmo dinheiro em outras palavras. */
+  if (omitir.includes('preco')) omitir.push('valor');
+  return { topo: celulas.length ? <ItemPasse celulas={celulas} /> : null, omitir };
 }
+
+/* A FRASE DA BASE SAIU (26/10/2026, pedido do usuário: "remova esse texto 'O
+   Colar de Marfim é um adorno rústico de ossos'"). Viveu um dia: dizer o
+   nome da base em prosa, logo abaixo de um título que já traz o nome do
+   exemplar, era repetir a mesma coisa em duas linhas. A base continua
+   escolhendo a pintura e vivendo no editor — só não se anuncia na janela. */
 
 function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, resistenciaTexto, depois, omitir }) {
   const fora = new Set(omitir || []);
@@ -2890,29 +3055,77 @@ function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, re
       {/* EFEITOS (26/09/2026). A janela nunca os mostrava — e três das
           cinco diárias de Serviços não têm descrição: o texto delas
           ("Aumenta 1 de Energia Física…") mora no efeito positivo. */}
-      {/* Os EFEITOS entram em Características desde 26/09/2026 ("una as abas
-          efeito positivo e efeito negativo em características"). Moram lá
-          como linhas de largura inteira — ver o começo da lista. */}
+      {/* ── UMA LINHA DE EFEITOS, NÃO DUAS DE PROSA (28/10/2026) ──────────
+          "Eu quero que o sistema de efeitos dos itens (positivo, negativo)
+          virem apenas efeitos [...] Na descrição do item, ao invés de mostrar
+          o texto 'Protege 2 de Desonra, 5 de Frio e 5 de Calor' mostrar
+          'Desonra 2, Frio 5, Calor 5'." (usuário)
+
+          Eram duas linhas de prosa do banco — "Efeito positivo: Aumenta 10 de
+          Energia Física." e "Efeito negativo: Reduz 5 de Sono." —, com o
+          verbo repetido em cada uma e a divisão positivo/negativo aparecendo
+          na tela, que é justamente o que ele quis apagar.
+
+          Agora é RÓTULO e NÚMERO COM SINAL, que diz a mesma coisa em menos:
+          o sinal substitui o verbo e a separação dos dois campos. E PROTEÇÃO
+          sai numa linha própria — ela não mexe na barra, limita o teto
+          enquanto a peça está vestida, e misturá-la com os deltas faria
+          "Frio 15" (teto) parecer "Frio 15" (bônus). */}
       {/* Lista por extenso (26/09/2026) — eram mini-cards. Ocupa/Armazena
           e Criatura/Montaria vêm dos mesmos componentes, agora em linhas. */}
       <BestFichaLista titulo={lang === 'en' ? 'Traits' : 'Características'} colunas={2}>
         {/* Linhas da INSTÂNCIA (inventário): quantidade, onde está, sagração. */}
         {linhasDaInstancia}
-        <BestLinha rotulo={lang === 'en' ? 'Positive effect' : 'Efeito positivo'} valor={it.efeito_positivo} largo />
-        <BestLinha rotulo={lang === 'en' ? 'Negative effect' : 'Efeito negativo'} valor={it.efeito_negativo} largo />
+        {(() => {
+          const emNumeros = (typeof window !== 'undefined' && window.efeitosEmNumeros) || null;
+          const emTetos = (typeof window !== 'undefined' && window.protecoesEmNumeros) || null;
+          /* Sem os helpers carregados (um teste que monta só o bestiário), a
+             prosa do banco continua sendo mostrada: é melhor o texto antigo
+             do que linha nenhuma. */
+          if (!emNumeros) {
+            return (
+              <>
+                <BestLinha rotulo={lang === 'en' ? 'Positive effect' : 'Efeito positivo'} valor={it.efeito_positivo} largo />
+                <BestLinha rotulo={lang === 'en' ? 'Negative effect' : 'Efeito negativo'} valor={it.efeito_negativo} largo />
+              </>
+            );
+          }
+          // "Desonra 1, Frio 5" — o sinal só aparece quando é negativo.
+          const lista = (obj, comSinal) => Object.entries(obj || {})
+            .filter(([, n]) => Number(n) !== 0)
+            .map(([rot, n]) => `${rot} ${comSinal && n < 0 ? '−' : ''}${Math.abs(n)}`)
+            .join(', ');
+          const efeitos = lista(emNumeros(it), true);
+          const tetos = emTetos ? lista(emTetos(it), false) : '';
+          return (
+            <>
+              <BestLinha rotulo={lang === 'en' ? 'Effects' : 'Efeitos'} valor={efeitos} largo />
+              <BestLinha rotulo={lang === 'en' ? 'Protects' : 'Protege'} valor={tetos} largo />
+            </>
+          );
+        })()}
         {/* Sem "Grupo" (26/09/2026, "não precisa mostrar o grupo"). */}
-        {/* O valor nas moedas maiores (23/10/2026): 12000 → "12 moedas de ouro". */}
-        <BestLinha rotulo={lang === 'en' ? 'Value' : 'Valor'} valor={valorPorExtenso(it.valor_latao, lang)} />
+        {/* O valor nas moedas maiores (23/10/2026): 12000 → "12 moedas de ouro".
+            Some quando o passe já traz o Preço (27/10/2026) — ver passeDoItem. */}
+        {se('valor', <BestLinha rotulo={lang === 'en' ? 'Value' : 'Valor'} valor={valorEmMoedas(it.valor_latao, lang)} />)}
         <BestItemArmazenamento item={it} lang={lang} omitir={omitir} />
         <BestItemCriatura item={it} criaturasPorId={criaturasPorId} lang={lang} />
         {se('dano', <BestLinha rotulo={lang === 'en' ? 'Damage' : 'Dano'} valor={it.dano} />)}
         {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs light armor' : 'Contra armaduras leves'} valor={eficaciaContraArmadura(it.dano_l, lang === 'en')} />}
         {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs medium armor' : 'Contra armaduras médias'} valor={eficaciaContraArmadura(it.dano_m, lang === 'en')} />}
         {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs heavy armor' : 'Contra armaduras pesadas'} valor={eficaciaContraArmadura(it.dano_p, lang === 'en')} />}
-        <BestLinha rotulo={lang === 'en' ? 'Range' : 'Alcance'} valor={it.alcance != null && it.alcance > 0 ? it.alcance : null} />
-        <BestLinha rotulo={lang === 'en' ? 'Attribute' : 'Atributo'} valor={siglaAtributoItem(it.ajuste_atributo)} />
-        {/* Grupo de armas em sigla (28/09/2026: "Adicione o 'Grupo', 'CL' como card"). */}
-        {se('grupo', <BestLinha rotulo={lang === 'en' ? 'Group' : 'Grupo'} valor={ehArma(it) ? siglasDeArma(it.grupo_armas) : null} />)}
+        <BestLinha rotulo={lang === 'en' ? 'Range' : 'Alcance'} valor={alcanceEmMetros(it.alcance)} />
+        {/* POR EXTENSO (27/10/2026, pedido do usuário: 'Atributo "Per" vira
+            "Percepção"'). Isto desfaz a abreviação de 28/09/2026 ("deve
+            mostrar 'Agi' ao invés de 'AGI'"): o problema de lá era o CAIXA
+            ALTA gritando numa linha de dados, e encurtar resolvia aquilo —
+            mas deixava o leitor decifrando três letras. O nome inteiro
+            resolve os dois. */}
+        <BestLinha rotulo={lang === 'en' ? 'Attribute' : 'Atributo'} valor={atributoPorExtenso(it.ajuste_atributo, lang === 'en')} />
+        {/* Grupo por extenso (27/10/2026): a sigla é de quem já conhece a
+            tabela. Vale para a linha E para a célula do passe — o mesmo item
+            não pode dizer "PM" em cima e "Perfuração Média" embaixo. */}
+        {se('grupo', <BestLinha rotulo={lang === 'en' ? 'Group' : 'Grupo'} valor={ehArma(it) ? gruposDeArmaPorExtenso(it.grupo_armas, lang === 'en') : null} />)}
         {se('defesa', <BestLinha rotulo={lang === 'en' ? 'Defense' : 'Defesa'} valor={it.defesa} />)}
         {se('absorcao', <BestLinha rotulo={lang === 'en' ? 'Absorption' : 'Absorção'} valor={it.absorcao} />)}
         {/* Resistência do item (26/09/2026) — o quanto ele aguenta antes de quebrar. */}
@@ -3074,6 +3287,13 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
                       </TableRow>
                       {isOpen && (
                         <BestDetalheModal title={it.nome} lang={lang} onClose={() => setExpandida(null)}
+                          /* SEM A PINTURA (28/10/2026, usuário: "ao clicar em um
+                             item pelo livro de regras, não mostrar a imagem do
+                             item"). Ela entrou em 26/10 e empurrava a ficha do
+                             item — que é para o que se vem ao Livro de Regras —
+                             para baixo da dobra. A arte continua no inventário,
+                             onde o item é um objeto que se tem, e não uma
+                             entrada de catálogo que se consulta. */
                           /* Passe + página única (22/10/2026), como na janela do inventário. */
                           topo={passeDoItem(it, lang).topo} semAbas
                           acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
@@ -3312,7 +3532,14 @@ function BuscaLivro({ lang = 'pt', modoJogador = false, onClose, onEscolher }) {
       onMouseMove={() => { if (i !== ativo) setAtivo(i); }}
       onMouseDown={(e) => e.preventDefault()}
       onClick={aoClicar}>
-      <span className="busca-livro-ic"><i className={'ti ' + icone} aria-hidden="true" /></span>
+      {/* O ÍCONE É OPCIONAL (27/10/2026, pedido do usuário: "remova [o ícone
+          ao lado do nome] ao procurar itens, criaturas, etc no livro de
+          regras"). Nas CINCO SEÇÕES da paleta vazia ele continua — ali o
+          ícone é a identidade da linha. Nos RESULTADOS ele saiu: era sempre
+          o ícone do TIPO, e o cabeçalho do grupo logo acima já diz o tipo e
+          quantos são ("Criaturas · 12"). Repetir a seção em cada linha é
+          ruído que disputa a atenção com o nome, que é o que se procura. */}
+      {icone && <span className="busca-livro-ic"><i className={'ti ' + icone} aria-hidden="true" /></span>}
       <span className="busca-livro-nome">{nome}</span>
       {seta && <i className="ti ti-arrow-right busca-livro-seta" aria-hidden="true" />}
     </li>
@@ -3372,7 +3599,7 @@ function BuscaLivro({ lang = 'pt', modoJogador = false, onClose, onEscolher }) {
                     </li>
                     {g.itens.map((r) => {
                       n += 1;
-                      return linha(n, r.secao + ':' + r.chave, t.icone, <DestaqueNoNome nome={r.nome} termo={termo} />, () => escolher(r));
+                      return linha(n, r.secao + ':' + r.chave, null, <DestaqueNoNome nome={r.nome} termo={termo} />, () => escolher(r));
                     })}
                   </React.Fragment>
                 );
@@ -3427,7 +3654,7 @@ function useAbrirDoLivro(pedido, query, setQuery, setExpandida, abrirNovo) {
 
 Object.assign(window, {
   PainelLivroCtx, LivroLayout,
-  valorPorExtenso,
+  valorPorExtenso, valorEmMoedas,
   BuscaLivro, buscarNoLivro,
   CriaturasList, MagiasList, HabilidadesList,
   // Exposto pro teste de render: e a tela que diz ao Mestre se a edicao dele
@@ -3455,6 +3682,7 @@ Object.assign(window, {
   categoriaTecnica, separarFiltroMenu,
   // 26/09/2026: a ficha em lista, por extenso — o Diário e itens da campanha usam.
   BestFichaLista, BestLinha, BestDescricao, atributoPorExtenso, siglaAtributoItem, separarItensNecessarios,
+  gruposDeArmaPorExtenso, alcanceEmMetros,
   abreviarAlcance, eficaciaContraArmadura, ehArma,
   IconeDoNome, ICONE_TIPO_MAGIA,
 });

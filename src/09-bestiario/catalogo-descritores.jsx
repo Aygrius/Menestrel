@@ -39,9 +39,16 @@ const OPCOES_ALCANCE = ['Pessoal', 'Toque', '2 metros', '5 metros', '10 metros',
   '20 metros', '50 metros', '100 metros', '1 quilômetro'];
 const OPCOES_DURACAO = ['Variável', 'Instantânea', ...RODADAS_MAGIA];
 
-// Raças e reinos do GAME_DATA — vantagem/desvantagem das habilidades.
+/* Raças e reinos do GAME_DATA — vantagem/desvantagem das habilidades.
+   SEM AS FORMAS (26/10/2026): Vampiro e Lobisomem estão em GAME_DATA.racas
+   para a ficha saber calculá-los, mas uma habilidade com vantagem "para
+   Vampiro" não é vantagem de raça — é de estado. `racasJogaveis` é o mesmo
+   filtro que o wizard de personagem usa; o recuo vale para quem monte este
+   módulo sem a fase 01-core/forma-raca carregada. */
 const OPCOES_RACA_REINO = (typeof GAME_DATA !== 'undefined')
-  ? [...Object.keys(GAME_DATA.racas || {}), ...(GAME_DATA.reinos || [])] : [];
+  ? [...((typeof window !== 'undefined' && window.racasJogaveis)
+      ? window.racasJogaveis() : Object.keys(GAME_DATA.racas || {})),
+    ...(GAME_DATA.reinos || [])] : [];
 
 // Tipo da técnica (22/10/2026), no lugar da permissão — ver categoriaTecnica.
 const OPCOES_TIPO_TECNICA = ['Básica', 'Especializada'];
@@ -324,6 +331,25 @@ const CATALOGO_DESCRITORES = {
       // em 28/09/2026, com os frascos (scripts/sql/frascos-amuletos-venenos-2026-09-28.sql).
       { col: 'origem',    tipo: 'opcoes', rotuloKey: 'campoOrigem',
         opcoes: ['Comum', 'Raro', 'Mágico', 'Alquímico'] },
+      /* A BASE do item (26/10/2026, pedido do usuário): "existe a base do
+         item, por exemplo 'Máscara de Ouro', e existe o exemplar do item,
+         'Máscara Decorativa', 'Máscara Verrogari' — ou seja, as duas podem
+         ser uma 'Máscara de Ouro'. Isso vale para todos os itens."
+
+         O NOME é o exemplar; a base é o que ele é. É ela que escolhe a
+         pintura e que a ficha do item mostra em uma frase. As opções saem de
+         opcoesDeBase (01-core/bases-item.jsx), filtradas pela região do item
+         quando ele é vestível e pelo grupo do catálogo quando não é — por
+         isso `opcoesDe`, e não uma lista fixa.
+
+         ARMA é o caso em que a lista tem UMA opção: "o arco também é uma arma,
+         então a base é a mesma, a diferença é o grupo de armas" (usuário,
+         26/10/2026). A base dela é a classe de peso tirada da sigla do grupo
+         (baseDaArma), então não há o que escolher — mudar o Grupo de Armas
+         muda a base. */
+      { col: 'base', tipo: 'opcoes', rotuloKey: 'campoBase',
+        opcoesDe: (linha) => (typeof window !== 'undefined' && window.opcoesDeBase
+          ? window.opcoesDeBase(linha) : []) },
       /* O banco só aceita "ti-nome" (itens_icone_formato_chk: ^ti-[a-z0-9-]+$).
          Texto livre fazia o insert falhar com o erro do Postgres (14/09/2026).
          formato: 'icone' → o editor aceita "ti-paw", "ti ti-paw", o <i> colado
@@ -336,6 +362,21 @@ const CATALOGO_DESCRITORES = {
       { col: 'tipo',      tipo: 'opcoes', rotuloKey: 'campoTipo',
         opcoes: [{ value: 'S', label: 'Sólido' }, { value: 'L', label: 'Líquido' }] },
       { col: 'armazena', grupos: ['Vestimentas', 'Itens', 'Propriedades', 'Recipientes', 'Transportes'],    tipo: 'numero', rotuloKey: 'campoArmazena',   min: 0 },
+      /* O PORTE do recipiente (29/10/2026, usuário: "vamos definir 4 tipos de
+         quantidades de slots para os itens: pequenos 3, médios 6, grandes 9,
+         muito grandes 15"). Ele diz quantas CASAS o recipiente mostra; o
+         `armazena` acima continua sendo o PESO, e o que estourar primeiro
+         trava. Vazio, o porte sai da escada de peso (porteDoRecipiente,
+         01-core) — então nenhum recipiente antigo fica sem casas. */
+      { col: 'porte', grupos: ['Vestimentas', 'Itens', 'Propriedades', 'Recipientes', 'Transportes'],
+        tipo: 'opcoes', rotuloKey: 'campoPorte', largura: 'meia',
+        opcoes: [
+          { value: 'pequeno',      label: 'Pequeno — 3 casas' },
+          { value: 'medio',        label: 'Médio — 6 casas' },
+          { value: 'grande',       label: 'Grande — 9 casas' },
+          { value: 'muito_grande', label: 'Muito grande — 15 casas' },
+          { value: 'colossal',     label: 'Colossal — 30 casas' },
+        ] },
       /* O que o recipiente (ou a vestimenta com bolso) ACEITA guardar — virou
          LISTA em 27/09/2026 ("'tipo de item' deve permitir selecionar
          consumíveis"). Era texto livre: tinha que se digitar "Consumíveis"
@@ -377,14 +418,33 @@ const CATALOGO_DESCRITORES = {
       { col: 'categoria_equip', grupos: ['Armas', 'Armaduras'],    tipo: 'opcoes', rotuloKey: 'campoCategoriaEquip',
         opcoes: [{ value: 'arma', label: 'Arma' }, { value: 'escudo', label: 'Escudo' },
                  { value: 'armadura', label: 'Armadura' }] },
+      /* AS 17 REGIÕES, E NÃO O VOCABULÁRIO ANTIGO (29/10/2026) ──────────────
+         A migração de 26/10 (scripts/sql/slots-e-status-2026-10-26.sql) trocou
+         os nomes no catálogo: `maos`→`mao`, `peito`→`dorso`, `corpo`→`peito`,
+         `bracos`→`braco`, e entraram `rosto`, `pulso`, `canela` e `alforje`.
+         Medido no banco em 29/10: dos 216 itens com slot, 204 estão numa
+         região que esta lista não oferecia — apareciam como "(fora da lista)"
+         e o Mestre não tinha como escolher nenhuma delas. Pior, as únicas
+         escolhas possíveis eram os nomes que a migração acabou de remover: um
+         item editado voltava ao vocabulário velho.
+
+         A `itens_slot_equip_chk` ainda ACEITA os oito nomes antigos — é a
+         transição que deixa as instâncias já gravadas validarem —, mas a lista
+         da tela é só o lado canônico: a CHECK diz o que o banco tolera, o
+         dropdown diz o que se deve escrever. Ordem da cabeça aos pés, a mesma
+         de REGIOES_EQUIP (01-core/inventario-helpers.jsx); os rótulos são os
+         de SLOT_LABELS, para o editor e a ficha chamarem a casa pelo mesmo
+         nome. */
       { col: 'slot_equip', grupos: ['Armas', 'Armaduras', 'Vestimentas', 'Instrumentos'],         tipo: 'opcoes', rotuloKey: 'campoSlotEquip',
-        opcoes: [{ value: 'maos', label: 'Mãos' }, { value: 'cabeca', label: 'Cabeça' },
-                 { value: 'peito', label: 'Peito' }, { value: 'pernas', label: 'Pernas' },
-                 { value: 'pes', label: 'Pés' }, { value: 'ombros', label: 'Ombros' },
-                 { value: 'bracos', label: 'Braços' }, { value: 'corpo', label: 'Corpo' },
-                 { value: 'costas', label: 'Costas' }, { value: 'cintura', label: 'Cintura' },
-                 { value: 'pescoco', label: 'Pescoço' }, { value: 'orelhas', label: 'Orelhas' },
-                 { value: 'dedos', label: 'Dedos' }] },
+        opcoes: [{ value: 'cabeca', label: 'Cabeça' }, { value: 'orelha', label: 'Orelha' },
+                 { value: 'rosto', label: 'Rosto' }, { value: 'pescoco', label: 'Pescoço' },
+                 { value: 'ombro', label: 'Ombro' }, { value: 'costas', label: 'Costas' },
+                 { value: 'dorso', label: 'Dorso' }, { value: 'peito', label: 'Peito' },
+                 { value: 'braco', label: 'Braço' }, { value: 'dedo', label: 'Dedo' },
+                 { value: 'pulso', label: 'Pulso' }, { value: 'mao', label: 'Mão' },
+                 { value: 'perna', label: 'Perna' }, { value: 'cintura', label: 'Cintura' },
+                 { value: 'canela', label: 'Canela' }, { value: 'pe', label: 'Pé' },
+                 { value: 'alforje', label: 'Alforje' }] },
       { col: 'resistencia', grupos: ['Armas', 'Armaduras', 'Vestimentas'], tipo: 'numero', rotuloKey: 'campoResistencia', min: 0 },
       { col: 'maos_pequenino', grupos: ['Armas', 'Armaduras', 'Instrumentos'], tipo: 'numero', rotuloKey: 'campoMaosPequenino', min: 0, max: 2 },
       { col: 'maos_anao', grupos: ['Armas', 'Armaduras', 'Instrumentos'],      tipo: 'numero', rotuloKey: 'campoMaosAnao',      min: 0, max: 2 },
@@ -421,6 +481,13 @@ const CATALOGO_DESCRITORES = {
       /* 'efeito' SAIU dos itens em 25/09/2026: vazio nos 1003 itens, e nenhuma
          regra o lia — o que o jogo aplica é efeito_positivo/efeito_negativo.
          A coluna segue no banco, vazia. */
+      /* A GRADE DE EFEITOS (26/10/2026, pedido do usuário: "quando for
+         consumível, adicione um campo para cada campo que aquele item
+         consumível pode alterar [...] um valor positivo ou negativo").
+         `semColuna`: ela não é coluna nenhuma — escreve nas duas prosas
+         abaixo, que continuam sendo o armazenamento. Ver efeitosEmNumeros /
+         efeitosParaTexto (01-core/inventario-helpers.jsx). */
+      { col: '__efeitos', grupos: ['Consumíveis'], tipo: 'efeitos', semColuna: true, rotuloKey: 'campoEfeitos' },
       { col: 'efeito_positivo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoPositivo',  linhas: 2 },
       { col: 'efeito_negativo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoNegativo',  linhas: 2 },
       /* 'consumiveis' e 'consumiveis_peso' SAÍRAM em 28/09/2026: a carne do

@@ -392,7 +392,159 @@ function CampoIcone({ valor, valido, previa, onChange, disabled, name, en }) {
   );
 }
 
-function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t, equip }) {
+/* ── GRADE DE EFEITOS DO CONSUMÍVEL (26/10/2026) ──────────────────────────
+   Pedido do usuário: "no modal de editar item, quando for consumível,
+   adicione um campo para cada campo que aquele item consumível pode alterar.
+   Campos de vitalidade, condições, etc. Ali será informado um valor positivo
+   ou negativo, que indicará os efeitos de seu uso."
+
+   Uma célula por barra, com o rótulo em cima e o número com sinal embaixo —
+   o mesmo passe de células do Quadro de Iniciativa. O que se grava continua
+   sendo a prosa de `efeito_positivo`/`efeito_negativo` (os 140 itens do
+   catálogo já estão escritos assim, e é o que a ficha mostra): a grade é a
+   segunda cara da mesma verdade, lida por `efeitosEmNumeros` e escrita por
+   `efeitosParaTexto`.
+
+   O RASCUNHO existe porque "−" sozinho e campo vazio são estados legítimos de
+   quem está digitando e não cabem num número. A prosa é reescrita a cada
+   tecla, com o rascunho lido como 0 enquanto não for número. */
+function CatalogoEfeitos({ label, form, chave, onChange, disabled, t }) {
+  const LISTA = (typeof EFEITOS_EDITAVEIS !== 'undefined' ? EFEITOS_EDITAVEIS : window.EFEITOS_EDITAVEIS) || [];
+  /* ── A GRADE DE PROTEÇÕES (28/10/2026, decisão do usuário) ─────────────
+     "Protege N de X" é TETO da barra enquanto vestido, não efeito positivo —
+     e até aqui o editor não sabia editá-la: a grade mexia só nos deltas e as
+     proteções eram relidas do item e reemitidas intactas. Perguntado se devia
+     virar efeito comum, o usuário escolheu "linha própria na grade".
+
+     Os dois conjuntos de números andam juntos daqui para baixo: `valores` são
+     os deltas, `prots` são os tetos, e qualquer tecla em qualquer um dos dois
+     reescreve a prosa inteira com os dois. */
+  const LISTA_PROT = (typeof PROTECOES_EDITAVEIS !== 'undefined' ? PROTECOES_EDITAVEIS : window.PROTECOES_EDITAVEIS) || [];
+  const lerNumeros = (typeof efeitosEmNumeros === 'function' ? efeitosEmNumeros : window.efeitosEmNumeros);
+  const lerProt = (typeof protecoesEmNumeros === 'function' ? protecoesEmNumeros : window.protecoesEmNumeros);
+  const escrever = (typeof efeitosParaTexto === 'function' ? efeitosParaTexto : window.efeitosParaTexto);
+  const pos = form && form.efeito_positivo;
+  const neg = form && form.efeito_negativo;
+  const gravados = React.useMemo(
+    () => (typeof lerNumeros === 'function' ? lerNumeros({ efeito_positivo: pos, efeito_negativo: neg }) : {}),
+    [pos, neg]
+  );
+  const gravadosProt = React.useMemo(
+    () => (typeof lerProt === 'function' ? lerProt({ efeito_positivo: pos, efeito_negativo: neg }) : {}),
+    [pos, neg]
+  );
+  const [rascunho, setRascunho] = React.useState(null);
+  const [rascunhoProt, setRascunhoProt] = React.useState(null);
+  // Trocou de item no mesmo modal: o rascunho do anterior não vale mais.
+  React.useEffect(() => { setRascunho(null); setRascunhoProt(null); }, [chave]);
+
+  const doBanco = {};
+  LISTA.forEach((d) => { doBanco[d.rotulo] = gravados[d.rotulo] != null ? String(gravados[d.rotulo]) : ''; });
+  const valores = rascunho || doBanco;
+
+  const doBancoProt = {};
+  LISTA_PROT.forEach((d) => { doBancoProt[d.rotulo] = gravadosProt[d.rotulo] != null ? String(gravadosProt[d.rotulo]) : ''; });
+  const prots = rascunhoProt || doBancoProt;
+
+  // Os dois conjuntos viram prosa de uma vez: gravar um sem o outro apaga o outro.
+  const gravar = (vals, ps) => {
+    if (typeof escrever !== 'function') return;
+    const numeros = {};
+    Object.entries(vals).forEach(([k, v]) => { numeros[k] = Number(v) || 0; });
+    const tetos = {};
+    Object.entries(ps).forEach(([k, v]) => { tetos[k] = Math.max(0, Number(v) || 0); });
+    onChange(escrever(numeros, form, tetos));
+  };
+
+  const mexer = (rotulo, txt) => {
+    // Só dígitos e um sinal na frente — o resto nem chega ao estado.
+    const limpo = String(txt).replace(/[^\d+-]/g, '').replace(/(?!^)[+-]/g, '');
+    const novo = { ...valores, [rotulo]: limpo };
+    setRascunho(novo);
+    gravar(novo, prots);
+  };
+
+  /* Proteção não tem sinal: teto negativo não quer dizer nada. O campo só
+     aceita dígitos, e 0 (ou vazio) apaga a proteção. */
+  const mexerProt = (rotulo, txt) => {
+    const limpo = String(txt).replace(/[^\d]/g, '');
+    const novo = { ...prots, [rotulo]: limpo };
+    setRascunhoProt(novo);
+    gravar(valores, novo);
+  };
+
+  const grupo = (nome, titulo) => {
+    const defs = LISTA.filter((d) => d.grupo === nome);
+    if (!defs.length) return null;
+    return (
+      <div className="cat-efeitos-grupo" key={nome}>
+        <span className="cat-efeitos-tit">{titulo}</span>
+        <div className="cat-efeitos-grade">
+          {defs.map((d) => {
+            const v = valores[d.rotulo] || '';
+            const n = Number(v);
+            const sinal = Number.isFinite(n) && n !== 0 ? (n > 0 ? ' is-mais' : ' is-menos') : '';
+            /* Sem `.mn-celula`: a célula do sistema é uma fatia de passe
+               (régua à esquerda da vizinha); aqui cada barra é uma caixa
+               solta numa grade. O RÓTULO, esse sim, é o do sistema. */
+            return (
+              <label className={'cat-efeito' + sinal} key={d.rotulo}>
+                <span className="cat-efeito-rot mn-rotulo">{d.rotulo}</span>
+                <input className="cat-efeito-num" type="text" inputMode="numeric" autoComplete="off"
+                  value={v} disabled={disabled} placeholder="—"
+                  aria-label={d.rotulo}
+                  onChange={(e) => mexer(d.rotulo, e.target.value)} />
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  /* O bloco das proteções: mesma grade, sem sinal e com o que ela significa
+     dito logo abaixo do título — teto é uma ideia menos óbvia que delta. */
+  const blocoProtecoes = () => {
+    if (!LISTA_PROT.length) return null;
+    return (
+      <div className="cat-efeitos-grupo cat-efeitos-grupo--prot" key="protecoes">
+        <span className="cat-efeitos-tit">{t.campoEfeitosProt}</span>
+        <p className="cat-efeitos-dica cat-efeitos-dica--prot">{t.campoEfeitosProtDica}</p>
+        <div className="cat-efeitos-grade">
+          {LISTA_PROT.map((d) => {
+            const v = prots[d.rotulo] || '';
+            const n = Number(v);
+            return (
+              <label className={'cat-efeito' + (Number.isFinite(n) && n > 0 ? ' is-protege' : '')} key={'prot-' + d.rotulo}>
+                <span className="cat-efeito-rot mn-rotulo">{d.rotulo}</span>
+                <input className="cat-efeito-num" type="text" inputMode="numeric" autoComplete="off"
+                  value={v} disabled={disabled} placeholder="—"
+                  aria-label={`${t.campoEfeitosProt}: ${d.rotulo}`}
+                  onChange={(e) => mexerProt(d.rotulo, e.target.value)} />
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="catalogo-campo-full cat-efeitos">
+      <label className="diario-field-label">{label}</label>
+      <p className="cat-efeitos-dica">{t.campoEfeitosDica}</p>
+      {grupo('vitalidade', t.campoEfeitosVit)}
+      {grupo('condicoes', t.campoEfeitosCond)}
+      {blocoProtecoes()}
+    </div>
+  );
+}
+
+function CatalogoCampo({ campo, label, valor, onChange, disabled, nomes, refs, t, equip, efeitos }) {
+  if (campo.tipo === 'efeitos') {
+    return <CatalogoEfeitos label={label} form={efeitos && efeitos.form} chave={efeitos && efeitos.chave}
+      onChange={onChange} disabled={disabled} t={t} />;
+  }
   if (campo.tipo === 'equipamento') {
     return <CatalogoEquipamento label={label} valor={valor} onChange={onChange} parte={campo.parte}
       catalogo={equip && equip.catalogo} porSlug={equip && equip.porSlug} t={t} />;
@@ -1044,7 +1196,13 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
       <div className="catalogo-form-grid">
         {/* `largura: 'curta'` (25/09/2026): meia coluna da grade — Estágio,
             Montaria, Peso e Altura cabem na linha de Nome e Subtipo. */}
-        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto && campo.tipo !== 'derivado' && campoDoGrupo(campo, form)).map((campo) => {
+        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto && campo.tipo !== 'derivado' && campoDoGrupo(campo, form)).map((campoBruto) => {
+          /* `opcoesDe` (26/10/2026): a lista depende da LINHA, não só do
+             descritor — as bases que cabem num item saem da região dele
+             (ou do grupo, quando não é vestível). Ver opcoesDeBase. */
+          const campo = campoBruto.opcoesDe
+            ? { ...campoBruto, opcoes: campoBruto.opcoesDe(form) }
+            : campoBruto;
           const chave = campo.col + (campo.parte ? ':' + campo.parte : '');
           const el = (
           <CatalogoCampo key={chave} campo={campo}
@@ -1060,6 +1218,10 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
                   const nivel = m && m[2] !== '' ? Number(m[2]) : '';
                   setForm((f) => ({ ...f, [campo.col]: nome, [campo.comNivel]: nome ? nivel : '' }));
                 }
+              /* A grade de efeitos devolve as DUAS colunas de prosa de uma
+                 vez; ela é `semColuna`, então nada muda no caminho de salvar. */
+              : campo.tipo === 'efeitos'
+              ? (v) => setForm((f) => ({ ...f, ...v }))
               : (v) => onChangeCampo(campo, v)}
             disabled={!!(campo.somenteNovo && linha)}
             nomes={campo.fonte && (campo.tipo === 'lista' || campo.tipo === 'opcoes')
@@ -1067,6 +1229,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
             refs={campo.tipo === 'referencia' ? refsPorFonte[campo.fonte]
               : campo.tipo === 'vinculo' ? { candidatos: candidatosVinculo[campo.col] || [] } : undefined}
             equip={campo.tipo === 'equipamento' ? { catalogo: equipCatalogo, porSlug: equipPorSlug } : undefined}
+            efeitos={campo.tipo === 'efeitos' ? { form, chave: (linha && linha.id) || 'novo' } : undefined}
             t={t}
           />
           );

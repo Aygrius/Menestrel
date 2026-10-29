@@ -34,7 +34,12 @@ function AvatarAmigo({ p, className }) {
     : <span className={className + ' amg-avatar--vazio'} aria-hidden="true">{(nome || '?').trim().slice(0, 1).toUpperCase()}</span>;
 }
 
-function AmigosFab({ lang, pjId, naBarra = false }) {
+/* `semBotao` (27/10/2026, pedido do usuário: "o menu 'amigos' que está no
+   trilho vai para o menu da esquerda"): o botão do pacto saiu daqui e virou
+   folha do menu lateral; o que fica são os CARDS dos amigos — eles não são
+   menu, são o destino do arraste de item do inventário. Quem abre o modal
+   agora é o evento `menestrel:amigos` que o menu dispara. */
+function AmigosFab({ lang, pjId, naBarra = false, semBotao = false }) {
   const en = lang === 'en';
   const [lista, setLista] = React.useState([]);
   const [aberto, setAberto] = React.useState(false);
@@ -42,6 +47,9 @@ function AmigosFab({ lang, pjId, naBarra = false }) {
   const [erro, setErro] = React.useState(null);
   const rootRef = React.useRef(null);
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
+  /* O casco de janela do sistema (10-shell). Com ele no ar, o véu, o Esc e o
+     clique-fora são dele — ver o useEffect abaixo. */
+  const _ModalShell = (typeof ModalShell !== 'undefined' ? ModalShell : null) || window.ModalShell || null;
 
   const carregar = React.useCallback(async () => {
     if (!pjId) { setLista([]); return; }
@@ -58,9 +66,24 @@ function AmigosFab({ lang, pjId, naBarra = false }) {
   // Abrir o painel relê — a lista pode ter mudado do outro lado.
   React.useEffect(() => { if (aberto) { setErro(null); carregar(); } }, [aberto, carregar]);
 
-  // Esc e clique fora fecham, como nos atalhos da direita.
+  /* O MENU DA ESQUERDA CHAMA (27/10/2026). O evento serve quem já está no
+     ar; o carimbo recente (`window.__amigosPedido`) serve a primeira vez,
+     quando o clique no menu também NAVEGA e a ficha ainda nem montou para
+     ouvir. 3s é folga de navegação, não de memória: pedido mais velho que
+     isso é de outra visita e não abre nada. */
   React.useEffect(() => {
-    if (!aberto) return undefined;
+    const abrir = () => setAberto(true);
+    window.addEventListener('menestrel:amigos', abrir);
+    const pedido = Number(window.__amigosPedido) || 0;
+    if (pedido && Date.now() - pedido < 3000) { window.__amigosPedido = 0; setAberto(true); }
+    return () => window.removeEventListener('menestrel:amigos', abrir);
+  }, []);
+
+  /* Esc e clique fora, SÓ sem o ModalShell: com o modal no ar, o painel vive
+     num portal fora do rootRef — qualquer clique dentro dele contaria como
+     "fora" e fecharia a janela no primeiro gesto. */
+  React.useEffect(() => {
+    if (!aberto || _ModalShell) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') setAberto(false); };
     const onDown = (e) => { if (rootRef.current && !rootRef.current.contains(e.target)) setAberto(false); };
     document.addEventListener('keydown', onKey);
@@ -69,7 +92,7 @@ function AmigosFab({ lang, pjId, naBarra = false }) {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('mousedown', onDown);
     };
-  }, [aberto]);
+  }, [aberto, _ModalShell]);
 
   const agir = async (rpc, outroId) => {
     setOcupado(outroId); setErro(null);
@@ -139,19 +162,23 @@ function AmigosFab({ lang, pjId, naBarra = false }) {
 
   return (
     <div className={'menestrel-ui amg-root' + (naBarra ? ' mc-acao-grupo' : '')} ref={rootRef}>
-      <button type="button" className={'amg-fab' + (aberto ? ' is-aberto' : '')}
-        onClick={() => { fecharTip(); setAberto((v) => !v); }}
-        aria-label={rotuloPacto} aria-expanded={aberto}
-        {...(aberto || naBarra ? {} : propsTip(abrirTip, fecharTip, rotuloPacto))}>
-        <i className="ti ti-heart-handshake" aria-hidden="true" />
-        {naBarra && <span className="mc-acao-rotulo">{en ? 'Friends' : 'Amigos'}</span>}
-        {pedidos > 0 && <span className="amg-badge" aria-label={en ? `${pedidos} pending` : `${pedidos} pendente(s)`}>{pedidos}</span>}
-      </button>
+      {!semBotao && (
+        <button type="button" className={'amg-fab' + (aberto ? ' is-aberto' : '')}
+          onClick={() => { fecharTip(); setAberto((v) => !v); }}
+          aria-label={rotuloPacto} aria-expanded={aberto}
+          {...(aberto || naBarra ? {} : propsTip(abrirTip, fecharTip, rotuloPacto))}>
+          <i className="ti ti-heart-handshake" aria-hidden="true" />
+          {naBarra && <span className="mc-acao-rotulo">{en ? 'Friends' : 'Amigos'}</span>}
+          {pedidos > 0 && <span className="amg-badge" aria-label={en ? `${pedidos} pending` : `${pedidos} pendente(s)`}>{pedidos}</span>}
+        </button>
+      )}
 
+      {/* Sem o botão na frente, o primeiro amigo ocupa o lugar dele: a
+          fileira não começa com um buraco de 60px. */}
       {amigos.map((p, i) => {
         const nome = nomeCompletoAmigo(p);
         return (
-          <div key={p.id} className="amg-amigo" style={{ '--amg-i': i + 1 }}
+          <div key={p.id} className="amg-amigo" style={{ '--amg-i': semBotao ? i : i + 1 }}
             data-amigo-pj-id={p.id} role="img" aria-label={nome} tabIndex={0}
             {...propsTip(abrirTip, fecharTip, {
               title: nome,
@@ -162,7 +189,35 @@ function AmigosFab({ lang, pjId, naBarra = false }) {
         );
       })}
 
-      {aberto && (
+      {/* ── AMIGOS ABRE EM MODAL (26/10/2026, pedido do usuário: "os menus do
+          trilho 'atividades' e 'amigos' não estão virando modal como os
+          demais"). A folha ancorada no botão sofria do mesmo mal dos atalhos:
+          ela é descendente do .fp-card, que tem `zoom` e cria contexto de
+          empilhamento próprio — o painel ficava atrás da ficha. O modal nasce
+          no meio da tela, por portal para a RAIZ DO APP (nunca o body: todo o
+          CSS é escopado em `#root .menestrel-ui`). */}
+      {aberto && _ModalShell && ReactDOM.createPortal(
+        <_ModalShell
+          title={<><i className="ti ti-heart-handshake det-title-ic" aria-hidden="true" /> {rotuloPacto}</>}
+          lang={lang} size="sm" extraClass="modal-atalho"
+          onClose={() => setAberto(false)}
+        >
+          <div className="amg-lista" role="list">
+            {lista.map((p) => (
+              <div key={p.id} className="amg-linha" role="listitem">
+                <span className="amg-linha-texto">
+                  <span className="amg-linha-nome">{nomeCompletoAmigo(p)}</span>
+                  {estadoTexto(p) && <span className={'amg-linha-estado amg-linha-estado--' + p.estado}>{estadoTexto(p)}</span>}
+                </span>
+                <span className="amg-linha-acoes">{acoesDe(p)}</span>
+              </div>
+            ))}
+          </div>
+          {erro && <p className="amg-erro" role="alert">{erro}</p>}
+        </_ModalShell>,
+        document.querySelector('#root .menestrel-ui') || document.body,
+      )}
+      {aberto && !_ModalShell && (
         <div className="amg-panel" role="dialog" aria-label={rotuloPacto}>
           <div className="amg-lista" role="list">
             {lista.map((p) => (

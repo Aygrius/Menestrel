@@ -115,12 +115,16 @@ describe('a virada de rodada põe o reforço em cena', () => {
 });
 
 describe('formarBandosDeReforco', () => {
+  /* Sete que chegam, não cinco (28/10/2026): o bando passou a se formar
+     "acima de 6 iguais", em grupos de 3 — ver bandos.test.js. */
   it('não mexe em quem já está lutando', () => {
     const soltos = [goblin(1), goblin(2)];
-    const novos = [1, 2, 3, 4, 5].map((i) => ({ tipo: 'criatura', ref_id: 7, nome: 'Goblin', inst_id: 'cri:7:n' + i }));
+    const novos = Array.from({ length: 7 }, (_, i) => (
+      { tipo: 'criatura', ref_id: 7, nome: 'Goblin', inst_id: 'cri:7:n' + i }));
     const out = M.formarBandosDeReforco(soltos, novos);
-    expect(out).toHaveLength(5);
+    expect(out).toHaveLength(7);
     expect(out[0].bando.papel).toBe('lider');
+    expect(out.filter((p) => p.bando && p.bando.papel === 'lider')).toHaveLength(2);
     expect(soltos[0].bando).toBeUndefined();
   });
 });

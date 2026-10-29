@@ -189,80 +189,93 @@ describe('a barra de Armadura saiu da vitalidade', () => {
   });
 });
 
-describe('o menu da peça equipada', () => {
-  const i = fonte.indexOf('{menuPecaId && (() => {');
+describe('o modal da região (26/10/2026)', () => {
+  /* "Quando clicar em um item dos slots, abrir um modal com os slots e ações
+     dos itens da ficha do personagem" (usuário, 26/10/2026).
+
+     O pop flutuante que ficava ancorado na casa (fp-peca-pop) saiu: clicar
+     numa peça abre a JANELA DA REGIÃO — as casas dela em cima, a peça em
+     foco e as ações na barra do próprio modal. Um desenho só para o que
+     antes eram quatro cards (joias, brincos, roupas, cinto) e um pop. */
+  const i = fonte.indexOf('{regiaoAberta && _JanelaItem && (() => {');
   const trecho = fonte.slice(i, fonte.indexOf('{/* Conteúdo do container vestido', i));
 
-  /* POR PORTAL, e não inline na árvore da ficha (20/09/2026).
-
-     "Não estou conseguindo clicar no item de despir dos anéis" — reportado
-     duas vezes. O pop é `position: fixed`, e fixed é frágil a ancestrais:
-     basta um `transform`, `filter`, `backdrop-filter` ou `overflow` no
-     caminho para ele deixar de medir pela janela, ser recortado, ou ficar
-     preso num contexto de empilhamento. Nada disso dá erro no console.
-
-     Os anéis eram o caso mais fundo: as casas deles moram DENTRO de outro
-     portal (o card flutuante de joias), e o pop nascia noutro galho da
-     árvore. Duas tentativas por parâmetro (largura do clamp, pointer-events)
-     não resolveram; subir para a raiz resolve a classe inteira do problema,
-     e é o que o card de joias, os atalhos e os brincos já fazem nesta fase.
-
-     O invólucro `.menestrel-ui` é obrigatório junto: as regras do pop são
-     descendentes dele, e sem o wrapper ele perde a pele e os tokens. */
-  it('sobe para a raiz por portal, com o invólucro do tema', () => {
-    expect(trecho, 'o pop precisa ir por createPortal').toMatch(/ReactDOM\.createPortal\(/);
-    expect(trecho, 'e aterrissar no #root').toMatch(/document\.getElementById\('root'\)/);
-    expect(trecho, 'dentro de um .menestrel-ui, senão perde o CSS')
-      .toMatch(/<div className="menestrel-ui">/);
+  it('é um modal do sistema, não um pop ancorado', () => {
+    expect(i, 'o bloco do modal da região precisa existir').toBeGreaterThan(0);
+    expect(trecho, 'usa o esqueleto de janela do sistema').toMatch(/<_JanelaItem/);
+    expect(fonte, 'e o pop antigo saiu de vez').not.toMatch(/fp-peca-pop/);
+    expect(fonte).not.toMatch(/setMenuPecaAnchor/);
   });
 
-  it('flutua ancorado na casa clicada, sem card nem modal', () => {
-    expect(trecho).toMatch(/fp-peca-pop/);
-    expect(trecho).not.toMatch(/ModalShell/);
-    expect(fonte).toMatch(/setMenuPecaAnchor\(ev\.currentTarget\.getBoundingClientRect\(\)\)/);
+  it('mostra as casas da região, com a peça em foco marcada', () => {
+    expect(trecho).toMatch(/REGIOES\[regiaoAberta\]/);
+    expect(trecho).toMatch(/fp3-modal-casa/);
+    expect(trecho).toMatch(/is-foco/);
   });
 
-  it('todo mundo vê Despir/Desequipar', () => {
-    expect(trecho).toMatch(/despirLbl/);
+  /* A casa VAZIA também abre a janela desde 26/10/2026 ("se o usuário clicar
+     em um slot vazio, mostre os itens que podem ser adicionados ali"), então
+     o foco é a peça QUANDO há peça — daí o `it ? … : null`. */
+  it('clicar numa casa abre o modal, já na peça quando há uma', () => {
+    /* `CASA_VAZIA` no lugar de `null` desde 28/10/2026: `null` queria dizer
+       "nada escolhido" E "escolhi a casa vazia", e a janela desempatava
+       caindo no primeiro ocupante — numa região meio cheia, clicar na casa
+       livre não mudava nada e a oferta do inventário nunca aparecia. */
+    expect(fonte).toMatch(/setPecaNoModal\(it \? it\.instanceId : CASA_VAZIA\)/);
+    /* `regiaoModal || regiao` desde 28/10/2026: a casa da MÃO desenha o lado
+       (mao_d/mao_e, que é o que a arte da mão vazia precisa) e abre a região
+       das duas mãos (`mao`), que é onde o sistema guarda arma equipada e de
+       onde saem os candidatos do inventário. Abrindo `mao_e`, a janela vinha
+       vazia: ninguém usa essa região. */
+    expect(fonte).toMatch(/setRegiaoAberta\(regiaoModal \|\| regiao\)/);
+  });
+  it('a casa vazia oferece o que do inventário cabe nela', () => {
+    expect(fonte).toMatch(/candidatosDaRegiao\(regiaoAberta\)/);
+    expect(fonte).toMatch(/equiparNaRegiao\(cand\.instanceId, regiaoAberta\)/);
+  });
+  /* "No tooltip dos slots do card 'equipamentos' não precisa mostrar a
+     descrição do item, nem a quantidade de slot" (usuário, 26/10/2026). */
+  it('o balão da casa diz só o nome — da peça, ou da região', () => {
+    /* A casa OCA ganhou balão próprio em 28/10/2026 ("quando não há itens no
+       inventário, não deve ser possível clicar no slot"): ela não abre nada, e
+       o balão diz o porquê. Fora dela, o balão continua sendo só o nome. */
+    expect(fonte).toMatch(/: \{ title: \(filled && cat\) \? \(cat\.nome \|\| it\.slug\) : lbl \};/);
+    expect(fonte).toMatch(/Nada no inventário cabe aqui/);
+    expect(fonte).not.toMatch(/desc: cat\.descricao/);
+    // Nenhum `abrirTip` da região carrega mais a contagem. (O `aria-label`
+    // da casa continua com ela: quem não vê o contador precisa ouvi-lo.)
+    expect(fonte).not.toMatch(/abrirTip\(e, \{ title: slotLbl\(regiao\), desc:/);
+  });
+
+  it('todo mundo vê Despir/Desequipar na barra de ações', () => {
+    expect(trecho).toMatch(/'Take off' : 'Despir'/);
+    expect(trecho).toMatch(/'Unequip' : 'Desequipar'/);
+    expect(trecho).toMatch(/desequiparFicha\(emFoco\.instanceId\)/);
   });
 
   it('só o Mestre vê o stepper de resistência, e só em peça que tem durabilidade', () => {
-    /* `!it.vestido` entrou em 20/09/2026: "anéis, roupas, etc, não precisam do
-       seletor de bônus, pois eles não recebem bônus". O stepper é de
-       RESISTÊNCIA, e aparecia em qualquer peça com `resistencia` no catálogo —
-       inclusive joias, que nunca a usam. `vestido` separa o que se VESTE do
-       que se EQUIPA. */
-    expect(trecho).toMatch(/const podeGerenciarRes = podeEditarEstado && resMaxPeca > 0 && !it\.vestido;/);
-    expect(trecho).toMatch(/\{podeGerenciarRes && \(/);
-    expect(trecho).toMatch(/ajustarResistenciaDaPeca\(it\.instanceId, resPeca - 1\)/);
-    expect(trecho).toMatch(/ajustarResistenciaDaPeca\(it\.instanceId, resPeca \+ 1\)/);
+    /* Mesma regra de 20/09/2026: o stepper é de RESISTÊNCIA e não vale para
+       o que se VESTE (joias, roupas) — `!emFoco.vestido` é o corte. */
+    expect(trecho).toMatch(/const podeRes = podeEditarEstado && resMaxFoco > 0 && !emFoco\?\.vestido;/);
+    expect(trecho).toMatch(/ajustarResistenciaDaPeca\(emFoco\.instanceId, resFoco - 1\)/);
+    expect(trecho).toMatch(/ajustarResistenciaDaPeca\(emFoco\.instanceId, resFoco \+ 1\)/);
   });
 
-  it('abrir o menu NÃO fecha o card de joias/brincos/cinto', () => {
-    // 16/09/2026: "Quando eu clico no brinco para despir, o card fecha."
-    // Só o CLIQUE NA CASA importa aqui; trocar de aba segue fechando tudo.
-    const i = fonte.indexOf('setMenuPecaAnchor(ev.currentTarget.getBoundingClientRect())');
-    const cliqueNaCasa = fonte.slice(i, fonte.indexOf('}', i));
-    expect(cliqueNaCasa).not.toMatch(/setJoiasOpen|setBrincosOpen|setCintoOpen/);
+  /* A JANELA DA CASA VAZIA É O SELETOR (26/10/2026, pedido do usuário):
+     "remova 'Nada no inventário cabe aqui', pois basta clicar no slot vazio
+     para abrir um modal para selecionar o item que vai ser equipado". Antes
+     ela mandava o jogador a outra tela; depois escrevia uma desculpa quando
+     não tinha o que oferecer. Agora ou oferece, ou não escreve nada — as
+     casas da região já estão desenhadas acima. */
+  it('a casa vazia oferece, e quando não tem o que oferecer fica calada', () => {
+    expect(trecho).not.toMatch(/fp3-modal-vazio/);
+    expect(trecho).toMatch(/if \(!candidatos\.length\) return null;/);
+    expect(trecho).toMatch(/fp3-modal-oferta/);
   });
-
-  it('e fica ACIMA das casas flutuantes, senão ninguém clica nele', () => {
-    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'index.css'), 'utf8');
-    const z = (sel) => Number(css.match(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^}]*z-index:\\s*(\\d+)'))[1]);
-    expect(z('.fp-peca-pop')).toBeGreaterThan(z('.fp-portal-anchor'));
-    expect(z('.fp-peca-pop')).toBeGreaterThan(z('.fp2-slot-flutuante'));
-    // E as casas, por sua vez, acima do resto da ficha (16/09/2026: "estão
-    // sendo escondidas").
-    expect(z('.fp2-slot-flutuante')).toBeGreaterThan(z('.fp-portal-backdrop'));
-  });
-
-  it('fecha no clique fora, Escape ou scroll', () => {
-    expect(trecho).toMatch(/FechaAoSair/);
-    const i2 = fonte.indexOf('function FechaAoSair');
-    const comp = fonte.slice(i2, i2 + 900);
-    expect(comp).toMatch(/Escape/);
-    expect(comp).toMatch(/mousedown/);
-    expect(comp).toMatch(/scroll/);
+  /* "Ao clicar no slot e abrir um item, remova 'Casas 0/1 em uso'." */
+  it('e a janela não conta as casas em palavras', () => {
+    expect(trecho).not.toMatch(/fp3-modal-conta/);
+    expect(trecho).not.toMatch(/'in use' : 'em uso'/);
   });
 });
 

@@ -142,6 +142,16 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
       return;
     }
     if (data && !data.ok) {
+      /* `convite_usado` é regra, não falha (27/10/2026): a RPC recusa apagar
+         convite já usado. A tela não oferece o botão nesse caso, mas a
+         mensagem existe para quem chegar por outro caminho — e diz a regra,
+         não um código. */
+      if (data.motivo === 'convite_usado') {
+        setError(en
+          ? 'A used invite cannot be deleted — it goes away with the character.'
+          : 'Convite usado não se exclui — ele some junto com o personagem.');
+        return;
+      }
       /* TODO-INTERPOLATE */
       setError(interpolate(tc.mng.falhouComMotivo, { motivo: data.motivo }));
       return;
@@ -529,7 +539,9 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken, mesaAtivaId = n
     const pj = pjs.find((p) => pjAtivoId != null && p.id === pjAtivoId) || pjs[0] || null;
     return (
       <div className="hist">
-        <Cena key={m.id} h={m} lang={lang} somenteLeitura anotar userId={currentUserId}
+        {/* UM CAPÍTULO POR VEZ (26/10/2026, pedido do usuário): a Mesa do
+            Jogador é leitura, e a paginação do sistema vira o folhear. */}
+        <Cena key={m.id} h={m} lang={lang} somenteLeitura anotar userId={currentUserId} umPorVez
           pjId={pj ? pj.id : null} autor={pj ? [pj.nome, pj.sobrenome].filter(Boolean).join(' ') : ''} />
       </div>
     );

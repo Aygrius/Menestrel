@@ -328,7 +328,12 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
    personagem em `autor`) e a mesa toda lê as de todos, o Mestre incluído
    (tabela anotacoes_capitulo, presa ao id do capítulo). */
 const CENA_POR_PAGINA = 10; // cinco fileiras de dois cartões, sem rolagem
-function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somenteLeitura = false, anotar = false, userId = null, pjId = null, autor = '' }) {
+/* `umPorVez` (26/10/2026, pedido do usuário: "na página 'mesa', teremos
+   apenas um card grande com o capítulo por vez, e poderá ser possível navegar
+   nos demais capítulos"). É a Mesa do JOGADOR: ele não administra a crônica,
+   ele a lê — e ler é uma coisa de cada vez. A navegação já existia: com uma
+   carta por página, a paginação do sistema vira o folhear dos capítulos. */
+function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somenteLeitura = false, anotar = false, userId = null, pjId = null, autor = '', umPorVez = false }) {
   const en = lang === 'en';
   const caps = Array.isArray(h.capitulos) ? h.capitulos : [];
   const [aberto, setAberto] = useState(null);
@@ -348,9 +353,10 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
   // Do mais recente ao mais antigo; o último capítulo é o em andamento.
   const todos = caps.map((c, i) => ({ c, n: i + 1, atual: i === caps.length - 1 })).reverse();
   const lista = !termo ? todos : todos.filter(({ c }) => semAcento((c.titulo || '') + ' ' + (c.texto || '')).includes(termo));
-  const totalPages = Math.max(1, Math.ceil(lista.length / CENA_POR_PAGINA));
+  const porPagina = umPorVez ? 1 : CENA_POR_PAGINA;
+  const totalPages = Math.max(1, Math.ceil(lista.length / porPagina));
   const safePage = Math.min(page, totalPages);
-  const pagina = lista.slice((safePage - 1) * CENA_POR_PAGINA, safePage * CENA_POR_PAGINA);
+  const pagina = lista.slice((safePage - 1) * porPagina, safePage * porPagina);
   const BuscaENovo = window.BestBuscaENovo;
   const Paginacao = window.BestPagination;
   const capAberto = aberto != null ? todos.find((x) => x.n === aberto) : null;
@@ -411,7 +417,7 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
         <div className="best-empty">{en ? `No chapter matches "${busca.trim()}".` : `Nenhum capítulo com "${busca.trim()}".`}</div>
       ) : (
         <>
-          <div className="pjs-grid">
+          <div className={'pjs-grid' + (umPorVez ? ' cena-um' : '')}>
             {pagina.map(({ c, n, atual }) => {
               const abrir = () => setAberto(n);
               return (
@@ -440,9 +446,18 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
                               </>
                             )}
                           </div>
-                          <div className="pj-meta pj-meta--estagio">
-                            {resumo(c.texto) || (en ? 'No text yet.' : 'Sem texto ainda.')}
-                          </div>
+                          {/* Um card por vez mostra o capítulo INTEIRO: é a
+                              leitura, não um índice de cartas. */}
+                          {umPorVez ? (
+                            <div className="cena-um-texto">
+                              {c.texto ? paragrafos(c.texto)
+                                : <p className="cena-cap-texto">{en ? 'No text yet.' : 'Sem texto ainda.'}</p>}
+                            </div>
+                          ) : (
+                            <div className="pj-meta pj-meta--estagio">
+                              {resumo(c.texto) || (en ? 'No text yet.' : 'Sem texto ainda.')}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -576,7 +576,8 @@ function ItensCampanhaManager({ ac, lang, historiaId, tituloHistoria, onBack }) 
                             <BestFichaLista titulo={en ? 'Traits' : 'Características'} colunas={2}>
                               {/* Sem "Grupo" (26/09/2026, "não precisa mostrar o grupo"). */}
                               <BestLinha rotulo={en ? 'Type' : 'Tipo'} valor={tipoLabel === '—' ? null : tipoLabel} />
-                              <BestLinha rotulo={en ? 'Value' : 'Valor'} valor={(window.valorPorExtenso || ((v) => v ?? null))(it.valor_latao, en ? 'en' : 'pt')} />
+                              {/* Em moedas, como na janela do item (27/10/2026). */}
+                              <BestLinha rotulo={en ? 'Value' : 'Valor'} valor={(window.valorEmMoedas || window.valorPorExtenso || ((v) => v ?? null))(it.valor_latao, en ? 'en' : 'pt')} />
                               <BestItemArmazenamento item={it} lang={lang} />
                               <BestLinha rotulo={en ? 'Slot' : 'Uso'} valor={it.slot_equip} />
                               <BestLinha rotulo={en ? 'Damage' : 'Dano'} valor={it.dano} />

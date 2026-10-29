@@ -202,7 +202,13 @@ describe('o consumo do pergaminho está ligado nos dois lados', () => {
     // resolução dela, no fim da rodada, não gasta de novo.
     const n = (fonte.match(/if \(passo\.fase !== 'iniciou'( && !resolvendoPendente)?\) consumirItemDaMagia/g) || []).length;
     expect(n, 'Mestre e Jogador').toBe(2);
-    expect((fonte.match(/consumirItemDaMagia\((participantes\[atorIdx\]|meuParticipante), magia, catalogos\);\n\s+next = guardarMagiaPendente/g) || []).length,
+    /* `?
+`, e nao `
+` (26/10/2026): o repositorio esta em CRLF
+       (core.autocrlf=true no Windows), entao o que vem depois do `;` e ``
+       e o padrao nunca casava — o teste acusava 0 com o codigo certo na
+       frente. A fonte e lida do DISCO, com a quebra de linha do sistema. */
+    expect((fonte.match(/consumirItemDaMagia\((participantes\[atorIdx\]|meuParticipante), magia, catalogos\);\r?\n\s+next = guardarMagiaPendente/g) || []).length,
       'a guarda da 1 rodada, nos dois lados').toBe(2);
   });
 

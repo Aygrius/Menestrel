@@ -39,7 +39,7 @@ describe('Capacidades do animal', () => {
   it('clicar na habilidade abre a janela com a explicação e o total do animal', () => {
     render(<W.FichaAnimaisView
       animais={[{ instancia: { instanceId: 'l1', slug: 'lobo', quantidade: 1 }, cat: { nome: 'Lobo Alfa' }, criatura: LOBO }]}
-      en={false} podeEditar onMontar={() => {}} onDesmontar={() => {}}
+      en={false} podeEditar onMontar={() => {}} onDesmontar={() => {}} parte="conhecimento"
       catalogoBySlug={{}} habsByKey={HABS} tecnicasByKey={{}} magiasByKey={{}} />);
     const linha = [...document.querySelectorAll('.fp-row--abre')].find((r) => r.textContent.includes('Rastrear'));
     expect(linha).toBeTruthy();

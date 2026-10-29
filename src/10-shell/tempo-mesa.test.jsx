@@ -214,7 +214,10 @@ describe('o tempo sobrevive às outras edições da barra', () => {
     const { updates } = montar({ inicial: { ...BASE, tempo: { agua: 'tempestade', vento: 'tornado' } } });
     await waitFor(() => expect(pills()).toHaveLength(3));
     // Abre o formulário inline do local e salva sem mudar nada.
-    act(() => { document.querySelector('.cdj-local').closest('button').click(); });
+    /* A pílula do local virou só o ícone em 26/10/2026: o <span
+       class="cdj-local"> saiu e quem identifica a casa dela é
+       .cdj-local-wrap. */
+    act(() => { document.querySelector('.cdj-local-wrap > button').click(); });
     // Sem Salvar desde 27/09/2026: escolher o lugar na lista já grava.
     // A lista abre embaixo do pill (02/10/2026).
     const opcao = await waitFor(() => {

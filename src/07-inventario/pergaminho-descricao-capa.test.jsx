@@ -118,13 +118,18 @@ describe('vestir: slots gravados no catálogo', () => {
   /* "Reveja vestir cintos e alforjes, quando há slot livre." (13/09/2026) — a
      ficha tem 3 casas de cinto, mas a tabela de vestir deixava só 1: com um
      cinto vestido, o Alforge dava "Slot cheio (1/1)". */
+  /* Desde 26/10/2026 alforge e algibeira moram na região ALFORJE (3 casas);
+     a cintura tem 2 (cinta + calça). */
   const CINTURA = [
     { slug: 'cinto_suporte', nome: 'Cinto de Suporte', grupo: 'Vestimentas', tipo: 'S', armazena: 2, slot_equip: 'cintura' },
-    { slug: 'alforge', nome: 'Alforge', grupo: 'Vestimentas', tipo: 'S', armazena: 15, slot_equip: 'cintura' },
-    { slug: 'algibeira', nome: 'Algibeira', grupo: 'Vestimentas', tipo: 'S', armazena: 2, tipo_item: 'Moedas', slot_equip: 'cintura' },
+    { slug: 'calca_seda', nome: 'Calça de Seda', grupo: 'Vestimentas', tipo: 'S', slot_equip: 'cintura' },
+    { slug: 'alforge', nome: 'Alforge', grupo: 'Vestimentas', tipo: 'S', armazena: 15, slot_equip: 'alforje' },
+    { slug: 'algibeira', nome: 'Algibeira', grupo: 'Vestimentas', tipo: 'S', armazena: 2, tipo_item: 'Moedas', slot_equip: 'alforje' },
+    { slug: 'aljava', nome: 'Aljava', grupo: 'Vestimentas', tipo: 'S', armazena: 6, slot_equip: 'alforje' },
+    { slug: 'estojo', nome: 'Estojo', grupo: 'Vestimentas', tipo: 'S', armazena: 4, slot_equip: 'alforje' },
   ];
   const catCintura = Object.fromEntries(CINTURA.map((c) => [c.slug, c]));
-  const vestidoNaCintura = (slug, id) => ({ instanceId: id, slug, quantidade: 1, vestido: true, vesteSlot: 'cintura' });
+  const vestidoEm = (slug, id, vesteSlot) => ({ instanceId: id, slug, quantidade: 1, vestido: true, vesteSlot });
   const abrirCintura = (slug, jaVestidos) => {
     const nova = { instanceId: 'novo', slug, quantidade: 1 };
     render(
@@ -135,28 +140,39 @@ describe('vestir: slots gravados no catálogo', () => {
     return botaoVestir();
   };
 
-  it('com um cinto vestido, o Alforge ainda veste (2ª casa)', () => {
-    expect(abrirCintura('alforge', [vestidoNaCintura('cinto_suporte', 'c1')]).disabled).toBe(false);
+  it('com um cinto vestido, o Alforge ainda veste (região própria, o alforje)', () => {
+    expect(abrirCintura('alforge', [vestidoEm('cinto_suporte', 'c1', 'cintura')]).disabled).toBe(false);
   });
 
-  it('com dois vestidos, a Algibeira ainda veste (3ª casa)', () => {
-    expect(abrirCintura('algibeira', [vestidoNaCintura('cinto_suporte', 'c1'), vestidoNaCintura('alforge', 'a1')]).disabled).toBe(false);
+  it('com dois no alforje, a Algibeira ainda veste (3ª casa)', () => {
+    expect(abrirCintura('algibeira', [vestidoEm('alforge', 'a1', 'alforje'), vestidoEm('aljava', 'j1', 'alforje')]).disabled).toBe(false);
   });
 
-  it('com as 3 casas da cintura ocupadas, bloqueia', () => {
-    const b = abrirCintura('alforge', [
-      vestidoNaCintura('cinto_suporte', 'c1'), vestidoNaCintura('alforge', 'a1'), vestidoNaCintura('algibeira', 'g1'),
+  it('com as 3 casas do alforje ocupadas, bloqueia', () => {
+    const b = abrirCintura('estojo', [
+      vestidoEm('alforge', 'a1', 'alforje'), vestidoEm('aljava', 'j1', 'alforje'), vestidoEm('algibeira', 'g1', 'alforje'),
     ]);
     expect(b.disabled).toBe(true);
   });
 
-  it('a capa só cabe uma: com outra vestida, bloqueia', () => {
+  it('com as 2 casas da cintura ocupadas, bloqueia', () => {
+    const b = abrirCintura('cinto_suporte', [
+      vestidoEm('cinto_suporte', 'c1', 'cintura'), vestidoEm('calca_seda', 'q1', 'cintura'),
+    ]);
+    expect(b.disabled).toBe(true);
+  });
+
+  it('costas têm 2 casas: capa + sobretudo cabem, a terceira peça bloqueia', () => {
     const cat = { slug: 'capa_simples', nome: 'Capa Simples', grupo: 'Vestimentas', slot_equip: 'costas' };
-    const nova = { instanceId: 'v2', slug: cat.slug, quantidade: 1 };
-    const vestida = { instanceId: 'v1', slug: cat.slug, quantidade: 1, vestido: true, vesteSlot: 'capa' };
+    const nova = { instanceId: 'v3', slug: cat.slug, quantidade: 1 };
+    // uma instância antiga (vesteSlot 'capa') e uma nova ('costas') contam juntas
+    const vestidas = [
+      { instanceId: 'v1', slug: cat.slug, quantidade: 1, vestido: true, vesteSlot: 'capa' },
+      { instanceId: 'v2', slug: cat.slug, quantidade: 1, vestido: true, vesteSlot: 'costas' },
+    ];
     render(
       <Modal instance={nova} catalogoBySlug={{ [cat.slug]: cat }} raca="Humano" slotsState={{}}
-        todosItens={[vestida, nova]} containersDisponiveis={[]} pjsHistoria={[]} lang="pt"
+        todosItens={[...vestidas, nova]} containersDisponiveis={[]} pjsHistoria={[]} lang="pt"
         onClose={noop} onVestir={noop} onDespir={noop} />,
     );
     expect(botaoVestir().disabled).toBe(true);
@@ -164,10 +180,18 @@ describe('vestir: slots gravados no catálogo', () => {
 });
 
 // A ficha usa a mesma tradução (window.vesteSlotDe) para peças já vestidas
-// com o slot do banco — 34 delas no banco em 13/09/2026.
-describe('vesteSlotDe — slot do banco → casa da ficha', () => {
-  it.each([['costas', 'capa'], ['corpo', 'roupa'], ['orelhas', 'orelha'], ['dedos', 'joia'], ['cinto', 'cintura'], ['cintura', 'cintura'], ['pescoco', 'pescoco']])(
-    '%s → %s', (banco, casa) => { expect(window.vesteSlotDe(banco)).toBe(casa); });
+// com o slot do banco. Desde 26/10/2026 a casa canônica é a REGIÃO nova;
+// os nomes antigos (capa/roupa/joia e os plurais) são aliases.
+describe('vesteSlotDe — slot do banco → região', () => {
+  it.each([
+    ['costas', 'costas'], ['capa', 'costas'],
+    ['corpo', 'peito'], ['roupa', 'peito'],
+    ['orelhas', 'orelha'], ['brinco', 'orelha'],
+    ['dedos', 'dedo'], ['joia', 'dedo'],
+    ['cinto', 'cintura'], ['cintura', 'cintura'],
+    ['pescoco', 'pescoco'], ['colar', 'pescoco'],
+    ['alforje', 'alforje'], ['rosto', 'rosto'], ['pulso', 'pulso'],
+  ])('%s → %s', (banco, casa) => { expect(window.vesteSlotDe(banco)).toBe(casa); });
 });
 
 /* Pergaminho de técnica (22/10/2026): ensina sem se gastar — como o de magia,

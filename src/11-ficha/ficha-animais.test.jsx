@@ -3,12 +3,20 @@
    ============================================================
    Pedido do usuário (14/09/2026): "Na ficha dos animais, é preciso montar
    todos os ataques, o nível das técnicas e habilidades e magias. Use a seta
-   para o lado igual nas informações do personagem. Use abas internas para
-   selecionar a ficha do animal."
+   para o lado igual nas informações do personagem."
 
-   Trava: abas internas trocam de animal; a seta de Ataques passa pelos
-   ataques (com a sequência real de clique — ver ficha-info-nav.test.jsx,
-   é o mesmo risco de remontagem); Capacidades mostra os níveis.
+   Trava: a seta de Ataques passa pelos ataques (com a sequência real de
+   clique — ver ficha-info-nav.test.jsx, é o mesmo risco de remontagem) e
+   Capacidades mostra os níveis.
+
+   ── O QUE SAIU DESTE ARQUIVO (05–06/10/2026) ─────────────────────────────
+   As ABAS INTERNAS ("use abas internas para selecionar a ficha do animal",
+   14/09) e o botão MONTAR foram desfeitos por pedidos posteriores do mesmo
+   usuário: "eu quero exatamente igual [à ficha do personagem]" — e a do
+   personagem não tem abas de personagem dentro dela — e "o botão de montar
+   deve ser no item do animal no inventário". A view passou a ser de UM bicho;
+   quem escolhe o companheiro é a fileira de chips da aba Companheiros, fora
+   dela (ficha.jsx), e Montar vive em montarItem (07-inventario).
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
@@ -49,26 +57,29 @@ const animais = [
 ];
 
 const montar = (over) => render(
-  <FichaAnimaisView animais={animais} en={false} podeEditar onMontar={() => {}} onDesmontar={() => {}}
+  <FichaAnimaisView animal={animais[0]} en={false} podeEditar itens={[]} parte="info"
     catalogoBySlug={CAT} habsByKey={HABS} tecnicasByKey={{}} magiasByKey={{}} {...over} />
 );
 const coluna = (titulo) => [...document.querySelectorAll('.fp-col-title-main')]
   .find((el) => el.textContent === titulo).closest('.fp-col-title-nav').parentElement;
 
 describe('FichaAnimaisView', () => {
-  it('abre no montado e as abas internas trocam de animal', () => {
+  it('abre a ficha do bicho recebido, com a 1ª coluna em Identidade', () => {
     montar();
-    const abas = [...document.querySelectorAll('[role="tab"]')];
-    expect(abas.map((a) => a.getAttribute('aria-selected'))).toEqual(['false', 'true']);
-    fireEvent.click(abas[0]);
     // O subtítulo virou o título (27/09/2026): a 1ª coluna abre em "Identidade".
     expect(coluna('Identidade').textContent).toContain('Lobo Alfa');
     expect(document.querySelector('.fp-col-title-sub')).toBeNull();
   });
 
+  it('sem `animal`, cai no montado da lista — e depois no primeiro', () => {
+    // O recuo que mantém a view viva enquanto o chamador não escolheu ninguém.
+    // O retrato é da FICHA — as páginas de informação não o têm.
+    montar({ animal: undefined, animais, parte: 'ficha' });
+    expect(document.querySelector('.fp2-name').textContent).toBe('Cavalo Quarter');
+  });
+
   it('a seta de Ataques passa por todos os ataques (clique real)', () => {
     montar();
-    fireEvent.click(document.querySelectorAll('[role="tab"]')[0]);
     // O nome do ataque É o título da coluna ("remova os subtítulos … 'coice'").
     const col = coluna('Presas');
     const btn = col.querySelector('.fp-col-title-nav-btn');
@@ -77,19 +88,11 @@ describe('FichaAnimaisView', () => {
   });
 
   it('Capacidades mostra a habilidade com o total da regra da criatura', () => {
-    montar();
-    fireEvent.click(document.querySelectorAll('[role="tab"]')[0]);
+    // Capacidades virou a página Conhecimento do bicho (27/10/2026).
+    montar({ parte: 'conhecimento' });
     const linha = [...coluna('Habilidades').querySelectorAll('.fp-row')]
       .find((r) => r.textContent.includes('Rastrear'));
     expect(linha).toBeTruthy();
     expect(linha.querySelector('.fp-row-value').textContent).not.toBe('—');
-  });
-
-  it('montaria tem Desmontar na linha das abas; o lobo não tem ação', () => {
-    montar();
-    expect(document.querySelector('.fp-animais-acao').textContent).toBe('Desmontar');
-    fireEvent.click(document.querySelectorAll('[role="tab"]')[0]);
-    // A faixa fica (23/10/2026, o Dar nome mora nela); só o Desmontar some.
-    expect(document.querySelector('.fp-animais-acao').textContent).not.toMatch(/Desmontar/);
   });
 });

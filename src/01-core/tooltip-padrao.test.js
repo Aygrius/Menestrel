@@ -38,7 +38,10 @@ function arquivosJsx(dir, acc = []) {
 // Nome da tag imediatamente antes do índice dado. Componente = maiúscula.
 function tagAntes(texto, idx) {
   const trecho = texto.slice(Math.max(0, idx - 3000), idx);
-  const m = [...trecho.matchAll(/<([A-Za-z][\w.]*)/g)].pop();
+  /* `_Foo` também é componente: é a convenção do projeto para o que vem do
+     window (_ModalShell, _JanelaItem). Sem o `_` aqui, a varredura pulava a
+     tag e acusava o <span> anterior por um `title` que é PROP. */
+  const m = [...trecho.matchAll(/<([A-Za-z_][\w.]*)/g)].pop();
   return m ? m[1] : null;
 }
 
@@ -55,7 +58,7 @@ function tooltipsNativos(caminho) {
     if (/\stitle=""/.test(m[0] + src.slice(m.index + m[0].length, m.index + m[0].length + 1))) continue;
     const tag = tagAntes(src, m.index);
     if (!tag) continue;
-    if (/^[A-Z]/.test(tag)) continue;                      // prop de componente
+    if (/^[A-Z_]/.test(tag)) continue;                     // prop de componente
     if (tag === 'iframe') continue;                        // acessibilidade
     // title="" — supressor de quem já tem tooltip próprio
     const depois = src.slice(m.index, m.index + 30);

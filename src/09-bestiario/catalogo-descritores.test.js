@@ -9,7 +9,14 @@
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/constants.jsx';
+// REGIOES_EQUIP mora aqui, e é com ela que a lista de slot_equip tem de bater.
+import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
+/* ANTES do descritor, e de propósito: `forma-raca` REGISTRA Vampiro e
+   Lobisomem em GAME_DATA.racas ao carregar, e OPCOES_RACA_REINO é calculada no
+   carregamento do descritor. Sem este import o teste do filtro seria vazio —
+   as formas nem existiriam para serem filtradas. */
+import '../01-core/forma-raca.jsx';
 import './catalogo-descritores.jsx';
 
 let MAP, descritorDe;
@@ -28,7 +35,11 @@ const COLUNAS = {
   // tipo no lugar de permissao desde 22/10/2026.
   tecnicas: ['key','nome','custo','tipo','uso','grupo_armas','grupo_armaduras','descricao','efeito','ajuste'],
   habilidades: ['key','nome','grupo','ajuste','custo','nivel_inicial','vantagem','desvantagem','restricao','descricao'],
-  itens: ['slug','nome','grupo','ocupa','armazena','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia',
+  // `base` (26/10/2026): a BASE do item, separada do exemplar.
+  /* `porte` (29/10/2026): as CASAS do recipiente — pequeno 3, médio 6,
+     grande 9, muito grande 15. Vive ao lado de `armazena`, que é o peso: os
+     dois limitam, e o que estourar primeiro trava. */
+  itens: ['slug','nome','base','grupo','ocupa','armazena','porte','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia',
     // Técnica que o pergaminho ensina (22/10/2026).
     'tecnica','descricao','magico','categoria_equip','slot_equip','grupo_equipamento','maos_pequenino','maos_anao','maos_outras','forca_req','dano','alcance','ajuste_atributo','defesa','absorcao','tipo_armadura','dano_l','dano_m','dano_p','grupo_armas','origem','resistencia','icone','consumiveis','consumiveis_peso','doc_url','criatura_id'],
 };
@@ -53,7 +64,10 @@ const CHAVE = { criaturas: null, magias: 'key', tecnicas: 'key', habilidades: 'k
 // 'multiopcoes' (25/09/2026): várias escolhas de uma lista fechada — o elemento da criatura.
 const TIPOS = ['texto', 'area', 'numero', 'opcoes', 'multiopcoes', 'derivado', 'lista', 'equipamento', 'referencia',
   // vinculo (22/10/2026): lista guardada noutra tabela (livro_pergaminhos).
-  'vinculo'];
+  'vinculo',
+  // efeitos (26/10/2026): a grade de números com sinal do consumível, que se
+  // lê e se escreve nas DUAS colunas de prosa (por isso `semColuna`).
+  'efeitos'];
 // 'itens': os itens do ritual da magia escolhem do catálogo de itens (26/09/2026).
 const FONTES_LISTA = ['tecnicas', 'habilidades', 'magias', 'itens'];
 
@@ -103,6 +117,10 @@ describe('CATALOGO_DESCRITORES', () => {
   it('campo de opções tem lista não vazia', () => {
     for (const [tab, d] of Object.entries(MAP)) {
       for (const c of d.campos.filter((x) => x.tipo === 'opcoes' || x.tipo === 'multiopcoes')) {
+        /* `opcoesDe` (26/10/2026): a lista depende da LINHA — as bases que
+           cabem num item saem da região (ou do grupo) dele. Aí a lista não
+           mora no descritor, e o que se exige é a função. */
+        if (c.opcoesDe) { expect(typeof c.opcoesDe, `${tab}.${c.col}`).toBe('function'); continue; }
         expect(Array.isArray(c.opcoes) && c.opcoes.length > 0, `${tab}.${c.col}`).toBe(true);
       }
     }
@@ -319,9 +337,32 @@ describe('itens — campos que o banco restringe', () => {
   it('categoria_equip = itens_categoria_equip_chk', () => {
     expect(valores('categoria_equip')).toEqual(['arma', 'armadura', 'escudo']);
   });
-  it('slot_equip = itens_slot_equip_chk', () => {
-    expect(valores('slot_equip')).toEqual(['bracos', 'cabeca', 'cintura', 'corpo', 'costas', 'dedos',
-      'maos', 'orelhas', 'peito', 'pernas', 'pes', 'pescoco', 'ombros'].sort());
+  /* slot_equip é o único campo em que a lista da tela é MENOR que a CHECK, e
+     de propósito (29/10/2026). A `itens_slot_equip_chk` aceita 25 valores: as
+     17 regiões da proposta de 26/10 mais os 8 nomes antigos (`maos`, `bracos`,
+     `pernas`, `pes`, `ombros`, `orelhas`, `dedos`, `corpo`), que ficaram para
+     as instâncias já gravadas validarem. A CHECK diz o que o banco TOLERA; o
+     dropdown diz o que se deve escrever — oferecer os velhos fazia um item
+     editado voltar ao vocabulário que a migração removeu. Valor antigo que
+     ainda esteja no banco aparece pelo recuo "(fora da lista)" do editor. */
+  it('slot_equip = o lado canônico da itens_slot_equip_chk (as 17 regiões)', () => {
+    expect(valores('slot_equip')).toEqual(['alforje', 'braco', 'cabeca', 'canela', 'cintura',
+      'costas', 'dedo', 'dorso', 'mao', 'orelha', 'pe', 'peito', 'perna', 'pescoco',
+      'pulso', 'rosto', 'ombro'].sort());
+  });
+
+  it('e nenhum nome do vocabulário antigo volta à tela', () => {
+    const oferecidos = valores('slot_equip');
+    for (const velho of ['maos', 'bracos', 'pernas', 'pes', 'ombros', 'orelhas', 'dedos', 'corpo']) {
+      expect(oferecidos, velho).not.toContain(velho);
+    }
+  });
+
+  /* A lista da tela é exatamente as regiões que o 01-core conhece: é de lá que
+     saem as casas, os rótulos e as bases do item. Duas listas divergentes
+     dariam um slot que o editor grava e a ficha não sabe desenhar. */
+  it('e bate, uma a uma, com as REGIOES_EQUIP do 01-core', () => {
+    expect(valores('slot_equip')).toEqual(Object.keys(window.REGIOES_EQUIP).sort());
   });
   it('icone passa pelo normalizador, e todo valor válido casa a itens_icone_formato_chk', () => {
     expect(MAP.itens.campos.find((c) => c.col === 'icone').formato).toBe('icone');
@@ -374,13 +415,21 @@ describe('magias: dropdowns e ordem do editor', () => {
 });
 
 describe('habilidades: vantagem e desvantagem por Raça e Reino', () => {
-  it('multisseleção com as raças e os reinos do GAME_DATA', () => {
+  /* SEM AS FORMAS (26/10/2026): Vampiro e Lobisomem estão em GAME_DATA.racas
+     para a ficha saber calculá-los, mas vantagem "para Vampiro" não é vantagem
+     de raça — é de estado. A conta é contra `racasJogaveis`, que é o mesmo
+     filtro do wizard de personagem. */
+  it('multisseleção com as raças JOGÁVEIS e os reinos do GAME_DATA', () => {
+    const jogaveis = window.racasJogaveis
+      ? window.racasJogaveis() : Object.keys(window.GAME_DATA.racas);
     ['vantagem', 'desvantagem'].forEach((col) => {
       const c = descritorDe('habilidades').campos.find((x) => x.col === col);
       expect(c.tipo).toBe('multiopcoes');
       expect(c.opcoes).toContain('Anão');
       expect(c.opcoes).toContain('Porto Livre');
-      expect(c.opcoes.length).toBe(Object.keys(window.GAME_DATA.racas).length + window.GAME_DATA.reinos.length);
+      expect(c.opcoes).not.toContain('Vampiro');
+      expect(c.opcoes).not.toContain('Lobisomem');
+      expect(c.opcoes.length).toBe(jogaveis.length + window.GAME_DATA.reinos.length);
     });
   });
 });

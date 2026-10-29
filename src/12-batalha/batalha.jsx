@@ -2712,8 +2712,9 @@ function montariaSegue(participantes, cavaleiroInstId) {
    morrer, todos os demais fogem. Os minions devem ter 1/4 de EF, EH e AR."
 
    Decisões tomadas com o usuário na mesma data:
-     • BANDOS DE 5. Cada 5 criaturas do mesmo tipo (mesmo ref_id) viram um
-       bando; o que sobra fica solto e luta normal. 12 Goblins = 2 bandos + 2.
+     • O BANDO CRESCE COM A MULTIDÃO (28/10/2026). O tamanho não é mais fixo
+       em 5: ele sai de QUANTAS criaturas iguais há em cena. O que sobra fica
+       solto e luta normal.
      • MINIONS AGEM, logo depois do líder: a vez deles vem colada na dele
        (ordenarIniciativa), com o mesmo número de iniciativa do tipo.
      • O MOVIMENTO É DO LÍDER. Quando ele anda, os minions vão junto para as
@@ -2725,6 +2726,34 @@ function montariaSegue(participantes, cavaleiroInstId) {
    gravação mesclada, e um campo a mais nele chega em todo lugar sem mudar a
    RPC.
    ============================================================ */
+/* ── O TAMANHO DO BANDO SAI DA MULTIDÃO (28/10/2026, pedido do usuário) ───
+   "Quando há muitas criaturas iguais, acima de 6, vamos fazer grupos de 3,
+   acima de 10, grupos de 4, acima de 16, grupos de 5."
+
+   Era fixo em 5 desde 13/09/2026, e isso tinha dois defeitos nas pontas: com
+   7 Goblins saía 1 bando e 2 soltos — a mesa rolava três iniciativas para
+   sete bichos iguais —, e com 30 saíam 6 bandos, seis vezes do mesmo tipo.
+   Agora a escada é a de cima:
+
+       até 6    ninguém vira bando — poucos o bastante para jogar um a um
+       7 a 10   grupos de 3
+       11 a 16  grupos de 4
+       acima    grupos de 5
+
+   `null` quer dizer "não forma bando", e é por isso que o retorno não é
+   simplesmente 1: o chamador precisa distinguir "grupo de um" de "nenhum". */
+const BANDO_ESCADA = [
+  { acima: 16, tamanho: 5 },
+  { acima: 10, tamanho: 4 },
+  { acima: 6,  tamanho: 3 },
+];
+function tamanhoDoBando(quantidade) {
+  const n = Number(quantidade) || 0;
+  const faixa = BANDO_ESCADA.find((f) => n > f.acima);
+  return faixa ? faixa.tamanho : null;
+}
+/* O teto que a escada alcança — o que era BANDO_TAMANHO. Fica exportado
+   porque o nome é lido fora daqui; quem agrupa usa `tamanhoDoBando`. */
 const BANDO_TAMANHO = 5;
 const MINION_DIVISOR = 4;
 
@@ -2752,7 +2781,12 @@ function formarBandos(participantes) {
   });
   let out = participantes;
   soltosPorTipo.forEach((idxs, k) => {
-    const novos = Math.floor(idxs.length / BANDO_TAMANHO);
+    /* O tamanho sai de quantos SOLTOS daquele tipo há (28/10/2026). Quem já
+       está em bando não entra na conta: ele já foi agrupado, com o tamanho
+       que valia quando entrou, e recontar mudaria bandos formados. */
+    const tam = tamanhoDoBando(idxs.length);
+    if (!tam) return;
+    const novos = Math.floor(idxs.length / tam);
     if (!novos) return;
     const existentes = new Set(participantes
       .filter((p) => p && p.tipo === 'criatura' && String(p.ref_id) === k && p.bando)
@@ -2760,7 +2794,7 @@ function formarBandos(participantes) {
     const total = existentes + novos;
     if (out === participantes) out = [...participantes];
     for (let b = 0; b < novos; b++) {
-      const membros = idxs.slice(b * BANDO_TAMANHO, (b + 1) * BANDO_TAMANHO);
+      const membros = idxs.slice(b * tam, (b + 1) * tam);
       const liderId = out[membros[0]].inst_id;
       const num = total > 1 ? ' ' + (existentes + b + 1) : '';
       membros.forEach((idx, j) => {
@@ -10970,50 +11004,104 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             )}
             {acaoNaLinha}
             </div>
-            {tecMultiAlvo && (
-              <div className="acao-aliados">
-                <span className="acao-aliados-lbl">
-                  {interpolate(tb.tecnicaAliadosRotulo, { atual: tecAliados.length, max: tecRegistro.maxAlvos })}
-                </span>
-                {tecAliadosOpcoes.map((p) => {
-                  const marcado = tecAliados.includes(p.inst_id);
-                  return (
-                    <label key={p.inst_id} className={'acao-aliado' + (marcado ? ' on' : '')}>
-                      <input
-                        type="checkbox"
-                        checked={marcado}
-                        // Teto de maxAlvos: quem não está marcado trava quando lota.
-                        disabled={!marcado && tecMultiCheio}
-                        onChange={() => setTecAliados((atual) => (
-                          marcado ? atual.filter((id) => id !== p.inst_id) : [...atual, p.inst_id]
-                        ))}
-                      />
-                      {p.nome}
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-            {tecnicaTesteSel && tecnicaTesteSel.efeito && (
-              <p className="acao-efeito-texto">{tecnicaTesteSel.efeito}</p>
-            )}
-            {!tecBloqueio.pode && (
-              <p className="acao-efeito-texto acao-efeito-bloqueio">
-                {tecBloqueio.motivo === 'arma'
-                  // Por extenso, com a arma na mão (13/09/2026).
-                  ? motivoArmaTecnica(tecnicaTesteSel, arma, catalogos, isEn)
-                  : tecBloqueio.motivo === 'armadura'
-                  ? `${interpolate(tb.tecnicaExigeArmadura, { grupo: tecnicaTesteSel.grupo_armaduras })} ${isEn ? 'Current armor' : 'Armadura atual'}: ${(ator.defesa_sigla || 'L').toUpperCase()}.`
-                  : tecBloqueio.motivo === 'livre_usada'
-                  ? tb.tecnicaGratuitaJaUsada
-                  : tb.tecnicaUsoUnicoJaUsada}
-              </p>
-            )}
-            {tecRegistro && tecRegistro.parcial === 'ignora_armadura' && (
-              <p className="acao-efeito-texto acao-efeito-parcial">
-                {tb.tecnicaParcialIgnoraArmadura}
-              </p>
-            )}
+
+            {/* ══ O MOLDE DA JANELA DE USAR, NA ABA (28/10/2026) ═══════════
+                "Não precisa inserir a técnica no trilho, mas quando chamada
+                na batalha, deve trazer o layout novo." (usuário)
+
+                A técnica não virou janela: ela é ABA de um painel que tem
+                rodapé próprio (o dado e o Atacar), e o seletor de técnica e o
+                de alvo continuam SelectPill, como nas abas irmãs — uma aba
+                com idioma próprio no mesmo painel seria estranha ao lado das
+                outras. O que entrou no molde é o CORPO, na ordem de sempre:
+
+                  frase    o que a técnica faz — 16px/1.7, tinta-2
+                  quadro   total, PA e uso, com réguas de bronze
+                  escolha  os aliados, em pílulas
+                  brasa    o que bloqueia, dizendo por quê
+
+                De passagem, o quadro mostra o que a aba NUNCA mostrou: o
+                total que vai rolar, o PA que sai e se a técnica é de um uso
+                só. Estava tudo escondido atrás do nome no seletor. */}
+            <div className="mn-janela-corpo acao-tecnica-corpo">
+              {tecnicaTesteSel && tecnicaTesteSel.efeito && (
+                <p className="mn-janela-frase">{tecnicaTesteSel.efeito}</p>
+              )}
+
+              {tecnicaTesteSel && (
+                <dl className="mn-janela-quadro">
+                  {tecnicaTesteSel.total != null && (
+                    <div className="mn-janela-linha">
+                      <dt>{isEn ? 'Total' : 'Total'}</dt><dd>{tecnicaTesteSel.total}</dd>
+                    </div>
+                  )}
+                  {/* O MESMO número que o Atacar debita (custoPA, mais
+                      abaixo): modo 'total' é a ativação livre de 0 ponto, uma
+                      por rodada. Dois lugares com o mesmo cálculo divergem,
+                      então a conta é uma só.
+
+                      Por extenso, não "PA" (28/10/2026, usuário: "Não abrevie
+                      PA, use Pontos de Ação"), e sem a nota da ativação livre
+                      embaixo — no mesmo pedido. O zero já diz que é de graça. */}
+                  <div className="mn-janela-linha">
+                    <dt>{isEn ? 'Action Points' : 'Pontos de Ação'}</dt>
+                    <dd>{tecSemDado ? 0 : 1}</dd>
+                  </div>
+                  {tecnicaTesteSel.uso && (
+                    <div className="mn-janela-linha is-texto">
+                      <dt>{isEn ? 'Use' : 'Uso'}</dt><dd>{tecnicaTesteSel.uso}</dd>
+                    </div>
+                  )}
+                </dl>
+              )}
+
+              {/* Os aliados em PÍLULAS, não em caixas de marcar: é a mesma
+                  escolha-de-vários do resto do sistema, e a caixa pequena ao
+                  lado do nome era o único resto de formulário no painel.
+                  Lotado o teto, quem está fora desliga — e continua legível. */}
+              {tecMultiAlvo && (
+                <section className="mn-janela-escolha">
+                  <h4 className="mn-rotulo">
+                    {interpolate(tb.tecnicaAliadosRotulo, { atual: tecAliados.length, max: tecRegistro.maxAlvos })}
+                  </h4>
+                  <div className="mn-janela-pilulas">
+                    {tecAliadosOpcoes.map((p) => {
+                      const marcado = tecAliados.includes(p.inst_id);
+                      return (
+                        <button key={p.inst_id} type="button"
+                          className={'mn-janela-pilula acao-aliado' + (marcado ? ' on' : '')}
+                          aria-pressed={marcado}
+                          // Teto de maxAlvos: quem não está marcado trava quando lota.
+                          disabled={!marcado && tecMultiCheio}
+                          onClick={() => setTecAliados((atual) => (
+                            marcado ? atual.filter((id) => id !== p.inst_id) : [...atual, p.inst_id]
+                          ))}>
+                          {p.nome}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {!tecBloqueio.pode && (
+                <p className="mn-janela-falta">
+                  {tecBloqueio.motivo === 'arma'
+                    // Por extenso, com a arma na mão (13/09/2026).
+                    ? motivoArmaTecnica(tecnicaTesteSel, arma, catalogos, isEn)
+                    : tecBloqueio.motivo === 'armadura'
+                    ? `${interpolate(tb.tecnicaExigeArmadura, { grupo: tecnicaTesteSel.grupo_armaduras })} ${isEn ? 'Current armor' : 'Armadura atual'}: ${(ator.defesa_sigla || 'L').toUpperCase()}.`
+                    : tecBloqueio.motivo === 'livre_usada'
+                    ? tb.tecnicaGratuitaJaUsada
+                    : tb.tecnicaUsoUnicoJaUsada}
+                </p>
+              )}
+              {tecRegistro && tecRegistro.parcial === 'ignora_armadura' && (
+                <p className="mn-janela-detalhe">
+                  {tb.tecnicaParcialIgnoraArmadura}
+                </p>
+              )}
+            </div>
           </>
         )
       )}
@@ -12784,7 +12872,7 @@ Object.assign(window, {
     inventarioSemAnimaisMortos, ehMontariaEmUso, desmontarTodos,
     bonusIniciativaDe, BONUS_INICIATIVA_MAX,
     // 13/09/2026: bandos (líder + 4 minions) e iniciativa por tipo de criatura.
-    BANDO_TAMANHO, MINION_DIVISOR, papelNoBando, formarBandos, poolDeMinion,
+    BANDO_TAMANHO, BANDO_ESCADA, tamanhoDoBando, MINION_DIVISOR, papelNoBando, formarBandos, poolDeMinion,
     iniciativaPorTipo, definirIniciativa, fugaDeBandos, textoFugaDeBando, fugaNaGravacao,
     semearMagiasAtivas,
     enxergaNaEscuridao, penalidadeDeVisibilidade, nivelVisibilidade,

@@ -10,7 +10,7 @@
      • Condições    — grade de medidores 0–100 (cor por nível)
      • Defesa       — mapa corporal de casas (1 item por casa) + absorção,
                       incl. faixa de 4 dedos abaixo de Mão · Cintura · Mão
-     • Arsenal      — tabela de ataques (gerarAtaques)
+     • Arsenal      — SAIU em 27/10/2026 ("remova o card 'armas' das fichas")
 
    Header no topo (mesmo molde de Convites/Batalhas/Lore: ms-header +
    ficha-page-header — seta de voltar, eyebrow "PERSONAGEM", título com o
@@ -19,7 +19,7 @@
    Inventário · Loja · Diário. "Capacidades" não é mais uma aba separada —
    virou um card lateral (abas internas Atributos/Magias/Técnicas/
    Habilidades, agora em best-chip/best-chip--icon) dentro da própria aba
-   Ficha, ao lado do Arsenal.
+   Ficha, ao lado do boneco de armar.
 
    Desequipar uma peça (clique na casa) devolve o item ao
    inventário (limpa equipado/slot) e grava só essa mudança por
@@ -270,10 +270,16 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd,
                 )}
               </div>
               {numero && (
+                /* `txt`/`txtMax` (27/10/2026): o número ESCRITO, quando ele
+                   não é o mesmo que a conta da barra. A Carga do bicho tem
+                   casa decimal (uma sela ocupa 6,5) e aqui saía "96.5", com
+                   ponto — `b.val` alimenta a largura e não pode virar texto
+                   localizado. XP e energias, que são inteiras, seguem sem
+                   passar nada. */
                 <span className="fp-bar-num" aria-hidden="true">
                   {b.edit && b.edit.val != null
                     ? <>{b.edit.val}{b.teto != null && <i>/{b.teto}</i>}</>
-                    : <>{b.val}<i>/{b.max}</i></>}
+                    : <>{b.txt ?? b.val}<i>/{b.txtMax ?? b.max}</i></>}
                 </span>
               )}
             </div>
@@ -288,18 +294,16 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd,
   );
 }
 
-/* ============================== [11] Tubos e medalhões do Resumo ============================== */
+/* ============================== [11] Gemas e medalhões do Resumo ============================== */
 /* O RESUMO REDESENHADO (23/10/2026), aprovado com o usuário na prévia
    preview/resumo.html ("Perfeito, pode aplicar"):
 
-   - Energia (esquerda): Física, Heroica e Karma viram TUBOS de alquimista —
-     vidro antigo, três aros de ferro nos quartos (a graduação), remate em cima
-     e taça com pés embaixo. O líquido borbulha e tem o furta-cor oleoso. O
-     número fica no alto, só o valor ("3", não "3 de 14"); o nome embaixo, sem
-     ícone ("Física", "Heroica", "Karma").
+   - Energia (esquerda): Física, Heroica e Karma eram TUBOS de alquimista; em
+     27/10/2026 viraram PEDRAS — rubi, esmeralda e safira. Ver o bloco das
+     gemas, logo abaixo, para o talhe, a luz e a animação.
    - A Energia Física vai abaixo de zero (até −15, a morte — EF_MORTE da
-     batalha): em zero o personagem desmaia, e daí para baixo o líquido vira
-     vermelho escuro e enche conforme se aproxima do −15.
+     batalha): em zero o personagem desmaia, e daí para baixo a pedra enche de
+     brasa apagada e trinca, conforme se aproxima do −15.
    - Condições (direita): cada uma é um MEDALHÃO — a pintura no meio (por ora o
      ícone; as pinturas do Figma entram aqui, ver .impeccable/arte-equipamentos.md)
      e, em volta, um tubo curvado com o mesmo desenho, em roxo, até a
@@ -332,54 +336,345 @@ function usarAbrirMedida(b, scope, onEdit, onHover, onHoverEnd, en) {
   };
 }
 
-/* Bolhas que sobem pelo líquido do tubo: posição, tamanho e ritmo variam por
-   tubo para não andarem em fila. */
-const BOLHAS_TUBO = [[5, 3, 0], [14, 2, 1], [9, 2.5, 2], [18, 3.5, 3], [7, 1.8, 4], [15, 2.2, 0]];
+/* ── AS ENERGIAS VIRARAM PEDRAS (27/10/2026) ───────────────────────────────
+   "Eu quero mudar as barras de energias, é possível transformá-las em pedras
+   (gemas preciosas) animadas? Seria uma pedra rubi, uma pedra esmeralda e uma
+   pedra safira." (usuário)
 
-function FichaTubos({ bars, scope = 'vit', onEdit, en, onHover, onHoverEnd }) {
+   Rubi é a Física, esmeralda é a Heroica, safira é o Karma — as três já eram
+   vermelho, verde e azul na tabela de cores da ficha, então a troca não muda
+   o que a cor significa em lugar nenhum do sistema.
+
+   COMO A PEDRA CONTA O NÚMERO. A pedra está sempre INTEIRA: o que muda é a
+   luz dentro dela. A lapidação é desenhada duas vezes, faceta por faceta —
+   uma em pedra morta (quase preta, com o corte ainda visível) e outra viva,
+   recortada de baixo para cima na fração da energia. Cheia, a gema arde;
+   vazia, é um seixo escuro com o mesmo talhe. É a mesma leitura do tubo
+   (quanto subiu), com a vantagem de o talhe não mudar de tamanho.
+
+   TRÊS TALHES, TRÊS SILHUETAS, para a pedra se reconhecer antes da cor — que
+   é o que o daltônico e o canto do olho precisam:
+
+     rubi        brilhante redondo  — dezesseis raios, o talhe clássico
+     esmeralda   lapidação degrau   — octógono de cantos chanfrados, anéis
+                                      concêntricos (é o talhe que leva o nome
+                                      da pedra)
+     safira      gota (pera)        — ponta em cima, barriga embaixo
+
+   A GEOMETRIA é calculada UMA VEZ, no módulo: os talhes são constantes, não
+   dependem de nenhum valor da ficha. O render só escolhe a paleta e a altura
+   do recorte.
+
+   A ANIMAÇÃO fala do dado, não de si mesma (é o que separa gema de
+   purpurina): o halo respira na AMPLITUDE da carga — pedra cheia pulsa, pedra
+   vazia fica inerte —, o claro-escuro varre só a parte VIVA, e os estalos de
+   luz nascem nas junções das facetas. Tudo morre em `prefers-reduced-motion`.
+
+   A FÍSICA ABAIXO DE ZERO continua contando a mesma história de antes: o rubi
+   enche de um vermelho morto, de brasa apagada, rumo ao −15, e ganha uma
+   RACHADURA. O personagem está morrendo, e a pedra trinca.
+
+   O contrato não mudou: `onEdit(b, scope, rect)` abre o editor do Mestre,
+   `onHover(e, tip)` mostra o balão, `semEdicao` e teto 0 (Karma sem Aura) não
+   abrem nada. */
+
+/* ponto a ponto: polígono regular de n lados, o vértice 0 no topo */
+const gemaPoligono = (n, raio, cx, cy) => Array.from({ length: n }, (_, i) => {
+  const a = (i / n) * Math.PI * 2;
+  return [cx + Math.sin(a) * raio, cy - Math.cos(a) * raio];
+});
+
+/* o octógono da lapidação degrau: um retângulo de cantos cortados */
+const gemaOctogono = (w, h, c, cx, cy) => {
+  const x0 = cx - w / 2, x1 = cx + w / 2, y0 = cy - h / 2, y1 = cy + h / 2;
+  return [[x0 + c, y0], [x1 - c, y0], [x1, y0 + c], [x1, y1 - c],
+    [x1 - c, y1], [x0 + c, y1], [x0, y1 - c], [x0, y0 + c]];
+};
+
+const gemaEscala = (pts, k, cx, cy) => pts.map(([x, y]) => [cx + (x - cx) * k, cy + (y - cy) * k]);
+const gemaD = (pts) => 'M' + pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L') + 'Z';
+
+/* As facetas entre dois anéis: um quadrilátero por aresta, que é como a luz
+   se reparte num talhe radial (brilhante e gota). */
+const gemaFacetasRadiais = (fora, dentro, nivel) => fora.map((p, i) => {
+  const j = (i + 1) % fora.length;
+  return { d: gemaD([p, fora[j], dentro[j], dentro[i]]), tom: nivel + (i % 2) };
+});
+
+/* No talhe DEGRAU a faixa é contínua — não se reparte em raios. O anel é o
+   contorno de fora mais o de dentro ao contrário, com fill-rule evenodd. */
+const gemaFaixaDegrau = (fora, dentro, nivel) => ([
+  { d: gemaD(fora) + gemaD([...dentro].reverse()), tom: nivel + 1, aro: true },
+]);
+
+/* A superfície ondulada do escoamento, e O PORQUÊ DO NÚMERO 74 (27/10/2026,
+   pedido do usuário: "deixe o movimento fluir para que ao reiniciar não
+   pareça que reiniciou").
+
+   A onda anda na horizontal, e um laço só é invisível se o deslocamento for
+   um PERÍODO INTEIRO da senoide: aí o quadro final é idêntico ao primeiro e
+   não há volta ao início para o olho pegar. A primeira versão tinha período
+   de 74px e andava 37 — meio período —, de modo que a crista virava vale e a
+   onda dava um tranco a cada 4,2s.
+
+   Daí as duas regras desta função: o período é fixo (GEMA_ONDA_PERIODO, o
+   mesmo número que o CSS desloca) e a faixa é larga o bastante para que,
+   deslocada de um período inteiro, ela ainda cubra a pedra toda — por isso
+   vai de -170 a 170 numa caixa de 100. */
+const GEMA_ONDA_PERIODO = 74;
+function gemaOnda(topo) {
+  const de = -170, ate = 170, amp = 3.2, passo = GEMA_ONDA_PERIODO / 8;
+  let d = '';
+  for (let x = de; x <= ate + 0.001; x += passo) {
+    const y = topo + Math.sin(((x - de) / GEMA_ONDA_PERIODO) * Math.PI * 2) * amp;
+    d += (d ? 'L' : 'M') + `${x.toFixed(1)},${y.toFixed(1)}`;
+  }
+  return `${d}L${ate},150L${de},150Z`;
+}
+
+function gemaTalhe(corte) {
+  if (corte === 'degrau') {
+    const cx = 50, cy = 52;
+    const a0 = gemaOctogono(74, 94, 21, cx, cy);
+    const a1 = gemaOctogono(63, 82, 18, cx, cy);
+    const a2 = gemaOctogono(52, 70, 14, cx, cy);
+    const a3 = gemaOctogono(40, 56, 11, cx, cy);
+    return {
+      contorno: gemaD(a0),
+      facetas: [...gemaFaixaDegrau(a0, a1, 0), ...gemaFaixaDegrau(a1, a2, 1),
+        ...gemaFaixaDegrau(a2, a3, 2)],
+      /* os cortes dos cantos: é por eles que a lapidação degrau se reconhece */
+      riscos: a0.map((p, i) => [p, a1[i]]).concat(a1.map((p, i) => [p, a2[i]]))
+        .concat(a2.map((p, i) => [p, a3[i]])),
+      mesa: gemaD(a3),
+      trinca: 'M30,16 L42,42 L32,56 L48,74 L40,90 L54,100',
+    };
+  }
+  const cx = 50, cy = corte === 'gota' ? 58 : 52;
+  const a0 = corte === 'gota'
+    ? [[50, 4], [61, 19], [71, 33], [79, 49], [83, 65], [80, 81], [71, 94], [58, 103],
+      [50, 105], [42, 103], [29, 94], [20, 81], [17, 65], [21, 49], [29, 33], [39, 19]]
+    : gemaPoligono(16, 46, cx, cy);
+  const a1 = gemaEscala(a0, 0.73, cx, cy);
+  const a2 = gemaEscala(a0, 0.50, cx, cy);
+  const a3 = gemaEscala(a0, 0.28, cx, cy);
+  return {
+    contorno: gemaD(a0),
+    facetas: [...gemaFacetasRadiais(a0, a1, 0), ...gemaFacetasRadiais(a1, a2, 1),
+      ...gemaFacetasRadiais(a2, a3, 2)],
+    riscos: null,
+    mesa: gemaD(a3),
+    trinca: corte === 'gota'
+      ? 'M36,22 L46,48 L36,62 L52,80 L44,96 L58,106'
+      : 'M28,24 L40,44 L31,56 L45,72 L38,88 L52,96',
+  };
+}
+
+const GEMA_TALHES = { redondo: gemaTalhe('redondo'), degrau: gemaTalhe('degrau'), gota: gemaTalhe('gota') };
+
+/* As paletas. `tons` vai do cinturão (escuro) à mesa (claro) — quatro degraus,
+   porque é a diferença entre faceta e faceta que faz a pedra parecer talhada
+   e não pintada. `mortas` é a mesma pedra sem luz: ainda se vê o corte. */
+const GEMA_PEDRAS = {
+  ef: {
+    corte: 'redondo',
+    tons: ['#3E0B08', '#7D1710', '#B82C1B', '#E05A3E'], mesa: '#F58A68', brilho: '#FF4A28',
+    mortas: ['#180D0B', '#241310', '#2E1A15', '#38211B'], mesaMorta: '#42281F',
+  },
+  eh: {
+    corte: 'degrau',
+    tons: ['#0B3018', '#1A5F28', '#2F8F3C', '#55BD57'], mesa: '#86DC80', brilho: '#3ECE47',
+    mortas: ['#0D1811', '#132017', '#19291D', '#1F3223'], mesaMorta: '#263C2A',
+  },
+  ka: {
+    corte: 'gota',
+    tons: ['#0B1A4C', '#163283', '#2857BE', '#4A82E8'], mesa: '#7EA9F8', brilho: '#3C78FF',
+    mortas: ['#0B1020', '#10172B', '#151D36', '#1A2441'], mesaMorta: '#212C4E',
+  },
+};
+/* A Física morrendo: brasa apagada, não vermelho. */
+const GEMA_AGONIA = {
+  tons: ['#120303', '#230605', '#350A07', '#49100A'], mesa: '#5E1D0E', brilho: '#7A1E0C',
+};
+
+/* AS PEDRAS SÃO PINTADAS (27/10/2026, pedido do usuário: "você pode fazer o
+   desenho das gemas no Figma e usar a animação?"). O mesmo caminho dos
+   equipamentos, dos itens e das condições — Figma `generate_image`, modelo
+   gemini-3.1-flash-image, fundo recortado e convertido em webp com alfa.
+   Pedra pintada assenta ao lado dos medalhões das Condições de um jeito que
+   faceta vetorial nenhuma assentava.
+
+   O TALHE VETORIAL CONTINUA, de reserva: quem não tiver pintura cai nele, do
+   mesmo modo que a condição sem pintura cai no ícone (ver ARTE_COND). É por
+   isso que gemaTalhe não foi embora.
+
+   Prompt, para refazer: "single large {ruby round brilliant cut / emerald
+   emerald-cut / sapphire pear cut} gemstone, viewed perfectly face-up from
+   directly above, centered, symmetrical, filling 92% of the square frame,
+   facets clearly defined, inner fire glowing from the heart, Diablo II
+   inventory icon style, flat #17110A background, no setting, no mount". */
+const ARTE_GEMA = {
+  ef: '/energia/gema-rubi.webp',
+  eh: '/energia/gema-esmeralda.webp',
+  ka: '/energia/gema-safira.webp',
+};
+
+/* COMO A PEDRA CONTA O VALOR — E POR QUE SÃO DOIS JEITOS (27/10/2026)
+
+   A primeira tentativa recortava a pedra por uma LINHA horizontal, como o
+   tubo fazia com o líquido, e era exatamente isso que se via: um copo cheio
+   pela metade. A segunda acendia a pedra do meio para fora. Levei cinco modos
+   à prévia (preview/gemas.html) e o usuário escolheu DOIS, um por paleta:
+
+     Couro e Ouro  →  ESCOAMENTO. A luz escorre: a superfície ondula, uma
+                      corrente desce por dentro e gotas escapam pelo pé.
+     Ferro e Brasa →  MARÉ. A luz se acumula embaixo, com a superfície acesa
+                      numa linha viva. É a leitura mais exata das duas.
+
+   "Eu quero escoamento para a paleta couro e ouro e maré para a paleta ferro
+   e brasa." (usuário)
+
+   QUEM DECIDE É O CSS, não o React. As duas formas são montadas sempre, uma
+   com a classe `.fp-gema-so-couro` e outra com `.fp-gema-so-ferro`, e a regra
+   `:root[data-paleta=…]` esconde a que não vale (ver index.css). Assim a
+   troca de paleta no menu do usuário troca o modo NA HORA, sem estado novo,
+   sem passar a paleta por sete componentes até chegar aqui, e sem chance de
+   as duas coisas se desencontrarem. São meia dúzia de nós a mais por pedra.
+
+   Em cima das duas, a BATIDA ("o pulso pode ir com qualquer uma sim" —
+   usuário): cheia, larga e calma; quase vazia, curta e apressada.
+
+   A camada viva é mascarada pela SILHUETA da própria pedra, e por isso o halo
+   sai com a forma dela — e não num retângulo, que era o defeito da primeira
+   versão. A mesma silhueta recorta o lustro, a corrente e a trinca. */
+function GemaPedra({ pedra, arte, fracao, neg, uid }) {
+  const t = GEMA_TALHES[pedra.corte];
+  const viva = neg ? { ...pedra, ...GEMA_AGONIA } : pedra;
+  const silhueta = `${uid}s`, nivel = `${uid}h`, esfuma = `${uid}e`;
+  const corrente = `${uid}r`;
+  const caixa = { x: 1, y: 1, width: 98, height: 98 };
+  /* O nível conta a altura da PEDRA (a pintura ocupa y 1..99 da caixa de
+     124), e não a caixa inteira: medindo pela caixa, 25% de energia punha a
+     superfície a 6% da pedra, porque os 25px de baixo são o vão da sombra. */
+  const topo = 99 - 98 * fracao;
+  const pintura = (classe) => (
+    <image href={arte} {...caixa} preserveAspectRatio="xMidYMid meet" className={classe} />
+  );
+  const facetas = (cores, mesaCor) => (
+    <>
+      {t.facetas.map((f, i) => (
+        <path key={i} d={f.d} fill={cores[f.tom]} fillRule={f.aro ? 'evenodd' : undefined} />
+      ))}
+      <path d={t.mesa} fill={mesaCor} />
+    </>
+  );
+  return (
+    <svg viewBox="0 0 100 124" preserveAspectRatio="xMidYMid meet" aria-hidden="true"
+      className={'fp-gema-svg' + (arte ? ' is-pintada' : '')}
+      style={{ '--gema-brilho': viva.brilho, '--n': fracao.toFixed(3) }}>
+      <defs>
+        {/* A silhueta: o alfa da pintura, ou o contorno do talhe de reserva. */}
+        <mask id={silhueta} style={{ maskType: 'alpha' }}>
+          {arte ? pintura() : <path d={t.contorno} fill="#fff" />}
+        </mask>
+        {/* A beirada do nível é desfocada: luz não tem aresta. */}
+        <filter id={esfuma} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="2.4" />
+        </filter>
+        {/* O NÍVEL, nas duas formas. A onda do escoamento e o corte reto da
+            maré moram na mesma máscara; o CSS apaga a que a paleta não usa. */}
+        <mask id={nivel}>
+          <path className="fp-gema-escoa fp-gema-so-couro" d={gemaOnda(topo)} fill="#fff"
+            filter={`url(#${esfuma})`} />
+          <rect className="fp-gema-mare fp-gema-so-ferro" x="-12" y={topo} width="124"
+            height={136 - topo} fill="#fff" filter={`url(#${esfuma})`} />
+        </mask>
+        {/* A corrente: faixas claras que descem por dentro da pedra. O
+            desenho REPETE EXATAMENTE DUAS VEZES ao longo do retângulo (os
+            cinco batentes de 0 a .5 são os mesmos de .5 a 1), porque a
+            animação o desloca de meia altura — e é só assim que o laço fecha
+            sem o olho ver a volta ao início. */}
+        <linearGradient id={corrente} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0" stopColor="#fff" stopOpacity="0" />
+          <stop offset=".09" stopColor="#fff" stopOpacity=".16" />
+          <stop offset=".17" stopColor="#fff" stopOpacity="0" />
+          <stop offset=".31" stopColor="#fff" stopOpacity=".12" />
+          <stop offset=".40" stopColor="#fff" stopOpacity="0" />
+          <stop offset=".50" stopColor="#fff" stopOpacity="0" />
+          <stop offset=".59" stopColor="#fff" stopOpacity=".16" />
+          <stop offset=".67" stopColor="#fff" stopOpacity="0" />
+          <stop offset=".81" stopColor="#fff" stopOpacity=".12" />
+          <stop offset=".90" stopColor="#fff" stopOpacity="0" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* a sombra da pedra sobre o pano */}
+      <ellipse className="fp-gema-sombra" cx="50" cy="112" rx="24" ry="4.5" />
+
+      {/* a pedra apagada, sempre inteira: o talhe não depende da energia */}
+      <g className="fp-gema-morta">
+        {arte ? pintura() : facetas(pedra.mortas, pedra.mesaMorta)}
+      </g>
+
+      {/* e o fogo dentro dela, do tamanho da energia */}
+      <g className="fp-gema-viva is-pulso" mask={`url(#${nivel})`}>
+        {arte ? pintura(neg ? 'fp-gema-agonia' : undefined) : facetas(viva.tons, viva.mesa)}
+        {/* a corrente que desce por dentro da pedra que escoa */}
+        <g className="fp-gema-so-couro" mask={`url(#${silhueta})`}>
+          <rect className="fp-gema-corrente" x="0" y="-124" width="100" height="248"
+            fill={`url(#${corrente})`} />
+        </g>
+      </g>
+
+      {/* a superfície da maré: a luz que se acumulou tem brilho de beirada */}
+      {fracao > 0 && fracao < 1 && (
+        <g className="fp-gema-so-ferro" mask={`url(#${silhueta})`}>
+          <rect className="fp-gema-linha-dagua" x="0" y={topo - 2} width="100" height="4"
+            fill={viva.brilho} />
+        </g>
+      )}
+
+      {/* as arestas do talhe de reserva (a pintura traz as suas) */}
+      {!arte && (
+        <g className="fp-gema-arestas">
+          {t.facetas.map((f, i) => <path key={i} d={f.d} fillRule={f.aro ? 'evenodd' : undefined} />)}
+          {t.riscos && t.riscos.map(([c, d], i) => (
+            <line key={i} x1={c[0]} y1={c[1]} x2={d[0]} y2={d[1]} />
+          ))}
+          <path d={t.mesa} />
+          <path d={t.contorno} className="fp-gema-cinturao" />
+        </g>
+      )}
+
+      {/* a trinca da Física em agonia, recortada pela própria pedra */}
+      {neg && (
+        <g mask={`url(#${silhueta})`}>
+          <path className="fp-gema-trinca" d={t.trinca} />
+        </g>
+      )}
+    </svg>
+  );
+}
+
+function FichaGemas({ bars, scope = 'vit', onEdit, en, onHover, onHoverEnd }) {
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, '');
   return (
-    <div className="fp-tubos">
+    <div className="fp-gemas">
       {bars.map((b, k) => {
         const lo = b.min ?? 0;
         // Abaixo de zero (só a EF): enche conforme se aproxima do piso.
         const neg = lo < 0 && b.val <= 0;
         const fracao = neg ? Math.min(1, b.val / lo) : (b.max > 0 ? Math.max(0, Math.min(1, b.val / b.max)) : 0);
-        const p = Math.round(fracao * 100);
         const m = usarAbrirMedida(b, scope, onEdit, onHover, onHoverEnd, en);
-        const ferro = `${uid}f${k}`;
+        const pedra = GEMA_PEDRAS[b.key] || GEMA_PEDRAS.ef;
         return (
-          <div key={b.key} className={'fp-tubo' + m.className} {...m.props}>
-            {/* Sem o número acima do tubo (23/10/2026, "remova o número acima
-                de cada tubo"): o valor fica no balão e no aria-label. */}
-            <div className="fp-tubo-peca" aria-hidden="true">
-              <svg width="40" height="26" viewBox="0 0 40 26">
-                <defs><linearGradient id={ferro} x1="0" x2="1"><stop offset="0" stopColor="#1A140E" /><stop offset=".35" stopColor="#5E4E3B" /><stop offset=".6" stopColor="#3A2F23" /><stop offset="1" stopColor="#140F0A" /></linearGradient></defs>
-                <circle cx="20" cy="4.5" r="3.6" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".8" />
-                <path d="M17,8 h6 l1.5,4 h-9 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".8" />
-                <path d="M8,12 h24 q2,0 2,2 v3 q0,2 -2,2 h-24 q-2,0 -2,-2 v-3 q0,-2 2,-2 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".9" />
-                <circle cx="11" cy="15.5" r="1.2" fill="#9C8466" /><circle cx="29" cy="15.5" r="1.2" fill="#9C8466" />
-                <path d="M10,19 h20 l-2,7 h-16 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".8" />
-              </svg>
-              <div className="fp-tubo-vidro">
-                <div className={'fp-tubo-liq' + (neg ? ' is-neg' : '')} style={{ '--c': b.color, height: p + '%' }}>
-                  {p >= 4 && BOLHAS_TUBO.map(([x, t, f], j) => (
-                    <i key={j} style={{ left: x + 'px', '--t': t + 'px', '--d': (1.9 + ((j * 7 + k * 3) % 5) * 0.45).toFixed(2) + 's', '--a': '-' + ((j * 1.3 + k * 0.7) % 3).toFixed(2) + 's' }} />
-                  ))}
-                </div>
-                {[[5, 18, 3], [16, 41, 2], [9, 67, 2.5], [18, 83, 2]].map(([x, y, r], j) => (
-                  <b key={j} style={{ left: (x + (k * 3 + j) % 4) + 'px', top: y + '%', width: r + 'px', height: r + 'px' }} />
-                ))}
-                {[25, 50, 75].map((q) => <span key={q} className="fp-tubo-aro" style={{ bottom: q + '%' }} />)}
-              </div>
-              <svg width="40" height="26" viewBox="0 0 40 26">
-                <path d="M12,0 h16 l2,6 h-20 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".8" />
-                <path d="M7,6 h26 q2,0 1,3 q-3,6 -14,6 q-11,0 -14,-6 q-1,-3 1,-3 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".9" />
-                <circle cx="20" cy="9.5" r="1.3" fill="#9C8466" />
-                <path d="M10,13 l-3,10 h5 l2,-8 z M30,13 l3,10 h-5 l-2,-8 z M18,15 h4 l.5,8 h-5 z" fill={`url(#${ferro})`} stroke="#0C0805" strokeWidth=".7" />
-              </svg>
+          <div key={b.key} className={'fp-gema' + m.className + (neg ? ' is-neg' : '')} {...m.props}>
+            <div className="fp-gema-peca">
+              <GemaPedra pedra={pedra} arte={ARTE_GEMA[b.key] || null} fracao={fracao} neg={neg}
+                uid={`${uid}g${k}`} />
             </div>
-            <span className="fp-tubo-nome" aria-hidden="true">{b.nomeCurto || b.label}</span>
+            <span className="fp-gema-nome" aria-hidden="true">{b.nomeCurto || b.label}</span>
           </div>
         );
       })}
@@ -461,6 +756,14 @@ function FichaMedalhoes({ bars, scope = 'cond', onEdit, en, onHover, onHoverEnd 
                 ? <img src={ARTE_COND[b.key]} alt="" draggable="false" />
                 : <i className={'ti ' + b.icon} />}
             </div>
+            {/* O NOME POR EXTENSO sob o medalhão (26/10/2026, pedido do
+                usuário): "no card de condições, abaixo do ícone não abrevie,
+                onde está 'DOE 0' vira 'Doença'". A sigla economizava três
+                letras e cobrava uma tradução mental — e o valor já está no
+                medalhão, no líquido e no tooltip. */}
+            {b.label && (
+              <span className="fp-med-rot" aria-hidden="true">{b.label}</span>
+            )}
           </div>
         );
       })}
@@ -645,15 +948,24 @@ function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
   const jaTem = new Set(vigentes.map((st) => _tipoDe(st)).filter(Boolean));
   const disponiveis = TIPOS.filter((t) => !jaTem.has(t.tipo));
 
-  // Fecha no clique fora e no Escape — igual ao dropdown do clima.
+  /* O MESMO MODAL DOS VIZINHOS (27/10/2026, pedido do usuário: "no trilho da
+     ficha do personagem, arrume o modal que abre quando clica, padronize
+     ele"). Status era o único do trilho que ainda abria uma folha ancorada
+     no botão — e ela sofria do mal conhecido: é descendente do .fp-card, que
+     tem `zoom` e cria contexto de empilhamento, então a folha nascia ATRÁS
+     da ficha. Agora é o ModalShell, com a lista .at-lista de Atividades,
+     Habilidades, Magias e Itens. */
+  const _ModalShell = (typeof ModalShell !== 'undefined' ? ModalShell : null) || window.ModalShell || null;
+
+  // Sem o ModalShell (teste isolado), a folha antiga: Esc e clique fora dela.
   useEffect(() => {
-    if (!aberta) return undefined;
+    if (!aberta || _ModalShell) return undefined;
     const fora = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setAberta(false); };
     const esc = (e) => { if (e.key === 'Escape') setAberta(false); };
     document.addEventListener('mousedown', fora);
     window.addEventListener('keydown', esc);
     return () => { document.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc); };
-  }, [aberta]);
+  }, [aberta, _ModalShell]);
 
   // Com os quatro aplicados não há o que oferecer, e o círculo some.
   if (disponiveis.length === 0) return null;
@@ -674,7 +986,28 @@ function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
         <span className="mc-acao-rotulo fp-ativ-rotulo" aria-hidden="true">Status</span>
       </button>
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
-      {aberta && (
+      {aberta && _ModalShell && ReactDOM.createPortal(
+        <_ModalShell
+          title={<><i className="ti ti-bolt det-title-ic" aria-hidden="true" /> Status</>}
+          lang={lang} size="sm" extraClass="modal-atalho"
+          onClose={() => setAberta(false)}
+        >
+          <div className="at-lista mn-rolagem" role="listbox" aria-label="Status">
+            {disponiveis.map((t) => (
+              <button key={t.tipo} type="button" role="option" aria-selected="false"
+                data-status={t.tipo} className="at-linha fp-status-opcao"
+                onClick={() => { setAberta(false); setEscolhido(t); }}>
+                <i className={'ti ' + t.ic + ' at-linha-ic'} aria-hidden="true" />
+                <span className="at-linha-texto">
+                  <span className="at-linha-nome">{tb[t.chaveCopy] || t.chaveCopy}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </_ModalShell>,
+        document.querySelector('#root .menestrel-ui') || document.body,
+      )}
+      {aberta && !_ModalShell && (
         <ul className="fp-status-opcoes" role="listbox" aria-label="Status">
           {disponiveis.map((t) => (
             <li
@@ -731,28 +1064,66 @@ function tempoDeTreino(horas) {
   return [d ? `${d} d` : '', r ? `${r} h` : ''].filter(Boolean).join(' ') || '0 h';
 }
 
-function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher, treinos, nomeDoTreino }) {
+function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher, treinos, nomeDoTreino, atributos }) {
   const en = lang === 'en';
   const [aberta, setAberta] = useState(false);
+  // A atividade em foco no segundo passo da janela (null = a lista).
+  const [emFoco, setEmFoco] = useState(null);
   const dropRef = useRef(null);
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(80);   // o nome no hover (27/09/2026)
   const LISTA = (typeof window !== 'undefined' && window.ATIVIDADES) || [];
   const atual = LISTA.find((a) => a.id === (atividade && atividade.tipo)) || null;
   const nomeDe = (a) => (en ? a.en : a.pt);
 
+  /* ── ATIVIDADES ABRE EM MODAL (26/10/2026, pedido do usuário: "os menus do
+     trilho 'atividades' e 'amigos' não estão virando modal como os demais").
+     Era a última folha ancorada no botão do trilho, junto com Amigos — e
+     folha ancorada dentro do .fp-card tem o problema do `zoom`: o cartão cria
+     contexto de empilhamento e a lista ficava atrás da ficha. O modal nasce
+     no meio da tela, por portal para a raiz do app, como os atalhos.
+
+     Com o ModalShell, o clique-fora e o Esc são dele — por isso o listener
+     próprio só vale quando o ModalShell não estiver no ar. */
+  const _Modal = (typeof ModalShell !== 'undefined' ? ModalShell : null) || window.ModalShell || null;
   useEffect(() => {
-    if (!aberta) return undefined;
+    if (!aberta || _Modal) return undefined;
     const fora = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setAberta(false); };
     const esc = (e) => { if (e.key === 'Escape') setAberta(false); };
     document.addEventListener('mousedown', fora);
     window.addEventListener('keydown', esc);
     return () => { document.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc); };
-  }, [aberta]);
+  }, [aberta, _Modal]);
 
   // Quem não pode mexer só vê a atividade ligada — e nada, se não houver.
   if (!podeEditar && !atual) return null;
 
-  const escolher = (id) => { setAberta(false); onEscolher(id); };
+  const escolher = (id) => { setAberta(false); setEmFoco(null); onEscolher(id); };
+  const fechar = () => { setAberta(false); setEmFoco(null); };
+  const listaEl = (
+    <_AtividadeLista LISTA={LISTA} atual={atual} nomeDe={nomeDe} aoPedir={setEmFoco}
+      en={en} treinos={treinos} nomeDoTreino={nomeDoTreino} />
+  );
+  /* O PASSO DE CONFIRMAÇÃO MORA NA MESMA JANELA (27/10/2026, pedido do
+     usuário: "ao clicar, adicione um modal explicando o que aquela atividade
+     faz e os botões de 'Dormir, Meditar, etc' e 'Cancelar'").
+
+     Janela sobre janela seria duas moldas e dois fundos escuros empilhados
+     para uma pergunta de uma linha. Em vez disso a janela TROCA de passo —
+     lista → explicação —, com o título virando o nome da atividade e uma
+     seta de voltar, que é o mesmo caminho da busca do Livro de Regras. O
+     rodapé com Cancelar e o verbo só existe no segundo passo. */
+  const ativoEmFoco = !!(emFoco && atual && atual.id === emFoco.id);
+  const corpo = emFoco
+    ? <_AtividadeExplicacao a={emFoco} en={en} atributos={atributos}
+        treinos={treinos} nomeDoTreino={nomeDoTreino} />
+    : listaEl;
+  /* SEM SETA NO TÍTULO (27/10/2026, usuário: "remova o botão de voltar do
+     lado do nome"). Quem leva de volta à lista é o rodapé, onde o "Cancelar"
+     virou "Voltar" — duas portas para o mesmo lugar eram uma a mais, e a do
+     título disputava espaço com o nome da atividade. */
+  const tituloEl = emFoco
+    ? (<><i className={'ti ' + emFoco.icon + ' det-title-ic'} aria-hidden="true" /> {nomeDe(emFoco)}</>)
+    : (<><i className="ti ti-moon det-title-ic" aria-hidden="true" /> {en ? 'Activities' : 'Atividades'}</>);
 
   return (
     <div className="fp-status-wrap fp-atividade-wrap" ref={dropRef}>
@@ -780,43 +1151,141 @@ function FichaAtividadeSeletor({ atividade, podeEditar, lang, onEscolher, treino
           Treinando ("não adicione o texto na barra de menus"), depois em
           todas ("Remova a palavra 'Estudando', etc do menu atividade da
           ficha"). O ícone e a dica bastam. */}
-      {aberta && (
-        <ul className="fp-status-opcoes" role="listbox" aria-label={en ? 'Activity' : 'Atividade'}>
-          {LISTA.map((a) => (
-            <li
-              key={a.id}
-              role="option"
-              aria-selected={!!(atual && atual.id === a.id)}
-              data-atividade={a.id}
-              className={'fp-status-opcao' + (atual && atual.id === a.id ? ' is-atual' : '')}
-              onClick={() => escolher(a.id)}
-            >
-              {/* Só o nome (23/10/2026): os ícones saíram do submenu. */}
-              <span>{nomeDe(a)}</span>
-              {(() => {
-                const fila = (Array.isArray(treinos) ? treinos : []).filter((t) => t && t.atividade === a.id);
-                if (!fila.length) return null;
-                return (
-                  <ul className="fp-treino-fila" aria-label={en ? 'Training queue' : 'Fila de treino'}>
-                    {fila.map((t, i) => (
-                      <li key={t.id || i} className={'fp-treino-item' + (i === 0 ? ' is-agora' : '')}>
-                        <span className="fp-treino-nome">{nomeDoTreino ? nomeDoTreino(t) : t.key}</span>
-                        <span className="fp-treino-nivel">{en ? 'level' : 'nível'} {t.tipo === 'magia' ? (Number(t.nivel) * 2 - 1) : t.nivel}</span>
-                        <span className="fp-treino-tempo">{tempoDeTreino(t.horas_restantes)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                );
-              })()}
-            </li>
-          ))}
-          {atual && (
-            <li role="option" aria-selected="false" data-atividade="" className="fp-status-opcao"
-              onClick={() => escolher(null)}>
-              <span>{en ? 'None' : 'Nenhuma'}</span>
-            </li>
+      {aberta && _Modal && ReactDOM.createPortal(
+        <_Modal
+          title={tituloEl}
+          lang={lang} size="sm" extraClass={'modal-atalho' + (emFoco ? ' modal-atividade' : '')}
+          onClose={fechar}
+          {...(emFoco ? {
+            onCancel: () => setEmFoco(null),
+            /* "VOLTAR", não "Cancelar" (27/10/2026, usuário). E é mais
+               honesto: o botão não cancela coisa alguma — nada foi gravado
+               ainda —, ele volta à lista. Cancelar prometia desfazer. */
+            cancelLabel: en ? 'Back' : 'Voltar',
+            onConfirm: () => escolher(ativoEmFoco ? null : emFoco.id),
+            /* Já está nela: a ação deixa de ser "Dormir" e vira "Parar". É
+               também o que devolveu ao jogador a saída que a opção "Nenhuma"
+               dava antes de sair da lista. */
+            confirmLabel: ativoEmFoco
+              ? (en ? 'Stop' : 'Parar')
+              : nomeDe(emFoco),
+          } : {})}
+        >
+          {corpo}
+        </_Modal>,
+        document.querySelector('#root .menestrel-ui') || document.body,
+      )}
+      {aberta && !_Modal && corpo}
+    </div>
+  );
+}
+
+/* A lista, fora do JSX do botão para servir aos dois caminhos (modal e, sem
+   ModalShell carregado, a folha ancorada de antes). */
+/* A LISTA DO SISTEMA, E NÃO A FOLHA ANCORADA (27/10/2026, pedido do usuário:
+   "ao clicar em 'atividades' do trilho, o modal que abre está desconfigurado,
+   quero que seja igual aos demais do mesmo trilho").
+
+   Ela ainda vestia `.fp-status-opcoes` — a folha que PENDURA no botão, com
+   posição absoluta e moldura própria. Dentro do ModalShell isso vira uma
+   caixa solta no meio de outra. Agora é a `.at-lista` de Habilidades, Magias,
+   Itens e Status: mesma linha, mesmo realce, mesma barra de rolagem. A fila
+   de treino continua embaixo do nome, que é informação da atividade. */
+function _AtividadeLista({ LISTA, atual, nomeDe, aoPedir, en, treinos, nomeDoTreino }) {
+  const linha = (a) => {
+    const ligada = !!(atual && atual.id === a.id);
+    const fila = (Array.isArray(treinos) ? treinos : []).filter((t) => t && t.atividade === a.id);
+    return (
+      <button key={a.id} type="button" role="option" aria-selected={ligada}
+        data-atividade={a.id}
+        className={'at-linha fp-status-opcao fp-ativ-linha' + (ligada ? ' is-atual' : '')}
+        onClick={() => aoPedir(a)}>
+        <span className="at-linha-texto">
+          {/* Só o nome (23/10/2026): os ícones saíram do submenu. */}
+          <span className="at-linha-nome">{nomeDe(a)}</span>
+          {!!fila.length && (
+            <span className="fp-treino-fila" aria-label={en ? 'Training queue' : 'Fila de treino'}>
+              {fila.map((t, i) => (
+                <span key={t.id || i} className={'fp-treino-item' + (i === 0 ? ' is-agora' : '')}>
+                  <span className="fp-treino-nome">{nomeDoTreino ? nomeDoTreino(t) : t.key}</span>
+                  <span className="fp-treino-nivel">{en ? 'level' : 'nível'} {t.tipo === 'magia' ? (Number(t.nivel) * 2 - 1) : t.nivel}</span>
+                  <span className="fp-treino-tempo">{tempoDeTreino(t.horas_restantes)}</span>
+                </span>
+              ))}
+            </span>
           )}
-        </ul>
+        </span>
+      </button>
+    );
+  };
+  return (
+    <div className="at-lista mn-rolagem" role="listbox" aria-label={en ? 'Activity' : 'Atividade'}>
+      {/* "NENHUMA" SAIU (27/10/2026, pedido do usuário: "remover Nenhuma").
+          Era a linha que desligava a atividade — e desligar continua
+          possível: clicar na atividade LIGADA abre a mesma explicação com o
+          botão "Parar" no rodapé. A saída não se perdeu, mudou de porta. */}
+      {LISTA.map(linha)}
+    </div>
+  );
+}
+
+/* ── _AtividadeExplicacao — o que acontece se você clicar (27/10/2026) ────
+   "Ao clicar, adicione um modal explicando o que aquela atividade faz."
+
+   Duas coisas, nesta ordem: o PORQUÊ numa frase (escrito à mão — porquê não
+   se deduz de tabela) e o QUE, em números gerados do próprio ATIVIDADE_EFEITO
+   (01-core/clima-desgaste.jsx). Com os atributos do personagem em mãos, os
+   números são os DELE: "+13" e não "+10 + Carisma". É o princípio do produto
+   — custo e ganho antes do clique, não depois.
+
+   A fila de treino entra quando existe: para quem está prestes a estudar, o
+   que importa saber é que há um feitiço na fila e quanto falta. */
+function _AtividadeExplicacao({ a, en, atributos, treinos, nomeDoTreino }) {
+  const explicar = (typeof explicacaoDaAtividade === 'function' ? explicacaoDaAtividade : window.explicacaoDaAtividade);
+  const expl = typeof explicar === 'function' ? explicar(a.id, atributos, en) : null;
+  const fila = (Array.isArray(treinos) ? treinos : []).filter((t) => t && t.atividade === a.id);
+  return (
+    <div className="mn-janela-corpo">
+      {/* A linha "é o que ele faz agora" SAIU (27/10/2026, pedido do usuário).
+          Quem já diz isso é o rodapé: numa atividade ligada o botão não
+          oferece o verbo, oferece Parar. Dizer duas vezes a mesma coisa, uma
+          delas por extenso, era gastar a primeira linha da janela com o que o
+          botão já resolve. */}
+      {expl && expl.porque && <p className="mn-janela-frase">{expl.porque}</p>}
+      {expl && expl.aprendizado && <p className="mn-janela-frase mn-janela-nota">{expl.aprendizado}</p>}
+      {expl && expl.grupos.map((g) => (
+        <section key={g.quando || 'efeito'} className="mn-janela-grupo">
+          {g.quando && <h4 className="mn-rotulo">{g.quando}</h4>}
+          <dl className="mn-janela-quadro">
+            {g.linhas.map((l) => (
+              <div key={l.rotulo} className="mn-janela-linha">
+                <dt>
+                  {l.rotulo}
+                  {/* A cadência da exceção, ao lado do nome: é dela que o
+                      leitor precisa ali, não num cabeçalho à parte. */}
+                  {l.cadencia && <span className="fp-ativ-cadencia">({l.cadencia})</span>}
+                </dt>
+                <dd>{l.valor}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))}
+      {!!fila.length && (
+        <section className="mn-janela-grupo">
+          <h4 className="mn-rotulo">{en ? 'In the queue' : 'Na fila'}</h4>
+          <dl className="mn-janela-quadro">
+            {fila.map((t, i) => (
+              <div key={t.id || i} className="mn-janela-linha">
+                <dt>
+                  {nomeDoTreino ? nomeDoTreino(t) : t.key}
+                  <small>{(en ? 'level ' : 'nível ') + (t.tipo === 'magia' ? (Number(t.nivel) * 2 - 1) : t.nivel)}</small>
+                </dt>
+                <dd>{tempoDeTreino(t.horas_restantes)}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
       )}
     </div>
   );
@@ -1220,17 +1689,32 @@ const FP_REGION_ICON = {
   mao_d:   'ti-hand-stop',
   mao_e:   'ti-hand-stop',
   maos:    'ti-hand-stop',
+  saque_d: 'ti-swords',
+  saque_e: 'ti-swords',
   orelha:  'ti-diamond',
   cabeca:  'ti-shield',
   capa:    'ti-shirt',
+  costas:  'ti-shirt',
   pescoco: 'ti-diamond',
   ombros:  'ti-shield',
-  peito:   'ti-shield',
+  ombro:   'ti-shield',
+  // 'peito' era o peitoral; desde 26/10/2026 a região do peitoral é 'dorso'
+  // e o peito guarda adornos e roupas.
+  peito:   'ti-shirt',
+  dorso:   'ti-shield',
   bracos:  'ti-shield',
+  braco:   'ti-shield',
   pernas:  'ti-shield',
+  perna:   'ti-shield',
   cintura: 'ti-shield',
   pes:     'ti-shield',
+  pe:      'ti-shield',
+  canela:  'ti-shield',
   dedos:   'ti-diamond',
+  dedo:    'ti-diamond',
+  pulso:   'ti-diamond',
+  rosto:   'ti-masks-theater',
+  alforje: 'ti-briefcase',
   joia:    'ti-diamond',
   brinco:  'ti-diamond',
   colar:   'ti-diamond',
@@ -1267,20 +1751,32 @@ const FP_ITEM_BG = {
    dedicada → mantém o ícone genérico). */
 const FP_REGION_BG = {
   cabeca:  FP_ITEM_BG['elmo'],
-  peito:   FP_ITEM_BG['peitoral'],
+  // 'peito' agora é a região de adornos e roupas (26/10/2026); o peitoral
+  // mora no 'dorso'.
+  peito:   FP_ITEM_BG['roupa'],
+  dorso:   FP_ITEM_BG['peitoral'],
   ombros:  FP_ITEM_BG['ombreiras'],
+  ombro:   FP_ITEM_BG['ombreiras'],
   pernas:  FP_ITEM_BG['calça'],
+  perna:   FP_ITEM_BG['calça'],
   pes:     FP_ITEM_BG['botas'],
+  pe:      FP_ITEM_BG['botas'],
   cintura: FP_ITEM_BG['cinto'],
   pescoco: FP_ITEM_BG['colar'],
   capa:   FP_ITEM_BG['capa'],
+  costas:  FP_ITEM_BG['capa'],
   bracos:   FP_ITEM_BG['braçadeiras'],
+  braco:    FP_ITEM_BG['braçadeiras'],
   dedos:    FP_ITEM_BG['anel2'],
+  dedo:     FP_ITEM_BG['anel2'],
+  pulso:    FP_ITEM_BG['anel2'],
   orelha:  FP_ITEM_BG['brincos'],
   roupa:   FP_ITEM_BG['roupa'],
   mao_d:   FP_ITEM_BG['espada'],
   maos:    FP_ITEM_BG['espada'],
   mao_e:   FP_ITEM_BG['escudo'],
+  saque_d: FP_ITEM_BG['escudo'],
+  saque_e: FP_ITEM_BG['espada'],
 };
 
 /* ── Arte pintada dos slots (23/10/2026) ───────────────────────────────────
@@ -1293,11 +1789,42 @@ const FP_REGION_BG = {
    (FP_ITEM_BG/FP_REGION_BG). O que já foi pintado está em ARTE_PINTADA; a
    lista do que falta mora em .impeccable/arte-equipamentos.md. */
 const ARTE_REGIAO = {
-  cabeca: 'elmo', ombros: 'ombreiras', peito: 'peitoral', bracos: 'bracos', maos: 'luvas',
+  cabeca: 'elmo', ombros: 'ombreiras', bracos: 'bracos', maos: 'luvas',
   pernas: 'pernas', pes: 'botas', mao_e: 'escudo', mao_d: 'arma',
+  saque_e: 'arma', saque_d: 'arma',
   orelha: 'brincos', brinco: 'brincos', pescoco: 'colar', colar: 'colar', capa: 'capa',
   roupa: 'roupa', veste: 'roupa', cintura: 'cinto', cinto: 'cinto', dedos: 'anel', dedo: 'anel',
+  // Regiões novas de 26/10/2026 — 'peito' passou a ser a região de adornos
+  // e roupas (o peitoral mora no 'dorso'). O rosto é pintado pelo TIPO
+  // (capuz, máscara) em ARTE_TIPO_FAMILIAS, não por este mapa; canela e
+  // alforje ainda não têm pintura (ver .impeccable/arte-equipamentos.md).
+  dorso: 'peitoral', peito: 'roupa', ombro: 'ombreiras', braco: 'bracos',
+  perna: 'pernas', pe: 'botas', costas: 'capa', pulso: 'anel',
+  /* A canela ficou sem silhueta até 26/10/2026 ("a canela ainda está vazia
+     para o personagem"): não havia pintura de caneleiras. As três foram
+     feitas no Figma no mesmo dia, e ela entrou na escada de peso como as
+     outras peças de armadura. */
+  canela: 'caneleiras',
+  /* O rosto não tinha silhueta nenhuma (usuário, 26/10/2026: "rosto está
+     vazio"): ele é pintado pelo TIPO (capuz, máscara), e tipo só existe com
+     um item na casa. Vazio, mostra o capuz mais simples — a veste comum do
+     rosto, pela regra de que vestimenta vazia é sempre a mais simples. A
+     máscara é escolha de personagem, não o padrão de ninguém. */
+  rosto: 'capuz',
 };
+/* As famílias cuja casa vazia tem versão PRÓPRIA, fora das duas escadas
+   (peso e riqueza): o capuz vai por tecido, e o mais simples é o algodão. */
+const ARTE_VAZIA_FIXA = { capuz: 'algodao' };
+/* Região cuja silhueta vazia é uma pintura de ITEM inteira, e não uma peça de
+   equipamento com versões (26/10/2026, pedido do usuário: "os ícones em
+   alforje não estão aparecendo quando não há item equipado"). O alforje
+   guarda bolsas, não armadura: não há escada de peso nem de material para
+   percorrer.
+
+   É a BOLSA, e não a algibeira (segundo pedido no mesmo dia: "o ícone do
+   alforge padrão deve ser a bolsa"): a algibeira é a bolsinha de cinto, e o
+   que a casa quer dizer é "aqui cabe o que se leva". */
+const ARTE_VAZIA_ITEM = { alforje: 'bolsa' };
 const ARTE_POR_RIQUEZA = new Set(['brincos', 'colar', 'capa', 'roupa', 'cinto', 'anel']);
 // Faixas de valor (em latões) das joias e roupas: até 500 simples, até 5000 ornado.
 const ARTE_FAIXA_SIMPLES = 500;
@@ -1310,25 +1837,166 @@ const ARTE_PINTADA = new Set([
   'luvas-leve', 'luvas-medio', 'luvas-pesado',
   'pernas-leve', 'pernas-medio', 'pernas-pesado',
   'botas-leve', 'botas-medio', 'botas-pesado',
+  'caneleiras-leve', 'caneleiras-medio', 'caneleiras-pesado',
   'escudo-leve', 'escudo-medio', 'escudo-pesado',
   'arma-leve', 'arma-medio', 'arma-pesado',
   'brincos-simples', 'brincos-ornado', 'brincos-nobre',
   'colar-simples', 'colar-ornado', 'colar-nobre',
   'capa-simples', 'capa-ornado', 'capa-nobre',
   'roupa-simples', 'roupa-ornado', 'roupa-nobre',
+  /* A CALÇA DE PANO (28/10/2026, Figma) — a vestimenta de PERNA, que até aqui
+     não tinha pintura própria e por isso caía no glifo da região. Três
+     tecidos, como o traje do peito: algodão cru, couro curtido e seda de
+     corte. `pernas-*` continua sendo a armadura; estas são roupa. */
+  'calca-algodao', 'calca-couro', 'calca-seda',
   'cinto-simples', 'cinto-ornado', 'cinto-nobre',
   'anel-simples', 'anel-ornado', 'anel-nobre',
   // as armas pelo tipo (23/10/2026) — ver ARMA_POR_NOME
   'arma-arco', 'arma-besta', 'arma-lanca', 'arma-tridente', 'arma-maca', 'arma-martelo',
   'arma-mangual', 'arma-cajado', 'arma-cetro', 'arma-chicote', 'arma-foice',
+  /* 27/10/2026 — as 21 pinturas novas, já no vocabulário do TIPO: joia pelo
+     metal, veste pelo tecido. "Brinco Nobre não existe mais, agora é Brinco de
+     Ouro" (usuário). */
+  'coroa-ouro', 'coroa-prata', 'coroa-cobre',
+  'tiara-ouro', 'tiara-prata', 'tiara-cobre',
+  'broche-ouro', 'broche-prata', 'broche-cobre',
+  'medalha-ouro', 'medalha-prata', 'medalha-cobre',
+  'pingente-ouro', 'pingente-prata', 'pingente-cobre',
+  'capuz-seda', 'capuz-couro', 'capuz-algodao',
+  'mascara-porcelana', 'mascara-couro', 'mascara-ferro',
+  // "Os próximos itens que eu quero que faça os casacos." (usuário, 26/10/2026)
+  'casaco-nobre', 'casaco-couro', 'casaco-algodao',
+  /* AS ARMAS POR TIPO **E** PESO (26/10/2026): "crie imagens para espada leve,
+     espada média, espada pesada, arco leve, …". Uma adaga e um montante eram a
+     mesma pintura genérica de peso; agora o tipo lido do nome e a classe de
+     peso do grupo de armas escolhem juntos. Ver arteDoSlot. */
+  'arma-espada-leve', 'arma-espada-medio', 'arma-espada-pesado',
+  'arma-arco-leve', 'arma-arco-medio', 'arma-arco-pesado',
+  'arma-lanca-leve', 'arma-lanca-medio', 'arma-lanca-pesado',
+  'arma-machado-leve', 'arma-machado-medio', 'arma-machado-pesado',
 ]);
-function versaoDaArte(base, cat) {
+
+/* A PINTURA SAI DO TIPO DA PEÇA (26/10/2026). As famílias novas são nomeadas
+   pelo próprio tipo — coroa-ouro, capuz-seda, mascara-ferro — em vez das
+   versões genéricas (simples/ornado/nobre) das famílias antigas: "Brinco
+   Nobre não existe mais, agora é Brinco de Ouro" (usuário). A base vem do
+   nome do item e a versão vem da palavra do material; quando a peça não diz
+   o material (Coroa Abad'Dorim, Amuleto da Brasa), o preço decide, como em
+   versaoDaArte. */
+const ARTE_METAL = [
+  [/\b(ouro|dourad)/, 'ouro'],
+  [/\b(prata|pratead)/, 'prata'],
+  [/\b(cobre|acobread|latao|marfim|rustic|ornament|bronze)/, 'cobre'],
+];
+const ARTE_TIPO_FAMILIAS = [
+  { base: 'coroa', re: /\bcoroa\b/, versoes: ARTE_METAL },
+  { base: 'tiara', re: /\btiara\b/, versoes: ARTE_METAL },
+  { base: 'broche', re: /\bbroche\b/, versoes: ARTE_METAL },
+  { base: 'medalha', re: /\bmedalha\b/, versoes: ARTE_METAL },
+  { base: 'pingente', re: /\b(pingente|amuleto)\b/, versoes: ARTE_METAL },
+  { base: 'capuz', re: /\bcapuz\b/, versoes: [
+    [/\bseda\b/, 'seda'], [/\bcouro\b/, 'couro'], [/\b(algodao|linho|la)\b/, 'algodao'],
+  ] },
+  // Nobre é a de porcelana rachada a ouro; Selvagem, a de couro costurado;
+  // Decorativa e o Olhar da Infâmia ficam com a de ferro rebitado.
+  { base: 'mascara', re: /\b(mascara|olhar da infamia)\b/, versoes: [
+    [/\b(nobre|porcelana|marfim)\b/, 'porcelana'],
+    [/\b(selvagem|couro|rustic)\b/, 'couro'],
+    [/\b(decorativ|ferro|guerra|infamia)/, 'ferro'],
+  ] },
+];
+// Para quem não diz o material, o preço — as mesmas faixas de versaoDaArte.
+const ARTE_TIPO_POR_PRECO = { ouro: 'ouro', prata: 'prata', cobre: 'cobre' };
+/* A arte do TIPO, quando o nome do item diz qual é. Devolve null para a peça
+   que ainda não tem família própria — aí vale o mapa por região. */
+function arteDoTipo(cat) {
+  if (!cat) return null;
+  const n = String(cat.nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  for (const fam of ARTE_TIPO_FAMILIAS) {
+    if (!fam.re.test(n)) continue;
+    const achou = fam.versoes.find(([re]) => re.test(n));
+    let versao = achou ? achou[1] : null;
+    if (!versao) {
+      const v = Number(cat.valor_latao) || 0;
+      const faixa = v <= ARTE_FAIXA_SIMPLES ? 'cobre' : (v <= ARTE_FAIXA_ORNADO ? 'prata' : 'ouro');
+      versao = ARTE_TIPO_POR_PRECO[faixa] || fam.versoes[fam.versoes.length - 1][1];
+      // Família sem metal (capuz, máscara): a versão mais rica da lista.
+      if (!ARTE_PINTADA.has(fam.base + '-' + versao)) versao = fam.versoes[0][1];
+    }
+    const nome = fam.base + '-' + versao;
+    if (ARTE_PINTADA.has(nome)) return '/equip/' + nome + '.webp';
+  }
+  return null;
+}
+/* A VERSÃO VEM DO TIPO DA PEÇA (26/10/2026, pedido do usuário): "Escudo
+   Pesado é uma imagem só, independente se é um escudo pesado verrogari ou
+   padmarashka". Para armadura e escudo o tipo é a classe de peso
+   (tipo_armadura L/M/P); para joia e veste é o MATERIAL do nome — ouro é
+   nobre, prata é ornado, cobre/latão/marfim é simples. O valor em latões
+   continua como último recurso, para a peça que não diz o material. */
+const ARTE_MATERIAL = [
+  [/\b(ouro|dourad)/, 'nobre'],
+  [/\b(prata|pratead)/, 'ornado'],
+  [/\b(cobre|acobread|latao|lat[ãa]o|ornament|marfim|rustic|bronze)/, 'simples'],
+  [/\b(seda|nobre|luxuos|veludo)/, 'nobre'],
+  [/\b(linho|decorad|militar|complet)/, 'ornado'],
+  [/\b(algod[ãa]o|algodao|palha|couro|l[ãa]|simples|profissional)/, 'simples'],
+];
+/* A CASA VAZIA VESTE A PROFISSÃO (26/10/2026, pedido do usuário):
+
+     "Quando não houver nenhum item equipado, os itens esmaecidos serão
+      conforme profissão: Magos, Bardos e Ladinos: equipamentos leves;
+      Rastreadores e Sacerdotes: equipamentos médios; Guerreiros:
+      equipamentos pesados. Os equipamentos de vestimenta devem ser sempre os
+      mais simples."
+
+   A pintura esmaecida da casa vazia é uma SUGESTÃO do que vai ali — então
+   ela mostra o que aquele personagem de fato usaria. Antes era sempre a
+   versão média (e a ornada nas vestes), que não dizia nada sobre ninguém. */
+/* A MÃO VAZIA TAMBÉM VESTE A PROFISSÃO (26/10/2026, pedido do usuário):
+
+     "Guerreiro: machado pesado em duas mãos. Sacerdote: espada média em uma
+      mão e escudo médio na outra. Ladino: espada leve nas duas mãos.
+      Rastreador: espada média nas duas mãos. Bardo: arco médio nas duas
+      mãos. Mago: cajado leve nas duas mãos."
+
+   `d` é a mão da arma e `e` a da outra peça; quem usa a mesma arma "nas duas
+   mãos" repete o arquivo, que é como a ficha já mostra a arma de duas mãos
+   equipada. Vale também para as duas casas de saque rápido: são casas de
+   arma, e a silhueta diz o mesmo. As pinturas são as que existem — a espada
+   leve é a arma-leve, o arco e o cajado não têm versão por peso. */
+const ARMA_VAZIA_POR_PROFISSAO = {
+  'Guerreiro':  { d: 'arma-pesado', e: 'arma-pesado' },   // machado pesado, duas mãos
+  'Sacerdote':  { d: 'arma-medio', e: 'escudo-medio' },   // espada média + escudo médio
+  'Ladino':     { d: 'arma-leve', e: 'arma-leve' },
+  'Rastreador': { d: 'arma-medio', e: 'arma-medio' },
+  'Bardo':      { d: 'arma-arco', e: 'arma-arco' },
+  'Mago':       { d: 'arma-cajado', e: 'arma-cajado' },
+};
+// Sem profissão conhecida: espada e escudo médios, que é o que a ficha
+// mostrava antes de a regra existir.
+const ARMA_VAZIA_PADRAO = { d: 'arma-medio', e: 'escudo-medio' };
+
+const PESO_DA_PROFISSAO = {
+  'Mago': 'leve', 'Bardo': 'leve', 'Ladino': 'leve',
+  'Rastreador': 'medio', 'Sacerdote': 'medio',
+  'Guerreiro': 'pesado',
+};
+const pesoVazioDaProfissao = (profissao) => PESO_DA_PROFISSAO[String(profissao || '').trim()] || 'medio';
+
+function versaoDaArte(base, cat, profissao) {
+  if (!cat && ARTE_VAZIA_FIXA[base]) return ARTE_VAZIA_FIXA[base];
   if (ARTE_POR_RIQUEZA.has(base)) {
-    if (!cat) return 'ornado';
+    // Veste e joia da casa vazia: sempre a mais simples.
+    if (!cat) return 'simples';
+    const n = String(cat.nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    for (const [re, versao] of ARTE_MATERIAL) if (re.test(n)) return versao;
     const v = Number(cat.valor_latao) || 0;
     return v <= ARTE_FAIXA_SIMPLES ? 'simples' : (v <= ARTE_FAIXA_ORNADO ? 'ornado' : 'nobre');
   }
   const t = cat ? String(cat.tipo_armadura || '').trim().toUpperCase() : '';
+  // Casa vazia: a classe de peso que a profissão usaria.
+  if (!cat) return pesoVazioDaProfissao(profissao);
   return t === 'L' ? 'leve' : (t === 'P' ? 'pesado' : 'medio');
 }
 /* A ARMA PELO TIPO (23/10/2026): "quando a arma equipada for um arco, mostre
@@ -1354,8 +2022,17 @@ const ARMA_POR_NOME = [
   ['adaga', /\b(adaga|punhal|faca)\b/],
   ['espada', /\b(espada|montante|cimitarra|sabre|rapieira|crissaegrim|daeva do mar|jagan|kronagar|sagae|vampirus escarlate)\b/],
 ];
-// Espada, adaga e machado usam as pinturas que já existiam.
-const ARMA_ARTE = { espada: 'arma-medio', adaga: 'arma-leve', machado: 'arma-pesado' };
+// Adaga usa a pintura genérica leve; espada e machado têm as suas por peso.
+const ARMA_ARTE = { adaga: 'arma-leve' };
+/* A CLASSE DE PESO DA ARMA (26/10/2026) — a mesma do grupo de armas, pela
+   última letra da sigla (PL/CL/EL leve, PM/CM/EM média, PP/CP/EP pesada). É a
+   mesma conta de baseDaArma (01-core/bases-item.jsx), lida de lá para não
+   haver duas réguas; sem grupo gravado, não há peso. */
+function pesoDaArma(cat) {
+  const base = (typeof window !== 'undefined' && window.baseDaArma)
+    ? window.baseDaArma(cat && cat.grupo_armas) : null;
+  return base ? base.replace(/^arma-/, '') : null;
+}
 // Escudo também vem como categoria 'arma' no catálogo: fica com as pinturas de escudo.
 const ehEscudo = (cat) => !!cat && /\bescudo\b/i.test(String(cat.nome || ''));
 function tipoDaArma(cat) {
@@ -1364,26 +2041,72 @@ function tipoDaArma(cat) {
   const achou = ARMA_POR_NOME.find(([, re]) => re.test(n));
   return achou ? achou[0] : null;
 }
-function arteDoSlot(regiao, cat) {
+function arteDoSlot(regiao, cat, profissao) {
+  /* A BASE MANDA TAMBÉM NA CASA DA FICHA (26/10/2026). Sem isto, a mesma peça
+     teria duas pinturas: o casaco mostraria "casaco-couro" no inventário
+     (arteDoItem, que lê a base) e "roupa-ornado" no corpo do personagem (a
+     escada de riqueza da região). A ARMA segue de fora — a base dela é a
+     classe de peso, e a mão desenha o tipo, que sabe mais. */
+  if (cat && cat.base && !(typeof window !== 'undefined' && window.ehArmaDeMao && window.ehArmaDeMao(cat))) {
+    const daBase = arteDaBase(cat.base);
+    if (daBase) return daBase;
+  }
+  const porTipo = arteDoTipo(cat);
+  if (porTipo) return porTipo;
+  /* Região de bolsa (alforje): a casa mostra a peça que está nela — a
+     pintura do próprio item, que mora em /itens — e, vazia, a algibeira. Não
+     há escada de peso nem de material aqui para o mapa de região percorrer. */
+  if (ARTE_VAZIA_ITEM[regiao]) {
+    const arquivo = cat ? null : ARTE_VAZIA_ITEM[regiao];
+    if (arquivo && (ARTE_ITEM_SLUG.has(arquivo) || ARTE_ITEM_NOVA.has(arquivo))) {
+      return '/itens/' + arquivo + '.webp';
+    }
+    if (cat) {
+      const alias = cat.slug && ARTE_SLUG_ALIAS[cat.slug];
+      const slug = (alias && ARTE_ITEM_SLUG.has(alias)) ? alias
+        : (cat.slug && ARTE_ITEM_SLUG.has(cat.slug)) ? cat.slug : null;
+      if (slug) return '/itens/' + slug + '.webp';
+    }
+  }
   const base = ARTE_REGIAO[regiao];
   if (!base) return null;
-  if (regiao === 'mao_d' || regiao === 'mao_e') {
+  // O saque rápido mostra a MESMA arte da mão (arma pelo tipo, escudo pelo peso).
+  if (regiao === 'mao_d' || regiao === 'mao_e' || regiao === 'saque_d' || regiao === 'saque_e') {
+    // Casa VAZIA: o par de armas que a profissão usaria.
+    if (!cat) {
+      const par = ARMA_VAZIA_POR_PROFISSAO[String(profissao || '').trim()] || ARMA_VAZIA_PADRAO;
+      const arquivo = (regiao === 'mao_e' || regiao === 'saque_e') ? par.e : par.d;
+      return ARTE_PINTADA.has(arquivo) ? '/equip/' + arquivo + '.webp' : null;
+    }
+    /* TIPO E PESO (26/10/2026, pedido do usuário: "crie imagens para espada
+       leve, espada média, espada pesada, arco leve, …"). Uma espada leve e um
+       montante são a mesma palavra e desenhos diferentes, e o catálogo já
+       sabe de qual se trata pelo grupo de armas. A escada desce do mais
+       específico ao mais geral, e cada degrau só vale se a pintura existir:
+         arma-espada-medio → arma-espada → arma-medio
+       Assim um tipo novo entra sem peso, e um peso novo entra sem tipo. */
     const tipo = tipoDaArma(cat);
     if (tipo) {
-      const nomeArma = ARMA_ARTE[tipo] || ('arma-' + tipo);
-      if (ARTE_PINTADA.has(nomeArma)) return '/equip/' + nomeArma + '.webp';
+      const peso = pesoDaArma(cat);
+      const tentativas = [
+        peso && ('arma-' + tipo + '-' + peso),
+        ARMA_ARTE[tipo] || ('arma-' + tipo),
+      ].filter(Boolean);
+      for (const nomeArma of tentativas) {
+        if (ARTE_PINTADA.has(nomeArma)) return '/equip/' + nomeArma + '.webp';
+      }
     }
     if (ehEscudo(cat)) {
-      const nomeEscudo = 'escudo-' + versaoDaArte('escudo', cat);
+      const nomeEscudo = 'escudo-' + versaoDaArte('escudo', cat, profissao);
       return ARTE_PINTADA.has(nomeEscudo) ? '/equip/' + nomeEscudo + '.webp' : null;
     }
     // Arma sem tipo reconhecido na mão esquerda: a arte de arma pelo peso, não a de escudo.
     if (cat && cat.categoria_equip === 'arma') {
-      const nomePeso = 'arma-' + versaoDaArte('arma', cat);
+      const nomePeso = 'arma-' + versaoDaArte('arma', cat, profissao);
       return ARTE_PINTADA.has(nomePeso) ? '/equip/' + nomePeso + '.webp' : null;
     }
   }
-  const nome = base + '-' + versaoDaArte(base, cat);
+  const nome = base + '-' + versaoDaArte(base, cat, profissao);
   return ARTE_PINTADA.has(nome) ? '/equip/' + nome + '.webp' : null;
 }
 /* A PINTURA DE UM ITEM DO CATÁLOGO (23/10/2026): "vamos usar essas imagens no
@@ -1400,41 +2123,243 @@ const ARTE_ITEM_SLUG = new Set([
   'agua', 'racao', 'pederneira', 'tocha', 'flecha', 'lenha', 'hidromel',
   'pena_draconica', 'couro_demoniaco', 'oleo_draconico', 'sangue_draconico', 'pena_demoniaca',
   'marfim_demoniaca', 'oleo_demoniaco', 'couro_draconico', 'marfim_draconica', 'pena_celestial',
-  'carne_draconica', 'cogumelo_aria', 'erva_rubashi',
+  'carne_draconica',
   // os 20 mais comuns seguintes (24/10/2026)
   'alforge', 'cantil', 'equipamento_de_viagem', 'odre', 'algibeira', 'algibeira_grande', 'bolsa',
   'moeda_cobre', 'moeda_latao', 'moeda_prata', 'moeda_ouro', 'frasco', 'aljava', 'aljava_reforcada',
   'pergaminho', 'bainha', 'cachimbo', 'carne_demoniaca', 'lamparina', 'sandalias',
 ]);
+
+/* ── A PINTURA DO ITEM PELO TIPO (26/10/2026) ──────────────────────────────
+   Até aqui a pintura de item era por SLUG: uma imagem por item do catálogo.
+   Isso não escala — só de "Livro de …" e "Manual de …" são quase 160 entradas,
+   e todas são o mesmo objeto. Daí a regra do usuário, a mesma dos equipáveis:
+   "uma imagem apenas para livro".
+
+   ARTE_ITEM_NOVA são as 20 pinturas de tipo (public/itens/<tipo>.webp) e
+   ARTE_ITEM_TIPO é a tabela que leva o NOME do item ao tipo. A tabela é
+   ORDENADA: a primeira que casa vence (Pérola Fantasma é um navio, não uma
+   pérola, e por isso o barco vem antes da gema).
+
+   Só vale para item SEM região (`slot_equip` nulo): peça vestível é resolvida
+   antes, por arteDoTipo e pelo mapa de região, e um "Anel Dourado" não pode
+   cair na pintura de minério. */
+const ARTE_ITEM_NOVA = new Set([
+  'livro', 'equipamento', 'gema', 'minerio', 'elixir', 'bau', 'barril', 'mochila',
+  'saco', 'jarra', 'quadro', 'estatua', 'carroca', 'barco', 'sela', 'arreio',
+  'casa', 'virote', 'dardo', 'cavalo',
+  /* O ARREAMENTO COMPLETO (27/10/2026): as oito peças que faltavam para as
+     doze casas do bicho terem pintura própria. Gualdrapa e Manta saíram da
+     pintura do Arreio, que era empréstimo. Ver a família Montaria em
+     01-core/bases-item.jsx e ARTE_ARREIO_VAZIO, mais abaixo. */
+  'cabecada', 'manta', 'gualdrapa', 'peitoral-montaria',
+  'crinum', 'chanfron', 'caneleiras-montaria', 'barda',
+  /* A COLHEITA (28/10/2026, pedido do usuário: "todas as ervas devem ter a
+     mesma imagem, todos os cogumelos devem ter a mesma imagem"). Eram duas
+     pinturas por SLUG — `cogumelo_aria` e `erva_rubashi` —, e por isso só uma
+     erva e um cogumelo tinham imagem; os outros quatro ficavam no glifo. Os
+     arquivos viraram `erva.webp` e `cogumelo.webp` e a tabela abaixo leva o
+     tipo inteiro a eles, como já era com Livro e Manual. */
+  'erva', 'cogumelo',
+]);
+const ARTE_ITEM_TIPO = [
+  // As obras: ~145 "Livro de …" e 14 "Manual do …" numa pintura só.
+  [/^(livro|manual)\b/, 'livro'],
+  [/^equipamentos?\b/, 'equipamento'],
+  [/^pergaminho\b/, 'pergaminho'],
+  [/^elixir\b/, 'elixir'],
+  [/^frasco\b/, 'frasco'],
+  [/^flecha\b/, 'flecha'],
+  [/^virote\b/, 'virote'],
+  [/^dardo\b/, 'dardo'],
+  [/^(racao|refeicao|banquete|lembas)\b/, 'racao'],
+  // A colheita: uma pintura para toda erva, outra para todo cogumelo.
+  [/^erva\b/, 'erva'],
+  [/^cogumelo\b/, 'cogumelo'],
+  [/^(vinho|licor|cerveja|hidromel|suco)\b/, 'hidromel'],
+  // Recipientes
+  [/^(arca|bau|caixa)\b/, 'bau'],
+  [/^(barril|tonel)\b/, 'barril'],
+  [/^mochila\b/, 'mochila'],
+  [/^saco\b/, 'saco'],
+  [/^(jarra|urna)\b/, 'jarra'],
+  [/^(cabaca|caramanhola)\b/, 'cantil'],
+  // Obras de arte e relíquias
+  [/^quadro\b/, 'quadro'],
+  [/^(estatua|busto)\b/, 'estatua'],
+  // Transportes — a Pérola Fantasma é navio, e vem antes da gema.
+  [/^(barco|barcaca|canoa|caravela|nau|veleiro)\b|perola fantasma/, 'barco'],
+  [/^(carroca|carruagem|charrete|carro de boi|treno)\b/, 'carroca'],
+  // Montaria: a sela, o arreio e o animal
+  [/^alforje\b/, 'alforge'],
+  [/^sela\b/, 'sela'],
+  [/^(arreio|cabecada|gualdrapa|manta de sela)\b/, 'arreio'],
+  [/^(cavalo|ponei|andaluz|ardennes)\b|puro-sangue/, 'cavalo'],
+  // Moedas antigas: a mesma pintura da moeda corrente do metal.
+  [/^moeda antiga de cobre/, 'moeda_cobre'],
+  [/^moeda antiga de latao/, 'moeda_latao'],
+  [/^moeda antiga de prata/, 'moeda_prata'],
+  [/^moeda (antiga )?de ouro/, 'moeda_ouro'],
+  // Minerais: metal bruto e pedra preciosa
+  [/^(aco|aerilium|arcanitro|bronze|carvao|cinetezio|ferro|gravornita|ignivar|inferium|luminar|nautilium|ouro|prata)\b/, 'minerio'],
+  [/^(agua marinha|ambar|ametista|diamante|esmeralda|jade|obsidiana|opala|perola|quartzo|rubi|safira|topazio|turmalina|pedra vidente)\b/, 'gema'],
+  [/^pedra\b/, 'minerio'],
+  // Propriedades
+  [/^(casa|casarao|casebre|castelo|choupana|mansao|palacio|taverna|hospedaria|forte|fortaleza|torreao|igreja|moinho|padaria|rancho|fazenda|estabulo|farol|forjaria|carpintaria|guilda|escritorio)\b/, 'casa'],
+];
+/* A pintura do item que não tem região. Devolve null quando o nome não cai em
+   nenhum tipo — aí fica o glifo de sempre. */
+function arteDoItemPorTipo(nomeNormalizado) {
+  const achou = ARTE_ITEM_TIPO.find(([re]) => re.test(nomeNormalizado));
+  if (!achou) return null;
+  const arquivo = achou[1];
+  if (!ARTE_ITEM_NOVA.has(arquivo) && !ARTE_ITEM_SLUG.has(arquivo)) return null;
+  return '/itens/' + arquivo + '.webp';
+}
+/* Regi\u00e3o do cat\u00e1logo \u2192 base da pintura. Aceita o vocabul\u00e1rio NOVO (17 regi\u00f5es,
+   26/10/2026) e o antigo das inst\u00e2ncias j\u00e1 gravadas. A base define o arquivo
+   (elmo, peitoral, anel\u2026) e versaoDaArte define a vers\u00e3o pelo TIPO da pe\u00e7a. */
+const ARTE_BASE_POR_REGIAO = {
+  // equipamento (classe de peso)
+  cabeca: 'elmo', ombro: 'ombreiras', ombros: 'ombreiras', dorso: 'peitoral',
+  braco: 'bracos', bracos: 'bracos', perna: 'pernas', pernas: 'pernas',
+  // vestes e adornos (material)
+  peito: 'roupa', corpo: 'roupa', roupa: 'roupa',
+  costas: 'capa', capa: 'capa', cintura: 'cinto', cinto: 'cinto',
+  orelha: 'brincos', orelhas: 'brincos', brinco: 'brincos',
+  pescoco: 'colar', colar: 'colar', dedo: 'anel', dedos: 'anel', joia: 'anel',
+  pulso: 'anel',
+};
+/* A VARIANTE É O MESMO TIPO (26/10/2026): "Escudo Pesado é uma imagem só".
+   Alforge Duplo é um alforje, Bainha Longa é uma bainha, Algibeira Planense é
+   uma algibeira — usam a pintura do parente em vez do glifo. */
+const ARTE_SLUG_ALIAS = {
+  alforge_duplo: 'alforge',
+  algibeira_planense: 'algibeira',
+  bainha_5: 'bainha',          // "Bainha Longa" no catálogo
+};
+/* A PINTURA VEM DA BASE (26/10/2026, pedido do usuário) ───────────────────
+   "Existe a base do item, por exemplo 'Máscara de Ouro', e existe o exemplar
+   do item, 'Máscara Decorativa', 'Máscara Verrogari'." O que vinha antes
+   disto — adivinhar o material pelo nome do exemplar — está errado na raiz:
+   "Verrogari" não diz se a máscara é de ouro ou de couro. Agora quem manda é
+   `itens.base`, escolhida no editor (vocabulário em 01-core/bases-item.jsx).
+
+   O palpite pelo nome continua logo abaixo, como REDE: item sem base ainda
+   não ficou sem pintura, e o Mestre corrige a base quando passar por ele. */
+function arteDaBase(slugBase) {
+  const base = typeof window !== 'undefined' && window.baseDoItem ? window.baseDoItem(slugBase) : null;
+  if (!base) return null;
+  const arquivo = base.arte || base.slug;
+  if (base.onde === 'itens') {
+    return (ARTE_ITEM_NOVA.has(arquivo) || ARTE_ITEM_SLUG.has(arquivo))
+      ? '/itens/' + arquivo + '.webp' : null;
+  }
+  return ARTE_PINTADA.has(arquivo) ? '/equip/' + arquivo + '.webp' : null;
+}
 function arteDoItem(cat) {
   if (!cat) return null;
+  /* A ARMA É A EXCEÇÃO DA BASE (26/10/2026): a base dela é a classe de peso
+     (Arma Leve/Média/Pesada, tirada do grupo de armas), e a pintura da mão
+     sabe mais do que isso — "quando a arma equipada for um arco, mostre nas
+     duas mãos um arco" (23/10/2026). Então aqui a base não atalha: quem
+     decide é arteDoSlot, pelo tipo lido do nome, com o peso como recuo. */
+  const armaDeMao = typeof window !== 'undefined' && window.ehArmaDeMao
+    ? window.ehArmaDeMao(cat)
+    : (cat.categoria_equip === 'arma' && !ehEscudo(cat));
+  if (cat.base && !armaDeMao) {
+    const daBase = arteDaBase(cat.base);
+    if (daBase) return daBase;
+    // Base conhecida mas ainda sem pintura: é o glifo da região, e não o
+    // palpite pelo nome — a base já disse o que a peça é.
+    if (typeof window !== 'undefined' && window.baseDoItem && window.baseDoItem(cat.base)) return null;
+  }
+  const alias = cat.slug && ARTE_SLUG_ALIAS[cat.slug];
+  if (alias && ARTE_ITEM_SLUG.has(alias)) return '/itens/' + alias + '.webp';
   if (cat.slug && ARTE_ITEM_SLUG.has(cat.slug)) return '/itens/' + cat.slug + '.webp';
+  // o tipo tem a palavra final: coroa, tiara, broche, medalha, pingente, capuz, máscara
+  const porTipo = arteDoTipo(cat);
+  if (porTipo) return porTipo;
   const s = cat.slot_equip, c = cat.categoria_equip;
   const n = String(cat.nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  if (s === 'maos') {
+  // Item sem regi\u00e3o: a pintura vem do TIPO do nome (livro, elixir, gema\u2026).
+  if (!s) return arteDoItemPorTipo(n);
+  // M\u00e3o: arma pelo tipo (arco, machado\u2026) ou escudo pela classe de peso.
+  if (s === 'mao' || s === 'maos') {
     if (c !== 'arma' || cat.grupo_armas === 'Livre') return null;
     return arteDoSlot(ehEscudo(cat) ? 'mao_e' : 'mao_d', cat);
   }
-  if (c === 'armadura') {
-    if (s === 'bracos') return arteDoSlot(/manopla/.test(n) ? 'maos' : 'bracos', cat);
-    const reg = { cabeca: 'cabeca', ombros: 'ombros', peito: 'peito', pernas: 'pernas', pes: 'pes' }[s];
-    return reg ? arteDoSlot(reg, cat) : null;
+  // Manoplas s\u00e3o pe\u00e7a de m\u00e3o, n\u00e3o de bra\u00e7o.
+  if (c === 'armadura' && (s === 'braco' || s === 'bracos') && /manopla/.test(n)) {
+    return arteDoSlot('maos', cat);
   }
-  if (s === 'pes') return /\bbotas?\b/.test(n) ? arteDoSlot('pes', cat) : null;
-  if (s === 'corpo') return arteDoSlot('roupa', cat);
-  if (s === 'costas') return arteDoSlot('capa', cat);
-  if (s === 'cintura') return /\bcint/.test(n) ? arteDoSlot('cinto', cat) : null;
-  if (s === 'orelhas') return arteDoSlot('brinco', cat);
-  if (s === 'pescoco') return arteDoSlot('colar', cat);
-  if (s === 'dedos') return /\b(anel|narya|nenya|vilya)\b/.test(n) ? arteDoSlot('dedo', cat) : null;
-  return null;
+  // P\u00e9: s\u00f3 bota e sand\u00e1lia t\u00eam pintura (a sand\u00e1lia tem a sua em /itens).
+  if (s === 'pe' || s === 'pes') {
+    if (c === 'armadura' || /\bbotas?\b/.test(n)) return arteDoSlot('pes', cat);
+    return null;
+  }
+  // Cintura: a cinta tem pintura; a cal\u00e7a ainda n\u00e3o.
+  if ((s === 'cintura' || s === 'cinto') && !/\bcint/.test(n)) return null;
+  // Dedo e pulso: anel e pulseira usam a pintura do anel; o resto, nada.
+  if ((s === 'dedo' || s === 'dedos' || s === 'joia' || s === 'pulso')
+      && !/\b(anel|aneis|bracelete|pulseira|narya|nenya|vilya)\b/.test(n)) return null;
+  const base = ARTE_BASE_POR_REGIAO[s];
+  if (!base) return null;
+  const nome = base + '-' + versaoDaArte(base, cat);
+  return ARTE_PINTADA.has(nome) ? '/equip/' + nome + '.webp' : null;
 }
 window.arteDoItem = arteDoItem;
+/* A galeria do Mestre (10-shell/galeria-imagens.jsx) conta as pinturas a
+   partir desta mesma lista — o placar nunca discorda do que a ficha usa. */
+window.ARTE_PINTADA = ARTE_PINTADA;
+window.ARTE_ITEM_SLUG = ARTE_ITEM_SLUG;
+window.ARTE_ITEM_NOVA = ARTE_ITEM_NOVA;
+window.arteDaBase = arteDaBase;
+/* ── AS PINTURAS DE UMA BASE, NO PLURAL (27/10/2026) ──────────────────────
+   Pedido do usuário: "você fez o desenho de um machado duplo, que eu vi na
+   ficha, mas não vejo ele nas imagens do sistema."
+
+   Ele tinha razão e a galeria não estava errada: ela lista UMA pintura por
+   base, e a ARMA é a base que não funciona assim. A base da arma é só o PESO
+   (Arma Leve/Média/Pesada, tirada do grupo de armas) — o tipo vem do nome do
+   exemplar, e é por isso que existem doze telas (espada, arco, lança e
+   machado × leve, média e pesada) para três bases. Com uma pintura por base,
+   nove delas não tinham por onde aparecer.
+
+   Então a galeria passa a perguntar no plural. Base comum devolve a sua
+   única tela; a arma devolve as que foram pintadas, com o nome do tipo. */
+const ARMA_TIPO_NOME = {
+  espada: 'Espada', machado: 'Machado', lanca: 'Lança', arco: 'Arco', besta: 'Besta',
+  tridente: 'Tridente', foice: 'Foice', chicote: 'Chicote', mangual: 'Mangual',
+  martelo: 'Martelo', maca: 'Maça', cetro: 'Cetro', cajado: 'Cajado', adaga: 'Adaga',
+};
+function artesDaBase(slugBase) {
+  const slug = String(slugBase || '');
+  const peso = /^arma-(leve|medio|pesado)$/.test(slug) ? slug.replace(/^arma-/, '') : null;
+  if (!peso) {
+    const src = arteDaBase(slug);
+    return src ? [{ src, variante: null }] : [];
+  }
+  const fora = [];
+  ARMA_POR_NOME.forEach(([tipo]) => {
+    const arquivo = 'arma-' + tipo + '-' + peso;
+    if (ARTE_PINTADA.has(arquivo)) {
+      fora.push({ src: '/equip/' + arquivo + '.webp', variante: ARMA_TIPO_NOME[tipo] || tipo });
+    }
+  });
+  // A tela genérica do peso, quando existir, fecha a lista.
+  if (ARTE_PINTADA.has(slug)) fora.push({ src: '/equip/' + slug + '.webp', variante: null });
+  return fora;
+}
+window.artesDaBase = artesDaBase;
+/* A casa do boneco também é consultada de fora (teste da regra por
+   profissão, e quem quiser a arte de uma região vazia). */
+window.arteDoSlot = arteDoSlot;
 /* Para as casas que juntam várias peças (brincos, roupas, anéis, cinto): a
    arte da primeira peça, ou a da região vazia. */
-function arteDaCasaAgrupada(regiao, itens, catalogoBySlug) {
+function arteDaCasaAgrupada(regiao, itens, catalogoBySlug, profissao) {
   const cat = itens && itens[0] ? catalogoBySlug[itens[0].slug] : null;
-  return arteDoSlot(regiao, cat) || FP_REGION_BG[regiao] || null;
+  return arteDoSlot(regiao, cat, profissao) || FP_REGION_BG[regiao] || null;
 }
 
 const fpItemBgStyle = (img, faded) => img ? {
@@ -1841,10 +2766,15 @@ const ColTitleNav = ({ mainLabel: mainLabelProp, pages, page, onNext, abrirTip, 
         <span className="fp-col-title-main">
           {mainLabel}
         </span>
+        {/* SEM TOOLTIP (06/10/2026): "Remova o tooltip da seta para navegar
+            nos menus caracterizações, atributos, etc." (usuário) Os traços
+            abaixo já dizem quantas páginas há e em qual se está, e o título
+            troca no clique — o balão repetia o que a própria tela mostra.
+            O `aria-label` FICA: quem usa leitor de tela não tem os traços. */}
         <button
             className="fp-col-title-nav-btn"
             onClick={multi ? onNext : undefined}
-            {...propsTip(abrirTip, fecharTip, multi ? `${en ? 'Next' : 'Próximo'}: ${pages[(page + 1) % pages.length].label}` : undefined)}
+            aria-label={multi ? `${en ? 'Next' : 'Próximo'}: ${pages[(page + 1) % pages.length].label}` : undefined}
             aria-hidden={!multi}
             onMouseEnter={(e) => { if (multi) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(201,164,78,0.12)'; } }}
             onMouseLeave={(e) => { if (multi) { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.background = 'none'; } }}
@@ -2319,7 +3249,10 @@ function FichaInfoView({
   );
 
   return (
-    <div className="fp-info-grid fp-info-grid--3" data-parte={parte}>
+    /* `fp-info-uma`: a fila de páginas do personagem. A mesma classe-irmã da
+       do bicho (fp-animal-info-uma) divide UMA regra de recuo em index.css —
+       é o que impede as duas colunas de divergirem outra vez. */
+    <div className="fp-info-grid fp-info-grid--3 fp-info-uma" data-parte={parte}>
       {parte === 'conhecimento' ? (
         <>{col3}{col4}{col5}</>
       ) : (
@@ -2331,100 +3264,462 @@ function FichaInfoView({
 }
 
 
-/* ============================== [11] FichaAnimaisView — os animais do personagem ==============================
-   14/09/2026, pedidos seguidos do usuário:
-     "Ao montar, aparecerá uma ficha extra da montaria."
-     "A página da montaria, e de todos os animais do personagem, devem ficar
-      nessa página extra."
-     "Na ficha dos animais, é preciso montar todos os ataques, o nível das
-      técnicas e habilidades e magias. Use a seta para o lado igual nas
-      informações do personagem. Use abas internas para selecionar a ficha
-      do animal."
-   A aba Animais lista TODO animal do inventário vinculado a uma criatura
-   (itens.criatura_id — animaisDoPersonagem, 07-inventario). Abas internas
-   (uma por animal) escolhem a ficha; abaixo, as colunas da aba Informações
-   com a mesma seta (ColTitleNav). Montaria ganha Montar/Desmontar na linha
-   das abas. Os números são os do catálogo: fora de combate o animal não
-   apanha nem gasta energia. */
-/* O NOME DO COMPANHEIRO (23/10/2026): "Dê a possibilidade do personagem nomear
-   seu companheiro animal, demônio, etc. O nome persiste se trocar, vender."
-   Mora na instância (instancia.apelido), que viaja inteira em transferir e
-   no anúncio da loja; companheiro com nome nunca empilha (normalizarPilhas e
-   transfer_item). */
-function FichaAnimaisView({ animais, en, podeEditar, onMontar, onDesmontar,
-  catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey, onDesfazerElo, onNomear }) {
+/* ============================== [11] A FICHA DO ANIMAL ==============================
+   A aba Companheiros lista TODO animal do inventário vinculado a uma criatura
+   (itens.criatura_id — animaisDoPersonagem, 07-inventario); a ficha abaixo é a
+   do bicho escolhido. Os ataques, os níveis de técnica/habilidade/magia e a
+   seta de navegar são os mesmos do personagem (ColTitleNav).
+
+   O NOME DO COMPANHEIRO mora na INSTÂNCIA (`instancia.nome`), que viaja
+   inteira em transferir e no anúncio da loja; companheiro com nome nunca
+   empilha (normalizarPilhas e transfer_item). As regras puras estão em
+   07-inventario/inventario.jsx (nomeDoAnimal, comNomeDoAnimal).
+   ================================================================================= */
+/* ── AS CASAS DO BICHO ─────────────────────────────────────────────────────
+   As doze de `itens.slot_arreio` (scripts/sql/arreamento-e-atrelado-2026-10-05
+   .sql), dispostas como o boneco do personagem: dois trilhos de cinco ao redor
+   do retrato e, na base, as duas casas de carga — que são as "mãos" do bicho.
+
+   A ordem desce o corpo, como no personagem: cabeça → cernelha → peito → dorso
+   → pernas. Não é enfeite: a casa de cima é a que o jogador procura primeiro. */
+const ARREIO_REGIOES = {
+  cabecada:   { pt: 'Cabeçada',   en: 'Bridle',      icone: 'ti-horse' },
+  chanfron:   { pt: 'Chanfron',   en: 'Chanfron',    icone: 'ti-shield' },
+  crinum:     { pt: 'Crinum',     en: 'Crinet',      icone: 'ti-feather' },
+  peitoral:   { pt: 'Peitoral',   en: 'Breastplate', icone: 'ti-shirt' },
+  manta:      { pt: 'Manta',      en: 'Blanket',     icone: 'ti-stack-2' },
+  barda:      { pt: 'Barda',      en: 'Barding',     icone: 'ti-shield-half' },
+  sela:       { pt: 'Sela',       en: 'Saddle',      icone: 'ti-horse-toy' },
+  gualdrapa:  { pt: 'Gualdrapa',  en: 'Caparison',   icone: 'ti-flag' },
+  arreio:     { pt: 'Arreio',     en: 'Harness',     icone: 'ti-link' },
+  caneleiras: { pt: 'Caneleiras', en: 'Greaves',     icone: 'ti-shoe' },
+  alforje:    { pt: 'Alforje',    en: 'Saddlebag',   icone: 'ti-briefcase-2' },
+  atrelado:   { pt: 'Atrelado',   en: 'Hitched',     icone: 'ti-car' },
+};
+/* SEIS DE CADA LADO, EM TRÊS FILEIRAS (27/10/2026, pedido do usuário: "o
+   número de slots são 12, então 6 de cada lado em 3 linhas"). Eram 5 + 5 e
+   uma base de 2 — a base era a fileira das MÃOS do personagem, e o bicho não
+   tem mãos: Alforje e Atrelado são carga, e carga entra na conta das casas
+   como qualquer outra peça. Com 6 por trilho a grade de duas colunas fecha
+   exatamente três fileiras dos dois lados, sem sobra no meio.
+
+   A ordem continua descendo o corpo (cabeça → cernelha → peito → dorso →
+   pernas), com a casa de carga de cada lado no fim. */
+const ARREIO_TRILHO_E = ['cabecada', 'chanfron', 'crinum', 'peitoral', 'manta', 'alforje'];
+const ARREIO_TRILHO_D = ['barda', 'sela', 'gualdrapa', 'arreio', 'caneleiras', 'atrelado'];
+/* A silhueta da casa vazia. Em 27/10/2026 as DOZE passaram a ter pintura
+   própria (pedido do usuário: "Crie os itens no sistema e no figma para a
+   montaria") — eram quatro, e as outras oito ficavam no glifo. O arquivo é o
+   slug da base em public/itens; ver a família Montaria em 01-core/bases-item. */
+const ARTE_ARREIO_VAZIO = {
+  cabecada: 'cabecada', chanfron: 'chanfron', crinum: 'crinum',
+  peitoral: 'peitoral-montaria', manta: 'manta', barda: 'barda',
+  sela: 'sela', gualdrapa: 'gualdrapa', arreio: 'arreio',
+  caneleiras: 'caneleiras-montaria', alforje: 'alforge', atrelado: 'carroca',
+};
+
+/* As barras do bicho. Componente PRÓPRIO porque é ele que tem hooks
+   (FichaVitBars abre tooltip): FichaAnimaisView precisa poder devolver null
+   antes de qualquer hook — ver ficha-hooks-antes-dos-returns.test.js —, e um
+   hook aqui dentro não conta lá fora.
+
+   São as MESMAS barras do personagem, pelo mesmo componente e na mesma ordem:
+   as energias, a régua das condições e, no fim, a Experiência. `semNome` e sem
+   `showValue` porque a ficha do bicho não escreve rótulo nem número — "também
+   não tem '0 de 100' na ficha do animal" (usuário, 05/10/2026). */
+function AnimalVitBars({ instancia, criatura, en }) {
+  const vit = (window.vitalidadeDoAnimal || (() => ({ ef: 0, efMax: 0, eh: 0, ehMax: 0, cond: {}, condMax: 100 })))(instancia, criatura);
+  /* A COR É O QUE A MEDIDA MOSTRA (27/10/2026, pedido do usuário: "as barras
+     de EF e EH não estão mostrando os valores corretos"). O nível sempre
+     esteve certo — o que faltava era `color`, e sem ela o tubo (a peça de
+     então) ficava transparente: vazio qualquer que fosse o valor, e um tubo
+     vazio é um valor errado para quem lê. Hoje a peça é uma GEMA e a paleta
+     vem de `b.key`, mas `color` segue valendo para os cartões de personagem,
+     que leem a mesma tabela. As mesmas duas cores do dono
+     (FICHA_VIT_COLORS), e `nomeCurto` pelo mesmo motivo: a legenda do bicho
+     dizia "Energia Física" onde a do personagem diz "Física". */
+  const vitais = [
+    vit.efMax > 0 && { key: 'ef', icon: 'ti-heart', color: FICHA_VIT_COLORS.ef,
+      label: en ? 'Physical Energy' : 'Energia Física', nomeCurto: en ? 'Physical' : 'Física',
+      val: vit.ef, max: vit.efMax },
+    vit.ehMax > 0 && { key: 'eh', icon: 'ti-bolt', color: FICHA_VIT_COLORS.eh,
+      label: en ? 'Heroic Energy' : 'Energia Heroica', nomeCurto: en ? 'Heroic' : 'Heroica',
+      val: vit.eh, max: vit.ehMax },
+  ].filter(Boolean);
+  /* `sigla` entra porque o medalhão a recebia do personagem; hoje o rótulo é
+     a palavra (26/10/2026), mas o campo segue no formato das barras dele. */
+  const condBars = (window.CONDICOES_ANIMAL || []).map((c) => ({
+    key: c.key, icon: c.icone, sigla: c.sigla, label: en ? c.labelEn : c.label,
+    val: (vit.cond && vit.cond[c.key]) || 0, max: vit.condMax,
+    color: window.COND_ROXO || '#8E5BD6',
+  }));
+  return (
+    <div className="fp2-vitcond-col fp-animal-vit">
+      {/* SEM `fp2-vit-section`/`fp2-vit-band` (26/10/2026): essas duas são a
+          faixa de TUBOS do personagem, e levam um `flex: 1 1 auto` que mandava
+          o painel crescer para encher a coluna — medido: 669px de painel para
+          80px de barras. O bicho tem barras de linha, e painel de barra de
+          linha tem a altura do conteúdo. */}
+      {/* OS MESMOS DESENHOS DA FICHA DO PERSONAGEM (26/10/2026, pedido do
+          usuário: "arrume a ficha do animal para ficar igual a ficha do
+          personagem"). Eram barras de linha enquanto o dono tinha TUBOS e
+          MEDALHÕES — a mesma informação em dois vocabulários visuais, lado a
+          lado na mesma mesa. Agora é o mesmo componente nos dois. */}
+      <section className="fp2-panel fp2-vit-section">
+        <div className="fp2-panel-body fp2-vit-band">
+          <h3 className="fp-col-tit">{en ? 'Energies' : 'Energias'}</h3>
+          <FichaGemas bars={vitais} scope="vit-animal" en={en} />
+        </div>
+      </section>
+      {/* SEM `fp2-vit-break` (27/10/2026, pedido do usuário: "revise o
+          espaçamento entre os cards"). A classe acrescenta 4px de margem e
+          uma régua no topo — ela é de quando os blocos dividiam um painel só
+          e precisavam de um fio entre si. Aqui Condições é um CARTÃO, com
+          borda própria: o fio virava uma segunda linha logo abaixo da
+          primeira, e os 4px punham o vão desta coluna em 16px enquanto todos
+          os outros vãos da ficha são 12. */}
+      <section className="fp2-panel">
+        <div className="fp2-panel-body">
+          <h3 className="fp-col-tit">{en ? 'Conditions' : 'Condições'}</h3>
+          <FichaMedalhoes bars={condBars} scope="cond-animal" en={en} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ── A EXPERIÊNCIA NO PÉ DO CARTÃO (27/10/2026) ─────────────────────────────
+   Pedido do usuário: "coloque a barra de experiência como na ficha do
+   personagem" e "abaixo do card de condições tem um card que eu não sei o que
+   é". É o MESMO card: a Experiência do bicho morava como terceiro painel da
+   coluna da esquerda, montada com `semNome` e sem número — ou seja, um painel
+   com um fio dentro e nenhuma palavra que dissesse o que era. Quem olha vê
+   uma caixa vazia, e tem razão.
+
+   Agora é a faixa `.fp-xp-faixa` do personagem, de ponta a ponta no pé da
+   moldura, com o rótulo "Experiência" e o número — a mesma peça, o mesmo
+   lugar, e enfim legível.
+
+   A diferença deliberada de 06/10/2026 fica: não se edita. A do personagem é
+   onde o Mestre concede XP; a do bicho é consequência dela ("sempre 1/5"), e
+   abrir o editor aqui romperia a regra — por isso `onEdit` não vai. */
+function AnimalXpFaixa({ instancia, criatura, en }) {
+  const xp = window.xpDoAnimal ? window.xpDoAnimal(instancia, criatura) : null;
+  if (!xp) return null;
+  const bars = [{
+    key: 'xp-animal', icon: 'ti-trending-up',
+    label: (en ? 'Stage' : 'Estágio') + ' ' + xp.estagio,
+    val: xp.dentro, max: xp.span,
+    tip: xp.noTeto ? null : `${Math.ceil(xp.falta)} XP`,
+  }];
+  return (
+    <div className="fp-xp-faixa">
+      <span className="fp-xp-rot">{en ? 'Experience' : 'Experiência'}</span>
+      <FichaVitBars bars={bars} scope="xp-animal" semNome numero en={en} />
+    </div>
+  );
+}
+
+/* ── AnimalInventarioView — o que o bicho leva (27/10/2026) ─────────────────
+   Pedido do usuário: o menu lateral do companheiro ganha "Inventário", ao
+   lado de Identificação e Conhecimento. Até aqui o que estava no bicho só
+   aparecia nas doze casas do boneco — e casa mostra UMA peça, então a carga
+   solta do lombo não tinha onde ser lida.
+
+   Duas listas, porque são duas coisas: o ARREAMENTO, que é o que ele veste e
+   tem casa certa, e a CARGA, que é o que ele leva e não tem. A ordem das
+   casas é a do boneco (ARREIO_REGIOES), para quem olhou o bicho encontrar a
+   mesma sequência aqui.
+
+   Quem mexe no que está no bicho continua sendo o Inventário do dono — é de
+   lá que a peça sobe e desce (equiparNoAnimal). Esta página LÊ. */
+function AnimalInventarioView({ instancia, criatura, itens, catalogoBySlug, pesoDoCavaleiro, en }) {
+  const dentro = (window.itensDoAnimal ? window.itensDoAnimal(itens, instancia.instanceId) : [])
+    .map((it) => ({ it, cat: (catalogoBySlug || {})[it.slug] || null }))
+    .filter((x) => x.cat);
+  /* A ordem é a DO BONECO, e não a de ARREIO_REGIOES: os dois trilhos, na
+     sequência em que o jogador acabou de ver as casas. (Em ARREIO_REGIOES o
+     alforje é penúltimo; no boneco ele fecha o trilho da esquerda.) */
+  const casas = [...ARREIO_TRILHO_E, ...ARREIO_TRILHO_D];
+  const naCasa = dentro
+    .filter((x) => casas.includes(x.it.slot_animal))
+    .sort((a, b) => casas.indexOf(a.it.slot_animal) - casas.indexOf(b.it.slot_animal));
+  const naCarga = dentro.filter((x) => !casas.includes(x.it.slot_animal));
+  const n = (v) => (v == null ? '—' : String(Math.round(Number(v) * 10) / 10).replace('.', ','));
+  const linha = ({ it, cat }, ondeLbl) => {
+    const arte = window.arteDoItem ? window.arteDoItem(cat) : null;
+    const qtd = Number(it.quantidade) || 1;
+    return (
+      <li className="mn-quadro-linha anim-inv-linha" key={it.instanceId}>
+        <span className="anim-inv-ic">
+          {arte
+            ? <img src={arte} alt="" />
+            : <i className={'ti ' + (window.invItemIcon ? window.invItemIcon(cat) : 'ti-box')} aria-hidden="true" />}
+        </span>
+        <span className="anim-inv-nome">{cat.nome}{qtd > 1 && <small> ×{qtd}</small>}</span>
+        <span className="anim-inv-onde">{ondeLbl}</span>
+        <span className="anim-inv-peso">{n((cat.ocupa != null ? Number(cat.ocupa) || 0 : 0) * qtd)}</span>
+      </li>
+    );
+  };
+  /* O quadro de linhas do sistema (.mn-quadro, ver index.css): cabeçalho
+     rotulado e linhas separadas por régua fina. `fp2-panel` não serve aqui —
+     ele nasce transparente e sem borda, e só ganha a pele de cartão dentro da
+     moldura da ficha; esta é uma PÁGINA, como a Identificação do personagem. */
+  const quadro = (titulo, lista, vazioTxt, ondeDe) => (
+    <section className="anim-inv-secao">
+      <h3 className="fp-col-tit">{titulo}</h3>
+      {lista.length ? (
+        <ul className="mn-quadro anim-inv-quadro">
+          <li className="mn-quadro-cab anim-inv-linha" aria-hidden="true">
+            <span /><span>{en ? 'Item' : 'Item'}</span>
+            <span>{en ? 'Where' : 'Onde'}</span><span>{en ? 'Weight' : 'Peso'}</span>
+          </li>
+          {lista.map((x) => linha(x, ondeDe(x)))}
+        </ul>
+      ) : <p className="anim-inv-vazio">{vazioTxt}</p>}
+    </section>
+  );
+  const rotuloDaCasa = (x) => {
+    const def = ARREIO_REGIOES[x.it.slot_animal];
+    return def ? (en ? def.en : def.pt) : x.it.slot_animal;
+  };
+  return (
+    <div className="anim-inv">
+      {quadro(en ? 'Harness' : 'Arreamento', naCasa,
+        en ? 'Nothing harnessed.' : 'Nada arreado.', rotuloDaCasa)}
+      {quadro(en ? 'Load' : 'Carga', naCarga,
+        en ? 'Carrying nothing loose.' : 'Não leva nada solto.',
+        () => (en ? 'On its back' : 'No lombo'))}
+      <AnimalCargaFaixa instancia={instancia} criatura={criatura} itens={itens}
+        catalogoBySlug={catalogoBySlug} pesoDoCavaleiro={pesoDoCavaleiro} en={en} />
+    </div>
+  );
+}
+
+/* ── A CARGA DO BICHO, NO PÉ (27/10/2026) ───────────────────────────────────
+   Pedido do usuário: "adicione também uma barra para mostrar o peso que o
+   animal está carregando". A mesma faixa da Experiência, logo abaixo dela:
+   são as duas medidas que valem para o bicho inteiro, e nenhuma das duas é
+   assunto de uma coluna só.
+
+   A regra (capacidade = 20% do peso do corpo, e o cavaleiro montado conta)
+   é do usuário e mora em `cargaDoAnimal`, 07-inventario — do lado do
+   `calcCarga` do personagem, que é o espelho dela.
+
+   Sem peso de corpo gravado não há teto, e sem teto não há barra: a criatura
+   sem `peso` é dado faltando no catálogo, e inventar um máximo seria inventar
+   quanto o bicho aguenta. */
+function AnimalCargaFaixa({ instancia, criatura, itens, catalogoBySlug, pesoDoCavaleiro, en }) {
+  const f = window.cargaDoAnimal;
+  if (!f) return null;
+  const c = f(instancia, criatura, itens, catalogoBySlug, pesoDoCavaleiro);
+  if (!(c.capacidade > 0)) return null;
+  const n = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+  const bars = [{
+    key: 'carga-animal', icon: 'ti-weight',
+    label: en ? 'Load' : 'Carga',
+    val: c.peso, max: c.capacidade,
+    txt: n(c.peso), txtMax: n(c.capacidade),
+    color: c.over ? 'var(--alerta)' : undefined,
+    // O cavaleiro é a maior parcela e a menos óbvia: ele não está em casa
+    // nenhuma do boneco, então a faixa precisa dizer que ele está ali.
+    tip: c.cavaleiro > 0
+      ? (en ? `Includes ${n(c.cavaleiro)} from the rider` : `Inclui ${n(c.cavaleiro)} do cavaleiro`)
+      : null,
+  }];
+  return (
+    <div className={'fp-xp-faixa fp-carga-faixa' + (c.over ? ' is-over' : '')}>
+      <span className="fp-xp-rot">{en ? 'Load' : 'Carga'}</span>
+      <FichaVitBars bars={bars} scope="carga-animal" semNome numero en={en} />
+    </div>
+  );
+}
+
+/* A linha do NOME, com o lápis. Componente próprio pelo mesmo motivo das
+   barras: ele guarda o rascunho do campo, e esse useState não pode subir.
+
+   Sem nome dado a linha fica VAZIA e convida — nunca um "—": ali não falta um
+   dado do catálogo, falta uma escolha do dono ("o nome poderá ser informado
+   pelo seu dono, se assim desejar"). O convite escrito saiu em 06/10/2026
+   ("remova o texto 'Dar um nome' e deixe só o ícone de lápis"), e por isso o
+   lápis precisa dizer em palavras o que é para quem não o enxerga. */
+function AnimalNomeLinha({ instancia, nome, en, onRenomear }) {
+  const [rascunho, setRascunho] = useState(null);
+  const dado = (instancia && typeof instancia.nome === 'string' ? instancia.nome : '').trim();
+  if (!onRenomear) {
+    return <div className="fp-row"><span className="fp-row-label">{en ? 'Name' : 'Nome'}</span>
+      <span className="fp-row-value">{dado || nome || ''}</span></div>;
+  }
+  if (rascunho !== null) {
+    return (
+      <form className="fp-row" data-nome-animal
+        onSubmit={(e) => { e.preventDefault(); onRenomear(instancia.instanceId, rascunho); setRascunho(null); }}>
+        <span className="fp-row-label">{en ? 'Name' : 'Nome'}</span>
+        <input autoFocus className="fp-row-value fp-nome-animal-input"
+          maxLength={window.NOME_ANIMAL_MAX || 24} value={rascunho}
+          aria-label={en ? 'Companion name' : 'Nome do companheiro'}
+          onChange={(e) => setRascunho(e.target.value)}
+          onBlur={() => { onRenomear(instancia.instanceId, rascunho); setRascunho(null); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') setRascunho(null); }} />
+      </form>
+    );
+  }
+  return (
+    <div className="fp-row">
+      <span className="fp-row-label">{en ? 'Name' : 'Nome'}</span>
+      <span className={'fp-row-value' + (dado ? '' : ' fp-row-value--convite')}>
+        {dado}
+        <button type="button" className="fp-nome-animal-lapis"
+          aria-label={dado ? (en ? 'Rename' : 'Renomear') : (en ? 'Give a name' : 'Dar um nome')}
+          onClick={() => setRascunho(dado)}>
+          <i className="ti ti-pencil" aria-hidden="true" />
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/* ============================== [11] FichaAnimaisView — a ficha de UM animal ==============================
+   "A página de animais está muito diferente da ficha do personagem, eu quero
+    exatamente igual. A mesma quantidade de slots, mesmo tamanho do card da
+    imagem, etc." · "Com a imagem no centro também." · "Existem itens próprios
+    para animais, ou seja, não precisa de seletor de equipamento na ficha do
+    animal. Também não tem '0 de 100' na ficha do animal." (usuário, 05/10/2026)
+
+   O QUE SAIU, e por quê:
+     • as ABAS internas (uma por animal) — quem escolhe o companheiro é a lista
+       da aba Companheiros, do lado de fora; esta view é de UM bicho;
+     • o botão Montar — "o botão de montar deve ser no item do animal no
+       inventário" (usuário, 06/10/2026);
+     • a linha de nome na barra de abas — o nome mora no RETRATO, onde o nome
+       do personagem mora.
+
+   O ANDAIME É O DO PERSONAGEM, literalmente as mesmas classes: fp2-sheet >
+   fp2-frame > fp2-columns--duas, barras à esquerda (fp2-col-vit) e o boneco à
+   direita (fp2-col-main). Se o cartão do personagem mudar de respiro, este
+   muda junto — é essa a trava que ficha-animal-igual-personagem.test.jsx
+   guarda. O que muda são as CASAS: o bicho tem as doze do arreamento, e não as
+   dezesseis regiões de gente.
+   ============================================================================ */
+function FichaAnimaisView({ animal, animais, en, podeEditar, itens,
+  catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey, onDesfazerElo, onRenomear,
+  pesoDoCavaleiro = 0, parte = 'ficha' }) {
   const lista = Array.isArray(animais) ? animais : [];
-  const [selId, setSelId] = useState(null);
-  const [editandoNome, setEditandoNome] = useState(null); // { id, txt }
-  // Abre no montado; senão no primeiro. Animal que saiu do inventário cai no primeiro.
-  const atual = lista.find((a) => a.instancia.instanceId === selId)
-    || lista.find((a) => a.instancia.montado) || lista[0] || null;
+  const atual = animal || lista.find((a) => a.instancia.montado) || lista[0] || null;
   if (!atual) return null;
 
-  // Dois animais da mesma criatura (dois Cavalos Quarter) ganham número.
-  const contagem = {};
-  const rotulos = {};
-  lista.forEach((a) => {
-    const base = a.cat.nome || a.criatura.nome;
-    contagem[base] = (contagem[base] || 0) + 1;
-    rotulos[a.instancia.instanceId] = a.instancia.apelido
-      || (contagem[base] > 1 ? `${base} ${contagem[base]}` : base);
-  });
-
   const inst = atual.instancia;
-  const acao = podeEditar && atual.criatura.montaria === true
-    ? (inst.montado
-        ? <button type="button" className="btn-ghost btn-sm" onClick={() => onDesmontar(inst.instanceId)}>{en ? 'Dismount' : 'Desmontar'}</button>
-        : <button type="button" className="btn-primary btn-sm" onClick={() => onMontar(inst.instanceId)}>{en ? 'Mount' : 'Montar'}</button>)
-    : null;
+  const criatura = atual.criatura || {};
+  const raca = window.racaDoAnimal ? window.racaDoAnimal(atual.cat, criatura) : (atual.cat && atual.cat.nome) || criatura.nome || '';
+  const nome = atual.nome
+    || (window.nomeDoAnimal ? window.nomeDoAnimal(inst, atual.cat, criatura) : raca);
+
+  // As peças que estão NESTE bicho, pela casa em que entraram.
+  const noBicho = window.itensDoAnimal ? window.itensDoAnimal(itens, inst.instanceId) : [];
+  const porCasa = {};
+  noBicho.forEach((p) => { (porCasa[p.slot_animal] = porCasa[p.slot_animal] || []).push(p); });
+
+  const casa = (regiao) => {
+    const def = ARREIO_REGIOES[regiao] || { pt: regiao, en: regiao, icone: 'ti-shield-off' };
+    const pecas = porCasa[regiao] || [];
+    const peca = pecas[0] || null;
+    const cat = peca ? (catalogoBySlug || {})[peca.slug] : null;
+    const vazia = !peca;
+    const arquivo = ARTE_ARREIO_VAZIO[regiao];
+    const arte = (cat && window.arteDoItem ? window.arteDoItem(cat) : null)
+      || (vazia && arquivo ? '/itens/' + arquivo + '.webp' : null);
+    const rotulo = en ? def.en : def.pt;
+    return (
+      <div className="fp3-regiao" key={'arreio-' + regiao}>
+        <span className="fp3-qtd" aria-hidden="true">{pecas.length}/1</span>
+        <button type="button"
+          className={'inv-slot' + (vazia ? ' empty' : ' filled') + (arte ? ' has-img' : '') + (vazia && arte ? ' bg-ghost' : '')}
+          style={{ cursor: 'default', ...fpItemBgStyle(arte, vazia) }}
+          aria-label={rotulo + (cat ? ' — ' + cat.nome : '')}>
+          {!arte && <span className="inv-slot-ic"><i className={'ti ' + def.icone} aria-hidden="true" /></span>}
+        </button>
+        <span className="fp3-nomr">{rotulo}</span>
+      </div>
+    );
+  };
+
+  /* AS PÁGINAS DO BICHO (27/10/2026): a ficha é a do boneco; Identificação,
+     Conhecimento e Inventário são páginas próprias, chamadas pelo menu
+     lateral. O invólucro é o mesmo das páginas do personagem (fp-info-tab),
+     para os recuos baterem. */
+  if (parte === 'inventario') {
+    return (
+      <div className="fp-animais fp-animais-parte">
+        <AnimalInventarioView instancia={inst} criatura={criatura} itens={itens}
+          catalogoBySlug={catalogoBySlug} pesoDoCavaleiro={pesoDoCavaleiro} en={en} />
+      </div>
+    );
+  }
+  if (parte === 'info' || parte === 'conhecimento') {
+    return (
+      <div className="fp-animais fp-animais-parte">
+        <FichaCriaturaSheet key={inst.instanceId + ':' + parte} parte={parte}
+          criatura={criatura} instancia={inst} en={en}
+          catalogoBySlug={catalogoBySlug} habsByKey={habsByKey}
+          tecnicasByKey={tecnicasByKey} magiasByKey={magiasByKey}
+          onDesfazerElo={onDesfazerElo}
+          raca={raca} nome={nome} podeEditar={podeEditar} onRenomear={onRenomear} />
+      </div>
+    );
+  }
 
   return (
     <div className="fp-animais">
-      <div className="fp-animais-tabs">
-        <div className="fp-animais-tabs-lista" role="tablist" aria-label={en ? 'Animals' : 'Animais'}>
-          {lista.map((a) => {
-            const id = a.instancia.instanceId;
-            const on = id === inst.instanceId;
-            return (
-              <button key={id} type="button" role="tab" aria-selected={on}
-                className={'hist-modal-tab' + (on ? ' is-active' : '')}
-                onClick={() => setSelId(id)}>
-                {rotulos[id]}
-                {/* Montado = ícone de cavalo, sem texto (usuário, 14/09/2026). */}
-                {a.instancia.montado && (
-                  <i className="ti ti-horse fp-animais-tag" role="img" aria-label={en ? 'Mounted' : 'Montado'} />
-                )}
-                {/* Elo Permanente (27/09/2026), ao lado do nome, como o montado. */}
-                {window.temElo && window.temElo(a.instancia) && (
-                  <i className="ti ti-link fp-animais-tag" role="img" aria-label={en ? 'Permanent bond' : 'Elo Permanente'} />
-                )}
-              </button>
-            );
-          })}
-        </div>
-        <div className="fp-animais-acao">
-          {onNomear && (editandoNome && editandoNome.id === inst.instanceId ? (
-            <form className="fp-animais-nome" onSubmit={(e) => { e.preventDefault(); onNomear(inst.instanceId, editandoNome.txt.trim()); setEditandoNome(null); }}>
-              <input autoFocus maxLength={40} value={editandoNome.txt}
-                placeholder={atual.cat.nome || atual.criatura.nome}
-                aria-label={en ? 'Companion name' : 'Nome do companheiro'}
-                onChange={(e) => setEditandoNome({ id: inst.instanceId, txt: e.target.value })}
-                onKeyDown={(e) => { if (e.key === 'Escape') setEditandoNome(null); }} />
-              <button type="submit" className="btn-primary btn-sm">{en ? 'Save' : 'Salvar'}</button>
-            </form>
-          ) : (
-            <button type="button" className="btn-ghost btn-sm" onClick={() => setEditandoNome({ id: inst.instanceId, txt: inst.apelido || '' })}>
-              <i className="ti ti-pencil" aria-hidden="true" /> {inst.apelido ? (en ? 'Rename' : 'Renomear') : (en ? 'Name' : 'Dar nome')}
-            </button>
-          ))}
-          {acao}
+      <div className="fp2-sheet">
+        <div className="fp2-frame">
+          {/* SEM A FILEIRA DO HERÓI (27/10/2026, pedido do usuário: "não
+              precisamos do trilho superior"). Ela chegou a existir aqui, mais
+              cedo no mesmo dia; com o trilho na tela ficou claro que Batalha,
+              Atividade e Editar são ações sobre o PERSONAGEM, e que em cima
+              da ficha do cavalo elas parecem ser do cavalo. Quem apaga a
+              faixa é `semTrilho`, em FichaPersonagem. */}
+          <div className="fp2-columns fp2-columns--duas">
+            <div className="fp2-col-vit">
+              <AnimalVitBars instancia={inst} criatura={criatura} en={en} />
+            </div>
+            <div className="fp2-col-main">
+              <div className="fp2-equip-wrap fp2-panel">
+                <h3 className="fp-col-tit">{en ? 'Harness' : 'Arreamento'}</h3>
+                {/* `--bicho`: sem a fileira das mãos, o retrato ocupa UMA
+                    linha de grade. Sem isso ele segue com o `span 2` do
+                    personagem e abre uma segunda fileira vazia. */}
+                <div className="fp3-boneco fp3-boneco--bicho">
+                  <div className="fp3-trilho">{ARREIO_TRILHO_E.map(casa)}</div>
+                  {/* O retrato no centro, no MESMO palco do personagem — e com
+                      o nome do bicho onde o nome dele fica. */}
+                  <div className="fp2-stage fp3-retrato">
+                    <div className="fp2-portrait is-empty">
+                      <span className="fp2-mono">{(nome || '?').trim().charAt(0).toUpperCase()}</span>
+                      <div className="fp2-name-block">
+                        <h2 className="fp2-name">{nome}</h2>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="fp3-trilho">{ARREIO_TRILHO_D.map(casa)}</div>
+                </div>
+              </div>
+              {/* IDENTIDADE E DERIVADAS SAÍRAM DAQUI (27/10/2026, pedido do
+                  usuário: "removeremos da ficha as informações de 'identidade,
+                  derivadas, etc', aproximando mais a ficha do companheiro da
+                  ficha do personagem"). Elas viraram páginas do bicho, abertas
+                  pelo menu lateral — Identificação, Conhecimento e Inventário
+                  —, exatamente como o personagem já separava Ficha de
+                  Identificação. A ficha fica com o que é visual: o boneco, as
+                  armas, as energias e as duas faixas do pé. */}
+            </div>
+          </div>
+          {/* As duas faixas do pé, como no cartão do dono. */}
+          <AnimalXpFaixa instancia={inst} criatura={criatura} en={en} />
+          <AnimalCargaFaixa instancia={inst} criatura={criatura} itens={itens}
+            catalogoBySlug={catalogoBySlug} pesoDoCavaleiro={pesoDoCavaleiro} en={en} />
         </div>
       </div>
-      {/* key: trocar de animal zera a página de cada coluna. */}
-      <FichaCriaturaSheet key={inst.instanceId} criatura={atual.criatura} instancia={inst} en={en}
-        catalogoBySlug={catalogoBySlug} habsByKey={habsByKey}
-        tecnicasByKey={tecnicasByKey} magiasByKey={magiasByKey}
-        onDesfazerElo={onDesfazerElo} />
     </div>
   );
 }
@@ -2484,7 +3779,20 @@ const AnimalColuna = ({ titulo, paginas, pagina, onNext, abrirTip, fecharTip, en
   </div>
 );
 
-function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey, onDesfazerElo }) {
+/* `parte` (27/10/2026, pedido do usuário): as colunas desta ficha deixaram de
+   morar todas na mesma tela e viraram PÁGINAS do bicho, chamadas pelo menu
+   lateral — "adicione dentro do menu lateral esquerdo 'companheiros' […] os
+   menus 'identificação, conhecimento e inventário' da criatura. Com isso,
+   removeremos da ficha as informações de 'identidade, derivadas, etc'".
+
+   É o mesmo corte que o personagem já tinha (FichaInfoView recebe `parte`):
+
+     'info'         → quem é e o que faz: Identidade, Derivadas e Ataques;
+     'conhecimento' → Habilidades, Técnicas e Magias.
+
+   O inventário do bicho não sai daqui: ele é dos ITENS, não da criatura, e
+   tem componente próprio (AnimalInventarioView). */
+function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey, tecnicasByKey, magiasByKey, onDesfazerElo, raca, nome, onRenomear, parte = 'info' }) {
   const c = criatura || {};
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const [pag1, setPag1] = useState(0);
@@ -2536,12 +3844,24 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
   const col4Pages = col4Grupos.length ? col4Grupos : [{ key: 'vazio', label: en ? 'Abilities' : 'Capacidades', itens: [] }];
   const i4 = pag4 % col4Pages.length;
 
+  /* Três colunas nas duas páginas, e não uma na do Conhecimento: a coluna de
+     capacidades sozinha esticava para 1250px, e com ela o nome à esquerda e o
+     total à direita ficavam a uma tela de distância. Com a largura de terço, a
+     linha se lê de uma olhada — a mesma medida da Identificação, ao lado. */
   return (
-    <div className="fp-info-grid fp-info-grid--4 fp-montaria">
+    <div className="fp-info-grid fp-info-grid--3 fp-montaria fp-animal-info-uma">
+      {parte !== 'conhecimento' && (
       <AnimalColuna titulo={en ? 'Animal' : 'Animal'} paginas={col1Pages} pagina={i1} onNext={proxima(setPag1, col1Pages.length)} {...navProps}>
         {col1Pages[i1].key === 'identidade' && (
           <>
-            <Row label={en ? 'Name' : 'Nome'} value={c.nome} />
+            {/* O NOME É DO DONO, A RAÇA É DO CATÁLOGO (06/10/2026): "o que é
+                atualmente 'nome' será 'Raça', e o nome poderá ser informado
+                pelo seu dono, se assim desejar." Duas linhas, porque são duas
+                coisas: a espécie, que o catálogo dá, e o batismo, que é uma
+                escolha. Sem onRenomear (Mestre olhando ficha alheia) a linha
+                do nome é só leitura: quem batiza é o dono. */}
+            <AnimalNomeLinha instancia={instancia} nome={nome} en={en} onRenomear={onRenomear} />
+            <Row label={en ? 'Race' : 'Raça'} value={raca || c.nome} />
             <Row label={en ? 'Mount' : 'Montaria'} value={c.montaria === true ? (en ? 'Yes' : 'Sim') : (en ? 'No' : 'Não')} />
             {/* Elo Permanente (27/09/2026): com quem e desde quando. O Mestre
                 desfaz pelo x (onDesfazerElo só chega para ele). */}
@@ -2594,7 +3914,9 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
               .map((p, i) => <p key={i} className="fp-montaria-desc">{p}</p>)
           : vazioCol(en ? 'No description.' : 'Sem descrição.'))}
       </AnimalColuna>
+      )}
 
+      {parte !== 'conhecimento' && (
       <AnimalColuna titulo={en ? 'Stats' : 'Derivadas'} paginas={[{ key: 'derivadas', label: en ? 'Stats' : 'Derivadas' }]} pagina={0} onNext={() => {}} {...navProps}>
         <Row label={en ? 'Physical Energy' : 'Energia Física'} value={c.energia_fisica} />
         <Row label={en ? 'Heroic Energy' : 'Energia Heroica'} value={c.energia_heroica} />
@@ -2604,7 +3926,9 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
         <Row label={en ? 'Physical Resistance' : 'Resistência Física'} value={resist.rf} />
         <Row label={en ? 'Magic Resistance' : 'Resistência Mágica'} value={resist.rm} />
       </AnimalColuna>
+      )}
 
+      {parte !== 'conhecimento' && (
       <AnimalColuna titulo={en ? 'Attacks' : 'Ataques'} paginas={col3Pages} pagina={i3} onNext={proxima(setPag3, col3Pages.length)} {...navProps}>
         {atq ? (
           <>
@@ -2620,7 +3944,9 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
           </>
         ) : vazioCol(en ? 'No attacks.' : 'Nenhum ataque.')}
       </AnimalColuna>
+      )}
 
+      {parte === 'conhecimento' && (
       <AnimalColuna titulo={en ? 'Abilities' : 'Capacidades'} paginas={col4Pages} pagina={i4} onNext={proxima(setPag4, col4Pages.length)} {...navProps}>
         {col4Pages[i4].itens.length
           ? col4Pages[i4].itens.map((it, i) => {
@@ -2633,6 +3959,7 @@ function FichaCriaturaSheet({ criatura, instancia, en, catalogoBySlug, habsByKey
             })
           : vazioCol(en ? 'No skills, techniques or spells.' : 'Sem habilidades, técnicas ou magias.')}
       </AnimalColuna>
+      )}
 
       {consulta && (() => {
         const Janela = window.BestDetalheModal;
@@ -2717,7 +4044,14 @@ function TooltipFlipGuard() {
   return null;
 }
 
-function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, onEvoluir = null, isMestre, navSlot, onBatalha, abaPedida = null, abaToken = 0, onAba = null }) {
+/* `onCompanheiros`/`compPedido*` (26/10/2026, pedido do usuário: "os botões
+   para selecionar o animal vão ficar no menu da esquerda como submenu de
+   companheiros"). A ficha diz quem são os companheiros deste personagem, e a
+   barra lateral pede qual abrir — o mesmo par relatar/pedir que o submenu de
+   Personagens já usa. O estado de qual está aberto continua aqui. */
+function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, onEvoluir = null, isMestre, navSlot, onBatalha, abaPedida = null, abaToken = 0, onAba = null,
+  onCompanheiros = null, compPedidoId = null, compPedidoToken = 0,
+  compPedidoParte = null }) {
   const en = lang === 'en';
   /* Barra de ações da ficha (22/10/2026): os atalhos e o pacto de amizade
      moram nela quando o console a oferece (#mc-acoes-ficha, 10-shell). */
@@ -2744,6 +4078,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const _ehContainer    = (typeof ehContainer    !== 'undefined' ? ehContainer    : null) || window.ehContainer    || (() => false);
   const _ContainerModal = (typeof ContainerModal !== 'undefined' ? ContainerModal : null) || window.ContainerModal || null;
   const _DetalhesItemModal = (typeof DetalhesItemModal !== 'undefined' ? DetalhesItemModal : null) || window.DetalhesItemModal || null;
+  /* A janela do item/região usa o esqueleto do sistema (BestDetalheModal):
+     título, barra de ações com nome e corpo — o mesmo da janela de item. */
+  const _JanelaItem = (typeof BestDetalheModal !== 'undefined' ? BestDetalheModal : null) || window.BestDetalheModal || null;
   const _QuantidadeModal   = (typeof QuantidadeModal   !== 'undefined' ? QuantidadeModal   : null) || window.QuantidadeModal   || null;
 
   const [pj, setPj] = useState(null);
@@ -2791,14 +4128,25 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   useEffect(() => { if (onAba) onAba(fpTab, { temAnimais: !!temAnimais }); }, [fpTab, onAba, temAnimais]);
   // Onde a Loja põe a busca: no cabeçalho, entre o nome e os botões (02/10/2026).
   const [slotBuscaLoja, setSlotBuscaLoja] = useState(null);
+  /* O nome e os botões moram DENTRO da ficha (26/10/2026, modelo aprovado):
+     este é o lugar deles na fileira do herói, dentro da moldura. Enquanto a
+     aba Ficha está aberta, os portais de ação miram aqui em vez da barra do
+     console (alvoAcoes). */
+  const [slotAcoesFicha, setSlotAcoesFicha] = useState(null);
   const [fotoUploading, setFotoUploading] = useState(false);
   const [fotoErro, setFotoErro] = useState(null);
   const [editBar, setEditBar] = useState(null); // { item, scope, anchor } — popover de edição de barra
-  const [menuPecaId, setMenuPecaId] = useState(null);
   // Retângulo da casa clicada: o menu da peça flutua ancorado nela.
-  const [menuPecaAnchor, setMenuPecaAnchor] = useState(null);   // instanceId da peça equipada/vestida com menu de ação aberto (confirma desequipar/despir)
   const [contFichaId, setContFichaId] = useState(null); // instanceId do container cujo conteúdo está aberto na ficha
   const [detalheCintoId, setDetalheCintoId] = useState(null); // instanceId do item (dentro do cinto) com detalhes abertos
+  /* De onde a janela de detalhes foi aberta, para o botão Voltar (28/10/2026).
+     `null` = veio de lugar nenhum (o Inventário, o cinto) e não há volta;
+     `{ regiao, peca }` = veio da janela da região do boneco. */
+  const [voltarPara, setVoltarPara] = useState(null);
+  /* O motivo da transferência recusada, mostrado dentro da janela do item
+     (28/10/2026). Mora aqui em cima porque TODO hook desta ficha precisa vir
+     antes do primeiro `return` de carregamento — ver ficha-abre.test.jsx. */
+  const [transferErroFicha, setTransferErroFicha] = useState(null);
   const [magiaDetalheKey, setMagiaDetalheKey] = useState(null); // key da magia com modal de detalhes aberto (fora de combate)
   const [habilidadeDetalheKey, setHabilidadeDetalheKey] = useState(null);
   /* A CONSULTA aberta pelo Conhecimento (26/09/2026): { tipo, key }, tipo
@@ -2806,24 +4154,34 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      características, a do Treinamento —, não a de usar: "não o modal para
      usar a habilidade ou magia" (usuário). Usar continua nos atalhos. */
   const [consulta, setConsulta] = useState(null); // key da habilidade com modal de detalhes aberto (fora de combate)
+  const [receitas, setReceitas] = useState([]);
+  // O que a última tentativa na bancada produziu, para a tela dizer.
+  const [fabResultado, setFabResultado] = useState(null);
   const [rolagem, setRolagem] = useState(null); // { nome, total, dificuldade } -> overlay do dado d20 no centro da tela (RolagemD20Overlay)
   const [acaoQtd, setAcaoQtd] = useState(null);               // { tipo:'usar'|'destruir', instanceId, max } p/ QuantidadeModal
   const [capView, setCapView] = useState('atrib');  // 'atrib' | 'mag' | 'tec' | 'hab' — card lateral direito
   const [capPage, setCapPage] = useState(0);        // página atual na vista de cap (15 por página)
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(80);     // tooltip: itens equipados + capacidades
   const [tabTip, abrirTabTip, fecharTabTip, manterTabTip] = useTooltip(80); // tooltip: botões de navegação
-  const [joiasOpen, setJoiasOpen] = useState(false); // card de 4 sub-slots de joia (abre ao clicar no slot único de Joias)
-  const [joiasRect, setJoiasRect] = useState(null);  // DOMRect do botão de Joias — usada p/ posicionar o portal
-  const joiasBtnRef = useRef(null);                  // ref do botão de Joias
-  const [brincosOpen, setBrincosOpen] = useState(false); // card de 2 sub-slots de brinco
-  const [brincosRect, setBrincosRect] = useState(null);
-  const brincosBtnRef = useRef(null);
-  const [roupasOpen, setRoupasOpen] = useState(false);  // card de 2 sub-slots de roupa
-  const [roupasRect, setRoupasRect] = useState(null);
-  const roupasBtnRef = useRef(null);
-  const [cintoOpen, setCintoOpen] = useState(false);     // card de 3 sub-slots de cinto
-  const [cintoRect, setCintoRect] = useState(null);
-  const cintoBtnRef = useRef(null);
+  /* O diálogo das casas da REGIÃO (26/10/2026): substitui os quatro cards
+     separados (joias, brincos, roupas, cinto) — qualquer região com mais de
+     uma casa abre o mesmo diálogo flutuante com as casas dela. */
+  const [regiaoAberta, setRegiaoAberta] = useState(null);   // chave da região (ex.: 'dedo')
+  const [regiaoRect, setRegiaoRect] = useState(null);       // DOMRect do botão da região
+  /* A peça escolhida DENTRO do modal da região (26/10/2026): clicar numa casa
+     com item abre o modal já nela, e as ações embaixo são dela. */
+  /* ── ESCOLHER A CASA VAZIA (28/10/2026) ────────────────────────────────
+     `pecaNoModal` guardava o instanceId da peça em foco, e `null` queria
+     dizer duas coisas ao mesmo tempo: "ainda não escolhi nada" e "escolhi uma
+     casa vazia". A janela resolvia o empate caindo no primeiro ocupante — e
+     com isso, numa região parcialmente cheia (uma mão com arma e outra
+     livre), clicar na casa VAZIA não mudava nada: o foco voltava para a peça
+     e a oferta do inventário, que só existe sem foco, nunca aparecia.
+
+     `CASA_VAZIA` desfaz o empate. É uma string, e não `null`, justamente para
+     não poder ser confundida com "nada escolhido". */
+  const CASA_VAZIA = 'casa-vazia';
+  const [pecaNoModal, setPecaNoModal] = useState(null);
   const fileFotoRef = useRef(null);
   const estadoTimer = useRef(null);
   // Patch acumulado de estado_atual esperando o debounce (ver salvarEstadoAtual).
@@ -2838,17 +4196,17 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   }, [fpFull]);
 
   // Fecha o tooltip quando a aba muda (o alvo pode ter desmontado).
-  useEffect(() => { setEditBar(null); setMenuPecaId(null); setContFichaId(null); setDetalheCintoId(null); setAcaoQtd(null); setMagiaDetalheKey(null); setHabilidadeDetalheKey(null); setRolagem(null); fecharTip(); setCapPage(0); setJoiasOpen(false); setBrincosOpen(false); setCintoOpen(false); }, [fpTab, fpFull]);
+  useEffect(() => { setEditBar(null); setPecaNoModal(null); setContFichaId(null); setDetalheCintoId(null); setAcaoQtd(null); setMagiaDetalheKey(null); setHabilidadeDetalheKey(null); setRolagem(null); fecharTip(); setCapPage(0); setRegiaoAberta(null); }, [fpTab, fpFull]);
   // Ao trocar de PJ: fecha todos os modais, overlays e tooltips — evita
   // backdrop de modal aberto no PJ anterior bloquear cliques no novo PJ.
   // useLayoutEffect (em vez de useEffect) roda antes do browser pintar o
   // próximo frame, evitando o flash do backdrop no PJ novo.
   // Também restaura o overflow do body caso algum modal o tenha travado.
   React.useLayoutEffect(() => {
-    setEditBar(null); setMenuPecaId(null); setContFichaId(null);
+    setEditBar(null); setPecaNoModal(null); setContFichaId(null);
     setDetalheCintoId(null); setAcaoQtd(null); setMagiaDetalheKey(null);
     setHabilidadeDetalheKey(null); setRolagem(null);
-    setJoiasOpen(false); setBrincosOpen(false); setCintoOpen(false);
+    setRegiaoAberta(null);
     manterTip(); fecharTip(); manterTabTip(); fecharTabTip();
     document.body.style.overflow = '';
   }, [pjAtivoId]);
@@ -2869,7 +4227,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // presos de eventos de hover do PJ anterior.
     setPj(null);
     (async () => {
-      const [pjRes, pjsRes, itRes, mgRes, tcRes, habRes] = await Promise.all([
+      const [pjRes, pjsRes, itRes, mgRes, tcRes, habRes, recRes] = await Promise.all([
         supabaseClient.from('personagens').select('*').eq('id', pjAtivoId).maybeSingle(),
         supabaseClient.from('personagens').select('id, nome, sobrenome, raca, profissao')
           .eq('user_id', currentUserId).order('created_at', { ascending: true }),
@@ -2877,6 +4235,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         supabaseClient.from('magias').select('*'),
         supabaseClient.from('tecnicas').select('*'),
         supabaseClient.from('habilidades').select('*'),
+        /* As receitas da bancada (06/10/2026, ligada em 26/10/2026). Falha
+           aqui não derruba a ficha: sem receitas, a aba Fabricar fica vazia. */
+        supabaseClient.from('receitas').select('*'),
       ]);
       if (cancel) return;
       if (pjRes.error) { setError(pjRes.error.message); return; }
@@ -2891,6 +4252,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       setMagias(mgRes.data || []);
       setTecnicas(tcRes.data || []);
       setHabilidades(habRes.data || []);
+      if (recRes.error) console.error('[fabricar] receitas não carregaram:', recRes.error);
+      setReceitas(recRes.data || []);
 
       // História em que o PJ ativo é protagonista (busca reversa: array
       // protagonista_ids contém o id do PJ). Não há historia_id direto em
@@ -3006,6 +4369,35 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const criaturasDosAnimais = (window.useCriaturasPorIds || (() => ({})))(
     (pj?.inventario?.itens || []).map((it) => catalogoBySlug[it.slug]?.criatura_id)
   );
+  /* ── OS COMPANHEIROS, PARA A BARRA LATERAL (26/10/2026) ──────────────────
+     Os dois hooks moram AQUI, acima dos returns de carregamento, e por isso
+     recalculam a lista em vez de usar `animaisPj`: aquele é montado 800 linhas
+     abaixo, depois dos returns, e um hook lá embaixo muda a contagem de hooks
+     entre o render de "Carregando" e o render com dados — é o bug que
+     ficha-hooks-antes-dos-returns.test.js existe para impedir. A conta é a
+     mesma função (`animaisDoPersonagem`), com os mesmos três argumentos. */
+  const _comps = (window.animaisDoPersonagem || (() => []))(
+    pj?.inventario?.itens, catalogoBySlug, criaturasDosAnimais);
+  const _compsChave = _comps.map((a) => a.instancia.instanceId + ':' + a.nome).join('|');
+  useEffect(() => {
+    if (!onCompanheiros) return;
+    onCompanheiros(_comps.map((a) => ({ id: a.instancia.instanceId, nome: a.nome })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_compsChave, onCompanheiros]);
+  const [compSel, setCompSel] = useState(null);
+  /* QUAL PÁGINA DO BICHO (27/10/2026): o menu lateral agora pede o
+     companheiro E a parte dele — Identificação, Conhecimento ou
+     Inventário. Sem parte no pedido (clique no nome do bicho), volta
+     para a ficha: é a página que o nome abre, como no personagem. */
+  const [compParte, setCompParte] = useState('ficha');
+  const compVisto = useRef(compPedidoToken);
+  useEffect(() => {
+    if (compVisto.current === compPedidoToken) return;
+    compVisto.current = compPedidoToken;
+    if (compPedidoId) setCompSel(compPedidoId);
+    setCompParte(compPedidoParte || 'ficha');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compPedidoToken]);
   const magiasByKey = useMemo(() => {
     const map = {};
     (magias || []).forEach((m) => { map[m.key] = m; });
@@ -3129,8 +4521,11 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const ventoDaMesa = historiaPj?.data_jogo_atual?.tempo?.vento;
   // Sub-raça com a data da mesa: a Licantropia vencida já não conta aqui.
   const subracaAtual = subracaEfetiva(pj, historiaPj?.data_jogo_atual);
-  const ficha = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes, ventoDaMesa, subracaAtual);
-  const ataques = gerarAtaques(pj, catalogoBySlug, magiasByKey, ficha.atributos);
+  /* A data da mesa entra aqui para os bônus com prazo (06/10/2026): é ela
+     que diz quais ainda valem. `dataJogoDaMesa` é declarada mais abaixo e é o
+     mesmo valor — aqui a leitura é direta para não depender da ordem. */
+  const ficha = calcularFicha(pj, catalogoBySlug, pj.estado_atual?.condicoes, ventoDaMesa, subracaAtual,
+    historiaPj?.data_jogo_atual || null);
 
   const slotsState = getSlotsState(pj.inventario?.itens || [], catalogoBySlug, pj.raca);
 
@@ -3219,7 +4614,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // (consumir) e desequiparFicha (reverter efeito de vestimenta retirada).
   const aplicarEstadoEfeito = (cat, quantidade) => {
     if (!pj) return;
-    const novo = aplicarEfeitosItem(pj.estado_atual, cat, quantidade, maximosVitalidade);
+    /* A data da mesa decide a porta: item com prazo vira linha em
+       efeitos_temporarios em vez de prender valor na barra (06/10/2026). */
+    const novo = aplicarEfeitosItem(pj.estado_atual, cat, quantidade, maximosVitalidade, dataJogoDaMesa);
     if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
   };
 
@@ -3377,10 +4774,72 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     if (it.quantidade > 1) setAcaoQtd({ tipo: 'destruir', instanceId, max: it.quantidade });
     else destruirItemFicha(instanceId, 1);
   };
+  /* ── TRANSFERIR TAMBÉM PELA FICHA (28/10/2026) ──────────────────────────
+     "Transferir o item da algibeira." (usuário)
+
+     Até aqui a janela da ficha trazia `onTransferir` como função vazia, com
+     o comentário de que transferir era coisa da aba Inventário. Mas quem abre
+     a algibeira pelo boneco está olhando a peça; mandar a pessoa fechar tudo
+     e procurar o mesmo item no baú é o mesmo rodeio do botão Voltar.
+
+     É a MESMA RPC do Inventário (`transfer_item`, 07-inventario) — a trava
+     está no banco, não na tela: ela recusa sem pacto de amizade, fora da
+     aventura ou com o item anunciado na loja. A lista de amigos a própria
+     janela busca, a partir de `pjOrigemId`. */
+  const transferirDaFicha = async (instanceId, pjDestinoId, qtd) => {
+    setTransferErroFicha(null);
+    const itens = pj.inventario?.itens || [];
+    const it = itens.find((x) => x.instanceId === instanceId);
+    if (!it || !pjDestinoId) return { ok: false };
+    const { data, error } = await supabaseClient.rpc('transfer_item', {
+      p_from_pj_id: pj.id,
+      p_to_pj_id: pjDestinoId,
+      p_instance_id: instanceId,
+      p_moedas: null,
+      p_quantidade: qtd ?? null,
+    });
+    if (error || !data?.ok) {
+      setTransferErroFicha(error?.message || data?.motivo || 'erro_desconhecido');
+      return { ok: false };
+    }
+    /* A RPC já gravou no banco; a ficha relê para a casa e a carga
+       acompanharem. Vira linha na mesa como no Inventário. */
+    const cat = catalogoBySlug[it.slug];
+    const destino = (pjsDaHistoria || []).find((x) => String(x.id) === String(pjDestinoId));
+    if (cat && destino) {
+      const nomeDestino = [destino.nome, destino.sobrenome].filter(Boolean).join(' ');
+      const n = Number(data.quantidade) || qtd || it.quantidade || 1;
+      registrarEventoMesa('item',
+        en ? `${primeiroNome(pj.nome)} gave ${n}× ${cat.nome} to ${nomeDestino}.`
+          : `${primeiroNome(pj.nome)} entregou ${n}× ${cat.nome} para ${nomeDestino}.`,
+        { item: cat.nome, quantidade: n, acao: 'transferir' });
+    }
+    /* A ficha relê o inventário do banco: a RPC gravou lá, e a cópia local
+       (`pj.inventario`) ficaria com a peça que já não é mais desta pessoa.
+       `inventario_versao` vem junto para a próxima gravação não brigar. */
+    const { data: fresco } = await supabaseClient
+      .from('personagens').select('inventario, inventario_versao').eq('id', pj.id).maybeSingle();
+    if (fresco) {
+      setPj((prev) => ({ ...prev, inventario: fresco.inventario, inventario_versao: fresco.inventario_versao }));
+    }
+    return { ok: true };
+  };
+  const solicitarTransferirFicha = (instanceId, pjDestinoId) => {
+    const it = (pj.inventario?.itens || []).find((x) => x.instanceId === instanceId);
+    if (!it) return;
+    if ((it.quantidade || 1) > 1) {
+      setAcaoQtd({ tipo: 'transferir', instanceId, max: it.quantidade, destino: pjDestinoId });
+      return;
+    }
+    transferirDaFicha(instanceId, pjDestinoId, 1);
+    setDetalheCintoId(null);
+  };
+
   const executarAcaoQtd = (qtd) => {
     if (!acaoQtd) return;
     if (acaoQtd.tipo === 'usar')     usarItemFicha(acaoQtd.instanceId, qtd);
     if (acaoQtd.tipo === 'destruir') destruirItemFicha(acaoQtd.instanceId, qtd);
+    if (acaoQtd.tipo === 'transferir') transferirDaFicha(acaoQtd.instanceId, acaoQtd.destino, qtd);
     setAcaoQtd(null);
     // Confirmou a quantidade: a janela do item fecha junto (13/09/2026),
     // como no Inventário. Cancelar não passa por aqui.
@@ -3431,9 +4890,13 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
      Quando não aplica, o log DIZ POR QUÊ. "Evoquei e não aconteceu nada" foi
      o que esta tela fez por meses, e não pode voltar a ser um mistério. */
-  const aoEvocarMagia = ({ nivel, alvo }) => {
-    if (!magiaDetalheKey) return;
-    const mag = magiasByKey[magiaDetalheKey];
+  /* `key` entra em 28/10/2026: a janela do atalho evoca direto, sem passar
+     pelo estado `magiaDetalheKey` da janela antiga — que continua existindo
+     para a consulta pelo Conhecimento. Sem a chave, vale a de antes. */
+  const aoEvocarMagia = ({ nivel, alvo, key }) => {
+    const chave = key || magiaDetalheKey;
+    if (!chave) return;
+    const mag = magiasByKey[chave];
     if (!mag) return;
     /* RITUAL (28/09/2026): os itens necessários saem da mochila no ato. Faltou
        algum, a evocação não acontece — a janela já avisava, e isto é a trava
@@ -3564,6 +5027,29 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // Monta o texto no padrão combinado: "Victor usou Alfabetização (Médio) e
   // obteve uma falha." — usa o nome do personagem (não da conta), pra ficar
   // no tom da mesa; quem de fato gravou (auth.uid()) é validado server-side.
+  /* A BANCADA (06/10/2026, ligada em 26/10/2026) ──────────────────────────
+     A tela Fabricar não grava nada: devolve a receita, e quem rola o dado é a
+     ficha — o mesmo d20 de qualquer teste de habilidade. O resultado volta
+     por aoResolverTesteHabilidade, que vê `rolagem.receita` e manda para
+     window.fabricar. O material vai embora NOS DOIS CASOS (decisão do
+     usuário em 06/10): o custo é da tentativa, não do sucesso. */
+  const pedirFabricacao = (receita) => {
+    if (!receita || !podeEditarInv) return;
+    const hab = habsByKey[receita.habilidade_key];
+    const total = (_totHabCond || _totHab)(
+      receita.habilidade_key, pj.habilidades || {}, atributosFinais,
+      bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes,
+    );
+    setFabResultado(null);
+    setRolagem({
+      nome: hab ? hab.nome : receita.habilidade_key,
+      grupo: hab ? hab.grupo : null,
+      total,
+      dificuldade: receita.dificuldade,
+      receita,
+    });
+  };
+
   const aoResolverTesteHabilidade = (res) => {
     if (!rolagem) return;
     const nomePj = primeiroNome(pj?.nome);   // o log usa o primeiro nome (27/09/2026)
@@ -3599,6 +5085,27 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       d20: res.d20,
       sucesso: res.sucesso,
     });
+
+    /* Era um teste DA BANCADA: o resultado vira item em construção (ou só o
+       material gasto). A conta inteira é de 01-core/fabricacao.jsx. */
+    if (rolagem.receita && typeof window.fabricar === 'function') {
+      const r = window.fabricar(
+        itensPj, rolagem.receita, pj.habilidades || {}, res.sucesso,
+        dataJogoDaMesa, undefined,
+      );
+      const cat = catalogoBySlug[rolagem.receita.resultado_slug];
+      const nome = cat ? cat.nome : rolagem.receita.resultado_slug;
+      if (!r.ok) {
+        setFabResultado({ ok: false, nome, motivo: r.motivo });
+      } else {
+        salvarItensFicha(r.itens);
+        setFabResultado({ ok: true, sucesso: r.sucesso, nome });
+        const frase = en
+          ? (r.sucesso ? `${nomePj} started crafting ${nome}.` : `${nomePj} tried to craft ${nome} and lost the materials.`)
+          : (r.sucesso ? `${nomePj} começou a fabricar ${nome}.` : `${nomePj} tentou fabricar ${nome} e perdeu o material.`);
+        registrarEventoMesa('item', frase, { receita: rolagem.receita.resultado_slug, sucesso: r.sucesso });
+      }
+    }
   };
 
   // ── Estado atual (Vitalidade/Condições) ────────────────────
@@ -3786,17 +5293,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     return Math.max(mn, Math.min(mx, Number.isFinite(n) ? n : mx));
   };
 
-  // Peso/carga do PJ (% da capacidade). Reusa calcCarga exposto pelo inventário
-  // via window. Fallback: 0% se indisponível (não quebra a ficha).
-  const _calcCarga_fn = (typeof calcCarga !== 'undefined' ? calcCarga : null) || window.calcCarga || null;
-  const _carga = (() => {
-    if (!_calcCarga_fn) return { peso: 0, capacidade: 0, pct: 0, over: false };
-    try {
-      const c = _calcCarga_fn(pj.inventario?.itens || [], catalogoBySlug, ficha.atributosBase.forca, ficha.atributosBase.fisico);
-      return (c && Number.isFinite(c.pct)) ? c : { peso: 0, capacidade: 0, pct: 0, over: false };
-    } catch { return { peso: 0, capacidade: 0, pct: 0, over: false }; }
-  })();
-  const _cargaPct = _carga.pct;
+  /* A CARGA SAIU DA FICHA (26/10/2026, pedido do usuário: "remova a barra de
+     peso da ficha, pois ela já aparece no inventário"). A conta é a mesma —
+     window.calcCarga —, e quem a mostra agora é só o trilho do Inventário. */
 
   // Barras de vitalidade. MÁXIMO derivado (calcularFicha); ATUAL editável
   // em estado_atual.vitalidade. Sem valor salvo → começa cheio (atual = máximo).
@@ -3919,21 +5418,28 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const _teto = (k) => Math.max(0, 100 - (Number(_prot[k]) || 0));
   const _barra = (v, k) => _clampVal(v ?? 0, k ? _teto(k) : 100, 0);
   const _editTeto = (k) => (_teto(k) < 100 ? { edit: { max: _teto(k) } } : {});
-  const _pesoVal = Math.round(_carga.peso * 10) / 10;
-  const _capVal  = Math.round(_carga.capacidade * 10) / 10;
+  /* As nove condições do modelo de 26/10/2026, com as SIGLAS aprovadas
+     (aparecem sob o medalhão): DOE SON SED FOM FRI CAL VIC SAN REP.
+     Loucura ganhou o nome Sanidade (SAN) e Desonra virou Reputação (REP) —
+     a barra segue como as demais: encher é ruim (decisão 8). O Peso saiu dos
+     medalhões e virou uma barra no pé do cartão. */
   const condBars = [
-    { key: 'vitalidade', label: en ? 'Illness' : 'Doença', val: _barra(_condAt.vitalidade, 'vitalidade'), max: 100, icon: 'ti-virus', ..._editTeto('vitalidade') },
-    { key: 'animo', label: en ? 'Sleepiness' : 'Sono', val: _barra(_condAt.animo, 'animo'), max: 100, icon: 'ti-zzz', ..._editTeto('animo') },
-    { key: 'hidratacao', label: en ? 'Thirst' : 'Sede', val: _barra(_condAt.hidratacao, 'hidratacao'), max: 100, icon: 'ti-bottle', ..._editTeto('hidratacao') },
-    { key: 'nutricao', label: en ? 'Hunger' : 'Fome', val: _barra(_condAt.nutricao, 'nutricao'), max: 100, icon: 'ti-apple', ..._editTeto('nutricao') },
-    { key: 'frio', label: en ? 'Cold' : 'Frio', val: _barra(Math.max(0, -_t), 'frio'), max: 100, icon: 'ti-snowflake', ..._editTeto('frio') },
-    { key: 'calor', label: en ? 'Heat' : 'Calor', val: _barra(Math.max(0, _t), 'calor'), max: 100, icon: 'ti-sun-high', ..._editTeto('calor') },
-    { key: 'euforia', label: en ? 'Addiction' : 'Vício', val: _barra(_condAt.euforia, 'euforia'), max: 100, icon: 'ti-pill', ..._editTeto('euforia') },
-    { key: 'sanidade', label: en ? 'Madness' : 'Loucura', val: _barra(_condAt.sanidade, 'sanidade'), max: 100, icon: 'ti-mood-angry', ..._editTeto('sanidade') },
-    { key: 'reputacao', label: en ? 'Dishonor' : 'Desonra', val: _barra(_condAt.reputacao, 'reputacao'), max: 100, icon: 'ti-thumb-down', ..._editTeto('reputacao') },
-    // Pesado: a carga em % da capacidade — derivada do inventário, sem edição.
-    { key: 'pesado', label: en ? 'Burden' : 'Pesado', val: _barra(Math.round(_cargaPct)), max: 100, icon: 'ti-stack-2', semEdicao: true,
-      tip: `${_pesoVal} / ${_capVal}` + (_carga.over ? (en ? ' — overloaded' : ' — sobrecarregado') : '') },
+    { key: 'vitalidade', sigla: 'DOE', label: en ? 'Illness' : 'Doença', val: _barra(_condAt.vitalidade, 'vitalidade'), max: 100, icon: 'ti-virus', ..._editTeto('vitalidade') },
+    { key: 'animo', sigla: 'SON', label: en ? 'Sleepiness' : 'Sono', val: _barra(_condAt.animo, 'animo'), max: 100, icon: 'ti-zzz', ..._editTeto('animo') },
+    { key: 'hidratacao', sigla: 'SED', label: en ? 'Thirst' : 'Sede', val: _barra(_condAt.hidratacao, 'hidratacao'), max: 100, icon: 'ti-bottle', ..._editTeto('hidratacao') },
+    { key: 'nutricao', sigla: 'FOM', label: en ? 'Hunger' : 'Fome', val: _barra(_condAt.nutricao, 'nutricao'), max: 100, icon: 'ti-apple', ..._editTeto('nutricao') },
+    { key: 'frio', sigla: 'FRI', label: en ? 'Cold' : 'Frio', val: _barra(Math.max(0, -_t), 'frio'), max: 100, icon: 'ti-snowflake', ..._editTeto('frio') },
+    { key: 'calor', sigla: 'CAL', label: en ? 'Heat' : 'Calor', val: _barra(Math.max(0, _t), 'calor'), max: 100, icon: 'ti-sun-high', ..._editTeto('calor') },
+    { key: 'euforia', sigla: 'VIC', label: en ? 'Addiction' : 'Vício', val: _barra(_condAt.euforia, 'euforia'), max: 100, icon: 'ti-pill', ..._editTeto('euforia') },
+    /* LOUCURA E MÁ FAMA (26/10/2026, pedido do usuário). As duas voltaram a
+       ser nomeadas pelo MAL, como as outras sete: com as barras indo de 0
+       (ideal) a 100 (pior), "Sanidade 80" e "Reputação 90" liam ao contrário
+       do que marcavam. A CHAVE do estado não muda (`sanidade`/`reputacao`):
+       é o que está gravado em milhares de estado_atual e o que o parser de
+       efeitos do catálogo casa — renomear coluna por causa de rótulo seria
+       trocar o mundo de lugar para arrumar a legenda. */
+    { key: 'sanidade', sigla: 'LOU', label: en ? 'Madness' : 'Loucura', val: _barra(_condAt.sanidade, 'sanidade'), max: 100, icon: 'ti-mood-angry', ..._editTeto('sanidade') },
+    { key: 'reputacao', sigla: 'FAM', label: en ? 'Ill repute' : 'Má Fama', val: _barra(_condAt.reputacao, 'reputacao'), max: 100, icon: 'ti-thumb-down', ..._editTeto('reputacao') },
   ];
 
   // ── Ocupação das casas do mapa corporal ────────────────────
@@ -4045,7 +5551,23 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     return genericos[idx] || null;
   };
 
-  const fpSlotTile = (regiao, it, key) => {
+  /* `regiaoModal` separa DUAS coisas que eram uma só (28/10/2026): a região
+     que a casa DESENHA e a região que o clique ABRE.
+
+     A mão precisava disso. A casa desenha `mao_d` ou `mao_e` — a arte da mão
+     vazia é um par, e cada lado tem a sua (arteDoSlot). Mas a REGIÃO, no
+     vocabulário de equipamento, é `mao`, com duas casas: é assim que
+     `regiaoCanonicaDe` mapeia a arma equipada e `regiaoDoCatalogo` mapeia a
+     que está no bolso. Abrindo `mao_e`, a janela procurava ocupantes e
+     candidatos numa região que ninguém usa — e abria vazia, sem a arma que
+     estava ali e sem oferecer nada do inventário. */
+  /* `oca` CHEGA DE FORA (28/10/2026). Quem sabe se a região tem peça e se o
+     inventário tem o que oferecer é `regiaoSemNada`, lá embaixo — e ela
+     depende de `itensDaRegiao`/`candidatosDaRegiao`, declarados DEPOIS desta
+     função. Calcular aqui dentro estourava a zona morta do `const` no
+     primeiro render ("Cannot access 'itensDaRegiao' before initialization").
+     Quem monta a casa já está depois das declarações e sabe responder. */
+  const fpSlotTile = (regiao, it, key, regiaoModal, oca) => {
     const cat = it ? catalogoBySlug[it.slug] : null;
     // filled = há item no slot. Mesmo sem cat (slug ausente do catálogo / dado legado),
     // o slot é considerado preenchido para não esconder itens equipados.
@@ -4076,57 +5598,80 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // Placeholder da região: aparece mesmo com a casa vazia (foto esmaecida)
     // e serve de fallback pra item equipado sem arte própria.
     const regionBg = FP_REGION_BG[regiao] || null;
-    const bg = arteDoSlot(regiao, catOk ? cat : null) || itemBg || regionBg;
+    const bg = arteDoSlot(regiao, catOk ? cat : null, pj && pj.profissao) || itemBg || regionBg;
     const ghost = !filled && !!bg;   // casa vazia exibindo a arte do tipo de peça
-    // Hover/foco mostra o tooltip de detalhes (Descrição/Absorção/Dano).
-    const tipContent = filled && cat ? {
-      title: cat.nome || it.slug,
-      desc: cat.descricao || '',
-      stats: [
-        cat.dano != null ? { label: en ? 'Damage' : 'Dano', value: destinoBonusItem(cat) === 'dano' ? comBonus(cat.dano) : cat.dano } : null,
-        Number(cat.absorcao) > 0 ? { label: en ? 'Absorb' : 'Absorção', value: destinoBonusItem(cat) === 'absorcao' ? comBonus(cat.absorcao) : cat.absorcao } : null,
-        resMax > 0 ? { label: en ? 'Durability' : 'Resistência', value: `${resAtual}/${resMax}` } : null,
-      ].filter(Boolean),
-    } : null;
+    /* SÓ O NOME NO BALÃO (26/10/2026, pedido do usuário: "no tooltip dos
+       slots do card 'equipamentos' não precisa mostrar a descrição do item,
+       nem a quantidade de slot. Mostre apenas o nome do item, ou o nome do
+       slot"). A casa é um alvo de 72px e o balão vinha com descrição, dano,
+       absorção e resistência — um painel inteiro por cima do boneco só para
+       dizer o que a pintura já diz. Quem quer os números abre a casa.
+       Casa vazia ganha balão também: o nome da região, que é o que ela é. */
+    /* Sem peça e sem nada a oferecer, a casa vira leitura: o balão explica, e
+       o clique não leva a janela nenhuma. */
+    const ocaAqui = !filled && !!oca;
+    const tipContent = ocaAqui
+      ? { title: lbl, desc: en ? 'Nothing in the inventory fits here' : 'Nada no inventário cabe aqui' }
+      : { title: (filled && cat) ? (cat.nome || it.slug) : lbl };
     return (
       <button
         key={key}
         type="button"
+        disabled={ocaAqui}
         className={'inv-slot' + (filled ? ' filled' : ' empty')
+          + (ocaAqui ? ' is-oca' : '')
           + (filled && bg ? ' has-img' : '')
           + (ghost ? ' bg-ghost' : '')}
         style={{
           ...fpItemBgStyle(bg, ghost),
-          ...(!filled || !podeEditarInv ? { cursor: 'default' } : {}),
+          ...(!podeEditarInv ? { cursor: 'default' } : {}),
         }}
-        onClick={filled && podeEditarInv ? (ev) => { fecharTip(); setMenuPecaAnchor(ev.currentTarget.getBoundingClientRect()); setMenuPecaId(it.instanceId); } : undefined}
-        onMouseEnter={filled && tipContent ? (e) => abrirTip(e, tipContent) : undefined}
-        onMouseLeave={filled && tipContent ? fecharTip : undefined}
-        onFocus={filled && tipContent ? (e) => abrirTip(e, tipContent) : undefined}
-        onBlur={filled && tipContent ? fecharTip : undefined}>
+        /* Clicar na casa abre o MODAL DA REGIÃO (26/10/2026, pedido do
+           usuário): as casas da região e as ações da peça escolhida. A casa
+           VAZIA também abre, e lá dentro ela oferece o que do inventário cabe
+           ali — antes o clique não fazia nada e a janela só dizia "equipe uma
+           pelo Inventário". Dentro do próprio modal, o clique só troca a peça
+           em foco. */
+        onClick={(podeEditarInv && !ocaAqui) ? (ev) => {
+          fecharTip();
+          if (regiaoAberta) { setPecaNoModal(it ? it.instanceId : CASA_VAZIA); return; }
+          setRegiaoRect(ev.currentTarget.getBoundingClientRect());
+          setRegiaoAberta(regiaoModal || regiao);
+          setPecaNoModal(it ? it.instanceId : CASA_VAZIA);
+        } : undefined}
+        onMouseEnter={(e) => abrirTip(e, tipContent)}
+        onMouseLeave={fecharTip}
+        onFocus={(e) => abrirTip(e, tipContent)}
+        onBlur={fecharTip}>
         {!bg && (
         <span className="inv-slot-ic">
           <i className={'ti ' + iconClass} aria-hidden="true" />
         </span>
         )}
+        {/* A CASA VAZIA NÃO SE NOMEIA (26/10/2026, pedido do usuário):
+            "Remova a palavra 'cabeça' que está no slot cabeça acima da imagem
+            da ficha do personagem." O nome da região era escrito DENTRO da
+            casa, por cima da silhueta esmaecida — e a legenda .fp3-nomr logo
+            abaixo já diz a mesma coisa, sem tapar a pintura. Sobra no meta só
+            o nome da PEÇA, e só quando ela não tem arte própria. */}
         <span className="inv-slot-meta">
-          {filled
-            ? (!bg && <span className="inv-slot-item">{nomeLbl}</span>)
-            : <span className="inv-slot-lbl">{lbl}</span>}
+          {filled && !bg && <span className="inv-slot-item">{nomeLbl}</span>}
         </span>
         {filled && podeEditarInv && (
           <span className="fp-slot-x" aria-hidden="true"><i className={'ti ' + (isCont ? 'ti-moneybag' : (it.vestido ? 'ti-shirt-off' : 'ti-shield-off'))} /></span>
         )}
-        {/* Barra de resistência — mesmas classes do inventário (.inv-res-bar),
-            pra que as duas telas nunca divirjam de cor nem de limiar de
-            aviso. Só aparece em peça que TEM resistência no catálogo. */}
-        {filled && resMax > 0 && (
-          <span className="inv-res-bar" data-baixa={resPct <= 25 ? 2 : (resPct <= 50 ? 1 : 0)}
-            role="img"
-            aria-label={`${en ? 'Durability' : 'Resistência'}: ${resAtual}/${resMax}`}>
-            <span style={{ width: resPct + '%' }} />
-          </span>
-        )}
+        {/* O +N DA SAGRAÇÃO, À VISTA (28/10/2026, pedido do usuário: "a
+            informação que a arma está +5 precisa acompanhar o item para o
+            personagem ver que a arma dele foi melhorada"). O balão já dizia,
+            mas balão pede hover — e quem ganhou uma arma sagrada não sabe
+            disso olhando o boneco. */}
+        {bonusSag > 0 && <span className="inv-selo-bonus" aria-hidden="true">+{bonusSag}</span>}
+        {/* A BARRA DE RESISTÊNCIA SAIU DO ÍCONE (26/10/2026, pedido do
+            usuário: "remova a linha branca que representa a resistência de um
+            item do ícone no slot"). O número não se perdeu: está no tooltip da
+            casa (tipContent, acima) e no painel do item, ao lado de ocupa e
+            absorção — lugares onde ele é lido, e não onde atravessa a
+            pintura. */}
       </button>
     );
   };
@@ -4168,9 +5713,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // (ex.: Magias, em PJ sem magia) não tiver conteúdo.
   const triCount = [temHab, temMag, temTec].filter(Boolean).length;
 
-  // Os tubos do Resumo (23/10/2026) — ver FichaTubos.
+  // As gemas do Resumo (27/10/2026) — ver FichaGemas.
   // Tubos e medalhões sem balão (23/10/2026, pedido do usuário); o valor segue no aria-label.
-  const elVit = <FichaTubos bars={vitBars} scope="vit" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} />;
+  const elVit = <FichaGemas bars={vitBars} scope="vit" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} />;
 
   // As condições viraram medalhões (23/10/2026): o roxo é o do próprio
   // medalhão, e a régua de cor por condição (corCondicao) deixaram de valer aqui.
@@ -4194,6 +5739,20 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     <div className="fp-cond-vit">
       {/* Os medalhões do Resumo (23/10/2026) — ver FichaMedalhoes. */}
       <FichaMedalhoes bars={condBars} scope="cond" onEdit={podeEditarEstado ? abrirEdicaoBarra : undefined} en={en} />
+      {/* OS STATUS ATIVOS VOLTARAM A TER CASA (26/10/2026). Eles moravam no
+          card "Status", que saiu a pedido do usuário — e saíram junto, sem
+          que ninguém pedisse: o Mestre aplicava Envenenado pelo círculo do
+          trilho e a ficha não dizia mais que o personagem estava envenenado.
+          Condições é o lugar certo: é a mesma pergunta ("o que está pegando
+          neste personagem agora?"), e as magias ativas já respondiam a ela
+          logo abaixo. */}
+      <FichaStatusPainel
+        lista={pj.estado_atual && pj.estado_atual.status}
+        dataJogo={dataJogoDaMesa}
+        podeEditar={podeEditarEstado}
+        lang={lang}
+        onRemover={removerStatus}
+      />
       {magiasAtivas.length > 0 && (
         <div className="fp-magias-ativas">
           <div className="fp-magias-ativas-tit">
@@ -4345,74 +5904,247 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     </div>
   );
 
-  // Fileira de equipamento (nova disposição aprovada):
-  //   • topo:    Cabeça · Brinco · Colar · Roupa (4 casas — 1 slot cada)
-  //   • corpo:   col esq (Peito/Pernas/Pés) · retrato · col dir (vazio · Ombros · Braços)
-  //   • base:    Joias (→ card 4 sub-slots) · Mão · Mão · Cinto (1 slot por posição)
-  //
-  // Joias: slot único na base col 1. Ao clicar, abre card flutuante com 4
-  // sub-slots individuais de Joia (badge mostra N/4 joias equipadas).
-  // `joiasOpen` controla a visibilidade do card.
+  /* ── O BONECO DE ARMAR (26/10/2026, modelo aprovado pelo usuário) ──────────
+     Duas colunas de regiões ladeiam o retrato: à esquerda os ADORNOS E
+     VESTES (rosto, orelha, pescoço, costas, peito, dedo, pulso, alforje), à
+     direita o EQUIPAMENTO (cabeça, ombro, dorso, braço, perna, canela,
+     cintura, pé). Cada região é UMA casa com o contador ocupadas/casas; o
+     clique abre o diálogo com as casas da região (regiaoAberta). Embaixo,
+     as mãos com o SAQUE RÁPIDO: casa grande + reserva esmaecida + o fecho ⇄
+     (trocarSaqueRapido, 01-core) na junção. */
+  const REGIOES = (typeof REGIOES_EQUIP !== 'undefined' ? REGIOES_EQUIP : null) || window.REGIOES_EQUIP || {};
+  const _slotCanon = (typeof slotCanonico !== 'undefined' ? slotCanonico : null) || window.slotCanonico || ((s) => s);
+  const _trocarSaque = (typeof trocarSaqueRapido !== 'undefined' ? trocarSaqueRapido : null) || window.trocarSaqueRapido || null;
+  const regiaoCanonicaDe = (it) => {
+    if (!it) return null;
+    if (it.slot) {
+      const s = it.slot;
+      if (s === 'mao_d' || s === 'mao_e' || s === 'maos') return 'mao';
+      if (s === 'saque_d' || s === 'saque_e') return 'saque';
+      if (s === 'peito') return 'dorso';   // peitoral gravado com o slot antigo
+      const c = _slotCanon(s);
+      return (c === 'mao_d' || c === 'mao_e') ? 'mao' : c;
+    }
+    if (it.vestido) return _vesteSlotDe(it.vesteSlot) || null;
+    return null;
+  };
+  const itensDaRegiao = (reg) => itensPj.filter((it) => regiaoCanonicaDe(it) === reg);
+  /* ── O QUE CABE NESTA CASA (26/10/2026, pedido do usuário) ────────────────
+     "Se o usuário clicar em um slot vazio, mostre os itens que podem ser
+     adicionados ali que estão no inventário do personagem."
+
+     A região de um CANDIDATO sai do catálogo (`slot_equip`), não da
+     instância — ele ainda não está vestido, então não tem `slot` nem
+     `vesteSlot` para consultar. O resto é o mesmo recorte que o inventário
+     usa para "pode equipar": peça livre, no bolso do personagem, e não à
+     venda nem pendurada num bicho. */
+  const regiaoDoCatalogo = (cat) => {
+    if (!cat || !cat.slot_equip) return null;
+    const s = cat.slot_equip;
+    if (s === 'maos' || s === 'mao_d' || s === 'mao_e') return 'mao';
+    if (s === 'peito' && String(cat.categoria_equip || '') === 'armadura') return 'dorso';
+    const c = _slotCanon(s);
+    return (c === 'mao_d' || c === 'mao_e') ? 'mao' : c;
+  };
+  /* ── CASA VAZIA SEM NADA PARA OFERECER NÃO ABRE (28/10/2026) ───────────
+     "Quando não há itens no inventário, não deve ser possível clicar no slot
+     para procurar itens." (usuário)
+
+     A janela da casa vazia É o seletor: ela mostra o que do inventário cabe
+     ali. Sem candidato nenhum ela abria assim mesmo — e abria OCA, porque a
+     lista de oferta só nasce quando há o que oferecer. Um clique que leva a
+     uma janela vazia é pior que um clique que não acontece.
+
+     A trava vale só para a região VAZIA: havendo peça nela, a janela tem o
+     que mostrar (a peça, Detalhes, Desequipar) mesmo sem candidato — e aí o
+     clique continua valendo. */
+  const regiaoSemNada = (reg) => {
+    if (!podeEditarInv) return false;
+    if (itensDaRegiao(reg).length) return false;          // há peça: a janela serve
+    return candidatosDaRegiao(reg).length === 0;          // e não há o que oferecer
+  };
+
+  const candidatosDaRegiao = (reg) => {
+    const livres = (typeof itensLivres !== 'undefined' ? itensLivres : null) || window.itensLivres || ((x) => x || []);
+    return livres(itensPj).filter((it) => {
+      if (it.equipado || it.vestido || it.montado || it.animal_id) return false;
+      return regiaoDoCatalogo(catalogoBySlug[it.slug]) === reg;
+    });
+  };
+  /* ── POR QUE ESTA PEÇA NÃO ENTRA AGORA (28/10/2026) ────────────────────
+     A oferta da casa vazia listava tudo o que cabe na REGIÃO e, no clique,
+     `equiparNaRegiao` recusava calada o que não cabia na hora: um arco de
+     duas mãos com o escudo na outra sumia da tela sem explicação nenhuma.
+
+     A regra é a do Inventário (07-inventario, equipar), e as funções que
+     decidem são as mesmas. Devolve o motivo em português, ou null quando
+     pode. */
+  const bloqueioNaRegiao = (cat, regiao) => {
+    const _ehVeste = (typeof ehVestimenta !== 'undefined' ? ehVestimenta : null) || window.ehVestimenta || (() => false);
+    if (regiao !== 'mao' || _ehVeste(cat)) return null;
+    const _maosDe = (typeof getMaosRequeridas !== 'undefined' ? getMaosRequeridas : null)
+      || window.getMaosRequeridas || (() => 1);
+    const maos = _maosDe(cat, pj.raca);
+    if (!maos) return en ? 'Forbidden for this race' : 'Proibida para a sua raça';
+    const livres = (slotsState.mao_d ? 0 : 1) + (slotsState.mao_e ? 0 : 1);
+    if (livres < maos) {
+      return maos === 2
+        ? (en ? 'Needs both hands free' : 'Precisa das duas mãos livres')
+        : (en ? 'No free hand' : 'Nenhuma mão livre');
+    }
+    return null;
+  };
+
+  /* Vestir/equipar a partir da casa. Qual dos dois sistemas é o do item diz
+     `ehVestimenta` (07-inventario) — e vestimenta com efeito aplica o efeito
+     ao vestir, como o botão do inventário faz. */
+  const equiparNaRegiao = (instanceId, regiao) => {
+    if (!podeEditarInv) return;
+    const itens = pj.inventario?.itens || [];
+    const it = itens.find((x) => x.instanceId === instanceId);
+    const cat = it && catalogoBySlug[it.slug];
+    if (!it || !cat) return;
+    const _ehVeste = (typeof ehVestimenta !== 'undefined' ? ehVestimenta : null) || window.ehVestimenta || (() => false);
+    const veste = _ehVeste(cat);
+    /* ── A MÃO É REGIÃO DE DUAS CASAS (28/10/2026) ──────────────────────
+       `mao` é a região; o que se grava na instância é a CASA — `mao_d` ou
+       `mao_e`. Gravar `slot: 'mao'` deixaria a arma numa casa que o resto do
+       sistema (ataques, defesa, o próprio boneco) não sabe ler.
+
+       A regra das mãos é a mesma do Inventário (07-inventario, equipar):
+       direita primeiro, e arma de duas mãos só entra com as duas livres. Ela
+       mora lá e aqui pelo mesmo motivo que o resto da ficha repete regra do
+       inventário — são duas telas sobre o mesmo inventário —, mas as funções
+       que decidem (`getMaosRequeridas`, `getSlotsState`) são as mesmas. */
+    let destino = regiao;
+    if (regiao === 'mao' && !veste) {
+      const _maosDe = (typeof getMaosRequeridas !== 'undefined' ? getMaosRequeridas : null)
+        || window.getMaosRequeridas || (() => 1);
+      const maos = _maosDe(cat, pj.raca);
+      if (!maos) return;                                   // proibida para a raça
+      const livres = (slotsState.mao_d ? 0 : 1) + (slotsState.mao_e ? 0 : 1);
+      if (livres < maos) return;                           // mãos insuficientes
+      destino = !slotsState.mao_d ? 'mao_d' : 'mao_e';
+    }
+    salvarItensFicha(itens.map((x) => (x.instanceId !== instanceId ? x : (veste
+      ? { ...x, vestido: true, vesteSlot: destino, containerId: null, casa: undefined }
+      : { ...x, equipado: true, slot: destino, containerId: null, casa: undefined }))));
+    if (veste && (cat.efeito_positivo || cat.efeito_negativo)) {
+      const novo = aplicarEfeitosItem(pj.estado_atual, cat, 1, maximosVitalidade, dataJogoDaMesa);
+      if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
+    }
+  };
+
+  // Uma região no trilho: contador em cima, casa única no meio, nome embaixo.
+  // Região de UMA casa usa a própria casa (fpSlotTile, com menu e
+  // durabilidade); as demais abrem o diálogo das casas da região.
+  const fpRegiao = (regiao) => {
+    const casas = REGIOES[regiao] || 1;
+    const ocupantes = itensDaRegiao(regiao);
+    /* Sem peça na região e sem nada no inventário que caiba nela, a casa não
+       abre (28/10/2026) — a janela sairia oca. Vale para as duas formas de
+       casa: a de UMA vaga, que é `fpSlotTile`, e a de VÁRIAS, que é o botão
+       logo abaixo. Era só a primeira que tinha a trava, e as regiões do
+       trilho — Rosto, Pulso, Alforje, Canela — são todas de várias. */
+    const oca = regiaoSemNada(regiao);
+    let corpo;
+    if (casas === 1) {
+      corpo = fpSlotTile(regiao, ocupantes[0] || null, 'reg-' + regiao, undefined, oca);
+    } else {
+      const primeiro = ocupantes[0] || null;
+      const cat = primeiro ? catalogoBySlug[primeiro.slug] : null;
+      const bg = arteDoSlot(regiao, cat, pj && pj.profissao) || FP_REGION_BG[regiao] || null;
+      const vazia = ocupantes.length === 0;
+      corpo = (
+        <button
+          type="button"
+          disabled={oca}
+          className={'inv-slot' + (vazia ? ' empty' : ' filled') + (oca ? ' is-oca' : '')
+            + (bg ? ' has-img' : '') + (vazia && bg ? ' bg-ghost' : '')}
+          style={{ cursor: oca ? 'default' : 'pointer', ...fpItemBgStyle(bg, vazia) }}
+          onClick={oca ? undefined : (ev) => {
+            setRegiaoRect(ev.currentTarget.getBoundingClientRect());
+            setPecaNoModal((ocupantes[0] && ocupantes[0].instanceId) || null);
+            setRegiaoAberta((v) => (v === regiao ? null : regiao));
+          }}
+          /* Só o nome da região (26/10/2026): a contagem "2/4 em uso" saiu do
+             balão — ela já está no contador da própria casa. Oca, o balão
+             passa a dizer o porquê de não abrir. */
+          onMouseEnter={(e) => abrirTip(e, oca
+            ? { title: slotLbl(regiao), desc: en ? 'Nothing in the inventory fits here' : 'Nada no inventário cabe aqui' }
+            : { title: slotLbl(regiao) })}
+          onMouseLeave={fecharTip}
+          onFocus={(e) => abrirTip(e, oca
+            ? { title: slotLbl(regiao), desc: en ? 'Nothing in the inventory fits here' : 'Nada no inventário cabe aqui' }
+            : { title: slotLbl(regiao) })}
+          onBlur={fecharTip}
+          aria-label={`${slotLbl(regiao)} — ${ocupantes.length}/${casas}`}
+          aria-expanded={regiaoAberta === regiao}
+        >
+          {!bg && (
+            <span className="inv-slot-ic"><i className={'ti ' + (FP_REGION_ICON[regiao] || 'ti-shield-off')} aria-hidden="true" /></span>
+          )}
+          {/* ── O +N TAMBÉM NA REGIÃO DE VÁRIAS CASAS (28/10/2026) ──────────
+              "Na ficha dos personagens está aparecendo o '+5' na arma, escudo
+              e peito, mas não está aparecendo dos demais itens." (usuário)
+
+              O selo nasceu dentro de `fpSlotTile`, que desenha a casa de UMA
+              vaga — e as mãos. A região de VÁRIAS vagas desenha o próprio
+              botão, aqui, e ficou sem ele: Rosto, Pulso, Dedo, Alforje e
+              Canela mostravam a pintura da peça sagrada sem dizer que ela é
+              sagrada. O bônus é o da peça que está à vista, que é a primeira
+              — a mesma de quem deu a pintura ao botão. */}
+          {bonusDoItem(primeiro) > 0 && (
+            <span className="inv-selo-bonus" aria-hidden="true">+{bonusDoItem(primeiro)}</span>
+          )}
+        </button>
+      );
+    }
+    return (
+      <div className="fp3-regiao" key={'reg-' + regiao}>
+        <span className="fp3-qtd" aria-hidden="true">{ocupantes.length}/{casas}</span>
+        {corpo}
+        <span className="fp3-nomr">{slotLbl(regiao)}</span>
+      </div>
+    );
+  };
+
+  /* ── O SAQUE RÁPIDO SAIU DO BONECO (26/10/2026, pedido do usuário) ────────
+     "Remova os slots de saque rápido, não vamos usar isso mais."
+
+     A casa da mão passa a ser UMA, ocupando a largura das duas colunas do
+     trilho do seu lado e a altura de duas casas — e com isso o pé dela encosta
+     no pé do retrato, que é o que faltava ("os slots com as armas não estão
+     alinhados com a imagem pela base").
+
+     O MODELO continua inteiro: `saque_e`/`saque_d` seguem no vocabulário de
+     slots (01-core/inventario-helpers.jsx), com `moverParaSaque` e
+     `trocarSaqueRapido` e os testes deles. O que saiu foi a casa na ficha —
+     se o saque voltar a ser jogado, ele volta sem refazer a regra. */
+  const fpMao = (lado) => {
+    const slotMao = lado === 'e' ? 'mao_e' : 'mao_d';
+    return (
+      <div className="fp3-mao-grupo" key={'mao-' + lado}>
+        <div className="fp3-casa fp3-casa--mao">
+          {/* Desenha o lado, abre a região das duas mãos — ver fpSlotTile. */}
+          {fpSlotTile(slotMao, ocupanteDefesa(slotMao, 0), 'mao-' + lado, 'mao', regiaoSemNada('mao'))}
+        </div>
+        <span className="fp3-nomr">{slotLbl(slotMao)}</span>
+      </div>
+    );
+  };
+
   const equipRow = (
     <div className="fp2-equip-wrap fp2-panel">
-      <div className="fp2-equip-grid">
-        {/* ── Linha 1 — Cabeça · Brinco · Colar · Roupa ── */}
-        <div className="fp2-cell fp2-pos-orelha">{fpGroup(slotLbl('cabeca'),  'cabeca',  1)}</div>
-        {/* Brincos: slot único com badge N/2 — clique abre card portal com 2 sub-slots */}
-        <div className="fp2-cell fp2-pos-cabeca">
-          <div className="fp2-slotgroup">
-            <div className="fp2-slot-cluster">
-              <button
-                ref={brincosBtnRef}
-                type="button"
-                className={'inv-slot' + (brincosItens.length > 0 ? ' filled has-img' : ' empty')}
-                style={{
-                  cursor: 'pointer',
-                  ...(arteDaCasaAgrupada('orelha', brincosItens, catalogoBySlug)
-                    ? fpItemBgStyle(arteDaCasaAgrupada('orelha', brincosItens, catalogoBySlug), brincosItens.length === 0)
-                    : {}),
-                }}
-                /* Sem brinco equipado não há o que mostrar: o clique não abre
-                   nada (16/09/2026, pedido do usuário). */
-                onClick={() => {
-                  if (brincosItens.length === 0) return;
-                  if (brincosBtnRef.current) setBrincosRect(brincosBtnRef.current.getBoundingClientRect());
-                  setBrincosOpen((v) => !v);
-                }}
-                onMouseEnter={(e) => abrirTip(e, {
-                  title: en ? 'Earrings' : 'Brincos',
-                  desc: `${brincosItens.length}/2 ${en ? 'equipped' : 'equipados'}`,
-                })}
-                onMouseLeave={fecharTip}
-                onFocus={(e) => abrirTip(e, {
-                  title: en ? 'Earrings' : 'Brincos',
-                  desc: `${brincosItens.length}/2 ${en ? 'equipped' : 'equipados'}`,
-                })}
-                onBlur={fecharTip}
-                aria-label={`${en ? 'Earrings' : 'Brincos'} — ${brincosItens.length}/2`}
-                aria-expanded={brincosOpen}
-              >
-                {!FP_REGION_BG['orelha'] && (
-                  <span className="inv-slot-ic"><i className="ti ti-diamond" aria-hidden="true" /></span>
-                )}
-                <span className="inv-slot-meta">
-                  <span className="inv-slot-lbl">{slotLbl('orelha')}</span>
-                </span>
-                {/* O contador "N/máx" sobre o slot saiu em 23/10/2026 (pedido do usuário). */}
-              </button>
-            </div>
-          </div>
+      <h3 className="fp-col-tit">{en ? 'Equipment' : 'Equipamentos'}</h3>
+      <div className="fp3-boneco">
+        {/* trilho esquerdo: adornos e vestes */}
+        <div className="fp3-trilho">
+          {['rosto', 'orelha', 'pescoco', 'costas', 'peito', 'dedo', 'pulso', 'alforje'].map(fpRegiao)}
         </div>
-        <div className="fp2-cell fp2-pos-capa">{fpGroup(slotLbl('pescoco'), 'pescoco', 1)}</div>
-        <div className="fp2-cell fp2-pos-pescoco">{fpGroup(slotLbl('capa'),    'capa',    1)}</div>
 
-        {/* ── Coluna 1 (linhas 2-4) — Peito · Pernas · Pés ── */}
-        <div className="fp2-cell fp2-pos-peito">{fpGroup(slotLbl('peito'),  'peito',  1)}</div>
-        <div className="fp2-cell fp2-pos-pernas">{fpGroup(slotLbl('pernas'), 'pernas', 1)}</div>
-        <div className="fp2-cell fp2-pos-pes">{fpGroup(slotLbl('pes'),    'pes',    1)}</div>
-
-        {/* ── Retrato — colunas 2-3, linhas 2-4 ── */}
-        <div className="fp2-stage fp2-pos-stage">
+        {/* retrato no centro — a foto do personagem preenche o vão */}
+        <div className="fp2-stage fp3-retrato">
           <div
             className={'fp2-portrait' + (podeEditarFoto ? ' is-editable' : '') + (!fotoUrl ? ' is-empty' : '')}
             onClick={podeEditarFoto && !fotoUploading ? () => { if (fileFotoRef.current) fileFotoRef.current.click(); } : undefined}
@@ -4429,149 +6161,15 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           </div>
         </div>
 
-        {/* ── Coluna 4 (linhas 2-4) — vazio · Ombros · Braços ── */}
-        {/* Linha 2: Roupas (2 compartimentos) — badge N/2, card portal */}
-        <div className="fp2-cell fp2-cell--right fp2-pos-ombros">
-          <div className="fp2-slotgroup">
-            <div className="fp2-slot-cluster">
-              <button
-                ref={roupasBtnRef}
-                type="button"
-                className={'inv-slot' + (roupasItens.length > 0 ? ' filled has-img' : ' empty')}
-                style={{
-                  cursor: 'pointer',
-                  ...(arteDaCasaAgrupada('roupa', roupasItens, catalogoBySlug)
-                    ? fpItemBgStyle(arteDaCasaAgrupada('roupa', roupasItens, catalogoBySlug), roupasItens.length === 0)
-                    : {}),
-                }}
-                onClick={() => {
-                  if (roupasItens.length === 0) return;   // sem roupa, não abre
-                  if (roupasBtnRef.current) setRoupasRect(roupasBtnRef.current.getBoundingClientRect());
-                  setRoupasOpen((v) => !v);
-                }}
-                onMouseEnter={(e) => abrirTip(e, {
-                  title: en ? 'Garments' : 'Roupas',
-                  desc: `${roupasItens.length}/2 ${en ? 'equipped' : 'vestidas'}`,
-                })}
-                onMouseLeave={fecharTip}
-                onFocus={(e) => abrirTip(e, {
-                  title: en ? 'Garments' : 'Roupas',
-                  desc: `${roupasItens.length}/2 ${en ? 'equipped' : 'vestidas'}`,
-                })}
-                onBlur={fecharTip}
-                aria-label={`${en ? 'Garments' : 'Roupas'} — ${roupasItens.length}/2`}
-                aria-expanded={roupasOpen}
-              >
-                {!FP_REGION_BG['roupa'] && (
-                  <span className="inv-slot-ic"><i className="ti ti-shirt" aria-hidden="true" /></span>
-                )}
-                <span className="inv-slot-meta">
-                  <span className="inv-slot-lbl">{slotLbl('roupa')}</span>
-                </span>
-                {/* O contador "N/máx" sobre o slot saiu em 23/10/2026 (pedido do usuário). */}
-              </button>
-            </div>
-          </div>
-        </div>
-        {/* Linha 3: Ombros */}
-        <div className="fp2-cell fp2-cell--right fp2-pos-bracos">{fpGroup(slotLbl('ombros'), 'ombros', 1)}</div>
-        {/* Linha 4: Braços */}
-        <div className="fp2-cell fp2-cell--right fp2-pos-cintura">{fpGroup(slotLbl('bracos'), 'bracos', 1)}</div>
-
-        {/* ── Linha 5 — Joias(→card) · Mão · Mão · Cinto ── */}
-
-        {/* Col 1: slot único de Joias — clique abre card portal com 4 sub-slots */}
-        <div className="fp2-cell fp2-pos-dedo0">
-          <div className="fp2-slotgroup">
-            <div className="fp2-slot-cluster">
-              <button
-                ref={joiasBtnRef}
-                type="button"
-                className={'inv-slot' + (dedosItens.length > 0 ? ' filled has-img' : ' empty')}
-                style={{
-                  cursor: 'pointer',
-                  ...(arteDaCasaAgrupada('dedos', dedosItens, catalogoBySlug)
-                    ? fpItemBgStyle(arteDaCasaAgrupada('dedos', dedosItens, catalogoBySlug), dedosItens.length === 0)
-                    : {}),
-                }}
-                onClick={() => {
-                  if (dedosItens.length === 0) return;   // sem joia, não abre
-                  if (joiasBtnRef.current) setJoiasRect(joiasBtnRef.current.getBoundingClientRect());
-                  setJoiasOpen((v) => !v);
-                }}
-                onMouseEnter={(e) => abrirTip(e, {
-                  title: en ? 'Jewels' : 'Joias',
-                  desc: `${dedosItens.length}/4 ${en ? 'equipped' : 'equipadas'}`,
-                })}
-                onMouseLeave={fecharTip}
-                onFocus={(e) => abrirTip(e, {
-                  title: en ? 'Jewels' : 'Joias',
-                  desc: `${dedosItens.length}/4 ${en ? 'equipped' : 'equipadas'}`,
-                })}
-                onBlur={fecharTip}
-                aria-label={`${en ? 'Jewels' : 'Joias'} — ${dedosItens.length}/4`}
-                aria-expanded={joiasOpen}
-              >
-                {!FP_REGION_BG['dedos'] && (
-                  <span className="inv-slot-ic"><i className="ti ti-diamond" aria-hidden="true" /></span>
-                )}
-                <span className="inv-slot-meta">
-                  <span className="inv-slot-lbl">{en ? 'Jewels' : 'Joias'}</span>
-                </span>
-                {/* O contador "N/máx" sobre o slot saiu em 23/10/2026 (pedido do usuário). */}
-              </button>
-            </div>
-          </div>
-          {/* O card de joias é renderizado via portal — ver seção de overlays abaixo */}
+        {/* trilho direito: equipamento */}
+        <div className="fp3-trilho">
+          {['cabeca', 'ombro', 'dorso', 'braco', 'perna', 'canela', 'cintura', 'pe'].map(fpRegiao)}
         </div>
 
-        {/* Col 2-3: Mãos */}
-        <div className="fp2-cell fp2-pos-maoe">{fpHand('mao_e', 'arma-e')}</div>
-        <div className="fp2-cell fp2-pos-maod">{fpHand('mao_d', 'arma-d')}</div>
-
-        {/* Col 4: Cinto — slot único com badge N/3 — clique abre card portal com 3 sub-slots */}
-        <div className="fp2-cell fp2-pos-dedo1">
-          <div className="fp2-slotgroup">
-            <div className="fp2-slot-cluster">
-              <button
-                ref={cintoBtnRef}
-                type="button"
-                className={'inv-slot' + (cintoItens.length > 0 ? ' filled has-img' : ' empty')}
-                style={{
-                  cursor: 'pointer',
-                  ...(arteDaCasaAgrupada('cintura', cintoItens, catalogoBySlug)
-                    ? fpItemBgStyle(arteDaCasaAgrupada('cintura', cintoItens, catalogoBySlug), cintoItens.length === 0)
-                    : {}),
-                }}
-                onClick={() => {
-                  if (cintoItens.length === 0) return;   // sem cinto, não abre
-                  if (cintoBtnRef.current) setCintoRect(cintoBtnRef.current.getBoundingClientRect());
-                  setCintoOpen((v) => !v);
-                }}
-                onMouseEnter={(e) => abrirTip(e, {
-                  title: en ? 'Belt' : 'Cinto',
-                  desc: `${cintoItens.length}/3 ${en ? 'equipped' : 'equipados'}`,
-                })}
-                onMouseLeave={fecharTip}
-                onFocus={(e) => abrirTip(e, {
-                  title: en ? 'Belt' : 'Cinto',
-                  desc: `${cintoItens.length}/3 ${en ? 'equipped' : 'equipados'}`,
-                })}
-                onBlur={fecharTip}
-                aria-label={`${en ? 'Belt' : 'Cinto'} — ${cintoItens.length}/3`}
-                aria-expanded={cintoOpen}
-              >
-                {!FP_REGION_BG['cintura'] && (
-                  <span className="inv-slot-ic"><i className="ti ti-shield" aria-hidden="true" /></span>
-                )}
-                <span className="inv-slot-meta">
-                  <span className="inv-slot-lbl">{slotLbl('cintura')}</span>
-                </span>
-                {/* O contador "N/máx" sobre o slot saiu em 23/10/2026 (pedido do usuário). */}
-              </button>
-            </div>
-          </div>
-          {/* O card de cinto é renderizado via portal — ver seção de overlays abaixo */}
+        {/* a base: as mãos com o saque rápido */}
+        <div className="fp3-maos">
+          {fpMao('e')}
+          {fpMao('d')}
         </div>
       </div>
     </div>
@@ -4606,17 +6204,6 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const capPagAtual  = Math.min(capPage, capTotalPags - 1);
   const capFatia     = capLista.slice(capPagAtual * CAP_POR_PAG, capPagAtual * CAP_POR_PAG + CAP_POR_PAG);
 
-  const combatPanels = (
-    <div className="fp2-combat-col">
-      <section className="fp2-panel">
-        <div className="fp2-panel-body">
-          <h3 className="fp-col-tit">{en ? 'Conditions' : 'Condições'}</h3>
-          {elCond}
-        </div>
-      </section>
-    </div>
-  );
-
   // Coluna esquerda: Vitalidade + Velocidade/Resistências (elCombate) +
   // Estágio. Condições MUDOU pra coluna direita (combatPanels) a pedido do
   // usuário — ver comentário lá. Velocidade/Resistência Física/Resistência
@@ -4642,17 +6229,17 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           {elVit}
         </div>
       </section>
-      {/* Status logo abaixo da vitalidade: é dela que Morto e Desmaiado saem,
-          e é ali que o Mestre já está quando mexe no estado do personagem. */}
+      {/* O card Status SAIU em 26/10/2026, a pedido do usuário ("remova o
+          card 'status'"). Foram com ele duas coisas: a fileira DEF · VEL ·
+          ABS · RFI · RFM (que vivia só aqui) e a lista de status ativos
+          (FichaStatusPainel) — o seletor do trilho continua aplicando status,
+          mas a ficha não os mostra mais. */}
+      {/* Condições voltaram para a coluna esquerda (26/10/2026, modelo
+          aprovado): o boneco de armar ocupa a coluna principal inteira. */}
       <section className="fp2-panel">
-        <div className="fp2-panel-body fp2-vit-band">
-          <FichaStatusPainel
-            lista={pj.estado_atual && pj.estado_atual.status}
-            dataJogo={dataJogoDaMesa}
-            podeEditar={podeEditarEstado}
-            lang={lang}
-            onRemover={removerStatus}
-          />
+        <div className="fp2-panel-body">
+          <h3 className="fp-col-tit">{en ? 'Conditions' : 'Condições'}</h3>
+          {elCond}
         </div>
       </section>
     </div>
@@ -4665,34 +6252,32 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // demais) e ações (editar/excluir) à direita. Tooltip próprio dos botões
   // de navegação (substitui o title nativo do browser) — mesmo já existia.
   const tabTipLabel = (label) => (e) => abrirTabTip(e, { desc: label });
-  // Montar/Desmontar pela aba — mesma regra do inventário: uma montaria por
-  // vez, e pilha se divide (monta-se UM cavalo).
-  const montarFicha = (instanceId) => {
-    if (!podeEditarInv) return;
-    const itens = (pj.inventario?.itens || []).map((it) => (it.montado ? { ...it, montado: false } : it));
-    const idx = itens.findIndex((it) => it.instanceId === instanceId);
-    if (idx < 0) return;
-    const it = itens[idx];
-    if (it.quantidade > 1) {
-      itens[idx] = { ...it, quantidade: it.quantidade - 1 };
-      itens.push({ instanceId: novoInstanceId(), slug: it.slug, quantidade: 1, montado: true, equipado: false, slot: null, containerId: null, observacao: it.observacao || null });
-    } else {
-      itens[idx] = { ...it, montado: true, containerId: null };
-    }
-    salvarItensFicha(itens);
-  };
-  const desmontarFicha = (instanceId) => {
-    if (!podeEditarInv) return;
-    salvarItensFicha((pj.inventario?.itens || []).map((it) =>
-      it.instanceId === instanceId ? { ...it, montado: false } : it));
-  };
+  /* MONTAR SAIU DAQUI (06/10/2026): "o botão de montar deve ser no item do
+     animal no inventário" (usuário). A ação já existia lá — montarItem /
+     desmontarItem (07-inventario/inventario.jsx), com a mesma regra de uma
+     montaria por vez e de pilha que se divide — e ter as duas era ter duas
+     chances de divergirem. */
   /* SEM CABEÇALHO NO CARTÃO (23/10/2026, "aproveite melhor a tela"): para o
      Jogador no console, o nome já está no seletor do menu, as partes da ficha
      são a gaveta Ficha e o Sair é "Trocar de personagem" no seletor. O que
      sobra — Batalha, atividade e Editar — vai para a barra de ações. O Mestre,
      olhando a ficha de outro, segue com o cabeçalho completo. */
   const cabecalhoNoMenu = !isMestre && !!onAba && !!alvoAcoes;
-  const ctrlsNaBarra = cabecalhoNoMenu ? ReactDOM.createPortal(
+  /* Para onde os botões vão (26/10/2026): com a aba Ficha aberta, para a
+     fileira do herói DENTRO da moldura — o modelo aprovado põe nome e botões
+     dentro da ficha. Nas outras abas (Inventário, Loja, Diário) seguem na
+     barra do console, como antes. */
+  /* A ABA COMPANHEIROS NÃO TEM TRILHO (27/10/2026, pedido do usuário: "na
+     ficha do companheiro animal, não precisamos do trilho superior").
+
+     Ele chegou a morar dentro da moldura do bicho, no pedido da manhã, e com
+     ele na tela ficou claro o que estava errado desde antes: Batalha,
+     Atividade, Evoluir e Editar são ações sobre o PERSONAGEM. Em cima da
+     ficha do cavalo, elas parecem ser do cavalo. Nenhuma das quatro tem o que
+     fazer aqui — então a faixa some inteira, e não só muda de lugar. */
+  const semTrilho = fpTab === 'animais';
+  const alvoAcoesAtual = semTrilho ? null : ((fpTab === 'ficha' && slotAcoesFicha) || alvoAcoes);
+  const ctrlsNaBarra = (cabecalhoNoMenu && alvoAcoesAtual) ? ReactDOM.createPortal(
     <div className="menestrel-ui mc-acao-grupo fp-ctrl-grupo">
       {onBatalha && (
         /* Só o ícone (23/10/2026, pedido do usuário); o nome no tooltip. */
@@ -4705,6 +6290,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         atividade={pj.estado_atual && pj.estado_atual.atividade}
         podeEditar={podeEscolherAtividade}
         lang={lang}
+        atributos={ficha.atributos}
         onEscolher={definirAtividade}
         treinos={pj.treinos}
         nomeDoTreino={(t) => {
@@ -4728,13 +6314,15 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         </button>
       )}
     </div>,
-    alvoAcoes
+    alvoAcoesAtual
   ) : null;
   /* A BARRA DE AÇÕES TAMBÉM PARA O MESTRE (23/10/2026): "Adicione a barra na
      ficha atualmente apenas para jogadores, para o mestre também." O Mestre
      segue com o cabeçalho de abas, mas o status e a atividade saem dele para
      a barra, ao lado dos atalhos (Habilidades, Magias, Itens). */
-  const mestreNaBarra = isMestre && !!alvoAcoes;
+  // `semTrilho`: na aba Companheiros a barra some para os dois papéis — as
+  // ações são do personagem, e o Mestre também não as quer sobre o bicho.
+  const mestreNaBarra = isMestre && !!alvoAcoes && !semTrilho;
   const statusEl = podeEditarEstado && (
     <FichaStatusSeletor
       lista={pj.estado_atual && pj.estado_atual.status}
@@ -4748,6 +6336,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       atividade={pj.estado_atual && pj.estado_atual.atividade}
       podeEditar={podeEscolherAtividade}
       lang={lang}
+      atributos={ficha.atributos}
       onEscolher={definirAtividade}
       treinos={pj.treinos}
       nomeDoTreino={(t) => {
@@ -4759,28 +6348,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   /* A FICHA DO MESTRE COMO A DO JOGADOR (23/10/2026): "sem o título e o menu
      sem ser no trilho" (usuário). As abas, o status, a atividade, Editar e
      Excluir moram no trilho de ações; o cabeçalho com o nome sai. */
-  // Ícone + texto, o padrão do trilho (23/10/2026).
-  const abaNoTrilho = (id, pt, enRot, icone) => (
-    <button key={id} type="button" role="tab" aria-selected={fpTab === id} data-aba-ficha={id}
-      className={'mc-acao fp-aba-trilho' + (fpTab === id ? ' is-ativo' : '')}
-      onClick={() => setFpTab(id)}>
-      <i className={'ti ' + icone} aria-hidden="true" />
-      <span className="mc-acao-rotulo">{en ? enRot : pt}</span>
-    </button>
-  );
-  /* Dois trilhos (23/10/2026): num só, as treze ações quebravam em duas
-     linhas. As abas ficam num trilho próprio acima do cartão (abasMestreEl);
-     o trilho de ações leva status, atividade, os atalhos, Editar e Excluir. */
-  const abasMestreEl = mestreNaBarra ? (
-    <div className="fp-abas-trilho" role="tablist" aria-label={en ? 'Sheet' : 'Ficha'}>
-      {abaNoTrilho('ficha', 'Ficha', 'Sheet', 'ti-layout-dashboard')}
-      {abaNoTrilho('info', 'Identificação', 'Identity', 'ti-id')}
-      {abaNoTrilho('conhecimento', 'Conhecimento', 'Knowledge', 'ti-book')}
-      {animaisPj.length > 0 && abaNoTrilho('animais', 'Companheiros', 'Companions', 'ti-paw')}
-      {abaNoTrilho('inventario', 'Inventário', 'Inventory', 'ti-briefcase-2')}
-      {abaNoTrilho('loja', 'Loja', 'Shop', 'ti-building-store')}
-    </div>
-  ) : null;
+  /* O TRILHO DE ABAS SAIU DA FICHA (26/10/2026, pedido do usuário: "o trilho
+     de menu 'ficha, identificação, conhecimento, etc' deve ficar apenas no
+     menu lateral esquerdo"). Ele nasceu em 23/10 porque o Mestre não tinha
+     outro caminho; desde 26/10 tem — a barra lateral lista Personagens ›
+     <personagem> › as seis partes (PARTES_DA_FICHA, 01-core/constants.jsx).
+     Com os dois, o mesmo destino aparecia em dois lugares e cada um marcava
+     a página aberta à sua maneira. */
+  const abasMestreEl = null;
   const ctrlsMestreNaBarra = mestreNaBarra ? ReactDOM.createPortal(
     <div className="menestrel-ui mc-acao-grupo fp-ctrl-grupo fp-ctrl-grupo--mestre">
       {statusEl}
@@ -4794,20 +6369,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           <span className="mc-acao-rotulo">{en ? 'Level up' : 'Evoluir'}</span>
         </button>
       )}
-      {onEditar && (
-        <button type="button" className="mc-acao" data-aba-ficha="editar" onClick={onEditar}>
-          <i className="ti ti-pencil" aria-hidden="true" />
-          <span className="mc-acao-rotulo">{en ? 'Edit' : 'Editar'}</span>
-        </button>
-      )}
-      {onExcluir && (
-        <button type="button" className="mc-acao mc-acao--perigo" data-aba-ficha="excluir" onClick={onExcluir}>
-          <i className="ti ti-trash" aria-hidden="true" />
-          <span className="mc-acao-rotulo">{en ? 'Delete' : 'Excluir'}</span>
-        </button>
-      )}
+      {/* EDITAR E EXCLUIR SAÍRAM DAQUI (26/10/2026, pedido do usuário: "os
+          botões 'editar, excluir' também"). Os dois moram na barra lateral,
+          em Personagens › <personagem>, junto das partes da ficha — e é lá
+          que eles pertencem: são ações SOBRE o personagem, não dentro da
+          página dele. `onEditar`/`onExcluir` continuam chegando aqui porque é
+          a PersonagensList quem os executa; quem os dispara agora é o menu. */}
     </div>,
-    alvoAcoes
+    alvoAcoesAtual
   ) : null;
   const fpTabsEl = (
     <header className="ms-header ficha-page-header">
@@ -4900,6 +6469,17 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           {/* Com nome, como as outras abas (23/10/2026, "abas com nome"). */}
           <span className="fp-tab-rotulo">{en ? 'Inventory' : 'Inventário'}</span>
         </button>
+        {/* FABRICAR (06/10/2026: "teremos um novo menu 'Fabricar', com todos
+            os possíveis itens a serem fabricados, com sua receita"). A aba fica
+            entre Inventário e Loja — é onde o material vira item, entre ter e
+            comprar. Só aparece com receitas carregadas. */}
+        {receitas.length > 0 && (
+          <button type="button" className={'fp-tab-ic ' + (fpTab === 'fabricar' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'fabricar'}
+            data-aba-ficha="fabricar"
+            onClick={() => setFpTab('fabricar')}>
+            <span className="fp-tab-rotulo">{en ? 'Craft' : 'Fabricar'}</span>
+          </button>
+        )}
         <button type="button" className={'fp-tab-ic ' + (fpTab === 'loja' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'loja'}
           data-aba-ficha="loja"
           onClick={() => setFpTab('loja')}>
@@ -4966,28 +6546,162 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const _itemUsavel = (typeof itemUsavelNoAtalho !== 'undefined' ? itemUsavelNoAtalho : null) || window.itemUsavelNoAtalho || (() => false);
   // O Mestre também tem os atalhos na barra (23/10/2026).
   const mostrarAtalhos = !!_AtalhosFicha && (podeEditarFoto || isMestre) && (fpTab === 'ficha' || fpTab === 'info' || fpTab === 'conhecimento');
+  /* `descricao`, `ajuste` e `restricao` entram em 28/10/2026: a janela nova
+     mostra o que a habilidade É antes de pedir a dificuldade, e esses três
+     campos já estavam no catálogo — só não chegavam aqui. */
   const atalhoHabilidades = mostrarAtalhos
     ? Object.values(habsByKey).map((h) => ({
         key: h.key, nome: h.nome, grupo: h.grupo,
+        descricao: h.descricao, restricao: h.restricao,
+        ajuste: (window.atributoPorExtenso ? window.atributoPorExtenso(h.ajuste, lang === 'en') : h.ajuste),
         total: (_totHabCond || _totHab)(h.key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes),
       }))
     : [];
   const atalhoMagias = mostrarAtalhos
-    ? Object.keys(pj.magias || {}).map((k) => magiasByKey[k]).filter(Boolean).map((m) => ({
-        key: m.key, nome: m.nome, nivel: _nivelMag((pj.magias || {})[m.key]),
-      }))
+    ? Object.keys(pj.magias || {}).map((k) => magiasByKey[k]).filter(Boolean).map((m) => {
+        const nivelPj = _nivelMag((pj.magias || {})[m.key]);
+        return {
+          key: m.key, nome: m.nome, nivel: nivelPj,
+          /* 28/10/2026: a janela do atalho mostra a magia inteira e evoca dali.
+             Antes o clique FECHAVA a lista e abria uma segunda janela por cima
+             (MagiaDetalhesModal) — o jogador perdia o lugar e, para trocar de
+             magia, reabria o atalho e procurava de novo. */
+          descricao: m.descricao, alcance: m.alcance, duracao: m.duracao,
+          /* Só os níveis que ele JÁ aprendeu, como na janela antiga
+             (12/09/2026, usuário): os bloqueados "apareciam com cadeado e só
+             ocupavam espaço". A prévia os mostrava desligados; o pedido
+             explícito de antes vale mais que o desenho da prévia. */
+          niveis: [1, 3, 5, 7, 9]
+            .map((n) => ({ n, titulo: m['nivel_' + n], valor: m['valor_' + n] }))
+            .filter((nv) => (nv.titulo || nv.valor) && nv.n <= nivelPj),
+        };
+      })
     : [];
+  /* ── O PASSO DA MAGIA, REGRA POR REGRA (28/10/2026) ─────────────────────
+     A regra fica AQUI, onde os dados moram — eu com deus e sub-raça, os
+     colegas da história, os animais e os elos, o ritual, a data de jogo. A
+     janela (atalhos-ficha.jsx) só desenha o que esta função devolve.
+
+     Foi assim que o molde novo entrou sem reescrever a regra: a lista de
+     alvos, o milagre bloqueado e o karma continuam calculados por uma função
+     só, pelas mesmas portas de 01-core que o Mestre usa ao aprovar.
+
+     É FUNÇÃO e não objeto porque depende do nível escolhido: bloqueioElo
+     compara o estágio do animal com o nível, e o karma sai do nível evocado. */
+  const magiaPassoDoAtalho = (key, nivel) => {
+    const m = magiasByKey[key];
+    if (!m) return null;
+    const _en = lang === 'en';
+    /* O id do próprio PJ, NÃO a palavra 'self' (15/09/2026): com 'self' o
+       efeito não pousava e o banco recusava o alvo_id na fila do Mestre. */
+    const eu = { id: pj.id, nome: pj.nome, sobrenome: pj.sobrenome, foto_url: pj.foto_url,
+      profissao: pj.profissao, deus: pj.deus, subraca: pj.subraca, estado_atual: pj.estado_atual };
+    const dataJogo = historiaPj && historiaPj.data_jogo_atual;
+    /* ELO PERMANENTE (27/09/2026): a magia que cria elo tem como alvo os
+       ANIMAIS do personagem, não os protagonistas. */
+    const criaElo = !!(typeof window.magiaCriaElo === 'function' && window.magiaCriaElo(m));
+    /* ALCANCE PESSOAL (27/09/2026): "Magias de uso 'pessoal' só podem ser
+       usados no próprio evocador" — e, 28/10/2026, "magias de alcance pessoal
+       não precisam escolher alvo": a seção de alvo nem aparece. */
+    const soEmSi = /pessoal/i.test(m.alcance || '');
+    /* MILAGRE (22/10/2026): vampiro, lobisomem, sem religião e a Escuridão
+       não usam nem recebem milagre. Quem não pode usar vê o porquê e o rodapé
+       trava; quem não pode receber sai da lista de alvos. */
+    const ehMilagre = m.classe === 'Milagre';
+    const _ap = window.atorMilagreDePj, _bm = window.bloqueioMilagre, _ab = window.alvoDeMilagreBloqueado;
+    const bm = ehMilagre && _ap && _bm ? _bm(_ap(eu, dataJogo)) : null;
+    const bloqueio = bm
+      ? (window.motivoMilagreLabel ? window.motivoMilagreLabel(bm.motivo, _en) : bm.motivo)
+      : null;
+    /* O colega chega de get_pjs_historia com as magias ativas soltas: o
+       lobisomem da Licantropia também não recebe milagre. */
+    const comEstado = (c) => (c && !c.estado_atual && Array.isArray(c.magias_ativas)
+      ? { ...c, estado_atual: { magias_ativas: c.magias_ativas } } : c);
+    const recebeMilagre = (c) => !(ehMilagre && _ap && _ab && c && _ab(_ap(comEstado(c), dataJogo)));
+    const elosAtuais = animaisPj.filter((a) => window.temElo && window.temElo(a.instancia)).length;
+    /* O bloqueio do animal vira TEXTO aqui: bloqueioElo devolve código
+       ('estagio_alto'), e a janela não traduz código nenhum. */
+    const alvos = criaElo
+      ? animaisPj.map((a) => {
+          const cod = window.bloqueioElo ? window.bloqueioElo(a, nivel, elosAtuais) : null;
+          return {
+            id: 'animal:' + a.instancia.instanceId, tipo: 'animal', instanceId: a.instancia.instanceId,
+            nome: (a.cat && a.cat.nome) || a.criatura.nome,
+            bloqueio: cod && window.motivoEloLabel ? window.motivoEloLabel(cod, _en, nivel) : (cod || null),
+          };
+        })
+      : [
+        ...(recebeMilagre(eu)
+          ? [{ id: String(pj.id), nome: [pj.nome, pj.sobrenome].filter(Boolean).join(' '), foto_url: pj.foto_url }]
+          : []),
+        ...((soEmSi ? [] : pjsDaHistoria).filter(recebeMilagre).map((c) => ({
+          id: String(c.id), nome: [c.nome, c.sobrenome].filter(Boolean).join(' '), foto_url: c.foto_url,
+        }))),
+      ];
+    /* RITUAL (28/09/2026): os itens saem da mochila no ato, e sem eles não
+       evoca. A conferência é a mesma de antes. */
+    const textoRitual = ritualDaMagia(m);
+    const ritual = textoRitual && podeEditarFoto && typeof conferirItensDoRitual === 'function'
+      ? conferirItensDoRitual(textoRitual, pj.inventario?.itens || [], catalogoBySlug) : null;
+    /* O KARMA REAL, não o nível (13/09/2026): fora de combate o karma sai de
+       toda evocação do dono — menos a de RODADA, que não sai porque ali a
+       magia nem resolve (karmaDaEvocacaoForaDeCombate, 01-core).
+
+       É daqui que vem a resposta ao pedido de 28/10/2026 ("magias que causam
+       dano dão a opção de gastar mais karma, e a coluna de ataque é o karma
+       gasto"): essa escolha é da BATALHA. Na ficha, uma magia de dano dura em
+       rodadas, não pousa e não cobra — então a janela diz isso em vez de
+       oferecer um seletor de karma que não mudaria nada. */
+    const motivo = typeof motivoNaoAplicaNaFicha === 'function'
+      ? motivoNaoAplicaNaFicha(m, nivel) : 'narrativa';
+    /* O DONO E O MESTRE VEEM COISAS DIFERENTES (28/10/2026). A barra de
+       atalhos é dos dois (mostrarAtalhos), mas `aoEvocarMagia` só cobra karma
+       e só aplica efeito quando quem clica é o DONO (podeEditarFoto): na ficha
+       do jogador, o Evocar do Mestre apenas registra na mesa.
+
+       Sem este espelho, o quadro mostrava "Karma 5" para o Mestre e o clique
+       não gastava nada — a janela prometia o que o código não faz. */
+    const dono = !!podeEditarFoto;
+    const karma = !dono ? 0
+      : (typeof karmaDaEvocacaoForaDeCombate === 'function'
+        ? karmaDaEvocacaoForaDeCombate(motivo, nivel) : (Number(nivel) || 0));
+    const NOTA = {
+      rodadas:    _en ? 'Lasts in rounds, so it is a combat spell: cast it in battle.'
+                      : 'Dura em rodadas, então é magia de combate: evoque na batalha.',
+      calendario: _en ? 'Lasts on the calendar; the GM applies the effect.'
+                      : 'Dura no calendário; o Mestre aplica o efeito.',
+      duradoura:  _en ? 'Lasting effect; the GM applies it.'
+                      : 'Efeito duradouro; o Mestre aplica.',
+      narrativa:  _en ? 'Narrative effect, resolve at the table.'
+                      : 'Efeito narrativo, resolva na mesa.',
+    };
+    return {
+      karma, nota: (motivo && NOTA[motivo]) || null, alvos, ritual, bloqueio, dono,
+      euId: String(pj.id),
+      /* Sem alvo a escolher: alcance pessoal, onde o único alvo é ele. */
+      semAlvo: soEmSi && !criaElo && alvos.length <= 1,
+    };
+  };
   const atalhoItens = mostrarAtalhos
     // Sem o que está à venda na loja (02/10/2026): travado até retirar.
-    ? itensPj.filter((it) => !estaAVenda(it) && _itemUsavel(catalogoBySlug[it.slug])).map((it) => ({
-        id: it.instanceId, nome: catalogoBySlug[it.slug].nome, quantidade: it.quantidade,
-        icone: _itemIcon(catalogoBySlug[it.slug]),
-      }))
+    ? itensPj.filter((it) => !estaAVenda(it) && _itemUsavel(catalogoBySlug[it.slug])).map((it) => {
+        const cat = catalogoBySlug[it.slug];
+        /* `descricao` e `efeitos` entram em 28/10/2026: a janela nova mostra o
+           que o item FAZ, em números, antes de gastá-lo. `efeitosEmNumeros`
+           (01-core/inventario-helpers) é a mesma leitura que o editor usa —
+           nada de prosa interpretada duas vezes. */
+        const emNumeros = (window.efeitosEmNumeros ? window.efeitosEmNumeros(cat) : null) || {};
+        return {
+          id: it.instanceId, nome: cat.nome, quantidade: it.quantidade,
+          icone: _itemIcon(cat), descricao: cat.descricao,
+          efeitos: Object.entries(emNumeros).map(([rot, n]) => [rot, (n > 0 ? '+' : '−') + Math.abs(n)]),
+        };
+      })
     : [];
 
   return (
     <>
-    <div className={'menestrel-ui fp-page' + (fpFull ? ' is-full' : '') + ((fpTab === 'inventario' || fpTab === 'loja') ? ' is-inv' : '') + ((fpTab === 'inventario' || fpTab === 'loja') ? ' is-inventario' : '')}>
+    <div className={'menestrel-ui fp-page' + (fpFull ? ' is-full' : '') + ((fpTab === 'inventario' || fpTab === 'loja' || fpTab === 'fabricar') ? ' is-inv is-inventario' : '')}>
 
       {abasMestreEl}
       {/* O trilho de busca e moedas do Inventário mora fora do painel, logo
@@ -5047,18 +6761,25 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         </div>
       ) : fpTab === 'animais' && animaisPj.length > 0 ? (
         <div className="fp-invtab fp-info-tab">
-          <FichaAnimaisView animais={animaisPj} en={en} podeEditar={podeEditarInv}
-            onMontar={montarFicha} onDesmontar={desmontarFicha}
-            onNomear={podeEditarInv ? (id, nome) => salvarItensFicha((pj.inventario?.itens || []).map((it) => {
-              if (it.instanceId !== id) return it;
-              const novo = { ...it };
-              if (nome) novo.apelido = nome; else delete novo.apelido;
-              return novo;
-            })) : undefined}
+          {/* A ESCOLHA DO COMPANHEIRO SAIU DA PÁGINA (26/10/2026, pedido do
+              usuário): "os botões para selecionar o animal vão ficar no menu
+              da esquerda como submenu de companheiros". Era uma fileira de
+              chips aqui em cima — e era o último resquício de navegação dentro
+              da ficha, depois que o trilho de abas também foi para a barra. */}
+          <FichaAnimaisView
+            animal={animaisPj.find((a) => a.instancia.instanceId === compSel) || animaisPj[0]}
+            parte={compParte}
+            en={en} podeEditar={podeEditarInv} itens={pj.inventario?.itens || []}
+            onRenomear={podeEditarInv ? (id, nome) =>
+              salvarItensFicha(window.comNomeDoAnimal(pj.inventario?.itens || [], id, nome)) : undefined}
             onDesfazerElo={isMestre && podeEditarInv
               ? (id) => salvarItensFicha(window.semEloNoAnimal(pj.inventario?.itens, id)) : undefined}
             catalogoBySlug={catalogoBySlug} habsByKey={habsByKey}
-            tecnicasByKey={tecnicasByKey} magiasByKey={magiasByKey} />
+            tecnicasByKey={tecnicasByKey} magiasByKey={magiasByKey}
+            /* O cavaleiro pesa no bicho quando está montado nele (27/10/2026,
+               decisão do usuário). O peso do PJ vem calculado da raça, do
+               gênero e da sub-raça — ver `peso()` em 01-core/game-data.jsx. */
+            pesoDoCavaleiro={ficha.peso} />
         </div>
       ) : fpTab === 'inventario' ? (
         <div className="fp-invtab">
@@ -5075,6 +6796,22 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
               InventarioList e 11-ficha/estado-handoff.test.js. */}
           <InventarioList ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} onInventarioChange={(novoInv) => setPj((prev) => prev ? { ...prev, inventario: novoInv } : prev)} onEstadoChange={(novoEstado) => setPj((prev) => prev ? { ...prev, estado_atual: novoEstado } : prev)} estadoAtualSeed={pj?.estado_atual} maximos={{ ef: maxEF, eh: maxEH, ka: maxKA, ar: arMax }} isMestre={!!isMestre} />
         </div>
+      ) : fpTab === 'fabricar' ? (
+        <div className="fp-invtab">
+          {/* A bancada não grava nada: devolve a receita e a ficha rola o d20
+              (pedirFabricacao). Ver 01-core/fabricacao.jsx. */}
+          <FabricarView
+            itens={itensPj}
+            catalogoBySlug={catalogoBySlug}
+            receitas={receitas}
+            pjHabilidades={pj.habilidades || {}}
+            habsByKey={habsByKey}
+            dataJogo={dataJogoDaMesa}
+            lang={lang}
+            onFabricar={podeEditarInv ? pedirFabricacao : undefined}
+            resultado={fabResultado}
+          />
+        </div>
       ) : fpTab === 'loja' ? (
         <div className="fp-invtab">
           <LojaJogador ac={ac} lang={lang} currentUserId={pj?.user_id ?? currentUserId} pjIdFixo={pjAtivoId} key={pjAtivoId} isMestre={!!isMestre} slotBusca={slotBuscaLoja} />
@@ -5085,10 +6822,32 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           {fotoErro && <div className="fp2-erro">{fotoErro}</div>}
           {eqErro && <div className="fp2-erro">{eqErro}</div>}
 
-          <div className="fp2-columns">
+          {/* A FILEIRA DO HERÓI (26/10/2026, modelo aprovado): os botões moram
+              DENTRO da ficha, por portal para `slotAcoesFicha`.
+
+              O nome e a linha de profissão/estágio/raça/título SAÍRAM daqui a
+              pedido do usuário ("Remova da ficha do personagem o texto
+              'Lirael Vel'Thalas Rastreador · Estágio 9 · Elfo-Florestal ·
+              Guardião'"): o nome já vive no menu lateral da mesa, e o estágio
+              na barra de Experiência, no pé do cartão. Sem a identidade de um
+              lado, o trilho deixa de ser um extremo da fileira e fica
+              CENTRADO. */}
+          <div className="fp3-heroi">
+            {/* O ID É PARA O SINO (28/10/2026). Havia DOIS elementos com a
+                classe `mc-acoes-ficha`: este, que é o trilho de verdade — o
+                que tem Status, Atividades, Habilidades, Magias e Itens —, e o
+                do shell, que fica vazio quando a ficha desenha o seu. Como o
+                `useAlvoPortal` procura por ID, e só o do shell tinha um, o
+                sino caía no vazio e virava uma faixa solta no topo. Agora
+                este tem id próprio, e o sino o prefere. */}
+            <div id="fp-acoes-ficha" className="fp3-heroi-acoes mc-acoes-ficha" ref={setSlotAcoesFicha} />
+          </div>
+
+          {/* Duas colunas desde 26/10/2026 (modelo aprovado): vitalidade +
+              status + condições à esquerda, o boneco de armar à direita. */}
+          <div className="fp2-columns fp2-columns--duas">
             <div className="fp2-col-vit">{vitCondCol}</div>
             <div className="fp2-col-main">{equipRow}</div>
-            <aside className="fp2-col-side">{combatPanels}</aside>
           </div>
           {/* A Experiência saiu da coluna (23/10/2026): uma faixa simples no pé
               do cartão, de ponta a ponta. A barra é a mesma — e o Mestre segue
@@ -5097,6 +6856,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             <span className="fp-xp-rot">{en ? 'Experience' : 'Experiência'}</span>
             {elEstagio}
           </div>
+          {/* SEM a barra de Peso (26/10/2026, pedido do usuário: "remova a
+              barra de peso da ficha, pois ela já aparece no inventário"). A
+              carga é assunto de quem está mexendo na mochila, e o trilho do
+              Inventário já a mostra ali, ao lado das moedas. */}
                   </div>
       </div>
       )}
@@ -5120,9 +6883,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
     {/* Pacto de amizade e os cards dos amigos, na borda esquerda (28/09/2026).
         Em TODAS as abas: é no Inventário que se arrasta o item até o amigo. */}
+    {/* O BOTÃO DE AMIGOS SAIU DO TRILHO (27/10/2026, pedido do usuário: "o
+        menu 'amigos' que está no trilho vai para o menu da esquerda"). O que
+        continua aqui são os CARDS dos amigos, na borda esquerda: eles são o
+        destino do arraste de item do inventário, não um menu. Por isso o
+        portal volta para a raiz do app, e não para a barra de ações. */}
     {podeEditarFoto && pjAtivoId && typeof AmigosFab !== 'undefined' && ReactDOM.createPortal(
-      <AmigosFab lang={lang} pjId={pjAtivoId} naBarra={!!alvoAcoes} />,
-      alvoAcoes || document.getElementById('root') || document.body
+      <AmigosFab lang={lang} pjId={pjAtivoId} semBotao />,
+      document.getElementById('root') || document.body
     )}
 
     {/* Atalhos flutuantes — Habilidade, Magia e Item, na coluna dos dados.
@@ -5134,12 +6902,36 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         habilidades={atalhoHabilidades}
         magias={atalhoMagias}
         itens={atalhoItens}
-        onHabilidade={(key) => setHabilidadeDetalheKey(key)}
-        onMagia={(key) => setMagiaDetalheKey(key)}
-        onItem={(id) => setDetalheCintoId(id)}
-        naBarra={!!alvoAcoes}
+        /* ROLA DIRETO (28/10/2026): a dificuldade vem do rodapé da janela
+           nova, e não há mais segunda janela para abrir. A conta é a mesma de
+           antes — as magias de dificuldade ativas (Camuflagem, Faro…)
+           deslocam a escolhida, e as duas vão para o log, para ele dizer
+           "Médio → Fácil" em vez de trocar em silêncio. */
+        onHabilidade={(key, extra) => {
+          const hab = habsByKey[key];
+          if (!hab || !extra || !extra.dificuldade) return;
+          const total = (_totHabCond || _totHab)(key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes);
+          const alvoHab = { nome: hab.nome, grupo: hab.grupo };
+          const passos = (typeof passosDasMagiasAtivas === 'function')
+            ? passosDasMagiasAtivas(magiasAtivas, alvoHab, magiasByKey) : 0;
+          const efetiva = passos && typeof deslocarDificuldade === 'function'
+            ? deslocarDificuldade(extra.dificuldade, passos) : extra.dificuldade;
+          setRolagem({ nome: hab.nome, total, grupo: hab.grupo,
+                       dificuldade: efetiva, dificuldade_escolhida: extra.dificuldade });
+        }}
+        /* EVOCA DIRETO (28/10/2026): nível, alvo e karma já foram escolhidos
+           no segundo passo da própria janela, e o rodapé confirmou. */
+        magiaPasso={magiaPassoDoAtalho}
+        onMagia={(key, extra) => aoEvocarMagia({ key, nivel: (extra && extra.nivel) || null, alvo: (extra && extra.alvo) || null })}
+        /* USA DIRETO (28/10/2026): a janela nova mostra quantidade e efeito e
+           confirma no rodapé, então não há mais por que abrir a janela cheia
+           do item só para achar o botão Usar. `solicitarUsarFicha` é o mesmo
+           caminho de antes — com mais de uma unidade, ele ainda pergunta
+           quantas. */
+        onItem={(id) => solicitarUsarFicha(id)}
+        naBarra={!!alvoAcoesAtual}
       />,
-      alvoAcoes || document.getElementById('root') || document.body
+      alvoAcoesAtual || document.getElementById('root') || document.body
     )}
 
     {/* ── Card de Joias (portal) ──────────────────────────────────────────────
@@ -5150,247 +6942,176 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         zIndex 9000 — abaixo dos tooltips (9500), que também são portados pra
         #root, pra que o tooltip de um slot apareça na frente do card.
     ─────────────────────────────────────────────────────────────────────────── */}
-    {joiasOpen && joiasRect && ReactDOM.createPortal(
-      <div className="menestrel-ui">
-        {/* Backdrop invisível — fecha o card ao clicar fora */}
-        <div
-          className="fp-portal-backdrop"
-          onClick={() => setJoiasOpen(false)}
-          aria-hidden="true"
-        />
+    {/* ── MODAL DA REGIÃO (26/10/2026, pedido do usuário) ─────────────────────
+        "Quando clicar em um item dos slots, abrir um modal com os slots e
+        ações dos itens da ficha." Um modal só por região: as casas dela em
+        cima (clicar troca a peça em foco) e, embaixo, a peça escolhida com
+        suas ações — desequipar/despir, abrir o recipiente e a resistência.
+        Substituiu o pop flutuante e os quatro cards antigos (joias, brincos,
+        roupas, cinto). */}
+    {regiaoAberta && _JanelaItem && (() => {
+      const casas = REGIOES[regiaoAberta] || 1;
+      const ocupantes = itensDaRegiao(regiaoAberta);
+      /* Clicou numa casa vazia: NÃO há peça em foco, e é isso que faz a
+         janela oferecer o que do inventário cabe ali. Sem a distinção, o foco
+         caía no primeiro ocupante e a oferta sumia — ver CASA_VAZIA. */
+      const emFoco = pecaNoModal === CASA_VAZIA ? null
+        : (ocupantes.find((x) => x.instanceId === pecaNoModal) || ocupantes[0] || null);
+      const catFoco = emFoco ? catalogoBySlug[emFoco.slug] : null;
+      const nomeFoco = catFoco ? catFoco.nome : (emFoco ? emFoco.slug : null);
+      const ehCont = !!catFoco && _ehContainer(catFoco);
+      const resMaxFoco = Number(catFoco?.resistencia) || 0;
+      const resFoco = Number.isFinite(Number(emFoco?.res))
+        ? Math.max(0, Math.min(resMaxFoco, Number(emFoco.res))) : resMaxFoco;
+      const podeRes = podeEditarEstado && resMaxFoco > 0 && !emFoco?.vestido;
+      const fechar = () => { setRegiaoAberta(null); setPecaNoModal(null); };
+      const acoes = emFoco && podeEditarInv ? [
+        ehCont ? {
+          chave: 'abrir', icone: 'ti-moneybag', rotulo: en ? 'Open' : 'Abrir',
+          onClick: () => { fechar(); setContFichaId(emFoco.instanceId); },
+        } : null,
+        {
+          chave: 'detalhes', icone: 'ti-info-circle', rotulo: en ? 'Details' : 'Detalhes',
+          /* Guarda a região E a peça em foco: voltar tem de reabrir a mesma
+             casa, não a primeira da região. */
+          onClick: () => {
+            const de = { regiao: regiaoAberta, peca: emFoco.instanceId };
+            fechar(); setVoltarPara(de); setDetalheCintoId(emFoco.instanceId);
+          },
+        },
+        {
+          chave: 'despir', icone: emFoco.vestido ? 'ti-shirt-off' : 'ti-shield-off',
+          rotulo: emFoco.vestido ? (en ? 'Take off' : 'Despir') : (en ? 'Unequip' : 'Desequipar'),
+          onClick: () => { fechar(); desequiparFicha(emFoco.instanceId); },
+        },
+      ].filter(Boolean) : [];
+      return (
+        <_JanelaItem
+          /* O TÍTULO É A PEÇA, não a região (26/10/2026, pedido do usuário:
+             "remova a palavra 'cabeça' que está no slot cabeça acima da
+             imagem"). O nome da região já está na casa de onde se clicou, e
+             aqui ele repetia o óbvio acima da pintura. Com a casa vazia não
+             há peça para nomear — aí vale a região, que é o que a janela é.
+             O nome da região continua no aria-label, para quem não vê. */
+          title={<><i className={'ti ' + (FP_REGION_ICON[regiaoAberta] || 'ti-shield')} aria-hidden="true" /> {nomeFoco || slotLbl(regiaoAberta)}</>}
+          extraClass="modal-regiao"
+          aria-label={slotLbl(regiaoAberta)}
+          lang={lang}
+          onClose={fechar}
+          semAbas acoesEmBarra
+          acoes={acoes}>
+          <div className="fp3-modal-regiao">
+            {/* O CONTADOR SAIU (26/10/2026, pedido do usuário: "ao clicar no
+                slot e abrir um item, remova 'Casas 0/1 em uso'"). Ele dizia
+                em palavras o que as casas logo abaixo mostram em desenho — e
+                numa região de uma casa só, dizia "0/1" para explicar um
+                quadrado vazio. */}
+            <div className="fp2-slot-cluster fp3-cluster-regiao">
+              {/* ── A ARMA DE DUAS MÃOS OCUPA AS DUAS CASAS (28/10/2026) ───
+                  "Quando o arco está equipado e eu clico no item, mostra dois
+                  slots. Um mostra que está vazio, mas ao clicar nele não posso
+                  colocar outro item porque o arco ocupa 2 mãos. Nesse caso, já
+                  mostre o arco ocupando as duas mãos." (usuário)
 
-        {/* Wrapper fixed — centraliza card + seta no botão de Joias.
-            Só este div tem position:fixed; .fp2-joias-card NÃO é fixed,
-            o que permite que overflow:hidden clipe o ::before (faixa de
-            gradiente) corretamente dentro do border-radius. */}
-        <div
-          className="fp-portal-anchor"
-          style={{
-            bottom:  window.innerHeight - joiasRect.top + 10,
-            left:    Math.max(8, Math.min(window.innerWidth - 324, joiasRect.left + joiasRect.width / 2 - 158)),
-          }}
-          role="dialog"
-          aria-label={en ? 'Jewel slots' : 'Slots de joia'}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Sem card (16/09/2026): só os slots, flutuando. */}
-          <div className="fp2-slot-flutuante">
-            {/* 4 slots em linha única */}
-            <div className="fp2-slot-cluster">
-              {Array.from({ length: 4 }).map((_, idx) =>
-                fpSlotTile('dedos', ocupanteDedo(idx), 'joia-card-' + idx)
-              )}
+                  A REGRA já estava certa dos dois lados: `getSlotsState`
+                  marca as duas mãos com a mesma instância, e por isso nada
+                  mais entrava; e o BONECO já espelhava a arma nas duas casas,
+                  por `ocupanteDefesa`. Quem mentia era só esta janela, que
+                  lia `ocupantes[idx]` — uma lista com UM item para duas
+                  casas, deixando a segunda vazia e oferecendo o inventário
+                  para uma mão que não existe.
+
+                  Agora ela pergunta a mesma função que o boneco pergunta. */}
+              {Array.from({ length: casas }).map((_, idx) => {
+                const ladoDaMao = regiaoAberta === 'mao' ? (idx === 0 ? 'mao_d' : 'mao_e') : null;
+                const it = ladoDaMao ? ocupanteDefesa(ladoDaMao, 0) : (ocupantes[idx] || null);
+                const emFocoAqui = !!(it && emFoco && it.instanceId === emFoco.instanceId);
+                return (
+                  <div key={'casa-' + idx} className={'fp3-modal-casa' + (emFocoAqui ? ' is-foco' : '')}>
+                    {/* Na região da mão, a casa desenha o LADO (a arte da
+                        mão vazia é um par: direita e esquerda); nas demais, a
+                        própria região. */}
+                    {fpSlotTile(ladoDaMao || regiaoAberta, it, 'regiao-modal-' + idx, regiaoAberta,
+                      candidatosDaRegiao(regiaoAberta).length === 0)}
+                  </div>
+                );
+              })}
             </div>
-          </div>
-
-          {/* Seta: irmã do card, fora do overflow:hidden — aponta para o botão */}
-        </div>
-      </div>,
-      /* portal dentro de #root para que "#root .menestrel-ui .*" case */
-      document.getElementById('root') || document.body
-    )}
-
-    {/* ── Card de Brincos (portal) — 2 sub-slots ─────────────────────────────── */}
-    {brincosOpen && brincosRect && ReactDOM.createPortal(
-      <div className="menestrel-ui">
-        <div
-          className="fp-portal-backdrop"
-          onClick={() => setBrincosOpen(false)}
-          aria-hidden="true"
-        />
-        <div
-          className="fp-portal-anchor"
-          style={{
-            bottom:  window.innerHeight - brincosRect.top + 10,
-            left:    Math.max(8, Math.min(window.innerWidth - 182, brincosRect.left + brincosRect.width / 2 - 87)),
-          }}
-          role="dialog"
-          aria-label={en ? 'Earring slots' : 'Slots de brinco'}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Sem card (16/09/2026): só os slots, flutuando. */}
-          <div className="fp2-slot-flutuante">
-            {/* 2 slots em linha */}
-            <div className="fp2-slot-cluster">
-              {Array.from({ length: 2 }).map((_, idx) =>
-                fpSlotTile('orelha', ocupanteOrelha(idx), 'brinco-card-' + idx)
-              )}
-            </div>
-          </div>
-        </div>
-      </div>,
-      document.getElementById('root') || document.body
-    )}
-
-    {/* ── Card de Roupas (portal) — 2 sub-slots ───────────────────────────────── */}
-    {roupasOpen && roupasRect && ReactDOM.createPortal(
-      <div className="menestrel-ui">
-        <div
-          className="fp-portal-backdrop"
-          onClick={() => setRoupasOpen(false)}
-          aria-hidden="true"
-        />
-        <div
-          className="fp-portal-anchor"
-          style={{
-            bottom:  window.innerHeight - roupasRect.top + 10,
-            left:    Math.max(8, Math.min(window.innerWidth - 182, roupasRect.left + roupasRect.width / 2 - 87)),
-          }}
-          role="dialog"
-          aria-label={en ? 'Garment slots' : 'Slots de roupa'}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Sem card (16/09/2026): só os slots, flutuando. */}
-          <div className="fp2-slot-flutuante">
-            {/* 2 slots em linha */}
-            <div className="fp2-slot-cluster">
-              {Array.from({ length: 2 }).map((_, idx) =>
-                fpSlotTile('roupa', ocupanteRoupa(idx), 'roupa-card-' + idx)
-              )}
-            </div>
-          </div>
-        </div>
-      </div>,
-      document.getElementById('root') || document.body
-    )}
-
-    {/* ── Card de Cinto (portal) — 3 sub-slots ───────────────────────────────── */}
-    {cintoOpen && cintoRect && ReactDOM.createPortal(
-      <div className="menestrel-ui">
-        <div
-          className="fp-portal-backdrop"
-          onClick={() => setCintoOpen(false)}
-          aria-hidden="true"
-        />
-        <div
-          className="fp-portal-anchor"
-          style={{
-            bottom:  window.innerHeight - cintoRect.top + 10,
-            left:    Math.max(8, Math.min(window.innerWidth - 260, cintoRect.left + cintoRect.width / 2 - 126)),
-          }}
-          role="dialog"
-          aria-label={en ? 'Belt slots' : 'Slots de cinto'}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Sem card (16/09/2026): só os slots, flutuando. */}
-          <div className="fp2-slot-flutuante">
-            {/* 3 slots em linha */}
-            <div className="fp2-slot-cluster">
-              {Array.from({ length: 3 }).map((_, idx) =>
-                fpSlotTile('cintura', ocupanteCintura(idx), 'cinto-card-' + idx)
-              )}
-            </div>
-          </div>
-        </div>
-      </div>,
-      document.getElementById('root') || document.body
-    )}
-
-      {/* Menu de ação de uma peça equipada/vestida. Toda casa preenchida abre
-          este menu (em vez de desequipar no clique), pra evitar desequipar sem
-          querer. Container (ex.: cinto) ganha também "Ver conteúdo". */}
-      {menuPecaId && (() => {
-        const it = itensPj.find((x) => x.instanceId === menuPecaId);
-        if (!it) return null;
-        // Sem card e sem backdrop: fecha no clique fora, no Escape e no scroll,
-        // igual ao editor de barra (ver FechaAoSair, logo abaixo).
-        const cat = catalogoBySlug[it.slug];
-        const nome = cat?.nome || it.slug;
-        const isCont = !!cat && _ehContainer(cat);
-        const despirLbl = it.vestido ? (en ? 'Take off' : 'Despir') : (en ? 'Unequip' : 'Desequipar');
-        const despirIc  = it.vestido ? 'ti-shirt-off' : 'ti-shield-off';
-        const fechar = () => setMenuPecaId(null);
-        /* Menu da peça equipada (15/09/2026): "Ao clicar nos equipamentos de
-           defesa e ataque, aparece o input flutuante 'despir' ou a barra de
-           gerenciar resistência. Para o jogador, apenas a barra de despir."
-           Sem card: flutua ancorado na casa do corpo, como o editor de barra. */
-        const resMaxPeca = Number(cat?.resistencia) || 0;
-        const resPeca = Number.isFinite(Number(it.res))
-          ? Math.max(0, Math.min(resMaxPeca, Number(it.res))) : resMaxPeca;
-        /* PEÇA VESTIDA NÃO TEM STEPPER (20/09/2026): "anéis, roupas, etc, não
-           precisam do seletor de bônus, pois eles não recebem bônus."
-
-           A condição que faltava é `!it.vestido`. O stepper é de RESISTÊNCIA —
-           o desgaste de armadura e arma —, e aparecia em qualquer peça que
-           tivesse `resistencia` preenchida no catálogo, o que inclui joias e
-           roupas que nunca vão usá-la.
-
-           `vestido` é exatamente o corte certo: ele separa joia e acessório
-           (que se VESTEM) de arma, escudo e armadura (que se EQUIPAM) — ver
-           `ehVestimenta` em 01-core/inventario-helpers.jsx. */
-        const podeGerenciarRes = podeEditarEstado && resMaxPeca > 0 && !it.vestido;
-        const ancora = menuPecaAnchor;
-        /* 300, e não os 190 de antes (20/09/2026): o pop deixou de ser uma
-           COLUNA estreita e virou uma LINHA — botão, e às vezes o stepper de
-           resistência, lado a lado. Com o número velho o clamp achava que
-           cabia onde não cabia, e perto da borda direita o pop saía da tela.
-
-           É um número, não uma medida: quem mudar o conteúdo do pop precisa
-           revisitá-lo. Medir de verdade exigiria renderizar antes de
-           posicionar, e um pop que pisca no lugar errado é pior que uma
-           constante generosa. */
-        const larguraMenu = 300;
-        const vw = (typeof window !== 'undefined' ? window.innerWidth : 360);
-        let left = ancora ? ancora.left : 0;
-        if (left + larguraMenu > vw - 10) left = Math.max(10, vw - 10 - larguraMenu);
-        if (left < 10) left = 10;
-        /* POR PORTAL, e não inline na árvore da ficha (20/09/2026).
-
-           O pop é `position: fixed`, e fixed é frágil a ancestrais: basta um
-           `transform`, um `filter`, um `backdrop-filter` ou um `overflow`
-           qualquer no caminho para ele deixar de medir pela janela, ser
-           recortado ou ficar preso num contexto de empilhamento — tudo isso
-           sem erro nenhum no console.
-
-           O sintoma foi "não consigo clicar no despir dos anéis", e os anéis
-           são justamente o caso mais fundo: as casas deles moram DENTRO de
-           outro portal (o card flutuante de joias), e o pop nascia numa parte
-           completamente diferente da árvore.
-
-           Tentei antes corrigir por parâmetro — largura do clamp,
-           pointer-events explícito — e não bastou. Este é o mesmo remédio que
-           o card de joias, os atalhos e os brincos já usam nesta fase, e pela
-           mesma razão: quem é `fixed` sobe para a raiz. */
-        return ReactDOM.createPortal(
-          /* O invólucro `.menestrel-ui` não é decoração: as regras do pop são
-             `#root .menestrel-ui .fp-peca-pop`, descendentes. Fora do wrapper,
-             o pop perderia a pele inteira e os tokens do tema junto. Mesmo
-             invólucro que o portal do card de joias usa. */
-          <div className="menestrel-ui">
-          <FechaAoSair onClose={() => setMenuPecaId(null)} className="fp-peca-pop" aria-label={nome}
-            style={{ position: 'fixed', left, top: ancora ? ancora.bottom + 8 : 0 }}>
-            <div className="fp-peca-pop-acoes">
-              {isCont && (
-                <button type="button" className="btn-ghost btn-sm"
-                  onClick={() => { setMenuPecaId(null); setContFichaId(it.instanceId); }}>
-                  {en ? 'Open' : 'Abrir'}
-                </button>
-              )}
-              <button type="button" className="btn-ghost btn-sm"
-                onClick={() => { setMenuPecaId(null); desequiparFicha(it.instanceId); }}>
-                {despirLbl}
-              </button>
-            </div>
-            {podeGerenciarRes && (
-              <div className="fp-pop-stepper fp-peca-pop-res">
-                <button type="button" className="fp-step-btn" disabled={resPeca <= 0}
-                  aria-label={`${en ? 'Lower durability' : 'Reduzir resistência'} ${nome}`}
-                  onClick={() => ajustarResistenciaDaPeca(it.instanceId, resPeca - 1)}>
-                  <i className="ti ti-minus" aria-hidden="true" />
-                </button>
-                <span className="fp-pop-stepper-label">{resPeca} / {resMaxPeca}</span>
-                <button type="button" className="fp-step-btn" disabled={resPeca >= resMaxPeca}
-                  aria-label={`${en ? 'Raise durability' : 'Aumentar resistência'} ${nome}`}
-                  onClick={() => ajustarResistenciaDaPeca(it.instanceId, resPeca + 1)}>
-                  <i className="ti ti-plus" aria-hidden="true" />
-                </button>
+            {emFoco ? (
+              <div className="fp3-modal-peca">
+                {/* O nome subiu para o título da janela (26/10/2026); repetido
+                    aqui, ele seria a mesma palavra duas vezes na mesma tela. */}
+                {catFoco && catFoco.descricao && (
+                  <p className="fp3-modal-peca-desc">{catFoco.descricao}</p>
+                )}
+                {podeRes && (
+                  <div className="fp-pop-stepper fp3-modal-res">
+                    <button type="button" className="fp-step-btn" disabled={resFoco <= 0}
+                      aria-label={`${en ? 'Lower durability' : 'Reduzir resistência'} ${nomeFoco}`}
+                      onClick={() => ajustarResistenciaDaPeca(emFoco.instanceId, resFoco - 1)}>
+                      <i className="ti ti-minus" aria-hidden="true" />
+                    </button>
+                    <span className="fp-pop-stepper-label">
+                      {en ? 'Durability' : 'Resistência'} {resFoco} / {resMaxFoco}
+                    </span>
+                    <button type="button" className="fp-step-btn" disabled={resFoco >= resMaxFoco}
+                      aria-label={`${en ? 'Raise durability' : 'Aumentar resistência'} ${nomeFoco}`}
+                      onClick={() => ajustarResistenciaDaPeca(emFoco.instanceId, resFoco + 1)}>
+                      <i className="ti ti-plus" aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </FechaAoSair>
-          </div>,
-          document.getElementById('root') || document.body
-        );
-      })()}
+            ) : (() => {
+              /* A CASA VAZIA OFERECE O QUE CABE NELA (26/10/2026, pedido do
+                 usuário: "se o usuário clicar em um slot vazio, mostre os
+                 itens que podem ser adicionados ali que estão no inventário
+                 do personagem"). Antes a janela só mandava o jogador até o
+                 Inventário — duas telas para um gesto de uma. */
+              /* "Remova 'Nada no inventário cabe aqui', pois basta clicar
+                 no slot vazio para abrir um modal para selecionar o item que
+                 vai ser equipado" (usuário, 26/10/2026): a janela da casa
+                 vazia É o seletor. Sem nada para oferecer ela não escreve
+                 desculpa nenhuma — as casas da região já estão desenhadas
+                 acima, e elas bastam. */
+              const candidatos = podeEditarInv ? candidatosDaRegiao(regiaoAberta) : [];
+              if (!candidatos.length) return null;
+              return (
+                <div className="fp3-modal-oferta">
+                  <p className="mn-rotulo">{en ? 'From the inventory' : 'Do inventário'}</p>
+                  <div className="at-lista" role="list">
+                    {candidatos.map((cand) => {
+                      const c = catalogoBySlug[cand.slug] || {};
+                      /* Bloqueado continua na lista, desligado e com o porquê
+                         ao lado: sumir faria o jogador procurar no Inventário
+                         uma arma que está no bolso dele. */
+                      const motivo = bloqueioNaRegiao(c, regiaoAberta);
+                      return (
+                        <button key={cand.instanceId} type="button" role="listitem"
+                          className={'at-linha' + (motivo ? ' is-bloqueado' : '')}
+                          data-equipar-aqui={cand.instanceId} disabled={!!motivo}
+                          onClick={() => { fechar(); equiparNaRegiao(cand.instanceId, regiaoAberta); }}>
+                          <i className={'ti ' + (_itemIcon(c) || 'ti-box') + ' at-linha-ic'} aria-hidden="true" />
+                          <span className="at-linha-texto">
+                            <span className="at-linha-nome">{c.nome || cand.slug}</span>
+                            {/* NA MESMA LINHA DO NOME (28/10/2026, usuário). O ponto
+                                separa sem traço nem parêntese — é o mesmo recurso das
+                                pílulas de alvo da magia ("Lobo · Já tem elo"). */}
+                            {motivo && <span className="at-linha-motivo">{motivo}</span>}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </_JanelaItem>
+      );
+    })()}
+
+
 
       {/* Conteúdo do container vestido — reusa o ContainerModal da Fase 7 (ver + retirar). */}
       {contFichaId && _ContainerModal && (() => {
@@ -5405,7 +7126,15 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             lang={lang}
             onClose={() => setContFichaId(null)}
             onRemoverDoContainer={removerDoContainerFicha}
-            onAbrirDetalhes={(id) => { setContFichaId(null); setDetalheCintoId(id); }}
+            /* O CAMINHO DE VOLTA (28/10/2026, usuário: "o botão de voltar ao
+               selecionar um item dentro da algibeira"). Abrir a peça FECHA o
+               recipiente; sem guardar de onde se veio, voltar era fechar a
+               janela, achar a algibeira no boneco e abri-la de novo. */
+            onAbrirDetalhes={(id) => {
+              setVoltarPara({ tipo: 'container', container: contFichaId });
+              setContFichaId(null);
+              setDetalheCintoId(id);
+            }}
           />
         );
       })()}
@@ -5425,10 +7154,23 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             slotsState={null}
             todosItens={itensPj}
             containersDisponiveis={[]}
-            pjsHistoria={[]}
             lang={lang}
             contexto="ficha"
-            onClose={() => setDetalheCintoId(null)}
+            onClose={() => { setDetalheCintoId(null); setVoltarPara(null); }}
+            /* Só há Voltar quando houve de onde vir — ver o comentário em
+               `acoesTopo` (07-inventario/inventario.jsx). */
+            onVoltar={voltarPara ? () => {
+              const volta = voltarPara;
+              setVoltarPara(null);
+              setDetalheCintoId(null);
+              /* Três degraus possíveis: a janela da REGIÃO (o caminho do
+                 boneco), o RECIPIENTE aberto (algibeira, alforje) e outra
+                 PEÇA, quando se navega de item em item lá dentro. */
+              if (volta.tipo === 'container') { setContFichaId(volta.container); return; }
+              if (volta.tipo === 'item') { setDetalheCintoId(volta.peca); return; }
+              setRegiaoAberta(volta.regiao);
+              setPecaNoModal(volta.peca);
+            } : null}
             onUsar={solicitarUsarFicha}
             onDestruir={solicitarDestruirFicha}
             /* Sem Comentar na ficha (26/09/2026): era uma função vazia — o
@@ -5446,11 +7188,22 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             vinculos={vinculosLivros}
             pjAprendiz={pj}
             onMoverParaContainer={() => {}}
-            onTransferir={async () => ({ ok: false })}
-            transferError={null}
-            onTransferReset={() => {}}
+            /* `pjOrigemId` é o que faz a ação aparecer (ver acoesTopo); a
+               lista de amigos a janela busca sozinha a partir dele. Só o DONO
+               transfere — o Mestre olhando a ficha não tira item de ninguém. */
+            pjOrigemId={podeEditarFoto ? pj.id : null}
+            pjsHistoria={pjsDaHistoria}
+            onTransferir={podeEditarFoto ? solicitarTransferirFicha : null}
+            transferError={transferErroFicha}
+            onTransferReset={() => setTransferErroFicha(null)}
             onRemoverDoContainer={() => {}}
-            onAbrirDetalhesFilho={() => {}}
+            /* Era uma função vazia: clicar numa peça guardada dentro do item
+               não fazia nada (28/10/2026). Agora abre a peça e guarda o
+               degrau, para o Voltar trazer de volta ao recipiente. */
+            onAbrirDetalhesFilho={(id) => {
+              setVoltarPara({ tipo: 'item', peca: detalheCintoId });
+              setDetalheCintoId(id);
+            }}
           />
         );
       })()}
@@ -5644,7 +7397,7 @@ window.MagiaDetalhesModal = MagiaDetalhesModal;
 // As barras e o popover de edição, pelo teste da experiência clicável
 // (experiencia-barra.test.jsx): montá-los isolados dispensa o fetch do PJ.
 window.FichaVitBars = FichaVitBars;
-window.FichaTubos = FichaTubos;
+window.FichaGemas = FichaGemas;
 window.FichaMedalhoes = FichaMedalhoes;
 window.BarEditPopover = BarEditPopover;
 /* A regra de quem NÃO tem Karma e a tabela de rótulos narrativos das barras

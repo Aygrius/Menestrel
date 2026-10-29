@@ -45,10 +45,16 @@ const AUTH_COPY = {
     signout:     'Sair',
     google_btn:  'Continuar com Google',
     redirecting: 'Forjando seu acesso...',
-    lema:        'A regra é do sistema; a mesa fica com a história.',
+    /* Copy do login reescrita pelo usuário em 27/10/2026: o lema fala com quem
+       vai usar ("você"), e a chamada de entrada troca a instrução pela lore —
+       Palier é um dos treze deuses de Tagmar (ver DEUSES em game-data.jsx). */
+    /* Entre "a" e "gente" vai um ESPAÇO DURO (U+00A0, invisível aqui): a
+       manchete do login quebra em 17ch e o artigo ficava sozinho no fim da
+       linha ("…histórias, a / gente automatiza…"). */
+    lema:        'Você se preocupa em contar as histórias, a gente automatiza as regras.',
     feito:       'Feito para Tagmar · Mestres e Jogadores',
     title:       'Entrar',
-    sub:         'Entre com a sua conta Google para abrir o seu grimório.',
+    sub:         'Palier e seus enviados estão aguardando por você.',
     aguarde:     'Aguarde um momento.',
     erro:        'Não foi possível iniciar o login. Tente novamente.',
     consent:     'Ao entrar, você concorda com a Política de Privacidade e com o tratamento dos seus dados conforme a LGPD.',
@@ -57,10 +63,10 @@ const AUTH_COPY = {
     signout:     'Sign out',
     google_btn:  'Continue with Google',
     redirecting: 'Forging your access...',
-    lema:        'The rules belong to the system; the table keeps the story.',
+    lema:        'You take care of telling the stories; we automate the rules.',
     feito:       'Made for Tagmar · Game Masters and Players',
     title:       'Sign in',
-    sub:         'Sign in with your Google account to open your grimoire.',
+    sub:         'Palier and their envoys are waiting for you.',
     aguarde:     'Just a moment.',
     erro:        'Could not start the sign-in. Please try again.',
     consent:     'By signing in you agree to the Privacy Policy and to the processing of your personal data.',
@@ -172,6 +178,7 @@ const ADMIN_COPY = {
     campoSlug: 'Slug',
     campoTipoItem: 'Tipo de Item',
     campoOrigem: 'Origem',
+    campoBase: 'Base',
     campoIcone: 'Ícone',
     campoIconeInvalido: 'Ícone inválido: use o nome do Tabler, ex.: ti-paw.',
     campoDocUrl: 'Link do conteúdo',
@@ -184,6 +191,7 @@ const ADMIN_COPY = {
     vinculoNaoCarregou: 'Os pergaminhos deste livro não carregaram; salvar não vai mexer neles.',
     campoOcupa: 'Ocupa',
     campoArmazena: 'Armazena',
+    campoPorte: 'Casas',
     campoForcaReq: 'Força Requerida',
     campoResistencia: 'Resistência',
     campoNivelMagia: 'Nível de Magia',
@@ -191,7 +199,18 @@ const ADMIN_COPY = {
     campoConsumiveisPeso: 'Peso de Consumíveis',
     campoMagico: 'Mágico',
     campoAjusteAtributo: 'Atributo de Ajuste',
-    campoCategoriaEquip: 'Categoria de Equipamento',
+    /* "No modal de editar item 'categoria de equipamento' é 'categoria'."
+       (usuário, 26/10/2026) — o campo só existe em Armas e Armaduras, então
+       o "de equipamento" não desambiguava nada e só comia a largura. */
+    campoCategoriaEquip: 'Categoria',
+    campoEfeitos: 'Efeitos de uso',
+    campoEfeitosVit: 'Vitalidade',
+    campoEfeitosCond: 'Condições',
+    campoEfeitosDica: 'Positivo sobe a barra, negativo desce. Em branco, o item não mexe nela.',
+    /* PROTEÇÃO É OUTRA COISA (28/10/2026): não mexe no valor, limita o teto
+       enquanto a peça está vestida. Tirou a roupa, some. */
+    campoEfeitosProt: 'Proteções',
+    campoEfeitosProtDica: 'Não mexe na barra: limita o teto dela enquanto a peça está vestida. Em branco ou 0, não protege.',
     campoSlotEquip: 'Slot de Equipamento',
     campoGrupoEquipamento: 'Grupo de Equipamento',
     campoMaosPequenino: 'Mãos (Pequenino)',
@@ -333,6 +352,7 @@ const ADMIN_COPY = {
     campoSlug: 'Slug',
     campoTipoItem: 'Item Type',
     campoOrigem: 'Origin',
+    campoBase: 'Base',
     campoIcone: 'Icon',
     campoIconeInvalido: 'Invalid icon: use the Tabler name, e.g. ti-paw.',
     campoDocUrl: 'Content link',
@@ -345,6 +365,7 @@ const ADMIN_COPY = {
     vinculoNaoCarregou: 'This book’s scrolls did not load; saving will leave them untouched.',
     campoOcupa: 'Occupies',
     campoArmazena: 'Stores',
+    campoPorte: 'Slots',
     campoForcaReq: 'Required Strength',
     campoResistencia: 'Resistance',
     campoNivelMagia: 'Spell Level',
@@ -352,7 +373,13 @@ const ADMIN_COPY = {
     campoConsumiveisPeso: 'Consumables Weight',
     campoMagico: 'Magical',
     campoAjusteAtributo: 'Adjustment Attribute',
-    campoCategoriaEquip: 'Equip Category',
+    campoCategoriaEquip: 'Category',
+    campoEfeitos: 'Use effects',
+    campoEfeitosVit: 'Vitality',
+    campoEfeitosCond: 'Conditions',
+    campoEfeitosDica: 'Positive raises the bar, negative lowers it. Blank means the item leaves it alone.',
+    campoEfeitosProt: 'Protections',
+    campoEfeitosProtDica: 'Does not change the bar: it caps the bar while the piece is worn. Blank or 0 means no protection.',
     campoSlotEquip: 'Equip Slot',
     campoGrupoEquipamento: 'Equipment Group',
     campoMaosPequenino: 'Hands (Halfling)',
@@ -654,6 +681,24 @@ const SECOES_DA_MESA = {
     { id: 'loja',       icone: 'ti-building-store', rotulo: R('Loja', 'Shop') },
   ],
 };
+/* ── AS PARTES DA FICHA (26/10/2026) ───────────────────────────────────────
+   "Como mestre, os menus Ficha, Identificação, Conhecimento, etc viram um
+    submenu em Personagens > Eco, etc." (usuário)
+
+   As mesmas seis abas do trilho da ficha do Mestre (abasMestreEl,
+   11-ficha/ficha.jsx), agora também como submenu da barra: Personagens › Eco ›
+   Ficha. A lista mora AQUI porque duas telas a desenham, e duas cópias
+   divergiriam no dia em que uma sétima aba entrar — `aba` é o valor que
+   FichaPersonagem entende (fpTab). */
+const PARTES_DA_FICHA = [
+  { id: 'ficha_ficha',  aba: 'ficha',        rotulo: R('Ficha', 'Sheet') },
+  { id: 'ficha_ident',  aba: 'info',         rotulo: R('Identificação', 'Identity') },
+  { id: 'ficha_conhec', aba: 'conhecimento', rotulo: R('Conhecimento', 'Knowledge') },
+  { id: 'ficha_comp',   aba: 'animais',      rotulo: R('Companheiros', 'Companions') },
+  { id: 'ficha_inv',    aba: 'inventario',   rotulo: R('Inventário', 'Inventory') },
+  { id: 'ficha_loja',   aba: 'loja',         rotulo: R('Loja', 'Shop') },
+];
+
 const ROTULO_LIVRO = R('Livro de Regras', 'Rulebook');
 const NAV_MESA = {
   master: {
@@ -685,12 +730,52 @@ const NAV_MESA = {
          menus fora do antigo ficha. O menu personagem vira 'Identificação'"
          e Animais vira "Companheiros" (animais, enviados, demônios,
          elementais — os seres sob controle do personagem). */
-      { id: 'ficha_ficha', secao: 'ficha', filtro: 'ficha', rotulo: R('Ficha', 'Sheet'), titulo: R('Ficha', 'Sheet') },
-      { id: 'ficha_ident', secao: 'ficha', filtro: 'info', rotulo: R('Identificação', 'Identity'), titulo: R('Identificação', 'Identity') },
-      { id: 'ficha_conhec', secao: 'ficha', filtro: 'conhecimento', rotulo: R('Conhecimento', 'Knowledge'), titulo: R('Conhecimento', 'Knowledge') },
-      { id: 'ficha_comp', secao: 'ficha', filtro: 'animais', rotulo: R('Companheiros', 'Companions'), titulo: R('Companheiros', 'Companions') },
-      { secao: 'inventario' }, { secao: 'loja' },
-      diario(true), { secao: 'aventuras' },
+      /* DUAS GAVETAS, E NÃO NOVE ITENS SOLTOS (27/10/2026, pedido do usuário:
+         "dentro do menu ficha, do lado esquerdo, coloque os menus
+         identificação, conhecimento, inventário. Loja, Diário, Amigos ficam
+         dentro de Mesa").
+
+         A lista plana de 23/10 cresceu de cinco para nove entradas e deixou de
+         dizer a que cada uma pertence. Agora são dois troncos, e o critério
+         separa bem: o que é DO PERSONAGEM fica na Ficha — o que ele é
+         (Identificação), o que sabe (Conhecimento) e o que carrega
+         (Inventário); o que é DA MESA fica na Mesa — onde se compra (Loja), o
+         que se anota (Diário) e com quem se joga (Amigos).
+
+         Companheiros segue de fora, por ter árvore própria: cada bicho é um
+         galho com as quatro páginas dele, e enfiar isso dentro da Ficha daria
+         quatro andares de menu para chegar ao inventário de um cavalo. */
+      { id: 'ficha_ficha', secao: 'ficha', filtro: 'ficha', navega: true,
+        rotulo: R('Ficha', 'Sheet'), titulo: R('Ficha', 'Sheet'),
+        filhos: [
+          { id: 'ficha_ident', secao: 'ficha', filtro: 'info', rotulo: R('Identificação', 'Identity'), titulo: R('Identificação', 'Identity') },
+          { id: 'ficha_conhec', secao: 'ficha', filtro: 'conhecimento', rotulo: R('Conhecimento', 'Knowledge'), titulo: R('Conhecimento', 'Knowledge') },
+          { secao: 'inventario' },
+        ] },
+      /* `navega` (27/10/2026): Companheiros é o único desta lista que ganha
+         FILHOS (um por bicho, e as páginas de cada um). Um nó com filhos só
+         abria a gaveta — então, para quem tem animais, clicar em
+         "Companheiros" não ia a lugar nenhum, e a página ficava sem título,
+         porque `folhasDoMenu` só conta um galho como destino quando ele diz
+         `navega`. Com a marca ele volta a ser as duas coisas: a gaveta abre e
+         a aba abre junto, como "Personagens" faz para o Mestre. */
+      { id: 'ficha_comp', secao: 'ficha', filtro: 'animais', navega: true, rotulo: R('Companheiros', 'Companions'), titulo: R('Companheiros', 'Companions') },
+      /* A MESA, com o que acontece FORA do personagem. O `id` é o da seção
+         para o ícone continuar vindo de ICONE_NAV sem entrada nova, e o
+         rótulo segue saindo do caso do Jogador em `rotuloDe` ("aventuras"
+         chama-se Mesa para ele). */
+      { id: 'aventuras', secao: 'aventuras', navega: true,
+        filhos: [
+          { secao: 'loja' },
+          diario(true),
+          /* AMIGOS SAIU DO TRILHO (27/10/2026, pedido do usuário: "o menu
+             'amigos' que está no trilho vai para o menu da esquerda"). Não é
+             página: é uma FOLHA DE AÇÃO — leva à ficha e avisa o AmigosFab,
+             que abre o modal do pacto. Sem `secao` própria, para nunca
+             acender junto com "Ficha" no menu. */
+          { id: 'ficha_amigos', evento: 'menestrel:amigos', abre: { secao: 'ficha', filtro: 'ficha' },
+            rotulo: R('Amigos', 'Friends'), titulo: R('Amigos', 'Friends') },
+        ] },
     ],
     regras: [
       CRIATURAS, { ...COMERCIO, rotulo: R('Itens', 'Items') },
@@ -713,4 +798,4 @@ function folhasDoMenu(nos) {
   return out;
 }
 
-Object.assign(window, { FANTASY_MONTHS, FANTASY_WEEKDAYS, AUTH_COPY, ADMIN_COPY, ADMIN_SECTIONS, ADMIN_MENU, folhasDoMenu, SECOES_DA_MESA, NAV_MESA, ROTULO_LIVRO });
+Object.assign(window, { FANTASY_MONTHS, FANTASY_WEEKDAYS, AUTH_COPY, ADMIN_COPY, ADMIN_SECTIONS, ADMIN_MENU, folhasDoMenu, SECOES_DA_MESA, NAV_MESA, PARTES_DA_FICHA, ROTULO_LIVRO });

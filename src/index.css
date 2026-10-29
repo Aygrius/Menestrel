@@ -51,8 +51,10 @@
   /* Brasa para o que MUDOU ou BLOQUEIA (texto legível: 6.8:1). */
   --alerta: #E8836A;
   --alerta-fundo: rgba(162,59,47,0.16);
-  /* Roxo da magia — o mesmo da aba Magia e do Karma na batalha (#b48bd3). */
-  --magia: #B48BD3;
+  /* A cor do arcano é o AZUL do Karma desde 26/10/2026 (decisão do usuário,
+     sugestão 9 do modelo de slots/status): o roxo ficou exclusivo das
+     condições. Tom clareado do azul do tubo (#3558B0) para ler sobre couro. */
+  --magia: #7D9FEA;
   /* Régua: a única estrutura do quadro. */
   --regua: rgba(138,110,64,0.28);
   --regua-forte: color-mix(in srgb, rgb(138,110,64) 34%, var(--p-fundo, #120D06));
@@ -63,6 +65,29 @@
 }
 
 .menestrel-ui { font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "lnum" 1; }
+
+/* ══ A CASA DO BAÚU (26/10/2026) ═══════════════════════════════════════════
+   "Aumente o slot do inventário/loja, para o ícone ficar maior" (usuário).
+   A casa era de 50px desde o começo, e com a pintura do item dentro dela
+   (23/10) 50px ficou pequeno demais para a arte se ler.
+
+   O tamanho vive AQUI, num token só, porque ele é lido em dois lugares que
+   precisam concordar: o CSS (coluna da grade e tamanho do cartão) e o
+   JavaScript, que calcula quantas casas cabem na tela (useGridDimensions, em
+   07-inventario/inventario.jsx). Mudar um sem o outro enche o baú de
+   fileiras vazias ou corta a última coluna — ver inv-casa.test.js. */
+/* 64 → 78px em 26/10/2026, no mesmo pedido que trocou a grade para 10×8:
+   "aumentar o tamanho do slot em inventário/loja, talvez diminuindo a
+   quantidade de casas para isso". A largura total não mudou — 10 casas de
+   78 + 9 vãos dão os mesmos 834px que 12 de 64 davam —, então o painel do
+   item continua com os 440px dele. */
+.menestrel-ui { --inv-casa: 78px; --inv-casa-vao: 6px; }
+/* A largura do painel do item (26/10/2026): com a grade limitada a 12
+   colunas, o que sobra à direita vira visualização do item — "ganhando
+   espaço para aumentar a visualização do item à direita" (usuário). O
+   JavaScript lê este mesmo token para saber quanto descontar da largura
+   livre ao calcular as colunas (useGridDimensions). */
+.menestrel-ui { --bau-painel-w: 440px; }
 /* font-feature-settings garante o algarismo ALINHADO mesmo onde uma regra
    antiga declara só "font-variant-numeric: tabular-nums" — essa declaração
    troca o valor inteiro e devolvia os algarismos de estilo antigo ("1500"
@@ -370,6 +395,18 @@
 #root .menestrel-ui.ms-body::-webkit-scrollbar, #root .menestrel-ui .ms-body::-webkit-scrollbar { width: 8px; height: 8px; }
 #root .menestrel-ui.ms-body::-webkit-scrollbar-track, #root .menestrel-ui .ms-body::-webkit-scrollbar-track { background: transparent; }
 #root .menestrel-ui.ms-body::-webkit-scrollbar-thumb, #root .menestrel-ui .ms-body::-webkit-scrollbar-thumb { background: var(--rule-strong, var(--regua-forte)); border-radius: 6px; }
+
+/* ── A BARRA DE ROLAGEM DO SISTEMA, EM UMA CLASSE (27/10/2026) ─────────────
+   Pedido do usuário: "arrume a barra de rolagem para o padrão do sistema".
+   O corpo do modal (.ms-body, acima) já tinha essa pele; toda lista que rola
+   DENTRO dele — a de Status, Atividades, Habilidades, Magias, Itens, Amigos
+   e a oferta da casa vazia — ficava com a barra crua do navegador, cinza e
+   larga, dentro de uma janela de couro. Agora é uma classe só: `mn-rolagem`
+   em qualquer coisa que role. 8px, trilho invisível, polegar na régua. */
+#root .menestrel-ui .mn-rolagem { scrollbar-width: thin; scrollbar-color: var(--regua-forte) transparent; }
+#root .menestrel-ui .mn-rolagem::-webkit-scrollbar { width: 8px; height: 8px; }
+#root .menestrel-ui .mn-rolagem::-webkit-scrollbar-track { background: transparent; }
+#root .menestrel-ui .mn-rolagem::-webkit-scrollbar-thumb { background: var(--regua-forte); border-radius: 6px; }
 
 /* ---- footer: Cancelar à esquerda, ação primária à direita ---- */
 #root .menestrel-ui.ms-footer, #root .menestrel-ui .ms-footer {
@@ -883,7 +920,25 @@
   font-size:16px;
   transition:border-color .15s ease;
 }
-#root .menestrel-ui .moeda-pill-nome { font-size: var(--fs-sm); font-weight:600; color: var(--tinta); }
+/* O NOME DA MOEDA NÃO SE ESCREVE (27/10/2026, pedido do usuário: "ao invés
+   de escrever 'ícone 0 latão', deve aparecer como 'ícone 0', isso vale para
+   a descrição de valor nos itens também").
+
+   O padrão era escrever, e SETE regras espalhadas pelo arquivo o apagavam
+   caso a caso — topo do inventário, pé do card da loja, grade de compra,
+   tabela do bestiário, texto do resgate, nota de venda. Cada uma entrou no
+   dia em que alguém reparou naquele canto. Sete exceções para uma regra
+   querem dizer que a regra é a exceção: agora o padrão é NÃO escrever, e as
+   sete saíram.
+
+   Nada se perde: a denominação está na COR do ícone e no tooltip de cada
+   pílula (ver MoedaPill, 07-inventario/inventario.jsx). */
+#root .menestrel-ui .moeda-pill-nome { display: none; }
+/* "Grátis" fica: não é denominação, é ESTADO — sem ela a pílula do item sem
+   preço vira um "0" sem explicação. */
+#root .menestrel-ui .moeda-pill--gratis .moeda-pill-nome {
+  display: inline; font-size: var(--fs-sm); font-weight: 600;
+}
 #root .menestrel-ui .moeda-pill-qtd { font-size: var(--fs-sm); font-weight:400; color: var(--tinta); font-family:var(--font-body);}
 #root .menestrel-ui .moeda-pill.is-zero { opacity:1; }
 #root .menestrel-ui .moeda-pill.is-mudo { opacity:1; }
@@ -913,7 +968,6 @@
 #root .menestrel-ui .inv-topo-moedas .inv-bag-group--moedas { width:100%; }
 #root .menestrel-ui .inv-topo-moedas .inv-moedas-pills,
 #root .menestrel-ui .inv-topo-moedas .moeda-pill { flex:1 1 auto; justify-content:flex-start; align-items: center; height: var(--inv-topo-h, 34px); }
-#root .menestrel-ui .inv-topo-moedas .moeda-pill-nome { display: none; }
 #root .menestrel-ui .inv-topo-moedas .moeda-pill-qtd { display: inline-flex; align-items: center; height: 100%; padding: 0; }
 
 /* ---- det-stat (pills de atributo do item; também nos modais) ---- */
@@ -1055,9 +1109,6 @@
 #root .menestrel-ui .loja-it.is-esgotado { opacity:.55; cursor:default; }
 #root .menestrel-ui .loja-it.is-esgotado::before { display:none; }
 /* moeda como ícone + ×qtd (sem "Ouro"/"Prata"): card da loja, modal de compra e coluna de valor do bestiário */
-#root .menestrel-ui .loja-it-foot .moeda-pill-nome,
-#root .menestrel-ui .loja-compra-grade .moeda-pill-nome,
-#root .menestrel-ui .best-table-wrap .moeda-pill-nome { display:none; }
 #root .menestrel-ui .loja-it.sem-moeda .loja-it-foot .moeda-pill-ic { color: #F0A6A0; }
 #root .menestrel-ui .loja-it.sem-moeda .loja-it-foot .moeda-pill-qtd { color: #F0A6A0; }
 #root .menestrel-ui .loja-it-lock { color: #F0A6A0; font-size: var(--fs-md); }
@@ -1437,6 +1488,11 @@
    transparente). O emoji é o do próprio status, o mesmo que o combate desenha
    no token — não há segundo desenho para o mesmo estado. */
 #root .menestrel-ui .fp-status { display: flex; flex-direction: column; gap: 8px; }
+/* SEM STATUS, SEM ESPAÇO (26/10/2026). O painel voltou para dentro do card de
+   Condições, que é uma coluna com `gap` — e um painel vazio, mesmo sem texto,
+   ainda cobraria o vão. O nó fica no DOM de propósito (é por ele que o teste
+   de 17/09/2026 confere que não sobrou nenhum "Nenhum status" escrito). */
+#root .menestrel-ui .fp-status:not(:has(.fp-status-chip)) { display: none; }
 #root .menestrel-ui .fp-status-lista { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 /* .fp-status-vazio saiu em 17/09/2026: sem status, sem texto — nem para o
    Jogador nem para o Mestre, que tem o círculo na fileira das abas. */
@@ -2288,9 +2344,18 @@
 
 /* três colunas: Vitalidade+Condições (esq) · Foto+Slots (centro) · Atributos+Combate (dir) */
 #root .menestrel-ui .fp2-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr) minmax(0, 1fr); gap: clamp(10px, 2vw, 10px); align-items: stretch; }
-#root .menestrel-ui .fp2-col-vit { padding-left: 15px; min-width: 0; }
+/* UM TOKEN PARA OS DOIS LADOS (06/10/2026, pedido do usuário: "a coluna de
+   informações do personagem na ficha está com o espaçamento à direita menor
+   que a coluna de ef, eh à esquerda. Isso vale para a ficha do animal"). O
+   número já era o mesmo nos dois; quem comia o respiro da direita era a barra
+   de rolagem do painel — por isso o `scrollbar-gutter: stable` logo abaixo,
+   que reserva a pista dela em vez de deixá-la roubar os 15px. Dois valores
+   iguais escritos duas vezes voltam a divergir; um token, não. */
+#root .menestrel-ui { --fp2-col-inset: 15px; }
+#root .menestrel-ui .fp2-col-vit { padding-left: var(--fp2-col-inset); min-width: 0; }
 #root .menestrel-ui .fp2-col-main { min-width: 0; }
-#root .menestrel-ui .fp2-col-side { padding-right: 15px; min-width: 0; }
+#root .menestrel-ui .fp2-col-side { padding-right: var(--fp2-col-inset); min-width: 0; }
+#root .menestrel-ui .fp2-panel-body { scrollbar-gutter: stable; }
 /* As colunas vit/side esticam (align-items: stretch acima) até a altura da
    coluna central (foto + slots). O ÚLTIMO painel de cada uma (Recipientes
    na esquerda; Atributos/Magias/Técnicas/Habilidades na direita) cresce
@@ -2376,7 +2441,19 @@
 #root .menestrel-ui .fp2-slotgroup { display: flex; flex-direction: column; gap: 5px; }
 /* rótulo de região (CABEÇA…) = cabeçalho → Cinzel */
 #root .menestrel-ui .fp2-slot-lbl { font-family: var(--font-body); font-size: var(--fs-base); color: var(--gold); text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; font-size: var(--fs-sm); /* Cinzel abaixo de 18px vira rótulo; em caixa-alta, 15px basta (22/10/2026) */ }
-#root .menestrel-ui .fp2-slot-cluster { display: flex; flex-wrap: wrap; gap: clamp(8px,1.6vw,18px); }
+/* O VÃO DO INVENTÁRIO (28/10/2026, pedido do usuário: "a grade dos itens
+   dentro de recipientes, e dentro dos equipamentos e vestimentas da ficha
+   devem ter a distância igual de loja/inventário").
+
+   Era `clamp(8px, 1.6vw, 18px)` — 18px na tela cheia, três vezes o vão da
+   mochila. As casas daqui não têm legenda por baixo (o nome da peça fica
+   DENTRO do quadro, em `.inv-slot-item`), então nada precisa do ar extra: o
+   vão pode ser o mesmo `--inv-casa-vao` da grade do baú.
+
+   O BONECO continua em `--fp3-vao`, maior de propósito: lá a legenda da
+   região mora dentro do vão (ver `.fp3-nomr`), e encolhê-lo colaria o escrito
+   na casa de baixo — o oposto do que o usuário pediu em 26/10/2026. */
+#root .menestrel-ui .fp2-slot-cluster { display: flex; flex-wrap: wrap; gap: var(--inv-casa-vao); }
 
 /* casas reusam .inv-slot (já em pedra) — tiles de TAMANHO FIXO */
 #root .menestrel-ui .fp2-slot-cluster .inv-slot,
@@ -2629,12 +2706,19 @@
 /* Casa VAZIA com arte de placeholder (foto esmaecida do tipo de peça que
    entra ali): mostra a ilustração da região, escurecida e dessaturada, sem
    nome. Vence o opacity:.3 genérico de .inv-slot.empty pra ler como silhueta. */
+/* O BONECO NOVO TAMBÉM (26/10/2026, usuário: "os equipamentos e vestes
+   quando está vazio não está aparecendo"): esta regra nasceu presa ao layout
+   antigo (.fp2-slot-cluster/.fp2-weapons) e o boneco de armar
+   (.fp3-boneco, 26/10) ficou de fora — lá valia o `opacity: .3` genérico de
+   .inv-slot.empty, e a silhueta sumia no escuro do gradiente. */
 #root .menestrel-ui .fp2-slot-cluster .inv-slot.empty.bg-ghost,
-#root .menestrel-ui .fp2-weapons      .inv-slot.empty.bg-ghost {
+#root .menestrel-ui .fp2-weapons      .inv-slot.empty.bg-ghost,
+#root .menestrel-ui .fp3-boneco       .inv-slot.empty.bg-ghost {
   opacity: .60; filter: grayscale(.45) brightness(.92);
 }
 #root .menestrel-ui .fp2-slot-cluster .inv-slot.empty.bg-ghost:hover,
-#root .menestrel-ui .fp2-weapons      .inv-slot.empty.bg-ghost:hover {
+#root .menestrel-ui .fp2-weapons      .inv-slot.empty.bg-ghost:hover,
+#root .menestrel-ui .fp3-boneco       .inv-slot.empty.bg-ghost:hover {
   opacity: .72; filter: grayscale(.2) brightness(1);
 }
 
@@ -3674,7 +3758,16 @@
 #root .menestrel-ui .fp-col-l .fp-bar-val { grid-area: val; }
 #root .menestrel-ui .fp-col-l .fp-bar-track { grid-area: bar; }
 #root .menestrel-ui .fp-col-l .fp-cond-grid { grid-template-columns: 1fr; }
-#root .menestrel-ui .fp-invtab { border-radius: 6px; overflow: hidden; padding: 0; }
+/* `overflow: CLIP`, não `hidden` (26/10/2026, usuário: "a barra de rolagem
+   ainda é da tela e não do card"). Os dois recortam igual no canto
+   arredondado, mas `hidden` cria uma CAIXA DE ROLAGEM — e caixa de rolagem
+   é contra quem o `position: sticky` de dentro gruda. Como o .fp-invtab nunca
+   rola, o painel do item grudava em nada: media 768px de teto, mas subia
+   junto com a página e saía da tela, e quem rolava era o .mc-main.
+   Medido no Chrome: rolando 600px, o topo do painel ia de 101 para -499.
+   `clip` recorta sem virar caixa de rolagem, e o sticky volta a enxergar o
+   .mc-main. */
+#root .menestrel-ui .fp-invtab { border-radius: 6px; overflow: clip; padding: 0; }
 #root .menestrel-ui .fp-page.is-inv { max-width: 100%; }
 #root .menestrel-ui .fp-page.is-full .ficha-page-header { width: 100%; }
 #root .menestrel-ui .fp-tab { cursor: pointer; transition: color .15s, border-color .15s; margin-bottom: -1px; }
@@ -3857,9 +3950,9 @@
 #root .menestrel-ui .inv-bag-grid--slots,
 #root .menestrel-ui .loja-grid--slots {
   display: grid;
-  grid-template-columns: repeat(7, 50px);
-  gap: 5.4px;
-  padding: 5.4px 0;
+  grid-template-columns: repeat(7, var(--inv-casa));
+  gap: var(--inv-casa-vao);
+  padding: var(--inv-casa-vao) 0;
   background: transparent;
   border: none;
   border-radius: 0;
@@ -3902,8 +3995,8 @@
 #root .menestrel-ui .inv-slot-ghost {
   display: block;
   aspect-ratio: 1 / 1;
-  width: 50px;
-  height: 50px;
+  width: var(--inv-casa);
+  height: var(--inv-casa);
   border-radius: 6px;
   background: radial-gradient(ellipse at 30% 30%, rgba(255,255,255,0.018) 0%, transparent 65%),
     linear-gradient(160deg, rgba(40,32,17,0.95) 0%, rgba(29,22,11,0.98) 100%);
@@ -3941,8 +4034,8 @@
 /* Cards preenchidos dentro da grade de slots */
 #root .menestrel-ui .inv-bag-grid--slots .inv-card,
 #root .menestrel-ui .loja-grid--slots .loja-it {
-  width: 50px;
-  height: 50px;
+  width: var(--inv-casa);
+  height: var(--inv-casa);
   aspect-ratio: 1 / 1;
   border-radius: 6px;
   background: linear-gradient(160deg, rgba(51,40,21,0.97) 0%, rgba(37,28,12,0.99) 100%);
@@ -4002,7 +4095,8 @@
 #root .menestrel-ui .inv-bag-grid--slots .inv-card-ic,
 #root .menestrel-ui .loja-grid--slots .loja-it-tile {
   background-color: transparent;
-  font-size: 26px;
+  /* O glifo acompanha a casa: ~52% dela, a mesma proporção dos 26px em 50. */
+  font-size: calc(var(--inv-casa) * 0.52);
   color: rgba(201,188,156,0.85);
 }
 #root .menestrel-ui .inv-bag-grid--slots .inv-card:hover .inv-card-ic,
@@ -4107,25 +4201,16 @@
 }
 #root .menestrel-ui .inv-bag-grid--slots .inv-faisca { width: 12px; height: 12px; font-size: var(--fs-2xs); }
 
-/* Barra de RESISTÊNCIA (durabilidade da armadura) — mesmo molde da barra de
-   capacidade dos containers (.inv-cont-bar): faixa fina colada no rodapé do
-   card. Cor diferente pra não se confundir com capacidade: aço, não vermelho. */
-#root .menestrel-ui .inv-res-bar {
-  position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
-  background: rgb(48,43,34); border-radius: 999px;
-}
-/* Resistência de item é SEMPRE branca (15/09/2026) — inclusive quando baixa:
-   o que avisa do desgaste é o comprimento da barra, não a cor. */
-#root .menestrel-ui .inv-res-bar > span {
-  display: block; height: 100%; border-radius: 999px;
-  background: var(--tinta);
-}
-#root .menestrel-ui .inv-card:has(.inv-res-bar) { padding-bottom: 9px; }
-#root .menestrel-ui .inv-bag-grid--slots .inv-res-bar { height: 2px; }
-/* A mesma barra dentro da casa do paper-doll da ficha. `.inv-slot` precisa
-   ser contexto de posicionamento — a barra é absoluta no rodapé da casa. */
+/* A BARRA DE RESISTÊNCIA SAIU DOS ÍCONES (26/10/2026, pedido do usuário:
+   "remova a linha branca que representa a resistência de um item do ícone no
+   slot"). Era uma faixa branca colada no rodapé da casa, e desde que as casas
+   ganharam pintura ela atravessava o desenho. O número continua no tooltip da
+   casa e no painel do item, ao lado de ocupa e absorção — regras `.inv-res-*`
+   removidas junto, para não ficar CSS sem dono.
+
+   `.inv-slot` segue como contexto de posicionamento: o contador, o × e o
+   rótulo da casa são absolutos dentro dela. */
 #root .menestrel-ui .inv-slot { position: relative; }
-#root .menestrel-ui .inv-slot .inv-res-bar { height: 3px; border-radius: 0 0 6px 6px; }
 
 /* Rodapé do card de personagem — só existe no perfil Jogador, onde o card
    tem a ação "Selecionar personagem" (ver PersonagemCard).
@@ -6271,8 +6356,9 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
 .menestrel-ui.cdj-root .cdj-local-aviso--erro { color: #E08A6F; }
 .menestrel-ui.cdj-root:has(.cdj-local-lista) { z-index: 73; }
 
-.menestrel-ui.cdj-root .cdj-data,
-.menestrel-ui.cdj-root .cdj-local {
+/* A data é a única do trilho que continua escrita (26/10/2026) — dividia
+   esta regra com o nome do lugar, que virou só ícone. */
+.menestrel-ui.cdj-root .cdj-data {
   color: inherit; font-family: var(--font-body); font-size: var(--fs-sm); white-space: nowrap; font-weight: 400;
 }
 .menestrel-ui.cdj-root .cdj-sep { color: rgba(var(--ouro-rgb), 0.85); font-size: var(--fs-sm); }
@@ -6292,8 +6378,7 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
   .menestrel-ui.cdj-root .cdj-tempo i { font-size: var(--fs-md); }
   .menestrel-ui.cdj-root .cdj-periodo { padding: 0; width: 30px; }
   .menestrel-ui.cdj-root .cdj-periodo i { font-size: var(--fs-md); }
-  .menestrel-ui.cdj-root .cdj-data,
-  .menestrel-ui.cdj-root .cdj-local { font-size: var(--fs-xs); }
+  .menestrel-ui.cdj-root .cdj-data { font-size: var(--fs-xs); }
 }
 
 /* ---- CalendarioFantasyModal — calendário pessoal do personagem ---- */
@@ -7304,6 +7389,56 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .catalogo-form-grid > .catalogo-campo-full,
 #root .menestrel-ui .catalogo-campo-full { grid-column: 1 / -1; }
 
+/* ── GRADE DE EFEITOS DO CONSUMÍVEL (26/10/2026) ──────────────────────────
+   Um passe de células rotuladas, como o Quadro de Iniciativa: o nome da
+   barra pequeno em cima, o número grande embaixo. O sinal é a única cor —
+   ouro sobe, brasa desce — e célula em branco é "não mexe". */
+#root .menestrel-ui .cat-efeitos { display: flex; flex-direction: column; gap: 10px; }
+#root .menestrel-ui .cat-efeitos-dica {
+  margin: -4px 0 0; font-size: var(--fs-2xs); color: var(--tinta-3); line-height: 1.4;
+}
+#root .menestrel-ui .cat-efeitos-grupo { display: flex; flex-direction: column; gap: 6px; }
+#root .menestrel-ui .cat-efeitos-tit {
+  font-family: var(--font-body); font-size: var(--fs-rotulo); font-weight: 700;
+  letter-spacing: var(--rotulo-espaco); text-transform: uppercase; color: var(--tinta-2);
+}
+#root .menestrel-ui .cat-efeitos-grade {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px;
+}
+#root .menestrel-ui .cat-efeito {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+  padding: 6px 8px 5px; border: 1px solid var(--regua); border-radius: 10px;
+  background: var(--chao-celula); cursor: text;
+}
+/* O rótulo é o `.mn-rotulo` do sistema; aqui ele só aprende a não quebrar. */
+#root .menestrel-ui .cat-efeito-rot { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* O número com a pele do valor de célula (.mn-celula-valor), sem caixa. */
+#root .menestrel-ui .cat-efeito-num {
+  width: 100%; border: none; background: none; padding: 0; color: var(--tinta);
+  font-family: var(--font-body); font-size: var(--fs-lg); font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums; line-height: 1.15;
+}
+#root .menestrel-ui .cat-efeito-num:focus { outline: none; }
+#root .menestrel-ui .cat-efeito-num::placeholder { color: var(--tinta-3); opacity: .6; font-weight: 400; }
+#root .menestrel-ui .cat-efeito:focus-within { border-color: var(--vivo-aro, rgba(var(--vivo-rgb),.5)); }
+#root .menestrel-ui .cat-efeito.is-mais { border-color: var(--vivo-aro, rgba(var(--vivo-rgb),.5)); }
+#root .menestrel-ui .cat-efeito.is-mais .cat-efeito-num { color: var(--vivo); }
+#root .menestrel-ui .cat-efeito.is-menos { border-color: rgba(201,85,59,.45); }
+#root .menestrel-ui .cat-efeito.is-menos .cat-efeito-num { color: var(--alerta); }
+
+/* ── A GRADE DE PROTEÇÕES (28/10/2026) ────────────────────────────────────
+   Proteção não tem sinal: é sempre um teto, sempre para o bem. Por isso ela
+   não usa o par ouro/brasa do delta — ouro diria "positivo" e brasa diria
+   "negativo", e nenhum dos dois é a pergunta aqui. Veste o bronze da régua,
+   que é a cor do que está preenchido sem estar vivo.
+
+   E a dica fica logo abaixo do título, e não no alto do campo como a dos
+   efeitos: teto é ideia menos óbvia que delta, e quem lê precisa dela ao lado
+   dos números, não três passes acima. */
+#root .menestrel-ui .cat-efeito.is-protege { border-color: var(--regua-forte); }
+#root .menestrel-ui .cat-efeito.is-protege .cat-efeito-num { color: var(--tinta); }
+#root .menestrel-ui .cat-efeitos-dica--prot { margin: -2px 0 8px; }
+
 /* catalogo-lista (13/09/2026): técnicas/habilidades/magias da criatura
    escolhidas no catálogo — etiquetas + busca. A lista de sugestões reusa
    .select-pill-drop (mesmo visual do SelectPill), ancorada no campo de busca. */
@@ -7665,10 +7800,13 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 }
 
 /* Cards preenchidos: sobrescreve o reset do bloco fp2 */
+/* A casa vem do token --inv-casa (26/10/2026) — este bloco repete o de cima
+   com !important para ganhar do reset do fp2, e por isso tem que repetir o
+   token também, senão a casa cresce na grade e o cartão fica de 50. */
 #root .menestrel-ui .inv-bag-grid--slots .inv-card,
 #root .menestrel-ui .loja-grid--slots .loja-it {
-  width: 50px;
-  height: 50px;
+  width: var(--inv-casa);
+  height: var(--inv-casa);
   aspect-ratio: 1 / 1;
   border-radius: 6px !important;
   border: 1px solid var(--regua-forte) !important;
@@ -7721,7 +7859,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .inv-bag-grid--slots .inv-card-ic,
 #root .menestrel-ui .loja-grid--slots .loja-it-tile {
   background: transparent !important;
-  font-size: 26px !important;
+  font-size: calc(var(--inv-casa) * 0.52) !important;
   color: rgba(201,188,156,0.85) !important;
 }
 #root .menestrel-ui .inv-bag-grid--slots .inv-card:hover .inv-card-ic,
@@ -9120,14 +9258,47 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
    O recuo lateral fica no CONTÊINER: em Informações ele vem de fp-col-pad-l /
    fp-col-pad-r na primeira e na última coluna, e a primeira versão desta aba
    só tinha o da direita — a coluna da esquerda colava na borda do card. */
-#root .menestrel-ui .fp-animais { padding: 16px 20px 0; }
-#root .menestrel-ui .fp-animais .fp-info-grid { padding-top: 16px; }
-/* Abas internas (uma por animal): o mesmo sublinhado dourado do hist-modal-tab,
-   sem as margens negativas do modal. Montar/Desmontar à direita da linha. */
-#root .menestrel-ui .fp-animais-tabs { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--regua-forte); }
-#root .menestrel-ui .fp-animais-tabs-lista { display: flex; flex-wrap: wrap; gap: 0; }
-#root .menestrel-ui .fp-animais-acao { padding-bottom: 6px; flex-shrink: 0; }
-#root .menestrel-ui .fp-animais-tag { margin-left: 6px; font-size: var(--fs-base); vertical-align: -2px; }
+/* SEM RESPIRO PRÓPRIO (05/10/2026): era `padding: 16px 20px 0`, e eram esses
+   20px que empurravam as casas do bicho para dentro, contra as bordas da
+   página do personagem — a ficha do animal parecia estreita ao lado da dele.
+   Quem dá o respiro agora é o fp2-frame, o mesmo das duas. */
+#root .menestrel-ui .fp-animais { padding: 0; }
+/* A FILA DE PÁGINAS, nas DUAS fichas — uma regra, não duas iguais: é o que
+   impede a coluna do bicho de divergir da do personagem outra vez. Recuo
+   lateral nenhum: quem dá o respiro é o painel que as embrulha, e somar um
+   padding aqui foi o que já deixou a coluna do animal mais estreita que a
+   dele. O respiro VERTICAL fica com .fp-info-grid. */
+#root .menestrel-ui .fp-info-uma,
+#root .menestrel-ui .fp-animal-info-uma { padding-inline: 0; }
+#root .menestrel-ui .fp-info-uma .fp-row,
+#root .menestrel-ui .fp-animal-info-uma .fp-row { padding-right: 0; }
+/* As barras do bicho são a coluna do personagem (fp2-vitcond-col): nada de
+   display ou gap próprios aqui — foi exatamente isso que, em 06/10/2026,
+   deixou a barra de experiência do animal colada na de cima. */
+#root .menestrel-ui .fp-animal-vit .fp2-panel:last-child { flex: 0 0 auto; }
+#root .menestrel-ui .fp-animal-vit .fp2-panel:last-child .fp2-panel-body { flex: 0 0 auto; overflow-y: visible; }
+/* A separação entre as energias e as condições era `.fp2-vit-break` — uma
+   régua no topo mais 4px de margem: "crie uma leve separação entre as barras
+   de ef, eh, etc e as barras de vitalidade, sono, fome, etc" (usuário).
+   SAIU em 27/10/2026 ("revise o espaçamento entre os cards"): quando aquilo
+   foi escrito os dois blocos dividiam um painel só e precisavam de um fio
+   entre si. Hoje Condições é um CARTÃO com borda própria — o fio virava uma
+   segunda linha colada na primeira, e os 4px punham aquele vão em 16px
+   enquanto todos os outros vãos da ficha são 12. A separação continua: é a
+   borda do cartão. */
+/* O lápis do batismo: só o ícone, colado ao valor. Sem nome dado a linha fica
+   vazia e o lápis é o convite — nunca um "—". */
+#root .menestrel-ui .fp-nome-animal-lapis {
+  border: none; background: transparent; color: var(--tinta-3); cursor: pointer;
+  padding: 0 2px; margin-left: 6px; line-height: 1; font-size: var(--fs-sm);
+}
+#root .menestrel-ui .fp-nome-animal-lapis:hover { color: var(--vivo); }
+#root .menestrel-ui .fp-row-value--convite { color: var(--tinta-3); }
+#root .menestrel-ui .fp-nome-animal-input {
+  min-width: 0; max-width: 160px; height: 26px; padding: 0 8px;
+  border: 1px solid var(--vivo); border-radius: 6px;
+  background: var(--p-fundo, #140E07); color: var(--tinta); font: inherit;
+}
 #root .menestrel-ui .fp-montaria-desc { font-family: var(--font-body); font-size: var(--fs-sm); line-height: 1.55; color: var(--foreground); margin: 0 0 8px; }
 #root .menestrel-ui .fp-info-grid--5 { grid-template-columns: repeat(5, 1fr); }
 
@@ -9391,18 +9562,12 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .batalha-tabuleiro-scroll{cursor:grab;flex:1 1 auto;min-height:0;margin-bottom:0}
 /* Réguas numeradas (13/09/2026): grade 2×2 — canto, colunas em cima, linhas à
    esquerda, e o scroll no quadrante grande. Ocupa o lugar do scroll no flex. */
-#root .menestrel-ui .batalha-tabuleiro-quadro{display:grid;grid-template-columns:22px minmax(0,1fr);grid-template-rows:18px minmax(0,1fr);flex:1 1 auto;min-height:0}
-#root .menestrel-ui .batalha-tabuleiro-quadro>.batalha-tabuleiro-scroll{grid-column:2;grid-row:2;min-height:0}
-#root .menestrel-ui .batalha-tabuleiro-regua-canto{grid-column:1;grid-row:1}
-#root .menestrel-ui .batalha-tabuleiro-regua{position:relative;overflow:hidden;user-select:none;pointer-events:none}
-#root .menestrel-ui .batalha-tabuleiro-regua--col{grid-column:2;grid-row:1;margin:0 1px}
-#root .menestrel-ui .batalha-tabuleiro-regua--lin{grid-column:1;grid-row:2;margin:1px 0}
-#root .menestrel-ui .batalha-tabuleiro-regua-trilho{position:absolute;top:0;left:0;will-change:transform}
-#root .menestrel-ui .batalha-tabuleiro-regua--col .batalha-tabuleiro-regua-trilho{height:100%}
-#root .menestrel-ui .batalha-tabuleiro-regua--lin .batalha-tabuleiro-regua-trilho{width:100%}
-#root .menestrel-ui .batalha-tabuleiro-regua-num{position:absolute;font-family:var(--font-body);font-size: var(--fs-2xs);color: var(--tinta-2);text-align:center;font-variant-numeric:tabular-nums}
-#root .menestrel-ui .batalha-tabuleiro-regua--col .batalha-tabuleiro-regua-num{top:0;height:18px;line-height:18px}
-#root .menestrel-ui .batalha-tabuleiro-regua--lin .batalha-tabuleiro-regua-num{left:0;width:22px}
+/* A grade era 2×2 só para reservar 22px à esquerda e 18px em cima às réguas
+   numeradas; elas saíram em 27/10/2026 ("remova os números que identificam
+   linhas e colunas"), e com elas as duas faixas. Resta uma coluna e uma
+   linha — o tabuleiro ocupa o quadro inteiro, que é o que o pedido pede. */
+#root .menestrel-ui .batalha-tabuleiro-quadro{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);flex:1 1 auto;min-height:0}
+#root .menestrel-ui .batalha-tabuleiro-quadro>.batalha-tabuleiro-scroll{min-height:0}
 #root .menestrel-ui .batalha-tabuleiro-scroll.is-panning{cursor:grabbing}
 #root .menestrel-ui .batalha-jog-body>.batalha-tabuleiro-wrap{flex:0 auto;min-height:0}
 #root .menestrel-ui .batalha-vez-msg{text-align:center;color: var(--tinta);background: #b8462f1a;border:1px solid #b8462f4d;border-radius:6px;margin:0 0 16px;padding:12px 16px;font-family:var(--font-body);font-size: var(--fs-sm)}
@@ -11299,11 +11464,25 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
    como toda aba. Todos os modais de detalhe têm essa largura (são o mesmo). */
 #root .menestrel-ui .ms-modal.modal-best-detalhe { max-width: 765px; }
 #root .menestrel-ui .best-detail .det-grade-recipiente {
-  grid-template-columns: repeat(auto-fill, 50px); justify-content: space-between;
+  grid-template-columns: repeat(auto-fill, var(--inv-casa)); justify-content: space-between;
 }
+/* A CASA DO RECIPIENTE É A CASA DA GRADE (27/10/2026, pedido do usuário: "o
+   slot do item que fica armazenado dentro de um recipiente […] deve ser igual
+   (ou próximo) ao slot de loja/inventário").
+
+   Ela era 50px — medido, 51 contra os 78 da grade, dois terços. O número foi
+   escolhido quando "o painel tem 360px, e com a casa grande do baú (64px)
+   caberiam só 5 colunas". Desde então o painel passou a 440px e a casa da
+   grade a 78: a conta que justificava o 50 não é mais a conta de hoje, e o
+   item guardado na mochila aparecia menor que o mesmo item solto ao lado.
+
+   A linha do override SAIU: sem ela o token global
+   (`.menestrel-ui { --inv-casa: 78px }`) vale aqui como vale na grade, e as
+   duas não voltam a se soltar uma da outra por alguém ter mexido num número
+   e não no outro. */
 #root .menestrel-ui .best-detail .det-grade-recipiente .inv-card,
 #root .menestrel-ui .best-detail .det-grade-recipiente .inv-slot-ghost {
-  width: 50px; height: 50px;
+  width: var(--inv-casa); height: var(--inv-casa);
 }
 
 /* CONTEÚDO = O PAINEL DO INVENTÁRIO (26/09/2026, 3ª rodada): "o espaçamento
@@ -11316,7 +11495,11 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .best-detail .det-container-content { margin: -20px -24px !important; }
 #root .menestrel-ui .best-detail .det-grade-recipiente {
   grid-template-columns: repeat(auto-fill, 50px); justify-content: start;
-  gap: 5.4px; padding: 5.4px; width: auto;
+  /* 5,4px → `--inv-casa-vao` (28/10/2026): o 5,4 vinha da conta de 13 casas
+     de 50px num modal de 728px, e nem a casa nem o modal são mais esses. O
+     vão agora é o mesmo token da grade do baú, e os dois não voltam a se
+     soltar um do outro. */
+  gap: var(--inv-casa-vao); padding: var(--inv-casa-vao); width: auto;
   background: linear-gradient(rgba(var(--couro-rgb),0.72), rgba(var(--couro-rgb),0.72)),
     repeating-linear-gradient(0deg, transparent, transparent 55px, rgba(0,0,0,0.18) 55px, rgba(0,0,0,0.18) 56px),
     repeating-linear-gradient(90deg, transparent, transparent 55px, rgba(0,0,0,0.18) 55px, rgba(0,0,0,0.18) 56px);
@@ -11391,7 +11574,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 }
 #root .menestrel-ui .loja-resgate > .ti { color: var(--vivo); font-size: var(--fs-md); }
 #root .menestrel-ui .loja-resgate-texto { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 auto; flex-wrap: wrap; }
-#root .menestrel-ui .loja-resgate-texto .moeda-pill-nome { display: none; }
 #root .menestrel-ui .loja-resgate-erro { flex-basis: 100%; color: #E08A6F; font-size: var(--fs-xs); }
 #root .menestrel-ui .loja-it--meu { box-shadow: inset 0 -2px 0 var(--gold, var(--ouro)); }
 
@@ -11403,7 +11585,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
    sem a caixa com borda das pílulas — o que o personagem carrega, não um preço. */
 #root .menestrel-ui .loja-compra-linha--tem .moeda-pill-ic { border: none; background: none; width: auto; }
 #root .menestrel-ui .loja-compra-linha--tem .moeda-pill { gap: 6px; }
-#root .menestrel-ui .det-venda-nota .moeda-pill-nome { display: none; }
 #root .menestrel-ui .det-venda-nota .moeda-pill-ic { border: none; background: none; width: auto; }
 #root .menestrel-ui .det-venda-nota .moeda-pill { gap: 6px; }
 
@@ -11699,7 +11880,13 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .item-passe .mn-celula-valor > * { font-size: var(--fs-md); }
 /* Corpo: leitura confortável — descrição em tinta 2, títulos de seção como
    rótulos discretos (ouro é estado vivo), lista em réguas de quadro. */
-#root .menestrel-ui .modal-best-detalhe:not(.modal-criatura) .best-desc { font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2); max-width: 68ch; text-wrap: pretty; }
+/* SEM TETO DE LARGURA (28/10/2026, usuário: "a descrição do item e da magia
+   estão quebrando a linha, não está usando toda a largura do card"). Eram
+   68ch — cerca de 541px — dentro de um corpo de 630: a medida de leitura
+   sobrava um vão de 90px à direita e fazia a quebra parecer defeito, não
+   escolha. O CARD JÁ É A MEDIDA: ele tem teto de 680px, e um segundo teto
+   dentro dele só repete a conta pior. */
+#root .menestrel-ui .modal-best-detalhe:not(.modal-criatura) .best-desc { font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2); text-wrap: pretty; }
 /* Valor em prosa (efeito positivo/negativo, itens do ritual): rótulo em cima,
    texto à esquerda — negrito alinhado à direita servia só para números. */
 #root .menestrel-ui .modal-best-detalhe:not(.modal-criatura) .best-stat--linha.best-stat--largo { flex-direction: column; align-items: stretch; gap: 3px; }
@@ -11804,6 +11991,25 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .mc-navseta.is-aberta { transform: rotate(180deg); }
 #root .menestrel-ui .mc-navfilhos { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px; padding-left: 31px; }
 #root .menestrel-ui .mc-navitem--filho { min-height: 34px; font-size: var(--fs-sm); font-weight: 500; padding: 6px 10px; }
+/* O TERCEIRO NÍVEL (26/10/2026): Personagens › Eco › Ficha. O recuo da neta é
+   menor que o da filha — 31px de novo empurraria as partes da ficha para fora
+   da barra de 232px —, e uma régua à esquerda diz de quem elas são, já que o
+   nome do personagem some da vista ao rolar. */
+#root .menestrel-ui .mc-navgaveta--neta > .mc-navitem--filho { font-weight: 600; }
+#root .menestrel-ui .mc-navfilhos--neta {
+  padding-left: 10px; margin: 1px 0 4px 4px;
+  border-left: 1px solid var(--regua, rgba(138, 110, 64, .28));
+}
+#root .menestrel-ui .mc-navfilhos--neta .mc-navitem--filho {
+  min-height: 30px; font-size: var(--fs-xs); font-weight: 500; color: var(--tinta-2);
+}
+/* AÇÕES SOBRE O PERSONAGEM (26/10/2026): Editar e Excluir vieram do trilho da
+   ficha para cá, e não são páginas — por isso a régua que os separa das seis
+   partes. Excluir em brasa: é o único item do menu inteiro que não se desfaz,
+   e `--alerta` existe justamente para o que bloqueia ou não volta atrás. */
+#root .menestrel-ui .mc-navitem--separa { margin-top: 5px; padding-top: 7px; border-top: 1px solid var(--regua); }
+#root .menestrel-ui .mc-navitem--perigo { color: var(--alerta); }
+#root .menestrel-ui .mc-navitem--perigo:hover { color: var(--alerta); background: var(--alerta-fundo); }
 #root .menestrel-ui .mc-navlinha { display: flex; align-items: center; gap: 2px; }
 #root .menestrel-ui .mc-navlinha > .mc-navitem { flex: 1 1 auto; min-width: 0; }
 #root .menestrel-ui .mc-navmais {
@@ -11857,12 +12063,22 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .mc-main { margin-top: 90px; }
 #root .menestrel-ui .mc-main:has(.pjs) { margin-top: 60px; }
 .menestrel-ui.cdj-root { justify-content: flex-end; padding-right: 28px; top: 19px; }
-/* A cena por extenso (22/10/2026, usuário: "Escrever"): a hora ao lado do sol
-   ou da lua, e cada trilha do clima com a palavra ao lado do ícone. */
-.menestrel-ui .cdj-hora-txt,
-.menestrel-ui .cdj-tempo-txt { margin-left: 6px; font-family: var(--font-body); font-size: var(--fs-sm); white-space: nowrap; }
-.menestrel-ui .cdj-bar.cdj-tempo,
-.menestrel-ui .cdj-bar.cdj-hora { width: auto !important; padding-left: 10px !important; padding-right: 12px !important; }
+/* ── SÓ O ÍCONE NO TRILHO (26/10/2026, pedido do usuário) ──────────────────
+   "Localização, Horário, Umidade, Vento, Temperatura, Notificações vão ser
+   somente ícones, e o tooltip será a informação dele."
+
+   Isto desfaz "A cena por extenso" (22/10/2026, "Escrever"), que tinha posto
+   a palavra ao lado do ícone. A DATA continua escrita: ela é a única do
+   trilho que não está na lista. As pílulas de ícone voltam à largura fixa
+   que as regras-base já davam (32px), e a informação vive no balão — ver
+   propsTip no trilho (10-shell/shell.jsx). */
+.menestrel-ui.cdj-root .cdj-bar.cdj-tempo,
+.menestrel-ui.cdj-root .cdj-bar.cdj-hora,
+.menestrel-ui.cdj-root .cdj-bar.cdj-periodo,
+.menestrel-ui.cdj-root .cdj-bar.cdj-sino,
+.menestrel-ui.cdj-root .cdj-local-wrap > .cdj-bar {
+  width: 32px; padding: 0; justify-content: center;
+}
 .menestrel-ui .cdj-data-curta { display: none; }
 /* Tela média: a data encurta para caber título e cena na mesma faixa. */
 @media (max-width: 1280px) {
@@ -11902,7 +12118,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   .menestrel-ui.cdj-root {
     left: 0 !important; top: 62px; padding: 0 12px; justify-content: center; flex-wrap: wrap; row-gap: 6px;
   }
-  .menestrel-ui .cdj-local { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
   #root .menestrel-ui .mc-main { margin-top: calc(62px + var(--cdj-h, 78px) + 16px); padding-bottom: 76px; }
   #root .menestrel-ui .mc-main:has(.pjs) { margin-top: calc(62px + var(--cdj-h, 78px) - 14px); }
   #root .menestrel-ui .mc-barra-inferior {
@@ -12318,6 +12533,15 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   #root:not(:has(.cdj-root)) .menestrel-ui .mc-main,
   #root:not(:has(.cdj-root)) .menestrel-ui .mc-main:has(.pjs) { margin-top: 90px; }
 }
+/* E NO DESKTOP TAMBÉM (27/10/2026). A compensação acima só existia até
+   1280px; na tela larga, onde o usuário trabalha, os 70px reservados para a
+   faixa continuavam lá depois que ela deixou de montar fora da mesa — um vão
+   mudo acima da ficha. Sem faixa, o respiro é o mesmo da Batalha: 20px. Na
+   lista de personagens ele vem de dentro (os 30px do .pjs), e a margem zera. */
+@media (min-width: 1281px) {
+  #root:not(:has(.cdj-root)) .menestrel-ui .mc-main { margin-top: 20px; }
+  #root:not(:has(.cdj-root)) .menestrel-ui .mc-main:has(.pjs) { margin-top: 0; }
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    BARRA DE AÇÕES DA FICHA (22/10/2026)
@@ -12428,12 +12652,14 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 
 #root .menestrel-ui .bau-corpo { display: block; }
 #root .menestrel-ui .bau-corpo--painel {
-  display: grid; grid-template-columns: minmax(0, 1fr) 360px; align-items: start;
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--bau-painel-w); align-items: start;
 }
 #root .menestrel-ui .bau-corpo--painel > .inv-grid-wrap { min-width: 0; }
 #root .menestrel-ui .bau-painel {
   position: sticky; top: 64px; align-self: start; min-height: 320px;
-  max-height: calc(100vh - 150px); display: flex; flex-direction: column;
+  /* O teto vem medido (--bau-painel-h, posto por useGridDimensions): é a
+     altura da grade. O calc() fica de rede para quem monta fora do baú. */
+  max-height: var(--bau-painel-h, calc(100vh - 150px)); display: flex; flex-direction: column;
   border-left: 1px solid var(--regua-forte);
 }
 #root .menestrel-ui .bau-painel-vazio {
@@ -12593,8 +12819,30 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   margin: 0; padding: 14px 16px; border: 1px dashed var(--regua-forte); border-radius: 10px;
   font-size: var(--fs-sm); line-height: 1.5; color: var(--tinta-2);
 }
-/* As casas de 50px se espalham pela largura: sobrava uma faixa à direita. */
-#root .menestrel-ui .best-detail .det-recipiente > .det-grade-recipiente { justify-content: space-between; }
+/* AS CASAS VOLTAM A ANDAR NO MESMO PASSO (26/10/2026, pedido do usuário:
+   "os ícones não estão alinhados"). `space-between` espalhava a sobra da
+   fileira ENTRE as casas, então o vão mudava com a largura e nenhuma coluna
+   caía no mesmo lugar de uma fileira para a outra. As casas esticam: a
+   faixa é fracionária (nunca sobra à direita) e as colunas ficam uma
+   embaixo da outra. */
+/* 27/10/2026: o piso da faixa sai do TOKEN, e não do 50 escrito à mão — o
+   token foi para 78 e este número tinha ficado para trás.
+
+   O piso é 10% ABAIXO do token, e isso é a regra, não um arredondamento:
+   medido no painel de 440px, com o piso em 78 cabem 4 colunas e o `1fr`
+   infla a casa para 92 (18% maior que a da grade); com o piso 10% abaixo
+   cabe uma quinta coluna e a casa fica em 74 — 5% MENOR. Entre inflar e
+   encolher, encolher chega mais perto do "igual (ou próximo)" que o usuário
+   pediu, e ainda enche a fileira. A faixa segue fracionária para não sobrar
+   nada à direita, que foi a correção de 26/10. */
+#root .menestrel-ui .best-detail .det-recipiente > .det-grade-recipiente {
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--inv-casa) * 0.9), 1fr));
+  justify-content: start; justify-items: stretch;
+}
+#root .menestrel-ui .best-detail .det-recipiente > .det-grade-recipiente .inv-card,
+#root .menestrel-ui .best-detail .det-recipiente > .det-grade-recipiente .inv-slot-ghost {
+  width: 100%; height: auto; aspect-ratio: 1 / 1;
+}
 
 /* ── Resumo: tubos e medalhões (23/10/2026) ──────────────────────────────────
    Aprovado com o usuário na prévia preview/resumo.html. Energia à esquerda em
@@ -12613,46 +12861,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .fp2-vitcond-col .fp2-vit-section > .fp2-panel-body { flex: 1 1 auto; display: flex; flex-direction: column; }
 
 /* ── Tubos ── */
-#root .menestrel-ui .fp-tubos { flex: 1 1 auto; min-height: 300px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 0 8px; }
-#root .menestrel-ui .fp-tubo { display: flex; flex-direction: column; align-items: center; min-height: 0; border-radius: 10px; outline: none; }
-#root .menestrel-ui .fp-tubo.is-editable { cursor: pointer; }
-#root .menestrel-ui .fp-tubo:focus-visible { box-shadow: 0 0 0 2px var(--vivo); }
-#root .menestrel-ui .fp-tubo-num { font-family: var(--font-title); font-size: 25px; line-height: 1; color: var(--tinta); margin-bottom: 10px; font-variant-numeric: lining-nums tabular-nums; }
-#root .menestrel-ui .fp-tubo-num.is-neg { color: #B5503F; }
-#root .menestrel-ui .fp-tubo-peca { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; width: 40px; min-height: 0; }
-#root .menestrel-ui .fp-tubo-peca > svg { display: block; flex: none; }
-#root .menestrel-ui .fp-tubo-vidro { flex: 1 1 auto; width: 26px; position: relative; margin: -1px 0;
-  background: linear-gradient(90deg, rgba(14,18,12,.92), rgba(38,44,32,.55) 34%, rgba(30,36,26,.6) 60%, rgba(12,15,10,.92));
-  box-shadow: inset 1px 0 0 rgba(200,215,180,.12), inset -1px 0 0 rgba(200,215,180,.08); }
-#root .menestrel-ui .fp-tubo-vidro::after { content: ""; position: absolute; left: 4px; width: 7px; top: 8%; bottom: 10%; z-index: 3; border-radius: 50%;
-  background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(235,240,220,.16), transparent 70%); }
-#root .menestrel-ui .fp-tubo-vidro > b { position: absolute; z-index: 2; border-radius: 50%; border: 1px solid rgba(230,235,215,.18); }
-#root .menestrel-ui .fp-tubo-liq { position: absolute; left: 0; right: 0; bottom: 0; overflow: hidden; transition: height .35s ease;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 40%, #000), var(--c) 40%, color-mix(in srgb, var(--c) 82%, #fff) 55%, var(--c) 70%, color-mix(in srgb, var(--c) 40%, #000)); }
-/* Energia Física abaixo de zero: vermelho mais escuro, quase sangue seco */
-#root .menestrel-ui .fp-tubo-liq.is-neg { --c: #4E0F09 !important; }
-/* a superfície balança */
-#root .menestrel-ui .fp-tubo-liq::before { content: ""; position: absolute; left: 0; right: 0; top: -2px; height: 5px; border-radius: 50%;
-  background: color-mix(in srgb, var(--c) 60%, #fff); opacity: .8; animation: fp-balanca 2.4s ease-in-out infinite; }
-@keyframes fp-balanca { 0%,100% { transform: scaleY(1) translateY(0); } 50% { transform: scaleY(1.5) translateY(-1px); } }
-/* bolhas sobem do fundo e somem na superfície */
-#root .menestrel-ui .fp-tubo-liq > i { position: absolute; bottom: 0; width: var(--t); height: var(--t); border-radius: 50%; opacity: 0;
-  background: radial-gradient(circle at 35% 35%, rgba(255,255,255,.55), rgba(255,255,255,.12) 60%, transparent 70%);
-  border: 1px solid rgba(255,255,255,.28); animation: fp-borbulha var(--d) ease-in infinite; animation-delay: var(--a); }
-@keyframes fp-borbulha { 0% { bottom: 0; opacity: 0; transform: translateX(0); } 12% { opacity: .9; } 50% { transform: translateX(1.5px); }
-  88% { opacity: .8; } 100% { bottom: 100%; opacity: 0; transform: translateX(-1px); } }
-/* furta-cor oleoso em todo líquido (tubos e medalhões) */
-#root .menestrel-ui .fp-tubo-liq::after,
-#root .menestrel-ui .fp-medalhao-liq::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
-  background: linear-gradient(165deg, transparent 20%, rgba(70,140,165,.34) 34%, rgba(140,85,175,.30) 46%, rgba(180,160,60,.24) 56%, transparent 70%) 0 0 / 100% 220%;
-  animation: fp-escorre 6s ease-in-out infinite alternate; }
-@keyframes fp-escorre { from { background-position: 0 0; } to { background-position: 100% 100%; } }
-/* aros de ferro nos quartos: a graduação */
-#root .menestrel-ui .fp-tubo-aro { position: absolute; left: -4px; right: -4px; height: 6px; margin-bottom: -3px; z-index: 4; border-radius: 2px;
-  background: linear-gradient(180deg, #5C4C3A, #2E251B 55%, #1A140E); box-shadow: 0 1px 2px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,235,200,.18); }
-#root .menestrel-ui .fp-tubo-aro::after { content: ""; position: absolute; left: 50%; top: 1px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #9C8466, #3A2E22); }
-#root .menestrel-ui .fp-tubo-nome { margin-top: 8px; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-2); }
 
 /* ── Medalhões ── */
 #root .menestrel-ui .fp-medalhoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); justify-items: center; gap: 12px 10px; }
@@ -12698,7 +12906,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .fp-xp-faixa .fp-bar-fill::after { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  #root .menestrel-ui .fp-tubo-liq::before, #root .menestrel-ui .fp-tubo-liq::after, #root .menestrel-ui .fp-tubo-liq > i,
   #root .menestrel-ui .fp-medalhao-liq, #root .menestrel-ui .fp-medalhao-liq::after, #root .menestrel-ui .fp-medalhao-liq > i { animation: none; }
 }
 #root .menestrel-ui .fp-xp-estagio { flex: none; font-size: var(--fs-sm); color: var(--tinta-3); }
@@ -13434,12 +13641,21 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte); border-radius: 999px;
   box-shadow: 0 10px 24px -14px rgba(0,0,0,0.8);
 }
-#root .menestrel-ui .fp-abas-trilho .mc-acao {
+/* O trilho do INVENTÁRIO entrou na lista em 28/10/2026 (usuário: "o botão
+   'dar item' está sem css"). `.mc-acao` só tinha pele dentro dos trilhos que
+   já existiam quando a classe nasceu; o botão novo caiu num trilho que não
+   estava em nenhuma delas e saiu como botão cru do navegador. */
+#root .menestrel-ui .fp-abas-trilho .mc-acao,
+#root .menestrel-ui .inv-trilho .mc-acao {
   height: 34px; padding: 0 12px 0 10px; gap: 7px; display: inline-flex; align-items: center;
   border: 1px solid transparent; border-radius: 999px; background: none; cursor: pointer;
   color: var(--tinta-2); font-size: 17px; transition: background-color .15s ease, color .15s ease;
 }
-#root .menestrel-ui .fp-abas-trilho .mc-acao i { color: var(--vivo); }
+#root .menestrel-ui .fp-abas-trilho .mc-acao i,
+#root .menestrel-ui .inv-trilho .mc-acao i { color: var(--vivo); }
+#root .menestrel-ui .inv-trilho .mc-acao:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
+/* O rótulo do botão fala no corpo do trilho, não no corpo de um ícone. */
+#root .menestrel-ui .inv-trilho .mc-acao .mc-acao-rotulo { font-size: var(--fs-sm); font-weight: 600; }
 #root .menestrel-ui .fp-abas-trilho .mc-acao:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
 #root .menestrel-ui .fp-abas-trilho .mc-acao.is-ativo { background: var(--vivo-fundo); border-color: var(--vivo-aro, rgba(var(--vivo-rgb),.5)); color: var(--tinta); }
 
@@ -13629,7 +13845,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   --p-pagina: #19110C; --p-fundo: #120D06; --p-chao-2: #2E2419; --pal-chao: #17110A;
   --pal-tinta: #F1E6CF; --pal-tinta-2: #CDBF9F; --pal-tinta-3: #A3937A;
   --pal-vivo: #E0BE68; --ouro: #C9A44E; --ouro-2: #B8702E; --ouro-3: #7A5E2A; --sobre-vivo: #1C1407;
-  --pal-alerta: #E8836A; --alerta-rgb: 232,131,106; --pal-magia: #B48BD3;
+  --pal-alerta: #E8836A; --alerta-rgb: 232,131,106; --pal-magia: #7D9FEA;
   --bronze-rgb: 138,110,64; --ouro-rgb: 201,164,78; --vivo-rgb: 224,190,104;
   --tinta-rgb: 232,221,198; --tinta3-rgb: 156,143,115; --chao-rgb: 18,13,6; --couro-rgb: 37,26,12;
 }
@@ -13638,7 +13854,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   --p-pagina: #151515; --p-fundo: #121212; --p-chao-2: #262626; --pal-chao: #1A1A1A;
   --pal-tinta: #F0EEEA; --pal-tinta-2: #BEBBB4; --pal-tinta-3: #8E8B85;
   --pal-vivo: #F08A3C; --ouro: #D9772E; --ouro-2: #B85F22; --ouro-3: #6E3C18; --sobre-vivo: #1A0E04;
-  --pal-alerta: #FF5A4E; --alerta-rgb: 255,90,78; --pal-magia: #B48CF2;
+  --pal-alerta: #FF5A4E; --alerta-rgb: 255,90,78; --pal-magia: #8FB0FF;
   --bronze-rgb: 150,150,150; --ouro-rgb: 217,119,46; --vivo-rgb: 240,138,60;
   --tinta-rgb: 240,238,234; --tinta3-rgb: 142,139,133; --chao-rgb: 18,18,18; --couro-rgb: 32,32,32;
 }
@@ -13694,6 +13910,17 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .loja-painel-dados > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--regua-forte); }
 #root .menestrel-ui .loja-painel-dados dt { font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase; color: var(--tinta-3); }
 #root .menestrel-ui .loja-painel-dados dd { margin: 0; display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--tinta); font-variant-numeric: lining-nums tabular-nums; }
+/* A MOEDA SOLTA, COMO NO TRILHO (27/10/2026, pedido do usuário: "onde está
+   escrito preço, o ícone da moeda deve ficar como é no trilho das moedas,
+   sem borda"). A caixinha de 26px com aro é do chip de atributo; numa linha
+   de dados — rótulo à esquerda, valor à direita — ela vira um botão falso.
+   Mesma regra do .inv-trilho: ícone solto, na cor da denominação. */
+#root .menestrel-ui .loja-painel-dados .moeda-pill-ic {
+  width: auto; height: auto; padding: 0; border: 0; border-radius: 0;
+  background: none; box-shadow: none; font-size: 16px;
+}
+#root .menestrel-ui .loja-painel-dados .moeda-pills { gap: 10px; }
+#root .menestrel-ui .loja-painel-dados .moeda-pill { gap: 6px; }
 #root .menestrel-ui .loja-painel-desc { margin: 0; font-size: var(--fs-md); line-height: 1.55; color: var(--tinta-2); }
 #root .menestrel-ui .loja-painel-falta { margin: 0; font-weight: 700; color: var(--alerta); }
 #root .menestrel-ui .loja-painel-botao { align-self: stretch; height: 40px; justify-content: center; margin-top: auto; }
@@ -13778,7 +14005,7 @@ body { background-color: var(--p-pagina); }
    useGridDimensions), centrado na página: 20px de respiro em todos os lados,
    sem sobra embaixo. */
 #root .menestrel-ui .fp-page.is-inventario > .fp-card { width: fit-content; max-width: 100%; margin-left: auto; margin-right: auto; }
-#root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel { grid-template-columns: max-content 360px; }
+#root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel { grid-template-columns: max-content var(--bau-painel-w); }
 #root .menestrel-ui .fp-page.is-inventario .bau-corpo .inv-bag-grid--slots { padding: 0; justify-content: start; }
 #root .menestrel-ui .fp-page.is-inventario .loja,
 #root .menestrel-ui .fp-page.is-inventario .fp-invtab { gap: 0; }
@@ -13803,12 +14030,11 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .det-transf-seta { margin-left: auto; color: var(--tinta-3); }
 #root .menestrel-ui .det-transf-vazio { margin: 10px 0 0; color: var(--tinta-3); }
 
-/* O nome do companheiro (23/10/2026). */
-#root .menestrel-ui .fp-animais-acao { display: flex; align-items: center; gap: 8px; }
-#root .menestrel-ui .fp-animais-nome { display: flex; align-items: center; gap: 6px; }
-#root .menestrel-ui .fp-animais-nome input { height: 32px; width: 180px; padding: 0 12px; border-radius: 999px;
-  border: 1px solid var(--regua-forte); background: var(--chao-celula-opaco); color: var(--tinta); font: 600 15px var(--font-body); }
-#root .menestrel-ui .fp-animais-nome input:focus { outline: none; border-color: var(--vivo); }
+/* A ESCOLHA DO COMPANHEIRO saiu da página em 26/10/2026 ("os botões para
+   selecionar o animal vão ficar no menu da esquerda como submenu de
+   companheiros"): as regras .fp-comp-* foram embora com os chips, para não
+   ficar CSS sem dono. Quem escolhe agora é a barra lateral.
+*/
 
 /* A venda proposta (23/10/2026). */
 #root .menestrel-ui .det-venda-lugar { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
@@ -13842,6 +14068,101 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .estoque-nova input { height: 32px; width: 150px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--regua-forte);
   background: var(--chao-celula-opaco); color: var(--tinta); font: 700 15px var(--font-body); }
 #root .menestrel-ui .estoque-nova input:focus { outline: none; border-color: var(--vivo); }
+/* O recado de "Lojas das cidades" (28/10/2026): quantas abriram, ou que todas
+   já existiam. Não é erro — por isso tinta-3, e não brasa. */
+#root .menestrel-ui .estoque-recado {
+  margin: 8px 0 0; font-size: var(--fs-sm, 15px); color: var(--tinta-3);
+}
+
+/* "Refazer estoque pela economia" (28/10/2026), no painel da loja. Ação que
+   SOBRESCREVE: veste a pele discreta dos botões do painel, não a do ouro —
+   ouro é do que está vivo, e isto é uma ferramenta, não uma escolha. */
+#root .menestrel-ui .estoque-refazer {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 2px 0 10px; height: 32px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--regua-forte); background: var(--chao-celula-opaco);
+  color: var(--tinta-2); font: 600 var(--fs-sm, 15px) var(--font-body); cursor: pointer;
+}
+#root .menestrel-ui .estoque-refazer:hover:not(:disabled) {
+  background: rgba(var(--bronze-rgb),0.16); color: var(--tinta);
+}
+#root .menestrel-ui .estoque-refazer:disabled { opacity: .5; cursor: not-allowed; }
+#root .menestrel-ui .estoque-refazer i { color: var(--vivo); }
+
+/* ── O SELETOR DE LOJA NO TRILHO (28/10/2026) ──────────────────────────────
+   "Usar lista suspensa para o trilho não ficar muito grande." Largura FIXA é
+   o ponto: era um botão por loja, e doze cidades davam duas voltas na tela.
+   Assim o trilho mede o mesmo com uma loja ou com vinte.
+
+   A pílula veste a mesma pele dos botões ao lado (.estoque-trilho .mc-acao),
+   senão o seletor seria o único elemento com cara de formulário na fileira. */
+/* ── O TRILHO NÃO PODE SANGRAR PARA FORA DA TELA (28/10/2026) ──────────────
+   "A lista suspensa não aparece." (usuário) — e não aparecia mesmo: medida no
+   navegador, a pílula estava em x = −145, fora da borda esquerda.
+
+   A causa é a soma de duas regras inocentes. `.cartoes-barra` centraliza
+   (`justify-content: center`), e a cápsula de dentro (`.best-header-acoes`)
+   não quebra linha. Quando o conteúdo passa da largura disponível, um flex
+   centralizado transborda PELOS DOIS LADOS — e o que vai para a esquerda fica
+   inalcançável, porque não há rolagem para trás. É a mesma armadilha que o
+   tabuleiro documenta ao explicar por que ele centraliza com `margin:auto`.
+
+   Na Loja o trilho ficou largo: busca + seletor + Propostas + Lojas das
+   cidades + "+" passam de 800px. Numa janela com o menu lateral de 208px,
+   isso estoura antes dos 1100 de janela — e quem some primeiro é justamente o
+   seletor, segundo a contar da esquerda.
+
+   Conserto em duas camadas: a busca encolhe antes de todo mundo (é o campo
+   mais gordo e o que menos sofre com isso), e a cápsula ganha teto de largura
+   com rolagem própria — assim nada fica fora de alcance, nem no pior caso. */
+#root .menestrel-ui .estoque-trilho .best-header-acoes {
+  max-width: 100%; overflow-x: auto; scrollbar-width: none;
+}
+#root .menestrel-ui .estoque-trilho .best-header-acoes::-webkit-scrollbar { display: none; }
+#root .menestrel-ui .estoque-trilho .best-search { min-width: 0; flex: 0 1 auto; }
+#root .menestrel-ui .estoque-trilho .best-search input { min-width: 90px; }
+/* O que NÃO encolhe: as pílulas de ação e o seletor de loja medem o que
+   medem — texto cortado pela metade não é economia de espaço. */
+#root .menestrel-ui .estoque-trilho .best-header-acoes > .mc-acao,
+#root .menestrel-ui .estoque-trilho .estoque-seletor-loja { flex: none; }
+
+#root .menestrel-ui .estoque-trilho .estoque-seletor-loja { display: flex; }
+#root .menestrel-ui .estoque-trilho .estoque-seletor-loja .motor-field { margin: 0; }
+#root .menestrel-ui .estoque-trilho .estoque-seletor-loja .select-pill-btn {
+  width: 170px; height: 32px; padding: 0 10px 0 12px; border-radius: 999px;
+  border: 1px solid transparent; background: none; color: var(--tinta-2);
+  font: 700 15px var(--font-body);
+}
+#root .menestrel-ui .estoque-trilho .estoque-seletor-loja .select-pill-btn:hover {
+  background: rgba(var(--bronze-rgb),0.16); color: var(--tinta);
+}
+/* Aberta a aba Loja, o seletor é o que está VIVO — mesmo ouro do `is-ativo`
+   dos botões vizinhos. Na aba Propostas ele recua, sem sumir. */
+#root .menestrel-ui .estoque-trilho .estoque-seletor-loja.is-ativo .select-pill-btn {
+  background: var(--vivo-fundo); border-color: var(--vivo-aro); color: var(--tinta);
+}
+#root .menestrel-ui .estoque-trilho .estoque-seletor-loja .select-pill-btn-ic { color: var(--vivo); }
+
+/* O <select> de reserva (28/10/2026), para quando o SelectPill não estiver no
+   window: mesma medida e mesma pele, com a seta nativa trocada pela de
+   sempre. Ninguém deve notar a troca — e, sobretudo, ninguém fica sem poder
+   escolher a loja. */
+#root .menestrel-ui .estoque-trilho .estoque-seletor-nativo {
+  width: 170px; height: 32px; padding: 0 28px 0 12px; border-radius: 999px;
+  border: 1px solid transparent; background: none; color: var(--tinta-2);
+  font: 700 15px var(--font-body); cursor: pointer; appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23c9a44e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+#root .menestrel-ui .estoque-trilho .estoque-seletor-nativo:hover {
+  background-color: rgba(var(--bronze-rgb),0.16); color: var(--tinta);
+}
+#root .menestrel-ui .estoque-trilho .estoque-seletor-loja.is-ativo .estoque-seletor-nativo {
+  background-color: var(--vivo-fundo); border-color: var(--vivo-aro); color: var(--tinta);
+}
+#root .menestrel-ui .estoque-trilho .estoque-seletor-nativo option {
+  background: var(--chao-celula-opaco); color: var(--tinta);
+}
 #root .menestrel-ui .estoque-card { width: fit-content; max-width: 100%; margin: 0 auto; }
 #root .menestrel-ui .estoque-card--propostas { width: min(100%, 980px); }
 #root .menestrel-ui .estoque-bau { grid-template-columns: max-content 360px; }
@@ -13856,10 +14177,145 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .estoque-chave { height: 28px; min-width: 56px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--regua-forte);
   background: none; color: var(--tinta-2); font: 800 13px var(--font-body); cursor: pointer; }
 #root .menestrel-ui .estoque-chave.is-on { background: var(--vivo-fundo); border-color: var(--vivo-aro); color: var(--tinta); }
-#root .menestrel-ui .estoque-step { display: inline-flex; align-items: center; gap: 10px; height: 32px; padding: 0 4px; border-radius: 999px; border: 1px solid var(--regua-forte); }
-#root .menestrel-ui .estoque-step button { width: 24px; height: 24px; border-radius: 999px; border: 0; background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); font-weight: 800; cursor: pointer; }
-#root .menestrel-ui .estoque-step button:disabled { opacity: .4; cursor: default; }
+/* `.estoque-step` desenhava um seletor próprio — 32px de altura, botões
+   quadrados de 24px com "−" e "+" datilografados — e por isso não combinava
+   com a pílula do preço logo abaixo. Desde 28/10/2026 a marcação é o
+   QuantidadeStepper do sistema e esta classe só dá a LARGURA, a mesma do
+   campo de preço ao lado: numa lista de rótulo-e-valor, dois controles
+   empilhados de larguras diferentes leem como dois controles diferentes. */
+#root .menestrel-ui .estoque-step { width: 160px; }
 #root .menestrel-ui .estoque-excluir { align-self: flex-start; margin-top: auto; }
+
+/* ── A LÍNGUETA DA FILEIRA (29/10/2026) ──────────────────────────────────────
+   "A cada 10 slots de uma loja, eu tenho como abrir ou fechar a loja. (…) Cada
+   divisão dessa deve ter uma etiqueta informando se está aberta ou fechada
+   para compra." · depois: "pode ser um ícone em formato de língueta, do lado
+   esquerdo e fora da loja, apontado para a fileira." (usuário)
+
+   A primeira volta era uma pílula com a palavra "Aberta", na 11ª coluna da
+   grade — dentro da loja, como se a etiqueta fosse estoque. Agora é uma coluna
+   fora da grade, à esquerda: cada língueta tem a ALTURA DA CASA (78px) e o vão
+   da grade (6px), e por isso cai exatamente na linha da sua fileira; a ponta
+   do clip-path aponta para ela.
+
+   ABERTA é o normal, logo é QUIETA: fundo de chão, cadeado aberto em tinta-3,
+   nenhum ouro — ouro aqui é do que está vivo, e seis línguetas douradas
+   gritariam mais que as sessenta casas ao lado. FECHADA é a exceção que
+   BLOQUEIA a compra, e aí entra a brasa (--alerta). A casa da fileira fechada
+   desbota junto: o estado se lê na língueta e se confirma nas peças. */
+#root .menestrel-ui .estoque-com-linguetas { display: flex; align-items: flex-start; }
+#root .menestrel-ui .estoque-linguetas {
+  display: flex; flex-direction: column; gap: var(--inv-casa-vao, 6px);
+  margin-right: 8px; flex: 0 0 auto;
+}
+#root .menestrel-ui .estoque-lingueta,
+#root .menestrel-ui .estoque-lingueta-vaga {
+  width: 30px; height: var(--inv-casa); flex: 0 0 auto;
+}
+#root .menestrel-ui .estoque-lingueta {
+  display: grid; place-items: center; padding: 0 6px 0 0; border: 0; cursor: pointer;
+  /* O clip-path corta qualquer borda, então quem desenha a língueta é o
+     PREENCHIMENTO: --chao-celula-opaco não se descolava do fundo da página e a
+     peça sumia (visto na prévia, 29/10/2026). --p-chao-2 é o degrau de chão
+     mais claro, o mesmo das casas levantadas. */
+  background: var(--p-chao-2); color: var(--tinta-2);
+  /* A ponta à direita, virada para a fileira: lombo reto na esquerda, bico no
+     meio da altura. */
+  clip-path: polygon(0 26%, 62% 26%, 100% 50%, 62% 74%, 0 74%);
+  transition: background-color .15s ease, color .15s ease;
+}
+#root .menestrel-ui .estoque-lingueta .ti { font-size: 16px; margin-right: 2px; }
+#root .menestrel-ui .estoque-lingueta:hover:not(:disabled) { color: var(--tinta); background: var(--chao-celula-forte, var(--p-chao-2)); filter: brightness(1.25); }
+#root .menestrel-ui .estoque-lingueta:disabled { opacity: .5; cursor: default; }
+#root .menestrel-ui .estoque-lingueta:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .estoque-lingueta.is-fechada { background: var(--alerta); color: var(--p-fundo); }
+#root .menestrel-ui .estoque-lingueta.is-fechada:hover:not(:disabled) { background: var(--alerta); color: var(--p-fundo); }
+#root .menestrel-ui .estoque-lingueta-vaga { display: block; }
+#root .menestrel-ui .estoque-casa--fechada { opacity: .45; filter: saturate(.35); }
+#root .menestrel-ui .estoque-casa--fechada.is-sel { opacity: .8; filter: none; }
+
+/* ── O ITEM NA MÃO, ESCOLHENDO CASA (29/10/2026) ─────────────────────────────
+   "Eu preciso ter permissão para mudar o item de casa na loja, para dizer em
+   qual linha ele está." (usuário)
+
+   Enquanto um item espera casa, TODA casa é destino — e a grade inteira muda
+   de voz: as casas vazias, que no resto do tempo são buraco, ganham aro
+   pontilhado e a seta de soltar. É o único momento em que o ouro (--vivo) entra
+   na grade do estoque, porque é o único em que a tela está perguntando algo. */
+/* A casa da grade tem `border: … !important` em `.inv-bag-grid--slots
+   .inv-card` (1 id + 3 classes): para desenhar a casa vazia é preciso ser mais
+   específico que ela, não só gritar !important — foi o que esta regra aprendeu
+   na prévia, onde o tracejado simplesmente não aparecia (29/10/2026). */
+#root .menestrel-ui .estoque-grade--movendo .estoque-casa--destino { cursor: pointer; }
+#root .menestrel-ui .inv-bag-grid--slots .inv-card.estoque-casa--vazia {
+  border: 1px dashed var(--vivo-aro) !important;
+  background: none !important; box-shadow: none !important; color: var(--tinta-3);
+}
+#root .menestrel-ui .inv-bag-grid--slots .inv-card.estoque-casa--vazia:hover:not(:disabled) {
+  border-style: solid !important; border-color: var(--vivo) !important;
+  background: var(--vivo-fundo) !important; color: var(--tinta);
+}
+#root .menestrel-ui .estoque-alvo { font-size: 20px; opacity: .75; }
+#root .menestrel-ui .inv-bag-grid--slots .inv-card.estoque-casa--destino:not(.estoque-casa--vazia):hover:not(:disabled) {
+  border-color: var(--vivo) !important;
+}
+/* O botão que põe o item na mão: fantasma como "Tirar da loja", e em ouro
+   enquanto está perguntando a casa. */
+#root .menestrel-ui .estoque-mover {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+  height: 32px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--regua-forte); background: none; color: var(--tinta-2);
+  font: 700 var(--fs-sm) var(--font-body); cursor: pointer;
+}
+#root .menestrel-ui .estoque-mover:hover:not(:disabled) { color: var(--tinta); border-color: var(--tinta-3); }
+#root .menestrel-ui .estoque-mover.is-ativo {
+  border-color: var(--vivo-aro); background: var(--vivo-fundo); color: var(--tinta);
+}
+#root .menestrel-ui .estoque-mover:disabled { opacity: .5; cursor: default; }
+
+/* ── DENTRO: O QUE JÁ VAI NO RECIPIENTE (29/10/2026) ─────────────────────────
+   "Torne possível vender itens na loja que tenham itens armazenados dentro
+   deles, por exemplo uma algibeira sempre de moedas." (usuário)
+
+   Mesmo quadro de linhas com réguas do painel de dados logo acima
+   (.loja-painel-dados): rótulo-e-valor por linha, régua entre elas. O bloco
+   inteiro é um quadro do Quadro de Iniciativa, não um card dentro do card. */
+#root .menestrel-ui .estoque-dentro { display: flex; flex-direction: column; gap: 10px; }
+#root .menestrel-ui .estoque-dentro-tit {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0;
+  padding-bottom: 6px; border-bottom: 1px solid var(--regua-forte);
+  font: 800 var(--fs-rotulo, 12px) / 1 var(--font-body);
+  letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase; color: var(--tinta-3);
+}
+#root .menestrel-ui .estoque-dentro-livre {
+  letter-spacing: 0; text-transform: none; font-weight: 700; color: var(--tinta-2);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .estoque-dentro-nada { margin: 0; font-size: var(--fs-sm); color: var(--tinta-3); }
+#root .menestrel-ui .estoque-dentro-lista,
+#root .menestrel-ui .estoque-dentro-achados { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+#root .menestrel-ui .estoque-dentro-lista > li {
+  display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  border-bottom: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .estoque-dentro-lista > li > .ti { font-size: 18px; color: var(--tinta-2); }
+#root .menestrel-ui .estoque-dentro-nome { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: var(--fs-sm); font-weight: 700; color: var(--tinta); }
+#root .menestrel-ui .estoque-dentro-qtd { font-weight: 800; color: var(--tinta); font-variant-numeric: lining-nums tabular-nums; }
+#root .menestrel-ui .estoque-dentro .estoque-campo { width: 100%; text-align: left; }
+#root .menestrel-ui .estoque-dentro-achados > li > button {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px;
+  border: 0; border-radius: 10px; background: none; color: var(--tinta-2); cursor: pointer;
+  font: 700 var(--fs-sm) var(--font-body); text-align: left;
+}
+#root .menestrel-ui .estoque-dentro-achados > li > button:hover:not(:disabled) { background: var(--vivo-fundo); color: var(--tinta); }
+#root .menestrel-ui .estoque-dentro-achados .ti { font-size: 18px; }
+#root .menestrel-ui .estoque-dentro-val { margin-left: auto; color: var(--tinta-3); font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums; }
+/* O recheio na janela de compra do jogador: texto corrido, porque é leitura
+   ("20× Moeda de Ouro · 3× Erva"), não uma tabela para comparar. */
+#root .menestrel-ui .loja-dentro-txt { font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2);
+  font-variant-numeric: lining-nums tabular-nums; }
 #root .menestrel-ui .estoque-props { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; }
 @media (max-width: 900px) { #root .menestrel-ui .estoque-props { grid-template-columns: 1fr; } }
 #root .menestrel-ui .estoque-props-col { padding: 16px; min-height: 200px; }
@@ -14059,21 +14515,45 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .part-section-titulo-n { letter-spacing: 0; text-transform: none; font-weight: 700; font-size: 13px; color: var(--tinta-3); font-variant-numeric: lining-nums tabular-nums; }
 #root .menestrel-ui .part-section + .part-section { margin-top: 22px; }
 
+/* QUEM ABRE É `.is-expandida`, E NÃO `:hover` (26/10/2026, pedido do usuário:
+   "quando o menu lateral esquerdo expande, muito facilmente ele se fecha").
+   `:hover` fechava no instante em que o ponteiro saía da caixa — e a caixa é
+   um alvo móvel enquanto a faixa cresce de 72 para 232. A classe vem da
+   intenção de hover do AdminConsole (10-shell/shell.jsx): abre na hora, fecha
+   depois de uma pausa curta, e a volta do ponteiro cancela o fechamento.
+   O `:focus-within` fica como está: teclado não tem deslize para perdoar.
+   Vale para os DOIS blocos abaixo — o de ≥769px e o da faixa larga. */
 /* ══ MENU LATERAL RECOLHIDO, ABRE NO HOVER (23/10/2026) ════════════════════
    Sempre a coluna dos ícones (72px); com o mouse em cima (ou o foco dentro,
    ou um menu dele aberto) ele se abre por cima da página — a margem negativa
    mantém os 72px no fluxo, então o conteúdo não anda. Só no computador: no
    celular o menu já é uma folha. */
+/* Z-INDEX 65, E NAO 60 (27/10/2026, pedido do usuario: "so consigo clicar
+   no menu quando ele expande, se clicar no icone, e nao no texto [...]
+   inclusive na seta para baixo").
+
+   O menu aberto invade 160px da pagina. `.mc-main` e z-index 1 - mas
+   `.mc-main:has(.pjs)` sobe para 60, o MESMO da barra (o 60 entrou de
+   carona numa regra de margem, la no bloco do .pjs). Empate de z-index se
+   decide pela ordem no DOM, e o conteudo vem depois: ele ficava POR CIMA
+   da tira invadida. Como nao tem fundo ali, o menu continuava VISIVEL e o
+   clique ia parar nele - medido no navegador: no icone o clique chega ao
+   item; no texto e na seta, ao `.mc-main`.
+
+   O menu passa por cima do conteudo por desenho, entao tem de estar acima
+   de QUALQUER camada dele, e nao empatado com uma. 65 deixa folga para as
+   proximas e fica abaixo dos veus fixos (70/71), que sao atravessaveis a
+   clique. Vale para os dois blocos de menu lateral deste arquivo. */
 @media (min-width: 769px) {
-  #root .menestrel-ui .mc-sidebar { flex: 0 0 72px; padding-left: 10px; padding-right: 10px; z-index: 60;
+  #root .menestrel-ui .mc-sidebar { flex: 0 0 72px; padding-left: 10px; padding-right: 10px; z-index: 65;
     transition: flex-basis .2s cubic-bezier(.16,1,.3,1), margin-right .2s cubic-bezier(.16,1,.3,1), box-shadow .2s ease; }
-  #root .menestrel-ui .mc-sidebar:hover,
+  #root .menestrel-ui .mc-sidebar.is-expandida,
   #root .menestrel-ui .mc-sidebar:focus-within,
   #root .menestrel-ui .mc-sidebar.is-menu-aberto { flex-basis: 232px; margin-right: -160px; box-shadow: 16px 0 40px rgba(0,0,0,0.45); }
   /* recolhido: o nome some da vista, mas segue como nome do botão */
-  #root .menestrel-ui .mc-sidebar:not(:hover):not(:focus-within):not(.is-menu-aberto) :is(.mc-marca-texto, .mc-navitem > span, .mc-navbusca > span, .mc-ident-txt, .mc-user-txt) {
+  #root .menestrel-ui .mc-sidebar:not(.is-expandida):not(:focus-within):not(.is-menu-aberto) :is(.mc-marca-texto, .mc-navitem > span, .mc-navbusca > span, .mc-ident-txt, .mc-user-txt) {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  #root .menestrel-ui .mc-sidebar:not(:hover):not(:focus-within):not(.is-menu-aberto) :is(.mc-nav-secao, .mc-navseta, .mc-navmais, .mc-navbusca kbd, .mc-ident-seta, .mc-user .ti-dots-vertical, .mc-navfilhos) { display: none; }
+  #root .menestrel-ui .mc-sidebar:not(.is-expandida):not(:focus-within):not(.is-menu-aberto) :is(.mc-nav-secao, .mc-navseta, .mc-navmais, .mc-navbusca kbd, .mc-ident-seta, .mc-user .ti-dots-vertical, .mc-navfilhos) { display: none; }
   /* os textos não quebram enquanto o menu se abre */
   #root .menestrel-ui .mc-sidebar :is(.mc-navitem > span, .mc-marca-nome, .mc-ident-nome, .mc-user-name) { white-space: nowrap; }
 }
@@ -14093,20 +14573,20 @@ body { background-color: var(--p-pagina); }
    mantém os 72px no fluxo, então o conteúdo não anda. Só no computador: no
    celular o menu já é uma folha. */
 @media (min-width: 769px) {
-  #root .menestrel-ui .mc-sidebar { flex: 0 0 72px; padding-left: 10px; padding-right: 10px; z-index: 60;
+  #root .menestrel-ui .mc-sidebar { flex: 0 0 72px; padding-left: 10px; padding-right: 10px; z-index: 65;
     transition: flex-basis .2s cubic-bezier(.16,1,.3,1), margin-right .2s cubic-bezier(.16,1,.3,1), box-shadow .2s ease; }
-  #root .menestrel-ui .mc-sidebar:hover,
+  #root .menestrel-ui .mc-sidebar.is-expandida,
   #root .menestrel-ui .mc-sidebar:focus-within,
   #root .menestrel-ui .mc-sidebar.is-menu-aberto { flex-basis: 232px; margin-right: -160px; padding-left: 12px; padding-right: 12px;
     background: var(--chao-celula-opaco); box-shadow: 16px 0 40px rgba(0,0,0,0.45); }
   /* recolhido: o nome some da vista, mas segue como nome do botão */
-  #root .menestrel-ui .mc-sidebar:not(:hover):not(:focus-within):not(.is-menu-aberto) :is(.mc-marca-texto, .mc-navitem > span, .mc-navbusca > span, .mc-ident-txt, .mc-user-txt) {
+  #root .menestrel-ui .mc-sidebar:not(.is-expandida):not(:focus-within):not(.is-menu-aberto) :is(.mc-marca-texto, .mc-navitem > span, .mc-navbusca > span, .mc-ident-txt, .mc-user-txt) {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  #root .menestrel-ui .mc-sidebar:not(:hover):not(:focus-within):not(.is-menu-aberto) :is(.mc-nav-secao, .mc-navseta, .mc-navmais, .mc-navbusca kbd, .mc-ident-seta, .mc-user .ti-dots-vertical, .mc-navfilhos) { display: none; }
-  #root .menestrel-ui .mc-sidebar:not(:hover):not(:focus-within):not(.is-menu-aberto) :is(.mc-navitem, .mc-navbusca) { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
-  #root .menestrel-ui .mc-sidebar:not(:hover):not(:focus-within):not(.is-menu-aberto) .mc-ident { justify-content: center; padding: 6px; }
-  #root .menestrel-ui .mc-sidebar:not(:hover):not(:focus-within):not(.is-menu-aberto) .mc-user { justify-content: center; padding-left: 0; padding-right: 0; }
-  #root .menestrel-ui .mc-sidebar:not(:hover):not(:focus-within):not(.is-menu-aberto) .mc-marca { justify-content: center; padding-left: 0; padding-right: 0; }
+  #root .menestrel-ui .mc-sidebar:not(.is-expandida):not(:focus-within):not(.is-menu-aberto) :is(.mc-nav-secao, .mc-navseta, .mc-navmais, .mc-navbusca kbd, .mc-ident-seta, .mc-user .ti-dots-vertical, .mc-navfilhos) { display: none; }
+  #root .menestrel-ui .mc-sidebar:not(.is-expandida):not(:focus-within):not(.is-menu-aberto) :is(.mc-navitem, .mc-navbusca) { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+  #root .menestrel-ui .mc-sidebar:not(.is-expandida):not(:focus-within):not(.is-menu-aberto) .mc-ident { justify-content: center; padding: 6px; }
+  #root .menestrel-ui .mc-sidebar:not(.is-expandida):not(:focus-within):not(.is-menu-aberto) .mc-user { justify-content: center; padding-left: 0; padding-right: 0; }
+  #root .menestrel-ui .mc-sidebar:not(.is-expandida):not(:focus-within):not(.is-menu-aberto) .mc-marca { justify-content: center; padding-left: 0; padding-right: 0; }
   /* os textos não quebram enquanto o menu se abre */
   #root .menestrel-ui .mc-sidebar :is(.mc-navitem > span, .mc-marca-nome, .mc-ident-nome, .mc-user-name) { white-space: nowrap; }
 }
@@ -14214,7 +14694,7 @@ body { background-color: var(--p-pagina); }
   #root .menestrel-ui .pjs-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
   #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1.12; width: calc(1060px * 1); margin-left: auto; margin-right: auto; max-width: calc(100% / 1.12); }
 }
-@media (min-width: 1600px) and (min-height: 1000px) {
+@media (min-width: 1600px) and (min-height: 1010px) {
   #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1.25; max-width: calc(100% / 1.25); }
 }
 @media (min-width: 1900px) and (min-height: 1150px) {
@@ -14270,3 +14750,2042 @@ body { background-color: var(--p-pagina); }
   background-position: right 5px center, right 0 center; background-size: 5px 5px; background-repeat: no-repeat; }
 #root .menestrel-ui .batalha-ambiente select:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; border-radius: 6px; }
 #root .menestrel-ui .batalha-ambiente option { background: var(--p-fundo); color: var(--tinta); }
+
+/* ══ FICHA — BONECO DE ARMAR + STATUS (26/10/2026, modelo aprovado) ══════════
+   A ficha em DUAS colunas: Energias/Status/Condições à esquerda e o boneco
+   de armar à direita — 17 regiões, uma casa por região com o contador
+   ocupadas/casas (o clique abre o diálogo com as casas); as mãos na base,
+   em pares integrados com o SAQUE RÁPIDO e o fecho ⇄ na junção. Modelo
+   aprovado: preview/proposta-slots-status.html (artifact c6dbd3d6). */
+#root .menestrel-ui .fp2-columns.fp2-columns--duas {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.9fr);
+}
+
+/* ── O boneco ──────────────────────────────────────────────────────────────
+   UMA GRADE SÓ, UM VÃO SÓ (26/10/2026, pedido do usuário: "os slots em
+   'equipamentos' estão desalinhados, as imagens devem estar alinhadas
+   geometricamente, os espaços devem estar do mesmo tamanho também").
+
+   O que havia antes eram TRÊS grades empilhadas e CINCO vãos diferentes,
+   medidos no Chrome: os trilhos em colunas de 64px com vão 8/6; o boneco com
+   vão 14/16; e a fileira das mãos dividindo a LARGURA INTEIRA em quatro casas
+   de 145px — que não caíam sob coluna nenhuma das de cima. Era isso o
+   "desalinhado": a última fileira não tinha relação geométrica com as outras.
+
+   Agora tudo sai de dois números. `--fp3-casa` é o lado da casa e `--fp3-vao`
+   é o único vão — entre casas, entre trilho e retrato, entre as fileiras e
+   até dentro das mãos. O grupo de cada mão mede exatamente duas casas mais um
+   vão, então as mãos caem sob as colunas do trilho do seu lado; e o retrato
+   desce até a fileira das mãos (`grid-row` em duas linhas), ocupando o vão do
+   meio que antes sobrava.
+
+   O RÓTULO SAIU DO FLUXO. Ele é que estragava a geometria: com a legenda
+   empilhada sob a casa, as imagens ficavam a 8px na horizontal e a 21px na
+   vertical. Absoluto, ele mora DENTRO do vão — a mesma distância entre duas
+   imagens nos dois sentidos — e o vão subiu para 14px justamente para caber a
+   legenda com folga. */
+#root .menestrel-ui .fp2-equip-wrap {
+  --fp3-casa: 64px;
+  /* 14 → 18px em 26/10/2026: "o escrito abaixo do slot está muito colado,
+     adicione um pouco de espaçamento". A legenda mora DENTRO do vão, então
+     dar ar a ela é alargar o vão — e o vão é um só, para a grade continuar
+     geométrica nos dois sentidos. O tamanho da fonte fica como está. */
+  --fp3-vao: 18px;
+  --fp3-retrato: 250px;
+}
+/* O MESMO VÃO EM VOLTA DO RETRATO (26/10/2026, pedido do usuário: "padronize
+   o espaçamento entre a imagem e os slots"). A coluna do meio era `1fr` e o
+   retrato tinha teto de 250px centrado nela: sobrava folga dos dois lados e a
+   distância até as casas dava 33px, contra os 14px entre casas. Agora a
+   coluna MEDE o retrato, e a grade inteira se centra no card — então o vão em
+   volta da foto é o mesmo vão de todo o resto. */
+#root .menestrel-ui .fp3-boneco {
+  display: grid; grid-template-columns: auto var(--fp3-retrato) auto;
+  justify-content: center; gap: var(--fp3-vao); padding: 4px 2px;
+}
+/* `align-content: center` e não `space-between` (26/10/2026): o espalhamento
+   devolvia ao vão todo o espaço que se tirasse dele — reduzir o `gap` não
+   adiantava nada. Assim o trilho mede o próprio conteúdo, e a primeira casa
+   continua alinhada com o topo do retrato. */
+#root .menestrel-ui .fp3-trilho {
+  display: grid; grid-template-columns: repeat(2, var(--fp3-casa));
+  gap: var(--fp3-vao); align-content: center;
+}
+/* A casa é QUADRADA e mede só a si mesma — a legenda é absoluta (abaixo). */
+#root .menestrel-ui .fp3-regiao {
+  position: relative; width: var(--fp3-casa); height: var(--fp3-casa);
+}
+/* A MESMA SOMBRA DO RETRATO NAS CASAS (26/10/2026, pedido do usuário: "ao
+   redor da imagem do personagem há uma sombra, eu gosto dessa sombra, é
+   possível adicionar essa mesma sombra nos demais slots?"). É a receita do
+   .fp2-portrait — vinheta por dentro e uma queda macia por baixo —, com os
+   raios proporcionais à casa: os 30px e os 18px do retrato são medidos para
+   313px de largura, e na casa de 64px espalhariam a sombra do vizinho por
+   cima da pintura. */
+#root .menestrel-ui .fp3-regiao > .inv-slot,
+#root .menestrel-ui .fp3-casa > .inv-slot {
+  box-shadow: inset 0 0 18px -6px rgba(0, 0, 0, .75), 0 8px 18px -12px rgba(0, 0, 0, .85);
+}
+#root .menestrel-ui .fp3-regiao > .inv-slot { width: 100%; height: 100%; }
+/* A LEGENDA MORA NO VÃO (26/10/2026) — fora do fluxo, centrada sob a casa.
+   É o que deixa a grade geométrica: a distância entre duas imagens passa a ser
+   o vão, igual nos dois sentidos. `pointer-events: none` para o nome não
+   roubar o clique da casa de baixo. */
+#root .menestrel-ui .fp3-nomr {
+  position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+  pointer-events: none;
+  font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--tinta-3, #A3937A); line-height: 1.2; white-space: nowrap; text-align: center;
+}
+#root .menestrel-ui .fp3-qtd {
+  position: absolute; top: 2px; right: 2px; z-index: 3; pointer-events: none;
+  font-size: 9px; font-weight: 800; line-height: 1; padding: 2px 4px; border-radius: 999px;
+  background: rgba(18, 13, 6, .88); border: 1px solid var(--regua, rgba(138, 110, 64, .28));
+  color: var(--tinta-2, #CDBF9F); font-variant-numeric: lining-nums tabular-nums;
+}
+/* O RETRATO DESCE ATÉ AS MÃOS (26/10/2026): com as mãos alinhadas às colunas
+   dos trilhos, o meio da última fileira ficaria vazio. Duas linhas de grade
+   entregam esse espaço à foto, que é quem tem o que fazer com ele.
+
+   POSIÇÃO EXPLÍCITA EM TODOS OS QUATRO, e não só no retrato: um item com
+   LINHA definida e coluna automática não é colocado pelo fluxo normal — o
+   algoritmo volta a procurar vaga da coluna 1, e o retrato pulava para a
+   ponta esquerda levando os trilhos junto (medido: retrato em x=627, casas
+   em x=791). Com linha e coluna ditas, não há o que adivinhar. */
+#root .menestrel-ui .fp3-boneco > .fp3-trilho:nth-child(1) { grid-column: 1; grid-row: 1; }
+#root .menestrel-ui .fp3-boneco > .fp3-trilho:nth-child(3) { grid-column: 3; grid-row: 1; }
+#root .menestrel-ui .fp3-retrato { grid-column: 2; grid-row: 1 / span 2; align-self: stretch; min-width: 0; display: flex; }
+#root .menestrel-ui .fp3-retrato .fp2-portrait { width: 100%; height: 100%; min-height: 0; flex: 1 1 auto; }
+
+/* ── As mãos + saque rápido: duas casas num contorno só, fecho ⇄ na junção ──
+   O grupo de cada mão mede DUAS CASAS MAIS UM VÃO, que é a largura exata do
+   trilho do mesmo lado: é isso que põe a última fileira sob as colunas de
+   cima. O da esquerda cai na coluna 1, o da direita na 3 — a do meio é do
+   retrato. */
+/* `display: contents`: a fileira das mãos deixa de ser uma caixa com régua
+   própria e entrega os dois grupos à grade do boneco. Cada um cai na COLUNA
+   DO TRILHO do seu lado — é isso que põe a última fileira no prumo das de
+   cima, sem nenhuma largura calculada à mão. A coluna do meio continua do
+   retrato, que desce até aqui. */
+#root .menestrel-ui .fp3-maos { display: contents; }
+#root .menestrel-ui .fp3-mao-grupo:first-child { grid-column: 1; }
+#root .menestrel-ui .fp3-mao-grupo:last-child { grid-column: 3; }
+/* ── A MÃO: UMA CASA, DO TAMANHO DE QUATRO (26/10/2026) ───────────────────
+   "Remova os slots de saque rápido, não vamos usar isso mais." · "Os slots com
+   as armas não estão alinhados com a imagem pela base." · "Há uma linha de
+   borda nos slots de armas."
+
+   A casa da mão ocupa a largura das DUAS colunas do trilho do seu lado e a
+   altura de DUAS casas — uma célula 2×2 da mesma grade. Com isso o pé dela
+   cai exatamente no pé do retrato (que desce até esta fileira), e a arma
+   ganha o maior espaço de pintura do boneco, que é o que o jogador olha.
+
+   Sem contorno: o par tinha uma moldura de 1px que nenhuma outra casa do
+   boneco tem — ela existia para costurar as duas casas do par, e o par
+   acabou. */
+#root .menestrel-ui .fp3-mao-grupo {
+  grid-row: 2; position: relative; min-width: 0;
+  height: calc(2 * var(--fp3-casa) + var(--fp3-vao));
+}
+#root .menestrel-ui .fp3-mao-grupo > .fp3-casa { height: 100%; }
+#root .menestrel-ui .fp3-casa > .inv-slot {
+  width: 100%; height: 100%; border: none; border-radius: 10px; background-color: #17110A;
+}
+/* As regras do saque rápido (.fp3-casa--saque, .fp3-troca, .fp3-mao-par,
+   .fp3-mao-rotulos) saíram em 26/10/2026 com a casa que elas vestiam. */
+
+/* ── O card Status (DEF · VEL · ABS · RFI · RFM) ── */
+#root .menestrel-ui .fp3-status {
+  display: flex; border: 1px solid var(--regua-forte, rgba(138, 110, 64, .5));
+  border-radius: 10px; overflow: hidden; margin-bottom: 10px;
+  background: rgba(138, 110, 64, .07);
+}
+#root .menestrel-ui .fp3-status-cel {
+  flex: 1 1 0; min-width: 0; padding: 8px 4px 9px; display: flex; flex-direction: column;
+  gap: 4px; align-items: center; text-align: center;
+  border-left: 1px solid var(--regua, rgba(138, 110, 64, .28));
+}
+#root .menestrel-ui .fp3-status-cel:first-child { border-left: none; }
+#root .menestrel-ui .fp3-status-rot {
+  font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--tinta-3, #A3937A);
+}
+#root .menestrel-ui .fp3-status-val {
+  font-size: 20px; font-weight: 700; line-height: 1.1; color: var(--tinta, #F1E6CF);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* ── Condições: a sigla e o valor sob o medalhão ── */
+#root .menestrel-ui .fp-medalhoes { gap: 26px 10px; padding-bottom: 16px; }
+#root .menestrel-ui .fp-medalhao { overflow: visible; }
+/* O rótulo do medalhão é uma PALAVRA desde 26/10/2026 ("abaixo do ícone não
+   abrevie"), em CAIXA ALTA no mesmo dia ("abaixo dos itens de condição, o
+   texto é em caixa alta") — é a voz dos rótulos do sistema (`--fs-rotulo`),
+   e põe a legenda na mesma régua do resto do Quadro de Iniciativa. Caixa alta
+   pede tracking: por isso o espaçamento fica em .07em, como nos outros
+   rótulos, e não no .02em que uma palavra em caixa baixa pediria. */
+#root .menestrel-ui .fp-med-rot {
+  position: absolute; left: 50%; bottom: -17px; transform: translateX(-50%);
+  font-size: 10px; font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--tinta-3, #A3937A); white-space: nowrap;
+}
+
+/* A faixa de Peso saiu da ficha em 26/10/2026 (pedido do usuário: já aparece
+   no trilho do Inventário) — com ela foram as regras .fp-peso-*. */
+
+/* ── O diálogo das casas da região: o Dedo quebra em fileiras de cinco ──
+   O `max-width` é o que faz a quebra, e ele deixou de fazer o que o nome
+   promete: 396px eram cinco casas quando a casa media 76, e hoje ela mede 106
+   (100 do `.inv-slot` mais os 3+3 de respiro do `.fp3-modal-casa`). Com 396,
+   as dez casas do Dedo saíam em [3, 3, 3, 1] — três fileiras cheias e uma
+   casa sozinha no fim, que é a pior quebra possível.
+
+   Medido em 28/10/2026, não chutado: cinco casas pedem 5×106 mais quatro
+   vãos, e o corpo do modal mede 630. Cabe. O teto passou a ser essa conta,
+   escrita por extenso, para que a próxima vez que a casa mudar de tamanho o
+   número acompanhe sozinho. O vão repete o `clamp` do `.fp2-slot-cluster`,
+   que é de onde ele sai.
+
+   E É ELE QUE PRECISAVA DO `margin-inline` (28/10/2026, usuário: "ao abrir o
+   modal, os slots não estão devidamente alinhados; eu quero que eles fiquem
+   centralizados no modal").
+
+   O `justify-content: center` já estava aqui e enganava: ele centra as casas
+   DENTRO da caixa de 396px — e a caixa, sem margem automática, encostava à
+   esquerda do corpo do modal, que mede 630. Medido no navegador: as duas
+   casas de Costas ficavam centradas em 575, e o centro do modal é 692. Cento
+   e dezessete pixels à esquerda, sempre para o mesmo lado — o bastante para
+   parecer desalinhado e não o bastante para parecer de propósito.
+
+   O `width: 100%` ao lado do teto NÃO é redundante, e esquecê-lo custou uma
+   volta: o corpo do modal é um flex de coluna, e margem automática no eixo
+   cruzado DESLIGA o `stretch`. Sem largura declarada a caixa passava a medir
+   o conteúdo — 230px nas duas casas de Costas — e o Dedo, que depende dos
+   396 para quebrar de cinco em cinco, saía em quatro fileiras. Com
+   `width:100%` ela volta a medir min(100%, 396px): centrada e com a quebra
+   de sempre. */
+#root .menestrel-ui .fp3-cluster-regiao {
+  flex-wrap: wrap; justify-content: center;
+  width: 100%;
+  /* O VÃO QUE SE VÊ É 6px, E ELE NÃO É SÓ O `gap` (28/10/2026) ───────────
+     Cada casa desta janela vem embrulhada num `.fp3-modal-casa` com 3px de
+     respiro — o ar onde o anel de foco é pintado (ver `.is-foco`). Dois
+     embrulhos vizinhos já põem 6px entre os quadros ANTES de qualquer `gap`:
+     com `gap: 6px` a distância medida dava 12, o dobro da grade do baú.
+
+     Então o `gap` passa a ser o que FALTA para fechar o vão do inventário, e
+     a conta fica escrita: se o respiro ou o token mudarem, o vão visível
+     continua sendo um só. */
+  --fp3-modal-respiro: 3px;
+  gap: calc(var(--inv-casa-vao) - 2 * var(--fp3-modal-respiro));
+  /* Cinco casas (100px mais os dois respiros) e os quatro vãos entre elas. */
+  max-width: calc(5 * (100px + 2 * var(--fp3-modal-respiro))
+    + 4 * (var(--inv-casa-vao) - 2 * var(--fp3-modal-respiro)));
+  margin-inline: auto;
+}
+
+/* ── Responsivo do boneco ── */
+@media (min-width: 901px) and (max-width: 1100px) {
+  /* Na faixa do tablet as regras antigas montavam áreas vit/side/main; com
+     duas colunas o side não existe — uma coluna só, e o boneco OCUPA a
+     largura (o `display:flex` da regra antiga o encolhia para fit-content,
+     espremendo o retrato). */
+  #root .menestrel-ui .fp2-columns.fp2-columns--duas { grid-template-areas: none; grid-template-columns: 1fr; }
+  #root .menestrel-ui .fp2-columns--duas .fp2-col-vit { grid-area: auto; grid-column: auto; }
+  #root .menestrel-ui .fp2-columns--duas .fp2-col-main { grid-area: auto; display: block; }
+  /* Energias, Status e Condições lado a lado quando a coluna é larga. */
+  #root .menestrel-ui .fp2-columns--duas .fp2-vitcond-col { flex-direction: row; align-items: stretch; }
+  #root .menestrel-ui .fp2-columns--duas .fp2-vitcond-col > .fp2-panel { flex: 1 1 0; min-width: 0; }
+}
+/* No celular tudo encolhe junto, pelos mesmos números. */
+@media (max-width: 560px) {
+  #root .menestrel-ui .fp2-equip-wrap { --fp3-casa: 52px; --fp3-vao: 12px; --fp3-retrato: 150px; }
+}
+/* ══ A FICHA COMO O MODELO APROVADO (26/10/2026) ════════════════════════════
+   O artifact mostrava cada seção como um CARD com chão de célula, régua e
+   canto de 10px, o respiro de 12px entre eles, e o nome do personagem com os
+   botões DENTRO da moldura. O CSS da ficha antiga deixava .fp2-panel
+   transparente e sem borda — daí a diferença que o usuário apontou. Escopo:
+   só o layout novo (.fp2-columns--duas), para Inventário/Loja/Diário
+   seguirem como estão. */
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp2-frame {
+  margin: 0; padding: 14px 16px 4px;
+}
+#root .menestrel-ui .fp2-columns--duas { gap: 12px; }
+#root .menestrel-ui .fp2-columns--duas .fp2-col-vit,
+#root .menestrel-ui .fp2-columns--duas .fp2-col-main { padding-left: 0; padding-right: 0; }
+#root .menestrel-ui .fp2-columns--duas .fp2-vitcond-col { gap: 12px; }
+
+/* o card de cada seção: chão de célula + régua + canto, como no modelo */
+#root .menestrel-ui .fp2-columns--duas .fp2-panel,
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp2-equip-wrap {
+  background: var(--chao-celula); border: 1px solid var(--regua);
+  border-radius: 10px; padding: 14px 14px 16px;
+}
+#root .menestrel-ui .fp2-columns--duas .fp2-panel-body { overflow: visible; }
+/* o título da seção (Energias · Status · Condições · Equipamento) tem o
+   respiro do modelo entre a régua e o conteúdo */
+#root .menestrel-ui .fp2-columns--duas .fp-col-tit,
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp2-equip-wrap .fp-col-tit {
+  margin: 2px 0 14px;
+}
+
+/* ── A fileira do herói: o trilho de ações, dentro da moldura ──────────────
+   O nome e a linha de estágio saíram em 26/10/2026 (pedido do usuário), e
+   com a fileira inteira para ele o trilho fica CENTRADO — não mais empurrado
+   para a direita por uma identidade que não existe mais. */
+#root .menestrel-ui .fp3-heroi {
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px; flex-wrap: wrap; padding: 0 2px 14px;
+}
+/* A barra de ações é a MESMA do console (.mc-acoes-ficha): aqui ela só
+   perde o grude no topo e a margem de baixo, porque mora na fileira. */
+#root .menestrel-ui .fp3-heroi-acoes.mc-acoes-ficha {
+  position: static; margin: 0; max-width: 100%; justify-content: center;
+}
+/* Trilho sem nenhum botão: a fileira inteira sai, sem deixar o respiro de
+   14px reservado para uma barra que não existe (26/10/2026). */
+#root .menestrel-ui .fp3-heroi:not(:has(.mc-acoes-ficha > *)) { display: none; }
+
+/* o cabeçalho do cartão perde a faixa própria: a ficha é uma peça só */
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-card-top { background: transparent; }
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-card-top .ms-header { padding: 16px 18px 10px; }
+
+/* O pé do cartão (só a Experiência desde 26/10/2026) com o respiro do
+   modelo: o 14px de baixo era da faixa de Peso, que saiu — sem ele a barra
+   encostaria na borda do cartão. */
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa { margin-top: 10px; padding: 10px 18px 14px; }
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa .fp-bars,
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa .fp-bar-row,
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa .fp-bar-pill { min-height: 0; }
+
+/* ══ A FICHA NOVA NÃO ENTRA NO ZOOM DAS TELAS GRANDES (26/10/2026) ══════════
+   As regras de 23/10 ("mais largo e maior") dão zoom de 1.12/1.25/1.35 ao
+   cartão em telas grandes. Zoom encolhe a largura REAL: a 1920px o cartão
+   ficava com 678px de layout em vez de 1060 — e o boneco de armar, que tem
+   dois trilhos de casas ladeando o retrato, espremia a foto numa tira e as
+   condições caíam para 2 por fileira. O layout novo já é denso e aproveita a
+   tela pela largura: aqui ele fica no tamanho natural. */
+/* O zoom das telas grandes CONTINUA (ele é do projeto, 23/10). O que não
+   pode é ele roubar largura: com `max-width` em porcentagem, o cartão perdia
+   layout (1060 → 678px) e o boneco espremia a foto. Aqui o cartão mantém os
+   1060px de largura real e cresce só no visual. */
+@media (min-width: 1600px) {
+  #root .menestrel-ui .fp-page:has(.fp2-columns--duas) > .fp-card {
+    width: 1060px; max-width: 1060px;
+  }
+}
+
+/* ── Condições: SEMPRE três por fileira (como no modelo) ── */
+#root .menestrel-ui .fp2-columns--duas .fp-medalhoes {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+/* em coluna estreita o medalhão encolhe para as três caberem, em vez de
+   quebrar a fileira */
+@media (max-width: 1300px) {
+  #root .menestrel-ui .fp2-columns--duas .fp-medalhao { zoom: .92; }
+}
+
+/* O rótulo não alarga mais a casa porque não está no fluxo dela (26/10/2026):
+   ele é absoluto, dentro do vão. Por isso volta a ser UMA LINHA — a altura do
+   vão comporta uma só, e quebrar em duas faria o nome invadir a casa de
+   baixo. O nome mais longo ("Caneleiras") mede 48px a 9px: cabe na casa. */
+#root .menestrel-ui .fp3-nomr { white-space: nowrap; max-width: none; }
+/* ── O retrato nunca vira uma tira: tem piso de largura ── */
+/* O piso da coluna do retrato vive no token (--fp3-retrato); a regra antiga
+   de min-width saiu junto com o `1fr`. */
+
+/* ── Celular e tela estreita: a ficha empilha ──────────────────────────────
+   A regra antiga (`.fp2-columns`) tem menos especificidade que
+   `.fp2-columns--duas` e não vencia aqui: as duas colunas continuavam lado a
+   lado a 390px, embaralhando Status e Condições. */
+@media (max-width: 900px) {
+  #root .menestrel-ui .fp2-columns.fp2-columns--duas { grid-template-columns: 1fr; }
+  #root .menestrel-ui .fp2-columns--duas .fp2-col-vit,
+  #root .menestrel-ui .fp2-columns--duas .fp2-col-main { grid-area: auto; grid-column: auto; display: block; }
+  #root .menestrel-ui .fp2-columns--duas .fp2-vitcond-col { flex-direction: column; height: auto; }
+}
+
+/* ── O boneco no celular: o retrato vira faixa em cima dos trilhos ──
+   Lado a lado não cabe (dois trilhos de casas + foto em 330px): a foto
+   passava por cima do trilho direito. Aqui ela ocupa a primeira fileira
+   inteira e os dois trilhos dividem a segunda. */
+@media (max-width: 700px) {
+  #root .menestrel-ui .fp3-boneco { grid-template-columns: 1fr 1fr; gap: 14px 10px; }
+  #root .menestrel-ui .fp3-retrato { grid-column: 1 / -1; order: -1; min-width: 0; min-height: 200px; }
+  #root .menestrel-ui .fp3-trilho { justify-content: center; }
+}
+
+/* A casa vazia do boneco não mostra a borda padrão do <button> (outset
+   branca do navegador) — ela só tem a régua da própria casa. */
+#root .menestrel-ui .fp3-boneco .inv-slot,
+#root .menestrel-ui .fp3-boneco .inv-slot.empty { border: none; }
+
+/* ── O sino no trilho da cena (26/10/2026) ────────────────────────────────
+   Mesma pílula das pastilhas de data/local/hora — ÍCONE E PALAVRA, como
+   elas ("o botão notificação deve ter o ícone e a palavra escrita", usuário)
+   —, com o contador em brasa quando há o que ler. */
+.menestrel-ui.cdj-root .cdj-sino-slot { display: inline-flex; align-items: center; }
+.menestrel-ui.cdj-root .cdj-sino-slot:empty { display: none; }
+.menestrel-ui.cdj-root .cdj-bar.cdj-sino { position: relative; cursor: pointer; }
+.menestrel-ui.cdj-root .cdj-bar.cdj-sino.is-open { background: var(--vivo-fundo); }
+.menestrel-ui.cdj-root .cdj-bar.cdj-sino.is-open i { color: var(--vivo); }
+/* O contador volta ao CANTO (26/10/2026): ele esteve na linha enquanto o
+   sino teve a palavra "Notificações" ao lado do ícone; com a pílula de ícone
+   de novo, uma marca no canto é o único lugar onde ele cabe sem esticar o
+   botão. Fica meio de fora de propósito — é alerta, não conteúdo. */
+.menestrel-ui.cdj-root .cdj-sino-badge {
+  position: absolute; top: -3px; right: -3px;
+  min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 999px; background: var(--alerta); color: var(--sobre-vivo);
+  font-size: 10px; font-weight: 800; line-height: 17px; text-align: center;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* ── A pintura do item na JANELA (26/10/2026) ──────────────────────
+   "Ao clicar no menu de livro de regras e abrir um item, eu quero ver a
+   imagem dele dentro do modal" (usuário). A mesma faixa do painel, com os
+   cantos de cima da janela; o painel redefine o raio logo abaixo. */
+#root .menestrel-ui .ms-modal .ms-arte {
+  /* A janela é larga (800px) e o painel, estreito (360px): aqui a faixa é
+     um pouco mais alta, para o objeto ter presença no meio dela. */
+  flex: none; height: 230px; background: #160D07; overflow: hidden; display: block;
+  border-bottom: 1px solid var(--regua); border-radius: 11px 11px 0 0;
+}
+#root .menestrel-ui .ms-modal .ms-arte img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+}
+
+/* ── A pintura do item no card do painel (26/10/2026) ──────────────────────
+   Imagem grande antes do título, no mesmo chão escuro das casas do boneco
+   (#17110A, o fundo com que as pinturas foram feitas), com a régua fechando
+   embaixo. Some quando não há pintura para o tipo. */
+#root .menestrel-ui .ms-painel > .modal-em-painel .ms-arte {
+  /* #160D07 é exatamente a cor da BORDA das pinturas (medida no arquivo):
+     com `contain` sobra chão dos dois lados, e com essa cor a sobra
+     encosta na pintura sem costura à vista. */
+  flex: none; height: 190px; background: #160D07; border-radius: 0;
+  border-bottom: 1px solid var(--regua); overflow: hidden;
+  /* `display: block`, NÃO grid (26/10/2026 — "a imagem do item aparece na
+     direita tão grande que corta"): com `grid` + `place-items: center` a
+     linha do grid é dimensionada pelo CONTEÚDO, e a `height: 100%` da
+     imagem passava a resolver contra essa linha automática em vez dos
+     190px da moldura — a pintura vinha com 358px de altura e o
+     `overflow: hidden` cortava o topo e o pé dela. Com a moldura em bloco,
+     a porcentagem resolve contra uma altura definida e o `contain` centra a
+     pintura sozinho. */
+  display: block;
+}
+/* A pintura aparece INTEIRA (27/10/2026): com `cover` ela era cortada em
+   cima e embaixo. O chão escuro é o mesmo com que as artes foram pintadas,
+   então a sobra não aparece como moldura. */
+#root .menestrel-ui .ms-painel > .modal-em-painel .ms-arte img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+}
+
+/* ── A ROLAGEM É DO CARD, NÃO DA PÁGINA (26/10/2026) ───────────────────────
+   O restyle de 23/10 deixou o painel `position: static` e sem teto de
+   altura: o card crescia com o conteúdo e quem rolava era a página inteira.
+   Ele volta a acompanhar a rolagem (sticky) com teto de altura — o corpo do
+   card (.ms-body) já rola por dentro. */
+#root .menestrel-ui .bau-painel {
+  position: sticky; top: 12px; align-self: start;
+  /* O teto vem MEDIDO (--bau-painel-h, posto por useGridDimensions): é a
+     altura da grade, que já foi calculada para caber na tela. O calc() de
+     100vh fica só como rede para quem monta fora do baú — ele não sabe onde
+     o card começa, e era por isso que a página rolava em vez do card. */
+  max-height: var(--bau-painel-h, calc(100vh - 132px));
+}
+
+/* ── Ajuste fino do boneco (26/10/2026, pedido do usuário) ─────────────────
+   Casas um pouco maiores e retrato um pouco menor (ele cresce até um teto e
+   fica centrado no vão). Agora é UM NÚMERO: `--fp3-casa` move a casa, o vão
+   entre as mãos e a altura da casa da mão juntos — era aqui que as três
+   medidas se soltavam umas das outras. */
+#root .menestrel-ui .fp2-equip-wrap { --fp3-casa: 72px; }
+/* O RESPIRO DO TÍTULO (26/10/2026, pedido do usuário: "diminua o espaçamento
+   entre a palavra 'equipamentos' abaixo"). Eram 34px — 20 do `gap` do card
+   mais 14 da margem do título. Agora o card não tem vão próprio e a distância
+   é o MESMO `--fp3-vao` da grade: o título fica à mesma altura das casas em
+   relação a tudo o mais. */
+#root .menestrel-ui .fp2-equip-wrap { gap: 0; }
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp2-equip-wrap .fp-col-tit,
+#root .menestrel-ui .fp2-equip-wrap > .fp-col-tit { margin: 0 0 var(--fp3-vao); }
+
+/* A casa da mão não tem contorno — nenhuma casa do boneco tem. */
+#root .menestrel-ui .fp3-casa > .inv-slot { border: none; border-radius: 10px; }
+@media (max-width: 560px) {
+  #root .menestrel-ui .fp2-equip-wrap { --fp3-casa: 58px; --fp3-retrato: 200px; }
+}
+
+/* ── O modal da região (26/10/2026) ───────────────────────────────────────
+   Clicar numa peça do boneco abre a janela da região: as casas em cima (a
+   peça em foco com o aro vivo) e, embaixo, o nome, a descrição e o controle
+   de resistência. As ações ficam na barra do próprio modal. */
+#root .menestrel-ui .fp3-modal-regiao { display: flex; flex-direction: column; gap: 16px; }
+/* O contador "Casas N/N em uso" e o aviso da casa vazia saíram em
+   26/10/2026, e as regras deles com eles. */
+#root .menestrel-ui .fp3-modal-casa { border-radius: 8px; padding: 3px; }
+#root .menestrel-ui .fp3-modal-casa.is-foco {
+  background: var(--vivo-fundo); box-shadow: inset 0 0 0 1px var(--vivo-aro);
+}
+#root .menestrel-ui .fp3-modal-peca {
+  display: flex; flex-direction: column; gap: 8px;
+  padding-top: 14px; border-top: 1px solid var(--regua);
+}
+#root .menestrel-ui .fp3-modal-peca-nome {
+  margin: 0; font-family: var(--font-title); font-weight: 600; font-size: 18px; color: var(--tinta);
+}
+#root .menestrel-ui .fp3-modal-peca-desc {
+  margin: 0; font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2);
+  text-wrap: pretty;
+}
+#root .menestrel-ui .fp3-modal-res { align-self: flex-start; margin-top: 2px; }
+/* A oferta da casa vazia (26/10/2026): o rótulo e, abaixo, a lista do
+   sistema (.at-lista, a mesma dos atalhos) com o que do inventário cabe
+   ali. Reusa a lista em vez de desenhar outra — um gesto, um desenho. */
+#root .menestrel-ui .fp3-modal-oferta { display: flex; flex-direction: column; gap: 8px; }
+#root .menestrel-ui .fp3-modal-oferta .at-lista { max-height: 320px; overflow-y: auto; scrollbar-gutter: stable; }
+
+/* O pé do cartão como uma linha só de leitura: o rótulo com largura fixa
+   (o trilho começa sempre no mesmo lugar) e a pílula da Experiência sem o
+   respiro extra que a deixava mais alta. O 14px de baixo era da faixa de
+   Peso, que saiu em 26/10/2026 — ele fica, agora na Experiência. */
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-rot { min-width: 96px; }
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa .fp-bar-pill { padding: 0; }
+/* A RÉGUA VAI ATÉ A BORDA DA FICHA (27/10/2026, pedido do usuário: "a barra
+   acima de 'experiência' na ficha deve ir até a borda da ficha"). A faixa
+   nasce dentro do respiro de 16px do .fp2-frame, então o filete do topo dela
+   parava a 16px de cada borda do cartão — uma régua encolhida no meio da
+   moldura. A margem negativa devolve esse respiro à faixa; o padding o
+   recebe de volta por dentro, agora alinhando o rótulo com o conteúdo das
+   colunas (16px da moldura + o recuo da coluna). */
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa {
+  margin-inline: -16px;
+  padding: 9px calc(16px + var(--fp2-col-inset)) 14px;
+  min-height: 42px;
+}
+
+/* ══ IMAGENS — a galeria das pinturas, para o Mestre (26/10/2026) ═══════════
+   "Adicione a página no nosso sistema para controle do mestre, abaixo de
+   Paleta, chamado Imagens." É uma tela de Operar: a parede de molduras manda,
+   a tipografia some. Estrutura é régua (mn-quadro-cabeca), nunca cartão dentro
+   de cartão; ouro só no chip escolhido; brasa só no que falta pintar. */
+#root .menestrel-ui.ms-modal.modal-imagens, #root .menestrel-ui .ms-modal.modal-imagens {
+  width: min(1180px, calc(100vw - 32px));
+}
+#root .menestrel-ui .gi { display: flex; flex-direction: column; gap: 26px; }
+#root .menestrel-ui .gi-intro {
+  margin: -12px 0 0; max-width: 78ch;
+  font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2);
+}
+#root .menestrel-ui .gi-intro b { color: var(--tinta); font-weight: 600; }
+
+#root .menestrel-ui .gi-barra {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  position: sticky; top: -4px; z-index: 2;
+  padding: 10px 0; margin: -10px 0;
+  background: rgb(var(--chao-rgb));
+}
+#root .menestrel-ui .gi-barra .best-search { flex: 0 1 320px; }
+#root .menestrel-ui .gi-barra .best-search input { width: 100%; }
+#root .menestrel-ui .gi-chip { height: 32px; padding: 0 14px; font-size: var(--fs-sm); }
+
+#root .menestrel-ui .gi-sec { display: flex; flex-direction: column; gap: 12px; }
+#root .menestrel-ui .gi-sec-titulo {
+  font-family: var(--font-title); font-weight: 600; font-size: var(--fs-lg);
+  line-height: 1.2; color: var(--tinta); margin: 0;
+}
+#root .menestrel-ui .gi-conta { font-size: var(--fs-sm); color: var(--tinta-3); white-space: nowrap; }
+#root .menestrel-ui .gi-sec-nota {
+  margin: -4px 0 0; max-width: 80ch; font-size: var(--fs-sm); line-height: 1.55; color: var(--tinta-2);
+}
+#root .menestrel-ui .gi-sec-nota b { color: var(--tinta); font-weight: 600; }
+
+#root .menestrel-ui .gi-grade {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 16px 14px;
+}
+#root .menestrel-ui .gi-peca { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+#root .menestrel-ui .gi-moldura {
+  position: relative; display: block; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
+  background: var(--chao-celula-opaco); border: 1px solid var(--regua);
+}
+#root .menestrel-ui .gi-peca img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#root .menestrel-ui .gi-nome {
+  font-size: var(--fs-sm); font-weight: 600; line-height: 1.25; color: var(--tinta);
+  text-align: center; text-wrap: balance;
+}
+#root .menestrel-ui .gi-arq {
+  font-size: var(--fs-rotulo); letter-spacing: var(--rotulo-espaco); text-transform: uppercase;
+  color: var(--tinta-3); text-align: center;
+}
+
+#root .menestrel-ui .gi-falta { display: flex; flex-direction: column; }
+#root .menestrel-ui .gi-falta-linha { grid-template-columns: 120px minmax(0, 1fr) 48px; }
+#root .menestrel-ui .gi-falta-regiao { font-weight: 700; color: var(--alerta); }
+#root .menestrel-ui .gi-falta-nomes { color: var(--tinta-2); font-size: var(--fs-sm); line-height: 1.5; }
+/* A cauda da lista longa ("e mais 240"): conta, não nome. */
+#root .menestrel-ui .gi-falta-nomes i { color: var(--tinta-3); font-style: italic; }
+#root .menestrel-ui .gi-falta-num { color: var(--alerta); font-weight: 700; }
+
+#root .menestrel-ui .gi-nada { margin: 0; color: var(--tinta-3); font-size: var(--fs-md); }
+#root .menestrel-ui .gi-nada b { color: var(--tinta-2); }
+#root .menestrel-ui .gi-rodape {
+  margin: 0; padding-top: 18px; border-top: 1px solid var(--regua);
+  font-size: var(--fs-sm); line-height: 1.6; color: var(--tinta-3);
+}
+#root .menestrel-ui .gi-rodape code {
+  font-size: 0.94em; color: var(--tinta-2);
+  background: rgba(var(--bronze-rgb), 0.14); border-radius: 4px; padding: 1px 5px;
+}
+
+@media (max-width: 760px) {
+  /* O placar vira duas fileiras (3 + 2): com cinco células numa linha só, o
+     rótulo "EQUIPÁVEIS" era cortado pela régua da célula vizinha. */
+  #root .menestrel-ui .gi-placar { display: flex; flex-wrap: wrap; }
+  #root .menestrel-ui .gi-placar .mn-celula { flex: 1 1 30%; min-width: 92px; padding: 10px 12px; }
+  #root .menestrel-ui .gi-placar .mn-celula:nth-child(3n+1) { border-left: none; }
+  #root .menestrel-ui .gi-placar .mn-celula:nth-child(n+4) { border-top: 1px solid var(--regua-forte); }
+  #root .menestrel-ui .gi-grade { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  #root .menestrel-ui .gi-falta-linha { grid-template-columns: minmax(0, 1fr) 40px; }
+  #root .menestrel-ui .gi-falta-regiao { grid-column: 1 / -1; }
+}
+
+/* ══ JORNAL DE AVENTURAS — o mural da cidade (06/10/2026, vestido em 26/10) ══
+   "Quero criar um jornal para divulgação das aventuras que os personagens
+    podem explorar. [...] As aventuras vão estar em uma aba da cidade."
+
+   A tela nasceu funcionando e SEM PELE: as vinte classes `.jornal-*` não
+   tinham regra nenhuma, então o mural era texto solto na ficha da cidade.
+
+   O desenho é o do Quadro de Iniciativa, não um recorte de jornal de verdade:
+   o mural é uma LISTA que se lê de cima para baixo procurando um número (o
+   estágio que serve ao grupo), e quadro de linhas com régua é exatamente isso.
+   Cada anúncio é uma linha: manchete com o estágio alinhado à direita, a ficha
+   curta em células rotuladas, e o chamado em prosa por baixo. Ouro só no nome
+   da aventura — é o que está vivo no mural. */
+#root .menestrel-ui .jornal { display: flex; flex-direction: column; gap: 16px; }
+#root .menestrel-ui .jornal-vazio { font-style: italic; color: var(--tinta-3); }
+#root .menestrel-ui .jornal-lista {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column;
+}
+/* A régua separa anúncios; o último não fecha com risco solto. */
+#root .menestrel-ui .jornal-anuncio {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px 0; border-bottom: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .jornal-anuncio:first-child { padding-top: 0; }
+#root .menestrel-ui .jornal-anuncio:last-child { border-bottom: none; padding-bottom: 0; }
+
+/* ── A manchete: nome, estágio à direita, ações no fim ── */
+#root .menestrel-ui .jornal-manchete { display: flex; align-items: baseline; gap: 12px; }
+/* O ÚNICO lugar em Cinzel desta tela — 18px para cima, como manda a direção. */
+#root .menestrel-ui .jornal-nome {
+  flex: 1 1 auto; min-width: 0; margin: 0;
+  font-family: var(--font-title); font-weight: 600; font-size: var(--fs-titulo);
+  line-height: 1.2; color: var(--tinta); text-wrap: balance;
+}
+/* O estágio é o número por onde o grupo procura: rótulo discreto, valor firme
+   e tabular, para a coluna de números alinhar de linha em linha. */
+#root .menestrel-ui .jornal-estagio {
+  flex: none; display: inline-flex; align-items: baseline; gap: 6px;
+  font-family: var(--font-body); font-size: var(--fs-rotulo); font-weight: 700;
+  letter-spacing: var(--rotulo-espaco); text-transform: uppercase; color: var(--tinta-3);
+}
+#root .menestrel-ui .jornal-estagio strong {
+  font-size: var(--fs-lg); font-weight: 700; color: var(--tinta);
+  letter-spacing: 0; font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .jornal-acoes { flex: none; display: inline-flex; gap: 2px; }
+#root .menestrel-ui .jornal-acao {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
+  border: none; background: transparent; cursor: pointer;
+  color: var(--tinta-3); font-size: var(--fs-md);
+  transition: color .15s ease, background-color .15s ease;
+}
+#root .menestrel-ui .jornal-acao:hover { color: var(--tinta); background: var(--chao-celula); }
+#root .menestrel-ui .jornal-acao--perigo:hover { color: var(--alerta); background: var(--alerta-fundo); }
+
+/* ── A ficha curta: quem oferece, o que paga, o que rende ── */
+#root .menestrel-ui .jornal-ficha {
+  display: flex; flex-wrap: wrap; gap: 4px 28px; margin: 0;
+}
+#root .menestrel-ui .jornal-ficha-par { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+#root .menestrel-ui .jornal-ficha-par dt {
+  font-family: var(--font-body); font-size: var(--fs-rotulo); font-weight: 700;
+  letter-spacing: var(--rotulo-espaco); text-transform: uppercase;
+  color: var(--tinta-3); line-height: 1.2;
+}
+#root .menestrel-ui .jornal-ficha-par dd {
+  margin: 0; font-family: var(--font-body); font-size: var(--fs-md);
+  color: var(--tinta); line-height: 1.3; overflow-wrap: anywhere;
+}
+
+/* ── O chamado: prosa, e prosa quer medida de leitura ── */
+#root .menestrel-ui .jornal-inicio {
+  margin: 0; max-width: 68ch;
+  font-family: var(--font-body); font-size: var(--fs-base); line-height: 1.7;
+  color: var(--tinta-2); text-wrap: pretty;
+}
+
+/* ── O Fim: a solução, fechada por padrão (ver o cabeçalho do componente) ──
+   Nada de ouro nem de brasa aqui: não é o que está vivo no mural nem o que
+   bloqueia — é o que está GUARDADO. Daí o botão em tinta-3 e o texto num
+   chão rebaixado, que se lê como um aparte do Mestre para si mesmo. */
+#root .menestrel-ui .jornal-fim { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+#root .menestrel-ui .jornal-fim-btn {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 4px 10px 4px 6px; border-radius: 999px;
+  border: 1px solid var(--regua); background: transparent;
+  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600;
+  color: var(--tinta-3); transition: color .15s ease, border-color .15s ease;
+}
+#root .menestrel-ui .jornal-fim-btn:hover { color: var(--tinta-2); border-color: var(--regua-forte); }
+#root .menestrel-ui .jornal-fim-texto {
+  margin: 0; max-width: 68ch; padding: 12px 14px; border-radius: 10px;
+  background: rgba(0, 0, 0, .25); box-shadow: inset 0 0 0 1px var(--regua);
+  font-family: var(--font-body); font-size: var(--fs-sm); font-style: italic;
+  line-height: 1.6; color: var(--tinta-2); text-wrap: pretty;
+}
+
+/* ── Anunciar / editar ── */
+#root .menestrel-ui .jornal-novo { align-self: flex-start; }
+#root .menestrel-ui .jornal-form {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px;
+  padding: 16px; border-radius: 10px;
+  border: 1px solid var(--regua-forte); background: var(--chao-celula);
+}
+#root .menestrel-ui .jornal-campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* A prosa ocupa a faixa toda: campo de texto longo em meia largura mente
+   sobre o quanto se espera que seja escrito ali. */
+#root .menestrel-ui .jornal-campo--area { grid-column: 1 / -1; }
+#root .menestrel-ui .jornal-campo-so-mestre {
+  font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--tinta-3);
+}
+#root .menestrel-ui .jornal-form-acoes {
+  grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px;
+}
+@media (max-width: 640px) {
+  #root .menestrel-ui .jornal-form { grid-template-columns: minmax(0, 1fr); }
+  #root .menestrel-ui .jornal-manchete { flex-wrap: wrap; }
+  #root .menestrel-ui .jornal-nome { flex-basis: 100%; }
+  #root .menestrel-ui .jornal-acoes { margin-left: auto; }
+}
+
+/* A linha de uma BASE sem pintura (26/10/2026): nome, onde vive e quantos
+   itens do catálogo ela cobre. O número em brasa só quando há itens
+   esperando — base sem item nenhum não é urgência. */
+#root .menestrel-ui .gi-base-linha { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 56px; }
+#root .menestrel-ui .gi-base-nome { font-weight: 600; color: var(--tinta); }
+#root .menestrel-ui .gi-base-onde { color: var(--tinta-3); font-size: var(--fs-sm); }
+#root .menestrel-ui .gi-base-num { color: var(--alerta); font-weight: 700; }
+@media (max-width: 760px) {
+  #root .menestrel-ui .gi-base-linha { grid-template-columns: minmax(0, 1fr) 48px; }
+  #root .menestrel-ui .gi-base-onde { grid-column: 1 / -1; }
+}
+
+/* ── OS ATALHOS DA FICHA ABREM MODAL (26/10/2026) ──────────────────────────
+   "Na ficha do personagem, quando eu clico em habilidades, magias, etc, deve
+   abrir modal." A lista é a mesma; a moldura passou a ser o ModalShell do
+   sistema, no lugar da folha ancorada no botão (.at-panel, que fica para o
+   caso de alguém montar o atalho fora do trilho).
+
+   O modal vai por PORTAL para o body (ver atalhos-ficha.jsx): dentro da casa
+   dos atalhos ele herdava `pointer-events: none` e, pior, ficava preso ao
+   contexto de empilhamento do .fp-card (que tem `zoom`), aparecendo ATRÁS da
+   ficha. */
+/* A busca e a lista dentro do modal: o mesmo visual do painel, sem a moldura
+   dele (o ModalShell já traz chão, aro e respiro). */
+#root .menestrel-ui .modal-atalho .at-busca-wrap { position: relative; margin-bottom: 10px; }
+#root .menestrel-ui .modal-atalho .at-busca {
+  width: 100%; height: 34px; padding: 0 12px 0 30px;
+  font-family: var(--font-body); font-size: var(--fs-sm); color: var(--tinta);
+  background: rgba(var(--bronze-rgb),0.12); border: 1px solid transparent; border-radius: 999px;
+}
+#root .menestrel-ui .modal-atalho .at-busca::placeholder { color: var(--tinta-3); }
+#root .menestrel-ui .modal-atalho .at-busca:focus { outline: none; border-color: rgba(var(--ouro-rgb),0.45); }
+#root .menestrel-ui .modal-atalho .at-busca-wrap .busca-ic {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: var(--fs-sm); color: var(--tinta-3); pointer-events: none;
+}
+/* Toda lista que rola dentro de um modal do trilho usa a barra do sistema —
+   ver `.mn-rolagem` no alto do arquivo (27/10/2026). Aplicada aqui também
+   por seletor para alcançar as listas que ainda não levam a classe. */
+#root .menestrel-ui .modal-atalho .at-lista,
+#root .menestrel-ui .modal-atalho .amg-lista,
+#root .menestrel-ui .fp3-modal-oferta .at-lista {
+  scrollbar-width: thin; scrollbar-color: var(--regua-forte) transparent;
+}
+#root .menestrel-ui .modal-atalho .at-lista::-webkit-scrollbar,
+#root .menestrel-ui .modal-atalho .amg-lista::-webkit-scrollbar,
+#root .menestrel-ui .fp3-modal-oferta .at-lista::-webkit-scrollbar { width: 8px; height: 8px; }
+#root .menestrel-ui .modal-atalho .at-lista::-webkit-scrollbar-track,
+#root .menestrel-ui .modal-atalho .amg-lista::-webkit-scrollbar-track,
+#root .menestrel-ui .fp3-modal-oferta .at-lista::-webkit-scrollbar-track { background: transparent; }
+#root .menestrel-ui .modal-atalho .at-lista::-webkit-scrollbar-thumb,
+#root .menestrel-ui .modal-atalho .amg-lista::-webkit-scrollbar-thumb,
+#root .menestrel-ui .fp3-modal-oferta .at-lista::-webkit-scrollbar-thumb {
+  background: var(--regua-forte); border-radius: 6px;
+}
+#root .menestrel-ui .modal-atalho .at-lista {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: min(52vh, 420px); overflow-y: auto; scrollbar-gutter: stable;
+}
+/* ── A LINHA DE LISTA VALE EM QUALQUER JANELA (28/10/2026) ────────────────
+   "Ao mostrar o item do inventário que poderia ser equipado, o item vem sem
+   formatação css e fora de padrão. Principalmente quando não há mão livre."
+   (usuário)
+
+   `.at-linha` tinha estilo em DOIS escopos — o painel flutuante dos atalhos
+   (`.at-root`) e a janela deles (`.modal-atalho`) — e a oferta da casa vazia
+   nasce na janela da REGIÃO, que não é nenhum dos dois. As linhas saíam sem
+   padding, sem fundo e sem alinhamento: botão cru.
+
+   A janela da região entra no MESMO seletor, não numa terceira cópia. Os
+   valores são os da janela dos atalhos porque as duas são janela — o painel
+   flutuante segue mais apertado, que é o que cabe nele. */
+#root .menestrel-ui .modal-atalho .at-linha,
+#root .menestrel-ui .fp3-modal-oferta .at-linha {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px;
+  padding: 7px 10px; border: none; border-radius: 8px; background: none;
+  color: var(--tinta-2); font-family: var(--font-body); font-size: var(--fs-md);
+  text-align: left; cursor: pointer; transition: background .12s ease, color .12s ease;
+}
+#root .menestrel-ui .modal-atalho .at-linha:hover,
+#root .menestrel-ui .modal-atalho .at-linha:focus-visible,
+#root .menestrel-ui .fp3-modal-oferta .at-linha:not(:disabled):hover,
+#root .menestrel-ui .fp3-modal-oferta .at-linha:not(:disabled):focus-visible {
+  background: rgba(var(--ouro-rgb),0.10); color: var(--tinta); outline: none;
+}
+#root .menestrel-ui .modal-atalho .at-linha-nome,
+#root .menestrel-ui .fp3-modal-oferta .at-linha-nome { font-weight: 500; }
+#root .menestrel-ui .modal-atalho .at-linha-meta { margin-left: auto; }
+#root .menestrel-ui .modal-atalho .at-linha-meta-val {
+  font-size: var(--fs-sm); font-weight: 700; color: var(--vivo);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+/* O ícone e o texto só precisavam de regra onde o texto tem DUAS linhas — o
+   nome e, embaixo, o motivo de a peça não caber agora. Na janela dos atalhos
+   o texto é uma linha só e o `display` padrão já servia. */
+#root .menestrel-ui .fp3-modal-oferta .at-linha-ic {
+  font-size: 18px; color: var(--tinta-2); flex-shrink: 0;
+}
+/* UMA LINHA SÓ (28/10/2026, usuário: "o texto 'Precisa das duas mãos livres'
+   pode ficar na mesma linha que o nome da arma"). Era coluna — nome em cima,
+   motivo embaixo —, e a linha da peça bloqueada ficava com o dobro da altura
+   das outras, quebrando o ritmo da lista.
+
+   O nome encolhe e corta antes do motivo: o motivo é curto e é ele que diz
+   por que a linha está apagada; um nome pela metade ainda se reconhece. */
+#root .menestrel-ui .fp3-modal-oferta .at-linha-texto {
+  /* `row` escrito, e não herdado do padrão: o irmão `.at-root .at-linha-texto`
+     declara `column`, e deixar esta regra calada a tornava refém da ordem das
+     folhas. */
+  flex: 1; min-width: 0; display: flex; flex-direction: row; align-items: baseline; gap: 0;
+}
+#root .menestrel-ui .fp3-modal-oferta .at-linha-nome {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#root .menestrel-ui .modal-atalho .at-vazio { margin: 12px 0; color: var(--tinta-3); font-size: var(--fs-sm); }
+
+/* ── ATIVIDADES NA MESMA LINHA DOS VIZINHOS (27/10/2026) ──────────────────
+   "O modal que abre está desconfigurado, quero que seja igual aos demais do
+   mesmo trilho." A lista vestia a folha ancorada (.fp-status-opcoes), que
+   dentro do modal virava uma caixa solta dentro de outra. Agora é a linha do
+   sistema; o que sobra de próprio é a FILA DE TREINO embaixo do nome e o
+   realce da atividade ligada. */
+#root .menestrel-ui .modal-atalho .fp-ativ-linha { align-items: flex-start; }
+#root .menestrel-ui .modal-atalho .fp-ativ-linha .at-linha-texto {
+  display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto;
+}
+#root .menestrel-ui .modal-atalho .fp-ativ-linha .fp-treino-fila {
+  flex-basis: auto; padding: 0; width: 100%;
+}
+/* A atividade LIGADA fica em ouro — é a única da lista que está valendo. */
+#root .menestrel-ui .modal-atalho .at-linha.is-atual {
+  background: rgba(var(--ouro-rgb),0.14); color: var(--tinta);
+}
+#root .menestrel-ui .modal-atalho .at-linha.is-atual .at-linha-nome { color: var(--vivo); }
+
+/* ── AMIGOS COM A PELE DOS VIZINHOS (27/10/2026) ──────────────────────────
+   "Padronize ele." A lista de amigos tinha pele só dentro de `.amg-root` —
+   um seletor COMPOSTO na própria raiz do componente. O modal nasce por
+   portal FORA dessa raiz, então chegava cru: texto sem tamanho, linhas sem
+   respiro, botões de pacto sem forma. Aqui ela veste a mesma linha de
+   Atividades, Habilidades, Magias e Itens. */
+#root .menestrel-ui .modal-atalho .amg-lista {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: min(52vh, 420px); overflow-y: auto; scrollbar-gutter: stable;
+}
+#root .menestrel-ui .modal-atalho .amg-linha {
+  display: flex; align-items: center; gap: 10px; min-height: 40px;
+  padding: 7px 10px; border-radius: 8px;
+  color: var(--tinta-2); font-family: var(--font-body); font-size: var(--fs-md);
+  transition: background .12s ease, color .12s ease;
+}
+#root .menestrel-ui .modal-atalho .amg-linha:hover { background: rgba(var(--ouro-rgb),0.10); }
+#root .menestrel-ui .modal-atalho .amg-linha-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#root .menestrel-ui .modal-atalho .amg-linha-nome {
+  font-weight: 500; color: var(--tinta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#root .menestrel-ui .modal-atalho .amg-linha-estado { font-size: var(--fs-2xs); color: var(--tinta-3); }
+#root .menestrel-ui .modal-atalho .amg-linha-estado--selado { color: var(--vivo); }
+#root .menestrel-ui .modal-atalho .amg-linha-estado--recebido { color: #D9A56A; }
+#root .menestrel-ui .modal-atalho .amg-linha-acoes { display: inline-flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
+/* O botão de pacto: a mesma pílula de ação do sistema, em ouro. */
+#root .menestrel-ui .modal-atalho .amg-acao {
+  display: inline-grid; place-items: center; height: 30px; min-width: 30px; padding: 0 10px;
+  border-radius: 999px; border: 1px solid var(--ouro); background: var(--ouro); color: #1C140A;
+  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, opacity .12s ease;
+}
+#root .menestrel-ui .modal-atalho .amg-acao:hover { background: var(--vivo); border-color: var(--vivo); }
+#root .menestrel-ui .modal-atalho .amg-acao:disabled { opacity: .5; cursor: default; }
+/* Desfazer, recusar e a espera são recuo, não ação primária: só o aro. */
+#root .menestrel-ui .modal-atalho .amg-acao--ic { padding: 0; font-size: var(--fs-md); }
+#root .menestrel-ui .modal-atalho .amg-acao--sec {
+  background: none; border-color: rgba(var(--tinta-rgb),0.18); color: var(--tinta-2);
+}
+#root .menestrel-ui .modal-atalho .amg-acao--sec:hover {
+  background: rgba(var(--ouro-rgb),0.10); border-color: rgba(var(--ouro-rgb),0.40); color: var(--tinta);
+}
+/* A ampulheta da proposta enviada: ouro apagado, e ela balança sozinha
+   (a animação é a `amg-ampulheta`, declarada com o resto do componente). */
+#root .menestrel-ui .modal-atalho .amg-acao--pendente {
+  background: rgba(var(--ouro-rgb),0.10); border-color: rgba(var(--ouro-rgb),0.35); color: var(--ouro);
+}
+#root .menestrel-ui .modal-atalho .amg-acao--pendente .ti {
+  display: inline-block; animation: amg-ampulheta 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .modal-atalho .amg-acao--pendente .ti { animation: none; }
+}
+#root .menestrel-ui .modal-atalho .amg-erro { margin: 10px 0 0; color: var(--alerta); font-size: var(--fs-sm); }
+
+/* ══ A MESA DO JOGADOR: UM CAPÍTULO POR VEZ (26/10/2026) ════════════════════
+   "Na página 'mesa', teremos apenas um card grande com o capítulo por vez, e
+   poderá ser possível navegar nos demais capítulos." A carta deixa de ser um
+   item de índice e vira a página que se lê: uma coluna, o texto inteiro em
+   medida de leitura, e a paginação do sistema logo abaixo como o folhear. */
+#root .menestrel-ui .pjs-grid.cena-um { grid-template-columns: minmax(0, 1fr); }
+#root .menestrel-ui .cena-um .pj-card { cursor: default; }
+#root .menestrel-ui .cena-um-texto {
+  display: flex; flex-direction: column; gap: 10px; margin-top: 6px; max-width: 68ch;
+}
+#root .menestrel-ui .cena-um-texto .cena-cap-texto {
+  margin: 0; font-family: var(--font-body); font-size: var(--fs-base);
+  line-height: 1.7; color: var(--tinta-2); text-wrap: pretty;
+}
+
+/* ══ A JANELA DO ITEM À VENDA (27/10/2026) ═════════════════════════════════
+   Pedidos do usuário sobre o "Gerenciar" do item à venda: "Não precisa
+   repetir em 'características' o preço, pois ele já aparece no topo do
+   modal. O ícone da moeda não precisa de borda, vamos usar o padrão do
+   trilho, e a fonte deve ter o tamanho do conteúdo em 'vendedor' e
+   'armazena'."
+
+   1) Características sem linha nenhuma vira um título sozinho — some. (O
+      "Valor" sai pelo passeDoItem; ver 09-bestiario/bestiario.jsx.)
+   2) A moeda no passe segue a mesma regra do .inv-trilho e do
+      .loja-painel-dados: ícone solto, na cor da denominação, sem a caixinha
+      com aro — ela é do chip de atributo e, ao lado de valores que são só
+      texto, lê como um botão falso. O número passa a falar no tamanho do
+      valor da célula (--fs-lg), igual a Vendedor e Armazena. */
+#root .menestrel-ui .best-secao--lista:not(:has(li)) { display: none; }
+
+#root .menestrel-ui .item-passe .mn-celula-valor > .moeda-pills,
+#root .menestrel-ui .item-passe .mn-celula-valor > .gratis { font-size: inherit; }
+#root .menestrel-ui .item-passe .mn-celula-valor .moeda-pill-ic {
+  width: auto; height: auto; padding: 0; border: 0; border-radius: 0;
+  background: none; box-shadow: none; font-size: 18px;
+}
+#root .menestrel-ui .item-passe .mn-celula-valor .moeda-pill { gap: 7px; }
+#root .menestrel-ui .item-passe .mn-celula-valor .moeda-pill-nome,
+#root .menestrel-ui .item-passe .mn-celula-valor .moeda-pill-qtd { font: inherit; color: inherit; }
+
+/* ── O BOTÃO DO PAINEL DA LOJA COM RESPIRO (27/10/2026) ─────────────────────
+   "No card de visualização de item, o botão gerenciar está muito colado e
+   sem espaçamento para baixo." Eram 16px acima (o vão da coluna) e 20px
+   abaixo — e, com descrição longa, nem isso: o card tem teto de altura
+   (--bau-painel-h) e overflow:hidden, então o botão sumia cortado embaixo.
+   Agora o corpo preenche o card, a DESCRIÇÃO é quem rola por dentro (a
+   mesma lição do .ms-body em 26/10) e o botão fica no pé, sempre à vista,
+   com 24px de cada lado dele. */
+#root .menestrel-ui .loja-painel-corpo { flex: 1 1 auto; min-height: 0; padding-bottom: 24px; }
+#root .menestrel-ui .loja-painel-desc { min-height: 0; overflow-y: auto; }
+/* 8px sobre o vão de 16px da coluna = os mesmos 24px de baixo. */
+#root .menestrel-ui .loja-painel-botao { margin-top: 8px; }
+
+/* ── O PASSE QUEBRA EM FILEIRAS QUANDO NÃO CABE (27/10/2026) ────────────────
+   Achado ao conferir a janela do item à venda: com SEIS células (Vendedor,
+   Preço, Quantidade, Resistência, Armazena, Ocupa) a soma dá 774px numa
+   janela de 640px, e o flex encolhia cada célula abaixo do próprio rótulo.
+   Rótulo é palavra só — "QUANTIDADE" não quebra —, então ele vazava por
+   cima da régua da célula vizinha.
+
+   A solução é a que o celular já usava desde 22/10: a régua vira o VÃO de
+   1px entre as células, e não a borda de uma delas. Assim a fileira quebra
+   sozinha quando precisa, a última célula de cada fileira estica, e o fio
+   aparece igual entre colunas e entre linhas. Quem cabe numa fileira só
+   continua idêntico ao que era. */
+#root .menestrel-ui .item-passe {
+  flex-wrap: wrap; gap: 1px; background: var(--regua-forte); overflow: hidden;
+}
+#root .menestrel-ui .item-passe .mn-celula { background: var(--chao-celula-opaco); border-left: none; }
+/* E o piso que faz a fileira quebrar em vez de esmagar: nenhuma célula fica
+   mais estreita que o próprio rótulo. (.mn-celula nasce com min-width: 0 —
+   é ele que autorizava o esmagamento.) O rótulo da célula de texto é curto,
+   e o valor dela quebra em qualquer letra, então ela continua cedendo
+   primeiro. Vale também no celular, onde as células de 92px encolhiam. */
+#root .menestrel-ui .item-passe .mn-celula { min-width: min-content; }
+
+/* ── O BONECO DO BICHO: TRÊS FILEIRAS, SEM MÃOS (27/10/2026) ────────────────
+   "O número de slots são 12, então 6 de cada lado em 3 linhas." O personagem
+   tem uma fileira de MÃOS embaixo, e por isso o retrato dele desce duas
+   linhas de grade (`grid-row: 1 / span 2`). O bicho não tem mãos: as duas
+   casas de carga (Alforje e Atrelado) entraram nos trilhos, e o retrato
+   volta a ocupar UMA linha — senão sobra uma fileira vazia debaixo dele. */
+#root .menestrel-ui .fp3-boneco--bicho .fp3-retrato { grid-row: 1; }
+
+/* ── A FAIXA DE CARGA DO BICHO (27/10/2026) ─────────────────────────────────
+   "Adicione também uma barra para mostrar o peso que o animal está
+   carregando." É a faixa da Experiência de novo, logo abaixo dela: as duas
+   medidas que valem para o bicho inteiro, no pé do cartão. Sem a régua de
+   cima (quem separa o cartão da faixa já é a da Experiência) e com o
+   preenchimento em bronze, para o ouro continuar sendo só da Experiência.
+
+   Cheia, a faixa fala em brasa: sobrecarga é coisa que BLOQUEIA, e é esse o
+   único papel do --alerta no sistema. */
+/* ── AS DUAS FAIXAS SÃO UMA SÓ (27/10/2026) ─────────────────────────────────
+   "O espaçamento está estranho." A faixa de Carga herdava o padding e a
+   margem da faixa de Experiência — 9px em cima mais 10 de margem — e ficava
+   boiando 33px abaixo dela, como um bloco solto no pé do cartão. Pior: o que
+   eu havia escrito para ela NÃO valia. A regra de cima usa `:has()`
+   (`.fp-page:has(.fp2-columns--duas) .fp-xp-faixa`) e soma quatro classes de
+   especificidade; a minha, com duas, perdia calada.
+
+   As duas são UMA faixa de rodapé: a régua entra uma vez, no topo da
+   primeira, e a Carga encosta na Experiência. Daí a especificidade espelhada
+   aqui — é o preço de corrigir uma regra que usa `:has()`.
+
+   A cor: bronze no preenchimento, para o ouro continuar sendo só da
+   Experiência; cheia, a faixa fala em brasa, que no sistema é a cor do que
+   bloqueia. */
+#root .menestrel-ui .fp-carga-faixa,
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-carga-faixa {
+  border-top: none; margin-top: 0; padding-top: 0; padding-bottom: 14px;
+  min-height: 0;
+}
+/* E a Experiência, que agora tem vizinha embaixo, fecha o próprio respiro: os
+   14px dela separariam duas barras de 4px por três vezes a altura delas. */
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa:has(+ .fp-carga-faixa) {
+  padding-bottom: 6px;
+}
+#root .menestrel-ui .fp-carga-faixa .fp-bar-fill {
+  background: linear-gradient(90deg, rgba(138,110,64,.55), var(--tinta-3));
+}
+#root .menestrel-ui .fp-carga-faixa.is-over .fp-bar-fill {
+  background: linear-gradient(90deg, rgba(162,59,47,.65), var(--alerta));
+}
+#root .menestrel-ui .fp-carga-faixa.is-over .fp-xp-rot,
+#root .menestrel-ui .fp-carga-faixa.is-over .fp-bar-num { color: var(--alerta); }
+
+/* ── A COLUNA DO BICHO NÃO VAZA PELO PÉ DO CARTÃO (27/10/2026) ──────────────
+   "As barras de experiência e peso estão com um bug visual." O painel de
+   informações do bicho (.fp2-combat-col) tem `height: 100%` — e 100% é da
+   COLUNA INTEIRA, não do que sobrou dela. Como ele é o terceiro filho, nascia
+   já abaixo do Arreamento e do Armas e esticava a altura toda a partir dali:
+   medido, 878px de painel começando aos 514 de coluna, ou seja 400px para
+   fora da moldura, atravessando as faixas de Experiência e de Carga por baixo.
+   Era essa a linha que cruzava as duas barras.
+
+   Na ficha do personagem isso nunca apareceu porque lá a coluna da direita
+   não tem este painel — ela acabava no card Armas (que saiu em 27/10; a pilha
+   flex abaixo continua valendo, e é ela que dá o vão agora que a coluna do
+   bicho é Arreamento + informações).
+
+   A coluna vira uma pilha flex: o vão é o `gap` (um número só, no lugar das
+   margens que eu havia posto peça a peça) e o painel de informações fica com
+   `flex: 1 1 auto`, ocupando o que sobra em vez da coluna inteira. A rolagem
+   interna dele continua de pé — é ela que segura um bicho com muita
+   habilidade sem esticar o cartão. */
+#root .menestrel-ui .fp-animais .fp2-columns--duas .fp2-col-main {
+  display: flex; flex-direction: column; gap: 12px; min-height: 0;
+}
+#root .menestrel-ui .fp-animais .fp2-combat-col { height: auto; flex: 1 1 auto; min-height: 0; }
+
+/* ── AS PÁGINAS DO COMPANHEIRO (27/10/2026) ─────────────────────────────────
+   "Adicione dentro do menu lateral esquerdo 'companheiros' […] os menus
+   'identificação, conhecimento e inventário' da criatura. Com isso,
+   removeremos da ficha as informações de 'identidade, derivadas, etc'." As
+   três páginas usam o mesmo recuo das páginas do personagem — elas são
+   irmãs, e a ficha do bicho ficou com o que é visual. */
+#root .menestrel-ui .fp-animais-parte { padding: 4px 0 0; }
+
+/* O inventário do bicho: duas listas — arreamento e carga — no quadro de
+   linhas do sistema (.mn-quadro). A casa de cada peça é a coluna "Onde", na
+   ordem do boneco: quem olhou o bicho encontra aqui a mesma sequência.
+   O cartão é desenhado aqui porque `.fp2-panel` nasce transparente e só
+   ganha pele dentro da moldura da ficha — esta é uma PÁGINA. */
+#root .menestrel-ui .anim-inv-secao {
+  border: 1px solid var(--regua-forte); border-radius: 12px;
+  background: var(--chao-celula); padding: 16px 16px 8px;
+}
+#root .menestrel-ui .anim-inv-secao + .anim-inv-secao { margin-top: 12px; }
+#root .menestrel-ui .anim-inv-vazio { margin: 4px 0 8px; color: var(--tinta-3); font-size: var(--fs-md); }
+#root .menestrel-ui .anim-inv-quadro { list-style: none; margin: 8px 0 0; padding: 0; }
+#root .menestrel-ui .anim-inv-linha {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) max-content 64px;
+  align-items: center; gap: 12px; padding: 8px 0;
+  border-bottom: 1px solid var(--regua);
+}
+#root .menestrel-ui .anim-inv-linha:last-child { border-bottom: none; }
+#root .menestrel-ui .anim-inv-quadro .mn-quadro-cab {
+  padding-top: 0; border-bottom: 1px solid var(--regua-forte);
+  font-size: var(--fs-rotulo, 11px); font-weight: 800;
+  letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase;
+  color: var(--tinta-3);
+}
+#root .menestrel-ui .anim-inv-quadro .mn-quadro-cab > :last-child,
+#root .menestrel-ui .anim-inv-peso { text-align: right; font-variant-numeric: lining-nums tabular-nums; }
+#root .menestrel-ui .anim-inv-ic {
+  width: 40px; height: 40px; display: grid; place-items: center;
+  border-radius: 8px; background: var(--chao-celula-opaco); overflow: hidden;
+}
+#root .menestrel-ui .anim-inv-ic img { width: 100%; height: 100%; object-fit: contain; }
+#root .menestrel-ui .anim-inv-ic .ti { font-size: 20px; color: var(--tinta-2); }
+#root .menestrel-ui .anim-inv-nome { font-size: var(--fs-md); color: var(--tinta); min-width: 0; }
+#root .menestrel-ui .anim-inv-nome small { color: var(--tinta-3); font-size: var(--fs-sm); }
+#root .menestrel-ui .anim-inv-onde {
+  font-size: var(--fs-rotulo, 11px); font-weight: 800;
+  letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase; color: var(--tinta-3);
+}
+#root .menestrel-ui .anim-inv-peso { font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2); }
+/* A faixa de Carga fecha a página, como fecha o cartão da ficha. */
+#root .menestrel-ui .anim-inv > .fp-carga-faixa {
+  margin-top: 12px; padding: 10px 0 0; border-top: 1px solid var(--regua-forte);
+}
+
+/* ── A COLUNA DE AMIGOS SAI DA FRENTE DO MENU (27/10/2026) ──────────────────
+   "Quando eu passo o mouse sob os ícones do menu lateral à esquerda, ele
+   expande, depois quando eu passo o mouse sob o texto, eu só consigo clicar
+   no menu quando o mouse está sob o ícone e não sob o texto."
+
+   Os dois estavam certos sozinhos e errados juntos. O menu recolhido mede
+   72px e, aberto, cresce para 232 POR CIMA da página (margem negativa, para o
+   conteúdo não andar). Os cards de amigos moram em `left: 80px` — logo à
+   direita da coluna de ícones, ou seja, exatamente na faixa que o menu passa
+   a ocupar. E `.amg-root` é z-index 71 contra os 60 da barra, com
+   `pointer-events: auto` nos cards: eles ficam por cima e comem o clique.
+
+   Medido no navegador, sobre um item de menu aberto: no ícone o clique chega
+   ao item; a 110px do início dele chega ao `.amg-amigo`; passados os 132px do
+   card, volta ao item. Era essa faixa morta no meio do texto.
+
+   O menu é a navegação principal e tem de ganhar. Em vez de apagar os amigos
+   (eles são o alvo do arraste de item do inventário), a coluna DESLIZA os
+   mesmos 160px que o menu cresce, no mesmo tempo e na mesma curva: as duas
+   coisas se movem como uma só, e os cards seguem clicáveis ao lado do menu
+   aberto. Abaixo de 769px não há o que resolver — lá o menu é uma folha. */
+@media (min-width: 769px) {
+  .menestrel-ui.amg-root .amg-fab,
+  .menestrel-ui.amg-root .amg-amigo,
+  .menestrel-ui.amg-root .amg-panel {
+    transition: left .2s cubic-bezier(.16,1,.3,1);
+  }
+  #root:has(.mc-sidebar.is-expandida) .menestrel-ui.amg-root,
+  #root:has(.mc-sidebar:focus-within) .menestrel-ui.amg-root,
+  #root:has(.mc-sidebar.is-menu-aberto) .menestrel-ui.amg-root { --amg-esq: 240px; }
+}
+
+/* ── A CASA DO PAINEL É A CASA DA GRADE (27/10/2026) ────────────────────────
+   "No card de visualização de item na loja/inventário, o tamanho do slot deve
+   ser igual (ou próximo) ao slot de loja/inventário." Media 52px contra os 78
+   da casa — dois terços —, e o glifo dentro dela seguia os 26px fixos. O
+   token `--inv-casa` é o mesmo que a grade usa e acompanha o ajuste dela:
+   escolhendo-o, as duas medidas não voltam a se soltar uma da outra.
+
+   O glifo cresce na mesma proporção da grade (52% da casa, a regra do
+   .inv-bag-grid--slots), e a pintura preenche a casa inteira — é a mesma
+   peça do slot, pelo mesmo ItemIcone (ver loja.jsx). */
+#root .menestrel-ui .loja-painel-ic {
+  width: var(--inv-casa, 78px); height: var(--inv-casa, 78px);
+  font-size: calc(var(--inv-casa, 78px) * 0.52);
+  overflow: hidden;
+}
+#root .menestrel-ui .loja-painel-ic .inv-card-arte {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+}
+
+/* ── O FANTASMA DO ARRASTE (27/10/2026) ─────────────────────────────────────
+   "Quando eu arrasto um item em loja/inventário a imagem fica gigante."
+   `.inv-drag-ghost` não tinha regra NENHUMA neste arquivo — e era portado
+   para o `<body>`, onde o prefixo `#root .menestrel-ui` não alcança. Sem
+   regra, duas coisas quebravam de uma vez: a pintura saía no tamanho natural
+   do arquivo (240px) e o `left/top` não colava, porque nem o `position:
+   fixed` chegava. O portal mudou para dentro de `.menestrel-ui` (ver
+   07-inventario/inventario.jsx, a mesma correção que o PortalTooltip já
+   tinha); aqui vem a pele.
+
+   A casa do fantasma é a casa da grade (--inv-casa): o que se arrasta tem o
+   tamanho do que se largou. Centrado no ponteiro, inclinado de leve e sem
+   receber evento nenhum — `elementFromPoint` precisa enxergar o slot DEBAIXO
+   dele para saber onde o item vai cair. */
+#root .menestrel-ui .inv-drag-ghost {
+  position: fixed; z-index: 9400; pointer-events: none;
+  width: var(--inv-casa); height: var(--inv-casa);
+  /* Só o centramento no ponteiro: sem giro nem escala, para o que está na
+     mão medir o mesmo que a casa de onde saiu e a casa onde vai cair. */
+  transform: translate(-50%, -50%);
+  display: grid; place-items: center;
+  border-radius: 10px; border: 1px solid var(--vivo);
+  background: color-mix(in srgb, rgb(var(--bronze-rgb)) 14%, var(--p-fundo));
+  box-shadow: 0 10px 28px rgba(0,0,0,.55);
+  opacity: .92;
+}
+#root .menestrel-ui .inv-drag-ghost .inv-card-ic {
+  display: grid; place-items: center; width: 100%; height: 100%;
+  font-size: calc(var(--inv-casa) * 0.52); color: var(--tinta);
+}
+#root .menestrel-ui .inv-drag-ghost .inv-card-arte {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+}
+
+/* ── A MOEDA NA LINHA DE VALOR (27/10/2026) ─────────────────────────────────
+   O "Valor" em Características passou a mostrar a pílula no lugar da frase
+   ("Valor: 1 moeda de prata" → "Valor: 🪙 1", pedido do usuário). Com ela
+   veio a caixinha de 26px com aro, que é a pele do chip de atributo — e aí a
+   MESMA janela mostrava o Preço com o ícone solto (corrigido de manhã, "o
+   ícone da moeda não precisa de borda, vamos usar o padrão do trilho") e o
+   Valor com ele emoldurado, duas linhas abaixo.
+
+   Mesma regra do trilho, do painel da loja e do passe: ícone solto, na cor da
+   denominação. Numa LINHA de dados — rótulo à esquerda, valor à direita — a
+   caixinha lê como um botão falso. */
+#root .menestrel-ui .best-stat-val .moeda-pill-ic {
+  width: auto; height: auto; padding: 0; border: 0; border-radius: 0;
+  background: none; box-shadow: none; font-size: 16px;
+}
+#root .menestrel-ui .best-stat-val .moeda-pill { gap: 6px; }
+#root .menestrel-ui .best-stat-val .moeda-pill-qtd { font: inherit; color: inherit; }
+
+/* ══ O CARD ENERGIAS É A FOLGA DA COLUNA (27/10/2026) ═══════════════════════
+   "Remova o card 'armas' das fichas de personagem e animal. Com isso, vamos
+   ganhar um certo espaço e então diminua o card de 'energias' para ficar
+   alinhado." (usuário)
+
+   Com o Armas fora, a coluna da direita acaba no pé do Equipamentos — medido
+   no navegador, 748px contra 963 da esquerda: 215px de buraco embaixo do
+   boneco e as duas colunas terminando em alturas diferentes.
+
+   O que prendia a esquerda nos 963 era este `min-height`. Os tubos já são
+   `flex: 1 1 auto` — eles CRESCEM para ocupar o que a coluna der —, então o
+   piso de 300px não era uma altura desejada, era um chão alto demais: ele
+   impedia o card de encolher quando a coluna encolhia. Baixando o piso para
+   120px o Energias passa a ser a folga da coluna: cresce quando o lado do
+   boneco é alto, encolhe quando é baixo, e os dois pés batem sozinhos em
+   qualquer altura — sem número mágico casado com o conteúdo de hoje.
+
+   Medido: com o piso em 120, os tubos param em 160px e Condições fecha em
+   837, o mesmo pixel em que fecha o Equipamentos. */
+#root .menestrel-ui .fp-gemas { min-height: 120px; }
+
+/* ── O CARTÃO DO BONECO FECHA COM A COLUNA DA ESQUERDA (27/10/2026) ─────────
+   O mesmo pedido, do outro lado. Na ficha do personagem o Energias encolhe
+   até a coluna da direita e os dois pés batem; na do bicho não dá — o
+   Arreamento tem três fileiras contra as quatro mais as mãos do dono, e
+   medido ficou 410px contra 598 da esquerda. Nem o Energias no piso cobre
+   188px de diferença: Condições sozinho já é mais alto que a coluna inteira
+   da direita.
+
+   Então quem cede é o outro lado: o cartão do boneco ocupa a coluna
+   (`flex: 1 1 auto`) e o boneco se centra nele (`margin-block: auto`). A
+   sobra deixa de ser um degrau no canto da moldura e vira ar dentro de um
+   cartão — repartido em cima e embaixo do boneco, não empilhado no pé.
+
+   Nasceu escopado em `.fp-animais`, quando no personagem o cartão ainda era
+   o mais alto dos dois. Deixou de ser: as pedras da Energia pedem um pouco
+   mais de altura que os tubos pediam, e sobraram 27px de degrau também na
+   ficha do dono. A regra vale para as duas — é a mesma moldura. */
+#root .menestrel-ui .fp2-columns--duas .fp2-col-main {
+  display: flex; flex-direction: column; min-height: 0;
+}
+#root .menestrel-ui .fp2-columns--duas .fp2-col-main > .fp2-equip-wrap { flex: 1 1 auto; }
+#root .menestrel-ui .fp2-columns--duas .fp2-equip-wrap .fp3-boneco { margin-block: auto; }
+
+/* ══ A FICHA NÃO PRECISA DE BARRA DE ROLAGEM (27/10/2026) ═══════════════════
+   "Por que está aparecendo barra de rolagem vertical? Remova, não está sendo
+   necessário o uso dela." (usuário)
+
+   Medido no navegador, no console completo: o cartão tem 913px e debaixo
+   dele havia 120 de nada — 40 da margem do `.fp-page` e 80 de um
+   `paddingBottom` embutido no `.mc-content` (shell.jsx). Com os 70px que a
+   barra de data/clima reserva em cima, a página pedia 1103px de tela para um
+   cartão de 913. Em notebook (≈950 de área útil) sobrava rolagem para
+   percorrer vazio.
+
+   Os 80px continuam valendo para todo o resto do app — eles guardam o pé das
+   listas longas e, no celular, a barra de abas de baixo. O que muda é que
+   agora são CSS, e por isso a ficha pode pedir outro: ela fecha com o mesmo
+   respiro que tem em cima. */
+#root .menestrel-ui .mc-content { padding-bottom: 80px; }
+#root .menestrel-ui .mc-content:has(.fp2-columns--duas) { padding-bottom: 20px; }
+#root .menestrel-ui .fp-page:has(.fp2-columns--duas) { margin-bottom: 0; }
+
+/* E o ZOOM passa a olhar a altura também (27/10/2026, mesma correção).
+   O degrau de 1.12 não tinha piso de altura nenhum: numa tela larga e baixa
+   — 1600×860, que é notebook — o cartão crescia para 818px e voltava a não
+   caber. Os números saem da conta, não do gosto: o cartão mede 730px sem
+   zoom, e a página pede `730 × zoom + 20 de respiro + 70 da barra de
+   data/clima`. Daí 910 para 1.12 e 1010 para 1.25 (era 1000, três pixels
+   curtos — e três pixels bastam para nascer uma barra). O 1.35 pede 1076 e
+   já exigia 1150. Abaixo disso o cartão fica no tamanho natural, que cabe a
+   partir de 820px de tela. */
+@media (min-width: 1600px) and (max-height: 909px) {
+  #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1; width: auto; max-width: 100%; }
+}
+
+/* ══ AS PEDRAS DA ENERGIA (27/10/2026) ══════════════════════════════════════
+   "É possível transformá-las em pedras (gemas preciosas) animadas? Seria uma
+   pedra rubi, uma pedra esmeralda e uma pedra safira." (usuário)
+
+   O talhe é SVG (ver FichaGemas em 11-ficha/ficha.jsx); aqui mora a luz. A
+   regra de ouro da animação neste sistema vale também para pedra: ela fala do
+   DADO. O halo respira na amplitude de `--n` (a fração da energia), de modo
+   que a pedra cheia arde e a vazia fica inerte; o claro-escuro varre só a
+   parte VIVA; e os estalos nascem nas junções das facetas. Nada disso pisca,
+   nada gira: é pedra, não enfeite de árvore.
+
+   `--n` e `--gema-brilho` vêm do componente, por elemento. */
+/* Sem piso aqui de propósito: o `min-height` das pedras é o que deixa o
+   cartão de Energias encolher até a coluna da direita, e esse número mora
+   num lugar só — no bloco do alinhamento, mais acima. */
+#root .menestrel-ui .fp-gemas {
+  flex: 1 1 auto; display: grid; grid-auto-flow: column;
+  grid-auto-columns: 1fr; gap: 4px; padding: 0 8px;
+}
+#root .menestrel-ui .fp-gema {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 0; gap: 10px; border-radius: 10px; outline: none;
+}
+#root .menestrel-ui .fp-gema.is-editable { cursor: pointer; }
+#root .menestrel-ui .fp-gema:focus-visible { box-shadow: 0 0 0 2px var(--vivo); }
+#root .menestrel-ui .fp-gema-peca {
+  flex: 0 1 auto; min-height: 0; display: flex;
+  aspect-ratio: 100 / 124; max-width: 100%; max-height: calc(100% - 26px);
+}
+#root .menestrel-ui .fp-gema-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+#root .menestrel-ui .fp-gema-nome {
+  flex: none; font-size: 11px; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--tinta-2);
+}
+
+/* A pedra pousada no pano. */
+#root .menestrel-ui .fp-gema-sombra { fill: #000; opacity: .34; filter: blur(3px); }
+
+/* O halo: a pedra acesa queima o ar em volta. O raio e a força saem de `--n`,
+   então uma pedra em 1/10 mal brilha e uma cheia ilumina o cartão. */
+/* O halo não tem laço próprio (27/10/2026): ele respirava em 4,6s enquanto a
+   batida corria em outro compasso, e dois laços de durações primas entre si
+   batem fora de passo o tempo todo — era parte do "parece que reiniciou".
+   Agora o halo é constante e quem pulsa é a batida, sozinha. */
+#root .menestrel-ui .fp-gema-viva {
+  filter: drop-shadow(0 0 calc(5px * var(--n, 0)) var(--gema-brilho));
+}
+
+/* As arestas do talhe: um fio de luz nas quinas, que é o que separa faceta de
+   faceta quando a pedra está apagada. */
+#root .menestrel-ui .fp-gema-arestas path,
+#root .menestrel-ui .fp-gema-arestas line {
+  fill: none; stroke: rgba(255, 248, 232, .17); stroke-width: .7; stroke-linejoin: round;
+}
+#root .menestrel-ui .fp-gema-arestas .fp-gema-cinturao {
+  stroke: rgba(255, 248, 232, .38); stroke-width: 1.6;
+}
+
+/* A TRINCA da Física em agonia: o personagem está morrendo e a pedra racha. */
+#root .menestrel-ui .fp-gema-trinca {
+  fill: none; stroke: #FFC2A8; stroke-width: 1.5; stroke-linecap: round;
+  opacity: .8; filter: drop-shadow(0 0 3px #C23A18);
+  animation: gema-trinca 3.2s ease-in-out infinite;
+}
+@keyframes gema-trinca { 0%, 100% { opacity: .45; } 50% { opacity: .95; } }
+
+
+/* ── A PEDRA PINTADA (27/10/2026) ───────────────────────────────────────────
+   Com a pintura no lugar das facetas vetoriais, "apagada" e "acesa" deixam de
+   ser duas paletas e viram dois tratamentos da MESMA imagem: a de baixo sem
+   cor e quase sem luz, a de cima inteira. É mais honesto do que pintar duas
+   vezes — é literalmente a mesma pedra, com e sem fogo dentro. */
+#root .menestrel-ui .fp-gema-svg.is-pintada .fp-gema-morta {
+  filter: saturate(.2) brightness(.42) contrast(1.08);
+}
+/* A Física morrendo: a pedra perde o sangue e vira brasa fria. */
+#root .menestrel-ui .fp-gema-agonia {
+  filter: saturate(.42) brightness(.5) sepia(.25) hue-rotate(-12deg);
+}
+
+/* ── CADA PALETA TEM O SEU JEITO DE DECAIR (27/10/2026) ────────────────────
+   "Eu quero escoamento para a paleta couro e ouro e maré para a paleta ferro
+   e brasa." (usuário, depois de ver os cinco modos em preview/gemas.html)
+
+   É aqui que a escolha acontece — as duas formas são montadas sempre pelo
+   componente, e estas três linhas apagam a que não vale. Trocar a paleta no
+   menu do usuário troca o jeito da pedra decair no mesmo quadro, sem estado
+   novo em lugar nenhum.
+
+   `:not([data-paleta="ferro"])` e não `[data-paleta="couro"]`: couro é o
+   padrão e vale também quando o atributo ainda não foi escrito (primeira
+   visita, antes do perfil chegar do servidor). */
+:root[data-paleta="ferro"] #root .menestrel-ui .fp-gema-so-couro { display: none; }
+:root:not([data-paleta="ferro"]) #root .menestrel-ui .fp-gema-so-ferro { display: none; }
+
+/* ESCOAMENTO (Couro e Ouro) — a luz escorre: a superfície ondula e uma
+   corrente desce por dentro da pedra. As GOTAS que escapavam pelo pé saíram
+   em 27/10 ("não tinha reparado que tem gotas caindo das gemas, remova as
+   gotas" — usuário); o que carregava a honestidade do movimento passou para
+   a corrente, que corre mais depressa quanto MENOS energia resta
+   (`calc(5.4s - 3.2s * var(--n))`). Pedra cheia escoa devagar; pedra em 1/10
+   corre. Movimento constante numa pedra parada diria que o valor está caindo
+   quando não está — assim ele diz que está se esvaindo, e está. */
+#root .menestrel-ui .fp-gema-escoa {
+  transition: d .5s ease;
+  animation: gema-escoa-onda 4.2s linear infinite;
+}
+/* UM PERÍODO INTEIRO (27/10/2026). Eram 37px — meio período —, e a cada
+   volta a crista caía onde estava o vale: a onda dava um tranco. O número
+   tem de ser o mesmo GEMA_ONDA_PERIODO que desenha a senoide em ficha.jsx;
+   é o par que faz o laço fechar invisível. */
+@keyframes gema-escoa-onda {
+  from { transform: translateX(0); }
+  to   { transform: translateX(74px); }
+}
+#root .menestrel-ui .fp-gema-corrente {
+  animation: gema-corrente calc(5.4s - 3.2s * var(--n, 0)) linear infinite;
+}
+/* Meia altura do retângulo — e o desenho do gradiente repete exatamente duas
+   vezes nele (ver o <linearGradient> em ficha.jsx), de modo que o fim do laço
+   é idêntico ao começo. */
+@keyframes gema-corrente {
+  from { transform: translateY(0); }
+  to   { transform: translateY(124px); }
+}
+
+/* MARÉ (Ferro e Brasa) — a luz se acumula embaixo. A fronteira é reta, e é
+   por isso que ela precisa da linha d'água: sem o brilho na superfície, pedra
+   com linha reta no meio lê como copo pela metade, não como pedra. */
+#root .menestrel-ui .fp-gema-mare { transition: y .5s ease, height .5s ease; }
+#root .menestrel-ui .fp-gema-linha-dagua {
+  filter: blur(1.6px); opacity: .9;
+  transition: y .5s ease;
+  animation: gema-mare-respira 3.8s ease-in-out infinite;
+}
+@keyframes gema-mare-respira { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
+
+/* A BATIDA, que vai por cima das duas ("o pulso pode ir com qualquer uma sim"
+   — usuário). O ritmo é o dado: cheia, batida larga e calma; quase vazia,
+   curta e apressada, que é como um coração em pânico. */
+#root .menestrel-ui .fp-gema-viva.is-pulso {
+  animation: gema-pulsa calc(1.1s + 1.8s * var(--n, 0)) ease-in-out infinite;
+}
+@keyframes gema-pulsa {
+  0%, 100% { opacity: calc(1 - .3 * var(--n, 0)); }
+  46%      { opacity: 1; }
+}
+
+/* Pedra é pedra: com movimento reduzido ela fica parada, e nada se perde —
+   o nível, a cor e o talhe já contam tudo. UM bloco só para as gemas, de
+   propósito: espalhar isto em dois lugares é como se esquece metade. */
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .fp-gema-viva.is-pulso,
+  #root .menestrel-ui .fp-gema-trinca,
+  #root .menestrel-ui .fp-gema-escoa,
+  #root .menestrel-ui .fp-gema-corrente,
+  #root .menestrel-ui .fp-gema-linha-dagua { animation: none; }
+  #root .menestrel-ui .fp-gema-escoa,
+  #root .menestrel-ui .fp-gema-mare,
+  #root .menestrel-ui .fp-gema-linha-dagua { transition: none; }
+}
+
+/* ══ A JANELA DE USAR — UMA PELE PARA AS CINCO (28/10/2026) ════════════════
+   Nasceu como a janela de Atividades em 27/10 ("ao clicar, adicione um modal
+   explicando o que aquela atividade faz") e virou o molde de todas as outras
+   em 28/10: "um novo layout usando impeccable mais próximo do modal de
+   atividades", para magias, habilidades, técnicas e itens.
+
+   UMA FAMÍLIA SÓ, e não duas iguais com nomes diferentes. A proposta nasceu
+   na prévia com classes `uso-*` e Atividades estava em produção com
+   `fp-ativ-*`, com os MESMOS números nos dois lugares — e dois lugares com os
+   mesmos números divergem no primeiro ajuste. `mn-janela-*` é o nome comum;
+   o que restou com nome de atividade é só o que é de atividade mesmo.
+
+   A ORDEM da janela, que é o contrato visual:
+
+     título     ícone + nome, sem seta (quem volta é o rodapé)
+     frase      o que a coisa é — 16px/1.7, 62ch, tinta-2
+     nota       a consequência, mesma letra em tinta-3
+     quadro     rótulo à esquerda, valor à direita, réguas de bronze
+     escolha    rótulo em caixa-alta + pílulas, quando há o que escolher
+     rodapé     [Voltar] [verbo]
+
+   UM CORPO SÓ no texto (27/10, usuário: "cada texto está de um tamanho,
+   padronize"): 16px em tudo o que é frase, e 20px só nos DÍGITOS do quadro,
+   que é valor e não texto. Quem separa frase de nota é a TINTA. */
+#root .menestrel-ui .mn-janela-corpo { display: flex; flex-direction: column; gap: 18px; }
+
+/* O `max-width: 62ch` saiu em 28/10/2026, pelo mesmo motivo da descrição do
+   item: a janela já tem teto próprio, e o segundo teto só deixava um vão à
+   direita. */
+#root .menestrel-ui .mn-janela-frase,
+#root .menestrel-ui .mn-janela-detalhe {
+  margin: 0;
+  font-size: var(--fs-md, 16px); line-height: 1.7; color: var(--tinta-2);
+}
+#root .menestrel-ui .mn-janela-detalhe { margin-top: 2px; }
+#root .menestrel-ui .mn-janela-detalhe strong { color: var(--tinta); font-weight: 600; }
+/* A nota é consequência da frase, não um segundo assunto: cola nela e cede
+   um degrau de tinta. */
+#root .menestrel-ui .mn-janela-nota { margin-top: -10px; color: var(--tinta-3); }
+
+/* ── O QUADRO ──────────────────────────────────────────────────────────── */
+#root .menestrel-ui .mn-janela-quadro { margin: 0; }
+#root .menestrel-ui .mn-janela-linha {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  min-height: 40px; padding: 8px 2px;
+  border-top: 1px solid var(--regua);
+}
+#root .menestrel-ui .mn-janela-linha:first-child { border-top: 1px solid var(--regua-forte); }
+#root .menestrel-ui .mn-janela-linha dt { min-width: 0; color: var(--tinta); font-size: var(--fs-md, 16px); }
+#root .menestrel-ui .mn-janela-linha dt small {
+  display: block; margin-top: 1px; color: var(--tinta-3);
+}
+#root .menestrel-ui .mn-janela-linha dd {
+  margin: 0; flex: none; color: var(--tinta);
+  font-size: var(--fs-lg, 20px); font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+/* Valor que é PALAVRA, não número: sem o corpo de 20px, que é dos dígitos. */
+#root .menestrel-ui .mn-janela-linha.is-texto dd { font-size: var(--fs-md, 16px); font-weight: 600; }
+
+/* ── A ESCOLHA ─────────────────────────────────────────────────────────── */
+#root .menestrel-ui .mn-janela-grupo,
+#root .menestrel-ui .mn-janela-escolha { display: flex; flex-direction: column; gap: 8px; }
+#root .menestrel-ui .mn-janela-grupo { gap: 2px; }
+/* Mais ar acima do rótulo do que abaixo: ele pertence ao que vem depois. */
+#root .menestrel-ui .mn-janela-grupo .mn-rotulo,
+#root .menestrel-ui .mn-janela-escolha .mn-rotulo { margin: 0 0 4px; }
+
+#root .menestrel-ui .mn-janela-pilulas { display: flex; flex-wrap: wrap; gap: 8px; }
+#root .menestrel-ui .mn-janela-pilula {
+  height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid transparent;
+  background: var(--couro-pilula, rgba(138,110,64,.12)); color: var(--tinta);
+  font: 500 var(--fs-sm, 15px) var(--font-body); cursor: pointer;
+  font-variant-numeric: lining-nums tabular-nums;
+  transition: background .15s, border-color .15s, color .15s;
+}
+#root .menestrel-ui .mn-janela-pilula:hover { border-color: var(--regua-forte); }
+#root .menestrel-ui .mn-janela-pilula[aria-pressed="true"] {
+  background: var(--vivo-fundo); border-color: var(--vivo-aro); color: var(--vivo);
+}
+/* Bloqueado continua legível e diz por quê — nunca some. */
+#root .menestrel-ui .mn-janela-pilula:disabled {
+  background: var(--chao-celula); color: var(--tinta-3); cursor: not-allowed; border-color: transparent;
+}
+#root .menestrel-ui .mn-janela-pilula:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+/* DISCO: o rótulo de um dígito só (o nível da magia). Com padding lateral a
+   pílula fica mais larga que alta e o número sai num oval — 28/10/2026,
+   usuário: "o círculo dos níveis devem ser círculos perfeitos". */
+#root .menestrel-ui .mn-janela-pilula--disco {
+  width: 36px; padding: 0; display: inline-grid; place-items: center;
+}
+
+/* ── A DIFICULDADE EM CÍRCULOS DE COR (28/10/2026) ─────────────────────────
+   "Fácil amarelo, Médio laranja, Difícil vermelho, Muito Difícil azul,
+   Absurdo cinza. O tooltip continua mostrando o texto." (usuário)
+
+   Os tons saem da paleta onde ela já tem a cor: ouro de lei, cobre, sangue e
+   bronze apagado. Só o azul é novo — a paleta não tinha um — e entra no tom
+   do índigo da Resistência Mágica.
+
+   O ESCOLHIDO não se marca pela cor: ela já está ocupada dizendo qual é a
+   dificuldade. Marca-se pelo aro de ouro e pelo disco maior, que é a regra do
+   sistema — ouro no que está vivo. E cor sozinha não informa: o nome vive no
+   balão e no aria-label. */
+#root .menestrel-ui .mn-janela-cores { display: flex; flex-wrap: wrap; gap: 10px; }
+#root .menestrel-ui .mn-janela-cor {
+  width: 36px; height: 36px; padding: 0; border-radius: 999px; cursor: pointer;
+  border: 2px solid transparent; background: none;
+  display: grid; place-items: center;
+  transition: border-color .15s;
+}
+#root .menestrel-ui .mn-janela-cor-disco {
+  width: 20px; height: 20px; border-radius: 999px; background: var(--cor);
+  /* Anel escuro por dentro: separa o disco do couro sem uma borda clara, que
+     faria as cinco cores parecerem a mesma. */
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.45);
+  transition: width .15s, height .15s;
+}
+#root .menestrel-ui .mn-janela-cor:hover { border-color: var(--regua-forte); }
+#root .menestrel-ui .mn-janela-cor[aria-checked="true"] { border-color: var(--vivo); }
+#root .menestrel-ui .mn-janela-cor[aria-checked="true"] .mn-janela-cor-disco { width: 26px; height: 26px; }
+#root .menestrel-ui .mn-janela-cor:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+
+/* ── O GASTO DE KARMA (magia de dano) ──────────────────────────────────── */
+#root .menestrel-ui .mn-janela-gasto { display: flex; align-items: center; gap: 12px; }
+/* O seletor mede o próprio conteúdo: esticado, ele joga o teto para a linha
+   de baixo, partido em dois. */
+#root .menestrel-ui .mn-janela-gasto .fp-pop-stepper { flex: none; width: 132px; }
+#root .menestrel-ui .mn-janela-gasto-de {
+  flex: none; white-space: nowrap;
+  font-size: var(--fs-sm, 15px); color: var(--tinta-3);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* O motivo de a ação estar bloqueada, na própria linha — brasa explica. */
+#root .menestrel-ui .mn-janela-falta { margin: 0; font-size: var(--fs-sm, 15px); color: var(--alerta); }
+
+/* A cadência da exceção, colada ao nome da barra. É de ATIVIDADE mesmo: só
+   lá uma linha do quadro corre num compasso diferente das outras. */
+#root .menestrel-ui .fp-ativ-cadencia {
+  margin-left: 6px; font-size: var(--fs-md, 16px); color: var(--tinta-3);
+}
+
+/* A SETA DO TÍTULO SAIU (27/10/2026, usuário: "remova o botão de voltar do
+   lado do nome"). Quem volta agora é o rodapé: o "Cancelar" virou "Voltar",
+   e duas portas para o mesmo lugar — uma no título, outra no pé — eram uma
+   a mais. */
+
+/* ── O SELO DE ATIVIDADE FICOU SÓ O ÍCONE (27/10/2026) ──────────────────────
+   "No card do personagem, no badge de atividade, deixe apenas o ícone e tira
+   o texto 'dormir'." (usuário)
+
+   Sem a palavra ao lado, a pílula alongada vira uma MOEDA: mesma altura e
+   largura, ícone centrado. O `gap` e o padding lateral, que existiam só para
+   separar o ícone do texto, saem junto — senão sobraria uma pílula com ar de
+   cada lado de um ícone sozinho. */
+#root .menestrel-ui .pj-atividade-selo {
+  gap: 0; padding: 0; width: 24px; height: 24px; justify-content: center;
+  font-size: 14px;
+}
+
+/* ── A BARRA DE BUSCAR/CRIAR PRECISA DE AR (27/10/2026) ─────────────────────
+   "Logado como mestre, na página de personagens, o botão de buscar e criar
+   personagem está muito colado do topo." (usuário)
+
+   A conta documentada acima — 40 de margem do .mc-main mais 30 de padding do
+   .pjs = 70, o mesmo das outras páginas — está certa, e mesmo assim a barra
+   encosta: os 70px só a levam até ONDE O CABEÇALHO FIXO ACABA. Nas outras
+   páginas o que começa ali é um cartão, com borda e respiro próprios, e o
+   olho lê um vão; aqui começa uma fileira de controles solta, que encosta no
+   cabeçalho sem nada entre os dois.
+
+   Os 30px do .pjs continuam intactos — eles são do brilho do selo de
+   evolução, não do topo da página. O ar novo é da barra, e só dela: 20px, o
+   respiro de página do sistema (--xl). */
+/* …E SÓ NAS PÁGINAS SEM O TRILHO DA MESA (28/10/2026, usuário: "na página
+   cena a distância entre o trilho de data e o trilho de busca está grande").
+
+   Os 20px acima resolveram a página de PERSONAGENS do Mestre, onde não há
+   trilho de data: a barra encostava no cabeçalho. Mas `.pjs` é o mesmo
+   invólucro dos capítulos da CENA — e lá o trilho de data está na tela,
+   flutuando logo acima. Os 20px, somados ao vão que o trilho já deixa,
+   viraram um buraco.
+
+   O que separa os dois casos não é a página, é se o trilho está ou não na
+   tela — e ele é irmão do `.mc-main`, dentro do mesmo `.cm-root`. Quando não
+   existe, a barra ganha o respiro; quando existe, ele já foi dado. */
+/* ── O RESPIRO É DO TRILHO, NÃO DE CADA PÁGINA (28/10/2026) ───────────────
+   "Há várias páginas onde os botões encostam no topo, você pode revisar e
+   arrumar isso? Acho que uma boa saída é ter um trilho só." (usuário)
+
+   O trilho único JÁ EXISTE: `.cartoes-barra` é a mesma fileira em doze
+   páginas — convites, histórias, personagens, inventário, loja, estoque,
+   livro de regras, batalha, diário. O que não era único era o RESPIRO: a
+   classe base não tinha margem de topo, e cada página lembrava (ou esquecia)
+   de dar a sua. `.batalha-trilho` e `.mc-acoes-ficha` estavam com zero, e por
+   isso encostavam; `.pjs` tinha a sua, e por isso não.
+
+   Consertar página a página é o que vinha sendo feito, e é por isso que o
+   defeito voltava noutro lugar. Agora a regra é uma: o trilho que ABRE a
+   página (`:first-child`) traz o seu próprio respiro, e quem o usa não
+   precisa saber disso.
+
+   A EXCEÇÃO CONTINUA SENDO O TRILHO DA MESA. Quando `.cdj-root` está na tela
+   (data · local · hora · clima), ele já deixa o vão — somar os 20 faria o
+   buraco que o usuário apontou na Cena em 28/10 de manhã.
+
+   A GUARDA É NO `body`, E ISSO É CONSERTO DE UM ERRO MEU. Na primeira volta
+   escrevi `.menestrel-ui.cm-root:not(:has(.cdj-root))`, e `.cm-root` NÃO é a
+   raiz da página: é a camada flutuante da Central de Mensagens. A página mora
+   em `.mc-root`. O seletor não casava com nada — ou seja, aquela "correção"
+   da Cena funcionou por acidente, apagando o respiro de toda a aplicação em
+   vez de só da Cena. É por isso que o trilho de Personagens voltou a encostar
+   no topo. `body:has()` é a forma que o projeto já usa (ver a batalha, onde
+   ela esconde o trilho da mesa) e não depende de onde cada raiz está.
+
+   E `#fp-acoes-ficha` fica de fora: é o trilho do boneco, dentro do cartão da
+   ficha, e ali o respiro é o padding do cartão. */
+body:not(:has(.cdj-root)) #root .menestrel-ui .cartoes-barra:first-child,
+body:not(:has(.cdj-root)) #root .menestrel-ui .mc-acoes-ficha:not(#fp-acoes-ficha) {
+  margin-top: 20px;
+}
+
+/* O cadeado do convite usado (27/10/2026): mesma casa da lixeira, para a
+   fileira não dançar de um cartão para o outro — mas em tinta discreta e sem
+   cursor de clique. Não é botão apagado, é estado. */
+#root .menestrel-ui .convite-cartao-botao.is-travado {
+  color: var(--tinta-3); cursor: default; background: transparent; border-color: transparent;
+}
+
+/* ── A OFERTA QUE NÃO CABE AGORA (28/10/2026) ─────────────────────────────
+   A casa vazia da região oferece o que do inventário cabe nela — e o que não
+   cabe NESTE momento (um arco de duas mãos com o escudo na outra) continua na
+   lista, desligado e com o porquê. Some da lista seria pior: o jogador iria
+   procurar no Inventário uma arma que está no bolso dele. */
+#root .menestrel-ui .fp3-modal-oferta .at-linha.is-bloqueado {
+  opacity: .55; cursor: not-allowed;
+}
+#root .menestrel-ui .fp3-modal-oferta .at-linha-motivo {
+  flex: none; white-space: nowrap;
+  font-size: var(--fs-sm, 15px); color: var(--alerta);
+}
+/* O ponto que separa o nome do motivo mora no CSS, não no texto: espaço no
+   começo de um elemento em linha colapsa, e o nome saía colado no ponto. */
+#root .menestrel-ui .fp3-modal-oferta .at-linha-motivo::before {
+  content: '·'; margin: 0 .45em; color: var(--tinta-3);
+}
+
+/* ── A CASA QUE NÃO TEM O QUE OFERECER (28/10/2026) ───────────────────────
+   "Quando não há itens no inventário, não deve ser possível clicar no slot
+   para procurar itens." (usuário) — a casa vazia de uma região sem peça e sem
+   candidato vira leitura. Sem cursor de clique e sem o realce do hover; a
+   pintura fantasma continua, porque ela diz o que a região É. */
+#root .menestrel-ui .inv-slot.is-oca { cursor: default; }
+#root .menestrel-ui .inv-slot.is-oca:hover { border-color: var(--regua-forte); background-image: inherit; }
+
+/* ── O +N DA SAGRAÇÃO ACOMPANHA O ITEM (28/10/2026) ───────────────────────
+   "A informação que a arma está +5, etc, precisa acompanhar o item para o
+   personagem ver que a arma dele foi melhorada." (usuário)
+
+   O número já existia no balão da casa, no balão da ficha e na linha Sagração
+   da janela — e os três pedem uma AÇÃO: passar o mouse ou abrir. O selo fica
+   na casa, sem hover e sem clique, no canto de baixo à esquerda: o alto é da
+   faísca de mágico e dos selos de venda, e o canto oposto é do X de desequipar.
+
+   Ouro, porque é bônus vivo; `tabular-nums` para o +5 e o +9 ocuparem o mesmo.
+   `pointer-events: none` para não roubar o clique da casa. */
+#root .menestrel-ui .inv-selo-bonus {
+  position: absolute; left: 4px; bottom: 3px; z-index: 3; pointer-events: none;
+  padding: 0 5px; border-radius: 999px;
+  background: rgba(var(--chao-rgb), .72);
+  color: var(--vivo); font: 800 var(--fs-xs, 13px) var(--font-body);
+  font-variant-numeric: lining-nums tabular-nums; line-height: 1.5;
+}
+
+/* ── O SELETOR DA SAGRAÇÃO, NO TAMANHO DO DE QUANTIDADE (28/10/2026) ──────
+   "O trilho de sagração está muito grande, deixe com o mesmo estilo do
+   seletor de número de quantidade na loja." (usuário)
+
+   `.det-bonus-pilula` forçava `width: 200px`, e com isso o seletor ocupava a
+   linha inteira enquanto o de quantidade, ao lado, media o próprio conteúdo.
+   Sem a largura, ele é o `.fp-pop-stepper` de sempre; só o número continua em
+   ouro, que é o que diz que há bônus. */
+#root .menestrel-ui .det-bonus-sag { margin-left: auto; }
+
+/* ── O VALOR DA LOJA VESTE A MESMA PELE (28/10/2026) ──────────────────────
+   "Use esse mesmo estilo no seletor de valor da loja." (usuário)
+
+   O campo era um retângulo de formulário (`.diario-input`) com o botão da
+   moeda redondo dentro — duas linguagens na mesma peça. Agora a caixa é a
+   pílula do seletor de quantidade: mesmo fundo, mesmo aro, mesmo raio cheio.
+   O botão da moeda já era o `.fp-step-btn` do stepper, então ele só precisou
+   parar de brigar com a borda que sumiu. */
+/* A PÍLULA COM O BOTÃO DENTRO É DO CAMPO DE ÍCONE (28/10/2026) ───────────
+   Esta era a pele do preço, de quando o input fazia as vezes da pílula e a
+   moeda morava dentro dele. O preço virou stepper e a moeda saiu para o lado
+   (ver o bloco no fim do arquivo); quem continua sendo "input com botão
+   dentro" é o campo de ícone do editor de catálogo, e só ele usa isto. */
+#root .menestrel-ui .campo-icone .campo-preco-input {
+  height: 40px; padding: 0 42px 0 14px; border-radius: 999px;
+  border: 1px solid var(--regua-forte); background: var(--p-fundo);
+  color: var(--tinta); font: 400 var(--fs-sm) var(--font-body);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .campo-icone .campo-preco-moeda { right: 4px; }
+#root .menestrel-ui .campo-icone .campo-preco-input:focus {
+  outline: none; border-color: var(--vivo-aro, rgba(var(--ouro-rgb),.5));
+}
+/* As setinhas nativas do number dentro de uma pílula ficam espremidas contra
+   o raio — e o valor se digita, não se incrementa de um em um. */
+#root .menestrel-ui .campo-preco-input::-webkit-outer-spin-button,
+#root .menestrel-ui .campo-preco-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#root .menestrel-ui .campo-preco-input { -moz-appearance: textfield; appearance: textfield; }
+
+/* ── UMA FAMÍLIA DE SELOS NA CASA DO ITEM (28/10/2026) ────────────────────
+   "Gostei da forma que você fez. Use o mesmo padrão para faísca, selos de
+   venda e equipados." (usuário, sobre o selo +N da Sagração)
+
+   O que fazia o +N funcionar não era a cor: era o FUNDO. A casa do item é
+   quase sempre uma pintura, e glifo solto sobre pintura depende da sorte do
+   pixel que estiver atrás. A faísca e os selos resolviam isso com
+   `text-shadow` — um halo que borra em fundo claro e desaparece em fundo
+   dourado. A pastilha escura resolve sempre, e de quebra dá à casa uma
+   gramática só: tudo o que o item "é" mora numa pastilha.
+
+   O que cada uma diz continua sendo a COR, que é o que não se repete:
+     ouro      — vivo: equipado, montado, elo, mágico
+     pergaminho— travado: à venda (o item não é seu para usar)
+
+   O halo sai junto: com fundo próprio ele só suja a leitura.
+
+   `.mag/.liq/.nor` ficam de fora — são selos de INFORMAÇÃO do catálogo, com
+   aro e fundo próprios, e não estado da peça. */
+#root .menestrel-ui .inv-selo-bonus,
+#root .menestrel-ui .inv-pill.eq,
+#root .menestrel-ui .inv-pill.inv-pill--venda,
+#root .menestrel-ui .inv-faisca {
+  display: inline-flex; align-items: center; justify-content: center;
+  /* 24px, não 21 (28/10/2026): a pastilha de UM símbolo tem que medir igual em
+     todas, e quem chegava a 24 por conta do conteúdo era a etiqueta de venda
+     (glifo de 14px + os 5px de cada lado). Com o piso em 21 o E e o M, que são
+     letras estreitas, ficavam três pixels mais magros que a vizinha — a família
+     deixava de ser família justo onde ela aparece lado a lado. O `padding`
+     continua valendo para as pastilhas de texto (+5, +7). */
+  min-width: 24px; height: 24px; width: auto; padding: 0 5px;
+  border: 0; border-radius: 999px;
+  background: rgba(var(--chao-rgb), .72);
+  text-shadow: none;
+  font-size: var(--fs-xs, 13px); line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+  pointer-events: none;
+}
+#root .menestrel-ui .inv-pill.eq,
+#root .menestrel-ui .inv-faisca { color: var(--vivo); }
+#root .menestrel-ui .inv-pill.inv-pill--venda { color: #D9C9A8; }
+#root .menestrel-ui .inv-selo-bonus { color: var(--vivo); font-weight: 800; }
+/* O ícone dentro da pastilha mede o mesmo em todas — antes o E vinha com
+   16px e a etiqueta com 13, e as duas pastilhas sairiam de tamanhos
+   diferentes lado a lado. */
+#root .menestrel-ui .inv-pill.eq .ti,
+#root .menestrel-ui .inv-pill.inv-pill--venda .ti,
+#root .menestrel-ui .inv-faisca .ti { font-size: 14px; line-height: 1; }
+
+/* A GRADE COMPACTA encolhe tudo junto: casa de 78px com três pastilhas de
+   21px ficaria mais pastilha que item. */
+#root .menestrel-ui .inv-bag-grid--slots .inv-selo-bonus,
+#root .menestrel-ui .inv-bag-grid--slots .inv-pill.eq,
+#root .menestrel-ui .inv-bag-grid--slots .inv-pill.inv-pill--venda,
+#root .menestrel-ui .inv-bag-grid--slots .inv-faisca {
+  min-width: 19px; height: 19px; padding: 0 4px; font-size: var(--fs-2xs);
+}
+#root .menestrel-ui .inv-bag-grid--slots .inv-pill.eq .ti,
+#root .menestrel-ui .inv-bag-grid--slots .inv-pill.inv-pill--venda .ti,
+#root .menestrel-ui .inv-bag-grid--slots .inv-faisca .ti { font-size: 12px; }
+
+/* Lado a lado no alto da casa, com o mesmo vão do +N embaixo. */
+#root .menestrel-ui .inv-card-pills { gap: 3px; }
+
+/* A LETRA, NÃO O GLIFO (28/10/2026, duas vezes o mesmo pedido do usuário: "o
+   'E' está muito pequeno, ao invés de usar ícone, use a letra" e "quando o item
+   for mágico, use a letra M ao invés do ícone").
+
+   `ti-letter-e-small` e `ti-sparkles` são glifos desenhados com folga própria
+   dentro da caixa: na pastilha de 24px sobrava ar e o símbolo saía menor que a
+   etiqueta de venda ao lado. A letra do corpo do texto não tem essa folga.
+
+   16px, e não os 14 do ícone, porque letra e ícone não se medem pela mesma
+   régua: do em de 14px uma maiúscula ocupa só a altura de caixa-alta, ~10px,
+   enquanto o glifo preenche a caixa inteira. 16px põe a maiúscula na mesma
+   altura de tinta do desenho vizinho. */
+#root .menestrel-ui .inv-pill-letra {
+  font: 800 16px var(--font-body); line-height: 1; letter-spacing: .02em;
+}
+#root .menestrel-ui .inv-bag-grid--slots .inv-pill-letra { font-size: 13px; }
+
+/* ── A SAGRAÇÃO COM O SELETOR DA LOJA (28/10/2026) ────────────────────────
+   "O trilho de 'sagração' está muito grande na visualização de itens do
+   inventário, deixe com o mesmo estilo do seletor de número de 'quantidade'
+   na loja." (usuário)
+
+   A linha já vestia o `.fp-pop-stepper` do sistema desde a primeira passada —
+   o que continuava grande era a LINHA. `.best-stat--largo` empilha (rótulo em
+   cima, valor ocupando o card inteiro), e isso é certo para prosa: foi o que
+   o usuário pediu para a descrição e para Efeitos/Protege. Com um seletor
+   dentro, o mesmo empilhamento esticava o stepper por 390px — um trilho.
+
+   `.best-stat--controle` é a exceção nomeada: a linha volta a ser linha, o
+   rótulo à esquerda, o seletor à direita e do tamanho do conteúdo. O teto de
+   260px é o mesmo de `.loja-compra-valor .fp-pop-stepper`, o seletor de
+   quantidade da loja. */
+#root .menestrel-ui .best-stat--linha.best-stat--largo.best-stat--controle,
+#root .menestrel-ui .modal-best-detalhe:not(.modal-criatura) .best-stat--linha.best-stat--largo.best-stat--controle {
+  flex-direction: row; align-items: center; justify-content: space-between; gap: 10px;
+}
+#root .menestrel-ui .best-stat--controle > .best-stat-val,
+#root .menestrel-ui .modal-best-detalhe:not(.modal-criatura) .best-stat--linha.best-stat--largo.best-stat--controle > .best-stat-val {
+  flex: 0 0 auto; width: auto; text-align: right;
+}
+#root .menestrel-ui .best-stat--controle > .best-stat-lbl { flex: 1 1 auto; }
+/* O stepper mede o conteúdo, com o mesmo teto do seletor da loja. */
+/* 160px, a largura do seletor de QUANTIDADE do painel da loja (28/10/2026).
+   A Sagração vive na mesma situação: lista de rótulo à esquerda e controle à
+   direita, dentro de um painel lateral — não na grade larga do modal de
+   compra, que é onde o seletor vai a 260. Mesma situação, mesma medida. */
+#root .menestrel-ui .det-bonus-sag { width: 160px; max-width: 100%; }
+/* `.det-bonus-val` é só o gancho do número dentro do stepper — a pele é a do
+   `.fp-pop-stepper-label`, senão o bônus sairia em ouro e em negrito enquanto
+   a quantidade, do lado, sai em tinta e peso normal. */
+#root .menestrel-ui .fp-pop-stepper .det-bonus-val {
+  min-width: 0; font-weight: inherit; color: inherit;
+}
+
+
+/* ── OS DOIS CONTROLES DO PAINEL DA LOJA MEDEM IGUAL (28/10/2026) ─────────
+   Quantidade e Preço moram na mesma lista `.loja-painel-dados`, um embaixo
+   do outro. Com larguras diferentes — um medindo o conteúdo, o outro o que
+   sobrasse — a coluna da direita ficava serrilhada. */
+#root .menestrel-ui .loja-painel-dados .campo-preco { width: 160px; }
+#root .menestrel-ui .loja-painel-dados .campo-preco-input { width: 100%; }
+
+/* ── DAR ITEM — a janela do Mestre (28/10/2026) ───────────────────────────
+   "Quero uma opção de dar item." (usuário)
+
+   Busca em cima, lista no meio com rolagem própria, e o rodapé fixo com
+   quantidade e o botão. A lista rola dentro da janela porque o catálogo tem
+   mais de mil itens: sem teto, o rodapé — que é onde se confirma — sairia da
+   tela a cada busca larga. */
+#root .menestrel-ui .dar-item-busca { width: 100%; margin: 0 0 14px; }
+#root .menestrel-ui .dar-item-lista {
+  list-style: none; margin: 0 0 16px; padding: 0;
+  max-height: 46vh; overflow-y: auto;
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .dar-item-lista > li { border-bottom: 1px solid var(--regua-forte); }
+#root .menestrel-ui .dar-item-linha {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 10px 8px; border: 0; background: none; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-sm); color: var(--tinta-2);
+  text-align: left;
+}
+#root .menestrel-ui .dar-item-linha:hover { background: rgba(var(--bronze-rgb),.12); color: var(--tinta); }
+/* Ouro no ESCOLHIDO, que é o que está vivo na janela. */
+#root .menestrel-ui .dar-item-linha.is-on { background: rgba(var(--ouro-rgb),.10); color: var(--vivo); }
+#root .menestrel-ui .dar-item-linha .ti { font-size: 18px; flex: none; }
+#root .menestrel-ui .dar-item-nome { flex: 1 1 auto; min-width: 0; }
+#root .menestrel-ui .dar-item-grupo { flex: none; font-size: var(--fs-xs); color: var(--tinta-3); }
+#root .menestrel-ui .dar-item-vazio { margin: 24px 0; text-align: center; color: var(--tinta-3); }
+#root .menestrel-ui .dar-item-rodape { display: flex; align-items: center; gap: 12px; }
+/* O rótulo mede a si mesmo (28/10/2026): com `flex: 1 1 auto` ele esticava e
+   empurrava o seletor para o meio do rodapé. */
+#root .menestrel-ui .dar-item-rotulo { flex: 0 0 auto; color: var(--tinta-2); font-size: var(--fs-sm); }
+/* É o BOTÃO que toma a sobra, e por isso ele é o único na direita. */
+#root .menestrel-ui .dar-item-confirmar { margin-left: auto; }
+/* A mesma medida dos outros seletores de número em painel. */
+#root .menestrel-ui .dar-item-qtd { width: 160px; flex: none; }
+
+/* ── A JANELA DO RECIPIENTE (28/10/2026, 2ª volta) ────────────────────────
+   A primeira versão mandava a JANELA medir as casas, contando
+   `ceil(armazena)` delas. Estava errado na raiz: `armazena` é o PESO que o
+   recipiente suporta, e quantos itens cabem depende do `ocupa` de cada um —
+   não há número fixo de casas a mostrar.
+
+   O pedido era o contrário, e foi feito três vezes: as CASAS é que se
+   ajustam ao modal. A janela tem o tamanho de sempre; a grade enche a
+   largura dela com casas de 78px e fica centrada. */
+#root .menestrel-ui .modal-recipiente .cont-grade { margin-inline: auto; }
+#root .menestrel-ui .modal-recipiente .cont-grade .inv-bag-grid--slots { justify-content: center; }
+
+
+/* ── O PREÇO É UM STEPPER, A MOEDA É O VIZINHO (28/10/2026) ───────────────
+   "O seletor de preço está diferente porque ele tem o seletor de moeda, mas é
+   possível colocar o seletor de moeda fora, mas do lado, e o seletor de preço
+   ter o + e -." (usuário)
+
+   Era a última diferença de verdade entre os dois seletores da loja: o preço
+   tinha um botão a mais DENTRO do pill, justamente onde a quantidade tem o
+   "+". Agora o pill é o `.fp-pop-stepper` de sempre, com o número digitável
+   no meio, e a moeda é um botão irmão na mesma fileira.
+
+   `:not(.campo-icone)` porque o campo de ícone do editor continua sendo um
+   input com o botão dentro — lá a posição absoluta é a forma certa. */
+#root .menestrel-ui .campo-preco:not(.campo-icone) {
+  position: relative; display: flex; align-items: center; gap: var(--inv-casa-vao);
+}
+#root .menestrel-ui .campo-preco-stepper { flex: 1 1 auto; min-width: 0; }
+#root .menestrel-ui .campo-preco:not(.campo-icone) .campo-preco-moeda {
+  position: static; transform: none; flex: 0 0 auto;
+}
+/* O número mora no rótulo do stepper: sem caixa, sem aro, sem fundo — a
+   pílula em volta já é a caixa. Centrado, como o número da quantidade. */
+#root .menestrel-ui .campo-preco-stepper .fp-pop-stepper-label { padding: 0; }
+#root .menestrel-ui .campo-preco-stepper .campo-preco-input {
+  width: 100%; min-width: 0; height: 100%; padding: 0;
+  border: 0; background: none; outline: none; box-shadow: none;
+  color: inherit; font: inherit; text-align: center;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* ── AS CASAS SE AJUSTAM AO MODAL, E FICAM CENTRADAS (28/10/2026, 2ª volta)
+   "A quantidade de itens depende do peso, não do número de casas. Eu pedi
+   para você ajustar o número de casas ao modal" + "centralizar os slots
+   dentro da algibeira". (usuário)
+
+   Duas regras antigas disputavam esta grade: uma esticava as colunas
+   (`minmax(--inv-casa * 0.9, 1fr)`, casa de 72 contra os 78 do baú) e a
+   minha, da volta anterior, fixava a largura pela capacidade. As duas saem.
+
+   `auto-fill` com a casa FIXA é o que atende o pedido ao pé da letra: cabem
+   tantas casas quantas couberem no modal, do tamanho da casa do baú, e
+   `justify-content: center` deixa a sobra dividida igual dos dois lados. */
+#root .menestrel-ui .best-detail .det-recipiente > .det-grade-recipiente,
+#root .menestrel-ui .det-grade-recipiente {
+  /* `auto-fit` e não `auto-fill` (29/10/2026): com faixa de tamanho FIXO, o
+     auto-fit encolhe a zero as faixas que sobram, e aí o `center` centra as
+     casas que existem de verdade. Com auto-fill as faixas vazias continuam
+     medindo 78px e empurravam as três casas da algibeira para a esquerda. */
+  grid-template-columns: repeat(auto-fit, var(--inv-casa));
+  justify-content: center; justify-items: stretch;
+  width: auto; max-width: 100%;
+}
+#root .menestrel-ui .best-detail .det-recipiente > .det-grade-recipiente .inv-card,
+#root .menestrel-ui .best-detail .det-recipiente > .det-grade-recipiente .inv-slot-ghost,
+#root .menestrel-ui .det-grade-recipiente .inv-card,
+#root .menestrel-ui .det-grade-recipiente .inv-slot-ghost {
+  width: var(--inv-casa); height: var(--inv-casa);
+}
+
+/* ── AS DUAS PÍLULAS DO PAINEL MEDEM IGUAL, E A MOEDA FICA NA COLUNA DE
+      FORA (28/10/2026) ──────────────────────────────────────────────────
+   Com a moeda ao lado, a caixa do preço passou a ser "pílula + botão" dentro
+   da mesma largura de 160px da quantidade — e a pílula do preço saía com 124.
+   Mesma forma, larguras diferentes: de novo a diferença que o usuário vem
+   apontando.
+
+   Agora a célula do valor tem a largura das DUAS coisas (a pílula e a coluna
+   da moeda), e as duas pílulas medem os mesmos 160. Elas começam e terminam
+   no mesmo x; a moeda mora na faixa seguinte, que na linha da quantidade
+   fica vazia. */
+#root .menestrel-ui .loja-painel-dados dd {
+  width: calc(160px + 30px + var(--inv-casa-vao));
+  justify-content: flex-start;
+}
+#root .menestrel-ui .loja-painel-dados .estoque-step,
+#root .menestrel-ui .loja-painel-dados .campo-preco-stepper { width: 160px; flex: 0 0 auto; }
+#root .menestrel-ui .loja-painel-dados .campo-preco { width: 100%; }
+
+/* ── O MEDIDOR DIZ CASAS E PESO (29/10/2026) ──────────────────────────────
+   "Vamos definir 4 tipos de quantidades de slots" + os dois limites valem
+   (decisão do usuário). A linha do Conteúdo passa a ter os dois números: as
+   casas à esquerda, a barra do peso e o peso à direita. Com um só deles, a
+   recusa do outro chegaria sem explicação. */
+#root .menestrel-ui .det-recip-casas {
+  flex: 0 0 auto; font-size: var(--fs-sm); font-weight: 700; color: var(--tinta);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .det-recip-casas > span { font-weight: 500; color: var(--tinta-3); }
+/* Cheio é cheio por qualquer um dos dois: o aro de brasa já existia para o
+   peso e agora vale para a casa também (ver `cheio` em DetalhesItemModal). */
+#root .menestrel-ui .det-recip-medida[data-cheio] .det-recip-casas { color: var(--alerta); }

@@ -83,10 +83,18 @@ describe('fila nas contas', () => {
 describe('ATIVIDADE_DA_CLASSE e Praticando', () => {
   it('cada classe treina na sua atividade', () => {
     expect(G.ATIVIDADE_DA_CLASSE).toEqual({ 'Feitiço': 'estudando', Milagre: 'orando', 'Transmutação': 'meditando', Encanto: 'praticando' });
-    expect(G.HORAS_TREINO).toEqual({ tecnica: 72, magia: 24 });
+    /* 28/10/2026, usuário: "uma habilidade demora 12 horas, uma magia 24
+       horas, uma técnica 36 horas". Técnica caiu pela metade e habilidade
+       entrou — ela não existia nesta tabela. */
+    expect(G.HORAS_TREINO).toEqual({ tecnica: 36, magia: 24, habilidade: 12 });
   });
-  it('Praticando existe e recupera como Estudando', () => {
+  /* Praticar DEIXOU de recuperar como Estudar (27/10/2026): o usuário deu a
+     cada ofício uma barra própria — praticar acalma a Loucura, estudar lava a
+     Má Fama. Eram iguais desde 22/10 ("recupera igual estudando"). */
+  it('Praticando existe e tem receita própria', () => {
     expect(G.ATIVIDADES.map((a) => a.id)).toContain('praticando');
-    expect(G.ATIVIDADE_EFEITO.praticando).toEqual(G.ATIVIDADE_EFEITO.estudando);
+    expect(G.ATIVIDADE_EFEITO.praticando).toEqual({ hora: [{ cond: 'sanidade', base: 2 }] });
+    expect(G.ATIVIDADE_EFEITO.estudando).toEqual({ hora: [{ cond: 'reputacao', base: 2 }] });
+    expect(G.ATIVIDADE_EFEITO.treinando).toEqual({ hora: [{ cond: 'euforia', base: 2 }] });
   });
 });

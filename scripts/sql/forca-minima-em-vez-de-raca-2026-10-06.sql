@@ -1,0 +1,54 @@
+-- scripts/sql/forca-minima-em-vez-de-raca-2026-10-06.sql
+-- ============================================================================
+-- A ARMA É LIMITADA PELA FORÇA, NÃO PELA RAÇA (06/10/2026)
+--
+-- Pedido do usuário: "Remova a limitação de uso de armas das raças anão,
+-- pequenino, etc. A limitação será pelo campo 'força mínima'. Você deve manter
+-- apenas a quantidade mínima de mãos para usar determinado item, que atual está
+-- escrito 'Mãos (Outras Raças)'."
+--
+-- ── NÃO HÁ MIGRATION. ESTE ARQUIVO É A NOTA. ───────────────────────────────
+-- A mudança é toda de CÓDIGO, e as colunas ficam onde estão:
+--
+--   `maos_outras`     passa a valer para TODOS. É a única que a regra lê
+--                     (getMaosRequeridas, src/01-core/inventario-helpers.jsx).
+--   `maos_pequenino`  ficam no banco e no editor, SEM efeito de regra.
+--   `maos_anao`       Não foram apagadas de propósito — ver abaixo.
+--   `forca_req`       passa a ser a TRAVA de uso. Ela já existia e NUNCA tinha
+--                     sido regra: era um número exibido na ficha do bestiário
+--                     e mais nada (alcancaForcaMinima é novo).
+--
+-- POR QUE NÃO APAGUEI AS DUAS COLUNAS. Elas têm dado preenchido que alguém
+-- levou tempo pondo lá, e apagar coluna é irreversível sem backup. Enquanto
+-- nada as lê, elas não fazem mal; se você quiser a faxina, é:
+--
+--   alter table public.itens drop column maos_pequenino;
+--   alter table public.itens drop column maos_anao;
+--
+-- e tirar as duas linhas do descritor (src/09-bestiario/catalogo-descritores.jsx)
+-- e os dois BestLinha do bestiário e de itens-campanha.
+--
+-- ── O QUE MUDOU DE COMPORTAMENTO ───────────────────────────────────────────
+-- 1. A coluna VAZIA deixou de significar "esta raça não pode usar". Era disso
+--    que saía o "Proibido para Anão" no modal do item. Hoje `maos_outras` nula
+--    quer dizer CADASTRO INCOMPLETO, e o modal diz isso em vez de proibir.
+-- 2. A sub-raça (vampiro/lobisomem) PODE mudar o acesso a uma arma — mas por
+--    mexer na FORÇA, não por ser uma regra de linhagem. O vampiro tem FOR −1 e
+--    pode perder o machado que o anão usava. É coerente com a troca pedida.
+-- 3. `normalizaRaca` ficou sem uso de regra em src/01-core/inventario-helpers.jsx.
+--
+-- ── CONFERÊNCIA ────────────────────────────────────────────────────────────
+-- Peças que exigem Força, e quanto:
+--   select nome, forca_req, maos_outras from itens
+--    where coalesce(forca_req,0) > 0 order by forca_req desc, nome;
+--
+-- Peças SEM número de mãos — hoje aparecem como cadastro incompleto no modal,
+-- e antes eram silenciosamente "proibidas" para todos:
+--   select nome, grupo, categoria_equip from itens
+--    where categoria_equip is not null and maos_outras is null order by nome;
+--
+-- As duas colunas mortas, para a faxina futura:
+--   select count(*) filter (where maos_pequenino is not null) as com_pequenino,
+--          count(*) filter (where maos_anao is not null)      as com_anao
+--     from itens;
+-- ============================================================================

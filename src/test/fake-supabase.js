@@ -76,6 +76,35 @@ export function fakeSupabase(tabelas) {
         linhas = linhas.filter((r) => r[col] != null);
         return box;
       },
+      /* or('a.is.null,b.in.(1,2)') — o OU do PostgREST, com os dois únicos
+         operadores que o app usa (28/10/2026, com "Lojas das cidades" em
+         06-historias/estoque-mestre.jsx). Operador fora desses dois explode:
+         um `or` entendido pela metade devolveria linhas demais e o teste
+         passaria pelo motivo errado, que é o mesmo princípio do `not`. */
+      or(expr) {
+        const clausulas = String(expr || '').split(',').reduce((acc, p) => {
+          /* `in.(1,2)` tem vírgula DENTRO: o split acima o parte, e estas
+             duas linhas o remendam. */
+          if (acc.length && /\.in\.\([^)]*$/.test(acc[acc.length - 1])) {
+            acc[acc.length - 1] += ',' + p;
+            return acc;
+          }
+          acc.push(p);
+          return acc;
+        }, []);
+        const testes = clausulas.map((c) => {
+          const mIs = c.match(/^([^.]+)\.is\.null$/);
+          if (mIs) return (r) => r[mIs[1]] == null;
+          const mIn = c.match(/^([^.]+)\.in\.\((.*)\)$/);
+          if (mIn) {
+            const vals = mIn[2].split(',').map((v) => v.replace(/^"|"$/g, ''));
+            return (r) => vals.includes(String(r[mIn[1]]));
+          }
+          throw new Error(`fakeSupabase.or: cláusula não modelada — ${c}`);
+        });
+        linhas = linhas.filter((r) => testes.some((t) => t(r)));
+        return box;
+      },
       order() { return box; },
       limit(n) { linhas = linhas.slice(0, n); return box; },
       maybeSingle: () => Promise.resolve({ data: linhas[0] ?? null, error: null }),

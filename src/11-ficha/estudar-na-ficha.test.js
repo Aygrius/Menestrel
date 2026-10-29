@@ -14,8 +14,15 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const fonte = readFileSync('src/11-ficha/ficha.jsx', 'utf8').replace(/\r\n/g, '\n');
-const i = fonte.indexOf('contexto="ficha"\n            onClose={() => setDetalheCintoId(null)}');
-const bloco = fonte.slice(Math.max(0, i - 600), i + 1600);
+/* A âncora era a linha inteira do `onClose`, e ela mudou em 28/10/2026, com
+   o botão Voltar: fechar passou a limpar também de onde se veio.
+   `contexto="ficha"` não serve de substituta — aparece três vezes no arquivo,
+   e a primeira é outra janela. A linha que monta ESTA é única. */
+const i = fonte.indexOf('const DetModal = _DetalhesItemModal;');
+/* A âncora agora vem ANTES das props (é a linha que monta o componente), por
+   isso a fatia só anda para a frente — e larga o bastante para alcançar as
+   últimas props da montagem. */
+const bloco = fonte.slice(i, i + 2600);
 
 describe('janela de item da ficha', () => {
   it('existe', () => {

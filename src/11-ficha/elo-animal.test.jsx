@@ -95,17 +95,21 @@ describe('a aba Evocar de Elo Animal: os animais são os alvos', () => {
 
 describe('o status aparece no animal', () => {
   const animais = [{ ...LOBO, instancia: { ...LOBO.instancia, elo: ELO } }];
-  it('ícone de elo na aba e a linha na Identidade; o x só para o Mestre', () => {
+  /* O ÍCONE DO ELO MUDOU DE LUGAR (05/10/2026): as abas internas saíram da
+     ficha do bicho ("eu quero exatamente igual" à do personagem, e a dele não
+     tem abas de personagem dentro). O ti-link agora marca o chip da fileira de
+     companheiros, que vive em FichaPersonagem — aqui fica o que é desta view:
+     a linha na Identidade e o x do Mestre. */
+  it('a linha de elo na Identidade; o x só para o Mestre', () => {
     const onDesfazerElo = vi.fn();
-    render(<W.FichaAnimaisView animais={animais} en={false} podeEditar onMontar={() => {}} onDesmontar={() => {}}
+    render(<W.FichaAnimaisView animal={animais[0]} en={false} podeEditar itens={[]} parte="info"
       catalogoBySlug={{}} habsByKey={{}} tecnicasByKey={{}} magiasByKey={{}} onDesfazerElo={onDesfazerElo} />);
-    expect(document.querySelector('[role="tab"] .ti-link')).toBeTruthy();
     expect(document.querySelector('.fp-row--elo').textContent).toMatch(/Elo Permanente.*Yuldrous/);
     fireEvent.click(document.querySelector('[data-desfazer-elo]'));
     expect(onDesfazerElo).toHaveBeenCalledWith('l1');
   });
   it('sem onDesfazerElo (jogador), sem o x', () => {
-    render(<W.FichaAnimaisView animais={animais} en={false} podeEditar onMontar={() => {}} onDesmontar={() => {}}
+    render(<W.FichaAnimaisView animal={animais[0]} en={false} podeEditar itens={[]} parte="info"
       catalogoBySlug={{}} habsByKey={{}} tecnicasByKey={{}} magiasByKey={{}} />);
     expect(document.querySelector('.fp-row--elo')).toBeTruthy();
     expect(document.querySelector('[data-desfazer-elo]')).toBeNull();

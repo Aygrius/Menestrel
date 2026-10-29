@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "tabler-icons-filled",
+        "createdAt": "2026-10-26T17:14:43.732Z",
+        "reason": "fonte de ICONES (Tabler preenchido, src/tabler-filled.css), nao tipografia de texto: nao entra no sistema de tipos do DESIGN.md"
+      }
+    ]
+  }
+}

@@ -467,38 +467,24 @@ function alvoNoAlcance(ator, alvo, alcance) {
   return d <= limite;
 }
 
-/* ── Régua numerada do tabuleiro (13/09/2026) ─────────────────────────
-   Uma faixa fora da área que rola, deslocada pela rolagem. O passo entre
-   números acompanha o tamanho da célula para não embolar: célula grande
-   numera todas; média, de 5 em 5; pequena, de 10 em 10 (sempre com o 1). */
-function passoDaRegua(cel) {
-  if (cel >= 22) return 1;
-  if (cel >= 10) return 5;
-  return 10;
-}
-function ReguaTabuleiro({ eixo, total, cel, deslocamento }) {
-  const passo = passoDaRegua(cel);
-  const horizontal = eixo === 'col';
-  const numeros = [];
-  for (let i = 0; i < total; i += 1) {
-    const n = i + 1;
-    if (n !== 1 && n % passo !== 0) continue;
-    numeros.push(React.createElement('span', {
-      key: n, className: 'batalha-tabuleiro-regua-num',
-      style: horizontal
-        ? { left: i * cel, width: cel }
-        : { top: i * cel, height: cel, lineHeight: cel + 'px' },
-    }, n));
-  }
-  return React.createElement('div', {
-    className: 'batalha-tabuleiro-regua batalha-tabuleiro-regua--' + eixo, 'aria-hidden': 'true',
-  }, React.createElement('div', {
-    className: 'batalha-tabuleiro-regua-trilho',
-    style: horizontal
-      ? { width: total * cel, transform: `translateX(${-deslocamento}px)` }
-      : { height: total * cel, transform: `translateY(${-deslocamento}px)` },
-  }, numeros));
-}
+/* ── AS RÉGUAS NUMERADAS SAÍRAM (27/10/2026) ──────────────────────────
+   "No campo de batalha, remova os números que identificam linhas e colunas."
+   (usuário)
+
+   Elas nasceram em 13/09/2026 ("numerar colunas e linhas no tabuleiro") e
+   viveram um mês e meio. Saem inteiras — e saem bem acompanhadas, porque
+   duas engenhocas existiam SÓ para elas:
+
+     `rolagemXY`  o estado que escutava o onScroll do tabuleiro, para as
+                  faixas acompanharem o arraste;
+     `sobra`      a medida da centralização, com ResizeObserver, para os
+                  números não descolarem do grid nas telas largas.
+
+   Nenhuma das duas servia a mais nada — o comentário da `sobra` dizia
+   isso com todas as letras. Com as réguas fora, o tabuleiro deixa de
+   escutar rolagem e de observar redimensionamento: menos duas assinaturas
+   por batalha aberta, e um `.batalha-tabuleiro-quadro` que era uma grade
+   de 2×2 só para reservar 22px à esquerda e 18px em cima. */
 
 /* ── Token: avatar redondo + status + nome + barras EF/EH/AR ───────── */
 
@@ -1068,7 +1054,6 @@ function TabuleiroBatalha({
   const altura  = TAB_ROWS * cel;
   // Réguas acompanham o arraste (13/09/2026): a posição de rolagem move os
   // números das bordas junto do grid.
-  const [rolagemXY, setRolagemXY] = useState({ x: 0, y: 0 });
 
   /* CENTRALIZAÇÃO (17/09/2026): "O tabuleiro [...] estará centralizado na
      tela." Com 50 colunas o grid passou a caber na largura útil da maioria
@@ -1080,35 +1065,11 @@ function TabuleiroBatalha({
      margin:auto as margens colapsam para 0 quando o conteúdo é maior, e o pan
      continua íntegro.
 
-     `sobra` é metade do espaço vago, e existe porque as RÉGUAS ficam FORA da
-     área que rola: elas se posicionam por `rolagemXY`, que não sabe da
-     margem. Sem descontar a sobra, os números descolariam do grid exatamente
-     nas telas em que a centralização aparece. */
-  const [sobra, setSobra] = useState({ x: 0, y: 0 });
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return undefined;
-    const medirSobra = () => setSobra((ant) => {
-      const x = Math.max(0, (el.clientWidth - largura) / 2);
-      const y = Math.max(0, (el.clientHeight - altura) / 2);
-      return (ant.x === x && ant.y === y) ? ant : { x, y };
-    });
-    medirSobra();
-    if (typeof ResizeObserver === 'undefined') {
-      // jsdom e navegadores antigos: sem observer, o resize da janela já cobre
-      // o caso que interessa (a área muda de tamanho).
-      window.addEventListener('resize', medirSobra);
-      return () => window.removeEventListener('resize', medirSobra);
-    }
-    const ro = new ResizeObserver(medirSobra);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [largura, altura]);
-  const aoRolar = React.useCallback((ev) => {
-    const el = ev.currentTarget;
-    setRolagemXY((a) => (a.x === el.scrollLeft && a.y === el.scrollTop ? a : { x: el.scrollLeft, y: el.scrollTop }));
-  }, []);
-
+     A MEDIDA DA SOBRA SAIU EM 27/10/2026, com as réguas. Ela era metade do
+     espaço vago e existia só porque as réguas ficavam FORA da área que rola:
+     sem descontá-la, os números descolavam do grid nas telas em que a
+     centralização aparece. Sem números, não há do que descolar — e foram
+     embora com ela um ResizeObserver e o estado que ele alimentava. */
   const entradaMenu = menuAberto == null ? null : entradas.find((e) => e.i === menuAberto);
   const entradaMov  = movendo    == null ? null : entradas.find((e) => e.i === movendo);
   const alvoMover   = entradaMov && podeSelecionar(entradaMov.p) ? entradaMov.p : null;
@@ -1260,17 +1221,9 @@ function TabuleiroBatalha({
       React.createElement('i', { className: 'ti ti-alert-triangle', 'aria-hidden': 'true' }),
       React.createElement('span', null, aviso)),
 
-    /* RÉGUAS NUMERADAS (13/09/2026): "Numerar colunas e linhas no tabuleiro
-       da batalha." Ficam FORA da área que rola — senão sumiam ao arrastar —
-       e se deslocam com a rolagem (rolagemXY). Colunas 1–TAB_COLS em cima,
-       linhas 1–TAB_ROWS à esquerda; a numeração conta a partir de 1 (a
-       célula x=0 é a coluna 1). */
+    /* O quadro continua existindo como moldura do tabuleiro; o que ele
+       perdeu em 27/10/2026 foram as duas faixas de régua e o canto. */
     React.createElement('div', { className: 'batalha-tabuleiro-quadro' },
-      React.createElement('div', { className: 'batalha-tabuleiro-regua-canto', 'aria-hidden': 'true' }),
-      // `- sobra`: o grid centralizado começa `sobra` px adentro da área que
-      // rola, e as réguas vivem fora dela. Ver o comentário de `sobra`.
-      React.createElement(ReguaTabuleiro, { eixo: 'col', total: TAB_COLS, cel, deslocamento: rolagemXY.x - sobra.x }),
-      React.createElement(ReguaTabuleiro, { eixo: 'lin', total: TAB_ROWS, cel, deslocamento: rolagemXY.y - sobra.y }),
     React.createElement('div', {
       ref: scrollRef, className: 'batalha-tabuleiro-scroll',
       style: {
@@ -1279,7 +1232,6 @@ function TabuleiroBatalha({
         // Flex só para o `margin:auto` do grid ter efeito nos dois eixos.
         display: 'flex',
       },
-      onScroll: aoRolar,
       onMouseDown: panInicio, onMouseMove: panMove, onMouseUp: panFim, onMouseLeave: panFim,
       onTouchStart: toqueInicio, onTouchMove: toqueMove, onTouchEnd: panFim, onTouchCancel: panFim,
     },
@@ -1287,10 +1239,30 @@ function TabuleiroBatalha({
         onClick: aoClicarGrid,
         style: {
           position: 'relative', width: largura, height: altura,
+          /* ── O QUADRICULADO PREENCHE A ÁREA VISÍVEL (28/10/2026) ─────────
+             "O quadriculado do campo de batalha deve preencher toda a área
+             visível, vejo que alguns lados estão sem linha e sem
+             quadriculado." (usuário)
+
+             O grid media exatamente 50×35 células e se CENTRAVA por
+             `margin:auto`. Numa tela mais larga ou mais alta que ele, sobrava
+             fundo liso dos dois lados — a faixa sem linha que o usuário viu.
+
+             Agora ele é, no mínimo, do tamanho da moldura: o xadrez continua
+             pelas bordas e a moldura inteira é campo. A conta das células não
+             mudou — o xadrez é um `background` que ladrilha a partir do canto
+             superior esquerdo, então o que se pinta a mais segue a MESMA
+             grade. E clique fora do campo já era inerte: `aoClicarGrid`
+             descarta `fx >= TAB_COLS || fy >= TAB_ROWS`.
+
+             O `margin:auto` saiu com a sobra: sem espaço vago não há o que
+             centrar, e mantê-lo deslocaria o xadrez do canto. O limite do
+             campo jogável passa a ser dito por uma borda própria, logo
+             abaixo — antes quem o dizia era o fim do desenho. */
+          minWidth: '100%', minHeight: '100%',
           // `flex:none` para o grid não ser esticado nem encolhido pelo flex
-          // do container; `margin:auto` é o que o centraliza quando sobra
-          // espaço, sem prender o começo do overflow quando não sobra.
-          flex: 'none', margin: 'auto',
+          // do container.
+          flex: 'none',
           cursor: alvoMover ? 'crosshair' : 'default',
           // grade dupla: linha forte a cada 5 células, fraca a cada 1
           backgroundImage: [
@@ -1322,6 +1294,26 @@ function TabuleiroBatalha({
           className: 'batalha-tabuleiro-escuridao batalha-tabuleiro-escuridao--'
             + (ESCURIDAO_NIVEIS.includes(visibilidade) ? visibilidade : 'clara'),
           style: { position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 },
+        }),
+        /* O LIMITE DO CAMPO JOGÁVEL (28/10/2026). Com o xadrez indo até a
+           borda da moldura, o fim das 50×35 células deixou de ser visível —
+           e ele é regra: `posValida` recusa token fora dali.
+
+           Só uma borda não bastava: no meio das linhas fortes de 5 em 5, ela
+           passava por mais uma delas. Então o que está FORA escurece — um
+           véu por cima do xadrez, que continua à vista mas recuado. Dentro é
+           campo; fora é margem, e o olho entende sem legenda.
+
+           O véu é um box-shadow de raio enorme, e não quatro faixas: a
+           moldura tem `overflow:hidden` e corta o que passa. */
+        React.createElement('div', {
+          'aria-hidden': 'true', className: 'batalha-tabuleiro-limite',
+          style: {
+            position: 'absolute', left: 0, top: 0, width: largura, height: altura,
+            boxSizing: 'border-box', border: '1px solid rgba(201,164,78,.5)',
+            boxShadow: '0 0 0 9999px rgba(8,5,2,.42)',
+            pointerEvents: 'none', zIndex: 0,
+          },
         }),
         /* Halo do movimento do selecionado — REDONDO desde 13/09/2026, o
            mesmo círculo que validarMovimento aceita (distanciaMovimento).

@@ -133,32 +133,176 @@ function fetchCatalogoCompleto() {
 
 // ── Slots de equipamento ────────────────────────────────────────────────────
 const SLOT_LABELS = {
-  pt: { mao_d: 'Mão', mao_e: 'Mão', cabeca: 'Cabeça', ombros: 'Ombros', peito: 'Peito', maos: 'Mão',  bracos: 'Braços', pernas: 'Pernas', pes: 'Pés',  pescoco: 'Pescoço', orelha: 'Orelha' },
-  en: { mao_d: 'Hand', mao_e: 'Hand', cabeca: 'Head',  ombros: 'Shoulders', peito: 'Chest', maos: 'Hand', bracos: 'Arms', pernas: 'Legs', pes: 'Feet', pescoco: 'Neck', orelha: 'Ear' },
+  pt: { mao_d: 'Mão', mao_e: 'Mão', saque_d: 'Saque rápido', saque_e: 'Saque rápido',
+        cabeca: 'Cabeça', rosto: 'Rosto', orelha: 'Orelha', pescoco: 'Pescoço',
+        ombro: 'Ombro', costas: 'Costas', dorso: 'Dorso', peito: 'Peito',
+        braco: 'Braço', dedo: 'Dedo', pulso: 'Pulso', mao: 'Mão', perna: 'Perna',
+        cintura: 'Cintura', canela: 'Canela', pe: 'Pé', alforje: 'Alforje',
+        // vocabulário antigo (instâncias gravadas antes de 26/10/2026)
+        ombros: 'Ombro', maos: 'Mão', bracos: 'Braço', pernas: 'Perna', pes: 'Pé' },
+  en: { mao_d: 'Hand', mao_e: 'Hand', saque_d: 'Quick draw', saque_e: 'Quick draw',
+        cabeca: 'Head', rosto: 'Face', orelha: 'Ear', pescoco: 'Neck',
+        ombro: 'Shoulder', costas: 'Back', dorso: 'Torso', peito: 'Chest',
+        braco: 'Arm', dedo: 'Finger', pulso: 'Wrist', mao: 'Hand', perna: 'Leg',
+        cintura: 'Waist', canela: 'Shin', pe: 'Foot', alforje: 'Saddlebag',
+        ombros: 'Shoulder', maos: 'Hand', bracos: 'Arm', pernas: 'Leg', pes: 'Foot' },
 };
+
+/* ── As 17 regiões do corpo e suas casas (proposta aprovada em 26/10/2026) ──
+   O total de casas da região vale para a SOMA de equipamento + vestimenta +
+   adorno nela. As mãos têm ainda 2 casas de SAQUE RÁPIDO (saque_e/saque_d):
+   a peça ali guardada NÃO está equipada (sem efeitos) e troca de lugar com a
+   mão pelo botão ⇄ (trocarSaqueRapido). */
+const REGIOES_EQUIP = {
+  cabeca: 1, orelha: 4, rosto: 2, pescoco: 3, ombro: 2, costas: 2, dorso: 1,
+  peito: 3, braco: 2, dedo: 10, pulso: 2, mao: 2, perna: 2, cintura: 2,
+  canela: 2, pe: 2, alforje: 3,
+};
+
+// Slot antigo (gravado em instâncias/catálogo até 26/10/2026) → região nova.
+const SLOT_CANONICO = {
+  orelhas: 'orelha', dedos: 'dedo', maos: 'mao', pernas: 'perna', pes: 'pe',
+  ombros: 'ombro', bracos: 'braco', corpo: 'peito',
+  capa: 'costas', roupa: 'peito', colar: 'pescoco', brinco: 'orelha',
+  joia: 'dedo', cinto: 'cintura',
+  mao_d: 'mao_d', mao_e: 'mao_e', saque_d: 'saque_d', saque_e: 'saque_e',
+};
+/* `peito` NÃO está na tabela, e é de propósito: é a única palavra que mudou de
+   dono na migração de 26/10, e sozinha ela é ambígua. Em INSTÂNCIA equipada
+   antiga é o peitoral (hoje `dorso`); no CATÁLOGO de hoje é a região dos
+   adornos e roupas, e vale por si. Quem sabe qual dos dois tem na mão
+   desambigua antes de chamar — a ficha faz isso em `regiaoCanonicaDe` (pelo
+   `it.slot`) e em `regiaoDoCatalogo` (pelo `categoria_equip`), e o estado das
+   casas, em EQUIP_ALIAS. Resolver aqui, com um só palpite, erraria metade dos
+   casos em silêncio. */
+function slotCanonico(slot) {
+  if (!slot) return slot;
+  return SLOT_CANONICO[slot] || slot;
+}
 function normalizaRaca(raca) {
   const r = (raca || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
   if (r.includes('pequen') || r.includes('halfling') || r.includes('hobbit')) return 'pequenino';
   if (r.includes('anao') || r.includes('dwarf')) return 'anao';
   return 'outras';
 }
-function getMaosRequeridas(cat, raca) {
-  const r = normalizaRaca(raca);
-  const v = r === 'pequenino' ? cat.maos_pequenino : r === 'anao' ? cat.maos_anao : cat.maos_outras;
+/* UMA COLUNA DE MÃOS PARA TODOS (06/10/2026, pedido do usuário): "remova a
+   limitação de uso de armas das raças anão, pequenino, etc. A limitação será
+   pelo campo 'força mínima'. Você deve manter apenas a quantidade mínima de
+   mãos para usar determinado item, que atualmente está escrito 'Mãos (Outras
+   Raças)'."
+
+   Antes esta função escolhia entre três colunas pela raça, e coluna VAZIA
+   queria dizer "esta raça não pode usar" — era daí que saía o "Proibido para
+   Anão". Agora vale `maos_outras` para qualquer um. O segundo argumento
+   continua aceito porque meia dúzia de chamadores ainda o passam, e ignorá-lo
+   aqui é o que garante que a limitação não volte por uma delas; as colunas
+   antigas seguem no banco, sem efeito de regra. */
+function getMaosRequeridas(cat, _raca) {
+  const v = cat ? cat.maos_outras : null;
   return v == null ? null : Number(v);
 }
 function getSlotsState(itens, catalogoBySlug, raca) {
-  const s = { mao_d: null, mao_e: null, cabeca: null, ombros: null, peito: null, maos: null, pernas: null, pes: null };
+  // Chaves canônicas das casas de EQUIPAMENTO (armadura/arma) + saque rápido.
+  const s = {
+    mao_d: null, mao_e: null, saque_d: null, saque_e: null,
+    cabeca: null, ombro: null, dorso: null, braco: null,
+    mao: null, perna: null, canela: null, pe: null,
+    // espelhos no vocabulário antigo (leitores anteriores a 26/10/2026)
+    ombros: null, peito: null, bracos: null, maos: null, pernas: null, pes: null,
+  };
+  /* Instância equipada antiga com slot 'peito' é o peitoral — hoje, dorso.
+     `maos` é a REGIÃO das mãos (manoplas), e por isso vira `mao` — a mesma
+     tradução de SLOT_CANONICO e de VESTE_SLOT_ALIAS. Mandá-la para `mao_d`
+     fazia a manopla de uma instância antiga ocupar a mão de ARMA: a ficha
+     contava uma mão a menos e recusava a arma de duas mãos (29/10/2026). */
+  const EQUIP_ALIAS = { ombros: 'ombro', peito: 'dorso', pernas: 'perna', pes: 'pe', bracos: 'braco', maos: 'mao' };
+  /* O espelho é o CAMINHO DE VOLTA, e precisa cobrir todo o EQUIP_ALIAS: quem
+     pergunta pela casa usa o nome do catálogo (`slots[cat.slot_equip]`, em
+     07-inventario), e chave sem espelho responde `undefined` — ou seja, "casa
+     livre". Faltavam `braco` e `mao`, e com eles duas braçadeiras (ou duas
+     manoplas) entravam na mesma região sem recusa (29/10/2026). */
+  const LEGADO = { ombro: 'ombros', dorso: 'peito', braco: 'bracos', mao: 'maos', perna: 'pernas', pe: 'pes' };
   for (const it of (itens || [])) {
-    if (!it.equipado || !it.slot) continue;
+    if (!it.slot) continue;
     const cat = catalogoBySlug[it.slug];
     if (!cat) continue;
-    s[it.slot] = it.instanceId;
-    if ((it.slot === 'mao_d' || it.slot === 'mao_e') && getMaosRequeridas(cat, raca) === 2) {
-      s[it.slot === 'mao_d' ? 'mao_e' : 'mao_d'] = it.instanceId;
+    /* Saque rápido: a peça guarda o slot mas NÃO está equipada (sem efeitos).
+       ARMA DE DUAS MÃOS OCUPA OS DOIS SAQUES (26/10/2026, pedido do usuário:
+       "colocar um arco em saque rápido deve ocupar os dois slots em espera
+       também"): quem guarda o arco na espera não tem mão livre para outra
+       arma na hora de sacar — a mesma regra que as mãos já tinham. */
+    if (it.slot === 'saque_d' || it.slot === 'saque_e') {
+      s[it.slot] = it.instanceId;
+      if (getMaosRequeridas(cat, raca) === 2) {
+        s[it.slot === 'saque_d' ? 'saque_e' : 'saque_d'] = it.instanceId;
+      }
+      continue;
+    }
+    if (!it.equipado) continue;
+    const key = EQUIP_ALIAS[it.slot] || it.slot;
+    s[key] = it.instanceId;
+    if (LEGADO[key]) s[LEGADO[key]] = it.instanceId;        // espelho antigo
+    if ((key === 'mao_d' || key === 'mao_e') && getMaosRequeridas(cat, raca) === 2) {
+      s[key === 'mao_d' ? 'mao_e' : 'mao_d'] = it.instanceId;
     }
   }
   return s;
+}
+
+/* ── SAQUE RÁPIDO (26/10/2026) ───────────────────────────────────────────────
+   Cada mão tem uma casa de reserva (saque_e/saque_d). A peça ali fica com
+   { slot: 'saque_X', equipado: false }: aparece na casa, mas não dá efeito
+   nenhum (pecaNoCorpo ignora, calcularFicha ignora). O botão ⇄ troca a peça
+   da mão pela do saque sem passar pelo inventário. Puro: devolve NOVA lista. */
+function moverParaSaque(itens, instanceId, lado, catalogoBySlug, raca) {
+  const slotSaque = lado === 'e' ? 'saque_e' : 'saque_d';
+  const outroSaque = lado === 'e' ? 'saque_d' : 'saque_e';
+  const chegando = (itens || []).find((it) => it.instanceId === instanceId);
+  /* Quem ocupa os DOIS saques não divide a espera com ninguém: a arma de duas
+     mãos que chega manda a vizinha para a mochila, e a vizinha de duas mãos
+     sai para dar lugar à que chega. Sem catálogo, não dá para saber quantas
+     mãos a peça pede — aí só a troca simples acontece. */
+  const duasMaos = (it) => {
+    if (!catalogoBySlug || !it) return false;
+    const cat = catalogoBySlug[it.slug];
+    return !!cat && getMaosRequeridas(cat, raca) === 2;
+  };
+  const vizinha = (itens || []).find((it) => it.slot === outroSaque);
+  const expulsarVizinha = !!vizinha && (duasMaos(chegando) || duasMaos(vizinha));
+  return (itens || []).map((it) => {
+    if (it.instanceId === instanceId) {
+      return { ...it, slot: slotSaque, equipado: false, vestido: false, vesteSlot: null, containerId: null };
+    }
+    if (expulsarVizinha && it.instanceId === vizinha.instanceId) {
+      return { ...it, slot: null, equipado: false, vestido: false, vesteSlot: null };
+    }
+    return it;
+  });
+}
+function trocarSaqueRapido(itens, lado, catalogoBySlug, raca) {
+  const slotMao = lado === 'e' ? 'mao_e' : 'mao_d';
+  const slotSaque = lado === 'e' ? 'saque_e' : 'saque_d';
+  const outraMao = lado === 'e' ? 'mao_d' : 'mao_e';
+  const naMao = (itens || []).find((it) => it.equipado && it.slot === slotMao);
+  const noSaque = (itens || []).find((it) => it.slot === slotSaque);
+  if (!naMao && !noSaque) return itens;
+  // Arma de DUAS MÃOS subindo do saque precisa da outra mão livre (a peça
+  // que desce para o saque libera a desta mão). Sem catálogo, não valida.
+  if (noSaque && catalogoBySlug) {
+    const cat = catalogoBySlug[noSaque.slug];
+    const ocupadaPorOutro = (itens || []).some((it) =>
+      it.equipado && it.slot === outraMao && (!naMao || it.instanceId !== naMao.instanceId));
+    if (cat && getMaosRequeridas(cat, raca) === 2 && ocupadaPorOutro) return itens;
+  }
+  return (itens || []).map((it) => {
+    if (noSaque && it.instanceId === noSaque.instanceId) {
+      return { ...it, slot: slotMao, equipado: true };
+    }
+    if (naMao && it.instanceId === naMao.instanceId) {
+      return { ...it, slot: slotSaque, equipado: false };
+    }
+    return it;
+  });
 }
 
 // ── Instância de item ───────────────────────────────────────────────────────
@@ -181,6 +325,106 @@ function itensLivres(itens) {
 function ehContainer(cat) {
   return !!(cat && cat.armazena != null && Number(cat.armazena) > 0);
 }
+
+/* ── O QUE JÁ VEM DENTRO DO ITEM À VENDA (29/10/2026) ────────────────────────
+   "Torne possível vender itens na loja que tenham itens armazenados dentro
+   deles, por exemplo uma algibeira sempre de moedas." (usuário)
+
+   A entrada da loja ganha `conteudo: [{ slug, quantidade }]`. Três regras
+   puras, e as três moram aqui porque os TRÊS lados precisam dar a mesma
+   resposta: o painel do Mestre que monta o pacote, o balcão do jogador que
+   mostra o preço antes de cobrar, e o comprar_item que cobra e entrega
+   (scripts/sql/fileiras-e-conteudo-da-loja-2026-10-29.sql espelha isto).
+
+   O PREÇO SOMA O CONTEÚDO. Sem essa linha, uma algibeira com 100 moedas de
+   ouro sairia pelo preço da algibeira — uma máquina de dinheiro, e o jogador
+   nem estaria trapaceando. O Mestre continua mandando: `preco_latao_override`
+   vence tudo, inclusive para entregar o pacote de graça.
+
+   O conteúdo NÃO entra na carga solta do comprador: ele viaja dentro do
+   recipiente, e é o recipiente que responde pelo peso (mesma conta de
+   capacidadeContainer). */
+function conteudoDaEntrada(entry) {
+  const lista = Array.isArray(entry && entry.conteudo) ? entry.conteudo : [];
+  return lista
+    .filter((c) => c && c.slug)
+    .map((c) => ({ slug: c.slug, quantidade: Math.max(1, Math.floor(Number(c.quantidade) || 1)) }));
+}
+function valorDoConteudo(entry, catalogoBySlug) {
+  return conteudoDaEntrada(entry).reduce((soma, c) => {
+    const cat = catalogoBySlug && catalogoBySlug[c.slug];
+    return soma + Number((cat && cat.valor_latao) || 0) * c.quantidade;
+  }, 0);
+}
+function ocupaDoConteudo(entry, catalogoBySlug) {
+  return conteudoDaEntrada(entry).reduce((soma, c) => {
+    const cat = catalogoBySlug && catalogoBySlug[c.slug];
+    return soma + Number((cat && cat.ocupa) || 0) * c.quantidade;
+  }, 0);
+}
+function precoDaEntrada(entry, cat, catalogoBySlug) {
+  const over = entry && entry.preco_latao_override;
+  if (over != null && over !== '') return Number(over);
+  return Number((cat && cat.valor_latao) || 0) + valorDoConteudo(entry, catalogoBySlug);
+}
+Object.assign(window, { conteudoDaEntrada, valorDoConteudo, ocupaDoConteudo, precoDaEntrada });
+/* ── O PORTE DO RECIPIENTE (29/10/2026) ──────────────────────────────────
+   "Vamos definir 4 tipos de quantidades de slots para os itens: itens
+   pequenos 3 slots, itens médios 6 slots, itens grandes 9 slots, itens muito
+   grandes 15 slots." (usuário)
+
+   Até aqui o recipiente só tinha PESO (`armazena`), e a grade do conteúdo
+   inventava um número de casas — primeiro pela largura da janela, depois (meu
+   erro) pelo próprio peso. Agora a casa é uma propriedade declarada: o
+   recipiente tem um PORTE, e o porte diz quantas casas ele mostra.
+
+   Os DOIS limites valem (decisão do usuário): as casas dizem QUANTOS itens
+   cabem, o peso diz QUANTO o recipiente aguenta, e o que estourar primeiro
+   trava. Sobrar casa com o peso no teto é normal — uma algibeira com uma casa
+   livre e meio quilo de folga recebe uma tocha, não uma corda. */
+const PORTE_RECIPIENTE = {
+  pequeno:      { casas: 3,  pt: 'Pequeno',      en: 'Small' },
+  medio:        { casas: 6,  pt: 'Médio',        en: 'Medium' },
+  grande:       { casas: 9,  pt: 'Grande',       en: 'Large' },
+  muito_grande: { casas: 15, pt: 'Muito grande', en: 'Very large' },
+  /* O QUINTO PORTE (29/10/2026, usuário: "crie um quinto com 16/30 casas").
+     Ele nasceu de uma consequência dos quatro primeiros: com o limite de
+     casas valendo para todo mundo, um Castelo que aguenta 5000 de peso
+     guardava 15 itens. Este porte é o das construções e das embarcações — o
+     que não se carrega nas costas. */
+  colossal:     { casas: 30, pt: 'Colossal',     en: 'Colossal' },
+};
+const PORTES_RECIPIENTE = ['pequeno', 'medio', 'grande', 'muito_grande', 'colossal'];
+
+/* A escada de PESO que dá o porte a quem ainda não tem um declarado. Ela é
+   rede, não regra: o campo `porte` do catálogo manda, e o Mestre pode fazer
+   uma bolsa leve de muitas casas. Os cortes saem da distribuição real dos 76
+   recipientes do catálogo (medida em 29/10/2026): até 2 são os cintos, as
+   algibeiras e os frascos; até 10, os sacos e as bolsas; até 30, mochilas,
+   alforjes e baús; acima disso, arcas, carroças, barcos e propriedades. */
+function porteDoRecipiente(cat) {
+  const declarado = String(cat?.porte || '').trim();
+  if (PORTE_RECIPIENTE[declarado]) return declarado;
+  const peso = Number(cat?.armazena || 0);
+  if (peso <= 2) return 'pequeno';
+  if (peso <= 10) return 'medio';
+  if (peso <= 30) return 'grande';
+  /* O corte dos 75 é SEMÂNTICO, não redondo: até ali vão os móveis e as
+     carroças (arca, baú grande, tonel, carroça, carruagem, barco a remo);
+     de 100 para cima começam as construções e as embarcações, que é o que o
+     porte colossal existe para guardar. */
+  if (peso <= 75) return 'muito_grande';
+  return 'colossal';
+}
+// Quantas casas o recipiente mostra — 3, 6, 9 ou 15.
+function casasDoRecipiente(cat) {
+  return PORTE_RECIPIENTE[porteDoRecipiente(cat)].casas;
+}
+
+/* `casas`/`usadas`/`casasLivres` entram aqui junto de `armazena`/`usado`/
+   `livre` (29/10/2026): quem decide se algo cabe precisa dos dois limites de
+   uma vez. Uma CASA é uma pilha — dez flechas numa pilha ocupam uma casa, que
+   é como a grade já as desenha. */
 function capacidadeContainer(containerInst, todosItens, catalogoBySlug) {
   const cat = catalogoBySlug[containerInst?.slug];
   const armazena = Number(cat?.armazena || 0);
@@ -191,10 +435,69 @@ function capacidadeContainer(containerInst, todosItens, catalogoBySlug) {
     const fc = catalogoBySlug[f.slug];
     if (fc?.ocupa != null) usado += Number(fc.ocupa) * f.quantidade;
   }
-  return { armazena, usado, livre: Math.max(0, armazena - usado), tipoAceito, filhos };
+  const casas = casasDoRecipiente(cat);
+  const usadas = filhos.length;
+  return {
+    armazena, usado, livre: Math.max(0, armazena - usado), tipoAceito, filhos,
+    porte: porteDoRecipiente(cat),
+    casas, usadas, casasLivres: Math.max(0, casas - usadas),
+  };
 }
-function podeMoverParaContainer(itemCat, containerCat, containerInst, todosItens, catalogoBySlug) {
+/* ── A PROPRIEDADE TEM ENDEREÇO (05/10/2026) ───────────────────────────────
+   Pedido do usuário: "Os itens do tipo propriedade precisam ter Cidade
+   definida, e o acesso aos itens armazenados nessa propriedade só ficam
+   visíveis para o personagem quando ele está na mesma localização dessa
+   propriedade."
+
+   A CIDADE MORA NA INSTÂNCIA (`it.cidade`), não no catálogo: `public.itens` é
+   global e guarda TIPOS de propriedade ("Casa", "Taverna", "Fazenda") — dois
+   jogadores de cidades diferentes compram a MESMA linha "Casa". Quem tem
+   endereço é a casa comprada. A localização do personagem é
+   `personagens.localizacao`, o mesmo texto que a ficha já mostra no trilho.
+
+   Mochila e bolsa seguem indiferentes a isto: elas viajam com o dono. */
+const GRUPO_PROPRIEDADE = 'Propriedades';
+const ehPropriedade = (cat) =>
+  !!cat && semAcento(cat.grupo) === semAcento(GRUPO_PROPRIEDADE);
+// O endereço da casa comprada, limpo. Espaço em branco não vale endereço.
+const cidadeDaPropriedade = (instancia) =>
+  String((instancia && instancia.cidade) || '').trim();
+/* Duas cidades são a mesma? Acento, caixa e espaço a mais não separam ninguém
+   da própria casa — "Torres Guardiãs" e "torres  guardias" são o mesmo lugar,
+   porque o Mestre digita a localização à mão em `personagens.localizacao`.
+   Vazio não casa com vazio: "não sei onde estou" não é "estou em casa". */
+function mesmaCidade(a, b) {
+  const x = semAcento(a).replace(/\s+/g, ' ');
+  const y = semAcento(b).replace(/\s+/g, ' ');
+  return !!x && !!y && x === y;
+}
+/* O depósito abre? Devolve { ok, cidade } ou { ok:false, motivo, cidade } —
+   motivo: sem_cidade | sem_local | outra_cidade. A `cidade` volta nos dois
+   casos porque é o que a tela precisa DIZER: "sua Casa está em Tronum".
+
+   `sem_cidade` é a trava do "precisam ter Cidade definida": a casa entra no
+   inventário de quem pagou, mas não guarda nada até ter endereço. */
+function acessoAPropriedade(instancia, cat, localizacaoDoPj) {
+  if (!ehPropriedade(cat)) return { ok: true };
+  const cidade = cidadeDaPropriedade(instancia);
+  if (!cidade) return { ok: false, motivo: 'sem_cidade', cidade: '' };
+  const onde = String(localizacaoDoPj || '').trim();
+  if (!onde) return { ok: false, motivo: 'sem_local', cidade };
+  if (!mesmaCidade(cidade, onde)) return { ok: false, motivo: 'outra_cidade', cidade };
+  return { ok: true, cidade };
+}
+
+/* `localizacaoDoPj` é OPCIONAL de propósito: quem chama sem ela — código que
+   não tem o personagem em mão — continua valendo e só perde a checagem de
+   endereço. Passar a localização é o que liga a regra. */
+function podeMoverParaContainer(itemCat, containerCat, containerInst, todosItens, catalogoBySlug, localizacaoDoPj) {
   if (!ehContainer(containerCat)) return { ok: false, motivo: 'não é container' };
+  if (localizacaoDoPj !== undefined && ehPropriedade(containerCat)) {
+    const acesso = acessoAPropriedade(containerInst, containerCat, localizacaoDoPj);
+    if (!acesso.ok) {
+      return { ok: false, motivo: 'propriedade_longe', cidade: acesso.cidade, porque: acesso.motivo };
+    }
+  }
   const tipoItem = itemCat?.tipo || 'S';
   const tipoContainer = containerCat?.tipo || 'S';
   if (tipoItem !== tipoContainer) {
@@ -207,7 +510,14 @@ function podeMoverParaContainer(itemCat, containerCat, containerInst, todosItens
   if (aceitos.length && !aceitos.includes(itemCat?.grupo)) {
     return { ok: false, motivo: `só aceita ${aceitos.join(', ')}` };
   }
-  const { livre } = capacidadeContainer(containerInst, todosItens, catalogoBySlug);
+  const { livre, casasLivres, casas, filhos } = capacidadeContainer(containerInst, todosItens, catalogoBySlug);
+  /* A CASA trava antes do peso (29/10/2026): item que já está dentro só muda
+     de pilha e não gasta casa nova — por isso a checagem olha se a peça já é
+     filha deste recipiente. */
+  const jaDentro = (filhos || []).some((f) => f.slug === itemCat?.slug);
+  if (casasLivres <= 0 && !jaDentro) {
+    return { ok: false, motivo: `sem casa livre (${casas} de ${casas})` };
+  }
   const ocupa = Number(itemCat?.ocupa || 0);
   if (ocupa > livre) return { ok: false, motivo: `sem espaço (precisa ${ocupa}, livre ${livre.toFixed(1)})` };
   return { ok: true };
@@ -613,8 +923,25 @@ const EFEITO_CONDICAO_MAP = {
   'Vício':           { scope: 'condicoes',  key: 'euforia' },
   'Loucura':         { scope: 'condicoes',  key: 'sanidade' },
   'Desonra':         { scope: 'condicoes',  key: 'reputacao' },
+  /* "Má Fama" é o nome da barra desde 26/10/2026, e entra aqui para um item
+     escrito com o nome NOVO ("Aumenta 10 de Má Fama") ser lido. Os antigos —
+     Desonra, Reputação — ficam: texto de catálogo que ninguém reescreveu
+     continua valendo o que valia. */
+  'Má Fama':         { scope: 'condicoes',  key: 'reputacao' },
   'Frio':            { scope: 'condicoes',  key: 'frio' },
   'Calor':           { scope: 'condicoes',  key: 'calor' },
+  /* PESADO (28/10/2026, usuário: "a proteção dos itens é contra peso").
+     Faltava só a palavra: a barra existe (a carga em % da capacidade,
+     calcularFicha), e `barrasDeCondicao` já aplicava teto a ela junto com as
+     outras. Sem a entrada aqui, "Protege 20 de Pesado" era lido e descartado
+     em silêncio — quinze alforjes, aljavas e bainhas prometendo o que não
+     acontecia.
+
+     SÓ PROTEÇÃO faz sentido nesta barra, e por isso ela não entra na grade de
+     deltas: Pesado não se guarda em `estado_atual.condicoes`, é CALCULADA do
+     peso que o personagem carrega. Somar 5 a ela seria escrever num número
+     que a próxima conta reescreve. */
+  'Pesado':          { scope: 'condicoes',  key: 'pesado' },
   'Reputação':       { scope: 'condicoes',  key: 'reputacao', inverte: true },
   'Sanidade':        { scope: 'condicoes',  key: 'sanidade', inverte: true },
   'Saúde':           { scope: 'condicoes',  key: 'vitalidade', inverte: true },
@@ -626,7 +953,146 @@ const EFEITO_CONDICAO_MAP = {
   'Energia Física':  { scope: 'vitalidade', key: 'ef' },
   'Karma':           { scope: 'vitalidade', key: 'ka' },
   'Absorção':        { scope: 'absorcao',   key: 'ar' },
+  /* VELOCIDADE (06/10/2026): entrou com os itens de efeito temporário
+     (Energia Cinética, "Aumenta 1 de Velocidade"). A chave é `vb` — a mesma
+     que bonusTemporarios soma e que a ficha lê para a VEL. */
+  'Velocidade':      { scope: 'velocidade', key: 'vb' },
 };
+
+/* ── OS EFEITOS COMO NÚMEROS, PARA O EDITOR (26/10/2026) ──────────────────
+   Pedido do usuário: "no modal de editar item, quando for consumível,
+   adicione um campo para cada campo que aquele item consumível pode alterar.
+   Campos de vitalidade, condições, etc. Ali será informado um valor positivo
+   ou negativo, que indicará os efeitos de seu uso."
+
+   O ARMAZENAMENTO NÃO MUDA. `efeito_positivo`/`efeito_negativo` continuam
+   sendo prosa — é o que os 140 itens do catálogo já têm escrito, o que o
+   parser lê e o que a ficha mostra ao jogador. O que muda é a CARA no
+   editor: uma grade de números com sinal, que se lê e se escreve nessas duas
+   colunas. Uma fonte de verdade, duas faces.
+
+   A CONVENÇÃO DO SINAL é a da barra, não a do bem: positivo SOBE a barra,
+   negativo DESCE. Numa barra de mal (Fome, Doença), descer é bom — e é por
+   isso que a poção de cura leva "−30" em Doença, e não "+30".
+
+   Só os rótulos SEM `inverte` são emitidos: "Saúde", "Hidratação" e os outros
+   nomes antigos continuam sendo LIDOS (texto de catálogo que ninguém
+   reescreveu segue valendo), mas escrever por dois nomes a mesma barra seria
+   a divergência que este formato existe para fechar. */
+const EFEITOS_EDITAVEIS = [
+  { rotulo: 'Energia Física',  scope: 'vitalidade', key: 'ef',  grupo: 'vitalidade' },
+  { rotulo: 'Energia Heroica', scope: 'vitalidade', key: 'eh',  grupo: 'vitalidade' },
+  { rotulo: 'Karma',           scope: 'vitalidade', key: 'ka',  grupo: 'vitalidade' },
+  { rotulo: 'Absorção',        scope: 'absorcao',   key: 'ar',  grupo: 'vitalidade' },
+  { rotulo: 'Velocidade',      scope: 'velocidade', key: 'vb',  grupo: 'vitalidade' },
+  { rotulo: 'Doença',          scope: 'condicoes',  key: 'vitalidade', grupo: 'condicoes' },
+  { rotulo: 'Sono',            scope: 'condicoes',  key: 'animo',      grupo: 'condicoes' },
+  { rotulo: 'Sede',            scope: 'condicoes',  key: 'hidratacao', grupo: 'condicoes' },
+  { rotulo: 'Fome',            scope: 'condicoes',  key: 'nutricao',   grupo: 'condicoes' },
+  { rotulo: 'Vício',           scope: 'condicoes',  key: 'euforia',    grupo: 'condicoes' },
+  { rotulo: 'Loucura',         scope: 'condicoes',  key: 'sanidade',   grupo: 'condicoes' },
+  { rotulo: 'Má Fama',         scope: 'condicoes',  key: 'reputacao',  grupo: 'condicoes' },
+  { rotulo: 'Frio',            scope: 'condicoes',  key: 'frio',       grupo: 'condicoes' },
+  { rotulo: 'Calor',           scope: 'condicoes',  key: 'calor',      grupo: 'condicoes' },
+  /* Temperatura é o tronco com sinal de que Frio e Calor são os dois lados.
+     Fica na grade só para não PERDER o que já está gravado com esse rótulo —
+     item novo deve usar Frio ou Calor. */
+  { rotulo: 'Temperatura',     scope: 'condicoes',  key: 'termorregulacao', grupo: 'condicoes' },
+];
+
+/* ── O QUE SE PODE PROTEGER (28/10/2026) ─────────────────────────────────
+   "Protege N de X" não é efeito positivo: é TETO da barra enquanto a peça
+   está vestida (protecoesDoItem, mais abaixo). Até aqui o editor não sabia
+   editá-la — a grade só mexia nos deltas, e as proteções eram relidas do item
+   original e reemitidas intactas. Quem quisesse mudar uma tinha de escrever
+   prosa à mão.
+
+   Decisão do usuário em 28/10/2026, perguntado se proteção devia virar efeito
+   comum: "vira linha própria na grade". A mecânica dos 99 itens que a usam
+   fica intacta, e passa a ser editável.
+
+   SÓ CONDIÇÕES entram. Teto não faz sentido em vitalidade (limitar a Energia
+   Física de quem veste uma capa não é nada que o sistema queira dizer), e a
+   Temperatura fica de fora porque é o tronco legado de Frio e Calor — o
+   parser já traduz "Protege N de Temperatura" para `frio`.
+
+   E PESADO ENTRA SÓ AQUI (28/10/2026, usuário: "a proteção dos itens é contra
+   peso, ou seja, aumentam a capacidade de carga do personagem"). Ela é a
+   única barra que aceita teto e NÃO aceita delta: não se guarda em
+   `estado_atual.condicoes`, é calculada do peso carregado contra a
+   capacidade (calcularFicha). Por isso a lista deixou de ser uma fatia de
+   EFEITOS_EDITAVEIS e passou a ser escrita por extenso. */
+const PROTECOES_EDITAVEIS = [
+  ...EFEITOS_EDITAVEIS.filter((d) => d.grupo === 'condicoes' && d.key !== 'termorregulacao'),
+  { rotulo: 'Pesado', scope: 'condicoes', key: 'pesado', grupo: 'condicoes' },
+];
+
+/* O item lido como números: { 'Fome': -5, 'Energia Física': 10 }. Só entram
+   as barras que o item de fato mexe — rótulo ausente é "não mexe". */
+function efeitosEmNumeros(cat) {
+  const out = {};
+  (efeitosDoItem(cat, 1) || []).forEach((e) => {
+    const def = EFEITOS_EDITAVEIS.find((d) => d.scope === e.scope && d.key === e.key);
+    if (!def) return;
+    out[def.rotulo] = (out[def.rotulo] || 0) + e.delta;
+  });
+  return out;
+}
+
+/* As proteções do item lidas como números, no mesmo formato de
+   `efeitosEmNumeros`: { 'Frio': 15, 'Calor': 15 }. Rótulo ausente é "não
+   protege". É o que a grade do editor lê (28/10/2026). */
+function protecoesEmNumeros(cat) {
+  const porChave = PROTECOES_EDITAVEIS.reduce((a, d) => { a[d.key] = d.rotulo; return a; }, {});
+  const out = {};
+  Object.entries(protecoesDoItem(cat) || {}).forEach(([k, v]) => {
+    const rot = porChave[k];
+    if (rot) out[rot] = (out[rot] || 0) + Number(v || 0);
+  });
+  return out;
+}
+
+/* O caminho de volta: os números viram as duas prosas. Cada campo leva UM
+   verbo na frente, e o parser o estende às partes seguintes — por isso os
+   positivos cabem todos num "Aumenta a, b, c" e os negativos num "Reduz …".
+
+   AS PROTEÇÕES AGORA VÊM DA GRADE (28/10/2026). Antes elas eram relidas do
+   item original e reemitidas intactas, porque o editor não sabia editá-las e
+   reescrever só os deltas as apagaria. Com a grade de proteções, o terceiro
+   argumento manda: `{ 'Frio': 15 }`. Sem ele, o comportamento antigo continua
+   valendo — é o que mantém velhos chamadores de pé.
+
+   Texto que o parser não reconhece de jeito nenhum não sobrevive à gravação:
+   ele já não faz nada no jogo. O caso conhecido é "Protege N de Pesado", que
+   não tem barra — ver PROTECOES_EDITAVEIS. */
+function efeitosParaTexto(valores, catOriginal, protecoes) {
+  const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const mais = [];
+  const menos = [];
+  EFEITOS_EDITAVEIS.forEach((d) => {
+    const v = num(valores && valores[d.rotulo]);
+    if (v > 0) mais.push(`${v} de ${d.rotulo}`);
+    else if (v < 0) menos.push(`${Math.abs(v)} de ${d.rotulo}`);
+  });
+  /* Com a grade (terceiro argumento), as proteções são o que ela diz —
+     inclusive apagar uma, escrevendo 0. Sem ela, valem as do item. */
+  const protegidos = protecoes
+    ? PROTECOES_EDITAVEIS
+      .filter((d) => num(protecoes[d.rotulo]) > 0)
+      .map((d) => `Protege ${num(protecoes[d.rotulo])} de ${d.rotulo}`)
+    : Object.entries(protecoesDoItem(catOriginal) || {})
+      .filter(([, n]) => Number(n) > 0)
+      .map(([k, n]) => {
+        const rot = (EFEITOS_EDITAVEIS.find((d) => d.key === k) || {}).rotulo || k;
+        return `Protege ${n} de ${rot}`;
+      });
+  const positivo = [...(mais.length ? ['Aumenta ' + mais.join(', ')] : []), ...protegidos].join(', ');
+  const negativo = menos.length ? 'Reduz ' + menos.join(', ') : '';
+  return {
+    efeito_positivo: positivo ? positivo + '.' : '',
+    efeito_negativo: negativo ? negativo + '.' : '',
+  };
+}
 
 // parseEfeito("35 Hidratação, 5 Temperatura") →
 //   [{ scope:'condicoes', key:'hidratacao', valor:35 }, { scope:'condicoes', key:'termorregulacao', valor:5 }]
@@ -844,9 +1310,23 @@ function aplicarEfeitosNaFicha(estadoAtual, efeitos, maximos) {
   return novo;
 }
 
-/* A composição de sempre: item → efeitos → ficha. Assinatura intocada, para
-   que os chamadores de antes de 12/09/2026 não saibam que algo mudou. */
-function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos) {
+/* A composição de sempre: item → efeitos → ficha. Assinatura compatível com
+   os chamadores de antes de 12/09/2026, que não passavam `dataJogo`.
+
+   A PORTA DUPLA (06/10/2026): item com `efeito_duracao_dias` NÃO toca a
+   barra. Ele vira linha em estado_atual.efeitos_temporarios, com data de
+   vencimento, e o bônus aparece só na LEITURA (bonusTemporarios) — é o que
+   deixa o Fogo Vivo levar a EH acima do máximo sem prender +5 na barra para
+   sempre. Sem a fase 01-core/efeito-temporario.jsx carregada, ou sem data da
+   mesa, o item cai na porta antiga: melhor aplicar na barra do que não
+   aplicar nada. */
+function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos, dataJogo) {
+  const comPrazo = (typeof window !== 'undefined' && window.ehEfeitoComPrazo) || null;
+  const doItem = (typeof window !== 'undefined' && window.efeitosTemporariosDoItem) || null;
+  const juntar = (typeof window !== 'undefined' && window.comEfeitosTemporarios) || null;
+  if (dataJogo && comPrazo && doItem && juntar && comPrazo(cat)) {
+    return juntar(estadoAtual, doItem(cat, quantidade, dataJogo), dataJogo);
+  }
   return aplicarEfeitosNaFicha(estadoAtual, efeitosDoItem(cat, quantidade), maximos);
 }
 
@@ -1173,9 +1653,44 @@ function tiposAceitos(containerCat) {
 }
 Object.assign(window, { tiposAceitos });
 
+/* ── AS BARRAS DO ANIMAL (06/10/2026) ──────────────────────────────────────
+   O animal é um item: o estado dele mora na INSTÂNCIA do inventário, com as
+   MESMAS chaves do estado_atual do personagem — `condicoes` com nutricao,
+   hidratacao, animo, vitalidade e termorregulacao.
+
+   Esta função mora AQUI, e não com o resto do animal, por uma razão de ordem
+   de carga: quem a precisa são os dois lados — vitalidadeDoAnimal (a barra,
+   07-inventario) e deltasAtributosDoAnimal (o efeito dela no atributo,
+   01-core/animal-condicao.jsx) —, e inventario-helpers é o único módulo que
+   carrega antes dos dois. Duas cópias dela seriam duas réguas: a barra
+   mostrando um número e o desconto no atributo usando outro.
+
+   Frio e Calor são os DOIS LADOS da termorregulação, exatamente como na ficha
+   do personagem (barrasDeCondicao, 01-core/game-data.jsx): −60 é 60 de Frio e
+   0 de Calor. A criatura não tem Vício, Sanidade nem Reputação — essas três
+   são de quem tem biografia. */
+function barrasDoAnimal(condicoes) {
+  const c = condicoes || {};
+  const t = Number(c.termorregulacao) || 0;
+  const n100 = (v) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? Math.max(0, Math.min(100, x)) : 0;
+  };
+  return {
+    vitalidade: n100(c.vitalidade),
+    animo: n100(c.animo),
+    hidratacao: n100(c.hidratacao),
+    nutricao: n100(c.nutricao),
+    frio: n100(-t),
+    calor: n100(t),
+  };
+}
+Object.assign(window, { barrasDoAnimal });
+
 Object.assign(window, { protecoesDoItem, protecoesVestidas, condicoesComDelta, desfazerEfeitosItem });
 Object.assign(window, {
   itemCasaBusca, adicionarAoInventario,
+  PORTE_RECIPIENTE, PORTES_RECIPIENTE, porteDoRecipiente, casasDoRecipiente,
   RECEITAS_CARNE, receitasDaCarne, carneDisponivel, prepararCarne,
   estaAVenda, itensLivres,
   ehFlecha, ehArco, ehVenenoDeArma, venenoEfDoItem, armaAceitaVeneno, venenoDaArma, nomeComVeneno,
@@ -1183,7 +1698,9 @@ Object.assign(window, {
   itensDoRitual, conferirItensDoRitual, consumirItensDoRitual,
   MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas, precoPorExtenso, ajudaDoPreco,
   fetchTabelaPaginada, fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
+  REGIOES_EQUIP, SLOT_CANONICO, slotCanonico, moverParaSaque, trocarSaqueRapido,
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,
+  GRUPO_PROPRIEDADE, ehPropriedade, cidadeDaPropriedade, mesmaCidade, acessoAPropriedade,
   podeMoverParaContainer, pecaNoCorpo, calcArmadura, AJUSTE_KEY, gerarAtaques,
   BONUS_ITEM_VALORES, bonusDoItem, destinoBonusItem, passoBonusItem, absorcaoDaPeca,
   patchDeEstado, mesclarEstado, gravarEstadoAtual,
@@ -1191,5 +1708,7 @@ Object.assign(window, {
   calcResistenciaArmadura, resistenciaDeCriatura, FATOR_RESISTENCIA_CRIATURA,
   pecasDeArmadura, distribuirResistencia,
   EFEITO_CONDICAO_MAP, parseEfeito, efeitosDoItem, aplicarDeltaCondicao,
+  EFEITOS_EDITAVEIS, efeitosEmNumeros, efeitosParaTexto,
+  PROTECOES_EDITAVEIS, protecoesEmNumeros,
   aplicarEfeitosItem, aplicarEfeitosNaFicha,
 });

@@ -37,7 +37,12 @@ beforeAll(() => {
   expect(Modal).toBeTypeOf('function');
 });
 // Sagração virou linha de Características (26/09/2026): o <li> tem o rótulo.
-const bonusLi = () => { const b = document.querySelector('.det-bonus'); return b ? b.closest('li') : null; };
+/* `[data-bonus]` e não `.det-bonus` (28/10/2026): o seletor do Mestre deixou
+   a caixa `.det-bonus` — que forçava 200px de largura — para vestir o
+   `.fp-pop-stepper`, o mesmo seletor de quantidade do resto do sistema
+   ("o trilho de sagração está muito grande", usuário). O atributo é o que os
+   dois modos, Mestre e jogador, continuam tendo em comum. */
+const bonusLi = () => { const b = document.querySelector('[data-bonus]'); return b ? b.closest('li') : null; };
 afterEach(cleanup);
 
 const ESPADA = { slug: 'espada_longa', nome: 'Espada Longa', grupo: 'Armas', categoria_equip: 'arma', slot_equip: 'maos', dano: 28, dano_l: -4, dano_m: 0, dano_p: 4, ajuste_atributo: 'FOR' };
@@ -139,7 +144,7 @@ describe('no inventário de verdade: o Mestre ajusta, o banco grava', () => {
   it('Mestre: + três vezes grava bonus 5 no item', async () => {
     const pjs = await montar(true);
     const mais = await vi.waitFor(() => {
-      const b = document.querySelector('.det-bonus button[aria-label="Aumentar bônus"]');
+      const b = document.querySelector('[data-bonus] button[aria-label="Aumentar bônus"]');
       expect(b).toBeTruthy();
       return b;
     });
@@ -170,7 +175,7 @@ describe('o modal do item', () => {
       {...extra}
     />,
   );
-  const botao = (nome) => document.querySelector(`.det-bonus button[aria-label="${nome}"]`);
+  const botao = (nome) => document.querySelector(`[data-bonus] button[aria-label="${nome}"]`);
 
   it('o Mestre vê − / + e o valor; cada clique pede um passo da escada', () => {
     const onBonus = vi.fn();
@@ -196,7 +201,7 @@ describe('o modal do item', () => {
   it('o jogador vê o bônus e o título "+5", sem os botões', () => {
     abrir(ESCUDO, { instanceId: 's1', slug: 'escudo_broquel', quantidade: 1, bonus: 5 });
     expect(document.querySelector('.det-bonus-val').textContent).toBe('+5');
-    expect(document.querySelector('.det-bonus button')).toBeNull();
+    expect(document.querySelector('[data-bonus] button')).toBeNull();
     expect(document.body.textContent).toMatch(/Escudo Broquel \+5/);
   });
 

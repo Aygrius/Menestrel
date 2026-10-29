@@ -61,7 +61,9 @@ describe('o modal do item do inventário', () => {
     expect(document.querySelector('.best-abas')).toBeNull();
     // Os números da arma ficam em Características, como os de todo item.
     expect(document.querySelector('.item-passe')).toBeNull();
-    expect(celulas()).toMatchObject({ dano: '12', grupo: 'CM' });
+    /* 27/10/2026: o grupo deixou de ser sigla — 'CM' virou 'Corte Médio'
+       (pedido do usuário: 'Grupo "PM" vira "Perfuração Média"'). */
+    expect(celulas()).toMatchObject({ dano: '12', grupo: 'Corte Médio' });
     // Descrição e Características na mesma página, sem trocar de aba.
     expect(document.body.textContent).toMatch(/Uma lâmina reta\./);
     expect(document.querySelector('.best-secao--lista')).toBeTruthy();
@@ -139,7 +141,11 @@ describe('o modal do item do inventário', () => {
 /* "Usar um item consumível: o alvo é sempre o próprio personagem" — Usar
    direto no rodapé, sem aba Usar e sem card do alvo (usuário, 22/10/2026). */
 describe('usar item: direto no rodapé', () => {
-  const POCAO = { slug: 'pocao', nome: 'Poção de Cura', grupo: 'Consumíveis', descricao: 'Cura 10.', efeito_positivo: 'Recupera 10 de EF.' };
+  /* "EF" não é rótulo do catálogo (o parser conhece "Energia Física") — a
+     prosa antiga aparecia na tela sem nunca ter sido lida. Com os efeitos em
+     rótulo e número (28/10/2026), fixture que o parser não entende vira linha
+     vazia, e o teste passaria a medir nada. */
+  const POCAO = { slug: 'pocao', nome: 'Poção de Cura', grupo: 'Consumíveis', descricao: 'Cura 10.', efeito_positivo: 'Recupera 10 de Energia Física.' };
   const abrirPocao = (extra = {}, qtd = 1) => render(
     <Modal instance={{ instanceId: 'p1', slug: 'pocao', quantidade: qtd }} catalogoBySlug={{ pocao: POCAO }} raca="Humano"
       slotsState={{}} todosItens={[{ instanceId: 'p1', slug: 'pocao', quantidade: qtd }]} containersDisponiveis={[]} pjsHistoria={[]}
@@ -154,7 +160,11 @@ describe('usar item: direto no rodapé', () => {
     expect(document.querySelector('[data-acao="usar"]')).toBeNull();
     expect(document.querySelector('.best-abas')).toBeNull();
     expect(document.querySelector('[data-alvo-uso]')).toBeNull();
-    expect(document.querySelector('.best-secao--lista').textContent).toMatch(/Efeito positivo\s*Recupera 10 de EF\./);
+    /* O EFEITO EM RÓTULO E NÚMERO (28/10/2026, usuário: "o sistema de efeitos
+       dos itens (positivo, negativo) virem apenas efeitos [...] mostrar
+       'Desonra 2, Frio 5, Calor 5'"). Era a prosa do banco, com o verbo e a
+       divisão positivo/negativo à mostra. A poção recupera 10 de EF. */
+    expect(document.querySelector('.best-secao--lista').textContent).toMatch(/Efeitos\s*Energia Física 10/);
   });
 
   it('Usar no rodapé já vem ativo: um clique usa e fecha', () => {
@@ -258,11 +268,24 @@ describe('seção Conteúdo do recipiente', () => {
     expect(secao.querySelector('.det-recip-vazio').textContent).toMatch(/^Vazio\./);
     expect(secao.querySelector('.det-grade-recipiente')).toBeNull();
   });
-  it('com itens: medidor do ocupado e a grade só completa a fileira', () => {
+  /* AS CASAS SÃO AS DO PORTE (29/10/2026, usuário: "vamos definir 4 tipos de
+     quantidades de slots para os itens: pequenos 3, médios 6, grandes 9,
+     muito grandes 15").
+
+     Esta linha mudou três vezes em dois dias, e vale registrar por quê: o
+     número de casas já veio da LARGURA da janela (5, em jsdom), já veio do
+     PESO que o recipiente suporta (2 — meu erro, peso não é casa), e agora
+     vem do PORTE, que é propriedade declarada do recipiente. A Bolsa
+     armazena 2 e por isso cai em `pequeno`: 3 casas.
+
+     Os dois limites convivem: `1/2` continua sendo o peso, e as 3 casas são
+     quantas peças cabem. */
+  it('com itens: o medidor traz casas e peso, e a grade mostra as casas do porte', () => {
     abrir([{ instanceId: 'b', slug: 'bolsa', quantidade: 1 }, { instanceId: 'a', slug: 'adaga', quantidade: 2, containerId: 'b' }]);
     const secao = document.querySelector('.det-recipiente');
     expect(secao.querySelector('.det-recip-num').textContent).toBe('1/2');
-    expect(secao.querySelectorAll('.det-grade-recipiente > *')).toHaveLength(5);
+    expect(secao.querySelector('.det-recip-casas').textContent.replace(/\s+/g, ' ')).toBe('1/3 casas');
+    expect(secao.querySelectorAll('.det-grade-recipiente > *')).toHaveLength(3);
   });
 });
 

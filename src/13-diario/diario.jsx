@@ -2372,10 +2372,16 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
               <SelectPill
                 value={v.atributos?.raca || ''}
                 onChange={(val) => setAttr('raca', val || '')}
+                /* SEM AS FORMAS (26/10/2026): Vampiro e Lobisomem moram em
+                   GAME_DATA.racas para a ficha saber calculá-los, mas não são
+                   raças — são o que um Humano ou um Elfo VIRA. Oferecê-los
+                   aqui deixaria o Mestre cadastrar uma pessoa cuja raça é uma
+                   transformação. `racasJogaveis` é o mesmo filtro do wizard. */
                 options={[
                   { value: '', label: '—' },
                   ...(typeof GAME_DATA !== 'undefined' && GAME_DATA.racas
-                    ? Object.keys(GAME_DATA.racas).map((r) => ({ value: r, label: r }))
+                    ? (window.racasJogaveis ? window.racasJogaveis() : Object.keys(GAME_DATA.racas))
+                        .map((r) => ({ value: r, label: r }))
                     : []),
                 ]}
               />

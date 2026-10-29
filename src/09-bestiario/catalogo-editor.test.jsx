@@ -20,6 +20,7 @@ import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/game-data.jsx';
 import '../01-core/inventario-helpers.jsx';
+import '../01-core/bases-item.jsx';
 import '../10-shell/shell.jsx';
 import './criatura-formulas.jsx';
 import './catalogo-descritores.jsx';
@@ -1446,5 +1447,41 @@ describe('magia: itens necessários só em Ritual', () => {
   it('não Ritual com itens já gravados: o campo continua, para não sumir nada', () => {
     montar({ tabela: 'magias', linha: { key: 'x', nome: 'X', classe: 'Feitiço', evocacao: '10 rodadas', itens_necessarios: 'Água (2)' } });
     expect(campo()).toBeTruthy();
+  });
+});
+
+
+/* ── A BASE do item (26/10/2026, pedido do usuário) ─────────────────────────
+   "Existe a base do item, por exemplo 'Máscara de Ouro', e existe o exemplar
+   do item, 'Máscara Decorativa', 'Máscara Verrogari'. […] Isso precisa estar
+   presente na criação/edição do item."
+
+   O campo é diferente de todos os outros do editor: a lista de opções
+   depende da LINHA, não do descritor — as bases que cabem num item saem da
+   região dele (ou do grupo, quando não é vestível). É esse `opcoesDe` que
+   este bloco protege. */
+describe('item: a BASE é escolhida no editor', () => {
+  const campoBase = () => document.querySelector('[data-campo="base"]')
+    || document.querySelector('.catalogo-campo [data-campo="base"]');
+  const opcoesDoCampo = () => {
+    const sel = document.querySelector('[data-campo="base"] select, select[name="base"]');
+    return sel ? [...sel.options].map((o) => o.value) : null;
+  };
+
+  it('o campo existe na edição de um item', () => {
+    montar({ tabela: 'itens', linha: { slug: 'mascara_verrogari', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto' } });
+    expect(screen.getAllByText('Base').length).toBeGreaterThan(0);
+  });
+
+  it('as opções saem da REGIÃO do item', () => {
+    montar({ tabela: 'itens', linha: { slug: 'm', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto' } });
+    const opcoes = window.opcoesDeBase({ slot_equip: 'rosto', grupo: 'Vestimentas' }).map((o) => o.value);
+    expect(opcoes).toContain('mascara-ferro');
+    expect(opcoes).not.toContain('elmo-leve');
+  });
+
+  it('a base gravada aparece escolhida', () => {
+    montar({ tabela: 'itens', linha: { slug: 'm', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto', base: 'mascara-ferro' } });
+    expect(screen.getAllByText(/Máscara de Ferro/).length).toBeGreaterThan(0);
   });
 });

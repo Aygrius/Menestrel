@@ -263,15 +263,49 @@ function somarAguaNaLoja(estoqueLoja, ganho, novoId) {
    horas de sono ACUMULAM entre movimentos do relógio (4h + 4h fecham um
    ciclo) — `horas_sono` guarda o resto. Trocar de atividade zera o resto
    (quem troca grava a atividade nova sem ele). */
+/* OS VERBOS DA ATIVIDADE. Servem a duas coisas que precisam concordar: o
+   NOME na lista da ficha e a linha do log da mesa ("Eco começou a dormir").
+   Uma tabela só, para não divergirem.
+
+   `pt`/`enInf` são o infinitivo — o nome da AÇÃO, que é o que a lista
+   oferece e o que o botão do modal confirma. `enGer` é o gerúndio, que o log
+   precisa ("started sleeping"). */
+const ATIVIDADE_VERBO = {
+  dormindo:   { pt: 'dormir',   enInf: 'Sleep',    enGer: 'sleeping' },
+  meditando:  { pt: 'meditar',  enInf: 'Meditate', enGer: 'meditating' },
+  orando:     { pt: 'orar',     enInf: 'Pray',     enGer: 'praying' },
+  estudando:  { pt: 'estudar',  enInf: 'Study',    enGer: 'studying' },
+  treinando:  { pt: 'treinar',  enInf: 'Train',    enGer: 'training' },
+  praticando: { pt: 'praticar', enInf: 'Practice', enGer: 'practicing' },
+};
+const _maiuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/* A LISTA PASSOU AO INFINITIVO (27/10/2026, pedido do usuário: "em
+   'atividades' vamos mudar o nome para: Dormir, Meditar, Orar, Estudar,
+   Treinar, Praticar").
+
+   Eram gerúndios — "Dormindo", "Meditando" —, que diziam o ESTADO. Desde que
+   escolher abre um modal de confirmação, a lista deixou de ser um retrato do
+   que o personagem faz e virou um menu de AÇÕES: o nome é o que acontece se
+   você clicar, e é a mesma palavra que vai no botão que confirma.
+
+   As CHAVES (`dormindo`, `meditando`…) não mudaram — elas estão gravadas em
+   `estado_atual.atividade.tipo` de toda ficha que já existe, e em
+   ATIVIDADE_DA_CLASSE e ATIVIDADE_EFEITO. Renomear id por causa de rótulo é
+   como se perde personagem. */
 const ATIVIDADES = [
-  { id: 'dormindo',  pt: 'Dormindo',  en: 'Sleeping',   icon: 'ti-zzz' },
-  { id: 'meditando', pt: 'Meditando', en: 'Meditating', icon: 'ti-yoga' },
-  { id: 'orando',    pt: 'Orando',    en: 'Praying',    icon: 'ti-pray' },
-  { id: 'estudando', pt: 'Estudando', en: 'Studying',   icon: 'ti-book' },
-  { id: 'treinando', pt: 'Treinando', en: 'Training',   icon: 'ti-barbell' },
-  // Praticando (22/10/2026): é onde os ENCANTOS treinam (fila de treino).
-  { id: 'praticando', pt: 'Praticando', en: 'Practicing', icon: 'ti-music' },
-];
+  { id: 'dormindo',   icon: 'ti-zzz' },
+  { id: 'meditando',  icon: 'ti-yoga' },
+  { id: 'orando',     icon: 'ti-pray' },
+  { id: 'estudando',  icon: 'ti-book' },
+  { id: 'treinando',  icon: 'ti-barbell' },
+  // Praticar (22/10/2026): é onde os ENCANTOS treinam (fila de treino).
+  { id: 'praticando', icon: 'ti-music' },
+].map((a) => ({
+  ...a,
+  pt: _maiuscula(ATIVIDADE_VERBO[a.id].pt),
+  en: ATIVIDADE_VERBO[a.id].enInf,
+}));
 
 const HORAS_CICLO_SONO = 8;
 
@@ -281,11 +315,17 @@ const ATIVIDADE_EFEITO = {
     ciclo: [{ vit: 'eh', base: 10, attr: 'carisma' }, { vit: 'ef', base: 1, attr: 'fisico' }, { vit: 'ka', base: 5, attr: 'aura' }],
   },
   meditando: { hora: [{ vit: 'eh', base: 2, attr: 'carisma' }, { vit: 'ka', base: 1, attr: 'aura' }] },
-  orando:    { hora: [{ cond: 'sanidade', base: 5 }] },
-  estudando: { hora: [{ cond: 'reputacao', base: 5 }] },
-  treinando: { hora: [{ cond: 'reputacao', base: 5 }] },
-  // "recupera igual estudando e treinando" (usuário, 22/10/2026).
-  praticando: { hora: [{ cond: 'reputacao', base: 5 }] },
+  // Orar tira 2 de Loucura por hora (27/10/2026, usuário: "Loucura -2 (a
+  // cada hora)"). Eram 5, o mesmo de estudar e treinar.
+  orando:    { hora: [{ cond: 'sanidade', base: 2 }] },
+  /* CADA OFÍCIO CUIDA DE UMA BARRA (27/10/2026, usuário, cartão por cartão:
+     "Vício -2", "Má Fama -2", "Loucura -2"). As três eram a MESMA receita —
+     Má Fama −5 — desde 22/10 ("recupera igual estudando e treinando"), e
+     agora cada uma tem a sua: o estudo lava o nome, o treino tira o vício, a
+     prática acalma a cabeça (como a prece). O passo caiu de 5 para 2. */
+  estudando:  { hora: [{ cond: 'reputacao', base: 2 }] },
+  treinando:  { hora: [{ cond: 'euforia',   base: 2 }] },
+  praticando: { hora: [{ cond: 'sanidade',  base: 2 }] },
 };
 
 /* O estado depois de `horas` horas na atividade gravada em est.atividade.
@@ -384,18 +424,11 @@ function aplicarTreinoNoPj(pj, atividade, horas) {
 }
 
 /* A linha do log da mesa quando a atividade muda: "Eco começou a dormir.",
-   "Eco parou de meditar.", ou as duas coisas numa troca direta. */
-const ATIVIDADE_VERBO = {
-  dormindo:  { pt: 'dormir',  en: 'sleeping' },
-  meditando: { pt: 'meditar', en: 'meditating' },
-  orando:    { pt: 'orar',    en: 'praying' },
-  estudando: { pt: 'estudar', en: 'studying' },
-  treinando: { pt: 'treinar', en: 'training' },
-  praticando: { pt: 'praticar', en: 'practicing' },
-};
+   "Eco parou de meditar.", ou as duas coisas numa troca direta. O verbo vem
+   da tabela lá de cima — a mesma que nomeia a atividade na ficha. */
 function textoEventoAtividade(nome, de, para, en) {
   const quem = nome || (en ? 'The character' : 'O personagem');
-  const v = (id) => ATIVIDADE_VERBO[id] && ATIVIDADE_VERBO[id][en ? 'en' : 'pt'];
+  const v = (id) => ATIVIDADE_VERBO[id] && ATIVIDADE_VERBO[id][en ? 'enGer' : 'pt'];
   const vDe = v(de);
   const vPara = v(para);
   if (vDe && vPara) return en ? `${quem} stopped ${vDe} and started ${vPara}.` : `${quem} parou de ${vDe} e começou a ${vPara}.`;
@@ -404,8 +437,162 @@ function textoEventoAtividade(nome, de, para, en) {
   return null;
 }
 
+/* ══ O QUE A ATIVIDADE FAZ, EM PALAVRAS (27/10/2026) ═══════════════════════
+   "Ao clicar, adicione um modal explicando o que aquela atividade faz."
+   (usuário)
+
+   O texto é GERADO do ATIVIDADE_EFEITO, e não escrito à mão. Explicação
+   escrita à parte envelhece calada: alguém afina o ganho de karma do sono e
+   o modal segue prometendo o número velho. Aqui, mudar a receita muda a
+   explicação no mesmo commit.
+
+   Quando há atributos, mostra o NÚMERO DESTE personagem (base + atributo),
+   que é o que o princípio do produto pede — custo e ganho antes do clique.
+   Sem eles, mostra a fórmula. */
+const ATIVIDADE_ROTULO = {
+  animo:      { pt: 'Sono',      en: 'Sleepiness' },
+  sanidade:   { pt: 'Loucura',   en: 'Madness' },
+  reputacao:  { pt: 'Má Fama',   en: 'Infamy' },
+  vitalidade: { pt: 'Doença',    en: 'Illness' },
+  hidratacao: { pt: 'Sede',      en: 'Thirst' },
+  nutricao:   { pt: 'Fome',      en: 'Hunger' },
+  euforia:    { pt: 'Vício',     en: 'Addiction' },
+  ef: { pt: 'Energia Física',  en: 'Physical Energy' },
+  eh: { pt: 'Energia Heroica', en: 'Heroic Energy' },
+  ka: { pt: 'Karma',           en: 'Karma' },
+};
+const ATIVIDADE_ATRIBUTO = {
+  carisma: { pt: 'Carisma', en: 'Charisma' },
+  fisico:  { pt: 'Físico',  en: 'Physique' },
+  aura:    { pt: 'Aura',    en: 'Aura' },
+};
+/* O que a atividade É, numa frase. Isto sim é escrito à mão: é o porquê, e
+   porquê não se deduz de uma tabela de números. */
+const ATIVIDADE_PORQUE = {
+  dormindo: {
+    pt: 'O sono é o único descanso que devolve energia de verdade — mas só fecha a conta a cada oito horas inteiras.',
+    en: 'Sleep is the only rest that truly returns energy — but it only settles up every full eight hours.',
+  },
+  meditando: {
+    pt: 'Recolhimento: devolve energia heroica e karma a cada hora, sem precisar fechar ciclo nenhum.',
+    en: 'Inward rest: returns heroic energy and karma every hour, with no cycle to complete.',
+  },
+  orando: {
+    pt: 'Orar acalma a mente e o espírito, mas também aqui é onde você aprenderá novos milagres.',
+    en: 'Prayer settles mind and spirit — and it is also here that you will learn new miracles.',
+  },
+  estudando: {
+    pt: 'Estudar afia o cérebro e desenvolve sua energia interior, mas também aqui é onde você aprenderá novas magias.',
+    en: 'Study sharpens the mind and builds your inner energy — and it is also here that you will learn new spells.',
+  },
+  treinando: {
+    pt: 'Treinar torna você a cada dia mais apto para o combate, mas também é aqui que você aprenderá novas técnicas de combate.',
+    en: 'Training makes you fitter for battle by the day — and it is also here that you will learn new combat techniques.',
+  },
+  praticando: {
+    pt: 'Praticar torna você um artista mais próximo da perfeição, mas também é aqui que você aprenderá novos encantamentos.',
+    en: 'Practice brings the artist in you closer to perfection — and it is also here that you will learn new enchantments.',
+  },
+};
+
+function explicacaoDaAtividade(id, atributos, en) {
+  const regra = ATIVIDADE_EFEITO[id];
+  if (!regra) return null;
+  const attrs = atributos || null;
+  const nome = (chave) => {
+    const r = ATIVIDADE_ROTULO[chave];
+    return r ? r[en ? 'en' : 'pt'] : chave;
+  };
+  const linhaDe = (ef) => {
+    const base = Number(ef.base) || 0;
+    const somaAttr = ef.attr && attrs ? _num(attrs[ef.attr]) : null;
+    // Condição: o ganho TIRA da barra (0 é o ideal), e por isso vai com sinal.
+    const sinal = ef.cond ? -1 : 1;
+    const valor = somaAttr == null
+      ? (ef.attr
+        ? `${sinal < 0 ? '−' : '+'}${base} + ${ATIVIDADE_ATRIBUTO[ef.attr][en ? 'en' : 'pt']}`
+        : `${sinal < 0 ? '−' : '+'}${base}`)
+      : `${sinal < 0 ? '−' : '+'}${Math.max(0, base + somaAttr)}`;
+    return { rotulo: nome(ef.cond || ef.vit), valor, atributo: ef.attr || null };
+  };
+  /* UMA LISTA SÓ (27/10/2026, pelo recorte que o usuário escreveu):
+
+       A cada 8 horas recupera:
+       Sono −5 (por hora)
+       Energia Heroica +16
+       …
+
+     Quando há ciclo, é ELE que dá o título — é o que a atividade entrega — e
+     a linha por hora, que é a exceção, carrega a cadência entre parênteses.
+     Sem ciclo não há título nenhum: a cadência cabe na própria linha, e um
+     cabeçalho para uma linha só é moldura em volta de nada. */
+  const porHora = en ? 'per hour' : 'por hora';
+  const grupos = [];
+  if (regra.ciclo) {
+    grupos.push({
+      quando: en ? `Every ${HORAS_CICLO_SONO} hours slept it recovers` : `A cada ${HORAS_CICLO_SONO} horas recupera`,
+      linhas: [
+        ...(regra.hora || []).map((ef) => ({ ...linhaDe(ef), cadencia: porHora })),
+        ...regra.ciclo.map(linhaDe),
+      ],
+    });
+  } else if (regra.hora) {
+    const cada = en ? 'every hour' : 'a cada hora';
+    grupos.push({ quando: null, linhas: regra.hora.map((ef) => ({ ...linhaDe(ef), cadencia: cada })) });
+  }
+  const porque = ATIVIDADE_PORQUE[id];
+  return { porque: porque ? porque[en ? 'en' : 'pt'] : null, grupos, aprendizado: _aprendizado(id, en) };
+}
+
+/* QUANTO DEMORA PARA APRENDER (27/10/2026, usuário: "informe na descrição
+   quanto tempo demora para aprender um milagre").
+
+   Também gerado, e das MESMAS constantes que a fila consome: ATIVIDADE_DA_CLASSE
+   diz qual classe treina em qual atividade e HORAS_TREINO diz o preço em horas
+   (01-core/game-data.jsx). Pelo window porque game-data carrega depois desta
+   fase — e a conta só acontece quando a janela abre, nunca na carga.
+
+   Vale para as quatro que ensinam, não só orar: a regra é uma só, e escrever
+   a de milagre à mão deixaria as outras três mudas sobre o mesmo assunto. */
+const _APRENDE_O_QUE = {
+  orando:     { pt: 'um milagre',       en: 'a miracle',        custo: 'magia' },
+  estudando:  { pt: 'uma magia',        en: 'a spell',          custo: 'magia' },
+  meditando:  { pt: 'uma transmutação', en: 'a transmutation',  custo: 'magia' },
+  praticando: { pt: 'um encantamento',  en: 'an enchantment',   custo: 'magia' },
+  /* Treinar é o único que ensina TÉCNICA, e técnica custa outro tanto de
+     horas (72 contra 24) — por isso o custo é campo, não constante. */
+  treinando:  { pt: 'uma técnica',      en: 'a technique',      custo: 'tecnica' },
+};
+function _aprendizado(id, en) {
+  const oQue = _APRENDE_O_QUE[id];
+  const tabela = (typeof window !== 'undefined' && window.HORAS_TREINO) || {};
+  const horas = oQue ? tabela[oQue.custo] : 0;
+  if (!oQue || !horas) return null;
+  /* SÓ A PRIMEIRA COMPRA CUSTA TEMPO (28/10/2026, usuário):
+
+       "Magia, Técnica, Habilidade só precisa de aprendizado quando o
+        personagem não tem nenhum nível, representa uma compra nova; depois
+        de aprender o nível 1, ao comprar ativa instantaneamente."
+
+     Até aqui a frase dizia "por nível", o que prometia uma fila a cada
+     degrau — e era errado: o tempo é o preço de APRENDER a coisa, não de
+     subir nela. Quem já tem o nível 1 compra os seguintes e usa na hora.
+
+     Duas frases, e não uma com ressalva no fim: a segunda metade é a que o
+     jogador com a magia na ficha precisa ler, e ressalva depois de ponto
+     final é ressalva que ninguém lê.
+
+     "NÍVEL" e não "passo" (27/10/2026): a fila fala em passo por dentro, mas
+     quem lê a ficha conhece nível — é a palavra das magias (1, 3, 5, 7, 9) e
+     das técnicas. Uma palavra por coisa. */
+  return en
+    ? `Learning ${oQue.en} for the first time takes ${horas} hours of this activity. Once you have level 1, further levels activate the moment you buy them.`
+    : `Aprender ${oQue.pt} pela primeira vez leva ${horas} horas nesta atividade. Com o nível 1 na ficha, os níveis seguintes valem assim que você compra.`;
+}
+
 Object.assign(window, {
-  ATIVIDADES, ATIVIDADE_EFEITO, recuperacaoPorAtividade, textoEventoAtividade,
+  ATIVIDADES, ATIVIDADE_EFEITO, ATIVIDADE_VERBO, explicacaoDaAtividade,
+  recuperacaoPorAtividade, textoEventoAtividade,
   avancarTreinos, aplicarTreinoNoPj,
   noiteDeSono, decaimentoPorHoras, horasEntre, proximoInstante,
   tiqueDeClima, penalidadeVentoVB, aguaPorHoraDeChuva, somarAguaNaLoja,

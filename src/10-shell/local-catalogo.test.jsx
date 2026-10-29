@@ -54,7 +54,13 @@ function montar(mundo) {
   return { filtros, updates };
 }
 
-const abrirLocal = () => act(() => { document.querySelector('.cdj-local').closest('button').click(); });
+/* A pílula do local virou SÓ O ÍCONE em 26/10/2026 ("Localização, Horário,
+   Umidade, Vento, Temperatura, Notificações vão ser somente ícones, e o
+   tooltip será a informação dele"), e com ela foi embora o <span
+   class="cdj-local"> que estes testes usavam para achar o botão. O que
+   identifica a pílula agora é a casa dela, .cdj-local-wrap. */
+const pilulaDoLocal = () => document.querySelector('.cdj-local-wrap > button');
+const abrirLocal = () => act(() => { pilulaDoLocal().click(); });
 // Desde 02/10/2026 clicar no local abre a lista EMBAIXO do pill, como a
 // hora e o clima — a barra não é mais trocada por um seletor.
 const abrirLista = () => waitFor(() => {
@@ -77,7 +83,7 @@ describe('o local da mesa vem do catálogo inteiro do Mestre', () => {
       ],
       cidades: [{ slug: 'brann', nome: 'Brann', reino: 'verrogar', historia_id: null }],
     });
-    await waitFor(() => expect(document.querySelector('.cdj-local')).toBeTruthy());
+    await waitFor(() => expect(pilulaDoLocal()).toBeTruthy());
     abrirLocal();
     const txt = (await abrirLista()).map((o) => o.textContent.trim()).join('|');
     expect(txt).toContain('Verrogar');
@@ -91,7 +97,7 @@ describe('o local da mesa vem do catálogo inteiro do Mestre', () => {
 
   it('sem Salvar/Cancelar: escolher o lugar já grava', async () => {
     const { updates } = montar({ reinos: [{ slug: 'portis', nome: 'Portis', historia_id: 24 }], cidades: [] });
-    await waitFor(() => expect(document.querySelector('.cdj-local')).toBeTruthy());
+    await waitFor(() => expect(pilulaDoLocal()).toBeTruthy());
     abrirLocal();
     const itens = await abrirLista();
     expect(document.querySelector('.cdj-pill-btn-salvar')).toBeNull();

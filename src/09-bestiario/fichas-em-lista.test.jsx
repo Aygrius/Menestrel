@@ -13,6 +13,8 @@
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
@@ -192,9 +194,15 @@ describe('janelas do catálogo', () => {
     const det = await abrir(window.ItensList, 'Adaga');
     semMiniCard(det);
     const mapa = Object.fromEntries(linhas(det));
-    expect(mapa['Atributo']).toBe('For');
+    /* 27/10/2026: o atributo voltou a ser por extenso — 'For' virou 'Força'
+       (pedido do usuário: 'Atributo "Per" vira "Percepção"'). A abreviação
+       de 28/09 resolvia o CAIXA ALTA gritando; o nome inteiro resolve isso
+       E a decifração das três letras. */
+    expect(mapa['Atributo']).toBe('Força');
     expect(mapa['Dano']).toBeUndefined();
-    expect(passe()).toMatchObject({ dano: '4', ocupa: '1', grupo: 'CL' });
+    // O grupo por extenso vale no passe também: a célula e a linha de
+    // Características são o mesmo dado, e uma esconde a outra.
+    expect(passe()).toMatchObject({ dano: '4', ocupa: '1', grupo: 'Corte Leve' });
   });
 
   /* Item cujo único número é Ocupa não ganha passe (uma faixa vazia): o
@@ -306,9 +314,11 @@ describe('itens: ícone na tabela e efeitos na janela', () => {
   it('o serviço sem descrição mostra o efeito positivo', async () => {
     const det = await abrir(window.ItensList, 'Diária em Estalagem');
     // Em Características desde 26/09/2026 (as abas de efeito foram unidas a ela).
+    /* "Efeito positivo"/"Efeito negativo" viraram uma linha "Efeitos" só, em
+       rótulo e número (28/10/2026) — ver item-modal-icones.test.jsx. */
     const linha = [...det.querySelectorAll('.best-secao--lista .best-stat--linha')]
-      .find((li) => li.textContent.startsWith('Efeito positivo'));
-    expect(linha.textContent).toMatch(/Aumenta 1 de Energia Física/);
+      .find((li) => li.textContent.startsWith('Efeitos'));
+    expect(linha.textContent).toMatch(/Energia Física 1\b/);
     expect(det.querySelector('.best-secao--efeito')).toBeNull();
   });
 });
@@ -391,5 +401,58 @@ describe('abas nos modais de detalhe', () => {
     await abrir(window.ItensList, 'Adaga');
     expect(abas()).toEqual([]);
     expect(document.querySelector('.modal-item .best-secao--lista')).toBeTruthy();
+  });
+});
+
+/* ── AS TRÊS LEITURAS DO CARD DO ITEM (27/10/2026) ─────────────────────────
+   Pedidos do usuário sobre o card de visualização do item: "Alcance adicione
+   o 'm' após o número", 'Atributo "Per" vira "Percepção"', 'Grupo "PM" vira
+   "Perfuração Média"'.
+
+   As três eram a mesma coisa: um número ou uma sigla sem nada que os
+   explicasse. Os nomes já existiam no projeto — SIGLA_ATRIBUTO_EXTENSO aqui e
+   GRUPOS_ARMAS em 01-core/game-data.jsx —, só não eram lidos no card.
+   Conferido no navegador: "Alcance 1 m", "Atributo Percepção", "Grupo Corte
+   Médio". */
+describe('o item se explica sem tabela ao lado', () => {
+  const bestiario = readFileSync(resolve(__dirname, './bestiario.jsx'), 'utf8');
+
+  it('o alcance diz a unidade', () => {
+    expect(bestiario).toMatch(/function alcanceEmMetros\(v\) \{/);
+    expect(bestiario).toMatch(/valor=\{alcanceEmMetros\(it\.alcance\)\}/);
+    expect(bestiario).toMatch(/return `\$\{String\(n\)\.replace\('\.', ','\)\} m`;/);
+  });
+
+  it('o atributo vem por extenso, da tabela que já existia', () => {
+    expect(bestiario).toMatch(/valor=\{atributoPorExtenso\(it\.ajuste_atributo, lang === 'en'\)\}/);
+  });
+
+  /* O passe e a linha são o MESMO dado, e quando o passe mostra o Grupo a
+     linha some (ver `omitir`): a sigla no passe seria a única leitura
+     possível em metade dos casos. */
+  it('o grupo vem por extenso na linha E no passe', () => {
+    expect(bestiario).toMatch(/function gruposDeArmaPorExtenso\(v, en\) \{/);
+    expect(bestiario).toMatch(/valor=\{ehArma\(it\) \? gruposDeArmaPorExtenso\(it\.grupo_armas, lang === 'en'\) : null\}/);
+    expect(bestiario).toMatch(/valor: gruposDeArmaPorExtenso\(it\.grupo_armas, en\)/);
+  });
+
+  /* Sigla fora da tabela passa inteira: dado estranho no catálogo aparece
+     como está, em vez de sumir da tela. */
+  it('e a sigla desconhecida não some', () => {
+    const f = window.gruposDeArmaPorExtenso;
+    expect(f).toBeTypeOf('function');
+    expect(f('CM', false)).toBe('Corte Médio');
+    expect(f('PM', false)).toBe('Perfuração Média');
+    expect(f('PM', true)).toBe('Medium Piercing');
+    expect(f('CM, PL', false)).toBe('Corte Médio, Perfuração Leve');
+    expect(f('XX', false)).toBe('XX');
+    expect(f(null, false)).toBeNull();
+  });
+
+  it('e o alcance zero continua sem linha', () => {
+    const a = window.alcanceEmMetros;
+    expect(a(0)).toBeNull();
+    expect(a(null)).toBeNull();
+    expect(a(30)).toBe('30 m');
   });
 });

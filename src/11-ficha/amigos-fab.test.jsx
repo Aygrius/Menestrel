@@ -82,3 +82,45 @@ describe('AmigosFab', () => {
     expect(src).toMatch(/podeEditarFoto && pjAtivoId && typeof AmigosFab !== 'undefined'/);
   });
 });
+
+/* ── A COLUNA SAI DA FRENTE DO MENU (27/10/2026) ───────────────────────────
+   "Quando eu passo o mouse sob os ícones do menu lateral à esquerda, ele
+   expande, depois quando eu passo o mouse sob o texto, eu só consigo clicar
+   no menu quando o mouse está sob o ícone e não sob o texto."
+
+   Os dois estavam certos sozinhos e errados juntos: o menu recolhido mede
+   72px e, aberto, cresce para 232 POR CIMA da página; os cards moram em
+   `left: 80px`, dentro dessa faixa, numa camada acima (z-index 71 contra 60)
+   e com `pointer-events: auto`. Medido no navegador, sobre um item de menu
+   aberto: no ícone o clique chegava ao item, a 110px dele chegava ao
+   `.amg-amigo`, e passados os 132px do card voltava ao item — uma faixa morta
+   no meio do texto.
+
+   O menu ganha, mas os cards não somem (são o alvo do arraste de item do
+   inventário): a coluna desliza os mesmos 160px que o menu cresce. */
+describe('os cards não roubam o clique do menu aberto', () => {
+  const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
+
+  it('a coluna desliza para além da barra aberta, nos três estados dela', () => {
+    for (const estado of ['.is-expandida', ':focus-within', '.is-menu-aberto']) {
+      expect(css, estado).toContain(
+        '#root:has(.mc-sidebar' + estado + ') .menestrel-ui.amg-root');
+    }
+    // 240px: a barra aberta termina em 232 (72 + 160 de crescimento).
+    expect(css).toContain('{ --amg-esq: 240px; }');
+  });
+
+  it('e desliza no mesmo tempo e na mesma curva do menu', () => {
+    const curva = /cubic-bezier\(\.16,1,\.3,1\)/;
+    expect(css).toMatch(/\.amg-root \.amg-fab,[\s\S]{0,160}transition: left \.2s cubic-bezier\(\.16,1,\.3,1\)/);
+    expect(css.match(/transition: flex-basis \.2s cubic-bezier\(\.16,1,\.3,1\)/)).toBeTruthy();
+    expect(curva.test(css)).toBe(true);
+  });
+
+  /* Abaixo de 769px o menu é uma folha e não invade nada. */
+  it('só no computador — no celular não há o que resolver', () => {
+    const i = css.indexOf('A COLUNA DE AMIGOS SAI DA FRENTE DO MENU');
+    expect(i).toBeGreaterThan(-1);
+    expect(css.slice(i, i + 1600)).toMatch(/@media \(min-width: 769px\)/);
+  });
+});

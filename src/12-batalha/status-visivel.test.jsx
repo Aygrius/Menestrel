@@ -17,6 +17,11 @@
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const aqui = dirname(fileURLToPath(import.meta.url));
+
 import '../01-core/copy.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
@@ -90,18 +95,25 @@ describe('token do tabuleiro — selos que todos veem', () => {
     expect(document.querySelector('.batalha-token-selo-veneno')).toBeNull();
   });
 
-  /* "Numerar colunas e linhas no tabuleiro da batalha." (13/09/2026) */
-  it('réguas numeradas: colunas em cima, linhas à esquerda, começando em 1', () => {
+  /* AS RÉGUAS NUMERADAS SAÍRAM (27/10/2026, pedido do usuário: "no campo de
+     batalha, remova os números que identificam linhas e colunas"). Elas
+     viveram de 13/09 a 27/10.
+
+     A trava vira o oposto, e vale por dois motivos: o desenho não volta por
+     descuido, e — o que importa mais — as duas engenhocas que existiam SÓ
+     para elas não voltam junto. `rolagemXY` escutava o onScroll para as
+     faixas acompanharem o arraste; `sobra` media a centralização com um
+     ResizeObserver para os números não descolarem do grid. Sem números, o
+     tabuleiro não escuta rolagem nem observa redimensionamento. */
+  it('não há mais números de linha e coluna, nem o que os alimentava', () => {
     montar(token({}));
-    const cols = Array.from(document.querySelectorAll('.batalha-tabuleiro-regua--col .batalha-tabuleiro-regua-num')).map((n) => n.textContent);
-    const lins = Array.from(document.querySelectorAll('.batalha-tabuleiro-regua--lin .batalha-tabuleiro-regua-num')).map((n) => n.textContent);
-    const T = window.MotorTabuleiro;
-    expect(cols[0]).toBe('1');
-    expect(lins[0]).toBe('1');
-    // o último número é múltiplo do passo, e nunca passa do tamanho do tabuleiro
-    expect(Number(cols.at(-1))).toBeLessThanOrEqual(T.TAB_COLS);
-    expect(Number(lins.at(-1))).toBeLessThanOrEqual(T.TAB_ROWS);
-    expect(Number(cols.at(-1))).toBeGreaterThan(T.TAB_COLS - 10);
+    expect(document.querySelector('.batalha-tabuleiro-regua-num')).toBeNull();
+    expect(document.querySelector('.batalha-tabuleiro-regua')).toBeNull();
+    expect(document.querySelector('.batalha-tabuleiro-regua-canto')).toBeNull();
+    const fonte = readFileSync(resolve(aqui, 'tabuleiro.jsx'), 'utf8');
+    expect(fonte, 'o estado da rolagem era só das réguas').not.toMatch(/setRolagemXY/);
+    expect(fonte, 'o ResizeObserver da sobra era só das réguas').not.toMatch(/const \[sobra, setSobra\]/);
+    expect(fonte).not.toMatch(/function ReguaTabuleiro/);
   });
 
   it('desistiu mostra a bandeira, com nome', () => {

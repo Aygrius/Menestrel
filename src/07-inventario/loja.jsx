@@ -143,7 +143,7 @@ function LinhaDaCompra({ rotulo, nota, topo, tem, children }) {
   );
 }
 
-function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, livreL, recipientes, comprando, erro, onConfirm, onClose }) {
+function CompraLojaModal({ entry, cat, catBySlug, lang, totalLatao, moedasHeld, livreS, livreL, recipientes, comprando, erro, onConfirm, onClose }) {
   const en = lang === 'en';
   const [qtd, setQtd] = useState(1);
   // A etapa de compra, aberta pelo ícone Comprar ao lado do X (26/09/2026).
@@ -154,7 +154,17 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
     return aptos.length === 1 ? aptos[0].inst.instanceId : '';
   });
 
-  const preco = entry.preco_latao_override != null ? Number(entry.preco_latao_override) : Number(cat.valor_latao || 0);
+  /* PREÇO PELO PACOTE (29/10/2026): a entrada pode vir com itens dentro (uma
+     algibeira de moedas), e aí o preço sugerido é o recipiente mais o recheio
+     — precoDaEntrada, a mesma função que o painel do Mestre usa e que o
+     comprar_item espelha no servidor. Sem catálogo em mão, cai no valor de
+     tabela, que é o comportamento de antes. */
+  const precoDaEntradaFn = (typeof precoDaEntrada === 'function' ? precoDaEntrada : window.precoDaEntrada);
+  const preco = precoDaEntradaFn
+    ? Number(precoDaEntradaFn(entry, cat, catBySlug))
+    : (entry.preco_latao_override != null ? Number(entry.preco_latao_override) : Number(cat.valor_latao || 0));
+  const dentro = (window.conteudoDaEntrada ? window.conteudoDaEntrada(entry) : []);
+  const dentroTexto = dentro.map((c) => `${c.quantidade}× ${(catBySlug && catBySlug[c.slug] && catBySlug[c.slug].nome) || c.slug}`);
   const gratis = preco === 0;
   const stockNull = entry.estoque == null;
   const stockNum = stockNull ? Infinity : Number(entry.estoque);
@@ -273,6 +283,14 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
               </LinhaDaCompra>
             )}
 
+            {/* O QUE VEM DENTRO (29/10/2026) — antes do preço de propósito: é
+                metade do que está sendo cobrado, e o jogador não pode descobrir
+                o recheio só depois de pagar. */}
+            {dentro.length > 0 && (
+              <LinhaDaCompra rotulo={en ? 'Comes inside' : 'Vem dentro'}>
+                <span className="loja-dentro-txt">{dentroTexto.join(' · ')}</span>
+              </LinhaDaCompra>
+            )}
             <LinhaDaCompra rotulo={en ? 'Unit price' : 'Preço unitário'}>
               {gratis
                 ? <strong className="gratis">{en ? 'Free' : 'Gratuito'}</strong>
@@ -303,6 +321,9 @@ function CompraLojaModal({ entry, cat, lang, totalLatao, moedasHeld, livreS, liv
     { chave: 'preco', texto: true, rotulo: en ? 'Price' : 'Preço',
       valor: gratis ? (en ? 'Free' : 'Gratuito') : <MoedaPills latao={preco} lang={lang} tamanho="sm" /> },
     { chave: 'estoque', rotulo: en ? 'Stock' : 'Estoque', valor: stockNull ? '∞' : stockNum },
+    // O recheio também no passe: visível ANTES de abrir a etapa de compra.
+    ...(dentro.length ? [{ chave: 'dentro', texto: true, rotulo: en ? 'Inside' : 'Dentro',
+      valor: dentroTexto.join(' · ') }] : []),
   ] }) : { topo: null, omitir: [] };
   return (
     <Janela
@@ -855,7 +876,20 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
   // Entradas válidas (com catálogo) e filtro da busca. Os chips de grupo saíram
   // em 02/10/2026 ("não há necessidade de ter botões de filtro").
   const normTxt = (s) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-  const entradas = estoqueLoja.filter((e) => catalogoBySlug[e.slug]);
+  /* ESTOQUE ZERO NÃO VAI À VITRINE (26/10/2026, pedido do usuário: "itens que
+     chegar a 0 de quantidade de estoque na loja, desaparecem, só aparecem
+     aqueles com no mínimo 1 de estoque"). A linha continua no `estoque_loja`
+     do Mestre — é lá que ele repõe —, mas o balcão só mostra o que se pode
+     levar hoje. Entrada SEM estoque é estoque ILIMITADO (o mercador tem
+     quantos quiser) e continua aparecendo: zero é um número, ausente não.
+
+     O campo é `estoque`, e não `quantidade` (29/10/2026): a entrada do balcão
+     vem de `estoque_loja_flat` com { entryId, slug, estoque, … } — é o que
+     `stockNull`/`stockNum` leem dez linhas abaixo e o que a compra debita.
+     Lendo `quantidade`, que nunca existe nessa linha, o filtro era sempre
+     verdadeiro e o item esgotado seguia na vitrine. */
+  const temEstoque = (e) => e.estoque == null || Number(e.estoque) >= 1;
+  const entradas = estoqueLoja.filter((e) => catalogoBySlug[e.slug] && temEstoque(e));
   const q = normTxt(busca);
   const visiveis = entradas.filter((e) => {
     const cat = catalogoBySlug[e.slug];
@@ -958,7 +992,10 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
             const vitrine = [
               ...visiveis.map((entry) => {
                 const cat = catalogoBySlug[entry.slug];
-                const preco = entry.preco_latao_override != null ? Number(entry.preco_latao_override) : Number(cat.valor_latao || 0);
+                // O mesmo preço do pacote da janela de compra (29/10/2026).
+                const preco = window.precoDaEntrada
+                  ? Number(window.precoDaEntrada(entry, cat, catalogoBySlug))
+                  : (entry.preco_latao_override != null ? Number(entry.preco_latao_override) : Number(cat.valor_latao || 0));
                 const stockNull = entry.estoque == null;
                 const stockNum = stockNull ? Infinity : Number(entry.estoque);
                 const esgotado = !stockNull && stockNum <= 0;
@@ -982,7 +1019,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
             return (
               <div className={'bau-corpo loja-bau' + (lojaLarga ? ' bau-corpo--painel' : '')}>
                 <div className="inv-grid-wrap">
-                  <div ref={setGradeLojaEl} className="inv-bag-grid inv-bag-grid--slots" style={{ gridTemplateColumns: `repeat(${COLS}, 50px)` }}>
+                  <div ref={setGradeLojaEl} className="inv-bag-grid inv-bag-grid--slots" style={{ gridTemplateColumns: `repeat(${COLS}, var(--inv-casa))` }}>
                     {Array.from({ length: total }, (_, i) => {
                       const v = vitrine[i];
                       if (!v) return <span key={'g' + i} className="inv-slot-ghost" aria-hidden="true" />;
@@ -1010,7 +1047,19 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
                     ) : (
                       <div className="loja-painel-corpo">
                         <div className="loja-painel-cab">
-                          <span className={'loja-painel-ic' + (sel.cat && sel.cat.magico ? ' is-magico' : '')}><i className={'ti ' + invItemIcon(sel.cat)} aria-hidden="true" /></span>
+                          {/* A MESMA CASA DA GRADE (27/10/2026, pedido do
+                              usuário: "o tamanho do slot deve ser igual (ou
+                              próximo) ao slot de loja/inventário"). Media 52px
+                              contra os 78 da casa — dois terços — e, pior,
+                              mostrava o GLIFO onde a grade mostra a pintura:
+                              clicar num item trocava o desenho dele por um
+                              símbolo genérico. Agora é o mesmo tamanho (o
+                              token --inv-casa, que acompanha a grade quando
+                              ela se ajusta) e o mesmo conteúdo, pelo mesmo
+                              ItemIcone. */}
+                          <span className={'loja-painel-ic' + (sel.cat && sel.cat.magico ? ' is-magico' : '')}>
+                            <ItemIcone cat={sel.cat} icon={invItemIcon(sel.cat)} />
+                          </span>
                           <div>
                             <h3 className="loja-painel-nome">{sel.nome}</h3>
                             {sel.cat && sel.cat.grupo && <p className="loja-painel-sub">{sel.cat.grupo}</p>}
@@ -1020,9 +1069,17 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
                           <div><dt>{en ? 'Price' : 'Preço'}</dt><dd><PrecoMoedas latao={sel.preco} lang={lang} mudo={sel.esgotado} />{sel.tipo === 'anuncio' && sel.qtd > 1 && <span className="loja-cartao-cada">{en ? 'each' : 'cada'}</span>}</dd></div>
                           {sel.tipo === 'estoque'
                             ? <div><dt>{en ? 'Stock' : 'Estoque'}</dt><dd>{sel.esgotado ? (en ? 'Sold out' : 'Esgotado') : sel.stockNull ? (en ? 'Unlimited' : 'Ilimitado') : sel.stockNum}</dd></div>
-                            : <div><dt>{en ? 'Seller' : 'Vendedor'}</dt><dd>{sel.meu ? (en ? 'You' : 'Você') : (sel.anuncio.vendedor_nome || (en ? 'an adventurer' : 'um aventureiro'))} · {en ? `${sel.qtd} available` : `${sel.qtd} à venda`}</dd></div>}
+                            /* SÓ O NOME DO PERSONAGEM (27/10/2026, pedido do
+                               usuário: "no campo 'vendedor' da loja, deve
+                               mostrar o nome completo do personagem que está
+                               vendendo, apenas isso"). Saíram o "Você" — quem
+                               vende é o PERSONAGEM, não a conta — e o "N à
+                               venda", que é quantidade e não vendedor. */
+                            : <div><dt>{en ? 'Seller' : 'Vendedor'}</dt><dd>{sel.anuncio.vendedor_nome || (en ? 'An adventurer' : 'Um aventureiro')}</dd></div>}
                         </dl>
-                        {sel.cat && sel.cat.descricao && <p className="loja-painel-desc">{sel.cat.descricao}</p>}
+                        {/* A descrição é quem rola dentro do card (27/10/2026):
+                            o botão do pé fica sempre à vista, com respiro. */}
+                        {sel.cat && sel.cat.descricao && <p className="loja-painel-desc mn-rolagem">{sel.cat.descricao}</p>}
                         {sel.semMoeda && <p className="loja-painel-falta">{en ? 'Not enough coin' : 'A bolsa não alcança'}</p>}
                         <button type="button" className="btn-primary loja-painel-botao" disabled={sel.esgotado} onClick={sel.abrir}>
                           {sel.tipo === 'anuncio' && sel.meu ? (en ? 'Manage' : 'Gerenciar') : (en ? 'Buy' : 'Comprar')}
@@ -1069,6 +1126,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
           <CompraLojaModal
             entry={entry}
             cat={cat}
+            catBySlug={catalogoBySlug}
             lang={lang}
             totalLatao={totalLatao}
             moedasHeld={moedas}

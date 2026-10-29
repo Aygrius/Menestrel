@@ -121,6 +121,11 @@ describe('sair escolhe outro personagem', () => {
      mesmo valor e nada rerenderizava. A barra lateral passou a contar os
      toques (navToken) e a lista do Mestre fecha a ficha quando o contador
      sobe. Sem isso, tirar a seta deixaria o Mestre preso. */
+  /* Em 27/10/2026 esta trava chegou a ser afrouxada para UMA seta: a janela
+     de Atividades tinha ganhado um passo de explicação com seta de voltar no
+     título. No mesmo dia o usuário mandou tirá-la ("remova o botão de voltar
+     do lado do nome") — quem volta à lista é o rodapé, onde "Cancelar" virou
+     "Voltar". Com ela fora, a trava volta a ser a original: nenhuma. */
   it('não há mais seta de voltar na ficha', () => {
     expect(fonteFicha).not.toContain('ti-arrow-left');
   });
@@ -131,12 +136,32 @@ describe('sair escolhe outro personagem', () => {
     // ocupa boa parte dele, e uma contagem fixa de caracteres não alcança.
     /* Desde 22/10/2026 (Mesa em Sessão) todo item do menu navega pela função
        `ir`, que sobe o token SEMPRE — também quando a seção já é a atual. */
-    const i = shell.indexOf('const ir = (secao, filtro) => {');
+    const i = shell.indexOf('const ir = (secao, filtro, semVoltar) => {');
     const trecho = shell.slice(i, shell.indexOf('};', i));
     expect(trecho).toContain('setCurrentId(secao);');
-    expect(trecho).toContain('setNavToken((n) => n + 1);');
-    // E os itens do menu passam por ela.
-    expect(shell).toContain('onClick={() => { const d = destinoDe(no); ir(d.secao, d.filtro); }}');
+    expect(trecho).toContain('if (!semVoltar) setNavToken((n) => n + 1);');
+    // E os itens do menu passam por ela (via `irPara`, desde 26/10/2026).
+    expect(shell).toContain('onClick={() => irPara(no)}');
+    expect(shell).toContain('const d = destinoDe(no);');
+  });
+
+  /* A ÚNICA EXCEÇÃO AO TOKEN (26/10/2026): "Como mestre, os menus Ficha,
+     Identificação, Conhecimento, etc viram um submenu em Personagens > Eco."
+     Clicar em "Eco › Ficha" vai para a seção `personagens_m` — a mesma que já
+     está aberta — mas com a intenção OPOSTA à do toque em "Personagens": abrir
+     a ficha, não fechá-la. Subir o token ali mandaria fechar e abrir na mesma
+     rodada, e o Mestre veria a lista piscar. Por isso, e só ali, `semVoltar`. */
+  it('abrir a ficha pelo submenu NÃO conta como toque de saída', () => {
+    const shell = readFileSync(resolve(aqui, '..', '10-shell', 'shell.jsx'), 'utf8');
+    expect(shell).toContain("if (no.pj) { abrirFichaDoPj(no.pj, no.aba); ir('personagens_m', '', true); return; }");
+    // E o toque no PRÓPRIO "Personagens" continua sendo a saída, com token.
+    expect(shell).toContain('if (no.navega && no.secao) {');
+    /* `no.filtro` entrou em 27/10/2026: "Personagens" não tem filtro e nada
+       muda para ele — quem precisava era "Companheiros" (ficha + animais),
+       que sem o filtro abria a aba Ficha no lugar da dele. O que este teste
+       guarda é o TOKEN, que continua subindo (sem `semVoltar`). */
+    expect(shell).toMatch(/if \(no\.navega && no\.secao\) \{[\s\S]{0,160}ir\(no\.secao, no\.filtro\);/);
+    expect(shell).not.toMatch(/if \(no\.navega && no\.secao\) \{[\s\S]{0,160}ir\(no\.secao[^)]*, true\)/);
   });
 
   /* Cada fatia vai só até o fim da PRÓPRIA tag: a linha do Jogador é longa, e

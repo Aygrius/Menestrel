@@ -55,7 +55,8 @@ function maisNovaOuIgual(nova, atual) {
    3. View de batalha do jogador com restrições (só age na vez do seu PJ)
    4. Mensagem "vez de X" quando não é a vez do PJ
 */
-function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, onEvoluir, abaPedida, abaToken, onAba }) {
+function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, onEvoluir, abaPedida, abaToken, onAba,
+  onCompanheiros, compPedidoId, compPedidoToken }) {
   const isEn = lang === 'en';
   const [batalhaAtiva, setBatalhaAtiva] = useState(null);   // { id, estado, participantes, historia_id, ... }
   const [viewBatalha, setViewBatalha] = useState(false);    // true = mostra tela de batalha
@@ -152,6 +153,8 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
          (27/09/2026) — quem desenha é a própria ficha, que tem o tooltip. */
       onBatalha={(!carregando && batalhaAtiva) ? () => setViewBatalha(true) : null}
       abaPedida={abaPedida} abaToken={abaToken} onAba={onAba}
+      onCompanheiros={onCompanheiros}
+      compPedidoId={compPedidoId} compPedidoToken={compPedidoToken}
     />
   );
 }
@@ -239,7 +242,16 @@ function temLevelUpPendente(p) {
 //   - 'player' → mostra só PJs do próprio user
 //   - 'master' → mostra TODOS os PJs (RLS permite SELECT all)
 //                e dá acesso a botões de Editar e Dar XP em qualquer um
-function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onFichaAberta, onNomePjAtivo, voltarToken = 0, abaFicha = null, abaToken = 0, onAbaFicha = null, sairToken = 0 }) {
+/* `pjPedidoId`/`pjPedidoToken`/`onPersonagens` (26/10/2026, pedido do usuário):
+   "Como mestre, os menus Ficha, Identificação, Conhecimento, etc viram um
+   submenu em Personagens > Eco, etc." A barra lateral passou a listar os
+   personagens da mesa e a abrir a ficha de um deles numa aba escolhida — então
+   ela precisa SABER quem são (onPersonagens) e PODER abrir (pjPedido*). O
+   estado continua aqui: quem manda na ficha aberta é esta lista, e a barra só
+   pede. */
+function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onFichaAberta, onNomePjAtivo, voltarToken = 0, abaFicha = null, abaToken = 0, onAbaFicha = null, sairToken = 0, pjPedidoId = null, pjPedidoToken = 0, onPersonagens = null,
+  acaoPjId = null, acaoPj = null, acaoPjToken = 0,
+  onCompanheiros = null, compPedidoId = null, compPedidoToken = 0 }) {
   const isMaster = profile === 'master';
   const [modalOpen, setModalOpen] = useState(false);
   const [toDelete, setToDelete] = useState(null);
@@ -273,13 +285,27 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   // mostrar só os personagens vinculados àquela história — sem isso, o Mestre
   // via PJs de TODAS as histórias misturados (bug reportado pelo usuário).
   // Sem mesaAtivaId (ex.: 0 ou 1 história só) mostra tudo, como antes.
-  const personagens = pjLoading ? null : (
+  /* MEMOIZADA (27/10/2026) — e isto é correção de travamento, não de
+     performance.
+
+     Era um `.filter()` solto no corpo do render, logo um ARRAY NOVO a cada
+     render. Lá embaixo há um efeito com `[personagens, …]` que entrega a
+     lista ao shell (`onPersonagens` → `setPjsDaMesa`). Identidade nova a cada
+     render significa efeito a cada render; o efeito grava no shell; o shell
+     re-renderiza esta tela; nasce outro array. O laço fecha sozinho.
+
+     "Quando eu clico na magia adestramento, a tela quebra" (usuário): o
+     console acusava `Maximum update depth exceeded` aqui ANTES de acusar no
+     bestiário — a janela da magia só foi o render que encontrou a pilha já
+     estourada. E o `isMaster` do efeito explica por que só acontecia logado
+     como Mestre. */
+  const personagens = React.useMemo(() => (pjLoading ? null : (
     !isMaster || !mesaAtivaId
       ? (pjData?.personagens ?? [])
       : (pjData?.personagens ?? []).filter(
           (p) => (pjData?.historiaIdPorPersonagem?.[p.id]) === mesaAtivaId
         )
-  );
+  )), [pjLoading, pjData, isMaster, mesaAtivaId]);
   /* Os cards acompanham o banco (24/09/2026): o relógio e o clima da mesa
      gravam nos PJs (desgaste, 10-shell) e a lista, em cache do React Query,
      seguia mostrando as barras velhas. Um evento por PJ chega junto quando o
@@ -426,6 +452,60 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
     if (isMaster) setFichaAbertoId(null);
   }, [voltarToken, isMaster]);
 
+  /* ── A BARRA LATERAL ABRE A FICHA (26/10/2026) ────────────────────────────
+     O Mestre escolhe o personagem no submenu de Personagens, e não mais só na
+     lista. Token, e não o id sozinho: pedir o MESMO personagem de novo (clicar
+     "Eco › Ficha" estando já na ficha do Eco) tem de reabrir, e um id igual ao
+     anterior não dispara efeito nenhum. */
+  const pedidoVisto = useRef(pjPedidoToken);
+  useEffect(() => {
+    if (pedidoVisto.current === pjPedidoToken) return;
+    pedidoVisto.current = pjPedidoToken;
+    if (isMaster && pjPedidoId != null) setFichaAbertoId(pjPedidoId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pjPedidoToken]);
+
+  /* ── EDITAR E EXCLUIR VÊM DO MENU (26/10/2026) ───────────────────────────
+     "Os botões 'editar, excluir' também" devem ficar só na barra lateral
+     (usuário). Os dois modais continuam aqui — é esta lista que tem o PJ
+     inteiro, o refetch e a RPC de exclusão —, e a barra só pede. Token pelo
+     mesmo motivo do `pjPedido`: pedir "Excluir" duas vezes no mesmo
+     personagem precisa reabrir o modal fechado sem confirmar. */
+  const acaoVista = useRef(acaoPjToken);
+  useEffect(() => {
+    if (acaoVista.current === acaoPjToken) return;
+    acaoVista.current = acaoPjToken;
+    if (!isMaster || !acaoPjId || !acaoPj) return;
+    const alvo = (personagens || []).find((p) => p.id === acaoPjId);
+    if (!alvo) return;
+    if (acaoPj === 'editar') setToEdit(alvo);
+    else if (acaoPj === 'excluir') setToDelete(alvo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acaoPjToken]);
+
+  /* Quem são os personagens da mesa, para o submenu da barra. Só o nome e o
+     id: a barra não precisa da linha inteira, e mandar o objeto cru faria o
+     shell re-renderizar a cada refetch. */
+  /* E o efeito só empurra o que MUDOU (27/10/2026). A memoização acima já
+     fecha o laço, mas um efeito que grava estado do pai a cada disparo é uma
+     arapuca armada: basta alguém trocar o useMemo por um filter de novo, ou
+     o pai passar um `onPersonagens` novo a cada render, e o laço volta.
+
+     A assinatura é o conteúdo que o shell de fato usa — id e nome. Igual, não
+     grava; e o shell não re-renderiza à toa a cada refetch da lista. */
+  const assinaturaPjs = React.useRef(null);
+  useEffect(() => {
+    if (!onPersonagens || !isMaster) return;
+    const enxuta = (personagens || []).map((p) => ({
+      id: p.id,
+      nome: [p.nome, p.sobrenome].filter(Boolean).join(' ') || p.nome,
+    }));
+    const assinatura = enxuta.map((p) => p.id + ':' + p.nome).join('|');
+    if (assinaturaPjs.current === assinatura) return;
+    assinaturaPjs.current = assinatura;
+    onPersonagens(enxuta);
+  }, [personagens, onPersonagens, isMaster]);
+
   const ativarPj = async (pjId) => {
     // Com alguém ativo, ativar outro não faz nada: desative primeiro.
     if (pjAtivoNoPerfil && pjAtivoNoPerfil !== pjId) return;
@@ -527,6 +607,13 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
           onEditar={pjAberto ? () => setToEdit(pjAberto) : undefined}
           onExcluir={pjAberto ? () => setToDelete(pjAberto) : undefined}
           onEvoluir={pjAberto && temLevelUpPendente(pjAberto) ? () => setToEdit(pjAberto) : null}
+          /* A aba vem do submenu da barra (26/10/2026) e volta para ela: o
+             trilho de abas do Mestre e o menu marcam a mesma página. */
+          abaPedida={abaFicha} abaToken={abaToken} onAba={onAbaFicha}
+          /* O submenu de Companheiros na barra (26/10/2026): a ficha relata
+             quem são os bichos, a barra pede qual abrir. */
+          onCompanheiros={onCompanheiros}
+          compPedidoId={compPedidoId} compPedidoToken={compPedidoToken}
         />
 
         {toEdit && (
@@ -579,6 +666,8 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
         /* Evoluir no trilho da ficha (23/10/2026) — saiu do card. */
         onEvoluir={pjAtivoObj && temLevelUpPendente(pjAtivoObj) ? () => setToEdit(pjAtivoObj) : null}
         abaPedida={abaFicha} abaToken={abaToken} onAba={onAbaFicha}
+        onCompanheiros={onCompanheiros}
+        compPedidoId={compPedidoId} compPedidoToken={compPedidoToken}
       />
       {toEdit && (
         <NovoPersonagemModal
@@ -982,13 +1071,25 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
               )}
               {/* O "Evoluir" saiu do card (23/10/2026): mora no trilho de ações da
                   ficha ("vai para o trilho na ficha do personagem"). */}
-              {/* ATIVIDADE (24/09/2026): dormindo, meditando… Com nome, ao
-                  contrário dos status: é o que o personagem está FAZENDO, e um
-                  ícone de lua sozinho não diria se ele dorme ou medita. */}
+              {/* ATIVIDADE (24/09/2026): dormindo, meditando… SÓ O ÍCONE desde
+                  27/10/2026 ("no badge de atividade, deixe apenas o ícone e
+                  tira o texto 'dormir'" — usuário).
+
+                  O nome estava aqui porque um ícone de lua sozinho não diria
+                  se ele dorme ou medita. Mas o ícone NÃO é de lua: cada
+                  atividade tem o seu (zzz, yoga, reza, livro, haltere,
+                  música), e o nome ao lado era a legenda de um desenho que já
+                  se explica.
+
+                  O nome segue no aria-label, para quem usa leitor de tela.
+                  SEM `title`: o card não tem balão por decisão de 17/09/2026
+                  (ver a nota do bloco de status logo abaixo), e o balão
+                  nativo do navegador é proibido no sistema inteiro — há um
+                  teste que o vigia (01-core/tooltip-padrao.test.js). */}
               {atividadePj && (
-                <span className="pj-atividade-selo" data-atividade={atividadePj.id}>
+                <span className="pj-atividade-selo" data-atividade={atividadePj.id}
+                  aria-label={en ? atividadePj.en : atividadePj.pt}>
                   <i className={'ti ' + atividadePj.icon} aria-hidden="true" />
-                  {en ? atividadePj.en : atividadePj.pt}
                 </span>
               )}
               {/* STATUS, no canto direito do topo. */}
@@ -1888,7 +1989,13 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
             value={form.raca}
             onChange={handleRacaChange}
             disabled={isEdit}
-            options={Object.keys(GAME_DATA.racas).map((r) => ({ value: r, label: r }))}
+            /* SÓ AS RAÇAS DE ORIGEM (06/10/2026): vampiro e lobisomem entram
+               em GAME_DATA.racas para a ficha saber calculá-los, mas não são
+               escolha de criação — ninguém nasce lobisomem, vira. A lista
+               filtrada mora em 01-core/forma-raca.jsx; sem ela carregada,
+               vale o catálogo inteiro, que é como era antes das formas. */
+            options={((window.racasJogaveis ? window.racasJogaveis() : Object.keys(GAME_DATA.racas)))
+              .map((r) => ({ value: r, label: r }))}
           />
           <SelectPill
             label={lang === 'en' ? 'Gender' : 'Gênero'}

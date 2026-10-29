@@ -28,7 +28,8 @@ const ctx = (extra) => ({
   ...extra,
 });
 const est = (atividade, extra) => ({
-  condicoes: { animo: 60, sanidade: 60, reputacao: 60 },
+  // euforia entrou em 27/10/2026: é a barra que Treinar passou a baixar.
+  condicoes: { animo: 60, sanidade: 60, reputacao: 60, euforia: 60 },
   vitalidade: { ef: 0, eh: 0, ka: 0 },
   atividade: atividade ? { tipo: atividade } : undefined,
   ...extra,
@@ -109,14 +110,25 @@ describe('Meditando', () => {
 });
 
 describe('Orando, Estudando, Treinando', () => {
-  it('orando: loucura −5 por hora', () => {
-    expect(recuperacaoPorAtividade(est('orando'), 2, ctx()).condicoes.sanidade).toBe(50);
+  /* Orar passou a tirar 2 por hora (27/10/2026, usuário: "Loucura -2 (a cada
+     hora)"); eram 5, o mesmo de estudar e treinar. A prece ficou mais lenta
+     que o estudo de propósito — a diferença é do jogo, não um descuido. */
+  it('orando: loucura −2 por hora', () => {
+    expect(recuperacaoPorAtividade(est('orando'), 2, ctx()).condicoes.sanidade).toBe(56);
   });
-  it('estudando: desonra −5 por hora', () => {
-    expect(recuperacaoPorAtividade(est('estudando'), 2, ctx()).condicoes.reputacao).toBe(50);
+  /* CADA OFÍCIO, UMA BARRA (27/10/2026, usuário cartão por cartão). As três
+     eram Má Fama −5, a mesma receita desde 22/10. Agora: estudar lava o nome,
+     treinar tira o vício, praticar acalma a cabeça — e o passo é 2. */
+  it('estudando: má fama −2 por hora', () => {
+    expect(recuperacaoPorAtividade(est('estudando'), 2, ctx()).condicoes.reputacao).toBe(56);
   });
-  it('treinando: desonra −5 por hora', () => {
-    expect(recuperacaoPorAtividade(est('treinando'), 2, ctx()).condicoes.reputacao).toBe(50);
+  it('treinando: vício −2 por hora, e a má fama fica onde estava', () => {
+    const depois = recuperacaoPorAtividade(est('treinando'), 2, ctx()).condicoes;
+    expect(depois.euforia).toBe(56);
+    expect(depois.reputacao).toBe(60);
+  });
+  it('praticando: loucura −2 por hora', () => {
+    expect(recuperacaoPorAtividade(est('praticando'), 2, ctx()).condicoes.sanidade).toBe(56);
   });
   it('não tocam na energia', () => {
     expect(recuperacaoPorAtividade(est('orando'), 8, ctx()).vitalidade).toEqual({ ef: 0, eh: 0, ka: 0 });

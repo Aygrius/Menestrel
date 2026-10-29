@@ -312,7 +312,14 @@ function valorNiveisIniciais(mods) {
 function bonusPontosRaca(raca) {
   const mods = GAME_DATA.racas[raca]?.mods;
   if (!mods) return 0;   // raça ausente ou fora do catálogo: sem bônus
-  const teto = Math.max(...Object.values(GAME_DATA.racas).map((r) => valorNiveisIniciais(r.mods)));
+  /* O teto sai só das raças JOGÁVEIS (06/10/2026). O Lobisomem vale 6 contra
+     o teto de 4 do Anão: se ele entrasse na conta, todo personagem já criado
+     ganharia +2 pontos de atributo sem ninguém pedir. As formas entram em
+     GAME_DATA.racas marcadas com `forma: true` (registrarFormasNasRacas, em
+     01-core/forma-raca.jsx) justamente para poderem ser filtradas aqui. */
+  const teto = Math.max(...Object.values(GAME_DATA.racas)
+    .filter((r) => !(r && r.forma))
+    .map((r) => valorNiveisIniciais(r.mods)));
   return teto - valorNiveisIniciais(mods);
 }
 
@@ -375,8 +382,12 @@ function altura(raca, genero, subraca) {
 function peso(raca, genero, subraca) {
   const sub = GAME_DATA.subracas[subraca] ? subraca : null;
   const h = altura(raca, genero, sub);
-  // O fator atarracado é do corpo de anão: transformado, o corpo é outro.
-  const fator = (raca === 'Anão' && !sub) ? 40 : 28;
+  /* O FATOR É O DA RAÇA, mesmo transformado (06/10/2026): "a sub-raça declara
+     altura, não compleição — todo o restante permanece o mesmo". Um anão
+     vampiro é um anão de 1,77m e pesa como tal (1,77² × 40), não como um
+     humano da mesma altura. Antes o fator trocava para 28 com qualquer
+     sub-raça, o que fazia o anão emagrecer 38 quilos ao virar vampiro. */
+  const fator = raca === 'Anão' ? 40 : 28;
   return Math.floor(h * h * fator);
 }
 
@@ -401,6 +412,14 @@ function subracaEfetiva(p, dataJogo) {
       if (s && GAME_DATA.subracas[s]) return s;
     }
   }
+  /* A FORMA do estado (06/10/2026): vampiro e lobisomem entram por
+     `estado_atual.forma = { raca }` — a porta que 01-core/forma-raca.jsx usa
+     — e valem como sub-raça para tudo o que deriva daqui: altura, peso, VB,
+     poços. Vem DEPOIS da magia de transformação e ANTES da sub-raça fixa do
+     Mestre: uma Licantropia evocada vence a forma gravada, e a forma gravada
+     vence a coluna. */
+  const daForma = p && p.estado_atual && p.estado_atual.forma && p.estado_atual.forma.raca;
+  if (daForma && GAME_DATA.subracas[daForma]) return daForma;
   const fixa = p && p.subraca;
   return GAME_DATA.subracas[fixa] ? fixa : null;
 }
@@ -461,7 +480,10 @@ function resistenciasBase(estagio, fisico, aura) {
 // subraca (opcional, 22/10/2026): a sub-raça em vigor (ver subracaEfetiva).
 // Omitida → lida do próprio PJ sem a data da mesa; quem tem a data em mãos
 // passa subracaEfetiva(p, dataJogo), e a batalha passa a do snapshot.
-function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca) {
+/* `dataJogo` (06/10/2026) é a data da mesa, e serve só para saber quais
+   bônus com prazo ainda valem. Sem ela, os que existem contam como vigentes —
+   a mesma convenção das magias ativas; quem avança o relógio é o Mestre. */
+function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca, dataJogo) {
   const racaData = GAME_DATA.racas[p.raca] || GAME_DATA.racas['Humano'];
   const profData = GAME_DATA.profissoes[p.profissao] || GAME_DATA.profissoes['Guerreiro'];
   const estagio = calcEstagio(p.experiencia ?? 0);
@@ -505,7 +527,23 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca)
     catch (_) { pesadoPct = 0; }
   }
   const protecoes = (catalogoBySlug && _itens && _protFn) ? _protFn(_itens, catalogoBySlug) : {};
+  /* Os bônus com prazo que ainda valem na data da mesa. Sem a fase carregada
+     (ou sem estado), é tudo zero e nada muda. */
+  const _bonusTemp = (typeof window !== 'undefined' && window.bonusTemporarios) || null;
+  const _temp = _bonusTemp
+    ? _bonusTemp((p && p.estado_atual && p.estado_atual.efeitos_temporarios) || [], dataJogo)
+    : { ef: 0, eh: 0, ka: 0, ar: 0, vb: 0 };
   const condicoesComCarga = { ...(condicoesAtuais || {}), pesado: pesadoPct };
+  /* "REMOVER ESSAS BARRAS E SEUS EFEITOS" (06/10/2026, sobre o vampiro): não
+     basta esconder a barra — a condição de que a forma é imune não pode
+     descontar poço nem resistência. Apagar a chave aqui é o que faz isso
+     valer para EF, EH, RF e RM de uma vez, sem que deltasPocosPorCondicoes
+     precise saber o que é um vampiro. A lista mora em 01-core/forma-raca.jsx
+     e chega pelo window: esta fase carrega antes daquela. */
+  const _imunFn = (typeof window !== 'undefined' && window.imunidadesDaForma) || null;
+  if (_imunFn && sub) {
+    (_imunFn(sub) || []).forEach((chave) => { delete condicoesComCarga[chave]; });
+  }
   const dPoco = deltasPocosPorCondicoes(condicoesComCarga, protecoes);
   const condicoesEfetivas = barrasDeCondicao(condicoesComCarga, protecoes);
 
@@ -566,26 +604,43 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca)
   // AR     = soma das absorções dos equipamentos de defesa equipados.
   // Defesa = tipo do peitoral (slot 'peito') concatenado com AR. Ex: "L10".
   //          Sem peitoral, fica só o número. Sem catálogo, "—".
-  let absorcaoTotal = 0;   // AR — soma das absorções (vai pra barra)
-  let defesaTotal  = 0;    // soma das defesas (compõe a string)
+  let absorcaoTotal = 0;   // ABS — soma das absorções (vai pra barra)
+  let defesaTotal  = 0;    // soma das defesas (compõe a string e o DEF)
+  let modVelTotal  = 0;    // VEL das peças (mod_vel do catálogo, 26/10/2026)
+  let modKarTotal  = 0;    // KAR das peças (mod_kar do catálogo, 26/10/2026)
   let tipoPeitoral = '';
   if (catalogoBySlug && p?.inventario?.itens) {
     p.inventario.itens.forEach((it) => {
       // Critério único de "está no corpo" (01-core/inventario-helpers.jsx):
       // cobre armadura equipada E vestimenta vestida. Antes era `it.slot`,
       // que só enxerga equipamento — um dos três critérios divergentes que a
-      // auditoria de 01/09/2026 encontrou pra mesma soma.
+      // auditoria de 01/09/2026 encontrou pra mesma soma. A peça no SAQUE
+      // RÁPIDO (slot saque_e/saque_d, equipado:false) fica de fora de tudo.
       if (!pecaNoCorpo(it)) return;
       const c = catalogoBySlug[it.slug];
       if (!c) return;
       // + Sagração da peça (armadura e escudo, 15/09/2026).
       absorcaoTotal += absorcaoDaPeca(it, c);
       defesaTotal   += Number(c.defesa   || 0);
-      if (it.slot === 'peito' && c.tipo_armadura) {
+      modVelTotal   += Number(c.mod_vel  || 0);
+      modKarTotal   += Number(c.mod_kar  || 0);
+      // 'peito' é o slot antigo do peitoral; desde 26/10/2026 a região é 'dorso'.
+      if ((it.slot === 'peito' || it.slot === 'dorso') && c.tipo_armadura) {
         tipoPeitoral = c.tipo_armadura;
       }
     });
   }
+  // Os ajustes passivos das peças (proposta de 26/10/2026): botas aceleram,
+  // armadura pesada atrasa e abafa o karma; joia de metal arcano abre karma.
+  const velocFinal = Math.max(0, veloc + modVelTotal);
+  const karmaFinal = atributosBase.aura < 1 ? 0 : Math.max(0, karma + modKarTotal);
+  /* Sem aura não há POÇO, e o bônus com prazo não o ressuscita — a mesma regra
+     que o bônus de condição já respeita (ver `karma`, acima). Somá-lo sem a
+     guarda fazia um Karma Líquido dar 10 de karma a quem não tem poço nenhum,
+     e o "sem Karma" da ficha virava mentira (29/10/2026). A peça que ZERA o
+     poço (armadura pesada, mod_kar) é outro caso: ali a aura existe, e o
+     bônus com prazo vale. */
+  const karmaComPrazo = atributosBase.aura < 1 ? 0 : karmaFinal + _temp.ka;
   // A Absorção é SÓ a soma dos equipamentos: a Alimentação deixou de somar
   // nela em 14/09/2026 ("Alimentação não deve alterar a absorção").
 
@@ -608,16 +663,31 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca)
     condicoesEfetivas,
     protecoes,
     derivadas: {
-      energiaFisica: ef,
-      energiaHeroica: eh,
+      /* O BÔNUS COM PRAZO ENTRA NA LEITURA (06/10/2026): o item de duração
+         (Fogo Vivo, Energia Cinética) não prende valor na barra — ele vira
+         linha em estado_atual.efeitos_temporarios, e o bônus aparece AQUI,
+         somado ao máximo, enquanto a data da mesa não passar do vencimento.
+         É o que deixa a EH chegar a 35 com máximo 30 e voltar sozinha ao
+         fim do prazo. A conta mora em 01-core/efeito-temporario.jsx e chega
+         pelo window: esta fase carrega antes daquela. */
+      energiaFisica: ef + _temp.ef,
+      energiaHeroica: eh + _temp.eh,
       resistenciaFisica: resFisica,
       resistenciaMagica: resMagica,
-      absorcao: absorcaoTotal,
+      absorcao: absorcaoTotal + _temp.ar,
       defesa: defesaStr,
-      armadura: catalogoBySlug ? absorcaoTotal : '—',
-      karma,
-      karmamax: karma,
-      velocidade: veloc,
+      // DEF numérico da proposta de 26/10/2026 (defesas das peças + agilidade).
+      defesaNum: valorDefesa,
+      /* O BÔNUS COM PRAZO TAMBÉM AQUI (29/10/2026). `armadura` é a MESMA
+         absorção de `absorcao` — e é esta que a ficha lê para a barra AR
+         (11-ficha/ficha.jsx). Somar o prazo só em `absorcao` deixava o item de
+         duração ("Aumenta 1 de Absorção") invisível na única tela que o mostra. */
+      armadura: catalogoBySlug ? absorcaoTotal + _temp.ar : '—',
+      karma: karmaComPrazo,
+      karmamax: karmaComPrazo,
+      velocidade: velocFinal + _temp.vb,
+      // Regra nova (26/10/2026): VEL 30 dobra os pontos de ação da rodada.
+      pontosAcaoDobrados: (velocFinal + _temp.vb) >= 30,
     },
   };
 }
@@ -885,7 +955,18 @@ function motivoMilagreLabel(motivo, en) {
    depois do tempo de jogo na atividade certa (avancarTreinos, clima-
    desgaste.jsx). Já está PAGO: o gasto e o próximo nível contam a fila. */
 const ATIVIDADE_DA_CLASSE = { 'Feitiço': 'estudando', 'Milagre': 'orando', 'Transmutação': 'meditando', 'Encanto': 'praticando' };
-const HORAS_TREINO = { tecnica: 72, magia: 24 };
+/* QUANTO CUSTA APRENDER, EM HORAS DE ATIVIDADE (28/10/2026, usuário: "uma
+   habilidade demora 12 horas, uma magia 24 horas, uma técnica 36 horas").
+
+   Técnica caiu de 72 para 36 — era o dobro de agora desde o começo. E
+   HABILIDADE entrou, que não existia aqui.
+
+   O tempo é o preço da PRIMEIRA aquisição, não de cada nível: "só precisa de
+   aprendizado quando o personagem não tem nenhum nível, representa uma compra
+   nova; depois de aprender o nível 1, ao comprar ativa instantaneamente"
+   (mesmo dia). Quem lê isto na tela é explicacaoDaAtividade, em
+   01-core/clima-desgaste.jsx. */
+const HORAS_TREINO = { tecnica: 36, magia: 24, habilidade: 12 };
 
 // Maior nível desta técnica/magia na fila (0 se não houver).
 function nivelNaFila(treinos, tipo, key) {

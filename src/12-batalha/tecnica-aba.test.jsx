@@ -239,19 +239,31 @@ describe('ROTEIRO 4 — uso Único bloqueia a segunda ativação', () => {
 });
 
 describe('ROTEIRO 5 — multisseleção de aliados (Voz de Comando, teto 4)', () => {
-  it('renderiza o contador de aliados e as caixas', () => {
+  /* ── AS CAIXAS VIRARAM PÍLULAS (28/10/2026) ──────────────────────────────
+     "Não precisa inserir a técnica no trilho, mas quando chamada na batalha,
+     deve trazer o layout novo." (usuário)
+
+     O corpo da aba entrou no molde da janela de usar (mn-janela-*), e com ele
+     a escolha de vários virou pílula com aria-pressed — a caixa de marcar era
+     o último resto de formulário no painel. O COMPORTAMENTO é o mesmo: marca,
+     desmarca, conta e trava no teto. */
+  const aliados = () => Array.from(document.querySelectorAll('.mn-janela-pilula.acao-aliado'));
+
+  it('renderiza o contador de aliados e as pílulas', () => {
     montar();
     abrirAbaTecnica();
     escolherTecnica('Voz de Comando');
     expect(textoNaTela(/Aliados \(0\/4\)/)).toBe(true);
-    expect(document.querySelectorAll('input[type="checkbox"]').length).toBeGreaterThan(0);
+    expect(aliados().length).toBeGreaterThan(0);
+    expect(aliados()[0].getAttribute('aria-pressed')).toBe('false');
   });
 
   it('marcar um aliado atualiza o contador', () => {
     montar();
     abrirAbaTecnica();
     escolherTecnica('Voz de Comando');
-    fireEvent.click(document.querySelector('input[type="checkbox"]'));
+    fireEvent.click(aliados()[0]);
+    expect(aliados()[0].getAttribute('aria-pressed')).toBe('true');
     expect(textoNaTela(/Aliados \(1\/4\)/)).toBe(true);
   });
 
@@ -259,11 +271,34 @@ describe('ROTEIRO 5 — multisseleção de aliados (Voz de Comando, teto 4)', ()
     montar();
     abrirAbaTecnica();
     escolherTecnica('Voz de Comando');
-    fireEvent.click(document.querySelector('input[type="checkbox"]'));
+    fireEvent.click(aliados()[0]);
     expect(textoNaTela(/Aliados \(1\/4\)/)).toBe(true);
     escolherTecnica('Mira');
     escolherTecnica('Voz de Comando');
     expect(textoNaTela(/Aliados \(0\/4\)/)).toBe(true);
+  });
+
+  /* O QUADRO (28/10/2026): total, pontos de ação e uso. Antes nada disso
+     aparecia — o jogador escolhia a técnica pelo nome no seletor e só via a
+     frase do efeito. O custo é o mesmo número que o Atacar debita: 0 na
+     ativação livre (modo 'total'), 1 nas demais.
+
+     POR EXTENSO, e só o número (usuário, no mesmo dia): "Não abrevie PA, use
+     Pontos de Ação. E remova o texto 'ativação livre, uma por rodada'." */
+  it('o quadro mostra total, pontos de ação e uso', () => {
+    montar();
+    abrirAbaTecnica();
+    escolherTecnica('Voz de Comando');
+    const linhas = Array.from(document.querySelectorAll('.mn-janela-linha')).map((l) => l.textContent);
+    // Voz de Comando é modo 'total': não rola dado e é a ativação livre.
+    expect(linhas.find((l) => l.startsWith('Pontos de Ação'))).toBe('Pontos de Ação0');
+    expect(linhas.find((l) => l.startsWith('Uso'))).toBe('UsoÚnico');
+    expect(linhas.join(' ')).not.toMatch(/ativação livre/);
+    escolherTecnica('Sangramento');
+    const outras = Array.from(document.querySelectorAll('.mn-janela-linha')).map((l) => l.textContent);
+    // Sangramento rola dado: custa 1 ponto, como toda técnica que não é livre.
+    expect(outras.find((l) => l.startsWith('Pontos de Ação'))).toBe('Pontos de Ação1');
+    expect(outras.find((l) => l.startsWith('Uso'))).toBe('UsoIntermitente');
   });
 
   // item 11 (revisão final): Voz de Comando pode legitimamente mirar em

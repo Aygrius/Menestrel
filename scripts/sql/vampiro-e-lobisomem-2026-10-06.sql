@@ -1,0 +1,94 @@
+-- scripts/sql/vampiro-e-lobisomem-2026-10-06.sql
+-- ============================================================================
+-- VAMPIRO E LOBISOMEM — as raças em que se VIRA (06/10/2026)
+--
+-- Pedidos do usuário:
+--   "Vamos adicionar duas novas raças, lobisomem e vampiro."
+--   "Um personagem pode se transformar em lobisomem temporariamente com a
+--    habilidade Licantropia Lupina, um personagem pode se transformar em
+--    vampiro permanentemente por vontade do mestre."
+--   "Os atributos comprados previamente vão se manter, apenas os ajustes que
+--    vão mudar."
+--   "Vampiros são imunes a frio, calor, doença, sede e sono. […] Vampiros só
+--    podem se alimentar de sangue (de qualquer origem)."
+--   "É temporariamente pois a magia Licantropia Lupina informa quando se
+--    encerra."  ← a correção, no mesmo dia
+--
+-- ── A CORREÇÃO, E O QUE ELA DESFEZ ─────────────────────────────────────────
+-- O primeiro pedido diz "habilidade Licantropia Lupina", e eu a criei em
+-- public.habilidades. Era duplicata: ela JÁ EXISTIA em public.magias — tipo
+-- Básica, permissão Trilha de Guardiões, evocação 2 rodadas, alcance Pessoal,
+-- duração 50 rodadas. A mesma coisa em duas tabelas, com o prazo só numa
+-- delas.
+--
+-- A habilidade foi apagada (migration `licantropia_lupina_e_magia_nao_habilidade`).
+-- Quem abre a forma é a MAGIA, evocada pela janela de magia como qualquer
+-- outra — com custo de karma e com o alcance dela —, e é ela que informa
+-- quando a forma se encerra.
+--
+-- POR ISSO NÃO HÁ PRAZO ESCRITO NO CÓDIGO. `fimDaForma`
+-- (src/01-core/forma-raca.jsx) lê a duração da magia pelas MESMAS funções que
+-- leem a de qualquer outra — classeDeDuracao e duracaoEmDiasDeJogo, em
+-- src/01-core/magias-efeito.jsx —, e o texto do nível manda sobre a coluna,
+-- como em toda a família. Hoje a magia diz "50 rodadas" e a forma vence em
+-- rodadas; mude a coluna para "2 dias" e ela passa a vencer no calendário sem
+-- uma linha de código mudar.
+--
+-- ── O QUE NÃO ESTÁ AQUI, e por quê ─────────────────────────────────────────
+--
+--   AS RAÇAS. Não são dado de banco — raça é catálogo de código
+--   (GAME_DATA.racas, src/01-core/game-data.jsx), e as duas entram lá por
+--   src/01-core/forma-raca.jsx, com os ajustes e as alturas do pedido:
+--     Vampiro   1,77m · INT 0 · AUR −1 · CAR +1 · FOR −1 · FIS −2 · PER +1 · AGI +2
+--     Lobisomem 1,92m · INT −2 · AUR −2 · CAR −2 · FOR +2 · FIS +2 · PER +2 · AGI 0
+--
+--   A FORMA DE CADA PERSONAGEM. Mora em `personagens.estado_atual.forma`
+--   ({ raca, temporaria?, vence_em? | rodadas? }), o mesmo jsonb de status,
+--   condições e bônus temporário — nenhuma coluna nova, e o realtime que a
+--   ficha já assina entrega a transformação a todo mundo.
+--
+--   POR QUE NÃO SE GRAVA `personagens.raca`. O modificador racial neste
+--   sistema é o NÍVEL INICIAL GRATUITO do atributo, já embutido em
+--   `<attr>_base` desde a criação. Trocar `raca` não mudaria atributo nenhum, e
+--   rebaixar os `_base` destruiria o que o jogador comprou — não há como
+--   separar depois o ajuste da raça do ponto gasto. A forma é camada de
+--   LEITURA (comForma), e o rebase acontece na conta:
+--       base_novo = base_atual − mod[origem] + mod[forma]
+--   que é "os atributos comprados previamente vão se manter, apenas os ajustes
+--   que vão mudar", literalmente. E porque nada é gravado, desfazer é apagar
+--   uma chave.
+--
+-- APLICADO NO BANCO EM 06/10/2026 (projeto kaxbdpdutentlrobuqyu), pelas
+-- migrations `habilidade_licantropia_lupina` (criou) e
+-- `licantropia_lupina_e_magia_nao_habilidade` (desfez).
+-- ============================================================================
+
+-- ── A HABILIDADE DUPLICADA SAI ──────────────────────────────────────────────
+-- Licantropia Lupina é MAGIA. A linha que eu havia inserido em habilidades
+-- some; a magia, que já estava lá com a duração declarada, é a única fonte.
+delete from public.habilidades where key = 'licantropia_lupina';
+
+-- ── O SANGUE JÁ EXISTIA ─────────────────────────────────────────────────────
+-- "Vampiros só podem se alimentar de sangue (de qualquer origem)": as seis
+-- origens já estavam no catálogo, e é por isso que nada foi inserido —
+--   sangue_animal (Sangue), sangue_mistico (Sangue Arcano),
+--   sangue_podre (Sangue Podre), sangue_demoniaco (Sangue Profano),
+--   sangue_celestial (Sangue Sagrado), sangue_draconico (Sangue Titânico).
+-- O prefixo `sangue_` no slug é o que `ehSangue` (01-core/forma-raca.jsx) usa.
+-- Pelo NOME seria pior: "Cavalo Puro-Sangue Élfico" é um cavalo.
+--
+-- Sangue novo que entrar no catálogo é reconhecido sozinho, desde que o slug
+-- comece com `sangue_`:
+--   select slug, nome from itens where slug like 'sangue\_%' order by nome;
+
+-- ── CONFERÊNCIA ─────────────────────────────────────────────────────────────
+-- A magia, com a duração que manda na forma:
+--   select key, nome, tipo, permissao, alcance, duracao
+--     from magias where key = 'licantropia_lupina';
+--
+-- E nenhuma habilidade com esse nome:
+--   select count(*) from habilidades where key = 'licantropia_lupina';   -- 0
+--
+-- Quem está transformado agora (nenhum, no dia em que isto subiu):
+--   select id, nome, raca, estado_atual->'forma' as forma
+--     from personagens where estado_atual ? 'forma';

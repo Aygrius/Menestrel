@@ -144,14 +144,42 @@ function SeloMenestrel({ size = 32, className = '', titulo = null }) {
 
 /* useAlvoPortal — acha um elemento do DOM por id para servir de destino de
    portal, mesmo quando ele nasce no MESMO commit de quem o procura (no
-   primeiro render ainda não está no DOM; o efeito tenta de novo e, achando,
-   rerenderiza). Usado pela barra de ações da ficha (22/10/2026). */
+   primeiro render ainda não está no DOM). Usado pela barra de ações da ficha
+   (22/10/2026).
+
+   ── OLHA O DOM, NÃO O PRÓPRIO RENDER (28/10/2026) ──────────────────────────
+   "Como mestre, quando eu clico no card de um personagem, aparece o botão de
+   notificação sozinho no topo. Quando eu passo o mouse sob o menu lateral à
+   esquerda, o trilho fica certo." (usuário)
+
+   O efeito antigo não tinha dependências, e por isso rodava a cada render DE
+   QUEM O USA — e só. O trilho da ficha (`fp-acoes-ficha`) nasce depois, com o
+   personagem carregado, e a Central de Mensagens não renderiza nesse
+   intervalo: o sino ficava no alvo de reserva, uma barra redonda vazia no
+   topo, até que QUALQUER coisa fizesse a Central renderizar de novo. Passar o
+   mouse na lateral muda a largura do menu — uma prop — e era isso que
+   "consertava" a tela.
+
+   A pergunta certa não é "eu renderizei?", é "o elemento apareceu?". Quem
+   responde isso é o DOM. O observador também cobre o caminho de volta: fechada
+   a ficha, o trilho some e o sino volta sozinho para a reserva.
+
+   `setAlvo` com função compara antes de gravar — sem isso, cada mutação do
+   documento viraria um render. */
 function useAlvoPortal(id) {
   const [alvo, setAlvo] = React.useState(() => (typeof document !== 'undefined' ? document.getElementById(id) : null));
   React.useEffect(() => {
-    const el = document.getElementById(id);
-    if (el !== alvo) setAlvo(el);
-  });
+    if (typeof document === 'undefined') return undefined;
+    const conferir = () => {
+      const el = document.getElementById(id);
+      setAlvo((ant) => (ant === el ? ant : el));
+    };
+    conferir();
+    if (typeof MutationObserver !== 'function') return undefined;
+    const obs = new MutationObserver(conferir);
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, [id]);
   return alvo;
 }
 
@@ -437,6 +465,11 @@ Object.assign(window, { corCondicao, COND_LIMITE, COND_ROXO });
 function QuantidadeStepper({
   value, onChange, min = 0, max = Infinity, step = 1,
   centro, disabled, label, className, propsMenos, propsMais,
+  /* O resto vai para a raiz (28/10/2026): quem usa o stepper às vezes precisa
+     marcar a peça por fora — `data-bonus` na Sagração, que é por onde os
+     testes a encontram. Sem isso, cada caso desses voltava a desenhar o
+     stepper à mão, e marcação à mão é o que faz dois seletores divergirem. */
+  ...resto
 }) {
   const v = Number(value) || 0;
   const podeDec = !disabled && v > min;
@@ -444,7 +477,7 @@ function QuantidadeStepper({
   const ir = (alvo) => onChange(Math.max(min, Math.min(max, alvo)));
   return (
     <div className={'fp-pop-stepper' + (className ? ' ' + className : '')}
-      role="group" aria-label={label || undefined}>
+      role="group" aria-label={label || undefined} {...resto}>
       <button type="button" className="fp-step-btn" disabled={!podeDec}
         /* onMouseDown/preventDefault: sem isto o clique tira o foco do campo
            que abriu o stepper e alguns popovers se fechavam sozinhos. */

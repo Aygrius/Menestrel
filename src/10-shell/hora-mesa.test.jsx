@@ -217,7 +217,10 @@ describe('a hora sobrevive às outras edições da barra', () => {
   it('salvar o local preserva a hora', async () => {
     const { updates } = montar({ inicial: { ...BASE, hora: 20 } });
     await waitFor(() => expect(botao()).toBeTruthy());
-    act(() => { document.querySelector('.cdj-local').closest('button').click(); });
+    /* A pílula do local virou só o ícone em 26/10/2026: o <span
+       class="cdj-local"> saiu e quem identifica a casa dela é
+       .cdj-local-wrap. */
+    act(() => { document.querySelector('.cdj-local-wrap > button').click(); });
     // Sem Salvar desde 27/09/2026: escolher o lugar na lista já grava.
     // A lista abre embaixo do pill (02/10/2026).
     const opcao = await waitFor(() => {

@@ -268,8 +268,10 @@ function recipienteAceitaSlug(cont, novoSlug, itens, catalogoBySlug) {
    O que não cabe fica na casa de origem: entra o que couber (decisão do
    usuário). Pura. Devolve { ok, itens, qtd, total } ou { ok:false, motivo,
    texto? } — motivo: recipiente | em_uso | outro_liquido | regra | sem_espaco
-   | invalido | a_venda. */
-function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug) {
+   | sem_casa | invalido | a_venda | propriedade_longe.
+   `localizacaoDoPj` é opcional: sem ela, a regra do endereço da propriedade
+   (05/10/2026) não é checada — ver podeMoverParaContainer. */
+function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug, localizacaoDoPj) {
   const lista = Array.isArray(itens) ? itens : [];
   const it = lista.find((x) => x && x.instanceId === instanceId);
   const cont = lista.find((x) => x && x.instanceId === containerId);
@@ -280,13 +282,22 @@ function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug) {
   if (estaAVenda(it)) return { ok: false, motivo: 'a_venda' };
   if (it.equipado || it.vestido || it.montado) return { ok: false, motivo: 'em_uso' };
   if (!recipienteAceitaSlug(cont, it.slug, lista, catalogoBySlug)) return { ok: false, motivo: 'outro_liquido' };
-  const pode = podeMoverParaContainer(catI, catC, cont, lista, catalogoBySlug);
+  const pode = podeMoverParaContainer(catI, catC, cont, lista, catalogoBySlug, localizacaoDoPj);
   if (!pode.ok) {
+    // A casa longe (ou sem endereço) carrega o porquê: a tela precisa dizer
+    // "sua Casa está em Tronum", e não só "não deu".
+    if (pode.motivo === 'propriedade_longe') {
+      return { ok: false, motivo: 'propriedade_longe', cidade: pode.cidade, porque: pode.porque };
+    }
     return /sem espaço/.test(pode.motivo || '') ? { ok: false, motivo: 'sem_espaco' } : { ok: false, motivo: 'regra', texto: pode.motivo };
   }
   const total = it.quantidade || 1;
   const ocupa = Number(catI.ocupa || 0);
-  const { livre } = capacidadeContainer(cont, lista, catalogoBySlug);
+  const { livre, casasLivres, filhos } = capacidadeContainer(cont, lista, catalogoBySlug);
+  /* SEM CASA LIVRE não entra (29/10/2026) — a não ser que a peça vá se somar
+     a uma pilha que já está lá dentro, que não gasta casa nova. */
+  const empilha = (filhos || []).some((f) => f.slug === it.slug);
+  if (casasLivres <= 0 && !empilha) return { ok: false, motivo: 'sem_casa' };
   // Tolerância para float (0.1 × 10 dá 0.9999…), a mesma do moverParaContainer.
   const qtd = Math.min(total, ocupa > 0 ? Math.floor((livre + 0.0001) / ocupa) : total);
   if (qtd <= 0) return { ok: false, motivo: 'sem_espaco' };
@@ -300,7 +311,9 @@ function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug) {
 }
 
 // Ordem canônica dos slots de equipamento (paper-doll do quadro "Equipado").
-const SLOT_ORDER = ['cabeca', 'ombros', 'peito', 'mao_d', 'mao_e', 'maos', 'pernas', 'pes'];
+// Vocabulário novo de 26/10/2026 + o antigo das instâncias já gravadas.
+const SLOT_ORDER = ['cabeca', 'ombro', 'ombros', 'dorso', 'peito', 'braco', 'bracos',
+  'mao_d', 'mao_e', 'saque_e', 'saque_d', 'maos', 'perna', 'pernas', 'canela', 'pe', 'pes'];
 
 // ── Vestir (grupo "Vestimentas") ─────────────────────────────────────────────
 // Vestimenta é um sistema PARALELO ao de equipamento: a peça vestida ganha
@@ -314,34 +327,38 @@ const GRUPO_VESTIMENTA = 'Vestimentas';
 //   gastaSlot = se a peça também disputa o slot de armadura (bloqueia/é bloqueada
 //               por armadura no mesmo slot). Só cabeca e pes.
 // AJUSTE os tetos aqui se quiser (pescoco/orelha são defaults).
+/* As 17 regiões da proposta de 26/10/2026 (ver REGIOES_EQUIP, 01-core). O
+   `max` é o TOTAL de casas da região — equipamento, vestimenta e adorno
+   dividem as mesmas casas; `gastaSlot: true` marca as regiões onde a peça
+   vestida disputa a casa com armadura equipada. */
 const VESTE_SLOTS = {
-  cabeca:  { max: 1,  gastaSlot: true  }, // Cabeça
-  pes:     { max: 1,  gastaSlot: true  }, // Pés
-  ombros:  { max: 1,  gastaSlot: true  }, // Ombros
-  pernas:  { max: 1,  gastaSlot: true  }, // Pernas
-  bracos:  { max: 1,  gastaSlot: true  }, // Braços
-  peito:   { max: 1,  gastaSlot: true  }, // Peito
-  maos:    { max: 2,  gastaSlot: true  }, // Mãos
-  capa:    { max: 1,  gastaSlot: true  }, // Capa
-  roupa:   { max: 2,  gastaSlot: true  }, // Roupa (corpo, 2 compartimentos)
-  // Cintura: 3 casas, como na ficha (cinto + alforge + algibeira…). Era 1, e
-  // com um cinto vestido o alforge dava "Slot cheio" (13/09/2026).
-  cintura: { max: 3,  gastaSlot: true  }, // Cintura
-  /* 16/09/2026: o mapa do corpo na ficha tem DUAS casas de brinco e QUATRO de
-     joia, mas aqui o teto era 1 e 2 — o segundo brinco e o terceiro anel
-     nasciam com "Vestir" desabilitado por "slot cheio". Os números agora
-     acompanham as casas que a ficha desenha. */
-  orelha:  { max: 2,  gastaSlot: true  }, // Brincos (2 orelhas)
-  brinco:  { max: 2,  gastaSlot: true  }, // alias de orelha (categoria_equip do banco)
-  pescoco: { max: 1,  gastaSlot: false }, // Colar (pescoço)
-  colar:   { max: 1,  gastaSlot: false }, // alias de pescoco (categoria_equip do banco)
-  joia:    { max: 4,  gastaSlot: false }, // Joias (4 dedos)
+  cabeca:  { max: 1,  gastaSlot: true  }, // Cabeça (capacete OU chapéu/tiara/coroa)
+  rosto:   { max: 2,  gastaSlot: false }, // Rosto (máscara, capuz)
+  orelha:  { max: 4,  gastaSlot: false }, // Orelha (brincos, piercings)
+  pescoco: { max: 3,  gastaSlot: false }, // Pescoço (colar, gargantilha, cachecol/lenço)
+  ombro:   { max: 2,  gastaSlot: true  }, // Ombro (ombreira + dragona)
+  costas:  { max: 2,  gastaSlot: false }, // Costas (capa, sobretudo)
+  dorso:   { max: 1,  gastaSlot: true  }, // Dorso (peitoral)
+  peito:   { max: 3,  gastaSlot: false }, // Peito (broche/medalha/pingente, túnica, casaco)
+  braco:   { max: 2,  gastaSlot: true  }, // Braço (braçadeiras)
+  dedo:    { max: 10, gastaSlot: false }, // Dedo (anéis)
+  pulso:   { max: 2,  gastaSlot: false }, // Pulso (pulseiras, luvas)
+  mao:     { max: 2,  gastaSlot: true  }, // Mãos (arma, escudo)
+  perna:   { max: 2,  gastaSlot: true  }, // Perna (grevas)
+  cintura: { max: 2,  gastaSlot: true  }, // Cintura (cinta, calça)
+  canela:  { max: 2,  gastaSlot: true  }, // Canela (caneleiras)
+  pe:      { max: 2,  gastaSlot: true  }, // Pé (botas, sandálias)
+  alforje: { max: 3,  gastaSlot: false }, // Alforje (estojo, aljava, bainha, algibeira)
 };
 
-// O slot da peça vem do catálogo (cat.slot_equip). O banco grava alguns com
-// outro nome (13/09/2026 — Aldren não vestia a capa: as capas vêm 'costas' e
-// a região aqui é 'capa'). Traduz para a chave de VESTE_SLOTS e da ficha.
-const VESTE_SLOT_ALIAS = { costas: 'capa', corpo: 'roupa', orelhas: 'orelha', dedos: 'joia', cinto: 'cintura' };
+// O slot da peça vem do catálogo (cat.slot_equip). Instâncias antigas e campos
+// legados do banco usam outros nomes — tudo converge para a região nova.
+const VESTE_SLOT_ALIAS = {
+  costas: 'costas', capa: 'costas', corpo: 'peito', roupa: 'peito',
+  orelhas: 'orelha', brinco: 'orelha', dedos: 'dedo', joia: 'dedo',
+  cinto: 'cintura', colar: 'pescoco',
+  ombros: 'ombro', bracos: 'braco', maos: 'mao', pernas: 'perna', pes: 'pe',
+};
 function vesteSlotDe(slotEquip) {
   if (!slotEquip) return null;
   return VESTE_SLOT_ALIAS[slotEquip] || slotEquip;
@@ -373,6 +390,12 @@ function inferirSlotEquip(cat) {
 // "vestiment" (sem depender de caixa/plural). GRUPO_VESTIMENTA fica como referência.
 function ehVestimenta(cat) {
   if (!cat) return false;
+  /* ARREAMENTO NÃO SE VESTE EM GENTE (06/10/2026). "Os itens do tipo arreios
+     são vestimentas ou armaduras" (usuário) mudou o GRUPO da sela e da barda,
+     e com isso elas passaram a casar com o teste de grupo aqui embaixo — o
+     inventário ofereceria VESTIR uma sela no personagem. Quem segura a porta é
+     `slot_arreio`: peça que tem casa no bicho não tem casa no dono. */
+  if (String(cat.slot_arreio || '').trim()) return false;
   if ((cat.grupo || '').toLowerCase().includes('vestiment')) return true;
   // categoria_equip de joias/acessorios vestíveis (valores reais do banco)
   const ce = (cat.categoria_equip || '').toLowerCase();
@@ -467,9 +490,25 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
   let peso = 0;                // carga atual
   let bonusArmazenamento = 0;  // capacidade extra vinda dos containers
 
+  /* A PROPRIEDADE NÃO VAI NAS COSTAS (05/10/2026). Casa, Taverna e Castelo são
+     containers pelo mesmo critério dos outros (armazena > 0), e por isso a Casa
+     vinha somando +200 de capacidade ao personagem e o que estava guardado nela
+     vinha pesando a 75% — como se ele carregasse a casa. Com o endereço
+     (`it.cidade`) isso virou contradição aberta: um depósito trancado em outra
+     cidade que ainda deixava o dono carregar mais. */
+  const propriedades = new Set(itens
+    .filter((x) => x && ehPropriedade(catalogoBySlug[x.slug]))
+    .map((x) => x.instanceId));
+
   for (const it of itens) {
     const cat = catalogoBySlug[it.slug];
     if (!cat) continue;
+    if (ehPropriedade(cat)) continue;                      // nem peso nem capacidade
+    if (it.containerId && propriedades.has(it.containerId)) continue;  // guardado na casa
+    /* O QUE ESTÁ NO BICHO NÃO PESA NO DONO (05/10/2026): uma Barda ocupa 12 e
+       uma Sela de Guerra 6,5 — somadas, vestir o cavalo sobrecarregava o
+       personagem. Ele não carrega a sela; o cavalo carrega. */
+    if (it.animal_id) continue;
     const ocupaUnit = cat.ocupa != null ? Number(cat.ocupa) : 0;
     const qtd = it.quantidade || 1;
 
@@ -563,6 +602,20 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // Fase 3
   const [pjsHistoria, setPjsHistoria] = useState([]);
   const [containerAberto, setContainerAberto] = useState(null); // instanceId
+  /* ── DE ONDE SE VEIO (28/10/2026) ───────────────────────────────────────
+     "Cliquei para ver os detalhes da moeda de latão do personagem Eco que
+     está em 'cinto de acessórios', mas ao lado de descartar não vejo o botão
+     'voltar'." (usuário)
+
+     O botão Voltar nasceu na ficha, onde a janela da REGIÃO fecha ao abrir a
+     do item. No Inventário acontece o mesmo com o RECIPIENTE: abrir a moeda
+     que está dentro do cinto fecha o cinto, e voltar significava fechar,
+     achar o cinto na grade e clicar de novo — três gestos para desfazer um.
+
+     `voltarPara` guarda o degrau anterior: o recipiente de onde a peça saiu,
+     ou a peça-pai quando se navega de item em item dentro do painel. É null
+     quando a janela é o primeiro degrau, e aí o botão não nasce. */
+  const [voltarPara, setVoltarPara] = useState(null); // {tipo:'container'|'item', id}
   const [transferError, setTransferError] = useState(null);
   // Ação pendente que aguarda escolha de quantidade no QuantidadeModal
   // formato: { tipo: 'usar'|'destruir'|'mover', instanceId, max, extra? }
@@ -900,7 +953,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (cat.categoria_equip === 'armadura') {
       if (!cat.slot_equip) return { ok: false, motivo: 'sem slot definido' };
       if (slots[cat.slot_equip]) return { ok: false, motivo: `slot ${cat.slot_equip} ocupado` };
-      if (cat.slot_equip === 'cabeca' || cat.slot_equip === 'pes') {
+      if (cat.slot_equip === 'cabeca' || cat.slot_equip === 'pes' || cat.slot_equip === 'pe') {
         if (vesteSlotState(cat.slot_equip, inv.itens, catalogoBySlug).usado > 0) {
           return { ok: false, motivo: `slot ${cat.slot_equip} ocupado por vestimenta` };
         }
@@ -1158,6 +1211,41 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     }));
   };
 
+  /* ── DAR ITEM (28/10/2026) ───────────────────────────────────────────────
+     "Caso eu como mestre quiser dar um item para um personagem, como eu faço
+     isso?" / "Quero uma opção de dar item." (usuário)
+
+     Até aqui um item só entrava no inventário de três jeitos: comprado na
+     loja, saqueado na batalha ou transferido por outro personagem. Nenhum
+     deles é o Mestre entregando uma recompensa — o mais próximo era pôr o
+     item na loja com preço zero e esperar o personagem passar pela cidade.
+
+     Quem dá é o Mestre, e só ele: a ação aparece no trilho do inventário
+     apenas quando `isMestre` — o mesmo poder que já deixa ele mexer na
+     Sagração. A gravação é o caminho de sempre (`setInv` + o gravador com
+     trava de versão), então uma entrega no meio de uma sessão não atropela o
+     que o jogador estiver mexendo na ficha.
+
+     A mesa fica sabendo: recompensa dada em silêncio é recompensa que o
+     jogador descobre por acaso dias depois. */
+  const [darAberto, setDarAberto] = useState(false);
+  const darItem = (slug, qtd) => {
+    const cat = catalogoBySlug[slug];
+    const n = Math.max(1, Math.round(Number(qtd) || 1));
+    if (!cat) return;
+    setInv((cur) => (cur ? adicionarAoInventario(cur, slug, n) : cur));
+    setDarAberto(false);
+    avisar((lang === 'en' ? 'Given: ' : 'Entregue: ') + cat.nome + (n > 1 ? ' ×' + n : ''), 'ok');
+    const pjAlvo = pjs?.find((p) => p.id === selectedId);
+    const nomePj = primeiroNome(pjAlvo?.nome);
+    if (nomePj) {
+      registrarEventoMesa('item',
+        lang === 'en' ? `${nomePj} received ${n}× ${cat.nome} from the Game Master.`
+          : `${nomePj} recebeu ${n}× ${cat.nome} do Mestre.`,
+        { item: cat.nome, quantidade: n, acao: 'dar' });
+    }
+  };
+
   // Fase 3 — mover item para/de container (com split parcial e validação de capacidade)
   /* ARRASTAR NA GRADE (02/10/2026) — casas livres e soltar na mochila.
      O aviso é curto e some sozinho: diz quanto entrou, ou por que não entrou. */
@@ -1191,6 +1279,10 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         em_uso: en ? 'Take the item off before storing it.' : 'Tire o item do corpo antes de guardá-lo.',
         outro_liquido: en ? `${nomeCont} already holds another liquid.` : `${nomeCont} já guarda outro líquido.`,
         sem_espaco: en ? `No room in ${nomeCont}.` : `Não há espaço em ${nomeCont}.`,
+        /* Casa cheia e peso cheio são recusas DIFERENTES (29/10/2026): numa
+           sobra espaço e faltam casas, na outra o contrário. Dizer "não há
+           espaço" nas duas deixa a pessoa procurando o que não é. */
+        sem_casa: en ? `${nomeCont} has no free slot.` : `${nomeCont} está com todas as casas ocupadas.`,
         regra: `${nomeCont}: ${r.texto || ''}`,
       };
       if (motivos[r.motivo]) avisar(motivos[r.motivo], 'recusa');
@@ -1516,7 +1608,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             itens={inv.itens}
             catalogoBySlug={catalogoBySlug}
             mudarQtd={mudarQtd}
-            onAbrirDetalhes={(id) => setDetalhesId(id)}
+            onAbrirDetalhes={(id) => { setVoltarPara(null); setDetalhesId(id); }}
             onAbrirContainer={(id) => setContainerAberto(id)}
             onSoltarNoAmigo={authUserIsOwner ? soltarNoAmigo : null}
             lang={lang}
@@ -1525,6 +1617,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             compacta
             selecionadoId={bauLargo ? detalhesId : null}
             moedasNoTrilho={<MoedaPills moedas={inv.moedas} lang={lang} mostrarZeros tamanho="sm" />}
+            acaoNoTrilho={isMestre ? (
+              <button type="button" className="mc-acao inv-dar-acao" onClick={() => setDarAberto(true)}>
+                <i className="ti ti-gift" aria-hidden="true" />
+                <span className="mc-acao-rotulo">{lang === 'en' ? 'Give item' : 'Dar item'}</span>
+              </button>
+            ) : null}
           />
           {bauLargo && (
             <aside className="bau-painel" ref={setPainelEl} aria-label={lang === 'en' ? 'Item' : 'Item'}>
@@ -1567,7 +1665,14 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           containersDisponiveis={containersDisponiveis}
           pjsHistoria={pjsHistoria}
           lang={lang}
-          onClose={() => setDetalhesId(null)}
+          onClose={() => { setVoltarPara(null); setDetalhesId(null); }}
+          onVoltar={voltarPara ? () => {
+            const volta = voltarPara;
+            setVoltarPara(null);
+            setDetalhesId(null);
+            if (volta.tipo === 'container') setContainerAberto(volta.id);
+            else setDetalhesId(volta.id);
+          } : undefined}
           onEquipar={equipar}
           onDesequipar={desequipar}
           onVestir={vestir}
@@ -1607,7 +1712,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           onBonus={isMestre ? ajustarBonus : undefined}
           onMoverParaContainer={solicitarMover}
           onRemoverDoContainer={(id) => solicitarMover(id, null)}
-          onAbrirDetalhesFilho={(id) => setDetalhesId(id)}
+          onAbrirDetalhesFilho={(id) => { setVoltarPara({ tipo: 'item', id: detalhesId }); setDetalhesId(id); }}
         />
       )}
 
@@ -1619,11 +1724,24 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           lang={lang}
           onClose={() => setContainerAberto(null)}
           onRemoverDoContainer={(id) => solicitarMover(id, null)}
-          onAbrirDetalhes={(id) => { setContainerAberto(null); setDetalhesId(id); }}
+          onAbrirDetalhes={(id) => {
+            setVoltarPara({ tipo: 'container', id: containerAberto });
+            setContainerAberto(null);
+            setDetalhesId(id);
+          }}
           onMoverCasa={moverCasa}
         />
       )}
 
+      {/* A janela de dar item (28/10/2026): só o Mestre a abre — ver darItem. */}
+      {darAberto && isMestre && (
+        <DarItemModal
+          catalogo={catalogo}
+          lang={lang}
+          onDar={darItem}
+          onClose={() => setDarAberto(false)}
+        />
+      )}
 
       {acaoPendente && (() => {
         const it = inv?.itens.find((x) => x.instanceId === acaoPendente.instanceId);
@@ -1984,11 +2102,28 @@ function VestesBoard({ itens, catalogoBySlug, lang, onAbrir }) {
 // Layout flat (sem agrupamento por categoria) com busca + chips, igual à loja.
 // Hook que observa o tamanho do container ref e do scroll-container (.mc-main)
 // para calcular quantas colunas e linhas de slots cabem na área visível.
-// SLOT_SIZE = 50px de célula + 4px de gap = 54px por unidade.
+/* SLOT_SIZE = a casa + o vão. O tamanho da casa vive no CSS (--inv-casa, em
+   src/index.css) porque é lá que a grade e o cartão o usam; aqui ele é LIDO,
+   e não repetido — escrever 64 nos dois lugares é exatamente o jeito de um
+   ficar para trás do outro. Sem o CSS carregado (teste em jsdom), vale o
+   padrão de 64 + 6. */
 // Calibrado para 19 itens por linha.
-const SLOT_SIZE = 54;
-// Teto de colunas por linha — limita a grade para não gerar espaço desperdiçado.
-const MAX_GRID_COLS = 20;
+function medirCasaDoBau(el) {
+  const padrao = { casa: 64, vao: 6 };
+  if (typeof window === 'undefined' || !window.getComputedStyle) return padrao;
+  const cs = window.getComputedStyle(el || document.documentElement);
+  const casa = parseFloat(cs.getPropertyValue('--inv-casa'));
+  const vao = parseFloat(cs.getPropertyValue('--inv-casa-vao'));
+  return { casa: casa || padrao.casa, vao: Number.isFinite(vao) ? vao : padrao.vao };
+}
+/* O BAÚ DE 8 × 10 (26/10/2026). Foram dois pedidos do usuário no mesmo dia:
+   primeiro "10 linhas e 12 colunas, ganhando espaço para aumentar a
+   visualização do item à direita", depois "aumentar o tamanho do slot […]
+   talvez diminuindo a quantidade de casas para isso, pode ser 10x8". Menos
+   casas, casas maiores (--inv-casa: 78px): a grade ocupa a mesma largura e o
+   ícone cresce. São TETOS, não números fixos — em tela estreita a grade
+   continua encolhendo em vez de vazar. */
+const MAX_GRID_COLS = 10;
 // offsetExtra: altura extra a descontar dentro do ref antes do grid
 // (ex: toolbar de busca ~48px na loja).
 // Teto de linhas da grade: o preenchimento com slots fantasmas para em
@@ -1996,7 +2131,7 @@ const MAX_GRID_COLS = 20;
 // acima desse teto continuam renderizando (a grade cresce), só o "chão" de
 // células vazias é limitado. Compartilhado por Inventário e Loja (loja.jsx usa
 // window.useGridDimensions). O Diário tem cópia própria deste teto.
-const MAX_GRID_ROWS = 11;
+const MAX_GRID_ROWS = 8;
 // Linhas mínimas da grade do baú — Inventário e vitrine da Loja (23/10/2026).
 const LINHAS_BAU = 8;
 // useGridDimensions — calcula quantas colunas/linhas de slots (50px) cabem na
@@ -2039,6 +2174,10 @@ function useGridDimensions() {
       ? (el.getBoundingClientRect().top - mcMain.getBoundingClientRect().top)
       : el.getBoundingClientRect().top;
     const h = Math.max(200, containerH - elTop - 8); // 8px de folga no fundo
+    // A casa é medida NO PRÓPRIO GRID: assim a conta acompanha o token do
+    // CSS mesmo quando ele muda (tema, media query) depois do primeiro render.
+    const { casa, vao } = medirCasaDoBau(el);
+    const SLOT_SIZE = casa + vao;
     let cols = Math.min(MAX_GRID_COLS, Math.max(3, Math.floor(w / SLOT_SIZE)));
     let rows = Math.min(MAX_GRID_ROWS, Math.max(2, Math.floor(h / SLOT_SIZE)));
     /* O BAÚ SOB MEDIDA (23/10/2026): "Essa diferença de espaçamento me
@@ -2051,21 +2190,42 @@ function useGridDimensions() {
        respiro nos quatro lados. */
     const pagina = el.closest && el.closest('.fp-page.is-inventario');
     if (pagina) {
-      const PASSO = 56;
+      const PASSO = SLOT_SIZE;
       const comPainel = !!el.closest('.bau-corpo--painel');
-      const livreW = pagina.clientWidth - 2 - 40 - (comPainel ? 380 : 0);
-      cols = Math.min(MAX_GRID_COLS, Math.max(3, Math.floor((livreW + 6) / PASSO)));
+      /* O painel do item + o vão de 20px. Sai do CSS (--bau-painel-w) para
+         não haver dois números: a conta aqui e a coluna da grade lá. */
+      const painelW = parseFloat(getComputedStyle(pagina).getPropertyValue('--bau-painel-w')) || 440;
+      const livreW = pagina.clientWidth - 2 - 40 - (comPainel ? painelW + 20 : 0);
+      cols = Math.min(MAX_GRID_COLS, Math.max(3, Math.floor((livreW + vao) / PASSO)));
       const card = el.closest('.fp-card');
       const topoGrade = el.getBoundingClientRect().top - (mcMain ? mcMain.getBoundingClientRect().top : 0);
       // abaixo da grade: 20 de respiro, a faixa da carga (~48) e 16 até o pé
       const livreH = containerH - topoGrade - 20 - 48 - 16;
-      rows = Math.min(MAX_GRID_ROWS, Math.max(4, Math.floor((livreH + 6) / PASSO)));
+      rows = Math.min(MAX_GRID_ROWS, Math.max(4, Math.floor((livreH + vao) / PASSO)));
       void card;
     }
     /* NO CELULAR (23/10/2026) a página rola, então medir pela altura da tela
        enchia o baú de fileiras vazias (11 com 16 itens). Lá a base é de 4
        fileiras; quem usa a grade já soma as linhas dos itens + uma vazia. */
     if (window.innerWidth <= 640) rows = 4;
+    /* O TETO DO PAINEL DO ITEM (26/10/2026, pedido do usuário repetido): "do
+       lado direito aparecem várias informações e essas informações criam uma
+       barra de rolagem na página, eu quero que a barra de rolagem seja no
+       card de visualização do item."
+
+       O teto era `calc(100vh - 132px)` — um número chutado, que não sabe onde
+       o card começa (a barra de busca e o cabeçalho ficam acima dele) nem do
+       respiro de 80px que o .mc-content reserva no pé. Com descrição longa, o
+       card passava do fim da tela e quem rolava era a página.
+
+       Agora ele é a ALTURA DA GRADE, que já é calculada para caber na tela:
+       assim o painel nunca é o item mais alto da linha, o cartão termina onde
+       a grade termina, e o texto comprido rola por dentro do .ms-body. */
+    const csGrade = window.getComputedStyle(el);
+    const padV = (parseFloat(csGrade.paddingTop) || 0) + (parseFloat(csGrade.paddingBottom) || 0);
+    const alturaDaGrade = rows * casa + (rows - 1) * vao + padV;
+    const linha = el.closest && el.closest('.bau-corpo--painel');
+    if (linha) linha.style.setProperty('--bau-painel-h', alturaDaGrade + 'px');
     setDims((prev) =>
       (prev.cols === cols && prev.rows === rows) ? prev : { cols, rows, totalSlots: cols * rows }
     );
@@ -2103,7 +2263,7 @@ function useGridDimensions() {
 /* `compacta` (22/10/2026, "Baú com painel"): a grade tem só as linhas que os
    itens ocupam e mais uma livre, em vez de encher a altura da tela de casas
    vazias. `selecionadoId`: o item aberto no painel ao lado fica marcado. */
-function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirContainer, lang, onMoverCasa, onGuardarEm, onSoltarNoAmigo, lugar = null, semFerramentas = false, compacta = false, selecionadoId = null, moedasNoTrilho = null }) {
+function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirContainer, lang, onMoverCasa, onGuardarEm, onSoltarNoAmigo, lugar = null, semFerramentas = false, compacta = false, selecionadoId = null, moedasNoTrilho = null, acaoNoTrilho = null }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const en = lang === 'en';
   const [busca, setBusca] = useState('');
@@ -2369,6 +2529,19 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     return { title: cat ? (b > 0 ? `${nomeV} +${b}` : nomeV) : `(? ${it.slug})` };
   };
 
+  /* ── O +N ACOMPANHA O ITEM (28/10/2026, pedido do usuário) ──────────────
+     "A informação que a arma está +5, etc, precisa acompanhar o item para o
+     personagem ver que a arma dele foi melhorada."
+
+     O número já existia em três lugares — o balão da casa, o balão da ficha e
+     a linha Sagração da janela —, e os três exigem uma AÇÃO: passar o mouse ou
+     abrir. Quem foi presenteado com uma arma sagrada não sabe disso olhando a
+     mochila. O selo resolve: fica na casa, sem hover e sem clique. */
+  const seloBonus = (it) => {
+    const b = bonusDoItem(it);
+    return b > 0 ? <span className="inv-selo-bonus" aria-hidden="true">+{b}</span> : null;
+  };
+
   const renderContainerCard = (it, cat, idx, extra = '') => {
     const filhos = itens.filter((f) => f.containerId === it.instanceId);
     let usado = 0;
@@ -2410,7 +2583,13 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           <span className="inv-card-pills">
             {/* À venda na loja (02/10/2026): o selo de etiqueta. */}
             {estaAVenda(it) && <span className="inv-pill inv-pill--venda" role="img" aria-label={en ? 'For sale' : 'À venda'}><i className="ti ti-tag" aria-hidden="true" /></span>}
-            {(it.slot || it.vestido) && <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><i className="ti ti-letter-e-small" aria-hidden="true" /></span>}
+            {/* A LETRA, NÃO O ÍCONE (28/10/2026, usuário: "o E está muito
+                pequeno, ao invés de usar ícone, use a letra"). `ti-letter-e-small`
+                é um glifo desenhado dentro de uma caixa com folga própria: na
+                pastilha de 21px ele saía menor que a etiqueta e a faísca ao
+                lado. A letra do corpo do texto ocupa a pastilha inteira e
+                acompanha a fonte do sistema. */}
+            {(it.slot || it.vestido) && <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><span className="inv-pill-letra" aria-hidden="true">E</span></span>}
           </span>
         )}
         <span className="inv-cont-bar">
@@ -2458,11 +2637,18 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
             container dos selos em vez do card, e caía por cima do E. Fora
             dele, o `right: 3px` passa a valer contra o card, que é o canto
             oposto onde ela deveria estar. */}
+        {/* A LETRA M, NÃO A FAÍSCA (28/10/2026, usuário: "quando o item for
+            mágico, use a letra M ao invés do ícone"). Mesma razão do E: na
+            pastilha de 21px um glifo desenhado sai menor que a letra do corpo
+            do texto. A classe `.inv-faisca` fica — ela é a POSIÇÃO (canto
+            superior direito, oposto aos selos de estado), não o desenho. */}
         {cat?.magico && (
           <span className="inv-faisca" role="img" aria-label={en ? 'Magic' : 'Mágico'}>
-            <i className="ti ti-sparkles" aria-hidden="true" />
+            <span className="inv-pill-letra" aria-hidden="true">M</span>
           </span>
         )}
+        {/* O +N da Sagração, à vista na casa (28/10/2026) — ver seloBonus. */}
+        {seloBonus(it)}
         <span className="inv-card-pills">
           {/* À venda na loja (02/10/2026): o selo de etiqueta. */}
           {estaAVenda(it) && <span className="inv-pill inv-pill--venda" role="img" aria-label={en ? 'For sale' : 'À venda'}><i className="ti ti-tag" aria-hidden="true" /></span>}
@@ -2477,7 +2663,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
               continua existindo nos dados e no modal; no grid ela não
               ajudava a decidir nada e gastava um segundo glifo. */}
           {(it.slot || it.vestido) && (
-            <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><i className="ti ti-letter-e-small" aria-hidden="true" /></span>
+            <span className="inv-pill eq" role="img" aria-label={en ? 'Equipped' : 'Equipado'}><span className="inv-pill-letra" aria-hidden="true">E</span></span>
           )}
           {/* Montaria em uso (14/09/2026) — mesmo selo dourado do "em uso". */}
           {it.montado && (
@@ -2498,13 +2684,8 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
             A cor avisa antes de acabar: aço > 50%, ouro até 50%, vermelho
             até 25%. Armadura zerada para de bloquear (ver aplicarDanoCascata),
             e isso é grande demais pra descobrir só na hora do golpe. */}
-        {resMax > 0 && (
-          <span className="inv-res-bar" data-baixa={resPct <= 25 ? 2 : (resPct <= 50 ? 1 : 0)}
-            role="img"
-            aria-label={`${en ? 'Durability' : 'Resistência'}: ${resAtual}/${resMax}`}>
-            <span style={{ width: resPct + '%' }} />
-          </span>
-        )}
+        {/* A barra saiu do ícone em 26/10/2026 (ver ficha.jsx): o número vive
+            no painel do item, ao lado de ocupa e absorção. */}
       </button>
     );
   };
@@ -2561,6 +2742,10 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
               <Input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={en ? 'Search' : 'Buscar'} />
             </div>
             <div className="inv-trilho-moedas">{moedasNoTrilho}</div>
+            {/* A ação do Mestre na PONTA do trilho (28/10/2026), do mesmo jeito
+                que "Nova loja" fica na ponta do trilho do Estoque: o que se vê
+                (busca, bolsa) à esquerda, o que se faz na direita. */}
+            {acaoNoTrilho}
             {/* A contagem saiu da vista com os filtros, mas segue para leitor de tela. */}
             <span className="sr-only" aria-live="polite">{itensFiltrados.length} de {itensVisiveis.length}</span>
           </div>
@@ -2624,7 +2809,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           <div
             ref={setGridEl}
             className="inv-bag-grid inv-bag-grid--slots"
-            style={{ gridTemplateColumns: `repeat(${cols}, 50px)` }}>
+            style={{ gridTemplateColumns: `repeat(${cols}, var(--inv-casa))` }}>
             {Array.from({ length: total }, (_, i) => {
               const it = porCasa.get(i);
               if (it) return renderCard(it, i);
@@ -2642,11 +2827,23 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         );
       })()}
 
-      {/* ── Fantasma que segue o cursor durante o arraste ── */}
+      {/* ── Fantasma que segue o cursor durante o arraste ──
+          DENTRO de `.menestrel-ui`, e não no `<body>` (27/10/2026, pedido do
+          usuário: "quando eu arrasto um item em loja/inventário a imagem fica
+          gigante"). É a MESMA armadilha que o PortalTooltip aqui em cima já
+          documenta: a folha inteira é escopada em `#root .menestrel-ui …`, e
+          no body nenhuma regra alcança o fantasma. Sem regra, a pintura saía
+          no tamanho natural do arquivo — 240px — e o `left/top` não colava,
+          porque nem o `position: fixed` chegava nele.
+
+          O bug é antigo, mas foi ficando pior: quando o fantasma era um glifo
+          de fonte, o estrago passava despercebido; conforme os itens ganharam
+          pintura (23/10 em diante), virou uma imagem de 240px no cursor. */}
       {drag && (() => {
         const it = porIdRef.current.get(drag.instanceId);
         if (!it) return null;
         const cat = catalogoBySlug[it.slug];
+        const alvo = document.querySelector('.menestrel-ui') || document.body;
         return ReactDOM.createPortal(
           <div
             className="inv-drag-ghost"
@@ -2654,7 +2851,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
             aria-hidden="true">
             <span className="inv-card-ic"><ItemIcone cat={cat} icon={invItemIcon(cat)} /></span>
           </div>,
-          document.body
+          alvo
         );
       })()}
 
@@ -2741,8 +2938,416 @@ function animaisDoPersonagem(itens, catalogoBySlug, criaturasPorId) {
   return itensLivres(itens).map((instancia) => {
     const cat = catalogoBySlug && catalogoBySlug[instancia.slug];
     const criatura = cat && cat.criatura_id != null ? mapa[cat.criatura_id] : null;
-    return criatura ? { instancia, cat, criatura } : null;
+    if (!criatura) return null;
+    /* `nome` e `raca` já resolvidos (06/10/2026): a regra do batismo é uma só
+       e mora aqui, para nenhuma tela repeti-la — e nenhuma esquecer que sem
+       nome dado o bicho é chamado pela raça. */
+    return {
+      instancia, cat, criatura,
+      raca: racaDoAnimal(cat, criatura),
+      nome: nomeDoAnimal(instancia, cat, criatura),
+    };
   }).filter(Boolean);
+}
+
+/* ============================================================
+   O ANIMAL É UM ITEM — nome, barras, arreamento e comida
+   ============================================================
+   Quatro pedidos do usuário que caem todos no mesmo lugar, porque o animal do
+   personagem é uma INSTÂNCIA do inventário e é nela que o estado dele mora:
+
+     "Na ficha do animal, o que é atualmente 'nome' será 'Raça', e o nome
+      poderá ser informado pelo seu dono, se assim desejar." (06/10/2026)
+     "Adicione ao feno e a ração animal, a condição de alimentar os animais do
+      personagem, e adicione o sistema das barras de vitalidade para o animal."
+      (05/10/2026)
+     "Vamos criar itens para vestir os animais, roupas específicas para cada
+      tipo de animal." / "Os itens carroça, carro de boi, carruagem [...] podem
+      ser equipados aos cavalos, bois, vacas, touros, búfalos e camelos. Trenó
+      pode ser equipado em cães, lobos, raposas, javalis." (05/10/2026)
+
+   POR QUE NA INSTÂNCIA, E NÃO NO CATÁLOGO. `public.itens` é global: a linha
+   "Cavalo Quarter" é a mesma para todos os personagens de todas as mesas. Dois
+   cavalos da mesma raça têm nomes, fome e feridas diferentes — então nome
+   (`it.nome`), barras (`it.vitalidade`) e condições (`it.condicoes`) ficam na
+   instância, com as MESMAS chaves do estado_atual do personagem, para a ficha
+   do bicho desenhar as barras com o código da ficha do dono.
+
+   O vínculo da peça com o bicho também é da instância: `animal_id` aponta para
+   o instanceId do animal e `slot_animal` diz em que casa ela entrou. É isso
+   que tira o peso das costas do personagem (calcCarga) e que mantém a peça
+   fora do corpo dele (ehVestimenta recusa quem tem slot_arreio).
+   ============================================================ */
+
+/* ── O NOME É DO DONO; A RAÇA, DO CATÁLOGO ─────────────────────────────────
+   24 é o espaço de um nome próprio com apelido ("Trovão de Farzelo"), e não
+   de uma frase: o nome aparece em casa de 64px na ficha e em linha de lista. */
+const NOME_ANIMAL_MAX = 24;
+
+/* A ESPÉCIE do bicho — o nome do catálogo, que é o que ele é. A criatura é o
+   recuo para o animal que existe no bestiário mas ainda não no catálogo. */
+function racaDoAnimal(cat, criatura) {
+  const n = (cat && cat.nome) || (criatura && criatura.nome) || '';
+  return String(n).trim();
+}
+
+/* Como se chama este bicho. Sem batismo, pela raça: "se assim desejar" quer
+   dizer que o campo é opcional, e nenhuma tela pode ficar com um vazio por
+   causa de um campo que ninguém preencheu. */
+function nomeDoAnimal(instancia, cat, criatura) {
+  const dado = instancia && typeof instancia.nome === 'string' ? instancia.nome.trim() : '';
+  return dado || racaDoAnimal(cat, criatura);
+}
+
+/* Batizar e desbatizar. Devolve a MESMA lista quando nada muda — é ela que
+   decide se a gravação do inventário acontece, e um nome igual ao que já está
+   lá não é motivo para um compare-and-swap.
+
+   Texto em branco DESFAZ o batismo: a chave sai da instância em vez de ficar
+   gravada como string vazia, para `nomeDoAnimal` voltar à raça sem ter de
+   saber que '' também é "sem nome". */
+function comNomeDoAnimal(itens, instanceId, nome) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const i = lista.findIndex((x) => x && x.instanceId === instanceId);
+  if (i < 0) return lista;
+  const limpo = String(nome == null ? '' : nome).trim().slice(0, NOME_ANIMAL_MAX);
+  const atual = typeof lista[i].nome === 'string' ? lista[i].nome : '';
+  if (limpo === atual) return lista;
+  const novo = { ...lista[i] };
+  if (limpo) novo.nome = limpo; else delete novo.nome;
+  const out = lista.slice();
+  out[i] = novo;
+  return out;
+}
+
+/* ── AS BARRAS DO BICHO ─────────────────────────────────────────────────────
+   As MESMAS seis do personagem, pelas MESMAS chaves e na mesma ordem da ficha
+   dele (condBars, 11-ficha): Doença, Sono, Sede, Fome, Frio e Calor. A
+   criatura não tem Vício, Sanidade nem Reputação — essas três são de quem tem
+   biografia. Frio e Calor são os dois lados da termorregulação. */
+const CONDICOES_ANIMAL = [
+  { key: 'vitalidade', sigla: 'DOE', label: 'Doença', labelEn: 'Illness', icone: 'ti-virus' },
+  { key: 'animo', sigla: 'SON', label: 'Sono', labelEn: 'Sleepiness', icone: 'ti-zzz' },
+  { key: 'hidratacao', sigla: 'SED', label: 'Sede', labelEn: 'Thirst', icone: 'ti-bottle' },
+  { key: 'nutricao', sigla: 'FOM', label: 'Fome', labelEn: 'Hunger', icone: 'ti-apple' },
+  { key: 'frio', sigla: 'FRI', label: 'Frio', labelEn: 'Cold', icone: 'ti-snowflake' },
+  { key: 'calor', sigla: 'CAL', label: 'Calor', labelEn: 'Heat', icone: 'ti-sun-high' },
+];
+const COND_ANIMAL_MAX = 100;
+const CONDICOES_ANIMAL_KEYS = new Set(CONDICOES_ANIMAL.map((c) => c.key));
+
+/* ── A CARGA DO BICHO (27/10/2026) ──────────────────────────────────────────
+   Pedido do usuário: "adicione também uma barra para mostrar o peso que o
+   animal está carregando", com duas decisões dele sobre a regra:
+
+     • a capacidade é 20% DO PESO DO CORPO. Um cavalo de 400kg leva 80; a
+       águia de 6kg leva 1,2 — ou seja, não leva nada, que é o certo. É a
+       mesma proporção que o sistema já usa para a Energia Física do
+       personagem (floor(peso/5) + Físico, em 01-core/game-data.jsx), então o
+       número não é estranho à mesa;
+     • conta TUDO, "inclusive o cavaleiro montado nele". O arreamento
+       completo soma ~39 e um humano adulto pesa ~70: um cavalo de guerra
+       arreado e montado chega perto do teto, e é esse o aperto que o Mestre
+       precisa ver.
+
+   `calcCarga` (o do personagem, mais acima) é o espelho disto: lá o que tem
+   `animal_id` é PULADO, porque quem carrega é o bicho. Aqui é o contrário —
+   só o que tem `animal_id` entra. As duas contas não podem divergir sem
+   alguém carregar a sela duas vezes, ou nenhuma.
+
+   `pesoDoCavaleiro` vem de fora (ficha.derivadas.peso, calculado por raça,
+   gênero e sub-raça) e só entra quando a instância está `montado`. */
+const CARGA_ANIMAL_FRACAO = 0.20;
+function cargaDoAnimal(instancia, criatura, itens, catalogoBySlug, pesoDoCavaleiro) {
+  const inst = instancia || {};
+  const corpo = Math.max(0, Number(criatura && criatura.peso) || 0);
+  const capacidade = corpo * CARGA_ANIMAL_FRACAO;
+  const mapa = catalogoBySlug || {};
+  let peso = 0;
+  for (const it of itensDoAnimal(itens, inst.instanceId)) {
+    const cat = mapa[it.slug];
+    if (!cat) continue;
+    peso += (cat.ocupa != null ? Number(cat.ocupa) || 0 : 0) * (it.quantidade || 1);
+  }
+  const cavaleiro = inst.montado ? Math.max(0, Number(pesoDoCavaleiro) || 0) : 0;
+  peso += cavaleiro;
+  return {
+    peso, cavaleiro, capacidade,
+    pct: capacidade > 0 ? Math.min(1, peso / capacidade) : 0,
+    over: capacidade > 0 && peso > capacidade,
+  };
+}
+
+/* O estado do bicho pronto para desenhar: as duas energias com os tetos da
+   criatura e as seis condições de 0 a 100.
+
+   SEM NADA GRAVADO O ANIMAL ESTÁ INTEIRO. É a diferença que importa entre
+   `undefined` e `0`: um cavalo que acabou de ser comprado tem a barra cheia,
+   não vazia — por isso o recuo de `ef`/`eh` é o MÁXIMO, e não zero.
+
+   Sem criatura ligada não há teto nem barra: o item é um animal de nome só, e
+   inventar 1/1 seria inventar bicho. */
+function vitalidadeDoAnimal(instancia, criatura) {
+  const it = instancia || {};
+  const c = criatura || null;
+  const teto = (v) => (c ? Math.max(0, Math.round(Number(v) || 0)) : 0);
+  const efMax = teto(c && c.energia_fisica);
+  const ehMax = teto(c && c.energia_heroica);
+  const v = it.vitalidade || {};
+  const dentro = (val, max) => {
+    const n = Number(val);
+    if (!Number.isFinite(n)) return max;        // nada gravado = inteiro
+    return Math.max(0, Math.min(max, Math.round(n)));
+  };
+  return {
+    ef: dentro(v.ef, efMax), efMax,
+    eh: dentro(v.eh, ehMax), ehMax,
+    cond: barrasDoAnimal(it.condicoes),
+    condMax: COND_ANIMAL_MAX,
+  };
+}
+
+/* Gravar UMA barra de UM animal. Energia vai para `vitalidade`, condição para
+   `condicoes` — a mesma separação do estado_atual do personagem. Frio e Calor
+   gravam os dois lados da mesma chave (`termorregulacao`), porque é uma trilha
+   só: esfriar é o contrário de esquentar, não outra barra.
+
+   Chave que não é barra do animal não grava nada: a ficha do bicho não tem
+   Karma nem Reputação, e aceitar a chave calada deixaria um campo morto no
+   jsonb que ninguém lê e ninguém limpa. */
+function comVitalidadeDoAnimal(itens, instanceId, chave, valor, criatura) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const i = lista.findIndex((x) => x && x.instanceId === instanceId);
+  if (i < 0) return lista;
+  const it = lista[i];
+  const n = Math.round(Number(valor) || 0);
+  const noTeto = (max) => Math.max(0, Math.min(max, n));
+  let campo = null;
+  let patch = null;
+  if (chave === 'ef' || chave === 'eh') {
+    const tetos = vitalidadeDoAnimal(it, criatura);
+    campo = 'vitalidade';
+    patch = { ...(it.vitalidade || {}), [chave]: noTeto(chave === 'ef' ? tetos.efMax : tetos.ehMax) };
+  } else if (chave === 'frio' || chave === 'calor') {
+    const v = noTeto(COND_ANIMAL_MAX);
+    campo = 'condicoes';
+    patch = { ...(it.condicoes || {}), termorregulacao: chave === 'frio' ? -v : v };
+  } else if (CONDICOES_ANIMAL_KEYS.has(chave)) {
+    campo = 'condicoes';
+    patch = { ...(it.condicoes || {}), [chave]: noTeto(COND_ANIMAL_MAX) };
+  } else {
+    return lista;
+  }
+  const out = lista.slice();
+  out[i] = { ...it, [campo]: patch };
+  return out;
+}
+
+/* ── O ARREAMENTO ───────────────────────────────────────────────────────────
+   Duas portas diferentes, porque são duas perguntas diferentes.
+
+   PEÇA DE MONTARIA (sela, cabeçada, barda, chanfron… — as onze casas que não
+   são o atrelado): quem decide é `criaturas.montaria`. Pedido do usuário em
+   27/10/2026: "Os animais que podem ser montados, podem usar os itens de
+   montaria."
+
+   Até aqui a porta era a mesma do atrelado — o CSV `itens.animal_subtipos`,
+   escrito à mão com sete subtipos (Cavalo, Grifo, Dragão, Avestruz, Pônei,
+   Elefante, Camelo). O banco tem 28 criaturas montáveis em VINTE subtipos, e
+   as treze que ficavam de fora (Pégaso, Unicórnio, Mula, Quimera, Mamute,
+   Búfalo, Tigre, Águia, Drake, Dradenar, Cérberus, Cavalum, Vaca) não podiam
+   receber peça nenhuma. Uma lista escrita à mão ao lado de uma coluna que já
+   responde a mesma pergunta só sabe ficar velha: criatura montável nova
+   nascia sem sela e ninguém era avisado.
+
+   ATRELADO (carroça, trenó): continua no CSV, e é outra pergunta — quem PUXA
+   não precisa ser montável. O boi puxa o carro e não se monta; o lobo puxa o
+   trenó. Ver scripts/sql/arreamento-e-atrelado-2026-10-05.sql.
+
+   CARGA SOLTA: peça sem casa e sem lista serve em qualquer bicho — um saco de
+   farinha vai no lombo de qualquer um. Mas peça COM restrição e sem a criatura
+   em mão é recusada: "não sei que bicho é este" não pode valer como "pode". */
+function subtiposDaPeca(cat) {
+  return String((cat && cat.animal_subtipos) || '')
+    .split(',').map((s) => normalizar(s)).filter(Boolean);
+}
+const ARREIO_ATRELADO = 'atrelado';
+function ehPecaDeMontaria(cat) {
+  const casa = String((cat && cat.slot_arreio) || '').trim();
+  return !!casa && casa !== ARREIO_ATRELADO;
+}
+function animalEhMontaria(criatura) {
+  return !!criatura && criatura.montaria === true;
+}
+function animalAceitaAPeca(cat, criatura) {
+  if (ehPecaDeMontaria(cat)) return animalEhMontaria(criatura);
+  const lista = subtiposDaPeca(cat);
+  if (!lista.length) return true;
+  const sub = normalizar(criatura && criatura.subtipo);
+  return !!sub && lista.includes(sub);
+}
+// Por que a peça foi recusada — a peça de montaria tem aviso próprio, senão o
+// jogador lê uma lista de subtipos que não é mais a regra.
+function motivoDaRecusaNoAnimal(cat, criatura) {
+  if (animalAceitaAPeca(cat, criatura)) return null;
+  return ehPecaDeMontaria(cat) ? 'nao_e_montaria' : 'animal_errado';
+}
+
+// A casa do mapa do animal em que a peça entra. Sem casa própria, vai carregada.
+const ANIMAL_SLOT_MOCHILA = 'mochila';
+function slotNoAnimal(cat) {
+  if (!cat) return null;
+  const arreio = String(cat.slot_arreio || '').trim();
+  if (arreio) return arreio;
+  const equip = String(cat.slot_equip || '').trim();
+  return equip || ANIMAL_SLOT_MOCHILA;
+}
+// As peças que estão num animal (o inverso de animal_id).
+function itensDoAnimal(itens, animalId) {
+  return (Array.isArray(itens) ? itens : []).filter((it) => it && it.animal_id === animalId);
+}
+const _ehAnimalCat = (cat) => !!cat && cat.criatura_id != null;
+
+/* Pôr uma peça no bicho. Devolve { ok, slot, itens } ou { ok:false, motivo }.
+   `criatura` é a linha de criaturas do ALVO — é dela que sai o subtipo; sem
+   ela, peça restrita é recusada. `novoId` existe para o teste poder prever o
+   instanceId da unidade que se desgarra da pilha.
+
+   A PILHA SE PARTE: levar 3 cordas de uma vez poria 3 no lombo quando o
+   jogador arrastou uma. Uma unidade vai, o resto fica na mochila do dono.
+
+   A CASA DO ARREAMENTO NÃO CAI NA MOCHILA quando está ocupada: a segunda sela
+   é RECUSADA, e não guardada no bolso do bicho — senão o jogador acha que
+   arreou e entra em viagem com a sela errada. A mochila, sim, é sem fim. */
+function equiparNoAnimal(itens, itemId, animalId, catalogoBySlug, criatura, novoId) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const cat = catalogoBySlug || {};
+  const alvo = lista.find((x) => x && x.instanceId === animalId);
+  if (!alvo || !_ehAnimalCat(cat[alvo.slug])) return { ok: false, motivo: 'alvo_invalido' };
+
+  const it = lista.find((x) => x && x.instanceId === itemId);
+  const catI = it && cat[it.slug];
+  if (!it || !catI) return { ok: false, motivo: 'item_invalido' };
+  // Em uso no corpo do dono, à venda, já noutro bicho — ou sendo um bicho.
+  if (it.equipado || it.vestido || it.montado || estaAVenda(it)
+      || it.animal_id || _ehAnimalCat(catI)) return { ok: false, motivo: 'item_invalido' };
+  const recusa = motivoDaRecusaNoAnimal(catI, criatura);
+  if (recusa) return { ok: false, motivo: recusa };
+
+  const slot = slotNoAnimal(catI);
+  if (slot !== ANIMAL_SLOT_MOCHILA
+      && itensDoAnimal(lista, animalId).some((x) => x.slot_animal === slot)) {
+    return { ok: false, motivo: 'slot_ocupado' };
+  }
+
+  // containerId: null — a peça sai do recipiente ao subir no bicho.
+  const marcas = { animal_id: animalId, slot_animal: slot, containerId: null, casa: undefined };
+  const total = it.quantidade || 1;
+  const out = total <= 1
+    ? lista.map((x) => (x === it ? { ...x, ...marcas } : x))
+    : [
+      ...lista.map((x) => (x === it ? { ...x, quantidade: total - 1 } : x)),
+      {
+        instanceId: (novoId || novoInstanceId)(), slug: it.slug, quantidade: 1,
+        equipado: false, slot: null, observacao: it.observacao || null, ...marcas,
+      },
+    ];
+  return { ok: true, slot, itens: out };
+}
+
+// Tirar a peça do bicho: ela volta solta para a mochila do personagem.
+function desequiparDoAnimal(itens, instanceId) {
+  return (Array.isArray(itens) ? itens : []).map((x) => {
+    if (!x || x.instanceId !== instanceId) return x;
+    const out = { ...x };
+    delete out.animal_id;
+    delete out.slot_animal;
+    return out;
+  });
+}
+
+/* O aviso da recusa. `animal_errado` NOMEIA os tipos que aceitam a peça, com o
+   texto do catálogo: sem isso o jogador fica adivinhando por que a sela não
+   entra, e a lista está a uma coluna de distância. */
+function motivoAnimalLabel(motivo, en, cat) {
+  if (motivo === 'animal_errado') {
+    const tipos = String((cat && cat.animal_subtipos) || '')
+      .split(',').map((s) => s.trim()).filter(Boolean).join(', ');
+    if (!tipos) return en ? 'This piece does not fit this animal.' : 'Esta peça não serve neste animal.';
+    return en
+      ? `This piece only fits: ${tipos}.`
+      : `Esta peça só serve em: ${tipos}.`;
+  }
+  const mapa = {
+    // A peça de montaria não lista subtipos: a regra é uma só, e cabe numa frase.
+    nao_e_montaria: [en
+      ? 'This piece only fits animals that can be ridden.'
+      : 'Esta peça só serve em animais que podem ser montados.'],
+    slot_ocupado: [en ? 'That spot is taken.' : 'Esta casa já está ocupada.'],
+    item_invalido: [en ? 'This item cannot go on an animal.' : 'Este item não pode ir no animal.'],
+    alvo_invalido: [en ? 'That target is not an animal.' : 'O alvo não é um animal.'],
+    nao_e_racao: [en ? 'This is not animal feed.' : 'Isto não é ração de animal.'],
+    sem_fome: [en ? 'The animal is not hungry.' : 'O animal não está com fome.'],
+  };
+  return (mapa[motivo] || [en ? 'Not allowed.' : 'Não é permitido.'])[0];
+}
+
+/* ── COMIDA DE BICHO ───────────────────────────────────────────────────────
+   Quem alimenta animal são o Feno e a Ração Animal, e são dois slugs — não um
+   grupo nem um palpite pelo nome. "Ração" (sem o "Animal") é comida de gente e
+   fica de fora de propósito: ver
+   scripts/sql/veneno-por-rodada-e-elixires-2026-10-05.sql, que é onde o feno
+   ganhou a condição ("Reduz 5 de Fome", contra 10 da ração animal — feno é
+   forragem de inverno, se junta no campo e não custa nada).
+
+   QUANTO cada uma mata de fome sai do CATÁLOGO, e não de uma tabela aqui: o
+   Mestre ajusta o efeito do item no editor e a ação acompanha. */
+const SLUGS_RACAO_ANIMAL = ['feno', 'racao_animal'];
+const ehRacaoDeAnimal = (cat) => !!cat && SLUGS_RACAO_ANIMAL.includes(cat.slug);
+
+/* Quanta Fome o item tira, lido pelo parser de efeitos do sistema — o MESMO
+   que o consumo do personagem usa (efeitosDoItem, 01-core/inventario-helpers),
+   para "Reduz 5 de Fome" nunca querer dizer uma coisa na boca do bicho e outra
+   na do dono. Item sem efeito de Fome tira 0. */
+function fomeQueOItemTira(cat) {
+  if (!cat) return 0;
+  const efeitos = (typeof efeitosDoItem === 'function' ? efeitosDoItem : window.efeitosDoItem)(cat, 1) || [];
+  const fome = efeitos.find((e) => e && e.scope === 'condicoes' && e.key === 'nutricao');
+  return fome ? Math.max(0, Math.round(-fome.delta)) : 0;
+}
+
+/* Alimentar o animal: gasta UMA unidade e baixa a Fome dele. Devolve
+   { ok, quanto, fome, itens } ou { ok:false, motivo }.
+
+   BICHO SEM FOME NÃO COME, e a ração não se gasta: deixar comer à toa
+   transformaria o estoque de ração em lixo com dois cliques distraídos.
+   Comida demais não deixa a barra negativa — `quanto` é o que de fato entrou,
+   e é esse número que a tela mostra. */
+function alimentarAnimal(itens, comidaId, animalId, catalogoBySlug, criatura) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const cat = catalogoBySlug || {};
+  const comida = lista.find((x) => x && x.instanceId === comidaId);
+  const catC = comida && cat[comida.slug];
+  if (!comida || !ehRacaoDeAnimal(catC) || estaAVenda(comida)) return { ok: false, motivo: 'nao_e_racao' };
+
+  const animal = lista.find((x) => x && x.instanceId === animalId);
+  if (!animal || !_ehAnimalCat(cat[animal.slug])) return { ok: false, motivo: 'alvo_invalido' };
+
+  const fome = vitalidadeDoAnimal(animal, criatura).cond.nutricao;
+  if (fome <= 0) return { ok: false, motivo: 'sem_fome' };
+
+  const quanto = Math.min(fomeQueOItemTira(catC), fome);
+  if (quanto <= 0) return { ok: false, motivo: 'nao_e_racao' };
+
+  const comFome = comVitalidadeDoAnimal(lista, animalId, 'nutricao', fome - quanto, criatura);
+  /* A última unidade some do inventário em vez de ficar como pilha de zero.
+     O filtro é SÓ da comida (29/10/2026): escrito como `quantidade > 0` para
+     toda a lista, ele apagava qualquer instância sem o campo — uma peça antiga
+     gravada sem `quantidade` desaparecia do inventário por dar feno ao cavalo. */
+  const out = comFome
+    .map((x) => (x && x.instanceId === comidaId ? { ...x, quantidade: (x.quantidade || 1) - 1 } : x))
+    .filter((x) => !x || x.instanceId !== comidaId || (x.quantidade || 0) > 0);
+  return { ok: true, quanto, fome: fome - quanto, itens: out };
 }
 /* ── ELO PERMANENTE com o animal (27/09/2026) ─────────────────────────────
    "Teremos um status nos animais, mesmo aqueles que não se pode montar, que
@@ -2995,9 +3600,19 @@ function useColunasDaGrade(ref, padrao = 5) {
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    /* QUEM CONTA AS COLUNAS É O CSS (26/10/2026, pedido do usuário: "os
+       ícones não estão alinhados, às vezes quebra em muitas linhas"). A
+       conta à mão (50px de casa + 5,4px de vão) só valia para UMA das cinco
+       regras que já pintaram esta grade; onde a casa ou o vão fossem outros,
+       o número de casas-fantasma não fechava a fileira e a última linha
+       saía torta. `grid-template-columns` resolvido traz as faixas que o
+       navegador de fato desenhou — é sempre o número certo. */
     const medir = () => {
       const w = el.clientWidth;
-      if (w > 0) setCols(Math.max(1, Math.floor((w - 5.4) / 55.4)));   // 5,4px de respiro em cada borda
+      if (w <= 0) return;
+      const faixas = String(getComputedStyle(el).gridTemplateColumns || '').trim();
+      const n = faixas && faixas !== 'none' ? faixas.split(/\s+/).length : 0;
+      setCols(n > 0 ? n : Math.max(1, Math.floor((w - 5.4) / 55.4)));
     };
     medir();
     const obs = new ResizeObserver(medir);
@@ -3009,12 +3624,25 @@ function useColunasDaGrade(ref, padrao = 5) {
 
 /* 23/10/2026 — a grade só completa a última fileira (antes desenhava 26 casas
    vazias fixas, mesmo num recipiente que guarda 2). */
-function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fecharTip }) {
+/* ── AS CASAS SÃO AS DO PORTE (29/10/2026) ───────────────────────────────
+   "Vamos definir 4 tipos de quantidades de slots para os itens: pequenos 3,
+   médios 6, grandes 9, muito grandes 15." (usuário)
+
+   Antes disto o número de casas era inventado — pela largura da janela, ou
+   (meu erro de 28/10) pelo peso que o recipiente suporta. Agora ele é uma
+   propriedade do recipiente: `casasDoRecipiente` (01-core), 3, 6, 9 ou 15.
+
+   O que continua saindo do modal são as COLUNAS: cabem tantas casas de 78px
+   quantas a largura permitir, e as casas do porte se distribuem nelas. Assim
+   o número é o que o Mestre definiu e o desenho é o que cabe na tela. */
+function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fecharTip, casas = null }) {
   const en = lang === 'en';
   const gradeRef = useRef(null);
   const COLS = useColunasDaGrade(gradeRef);
   const lista = filhos || [];
-  const total = Math.max(COLS, Math.ceil(lista.length / COLS) * COLS);
+  /* Mais peças do que casas só acontece com dado antigo, de antes do porte:
+     a grade cresce para não esconder nada de ninguém. */
+  const total = Math.max(Number(casas) || 0, lista.length) || COLS;
   return (
     <div ref={gradeRef} className="inv-bag-grid inv-bag-grid--slots det-grade-recipiente">
       {lista.map((it) => {
@@ -3035,16 +3663,11 @@ function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fe
             </span>
             {cat && cat.magico && (
               <span className="inv-faisca" role="img" aria-label={en ? 'Magic' : 'Mágico'}>
-                <i className="ti ti-sparkles" aria-hidden="true" />
+                <span className="inv-pill-letra" aria-hidden="true">M</span>
               </span>
             )}
             <span className="inv-card-pills">
             </span>
-            {resMax > 0 && (
-              <span className="inv-res-bar" data-baixa={resPct <= 25 ? 2 : (resPct <= 50 ? 1 : 0)} aria-hidden="true">
-                <span style={{ width: resPct + '%' }} />
-              </span>
-            )}
           </button>
         );
       })}
@@ -3058,7 +3681,7 @@ function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fe
 function DetalhesItemModal({
   instance, catalogoBySlug, raca, slotsState, todosItens,
   containersDisponiveis, pjsHistoria, lang,
-  onClose, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, tecnicasDb, vinculos, onDestruir,
+  onClose, onVoltar, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, tecnicasDb, vinculos, onDestruir,
   onMoverParaContainer,
   onVestir, onDespir,
   criaturaMontaria, onMontar, onDesmontar,
@@ -3313,6 +3936,23 @@ function DetalhesItemModal({
       // Pilha: vai direto pra janela de quantidade (a padrão).
       onClick: () => (confirmandoDestruir ? fecharEtapas() : abrirEtapa(setConfirmandoDestruir)),
     },
+    /* ── VOLTAR À JANELA DE ONDE SE VEIO (28/10/2026, pedido do usuário:
+       "ao navegar por um item ou outro, adicione ao lado de descartar um
+       botão para voltar ao modal anterior").
+
+       Quem chega aqui pela casa do boneco passou pela janela da REGIÃO, e ela
+       FECHA ao abrir esta (`fechar()` antes do `setDetalheCintoId`). Sem este
+       botão, voltar significava fechar, procurar a casa no boneco e clicar de
+       novo — três gestos para desfazer um.
+
+       Só aparece quando há de onde voltar: o chamador passa `onVoltar`. No
+       Inventário, onde esta janela é a primeira, ele não existe e o botão
+       não nasce. O X continua fechando tudo, que é outra coisa. */
+    onVoltar && {
+      chave: 'voltar', icone: 'ti-arrow-back-up',
+      rotulo: en ? 'Back' : 'Voltar',
+      onClick: () => onVoltar(),
+    },
     acoesPesadas && equipavel && (instance.equipado ? {
       chave: 'desequipar', icone: 'ti-shield-off', rotulo: en ? 'Unequip' : 'Desequipar',
       onClick: () => onDesequipar(instance.instanceId),
@@ -3435,23 +4075,40 @@ function DetalhesItemModal({
           QuantidadeStepper; os botões seguem pulando pelos degraus da tabela
           (BONUS_ITEM_VALORES), por isso não é o componente em si. */}
       {destinoBonus && (bonusItem > 0 || onBonus) && (
-        <Linha largo rotulo={(en ? 'Consecration' : 'Sagração') + ' · ' + (destinoBonus === 'dano' ? (en ? 'damage' : 'dano') : (en ? 'absorption' : 'absorção'))}
+        <Linha largo controle rotulo={(en ? 'Consecration' : 'Sagração') + ' · ' + (destinoBonus === 'dano' ? (en ? 'damage' : 'dano') : (en ? 'absorption' : 'absorção'))}
           valor={onBonus ? (
-            <span className="fp-pop-stepper det-bonus det-bonus-pilula" role="group" data-bonus={bonusItem}
-              aria-label={en ? 'Consecration bonus' : 'Bônus de sagração'}>
-              <button type="button" className="fp-step-btn" disabled={bonusItem === 0}
-                aria-label={en ? 'Lower bonus' : 'Reduzir bônus'}
-                onClick={() => onBonus(instance.instanceId, -1)}>
-                <i className="ti ti-minus" aria-hidden="true" />
-              </button>
-              <span className="fp-pop-stepper-label det-bonus-val">+{bonusItem}</span>
-              <button type="button" className="fp-step-btn"
-                disabled={bonusItem === BONUS_ITEM_VALORES[BONUS_ITEM_VALORES.length - 1]}
-                aria-label={en ? 'Raise bonus' : 'Aumentar bônus'}
-                onClick={() => onBonus(instance.instanceId, 1)}>
-                <i className="ti ti-plus" aria-hidden="true" />
-              </button>
-            </span>
+            /* ── O PRÓPRIO SELETOR DA LOJA (28/10/2026) ───────────────────
+                 "O seletor de preço da loja, e o seletor de bônus de sagração,
+                 ainda estão diferentes da quantidade em loja." (usuário)
+
+                 Na primeira passada eu só VESTI as classes do stepper numa
+                 marcação à mão — e marcação à mão volta a divergir na próxima
+                 vez que alguém mexer numa das duas. Agora é o QuantidadeStepper
+                 do sistema, o mesmo componente que a loja usa para Quantidade:
+                 não há mais como ficarem diferentes.
+
+                 A Sagração não soma de um em um, ela pula a escada 0 → 1 → 3 →
+                 5 → 7 → 9. Quem anda na escada é o ÍNDICE: o stepper conta de
+                 0 a 5, o `centro` mostra o valor do degrau, e `onBonus` recebe
+                 a direção que sempre recebeu. */
+            (() => {
+              const degrau = BONUS_ITEM_VALORES.indexOf(bonusItem);
+              const i = degrau < 0 ? 0 : degrau;
+              return (
+                <QuantidadeStepper
+                  className="det-bonus-sag"
+                  data-bonus={bonusItem}
+                  value={i}
+                  min={0}
+                  max={BONUS_ITEM_VALORES.length - 1}
+                  centro={<span className="det-bonus-val">+{bonusItem}</span>}
+                  onChange={(alvo) => onBonus(instance.instanceId, alvo > i ? 1 : -1)}
+                  label={en ? 'Consecration bonus' : 'Bônus de sagração'}
+                  propsMenos={{ 'aria-label': en ? 'Lower bonus' : 'Reduzir bônus' }}
+                  propsMais={{ 'aria-label': en ? 'Raise bonus' : 'Aumentar bônus' }}
+                />
+              );
+            })()
           ) : (
             <span className="det-bonus det-bonus-ctrl" data-bonus={bonusItem}>
               <span className="det-bonus-val">+{bonusItem}</span>
@@ -3513,13 +4170,23 @@ function DetalhesItemModal({
           está ocupado, como a Carga do baú; vazio também aparece, com o
           caminho para guardar. */}
       {isContainer && containerData.armazena > 0 && (() => {
-        const { usado, armazena, tipoAceito } = containerData;
+        const { usado, armazena, tipoAceito, casas, usadas } = containerData;
         const pct = Math.min(100, (usado / armazena) * 100);
+        const cheio = usado >= armazena || usadas >= casas;
         return (
           <div className="best-secao det-recipiente">
             <h4 className="best-secao-titulo">{en ? 'Contents' : 'Conteúdo'}</h4>
-            <span className="det-recip-medida" data-cheio={usado >= armazena ? '1' : undefined}
-              aria-label={en ? `${fmtNum(usado)} of ${fmtNum(armazena)} used` : `${fmtNum(usado)} de ${fmtNum(armazena)} ocupado`}>
+            {/* OS DOIS LIMITES À VISTA (29/10/2026): as casas dizem quantos
+                itens cabem, o peso diz quanto o recipiente aguenta, e o que
+                estourar primeiro trava. Mostrar só um deles faria o outro
+                recusar sem explicação. */}
+            <span className="det-recip-medida" data-cheio={cheio ? '1' : undefined}
+              aria-label={en
+                ? `${usadas} of ${casas} slots, ${fmtNum(usado)} of ${fmtNum(armazena)} weight`
+                : `${usadas} de ${casas} casas, ${fmtNum(usado)} de ${fmtNum(armazena)} de peso`}>
+              <span className="det-recip-casas" aria-hidden="true">
+                {usadas}<span>/{casas}</span> {en ? 'slots' : 'casas'}
+              </span>
               <span className="det-recip-barra" data-liquido={tipoAceito === 'L' ? '1' : undefined} aria-hidden="true">
                 <span style={{ width: pct + '%' }} />
               </span>
@@ -3528,6 +4195,7 @@ function DetalhesItemModal({
             {hasContainerContent ? (
               /* O quadriculado do inventário (26/09/2026), no lugar da lista. */
               <GradeDoRecipiente filhos={containerData.filhos} catalogoBySlug={catalogoBySlug} lang={lang}
+                casas={containerData.casas}
                 onAbrir={onAbrirDetalhesFilho} abrirTip={abrirTip} fecharTip={fecharTip} />
             ) : (
               <p className="det-recip-vazio">
@@ -3817,6 +4485,12 @@ function DetalhesItemModal({
         lang={lang}
         onClose={onClose}
         alvoPainel={alvoPainel}
+        /* SEM a pintura grande (26/10/2026, pedido do usuário: "remova a
+           imagem em zoom na visualização de itens em loja/inventário"). Ela
+           durou um dia: numa faixa de 190px a pintura de 320px aparecia
+           ampliada, e quem abre um item aqui quer as AÇÕES, não o retrato —
+           o ícone no título já diz o que é. No Livro de Regras, onde a
+           janela é leitura e não manuseio, ela continua. */
         topo={passe.topo} semAbas acoesEmBarra
         acoes={acoesDaJanela}
         rodape={etapaAberta ? rodapeEtapa : rodapeUsar}>
@@ -3927,6 +4601,82 @@ function PrecoMoedasInput({ latao, onChange, lang, disabled }) {
 // Helper de exibição: "2.0/10"
 function used(usado, cap) { return `${fmtNum(usado)}/${fmtNum(cap)}`; }
 
+/* ── DarItemModal (28/10/2026) ───────────────────────────────────────────────
+   O Mestre escolhe um item do catálogo e quantos, e entrega. Nada de preço,
+   de cidade ou de loja: é o caminho curto que faltava para a recompensa.
+
+   A busca olha nome E grupo, porque é assim que se procura o que se quer dar
+   ("poção", "Armas"). A lista mostra no máximo 40 — o catálogo tem mais de
+   mil itens, e uma lista sem fim não ajuda a escolher. */
+function DarItemModal({ catalogo, lang, onDar, onClose }) {
+  const en = lang === 'en';
+  const [busca, setBusca] = useState('');
+  const [slug, setSlug] = useState(null);
+  const [qtd, setQtd] = useState(1);
+  const { Input } = (typeof UI !== 'undefined' ? UI : {});
+  const termo = busca.trim().toLowerCase();
+  const achados = useMemo(() => {
+    const todos = catalogo || [];
+    const base = termo
+      ? todos.filter((c) => (c.nome || '').toLowerCase().includes(termo)
+        || (c.grupo || '').toLowerCase().includes(termo))
+      : todos;
+    return base.slice(0, 40);
+  }, [catalogo, termo]);
+  const escolhido = (catalogo || []).find((c) => c.slug === slug) || null;
+
+  return (
+    <ModalShell
+      title={<><i className="ti ti-gift det-title-ic" aria-hidden="true" /> {en ? 'Give item' : 'Dar item'}</>}
+      lang={lang}
+      size="md"
+      extraClass="modal-detalhes modal-dar-item"
+      onClose={onClose}
+    >
+      <div className="best-search dar-item-busca">
+        <i className="ti ti-eye busca-ic" aria-hidden="true" />
+        <Input type="search" value={busca} autoFocus
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder={en ? 'Search the catalogue' : 'Buscar no catálogo'} />
+      </div>
+
+      {achados.length === 0 ? (
+        <p className="dar-item-vazio">{en ? 'Nothing found.' : 'Nada encontrado.'}</p>
+      ) : (
+        <ul className="dar-item-lista mn-rolagem">
+          {achados.map((c) => (
+            <li key={c.slug}>
+              <button type="button"
+                className={'dar-item-linha' + (c.slug === slug ? ' is-on' : '')}
+                aria-pressed={c.slug === slug}
+                onClick={() => setSlug(c.slug)}>
+                <i className={'ti ' + invItemIcon(c)} aria-hidden="true" />
+                <span className="dar-item-nome">{c.nome}</span>
+                {c.grupo && <span className="dar-item-grupo">{c.grupo}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* A QUANTIDADE À ESQUERDA (28/10/2026, pedido do usuário: "o seletor de
+          quantidade no rodapé poderia ficar à esquerda"). O rótulo não empurra
+          mais o seletor para o meio: os dois andam juntos na ponta esquerda e
+          a ação primária fica sozinha na direita, como em todo rodapé de
+          janela do sistema. */}
+      <div className="dar-item-rodape">
+        <span className="dar-item-rotulo">{en ? 'Quantity' : 'Quantidade'}</span>
+        <QuantidadeStepper className="dar-item-qtd" value={qtd} min={1} onChange={setQtd}
+          label={en ? 'Quantity' : 'Quantidade'} />
+        <button type="button" className="btn-primary dar-item-confirmar" disabled={!escolhido}
+          onClick={() => escolhido && onDar(escolhido.slug, qtd)}>
+          {en ? 'Give' : 'Dar'}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
 // ── ContainerModal (Fase 3) ──────────────────────────────────────────────────
 function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClose, onRemoverDoContainer, onAbrirDetalhes, onMoverCasa }) {
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
@@ -3938,6 +4688,9 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
     ? (en ? 'liquids' : 'líquidos')
     : (en ? 'solids' : 'sólidos');
 
+  /* A grade desta janela também mede o MODAL, não a capacidade (28/10/2026,
+     2ª volta — ver GradeDoRecipiente). `armazena` é peso, não casas. */
+
   // Escape e travamento de scroll já são responsabilidade do ModalShell — não duplicar aqui.
 
   return (
@@ -3945,7 +4698,7 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
       title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat?.nome || containerInst?.slug}</>}
       lang={lang}
       size="md"
-      extraClass="modal-detalhes"
+      extraClass="modal-detalhes modal-recipiente"
       onClose={onClose}
     >
         <div className="det-desc">
@@ -4422,11 +5175,45 @@ function CampoPreco({ valor, onChange, lang, name, disabled, id }) {
     if (!vazio) emitir(qtd, m);
   };
 
+  /* ── A MOEDA SAIU DE DENTRO DA PÍLULA (28/10/2026) ──────────────────────
+     "O seletor de preço está diferente porque ele tem o seletor de moeda, mas
+     é possível colocar o seletor de moeda fora, mas do lado, e o seletor de
+     preço ter o + e -." (usuário)
+
+     Era isso que impedia os dois seletores da loja de serem a mesma peça: o
+     preço tinha um botão a mais DENTRO do pill, no lugar onde o seletor de
+     quantidade tem o "+", e por isso nunca ia bater por mais que a pele
+     combinasse. Com a moeda do lado de fora, o preço vira o
+     QuantidadeStepper de sempre — "−", o número, "+" —, e a moeda é um botão
+     irmão, na mesma fileira.
+
+     O número continua DIGITÁVEL (o `centro` é o input): preço de 8000 latões
+     não se alcança clicando "+" oito mil vezes. O passo dos botões é 1 da
+     moeda escolhida, que é como se pensa um preço — "mais um ouro". */
+  const passo = (d) => {
+    const atual = Number(qtd === '' ? 0 : qtd) || 0;
+    emitir(String(Math.max(0, atual + d)), moeda);
+  };
+
   return (
     <div className="campo-preco" ref={caixaRef}>
-      <input className="diario-input campo-preco-input" type="number" min="0" step="1" inputMode="numeric"
-        id={id} name={name} value={qtd} disabled={disabled}
-        onChange={(e) => emitir(e.target.value, moeda)} />
+      <span className="fp-pop-stepper campo-preco-stepper" role="group"
+        aria-label={en ? 'Price' : 'Preço'}>
+        <button type="button" className="fp-step-btn" disabled={disabled || (Number(qtd) || 0) <= 0}
+          aria-label="-" onClick={() => passo(-1)}>
+          <i className="ti ti-minus" aria-hidden="true" />
+        </button>
+        <span className="fp-pop-stepper-label">
+          <input className="campo-preco-input" type="number" min="0" step="1" inputMode="numeric"
+            id={id} name={name} value={qtd} disabled={disabled}
+            aria-label={en ? 'Price' : 'Preço'}
+            onChange={(e) => emitir(e.target.value, moeda)} />
+        </span>
+        <button type="button" className="fp-step-btn" disabled={disabled}
+          aria-label="+" onClick={() => passo(1)}>
+          <i className="ti ti-plus" aria-hidden="true" />
+        </button>
+      </span>
       <button type="button" className="fp-step-btn campo-preco-moeda" disabled={disabled}
         aria-haspopup="listbox" aria-expanded={aberto}
         aria-label={(en ? 'Coin: ' : 'Moeda: ') + nomes[moeda]}
@@ -4451,7 +5238,7 @@ function CampoPreco({ valor, onChange, lang, name, disabled, id }) {
 Object.assign(window, {
   BauTopo, BauCargaRodape,
   InventarioList, EquipadoBoard, VestesBoard, MoedaPills, CampoPreco, MOEDA_COR,
-  CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, ContainerModal, QuantidadeModal,
+  CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, ContainerModal, QuantidadeModal, DarItemModal,
   guardarNoRecipiente, normalizarPilhas,
   // Leitura de livro (itens.doc_url) — o bestiário também abre por aqui.
   LeituraDocModal, urlLeituraDoc,
@@ -4461,7 +5248,7 @@ Object.assign(window, {
   vesteSlotDe,
   // Teto de peças por região — precisa bater com as casas que a ficha desenha
   // (vestir-capacidade.test.js trava os dois lados juntos, 16/09/2026).
-  VESTE_SLOTS, vesteSlotState,
+  VESTE_SLOTS, vesteSlotState, ehVestimenta,
   // O que o item ensina (livro/pergaminho) e por que não dá (22/10/2026).
   vinculosDeLivros, magiasQueOItemEnsina, bloqueioAprenderNoInventario,
   ehPergaminhoDeTecnica, tecnicasQueOItemEnsina, bloqueioTecnicaNoInventario, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia, ehItemDeMagiaEmBatalha,
@@ -4471,6 +5258,15 @@ Object.assign(window, {
   criaturaDoItem, itemMontado, useCriaturasMontaria,
   // Aba Animais da ficha: todos os animais vinculados a criatura.
   animaisDoPersonagem, useCriaturasPorIds,
+  /* O animal como item (05–06/10/2026): nome do dono, barras na instância,
+     arreamento por subtipo e a ação Alimentar. */
+  NOME_ANIMAL_MAX, racaDoAnimal, nomeDoAnimal, comNomeDoAnimal,
+  CONDICOES_ANIMAL, COND_ANIMAL_MAX, vitalidadeDoAnimal, comVitalidadeDoAnimal,
+  cargaDoAnimal, CARGA_ANIMAL_FRACAO,
+  subtiposDaPeca, animalAceitaAPeca, ehPecaDeMontaria, animalEhMontaria, motivoDaRecusaNoAnimal,
+  slotNoAnimal, itensDoAnimal,
+  equiparNoAnimal, desequiparDoAnimal, motivoAnimalLabel,
+  SLUGS_RACAO_ANIMAL, ehRacaoDeAnimal, fomeQueOItemTira, alimentarAnimal,
   PrecoMoedasInput, motivoVendaLabel, bloqueioVenda,
   MAGIAS_ELO_PERMANENTE, ELO_MAX_PERMANENTES, magiaCriaElo, eloTetoEstagio, temElo, bloqueioElo,
   motivoEloLabel, comEloNoAnimal, semEloNoAnimal,

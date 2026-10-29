@@ -389,3 +389,44 @@ describe('Painel da página de magias', () => {
     expect(janela.textContent).not.toMatch(/Conferir novamente/);
   });
 });
+
+/* ── O DANO QUE NÃO VEM DO TEXTO (27/10/2026) ──────────────────────────────
+   Pedido do usuário ("faça essa verificação"), nascido ao desenhar a janela
+   de evocar: o motor lê o dano do TEXTO do nível, e quando o texto não dá
+   número ele cai na coluna `dano` do banco — que "costuma ser o do nível 9".
+   Uma magia pode então atacar no nível 1 com o dano do 9, calada.
+
+   A coluna saiu do editor em 29/09/2026 justamente para o dano vir do texto;
+   quem ainda depende dela é dívida, e dívida merece ficar à vista. */
+describe('a verificação do dano pela coluna aposentada', () => {
+  const comColuna = (extra) => ({ key: 'k' + Math.random().toString(36).slice(2, 7),
+    nome: 'Magia Teste', dano: 20, ...extra });
+
+  it('acusa a magia cujo texto não entrega dano mas tem a coluna preenchida', () => {
+    montar([comColuna({ nivel_1: 'Uma luz percorre o ar e some.' })]);
+    fireEvent.click(cabecalho());
+    expect(screen.getByText(/coluna aposentada/i)).toBeTruthy();
+    expect(screen.getAllByText('Magia Teste').length).toBeGreaterThan(0);
+  });
+
+  it('não acusa quem entrega o dano pelo texto', () => {
+    montar([comColuna({ nivel_1: 'Cause 10 de dano.' })]);
+    fireEvent.click(cabecalho());
+    expect(screen.queryByText(/coluna aposentada/i)).toBeNull();
+  });
+
+  /* Proteção fica de fora: ali o motor já suprime o fallback de propósito
+     (ver danoMagiaNoNivel), e listá-la seria alarme falso — foi exatamente o
+     bug de "Reduz N de dano" virar ataque, só que ao contrário. */
+  it('não acusa proteção, que reduz dano em vez de causar', () => {
+    montar([comColuna({ nivel_1: 'Reduz 10 de dano.' })]);
+    fireEvent.click(cabecalho());
+    expect(screen.queryByText(/coluna aposentada/i)).toBeNull();
+  });
+
+  it('e não acusa quem nem tem a coluna preenchida', () => {
+    montar([{ key: 'z1', nome: 'Narrativa', nivel_1: 'O alvo sonha com o mar.' }]);
+    fireEvent.click(cabecalho());
+    expect(screen.queryByText(/coluna aposentada/i)).toBeNull();
+  });
+});
