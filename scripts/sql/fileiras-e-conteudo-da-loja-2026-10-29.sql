@@ -42,7 +42,11 @@
 --    Com recheio, cada unidade é uma INSTÂNCIA (nunca empilha): duas
 --    algibeiras cheias são dois pacotes, cada um com o seu conteúdo dentro.
 --
--- NÃO aplicado em produção ainda — aguardando o OK do usuário.
+-- Aplicado em produção via execute_sql em 29/10/2026, com autorização do
+-- usuário ("Pode aplicar"). Conferido depois de aplicar: fileira fechada some
+-- do achatado (com e sem `casa`), loja sem `fileiras` continua inteira, formato
+-- legado passa direto, e comprar_item seguiu SECURITY DEFINER com as mesmas
+-- permissões.
 -- ============================================================
 
 -- ── 1) O ACHATADO RESPEITA A FILEIRA FECHADA ────────────────────────────────
