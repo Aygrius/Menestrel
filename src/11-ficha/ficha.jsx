@@ -6354,16 +6354,19 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   /* HABILIDADES, MAGIAS E AMIGOS SÃO PÁGINAS (02/11/2026). "Itens" saiu do
      trilho: os itens moram no Inventário. */
   const verPaginasDoPj = podeEditarFoto || !!isMestre;
-  const temMagias = Object.keys(pj.magias || {}).length > 0;
+  /* MAGIAS PARA TODOS (05/11/2026, usuário: "Como agora todo personagem pode
+     comprar magia, essa tela precisa estar aberta mesmo que o personagem não
+     saiba magia nenhuma"). Qualquer profissão aprende pelo item desde
+     22/10/2026; a página mostra os pontos de magia e o vazio. */
   /* TÉCNICAS VIRARAM PÁGINA (04/11/2026, usuário: "adicione a aba
      Técnicas"), entre Habilidades e Magias, no lugar da coluna do antigo
-     Conhecimento. Como Magias, só aparece para quem tem alguma. */
-  const temTecnicas = Object.keys(pj.tecnicas || {}).length > 0;
+     Conhecimento. Aberta para todos desde 05/11/2026, como Magias
+     ("Técnicas precisa aparecer para todos também"). */
   const navBotoes = (
     <>
       {verPaginasDoPj && botaoPagina('habilidades', 'ti-brain', 'Habilidades', 'Skills')}
-      {verPaginasDoPj && temTecnicas && botaoPagina('tecnicas', 'ti-sword', 'Técnicas', 'Techniques')}
-      {verPaginasDoPj && temMagias && botaoPagina('magias', 'ti-comet', 'Magias', 'Spells')}
+      {verPaginasDoPj && botaoPagina('tecnicas', 'ti-sword', 'Técnicas', 'Techniques')}
+      {verPaginasDoPj && botaoPagina('magias', 'ti-comet', 'Magias', 'Spells')}
       {botaoPagina('inventario', 'ti-briefcase-2', 'Inventário', 'Inventory')}
       {animaisPj.length > 0 && botaoPagina('animais', 'ti-paw', 'Companheiros', 'Companions')}
       {podeEditarFoto && pjAtivoId && botaoPagina('amigos', 'ti-heart-handshake', 'Amigos', 'Friends')}
