@@ -141,18 +141,24 @@ describe('Técnicas: casas e painel, sem leque', () => {
 
 /* OS PONTOS NO TOPO (04/11/2026, usuário: "Quero, adicione os pontos"). */
 describe('Técnicas e Magias mostram os pontos', () => {
-  it('Técnicas: gasto / total', () => {
+  // 05/11/2026: o selo mostra o SALDO ("5/5" = ainda tem 5 de 5).
+  it('Técnicas: saldo / total', () => {
     render(<window.PaginaTecnicas lang="pt" tecnicas={[]} pontos={{ gasto: 2, total: 14 }} />);
     const selo = document.querySelector('.pc-pontos');
     expect(selo.textContent).toMatch(/Pontos de técnica/);
-    expect(selo.querySelector('.pc-pontos-num').textContent).toBe('2/14');
+    expect(selo.querySelector('.pc-pontos-num').textContent).toBe('12/14');
     expect(selo.classList.contains('is-excedido')).toBe(false);
   });
   it('Magias acima do total fica em brasa', () => {
     render(<window.PaginaMagias lang="pt" magias={[]} pontos={{ gasto: 5, total: 4 }} onEvocar={() => {}} />);
     const selo = document.querySelector('.pc-pontos');
     expect(selo.textContent).toMatch(/Pontos de magia/);
+    expect(selo.querySelector('.pc-pontos-num').textContent).toBe('-1/4');
     expect(selo.classList.contains('is-excedido')).toBe(true);
+  });
+  it('nada gasto: 5/5', () => {
+    render(<window.PaginaMagias lang="pt" magias={[]} pontos={{ gasto: 0, total: 5 }} onEvocar={() => {}} />);
+    expect(document.querySelector('.pc-pontos-num').textContent).toBe('5/5');
   });
   it('sem conta, sem selo', () => {
     render(<window.PaginaMagias lang="pt" magias={[]} onEvocar={() => {}} />);

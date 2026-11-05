@@ -259,15 +259,19 @@ function PaginaHabilidades({ lang, habilidades, onRolar, onSubir = null, pontos 
    trilho de Técnicas e de Magias, com a mesma conta da janela Estudar e da
    RPC (a fila de treino já foi paga). Só se lê: não é botão. Os dois números
    no mesmo corpo e peso — só o tom muda. Gasto acima do total vira brasa. */
+/* O SALDO, NÃO O GASTO (05/11/2026, usuário: "O formato deve ser 5/5, pois
+   ele tem ainda 5 de 5 pontos. Isso serve para tudo."). O primeiro número é
+   o que SOBRA para gastar — a mesma leitura da janela Estudar ("5 de 5"). */
 function SeloPontos({ rotulo, icone, pontos }) {
   if (!pontos || pontos.total == null) return null;
-  const excedido = pontos.gasto > pontos.total;
+  const saldo = (Number(pontos.total) || 0) - (Number(pontos.gasto) || 0);
+  const excedido = saldo < 0;
   return (
     <span className={'mc-acao pc-pontos' + (excedido ? ' is-excedido' : '')} role="status"
-      aria-label={`${rotulo}: ${pontos.gasto} / ${pontos.total}`}>
+      aria-label={`${rotulo}: ${saldo} / ${pontos.total}`}>
       <i className={'ti ' + icone} aria-hidden="true" />
       <span className="mc-acao-rotulo">{rotulo}</span>
-      <span className="pc-pontos-num" aria-hidden="true">{pontos.gasto}<i>/{pontos.total}</i></span>
+      <span className="pc-pontos-num" aria-hidden="true">{saldo}<i>/{pontos.total}</i></span>
     </span>
   );
 }
