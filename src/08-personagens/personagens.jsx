@@ -1429,11 +1429,14 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     { id: 'identidade',   sub: 'historica', label: lang === 'en' ? 'Historical Traits' : 'Caracterização Histórica' },
     { id: 'atributos',    sub: null,        label: SEC.atributos    },
     { id: 'grupos_armas', sub: null,        label: SEC.grupos_armas },
-    ...GRUPOS_HABILIDADES_ORDEM.map((g) => ({
+    /* Habilidades só na CRIAÇÃO (05/11/2026, usuário): depois, o próximo
+       nível se compra na ficha ("Subir nível", RPC subir_nivel) e habilidade
+       nova treina 12 h em Treinar — como magias e técnicas. */
+    ...(isEdit ? [] : GRUPOS_HABILIDADES_ORDEM.map((g) => ({
       id: 'habilidades',
       sub: g,
       label: lang === 'en' ? `${g} Group Skill` : `Habilidade do Grupo ${g}`,
-    })),
+    }))),
     { id: 'revisao',  sub: null, label: SEC.revisao  },
   ];
 
@@ -1556,7 +1559,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       agilidade_base: form.agilidade_base,
       percepcao_base: form.percepcao_base,
       experiencia: form.experiencia,
-      habilidades: form.habilidades || {},
       grupos_armas: form.grupos_armas || {},
       aprimoramentos: form.aprimoramentos || {},
       caracterizacao: form.caracterizacao || {},
@@ -1569,6 +1571,10 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     /* Técnicas (22/10/2026): mesmo molde — aprendem-se pelo item e treinam
        na fila (RPC aprender_tecnica + relógio da mesa). */
     if (!isEdit) payload.tecnicas = {};
+    /* Habilidades (05/11/2026): só a criação grava. Na edição a etapa saiu, e
+       mandar a coluna apagaria o nível comprado na ficha (subir_nivel) ou
+       concluído na fila depois que o assistente abriu. */
+    if (!isEdit) payload.habilidades = form.habilidades || {};
 
     // Marca que o jogador já viu o estágio atual — é isso que esconde o badge
     // "Pronto pra evoluir!" (temLevelUpPendente). O Mestre NÃO atualiza isso.
@@ -1577,8 +1583,8 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     // usuário, 01/09/2026). Antes bastava abrir o wizard e salvar: o badge
     // sumia e os pontos ficavam esquecidos, sem nada lembrando o jogador.
     if (isEdit && !isMaster && todosOsPontosGastos({
-      atributos: restantes, habilidades: habRestantes,
-      gruposArmas: grpRestantes,
+      // Sobra de habilidade não é pendência do estágio: compra-se na ficha.
+      atributos: restantes, gruposArmas: grpRestantes,
     })) {
       payload.nivel_visto = calcEstagio(form.experiencia);
     }

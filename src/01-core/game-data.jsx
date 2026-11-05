@@ -1040,6 +1040,79 @@ function bloqueioAprenderMagia(magia, pj, magiasDb) {
   return null;
 }
 
+/* ── SUBIR DE NÍVEL PELA FICHA (05/11/2026) ────────────────────────────
+   Regra de 28/10/2026: "só precisa de aprendizado quando o personagem não
+   tem nenhum nível, representa uma compra nova; depois de aprender o nível
+   1, ao comprar ativa instantaneamente." E em 05/11: o próximo nível se
+   compra na ficha, sem item; habilidade nova leva 12 horas em Treinar.
+
+   Mesmas recusas e mesma ordem da RPC subir_nivel
+   (scripts/sql/subir-nivel-2026-11-05.sql) — a tela antecipa a recusa para
+   a ação já nascer apagada com o porquê. null = pode.
+   tipo: 'magia' | 'tecnica' | 'habilidade'. `item` é a linha do catálogo;
+   `catalogo` é a lista (magias/técnicas) ou o mapa por key (habilidades). */
+function bloqueioSubirNivel(tipo, item, pj, catalogo) {
+  if (!item) return { motivo: tipo + '_nao_encontrada' };
+  const fila = Array.isArray(pj && pj.treinos) ? pj.treinos : [];
+  if (fila.some((t) => t && t.tipo === tipo && t.key === item.key)) return { motivo: 'em_treino' };
+  if (tipo === 'magia') {
+    if (!(Number((pj && pj.magias || {})[item.key]) > 0)) return { motivo: 'nao_aprendida' };
+    return bloqueioAprenderMagia(item, pj, catalogo);
+  }
+  if (tipo === 'tecnica') {
+    if (!(Number((pj && pj.tecnicas || {})[item.key]) > 0)) return { motivo: 'nao_aprendida' };
+    return bloqueioAprenderTecnica(item, pj, catalogo);
+  }
+  // Habilidade: sem nível também se compra — vai para a fila (12 h).
+  const porKey = catalogo || {};
+  const niveis = comFila(pj && pj.habilidades, fila, 'habilidade');
+  const alvo = (Number(niveis[item.key]) || 0) + 1;
+  const estagio = calcEstagio((pj && pj.experiencia) || 0);
+  if ((Number(item.nivel_inicial) || 0) + alvo > estagio) return { motivo: 'acima_do_estagio' };
+  const mapa = porKey[item.key] ? porKey : { ...porKey, [item.key]: item };
+  const total = pontosHabilidadesTotal(pj && pj.profissao, estagio);
+  const gastoNovo = gastoHabilidades({ ...niveis, [item.key]: alvo }, mapa);
+  if (gastoNovo > total) return { motivo: 'pontos_insuficientes', faltam: gastoNovo - total };
+  return null;
+}
+
+/* Quantos pontos o PRÓXIMO nível custa. Magia sobe de dois em dois níveis
+   efetivos (1 → 3 → 5), então custa o dobro depois do primeiro. */
+function custoSubirNivel(tipo, item, pj) {
+  if (!item) return 0;
+  const custo = Number(item.custo) || 0;
+  if (tipo !== 'magia') return custo;
+  const passos = Number((pj && pj.magias || {})[item.key]) || 0;
+  return (nivelMagiaEfetivo(passos + 1) - nivelMagiaEfetivo(passos)) * custo;
+}
+
+/* É compra nova (vai para a fila) ou sobe na hora? Só habilidade sem nível
+   chega aqui como compra nova — magia e técnica novas vêm pelo item. */
+function subirNivelEhAprendizado(tipo, item, pj) {
+  if (tipo !== 'habilidade' || !item) return false;
+  return !(Number((pj && pj.habilidades || {})[item.key]) > 0) && !(Number(item.nivel_inicial) > 0);
+}
+
+function motivoSubirNivelLabel(motivo, tipo, en) {
+  const pontos = {
+    magia: ['Pontos de magia insuficientes.', 'Not enough magic points.'],
+    tecnica: ['Pontos de técnica insuficientes.', 'Not enough technique points.'],
+    habilidade: ['Pontos de habilidade insuficientes.', 'Not enough skill points.'],
+  }[tipo] || ['Pontos insuficientes.', 'Not enough points.'];
+  const t = {
+    em_treino:            ['Ainda em aprendizado — termine o treino antes de subir.', 'Still being learned — finish training first.'],
+    nao_aprendida:        ['O primeiro nível se aprende pelo pergaminho ou livro.', 'The first level is learned from a scroll or book.'],
+    ja_no_maximo:         ['Já está no nível máximo.', 'Already at the highest level.'],
+    nivel_sem_texto:      ['O próximo nível não existe no catálogo — peça ao Mestre.', 'The next level is not in the catalog — ask the GM.'],
+    acima_do_estagio:     ['O próximo nível passa do seu estágio.', "The next level exceeds your character's stage."],
+    pontos_insuficientes: pontos,
+  }[motivo];
+  if (t) return t[en ? 1 : 0];
+  const milagre = motivoMilagreLabel(motivo, en);
+  if (milagre) return milagre;
+  return en ? 'Could not raise the level.' : 'Não foi possível subir o nível.';
+}
+
 /* ============================== [12] Helpers de TÉCNICAS DE COMBATE ============================== */
 /* Pontos de técnica (reforma de 22/10/2026): base por profissão + Físico +
    Agilidade, por estágio — atributo negativo conta 0, sem regra de base
@@ -1557,6 +1630,7 @@ Object.assign(window, {
   NIVEIS_MAGIA, passosDisponiveisMagia,
   TECNICAS_BASE_POR_PROFISSAO, pontosTecnicasPorEstagio, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
   ATIVIDADE_DA_CLASSE, HORAS_TREINO, nivelNaFila, comFila, bloqueioAprenderTecnica,
+  bloqueioSubirNivel, custoSubirNivel, subirNivelEhAprendizado, motivoSubirNivelLabel,
   totalTecnica,
   GRUPOS_ARMAS, GRUPOS_ARMAS_BY_SIGLA, GRUPOS_ARMAS_POR_PROFISSAO,
   pontosGruposArmasTotal, gastoGruposArmas, qtdGruposArmas, bonusGrupoArma,

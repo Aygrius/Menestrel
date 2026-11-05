@@ -3946,6 +3946,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      (28/10/2026). Mora aqui em cima porque TODO hook desta ficha precisa vir
      antes do primeiro `return` de carregamento — ver ficha-abre.test.jsx. */
   const [transferErroFicha, setTransferErroFicha] = useState(null);
+  // A recusa do "Subir nível" (05/11/2026), em cima da página que a pediu.
+  const [subirErro, setSubirErro] = useState(null);
   const [magiaDetalheKey, setMagiaDetalheKey] = useState(null); // key da magia com modal de detalhes aberto (fora de combate)
   const [habilidadeDetalheKey, setHabilidadeDetalheKey] = useState(null);
   /* A CONSULTA aberta pelo Conhecimento (26/09/2026): { tipo, key }, tipo
@@ -4008,7 +4010,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   }, [fpFull]);
 
   // Fecha o tooltip quando a aba muda (o alvo pode ter desmontado).
-  useEffect(() => { setEditBar(null); setPecaNoModal(null); setContFichaId(null); setDetalheCintoId(null); setAcaoQtd(null); setMagiaDetalheKey(null); setHabilidadeDetalheKey(null); setRolagem(null); fecharTip(); setCapPage(0); setRegiaoAberta(null); }, [fpTab, fpFull]);
+  useEffect(() => { setSubirErro(null); setEditBar(null); setPecaNoModal(null); setContFichaId(null); setDetalheCintoId(null); setAcaoQtd(null); setMagiaDetalheKey(null); setHabilidadeDetalheKey(null); setRolagem(null); fecharTip(); setCapPage(0); setRegiaoAberta(null); }, [fpTab, fpFull]);
   // Ao trocar de PJ: fecha todos os modais, overlays e tooltips — evita
   // backdrop de modal aberto no PJ anterior bloquear cliques no novo PJ.
   // useLayoutEffect (em vez de useEffect) roda antes do browser pintar o
@@ -4121,11 +4123,21 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'personagens', filter: 'id=eq.' + pjAtivoId },
         async () => {
+          /* O que se aprende também (05/11/2026): o relógio do Mestre conclui
+             a fila de treino (avancar_treinos) e o "Subir nível" grava por
+             RPC — magias, técnicas, habilidades e treinos só mudam por RPC,
+             então trazê-los não atropela autosave nenhum. */
           const { data, error: err } = await supabaseClient
-            .from('personagens').select('estado_atual').eq('id', pjAtivoId).maybeSingle();
+            .from('personagens').select('estado_atual, magias, tecnicas, habilidades, treinos').eq('id', pjAtivoId).maybeSingle();
           if (cancel || err || !data) return;
           const novo = mesclarEstado(data.estado_atual, patchEstadoRef.current);
-          setPj((prev) => (prev && prev.id === pjAtivoId ? { ...prev, estado_atual: novo } : prev));
+          setPj((prev) => (prev && prev.id === pjAtivoId ? {
+            ...prev, estado_atual: novo,
+            ...(data.magias !== undefined ? { magias: data.magias } : {}),
+            ...(data.tecnicas !== undefined ? { tecnicas: data.tecnicas } : {}),
+            ...(data.habilidades !== undefined ? { habilidades: data.habilidades } : {}),
+            ...(data.treinos !== undefined ? { treinos: data.treinos } : {}),
+          } : prev));
         })
       .subscribe();
     return () => { cancel = true; supabaseClient.removeChannel(channel); };
@@ -6292,10 +6304,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       atributos={ficha.atributos}
       onEscolher={definirAtividade}
       treinos={pj.treinos}
-      nomeDoTreino={(t) => {
-        const cat = t.tipo === 'tecnica' ? tecnicasByKey[t.key] : magiasByKey[t.key];
-        return (cat && cat.nome) || t.key;
-      }}
+      nomeDoTreino={nomeDoTreinoPj}
       bancada={bancadaPj}
     />
   );
@@ -6556,6 +6565,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         passosArmadura: passosDaArmaduraNaHabilidade(h, classeArmaduraPj),
         ajuste: (window.atributoPorExtenso ? window.atributoPorExtenso(h.ajuste, lang === 'en') : h.ajuste),
         total: (_totHabCond || _totHab)(h.key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes),
+        nivel: Number((pj.habilidades || {})[h.key]) || 0,
+        subir: subirDe('habilidade', h),
       }))
     : [];
   const atalhoMagias = mostrarAtalhos
@@ -6575,6 +6586,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           niveis: [1, 3, 5, 7, 9]
             .map((n) => ({ n, titulo: m['nivel_' + n], valor: m['valor_' + n] }))
             .filter((nv) => (nv.titulo || nv.valor) && nv.n <= nivelPj),
+          subir: subirDe('magia', m),
         };
       })
     : [];
@@ -6588,16 +6600,75 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         total: _totTec ? _totTec(t, pj.tecnicas || {}, atributosFinais) : null,
         descricao: t.descricao, efeito: t.efeito, uso: t.uso,
         grupo_armas: t.grupo_armas, custo: t.custo,
+        subir: subirDe('tecnica', t),
       }))
     : [];
+  /* SUBIR NÍVEL PELA FICHA (05/11/2026, usuário: "Pode concluir o 'subir de
+     nível' das magias, técnicas e habilidades"). Só o dono compra — a RPC
+     subir_nivel confere auth.uid(). A regra (bloqueioSubirNivel) é a mesma da
+     RPC; aqui ela só vira o rótulo e o porquê da ação no leque.
+     Habilidade sem nível é compra nova: entra na fila (12 h em Treinar). */
+  // Declarações de função (içadas): as listas de cima já as chamam.
+  function _fnSubir(nome) { return window[nome] || null; }
+  function subirDe(tipo, item) {
+    if (!podeEditarFoto || !item) return null;
+    const bloq = _fnSubir('bloqueioSubirNivel');
+    const custoFn = _fnSubir('custoSubirNivel');
+    const novoFn = _fnSubir('subirNivelEhAprendizado');
+    const rotuloMotivo = _fnSubir('motivoSubirNivelLabel');
+    if (!bloq || !custoFn) return null;
+    const _en = lang === 'en';
+    const catalogo = tipo === 'habilidade' ? habsByKey : tipo === 'tecnica' ? (catalogoTec || []) : (catalogoMag || []);
+    const naFila = (pj.treinos || []).find((t) => t && t.tipo === tipo && t.key === item.key);
+    if (naFila) {
+      const falta = tempoDeTreino(naFila.horas_restantes);
+      return { rotulo: _en ? `In training · ${falta} left` : `Em treino · faltam ${falta}`, desativado: true,
+        dica: _en ? `Keep the character Training: ${falta} left.` : `Mantenha o personagem em Treinar: faltam ${falta}.`,
+        fila: _en ? `Learning: ${falta} left in Training.` : `Aprendendo: faltam ${falta} em Treinar.` };
+    }
+    const b = bloq(tipo, item, pj, catalogo);
+    const pts = `${custoFn(tipo, item, pj)} pts`;
+    const novo = !!(novoFn && novoFn(tipo, item, pj));
+    const horas = (window.HORAS_TREINO || {}).habilidade || 12;
+    let rotulo;
+    if (novo) rotulo = _en ? `Learn · ${horas} h Training · ${pts}` : `Aprender · ${horas} h em Treinar · ${pts}`;
+    else {
+      const niveis = (tipo === 'magia' ? pj.magias : tipo === 'tecnica' ? pj.tecnicas : pj.habilidades) || {};
+      const atual = tipo === 'magia' ? _nivelMag(niveis[item.key]) : (Number(niveis[item.key]) || 0);
+      const prox = tipo === 'magia' ? atual + 2 : atual + 1;
+      rotulo = _en ? `Raise to level ${prox} · ${pts}` : `Subir para nível ${prox} · ${pts}`;
+    }
+    return { rotulo, desativado: !!b, dica: b && rotuloMotivo ? rotuloMotivo(b.motivo, tipo, _en) : null, novo };
+  }
+  const subirNivel = async (tipo, key) => {
+    setSubirErro(null);
+    const { data, error: err } = await supabaseClient.rpc('subir_nivel', { p_pj_id: pj.id, p_tipo: tipo, p_key: key });
+    if (err || !data || !data.ok) {
+      const rotuloMotivo = _fnSubir('motivoSubirNivelLabel');
+      const motivo = (data && data.motivo) || (err && err.message);
+      setSubirErro(rotuloMotivo ? rotuloMotivo(motivo, tipo, lang === 'en') : String(motivo || ''));
+      return;
+    }
+    const { data: linha } = await supabaseClient
+      .from('personagens').select('magias, tecnicas, habilidades, treinos').eq('id', pj.id).maybeSingle();
+    if (linha) setPj((prev) => (prev && prev.id === pj.id ? { ...prev, ...linha } : prev));
+  };
   /* OS PONTOS DE TÉCNICA E DE MAGIA (04/11/2026), no topo das duas páginas.
      A mesma conta das colunas do antigo Conhecimento, da janela Estudar e da
      RPC: o total vem da profissão, do estágio e dos atributos de base; o gasto
      soma a fila de treino, que já foi paga. */
   const pontosDaPagina = (() => {
-    if (fpTab !== 'tecnicas' && fpTab !== 'magias') return null;
+    if (fpTab !== 'tecnicas' && fpTab !== 'magias' && fpTab !== 'habilidades') return null;
     const fn = (nome) => window[nome] || null;
     const filaFn = fn('comFila');
+    /* Habilidades ganham o selo em 05/11/2026: o "Subir nível" gasta deles,
+       e quem compra precisa ver quanto sobra. */
+    if (fpTab === 'habilidades') {
+      const totalFn = fn('pontosHabilidadesTotal'); const gastoFn = fn('gastoHabilidades');
+      if (!totalFn || !gastoFn) return null;
+      const pagas = filaFn ? filaFn(pj.habilidades || {}, pj.treinos, 'habilidade') : (pj.habilidades || {});
+      return { total: totalFn(pj.profissao, estagioNum), gasto: gastoFn(pagas, habsByKey) };
+    }
     if (fpTab === 'tecnicas') {
       const totalFn = fn('pontosTecnicasTotal'); const gastoFn = fn('gastoTecnicas');
       if (!totalFn || !gastoFn) return null;
@@ -6748,11 +6819,13 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     setRolagem({ nome: hab.nome, total, grupo: hab.grupo,
                  dificuldade: efetiva, dificuldade_escolhida: extra.dificuldade });
   };
-  // O nome do que se treina, para a fila da atividade.
-  const nomeDoTreinoPj = (t) => {
-    const cat = t.tipo === 'tecnica' ? tecnicasByKey[t.key] : magiasByKey[t.key];
+  // O nome do que se treina, para a fila da atividade. (Habilidade entra na
+  // fila em 05/11/2026: habilidade nova treina 12 h em Treinar.)
+  function nomeDoTreinoPj(t) {
+    const cat = t.tipo === 'tecnica' ? tecnicasByKey[t.key]
+      : t.tipo === 'habilidade' ? habsByKey[t.key] : magiasByKey[t.key];
     return (cat && cat.nome) || t.key;
-  };
+  }
   /* A janela de detalhes e o leque da peça são a MESMA DetalhesItemModal
      (30/10/2026), como no Inventário: Descartar, Transferir, Usar e o resto
      saem de um lugar só, com as mesmas regras. `extra` é o que muda. */
@@ -6967,15 +7040,21 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         </div>
       ) : fpTab === 'habilidades' ? (
         <div className="fp-invtab">
-          <PaginaHabilidades lang={lang} habilidades={atalhoHabilidades} onRolar={rolarHabilidade} />
+          {subirErro && <div className="fp2-erro" role="alert">{subirErro}</div>}
+          <PaginaHabilidades lang={lang} habilidades={atalhoHabilidades} onRolar={rolarHabilidade}
+            onSubir={podeEditarFoto ? (key) => subirNivel('habilidade', key) : null} pontos={pontosDaPagina} />
         </div>
       ) : fpTab === 'tecnicas' ? (
         <div className="fp-invtab">
-          <PaginaTecnicas lang={lang} tecnicas={paginaTecnicas} pontos={pontosDaPagina} />
+          {subirErro && <div className="fp2-erro" role="alert">{subirErro}</div>}
+          <PaginaTecnicas lang={lang} tecnicas={paginaTecnicas} pontos={pontosDaPagina}
+            onSubir={podeEditarFoto ? (key) => subirNivel('tecnica', key) : null} />
         </div>
       ) : fpTab === 'magias' ? (
         <div className="fp-invtab">
-          <PaginaMagias lang={lang} magias={atalhoMagias} onEvocar={setMagiaDireta} pontos={pontosDaPagina} />
+          {subirErro && <div className="fp2-erro" role="alert">{subirErro}</div>}
+          <PaginaMagias lang={lang} magias={atalhoMagias} onEvocar={setMagiaDireta} pontos={pontosDaPagina}
+            onSubir={podeEditarFoto ? (key) => subirNivel('magia', key) : null} />
         </div>
       ) : fpTab === 'amigos' ? (
         <div className="fp-invtab">

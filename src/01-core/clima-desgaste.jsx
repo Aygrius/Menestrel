@@ -438,11 +438,13 @@ function aplicarTreinoNoPj(pj, atividade, horas) {
   if (!mudou) return null;
   const tecnicas = { ...((pj && pj.tecnicas) || {}) };
   const magias = { ...((pj && pj.magias) || {}) };
+  // Habilidade nova também treina (05/11/2026) — espelho de avancar_treinos.
+  const habilidades = { ...((pj && pj.habilidades) || {}) };
   concluidos.forEach((c) => {
-    const alvo = c.tipo === 'tecnica' ? tecnicas : magias;
+    const alvo = c.tipo === 'tecnica' ? tecnicas : c.tipo === 'habilidade' ? habilidades : magias;
     alvo[c.key] = Math.max(Number(alvo[c.key]) || 0, Number(c.nivel) || 0);
   });
-  return { treinos, tecnicas, magias };
+  return { treinos, tecnicas, magias, habilidades };
 }
 
 /* A linha do log da mesa quando a atividade muda: "Eco começou a dormir.",
@@ -508,8 +510,8 @@ const ATIVIDADE_PORQUE = {
     en: 'Study sharpens the mind and builds your inner energy — and it is also here that you will learn new spells.',
   },
   treinando: {
-    pt: 'Treinar torna você a cada dia mais apto para o combate, mas também é aqui que você aprenderá novas técnicas de combate.',
-    en: 'Training makes you fitter for battle by the day — and it is also here that you will learn new combat techniques.',
+    pt: 'Treinar torna você a cada dia mais apto para o combate, mas também é aqui que você aprenderá novas técnicas de combate e novas habilidades.',
+    en: 'Training makes you fitter for battle by the day — and it is also here that you will learn new combat techniques and new skills.',
   },
   praticando: {
     pt: 'Praticar torna você um artista mais próximo da perfeição, mas também é aqui que você aprenderá novos encantamentos.',
@@ -586,8 +588,11 @@ const _APRENDE_O_QUE = {
   meditando:  { pt: 'uma transmutação', en: 'a transmutation',  custo: 'magia' },
   praticando: { pt: 'um encantamento',  en: 'an enchantment',   custo: 'magia' },
   /* Treinar é o único que ensina TÉCNICA, e técnica custa outro tanto de
-     horas (72 contra 24) — por isso o custo é campo, não constante. */
-  treinando:  { pt: 'uma técnica',      en: 'a technique',      custo: 'tecnica' },
+     horas (36 contra 24) — por isso o custo é campo, não constante.
+     HABILIDADE nova também treina aqui (05/11/2026, usuário: "Treinar"),
+     com o preço próprio (HORAS_TREINO.habilidade). */
+  treinando:  { pt: 'uma técnica',      en: 'a technique',      custo: 'tecnica',
+                tambem: { pt: 'uma habilidade', en: 'a skill', custo: 'habilidade' } },
 };
 function _aprendizado(id, en) {
   if (id === 'fabricando') return _tempoDeFabricar(en);
@@ -612,6 +617,14 @@ function _aprendizado(id, en) {
      "NÍVEL" e não "passo" (27/10/2026): a fila fala em passo por dentro, mas
      quem lê a ficha conhece nível — é a palavra das magias (1, 3, 5, 7, 9) e
      das técnicas. Uma palavra por coisa. */
+  // A segunda coisa que a atividade ensina (Treinar: técnica e habilidade).
+  const outra = oQue.tambem && tabela[oQue.tambem.custo]
+    ? { nome: oQue.tambem[en ? 'en' : 'pt'], horas: tabela[oQue.tambem.custo] } : null;
+  if (outra) {
+    return en
+      ? `Learning ${oQue.en} for the first time takes ${horas} hours of this activity, and ${outra.nome}, ${outra.horas}. Once you have level 1, further levels activate the moment you buy them.`
+      : `Aprender ${oQue.pt} pela primeira vez leva ${horas} horas nesta atividade, e ${outra.nome}, ${outra.horas}. Com o nível 1 na ficha, os níveis seguintes valem assim que você compra.`;
+  }
   return en
     ? `Learning ${oQue.en} for the first time takes ${horas} hours of this activity. Once you have level 1, further levels activate the moment you buy them.`
     : `Aprender ${oQue.pt} pela primeira vez leva ${horas} horas nesta atividade. Com o nível 1 na ficha, os níveis seguintes valem assim que você compra.`;

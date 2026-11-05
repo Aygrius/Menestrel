@@ -145,6 +145,7 @@ describe('o trilho da ficha', () => {
     const mag = fonte.indexOf("botaoPagina('magias'");
     expect(tec).toBeGreaterThan(hab);
     expect(mag).toBeGreaterThan(tec);
-    expect(fonte).toMatch(/<PaginaTecnicas lang=\{lang\} tecnicas=\{paginaTecnicas\} pontos=\{pontosDaPagina\} \/>/);
+    // 05/11/2026: a página também recebe onSubir (o "Subir nível").
+    expect(fonte).toMatch(/<PaginaTecnicas lang=\{lang\} tecnicas=\{paginaTecnicas\} pontos=\{pontosDaPagina\}/);
   });
 });

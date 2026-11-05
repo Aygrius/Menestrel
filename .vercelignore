@@ -22,3 +22,6 @@ ds-bundle/
 .claude/
 TESTE-REGRESSAO.md
 1
+
+# backups do banco (personagens, log) — dados de jogadores, ficam só aqui
+backups/

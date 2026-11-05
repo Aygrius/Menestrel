@@ -193,11 +193,24 @@ function PaginaCasas({
   );
 }
 
+/* ── SUBIR NÍVEL NO LEQUE (05/11/2026) ─────────────────────────────────────
+   "Pode concluir o 'subir de nível' das magias, técnicas e habilidades"
+   (usuário). A ficha decide a regra e manda `subir` pronto — rótulo com o
+   nível novo e o custo, apagado com o porquê quando não dá. Aqui só vira a
+   ação do leque, a mesma nas três páginas. null = quem olha não compra. */
+function acaoSubir(subir, onSubir) {
+  if (!subir || !onSubir) return null;
+  return {
+    chave: '__subir', icone: subir.novo ? 'ti-school' : 'ti-arrow-big-up', rotulo: subir.rotulo,
+    desativado: !!subir.desativado, dica: subir.dica ? { desc: subir.dica } : null,
+  };
+}
+
 /* ── HABILIDADES ───────────────────────────────────────────────────────────
    O leque é a dificuldade: cinco discos de cor, os mesmos da janela antiga
    (ATALHO_DIFICULDADES). Escolher um rola o teste — não há segundo passo.
    Habilidade bloqueada (N sem compra) oferece o disco apagado com o porquê. */
-function PaginaHabilidades({ lang, habilidades, onRolar }) {
+function PaginaHabilidades({ lang, habilidades, onRolar, onSubir = null, pontos = null }) {
   const en = lang === 'en';
   const DIFS = window.ATALHO_DIFICULDADES || [];
   const casas = (habilidades || []).map((h) => ({
@@ -208,21 +221,30 @@ function PaginaHabilidades({ lang, habilidades, onRolar }) {
   })).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
   return (
     <PaginaCasas lang={lang} casas={casas} classe="pc-habilidades"
+      noTrilho={<SeloPontos pontos={pontos} icone="ti-bulb" rotulo={en ? 'Skill points' : 'Pontos de habilidade'} />}
       buscaRotulo={en ? 'Search skill' : 'Buscar habilidade'}
       painelRotulo={en ? 'Skill' : 'Habilidade'}
       vazioTxt={en ? 'No skills.' : 'Nenhuma habilidade.'}
       escolhaTxt={en ? 'Select a skill to see it here.' : 'Selecione uma habilidade para vê-la aqui.'}
-      acoesDe={(c) => (onRolar ? DIFS.map((d) => ({
-        chave: d.id, rotulo: (en ? 'Roll · ' + d.en : 'Rolar · ' + d.pt), cor: d.cor,
-        desativado: !!c.h.bloqueio, dica: c.h.bloqueio ? { desc: c.h.bloqueio } : null,
-      })) : [])}
-      onAcao={(c, chave) => onRolar && onRolar(c.h.key, { dificuldade: chave })}
+      acoesDe={(c) => [
+        ...(onRolar ? DIFS.map((d) => ({
+          chave: d.id, rotulo: (en ? 'Roll · ' + d.en : 'Rolar · ' + d.pt), cor: d.cor,
+          desativado: !!c.h.bloqueio, dica: c.h.bloqueio ? { desc: c.h.bloqueio } : null,
+        })) : []),
+        acaoSubir(c.h.subir, onSubir),
+      ].filter(Boolean)}
+      onAcao={(c, chave) => {
+        if (chave === '__subir') { if (onSubir) onSubir(c.h.key); return; }
+        if (onRolar) onRolar(c.h.key, { dificuldade: chave });
+      }}
       painelDe={(c) => (
         <div className="mn-janela-corpo pc-corpo">
           {c.h.descricao && <p className="mn-janela-frase">{c.h.descricao}</p>}
           {c.h.restricao && <p className="mn-janela-frase mn-janela-nota">{c.h.restricao}</p>}
+          {c.h.subir && c.h.subir.fila && <p className="mn-janela-frase mn-janela-nota">{c.h.subir.fila}</p>}
           <dl className="mn-janela-quadro">
             <div className="mn-janela-linha"><dt>Total</dt><dd>{c.h.total}</dd></div>
+            <div className="mn-janela-linha"><dt>{en ? 'Level' : 'Nível'}</dt><dd>{c.h.nivel || 0}</dd></div>
             {c.h.ajuste && <div className="mn-janela-linha is-texto"><dt>{en ? 'Attribute' : 'Atributo'}</dt><dd>{c.h.ajuste}</dd></div>}
             {c.h.grupo && <div className="mn-janela-linha is-texto"><dt>{en ? 'Group' : 'Grupo'}</dt><dd>{c.h.grupo}</dd></div>}
           </dl>
@@ -256,7 +278,7 @@ function SeloPontos({ rotulo, icone, pontos }) {
    já eram páginas de casas; Técnicas entra no mesmo desenho. Só leitura:
    técnica se usa na batalha, então o leque não tem verbo — o clique escolhe
    e o painel conta o que ela é. */
-function PaginaTecnicas({ lang, tecnicas, pontos = null }) {
+function PaginaTecnicas({ lang, tecnicas, pontos = null, onSubir = null }) {
   const en = lang === 'en';
   const siglas = window.siglasDeArma || ((v) => v);
   const casas = (tecnicas || []).map((t) => {
@@ -279,7 +301,9 @@ function PaginaTecnicas({ lang, tecnicas, pontos = null }) {
       painelRotulo={en ? 'Technique' : 'Técnica'}
       vazioTxt={en ? 'No techniques learned.' : 'Nenhuma técnica aprendida.'}
       escolhaTxt={en ? 'Select a technique to see it here.' : 'Selecione uma técnica para vê-la aqui.'}
-      acoesDe={() => []}
+      /* O único verbo de técnica fora da batalha é subir (05/11/2026). */
+      acoesDe={(c) => [acaoSubir(c.t.subir, onSubir)].filter(Boolean)}
+      onAcao={(c, chave) => { if (chave === '__subir' && onSubir) onSubir(c.t.key); }}
       painelDe={(c) => (
         <div className="mn-janela-corpo pc-corpo">
           {c.t.descricao && <p className="mn-janela-frase">{c.t.descricao}</p>}
@@ -301,7 +325,7 @@ function PaginaTecnicas({ lang, tecnicas, pontos = null }) {
    Evocar pede nível e alvo, e essa escolha já tem casa: o segundo passo da
    janela dos atalhos (AtalhosFicha, aberta direto na magia). O leque só
    chama; o painel conta o que a magia é. */
-function PaginaMagias({ lang, magias, onEvocar, pontos = null }) {
+function PaginaMagias({ lang, magias, onEvocar, pontos = null, onSubir = null }) {
   const en = lang === 'en';
   const casas = (magias || []).map((m) => ({
     id: m.key, nome: m.nome, m,
@@ -316,8 +340,14 @@ function PaginaMagias({ lang, magias, onEvocar, pontos = null }) {
       painelRotulo={en ? 'Spell' : 'Magia'}
       vazioTxt={en ? 'No spells learned.' : 'Nenhuma magia aprendida.'}
       escolhaTxt={en ? 'Select a spell to see it here.' : 'Selecione uma magia para vê-la aqui.'}
-      acoesDe={() => (onEvocar ? [{ chave: 'evocar', icone: 'ti-sparkles', rotulo: en ? 'Cast' : 'Evocar' }] : [])}
-      onAcao={(c) => onEvocar && onEvocar(c.m.key)}
+      acoesDe={(c) => [
+        onEvocar && { chave: 'evocar', icone: 'ti-sparkles', rotulo: en ? 'Cast' : 'Evocar' },
+        acaoSubir(c.m.subir, onSubir),
+      ].filter(Boolean)}
+      onAcao={(c, chave) => {
+        if (chave === '__subir') { if (onSubir) onSubir(c.m.key); return; }
+        if (onEvocar) onEvocar(c.m.key);
+      }}
       painelDe={(c) => (
         <div className="mn-janela-corpo pc-corpo">
           {c.m.descricao && <p className="mn-janela-frase">{c.m.descricao}</p>}
