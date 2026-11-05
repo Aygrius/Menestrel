@@ -55,7 +55,7 @@ const passoFalso = (key, nivel) => (key === 'faro'
   ? { karma: nivel, nota: null, alvos: [{ id: '7', nome: 'Alvira' }], ritual: null,
       bloqueio: null, euId: '7', semAlvo: true }
   : { karma: nivel, nota: null, euId: '7', ritual: null, bloqueio: null, semAlvo: false,
-      alvos: [{ id: '7', nome: 'Alvira' }, { id: '9', nome: 'Brom' }] });
+      alvos: [{ id: '7', nome: 'Alvira' }, { id: '9', nome: 'Brom Pedraforte' }] });
 const ITENS = [{ id: 'i1', nome: 'Poção Menor de Vigor', quantidade: 2, icone: 'ti-flask' }];
 
 const montar = (props = {}) => render(
@@ -218,12 +218,13 @@ describe('a magia: o passo da janela', () => {
     expect(rodape('Evocar').disabled).toBe(true);
     expect(modal().textContent).toMatch(/Escolha o alvo/);
     const alvos = todos('.mn-janela-escolha:last-of-type .mn-janela-pilula');
-    // "Em mim" primeiro: é o caso comum e o único que a ficha aplica na hora.
-    expect(alvos.map((b) => b.textContent)).toEqual(['Em mim', 'Brom']);
+    // "Eu" primeiro: é o caso comum e o único que a ficha aplica na hora.
+    // Os outros só pelo primeiro nome (30/10/2026); o alvo segue inteiro.
+    expect(alvos.map((b) => b.textContent)).toEqual(['Eu', 'Brom']);
     fireEvent.click(alvos[1]);
     expect(modal().textContent).toMatch(/o Mestre aplica o efeito no alvo/);
     fireEvent.click(rodape('Evocar'));
-    expect(cb).toHaveBeenCalledWith('cura', { nivel: 5, alvo: { id: '9', nome: 'Brom' } });
+    expect(cb).toHaveBeenCalledWith('cura', { nivel: 5, alvo: { id: '9', nome: 'Brom Pedraforte' } });
   });
 
   /* As travas da janela antiga, uma por uma: milagre bloqueado, ritual sem
@@ -310,12 +311,16 @@ describe('habilidade: a janela troca de passo e o rodapé rola', () => {
     expect(modal().textContent).toMatch(/Furtividade/);
   });
 
-  it('são cinco discos de cor, com o nome e o modificador no aria-label', () => {
+  /* O "+20/−40" saiu (30/10/2026): a rolagem nunca o aplicou. A dificuldade
+     é a qualidade mínima do resultado na Tabela de Resolução. */
+  it('são cinco discos de cor, com o nome e o que cada um exige no aria-label', () => {
     abrirDetalhe(vi.fn());
     const discos = todos('.mn-janela-cor');
     expect(discos).toHaveLength(5);
     expect(discos.map((d) => d.getAttribute('aria-label'))).toEqual([
-      'Fácil (+20)', 'Médio (0)', 'Difícil (−20)', 'Muito difícil (−40)', 'Absurdo (−60)',
+      'Fácil — Exige resultado Fácil ou melhor', 'Médio — Exige resultado Médio ou melhor',
+      'Difícil — Exige resultado Difícil ou melhor', 'Muito difícil — Exige resultado Muito Difícil ou melhor',
+      'Absurdo — Exige resultado Absurdo',
     ]);
   });
 
@@ -398,7 +403,9 @@ describe('a ficha liga os atalhos às janelas que já existiam', () => {
   it('cada escolha abre a janela certa', () => {
     /* A habilidade ROLA DIRETO desde 28/10/2026: a dificuldade vem do rodapé
        da janela nova e não há segunda janela para abrir. */
-    expect(fonte).toMatch(/onHabilidade=\{\(key, extra\) => \{/);
+    // 02/11/2026: a rolagem virou função (a página Habilidades também usa).
+    expect(fonte).toMatch(/const rolarHabilidade = \(key, extra\) => \{/);
+    expect(fonte).toMatch(/onHabilidade=\{rolarHabilidade\}/);
     expect(fonte, 'a conta das magias de dificuldade tem de seguir viva').toMatch(/passosDasMagiasAtivas\(magiasAtivas, alvoHab, magiasByKey\)/);
     expect(fonte).toMatch(/dificuldade_escolhida: extra\.dificuldade/);
     /* A magia EVOCA DIRETO desde 28/10/2026: nível e alvo saem do segundo
@@ -428,7 +435,12 @@ describe('a ficha liga os atalhos às janelas que já existiam', () => {
   it('o dono e o Mestre, e só fora das abas que têm cópia própria do inventário', () => {
     // 'info' (Personagem) e 'conhecimento' dividiram Informações em 26/09/2026.
     // O Mestre também tem a barra desde 23/10/2026.
-    expect(fonte).toMatch(/mostrarAtalhos = [^;]*\(podeEditarFoto \|\| isMestre\) && \(fpTab === 'ficha' \|\| fpTab === 'info' \|\| fpTab === 'conhecimento'\)/);
+    // Fabricar entra em 31/10/2026: a bancada usa a mesma cópia do inventário
+    // da ficha. Inventário e Loja seguem de fora — guardam cópia própria.
+    // 02/11/2026: Habilidades e Magias viraram páginas de casas; os dados dos
+    // atalhos só são montados nelas, e a janela abre direto na magia.
+    expect(fonte).toMatch(/mostrarAtalhos = [^;]*\(podeEditarFoto \|\| isMestre\) && \(fpTab === 'habilidades' \|\| fpTab === 'magias'\)/);
+    expect(fonte).not.toMatch(/mostrarAtalhos = [^;]*fpTab === '(inventario|loja)'/);
   });
 
   it('o main carrega os atalhos antes da ficha', () => {

@@ -510,11 +510,14 @@ function selosDoToken(p) {
   const caido = st.some((s) => s.efeito && s.efeito.tipo === 'sem_acoes');
   // Ferido (15/09/2026): o mod_coluna que o Mestre aplica pelo menu de estado.
   const ferido = st.some((s) => idTxt(s).startsWith('ferido:'));
+  // Distraído (29/10/2026): a EH não defende.
+  const distraido = st.some((s) => s.efeito && s.efeito.tipo === 'distraido');
   const selos = [];
   if (veneno) selos.push({ classe: 'batalha-token-selo-veneno', nome: 'Envenenado', icone: 'ti-flask-2', cor: '#7fd66b' });
   if (sangra) selos.push({ classe: 'batalha-token-selo-sangrando', nome: 'Sangrando', icone: 'ti-droplet', cor: '#e05a4f' });
   if (caido) selos.push({ classe: 'batalha-token-selo-caido', nome: 'Caído', icone: 'ti-arrow-down-circle', cor: '#e8c26b' });
   if (ferido) selos.push({ classe: 'batalha-token-selo-ferido', nome: 'Ferido', icone: 'ti-bandage', cor: '#d98b5f' });
+  if (distraido) selos.push({ classe: 'batalha-token-selo-distraido', nome: 'Distraído', icone: 'ti-mood-empty', cor: '#b9a6dc' });
   if (p && p.evocando) selos.push({ classe: 'batalha-token-selo-evocando', nome: 'Evocando', icone: 'ti-sparkles', cor: '#9fb8ff' });
   return selos;
 }

@@ -167,6 +167,19 @@ describe('modsDoGolpe — quem fura o quê', () => {
     expect(M.modsDoGolpe(vazio('z'), alvo).ignoraEh).toBe(true);
   });
 
+  /* Distraído (29/10/2026): "Combatentes distraídos não podem usar a energia
+     heroica para se defender." O status que o Mestre aplica pelo menu de
+     estado fura a EH para qualquer atacante, e o golpe vai à armadura e à EF. */
+  it('distraído no alvo: qualquer golpe pula a EH', () => {
+    const st = window.statusAplicadoPeloMestre('distraido', 0, 2, {});
+    expect(st.id.startsWith('distraido:')).toBe(true);
+    expect(st.rodadas_rest).toBe(2);
+    const alvo = { inst_id: 'b', status_temp: [st], eh: 10, ar: 0, ef: 10, status: 'ativo' };
+    const mods = M.modsDoGolpe(vazio('a'), alvo);
+    expect(mods).toEqual({ ignoraEh: true, ignoraArmadura: false });
+    expect(M.aplicarDanoCascata(4, alvo, mods)).toMatchObject({ eh: 10, ef: 6 });
+  });
+
   it('ignora_armadura do atacante, também por alvo', () => {
     const atacante = comEfeito({ tipo: 'ignora_armadura', valor: true, alvo_inst_id: 'b' });
     expect(M.modsDoGolpe(atacante, vazio('b')).ignoraArmadura).toBe(true);

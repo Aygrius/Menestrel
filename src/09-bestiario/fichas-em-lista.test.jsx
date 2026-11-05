@@ -198,7 +198,9 @@ describe('janelas do catálogo', () => {
        (pedido do usuário: 'Atributo "Per" vira "Percepção"'). A abreviação
        de 28/09 resolvia o CAIXA ALTA gritando; o nome inteiro resolve isso
        E a decifração das três letras. */
-    expect(mapa['Atributo']).toBe('Força');
+    // Desde 30/10/2026 o atributo é dito na frase das Características.
+    expect(mapa['Atributo']).toBeUndefined();
+    expect(det.querySelector('.best-frase-item').textContent).toMatch(/ajustado pelo atributo força\./);
     expect(mapa['Dano']).toBeUndefined();
     // O grupo por extenso vale no passe também: a célula e a linha de
     // Características são o mesmo dado, e uma esconde a outra.
@@ -210,7 +212,10 @@ describe('janelas do catálogo', () => {
   it('Item: ocupa fracionário mantém a casa decimal', async () => {
     const det = await abrir(window.ItensList, 'Água');
     expect(document.querySelector('.item-passe')).toBeNull();
-    expect(Object.fromEntries(linhas(det))['Ocupa']).toBe('0,1');
+    /* Desde 30/10/2026 o "Ocupa" é dito na frase das Características ("1 de
+       peso livre por unidade"), com a mesma vírgula decimal. */
+    expect(Object.fromEntries(linhas(det))['Ocupa']).toBeUndefined();
+    expect(document.querySelector('.best-frase-item').textContent).toMatch(/0,1 carga livre por unidade/);
   });
 });
 
@@ -316,9 +321,9 @@ describe('itens: ícone na tabela e efeitos na janela', () => {
     // Em Características desde 26/09/2026 (as abas de efeito foram unidas a ela).
     /* "Efeito positivo"/"Efeito negativo" viraram uma linha "Efeitos" só, em
        rótulo e número (28/10/2026) — ver item-modal-icones.test.jsx. */
-    const linha = [...det.querySelectorAll('.best-secao--lista .best-stat--linha')]
-      .find((li) => li.textContent.startsWith('Efeitos'));
-    expect(linha.textContent).toMatch(/Energia Física 1\b/);
+    /* E desde 30/10/2026, dito na frase das Características ("Este item
+       protege 30 de frio, mas causa 1 de má fama.", usuário). */
+    expect(det.querySelector('.best-frase-item').textContent).toMatch(/aumenta 1 de energia física/);
     expect(det.querySelector('.best-secao--efeito')).toBeNull();
   });
 });
@@ -333,13 +338,15 @@ describe('arma: eficácia contra cada armadura', () => {
     expect(window.eficaciaContraArmadura(null, false)).toBeNull();
   });
 
-  it('a janela da arma mostra as três linhas', async () => {
+  /* Desde 30/10/2026 é dito na frase das Características ("O dano máximo
+     base é 20, possui +2 contra armaduras pesadas, 0 contra armaduras médias
+     e -2 contra armaduras leves.", usuário), de pesada para leve. */
+  it('a janela da arma diz as três, na frase', async () => {
     TABELAS.itens = [...TABELAS.itens, { slug: 'lanca', nome: 'Lança', grupo: 'Armas', categoria_equip: 'arma', dano: 20, dano_l: -4, dano_m: 0, dano_p: 4 }];
     const det = await abrir(window.ItensList, 'Lança');
-    const mapa = Object.fromEntries(linhas(det));
-    expect(mapa['Contra armaduras leves']).toBe('Fraca (−4)');
-    expect(mapa['Contra armaduras médias']).toBe('Normal (0)');
-    expect(mapa['Contra armaduras pesadas']).toBe('Boa (+4)');
+    // Aqui o Dano já está no passe do topo: a frase diz só a eficácia.
+    expect(det.querySelector('.best-frase-item').textContent)
+      .toMatch(/\+4 armaduras pesadas, 0 armaduras médias e -4 armaduras leves\./);
   });
 
   it('item que não é arma não mostra', async () => {
@@ -419,12 +426,14 @@ describe('o item se explica sem tabela ao lado', () => {
 
   it('o alcance diz a unidade', () => {
     expect(bestiario).toMatch(/function alcanceEmMetros\(v\) \{/);
-    expect(bestiario).toMatch(/valor=\{alcanceEmMetros\(it\.alcance\)\}/);
+    // Na frase desde 30/10/2026, por extenso: "seu alcance é de 5 metros."
+    expect(bestiario).toMatch(/\$\{metros === 1 \? 'metro' : 'metros'\}/);
     expect(bestiario).toMatch(/return `\$\{String\(n\)\.replace\('\.', ','\)\} m`;/);
   });
 
   it('o atributo vem por extenso, da tabela que já existia', () => {
-    expect(bestiario).toMatch(/valor=\{atributoPorExtenso\(it\.ajuste_atributo, lang === 'en'\)\}/);
+    // Na frase desde 30/10/2026, na cor do atributo.
+    expect(bestiario).toMatch(/const atributo = atributoPorExtenso\(it\.ajuste_atributo, en\);/);
   });
 
   /* O passe e a linha são o MESMO dado, e quando o passe mostra o Grupo a
@@ -432,7 +441,8 @@ describe('o item se explica sem tabela ao lado', () => {
      possível em metade dos casos. */
   it('o grupo vem por extenso na linha E no passe', () => {
     expect(bestiario).toMatch(/function gruposDeArmaPorExtenso\(v, en\) \{/);
-    expect(bestiario).toMatch(/valor=\{ehArma\(it\) \? gruposDeArmaPorExtenso\(it\.grupo_armas, lang === 'en'\) : null\}/);
+    // A linha virou frase em 30/10/2026: "Pertence ao grupo de armas Corte Médio."
+    expect(bestiario).toMatch(/const grupos = sai\('grupo'\) \? null : gruposDeArmaPorExtenso\(it\.grupo_armas, en\);/);
     expect(bestiario).toMatch(/valor: gruposDeArmaPorExtenso\(it\.grupo_armas, en\)/);
   });
 

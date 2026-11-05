@@ -52,6 +52,8 @@ const STATUS_MESTRE_TIPOS = [
   { tipo: 'sangramento', chaveCopy: 'sangrando',  ic: 'ti-droplet',           emoji: '🩸', rotuloValor: { pt: 'Dano por rodada', en: 'Damage per round' } },
   { tipo: 'ferido',      chaveCopy: 'ferido',     ic: 'ti-bandage',           emoji: '🤕', rotuloValor: { pt: 'Colunas de penalidade', en: 'Penalty columns' } },
   { tipo: 'caido',       chaveCopy: 'caido',      ic: 'ti-arrow-down-circle', emoji: '💫', semValor: true },
+  // 29/10/2026: não usa a Energia Heroica para se defender.
+  { tipo: 'distraido',   chaveCopy: 'distraido',  ic: 'ti-mood-empty',        emoji: '😶', semValor: true },
   /* DESMAIADO E MORTO À MÃO (20/09/2026): "falta adicionar todos os status
      possíveis na ficha, para o mestre alterar."
 

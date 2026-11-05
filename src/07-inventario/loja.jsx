@@ -92,6 +92,8 @@ function motivoCompraLabel(motivo, info, lang) {
       tipo_incompativel: 'Container does not accept this item type',
       pj_nao_encontrado: 'Character not found',
       quantidade_invalida: 'Invalid quantity',
+      // O banco recusa o 81º item (30/10/2026, trigger personagens_inventario_80).
+      inventario_cheio: 'Inventory full — it has 80 slots',
     };
     return m[motivo] || motivo;
   }
@@ -108,6 +110,7 @@ function motivoCompraLabel(motivo, info, lang) {
     tipo_incompativel: 'O recipiente não aceita esse tipo de item',
     pj_nao_encontrado: 'Personagem não encontrado',
     quantidade_invalida: 'Quantidade inválida',
+    inventario_cheio: 'Inventário cheio — ele tem 80 casas',
   };
   return m[motivo] || motivo;
 }
@@ -143,11 +146,12 @@ function LinhaDaCompra({ rotulo, nota, topo, tem, children }) {
   );
 }
 
-function CompraLojaModal({ entry, cat, catBySlug, lang, totalLatao, moedasHeld, livreS, livreL, recipientes, comprando, erro, onConfirm, onClose }) {
+function CompraLojaModal({ entry, cat, catBySlug, lang, totalLatao, moedasHeld, livreS, livreL, recipientes, comprando, erro, onConfirm, onClose, acaoInicial = null }) {
   const en = lang === 'en';
   const [qtd, setQtd] = useState(1);
   // A etapa de compra, aberta pelo ícone Comprar ao lado do X (26/09/2026).
-  const [comprarAberto, setComprarAberto] = useState(false);
+  // Pelo leque (30/10/2026), a janela já nasce com a compra aberta.
+  const [comprarAberto, setComprarAberto] = useState(acaoInicial === 'comprar');
   const [recipienteId, setRecipienteId] = useState(() => {
     // Pré-seleciona quando só existe 1 recipiente compatível com espaço.
     const aptos = (recipientes || []).filter((r) => r.livre > 0);
@@ -327,7 +331,7 @@ function CompraLojaModal({ entry, cat, catBySlug, lang, totalLatao, moedasHeld, 
   ] }) : { topo: null, omitir: [] };
   return (
     <Janela
-      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {cat.nome}</>}
+      title={cat.nome}
       lang={lang}
       onClose={onClose}
       topo={passe.topo} semAbas acoesEmBarra
@@ -370,10 +374,11 @@ function CompraLojaModal({ entry, cat, catBySlug, lang, totalLatao, moedasHeld, 
                 e o item sai do jogo;
      Retirar  — o dono (o resto volta ao inventário) ou o Mestre, em dois
                 cliques como o Descartar. */
-function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compraDoMestre, ocupado, erro, onComprar, onRetirar, onClose, totalLatao, moedasHeld }) {
+function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compraDoMestre, ocupado, erro, onComprar, onRetirar, onClose, totalLatao, moedasHeld, acaoInicial = null }) {
   const en = lang === 'en';
-  const [armado, setArmado] = useState(null);   // 'retirar' | null
-  const [comprando, setComprando] = useState(false);   // a etapa de compra aberta
+  // Pelo leque (30/10/2026): Retirar chega já armado; Comprar, com a etapa aberta.
+  const [armado, setArmado] = useState(acaoInicial === 'retirar' && podeRetirar ? 'retirar' : null);   // 'retirar' | null
+  const [comprando, setComprando] = useState(acaoInicial === 'comprar' && !!podeComprar);   // a etapa de compra aberta
   const [qtdCompra, setQtdCompra] = useState(1);
   const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || window.BestDetalheModal;
   const Ficha = (typeof BestItemFicha !== 'undefined' && BestItemFicha) || window.BestItemFicha;
@@ -417,7 +422,7 @@ function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compra
   ] }) : { topo: null, omitir: [] };
   return (
     <Janela
-      title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {item.nome}</>}
+      title={item.nome}
       lang={lang} onClose={onClose} acoes={acoes}
       topo={passe.topo} semAbas acoesEmBarra
       rodape={comprando ? {
@@ -482,6 +487,7 @@ function motivoAnuncioLabel(motivo, lang) {
   const en = lang === 'en';
   const m = {
     item_indisponivel:          en ? 'The seller no longer has this item.'                     : 'O vendedor não tem mais este item.',
+    inventario_cheio:           en ? 'Inventory full — it has 80 slots.'                       : 'Inventário cheio — ele tem 80 casas.',
     anuncio_encerrado:          en ? 'Someone got there first — this item is no longer for sale.' : 'Alguém chegou antes — este item não está mais à venda.',
     anuncio_nao_encontrado:     en ? 'Listing not found.'                                     : 'Anúncio não encontrado.',
     sem_permissao:              en ? 'You cannot do this with this listing.'                   : 'Você não pode fazer isso com este anúncio.',
@@ -504,6 +510,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   // O trilho de busca e moedas fora do painel, como no Inventário (23/10/2026).
   const alvoTrilho = useAlvoPortal('fp-trilho-slot');
+  const rodapeDaFicha = useAlvoPortal('fp-rodape-slot');
   const en = lang === 'en';
   const [pjs, setPjs] = useState(null);
   const [selectedId, setSelectedId] = useState(pjIdFixo || null);
@@ -514,6 +521,12 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
   const [setGradeLojaEl, gradeLoja] = (window.useGridDimensions || (() => [() => {}, { cols: 12 }]))();
   // A casa escolhida na vitrine (painel à direita) e se a tela comporta o painel.
   const [lojaSel, setLojaSel] = useState(null);
+  /* O LEQUE NA LOJA (30/10/2026): "tem que funcionar sempre que clicar nos
+     itens. Seja no inventário, na loja, na ficha." (usuário) — o mesmo
+     LequeDoItem do inventário. `lequeLoja` = { chave, ancora }; a etapa que
+     ele pede vai para a janela por `acaoLoja`. */
+  const [lequeLoja, setLequeLoja] = useState(null);
+  const [acaoLoja, setAcaoLoja] = useState(null);
   const [lojaLarga, setLojaLarga] = useState(() => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(min-width: 1180px)').matches);
   useEffect(() => {
     if (!window.matchMedia) return undefined;
@@ -903,8 +916,34 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
     return true;
   });
 
+  /* O TRILHO DA LOJA (23/10/2026), desde 31/10/2026 dentro do trilho único
+     da ficha: busca e moedas. Na ficha ele aparece sempre — também com a loja
+     vazia ou fechada. O peso foi para o trilho de baixo. */
+  const trilhoDaLoja = (
+    <div className="cartoes-barra inv-trilho loja-barra">
+      <div className="best-header-acoes">
+        <div className="best-search">
+          <i className="ti ti-eye busca-ic" aria-hidden="true" />
+          <Input
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder={en ? 'Search' : 'Buscar'}
+            aria-label={en ? 'Search the shop' : 'Buscar na loja'}
+          />
+        </div>
+        {alvoTrilho && <div className="inv-trilho-moedas"><MoedaPills moedas={moedas} lang={lang} mostrarZeros tamanho="sm" /></div>}
+      </div>
+    </div>
+  );
+
   return (
     <div className="loja">
+      {/* SEM BUSCA E SEM MOEDAS NO TRILHO (02/11/2026, usuário: "Na loja do
+          trilho superior, remova os botões de moeda e de buscar"). Na ficha o
+          trilho da Loja é só a navegação, como nas outras páginas. */}
+      {/* O peso no trilho de baixo da ficha (31/10/2026), como no Inventário. */}
+      {rodapeDaFicha && typeof PesoNoRodape === 'function' && ReactDOM.createPortal(<PesoNoRodape carga={carga} lang={lang} />, rodapeDaFicha)}
 
       {/* ── Peso + Moedas: MESMO padrão do inventário (sem título da mesa) ── */}
       {/* Balcão (22/10/2026): carga e bolsa à vista, o mesmo topo do inventário. */}
@@ -942,7 +981,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
             ? 'The shop is closed: the Game Master is updating it.'
             : 'A loja está fechada: o Mestre está atualizando o estoque.'}</span>
         </div>
-      ) : (semHistoria || (estoqueLoja.length === 0 && anuncios.length === 0)) ? (
+      ) : (!alvoTrilho && (semHistoria || (estoqueLoja.length === 0 && anuncios.length === 0))) ? (
         <div className="loja-warn-empty">
           <span>{en
             ? 'The Game Master has not listed any items yet'
@@ -959,28 +998,12 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
               janela de compra, ou a do anúncio. O estoque do mercador vem
               primeiro e os itens dos aventureiros depois, na mesma grade
               (02/10/2026: "no mesmo local, e não abaixo com outro título"). ── */}
-          {(() => {
-            const trilho = (
-              <div className="cartoes-barra inv-trilho loja-barra">
-                <div className="best-header-acoes">
-                  <div className="best-search">
-                    <i className="ti ti-eye busca-ic" aria-hidden="true" />
-                    <Input
-                      type="search"
-                      value={busca}
-                      onChange={(e) => setBusca(e.target.value)}
-                      placeholder={en ? 'Search' : 'Buscar'}
-                      aria-label={en ? 'Search the shop' : 'Buscar na loja'}
-                    />
-                  </div>
-                  {alvoTrilho && <div className="inv-trilho-moedas"><MoedaPills moedas={moedas} lang={lang} mostrarZeros tamanho="sm" /></div>}
-                </div>
-              </div>
-            );
-            return alvoTrilho ? ReactDOM.createPortal(trilho, alvoTrilho) : trilho;
-          })()}
+          {/* Fora da ficha, o trilho da busca fica aqui, acima da vitrine. */}
+          {!alvoTrilho && trilhoDaLoja}
 
-          {(visiveis.length + anunciosVisiveis.length) === 0 ? (
+          {/* Na ficha, a vitrine vazia mostra a grade vazia e o aviso no painel —
+              o mesmo desenho do Inventário e do Fabricar (31/10/2026). */}
+          {(!alvoTrilho && (visiveis.length + anunciosVisiveis.length) === 0) ? (
             <div className="loja-warn-empty"><span>{en ? 'Nothing in the shop matches the search.' : 'Nada na loja combina com a busca.'}</span></div>
           ) : (() => {
             /* A LOJA COMO O INVENTÁRIO (23/10/2026): "A página de loja deve ser
@@ -1018,6 +1041,46 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
             const sel = vitrine.find((v) => v.chave === lojaSel) || null;
             return (
               <div className={'bau-corpo loja-bau' + (lojaLarga ? ' bau-corpo--painel' : '')}>
+                {(() => {
+                  const v = lequeLoja && vitrine.find((x) => x.chave === lequeLoja.chave);
+                  const Leque = window.LequeDoItem;
+                  if (!v || !Leque) return null;
+                  const podeComprarAnuncio = v.tipo === 'anuncio' && !v.meu && (isMestre || !!selectedId);
+                  const podeRetirarAnuncio = v.tipo === 'anuncio' && (v.meu || !!isMestre);
+                  /* "Detalhes" só sem painel (31/10/2026, usuário: "não precisa mostrar o
+                     botão 'detalhes' no leque, pois a descrição abre ao selecionar o item").
+                     Na tela larga o clique já põe o item no painel; na estreita não há painel,
+                     e a bolha continua sendo o caminho até a descrição. */
+                  const acoes = [
+                    !lojaLarga && { chave: 'detalhes', icone: 'ti-article', rotulo: en ? 'Details' : 'Detalhes' },
+                    (v.tipo === 'estoque' || podeComprarAnuncio) && {
+                      chave: 'comprar', icone: 'ti-shopping-cart', rotulo: en ? 'Buy' : 'Comprar',
+                      desativado: !!v.esgotado,
+                      dica: v.esgotado ? { desc: en ? 'Sold out.' : 'Esgotado.' } : null,
+                    },
+                    podeRetirarAnuncio && {
+                      chave: 'retirar', icone: 'ti-arrow-back-up', perigo: true, rotulo: en ? 'Withdraw' : 'Retirar',
+                    },
+                  ].filter(Boolean);
+                  // Detalhes: no painel, na tela larga; senão, a janela (mesmo esgotado).
+                  const abrirJanela = (chave) => {
+                    setAcaoLoja(chave);
+                    if (v.tipo === 'estoque') { setErroCompra(null); setCompraAberta(v.entry.entryId); }
+                    else { setAnuncioErro(null); setAnuncioAberto(v.anuncio.id); }
+                  };
+                  return (
+                    <Leque acoes={acoes} ancora={lequeLoja.ancora} rotulo={v.nome}
+                      onClose={() => setLequeLoja(null)}
+                      onEscolher={(a) => {
+                        setLequeLoja(null);
+                        if (a.chave === 'detalhes') {
+                          if (lojaLarga) setLojaSel(v.chave); else abrirJanela(null);
+                          return;
+                        }
+                        abrirJanela(a.chave);
+                      }} />
+                  );
+                })()}
                 <div className="inv-grid-wrap">
                   <div ref={setGradeLojaEl} className="inv-bag-grid inv-bag-grid--slots" style={{ gridTemplateColumns: `repeat(${COLS}, var(--inv-casa))` }}>
                     {Array.from({ length: total }, (_, i) => {
@@ -1025,9 +1088,17 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
                       if (!v) return <span key={'g' + i} className="inv-slot-ghost" aria-hidden="true" />;
                       return (
                         <button key={v.chave} type="button"
-                          className={'inv-card loja-casa' + (sel && sel.chave === v.chave ? ' is-sel' : '') + (v.esgotado ? ' is-esgotado' : '') + (v.cat && v.cat.magico ? ' is-magico' : '')}
+                          className={'inv-card loja-casa' + (sel && sel.chave === v.chave ? ' is-sel' : '') + (v.esgotado ? ' is-esgotado' : '') + (window.itemEhMagico(v.cat, v.anuncio && v.anuncio.item) ? ' is-magico' : '')
+                            + (lequeLoja && lequeLoja.chave === v.chave ? ' inv-card--leque' : '')}
                           aria-label={v.nome}
-                          onClick={() => (lojaLarga ? setLojaSel(v.chave) : v.abrir())}
+                          aria-haspopup="menu"
+                          /* O leque, e na tela larga o item também vai ao painel
+                             (30/10/2026, usuário: "Apenas na loja e inventário"). */
+                          onClick={(e) => {
+                            fecharTip();
+                            if (lojaLarga) setLojaSel(v.chave);
+                            setLequeLoja({ chave: v.chave, ancora: e.currentTarget });
+                          }}
                           onDoubleClick={v.abrir}
                           {...propsTip(abrirTip, fecharTip, v.nome)}>
                           <span className="inv-card-head"><span className="inv-card-ic"><ItemIcone cat={v.cat} icon={invItemIcon(v.cat)} /></span></span>
@@ -1042,7 +1113,11 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
                     {!sel ? (
                       <div className="bau-painel-vazio">
                         <i className="ti ti-hand-click" aria-hidden="true" />
-                        <p>{en ? 'Choose an item from the shop to see it here.' : 'Escolha um item da loja para vê-lo aqui.'}</p>
+                        <p>{(semHistoria || (estoqueLoja.length === 0 && anuncios.length === 0))
+                          ? (en ? 'The Game Master has not listed any items yet' : 'O mestre ainda não disponibilizou itens à venda')
+                          : vitrine.length === 0
+                            ? (en ? 'Nothing in the shop matches the search.' : 'Nada na loja combina com a busca.')
+                            : (en ? 'Choose an item from the shop to see it here.' : 'Escolha um item da loja para vê-lo aqui.')}</p>
                       </div>
                     ) : (
                       <div className="loja-painel-corpo">
@@ -1057,7 +1132,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
                               token --inv-casa, que acompanha a grade quando
                               ela se ajusta) e o mesmo conteúdo, pelo mesmo
                               ItemIcone. */}
-                          <span className={'loja-painel-ic' + (sel.cat && sel.cat.magico ? ' is-magico' : '')}>
+                          <span className={'loja-painel-ic' + (window.itemEhMagico(sel.cat, sel.anuncio && sel.anuncio.item) ? ' is-magico' : '')}>
                             <ItemIcone cat={sel.cat} icon={invItemIcon(sel.cat)} />
                           </span>
                           <div>
@@ -1077,13 +1152,12 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
                                venda", que é quantidade e não vendedor. */
                             : <div><dt>{en ? 'Seller' : 'Vendedor'}</dt><dd>{sel.anuncio.vendedor_nome || (en ? 'An adventurer' : 'Um aventureiro')}</dd></div>}
                         </dl>
-                        {/* A descrição é quem rola dentro do card (27/10/2026):
-                            o botão do pé fica sempre à vista, com respiro. */}
+                        {/* A descrição é quem rola dentro do card (27/10/2026). */}
                         {sel.cat && sel.cat.descricao && <p className="loja-painel-desc mn-rolagem">{sel.cat.descricao}</p>}
                         {sel.semMoeda && <p className="loja-painel-falta">{en ? 'Not enough coin' : 'A bolsa não alcança'}</p>}
-                        <button type="button" className="btn-primary loja-painel-botao" disabled={sel.esgotado} onClick={sel.abrir}>
-                          {sel.tipo === 'anuncio' && sel.meu ? (en ? 'Manage' : 'Gerenciar') : (en ? 'Buy' : 'Comprar')}
-                        </button>
+                        {/* O botão Comprar/Gerenciar do pé saiu (30/10/2026, pedido do
+                            usuário: "remova os botões porque agora ele já aparece ao
+                            clicar no item") — Comprar e Retirar moram no leque. */}
                       </div>
                     )}
                   </aside>
@@ -1094,7 +1168,7 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
         </>
       )}
 
-      {alvoTrilho && typeof BauCargaRodape === 'function' && <BauCargaRodape carga={carga} lang={lang} />}
+      {/* A carga saiu do rodapé para o trilho (31/10/2026, "Tudo no topo"). */}
 
       {window.PortalTooltip
         ? <window.PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
@@ -1113,7 +1187,8 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
             totalLatao={totalLatao} moedasHeld={moedas}
             onComprar={(qtd) => comprarAnuncio(a, qtd)}
             onRetirar={() => retirarAnuncio(a)}
-            onClose={() => { setAnuncioAberto(null); setAnuncioErro(null); }} />
+            acaoInicial={acaoLoja}
+            onClose={() => { setAnuncioAberto(null); setAnuncioErro(null); setAcaoLoja(null); }} />
         );
       })()}
 
@@ -1136,7 +1211,8 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
             comprando={comprando === entry.entryId}
             erro={erroCompra?.entryId === entry.entryId ? erroCompra : null}
             onConfirm={(qtd, recipienteId) => comprar(entry.entryId, entry.slug, recipienteId || null, qtd)}
-            onClose={() => { setCompraAberta(null); setErroCompra(null); }}
+            acaoInicial={acaoLoja}
+            onClose={() => { setCompraAberta(null); setErroCompra(null); setAcaoLoja(null); }}
           />
         );
       })()}

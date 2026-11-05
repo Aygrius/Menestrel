@@ -32,7 +32,7 @@
      sem Montar         a ação mora no item do inventário
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -89,18 +89,28 @@ describe('a ficha do animal é a ficha do personagem', () => {
      regiões que os trilhos do boneco percorrem. As do bicho são outras — ele
      não tem pescoço de colar nem dedo de anel —, mas a ESTRUTURA de cada casa
      tem de ser a mesma, e é isso que se compara aqui. */
-  it('cada casa do bicho é uma casa do boneco: contador, casa e legenda', () => {
+  /* SEM O NOME SOB A CASA (04/11/2026, usuário: "As casas dos equipamentos
+     na ficha do animal ainda estão com texto"), como o personagem desde
+     30/10/2026: contador e casa; o nome vai para o balão. */
+  it('cada casa do bicho é uma casa do boneco: contador e casa, sem legenda', () => {
     montar();
     const casas = [...document.querySelectorAll('.fp3-regiao')];
     expect(casas.length).toBe(12);     // as doze de itens.slot_arreio
     casas.forEach((c) => {
       expect(c.querySelector('.fp3-qtd'), 'casa sem contador').toBeTruthy();
       expect(c.querySelector('.inv-slot'), 'casa sem a casa').toBeTruthy();
-      expect(c.querySelector('.fp3-nomr'), 'casa sem legenda').toBeTruthy();
+      expect(c.querySelector('.fp3-nomr'), 'a legenda voltou').toBeNull();
     });
     // E o personagem monta as dele com as MESMAS classes.
     expect(FONTE).toMatch(/<div className="fp3-regiao"/);
-    expect(FONTE).toMatch(/<span className="fp3-nomr">/);
+    expect(FONTE).not.toMatch(/<span className="fp3-nomr">/);
+  });
+
+  it('o nome da casa aparece no balão', () => {
+    montar();
+    const casa = document.querySelector('.fp3-regiao .inv-slot');
+    fireEvent.mouseEnter(casa);
+    expect(document.body.textContent).toMatch(/Cabeçada/);
   });
 
   /* SEIS DE CADA LADO, EM TRÊS FILEIRAS (27/10/2026, pedido do usuário: "o
@@ -163,13 +173,14 @@ describe('a ficha do animal é a ficha do personagem', () => {
     expect(document.querySelector('.mc-acoes-ficha')).toBeNull();
   });
 
-  it('e o console não manda o trilho para a aba dos companheiros', () => {
-    // Nem para dentro da moldura, nem para a barra: `semTrilho` zera o alvo,
-    // e sem alvo não há portal — para o Jogador e para o Mestre.
-    expect(FONTE).toMatch(/const semTrilho = fpTab === 'animais';/);
-    expect(FONTE).toMatch(/const alvoAcoesAtual = semTrilho \? null :/);
-    expect(FONTE).toMatch(/const ctrlsNaBarra = \(cabecalhoNoMenu && alvoAcoesAtual\) \?/);
-    expect(FONTE).toMatch(/const mestreNaBarra = isMestre && !!alvoAcoes && !semTrilho;/);
+  it('e na aba dos companheiros o console manda só a navegação', () => {
+    // 31/10/2026: "sempre haverá um único trilho superior" — o trilho volta à
+    // aba Companheiros, mas só com as páginas (escolha do usuário). Status,
+    // atividade, Evoluir e os atalhos seguem de fora: são do personagem.
+    expect(FONTE).toMatch(/const soNavegacao = fpTab === 'animais' && compAberto;/);
+    expect(FONTE).toMatch(/const alvoAcoesAtual = slotAcoesFicha \|\| alvoAcoes;/);
+    expect(FONTE).toMatch(/const ctrlsNaBarra = \(cabecalhoNoMenu && alvoAcoesAtual && !soNavegacao\) \?/);
+    expect(FONTE).toMatch(/const mestreNaBarra = isMestre && !!alvoAcoes && !soNavegacao;/);
   });
 
   it('a figura fica no centro, no mesmo palco e no mesmo card', () => {
@@ -320,99 +331,72 @@ describe('e a coluna da direita tem o andaime do personagem', () => {
   });
 });
 
-/* ── A EXPERIÊNCIA DO BICHO NA COLUNA DAS BARRAS (06/10/2026) ──────────────
-   "Os animais do personagem devem ganhar sempre 1/5 da experiência do
-    personagem enquanto estiverem com ele, e evoluir quando alcançar a xp
-    certa." (usuário)
-
-   A barra entrou onde a do personagem está — fim da coluna da esquerda — e com
-   UMA diferença deliberada: não se edita. A do personagem é onde o Mestre
-   concede XP; a do bicho é consequência dela, e abrir o popover aqui romperia
-   o "sempre 1/5". As contas moram em 01-core/animal-experiencia.jsx. */
-/* ── A EXPERIÊNCIA SAIU DA COLUNA (27/10/2026) ─────────────────────────────
-   "Coloque a barra de experiência como na ficha do personagem" e "abaixo do
-   card de condições tem um card que eu não sei o que é" — era o MESMO card.
-   A Experiência morava como terceiro painel da coluna da esquerda, montada
-   com `semNome` e sem número: um painel com um fio dentro e nenhuma palavra
-   dizendo o que era. Agora é a faixa `.fp-xp-faixa` do personagem, no pé da
-   moldura, com rótulo e número. */
-describe('a barra de experiência do animal', () => {
-  it('é a faixa do pé do cartão, com rótulo e número, como no personagem', () => {
+/* ── A EXPERIÊNCIA E O PESO DO BICHO, NO RODAPÉ (04/11/2026) ───────────────
+   "Ao abrir a ficha do animal, a experiência e o peso mostrados no rodapé são
+    dele, não do personagem." (usuário) Até aqui a ficha do bicho desenhava
+   duas faixas próprias no pé da moldura (.fp-xp-faixa e .fp-carga-faixa), e o
+   rodapé da página, embaixo delas, seguia com os números do DONO. Agora o
+   rodapé é um só e, com o companheiro aberto, é do companheiro
+   (AnimalXpRodape e AnimalPesoRodape no lugar dos do personagem). */
+describe('o rodapé do companheiro', () => {
+  it('a ficha do bicho não desenha mais faixas próprias no pé', () => {
     montar();
-    const faixa = document.querySelector('.fp2-frame > .fp-xp-faixa');
-    expect(faixa, 'a faixa não está no pé da moldura').toBeTruthy();
-    expect(faixa.querySelector('.fp-xp-rot').textContent).toBe('Experiência');
-    expect(faixa.querySelector('.fp-bar-row')).toBeTruthy();
-    // E a coluna da esquerda não tem mais o painel sem nome.
-    expect(document.querySelectorAll('.fp-animal-vit > .fp2-panel')).toHaveLength(2);
-  });
-
-  it('respira como as do personagem: a coluna do bicho é a coluna do PJ', () => {
-    /* "A barra de xp do animal está com um espaçamento diferente." (usuário,
-       06/10/2026) — `.fp-animal-vit { display: block }` tinha a mesma
-       especificidade de `.fp2-vitcond-col` e vinha depois no arquivo, então
-       vencia: a coluna do bicho perdia o flex e, com ele, o `gap: 5px` entre
-       os painéis. */
-    expect(regra('.fp2-vitcond-col {')).toMatch(/display:\s*flex[\s\S]*gap:\s*5px/);
-  });
-
-  /* A CARGA AO LADO DELA (27/10/2026, pedido do usuário: "adicione também uma
-     barra para mostrar o peso que o animal está carregando"). A regra pura
-     está em 07-inventario/carga-do-animal.test.js; aqui o que se trava é a
-     faixa: que ela existe, que é a segunda do pé, e que diz o número com
-     vírgula — a carga tem casa decimal (uma sela ocupa 6,5). */
-  it('a Carga é a segunda faixa do pé, com o cavaleiro somado', () => {
-    montar({
-      // `montado`: é só em cima do bicho que o cavaleiro pesa nele.
-      animal: { ...animal, instancia: { ...animal.instancia, montado: true } },
-      itens: [{ instanceId: 's1', slug: 'sela', quantidade: 1, animal_id: animal.instancia.instanceId }],
-      catalogoBySlug: { sela: { slug: 'sela', nome: 'Sela', ocupa: 6.5 } },
-      pesoDoCavaleiro: 72,
-    });
-    const faixas = [...document.querySelectorAll('.fp2-frame > .fp-xp-faixa')];
-    expect(faixas).toHaveLength(2);
-    const carga = faixas[1];
-    expect(carga.classList.contains('fp-carga-faixa')).toBe(true);
-    expect(carga.querySelector('.fp-xp-rot').textContent).toBe('Carga');
-    // 6,5 da sela + 72 do cavaleiro montado; o teto é 20% do peso do corpo.
-    expect(carga.querySelector('.fp-bar-num').textContent).toMatch(/^78,5\//);
-  });
-
-  /* AS DUAS SÃO UMA FAIXA SÓ (27/10/2026, pedido do usuário: "o espaçamento
-     está estranho"). A Carga herdava o padding e a margem da Experiência e
-     boiava 33px abaixo dela. E o que eu havia escrito para ela não valia: a
-     regra de cima usa `:has()` e soma quatro classes, contra duas da minha.
-     Daí a especificidade espelhada — é o preço de corrigir um `:has()`. */
-  it('a Carga encosta na Experiência: uma régua só, no topo das duas', () => {
-    expect(CSS).toMatch(/\.fp-page:has\(\.fp2-columns--duas\) \.fp-carga-faixa \{\r?\n\s*border-top: none; margin-top: 0; padding-top: 0;/);
-    // E a Experiência fecha o respiro de baixo quando tem vizinha.
-    expect(CSS).toMatch(/\.fp-xp-faixa:has\(\+ \.fp-carga-faixa\) \{\r?\n\s*padding-bottom: 6px;/);
-  });
-
-  /* O BUG VISUAL DAS DUAS FAIXAS (27/10/2026, pedido do usuário: "as barras
-     de experiência e peso estão com um bug visual"). O painel de informações
-     do bicho tem `height: 100%` — e 100% é da COLUNA INTEIRA, não do que
-     sobrou dela. Sendo o terceiro filho, ele nascia já abaixo do Arreamento e
-     do Armas e esticava a altura toda a partir dali: medido no navegador,
-     878px de painel começando aos 514 de coluna, 400px para fora da moldura,
-     cruzando as duas faixas por baixo. */
-  it('a coluna da direita não vaza pelo pé do cartão', () => {
-    expect(CSS).toMatch(/\.fp-animais \.fp2-combat-col \{ height: auto; flex: 1 1 auto; min-height: 0; \}/);
-    // A coluna vira pilha flex: o vão é um número só, não margens peça a peça.
-    expect(CSS).toMatch(/\.fp-animais \.fp2-columns--duas \.fp2-col-main \{\r?\n\s*display: flex; flex-direction: column; gap: 12px;/);
-    // E o `height: 100%` original segue de pé para quem não é o bicho.
-    expect(regra('.fp2-combat-col {')).toMatch(/height:\s*100%/);
-  });
-
-  it('sem criatura com peso não há faixa de Carga — não se inventa o teto', () => {
-    montar({ animal: { ...animal, criatura: { ...animal.criatura, peso: null } } });
+    expect(document.querySelector('.fp-xp-faixa')).toBeNull();
     expect(document.querySelector('.fp-carga-faixa')).toBeNull();
   });
 
-  it('não é editável: o quinto vem do dono, não se concede aqui', () => {
-    // Sem `onEdit`, a faixa não vira botão nem abre popover de edição.
-    expect(FONTE).toMatch(/bars=\{bars\} scope="xp-animal" semNome numero en=\{en\}/);
-    expect(FONTE).not.toMatch(/scope="xp-animal"[^>]*onEdit/);
+  it('com o companheiro aberto, o rodapé troca a Experiência e o Peso pelos dele', () => {
+    expect(FONTE).toMatch(/const animalDoRodape = fpTab === 'animais' && compAberto/);
+    expect(FONTE).toMatch(/animalDoRodape\s*\?\s*<AnimalXpRodape /);
+    expect(FONTE).toMatch(/<AnimalPesoRodape instancia=\{animalDoRodape\.instancia\}/);
+  });
+
+  it('o Peso é o do bicho, com o cavaleiro somado quando montado', () => {
+    const Peso = window.AnimalPesoRodape;
+    render(<Peso lang="pt"
+      instancia={{ ...animal.instancia, montado: true }} criatura={CAVALO}
+      itens={[{ instanceId: 's1', slug: 'sela', quantidade: 1, animal_id: animal.instancia.instanceId }]}
+      catalogoBySlug={{ sela: { slug: 'sela', nome: 'Sela', ocupa: 6.5 } }} pesoDoCavaleiro={72} />);
+    expect(document.querySelector('.fp3-rodape-rot-txt').textContent).toBe('Peso');
+    // 6,5 da sela + 72 do cavaleiro montado; o teto é 20% do peso do corpo (400).
+    // O número sai pelo fmtNum do sistema, o mesmo do rodapé do personagem.
+    expect(document.querySelector('.fp-bar-num').textContent).toMatch(/^78[.,]5\/80/);
+  });
+
+  it('sem peso de corpo não há barra de Peso — não se inventa o teto', () => {
+    const Peso = window.AnimalPesoRodape;
+    const { container } = render(<Peso lang="pt" instancia={animal.instancia}
+      criatura={{ ...CAVALO, peso: null }} itens={[]} catalogoBySlug={{}} pesoDoCavaleiro={0} />);
+    expect(container.innerHTML).toBe('');
+  });
+
+  /* O MESTRE CONCEDE XP AO ANIMAL (04/11/2026, usuário: "O mestre consegue
+     dar xp para o animal da mesma forma que consegue dar xp para o
+     personagem"). Até então a barra não se editava ("sempre 1/5"). */
+  it('a Experiência do bicho se edita como a do dono, só pelo Mestre', () => {
+    const Xp = window.AnimalXpRodape;
+    let aberto = null;
+    render(<Xp instancia={animal.instancia} criatura={CAVALO} en={false} onEdit={(item, scope) => { aberto = { item, scope }; }} />);
+    expect(document.querySelector('.fp-bar-row')).toBeTruthy();
+    // O popover mexe no XP TOTAL, com o piso do estágio de catálogo.
+    expect(FONTE).toMatch(/edit: \{ val: xp\.total, min: xp\.base, max: teto \}/);
+    expect(FONTE).toMatch(/scope="xp-animal" semNome numero onEdit=\{onEdit\}/);
+    // Só o Mestre recebe o editor, como na barra do personagem.
+    expect(FONTE).toMatch(/onEdit=\{podeEditarEstado \? abrirEdicaoBarra : undefined\} \/>\s*: elEstagio\}/);
+    // A gravação passa pelo inventário (compare-and-swap), nunca update direto.
+    expect(FONTE).toMatch(/if \(scope === 'xp-animal'\) \{ salvarXpDoAnimal\(key, val\); return; \}/);
+    expect(FONTE).toMatch(/salvarItensFicha\(\(pj\.inventario\?\.itens \|\| \[\]\)\.map\(\(it\) =>\s*it\.instanceId === instanceId \? \{ \.\.\.it, xp: ganho \} : it\)\)/);
+    void aberto;
+  });
+
+  it('a coluna da direita não vaza pelo pé do cartão', () => {
+    expect(CSS).toMatch(/\.fp-animais \.fp2-combat-col \{ height: auto; flex: 1 1 auto; min-height: 0; \}/);
+    expect(CSS).toMatch(/\.fp-animais \.fp2-columns--duas \.fp2-col-main \{\r?\n\s*display: flex; flex-direction: column; gap: 12px;/);
+    expect(regra('.fp2-combat-col {')).toMatch(/height:\s*100%/);
+  });
+
+  it('respira como as do personagem: a coluna do bicho é a coluna do PJ', () => {
+    expect(regra('.fp2-vitcond-col {')).toMatch(/display:\s*flex[\s\S]*gap:\s*5px/);
   });
 });
 
@@ -486,19 +470,33 @@ describe('o nome e a raça na página de Identidade', () => {
   });
 });
 
-/* ── O TOOLTIP DA SETA SAIU (06/10/2026) ──────────────────────────────────
-   "Remova o tooltip da seta para navegar nos menus caracterizações, atributos,
-    etc." (usuário) Os traços embaixo já dizem quantas páginas há e em qual se
-   está, e o título troca ao clicar. O `aria-label` fica: o leitor de tela não
-   tem os traços. */
-describe('a seta de navegar as páginas', () => {
-  it('não abre tooltip, e segue nomeando o destino para quem não vê', () => {
-    // A seta mora na fila de páginas, que agora é a página de Identificação.
+/* ── SEM SETA NAS PÁGINAS DO BICHO (04/11/2026) ───────────────────────────
+   "Arrume a página de identificação, conhecimento e inventário do animal"
+   (usuário). As colunas mostravam uma página por vez, com uma seta; agora
+   tudo fica à vista em cartões, como a Identificação do personagem. */
+describe('as páginas do bicho, tudo à vista', () => {
+  const titulos = () => [...document.querySelectorAll('.fp-info-grid > div')]
+    .map((col) => [...col.querySelectorAll('.fp-col-title-main')].map((t) => t.textContent));
+  it('Identificação: Identidade e Descrição | Atributos e Derivadas | Ataques', () => {
     montar({ parte: 'info' });
-    const seta = document.querySelector('.fp-col-title-nav-btn');
-    expect(seta).toBeTruthy();
-    expect(seta.getAttribute('title')).toBeNull();
-    expect(seta.getAttribute('aria-label')).toMatch(/Próximo:/);
-    expect(FONTE).not.toMatch(/fp-col-title-nav-btn[\s\S]{0,320}propsTip/);
+    expect(document.querySelector('.fp-col-title-nav-btn')).toBeNull();
+    expect(titulos()).toEqual([['Identidade', 'Descrição'], ['Atributos', 'Derivadas'], ['Ataques']]);
+    expect(document.querySelector('.fp-animais-parte .fp-info-grid.fp-info-uma')).toBeTruthy();
+  });
+  it('Conhecimento: Habilidades | Técnicas | Magias', () => {
+    montar({ parte: 'conhecimento' });
+    expect(document.querySelector('.fp-col-title-nav-btn')).toBeNull();
+    expect(titulos()).toEqual([['Habilidades'], ['Técnicas'], ['Magias']]);
+  });
+});
+
+/* SEM CONDIÇÕES (04/11/2026, usuário: "Na ficha do animal, não vamos fazer o
+   controle das suas condições"). A coluna do bicho fica só com as Energias. */
+describe('a ficha do bicho não controla condições', () => {
+  it('não há cartão de Condições nem medalhões', () => {
+    montar();
+    expect(document.querySelectorAll('.fp-animal-vit > .fp2-panel')).toHaveLength(1);
+    expect(document.querySelector('.fp-animal-vit').textContent).not.toMatch(/Condições/);
+    expect(FONTE).not.toMatch(/scope="cond-animal"/);
   });
 });

@@ -94,8 +94,18 @@ describe('a etapa de publicar no modal do item', () => {
     // 23/10/2026: o único campo de texto é o lugar da venda (Onde vender).
     expect([...document.querySelectorAll('.det-venda input')].length).toBe(1);
     expect(document.querySelector('.det-venda-lugar input')).toBeTruthy();
-    expect(document.querySelectorAll('.det-venda-linha .fp-pop-stepper')).toHaveLength(4);
-    expect(document.querySelector('.ms-footer-center .fp-pop-stepper').textContent).toMatch(/3\s*de 3/);
+    // 04/11/2026: a quantidade subiu do rodapé para o corpo, e o corpo virou
+    // duas seções — Quantidade (1 seletor) e Valor (4 moedas, com nome) —,
+    // sem nada no centro do rodapé.
+    const qtd = document.querySelector('.det-venda-secao--qtd');
+    expect(qtd.querySelector('.mn-rotulo').textContent).toBe('Quantidade');
+    expect(qtd.querySelectorAll('.fp-pop-stepper')).toHaveLength(1);
+    expect(qtd.querySelector('.det-venda-qtd').textContent).toMatch(/3\s*de 3/);
+    const valor = document.querySelector('.det-venda-secao--valor');
+    expect(valor.querySelector(':scope > .mn-rotulo').textContent).toBe('Valor');
+    expect(valor.querySelectorAll('.fp-pop-stepper')).toHaveLength(4);
+    expect([...valor.querySelectorAll('.venda-moeda-nome')].map((n) => n.textContent)).toEqual(['Ouro', 'Prata', 'Cobre', 'Latão']);
+    expect(document.querySelector('.ms-footer-center .fp-pop-stepper')).toBeNull();
     expect(centros()).toEqual(['0', '0', '0', '5']);   // 5 latão cada
     // Inline e só "Total" (27/09/2026): sem "preço de cada um".
     expect(document.querySelector('.det-venda-nota').textContent).toMatch(/^Total/);
@@ -108,11 +118,11 @@ describe('a etapa de publicar no modal do item', () => {
     expect(onVender).toHaveBeenCalledWith('p1', 3, 6, '');
   });
 
-  it('sem títulos (Preço, Valor de tabela); Cancelar e Pôr à venda no rodapé', () => {
+  it('sem títulos (Preço, Valor de tabela); só o verbo no rodapé, sem Cancelar', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 }, ESPADA, vi.fn());
     fireEvent.click(document.querySelector('[data-acao="vender"]'));
     expect(document.body.textContent).not.toMatch(/Valor de tabela|Preço/);
-    expect([...document.querySelectorAll('.ms-footer button')].map((x) => x.textContent)).toEqual(['Cancelar', 'Propor ao comerciante']);
+    expect([...document.querySelectorAll('.ms-footer button')].map((x) => x.textContent)).toEqual(['Propor ao comerciante']);
     expect(document.querySelector('.det-venda button[data-publicar]')).toBeNull();
   });
 

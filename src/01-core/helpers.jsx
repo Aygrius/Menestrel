@@ -166,6 +166,41 @@ function SeloMenestrel({ size = 32, className = '', titulo = null }) {
 
    `setAlvo` com função compara antes de gravar — sem isso, cada mutação do
    documento viraria um render. */
+/* A ALTURA DAS PÁGINAS (02/11/2026, usuário: "É muito importante que as
+   páginas tenham um tamanho padronizado"). A largura é CSS (--fp-largura); a
+   altura não se escreve em CSS, porque a da Ficha sai do conteúdo dela e do
+   degrau de zoom da tela. A Ficha mede o próprio cartão (guardarAlturaDaFicha)
+   e o número vira o token --pg-altura no <html>, que toda moldura de página
+   usa como altura mínima (index.css, "A MOLDURA DE PÁGINA"). Guardado por
+   tamanho de janela, no navegador (localStorage): a Loja aberta direto, numa aba nova, já
+   nasce do tamanho certo. h = 0 (tela estreita, onde a Ficha é uma rolagem
+   comprida) apaga o token. */
+const CHAVE_ALTURA_FICHA = 'fp-altura-ficha';
+function chaveDaJanelaAtual() {
+  return typeof window !== 'undefined' ? window.innerWidth + 'x' + window.innerHeight : '';
+}
+function aplicarAlturaDaFicha() {
+  if (typeof document === 'undefined') return;
+  let h = 0;
+  try {
+    const g = JSON.parse(window.localStorage.getItem(CHAVE_ALTURA_FICHA) || 'null');
+    h = g && g.chave === chaveDaJanelaAtual() ? Number(g.h) || 0 : 0;
+  } catch (_) { h = 0; }
+  const st = document.documentElement.style;
+  if (h) st.setProperty('--pg-altura', h + 'px');
+  else st.removeProperty('--pg-altura');
+}
+function guardarAlturaDaFicha(h) {
+  try {
+    window.localStorage.setItem(CHAVE_ALTURA_FICHA, JSON.stringify({ chave: chaveDaJanelaAtual(), h: Math.round(Number(h) || 0) }));
+  } catch (_) {}
+  aplicarAlturaDaFicha();
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  aplicarAlturaDaFicha();
+  window.addEventListener('resize', aplicarAlturaDaFicha);
+}
+
 function useAlvoPortal(id) {
   const [alvo, setAlvo] = React.useState(() => (typeof document !== 'undefined' ? document.getElementById(id) : null));
   React.useEffect(() => {
@@ -293,7 +328,9 @@ function Tooltip({ tip, onEnter, onLeave, abaixo = false, esquerda = false }) {
     >
       {rich ? (
         <>
-          {content.title && <div className="mn-tip-title">{content.title}</div>}
+          {/* `tom: 'branco'` (30/10/2026): o slot VAZIO da ficha diz o nome da
+              região em branco; o dourado fica para quando há peça. */}
+          {content.title && <div className={'mn-tip-title' + (content.tom === 'branco' ? ' mn-tip-title--branco' : '')}>{content.title}</div>}
           {content.desc  && <p   className="mn-tip-desc">{content.desc}</p>}
           {content.stats && content.stats.length > 0 && (
             <div className="mn-tip-stats">
@@ -388,13 +425,17 @@ function propsTip(abrirTip, fecharTip, content) {
      trilho do personagem"): ali todo botão já diz o próprio nome. */
   const abrir = (e) => {
     const el = e && e.currentTarget;
-    if (el && el.closest && el.closest('.mc-acoes-ficha, .fp-abas-trilho')) return;
+    /* …a não ser que o nome esteja escondido: no trilho apertado
+       (.is-compacto, 02/11/2026) as páginas fechadas ficam só no ícone. */
+    const rot = el && el.querySelector ? el.querySelector('.mc-acao-rotulo') : null;
+    const nomeAVista = !rot || rot.offsetParent !== null;
+    if (el && el.closest && el.closest('.mc-acoes-ficha, .fp-abas-trilho') && nomeAVista) return;
     abrirTip(e, content);
   };
   return { onMouseEnter: abrir, onMouseLeave: fecharTip, onFocus: abrir, onBlur: fecharTip };
 }
 
-Object.assign(window, { calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, DicaNoAlvo, empilharJanela, ehJanelaDaFrente, propsTip, Carregando, SeloMenestrel, useAlvoPortal,
+Object.assign(window, { aplicarAlturaDaFicha, guardarAlturaDaFicha, calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, DicaNoAlvo, empilharJanela, ehJanelaDaFrente, propsTip, Carregando, SeloMenestrel, useAlvoPortal,
   somarDiasFantasy, dataFantasyParaAbsoluto, absolutoParaDataFantasy, formatarDataFantasy,
   FANTASY_DIAS_ANO });
 

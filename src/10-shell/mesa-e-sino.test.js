@@ -127,31 +127,6 @@ describe('a mesa ativa não troca sozinha', () => {
    voltar a ter largura automática (sobra de quando havia texto), ou um balão
    dizer só o rótulo — "Umidade" — em vez da informação. */
 describe('o trilho da cena é só de ícones, com a informação no balão', () => {
-  /* SÓ o ramo do TRILHO DA CENA. Os outros (trilho da ficha, menu lateral do
-     Mestre) são botões de menu e seguem com o nome escrito — o pedido era
-     sobre o trilho.
-
-     Em 28/10/2026 a ordem dos ramos mudou: o trilho da FICHA passou a vir
-     primeiro, porque o da cena está em toda tela da mesa e ganhava sempre —
-     e com ele o Jogador nunca via o sino junto de Status e Atividades. Então
-     a âncora deixou de ser o começo do encadeamento e passou a ser o `:
-     alvoCena ?`, que é onde este ramo de fato começa. */
-  const sino = (() => {
-    const i = shell.indexOf(': alvoCena ? ReactDOM.createPortal');
-    expect(i, 'o ramo do trilho da cena').toBeGreaterThan(-1);
-    const fim = shell.indexOf(': alvoLateral && ehMestre', i);
-    expect(fim, 'o ramo do trilho termina antes do sino do menu lateral').toBeGreaterThan(i);
-    return shell.slice(i, fim);
-  })();
-
-  it('o sino não escreve mais a palavra na pílula', () => {
-    expect(sino).toMatch(/cdj-bar cdj-sino/);
-    expect(sino).not.toMatch(/<span>\{en \? 'Notifications' : 'Notificações'\}<\/span>/);
-  });
-  it('e tem balão próprio — ele desenha por portal e não alcança o do trilho', () => {
-    expect(sino).toMatch(/propsTip\(abrirDicaSino, fecharDicaSino, rotuloSino\)/);
-    expect(sino).toMatch(/<NavTooltip tip=\{dicaSino\}/);
-  });
   it('as pílulas de ícone voltaram à largura fixa', () => {
     const i = css.indexOf('.menestrel-ui.cdj-root .cdj-bar.cdj-tempo,');
     expect(i, 'o bloco de largura das pílulas de ícone').toBeGreaterThan(-1);
@@ -160,12 +135,6 @@ describe('o trilho da cena é só de ícones, com a informação no balão', () 
     expect(regra).toMatch(/padding:\s*0/);
     // A regra de 22/10 que forçava largura automática não pode voltar.
     expect(css).not.toMatch(/cdj-hora \{ width: auto !important/);
-  });
-  it('o contador do sino volta ao canto, sem esticar o botão', () => {
-    const i = css.indexOf('.menestrel-ui.cdj-root .cdj-sino-badge {');
-    const regra = css.slice(i, css.indexOf('}', i));
-    expect(regra).toMatch(/position:\s*absolute/);
-    expect(regra).toMatch(/background:\s*var\(--alerta\)/);
   });
   /* O balão é SÓ O TEXTO (26/10/2026, logo depois): "ao invés de 'Localização
      Farzelo' será apenas 'Farzelo', ao invés de 'Horário 12h Dia' será

@@ -208,22 +208,26 @@ describe('medalhões das Condições', () => {
      'Doença'"). Antes a legenda era a sigla com o valor ("SON · 25"); o valor
      já está no líquido do anel e no tooltip, e a sigla cobrava uma tradução
      mental para poupar três letras. */
-  it('a legenda é o nome; o líquido vai até a porcentagem; zero recua', () => {
+  /* Sem legenda desde 30/10/2026 ("Remova o nome do slot abaixo dele. Faça
+     isso também nos slots de condições", usuário): o nome vai no balão. */
+  it('sem legenda; o líquido vai até a porcentagem; zero recua', () => {
     render(<FichaMedalhoes bars={COND} en={false} />);
     const meds = document.querySelectorAll('.fp-medalhao');
     expect(meds).toHaveLength(3);
-    expect(meds[0].querySelector('.fp-med-rot').textContent).toBe('Sono');
+    expect(meds[0].querySelector('.fp-med-rot')).toBeNull();
+    expect(meds[0].getAttribute('aria-label')).toMatch(/^Sono/);
     expect(meds[0].textContent).not.toMatch(/SON|·|\b6\b/);   // nem sigla nem número
     expect(meds[0].querySelector('.fp-medalhao-canal').style.getPropertyValue('--p')).toBe('6');
     expect(meds[1].classList.contains('is-zero')).toBe(true);
     expect(meds[1].querySelector('.fp-medalhao-canal')).toBeNull();
   });
 
-  it('o tooltip diz o nome e a porcentagem', () => {
+  // O balão diz SÓ o nome, em branco (30/10/2026) — a condição não é peça.
+  it('o balão diz só o nome, em branco', () => {
     const dicas = [];
     render(<FichaMedalhoes bars={COND} en={false} onHover={(e, t) => dicas.push(t)} onHoverEnd={() => {}} />);
     act(() => { document.querySelector('.fp-medalhao').dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); });
-    expect(dicas[0]).toEqual({ title: 'Sono', desc: '6%' });
+    expect(dicas[0]).toEqual({ title: 'Sono', tom: 'branco' });
   });
 
   it('o Mestre edita a condição; Pesado (derivado da carga) não abre', () => {

@@ -136,6 +136,8 @@ const ADMIN_COPY = {
     campoPercepcao: 'Percepção',
     campoArmadura: 'Armadura',
     campoTipoArmadura: 'Tipo de Armadura',
+    campoConjunto: 'Conjunto',
+    campoArte: 'Pintura',
     campoAtaque: 'Ataque',
     campoMagia: 'Magia',
     campoTecnica: 'Técnica',
@@ -315,6 +317,8 @@ const ADMIN_COPY = {
     campoPercepcao: 'Perception',
     campoArmadura: 'Armor',
     campoTipoArmadura: 'Armor Type',
+    campoConjunto: 'Set',
+    campoArte: 'Artwork',
     campoAtaque: 'Attack',
     campoMagia: 'Magic',
     campoTecnica: 'Technique',
@@ -691,27 +695,45 @@ const SECOES_DA_MESA = {
    divergiriam no dia em que uma sétima aba entrar — `aba` é o valor que
    FichaPersonagem entende (fpTab). */
 const PARTES_DA_FICHA = [
-  { id: 'ficha_ficha',  aba: 'ficha',        rotulo: R('Ficha', 'Sheet') },
-  { id: 'ficha_ident',  aba: 'info',         rotulo: R('Identificação', 'Identity') },
-  { id: 'ficha_conhec', aba: 'conhecimento', rotulo: R('Conhecimento', 'Knowledge') },
-  { id: 'ficha_comp',   aba: 'animais',      rotulo: R('Companheiros', 'Companions') },
-  { id: 'ficha_inv',    aba: 'inventario',   rotulo: R('Inventário', 'Inventory') },
-  { id: 'ficha_loja',   aba: 'loja',         rotulo: R('Loja', 'Shop') },
+  /* Ficha e Loja saíram daqui em 31/10/2026: moram no trilho da ficha ("Os
+     menus ficha, loja, vão para o trilho superior"). */
+  /* Identificação e Conhecimento saíram em 02/11/2026: moram no trilho da
+     ficha ("Os menus identificação e conhecimento também vão ficar no trilho
+     superior. Com isso, nenhum menu ficará colapsado no menu lateral"). */
+  /* Companheiros saiu em 02/11/2026 ("Mantém apenas editar e excluir",
+     usuário): é botão do trilho da ficha, com a grade dos bichos. O submenu
+     do personagem no Mestre ficou só com as ações sobre ele. */
+  /* Inventário saiu daqui em 30/10/2026: mora no trilho da ficha, depois de
+     Itens ("vai sair do menu lateral esquerdo e vai ficar no trilho"). */
 ];
 
 const ROTULO_LIVRO = R('Livro de Regras', 'Rulebook');
 const NAV_MESA = {
   master: {
     mesa: [
-      { secao: 'cena' }, { secao: 'batalha' }, { secao: 'personagens_m' },
+      /* CENA, BATALHA E LOJA NUMA PÁGINA SÓ (04/11/2026, usuário: "Cena,
+         Batalha e Loja do mestre também vão ficar na mesma página com trilho
+         superior"). O mesmo arranjo da Ambientação logo abaixo: um item no
+         menu lateral — "Mesa", o nome que o Jogador já dá à página da mesa
+         dele —, e as três como botões do trilho da página. A Loja do Mestre é
+         o Estoque (lojas por cidade e propostas de venda, 23/10/2026). */
+      { id: 'mesa_mestre', rotulo: R('Mesa', 'Table'), trilho: true, filhos: [
+        { secao: 'cena' }, { secao: 'batalha' }, { secao: 'loja_mesa', rotulo: R('Loja', 'Shop') },
+      ] },
+      { secao: 'personagens_m' },
       /* AMBIENTAÇÃO (23/10/2026): "O menu diário pode ser alterado para
          'Ambientação'. Diário será o menu pessoal de cada jogador, a respeito
          da ambientação." Mesmas folhas (Reinos, Cidades, Locais, Pessoas). */
-      { ...diario(false), rotulo: R('Ambientação', 'Setting') },
-      /* A Loja do Mestre é o Estoque, sem gaveta (23/10/2026): lojas por cidade e
-         propostas de venda. "Itens da Campanha" saiu do menu (não chegava a
-         lugar nenhum); a página continua no código. */
-      { secao: 'loja_mesa', rotulo: R('Loja', 'Shop') },
+      /* AS PÁGINAS NUM TRILHO (04/11/2026, usuário: "Ao clicar no menu
+         ambientação, a navegação pelas páginas será por um trilho superior
+         parecido com o trilho da ficha. Mas os menus serão reinos, cidades,
+         etc."). `trilho`: no menu lateral é UM item, sem gaveta — o clique
+         abre a primeira folha (Reinos) —, e as folhas viram os botões do
+         trilho no topo das páginas (10-shell). Os filhos continuam na árvore:
+         é por eles que as páginas ganham título e passam no "está no menu?". */
+      { ...diario(false), rotulo: R('Ambientação', 'Setting'), trilho: true },
+      /* "Itens da Campanha" saiu do menu em 23/10/2026 (não chegava a lugar
+         nenhum); a página continua no código. */
       { secao: 'jogadores' },
     ],
     regras: [
@@ -745,37 +767,32 @@ const NAV_MESA = {
          Companheiros segue de fora, por ter árvore própria: cada bicho é um
          galho com as quatro páginas dele, e enfiar isso dentro da Ficha daria
          quatro andares de menu para chegar ao inventário de um cavalo. */
-      { id: 'ficha_ficha', secao: 'ficha', filtro: 'ficha', navega: true,
-        rotulo: R('Ficha', 'Sheet'), titulo: R('Ficha', 'Sheet'),
-        filhos: [
-          { id: 'ficha_ident', secao: 'ficha', filtro: 'info', rotulo: R('Identificação', 'Identity'), titulo: R('Identificação', 'Identity') },
-          { id: 'ficha_conhec', secao: 'ficha', filtro: 'conhecimento', rotulo: R('Conhecimento', 'Knowledge'), titulo: R('Conhecimento', 'Knowledge') },
-          { secao: 'inventario' },
-        ] },
-      /* `navega` (27/10/2026): Companheiros é o único desta lista que ganha
-         FILHOS (um por bicho, e as páginas de cada um). Um nó com filhos só
-         abria a gaveta — então, para quem tem animais, clicar em
-         "Companheiros" não ia a lugar nenhum, e a página ficava sem título,
-         porque `folhasDoMenu` só conta um galho como destino quando ele diz
-         `navega`. Com a marca ele volta a ser as duas coisas: a gaveta abre e
-         a aba abre junto, como "Personagens" faz para o Mestre. */
-      { id: 'ficha_comp', secao: 'ficha', filtro: 'animais', navega: true, rotulo: R('Companheiros', 'Companions'), titulo: R('Companheiros', 'Companions') },
-      /* A MESA, com o que acontece FORA do personagem. O `id` é o da seção
-         para o ícone continuar vindo de ICONE_NAV sem entrada nova, e o
-         rótulo segue saindo do caso do Jogador em `rotuloDe` ("aventuras"
-         chama-se Mesa para ele). */
-      { id: 'aventuras', secao: 'aventuras', navega: true,
-        filhos: [
-          { secao: 'loja' },
-          diario(true),
-          /* AMIGOS SAIU DO TRILHO (27/10/2026, pedido do usuário: "o menu
-             'amigos' que está no trilho vai para o menu da esquerda"). Não é
-             página: é uma FOLHA DE AÇÃO — leva à ficha e avisa o AmigosFab,
-             que abre o modal do pacto. Sem `secao` própria, para nunca
-             acender junto com "Ficha" no menu. */
-          { id: 'ficha_amigos', evento: 'menestrel:amigos', abre: { secao: 'ficha', filtro: 'ficha' },
-            rotulo: R('Amigos', 'Friends'), titulo: R('Amigos', 'Friends') },
-        ] },
+      /* A FICHA SEM GAVETA (02/11/2026, usuário: "Os menus 'identificação' e
+         'conhecimento' também vão ficar no trilho superior. Com isso, nenhum
+         menu ficará colapsado no menu lateral esquerdo"). Inventário saiu da
+         gaveta em 30/10/2026; Identificação e Conhecimento, agora — todas as
+         páginas do personagem moram no trilho da ficha. */
+      { id: 'ficha_ficha', secao: 'ficha', filtro: 'ficha',
+        rotulo: R('Ficha', 'Sheet'), titulo: R('Ficha', 'Sheet') },
+      /* FICHA, MESA E DIÁRIO (04/11/2026). Dois pedidos do usuário no mesmo
+         dia: "O menu 'companheiros' está no trilho superior para o
+         personagem, então pode remover do menu lateral esquerdo" e "O menu
+         mesa não está atualizado como fizemos para o mestre". Escolha do
+         usuário entre duas propostas: "Mesa + Diário em trilho".
+
+         · Companheiros saiu (com a árvore de bichos e as quatro páginas de
+           cada um): o botão do trilho da ficha abre a página dos bichos, e o
+           leque de cada um leva a Ficha, Identificação, Conhecimento e
+           Inventário.
+         · Mesa é um item só, a página da mesa. Loja e Amigos, que eram a
+           gaveta dela, também já são botões do trilho da ficha.
+         · Diário é um grupo de TRILHO, como a Ambientação do Mestre: um item
+           no menu lateral; Reinos, Cidades, Locais, Pessoas e Memórias na
+           pílula da página (10-shell, grupoDoTrilho). */
+      /* O `id` é o da seção para o ícone vir de ICONE_NAV; o rótulo sai do
+         caso do Jogador em `rotuloDe` ("aventuras" chama-se Mesa para ele). */
+      { id: 'aventuras', secao: 'aventuras' },
+      { ...diario(true), trilho: true },
     ],
     regras: [
       CRIATURAS, { ...COMERCIO, rotulo: R('Itens', 'Items') },

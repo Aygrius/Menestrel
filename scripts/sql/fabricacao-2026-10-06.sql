@@ -1,3 +1,9 @@
+-- ⚠ OBSOLETO PARA RE-GERAR (31/10/2026). NÃO rode o bloco de geração de novo.
+--   Depois dele vieram: receita por PEÇA de armadura (receita-por-peca-2026-10-31),
+--   testes por classe, materiais refinados e a conta pelo preço
+--   (materiais-refinados-2026-10-31), sem receita para itens mágicos. Re-gerar
+--   daqui recriaria receitas por cultura, Couro Animal no lugar do Couro e as
+--   quantidades fixas de 20. A tabela e as colunas continuam valendo.
 -- scripts/sql/fabricacao-2026-10-06.sql
 -- ============================================================================
 -- A BANCADA — receitas, teste e tempo de construção (06/10/2026)
@@ -154,27 +160,36 @@ begin
       'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇáàâãäéèêëíìîïóòôõöúùûüç',
       'aaaaaeeeeiiiiooooouuuucaaaaaeeeeiiiiooooouuuuc'));
 
+    -- JOIAS (31/10/2026): o nome não diz o metal de "Anel de Bardo" e afins,
+    -- e Cobre/Latão não estão nesta lista. Quem acerta as joias é
+    -- scripts/sql/joias-pedem-o-metal-2026-10-31.sql, pela BASE do item —
+    -- re-rodar este bloco exige rodar aquele depois.
+    -- PALAVRA INTEIRA (31/10/2026). Com '%x%', "casaco" casava como AÇO e
+    -- "couro" como OURO (o ouro vinha antes) — ver
+    -- scripts/sql/receitas-couro-certo-2026-10-31.sql. \m e \M são as
+    -- bordas de palavra do Postgres. E o couro é `couro_animal`: o
+    -- `couro_curtido` que esta régua pedia nunca existiu no catálogo.
     v_princ := case
-      when v_nome like '%aco%'      then 'aco'
-      when v_nome like '%ferro%'    then 'ferro'
-      when v_nome like '%bronze%'   then 'bronze'
-      when v_nome like '%prata%'    then 'prata'
-      when v_nome like '%ouro%'     then 'ouro_bruto'
-      when v_nome like '%couro%'    then 'couro_curtido'
-      when v_nome like '%algodao%'  then 'algodao'
-      when v_nome like '%linho%'    then 'linho'
-      when v_nome like '%seda%'     then 'seda'
-      when v_nome like '%canhamo%'  then 'canhamo'
-      when v_nome like '%marfim%'   then 'marfim_animal'
-      when v_nome like '%madeira%'  then 'madeira'
-      when v_nome like '%pedra%'    then 'pedra'
-      when v_nome like '%vidro%'    then 'vidro'
+      when v_nome ~ '\maco\M'      then 'aco'
+      when v_nome ~ '\mferro\M'    then 'ferro'
+      when v_nome ~ '\mbronze\M'   then 'bronze'
+      when v_nome ~ '\mprata\M'    then 'prata'
+      when v_nome ~ '\mouro\M'     then 'ouro_bruto'
+      when v_nome ~ '\mcouro\M'    then 'couro_animal'
+      when v_nome ~ '\malgodao\M'  then 'algodao'
+      when v_nome ~ '\mlinho\M'    then 'linho'
+      when v_nome ~ '\mseda\M'     then 'seda'
+      when v_nome ~ '\mcanhamo\M'  then 'canhamo'
+      when v_nome ~ '\mmarfim\M'   then 'marfim_animal'
+      when v_nome ~ '\mmadeira\M'  then 'madeira'
+      when v_nome ~ '\mpedra\M'    then 'pedra'
+      when v_nome ~ '\mvidro\M'    then 'vidro'
       when v_it.grupo = 'Armas'        then 'aco'
-      when v_it.grupo = 'Armaduras'    then (case when v_it.tipo_armadura = 'L' then 'couro_curtido' else 'aco' end)
+      when v_it.grupo = 'Armaduras'    then (case when v_it.tipo_armadura = 'L' then 'couro_animal' else 'aco' end)
       when v_it.grupo = 'Vestimentas'  then 'algodao'
       when v_it.grupo = 'Instrumentos' then 'madeira'
       when v_it.grupo = 'Recipientes'  then 'madeira'
-      when v_it.grupo = 'Arreios'      then 'couro_curtido'
+      when v_it.grupo = 'Arreios'      then 'couro_animal'
       else 'madeira'
     end;
 
@@ -197,14 +212,14 @@ begin
     if v_it.grupo = 'Armas' and v_princ <> 'madeira' then
       v_mats := v_mats || jsonb_build_array(
         jsonb_build_object('slug', 'madeira', 'qtd', greatest(2, round(v_it.ocupa)::int)));
-      if v_princ <> 'couro_curtido' then
-        v_mats := v_mats || jsonb_build_array(jsonb_build_object('slug', 'couro_curtido', 'qtd', 1));
+      if v_princ <> 'couro_animal' then
+        v_mats := v_mats || jsonb_build_array(jsonb_build_object('slug', 'couro_animal', 'qtd', 1));
       end if;
     end if;
 
     if v_it.grupo = 'Armaduras' and v_princ in ('aco','ferro','bronze','prata','ouro_bruto') then
       v_mats := v_mats || jsonb_build_array(
-        jsonb_build_object('slug', 'couro_curtido', 'qtd', greatest(1, round(v_it.ocupa / 2)::int)));
+        jsonb_build_object('slug', 'couro_animal', 'qtd', greatest(1, round(v_it.ocupa / 2)::int)));
     end if;
 
     v_cordas := v_it.grupo = 'Instrumentos' and (
@@ -219,7 +234,7 @@ begin
     end if;
 
     if v_it.grupo = 'Arreios' and v_princ in ('aco','ferro','bronze') then
-      v_mats := v_mats || jsonb_build_array(jsonb_build_object('slug', 'couro_curtido', 'qtd', 2));
+      v_mats := v_mats || jsonb_build_array(jsonb_build_object('slug', 'couro_animal', 'qtd', 2));
     end if;
 
     /* O PRAZO SAI DA RAIZ DO VALOR (06/10/2026), em duas correções do usuário:
@@ -285,7 +300,7 @@ update public.itens set grupo = 'Minerais'
 
 update public.itens set grupo = 'Consumíveis'
  where slug in ('madeira', 'algodao', 'linho', 'canhamo', 'seda',
-                'corda_material', 'couro_curtido', 'vidro');
+                'corda_material', 'couro_animal', 'vidro');
 
 -- O arreamento que PROTEGE o bicho (os cinco com absorção) → Armaduras.
 update public.itens set grupo = 'Armaduras'

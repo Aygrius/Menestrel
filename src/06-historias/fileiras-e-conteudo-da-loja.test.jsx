@@ -29,7 +29,6 @@ import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/select-pill.jsx';
-import '../01-core/lojas-cidade.jsx';
 import '../01-core/game-data.jsx';
 import '../10-shell/shell.jsx';
 import '../07-inventario/inventario.jsx';
@@ -192,7 +191,8 @@ describe('a língueta de cada fileira, na tela do Mestre', () => {
     const col = document.querySelector('.estoque-linguetas');
     expect(col.nextElementSibling.classList.contains('inv-grid-wrap')).toBe(true);
     // As fileiras vazias guardam a vaga, senão a língueta aponta para a fileira errada.
-    expect(document.querySelectorAll('.estoque-lingueta-vaga').length).toBe(4);
+    // 8 fileiras desde 04/11/2026 (eram 6), como o baú do personagem: 2 com item, 6 vagas.
+    expect(document.querySelectorAll('.estoque-lingueta-vaga').length).toBe(6);
     expect(etiquetas()[0].querySelector('.ti-lock-open')).toBeTruthy();
   });
 
@@ -243,7 +243,8 @@ describe('mudar o item de casa, na tela do Mestre', () => {
       const b = botaoPorRotulo(/Mudar de casa/);
       expect(b).toBeTruthy(); return b;
     });
-    expect(mover.textContent).toMatch(/fileira 1/);          // onde ele está hoje
+    // Desde 30/10/2026 é uma bolha do leque: a fileira vai no rótulo dela.
+    expect(mover.getAttribute('aria-label')).toMatch(/fileira 1/);   // onde ele está hoje
     fireEvent.click(mover);
 
     // Com o item na mão, a casa vazia vira destino e diz a fileira que é.

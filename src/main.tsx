@@ -42,7 +42,6 @@ import './01-core/forma-raca.jsx'
 import './01-core/select-pill.jsx'       // o dropdown único do sistema (25/09/2026)
 import './01-core/supabase.jsx'
 import './01-core/clima-desgaste.jsx'   // o relógio da mesa desgasta o PJ (20/09/2026)
-import './01-core/lojas-cidade.jsx'    // o que cada cidade vende, lido da economia dela (28/10/2026)
 import './01-core/game-data.jsx'
 import './01-core/tecnicas-efeito.jsx'
 import './01-core/magias-efeito.jsx'
@@ -60,7 +59,7 @@ import './05-convites/convites.jsx'
 import './06-historias/historias.jsx'
 import './07-inventario/inventario.jsx'
 import './07-inventario/loja.jsx'
-import './07-inventario/fabricar.jsx'          // a aba Fabricar, vitrine da bancada
+import './07-inventario/fabricar.jsx'          // o corpo da receita (a bancada mora na atividade Fabricar)
 import './06-historias/estoque-mestre.jsx'        
 import './08-personagens/personagens.jsx'
 import './08-personagens/guia_personagem.jsx'
@@ -75,6 +74,7 @@ import './10-shell/shell.jsx'
 import './10-shell/galeria-imagens.jsx'
 // Atalhos flutuantes (Habilidade/Magia/Item) ANTES da ficha, que os monta.
 import './11-ficha/atalhos-ficha.jsx'
+import './11-ficha/paginas-ficha.jsx'       // Status, Atividades, Habilidades… em casas (02/11/2026)
 import './11-ficha/amigos-fab.jsx'
 import './11-ficha/ficha.jsx'
 import '../app.jsx'

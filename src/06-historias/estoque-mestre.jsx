@@ -6,10 +6,10 @@
      (o nome da cidade/local). A Loja do jogador mostra só a loja da cidade
      onde a mesa está (get_loja_pj) — desde 28/10/2026 a loja SEM cidade não
      aparece mais em lugar nenhum, a pedido do usuário.
-   - "Abrir lojas das cidades" (28/10/2026) cria de uma vez a loja de cada
-     lugar desta aventura que é cidade no catálogo, com o estoque lido da
-     ECONOMIA dela (01-core/lojas-cidade.jsx) e ilimitado. É sugestão: depois
-     de criada, a loja é do Mestre e cada item se edita como sempre.
+   - Toda cidade e todo reino do catálogo têm loja FIXA, criada vazia ao
+     abrir o Estoque e sem botão de excluir (30/10/2026). O "+" que criava
+     loja escolhendo a cidade saiu junto, e o "Refazer estoque pela
+     economia" também (30/10/2026): o Mestre monta cada loja à mão.
    - O estoque usa as mesmas casas e o mesmo painel do Inventário.
    - Propostas: as vendas propostas pelos jogadores (anuncios_loja com status
      'proposta'/'contraproposta'). Aceitar paga o jogador e põe o item no
@@ -29,6 +29,75 @@ function estNovoId() {
   return Date.now().toString() + '-' + Math.random().toString(36).slice(2, 8);
 }
 const estSemAcento = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+/* ── AS LOJAS FIXAS (30/10/2026) — regras puras ───────────────────────────
+   "Crie uma 'loja' para cada cidade e reino cadastrados no sistema, essas
+   lojas são fixas e não podem ser excluídas." (usuário)
+
+   lugaresComLoja: os nomes de cidades e reinos, sem repetir (uma cidade e
+     um reino com o mesmo nome dividem a loja — o local da mesa é texto, e a
+     Loja do jogador não teria como separar as duas) e em ordem alfabética.
+   lojasQueFaltam: os lugares que ainda não têm loja. Compara sem acento e
+     sem caixa, como o "+" fazia — "Saravossa" e "saravossa" são a mesma.
+   lojaEhFixa: a loja de um desses lugares. */
+function lugaresComLoja(cidades, reinos) {
+  const vistos = new Set();
+  const nomes = [];
+  [...(cidades || []), ...(reinos || [])].forEach((l) => {
+    const nome = String((l && l.nome) || '').trim();
+    const chave = estSemAcento(nome);
+    if (!nome || vistos.has(chave)) return;
+    vistos.add(chave);
+    nomes.push(nome);
+  });
+  return nomes.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+function lojasQueFaltam(comercios, lugares) {
+  const tem = new Set((comercios || []).map((c) => estSemAcento(c.lugar || c.nome)));
+  return (lugares || []).filter((n) => !tem.has(estSemAcento(n)));
+}
+function lojaEhFixa(loja, lugares) {
+  if (!loja) return false;
+  const chave = estSemAcento(loja.lugar || loja.nome);
+  return !!chave && (lugares || []).some((n) => estSemAcento(n) === chave);
+}
+
+/* ── A QUANTIDADE SE DIGITA (29/10/2026) ────────────────────────────────────
+   "Eu quero mudar a quantidade do item na loja como eu mudo o preço, além dos
+   botões + e -, eu posso digitar o número manualmente." (usuário)
+
+   O número do meio do stepper vira campo, como no CampoPreco
+   (07-inventario/inventario.jsx). Diferença: o preço grava a cada tecla, e
+   aqui cada gravação relê e regrava a loja inteira — então o número só vale
+   ao sair do campo ou no Enter. Esc desiste. Vazio ou "∞" = ilimitado, o
+   mesmo degrau abaixo do zero que o "−" já alcança. */
+function EstoqueDigitavel({ estoque, disabled, label, onConfirmar }) {
+  const atual = estoque == null ? '∞' : String(estoque);
+  const [texto, setTexto] = React.useState(null);   // null = mostra o gravado
+  // O Esc desiste ANTES do blur, e o blur ainda enxerga o texto da renderização.
+  const desistiu = React.useRef(false);
+  const confirmar = () => {
+    if (desistiu.current) { desistiu.current = false; setTexto(null); return; }
+    if (texto == null) return;
+    const t = texto.trim();
+    setTexto(null);
+    if (t === atual) return;
+    if (t === '' || t === '∞') { onConfirmar(null); return; }
+    const n = parseInt(t, 10);
+    if (Number.isFinite(n) && n >= 0) onConfirmar(n);
+  };
+  return (
+    <input className="campo-preco-input" type="text" inputMode="numeric" aria-label={label}
+      value={texto == null ? atual : texto} disabled={disabled}
+      onFocus={(e) => { setTexto(atual === '∞' ? '' : atual); e.target.select(); }}
+      onChange={(e) => setTexto(e.target.value.replace(/[^\d∞]/g, ''))}
+      onBlur={confirmar}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') { e.stopPropagation(); desistiu.current = true; e.currentTarget.blur(); }
+      }} />
+  );
+}
 
 /* ── FILEIRAS DE DEZ, ABERTAS OU FECHADAS (29/10/2026) ──────────────────────
    "A cada 10 slots de uma loja, eu tenho como abrir ou fechar a loja. Por
@@ -119,7 +188,7 @@ function estComFileira(comercio, f, aberta) {
   return { ...comercio, fileiras: flags };
 }
 
-function EstoqueMestreView({ historia, lang, onChanged }) {
+function EstoqueMestreView({ historia, lang, onChanged, trilhoPaginas = null }) {
   const en = lang === 'en';
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const migrar = window.migrarEstoqueLoja || ((x) => x || { comercios: [] });
@@ -172,15 +241,21 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
      desenha com a cara dele e nenhum CSS nosso alcança (tooltip-padrao.test.js). */
   const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const [sel, setSel] = useState(null);             // { tipo: 'entrada'|'catalogo', id }
-  const [novaLoja, setNovaLoja] = useState(null);   // texto do + no trilho
+  /* O LEQUE NO ESTOQUE (30/10/2026, usuário: "Porque o leque não está lá
+     para o mestre?"). Clicar na casa mostra o item no painel E abre o leque
+     com as ações — que saíram do painel, onde ficam só os campos.
+     { tipo, id, ancora } */
+  const [lequeEst, setLequeEst] = useState(null);
   const [propostas, setPropostas] = useState(null);
   const [erro, setErro] = useState(null);
   const [ocupado, setOcupado] = useState(false);
+  const [propSel, setPropSel] = useState(null);       // id da proposta aberta no painel (04/11/2026)
   const [contra, setContra] = useState({});         // id -> latão da contraproposta
   const [destino, setDestino] = useState({});       // id -> comercio id
   const alvoTrilho = (typeof useAlvoPortal === 'function') ? useAlvoPortal('estoque-trilho-slot') : null;
   void alvoTrilho;
-  const [abrindoCidades, setAbrindoCidades] = useState(false);
+  const [lugares, setLugares] = useState(null);    // cidades e reinos que ganham loja (sem ruína)
+  const [lugaresFixos, setLugaresFixos] = useState(null); // todos, ruína incluída: a loja deles não se exclui
   const [recado, setRecado] = useState(null);
 
   // catálogo inteiro
@@ -205,32 +280,42 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
     return () => window.removeEventListener('keydown', esc, true);
   }, [movendo]);
 
-  /* ── ABRIR AS LOJAS DAS CIDADES (28/10/2026, pedido do usuário) ─────────
-     "Para cada cidade do sistema, haverá uma loja aberta com itens à venda de
-     forma fixa" — e, perguntado o que define a lista, "pela economia da
-     cidade".
+  /* ── A CIDADE DA LOJA NOVA (29/10/2026, pedido do usuário) ──────────────
+     "Ao criar uma loja nova, eu devo selecionar qual cidade aquela loja
+     pertence. Não precisa de botão 'lojas das cidades'."
 
-     Quais cidades: as que esta aventura visita (`historia.lugares`) e que
-     existem no catálogo de cidades. Um lugar que não é cidade — "Montes
-     Crássios", "Deserto do Real" — não ganha loja, e está certo.
+     O "+" era um campo de texto, e a cidade digitada só valia se batesse
+     letra a letra com o local da mesa — um acento a menos e a loja nunca
+     aparecia para os jogadores. Agora a cidade vem do CATÁLOGO, a mesma
+     tabela de onde sai o local da mesa.
 
-     O filtro por dono é o mesmo do seletor de lugares do shell: o mundo
+     O filtro por dono é o do seletor de lugares do shell: o mundo
      (historia_id nulo) mais as aventuras deste Mestre. Sem ele, a RLS deixa
-     ler cidade de Mestre alheio.
+     ler cidade de Mestre alheio. Ruína (população zero) não entra: não tem
+     quem venda. */
+  /* ── TODA CIDADE E TODO REINO TÊM LOJA, FIXA (30/10/2026) ───────────────
+     "Crie uma 'loja' para cada cidade e reino cadastrados no sistema, essas
+     lojas são fixas e não podem ser excluídas." (usuário)
 
-     Não toca em loja que já existe: a regra de uma loja por cidade é a mesma
-     do botão "+", e reescrever o estoque que o Mestre ajustou seria perder o
-     trabalho dele. */
-  const abrirLojasDasCidades = async () => {
-    const montar = window.lojaDaCidade, temLoja = window.cidadeTemLoja;
-    if (!montar || !temLoja || !catalogo) return;
-    setAbrindoCidades(true); setErro(null); setRecado(null);
-    try {
-      const lugares = Array.isArray(historia.lugares) ? historia.lugares : [];
-      if (!lugares.length) {
-        setRecado(en ? 'This story has no places yet.' : 'Esta aventura ainda não tem lugares.');
-        return;
-      }
+     O "+" que criava loja escolhendo a cidade saiu: ao abrir o Estoque, as
+     que faltam nascem sozinhas, VAZIAS (decisão do usuário — o Mestre enche
+     à mão). Reino entra porque o local
+     da mesa também pode ser um reino, e a Loja do jogador é a do local
+     (get_loja_pj compara o `lugar` com ele).
+
+     "Fixa" não é campo gravado: é a loja cujo lugar é uma cidade ou reino do
+     catálogo (lojaEhFixa). Se a cidade sair do catálogo, a loja dela deixa de
+     ser fixa e pode ser excluída — e loja sem cidade continua excluível.
+
+     RUÍNA NÃO GANHA LOJA, MAS A QUE JÁ TEM NÃO SE EXCLUI (31/10/2026,
+     usuário: "Lojas de cidades e reinos não podem ser excluídas, vejo que a
+     loja Deiamon tem a exclusão habilitada"). Deiamon é ruína (população 0):
+     o filtro de ruína servia para não CRIAR loja, e acabava tirando a loja
+     que já existia da lista das fixas. Agora são duas listas — `lugares`
+     cria, `lugaresFixos` (toda cidade e todo reino) protege. */
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
       let meus = [historia.id];
       try {
         const { data: au } = await supabaseClient.auth.getUser();
@@ -240,93 +325,39 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
           (hs || []).forEach((h) => { if (!meus.includes(h.id)) meus.push(h.id); });
         }
       } catch (_) { /* sem sessão: fica só esta aventura */ }
-      const { data: cids, error: eC } = await supabaseClient.from('cidades')
-        .select('nome, populacao, economia')
-        .or(`historia_id.is.null,historia_id.in.(${meus.join(',')})`);
-      if (eC) { setErro(eC.message); return; }
-      const doLugar = (nome) => (cids || []).find((c) => estSemAcento(c.nome) === estSemAcento(nome));
-      /* ── POR QUE NADA FOI ABERTO (28/10/2026) ───────────────────────────
-         "Ao clicar em 'lojas das cidades' aparece a mensagem 'Toda cidade
-         desta aventura já tem loja.'" (usuário) — e, no caso dele, era
-         verdade: as nove lojas já existiam, criadas no clique anterior. Mas
-         a mesma frase saía em TRÊS situações diferentes: já existirem, nenhum
-         lugar ser cidade do catálogo, e todas as cidades serem ruína.
+      const filtro = `historia_id.is.null,historia_id.in.(${meus.join(',')})`;
+      const [{ data: cids }, { data: reis }] = await Promise.all([
+        supabaseClient.from('cidades').select('nome, populacao').or(filtro),
+        supabaseClient.from('reinos').select('nome').or(filtro),
+      ]);
+      if (!vivo) return;
+      const temLoja = (c) => !(c.populacao != null && Number(c.populacao) === 0);
+      setLugares(lugaresComLoja((cids || []).filter(temLoja), reis || []));
+      setLugaresFixos(lugaresComLoja(cids || [], reis || []));
+    })();
+    return () => { vivo = false; };
+  }, [historia.id]);
 
-         Uma mensagem que mente sobre o motivo é pior que nenhuma: manda
-         procurar o problema no lugar errado. Agora cada caso é contado, e a
-         frase diz qual deles aconteceu — e, quando já existem, diz QUANTAS e
-         onde escolhê-las, que era a pergunta seguinte do usuário. */
-      const conta = { jaTem: 0, naoEhCidade: 0, ruina: 0 };
-      const novas = [];
-      lugares.forEach((lugar) => {
-        const cid = doLugar(lugar);
-        if (!cid) { conta.naoEhCidade += 1; return; }
-        if (!temLoja(cid)) { conta.ruina += 1; return; }
-        if (comercios.some((c) => estSemAcento(c.lugar || c.nome) === estSemAcento(lugar))) {
-          conta.jaTem += 1; return;
-        }
-        if (novas.some((c) => estSemAcento(c.lugar) === estSemAcento(lugar))) return;
-        novas.push(montar(cid, catalogo, estNovoId));
-      });
-      if (!novas.length) {
-        /* JÁ EXISTIREM NÃO É RECADO (28/10/2026, usuário: "remova o texto 'As
-           9 loja(s) de cidade já existem — escolha no seletor ao lado'").
-
-           A frase nasceu quando o seletor estava fora da tela e o Mestre não
-           achava as lojas. Com o seletor à vista, ela virou ruído: dizer que
-           existe o que está ali na lista não informa nada. Nada a abrir, nada
-           a dizer.
-
-           As outras duas continuam, porque explicam uma AUSÊNCIA — por que o
-           botão não fez nada quando parecia que devia fazer. */
-        if (!conta.jaTem) {
-          setRecado(conta.ruina && !conta.naoEhCidade
-            ? (en ? 'No inhabited city among this story\'s places.'
-                  : 'Nenhuma cidade habitada entre os lugares desta aventura.')
-            : (en ? 'No place in this story is a city in the catalog.'
-                  : 'Nenhum lugar desta aventura é cidade do catálogo.'));
-        }
-        return;
-      }
-      const ok = await alterar((x) => ({ ...x, comercios: [...x.comercios, ...novas] }));
-      if (ok) {
-        setLojaId(novas[0].id); setAba('loja'); setSel(null);
-        setRecado(en ? `${novas.length} shop(s) opened.` : `${novas.length} loja(s) aberta(s).`);
-      }
-    } finally { setAbrindoCidades(false); }
-  };
-
-  /* ── REFAZER O ESTOQUE PELA ECONOMIA (28/10/2026) ───────────────────────
-     As lojas que o botão criou antes do teto de 60 ficaram enormes — Haafel
-     com 240 itens, Saupami com 221. Sem uma forma de reaplicar a regra, o
-     Mestre teria de apagar e recriar cada uma, ou tirar item por item.
-
-     É uma ação do PAINEL, não do trilho, e por loja: refaz só a que está
-     aberta, e só quando o Mestre pede. Ela SOBRESCREVE o estoque daquela
-     loja — por isso não é automática e por isso o botão diz o que vai
-     acontecer. */
-  const refazerEstoqueDaLoja = async () => {
-    const montar = window.lojaDaCidade;
-    const alvo = comercios.find((c) => c.id === lojaId) || comercios[0];
-    if (!montar || !catalogo || !alvo || !alvo.lugar) return;
-    setErro(null); setRecado(null);
-    const { data: cids, error: eC } = await supabaseClient.from('cidades')
-      .select('nome,populacao,economia');
-    if (eC) { setErro(eC.message); return; }
-    const cid = (cids || []).find((c) => estSemAcento(c.nome) === estSemAcento(alvo.lugar));
-    if (!cid) {
-      setRecado(en ? 'This shop\'s city is not in the catalog.'
-        : 'A cidade desta loja não está no catálogo.');
-      return;
-    }
-    const nova = montar(cid, catalogo, () => alvo.id);
-    const ok = await alterar(naLoja(alvo.id, (c) => ({ ...c, itens: nova.itens })));
-    if (ok) {
-      setSel(null);
-      setRecado(en ? `Stock rebuilt: ${nova.itens.length} item(s).`
-        : `Estoque refeito: ${nova.itens.length} item(ns).`);
-    }
-  };
+  /* As que faltam nascem uma vez por abertura. `alterar` relê o banco antes
+     de gravar, e a conta se refaz LÁ DENTRO, sobre o estoque relido: duas
+     telas abertas ao mesmo tempo não criam a mesma loja duas vezes. */
+  const criouLojas = React.useRef(false);
+  useEffect(() => {
+    if (!lugares || criouLojas.current) return;
+    if (!lojasQueFaltam(est && est.comercios, lugares).length) return;
+    criouLojas.current = true;
+    /* `global: true` (30/10/2026, usuário: "A loja fixa das cidades e reinos
+       são globais [...] apenas na conta do mestre"). O banco sincroniza a loja
+       global entre as mesas do mesmo Mestre e a recém-criada nasce com o
+       estoque das outras (_menestrel_lojas_globais) — por isso o `itens: []`
+       daqui não apaga nada. Loja nova feita na mesa não leva a marca. */
+    alterar((x) => ({
+      ...x,
+      comercios: [...x.comercios, ...lojasQueFaltam(x.comercios, lugares)
+        .map((nome) => ({ id: estNovoId(), nome, lugar: nome, ativo: true, global: true, itens: [] }))],
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lugares]);
 
   const comercios = (est && est.comercios) || [];
   const loja = comercios.find((c) => c.id === lojaId) || comercios[0] || null;
@@ -397,9 +428,14 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
      Mestre uma casa vazia para onde mover. Com busca, a grade é o resultado da
      busca (mais o catálogo para adicionar), e aí as etiquetas saem de cena. */
   const comEtiquetas = !termo && !!loja;
+  /* OITO FILEIRAS, COMO O BAÚ DO PERSONAGEM (04/11/2026, usuário: "Na loja do
+     mestre, deve ter 8 linhas igual no inventário e loja do personagem").
+     Eram 6. O número é o LINHAS_BAU do 07-inventario, o mesmo do Inventário e
+     da Loja da ficha — os três baús andam juntos. */
+  const LINHAS = window.LINHAS_BAU || 8;
   const total = termo
-    ? Math.max(COLS * 6, Math.ceil((visiveis.length + doCatalogo.length + 1) / COLS) * COLS)
-    : Math.max(COLS * 6, Math.ceil((maiorCasa + 2) / COLS) * COLS);
+    ? Math.max(COLS * LINHAS, Math.ceil((visiveis.length + doCatalogo.length + 1) / COLS) * COLS)
+    : Math.max(COLS * LINHAS, Math.ceil((maiorCasa + 2) / COLS) * COLS);
   const casas = termo
     ? [
       ...visiveis.map(naCasa),
@@ -432,8 +468,10 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
 
   // ── o trilho
   const trilho = (
-    <div className="cartoes-barra inv-trilho estoque-trilho">
+    <div className={'cartoes-barra inv-trilho estoque-trilho' + (trilhoPaginas ? ' trilho-unido' : '')}>
       <div className="best-header-acoes">
+        {/* As páginas da Mesa (Cena, Batalha, Loja) no início do trilho (04/11/2026). */}
+        {trilhoPaginas}
         {aba === 'loja' && (
           <div className="best-search">
             <i className="ti ti-eye busca-ic" aria-hidden="true" />
@@ -502,40 +540,8 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
           {pendentes.length > 0 && <span className="estoque-num">{pendentes.length}</span>}
         </button>
 
-        {/* Abre de uma vez a loja de cada cidade da aventura, com o estoque
-            lido da economia dela. Fica junto do "+" porque as duas criam
-            loja: uma à mão, a outra pelo catálogo. */}
-        <button type="button" className="mc-acao" disabled={abrindoCidades || ocupado || !catalogo}
-          onClick={abrirLojasDasCidades}
-          aria-label={en ? 'Open city shops' : 'Abrir lojas das cidades'}>
-          <i className={'ti ' + (abrindoCidades ? 'ti-loader-2' : 'ti-map-pin-plus')} aria-hidden="true" />
-          <span className="mc-acao-rotulo">{en ? 'City shops' : 'Lojas das cidades'}</span>
-        </button>
-
-        {novaLoja != null ? (
-          <form className="estoque-nova" onSubmit={async (e) => {
-            e.preventDefault();
-            const nome = novaLoja.trim(); if (!nome) { setNovaLoja(null); return; }
-            /* UMA LOJA POR CIDADE (26/10/2026, pedido do usuário: "teremos
-               fixo 1 loja por cidade"). Sem a trava, duas lojas na mesma
-               cidade dividiriam a vitrine do jogador — ele veria metade do
-               estoque em cada uma e nenhuma das duas estaria errada.
-               Cidade já cadastrada: em vez de recusar, ABRE a que existe. */
-            const jaTem = comercios.find((c) => estSemAcento(c.lugar || c.nome) === estSemAcento(nome));
-            if (jaTem) { setLojaId(jaTem.id); setAba('loja'); setNovaLoja(null); return; }
-            const id = estNovoId();
-            const ok = await alterar((x) => ({ ...x, comercios: [...x.comercios, { id, nome, lugar: nome, ativo: true, itens: [] }] }));
-            if (ok) { setLojaId(id); setAba('loja'); }
-            setNovaLoja(null);
-          }}>
-            <input autoFocus value={novaLoja} onChange={(e) => setNovaLoja(e.target.value)} placeholder={en ? 'City' : 'Cidade'}
-              onKeyDown={(e) => { if (e.key === 'Escape') setNovaLoja(null); }} aria-label={en ? 'New shop city' : 'Cidade da nova loja'} />
-          </form>
-        ) : (
-          <button type="button" className="mc-acao" onClick={() => setNovaLoja('')} aria-label={en ? 'New shop' : 'Nova loja'}>
-            <i className="ti ti-plus" aria-hidden="true" />
-          </button>
-        )}
+        {/* O "Nova loja" saiu em 30/10/2026: toda cidade e todo reino já têm
+            a sua, criada sozinha ao abrir o Estoque (ver lojasQueFaltam). */}
       </div>
       {/* O que a ação fez, na mesma linha do erro: "3 lojas abertas" ou "toda
           cidade já tem loja". Some ao primeiro clique seguinte. */}
@@ -643,21 +649,14 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
     if (!escolhida) {
       return (
         <div className="estoque-painel-corpo">
+          {/* Sem o ícone ao lado do nome, também na loja (31/10/2026, usuário,
+              com print: "ainda aparece o ícone na loja junto com o nome"). */}
           <div className="loja-painel-cab">
-            <span className="loja-painel-ic"><i className="ti ti-building-store" aria-hidden="true" /></span>
             <div>
               <h3 className="loja-painel-nome">{loja.lugar || loja.nome}</h3>
               <p className="loja-painel-sub">{entradas.length} {en ? 'items' : 'itens'}</p>
             </div>
           </div>
-          {/* Só faz sentido com cidade: a regra lê a ECONOMIA dela. */}
-          {loja.lugar && (
-            <button type="button" className="estoque-refazer" disabled={ocupado || !catalogo}
-              onClick={refazerEstoqueDaLoja}>
-              <i className="ti ti-refresh" aria-hidden="true" />
-              {en ? 'Rebuild stock from the economy' : 'Refazer estoque pela economia'}
-            </button>
-          )}
           {/* ── A CIDADE NÃO É UM CAMPO, EM NENHUM CASO (29/10/2026) ─────────
               "Se a loja já existe com o nome da cidade, não preciso dizer ali
               em qual cidade ela está." (usuário, reafirmando o pedido anterior)
@@ -670,15 +669,29 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
 
               A loja legada "Estoque", que veio do formato antigo sem cidade
               (migrarEstoqueLoja), continua com saída: "Excluir esta loja" —
-              liberado logo abaixo mesmo quando ela é a única — e o botão "Lojas
-              das cidades", que abre as lojas certas com o estoque da economia
-              de cada cidade. */}
+              liberado logo abaixo mesmo quando ela é a única — e as lojas fixas
+              de cada cidade e reino, que nascem sozinhas. */}
           <dl className="loja-painel-dados">
+            {/* SIM | NÃO NA PÍLULA DO SELETOR (31/10/2026, usuário: "pode ser
+                um botão parecido com o seletor de quantidade, mas em pílula
+                com Sim ou Não"). A mesma casca do QuantidadeStepper
+                (.fp-pop-stepper, 160px como a quantidade e o preço), com as
+                duas respostas à vista: a valendo acende em ouro, e clicar na
+                outra troca. Antes era um botão só, que dizia o estado e
+                escondia a outra opção. */}
             <div><dt>{en ? 'Open' : 'Aberta'}</dt><dd>
-              <button type="button" className={'estoque-chave' + (loja.ativo !== false ? ' is-on' : '')} disabled={ocupado}
-                onClick={() => alterar(naLoja(loja.id, (c) => ({ ...c, ativo: c.ativo === false })))}>
-                {loja.ativo !== false ? (en ? 'Yes' : 'Sim') : (en ? 'No' : 'Não')}
-              </button>
+              <div className="fp-pop-stepper estoque-step estoque-sim-nao" role="radiogroup" aria-label={en ? 'Open' : 'Aberta'}>
+                {[[true, en ? 'Yes' : 'Sim'], [false, en ? 'No' : 'Não']].map(([valor, rot]) => {
+                  const marcada = (loja.ativo !== false) === valor;
+                  return (
+                    <button key={rot} type="button" role="radio" aria-checked={marcada}
+                      className={'estoque-sim-nao-op' + (marcada ? ' is-on' : '')} disabled={ocupado}
+                      onClick={() => { if (!marcada) alterar(naLoja(loja.id, (c) => ({ ...c, ativo: valor }))); }}>
+                      {rot}
+                    </button>
+                  );
+                })}
+              </div>
             </dd></div>
           </dl>
           <p className="loja-painel-desc">{en ? 'Choose an item to edit it, or search to add one from the catalog.' : 'Escolha um item para editá-lo, ou busque para pôr um do catálogo.'}</p>
@@ -687,10 +700,16 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
               pelo painel; se ela fosse a única loja, a trava `length > 1`
               deixava o Mestre preso com uma loja que jogador nenhum vê. A tela
               sem loja já tem seu vazio ("Nenhuma loja ainda. Crie uma pelo +"). */}
-          <button type="button" className="btn-ghost btn-sm estoque-excluir" disabled={ocupado}
-            onClick={async () => { if (await alterar((x) => ({ ...x, comercios: x.comercios.filter((c) => c.id !== loja.id) }))) setLojaId(null); }}>
-            <i className="ti ti-trash" aria-hidden="true" /> {en ? 'Delete this shop' : 'Excluir esta loja'}
-          </button>
+          {/* LOJA DE CIDADE OU REINO NÃO SE EXCLUI (30/10/2026, usuário: "essas
+              lojas são fixas e não podem ser excluídas"). Sem `lugaresFixos`
+              carregado ainda, o botão espera — mostrá-lo e tirá-lo um instante
+              depois seria oferecer o que não se pode. */}
+          {lugaresFixos && !lojaEhFixa(loja, lugaresFixos) && (
+            <button type="button" className="btn-ghost btn-sm estoque-excluir" disabled={ocupado}
+              onClick={async () => { if (await alterar((x) => ({ ...x, comercios: x.comercios.filter((c) => c.id !== loja.id) }))) setLojaId(null); }}>
+              <i className="ti ti-trash" aria-hidden="true" /> {en ? 'Delete this shop' : 'Excluir esta loja'}
+            </button>
+          )}
         </div>
       );
     }
@@ -699,22 +718,13 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
       return (
         <div className="estoque-painel-corpo">
           <div className="loja-painel-cab">
-            <span className="loja-painel-ic"><i className={'ti ' + icone(cat)} aria-hidden="true" /></span>
             <div><h3 className="loja-painel-nome">{cat.nome}</h3>{cat.grupo && <p className="loja-painel-sub">{cat.grupo}</p>}</div>
           </div>
           <dl className="loja-painel-dados">
             <div><dt>{en ? 'Price' : 'Preço'}</dt><dd>{porExtenso(Number(cat.valor_latao) || 0)}</dd></div>
           </dl>
           {cat.descricao && <p className="loja-painel-desc">{cat.descricao}</p>}
-          <button type="button" className="btn-primary loja-painel-botao" disabled={ocupado}
-            onClick={async () => {
-              const entryId = estNovoId();
-              // estComCasas carimba a casa do recém-chegado — a primeira vaga.
-              const ok = await alterar(naLoja(loja.id, (c) => estComCasas({ ...c, itens: [...c.itens, { slug: cat.slug, entryId, estoque: 1, preco_latao_override: null }] })));
-              if (ok) { setBusca(''); setSel({ tipo: 'entrada', id: entryId }); }
-            }}>
-            {en ? 'Put in the shop' : 'Pôr na loja'}
-          </button>
+          {/* "Pôr na loja" saiu do painel para o leque (30/10/2026). */}
         </div>
       );
     }
@@ -737,8 +747,9 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
     };
     return (
       <div className="estoque-painel-corpo">
+        {/* Sem o ícone ao lado do nome (31/10/2026, usuário, com print deste
+            painel): vale para o painel do item do catálogo, logo acima. */}
         <div className="loja-painel-cab">
-          <span className="loja-painel-ic"><i className={'ti ' + icone(cat)} aria-hidden="true" /></span>
           <div><h3 className="loja-painel-nome">{cat.nome}</h3>{cat.grupo && <p className="loja-painel-sub">{cat.grupo}</p>}</div>
         </div>
         <dl className="loja-painel-dados">
@@ -746,9 +757,9 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
               "Remova o campo 'ilimitado'." (usuário)
 
               A chave Sim/Não saiu, mas o ESTOQUE ILIMITADO não podia sair com
-              ela: `estoque: null` é como toda loja de cidade nasce (ver
-              01-core/lojas-cidade.jsx, "de forma fixa"), e sem um caminho de
-              volta elas ficariam presas no ∞ para sempre.
+              ela: `estoque: null` é como as lojas de cidade montadas pela
+              economia nasciam, e sem um caminho de volta elas ficariam presas
+              no ∞ para sempre.
 
               Então o ilimitado virou o degrau abaixo do zero, na própria
               Quantidade: "−" em 0 mostra ∞, "+" no ∞ volta para 1. Um
@@ -760,7 +771,9 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
                 value={ilimitado ? -1 : (Number(it.estoque) || 0)}
                 min={-1}
                 disabled={ocupado}
-                centro={ilimitado ? '∞' : (Number(it.estoque) || 0)}
+                centro={<EstoqueDigitavel estoque={ilimitado ? null : (Number(it.estoque) || 0)}
+                  disabled={ocupado} label={en ? 'Quantity' : 'Quantidade'}
+                  onConfirmar={(n) => setEntrada({ estoque: n })} />}
                 /* Saindo do ∞ (−1), o "+" cai em 0 — e 0 é esgotado, não "um
                    item à venda": o degrau de volta tem de ser 1, como diz o
                    comentário acima. Dentro da escada normal, 0 continua sendo
@@ -787,74 +800,165 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
             com busca a grade não é o mapa de casas e não haveria para onde
             soltar. A fileira atual vai no rótulo: é o que o Mestre veio
             decidir. */}
-        <button type="button" className={'estoque-mover' + (movendo === it.entryId ? ' is-ativo' : '')}
-          disabled={ocupado}
-          onClick={() => { setBusca(''); setMovendo(movendo === it.entryId ? null : it.entryId); }}>
-          <i className={'ti ' + (movendo === it.entryId ? 'ti-target' : 'ti-arrows-move')} aria-hidden="true" />
-          {movendo === it.entryId
-            ? (en ? 'Pick a slot — Esc cancels' : 'Escolha a casa — Esc desiste')
-            : (en ? `Move slot (row ${(fileiraPorEntry[it.entryId] || 0) + 1})` : `Mudar de casa (fileira ${(fileiraPorEntry[it.entryId] || 0) + 1})`)}
-        </button>
+        {/* Mudar de casa começa no leque (30/10/2026); aqui fica só o aviso
+            de que o item está na mão, que também desiste. */}
+        {movendo === it.entryId && (
+          <button type="button" className="estoque-mover is-ativo" disabled={ocupado}
+            onClick={() => setMovendo(null)}>
+            <i className="ti ti-target" aria-hidden="true" />
+            {en ? 'Pick a slot — Esc cancels' : 'Escolha a casa — Esc desiste'}
+          </button>
+        )}
         {painelDentro(it, cat, mudarDentro)}
         {cat.descricao && <p className="loja-painel-desc">{cat.descricao}</p>}
-        <button type="button" className="btn-ghost btn-sm estoque-excluir" disabled={ocupado}
-          onClick={async () => { if (await alterar(naLoja(loja.id, (c) => ({ ...c, itens: c.itens.filter((x) => x.entryId !== it.entryId) })))) setSel(null); }}>
-          <i className="ti ti-trash" aria-hidden="true" /> {en ? 'Remove from the shop' : 'Tirar da loja'}
-        </button>
+        {/* "Tirar da loja" saiu do painel para o leque (30/10/2026). */}
       </div>
     );
   };
 
-  const cartaoProposta = (p, esperando) => {
+  /* ── AS PROPOSTAS NO DESENHO DO SISTEMA (04/11/2026) ──────────────────────
+     "Melhore a tela de proposta esperando o mestre e proposta esperando o
+     jogador, padronize com base em nossos sistema" (usuário). Eram duas
+     colunas de cartões soltos, cada um com nome, preço, seletor e três botões
+     — um card por proposta, todos falando ao mesmo tempo.
+
+     Agora é o gesto de toda página de escolher-e-agir (a aba Loja ao lado, o
+     Inventário, as páginas de casas): a LISTA à esquerda, num .mn-quadro com
+     dois grupos rotulados — "Esperando você" e "Esperando o jogador", cada um
+     com a contagem —, e o PAINEL à direita com a proposta escolhida: o passe
+     (quantidade, oferta, tabela) e, quando a vez é do Mestre, para onde a
+     peça vai e as três respostas no pé. A linha escolhida acende em ouro;
+     brasa só no que pede resposta (o ponto de "esperando você"). */
+  const dadosDaProposta = (p) => {
     const cat = catBySlug[p.slug] || null;
     const q = Number(p.quantidade) || 1;
-    const nome = (p.item && p.item.apelido ? p.item.apelido + ' (' + (p.item_nome || p.slug) + ')' : (p.item_nome || p.slug)) + (q > 1 ? ' ×' + q : '');
+    const nomeItem = p.item && p.item.apelido ? p.item.apelido + ' (' + (p.item_nome || p.slug) + ')' : (p.item_nome || p.slug);
     const quem = (p.vendedor_nome || '').split(' ')[0] || (en ? 'A character' : 'Um personagem');
+    const esperandoJogador = p.status === 'contraproposta';
+    const cada = esperandoJogador ? Number(p.preco_contra) || 0 : Number(p.preco_latao) || 0;
+    const tabela = Number(cat && cat.valor_latao) || 0;
+    return { cat, q, nomeItem, quem, esperandoJogador, cada, tabela };
+  };
+  const destinoDe = (p) => destino[p.id]
+    || (comercios.find((c) => estSemAcento(c.lugar) && estSemAcento(c.lugar) === estSemAcento(p.lugar)) || comercios[0] || {}).id || '';
+
+  const linhaProposta = (p) => {
+    const d = dadosDaProposta(p);
+    // A acesa é a do painel: a escolhida, ou a primeira quando nada foi escolhido.
+    const todas = [...pendentes, ...aguardando];
+    const on = ((todas.find((x) => x.id === propSel) || todas[0]) || {}).id === p.id;
+    const escolher = () => setPropSel(p.id);
     return (
-      <li key={p.id} className="estoque-prop">
-        <div className="estoque-prop-top">
-          <span className="loja-painel-ic"><i className={'ti ' + icone(cat)} aria-hidden="true" /></span>
-          <div className="estoque-prop-nome">
-            <b>{nome}</b>
-            <small>{quem}{p.lugar ? (en ? ' · in ' : ' · em ') + p.lugar : ''}</small>
-          </div>
-          <div className="estoque-prop-preco">
-            <Moedas latao={(esperando ? Number(p.preco_contra) : Number(p.preco_latao)) * q} lang={lang} tamanho="sm" />
-            <small>{esperando ? (en ? 'you offered' : 'você ofereceu') : (en ? 'table: ' : 'tabela: ') + (esperando ? '' : porExtenso((Number(cat && cat.valor_latao) || 0) * q))}</small>
+      <div key={p.id} role="radio" aria-checked={on} tabIndex={0}
+        className={'mn-quadro-linha estoque-prop-linha' + (on ? ' on' : '')}
+        onClick={escolher}
+        onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); escolher(); } }}>
+        <span className="estoque-prop-arte" aria-hidden="true">
+          {window.ItemIcone ? <window.ItemIcone cat={d.cat} icon={icone(d.cat)} /> : <i className={'ti ' + icone(d.cat)} />}
+        </span>
+        <span className="estoque-prop-quem">
+          <span className="estoque-prop-item">{d.nomeItem}</span>
+          <span className="estoque-prop-sub">{d.quem}{p.lugar ? (en ? ' · in ' : ' · em ') + p.lugar : ''}</span>
+        </span>
+        <span className="mn-quadro-num estoque-prop-qtd">×{d.q}</span>
+        <span className="estoque-prop-oferta"><Moedas latao={d.cada * d.q} lang={lang} tamanho="sm" /></span>
+      </div>
+    );
+  };
+
+  const grupoDePropostas = (titulo, lista, vazioTxt) => (
+    <div className="mn-quadro-grupo" role="radiogroup" aria-label={titulo}>
+      <div className="mn-quadro-cabeca">
+        <span className="mn-rotulo">{titulo}</span>
+        <span className="mn-rotulo estoque-prop-conta">{lista.length}</span>
+      </div>
+      {lista.length ? lista.map(linhaProposta) : <p className="estoque-prop-vazio">{vazioTxt}</p>}
+    </div>
+  );
+
+  const painelProposta = (p) => {
+    const d = dadosDaProposta(p);
+    const contraAberta = contra[p.id] != null;
+    const celula = (rotulo, valor, extra) => (
+      <div className={'mn-celula' + (extra || '')}>
+        <span className="mn-rotulo">{rotulo}</span>
+        <span className="mn-celula-valor">{valor}</span>
+      </div>
+    );
+    return (
+      <div className="loja-painel-corpo estoque-prop-painel">
+        <div className="loja-painel-cab">
+          <div>
+            <h3 className="loja-painel-nome">{d.nomeItem}</h3>
+            <p className="loja-painel-sub">{d.quem}{p.lugar ? (en ? ' · in ' : ' · em ') + p.lugar : ''}</p>
           </div>
         </div>
-        {!esperando && (
+        <div className="mn-passe estoque-prop-passe">
+          {celula(en ? 'Quantity' : 'Quantidade', '×' + d.q)}
+          {celula(d.esperandoJogador ? (en ? 'You offered' : 'Você ofereceu') : (en ? 'Offer' : 'Oferta'),
+            <Moedas latao={d.cada} lang={lang} tamanho="sm" />)}
+          {celula(en ? 'Table' : 'Tabela', <Moedas latao={d.tabela} lang={lang} tamanho="sm" />)}
+        </div>
+        {d.q > 1 && (
+          <p className="estoque-prop-total">
+            <span className="mn-rotulo">{en ? 'Total' : 'Total'}</span>
+            <Moedas latao={d.cada * d.q} lang={lang} tamanho="sm" />
+          </p>
+        )}
+        {d.esperandoJogador ? (
+          <p className="estoque-prop-nota">
+            {en ? `Waiting for ${d.quem} to answer your counteroffer.` : `Esperando ${d.quem} responder à sua contraproposta.`}
+          </p>
+        ) : (
           <>
-            <div className="estoque-prop-destino">
-              <span>{en ? 'Store in' : 'Guardar em'}</span>
-              <select value={destino[p.id] || (comercios.find((c) => estSemAcento(c.lugar) && estSemAcento(c.lugar) === estSemAcento(p.lugar)) || comercios[0] || {}).id || ''}
-                onChange={(e) => setDestino((d) => ({ ...d, [p.id]: e.target.value }))}>
-                {comercios.map((c) => <option key={c.id} value={c.id}>{c.lugar || c.nome}</option>)}
-              </select>
+            {/* O DROPDOWN DO SISTEMA (04/11/2026, usuário: "A lista suspensa
+                de 'guardar em' em propostas está fora de padrão"). Era um
+                <select> nativo; agora é o SelectPill (01-core), o mesmo do
+                seletor de lojas no trilho. O nativo fica só de reserva. */}
+            <div className="estoque-prop-campo">
+              <span className="mn-rotulo">{en ? 'Store in' : 'Guardar em'}</span>
+              {SelectPill ? (
+                <SelectPill value={destinoDe(p)} disabled={ocupado}
+                  placeholder={en ? 'Shop' : 'Loja'}
+                  onChange={(v) => setDestino((x) => ({ ...x, [p.id]: v }))}
+                  options={comercios.map((c) => ({ value: c.id, label: c.lugar || c.nome }))} />
+              ) : (
+                <select value={destinoDe(p)} disabled={ocupado} aria-label={en ? 'Store in' : 'Guardar em'}
+                  onChange={(e) => setDestino((x) => ({ ...x, [p.id]: e.target.value }))}>
+                  {comercios.map((c) => <option key={c.id} value={c.id}>{c.lugar || c.nome}</option>)}
+                </select>
+              )}
             </div>
-            {contra[p.id] != null && CampoPreco && (
-              <div className="estoque-prop-contra">
-                <span>{en ? 'Counteroffer (each)' : 'Contraproposta (cada)'}</span>
-                <CampoPreco valor={contra[p.id]} lang={lang} onChange={(v) => setContra((c) => ({ ...c, [p.id]: v === '' ? 0 : Number(v) }))} />
+            {contraAberta && CampoPreco && (
+              <div className="estoque-prop-campo">
+                <span className="mn-rotulo">{en ? 'Counteroffer (each)' : 'Contraproposta (cada)'}</span>
+                <CampoPreco valor={contra[p.id]} lang={lang} disabled={ocupado}
+                  onChange={(v) => setContra((c) => ({ ...c, [p.id]: v === '' ? 0 : Number(v) }))} />
               </div>
             )}
+            {/* As respostas no pé do painel, como o Comprar da loja: o verbo
+                principal em ouro; Recusar é o único que desfaz, e fala em brasa. */}
             <div className="estoque-prop-acoes">
-              {contra[p.id] != null ? (
+              {contraAberta ? (
                 <>
-                  <button type="button" className="btn-primary btn-sm" disabled={ocupado} onClick={() => responder(p, 'contrapropor')}>{en ? 'Send' : 'Enviar'}</button>
-                  <button type="button" className="btn-ghost btn-sm" disabled={ocupado} onClick={() => setContra((c) => { const n = { ...c }; delete n[p.id]; return n; })}>{en ? 'Cancel' : 'Cancelar'}</button>
+                  <button type="button" className="btn-ghost btn-md" disabled={ocupado}
+                    onClick={() => setContra((c) => { const n = { ...c }; delete n[p.id]; return n; })}>{en ? 'Back' : 'Voltar'}</button>
+                  <button type="button" className="btn-primary btn-md" disabled={ocupado} onClick={() => responder(p, 'contrapropor')}>
+                    {en ? 'Send counteroffer' : 'Enviar contraproposta'}
+                  </button>
                 </>
               ) : (
                 <>
-                  <button type="button" className="btn-primary btn-sm" disabled={ocupado} onClick={() => responder(p, 'aceitar')}>{en ? 'Accept' : 'Aceitar'}</button>
-                  <button type="button" className="btn-ghost btn-sm" disabled={ocupado} onClick={() => setContra((c) => ({ ...c, [p.id]: Number(p.preco_latao) || 0 }))}>{en ? 'Counteroffer' : 'Contrapropor'}</button>
-                  <button type="button" className="btn-ghost btn-sm" disabled={ocupado} onClick={() => responder(p, 'recusar')}>{en ? 'Decline' : 'Recusar'}</button>
+                  <button type="button" className="btn-ghost btn-md estoque-prop-recusar" disabled={ocupado} onClick={() => responder(p, 'recusar')}>{en ? 'Decline' : 'Recusar'}</button>
+                  <button type="button" className="btn-ghost btn-md" disabled={ocupado}
+                    onClick={() => setContra((c) => ({ ...c, [p.id]: Number(p.preco_latao) || 0 }))}>{en ? 'Counteroffer' : 'Contrapropor'}</button>
+                  <button type="button" className="btn-primary btn-md" disabled={ocupado} onClick={() => responder(p, 'aceitar')}>{en ? 'Accept' : 'Aceitar'}</button>
                 </>
               )}
             </div>
           </>
         )}
-      </li>
+      </div>
     );
   };
 
@@ -884,32 +988,52 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
     );
   };
 
+  /* O MESMO DESENHO DAS PÁGINAS DA FICHA (02/11/2026, usuário: "Na loja,
+     visão do mestre, aplique o mesmo layout com o trilho interno, etc."). Um
+     cartão só, com o trilho DENTRO dele, na largura e na altura de toda
+     página (--fp-largura e --pg-altura, "A MOLDURA DE PÁGINA" no index.css). */
+
   return (
-    <div className="estoque-pagina">
-      {trilho}
+    <div className="fp-page is-inv is-inventario estoque-pagina">
       {/* O balão das línguetas (um só para a tela, como nas outras fases). */}
       <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+      <div className="fp-card estoque-card">
+      {/* O trilho é a .cartoes-barra das listas (Cena, Personagens…), no alto do
+          cartão: a mesma pílula em toda página que não é da ficha. */}
+      <div className="fp3-pagina-topo estoque-topo">{trilho}</div>
       {erro && <div className="err-msg" style={{ margin: '0 auto 12px', maxWidth: 600 }}>{erro}</div>}
-      {aba === 'propostas' ? (
-        <div className="fp-card estoque-card estoque-card--propostas">
-          <div className="estoque-props">
-            <section className="bau-painel estoque-props-col">
-              <p className="estoque-props-tit">{en ? 'Waiting for you' : 'Esperando você'}</p>
-              {propostas === null ? <p className="estoque-vazio">{en ? 'Loading…' : 'Carregando…'}</p>
-                : pendentes.length === 0 ? <p className="estoque-vazio">{en ? 'No offers.' : 'Nenhuma proposta.'}</p>
-                : <ul className="estoque-props-lista">{pendentes.map((p) => cartaoProposta(p, false))}</ul>}
-            </section>
-            <section className="bau-painel estoque-props-col">
-              <p className="estoque-props-tit">{en ? 'Waiting for the player' : 'Esperando o jogador'}</p>
-              {aguardando.length === 0 ? <p className="estoque-vazio">{en ? 'Nothing here.' : 'Nada aqui.'}</p>
-                : <ul className="estoque-props-lista">{aguardando.map((p) => cartaoProposta(p, true))}</ul>}
-            </section>
+      {aba === 'propostas' ? (() => {
+        const todas = [...pendentes, ...aguardando];
+        // Sem escolha, abre a primeira que espera o Mestre — é a que pede resposta.
+        const aberta = todas.find((p) => p.id === propSel) || todas[0] || null;
+        return (
+          <div className="estoque-conteudo estoque-conteudo--propostas">
+            <div className="bau-corpo bau-corpo--painel estoque-props">
+              <div className="mn-quadro estoque-props-quadro">
+                {propostas === null ? <p className="estoque-prop-vazio">{en ? 'Loading…' : 'Carregando…'}</p> : (
+                  <>
+                    {grupoDePropostas(en ? 'Waiting for you' : 'Esperando você', pendentes, en ? 'No offer waiting for you.' : 'Nenhuma proposta esperando você.')}
+                    {grupoDePropostas(en ? 'Waiting for the player' : 'Esperando o jogador', aguardando, en ? 'No counteroffer waiting.' : 'Nenhuma contraproposta esperando.')}
+                  </>
+                )}
+              </div>
+              <aside className="bau-painel loja-painel" aria-label={en ? 'Offer' : 'Proposta'}>
+                {aberta ? painelProposta(aberta) : (
+                  <div className="bau-painel-vazio">
+                    <i className="ti ti-scale" aria-hidden="true" />
+                    <p>{en ? 'When a player offers to sell an item, the offer shows up here.' : 'Quando um jogador propuser vender um item, a proposta aparece aqui.'}</p>
+                  </div>
+                )}
+              </aside>
+            </div>
           </div>
-        </div>
-      ) : !loja ? (
-        <div className="best-empty">{en ? 'No shop yet. Create one with the +.' : 'Nenhuma loja ainda. Crie uma pelo +.'}</div>
+        );
+      })() : !loja ? (
+        <div className="best-empty">{lugares && !lugares.length
+          ? (en ? 'No city or kingdom in the catalog yet. Each one gets its shop here.' : 'Nenhuma cidade ou reino no catálogo ainda. Cada um ganha a sua loja aqui.')
+          : (en ? 'Opening the shops…' : 'Abrindo as lojas…')}</div>
       ) : (
-        <div className="fp-card estoque-card">
+        <div className="estoque-conteudo">
           <div className="bau-corpo bau-corpo--painel estoque-bau">
             {/* ── A LÍNGUETA FICA FORA DA LOJA (29/10/2026) ─────────────────
                 "Essa etiqueta na loja pode ser um ícone em formato de língueta,
@@ -969,8 +1093,10 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
                     const fechada = c.tipo === 'entrada' && !estFileiraAberta(loja, c.fileira);
                     return (
                       <button key={c.tipo + c.id} type="button" aria-label={c.cat.nome}
-                        className={'inv-card loja-casa' + (escolhidaAqui ? ' is-sel' : '') + (c.tipo === 'catalogo' ? ' estoque-casa--catalogo' : '') + (c.cat.magico ? ' is-magico' : '') + (fechada ? ' estoque-casa--fechada' : '')}
-                        onClick={() => setSel(escolhidaAqui ? null : { tipo: c.tipo, id: c.id })}>
+                        className={'inv-card loja-casa' + (escolhidaAqui ? ' is-sel' : '') + (c.tipo === 'catalogo' ? ' estoque-casa--catalogo' : '') + (c.cat.magico ? ' is-magico' : '') + (fechada ? ' estoque-casa--fechada' : '')
+                          + (lequeEst && lequeEst.tipo === c.tipo && lequeEst.id === c.id ? ' inv-card--leque' : '')}
+                        aria-haspopup="menu"
+                        onClick={(e) => { setSel({ tipo: c.tipo, id: c.id }); setLequeEst({ tipo: c.tipo, id: c.id, ancora: e.currentTarget }); }}>
                         <span className="inv-card-head"><span className="inv-card-ic">{window.ItemIcone ? <window.ItemIcone cat={c.cat} icon={icone(c.cat)} /> : <i className={'ti ' + icone(c.cat)} aria-hidden="true" />}</span></span>
                         {c.tipo === 'entrada' && <span className="estoque-qtd">{c.it.estoque == null ? '∞' : c.it.estoque}</span>}
                         {c.tipo === 'catalogo' && <span className="estoque-mais" aria-hidden="true"><i className="ti ti-plus" /></span>}
@@ -981,9 +1107,49 @@ function EstoqueMestreView({ historia, lang, onChanged }) {
               </div>
             </div>
             <aside className="bau-painel loja-painel">{painelItem()}</aside>
+            {lequeEst && window.LequeDoItem && (() => {
+              const Leque = window.LequeDoItem;
+              const ent = lequeEst.tipo === 'entrada' ? ((loja && loja.itens) || []).find((x) => x.entryId === lequeEst.id) : null;
+              const catL = lequeEst.tipo === 'entrada' ? (ent && catBySlug[ent.slug]) : catBySlug[lequeEst.id];
+              if (!catL || (lequeEst.tipo === 'entrada' && !ent)) return null;
+              const fileira = ent ? (fileiraPorEntry[ent.entryId] || 0) + 1 : 0;
+              const acoes = lequeEst.tipo === 'entrada' ? [
+                { chave: 'mover', icone: 'ti-arrows-move', desativado: ocupado,
+                  rotulo: en ? `Move slot (row ${fileira})` : `Mudar de casa (fileira ${fileira})` },
+                { chave: 'tirar', icone: 'ti-trash', perigo: true, desativado: ocupado,
+                  rotulo: en ? 'Remove from the shop' : 'Tirar da loja' },
+              ] : [
+                { chave: 'por', icone: 'ti-plus', desativado: ocupado, rotulo: en ? 'Put in the shop' : 'Pôr na loja' },
+              ];
+              return (
+                <Leque acoes={acoes} ancora={lequeEst.ancora} rotulo={catL.nome}
+                  onClose={() => setLequeEst(null)}
+                  onEscolher={async (a) => {
+                    setLequeEst(null);
+                    /* Sem "Detalhes" (31/10/2026, usuário: "a descrição abre ao
+                       selecionar o item"): o item já está no painel desde o clique. */
+                    if (a.chave === 'mover') { setBusca(''); setMovendo(ent.entryId); return; }
+                    if (a.chave === 'tirar') {
+                      if (await alterar(naLoja(loja.id, (c) => ({ ...c, itens: c.itens.filter((x) => x.entryId !== ent.entryId) })))) setSel(null);
+                      return;
+                    }
+                    if (a.chave === 'por') {
+                      const entryId = estNovoId();
+                      // estComCasas carimba a casa do recém-chegado — a primeira vaga.
+                      const ok = await alterar(naLoja(loja.id, (c) => estComCasas({ ...c, itens: [...c.itens, { slug: catL.slug, entryId, estoque: 1, preco_latao_override: null }] })));
+                      if (ok) { setBusca(''); setSel({ tipo: 'entrada', id: entryId }); }
+                    }
+                  }} />
+              );
+            })()}
           </div>
         </div>
       )}
+      {/* O RODAPÉ DA MESA (04/11/2026): a data, o lugar, a hora e o clima da
+          Cena também na Loja — as três são uma página só. O CardDataJogoAtual
+          (10-shell) entra por portal. */}
+      {trilhoPaginas && <div id="pg-rodape-slot" className="pg-rodape estoque-rodape" />}
+      </div>
     </div>
   );
 }
@@ -995,4 +1161,6 @@ Object.assign(window, {
   // (src/06-historias/fileiras-e-conteudo-da-loja.test.jsx).
   EST_POR_FILEIRA, estFileiraDoIndice, estFileiraAberta, estComFileira,
   estCasaDoItem, estComCasas, estMoverCasa,
+  // As lojas fixas de cidade e reino (estoque-lojas-fixas.test.jsx).
+  lugaresComLoja, lojasQueFaltam, lojaEhFixa,
 });

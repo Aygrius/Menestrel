@@ -539,9 +539,13 @@ function AventurasJogador({ t, lang, currentUserId, reloadToken, mesaAtivaId = n
     const pj = pjs.find((p) => pjAtivoId != null && p.id === pjAtivoId) || pjs[0] || null;
     return (
       <div className="hist">
-        {/* UM CAPÍTULO POR VEZ (26/10/2026, pedido do usuário): a Mesa do
-            Jogador é leitura, e a paginação do sistema vira o folhear. */}
-        <Cena key={m.id} h={m} lang={lang} somenteLeitura anotar userId={currentUserId} umPorVez
+        {/* OS CARTÕES DO PADRÃO (04/11/2026, usuário: "Quando o jogador clica
+            em mesa, porque os cards dos capítulos não está seguindo o padrão
+            [...] que criamos para diário?"). De 26/10 até aqui a Mesa do
+            Jogador mostrava um capítulo por página; agora é a mesma grade de
+            cartões da Cena e do Diário. Ler continua a um clique: o cartão abre
+            o capítulo inteiro, com as anotações. */}
+        <Cena key={m.id} h={m} lang={lang} somenteLeitura anotar userId={currentUserId}
           pjId={pj ? pj.id : null} autor={pj ? [pj.nome, pj.sobrenome].filter(Boolean).join(' ') : ''} />
       </div>
     );

@@ -35,15 +35,15 @@ describe('as barras perderam as legendas narrativas', () => {
   });
 
   it('o editor de barra também não mostra legenda', () => {
-    const i = fonte.indexOf('function BarEditPopover');
+    const i = fonte.indexOf('function BarraAjusteModal');
     const trecho = fonte.slice(i, fonte.indexOf('/* ======', i));
     expect(trecho).not.toMatch(/fichaEstadoLabel/);
     expect(trecho).not.toMatch(/fp-bar-pop-estado/);
   });
 });
 
-describe('o editor de barra é só o input flutuante', () => {
-  const i = fonte.indexOf('function BarEditPopover');
+describe('o editor de barra é a janela do sistema', () => {
+  const i = fonte.indexOf('function BarraAjusteModal');
   const trecho = fonte.slice(i, fonte.indexOf('/* ======', i));
 
   it('sem botões de valor pré-determinado', () => {
@@ -52,12 +52,15 @@ describe('o editor de barra é só o input flutuante', () => {
     expect(trecho).not.toMatch(/corPreset/);
   });
 
-  it('sem card: a classe --nu tira fundo, borda e sombra', () => {
-    expect(trecho).toMatch(/fp-bar-pop--nu/);
-    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'index.css'), 'utf8');
-    const regra = css.slice(css.indexOf('.fp-bar-pop--nu'), css.indexOf('.fp-bar-pop--nu') + 160);
-    expect(regra).toMatch(/background:\s*none/);
-    expect(regra).toMatch(/border:\s*none/);
+  /* 04/11/2026: "Ao invés de aparecer uma pílula despadronizada, eu quero um
+     modal padronizado do sistema" (usuário). O editor deixou de ser o pill
+     flutuante (`fp-bar-pop--nu`) e virou a janela do sistema, com o rodapé
+     de confirmar. */
+  it('é a janela do sistema, com Cancelar e Aplicar no rodapé', () => {
+    expect(trecho).not.toMatch(/fp-bar-pop--nu/);
+    expect(trecho).toMatch(/<Shell title=\{item\.label\}/);
+    expect(trecho).toMatch(/onCancel=\{onClose\}/);
+    expect(trecho).toMatch(/onConfirm=\{aplicar\} confirmLabel=\{en \? 'Apply' : 'Aplicar'\} confirmDisabled=\{!mudou\}/);
   });
 
   /* O desenho deixou de ser escrito aqui em 17/09/2026 e virou o componente
@@ -239,26 +242,40 @@ describe('o modal da região (26/10/2026)', () => {
     /* A casa OCA ganhou balão próprio em 28/10/2026 ("quando não há itens no
        inventário, não deve ser possível clicar no slot"): ela não abre nada, e
        o balão diz o porquê. Fora dela, o balão continua sendo só o nome. */
-    expect(fonte).toMatch(/: \{ title: \(filled && cat\) \? \(cat\.nome \|\| it\.slug\) : lbl \};/);
-    expect(fonte).toMatch(/Nada no inventário cabe aqui/);
+    /* 30/10/2026: com peça, o nome dela no título (dourado); vazia, o nome da
+       região com `tom: 'branco'` ("Se tiver sem nenhum item equipado, mostre
+       o nome do slot de branco", usuário). */
+    expect(fonte).toMatch(/\? \{ title: cat \? \(cat\.nome \|\| it\.slug\) : it\.slug \}/);
+    expect(fonte).toMatch(/: \{ title: lbl, tom: 'branco' \};/);
+    // "Remova a frase 'Nada no inventário cabe aqui'" (30/10/2026): o balão é só o nome.
+    expect(fonte).not.toMatch(/'Nada no inventário cabe aqui' \}/);
     expect(fonte).not.toMatch(/desc: cat\.descricao/);
     // Nenhum `abrirTip` da região carrega mais a contagem. (O `aria-label`
     // da casa continua com ela: quem não vê o contador precisa ouvi-lo.)
     expect(fonte).not.toMatch(/abrirTip\(e, \{ title: slotLbl\(regiao\), desc:/);
   });
 
-  it('todo mundo vê Despir/Desequipar na barra de ações', () => {
-    expect(trecho).toMatch(/'Take off' : 'Despir'/);
-    expect(trecho).toMatch(/'Unequip' : 'Desequipar'/);
-    expect(trecho).toMatch(/desequiparFicha\(emFoco\.instanceId\)/);
+  /* Desde 30/10/2026 as ações moram no LEQUE que a peça abre dentro da
+     janela ("como teremos o leque, não precisa dos botões dentro do modal").
+     A janela não tem mais barra de ações. */
+  it('todo mundo vê Despir/Desequipar no leque da peça, e a janela fica sem botões', () => {
+    const leque = fonte.slice(fonte.indexOf('{lequeFicha && _DetalhesItemModal'), fonte.indexOf('{regiaoAberta && _JanelaItem'));
+    expect(leque).toMatch(/'Take off' : 'Despir'/);
+    expect(leque).toMatch(/'Unequip' : 'Desequipar'/);
+    expect(leque).toMatch(/desequiparFicha\(it\.instanceId\)/);
+    expect(trecho).not.toMatch(/acoes=\{acoes\}/);
   });
 
-  it('só o Mestre vê o stepper de resistência, e só em peça que tem durabilidade', () => {
-    /* Mesma regra de 20/09/2026: o stepper é de RESISTÊNCIA e não vale para
-       o que se VESTE (joias, roupas) — `!emFoco.vestido` é o corte. */
-    expect(trecho).toMatch(/const podeRes = podeEditarEstado && resMaxFoco > 0 && !emFoco\?\.vestido;/);
-    expect(trecho).toMatch(/ajustarResistenciaDaPeca\(emFoco\.instanceId, resFoco - 1\)/);
-    expect(trecho).toMatch(/ajustarResistenciaDaPeca\(emFoco\.instanceId, resFoco \+ 1\)/);
+  /* A RESISTÊNCIA FOI PARA O LEQUE (30/10/2026, usuário: "Remova o campo
+     resistência [...] o mestre irá editar esse campo com um novo menu circular
+     no leque, chamado resistência"). Só o Mestre (podeEditarEstado) recebe o
+     onResistencia; o corte de 20/09/2026 — o que se VESTE não tem — mora na
+     bolha (DetalhesItemModal, `!instance.vestido`). */
+  it('só o Mestre ajusta a resistência, pelo leque da peça', () => {
+    const leque = fonte.slice(fonte.indexOf('{lequeFicha && _DetalhesItemModal'), fonte.indexOf('{regiaoAberta && _JanelaItem'));
+    expect(leque).toMatch(/onResistencia: podeEditarEstado \? ajustarResistenciaDaPeca : undefined/);
+    expect(trecho).not.toMatch(/fp3-modal-res/);
+    expect(trecho).not.toMatch(/fp3-modal-peca-desc/);
   });
 
   /* A JANELA DA CASA VAZIA É O SELETOR (26/10/2026, pedido do usuário):

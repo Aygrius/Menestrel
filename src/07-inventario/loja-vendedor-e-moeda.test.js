@@ -58,8 +58,11 @@ describe('o preço no topo e Características', () => {
     expect(bestiario).toMatch(/if \(omitir\.includes\('preco'\)\) omitir\.push\('valor'\);/);
   });
 
-  it('a linha "Valor" obedece ao omitir, como as outras', () => {
-    expect(bestiario).toMatch(/\{se\('valor', <BestLinha rotulo=\{lang === 'en' \? 'Value' : 'Valor'\}/);
+  /* Desde 30/10/2026 o valor é dito na frase das Características ("Seu preço
+     original de comércio é de 2 moedas de prata.") e obedece ao omitir do
+     mesmo jeito: com o Preço no passe, a frase não repete. */
+  it('o preço da frase obedece ao omitir, como as linhas', () => {
+    expect(bestiario).toMatch(/if \(!sai\('valor'\) && tem\(it\.valor_latao\)\)/);
   });
 
   it('Características sem linha nenhuma não deixa um título sozinho', () => {
@@ -133,10 +136,11 @@ describe('a casa do item no painel da loja', () => {
     expect(css).toMatch(/\.loja-painel-ic \.inv-card-arte \{\r?\n\s*width: 100%; height: 100%; object-fit: contain;/);
   });
 
-  /* O mesmo ícone é reusado no cabeçalho da proposta do Estoque, a 38px: a
-     regra de lá é mais específica e continua vencendo (medido: 38 contra 78). */
-  it('sem atropelar o uso dele no Estoque', () => {
-    expect(css).toMatch(/\.estoque-prop-top \.loja-painel-ic \{ width: 38px; height: 38px;/);
+  /* O cabeçalho de 38px da proposta do Estoque saiu em 04/11/2026: as
+     propostas viraram linhas de um .mn-quadro com a pintura própria
+     (.estoque-prop-arte), e a regra que reusava este ícone foi junto. */
+  it('sem regra órfã do cartão de proposta antigo', () => {
+    expect(css).not.toMatch(/.estoque-prop-top/);
   });
 });
 
@@ -224,10 +228,14 @@ describe('o nome da denominação', () => {
    ainda escrevia a denominação, e dizia o mesmo preço num vocabulário
    diferente do resto da janela. */
 describe('a linha de Valor do item', () => {
-  it('mostra a pílula, como o Preço, e não a frase por extenso', () => {
+  /* REVERTIDO EM 30/10/2026: o usuário pediu as Características em frase —
+     "Seu preço original de comércio é de 2 moedas de prata." — com o preço
+     em "Branco Negrito". A pílula segue existindo (valorEmMoedas) para quem
+     a usa; a janela do item agora diz o preço por extenso, na frase. */
+  it('a janela diz o preço por extenso, em branco negrito, na frase', () => {
     expect(bestiario).toMatch(/function valorEmMoedas\(latao, lang\) \{/);
-    expect(bestiario).toMatch(/valor=\{valorEmMoedas\(it\.valor_latao, lang\)\}/);
-    expect(bestiario).toMatch(/<Pills latao=\{n\} lang=\{lang\} tamanho="sm" \/>/);
+    // Cada moeda destacada à parte (30/10/2026: "2 moedas de ouro e 3 moedas de prata").
+    expect(bestiario).toMatch(/<StatusNoTexto key=\{t\} tom="forte">/);
   });
 
   /* "Sem valor" é um fato sobre o item, não uma quantia: uma pílula de 0

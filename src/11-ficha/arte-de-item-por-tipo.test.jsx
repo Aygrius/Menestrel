@@ -142,12 +142,46 @@ describe('a colheita: uma pintura por tipo', () => {
     const presos = [...window.ARTE_ITEM_SLUG].filter((x) => /^(erva|cogumelo)_/.test(x));
     expect(presos).toEqual([]);
   });
-  /* Flor e Planta ainda não têm pintura — o pedido falou de erva e cogumelo.
-     O teste segura o estado de hoje: se alguém pintar uma delas, vem aqui
-     dizer qual é a regra. */
-  it('flor e planta seguem no glifo', () => {
-    expect(arte('Flor Vinna')).toBe(null);
-    expect(arte('Planta Nex')).toBe(null);
+  /* Flor e Planta ganharam pintura em 30/10/2026, pela mesma regra: uma para
+     todas. O slug da flor é `flolha_*` — quem casa é o nome. */
+  it.each(['Flor Griffonia', 'Flor Rubus', 'Flor Vinna'])('%s usa a pintura de flor', (nome) => {
+    expect(arte(nome, { slug: 'flolha_x' })).toBe('/itens/flor.webp');
+  });
+  it.each(['Planta Inina', 'Planta Nex', 'Planta Subella'])('%s usa a pintura de planta', (nome) => {
+    expect(arte(nome)).toBe('/itens/planta.webp');
+  });
+});
+
+/* ── O TICKET E OS EMPRÉSTIMOS (30/10/2026) ──────────────────────────────
+   "Crie mais uma imagem: um ticket (para diárias). Reaproveite algumas
+   imagens para usar em itens." (usuário) Nomes do catálogo de verdade. */
+describe('o ticket das diárias e os materiais emprestados', () => {
+  it.each(['Diária em Estalagem Popular', 'Diária em Hospital', 'Diária no Estábulo'])('%s usa o ticket', (nome) => {
+    expect(arte(nome)).toBe('/itens/ticket.webp');
+  });
+  it.each([
+    ['Carne Podre', 'carne_draconica'], ['Couro Arcano', 'couro_draconico'], ['Marfim Sagrado', 'marfim_draconica'],
+    ['Óleo', 'oleo_draconico'], ['Pena Podre', 'pena_celestial'],
+  ])('%s empresta %s', (nome, arquivo) => {
+    expect(arte(nome)).toBe('/itens/' + arquivo + '.webp');
+  });
+  // Quem tem pintura própria por slug não cai no empréstimo do nome.
+  it('a pintura por slug vem antes do empréstimo', () => {
+    expect(arte('Carne Profana', { slug: 'carne_demoniaca' })).toBe('/itens/carne_demoniaca.webp');
+  });
+});
+
+/* ── A GOTA E OS PELOS (30/10/2026) ──────────────────────────────────────
+   "Água ('gota' para usar no item Água e Água Suja), pêlos" (usuário). Um
+   pelo por material; slugs conferidos no banco. */
+describe('a gota e os pelos: uma pintura por slug', () => {
+  it.each([
+    ['agua', 'Água'], ['agua_suja', 'Água Suja'],
+    ['pelo', 'Pêlo'], ['pelo_dourado', 'Pêlo Arcano'], ['pelo_podre', 'Pêlo Podre'],
+    ['pelo_maldito', 'Pêlo Profano'], ['pelo_abencoado', 'Pêlo Sagrado'], ['pelo_de_fogo', 'Pêlo Titânico'],
+  ])('%s (%s) tem pintura própria no disco', (slug, nome) => {
+    expect(arte(nome, { slug })).toBe('/itens/' + slug + '.webp');
+    expect(existsSync(resolve(raiz, 'public/itens', slug + '.webp'))).toBe(true);
   });
 });
 

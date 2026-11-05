@@ -1,9 +1,9 @@
 /* ============================================================
-   lojas-das-cidades.test.jsx — o botão que abre a loja de cada cidade
+   lojas-das-cidades.test.jsx — a loja de cada cidade
    ============================================================
    "Para cada cidade do sistema, haverá uma loja aberta com itens à venda de
-   forma fixa" (usuário, 28/10/2026) · a lista sai "pela economia da cidade"
-   (01-core/lojas-cidade.jsx).
+   forma fixa" (usuário, 28/10/2026). Desde 30/10/2026 a loja nasce vazia e
+   o Mestre monta o estoque à mão — o "pela economia da cidade" saiu.
 
    E, no mesmo dia, o relato que trouxe este arquivo: "Ao clicar em 'lojas das
    cidades' aparece a mensagem 'Toda cidade desta aventura já tem loja.' e eu
@@ -20,7 +20,6 @@ import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/select-pill.jsx';
-import '../01-core/lojas-cidade.jsx';
 import '../01-core/game-data.jsx';
 import '../10-shell/shell.jsx';
 import '../07-inventario/inventario.jsx';
@@ -74,11 +73,13 @@ const HISTORIA = {
 };
 
 function montar(over = {}) {
-  const historia = { ...HISTORIA, ...over };
+  const { cidades = CIDADES, reinos = [], ...resto } = over;
+  const historia = { ...HISTORIA, ...resto };
   const tabelas = {
     __authUserId: 'u1',
     historias: [{ id: 13, mestre_id: 'u1', estoque_loja: historia.estoque_loja }],
-    cidades: CIDADES,
+    cidades,
+    reinos,
     anuncios_loja: [],
     __updates: [],
   };
@@ -94,124 +95,107 @@ const botao = (re) => [...document.querySelectorAll('button')]
   .find((b) => re.test(b.textContent || '') || re.test(b.getAttribute('aria-label') || ''));
 const recado = () => document.querySelector('.estoque-recado');
 
-describe('o botão "Lojas das cidades"', () => {
-  it('abre uma loja por cidade da aventura, pulando o que não é cidade e a ruína', async () => {
-    const { tabelas } = montar();
-    await waitFor(() => expect(botao(/Lojas das cidades/)).toBeTruthy());
-    await waitFor(() => expect(botao(/Lojas das cidades/).disabled).toBe(false));
-    fireEvent.click(botao(/Lojas das cidades/));
+/* ── TODA CIDADE E TODO REINO TÊM LOJA, FIXA (30/10/2026) ─────────────────
+   "Crie uma 'loja' para cada cidade e reino cadastrados no sistema, essas
+   lojas são fixas e não podem ser excluídas." (usuário) · nascem VAZIAS
+   (escolha do usuário na mesma conversa).
 
-    await waitFor(() => expect(recado()).toBeTruthy());
-    /* Crássia e Carom entram; "Montes Crássios" não é cidade e Deiamon está
-       em ruínas (população 0). */
-    expect(recado().textContent).toMatch(/2 loja\(s\) aberta\(s\)/);
+   Saiu junto a lista "Nova loja" de 29/10: não sobra cidade sem loja para
+   ela oferecer. */
+describe('as lojas fixas de cidade e reino', () => {
+  const lugaresDasLojas = (t) => t.historias[0].estoque_loja.comercios.map((c) => c.lugar || c.nome);
 
-    /* O que foi GRAVADO: a linha da história no banco falso. */
-    const comercios = tabelas.historias[0].estoque_loja.comercios;
-    expect(comercios.map((c) => c.lugar || c.nome)).toEqual(['Estoque', 'Crássia', 'Carom']);
-    // "De forma fixa": estoque ilimitado em tudo o que a regra põe na vitrine.
-    const crassia = comercios.find((c) => c.lugar === 'Crássia');
-    expect(crassia.itens.length).toBeGreaterThan(0);
-    expect(crassia.itens.every((e) => e.estoque === null)).toBe(true);
-    expect(crassia.itens.map((e) => e.slug)).toContain('ferro');
-    // O seletor passa a listar as três, e abre na primeira que nasceu.
-    await waitFor(() => {
-      expect(document.querySelector('.estoque-seletor-loja .select-pill-btn').textContent)
-        .toMatch(/Crássia/);
+  it('ao abrir, as que faltam nascem vazias — cidade e reino, sem a ruína', async () => {
+    const { tabelas } = montar({ reinos: [{ nome: 'Abadom', historia_id: null }] });
+    await waitFor(() => expect(lugaresDasLojas(tabelas)).toEqual(['Estoque', 'Abadom', 'Carom', 'Crássia']));
+    const novas = tabelas.historias[0].estoque_loja.comercios.slice(1);
+    novas.forEach((c) => expect(c).toMatchObject({ nome: c.lugar, ativo: true, itens: [] }));
+    // Deiamon está em ruínas (população 0): não tem quem venda.
+    expect(lugaresDasLojas(tabelas)).not.toContain('Deiamon');
+  });
+
+  it('não recria a que já existe, nem com o acento diferente', async () => {
+    const { tabelas } = montar({
+      estoque_loja: { comercios: [
+        { id: 'c1', nome: 'Crassia', lugar: 'Crassia', ativo: true, itens: [{ slug: 'ferro', entryId: 'e1', estoque: 3 }] },
+      ], editando_em: null },
     });
+    await waitFor(() => expect(lugaresDasLojas(tabelas)).toEqual(['Crassia', 'Carom']));
+    // A que existia ficou intacta, com o estoque dela.
+    expect(tabelas.historias[0].estoque_loja.comercios[0].itens).toHaveLength(1);
   });
 
-  /* ── A MENSAGEM ERRADA (28/10/2026) ──────────────────────────────────────
-     "Aparece a mensagem 'Toda cidade desta aventura já tem loja.'" — e não
-     tinha. A primeira volta dizia isso em TRÊS casos diferentes: todas já
-     terem loja, nenhum lugar ser cidade do catálogo, e todas as cidades
-     serem ruína. Uma mensagem que mente sobre o motivo é pior que nenhuma,
-     porque manda o Mestre procurar o problema no lugar errado. */
-  it('nenhum lugar é cidade: diz isso, e não que já existe loja', async () => {
-    montar({ lugares: ['Montes Crássios', 'Deserto do Real'] });
-    await waitFor(() => expect(botao(/Lojas das cidades/)?.disabled).toBe(false));
-    fireEvent.click(botao(/Lojas das cidades/));
-    await waitFor(() => expect(recado()).toBeTruthy());
-    expect(recado().textContent).toMatch(/nenhum lugar.*é cidade do catálogo/i);
-    expect(recado().textContent).not.toMatch(/já exist/i);
-  });
-
-  it('todas em ruínas: diz que não há cidade habitada', async () => {
-    montar({ lugares: ['Deiamon'] });
-    await waitFor(() => expect(botao(/Lojas das cidades/)?.disabled).toBe(false));
-    fireEvent.click(botao(/Lojas das cidades/));
-    await waitFor(() => expect(recado()).toBeTruthy());
-    expect(recado().textContent).toMatch(/nenhuma cidade habitada/i);
-  });
-
-  /* ── JÁ EXISTIREM NÃO É RECADO (28/10/2026) ────────────────────────────
-     "Remova o texto 'As 9 loja(s) de cidade já existem — escolha no seletor
-     ao lado'." (usuário)
-
-     A frase nasceu quando o seletor estava fora da tela (transbordo do trilho
-     centralizado) e o Mestre não achava as lojas. Consertado o trilho, ela
-     virou ruído: dizer que existe o que está ali na lista não informa nada.
-
-     As que explicam uma AUSÊNCIA continuam — é o caso dos dois testes acima. */
-  it('as que já têm loja: o botão não diz nada', async () => {
+  it('a loja de cidade não tem "Excluir"; a loja sem cidade continua tendo', async () => {
     montar({
-      lugares: ['Crássia'],
-      estoque_loja: { comercios: [{ id: 'c1', nome: 'Crássia', lugar: 'Crássia', ativo: true, itens: [] }], editando_em: null },
+      cidades: [CIDADES[0]],
+      estoque_loja: { comercios: [
+        { id: 'c1', nome: 'Crássia', lugar: 'Crássia', ativo: true, itens: [] },
+        { id: 'legado', nome: 'Estoque', ativo: true, itens: [] },
+      ], editando_em: null },
     });
-    await waitFor(() => expect(botao(/Lojas das cidades/)?.disabled).toBe(false));
-    fireEvent.click(botao(/Lojas das cidades/));
-    /* O clique termina (o botão volta de desabilitado) e nenhum recado nasce. */
-    await waitFor(() => expect(botao(/Lojas das cidades/).disabled).toBe(false));
-    expect(recado()).toBeNull();
+    await waitFor(() => expect(document.querySelector('.estoque-seletor-loja')).toBeTruthy());
+    // Espera o catálogo de lugares chegar: antes dele, nenhum dos dois mostra o botão.
+    await waitFor(() => expect(document.querySelector('.estoque-seletor-loja .select-pill-btn').textContent).toMatch(/Crássia/));
+    expect(botao(/Excluir esta loja/)).toBeFalsy();
+
+    fireEvent.click(document.querySelector('.estoque-seletor-loja .select-pill-btn'));
+    fireEvent.click([...document.querySelectorAll('.select-pill-drop li')].find((l) => l.textContent.includes('Estoque')));
+    await waitFor(() => expect(botao(/Excluir esta loja/)).toBeTruthy());
   });
 
-  it('sem lugares na aventura, diz isso', async () => {
-    montar({ lugares: [] });
-    await waitFor(() => expect(botao(/Lojas das cidades/)?.disabled).toBe(false));
-    fireEvent.click(botao(/Lojas das cidades/));
-    await waitFor(() => expect(recado()).toBeTruthy());
-    expect(recado().textContent).toMatch(/ainda não tem lugares/);
+  /* 31/10/2026, usuário: "vejo que a loja Deiamon tem a exclusão habilitada".
+     Ruína não ganha loja nova, mas a que já existe é de cidade: não se exclui. */
+  it('a loja de uma ruína que já existe também não tem "Excluir"', async () => {
+    montar({
+      cidades: [CIDADES[1]],
+      estoque_loja: { comercios: [
+        { id: 'd1', nome: 'Deiamon', lugar: 'Deiamon', ativo: true, itens: [] },
+      ], editando_em: null },
+    });
+    await waitFor(() => expect(document.querySelector('.estoque-seletor-loja')).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('.estoque-seletor-loja .select-pill-btn').textContent).toMatch(/Deiamon/));
+    // Dá tempo de o catálogo de lugares chegar antes de afirmar a ausência.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(botao(/Excluir esta loja/)).toBeFalsy();
+  });
+
+  /* 31/10/2026, usuário: "O botão da loja aberta ou fechada pode ser um botão
+     parecido com o seletor de quantidade, mas em pílula com Sim ou Não". */
+  it('Aberta é uma pílula Sim | Não, e Não fecha a loja', async () => {
+    const { tabelas } = montar({
+      cidades: [CIDADES[1]],
+      estoque_loja: { comercios: [
+        { id: 'd1', nome: 'Deiamon', lugar: 'Deiamon', ativo: true, itens: [] },
+      ], editando_em: null },
+    });
+    await waitFor(() => expect(document.querySelector('.estoque-sim-nao')).toBeTruthy());
+    const ops = [...document.querySelectorAll('.estoque-sim-nao [role="radio"]')];
+    expect(ops.map((b) => [b.textContent, b.getAttribute('aria-checked')])).toEqual([['Sim', 'true'], ['Não', 'false']]);
+    // Sem o ícone da loja ao lado do nome.
+    expect(document.querySelector('.estoque-painel-corpo .loja-painel-ic')).toBeNull();
+    fireEvent.click(ops[1]);
+    await waitFor(() => expect(tabelas.historias[0].estoque_loja.comercios[0].ativo).toBe(false));
+  });
+
+  it('o "Nova loja" e o "Lojas das cidades" não existem mais', async () => {
+    const { tabelas } = montar();
+    await waitFor(() => expect(document.querySelector('.estoque-seletor-loja')).toBeTruthy());
+    // Espera as lojas fixas gravarem: sem isso a gravação cai depois do
+    // afterEach, já no supabase que recusa rede.
+    await waitFor(() => expect(lugaresDasLojas(tabelas)).toContain('Crássia'));
+    expect(document.querySelector('.estoque-nova-loja')).toBeNull();
+    expect(botao(/Lojas das cidades/)).toBeFalsy();
   });
 });
 
-/* ── REFAZER O ESTOQUE PELA ECONOMIA (28/10/2026) ─────────────────────────
-   As lojas criadas ANTES do teto de 60 ficaram enormes — no banco do usuário,
-   Haafel com 240 itens e Saupami com 221. Sem reaplicar a regra, a única
-   saída seria apagar e recriar cada uma. */
-describe('refazer o estoque de uma loja', () => {
-  const GRANDE = Array.from({ length: 200 }, (_, i) => (
-    { slug: 'ferro', entryId: 'velho' + i, estoque: 7, preco_latao_override: null }));
-
-  it('reaplica a regra na loja aberta e respeita o teto', async () => {
-    const { tabelas } = montar({
-      lugares: ['Crássia'],
-      estoque_loja: {
-        comercios: [{ id: 'c1', nome: 'Crássia', lugar: 'Crássia', ativo: true, itens: GRANDE }],
-        editando_em: null,
-      },
-    });
-    await waitFor(() => expect(document.querySelector('.estoque-refazer')).toBeTruthy());
-    await waitFor(() => expect(document.querySelector('.estoque-refazer').disabled).toBe(false));
-    fireEvent.click(document.querySelector('.estoque-refazer'));
-
-    await waitFor(() => expect(recado()).toBeTruthy());
-    const loja = tabelas.historias[0].estoque_loja.comercios[0];
-    expect(loja.itens.length).toBeLessThanOrEqual(window.LOJA_CIDADE_MAX);
-    expect(loja.itens.length).toBeLessThan(GRANDE.length);
-    // A loja em si não muda de identidade: mesmo id, mesma cidade.
-    expect(loja.id).toBe('c1');
-    expect(loja.lugar).toBe('Crássia');
-    expect(recado().textContent).toMatch(/Estoque refeito/);
+describe('as regras puras das lojas fixas', () => {
+  it('cidade e reino de mesmo nome dividem a loja; a lista sai em ordem', () => {
+    expect(window.lugaresComLoja([{ nome: 'Saravossa' }, { nome: 'Abrasil' }], [{ nome: 'saravossa' }, { nome: 'Abadom' }]))
+      .toEqual(['Abadom', 'Abrasil', 'Saravossa']);
   });
-
-  /* Sem cidade não há economia que ler — e a loja legada "Estoque" é
-     justamente essa. O botão nem aparece. */
-  it('loja sem cidade não oferece o refazer', async () => {
-    montar({
-      estoque_loja: { comercios: [{ id: 'legado', nome: 'Estoque', ativo: true, itens: [] }], editando_em: null },
-    });
-    await waitFor(() => expect(document.querySelector('.estoque-seletor-loja')).toBeTruthy());
-    expect(document.querySelector('.estoque-refazer')).toBeNull();
+  it('lojaEhFixa reconhece o lugar sem acento e sem caixa; sem lugar, não', () => {
+    expect(window.lojaEhFixa({ lugar: 'CRASSIA' }, ['Crássia'])).toBe(true);
+    expect(window.lojaEhFixa({ nome: 'Estoque' }, ['Crássia'])).toBe(false);
   });
 });
 
@@ -225,7 +209,7 @@ describe('o seletor de loja do trilho', () => {
   it('lista as dez lojas do banco, a legada inclusive', async () => {
     const nomes = ['Abrasil', 'Saupami', 'Saravossa', 'Bassani', 'Ilha dos Corvos',
       'Sula', 'Cidade Dourada', 'Farzelo', 'Haafel'];
-    montar({
+    montar({ cidades: [],
       estoque_loja: {
         comercios: [
           { id: 'legado', nome: 'Estoque', ativo: true, itens: [] },
@@ -256,7 +240,7 @@ describe('o seletor de loja do trilho', () => {
     const guardado = window.SelectPill;
     try {
       window.SelectPill = undefined;
-      montar({
+      montar({ cidades: [],
         estoque_loja: {
           comercios: [
             { id: 'c1', nome: 'Crássia', lugar: 'Crássia', ativo: true, itens: [] },
@@ -277,7 +261,7 @@ describe('o seletor de loja do trilho', () => {
   });
 
   it('lista as lojas e trocar nele troca o estoque mostrado', async () => {
-    montar({
+    montar({ cidades: [],
       lugares: ['Crássia'],
       estoque_loja: {
         comercios: [

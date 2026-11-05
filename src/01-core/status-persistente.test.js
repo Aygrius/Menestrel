@@ -171,16 +171,16 @@ describe('o cardápio do Mestre', () => {
   /* Eram quatro até 20/09/2026, quando desmaiado e morto entraram no cardápio
      ("falta adicionar todos os status possíveis na ficha"). A ordem importa: é
      a ordem da lista na tela. Ver 01-core/status-desmaiado-morto.test.js. */
-  it('traz os seis tipos que a batalha sabe montar', () => {
+  it('traz os sete tipos que a batalha sabe montar', () => {
     expect(STATUS_MESTRE_TIPOS.map((t) => t.tipo)).toEqual(
-      ['veneno', 'sangramento', 'ferido', 'caido', 'desmaiado', 'morto']
+      ['veneno', 'sangramento', 'ferido', 'caido', 'distraido', 'desmaiado', 'morto']
     );
   });
 
   /* Caído, desmaiado e morto não têm número: não existe "dano por rodada" em
      estar inconsciente. Veneno, sangramento e ferido têm. */
-  it('caído, desmaiado e morto dispensam um valor', () => {
+  it('caído, distraído, desmaiado e morto dispensam um valor', () => {
     const semValor = STATUS_MESTRE_TIPOS.filter((t) => t.semValor).map((t) => t.tipo);
-    expect(semValor).toEqual(['caido', 'desmaiado', 'morto']);
+    expect(semValor).toEqual(['caido', 'distraido', 'desmaiado', 'morto']);
   });
 });

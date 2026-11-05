@@ -18,7 +18,7 @@ describe('barra de menus da ficha', () => {
   /* 23/10/2026: "Pode remover os ícones" — as abas com nome ficam só com o
      nome (o ti-briefcase-2 do Inventário saiu junto). */
   it('abas com nome não levam ícone', () => {
-    for (const aba of ['ficha', 'info', 'conhecimento', 'animais', 'inventario', 'loja']) {
+    for (const aba of ['ficha', 'info', 'animais', 'inventario', 'loja']) {
       const i = fonte.indexOf(`data-aba-ficha="${aba}"`);
       const trecho = fonte.slice(i, fonte.indexOf('</button>', i));
       expect(trecho, aba).toMatch(/fp-tab-rotulo/);

@@ -52,6 +52,7 @@ describe('o degrau de volta do ∞ no painel do Mestre', () => {
   it('e o ∞ continua sendo o degrau abaixo do zero', () => {
     expect(estoque).toMatch(/value=\{ilimitado \? -1 : \(Number\(it\.estoque\) \|\| 0\)\}/);
     expect(estoque).toMatch(/min=\{-1\}/);
-    expect(estoque).toMatch(/centro=\{ilimitado \? '∞' : \(Number\(it\.estoque\) \|\| 0\)\}/);
+    // O número do meio se digita desde 29/10/2026; o ∞ continua sendo o estoque nulo.
+    expect(estoque).toMatch(/centro=\{<EstoqueDigitavel estoque=\{ilimitado \? null : \(Number\(it\.estoque\) \|\| 0\)\}/);
   });
 });

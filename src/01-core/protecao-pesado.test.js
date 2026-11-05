@@ -37,35 +37,35 @@ beforeAll(() => {
 const ALFORGE = { efeito_positivo: 'Protege 20 de Pesado.' };
 const CINTO_ELFICO = { efeito_positivo: 'Protege 5 de Pesado e 5 de Desonra.' };
 
-describe('o parser aprendeu a palavra', () => {
-  it('"Protege 20 de Pesado" vira proteção na barra pesado', () => {
-    expect(protecoesDoItem(ALFORGE)).toEqual({ pesado: 20 });
+/* A PROTEÇÃO PESADO SAIU (30/10/2026, usuário: "Remover a informação 'Este
+   item protege 20 de pesado.' e a mecânica, pois os itens dentro de um
+   recipiente já possuem um ajuste para amenizar a carga"). Confirmado em
+   calcCarga: 75% de peso dentro do recipiente, e o recipiente soma
+   capacidade. O texto saiu dos 15 itens do banco
+   (scripts/sql/sem-protecao-pesado-2026-10-30.sql); o que sobrar escrito é
+   ignorado. Este bloco trava a SAÍDA — o de 28/10 travava a entrada. */
+describe('a proteção Pesado não existe mais', () => {
+  it('"Protege 20 de Pesado" não vira proteção nenhuma', () => {
+    expect(protecoesDoItem(ALFORGE)).toEqual({});
   });
 
-  /* O Cinto Élfico protege duas barras na mesma frase, e o verbo vale para as
-     duas partes — é o que o parser já fazia com Frio e Calor. */
-  it('duas barras na mesma frase, uma delas Pesado', () => {
-    expect(protecoesDoItem(CINTO_ELFICO)).toEqual({ pesado: 5, reputacao: 5 });
+  it('numa frase com outra barra, só a outra vale', () => {
+    expect(protecoesDoItem(CINTO_ELFICO)).toEqual({ reputacao: 5 });
   });
 
-  it('e aparece na grade do editor, com o rótulo Pesado', () => {
-    expect(protecoesEmNumeros(ALFORGE)).toEqual({ Pesado: 20 });
-    expect(PROTECOES_EDITAVEIS.map((d) => d.rotulo)).toContain('Pesado');
-  });
-
-  /* Pesado NÃO entra na grade de deltas: a barra é calculada do peso
-     carregado, não guardada — somar a ela seria escrever num número que a
-     próxima conta reescreve. */
-  it('mas não entra na grade de deltas', () => {
+  it('e não aparece na grade do editor', () => {
+    expect(protecoesEmNumeros(ALFORGE)).toEqual({});
+    expect(PROTECOES_EDITAVEIS.map((d) => d.rotulo)).not.toContain('Pesado');
     expect(window.EFEITOS_EDITAVEIS.map((d) => d.rotulo)).not.toContain('Pesado');
   });
 
-  it('a grade grava a proteção de volta na prosa', () => {
-    expect(efeitosParaTexto({}, null, { Pesado: 20 }).efeito_positivo)
-      .toBe('Protege 20 de Pesado.');
+  it('a grade não grava Pesado de volta na prosa', () => {
+    expect(efeitosParaTexto({}, null, { Pesado: 20 }).efeito_positivo || '').not.toMatch(/Pesado/);
   });
 });
 
+/* A conta do teto continua valendo para qualquer proteção que chegue à
+   barra (barrasDeCondicao é genérica) — só nenhum item a manda mais. */
 describe('o que a proteção faz na barra', () => {
   /* A carga chega em `condicoes.pesado` como % da capacidade — é
      calcularFicha quem a põe ali. */

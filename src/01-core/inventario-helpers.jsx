@@ -152,11 +152,13 @@ const SLOT_LABELS = {
    O total de casas da região vale para a SOMA de equipamento + vestimenta +
    adorno nela. As mãos têm ainda 2 casas de SAQUE RÁPIDO (saque_e/saque_d):
    a peça ali guardada NÃO está equipada (sem efeitos) e troca de lugar com a
-   mão pelo botão ⇄ (trocarSaqueRapido). */
+   mão pelo botão ⇄ (trocarSaqueRapido).
+   O Pé caiu para 1 casa em 30/10/2026 (usuário: "Mude o pé para 1 casa"):
+   bota de armadura e sandália não se calçam juntas. */
 const REGIOES_EQUIP = {
   cabeca: 1, orelha: 4, rosto: 2, pescoco: 3, ombro: 2, costas: 2, dorso: 1,
   peito: 3, braco: 2, dedo: 10, pulso: 2, mao: 2, perna: 2, cintura: 2,
-  canela: 2, pe: 2, alforje: 3,
+  canela: 2, pe: 1, alforje: 3,
 };
 
 // Slot antigo (gravado em instâncias/catálogo até 26/10/2026) → região nova.
@@ -577,19 +579,180 @@ function passoBonusItem(atual, direcao) {
   return BONUS_ITEM_VALORES[j];
 }
 
-// Absorção de UMA peça: a do catálogo + o bônus de Sagração da instância.
+/* A PEÇA É MÁGICA? (30/10/2026, usuário: "Itens alvos da magia sagração ou
+   que tenham bônus +1, +3, etc também são mágicos automaticamente, remover o
+   campo mágico remove o bônus.") Duas fontes: o catálogo (itens.magico,
+   escolha de quem criou o item) ou a Sagração da peça (bonus > 0). A segunda
+   não tem campo próprio — é o bônus: o mágico da Sagração some quando o
+   bônus volta a 0, e só assim. Pura. */
+function itemEhMagico(cat, it) {
+  return !!(cat && cat.magico) || bonusDoItem(it) > 0;
+}
+
+/* ── O GRAU DA PEÇA FABRICADA (31/10/2026) ────────────────────────────────
+   Usuário: "Espetacular e Absurdo +2 Defesa, Resistência, Absorção e +6 Dano.
+   Muito Difícil +1 [...] e +3 Dano. Difícil o padrão. Médio −1 [...] e −3
+   Dano. Fácil −2 [...] e −6 Dano. Rotineiro −3 [...] e −9 Dano."
+
+   Mora na INSTÂNCIA (`it.fabricado.grau`, carimbado pela bancada —
+   01-core/fabricacao.jsx), como o bônus de Sagração: duas cotas iguais, uma
+   Absurda e outra Rotineira, valem coisas diferentes. Defesa e Absorção são
+   de armadura, Dano é de arma, Resistência é das duas. Nenhum dos três
+   atributos desce de zero; o dano pode (a Soqueira já nasce negativa). */
+const AJUSTE_POR_GRAU = {
+  A:  { atributo: 2,  dano: 6 },
+  E:  { atributo: 2,  dano: 6 },
+  MD: { atributo: 1,  dano: 3 },
+  D:  { atributo: 0,  dano: 0 },
+  M:  { atributo: -1, dano: -3 },
+  F:  { atributo: -2, dano: -6 },
+  R:  { atributo: -3, dano: -9 },
+};
+// { defesa, absorcao, resistencia, dano } que o grau da peça soma.
+function ajusteDeFabrica(it, cat) {
+  const aj = AJUSTE_POR_GRAU[it && it.fabricado && it.fabricado.grau];
+  if (!aj || !cat) return { defesa: 0, absorcao: 0, resistencia: 0, dano: 0 };
+  const armadura = cat.grupo === 'Armaduras';
+  const arma = cat.grupo === 'Armas';
+  return {
+    defesa: armadura ? aj.atributo : 0,
+    absorcao: armadura ? aj.atributo : 0,
+    resistencia: armadura || arma ? aj.atributo : 0,
+    dano: arma ? aj.dano : 0,
+  };
+}
+
+// Absorção de UMA peça: a do catálogo + o bônus de Sagração da instância
+// + o grau da fabricação.
 function absorcaoDaPeca(it, cat) {
-  const base = Number(cat?.absorcao || 0);
-  return destinoBonusItem(cat) === 'absorcao' ? base + bonusDoItem(it) : base;
+  const base = Number(cat?.absorcao || 0) + ajusteDeFabrica(it, cat).absorcao;
+  return Math.max(0, destinoBonusItem(cat) === 'absorcao' ? base + bonusDoItem(it) : base);
+}
+/* "Avambraço de Aldren" (31/10/2026, usuário: "Se o item for criado pelo
+   personagem Aldren, o item criado será chamado de 'Avambraço de Aldren'.
+   [...] Apenas o nome irá mudar, a descrição carregará as informações do
+   item criado"). O nome mora na instância (`fabricado.por`); o catálogo
+   continua sendo a peça. */
+function nomeDaPecaFabricada(it, cat) {
+  const base = (cat && cat.nome) || (it && it.slug) || '';
+  const por = it && it.fabricado && it.fabricado.por;
+  return por ? base + ' de ' + por : base;
+}
+// Defesa de UMA peça: a do catálogo + o grau da fabricação (31/10/2026).
+function defesaDaPeca(it, cat) {
+  return Math.max(0, Number(cat?.defesa || 0) + ajusteDeFabrica(it, cat).defesa);
+}
+
+/* A Sagração também dá RESISTÊNCIA (30/10/2026, usuário: "Sagração passa a
+   dar resistência para as armaduras também" — "o mesmo valor da sagração").
+   Nunca defesa. Arma não tem destino 'absorcao', então a durabilidade da arma
+   não muda. */
+function resistenciaDaPeca(it, cat) {
+  const base = Number(cat?.resistencia || 0) + ajusteDeFabrica(it, cat).resistencia;
+  return Math.max(0, destinoBonusItem(cat) === 'absorcao' ? base + bonusDoItem(it) : base);
+}
+
+/* PEÇA QUEBRADA (30/10/2026, usuário: "Cada peça quebra sozinha, a defesa
+   também para de funcionar"). Mora na instância e atravessa a batalha até o
+   Mestre consertar. Quebrada, a peça continua no corpo — pesa, atrasa e abafa
+   o karma como antes —, mas não absorve, não defende e tira o bônus do
+   conjunto. `res` em 0 NÃO é quebrada: "a peça só quebra depois do primeiro
+   golpe com 0". */
+function pecaQuebrada(it) {
+  return !!(it && it.quebrada);
+}
+
+/* ── CONJUNTO DE ARMADURA (30/10/2026) ──────────────────────────────────────
+   "Quando um personagem equipar todo o conjunto, sem faltar nenhuma peça, ele
+   terá um bônus" — e "todas as peças precisam ser idênticas, de Crizagom por
+   exemplo". As peças de um conjunto dividem `itens.conjunto`; o KIT (o item
+   que se compra e se desmonta nas peças) tem o mesmo `conjunto` e nenhuma
+   região. Peça quebrada conta como peça faltando (decisão do mesmo dia). */
+const BONUS_CONJUNTO = {
+  L: { abs: 2, def: 4 },
+  M: { abs: 3, def: 3 },
+  P: { abs: 4, def: 2 },
+};
+
+function ehKitDeArmadura(cat) {
+  return !!(cat && cat.conjunto && cat.grupo === 'Armaduras' && !cat.slot_equip);
+}
+
+/* As peças de cada conjunto no catálogo: { conjunto: [slug, …] }. O catálogo
+   inteiro passa por aqui a cada ficha; o WeakMap guarda a resposta enquanto o
+   objeto do catálogo for o mesmo. */
+const _pecasDosConjuntos = new WeakMap();
+function pecasDosConjuntos(catalogoBySlug) {
+  if (!catalogoBySlug || typeof catalogoBySlug !== 'object') return {};
+  const pronto = _pecasDosConjuntos.get(catalogoBySlug);
+  if (pronto) return pronto;
+  const out = {};
+  Object.values(catalogoBySlug).forEach((c) => {
+    if (!c || !c.conjunto || ehKitDeArmadura(c)) return;
+    (out[c.conjunto] = out[c.conjunto] || []).push(c.slug);
+  });
+  _pecasDosConjuntos.set(catalogoBySlug, out);
+  return out;
+}
+
+/* O bônus do conjunto completo no corpo, ou null. Devolve o primeiro que
+   fecha — duas armaduras completas ao mesmo tempo não cabem nas casas. */
+function bonusDeConjunto(itens, catalogoBySlug) {
+  if (!catalogoBySlug || !Array.isArray(itens)) return null;
+  const noCorpo = {};
+  itens.forEach((it) => {
+    if (!pecaNoCorpo(it) || pecaQuebrada(it)) return;
+    const c = catalogoBySlug[it.slug];
+    if (!c || !c.conjunto) return;
+    (noCorpo[c.conjunto] = noCorpo[c.conjunto] || new Set()).add(it.slug);
+  });
+  const todas = pecasDosConjuntos(catalogoBySlug);
+  for (const conjunto of Object.keys(noCorpo)) {
+    const precisa = todas[conjunto] || [];
+    if (precisa.length === 0 || !precisa.every((s) => noCorpo[conjunto].has(s))) continue;
+    const tipo = catalogoBySlug[precisa[0]]?.tipo_armadura;
+    const b = BONUS_CONJUNTO[tipo];
+    if (b) return { conjunto, tipo, abs: b.abs, def: b.def };
+  }
+  return null;
+}
+
+/* As peças que o kit vira, na ordem do catálogo. */
+function pecasDoKit(kit, catalogoBySlug) {
+  if (!ehKitDeArmadura(kit)) return [];
+  return (pecasDosConjuntos(catalogoBySlug)[kit.conjunto] || [])
+    .map((s) => catalogoBySlug[s]).filter(Boolean);
+}
+
+/* DESMONTAR o kit ("É um kit que se desmonta nas peças", 30/10/2026). Tira
+   UMA unidade do kit e põe as peças soltas no mesmo lugar dele. Puro: devolve
+   a nova lista, ou a mesma se o item não for kit. */
+function desmontarKit(itens, instanceId, catalogoBySlug) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const kitIt = lista.find((it) => it.instanceId === instanceId);
+  const kit = kitIt && catalogoBySlug ? catalogoBySlug[kitIt.slug] : null;
+  const pecas = pecasDoKit(kit, catalogoBySlug);
+  if (!kitIt || pecas.length === 0) return lista;
+  const qtd = Math.max(1, Number(kitIt.quantidade) || 1);
+  const resto = qtd > 1
+    ? lista.map((it) => (it.instanceId === instanceId ? { ...it, quantidade: qtd - 1 } : it))
+    : lista.filter((it) => it.instanceId !== instanceId);
+  const novas = pecas.map((c) => ({
+    instanceId: novoInstanceId(), slug: c.slug, quantidade: 1,
+    ...(kitIt.containerId ? { containerId: kitIt.containerId } : {}),
+  }));
+  return [...resto, ...novas];
 }
 
 function calcArmadura(p, catalogoBySlug) {
   if (!catalogoBySlug || !p?.inventario?.itens) return 0;
-  return p.inventario.itens.reduce((sum, it) => {
-    if (!pecaNoCorpo(it)) return sum;
+  const pecas = p.inventario.itens.reduce((sum, it) => {
+    if (!pecaNoCorpo(it) || pecaQuebrada(it)) return sum;
     const cat = catalogoBySlug[it.slug];
     return sum + absorcaoDaPeca(it, cat);
   }, 0);
+  const conj = bonusDeConjunto(p.inventario.itens, catalogoBySlug);
+  return pecas + (conj ? conj.abs : 0);
 }
 
 /* Resistência total da armadura = durabilidade.
@@ -606,18 +769,43 @@ function calcArmadura(p, catalogoBySlug) {
    E só peça que ABSORVE (14/09/2026): arma também tem `resistencia` no
    catálogo (84 das 93), mas é a durabilidade da ARMA. O arco equipado da
    Lirael somava 11 à armadura dela (31 em vez de 20) e passava a gastar os
-   pontos dos golpes que furavam o limiar. Escudo absorve, então conta. */
+   pontos dos golpes que furavam o limiar. Escudo absorve, então conta.
+
+   E a peça de armadura que SÓ DEFENDE (30/10/2026): a Ombreira leve tem
+   absorção 0 e defesa 2. Ela quebra como as outras — "a defesa também para
+   de funcionar" —, então é armadura pela categoria, não pela absorção. */
 function pecaQueAbsorve(cat) {
-  return Number(cat?.absorcao || 0) > 0;
+  return Number(cat?.absorcao || 0) > 0
+    || String(cat?.categoria_equip || '').toLowerCase() === 'armadura';
+}
+
+/* A durabilidade de UMA peça como as telas a mostram: { max, atual, quebrada }.
+   Um lugar só para o máximo (catálogo + Sagração) e para o atual (o `res` da
+   instância, cheio quando nunca apanhou). Peça quebrada lê 0. */
+function durabilidadeDaPeca(it, cat) {
+  const max = resistenciaDaPeca(it, cat);
+  const quebrada = pecaQuebrada(it);
+  const atual = quebrada ? 0
+    : (Number.isFinite(Number(it && it.res)) ? Math.max(0, Math.min(max, Number(it.res))) : max);
+  return { max, atual, quebrada };
+}
+
+/* O Mestre ajusta a durabilidade de uma peça (leque da Resistência, ficha):
+   gravar um valor é também CONSERTAR — a peça quebrada volta a valer. */
+function comResistencia(it, cat, valor) {
+  const max = resistenciaDaPeca(it, cat);
+  const novo = { ...it, res: Math.max(0, Math.min(max, Math.round(Number(valor) || 0))) };
+  delete novo.quebrada;
+  return novo;
 }
 
 function calcResistenciaArmadura(p, catalogoBySlug) {
   if (!catalogoBySlug || !p?.inventario?.itens) return 0;
   return p.inventario.itens.reduce((sum, it) => {
-    if (!pecaNoCorpo(it)) return sum;
+    if (!pecaNoCorpo(it) || pecaQuebrada(it)) return sum;
     const cat = catalogoBySlug[it.slug];
     if (!pecaQueAbsorve(cat)) return sum;
-    return sum + Number(cat?.resistencia || 0);
+    return sum + resistenciaDaPeca(it, cat);
   }, 0);
 }
 
@@ -630,18 +818,115 @@ function calcResistenciaArmadura(p, catalogoBySlug) {
    Existe porque o desgaste é POR PEÇA: quando um golpe fura o limiar, quem
    perde o ponto é a peça com mais resistência restante (decisão do usuário,
    11/09/2026). Sem a lista, o motor só saberia o total e não teria em quem
-   descontar. */
+   descontar.
+
+   Desde 30/10/2026 a peça carrega o que ELA dá (`abs`, `def`) e o
+   `conjunto`: quando quebra no meio da luta, o motor tira do limiar e da
+   defesa exatamente a parte dela. Peça com resistência 0 entra (ela quebra no
+   primeiro golpe que a alcança); peça já quebrada fica de fora. */
 function pecasDeArmadura(p, catalogoBySlug) {
   if (!catalogoBySlug || !p?.inventario?.itens) return [];
   return p.inventario.itens.reduce((out, it) => {
-    if (!pecaNoCorpo(it)) return out;
-    if (!pecaQueAbsorve(catalogoBySlug[it.slug])) return out;   // arma não é armadura
-    const max = Number(catalogoBySlug[it.slug]?.resistencia || 0);
-    if (max <= 0) return out;                      // peça sem durabilidade não entra
+    if (!pecaNoCorpo(it) || pecaQuebrada(it)) return out;
+    const cat = catalogoBySlug[it.slug];
+    if (!pecaQueAbsorve(cat)) return out;   // arma não é armadura
+    const max = resistenciaDaPeca(it, cat);
     const atual = Number.isFinite(Number(it.res)) ? Math.max(0, Math.min(max, Number(it.res))) : max;
-    out.push({ instanceId: it.instanceId, slug: it.slug, res: atual, res_max: max });
+    out.push({
+      instanceId: it.instanceId, slug: it.slug, res: atual, res_max: max,
+      abs: absorcaoDaPeca(it, cat), def: defesaDaPeca(it, cat),
+      ...(cat?.conjunto ? { conjunto: cat.conjunto } : {}),
+    });
     return out;
   }, []);
+}
+
+/* ── A RESTRIÇÃO DA HABILIDADE (30/10/2026) ─────────────────────────────────
+   A coluna `habilidades.restricao` traz letras ("N", "M, P", "M, P, N"), e a
+   ficha as mostrava cruas. O usuário explicou: "N significa que para usar a
+   habilidade, é necessário ter pelo menos comprado ela. As outras letras, M,
+   P, etc, dizem que elas sofrem dificuldade extra se o personagem estiver
+   usando esse tipo de armadura. [...] a penalidade é sempre 1 nível mais
+   difícil que ele escolher." */
+const CLASSE_ARMADURA_PESO = { L: 1, M: 2, P: 3 };
+const CLASSE_ARMADURA_NOME = {
+  L: ['leve', 'light'], M: ['média', 'medium'], P: ['pesada', 'heavy'],
+};
+
+function restricaoDaHabilidade(hab) {
+  const letras = String((hab && hab.restricao) || '').toUpperCase().split(/[\s,;/]+/).filter(Boolean);
+  return {
+    exigeCompra: letras.includes('N'),
+    armaduras: letras.filter((l) => CLASSE_ARMADURA_PESO[l]),
+  };
+}
+
+/* A classe da armadura que o personagem USA: a da peça mais pesada no corpo
+   (escudo incluído). Quebrada ainda está no corpo e ainda atrapalha. Sem
+   armadura, null. */
+function classeDaArmaduraVestida(itens, catalogoBySlug) {
+  if (!Array.isArray(itens) || !catalogoBySlug) return null;
+  let melhor = null;
+  itens.forEach((it) => {
+    if (!pecaNoCorpo(it)) return;
+    const c = catalogoBySlug[it.slug];
+    if (!c || c.grupo !== 'Armaduras') return;
+    const t = String(c.tipo_armadura || '').toUpperCase();
+    if (!CLASSE_ARMADURA_PESO[t]) return;
+    if (!melhor || CLASSE_ARMADURA_PESO[t] > CLASSE_ARMADURA_PESO[melhor]) melhor = t;
+  });
+  return melhor;
+}
+
+// Degraus a mais na dificuldade: 1 quando a armadura vestida é da restrição.
+function passosDaArmaduraNaHabilidade(hab, classe) {
+  return classe && restricaoDaHabilidade(hab).armaduras.includes(classe) ? 1 : 0;
+}
+
+// Por que a habilidade não pode ser usada, ou null. `nivel` = o comprado.
+function bloqueioDaHabilidade(hab, nivel, en) {
+  if (!restricaoDaHabilidade(hab).exigeCompra || Number(nivel) > 0) return null;
+  return en ? 'You need to have bought this skill to use it.'
+    : 'É preciso ter comprado esta habilidade para usá-la.';
+}
+
+/* A restrição em palavras, para a ficha e o atalho. Com `classe`, diz se a
+   armadura de agora já pesa. */
+function textoDaRestricao(hab, classe, en) {
+  const r = restricaoDaHabilidade(hab);
+  const partes = [];
+  if (r.exigeCompra) partes.push(en ? 'Only usable once bought.' : 'Só pode ser usada por quem a comprou.');
+  if (r.armaduras.length) {
+    const nomes = r.armaduras.map((l) => CLASSE_ARMADURA_NOME[l][en ? 1 : 0]);
+    const lista = nomes.length > 1 ? nomes.slice(0, -1).join(', ') + (en ? ' or ' : ' ou ') + nomes[nomes.length - 1] : nomes[0];
+    partes.push(passosDaArmaduraNaHabilidade(hab, classe)
+      ? (en ? `You are wearing ${CLASSE_ARMADURA_NOME[classe][1]} armor: one step harder.`
+        : `Você está de armadura ${CLASSE_ARMADURA_NOME[classe][0]}: a dificuldade sobe um grau.`)
+      : (en ? `With ${lista} armor, one step harder.` : `Com armadura ${lista}, fica um grau mais difícil.`));
+  }
+  return partes.join(' ') || null;
+}
+
+/* O desgaste da luta VOLTA PARA O ITEM (30/10/2026, usuário: o desgaste e a
+   quebra continuam valendo "até consertar"). Antes a armadura entrava inteira
+   em toda batalha. `pecas` é o `armadura_pecas` do snapshot no fim da luta.
+   Puro: devolve o MESMO inventário quando nada muda. */
+function inventarioComDesgaste(inv, pecas) {
+  if (!inv || !Array.isArray(inv.itens) || !Array.isArray(pecas) || pecas.length === 0) return inv;
+  const porId = new Map(pecas.map((pc) => [pc.instanceId, pc]));
+  let mudou = false;
+  const itens = inv.itens.map((it) => {
+    const pc = porId.get(it.instanceId);
+    if (!pc) return it;
+    const res = Math.max(0, Number(pc.res) || 0);
+    const quebrada = !!pc.quebrada;
+    if (Number(it.res) === res && pecaQuebrada(it) === quebrada) return it;
+    mudou = true;
+    const novo = { ...it, res };
+    if (quebrada) novo.quebrada = true; else delete novo.quebrada;
+    return novo;
+  });
+  return mudou ? { ...inv, itens } : inv;
 }
 
 /* ── Editar a RESISTÊNCIA total da armadura (15/09/2026) ───────────
@@ -714,12 +999,17 @@ function resistenciaDeCriatura(c) {
 // Mapeia siglas do `ajuste_atributo` pras chaves do objeto `atributos` da ficha.
 // FIS entrou em 14/09/2026 com as armas naturais (Chifre, Bico, Cauda usam Físico).
 const AJUSTE_KEY = { AGI: 'agilidade', AUR: 'aura', FIS: 'fisico', FOR: 'forca', PER: 'percepcao' };
+/* Cada ponto do atributo de ajuste vale DUAS colunas (29/10/2026, pedido do
+   usuário: "para cada ponto de ajuste da arma, por exemplo, agilidade,
+   aumente 2 pontos de coluna. No caso do Nihil, o +5 vira +10"). Atributo
+   negativo também dobra. */
+const COLUNAS_POR_PONTO_DE_AJUSTE = 2;
 
 // Gera a lista de ataques do PJ a partir das armas equipadas (slot mao_d/mao_e
 // com `dano` no catálogo) e das magias com `dano > 0`.
 // Retorna array de:
 //   { origem, icone, nome, tipo, slot, alcance, ajuste, dano_l, dano_m, dano_p, dano, passos? }
-// Os dano_l/m/p já vêm somados com o atributo de ajuste do PJ.
+// Os dano_l/m/p já vêm somados com o ajuste do PJ (atributo × 2).
 // Pré-requisitos: magiasByKey é objeto { [key]: row }, atributos é o ficha.atributos.
 function gerarAtaques(p, catalogoBySlug, magiasByKey, atributos) {
   const ataques = [];
@@ -734,13 +1024,13 @@ function gerarAtaques(p, catalogoBySlug, magiasByKey, atributos) {
 
     const sigla  = cat.ajuste_atributo || null;
     const atrKey = sigla ? AJUSTE_KEY[sigla] : null;
-    const atrVal = (atributos && atrKey) ? (atributos[atrKey] || 0) : 0;
+    const atrVal = ((atributos && atrKey) ? (atributos[atrKey] || 0) : 0) * COLUNAS_POR_PONTO_DE_AJUSTE;
 
     const entry = {
       origem:  'arma',
       icone:   '⚔',
       // "Espada envenenada" enquanto o veneno durar (28/09/2026).
-      nome:    nomeComVeneno(cat.nome || it.slug, it),
+      nome:    nomeComVeneno(nomeDaPecaFabricada(it, cat), it),
       slug:    it.slug,
       // A instância e o veneno viajam com o ataque: a batalha gasta a ação do
       // veneno NESTA arma, e o arco precisa saber que é arco.
@@ -751,9 +1041,10 @@ function gerarAtaques(p, catalogoBySlug, magiasByKey, atributos) {
       slot:    it.slot,
       alcance: cat.alcance || 0,
       ajuste:  sigla,
-      dano_l:  Number(cat.dano_l || 0) + atrVal,
-      dano_m:  Number(cat.dano_m || 0) + atrVal,
-      dano_p:  Number(cat.dano_p || 0) + atrVal,
+      // + o grau da fabricação (31/10/2026: Absurdo +6, Rotineiro −9…).
+      dano_l:  Number(cat.dano_l || 0) + atrVal + ajusteDeFabrica(it, cat).dano,
+      dano_m:  Number(cat.dano_m || 0) + atrVal + ajusteDeFabrica(it, cat).dano,
+      dano_p:  Number(cat.dano_p || 0) + atrVal + ajusteDeFabrica(it, cat).dano,
       dano:    cat.dano,
       // Sagração da instância (15/09/2026). Separado de `dano`, que continua
       // sendo o do catálogo: quem soma é a batalha, junto da Força.
@@ -940,8 +1231,14 @@ const EFEITO_CONDICAO_MAP = {
      SÓ PROTEÇÃO faz sentido nesta barra, e por isso ela não entra na grade de
      deltas: Pesado não se guarda em `estado_atual.condicoes`, é CALCULADA do
      peso que o personagem carrega. Somar 5 a ela seria escrever num número
-     que a próxima conta reescreve. */
-  'Pesado':          { scope: 'condicoes',  key: 'pesado' },
+     que a próxima conta reescreve.
+
+     SAIU EM 30/10/2026 (usuário: "Remover [...] a mecânica, pois os itens
+     dentro de um recipiente já possuem um ajuste para amenizar a carga"). O
+     alívio da carga fica em calcCarga: 75% de peso dentro do recipiente e a
+     capacidade que ele soma. O texto saiu dos 15 itens
+     (scripts/sql/sem-protecao-pesado-2026-10-30.sql); sem a entrada aqui, um
+     "Protege N de Pesado" que sobrar é ignorado. */
   'Reputação':       { scope: 'condicoes',  key: 'reputacao', inverte: true },
   'Sanidade':        { scope: 'condicoes',  key: 'sanidade', inverte: true },
   'Saúde':           { scope: 'condicoes',  key: 'vitalidade', inverte: true },
@@ -1021,10 +1318,10 @@ const EFEITOS_EDITAVEIS = [
    única barra que aceita teto e NÃO aceita delta: não se guarda em
    `estado_atual.condicoes`, é calculada do peso carregado contra a
    capacidade (calcularFicha). Por isso a lista deixou de ser uma fatia de
-   EFEITOS_EDITAVEIS e passou a ser escrita por extenso. */
+   EFEITOS_EDITAVEIS e passou a ser escrita por extenso.
+   Pesado SAIU em 30/10/2026 — ver o comentário no mapa do parser, acima. */
 const PROTECOES_EDITAVEIS = [
   ...EFEITOS_EDITAVEIS.filter((d) => d.grupo === 'condicoes' && d.key !== 'termorregulacao'),
-  { rotulo: 'Pesado', scope: 'condicoes', key: 'pesado', grupo: 'condicoes' },
 ];
 
 /* O item lido como números: { 'Fome': -5, 'Energia Física': 10 }. Só entram
@@ -1065,6 +1362,27 @@ function protecoesEmNumeros(cat) {
    Texto que o parser não reconhece de jeito nenhum não sobrevive à gravação:
    ele já não faz nada no jogo. O caso conhecido é "Protege N de Pesado", que
    não tem barra — ver PROTECOES_EDITAVEIS. */
+/* A GRADE DÁ CONTA DESTE ITEM? (30/10/2026) — positivo e negativo viraram
+   uma grade só no editor (usuário: "teremos um campo para cada tipo de status
+   [...] e um número positivo ou negativo"), e as prosas saíram da tela. Mas a
+   grade REESCREVE a prosa, e o que ela não lê some na gravação. No catálogo
+   de hoje: os venenos ("Diminui 2 de Energia Física por rodada, durante 5
+   rodadas" — a duração), a Bota de Cavaleiro ("4 de Montar") e o Pó de
+   Diamante ("1 de Resistência Física").
+
+   O teste é contar NÚMEROS: cada número da prosa tem de virar uma célula
+   (efeito ou proteção). Sobrou número, a grade não cobre — e o editor mostra
+   as prosas no lugar dela. Pura. */
+function efeitosCabemNaGrade(cat) {
+  if (!cat) return true;
+  const prosa = [cat.efeito_positivo, cat.efeito_negativo].filter(Boolean).join(' ');
+  const numeros = (prosa.match(/\d+(?:[.,]\d+)?/g) || []).length;
+  if (!numeros) return true;
+  const celulas = Object.values(efeitosEmNumeros(cat) || {}).filter((n) => Number(n) !== 0).length
+    + Object.values(protecoesEmNumeros(cat) || {}).filter((n) => Number(n) !== 0).length;
+  return celulas >= numeros;
+}
+
 function efeitosParaTexto(valores, catOriginal, protecoes) {
   const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
   const mais = [];
@@ -1702,13 +2020,18 @@ Object.assign(window, {
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,
   GRUPO_PROPRIEDADE, ehPropriedade, cidadeDaPropriedade, mesmaCidade, acessoAPropriedade,
   podeMoverParaContainer, pecaNoCorpo, calcArmadura, AJUSTE_KEY, gerarAtaques,
-  BONUS_ITEM_VALORES, bonusDoItem, destinoBonusItem, passoBonusItem, absorcaoDaPeca,
+  BONUS_ITEM_VALORES, bonusDoItem, itemEhMagico, destinoBonusItem, passoBonusItem, absorcaoDaPeca,
+  AJUSTE_POR_GRAU, ajusteDeFabrica, defesaDaPeca, nomeDaPecaFabricada,
   patchDeEstado, mesclarEstado, gravarEstadoAtual,
   LOJA_EDICAO_TTL_MS, lojaEmEdicao,
   calcResistenciaArmadura, resistenciaDeCriatura, FATOR_RESISTENCIA_CRIATURA,
-  pecasDeArmadura, distribuirResistencia,
+  pecasDeArmadura, distribuirResistencia, inventarioComDesgaste,
+  resistenciaDaPeca, pecaQuebrada, pecaQueAbsorve, durabilidadeDaPeca, comResistencia, BONUS_CONJUNTO, ehKitDeArmadura, pecasDosConjuntos,
+  bonusDeConjunto, pecasDoKit, desmontarKit,
+  restricaoDaHabilidade, classeDaArmaduraVestida, passosDaArmaduraNaHabilidade,
+  bloqueioDaHabilidade, textoDaRestricao,
   EFEITO_CONDICAO_MAP, parseEfeito, efeitosDoItem, aplicarDeltaCondicao,
-  EFEITOS_EDITAVEIS, efeitosEmNumeros, efeitosParaTexto,
+  EFEITOS_EDITAVEIS, efeitosEmNumeros, efeitosParaTexto, efeitosCabemNaGrade,
   PROTECOES_EDITAVEIS, protecoesEmNumeros,
   aplicarEfeitosItem, aplicarEfeitosNaFicha,
 });

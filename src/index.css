@@ -8228,6 +8228,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 .batalha-estado-drop-portal .batalha-estado-drop-item.sangra { color: #E57269; }
 .batalha-estado-drop-portal .batalha-estado-drop-item.caido { color: #e8c26b; }
 .batalha-estado-drop-portal .batalha-estado-drop-item.ferido { color: #d98b5f; }
+.batalha-estado-drop-portal .batalha-estado-drop-item.distraido { color: #b9a6dc; }
 
 /* Wrapper relativo do EstadoDrop (botão + portal-anchor) */
 #root .menestrel-ui .estado-drop-wrap { position: relative; margin-left: auto; }
@@ -9275,8 +9276,10 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 /* As barras do bicho são a coluna do personagem (fp2-vitcond-col): nada de
    display ou gap próprios aqui — foi exatamente isso que, em 06/10/2026,
    deixou a barra de experiência do animal colada na de cima. */
-#root .menestrel-ui .fp-animal-vit .fp2-panel:last-child { flex: 0 0 auto; }
-#root .menestrel-ui .fp-animal-vit .fp2-panel:last-child .fp2-panel-body { flex: 0 0 auto; overflow-y: visible; }
+/* Sem o cartão de Condições (04/11/2026, "não vamos fazer o controle das
+   suas condições"), as Energias são o único cartão da coluna e esticam até o
+   pé do Arreamento, como as do dono até o do Equipamentos. A regra que
+   prendia o ÚLTIMO cartão na altura do conteúdo era das Condições e saiu. */
 /* A separação entre as energias e as condições era `.fp2-vit-break` — uma
    régua no topo mais 4px de margem: "crie uma leve separação entre as barras
    de ef, eh, etc e as barras de vitalidade, sono, fome, etc" (usuário).
@@ -11539,7 +11542,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
    mesma coluna — quantidade, recipientes e valores começam na mesma reta. */
 #root .menestrel-ui .loja-compra-desc {
   margin: 0; color: var(--parchment, var(--tinta)); font-family: var(--font-body);
-  font-size: var(--fs-sm); line-height: 1.6; max-width: 62ch;
+  font-size: var(--fs-sm); line-height: 1.6;
 }
 #root .menestrel-ui .loja-compra-grade {
   display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 20px; row-gap: 12px;
@@ -11680,11 +11683,32 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui.ms-backdrop:has(> .modal-best-detalhe .best-abas),
 #root .menestrel-ui .ms-backdrop:has(> .modal-best-detalhe .best-abas) { align-items: center; }
 
-/* Vender inline (27/09/2026): quantidade e as quatro moedas numa linha; o
-   grid das moedas se desfaz para que cada seletor seja item da mesma fila. */
-#root .menestrel-ui .det-venda-linha { display: flex; flex-wrap: wrap; gap: 8px; }
-#root .menestrel-ui .det-venda-linha > .venda-moedas { display: contents; }
-#root .menestrel-ui .det-venda-linha .fp-pop-stepper { flex: 1 1 120px; width: auto; min-width: 0; margin: 0; }
+/* ── VENDER EM DUAS SEÇÕES (04/11/2026) ────────────────────────────────────
+   "Separando quantidade de quantidade de moedas, organizando o que é seletor
+   de moeda e seletor de quantidade de forma bem estruturada" (usuário). Era
+   uma linha só (27/09/2026) com cinco seletores iguais. Agora:
+     QUANTIDADE  um seletor, na largura toda;
+     VALOR       as quatro moedas em grade 2 × 2, cada uma com o nome em cima;
+     TOTAL       a conta, separada por régua, quando há mais de uma unidade.
+   Rótulo .mn-rotulo sobre cada seção — o vocabulário do passe. */
+#root .menestrel-ui .det-etapa.det-venda { gap: 18px; }
+#root .menestrel-ui .det-venda-lugar { margin-bottom: 0; }
+#root .menestrel-ui .det-venda-secao { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#root .menestrel-ui .det-venda-secao .fp-pop-stepper { width: 100%; max-width: none; margin: 0; }
+#root .menestrel-ui .det-venda-secao .venda-moedas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+#root .menestrel-ui .venda-moeda-campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+/* O nome da moeda é sub-rótulo de VALOR: um degrau abaixo dele (caixa
+   normal, sem espaçamento de rótulo), para as duas camadas não se lerem como
+   do mesmo nível. */
+#root .menestrel-ui .venda-moeda-nome.mn-rotulo {
+  padding-left: 2px; font-size: var(--fs-sm); font-weight: 600;
+  letter-spacing: 0; text-transform: none; color: var(--tinta-2);
+}
+#root .menestrel-ui .det-venda .det-venda-nota {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding-top: 12px; border-top: 1px solid var(--regua-forte);
+  font-size: var(--fs-rotulo); font-weight: 700; letter-spacing: var(--rotulo-espaco); text-transform: uppercase; color: var(--tinta-3);
+}
 
 /* Faixa dos traços de página com altura FIXA (27/09/2026): nas colunas da
    ficha e do animal o título é a própria página, e a coluna sem páginas não
@@ -12525,22 +12549,37 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 /* Sem a faixa da cena (fora de mesa, 22/10/2026), o conteúdo sobe até o
    cabeçalho: o espaço dela era reservado mesmo quando ela não existia. */
 @media (max-width: 768px) {
-  #root:not(:has(.cdj-root)) .menestrel-ui .mc-main,
-  #root:not(:has(.cdj-root)) .menestrel-ui .mc-main:has(.pjs) { margin-top: 72px; }
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main,
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main:has(.pjs) { margin-top: 72px; }
 }
+/* NOTEBOOK E TABLET DEITADO (30/10/2026, usuário: "quando eu abro a ficha do
+   personagem [...] há um espaço extra no topo"). Aqui ficavam 90px — os 70
+   do cabeçalho de página + 20 —, mas desde 23/10 o cabeçalho não mostra nada
+   acima de 768px (o título saiu; ver "TOPO CENTRALIZADO, SEM TÍTULO"). Era
+   uma faixa vazia de 70px em cima da ficha, só nesta largura: no desktop a
+   regra logo abaixo já dava 20. Agora as duas faixas são iguais. */
 @media (min-width: 769px) and (max-width: 1280px) {
-  #root:not(:has(.cdj-root)) .menestrel-ui .mc-topo { height: 70px; align-items: center; padding-top: 0; }
-  #root:not(:has(.cdj-root)) .menestrel-ui .mc-main,
-  #root:not(:has(.cdj-root)) .menestrel-ui .mc-main:has(.pjs) { margin-top: 90px; }
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-topo { height: 70px; align-items: center; padding-top: 0; }
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main { margin-top: 0; padding-top: 20px; }
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main:has(.pjs) { margin-top: 0; padding-top: 0; }
 }
 /* E NO DESKTOP TAMBÉM (27/10/2026). A compensação acima só existia até
    1280px; na tela larga, onde o usuário trabalha, os 70px reservados para a
    faixa continuavam lá depois que ela deixou de montar fora da mesa — um vão
    mudo acima da ficha. Sem faixa, o respiro é o mesmo da Batalha: 20px. Na
    lista de personagens ele vem de dentro (os 30px do .pjs), e a margem zera. */
+/* RESPIRO DE DENTRO, NÃO DE FORA (30/10/2026, usuário: "quando a tela rola
+   [...] parte do trilho no topo se esconde, como se houvesse ali um frame por
+   cima"). Os 20px eram MARGEM do .mc-main, que é a caixa de rolagem: ela
+   começava 20px abaixo da janela, e a ficha sumia nessa linha invisível ao
+   rolar. Como padding, a caixa vai até a borda e o conteúdo rola até lá —
+   parado, a ficha continua a 20px do topo. Vale nas três larguras.
+   ATENÇÃO: acima de 768px, quem vence de fato é a cópia destas linhas em
+   "UM RITMO SÓ ENTRE OS TRILHOS E OS CARTÕES", depois dos 81px — ver lá o
+   porquê (o build de produção). */
 @media (min-width: 1281px) {
-  #root:not(:has(.cdj-root)) .menestrel-ui .mc-main { margin-top: 20px; }
-  #root:not(:has(.cdj-root)) .menestrel-ui .mc-main:has(.pjs) { margin-top: 0; }
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main { margin-top: 0; padding-top: 20px; }
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main:has(.pjs) { margin-top: 0; padding-top: 0; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -12555,7 +12594,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
   width: fit-content; max-width: 100%; margin: 0 0 14px; padding: 5px;
   background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte); border-radius: 999px;
-  box-shadow: 0 10px 24px -14px rgba(0,0,0,0.8);
 }
 #root .menestrel-ui .mc-acoes-ficha:empty { display: none; }
 #root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo {
@@ -12564,7 +12602,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 }
 #root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo.rl-root { order: 1; }
 #root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo.at-root { order: 2; }
-#root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo.amg-root { order: 3; }
+#root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo.amg-root { order: 4; }
+/* Inventário logo depois de Habilidades · Magias · Itens (30/10/2026). */
+#root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo.fp-inv-grupo { order: 3; }
 /* Régua entre os grupos. */
 #root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo + .mc-acao-grupo::before,
 #root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo.at-root:not(:first-child)::before,
@@ -12777,6 +12817,11 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 }
 #root .menestrel-ui .mc-acoes-ficha .mc-acao i { color: var(--vivo); }
 #root .menestrel-ui .mc-acoes-ficha .mc-acao:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
+/* A página aberta (Ficha, 31/10/2026): a mesma marca das abas do trilho. */
+#root .menestrel-ui .mc-acoes-ficha .mc-acao.is-ativo,
+#root .menestrel-ui .inv-trilho .mc-acao.is-ativo { background: var(--vivo-fundo); border-color: var(--vivo-aro, rgba(var(--vivo-rgb),.5)); color: var(--tinta); }
+/* Ficha abre o trilho (31/10/2026: "o botão ficha deve ser o primeiro"). */
+#root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo.fp-nav-ficha-grupo { order: -1; }
 /* Batalha em curso: a pílula em brasa, a mesma chamada de antes. */
 #root .menestrel-ui .mc-acoes-ficha .mc-acao--batalha {
   color: #F8E8DC; background: linear-gradient(135deg, #B8472F 0%, #8B1A10 100%);
@@ -12864,55 +12909,52 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 
 /* ── Medalhões ── */
 #root .menestrel-ui .fp-medalhoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); justify-items: center; gap: 12px 10px; }
-#root .menestrel-ui .fp-medalhao { width: 86px; height: 86px; position: relative; border-radius: 50%; outline: none; }
+/* O medalhão é um contêiner (container-type): o efeito da energia mede-se
+   pelo tamanho DELE (cqw), e não em pixels — ver "A ENERGIA PROPORCIONAL". */
+#root .menestrel-ui .fp-medalhao { width: 86px; height: 86px; position: relative; border-radius: 50%; outline: none; container-type: size; }
 #root .menestrel-ui .fp-medalhao.is-editable { cursor: pointer; }
 #root .menestrel-ui .fp-medalhao:focus-visible { box-shadow: 0 0 0 2px var(--vivo); }
 #root .menestrel-ui .fp-medalhao.is-zero { filter: saturate(.3) brightness(.6); }
 #root .menestrel-ui .fp-medalhao > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 #root .menestrel-ui .fp-medalhao > svg.fp-medalhao-sobre { z-index: 2; pointer-events: none; }
-/* o canal (anel de 34 a 40px do centro) recorta o líquido até a porcentagem */
+/* A ENERGIA PROPORCIONAL (04/11/2026, usuário: "A energia roxa, efeito dos
+   cards de condição está bugado"). O efeito foi desenhado para o medalhão de
+   86px, em pixels fixos: o canal de 34 a 40px do centro, o degradê, a órbita
+   das bolhas a 36,4px e o rosto a 10px da borda. Em 02/11/2026 o medalhão
+   cresceu para 94px (e a ficha ainda tem zoom), mas o anel de vidro — SVG —
+   cresceu junto, e o efeito não: a energia roxa ficou para dentro, quase toda
+   sob o rosto, e o vidro vazio por fora. Agora tudo é fração do raio
+   (closest-side, em %) ou do próprio medalhão (cqw): os mesmos números do
+   desenho de 86px, divididos por 43 (o raio), acompanham qualquer tamanho. */
+/* o canal (anel de 79% a 93% do raio) recorta o líquido até a porcentagem */
 #root .menestrel-ui .fp-medalhao-canal { position: absolute; inset: 0; z-index: 1; border-radius: 50%;
-  -webkit-mask: conic-gradient(#000 calc(var(--p) * 1%), transparent 0), radial-gradient(circle, transparent 33.5px, #000 34px, #000 40px, transparent 40.5px);
+  -webkit-mask: conic-gradient(#000 calc(var(--p) * 1%), transparent 0), radial-gradient(circle closest-side, transparent 77.9%, #000 79.1%, #000 93%, transparent 94.2%);
   -webkit-mask-composite: source-in;
-  mask: conic-gradient(#000 calc(var(--p) * 1%), transparent 0), radial-gradient(circle, transparent 33.5px, #000 34px, #000 40px, transparent 40.5px);
+  mask: conic-gradient(#000 calc(var(--p) * 1%), transparent 0), radial-gradient(circle closest-side, transparent 77.9%, #000 79.1%, #000 93%, transparent 94.2%);
   mask-composite: intersect; }
 #root .menestrel-ui .fp-medalhao-liq { position: absolute; inset: 0; border-radius: 50%;
-  background: radial-gradient(circle, #24103F 33.5px, #5E2FA0 35.6px, #9A74D8 37px, #5E2FA0 38.4px, #24103F 40.5px), #5E2FA0;
+  background: radial-gradient(circle closest-side, #24103F 77.9%, #5E2FA0 82.8%, #9A74D8 86%, #5E2FA0 89.3%, #24103F 94.2%), #5E2FA0;
   animation: fp-corre 9s linear infinite; animation-delay: var(--a); }
 @keyframes fp-corre { to { transform: rotate(360deg); } }
 #root .menestrel-ui .fp-medalhao-liq::after { border-radius: 50%; background-size: 220% 220%; }
 #root .menestrel-ui .fp-medalhao-liq > i { position: absolute; left: 50%; top: 50%; width: var(--t); height: var(--t); margin: calc(var(--t) / -2) 0 0 calc(var(--t) / -2);
   border-radius: 50%; opacity: 0; background: radial-gradient(circle at 35% 35%, rgba(255,255,255,.6), rgba(255,255,255,.14) 60%, transparent 70%);
   border: 1px solid rgba(255,255,255,.3); animation: fp-orbita var(--d) ease-in-out infinite; animation-delay: var(--a2); }
-@keyframes fp-orbita { 0% { transform: rotate(var(--g)) translateX(36.4px); opacity: 0; } 15% { opacity: .9; }
-  50% { transform: rotate(calc(var(--g) + 40deg)) translateX(37.8px); } 85% { opacity: .8; }
-  100% { transform: rotate(calc(var(--g) + 80deg)) translateX(36.8px); opacity: 0; } }
-#root .menestrel-ui .fp-medalhao-face { position: absolute; inset: 10px; z-index: 3; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+/* A órbita das bolhas: 36,4 / 37,8 / 36,8px no medalhão de 86 = 42,3 / 44 / 42,8cqw. */
+@keyframes fp-orbita { 0% { transform: rotate(var(--g)) translateX(42.3cqw); opacity: 0; } 15% { opacity: .9; }
+  50% { transform: rotate(calc(var(--g) + 40deg)) translateX(44cqw); } 85% { opacity: .8; }
+  100% { transform: rotate(calc(var(--g) + 80deg)) translateX(42.8cqw); opacity: 0; } }
+#root .menestrel-ui .fp-medalhao-face { position: absolute; inset: 11.63%; z-index: 3; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
   background: radial-gradient(circle at 50% 45%, #2A2015, #110B06 80%); }
 #root .menestrel-ui .fp-medalhao-face::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 10px rgba(0,0,0,.75); }
 #root .menestrel-ui .fp-medalhao-face img { width: 100%; height: 100%; object-fit: cover; }
 #root .menestrel-ui .fp-medalhao-face .ti { font-size: 28px; color: var(--tinta-2); }
 
-/* ── Experiência: uma faixa simples no pé do cartão ── */
-#root .menestrel-ui .fp-xp-faixa { display: flex; align-items: center; gap: 14px; margin-top: 12px; padding: 11px 20px 4px; border-top: 1px solid var(--regua-forte); }
-#root .menestrel-ui .fp-xp-rot { flex: none; font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .14em); text-transform: uppercase; color: var(--tinta-3); }
-#root .menestrel-ui .fp-xp-faixa .fp-bars { flex: 1 1 auto; min-width: 0; }
-#root .menestrel-ui .fp-xp-faixa .fp-bar-row { padding: 0; }
-#root .menestrel-ui .fp-xp-faixa .fp-bar-icon { display: none; }
-#root .menestrel-ui .fp-xp-faixa .fp-bar-track,
-#root .menestrel-ui .fp-xp-faixa .fp-bar-track.is-empty { height: 4px; box-shadow: none; background: rgba(var(--tinta-rgb),.08); }
-#root .menestrel-ui .fp-xp-faixa .fp-bar-fill { background: linear-gradient(90deg, #6B5223, var(--ouro, var(--ouro))); animation: none; }
-#root .menestrel-ui .fp-xp-faixa .fp-bar-fill::before,
-#root .menestrel-ui .fp-xp-faixa .fp-bar-fill::after { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   #root .menestrel-ui .fp-medalhao-liq, #root .menestrel-ui .fp-medalhao-liq::after, #root .menestrel-ui .fp-medalhao-liq > i { animation: none; }
 }
 #root .menestrel-ui .fp-xp-estagio { flex: none; font-size: var(--fs-sm); color: var(--tinta-3); }
-#root .menestrel-ui .fp-xp-faixa .fp-bar-row { display: block; }
-#root .menestrel-ui .fp-xp-faixa .fp-bar-pill { display: flex; align-items: center; gap: 14px; width: 100%; }
-#root .menestrel-ui .fp-xp-faixa .fp-bar-track { flex: 1 1 auto; }
-#root .menestrel-ui .fp-xp-faixa .fp-bar-num { flex: none; }
 
 /* Ajuda dos campos de preço (23/10/2026): o valor em latão lido nas moedas maiores. */
 #root .menestrel-ui .campo-preco-ajuda { display: block; margin: 5px 0 0; font-size: var(--fs-xs); line-height: 1.4; color: var(--tinta-3); }
@@ -13219,9 +13261,19 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 
 /* O sino do Mestre como item do menu lateral (23/10/2026). */
 #root .menestrel-ui .mc-sino-lateral:empty { display: none; }
-#root .menestrel-ui .cm-nav { width: 100%; }
+#root .menestrel-ui .cm-nav { width: 100%; position: relative; }
 #root .menestrel-ui .cm-nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
-  display: inline-grid; place-items: center; background: var(--alerta); color: var(--sobre-vivo); font-size: 11px; font-weight: 800; }
+  display: inline-grid; place-items: center; background: var(--alerta); color: var(--sobre-vivo); font-size: 11px; font-weight: 800;
+  font-variant-numeric: lining-nums tabular-nums; }
+/* Menu recolhido (30/10/2026, o sino também do Jogador): só a coluna dos
+   ícones. O contador vira marca no canto do sino, em vez de empurrar a linha. */
+@media (min-width: 769px) {
+  #root .menestrel-ui .mc-sidebar:not(.is-expandida):not(:focus-within):not(.is-menu-aberto) .cm-nav-badge {
+    position: absolute; top: 4px; left: calc(50% + 3px); margin: 0;
+    min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px;
+    box-shadow: 0 0 0 2px var(--chao-celula-opaco);
+  }
+}
 
 /* ── MENU LATERAL REDESENHADO (23/10/2026) ───────────────────────────────────
    A busca no livro é um campo de verdade logo abaixo da mesa; o grupo da mesa
@@ -13318,6 +13370,60 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .diario-cartao .pj-name-linha .pj-name { flex: 0 1 auto; min-width: 0; }
 #root .menestrel-ui .diario-cartao .pj-card-status.diario-vis-ic { margin-left: 0; }
 
+/* ── OS CARTÕES DA AMBIENTAÇÃO, PADRONIZADOS (04/11/2026) ─────────────────────
+   "Nas páginas reinos, cidades, etc, eu quero que tenha 18 cards, padronize o
+   tamanho e o espaçamento entre os cards." (usuário) Dezoito por página
+   (13-diario/diario.jsx). O tamanho: todas as fileiras com a mesma altura, e
+   nenhum texto quebra — nome e as duas linhas numa linha só, com "…" — para
+   um nome longo ou uma linha a mais não esticar um cartão e a fileira dele.
+   O espaçamento: 14px entre colunas e entre fileiras em qualquer largura (era
+   12 abaixo de 1600px). E o cartão sozinho na última página guarda a largura
+   de uma coluna, em vez da meia página da regra geral. */
+#root .menestrel-ui .pjs-grid.diario-cartoes { gap: 14px; grid-auto-rows: 1fr; }
+#root .menestrel-ui .diario-cartoes .pj-name-linha { flex-wrap: nowrap; min-width: 0; }
+#root .menestrel-ui .diario-cartoes .pj-name,
+#root .menestrel-ui .diario-cartoes .diario-cartao-meta {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#root .menestrel-ui .diario-cartoes .diario-cartao-meta { display: block; }
+#root .menestrel-ui .diario-cartoes .diario-cartao-meta .sep { margin: 0 6px; }
+/* AS SEIS FILEIRAS ENCHEM A PÁGINA (04/11/2026, usuário, com um print:
+   "abaixo de verrogar ainda há muito espaço vazio, e que ali não cabe mais
+   uma fileira de cards"). Com o cartão de 120px fixo, 18 cartões pediam
+   790px e a página tinha ~740: a sexta fileira não cabia, e o que sobrava
+   embaixo era um vão sem serventia. Agora a ALTURA DA PÁGINA é que dá o
+   tamanho do cartão: a grade ocupa tudo entre o trilho e a paginação e
+   divide em seis fileiras iguais — com menos cartões, o vazio embaixo é
+   exatamente o lugar das fileiras que faltam. Só com três colunas (18 = 6 ×
+   3); em duas, nove fileiras ficariam baixas demais para o retrato. */
+@media (min-width: 1600px) {
+  /* A altura da página é a da Ficha (--pg-altura). Ela só existe depois que
+     a Ficha foi aberta neste tamanho de janela; até lá, a janela menos os
+     respiros de cima (20px) e de baixo (14px) — sem altura nenhuma, a grade
+     não teria o que dividir. */
+  #root .menestrel-ui .mc-content > .pjs.diario-pagina { min-height: var(--pg-altura, calc(100dvh - 34px)); }
+  #root .menestrel-ui .mc-content > .pjs.diario-pagina > .pjs-grid.diario-cartoes {
+    flex: 1 1 0; min-height: 0;
+    grid-template-rows: repeat(6, minmax(72px, 1fr)); grid-auto-rows: minmax(72px, 1fr);
+  }
+  /* O cartão acompanha a fileira, e o retrato acompanha o cartão, na
+     proporção de sempre (76 × 98). */
+  #root .menestrel-ui .mc-content > .pjs.diario-pagina .diario-cartoes .pj-card { min-height: 0; }
+  #root .menestrel-ui .mc-content > .pjs.diario-pagina .diario-cartoes .pj-card-body { flex: 1 1 auto; min-height: 0; }
+  #root .menestrel-ui .mc-content > .pjs.diario-pagina .diario-cartoes .pj-card-wrap:not(.pj-card-wrap--ativo) .pj-card-portrait {
+    height: 100%; max-height: 98px; width: auto; aspect-ratio: 76 / 98; flex: none;
+  }
+}
+/* Sozinho, segue no centro (23/10/2026), mas com a largura de UMA coluna:
+   metade da grade quando há duas, um terço quando há três. */
+#root .menestrel-ui .pjs-grid.diario-cartoes > .pj-card-wrap:only-child { width: calc((100% - 14px) / 2); }
+@media (min-width: 1600px) {
+  #root .menestrel-ui .pjs-grid.diario-cartoes > .pj-card-wrap:only-child { width: calc((100% - 28px) / 3); }
+}
+@media (max-width: 900px) {
+  #root .menestrel-ui .pjs-grid.diario-cartoes > .pj-card-wrap:only-child { width: 100%; }
+}
+
 /* A busca no livro sem a régua entre os resultados ("a linha que separa cada
    item ao buscar um item no livro de regras ainda existe", 23/10/2026). */
 #root .menestrel-ui .busca-livro-linha + .busca-livro-linha { box-shadow: none; }
@@ -13387,7 +13493,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .cdj-trilho {
   display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 5px; pointer-events: auto;
   background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte); border-radius: 999px;
-  box-shadow: 0 10px 24px -14px rgba(0,0,0,0.8);
 }
 #root .menestrel-ui .cdj-trilho .cdj-tempo-grupo { gap: 2px; }
 #root .menestrel-ui .cdj-trilho .cdj-bar {
@@ -13414,6 +13519,22 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   #root .menestrel-ui .mc-main { margin-top: 90px; }
   #root .menestrel-ui .mc-main:has(.pjs) { margin-top: 60px; }
 }
+/* ── E NO CELULAR TAMBÉM, SEM TÍTULO (30/10/2026) ─────────────────────────
+   "O espaço extra no topo ainda está aparecendo, e eu desconfio que seja a
+   palavra 'Personagens' ou qualquer outro título que está aparecendo ali e
+   nós já decidimos que não deve ter." (usuário) Era: até 768px (celular ou
+   janela estreita) a exceção acima deixava o título, numa faixa de 56px que
+   empurrava a página 72px para baixo. A faixa só carregava o título — o botão
+   de menu dela está desligado, e o menu abre pelo "Mais" da barra de baixo —,
+   então sai inteira, e o trilho da cena e a página sobem com ela. */
+@media (max-width: 768px) {
+  #root .menestrel-ui .mc-topo { display: none; }
+  .menestrel-ui.cdj-root { top: 12px; }
+  #root .menestrel-ui .mc-main { margin-top: calc(12px + var(--cdj-h, 78px) + 16px); }
+  #root .menestrel-ui .mc-main:has(.pjs) { margin-top: calc(12px + var(--cdj-h, 78px) - 14px); }
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main { margin-top: 0; padding-top: 20px; }
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main:has(.pjs) { margin-top: 0; padding-top: 0; }
+}
 
 /* ── BUSCA E + EM TRILHO, CENTRALIZADO (23/10/2026) ──────────────────────────
    "O botão de buscar e o +, devem virar um novo trilho e ficar centralizado
@@ -13424,7 +13545,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .cartoes-barra .best-header-acoes {
   display: flex; align-items: center; gap: 4px; padding: 5px;
   background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte); border-radius: 999px;
-  box-shadow: 0 10px 24px -14px rgba(0,0,0,0.8);
 }
 #root .menestrel-ui .cartoes-barra .best-search input,
 #root .menestrel-ui .cartoes-barra .best-botao-novo { background: none; border: 1px solid transparent; }
@@ -13472,22 +13592,79 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 }
 /* Cabeçalho: mês em destaque, ano abaixo, trilho e o X. */
 .cal-overlay .menestrel-ui .cal-header { gap: 16px; padding: 20px 20px 16px 24px; border-bottom: 0; }
-.cal-overlay .menestrel-ui .cal-titulo-bloco { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-right: auto; }
 .cal-overlay .menestrel-ui .cal-titulo-mes { font-family: var(--font-title); font-weight: 600; font-size: 26px; line-height: 1.1; color: var(--tinta); }
-.cal-overlay .menestrel-ui .cal-titulo-ano { font-size: 15px; color: var(--tinta-3); }
-.cal-overlay .menestrel-ui .cal-trilho {
-  display: flex; align-items: center; gap: 2px; padding: 4px; flex: none;
-  background: var(--p-fundo); border: 1px solid var(--regua-forte); border-radius: 999px;
+/* ── A NAVEGAÇÃO DO CALENDÁRIO (04/11/2026) ────────────────────────────────
+   "Melhore com impeccable o calendário quando abre, principalmente a
+   navegação dos meses e ano" (usuário). Era um trilho de quatro setas iguais
+   (‹ › do mês, « Ano » do ano). Agora o cabeçalho lê como uma frase:
+     ‹ Mês do Ouro ⌄ ›     o mês é o título, entre as suas setas; clicar
+                           nele abre a grade dos treze meses;
+     ANO ‹ 1234 ›          o ano em linha própria, com o número editável;
+     [Hoje]                fora do mês da data atual, o caminho de volta. */
+.cal-overlay .menestrel-ui .cal-header { align-items: flex-start; gap: 12px; padding: 18px 20px 14px 16px; }
+.cal-overlay .menestrel-ui .cal-nav { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin-right: auto; }
+.cal-overlay .menestrel-ui .cal-nav-mes { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.cal-overlay .menestrel-ui .cal-nav-seta {
+  width: 32px; height: 32px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px;
+  background: none; color: var(--tinta-2); font-size: 18px; cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
 }
-.cal-overlay .menestrel-ui .cal-trilho-btn {
-  width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px;
-  background: none; color: var(--tinta-2); font-size: 18px; cursor: pointer; transition: background-color .15s ease, color .15s ease;
+.cal-overlay .menestrel-ui .cal-nav-seta:hover:not(:disabled) { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
+.cal-overlay .menestrel-ui .cal-nav-seta:disabled { opacity: .3; cursor: default; }
+.cal-overlay .menestrel-ui .cal-nav-seta:focus-visible,
+.cal-overlay .menestrel-ui .cal-nav-titulo:focus-visible,
+.cal-overlay .menestrel-ui .cal-nav-hoje:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
+.cal-overlay .menestrel-ui .cal-nav-titulo {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 2px 10px; border: 0; border-radius: 10px;
+  background: none; color: var(--tinta); cursor: pointer; transition: background-color .15s ease;
 }
-.cal-overlay .menestrel-ui .cal-trilho-btn:hover:not(:disabled) { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
-.cal-overlay .menestrel-ui .cal-trilho-btn:disabled { opacity: .35; cursor: default; }
-.cal-overlay .menestrel-ui .cal-trilho-btn:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
-.cal-overlay .menestrel-ui .cal-trilho-espaco { width: 10px; }
-.cal-overlay .menestrel-ui .cal-trilho-rotulo { padding: 0 4px; font-size: 14px; font-weight: 700; color: var(--tinta-2); }
+.cal-overlay .menestrel-ui .cal-nav-titulo:hover,
+.cal-overlay .menestrel-ui .cal-nav-titulo.is-aberto { background: rgba(var(--bronze-rgb),0.12); }
+.cal-overlay .menestrel-ui .cal-nav-titulo .cal-titulo-mes { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-overlay .menestrel-ui .cal-nav-titulo-ic { font-size: 16px; color: var(--tinta-3); transition: transform .2s cubic-bezier(.16,1,.3,1), color .15s ease; }
+.cal-overlay .menestrel-ui .cal-nav-titulo.is-aberto .cal-nav-titulo-ic { transform: rotate(180deg); color: var(--vivo); }
+/* O ano alinhado ao texto do mês (a seta do mês + o respiro do título). */
+.cal-overlay .menestrel-ui .cal-nav-ano { display: flex; align-items: center; gap: 2px; padding-left: 36px; }
+.cal-overlay .menestrel-ui .cal-nav-ano-rotulo {
+  margin-right: 6px; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--tinta-3);
+}
+.cal-overlay .menestrel-ui .cal-nav-seta--ano { width: 26px; height: 26px; font-size: 15px; }
+.cal-overlay .menestrel-ui .cal-nav-ano-num {
+  width: auto; min-width: 3ch; padding: 2px 6px; border: 0; border-radius: 6px; background: none;
+  color: var(--tinta); font: 700 16px var(--font-body); font-variant-numeric: lining-nums tabular-nums; text-align: center;
+}
+.cal-overlay .menestrel-ui input.cal-nav-ano-num:hover { background: rgba(var(--bronze-rgb),0.12); }
+.cal-overlay .menestrel-ui input.cal-nav-ano-num:focus { outline: 2px solid var(--vivo); outline-offset: 0; background: rgba(var(--bronze-rgb),0.12); }
+.cal-overlay .menestrel-ui .cal-nav-ano-num.is-leitura { padding-left: 0; }
+.cal-overlay .menestrel-ui .cal-nav-hoje {
+  flex: none; height: 34px; margin-top: 2px; display: inline-flex; align-items: center; gap: 6px; padding: 0 14px;
+  border: 1px solid var(--regua-forte); border-radius: 999px; background: none;
+  color: var(--tinta-2); font: 700 14px var(--font-body); cursor: pointer; transition: background-color .15s ease, color .15s ease;
+}
+.cal-overlay .menestrel-ui .cal-nav-hoje i { color: var(--vivo); font-size: 16px; }
+.cal-overlay .menestrel-ui .cal-nav-hoje:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
+.cal-overlay .menestrel-ui .cal-header-close { margin-top: 1px; }
+
+/* A grade dos treze meses, no lugar dos dias e na MESMA medida deles (a
+   janela trava o tamanho ao abrir): três colunas de casas baixas, número e
+   nome numa linha só — treze meses em cinco fileiras, sem rolagem. */
+.cal-overlay .menestrel-ui .cal-meses-grade { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding-top: 2px; }
+.cal-overlay .menestrel-ui .cal-meses-casa {
+  position: relative; display: flex; align-items: center; gap: 8px; min-width: 0;
+  height: 42px; padding: 0 10px; border: 1px solid var(--regua-forte); border-radius: 10px;
+  background: rgba(var(--bronze-rgb),0.06); color: var(--tinta-2); text-align: left; cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.cal-overlay .menestrel-ui .cal-meses-casa:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
+.cal-overlay .menestrel-ui .cal-meses-casa:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
+.cal-overlay .menestrel-ui .cal-meses-casa.is-visto { background: rgba(var(--vivo-rgb),0.12); box-shadow: inset 0 0 0 1px var(--vivo); color: var(--tinta); }
+/* O Dia de Cruine é um dia, não um mês: a fileira inteira, sozinho. */
+.cal-overlay .menestrel-ui .cal-meses-casa.is-dia-avulso { grid-column: 1 / -1; }
+.cal-overlay .menestrel-ui .cal-meses-nome { min-width: 0; font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-overlay .menestrel-ui .cal-meses-ponto { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--vivo); }
+@media (prefers-reduced-motion: reduce) {
+  .cal-overlay .menestrel-ui .cal-nav-titulo-ic { transition: none; }
+}
 .cal-overlay .menestrel-ui .cal-header-close {
   width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border-radius: 999px; color: var(--tinta-3);
 }
@@ -13626,6 +13803,17 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 @media (min-width: 769px) {
   #root .menestrel-ui .mc-main,
   #root .menestrel-ui .mc-main:has(.pjs) { margin-top: 81px; }
+  /* SEM O TRILHO DA CENA, A MARGEM SAI — E TEM DE SER AQUI, DEPOIS DOS 81px
+     (30/10/2026, usuário: "ainda está aparecendo o espaço no site
+     publicado"). O build de produção junta as duas linhas acima num
+     `:is(...)`, que pesa como o seletor mais forte (`:has(.pjs)`) e empatava
+     com as regras de "sem trilho". No empate vence quem vem depois: no dev
+     elas ganhavam, no site perdiam, e toda página sem o trilho ganhava 81px
+     de vão no topo — a "moldura" onde o conteúdo rolado sumia. Aqui, depois,
+     elas vencem nos dois ambientes. O respiro é padding (ver "RESPIRO DE
+     DENTRO, NÃO DE FORA"). */
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main { margin-top: 0; padding-top: 20px; }
+  #root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main:has(.pjs) { margin-top: 0; padding-top: 0; }
   #root .menestrel-ui .pjs { padding-top: 0; }
   #root .menestrel-ui .cartoes-barra { margin: 0 0 16px; }
   /* top 0: a barra cola no topo da área rolável (o .mc-main); com 8px ela
@@ -13639,7 +13827,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   display: flex; align-items: center; flex-wrap: wrap; gap: 2px; width: fit-content; max-width: 100%;
   margin: 0 0 16px; padding: 5px;
   background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte); border-radius: 999px;
-  box-shadow: 0 10px 24px -14px rgba(0,0,0,0.8);
 }
 /* O trilho do INVENTÁRIO entrou na lista em 28/10/2026 (usuário: "o botão
    'dar item' está sem css"). `.mc-acao` só tinha pele dentro dos trilhos que
@@ -13759,7 +13946,8 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .inv-trilho { margin: 16px 0; }
 #root .menestrel-ui .inv-trilho .best-header-acoes { gap: 10px; padding-right: 12px; }
 #root .menestrel-ui .inv-trilho-moedas { display: flex; align-items: center; }
-#root .menestrel-ui .mc-content:has(.fp-page.is-inventario) > .mc-acoes-ficha { display: none; }
+/* O trilho de ações VOLTOU ao Inventário e à Loja em 31/10/2026: "sempre
+   haverá um único trilho superior e um único trilho inferior". */
 
 /* O trilho do Inventário fora do painel, no ritmo de 16px (23/10/2026); as
    moedas como os botões do trilho: ícone solto (na cor da moeda), texto em
@@ -13767,6 +13955,44 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .fp-trilho-slot:empty { display: none; }
 #root .menestrel-ui .fp-trilho-slot { margin: 0 0 16px; }
 #root .menestrel-ui .fp-trilho-slot .inv-trilho { margin: 0; }
+/* AS FERRAMENTAS DENTRO DO TRILHO ÚNICO (31/10/2026, "Tudo no topo"): o
+   trilho da página perde a pílula própria e vira um grupo do trilho de
+   ações, depois das páginas, separado por uma régua. */
+#root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo.fp-trilho-slot { order: 4; margin: 0; display: flex; align-items: center; padding: 0; }
+#root .menestrel-ui .mc-acoes-ficha > .fp-trilho-slot:empty { display: none; }
+#root .menestrel-ui .mc-acoes-ficha .fp-trilho-slot .inv-trilho { margin: 0; padding: 0; background: none; border: none; box-shadow: none; border-radius: 0; width: auto; max-width: none; }
+/* O id vence o ".cartoes-barra:first-child { margin-top: 20px }" das outras
+   páginas, que empurrava a busca e as moedas para baixo e crescia o trilho. */
+#root .menestrel-ui #fp-acoes-ficha .fp-trilho-slot .cartoes-barra { margin: 0; }
+/* A busca na altura dos botões (34px) e as moedas no mesmo passo de 4px. */
+#root .menestrel-ui #fp-acoes-ficha .fp-trilho-slot .best-search { height: 34px; }
+/* O input segue a caixa: a largura fixa de 280px das outras páginas o fazia
+   passar dos 170px da busca e cobrir as moedas (31/10/2026). */
+#root .menestrel-ui #fp-acoes-ficha .fp-trilho-slot .best-search input { height: 34px; width: 100%; min-width: 0; max-width: 100%; }
+#root .menestrel-ui #fp-acoes-ficha .fp-trilho-slot .moeda-pills { gap: 4px; }
+/* O RITMO DA FICHA nas outras páginas (31/10/2026: "O espaçamento dos
+   trilhos está maior"): a grade fica a 14px de cada trilho, como as colunas
+   da Ficha, e alinhada com as bordas dos trilhos — os 20px do baú eram do
+   cartão solto. */
+#root .menestrel-ui .fp-page .fp-invtab .bau-corpo { padding: 0 18px !important; }
+/* UMA PÍLULA SÓ (31/10/2026, usuário: "Ficha, Status, etc deve ser o mesmo
+   trilho de moedas, etc"): o .best-header-acoes perde o chão, a borda e a
+   sombra que o faziam uma pílula dentro da outra. */
+#root .menestrel-ui .mc-acoes-ficha .fp-trilho-slot .best-header-acoes { gap: 4px; padding: 0; background: none; border: none; box-shadow: none; border-radius: 0; min-height: 0; }
+/* A busca no trilho único tem a largura de um item, não a do trilho inteiro. */
+#root .menestrel-ui .mc-acoes-ficha .fp-trilho-slot .best-search { flex: none; width: 170px; min-width: 0; }
+/* O PESO NO TRILHO DE BAIXO do Inventário e da Loja (31/10/2026, usuário: "O
+   trilho inferior em loja/inventário deve ser peso e não experiência"): o
+   mesmo desenho da Experiência — a barra fina em ouro; brasa acima da
+   capacidade. */
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-pill[data-nivel="over"] .fp-bar-fill { background: linear-gradient(90deg, #7A2A1C, var(--alerta)); }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-pill[data-nivel="over"] .fp-bar-num { color: var(--alerta); }
+#root .menestrel-ui .fp3-rodape-trilho:empty { display: none; }
+/* O trilho de baixo nas páginas que não são a Ficha: no pé do cartão, com o
+   mesmo respiro lateral do conteúdo. */
+#root .menestrel-ui .fp3-rodape-pagina { padding: 0 calc(16px * var(--fp-z, 1)) calc(5px * var(--fp-z, 1)); }
+/* O trilho de cima nas outras páginas: o mesmo respiro da moldura da Ficha. */
+#root .menestrel-ui .fp3-pagina-topo { padding: calc(14px * var(--fp-z, 1)) calc(16px * var(--fp-z, 1)) 0; }
 #root .menestrel-ui .inv-trilho .moeda-pills { display: flex; align-items: center; gap: 2px; }
 #root .menestrel-ui .inv-trilho .moeda-pill {
   height: 34px; padding: 0 10px; gap: 6px; border: 0; border-radius: 999px; background: none; box-shadow: none;
@@ -13888,7 +14114,9 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .mc-user-name { line-height: 1.15; }
 #root .menestrel-ui .mc-user-papel { line-height: 1.15; }
 #root .menestrel-ui .bau-corpo--painel { padding-left: 20px; }
-#root .menestrel-ui .bau-painel-vazio { max-width: 34ch; }
+/* Sem teto em ch (31/10/2026, usuário: "aproveite melhor a largura do card
+   antes de quebrar o texto"): o painel já tem largura própria. */
+#root .menestrel-ui .bau-painel-vazio { max-width: none; padding-left: 20px; padding-right: 20px; }
 
 
 /* ── A LOJA COMO O INVENTÁRIO (23/10/2026) ── a vitrine nas mesmas casas e o
@@ -14004,8 +14232,11 @@ body { background-color: var(--p-pagina); }
    tamanho exato do conteúdo (a grade calcula quantas casas cabem — ver
    useGridDimensions), centrado na página: 20px de respiro em todos os lados,
    sem sobra embaixo. */
-#root .menestrel-ui .fp-page.is-inventario > .fp-card { width: fit-content; max-width: 100%; margin-left: auto; margin-right: auto; }
-#root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel { grid-template-columns: max-content var(--bau-painel-w); }
+/* UMA PÁGINA SÓ (31/10/2026, usuário: "é um trilho só, e a página é uma só
+   com fundo escuro"): os dois trilhos moram dentro do cartão, que segue do
+   tamanho do conteúdo; o painel do item ocupa o que sobra ao lado da grade,
+   para não ficar vão na borda direita quando o trilho é mais largo. */
+#root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel { grid-template-columns: max-content minmax(var(--bau-painel-w), 1fr); }
 #root .menestrel-ui .fp-page.is-inventario .bau-corpo .inv-bag-grid--slots { padding: 0; justify-content: start; }
 #root .menestrel-ui .fp-page.is-inventario .loja,
 #root .menestrel-ui .fp-page.is-inventario .fp-invtab { gap: 0; }
@@ -14074,21 +14305,6 @@ body { background-color: var(--p-pagina); }
   margin: 8px 0 0; font-size: var(--fs-sm, 15px); color: var(--tinta-3);
 }
 
-/* "Refazer estoque pela economia" (28/10/2026), no painel da loja. Ação que
-   SOBRESCREVE: veste a pele discreta dos botões do painel, não a do ouro —
-   ouro é do que está vivo, e isto é uma ferramenta, não uma escolha. */
-#root .menestrel-ui .estoque-refazer {
-  display: inline-flex; align-items: center; gap: 8px;
-  margin: 2px 0 10px; height: 32px; padding: 0 14px; border-radius: 999px;
-  border: 1px solid var(--regua-forte); background: var(--chao-celula-opaco);
-  color: var(--tinta-2); font: 600 var(--fs-sm, 15px) var(--font-body); cursor: pointer;
-}
-#root .menestrel-ui .estoque-refazer:hover:not(:disabled) {
-  background: rgba(var(--bronze-rgb),0.16); color: var(--tinta);
-}
-#root .menestrel-ui .estoque-refazer:disabled { opacity: .5; cursor: not-allowed; }
-#root .menestrel-ui .estoque-refazer i { color: var(--vivo); }
-
 /* ── O SELETOR DE LOJA NO TRILHO (28/10/2026) ──────────────────────────────
    "Usar lista suspensa para o trilho não ficar muito grande." Largura FIXA é
    o ponto: era um botão por loja, e doze cidades davam duas voltas na tela.
@@ -14138,8 +14354,11 @@ body { background-color: var(--p-pagina); }
 }
 /* Aberta a aba Loja, o seletor é o que está VIVO — mesmo ouro do `is-ativo`
    dos botões vizinhos. Na aba Propostas ele recua, sem sumir. */
+/* Sem aro e sem véu desde 04/11/2026 ("remova a borda amarela do botão
+   ativo"): quem marca a página aberta é a lâmina no botão Loja; o seletor ao
+   lado só clareia o texto — eram duas coisas acesas lado a lado. */
 #root .menestrel-ui .estoque-trilho .estoque-seletor-loja.is-ativo .select-pill-btn {
-  background: var(--vivo-fundo); border-color: var(--vivo-aro); color: var(--tinta);
+  background: none; border-color: transparent; color: var(--tinta);
 }
 #root .menestrel-ui .estoque-trilho .estoque-seletor-loja .select-pill-btn-ic { color: var(--vivo); }
 
@@ -14158,14 +14377,19 @@ body { background-color: var(--p-pagina); }
   background-color: rgba(var(--bronze-rgb),0.16); color: var(--tinta);
 }
 #root .menestrel-ui .estoque-trilho .estoque-seletor-loja.is-ativo .estoque-seletor-nativo {
-  background-color: var(--vivo-fundo); border-color: var(--vivo-aro); color: var(--tinta);
+  background-color: transparent; border-color: transparent; color: var(--tinta);
 }
 #root .menestrel-ui .estoque-trilho .estoque-seletor-nativo option {
   background: var(--chao-celula-opaco); color: var(--tinta);
 }
-#root .menestrel-ui .estoque-card { width: fit-content; max-width: 100%; margin: 0 auto; }
-#root .menestrel-ui .estoque-card--propostas { width: min(100%, 980px); }
-#root .menestrel-ui .estoque-bau { grid-template-columns: max-content 360px; }
+/* O cartão da Loja do Mestre é o das páginas da ficha (02/11/2026): mesma
+   largura (.fp-page), trilho dentro, e o painel ocupa o que sobra ao lado da
+   grade e das línguetas. */
+#root .menestrel-ui .estoque-card > .estoque-conteudo { flex: 1 1 auto; }
+#root .menestrel-ui .estoque-conteudo--propostas { padding: 0 calc(16px * var(--fp-z, 1)) 20px; }
+#root .menestrel-ui .estoque-bau { grid-template-columns: max-content minmax(360px, 1fr); }
+#root .menestrel-ui .fp-page.is-inventario .estoque-bau { grid-template-columns: max-content minmax(360px, 1fr); }
+#root .menestrel-ui .mc-acoes-ficha .estoque-trilho { margin: 0; }
 #root .menestrel-ui .estoque-bau .inv-bag-grid--slots { padding: 0; justify-content: start; }
 #root .menestrel-ui .estoque-qtd { position: absolute; right: 4px; bottom: 2px; font-size: 11px; font-weight: 800; color: var(--tinta); font-variant-numeric: lining-nums tabular-nums; }
 #root .menestrel-ui .estoque-casa--catalogo { border-style: dashed !important; opacity: .8; }
@@ -14184,6 +14408,26 @@ body { background-color: var(--p-pagina); }
    campo de preço ao lado: numa lista de rótulo-e-valor, dois controles
    empilhados de larguras diferentes leem como dois controles diferentes. */
 #root .menestrel-ui .estoque-step { width: 160px; }
+/* A ferramenta da receita (31/10/2026): não se gasta, perde um uso. */
+#root .menestrel-ui .fab-mat-ferramenta { font-weight: 500; color: var(--tinta-3); }
+/* Sim | Não na mesma pílula (31/10/2026): as duas metades dividem a casca, e
+   a resposta valendo é um gomo de ouro dentro dela — o .is-on da antiga
+   .estoque-chave, agora sem trocar de texto. */
+#root .menestrel-ui .estoque-sim-nao { padding: 3px; gap: 3px; }
+#root .menestrel-ui .estoque-sim-nao-op {
+  flex: 1 1 0; height: 100%; border: none; border-radius: 999px; background: transparent;
+  color: var(--tinta-3); font: 700 var(--fs-sm) var(--font-body); cursor: pointer;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+#root .menestrel-ui .estoque-sim-nao-op:not(.is-on):not(:disabled):hover { color: var(--tinta); }
+#root .menestrel-ui .estoque-sim-nao-op.is-on {
+  background: var(--vivo-fundo); color: var(--tinta); box-shadow: inset 0 0 0 1px var(--vivo-aro); cursor: default;
+}
+#root .menestrel-ui .estoque-sim-nao-op:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
+#root .menestrel-ui .estoque-sim-nao-op:disabled { cursor: wait; }
+/* À direita (31/10/2026, usuário: "A pílula deve estar alinhada à direita"):
+   a linha Aberta não tem botão de moeda, e a célula reservava o vão dele. */
+#root .menestrel-ui .loja-painel-dados dd:has(> .estoque-sim-nao) { width: auto; justify-content: flex-end; }
 #root .menestrel-ui .estoque-excluir { align-self: flex-start; margin-top: auto; }
 
 /* ── A LÍNGUETA DA FILEIRA (29/10/2026) ──────────────────────────────────────
@@ -14316,21 +14560,65 @@ body { background-color: var(--p-pagina); }
    ("20× Moeda de Ouro · 3× Erva"), não uma tabela para comparar. */
 #root .menestrel-ui .loja-dentro-txt { font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2);
   font-variant-numeric: lining-nums tabular-nums; }
-#root .menestrel-ui .estoque-props { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; }
-@media (max-width: 900px) { #root .menestrel-ui .estoque-props { grid-template-columns: 1fr; } }
-#root .menestrel-ui .estoque-props-col { padding: 16px; min-height: 200px; }
-#root .menestrel-ui .estoque-props-tit { margin: 0 0 12px; font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase; color: var(--tinta-3); }
-#root .menestrel-ui .estoque-props-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-#root .menestrel-ui .estoque-prop { padding: 12px; border-radius: 10px; border: 1px solid var(--regua-forte); background: var(--p-fundo); display: flex; flex-direction: column; gap: 10px; }
-#root .menestrel-ui .estoque-prop-top { display: flex; align-items: center; gap: 10px; }
-#root .menestrel-ui .estoque-prop-top .loja-painel-ic { width: 38px; height: 38px; font-size: 18px; }
-#root .menestrel-ui .estoque-prop-nome { min-width: 0; display: flex; flex-direction: column; }
-#root .menestrel-ui .estoque-prop-nome b { font-weight: 800; color: var(--tinta); }
-#root .menestrel-ui .estoque-prop-nome small, #root .menestrel-ui .estoque-prop-preco small { color: var(--tinta-3); font-size: 13px; }
-#root .menestrel-ui .estoque-prop-preco { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-#root .menestrel-ui .estoque-prop-destino, #root .menestrel-ui .estoque-prop-contra { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--tinta-3); }
-#root .menestrel-ui .estoque-prop-destino select { height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--regua-forte); background: var(--chao-celula-opaco); color: var(--tinta); font: 700 14px var(--font-body); }
-#root .menestrel-ui .estoque-prop-acoes { display: flex; gap: 6px; }
+/* ── AS PROPOSTAS: QUADRO À ESQUERDA, PAINEL À DIREITA (04/11/2026) ────────
+   O esqueleto da aba Loja (.bau-corpo--painel) com um .mn-quadro no lugar da
+   grade: dois grupos rotulados, linhas de 56px com a pintura do item, quem
+   vende e onde, a quantidade e a oferta. O painel é o .loja-painel de sempre,
+   com o .mn-passe dos números e as respostas no pé. */
+/* A lista ocupa a largura; o painel tem a medida de sempre. O seletor dobra
+   a classe da página porque `.fp-page.is-inventario .bau-corpo--painel` (o
+   do baú, que mede a grade pelo conteúdo) é mais específico. */
+#root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel.estoque-props,
+#root .menestrel-ui .estoque-props { grid-template-columns: minmax(0, 1fr) var(--bau-painel-w); }
+@media (max-width: 900px) {
+  #root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel.estoque-props,
+  #root .menestrel-ui .estoque-props { grid-template-columns: minmax(0, 1fr); }
+}
+#root .menestrel-ui .estoque-props-quadro { min-width: 0; padding-top: 4px; }
+#root .menestrel-ui .estoque-prop-conta { font-variant-numeric: tabular-nums; }
+#root .menestrel-ui .estoque-prop-linha {
+  grid-template-columns: 44px minmax(0, 1fr) auto auto; min-height: 56px;
+}
+#root .menestrel-ui .estoque-prop-arte {
+  width: 44px; height: 44px; display: grid; place-items: center; overflow: hidden;
+  border-radius: 8px; background: var(--chao-celula-opaco); font-size: 22px; color: var(--tinta-2);
+}
+#root .menestrel-ui .estoque-prop-arte .inv-card-arte { width: 100%; height: 100%; object-fit: contain; }
+#root .menestrel-ui .estoque-prop-quem { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#root .menestrel-ui .estoque-prop-item {
+  font-weight: 700; color: var(--tinta); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#root .menestrel-ui .estoque-prop-sub {
+  font-size: var(--fs-sm); color: var(--tinta-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#root .menestrel-ui .estoque-prop-qtd { color: var(--tinta-2); font-weight: 700; font-variant-numeric: tabular-nums; }
+#root .menestrel-ui .estoque-prop-oferta { justify-self: end; }
+#root .menestrel-ui .estoque-prop-vazio { margin: 0; padding: 14px 12px; color: var(--tinta-3); font-size: var(--fs-md); }
+
+/* O painel: cabeçalho, passe, total, campos e o pé com as respostas. */
+#root .menestrel-ui .estoque-prop-painel { gap: 16px; }
+#root .menestrel-ui .estoque-prop-passe { grid-template-columns: auto; grid-auto-columns: minmax(0, 1fr); }
+#root .menestrel-ui .estoque-prop-passe .mn-celula { padding: 10px 14px; }
+#root .menestrel-ui .estoque-prop-passe .mn-celula-valor { font-size: var(--fs-md); }
+#root .menestrel-ui .estoque-prop-total {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0;
+  padding: 0 2px 12px; border-bottom: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .estoque-prop-campo { display: flex; flex-direction: column; gap: 6px; }
+#root .menestrel-ui .estoque-prop-campo select {
+  height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--regua-forte);
+  background: var(--chao-celula-opaco); color: var(--tinta); font: 600 var(--fs-md) var(--font-body);
+}
+#root .menestrel-ui .estoque-prop-campo select:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .estoque-prop-nota { margin: 0; color: var(--tinta-2); font-size: var(--fs-md); line-height: 1.6; }
+/* As respostas no pé, como o Comprar da loja: encostadas embaixo, o verbo
+   principal à direita; Recusar é o único que desfaz, e só ele fala em brasa. */
+#root .menestrel-ui .estoque-prop-acoes {
+  margin-top: auto; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px;
+  padding-top: 14px; border-top: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .estoque-prop-recusar { color: var(--alerta); margin-right: auto; }
+#root .menestrel-ui .estoque-prop-recusar:hover:not(:disabled) { background: rgba(var(--alerta-rgb, 184,71,47), 0.12); color: var(--alerta); }
 #root .menestrel-ui .estoque-vazio { margin: 0; color: var(--tinta-3); }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -14354,6 +14642,34 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .livro-trilho .mc-acao:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
 #root .menestrel-ui .livro-trilho .mc-acao.is-ativo { background: var(--vivo-fundo); border-color: var(--vivo-aro); color: var(--tinta); }
 #root .menestrel-ui .livro-trilho .mc-acao-rotulo { font: 700 15px var(--font-body); }
+
+/* ── O TRILHO UNIDO: AMBIENTAÇÃO E MESA DO MESTRE (04/11/2026) ──────────────────────────────────
+   "Você só vai unir o trilho atual de buscar com o trilho novo e aplicar o
+   padrão de layout nele" (usuário). Uma pílula só, dentro da página: as
+   páginas (Reinos, Cidades… ou Cena, Batalha, Loja) e, depois, a busca e o +, com
+   as peças do trilho do Livro de Regras (.livro-trilho .mc-acao acima). */
+#root .menestrel-ui .trilho-paginas { display: flex; align-items: center; gap: 2px; margin-right: 8px; }
+#root .menestrel-ui .trilho-unido .best-search input {
+  width: 200px; height: 34px; border: 0; background: none; border-radius: 999px; font: 700 15px var(--font-body);
+}
+#root .menestrel-ui .trilho-unido .best-search input:focus { background: rgba(var(--bronze-rgb),0.16); outline: none; box-shadow: none; }
+#root .menestrel-ui .trilho-unido .best-botao-novo { background: none; border: 0; }
+
+/* ── A LOJA DO MESTRE IGUAL À CENA E À BATALHA (04/11/2026) ─────────────────
+   "O menu 'loja' do mestre está muito diferente de cena e batalha, o rodapé
+   está diferente e a página está ligeiramente bugada." (usuário) Medido no
+   app, as três lado a lado: a Loja é um .fp-card (sem respiro, fundo
+   opaco), e as outras duas, .pjs (respiro e véu). O rodapé herdava das
+   listas as margens negativas que compensam aquele respiro — sem ele, a
+   faixa vazava 17px para fora do cartão de cada lado e descia 10px. E a
+   pílula do trilho tinha o vão de 10px do Estoque contra 2px das outras.
+   Só quando a Loja é página da Mesa (tem o rodapé). */
+#root .menestrel-ui .estoque-card:has(> .estoque-rodape) { background: var(--mc-veu-card, rgba(var(--couro-rgb), 0.50)); }
+#root .menestrel-ui .estoque-card > .pg-rodape.estoque-rodape {
+  margin: auto 0 0;
+  padding: calc(var(--pg-vao) * var(--fp-z)) calc(16px * var(--fp-z));
+}
+#root .menestrel-ui .estoque-trilho.trilho-unido .best-header-acoes { gap: 2px; padding: 5px; min-height: 46px; box-sizing: border-box; }
 /* o cartão: lista e painel lado a lado */
 #root .menestrel-ui .fp-card.best:has(.livro-corpo) > .fp-card-top { display: none; }
 #root .menestrel-ui .livro-corpo { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; padding: 20px; align-items: start; }
@@ -14692,13 +15008,13 @@ body { background-color: var(--p-pagina); }
 @media (min-width: 1600px) {
   #root .menestrel-ui .mc-content { width: min(1440px, calc(100% - 64px)); }
   #root .menestrel-ui .pjs-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-  #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1.12; width: calc(1060px * 1); margin-left: auto; margin-right: auto; max-width: calc(100% / 1.12); }
+  #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1.12; --fp-zoom: 1.12; width: calc(1060px * 1); margin-left: auto; margin-right: auto; max-width: calc(100% / 1.12); }
 }
 @media (min-width: 1600px) and (min-height: 1010px) {
-  #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1.25; max-width: calc(100% / 1.25); }
+  #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1.25; --fp-zoom: 1.25; max-width: calc(100% / 1.25); }
 }
 @media (min-width: 1900px) and (min-height: 1150px) {
-  #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1.35; max-width: calc(100% / 1.35); }
+  #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1.35; --fp-zoom: 1.35; max-width: calc(100% / 1.35); }
 }
 /* Alturas fixas no menu lateral (23/10/2026): o texto que aparece no hover
    (o nome "Menestrel", o nome do personagem) crescia o topo e o seletor em
@@ -15048,17 +15364,66 @@ body { background-color: var(--p-pagina); }
    14px reservado para uma barra que não existe (26/10/2026). */
 #root .menestrel-ui .fp3-heroi:not(:has(.mc-acoes-ficha > *)) { display: none; }
 
+/* ── OS TRILHOS DA FICHA NO TAMANHO DOS OUTROS (31/10/2026) ─────────────────
+   Usuário: "Na ficha do personagem o trilho superior 'status, atividades,
+   etc' está maior do que deveria." O cartão cresce por zoom nas telas grandes
+   (1.12 / 1.25 / 1.35, "mais largo e maior", 23/10) — e o trilho, que mora
+   dentro dele, crescia junto: 49px na tela contra os 46 do trilho de busca do
+   Inventário, com rótulos de 19px. Os trilhos desfazem o zoom do cartão
+   (--fp-zoom, publicado em cada degrau) e ficam do tamanho de todo trilho do
+   app; o resto da ficha continua grande. */
+#root .menestrel-ui .fp-card .fp3-heroi,
+#root .menestrel-ui .fp-card .fp3-rodape { zoom: calc(1 / var(--fp-zoom, 1)); }
+
+/* ── O TRILHO DE BAIXO: A EXPERIÊNCIA (31/10/2026) ──────────────────────────
+   "Crie um trilho inferior e coloque a experiência dentro dele, a
+   experiência terá o mesmo visual das informações do trilho superior, mas
+   ocupará a largura toda como hoje." A pílula é a do trilho de cima
+   (.mc-acoes-ficha: chão opaco, régua forte, 4px de respiro); o rótulo é um
+   item dele (34px, ícone de ouro, 17px, tinta-2); a barra fina e o número
+   ocupam o resto da largura. */
+/* Respiro (31/10/2026): a borda de baixo do cartão ganha o mesmo vão que
+   separa o trilho das colunas. Dentro da pílula, o ritmo é o do trilho de cima
+   ("use o mesmo padrão do trilho superior"): 4px de borda, 4px entre itens, e
+   cada item — o rótulo e a barra com o número — com 10px/12px por dentro. */
+#root .menestrel-ui .fp3-rodape { padding: 14px 2px 10px; }
+#root .menestrel-ui .fp3-rodape-trilho {
+  display: flex; align-items: center; gap: 4px;
+  width: 100%; padding: 4px;
+  background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte); border-radius: 999px;
+}
+#root .menestrel-ui .fp3-rodape-rot {
+  flex: none; height: 34px; padding: 0 12px 0 10px; gap: 7px;
+  display: inline-flex; align-items: center;
+  color: var(--tinta-2); font-size: 17px; white-space: nowrap;
+}
+#root .menestrel-ui .fp3-rodape-rot .ti { color: var(--vivo); }
+/* A letra do rótulo e do número é a do trilho de cima (.mc-acao-rotulo: Source
+   Sans, 15px, 700) — "pradonize, faça isso para o número da experiência
+   também" (31/10/2026). O "/30" muda só o tom, não o peso. */
+#root .menestrel-ui .fp3-rodape-rot-txt,
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-num,
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-num i { font-family: var(--font-body); font-size: 15px; font-weight: 700; letter-spacing: 0; line-height: 1; }
+/* A barra da Experiência dentro da pílula: a mesma da faixa antiga — fina,
+   sem ícone, em ouro — com o número no fim. */
+#root .menestrel-ui .fp3-rodape-trilho .fp-bars { flex: 1 1 auto; min-width: 0; }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-row { display: block; padding: 0; min-height: 0; }
+/* Sem o fundo escuro da pílula da faixa antiga ("remova o fundo marrom escuro
+   atrás da barra amarela", 31/10/2026): a barra fica direto no chão do trilho. */
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-pill { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 12px 0 10px; min-height: 0;
+  background: none; border: none; box-shadow: none; }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-icon { display: none; }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-track,
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-track.is-empty { flex: 1 1 auto; height: 4px; box-shadow: none; background: rgba(var(--tinta-rgb),.08); }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-fill { background: linear-gradient(90deg, #6B5223, var(--ouro)); animation: none; }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-fill::before,
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-fill::after { display: none; }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-num { flex: none; }
+
 /* o cabeçalho do cartão perde a faixa própria: a ficha é uma peça só */
 #root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-card-top { background: transparent; }
 #root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-card-top .ms-header { padding: 16px 18px 10px; }
 
-/* O pé do cartão (só a Experiência desde 26/10/2026) com o respiro do
-   modelo: o 14px de baixo era da faixa de Peso, que saiu — sem ele a barra
-   encostaria na borda do cartão. */
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa { margin-top: 10px; padding: 10px 18px 14px; }
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa .fp-bars,
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa .fp-bar-row,
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa .fp-bar-pill { min-height: 0; }
 
 /* ══ A FICHA NOVA NÃO ENTRA NO ZOOM DAS TELAS GRANDES (26/10/2026) ══════════
    As regras de 23/10 ("mais largo e maior") dão zoom de 1.12/1.25/1.35 ao
@@ -15076,6 +15441,82 @@ body { background-color: var(--p-pagina); }
     width: 1060px; max-width: 1060px;
   }
 }
+
+/* ── O MESMO TAMANHO EM TODA PÁGINA DA FICHA (31/10/2026, usuário: "A página
+   fabricar está mais larga? Padronize o tamanho das telas.") ──────────────
+   Cada página tinha o cartão do tamanho do próprio conteúdo: Ficha 1187px,
+   Inventário e Loja 1332px, Fabricar 1440px. Agora todas têm a mesma
+   largura: a que o baú pede (10 casas + o painel + os respiros) ou a da Ficha
+   no zoom da tela, a maior das duas. A Ficha, que tem zoom, divide a conta
+   pelo degrau dela; as outras usam a conta direto. Abaixo de 1600px todas
+   ocupam a largura toda, como a Ficha já fazia. */
+/* ══ A MOLDURA DE PÁGINA (02/11/2026) ══════════════════════════════════════
+   "Este novo padrão de página com os cards dentro de uma página, deve ser
+   aplicado nas outras páginas. Cena, Batalha, Personagens, Ambientação, Loja,
+   Jogadores, etc. Otimize o CSS para que tenhamos um aproveitamento de
+   código." (usuário)
+
+   Toda página do console é UM cartão: o mesmo tamanho, o trilho de cima
+   dentro dele e, quando a página tem o que dizer, o de baixo. Três famílias
+   de página vestem esta moldura, com as regras abaixo e mais nenhuma:
+     · as páginas da ficha (.fp-page > .fp-card) e o Estoque do Mestre;
+     · as listas de cartões (.pjs — Cena, Batalha, Personagens, Ambientação,
+       Diário, Jogadores), cujo trilho é a .cartoes-barra que já tinham.
+
+   Os tokens moram no .mc-content, para valer em todas:
+     --fp-largura  a largura: a que o baú pede (10 casas + o painel + os
+                   respiros) ou a da Ficha no zoom da tela, a maior das duas;
+                   100% abaixo de 1600px e nas telas largas e baixas.
+     --fp-z        o degrau de zoom da Ficha, que também escala os respiros.
+     --pg-altura   a altura que a Ficha mediu nesta janela (01-core/
+                   helpers.jsx, guardarAlturaDaFicha), mínima para todas.
+   A Ficha, que tem zoom, divide a largura pelo degrau dela. */
+#root .menestrel-ui .mc-content {
+  --fp-z: 1;
+  --fp-largura-bau: calc(2px + 2 * 18px + 10 * var(--inv-casa) + 9 * var(--inv-casa-vao) + 20px + var(--bau-painel-w));
+  --fp-largura: 100%;
+}
+@media (min-width: 1600px) {
+  #root .menestrel-ui .mc-content { --fp-z: 1.12; --fp-largura: max(var(--fp-largura-bau), calc(1060px * var(--fp-z))); }
+  /* O teto em porcentagem não é multiplicado pelo zoom: 100% já é a largura da página na tela. */
+  #root .menestrel-ui .fp-page:has(.fp2-columns--duas) > .fp-card { width: calc(var(--fp-largura) / var(--fp-z)); max-width: 100%; }
+}
+@media (min-width: 1600px) and (min-height: 1010px) {
+  #root .menestrel-ui .mc-content { --fp-z: 1.25; }
+}
+@media (min-width: 1900px) and (min-height: 1150px) {
+  #root .menestrel-ui .mc-content { --fp-z: 1.35; }
+}
+/* O cartão de toda página que não é a Ficha: largura, centro e altura. */
+#root .menestrel-ui .fp-page:not(:has(.fp2-columns)) > .fp-card,
+#root .menestrel-ui .mc-content > .pjs,
+#root .menestrel-ui .mc-content > .hist > .pjs {
+  width: var(--fp-largura); max-width: 100%; margin-inline: auto; min-height: var(--pg-altura, 0px);
+}
+/* As listas ganham a pele do cartão da ficha (a mesma de .fp-card): régua,
+   canto e véu. O respiro é o da moldura da Ficha, no degrau de zoom dela. */
+#root .menestrel-ui .mc-content > .pjs,
+#root .menestrel-ui .mc-content > .hist > .pjs {
+  box-sizing: border-box; display: flex; flex-direction: column; gap: 0;
+  padding: calc(14px * var(--fp-z)) calc(16px * var(--fp-z));
+  border: 1px solid var(--regua-forte); border-radius: 12px;
+  background: var(--mc-veu-card, rgba(var(--couro-rgb), 0.50));
+}
+/* O trilho de cima é a .cartoes-barra que cada lista já tinha — agora dentro
+   do cartão, a 14px do conteúdo, como o da Ficha. */
+#root .menestrel-ui .mc-content > .pjs > .cartoes-barra,
+#root .menestrel-ui .mc-content > .hist > .pjs > .cartoes-barra { margin: 0 0 calc(14px * var(--fp-z)) !important; }
+/* O pé da lista: a paginação e o trilho de baixo encostam no fundo do
+   cartão, no mesmo lugar da Experiência na Ficha. */
+#root .menestrel-ui .mc-content > .pjs > .best-pag { margin-top: auto; padding-top: calc(14px * var(--fp-z)); }
+#root .menestrel-ui .pg-rodape { margin-top: auto; padding-top: calc(14px * var(--fp-z)); display: flex; justify-content: center; }
+#root .menestrel-ui .pg-rodape:empty { display: none; }
+/* O alto da página: o cartão das listas a 20px do topo, como o da Ficha. Antes
+   quem dava o respiro era a margem da .cartoes-barra (agora dentro do cartão),
+   e por isso .mc-main:has(.pjs) zerava o próprio padding. */
+#root .menestrel-ui .mc-main:has(> .mc-content > .pjs),
+#root .menestrel-ui .mc-main:has(> .mc-content > .hist > .pjs) { padding-top: 20px !important; }
+#root .menestrel-ui .mc-content > .pjs > .best-pag ~ .pg-rodape { margin-top: 0; }
 
 /* ── Condições: SEMPRE três por fileira (como no modelo) ── */
 #root .menestrel-ui .fp2-columns--duas .fp-medalhoes {
@@ -15203,7 +15644,19 @@ body { background-color: var(--p-pagina); }
    fica centrado no vão). Agora é UM NÚMERO: `--fp3-casa` move a casa, o vão
    entre as mãos e a altura da casa da mão juntos — era aqui que as três
    medidas se soltavam umas das outras. */
-#root .menestrel-ui .fp2-equip-wrap { --fp3-casa: 72px; }
+/* 72 → 78px em 02/11/2026 (usuário: "há espaço no card, entre as casas e
+   foto do personagem para que os slots aumentem um pouco de tamanho sem
+   prejudicar o tamanho da tela"). Medido a 1920×911: com 78 o quadro de
+   Equipamentos ocupa a altura que a coluna de Condições já dava ao cartão
+   (864px); com 80 o cartão passa a crescer. */
+/* 78 → 88px, com o vão de 18 → 10px (02/11/2026, de novo: "parece que há
+   espaço no card das casas de itens equipados e vestidos, aumente um pouco
+   de tamanho sem prejudicar o tamanho da tela"). Medido a 1920×855, sem o
+   zoom da Ficha: o quadro de Equipamentos tem a altura da coluna de
+   Energias e Condições, e o boneco ainda termina 31px antes do fim dele —
+   o cartão não cresce. O vão menor é o que paga as casas maiores: nenhuma
+   casa do boneco tem legenda embaixo. */
+#root .menestrel-ui .fp2-equip-wrap { --fp3-casa: 88px; --fp3-vao: 10px; }
 /* O RESPIRO DO TÍTULO (26/10/2026, pedido do usuário: "diminua o espaçamento
    entre a palavra 'equipamentos' abaixo"). Eram 34px — 20 do `gap` do card
    mais 14 da margem do título. Agora o card não tem vão próprio e a distância
@@ -15248,24 +15701,6 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .fp3-modal-oferta { display: flex; flex-direction: column; gap: 8px; }
 #root .menestrel-ui .fp3-modal-oferta .at-lista { max-height: 320px; overflow-y: auto; scrollbar-gutter: stable; }
 
-/* O pé do cartão como uma linha só de leitura: o rótulo com largura fixa
-   (o trilho começa sempre no mesmo lugar) e a pílula da Experiência sem o
-   respiro extra que a deixava mais alta. O 14px de baixo era da faixa de
-   Peso, que saiu em 26/10/2026 — ele fica, agora na Experiência. */
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-rot { min-width: 96px; }
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa .fp-bar-pill { padding: 0; }
-/* A RÉGUA VAI ATÉ A BORDA DA FICHA (27/10/2026, pedido do usuário: "a barra
-   acima de 'experiência' na ficha deve ir até a borda da ficha"). A faixa
-   nasce dentro do respiro de 16px do .fp2-frame, então o filete do topo dela
-   parava a 16px de cada borda do cartão — uma régua encolhida no meio da
-   moldura. A margem negativa devolve esse respiro à faixa; o padding o
-   recebe de volta por dentro, agora alinhando o rótulo com o conteúdo das
-   colunas (16px da moldura + o recuo da coluna). */
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa {
-  margin-inline: -16px;
-  padding: 9px calc(16px + var(--fp2-col-inset)) 14px;
-  min-height: 42px;
-}
 
 /* ══ IMAGENS — a galeria das pinturas, para o Mestre (26/10/2026) ═══════════
    "Adicione a página no nosso sistema para controle do mestre, abaixo de
@@ -15664,19 +16099,39 @@ body { background-color: var(--p-pagina); }
 }
 #root .menestrel-ui .modal-atalho .amg-erro { margin: 10px 0 0; color: var(--alerta); font-size: var(--fs-sm); }
 
-/* ══ A MESA DO JOGADOR: UM CAPÍTULO POR VEZ (26/10/2026) ════════════════════
-   "Na página 'mesa', teremos apenas um card grande com o capítulo por vez, e
-   poderá ser possível navegar nos demais capítulos." A carta deixa de ser um
-   item de índice e vira a página que se lê: uma coluna, o texto inteiro em
-   medida de leitura, e a paginação do sistema logo abaixo como o folhear. */
-#root .menestrel-ui .pjs-grid.cena-um { grid-template-columns: minmax(0, 1fr); }
-#root .menestrel-ui .cena-um .pj-card { cursor: default; }
-#root .menestrel-ui .cena-um-texto {
-  display: flex; flex-direction: column; gap: 10px; margin-top: 6px; max-width: 68ch;
+/* ══ OS CARTÕES DOS CAPÍTULOS NO PADRÃO (04/11/2026) ════════════════════════
+   "Quando o jogador clica em mesa, porque os cards dos capítulos não está
+   seguindo o padrão [...] que criamos para diário?" (usuário) O padrão é o
+   dos cartões da Ambientação e do Diário ("OS CARTÕES DA AMBIENTAÇÃO,
+   PADRONIZADOS"), repetido aqui para os capítulos da Cena (Mestre) e da Mesa
+   (Jogador): 18 por página, fileiras da mesma altura, 14px de vão, texto
+   numa linha só e, com três colunas, seis fileiras que enchem a página.
+   O "um capítulo por vez" da Mesa (26/10/2026) saiu com o pedido. */
+#root .menestrel-ui .pjs-grid.cena-grade { gap: 14px; grid-auto-rows: 1fr; }
+#root .menestrel-ui .cena-grade .pj-name-linha { flex-wrap: nowrap; min-width: 0; }
+#root .menestrel-ui .cena-grade .pj-name,
+#root .menestrel-ui .cena-grade .pj-meta {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-#root .menestrel-ui .cena-um-texto .cena-cap-texto {
-  margin: 0; font-family: var(--font-body); font-size: var(--fs-base);
-  line-height: 1.7; color: var(--tinta-2); text-wrap: pretty;
+#root .menestrel-ui .cena-grade .pj-meta { display: block; }
+#root .menestrel-ui .cena-grade .pj-meta .sep { margin: 0 6px; }
+#root .menestrel-ui .cena-grade .cena-cartao-selo { flex: none; }
+#root .menestrel-ui .pjs-grid.cena-grade > .pj-card-wrap:only-child { width: calc((100% - 14px) / 2); }
+@media (max-width: 900px) {
+  #root .menestrel-ui .pjs-grid.cena-grade > .pj-card-wrap:only-child { width: 100%; }
+}
+@media (min-width: 1600px) {
+  #root .menestrel-ui .pjs-grid.cena-grade > .pj-card-wrap:only-child { width: calc((100% - 28px) / 3); }
+  #root .menestrel-ui .mc-content > .hist > .pjs.cena-cartoes { min-height: var(--pg-altura, calc(100dvh - 34px)); }
+  #root .menestrel-ui .mc-content > .hist > .pjs.cena-cartoes > .pjs-grid.cena-grade {
+    flex: 1 1 0; min-height: 0;
+    grid-template-rows: repeat(6, minmax(72px, 1fr)); grid-auto-rows: minmax(72px, 1fr);
+  }
+  #root .menestrel-ui .cena-grade .pj-card { min-height: 0; }
+  #root .menestrel-ui .cena-grade .pj-card-body { flex: 1 1 auto; min-height: 0; }
+  #root .menestrel-ui .cena-grade .pj-card-wrap:not(.pj-card-wrap--ativo) .pj-card-portrait {
+    height: 100%; max-height: 98px; width: auto; aspect-ratio: 76 / 98; flex: none;
+  }
 }
 
 /* ══ A JANELA DO ITEM À VENDA (27/10/2026) ═════════════════════════════════
@@ -15749,48 +16204,6 @@ body { background-color: var(--p-pagina); }
    volta a ocupar UMA linha — senão sobra uma fileira vazia debaixo dele. */
 #root .menestrel-ui .fp3-boneco--bicho .fp3-retrato { grid-row: 1; }
 
-/* ── A FAIXA DE CARGA DO BICHO (27/10/2026) ─────────────────────────────────
-   "Adicione também uma barra para mostrar o peso que o animal está
-   carregando." É a faixa da Experiência de novo, logo abaixo dela: as duas
-   medidas que valem para o bicho inteiro, no pé do cartão. Sem a régua de
-   cima (quem separa o cartão da faixa já é a da Experiência) e com o
-   preenchimento em bronze, para o ouro continuar sendo só da Experiência.
-
-   Cheia, a faixa fala em brasa: sobrecarga é coisa que BLOQUEIA, e é esse o
-   único papel do --alerta no sistema. */
-/* ── AS DUAS FAIXAS SÃO UMA SÓ (27/10/2026) ─────────────────────────────────
-   "O espaçamento está estranho." A faixa de Carga herdava o padding e a
-   margem da faixa de Experiência — 9px em cima mais 10 de margem — e ficava
-   boiando 33px abaixo dela, como um bloco solto no pé do cartão. Pior: o que
-   eu havia escrito para ela NÃO valia. A regra de cima usa `:has()`
-   (`.fp-page:has(.fp2-columns--duas) .fp-xp-faixa`) e soma quatro classes de
-   especificidade; a minha, com duas, perdia calada.
-
-   As duas são UMA faixa de rodapé: a régua entra uma vez, no topo da
-   primeira, e a Carga encosta na Experiência. Daí a especificidade espelhada
-   aqui — é o preço de corrigir uma regra que usa `:has()`.
-
-   A cor: bronze no preenchimento, para o ouro continuar sendo só da
-   Experiência; cheia, a faixa fala em brasa, que no sistema é a cor do que
-   bloqueia. */
-#root .menestrel-ui .fp-carga-faixa,
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-carga-faixa {
-  border-top: none; margin-top: 0; padding-top: 0; padding-bottom: 14px;
-  min-height: 0;
-}
-/* E a Experiência, que agora tem vizinha embaixo, fecha o próprio respiro: os
-   14px dela separariam duas barras de 4px por três vezes a altura delas. */
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) .fp-xp-faixa:has(+ .fp-carga-faixa) {
-  padding-bottom: 6px;
-}
-#root .menestrel-ui .fp-carga-faixa .fp-bar-fill {
-  background: linear-gradient(90deg, rgba(138,110,64,.55), var(--tinta-3));
-}
-#root .menestrel-ui .fp-carga-faixa.is-over .fp-bar-fill {
-  background: linear-gradient(90deg, rgba(162,59,47,.65), var(--alerta));
-}
-#root .menestrel-ui .fp-carga-faixa.is-over .fp-xp-rot,
-#root .menestrel-ui .fp-carga-faixa.is-over .fp-bar-num { color: var(--alerta); }
 
 /* ── A COLUNA DO BICHO NÃO VAZA PELO PÉ DO CARTÃO (27/10/2026) ──────────────
    "As barras de experiência e peso estão com um bug visual." O painel de
@@ -15824,49 +16237,6 @@ body { background-color: var(--p-pagina); }
    irmãs, e a ficha do bicho ficou com o que é visual. */
 #root .menestrel-ui .fp-animais-parte { padding: 4px 0 0; }
 
-/* O inventário do bicho: duas listas — arreamento e carga — no quadro de
-   linhas do sistema (.mn-quadro). A casa de cada peça é a coluna "Onde", na
-   ordem do boneco: quem olhou o bicho encontra aqui a mesma sequência.
-   O cartão é desenhado aqui porque `.fp2-panel` nasce transparente e só
-   ganha pele dentro da moldura da ficha — esta é uma PÁGINA. */
-#root .menestrel-ui .anim-inv-secao {
-  border: 1px solid var(--regua-forte); border-radius: 12px;
-  background: var(--chao-celula); padding: 16px 16px 8px;
-}
-#root .menestrel-ui .anim-inv-secao + .anim-inv-secao { margin-top: 12px; }
-#root .menestrel-ui .anim-inv-vazio { margin: 4px 0 8px; color: var(--tinta-3); font-size: var(--fs-md); }
-#root .menestrel-ui .anim-inv-quadro { list-style: none; margin: 8px 0 0; padding: 0; }
-#root .menestrel-ui .anim-inv-linha {
-  display: grid; grid-template-columns: 40px minmax(0, 1fr) max-content 64px;
-  align-items: center; gap: 12px; padding: 8px 0;
-  border-bottom: 1px solid var(--regua);
-}
-#root .menestrel-ui .anim-inv-linha:last-child { border-bottom: none; }
-#root .menestrel-ui .anim-inv-quadro .mn-quadro-cab {
-  padding-top: 0; border-bottom: 1px solid var(--regua-forte);
-  font-size: var(--fs-rotulo, 11px); font-weight: 800;
-  letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase;
-  color: var(--tinta-3);
-}
-#root .menestrel-ui .anim-inv-quadro .mn-quadro-cab > :last-child,
-#root .menestrel-ui .anim-inv-peso { text-align: right; font-variant-numeric: lining-nums tabular-nums; }
-#root .menestrel-ui .anim-inv-ic {
-  width: 40px; height: 40px; display: grid; place-items: center;
-  border-radius: 8px; background: var(--chao-celula-opaco); overflow: hidden;
-}
-#root .menestrel-ui .anim-inv-ic img { width: 100%; height: 100%; object-fit: contain; }
-#root .menestrel-ui .anim-inv-ic .ti { font-size: 20px; color: var(--tinta-2); }
-#root .menestrel-ui .anim-inv-nome { font-size: var(--fs-md); color: var(--tinta); min-width: 0; }
-#root .menestrel-ui .anim-inv-nome small { color: var(--tinta-3); font-size: var(--fs-sm); }
-#root .menestrel-ui .anim-inv-onde {
-  font-size: var(--fs-rotulo, 11px); font-weight: 800;
-  letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase; color: var(--tinta-3);
-}
-#root .menestrel-ui .anim-inv-peso { font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2); }
-/* A faixa de Carga fecha a página, como fecha o cartão da ficha. */
-#root .menestrel-ui .anim-inv > .fp-carga-faixa {
-  margin-top: 12px; padding: 10px 0 0; border-top: 1px solid var(--regua-forte);
-}
 
 /* ── A COLUNA DE AMIGOS SAI DA FRENTE DO MENU (27/10/2026) ──────────────────
    "Quando eu passo o mouse sob os ícones do menu lateral à esquerda, ele
@@ -16031,8 +16401,13 @@ body { background-color: var(--p-pagina); }
    agora são CSS, e por isso a ficha pode pedir outro: ela fecha com o mesmo
    respiro que tem em cima. */
 #root .menestrel-ui .mc-content { padding-bottom: 80px; }
-#root .menestrel-ui .mc-content:has(.fp2-columns--duas) { padding-bottom: 20px; }
-#root .menestrel-ui .fp-page:has(.fp2-columns--duas) { margin-bottom: 0; }
+/* Toda página da ficha fecha igual (02/11/2026): sem os 80px, as páginas de
+   casas pediam rolagem, e a barra empurrava o cartão 4px para a esquerda. */
+/* 20 → 14px (02/11/2026): a 1920×855 a Ficha (821px) pedia 6px de rolagem. */
+#root .menestrel-ui .mc-content:has(> .fp-page > .fp-card),
+#root .menestrel-ui .mc-content:has(> .pjs),
+#root .menestrel-ui .mc-content:has(> .hist > .pjs) { padding-bottom: 14px; }
+#root .menestrel-ui .fp-page:has(> .fp-card) { margin-bottom: 0; }
 
 /* E o ZOOM passa a olhar a altura também (27/10/2026, mesma correção).
    O degrau de 1.12 não tinha piso de altura nenhum: numa tela larga e baixa
@@ -16044,7 +16419,8 @@ body { background-color: var(--p-pagina); }
    já exigia 1150. Abaixo disso o cartão fica no tamanho natural, que cabe a
    partir de 820px de tela. */
 @media (min-width: 1600px) and (max-height: 909px) {
-  #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1; width: auto; max-width: 100%; }
+  #root .menestrel-ui .mc-content { --fp-z: 1; --fp-largura: 100%; }
+  #root .menestrel-ui .fp-page:has(.fp2-columns) > .fp-card { zoom: 1; --fp-zoom: 1; width: auto; max-width: 100%; }
 }
 
 /* ══ AS PEDRAS DA ENERGIA (27/10/2026) ══════════════════════════════════════
@@ -16313,15 +16689,18 @@ body { background-color: var(--p-pagina); }
    dificuldade. Marca-se pelo aro de ouro e pelo disco maior, que é a regra do
    sistema — ouro no que está vivo. E cor sozinha não informa: o nome vive no
    balão e no aria-label. */
-#root .menestrel-ui .mn-janela-cores { display: flex; flex-wrap: wrap; gap: 10px; }
+/* Espalhadas na largura da janela, e um pouco maiores (30/10/2026, usuário:
+   "Justifique horizontalmente esses seletores de dificuldade [...] pode
+   aumentar o círculo um pouco"). */
+#root .menestrel-ui .mn-janela-cores { display: flex; justify-content: space-between; gap: 10px; }
 #root .menestrel-ui .mn-janela-cor {
-  width: 36px; height: 36px; padding: 0; border-radius: 999px; cursor: pointer;
+  width: 44px; height: 44px; padding: 0; border-radius: 999px; cursor: pointer;
   border: 2px solid transparent; background: none;
   display: grid; place-items: center;
   transition: border-color .15s;
 }
 #root .menestrel-ui .mn-janela-cor-disco {
-  width: 20px; height: 20px; border-radius: 999px; background: var(--cor);
+  width: 26px; height: 26px; border-radius: 999px; background: var(--cor);
   /* Anel escuro por dentro: separa o disco do couro sem uma borda clara, que
      faria as cinco cores parecerem a mesma. */
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.45);
@@ -16329,7 +16708,7 @@ body { background-color: var(--p-pagina); }
 }
 #root .menestrel-ui .mn-janela-cor:hover { border-color: var(--regua-forte); }
 #root .menestrel-ui .mn-janela-cor[aria-checked="true"] { border-color: var(--vivo); }
-#root .menestrel-ui .mn-janela-cor[aria-checked="true"] .mn-janela-cor-disco { width: 26px; height: 26px; }
+#root .menestrel-ui .mn-janela-cor[aria-checked="true"] .mn-janela-cor-disco { width: 32px; height: 32px; }
 #root .menestrel-ui .mn-janela-cor:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
 
 /* ── O GASTO DE KARMA (magia de dano) ──────────────────────────────────── */
@@ -16351,6 +16730,8 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .fp-ativ-cadencia {
   margin-left: 6px; font-size: var(--fs-md, 16px); color: var(--tinta-3);
 }
+/* O caminho para a bancada, no fim da janela de Fabricar (31/10/2026). */
+#root .menestrel-ui .fp-ativ-bancada { align-self: flex-start; gap: 6px; }
 
 /* A SETA DO TÍTULO SAIU (27/10/2026, usuário: "remova o botão de voltar do
    lado do nome"). Quem volta agora é o rodapé: o "Cancelar" virou "Voltar",
@@ -16417,7 +16798,7 @@ body { background-color: var(--p-pagina); }
    buraco que o usuário apontou na Cena em 28/10 de manhã.
 
    A GUARDA É NO `body`, E ISSO É CONSERTO DE UM ERRO MEU. Na primeira volta
-   escrevi `.menestrel-ui.cm-root:not(:has(.cdj-root))`, e `.cm-root` NÃO é a
+   escrevi `.menestrel-ui.cm-root:not(:has(.cdj-root:not(.cdj-root--rodape)))`, e `.cm-root` NÃO é a
    raiz da página: é a camada flutuante da Central de Mensagens. A página mora
    em `.mc-root`. O seletor não casava com nada — ou seja, aquela "correção"
    da Cena funcionou por acidente, apagando o respiro de toda a aplicação em
@@ -16426,9 +16807,10 @@ body { background-color: var(--p-pagina); }
    ela esconde o trilho da mesa) e não depende de onde cada raiz está.
 
    E `#fp-acoes-ficha` fica de fora: é o trilho do boneco, dentro do cartão da
-   ficha, e ali o respiro é o padding do cartão. */
-body:not(:has(.cdj-root)) #root .menestrel-ui .cartoes-barra:first-child,
-body:not(:has(.cdj-root)) #root .menestrel-ui .mc-acoes-ficha:not(#fp-acoes-ficha) {
+   ficha, e ali o respiro é o padding do cartão. O mesmo vale para todo
+   trilho dentro de cartão (.fp3-heroi-acoes), como o da Loja do Mestre. */
+body:not(:has(.cdj-root:not(.cdj-root--rodape))) #root .menestrel-ui .cartoes-barra:first-child,
+body:not(:has(.cdj-root:not(.cdj-root--rodape))) #root .menestrel-ui .mc-acoes-ficha:not(#fp-acoes-ficha):not(.fp3-heroi-acoes) {
   margin-top: 20px;
 }
 
@@ -16720,8 +17102,11 @@ body:not(:has(.cdj-root)) #root .menestrel-ui .mc-acoes-ficha:not(#fp-acoes-fich
 }
 /* O número mora no rótulo do stepper: sem caixa, sem aro, sem fundo — a
    pílula em volta já é a caixa. Centrado, como o número da quantidade. */
-#root .menestrel-ui .campo-preco-stepper .fp-pop-stepper-label { padding: 0; }
-#root .menestrel-ui .campo-preco-stepper .campo-preco-input {
+#root .menestrel-ui .campo-preco-stepper .fp-pop-stepper-label,
+#root .menestrel-ui .estoque-step .fp-pop-stepper-label { padding: 0; }
+/* A quantidade da loja também se digita (29/10/2026): o mesmo campo sem caixa. */
+#root .menestrel-ui .campo-preco-stepper .campo-preco-input,
+#root .menestrel-ui .estoque-step .campo-preco-input {
   width: 100%; min-width: 0; height: 100%; padding: 0;
   border: 0; background: none; outline: none; box-shadow: none;
   color: inherit; font: inherit; text-align: center;
@@ -16789,3 +17174,598 @@ body:not(:has(.cdj-root)) #root .menestrel-ui .mc-acoes-ficha:not(#fp-acoes-fich
 /* Cheio é cheio por qualquer um dos dois: o aro de brasa já existia para o
    peso e agora vale para a casa também (ver `cheio` em DetalhesItemModal). */
 #root .menestrel-ui .det-recip-medida[data-cheio] .det-recip-casas { color: var(--alerta); }
+
+/* CASAS E PESO EM LINHAS PRÓPRIAS (31/10/2026, pedido do usuário: "0/9
+   casas e 0/30 com a barra, fica em uma linha cada, acima de conteúdo").
+   A seção vira uma coluna: título, casas, barra + peso e a grade. */
+#root .menestrel-ui .best-detail .det-recipiente { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+#root .menestrel-ui .det-recip-medida { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 4px; }
+/* AS DUAS BARRAS COMO A CARGA, NA LARGURA TODA (31/10/2026, usuário: "adicione
+   uma barra igual carga, para casas. E as duas barras devem ocupar a
+   horizontal toda do card, adicione a palavra peso na barra de peso"). Mesma
+   linha do rodapé do baú: rótulo em versalete, barra que cresce, número à
+   direita. O rótulo tem largura fixa para as duas barras começarem juntas. */
+#root .menestrel-ui .det-recip-linha { display: flex; align-items: center; gap: 14px; }
+#root .menestrel-ui .det-recip-rot {
+  flex: 0 0 4.5em; font-size: var(--fs-rotulo, 11px); font-weight: 800;
+  letter-spacing: var(--rotulo-espaco, .14em); text-transform: uppercase; color: var(--tinta-3);
+}
+#root .menestrel-ui .det-recip-linha .det-recip-barra {
+  flex: 1 1 auto; width: auto; height: 4px; background: rgba(var(--tinta-rgb),.08);
+}
+#root .menestrel-ui .det-recip-linha .det-recip-casas,
+#root .menestrel-ui .det-recip-linha .det-recip-num { flex: none; min-width: 52px; text-align: right; }
+/* Cheia é cheia em cada uma: a barra que estourou acende em brasa, sozinha. */
+#root .menestrel-ui .det-recip-linha[data-cheio] .det-recip-barra > span { background: var(--alerta); }
+#root .menestrel-ui .det-recip-linha[data-cheio] .det-recip-casas,
+#root .menestrel-ui .det-recip-linha[data-cheio] .det-recip-num { color: var(--alerta); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   O LEQUE DO ITEM (30/10/2026) — LequeDoItem, 07-inventario/inventario.jsx
+   Aprovado na prévia preview/menu-radial.html. Clicar num item abre as ações
+   em volta da casa: bolhas de 38px num raio de 68px (os números moram no
+   componente e chegam aqui por --leque-bolha / --leque-raio).
+
+   Cada bolha mora num ângulo (--leque-a) e numa distância (--leque-r). As
+   duas são registradas com @property e por isso TRANSICIONAM: girar enquanto
+   se afasta desenha um arco. Saem uma a uma (--i) em expo-out e voltam na
+   ordem inversa (--j), mais depressa. O último rotate desfaz o giro para o
+   ícone ficar de pé.
+   ══════════════════════════════════════════════════════════════════════════ */
+@property --leque-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@property --leque-r { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+#root .menestrel-ui .inv-leque {
+  --leque-abre: 560ms; --leque-fecha: 260ms; --leque-passo: 38ms;
+  --leque-sai: cubic-bezier(.16, 1, .3, 1);
+  --leque-volta: cubic-bezier(.55, 0, .75, .3);
+}
+/* O véu não escurece nada: só pega o clique fora para fechar. Quem recua é
+   a grade (abaixo), e a casa escolhida sobe. */
+#root .menestrel-ui .inv-leque-veu { position: fixed; inset: 0; z-index: 9400; }
+#root .menestrel-ui .inv-leque-roda { position: fixed; z-index: 9401; width: 0; height: 0; }
+
+#root .menestrel-ui .inv-leque-bolha {
+  --leque-a: calc(var(--fim) - 46deg); --leque-r: 0px;
+  --leque-atraso: calc(var(--j) * var(--leque-passo) * .6);
+  position: absolute; left: 0; top: 0;
+  width: var(--leque-bolha); height: var(--leque-bolha);
+  margin: calc(var(--leque-bolha) / -2) 0 0 calc(var(--leque-bolha) / -2);
+  padding: 0; border-radius: 50%;
+  border: 1px solid var(--regua-forte);
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, rgb(var(--bronze-rgb)) 16%, var(--p-fundo)), var(--p-fundo) 75%);
+  color: var(--tinta-2); font-size: 18px; cursor: pointer;
+  display: grid; place-items: center;
+  transform: rotate(var(--leque-a)) translateX(var(--leque-r)) rotate(calc(-1 * var(--leque-a))) scale(.35);
+  opacity: 0; filter: blur(3px);
+  box-shadow: 0 6px 14px rgba(0,0,0,.5);
+  pointer-events: none;
+  transition:
+    --leque-a var(--leque-fecha) var(--leque-volta) var(--leque-atraso),
+    --leque-r var(--leque-fecha) var(--leque-volta) var(--leque-atraso),
+    transform var(--leque-fecha) var(--leque-volta) var(--leque-atraso),
+    opacity var(--leque-fecha) ease var(--leque-atraso),
+    filter var(--leque-fecha) ease var(--leque-atraso),
+    border-color .2s, color .2s, box-shadow .2s;
+}
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha {
+  --leque-a: var(--fim); --leque-r: var(--leque-raio);
+  --leque-atraso: calc(var(--i) * var(--leque-passo));
+  transform: rotate(var(--leque-a)) translateX(var(--leque-r)) rotate(calc(-1 * var(--leque-a))) scale(1);
+  opacity: 1; filter: blur(0); pointer-events: auto;
+  transition:
+    --leque-a var(--leque-abre) var(--leque-sai) var(--leque-atraso),
+    --leque-r var(--leque-abre) var(--leque-sai) var(--leque-atraso),
+    transform var(--leque-abre) var(--leque-sai) var(--leque-atraso),
+    opacity calc(var(--leque-abre) * .45) ease var(--leque-atraso),
+    filter calc(var(--leque-abre) * .5) ease var(--leque-atraso),
+    border-color .2s, color .2s, box-shadow .2s;
+}
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha:hover,
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha:focus-visible {
+  color: var(--vivo); border-color: var(--vivo-aro);
+  box-shadow: 0 8px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(var(--vivo-rgb),.15);
+}
+#root .menestrel-ui .inv-leque-bolha:focus-visible { outline: 2px solid var(--vivo); outline-offset: 3px; }
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha.is-perigo:hover,
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha.is-perigo:focus-visible {
+  color: var(--alerta); border-color: rgba(var(--alerta-rgb),.8);
+}
+/* ESMAECIDA SEM TRANSPARÊNCIA (31/10/2026, usuário: "quando estiver
+   esmaecido, não quero transparência, quero cores mais pastéis"). A bolha
+   continua opaca, e o que recua é a cor: fundo, aro e ícone lavados em pó de
+   pergaminho (o tom da tinta misturado ao fundo), sem o brilho de bronze e
+   com sombra rasa — lê-se "não agora" sem deixar a grade aparecer por trás. */
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha[aria-disabled="true"] {
+  --bolha-pastel: color-mix(in srgb, var(--tinta-3) 30%, var(--p-fundo));
+  opacity: 1; cursor: not-allowed;
+  background: var(--bolha-pastel);
+  border-color: color-mix(in srgb, var(--tinta-3) 45%, var(--p-fundo));
+  color: color-mix(in srgb, var(--tinta-2) 62%, var(--bolha-pastel));
+  box-shadow: 0 3px 8px rgba(0,0,0,.35);
+}
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha[aria-disabled="true"]:hover {
+  color: color-mix(in srgb, var(--tinta-2) 62%, var(--bolha-pastel));
+  border-color: color-mix(in srgb, var(--tinta-3) 45%, var(--p-fundo));
+  box-shadow: 0 3px 8px rgba(0,0,0,.35);
+}
+#root .menestrel-ui .inv-leque-bolha.is-batida { animation: invLequeBatida 300ms var(--leque-sai); }
+@keyframes invLequeBatida { 40% { scale: .86; } 100% { scale: 1; } }
+
+/* Com o leque aberto, a grade recua e a casa escolhida fica em primeiro
+   plano. SEM ZOOM (02/11/2026, usuário: "Quando a casa é selecionada,
+   aparece o leque de opções, remova o zoom na casa ao selecioná-la"): era um
+   scale(1.08); a casa não cresce mais, só se destaca das que recuam. */
+body.inv-leque-aberto #root .menestrel-ui .inv-card:not(.inv-card--leque) { opacity: .38; filter: saturate(.6); }
+#root .menestrel-ui .inv-card.inv-card--leque {
+  position: relative; z-index: 3;
+  box-shadow: 0 10px 26px rgba(0,0,0,.55);
+  transition: box-shadow 560ms cubic-bezier(.16, 1, .3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .inv-leque-bolha,
+  #root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha {
+    --leque-a: var(--fim); filter: none;
+    transition: opacity 160ms !important;
+  }
+  #root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha { --leque-r: var(--leque-raio); }
+  #root .menestrel-ui .inv-leque-bolha { --leque-r: var(--leque-raio); }
+}
+
+/* O leque também nasce das casas do boneco (ficha): a casa se destaca do
+   mesmo jeito — sem zoom, desde 02/11/2026 —, e as outras recuam. */
+body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opacity: .38; filter: saturate(.6); }
+#root .menestrel-ui .inv-slot.inv-slot--leque {
+  position: relative; z-index: 3;
+  border-color: var(--vivo) !important;
+  box-shadow: 0 10px 26px rgba(0,0,0,.55), 0 0 0 1px var(--vivo);
+  transition: box-shadow 560ms cubic-bezier(.16, 1, .3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   A COR DE CADA STATUS NO TEXTO (30/10/2026) — tomDoStatus, 09-bestiario
+   As cores ditadas pelo usuário: Energia Física/Físico vermelho, Energia
+   Heroica/Carisma verde, Karma/Aura azul, Velocidade/Agilidade amarelo, as
+   nove condições roxo, Defesa/Absorção/Resistência ciano, Peso/Casa/Preço
+   branco negrito. Os tons são claros o bastante para ler sobre o couro
+   (contraste ≥ 7:1 sobre --p-fundo). Número e nome vão juntos na cor: "3 de
+   defesa" é uma coisa só.
+   ══════════════════════════════════════════════════════════════════════════ */
+#root .menestrel-ui {
+  --st-vermelho: #EC8A82;
+  --st-verde:    #86CF8E;
+  --st-azul:     #8DB2F2;
+  --st-amarelo:  #EAD06A;
+  --st-roxo:     #BFA2F0;
+  --st-ciano:    #6FD6DE;
+}
+#root .menestrel-ui .st-tom { font-weight: 700; font-variant-numeric: tabular-nums; }
+#root .menestrel-ui .st-tom--vermelho { color: var(--st-vermelho); }
+#root .menestrel-ui .st-tom--verde    { color: var(--st-verde); }
+#root .menestrel-ui .st-tom--azul     { color: var(--st-azul); }
+#root .menestrel-ui .st-tom--amarelo  { color: var(--st-amarelo); }
+#root .menestrel-ui .st-tom--roxo     { color: var(--st-roxo); }
+#root .menestrel-ui .st-tom--ciano    { color: var(--st-ciano); }
+#root .menestrel-ui .st-tom--forte    { color: var(--tinta); font-weight: 800; }
+
+/* A frase das Características: abre a lista, na largura toda. A regra de
+   `.best-stat--largo` manda as linhas largas para o FIM (order: 1); a frase
+   é a exceção — ela é o resumo, e vem antes de "Onde está". */
+#root .menestrel-ui .best-lista > .best-frase { order: -1; grid-column: 1 / -1; display: block; list-style: none; padding: 4px 0 10px; }
+#root .menestrel-ui .best-frase-item {
+  margin: 0; font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2);
+}
+
+/* O LEQUE DO BÔNUS (30/10/2026): a bolha mostra o degrau ("+3") no lugar do
+   ícone, e o degrau atual fica aceso em ouro — é o que está valendo. */
+#root .menestrel-ui .inv-leque-num {
+  font: 800 var(--fs-sm, 15px) var(--font-body); font-variant-numeric: tabular-nums; line-height: 1;
+}
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha.is-ativo {
+  color: var(--vivo); border-color: var(--vivo-aro); background: color-mix(in srgb, rgb(var(--vivo-rgb)) 14%, var(--p-fundo));
+}
+
+/* O título do balão em BRANCO (30/10/2026): o slot vazio da ficha e as
+   condições dizem o próprio nome em branco; o dourado do título fica para a
+   peça equipada ("Se tiver algum item equipado, mostre o nome dos itens de
+   amarelo", usuário). */
+#root .menestrel-ui .mn-tip-title.mn-tip-title--branco { color: var(--tinta); }
+
+/* ── AS PÁGINAS DE CASAS DA FICHA (02/11/2026) ─────────────────────────────
+   "As páginas status, atividades, habilidades, magias, companheiros, amigos,
+   vão abrir uma página igual 'inventário'" (usuário). A grade, o painel e o
+   leque são os do Inventário (paginas-ficha.jsx); aqui só o que a casa sem
+   pintura precisa: o glifo e o número no canto. SÓ O ÍCONE (02/11/2026,
+   usuário: "use apenas o ícone nas casas, sem texto, igual é feito em
+   inventário/loja"): o nome mora no balão, e o glifo tem o tamanho do
+   Inventário. O número (total, nível) fica no pé, onde o Inventário põe a
+   quantidade. */
+#root .menestrel-ui .pc-casa-marca {
+  position: absolute; bottom: 3px; right: 4px; line-height: 1;
+  font: 600 var(--fs-2xs) var(--font-body); font-variant-numeric: tabular-nums; color: rgba(var(--ouro-rgb), 0.90);
+}
+/* O que está valendo: um ponto de ouro no canto, não a casa inteira acesa —
+   a casa inteira acesa é a escolhida no painel. */
+#root .menestrel-ui .pc-casa-ponto {
+  position: absolute; top: 6px; left: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--vivo);
+}
+#root .menestrel-ui .inv-bag-grid--slots .pc-casa.is-apagada .pc-casa-ic { opacity: .45; }
+#root .menestrel-ui .pc-inicial { font: 600 var(--fs-xl) var(--font-title); color: var(--tinta-2); }
+/* O disco da dificuldade no leque das Habilidades: as cores da janela antiga. */
+#root .menestrel-ui .inv-leque-disco {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--cor);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35);
+}
+#root .menestrel-ui .inv-leque-bolha[aria-disabled="true"] .inv-leque-disco { opacity: .35; }
+/* O corpo do painel usa o quadro das janelas; no painel ele começa colado
+   no cabeçalho, sem o respiro de cima da janela. */
+#root .menestrel-ui .pc-painel .pc-corpo { padding: 0; }
+#root .menestrel-ui .pc-niveis { margin-top: 4px; }
+/* DESCRIÇÃO LONGA NÃO ESMAGA O PAINEL (04/11/2026, usuário: "no card lateral
+   direito que visualiza o item, a descrição da magia está ficando bugada
+   quando o texto é grande"). O painel tem teto de altura e overflow:hidden,
+   e o corpo é uma coluna flex: com texto grande, o parágrafo ENCOLHIA abaixo
+   da própria altura e as linhas vazavam por cima do quadro de alcance e
+   níveis. Agora nada encolhe; quem cede é o corpo, que rola por dentro —
+   a mesma lição do .loja-painel-desc. O cabeçalho (nome) fica fixo. */
+#root .menestrel-ui .pc-painel .loja-painel-corpo > * { flex-shrink: 0; }
+#root .menestrel-ui .pc-painel .loja-painel-corpo > .pc-corpo {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+}
+#root .menestrel-ui .pc-painel .pc-corpo > * { flex-shrink: 0; }
+
+/* OS NÍVEIS DA MAGIA QUEBRAM COMO FRASE (04/11/2026, usuário: "A descrição
+   dos níveis das magias ainda estão ficando embolados, porque o texto não
+   quebra?"). A linha do quadro é feita para RÓTULO À ESQUERDA, NÚMERO À
+   DIREITA: o valor tem `flex: none` e não encolhe. A descrição de um nível é
+   uma frase — sem quebrar, ela empurrava o painel para o lado (rolagem
+   horizontal) e passava por cima do rótulo. Nos níveis, o rótulo fica em
+   cima e a frase embaixo, na largura toda, no corpo e na tinta de texto. */
+#root .menestrel-ui .pc-niveis .mn-janela-linha {
+  flex-direction: column; align-items: stretch; gap: 4px;
+}
+#root .menestrel-ui .pc-niveis .mn-janela-linha dt { color: var(--tinta); font-weight: 700; }
+#root .menestrel-ui .pc-niveis .mn-janela-linha.is-texto dd {
+  flex: 1 1 auto; min-width: 0; text-align: left;
+  font-weight: 400; line-height: 1.6; color: var(--tinta-2); overflow-wrap: anywhere;
+}
+/* E em qualquer outra linha de texto do quadro (um alcance longo, um grupo
+   de armas extenso): o valor pode encolher e quebrar, nunca vazar. */
+#root .menestrel-ui .mn-janela-linha.is-texto dd { flex: 0 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; }
+#root .menestrel-ui .pc-painel .pc-corpo { overflow-x: hidden; }
+
+/* OS PONTOS NO TRILHO (04/11/2026): um selo de leitura no grupo da página,
+   com o desenho dos itens do trilho, sem o gesto de botão. Os dois números no
+   mesmo corpo e peso — o total só cede um tom. Gasto acima do total: brasa. */
+#root .menestrel-ui .mc-acao.pc-pontos {
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px 0 10px;
+  color: var(--tinta-2); font-size: 17px;
+}
+#root .menestrel-ui .mc-acao.pc-pontos > i { color: var(--vivo); }
+#root .menestrel-ui .mc-acao.pc-pontos .mc-acao-rotulo { font-family: var(--font-body); font-size: 15px; font-weight: 700; }
+#root .menestrel-ui .mc-acao.pc-pontos,
+#root .menestrel-ui .mc-acoes-ficha .mc-acao.pc-pontos { cursor: default; }
+#root .menestrel-ui .mc-acoes-ficha .mc-acao.pc-pontos:hover { background: none; color: var(--tinta-2); }
+#root .menestrel-ui .pc-pontos-num {
+  font-family: var(--font-body); font-size: 15px; font-weight: 700; line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums; color: var(--tinta);
+}
+#root .menestrel-ui .pc-pontos-num i { font-style: normal; color: var(--tinta-3); }
+#root .menestrel-ui .mc-acao.pc-pontos.is-excedido .pc-pontos-num { color: var(--alerta); }
+#root .menestrel-ui .pc-trilho-solto { display: flex; justify-content: center; padding: 12px 20px 0; }
+
+/* ── IDENTIFICAÇÃO SEM PÁGINAS INTERNAS (04/11/2026) ───────────────────────
+   "Quero que todos os campos apareçam sem precisar navegar" (usuário). Cada
+   cartão empilha suas seções; o título de cada uma é o traço de ouro das
+   colunas, e o vão acima dele é maior que o de baixo, para a seção nova se
+   ler como começo e não como continuação da lista anterior. */
+#root .menestrel-ui .fp-info-secao + .fp-info-secao { margin-top: 28px; }
+#root .menestrel-ui .fp-info-secao .fp-col-title-main { margin: 0; }
+/* As páginas do COMPANHEIRO (Identificação e Conhecimento) nos mesmos
+   cartões, e esticadas até o pé como as do dono: o invólucro do bicho
+   (.fp-animais-parte) fica entre a página e a grade, então ele também
+   vira coluna flex. */
+#root .menestrel-ui .fp-page > .fp-card > .fp-info-tab > .fp-animais-parte {
+  flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0;
+}
+#root .menestrel-ui .fp-info-tab > .fp-animais-parte > .fp-info-grid.fp-info-uma {
+  flex: 1 1 auto; align-content: stretch; grid-auto-rows: 1fr;
+}
+
+/* A ALTURA DA FICHA EM TODA PÁGINA (02/11/2026): a ficha dá a altura mínima
+   do cartão (ficha.jsx, alturaFicha); o conteúdo ocupa o meio e o trilho de
+   baixo encosta no pé, no mesmo lugar da Ficha. */
+#root .menestrel-ui .fp-page > .fp-card > .fp-invtab { flex: 1 1 auto; }
+
+/* O trilho apertado (02/11/2026, ficha.jsx): as páginas fechadas só no
+   ícone; a aberta e as ações (Evoluir, Editar) seguem com o nome. */
+#root .menestrel-ui .mc-acoes-ficha.is-compacto .mc-acao[data-acao-ficha]:not(.is-ativo):not([data-acao-ficha="evoluir"]) .mc-acao-rotulo { display: none; }
+
+/* ── IDENTIFICAÇÃO E CONHECIMENTO EM CARTÕES (02/11/2026) ─────────────────
+   "Dentro da página 'identificação' e 'conhecimento', teremos os cards com
+   borda para separar as colunas." (usuário) O cartão é o dos painéis da
+   Ficha (Energias, Condições, Equipamentos): chão de célula, régua e canto
+   de 10px. O recuo da grade é o do trilho, para os cartões alinharem com ele;
+   os cartões têm a mesma altura, e a coluna mais curta não fica pendurada. */
+#root .menestrel-ui .fp-info-tab .fp-info-grid.fp-info-uma {
+  padding: 0 calc(16px * var(--fp-z, 1));
+  gap: 12px; align-items: stretch;
+}
+#root .menestrel-ui .fp-info-tab .fp-info-grid.fp-info-uma > div {
+  background: var(--chao-celula); border: 1px solid var(--regua);
+  border-radius: 10px; padding: 14px 14px 16px;
+}
+
+/* O trilho da Loja do Mestre (02/11/2026): a .cartoes-barra das listas, no
+   alto do cartão e a 14px do conteúdo, como nelas. */
+#root .menestrel-ui .estoque-topo > .estoque-trilho { margin: 0 0 calc(14px * var(--fp-z)) !important; }
+/* A grade a 14px do trilho e alinhada com as bordas dele, como no Inventário. */
+#root .menestrel-ui .estoque-pagina .estoque-conteudo > .bau-corpo { padding: 0 calc(16px * var(--fp-z, 1)) !important; }
+
+/* A FAIXA DA DATA NO PÉ DA CENA (02/11/2026): a mesma faixa (CardDataJogoAtual),
+   agora dentro do cartão da Cena, no trilho de baixo. Sai do fixo no alto da
+   tela; as regras que abrem espaço para ela lá em cima perguntam por
+   .cdj-root:not(.cdj-root--rodape), e por isso já não a contam. */
+#root .menestrel-ui .cdj-root.cdj-root--rodape {
+  position: static !important; inset: auto !important; padding: 0 !important; margin: 0;
+  display: flex; justify-content: center; flex-wrap: nowrap; pointer-events: auto; z-index: auto;
+}
+#root .menestrel-ui .estoque-topo > .estoque-trilho .best-header-acoes { height: 44px; box-sizing: border-box; }
+
+/* ── O TRILHO DE BAIXO EM TRÊS (02/11/2026) ────────────────────────────────
+   "Experiência, Peso e 'Data, Localização, Clima, etc', dividindo a tela
+   igualmente" (usuário). Três colunas do mesmo tamanho; cada uma é uma
+   pílula. A coluna do Peso fica de pé mesmo vazia (o Inventário a preenche
+   por portal), para a data não escorregar para o lugar dela. */
+#root .menestrel-ui .fp3-rodape.fp3-rodape-tres {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch;
+}
+#root .menestrel-ui .fp3-rodape-tres > .fp3-rodape-trilho:empty { display: flex; }
+#root .menestrel-ui .fp3-rodape-tres > .fp3-rodape-trilho { min-width: 0; }
+#root .menestrel-ui .fp3-rodape-dados { display: flex; min-width: 0; }
+#root .menestrel-ui .fp3-rodape-dados > .cdj-root--rodape { flex: 1 1 auto; min-width: 0; }
+#root .menestrel-ui .fp3-rodape-dados .cdj-trilho { width: 100%; justify-content: center; box-sizing: border-box; }
+#root .menestrel-ui .fp3-rodape-dados .cdj-trilho,
+#root .menestrel-ui .pg-rodape .cdj-trilho { height: 44px; padding-top: 0; padding-bottom: 0; }
+/* UMA LINHA SÓ NO TERÇO DO RODAPÉ (04/11/2026, revisão dos menus): com uma
+   data longa ("Calcato, 12 do Ouro de 1234") a faixa pedia ~440px num terço
+   de 421, quebrava linha e os ícones do clima caíam para fora do cartão. No
+   rodapé ela não quebra: os ícones (lugar, hora, clima) guardam o tamanho, e
+   quem cede é o texto da data, com reticências. */
+#root .menestrel-ui .fp3-rodape-dados .cdj-trilho { flex-wrap: nowrap; }
+#root .menestrel-ui .fp3-rodape-dados .cdj-trilho > * { flex: none; }
+#root .menestrel-ui .fp3-rodape-dados .cdj-trilho > .cdj-bar:first-child { flex: 0 1 auto; min-width: 0; }
+#root .menestrel-ui .fp3-rodape-dados .cdj-data { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── AS RÉGUAS E O RITMO DA PÁGINA (02/11/2026) ────────────────────────────
+   "Entre o trilho superior, o conteúdo da página e o trilho inferior,
+   adicione uma linha separadora horizontal." · "A linha separadora deve ir de
+   uma ponta a outra. O espaçamento deve ser distribuído igualmente, se
+   necessário, diminua o espaçamento para ficar bem feito." (usuário)
+
+   Seis vãos, todos iguais (--pg-vao): borda · trilho · régua · conteúdo ·
+   régua · trilho · borda. Eram 14·7·7·7·7·14; 9px em todos cabe na mesma
+   altura (54 contra 56), e nenhuma página cresce — a altura da Ficha é a
+   régua das outras, e um pixel a mais devolvia a rolagem a 855px.
+
+   A régua vai de borda a borda do cartão: o elemento que a desenha estica
+   por cima do recuo lateral (margem negativa) e devolve o recuo como padding.
+   Nas páginas sem zoom tudo é multiplicado pelo degrau (--fp-z); dentro da
+   moldura da Ficha, que já tem zoom, os números vão puros. A cor é a da
+   borda padrão. */
+#root .menestrel-ui {
+  --pg-vao: 9px;
+  --pg-regua: 1px solid var(--regua-forte);
+}
+
+/* A FICHA (dentro da moldura com zoom). */
+#root .menestrel-ui .fp-page > .fp-card .fp2-frame { padding: var(--pg-vao) 16px 0; }
+#root .menestrel-ui .fp2-frame > .fp3-heroi {
+  margin: 0 -16px var(--pg-vao); padding: 0 18px var(--pg-vao); border-bottom: var(--pg-regua);
+}
+/* O trilho de baixo desfaz o zoom do cartão (--fp-zoom); por isso ele
+   multiplica pelo degrau, como as páginas sem zoom. */
+#root .menestrel-ui .fp2-frame > .fp3-rodape {
+  margin: calc(var(--pg-vao) * var(--fp-z)) calc(-16px * var(--fp-z)) 0;
+  padding: calc(var(--pg-vao) * var(--fp-z)) calc(18px * var(--fp-z));
+  border-top: var(--pg-regua);
+}
+
+/* AS PÁGINAS DA FICHA (Habilidades, Inventário, Loja…) e o Estoque. */
+#root .menestrel-ui .fp3-pagina-topo {
+  padding: calc(var(--pg-vao) * var(--fp-z)) calc(16px * var(--fp-z));
+  margin-bottom: calc(var(--pg-vao) * var(--fp-z)); border-bottom: var(--pg-regua);
+}
+#root .menestrel-ui .fp3-pagina-topo > .fp3-heroi { padding: 0 2px; margin: 0; border: none; }
+#root .menestrel-ui .estoque-topo > .estoque-trilho { margin: 0 !important; padding: 0; border: none; }
+#root .menestrel-ui .fp3-rodape-pagina {
+  margin-top: calc(var(--pg-vao) * var(--fp-z)); border-top: var(--pg-regua);
+  padding: calc(var(--pg-vao) * var(--fp-z)) calc(16px * var(--fp-z));
+}
+#root .menestrel-ui .fp3-rodape-pagina > .fp3-rodape { margin: 0; padding: 0 2px; border: none; }
+
+/* AS LISTAS (Cena, Batalha, Personagens, Ambientação, Jogadores). */
+#root .menestrel-ui .mc-content > .pjs,
+#root .menestrel-ui .mc-content > .hist > .pjs { padding: calc(var(--pg-vao) * var(--fp-z)) calc(16px * var(--fp-z)); }
+#root .menestrel-ui .mc-content > .pjs > .cartoes-barra,
+#root .menestrel-ui .mc-content > .hist > .pjs > .cartoes-barra {
+  margin: 0 calc(-16px * var(--fp-z)) calc(var(--pg-vao) * var(--fp-z)) !important;
+  padding: 0 calc(16px * var(--fp-z)) calc(var(--pg-vao) * var(--fp-z));
+  border-bottom: var(--pg-regua);
+}
+#root .menestrel-ui .mc-content > .pjs > .best-pag,
+#root .menestrel-ui .pg-rodape {
+  margin: auto calc(-16px * var(--fp-z)) 0;
+  padding: calc(var(--pg-vao) * var(--fp-z)) calc(16px * var(--fp-z)) 0;
+  border-top: var(--pg-regua);
+}
+/* O conteúdo nunca encosta na régua de baixo: o vão é garantido por ele. */
+#root .menestrel-ui .mc-content > .pjs > .pjs-grid,
+#root .menestrel-ui .mc-content > .pjs > .best-empty { margin-bottom: calc(var(--pg-vao) * var(--fp-z)); }
+/* Com paginação E trilho de baixo, uma régua só, acima dos dois. */
+#root .menestrel-ui .mc-content > .pjs > .best-pag ~ .pg-rodape { border-top: none; margin-top: 0; }
+
+/* ── O TÍTULO DOS CARTÕES DE IDENTIFICAÇÃO E CONHECIMENTO (02/11/2026) ─────
+   "Na página 'ficha', o título dos cards ficou muito bonito. Nas páginas
+   identificação, conhecimento, use o mesmo padrão." (usuário) O padrão é o
+   .fp-col-tit da Ficha: o nome em Cinzel, centrado, com um filete que se
+   apaga para cada lado — sem a régua de baixo. A seta (›) que troca a página
+   da coluna fica na ponta direita, por cima do fim do filete, para o nome
+   continuar no centro; sem página a trocar, ela some de vez. Os traços de
+   página descem centrados sob o nome. */
+#root .menestrel-ui .fp-info-tab .fp-col-title-nav {
+  margin: 2px 0 14px; padding: 0; border-bottom: none;
+}
+#root .menestrel-ui .fp-info-tab .fp-col-title-top {
+  position: relative; justify-content: center; gap: 9px;
+}
+#root .menestrel-ui .fp-info-tab .fp-col-title-top::before,
+#root .menestrel-ui .fp-info-tab .fp-col-title-top::after {
+  content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--regua-forte));
+}
+#root .menestrel-ui .fp-info-tab .fp-col-title-top::after { background: linear-gradient(90deg, var(--regua-forte), transparent); }
+#root .menestrel-ui .fp-info-tab .fp-col-title-main {
+  font-family: var(--font-title); font-weight: 400; font-size: 19px; letter-spacing: .06em; line-height: 1;
+  text-transform: none; color: var(--tinta-2);
+}
+#root .menestrel-ui .fp-info-tab .fp-col-title-nav-btn {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin: 0;
+}
+#root .menestrel-ui .fp-info-tab .fp-col-title-nav-btn[aria-hidden="true"] { display: none; }
+#root .menestrel-ui .fp-info-tab .fp-col-title-sub-row { justify-content: center; gap: 8px; }
+/* OS CARTÕES ATÉ O FIM DA PÁGINA (02/11/2026, usuário: "Nas páginas
+   identificação, conhecimento, os cards vão ir até o fim da página,
+   independente de quantos itens possui"). A página ocupa a altura do cartão
+   (flex), a grade ocupa a página e as três colunas esticam até a régua de
+   baixo — a coluna de sete atributos tem a mesma altura da de quatorze. */
+#root .menestrel-ui .fp-page > .fp-card > .fp-info-tab { display: flex; flex-direction: column; }
+#root .menestrel-ui .fp-info-tab > .fp-info-grid.fp-info-uma {
+  flex: 1 1 auto; align-content: stretch; grid-auto-rows: 1fr;
+}
+
+/* ── GEMAS MENORES, CONDIÇÕES MAIORES (02/11/2026) ──────────────────────────
+   "Diminua um pouco as gemas de energia, e aumente um pouco os círculos de
+   condições. Sem perder o tamanho da página e dos cards." (usuário) A coluna
+   da esquerda é quem dá a altura da Ficha, e a gema não encolhe sozinha
+   quando as Condições crescem — então as duas medidas andam juntas: o
+   medalhão sobe de 86 para 94px e a pedra fica com 116px de altura (era a
+   que sobrava, ~141px). Medido a 1920×911: gema 127×158 → 105×130 na tela,
+   medalhão 96 → 105, e o cartão continua com 875px, sem rolagem. */
+#root .menestrel-ui .fp2-columns--duas .fp-medalhao { width: 94px; height: 94px; }
+#root .menestrel-ui .fp2-columns--duas .fp-gema-peca { height: 116px; max-height: 116px; }
+
+/* ── O VISUALIZADOR DE ITENS ATÉ O RODAPÉ (02/11/2026) ──────────────────────
+   "Nas páginas loja e inventário, o card lateral 'visualizador de itens' deve
+   ir até o rodapé aproveitando todo seu espaço, mesmo que não tenha item
+   selecionado." (usuário) O painel tinha o teto da grade (--bau-painel-h) e,
+   vazio, a altura do aviso. Agora a página ocupa o cartão até a régua de
+   baixo e o painel estica junto; com item longo, quem rola é o corpo dele
+   (.ms-body), como antes. Vale para toda página de casas — o desenho é um. */
+#root .menestrel-ui .fp-page.is-inventario > .fp-card > .fp-invtab { display: flex; flex-direction: column; }
+#root .menestrel-ui .fp-page.is-inventario .fp-invtab > :is(.inv, .loja) { flex: 1 1 auto; min-height: 0; }
+#root .menestrel-ui .fp-page.is-inventario :is(.inv, .loja) > .bau-corpo--painel { flex: 1 1 auto; min-height: 0; align-items: start; }
+#root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel > .bau-painel {
+  align-self: stretch; max-height: none; height: auto; min-height: 0; overflow: hidden;
+}
+#root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel > .bau-painel > .bau-painel-vazio { flex: 1 1 auto; }
+
+/* ══ A LÂMINA DOS TRILHOS (04/11/2026) ════════════════════════════════════════
+   "Crie uma animação no trilho ao passar o mouse entre um menu e outro,
+   remova a borda amarela do botão ativo, crie um efeito novo." (usuário)
+
+   Uma pílula de luz por trilho, o ::before dele, que DESLIZA de um botão a
+   outro (10-shell, instalarLaminaDosTrilhos, põe a posição em --lamina-*).
+   Dois modos:
+     passagem  sob o ponteiro: só o véu de bronze, sem brilho;
+     ativo     pousada na página aberta: o véu de ouro e a BRASA — um brilho
+               que nasce da base do botão, como luz de vela por baixo de um
+               pergaminho. Sem aro: era o aro amarelo que o usuário tirou.
+   O deslize anda na curva de saída exponencial, 260ms; a largura acompanha,
+   então a lâmina se estica entre um botão curto e um longo. Para quem pede
+   menos movimento, pousa sem deslizar.
+
+   Sem o motor (data-lamina ausente), o ativo continua marcado pelo véu de
+   ouro de antes — só que sem o aro. */
+#root .menestrel-ui .mc-acoes-ficha .mc-acao.is-ativo,
+#root .menestrel-ui .inv-trilho .mc-acao.is-ativo,
+#root .menestrel-ui .fp-abas-trilho .mc-acao.is-ativo,
+#root .menestrel-ui .estoque-trilho .mc-acao.is-ativo,
+#root .menestrel-ui .livro-trilho .mc-acao.is-ativo,
+#root .menestrel-ui .mc-acoes-ficha .fp-aba-trilho.is-ativo { border-color: transparent; }
+
+/* O trilho de ações do SHELL (#mc-acoes-ficha) é sticky — e sticky já é
+   referência do ::before; o `relative` o desgrudaria do topo. O da FICHA
+   (#fp-acoes-ficha, mesma classe) é estático: sem o `relative`, a lâmina
+   dele se ancorava no cartão e aparecia solta no canto (visto na prévia). */
+#root .menestrel-ui [data-lamina]:not(#mc-acoes-ficha) { position: relative; }
+#root .menestrel-ui [data-lamina]::before {
+  content: ""; position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none;
+  width: var(--lamina-w, 0px); height: var(--lamina-h, 0px);
+  transform: translate(var(--lamina-x, 0px), var(--lamina-y, 0px));
+  opacity: var(--lamina-o, 0);
+  border-radius: 999px;
+  background: rgba(var(--bronze-rgb), 0.16);
+  transition:
+    transform .26s cubic-bezier(.16, 1, .3, 1),
+    width .26s cubic-bezier(.16, 1, .3, 1),
+    height .26s cubic-bezier(.16, 1, .3, 1),
+    opacity .18s ease,
+    background-color .2s ease, box-shadow .2s ease;
+}
+#root .menestrel-ui [data-lamina][data-lamina-modo="ativo"]::before {
+  background:
+    radial-gradient(70% 120% at 50% 135%, rgba(var(--ouro-rgb), 0.55), transparent 70%),
+    var(--vivo-fundo);
+  box-shadow: 0 6px 16px -10px rgba(var(--ouro-rgb), 0.75);
+}
+#root .menestrel-ui [data-lamina][data-lamina-parada]::before { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui [data-lamina]::before { transition: opacity .12s linear; }
+}
+/* Os botões ficam ACIMA da lâmina, e o véu de cada um passa a ser ela. */
+#root .menestrel-ui [data-lamina] .mc-acao { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] .mc-acao:not(.mc-acao--batalha):not(.mc-acao--primaria):hover,
+#root .menestrel-ui [data-lamina] .mc-acao.is-ativo { background: transparent; }
+#root .menestrel-ui [data-lamina] .mc-acao:hover,
+#root .menestrel-ui [data-lamina] .mc-acao.is-ativo { color: var(--tinta); }
+/* O ícone acompanha: sobe um fio na passagem e acende na página aberta. */
+#root .menestrel-ui [data-lamina] .mc-acao > i { transition: transform .2s cubic-bezier(.16, 1, .3, 1); }
+#root .menestrel-ui [data-lamina] .mc-acao:hover > i { transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui [data-lamina] .mc-acao:hover > i { transform: none; }
+}
+
+/* ── OS MENUS DA FAIXA DA DATA ABREM PARA CIMA NO RODAPÉ (04/11/2026) ───────
+   "O menu dos ícones do tempo do rodapé está abrindo para baixo, portanto
+   não consigo clicar neles." (usuário) As três listas (clima, hora, lugar)
+   nasceram para a faixa fixa no ALTO da tela, com `top: 100%`. No rodapé —
+   da Ficha, da Cena, da Batalha, da Loja — elas caíam para fora da tela.
+   Lá elas sobem: ancoradas pelo pé (`bottom`), com a sombra para cima. A do
+   lugar, que se ancora pela esquerda, passa a se ancorar pela direita: no
+   rodapé ela mora no último terço e vazaria pela borda. */
+.menestrel-ui.cdj-root.cdj-root--rodape .cdj-tempo-lista,
+.menestrel-ui.cdj-root.cdj-root--rodape .cdj-hora-lista,
+.menestrel-ui.cdj-root.cdj-root--rodape .cdj-local-lista {
+  top: auto; bottom: calc(100% + 6px);
+  box-shadow: 0 -8px 32px rgba(0,0,0,0.55);
+}
+.menestrel-ui.cdj-root.cdj-root--rodape .cdj-local-lista { left: auto; right: 0; }
+
+/* ── A JANELA DE AJUSTE DE BARRA (04/11/2026) ──────────────────────────────
+   "Quando o mestre clicar nas energias, condições, experiência, etc, eu quero
+   que abra o modal para aumentar/diminuir o valor" (usuário). A janela do
+   sistema (ModalShell, tamanho pequeno): o passe com Atual · Novo · Máximo
+   (ou Estágio), o seletor − / + do sistema na largura toda, e
+   Cancelar · Aplicar no rodapé. */
+#root .menestrel-ui .barra-ajuste { display: flex; flex-direction: column; gap: 18px; }
+#root .menestrel-ui .barra-ajuste-passe { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: row; }
+#root .menestrel-ui .barra-ajuste-passe .mn-celula-valor { font-size: var(--fs-lg); }
+#root .menestrel-ui .barra-ajuste-delta {
+  margin-left: 6px; font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2);
+  font-variant-numeric: tabular-nums;
+}
+/* O seletor é o do sistema, intacto: só ocupa a largura da janela. */
+#root .menestrel-ui .barra-ajuste-stepper.fp-pop-stepper { width: 100%; max-width: none; margin: 0; }

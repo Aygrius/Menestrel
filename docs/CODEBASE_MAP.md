@@ -82,7 +82,7 @@ graph TB
 08-personagens/personagens · guia_personagem
 09-bestiario/conhecido-jogador · painel-modal · bestiario · sugestoes-magias · itens-campanha
 10-shell/shell · galeria-imagens
-11-ficha/atalhos-ficha · amigos-fab · ficha   →   ../app.jsx (raiz do repo)
+11-ficha/atalhos-ficha · paginas-ficha · amigos-fab · ficha   →   ../app.jsx (raiz do repo)
 12-batalha/batalha · tabuleiro               →   13-diario/diario
 data/bridge   →   mount com <QueryClientProvider><App/></QueryClientProvider>
 ```
@@ -139,7 +139,7 @@ arquivo daqui conhece tela.
 | `status-efeito.jsx` | Status que sobrevive à batalha, com vencimento no calendário. |
 | `clima-desgaste.jsx` | Fome, sede, sono e temperatura por hora de relógio; atividades e treino. |
 | `efeito-temporario.jsx` | Bônus de item com prazo, que pode passar do teto e vence sozinho. |
-| `fabricacao.jsx` | A bancada: receita, teste, consumo de material, dias de construção. |
+| `fabricacao.jsx` | A bancada: receita (item de loja), teste, consumo de material, horas de construção, rendimento. |
 | `forma-raca.jsx` | Vampiro e Lobisomem como **camada de leitura** sobre a raça. |
 | `animal-experiencia.jsx` | O quinto de XP do dono e a evolução do bicho. |
 | `animal-condicao.jsx` | O clima desgasta o animal; as barras dele abatem **atributo**. |
@@ -250,10 +250,11 @@ sequenceDiagram
     G-->>M: log, status, munição gasta
 ```
 
-A **cascata de dano** é a área com mais correções do projeto: a armadura é um
-**limiar**, não um poço (golpe até `ar` é bloqueado inteiro e gasta 1 de
-resistência; não vaza o excedente), e a ordem das operações em `danoFinal` muda
-o número.
+A **cascata de dano** é a área com mais correções do projeto: a absorção
+**desconta** do golpe (desde 30/10/2026 — golpe até `ar` é segurado sem custo;
+acima, o excedente vai à EF e a armadura paga 1 de desgaste), o desgaste é por
+peça e cada peça quebra sozinha (`it.quebrada`, gravada no item ao fim da
+luta), e a ordem das operações em `danoFinal` muda o número.
 
 `tabuleiro.jsx` é um caso à parte: foi **reconstruído a partir do bundle de
 produção** porque o fonte original nunca foi commitado. A geometria e o CSS são
@@ -356,7 +357,20 @@ sequenceDiagram
 parser de propósito.
 
 **Fabricar** — a aba Fabricar só devolve a intenção; quem rola o d20, paga o
-material e grava é a Ficha. Um escritor só do inventário.
+material e grava é a Ficha. Um escritor só do inventário. O item entra na
+bancada com as horas do grupo (`horasDeFabricacao`) e só anda quando o Mestre
+avança o relógio com o PJ na atividade Fabricar (`fabricando`): o shell chama
+`avancarFabricacao` por `alterarInventario`, como a fila de treino. Só fabrica
+quem APRENDEU a receita (`personagens.receitas_aprendidas`, pela RPC
+aprender_receita, que gasta o item `receita_<resultado_slug>` — "Receita de …", vendido
+na loja — `receitaAprendida`); `receitas.rende` diz quantas unidades
+saem (Porcelana: 5 por Quartzo). Armadura e arma têm `receitas.testes` (leve: Artesanato;
+média: Metalurgia; pesada: os dois, em sequência): a ficha rola um dado por
+teste e decide no "Concluir" (`fecharRolagem`), com o PIOR resultado como
+grau da peça (`fabricado: { por, grau }` na instância). O grau soma em
+Defesa/Absorção/Resistência/Dano por `ajusteDeFabrica` (inventario-helpers),
+e o nome vira "Avambraço de Aldren" (`nomeDaPecaFabricada`). A receita de
+armadura é por PEÇA (`peca_<nome>`, sem cultura).
 
 ---
 

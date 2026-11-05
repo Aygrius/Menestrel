@@ -968,10 +968,13 @@ function BestBotaoNovo({ ac, onClick, dica }) {
 /* `ferramentas` (14/09/2026): Verificação, Sugestões e Estudo, que eram faixas
    recolhíveis abaixo do cabeçalho, viraram botões entre a busca e o + — cada
    um abre a sua janela (BestPainelModal, painel-modal.jsx). */
-function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, dicaNovo, ferramentas }) {
+/* `antes` (04/11/2026): o que vem ANTES da busca, na mesma pílula — os botões
+   de página da Ambientação, para o trilho ser um só, como o da ficha. */
+function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, dicaNovo, ferramentas, antes = null }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   return (
     <div className="best-header-acoes">
+      {antes}
       <div className="best-search">
         <i className="ti ti-eye busca-ic" aria-hidden="true" />
         {Input && <Input type="search" placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)} />}
@@ -3046,9 +3049,261 @@ function passeDoItem(it, lang, opcoes) {
    exemplar, era repetir a mesma coisa em duas linhas. A base continua
    escolhendo a pintura e vivendo no editor — só não se anuncia na janela. */
 
+/* ── A COR DE CADA STATUS NO TEXTO (30/10/2026) ───────────────────────────
+   O usuário ditou as cores: "Energia Física, Atributo Físico: Vermelho ·
+   Energia Heroica, Atributo Carisma: Verde · Karma, Atributo Aura: Azul ·
+   Velocidade, Atributo Agilidade: Amarelo · Doença, Sono, Sede, Fome, Frio,
+   Calor, Vício, Loucura, Má Fama: Roxo · Defesa, Absorção, Resistência:
+   Ciano · Peso, Casa, Preço: Branco Negrito". Desonra é o nome da Má Fama
+   nos efeitos dos itens, e entra no roxo junto. Força, Intelecto e Percepção
+   não foram listados: saem na tinta do texto, sem cor.
+
+   O tom mora no CSS (.st-tom--*, index.css); aqui só se decide QUAL. A
+   chave é o nome sem acento e em minúsculas, para casar "Má Fama" e "ma
+   fama" igual. */
+const ST_TOM_POR_NOME = (() => {
+  const m = {};
+  const pos = (tom, nomes) => nomes.forEach((n) => { m[n] = tom; });
+  pos('vermelho', ['energia fisica', 'fisico', 'ef', 'physical energy', 'physique']);
+  pos('verde',    ['energia heroica', 'carisma', 'eh', 'heroic energy', 'charisma']);
+  pos('azul',     ['karma', 'aura', 'ka']);
+  pos('amarelo',  ['velocidade', 'agilidade', 'speed', 'agility']);
+  pos('roxo',     ['doenca', 'sono', 'sede', 'fome', 'frio', 'calor', 'vicio', 'loucura', 'ma fama', 'desonra',
+                   'illness', 'sleepiness', 'thirst', 'hunger', 'cold', 'heat', 'addiction', 'madness', 'ill repute']);
+  pos('ciano',    ['defesa', 'absorcao', 'resistencia', 'defense', 'absorption', 'durability']);
+  pos('forte',    ['peso', 'casa', 'casas', 'preco', 'weight', 'slot', 'slots', 'price']);
+  return m;
+})();
+const stSemAcento = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+function tomDoStatus(nome) {
+  return ST_TOM_POR_NOME[stSemAcento(nome)] || null;
+}
+/* "3 de defesa" inteiro na cor do status: número e nome são uma coisa só
+   para quem lê. `tom` força um (o preço, que é um valor e não um nome). */
+/* O que não tem cor definida (Força, dano, alcance...) sai em BRANCO NEGRITO
+   (30/10/2026, usuário: "O que não foi definido como cor, use branco
+   negrito"). */
+function StatusNoTexto({ status, tom, children }) {
+  const t = tom || tomDoStatus(status) || 'forte';
+  return <span className={'st-tom st-tom--' + t}>{children}</span>;
+}
+
+/* AS CARACTERÍSTICAS EM FRASE (30/10/2026, usuário, para a Calça de Couro:
+   "Este item possui 3 de defesa, 1 de absorção e 1 de resistência. Para
+   equipá-lo, é necessário pelo menos -1 de força. Para carregar este item é
+   necessário pelo menos 1 casa livre no inventário e 1 de peso livre por
+   unidade. Seu preço original de comércio é de 2 moedas de prata.").
+
+   Cada frase só nasce se o item tem o dado; o que o passe do topo já mostra
+   (`fora`) não se repete aqui — a mesma regra das linhas. Toda pilha ocupa
+   UMA casa da grade, por isso "1 casa livre" é fixo; o peso é o `ocupa`. */
+function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId } = {}) {
+  if (!it) return null;
+  const en = lang === 'en';
+  const sai = (k) => fora && fora.has(k);
+  const num = (v) => (en ? String(Number(v)) : String(Number(v)).replace('.', ','));
+  const tem = (v) => v != null && v !== '' && Number(v) !== 0 && Number.isFinite(Number(v));
+  const frases = [];
+
+  /* O FORMATO DE 30/10/2026 (usuário, segunda rodada): o número junto do
+     nome, sem "de" — "3 resistência", "-2 força", "3 carga", "21 base" — e a
+     ORDEM dele: carregar, possui, equipar, preço, dano, grupo/atributo/
+     alcance. Para recipiente: "Para carregar este item é necessário pelo
+     menos 1 casa livre no inventário, e pode armazenar 15 carga." */
+  const e_ = en ? ' and ' : ' e ';
+  const juntar = (partes) => partes.flatMap((p, i) => (i === 0 ? [p] : [i === partes.length - 1 ? e_ : ', ', p]));
+
+  /* 1. Carregar — e o que o recipiente armazena. Sem a casa desde a terceira
+     rodada (30/10/2026, usuário: "Para carregar este item é necessário 5
+     carga livre por unidade."): a casa é sempre uma, e a grade já mostra. */
+  const carga = !sai('ocupa') && tem(it.ocupa)
+    ? <StatusNoTexto status="peso">{en ? `${num(it.ocupa)} load` : `${num(it.ocupa)} carga`}</StatusNoTexto> : null;
+  const guarda = !sai('armazena') && Number(it.armazena) > 0
+    ? <StatusNoTexto tom="forte">{en ? `${num(it.armazena)} load` : `${num(it.armazena)} carga`}</StatusNoTexto> : null;
+  if (carga) {
+    frases.push(<React.Fragment key="carregar">{en ? 'To carry this item you need ' : 'Para carregar este item é necessário '}
+      {carga}{en ? ' free per unit' : ' livre por unidade'}
+      {guarda ? <>{en ? ', and it can store ' : ', e pode armazenar '}{guarda}</> : null}.</React.Fragment>);
+  } else if (guarda) {
+    frases.push(<React.Fragment key="carregar">{en ? 'It can store ' : 'Pode armazenar '}{guarda}.</React.Fragment>);
+  }
+
+  // 2. "Possui 3 defesa, 1 absorção e 3 resistência." — em ciano.
+  const possui = [];
+  if (!sai('defesa') && tem(it.defesa)) possui.push(['defesa', en ? `${num(it.defesa)} defense` : `${num(it.defesa)} defesa`]);
+  if (!sai('absorcao') && tem(it.absorcao)) possui.push(['absorcao', en ? `${num(it.absorcao)} absorption` : `${num(it.absorcao)} absorção`]);
+  if (!sai('resistencia') && tem(it.resistencia)) {
+    // Na peça, a resistência é a de agora: "1 resistência (de 3)", se gasta.
+    const [agora, max] = String(resistenciaTexto != null ? resistenciaTexto : it.resistencia).split('/');
+    const gasta = max != null && Number(agora) < Number(max);
+    possui.push(['resistencia', en
+      ? `${num(agora)} durability${gasta ? ` (of ${num(max)})` : ''}`
+      : `${num(agora)} resistência${gasta ? ` (de ${num(max)})` : ''}`]);
+  }
+  if (possui.length) {
+    frases.push(<React.Fragment key="possui">{en ? 'It has ' : 'Possui '}
+      {juntar(possui.map(([k, txt]) => <StatusNoTexto key={k} status={k}>{txt}</StatusNoTexto>))}.</React.Fragment>);
+  }
+
+  // 3. "Para equipá-lo, é necessário -2 força."
+  if (tem(it.forca_req)) {
+    frases.push(<React.Fragment key="forca">{en ? 'To equip it, you need ' : 'Para equipá-lo, é necessário '}
+      <StatusNoTexto status="forca">{en ? `${num(it.forca_req)} strength` : `${num(it.forca_req)} força`}</StatusNoTexto>.</React.Fragment>);
+  }
+
+  // 4. "Seu preço original de comércio é 2 moedas de ouro e 3 moedas de prata." — cada moeda à parte.
+  if (!sai('valor') && tem(it.valor_latao)) {
+    const _paraMoedas = (typeof latoesToMoedas !== 'undefined' && latoesToMoedas) || window.latoesToMoedas;
+    const ordem = (typeof MOEDA_ORDEM !== 'undefined' && MOEDA_ORDEM) || window.MOEDA_ORDEM || ['ouro', 'prata', 'cobre', 'latao'];
+    if (_paraMoedas) {
+      const m = _paraMoedas(Math.max(0, Math.round(Number(it.valor_latao) || 0)));
+      const nomes = en ? { ouro: 'gold', prata: 'silver', cobre: 'copper', latao: 'brass' } : { ouro: 'ouro', prata: 'prata', cobre: 'cobre', latao: 'latão' };
+      const moedas = ordem.filter((t) => m[t] > 0).map((t) => (
+        <StatusNoTexto key={t} tom="forte">{en
+          ? `${m[t]} ${nomes[t]} coin${m[t] > 1 ? 's' : ''}`
+          : `${m[t]} moeda${m[t] > 1 ? 's' : ''} de ${nomes[t]}`}</StatusNoTexto>));
+      if (moedas.length) {
+        frases.push(<React.Fragment key="preco">{en ? 'Its original trade price is ' : 'Seu preço original de comércio é '}{juntar(moedas)}.</React.Fragment>);
+      }
+    }
+  }
+
+  /* 5. "Seu dano é 21 base, possui -2 armaduras pesadas, 0 armaduras médias e
+     +2 armaduras leves." — de pesada para leve, com sinal. Quando o passe
+     do topo já mostra o Dano, a frase diz só a eficácia. */
+  if (it.dano != null && it.dano !== '') {
+    const sinal = (v) => (Number(v) > 0 ? '+' + num(v) : num(v));
+    const contra = [['dano_p', en ? 'heavy' : 'pesadas'], ['dano_m', en ? 'medium' : 'médias'], ['dano_l', en ? 'light' : 'leves']]
+      .filter(([k]) => it[k] != null && it[k] !== '' && Number.isFinite(Number(it[k])))
+      .map(([k, tipo]) => <StatusNoTexto key={k}>{en ? `${sinal(it[k])} vs ${tipo} armor` : `${sinal(it[k])} armaduras ${tipo}`}</StatusNoTexto>);
+    if (!sai('dano')) {
+      frases.push(<React.Fragment key="dano">{en ? 'Its damage is ' : 'Seu dano é '}
+        <StatusNoTexto>{en ? `${num(it.dano)} base` : `${num(it.dano)} base`}</StatusNoTexto>
+        {contra.length ? <>{en ? ', with ' : ', possui '}{juntar(contra)}.</> : '.'}</React.Fragment>);
+    } else if (contra.length) {
+      frases.push(<React.Fragment key="dano">{en ? 'It has ' : 'Possui '}{juntar(contra)}.</React.Fragment>);
+    }
+  }
+
+  /* 6. "Pertence ao grupo de armas perfuração leve, seu ataque é ajustado
+     pelo atributo agilidade e seu alcance é de 5 metros." — uma frase só. */
+  const oracoes = [];
+  if (ehArma(it)) {
+    const grupos = sai('grupo') ? null : gruposDeArmaPorExtenso(it.grupo_armas, en);
+    if (grupos) {
+      const varios = grupos.includes(',');
+      oracoes.push(<React.Fragment key="grupo">{en ? (varios ? 'belongs to the weapon groups ' : 'belongs to the weapon group ')
+        : (varios ? 'pertence aos grupos de armas ' : 'pertence ao grupo de armas ')}
+        <StatusNoTexto>{en ? grupos : grupos.toLocaleLowerCase('pt-BR')}</StatusNoTexto></React.Fragment>);
+    }
+  }
+  const atributo = atributoPorExtenso(it.ajuste_atributo, en);
+  if (atributo) {
+    // O atributo na cor dele: agilidade amarelo, físico vermelho, aura azul…
+    oracoes.push(<React.Fragment key="atributo">{en ? 'its attack is adjusted by ' : 'seu ataque é ajustado pelo atributo '}
+      <StatusNoTexto status={atributo}>{en ? atributo : atributo.toLocaleLowerCase('pt-BR')}</StatusNoTexto></React.Fragment>);
+  }
+  const metros = Number(it.alcance);
+  if (Number.isFinite(metros) && metros > 0) {
+    oracoes.push(<React.Fragment key="alcance">{en ? 'its range is ' : 'seu alcance é de '}
+      <StatusNoTexto>{en ? `${num(metros)} ${metros === 1 ? 'meter' : 'meters'}` : `${num(metros)} ${metros === 1 ? 'metro' : 'metros'}`}</StatusNoTexto></React.Fragment>);
+  }
+  if (oracoes.length) {
+    // A primeira oração abre a frase: maiúscula na primeira letra.
+    const [primeira, ...resto] = oracoes;
+    const cap = React.cloneElement(primeira, {}, ...React.Children.toArray(primeira.props.children).map((c, i) => (
+      i === 0 && typeof c === 'string' ? c.charAt(0).toUpperCase() + c.slice(1) : c)));
+    frases.push(<React.Fragment key="arma">{juntar([cap, ...resto])}.</React.Fragment>);
+  }
+  if (it.categoria_equip === 'escudo') {
+    const maos = (n) => (en ? `${n} ${n === 1 ? 'hand' : 'hands'}` : `${n} ${n === 1 ? 'mão' : 'mãos'}`);
+    // [coluna, "para quem", "por quem"] — "pelas demais raças", não "por as".
+    const racas = [
+      ['maos_pequenino', en ? 'halflings' : 'pequeninos', en ? 'halflings' : 'por pequeninos'],
+      ['maos_anao', en ? 'dwarves' : 'anões', en ? 'dwarves' : 'por anões'],
+      ['maos_outras', en ? 'the other races' : 'as demais raças', en ? 'the other races' : 'pelas demais raças'],
+    ];
+    const usam = racas.filter(([k]) => it[k] != null).map(([k, raca]) => (
+      <React.Fragment key={k}><StatusNoTexto>{maos(Number(it[k]))}</StatusNoTexto>{en ? ` for ${raca}` : ` para ${raca}`}</React.Fragment>));
+    const naoUsam = racas.filter(([k]) => it[k] == null).map(([, , porQuem]) => porQuem);
+    const e_ = en ? ' and ' : ' e ';
+    const juntar = (partes) => partes.flatMap((p, i) => (i === 0 ? [p] : [i === partes.length - 1 ? e_ : ', ', p]));
+    if (usam.length) frases.push(<React.Fragment key="maos">{en ? 'It takes ' : 'Ocupa '}{juntar(usam)}.</React.Fragment>);
+    if (naoUsam.length) {
+      const quem = juntar(naoUsam).join('');
+      frases.push(<React.Fragment key="maos-nao">{en ? `It cannot be used by ${quem}.` : `Não pode ser usado ${quem}.`}</React.Fragment>);
+    }
+  }
+  if (it.criatura_id != null && criaturasPorId) {
+    const c = criaturasPorId[it.criatura_id];
+    if (c) {
+      frases.push(<React.Fragment key="criatura">{en ? 'It is the creature ' : 'Corresponde à criatura '}<StatusNoTexto>{c.nome}</StatusNoTexto>
+        {c.montaria === true ? (en ? ', which can be ridden.' : ', que pode ser montada.') : '.'}</React.Fragment>);
+    }
+  }
+  // "Este item protege 30 de frio, mas causa 1 de má fama." (usuário, 30/10/2026)
+  const efeitos = fraseDosEfeitos(it, en, num);
+  if (efeitos) frases.push(<React.Fragment key="efeitos">{efeitos}</React.Fragment>);
+  if (!frases.length) return null;
+  return <p className="best-frase-item">{frases.flatMap((f, i) => (i === 0 ? [f] : [' ', f]))}</p>;
+}
+
+/* EFEITOS E PROTEÇÕES NA FRASE (30/10/2026, usuário: "Este item protege 30
+   de frio, mas causa 1 de má fama."). Substituem as linhas "Efeitos" e
+   "Protege". O que AJUDA vem primeiro e o que ATRAPALHA depois do "mas":
+
+     ajuda      protege N de X      (teto da condição enquanto vestido)
+                aumenta N de X      (energia, velocidade, absorção que sobe)
+                reduz N de X        (condição que desce: comida reduz fome)
+     atrapalha  causa N de X        (condição que sobe)
+                reduz N de X        (energia, velocidade, absorção que desce)
+
+   Condição é o que o usuário pôs no roxo, mais Temperatura (o tronco legado
+   de Frio/Calor). "Desonra" é a Má Fama com o nome antigo: a frase diz o
+   nome de hoje. Sem os helpers carregados (teste que monta só o bestiário),
+   não há frase — e as linhas antigas voltam (ver BestItemFicha). */
+function fraseDosEfeitos(it, en, num) {
+  const emNumeros = window.efeitosEmNumeros;
+  if (!emNumeros) return null;
+  const emTetos = window.protecoesEmNumeros;
+  const ehCondicao = (rot) => tomDoStatus(rot) === 'roxo' || stSemAcento(rot) === 'temperatura';
+  const nome = (rot) => (stSemAcento(rot) === 'desonra' ? (en ? 'ill repute' : 'má fama')
+    : String(rot).toLocaleLowerCase(en ? 'en-US' : 'pt-BR'));
+  const quanto = (rot, n) => (
+    <StatusNoTexto key={rot} status={rot}>{en ? `${num(n)} ${nome(rot)}` : `${num(n)} de ${nome(rot)}`}</StatusNoTexto>
+  );
+  const e_ = en ? ' and ' : ' e ';
+  const juntar = (partes) => partes.flatMap((p, i) => (i === 0 ? [p] : [i === partes.length - 1 ? e_ : ', ', p]));
+
+  const verbos = { protege: [], aumenta: [], reduzBom: [], causa: [], reduzMau: [] };
+  Object.entries((emTetos && emTetos(it)) || {}).forEach(([rot, n]) => {
+    if (Number(n) > 0) verbos.protege.push(quanto(rot, n));
+  });
+  Object.entries(emNumeros(it) || {}).forEach(([rot, n]) => {
+    const v = Number(n);
+    if (!v) return;
+    const cond = ehCondicao(rot);
+    if (v > 0) (cond ? verbos.causa : verbos.aumenta).push(quanto(rot, v));
+    else (cond ? verbos.reduzBom : verbos.reduzMau).push(quanto(rot, -v));
+  });
+  const V = en
+    ? { protege: 'protects', aumenta: 'increases', reduzBom: 'reduces', causa: 'causes', reduzMau: 'reduces' }
+    : { protege: 'protege', aumenta: 'aumenta', reduzBom: 'reduz', causa: 'causa', reduzMau: 'reduz' };
+  const grupo = (chaves) => chaves.filter((k) => verbos[k].length)
+    .map((k) => <React.Fragment key={k}>{V[k]} {juntar(verbos[k])}</React.Fragment>);
+  const ajuda = grupo(['protege', 'aumenta', 'reduzBom']);
+  const atrapalha = grupo(['causa', 'reduzMau']);
+  if (!ajuda.length && !atrapalha.length) return null;
+  const inicio = en ? 'This item ' : 'Este item ';
+  if (!ajuda.length) return <>{inicio}{juntar(atrapalha)}.</>;
+  return <>{inicio}{juntar(ajuda)}{atrapalha.length ? <>{en ? ', but ' : ', mas '}{juntar(atrapalha)}</> : null}.</>;
+}
+
 function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, resistenciaTexto, depois, omitir }) {
   const fora = new Set(omitir || []);
   const se = (chave, linha) => (fora.has(chave) ? null : linha);
+  // O que a frase das Características diz sai das linhas (30/10/2026).
+  const frase = fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId });
   return (
     <>
       <BestDescricao texto={it.descricao} lang={lang} />
@@ -3074,7 +3329,10 @@ function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, re
       {/* Lista por extenso (26/09/2026) — eram mini-cards. Ocupa/Armazena
           e Criatura/Montaria vêm dos mesmos componentes, agora em linhas. */}
       <BestFichaLista titulo={lang === 'en' ? 'Traits' : 'Características'} colunas={2}>
-        {/* Linhas da INSTÂNCIA (inventário): quantidade, onde está, sagração. */}
+        {/* A frase vem primeiro, na largura inteira; "Onde está" e o resto
+            seguem como linhas, embaixo dela (30/10/2026). */}
+        {frase && <li className="best-frase">{frase}</li>}
+        {/* Linhas da INSTÂNCIA (inventário): quantidade, onde está, bônus. */}
         {linhasDaInstancia}
         {(() => {
           const emNumeros = (typeof window !== 'undefined' && window.efeitosEmNumeros) || null;
@@ -3090,51 +3348,24 @@ function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, re
               </>
             );
           }
-          // "Desonra 1, Frio 5" — o sinal só aparece quando é negativo.
-          const lista = (obj, comSinal) => Object.entries(obj || {})
-            .filter(([, n]) => Number(n) !== 0)
-            .map(([rot, n]) => `${rot} ${comSinal && n < 0 ? '−' : ''}${Math.abs(n)}`)
-            .join(', ');
-          const efeitos = lista(emNumeros(it), true);
-          const tetos = emTetos ? lista(emTetos(it), false) : '';
-          return (
-            <>
-              <BestLinha rotulo={lang === 'en' ? 'Effects' : 'Efeitos'} valor={efeitos} largo />
-              <BestLinha rotulo={lang === 'en' ? 'Protects' : 'Protege'} valor={tetos} largo />
-            </>
-          );
+          /* Com os helpers, Efeitos e Protege são ditos na frase (30/10/2026,
+             "Este item protege 30 de frio, mas causa 1 de má fama.") — ver
+             fraseDosEfeitos. As linhas "Desonra 1, Frio 5" de 28/10 saíram. */
+          void emTetos;
+          return null;
         })()}
         {/* Sem "Grupo" (26/09/2026, "não precisa mostrar o grupo"). */}
         {/* O valor nas moedas maiores (23/10/2026): 12000 → "12 moedas de ouro".
             Some quando o passe já traz o Preço (27/10/2026) — ver passeDoItem. */}
-        {se('valor', <BestLinha rotulo={lang === 'en' ? 'Value' : 'Valor'} valor={valorEmMoedas(it.valor_latao, lang)} />)}
-        <BestItemArmazenamento item={it} lang={lang} omitir={omitir} />
-        <BestItemCriatura item={it} criaturasPorId={criaturasPorId} lang={lang} />
-        {se('dano', <BestLinha rotulo={lang === 'en' ? 'Damage' : 'Dano'} valor={it.dano} />)}
-        {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs light armor' : 'Contra armaduras leves'} valor={eficaciaContraArmadura(it.dano_l, lang === 'en')} />}
-        {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs medium armor' : 'Contra armaduras médias'} valor={eficaciaContraArmadura(it.dano_m, lang === 'en')} />}
-        {ehArma(it) && <BestLinha rotulo={lang === 'en' ? 'Vs heavy armor' : 'Contra armaduras pesadas'} valor={eficaciaContraArmadura(it.dano_p, lang === 'en')} />}
-        <BestLinha rotulo={lang === 'en' ? 'Range' : 'Alcance'} valor={alcanceEmMetros(it.alcance)} />
-        {/* POR EXTENSO (27/10/2026, pedido do usuário: 'Atributo "Per" vira
-            "Percepção"'). Isto desfaz a abreviação de 28/09/2026 ("deve
-            mostrar 'Agi' ao invés de 'AGI'"): o problema de lá era o CAIXA
-            ALTA gritando numa linha de dados, e encurtar resolvia aquilo —
-            mas deixava o leitor decifrando três letras. O nome inteiro
-            resolve os dois. */}
-        <BestLinha rotulo={lang === 'en' ? 'Attribute' : 'Atributo'} valor={atributoPorExtenso(it.ajuste_atributo, lang === 'en')} />
-        {/* Grupo por extenso (27/10/2026): a sigla é de quem já conhece a
-            tabela. Vale para a linha E para a célula do passe — o mesmo item
-            não pode dizer "PM" em cima e "Perfuração Média" embaixo. */}
-        {se('grupo', <BestLinha rotulo={lang === 'en' ? 'Group' : 'Grupo'} valor={ehArma(it) ? gruposDeArmaPorExtenso(it.grupo_armas, lang === 'en') : null} />)}
-        {se('defesa', <BestLinha rotulo={lang === 'en' ? 'Defense' : 'Defesa'} valor={it.defesa} />)}
-        {se('absorcao', <BestLinha rotulo={lang === 'en' ? 'Absorption' : 'Absorção'} valor={it.absorcao} />)}
-        {/* Resistência do item (26/09/2026) — o quanto ele aguenta antes de quebrar. */}
-        {se('resistencia', <BestLinha rotulo={lang === 'en' ? 'Durability' : 'Resistência'} valor={resistenciaTexto != null ? resistenciaTexto : it.resistencia} />)}
-        <BestLinha rotulo={lang === 'en' ? 'Minimum strength' : 'Força mínima'} valor={it.forca_req != null && it.forca_req !== 0 ? it.forca_req : null} />
-        {/* Mãos só no ESCUDO (14/09/2026). */}
-        <BestLinha rotulo={lang === 'en' ? 'Hands (Halfling)' : 'Mãos (Pequenino)'} valor={it.categoria_equip === 'escudo' ? (it.maos_pequenino != null ? `${it.maos_pequenino} ${lang === 'en' ? (it.maos_pequenino === 1 ? 'hand' : 'hands') : (it.maos_pequenino === 1 ? 'mão' : 'mãos')}` : (lang === 'en' ? 'Cannot use' : 'Não pode usar')) : null} />
-        <BestLinha rotulo={lang === 'en' ? 'Hands (Dwarf)' : 'Mãos (Anão)'} valor={it.categoria_equip === 'escudo' ? (it.maos_anao != null ? `${it.maos_anao} ${lang === 'en' ? (it.maos_anao === 1 ? 'hand' : 'hands') : (it.maos_anao === 1 ? 'mão' : 'mãos')}` : (lang === 'en' ? 'Cannot use' : 'Não pode usar')) : null} />
-        <BestLinha rotulo={lang === 'en' ? 'Hands (Others)' : 'Mãos (Outros)'} valor={it.categoria_equip === 'escudo' ? (it.maos_outras != null ? `${it.maos_outras} ${lang === 'en' ? (it.maos_outras === 1 ? 'hand' : 'hands') : (it.maos_outras === 1 ? 'mão' : 'mãos')}` : (lang === 'en' ? 'Cannot use' : 'Não pode usar')) : null} />
+        {/* Valor, Ocupa, Defesa, Absorção, Resistência e Força mínima viraram
+            a frase do topo da lista (30/10/2026) — ver fraseDoItem. */}
+        {/* Armazena, Dano e a eficácia contra cada armadura também foram para
+            a frase (30/10/2026: "Pode armazenar até 3 de carga. [...] O dano
+            máximo base é 20, possui +2 contra armaduras pesadas..."). */}
+        {/* E o resto também (30/10/2026, "Em relação ao que ficou faltando como
+            linha, faça a mudança"): Criatura, Alcance, Atributo, Grupo e as
+            Mãos do escudo são ditos na frase. Na lista ficam só as linhas da
+            peça — Onde está, Quantidade, Elo, Bônus. */}
       </BestFichaLista>
       <BestItemMagia item={it} magias={magias} lang={lang} semCabeca={fora.has('magia')} />
       {depois}
@@ -3684,5 +3915,7 @@ Object.assign(window, {
   BestFichaLista, BestLinha, BestDescricao, atributoPorExtenso, siglaAtributoItem, separarItensNecessarios,
   gruposDeArmaPorExtenso, alcanceEmMetros,
   abreviarAlcance, eficaciaContraArmadura, ehArma,
+  // A cor de cada status no texto e a frase do item (30/10/2026).
+  tomDoStatus, StatusNoTexto, fraseDoItem,
   IconeDoNome, ICONE_TIPO_MAGIA,
 });

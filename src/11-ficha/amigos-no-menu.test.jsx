@@ -64,18 +64,20 @@ describe('o botão do pacto', () => {
   });
 });
 
-describe('o menu da esquerda abre o modal', () => {
-  it('o evento `menestrel:amigos` abre o pacto', async () => {
+/* AMIGOS É PÁGINA (02/11/2026, paginas-ficha.jsx): o evento do menu leva a
+   ficha à página Amigos; a coluna dos cards não abre mais modal nenhum. */
+describe('o menu da esquerda abre a página Amigos', () => {
+  it('o evento `menestrel:amigos` não abre mais o modal da coluna', async () => {
     await montar();
-    expect(document.querySelector('.ms-modal')).toBeNull();
     await act(async () => { window.dispatchEvent(new CustomEvent('menestrel:amigos')); });
-    expect(screen.getByText("Lirael Vel'Thalas")).toBeTruthy();
+    expect(document.querySelector('.amg-lista')).toBeNull();
   });
 
-  it('pedido recente de antes da montagem também abre (o clique navega primeiro)', async () => {
-    window.__amigosPedido = Date.now();
-    await montar();
-    expect(screen.getByText('Eco do Vale')).toBeTruthy();
+  it('quem ouve é a ficha, e ela vai para a página Amigos', () => {
+    const ficha = readFileSync(resolve(__dirname, './ficha.jsx'), 'utf8');
+    expect(ficha).toMatch(/const abrir = \(\) => setFpTab\('amigos'\);/);
+    expect(ficha).toMatch(/window\.addEventListener\('menestrel:amigos', abrir\)/);
+    expect(ficha).toMatch(/window\.__amigosPedido/);
   });
 
   it('pedido velho não abre nada — é de outra visita', async () => {
@@ -89,12 +91,18 @@ describe('a folha do menu', () => {
   const constantes = readFileSync(resolve(__dirname, '../01-core/constants.jsx'), 'utf8');
   const shell = readFileSync(resolve(__dirname, '../10-shell/shell.jsx'), 'utf8');
 
-  it('existe no menu do Jogador, com evento em vez de seção', () => {
-    expect(constantes).toMatch(/id: 'ficha_amigos', evento: 'menestrel:amigos'/);
+  /* 04/11/2026: saiu do menu do Jogador junto com a gaveta da Mesa — Amigos
+     é botão do trilho da ficha ("O menu mesa não está atualizado como
+     fizemos para o mestre", com a escolha "Mesa + Diário em trilho"). */
+  it('não existe mais no menu do Jogador: mora no trilho da ficha', () => {
+    expect(constantes).not.toMatch(/id: 'ficha_amigos', evento: 'menestrel:amigos'/);
+    const ficha = readFileSync(resolve(__dirname, 'ficha.jsx'), 'utf8');
+    expect(ficha).toMatch(/botaoPagina\('amigos', 'ti-heart-handshake', 'Amigos', 'Friends'\)/);
   });
 
-  it('existe no submenu do personagem, no Mestre', () => {
-    expect(shell).toMatch(/':amigos'[\s\S]{0,160}evento: 'menestrel:amigos'/);
+  // 02/11/2026: no Mestre, Amigos mora só no trilho da ficha.
+  it('não existe mais no submenu do personagem, no Mestre', () => {
+    expect(shell).not.toMatch(/':amigos', secao: 'personagens_m'/);
   });
 
   it('o clique dispara o evento em vez de navegar', () => {

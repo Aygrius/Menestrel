@@ -197,8 +197,11 @@ describe('a casa vazia não escreve o nome da região', () => {
   it('não há mais rótulo de região dentro da casa', () => {
     expect(ficha).not.toMatch(/<span className="inv-slot-lbl">/);
   });
-  it('e a legenda de fora continua nomeando a região', () => {
-    expect(ficha).toMatch(/<span className="fp3-nomr">\{slotLbl\(regiao\)\}<\/span>/);
+  /* A legenda de fora também saiu (30/10/2026, usuário: "Remova o nome do slot
+     abaixo dele"): o nome da região mora no balão, em branco quando vazia. */
+  it('e a legenda de fora saiu: o nome vai no balão', () => {
+    expect(ficha).not.toMatch(/<span className="fp3-nomr">\{slotLbl\(regiao\)\}<\/span>/);
+    expect(ficha).toMatch(/\{ title: slotLbl\(regiao\), tom: 'branco' \}/);
   });
 });
 
@@ -209,5 +212,25 @@ describe('a janela da região se chama pela peça', () => {
   });
   it('e o nome não aparece duas vezes na mesma janela', () => {
     expect(ficha).not.toMatch(/<h4 className="fp3-modal-peca-nome">\{nomeFoco\}<\/h4>/);
+  });
+});
+
+/* 31/10/2026, usuário: "o trilho superior 'status, atividades, etc' está maior
+   do que deveria. Crie um trilho inferior e coloque a experiência dentro dele,
+   [...] mas ocupará a largura toda como hoje." */
+describe('os dois trilhos da ficha', () => {
+  it('os trilhos desfazem o zoom do cartão das telas grandes', () => {
+    expect(css).toMatch(/\.fp-card \.fp3-heroi,\r?\n#root \.menestrel-ui \.fp-card \.fp3-rodape \{ zoom: calc\(1 \/ var\(--fp-zoom, 1\)\); \}/);
+    // Cada degrau de zoom publica o seu valor.
+    for (const z of ['1.12', '1.25', '1.35']) expect(css).toContain(`zoom: ${z}; --fp-zoom: ${z};`);
+  });
+
+  it('a Experiência mora no trilho de baixo, com ícone e rótulo como os itens de cima', () => {
+    // 02/11/2026: o trilho de baixo em três — Experiência, Peso e a data.
+    expect(ficha).toMatch(/<div className="fp3-rodape fp3-rodape-tres">\s*<div className="fp3-rodape-trilho">\s*<span className="fp3-rodape-rot">\s*<i className="ti ti-star"/);
+    expect(ficha).toMatch(/<div id="fp-rodape-slot" className="fp3-rodape-trilho">/);
+    expect(ficha).toMatch(/<div id="pg-rodape-slot" className="fp3-rodape-dados" \/>/);
+    expect(regra('#root .menestrel-ui .fp3-rodape-trilho')).toMatch(/width: 100%/);
+    expect(regra('#root .menestrel-ui .fp3-rodape-trilho')).toMatch(/border-radius: 999px/);
   });
 });

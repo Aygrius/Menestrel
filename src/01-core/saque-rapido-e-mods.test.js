@@ -85,10 +85,10 @@ describe('getSlotsState — vocabulário novo, aliases e saque rápido', () => {
     }
   });
 
-  it('REGIOES_EQUIP tem as 17 regiões e 45 casas', () => {
+  it('REGIOES_EQUIP tem as 17 regiões e 44 casas (o Pé caiu para 1 em 30/10/2026)', () => {
     expect(Object.keys(G.REGIOES_EQUIP)).toHaveLength(17);
     const total = Object.values(G.REGIOES_EQUIP).reduce((s, n) => s + n, 0);
-    expect(total).toBe(45);
+    expect(total).toBe(44);
   });
 });
 

@@ -89,7 +89,9 @@ describe('o painel do item recebe o espaço que a grade deixou', () => {
   it('as duas colunas da tela usam o token', () => {
     const i = css.indexOf('#root .menestrel-ui .bau-corpo--painel {');
     expect(css.slice(i, css.indexOf('}', i))).toMatch(/var\(--bau-painel-w\)/);
-    expect(css).toMatch(/\.fp-page\.is-inventario \.bau-corpo--painel \{ grid-template-columns: max-content var\(--bau-painel-w\); \}/);
+    // 31/10/2026: o painel é no mínimo o token e ocupa o que sobra — o trilho
+    // único dentro do cartão pode ser mais largo que a grade.
+    expect(css).toMatch(/\.fp-page\.is-inventario \.bau-corpo--painel \{ grid-template-columns: max-content minmax\(var\(--bau-painel-w\), 1fr\); \}/);
   });
   it('a conta das colunas desconta o painel LENDO o token', () => {
     expect(inv).toMatch(/getPropertyValue\('--bau-painel-w'\)/);

@@ -29,7 +29,18 @@ import '../01-core/tecnicas-efeito.jsx';
 import '../01-core/magias-efeito.jsx';
 import '../09-bestiario/criatura-formulas.jsx';
 import '../12-batalha/batalha.jsx';
+// A página de casas do inventário do bicho (04/11/2026): a moldura e as regras do inventário.
+import '../01-core/status-efeito.jsx';
+import '../01-core/clima-desgaste.jsx';
+import '../10-shell/shell.jsx';
+import '../07-inventario/inventario.jsx';
+import './paginas-ficha.jsx';
 import './ficha.jsx';
+
+// A grade mede o espaço (useGridDimensions); o jsdom não tem ResizeObserver.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+}
 
 let FichaAnimaisView;
 beforeAll(() => {
@@ -78,13 +89,13 @@ describe('FichaAnimaisView', () => {
     expect(document.querySelector('.fp2-name').textContent).toBe('Cavalo Quarter');
   });
 
-  it('a seta de Ataques passa por todos os ataques (clique real)', () => {
+  // Sem seta desde 04/11/2026: todos os ataques à vista, um bloco cada,
+  // com o nome do ataque no título.
+  it('todos os ataques aparecem, sem navegar', () => {
     montar();
-    // O nome do ataque É o título da coluna ("remova os subtítulos … 'coice'").
-    const col = coluna('Presas');
-    const btn = col.querySelector('.fp-col-title-nav-btn');
-    fireEvent.mouseDown(btn); fireEvent.focus(btn); fireEvent.mouseUp(btn); fireEvent.click(btn);
+    expect(coluna('Presas')).toBeTruthy();
     expect(coluna('Garras')).toBeTruthy();
+    expect(document.querySelector('.fp-col-title-nav-btn')).toBeNull();
   });
 
   it('Capacidades mostra a habilidade com o total da regra da criatura', () => {
@@ -94,5 +105,22 @@ describe('FichaAnimaisView', () => {
       .find((r) => r.textContent.includes('Rastrear'));
     expect(linha).toBeTruthy();
     expect(linha.querySelector('.fp-row-value').textContent).not.toBe('—');
+  });
+});
+
+/* O INVENTÁRIO DO BICHO EM CASAS (04/11/2026, usuário: "Arrume a página de
+   […] inventário do animal"): a grade e o painel das outras páginas. */
+describe('o inventário do bicho', () => {
+  it('uma casa por peça que está nele, na ordem do boneco, e nada mais', () => {
+    const CAT2 = { ...CAT, sela: { slug: 'sela', nome: 'Sela', ocupa: 6.5 }, agua: { slug: 'agua', nome: 'Odre', ocupa: 0.5 } };
+    const itens = [
+      { instanceId: 'g', slug: 'agua', quantidade: 3, animal_id: 'a1' },
+      { instanceId: 's', slug: 'sela', animal_id: 'a1', slot_animal: 'sela' },
+      { instanceId: 'x', slug: 'agua', quantidade: 1 },
+    ];
+    montar({ parte: 'inventario', itens, catalogoBySlug: CAT2 });
+    const casas = [...document.querySelectorAll('button[data-casa]')].map((b) => b.dataset.casa);
+    expect(casas).toEqual(['s', 'g']);
+    expect(document.querySelector('button[data-casa="g"] .pc-casa-marca').textContent).toBe('3');
   });
 });

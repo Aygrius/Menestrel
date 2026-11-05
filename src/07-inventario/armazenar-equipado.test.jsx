@@ -80,6 +80,7 @@ const botao = (txt) => Array.from(document.querySelectorAll('button')).find((b) 
 
 async function guardar(container, item, destinoNome) {
   fireEvent.click(card(container));
+  fireEvent.click(document.querySelector('[data-acao-leque="detalhes"]'));   // o leque (30/10/2026): Detalhes abre a janela
   await waitFor(() => expect(botao('Armazenar')).toBeTruthy());
   expect(botao('Armazenar').disabled, 'Armazenar habilitado').toBe(false);
   fireEvent.click(botao('Armazenar'));
@@ -143,6 +144,7 @@ describe('moeda não vai para recipiente de líquido', () => {
     const { container } = render(<InventarioList ac={{}} lang="pt" currentUserId={USER} pjIdFixo={PJ_ID} maximos={{ ef: 20, eh: 14, ka: 0, ar: 0 }} />);
     await waitFor(() => expect(card(container)).toBeTruthy());
     fireEvent.click(card(container));
+    fireEvent.click(document.querySelector('[data-acao-leque="detalhes"]'));   // o leque (30/10/2026): Detalhes abre a janela
     await waitFor(() => expect(botao('Armazenar')).toBeTruthy());
     fireEvent.click(botao('Armazenar'));
     const nomes = Array.from(document.querySelectorAll('.det-opt-card')).map((b) => b.textContent);

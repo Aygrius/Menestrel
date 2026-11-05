@@ -38,7 +38,8 @@ const est = (atividade, extra) => ({
 describe('ATIVIDADES — as cinco do pedido', () => {
   it('lista na ordem do pedido', () => {
     // Praticando (22/10/2026): onde os encantos treinam.
-    expect(ATIVIDADES.map((a) => a.id)).toEqual(['dormindo', 'meditando', 'orando', 'estudando', 'treinando', 'praticando']);
+    // Fabricar (31/10/2026): onde a bancada anda.
+    expect(ATIVIDADES.map((a) => a.id)).toEqual(['dormindo', 'meditando', 'orando', 'estudando', 'treinando', 'praticando', 'fabricando']);
   });
 });
 

@@ -347,3 +347,46 @@ describe('criarGravadorInventario — resposta perdida (02/10/2026)', () => {
     expect(t.personagens[0].inventario.itens[0].quantidade).toBe(7);
   });
 });
+
+/* 80 CASAS (30/10/2026, usuário: "O inventário do personagem deve ter 80
+   casas fixas no máximo" · "Isso, 'Inventário cheio'"). A trava de verdade é
+   o gatilho do banco (scripts/sql/inventario-80-casas-2026-10-30.sql); esta
+   recusa antes, sem ida ao servidor, e devolve a frase, não a chave. */
+describe('80 casas no inventário', () => {
+  const soltos = (n) => Array.from({ length: n }, (_, i) => it_('s' + i));
+
+  it('conta só o que está fora de recipiente', () => {
+    expect(window.casasNoBau([...soltos(3), it_('d', { containerId: 'mochila' })])).toBe(3);
+  });
+
+  it('estoura só o que AUMENTA acima de 80', () => {
+    expect(window.bauEstourou(soltos(80), soltos(81))).toBe(true);
+    expect(window.bauEstourou(soltos(79), soltos(80))).toBe(false);
+    // Dado antigo já acima: o que não piora continua gravando.
+    expect(window.bauEstourou(soltos(82), soltos(81))).toBe(false);
+  });
+
+  it('alterarInventario recusa o 81º e não grava', async () => {
+    const t = { personagens: [pj(soltos(80), 3)] };
+    globalThis.supabaseClient = fakeSupabase(t);
+    const r = await window.alterarInventario(1, (i) => ({ ...i, itens: [...i.itens, it_('novo')] }));
+    expect(r.ok).toBe(false);
+    expect(r.error.message).toMatch(/Inventário cheio/);
+    expect(r.error.motivo).toBe('inventario_cheio');
+    expect(t.personagens[0].inventario.itens).toHaveLength(80);
+  });
+
+  it('gravarInventario recusa o 81º', async () => {
+    const t = { personagens: [pj(soltos(80), 3)] };
+    globalThis.supabaseClient = fakeSupabase(t);
+    const base = t.personagens[0].inventario;
+    const r = await window.gravarInventario(1, { base, local: { ...base, itens: [...base.itens, it_('novo')] }, versao: 3 });
+    expect(r.ok).toBe(false);
+    expect(r.error.message).toMatch(/Inventário cheio/);
+  });
+
+  it('o erro do banco vira a frase', () => {
+    expect(window.ehInventarioCheio(new Error('inventario_cheio'))).toBe(true);
+    expect(window.textoInventarioCheio(false)).toMatch(/80 casas/);
+  });
+});

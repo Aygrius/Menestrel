@@ -141,7 +141,7 @@ describe('passo 1 — o seletor, um círculo no molde do clima', () => {
     expect(opcoes()).toHaveLength(0);
     abrirLista();
     expect(opcoes().map((li) => li.textContent)).toEqual(
-      ['Envenenado', 'Sangrando', 'Ferido', 'Caído', 'Desmaiado', 'Morto']
+      ['Envenenado', 'Sangrando', 'Ferido', 'Caído', 'Distraído', 'Desmaiado', 'Morto']
     );
   });
 
@@ -158,7 +158,7 @@ describe('passo 1 — o seletor, um círculo no molde do clima', () => {
     montar({ lista: [VENENO] });
     abrirLista();
     expect(opcoes().map((li) => li.getAttribute('data-status')))
-      .toEqual(['sangramento', 'ferido', 'caido', 'desmaiado', 'morto']);
+      .toEqual(['sangramento', 'ferido', 'caido', 'distraido', 'desmaiado', 'morto']);
   });
 
   it('e com todos aplicados o círculo some', () => {
@@ -167,6 +167,7 @@ describe('passo 1 — o seletor, um círculo no molde do clima', () => {
       { id: 'sangramento:b', nome: 'Sangrando' },
       { id: 'ferido:c', nome: 'Ferido' },
       { id: 'caido:d', nome: 'Caído' },
+      { id: 'distraido:g', nome: 'Distraído' },
       { id: 'desmaiado:e', nome: 'Desmaiado' },
       { id: 'morto:f', nome: 'Morto' },
     ] });

@@ -40,30 +40,70 @@
 const BASE_EQUIP = 'equip';
 const BASE_ITEM = 'itens';
 
-/* Atalho para as três versões de uma família. `versoes` é
-   [sufixo do slug, resto do nome]. */
-const trio = (slug, familia, slots, versoes, onde = BASE_EQUIP) =>
-  versoes.map(([suf, rotulo]) => ({
-    slug: slug + '-' + suf, nome: familia + ' ' + rotulo, familia, slots, onde,
-  }));
+/* Pintura EMPRESTADA por versão (30/10/2026, pedido do usuário:
+   "reaproveite algumas imagens para usar em itens. Se precisar, depois
+   criamos imagens específicas"). `mapa` é { sufixo: arquivo }; versão fora
+   do mapa segue sem pintura. É o mesmo campo `arte` do Papiro → Pergaminho:
+   o dia em que a pintura própria chegar, basta tirar o empréstimo. */
+const comArte = (bases, mapa) => bases.map((b) => {
+  const arte = mapa[b.slug.slice(b.slug.lastIndexOf('-') + 1)];
+  return arte ? { ...b, arte } : b;
+});
 
-const METAL = [['ouro', 'de Ouro'], ['prata', 'de Prata'], ['cobre', 'de Cobre']];
-const PESO_M = [['leve', 'Leve'], ['medio', 'Médio'], ['pesado', 'Pesado']];
-const PESO_F = [['leve', 'Leves'], ['medio', 'Médias'], ['pesado', 'Pesadas']];
-const TECIDO = [['seda', 'de Seda'], ['couro', 'de Couro'], ['algodao', 'de Algodão']];
+/* OS MATERIAIS DA VESTIMENTA (30/10/2026): o sufixo do slug e o nome que o
+   Mestre lê. `material` fica na base para a descrição do exemplar dizer de
+   que a peça é feita ("uma blusa feita de algodão"). */
+const MATERIAIS = {
+  ouro: 'Ouro', prata: 'Prata', cobre: 'Cobre', latao: 'Latão',
+  marfim: 'Marfim', couro: 'Couro', algodao: 'Algodão', linho: 'Linho', seda: 'Seda',
+};
+// Sem Porcelana desde 31/10/2026 (usuário: "Remova tudo de porcelana").
+const METAL = ['ouro', 'prata', 'cobre', 'latao', 'marfim'];
+const TECIDO = ['couro', 'algodao', 'linho', 'seda'];
+
+const veste = (prefixo, familia, slots, mats, onde = BASE_EQUIP) => mats.map((m) => ({
+  slug: prefixo + '-' + m, nome: familia + ' de ' + MATERIAIS[m], familia, slots, onde, material: m,
+}));
+
+/* A peça de armadura nas três classes: [leve, média, pesada]. A família é a
+   classe, para o dropdown ler "Armadura Leve · Gálea". */
+const CLASSES = [['leve', 'Armadura Leve'], ['medio', 'Armadura Média'], ['pesado', 'Armadura Pesada']];
+const armadura = (prefixo, slots, nomes) => CLASSES.map(([suf, familia], i) => ({
+  slug: prefixo + '-' + suf, nome: nomes[i], familia, slots, onde: BASE_EQUIP,
+}));
+
+/* Os empréstimos de pintura das joias. PRÓPRIO: a família tem arquivo por
+   metal (coroa-ouro…); ANTIGO: ainda se chama simples/ornado/nobre. */
+const METAL_PROPRIO = (p) => ({
+  ouro: p + '-ouro', prata: p + '-prata', cobre: p + '-cobre',
+  latao: p + '-cobre', marfim: p + '-prata',
+});
+const METAL_ANTIGO = (p) => ({
+  ouro: p + '-nobre', prata: p + '-ornado', cobre: p + '-simples',
+  latao: p + '-simples', marfim: p + '-ornado',
+});
 
 const BASES_ITEM = [
   /* ── ARMADURA: a base é a peça + a classe de peso ───────────────────────
      "Escudo Pesado é uma imagem só, independente se é um escudo pesado
-     verrogari ou padmaraska" (usuário, 25/10/2026). */
-  ...trio('elmo', 'Elmo', ['cabeca'], PESO_M),
-  ...trio('ombreiras', 'Ombreiras', ['ombro'], PESO_F),
-  ...trio('peitoral', 'Peitoral', ['dorso'], PESO_M),
-  ...trio('bracos', 'Braçadeiras', ['braco'], PESO_F),
-  ...trio('luvas', 'Manoplas', ['mao', 'braco'], PESO_F),
-  ...trio('pernas', 'Grevas', ['perna'], PESO_F),
-  ...trio('botas', 'Botas', ['pe'], PESO_F),
-  ...trio('escudo', 'Escudo', ['mao'], PESO_M),
+     verrogari ou padmaraska" (usuário, 25/10/2026).
+
+     As PEÇAS ganharam nome próprio por classe em 30/10/2026 (usuário): a
+     leve é Gálea, Colete, Ombreira, Braçadeira, Calça, Caneleira, Coturno e
+     Escudo Broquel; a média, Elmo Aberto, Cota Parcial, Espaldar, Avambraço,
+     Greva, Perneira, Bota e Escudo Aquecedor; a pesada, Elmo Fechado, Cota
+     Completa, Espaldar Pesado, Manopla, Greva Fechada, Perneira Pesada, Bota
+     Pesada e Escudo Pipa. "Luva (leve) vira Braçadeira, e Braçadeira (médio)
+     vira Avambraço e vão no braço. Calça, Greva vão na perna e Caneleira,
+     Perneira vão na canela." O slug da base continua o da pintura. ── */
+  ...armadura('elmo', ['cabeca'], ['Gálea', 'Elmo Aberto', 'Elmo Fechado']),
+  ...armadura('peitoral', ['dorso'], ['Colete', 'Cota Parcial', 'Cota Completa']),
+  ...armadura('ombreiras', ['ombro'], ['Ombreira', 'Espaldar', 'Espaldar Pesado']),
+  ...armadura('bracos', ['braco'], ['Braçadeira', 'Avambraço', 'Manopla']),
+  ...armadura('pernas', ['perna'], ['Calça', 'Greva', 'Greva Fechada']),
+  ...armadura('caneleiras', ['canela'], ['Caneleira', 'Perneira', 'Perneira Pesada']),
+  ...armadura('botas', ['pe'], ['Coturno', 'Bota', 'Bota Pesada']),
+  ...armadura('escudo', ['mao'], ['Escudo Broquel', 'Escudo Aquecedor', 'Escudo Pipa']),
 
   /* ── ARMA: a base é a CLASSE DE PESO, e quem a decide é o grupo de armas ──
      "O arco também é uma arma, então a base é a mesma, a diferença é o grupo
@@ -89,68 +129,65 @@ const BASES_ITEM = [
   { slug: 'arma-medio', nome: 'Arma Média', familia: 'Arma', slots: ['mao'], onde: BASE_EQUIP },
   { slug: 'arma-pesado', nome: 'Arma Pesada', familia: 'Arma', slots: ['mao'], onde: BASE_EQUIP },
 
-  /* ── JOIA: a base é a peça + o METAL ────────────────────────────────────
-     "Brinco Nobre não existe mais, agora é Brinco de Ouro" (usuário). Os
-     arquivos antigos ainda se chamam simples/ornado/nobre; o nome que o
-     Mestre lê é o do metal. */
-  { slug: 'brincos-ouro', nome: 'Brinco de Ouro', familia: 'Brinco', slots: ['orelha'], onde: BASE_EQUIP, arte: 'brincos-nobre' },
-  { slug: 'brincos-prata', nome: 'Brinco de Prata', familia: 'Brinco', slots: ['orelha'], onde: BASE_EQUIP, arte: 'brincos-ornado' },
-  { slug: 'brincos-cobre', nome: 'Brinco de Cobre', familia: 'Brinco', slots: ['orelha'], onde: BASE_EQUIP, arte: 'brincos-simples' },
-  { slug: 'colar-ouro', nome: 'Colar de Ouro', familia: 'Colar', slots: ['pescoco'], onde: BASE_EQUIP, arte: 'colar-nobre' },
-  { slug: 'colar-prata', nome: 'Colar de Prata', familia: 'Colar', slots: ['pescoco'], onde: BASE_EQUIP, arte: 'colar-ornado' },
-  { slug: 'colar-cobre', nome: 'Colar de Cobre', familia: 'Colar', slots: ['pescoco'], onde: BASE_EQUIP, arte: 'colar-simples' },
-  { slug: 'anel-ouro', nome: 'Anel de Ouro', familia: 'Anel', slots: ['dedo'], onde: BASE_EQUIP, arte: 'anel-nobre' },
-  { slug: 'anel-prata', nome: 'Anel de Prata', familia: 'Anel', slots: ['dedo'], onde: BASE_EQUIP, arte: 'anel-ornado' },
-  { slug: 'anel-cobre', nome: 'Anel de Cobre', familia: 'Anel', slots: ['dedo'], onde: BASE_EQUIP, arte: 'anel-simples' },
-  ...trio('coroa', 'Coroa', ['cabeca'], METAL),
-  ...trio('tiara', 'Tiara', ['cabeca'], METAL),
-  ...trio('broche', 'Broche', ['peito'], METAL),
-  ...trio('medalha', 'Medalha', ['peito'], METAL),
-  ...trio('pingente', 'Pingente', ['peito', 'pescoco'], METAL),
+  /* ── VESTIMENTA: a base é a peça + o MATERIAL (30/10/2026) ──────────────
+     Pedido do usuário: cada peça tem a sua lista de materiais — Ouro, Prata,
+     Porcelana, Cobre, Latão, Marfim, Couro, Algodão, Linho e Seda —, e o
+     exemplar se chama pelo material ("Colar de Ouro") ou pela profissão
+     ("Blusa de Ladino", que na descrição diz que é de algodão). O Traje virou
+     Blusa e fica no Peito; o Capuz subiu para a Cabeça; a Medalha foi para o
+     Ombro e o Pingente para o Pescoço; a Dragona passou de metal a tecido.
 
-  /* ── VESTE: a base é a peça + o TECIDO ──────────────────────────────── */
-  { slug: 'capa-nobre', nome: 'Capa Nobre', familia: 'Capa', slots: ['costas'], onde: BASE_EQUIP },
-  { slug: 'capa-ornado', nome: 'Capa Decorada', familia: 'Capa', slots: ['costas'], onde: BASE_EQUIP },
-  { slug: 'capa-simples', nome: 'Capa Simples', familia: 'Capa', slots: ['costas'], onde: BASE_EQUIP },
-  { slug: 'roupa-seda', nome: 'Traje de Seda', familia: 'Traje', slots: ['peito'], onde: BASE_EQUIP, arte: 'roupa-nobre' },
-  { slug: 'roupa-linho', nome: 'Traje de Linho', familia: 'Traje', slots: ['peito'], onde: BASE_EQUIP, arte: 'roupa-ornado' },
-  { slug: 'roupa-algodao', nome: 'Traje de Algodão', familia: 'Traje', slots: ['peito'], onde: BASE_EQUIP, arte: 'roupa-simples' },
-  /* A CALÇA É PEÇA DE PERNA (28/10/2026, usuário: "nós criamos as vestimentas
-     para usar na perna? Acho que não, só criamos as vestimentas que vão no
-     peito"). Ela existia — e com descrição —, mas estava em `cintura`, a
-     região do cinto: por isso a perna parecia não ter vestimenta nenhuma e a
-     cintura ficava com duas peças disputando a mesma casa. O cinto segura a
-     calça; quem a veste é a perna.
+     Pintura EMPRESTADA onde a peça vizinha é o mesmo objeto (comArte): o latão
+     usa a do cobre, o marfim a da prata, o linho a do algodão.
+     Os arquivos antigos de joia ainda se chamam simples/ornado/nobre.
 
-     As três pinturas foram feitas no Figma no mesmo dia e por isso a família
-     subiu do bloco "ainda sem pintura" para cá. `pernas-*` continua sendo a
-     armadura de perna; estas são roupa. */
-  ...trio('calca', 'Calça', ['perna'], TECIDO),
+     Cobre e Latão entraram em Anel, Piercing, Pingente e Gargantilha
+     em 31/10/2026 (usuário: "Adicione cobre e latão"), junto com a matéria-
+     -prima dos dois. A Coroa ficou sem os dois (usuário, no mesmo dia:
+     "Remova as coroas de cobre e latão"). */
+  ...comArte(veste('chapeu', 'Chapéu', ['cabeca'], TECIDO), { linho: 'chapeu-algodao' }),
+  ...comArte(veste('coroa', 'Coroa', ['cabeca'], ['ouro', 'prata', 'marfim']), METAL_PROPRIO('coroa')),
+  ...comArte(veste('tiara', 'Tiara', ['cabeca'], METAL), METAL_PROPRIO('tiara')),
+  ...comArte(veste('capuz', 'Capuz', ['cabeca'], TECIDO), { linho: 'capuz-algodao' }),
+  ...comArte(veste('mascara', 'Máscara', ['rosto'], METAL),
+    { ouro: 'mascara-ferro', prata: 'mascara-ferro', cobre: 'mascara-ferro', latao: 'mascara-ferro', marfim: 'mascara-porcelana' }),
+  ...veste('tapa-olho', 'Tapa-olho', ['rosto'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']),
+  ...comArte(veste('brincos', 'Brinco', ['orelha'], METAL), METAL_ANTIGO('brincos')),
+  ...veste('piercing', 'Piercing', ['orelha'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']),
+  ...comArte(veste('colar', 'Colar', ['pescoco'], METAL), METAL_ANTIGO('colar')),
+  ...comArte(veste('pingente', 'Pingente', ['pescoco'], METAL), METAL_PROPRIO('pingente')),
+  ...comArte(veste('gargantilha', 'Gargantilha', ['pescoco'], METAL), METAL_ANTIGO('colar')),
+  ...veste('cachecol', 'Cachecol', ['pescoco'], ['seda', 'linho', 'algodao']),
+  ...veste('lenco', 'Lenço', ['pescoco'], ['seda', 'linho', 'algodao']),
+  ...comArte(veste('dragona', 'Dragona', ['ombro'], TECIDO),
+    { couro: 'ombreiras-leve', algodao: 'ombreiras-leve', linho: 'ombreiras-leve', seda: 'ombreiras-leve' }),
+  ...comArte(veste('medalha', 'Medalha', ['ombro'], METAL), METAL_PROPRIO('medalha')),
+  ...comArte(veste('broche', 'Broche', ['peito'], METAL), METAL_PROPRIO('broche')),
+  ...comArte(veste('tunica', 'Túnica', ['peito'], TECIDO),
+    { seda: 'roupa-nobre', linho: 'roupa-ornado', algodao: 'roupa-simples', couro: 'roupa-simples' }),
+  ...comArte(veste('blusa', 'Blusa', ['peito'], TECIDO),
+    { seda: 'roupa-nobre', linho: 'roupa-ornado', algodao: 'roupa-simples', couro: 'roupa-simples' }),
+  ...comArte(veste('casaco', 'Casaco', ['peito'], TECIDO),
+    { seda: 'casaco-nobre', linho: 'casaco-algodao', algodao: 'casaco-algodao', couro: 'casaco-couro' }),
+  ...comArte(veste('capa', 'Capa', ['costas'], TECIDO),
+    { seda: 'capa-nobre', linho: 'capa-ornado', algodao: 'capa-simples', couro: 'capa-simples' }),
+  ...veste('sobretudo', 'Sobretudo', ['costas'], TECIDO),
+  ...comArte(veste('calca', 'Calça', ['perna'], TECIDO), { linho: 'calca-algodao' }),
+  ...comArte(veste('bombacha', 'Bombacha', ['perna'], TECIDO),
+    { seda: 'calca-seda', linho: 'calca-algodao', algodao: 'calca-algodao', couro: 'calca-couro' }),
+  ...comArte(veste('anel', 'Anel', ['dedo'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_ANTIGO('anel')),
+  ...comArte(veste('bracelete', 'Bracelete', ['pulso'], METAL), METAL_ANTIGO('anel')),
+  ...comArte(veste('pulseira', 'Pulseira', ['pulso'], METAL), METAL_ANTIGO('anel')),
+  ...comArte(veste('luva-pano', 'Luva', ['pulso'], ['seda', 'couro', 'algodao']),
+    { seda: 'luvas-leve', couro: 'luvas-leve', algodao: 'luvas-leve' }),
+  ...veste('sandalia', 'Sandália', ['pe'], TECIDO, BASE_ITEM).map((b) => ({ ...b, arte: 'sandalias' })),
+  ...veste('sapato', 'Sapato', ['pe'], TECIDO),
+
+  /* O cinto não tem material na lista do usuário: segue com as três bases
+     de sempre, e os cintos do catálogo são exemplares de nome próprio. */
   { slug: 'cinto-nobre', nome: 'Cinto Nobre', familia: 'Cinto', slots: ['cintura'], onde: BASE_EQUIP },
   { slug: 'cinto-ornado', nome: 'Cinto Ornado', familia: 'Cinto', slots: ['cintura'], onde: BASE_EQUIP },
   { slug: 'cinto-simples', nome: 'Cinto Simples', familia: 'Cinto', slots: ['cintura'], onde: BASE_EQUIP },
-  ...trio('capuz', 'Capuz', ['rosto'], TECIDO),
-  { slug: 'mascara-porcelana', nome: 'Máscara de Porcelana', familia: 'Máscara', slots: ['rosto'], onde: BASE_EQUIP },
-  { slug: 'mascara-couro', nome: 'Máscara de Couro', familia: 'Máscara', slots: ['rosto'], onde: BASE_EQUIP },
-  { slug: 'mascara-ferro', nome: 'Máscara de Ferro', familia: 'Máscara', slots: ['rosto'], onde: BASE_EQUIP },
-
-  /* ── AINDA SEM PINTURA ──────────────────────────────────────────────────
-     A base existe e classifica o item desde já; a casa mostra o glifo da
-     região até alguém pintar. É esta lista que vira a próxima encomenda no
-     Figma (ver .impeccable/arte-equipamentos.md). */
-  ...trio('chapeu', 'Chapéu', ['cabeca'], [['veludo', 'de Veludo'], ['couro', 'de Couro'], ['palha', 'de Palha']]),
-  ...trio('piercing', 'Piercing', ['orelha'], METAL),
-  ...trio('gargantilha', 'Gargantilha', ['pescoco'], METAL),
-  ...trio('cachecol', 'Cachecol', ['pescoco'], [['seda', 'de Seda'], ['linho', 'de Linho'], ['algodao', 'de Algodão']]),
-  ...trio('lenco', 'Lenço', ['pescoco'], [['seda', 'de Seda'], ['linho', 'de Linho'], ['algodao', 'de Algodão']]),
-  ...trio('dragona', 'Dragona', ['ombro'], METAL),
-  ...trio('sobretudo', 'Sobretudo', ['costas'], [['luxuoso', 'Luxuoso'], ['completo', 'Completo'], ['simples', 'Simples']]),
-  ...trio('casaco', 'Casaco', ['peito'], [['nobre', 'Nobre'], ['couro', 'de Couro'], ['algodao', 'de Algodão']]),
-  ...trio('bracelete', 'Bracelete', ['pulso'], METAL),
-  ...trio('luva-pano', 'Luva', ['pulso'], TECIDO),
-
-  ...trio('caneleiras', 'Caneleiras', ['canela'], PESO_F),
-  { slug: 'sandalia', nome: 'Sandália', familia: 'Sandália', slots: ['pe'], onde: BASE_ITEM, arte: 'sandalias' },
 
   /* ── ALFORJE: o que pendura na cintura ─────────────────────────────── */
   { slug: 'alforge', nome: 'Alforje', familia: 'Alforje', slots: ['alforje'], onde: BASE_ITEM },
@@ -197,6 +234,8 @@ const BASES_ITEM = [
   { slug: 'pederneira', nome: 'Pederneira', familia: 'Viagem', grupos: ['Consumíveis', 'Itens'], onde: BASE_ITEM },
   { slug: 'lenha', nome: 'Lenha', familia: 'Matéria-prima', grupos: ['Consumíveis'], onde: BASE_ITEM },
   { slug: 'agua', nome: 'Água', familia: 'Alimento', grupos: ['Consumíveis'], onde: BASE_ITEM },
+  // A gota turva (30/10/2026): com a base 'agua', a Água Suja pegava a gota limpa.
+  { slug: 'agua_suja', nome: 'Água Suja', familia: 'Alimento', grupos: ['Consumíveis'], onde: BASE_ITEM },
   { slug: 'cachimbo', nome: 'Cachimbo', familia: 'Viagem', grupos: ['Itens'], onde: BASE_ITEM },
 
   { slug: 'gema', nome: 'Gema', familia: 'Mineral', grupos: ['Minerais'], onde: BASE_ITEM },
@@ -223,7 +262,7 @@ const BASES_ITEM = [
      do usuário ("Crie os itens no sistema e no figma para a montaria").
 
      Os sufixos `-montaria` existem porque Peitoral e Caneleiras já são peça
-     de GENTE (trio('peitoral', …) e trio('caneleiras', …), lá em cima): a
+     de GENTE (armadura('peitoral', …) e armadura('caneleiras', …), lá em cima): a
      barda do cavalo e a couraça do cavaleiro não são a mesma base.
 
      O grupo é o do catálogo: couro e pano em Vestimentas, aço em Armaduras. */
@@ -312,7 +351,7 @@ function opcoesDeBase(item) {
 }
 
 Object.assign(window, {
-  BASES_ITEM, BASE_POR_SLUG, baseDoItem, nomeDaBase, arquivoDaBase,
+  BASES_ITEM, BASE_POR_SLUG, MATERIAIS, baseDoItem, nomeDaBase, arquivoDaBase,
   basesParaItem, opcoesDeBase,
   BASE_ARMA_POR_GRUPO, baseDaArma, ehArmaDeMao,
 });

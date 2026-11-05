@@ -1049,10 +1049,9 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
         valor = n.valor || '';
       }
       if (vazio(valor)) { if (limpou(campo)) payload[campo.col] = null; return; }
-      // A conversão 'Sim'/'Não' -> boolean de itens.magico vivia aqui e foi
-      // removida em 11/09/2026: o campo é somenteLeitura e sai na guarda do
-      // topo do loop, então este ponto nunca o via. A conversão que RESTA é a
-      // do sentido oposto (banco -> tela), em linhaParaForm.
+      // itens.magico voltou a ser gravado em 30/10/2026 (coluna comum, escolha
+      // de quem cria): é `booleano` no descritor e passa pelo ramo Sim/Não
+      // logo acima, nunca por aqui.
       payload[campo.col] = valor;
     });
     payload.atualizado_em = new Date().toISOString();
@@ -1196,7 +1195,11 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
       <div className="catalogo-form-grid">
         {/* `largura: 'curta'` (25/09/2026): meia coluna da grade — Estágio,
             Montaria, Peso e Altura cabem na linha de Nome e Subtipo. */}
-        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto && campo.tipo !== 'derivado' && campoDoGrupo(campo, form)).map((campoBruto) => {
+        {/* `ocultoSe(form)` (30/10/2026): oculto que depende do item — a grade
+            de efeitos OU as duas prosas, conforme a grade lê a prosa inteira. */}
+        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto
+          && !(typeof campo.ocultoSe === 'function' && campo.ocultoSe(form))
+          && campo.tipo !== 'derivado' && campoDoGrupo(campo, form)).map((campoBruto) => {
           /* `opcoesDe` (26/10/2026): a lista depende da LINHA, não só do
              descritor — as bases que cabem num item saem da região dele
              (ou do grupo, quando não é vestível). Ver opcoesDeBase. */

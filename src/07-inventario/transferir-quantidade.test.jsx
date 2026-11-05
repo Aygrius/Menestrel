@@ -97,6 +97,7 @@ function montar(quantidade, chamadasRpc) {
 async function abrirPocao(container) {
   await waitFor(() => expect(container.querySelector('.inv-card')).toBeTruthy());
   fireEvent.click(container.querySelector('.inv-card'));
+  fireEvent.click(document.querySelector('[data-acao-leque="detalhes"]'));   // o leque (30/10/2026): Detalhes abre a janela
   await screen.findByText('Poção');
 }
 

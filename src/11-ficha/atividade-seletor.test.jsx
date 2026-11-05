@@ -12,6 +12,7 @@ import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/clima-desgaste.jsx';
+import '../01-core/fabricacao.jsx';
 import '../01-core/game-data.jsx';
 /* O shell entra por causa do ModalShell (27/10/2026): desde que escolher
    abre um passo de confirmação, o rodapé com Cancelar e o verbo é DELE.
@@ -41,10 +42,21 @@ describe('FichaAtividadeSeletor', () => {
      Três mudanças de contrato num pedido só, e os testes abaixo guardam as
      três. As CHAVES não mudaram (`dormindo`, `meditando`…): elas estão
      gravadas em toda ficha que já existe. */
-  it('abre as seis atividades, agora no infinitivo', () => {
+  it('abre as sete atividades, agora no infinitivo', () => {
     render(<Seletor atividade={null} podeEditar lang="pt" onEscolher={() => {}} />);
     act(() => { botao().click(); });
-    expect(opcoes().map((li) => li.textContent)).toEqual(['Dormir', 'Meditar', 'Orar', 'Estudar', 'Treinar', 'Praticar']);
+    /* E para que serve, entre parênteses (30/10/2026, usuário: "Dormir
+       (Recuperar as energias)", "Orar (Aprender novos milagres)"). */
+    expect(opcoes().map((li) => li.textContent)).toEqual([
+      'Dormir (Recuperar as energias)',
+      'Meditar (Aprender novas transmutações)',
+      'Orar (Aprender novos milagres)',
+      'Estudar (Aprender novas magias)',
+      'Treinar (Aprender novas técnicas)',
+      'Praticar (Aprender novos encantamentos)',
+      // 31/10/2026: "Adicione no menu atividades, a fabricação de novos itens, Fabricar."
+      'Fabricar (Fabricar novos itens)',
+    ]);
   });
 
   /* Clicar não aplica mais: abre a explicação, e quem aplica é o rodapé. */
@@ -74,7 +86,7 @@ describe('FichaAtividadeSeletor', () => {
     expect(botao().classList.contains('is-ativo')).toBe(true);
     act(() => { botao().click(); });
     expect(opcoes().map((li) => li.textContent)).not.toContain('Nenhuma');
-    const meditar = opcoes().find((li) => li.textContent === 'Meditar');
+    const meditar = opcoes().find((li) => li.textContent.startsWith('Meditar'));
     act(() => { meditar.click(); });
     /* Já está nela: o rodapé oferece Parar, e Parar grava null. Quem diz
        "é o que ele faz agora" é o próprio botão — a frase por extenso saiu
@@ -99,7 +111,7 @@ describe('FichaAtividadeSeletor', () => {
     act(() => { voltar.click(); });
     expect(escolhas).toEqual([]);
     expect(document.querySelector('.mn-janela-corpo')).toBeNull();
-    expect(opcoes()).toHaveLength(6);
+    expect(opcoes()).toHaveLength(7);
   });
 
   it('quem não pode editar vê a atividade e não abre a lista', () => {
@@ -112,6 +124,39 @@ describe('FichaAtividadeSeletor', () => {
   it('quem não pode editar e não tem atividade não vê nada', () => {
     render(<Seletor atividade={null} podeEditar={false} lang="pt" onEscolher={() => {}} />);
     expect(botao()).toBeNull();
+  });
+});
+
+/* FABRICAR (31/10/2026, usuário: "Adicione no menu atividades, a fabricação
+   de novos itens, Fabricar"). A janela mostra o que está na bancada, com as
+   horas que faltam, e leva à aba Fabricar — o jogador não tem a aba na barra. */
+describe('a atividade Fabricar', () => {
+  const abrirFabricar = (props) => {
+    render(<Seletor atividade={null} podeEditar lang="pt" onEscolher={() => {}} {...props} />);
+    act(() => { botao().click(); });
+    const linha = opcoes().find((b) => b.getAttribute('data-atividade') === 'fabricando');
+    act(() => { linha.click(); });
+  };
+
+  it('mostra a bancada com o tempo que falta, e o botão abre a bancada', () => {
+    let abriu = 0;
+    abrirFabricar({
+      bancada: [{ id: 'b1', nome: 'Barda', horas_restantes: 30 }],
+      onAbrirBancada: () => { abriu += 1; },
+    });
+    const corpo = document.querySelector('.mn-janela-corpo');
+    expect(corpo.textContent).toContain('Na bancada');
+    expect(corpo.textContent).toContain('Barda');
+    expect(corpo.textContent).toContain('1 d 6 h');
+    expect(corpo.textContent).toContain('armadura 36 h');
+    const abrir = [...corpo.querySelectorAll('button')].find((b) => b.textContent.includes('Abrir a bancada'));
+    act(() => { abrir.click(); });
+    expect(abriu).toBe(1);
+  });
+
+  it('sem onAbrirBancada (sem receitas), o botão não aparece', () => {
+    abrirFabricar({});
+    expect(document.querySelector('.fp-ativ-bancada')).toBeNull();
   });
 });
 

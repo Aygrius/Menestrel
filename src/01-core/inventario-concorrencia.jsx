@@ -109,13 +109,29 @@ async function gravarSeVersao(pjId, inventario, versao) {
   return { ok: true, inventario: linha.inventario || inventario, versao: Number(linha.inventario_versao) || 0 };
 }
 
-const erroDe = (e) => (e instanceof Error ? e : new Error((e && e.message) || String(e)));
+const erroDe = (e) => {
+  const err = e instanceof Error ? e : new Error((e && e.message) || String(e));
+  /* O banco recusa o 81º item com 'inventario_cheio' (30/10/2026): quem
+     mostra err.message mostra a frase, não a chave. */
+  if (window.ehInventarioCheio && window.ehInventarioCheio(err)) return erroCheio();
+  return err;
+};
+// "Inventário cheio", com a chave junto, para quem precisar reconhecer.
+function erroCheio() {
+  const err = new Error(window.textoInventarioCheio ? window.textoInventarioCheio(false) : 'Inventário cheio.');
+  err.motivo = 'inventario_cheio';
+  return err;
+}
+const estoura = (antes, depois) => !!(window.bauEstourou
+  && window.bauEstourou(antes && antes.itens, depois && depois.itens));
 
 /* Para quem segura cópia (Inventário, Ficha). `local` foi derivado de `base`,
    que o banco tinha na `versao`. Sem diferença, não grava. */
 async function gravarInventario(pjId, { base, local, versao } = {}) {
   if (!pjId) return { ok: false, error: new Error('Sem personagem.') };
   if (mesmoValor(base, local)) return { ok: true, inventario: local, versao: Number(versao) || 0, gravou: false };
+  // 80 casas (30/10/2026): recusa na tela, antes da ida ao banco.
+  if (estoura(base, local)) return { ok: false, error: erroCheio() };
   try {
     let alvo = local;
     let v = versao;
@@ -157,6 +173,7 @@ async function alterarInventario(pjId, fn) {
       if (!novo || novo === atual.inventario) {
         return { ok: true, inventario: atual.inventario, versao: atual.versao, gravou: false };
       }
+      if (estoura(atual.inventario, novo)) return { ok: false, error: erroCheio() };
       const r = await gravarSeVersao(pjId, novo, atual.versao);
       if (r.error) return { ok: false, error: erroDe(r.error) };
       if (r.ok) return { ...r, gravou: true };

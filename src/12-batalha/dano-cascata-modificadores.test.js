@@ -31,10 +31,10 @@ describe('compatibilidade — a forma antiga continua idêntica', () => {
   });
 
   it('booleano true pula a EH, como o crítico sempre fez', () => {
-    // Pula a EH, mas os 12 batem no limiar 5: 12 > 5, então −1 de
-    // resistência e a EF não é tocada.
+    // Pula a EH, e os 12 batem na absorção 5: desde 30/10/2026 ela desconta,
+    // então 7 chegam à EF e a armadura perde 1 de resistência.
     const r = M.aplicarDanoCascata(12, alvo(), true);
-    expect({ eh: r.eh, ar: r.ar, res: r.res, ef: r.ef }).toEqual({ eh: 10, ar: 5, res: 9, ef: 20 });
+    expect({ eh: r.eh, ar: r.ar, res: r.res, ef: r.ef }).toEqual({ eh: 10, ar: 5, res: 9, ef: 13 });
   });
 
   it('sem terceiro argumento não pula nada', () => {
@@ -50,9 +50,9 @@ describe('objeto de modificadores', () => {
     expect({ eh: b.eh, ar: b.ar, ef: b.ef }).toEqual({ eh: a.eh, ar: a.ar, ef: a.ef });
   });
 
-  it('ignoraEh pula a EH e vai bater no limiar da armadura', () => {
+  it('ignoraEh pula a EH e vai bater na absorção da armadura', () => {
     const r = M.aplicarDanoCascata(12, alvo(), { ignoraEh: true });
-    expect({ eh: r.eh, ar: r.ar, res: r.res, ef: r.ef }).toEqual({ eh: 10, ar: 5, res: 9, ef: 20 });
+    expect({ eh: r.eh, ar: r.ar, res: r.res, ef: r.ef }).toEqual({ eh: 10, ar: 5, res: 9, ef: 13 });
   });
 
   it('ignoraEh contra armadura JÁ arrebentada chega na EF', () => {

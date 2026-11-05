@@ -102,12 +102,12 @@ describe('aplicarDanoCascata', () => {
     expect(r).toMatchObject({ eh: 5, ar: 5, ef: 10, status: 'ativo', sobra: 0 });
   });
 
-  it('EH vaza para a armadura, que SEGURA e perde 1 de resistência', () => {
-    // 7 de dano: 3 comem a EH, sobram 4 contra um limiar de 2. 4 > 2, então
-    // a armadura é furada — mas quem paga é a resistência, e a EF fica
-    // intacta. No modelo antigo a EF teria ido a 8.
+  it('EH vaza para a armadura: o que passa da absorção chega à EF, e ela perde 1 de resistência', () => {
+    // 7 de dano: 3 comem a EH, sobram 4 contra uma absorção de 2. Desde
+    // 30/10/2026 a absorção DESCONTA (usuário: absorção 20, golpe 28 → 8 na
+    // EF e 1 de resistência): 2 chegam à EF e a armadura paga 1.
     const r = M.aplicarDanoCascata(7, pj({ eh: 3, ar: 2, eh_max: 3 }));
-    expect(r).toMatchObject({ eh: 0, ar: 2, res: 9, ef: 10, sobra: 0 });
+    expect(r).toMatchObject({ eh: 0, ar: 2, res: 9, ef: 8, sobra: 0 });
   });
 
   it('golpe ATÉ o limiar não custa nem resistência', () => {
@@ -121,12 +121,12 @@ describe('aplicarDanoCascata', () => {
   });
 
   it('a resistência desce de 1 em 1, por golpe, não pelo tamanho do golpe', () => {
-    let r = pj({ eh: 0, eh_max: 0, ar: 2, res: 3 });
-    for (let i = 0; i < 3; i += 1) r = M.aplicarDanoCascata(50, r);
-    expect(r.res, 'três golpes enormes = três pontos').toBe(0);
-    expect(r.ef, 'e a EF só cai depois que ela zera').toBe(10);
-    r = M.aplicarDanoCascata(50, r);
-    expect(r.ef, 'o quarto passa').toBe(-15);
+    let r = pj({ eh: 0, eh_max: 0, ar: 2, res: 3, ef: 20 });
+    for (let i = 0; i < 3; i += 1) r = M.aplicarDanoCascata(4, r);
+    expect(r.res, 'três golpes = três pontos').toBe(0);
+    expect(r.ef, 'cada um deixa passar só o que sobra da absorção').toBe(14);
+    r = M.aplicarDanoCascata(4, r);
+    expect(r.ef, 'arrebentada, o quarto passa inteiro').toBe(10);
   });
 
   it('EH chegar a 0 desmaia SEMPRE (com eh_max > 0)', () => {
@@ -139,12 +139,12 @@ describe('aplicarDanoCascata', () => {
     expect(r).toMatchObject({ ar: 5, ef: 10, status: 'ativo' });
   });
 
-  it('CRÍTICO pula a EH mas AINDA enfrenta o limiar da armadura', () => {
+  it('CRÍTICO pula a EH mas AINDA enfrenta a absorção da armadura', () => {
     // Crítico sempre significou "fura a EH", não "fura a armadura". Quem
     // ignora a armadura é ignoraArmadura (Disparo Certeiro, Explorar
     // Fraqueza), e esse é outro modificador.
     const r = M.aplicarDanoCascata(6, pj(), true);
-    expect(r).toMatchObject({ eh: 10, ar: 5, res: 9, ef: 10, status: 'ativo', sobra: 0 });
+    expect(r).toMatchObject({ eh: 10, ar: 5, res: 9, ef: 9, status: 'ativo', sobra: 0 });
   });
 
   it('ignoraArmadura pula o limiar inteiro e vai direto na EF', () => {
@@ -400,17 +400,17 @@ describe('aplicarFalhaCritica', () => {
     expect(M.danoAutoinfligido({ dano: 1 }, 'F')).toBe(0);
   });
 
-  it('q0: dano PULA a EH e bate na armadura, que segura e se desgasta', () => {
-    // O autodano da Falha Crítica sempre pulou a EH — isso não mudou. O que
-    // mudou é o que a armadura faz com ele: 10 > limiar 3, então custa 1 de
-    // resistência e a EF fica intacta. O desmaio forçado continua valendo,
-    // porque vem da regra da Falha Crítica e não do dano.
+  it('q0: dano PULA a EH e bate na armadura, que desconta e se desgasta', () => {
+    // O autodano da Falha Crítica sempre pulou a EH — isso não mudou. Desde
+    // 30/10/2026 a absorção DESCONTA: 5 contra 3 deixa 2 chegarem à EF e
+    // custa 1 de resistência. O desmaio forçado continua valendo, porque vem
+    // da regra da Falha Crítica e não do dano.
     const { participante: p, dano } = M.aplicarFalhaCritica(atacante(), arma, 0);
     expect(dano).toBe(5);           // metade de 10
     expect(p.eh).toBe(10);
     expect(p.ar, 'limiar não se gasta').toBe(3);
     expect(p.res, 'quem se gasta é a resistência').toBe(3);
-    expect(p.ef, 'a armadura segurou').toBe(10);
+    expect(p.ef, 'o que passou da absorção').toBe(8);
     expect(p.status).toBe('desmaiado');
   });
 
@@ -638,10 +638,41 @@ describe('desgastarArmadura', () => {
     expect(p.map((x) => x.res)).toEqual([1, 1]);
   });
 
-  it('não deixa peça negativa nem escolhe peça zerada', () => {
-    const r = M.desgastarArmadura([pc('quebrada', 0, 4), pc('inteira', 1, 4)]);
-    expect(r.map((x) => x.res)).toEqual([0, 0]);
-    expect(M.desgastarArmadura(r).map((x) => x.res), 'todas em 0: nada muda').toEqual([0, 0]);
+  /* "Peças sem resistência quebram no primeiro golpe" (30/10/2026): a peça
+     em 0 vem ANTES do desgaste das outras, e nunca fica negativa. */
+  it('a peça em 0 quebra antes de a inteira perder resistência', () => {
+    const r = M.desgastarArmadura([pc('zerada', 0, 4), pc('inteira', 1, 4)]);
+    expect(r.map((x) => !!x.quebrada)).toEqual([true, false]);
+    expect(r.map((x) => x.res), 'a inteira não paga').toEqual([0, 1]);
+  });
+
+  it('a armadura leve: as que só defendem quebram primeiro, uma por golpe', () => {
+    let p = [
+      { slug: 'colete', res: 2, res_max: 2, abs: 2, def: 3 },
+      { slug: 'ombreira', res: 0, res_max: 0, abs: 0, def: 2 },
+      { slug: 'coturno', res: 0, res_max: 0, abs: 0, def: 2 },
+    ];
+    p = M.desgastarArmadura(p);
+    expect(p.map((x) => !!x.quebrada)).toEqual([false, true, false]);
+    p = M.desgastarArmadura(p);
+    expect(p.map((x) => !!x.quebrada)).toEqual([false, true, true]);
+    p = M.desgastarArmadura(p);
+    expect(p[0].res, 'só agora o colete gasta').toBe(1);
+  });
+
+  it('todas em 0: quebra a de menor absorção, e a quebrada não volta a ser escolhida', () => {
+    const pecas = [
+      { slug: 'cota', res: 0, res_max: 3, abs: 3, def: 2 },
+      { slug: 'ombreira', res: 0, res_max: 0, abs: 0, def: 2 },
+      { slug: 'coturno', res: 0, res_max: 0, abs: 0, def: 1 },
+    ];
+    const r1 = M.desgastarArmadura(pecas);
+    expect(r1.map((x) => !!x.quebrada), 'empate em abs: menor defesa').toEqual([false, false, true]);
+    const r2 = M.desgastarArmadura(r1);
+    expect(r2.map((x) => !!x.quebrada)).toEqual([false, true, true]);
+    const r3 = M.desgastarArmadura(r2);
+    expect(r3.map((x) => !!x.quebrada)).toEqual([true, true, true]);
+    expect(M.desgastarArmadura(r3), 'todas quebradas: nada muda').toBe(r3);
   });
 
   it('entrada vazia ou inválida não explode', () => {
@@ -657,13 +688,13 @@ describe('a cascata desconta na peça certa', () => {
     armadura_pecas: pecas,
   });
 
-  it('golpe que fura tira 1 da peça mais inteira, e a EF fica intacta', () => {
+  it('golpe que passa da absorção tira 1 da peça mais inteira, e a EF leva só o que sobra', () => {
     const r = M.aplicarDanoCascata(9, alvoComPecas([
       { slug: 'elmo', res: 2, res_max: 4 }, { slug: 'peito', res: 6, res_max: 6 },
     ]));
     expect(r.armadura_pecas.map((p) => p.res)).toEqual([2, 5]);
     expect(r.res, 'o total acompanha as peças').toBe(7);
-    expect(r.ef).toBe(20);
+    expect(r.ef, '9 − 5 de absorção').toBe(16);
   });
 
   it('golpe ATÉ o limiar não desgasta peça nenhuma', () => {
@@ -672,11 +703,58 @@ describe('a cascata desconta na peça certa', () => {
     expect(r.res).toBe(3);
   });
 
-  it('com TODAS as peças em 0 o dano passa inteiro', () => {
+  /* Cada peça quebra sozinha (30/10/2026): o golpe que passa da absorção e
+     QUEBRA uma peça deixa o excedente na EF, e a absorção e a defesa perdem a
+     parte dela para os golpes seguintes. */
+  it('o golpe que quebra uma peça leva o excedente à EF, e sai o que ela dava', () => {
+    const r = M.aplicarDanoCascata(9, {
+      ...alvoComPecas([
+        { slug: 'elmo', res: 0, res_max: 1, abs: 1, def: 3 },
+        { slug: 'peito', res: 0, res_max: 4, abs: 4, def: 1 },
+      ]),
+      defesa_valor: 10,
+    });
+    expect(r.ef, '9 − 5 de absorção').toBe(16);
+    expect(r.armadura_pecas.map((p) => !!p.quebrada)).toEqual([true, false]);
+    expect(r.ar).toBe(4);
+    expect(r.ar_max).toBe(4);
+    expect(r.defesa_valor).toBe(7);
+  });
+
+  it('com TODAS as peças quebradas o dano passa inteiro', () => {
     const r = M.aplicarDanoCascata(9, alvoComPecas([
-      { slug: 'elmo', res: 0, res_max: 4 }, { slug: 'peito', res: 0, res_max: 6 },
+      { slug: 'elmo', res: 0, res_max: 4, quebrada: true }, { slug: 'peito', res: 0, res_max: 6, quebrada: true },
     ]));
     expect(r.ef).toBe(11);
+  });
+
+  it('peça do conjunto completo que quebra leva o bônus do conjunto junto', () => {
+    const r = M.aplicarDanoCascata(20, {
+      ...alvoComPecas([
+        { slug: 'galea-calco', res: 0, res_max: 1, abs: 1, def: 3, conjunto: 'leve-calco' },
+      ]),
+      ar: 10, ar_max: 10, defesa_valor: 20,
+      conjunto_bonus: { conjunto: 'leve-calco', tipo: 'L', abs: 2, def: 4 },
+    });
+    expect(r.ar).toBe(7);
+    expect(r.defesa_valor).toBe(13);
+    expect(r.conjunto_bonus).toBeNull();
+  });
+
+  it('só com peças que defendem (limiar 0), o primeiro golpe quebra uma e passa', () => {
+    const r = M.aplicarDanoCascata(6, {
+      ...alvoComPecas([{ slug: 'ombreira', res: 0, res_max: 0, abs: 0, def: 2 }]),
+      ar: 0, ar_max: 0, defesa_valor: 4,
+    });
+    expect(r.armadura_pecas[0].quebrada).toBe(true);
+    expect(r.ef).toBe(14);
+    expect(r.defesa_valor).toBe(2);
+  });
+
+  it('golpe até o limiar não quebra a peça em 0', () => {
+    const r = M.aplicarDanoCascata(5, alvoComPecas([{ slug: 'ombreira', res: 0, res_max: 0, abs: 0, def: 2 }]));
+    expect(r.armadura_pecas[0].quebrada).toBeUndefined();
+    expect(r.ef).toBe(20);
   });
 
   // Criatura não tem inventário, logo não tem peças: cai no escalar.
@@ -685,7 +763,7 @@ describe('a cascata desconta na peça certa', () => {
       eh: 0, eh_max: 0, ar: 5, ef: 20, res: 4, status: 'ativo',
     });
     expect(r.res).toBe(3);
-    expect(r.ef).toBe(20);
+    expect(r.ef, '9 − 5 de absorção').toBe(16);
     expect(r.armadura_pecas, 'e não inventa a lista').toBeUndefined();
   });
 });

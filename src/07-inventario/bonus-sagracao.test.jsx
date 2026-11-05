@@ -110,6 +110,12 @@ describe('a conta: absorção na ficha, dano no ataque', () => {
   });
 });
 
+/* O BÔNUS SAIU DA JANELA PARA O LEQUE (30/10/2026, usuário: "Remova o campo
+   bônus ao selecionar o item no inventário, o mestre irá editar esse campo
+   com um novo menu circular no leque, chamado bônus"). A bolha Bônus troca o
+   leque pelo dos degraus da Sagração; escolher um aplica e fecha. */
+const bolha = (chave) => document.querySelector(`[data-acao-leque="${chave}"]`);
+
 describe('no inventário de verdade: o Mestre ajusta, o banco grava', () => {
   const USER = 'user-1';
   const PJ_ID = 64;
@@ -138,27 +144,23 @@ describe('no inventário de verdade: o Mestre ajusta, o banco grava', () => {
       return c;
     });
     fireEvent.click(card);
+    await vi.waitFor(() => expect(bolha('detalhes')).toBeTruthy());
     return pjs;
   };
 
-  it('Mestre: + três vezes grava bonus 5 no item', async () => {
+  it('Mestre: Bônus no leque, +5 nos degraus, e o banco grava bonus 5', async () => {
     const pjs = await montar(true);
-    const mais = await vi.waitFor(() => {
-      const b = document.querySelector('[data-bonus] button[aria-label="Aumentar bônus"]');
-      expect(b).toBeTruthy();
-      return b;
-    });
-    fireEvent.click(mais);
-    fireEvent.click(mais);
-    fireEvent.click(mais);
-    expect(document.querySelector('.det-bonus-val').textContent).toBe('+5');
+    fireEvent.click(bolha('bonus'));
+    const cinco = await vi.waitFor(() => { const b = bolha('bonus-5'); expect(b).toBeTruthy(); return b; });
+    // O degrau atual (+0) é o aceso.
+    expect(bolha('bonus-0').getAttribute('aria-current')).toBe('true');
+    fireEvent.click(cinco);
     await vi.waitFor(() => expect(pjs[0].inventario.itens[0].bonus).toBe(5), { timeout: 2000 });
   });
 
-  it('jogador: sem controle de Sagração', async () => {
+  it('jogador: sem a bolha Bônus', async () => {
     await montar(false);
-    await vi.waitFor(() => expect(document.querySelector('.modal-best-detalhe')).toBeTruthy());
-    expect(bonusLi()).toBeNull();
+    expect(bolha('bonus')).toBeNull();
   });
 });
 
@@ -175,43 +177,73 @@ describe('o modal do item', () => {
       {...extra}
     />,
   );
-  const botao = (nome) => document.querySelector(`[data-bonus] button[aria-label="${nome}"]`);
+  // O leque precisa de uma casa onde nascer.
+  const comLeque = () => ({ leque: { ancora: document.body.appendChild(document.createElement('button')), onJanela: noop } });
 
-  it('o Mestre vê − / + e o valor; cada clique pede um passo da escada', () => {
+  it('a janela não tem mais a linha Bônus — nem para o Mestre', () => {
+    abrir(ESPADA, { instanceId: 'e1', slug: 'espada_longa', quantidade: 1, bonus: 3 }, { onBonus: noop });
+    expect(bonusLi()).toBeNull();
+    expect(document.querySelector('[data-bonus]')).toBeNull();
+  });
+
+  it('o Mestre: degrau escolhido vira os passos da escada', () => {
     const onBonus = vi.fn();
-    abrir(ESPADA, { instanceId: 'e1', slug: 'espada_longa', quantidade: 1, bonus: 3 }, { onBonus });
-    const bloco = bonusLi();
-    expect(bloco.textContent).toMatch(/Sagração/);
-    expect(bloco.textContent).toMatch(/dano/);
-    expect(bloco.querySelector('.det-bonus-val').textContent).toBe('+3');
-    fireEvent.click(botao('Aumentar bônus'));
-    fireEvent.click(botao('Reduzir bônus'));
-    expect(onBonus.mock.calls).toEqual([['e1', 1], ['e1', -1]]);
+    abrir(ESPADA, { instanceId: 'e1', slug: 'espada_longa', quantidade: 1, bonus: 3 }, { onBonus, ...comLeque() });
+    fireEvent.click(bolha('bonus'));
+    expect(bolha('bonus-3').getAttribute('aria-current')).toBe('true');
+    fireEvent.click(bolha('bonus-7'));            // 3 → 5 → 7: dois passos para cima
+    expect(onBonus.mock.calls).toEqual([['e1', 1], ['e1', 1]]);
   });
 
-  it('nas pontas o botão fica desativado', () => {
-    abrir(PEITORAL, { instanceId: 'p1', slug: 'peitoral_de_aco', quantidade: 1 }, { onBonus: noop });
-    expect(bonusLi().textContent).toMatch(/absorção/);
-    expect(botao('Reduzir bônus').disabled).toBe(true);
-    cleanup();
-    abrir(PEITORAL, { instanceId: 'p1', slug: 'peitoral_de_aco', quantidade: 1, bonus: 9 }, { onBonus: noop });
-    expect(botao('Aumentar bônus').disabled).toBe(true);
+  it('descer também anda de degrau em degrau', () => {
+    const onBonus = vi.fn();
+    abrir(PEITORAL, { instanceId: 'p1', slug: 'peitoral_de_aco', quantidade: 1, bonus: 9 }, { onBonus, ...comLeque() });
+    fireEvent.click(bolha('bonus'));
+    fireEvent.click(bolha('bonus-1'));            // 9 → 7 → 5 → 3 → 1
+    expect(onBonus.mock.calls).toEqual([['p1', -1], ['p1', -1], ['p1', -1], ['p1', -1]]);
   });
 
-  it('o jogador vê o bônus e o título "+5", sem os botões', () => {
+  it('o jogador continua vendo "+5" no título', () => {
     abrir(ESCUDO, { instanceId: 's1', slug: 'escudo_broquel', quantidade: 1, bonus: 5 });
-    expect(document.querySelector('.det-bonus-val').textContent).toBe('+5');
-    expect(document.querySelector('[data-bonus] button')).toBeNull();
     expect(document.body.textContent).toMatch(/Escudo Broquel \+5/);
   });
 
-  it('item comum, para o jogador: nada de Sagração', () => {
-    abrir(ESPADA, { instanceId: 'e1', slug: 'espada_longa', quantidade: 1 });
-    expect(bonusLi()).toBeNull();
+  it('item que não é arma nem armadura: sem a bolha, nem para o Mestre', () => {
+    abrir(CORDA, { instanceId: 'c1', slug: 'corda', quantidade: 1 }, { onBonus: noop, ...comLeque() });
+    expect(bolha('bonus')).toBeNull();
+  });
+});
+
+/* A RESISTÊNCIA NO LEQUE (30/10/2026, usuário: "o mestre irá editar esse
+   campo com um novo menu circular no leque, chamado resistência"). Um degrau
+   por valor, de 0 ao máximo, com o atual aceso. */
+describe('o leque da Resistência', () => {
+  const noop = () => {};
+  const abrirLeque = (instance, extra) => render(
+    <Modal
+      instance={instance} catalogoBySlug={CAT} raca="Humano"
+      slotsState={{}} todosItens={[instance]} containersDisponiveis={[]} pjsHistoria={[]}
+      lang="pt" onClose={noop} onEquipar={noop} onDesequipar={noop} onUsar={noop}
+      onDestruir={noop} onMoverParaContainer={noop} onTransferir={noop}
+      onVestir={noop} onDespir={noop} onRemoverDoContainer={noop} onAbrirDetalhesFilho={noop}
+      leque={{ ancora: document.body.appendChild(document.createElement('button')), onJanela: noop }}
+      {...extra}
+    />,
+  );
+
+  it('o Mestre escolhe o valor, e o atual vem aceso', () => {
+    const onResistencia = vi.fn();
+    // Peitoral de Aço: resistência 8 → degraus de 0 a 8.
+    abrirLeque({ instanceId: 'p1', slug: 'peitoral_de_aco', quantidade: 1, res: 5 }, { onResistencia });
+    fireEvent.click(bolha('resistencia'));
+    expect(document.querySelectorAll('[data-acao-leque^="res-"]')).toHaveLength(9);
+    expect(bolha('res-5').getAttribute('aria-current')).toBe('true');
+    fireEvent.click(bolha('res-0'));
+    expect(onResistencia).toHaveBeenCalledWith('p1', 0);
   });
 
-  it('item que não é arma nem armadura: nem para o Mestre', () => {
-    abrir(CORDA, { instanceId: 'c1', slug: 'corda', quantidade: 1 }, { onBonus: noop });
-    expect(bonusLi()).toBeNull();
+  it('o jogador não tem a bolha', () => {
+    abrirLeque({ instanceId: 'p1', slug: 'peitoral_de_aco', quantidade: 1 });
+    expect(bolha('resistencia')).toBeNull();
   });
 });

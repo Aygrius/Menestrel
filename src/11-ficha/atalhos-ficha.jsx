@@ -49,14 +49,17 @@ function itemUsavelNoAtalho(cat) {
 
    Os tons saem da paleta onde ela já tem a cor — ouro de lei, cobre, sangue,
    bronze apagado; só o azul é novo, no tom do índigo da Resistência Mágica.
-   O modificador vai no balão junto do nome porque é ele que o jogador está
-   de fato escolhendo. */
+   O QUE O BALÃO DIZ (30/10/2026, usuário: "o que significa o tooltip +20,
+   +40?"). Dizia um modificador (+20, −40) que a rolagem NUNCA aplicou: o
+   jogo rola 1d20 na Tabela de Resolução, na coluna do total, e a dificuldade
+   é a QUALIDADE MÍNIMA que o resultado precisa alcançar (D20_QUALIDADE_MINIMA,
+   02-shell/dado-d20.jsx). O balão passou a dizer isso. */
 const ATALHO_DIFICULDADES = [
-  { id: 'facil',         pt: 'Fácil',         en: 'Easy',      mod: '+20', cor: '#C9A44E' },
-  { id: 'medio',         pt: 'Médio',         en: 'Medium',    mod: '0',   cor: '#B8702E' },
-  { id: 'dificil',       pt: 'Difícil',       en: 'Hard',      mod: '−20', cor: '#A23B2F' },
-  { id: 'muito_dificil', pt: 'Muito difícil', en: 'Very hard', mod: '−40', cor: '#3E5A96' },
-  { id: 'absurdo',       pt: 'Absurdo',       en: 'Absurd',    mod: '−60', cor: '#6B6256' },
+  { id: 'facil',         pt: 'Fácil',         en: 'Easy',      exigePt: 'Fácil ou melhor',         exigeEn: 'Easy or better',      cor: '#C9A44E' },
+  { id: 'medio',         pt: 'Médio',         en: 'Medium',    exigePt: 'Médio ou melhor',         exigeEn: 'Medium or better',    cor: '#B8702E' },
+  { id: 'dificil',       pt: 'Difícil',       en: 'Hard',      exigePt: 'Difícil ou melhor',       exigeEn: 'Hard or better',      cor: '#A23B2F' },
+  { id: 'muito_dificil', pt: 'Muito difícil', en: 'Very hard', exigePt: 'Muito Difícil ou melhor', exigeEn: 'Very Hard or better', cor: '#3E5A96' },
+  { id: 'absurdo',       pt: 'Absurdo',       en: 'Absurd',    exigePt: 'Absurdo',                 exigeEn: 'Absurd',              cor: '#6B6256' },
 ];
 
 /* `verbo` é o que o rodapé da janela confirma (28/10/2026): rolar a
@@ -89,7 +92,11 @@ const ATALHOS_TIPOS = [
    Lista vazia = botão não aparece (PJ sem magia não ganha um atalho morto). */
 /* O ModalShell mora no shell (fase 10, carregada antes desta) e chega pelo
    window, como os demais globais do projeto. */
-function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabilidade, onMagia, onItem, magiaPasso, naBarra = false }) {
+/* DIRETO NO PASSO (02/11/2026): as páginas de casas (paginas-ficha.jsx)
+   abrem a janela já no detalhe — `direto` = { tipo, id } —, sem os botões
+   (`semBotoes`) e sem a lista: o Voltar do rodapé fecha, e `onFecharDireto`
+   avisa quem abriu. */
+function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabilidade, onMagia, onItem, magiaPasso, naBarra = false, semBotoes = false, direto = null, onFecharDireto }) {
   const _ModalShell = (typeof window !== 'undefined' && window.ModalShell) || null;
   const en = lang === 'en';
   const [aberto, setAberto] = React.useState(null);   // 'habilidade' | 'magia' | 'item' | null
@@ -139,15 +146,21 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
     };
   }, [aberto]);
 
+  React.useEffect(() => { if (direto) setAberto(direto.tipo); }, [direto]);
+
   // Busca limpa a cada lista aberta, e o cursor já vai para ela.
   React.useEffect(() => {
     setBusca('');
-    setFoco(null);
     setDificuldade(null);
-    setNivel(null);
     setAlvo(null);
-    if (aberto && buscaRef.current) buscaRef.current.focus();
-  }, [aberto]);
+    const d = direto && aberto === direto.tipo
+      ? (listas[aberto] || []).find((l) => (aberto === 'item' ? l.id : l.key) === direto.id) || null
+      : null;
+    setFoco(d);
+    setNivel(d && aberto === 'magia' ? (d.nivel || null) : null);
+    if (aberto && !d && buscaRef.current) buscaRef.current.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberto, direto]);
 
   // A lista aberta pode sumir (último item usado): fecha em vez de ficar órfã.
   React.useEffect(() => {
@@ -158,9 +171,16 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
 
   const alternar = (id) => { fecharTip(); setAberto((cur) => (cur === id ? null : id)); };
 
-  const fechar = () => { setAberto(null); setFoco(null); setDificuldade(null); setNivel(null); setAlvo(null); };
-  /* Voltar à lista: limpa o que o passo pediu, não o que a lista mostra. */
-  const voltar = () => { setFoco(null); setDificuldade(null); setNivel(null); setAlvo(null); };
+  const fechar = () => {
+    setAberto(null); setFoco(null); setDificuldade(null); setNivel(null); setAlvo(null);
+    if (direto && onFecharDireto) onFecharDireto();
+  };
+  /* Voltar à lista: limpa o que o passo pediu, não o que a lista mostra.
+     Aberta direto, não há lista para onde voltar: fecha. */
+  const voltar = () => {
+    if (direto) { fechar(); return; }
+    setFoco(null); setDificuldade(null); setNivel(null); setAlvo(null);
+  };
   const escolher = (tipo, id, extra) => {
     fechar();
     if (tipo === 'habilidade' && onHabilidade) onHabilidade(id, extra);
@@ -182,7 +202,10 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
   /* Só a habilidade PEDE algo antes de agir. O item usa direto: o que ele faz
      já está escrito no quadro, e perguntar de novo seria confirmar duas
      vezes. Depois de `tipoAberto`, porque depende dele. */
-  const faltaEscolher = !!(foco && tipoAberto && tipoAberto.id === 'habilidade' && !dificuldade);
+  /* "N" sem compra (30/10/2026): a habilidade não rola, e a janela diz por
+     quê no lugar do "Escolha a dificuldade". */
+  const faltaHabilidade = foco && tipoAberto && tipoAberto.id === 'habilidade' ? (foco.bloqueio || null) : null;
+  const faltaEscolher = !!(foco && tipoAberto && tipoAberto.id === 'habilidade' && !dificuldade && !faltaHabilidade);
   /* A REGRA DA MAGIA vem da ficha (magiaPasso): aqui só se desenha. Depois de
      `nivel`, porque o nível escolhido muda o karma e o bloqueio do animal. */
   const passoMag = foco && tipoAberto && tipoAberto.id === 'magia' && typeof magiaPasso === 'function'
@@ -223,7 +246,7 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
 
   return (
     <div className={'menestrel-ui at-root' + (naBarra ? ' mc-acao-grupo' : '')} ref={rootRef}>
-      {visiveis.map((t, i) => {
+      {!semBotoes && visiveis.map((t, i) => {
         const rotulo = en ? t.en : t.pt;
         const ativo = aberto === t.id;
         return (
@@ -269,7 +292,8 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
           onClose={fechar}
           {...(foco ? {
             onCancel: voltar,
-            cancelLabel: en ? 'Back' : 'Voltar',
+            // Aberta direto da página, não há lista atrás: o botão fecha.
+            cancelLabel: direto ? (en ? 'Cancel' : 'Cancelar') : (en ? 'Back' : 'Voltar'),
             /* O `extra` é do TIPO: a habilidade entrega a dificuldade, a magia
                entrega nível e alvo. Um objeto só, com os campos dos dois,
                passaria `nivel: null` para toda rolagem de habilidade. */
@@ -280,7 +304,7 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
                 ? { nivel, alvo: alvo || (passoMag && passoMag.semAlvo ? passoMag.alvos[0] : null) }
                 : { dificuldade }),
             confirmLabel: en ? tipoAberto.verboEn : tipoAberto.verbo,
-            confirmDisabled: faltaEscolher || !!faltaMagia,
+            confirmDisabled: faltaEscolher || !!faltaMagia || !!faltaHabilidade,
           } : {})}
         >
         {foco ? (
@@ -345,6 +369,10 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
                     o único que a ficha aplica na hora; o resto vai para a fila
                     do Mestre.
 
+                    Só o PRIMEIRO NOME na pílula, e "Eu" no lugar de "Em mim"
+                    (30/10/2026, pedido do usuário). O alvo entregue ao
+                    lançamento segue com o nome inteiro.
+
                     Fora também quando a lista é VAZIA: num milagre em quem
                     não pode recebê-lo (sem religião, vampiro, lobisomem)
                     todos saem da lista, e um rótulo "Alvo" sem pílula embaixo
@@ -358,7 +386,7 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
                           aria-pressed={!!(alvo && alvo.id === a.id)}
                           disabled={!!a.bloqueio}
                           onClick={() => setAlvo(a)}>
-                          {String(a.id) === passoMag.euId ? (en ? 'On me' : 'Em mim') : a.nome}
+                          {String(a.id) === passoMag.euId ? (en ? 'Me' : 'Eu') : String(a.nome || '').trim().split(/\s+/)[0]}
                           {a.bloqueio ? ' · ' + a.bloqueio : ''}
                         </button>
                       ))}
@@ -444,18 +472,23 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
                 </div>
               )}
             </dl>
-            <section className="mn-janela-escolha">
+            {!faltaHabilidade && <section className="mn-janela-escolha">
               <h4 className="mn-rotulo">{en ? 'Difficulty' : 'Dificuldade'}</h4>
               <div className="mn-janela-cores" role="radiogroup" aria-label={en ? 'Difficulty' : 'Dificuldade'}>
                 {ATALHO_DIFICULDADES.map((d) => {
                   const nome = en ? d.en : d.pt;
+                  const exige = en ? `Needs a result of ${d.exigeEn}` : `Exige resultado ${d.exigePt}`;
                   return (
                     <button key={d.id} type="button" className="mn-janela-cor"
                       role="radio" aria-checked={dificuldade === d.id}
-                      aria-label={`${nome} (${d.mod})`}
+                      aria-label={`${nome} — ${exige}`}
                       style={{ '--cor': d.cor }}
                       onClick={() => { fecharTipDif(); setDificuldade(d.id); }}
-                      {...propsTip(abrirTipDif, fecharTipDif, { title: nome, desc: d.mod })}>
+                      /* Só o NOME no balão (30/10/2026, usuário: "Remova os
+                         tooltips que não dizem nada em habilidades"): a
+                         segunda linha (era o "+20") saiu; o que a dificuldade
+                         exige vem no texto abaixo dos discos, ao escolher. */
+                      {...propsTip(abrirTipDif, fecharTipDif, nome)}>
                       <span className="mn-janela-cor-disco" aria-hidden="true" />
                     </button>
                   );
@@ -463,16 +496,21 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
               </div>
               <Tooltip tip={tipDif} onEnter={manterTipDif} onLeave={fecharTipDif} />
               {dificuldade && (() => {
-                const d = ATALHO_DIFICULDADES.find((x) => x.id === dificuldade);
+                /* A frase do usuário (30/10/2026): "Faça um teste na coluna -7,
+                   você precisa de um resultado médio ou melhor." O que ela diz
+                   exigir já é o EFETIVO: a armadura da restrição sobe um grau. */
+                const i = ATALHO_DIFICULDADES.findIndex((x) => x.id === dificuldade);
+                const j = Math.min(ATALHO_DIFICULDADES.length - 1, i + (Number(foco.passosArmadura) || 0));
+                const d = ATALHO_DIFICULDADES[j];
                 return (
                   <p className="mn-janela-detalhe">
                     {en
-                      ? <>Rolls <strong>1d100</strong> against <strong>{foco.total}</strong>, with <strong>{d.mod}</strong> from <strong>{d.en}</strong>.</>
-                      : <>Rola <strong>1d100</strong> contra <strong>{foco.total}</strong>, com <strong>{d.mod}</strong> de <strong>{d.pt}</strong>.</>}
+                      ? <>Make a test on column <strong>{foco.total}</strong>; you need a result of <strong>{d.exigeEn.toLowerCase()}</strong>.</>
+                      : <>Faça um teste na coluna <strong>{foco.total}</strong>, você precisa de um resultado <strong>{d.exigePt.toLowerCase()}</strong>.</>}
                   </p>
                 );
               })()}
-            </section>
+            </section>}
             </>
             )}
 
@@ -481,6 +519,7 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
               <p className="mn-janela-falta">{en ? 'Choose the difficulty.' : 'Escolha a dificuldade.'}</p>
             )}
             {faltaMagia && <p className="mn-janela-falta">{faltaMagia}</p>}
+            {faltaHabilidade && <p className="mn-janela-falta">{faltaHabilidade}</p>}
           </div>
         ) : (
         <>
@@ -540,4 +579,4 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
   );
 }
 
-Object.assign(window, { AtalhosFicha, itemUsavelNoAtalho });
+Object.assign(window, { AtalhosFicha, itemUsavelNoAtalho, ATALHO_DIFICULDADES });

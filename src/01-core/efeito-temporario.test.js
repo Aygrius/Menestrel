@@ -219,3 +219,19 @@ describe('calcularFicha com bônus vigente', () => {
     expect(d.karmamax).toBe(base.karmamax + 10);
   });
 });
+
+/* PRAZO EM HORAS (31/10/2026, usuário: "Elixir da Euforia vai valer por
+   dias, 6 horas, 12 horas, 36 horas"). Vence no instante do relógio da mesa. */
+describe('efeito com prazo em horas', () => {
+  const EUFORIA = { slug: 'elixir_euforia_1', nome: 'Elixir da Euforia I',
+    efeito_positivo: 'Aumenta 5 de Velocidade.', efeito_duracao_horas: 6 };
+  const agora = { ano: 1500, mes: 11, dia: 12, hora: 22 };
+
+  it('vence 6 horas depois, virando o dia', () => {
+    const [linha] = window.efeitosTemporariosDoItem(EUFORIA, 1, agora, () => 'e1');
+    expect(linha).toMatchObject({ key: 'vb', valor: 5, horas: 6, vence_em: { ano: 1500, mes: 11, dia: 13, hora: 4 } });
+    const lista = [linha];
+    expect(window.bonusTemporarios(lista, { ...agora, dia: 13, hora: 3 }).vb).toBe(5);
+    expect(window.bonusTemporarios(lista, { ...agora, dia: 13, hora: 4 }).vb).toBe(0);
+  });
+});

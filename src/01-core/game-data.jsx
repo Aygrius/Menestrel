@@ -621,9 +621,12 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca,
       if (!pecaNoCorpo(it)) return;
       const c = catalogoBySlug[it.slug];
       if (!c) return;
-      // + Sagração da peça (armadura e escudo, 15/09/2026).
-      absorcaoTotal += absorcaoDaPeca(it, c);
-      defesaTotal   += Number(c.defesa   || 0);
+      // + Sagração da peça (armadura e escudo, 15/09/2026). Peça QUEBRADA
+      // não absorve nem defende (30/10/2026), mas segue pesando e atrasando.
+      if (!it.quebrada) {
+        absorcaoTotal += absorcaoDaPeca(it, c);
+        defesaTotal   += (typeof defesaDaPeca === 'function' ? defesaDaPeca(it, c) : Number(c.defesa || 0));
+      }
       modVelTotal   += Number(c.mod_vel  || 0);
       // Sacerdote e Rastreador usam qualquer armadura e arma sem restrição de
       // karma (29/10/2026): a penalidade da peça não vale para eles; o bônus
@@ -635,6 +638,11 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca,
         tipoPeitoral = c.tipo_armadura;
       }
     });
+    /* Conjunto completo, todas as peças idênticas e inteiras (30/10/2026):
+       leve Abs 2 / Def 4, média 3/3, pesada 4/2. Ver bonusDeConjunto. */
+    const _bonusConj = (typeof bonusDeConjunto === 'function' ? bonusDeConjunto : window.bonusDeConjunto);
+    const conj = _bonusConj ? _bonusConj(p.inventario.itens, catalogoBySlug) : null;
+    if (conj) { absorcaoTotal += conj.abs; defesaTotal += conj.def; }
   }
   // Os ajustes passivos das peças (proposta de 26/10/2026): botas aceleram,
   // armadura pesada atrasa e abafa o karma; joia de metal arcano abre karma.

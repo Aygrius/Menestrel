@@ -26,9 +26,17 @@ const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
 
 describe('o trilho da cena', () => {
   it('só monta na mesa, na lista de personagens do Jogador e em Histórias', () => {
+    // 02/11/2026: e na ficha, mas SÓ dentro do trilho de baixo (soNoRodape).
+    // 04/11/2026: e em Batalha e Loja do Mestre (rodapeDaMesa), também só no
+    // trilho de baixo — as três páginas da Mesa dividem o mesmo rodapé.
     expect(shell).toMatch(
-      /\{\(telaDaMesa \|\| current\.id === 'personagens_j' \|\| current\.id === 'historias'\) && \(\r?\n\s*<CardDataJogoAtual/
+      /\{\(telaDaMesa \|\| rodapeDaMesa \|\| current\.id === 'personagens_j' \|\| current\.id === 'historias' \|\| fichaNaTela\) && \(\r?\n\s*<CardDataJogoAtual/
     );
+  });
+
+  it('na ficha a faixa só existe no trilho de baixo, nunca fixa no alto', () => {
+    expect(shell).toMatch(/if \(soNoRodape && !alvoRodape\) return null;/);
+    expect(shell).toMatch(/useAlvoPortal : window\.useAlvoPortal \|\| \(\(\) => null\)\)\('pg-rodape-slot'\)/);
   });
 
   it('não é mais ligado pela ficha do Jogador', () => {
@@ -42,17 +50,35 @@ describe('o trilho da cena', () => {
     expect(shell).toMatch(/if \(!historiaId && !temBotaoPj\) return null;/);
   });
 
-  it('a âncora do sino só existe quando há mesa', () => {
-    expect(shell).toMatch(/\{historiaId && <div id="cdj-sino" className="cdj-sino-slot" \/>\}/);
+  // O sino saiu do trilho em 30/10/2026 (foi para o menu lateral).
+  it('o trilho não tem mais âncora do sino', () => {
+    expect(shell).not.toMatch(/id="cdj-sino"/);
   });
 });
 
 describe('o espaço reservado para o trilho', () => {
   it('some no desktop também, não só até 1280px', () => {
-    expect(css).toMatch(/@media \(min-width: 1281px\) \{\r?\n\s*#root:not\(:has\(\.cdj-root\)\) \.menestrel-ui \.mc-main \{ margin-top: 20px; \}/);
+    // 30/10/2026: o respiro é padding, não margem — a caixa de rolagem vai
+    // até a borda da janela e o conteúdo não some numa linha a 20px do topo.
+    expect(css).toMatch(/@media \(min-width: 1281px\) \{\r?\n\s*#root:not\(:has\(\.cdj-root:not\(\.cdj-root--rodape\)\)\) \.menestrel-ui \.mc-main \{ margin-top: 0; padding-top: 20px; \}/);
   });
 
   it('na lista de personagens o respiro vem de dentro, e a margem zera', () => {
-    expect(css).toMatch(/#root:not\(:has\(\.cdj-root\)\) \.menestrel-ui \.mc-main:has\(\.pjs\) \{ margin-top: 0; \}/);
+    expect(css).toMatch(/#root:not\(:has\(\.cdj-root:not\(\.cdj-root--rodape\)\)\) \.menestrel-ui \.mc-main:has\(\.pjs\) \{ margin-top: 0; padding-top: 0; \}/);
+  });
+
+  /* O build de produção junta `.mc-main` e `.mc-main:has(.pjs)` dos 81px num
+     `:is(...)`, que empata com as regras de "sem trilho". No empate vence a
+     ordem — então a regra sem trilho tem de vir DEPOIS dos 81px (30/10/2026:
+     no dev estava certo e o site publicado tinha o vão). */
+  it('a regra sem trilho vem depois dos 81px, para vencer também no build', () => {
+    const i81 = css.indexOf('#root .menestrel-ui .mc-main:has(.pjs) { margin-top: 81px; }');
+    expect(i81, 'a regra dos 81px').toBeGreaterThan(-1);
+    const depois = css.slice(i81, css.indexOf('}', css.indexOf('#root:not(:has(.cdj-root:not(.cdj-root--rodape))) .menestrel-ui .mc-main:has(.pjs)', i81)) + 1);
+    expect(depois).toMatch(/#root:not\(:has\(\.cdj-root:not\(\.cdj-root--rodape\)\)\) \.menestrel-ui \.mc-main \{ margin-top: 0; padding-top: 20px; \}/);
+  });
+
+  it('nenhuma largura volta a usar margem de 20px sem o trilho', () => {
+    expect(css).not.toMatch(/#root:not\(:has\(\.cdj-root:not\(\.cdj-root--rodape\)\)\) \.menestrel-ui \.mc-main \{ margin-top: 20px; \}/);
   });
 });

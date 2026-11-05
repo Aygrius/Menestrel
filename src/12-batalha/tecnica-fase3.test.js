@@ -162,9 +162,11 @@ describe('Estilhaçar e Retalhar — dano no equipamento', () => {
     expect(M.aplicarDanoEquipamento(p, window.TECNICA_EFEITO_MAP.mira)).toBe(p);
   });
 
-  it('armadura em 0 para de bloquear — é o equipamento inutilizado do texto', () => {
-    // Confere o elo com a cascata: sem resistência, o limiar não segura mais.
-    const alvo = M.aplicarDanoEquipamento(comPecas(1, 1), window.TECNICA_EFEITO_MAP.retalhar);
+  it('armadura quebrada para de bloquear — é o equipamento inutilizado do texto', () => {
+    // Confere o elo com a cascata. Desde 30/10/2026 a peça só quebra no golpe
+    // que a pega em 0: Retalhar (3) leva a peça de 1 a 0 e depois a quebra.
+    const alvo = M.aplicarDanoEquipamento(comPecas(1), window.TECNICA_EFEITO_MAP.retalhar);
+    expect(alvo.armadura_pecas[0].quebrada).toBe(true);
     const r = M.aplicarDanoCascata(10, { ...alvo, ar: 20, eh: 0, eh_max: 0 }, false);
     expect(r.ef).toBe(10);   // passou inteiro: a armadura arrebentou
   });

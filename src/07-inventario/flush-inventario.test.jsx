@@ -76,6 +76,7 @@ const botao = (txt) => Array.from(document.querySelectorAll('button'))
 // Guarda a Corda no Alforge: uma alteração do inventário feita pela tela.
 async function guardarCorda(container) {
   fireEvent.click(card(container));
+  fireEvent.click(document.querySelector('[data-acao-leque="detalhes"]'));   // o leque (30/10/2026): Detalhes abre a janela
   await waitFor(() => expect(botao('Armazenar')).toBeTruthy());
   fireEvent.click(botao('Armazenar'));
   const opcao = Array.from(document.querySelectorAll('.det-opt-card')).find((b) => b.textContent.includes('Alforge'));
@@ -156,6 +157,7 @@ describe('gravação em voo', () => {
     const alforge = () => tabelas.personagens[0].inventario.itens.find((x) => x.instanceId === 'alf-1');
 
     fireEvent.click(cardAlforge(container));
+    fireEvent.click(document.querySelector('[data-acao-leque="detalhes"]'));   // o leque (30/10/2026): Detalhes abre a janela
     await waitFor(() => expect(botao('Despir')).toBeTruthy());
     fireEvent.click(botao('Despir'));
     await trava.comecou;                       // o autosave mandou "despido" e está em voo

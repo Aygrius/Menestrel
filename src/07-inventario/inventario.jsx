@@ -154,8 +154,10 @@ function normalizarPilhas(itens, catalogoBySlug) {
     // À venda (02/10/2026): instância intacta — não funde, não explode. O
     // anúncio aponta para ela pelo anuncio_id.
     if (estaAVenda(it)) { saida.push(it); continue; }
-    // Companheiro com nome (23/10/2026) é único: não funde nem explode.
-    if (it.apelido) { saida.push(it); continue; }
+    // Companheiro com nome (23/10/2026) é único: não funde nem explode. A
+    // peça fabricada também (31/10/2026): tem dono no nome e grau próprio.
+    // E a ferramenta já usada (31/10/2026): os usos que restam são dela.
+    if (it.apelido || it.fabricado || it.usos != null) { saida.push(it); continue; }
     const cat = catalogoBySlug?.[it.slug];
     const container = ehContainer(cat);
 
@@ -347,7 +349,7 @@ const VESTE_SLOTS = {
   perna:   { max: 2,  gastaSlot: true  }, // Perna (grevas)
   cintura: { max: 2,  gastaSlot: true  }, // Cintura (cinta, calça)
   canela:  { max: 2,  gastaSlot: true  }, // Canela (caneleiras)
-  pe:      { max: 2,  gastaSlot: true  }, // Pé (botas, sandálias)
+  pe:      { max: 1,  gastaSlot: true  }, // Pé (bota OU sandália/sapato — 1 casa, 30/10/2026)
   alforje: { max: 3,  gastaSlot: false }, // Alforje (estojo, aljava, bainha, algibeira)
 };
 
@@ -554,7 +556,7 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
 // foto_url (27/09/2026): o card do alvo na aba Usar mostrava só a inicial.
 // intelecto_base + aura_base (22/10/2026): orçamento de magia (pontosMagiasTotal).
 // deus (22/10/2026): regra dos milagres na janela Estudar (sem religião, sem milagre).
-const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,subraca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,agilidade_base,inventario,estado_atual,magias,tecnicas,treinos,experiencia,especializacao,inventario_versao';
+const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,subraca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,agilidade_base,inventario,estado_atual,magias,tecnicas,treinos,experiencia,especializacao,inventario_versao,receitas_aprendidas';
 
 // Inventário com os campos que a tela espera, sem mexer no objeto de origem.
 const INV_VAZIO = () => ({ moedas: { ouro: 0, prata: 0, cobre: 0, latao: 0 }, itens: [] });
@@ -588,10 +590,28 @@ function invComPadroes(inventario) {
    Espelha o que `onInventarioChange` já fazia pro inventário. Cobertura:
    11-ficha/estado-handoff.test.js. */
 function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange, onEstadoChange, estadoAtualSeed, maximos, isMestre }) {
+  // Dentro da ficha o peso vai para o trilho de baixo dela (PesoNoRodape).
+  const rodapeDaFicha = (typeof useAlvoPortal === 'function' ? useAlvoPortal : (() => null))('fp-rodape-slot');
   const [pjs, setPjs] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [catalogo, setCatalogo] = useState(null);
-  const [inv, setInv] = useState(null);
+  const [inv, setInvBruto] = useState(null);
+  /* 80 CASAS (30/10/2026, usuário: "Isso, 'Inventário cheio'"). Toda mudança
+     LOCAL passa por aqui: a que leva a grade de fora além de 80 casas
+     (bauEstourou, 01-core/inventario-casas.jsx) é recusada e avisada. O que
+     chega do BANCO (carga, troca de PJ, mescla do gravador) entra por
+     setInvBruto — não é o jogador mexendo, e o banco já tem a mesma trava. */
+  const avisoCheioRef = useRef(null);
+  const setInv = React.useCallback((v) => {
+    setInvBruto((cur) => {
+      const novo = typeof v === 'function' ? v(cur) : v;
+      if (cur && novo && novo !== cur && bauEstourou(cur.itens, novo.itens)) {
+        queueMicrotask(() => avisoCheioRef.current && avisoCheioRef.current());
+        return cur;
+      }
+      return novo;
+    });
+  }, []);
   const [estadoAtual, setEstadoAtual] = useState(null); // efeitos de item (Reputação, Sono, EH/EF, ...)
   const [saving, setSaving] = useState('idle');
   const [error, setError] = useState(null);
@@ -616,6 +636,10 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
      ou a peça-pai quando se navega de item em item dentro do painel. É null
      quando a janela é o primeiro degrau, e aí o botão não nasce. */
   const [voltarPara, setVoltarPara] = useState(null); // {tipo:'container'|'item', id}
+  // O leque aberto sobre uma casa (30/10/2026): { id, ancora } — e a etapa
+  // que ele pediu para a janela abrir já escolhida.
+  const [leque, setLeque] = useState(null);
+  const [acaoInicial, setAcaoInicial] = useState(null);
   const [transferError, setTransferError] = useState(null);
   // Ação pendente que aguarda escolha de quantidade no QuantidadeModal
   // formato: { tipo: 'usar'|'destruir'|'mover', instanceId, max, extra? }
@@ -734,14 +758,14 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   useEffect(() => { seedRef.current = estadoAtualSeed; }, [estadoAtualSeed]);
   useEffect(() => {
     const pjsAtual = pjsRef.current;
-    if (!pjsAtual || !selectedId) { setInv(null); setEstadoAtual(null); return; }
+    if (!pjsAtual || !selectedId) { setInvBruto(null); setEstadoAtual(null); return; }
     const pj = pjsAtual.find((p) => p.id === selectedId);
     if (!pj) return;
     // O gravador já conhece o PJ (voltando a ele): vale o que ele tem, que
     // inclui gravação ainda na fila. Senão, o que veio do banco.
     const g = gravadorRef.current;
     if (!g.tem(pj.id)) g.carregar(pj.id, invComPadroes(pj.inventario), pj.inventario_versao);
-    setInv(g.atual(pj.id));
+    setInvBruto(g.atual(pj.id));
     // Semente do pai vence a linha do banco quando existe: a Ficha atualiza
     // pj.estado_atual otimisticamente, então ela é sempre pelo menos tão nova
     // quanto o banco. Só vale pro PJ FIXO — com o seletor de vários PJs
@@ -781,7 +805,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (selRef.current === pjId && r.enviado && !mesmoValor(r.inventario, r.enviado)) {
       // Veio mudança de fora: a tela passa a mostrar, por cima do que mudou
       // nela. O `inv` novo faz o autosave rodar de novo se sobrar diferença.
-      setInv((cur) => (cur === r.enviado ? r.inventario : mesclarInventario(r.enviado, cur, r.inventario)));
+      setInvBruto((cur) => (cur === r.enviado ? r.inventario : mesclarInventario(r.enviado, cur, r.inventario)));
       return;
     }
     /* A tela mudou DURANTE a gravação e o `inv` não vai mudar de novo
@@ -976,7 +1000,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       itens[idx] = { ...it, equipado: true, slot: targetSlot, containerId: null };
     }
     setInv({ ...inv, itens });
-    if (resultId !== instanceId) setDetalhesId(resultId);
+    if (resultId !== instanceId && detalhesId === instanceId) setDetalhesId(resultId);
     return { ok: true, newId: resultId };
   };
 
@@ -1021,7 +1045,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     setInv({ ...inv, itens });
     // Vestimenta com efeito (ex.: Reputação) aplica UMA vez ao vestir.
     setEstadoAtual((cur) => aplicarEfeitosItem(cur, cat, 1, maximos));
-    if (resultId !== instanceId) setDetalhesId(resultId);
+    if (resultId !== instanceId && detalhesId === instanceId) setDetalhesId(resultId);
     return { ok: true, newId: resultId };
   };
 
@@ -1061,7 +1085,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       itens[idx] = { ...itens[idx], montado: true, containerId: null };
     }
     setInv({ ...inv, itens });
-    if (resultId !== instanceId) setDetalhesId(resultId);
+    if (resultId !== instanceId && detalhesId === instanceId) setDetalhesId(resultId);
     return { ok: true, newId: resultId };
   };
 
@@ -1166,8 +1190,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
 
   /* ABATER O ANIMAL (28/09/2026): "quando um animal é abatido, seja em
      combate, seja no inventário, ele automaticamente vai virar a carne do seu
-     tipo [...] metade do peso total do animal. O item porém não irá para o
-     inventário, ele irá para a loja." A conta e o anúncio moram na RPC
+     tipo [...] metade do peso total do animal." Ia para a loja; desde
+     31/10/2026 vai para o inventário do personagem. A conta mora na RPC
      abater_animal (a carne sai do tipo e do peso da CRIATURA ligada ao
      item); aqui o inventário só se relê. A mesa recebe a linha do servidor. */
   const prepararAnimal = async (instanceId) => {
@@ -1194,6 +1218,29 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         : `${nomePj} preparou 1× ${catPrato.nome}.`;
       registrarEventoMesa('item', texto, { item: catPrato.nome, quantidade: 1, acao: 'preparar' });
     }
+  };
+
+  /* Resistência da peça (30/10/2026): o Mestre escolhe o valor no leque
+     (bolha Resistência). A mesma regra da ficha (ajustarResistenciaDaPeca):
+     de 0 ao máximo do catálogo, gravado em `res`. */
+  const ajustarResistencia = (instanceId, valor) => {
+    setInv((cur) => ({
+      ...cur,
+      itens: cur.itens.map((it) => {
+        if (it.instanceId !== instanceId) return it;
+        // Gravar a durabilidade também conserta a peça quebrada (comResistencia).
+        return comResistencia(it, catalogoBySlug[it.slug], valor);
+      }),
+    }));
+  };
+
+  // O kit de armadura vira as peças soltas no mesmo lugar (30/10/2026).
+  const desmontarOKit = (instanceId) => {
+    setDetalhesId(null);
+    setInv((cur) => {
+      const itens = desmontarKit(cur.itens, instanceId, catalogoBySlug);
+      return itens === cur.itens ? cur : { ...cur, itens };
+    });
   };
 
   /* Sagração (15/09/2026): o Mestre sobe ou desce o bônus do item na escada
@@ -1233,6 +1280,11 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     const cat = catalogoBySlug[slug];
     const n = Math.max(1, Math.round(Number(qtd) || 1));
     if (!cat) return;
+    if (inv && bauEstourou(inv.itens, adicionarAoInventario(inv, slug, n).itens)) {
+      setDarAberto(false);
+      avisar(textoInventarioCheio(lang === 'en'), 'recusa');
+      return;
+    }
     setInv((cur) => (cur ? adicionarAoInventario(cur, slug, n) : cur));
     setDarAberto(false);
     avisar((lang === 'en' ? 'Given: ' : 'Entregue: ') + cat.nome + (n > 1 ? ' ×' + n : ''), 'ok');
@@ -1257,6 +1309,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     setAvisoInv({ texto, tipo, id: Date.now() });
     avisoTimerRef.current = setTimeout(() => setAvisoInv(null), 3200);
   };
+  avisoCheioRef.current = () => avisar(textoInventarioCheio(lang === 'en'), 'recusa');
   const moverCasa = (instanceId, casa) => {
     setInv((cur) => {
       if (!cur) return cur;
@@ -1488,7 +1541,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       pjsAtualizados.forEach((p) => { if (!g.sujo(p.id)) g.carregar(p.id, invComPadroes(p.inventario), p.inventario_versao); });
       // Atualizar inv local do PJ remetente
       const pjAtual = pjsAtualizados.find((p) => p.id === selectedId);
-      if (pjAtual) setInv(g.atual(pjAtual.id));
+      if (pjAtual) setInvBruto(g.atual(pjAtual.id));
     }
     return { ok: true };
   };
@@ -1508,7 +1561,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       const g = gravadorRef.current;
       pjsAtualizados.forEach((p) => { if (!g.sujo(p.id)) g.carregar(p.id, invComPadroes(p.inventario), p.inventario_versao); });
       const pjAtual = pjsAtualizados.find((p) => p.id === selRef.current);
-      if (pjAtual) setInv(g.atual(pjAtual.id));
+      if (pjAtual) setInvBruto(g.atual(pjAtual.id));
     }
   };
 
@@ -1521,6 +1574,26 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   /* VENDER = PROPOR AO COMERCIANTE (23/10/2026): o jogador diz onde vende
      (a cidade onde está, de saída) e quanto pede; o Mestre aceita,
      contrapropõe ou recusa. Aceito, o item entra na loja daquela cidade. */
+  /* RETIRAR DA LOJA PELO LEQUE (31/10/2026, usuário: "O lirael possui itens à
+     venda que eu não consigo encontrar qual loja é. Remover da loja, deve ser
+     um botão no leque sem precisar encontrar qual loja é"). O anúncio sem
+     cidade não aparece em loja nenhuma — a loja só mostra a da cidade onde a
+     mesa está —, então a peça ficava travada. A instância já sabe o anúncio
+     (`anuncio_id`); a RPC é a mesma da loja. */
+  const retirarDaLoja = async (instance) => {
+    setDetalhesId(null);
+    const { data, error } = await supabaseClient.rpc('retirar_item_loja', { p_anuncio_id: instance.anuncio_id });
+    if (error || !data || !data.ok) {
+      const _motivo = (typeof motivoAnuncioLabel === 'function' ? motivoAnuncioLabel : window.motivoAnuncioLabel);
+      const m = (data && data.motivo) || (error && error.message);
+      avisar(_motivo ? _motivo(m, lang) : String(m || ''), 'recusa');
+      return;
+    }
+    await recarregarInventario();
+    const nome = (catalogoBySlug[instance.slug] && catalogoBySlug[instance.slug].nome) || instance.slug;
+    avisar(lang === 'en' ? `${nome} is back in the inventory.` : `${nome} voltou ao inventário.`);
+  };
+
   const publicarNaLoja = async (instanceId, quantidade, precoLatao, lugar) => {
     const { data, error } = await supabaseClient.rpc('propor_venda_loja', {
       p_pj_id: selectedId, p_instance_id: instanceId,
@@ -1543,6 +1616,25 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (error || !data?.ok) {
       return { ok: false, motivo: error?.message || data?.motivo || 'erro_desconhecido' };
     }
+    await recarregarPjsDepoisDaRpc();
+    return { ok: true, magiaNome: data.magia_nome, nivel: data.nivel };
+  };
+
+  /* APRENDER UMA RECEITA (31/10/2026, usuário: "Quando o personagem aprende
+     uma receita, o item da receita some e o personagem fica com a receita
+     salva para fabricar quantos itens quiser"). A RPC aprender_receita tira
+     uma unidade do item e grava em personagens.receitas_aprendidas, numa
+     transação só — ver scripts/sql/aprender-receita-2026-10-31.sql. */
+  const aprenderReceita = async (instanceId) => {
+    const { data, error } = await supabaseClient.rpc('aprender_receita', { p_pj_id: selectedId, p_instance_id: instanceId });
+    if (error || !data?.ok) {
+      return { ok: false, motivo: error?.message || data?.motivo || 'erro_desconhecido' };
+    }
+    await recarregarPjsDepoisDaRpc();
+    return { ok: true };
+  };
+
+  async function recarregarPjsDepoisDaRpc() {
     const { data: pjsAtualizados } = await supabaseClient
       .from('personagens')
       .select(PJ_COLS)
@@ -1555,10 +1647,9 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       const g = gravadorRef.current;
       pjsAtualizados.forEach((p) => { if (!g.sujo(p.id)) g.carregar(p.id, invComPadroes(p.inventario), p.inventario_versao); });
       const pjAtual = pjsAtualizados.find((p) => p.id === selectedId);
-      if (pjAtual) setInv(g.atual(pjAtual.id));
+      if (pjAtual) setInvBruto(g.atual(pjAtual.id));
     }
-    return { ok: true, magiaNome: data.magia_nome, nivel: data.nivel };
-  };
+  }
 
   // Cálculo derivado — peso/carga (medidor único). O armazenamento por
   // container continua sendo tratado pelo capacidadeContainer (intacto).
@@ -1586,6 +1677,78 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     );
   }
 
+  const lequeInst = leque ? inv?.itens.find((it) => it.instanceId === leque.id) : null;
+  /* A janela do item e o leque do item são a MESMA DetalhesItemModal
+     (30/10/2026): as ações saem de um lugar só. `extra` é o que muda — o
+     leque, a etapa inicial, quem fecha. */
+  const detalheDe = (inst, extra, chave) => (
+    <DetalhesItemModal
+      key={chave || (bauLargo ? inst.instanceId : undefined)}
+      alvoPainel={bauLargo ? painelEl : null}
+      instance={inst}
+      catalogoBySlug={catalogoBySlug}
+      raca={racaPj}
+      slotsState={slotsState}
+      todosItens={inv.itens}
+      containersDisponiveis={containersDisponiveis}
+      pjsHistoria={pjsHistoria}
+      lang={lang}
+      onClose={() => { setVoltarPara(null); setDetalhesId(null); }}
+      onVoltar={voltarPara ? () => {
+        const volta = voltarPara;
+        setVoltarPara(null);
+        setDetalhesId(null);
+        if (volta.tipo === 'container') setContainerAberto(volta.id);
+        else setDetalhesId(volta.id);
+      } : undefined}
+      onEquipar={equipar}
+      onDesequipar={desequipar}
+      onVestir={vestir}
+      onDespir={despir}
+      onUsar={solicitarUsar}
+      onPreparar={prepararAnimal}
+      onPrepararCarne={prepararCarneAcao}
+      criaturaMontaria={criaturaDoItem(catalogoBySlug[inst.slug], criaturasMontaria)}
+      onMontar={montar}
+      onDesmontar={desmontar}
+      onAprenderMagia={authUserIsOwner ? aprenderComItem : undefined}
+      onAprenderReceita={authUserIsOwner ? aprenderReceita : undefined}
+      pjAprendiz={(pjs || []).find((x) => x.id === selectedId) || null}
+      usuario={(() => { const p = (pjs || []).find((x) => x.id === selectedId); return p ? { nome: [p.nome, p.sobrenome].filter(Boolean).join(' '), foto_url: p.foto_url } : null; })()}
+      magiasDb={magiasDb}
+      tecnicasDb={tecnicasDb}
+      vinculos={vinculos}
+      podeVender={{ ehDono: authUserIsOwner, historiaId }}
+      onVender={publicarNaLoja}
+      lugarAtual={lugarAtual}
+      /* A proposta em andamento (cancelar; aceitar ou recusar a contraproposta). */
+      onProposta={authUserIsOwner ? async (acao, anuncioId) => {
+        const { data, error } = acao === 'cancelar'
+          ? await supabaseClient.rpc('retirar_item_loja', { p_anuncio_id: anuncioId })
+          : await supabaseClient.rpc('responder_contraproposta', { p_anuncio_id: anuncioId, p_aceitar: acao === 'aceitar' });
+        await recarregarInventario();
+        if (error || !data || !data.ok) return { ok: false, motivo: (data && data.motivo) || (error && error.message) };
+        setDetalhesId(null);
+        return { ok: true };
+      } : null}
+      /* TRANSFERIR de volta à janela do item (23/10/2026): "Eu não vi o
+         botão de ação de transferir item de personagem." Arrastar até o
+         card do amigo continua valendo; o botão é o caminho à vista. */
+      pjOrigemId={authUserIsOwner ? selectedId : null}
+      onTransferir={authUserIsOwner ? (inst, destino) => { setDetalhesId(null); soltarNoAmigo(inst, destino); } : null}
+      onEnvenenar={envenenar}
+      onDestruir={solicitarDestruir}
+      onBonus={isMestre ? ajustarBonus : undefined}
+      onResistencia={isMestre ? ajustarResistencia : undefined}
+      onDesmontarKit={authUserIsOwner || isMestre ? desmontarOKit : undefined}
+      onRetirarDaLoja={authUserIsOwner || isMestre ? retirarDaLoja : undefined}
+      onMoverParaContainer={solicitarMover}
+      onRemoverDoContainer={(id) => solicitarMover(id, null)}
+      onAbrirDetalhesFilho={(id) => { setVoltarPara({ tipo: 'item', id: detalhesId }); setDetalhesId(id); }}
+      {...extra}
+    />
+  );
+
   return (
     <div className="inv">
       {!pjIdFixo && pjs.length > 1 && (
@@ -1608,7 +1771,14 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             itens={inv.itens}
             catalogoBySlug={catalogoBySlug}
             mudarQtd={mudarQtd}
-            onAbrirDetalhes={(id) => { setVoltarPara(null); setDetalhesId(id); }}
+            onAbrirDetalhes={(id) => { setVoltarPara(null); setAcaoInicial(null); setDetalhesId(id); }}
+            /* No inventário largo, o clique também mostra o item no painel
+               (30/10/2026, usuário: "Apenas na loja e inventário"). */
+            onAbrirLeque={(id, ancora) => {
+              setLeque({ id, ancora });
+              if (bauLargo) { setVoltarPara(null); setAcaoInicial(null); setDetalhesId(id); }
+            }}
+            lequeId={leque ? leque.id : null}
             onAbrirContainer={(id) => setContainerAberto(id)}
             onSoltarNoAmigo={authUserIsOwner ? soltarNoAmigo : null}
             lang={lang}
@@ -1629,15 +1799,18 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
               {!(detalhesId && instanceDetalhes) && (
                 <div className="bau-painel-vazio">
                   <i className="ti ti-hand-click" aria-hidden="true" />
+                  {/* 31/10/2026, texto do usuário. */}
                   <p>{lang === 'en'
-                    ? 'Choose an item to see it here. Drag to move it; drop it on a container to store it.'
-                    : 'Escolha um item para vê-lo aqui. Arraste para mudar de lugar; solte sobre um recipiente para guardar.'}</p>
+                    ? 'Select an item to see its details here.'
+                    : 'Selecione um item para ver seus detalhes aqui.'}</p>
                 </div>
               )}
             </aside>
           )}
           </div>
-          <BauCargaRodape carga={carga} lang={lang} />
+          {rodapeDaFicha
+            ? ReactDOM.createPortal(<PesoNoRodape carga={carga} lang={lang} />, rodapeDaFicha)
+            : <BauCargaRodape carga={carga} lang={lang} />}
           {avisoInv && (
             <div key={avisoInv.id} className={'inv-aviso inv-aviso--' + avisoInv.tipo} role="status">
               <i className={'ti ' + (avisoInv.tipo === 'ok' ? 'ti-package-import' : 'ti-alert-triangle')} aria-hidden="true" />
@@ -1653,68 +1826,24 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         {saving === 'error'  && (lang === 'en' ? 'Save failed' : 'Falha ao salvar')}
       </div> */}
 
-      {detalhesId && instanceDetalhes && (!bauLargo || painelEl) && (
-        <DetalhesItemModal
-          key={bauLargo ? detalhesId : undefined}
-          alvoPainel={bauLargo ? painelEl : null}
-          instance={instanceDetalhes}
-          catalogoBySlug={catalogoBySlug}
-          raca={racaPj}
-          slotsState={slotsState}
-          todosItens={inv.itens}
-          containersDisponiveis={containersDisponiveis}
-          pjsHistoria={pjsHistoria}
-          lang={lang}
-          onClose={() => { setVoltarPara(null); setDetalhesId(null); }}
-          onVoltar={voltarPara ? () => {
-            const volta = voltarPara;
-            setVoltarPara(null);
-            setDetalhesId(null);
-            if (volta.tipo === 'container') setContainerAberto(volta.id);
-            else setDetalhesId(volta.id);
-          } : undefined}
-          onEquipar={equipar}
-          onDesequipar={desequipar}
-          onVestir={vestir}
-          onDespir={despir}
-          onUsar={solicitarUsar}
-          onPreparar={prepararAnimal}
-          onPrepararCarne={prepararCarneAcao}
-          criaturaMontaria={criaturaDoItem(catalogoBySlug[instanceDetalhes.slug], criaturasMontaria)}
-          onMontar={montar}
-          onDesmontar={desmontar}
-          onAprenderMagia={authUserIsOwner ? aprenderComItem : undefined}
-          pjAprendiz={(pjs || []).find((x) => x.id === selectedId) || null}
-          usuario={(() => { const p = (pjs || []).find((x) => x.id === selectedId); return p ? { nome: [p.nome, p.sobrenome].filter(Boolean).join(' '), foto_url: p.foto_url } : null; })()}
-          magiasDb={magiasDb}
-          tecnicasDb={tecnicasDb}
-          vinculos={vinculos}
-          podeVender={{ ehDono: authUserIsOwner, historiaId }}
-          onVender={publicarNaLoja}
-          lugarAtual={lugarAtual}
-          /* A proposta em andamento (cancelar; aceitar ou recusar a contraproposta). */
-          onProposta={authUserIsOwner ? async (acao, anuncioId) => {
-            const { data, error } = acao === 'cancelar'
-              ? await supabaseClient.rpc('retirar_item_loja', { p_anuncio_id: anuncioId })
-              : await supabaseClient.rpc('responder_contraproposta', { p_anuncio_id: anuncioId, p_aceitar: acao === 'aceitar' });
-            await recarregarInventario();
-            if (error || !data || !data.ok) return { ok: false, motivo: (data && data.motivo) || (error && error.message) };
-            setDetalhesId(null);
-            return { ok: true };
-          } : null}
-          /* TRANSFERIR de volta à janela do item (23/10/2026): "Eu não vi o
-             botão de ação de transferir item de personagem." Arrastar até o
-             card do amigo continua valendo; o botão é o caminho à vista. */
-          pjOrigemId={authUserIsOwner ? selectedId : null}
-          onTransferir={authUserIsOwner ? (inst, destino) => { setDetalhesId(null); soltarNoAmigo(inst, destino); } : null}
-          onEnvenenar={envenenar}
-          onDestruir={solicitarDestruir}
-          onBonus={isMestre ? ajustarBonus : undefined}
-          onMoverParaContainer={solicitarMover}
-          onRemoverDoContainer={(id) => solicitarMover(id, null)}
-          onAbrirDetalhesFilho={(id) => { setVoltarPara({ tipo: 'item', id: detalhesId }); setDetalhesId(id); }}
-        />
-      )}
+      {detalhesId && instanceDetalhes && (!bauLargo || painelEl) && detalheDe(instanceDetalhes, {
+        // A etapa vale só para o item que o leque pediu.
+        acaoInicial: acaoInicial && acaoInicial.id === instanceDetalhes.instanceId ? acaoInicial : null,
+      })}
+      {lequeInst && detalheDe(lequeInst, {
+        alvoPainel: null,
+        onClose: () => setLeque(null),
+        leque: {
+          ancora: leque.ancora,
+          comPainel: bauLargo,
+          // A etapa abre na janela de sempre — no painel, no inventário largo.
+          onJanela: (chave) => {
+            setLeque(null); setVoltarPara(null);
+            setAcaoInicial(chave ? { chave, n: Date.now(), id: lequeInst.instanceId } : null);
+            setDetalhesId(lequeInst.instanceId);
+          },
+        },
+      }, 'leque-' + lequeInst.instanceId)}
 
       {containerAberto && instanceContainer && (
         <ContainerModal
@@ -1913,6 +2042,34 @@ function BauCargaRodape({ carga, lang }) {
       {carga.over && <span className="bau-carga-aviso">{en ? 'Overloaded' : 'Sobrecarregado'}</span>}
       <span className="bau-carga-num">{fmtNum(carga.peso)}<span>/{fmtNum(carga.capacidade)}</span></span>
     </div>
+  );
+}
+
+/* O PESO NO TRILHO DE BAIXO DA FICHA (31/10/2026, usuário: "O trilho
+   inferior em loja/inventário deve ser peso e não experiência"). O mesmo
+   desenho da Experiência — rótulo com ícone de ouro, a barra fina e o número —
+   com as classes dela (.fp-bar-*), para o trilho vestir os dois igual. */
+function PesoNoRodape({ carga, lang }) {
+  const en = lang === 'en';
+  const pct = Math.max(0, Math.min(100, carga.pct || 0));
+  const nivel = carga.over ? 'over' : (carga.pct > 75 ? 'pesado' : 'ok');
+  return (
+    <>
+      <span className="fp3-rodape-rot">
+        <i className="ti ti-weight" aria-hidden="true" />
+        <span className="fp3-rodape-rot-txt">{en ? 'Weight' : 'Peso'}</span>
+      </span>
+      <div className="fp-bars">
+        <div className="fp-bar-row">
+          <div className="fp-bar-pill" data-nivel={nivel} role="meter" aria-label={en ? 'Weight' : 'Peso'}
+            aria-valuemin={0} aria-valuemax={Math.round(carga.capacidade)} aria-valuenow={Math.round(carga.peso)}
+            aria-valuetext={carga.over ? (en ? 'Overloaded' : 'Sobrecarregado') : undefined}>
+            <div className="fp-bar-track"><div className="fp-bar-fill" style={{ width: pct + '%' }} /></div>
+            <span className="fp-bar-num" aria-hidden="true">{fmtNum(carga.peso)}<i>/{fmtNum(carga.capacidade)}</i></span>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -2263,7 +2420,7 @@ function useGridDimensions() {
 /* `compacta` (22/10/2026, "Baú com painel"): a grade tem só as linhas que os
    itens ocupam e mais uma livre, em vez de encher a altura da tela de casas
    vazias. `selecionadoId`: o item aberto no painel ao lado fica marcado. */
-function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirContainer, lang, onMoverCasa, onGuardarEm, onSoltarNoAmigo, lugar = null, semFerramentas = false, compacta = false, selecionadoId = null, moedasNoTrilho = null, acaoNoTrilho = null }) {
+function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbrirLeque = null, lequeId = null, onAbrirContainer, lang, onMoverCasa, onGuardarEm, onSoltarNoAmigo, lugar = null, semFerramentas = false, compacta = false, selecionadoId = null, moedasNoTrilho = null, acaoNoTrilho = null }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   const en = lang === 'en';
   const [busca, setBusca] = useState('');
@@ -2458,17 +2615,20 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch (_) {}
   }, [fecharTip]);
 
-  // Clique abre detalhes. O click sintético pós-arraste é barrado antes daqui,
-  // na fase de captura do onClickCapture do .inv-grid-wrap (via suppressClickRef).
-  const onCardClick = React.useCallback((instanceId) => {
+  // Clique abre o leque do item (30/10/2026) — ou, sem ele, os detalhes. O
+  // click sintético pós-arraste é barrado antes daqui, na fase de captura do
+  // onClickCapture do .inv-grid-wrap (via suppressClickRef).
+  const onCardClick = React.useCallback((instanceId, ancora) => {
     if (dragRef.current) return;
     // Limpa o estado de "segurar" antes de abrir o modal — evita que o pointerdown
     // do card (que disparou este clique) fique preso caso o modal consuma o pointerup
     // correspondente (ex.: backdrop ou botão X sobre o card por trás).
     setHoldingId(null);
     pointerStartRef.current = null;
-    onAbrirDetalhes(instanceId);
-  }, [onAbrirDetalhes]);
+    fecharTip();
+    if (onAbrirLeque && ancora) onAbrirLeque(instanceId, ancora);
+    else onAbrirDetalhes(instanceId);
+  }, [onAbrirDetalhes, onAbrirLeque, fecharTip]);
 
   // Equipados (it.slot) e vestidos (it.vestido) aparecem aqui junto com o
   // resto da bolsa — só o que está DENTRO de um container some daqui (tem
@@ -2525,7 +2685,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   // Mostra apenas o NOME do item (a descrição vive no modal de detalhes).
   const tipContent = (it, cat) => {
     const b = bonusDoItem(it);
-    const nomeV = cat ? nomeComVeneno(cat.nome, it) : '';
+    const nomeV = cat ? nomeComVeneno(nomeDaPecaFabricada(it, cat), it) : '';
     return { title: cat ? (b > 0 ? `${nomeV} +${b}` : nomeV) : `(? ${it.slug})` };
   };
 
@@ -2562,14 +2722,14 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         data-slot-idx={idx}
         className={
           'inv-card'
-          + (cat?.magico ? ' inv-card--magico' : '')
+          + (itemEhMagico(cat, it) ? ' inv-card--magico' : '')
           + (isBeingDragged ? ' inv-card--dragging' : '')
           + (isDropTarget ? ' inv-card--drop-target' : '')
           + (isHolding ? ' inv-card--holding' : '')
           + extra
         }
         style={{ touchAction: 'none' }}
-        onClick={() => onCardClick(it.instanceId)}
+        onClick={(e) => onCardClick(it.instanceId, e.currentTarget)}
         onMouseEnter={(e) => abrirTipSafe(e, tipContent(it, cat))}
         onMouseLeave={fecharTip}
         onPointerDown={(e) => onCardPointerDown(e, idx, it.instanceId)}
@@ -2600,9 +2760,8 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
   };
 
   const renderItemCard = (it, cat, idx, extra = '') => {
-    const resMax = Number(cat?.resistencia || 0);
-    const resAtual = Number.isFinite(Number(it.res))
-      ? Math.max(0, Math.min(resMax, Number(it.res))) : resMax;
+    // Catálogo + Sagração; a peça quebrada lê 0 (durabilidadeDaPeca, 30/10/2026).
+    const { max: resMax, atual: resAtual } = durabilidadeDaPeca(it, cat);
     const resPct = resMax > 0 ? Math.round((resAtual / resMax) * 100) : 0;
     const isBeingDragged = drag && drag.fromIdx === idx;
     const isDropTarget = overIdx === idx && drag && drag.fromIdx !== idx;
@@ -2614,14 +2773,14 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
         data-slot-idx={idx}
         className={
           'inv-card'
-          + (cat?.magico ? ' inv-card--magico' : '')
+          + (itemEhMagico(cat, it) ? ' inv-card--magico' : '')
           + (isBeingDragged ? ' inv-card--dragging' : '')
           + (isDropTarget ? ' inv-card--drop-target' : '')
           + (isHolding ? ' inv-card--holding' : '')
           + extra
         }
         style={{ touchAction: 'none' }}
-        onClick={() => onCardClick(it.instanceId)}
+        onClick={(e) => onCardClick(it.instanceId, e.currentTarget)}
         onMouseEnter={(e) => abrirTipSafe(e, tipContent(it, cat))}
         onMouseLeave={fecharTip}
         onPointerDown={(e) => onCardPointerDown(e, idx, it.instanceId)}
@@ -2642,7 +2801,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
             pastilha de 21px um glifo desenhado sai menor que a letra do corpo
             do texto. A classe `.inv-faisca` fica — ela é a POSIÇÃO (canto
             superior direito, oposto aos selos de estado), não o desenho. */}
-        {cat?.magico && (
+        {itemEhMagico(cat, it) && (
           <span className="inv-faisca" role="img" aria-label={en ? 'Magic' : 'Mágico'}>
             <span className="inv-pill-letra" aria-hidden="true">M</span>
           </span>
@@ -2700,13 +2859,16 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     const guardar = !!(arrastado && arrastado.instanceId !== it.instanceId && overIdx === idx
       && ehContainer(cat) && !ehContainer(catalogoBySlug[arrastado.slug]));
     const extra = (apagado ? ' inv-card--apagado' : '') + (guardar ? ' inv-card--guardar' : '')
-      + (selecionadoId && selecionadoId === it.instanceId ? ' inv-card--escolhido' : '');
+      + (selecionadoId && selecionadoId === it.instanceId ? ' inv-card--escolhido' : '')
+      + (lequeId && lequeId === it.instanceId ? ' inv-card--escolhido inv-card--leque' : '');
     return ehContainer(cat)
       ? renderContainerCard(it, cat, idx, extra)
       : renderItemCard(it, cat, idx, extra);
   };
 
-  if (itensVisiveis.length === 0 && !lugar) {
+  /* Na ficha (com o trilho), a mochila vazia mostra a grade vazia: o trilho
+     com a busca, as moedas e a carga não pode sumir junto (31/10/2026). */
+  if (itensVisiveis.length === 0 && !lugar && !alvoTrilho) {
     return (
       <div className="loja-warn-empty">
         <span>{en ? 'You have no possessions.' : 'Você não tem nenhum pertence.'}</span>
@@ -2751,7 +2913,15 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           </div>
         </div>
         );
-        return alvoTrilho ? ReactDOM.createPortal(trilho, alvoTrilho) : trilho;
+        /* SEM BUSCA E SEM MOEDAS NO TRILHO DA FICHA (02/11/2026, usuário: "No
+           inventário do trilho superior, remova os botões de moeda e de
+           buscar"). Lá fica só a ação do Mestre, quando há. */
+        if (alvoTrilho) {
+          return acaoNoTrilho ? ReactDOM.createPortal(
+            <div className="cartoes-barra inv-trilho"><div className="best-header-acoes">{acaoNoTrilho}</div></div>,
+            alvoTrilho) : null;
+        }
+        return trilho;
       })()}
       {/* ── Busca + chips de categoria — mesmo padrão best-toolbar do bestiário ── */}
       {!semFerramentas && !moedasNoTrilho && (
@@ -2805,6 +2975,13 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
           ? Math.max(totalSlots || cols * LINHAS_BAU, Math.ceil((maiorCasa + 1) / cols) * cols + cols)
           : Math.max(totalSlots, Math.ceil((maiorCasa + 1) / cols) * cols);
         if (posicionados.length >= total) total += cols;
+        /* O BAÚ TEM 80 CASAS, FIXAS (30/10/2026, usuário: "O inventário do
+           personagem deve ter 80 casas fixas no máximo"). Só a grade de fora
+           (`lugar` nulo) — recipiente tem as casas dele. Nem encolhe com a
+           tela nem cresce com os itens: 10 colunas × 8 fileiras no
+           computador; com menos colunas, mais fileiras. Item gravado numa
+           casa além da 80ª (dado antigo) ainda aparece, para nada sumir. */
+        if (!lugar) total = Math.max(INV_CASAS_MAX, maiorCasa + 1);
         return (
           <div
             ref={setGridEl}
@@ -3648,12 +3825,11 @@ function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fe
       {lista.map((it) => {
         const cat = catalogoBySlug[it.slug];
         const nome = (cat && cat.nome) || it.slug;
-        const resMax = Number((cat && cat.resistencia) || 0);
-        const resAtual = Number.isFinite(Number(it.res)) ? Math.max(0, Math.min(resMax, Number(it.res))) : resMax;
+        const { max: resMax, atual: resAtual } = durabilidadeDaPeca(it, cat);
         const resPct = resMax > 0 ? Math.round((resAtual / resMax) * 100) : 0;
         return (
           <button key={it.instanceId} type="button" data-filho={it.instanceId}
-            className={'inv-card' + (cat && cat.magico ? ' inv-card--magico' : '')}
+            className={'inv-card' + (itemEhMagico(cat, it) ? ' inv-card--magico' : '')}
             onClick={() => onAbrir && onAbrir(it.instanceId)}
             aria-label={nome + (it.quantidade > 1 ? ' ×' + it.quantidade : '')}
             {...propsTip(abrirTip, fecharTip, { title: nome })}>
@@ -3661,7 +3837,7 @@ function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fe
             <span className="inv-card-head">
               <span className="inv-card-ic"><ItemIcone cat={cat} icon={invItemIcon(cat)} /></span>
             </span>
-            {cat && cat.magico && (
+            {itemEhMagico(cat, it) && (
               <span className="inv-faisca" role="img" aria-label={en ? 'Magic' : 'Mágico'}>
                 <span className="inv-pill-letra" aria-hidden="true">M</span>
               </span>
@@ -3678,10 +3854,181 @@ function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fe
   );
 }
 
+/* ============================================================
+   O LEQUE DO ITEM (30/10/2026)
+   ============================================================
+   "Ao clicar em um item, abre vários círculos ao redor do item com as opções
+   do item [...] Os círculos que saem do item devem ter uma animação de
+   movimentação bonita e elegante." Aprovado na prévia
+   (preview/menu-radial.html): "Ficou muito bom, pode aplicar."
+
+   As ações NÃO são recalculadas aqui: quem monta a lista é a própria
+   DetalhesItemModal, em modo `leque` — as mesmas regras, os mesmos
+   bloqueios e os mesmos motivos da janela. Este componente só desenha.
+
+   O movimento: cada bolha mora num ângulo e numa distância (--leque-a e
+   --leque-r, propriedades registradas no index.css). As duas transicionam
+   juntas, e girar enquanto se afasta desenha um ARCO, não uma reta. Saem
+   uma a uma (--i) e voltam na ordem inversa (--j). O balão é o do sistema
+   (PortalTooltip). */
+const LEQUE_BOLHA = 38;
+const LEQUE_RAIO = 68;
+const LEQUE_FECHA_MS = 260;
+// Ações que se fazem sem pergunta: o leque executa e some, sem abrir janela.
+const LEQUE_IMEDIATAS = new Set(['equipar', 'desequipar', 'vestir', 'despir', 'montar', 'desmontar']);
+
+/* Os ângulos das bolhas, em graus (0 = direita, -90 = cima). Passo mínimo:
+   o ângulo em que duas bolhas ficam com 8px de folga. Muitas ações viram
+   roda inteira; poucas abrem um leque para o lado que cabe na tela,
+   preferindo "para cima". Pura. */
+function lequeAngulos(n, cx, cy, largura, altura, raio = LEQUE_RAIO) {
+  // `raio`: o desta roda, que cresce com muitas bolhas (ver LequeDoItem).
+  const passo = 2 * Math.asin((LEQUE_BOLHA + 8) / 2 / raio) * 180 / Math.PI;
+  if (passo * n >= 330) return Array.from({ length: n }, (_, i) => -90 + i * 360 / n);
+  const span = passo * (n - 1);
+  const m = LEQUE_BOLHA / 2 + 10;
+  let melhor = null;
+  for (let d = 0; d < 360; d += 10) {
+    const centro = -90 + (d <= 180 ? d : d - 360);
+    const angs = Array.from({ length: n }, (_, i) => centro - span / 2 + i * passo);
+    let folga = Infinity;
+    for (const a of angs) {
+      const r = a * Math.PI / 180;
+      const x = cx + Math.cos(r) * raio, y = cy + Math.sin(r) * raio;
+      folga = Math.min(folga, x - m, largura - m - x, y - m, altura - m - y);
+    }
+    const nota = (folga >= 0 ? 1000 : folga) - Math.abs(centro + 90) * 0.5;
+    if (!melhor || nota > melhor.nota) melhor = { nota, angs };
+  }
+  return melhor.angs;
+}
+
+function LequeDoItem({ acoes, ancora, rotulo, onEscolher, onClose }) {
+  const [aberto, setAberto] = useState(false);
+  const [tip, setTip] = useState(null);
+  const bolhasRef = React.useRef([]);
+  const saindoRef = React.useRef(false);
+  const [geo] = useState(() => {
+    const r = ancora.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    /* Com muitas bolhas (os 11 degraus da Resistência, 30/10/2026) a roda
+       abre o raio até caberem todas com folga, em vez de encostar uma na
+       outra. Até 9 bolhas o raio é o de sempre. */
+    const raio = Math.max(LEQUE_RAIO, Math.ceil(acoes.length * (LEQUE_BOLHA + 6) / (2 * Math.PI)));
+    return { cx, cy, raio, angs: lequeAngulos(acoes.length, cx, cy, window.innerWidth, window.innerHeight, raio) };
+  });
+
+  // Fecha recolhendo as bolhas; quem chama o onClose é o fim da volta.
+  const dispensar = React.useCallback(() => {
+    if (saindoRef.current) return;
+    saindoRef.current = true;
+    setTip(null);
+    setAberto(false);
+    // O foco estava numa bolha: volta para a casa, não para o <body>.
+    if (bolhasRef.current.includes(document.activeElement)) {
+      try { ancora.focus({ preventScroll: true }); } catch (_) {}
+    }
+    setTimeout(onClose, LEQUE_FECHA_MS + 24 * acoes.length);
+  }, [ancora, acoes.length, onClose]);
+
+  useEffect(() => {
+    // Dois quadros: o primeiro pinta as bolhas fechadas, o segundo dispara a ida.
+    let q2 = 0;
+    const q1 = requestAnimationFrame(() => { q2 = requestAnimationFrame(() => {
+      setAberto(true);
+      if (ancora.matches && ancora.matches(':focus-visible') && bolhasRef.current[0]) {
+        bolhasRef.current[0].focus({ preventScroll: true });
+      }
+    }); });
+    const tecla = (e) => { if (e.key === 'Escape') { e.stopPropagation(); dispensar(); } };
+    // Rolar ou redimensionar tira a casa do lugar: o leque sai sem animação.
+    const seco = () => { saindoRef.current = true; onClose(); };
+    window.addEventListener('keydown', tecla, true);
+    window.addEventListener('resize', seco);
+    window.addEventListener('scroll', seco, true);
+    return () => {
+      cancelAnimationFrame(q1); cancelAnimationFrame(q2);
+      window.removeEventListener('keydown', tecla, true);
+      window.removeEventListener('resize', seco);
+      window.removeEventListener('scroll', seco, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('inv-leque-aberto', aberto);
+    return () => document.body.classList.remove('inv-leque-aberto');
+  }, [aberto]);
+
+  const mostrarTip = (a, i) => {
+    const rad = geo.angs[i] * Math.PI / 180, meio = LEQUE_BOLHA / 2;
+    const bx = geo.cx + Math.cos(rad) * geo.raio, by = geo.cy + Math.sin(rad) * geo.raio;
+    // Acima da bolha; abaixo dela quando em cima não há espaço.
+    const abaixo = by - meio < 70;
+    const rect = { left: bx - meio, width: LEQUE_BOLHA, top: by - meio, bottom: by + meio };
+    const motivo = a.desativado && a.dica && a.dica.desc;
+    setTip({ rect, abaixo, content: motivo ? { title: a.rotulo, desc: motivo } : a.rotulo });
+  };
+
+  const escolher = (a, i) => {
+    const b = bolhasRef.current[i];
+    if (a.desativado) {
+      if (b) { b.classList.remove('is-batida'); void b.offsetWidth; b.classList.add('is-batida'); }
+      return;
+    }
+    saindoRef.current = true;
+    setTip(null);
+    onEscolher(a);
+  };
+
+  const girar = (e) => {
+    const lista = bolhasRef.current.filter(Boolean);
+    const k = lista.indexOf(document.activeElement);
+    const passo = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1
+      : (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 0;
+    if (!passo || !lista.length) return;
+    e.preventDefault();
+    lista[(k + passo + lista.length) % lista.length].focus();
+  };
+
+  const alvo = document.querySelector('.menestrel-ui') || document.body;
+  const n = acoes.length;
+  return ReactDOM.createPortal(
+    <div className="inv-leque" style={{ '--leque-bolha': LEQUE_BOLHA + 'px', '--leque-raio': geo.raio + 'px' }}>
+      <div className="inv-leque-veu" onClick={dispensar} onContextMenu={(e) => { e.preventDefault(); dispensar(); }} />
+      <div className={'inv-leque-roda' + (aberto ? ' is-aberto' : '')} role="menu" aria-label={rotulo}
+        style={{ left: geo.cx, top: geo.cy }} onKeyDown={girar}>
+        {acoes.map((a, i) => (
+          <button key={a.chave} type="button" role="menuitem"
+            ref={(el) => { bolhasRef.current[i] = el; }}
+            className={'inv-leque-bolha' + (a.perigo ? ' is-perigo' : '') + (a.ativo ? ' is-ativo' : '')}
+            aria-current={a.ativo ? 'true' : undefined}
+            data-acao-leque={a.chave}
+            aria-label={a.rotulo + (a.desativado && a.dica && a.dica.desc ? ' — ' + a.dica.desc : '')}
+            aria-disabled={a.desativado ? 'true' : undefined}
+            style={{ '--fim': geo.angs[i] + 'deg', '--i': i, '--j': n - 1 - i }}
+            onPointerEnter={() => mostrarTip(a, i)} onPointerLeave={() => setTip(null)}
+            onFocus={() => mostrarTip(a, i)} onBlur={() => setTip(null)}
+            onClick={() => escolher(a, i)}>
+            {/* `texto` no lugar do ícone: o leque do Bônus mostra o degrau ("+3"). */}
+            {/* `cor`: o disco da dificuldade nas Habilidades (02/11/2026). */}
+            {a.cor
+              ? <span className="inv-leque-disco" style={{ '--cor': a.cor }} aria-hidden="true" />
+              : a.texto
+              ? <span className="inv-leque-num" aria-hidden="true">{a.texto}</span>
+              : <i className={'ti ' + a.icone} aria-hidden="true" />}
+          </button>
+        ))}
+      </div>
+      <PortalTooltip tip={tip} />
+    </div>,
+    alvo
+  );
+}
+
 function DetalhesItemModal({
   instance, catalogoBySlug, raca, slotsState, todosItens,
   containersDisponiveis, pjsHistoria, lang,
-  onClose, onVoltar, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, pjAprendiz, magiasDb, tecnicasDb, vinculos, onDestruir,
+  onClose, onVoltar, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, onAprenderReceita, pjAprendiz, magiasDb, tecnicasDb, vinculos, onDestruir,
   onMoverParaContainer,
   onVestir, onDespir,
   criaturaMontaria, onMontar, onDesmontar,
@@ -3696,9 +4043,24 @@ function DetalhesItemModal({
   /* No inventário largo, a janela vira o painel ao lado da grade (22/10/2026). */
   alvoPainel = null,
   pjOrigemId = null, onTransferir = null, lugarAtual = '', onProposta = null,
+  /* O LEQUE (30/10/2026): `leque = { ancora, onJanela(chave) }` desenha as
+     ações em volta da casa (LequeDoItem) em vez da janela. `acaoInicial` é
+     a chave que a janela abre já escolhida — a etapa que o leque pediu. */
+  leque = null, acaoInicial = null,   // acaoInicial: { chave, n } — n deixa pedir a mesma de novo
+  /* Ações de quem chama, que a janela não conhece (a ficha: Abrir o
+     recipiente, Despir a peça). Cada uma traz o próprio onEscolher. */
+  lequeExtras = [],
+  /* (instanceId, valor) → grava a resistência da peça. Só o Mestre recebe
+     (30/10/2026): é ele quem ajusta, pela bolha Resistência do leque. */
+  onResistencia = null,
+  /* (instanceId) → o kit de armadura vira as peças (desmontarKit, 30/10/2026). */
+  onDesmontarKit = null,
+  /* (instance) → retira o anúncio da loja e devolve a peça (31/10/2026). */
+  onRetirarDaLoja = null,
 }) {
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const [confirmandoDestruir, setConfirmandoDestruir] = useState(false);
+  const [erroReceita, setErroReceita] = useState(null);
   const [confirmandoUsar, setConfirmandoUsar] = useState(false);
   const [confirmandoPreparar, setConfirmandoPreparar] = useState(false);
   const [abaterErro, setAbaterErro] = useState(null);
@@ -3814,10 +4176,10 @@ function DetalhesItemModal({
   /* Itens de defesa mostram a RESISTÊNCIA nos ícones, junto de ocupa e
      absorção (pedido do usuário, 12/09/2026). O número é a resistência atual
      da instância (a mesma conta da barra do card); o máximo vai no tooltip. */
-  const resMaxItem = Number(cat.resistencia || 0);
-  const mostraResistencia = cat.grupo === 'Armaduras' && resMaxItem > 0;
-  const resAtualItem = Number.isFinite(Number(instance.res))
-    ? Math.max(0, Math.min(resMaxItem, Number(instance.res))) : resMaxItem;
+  const durItem = durabilidadeDaPeca(instance, cat);
+  const resMaxItem = durItem.max;
+  const mostraResistencia = cat.grupo === 'Armaduras' && (resMaxItem > 0 || durItem.quebrada);
+  const resAtualItem = durItem.atual;
 
   // Análise de equipar
   let podeEquipar = false, bloqueioEquipar = null, maosReq = null;
@@ -3906,6 +4268,11 @@ function DetalhesItemModal({
   const ensina = magiasQueOItemEnsina(cat, vinculos, catalogoBySlug, magiasDb);
   const ensinaTec = tecnicasQueOItemEnsina(cat, vinculos, catalogoBySlug, tecnicasDb);
   const ehPergaminhoQueEnsina = ehPergaminhoMagia || ehPergaminhoDeTecnica(cat);
+  /* A "Receita de …" (31/10/2026): aprender gasta o item e guarda a receita
+     no personagem (aprenderReceita, na tela do inventário). Já sabida, o
+     botão fica apagado e a dica diz por quê. */
+  const receitaDoItem = /^receita_/.test(String(cat.slug || '')) ? String(cat.slug).slice('receita_'.length) : null;
+  const receitaJaSabida = !!receitaDoItem && ((pjAprendiz && pjAprendiz.receitas_aprendidas) || []).includes(receitaDoItem);
   // Frasco alquímico e flecha não se usam pela mão (28/09/2026).
   const podeUsar = consumivel && !equipavel && !isContainer && !ehPergaminhoQueEnsina && !ehFlecha(cat)
     && !ehItemDeMagiaEmBatalha(cat);
@@ -4014,6 +4381,18 @@ function DetalhesItemModal({
     }),
     /* Aprender/Estudar (22/10/2026): sempre aparece quando o item ensina;
        o porquê de não dar mora na janela Estudar, linha a linha. */
+    acoesPesadas && receitaDoItem && onAprenderReceita && {
+      chave: 'aprender', icone: 'ti-school', rotulo: en ? 'Learn' : 'Aprender',
+      desativado: receitaJaSabida,
+      dica: receitaJaSabida
+        ? { title: en ? 'Learn' : 'Aprender', desc: en ? 'You already know this recipe.' : 'Você já sabe esta receita.' }
+        : (erroReceita ? { title: en ? 'Learn' : 'Aprender', desc: erroReceita } : null),
+      onClick: async () => {
+        const r = await onAprenderReceita(instance.instanceId);
+        if (r && r.ok) onClose();
+        else setErroReceita(en ? 'Could not learn the recipe.' : 'Não foi possível aprender a receita.');
+      },
+    },
     (ensina.length + ensinaTec.length) > 0 && {
       chave: ehPergaminhoQueEnsina ? 'aprender' : 'estudar',
       icone: 'ti-school',
@@ -4050,71 +4429,50 @@ function DetalhesItemModal({
     }))
     : acoesOrdenadas;
 
+  /* A ETAPA QUE O LEQUE PEDIU (30/10/2026): a janela nasce com ela aberta,
+     como se o ícone tivesse sido clicado aqui — uma vez só, ao montar. */
+  // O leque trocado pelo dos degraus do Bônus (30/10/2026) — ver o modo leque.
+  const [lequeBonus, setLequeBonus] = useState(false);
+  const [lequeRes, setLequeRes] = useState(false);
+  const acaoInicialFeita = React.useRef(null);
+  useEffect(() => {
+    if (!acaoInicial || acaoInicialFeita.current === acaoInicial) return;
+    acaoInicialFeita.current = acaoInicial;
+    const a = acoesDaJanela.find((x) => x.chave === acaoInicial.chave);
+    if (a && !a.desativado && a.onClick) a.onClick();
+  });
+
   // ── Linhas da INSTÂNCIA dentro de Características ──
   const ondeEsta = aVenda ? (proposta && proposta.status === 'proposta' ? (en ? 'Offer sent' : 'Proposta enviada')
       : proposta && proposta.status === 'contraproposta' ? (en ? 'Counteroffer' : 'Contraproposta')
       : (en ? 'For sale in the shop' : 'À venda na loja'))
-    : instance.montado ? (en ? 'Mounted' : 'Montado')
-    : instance.equipado ? (en ? 'Equipped' : 'Equipado') + (instance.slot && slotLabels[instance.slot] ? ` · ${slotLabels[instance.slot]}` : '')
-    : instance.vestido ? (en ? 'Worn' : 'Vestido')
+    /* "Remover o 'Equipado Mão'" (30/10/2026, usuário): a peça no corpo não
+       diz mais onde está — o boneco e o selo da casa já dizem. Fica o que
+       não se vê de outro jeito: à venda e dentro de um recipiente. */
+    : (instance.montado || instance.equipado || instance.vestido) ? null
     : containerAtualNome ? (en ? `In ${containerAtualNome}` : `Em ${containerAtualNome}`)
     : null;
   const linhasDaInstancia = Linha ? (
     <>
-      {ondeEsta && <Linha rotulo={en ? 'Where' : 'Onde está'} valor={ondeEsta} />}
-      {Number(instance.quantidade) > 1 && <Linha rotulo={en ? 'Quantity' : 'Quantidade'} valor={Number(instance.quantidade)} />}
+      {/* "Na descrição não precisa informar 'onde está' e 'quantidade'. Pois
+          a quantidade já está na casa." (usuário, 30/10/2026) — as duas linhas
+          saíram. `ondeEsta` segue calculado para quem precisar dele. */}
+      {void ondeEsta}
+      {/* Ferramenta da bancada (31/10/2026): "podem ser usados 10 vezes antes
+          de sumir". Só aparece depois do primeiro uso, quando há o que contar. */}
+      {instance.usos != null && (
+        <Linha rotulo={en ? 'Uses left' : 'Usos restantes'}
+          valor={`${instance.usos}/${window.USOS_FERRAMENTA || 10}`} />
+      )}
       {temElo(instance) && (
         <Linha rotulo={en ? 'Permanent bond' : 'Elo Permanente'}
           valor={<><i className="ti ti-link" aria-hidden="true" /> {instance.elo.conjurador_nome || (en ? 'yes' : 'sim')}</>} />
       )}
-      {/* Sagração (15/09/2026): todos veem; só o Mestre (onBonus) mexe. */}
-      {/* O seletor do bônus SOZINHO NA LINHA e em PÍLULA (27/09/2026): "O
-          seletor de aumentar bônus de uma arma deve ficar sozinho em uma linha,
-          e os cantos devem ser arredondados como nos outros seletores." Linha
-          larga (não divide a fileira com outra característica) e as classes do
-          QuantidadeStepper; os botões seguem pulando pelos degraus da tabela
-          (BONUS_ITEM_VALORES), por isso não é o componente em si. */}
-      {destinoBonus && (bonusItem > 0 || onBonus) && (
-        <Linha largo controle rotulo={(en ? 'Consecration' : 'Sagração') + ' · ' + (destinoBonus === 'dano' ? (en ? 'damage' : 'dano') : (en ? 'absorption' : 'absorção'))}
-          valor={onBonus ? (
-            /* ── O PRÓPRIO SELETOR DA LOJA (28/10/2026) ───────────────────
-                 "O seletor de preço da loja, e o seletor de bônus de sagração,
-                 ainda estão diferentes da quantidade em loja." (usuário)
-
-                 Na primeira passada eu só VESTI as classes do stepper numa
-                 marcação à mão — e marcação à mão volta a divergir na próxima
-                 vez que alguém mexer numa das duas. Agora é o QuantidadeStepper
-                 do sistema, o mesmo componente que a loja usa para Quantidade:
-                 não há mais como ficarem diferentes.
-
-                 A Sagração não soma de um em um, ela pula a escada 0 → 1 → 3 →
-                 5 → 7 → 9. Quem anda na escada é o ÍNDICE: o stepper conta de
-                 0 a 5, o `centro` mostra o valor do degrau, e `onBonus` recebe
-                 a direção que sempre recebeu. */
-            (() => {
-              const degrau = BONUS_ITEM_VALORES.indexOf(bonusItem);
-              const i = degrau < 0 ? 0 : degrau;
-              return (
-                <QuantidadeStepper
-                  className="det-bonus-sag"
-                  data-bonus={bonusItem}
-                  value={i}
-                  min={0}
-                  max={BONUS_ITEM_VALORES.length - 1}
-                  centro={<span className="det-bonus-val">+{bonusItem}</span>}
-                  onChange={(alvo) => onBonus(instance.instanceId, alvo > i ? 1 : -1)}
-                  label={en ? 'Consecration bonus' : 'Bônus de sagração'}
-                  propsMenos={{ 'aria-label': en ? 'Lower bonus' : 'Reduzir bônus' }}
-                  propsMais={{ 'aria-label': en ? 'Raise bonus' : 'Aumentar bônus' }}
-                />
-              );
-            })()
-          ) : (
-            <span className="det-bonus det-bonus-ctrl" data-bonus={bonusItem}>
-              <span className="det-bonus-val">+{bonusItem}</span>
-            </span>
-          )} />
-      )}
+      {/* A LINHA "BÔNUS" SAIU (30/10/2026, usuário: "Remova o campo bônus ao
+          selecionar o item no inventário, o mestre irá editar esse campo com
+          um novo menu circular no leque, chamado bônus"). O Mestre escolhe o
+          degrau da Sagração no leque (ver o modo leque, mais abaixo); todos
+          continuam vendo o +N no selo da casa. */}
       {/* Arma untada (28/09/2026): qual veneno e quantas ações ainda restam. */}
       {venenoDaArma(instance) && (
         <Linha rotulo={en ? 'Poison' : 'Veneno'}
@@ -4130,6 +4488,33 @@ function DetalhesItemModal({
      topo saiu da janela do item do inventário; onde está e quantidade viram as
      primeiras linhas da lista, como os demais números. */
   const passe = { topo: null, omitir: [] };
+  /* A PEÇA FABRICADA MOSTRA OS NÚMEROS DELA (31/10/2026, usuário: "a
+     descrição carregará as informações do item criado"). O grau da bancada
+     (fabricado.grau) já mexe na Defesa, Absorção, Resistência e Dano da
+     peça; a ficha do item mostra esses números, e a descrição diz quem fez e
+     com que resultado. A Sagração continua à parte, em linhasDaInstancia. */
+  const catDaPeca = (() => {
+    if (!instance.fabricado || typeof ajusteDeFabrica !== 'function') return cat;
+    const aj = ajusteDeFabrica(instance, cat);
+    const soma = (v, d) => (v == null && !d ? v : Math.max(0, Number(v || 0) + d));
+    const grau = (window.RESULTADOS_ACAO || []).find((x) => x.codigo === instance.fabricado.grau);
+    const quem = instance.fabricado.por;
+    const linha = en
+      ? `Made by ${quem || 'an artisan'}${grau ? ` — ${grau.en}` : ''}.`
+      : `Feita por ${quem || 'um artesão'}${grau ? ` — ${grau.pt}` : ''}.`;
+    return {
+      ...cat,
+      defesa: soma(cat.defesa, aj.defesa),
+      absorcao: soma(cat.absorcao, aj.absorcao),
+      resistencia: soma(cat.resistencia, aj.resistencia),
+      ...(aj.dano ? {
+        dano_l: Number(cat.dano_l || 0) + aj.dano,
+        dano_m: Number(cat.dano_m || 0) + aj.dano,
+        dano_p: Number(cat.dano_p || 0) + aj.dano,
+      } : {}),
+      descricao: [linha, cat.descricao].filter(Boolean).join(' '),
+    };
+  })();
   void _passeDoItem;
 
   // ── Seções da instância depois da magia: Conteúdo e Nota ──
@@ -4167,11 +4552,12 @@ function DetalhesItemModal({
     <>
       {secaoProposta}
       {/* RECIPIENTE (23/10/2026): a seção tem título e medidor de quanto
-          está ocupado, como a Carga do baú; vazio também aparece, com o
-          caminho para guardar. */}
+          está ocupado, como a Carga do baú; vazio também aparece, só com
+          o medidor. */}
       {isContainer && containerData.armazena > 0 && (() => {
         const { usado, armazena, tipoAceito, casas, usadas } = containerData;
         const pct = Math.min(100, (usado / armazena) * 100);
+        const pctCasas = casas > 0 ? Math.min(100, (usadas / casas) * 100) : 0;
         const cheio = usado >= armazena || usadas >= casas;
         return (
           <div className="best-secao det-recipiente">
@@ -4180,33 +4566,35 @@ function DetalhesItemModal({
                 itens cabem, o peso diz quanto o recipiente aguenta, e o que
                 estourar primeiro trava. Mostrar só um deles faria o outro
                 recusar sem explicação. */}
-            <span className="det-recip-medida" data-cheio={cheio ? '1' : undefined}
+            {/* DUAS BARRAS COMO A DA CARGA (31/10/2026, usuário: "adicione uma
+                barra igual carga, para casas. E as duas barras devem ocupar a
+                horizontal toda do card, adicione a palavra peso na barra de
+                peso"). Cada linha é rótulo · barra · número, o mesmo desenho
+                do rodapé do baú (BauCargaRodape). */}
+            <div className="det-recip-medida" data-cheio={cheio ? '1' : undefined}
               aria-label={en
                 ? `${usadas} of ${casas} slots, ${fmtNum(usado)} of ${fmtNum(armazena)} weight`
                 : `${usadas} de ${casas} casas, ${fmtNum(usado)} de ${fmtNum(armazena)} de peso`}>
-              <span className="det-recip-casas" aria-hidden="true">
-                {usadas}<span>/{casas}</span> {en ? 'slots' : 'casas'}
-              </span>
-              <span className="det-recip-barra" data-liquido={tipoAceito === 'L' ? '1' : undefined} aria-hidden="true">
-                <span style={{ width: pct + '%' }} />
-              </span>
-              <span className="det-recip-num" aria-hidden="true">{fmtNum(usado)}<span>/{fmtNum(armazena)}</span></span>
-            </span>
+              <div className="det-recip-linha" data-medida="casas" data-cheio={usadas >= casas ? '1' : undefined} aria-hidden="true">
+                <span className="det-recip-rot">{en ? 'Slots' : 'Casas'}</span>
+                <span className="det-recip-barra"><span style={{ width: pctCasas + '%' }} /></span>
+                <span className="det-recip-casas">{usadas}<span>/{casas}</span></span>
+              </div>
+              <div className="det-recip-linha" data-medida="peso" data-cheio={usado >= armazena ? '1' : undefined} aria-hidden="true">
+                <span className="det-recip-rot">{en ? 'Weight' : 'Peso'}</span>
+                <span className="det-recip-barra" data-liquido={tipoAceito === 'L' ? '1' : undefined}>
+                  <span style={{ width: pct + '%' }} />
+                </span>
+                <span className="det-recip-num">{fmtNum(usado)}<span>/{fmtNum(armazena)}</span></span>
+              </div>
+            </div>
             {hasContainerContent ? (
               /* O quadriculado do inventário (26/09/2026), no lugar da lista. */
               <GradeDoRecipiente filhos={containerData.filhos} catalogoBySlug={catalogoBySlug} lang={lang}
                 casas={containerData.casas}
                 onAbrir={onAbrirDetalhesFilho} abrirTip={abrirTip} fecharTip={fecharTip} />
-            ) : (
-              <p className="det-recip-vazio">
-                {tipoAceito === 'L'
-                  ? (en ? 'Empty. Holds liquids.' : 'Vazio. Guarda líquidos.')
-                  : (en ? 'Empty.' : 'Vazio.')}
-                {acoesPesadas && (en
-                  ? ' To store something, drag the item onto this container in the chest.'
-                  : ' Para guardar, arraste o item até este recipiente no baú.')}
-              </p>
-            )}
+            ) : null /* Vazio sem aviso nenhum (31/10/2026, pedidos do usuário):
+                        nem "Vazio…", nem "Guarda líquidos." — as barras em 0 dizem. */}
           </div>
         );
       })()}
@@ -4265,9 +4653,10 @@ function DetalhesItemModal({
         })}
       </div>);
   } else if (confirmandoPreparar) {
-    /* ABATER (28/09/2026): a carne do tipo da criatura, metade do peso, vai
-       para a loja da aventura à venda por você — não para a mochila. Quanto
-       rendeu, o servidor diz na mesa. */
+    /* ABATER (28/09/2026): a carne do tipo da criatura, metade do peso.
+       Desde 31/10/2026 vai para o INVENTÁRIO de quem abateu (usuário: "vai para
+       o inventário do personagem") — o anúncio sem cidade que ela virava não
+       aparecia em loja nenhuma. Quanto rendeu, o servidor diz na mesa. */
     const abater = async () => {
       setAbatendo(true); setAbaterErro(null);
       const r = await onPreparar(instance.instanceId);
@@ -4278,8 +4667,8 @@ function DetalhesItemModal({
         : (r && r.motivo) || (en ? 'Could not slaughter.' : 'Não foi possível abater.'));
     };
     corpoEtapa = etapa(
-      en ? `Slaughter ${cat.nome}? Its meat — half the animal's weight — goes to the adventure shop, for sale by you.`
-         : `Abater ${cat.nome}? A carne — metade do peso do animal — vai para a loja da aventura, à venda por você.`,
+      en ? `Slaughter ${cat.nome}? Its meat — half the animal's weight — goes to your inventory.`
+         : `Abater ${cat.nome}? A carne — metade do peso do animal — vai para o seu inventário.`,
       abaterErro ? <div className="err-msg">{abaterErro}</div> : null,
       <button type="button" className="btn-primary btn-md" data-confirmar="abater" disabled={abatendo} onClick={abater}>
         {abatendo ? (en ? 'Slaughtering…' : 'Abatendo…') : (en ? 'Slaughter' : 'Abater')}
@@ -4313,7 +4702,27 @@ function DetalhesItemModal({
           <input value={vendaLugar} onChange={(e) => setVendaLugar(e.target.value)} disabled={publicando}
             placeholder={en ? 'City or place' : 'Cidade ou local'} maxLength={60} />
         </label>
-        <div className="det-venda-linha">
+        {/* A QUANTIDADE NO CORPO (04/11/2026, usuário: "O card lateral para
+            vender itens ao mestre está com os botões sendo escondidos, não
+            precisa do botão 'cancelar', o botão de seletor de quantidade pode
+            ficar no modal junto com o botão de seletor de preço"). Era o
+            centro do rodapé, e no painel lateral os três não cabiam.
+
+            DUAS SEÇÕES, NÃO UMA LINHA (no mesmo dia: "separando quantidade de
+            quantidade de moedas, organizando o que é seletor de moeda e
+            seletor de quantidade de forma bem estruturada"). Quantos itens
+            vão à venda é uma pergunta; quanto vale cada um é outra. Cada
+            seção tem o rótulo dela, e as moedas têm a grade própria. */}
+        {divisivel && (
+          <div className="det-venda-secao det-venda-secao--qtd">
+            <span className="mn-rotulo">{en ? 'Quantity' : 'Quantidade'}</span>
+            <QuantidadeStepper className="det-venda-qtd" value={vendaQtd} min={1} max={maxQtd} label={en ? 'Quantity' : 'Quantidade'}
+              centro={<>{vendaQtd} <span className="qtd-de-max">{en ? 'of' : 'de'} {maxQtd}</span></>}
+              onChange={setVendaQtd} />
+          </div>
+        )}
+        <div className="det-venda-secao det-venda-secao--valor">
+          <span className="mn-rotulo">{en ? 'Value' : 'Valor'}</span>
           <PrecoMoedasInput latao={vendaPreco} onChange={setVendaPreco} lang={lang} disabled={publicando} />
         </div>
         {divisivel && vendaQtd > 1 && vendaPreco > 0 && (
@@ -4325,14 +4734,10 @@ function DetalhesItemModal({
         {vendaErro && <div className="err-msg">{vendaErro}</div>}
       </div>
     );
+    /* Só o verbo no rodapé (04/11/2026): sem Cancelar — sai-se da etapa
+       escolhendo outro item, ou pelo X da janela — e a quantidade subiu para
+       junto do preço, no corpo. */
     rodapeEtapa = {
-      esquerda: cancelar,
-      // A quantidade no centro do rodapé, como nas outras ações (27/09/2026).
-      centro: divisivel ? (
-        <QuantidadeStepper value={vendaQtd} min={1} max={maxQtd} label={en ? 'Quantity' : 'Quantidade'}
-          centro={<>{vendaQtd} <span className="qtd-de-max">{en ? 'of' : 'de'} {maxQtd}</span></>}
-          onChange={setVendaQtd} />
-      ) : null,
       direita: (
         <button type="button" className="btn-primary btn-md" data-publicar disabled={publicando || !precoValido} onClick={publicar}>
           {publicando ? (en ? 'Sending…' : 'Enviando…') : (en ? 'Offer to the merchant' : 'Propor ao comerciante')}
@@ -4451,8 +4856,10 @@ function DetalhesItemModal({
         </div>
       </div>
     );
+    /* Sem Cancelar (30/10/2026, usuário: "Ao clicar em armazenar um item, no
+       modal, remova o botão 'cancelar'"): sai pelo X da janela. */
     rodapeEtapa = {
-      esquerda: cancelar,
+      esquerda: null,
       centro: seletorQtd,
       direita: (
         <button type="button" className="btn-primary btn-md" data-confirmar="armazenar"
@@ -4478,10 +4885,122 @@ function DetalhesItemModal({
     ),
   } : null;
 
+  /* MODO LEQUE (30/10/2026): as mesmas ações da janela, em volta da casa.
+     Detalhes abre a janela; Usar com uma unidade usa direto (com mais, a
+     janela de quantidade padrão); as imediatas se fazem e o leque
+     some; as que pedem escolha abrem a janela já na etapa. Os nomes no
+     balão são curtos: "Vender", e não "Vender na loja" (pedido do usuário). */
+  if (leque) {
+    /* O LEQUE DO BÔNUS (30/10/2026, usuário: "o mestre irá editar esse campo
+       com um novo menu circular no leque, chamado bônus"). A bolha Bônus troca
+       o leque pelo dos degraus da Sagração (0 → 1 → 3 → 5 → 7 → 9), com o
+       atual aceso; escolher um aplica e fecha. Só o Mestre (onBonus), só em
+       arma ou armadura (destinoBonus), e não com o item à venda. */
+    if (lequeBonus) {
+      const BONUS = (typeof BONUS_ITEM_VALORES !== 'undefined' && BONUS_ITEM_VALORES) || window.BONUS_ITEM_VALORES || [0, 1, 3, 5, 7, 9];
+      const atual = Math.max(0, BONUS.indexOf(bonusItem));
+      const degraus = BONUS.map((v) => ({
+        chave: 'bonus-' + v, texto: '+' + v, ativo: v === bonusItem,
+        rotulo: (en ? 'Bonus +' : 'Bônus +') + v,
+      }));
+      const escolherDegrau = (a) => {
+        // onBonus anda um degrau por vez; os passos encadeiam no mesmo estado.
+        const alvo = BONUS.indexOf(Number(a.texto.slice(1)));
+        const passos = alvo - atual;
+        for (let k = 0; k < Math.abs(passos); k++) onBonus(instance.instanceId, passos > 0 ? 1 : -1);
+        onClose();
+      };
+      return (
+        <LequeDoItem key="leque-bonus" acoes={degraus} ancora={leque.ancora}
+          rotulo={(en ? 'Bonus · ' : 'Bônus · ') + cat.nome}
+          onEscolher={escolherDegrau} onClose={onClose} />
+      );
+    }
+    /* O LEQUE DA RESISTÊNCIA (30/10/2026, usuário: "Remova o campo
+       resistência ao selecionar o item [...], o mestre irá editar esse campo
+       com um novo menu circular no leque, chamado resistência"). Mesmo molde
+       do Bônus: um degrau por valor, de 0 ao máximo do catálogo (até 10 hoje),
+       com o atual aceso. Vale o corte de 20/09/2026: o que se VESTE (joias,
+       roupas) não tem resistência para ajustar. */
+    /* Peça quebrada (30/10/2026): nenhum degrau aceso, e escolher qualquer um
+       conserta — inclusive o 0 da peça que nasce sem resistência. */
+    const { max: resMax, atual: resAgora, quebrada: resQuebrada } = durabilidadeDaPeca(instance, cat);
+    if (lequeRes) {
+      const valores = Array.from({ length: resMax + 1 }, (_, v) => ({
+        chave: 'res-' + v, texto: String(v), ativo: !resQuebrada && v === resAgora,
+        rotulo: (en ? 'Durability ' : 'Resistência ') + v + '/' + resMax,
+      }));
+      return (
+        <LequeDoItem key="leque-res" acoes={valores} ancora={leque.ancora}
+          rotulo={(en ? 'Durability · ' : 'Resistência · ') + cat.nome}
+          onEscolher={(a) => { onClose(); onResistencia(instance.instanceId, Number(a.texto)); }}
+          onClose={onClose} />
+      );
+    }
+    const resNoLeque = onResistencia && (resMax > 0 || resQuebrada) && !instance.vestido && !aVenda
+      ? [{ chave: 'resistencia', icone: 'ti-tool', rotulo: resQuebrada
+        ? (en ? 'Broken' : 'Quebrada')
+        : (en ? 'Durability ' : 'Resistência ') + resAgora + '/' + resMax }]
+      : [];
+    const curtos = { vender: en ? 'Sell' : 'Vender' };
+    const acoesItem = acoesDaJanela.filter((a) => a.chave !== 'voltar')
+      .map((a) => ({ ...a, rotulo: curtos[a.chave] || a.rotulo }));
+    const bonusNoLeque = onBonus && destinoBonus && !aVenda
+      ? [{ chave: 'bonus', icone: 'ti-sparkles', rotulo: (en ? 'Bonus' : 'Bônus') + (bonusItem > 0 ? ` +${bonusItem}` : '') }]
+      : [];
+    /* O KIT DE ARMADURA (30/10/2026): "É um kit que se desmonta nas peças".
+       A chave não é 'desmontar' — essa já é a da montaria (LEQUE_IMEDIATAS). */
+    const kitNoLeque = onDesmontarKit && ehKitDeArmadura(cat) && !aVenda
+      ? [{ chave: 'desmontar-kit', icone: 'ti-box-multiple', rotulo: en ? 'Take apart' : 'Desmontar',
+        onEscolher: () => onDesmontarKit(instance.instanceId) }]
+      : [];
+    /* À venda: retirar dali mesmo, sem procurar a loja (31/10/2026). Fica
+       aceso — é a única ação que o item à venda tem. */
+    const retirarNoLeque = onRetirarDaLoja && aVenda && instance.anuncio_id
+      ? [{ chave: 'retirar-da-loja', icone: 'ti-tag', rotulo: en ? 'Withdraw from shop' : 'Retirar da loja',
+        onEscolher: () => onRetirarDaLoja(instance) }]
+      : [];
+    /* "Detalhes" só sem painel (31/10/2026, usuário: "não precisa mostrar o
+       botão 'detalhes' no leque, pois a descrição abre ao selecionar o item").
+       Na tela larga o clique já põe o item no painel; na estreita não há painel,
+       e a bolha continua sendo o caminho até a descrição. */
+    const lista = [
+      ...(leque.comPainel ? [] : [{ chave: 'detalhes', icone: 'ti-article', rotulo: en ? 'Details' : 'Detalhes' }]),
+      ...retirarNoLeque,
+      ...lequeExtras,
+      ...kitNoLeque,
+      ...(podeUsar && onUsar ? [{
+        chave: 'usar', icone: 'ti-hand-finger', rotulo: en ? 'Use' : 'Usar',
+        desativado: aVenda, dica: aVenda ? { desc: dicaAVenda } : null,
+      }] : []),
+      // Descartar segue por último; o Bônus entra logo antes dele.
+      ...acoesItem.filter((a) => a.chave !== 'descartar'),
+      ...bonusNoLeque,
+      ...resNoLeque,
+      ...acoesItem.filter((a) => a.chave === 'descartar'),
+    ];
+    const escolher = (a) => {
+      if (a.chave === 'bonus') { setLequeBonus(true); return; }
+      if (a.chave === 'resistencia') { setLequeRes(true); return; }
+      if (a.onEscolher) { onClose(); a.onEscolher(); return; }
+      /* Usar sem quantidade: com uma unidade, usa direto; com mais, a janela
+         de quantidade padrão (QuantidadeModal) — o rodapé do painel saiu. */
+      if (a.chave === 'usar') { onClose(); onUsar(instance.instanceId); return; }
+      if (LEQUE_IMEDIATAS.has(a.chave)) { a.onClick(); onClose(); return; }
+      leque.onJanela(a.chave === 'detalhes' ? null : a.chave);
+    };
+    return (
+      <LequeDoItem key="leque-acoes" acoes={lista} ancora={leque.ancora} rotulo={cat.nome}
+        onEscolher={escolher} onClose={onClose} />
+    );
+  }
+
   return (
     <>
+      {/* Só o nome no título (31/10/2026, usuário: "remova o ícone ao lado do
+          nome"). Vale também para as janelas de item da loja. */}
       <Janela
-        title={<><i className={'ti ' + invItemIcon(cat) + ' det-title-ic'} aria-hidden="true" /> {instance.apelido ? `${instance.apelido} (${cat.nome})` : nomeComVeneno(cat.nome, instance)}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
+        title={<>{instance.apelido ? `${instance.apelido} (${cat.nome})` : nomeComVeneno(nomeDaPecaFabricada(instance, cat), instance)}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
         lang={lang}
         onClose={onClose}
         alvoPainel={alvoPainel}
@@ -4491,13 +5010,28 @@ function DetalhesItemModal({
            ampliada, e quem abre um item aqui quer as AÇÕES, não o retrato —
            o ícone no título já diz o que é. No Livro de Regras, onde a
            janela é leitura e não manuseio, ela continua. */
-        topo={passe.topo} semAbas acoesEmBarra
-        acoes={acoesDaJanela}
-        rodape={etapaAberta ? rodapeEtapa : rodapeUsar}>
+        topo={passe.topo} semAbas
+        /* NO PAINEL, SEM A FILEIRA DE AÇÕES (30/10/2026, usuário: "Sim" a
+           tirá-la, porque repetia o leque que abre ao clicar no item). Fica
+           só o Voltar, que o leque não tem. As etapas seguem com Cancelar
+           no rodapé.
+           NA FICHA, O VOLTAR VIRA ÍCONE AO LADO DO X (30/10/2026, usuário:
+           "remova o botão de 'descartar' e 'transferir' [...] pois ele deve
+           aparecer no leque. Remova o botão de voltar, pois apenas o ícone
+           de voltar vai ficar ao lado do x de fechar"): sem a barra, a
+           janela desenha as ações como ícones mudos junto do X. */
+        acoesEmBarra={contexto !== 'ficha'}
+        acoes={(alvoPainel || contexto === 'ficha') ? acoesDaJanela.filter((a) => a.chave === 'voltar') : acoesDaJanela}
+        /* NO PAINEL, SEM O USAR (30/10/2026, usuário: "remove os campos de
+           usar, pois ele agora aparece no leque"). A janela (tela estreita)
+           continua com ele. */
+        rodape={etapaAberta ? rodapeEtapa : (alvoPainel ? null : rodapeUsar)}>
         {etapaAberta ? corpoEtapa : (
-          <Ficha it={cat} lang={lang} magias={magiasDb} omitir={passe.omitir}
+          <Ficha it={catDaPeca} lang={lang} magias={magiasDb} omitir={passe.omitir}
             linhasDaInstancia={linhasDaInstancia}
-            resistenciaTexto={mostraResistencia ? `${resAtualItem}/${resMaxItem}` : null}
+            resistenciaTexto={mostraResistencia
+              ? (durItem.quebrada ? (en ? 'Broken' : 'Quebrada') : `${resAtualItem}/${resMaxItem}`)
+              : null}
             depois={secoesDepois} />
         )}
       </Janela>
@@ -4584,15 +5118,24 @@ function PrecoMoedasInput({ latao, onChange, lang, disabled }) {
     setCampos(novo);
     if (onChange) onChange(moedasToLatao(novo));
   };
+  /* CADA MOEDA COM O NOME EM CIMA (04/11/2026, usuário: "separando
+     quantidade de quantidade de moedas, organizando o que é seletor de moeda
+     e seletor de quantidade de forma bem estruturada"). O nome era só
+     aria-label: na tela, cinco seletores iguais lado a lado — o de itens e os
+     quatro de moeda —, e só a cor da moedinha os separava. Agora cada moeda é
+     um campo com rótulo (Ouro, Prata, Cobre, Latão), numa grade só delas. */
   return (
     <div className="venda-moedas">
       {MOEDA_ORDEM.map((k) => (
-        <QuantidadeStepper key={k} className={'venda-moeda venda-moeda--' + k}
-          value={campos[k] || 0} min={0} max={k === 'ouro' ? Infinity : 9999}
-          disabled={disabled} label={nomes[k]} onChange={(n) => mudar(k, n)}
-          centro={<span className="venda-moeda-centro">
-            <i className="ti ti-coins" style={{ color: MOEDA_COR[k] }} aria-hidden="true" />{campos[k] || 0}
-          </span>} />
+        <div key={k} className={'venda-moeda-campo venda-moeda-campo--' + k}>
+          <span className="mn-rotulo venda-moeda-nome" aria-hidden="true">{nomes[k]}</span>
+          <QuantidadeStepper className={'venda-moeda venda-moeda--' + k}
+            value={campos[k] || 0} min={0} max={k === 'ouro' ? Infinity : 9999}
+            disabled={disabled} label={nomes[k]} onChange={(n) => mudar(k, n)}
+            centro={<span className="venda-moeda-centro">
+              <i className="ti ti-coins" style={{ color: MOEDA_COR[k] }} aria-hidden="true" />{campos[k] || 0}
+            </span>} />
+        </div>
       ))}
     </div>
   );
@@ -4701,9 +5244,10 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
       extraClass="modal-detalhes modal-recipiente"
       onClose={onClose}
     >
-        <div className="det-desc">
-          {cat.descricao}
-        </div>
+        {/* Sem a descrição (30/10/2026, usuário: "Quando abrir um recipiente,
+            não mostre a descrição do item ao selecioná-lo. Deixe que a
+            descrição estará ao abrir os detalhes do item."). A janela do
+            recipiente é para mexer no que está dentro. */}
 
         {/* O conteúdo em CASAS LIVRES (02/10/2026), como o inventário: o
             jogador espalha os itens pela grade da mochila. Só mover aqui
@@ -4741,6 +5285,8 @@ function motivoTransferenciaLabel(motivo, en) {
     sem_bolsa_destino:  en ? 'The recipient has no purse for coins.'                   : 'O destinatário não tem bolsa para as moedas.',
     sem_pacto:          en ? 'You have not sealed a friendship pact with this character.' : 'Vocês ainda não selaram um pacto de amizade.',
     item_a_venda:       en ? 'This item is for sale in the shop. Withdraw it first.'    : 'Este item está à venda na loja. Retire o anúncio antes.',
+    // O banco recusa o 81º item de quem RECEBE (30/10/2026).
+    inventario_cheio:   en ? 'The recipient’s inventory is full (80 slots).'           : 'O inventário de quem recebe está cheio (80 casas).',
     instancia_nao_encontrada: en ? 'Item not found in the inventory.'                  : 'Item não encontrado no inventário.',
   };
   return M[motivo] || motivo;
@@ -5236,9 +5782,9 @@ function CampoPreco({ valor, onChange, lang, name, disabled, id }) {
   );
 }
 Object.assign(window, {
-  BauTopo, BauCargaRodape,
+  BauTopo, BauCargaRodape, PesoNoRodape,
   InventarioList, EquipadoBoard, VestesBoard, MoedaPills, CampoPreco, MOEDA_COR,
-  CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, ContainerModal, QuantidadeModal, DarItemModal,
+  CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, LequeDoItem, lequeAngulos, ContainerModal, QuantidadeModal, DarItemModal,
   guardarNoRecipiente, normalizarPilhas,
   // Leitura de livro (itens.doc_url) — o bestiário também abre por aqui.
   LeituraDocModal, urlLeituraDoc,

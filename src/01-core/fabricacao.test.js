@@ -32,11 +32,13 @@ let ehAtaqueNatural;
 let materiaisDaReceita, materialDisponivel, conferirMateriais, temAHabilidade;
 let podeFabricar, consumirMateriais, fabricar, emConstrucao;
 let progressoDaConstrucao, diasRestantes, itensComConstrucaoPronta;
+let horasDeFabricacao, avancarFabricacao;
 beforeAll(() => {
   ehAtaqueNatural = window.ehAtaqueNatural;
   ({ materiaisDaReceita, materialDisponivel, conferirMateriais, temAHabilidade,
      podeFabricar, consumirMateriais, fabricar, emConstrucao,
-     progressoDaConstrucao, diasRestantes, itensComConstrucaoPronta } = window);
+     progressoDaConstrucao, diasRestantes, itensComConstrucaoPronta,
+     horasDeFabricacao, avancarFabricacao } = window);
   expect(fabricar).toBeTypeOf('function');
 });
 
@@ -55,13 +57,10 @@ const VIOLAO = {
   materiais: [{ slug: 'madeira', qtd: 40 }, { slug: 'linho', qtd: 5 },
               { slug: 'seda', qtd: 5 }, { slug: 'canhamo', qtd: 5 }],
 };
-// Uma peça caruda, para o prazo valer alguma coisa: Barda, 26.000 → 13 dias.
-const BARDA = {
-  resultado_slug: 'barda', habilidade_key: 'artesanato', dificuldade: 'D', dias: 13,
-  materiais: [{ slug: 'couro_curtido', qtd: 80 }],
-};
 
 const HABS = { artesanato: 3, metalurgia: 2 };
+// personagens.receitas_aprendidas de quem já aprendeu estas receitas.
+const SABE = ['capa_simples', 'adaga', 'violao', 'porcelana'];
 const DIA = (dia) => ({ dia, mes: 1, ano: 100 });
 const ids = () => { let n = 0; return () => `novo${++n}`; };
 const pilha = (slug, qtd, extra) => ({ instanceId: slug + '-1', slug, quantidade: qtd, ...extra });
@@ -115,24 +114,43 @@ describe('podeFabricar — dá para TENTAR', () => {
   const comMaterial = [pilha('algodao', 20)];
 
   it('com a habilidade e o material, dá', () => {
-    expect(podeFabricar(CAPA, comMaterial, HABS)).toEqual({ ok: true });
+    expect(podeFabricar(CAPA, comMaterial, HABS, SABE)).toEqual({ ok: true });
   });
 
   it('sem a habilidade, não dá — nem com o material todo', () => {
-    expect(podeFabricar(CAPA, comMaterial, { metalurgia: 2 }))
+    expect(podeFabricar(CAPA, comMaterial, { metalurgia: 2 }, SABE))
       .toMatchObject({ ok: false, motivo: 'sem_habilidade' });
     // Nível 0 é não ter.
     expect(temAHabilidade({ artesanato: 0 }, 'artesanato')).toBe(false);
   });
 
   it('sem o material, não dá — e o motivo traz a lista', () => {
-    const r = podeFabricar(CAPA, [pilha('algodao', 19)], HABS);
+    const r = podeFabricar(CAPA, [pilha('algodao', 19)], HABS, SABE);
     expect(r.motivo).toBe('sem_material');
     expect(r.faltando).toEqual([{ slug: 'algodao', precisa: 20, tem: 19 }]);
   });
 
   it('item sem receita não se fabrica', () => {
     expect(podeFabricar(null, comMaterial, HABS)).toMatchObject({ ok: false, motivo: 'sem_receita' });
+  });
+
+  /* 31/10/2026, usuário: "só é possível fabricar com a receita, e eu quero
+     saber como compra na loja. Mude o nome para 'Receita de Anel de Cobre'". */
+  it('sem ter aprendido a receita, não dá — nem com material e habilidade', () => {
+    expect(podeFabricar(CAPA, [pilha('algodao', 20)], HABS, []))
+      .toMatchObject({ ok: false, motivo: 'sem_receita_item' });
+    /* 31/10/2026, usuário: "Quando o personagem aprende uma receita, o item
+       da receita some e o personagem fica com a receita salva". O item na
+       mochila, ainda por aprender, não fabrica — mas o motivo diz o caminho. */
+    expect(podeFabricar(CAPA, [pilha('algodao', 20), pilha('receita_capa_simples', 1)], HABS, []))
+      .toMatchObject({ ok: false, motivo: 'receita_por_aprender' });
+    // Aprendida, o item já não precisa existir.
+    expect(podeFabricar(CAPA, [pilha('algodao', 20)], HABS, ['capa_simples'])).toEqual({ ok: true });
+  });
+
+  it('a receita se chama "Receita de <item>" e tem o slug receita_<item>', () => {
+    expect(window.receitaItemSlug(CAPA)).toBe('receita_capa_simples');
+    expect(window.nomeDaReceita({ nome: 'Anel de Cobre' })).toBe('Receita de Anel de Cobre');
   });
 });
 
@@ -158,34 +176,48 @@ describe('fabricar — o material é o custo da TENTATIVA', () => {
   const itens = () => [pilha('aco', 20), pilha('madeira', 2), pilha('couro_curtido', 1)];
 
   it('no SUCESSO: material gasto e o item na bancada', () => {
-    const r = fabricar(itens(), ADAGA, HABS, true, DIA(10), ids());
+    const r = fabricar(itens(), ADAGA, HABS, true, 24, ids(), SABE);
     expect(r).toMatchObject({ ok: true, sucesso: true });
     expect(r.itens.filter((x) => x.slug === 'aco')).toHaveLength(0);
     const feito = r.itens.find((x) => x.instanceId === 'novo1');
     expect(feito).toMatchObject({ slug: 'adaga', quantidade: 1 });
-    expect(feito.construindo).toMatchObject({ dias: 1 });
-    expect(feito.construindo.pronto_em).toEqual(DIA(11));
+    expect(feito.construindo).toEqual({ horas: 24, horas_restantes: 24 });
+    expect(emConstrucao(feito)).toBe(true);
   });
 
   it('na FALHA: material gasto do mesmo jeito, e nada de item', () => {
-    const r = fabricar(itens(), ADAGA, HABS, false, DIA(10), ids());
+    const r = fabricar(itens(), ADAGA, HABS, false, 24, ids(), SABE);
     expect(r).toMatchObject({ ok: true, sucesso: false });
     expect(r.itens.filter((x) => x.slug === 'aco')).toHaveLength(0);
     expect(r.itens.some((x) => x.slug === 'adaga')).toBe(false);
   });
 
   it('sem habilidade ou sem material, NADA é gasto — a tentativa nem começa', () => {
-    const semHab = fabricar(itens(), ADAGA, { artesanato: 1 }, true, DIA(10), ids());
+    const semHab = fabricar(itens(), ADAGA, { artesanato: 1 }, true, 24, ids(), SABE);
     expect(semHab).toMatchObject({ ok: false, motivo: 'sem_habilidade' });
     expect(semHab.itens).toBeUndefined();
 
-    const semMat = fabricar([pilha('aco', 19)], ADAGA, HABS, true, DIA(10), ids());
+    const semMat = fabricar([pilha('aco', 19)], ADAGA, HABS, true, 24, ids(), SABE);
     expect(semMat).toMatchObject({ ok: false, motivo: 'sem_material' });
     expect(semMat.itens).toBeUndefined();
   });
 
-  it('sem data de jogo, o item nasce pronto — o lado seguro', () => {
-    const r = fabricar(itens(), ADAGA, HABS, true, null, ids());
+  it('a receita aprendida fabrica quantas vezes quiser', () => {
+    const uma = fabricar(itens(), ADAGA, HABS, true, 24, ids(), SABE);
+    const outra = fabricar([...uma.itens, ...itens()], ADAGA, HABS, true, 24, ids(), SABE);
+    expect(outra).toMatchObject({ ok: true, sucesso: true });
+  });
+
+  it('a receita que rende mais de um entrega a pilha (1 Quartzo → 5 Porcelanas)', () => {
+    const PORC = { resultado_slug: 'porcelana', habilidade_key: 'artesanato', dificuldade: 'D', dias: 1,
+      rende: 5, materiais: [{ slug: 'quartzo', qtd: 1 }] };
+    const r = fabricar([pilha('quartzo', 1)], PORC, HABS, true, 12, ids(), SABE);
+    expect(r.itens.find((x) => x.slug === 'porcelana')).toMatchObject({ quantidade: 5 });
+    expect(r.itens.some((x) => x.slug === 'quartzo')).toBe(false);
+  });
+
+  it('sem horas, o item nasce pronto — o lado seguro', () => {
+    const r = fabricar(itens(), ADAGA, HABS, true, null, ids(), SABE);
     expect(emConstrucao(r.itens.find((x) => x.slug === 'adaga'))).toBe(false);
   });
 });
@@ -229,9 +261,52 @@ describe('o tempo de construção', () => {
     expect(itensComConstrucaoPronta(naoVenceu, DIA(2))).toBe(naoVenceu);
   });
 
-  it('a Barda leva 13 dias; a Adaga, 1 — o prazo sai do valor da peça', () => {
-    const b = fabricar([pilha('couro_curtido', 80)], BARDA, HABS, true, DIA(1), ids());
-    expect(b.itens.find((x) => x.slug === 'barda').construindo.pronto_em).toEqual(DIA(14));
+});
+
+/* O TEMPO EM HORAS, PELO GRUPO (31/10/2026, usuário: "Classifique o tempo de
+   fabricação dos itens com base em seu grupo, armaduras 36 horas, armas 24
+   horas, por aí vai"). As horas só andam na atividade Fabricar. */
+describe('o tempo pela atividade Fabricar', () => {
+  it('a régua por grupo: armadura 36, arma 24, e o resto entre elas', () => {
+    expect(horasDeFabricacao({ grupo: 'Armaduras' })).toBe(36);
+    expect(horasDeFabricacao({ grupo: 'Armas' })).toBe(24);
+    expect(horasDeFabricacao({ grupo: 'Instrumentos' })).toBe(24);
+    expect(horasDeFabricacao({ grupo: 'Vestimentas' })).toBe(12);
+    expect(horasDeFabricacao({ grupo: 'Recipientes' })).toBe(8);
+    expect(horasDeFabricacao({ grupo: 'Outro' })).toBe(12);
+    expect(horasDeFabricacao(null)).toBe(12);
+  });
+
+  const naBancadaH = (id, horas, restantes) => ({
+    instanceId: id, slug: id, quantidade: 1, construindo: { horas, horas_restantes: restantes },
+  });
+
+  it('as horas vão para o primeiro da bancada, e a sobra passa ao seguinte', () => {
+    const lista = [pilha('seda', 3), naBancadaH('barda', 36, 10), naBancadaH('adaga', 24, 24)];
+    const { itens, prontos } = avancarFabricacao(lista, 16);
+    expect(itens[1].construindo).toBeUndefined();          // a barda ficou pronta
+    expect(itens[1]).toMatchObject({ slug: 'barda', quantidade: 1 });
+    expect(itens[2].construindo.horas_restantes).toBe(18); // a adaga levou as 6 que sobraram
+    expect(prontos.map((p) => p.slug)).toEqual(['barda']);
+    expect(itens[0]).toBe(lista[0]);
+  });
+
+  it('a linha mede o que já andou', () => {
+    expect(progressoDaConstrucao(naBancadaH('barda', 36, 27), null)).toBe(25);
+  });
+
+  it('sem nada na bancada, devolve a MESMA lista (alterarInventario não grava)', () => {
+    const lista = [pilha('seda', 3)];
+    expect(avancarFabricacao(lista, 8).itens).toBe(lista);
+    const comItem = [naBancadaH('barda', 36, 36)];
+    expect(avancarFabricacao(comItem, 0).itens).toBe(comItem);
+  });
+
+  it('o carimbo antigo, por data, não come hora nenhuma', () => {
+    const antigo = { instanceId: 'b1', slug: 'barda', quantidade: 1,
+      construindo: { dias: 13, desde: DIA(1), pronto_em: DIA(14) } };
+    const lista = [antigo];
+    expect(avancarFabricacao(lista, 50).itens).toBe(lista);
   });
 });
 
@@ -265,5 +340,100 @@ describe('ehAtaqueNatural', () => {
   it('sem item, não trava nada', () => {
     expect(ehAtaqueNatural(null)).toBe(false);
     expect(ehAtaqueNatural(undefined)).toBe(false);
+  });
+});
+
+/* ── RECEITA POR PEÇA, TESTE POR CLASSE, GRAU NA PEÇA (31/10/2026) ──────────
+   "Para criar itens de armadura/arma pesada é necessário um teste Difícil de
+    Metalurgia e um teste Difícil de Artesanato." · "Espetacular e Absurdo +2
+    Defesa, Resistência, Absorção e +6 Dano. [...] Rotineiro −3 [...] e −9
+    Dano. Falha Crítica perde os itens e não cria nada." · Com dois testes,
+    vale o pior. (usuário) */
+describe('a peça com grau', () => {
+  const COTA = {
+    resultado_slug: 'peca_cota_completa', habilidade_key: 'metalurgia', dificuldade: 'D', dias: 1,
+    materiais: [{ slug: 'aco', qtd: 1 }], testes: ['metalurgia', 'artesanato'],
+  };
+  const SABE_COTA = ['peca_cota_completa'];
+
+  it('a peça pesada pede as duas habilidades', () => {
+    expect(window.testesDaReceita(COTA)).toEqual(['metalurgia', 'artesanato']);
+    expect(podeFabricar(COTA, [pilha('aco', 1)], { metalurgia: 2 }, SABE_COTA))
+      .toMatchObject({ ok: false, motivo: 'sem_habilidade' });
+    expect(podeFabricar(COTA, [pilha('aco', 1)], { metalurgia: 2, artesanato: 1 }, SABE_COTA)).toEqual({ ok: true });
+  });
+
+  it('receita sem testes continua com o teste único de sempre', () => {
+    expect(window.testesDaReceita(CAPA)).toEqual(['artesanato']);
+    expect(window.receitaComGrau(CAPA)).toBe(false);
+    expect(window.receitaComGrau(COTA)).toBe(true);
+  });
+
+  it('vale o PIOR dos testes', () => {
+    expect(window.grauDosTestes([7, 3])).toBe('M');      // Absurdo + Médio → Médio
+    expect(window.grauDosTestes(['E', 'A'])).toBe('E');
+    expect(window.grauDosTestes([0, 7])).toBe('FC');
+  });
+
+  it('a peça leva o grau e o nome de quem fez', () => {
+    const r = fabricar([pilha('aco', 1)], COTA, { metalurgia: 2, artesanato: 1 }, true, 36, ids(), SABE_COTA,
+      { por: 'Aldren', grau: 'A' });
+    const peca = r.itens.find((x) => x.slug === 'peca_cota_completa');
+    expect(peca.fabricado).toEqual({ por: 'Aldren', grau: 'A' });
+    expect(window.nomeDaPecaFabricada(peca, { nome: 'Cota Completa' })).toBe('Cota Completa de Aldren');
+  });
+
+  it('o grau mexe em Defesa, Absorção e Resistência da armadura, e no Dano da arma', () => {
+    const cota = { grupo: 'Armaduras', defesa: 1, absorcao: 4, resistencia: 4 };
+    const absurda = { slug: 'x', fabricado: { grau: 'A' } };
+    const rotineira = { slug: 'x', fabricado: { grau: 'R' } };
+    expect(window.defesaDaPeca(absurda, cota)).toBe(3);
+    expect(window.absorcaoDaPeca(absurda, cota)).toBe(6);
+    expect(window.resistenciaDaPeca(absurda, cota)).toBe(6);
+    // Nenhum atributo desce de zero.
+    expect(window.defesaDaPeca(rotineira, cota)).toBe(0);
+    expect(window.absorcaoDaPeca(rotineira, cota)).toBe(1);
+    // Difícil é o padrão; peça comprada não tem grau.
+    expect(window.absorcaoDaPeca({ fabricado: { grau: 'D' } }, cota)).toBe(4);
+    expect(window.absorcaoDaPeca({}, cota)).toBe(4);
+    const adaga = { grupo: 'Armas', resistencia: 1 };
+    expect(window.ajusteDeFabrica({ fabricado: { grau: 'MD' } }, adaga)).toEqual({ defesa: 0, absorcao: 0, resistencia: 1, dano: 3 });
+    expect(window.ajusteDeFabrica({ fabricado: { grau: 'F' } }, adaga).dano).toBe(-6);
+  });
+});
+
+/* ── MATERIAL À ESCOLHA E FERRAMENTA (31/10/2026) ──────────────────────────
+   "5x Osso Animal, Osso Profano, etc > 1x Marfim" · "Equipamentos podem ser
+   usados 10 vezes antes de sumir." (usuário) */
+describe('material à escolha e ferramenta', () => {
+  const MARFIM = {
+    resultado_slug: 'marfim_animal', habilidade_key: 'artesanato', dificuldade: 'D', dias: 1,
+    materiais: [{ slugs: ['osso_animal', 'osso_demoniaco'], qtd: 5, nome: 'Ossos' }],
+  };
+  const SABE_M = ['marfim_animal'];
+
+  it('qualquer mistura dos ossos serve, e sai da que estiver primeiro', () => {
+    const itens = [pilha('osso_animal', 3), pilha('osso_demoniaco', 4)];
+    expect(conferirMateriais(MARFIM, itens).ok).toBe(true);
+    const out = consumirMateriais(itens, MARFIM);
+    expect(out.find((x) => x.slug === 'osso_animal')).toBeUndefined();
+    expect(out.find((x) => x.slug === 'osso_demoniaco').quantidade).toBe(2);
+    expect(conferirMateriais(MARFIM, [pilha('osso_animal', 4)]).faltando[0]).toMatchObject({ precisa: 5, tem: 4 });
+    expect(podeFabricar(MARFIM, itens, HABS, SABE_M)).toEqual({ ok: true });
+  });
+
+  it('a ferramenta perde um uso por tentativa e some no décimo', () => {
+    const ARCO = {
+      resultado_slug: 'arco', habilidade_key: 'artesanato', dificuldade: 'D', dias: 1,
+      materiais: [{ slug: 'lenha', qtd: 1 }, { slug: 'equipamento_de_carpinteiro', qtd: 1, ferramenta: true }],
+    };
+    let itens = [pilha('lenha', 20), pilha('equipamento_de_carpinteiro', 1)];
+    itens = consumirMateriais(itens, ARCO);
+    expect(itens.find((x) => x.slug === 'equipamento_de_carpinteiro')).toMatchObject({ quantidade: 1, usos: 9 });
+    for (let i = 0; i < 9; i++) itens = consumirMateriais(itens, ARCO);
+    expect(itens.find((x) => x.slug === 'equipamento_de_carpinteiro')).toBeUndefined();
+    expect(itens.find((x) => x.slug === 'lenha').quantidade).toBe(10);
+    // Sem a ferramenta à mão, não dá.
+    expect(conferirMateriais(ARCO, itens).ok).toBe(false);
   });
 });

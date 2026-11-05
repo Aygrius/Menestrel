@@ -63,7 +63,10 @@ describe('o modal do item do inventário', () => {
     expect(document.querySelector('.item-passe')).toBeNull();
     /* 27/10/2026: o grupo deixou de ser sigla — 'CM' virou 'Corte Médio'
        (pedido do usuário: 'Grupo "PM" vira "Perfuração Média"'). */
-    expect(celulas()).toMatchObject({ dano: '12', grupo: 'Corte Médio' });
+    // Dano e grupo são ditos na frase das Características desde 30/10/2026.
+    expect(document.querySelector('.best-frase-item').textContent).toMatch(/Seu dano é 12 base/);
+    // Em minúsculas, abrindo a frase da arma (30/10/2026).
+    expect(document.querySelector('.best-frase-item').textContent).toMatch(/Pertence ao grupo de armas corte médio/);
     // Descrição e Características na mesma página, sem trocar de aba.
     expect(document.body.textContent).toMatch(/Uma lâmina reta\./);
     expect(document.querySelector('.best-secao--lista')).toBeTruthy();
@@ -103,7 +106,9 @@ describe('o modal do item do inventário', () => {
     expect(acoes()).toContain('desequipar');
     expect(acoes()).not.toContain('equipar');
     expect(document.querySelector('[data-acao="desequipar"] i').className).toContain('ti-shield-off');
-    expect(celulas().onde).toMatch(/Equipado/);
+    // "Remover o 'Equipado Mão'" (30/10/2026): a peça no corpo não diz mais
+    // onde está — o boneco e o selo da casa já dizem.
+    expect(celulas().onde).toBeUndefined();
   });
 
   /* 'Remova completamente o sistema de nota dos itens.' (26/09/2026) */
@@ -164,7 +169,9 @@ describe('usar item: direto no rodapé', () => {
        dos itens (positivo, negativo) virem apenas efeitos [...] mostrar
        'Desonra 2, Frio 5, Calor 5'"). Era a prosa do banco, com o verbo e a
        divisão positivo/negativo à mostra. A poção recupera 10 de EF. */
-    expect(document.querySelector('.best-secao--lista').textContent).toMatch(/Efeitos\s*Energia Física 10/);
+    /* Desde 30/10/2026 o efeito é dito na frase das Características ("Este
+       item protege 30 de frio, mas causa 1 de má fama.", usuário). */
+    expect(document.querySelector('.best-frase-item').textContent).toMatch(/Este item aumenta 10 de energia física\./);
   });
 
   it('Usar no rodapé já vem ativo: um clique usa e fecha', () => {
@@ -179,7 +186,8 @@ describe('usar item: direto no rodapé', () => {
   it('pilha: o seletor de quantidade no centro do rodapé vai junto no uso', () => {
     const onUsar = vi.fn();
     abrirPocao({ onUsar }, 4);
-    expect(celulas().quantidade).toBe('4');
+    // Sem a linha "Quantidade" desde 30/10/2026 — "a quantidade já está na casa".
+    expect(celulas().quantidade).toBeUndefined();
     const stepper = document.querySelector('.ms-footer-center .fp-pop-stepper');
     expect(stepper.textContent).toMatch(/1\s*de 4/);
     fireEvent.click(stepper.querySelector('[aria-label="+"]'));
@@ -261,11 +269,11 @@ describe('seção Conteúdo do recipiente', () => {
     containersDisponiveis={[]} pjsHistoria={[]} lang="pt" onClose={noop} onEquipar={noop} onDesequipar={noop}
     onUsar={noop} onDestruir={noop} onMoverParaContainer={noop} onVestir={noop} onDespir={noop}
     onRemoverDoContainer={noop} onAbrirDetalhesFilho={noop} />);
-  it('vazio: medidor 0/2 e aviso, sem grade', () => {
+  it('vazio: medidor 0/2, sem aviso e sem grade', () => {
     abrir([{ instanceId: 'b', slug: 'bolsa', quantidade: 1 }]);
     const secao = document.querySelector('.det-recipiente');
     expect(secao.querySelector('.det-recip-num').textContent).toBe('0/2');
-    expect(secao.querySelector('.det-recip-vazio').textContent).toMatch(/^Vazio\./);
+    expect(secao.querySelector('.det-recip-vazio')).toBeNull();
     expect(secao.querySelector('.det-grade-recipiente')).toBeNull();
   });
   /* AS CASAS SÃO AS DO PORTE (29/10/2026, usuário: "vamos definir 4 tipos de
@@ -284,7 +292,10 @@ describe('seção Conteúdo do recipiente', () => {
     abrir([{ instanceId: 'b', slug: 'bolsa', quantidade: 1 }, { instanceId: 'a', slug: 'adaga', quantidade: 2, containerId: 'b' }]);
     const secao = document.querySelector('.det-recipiente');
     expect(secao.querySelector('.det-recip-num').textContent).toBe('1/2');
-    expect(secao.querySelector('.det-recip-casas').textContent.replace(/\s+/g, ' ')).toBe('1/3 casas');
+    expect(secao.querySelector('.det-recip-casas').textContent).toBe('1/3');
+    // 31/10/2026: duas barras como a da Carga, cada uma com o seu rótulo.
+    expect([...secao.querySelectorAll('.det-recip-rot')].map((r) => r.textContent)).toEqual(['Casas', 'Peso']);
+    expect(secao.querySelectorAll('.det-recip-barra')).toHaveLength(2);
     expect(secao.querySelectorAll('.det-grade-recipiente > *')).toHaveLength(3);
   });
 });
@@ -302,11 +313,12 @@ describe('abater o animal manda a carne para a loja', () => {
       onRemoverDoContainer={noop} onAbrirDetalhesFilho={noop} onPreparar={onPreparar} />,
   );
 
-  it('o ícone Abater aparece para o animal ligado a uma criatura, e o texto fala da loja', async () => {
+  // Desde 31/10/2026 a carne vai para o inventário, não mais para a loja.
+  it('o ícone Abater aparece para o animal ligado a uma criatura, e o texto fala do inventário', async () => {
     const onPreparar = vi.fn(async () => ({ ok: true }));
     abrirLobo(onPreparar);
     fireEvent.click(document.querySelector('[data-acao="preparar"]'));
-    expect(document.querySelector('.det-etapa').textContent).toMatch(/vai para a loja da aventura/);
+    expect(document.querySelector('.det-etapa').textContent).toMatch(/vai para o seu inventário/);
     fireEvent.click(document.querySelector('[data-confirmar="abater"]'));
     expect(onPreparar).toHaveBeenCalledWith('l1');
   });
@@ -328,7 +340,9 @@ describe('item à venda na janela do inventário', () => {
     const botoes = [...document.querySelectorAll('.mn-acoes [data-acao]')];
     expect(botoes.length).toBeGreaterThan(0);
     for (const b of botoes) expect(b.disabled).toBe(true);
-    expect(celulas().onde).toBe('À venda na loja');
+    // Sem a linha "Onde está" desde 30/10/2026 ("Na descrição não precisa
+    // informar 'onde está'"); o motivo continua no balão de cada ação.
+    expect(celulas().onde).toBeUndefined();
     // A principal (Equipar) segue em primeiro; o motivo vai no balão (23/10/2026).
     expect(botoes[0].getAttribute('data-acao')).toBe('equipar');
     expect(botoes[0].closest('.mn-acao-embrulho').getAttribute('aria-label')).toMatch(/Equipar: .*retire o anúncio/);

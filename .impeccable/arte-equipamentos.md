@@ -216,7 +216,7 @@ gente: a barda do cavalo e a couraça do cavaleiro não são a mesma base.
 
 Contagem de imagens geradas no plano Pro (o saldo exato só aparece nas
 configurações do time no Figma): 63 até os 20 consumíveis; 69 com os 6 fundos de batalha (excluídos); 89 com os 20 itens seguintes (24/10/2026); 110 com as 21 das regiões novas (26/10/2026); 130 com as 20 pinturas de TIPO de item (26/10/2026); 138 com as 8 do arreamento de montaria (27/10/2026); 142 com as 3 calças de
-pano (28/10/2026 — 4 chamadas, uma refeita).
+pano (28/10/2026 — 4 chamadas, uma refeita); 152 com flor, planta, as duas gotas e os seis pelos (30/10/2026 — 10 chamadas, nenhuma refeita); 153 com o ticket das diárias (30/10/2026); 156 com os três chapéus (31/10/2026 — o crédito do mês acabou aqui; volta em 24/11).
 
 ## Regiões novas do boneco de armar (26/10/2026 — proposta de slots aprovada)
 
@@ -454,3 +454,93 @@ Catálogo: as três que existiam saíram de `cintura` para `perna` e ganharam
 base; entraram Calça de Linho, Bombacha de Algodão e Bombacha de Couro, para
 a perna ter a mesma largura de escolha que o peito (seis peças, de 450 a 4000
 latões).
+
+## Flores, plantas, gotas d'água e pelos (29/10/2026 — 10 pinturas, ✔ 30/10)
+
+Pedido do usuário: "Faça o desenho dos novos itens no Figma, as flores,
+plantas, água ('gota' para usar no item Água e Água Suja), pêlos."
+
+Mesmo molde dos consumíveis (~70% do quadro). Flor e planta são pinturas de
+TIPO, como erva e cogumelo: uma para todas as flores, uma para todas as
+plantas. A gota SUBSTITUI o `agua.webp` atual. Os pelos seguem a convenção
+dos materiais: Titânico = dracônico (vermelho e ouro), Profano = infernal
+(preto e brasa), Sagrado = celestial (branco e ouro); Arcano e Podre são novos.
+
+| Arquivo | Cobre | Objeto |
+|---|---|---|
+| ✔ flor | Flor Griffonia, Flor Rubus, Flor Vinna (`flolha_*`) | a single freshly picked wild medicinal flower with a short stem and two leaves, delicate violet-pink petals, tiny dew drops |
+| ✔ planta | Planta Inina, Planta Nex, Planta Subella | a single uprooted medicinal herb plant with broad green leaves and exposed earthy roots, tied with twine |
+| ✔ agua | Água (substitui a atual) | a single large clear drop of pure fresh water, crystalline blue, glinting highlight, perfect teardrop shape |
+| ✔ agua_suja | Água Suja | a single large drop of murky dirty water, brownish-green, cloudy with silt and tiny floating specks |
+| ✔ pelo | Pêlo | a single tuft of coarse brown animal fur, loosely bound at the base with a leather thong |
+| ✔ pelo_dourado | Pêlo Arcano | a single tuft of shimmering golden-violet arcane fur, faint magical sparkles drifting off the tips |
+| ✔ pelo_podre | Pêlo Podre | a single matted tuft of rotting grey-green fur, clumped and mangy, a few flies, sickly tint |
+| ✔ pelo_maldito | Pêlo Profano | a single tuft of coarse black infernal fur, ember-red glowing tips, wisps of dark smoke |
+| ✔ pelo_abencoado | Pêlo Sagrado | a single tuft of soft white celestial fur with gold-shimmering tips, gentle holy glow |
+| ✔ pelo_de_fogo | Pêlo Titânico | a single tuft of thick draconic fur, deep red with gold streaks, faint heat haze |
+
+Ligação no sistema depois de gerar: `public/itens/<arquivo>.webp` (240px);
+`flor` e `planta` em ARTE_ITEM_TIPO (`/^flor\b/`, `/^planta\b/` — o slug é
+`flolha_*`, o NOME começa com "Flor"); `agua_suja` e os seis pelos por slug
+em ARTE_ITEM_SLUG / ARTE_ITEM_NOVA (11-ficha/ficha.jsx).
+
+Feitas em 30/10/2026, todas na primeira chamada. Ligação: `flor`/`planta` em
+ARTE_ITEM_NOVA + ARTE_ITEM_TIPO; `agua_suja` e os seis pelos em ARTE_ITEM_SLUG.
+A gota antiga ficou em preview/itens-arte/antigas/agua.png.
+
+**A Água Suja tinha `base = 'agua'`** — e a base manda na pintura, então ela
+mostraria a gota limpa. Ganhou base própria `agua_suja` (01-core/bases-item.jsx);
+aplicado no banco em 30/10/2026, junto com Água Marinha → `gema` (scripts/sql/base-agua-suja-e-agua-marinha-2026-10-30.sql).
+
+Sem Python nesta máquina: a conversão PNG → WebP 240px foi feita com `sharp`
+instalado no scratchpad (`sharp(png).resize(240,240).webp({quality:88})`).
+
+## O ticket das diárias e os empréstimos (30/10/2026 — 1 pintura)
+
+Pedido do usuário: "Usando figma, crie mais uma imagem: um ticket (para
+diárias). Reaproveite algumas imagens para usar em itens. Se precisar, depois
+criamos imagens específicas."
+
+| Arquivo | Cobre | Objeto |
+|---|---|---|
+| ✔ ticket | as 5 "Diária em/no …" (estalagens, hospital, estábulo) | small rectangular inn lodging ticket of thick aged parchment card, torn perforated stub, red wax seal with a key emblem, embossed border, brass grommet with twine loop; blank, no letters |
+
+Ligação: `ticket` em ARTE_ITEM_NOVA e `[/^diaria\b/, 'ticket']` em ARTE_ITEM_TIPO.
+No prompt, "Blank surface, no letters, no writing, no numbers" — ticket puxa texto.
+
+**Empréstimos (sem pintura nova):** os materiais comuns/Arcano/Podre/Sagrado
+usam a versão pintada (Carne → carne_draconica, Couro → couro_draconico,
+Marfim → marfim_draconica, Óleo → oleo_draconico, Pena → pena_celestial;
+ARTE_ITEM_TIPO). Nas bases (`comArte`, 01-core/bases-item.jsx): Gargantilha →
+colar do metal, Dragona → ombreiras, Bracelete → anel do metal, Luva de pano →
+luvas-leve, Chapéu de Couro → elmo-leve. Itens sem pintura: 130 → 96.
+
+Continuam no glifo (candidatos a pintura própria): animais (≈42), instrumentos
+(≈13), ovos (5), algodão/linho/cânhamo/corda/feno, chave, bússola, luneta,
+espelho, escada, jaula/gaiola, estojo, chapéu de palha e de veludo, cachecol.
+
+## O Chapéu e o Cachecol (31/10/2026 — 3 de 6 pinturas; crédito acabou)
+
+Pedido do usuário: "No figma, vamos fazer a arte do Chapéu e do Cachecol."
+Mesmo molde dos equipamentos (75% do quadro). O chapéu precisa de "This is a
+HAT, not a helmet" e o cachecol de "This is a SCARF, a long strip of cloth,
+not a bag, not a towel".
+
+| Arquivo | Cobre | Objeto |
+|---|---|---|
+| ✔ chapeu-couro | Chapéu de Couro (antes emprestava `elmo-leve`) | wide-brimmed brown leather traveler's hat, tooled leather band with a small brass buckle, weathered brim, saddle stitching |
+| ✔ chapeu-algodao | Chapéu de Algodão e de Linho (o antigo Chapéu de Palha) | simple peasant hat of undyed coarse cotton cloth, soft rounded crown, modest floppy brim, a plain twine band, slightly frayed edges |
+| ✔ chapeu-seda | Chapéu de Seda (o antigo Chapéu de Veludo) | courtly noble's hat of deep wine-red silk velvet, soft draped crown, upturned brim, gold embroidered band with a small gem brooch and one long white plume feather |
+| ☐ cachecol-algodao | Cachecol de Algodão | scarf of thick undyed coarse cotton, loosely folded and coiled, homespun weave texture, simple fringed ends hanging down |
+| ☐ cachecol-linho | Cachecol de Linho | scarf of fine dyed linen, muted forest-green with a thin ochre stripe near each end, light airy weave, loosely folded and coiled with the two ends hanging down, short knotted tassels |
+| ☐ cachecol-seda | Cachecol de Seda | courtly silk scarf, lustrous deep royal-blue silk with delicate gold embroidered border and fine gold-thread fringe, flowing and loosely folded with the two ends draping down, soft sheen |
+
+**Crédito esgotado** em 31/10/2026, depois do chapéu de seda: "Insufficient
+Figma AI credits", volta em **24/11/2026 01:44 UTC**. Os três cachecóis
+ficam ☐ — o cachecol continua no glifo até lá.
+
+Ligação dos chapéus: `public/equip/chapeu-*.webp` (320px, sharp no
+scratchpad), nomes em ARTE_PINTADA (11-ficha/ficha.jsx) e, na base,
+`comArte(veste('chapeu', …), { linho: 'chapeu-algodao' })` — o empréstimo do
+elmo saiu. Para os cachecóis: mesmos passos, e `veste('cachecol', …)` só
+precisa de `comArte` se algum tecido ficar sem arquivo próprio.

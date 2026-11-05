@@ -71,4 +71,39 @@ function moverParaCasa(itens, instanceId, casa) {
   return j >= 0 && !casaValida(it.casa) ? posicionarCasas(out) : out;
 }
 
-Object.assign(window, { posicionarCasas, moverParaCasa });
+/* ── 80 CASAS, NO MÁXIMO (30/10/2026) ─────────────────────────────────────
+   "O inventário do personagem deve ter 80 casas fixas no máximo." · o 81º
+   item: "Isso, 'Inventário cheio'" — recusado em todo caminho (usuário).
+
+   Ocupa casa todo item fora de recipiente — o que a grade de fora desenha,
+   equipados e peças do animal inclusive. A MESMA conta vive no banco
+   (_menestrel_casas_no_bau, scripts/sql/inventario-80-casas-2026-10-30.sql),
+   que recusa a gravação com 'inventario_cheio'; aqui ela recusa antes, na
+   tela, sem ida ao servidor. */
+const INV_CASAS_MAX = 80;
+const INV_CHEIO = 'inventario_cheio';
+
+function casasNoBau(itens) {
+  return (Array.isArray(itens) ? itens : []).filter((it) => it && !lugarDe(it)).length;
+}
+
+/* A mudança de `antes` para `depois` passa das 80? Só o que AUMENTA conta:
+   um inventário já acima (dado antigo) ainda grava o que não piora. */
+function bauEstourou(antes, depois) {
+  const n = casasNoBau(depois);
+  return n > INV_CASAS_MAX && n > casasNoBau(antes);
+}
+
+/* O erro do banco (ou o da tela), em texto de gente. */
+function textoInventarioCheio(en) {
+  return en ? 'Inventory full — it has 80 slots.' : 'Inventário cheio — ele tem 80 casas.';
+}
+function ehInventarioCheio(erro) {
+  const msg = typeof erro === 'string' ? erro : (erro && erro.message) || '';
+  return msg.includes(INV_CHEIO);
+}
+
+Object.assign(window, {
+  posicionarCasas, moverParaCasa,
+  INV_CASAS_MAX, INV_CHEIO, casasNoBau, bauEstourou, textoInventarioCheio, ehInventarioCheio,
+});

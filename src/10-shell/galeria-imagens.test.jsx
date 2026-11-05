@@ -24,9 +24,10 @@ const shellFonte = readFileSync(
 );
 
 const CAT = [
-  { slug: 'mascara_verrogari', nome: 'Máscara Verrogari', base: 'mascara-ferro', slot_equip: 'rosto', grupo: 'Vestimentas' },
-  { slug: 'mascara_decorativa', nome: 'Máscara Decorativa', base: 'mascara-ferro', slot_equip: 'rosto', grupo: 'Vestimentas' },
-  { slug: 'luva_algodao', nome: 'Luva de Algodão', base: 'luva-pano-algodao', slot_equip: 'pulso', grupo: 'Vestimentas' },
+  { slug: 'mascara_verrogari', nome: 'Máscara Verrogari', base: 'mascara-cobre', slot_equip: 'rosto', grupo: 'Vestimentas' },
+  { slug: 'mascara_decorativa', nome: 'Máscara Decorativa', base: 'mascara-cobre', slot_equip: 'rosto', grupo: 'Vestimentas' },
+  // O cachecol segue sem pintura; a luva de pano ganhou a emprestada em 30/10/2026.
+  { slug: 'cachecol_algodao', nome: 'Cachecol de Algodão', base: 'cachecol-algodao', slot_equip: 'pescoco', grupo: 'Vestimentas' },
   { slug: 'gaiola', nome: 'Gaiola', base: null, slot_equip: null, grupo: 'Recipientes' },
   { slug: 'livro_de_maira', nome: 'Livro de Maira', base: 'livro-milagres', slot_equip: null, grupo: 'Itens' },
 ];
@@ -89,12 +90,35 @@ describe('o placar conta o que existe de verdade', () => {
      de espada, arco, lança e machado. "Bases sem arte" segue contando bases:
      é a encomenda seguinte do Figma, e uma base com quatro telas não está
      faltando quatro vezes. */
-  it('"Pintadas" conta as telas no disco; "Bases sem arte", as bases sem nenhuma', () => {
+  /* Desde 30/10/2026 "Pintadas" soma também as pinturas SEM base (armas por
+     tipo, itens por slug, energias): é o número de molduras da parede, menos
+     as condições, que têm a célula delas. */
+  it('"Pintadas" conta as telas da parede; "Bases sem arte", as bases sem nenhuma', () => {
     abrir();
-    const telas = window.BASES_ITEM.reduce((s, b) => s + window.artesDaBase(b.slug).length, 0);
     const semNenhuma = window.BASES_ITEM.filter((b) => !window.artesDaBase(b.slug).length).length;
-    expect(celula('Pintadas')).toBe(String(telas));
+    const molduras = document.querySelectorAll('.gi-peca').length;
+    expect(celula('Pintadas')).toBe(String(molduras - Number(celula('Condições'))));
     expect(celula('Bases sem arte')).toBe(String(semNenhuma));
+  });
+
+  /* ── TODA PINTURA DO SISTEMA ESTÁ NA PAREDE (30/10/2026) ─────────────────
+     "No menu imagens não está aparecendo todas as imagens que temos no
+     sistema." (usuário) Ficavam fora 39: as que nenhuma base aponta. O teste
+     passa por TODOS os registros que a ficha consulta, então pintura nova
+     registrada sem base não some de novo. */
+  it('toda pintura registrada aparece, tenha base ou não', () => {
+    abrir();
+    const naParede = new Set([...document.querySelectorAll('.gi-peca img')].map((i) => i.getAttribute('src')));
+    const registradas = [
+      ...[...window.ARTE_PINTADA].map((n) => '/equip/' + n + '.webp'),
+      ...[...window.ARTE_ITEM_SLUG, ...window.ARTE_ITEM_NOVA].map((n) => '/itens/' + n + '.webp'),
+      ...Object.values(window.ARTE_GEMA),
+    ];
+    expect(registradas.filter((s) => !naParede.has(s))).toEqual([]);
+    // As que motivaram o pedido, pelo nome.
+    for (const s of ['/itens/pelo_de_fogo.webp', '/itens/flor.webp', '/equip/arma-besta.webp', '/energia/gema-rubi.webp']) {
+      expect(naParede.has(s), s).toBe(true);
+    }
   });
   it('a arma pendura mais telas do que tem bases', () => {
     const doPeso = window.artesDaBase('arma-pesado');
@@ -107,8 +131,9 @@ describe('a legenda é o nome da BASE, nunca o do exemplar', () => {
   it('a máscara se chama pelo material, e não "Decorativa"', () => {
     abrir();
     const nomes = nomesNaParede();
-    expect(nomes).toContain('Máscara de Ferro');
-    expect(nomes).toContain('Máscara de Porcelana');
+    expect(nomes).toContain('Máscara de Cobre');
+    // Porcelana saiu em 31/10/2026; o marfim herdou a pintura dela.
+    expect(nomes).toContain('Máscara de Marfim');
     expect(nomes).not.toContain('Máscara Decorativa');
     expect(nomes).not.toContain('Máscara Verrogari');
   });
@@ -121,7 +146,10 @@ describe('a legenda é o nome da BASE, nunca o do exemplar', () => {
   it('a parede inteira sai do vocabulário de bases', () => {
     abrir();
     const doVocabulario = new Set(window.BASES_ITEM.map((b) => b.nome));
-    const foraDoVocabulario = nomesNaParede()
+    // As seções SEM base (30/10/2026) levam o nome do item ou do arquivo —
+    // é justamente o que elas são. A regra vale para a parede das bases.
+    const foraDoVocabulario = [...document.querySelectorAll('.gi-sec:not(.gi-sec--sem-base) .gi-nome')]
+      .map((n) => n.textContent)
       /* A tela de arma leva o tipo depois do nome da base ("Arma Pesada ·
          Machado", 27/10/2026): a base continua mandando na legenda, e o que
          vem depois do ponto é qual das telas dela está na moldura. */
@@ -135,11 +163,12 @@ describe('a legenda é o nome da BASE, nunca o do exemplar', () => {
 });
 
 describe('a busca filtra a parede', () => {
-  it('"coroa" deixa só as três coroas', async () => {
+  it('"coroa" deixa só as três coroas (31/10/2026: sem cobre, latão e porcelana)', async () => {
     abrir();
     fireEvent.change(document.querySelector('.gi-barra input'), { target: { value: 'coroa' } });
     await waitFor(() => {
-      expect(nomesNaParede()).toEqual(['Coroa de Ouro', 'Coroa de Prata', 'Coroa de Cobre']);
+      // E a pintura de cobre, que perdeu a base mas segue na parede (Peças sem base).
+      expect(nomesNaParede()).toEqual(['Coroa de Ouro', 'Coroa de Prata', 'Coroa de Marfim', 'Coroa cobre']);
     });
   });
   it('a busca sem resultado diz isso em vez de mostrar a parede vazia', async () => {
@@ -168,8 +197,8 @@ describe('o que falta sai do catálogo', () => {
     abrir();
     await waitFor(() => expect(document.querySelectorAll('.gi-base-linha').length).toBeGreaterThan(0));
     const linha = [...document.querySelectorAll('.gi-base-linha')]
-      .find((l) => l.querySelector('.gi-base-nome').textContent === 'Luva de Algodão');
-    expect(linha, 'a base sem arte da luva de pano está na lista').toBeTruthy();
+      .find((l) => l.querySelector('.gi-base-nome').textContent === 'Cachecol de Algodão');
+    expect(linha, 'a base sem arte do cachecol está na lista').toBeTruthy();
     expect(linha.querySelector('.mn-quadro-num').textContent).toBe('1');
   });
 });

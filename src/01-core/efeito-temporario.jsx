@@ -41,10 +41,32 @@
 const EFEITO_TEMP_KEYS = ['ef', 'eh', 'ka', 'ar', 'vb'];
 
 /* O item tem efeito com prazo? É o que `efeito_duracao_dias` diz (coluna de
-   06/10/2026). Sem prazo, o efeito é o de sempre e vai direto para a barra. */
+   06/10/2026) — ou `efeito_duracao_horas` (31/10/2026, usuário: "Elixir da
+   Euforia vai valer por 6 horas, 12 horas, 36 horas"). Sem prazo, o efeito é
+   o de sempre e vai direto para a barra. */
+function _horasDoPrazo(cat) {
+  const h = Number(cat && cat.efeito_duracao_horas);
+  return Number.isFinite(h) && h > 0 ? Math.trunc(h) : 0;
+}
 function ehEfeitoComPrazo(cat) {
   const d = Number(cat && cat.efeito_duracao_dias);
-  return Number.isFinite(d) && d > 0;
+  return (Number.isFinite(d) && d > 0) || _horasDoPrazo(cat) > 0;
+}
+/* Prazo em HORAS: vence no INSTANTE (data + hora do relógio da mesa), não no
+   dia. Dia absoluto × 24 + hora, a mesma linha do tempo de horasEntre
+   (clima-desgaste). */
+function _instanteHoras(d) {
+  const abs = (typeof dataFantasyParaAbsoluto === 'function') ? dataFantasyParaAbsoluto(d) : null;
+  if (abs == null) return null;
+  const h = Number(d && d.hora);
+  return abs * 24 + (Number.isFinite(h) ? h : 0);
+}
+function _somarHoras(dataJogo, horas) {
+  const t = _instanteHoras(dataJogo);
+  if (t == null || typeof absolutoParaDataFantasy !== 'function') return null;
+  const fim = t + horas;
+  const d = absolutoParaDataFantasy(Math.floor(fim / 24));
+  return d ? { ...d, hora: ((fim % 24) + 24) % 24 } : null;
 }
 
 /* As linhas que o item vira. `quantidade` multiplica, como em efeitosDoItem:
@@ -53,9 +75,11 @@ function ehEfeitoComPrazo(cat) {
    cada linha carrega o slug para a ficha poder dizer de onde o bônus veio. */
 function efeitosTemporariosDoItem(cat, quantidade, dataJogo, novoId) {
   if (!ehEfeitoComPrazo(cat)) return [];
-  const dias = Math.max(1, Math.trunc(Number(cat.efeito_duracao_dias) || 0));
-  const vence = (typeof somarDiasFantasy === 'function' && dataJogo)
-    ? somarDiasFantasy(dataJogo, dias) : null;
+  const horas = _horasDoPrazo(cat);
+  const dias = horas ? 0 : Math.max(1, Math.trunc(Number(cat.efeito_duracao_dias) || 0));
+  const vence = !dataJogo ? null
+    : horas ? _somarHoras(dataJogo, horas)
+    : (typeof somarDiasFantasy === 'function' ? somarDiasFantasy(dataJogo, dias) : null);
   const efs = (typeof efeitosDoItem === 'function') ? efeitosDoItem(cat, quantidade) : [];
   const idDe = novoId || (() => `tmp:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 7)}`);
   return efs
@@ -69,6 +93,7 @@ function efeitosTemporariosDoItem(cat, quantidade, dataJogo, novoId) {
       key: e.key,
       valor: Number(e.delta),
       dias,
+      ...(horas ? { horas } : {}),
       vence_em: vence,
     }));
 }
@@ -83,7 +108,14 @@ function efeitosTemporariosVigentes(lista, dataJogo) {
   const hoje = dataFantasyParaAbsoluto(dataJogo);
   if (hoje == null) return arr;
   return arr.filter((e) => {
-    const fim = e && e.vence_em ? dataFantasyParaAbsoluto(e.vence_em) : null;
+    if (!e || !e.vence_em) return true;
+    // Com hora (prazo em horas), vence no instante; sem hora, no dia.
+    if (e.vence_em.hora != null) {
+      const fimH = _instanteHoras(e.vence_em);
+      const agoraH = _instanteHoras(dataJogo);
+      return fimH == null || agoraH == null ? true : agoraH < fimH;
+    }
+    const fim = dataFantasyParaAbsoluto(e.vence_em);
     return fim == null ? true : hoje < fim;
   });
 }

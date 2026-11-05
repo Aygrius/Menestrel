@@ -30,6 +30,15 @@ const OPCOES_GRUPO_ARMAS = ['Livre', ...GRUPOS_ARMAS_SIGLAS];
 // Sigla no banco, palavra na tela (26/09/2026: "'L' vira 'Armaduras leves'").
 const OPCOES_GRUPO_ARMADURAS = ['Livre', { value: 'L', label: 'Armaduras leves' },
   { value: 'M', label: 'Armaduras médias' }, { value: 'P', label: 'Armaduras pesadas' }];
+/* A grade de efeitos lê a prosa do item inteira? (30/10/2026) — decide se o
+   editor mostra a grade ou as duas prosas. Ver efeitosCabemNaGrade (01-core).
+   Sem o helper carregado, a grade não aparece e as prosas ficam: é o lado
+   que não perde texto. */
+const gradeCobre = (form) => {
+  const f = (typeof window !== 'undefined' && window.efeitosCabemNaGrade) || null;
+  return f ? f(form || {}) : false;
+};
+
 /* Listas fechadas do editor de magias (26/09/2026, pedido do usuário). */
 const OPCOES_TIPO_MAGIA = ['Básica', 'Perdida', 'Ancestral'];
 const RODADAS_MAGIA = ['1 rodada', '2 rodadas', '3 rodadas', '4 rodadas', '5 rodadas',
@@ -350,6 +359,10 @@ const CATALOGO_DESCRITORES = {
       { col: 'base', tipo: 'opcoes', rotuloKey: 'campoBase',
         opcoesDe: (linha) => (typeof window !== 'undefined' && window.opcoesDeBase
           ? window.opcoesDeBase(linha) : []) },
+      /* A PINTURA DO EXEMPLAR (30/10/2026): o arquivo de public/equip que ganha
+         da pintura da base — a Blusa de Bardo e a de Ladino são da mesma base
+         (algodão) e não se parecem. Vazio = a da base. */
+      { col: 'arte', grupos: ['Vestimentas', 'Armaduras'], tipo: 'texto', rotuloKey: 'campoArte' },
       /* O banco só aceita "ti-nome" (itens_icone_formato_chk: ^ti-[a-z0-9-]+$).
          Texto livre fazia o insert falhar com o erro do Postgres (14/09/2026).
          formato: 'icone' → o editor aceita "ti-paw", "ti ti-paw", o <i> colado
@@ -412,6 +425,10 @@ const CATALOGO_DESCRITORES = {
         opcoes: [{ value: 'L', label: 'Leve' },
                  { value: 'M', label: 'Médio' },
                  { value: 'P', label: 'Pesado' }] },
+      /* O CONJUNTO (30/10/2026): as peças idênticas de uma armadura dividem o
+         mesmo valor ("leve-crizagom"), e o kit também. Com todas no corpo,
+         inteiras, vale o bônus de conjunto (bonusDeConjunto). */
+      { col: 'conjunto', grupos: ['Armaduras'], tipo: 'texto', rotuloKey: 'campoConjunto' },
       /* Listas fechadas iguais às CHECK do banco (itens_categoria_equip_chk e
          itens_slot_equip_chk) — eram texto livre e qualquer outro valor
          derrubava o salvar. Sigla no banco, palavra na tela. */
@@ -446,9 +463,13 @@ const CATALOGO_DESCRITORES = {
                  { value: 'canela', label: 'Canela' }, { value: 'pe', label: 'Pé' },
                  { value: 'alforje', label: 'Alforje' }] },
       { col: 'resistencia', grupos: ['Armas', 'Armaduras', 'Vestimentas'], tipo: 'numero', rotuloKey: 'campoResistencia', min: 0 },
-      { col: 'maos_pequenino', grupos: ['Armas', 'Armaduras', 'Instrumentos'], tipo: 'numero', rotuloKey: 'campoMaosPequenino', min: 0, max: 2 },
-      { col: 'maos_anao', grupos: ['Armas', 'Armaduras', 'Instrumentos'],      tipo: 'numero', rotuloKey: 'campoMaosAnao',      min: 0, max: 2 },
-      { col: 'maos_outras', grupos: ['Armas', 'Armaduras', 'Instrumentos'],    tipo: 'numero', rotuloKey: 'campoMaosOutras',    min: 0, max: 2 },
+      /* MÃOS SÓ NO QUE VAI NA MÃO (30/10/2026, usuário: "quando o grupo for
+         armaduras, não precisa trazer os campos mãos"). Armaduras saiu dos
+         grupos; o `quando` mantém os ESCUDOS, que são Armaduras com encaixe
+         na mão e ocupam uma ou duas (Escudo Pipa: 2 para Pequenino). */
+      { col: 'maos_pequenino', grupos: ['Armas', 'Instrumentos'], quando: { col: 'slot_equip', valor: 'mao' }, tipo: 'numero', rotuloKey: 'campoMaosPequenino', min: 0, max: 2 },
+      { col: 'maos_anao', grupos: ['Armas', 'Instrumentos'], quando: { col: 'slot_equip', valor: 'mao' },      tipo: 'numero', rotuloKey: 'campoMaosAnao',      min: 0, max: 2 },
+      { col: 'maos_outras', grupos: ['Armas', 'Instrumentos'], quando: { col: 'slot_equip', valor: 'mao' },    tipo: 'numero', rotuloKey: 'campoMaosOutras',    min: 0, max: 2 },
       /* DROPDOWN com as magias do sistema (28/09/2026: "no campo magia, mostrar
          um dropdown com as magias do sistema"). O banco guarda o NOME da magia
          (magiaDoItem casa pelo nome); a lista vem da tabela `fonte` quando o
@@ -458,16 +479,16 @@ const CATALOGO_DESCRITORES = {
       /* Fora da tela desde 23/10/2026: o nível vem junto com a magia escolhida
          (campo magia, comNivel). Continua no payload — é o que se grava. */
       { col: 'nivel_magia', tipo: 'numero', rotuloKey: 'campoNivelMagia', min: 0, oculto: true },
-      /* SOMENTE LEITURA, e não é preferência — é o banco.
-         itens.magico é coluna GERADA:
-           magico boolean GENERATED ALWAYS AS (magia IS NOT NULL AND magia <> '')
-         O Postgres recusa qualquer UPDATE que a mencione, com
-         "column magico can only be updated to DEFAULT". O editor a mandava no
-         payload de TODA edição de item, então NENHUM item salvava — o erro
-         que o usuário reportou em 11/09/2026.
-         O valor se resolve sozinho a partir de `magia`: preencheu, é mágico. */
+      /* QUEM CRIA ESCOLHE (30/10/2026, usuário: "a escolha do item ser mágico
+         deve ser de quem o criou"). Até aqui era coluna GERADA a partir de
+         `magia` e o campo saía travado — o banco recusava a gravação com
+         "column magico can only be updated to DEFAULT", o erro que derrubou
+         toda edição de item em 11/09/2026. Por isso a ORDEM importa:
+         scripts/sql/magico-escolha-de-quem-cria-2026-10-30.sql (que vira a
+         coluna comum) vai ao banco ANTES deste editor ir ao ar.
+         A peça com Sagração é mágica de qualquer jeito: itemEhMagico. */
       { col: 'magico', tipo: 'opcoes', rotuloKey: 'campoMagico',
-        opcoes: ['Sim', 'Não'], somenteLeitura: true },
+        opcoes: ['Sim', 'Não'], booleano: true, largura: 'curta' },
       /* Técnica que o pergaminho ensina (22/10/2026): mesmo molde do campo
          Magia — o banco guarda o NOME; só os Consumíveis (pergaminhos). */
       { col: 'tecnica', tipo: 'opcoes', rotuloKey: 'campoTecnica', fonte: 'tecnicas',
@@ -487,9 +508,23 @@ const CATALOGO_DESCRITORES = {
          `semColuna`: ela não é coluna nenhuma — escreve nas duas prosas
          abaixo, que continuam sendo o armazenamento. Ver efeitosEmNumeros /
          efeitosParaTexto (01-core/inventario-helpers.jsx). */
-      { col: '__efeitos', grupos: ['Consumíveis'], tipo: 'efeitos', semColuna: true, rotuloKey: 'campoEfeitos' },
-      { col: 'efeito_positivo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoPositivo',  linhas: 2 },
-      { col: 'efeito_negativo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoNegativo',  linhas: 2 },
+      /* POSITIVO E NEGATIVO VIRAM UMA COISA SÓ (30/10/2026, usuário: "ao
+         editar/criar itens, os efeitos positivos e negativos virem uma coisa
+         só, ou seja, teremos um campo para cada tipo de status que iremos
+         atuar e um número positivo ou negativo para alterar"). A grade, que
+         era só dos Consumíveis, vale para todo grupo que tem efeito; as duas
+         prosas saem da tela (`oculto`) mas continuam sendo o que se grava —
+         a grade escreve nelas a cada tecla. */
+      /* EXCEÇÃO: o item cuja prosa a grade não lê inteira (venenos "por
+         rodada, durante N rodadas", "4 de Montar", "1 de Resistência Física")
+         fica com as PROSAS e sem a grade — a grade reescreveria o texto e
+         apagaria o que não entende. Ver efeitosCabemNaGrade (01-core). */
+      { col: '__efeitos', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'efeitos', semColuna: true, rotuloKey: 'campoEfeitos',
+        ocultoSe: (form) => !gradeCobre(form) },
+      { col: 'efeito_positivo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoPositivo',  linhas: 2,
+        ocultoSe: (form) => gradeCobre(form) },
+      { col: 'efeito_negativo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoNegativo',  linhas: 2,
+        ocultoSe: (form) => gradeCobre(form) },
       /* 'consumiveis' e 'consumiveis_peso' SAÍRAM em 28/09/2026: a carne do
          abate sai do tipo e do peso da CRIATURA ligada (RPC abater_animal) —
          "não precisa de um dropdown para isso, a conversão é automática". As

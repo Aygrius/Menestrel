@@ -1484,32 +1484,16 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
      clima), que está em toda tela da mesa — vale para Mestre e Jogador. Os
      alvos antigos (menu lateral do Mestre, barra da ficha do Jogador) ficam
      de reserva para quando o trilho não estiver na tela. */
-  const alvoCena = useAlvoPortal('cdj-sino');
-  /* O sino desenha no trilho por PORTAL, então não alcança o balão de lá:
-     ele tem o seu. Precisa dele desde 26/10/2026, quando a pílula voltou a
-     ser só o ícone — "Localização, Horário, Umidade, Vento, Temperatura,
-     Notificações vão ser somente ícones, e o tooltip será a informação
-     dele" (usuário). */
-  const [dicaSino, abrirDicaSino, fecharDicaSino, manterDicaSino] = useNavTooltip(60);
-  /* O trilho DE VERDADE da ficha — o que tem Status, Atividades, Habilidades,
-     Magias e Itens (11-ficha/ficha.jsx). O `mc-acoes-ficha` abaixo é o do
-     shell, que fica VAZIO quando a ficha desenha o seu: era nele que o sino
-     caía, virando uma faixa solta no topo (28/10/2026). */
-  const alvoFichaHeroi = useAlvoPortal('fp-acoes-ficha');
-  const alvoFicha = useAlvoPortal('mc-acoes-ficha');
+  /* ── O SINO MORA NO MENU LATERAL (30/10/2026) ──────────────────────────
+     "O botão de notificação, tanto para mestre como para jogador, vai sair do
+     trilho e vai ficar no menu lateral esquerdo." (usuário)
+
+     Até aqui ele pulava de casa conforme a tela — trilho da ficha, trilho da
+     cena, menu lateral do Mestre como reserva — e cada mudança de tela o
+     levava para outro lugar. O menu lateral está em toda tela da mesa, para
+     os dois papéis: é a casa fixa. Sem ele na tela, segue o botão flutuante. */
   const alvoLateral = useAlvoPortal('mc-sino-lateral');
-  /* O TRILHO DA FICHA GANHA A VEZ (28/10/2026, pedido do usuário: o sino vai
-     para o "trilho junto com status, atividades, etc").
-
-     A ordem era: trilho da cena primeiro, e o da ficha só como reserva. Como
-     o trilho da cena está em TODA tela da mesa, a reserva nunca entrava — o
-     sino vivia na faixa de data · local · hora, longe das ações.
-
-     Agora o da ficha vem antes, e só ele: quando a ficha não está aberta o
-     alvo não existe, e aí o sino volta para o trilho da cena, que segue sendo
-     a casa dele no resto da mesa. O menu lateral do Mestre continua como
-     última reserva, de quando nenhum dos dois está na tela. */
-  const alvoBarra = alvoFichaHeroi || alvoFicha || alvoCena || (ehMestre ? alvoLateral : null);
+  const alvoBarra = alvoLateral;
   const [mensagens, setMensagens] = useState([]);
   // Linhas CRUAS do log — o `meta` que a fila de aprovação lê. As mensagens
   // acima são formato de exibição e perdem o meta de propósito.
@@ -1660,69 +1644,17 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
   const Janela = window.BestDetalheModal;
   const en = lang === 'en';
   const qtdSino = Math.max(naoLidas, pedidosAbertos.length);
-  /* NA BARRA DE AÇÕES DA FICHA (23/10/2026): "Coloque o sino de notificações
-     na barra, depois de 'amigos'." Com a barra na tela, o sino entra nela como
-     os outros botões (ícone e nome); sem ela, segue flutuando no canto. */
-  /* No trilho da cena o sino veste a pílula das outras pastilhas (.cdj-bar),
-     para ler como parte da faixa — não como um botão colado nela. Com ÍCONE E
-     PALAVRA (26/10/2026, pedido do usuário: "o botão notificação deve ter o
-     ícone e a palavra escrita"), como as pastilhas de data e local. */
-  /* Só o texto no balão (26/10/2026): o contador já está na marca em brasa,
-     no canto do ícone — repeti-lo no balão seria dizer duas vezes. */
   const rotuloSino = en ? 'Notifications' : 'Notificações';
-  /* ── A FORMA SEGUE A CASA, NÃO O PAPEL (28/10/2026) ────────────────────
-     "O botão de notificação não aparece no trilho para o jogador, e para o
-     mestre o trilho ficou gigante." (usuário)
-
-     Dois erros no mesmo encadeamento:
-
-     1. `alvoCena` vinha PRIMEIRO e sem condição. Como o trilho da cena está
-        em toda tela da mesa, ele ganhava sempre — e o Jogador nunca via o
-        sino no trilho da ficha, por mais que eu mudasse a ordem do
-        `alvoBarra`.
-
-     2. O desenho era escolhido pelo PAPEL (`ehMestre`), não pelo lugar. O
-        ramo do Mestre usa `mc-navitem`, que é a linha larga do MENU LATERAL —
-        dentro do trilho da ficha ela esticava a faixa inteira. Daí o
-        "gigante".
-
-     A regra certa é a de baixo: quem manda no desenho é onde o sino vai
-     parar. No trilho da ficha ele veste o botão de ação, igual a Status e
-     Atividades, para Mestre e Jogador — porque ali os dois veem a mesma
-     barra. Na faixa da cena veste a pastilha. No menu lateral do Mestre,
-     a linha de menu. */
-  const sinoDeAcao = (
-    <div className="menestrel-ui mc-acao-grupo cm-barra">
-      <button type="button" className={'mc-acao cm-acao' + (aberto ? ' is-aberto' : '')}
-        onClick={() => (aberto ? fecharHistorico() : abrirHistorico())}
-        aria-label={rotuloSino} aria-expanded={aberto}>
-        <i className="ti ti-bell" aria-hidden="true" />
-        <span className="mc-acao-rotulo">{rotuloSino}</span>
-        {qtdSino > 0 && <span className="amg-badge cm-acao-badge">{qtdSino > 9 ? '9+' : qtdSino}</span>}
-      </button>
-    </div>
-  );
-  const alvoDeAcao = alvoFichaHeroi || alvoFicha;
-  const sinoNaBarra = alvoDeAcao ? ReactDOM.createPortal(sinoDeAcao, alvoDeAcao)
-    : alvoCena ? ReactDOM.createPortal(
-    <>
-      <button type="button" className={'cdj-bar cdj-sino is-editavel' + (aberto ? ' is-open' : '')}
-        onClick={() => { fecharDicaSino(); (aberto ? fecharHistorico() : abrirHistorico()); }}
-        aria-label={rotuloSino} aria-expanded={aberto}
-        {...propsTip(abrirDicaSino, fecharDicaSino, rotuloSino)}>
-        <i className="ti ti-bell" aria-hidden="true" />
-        {qtdSino > 0 && <span className="cdj-sino-badge">{qtdSino > 9 ? '9+' : qtdSino}</span>}
-      </button>
-      <NavTooltip tip={dicaSino} onEnter={manterDicaSino} onLeave={fecharDicaSino} abaixo />
-    </>, alvoCena)
-    /* A linha larga é do MENU LATERAL, e só dele. */
-    : alvoLateral && ehMestre ? ReactDOM.createPortal(
+  /* A linha de menu, como os outros destinos do menu lateral. O contador é
+     <b>, e não <span>: com o menu recolhido, todo `.mc-navitem > span` some
+     (é o nome do item), e o contador tem de continuar à vista no ícone. */
+  const sinoNaBarra = alvoLateral ? ReactDOM.createPortal(
     <button type="button" className={'mc-navitem cm-nav' + (aberto ? ' is-aberto' : '')}
       onClick={() => (aberto ? fecharHistorico() : abrirHistorico())}
       aria-label={rotuloSino} aria-expanded={aberto}>
       <i className="ti ti-bell" aria-hidden="true" />
       <span>{rotuloSino}</span>
-      {qtdSino > 0 && <span className="cm-nav-badge">{qtdSino > 9 ? '9+' : qtdSino}</span>}
+      {qtdSino > 0 && <b className="cm-nav-badge">{qtdSino > 9 ? '9+' : qtdSino}</b>}
     </button>, alvoLateral) : null;
   return (
     <div className="menestrel-ui cm-root" style={{ '--cm-sidebar': sidebarLargura + 'px' }}>
@@ -2110,8 +2042,55 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
     setRascunho(podeEditar ? (notasMestre[dia] || '') : (notasProprias[dia] || ''));
   };
 
-  // Ao trocar de mês: desselecionar dia
-  const trocarMes = (fn) => { setMesFoco(fn); setDiaFoco(null); setInputAtivo(false); setRascunho(''); };
+  /* A NAVEGAÇÃO DO CALENDÁRIO (04/11/2026, usuário: "melhore com impeccable o
+     calendário quando abre, principalmente a navegação dos meses e ano").
+     Era um trilho de quatro setas — ‹ › do mês e « Ano » do ano, lado a
+     lado e iguais — que só andava um passo por vez e travava no primeiro e
+     no último mês do ano. Agora:
+       · o MÊS é o título, entre as suas duas setas, e clicar nele abre a
+         grade dos treze meses para pular direto;
+       · as setas do mês VIRAM O ANO (Dia de Cruine → Mês do Conflito do ano
+         seguinte) — só para o Mestre, que é quem anda pelos anos;
+       · o ANO tem linha própria, com o número editável para pular;
+       · "Hoje" aparece fora do mês da data atual e volta a ele.
+     Trocar de mês desseleciona o dia, como antes. */
+  const [escolhendoMes, setEscolhendoMesBruto] = useState(false);
+  /* A GRADE DOS MESES ABRE NO ESPAÇO DOS DIAS: a janela mede o conteúdo, e
+     a grade pedia 839px contra os 647 dos dias — o calendário inteiro pulava
+     ao abrir e ao fechar (medido na prévia). A medida é travada antes de
+     abrir e solta ao fechar. */
+  const modalRef = React.useRef(null);
+  const [medidaTravada, setMedidaTravada] = useState(null);
+  const setEscolhendoMes = (v) => {
+    const abrir = typeof v === 'function' ? v(escolhendoMes) : v;
+    if (abrir && modalRef.current) {
+      const r = modalRef.current.getBoundingClientRect();
+      setMedidaTravada({ width: Math.ceil(r.width), height: Math.ceil(r.height) });
+    }
+    if (!abrir) setMedidaTravada(null);
+    setEscolhendoMesBruto(abrir);
+  };
+  const irParaMes = (m, a) => {
+    setMesFoco(m); setAnoFoco(Math.max(0, a));
+    setDiaFoco(null); setInputAtivo(false); setRascunho('');
+  };
+  const andarMes = (delta) => {
+    let m = mesFoco + delta; let a = anoFoco;
+    if (m < 1) { if (!podeEditar || a <= 0) return; m = totalMeses; a -= 1; }
+    if (m > totalMeses) { if (!podeEditar) return; m = 1; a += 1; }
+    irParaMes(m, a);
+  };
+  const podeMesAnterior = mesFoco > 1 || (podeEditar && anoFoco > 0);
+  const podeMesSeguinte = mesFoco < totalMeses || podeEditar;
+  const [anoTxt, setAnoTxt] = useState(String(anoFoco));
+  useEffect(() => { setAnoTxt(String(anoFoco)); }, [anoFoco]);
+  const confirmarAno = () => {
+    const n = parseInt(anoTxt, 10);
+    if (Number.isNaN(n) || n < 0) { setAnoTxt(String(anoFoco)); return; }
+    if (n !== anoFoco) irParaMes(mesFoco, n);
+  };
+  // O nome curto do mês, para a grade: "Mês do Ouro" → "Ouro"; o Dia de Cruine fica inteiro.
+  const nomeCurtoMes = (m) => String((m && m.nome) || '').replace(/^Mês d[aeo]s? /i, '');
 
   // Abre o input e foca
   const abrirInput = () => {
@@ -2220,7 +2199,7 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="menestrel-ui">
-      <div className="cal-modal">
+      <div className="cal-modal" ref={modalRef} style={medidaTravada || undefined}>
 
         {/* O CALENDÁRIO NO NOVO PADRÃO (23/10/2026): "Quero algo bonito,
             moderno e condizente com nosso novo layout." O mês em destaque no
@@ -2228,34 +2207,60 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
             esquerda e a agenda à direita — o dia escolhido ou, sem dia, o que
             acontece no mês. Mesmas ações e dados de antes. */}
         <div className="cal-header">
-          <div className="cal-titulo-bloco">
-            <span className="cal-titulo-mes">{nomeMes}</span>
-            <span className="cal-titulo-ano">{en ? `Year ${anoFoco}` : `Ano ${anoFoco}`}</span>
+          <div className="cal-nav">
+            {/* O mês: o título entre as suas setas; clicar nele abre os treze. */}
+            <div className="cal-nav-mes" role="group" aria-label={en ? 'Month' : 'Mês'}>
+              <button type="button" className="cal-nav-seta" onClick={() => andarMes(-1)}
+                disabled={!podeMesAnterior} aria-label={en ? 'Previous month' : 'Mês anterior'}>
+                <i className="ti ti-chevron-left" aria-hidden="true" />
+              </button>
+              <button type="button" className={'cal-nav-titulo' + (escolhendoMes ? ' is-aberto' : '')}
+                aria-expanded={escolhendoMes} aria-haspopup="true"
+                aria-label={(en ? 'Choose month — ' : 'Escolher mês — ') + nomeMes}
+                onClick={() => setEscolhendoMes((v) => !v)}>
+                <span className="cal-titulo-mes">{nomeMes}</span>
+                <i className="ti ti-chevron-down cal-nav-titulo-ic" aria-hidden="true" />
+              </button>
+              <button type="button" className="cal-nav-seta" onClick={() => andarMes(1)}
+                disabled={!podeMesSeguinte} aria-label={en ? 'Next month' : 'Próximo mês'}>
+                <i className="ti ti-chevron-right" aria-hidden="true" />
+              </button>
+            </div>
+            {/* O ano: linha própria. O Mestre anda e digita; o Jogador lê. */}
+            <div className="cal-nav-ano" role="group" aria-label={en ? 'Year' : 'Ano'}>
+              <span className="cal-nav-ano-rotulo">{en ? 'Year' : 'Ano'}</span>
+              {podeEditar ? (
+                <>
+                  <button type="button" className="cal-nav-seta cal-nav-seta--ano" onClick={() => irParaMes(mesFoco, anoFoco - 1)}
+                    disabled={anoFoco <= 0} aria-label={en ? 'Previous year' : 'Ano anterior'}>
+                    <i className="ti ti-chevron-left" aria-hidden="true" />
+                  </button>
+                  <input className="cal-nav-ano-num" type="text" inputMode="numeric" value={anoTxt}
+                    aria-label={en ? 'Year' : 'Ano'} size={Math.max(3, anoTxt.length)}
+                    onChange={(e) => setAnoTxt(e.target.value.replace(/[^0-9]/g, ''))}
+                    onBlur={confirmarAno}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); confirmarAno(); }
+                      if (e.key === 'ArrowUp') { e.preventDefault(); irParaMes(mesFoco, anoFoco + 1); }
+                      if (e.key === 'ArrowDown' && anoFoco > 0) { e.preventDefault(); irParaMes(mesFoco, anoFoco - 1); }
+                    }} />
+                  <button type="button" className="cal-nav-seta cal-nav-seta--ano" onClick={() => irParaMes(mesFoco, anoFoco + 1)}
+                    aria-label={en ? 'Next year' : 'Próximo ano'}>
+                    <i className="ti ti-chevron-right" aria-hidden="true" />
+                  </button>
+                </>
+              ) : (
+                <span className="cal-nav-ano-num is-leitura">{anoFoco}</span>
+              )}
+            </div>
           </div>
-          <div className="cal-trilho" role="group" aria-label={en ? 'Navigate' : 'Navegar'}>
-            <button className="cal-trilho-btn" onClick={() => trocarMes((m) => Math.max(1, m - 1))}
-              disabled={mesFoco === 1} aria-label={en ? 'Previous month' : 'Mês anterior'}>
-              <i className="ti ti-chevron-left" aria-hidden="true" />
+          {/* Fora do mês da data atual, o caminho de volta. */}
+          {hoje && (hoje.mes !== mesFoco || hoje.ano !== anoFoco) && (
+            <button type="button" className="cal-nav-hoje" onClick={() => { setEscolhendoMes(false); irParaMes(hoje.mes, hoje.ano); }}>
+              <i className="ti ti-calendar-event" aria-hidden="true" />
+              <span>{en ? 'Today' : 'Hoje'}</span>
             </button>
-            <button className="cal-trilho-btn" onClick={() => trocarMes((m) => Math.min(totalMeses, m + 1))}
-              disabled={mesFoco === totalMeses} aria-label={en ? 'Next month' : 'Próximo mês'}>
-              <i className="ti ti-chevron-right" aria-hidden="true" />
-            </button>
-            {podeEditar && (
-              <>
-                <span className="cal-trilho-espaco" aria-hidden="true" />
-                <button className="cal-trilho-btn" onClick={() => setAnoFoco((a) => Math.max(0, a - 1))}
-                  disabled={anoFoco <= 0} aria-label={en ? 'Previous year' : 'Ano anterior'}>
-                  <i className="ti ti-chevrons-left" aria-hidden="true" />
-                </button>
-                <span className="cal-trilho-rotulo">{en ? 'Year' : 'Ano'}</span>
-                <button className="cal-trilho-btn" onClick={() => setAnoFoco((a) => a + 1)}
-                  aria-label={en ? 'Next year' : 'Próximo ano'}>
-                  <i className="ti ti-chevrons-right" aria-hidden="true" />
-                </button>
-              </>
-            )}
-          </div>
+          )}
           <button className="cal-header-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
             <i className="ti ti-x" aria-hidden="true" />
           </button>
@@ -2263,6 +2268,26 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
 
         <div className="cal-corpo">
         <div className="cal-mes-quadro">
+        {escolhendoMes ? (
+          /* OS TREZE MESES PARA PULAR DIRETO (04/11/2026). O mês da data atual
+             do jogo leva o ponto de ouro; o que se está vendo, a casa acesa.
+             Escolher fecha a grade e mostra os dias dele. */
+          <div className="cal-meses-grade" role="listbox" aria-label={en ? 'Months' : 'Meses'}
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setEscolhendoMes(false); } }}>
+            {(meses || []).map((m) => {
+              const visto = m.n === mesFoco;
+              const daData = hoje && hoje.mes === m.n && hoje.ano === anoFoco;
+              return (
+                <button key={m.n} type="button" role="option" aria-selected={visto}
+                  className={'cal-meses-casa' + (visto ? ' is-visto' : '') + (daData ? ' is-da-data' : '') + (m.dias === 1 ? ' is-dia-avulso' : '')}
+                  onClick={() => { irParaMes(m.n, anoFoco); setEscolhendoMes(false); }}>
+                  <span className="cal-meses-nome">{nomeCurtoMes(m)}</span>
+                  {daData && <span className="cal-meses-ponto" aria-label={en ? 'Current date' : 'Data atual'} />}
+                </button>
+              );
+            })}
+          </div>
+        ) : (<>
         {/* Cabeçalho dos dias da semana: as três primeiras letras. */}
         <div className="cal-weekdays">
           {DIAS_SEMANA_FULL.map((d) => (
@@ -2306,6 +2331,7 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
             );
           })}
         </div>
+        </>)}
         </div>{/* cal-mes-quadro */}
 
         <aside className="cal-agenda">
@@ -2760,7 +2786,10 @@ async function catalogoDosAnimais() {
   return _animaisDoCatalogo;
 }
 
-function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, esconderBotaoPersonagem, dataNascPjAtivo = null, onDataAtual = null }) {
+/* `soNoRodape` (02/11/2026): na ficha a faixa só existe dentro do trilho de
+   baixo (#pg-rodape-slot); sem o espaço — a lista de personagens do Mestre,
+   o instante antes de a ficha montar —, não aparece no alto da tela. */
+function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistorias, mesaAtivaId, setMesaAtivaId, profile, onNovaHistoria, esconderSeletorEBotaoNovo, sidebarLargura = 208, onNovoPersonagem, esconderBotaoPersonagem, dataNascPjAtivo = null, onDataAtual = null, soNoRodape = false }) {
   /* A ALTURA REAL DA PÍLULA (revisão, 22/10/2026): no celular e no tablet ela
      quebra em linhas — e "Novo personagem" pode abrir mais uma. Um número fixo
      deixava o conteúdo por baixo dela. Ref de callback: acompanha o elemento
@@ -2778,6 +2807,18 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     roCdj.current = ro;
   }, []);
   const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
+  /* NO TRILHO DE BAIXO DA CENA (02/11/2026): com a página da Cena num cartão
+     ("Este novo padrão de página com os cards dentro de uma página"), a data,
+     o lugar, a hora e o tempo descem para o pé dele, no lugar da Experiência
+     da Ficha. A Cena abre o espaço (#pg-rodape-slot, 06-historias); nas
+     outras telas a faixa segue fixa no alto, como antes. */
+  const alvoRodape = (typeof useAlvoPortal === 'function' ? useAlvoPortal : window.useAlvoPortal || (() => null))('pg-rodape-slot');
+  // No pé da Cena, a faixa não ocupa o alto da tela: a altura dela é zero.
+  React.useEffect(() => {
+    if (!alvoRodape && !soNoRodape) return;
+    const r = document.getElementById('root');
+    if (r) r.style.setProperty('--cdj-h', '0px');
+  }, [alvoRodape, soNoRodape]);
   const [dataAtual, setDataAtual] = useState(null); // { dia, mes, ano, local } | null
   const [carregando, setCarregando] = useState(true);
   const [editando, setEditando] = useState(null); // null | 'data' | 'local'
@@ -3047,6 +3088,21 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     if (r && !r.ok) console.error('[desgaste] animais do PJ', pjId, r.error);
   };
 
+  /* A BANCADA ANDA COM O RELÓGIO (31/10/2026, atividade Fabricar): as horas
+     vão para o item em construção, pela mesma porta do compare-and-swap.
+     avancarFabricacao devolve a MESMA lista quando não há nada na bancada, e
+     aí alterarInventario não grava. */
+  const avancarBancadaDoPj = async (pjId, horas) => {
+    if (!pjId || horas <= 0 || typeof window.avancarFabricacao !== 'function') return;
+    const r = await window.alterarInventario(pjId, (inv) => {
+      // O inventário é o objeto { itens, … }; a fila mexe só na lista.
+      const itens = inv && Array.isArray(inv.itens) ? inv.itens : [];
+      const andou = window.avancarFabricacao(itens, horas).itens;
+      return andou === itens ? inv : { ...inv, itens: andou };
+    });
+    if (r && !r.ok) console.error('[fabricar] bancada do PJ', pjId, r.error);
+  };
+
   // O mesmo par do personagem: o tique cobra SÓ o degrau do clima que mudou.
   const tiqueNosAnimaisDoPj = async (pjId, trilhaChave, degrauId) => {
     if (!pjId) return;
@@ -3099,13 +3155,16 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
          anda NO BANCO (RPC avancar_treinos, linha travada) — regravar a
          coluna daqui apagava a compra feita entre a leitura e a escrita. */
       const treina = tipoAtividade && !morto && Array.isArray(pj.treinos) && pj.treinos.length > 0;
+      const fabrica = tipoAtividade === 'fabricando' && !morto;
       return Promise.all([
         supabaseClient.from('personagens').update({ estado_atual: novo }).eq('id', pj.id)
           .then(({ error: e }) => { if (e) console.error('[desgaste] PJ', pj.id, e); }),
         treina && Promise.resolve(supabaseClient.rpc('avancar_treinos', { p_pj_id: pj.id, p_atividade: tipoAtividade, p_horas: horas }))
           .then(({ error: e }) => { if (e) console.error('[treino] PJ', pj.id, e); }),
-        // Os bichos do PJ, pela porta do compare-and-swap (ver acima).
-        desgastarAnimaisDoPj(pj.id, horas, horaInicial, tempo),
+        // Os bichos do PJ e a bancada, pela porta do compare-and-swap (ver
+        // acima) — um depois do outro: os dois gravam o mesmo inventário.
+        desgastarAnimaisDoPj(pj.id, horas, horaInicial, tempo)
+          .then(() => fabrica && avancarBancadaDoPj(pj.id, horas)),
       ]);
     }));
   };
@@ -3328,6 +3387,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
   // historiaId fica null), e o botão "Novo personagem" precisa aparecer pra
   // ele poder criar o primeiro. Sem historiaId e sem onNovoPersonagem (ex.:
   // outras abas, ou Mestre sem histórias), não há nada útil pra mostrar.
+  if (soNoRodape && !alvoRodape) return null;
   if (carregando) return null;
   /* O BOTÃO ESCONDIDO TAMBÉM CONTA (27/10/2026, pedido do usuário: "acima da
      ficha ainda há um círculo marrom, parece que há um card invisível na tela
@@ -3349,8 +3409,10 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
      20/09 e o porquê dela seguem no comentário. */
   const mostrarSairMesa = false;
 
-  return (
-    <div className="menestrel-ui cdj-root" ref={medirCdj} style={{ left: sidebarLargura, transition: 'left .32s cubic-bezier(.4,0,.2,1)' }}>
+  const faixa = (
+    <div className={'menestrel-ui cdj-root' + (alvoRodape ? ' cdj-root--rodape' : '')}
+      ref={alvoRodape ? null : medirCdj}
+      style={alvoRodape ? undefined : { left: sidebarLargura, transition: 'left .32s cubic-bezier(.4,0,.2,1)' }}>
       {/* O TRILHO (23/10/2026): data, lugar, hora e tempo num trilho só, como a
           barra de ações da ficha. A faixa .cdj-root continua da largura toda;
           o trilho encolhe ao conteúdo dentro dela. */}
@@ -3657,17 +3719,13 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
           {en ? 'New character' : 'Novo personagem'}
         </button>
       )}
-      {/* O SINO NO TRILHO DA CENA (26/10/2026, pedido do usuário): "coloque o
-          botão de notificação junto com o trilho no topo com data, local".
-          A CentralMensagens desenha aqui por portal — Mestre e Jogador.
-          Só quando HÁ mesa: sem ela não há o que notificar, e uma âncora de
-          portal solta num trilho sem data atraía o sino para um trilho que
-          não é o da cena (27/10/2026). */}
-      {historiaId && <div id="cdj-sino" className="cdj-sino-slot" />}
+      {/* O sino morou aqui de 26 a 30/10/2026; foi para o menu lateral
+          (ver CentralMensagens). */}
       </div>
-      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} abaixo />
+      <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} abaixo={!alvoRodape} />
     </div>
   );
+  return alvoRodape ? ReactDOM.createPortal(faixa, alvoRodape) : faixa;
 }
 
 /* ============================== [9.6] RolagemLivreFab — botões flutuantes D20 e D10 ==============================
@@ -3990,8 +4048,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      segunda busca aqui mostraria outra coisa no menu e na tela. */
   const [compsDaMesa, setCompsDaMesa] = useState([]);
   const [compPedido, setCompPedido] = useState({ id: null, parte: null, token: 0 });
-  const pedirCompanheiro = (compId, parte) =>
-    setCompPedido((c) => ({ id: compId, parte: parte || null, token: c.token + 1 }));
   const abrirFichaDoPj = (pjId, aba) => {
     setAbaFichaMestre(aba || 'ficha');
     setAbaTokenMestre((n) => n + 1);
@@ -4023,6 +4079,14 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      Jogador — os dois nomes do mesmo lugar, o único em que o trilho de
      data/local/clima tem o que conduzir. */
   const telaDaMesa = profile === 'master' ? currentId === 'cena' : currentId === 'aventuras';
+  /* BATALHA E LOJA DO MESTRE COM O RODAPÉ DA CENA (04/11/2026, usuário: "O
+     rodapé com data, localização, etc que tem na página cena, se repete em
+     batalha, loja, etc."). As três são uma página só (o grupo Mesa), então o
+     trilho de baixo é o mesmo nas três — sempre DENTRO da página (soNoRodape),
+     nunca fixo no alto. */
+  const rodapeDaMesa = profile === 'master' && ['batalha', 'loja_mesa'].includes(currentId);
+  // As telas em que uma ficha pode estar aberta (o trilho de baixo dela leva a data).
+  const fichaNaTela = profile === 'master' ? currentId === 'personagens_m' : ['ficha', 'inventario', 'loja', 'personagens_j'].includes(currentId);
   const sectionMeta = ac.sections[current.id] || { label: current.id };
   /* Seções sem o teto de 860px. Lugares/NPCs/Memórias entraram em 12/09/2026:
      viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
@@ -4065,82 +4129,41 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      o item simples de sempre — uma gaveta vazia seria pior que nenhuma. */
   /* Os companheiros como filhos de "Companheiros" — o submenu só nasce para o
      personagem que está aberto, porque é dele que a ficha relata a lista. */
-  /* AS PARTES DO BICHO (27/10/2026, pedido do usuário: "adicione dentro do
-     menu lateral esquerdo 'companheiros', os companheiros atuais e os menus
-     'identificação, conhecimento e inventário' da criatura"). O companheiro
-     deixa de ser folha e vira galho, como o personagem: o nome abre a ficha
-     (o boneco) e os três filhos abrem as páginas dele.
-
-     São as mesmas três palavras das PARTES_DA_FICHA do dono, e de propósito:
-     é o mesmo mapa mental em dois andares. Falta "Loja", que é da mesa, e
-     "Companheiros", que um bicho não tem. */
-  /* "Ficha" ABERTA NA LISTA (27/10/2026): clicar no nome do bicho já abre o
-     boneco, mas a página precisa aparecer ESCRITA como as outras três — é
-     assim no personagem (PARTES_DA_FICHA começa por Ficha), e sem ela as
-     quatro páginas do companheiro viravam três mais uma invisível. */
-  const PARTES_DO_COMPANHEIRO = [
-    { parte: 'ficha', rotulo: { pt: 'Ficha', en: 'Sheet' } },
-    { parte: 'info', rotulo: { pt: 'Identificação', en: 'Identity' } },
-    { parte: 'conhecimento', rotulo: { pt: 'Conhecimento', en: 'Knowledge' } },
-    { parte: 'inventario', rotulo: { pt: 'Inventário', en: 'Inventory' } },
-  ];
-  const filhosDeCompanheiros = React.useMemo(() => (compsDaMesa || []).map((c) => ({
-    id: 'comp:' + c.id, comp: c.id, rotulo: { pt: c.nome, en: c.nome },
-    filhos: PARTES_DO_COMPANHEIRO.map((p) => ({
-      id: 'comp:' + c.id + ':' + p.parte, comp: c.id, parte: p.parte, rotulo: p.rotulo,
-    })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  })), [compsDaMesa]);
-  /* O mesmo galho de companheiros, carimbado com o dono. No Jogador não há
-     carimbo: a ficha é dele, e a aba é a da própria página. */
-  const comPj = (nos, pjId) => nos.map((n) => ({
-    ...n, pj: pjId,
-    ...(n.filhos ? { filhos: n.filhos.map((f) => ({ ...f, pj: pjId })) } : {}),
-  }));
   const personagensComFilhos = React.useMemo(() => {
-    const partes = (typeof PARTES_DA_FICHA !== 'undefined' ? PARTES_DA_FICHA : window.PARTES_DA_FICHA) || [];
     return {
       id: 'personagens_m', secao: 'personagens_m', navega: true,
       filhos: (pjsDaMesa || []).map((pj) => ({
         id: 'pj:' + pj.id,
         rotulo: { pt: pj.nome, en: pj.nome },
+        /* SÓ EDITAR E EXCLUIR (02/11/2026, usuário: "Mantém apenas editar e
+           excluir"). As páginas do personagem — Identificação, Conhecimento,
+           Companheiros, Amigos — moram no trilho da ficha; o submenu guarda
+           só as ações SOBRE ele. O nome continua abrindo a ficha. */
         filhos: [
-          ...partes.map((p) => ({
-            id: 'pj:' + pj.id + ':' + p.aba,
-            secao: 'personagens_m', rotulo: p.rotulo, pj: pj.id, aba: p.aba,
-            /* Companheiros abre em submenu: um filho por bicho do personagem,
-               e cada um carimbado com o PJ. O carimbo (27/10/2026) é o que
-               deixa o clique levar o Mestre à ficha CERTA — sem ele, abrir uma
-               página do bicho de outro lugar do sistema não tinha para onde
-               ir. */
-            ...(p.aba === 'animais' && pjPedido.id === pj.id && filhosDeCompanheiros.length
-              ? { filhos: comPj(filhosDeCompanheiros, pj.id) } : {}),
-          })),
           /* EDITAR E EXCLUIR (26/10/2026, pedido do usuário: "os botões
              'editar, excluir' também" devem ficar só na barra lateral). Vêm
              depois das partes e separados por uma régua: são ações SOBRE o
              personagem, não páginas dele. Excluir fica em brasa — é o único
              item do menu inteiro que não se desfaz. */
-          /* Amigos, como no Jogador: folha de ação, não página (27/10/2026). */
-          { id: 'pj:' + pj.id + ':amigos', secao: 'personagens_m', pj: pj.id, acao: 'amigos',
-            evento: 'menestrel:amigos', rotulo: { pt: 'Amigos', en: 'Friends' } },
           { id: 'pj:' + pj.id + ':editar', secao: 'personagens_m', pj: pj.id, acao: 'editar',
-            separa: true, rotulo: { pt: 'Editar', en: 'Edit' } },
+            rotulo: { pt: 'Editar', en: 'Edit' } },
           { id: 'pj:' + pj.id + ':excluir', secao: 'personagens_m', pj: pj.id, acao: 'excluir',
             perigo: true, rotulo: { pt: 'Excluir', en: 'Delete' } },
         ],
       })),
     };
-  }, [pjsDaMesa, filhosDeCompanheiros, pjPedido.id]);
+  }, [pjsDaMesa]);
   const navComPjs = (profile === 'master' && (pjsDaMesa || []).length)
     ? { ...navBase, mesa: navBase.mesa.map((n) => (n.secao === 'personagens_m' ? personagensComFilhos : n)) }
-    /* No JOGADOR, "Companheiros" já é item de primeiro nível (NAV_MESA): ele
-       só ganha os filhos. É o mesmo submenu do Mestre, um andar acima. */
-    : (filhosDeCompanheiros.length
-      ? { ...navBase, mesa: navBase.mesa.map((n) => (n.id === 'ficha_comp' ? { ...n, filhos: filhosDeCompanheiros } : n)) }
-      : navBase);
+    /* O Jogador não pendura mais os companheiros no menu (04/11/2026): o
+       item Companheiros saiu — ver NAV_MESA.player, 01-core/constants.jsx. */
+    : navBase;
   const nav = profile === 'master' && !mesaAtivaId
-    ? { ...navComPjs, mesa: navComPjs.mesa.filter((n) => !SECOES_SO_COM_MESA.includes(n.secao)) }
+    /* Grupo de trilho (Mesa do Mestre, 04/11/2026) não tem `secao` própria:
+       sai quando TODAS as folhas dele precisam de mesa. */
+    ? { ...navComPjs, mesa: navComPjs.mesa.filter((n) => (n.trilho && n.filhos
+      ? !n.filhos.every((f) => SECOES_SO_COM_MESA.includes(f.secao))
+      : !SECOES_SO_COM_MESA.includes(n.secao))) }
     : navComPjs;
   // Ref pra abrir o modal "Nova história" de fora — o botão fica no pill do
   // topo (CardDataJogoAtual), mas quem dono do modal continua sendo a
@@ -4415,6 +4438,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     aventuras: 'ti-map-2', criaturas: 'ti-skull', itens: 'ti-backpack', magias: 'ti-sparkles',
     tecnicas: 'ti-sword', habilidades: 'ti-bolt', itens_campanha: 'ti-box', diario: 'ti-notebook',
     bestiario: 'ti-skull', comercio: 'ti-backpack', historias: 'ti-books',
+    /* As folhas da Ambientação no trilho do topo (04/11/2026): todas com
+       versão filled (src/tabler-filled.css). */
+    lugares: 'ti-crown', cidades: 'ti-building', locais: 'ti-map-pin', npcs: 'ti-user', memorias: 'ti-feather',
+    // A Mesa do Mestre (Cena, Batalha, Loja): o glifo da Mesa do Jogador.
+    mesa_mestre: 'ti-map-2',
   };
   const iconeDe = (no) => ICONE_NAV[no.id] || ICONE_NAV[no.secao] || 'ti-point';
   const rotuloDe = (no) => {
@@ -4444,23 +4472,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      ficha daquele PJ naquela aba; o resto navega como sempre. */
   const irPara = (no) => {
     const d = destinoDe(no);
-    /* COMPANHEIRO: troca o bicho aberto — E LEVA À ABA DELE.
-       Até 27/10/2026 isto só pedia o bicho, com a justificativa de que "a aba
-       já é a de Companheiros, quem abriu o submenu passou por ela". A
-       justificativa nunca foi verdade: a gaveta do menu FICA ABERTA quando se
-       navega para outro lugar, então o item seguia clicável do Inventário, da
-       Loja ou da Cena — e dali o clique não fazia nada visível, porque trocava
-       o bicho de uma aba que não estava na tela. Com as quatro páginas por
-       companheiro o buraco ficou quatro vezes maior.
-
-       Agora o destino vem junto: o Jogador vai para a aba Companheiros da
-       própria ficha; o Mestre, para a ficha daquele PJ, na mesma aba. */
-    if (no.comp) {
-      if (no.pj) { abrirFichaDoPj(no.pj, 'animais'); ir('personagens_m', '', true); }
-      else ir('ficha', 'animais');
-      pedirCompanheiro(no.comp, no.parte);
-      return;
-    }
     /* FOLHA DE AÇÃO POR EVENTO (27/10/2026): o item não é página nenhuma —
        ele chega à tela certa e AVISA quem sabe fazer. É o caso de "Amigos",
        que saiu do trilho da ficha: o AmigosFab (11-ficha) ouve e abre o
@@ -4478,6 +4489,28 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     if (no.pj) { abrirFichaDoPj(no.pj, no.aba); ir('personagens_m', '', true); return; }
     ir(d.secao, d.filtro);
   };
+  /* AS PÁGINAS DA AMBIENTAÇÃO NO TRILHO DA PÁGINA (04/11/2026). "A navegação
+     pelas páginas será por um trilho superior parecido com o trilho da ficha.
+     Mas os menus serão reinos, cidades, etc." e, no mesmo dia, "na ficha o
+     trilho fica dentro da página e não fora. Você só vai unir o trilho atual
+     de buscar com o trilho novo" (usuário). As folhas do grupo marcado
+     `trilho` (01-core/constants.jsx) vão para a página (LoreDaMesa), que as
+     põe na MESMA pílula da busca e do +, antes deles. */
+  const grupoDoTrilho = nav.mesa.find((n) => n.trilho && n.filhos && contemSecao(n)) || null;
+  const trilhoPaginas = grupoDoTrilho ? (
+    <nav className="mc-acao-grupo trilho-paginas" aria-label={rotuloDe(grupoDoTrilho)}>
+      {grupoDoTrilho.filhos.map((f) => {
+        const ativo = f.secao === secaoMarcada;
+        return (
+          <button key={f.secao} type="button" className={'mc-acao' + (ativo ? ' is-ativo' : '')}
+            aria-current={ativo ? 'page' : undefined} onClick={() => irPara(f)}>
+            <i className={'ti ' + iconeDe(f)} aria-hidden="true" />
+            <span className="mc-acao-rotulo">{rotuloDe(f)}</span>
+          </button>
+        );
+      })}
+    </nav>
+  ) : null;
   const itemNav = (no, extraClasse) => {
     // As partes da ficha dividem a seção; quem marca é a aba aberta (23/10/2026).
     const ativo = !no.filhos && no.secao === secaoMarcada
@@ -4574,6 +4607,20 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   const renderNo = (no) => {
     if (!podeMostrarFilho(no)) return null;
     if (!no.filhos) return itemNav(no);
+    /* GRUPO DE TRILHO (Ambientação e Mesa do Mestre, 04/11/2026): um item só, sem gaveta. O
+       clique leva à primeira folha; quem troca de página é o trilho do topo
+       (ver `grupoDoTrilho`). Aceso em qualquer uma das folhas. */
+    if (no.trilho) {
+      const contem = contemSecao(no);
+      return (
+        <button key={no.id} type="button" className={'mc-navitem' + (contem ? ' is-active' : '')}
+          aria-current={contem ? 'page' : undefined}
+          onClick={() => irPara(no)}>
+          <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
+          <span>{rotuloDe(no)}</span>
+        </button>
+      );
+    }
     // Grupo da MESA (Diário, Loja do Mestre): abre ali mesmo, como gaveta —
     // são poucas folhas.
     if (nav.mesa.includes(no)) {
@@ -4837,8 +4884,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             {/* O rótulo "Personagem"/"Mesa" saiu (23/10/2026): só aparecia com
                 o menu aberto e empurrava os itens para baixo no hover. */}
             {nav.mesa.map(renderNo)}
-            {/* O sino do Mestre (23/10/2026): a CentralMensagens desenha aqui. */}
-            {profile === 'master' && mesaAtivaId && (
+            {/* O sino (23/10/2026 no Mestre; 30/10/2026 também no Jogador): a
+                CentralMensagens desenha aqui, e só aqui. */}
+            {mesaAtivaId && (
               <>
                 <div className="mc-nav-regua" role="separator" />
                 <div id="mc-sino-lateral" className="mc-sino-lateral" />
@@ -5045,7 +5093,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                  ativo, aberta na aba que o menu pediu. Sem personagem ativo, a
                  lista para escolher — "Ficha" é a porta do Jogador. */
               <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo}
-                abaFicha={current.id === 'ficha' ? (filtroAtual || 'ficha') : ABAS_DA_FICHA[current.id]} abaToken={navToken}
+                /* Amigos é página da ficha (02/11/2026) mas não é folha do menu Ficha:
+                   o filtro cru passa, senão cairia na primeira folha. */
+                abaFicha={current.id === 'ficha' ? ((secaoFiltro === 'amigos' ? 'amigos' : filtroAtual) || 'ficha') : ABAS_DA_FICHA[current.id]} abaToken={navToken}
                 onAbaFicha={(aba, extra) => { setAbaFichaAtual(aba); if (extra) setFichaTemAnimais(!!extra.temAnimais); }} sairToken={sairToken} />
             ) : (profile === 'master' && ['cena', 'batalha', 'loja_mesa', 'jogadores'].includes(current.id)) ? (
               /* A MESA ATIVA (22/10/2026): Cena é o card da história; Batalha,
@@ -5055,6 +5105,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 onEntrarMesa={(id) => { setMesaAtivaId(id); }}
                 acaoMesa={acaoMesa}
                 vista={{ batalha: 'batalha', loja_mesa: 'loja', jogadores: 'convites' }[current.id] || null}
+                trilhoPaginas={trilhoPaginas}
                 onFecharVista={() => ir('cena')} />
             ) : current.id === 'personagens_j' ? (
               <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo}
@@ -5108,6 +5159,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                   historiaId={mesaAtivaId}
                   lang={lang}
                   tipoFixo={{ lugares: 'reino', cidades: 'cidade', locais: 'local' }[current.id] || 'npc'}
+                  trilhoPaginas={trilhoPaginas}
                 />
               ) : !pjAtivo ? (
                 <AdminEmpty ac={ac} sectionLabel={sectionMeta.label} />
@@ -5118,6 +5170,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                   currentUserId={user.id}
                   isMestre={false}
                   tipoFixo={{ lugares: 'reino', cidades: 'cidade', locais: 'local', npcs: 'npc' }[current.id] || 'memoria'}
+                  trilhoPaginas={trilhoPaginas}
                   key={current.id + ':' + pjAtivo.id}
                 />
               )
@@ -5158,9 +5211,14 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             clima e hora; a lista de PERSONAGENS do Jogador, pelo botão "Novo
             personagem"; e HISTÓRIAS, no Mestre, pelo "Nova história". Em
             qualquer outra, não existe. */}
-        {(telaDaMesa || current.id === 'personagens_j' || current.id === 'historias') && (
+        {/* E NA FICHA, NO TRILHO DE BAIXO (02/11/2026): "Experiência, Peso e
+            'Data, Localização, Clima, etc'" (usuário). Lá a faixa só existe
+            dentro do trilho (soNoRodape) — nunca fixa no alto, pelo motivo
+            acima. */}
+        {(telaDaMesa || rodapeDaMesa || current.id === 'personagens_j' || current.id === 'historias' || fichaNaTela) && (
         <CardDataJogoAtual
           lang={lang}
+          soNoRodape={rodapeDaMesa || (fichaNaTela && !telaDaMesa && current.id !== 'personagens_j' && current.id !== 'historias')}
           /* A Mesa do jogador mostra a mesa ativa desde 23/10/2026 — o trilho
              de data, clima e hora volta a aparecer nela. */
           /* ── O TRILHO SÓ NA PÁGINA DA MESA (26/10/2026, pedido do usuário)
@@ -5172,7 +5230,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
              cima do Livro de Regras, do inventário ou da ficha, era uma barra
              de comando de outra coisa pairando sobre a tela que se está
              lendo. Sem `historiaId` o card não monta nada (contrato dele). */
-          historiaId={telaDaMesa ? mesaAtivaId : null}
+          historiaId={(telaDaMesa || rodapeDaMesa || fichaNaTela) ? mesaAtivaId : null}
           podeEditar={profile === 'master'}
           userId={user.id}
           minhasHistorias={minhasHistorias}
@@ -5218,7 +5276,10 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             condição pede `fichaAtiva && mesaAtivaId` — dentro de uma mesa, e
             com a ficha montada, o trilho de verdade (Status, Atividades,
             Habilidades, Magias, Itens) está lá para recebê-lo. */}
-        {(profile === 'master' || telaDaMesa || (fichaAtiva && mesaAtivaId)) && (
+        {/* NO MENU LATERAL, A TRAVA SAI (30/10/2026). O círculo marrom era o
+            sino sozinho numa barra redonda; no menu ele é uma linha entre as
+            outras, e o menu está em toda tela da mesa. Basta haver mesa. */}
+        {mesaAtivaId && (
           <CentralMensagens lang={lang}
             historiaId={mesaAtivaId}
             sidebarLargura={SIDEBAR_LARGURA}
@@ -5491,3 +5552,99 @@ Object.assign(window, {
   // (10-shell/perfil-persistencia.test.js).
   devePersistirPerfil,
 });
+/* ══ A LÂMINA DOS TRILHOS (04/11/2026) ════════════════════════════════════════
+   Pedido do usuário: "Crie uma animação no trilho ao passar o mouse entre um
+   menu e outro, remova a borda amarela do botão ativo, crie um efeito novo."
+
+   Cada trilho (o da ficha, o das páginas — Livro, Mesa, Ambientação, Diário —,
+   o do Estoque, as abas do Mestre) ganha UMA lâmina: a pílula de luz que
+   desliza de um botão a outro sob o ponteiro (e sob o foco do teclado) e
+   volta a pousar no botão da página aberta quando ele sai. A página aberta
+   não tem mais aro de ouro: quem a marca é a lâmina pousada nela, com a brasa
+   de ouro que nasce da base (index.css, "A LÂMINA DOS TRILHOS").
+
+   A lâmina é o ::before do próprio trilho, posicionado por variáveis CSS.
+   Nada é inserido no DOM: os trilhos são do React, e um nó estrangeiro entre
+   os filhos dele é convite a erro de reconciliação. A marca de que a lâmina
+   está ligada é `data-lamina` (atributo que o React não conhece, e por isso
+   não apaga), e não uma classe — o React reescreve o className inteiro.
+
+   Uma instalação só, por delegação no document: os trilhos nascem e morrem a
+   cada página, e escutar cada um seria reescutar a cada troca. O pouso no
+   botão ativo acompanha a navegação por um MutationObserver com um quadro de
+   animação de folga — várias mutações num mesmo quadro viram uma conta só. */
+const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho';
+const TRILHO_BOTAO = '.mc-acao';
+function _laminaPousar(trilho, alvo, modo) {
+  if (!trilho) return;
+  const st = trilho.style;
+  if (!alvo || !alvo.isConnected || alvo.offsetParent === null) {
+    st.setProperty('--lamina-o', '0');
+    trilho.removeAttribute('data-lamina-modo');
+    return;
+  }
+  const tr = trilho.getBoundingClientRect();
+  const r = alvo.getBoundingClientRect();
+  const primeira = !trilho.hasAttribute('data-lamina');
+  trilho.setAttribute('data-lamina', '');
+  // A primeira vez pousa sem deslizar: a lâmina não "chega voando" do canto.
+  if (primeira) trilho.setAttribute('data-lamina-parada', '');
+  st.setProperty('--lamina-x', (r.left - tr.left - trilho.clientLeft) + 'px');
+  st.setProperty('--lamina-y', (r.top - tr.top - trilho.clientTop) + 'px');
+  st.setProperty('--lamina-w', r.width + 'px');
+  st.setProperty('--lamina-h', r.height + 'px');
+  st.setProperty('--lamina-o', '1');
+  trilho.setAttribute('data-lamina-modo', modo);
+  if (primeira) requestAnimationFrame(() => trilho.removeAttribute('data-lamina-parada'));
+}
+function _laminaAtivoDe(trilho) {
+  // O ativo DESTE trilho, não o de um trilho aninhado (o da página dentro do da ficha).
+  return [...trilho.querySelectorAll(TRILHO_BOTAO + '.is-ativo')]
+    .find((b) => b.closest(TRILHO_SELETOR) === trilho) || null;
+}
+function _laminaRepousar(trilho) {
+  const ativo = _laminaAtivoDe(trilho);
+  _laminaPousar(trilho, ativo, 'ativo');
+}
+function instalarLaminaDosTrilhos() {
+  if (typeof document === 'undefined' || typeof window === 'undefined' || window.__laminaDosTrilhos) return;
+  window.__laminaDosTrilhos = true;
+  const botaoNoTrilho = (alvo) => {
+    const b = alvo && alvo.closest ? alvo.closest(TRILHO_BOTAO) : null;
+    // O selo de pontos (Técnicas, Magias) tem a pele de botão, mas é só leitura.
+    if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('pc-pontos')) return null;
+    const trilho = b.closest(TRILHO_SELETOR);
+    return trilho ? { b, trilho } : null;
+  };
+  const sobre = (e) => {
+    const x = botaoNoTrilho(e.target);
+    if (!x) return;
+    _laminaPousar(x.trilho, x.b, x.b.classList.contains('is-ativo') ? 'ativo' : 'passagem');
+  };
+  const saiu = (e) => {
+    const trilho = e.target && e.target.closest ? e.target.closest(TRILHO_SELETOR) : null;
+    if (!trilho) return;
+    if (e.relatedTarget && trilho.contains(e.relatedTarget)) return;   // ainda dentro do trilho
+    _laminaRepousar(trilho);
+  };
+  document.addEventListener('pointerover', sobre, true);
+  document.addEventListener('focusin', sobre, true);
+  document.addEventListener('pointerout', saiu, true);
+  document.addEventListener('focusout', saiu, true);
+  // A navegação muda o ativo (e os trilhos nascem e morrem): repousa todos.
+  let pedido = 0;
+  const repousarTodos = () => {
+    pedido = 0;
+    document.querySelectorAll(TRILHO_SELETOR).forEach((t) => {
+      if (t.matches(':hover') || t.contains(document.activeElement)) return;   // quem está sob o ponteiro manda
+      _laminaRepousar(t);
+    });
+  };
+  const agendar = () => { if (!pedido) pedido = requestAnimationFrame(repousarTodos); };
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver(agendar).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  }
+  window.addEventListener('resize', agendar);
+  agendar();
+}
+instalarLaminaDosTrilhos();

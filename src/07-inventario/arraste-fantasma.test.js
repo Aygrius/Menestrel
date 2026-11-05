@@ -32,7 +32,7 @@ describe('o fantasma do arraste', () => {
     // E o bloco do fantasma usa esse alvo.
     const i = inv.indexOf('className="inv-drag-ghost"');
     expect(i).toBeGreaterThan(-1);
-    expect(inv.slice(i, i + 400)).toMatch(/\n\s*alvo\n/);
+    expect(inv.slice(i, i + 400)).toMatch(/\n\s*alvo\r?\n/);
   });
 
   it('tem pele própria, escopada como o resto da folha', () => {

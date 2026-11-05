@@ -87,11 +87,10 @@ describe('a pintura vem da BASE, não do nome do exemplar', () => {
     const semBase = window.arteDoItem(verrogari);
     expect(semBase).toBe(window.arteDoItem({ ...verrogari, nome: 'Máscara Padmarashka' }));
     // Com base: a pintura é a da base, qualquer que seja o nome.
-    expect(window.arteDoItem({ ...verrogari, base: 'mascara-ferro' })).toBe('/equip/mascara-ferro.webp');
-    expect(window.arteDoItem({ ...verrogari, base: 'mascara-porcelana' })).toBe('/equip/mascara-porcelana.webp');
-    expect(window.arteDoItem({ ...verrogari, base: 'mascara-couro' })).toBe('/equip/mascara-couro.webp');
+    expect(window.arteDoItem({ ...verrogari, base: 'mascara-cobre' })).toBe('/equip/mascara-ferro.webp');
+    expect(window.arteDoItem({ ...verrogari, base: 'mascara-marfim' })).toBe('/equip/mascara-porcelana.webp');
     // E a base ganha do nome: "Decorativa" iria para o ferro pelo palpite.
-    expect(window.arteDoItem({ nome: 'Máscara Decorativa', slot_equip: 'rosto', base: 'mascara-porcelana' }))
+    expect(window.arteDoItem({ nome: 'Máscara Decorativa', slot_equip: 'rosto', base: 'mascara-marfim' }))
       .toBe('/equip/mascara-porcelana.webp');
   });
 
@@ -109,10 +108,11 @@ describe('a pintura vem da BASE, não do nome do exemplar', () => {
   });
 
   it('base conhecida mas ainda sem pintura fica no glifo, sem chutar pelo nome', () => {
-    // "Chapéu de Veludo" não tem pintura: a base já disse o que a peça é, e o
-    // palpite antigo (cabeça → elmo) seria pior que o glifo.
-    expect(window.arteDaBase('chapeu-veludo')).toBe(null);
-    expect(window.arteDoItem({ nome: 'Chapéu de Veludo', slot_equip: 'cabeca', base: 'chapeu-veludo' }))
+    // "Tapa-olho de Ouro" não tem pintura: a base já disse o que a peça é, e
+    // o palpite antigo (rosto → máscara) seria pior que o glifo. (Até
+    // 31/10/2026 o exemplo era o Chapéu de Seda, que ganhou pintura.)
+    expect(window.arteDaBase('tapa-olho-ouro')).toBe(null);
+    expect(window.arteDoItem({ nome: 'Tapa-olho de Ouro', slot_equip: 'rosto', base: 'tapa-olho-ouro' }))
       .toBe(null);
   });
 
@@ -131,9 +131,11 @@ describe('a pintura vem da BASE, não do nome do exemplar', () => {
 
 describe('o nome da base, para a frase da ficha do item', () => {
   it.each([
-    ['mascara-ferro', 'Máscara de Ferro'],
+    ['mascara-cobre', 'Máscara de Cobre'],
     ['brincos-ouro', 'Brinco de Ouro'],
-    ['escudo-pesado', 'Escudo Pesado'],
+    // As peças de armadura têm nome por classe desde 30/10/2026.
+    ['escudo-pesado', 'Escudo Pipa'],
+    ['bracos-medio', 'Avambraço'],
     ['livro-milagres', 'Livro de Milagres'],
   ])('%s → %s', (slug, nome) => {
     expect(window.nomeDaBase(slug)).toBe(nome);
@@ -148,8 +150,10 @@ describe('as opções do editor saem do lugar do item', () => {
   it('um item de rosto só oferece as bases de rosto', () => {
     const opcoes = window.opcoesDeBase({ slot_equip: 'rosto' });
     const slugs = opcoes.map((o) => o.value);
-    expect(slugs).toContain('mascara-ferro');
-    expect(slugs).toContain('capuz-seda');
+    expect(slugs).toContain('mascara-cobre');
+    expect(slugs).toContain('tapa-olho-ouro');
+    // O capuz subiu para a cabeça em 30/10/2026.
+    expect(slugs).not.toContain('capuz-seda');
     expect(slugs).not.toContain('elmo-leve');
     expect(slugs).not.toContain('livro-milagres');
   });
@@ -163,8 +167,8 @@ describe('as opções do editor saem do lugar do item', () => {
     expect(window.opcoesDeBase({}).length).toBe(window.BASES_ITEM.length);
   });
   it('a opção mostra a família na frente, para agrupar a lista', () => {
-    const o = window.opcoesDeBase({ slot_equip: 'rosto' }).find((x) => x.value === 'mascara-ferro');
-    expect(o.label).toBe('Máscara · Máscara de Ferro');
+    const o = window.opcoesDeBase({ slot_equip: 'rosto' }).find((x) => x.value === 'mascara-cobre');
+    expect(o.label).toBe('Máscara · Máscara de Cobre');
   });
 });
 

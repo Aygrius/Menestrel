@@ -115,6 +115,7 @@ describe('Arsenal: batalha espelha a Ficha', () => {
     const ficha = window.calcularFicha(PJ, CATALOGO, PJ.estado_atual.condicoes);
     const arco = M.ataquesDoAtor(ATOR, CATALOGOS).find((x) => x.slug === 'arco_curto');
     // dano_l do catálogo + Percepção (ajuste da arma) — sem Agilidade no meio.
-    expect(arco.dano_l).toBe(CATALOGO.arco_curto.dano_l + ficha.atributos.percepcao);
+    // Cada ponto de ajuste vale duas colunas desde 29/10/2026.
+    expect(arco.dano_l).toBe(CATALOGO.arco_curto.dano_l + 2 * ficha.atributos.percepcao);
   });
 });

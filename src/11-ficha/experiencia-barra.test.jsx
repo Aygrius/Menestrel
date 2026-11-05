@@ -13,7 +13,7 @@
    campo `edit` na barra, que o abrirEdicaoBarra funde no item do popover.
 
    A ficha inteira só monta com banco; o que dá para montar aqui são as duas
-   peças (FichaVitBars e BarEditPopover), e o resto se afirma sobre o fonte —
+   peças (FichaVitBars e BarraAjusteModal), e o resto se afirma sobre o fonte —
    mesmo caminho de armadura-karma-ficha.test.jsx.
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
@@ -25,16 +25,18 @@ import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
 import '../01-core/game-data.jsx';
+// A janela do sistema (ModalShell) mora no shell (04/11/2026).
+import '../10-shell/shell.jsx';
 import './ficha.jsx';
 
 const fonte = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'ficha.jsx'), 'utf8');
 
-let FichaVitBars, BarEditPopover;
+let FichaVitBars, BarraAjusteModal;
 beforeAll(() => {
   FichaVitBars = window.FichaVitBars;
-  BarEditPopover = window.BarEditPopover;
+  BarraAjusteModal = window.BarraAjusteModal;
   expect(FichaVitBars, 'FichaVitBars precisa estar no window').toBeTypeOf('function');
-  expect(BarEditPopover, 'BarEditPopover precisa estar no window').toBeTypeOf('function');
+  expect(BarraAjusteModal, 'BarraAjusteModal precisa estar no window').toBeTypeOf('function');
 });
 afterEach(cleanup);
 
@@ -46,7 +48,6 @@ const BARRA_ESTAGIO = {
 };
 
 const linha = () => document.querySelector('.fp-bar-row');
-const ANCORA = { left: 100, bottom: 40 };
 
 describe('a barra de Estágio virou clicável', () => {
   it('com o Mestre, ela é um botão de verdade', () => {
@@ -97,47 +98,66 @@ describe('as barras da ficha não levam nome — ele vai para o tooltip', () => 
   });
 });
 
-describe('o popover da experiência mexe no XP total', () => {
-  const montarPop = (onChange) => render(
-    <BarEditPopover item={{ ...BARRA_ESTAGIO, ...BARRA_ESTAGIO.edit }} scope="estagio"
-      anchor={ANCORA} lang="pt" onChange={onChange} onClose={() => {}} />
+/* A JANELA DO SISTEMA NO LUGAR DO POPOVER (04/11/2026, usuário: "Ao invés de
+   aparecer uma pílula despadronizada, eu quero um modal padronizado do
+   sistema"). O que se guarda continua: na experiência, o XP TOTAL, do zero ao
+   teto da tabela. O que muda: grava uma vez, no Aplicar do rodapé. */
+describe('a janela da experiência mexe no XP total', () => {
+  const montar = (onChange, extra = {}) => render(
+    <BarraAjusteModal item={{ ...BARRA_ESTAGIO, ...BARRA_ESTAGIO.edit, ...extra }} scope="estagio"
+      lang="pt" onChange={onChange} onClose={() => {}} />
   );
-  const rotulo = () => document.querySelector('.fp-pop-stepper-label').textContent;
-  const botoes = () => Array.from(document.querySelectorAll('.fp-step-btn'));
+  const celula = (rotulo) => [...document.querySelectorAll('.barra-ajuste-passe .mn-celula')]
+    .find((c) => c.querySelector('.mn-rotulo').textContent === rotulo).querySelector('.mn-celula-valor');
+  const botoes = () => Array.from(document.querySelectorAll('.barra-ajuste-stepper .fp-step-btn'));
+  const aplicar = () => [...document.querySelectorAll('.ms-footer button')].find((b) => b.textContent === 'Aplicar');
 
-  /* "52 / 2185" empurraria o número que interessa para o canto do pill, e o
-     teto é o fim da tabela de estágios — não diz nada sobre o personagem. */
-  /* A sigla "XP" saiu do pill em 20/09/2026, a pedido do usuário: o seletor
-     abre a partir da barra de experiência, então repetir o que se edita é
-     redundância. O que o teste guarda continua sendo o mesmo — o pill mostra
-     o XP TOTAL, e não o progresso dentro do estágio. */
-  it('o pill mostra o XP total, e não val/max', () => {
-    montarPop(() => {});
-    expect(rotulo()).toBe('52');
+  it('é a janela do sistema, com o nome da barra no título', () => {
+    montar(() => {});
+    expect(document.querySelector('.barra-ajuste-modal')).toBeTruthy();
+    expect(document.body.textContent).toMatch(/Experiência/);
   });
 
-  it('o + concede um ponto e avisa o pai', () => {
+  it('o passe mostra o XP TOTAL e o estágio — não o progresso nem o teto da tabela', () => {
+    montar(() => {});
+    expect(celula('Atual').textContent).toBe('52');
+    expect(celula('Estágio').textContent).toBe('5');
+    expect(document.body.textContent).not.toMatch(/2185/);
+  });
+
+  it('o + concede um ponto, mas só o Aplicar avisa o pai', () => {
     const chamadas = [];
-    montarPop((...args) => chamadas.push(args));
+    montar((...args) => chamadas.push(args));
+    expect(aplicar().disabled).toBe(true);           // nada mudou ainda
     act(() => { botoes()[1].click(); });
-    expect(rotulo()).toBe('53');
+    expect(celula('Novo').textContent).toMatch(/^53\+1$/);
+    expect(chamadas).toEqual([]);
+    act(() => { aplicar().click(); });
     expect(chamadas).toEqual([['estagio', 'estagio', 53]]);
   });
 
   it('e o − tira — o Mestre também diminui', () => {
     const chamadas = [];
-    montarPop((...args) => chamadas.push(args));
+    montar((...args) => chamadas.push(args));
     act(() => { botoes()[0].click(); });
-    expect(rotulo()).toBe('51');
+    act(() => { aplicar().click(); });
     expect(chamadas).toEqual([['estagio', 'estagio', 51]]);
   });
 
-  /* A faixa do popover é 0..teto da tabela, e não o span do estágio: é ela que
-     permite ao Mestre empurrar o personagem para o estágio seguinte. */
+  /* O SELETOR PADRÃO, INTACTO (04/11/2026, usuário: "o número no centro do
+     seletor de quantidade está diferente, nós temos um seletor de quantidade
+     padrão do sistema"). Ele chegou a ter um campo digitável no meio, com
+     caixa própria; saiu. */
+  it('é o seletor do sistema, com o número simples no meio', () => {
+    montar(() => {});
+    expect(document.querySelector('.barra-ajuste-stepper input')).toBeNull();
+    expect(document.querySelector('.barra-ajuste-stepper .fp-pop-stepper-label').textContent).toBe('52');
+  });
+
+  /* A faixa é 0..teto da tabela, e não o span do estágio: é ela que permite
+     ao Mestre empurrar o personagem para o estágio seguinte. */
   it('a faixa vai do zero ao teto da tabela de estágios', () => {
-    const chamadas = [];
-    render(<BarEditPopover item={{ ...BARRA_ESTAGIO, val: 0, min: 0, max: 2185 }} scope="estagio"
-      anchor={ANCORA} lang="pt" onChange={(...a) => chamadas.push(a)} onClose={() => {}} />);
+    montar(() => {}, { val: 0 });
     expect(botoes()[0].disabled).toBe(true);   // no zero não há o que tirar
     expect(botoes()[1].disabled).toBe(false);
   });

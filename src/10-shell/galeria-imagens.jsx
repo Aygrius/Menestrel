@@ -152,6 +152,53 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
     [basesComArte, itensPorBase, q],
   );
 
+  /* ── AS PINTURAS SEM BASE (30/10/2026, usuário: "no menu imagens não está
+     aparecendo todas as imagens que temos no sistema") ────────────────────
+     A parede acima nasce do vocabulário de bases, e ficavam fora 39 pinturas
+     que o sistema usa sem base nenhuma: as armas por tipo que a escada da
+     mão acha pelo nome (arco, besta, maça…), as pinturas por slug (penas,
+     couros, pelos, água suja…), as de tipo sem base (erva, cogumelo, flor,
+     planta) e as três gemas da Energia. A lista sai dos MESMOS registros que
+     a ficha consulta — ARTE_PINTADA, ARTE_ITEM_SLUG, ARTE_ITEM_NOVA,
+     ARTE_GEMA —, menos o que alguma base já pendurou: pintura nova
+     registrada aparece aqui sozinha. */
+  const avulsas = useMemo(() => {
+    if (typeof window === 'undefined') return { armas: [], pecas: [], itens: [], energia: [] };
+    const jaNaParede = new Set();
+    basesComArte.forEach(({ telas }) => telas.forEach((t) => jaNaParede.add(t.src)));
+    const nomeNoCatalogo = {};
+    (catalogo || []).forEach((c) => { if (c.slug && !nomeNoCatalogo[c.slug]) nomeNoCatalogo[c.slug] = c.nome; });
+    const legivel = (k) => { const t = String(k).replace(/[_-]+/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
+    const armas = [...(window.ARTE_PINTADA || [])]
+      .filter((n) => /^arma-/.test(n) && !jaNaParede.has('/equip/' + n + '.webp'))
+      .map((n) => ({ src: '/equip/' + n + '.webp', nome: 'Arma · ' + legivel(n.slice(5)), arq: n }));
+    const itens = [...new Set([...(window.ARTE_ITEM_SLUG || []), ...(window.ARTE_ITEM_NOVA || [])])]
+      .filter((n) => !jaNaParede.has('/itens/' + n + '.webp'))
+      .map((n) => ({ src: '/itens/' + n + '.webp', nome: nomeNoCatalogo[n] || legivel(n), arq: n }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    /* A pintura de peça que nenhuma base usa mais (30/10/2026): a reforma das
+       vestimentas tirou o cobre da coroa e do pingente, e as manoplas viraram
+       peça de braço. O arquivo continua no sistema — e na parede. */
+    const pecas = [...(window.ARTE_PINTADA || [])]
+      .filter((n) => !/^arma-/.test(n) && !jaNaParede.has('/equip/' + n + '.webp'))
+      .map((n) => ({ src: '/equip/' + n + '.webp', nome: legivel(n), arq: n }));
+    const NOME_ENERGIA = { ef: 'Energia Física', eh: 'Energia Heroica', ka: 'Karma' };
+    const energia = Object.entries(window.ARTE_GEMA || {})
+      .map(([k, src]) => ({ src, nome: NOME_ENERGIA[k] || k, arq: src.replace(/^.*\/|\.webp$/g, '') }));
+    return { armas, pecas, itens, energia };
+  }, [basesComArte, catalogo]);
+  const SECOES_AVULSAS = [
+    { id: 'armas', titulo: 'Armas por tipo', faixa: 'equip',
+      nota: 'Sem base própria: a mão escolhe pelo tipo lido no nome da arma (arco, besta, maça…).' },
+    { id: 'pecas', titulo: 'Peças sem base', faixa: 'equip',
+      nota: 'Pinturas de peça que nenhuma base usa hoje; voltam para a parede quando uma base apontar para elas.' },
+    { id: 'itens', titulo: 'Itens sem base', faixa: 'itens',
+      nota: 'Pinturas por item ou por tipo de nome (erva, flor, planta…), que nenhuma base aponta.' },
+    { id: 'energia', titulo: 'Energias', faixa: 'cond',
+      nota: 'As três pedras do cartão Energias da ficha.' },
+  ];
+  const totalAvulsas = avulsas.armas.length + avulsas.pecas.length + avulsas.itens.length + avulsas.energia.length;
+
   const condFiltradas = GI_CONDICOES.filter(([a, n]) => casa(n, a));
   const faltaFiltrada = semPintura
     .map((g) => ({ ...g, nomes: g.nomes.filter((n) => casa(n, g.regiao)) }))
@@ -172,8 +219,10 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
   ];
   const familiasAVista = familias.filter((f) => mostra(f.equip ? 'equip' : 'itens'));
 
+  const avulsasAVista = SECOES_AVULSAS.some(({ id, faixa: f }) => mostra(f)
+    && avulsas[id].some((p) => casa(p.nome, p.arq)));
   const vazio = !familiasAVista.length && !condFiltradas.length
-    && !faltaFiltrada.length && !basesSemArte.length;
+    && !faltaFiltrada.length && !basesSemArte.length && !avulsasAVista;
 
   return (
     <ModalShell
@@ -192,7 +241,7 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
           </div>
           <div className="mn-celula">
             <span className="mn-rotulo">Pintadas</span>
-            <span className="mn-celula-valor">{totalPintadas}</span>
+            <span className="mn-celula-valor">{totalPintadas + totalAvulsas}</span>
           </div>
           <div className="mn-celula">
             <span className="mn-rotulo">Bases sem arte</span>
@@ -268,6 +317,24 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
             </div>
           </section>
         ))}
+
+        {/* ── as pinturas sem base: armas por tipo, itens, energias ── */}
+        {SECOES_AVULSAS.map(({ id, titulo, faixa: f, nota }) => {
+          const pecas = avulsas[id].filter((p) => casa(p.nome, p.arq));
+          if (!mostra(f) || !pecas.length) return null;
+          return (
+            <section className="gi-sec gi-sec--sem-base" key={'avulsa-' + id}>
+              <div className="mn-quadro-cabeca">
+                <h3 className="gi-sec-titulo">{titulo}</h3>
+                <span className="gi-conta">{pecas.length} {pecas.length === 1 ? 'pintura' : 'pinturas'}</span>
+              </div>
+              <p className="gi-sec-nota">{nota}</p>
+              <div className="gi-grade">
+                {pecas.map((p) => <GiPeca key={p.src} src={p.src} nome={p.nome} pe={p.arq} />)}
+              </div>
+            </section>
+          );
+        })}
 
         {/* ── condições ── */}
         {mostra('cond') && condFiltradas.length > 0 && (

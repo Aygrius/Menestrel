@@ -888,8 +888,6 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
   const en = lang === 'en';
   // Sem tooltip no card (17/09/2026) — ver a nota acima do bloco de status.
 
-  const atividadePj = ((typeof window !== 'undefined' && window.ATIVIDADES) || [])
-    .find((a) => a.id === p.estado_atual?.atividade?.tipo) || null;
 
   const maxEF = Number(ficha.derivadas?.energiaFisica) || 0;
   const efAtual = p.estado_atual?.vitalidade?.ef != null
@@ -1063,35 +1061,11 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
                   rosto e o cartão ainda brilhava em ouro — dois sinais para a
                   mesma coisa. Fica um botão só, ao lado do nome. A regra de
                   quando aparece não mudou (ver mostrarSetaEvoluir). */}
-              {onDarFicha && (
-                <button type="button" className="pj-evoluiu pj-dar-ficha"
-                  onClick={(e) => { e.stopPropagation(); onDarFicha(); }}>
-                  {en ? 'Give sheet' : 'Dar a ficha'}
-                </button>
-              )}
+              {/* "DAR A FICHA" E A ATIVIDADE SAÍRAM DO CARD (02/11/2026, usuário:
+                  "Remova do card de personagem, o botão 'dar a ficha' e o
+                  botão de atividade"). */}
               {/* O "Evoluir" saiu do card (23/10/2026): mora no trilho de ações da
                   ficha ("vai para o trilho na ficha do personagem"). */}
-              {/* ATIVIDADE (24/09/2026): dormindo, meditando… SÓ O ÍCONE desde
-                  27/10/2026 ("no badge de atividade, deixe apenas o ícone e
-                  tira o texto 'dormir'" — usuário).
-
-                  O nome estava aqui porque um ícone de lua sozinho não diria
-                  se ele dorme ou medita. Mas o ícone NÃO é de lua: cada
-                  atividade tem o seu (zzz, yoga, reza, livro, haltere,
-                  música), e o nome ao lado era a legenda de um desenho que já
-                  se explica.
-
-                  O nome segue no aria-label, para quem usa leitor de tela.
-                  SEM `title`: o card não tem balão por decisão de 17/09/2026
-                  (ver a nota do bloco de status logo abaixo), e o balão
-                  nativo do navegador é proibido no sistema inteiro — há um
-                  teste que o vigia (01-core/tooltip-padrao.test.js). */}
-              {atividadePj && (
-                <span className="pj-atividade-selo" data-atividade={atividadePj.id}
-                  aria-label={en ? atividadePj.en : atividadePj.pt}>
-                  <i className={'ti ' + atividadePj.icon} aria-hidden="true" />
-                </span>
-              )}
               {/* STATUS, no canto direito do topo. */}
               {statusPj.length > 0 && (
                 <div className="pj-card-status" aria-label="Status">

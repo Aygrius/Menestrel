@@ -71,7 +71,10 @@ function AmigosFab({ lang, pjId, naBarra = false, semBotao = false }) {
      quando o clique no menu também NAVEGA e a ficha ainda nem montou para
      ouvir. 3s é folga de navegação, não de memória: pedido mais velho que
      isso é de outra visita e não abre nada. */
+  /* Sem o botão (a coluna dos cards na ficha), o pedido é da PÁGINA Amigos
+     (02/11/2026, paginas-ficha.jsx) — a ficha é quem ouve o evento. */
   React.useEffect(() => {
+    if (semBotao) return undefined;
     const abrir = () => setAberto(true);
     window.addEventListener('menestrel:amigos', abrir);
     const pedido = Number(window.__amigosPedido) || 0;

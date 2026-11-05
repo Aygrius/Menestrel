@@ -277,8 +277,22 @@ const ATIVIDADE_VERBO = {
   estudando:  { pt: 'estudar',  enInf: 'Study',    enGer: 'studying' },
   treinando:  { pt: 'treinar',  enInf: 'Train',    enGer: 'training' },
   praticando: { pt: 'praticar', enInf: 'Practice', enGer: 'practicing' },
+  fabricando: { pt: 'fabricar', enInf: 'Craft',    enGer: 'crafting' },
 };
 const _maiuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+/* PARA QUE SERVE, AO LADO DO NOME (30/10/2026, pedido do usuário: "Dormir
+   (Recuperar as energias)", "Orar (Aprender novos milagres)", "etc."). As
+   quatro de aprender seguem _APRENDE_O_QUE, mais abaixo: é o que cada uma
+   ensina de fato. */
+const ATIVIDADE_PROPOSITO = {
+  dormindo:   { pt: 'Recuperar as energias',        en: 'Recover energy' },
+  meditando:  { pt: 'Aprender novas transmutações', en: 'Learn new transmutations' },
+  orando:     { pt: 'Aprender novos milagres',      en: 'Learn new miracles' },
+  estudando:  { pt: 'Aprender novas magias',        en: 'Learn new spells' },
+  treinando:  { pt: 'Aprender novas técnicas',      en: 'Learn new techniques' },
+  praticando: { pt: 'Aprender novos encantamentos', en: 'Learn new enchantments' },
+  fabricando: { pt: 'Fabricar novos itens',         en: 'Craft new items' },
+};
 
 /* A LISTA PASSOU AO INFINITIVO (27/10/2026, pedido do usuário: "em
    'atividades' vamos mudar o nome para: Dormir, Meditar, Orar, Estudar,
@@ -301,10 +315,16 @@ const ATIVIDADES = [
   { id: 'treinando',  icon: 'ti-barbell' },
   // Praticar (22/10/2026): é onde os ENCANTOS treinam (fila de treino).
   { id: 'praticando', icon: 'ti-music' },
+  /* Fabricar (31/10/2026, pedido do usuário: "Adicione no menu atividades,
+     a fabricação de novos itens, Fabricar"). As horas aqui fazem andar o
+     item da bancada — ver avancarFabricacao, 01-core/fabricacao.jsx. */
+  { id: 'fabricando', icon: 'ti-hammer' },
 ].map((a) => ({
   ...a,
   pt: _maiuscula(ATIVIDADE_VERBO[a.id].pt),
   en: ATIVIDADE_VERBO[a.id].enInf,
+  propositoPt: ATIVIDADE_PROPOSITO[a.id].pt,
+  propositoEn: ATIVIDADE_PROPOSITO[a.id].en,
 }));
 
 const HORAS_CICLO_SONO = 8;
@@ -326,6 +346,8 @@ const ATIVIDADE_EFEITO = {
   estudando:  { hora: [{ cond: 'reputacao', base: 2 }] },
   treinando:  { hora: [{ cond: 'euforia',   base: 2 }] },
   praticando: { hora: [{ cond: 'sanidade',  base: 2 }] },
+  // Fabricar não recupera barra nenhuma: o que a hora rende é o item.
+  fabricando: {},
 };
 
 /* O estado depois de `horas` horas na atividade gravada em est.atividade.
@@ -493,6 +515,10 @@ const ATIVIDADE_PORQUE = {
     pt: 'Praticar torna você um artista mais próximo da perfeição, mas também é aqui que você aprenderá novos encantamentos.',
     en: 'Practice brings the artist in you closer to perfection — and it is also here that you will learn new enchantments.',
   },
+  fabricando: {
+    pt: 'Na bancada, o material vira item. Cada hora nesta atividade avança a peça que está em construção; terminada uma, a próxima começa.',
+    en: 'At the workbench, material becomes an item. Every hour in this activity advances the piece under construction; once one is done, the next begins.',
+  },
 };
 
 function explicacaoDaAtividade(id, atributos, en) {
@@ -564,6 +590,7 @@ const _APRENDE_O_QUE = {
   treinando:  { pt: 'uma técnica',      en: 'a technique',      custo: 'tecnica' },
 };
 function _aprendizado(id, en) {
+  if (id === 'fabricando') return _tempoDeFabricar(en);
   const oQue = _APRENDE_O_QUE[id];
   const tabela = (typeof window !== 'undefined' && window.HORAS_TREINO) || {};
   const horas = oQue ? tabela[oQue.custo] : 0;
@@ -588,6 +615,26 @@ function _aprendizado(id, en) {
   return en
     ? `Learning ${oQue.en} for the first time takes ${horas} hours of this activity. Once you have level 1, further levels activate the moment you buy them.`
     : `Aprender ${oQue.pt} pela primeira vez leva ${horas} horas nesta atividade. Com o nível 1 na ficha, os níveis seguintes valem assim que você compra.`;
+}
+
+/* QUANTO DEMORA CADA COISA NA BANCADA (31/10/2026) — gerado da mesma
+   tabela que dá o prazo ao item (HORAS_FABRICACAO_POR_GRUPO, 01-core/
+   fabricacao.jsx), pelo window porque aquela fase carrega depois desta. */
+const _GRUPO_FABRICAR = {
+  Armaduras:    { pt: 'armadura',    en: 'armor' },
+  Armas:        { pt: 'arma',        en: 'weapon' },
+  Instrumentos: { pt: 'instrumento', en: 'instrument' },
+  Vestimentas:  { pt: 'vestimenta',  en: 'clothing' },
+  Recipientes:  { pt: 'recipiente',  en: 'container' },
+};
+function _tempoDeFabricar(en) {
+  const tabela = (typeof window !== 'undefined' && window.HORAS_FABRICACAO_POR_GRUPO) || {};
+  const partes = Object.keys(tabela).filter((g) => _GRUPO_FABRICAR[g])
+    .map((g) => `${_GRUPO_FABRICAR[g][en ? 'en' : 'pt']} ${tabela[g]} h`);
+  if (!partes.length) return null;
+  return en
+    ? `Time at the workbench: ${partes.join(', ')}.`
+    : `Tempo na bancada: ${partes.join(', ')}.`;
 }
 
 Object.assign(window, {

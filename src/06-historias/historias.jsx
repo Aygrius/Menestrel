@@ -31,7 +31,7 @@
    Mestre leva DIRETO à Batalha, à Loja e aos Jogadores (convites) da mesa
    ativa — antes eram botões dentro do card. Com `vista`, a lista abre já
    nessa página; fechar chama `onFecharVista` (volta para a Cena). */
-function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovaHistoriaRef, onDentroDeMenu, onEntrarMesa = null, vista = null, onFecharVista = null, acaoMesa = null }) {
+function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovaHistoriaRef, onDentroDeMenu, onEntrarMesa = null, vista = null, onFecharVista = null, acaoMesa = null, trilhoPaginas = null }) {
   const th = t.historias;
   const { data: histData, isLoading: histLoading, error: histError, refetch } =
     window.useHistoriasData(currentUserId);
@@ -149,7 +149,7 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
   if (mesaDaVista && vista === 'batalha') {
     return (
       <BatalhasHistoriaView historia={mesaDaVista} personagens={personagens} criaturas={criaturas}
-        lang={lang} currentUserId={currentUserId} onClose={fecharVista} />
+        lang={lang} currentUserId={currentUserId} onClose={fecharVista} trilhoPaginas={trilhoPaginas} />
     );
   }
   if (mesaDaVista && vista === 'loja') {
@@ -157,7 +157,7 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
        propostas de venda dos jogadores — ver 06-historias/estoque-mestre.jsx. */
     const Estoque = window.EstoqueMestreView;
     return Estoque
-      ? <Estoque historia={mesaDaVista} lang={lang} onChanged={() => refetch()} />
+      ? <Estoque historia={mesaDaVista} lang={lang} onChanged={() => refetch()} trilhoPaginas={trilhoPaginas} />
       : <GerenciarLojaView historia={mesaDaVista} t={t} lang={lang}
           onClose={fecharVista} onSaved={() => { refetch(); fecharVista(); }} />;
   }
@@ -231,7 +231,7 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
       ) : (mesaAtivaId && historiasFiltradas.length === 1) ? (
         /* A CENA É A CRÔNICA (23/10/2026): dentro de uma mesa, no lugar do card,
            os capítulos — o em andamento em destaque, os anteriores numa lista. */
-        <CenaCronica h={historiasFiltradas[0]} personagens={personagens} lang={lang}
+        <CenaCronica h={historiasFiltradas[0]} personagens={personagens} lang={lang} trilhoPaginas={trilhoPaginas}
           onEscrever={() => { setEditarComo({ pagina: 'capitulos' }); setEditando(historiasFiltradas[0]); }}
           onNovoCapitulo={() => { setEditarComo({ pagina: 'capitulos', novo: true }); setEditando(historiasFiltradas[0]); }} />
       ) : historiasFiltradas.length === 0 ? (
@@ -327,13 +327,16 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
    capítulos" — cada jogador escreve a sua (`anotar`, assinada pelo
    personagem em `autor`) e a mesa toda lê as de todos, o Mestre incluído
    (tabela anotacoes_capitulo, presa ao id do capítulo). */
-const CENA_POR_PAGINA = 10; // cinco fileiras de dois cartões, sem rolagem
-/* `umPorVez` (26/10/2026, pedido do usuário: "na página 'mesa', teremos
-   apenas um card grande com o capítulo por vez, e poderá ser possível navegar
-   nos demais capítulos"). É a Mesa do JOGADOR: ele não administra a crônica,
-   ele a lê — e ler é uma coisa de cada vez. A navegação já existia: com uma
-   carta por página, a paginação do sistema vira o folhear dos capítulos. */
-function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somenteLeitura = false, anotar = false, userId = null, pjId = null, autor = '', umPorVez = false }) {
+/* OS CAPÍTULOS NO PADRÃO DOS CARTÕES (04/11/2026, usuário: "Quando o jogador
+   clica em mesa, porque os cards dos capítulos não está seguindo o padrão
+   [...] que criamos para diário?"). O padrão é o da Ambientação e do Diário:
+   18 por página, seis fileiras de três que enchem a página, todos do mesmo
+   tamanho (index.css, "OS CARTÕES DOS CAPÍTULOS"). Era 10 em duas colunas
+   aqui, e na Mesa do Jogador um capítulo por página (`umPorVez`, 26/10/2026)
+   — que saiu: a Mesa e a Cena mostram a mesma grade, e o cartão abre o
+   capítulo inteiro para ler. */
+const CENA_POR_PAGINA = 18;
+function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somenteLeitura = false, anotar = false, userId = null, pjId = null, autor = '', trilhoPaginas = null }) {
   const en = lang === 'en';
   const caps = Array.isArray(h.capitulos) ? h.capitulos : [];
   const [aberto, setAberto] = useState(null);
@@ -353,7 +356,7 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
   // Do mais recente ao mais antigo; o último capítulo é o em andamento.
   const todos = caps.map((c, i) => ({ c, n: i + 1, atual: i === caps.length - 1 })).reverse();
   const lista = !termo ? todos : todos.filter(({ c }) => semAcento((c.titulo || '') + ' ' + (c.texto || '')).includes(termo));
-  const porPagina = umPorVez ? 1 : CENA_POR_PAGINA;
+  const porPagina = CENA_POR_PAGINA;
   const totalPages = Math.max(1, Math.ceil(lista.length / porPagina));
   const safePage = Math.min(page, totalPages);
   const pagina = lista.slice((safePage - 1) * porPagina, safePage * porPagina);
@@ -397,9 +400,12 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
 
   return (
     <div className="pjs cena-cartoes">
+      {/* O trilho da página com as páginas da Mesa (Cena, Batalha, Loja) antes
+          da busca e do +, numa pílula só (04/11/2026). */}
       {BuscaENovo && (
-        <div className="cartoes-barra">
+        <div className={'cartoes-barra' + (trilhoPaginas ? ' livro-trilho trilho-unido' : '')}>
           <BuscaENovo
+            antes={trilhoPaginas}
             ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
             placeholder={en ? 'Search' : 'Buscar'}
             query={busca}
@@ -417,7 +423,7 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
         <div className="best-empty">{en ? `No chapter matches "${busca.trim()}".` : `Nenhum capítulo com "${busca.trim()}".`}</div>
       ) : (
         <>
-          <div className={'pjs-grid' + (umPorVez ? ' cena-um' : '')}>
+          <div className="pjs-grid cena-grade">
             {pagina.map(({ c, n, atual }) => {
               const abrir = () => setAberto(n);
               return (
@@ -446,18 +452,9 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
                               </>
                             )}
                           </div>
-                          {/* Um card por vez mostra o capítulo INTEIRO: é a
-                              leitura, não um índice de cartas. */}
-                          {umPorVez ? (
-                            <div className="cena-um-texto">
-                              {c.texto ? paragrafos(c.texto)
-                                : <p className="cena-cap-texto">{en ? 'No text yet.' : 'Sem texto ainda.'}</p>}
-                            </div>
-                          ) : (
-                            <div className="pj-meta pj-meta--estagio">
-                              {resumo(c.texto) || (en ? 'No text yet.' : 'Sem texto ainda.')}
-                            </div>
-                          )}
+                          <div className="pj-meta pj-meta--estagio">
+                            {resumo(c.texto) || (en ? 'No text yet.' : 'Sem texto ainda.')}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -527,6 +524,9 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
           )}
         </ModalShell>
       )}
+      {/* O TRILHO DE BAIXO DA CENA (02/11/2026): a data, o lugar, a hora e o
+          tempo (CardDataJogoAtual, 10-shell) entram aqui por portal. */}
+      <div id="pg-rodape-slot" className="pg-rodape" />
     </div>
   );
 }

@@ -795,7 +795,7 @@ describe('apagar campo ao editar', () => {
   });
 });
 
-describe('itens.magico — coluna GERADA, só leitura', () => {
+describe('itens.magico — foi coluna GERADA; desde 30/10/2026, escolha de quem cria', () => {
   /* CORREÇÃO DE 11/09/2026.
 
      Este describe travava a expectativa `payload.magico === true` — isto é,
@@ -830,19 +830,24 @@ describe('itens.magico — coluna GERADA, só leitura', () => {
     expect(pill.textContent).toMatch(/Não/);
   });
 
-  it('o controle fica desabilitado', () => {
+  /* DESDE 30/10/2026 QUEM CRIA ESCOLHE ("a escolha do item ser mágico deve
+     ser de quem o criou", usuário). A coluna deixou de ser gerada
+     (scripts/sql/magico-escolha-de-quem-cria-2026-10-30.sql) e o campo
+     destravou. A lição acima continua valendo: este teste prova o que o
+     cliente MANDA — o script tem de estar no banco antes do deploy. */
+  it('o controle fica habilitado', () => {
     montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magico: true } });
     const pill = Array.from(document.querySelectorAll('.select-pill-btn'))
       .find((b) => /Sim|Não/.test(b.textContent));
-    expect(pill.disabled).toBe(true);
+    expect(pill.disabled).toBe(false);
   });
 
-  it('NUNCA entra no payload — é o que fazia todo save de item falhar', async () => {
+  it('vai no payload como booleano, sem estragar o que já era mágico', async () => {
     montar({ tabela: 'itens', linha: { slug: 'anel', nome: 'Anel', magico: true } });
     fireEvent.change(document.querySelector('textarea[name="descricao"]'), { target: { value: 'nova' } });
     fireEvent.click(screen.getAllByRole('button').find((b) => /salvar/i.test(b.textContent)));
     await vi.waitFor(() => expect(ultimoUpdate).not.toBeNull());
-    expect('magico' in ultimoUpdate.payload).toBe(false);
+    expect(ultimoUpdate.payload.magico, '"Sim" na tela, true no banco').toBe(true);
     expect(ultimoUpdate.payload.descricao, 'o resto do payload segue normal').toBe('nova');
   });
 });
@@ -1476,12 +1481,12 @@ describe('item: a BASE é escolhida no editor', () => {
   it('as opções saem da REGIÃO do item', () => {
     montar({ tabela: 'itens', linha: { slug: 'm', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto' } });
     const opcoes = window.opcoesDeBase({ slot_equip: 'rosto', grupo: 'Vestimentas' }).map((o) => o.value);
-    expect(opcoes).toContain('mascara-ferro');
+    expect(opcoes).toContain('mascara-cobre');
     expect(opcoes).not.toContain('elmo-leve');
   });
 
   it('a base gravada aparece escolhida', () => {
-    montar({ tabela: 'itens', linha: { slug: 'm', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto', base: 'mascara-ferro' } });
-    expect(screen.getAllByText(/Máscara de Ferro/).length).toBeGreaterThan(0);
+    montar({ tabela: 'itens', linha: { slug: 'm', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto', base: 'mascara-cobre' } });
+    expect(screen.getAllByText(/Máscara de Cobre/).length).toBeGreaterThan(0);
   });
 });

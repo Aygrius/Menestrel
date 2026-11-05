@@ -29,17 +29,32 @@ const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
    sino SOZINHO numa barra redonda; `fichaAtiva && mesaAtivaId` garante o
    contrário — a ficha montada, dentro de uma mesa, tem o trilho de verdade
    (Status, Atividades, Habilidades, Magias, Itens) para recebê-lo. */
+/* ── NO MENU LATERAL, PARA OS DOIS (30/10/2026) ───────────────────────────
+   "O botão de notificação, tanto para mestre como para jogador, vai sair do
+   trilho e vai ficar no menu lateral esquerdo." (usuário)
+
+   O círculo marrom de 26/10 era o sino SOZINHO numa barra redonda. No menu
+   lateral ele é uma linha entre as outras, e o menu está em toda tela da
+   mesa — então a trava por tela sai, e fica só a de haver mesa. */
 describe('a central de mensagens do Jogador', () => {
-  it('é montada no Mestre, na tela da mesa e na ficha dentro da mesa', () => {
-    expect(shell).toMatch(
-      /\{\(profile === 'master' \|\| telaDaMesa \|\| \(fichaAtiva && mesaAtivaId\)\) && \(\r?\n\s*<CentralMensagens/
-    );
+  it('é montada sempre que há mesa, para Mestre e Jogador', () => {
+    expect(shell).toMatch(/\{mesaAtivaId && \(\r?\n\s*<CentralMensagens/);
   });
 
-  /* Fora de uma mesa o sino não monta: ele avisa o que acontece NA MESA, e
-     `mesaAtivaId` é o que diz que há uma. */
-  it('a ficha sozinha não basta: precisa de mesa', () => {
-    expect(shell).toMatch(/fichaAtiva && mesaAtivaId/);
+  it('desenha só no menu lateral — nada de trilho da cena nem da ficha', () => {
+    expect(shell).toMatch(/const alvoBarra = alvoLateral;/);
+    expect(shell).not.toMatch(/useAlvoPortal\('cdj-sino'\)/);
+    expect(shell).not.toMatch(/useAlvoPortal\('fp-acoes-ficha'\)/);
+  });
+
+  it('o lugar do sino no menu existe para os dois papéis', () => {
+    expect(shell).toMatch(/\{mesaAtivaId && \(\r?\n\s*<>\r?\n\s*<div className="mc-nav-regua" role="separator" \/>\r?\n\s*<div id="mc-sino-lateral"/);
+  });
+
+  /* Com o menu recolhido, todo `.mc-navitem > span` some (é o nome do item).
+     O contador não pode ser um deles. */
+  it('o contador não é span, para sobreviver ao menu recolhido', () => {
+    expect(shell).toMatch(/<b className="cm-nav-badge">/);
   });
 
   it('montada, escuta a mesa ativa sem condicional própria', () => {

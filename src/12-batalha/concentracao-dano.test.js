@@ -78,12 +78,13 @@ describe('quebrarConcentracaoPorDano — o que NÃO quebra', () => {
     expect(r[0].status_temp).toHaveLength(1);
   });
 
-  it('golpe que FURA o limiar mas para na resistência também não quebra', () => {
-    // Dano 9 > limiar 3: gasta 1 de resistência e a EF segue intacta. É o
-    // caso novo do modelo — antes esse golpe teria chegado na EF.
+  it('golpe do tamanho da absorção é segurado inteiro e não quebra', () => {
+    // Dano 3 contra absorção 3 (crítico, pula a EH): nada passa, nada se
+    // gasta. Desde 30/10/2026 o golpe MAIOR que a absorção deixa o excedente
+    // na EF — e aí a concentração quebra (ver "o que quebra").
     const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
-    const r = levarDano(arr, 'A', 9, true);
-    expect(r[0].res).toBe(5);
+    const r = levarDano(arr, 'A', 3, true);
+    expect(r[0].res).toBe(6);
     expect(r[0].ef).toBe(10);
     expect(r[0].status_temp, 'a magia continua de pé').toHaveLength(1);
   });
@@ -136,12 +137,15 @@ describe('quebrarConcentracaoPorDano — o que quebra', () => {
      Isso é a regra pedida ("quando toda a durabilidade acabar é que o dano
      será na energia física"), não um bug — mas muda o combate: matar alguém
      de armadura passa a exigir tantos golpes quanto a resistência dela. */
-  it('com a armadura inteira, um golpe gigante NÃO mata', () => {
+  it('um golpe gigante: a absorção desconta só a parte dela, e o resto mata', () => {
+    // 99 − 5 de EH − 3 de absorção = 91 na EF (30/10/2026: a absorção
+    // desconta; antes o golpe acima do limiar era segurado inteiro).
     const arr = [lutador('A', 1, { status_temp: [sustentado('A')] })];
     const r = levarDano(arr, 'A', 99);
-    expect(r[0].status, 'sobreviveu a 99 de dano').toBe('desmaiado');
+    expect(r[0].status).toBe('morto');
     expect(r[0].res, 'custou 1 de resistência').toBe(5);
-    expect(r[0].ef, 'a EF nem foi tocada').toBe(10);
+    expect(r[0].ef, 'no piso').toBe(-15);
+    expect(r[0].status_temp.filter((s) => s.concentracao), 'a concentração caiu').toHaveLength(0);
   });
 
   it('derruba a magia no ALVO dela, não em quem apanhou', () => {

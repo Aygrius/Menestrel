@@ -41,7 +41,11 @@ const COLUNAS = {
      dois limitam, e o que estourar primeiro trava. */
   itens: ['slug','nome','base','grupo','ocupa','armazena','porte','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia',
     // Técnica que o pergaminho ensina (22/10/2026).
-    'tecnica','descricao','magico','categoria_equip','slot_equip','grupo_equipamento','maos_pequenino','maos_anao','maos_outras','forca_req','dano','alcance','ajuste_atributo','defesa','absorcao','tipo_armadura','dano_l','dano_m','dano_p','grupo_armas','origem','resistencia','icone','consumiveis','consumiveis_peso','doc_url','criatura_id'],
+    'tecnica','descricao','magico','categoria_equip','slot_equip','grupo_equipamento','maos_pequenino','maos_anao','maos_outras','forca_req','dano','alcance','ajuste_atributo','defesa','absorcao','tipo_armadura','dano_l','dano_m','dano_p','grupo_armas','origem','resistencia','icone','consumiveis','consumiveis_peso','doc_url','criatura_id',
+    // As peças de um conjunto de armadura e o kit (30/10/2026).
+    'conjunto',
+    // A pintura do exemplar, que ganha da base (30/10/2026).
+    'arte'],
 };
 
 // NOT NULL sem default — o descritor tem que marcar obrigatorio.
@@ -263,12 +267,13 @@ describe('opcoesNormalizadas — sigla no banco, palavra na tela', () => {
 describe('itens — os campos que mudaram em 11/09/2026', () => {
   const campoDe = (col) => MAP.itens.campos.find((c) => c.col === col);
 
-  it('magico é somenteLeitura — é coluna GERADA no Postgres', () => {
-    /* itens.magico é GENERATED ALWAYS AS (magia IS NOT NULL AND magia <> '').
-       O banco recusa qualquer UPDATE que a mencione com
-       "column magico can only be updated to DEFAULT" — e o editor a mandava
-       no payload de TODA edição de item, então nenhum item salvava. */
-    expect(campoDe('magico').somenteLeitura).toBe(true);
+  /* Até 30/10/2026 era somenteLeitura (coluna GERADA a partir de `magia`).
+     "a escolha do item ser mágico deve ser de quem o criou" (usuário): a
+     coluna virou comum (scripts/sql/magico-escolha-de-quem-cria-2026-10-30.sql)
+     e o campo, um Sim/Não que grava true/false. */
+  it('magico é escolha de quem cria: Sim/Não, gravado como booleano', () => {
+    expect(campoDe('magico').somenteLeitura).toBeFalsy();
+    expect(campoDe('magico').booleano).toBe(true);
   });
 
   it('tipo mostra Sólido/Líquido e grava S/L', () => {

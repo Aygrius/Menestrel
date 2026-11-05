@@ -1404,7 +1404,7 @@ function useGridDimensions() {
   return [setGridEl, dims];
 }
 
-function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
+function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilhoPaginas = null }) {
   const en = lang === 'en';
   const pjId = pj?.id;
   // Fallback: quantas linhas mostrar antes de useFitPageSize medir a tela.
@@ -1800,7 +1800,8 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
       setQuery={(v) => { setQuery(v); setPage(1); }}
       podeCriar={!!criar && !criar.desativado}
       onNovo={criar ? criar.onNovo : undefined}
-      dicaNovo={criar ? criar.dica : undefined} />
+      dicaNovo={criar ? criar.dica : undefined}
+      antes={trilhoPaginas} />
   );
 
   const textoVazio = query.trim()
@@ -2003,7 +2004,8 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
      entrada num cartão. As ações que eram botões na linha (ver, importar,
      compartilhar, editar, excluir) foram para o alto da janela da entrada;
      a lixeira da memória, para o rodapé da janela dela. */
-  const POR_PAGINA_CARTOES = 10; // cinco fileiras de dois cartões
+  // 18 desde 04/11/2026: seis fileiras de três, como a Ambientação do Mestre.
+  const POR_PAGINA_CARTOES = 18;
   const totalCartoes = Math.max(1, Math.ceil(linhas.length / POR_PAGINA_CARTOES));
   const paginaCartoes = Math.min(page, totalCartoes);
   const cartoes = linhas.slice((paginaCartoes - 1) * POR_PAGINA_CARTOES, paginaCartoes * POR_PAGINA_CARTOES);
@@ -2131,7 +2133,10 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo }) {
 
   return (
     <div className="pjs diario-pagina">
-      <div className="diario-pagina-barra cartoes-barra">{buscaENovo}</div>
+      {/* O Diário do Jogador no trilho da página (04/11/2026), como a
+          Ambientação do Mestre: Reinos, Cidades, Locais, Pessoas e Memórias
+          na mesma pílula da busca e do +. */}
+      <div className={'diario-pagina-barra cartoes-barra' + (trilhoPaginas ? ' livro-trilho trilho-unido' : '')}>{buscaENovo}</div>
       {error && <div className="err-msg diario-err-mb">{error}</div>}
       {cartoes.length === 0 ? (
         <div className="best-empty diario-empty-lg">{textoVazio}</div>
@@ -2743,13 +2748,18 @@ function PermissaoEntradaModal({ entrada, historia, protagonistas, lang, onClose
    Com tipoFixo, também some o "voltar": quem chegou pelo menu lateral não veio
    de lugar nenhum. É por isso que o botão depende de `onClose`, e não de uma
    flag própria. */
-function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
+function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo, trilhoPaginas = null }) {
   const en = lang === 'en';
   // Fallback: quantas linhas mostrar antes de useFitPageSize medir a tela.
   // Mesmo arranjo do DiarioView do Jogador.
   // 10 = cinco fileiras de dois cartões (23/10/2026, "vamos mostrar 5 linhas
   //   de cards (ou menos) para não usar a barra" de rolagem).
-  const PAGE_SIZE_FALLBACK = 10;
+  // 10 → 15 em 02/11/2026 (usuário: "Nas páginas de ambientação, cabe mais
+  //   cards antes de abrir novas páginas de navegação. Acredito que cabe 15
+  //   por página"): cinco fileiras de TRÊS, no cartão de página de 821px.
+  // 15 → 18 em 04/11/2026 (usuário: "Nas páginas reinos, cidades, etc, eu
+  //   quero que tenha 18 cards"): seis fileiras de três.
+  const PAGE_SIZE_FALLBACK = 18;
   const [tipoAba, setTipoAba] = useState(tipoFixo || 'npc'); // npc | lugar | criatura (disponibilizar)
   // A lixeira da ficha armada no primeiro clique (26/09/2026) — a chave da entrada.
   const [lixeiraArmada, setLixeiraArmada] = useState(null);
@@ -3243,7 +3253,12 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
      topo). Fica uma barra fina acima da grade com a busca e o +. */
   return (
     <div className="pjs diario-pagina">
-      <div className="diario-pagina-barra cartoes-barra">
+      {/* UM TRILHO SÓ (04/11/2026, usuário: "Você só vai unir o trilho atual de
+          buscar com o trilho novo e aplicar o padrão de layout nele"). Com
+          `trilhoPaginas` (as páginas da Ambientação, vindas do 10-shell), os
+          botões de página entram na MESMA pílula da busca e do +, antes
+          deles, com o desenho do trilho do Livro de Regras e da ficha. */}
+      <div className={'diario-pagina-barra cartoes-barra' + (trilhoPaginas ? ' livro-trilho trilho-unido' : '')}>
         {/* Só quem veio de outra tela (Histórias → Lore) tem para onde voltar. */}
         {onClose && (
           <button type="button" className="btn-icon btn-sm" onClick={onClose}
@@ -3269,7 +3284,8 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo }) {
           setQuery={(v) => { setQuery(v); setPage(1); setExpandida(null); }}
           podeCriar={podeCriar}
           onNovo={abrirNovoLugar}
-          dicaNovo={dicaNovo} />
+          dicaNovo={dicaNovo}
+          antes={trilhoPaginas} />
       </div>
 
       {error && <div className="err-msg diario-err-mb">{error}</div>}
@@ -3333,7 +3349,7 @@ function motivoLoreLegivel(motivo) {
   return MOTIVOS_LORE[motivo] || motivo || 'erro';
 }
 
-function LoreDaMesa({ historiaId, lang, tipoFixo, vazio }) {
+function LoreDaMesa({ historiaId, lang, tipoFixo, vazio, trilhoPaginas = null }) {
   const [historia, setHistoria] = useState(null);   // null = carregando
   const [erro, setErro] = useState(null);
   useEffect(() => {
@@ -3362,6 +3378,7 @@ function LoreDaMesa({ historiaId, lang, tipoFixo, vazio }) {
       historia={historia}
       lang={lang}
       tipoFixo={tipoFixo}
+      trilhoPaginas={trilhoPaginas}
       key={tipoFixo + ':' + historia.id}
     />
   );

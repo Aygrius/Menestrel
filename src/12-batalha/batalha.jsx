@@ -80,7 +80,7 @@
 
 /* ============================== [26] BATALHA — Console ============================== */
 
-function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang, currentUserId, onClose }) {
+function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang, currentUserId, onClose, trilhoPaginas = null }) {
   const [tip, abrirTip, fecharTip] = usePortalTooltip(300);
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
@@ -159,9 +159,12 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
     const BuscaENovo = window.BestBuscaENovo;
     return (
       <div className="pjs batalha-cartoes-pagina">
+        {/* As páginas da Mesa (Cena, Batalha, Loja) no mesmo trilho da busca
+            e do +, antes deles (04/11/2026). */}
         {BuscaENovo && (
-          <div className="cartoes-barra">
+          <div className={'cartoes-barra' + (trilhoPaginas ? ' livro-trilho trilho-unido' : '')}>
             <BuscaENovo
+              antes={trilhoPaginas}
               ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
               placeholder={isEn ? 'Search' : 'Buscar'}
               query={buscaBat}
@@ -248,6 +251,10 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
             })}
           </div>
         )}
+        {/* O RODAPÉ DA MESA (04/11/2026): a data, o lugar, a hora e o clima da
+            Cena também aqui — Cena, Batalha e Loja são uma página só. O
+            CardDataJogoAtual (10-shell) entra por portal. */}
+        {trilhoPaginas && <div id="pg-rodape-slot" className="pg-rodape" />}
         <PortalTooltip tip={tip} onEnter={() => {}} onLeave={fecharTip} />
       </div>
     );
@@ -262,6 +269,7 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
       {view === 'nova' && !abrindo && (
         <div className="cartoes-barra batalha-trilho">
           <div className="best-header-acoes" role="toolbar" aria-label={tb.novaBatalha}>
+            {trilhoPaginas}
             <button type="button" className="mc-acao" onClick={() => setView('lista')}>
               <i className="ti ti-arrow-left" aria-hidden="true" />
               <span className="mc-acao-rotulo">{isEn ? 'Battles' : 'Batalhas'}</span>
@@ -278,6 +286,7 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
       {abrindo && (
         <div className="cartoes-barra batalha-trilho">
           <div className="best-header-acoes" role="toolbar" aria-label={isEn ? 'Battle' : 'Batalha'}>
+            {trilhoPaginas}
             <button type="button" className="mc-acao"
               disabled={rolagemPendenteConducao}
               onClick={() => { fecharTip(); setAbrindo(null); setHeaderActions(null); carregar(); }}
@@ -1616,19 +1625,61 @@ const EF_MORTE = -15;
    barrinhas do inventário legíveis (descem juntas, em degraus).
 
    Empate resolve pela primeira da lista; a ordem das peças é a do
-   inventário, estável entre golpes. */
+   inventário, estável entre golpes.
+
+   CADA PEÇA QUEBRA SOZINHA (30/10/2026, usuário): "Peças sem resistência
+   quebram no primeiro golpe" — a que nasce sem (Ombreira, Braçadeira,
+   Caneleira e Coturno leves) e a que se gastou até 0. Por isso a peça em 0
+   vem ANTES do desgaste: o golpe que fura o limiar quebra UMA delas — a de
+   MENOR absorção (empate: menor defesa, depois a primeira da lista) — e só
+   quando não sobra nenhuma em 0 é que ele gasta 1 da mais inteira. Peça
+   quebrada nunca é escolhida de novo. */
 function desgastarArmadura(pecas) {
   if (!Array.isArray(pecas) || pecas.length === 0) return pecas;
+  let menor = -1;
+  pecas.forEach((pc, i) => {
+    if (!pc || pc.quebrada || (Number(pc.res) || 0) > 0) return;
+    if (menor < 0) { menor = i; return; }
+    const a = Number(pc.abs) || 0, d = Number(pc.def) || 0;
+    const am = Number(pecas[menor].abs) || 0, dm = Number(pecas[menor].def) || 0;
+    if (a < am || (a === am && d < dm)) menor = i;
+  });
+  if (menor >= 0) return pecas.map((pc, i) => (i === menor ? { ...pc, res: 0, quebrada: true } : pc));
   let alvo = -1, maior = 0;
   pecas.forEach((pc, i) => {
-    const r = Math.max(0, Number(pc && pc.res) || 0);
+    if (!pc || pc.quebrada) return;
+    const r = Math.max(0, Number(pc.res) || 0);
     if (r > maior) { maior = r; alvo = i; }
   });
-  if (alvo < 0) return pecas;   // todas já em 0
+  if (alvo < 0) return pecas;   // todas já quebradas
   return pecas.map((pc, i) => (i === alvo ? { ...pc, res: Math.max(0, (Number(pc.res) || 0) - 1) } : pc));
 }
 const somaRes = (pecas) => (Array.isArray(pecas) ? pecas : [])
-  .reduce((s, pc) => s + Math.max(0, Number(pc && pc.res) || 0), 0);
+  .reduce((s, pc) => s + (pc && !pc.quebrada ? Math.max(0, Number(pc.res) || 0) : 0), 0);
+
+/* Um golpe de desgaste no ATOR: gasta (ou quebra) uma peça e, se quebrou,
+   tira do limiar (`ar`/`ar_max`) e da defesa a parte DAQUELA peça — e o
+   bônus do conjunto, se ela era do conjunto completo. Sem peças, desconta o
+   escalar `res` (criatura). */
+function desgastarAtor(p) {
+  const pecas = Array.isArray(p.armadura_pecas) && p.armadura_pecas.length ? p.armadura_pecas : null;
+  if (!pecas) return { ...p, res: Math.max(0, (Number(p.res) || 0) - 1) };
+  const novas = desgastarArmadura(pecas);
+  const i = novas.findIndex((pc, k) => pc && pc.quebrada && !(pecas[k] && pecas[k].quebrada));
+  let out = { ...p, armadura_pecas: novas, res: somaRes(novas) };
+  if (i < 0) return out;
+  const pc = novas[i];
+  let abs = Number(pc.abs) || 0, def = Number(pc.def) || 0;
+  const cb = p.conjunto_bonus;
+  if (cb && pc.conjunto && pc.conjunto === cb.conjunto) {
+    abs += Number(cb.abs) || 0; def += Number(cb.def) || 0;
+    out.conjunto_bonus = null;
+  }
+  out.ar = Math.max(0, (Number(out.ar) || 0) - abs);
+  if (Number.isFinite(out.ar_max)) out.ar_max = Math.max(0, out.ar_max - abs);
+  if (Number.isFinite(out.defesa_valor)) out.defesa_valor = out.defesa_valor - def;
+  return out;
+}
 
 /* ── Redução de dano elemental (puro) ──────────────────────────────
    Roda ANTES de aplicarDanoCascata, reduzindo o NÚMERO DE ENTRADA. É
@@ -1674,33 +1725,36 @@ function aplicarDanoCascata(dano, p, mods) {
   const m = (mods && typeof mods === 'object') ? mods : { critico: !!mods };
   const pulaEh = !!(m.critico || m.ignoraEh);
   let r = Math.max(0, Math.floor(dano || 0));
-  let eh = p.eh, ar = p.ar, ef = p.ef;
-  let res = Number.isFinite(p.res) ? p.res : 0;
+  let eh = p.eh, ef = p.ef;
+  const res = Number.isFinite(p.res) ? p.res : 0;
   // Criatura não tem peças (a tabela não tem inventário): cai no ramo do
   // escalar logo abaixo. PJ tem, e aí o desconto é por peça.
-  let pecas = Array.isArray(p.armadura_pecas) ? p.armadura_pecas : null;
+  const pecas = Array.isArray(p.armadura_pecas) && p.armadura_pecas.length ? p.armadura_pecas : null;
+  // Armadura de pé: com peças, enquanto houver UMA inteira (mesmo em 0 de
+  // resistência — o golpe que fura a quebra); sem peças, enquanto res > 0.
+  const temArmadura = pecas ? pecas.some((pc) => pc && !pc.quebrada) : res > 0;
+  let desg = null;   // o ator depois do desgaste, quando o golpe furou o limiar
   if (!pulaEh && eh > 0)          { const c = Math.min(eh, r); eh -= c; r -= c; }
-  /* ── A ARMADURA É UM LIMIAR, NÃO UMA POÇA (regra do usuário, 11/09/2026)
+  /* ── A ABSORÇÃO DESCONTA DO GOLPE (regra do usuário, 30/10/2026)
 
-     Antes: `ar` era um reservatório que absorvia ponto a ponto e esvaziava
-     — armadura 12 contra golpe 20 comia 12 e deixava 8 chegarem à EF no
-     MESMO golpe.
+     "Se não sobrar nenhuma absorção, o dano vai para a energia física. Por
+     exemplo, se minha absorção é 20, um golpe 28 remove 8 da energia física
+     e remove 1 resistência da armadura." Substitui o LIMIAR de 11/09/2026,
+     em que todo golpe acima de `ar` era segurado inteiro.
 
-     Agora:
-       • golpe ATÉ o limiar (`ar`)  → bloqueado inteiro, nada acontece;
-       • golpe ACIMA do limiar      → custa 1 ponto de RESISTÊNCIA, e nada
-                                      chega à EF;
-       • resistência em 0           → armadura arrebentada, para de bloquear
-                                      e o dano passa inteiro.
+       • golpe ATÉ a absorção (`ar`) → segurado inteiro, nada se gasta;
+       • golpe ACIMA da absorção     → o que sobra (golpe − ar) chega à EF e
+                                       a armadura paga 1 de desgaste;
+       • armadura toda quebrada      → o dano passa inteiro.
 
-     `ar` não é mais decrementado: o limiar é constante enquanto a armadura
-     existir. Quem gasta é `res`. */
-  if (r > 0 && !m.ignoraArmadura && ar > 0 && res > 0) {
-    if (r > ar) {           // furou o limiar: desgasta 1 de resistência
-      if (pecas && pecas.length) { pecas = desgastarArmadura(pecas); res = somaRes(pecas); }
-      else res -= 1;
-    }
-    r = 0;                  // em ambos os casos a armadura segurou o golpe
+     O desgaste é por peça (desgastarAtor): a peça sem resistência quebra
+     primeiro. Ela não absorve nada, então quem só veste peças que defendem
+     (absorção 0) quebra uma no primeiro golpe e leva o dano todo. `ar` não é
+     decrementado pelo golpe; só cai quando uma peça que absorvia quebra. */
+  if (r > 0 && !m.ignoraArmadura && temArmadura && (pecas || p.ar > 0)) {
+    const abs = Math.max(0, Number(p.ar) || 0);
+    if (r > abs) desg = desgastarAtor(p);   // passou da absorção: desgasta
+    r = Math.max(0, r - abs);
   }
   if (r > 0 && ef > EF_MORTE) { const c = Math.min(ef - EF_MORTE, r); ef -= c; r -= c; }
   let status = p.status;
@@ -1709,8 +1763,7 @@ function aplicarDanoCascata(dano, p, mods) {
   // alvo vira saco de pancada imortal.
   if (ef <= EF_MORTE && status !== 'morto') status = 'morto';
   else if ((ef <= 0 || (eh === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
-  return { ...p, eh, ar, ef, res, status, sobra: r,
-    ...(pecas ? { armadura_pecas: pecas } : {}) };
+  return { ...(desg || p), eh, ef, status, sobra: r, res: desg ? desg.res : res };
 }
 
 /* ── Chaves das 8 condições (Reputação, Sono, Sanidade, Saúde, Hidratação,
@@ -1951,6 +2004,10 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         eh: ehCur, eh_max: ehMax,
         ar: arCur, ar_max: arMax,
         res: resCur, res_max: resMax, armadura_pecas: pecasArm,
+        // O bônus do conjunto completo, para sair do limiar e da defesa se uma
+        // peça dele quebrar na luta (desgastarAtor, 30/10/2026).
+        conjunto_bonus: (typeof bonusDeConjunto === 'function')
+          ? bonusDeConjunto(pj.inventario?.itens, catalogoBySlug) : null,
         ef: efCur, ef_max: efMax,
         karma: kCur, karma_max: kMax,
         condicoes,
@@ -3025,6 +3082,8 @@ const ICONE_STATUS = {
   evocando:   'ti-sparkles',
   // 15/09/2026: "Ferido", colunas de penalidade por x rodadas.
   ferido:     'ti-bandage',
+  // 29/10/2026: "Distraído" — não usa a Energia Heroica para se defender.
+  distraido:  'ti-mood-empty',
 };
 const iconeStatus = (k) => ICONE_STATUS[k] || ICONE_STATUS.ativo;
 /* O card de personagem (08-personagens) também desenha status, e tem que usar
@@ -3075,6 +3134,14 @@ function statusAplicadoPeloMestre(tipo, valor, rodadas, tb) {
       rodadas_rest: r,
       efeito: { tipo: 'sem_acoes' },
     };
+  }
+  /* DISTRAÍDO (29/10/2026, pedido do usuário): "Combatentes distraídos não
+     podem usar a energia heroica para se defender." Sem valor numérico, como
+     o caído; quem lê o efeito é modsDoGolpe, que já fazia o golpe pular a EH
+     do alvo derrubado. Age normalmente — só se defende pior. */
+  if (tipo === 'distraido') {
+    return { id: 'distraido:' + sufixo, nome: t.distraido || 'Distraído', icone: '😶', rodadas_rest: r,
+      efeito: { tipo: 'distraido' } };
   }
   const v = Math.max(1, Number(valor) || 1);
   if (tipo === 'ferido') {
@@ -3308,6 +3375,7 @@ function iconeDoEfeito(s) {
   const tipo = s.efeito && s.efeito.tipo;
   if (id.startsWith('sangramento:')) return { ti: iconeStatus('sangrando') };
   if (id.startsWith('ferido:')) return { ti: iconeStatus('ferido') };
+  if (id.startsWith('distraido:')) return { ti: iconeStatus('distraido') };
   if (tipo === 'dano_por_rodada') return { ti: iconeStatus('envenenado') };
   if (tipo === 'sem_acoes') return { ti: iconeStatus('caido') };
   if (s.icone) return { emoji: s.icone };
@@ -3458,7 +3526,8 @@ function EstadoDrop({ p, isEn, STATUS, onMudar, onEnvenenar, abrirTip, fecharTip
           {[['veneno', 'envenenado', tb.envenenado, 'poison'],
             ['sangramento', 'sangrando', tb.sangrando, 'sangra'],
             ['caido', 'caido', tb.caido, 'caido'],
-            ['ferido', 'ferido', tb.ferido, 'ferido']].map(([tipo, ic, nome, cls]) => (
+            ['ferido', 'ferido', tb.ferido, 'ferido'],
+            ['distraido', 'distraido', tb.distraido, 'distraido']].map(([tipo, ic, nome, cls]) => (
             <button key={tipo} className={'batalha-estado-drop-item ' + cls}
               onClick={() => { fecharTip(); onEnvenenar(tipo); setAberto(false); }}
               aria-label={nome}
@@ -4110,8 +4179,9 @@ function modsDoGolpe(atacante, alvo) {
   const doAtacante = (tipo) => !!(atacante && Array.isArray(atacante.status_temp)
     && atacante.status_temp.some((s) => s.efeito && s.efeito.tipo === tipo
       && (!s.efeito.alvo_inst_id || s.efeito.alvo_inst_id === alvoId)));
+  // Distraído (29/10/2026) é a mesma condição do alvo: qualquer golpe fura a EH.
   const derrubado = !!(alvo && Array.isArray(alvo.status_temp)
-    && alvo.status_temp.some((s) => s.efeito && s.efeito.tipo === 'derrubado'));
+    && alvo.status_temp.some((s) => s.efeito && (s.efeito.tipo === 'derrubado' || s.efeito.tipo === 'distraido')));
   return {
     ignoraEh: doAtacante('ignora_eh') || derrubado,
     ignoraArmadura: doAtacante('ignora_armadura'),
@@ -5219,9 +5289,10 @@ function aplicarDanoEquipamento(p, reg) {
   if (total <= 0) return p;
 
   if (Array.isArray(p.armadura_pecas) && p.armadura_pecas.length) {
-    let pecas = p.armadura_pecas;
-    for (let i = 0; i < total; i++) pecas = desgastarArmadura(pecas);
-    return { ...p, armadura_pecas: pecas, res: somaRes(pecas) };
+    // Um ponto por vez, pelo mesmo caminho do golpe: pode quebrar peça.
+    let out = p;
+    for (let i = 0; i < total; i++) out = desgastarAtor(out);
+    return out;
   }
   const res = Math.max(0, (Number(p.res) || 0) - total);
   return { ...p, res };
@@ -7313,7 +7384,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const aplicarVeneno = (idx, tipo) => {
     const valor = Math.max(1, parseInt(venenoVal || '0', 10) || 0);
     const rodadas = Math.max(1, parseInt(venenoRodadas || '1', 10) || 1);
-    if (tipo !== 'caido' && (!venenoVal || valor < 1)) return;
+    if (tipo !== 'caido' && tipo !== 'distraido' && (!venenoVal || valor < 1)) return;
     const novoStatus = statusAplicadoPeloMestre(tipo, valor, rodadas, tb);
     const p = participantes[idx];
     const atual = Array.isArray(p.status_temp) ? p.status_temp : [];
@@ -8364,6 +8435,19 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       if (falhaAni) { setSalvando(false); setError(falhaAni.error.message); return; }
     }
 
+    // 0c) O DESGASTE DA ARMADURA VOLTA PARA O ITEM (30/10/2026, usuário:
+    // continua valendo "até consertar"). Pelo compare-and-swap do inventário;
+    // inventarioComDesgaste devolve o mesmo objeto quando nada mudou.
+    const comDesgaste = pjsDaBatalha.filter((p) => Array.isArray(p.armadura_pecas) && p.armadura_pecas.length);
+    if (comDesgaste.length > 0) {
+      const resultadosArm = await Promise.all(comDesgaste.map(async (p) => {
+        const r = await alterarInventario(p.ref_id, (inv) => inventarioComDesgaste(inv, p.armadura_pecas));
+        return r.ok ? { ok: true } : { ok: false, error: r.error };
+      }));
+      const falhaArm = resultadosArm.find((r) => !r.ok);
+      if (falhaArm) { setSalvando(false); setError(falhaArm.error.message); return; }
+    }
+
     // 1) Lê personagens_pools atual da história (fresh).
     if (historia && historia.id) {
       const { data: histRow, error: histErr } = await supabaseClient
@@ -9055,11 +9139,13 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     {venenoOpen && (() => {
       // Envenenado, Sangrando ou Caído (13/09/2026). Caído não tem dano.
       const tipoSt = venenoOpen.tipo || 'veneno';
-      const semDano = tipoSt === 'caido';
+      // Distraído (29/10/2026) também não tem número: só o prazo.
+      const distraido = tipoSt === 'distraido';
+      const semDano = tipoSt === 'caido' || distraido;
       // Ferido (15/09/2026): o número são colunas de penalidade, não dano.
       const ferido = tipoSt === 'ferido';
-      const icSt = tipoSt === 'sangramento' ? 'sangrando' : tipoSt === 'caido' ? 'caido' : ferido ? 'ferido' : 'envenenado';
-      const nomeSt = tipoSt === 'sangramento' ? tb.sangrando : tipoSt === 'caido' ? tb.caido : ferido ? tb.ferido : tb.envenenado;
+      const icSt = tipoSt === 'sangramento' ? 'sangrando' : tipoSt === 'caido' ? 'caido' : distraido ? 'distraido' : ferido ? 'ferido' : 'envenenado';
+      const nomeSt = tipoSt === 'sangramento' ? tb.sangrando : tipoSt === 'caido' ? tb.caido : distraido ? tb.distraido : ferido ? tb.ferido : tb.envenenado;
       return (
       <ModalShell
         title={<><i className={'ti ' + iconeStatus(icSt)} aria-hidden="true" /> {nomeSt}</>}
@@ -9092,7 +9178,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         </div>
         {/* O nome do combatente e o total ("21 no total (7 × 3)") saíram em
             14/09/2026, a pedido do usuário. */}
-        <p className="batalha-modal-nota">{semDano ? tb.caidoNota : ferido ? tb.feridoNota : tb.venenoDireto}</p>
+        <p className="batalha-modal-nota">{distraido ? tb.distraidoNota : semDano ? tb.caidoNota : ferido ? tb.feridoNota : tb.venenoDireto}</p>
       </ModalShell>
       );
     })()}
@@ -9624,14 +9710,20 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     const bonusObj  = (typeof calcBonusHabilidadesRacaReino === 'function')
       ? calcBonusHabilidadesRacaReino(pj.raca, pj.reino, habsDb) : {};
     const lista = [];
+    // A armadura vestida, para o grau a mais da restrição (30/10/2026).
+    const classeArm = (typeof classeDaArmaduraVestida === 'function')
+      ? classeDaArmaduraVestida(pj.inventario?.itens, catalogos && catalogos.catalogoBySlug) : null;
     Object.entries(pj.habilidades).forEach(([key, qtd]) => {
       const h = habsByKey[key];
       if (!h) return;
+      // "N" sem compra não se usa: nem entra na lista (30/10/2026).
+      if (typeof bloqueioDaHabilidade === 'function' && bloqueioDaHabilidade(h, qtd)) return;
       const total = (typeof totalHabilidadeComCondicoes === 'function')
         ? totalHabilidadeComCondicoes(key, pj.habilidades, atributosFicha, bonusObj, habsByKey, (ator && ator.condicoes) || pj.estado_atual?.condicoes)
         : (typeof totalHabilidade === 'function' ? totalHabilidade(key, pj.habilidades, atributosFicha, bonusObj, habsByKey) : null);
       // grupo: magia de dificuldade pode mirar o GRUPO inteiro (Conhecimento → Profissional).
-      lista.push({ key, nome: h.nome, grupo: h.grupo, qtd: qtd || 0, total, ajuste: h.ajuste, descricao: h.descricao });
+      lista.push({ key, nome: h.nome, grupo: h.grupo, qtd: qtd || 0, total, ajuste: h.ajuste, descricao: h.descricao,
+        passos_armadura: (typeof passosDaArmaduraNaHabilidade === 'function') ? passosDaArmaduraNaHabilidade(h, classeArm) : 0 });
     });
     return lista.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   }, [isPJ, pj, catalogos, atributosFicha, ator]);
@@ -9990,7 +10082,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   /* A dificuldade que VALE: a escolhida, deslocada pelas magias de dificuldade
      ativas no ator (Camuflagem, Faro…). O Mestre escolhe "Médio" como sempre; a
      magia é que o torna Fácil — e a tela diz isso, em vez de mudar em silêncio. */
-  const habPassosDif = habilidadeSel ? somaDificuldadeDoStatus(ator, habilidadeSel) : 0;
+  // + o grau da armadura da restrição da habilidade (M/P, 30/10/2026).
+  const habPassosDif = habilidadeSel
+    ? somaDificuldadeDoStatus(ator, habilidadeSel) + (Number(habilidadeSel.passos_armadura) || 0) : 0;
   const habDificuldadeEfetiva = (typeof deslocarDificuldade === 'function')
     ? deslocarDificuldade(habDificuldade, habPassosDif) : habDificuldade;
   /* A habilidade que a MAGIA de apoio exige, casada pelo NOME que o texto do
@@ -10945,7 +11039,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             </div>
             {habPassosDif !== 0 && habDificuldadeEfetiva !== habDificuldade && (
               <p className="acao-efeito-texto">
-                {(isEn ? 'With active spells: ' : 'Com magia ativa: ')}
+                {/* Quem deslocou: a magia ativa, a armadura da restrição, ou as duas. */}
+                {(() => {
+                  const arm = Number(habilidadeSel && habilidadeSel.passos_armadura) || 0;
+                  const mag = habPassosDif - arm;
+                  if (arm && mag) return isEn ? 'With active spells and armor: ' : 'Com magia ativa e armadura: ';
+                  if (arm) return isEn ? 'With this armor: ' : 'Com esta armadura: ';
+                  return isEn ? 'With active spells: ' : 'Com magia ativa: ';
+                })()}
                 {(D20_DIF_LABEL[habDificuldade] || {})[isEn ? 'en' : 'pt'] || habDificuldade}
                 {' → '}
                 <strong>{(D20_DIF_LABEL[habDificuldadeEfetiva] || {})[isEn ? 'en' : 'pt'] || habDificuldadeEfetiva}</strong>
