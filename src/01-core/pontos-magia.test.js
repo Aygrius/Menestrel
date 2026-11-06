@@ -14,28 +14,31 @@ import './game-data.jsx';
 let G;
 beforeAll(() => { G = window; });
 
+/* 06/11/2026 (usuário): "A quantidade de pontos de magia deve ser por
+   estágio + pontos de intelecto". Por estágio = base + Intelecto; a Aura não
+   soma mais, e Aura negativa continua zerando a base. */
 describe('pontosMagiasPorEstagio', () => {
   it.each([
-    ['Mago', 2, 1, 11], ['Bardo', 0, 0, 8],
-    ['Rastreador', 2, 1, 8], ['Sacerdote', 0, 3, 8],
-    ['Guerreiro', 0, 0, 1], ['Ladino', 1, 1, 3],
+    ['Mago', 2, 1, 10], ['Bardo', 0, 0, 8],
+    ['Rastreador', 2, 1, 7], ['Sacerdote', 0, 3, 5],
+    ['Guerreiro', 0, 0, 1], ['Ladino', 1, 1, 2],
   ])('%s Int %i Aura %i → %i', (prof, int, aura, esperado) => {
     expect(G.pontosMagiasPorEstagio(prof, int, aura)).toBe(esperado);
   });
-  it('Aura negativa zera a base e conta 0', () => {
+  it('Aura negativa zera a base', () => {
     expect(G.pontosMagiasPorEstagio('Mago', 3, -1)).toBe(3);
   });
   it('Intelecto negativo conta 0', () => {
-    expect(G.pontosMagiasPorEstagio('Sacerdote', -2, 1)).toBe(6);
+    expect(G.pontosMagiasPorEstagio('Sacerdote', -2, 1)).toBe(5);
   });
   it('profissão desconhecida tem base 0', () => {
-    expect(G.pontosMagiasPorEstagio('Nada', 1, 1)).toBe(2);
+    expect(G.pontosMagiasPorEstagio('Nada', 1, 1)).toBe(1);
   });
 });
 
 describe('pontosMagiasTotal', () => {
   it('multiplica pelo estágio', () => {
-    expect(G.pontosMagiasTotal('Mago', 5, 2, 1)).toBe(55);
+    expect(G.pontosMagiasTotal('Mago', 5, 2, 1)).toBe(50);
     expect(G.pontosMagiasTotal('Guerreiro', 5, 0, 0)).toBe(5);
   });
 });

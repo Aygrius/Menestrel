@@ -96,8 +96,8 @@ describe('motivo da técnica', () => {
     expect(W.motivoAprenderLabel('pontos_insuficientes', false)).toBe('Pontos de magia insuficientes.');
   });
   it('a janela passa o tipo ao rótulo do bloqueio', () => {
-    const pj = { ...PJ, experiencia: 0, fisico_base: 0, agilidade_base: 0 };
-    const CARA = { key: 'golpe', nome: 'Golpe Duplo', custo: 9 };
+    const pj = { ...PJ, experiencia: 0, intelecto_base: 0 };   // Guerreiro: 10 pontos (06/11/2026)
+    const CARA = { key: 'golpe', nome: 'Golpe Duplo', custo: 11 };
     render(<W.EstudarMagiaModal titulo="M" magias={[]} tecnicas={[CARA]} pj={pj}
       magiasDb={[]} tecnicasDb={[CARA]} opcoes={OP} lang="pt" onAprender={async () => ({ ok: true })} onClose={() => {}} />);
     expect(document.querySelector('.estudar-motivo').textContent).toMatch(/Pontos de técnica insuficientes/);

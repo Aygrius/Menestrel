@@ -5374,7 +5374,7 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
   const tecPj = comFila(pj && pj.tecnicas, treinos, 'tecnica');
   const totalMag = pj ? pontosMagiasTotal(pj.profissao, estagio, pj.intelecto_base, pj.aura_base) : 0;
   const gastoMag = pj ? gastoMagias(magPj, magiasDb || []) : 0;
-  const totalTec = pj ? pontosTecnicasTotal(pj.profissao, estagio, pj.fisico_base, pj.agilidade_base) : 0;
+  const totalTec = pj ? pontosTecnicasTotal(pj.profissao, estagio, pj.intelecto_base) : 0;
   const gastoTec = pj ? gastoTecnicas(tecPj, tecnicasDb || []) : 0;
 
   const linhas = [

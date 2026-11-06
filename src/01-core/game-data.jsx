@@ -827,16 +827,20 @@ const MAGIAS_BASE_POR_PROFISSAO = {
   'Guerreiro': 1, 'Ladino': 1,
 };
 
-/* Por estágio = base + intelecto + aura, atributo negativo contando 0, e
+/* Era: por estágio = base + intelecto + aura (até 06/11/2026, ver abaixo), atributo negativo contando 0, e
    "Personagem com Aura negativa tem base 0" (usuário, 22/10/2026).
    Atributos = intelecto_base/aura_base GRAVADOS: o espelho SQL
    (_menestrel_pontos_magia_por_estagio) não conhece os ajustes de sub-raça,
    e as duas contas precisam bater. */
+/* SÓ O INTELECTO SOMA (06/11/2026, usuário: "A quantidade de pontos de
+   magia deve ser por estágio + pontos de intelecto"): por estágio = base +
+   Intelecto. A Aura não soma mais — mas a regra da Aura negativa continua
+   zerando a base (escolha do usuário no mesmo dia). */
 function pontosMagiasPorEstagio(profissao, intelecto, aura) {
   const a = Number(aura) || 0;
   const i = Number(intelecto) || 0;
   const base = a < 0 ? 0 : (MAGIAS_BASE_POR_PROFISSAO[profissao] || 0);
-  return base + Math.max(0, i) + Math.max(0, a);
+  return base + Math.max(0, i);
 }
 
 function pontosMagiasTotal(profissao, estagio, intelecto, aura) {
@@ -1009,7 +1013,7 @@ function bloqueioAprenderTecnica(tecnica, pj, tecnicasDb) {
   if (alvo > estagio) return { motivo: 'acima_do_estagio' };
   const lista = Array.isArray(tecnicasDb) && tecnicasDb.some((t) => t.key === tecnica.key)
     ? tecnicasDb : [...(tecnicasDb || []), tecnica];
-  const total = pontosTecnicasTotal(pj && pj.profissao, estagio, pj && pj.fisico_base, pj && pj.agilidade_base);
+  const total = pontosTecnicasTotal(pj && pj.profissao, estagio, pj && pj.intelecto_base);
   const gasto = gastoTecnicas(niveis, lista);
   const gastoNovo = gastoTecnicas({ ...niveis, [tecnica.key]: alvo }, lista);
   if (gastoNovo > total) return { motivo: 'pontos_insuficientes', faltam: gastoNovo - total, gasto, total };
@@ -1121,17 +1125,73 @@ function motivoSubirNivelLabel(motivo, tipo, en) {
    investiu no corpo (decisão do usuário). Espelho SQL:
    _menestrel_pontos_tecnica_por_estagio. Técnica se aprende pelo item
    (aprender_tecnica) e entra na fila de treino. */
+/* BASE NOVA E INTELECTO (06/11/2026, usuário: "A quantidade de pontos de
+   técnica deve ser por estágio + pontos de intelecto. […] o Ladino terá 8, o
+   Mago terá 1, o Guerreiro terá 10, o Sacerdote e o Bardo terão 3, o
+   Rastreador terá 6"). Por estágio = base + Intelecto (negativo conta 0);
+   Físico e Agilidade saíram da conta. Espelho SQL atualizado no mesmo dia
+   (scripts/sql/pontos-intelecto-2026-11-06.sql). */
 const TECNICAS_BASE_POR_PROFISSAO = {
-  'Guerreiro': 4, 'Ladino': 2, 'Rastreador': 3, 'Sacerdote': 3, 'Bardo': 2, 'Mago': 1,
+  'Guerreiro': 10, 'Ladino': 8, 'Rastreador': 6, 'Sacerdote': 3, 'Bardo': 3, 'Mago': 1,
 };
 
-function pontosTecnicasPorEstagio(profissao, fisico, agilidade) {
-  return (TECNICAS_BASE_POR_PROFISSAO[profissao] || 0)
-    + Math.max(0, Number(fisico) || 0) + Math.max(0, Number(agilidade) || 0);
+function pontosTecnicasPorEstagio(profissao, intelecto) {
+  return (TECNICAS_BASE_POR_PROFISSAO[profissao] || 0) + Math.max(0, Number(intelecto) || 0);
 }
 
-function pontosTecnicasTotal(profissao, estagio, fisico, agilidade) {
-  return pontosTecnicasPorEstagio(profissao, fisico, agilidade) * (Number(estagio) || 0);
+function pontosTecnicasTotal(profissao, estagio, intelecto) {
+  return pontosTecnicasPorEstagio(profissao, intelecto) * (Number(estagio) || 0);
+}
+
+/* COMO SE CHEGOU AO NÚMERO (06/11/2026, usuário: "Junto com a informação
+   dos pontos, insira um texto explicando como ele chegou naquele número").
+   A frase refaz, com os números do personagem, as MESMAS contas de
+   pontosHabilidadesTotal / pontosTecnicasPorEstagio / pontosMagiasPorEstagio
+   — mudou a regra lá, a frase muda junto, porque lê as mesmas tabelas.
+   tipo: 'habilidade' | 'tecnica' | 'magia'; pj: profissao e os atributos de
+   base gravados; gasto: o que já saiu (com a fila de treino). */
+function explicacaoDosPontos(tipo, pj, estagio, gasto, en) {
+  const p = pj || {};
+  const prof = p.profissao || (en ? 'no profession' : 'sem profissão');
+  const e = Number(estagio) || 0;
+  const n = (v) => Number(v) || 0;
+  const pos = (v) => Math.max(0, n(v));
+  let porEstagio, conta;
+  if (tipo === 'habilidade') {
+    porEstagio = GAME_DATA.profissoes[p.profissao]?.habilidadesPontos ?? 0;
+    conta = en ? `${prof} earns ${porEstagio} skill points per stage.`
+               : `${prof} ganha ${porEstagio} pontos de habilidade por estágio.`;
+  } else if (tipo === 'tecnica') {
+    const base = TECNICAS_BASE_POR_PROFISSAO[p.profissao] || 0;
+    porEstagio = pontosTecnicasPorEstagio(p.profissao, p.intelecto_base);
+    conta = en
+      ? `Per stage: ${base} from ${prof} + ${pos(p.intelecto_base)} Intellect = ${porEstagio}.`
+      : `Por estágio: ${base} de ${prof} + ${pos(p.intelecto_base)} de Intelecto = ${porEstagio}.`;
+    if (n(p.intelecto_base) < 0) {
+      conta += en ? ' A negative Intellect counts as 0.' : ' Intelecto negativo conta 0.';
+    }
+  } else {
+    const auraNeg = n(p.aura_base) < 0;
+    const base = auraNeg ? 0 : (MAGIAS_BASE_POR_PROFISSAO[p.profissao] || 0);
+    porEstagio = pontosMagiasPorEstagio(p.profissao, p.intelecto_base, p.aura_base);
+    conta = en
+      ? `Per stage: ${base} from ${prof} + ${pos(p.intelecto_base)} Intellect = ${porEstagio}.`
+      : `Por estágio: ${base} de ${prof} + ${pos(p.intelecto_base)} de Intelecto = ${porEstagio}.`;
+    if (auraNeg) conta += en ? ' Negative Aura zeroes the profession base.' : ' Aura negativa zera a base da profissão.';
+    if (n(p.intelecto_base) < 0) conta += en ? ' A negative Intellect counts as 0.' : ' Intelecto negativo conta 0.';
+  }
+  const total = porEstagio * e;
+  const g = n(gasto);
+  const nome = { habilidade: en ? 'skill' : 'habilidade', tecnica: en ? 'technique' : 'técnica', magia: en ? 'spell' : 'magia' }[tipo];
+  const custo = tipo === 'magia'
+    ? (en ? 'level × cost of each spell' : 'nível × custo de cada magia')
+    : (en ? `level × cost of each ${nome}` : `nível × custo de cada ${nome}`);
+  return [
+    conta,
+    en ? `Stage ${e}: ${porEstagio} × ${e} = ${total}.` : `Estágio ${e}: ${porEstagio} × ${e} = ${total}.`,
+    en ? `Spent: ${g} (${custo}, counting what is in training). Left: ${total - g}.`
+       : `Gastos: ${g} (${custo}, contando o que está em treino). Sobram ${total - g}.`,
+  ].join(' ');
 }
 
 function gastoTecnicas(tecnicasObj, tecnicasDb) {
@@ -1629,6 +1689,7 @@ Object.assign(window, {
   CLASSES_MAGIA, atorMilagreDePj, atorMilagreDeCriatura, bloqueioMilagre, alvoDeMilagreBloqueado, motivoMilagreLabel,
   NIVEIS_MAGIA, passosDisponiveisMagia,
   TECNICAS_BASE_POR_PROFISSAO, pontosTecnicasPorEstagio, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
+  explicacaoDosPontos,
   ATIVIDADE_DA_CLASSE, HORAS_TREINO, nivelNaFila, comFila, bloqueioAprenderTecnica,
   bloqueioSubirNivel, custoSubirNivel, subirNivelEhAprendizado, motivoSubirNivelLabel,
   totalTecnica,

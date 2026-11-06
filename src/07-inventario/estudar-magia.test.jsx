@@ -47,13 +47,14 @@ describe('EstudarMagiaModal', () => {
     expect(linhas()[0].getAttribute('aria-checked')).toBe('true');
   });
 
-  /* Saldo, não gasto (22/10/2026): o passe diz quanto SOBRA — 1 gasto de 11
-     são 10 livres — e, com uma escolha, quanto sobra depois dela. */
+  /* Saldo, não gasto (22/10/2026): o passe diz quanto SOBRA — 1 gasto de 10
+     (Mago 8 + Int 2; a Aura não soma desde 06/11/2026)
+     são 9 livres — e, com uma escolha, quanto sobra depois dela. */
   it('mostra o saldo de pontos e o saldo depois da escolha', () => {
     abrir();
-    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/^10\s*de\s*11$/);
+    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/^9\s*de\s*10$/);
     fireEvent.click(linhas()[0]);   // Bola de Fogo — custa 2
-    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/10\s*→\s*8\s*de\s*11/);
+    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/9\s*→\s*7\s*de\s*10/);
   });
 
   it('uma linha por magia com nível atual → próximo e custo do passo', () => {
