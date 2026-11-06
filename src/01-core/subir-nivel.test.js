@@ -94,4 +94,10 @@ describe('a edição do personagem não grava habilidades', () => {
     expect(fonte).toMatch(/if \(!isEdit\) payload\.habilidades = /);
     expect(fonte).not.toMatch(/^\s+habilidades: form\.habilidades \|\| \{\},\r?$/m);
   });
+  /* 05/11/2026: salvar o Evoluir apaga o botão mesmo com sobra — o jogador
+     pode guardar pontos de propósito para a próxima evolução. */
+  it('salvar o Evoluir marca o estágio como visto, sem exigir sobra zero', () => {
+    expect(fonte).toMatch(/if \(isEdit && !isMaster\) \{\r?\n\s+payload\.nivel_visto = calcEstagio\(form\.experiencia\);/);
+    expect(fonte).not.toMatch(/if \(isEdit && !isMaster && todosOsPontosGastos/);
+  });
 });

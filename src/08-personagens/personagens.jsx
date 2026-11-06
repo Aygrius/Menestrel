@@ -1579,13 +1579,13 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     // Marca que o jogador já viu o estágio atual — é isso que esconde o badge
     // "Pronto pra evoluir!" (temLevelUpPendente). O Mestre NÃO atualiza isso.
     //
-    // Só quando os pontos do estágio foram REALMENTE distribuídos (regra do
-    // usuário, 01/09/2026). Antes bastava abrir o wizard e salvar: o badge
-    // sumia e os pontos ficavam esquecidos, sem nada lembrando o jogador.
-    if (isEdit && !isMaster && todosOsPontosGastos({
-      // Sobra de habilidade não é pendência do estágio: compra-se na ficha.
-      atributos: restantes, gruposArmas: grpRestantes,
-    })) {
+    // SALVAR O EVOLUIR APAGA O BOTÃO, MESMO COM SOBRA (05/11/2026). De
+    // 01/09/2026 até aqui ele só sumia com todos os pontos gastos — e um
+    // jogador que guardou 2 pontos de grupos de armas de propósito para a
+    // próxima evolução ficou com o botão aceso para sempre. Decisão do
+    // usuário: o jogador decide quando terminou; a sobra continua lá na
+    // próxima vez. (todosOsPontosGastos fica em 01-core, sem uso aqui.)
+    if (isEdit && !isMaster) {
       payload.nivel_visto = calcEstagio(form.experiencia);
     }
     // Em UPDATE pelo Mestre, preserva user_id original (não muda dono)
