@@ -10,7 +10,10 @@
    as mesmas funções da mesa), 1.000 lutas por grupo. Os números já são os
    de depois da correção do mesmo dia: L/M/P da criatura com o estágio e as
    110 criaturas de ataque natural com a arma natural equipada
-   (scripts/sql/criaturas-arma-natural-estagio-2026-11-06.sql).
+   (scripts/sql/criaturas-arma-natural-estagio-2026-11-06.sql), e depois as
+   21 humanoides de armadura (criaturas-armadura-2026-11-06.sql). `antes` é a
+   simulação com as regras de antes de 06/11; `semArmadura`, a do estágio e
+   da arma natural; `agora`, a com armadura.
 
    Os dados são uma FOTOGRAFIA daquele dia, guardada aqui (TC_DADOS) — a
    página não roda a simulação. Para refazer, rode a simulação de novo e troque
@@ -20,57 +23,596 @@
 const { useState } = React;
 
 const TC_DADOS = {
-  cenarios: [
-    {"id":"fracos","nome":"Mais fracos","estagio":"Estágio 1","inimigos":"Orc, Esqueleto e Goblin","n":1000,"vit":1000,"rod":2.4,"antes":{"vit":100,"acerto":31,"fc":27},"agora":{"acerto":31,"fc":30},
-      lutas: [{"v":true,"rod":2,"caidos":[]},{"v":true,"rod":2,"caidos":["Eco"]},{"v":true,"rod":3,"caidos":["Eco"]},{"v":true,"rod":3,"caidos":["Eco"]},{"v":true,"rod":2,"caidos":["Eco"]},{"v":true,"rod":2,"caidos":[]},{"v":true,"rod":2,"caidos":[]},{"v":true,"rod":3,"caidos":[]},{"v":true,"rod":2,"caidos":[]},{"v":true,"rod":3,"caidos":[]}],
-      comb: [
-        {"nome":"Eco","pj":true,"ataques":1.5,"acerto":56,"danoAtaque":4,"fc":4,"fora":28,"morto":0},
-        {"nome":"Nihil","pj":true,"ataques":2.3,"acerto":88,"danoAtaque":19.9,"fc":4,"fora":0,"morto":0},
-        {"nome":"Yuldrous","pj":true,"ataques":1.7,"acerto":68,"danoAtaque":15.3,"fc":5,"fora":0,"morto":0},
-        {"nome":"Esqueleto","pj":false,"ataques":0.7,"acerto":33,"danoAtaque":4.9,"fc":29,"fora":100,"morto":23},
-        {"nome":"Goblin","pj":false,"ataques":0.1,"acerto":38,"danoAtaque":2.4,"fc":24,"fora":100,"morto":31},
-        {"nome":"Orc","pj":false,"ataques":1.4,"acerto":29,"danoAtaque":3.9,"fc":31,"fora":100,"morto":11},
-      ],
+ "cenarios": [
+  {
+   "id": "fracos",
+   "nome": "Mais fracos",
+   "estagio": "Estágio 1",
+   "inimigos": "Orc, Esqueleto e Goblin",
+   "n": 1000,
+   "vit": 1000,
+   "rod": 2.6,
+   "lutas": [
+    {
+     "v": true,
+     "rod": 5,
+     "caidos": [
+      "Eco"
+     ]
     },
-    {"id":"iguais","nome":"Mesmo estágio","estagio":"Estágio 5","inimigos":"Orc Capitão, Goblin Rei e Ogro","n":1000,"vit":991,"rod":5,"antes":{"vit":99,"acerto":29,"fc":30},"agora":{"acerto":30,"fc":30},
-      lutas: [{"v":true,"rod":4,"caidos":[]},{"v":true,"rod":2,"caidos":[]},{"v":true,"rod":5,"caidos":[]},{"v":true,"rod":4,"caidos":["Eco"]},{"v":true,"rod":8,"caidos":["Eco"]},{"v":true,"rod":3,"caidos":["Eco†"]},{"v":true,"rod":5,"caidos":["Eco"]},{"v":true,"rod":7,"caidos":["Eco"]},{"v":true,"rod":12,"caidos":["Nihil","Eco†"]},{"v":true,"rod":4,"caidos":[]}],
-      comb: [
-        {"nome":"Eco","pj":true,"ataques":2.2,"acerto":57,"danoAtaque":4.6,"fc":4,"fora":69,"morto":15},
-        {"nome":"Nihil","pj":true,"ataques":4.7,"acerto":87,"danoAtaque":20.8,"fc":5,"fora":6,"morto":0},
-        {"nome":"Yuldrous","pj":true,"ataques":4.3,"acerto":67,"danoAtaque":14.6,"fc":4,"fora":2,"morto":0},
-        {"nome":"Goblin Rei","pj":false,"ataques":1.5,"acerto":30,"danoAtaque":5,"fc":30,"fora":100,"morto":26},
-        {"nome":"Ogro","pj":false,"ataques":3.8,"acerto":30,"danoAtaque":2.2,"fc":30,"fora":99,"morto":15},
-        {"nome":"Orc Capitão","pj":false,"ataques":3,"acerto":31,"danoAtaque":5.1,"fc":29,"fora":100,"morto":21},
-      ],
+    {
+     "v": true,
+     "rod": 2,
+     "caidos": []
     },
-    {"id":"fortes","nome":"Mais fortes","estagio":"Estágio 7 e 8","inimigos":"Centauro, Dragoniano Guerreiro e Ogro Líder","n":1000,"vit":644,"rod":7,"antes":{"vit":71,"acerto":29,"fc":30},"agora":{"acerto":32,"fc":28},
-      lutas: [{"v":true,"rod":10,"caidos":["Nihil","Eco†"]},{"v":false,"rod":12,"caidos":["Nihil","Eco","Yuldrous"]},{"v":false,"rod":5,"caidos":["Nihil","Eco","Yuldrous"]},{"v":false,"rod":5,"caidos":["Nihil","Eco","Yuldrous"]},{"v":true,"rod":6,"caidos":["Nihil","Eco†"]},{"v":true,"rod":4,"caidos":["Eco"]},{"v":false,"rod":7,"caidos":["Nihil","Eco†","Yuldrous"]},{"v":false,"rod":7,"caidos":["Nihil","Eco","Yuldrous"]},{"v":true,"rod":3,"caidos":[]},{"v":false,"rod":7,"caidos":["Nihil","Eco†","Yuldrous"]}],
-      comb: [
-        {"nome":"Eco","pj":true,"ataques":1,"acerto":54,"danoAtaque":4,"fc":7,"fora":94,"morto":20},
-        {"nome":"Nihil","pj":true,"ataques":4.4,"acerto":80,"danoAtaque":18.7,"fc":5,"fora":53,"morto":0},
-        {"nome":"Yuldrous","pj":true,"ataques":6.1,"acerto":56,"danoAtaque":12.3,"fc":9,"fora":36,"morto":0},
-        {"nome":"Centauro","pj":false,"ataques":5.6,"acerto":32,"danoAtaque":3.8,"fc":29,"fora":70,"morto":6},
-        {"nome":"Dragoniano Guerreiro","pj":false,"ataques":9.7,"acerto":32,"danoAtaque":5,"fc":28,"fora":70,"morto":3},
-        {"nome":"Ogro Líder","pj":false,"ataques":2.3,"acerto":33,"danoAtaque":3.8,"fc":27,"fora":94,"morto":25},
-      ],
+    {
+     "v": true,
+     "rod": 2,
+     "caidos": []
     },
-  ],
-  colunas: [
-    {"nome":"Orc","arma":"Espada","nihil":-19,"eco":-13,"yuldrous":-11},
-    {"nome":"Esqueleto","arma":"Espada","nihil":-21,"eco":-15,"yuldrous":-13},
-    {"nome":"Goblin","arma":"Punhal","nihil":-18,"eco":-12,"yuldrous":-14},
-    {"nome":"Orc Capitão","arma":"Espada Longa","nihil":-17,"eco":-11,"yuldrous":-7},
-    {"nome":"Goblin Rei","arma":"Espada Longa","nihil":-16,"eco":-10,"yuldrous":-6},
-    {"nome":"Ogro","arma":"Porrete","nihil":-14,"eco":-8,"yuldrous":-10},
-    {"nome":"Centauro","arma":"Arco Composto","nihil":-13,"eco":-7,"yuldrous":-5},
-    {"nome":"Dragoniano Guerreiro","arma":"Montante","nihil":-13,"eco":-7,"yuldrous":-3},
-    {"nome":"Ogro Líder","arma":"Espada","nihil":-12,"eco":-6,"yuldrous":-4},
-  ],
-  grupo: [
-    {"nome":"Yuldrous","arma":"Martelo de Guerra","def":"M13","min":-2,"max":6},
-    {"nome":"Nihil","arma":"Lança Alabarda","def":"L19","min":4,"max":12},
-    {"nome":"Eco","arma":"Necroptum","def":"L13","min":-6,"max":8},
-  ],
+    {
+     "v": true,
+     "rod": 2,
+     "caidos": []
+    },
+    {
+     "v": true,
+     "rod": 2,
+     "caidos": []
+    },
+    {
+     "v": true,
+     "rod": 2,
+     "caidos": []
+    },
+    {
+     "v": true,
+     "rod": 5,
+     "caidos": [
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 2,
+     "caidos": []
+    },
+    {
+     "v": true,
+     "rod": 3,
+     "caidos": [
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 2,
+     "caidos": []
+    }
+   ],
+   "comb": [
+    {
+     "nome": "Nihil",
+     "pj": true,
+     "ataques": 2.6,
+     "acerto": 77,
+     "danoAtaque": 15.7,
+     "fc": 5,
+     "fora": 1,
+     "morto": 0
+    },
+    {
+     "nome": "Eco",
+     "pj": true,
+     "ataques": 1.7,
+     "acerto": 54,
+     "danoAtaque": 3.7,
+     "fc": 6,
+     "fora": 33,
+     "morto": 0
+    },
+    {
+     "nome": "Yuldrous",
+     "pj": true,
+     "ataques": 2,
+     "acerto": 61,
+     "danoAtaque": 13.2,
+     "fc": 5,
+     "fora": 1,
+     "morto": 0
+    },
+    {
+     "nome": "Orc",
+     "pj": false,
+     "ataques": 1.6,
+     "acerto": 32,
+     "danoAtaque": 4.5,
+     "fc": 29,
+     "fora": 100,
+     "morto": 11
+    },
+    {
+     "nome": "Esqueleto",
+     "pj": false,
+     "ataques": 0.8,
+     "acerto": 27,
+     "danoAtaque": 3.8,
+     "fc": 30,
+     "fora": 100,
+     "morto": 18
+    },
+    {
+     "nome": "Goblin",
+     "pj": false,
+     "ataques": 0.1,
+     "acerto": 35,
+     "danoAtaque": 2.3,
+     "fc": 31,
+     "fora": 100,
+     "morto": 22
+    }
+   ],
+   "antes": {
+    "vit": 100,
+    "acertoGrupo": 74,
+    "acertoCri": 31,
+    "fc": 27
+   },
+   "agora": {
+    "vit": 100,
+    "acertoGrupo": 66,
+    "acertoCri": 30,
+    "fc": 30
+   },
+   "semArmadura": {
+    "vit": 100,
+    "acertoGrupo": 73,
+    "acertoCri": 31,
+    "fc": 30
+   }
+  },
+  {
+   "id": "iguais",
+   "nome": "Mesmo estágio",
+   "estagio": "Estágio 5",
+   "inimigos": "Orc Capitão, Goblin Rei e Ogro",
+   "n": 1000,
+   "vit": 793,
+   "rod": 7.3,
+   "lutas": [
+    {
+     "v": true,
+     "rod": 3,
+     "caidos": [
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 3,
+     "caidos": [
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 4,
+     "caidos": [
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 8,
+     "caidos": [
+      "Eco",
+      "Yuldrous"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 4,
+     "caidos": []
+    },
+    {
+     "v": true,
+     "rod": 14,
+     "caidos": [
+      "Eco†"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 6,
+     "caidos": []
+    },
+    {
+     "v": true,
+     "rod": 7,
+     "caidos": [
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 8,
+     "caidos": [
+      "Nihil",
+      "Eco†"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 9,
+     "caidos": [
+      "Eco"
+     ]
+    }
+   ],
+   "comb": [
+    {
+     "nome": "Nihil",
+     "pj": true,
+     "ataques": 6.3,
+     "acerto": 52,
+     "danoAtaque": 11.3,
+     "fc": 12,
+     "fora": 30,
+     "morto": 0
+    },
+    {
+     "nome": "Eco",
+     "pj": true,
+     "ataques": 2.4,
+     "acerto": 53,
+     "danoAtaque": 4,
+     "fc": 7,
+     "fora": 83,
+     "morto": 17
+    },
+    {
+     "nome": "Orc Capitão",
+     "pj": false,
+     "ataques": 4.8,
+     "acerto": 30,
+     "danoAtaque": 4.5,
+     "fc": 29,
+     "fora": 84,
+     "morto": 24
+    },
+    {
+     "nome": "Goblin Rei",
+     "pj": false,
+     "ataques": 3,
+     "acerto": 30,
+     "danoAtaque": 4.8,
+     "fc": 30,
+     "fora": 91,
+     "morto": 29
+    },
+    {
+     "nome": "Yuldrous",
+     "pj": true,
+     "ataques": 5.3,
+     "acerto": 36,
+     "danoAtaque": 7.7,
+     "fc": 25,
+     "fora": 35,
+     "morto": 0
+    },
+    {
+     "nome": "Ogro",
+     "pj": false,
+     "ataques": 5.5,
+     "acerto": 31,
+     "danoAtaque": 2.1,
+     "fc": 29,
+     "fora": 84,
+     "morto": 11
+    }
+   ],
+   "antes": {
+    "vit": 99,
+    "acertoGrupo": 72,
+    "acertoCri": 29,
+    "fc": 30
+   },
+   "agora": {
+    "vit": 79,
+    "acertoGrupo": 46,
+    "acertoCri": 30,
+    "fc": 29
+   },
+   "semArmadura": {
+    "vit": 99,
+    "acertoGrupo": 73,
+    "acertoCri": 30,
+    "fc": 30
+   }
+  },
+  {
+   "id": "fortes",
+   "nome": "Mais fortes",
+   "estagio": "Estágio 7 e 8",
+   "inimigos": "Centauro, Dragoniano Guerreiro e Ogro Líder",
+   "n": 1000,
+   "vit": 603,
+   "rod": 7.3,
+   "lutas": [
+    {
+     "v": true,
+     "rod": 4,
+     "caidos": [
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 7,
+     "caidos": [
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 7,
+     "caidos": [
+      "Nihil",
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 8,
+     "caidos": [
+      "Eco†",
+      "Yuldrous"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 7,
+     "caidos": [
+      "Eco"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 5,
+     "caidos": []
+    },
+    {
+     "v": true,
+     "rod": 7,
+     "caidos": [
+      "Nihil",
+      "Eco†"
+     ]
+    },
+    {
+     "v": true,
+     "rod": 6,
+     "caidos": []
+    },
+    {
+     "v": true,
+     "rod": 2,
+     "caidos": []
+    },
+    {
+     "v": true,
+     "rod": 6,
+     "caidos": []
+    }
+   ],
+   "comb": [
+    {
+     "nome": "Dragoniano Guerreiro",
+     "pj": false,
+     "ataques": 9,
+     "acerto": 31,
+     "danoAtaque": 5,
+     "fc": 28,
+     "fora": 68,
+     "morto": 14
+    },
+    {
+     "nome": "Centauro",
+     "pj": false,
+     "ataques": 5.9,
+     "acerto": 32,
+     "danoAtaque": 3.7,
+     "fc": 28,
+     "fora": 66,
+     "morto": 2
+    },
+    {
+     "nome": "Nihil",
+     "pj": true,
+     "ataques": 4.7,
+     "acerto": 64,
+     "danoAtaque": 14.9,
+     "fc": 5,
+     "fora": 54,
+     "morto": 0
+    },
+    {
+     "nome": "Eco",
+     "pj": true,
+     "ataques": 1.1,
+     "acerto": 53,
+     "danoAtaque": 4,
+     "fc": 6,
+     "fora": 94,
+     "morto": 24
+    },
+    {
+     "nome": "Ogro Líder",
+     "pj": false,
+     "ataques": 3.2,
+     "acerto": 33,
+     "danoAtaque": 3.7,
+     "fc": 27,
+     "fora": 85,
+     "morto": 30
+    },
+    {
+     "nome": "Yuldrous",
+     "pj": true,
+     "ataques": 6.2,
+     "acerto": 45,
+     "danoAtaque": 10,
+     "fc": 15,
+     "fora": 42,
+     "morto": 0
+    }
+   ],
+   "antes": {
+    "vit": 71,
+    "acertoGrupo": 65,
+    "acertoCri": 29,
+    "fc": 30
+   },
+   "agora": {
+    "vit": 60,
+    "acertoGrupo": 53,
+    "acertoCri": 32,
+    "fc": 28
+   },
+   "semArmadura": {
+    "vit": 64,
+    "acertoGrupo": 65,
+    "acertoCri": 32,
+    "fc": 28
+   }
+  }
+ ],
+ "colunas": [
+  {
+   "nome": "Orc",
+   "arma": "Espada",
+   "nihil": -19,
+   "eco": -13,
+   "yuldrous": -11
+  },
+  {
+   "nome": "Esqueleto",
+   "arma": "Espada",
+   "nihil": -21,
+   "eco": -15,
+   "yuldrous": -13
+  },
+  {
+   "nome": "Goblin",
+   "arma": "Punhal",
+   "nihil": -18,
+   "eco": -12,
+   "yuldrous": -14
+  },
+  {
+   "nome": "Orc Capitão",
+   "arma": "Espada Longa",
+   "nihil": -17,
+   "eco": -11,
+   "yuldrous": -7
+  },
+  {
+   "nome": "Goblin Rei",
+   "arma": "Espada Longa",
+   "nihil": -16,
+   "eco": -10,
+   "yuldrous": -6
+  },
+  {
+   "nome": "Ogro",
+   "arma": "Porrete",
+   "nihil": -14,
+   "eco": -8,
+   "yuldrous": -10
+  },
+  {
+   "nome": "Centauro",
+   "arma": "Arco Composto",
+   "nihil": -13,
+   "eco": -7,
+   "yuldrous": -5
+  },
+  {
+   "nome": "Dragoniano Guerreiro",
+   "arma": "Montante",
+   "nihil": -13,
+   "eco": -7,
+   "yuldrous": -3
+  },
+  {
+   "nome": "Ogro Líder",
+   "arma": "Espada",
+   "nihil": -12,
+   "eco": -6,
+   "yuldrous": -4
+  }
+ ],
+ "grupo": [
+  {
+   "nome": "Yuldrous",
+   "arma": "Martelo de Guerra",
+   "def": "M13",
+   "min": -8,
+   "max": 3
+  },
+  {
+   "nome": "Nihil",
+   "arma": "Lança Alabarda",
+   "def": "L19",
+   "min": -2,
+   "max": 9
+  },
+  {
+   "nome": "Eco",
+   "arma": "Necroptum",
+   "def": "L13",
+   "min": -6,
+   "max": 5
+  }
+ ],
+ "defesas": [
+  {
+   "nome": "Orc",
+   "def": "L4"
+  },
+  {
+   "nome": "Esqueleto",
+   "def": "L2"
+  },
+  {
+   "nome": "Goblin",
+   "def": "L2"
+  },
+  {
+   "nome": "Orc Capitão",
+   "def": "L13"
+  },
+  {
+   "nome": "Goblin Rei",
+   "def": "L12"
+  },
+  {
+   "nome": "Ogro",
+   "def": "L2"
+  },
+  {
+   "nome": "Centauro",
+   "def": "L7"
+  },
+  {
+   "nome": "Dragoniano Guerreiro",
+   "def": "M10"
+  },
+  {
+   "nome": "Ogro Líder",
+   "def": "L8"
+  }
+ ]
 };
 
 // Coluna como a tabela lê: abaixo de −7 trava em −7.
@@ -189,9 +731,10 @@ function TestesCombateModal({ lang = 'pt', onClose }) {
           <p className="tc-nota">
             A coluna é o L/M/P de quem ataca menos a defesa de quem apanha (Nihil L19, Eco L13,
             Yuldrous M13), e a tabela trava em <b>−7</b>. Nessa coluna, 1 a 6 no d20 é Falha Crítica
-            e 7 a 14 é erro. Por isso as criaturas acertam cerca de 3 golpes em 10, enquanto o grupo
-            ataca quase sempre entre +3 e +12 contra elas; só o Dragoniano Guerreiro, com defesa M11,
-            o empurra para baixo.
+            e 7 a 14 é erro. Por isso as criaturas acertam cerca de 3 golpes em 10. Com a armadura
+            delas, o grupo também desceu: ataca de {tcNum(Math.min(...TC_DADOS.grupo.map((g) => g.min)))} a
+            +{Math.max(...TC_DADOS.grupo.map((g) => g.max))} contra elas (defesas:{' '}
+            {TC_DADOS.defesas.map((d) => `${d.nome} ${d.def}`).join(', ')}).
           </p>
           <div className="tc-rolagem">
             <div className="tc-tabela" role="table" aria-label="Coluna de ataque das criaturas contra o grupo">
@@ -220,22 +763,23 @@ function TestesCombateModal({ lang = 'pt', onClose }) {
           <p className="tc-nota">
             O L/M/P da criatura passou a somar o <b>estágio</b>, como o personagem soma o nível no
             grupo de armas, e as 110 criaturas sem dano receberam a <b>arma natural</b> do catálogo.
-            A defesa por peça de armadura e o dano das armas naturais ficaram como estão, por decisão
-            do Mestre.
+            Depois, 21 humanoides receberam <b>armadura</b> do catálogo, mais peças quanto mais alto
+            o posto (o Orc veste um colete; o Orc Capitão, cinco peças). Dragões, cobras e bichos
+            seguem sem.
           </p>
           <div className="tc-rolagem">
-            <div className="tc-tabela" role="table" aria-label="Antes e depois da correção">
+            <div className="tc-tabela" role="table" aria-label="Vitórias e acertos antes e depois das mudanças">
               <div className="mn-quadro-linha tc-linha tc-linha--mudou tc-linha--cabeca" role="row">
-                {['Grupo', 'Vitórias', 'Acerto das criaturas', 'Falha Crítica das criaturas'].map((r, i) => (
+                {['Grupo', 'Vitórias: antes → estágio → armadura', 'Acerto do grupo', 'Acerto das criaturas'].map((r, i) => (
                   <span key={r} role="columnheader" className={'mn-rotulo' + (i ? ' mn-quadro-num' : '')}>{r}</span>
                 ))}
               </div>
               {TC_DADOS.cenarios.map((c) => (
                 <div className="mn-quadro-linha tc-linha tc-linha--mudou" role="row" key={c.id}>
                   <span role="cell">{c.nome}</span>
-                  <span role="cell" className="mn-quadro-num">{c.antes.vit}% → {Math.round((100 * c.vit) / c.n)}%</span>
-                  <span role="cell" className="mn-quadro-num">{c.antes.acerto}% → {c.agora.acerto}%</span>
-                  <span role="cell" className="mn-quadro-num tc-brasa">{c.antes.fc}% → {c.agora.fc}%</span>
+                  <span role="cell" className="mn-quadro-num">{c.antes.vit}% → {c.semArmadura.vit}% → {Math.round((100 * c.vit) / c.n)}%</span>
+                  <span role="cell" className={'mn-quadro-num' + (c.agora.acertoGrupo < c.antes.acertoGrupo ? ' tc-brasa' : '')}>{c.antes.acertoGrupo}% → {c.agora.acertoGrupo}%</span>
+                  <span role="cell" className="mn-quadro-num">{c.antes.acertoCri}% → {c.agora.acertoCri}%</span>
                 </div>
               ))}
             </div>

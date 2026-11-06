@@ -238,3 +238,32 @@ describe('ataquesDaCriatura — um ataque por arma', () => {
       dano_l: 5, dano_m: 6, dano_p: 7, dano_100: 20, dano_75: 15, dano_50: 10, dano_25: 5 }]);
   });
 });
+
+/* ARMADURA NAS CRIATURAS (06/11/2026, usuário: "Dê armadura para as
+   criaturas, um orc capitão tem mais armadura que um orc comum").
+   As peças do catálogo moram no slot da própria região — o peitoral em
+   'dorso', como no personagem — e o tipo sai dele. */
+describe('armadura vestida pela criatura', () => {
+  const PECAS = {
+    peca_colete: { slug: 'peca_colete', grupo: 'Armaduras', slot_equip: 'dorso', tipo_armadura: 'L', defesa: 3, absorcao: 2 },
+    peca_galea: { slug: 'peca_galea', grupo: 'Armaduras', slot_equip: 'cabeca', tipo_armadura: 'L', defesa: 3, absorcao: 1 },
+    peca_cota_parcial: { slug: 'peca_cota_parcial', grupo: 'Armaduras', slot_equip: 'dorso', tipo_armadura: 'M', defesa: 2, absorcao: 3 },
+  };
+  const F = window.CriaturaFormulas;
+  const de = (equipamento, agilidade = 1) => F.derivadosDoEquipamento({ equipamento, catalogoBySlug: PECAS, atributos: { agilidade } });
+  it('defesa = peças + Agilidade; absorção = peças', () => {
+    const r = de([{ slug: 'peca_colete', slot: 'dorso' }, { slug: 'peca_galea', slot: 'cabeca' }]);
+    expect(r.defesa).toBe(7);
+    expect(r.absorcao).toBe(3);
+  });
+  it('o tipo sai do peitoral no dorso', () => {
+    expect(de([{ slug: 'peca_cota_parcial', slot: 'dorso' }]).armadura).toBe('M');
+    expect(de([{ slug: 'peca_galea', slot: 'cabeca' }]).armadura).toBe('L');
+  });
+  it('mais peças, mais armadura (Orc × Orc Capitão)', () => {
+    const orc = de([{ slug: 'peca_colete', slot: 'dorso' }]);
+    const capitao = de([{ slug: 'peca_colete', slot: 'dorso' }, { slug: 'peca_galea', slot: 'cabeca' }]);
+    expect(capitao.defesa).toBeGreaterThan(orc.defesa);
+    expect(capitao.absorcao).toBeGreaterThan(orc.absorcao);
+  });
+});

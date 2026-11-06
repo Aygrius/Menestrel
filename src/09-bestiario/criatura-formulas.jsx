@@ -19,7 +19,7 @@
    E o que vem do EQUIPAMENTO segue a conta do PERSONAGEM (decisão do usuário):
      • Absorção = soma da absorção das peças equipadas;
      • Defesa   = soma da defesa das peças + Agilidade;
-     • Tipo     = o do peitoral (slot 'peito'); sem peitoral, Leve;
+     • Tipo     = o do peitoral (slot 'peito' ou 'dorso'); sem peitoral, Leve;
      • Ataque   = a primeira arma equipada (sem limite de armas desde 15/09/2026);
      • L/M/P    = dano_l/m/p da arma + o atributo de ajuste dela + o ESTÁGIO
                   (o "nível no grupo de armas" da criatura — ver abaixo);
@@ -205,7 +205,10 @@ function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {})
   pecas.forEach(({ slot, cat }) => {
     absorcaoTotal += num(cat.absorcao);
     defesaTotal += num(cat.defesa);
-    if (slot === 'peito' && cat.tipo_armadura) tipo = cat.tipo_armadura;
+    /* 'dorso' também (06/11/2026): é a região do peitoral desde 26/10/2026,
+       a mesma que o personagem lê (calcularFicha), e as criaturas vestem as
+       peças do catálogo no slot delas (criaturas-armadura-2026-11-06.sql). */
+    if ((slot === 'peito' || slot === 'dorso') && cat.tipo_armadura) tipo = cat.tipo_armadura;
   });
 
   // Todas as armas equipadas. A primeira é o Ataque.
