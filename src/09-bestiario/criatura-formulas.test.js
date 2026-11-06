@@ -170,6 +170,15 @@ describe('derivadosDoEquipamento — a conta do personagem', () => {
     expect(r.ataque).toBe('Adaga');
   });
 
+  /* 06/11/2026, usuário: "O mesmo cálculo dos personagens" — o nível no
+     grupo de armas da criatura é o estágio. O dano 100% não muda. */
+  it('o estágio entra no L/M/P como o grupo de armas do personagem', () => {
+    const r = F.derivadosDoEquipamento({ equipamento: [{ slug: 'espada_longa', slot: 'mao_d' }],
+      catalogoBySlug: CAT, atributos: { ...at, estagio: 7 } });
+    expect(r).toMatchObject({ dano_l: 7, dano_m: 11, dano_p: 15, dano_100: 32 });
+    expect(r.danos_100[0].dano_100).toBe(32);
+  });
+
   it('peça fora do catálogo é ignorada', () => {
     const r = F.derivadosDoEquipamento({ equipamento: [{ slug: 'sumiu', slot: 'mao_d' }], catalogoBySlug: CAT, atributos: at });
     expect(r.ataque).toBeNull();
@@ -185,7 +194,8 @@ describe('derivadosDaCriatura — tudo junto', () => {
     expect(F.derivadosDaCriatura(c, CAT)).toEqual({
       energia_fisica: 22, energia_heroica: 65, resistencia_fisica: 7, resistencia_magica: 6, velocidade: 25,
       ataque: 'Espada Longa', armadura: 'P', absorcao: 8, defesa: 6,
-      dano_l: 0, dano_m: 4, dano_p: 8, dano_100: 32, dano_25: 8, dano_50: 16, dano_75: 24,
+      // + estágio 5 no L/M/P (06/11/2026): 0/4/8 da arma e da Agilidade, + 5.
+      dano_l: 5, dano_m: 9, dano_p: 13, dano_100: 32, dano_25: 8, dano_50: 16, dano_75: 24,
       danos_100: [{ slug: 'espada_longa', nome: 'Espada Longa', dano_100: 32 }],
     });
   });
@@ -207,6 +217,14 @@ describe('ataquesDaCriatura — um ataque por arma', () => {
     expect(r.map((a) => a.nome)).toEqual(['Espada Longa', 'Adaga']);
     expect(r[0]).toMatchObject({ dano_l: -1, dano_m: 3, dano_p: 7, dano_100: 31, dano_75: 24, dano_50: 16, dano_25: 8 });
     expect(r[1]).toMatchObject({ dano_l: 2, dano_m: 0, dano_p: -2, dano_100: 13 });
+  });
+
+  it('cada ataque soma o estágio no L/M/P, igual a derivadosDoEquipamento', () => {
+    const c = { forca: 3, agilidade: 2, estagio: 4, equipamento: [{ slug: 'espada_longa', slot: 'mao_d' }] };
+    const [a] = F.ataquesDaCriatura(c, CAT);
+    expect(a).toMatchObject({ dano_l: 3, dano_m: 7, dano_p: 11, dano_100: 31 });
+    const d = F.derivadosDaCriatura({ ...c, peso: 1 }, CAT);
+    expect([d.dano_l, d.dano_m, d.dano_p]).toEqual([a.dano_l, a.dano_m, a.dano_p]);
   });
 
   it('escudo e armadura não viram ataque', () => {

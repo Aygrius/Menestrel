@@ -21,11 +21,20 @@
      • Defesa   = soma da defesa das peças + Agilidade;
      • Tipo     = o do peitoral (slot 'peito'); sem peitoral, Leve;
      • Ataque   = a primeira arma equipada (sem limite de armas desde 15/09/2026);
-     • L/M/P    = dano_l/m/p da arma + o atributo de ajuste dela;
+     • L/M/P    = dano_l/m/p da arma + o atributo de ajuste dela + o ESTÁGIO
+                  (o "nível no grupo de armas" da criatura — ver abaixo);
      • Dano 100% = dano da arma + Força.
    Sem arma não há ataque: as armas NATURAIS (Presas, Garras…) entram no
    catálogo de itens e são equipadas como qualquer outra — antes eram uma
    tabela fechada de offsets (ataques-criatura.jsx) que não sai mais daqui.
+
+   ESTÁGIO NO L/M/P (06/11/2026, usuário: "O mesmo cálculo dos personagens").
+   O personagem soma à coluna o nível no grupo de armas da arma; a criatura
+   não compra grupo, e o nível dela é o ESTÁGIO (decisão do usuário, mesma
+   data). É o que o cadastro original já fazia antes de 14/09 (L = coluna do
+   ataque + estágio + agilidade, ver ataques-criatura.jsx). Sem isto a
+   criatura atacava na coluna −7 contra qualquer personagem de armadura — a
+   simulação de 06/11 mostrou 30% dos golpes dela em Falha Crítica.
 
    O que saiu: a EH por coletivo (Grupo Grande 10…Solitário 21), a couraça
    natural pelo Físico (absorção Físico×5, defesa Agilidade+8), a velocidade
@@ -179,7 +188,7 @@ function armasEquipadas(pecas) {
 }
 
 /* Tudo o que o equipamento decide, de uma vez. `atributos` = { forca,
-   agilidade, percepcao, aura, fisico, carisma } da criatura. Peça cujo slug
+   agilidade, percepcao, aura, fisico, carisma, estagio } da criatura. Peça cujo slug
    não está no catálogo é ignorada (item apagado não derruba a conta). */
 function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {}) {
   const at = atributos || {};
@@ -215,7 +224,8 @@ function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {})
   if (arma) {
     const c = arma.cat;
     const aj = AJUSTE_ATRIBUTO[String(c.ajuste_atributo || '').toUpperCase()];
-    const bonus = aj ? num(at[aj]) : 0;
+    // + estágio: o nível no grupo de armas da criatura (ver o cabeçalho).
+    const bonus = (aj ? num(at[aj]) : 0) + num(at.estagio);
     ataque = c.nome || arma.slug;
     dano_l = num(c.dano_l) + bonus;
     dano_m = num(c.dano_m) + bonus;
@@ -240,14 +250,14 @@ function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {})
    equipamento (criatura antiga), cai no ataque único das colunas gravadas. */
 function ataquesDaCriatura(c, catalogoBySlug) {
   const x = c || {};
-  const at = { forca: x.forca, agilidade: x.agilidade, percepcao: x.percepcao, aura: x.aura, fisico: x.fisico, carisma: x.carisma };
+  const at = { forca: x.forca, agilidade: x.agilidade, percepcao: x.percepcao, aura: x.aura, fisico: x.fisico, carisma: x.carisma, estagio: x.estagio };
   const cats = catalogoBySlug || {};
   const pecas = listaEquipamento(x.equipamento).map((e) => ({ ...e, cat: cats[e.slug] })).filter((e) => e.cat);
   const armas = armasEquipadas(pecas);
   if (armas.length) {
     return armas.map(({ slug, cat }) => {
       const aj = AJUSTE_ATRIBUTO[String(cat.ajuste_atributo || '').toUpperCase()];
-      const bonus = aj ? num(at[aj]) : 0;
+      const bonus = (aj ? num(at[aj]) : 0) + num(at.estagio);   // + estágio, como em derivadosDoEquipamento
       const d100 = num(cat.dano) + num(at.forca);
       const t = tiersDeDano(d100);
       return { slug, nome: cat.nome || slug,
@@ -268,7 +278,7 @@ function derivadosDaCriatura(c, catalogoBySlug) {
   const eq = derivadosDoEquipamento({
     equipamento: x.equipamento,
     catalogoBySlug,
-    atributos: { forca: x.forca, agilidade: x.agilidade, percepcao: x.percepcao, aura: x.aura, fisico: x.fisico, carisma: x.carisma },
+    atributos: { forca: x.forca, agilidade: x.agilidade, percepcao: x.percepcao, aura: x.aura, fisico: x.fisico, carisma: x.carisma, estagio: x.estagio },
   });
   const tiers = eq.dano_100 == null ? { d25: null, d50: null, d75: null } : tiersDeDano(eq.dano_100);
   return {
