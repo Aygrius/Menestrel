@@ -72,6 +72,7 @@ import './09-bestiario/itens-campanha.jsx'
 import './10-shell/shell.jsx'
 // A galeria das pinturas ("Imagens", menu do usuário) — usa o ModalShell do shell.
 import './10-shell/galeria-imagens.jsx'
+import './10-shell/testes-combate.jsx'        // a simulação de batalha, para o Mestre (06/11/2026)
 // Atalhos flutuantes (Habilidade/Magia/Item) ANTES da ficha, que os monta.
 import './11-ficha/atalhos-ficha.jsx'
 import './11-ficha/paginas-ficha.jsx'       // Status, Atividades, Habilidades… em casas (02/11/2026)

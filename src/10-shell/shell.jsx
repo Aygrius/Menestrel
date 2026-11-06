@@ -793,7 +793,7 @@ function aplicarPaleta(id) {
   return v;
 }
 
-function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, setLang, profile, onSetProfile, podeTrocarPerfil = false, paleta = null, onSetPaleta = null, onHelp, onConvites, onImagens = null, onLogout, onClose }) {
+function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, setLang, profile, onSetProfile, podeTrocarPerfil = false, paleta = null, onSetPaleta = null, onHelp, onConvites, onImagens = null, onTestesCombate = null, onLogout, onClose }) {
   const ref = React.useRef(null);
   const [pos, setPos] = useState(null);
 
@@ -916,6 +916,16 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, setL
           </div>
         )}
       </div>}
+
+      {/* ── Testes de combate (06/11/2026): "Insira entre os menus Paleta e
+          Imagens do mestre no menu principal, a página com os testes de
+          combate." A simulação de batalha — só o Mestre vê. ── */}
+      {onTestesCombate && profile === 'master' && (
+        <MenuRow onClick={() => { onTestesCombate(); onClose(); }}>
+          <i className="ti ti-swords" style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true" />
+          {lang === 'en' ? 'Combat tests' : 'Testes de combate'}
+        </MenuRow>
+      )}
 
       {/* ── Imagens (26/10/2026): "Adicione a página no nosso sistema para
           controle do mestre, abaixo de Paleta, chamado Imagens." A galeria
@@ -4098,6 +4108,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
   // A galeria das pinturas (26/10/2026) — abre pelo menu do usuário, Mestre.
   const [imagensAberto, setImagensAberto] = useState(false);
+  const [testesCombateAberto, setTestesCombateAberto] = useState(false);
   // Token que incrementa quando um convite é aceito — força AventurasJogador a recarregar.
   const [aventurasReloadToken, setAventurasReloadToken] = useState(0);
 
@@ -4966,6 +4977,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 setLang={setLang}
                 onHelp={() => { setUserMenuOpen(false); setCurrentId('guia_personagem'); }}
                 onConvites={() => { setUserMenuOpen(false); setConviteModalAberto(true); }}
+                onTestesCombate={() => { setUserMenuOpen(false); setTestesCombateAberto(true); }}
                 onImagens={() => { setUserMenuOpen(false); setImagensAberto(true); }}
                 onLogout={onLogout}
                 onClose={() => setUserMenuOpen(false)}
@@ -5305,6 +5317,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               setConviteModalAberto(false);
             }}
           />
+        )}
+
+        {/* A simulação de batalha — "Testes de combate", no menu do usuário (06/11/2026) */}
+        {testesCombateAberto && typeof TestesCombateModal !== 'undefined' && (
+          <TestesCombateModal lang={lang} onClose={() => setTestesCombateAberto(false)} />
         )}
 
         {/* A galeria das pinturas — "Imagens", no menu do usuário (26/10/2026) */}

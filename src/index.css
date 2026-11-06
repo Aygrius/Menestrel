@@ -15702,6 +15702,65 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .fp3-modal-oferta .at-lista { max-height: 320px; overflow-y: auto; scrollbar-gutter: stable; }
 
 
+/* ══ TESTES DE COMBATE — a simulação de batalha, para o Mestre (06/11/2026) ══
+   "Insira entre os menus Paleta e Imagens do mestre no menu principal, a
+   página com os testes de combate." Tela de Operar, no molde de Imagens: um
+   passe por grupo de criaturas, quadros de linhas com réguas. Ouro só no
+   número que vai bem e no chip escolhido; brasa só no que trava (derrota,
+   coluna presa em −7, Falha Crítica alta). */
+#root .menestrel-ui.ms-modal.modal-testes-combate, #root .menestrel-ui .ms-modal.modal-testes-combate {
+  width: min(1180px, calc(100vw - 32px));
+}
+#root .menestrel-ui .tc { display: flex; flex-direction: column; gap: 28px; }
+#root .menestrel-ui .tc-intro {
+  margin: -12px 0 0; max-width: 82ch;
+  font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2);
+}
+#root .menestrel-ui .tc-intro b, #root .menestrel-ui .tc-nota b { color: var(--tinta); font-weight: 600; }
+
+#root .menestrel-ui .tc-grupos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 980px) { #root .menestrel-ui .tc-grupos { grid-template-columns: 1fr; } }
+#root .menestrel-ui .tc-grupo { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#root .menestrel-ui .tc-inimigos { font-size: var(--fs-sm); color: var(--tinta-2); line-height: 1.35; }
+#root .menestrel-ui .tc-lutas {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px;
+}
+#root .menestrel-ui .tc-luta {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 5px 0 4px; border-radius: 6px; border: 1px solid var(--regua-forte);
+  font-size: var(--fs-sm); line-height: 1.15; color: var(--tinta-2);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .tc-luta b { font-size: var(--fs-md); color: var(--tinta); }
+#root .menestrel-ui .tc-luta.is-derrota { background: var(--alerta-fundo); border-color: var(--alerta); color: var(--alerta); }
+#root .menestrel-ui .tc-luta.is-derrota b { color: var(--alerta); }
+#root .menestrel-ui .tc-luta-caidos { min-height: 1.15em; font-size: var(--fs-rotulo); color: var(--tinta-3); }
+
+#root .menestrel-ui .tc-sec { display: flex; flex-direction: column; gap: 12px; }
+#root .menestrel-ui .tc-cabeca { flex-wrap: wrap; align-items: center; }
+#root .menestrel-ui .tc-sec-titulo {
+  font-family: var(--font-title); font-weight: 600; font-size: var(--fs-lg);
+  line-height: 1.2; color: var(--tinta); margin: 0;
+}
+#root .menestrel-ui .tc-chip { height: 32px; padding: 0 14px; font-size: var(--fs-sm); }
+#root .menestrel-ui .tc-nota { max-width: 82ch; font-size: var(--fs-sm); line-height: 1.55; color: var(--tinta-2); }
+#root .menestrel-ui .tc-rolagem { overflow-x: auto; }
+#root .menestrel-ui .tc-tabela { display: flex; flex-direction: column; min-width: 640px; }
+#root .menestrel-ui .tc-linha { grid-template-columns: minmax(150px, 1.6fr) repeat(6, minmax(72px, 1fr)); }
+#root .menestrel-ui .tc-linha--col { grid-template-columns: minmax(200px, 2fr) repeat(3, minmax(110px, 1fr)); }
+#root .menestrel-ui .tc-linha--mudou { grid-template-columns: minmax(150px, 1.4fr) repeat(3, minmax(130px, 1fr)); }
+#root .menestrel-ui .tc-linha--cabeca { min-height: 36px; }
+#root .menestrel-ui .tc-pj { font-weight: 700; }
+#root .menestrel-ui .tc-arma { margin-left: 6px; font-size: var(--fs-sm); color: var(--tinta-3); }
+#root .menestrel-ui .tc-brasa { color: var(--alerta); font-weight: 700; }
+#root .menestrel-ui .tc-metodo {
+  display: flex; flex-direction: column; gap: 6px; max-width: 82ch;
+  font-size: var(--fs-sm); line-height: 1.55; color: var(--tinta-2);
+}
+#root .menestrel-ui .tc-metodo li { padding-left: 14px; position: relative; }
+#root .menestrel-ui .tc-metodo li::before { content: "·"; position: absolute; left: 2px; color: var(--tinta-3); }
+
+
 /* ══ IMAGENS — a galeria das pinturas, para o Mestre (26/10/2026) ═══════════
    "Adicione a página no nosso sistema para controle do mestre, abaixo de
    Paleta, chamado Imagens." É uma tela de Operar: a parede de molduras manda,

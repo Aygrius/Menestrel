@@ -81,7 +81,7 @@ graph TB
 07-inventario/inventario · loja · fabricar · 06-historias/estoque-mestre
 08-personagens/personagens · guia_personagem
 09-bestiario/conhecido-jogador · painel-modal · bestiario · sugestoes-magias · itens-campanha
-10-shell/shell · galeria-imagens
+10-shell/shell · galeria-imagens · testes-combate
 11-ficha/atalhos-ficha · paginas-ficha · amigos-fab · ficha   →   ../app.jsx (raiz do repo)
 12-batalha/batalha · tabuleiro               →   13-diario/diario
 data/bridge   →   mount com <QueryClientProvider><App/></QueryClientProvider>
