@@ -159,7 +159,7 @@ describe('Visão Animal lê do TEXTO até qual escuridão enxerga', () => {
 describe('Luta às Cegas entrou no motor', () => {
   it('o registro declara 3 rodadas e Difícil, como o banco', () => {
     expect(window.TECNICA_EFEITO_MAP.luta_as_cegas)
-      .toMatchObject({ modo: 'teste', rodadas: 3, dificuldade: 'dificil', alvo: 'self' });
+      .toMatchObject({ modo: 'teste', rodadas: 3, dificuldade: 'medio', alvo: 'self' });
   });
 
   it('e saiu da lista de técnicas sem motor', () => {

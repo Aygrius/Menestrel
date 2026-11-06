@@ -239,7 +239,7 @@ describe('Combate Montado tira o número da montaria', () => {
 
   it('o registro declara 5 rodadas e Médio, como o banco', () => {
     expect(window.TECNICA_EFEITO_MAP.combate_montado)
-      .toMatchObject({ modo: 'teste', rodadas: 5, dificuldade: 'medio', alvo: 'self' });
+      .toMatchObject({ modo: 'teste', rodadas: 5, dificuldade: 'facil', alvo: 'self' });
   });
 
   it('e saiu da lista de técnicas sem motor', () => {

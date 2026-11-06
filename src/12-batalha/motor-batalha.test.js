@@ -354,9 +354,9 @@ describe('FALHA_CRITICA_TABELA (segundo dado do q=0)', () => {
     expect(msg).not.toContain('${');
   });
 
-  it('o texto da Falha Crítica mostra o autodano JÁ CORTADO pela metade (dano 10 → q0 = 5)', () => {
+  it('o texto da Falha Crítica mostra o autodano JÁ CORTADO em 1/3 (dano 10 → q0 = 3)', () => {
     const msg = M.interpolarFalhaCritica(M.FALHA_CRITICA_TABELA.CORTE[0], { dano: 10 });
-    expect(msg).toContain('5 de dano na EF');
+    expect(msg).toContain('3 de dano na EF');
     expect(msg).not.toContain('${');
   });
 
@@ -393,10 +393,11 @@ describe('aplicarFalhaCritica', () => {
   });
   const arma = { dano: 10 };
 
-  it('autodano é METADE do tier, arredondado pra baixo (13/09/2026)', () => {
-    expect(M.FC_AUTODANO_FATOR).toBe(0.5);
-    expect(M.danoAutoinfligido({ dano: 10 }, 'MD')).toBe(5);
-    expect(M.danoAutoinfligido({ dano: 7 }, 'MD')).toBe(3);   // floor(3.5): nunca passa da metade
+  it('autodano é UM TERÇO do tier, arredondado pra baixo (06/11/2026)', () => {
+    expect(M.FC_AUTODANO_FATOR).toBeCloseTo(1 / 3);
+    expect(M.danoAutoinfligido({ dano: 10 }, 'MD')).toBe(3);
+    expect(M.danoAutoinfligido({ dano: 6 }, 'MD')).toBe(2);    // sem 1,999… → 1
+    expect(M.danoAutoinfligido({ dano: 7 }, 'MD')).toBe(2);   // floor(2.33): nunca passa de 1/3
     expect(M.danoAutoinfligido({ dano: 1 }, 'F')).toBe(0);
   });
 
@@ -405,8 +406,8 @@ describe('aplicarFalhaCritica', () => {
     // 30/10/2026 a absorção DESCONTA: 5 contra 3 deixa 2 chegarem à EF e
     // custa 1 de resistência. O desmaio forçado continua valendo, porque vem
     // da regra da Falha Crítica e não do dano.
-    const { participante: p, dano } = M.aplicarFalhaCritica(atacante(), arma, 0);
-    expect(dano).toBe(5);           // metade de 10
+    const { participante: p, dano } = M.aplicarFalhaCritica(atacante(), { dano: 15 }, 0);
+    expect(dano).toBe(5);           // 1/3 de 15
     expect(p.eh).toBe(10);
     expect(p.ar, 'limiar não se gasta').toBe(3);
     expect(p.res, 'quem se gasta é a resistência').toBe(3);
@@ -417,29 +418,29 @@ describe('aplicarFalhaCritica', () => {
   it('q0 com a armadura já arrebentada: aí sim o autodano chega na EF', () => {
     const { participante: p } = M.aplicarFalhaCritica(atacante({ res: 0 }), arma, 0);
     expect(p.eh).toBe(10);
-    expect(p.ef).toBe(5);           // 10 − metade de 10
+    expect(p.ef).toBe(7);           // 10 − 1/3 de 10
     expect(p.status).toBe('desmaiado');
   });
 
   it('q0 que mata na cascata: morto tem precedência sobre o desmaio', () => {
     const { participante: p } = M.aplicarFalhaCritica(
-      atacante({ ar: 0, ef: -10, eh_max: 0, status: 'desmaiado' }), { dano: 10 }, 0);
+      atacante({ ar: 0, ef: -10, eh_max: 0, status: 'desmaiado' }), { dano: 15 }, 0);
     expect(p.status).toBe('morto'); // −10 − 5 = −15 ≤ EF_MORTE
   });
 
-  it('q1: metade de 75% + status Ações −7 até o fim da batalha; q3: metade de 25%', () => {
+  it('q1: 1/3 de 75% + status Ações −7 até o fim da batalha; q3: 1/3 de 25%', () => {
     const r1 = M.aplicarFalhaCritica(atacante(), arma, 1);
-    expect(r1.dano).toBe(4);        // floor(ceil(7.5) / 2)
+    expect(r1.dano).toBe(2);        // floor(ceil(7.5) / 3)
     expect(r1.participante.status_temp).toHaveLength(1);
     expect(r1.participante.status_temp[0]).toMatchObject({ rodadas_rest: null, efeito: { tipo: 'mod_coluna', valor: -7 } });
     const r3 = M.aplicarFalhaCritica(atacante(), arma, 3);
-    expect(r3.dano).toBe(1);        // floor(ceil(2.5) / 2)
+    expect(r3.dano).toBe(1);        // floor(ceil(2.5) / 3)
     expect(r3.participante.status_temp).toHaveLength(0);
   });
 
-  it('magia usa floor no tier (q3 com dano 10 → 2, metade → 1)', () => {
+  it('magia usa floor no tier (q3 com dano 10 → 2, 1/3 → 0)', () => {
     const r = M.aplicarFalhaCritica(atacante(), { dano: 10, fonte: 'magia' }, 3);
-    expect(r.dano).toBe(1);         // floor(floor(2.5) / 2)
+    expect(r.dano).toBe(0);         // floor(floor(2.5) / 3)
   });
 
   it('q4: sem dano, ganha Caído (sem_acoes, 1 rodada); q7: no-op absoluto', () => {

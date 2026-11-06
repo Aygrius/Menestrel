@@ -43,7 +43,7 @@ const MIRA_OK = { key: 'mira', nome: 'Mira',
 const MIRA_DIVERGENTE = { key: 'mira', nome: 'Mira',
   efeito: 'Seu total de Mira é adicionado à sua coluna de ataque por 5 rodadas.' };
 const SANGRAMENTO_OK = { key: 'sangramento', nome: 'Sangramento',
-  efeito: 'Um teste de Sangramento (Difícil) causa 1 de dano na energia física em 1 alvo por 5 rodadas.' };
+  efeito: 'Um teste de Sangramento (Médio) causa 1 de dano na energia física em 1 alvo por 5 rodadas.' };
 const SANGRAMENTO_DIF = { key: 'sangramento', nome: 'Sangramento',
   efeito: 'Um teste de Sangramento (Fácil) causa 1 de dano na energia física em 1 alvo por 5 rodadas.' };
 const DESCONHECIDA = { key: 'tecnica_nova_qualquer', nome: 'Técnica Nova',
@@ -82,7 +82,7 @@ describe('acende quando o texto foi editado e o motor não', () => {
   it('pega divergência de DIFICULDADE também, não só de rodadas', () => {
     montar([SANGRAMENTO_DIF]);
     fireEvent.click(cabecalho());
-    expect(screen.getByText(/dificuldade facil.*motor usa dificil/)).toBeTruthy();
+    expect(screen.getByText(/dificuldade facil.*motor usa medio/)).toBeTruthy();
   });
 
   it('Explorar Fraqueza não declara duração no texto e NÃO é divergência', () => {

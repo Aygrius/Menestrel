@@ -4057,7 +4057,7 @@ const FALHA_CRITICA_TABELA = {
    narrativo da FALHA_CRITICA_TABELA varia). rodadas_rest null = até o fim da
    batalha (decrementarStatusTemp preserva; encerramento descarta o snapshot). */
 const FC_EFEITOS = {
-  0: { danoTier: 'MD', desmaia: true },   // ver FC_AUTODANO_FATOR: o tier é cortado pela metade
+  0: { danoTier: 'MD', desmaia: true },   // ver FC_AUTODANO_FATOR: sai 1/3 do tier
   1: { danoTier: 'D',  status: { id: 'fc_acoes',  nome: 'Ações −7',      icone: '🤕', rodadas_rest: null, efeito: { tipo: 'mod_coluna', valor: -7 } } },
   2: { danoTier: 'M',  status: { id: 'fc_caido',  nome: 'Caído',         icone: '💫', rodadas_rest: 2,    efeito: { tipo: 'sem_acoes' } } },
   3: { danoTier: 'F' },
@@ -4077,11 +4077,16 @@ const FC_EFEITOS = {
    dano 1 no q3 vira 0, e está certo: é o tornozelo torcido.
 
    A MESMA conta alimenta o texto da tabela (interpolarFalhaCritica), senão a
-   narrativa diria "sofre 10" e a EF perderia 5. */
-const FC_AUTODANO_FATOR = 0.5;
+   narrativa diria "sofre 10" e a EF perderia 5.
+
+   UM TERÇO (06/11/2026): "Quero diminuir o auto-dano, os efeitos podem
+   continuar" — usuário, escolhendo 33%. Os efeitos (desmaio, −7, rodadas
+   perdidas, defesa e velocidade −5) não mudaram. O epsilon segura a conta
+   de ponto flutuante: 6 × (1/3) tem que dar 2, não 1,999… → 1. */
+const FC_AUTODANO_FATOR = 1 / 3;
 
 function danoAutoinfligido(objDano, tier) {
-  return Math.floor(danoNoTier(objDano, tier) * FC_AUTODANO_FATOR);
+  return Math.floor(danoNoTier(objDano, tier) * FC_AUTODANO_FATOR + 1e-9);
 }
 
 // interpolarCritico com os números do AUTODANO — só para FALHA_CRITICA_TABELA.
@@ -10321,7 +10326,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // (FALHA_CRITICA_TABELA); 'alvo' (q=7) pune o OPONENTE (CRITICOS_TABELA).
   // Magia interpola com a própria magia (danoNoTier fonte 'magia' → floor).
   const objDanoCritico = tab === 'magia' ? magia : arma;
-  // Autodano sai pela metade (FC_AUTODANO_FATOR), e o texto tem que dizer isso.
+  // Autodano sai em 1/3 (FC_AUTODANO_FATOR), e o texto tem que dizer isso.
   const msgCritico = (resCritico && tipoCriticoArma)
     ? (tipoCritico === 'self'
       ? interpolarFalhaCritica((FALHA_CRITICA_TABELA[tipoCriticoArma] || {})[resCritico.q], objDanoCritico)

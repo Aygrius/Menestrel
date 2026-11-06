@@ -24,19 +24,19 @@ beforeAll(() => {
 
 // key | dificuldade | rodadas — cópia do banco.
 const FASE2 = {
-  ambidestria:         ['medio', 1],  aparar:            ['muito_dificil', 1],
-  aprimorar:           ['muito_dificil', 3], ataque_oportuno: ['medio', 1],
-  atravessar_oponente: ['medio', 1],  brutalizar:        ['dificil', 1],
-  carga:               ['dificil', 1], carga_de_arremesso: ['medio', 1],
-  carga_montada:       ['medio', 2],  combate_com_escudo: ['medio', 2],
-  combate_nao_letal:   ['medio', 2],  contra_ataque:     ['dificil', 1],
-  dano_agravado:       ['muito_dificil', 1], desequilibrar: ['muito_dificil', 1],
-  desviar:             ['muito_dificil', 3], disparo_certeiro: ['medio', 3],
-  escolta:             ['medio', 3],  esquiva:           ['muito_dificil', 1],
-  flechadas_multiplas: ['muito_dificil', 1], forca_interior: ['medio', 2],
-  golpe_duplo:         ['muito_dificil', 1], golpe_giratorio: ['dificil', 1],
-  golpe_letal:         ['muito_dificil', 1], inibir_ataque: ['dificil', 1],
-  intimidar:           ['muito_dificil', 1], leitura_de_batalha: ['medio', 2],
+  ambidestria:         ['facil', 1],  aparar:            ['dificil', 1],
+  aprimorar:           ['dificil', 3], ataque_oportuno: ['facil', 1],
+  atravessar_oponente: ['facil', 1],  brutalizar:        ['medio', 1],
+  carga:               ['medio', 1], carga_de_arremesso: ['facil', 1],
+  carga_montada:       ['facil', 2],  combate_com_escudo: ['facil', 2],
+  combate_nao_letal:   ['facil', 2],  contra_ataque:     ['medio', 1],
+  dano_agravado:       ['dificil', 1], desequilibrar: ['dificil', 1],
+  desviar:             ['dificil', 3], disparo_certeiro: ['facil', 3],
+  escolta:             ['facil', 3],  esquiva:           ['dificil', 1],
+  flechadas_multiplas: ['dificil', 1], forca_interior: ['facil', 2],
+  golpe_duplo:         ['dificil', 1], golpe_giratorio: ['medio', 1],
+  golpe_letal:         ['dificil', 1], inibir_ataque: ['medio', 1],
+  intimidar:           ['dificil', 1], leitura_de_batalha: ['facil', 2],
 };
 
 const TIPOS_FASE2 = ['ignora_eh','ignora_armadura','dano_pct','dano_recebido_pct',

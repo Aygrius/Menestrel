@@ -117,7 +117,7 @@ const TECNICA_EFEITO_MAP = {
      Entra porque dano_por_rodada já existe pronto (Fase 1.2, veneno).
      Valor FIXO 1, não o total da técnica — o texto diz "1 de dano". */
   sangramento:       { modo: 'teste', alvo: 'inimigo', rodadas: 5,  icone: '🩸',
-                       dificuldade: 'dificil',
+                       dificuldade: 'medio',
                        efeitos: [{ tipo: 'dano_por_rodada', valor: 1 }] },
 
   /* ============================================================
@@ -130,94 +130,94 @@ const TECNICA_EFEITO_MAP = {
 
   /* ── ignora_eh: o golpe passa direto pela energia heroica ────── */
   ataque_oportuno:     { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '⚡',
-                        dificuldade: 'medio',
+                        dificuldade: 'facil',
                         efeitos: [{ tipo: 'ignora_eh', valor: true }] },
   atravessar_oponente: { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '➡️',
-                        dificuldade: 'medio',
+                        dificuldade: 'facil',
                         efeitos: [{ tipo: 'ignora_eh', valor: true }] },
   carga:               { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '🐗',
-                        dificuldade: 'dificil',
+                        dificuldade: 'medio',
                         efeitos: [{ tipo: 'ignora_eh', valor: true }] },
   carga_de_arremesso:  { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '🪓',
-                        dificuldade: 'medio',
+                        dificuldade: 'facil',
                         efeitos: [{ tipo: 'ignora_eh', valor: true }] },
   carga_montada:       { modo: 'teste', alvo: 'inimigo', rodadas: 2, icone: '🐴',
-                        dificuldade: 'medio',
+                        dificuldade: 'facil',
                         efeitos: [{ tipo: 'ignora_eh', valor: true }] },
   golpe_letal:         { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '💀',
-                        dificuldade: 'muito_dificil',
+                        dificuldade: 'dificil',
                         efeitos: [{ tipo: 'ignora_eh', valor: true }] },
 
   /* ── dano_pct: bônus percentual sobre o dano causado ──────────── */
   ambidestria:    { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🙌',
-                   dificuldade: 'medio',
+                   dificuldade: 'facil',
                    efeitos: [{ tipo: 'dano_pct', valor: 25 }] },
   aprimorar:      { modo: 'teste', alvo: 'self', rodadas: 3, icone: '📈',
-                   dificuldade: 'muito_dificil',
+                   dificuldade: 'dificil',
                    efeitos: [{ tipo: 'dano_pct', valor: 25 }] },
   dano_agravado:  { modo: 'teste', alvo: 'self', rodadas: 1, icone: '💢',
-                   dificuldade: 'muito_dificil',
+                   dificuldade: 'dificil',
                    efeitos: [{ tipo: 'dano_pct', valor: 25 }] },
   forca_interior: { modo: 'teste', alvo: 'self', rodadas: 2, icone: '🧘',
-                   dificuldade: 'medio',
+                   dificuldade: 'facil',
                    efeitos: [{ tipo: 'dano_pct', valor: 25 }] },
   // Único com +50% em vez de +25% — o texto do banco confirma o valor maior.
   brutalizar:     { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🔨',
-                   dificuldade: 'dificil',
+                   dificuldade: 'medio',
                    efeitos: [{ tipo: 'dano_pct', valor: 50 }] },
 
   /* ── dano_recebido_pct: reduz o dano recebido — valor NEGATIVO,
      é o motor quem soma (reduzir = somar um percentual negativo) ── */
   aparar:             { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🥋',
-                       dificuldade: 'muito_dificil',
+                       dificuldade: 'dificil',
                        efeitos: [{ tipo: 'dano_recebido_pct', valor: -75 }] },
   desviar:            { modo: 'teste', alvo: 'self', rodadas: 3, icone: '🌀',
-                       dificuldade: 'muito_dificil',
+                       dificuldade: 'dificil',
                        efeitos: [{ tipo: 'dano_recebido_pct', valor: -50 }] },
   combate_com_escudo: { modo: 'teste', alvo: 'self', rodadas: 2, icone: '🔰',
-                       dificuldade: 'medio',
+                       dificuldade: 'facil',
                        efeitos: [{ tipo: 'dano_recebido_pct', valor: -25 }] },
 
   /* ── ataque_extra: +1 golpe, PA só utilizável pra atacar ──────── */
   contra_ataque:       { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🔁',
-                        dificuldade: 'dificil',
+                        dificuldade: 'medio',
                         efeitos: [{ tipo: 'ataque_extra', valor: 1 }] },
   golpe_duplo:         { modo: 'teste', alvo: 'self', rodadas: 1, icone: '✌️',
-                        dificuldade: 'muito_dificil',
+                        dificuldade: 'dificil',
                         efeitos: [{ tipo: 'ataque_extra', valor: 1 }] },
   flechadas_multiplas: { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🪶',
-                        dificuldade: 'muito_dificil',
+                        dificuldade: 'dificil',
                         efeitos: [{ tipo: 'ataque_extra', valor: 1 }] },
 
   // Única com dois tipos de efeito no mesmo golpe: +25% de dano E até 3 alvos.
   golpe_giratorio: { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🌪️',
-                    dificuldade: 'dificil',
+                    dificuldade: 'medio',
                     efeitos: [{ tipo: 'dano_pct', valor: 25 },
                               { tipo: 'alvos_extras', valor: 3 }] },
 
   /* ── demais primitivas da Fase 2, uma técnica cada ────────────── */
   disparo_certeiro:  { modo: 'teste', alvo: 'inimigo', rodadas: 3, icone: '🔭',
-                      dificuldade: 'medio',
+                      dificuldade: 'facil',
                       efeitos: [{ tipo: 'ignora_armadura', valor: true }] },
   inibir_ataque:      { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '🚫',
-                      dificuldade: 'dificil',
+                      dificuldade: 'medio',
                       efeitos: [{ tipo: 'sem_atacar', valor: true }] },
   intimidar:          { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '👹',
-                      dificuldade: 'muito_dificil',
+                      dificuldade: 'dificil',
                       efeitos: [{ tipo: 'sem_atacar', valor: true }] },
   leitura_de_batalha: { modo: 'teste', alvo: 'inimigo', rodadas: 2, icone: '📖',
-                      dificuldade: 'medio',
+                      dificuldade: 'facil',
                       efeitos: [{ tipo: 'sem_tecnicas', valor: true }] },
   combate_nao_letal:  { modo: 'teste', alvo: 'self', rodadas: 2, icone: '🥊',
-                      dificuldade: 'medio',
+                      dificuldade: 'facil',
                       efeitos: [{ tipo: 'sem_critico', valor: true }] },
   desequilibrar:      { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '⚖️',
-                      dificuldade: 'muito_dificil',
+                      dificuldade: 'dificil',
                       efeitos: [{ tipo: 'derrubado', valor: true }] },
   // consome_em: gasto no PRÓXIMO golpe recebido, não por rodada — mecanismo
   // novo da Fase 2. `rodadas` continua sendo o teto de tempo do status.
   esquiva:            { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🙅',
-                      dificuldade: 'muito_dificil',
+                      dificuldade: 'dificil',
                       consome_em: 'golpe_recebido',
                       efeitos: [{ tipo: 'evita_golpe', valor: true }] },
   // usa_defesa_de: quem ativa EMPRESTA a própria defesa ao aliado escoltado —
@@ -227,7 +227,7 @@ const TECNICA_EFEITO_MAP = {
   // 11/09/2026 e contradizia a spec, o próprio alvo da entrada e o banco.)
   // maxAlvos: 1 — só dá pra escoltar um aliado por vez.
   escolta:            { modo: 'teste', alvo: 'aliados', rodadas: 3, icone: '🫂',
-                      dificuldade: 'medio',
+                      dificuldade: 'facil',
                       maxAlvos: 1,
                       efeitos: [{ tipo: 'usa_defesa_de', valor: true }] },
 
@@ -242,7 +242,7 @@ const TECNICA_EFEITO_MAP = {
      motor já quebra concentração ao atacar, andar, usar item ou levar dano na
      EF. Esta técnica é o escudo contra isso — ver quebrarConcentracao. */
   concentracao:       { modo: 'teste', alvo: 'self', rodadas: 2, icone: '🧘',
-                      dificuldade: 'dificil',
+                      dificuldade: 'medio',
                       efeitos: [{ tipo: 'mantem_concentracao', valor: true }] },
   /* "Um teste de Combate Montado (Médio) adiciona 50% da energia heroica da
      sua MONTARIA à sua energia heroica por 5 rodadas."
@@ -252,7 +252,7 @@ const TECNICA_EFEITO_MAP = {
      hora, a partir da montaria congelada no snapshot. Sem montaria, o efeito
      simplesmente não entra (valor 0), e o painel avisa. */
   combate_montado:    { modo: 'teste', alvo: 'self', rodadas: 5, icone: '🐴',
-                      dificuldade: 'medio',
+                      dificuldade: 'facil',
                       efeitos: [{ tipo: 'mod_eh_temp', do_montaria_pct: 50 }] },
   /* "Seu total de Remover Debilitação é adicionado à sua habilidade Escapar
      por 1 rodada." Bônus numa HABILIDADE nomeada, não num stat de combate —
@@ -266,10 +266,10 @@ const TECNICA_EFEITO_MAP = {
      o desgaste é o efeito, não o efeito colateral. Armadura em res 0 para de
      bloquear: é o "equipamento inutilizado" da descrição. */
   estilhacar:         { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '💥',
-                      dificuldade: 'medio',
+                      dificuldade: 'facil',
                       efeitos: [{ tipo: 'dano_equipamento', valor: 2 }] },
   retalhar:           { modo: 'teste', alvo: 'inimigo', rodadas: 1, icone: '🪓',
-                      dificuldade: 'dificil',
+                      dificuldade: 'medio',
                       efeitos: [{ tipo: 'dano_equipamento', valor: 3 }] },
   /* "Um teste de Luta às Cegas (Difícil) permite lutar sem enxergar por 3
      rodadas." Entrou em 12/09/2026, quando o tabuleiro ganhou visibilidade —
@@ -279,7 +279,7 @@ const TECNICA_EFEITO_MAP = {
      o texto não qualifica. Visão Animal, que enxerga de verdade, escala por
      nível; esta é tudo ou nada, e por isso custa Difícil e dura 3 rodadas. */
   luta_as_cegas:      { modo: 'teste', alvo: 'self', rodadas: 3, icone: '🙈',
-                      dificuldade: 'dificil',
+                      dificuldade: 'medio',
                       efeitos: [{ tipo: 'luta_sem_ver', valor: true }] },
 
   /* ============================================================
@@ -296,14 +296,14 @@ const TECNICA_EFEITO_MAP = {
   /* "atrai a atenção de 1 alvo por 5 rodadas". Quem provocou fora de combate
      (morto, desmaiado, desistiu) solta o provocado — ver provocadorDe. */
   provocar:           { modo: 'teste', alvo: 'inimigo', rodadas: 5, icone: '🗯️',
-                      dificuldade: 'dificil',
+                      dificuldade: 'medio',
                       efeitos: [{ tipo: 'provocado', valor: true }] },
   /* "move 1 alvo por 5 metros por 2 rodadas". Uma célula do tabuleiro é um
      metro (parseAlcance lê "5 metros" como 5 casas), então `casas: 5`: uma
      condução por rodada, na vez de quem conduz, sem gastar o movimento nem o
      PA de ninguém — ver conduzirParticipante, em 12-batalha/tabuleiro.jsx. */
   conduzir_oponente:  { modo: 'teste', alvo: 'inimigo', rodadas: 2, icone: '🫸',
-                      dificuldade: 'medio',
+                      dificuldade: 'facil',
                       efeitos: [{ tipo: 'conduzido', valor: true, casas: 5 }] },
 
   /* ============================================================
@@ -315,7 +315,7 @@ const TECNICA_EFEITO_MAP = {
   /* "permite atacar 3 vezes na mesma rodada": o ataque normal + 2 extras —
      Golpe Duplo ("2 vezes") é ataque_extra 1. */
   ataques_multiplos:  { modo: 'teste', alvo: 'self', rodadas: 1, icone: '🐾',
-                      dificuldade: 'muito_dificil',
+                      dificuldade: 'dificil',
                       efeitos: [{ tipo: 'ataque_extra', valor: 2 }] },
   /* Os Botes: "Seu total é adicionado à sua coluna de ataque por 1 rodada, SE
      ACERTAR A ENERGIA FÍSICA do alvo, ele [...] por 5 rodadas."
@@ -336,7 +336,7 @@ const TECNICA_EFEITO_MAP = {
   /* O texto no banco diz "Um teste de Carga SELVAGEM (Médio)…" — o nome da
      irmã. A dificuldade e as rodadas batem; só o nome está trocado. */
   carga_de_quadrupede: { modo: 'teste', alvo: 'inimigo', rodadas: 2, icone: '🐂',
-                      dificuldade: 'medio',
+                      dificuldade: 'facil',
                       efeitos: [{ tipo: 'ignora_eh', valor: true }] },
   carga_selvagem:     { modo: 'total', alvo: 'self', rodadas: 4, icone: '🐺',
                       efeitos: [{ tipo: 'mod_ataque', sinal: 1 }] },
@@ -344,11 +344,11 @@ const TECNICA_EFEITO_MAP = {
      rodadas" — sem_acoes (a bandeira de Medo e Sono) e o dano_por_rodada do
      Sangramento, no mesmo status. */
   hipnose:            { modo: 'teste', alvo: 'inimigo', rodadas: 5, icone: '🌀',
-                      dificuldade: 'dificil',
+                      dificuldade: 'medio',
                       efeitos: [{ tipo: 'sem_acoes', valor: true },
                                 { tipo: 'dano_por_rodada', valor: 2 }] },
   prender:            { modo: 'teste', alvo: 'inimigo', rodadas: 3, icone: '🪢',
-                      dificuldade: 'medio',
+                      dificuldade: 'facil',
                       efeitos: [{ tipo: 'sem_acoes', valor: true }] },
 };
 

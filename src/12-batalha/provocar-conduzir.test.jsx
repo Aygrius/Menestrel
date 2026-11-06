@@ -42,13 +42,13 @@ const CONDUZIR = { key: 'conduzir_oponente', nome: 'Conduzir Oponente' };
 describe('o registro', () => {
   it('Provocar: teste Difícil, inimigo, 5 rodadas — o texto do banco', () => {
     const r = window.tecnicaEfeitoDe('provocar');
-    expect(r).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 5, dificuldade: 'dificil' });
+    expect(r).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 5, dificuldade: 'medio' });
     expect(r.efeitos).toEqual([{ tipo: 'provocado', valor: true }]);
   });
 
   it('Conduzir Oponente: teste Médio, inimigo, 2 rodadas, 5 metros', () => {
     const r = window.tecnicaEfeitoDe('conduzir_oponente');
-    expect(r).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 2, dificuldade: 'medio' });
+    expect(r).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 2, dificuldade: 'facil' });
     expect(r.efeitos).toEqual([{ tipo: 'conduzido', valor: true, casas: 5 }]);
   });
 

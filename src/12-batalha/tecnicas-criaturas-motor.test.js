@@ -5,13 +5,13 @@
    15/09/2026). O painel de verificação acusava 7 fora do motor — todas de
    criatura (permissao vazia), cadastradas pelo editor depois de 14/09/2026:
 
-     Ataques Múltiplos    teste Muito Difícil → ataca 3 vezes (ataque_extra 2)
+     Ataques Múltiplos    teste Difícil → ataca 3 vezes (ataque_extra 2)
      Bote Venenoso        total no ataque; SE ACERTAR a EF, envenena 1 × 5
      Bote Selvagem        total no ataque; SE ACERTAR a EF, sem ações × 5
-     Carga de Quadrúpede  teste Médio → ignora a EH do alvo por 2 rodadas
+     Carga de Quadrúpede  teste Fácil → ignora a EH do alvo por 2 rodadas
      Carga Selvagem       total na coluna de ataque por 4 rodadas
-     Hipnose              teste Difícil → sem ações e 2 de dano na EF × 5
-     Prender              teste Médio → sem ações × 3
+     Hipnose              teste Médio → sem ações e 2 de dano na EF × 5
+     Prender              teste Fácil → sem ações × 3
 
    Os dois Botes pedem uma peça que o motor não tinha: um efeito que fica no
    ATACANTE e dispara no alvo quando o golpe chega à energia física
@@ -36,19 +36,19 @@ beforeAll(() => { M = window.MotorBatalha; MAP = window.TECNICA_EFEITO_MAP; });
 
 const NO_BANCO = [
   { key: 'ataques_multiplos', nome: 'Ataques Múltiplos',
-    efeito: 'Um teste de Ataques Múltiplos (Muito Difícil) permite atacar 3 vezes na mesma rodada por 1 rodada.' },
+    efeito: 'Um teste de Ataques Múltiplos (Difícil) permite atacar 3 vezes na mesma rodada por 1 rodada.' },
   { key: 'bote', nome: 'Bote Venenoso',
     efeito: 'Seu total de Bote Venenoso é adicionado à sua coluna de ataque por 1 rodada, se acertar a energia física do alvo, ele será envenenado e sofrerá 1 de dano na energia física por 5 rodadas.' },
   { key: 'bote_selvagem', nome: 'Bote Selvagem',
     efeito: 'Seu total de Bote Selvagem é adicionado à sua coluna de ataque por 1 rodada, se acertar a energia física do alvo, ele ficará sem ações por 5 rodadas.' },
   { key: 'carga_de_quadrupede', nome: 'Carga de Quadrúpede',
-    efeito: 'Um teste de Carga Selvagem (Médio) ignora a energia heroica do alvo por 2 rodadas.' },
+    efeito: 'Um teste de Carga Selvagem (Fácil) ignora a energia heroica do alvo por 2 rodadas.' },
   { key: 'carga_selvagem', nome: 'Carga Selvagem',
     efeito: 'Seu total de Carga Selvagem é adicionado à sua coluna de ataque por 4 rodadas.' },
   { key: 'hipnose', nome: 'Hipnose',
-    efeito: 'Um teste de Hipnose (Difícil) impede o alvo de agir e causa 2 de dano na energia física por 5 rodadas.' },
+    efeito: 'Um teste de Hipnose (Médio) impede o alvo de agir e causa 2 de dano na energia física por 5 rodadas.' },
   { key: 'prender', nome: 'Prender',
-    efeito: 'Um teste de Prender (Médio) impede o alvo de realizar ações por 3 rodadas.' },
+    efeito: 'Um teste de Prender (Fácil) impede o alvo de realizar ações por 3 rodadas.' },
 ];
 
 const lutador = (over = {}) => ({
@@ -67,16 +67,16 @@ describe('as 7 estão no registro, e a verificação concorda com o texto', () =
   });
 
   it('cada uma com a forma que o texto pede', () => {
-    expect(MAP.ataques_multiplos).toMatchObject({ modo: 'teste', alvo: 'self', rodadas: 1, dificuldade: 'muito_dificil',
+    expect(MAP.ataques_multiplos).toMatchObject({ modo: 'teste', alvo: 'self', rodadas: 1, dificuldade: 'dificil',
       efeitos: [{ tipo: 'ataque_extra', valor: 2 }] });
-    expect(MAP.carga_de_quadrupede).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 2, dificuldade: 'medio',
+    expect(MAP.carga_de_quadrupede).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 2, dificuldade: 'facil',
       efeitos: [{ tipo: 'ignora_eh', valor: true }] });
     expect(MAP.carga_selvagem).toMatchObject({ modo: 'total', alvo: 'self', rodadas: 4,
       efeitos: [{ tipo: 'mod_ataque', sinal: 1 }] });
-    expect(MAP.hipnose).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 5, dificuldade: 'dificil' });
+    expect(MAP.hipnose).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 5, dificuldade: 'medio' });
     expect(MAP.hipnose.efeitos.map((e) => e.tipo).sort()).toEqual(['dano_por_rodada', 'sem_acoes']);
     expect(MAP.hipnose.efeitos.find((e) => e.tipo === 'dano_por_rodada').valor).toBe(2);
-    expect(MAP.prender).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 3, dificuldade: 'medio',
+    expect(MAP.prender).toMatchObject({ modo: 'teste', alvo: 'inimigo', rodadas: 3, dificuldade: 'facil',
       efeitos: [{ tipo: 'sem_acoes', valor: true }] });
   });
 });

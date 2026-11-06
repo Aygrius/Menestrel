@@ -272,12 +272,12 @@ describe('tabuleiro: o bando anda com o líder', () => {
   });
 });
 
-describe('Falha Crítica: autodano pela metade no texto e na conta', () => {
+describe('Falha Crítica: autodano em 1/3 no texto e na conta', () => {
   it('interpolarFalhaCritica e aplicarFalhaCritica usam o mesmo número', () => {
     const arma = { dano: 12 };
     const texto = M.interpolarFalhaCritica(M.FALHA_CRITICA_TABELA.CORTE[2], arma);
     const { dano } = M.aplicarFalhaCritica({ eh: 0, eh_max: 0, ar: 0, ef: 30, res: 0, status: 'ativo', status_temp: [] }, arma, 2);
-    expect(dano).toBe(3);   // 50% de 12 = 6 → metade = 3
+    expect(dano).toBe(2);   // 50% de 12 = 6 → 1/3 = 2
     expect(texto).toContain(`${dano} de dano na EF`);
   });
 });

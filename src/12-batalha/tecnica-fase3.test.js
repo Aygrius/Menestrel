@@ -80,7 +80,7 @@ describe('Concentração — a única coisa que segura a magia sustentada', () =
 
   it('o registro declara 2 rodadas e dificuldade Difícil, como o banco', () => {
     expect(window.TECNICA_EFEITO_MAP.concentracao)
-      .toMatchObject({ modo: 'teste', rodadas: 2, dificuldade: 'dificil', alvo: 'self' });
+      .toMatchObject({ modo: 'teste', rodadas: 2, dificuldade: 'medio', alvo: 'self' });
   });
 });
 
