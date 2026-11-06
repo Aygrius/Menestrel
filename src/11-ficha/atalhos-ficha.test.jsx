@@ -423,7 +423,8 @@ describe('a ficha liga os atalhos às janelas que já existiam', () => {
     /* O espelho da visão do Mestre: a janela só mostra karma quando quem
        clica é o dono, porque só aí aoEvocarMagia cobra. */
     expect(fonte, 'karma só para o dono').toMatch(/const dono = !!podeEditarFoto;/);
-    expect(fonte).toMatch(/const karma = !dono \? 0/);
+    // Magia emprestada por item também não cobra (06/11/2026).
+    expect(fonte).toMatch(/const karma = \(!dono \|\| doItem\) \? 0/);
     expect(fonte, 'alcance pessoal não lista colegas').toMatch(/soEmSi \? \[\] : pjsDaHistoria/);
     /* O item USA DIRETO desde 28/10/2026: a janela nova mostra quantidade e
        efeito e confirma no rodapé, então não há por que abrir a janela cheia

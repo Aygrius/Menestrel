@@ -30,6 +30,15 @@ const ICONE_GRUPO_HAB = {
   'Geral': 'ti-star',
 };
 
+/* O NOME NO LUGAR DO ÍCONE (06/11/2026, usuário: "Na página habilidades,
+   treinar, habilidades, técnicas, magias, eu quero o nome do item ao invés
+   de um ícone, dentro do card"). Vale para Atividades, Habilidades, Técnicas
+   e Magias — nenhuma delas tem pintura, e o glifo genérico (a mesma espada
+   em toda técnica) não distinguia uma casa da outra. */
+function NomeNaCasa({ nome }) {
+  return <span className="pc-casa-nome" aria-hidden="true">{nome}</span>;
+}
+
 const semAcentoPagina = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /* ── PaginaCasas — a moldura comum ─────────────────────────────────────────
@@ -43,6 +52,10 @@ function PaginaCasas({
   painelRotulo, classe = '', selInicial = null,
   // O que a página diz no trilho de cima (os pontos de Técnicas e Magias).
   noTrilho = null,
+  /* O que a página diz no TOPO DO PAINEL lateral, acima da casa escolhida
+     (06/11/2026: os pontos saíram do trilho para cá). Na tela estreita, sem
+     painel, vai para cima da grade. */
+  noPainel = null,
 }) {
   const en = lang === 'en';
   const [busca, setBusca] = useState('');
@@ -125,6 +138,7 @@ function PaginaCasas({
         ? ReactDOM.createPortal(
           <div className="cartoes-barra inv-trilho"><div className="best-header-acoes">{noTrilho}</div></div>, alvoTrilho)
         : <div className="pc-trilho-solto">{noTrilho}</div>)}
+      {noPainel && !larga && <div className="pc-painel-topo pc-painel-topo--solto">{noPainel}</div>}
       {(casas || []).length === 0 && !larga && <div className="loja-warn-empty"><span>{vazioTxt}</span></div>}
       <div className={'bau-corpo loja-bau pc-bau' + (larga ? ' bau-corpo--painel' : '')}>
         {lequeC && Leque && (
@@ -169,6 +183,7 @@ function PaginaCasas({
         </div>
         {larga && (
           <aside className="bau-painel loja-painel pc-painel" aria-label={painelRotulo}>
+            {noPainel && <div className="pc-painel-topo">{noPainel}</div>}
             {!selC ? (
               <div className="bau-painel-vazio">
                 <i className="ti ti-hand-click" aria-hidden="true" />
@@ -215,13 +230,13 @@ function PaginaHabilidades({ lang, habilidades, onRolar, onSubir = null, pontos 
   const DIFS = window.ATALHO_DIFICULDADES || [];
   const casas = (habilidades || []).map((h) => ({
     id: h.key, nome: h.nome, sub: h.grupo, busca: h.grupo, h,
-    icone: <i className={'ti ' + (ICONE_GRUPO_HAB[h.grupo] || 'ti-brain')} aria-hidden="true" />,
+    icone: <NomeNaCasa nome={h.nome} />,
     marca: h.total != null ? String(h.total) : null,
     apagada: !!h.bloqueio,
   })).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
   return (
     <PaginaCasas lang={lang} casas={casas} classe="pc-habilidades"
-      noTrilho={<SeloPontos pontos={pontos} icone="ti-bulb" rotulo={en ? 'Skill points' : 'Pontos de habilidade'} />}
+      noPainel={<SeloPontos pontos={pontos} rotulo={en ? 'Skill points' : 'Pontos de habilidade'} />}
       buscaRotulo={en ? 'Search skill' : 'Buscar habilidade'}
       painelRotulo={en ? 'Skill' : 'Habilidade'}
       vazioTxt={en ? 'No skills.' : 'Nenhuma habilidade.'}
@@ -262,17 +277,23 @@ function PaginaHabilidades({ lang, habilidades, onRolar, onSubir = null, pontos 
 /* O SALDO, NÃO O GASTO (05/11/2026, usuário: "O formato deve ser 5/5, pois
    ele tem ainda 5 de 5 pontos. Isso serve para tudo."). O primeiro número é
    o que SOBRA para gastar — a mesma leitura da janela Estudar ("5 de 5"). */
-function SeloPontos({ rotulo, icone, pontos }) {
+/* NO PAINEL LATERAL, COM A CONTA (06/11/2026, usuário: "Ao invés disso,
+   insira essa informação no card lateral de 'visualização de item' à
+   direita. […] insira um texto explicando como ele chegou naquele número").
+   Saiu do trilho: é a célula do passe — rótulo sobre o número — no topo do
+   painel, e embaixo a frase de explicacaoDosPontos (01-core), que a ficha
+   manda pronta em `pontos.explicacao`. */
+function SeloPontos({ rotulo, pontos }) {
   if (!pontos || pontos.total == null) return null;
   const saldo = (Number(pontos.total) || 0) - (Number(pontos.gasto) || 0);
   const excedido = saldo < 0;
   return (
-    <span className={'mc-acao pc-pontos' + (excedido ? ' is-excedido' : '')} role="status"
+    <section className={'pc-pontos' + (excedido ? ' is-excedido' : '')} role="status"
       aria-label={`${rotulo}: ${saldo} / ${pontos.total}`}>
-      <i className={'ti ' + icone} aria-hidden="true" />
-      <span className="mc-acao-rotulo">{rotulo}</span>
+      <span className="mn-rotulo">{rotulo}</span>
       <span className="pc-pontos-num" aria-hidden="true">{saldo}<i>/{pontos.total}</i></span>
-    </span>
+      {pontos.explicacao && <p className="pc-pontos-conta">{pontos.explicacao}</p>}
+    </section>
   );
 }
 
@@ -291,7 +312,7 @@ function PaginaTecnicas({ lang, tecnicas, pontos = null, onSubir = null }) {
     return {
       id: t.key, nome: t.nome, t, categoria,
       sub: categoria, busca: categoria,
-      icone: <i className="ti ti-sword" aria-hidden="true" />,
+      icone: <NomeNaCasa nome={t.nome} />,
       marca: t.total != null ? String(t.total) : null,
     };
   }).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
@@ -300,7 +321,7 @@ function PaginaTecnicas({ lang, tecnicas, pontos = null, onSubir = null }) {
   ));
   return (
     <PaginaCasas lang={lang} casas={casas} classe="pc-tecnicas"
-      noTrilho={<SeloPontos pontos={pontos} icone="ti-sword" rotulo={en ? 'Technique points' : 'Pontos de técnica'} />}
+      noPainel={<SeloPontos pontos={pontos} rotulo={en ? 'Technique points' : 'Pontos de técnica'} />}
       buscaRotulo={en ? 'Search technique' : 'Buscar técnica'}
       painelRotulo={en ? 'Technique' : 'Técnica'}
       vazioTxt={en ? 'No techniques learned.' : 'Nenhuma técnica aprendida.'}
@@ -334,12 +355,12 @@ function PaginaMagias({ lang, magias, onEvocar, pontos = null, onSubir = null })
   const casas = (magias || []).map((m) => ({
     id: m.key, nome: m.nome, m,
     sub: (en ? 'Level ' : 'Nível ') + m.nivel,
-    icone: <i className="ti ti-comet" aria-hidden="true" />,
+    icone: <NomeNaCasa nome={m.nome} />,
     marca: m.nivel != null ? String(m.nivel) : null,
   })).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
   return (
     <PaginaCasas lang={lang} casas={casas} classe="pc-magias"
-      noTrilho={<SeloPontos pontos={pontos} icone="ti-comet" rotulo={en ? 'Magic points' : 'Pontos de magia'} />}
+      noPainel={<SeloPontos pontos={pontos} rotulo={en ? 'Magic points' : 'Pontos de magia'} />}
       buscaRotulo={en ? 'Search spell' : 'Buscar magia'}
       painelRotulo={en ? 'Spell' : 'Magia'}
       vazioTxt={en ? 'No spells learned.' : 'Nenhuma magia aprendida.'}
@@ -355,6 +376,13 @@ function PaginaMagias({ lang, magias, onEvocar, pontos = null, onSubir = null })
       painelDe={(c) => (
         <div className="mn-janela-corpo pc-corpo">
           {c.m.descricao && <p className="mn-janela-frase">{c.m.descricao}</p>}
+          {/* Magia emprestada por item (06/11/2026): sem karma e sem subir. */}
+          {c.m.item && (
+            <p className="mn-janela-frase mn-janela-nota">
+              {en ? `Granted by ${c.m.item} while it is in use. Casting spends no karma.`
+                  : `Vem de ${c.m.item} enquanto ele estiver em uso. Evocar não gasta karma.`}
+            </p>
+          )}
           <dl className="mn-janela-quadro">
             {c.m.alcance && <div className="mn-janela-linha is-texto"><dt>{en ? 'Range' : 'Alcance'}</dt><dd>{c.m.alcance}</dd></div>}
             {c.m.duracao && <div className="mn-janela-linha is-texto"><dt>{en ? 'Duration' : 'Duração'}</dt><dd>{c.m.duracao}</dd></div>}
@@ -485,7 +513,7 @@ function PaginaAtividades({
   const casas = LISTA.map((a) => ({
     id: a.id, nome: nomeDe(a), a,
     sub: (atual && atual.id === a.id) ? (en ? 'Current activity' : 'Atividade atual') : (en ? a.propositoEn : a.propositoPt),
-    icone: <i className={'ti ' + a.icon} aria-hidden="true" />,
+    icone: <NomeNaCasa nome={nomeDe(a)} />,
     acesa: !!(atual && atual.id === a.id),
   }));
 

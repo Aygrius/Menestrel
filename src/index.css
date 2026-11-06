@@ -13867,8 +13867,23 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 
 /* Evoluir no trilho da ficha (23/10/2026): o único botão do trilho com fundo
    de ouro fraco — é o que pede a vez. */
-#root .menestrel-ui .mc-acoes-ficha .mc-acao--evoluir { background: var(--vivo-fundo); border-color: var(--vivo-aro, rgba(var(--vivo-rgb),.5)); color: var(--tinta); }
-#root .menestrel-ui .mc-acoes-ficha .mc-acao--evoluir:hover { background: rgba(var(--vivo-rgb),0.22); }
+/* COMO O DE BATALHA, EM VERDE (06/11/2026, usuário: "Aplique o efeito do
+   botão de batalha no botão de evoluir […] O ícone de evoluir pode ser uma
+   estrela e a cor pode ser verde"): a mesma pílula cheia em degradê, a mesma
+   sombra que pulsa — trocada a brasa pelo verde. */
+#root .menestrel-ui .mc-acoes-ficha .mc-acao--evoluir {
+  color: #EAF7EA; background: linear-gradient(135deg, #3E9A4E 0%, #1F6B30 100%);
+  box-shadow: 0 4px 14px -6px rgba(62,154,78,0.7); animation: evoluir-pulse 2s ease-in-out infinite;
+}
+#root .menestrel-ui .mc-acoes-ficha .mc-acao--evoluir i { color: #EAF7EA; }
+#root .menestrel-ui .mc-acoes-ficha .mc-acao--evoluir:hover { background: linear-gradient(135deg, #4BAE5C 0%, #27803A 100%); color: #fff; }
+@keyframes evoluir-pulse {
+  0%, 100% { box-shadow: 0 4px 16px -6px rgba(62,154,78,0.7); }
+  50%       { box-shadow: 0 4px 24px -4px rgba(62,154,78,0.95), 0 0 0 3px rgba(62,154,78,0.25); }
+}
+@media (prefers-reduced-motion: reduce) { #root .menestrel-ui .mc-acoes-ficha .mc-acao--evoluir { animation: none; } }
+/* Batalha e Evoluir abrem a fileira (06/11/2026), antes do botão Ficha (-1). */
+#root .menestrel-ui .mc-acoes-ficha > .mc-acao-grupo.fp-chamada-grupo { order: -2; }
 
 /* ── CARREGANDO, OPÇÃO A "RESPIRA" (23/10/2026) ──────────────────────────────
    O selo grande no centro pulsando, e o arco de ouro correndo em volta. */
@@ -17452,6 +17467,20 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
   position: absolute; top: 6px; left: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--vivo);
 }
 #root .menestrel-ui .inv-bag-grid--slots .pc-casa.is-apagada .pc-casa-ic { opacity: .45; }
+/* O NOME NA CASA (06/11/2026, usuário: "eu quero o nome do item ao invés de
+   um ícone, dentro do card"): Atividades, Habilidades, Técnicas e Magias.
+   Até três linhas no corpo menor; a palavra longa (Piromanipulação) quebra
+   com hífen, e o pé fica livre para o número do canto. */
+#root .menestrel-ui .inv-bag-grid--slots .pc-casa-ic:has(.pc-casa-nome) {
+  width: 100%; height: 100%; padding: 6px 5px 15px; box-sizing: border-box;
+}
+#root .menestrel-ui .pc-casa-nome {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+  font: 600 var(--fs-2xs) / 1.15 var(--font-body); text-align: center; color: var(--tinta-2);
+  overflow-wrap: anywhere; hyphens: auto;
+}
+#root .menestrel-ui .inv-bag-grid--slots .pc-casa:hover .pc-casa-nome,
+#root .menestrel-ui .inv-bag-grid--slots .pc-casa.is-sel .pc-casa-nome { color: var(--tinta); }
 #root .menestrel-ui .pc-inicial { font: 600 var(--fs-xl) var(--font-title); color: var(--tinta-2); }
 /* O disco da dificuldade no leque das Habilidades: as cores da janela antiga. */
 #root .menestrel-ui .inv-leque-disco {
@@ -17496,24 +17525,29 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 #root .menestrel-ui .mn-janela-linha.is-texto dd { flex: 0 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; }
 #root .menestrel-ui .pc-painel .pc-corpo { overflow-x: hidden; }
 
-/* OS PONTOS NO TRILHO (04/11/2026): um selo de leitura no grupo da página,
-   com o desenho dos itens do trilho, sem o gesto de botão. Os dois números no
-   mesmo corpo e peso — o total só cede um tom. Gasto acima do total: brasa. */
-#root .menestrel-ui .mc-acao.pc-pontos {
-  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px 0 10px;
-  color: var(--tinta-2); font-size: 17px;
+/* OS PONTOS NO PAINEL LATERAL (06/11/2026, usuário: "insira essa informação
+   no card lateral de 'visualização de item' à direita", com o texto de como
+   se chegou ao número). Saíram do trilho. É a célula do passe — rótulo sobre
+   o número —, separada da casa escolhida por uma régua. Os dois números no
+   mesmo corpo e peso; o total só cede um tom. Gasto acima do total: brasa. */
+#root .menestrel-ui .pc-painel-topo {
+  /* O respiro do corpo do painel (.loja-painel-corpo, 20px). */
+  flex: 0 0 auto; padding: 20px 20px 16px; border-bottom: 1px solid var(--regua-forte);
 }
-#root .menestrel-ui .mc-acao.pc-pontos > i { color: var(--vivo); }
-#root .menestrel-ui .mc-acao.pc-pontos .mc-acao-rotulo { font-family: var(--font-body); font-size: 15px; font-weight: 700; }
-#root .menestrel-ui .mc-acao.pc-pontos,
-#root .menestrel-ui .mc-acoes-ficha .mc-acao.pc-pontos { cursor: default; }
-#root .menestrel-ui .mc-acoes-ficha .mc-acao.pc-pontos:hover { background: none; color: var(--tinta-2); }
+#root .menestrel-ui .pc-painel-topo:empty { display: none; }
+/* Tela estreita, sem painel: o mesmo bloco em cima da grade. */
+#root .menestrel-ui .pc-painel-topo--solto { padding: 12px 16px 14px; margin: 0; }
+#root .menestrel-ui .pc-pontos { display: flex; flex-direction: column; gap: 4px; }
 #root .menestrel-ui .pc-pontos-num {
-  font-family: var(--font-body); font-size: 15px; font-weight: 700; line-height: 1;
+  font-family: var(--font-body); font-size: var(--fs-xl); font-weight: 700; line-height: 1.1;
   font-variant-numeric: lining-nums tabular-nums; color: var(--tinta);
 }
 #root .menestrel-ui .pc-pontos-num i { font-style: normal; color: var(--tinta-3); }
-#root .menestrel-ui .mc-acao.pc-pontos.is-excedido .pc-pontos-num { color: var(--alerta); }
+#root .menestrel-ui .pc-pontos.is-excedido .pc-pontos-num { color: var(--alerta); }
+#root .menestrel-ui .pc-pontos-conta {
+  margin: 6px 0 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--tinta-2);
+  font-variant-numeric: lining-nums tabular-nums;
+}
 #root .menestrel-ui .pc-trilho-solto { display: flex; justify-content: center; padding: 12px 20px 0; }
 
 /* ── IDENTIFICAÇÃO SEM PÁGINAS INTERNAS (04/11/2026) ───────────────────────
@@ -17786,7 +17820,7 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 }
 /* Os botões ficam ACIMA da lâmina, e o véu de cada um passa a ser ela. */
 #root .menestrel-ui [data-lamina] .mc-acao { position: relative; z-index: 1; }
-#root .menestrel-ui [data-lamina] .mc-acao:not(.mc-acao--batalha):not(.mc-acao--primaria):hover,
+#root .menestrel-ui [data-lamina] .mc-acao:not(.mc-acao--batalha):not(.mc-acao--evoluir):not(.mc-acao--primaria):hover,
 #root .menestrel-ui [data-lamina] .mc-acao.is-ativo { background: transparent; }
 #root .menestrel-ui [data-lamina] .mc-acao:hover,
 #root .menestrel-ui [data-lamina] .mc-acao.is-ativo { color: var(--tinta); }

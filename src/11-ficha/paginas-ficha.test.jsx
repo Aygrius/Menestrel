@@ -165,3 +165,111 @@ describe('Técnicas e Magias mostram os pontos', () => {
     expect(document.querySelector('.pc-pontos')).toBeNull();
   });
 });
+
+/* O NOME NO LUGAR DO ÍCONE (06/11/2026, usuário: "eu quero o nome do item ao
+   invés de um ícone, dentro do card"). Atividades, Habilidades, Técnicas e
+   Magias. */
+describe('a casa mostra o nome, não o ícone', () => {
+  const nomeDaCasa = (id) => {
+    const casa = document.querySelector(`button[data-casa="${id}"]`);
+    return { nome: casa.querySelector('.pc-casa-nome'), glifo: casa.querySelector('.pc-casa-ic i.ti') };
+  };
+  it('Habilidades', () => {
+    render(<window.PaginaHabilidades lang="pt" habilidades={HABS} onRolar={() => {}} />);
+    const c = nomeDaCasa('correr');
+    expect(c.nome.textContent).toBe('Correr');
+    expect(c.glifo).toBeNull();
+  });
+  it('Técnicas', () => {
+    render(<window.PaginaTecnicas lang="pt" tecnicas={[{ key: 'desviar', nome: 'Desviar', tipo: 'Básica', total: 3 }]} />);
+    expect(nomeDaCasa('desviar').nome.textContent).toBe('Desviar');
+    expect(nomeDaCasa('desviar').glifo).toBeNull();
+  });
+  it('Magias', () => {
+    render(<window.PaginaMagias lang="pt" magias={[{ key: 'luz', nome: 'Luz', nivel: 1 }]} onEvocar={() => {}} />);
+    expect(nomeDaCasa('luz').nome.textContent).toBe('Luz');
+    expect(nomeDaCasa('luz').glifo).toBeNull();
+  });
+  it('Atividades', () => {
+    render(<window.PaginaAtividades lang="pt" atividade={null} podeEditar={false} />);
+    const treinar = (window.ATIVIDADES || []).find((a) => a.id === 'treinando');
+    expect(nomeDaCasa('treinando').nome.textContent).toBe(treinar.pt);
+    expect(nomeDaCasa('treinando').glifo).toBeNull();
+  });
+});
+
+/* MAGIA EMPRESTADA POR ITEM (06/11/2026, usuário: "ao equipar um item que
+   possui uma magia, esta magia deve aparecer na lista de magias do personagem
+   pra ele usar, sem gasto de karma"). */
+describe('magia de item na página Magias', () => {
+  it('o painel diz de qual item ela vem e que não gasta karma', () => {
+    render(<window.PaginaMagias lang="pt" onEvocar={() => {}}
+      magias={[{ key: 'piromanipulacao', nome: 'Piromanipulação', nivel: 3, item: 'Anel Narya' }]} />);
+    fireEvent.click(document.querySelector('button[data-casa="piromanipulacao"]'));
+    // Tela estreita (jsdom): o painel abre pelo "Detalhes" do leque.
+    fireEvent.click(document.querySelector('[data-acao-leque="__detalhes"]'));
+    const ap = document.body.textContent;
+    expect(ap).toMatch(/Vem de Anel Narya enquanto ele estiver em uso\. Evocar não gasta karma\./);
+  });
+});
+
+describe('a ficha liga as magias dos itens (fonte)', () => {
+  const ficha = readFileSync(resolve(__dirname, 'ficha.jsx'), 'utf8');
+  it('usa a mesma porta da batalha', () => {
+    expect(ficha).toMatch(/window\.MotorBatalha && window\.MotorBatalha\.magiasDeItensDoAtor/);
+    expect(ficha).toMatch(/new Set\(\[\.\.\.Object\.keys\(pj\.magias \|\| \{\}\), \.\.\.Object\.keys\(magiasDeItemPj\)\]\)/);
+  });
+  it('evocar a magia do item não cobra karma, nem sobe nível', () => {
+    expect(ficha).toMatch(/const doItem = !!magiasDeItemPj\[chave\];/);
+    expect(ficha).toMatch(/doItem \? \[\] : \[\{ scope: 'vitalidade', key: 'ka', delta: -nivel \}\]/);
+    expect(ficha).toMatch(/subir: doItem \? null : subirDe\('magia', m\)/);
+  });
+});
+
+/* OS PONTOS NO PAINEL LATERAL (06/11/2026, usuário: "Ao invés disso, insira
+   essa informação no card lateral de 'visualização de item' à direita. Faça
+   isso com os outros menus também. Junto com a informação dos pontos, insira
+   um texto explicando como ele chegou naquele número"). */
+describe('os pontos moram no painel, com a conta', () => {
+  const comTelaLarga = (fn) => {
+    const antes = window.matchMedia;
+    window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    try { fn(); } finally { window.matchMedia = antes; }
+  };
+  const pontos = { gasto: 0, total: 30, explicacao: 'Ladino ganha 10 pontos de habilidade por estágio.' };
+  it.each([
+    ['Habilidades', () => <window.PaginaHabilidades lang="pt" habilidades={HABS} onRolar={() => {}} pontos={pontos} />],
+    ['Técnicas', () => <window.PaginaTecnicas lang="pt" tecnicas={[]} pontos={pontos} />],
+    ['Magias', () => <window.PaginaMagias lang="pt" magias={[]} onEvocar={() => {}} pontos={pontos} />],
+  ])('%s: no topo do painel lateral, com a explicação', (_, el) => {
+    comTelaLarga(() => {
+      render(el());
+      const selo = document.querySelector('.pc-pontos');
+      expect(selo.closest('aside.pc-painel')).toBeTruthy();
+      expect(selo.querySelector('.pc-pontos-num').textContent).toBe('30/30');
+      expect(selo.querySelector('.pc-pontos-conta').textContent).toBe(pontos.explicacao);
+    });
+  });
+});
+
+describe('explicacaoDosPontos refaz a conta com os números do personagem', () => {
+  it('habilidade: base da profissão × estágio', () => {
+    const t = window.explicacaoDosPontos('habilidade', { profissao: 'Guerreiro' }, 3, 12, false);
+    const total = window.pontosHabilidadesTotal('Guerreiro', 3);
+    expect(t).toContain(`Estágio 3: ${total / 3} × 3 = ${total}.`);
+    expect(t).toContain(`Gastos: 12`);
+    expect(t).toContain(`Sobram ${total - 12}.`);
+  });
+  it('técnica: base + Intelecto, negativo conta 0', () => {
+    const t = window.explicacaoDosPontos('tecnica', { profissao: 'Guerreiro', intelecto_base: 2 }, 3, 0, false);
+    expect(t).toContain('Por estágio: 10 de Guerreiro + 2 de Intelecto = 12.');
+    expect(t).toContain('Estágio 3: 12 × 3 = 36.');
+    const neg = window.explicacaoDosPontos('tecnica', { profissao: 'Ladino', intelecto_base: -1 }, 1, 0, false);
+    expect(neg).toContain('Por estágio: 8 de Ladino + 0 de Intelecto = 8. Intelecto negativo conta 0.');
+  });
+  it('magia: base + Intelecto; Aura negativa zera a base', () => {
+    const t = window.explicacaoDosPontos('magia', { profissao: 'Mago', intelecto_base: 3, aura_base: -1 }, 1, 0, false);
+    expect(t).toContain('Por estágio: 0 de Mago + 3 de Intelecto = 3.');
+    expect(t).toContain('Aura negativa zera a base da profissão.');
+  });
+});

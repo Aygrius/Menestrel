@@ -4757,7 +4757,10 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     /* 13/09/2026: o karma sai de TODA evocação do dono — narrativa e
        duradoura inclusive, que antes saíam de graça. Só a de rodada não sai
        fora de combate (karmaDaEvocacaoForaDeCombate, 01-core). */
-    const karma = podeEditarFoto && typeof karmaDaEvocacaoForaDeCombate === 'function'
+    /* Magia emprestada por item (06/11/2026, magiasDeItemPj): sem karma — a
+       magia está no item, não em quem o usa. Mesma regra da batalha. */
+    const doItem = !!magiasDeItemPj[chave];
+    const karma = !doItem && podeEditarFoto && typeof karmaDaEvocacaoForaDeCombate === 'function'
       ? karmaDaEvocacaoForaDeCombate(motivo, nivel) : 0;
 
     /* Karma quando o efeito NÃO pousa aqui (em terceiro, narrativa,
@@ -4784,7 +4787,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
          teste"). Duas versões divergiam — a do Mestre esquecia a ativa. */
       const novo = aplicarMagiaNoEstado(pj.estado_atual, mag, nivel, maximosVitalidade,
         historiaPj && historiaPj.data_jogo_atual,
-        [{ scope: 'vitalidade', key: 'ka', delta: -nivel }]);
+        doItem ? [] : [{ scope: 'vitalidade', key: 'ka', delta: -nivel }]);
 
       if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
     }
@@ -6260,32 +6263,48 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      PaginaStatus) seguem no window para quem as quiser na batalha. */
   const botaoAtividades = (podeEscolherAtividade || atividadeLigada)
     ? botaoPagina('atividades', atividadeLigada ? atividadeLigada.icon : 'ti-moon', 'Atividades', 'Activities') : null;
+  /* EVOLUIR NO TRILHO (23/10/2026): "O botão 'evoluir' que hoje existe no
+     card dos personagens, vai para o trilho na ficha do personagem." Só
+     aparece quando há estágio novo a distribuir (onEvoluir).
+     COMO O DE BATALHA, EM VERDE (06/11/2026, usuário: "Aplique o efeito do
+     botão de batalha no botão de evoluir, e coloque os dois em primeiro na
+     fileira. O ícone de evoluir pode ser uma estrela e a cor pode ser
+     verde"): a pílula cheia que pulsa, com a estrela. */
+  const botaoEvoluir = onEvoluir ? (
+    <button type="button" className="mc-acao mc-acao--evoluir" data-aba-ficha="evoluir" onClick={onEvoluir}>
+      <i className="ti ti-star" aria-hidden="true" />
+      <span className="mc-acao-rotulo">{en ? 'Level up' : 'Evoluir'}</span>
+    </button>
+  ) : null;
+  /* AS CHAMADAS NA FRENTE (06/11/2026): Batalha e Evoluir são o que pede a
+     vez, e abrem a fileira — antes até do botão Ficha. Moram num grupo
+     próprio (fp-chamada-grupo, order -2 no CSS). */
+  const chamadas = (botoes) => (botoes.some(Boolean)
+    ? <div className="menestrel-ui mc-acao-grupo fp-chamada-grupo">{botoes}</div> : null);
   const ctrlsNaBarra = (cabecalhoNoMenu && alvoAcoesAtual && !soNavegacao) ? ReactDOM.createPortal(
-    <div className="menestrel-ui mc-acao-grupo fp-ctrl-grupo">
-      {onBatalha && (
-        /* Só o ícone (23/10/2026, pedido do usuário); o nome no tooltip. */
-        <button type="button" className="mc-acao mc-acao--batalha mc-acao--ic" data-aba-ficha="batalha" onClick={onBatalha}
-          aria-label={en ? 'Battle' : 'Batalha'} {...propsTip(abrirTabTip, fecharTabTip, en ? 'Battle' : 'Batalha')}>
+    <>
+    {chamadas([
+      onBatalha && (
+        /* COM O NOME, COMO O EVOLUIR (06/11/2026, usuário: "O botão de
+           batalha deve estar escrito batalha igual em evoluir"). Era só o
+           ícone desde 23/10/2026. */
+        <button key="batalha" type="button" className="mc-acao mc-acao--batalha" data-aba-ficha="batalha" onClick={onBatalha}>
           <i className="ti ti-sword" aria-hidden="true" />
+          <span className="mc-acao-rotulo">{en ? 'Battle' : 'Batalha'}</span>
         </button>
-      )}
+      ),
+      botaoEvoluir && React.cloneElement(botaoEvoluir, { key: 'evoluir' }),
+    ])}
+    <div className="menestrel-ui mc-acao-grupo fp-ctrl-grupo">
       {botaoAtividades}
-      {/* EVOLUIR NO TRILHO (23/10/2026): "O botão 'evoluir' que hoje existe no
-          card dos personagens, vai para o trilho na ficha do personagem." Só
-          aparece quando há estágio novo a distribuir (onEvoluir). */}
-      {onEvoluir && (
-        <button type="button" className="mc-acao mc-acao--evoluir" data-aba-ficha="evoluir" onClick={onEvoluir}>
-          <i className="ti ti-trending-up" aria-hidden="true" />
-          <span className="mc-acao-rotulo">{en ? 'Level up' : 'Evoluir'}</span>
-        </button>
-      )}
       {onEditar && (
         <button type="button" className="mc-acao" data-aba-ficha="editar" onClick={onEditar}>
           <i className="ti ti-pencil" aria-hidden="true" />
           <span className="mc-acao-rotulo">{en ? 'Edit' : 'Editar'}</span>
         </button>
       )}
-    </div>,
+    </div>
+    </>,
     alvoAcoesAtual
   ) : null;
   /* A BARRA DE AÇÕES TAMBÉM PARA O MESTRE (23/10/2026): "Adicione a barra na
@@ -6320,24 +6339,19 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      a página aberta à sua maneira. */
   const abasMestreEl = null;
   const ctrlsMestreNaBarra = mestreNaBarra ? ReactDOM.createPortal(
+    <>
+    {/* Evoluir abre a fileira também para o Mestre (06/11/2026). */}
+    {chamadas([botaoEvoluir && React.cloneElement(botaoEvoluir, { key: 'evoluir' })])}
     <div className="menestrel-ui mc-acao-grupo fp-ctrl-grupo fp-ctrl-grupo--mestre">
       {botaoAtividades}
-      {/* EVOLUIR NO TRILHO (23/10/2026): "O botão 'evoluir' que hoje existe no
-          card dos personagens, vai para o trilho na ficha do personagem." Só
-          aparece quando há estágio novo a distribuir (onEvoluir). */}
-      {onEvoluir && (
-        <button type="button" className="mc-acao mc-acao--evoluir" data-aba-ficha="evoluir" onClick={onEvoluir}>
-          <i className="ti ti-trending-up" aria-hidden="true" />
-          <span className="mc-acao-rotulo">{en ? 'Level up' : 'Evoluir'}</span>
-        </button>
-      )}
       {/* EDITAR E EXCLUIR SAÍRAM DAQUI (26/10/2026, pedido do usuário: "os
           botões 'editar, excluir' também"). Os dois moram na barra lateral,
           em Personagens › <personagem>, junto das partes da ficha — e é lá
           que eles pertencem: são ações SOBRE o personagem, não dentro da
           página dele. `onEditar`/`onExcluir` continuam chegando aqui porque é
           a PersonagensList quem os executa; quem os dispara agora é o menu. */}
-    </div>,
+    </div>
+    </>,
     alvoAcoesAtual
   ) : null;
   /* ── O INVENTÁRIO NO TRILHO (30/10/2026) ───────────────────────────────
@@ -6559,6 +6573,24 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      textoDaRestricao; "N" sem compra vira `bloqueio`, e a armadura vestida da
      restrição põe um grau a mais (`passosArmadura`). */
   const classeArmaduraPj = classeDaArmaduraVestida(pj.inventario?.itens, catalogoBySlug);
+  /* MAGIAS QUE OS ITENS EMPRESTAM, NA FICHA (06/11/2026, usuário: "ao
+     equipar um item que possui uma magia, esta magia deve aparecer na lista
+     de magias do personagem pra ele usar, sem gasto de karma"). A MESMA porta
+     da batalha (magiasDeItensDoAtor, 12-batalha): item em uso (equipado ou
+     vestido), nível do item, karma zero. Magia que o PJ já sabe fica com a
+     dele — o nível comprado escala, o do item não. Dois itens com a mesma
+     magia viram uma casa só, a de nível mais alto. { key → entrada } */
+  const magiasDeItemPj = (() => {
+    const fn = window.MotorBatalha && window.MotorBatalha.magiasDeItensDoAtor;
+    if (typeof fn !== 'function' || !pj || !pj.id) return {};
+    const out = {};
+    fn({ tipo: 'pj', ref_id: pj.id }, { pjById: { [pj.id]: pj }, catalogoBySlug: catalogoBySlug || {}, magiasByKey: magiasByKey || {} })
+      .forEach((x) => {
+        if ((Number((pj.magias || {})[x.key]) || 0) > 0) return;
+        if (!out[x.key] || x.nivel > out[x.key].nivel) out[x.key] = x;
+      });
+    return out;
+  })();
   const atalhoHabilidades = mostrarAtalhos
     ? Object.values(habsByKey).map((h) => ({
         key: h.key, nome: h.nome, grupo: h.grupo,
@@ -6573,10 +6605,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       }))
     : [];
   const atalhoMagias = mostrarAtalhos
-    ? Object.keys(pj.magias || {}).map((k) => magiasByKey[k]).filter(Boolean).map((m) => {
-        const nivelPj = _nivelMag((pj.magias || {})[m.key]);
+    ? [...new Set([...Object.keys(pj.magias || {}), ...Object.keys(magiasDeItemPj)])].map((k) => magiasByKey[k]).filter(Boolean).map((m) => {
+        const doItem = magiasDeItemPj[m.key] || null;
+        const nivelPj = doItem ? doItem.nivel : _nivelMag((pj.magias || {})[m.key]);
         return {
           key: m.key, nome: m.nome, nivel: nivelPj,
+          // O item que empresta a magia (06/11/2026): a casa e o painel dizem
+          // de onde ela vem, e não há o que subir — o nível é do item.
+          item: doItem ? doItem.item.nome : null,
           /* 28/10/2026: a janela do atalho mostra a magia inteira e evoca dali.
              Antes o clique FECHAVA a lista e abria uma segunda janela por cima
              (MagiaDetalhesModal) — o jogador perdia o lugar e, para trocar de
@@ -6589,7 +6625,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           niveis: [1, 3, 5, 7, 9]
             .map((n) => ({ n, titulo: m['nivel_' + n], valor: m['valor_' + n] }))
             .filter((nv) => (nv.titulo || nv.valor) && nv.n <= nivelPj),
-          subir: subirDe('magia', m),
+          subir: doItem ? null : subirDe('magia', m),
         };
       })
     : [];
@@ -6664,24 +6700,29 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     if (fpTab !== 'tecnicas' && fpTab !== 'magias' && fpTab !== 'habilidades') return null;
     const fn = (nome) => window[nome] || null;
     const filaFn = fn('comFila');
+    /* A conta em palavras vai junto (06/11/2026): os pontos saíram do trilho
+       para o painel lateral, com o texto de como se chegou ao número. */
+    const explicar = fn('explicacaoDosPontos');
+    const comExplicacao = (tipo, r) => (explicar
+      ? { ...r, explicacao: explicar(tipo, pj, estagioNum, r.gasto, lang === 'en') } : r);
     /* Habilidades ganham o selo em 05/11/2026: o "Subir nível" gasta deles,
        e quem compra precisa ver quanto sobra. */
     if (fpTab === 'habilidades') {
       const totalFn = fn('pontosHabilidadesTotal'); const gastoFn = fn('gastoHabilidades');
       if (!totalFn || !gastoFn) return null;
       const pagas = filaFn ? filaFn(pj.habilidades || {}, pj.treinos, 'habilidade') : (pj.habilidades || {});
-      return { total: totalFn(pj.profissao, estagioNum), gasto: gastoFn(pagas, habsByKey) };
+      return comExplicacao('habilidade', { total: totalFn(pj.profissao, estagioNum), gasto: gastoFn(pagas, habsByKey) });
     }
     if (fpTab === 'tecnicas') {
       const totalFn = fn('pontosTecnicasTotal'); const gastoFn = fn('gastoTecnicas');
       if (!totalFn || !gastoFn) return null;
       const pagas = filaFn ? filaFn(pj.tecnicas || {}, pj.treinos, 'tecnica') : (pj.tecnicas || {});
-      return { total: totalFn(pj.profissao, estagioNum, pj.fisico_base, pj.agilidade_base), gasto: gastoFn(pagas, catalogoTec || []) };
+      return comExplicacao('tecnica', { total: totalFn(pj.profissao, estagioNum, pj.intelecto_base), gasto: gastoFn(pagas, catalogoTec || []) });
     }
     const totalFn = fn('pontosMagiasTotal'); const gastoFn = fn('gastoMagias');
     if (!totalFn || !gastoFn) return null;
     const pagas = filaFn ? filaFn(pj.magias || {}, pj.treinos, 'magia') : (pj.magias || {});
-    return { total: totalFn(pj.profissao, estagioNum, pj.intelecto_base, pj.aura_base), gasto: gastoFn(pagas, catalogoMag || []) };
+    return comExplicacao('magia', { total: totalFn(pj.profissao, estagioNum, pj.intelecto_base, pj.aura_base), gasto: gastoFn(pagas, catalogoMag || []) });
   })();
   /* ── O PASSO DA MAGIA, REGRA POR REGRA (28/10/2026) ─────────────────────
      A regra fica AQUI, onde os dados moram — eu com deus e sub-raça, os
@@ -6768,7 +6809,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
        Sem este espelho, o quadro mostrava "Karma 5" para o Mestre e o clique
        não gastava nada — a janela prometia o que o código não faz. */
     const dono = !!podeEditarFoto;
-    const karma = !dono ? 0
+    // Magia emprestada por item não gasta karma (06/11/2026): está no item.
+    const doItem = magiasDeItemPj[key] || null;
+    const karma = (!dono || doItem) ? 0
       : (typeof karmaDaEvocacaoForaDeCombate === 'function'
         ? karmaDaEvocacaoForaDeCombate(motivo, nivel) : (Number(nivel) || 0));
     const NOTA = {
@@ -6783,6 +6826,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     };
     return {
       karma, nota: (motivo && NOTA[motivo]) || null, alvos, ritual, bloqueio, dono,
+      item: doItem ? doItem.item.nome : null,
       euId: String(pj.id),
       /* Sem alvo a escolher: alcance pessoal, onde o único alvo é ele. */
       semAlvo: soEmSi && !criaElo && alvos.length <= 1,

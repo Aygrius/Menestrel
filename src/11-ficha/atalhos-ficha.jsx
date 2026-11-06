@@ -420,6 +420,11 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
                       : 'Só o dono da ficha gasta karma e recebe o efeito; daqui a evocação fica apenas registrada na mesa.')
                     : passoMag.nota
                     ? passoMag.nota
+                    /* Magia emprestada por item (06/11/2026): não gasta karma. */
+                    : passoMag.item
+                    ? (en
+                      ? <>The spell comes from <strong>{passoMag.item}</strong>: casting spends no karma.</>
+                      : <>A magia vem de <strong>{passoMag.item}</strong>: evocar não gasta karma.</>)
                     : (alvo && String(alvo.id) !== passoMag.euId
                       ? (en
                         ? <>Casting spends <strong>{passoMag.karma}</strong> karma; the GM applies the effect on the target.</>
