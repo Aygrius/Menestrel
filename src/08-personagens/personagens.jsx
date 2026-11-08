@@ -1708,7 +1708,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       confirmDisabled={isUltimoStep ? saving : !podeAvancar}
     >
           {descricaoTela && <p className="wiz-screen-desc">{descricaoTela}</p>}
-          {currentId === 'identidade' && <StepIdentidade form={form} update={update} updateCaract={updateCaract} lang={lang} isEdit={isEdit} dataNascTravada={dataNascTravada} sub={currentSub} caractRestantes={caractRestantes} />}
+          {currentId === 'identidade' && <StepIdentidade form={form} update={update} updateCaract={updateCaract} lang={lang} isEdit={isEdit} dataNascTravada={dataNascTravada} sub={currentSub} caractRestantes={caractRestantes} caractSalva={personagemExistente?.caracterizacao || {}} />}
           {currentId === 'atributos' && (
             <StepAtributos
               form={form} update={update} lang={lang}
@@ -1802,7 +1802,7 @@ function wizInputStyle(locked) {
   };
 }
 
-function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, sub = 'principal', updateCaract, caractRestantes = 0 }) {
+function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, sub = 'principal', updateCaract, caractRestantes = 0, caractSalva = {} }) {
   const opcoesEsp = GAME_DATA.especializacoes[form.profissao] || [];
   // O campo aparece sempre que a profissão tiver especializações. Havia aqui um
   // `estagio >= 5 &&`, que escondia o campo na criação (personagem novo nasce
@@ -1822,9 +1822,10 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
   if (sub === 'fisica' || sub === 'social' || sub === 'pessoal') {
     const categorias = GAME_DATA.caracterizacoes[sub] || [];
     const escolhas = (form.caracterizacao && form.caracterizacao[sub]) || {};
+    const salvas = (caractSalva && caractSalva[sub]) || {};
     // Pontos esgotados → bloqueia novas compras de vantagem (opcaoCusta).
     // Desvantagens (opcaoConcede) e remoções sempre liberadas.
-    const semPontos = caractRestantes === 0;
+    const semPontos = caractRestantes <= 0;
     const linhas = [];
     for (let i = 0; i < categorias.length; i += 2) linhas.push(categorias.slice(i, i + 2));
     return (
@@ -1833,17 +1834,20 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
           <div className="wiz-row-2col" key={i}>
             {par.map((cat) => {
               const jaEscolheu = !!(escolhas[cat.key]);
-              // Em edição: se já escolheu, trava (não pode desfazer).
-              // Se ainda não escolheu, permite (compra nova).
-              const bloqueado = isEdit && jaEscolheu;
-              // Trava o pill inteiro quando pontos = 0 E categoria ainda vazia:
-              // não há nada útil a fazer sem saldo. Categorias com escolha
-              // permanecem abertas (remover em criação, trocar concede↔custa).
-              const pillDesabilitado = bloqueado || (semPontos && !jaEscolheu);
-              // Opção "remover": aparece apenas no wizard de criação (não edição)
-              // e somente quando há uma escolha feita — permite desfazer antes
-              // de concluir a revisão do personagem.
-              const removeOpt = (!isEdit && jaEscolheu)
+              /* TRAVA SÓ O QUE FOI SALVO (08/11/2026, usuário: "Ao selecionar
+                 uma característica negativa primeiro, os pontos ficam 0 e não
+                 é possível comprar mais nada. A ideia é travar só depois que
+                 salvar."). Em edição a trava olhava a escolha ATUAL do
+                 formulário: escolher já travava, antes de salvar, sem volta.
+                 Agora trava o que veio gravado no personagem; o escolhido
+                 nesta sessão se troca e se remove até salvar. */
+              const bloqueado = isEdit && !!salvas[cat.key];
+              /* Sem saldo, o pill vazio continua aberto: a desvantagem
+                 (opcaoConcede) DEVOLVE pontos e é justamente a saída de quem
+                 zerou. Só a vantagem (opcaoCusta) apaga, na própria opção. */
+              const pillDesabilitado = bloqueado;
+              // Opção "remover": em qualquer escolha ainda não salva.
+              const removeOpt = (jaEscolheu && !bloqueado)
                 ? [{ value: '', label: lang === 'en' ? '— remove —' : '— remover —' }]
                 : [];
               return (
@@ -1879,8 +1883,8 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
   // é travado após a criação, a lista de opções aqui também é fixa.
   if (sub === 'historica') {
     const opcoes = GAME_DATA.caracterizacaoHistorica[form.reino] || [];
-    const jaEscolheu = !!(form.caracterizacao && form.caracterizacao.historica);
-    const bloqueado = isEdit && jaEscolheu;
+    // Trava só a história já salva (08/11/2026) — ver as telas acima.
+    const bloqueado = isEdit && !!(caractSalva && caractSalva.historica);
     return (
       <div className="wiz-ident">
         <div className="wiz-col">

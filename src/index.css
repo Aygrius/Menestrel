@@ -2635,6 +2635,10 @@
   content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
   border: 6px solid transparent; border-top-color: var(--tip-fundo);
 }
+/* O balão que deslizou para dentro da tela (PortalTooltip da batalha) leva a
+   seta de volta para cima da âncora. Sem a variável, 50% como sempre. */
+#root .menestrel-ui .mn-tip::before,
+#root .menestrel-ui .mn-tip::after { left: calc(50% - var(--tip-seta-dx, 0px)); }
 #root .menestrel-ui .mn-tip::before,
 #root .menestrel-ui .fp-item-tip::before {
   border-width: 7px; border-top-color: var(--tip-aro);
@@ -13205,9 +13209,20 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 /* as células */
 #root .menestrel-ui .batalha-mesa-painel .batalha-menu-acoes.batalha-card-barra { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 12px; padding-top: 0; border-top: 0; }
 #root .menestrel-ui .batalha-mesa-painel .batalha-fighter-stats { display: block; }
-#root .menestrel-ui .batalha-celulas { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border: 1px solid var(--regua-forte); border-radius: 10px; overflow: hidden; }
-#root .menestrel-ui .batalha-cel { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-left: 1px solid var(--regua-forte); text-align: center; }
-#root .menestrel-ui .batalha-cel:first-child { border-left: 0; }
+/* NO MÁXIMO 3 POR LINHA, SEM ABREVIAR (08/11/2026). Grade de 6 trilhas: cada
+   célula ocupa 2 (três por linha); com 4 células são 2 + 2, e com 5 a segunda
+   linha divide a largura entre as duas que sobram — nenhuma linha fica com um
+   buraco. As réguas entre células são uma sombra de 1px para cima e para a
+   esquerda: nas bordas do quadro o overflow:hidden a corta, e sobra só a régua
+   de dentro, seja qual for a quebra. */
+#root .menestrel-ui .batalha-celulas { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 1px solid var(--regua-forte); border-radius: 10px; overflow: hidden; }
+#root .menestrel-ui .batalha-cel { grid-column: span 2; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; box-shadow: -1px -1px 0 var(--regua-forte); text-align: center; }
+#root .menestrel-ui .batalha-cel:first-child:nth-last-child(4),
+#root .menestrel-ui .batalha-cel:first-child:nth-last-child(4) ~ .batalha-cel,
+#root .menestrel-ui .batalha-cel:first-child:nth-last-child(2),
+#root .menestrel-ui .batalha-cel:first-child:nth-last-child(2) ~ .batalha-cel,
+#root .menestrel-ui .batalha-cel:first-child:nth-last-child(5) ~ .batalha-cel:nth-child(n+4) { grid-column: span 3; }
+#root .menestrel-ui .batalha-cel:only-child { grid-column: 1 / -1; }
 #root .menestrel-ui .batalha-cel-rot { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-3); white-space: nowrap; }
 #root .menestrel-ui .batalha-cel-val { font-size: 16px; font-weight: 800; color: var(--tinta); font-variant-numeric: lining-nums tabular-nums; }
 #root .menestrel-ui .batalha-cel-val small { font-size: inherit; font-weight: inherit; color: var(--tinta-3); }
@@ -13226,7 +13241,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .batalha-acao-nomeada.batalha-acao-encerrar { grid-column: 1 / -1; }
 #root .menestrel-ui .batalha-mesa-painel .batalha-card-botoes { width: 100%; }
 #root .menestrel-ui .batalha-cel { padding: 8px 2px; }
-#root .menestrel-ui .batalha-cel-rot { font-size: 9.5px; letter-spacing: .08em; }
+#root .menestrel-ui .batalha-cel-rot { font-size: 9.5px; letter-spacing: .06em; }
 /* No painel fixo o card de quem NÃO está na vez aparece inteiro: a regra que
    apagava os cards do roster (opacity .2) não vale aqui. */
 #root .menestrel-ui .batalha-mesa-painel .batalha-fighter.em-menu { opacity: 1; }
@@ -18723,10 +18738,11 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 
    Com a mesa montada (.batalha-mesa), a página da batalha vira a janela
    inteira: o menu lateral some e o cartão da página vira o palco. O campo
-   (50×35, casas do maior tamanho que cabe — tabuleiro.jsx) é limitado pela
-   ALTURA, então sobra largura dos dois lados; é ali que flutuam a iniciativa
-   (Mestre), à esquerda, e o painel do combatente, à direita. O trilho flutua
-   no alto. Nada cobre o campo jogável numa tela larga. */
+   (60×44 desde 08/11/2026, casas do maior tamanho que cabe — tabuleiro.jsx)
+   ocupa a janela inteira MENOS as colunas laterais: a iniciativa (Mestre), à
+   esquerda, e o painel do combatente, à direita. "Não vai ficar abaixo ou
+   acima do card lateral com as ações do personagem" (08/11/2026) — o campo
+   mora entre os cards, nunca por baixo deles. O trilho flutua no alto. */
 #root .menestrel-ui.mc-root:has(.batalha-mesa) .mc-sidebar { display: none; }
 #root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) {
   position: fixed; inset: 0; z-index: 30; margin: 0; padding: 0; border: 0; border-radius: 0;
@@ -18749,6 +18765,13 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 }
 #root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-mesa-centro {
   position: absolute; inset: 0 10px 10px; display: flex; flex-direction: column;
+}
+/* O campo começa onde os cards laterais terminam: painel = 14 + 290, iniciativa
+   = 14 + 250, mais 10px de folga. Na tela estreita (abaixo) os cards descem
+   para baixo do campo e ele volta a ter a largura toda. */
+@media (min-width: 1101px) {
+  #root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-mesa-centro { right: 314px; }
+  #root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-mesa:has(> .batalha-ini-col) .batalha-mesa-centro { left: 274px; }
 }
 #root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-tabuleiro-scroll { border: 0 !important; border-radius: 0 !important; background: none !important; }
 /* a iniciativa (Mestre) e o painel, nas faixas dos lados */

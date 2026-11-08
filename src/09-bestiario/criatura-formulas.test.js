@@ -15,6 +15,7 @@
    `itens` (leitura de 14/09/2026).
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
+import '../01-core/inventario-helpers.jsx';   // BONUS_CONJUNTO (08/11/2026)
 import './criatura-formulas.jsx';
 
 let F;
@@ -265,5 +266,52 @@ describe('armadura vestida pela criatura', () => {
     const capitao = de([{ slug: 'peca_colete', slot: 'dorso' }, { slug: 'peca_galea', slot: 'cabeca' }]);
     expect(capitao.defesa).toBeGreaterThan(orc.defesa);
     expect(capitao.absorcao).toBeGreaterThan(orc.absorcao);
+  });
+});
+
+/* "Eu acabei de colocar o kit de armadura completa na criatura Nenrode,
+   porque ele está aparecendo sem defesa e sem absorção?" (08/11/2026) — o kit
+   caía na mochila. Peças literais do banco (conjunto media-mercenario). */
+describe('kit de armadura na criatura — veste as peças', () => {
+  const A = (slug, slot_equip, absorcao, defesa) => ({ slug, nome: slug, grupo: 'Armaduras', slot_equip, conjunto: 'media-mercenario', tipo_armadura: 'M', absorcao, defesa });
+  const cats = {};
+  [
+    { slug: 'conjunto_media_mercenario', nome: 'Kit', grupo: 'Armaduras', slot_equip: null, conjunto: 'media-mercenario', tipo_armadura: 'M' },
+    A('avambraco_mercenario', 'braco', 1, 0), A('elmo_aberto_mercenario', 'cabeca', 2, 1),
+    A('perneira_mercenario', 'canela', 1, 0), A('cota_parcial_mercenario', 'dorso', 3, 1),
+    A('espaldar_mercenario', 'ombro', 1, 0), A('bota_media_mercenario', 'pe', 1, 0),
+    A('greva_mercenario', 'perna', 2, 0), A('escudo_aquecedor_mercenario', 'mao', 5, 1),
+    { slug: 'machado_de_guerra', nome: 'Machado', grupo: 'Armas', slot_equip: 'mao', dano: 10 },
+  ].forEach((c) => { cats[c.slug] = c; });
+  const kit = cats.conjunto_media_mercenario;
+
+  it('o campo de itens reconhece o kit (não manda para a mochila)', () => {
+    expect(window.CriaturaFormulas.slotParaPeca(kit, [], cats, 'itens').slot).toBe('kit');
+  });
+  it('vestir: cada peça no seu lugar, e a conta passa a ver defesa e absorção', () => {
+    const F = window.CriaturaFormulas;
+    const eq = F.vestirKit([{ slot: 'arma', slug: 'machado_de_guerra' }], kit, cats);
+    expect(eq.filter((e) => e.slot === 'mochila')).toEqual([]);
+    expect(eq.map((e) => e.slot).sort()).toEqual(['arma', 'braco', 'cabeca', 'canela', 'dorso', 'mao', 'ombro', 'pe', 'perna']);
+    const d = F.derivadosDoEquipamento({ equipamento: eq, catalogoBySlug: cats, atributos: { agilidade: 2 } });
+    // 16 das peças + 3 do conjunto médio completo; defesa: 3 das peças + 1 do conjunto + 2 da Agilidade.
+    expect(d.absorcao).toBe(16 + 3);
+    expect(d.defesa).toBe(3 + 1 + 2);
+    expect(d.armadura).toBe('M');
+  });
+  it('lugar ocupado: a peça repetida vai para a mochila', () => {
+    const F = window.CriaturaFormulas;
+    const eq = F.vestirKit([{ slot: 'cabeca', slug: 'outro_elmo' }], kit, cats);
+    expect(eq.find((e) => e.slug === 'elmo_aberto_mercenario').slot).toBe('mochila');
+  });
+});
+
+describe('bônus de conjunto só com o conjunto inteiro', () => {
+  it('faltando uma peça, sem bônus', () => {
+    const F = window.CriaturaFormulas;
+    const A = (slug, slot_equip, absorcao) => ({ slug, grupo: 'Armaduras', slot_equip, conjunto: 'x', tipo_armadura: 'M', absorcao, defesa: 0 });
+    const cats = { a: A('a', 'cabeca', 1), b: A('b', 'dorso', 1) };
+    expect(F.derivadosDoEquipamento({ equipamento: [{ slug: 'a', slot: 'cabeca' }], catalogoBySlug: cats }).absorcao).toBe(1);
+    expect(F.derivadosDoEquipamento({ equipamento: [{ slug: 'a', slot: 'cabeca' }, { slug: 'b', slot: 'dorso' }], catalogoBySlug: cats }).absorcao).toBe(2 + 3);
   });
 });

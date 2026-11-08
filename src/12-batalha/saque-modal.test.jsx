@@ -56,7 +56,7 @@ describe('SaqueModal', () => {
     const corda = document.querySelector('[data-slug="corda"]');
     fireEvent.click(corda.querySelector('[aria-label="Um a mais"]'));
     fireEvent.click(corda.querySelector('.saque-pegar'));
-    await vi.waitFor(() => expect(onPegar).toHaveBeenCalledWith(eco, 'corda', 2));
+    await vi.waitFor(() => expect(onPegar).toHaveBeenCalledWith(eco, 'corda', 2, 0));   // 0 = nada tirado antes (08/11/2026)
   });
 
   it('erro na gravação aparece na janela', async () => {

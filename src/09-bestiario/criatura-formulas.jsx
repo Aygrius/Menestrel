@@ -112,6 +112,30 @@ const ehEscudo = (cat) => !!cat && !ehArma(cat) && cat.slot_equip === 'maos';
    A mochila NÃO entra em conta nenhuma: não soma absorção nem defesa e não
    vira ataque. É o que a criatura carrega — e o que se saqueia dela. */
 const SLOT_MOCHILA = 'mochila';
+/* O KIT DE ARMADURA SE VESTE (08/11/2026). Usuário: "Eu acabei de colocar o
+   kit de armadura completa na criatura Nenrode, porque ele está aparecendo
+   sem defesa e sem absorção?" O kit (grupo Armaduras, com `conjunto` e sem
+   slot_equip) não tem lugar no corpo, então caía na mochila — que não entra
+   na conta. No personagem ele se desmonta nas peças (desmontarKit); na
+   criatura, escolher o kit veste as peças dele, cada uma no seu lugar.
+   SLOT_KIT é só o sinal de slotParaPeca para o editor: nunca é gravado. */
+const SLOT_KIT = 'kit';
+function ehKitArmadura(cat) {
+  return !!(cat && cat.conjunto && cat.grupo === 'Armaduras' && !cat.slot_equip);
+}
+/* Veste as peças do kit: lugar livre → corpo; ocupado → mochila (a mesma
+   regra do campo de itens). Devolve uma lista nova. */
+function vestirKit(equipamento, kit, catalogoBySlug) {
+  const cats = catalogoBySlug || {};
+  if (!ehKitArmadura(kit)) return listaEquipamento(equipamento);
+  const pecas = Object.values(cats).filter((c) => c && c.conjunto === kit.conjunto
+    && c.slug !== kit.slug && !ehKitArmadura(c));
+  return pecas.reduce((acc, c) => {
+    const r = slotParaPeca(c, acc, cats, 'itens');
+    if (!r.slot) return acc;
+    return r.slot === SLOT_MOCHILA ? guardarNaMochila(acc, c.slug, 1) : [...acc, { slug: c.slug, slot: r.slot }];
+  }, listaEquipamento(equipamento));
+}
 
 function partesDoEquipamento(equipamento, catalogoBySlug) {
   const cats = catalogoBySlug || {};
@@ -164,6 +188,7 @@ function slotParaPeca(cat, equipamento, catalogoBySlug, parte) {
   if (!cat) return { motivo: 'item_desconhecido' };
   if (parte === 'ataque' && !ehArma(cat)) return { motivo: 'nao_e_arma' };
   if (parte === 'itens') {
+    if (ehKitArmadura(cat)) return { slot: SLOT_KIT };
     if (ehArma(cat)) return { slot: SLOT_MOCHILA };
     const r = slotParaPeca(cat, equipamento, catalogoBySlug);
     return r.slot ? r : { slot: SLOT_MOCHILA };
@@ -214,6 +239,25 @@ function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {})
        peças do catálogo no slot delas (criaturas-armadura-2026-11-06.sql). */
     if ((slot === 'peito' || slot === 'dorso') && cat.tipo_armadura) tipo = cat.tipo_armadura;
   });
+
+  /* BÔNUS DE CONJUNTO NA CRIATURA (08/11/2026, usuário: "Sim" à pergunta "a
+     criatura com o kit completo deve ganhar o bônus de conjunto, como o
+     personagem?"). A mesma tabela do personagem (BONUS_CONJUNTO, 01-core):
+     todas as peças de um conjunto no corpo somam o bônus do tipo dele. As
+     peças de cada conjunto saem do catálogo; sem a coluna `conjunto` nele, não
+     há bônus — e a conta fica como era. */
+  const bonusTab = (typeof BONUS_CONJUNTO !== 'undefined' && BONUS_CONJUNTO)
+    || (typeof window !== 'undefined' && window.BONUS_CONJUNTO) || {};
+  const vestidas = new Set(pecas.map((e) => e.slug));
+  const conjuntos = [...new Set(pecas.map((e) => e.cat.conjunto).filter(Boolean))];
+  const fechado = conjuntos.find((cj) => {
+    const doConjunto = Object.values(cats).filter((c) => c && c.conjunto === cj && c.slot_equip);
+    return doConjunto.length > 0 && doConjunto.every((c) => vestidas.has(c.slug));
+  });
+  if (fechado) {
+    const b = bonusTab[(Object.values(cats).find((c) => c && c.conjunto === fechado && c.tipo_armadura) || {}).tipo_armadura];
+    if (b) { absorcaoTotal += num(b.abs); defesaTotal += num(b.def); }
+  }
 
   // Todas as armas equipadas. A primeira é o Ataque.
   const armas = armasEquipadas(pecas);
@@ -317,6 +361,6 @@ Object.assign(window, {
        repetir o filtro `e && e.slug` — duas leituras do mesmo jsonb, com
        chance de discordarem sobre o que conta como peça. */
     listaEquipamento,
-    SLOT_MOCHILA, partesDoEquipamento, guardarNaMochila, saqueDisponivel,
+    SLOT_MOCHILA, SLOT_KIT, vestirKit, partesDoEquipamento, guardarNaMochila, saqueDisponivel,
   },
 });

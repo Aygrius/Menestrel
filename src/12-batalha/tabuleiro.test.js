@@ -6,7 +6,7 @@
    propósito, nunca por acidente (mesma disciplina de
    motor-batalha.test.js).
 
-   Referência: grid 50×35, token 2×2 (desde 17/09/2026; era 55×35 desde
+   Referência: grid 60×44, token 2×2 (desde 08/11/2026; 50×35 desde 17/09/2026; era 55×35 desde
    14/09/2026, e 70×35 com token 3×3 antes disso), movimento = max(5, floor(VB×5/20)).
    ============================================================ */
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -26,8 +26,9 @@ beforeAll(() => {
 describe('constantes de geometria', () => {
   // "O avatar dos participantes devem ter 2x2 [...] O tabuleiro deve ter 55x35." (14/09/2026)
   // "O tabuleiro terá 50x35 posições, e estará centralizado na tela." (17/09/2026)
-  it('grid 50×35, token 2×2', () => {
-    expect([T.TAB_COLS, T.TAB_ROWS, T.TAB_TOKEN]).toEqual([50, 35, 2]);
+  // "o campo de batalha aumente, com mais casas, pois vai ocupar a tela inteira" (08/11/2026)
+  it('grid 60×44, token 2×2', () => {
+    expect([T.TAB_COLS, T.TAB_ROWS, T.TAB_TOKEN]).toEqual([60, 44, 2]);
   });
 });
 
@@ -48,11 +49,11 @@ describe('movimentoBase — VB em células', () => {
 describe('posValida — o token 2×2 tem que caber inteiro', () => {
   it('aceita posição interna', () => {
     expect(T.posValida({ x: 0, y: 0 })).toBe(true);
-    expect(T.posValida({ x: 48, y: 33 })).toBe(true);  // 48+2=50, 33+2=35
+    expect(T.posValida({ x: 58, y: 42 })).toBe(true);  // 58+2=60, 42+2=44
   });
   it('recusa quando o token vazaria a borda', () => {
-    expect(T.posValida({ x: 49, y: 33 })).toBe(false); // 49+2=51 > 50
-    expect(T.posValida({ x: 48, y: 34 })).toBe(false); // 34+2=36 > 35
+    expect(T.posValida({ x: 59, y: 42 })).toBe(false); // 59+2=61 > 60
+    expect(T.posValida({ x: 58, y: 43 })).toBe(false); // 43+2=45 > 44
   });
   it('recusa negativo, fracionário, nulo', () => {
     expect(T.posValida({ x: -1, y: 0 })).toBe(false);
@@ -149,7 +150,7 @@ describe('validarMovimento — ordem das guardas', () => {
     expect(T.validarMovimento({ ...base, pos: null }, { x: 13, y: 10 }, []).motivo).toBe('sem_posicao');
   });
   it('destino fora do tabuleiro', () => {
-    expect(T.validarMovimento(base, { x: 68, y: 10 }, []).motivo).toBe('fora_do_tabuleiro');
+    expect(T.validarMovimento(base, { x: 59, y: 10 }, []).motivo).toBe('fora_do_tabuleiro');
   });
   it('mesma célula', () => {
     expect(T.validarMovimento(base, { x: 10, y: 10 }, []).motivo).toBe('mesmo_lugar');
@@ -325,7 +326,7 @@ describe('montarSnapshots semeia o tabuleiro', () => {
   });
 
   it('posição inválida é descartada em vez de entrar torta no snapshot', async () => {
-    const [s] = await montar({ pos: { x: 69, y: 7 } });   // 69+3 = 72 > 70
+    const [s] = await montar({ pos: { x: 59, y: 7 } });   // 59+2 = 61 > 60
     expect(s.pos).toBe(null);
   });
 });

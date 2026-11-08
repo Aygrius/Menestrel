@@ -66,7 +66,8 @@ function CatalogoEquipamento({ label, valor, onChange, catalogo, porSlug, t, par
   const equipar = (it) => {
     const r = F.slotParaPeca(it, lista, porSlug, parte);
     if (!r.slot) return;
-    onChange(r.slot === F.SLOT_MOCHILA ? F.guardarNaMochila(lista, it.slug, 1) : [...lista, { slug: it.slug, slot: r.slot }]);
+    onChange(r.slot === F.SLOT_KIT ? F.vestirKit(lista, it, porSlug)
+      : r.slot === F.SLOT_MOCHILA ? F.guardarNaMochila(lista, it.slug, 1) : [...lista, { slug: it.slug, slot: r.slot }]);
     setBusca('');
   };
   const tirar = (idx) => onChange(lista.filter((_, i) => i !== idx));
@@ -801,7 +802,8 @@ async function sincronizarAnimalDaCriatura(criatura) {
 
 /* As colunas que a conta do equipamento lê (criatura-formulas.jsx) e a busca
    mostra. `itens` passa de 1000 linhas: fetchTabelaPaginada. */
-const COLUNAS_EQUIP = 'slug, nome, grupo, slot_equip, categoria_equip, dano, dano_l, dano_m, dano_p, ajuste_atributo, absorcao, defesa, tipo_armadura, maos_outras';
+// `conjunto` (08/11/2026): sem ele o kit de armadura não sabe quais peças tem.
+const COLUNAS_EQUIP = 'slug, nome, grupo, slot_equip, categoria_equip, dano, dano_l, dano_m, dano_p, ajuste_atributo, absorcao, defesa, tipo_armadura, maos_outras, conjunto';
 
 /* Campo específico de um grupo (itens: `grupos`, 26/09/2026) só aparece
    quando o item é desse grupo — ou quando já tem valor gravado, para nada

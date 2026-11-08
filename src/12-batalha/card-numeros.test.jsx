@@ -55,14 +55,14 @@ async function cardDe(parts, nome) {
 
 describe('números e ações na MESMA fileira', () => {
   /* A MESA DO JOGADOR (08/11/2026): o card é o do painel fixo do Mestre —
-     as células Ações/Mov./Defesa/Vel./Absorção e, na vez, os botões do
+     as células Ações/Movimento/Defesa/Velocidade/Absorção e, na vez, os botões do
      turno com nome (BotoesDoTurno). Sem ícone de status ao lado do nome. */
   it('as células e os botões do turno ficam na mesma barra do card', async () => {
     const menu = await cardDe([lutador()], 'Yuldrous');
     const barra = menu.querySelector('.batalha-card-barra');
     expect(barra, 'fileira única do card').toBeTruthy();
     expect([...barra.querySelectorAll('.batalha-cel-rot')].map((c) => c.textContent))
-      .toEqual(['Ações', 'Mov.', 'Defesa', 'Vel.', 'Absorção']);
+      .toEqual(['Ações', 'Movimento', 'Defesa', 'Velocidade', 'Absorção']);
     expect([...barra.querySelectorAll('.batalha-turno button')].map((b) => b.getAttribute('aria-label')))
       .toEqual(['Atacar', 'Magia', 'Técnica', 'Habilidade', 'Item', 'Mover', 'Encerrar a vez']);
     expect(menu.querySelector('.batalha-fighter-head .batalha-cel')).toBeNull();

@@ -94,3 +94,15 @@ describe('adicionarAoInventario', () => {
     expect(window.adicionarAoInventario(inv, 'espada', 1, id).moedas).toEqual({ ouro: 3 });
   });
 });
+
+/* Revisão de 08/11/2026: a tela do Jogador anota sobre a lista velha (sem
+   atualização local); o segundo saque antes do eco apagava o primeiro. */
+describe('anotarSaque com o que a janela já tirou', () => {
+  it('soma a partir do maior entre a mesa e a janela', () => {
+    const M = window.MotorBatalha;
+    const velha = [{ inst_id: 'x', saqueado: { flecha: 1 } }];
+    const r = M.anotarSaque(velha, 'x', 'flecha', 2, 3);   // a janela já sabe de 3
+    expect(r[0].saqueado.flecha).toBe(5);
+    expect(M.anotarSaque(velha, 'x', 'flecha', 1)[0].saqueado.flecha).toBe(2); // sem a dica, como antes
+  });
+});

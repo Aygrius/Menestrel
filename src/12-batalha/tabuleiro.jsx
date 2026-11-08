@@ -24,7 +24,7 @@
    ============================================================ */
 
 /* ── Geometria do tabuleiro ─────────────────────────────────────────────
-   Grid de 50×35 células. Cada participante ocupa um bloco de 2×2 — por
+   Grid de 60×44 células. Cada participante ocupa um bloco de 2×2 — por
    isso todo clamp de posição é contra (COLS - TOKEN) e (ROWS - TOKEN), e
    as distâncias de borda descontam (TOKEN - 1).
 
@@ -37,9 +37,19 @@
    centralizado na tela." As cinco colunas que saíram são as que faziam o
    grid passar da largura útil na maioria das telas — no zoom padrão (0.5)
    50 células dão 1000px, que caem dentro do corpo da página, e aí a
-   centralização tem o que centralizar. Ver `sobra` no render. */
-const TAB_COLS   = 50;      // largura do tabuleiro, em células
-const TAB_ROWS   = 35;      // altura do tabuleiro, em células
+   centralização tem o que centralizar. Ver `sobra` no render.
+
+   08/11/2026 (usuário): "Eu quero que o campo de batalha aumente, com mais
+   casas, pois vai ocupar a tela inteira do navegador." Com a batalha em tela
+   cheia, o campo ganha a janela inteira MENOS os cards laterais: "não vai
+   ficar abaixo ou acima do card lateral com as ações do personagem" (mesmo
+   dia). Numa 1920×1080 a área livre é ~1332×1010 na mesa do Mestre
+   (iniciativa + painel) e ~1596×1010 na do Jogador (só o painel) — proporção
+   entre 1,3 e 1,6. 60×44 (1,36) serve às duas com casas de ~22px, e são
+   2.640 casas contra as 1.750 de antes. Batalhas antigas seguem válidas —
+   toda posição de 50×35 cabe em 60×44. */
+const TAB_COLS   = 60;      // largura do tabuleiro, em células
+const TAB_ROWS   = 44;      // altura do tabuleiro, em células
 const TAB_TOKEN  = 2;       // lado do token, em células (2×2)
 const TAB_CELULA = 40;      // px por célula no zoom 1×
 const TAB_ZOOMS  = [0.15, 0.25, 0.35, 0.5, 0.75, 1, 1.5];
@@ -1072,8 +1082,14 @@ function TabuleiroBatalha({
 
   const celPadrao = TAB_CELULA * TAB_ZOOMS[TAB_ZOOM_PADRAO];
   const encaixado = !!(caixa && caixa.w > 0 && caixa.h > 0);
+  /* FOLGA EM VOLTA DO CAMPO (08/11/2026): encaixado rente à moldura, o token
+     da última casa (anel de vez, nome embaixo) passava da borda e a moldura,
+     que tem overflow:hidden, o cortava — "Goblin" virava "oblin". A casa é
+     calculada sobre a área menos uma margem: dos lados, o anel; embaixo, o
+     nome. */
+  const FOLGA_X = 16, FOLGA_Y = 28;
   const cel = encaixado
-    ? Math.max(8, Math.min(caixa.w / TAB_COLS, caixa.h / TAB_ROWS))
+    ? Math.max(8, Math.min((caixa.w - FOLGA_X) / TAB_COLS, (caixa.h - FOLGA_Y) / TAB_ROWS))
     : celPadrao;
   const largura = TAB_COLS * cel;
   const altura  = TAB_ROWS * cel;

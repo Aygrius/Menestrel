@@ -15,7 +15,7 @@
        um pill com o nome escrito ("Desmaiado"), que destoava.
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { render, cleanup, waitFor } from '@testing-library/react';
+import { render, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
@@ -100,6 +100,11 @@ describe('ações do turno — os botões do Mestre, com nome', () => {
     const menu = await abrirCardDe(container, 'Yuldrous');
     const atacar = [...menu.querySelectorAll('.batalha-turno button')].find((b) => b.getAttribute('aria-label') === 'Atacar');
     expect(atacar.disabled).toBe(true);
+    // E diz mesmo (08/11/2026): o BotaoAcaoMenu sobrescrevia o próprio
+    // onMouseEnter com undefined e o balão do motivo nunca abria.
+    fireEvent.pointerOver(atacar);
+    await waitFor(() => expect(document.querySelector('.mn-tip')?.textContent || '').toMatch(/arma/i));
+    fireEvent.pointerOut(atacar);
     // A Habilidade não depende de nada: segue acesa.
     const teste = [...menu.querySelectorAll('.batalha-turno button')].find((b) => b.getAttribute('aria-label') === 'Habilidade');
     expect(teste.disabled).toBe(false);

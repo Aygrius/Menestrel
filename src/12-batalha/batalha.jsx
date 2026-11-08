@@ -2493,16 +2493,57 @@ function usePortalTooltip(delay) {
   const manterTip = React.useCallback(() => { clearTimeout(timerRef.current); }, []);
   return [tip, abrirTip, fecharTip, manterTip];
 }
+/* O BALÃO NÃO SAI DA TELA (08/11/2026). Com a batalha em tela cheia e o
+   campo de borda a borda, a iniciativa e o painel do combatente flutuam
+   colados nas beiradas da janela — e o balão, sempre centrado acima da
+   âncora, saía pela esquerda, pela direita ou pelo topo e ficava cortado.
+   ("Cuidado para que os tooltips não fiquem escondidos.")
+
+   Depois de desenhado, o balão se mede: se passaria de uma borda lateral,
+   desliza para dentro (a seta continua sobre a âncora, por --tip-seta-dx);
+   se não cabe em cima, abre embaixo da âncora (data-tip-flip="below", o
+   mesmo desenho que o resto do sistema usa). Margem de 8px da janela. */
+const TIP_MARGEM = 8;
 function PortalTooltip({ tip, onEnter, onLeave }) {
+  const ref = React.useRef(null);
+  const [ajuste, setAjuste] = React.useState(null);
+  const rect = tip && tip.rect;
+  React.useLayoutEffect(() => {
+    setAjuste(null);
+  }, [rect]);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !rect || ajuste) return;
+    const b = el.getBoundingClientRect();
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    let dx = 0;
+    if (b.left < TIP_MARGEM) dx = TIP_MARGEM - b.left;
+    else if (b.right > vw - TIP_MARGEM) dx = (vw - TIP_MARGEM) - b.right;
+    setAjuste({ dx, abaixo: b.top < TIP_MARGEM });
+  });
   if (!tip) return null;
-  const { rect, content } = tip;
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top;
+  const { content } = tip;
+  const cx = rect.left + rect.width / 2 + (ajuste ? ajuste.dx : 0);
+  const abaixo = !!(ajuste && ajuste.abaixo);
+  // Embaixo: o CSS desce o balão --tip-gap-below (44px) a partir do top;
+  // ancorado no fundo da âncora, sobram os 10px de folga do --tip-gap.
+  const cy = abaixo ? rect.bottom + 10 - 44 : rect.top;
   const portalTarget = document.querySelector('.menestrel-ui') || document.body;
   return ReactDOM.createPortal(
-    <div className="mn-tip" style={{ left: cx, top: cy, zIndex: 9999 }}
+    <div ref={ref} className="mn-tip" data-tip-flip={abaixo ? 'below' : undefined}
+      style={{ left: cx, top: cy, zIndex: 9999, '--tip-seta-dx': (ajuste ? ajuste.dx : 0) + 'px',
+        visibility: ajuste ? 'visible' : 'hidden',
+        // Só texto: o mouse atravessa. Aberto para baixo, o balão cobre a
+        // fileira de baixo (as células do painel) e, segurando o hover, a
+        // prendia — a célula de baixo não abria o próprio balão.
+        pointerEvents: 'none' }}
       onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      <div className="mn-tip-title">{content}</div>
+      {content && typeof content === 'object' && !React.isValidElement(content) ? (
+        <>
+          <div className="mn-tip-title">{content.title}</div>
+          {content.desc && <p className="mn-tip-desc">{content.desc}</p>}
+        </>
+      ) : <div className="mn-tip-title">{content}</div>}
     </div>,
     portalTarget
   );
@@ -2868,11 +2909,18 @@ function derrubarCavaleiros(participantes) {
 /* Encerramento: tira do inventário do dono os animais que MORRERAM na batalha
    (e desmonta, se era a montaria). `mortos` = item_instance_id dos animais
    mortos daquele PJ. Puro; devolve o MESMO inventário quando nada muda. */
-function inventarioSemAnimaisMortos(inventario, mortos) {
+/* `batalhaId` (08/11/2026, revisão da batalha): a baixa SUBTRAI da pilha, e
+   o Encerrar repetido depois de uma falha (o passo 0b grava, um passo
+   seguinte falha, o Mestre tenta de novo) tirava outro cavalo. O inventário
+   guarda as batalhas já baixadas em `animais_baixados` (as 20 últimas): a
+   mesma batalha não baixa duas vezes. */
+function inventarioSemAnimaisMortos(inventario, mortos, batalhaId) {
   // Contagem por instância: dois cavalos da MESMA pilha podem morrer juntos.
   const porId = new Map();
   (mortos || []).forEach((id) => { const k = String(id); porId.set(k, (porId.get(k) || 0) + 1); });
   if (!inventario || !Array.isArray(inventario.itens) || !porId.size) return inventario;
+  const baixados = Array.isArray(inventario.animais_baixados) ? inventario.animais_baixados : [];
+  if (batalhaId != null && baixados.includes(String(batalhaId))) return inventario;
   let mudou = false;
   const itens = [];
   inventario.itens.forEach((it) => {
@@ -2883,7 +2931,9 @@ function inventarioSemAnimaisMortos(inventario, mortos) {
     // Pilha: morre quem morreu, o resto fica — e o que fica não está montado.
     if (resta > 0) itens.push({ ...it, quantidade: resta, montado: false });
   });
-  return mudou ? { ...inventario, itens } : inventario;
+  if (!mudou) return inventario;
+  const marca = batalhaId != null ? { animais_baixados: [...baixados, String(batalhaId)].slice(-20) } : {};
+  return { ...inventario, itens, ...marca };
 }
 
 /* Encerramento: todo cavaleiro desmonta ANTES de gravar a ficha — a EH que
@@ -3379,11 +3429,37 @@ function NumerosDoCombatente({ p, tb, isEn, abrirTip, fecharTip, celulas }) {
   const ar = Number(p.ar) || 0;
   /* CÉLULAS (23/10/2026, painel fixo da mesa): Ações, Movimento, Defesa e
      Velocidade com o nome em cima e o número embaixo, centralizados — todos
-     do mesmo tamanho ("1/1" inteiro no mesmo corpo). */
+     do mesmo tamanho ("1/1" inteiro no mesmo corpo).
+
+     08/11/2026 (usuário): "no máximo 3 por linha, sem abreviar." Mov. e Vel.
+     voltaram a Movimento e Velocidade; a quebra em linhas é do CSS
+     (.batalha-celulas). */
   if (celulas) {
     const movFn = typeof movimentoDisponivel === 'function' ? movimentoDisponivel : null;
+    /* O QUE CADA CÉLULA QUER DIZER (08/11/2026, usuário: "Coloque um tooltip
+       explicando o que significa cada card"). O nome no alto e, embaixo, a
+       regra em uma ou duas frases — o que o número conta e de onde vem. */
+    const DICA = {
+      pa: isEn
+        ? 'Action points left this round, out of the total. Attacking, casting, using a technique, skill or item spends 1. At 0, the turn passes on its own.'
+        : 'Pontos de ação que restam nesta rodada, do total. Atacar, lançar magia, usar técnica, habilidade ou item gasta 1. Ao chegar a 0, a vez passa sozinha.',
+      mov: isEn
+        ? 'Squares you can still walk on the board. Up to two moves per round: the first is free, the second costs 1 action.'
+        : 'Casas que ainda dá para andar no tabuleiro. São até dois movimentos por rodada: o primeiro é grátis, o segundo custa 1 ação.',
+      def: isEn
+        ? 'Armor type (L light, M medium, P heavy) and defense value. The higher it is, the harder to hit: it lowers the attacker’s column.'
+        : 'Tipo de armadura (L leve, M média, P pesada) e valor de defesa. Quanto mais alto, mais difícil acertar: ele baixa a coluna de quem ataca.',
+      vb: isEn
+        ? 'Base Speed. It sets the initiative order and how far you walk; headwind is already discounted.'
+        : 'Velocidade Base. Define a ordem da iniciativa e quanto se anda no tabuleiro; o vento contra já vem descontado.',
+      ar: isEn
+        ? 'Armor left. Damage that gets past Heroic Energy falls here before reaching Physical Energy.'
+        : 'O que resta da armadura. O dano que passa da Energia Heroica cai aqui antes de chegar à Energia Física.',
+    };
     const cel = (rot, val, k) => (
-      <span key={k} className="batalha-cel">
+      <span key={k} className="batalha-cel"
+        onMouseEnter={abrirTip ? (e) => abrirTip(e, { title: rot, desc: DICA[k] }) : undefined}
+        onMouseLeave={fecharTip || undefined}>
         <span className="batalha-cel-rot">{rot}</span>
         <b className="batalha-cel-val">{val}</b>
       </span>
@@ -3391,10 +3467,10 @@ function NumerosDoCombatente({ p, tb, isEn, abrirTip, fecharTip, celulas }) {
     return (
       <span className="batalha-celulas">
         {cel(isEn ? 'Actions' : 'Ações', <>{p.pa_rest || 0}<small>/{p.pa_max || 0}</small></>, 'pa')}
-        {movFn && cel(isEn ? 'Move' : 'Mov.', Math.max(0, Math.floor(Number(movFn(p)) || 0)), 'mov')}
+        {movFn && cel(isEn ? 'Movement' : 'Movimento', Math.max(0, Math.floor(Number(movFn(p)) || 0)), 'mov')}
         {cel(isEn ? 'Defense' : 'Defesa', (p.defesa_sigla || '') + (p.defesa_valor ?? 0), 'def')}
-        {cel(isEn ? 'Speed' : 'Vel.', (p.vb || 0) - (Number(p.vento_vb) || 0), 'vb')}
-        {ar > 0 && cel(isEn ? 'Absorb.' : 'Absorção', ar, 'ar')}
+        {cel(isEn ? 'Speed' : 'Velocidade', (p.vb || 0) - (Number(p.vento_vb) || 0), 'vb')}
+        {ar > 0 && cel(isEn ? 'Absorption' : 'Absorção', ar, 'ar')}
       </span>
     );
   }
@@ -4455,12 +4531,17 @@ function saqueadoresDe(alvo, participantes) {
   return (participantes || []).filter((p) => podeSaquear(p, alvo));
 }
 
-function anotarSaque(participantes, alvoInstId, slug, qtd) {
+/* `jaTirado` (08/11/2026, revisão da batalha): o que a janela de saque sabe
+   que já saiu, mesmo antes do eco do realtime. A tela do Jogador não tem
+   atualização local: pegar duas vezes seguidas anotava as duas sobre o
+   `saqueado` velho, e o segundo saque apagava o primeiro. Vale o maior. */
+function anotarSaque(participantes, alvoInstId, slug, qtd, jaTirado) {
   const n = Math.max(1, Math.trunc(Number(qtd) || 1));
   return (participantes || []).map((p) => {
     if (!p || p.inst_id !== alvoInstId) return p;
     const antes = p.saqueado || {};
-    return { ...p, saqueado: { ...antes, [slug]: (Number(antes[slug]) || 0) + n } };
+    const base = Math.max(Number(antes[slug]) || 0, Number(jaTirado) || 0);
+    return { ...p, saqueado: { ...antes, [slug]: base + n } };
   });
 }
 
@@ -4579,9 +4660,12 @@ function danoFinal(danoBase, atacante, alvo, elemento) {
 // numérico decrementa e sai quando zera. Status sem efeito seguem a mesma regra.
 // rodadas_total (14/09/2026) guarda a duração com que o efeito chegou à
 // primeira virada — é a volta inteira do anel do contador (ContadorRodadas).
+/* `pula_virada` (08/11/2026): o status nasceu na vez do próprio dono e a
+   virada logo a seguir não conta — ver aplicarFalhaCritica. Gasta-se uma vez. */
 function decrementarStatusTemp(statusTemp) {
   return (statusTemp || [])
-    .map((s) => (s.rodadas_rest == null ? s : {
+    .map((s) => (s.pula_virada ? (({ pula_virada, ...resto }) => resto)(s)
+      : s.rodadas_rest == null ? s : {
       ...s,
       rodadas_total: s.rodadas_total != null ? s.rodadas_total : s.rodadas_rest,
       rodadas_rest: Math.max(0, s.rodadas_rest - 1),
@@ -4940,7 +5024,7 @@ function formarBandosDeReforco(participantesAtuais, novos) {
 // Célula livre mais próxima de `alvo`, em anéis. Null só com o tabuleiro cheio.
 function celulaLivreProxima(alvo, participantes, quem) {
   const T = (window.MotorTabuleiro || {});
-  const cols = T.TAB_COLS || 50, rows = T.TAB_ROWS || 35;
+  const cols = T.TAB_COLS || 60, rows = T.TAB_ROWS || 44;
   const base = posValida(alvo) ? alvo
     : { x: Math.floor(cols / 2) - 1, y: Math.floor(rows / 2) - 1 };
   for (let r = 0; r <= Math.max(cols, rows); r++) {
@@ -5028,7 +5112,10 @@ function montarNovaRodada(participantes) {
   // prende 5 rodadas, e abrir a rodada nele travaria o turno.
   const primeiro = [...reordered].sort((a, b) => a.ordem - b.ordem)
     .find((p) => p.status === 'ativo' && !statusTemEfeito(p, 'sem_acoes')
-      && !evocacaoPrendeAcao(p));
+      && !evocacaoPrendeAcao(p)
+      // A montaria em uso anda dentro do cavaleiro e não tem vez própria —
+      // iniciar() e proximoAtivo já a pulavam; a virada esquecia (08/11/2026).
+      && !ehMontariaEmUso(p, reordered));
   return {
     participantes: reordered.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) })),
     eventos: eventosRodada,
@@ -5072,10 +5159,16 @@ function aplicarFalhaCritica(atacante, objDano, q) {
   if (ef.desmaia && p.status === 'ativo') p = { ...p, status: 'desmaiado' };
   if (ef.status) {
     const atual = Array.isArray(p.status_temp) ? p.status_temp : [];
+    /* "PERDE 1 RODADA" PERDE MESMO (08/11/2026, revisão da batalha). O Caído
+       nasce no atacante, NA VEZ DELE — e a virada que vem logo depois
+       descontava a rodada que ele já tinha jogado: o q4 sumia sem tirar
+       nenhuma vez, e o q2 tirava uma só. Com pula_virada, a primeira virada
+       não conta e as rodadas perdidas são as seguintes. */
     const novo = {
       ...ef.status,
       id: ef.status.id + ':' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
       efeito: { ...ef.status.efeito },
+      ...(ef.status.rodadas_rest != null ? { pula_virada: true } : {}),
     };
     p = { ...p, status_temp: [...atual, novo] };
   }
@@ -6912,7 +7005,10 @@ function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAc
     ['tecnica_teste', 'ti-bolt'], ['habilidade', 'ti-dice-5'], ['item', 'ti-flask'],
   ];
   const rotMover = tb.tabMover || (isEn ? 'Move' : 'Mover');
-  const dica = (rot, motivo) => (e) => abrirTip(e, travado ? (motivoTravado || rot) : (motivo || rot));
+  /* O balão diz só POR QUE o botão está apagado — com ele aceso, o nome já
+     está escrito no botão. Até 08/11/2026 o motivo nunca aparecia: o
+     BotaoAcaoMenu sobrescrevia o próprio onMouseEnter com undefined. */
+  const motivoDoBotao = (motivo) => (travado ? (motivoTravado || motivo || null) : (motivo || null));
   return (
     <div className="batalha-card-botoes batalha-acoes-nomeadas batalha-turno">
       {ACOES.map(([aba, icone]) => {
@@ -6922,13 +7018,13 @@ function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAc
           <BotaoAcaoMenu key={aba} icone={icone} rotulo={rot} comRotulo extraClasse={'batalha-turno-' + aba}
             disabled={travado || !!motivo}
             onClick={() => onAcao(aba === 'magia' && !temMagia ? 'apoio' : aba)}
-            abrirTip={dica(rot, motivo)} fecharTip={fecharTip} />
+            motivo={motivoDoBotao(motivo)} abrirTip={abrirTip} fecharTip={fecharTip} />
         );
       })}
       <BotaoAcaoMenu icone="ti-walk" comRotulo extraClasse="batalha-turno-mover"
         rotulo={rotMover} disabled={!mover} onClick={mover || undefined}
-        abrirTip={dica(rotMover, !mover ? (isEn ? 'No movement left.' : 'Sem movimento sobrando.') : null)}
-        fecharTip={fecharTip} />
+        motivo={!mover ? (isEn ? 'No movement left.' : 'Sem movimento sobrando.') : null}
+        abrirTip={abrirTip} fecharTip={fecharTip} />
       <BotaoAcaoMenu icone="ti-check" variante="primary" comRotulo extraClasse="batalha-acao-encerrar"
         rotulo={isEn ? 'End turn' : 'Encerrar a vez'}
         disabled={!!encerrarDesativado} onClick={onEncerrar}
@@ -6937,8 +7033,11 @@ function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAc
   );
 }
 
-function BotaoAcaoMenu({ icone, rotulo, variante, onClick, disabled, extraClasse, abrirTip, fecharTip, comRotulo }) {
-  const temTip = typeof abrirTip === 'function' && !comRotulo;
+/* Balão: no botão só de ícone, o nome; no botão com nome (comRotulo), só o
+   `motivo` de estar apagado, quando houver — o nome já está à vista. */
+function BotaoAcaoMenu({ icone, rotulo, variante, onClick, disabled, extraClasse, abrirTip, fecharTip, comRotulo, motivo }) {
+  const conteudoTip = comRotulo ? (disabled && motivo ? motivo : null) : rotulo;
+  const temTip = typeof abrirTip === 'function' && !!conteudoTip;
   return (
     <button
       type="button"
@@ -6950,9 +7049,10 @@ function BotaoAcaoMenu({ icone, rotulo, variante, onClick, disabled, extraClasse
       onClick={(e) => { if (typeof fecharTip === 'function') fecharTip(); if (onClick) onClick(e); }}
       disabled={disabled}
       aria-label={rotulo}
-      {...propsTip(abrirTip, fecharTip, temTip ? undefined : rotulo)}
-      onMouseEnter={temTip ? (e) => abrirTip(e, rotulo) : undefined}
-      onMouseLeave={temTip ? fecharTip : undefined}
+      /* Ponteiro, não mouse: o React descarta onMouseEnter em botão disabled,
+         e o balão que importa aqui é justamente o do botão apagado. */
+      onPointerEnter={temTip ? (e) => abrirTip(e, conteudoTip) : undefined}
+      onPointerLeave={temTip ? fecharTip : undefined}
     >
       <i className={'ti ' + icone} aria-hidden="true" />
       {/* Com nome no painel da mesa (23/10/2026): botão com ícone e rótulo. */}
@@ -7009,7 +7109,16 @@ function saidaDeCombate(participantes, ref, novoStatus) {
    gravação e devolve { error } — a janela só mostra o motivo. */
 function SaqueModal({ alvo, criatura, catalogoBySlug, saqueadores, isEn, lang, onPegar, onClose }) {
   const F = (typeof CriaturaFormulas !== 'undefined') ? CriaturaFormulas : window.CriaturaFormulas;
-  const itens = F ? F.saqueDisponivel(criatura && criatura.equipamento, alvo && alvo.saqueado) : [];
+  /* O que ESTA janela já tirou, por item (08/11/2026): soma ao `saqueado`
+     da mesa até o eco chegar — sem isto, clicar "Pegar" de novo antes do
+     realtime oferecia o item que já tinha saído. Vale o maior dos dois. */
+  const [tiradoAqui, setTiradoAqui] = useState({});
+  const saqueadoEfetivo = React.useMemo(() => {
+    const out = { ...((alvo && alvo.saqueado) || {}) };
+    Object.keys(tiradoAqui).forEach((k) => { out[k] = Math.max(Number(out[k]) || 0, tiradoAqui[k]); });
+    return out;
+  }, [alvo, tiradoAqui]);
+  const itens = F ? F.saqueDisponivel(criatura && criatura.equipamento, saqueadoEfetivo) : [];
   const [destinoId, setDestinoId] = useState(saqueadores[0] ? saqueadores[0].inst_id : null);
   const [qtds, setQtds] = useState({});
   const [pegando, setPegando] = useState(null);
@@ -7021,9 +7130,11 @@ function SaqueModal({ alvo, criatura, catalogoBySlug, saqueadores, isEn, lang, o
     if (!destino || pegando) return;
     const qtd = Math.min(disponivel, Math.max(1, qtds[slug] || 1));
     setPegando(slug); setErro(null);
-    const r = await onPegar(destino, slug, qtd);
+    const jaTirado = Number(saqueadoEfetivo[slug]) || 0;
+    const r = await onPegar(destino, slug, qtd, jaTirado);
     setPegando(null);
     if (r && r.error) { setErro(r.error.message || String(r.error)); return; }
+    setTiradoAqui((t) => ({ ...t, [slug]: jaTirado + qtd }));
     setQtds((q) => ({ ...q, [slug]: 1 }));
   };
 
@@ -7109,7 +7220,9 @@ function IniciativaLista({ participantes, meta, isEn, rodada, escolhido, onEscol
           const inimigo = p.tipo === 'criatura' && p.dono_pj == null;
           const foto = fotoDe(p);
           const montaria = p.montaria ? participantes.find((q) => q.inst_id === p.montaria.inst_id) : null;
-          const fora = p.status === 'morto' || p.status === 'fugiu' || p.status === 'inconsciente';
+          // 'fugiu' e 'inconsciente' não existem como status (08/11/2026): os de
+          // quem não age são morto, desmaiado e desistiu.
+          const fora = p.status === 'morto' || p.status === 'desmaiado' || p.status === 'desistiu';
           return (
             <li key={p.inst_id || (p.tipo + ':' + p.ref_id + ':' + i)}>
               <button type="button"
@@ -7970,6 +8083,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     else aplicarAcao(pedido);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participantes, rodada, estado, !!catalogos]);
+  /* Gravação que falhou solta a chave (08/11/2026, revisão da batalha): sem
+     isto a magia_pendente ficava no conjurador e o efeito acima, vendo a mesma
+     chave, nunca tentava de novo — "evocando" eterno até recarregar. A nova
+     tentativa vem na próxima mudança da mesa, não num laço imediato. */
+  useEffect(() => { if (error) resolvendoPendenteRef.current = null; }, [error]);
 
   /* Largada da canalização de uma magia OFENSIVA (lado Mestre).
      Espelha o ramo 'iniciou' de passoDeApoio, com a persistência deste lado.
@@ -8509,6 +8627,30 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     }
   };
 
+  /* A VEZ PASSA SOZINHA QUANDO AS AÇÕES ACABAM (08/11/2026, usuário: "Se as
+     ações chegarem a 0, passa a vez automaticamente."). Cada handler de ação
+     já passava a vez ao gastar o último PA; o que faltava era a rede do lado
+     do Mestre que a mesa do Jogador já tinha (autoPassRef): o PA zerado por
+     outro caminho — o Mestre editando, um status de "sem ações", a gravação
+     do Jogador chegando pelo realtime — deixava a vez parada em quem não
+     tinha mais o que fazer.
+
+     Só para as CRIATURAS DO MESTRE (sem dono_pj): a vez de um PJ, ou de um
+     animal de PJ, já tem essa rede na tela do Jogador, e as duas juntas
+     podiam passar a mesma vez em dobro — na última da ordem, virar a rodada
+     duas vezes. Espera 1,2 s para o estado assentar. Nada passa com a
+     rolagem pendente, a janela de ação aberta ou gravando. */
+  const semAcaoNaVez = !!current && estado === 'ativa'
+    && current.tipo === 'criatura' && current.dono_pj == null
+    && (!temAcaoRestante(current)
+    || current.status !== 'ativo' || statusTemEfeito(current, 'sem_acoes'));
+  useEffect(() => {
+    if (!semAcaoNaVez || salvando || rolagemPendente || acaoOpen) return undefined;
+    const t = setTimeout(() => { passarVez(); }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line
+  }, [semAcaoNaVez, current && current.inst_id, salvando, rolagemPendente, acaoOpen]);
+
   // Fase 6 — Abrir o painel inline de encerrar (3 opções: cancelar / restaurar / sequelas).
   const encerrarBatalha = () => {
     setEncerrarOpen(true);
@@ -8601,7 +8743,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           <i className="ti ti-circle-plus" aria-hidden="true" />
           <span className="mc-acao-rotulo" aria-hidden="true">{isEn ? 'Reinforcements' : 'Reforços'}</span>
         </button>
-        <button type="button" className="mc-acao" disabled={salvando || rolagemPendente} onClick={novaRodada}>
+        <button type="button" className="mc-acao" disabled={salvando || rolagemPendente} onClick={() => novaRodada()}>
           <i className="ti ti-refresh" aria-hidden="true" />
           <span className="mc-acao-rotulo">{isEn ? 'New round' : 'Nova rodada'}</span>
         </button>
@@ -8696,7 +8838,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const donos = Object.keys(mortosPorDono);
     if (!treino && donos.length > 0) {
       const resultadosAni = await Promise.all(donos.map(async (donoId) => {
-        const r = await alterarInventario(donoId, (inv) => inventarioSemAnimaisMortos(inv, mortosPorDono[donoId]));
+        const r = await alterarInventario(donoId, (inv) => inventarioSemAnimaisMortos(inv, mortosPorDono[donoId], batalha.id));
         return r.ok ? { ok: true } : { ok: false, error: r.error };
       }));
       const falhaAni = resultadosAni.find((r) => !r.ok);
@@ -9336,10 +9478,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         <SaqueModal alvo={alvo} criatura={catalogos.criById[alvo.ref_id]}
           catalogoBySlug={catalogos.catalogoBySlug} saqueadores={saqueadores}
           isEn={isEn} lang={lang} onClose={() => setSaqueDe(null)}
-          onPegar={async (pj, slug, qtd) => {
+          onPegar={async (pj, slug, qtd, jaTirado) => {
             const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd, catalogos);
             if (r.error) return r;
-            const next = anotarSaque(participantes, alvo.inst_id, slug, qtd);
+            const next = anotarSaque(participantes, alvo.inst_id, slug, qtd, jaTirado);
             await persistir({ participantes: next }, () => setParticipantes(next));
             const hid = (historia && historia.id) || batalha.historia_id;
             if (hid) {
@@ -13276,10 +13418,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           <SaqueModal alvo={alvo} criatura={catalogos.criById[alvo.ref_id]}
             catalogoBySlug={catalogos.catalogoBySlug} saqueadores={[meuParticipante]}
             isEn={isEn} lang={lang} onClose={() => setSaqueDe(null)}
-            onPegar={async (pj, slug, qtd) => {
+            onPegar={async (pj, slug, qtd, jaTirado) => {
               const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd, catalogos);
               if (r.error) return r;
-              await persistJogador({ participantes: anotarSaque(participantes, alvo.inst_id, slug, qtd) }, { manterAberto: true });
+              await persistJogador({ participantes: anotarSaque(participantes, alvo.inst_id, slug, qtd, jaTirado) }, { manterAberto: true });
               if (batalha.historia_id) {
                 const item = (catalogos.catalogoBySlug[slug] || {}).nome || slug;
                 supabaseClient.rpc('registrar_evento_mesa', {

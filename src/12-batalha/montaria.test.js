@@ -392,3 +392,31 @@ describe('EH emprestada da montaria', () => {
     expect(r[0].montaria).toBeUndefined();
   });
 });
+
+/* Achado na revisão de 08/11/2026: iniciar() e proximoAtivo pulavam a
+   montaria em uso, mas a VIRADA (montarNovaRodada) não — com o cavalo mais
+   rápido que todos, a rodada 2 abria na vez dele, sem token nem linha na
+   iniciativa. */
+describe('virada de rodada pula a montaria em uso', () => {
+  it('a vez abre no cavaleiro, não no cavalo mais rápido', () => {
+    const cav = cavaleiro({ ordem: 2, montaria: { inst_id: 'cri:160' }, pa_max: 1, pa_rest: 0 });
+    const mon = cavalo({ ordem: 1, montado_por: 'pj:1', pa_max: 1, pa_rest: 0 });
+    const { participantes } = M.montarNovaRodada([mon, cav]);
+    const atual = participantes.filter((p) => p.atual).map((p) => p.nome);
+    expect(atual).toEqual(['Cavaleiro']);
+  });
+});
+
+/* Revisão de 08/11/2026: o Encerrar repetido depois de uma falha rodava a
+   baixa de novo e tirava outro cavalo da pilha. */
+describe('baixa dos animais mortos — uma vez por batalha', () => {
+  it('repetir com a mesma batalha não tira de novo', () => {
+    const inv = { itens: [{ instanceId: 'c', slug: 'cavalo', quantidade: 3 }] };
+    const uma = M.inventarioSemAnimaisMortos(inv, ['c'], 77);
+    expect(uma.itens[0].quantidade).toBe(2);
+    const duas = M.inventarioSemAnimaisMortos(uma, ['c'], 77);
+    expect(duas).toBe(uma);
+    // outra batalha, outra baixa
+    expect(M.inventarioSemAnimaisMortos(uma, ['c'], 78).itens[0].quantidade).toBe(1);
+  });
+});

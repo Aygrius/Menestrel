@@ -768,3 +768,21 @@ describe('a cascata desconta na peça certa', () => {
     expect(r.armadura_pecas, 'e não inventa a lista').toBeUndefined();
   });
 });
+
+/* Revisão de 08/11/2026: o Caído nasce na vez do próprio atacante, e a
+   virada logo a seguir descontava a rodada já jogada — "perde 1 rodada"
+   (q4) sumia sem tirar vez nenhuma, e "perde 2" (q2) tirava uma só. */
+describe('Falha Crítica — as rodadas perdidas são as SEGUINTES', () => {
+  const M = window.MotorBatalha;
+  const base = { eh: 10, eh_max: 10, ar: 0, ef: 30, ef_max: 30, res: 0, status: 'ativo', status_temp: [] };
+  const caido = (p) => (p.status_temp || []).some((s) => s.efeito && s.efeito.tipo === 'sem_acoes');
+  it.each([[4, 1], [2, 2]])('q%i: perde %i rodada(s) inteira(s)', (q, n) => {
+    let { participante: p } = M.aplicarFalhaCritica(base, { dano: 0 }, q);
+    for (let r = 1; r <= n; r++) {
+      p = { ...p, status_temp: M.decrementarStatusTemp(p.status_temp) };
+      expect(caido(p), `rodada seguinte nº ${r}: ainda caído`).toBe(true);
+    }
+    p = { ...p, status_temp: M.decrementarStatusTemp(p.status_temp) };
+    expect(caido(p), 'depois disso, de pé').toBe(false);
+  });
+});
