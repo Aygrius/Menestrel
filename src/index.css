@@ -18528,3 +18528,255 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 #root .menestrel-ui .modal-novidades .ms-footer-left { display: none; }
 /* O quadro centraliza as linhas; aqui é texto corrido: à esquerda. */
 #root .menestrel-ui .modal-novidades .novidades-linha { align-items: flex-start; text-align: left; }
+
+/* ── A MESA DO JOGADOR (08/11/2026) ──────────────────────────────────────────
+   A mesa do Mestre sem a coluna da iniciativa: tabuleiro e o painel fixo do
+   combatente escolhido. O trilho é o da condução, só de leitura: rodada, a
+   luz da cena e de quem é a vez (em ouro quando é a sua). */
+#root .menestrel-ui .batalha-mesa.batalha-mesa--jogador { grid-template-columns: minmax(0, 1fr) 320px; }
+@media (max-width: 1100px) {
+  #root .menestrel-ui .batalha-mesa.batalha-mesa--jogador { grid-template-columns: minmax(0, 1fr); }
+}
+#root .menestrel-ui .fp-page.batalha-jog-root:has(.batalha-mesa) { max-width: none; width: 100%; }
+#root .menestrel-ui .batalha-jog-card { display: flex; flex-direction: column; min-height: 0; }
+#root .menestrel-ui .batalha-jog-card .batalha-conduzir { flex: 1 1 auto; min-height: 0; }
+#root .menestrel-ui .batalha-trilho .mc-acao.is-leitura { cursor: default; }
+#root .menestrel-ui .batalha-trilho .mc-acao.is-leitura:hover { background: none; }
+#root .menestrel-ui .batalha-trilho-vez {
+  display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; height: 32px; border-radius: 999px;
+  font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2); white-space: nowrap;
+}
+#root .menestrel-ui .batalha-trilho-vez .ti { color: var(--tinta-3); }
+#root .menestrel-ui .batalha-trilho-vez.is-minha { color: var(--tinta); background: var(--vivo-fundo); box-shadow: inset 0 0 0 1px var(--vivo-aro); }
+#root .menestrel-ui .batalha-trilho-vez.is-minha .ti { color: var(--vivo); }
+/* O card do outro combatente, com Atacar/Magia/Conduzir: a mesma grade. */
+#root .menestrel-ui .batalha-mesa-painel .batalha-fighter-main > .batalha-card-barra + .batalha-card-barra { margin-top: 8px; }
+
+/* ══ O MODAL DA AÇÃO EM COMBATE (08/11/2026) ══════════════════════════════════
+   Usuário: "Eu pedi para reformular completamente usando impeccable o modal
+   das ações em combate. Melhore e dê um visual novo e bonito, seguindo nosso
+   layout." Na língua do Quadro de Iniciativa, como o Estudar:
+
+     1. o PASSE no topo — células rótulo/valor com os números da decisão
+        (ações que sobram, coluna ou resistência, alcance, distância, custo);
+     2. os CAMPOS numa grade que enche a largura — rótulo em versal pequena
+        sobre o valor em 15px, o seletor como uma célula do passe;
+     3. a DESCRIÇÃO do que foi escolhido, separada por régua, em tinta-2;
+     4. a AÇÃO: "Rolar o d20" é o botão dourado de largura inteira, embaixo
+        dos campos; o resultado vira um selo grande na cor da qualidade.
+
+   Ouro só no que age (o dado, o confirmar); brasa só no que bloqueia. */
+#root .menestrel-ui .ms-modal.acao-modal { width: min(640px, calc(100vw - 32px)); }
+#root .menestrel-ui .ms-modal.acao-modal .atacar { padding: 18px 22px 20px; gap: 16px; }
+
+/* 1. o passe */
+#root .menestrel-ui .acao-modal .acao-passe { margin: 0; display: flex; }
+#root .menestrel-ui .acao-modal .acao-passe .mn-celula { flex: 1 1 0; min-width: 0; }
+#root .menestrel-ui .acao-modal .acao-passe .mn-celula-valor { font-size: var(--fs-lg); white-space: nowrap; }
+#root .menestrel-ui .acao-modal .acao-passe .mn-celula-valor small { font-size: inherit; font-weight: inherit; color: var(--tinta-3); }
+
+/* 2. os campos */
+#root .menestrel-ui .acao-modal .atacar-row-acao {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px 14px; align-items: end;
+}
+#root .menestrel-ui .acao-modal .atacar-row-acao > :not(.dado-ov-trigger):not(.atacar-confirmar) { min-width: 0; }
+#root .menestrel-ui .acao-modal .motor-field { display: flex; flex-direction: column; gap: 6px; }
+#root .menestrel-ui .acao-modal .motor-field > span {
+  font-family: var(--font-body); font-style: normal; font-size: var(--fs-rotulo, 11px); font-weight: 800;
+  letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase; color: var(--tinta-3);
+}
+#root .menestrel-ui .acao-modal button.select-pill-btn {
+  width: 100%; height: 46px; padding: 0 14px; border-radius: 10px;
+  border: 1px solid var(--regua-forte) !important; background: var(--chao-celula-opaco, rgba(var(--bronze-rgb),.06));
+  font-family: var(--font-body); font-size: var(--fs-md); font-weight: 700; color: var(--tinta);
+  font-variant-numeric: lining-nums tabular-nums; transition: border-color .15s ease, background-color .15s ease;
+}
+#root .menestrel-ui .acao-modal button.select-pill-btn:not(:disabled):hover { background: rgba(var(--bronze-rgb),.14); }
+#root .menestrel-ui .acao-modal button.select-pill-btn[data-open="true"] { border-color: var(--vivo-aro, rgba(var(--ouro-rgb),.55)) !important; }
+#root .menestrel-ui .acao-modal button.select-pill-btn:focus-visible { box-shadow: 0 0 0 2px var(--vivo) !important; }
+#root .menestrel-ui .acao-modal button.select-pill-btn:disabled { opacity: .55; }
+#root .menestrel-ui .acao-modal .select-pill-btn-ic { color: var(--tinta-3); }
+#root .menestrel-ui .acao-modal .atacar-row2 { gap: 14px; }
+
+/* 4. a ação: o dado e o confirmar, na largura inteira, embaixo dos campos */
+#root .menestrel-ui .acao-modal .atacar-row-acao > .dado-ov-trigger,
+#root .menestrel-ui .acao-modal .atacar-row-acao > .atacar-confirmar { grid-column: 1 / -1; order: 99; margin: 4px 0 0; }
+#root .menestrel-ui .acao-modal .dado-ov-trigger { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; }
+#root .menestrel-ui .acao-modal .dado-ov-trigger > .btn-primary,
+#root .menestrel-ui .acao-modal .atacar-confirmar {
+  flex: 1 1 auto; width: auto; height: 48px; min-width: 0; padding: 0 18px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--font-body); font-size: var(--fs-md); font-weight: 800; letter-spacing: .01em;
+}
+#root .menestrel-ui .acao-modal .dado-ov-trigger > .btn-primary .ti { font-size: 20px; }
+#root .menestrel-ui .acao-modal .dado-ov-trigger > .btn-primary:disabled,
+#root .menestrel-ui .acao-modal .atacar-confirmar:disabled { opacity: .45; }
+#root .menestrel-ui .acao-modal .dado-ov-trigger-num {
+  flex: none; min-width: 48px; height: 48px; padding: 0 10px; border-radius: 12px;
+  display: inline-grid; place-items: center; border: 1px solid var(--vivo-aro, rgba(var(--ouro-rgb),.55));
+  background: var(--vivo-fundo, rgba(var(--ouro-rgb),.12)); color: var(--vivo);
+  font-size: 22px; font-weight: 800; font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .acao-modal .dado-ov-trigger-chip {
+  height: 48px; padding: 0 16px; border-radius: 12px; border-width: 1px;
+  font-size: var(--fs-md); font-weight: 800; white-space: nowrap;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* 3. o texto: descrição e avisos */
+#root .menestrel-ui .acao-modal .acao-efeito-texto,
+#root .menestrel-ui .acao-modal .acao-item-efeito {
+  margin: 0; padding-top: 14px; border-top: 1px solid var(--regua-forte);
+  font-size: var(--fs-sm); line-height: 1.6; color: var(--tinta-2);
+}
+#root .menestrel-ui .acao-modal .acao-efeito-texto + .acao-efeito-texto { padding-top: 0; border-top: 0; }
+#root .menestrel-ui .acao-modal .acao-efeito-texto strong,
+#root .menestrel-ui .acao-modal .acao-item-efeito strong { color: var(--tinta); }
+#root .menestrel-ui .acao-modal .acao-karma-line { margin: 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--tinta-2); }
+#root .menestrel-ui .acao-modal .acao-karma-line strong { color: var(--tinta); }
+#root .menestrel-ui .acao-modal .acao-karma-line strong.neg,
+#root .menestrel-ui .acao-modal .acao-karma-warn { color: var(--alerta); }
+#root .menestrel-ui .acao-modal .atacar-aviso-vazio { padding: 6px 0; color: var(--tinta-3); }
+#root .menestrel-ui .acao-modal .acao-provocado { color: var(--alerta); }
+
+/* aliados/alvos extras: marcadores em pílula */
+#root .menestrel-ui .acao-modal .acao-aliados { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#root .menestrel-ui .acao-modal .acao-aliados-lbl {
+  flex: 1 1 100%; font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .12em);
+  text-transform: uppercase; color: var(--tinta-3);
+}
+#root .menestrel-ui .acao-modal .acao-aliado {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--regua-forte); background: rgba(var(--bronze-rgb),.06);
+  font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2); cursor: pointer;
+}
+#root .menestrel-ui .acao-modal .acao-aliado.on { border-color: var(--vivo-aro, rgba(var(--ouro-rgb),.55)); background: var(--vivo-fundo, rgba(var(--ouro-rgb),.12)); color: var(--tinta); }
+#root .menestrel-ui .acao-modal .acao-aliado input { accent-color: var(--vivo); margin: 0; }
+
+/* o rodapé próprio do painel (resultado, avisos, confirmar) */
+#root .menestrel-ui .acao-modal .atacar-footer {
+  margin: 0 -22px; padding: 16px 22px 0; gap: 12px; border-top: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .acao-modal .acao-travado-aviso,
+#root .menestrel-ui .acao-modal .batalha-fora-alcance { font-size: var(--fs-sm); color: var(--alerta); font-weight: 700; }
+
+@media (max-width: 560px) {
+  #root .menestrel-ui .acao-modal .acao-passe { flex-wrap: wrap; }
+  #root .menestrel-ui .acao-modal .acao-passe .mn-celula { flex: 1 1 30%; }
+}
+/* Os campos em flex (08/11/2026): com dois campos a grade de colunas fixas
+   deixava uma terceira coluna vazia, porque o botão da ação ocupa a linha
+   inteira e não deixa a coluna sobrar. Cada campo cresce; o nível, o karma
+   da coluna e a ação ocupam a linha toda. */
+#root .menestrel-ui .acao-modal .atacar-row-acao { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+#root .menestrel-ui .acao-modal .atacar-row-acao > * { flex: 1 1 160px; }
+#root .menestrel-ui .acao-modal .atacar-row-acao > .acao-campo-largo,
+#root .menestrel-ui .acao-modal .atacar-row-acao > .dado-ov-trigger,
+#root .menestrel-ui .acao-modal .atacar-row-acao > .atacar-confirmar { flex: 1 1 100%; }
+#root .menestrel-ui .acao-modal .acao-campo-largo { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#root .menestrel-ui .acao-modal .acao-campo-rot {
+  font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .12em);
+  text-transform: uppercase; color: var(--tinta-3);
+}
+/* A quantidade do Item na altura dos campos (08/11/2026). */
+#root .menestrel-ui .acao-modal .atacar-row-acao .qtd-stepper,
+#root .menestrel-ui .acao-modal .atacar-row-acao .fp-pop-stepper { height: 46px; width: 100%; }
+#root .menestrel-ui .acao-modal .atacar-row-acao .motor-field > label,
+#root .menestrel-ui .acao-modal .atacar-row-acao .motor-field > .motor-label {
+  font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .12em);
+  text-transform: uppercase; color: var(--tinta-3); font-style: normal; margin: 0;
+}
+/* O motivo do custo que não fecha (karma), embaixo das células, em brasa. */
+#root .menestrel-ui .acao-modal .acao-passe { flex-wrap: wrap; }
+#root .menestrel-ui .acao-modal .acao-passe-motivo {
+  flex: 1 1 100%; margin: 0; padding: 10px 14px; border-top: 1px solid var(--regua-forte);
+  font-size: var(--fs-sm); font-weight: 700; color: var(--alerta);
+}
+
+/* A ROLAGEM DO PAINEL DA FICHA NO PADRÃO (08/11/2026, usuário: "A barra de
+   rolagem vertical na descrição da magia, técnica e habilidade da ficha está
+   fora do padrão"). O corpo do painel (.mn-janela-corpo) rolava com a barra
+   nativa do sistema operacional — larga, clara e com setas. Agora é a do
+   .mn-rolagem: fina, sem setas, na cor da régua, a mesma de todo o resto. */
+#root .menestrel-ui .mn-janela-corpo { scrollbar-width: thin; scrollbar-color: var(--regua-forte) transparent; }
+#root .menestrel-ui .mn-janela-corpo::-webkit-scrollbar { width: 8px; height: 8px; }
+#root .menestrel-ui .mn-janela-corpo::-webkit-scrollbar-track { background: transparent; }
+#root .menestrel-ui .mn-janela-corpo::-webkit-scrollbar-thumb { background: var(--regua-forte); border-radius: 6px; }
+#root .menestrel-ui .mn-janela-corpo::-webkit-scrollbar-button { display: none; height: 0; }
+/* O karma da coluna no padrão dos campos (08/11/2026): o rótulo como os
+   outros, o seletor e o "Tudo" na mesma linha e altura, e a conta embaixo. */
+#root .menestrel-ui .acao-modal .karma-coluna { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; margin: 0; align-items: center; }
+#root .menestrel-ui .acao-modal .karma-coluna-rotulo {
+  grid-column: 1 / -1; font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .12em); color: var(--tinta-3);
+}
+#root .menestrel-ui .acao-modal .karma-coluna .fp-pop-stepper { grid-column: 1; height: 46px; width: 100%; }
+#root .menestrel-ui .acao-modal .karma-coluna-max {
+  grid-column: 2; height: 46px; padding: 0 16px; border-radius: 10px; font-size: var(--fs-sm); font-weight: 700;
+  background: rgba(var(--bronze-rgb), .06);
+}
+#root .menestrel-ui .acao-modal .karma-coluna-conta { grid-column: 1 / -1; }
+
+/* ══ A BATALHA EM TELA CHEIA (08/11/2026) ═══════════════════════════════════
+   Usuário: "Quando entrar em batalha, a tela só terá o tabuleiro, com isso,
+   vamos ganhar mais espaço para fazer o tabuleiro maior, ocupando a página
+   inteira do navegador."
+
+   Com a mesa montada (.batalha-mesa), a página da batalha vira a janela
+   inteira: o menu lateral some e o cartão da página vira o palco. O campo
+   (50×35, casas do maior tamanho que cabe — tabuleiro.jsx) é limitado pela
+   ALTURA, então sobra largura dos dois lados; é ali que flutuam a iniciativa
+   (Mestre), à esquerda, e o painel do combatente, à direita. O trilho flutua
+   no alto. Nada cobre o campo jogável numa tela larga. */
+#root .menestrel-ui.mc-root:has(.batalha-mesa) .mc-sidebar { display: none; }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) {
+  position: fixed; inset: 0; z-index: 30; margin: 0; padding: 0; border: 0; border-radius: 0;
+  max-width: none; width: auto; height: auto; display: block; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 45%, #1b1730, #0b0912 75%);
+}
+/* o trilho, flutuando no alto */
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) > .batalha-trilho {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6;
+  margin: 0; padding: 0; border: 0; background: none; width: auto;
+}
+/* o corpo: a janela menos a faixa do trilho */
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-mng-page-body,
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) > .batalha-conduzir {
+  position: absolute; inset: 60px 0 0 0; margin: 0; padding: 0; overflow: hidden;
+}
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-mng-page-body > .batalha-conduzir { position: absolute; inset: 0; }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-mesa {
+  position: absolute; inset: 0; display: block;
+}
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-mesa-centro {
+  position: absolute; inset: 0 10px 10px; display: flex; flex-direction: column;
+}
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-tabuleiro-scroll { border: 0 !important; border-radius: 0 !important; background: none !important; }
+/* a iniciativa (Mestre) e o painel, nas faixas dos lados */
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-ini-col {
+  position: absolute; left: 14px; top: 4px; bottom: 14px; width: 250px; z-index: 5;
+  pointer-events: none;
+}
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-ini-col > * { pointer-events: auto; }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-mesa-painel {
+  position: absolute; right: 14px; top: 4px; width: 290px; max-height: calc(100% - 18px); z-index: 5;
+}
+/* As peças flutuantes ganham fundo sólido de couro: estão sobre a noite. */
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-painel-card,
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-ini-lista {
+  background: rgba(20,15,10,.92); border: 1px solid var(--regua-forte); border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.45);
+}
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-ini-lista { padding: 6px; flex: 0 1 auto; }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-ini-tit { color: var(--tinta-2); }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) > .batalha-trilho .best-header-acoes {
+  background: rgba(20,15,10,.92); box-shadow: 0 10px 24px rgba(0,0,0,.4);
+}
+@media (max-width: 1100px) {
+  /* Tela estreita: as peças voltam para baixo do campo, rolando a página. */
+  #root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) { overflow-y: auto; }
+  #root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-mesa-painel,
+  #root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-ini-col { position: static; width: auto; margin: 10px; max-height: none; }
+}
+/* A regra antiga dá height:100% ao .batalha-conduzir e ele passava do fundo
+   da janela; na tela cheia a altura vem do inset. */
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-conduzir { height: auto; }

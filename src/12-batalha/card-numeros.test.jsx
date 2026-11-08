@@ -49,43 +49,33 @@ async function cardDe(parts, nome) {
   await waitFor(() => expect(container.querySelector('.batalha-token')).toBeTruthy());
   const tokens = [...container.querySelectorAll('.batalha-token')];
   (tokens.find((t) => (t.textContent || '').includes(nome)) || tokens[0]).click();
-  await waitFor(() => expect(document.querySelector('.batalha-token-menu')).toBeTruthy());
-  return document.querySelector('.batalha-token-menu');
+  await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter')).toBeTruthy());
+  return document.querySelector('.batalha-mesa-painel .batalha-fighter');
 }
 
 describe('números e ações na MESMA fileira', () => {
-  it('velocidade, PA, defesa e absorção ficam na barra junto dos botões do turno, sem ícone de status no nome', async () => {
+  /* A MESA DO JOGADOR (08/11/2026): o card é o do painel fixo do Mestre —
+     as células Ações/Mov./Defesa/Vel./Absorção e, na vez, os botões do
+     turno com nome (BotoesDoTurno). Sem ícone de status ao lado do nome. */
+  it('as células e os botões do turno ficam na mesma barra do card', async () => {
     const menu = await cardDe([lutador()], 'Yuldrous');
     const barra = menu.querySelector('.batalha-card-barra');
     expect(barra, 'fileira única do card').toBeTruthy();
-    expect(barra.querySelectorAll('.batalha-stat-num')).toHaveLength(4);
-    expect(barra.querySelectorAll('.batalha-card-botoes .batalha-menu-acao-ic')).toHaveLength(3);   // sem Encerrar
-    // nada de números sobrando no cabeçalho do nome
-    expect(menu.querySelector('.batalha-fighter-head .batalha-stat-num')).toBeNull();
-    // "Remova o ícone de status do lado do nome do personagem" (13/09/2026)
+    expect([...barra.querySelectorAll('.batalha-cel-rot')].map((c) => c.textContent))
+      .toEqual(['Ações', 'Mov.', 'Defesa', 'Vel.', 'Absorção']);
+    expect([...barra.querySelectorAll('.batalha-turno button')].map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Atacar', 'Magia', 'Técnica', 'Habilidade', 'Item', 'Mover', 'Encerrar a vez']);
+    expect(menu.querySelector('.batalha-fighter-head .batalha-cel')).toBeNull();
     expect(menu.querySelector('.batalha-fighter-status-ic')).toBeNull();
   });
 
-  it('os números são ti-number-N-small, sem os ícones antigos', async () => {
+  it('as células trazem os números: ações x/y, a defesa com a sigla', async () => {
     const menu = await cardDe([lutador()], 'Yuldrous');
-    const icones = [...menu.querySelectorAll('.batalha-stat-num i')].map((i) => i.className);
-    expect(icones).toEqual([
-      'ti ti-number-20-small', 'ti ti-number-2-small', 'ti ti-number-4-small', 'ti ti-number-3-small',
-    ]);
-    expect(menu.querySelector('.ti-run-sprint, .ti-shield-half, [class*="ti-hexagon-number"]')).toBeNull();
-    // Sem a letra da armadura desde 13/09/2026 ("Remova o L de L9"); cada
-    // número diz o que é no aria-label.
-    expect(menu.querySelector('.batalha-stat-sigla')).toBeNull();
-    const rotulos = [...menu.querySelectorAll('.batalha-stat-num')].map((s) => s.getAttribute('aria-label'));
-    expect(rotulos[1]).toContain('2/2');
-    expect(rotulos[2]).toBe('Armadura Média: 4');
-  });
-
-  it('fora da família de ícones (defesa negativa) o número vai escrito', async () => {
-    const menu = await cardDe([lutador({ defesa_valor: -2 })], 'Yuldrous');
-    const defesa = menu.querySelectorAll('.batalha-stat-num')[2];
-    expect(defesa.querySelector('i')).toBeNull();
-    expect(defesa.textContent).toBe('-2');
+    const val = [...menu.querySelectorAll('.batalha-cel-val')].map((c) => c.textContent);
+    expect(val[0]).toBe('2/2');
+    expect(val[2]).toBe('M4');
+    expect(val[3]).toBe('20');
+    expect(val[4]).toBe('3');
   });
 
   // "O jogador não vê velocidade, ações e armadura do adversário. Apenas o
@@ -113,14 +103,6 @@ const dicaDe = async (el) => {
 };
 
 describe('tooltip dos números: só o nome', () => {
-  it('Velocidade, Ações, Média e Absorção — sem o valor', async () => {
-    const menu = await cardDe([lutador()], 'Yuldrous');
-    const chips = [...menu.querySelectorAll('.batalha-stat-num')];
-    const dicas = [];
-    for (const c of chips) dicas.push(await dicaDe(c));
-    expect(dicas).toEqual(['Velocidade', 'Ações', 'Armadura Média', 'Absorção']);
-  });
-
   // "Armadura Leve", não só "Leve" (14/09/2026).
   it('a defesa se chama pela armadura: Armadura Leve, Média, Pesada', () => {
     expect(['L', 'M', 'P', 'T', undefined].map((s) => window.MotorBatalha.nomeDefesa(s)))
@@ -133,28 +115,17 @@ describe('tooltip dos números: só o nome', () => {
    demais e ao invés do fundo, eu quero uma borda que diminui." */
 /* Quarta leva, 13/09/2026: "Os 4 itens de eh, ef, etc devem ficar inline com
    o nome, e o botão de X fica redondo igual os demais." */
-describe('pools viram botões com anel que diminui, ao lado do nome', () => {
-  it('um círculo por pool, na linha do nome, com o anel na fração atual', async () => {
-    // Com Karma (karma_max > 0): desde 23/10/2026 a pool de Karma só aparece
-    // para quem tem Karma — sem o poço, nada de "Karma 0/0".
+/* A mesa do jogador (08/11/2026): as energias do próprio personagem são as
+   linhas do painel do Mestre — nome, barra e número à vista. */
+describe('pools do próprio personagem: linhas com barra e número', () => {
+  it('uma linha por pool, na ordem EF, EH, RES, KA, com o número à vista', async () => {
     const menu = await cardDe([lutador({ ef: 5, ef_max: 10, eh: 5, eh_max: 5, res: 0, res_max: 4, karma: 3, karma_max: 6 })], 'Yuldrous');
-    expect(menu.querySelector('.batalha-pool-bar')).toBeNull();
-    const botoes = [...menu.querySelectorAll('.batalha-pool-botao')];
-    expect(botoes.map((b) => b.className.match(/\bpool-(ef|eh|res|ka)\b/)[1])).toEqual(['ef', 'eh', 'res', 'ka']);
-    expect(botoes.every((b) => b.closest('.batalha-fighter-id') && b.closest('.batalha-card-pools-nome'))).toBe(true);
-    expect(menu.querySelector('.batalha-card-barra .batalha-pool-botao')).toBeNull();
-    expect(menu.querySelector('.batalha-fighter-pools-wrap, .batalha-pool-nivel')).toBeNull();
-    const anel = (pool) => menu.querySelector(`.batalha-pool-botao.pool-${pool} .batalha-pool-anel-nivel`).getAttribute('stroke-dasharray');
-    expect(anel('ef')).toBe('50 100');
-    expect(anel('eh')).toBe('100 100');
-    expect(anel('res')).toBe('0 100');
-    expect(menu.querySelector('.batalha-pool-botao.pool-res').classList.contains('vazia')).toBe(true);
-    expect(botoes.every((b) => b.querySelector('i.ti'))).toBe(true);
-  });
-
-  it('o tooltip da pool traz o nome e o valor, que não está à vista', async () => {
-    const menu = await cardDe([lutador({ ef: 5, ef_max: 10 })], 'Yuldrous');
-    expect(await dicaDe(menu.querySelector('.batalha-pool-botao.pool-ef'))).toBe('Energia Física · 5/10');
+    const linhas = [...menu.querySelectorAll('.batalha-pool-linha')];
+    expect(linhas.map((b) => b.className.match(/\bpool-(ef|eh|res|ka)\b/)[1])).toEqual(['ef', 'eh', 'res', 'ka']);
+    expect(linhas.every((b) => b.closest('.batalha-card-pools-nome'))).toBe(true);
+    expect(menu.querySelector('.batalha-pool-linha.pool-ef .batalha-pool-linha-num').textContent).toBe('5/10');
+    // Só leitura: o jogador não edita a pool.
+    expect(menu.querySelector('.batalha-pool-linha.editavel')).toBeNull();
   });
 
   it('fracaoDaPool: EF negativa é vazia, acima do máximo é cheia', () => {
@@ -179,8 +150,8 @@ describe('atacar fica inline, sem "Fulano ataca com"', () => {
     await waitFor(() => expect(container.querySelectorAll('.batalha-token').length).toBe(2));
     const token = [...container.querySelectorAll('.batalha-token')].find((t) => t.textContent.includes('Lobo'));
     token.click();
-    await waitFor(() => expect(document.querySelector('.batalha-token-menu')).toBeTruthy());
-    const menu = document.querySelector('.batalha-token-menu');
+    await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter')).toBeTruthy());
+    const menu = document.querySelector('.batalha-mesa-painel .batalha-fighter');
     expect(menu.textContent).not.toMatch(/ataca com|Atacar com/);
     // Com ou sem arma no fixture, o que não pode existir é a fileira separada.
     expect(menu.querySelector('.batalha-menu-atacar-lbl')).toBeNull();
@@ -193,11 +164,10 @@ describe('atacar fica inline, sem "Fulano ataca com"', () => {
 });
 
 describe('o X do card e o Encerrar do topo', () => {
-  it('o X continua existindo como botão próprio do menu', async () => {
+  // O card mora no painel fixo (08/11/2026): não há o que fechar.
+  it('o painel fixo do jogador não tem o X do antigo card flutuante', async () => {
     const menu = await cardDe([lutador()], 'Yuldrous');
-    const x = menu.querySelector('.batalha-token-menu-fechar');
-    expect(x).toBeTruthy();
-    expect(x.querySelector('i.ti-x')).toBeTruthy();
+    expect(menu.querySelector('.batalha-token-menu-fechar')).toBeNull();
   });
 
   it('Encerrar do header virou círculo com ícone, sem o botão vermelho com texto', () => {
@@ -211,10 +181,11 @@ describe('o X do card e o Encerrar do topo', () => {
 });
 
 describe('o card do Mestre usa o mesmo componente', () => {
-  it('as duas views renderizam NumerosDoCombatente dentro de .batalha-card-barra', () => {
+  it('as duas views renderizam NumerosDoCombatente em células dentro de .batalha-card-barra', () => {
     const fonte = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'batalha.jsx'), 'utf8');
-    const barras = fonte.split('className="batalha-menu-acoes batalha-card-barra"').slice(1);
-    expect(barras).toHaveLength(2);
-    barras.forEach((b) => expect(b.slice(0, 300)).toMatch(/<NumerosDoCombatente /));
+    const comNumeros = fonte.split('className="batalha-menu-acoes batalha-card-barra"').slice(1)
+      .filter((b) => /<NumerosDoCombatente /.test(b.slice(0, 300)));
+    expect(comNumeros).toHaveLength(2);
+    comNumeros.forEach((b) => expect(b.slice(0, 300)).toMatch(/celulas \/>/));
   });
 });

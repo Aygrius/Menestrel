@@ -6842,6 +6842,101 @@ function quebrarConcentracaoPorDano(participantes, antes, depois) {
    quem monta tem `abrirTip`. O `title` nativo é o fallback — o card do
    Jogador não tinha tooltip nenhum até agora, e um ícone mudo ali seria
    pior que o texto que saiu. */
+/* OS ITENS QUE SE USAM EM COMBATE (08/11/2026): a regra que morava no
+   AcaoPanel (aba Item) virou função para o card dizer, antes de abrir o
+   modal, se há o que usar — os dois leem a mesma lista. */
+function itensDeCombateDoAtor(ator, catalogos) {
+    const pj = (ator && ator.tipo === 'pj' && catalogos && catalogos.pjById) ? catalogos.pjById[ator.ref_id] : null;
+    if (!pj || !pj.inventario || !Array.isArray(pj.inventario.itens)) return [];
+    const catBySlug = (catalogos && catalogos.catalogoBySlug) || {};
+    const porSlug = {};
+    pj.inventario.itens.forEach((it) => {
+      if (!it || (it.quantidade || 0) <= 0 || estaAVenda(it)) return;
+      const cat = catBySlug[it.slug];
+      if (!cat) return;
+      if (typeof ehContainer === 'function' && ehContainer(cat)) return;   // recipiente — nunca consumível
+      const consumivel = (cat.grupo === 'Consumíveis') || cat.tipo === 'L';
+      if (!consumivel) return;
+      // Flecha não se usa pela aba Item: o ataque com arco a gasta (14/09/2026).
+      if (typeof ehFlecha === 'function' && ehFlecha(cat)) return;
+      // Frasco alquímico dispara MAGIA: mora nas abas Magia e Apoio
+      // (magiasDeItensDoAtor), não aqui — a mesma regra dos atalhos da ficha
+      // (itemUsavelNoAtalho). 28/09/2026. O pergaminho (nivel_magia nulo desde
+      // 22/10/2026) também fica fora: ele ensina, não se usa em combate.
+      if (cat.magia) return;
+      if (!porSlug[it.slug]) {
+        porSlug[it.slug] = {
+          slug: it.slug, instanceId: it.instanceId, nome: cat.nome || it.slug,
+          quantidade: 0, cat,
+        };
+      }
+      porSlug[it.slug].quantidade += it.quantidade;
+    });
+    return Object.values(porSlug).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+}
+
+/* ── OS BOTÕES DO TURNO (08/11/2026) ───────────────────────────────────────
+   Usuário: "Eu quero que a visão do jogador na batalha seja mais parecida com
+   a do mestre. […] Melhore o card de ações, como já temos os botões do lado
+   direito, ao clicar deve abrir um modal apenas com a ação escolhida." Para
+   "Jogador e Mestre", com Arma, Magia, Técnica, Apoio, Teste, Item, Mover e
+   Passar.
+
+   O MESMO card nas duas visões: cada botão abre o AcaoModal com `abaUnica`
+   (o painel sem a barra de abas). O que não tem o que fazer nasce apagado e
+   diz por quê no balão — o modal de uma ação só nunca abre vazio. "Encerrar
+   a vez" é o único dourado. */
+function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAcao, mover, onEncerrar,
+  encerrarDesativado, abrirTip, fecharTip }) {
+  const temArma = !!catalogos && ataquesDoAtor(ator, catalogos).length > 0;
+  const temMagia = !!catalogos && magiasOfensivasDoAtor(ator, catalogos).length > 0;
+  const temApoio = !!catalogos && magiasDeApoioDoAtor(ator, catalogos).length > 0;
+  const temTecnica = !!catalogos && tecnicasDoAtor(ator, catalogos).length > 0;
+  const temItem = !!catalogos && itensDeCombateDoAtor(ator, catalogos).length > 0;
+  const motivoDe = {
+    arma: !temArma ? (isEn ? 'No weapon in hand.' : 'Nenhuma arma empunhada.')
+      : !podeAtacarAgora(ator) ? tb.semAtacarBloqueado : null,
+    /* MAGIA E APOIO NUM BOTÃO SÓ (08/11/2026, usuário: "O card apoio são
+       magias, correto? Então deve estar junto com as demais magias"). O
+       seletor do painel já lista as de ataque e as de apoio juntas
+       (opcoesMagias) e troca o fluxo pela escolha; o botão só decide por
+       onde o modal abre — no ataque, quando há magia de ataque. */
+    magia: !temMagia && !temApoio ? (isEn ? 'No spells.' : 'Nenhuma magia.') : null,
+    tecnica_teste: !temTecnica ? tb.esteLutadorNaoTem2
+      : !podeUsarTecnicaAgora(ator) ? tb.semTecnicasBloqueado : null,
+    item: !temItem ? (isEn ? 'Nothing to use in combat.' : 'Nada para usar em combate.') : null,
+    habilidade: null,
+  };
+  const ACOES = [
+    ['arma', 'ti-sword'], ['magia', 'ti-sparkles'],
+    ['tecnica_teste', 'ti-bolt'], ['habilidade', 'ti-dice-5'], ['item', 'ti-flask'],
+  ];
+  const rotMover = tb.tabMover || (isEn ? 'Move' : 'Mover');
+  const dica = (rot, motivo) => (e) => abrirTip(e, travado ? (motivoTravado || rot) : (motivo || rot));
+  return (
+    <div className="batalha-card-botoes batalha-acoes-nomeadas batalha-turno">
+      {ACOES.map(([aba, icone]) => {
+        const rot = rotuloDaAcao(aba, isEn);
+        const motivo = motivoDe[aba];
+        return (
+          <BotaoAcaoMenu key={aba} icone={icone} rotulo={rot} comRotulo extraClasse={'batalha-turno-' + aba}
+            disabled={travado || !!motivo}
+            onClick={() => onAcao(aba === 'magia' && !temMagia ? 'apoio' : aba)}
+            abrirTip={dica(rot, motivo)} fecharTip={fecharTip} />
+        );
+      })}
+      <BotaoAcaoMenu icone="ti-walk" comRotulo extraClasse="batalha-turno-mover"
+        rotulo={rotMover} disabled={!mover} onClick={mover || undefined}
+        abrirTip={dica(rotMover, !mover ? (isEn ? 'No movement left.' : 'Sem movimento sobrando.') : null)}
+        fecharTip={fecharTip} />
+      <BotaoAcaoMenu icone="ti-check" variante="primary" comRotulo extraClasse="batalha-acao-encerrar"
+        rotulo={isEn ? 'End turn' : 'Encerrar a vez'}
+        disabled={!!encerrarDesativado} onClick={onEncerrar}
+        abrirTip={abrirTip} fecharTip={fecharTip} />
+    </div>
+  );
+}
+
 function BotaoAcaoMenu({ icone, rotulo, variante, onClick, disabled, extraClasse, abrirTip, fecharTip, comRotulo }) {
   const temTip = typeof abrirTip === 'function' && !comRotulo;
   return (
@@ -9072,33 +9167,18 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                 {/* AÇÕES COM NOME (23/10/2026, painel fixo): cada uma abre o painel
                     de Ação já na aba dela; "Encerrar a vez" (o antigo Passar) é o
                     único dourado. Só para quem está na vez, como antes. */}
+                {/* UMA AÇÃO POR MODAL (08/11/2026): os botões do turno são os mesmos
+                    do jogador (BotoesDoTurno); cada um abre só a ação dele. */}
                 {estado === 'ativa' && p.atual && (() => {
                   const travado = salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente;
-                  const abrirAba = (aba) => { setAtaqueContra({ id: undefined, aba }); setAcaoOpen(true); fechar(); };
-                  const dicaTravado = (e, rot) => abrirTip(e, rolagemPendente ? tb.concluaARolagemPendente : rot);
+                  const abrirAba = (aba) => { setAtaqueContra({ id: undefined, aba, unica: true }); setAcaoOpen(true); fechar(); };
                   return (
-                  <div className="batalha-card-botoes batalha-acoes-nomeadas">
-                    <BotaoAcaoMenu icone="ti-sword" rotulo={isEn ? 'Attack' : 'Atacar'} comRotulo
-                      disabled={travado} onClick={() => abrirAba('arma')} abrirTip={dicaTravado} fecharTip={fecharTip} />
-                    <BotaoAcaoMenu icone="ti-sparkles" rotulo={isEn ? 'Spell' : 'Magia'} comRotulo
-                      disabled={travado} onClick={() => abrirAba('magia')} abrirTip={dicaTravado} fecharTip={fecharTip} />
-                    <BotaoAcaoMenu icone="ti-school" rotulo={isEn ? 'Technique' : 'Técnica'} comRotulo
-                      disabled={travado} onClick={() => abrirAba('tecnica_teste')} abrirTip={dicaTravado} fecharTip={fecharTip} />
-                    <BotaoAcaoMenu icone="ti-flask" rotulo="Item" comRotulo
-                      disabled={travado} onClick={() => abrirAba('item')} abrirTip={dicaTravado} fecharTip={fecharTip} />
-                    <BotaoAcaoMenu icone="ti-dice-5" rotulo={isEn ? 'Test' : 'Teste'} comRotulo
-                      disabled={travado} onClick={() => abrirAba('habilidade')} abrirTip={dicaTravado} fecharTip={fecharTip} />
-                    {mover
-                      ? <BotaoAcaoMenu icone="ti-walk" onClick={mover} comRotulo
-                          rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')} abrirTip={abrirTip} fecharTip={fecharTip} />
-                      : <BotaoAcaoMenu icone="ti-walk" disabled comRotulo
-                          rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')} abrirTip={abrirTip} fecharTip={fecharTip} />}
-                    <BotaoAcaoMenu icone="ti-check" variante="primary" comRotulo extraClasse="batalha-acao-encerrar"
-                      rotulo={isEn ? 'End turn' : 'Encerrar a vez'}
-                      disabled={salvando || rolagemPendente}
-                      onClick={() => { fechar(); passarVez(); }}
+                    <BotoesDoTurno ator={p} catalogos={catalogos} isEn={isEn} tb={tb}
+                      travado={travado} motivoTravado={rolagemPendente ? tb.concluaARolagemPendente : null}
+                      onAcao={abrirAba} mover={mover}
+                      onEncerrar={() => { fechar(); passarVez(); }}
+                      encerrarDesativado={salvando || rolagemPendente}
                       abrirTip={abrirTip} fecharTip={fecharTip} />
-                  </div>
                   );
                 })()}
                 {/* ATACAR ESTE COMBATENTE (12/09/2026) — inline com o resto desde
@@ -9286,9 +9366,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         quem está na vez, nunca o alvo. */}
     {estado === 'ativa' && acaoOpen && catalogos && current && (
       <AcaoModal
-        key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba : 'proprio'}
+        key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba + (ataqueContra.unica ? '-unica' : '') : 'proprio'}
         alvoInicialId={ataqueContra ? ataqueContra.id : undefined}
         abaInicial={ataqueContra ? ataqueContra.aba : undefined}
+        abaUnica={ataqueContra && ataqueContra.unica ? ataqueContra.aba : undefined}
         ator={current}
         participantes={participantes}
         catalogos={catalogos}
@@ -9850,7 +9931,7 @@ function QuantityStepper({ value, onChange, min = 1, max = Infinity, step = 1, d
    apontado para um inimigo — quem clica no avatar dele no tabuleiro escolhe
    "atacar com arma/magia" ali mesmo, e o painel abre na aba certa com o alvo
    marcado. Ausentes, o painel abre como sempre. */
-function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplicar, onAplicarTeste, onAplicarItem, onAplicarApoio, onCancel, onRolagemPendenteChange, rolagemSalva, onRolagemSalvaChange, abrirTip, fecharTip, alvoInicialId, abaInicial }) {
+function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplicar, onAplicarTeste, onAplicarItem, onAplicarApoio, onCancel, onRolagemPendenteChange, rolagemSalva, onRolagemSalvaChange, abrirTip, fecharTip, alvoInicialId, abaInicial, abaUnica = null }) {
   // Só vale a rolagem DESTE ator: a linha é da batalha, não do participante.
   const salva = (rolagemSalva && ator
     && rolagemSalva.ator && rolagemSalva.ator.tipo === ator.tipo
@@ -9955,41 +10036,20 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // conteúdo líquido (ver recipienteAceitaSlug em inventario.jsx), sem ser
   // ele próprio algo bebível/usável — a marca real de container é
   // cat.armazena>0 (capacidade), checada por ehContainer.
-  const itensConsumiveisAtor = useMemo(() => {
-    if (!isPJ || !pj || !pj.inventario || !Array.isArray(pj.inventario.itens)) return [];
-    const catBySlug = (catalogos && catalogos.catalogoBySlug) || {};
-    const porSlug = {};
-    pj.inventario.itens.forEach((it) => {
-      if (!it || (it.quantidade || 0) <= 0 || estaAVenda(it)) return;
-      const cat = catBySlug[it.slug];
-      if (!cat) return;
-      if (typeof ehContainer === 'function' && ehContainer(cat)) return;   // recipiente — nunca consumível
-      const consumivel = (cat.grupo === 'Consumíveis') || cat.tipo === 'L';
-      if (!consumivel) return;
-      // Flecha não se usa pela aba Item: o ataque com arco a gasta (14/09/2026).
-      if (typeof ehFlecha === 'function' && ehFlecha(cat)) return;
-      // Frasco alquímico dispara MAGIA: mora nas abas Magia e Apoio
-      // (magiasDeItensDoAtor), não aqui — a mesma regra dos atalhos da ficha
-      // (itemUsavelNoAtalho). 28/09/2026. O pergaminho (nivel_magia nulo desde
-      // 22/10/2026) também fica fora: ele ensina, não se usa em combate.
-      if (cat.magia) return;
-      if (!porSlug[it.slug]) {
-        porSlug[it.slug] = {
-          slug: it.slug, instanceId: it.instanceId, nome: cat.nome || it.slug,
-          quantidade: 0, cat,
-        };
-      }
-      porSlug[it.slug].quantidade += it.quantidade;
-    });
-    return Object.values(porSlug).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-  }, [isPJ, pj, catalogos]);
+  const itensConsumiveisAtor = useMemo(() => itensDeCombateDoAtor(ator, catalogos), [isPJ, pj, catalogos]);
   const semItem = !isPJ || itensConsumiveisAtor.length === 0;
 
   // A aba também vem da rolagem salva: reabrir em outra aba mostraria o painel
   // limpo com a rolagem pendente escondida.
+  /* UMA AÇÃO POR MODAL (08/11/2026, usuário: "como já temos os botões do lado
+     direito, ao clicar deve abrir um modal apenas com a ação escolhida"). Com
+     `abaUnica`, a barra de abas some e o painel fica na ação do botão. A
+     rolagem salva e a evocação pronta continuam mandando: são compromissos
+     já pagos, e escondê-los atrás de outra aba os perderia. */
   const [tab, setTab] = useState(
     (salva && salva.tab)
     || (evMagiaIdx >= 0 ? 'magia' : (evApoioIdx >= 0 ? 'apoio' : null))
+    || abaUnica
     || ((abaInicial === 'arma' && armas.length > 0) || (abaInicial === 'magia' && podeMagia)
       /* Os botões nomeados do painel da mesa (23/10/2026) abrem direto na aba. */
       || (abaInicial === 'item' && !semItem) || abaInicial === 'habilidade' || abaInicial === 'tecnica_teste'
@@ -10144,9 +10204,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     ? (flechasDoArco.find((f) => f.slug === flechaSlug) || flechasDoArco[0] || null) : null;
   const semFlecha = tab === 'arma' && !!flechasDoArco && flechasDoArco.length === 0;
   // Magia de 1 rodada: o dado rola na vez, o efeito sai no fim da rodada (28/09/2026).
+  // Texto do usuário (08/11/2026).
   const avisoFimDaRodada = isEn
-    ? 'The spell takes effect at the end of the round, before the last combatant acts. Attacking or taking Physical Energy damage until then drops it.'
-    : 'A magia sai no fim da rodada, antes do último combatente agir. Atacar ou levar dano na Energia Física até lá a derruba.';
+    ? 'Once casting begins, the spell goes off at the end of the round. Attacking or taking physical energy damage until then interrupts the casting.'
+    : 'Ao iniciar a evocação, a magia será executada no fim da rodada. Atacar ou levar dano na energia física até lá, interrompe a evocação.';
   const tecnicasCompat = useMemo(
     () => tecnicasCompativeisComArma(tecnicas, arma, catalogos),
     [tecnicas, arma, catalogos]
@@ -10878,7 +10939,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
      d20 cru fica FORA do botão — dentro dele o círculo esticava em pílula. */
   // O verbo e o CUSTO da ação (1 PA, mais o karma quando é magia).
   const rotuloConfirmar = (() => {
-    const sufKa = custoKarma > 0 ? ` · ${custoKarma} KA` : '';
+    /* POR EXTENSO (08/11/2026, usuário: 'No botão "Usar (1 PA)" mude para
+       "Usar 1 Ponto de Ação"'). O karma vai junto, também por extenso. */
+    const sufKa = custoKarma > 0 ? (isEn ? ` and ${custoKarma} Karma` : ` e ${custoKarma} de Karma`) : '';
     const atacando = tab === 'arma' || tab === 'magia';
     const v = (tab === 'magia' && evocacaoAlvoPerdido) ? tb.verboConcluirEvocacao
             : (tab === 'magia' && magiaEmLargada) ? tb.verboEvocar
@@ -10887,7 +10950,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             : tb.verboUsar;
     // REGRA NOVA (revisão final): técnica modo 'total' é ativação livre — 0 PA.
     const custoPA = (tab === 'tecnica_teste' && tecSemDado) ? 0 : 1;
-    return `${v} (${custoPA} PA${sufKa})`;
+    const pa = custoPA === 1 ? (isEn ? '1 Action Point' : '1 Ponto de Ação')
+      : custoPA === 0 ? (isEn ? 'no Action Point' : 'sem Ponto de Ação')
+      : (isEn ? `${custoPA} Action Points` : `${custoPA} Pontos de Ação`);
+    return `${v} ${pa}${sufKa}`;
   })();
   /* Nas abas em que o dado vai na linha (14/09/2026), rolar JÁ é o golpe: o
      tooltip do dado carrega o verbo e o custo que eram do confirmar. */
@@ -10901,6 +10967,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
         onMouseEnter={abrirTip ? (e) => abrirTip(e, rotuloDadoFinal) : undefined}
         onMouseLeave={fecharTip || undefined}>
         <i className="ti ti-cube" aria-hidden="true" />
+        {/* O nome à vista (08/11/2026): rolar é a ação da janela. */}
+        <span className="dado-rotulo">{isEn ? 'Roll the d20' : 'Rolar o d20'}</span>
       </button>
       {d20 != null && !empateResist && <b className="dado-ov-trigger-num">{d20}</b>}
     </>
@@ -10937,6 +11005,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
         onMouseEnter={abrirTip ? (e) => abrirTip(e, rotulo) : undefined}
         onMouseLeave={fecharTip || undefined}>
         <i className={'ti ' + ic} aria-hidden="true" />
+        {/* O verbo e o custo à vista (08/11/2026): é a ação da janela. */}
+        <span className="dado-rotulo">{rotulo}</span>
       </button>
     );
   })();
@@ -10963,6 +11033,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       {/* Aba desativada DIZ POR QUÊ (13/09/2026): o motivo vive num invólucro
           (data-motivo + tooltip) porque botão desativado não recebe o mouse.
           Rolagem pendente não entra: o aviso "Já rolou" já explica. */}
+      {!abaUnica && (
       <div className="acao-tabs">
         {(() => {
           const comMotivo = (motivo, botao) => (motivo ? (
@@ -11023,6 +11094,51 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           );
         })()}
       </div>
+      )}
+
+      {/* O PASSE DA AÇÃO (08/11/2026, usuário: "reformular completamente usando
+          impeccable o modal das ações em combate […] um visual novo e bonito,
+          seguindo nosso layout"). Os números da decisão numa fileira de
+          células, como o Estudar e o painel da mesa: quantas ações sobram, a
+          coluna (ou a resistência do alvo), o alcance, a distância e o custo.
+          Só entra a célula que tem o que dizer. */}
+      {(() => {
+        const custoPA = (tab === 'tecnica_teste' && tecSemDado) ? 0 : 1;
+        /* O karma do APOIO também (08/11/2026): só a magia de ataque punha o
+           KA no custo, e o apoio sem karma travava o Usar sem dizer por quê.
+           Concluindo uma canalização, o karma já foi pago. */
+        const custoKA = tab === 'magia' ? custoKarma
+          : (tab === 'apoio' && apoioSel && !evocandoAgora) ? (apoioSel.custo_karma || 0) : 0;
+        const faltaKA = custoKA > 0 && (ator.karma || 0) < custoKA;
+        const celulas = [
+          ['acoes', isEn ? 'Actions' : 'Ações', <>{ator.pa_rest || 0}<small>/{ator.pa_max || 0}</small></>],
+          (tab === 'apoio' || tab === 'resistencia') && alvoResist != null
+            ? ['resist', isEn ? 'Resistance' : 'Resistência', alvoResist]
+            // Na Técnica o número é o total dela, que a lista embaixo já diz.
+            : (colunaClamped != null && tab !== 'tecnica_teste') ? ['coluna', isEn ? 'Column' : 'Coluna', colunaClamped] : null,
+          alcanceAcao != null && (tab === 'arma' || tab === 'magia')
+            ? ['alcance', isEn ? 'Reach' : 'Alcance', <>{alcanceAcao}<small> m</small></>] : null,
+          distanciaAoAlvo != null && (tab === 'arma' || tab === 'magia')
+            ? ['dist', isEn ? 'Distance' : 'Distância', <>{distanciaAoAlvo}<small> m</small></>] : null,
+          ['custo', isEn ? 'Cost' : 'Custo', <>{custoPA}<small> PA</small>{custoKA > 0 && <> · {custoKA}<small> KA</small></>}</>],
+        ].filter(Boolean);
+        return (
+          <div className="mn-passe acao-passe" aria-live="polite">
+            {celulas.map(([k, rot, val]) => (
+              <div key={k} className={'mn-celula acao-passe-' + k}>
+                <span className="mn-rotulo">{rot}</span>
+                <span className={'mn-celula-valor' + (k === 'custo' && faltaKA ? ' mn-celula-valor--alerta' : '')}>{val}</span>
+              </div>
+            ))}
+            {faltaKA && (
+              <p className="acao-passe-motivo" role="status">
+                {interpolate(isEn ? 'Not enough karma: the spell needs {c}, you have {t}.' : 'Karma insuficiente: a magia pede {c}, você tem {t}.',
+                  { c: custoKA, t: ator.karma || 0 })}
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Provocado (14/09/2026): diz POR QUE só um alvo aparece na lista. */}
       {provocador && (tab === 'arma' || tab === 'magia' || tab === 'tecnica_teste') && (
@@ -11158,28 +11274,34 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
               onChange={(v) => { setAlvoIdx(parseInt(v, 10)); setD20(null); }}
               options={alvos.map((p, i) => ({ value: i, label: p.nome }))}
             />
+            {/* NÍVEL — escolha do jogador, e é ele que define o karma
+                (12/09/2026). Em barra desde 14/09/2026 (NivelMagiaBarra).
+                Dentro dos campos desde 08/11/2026: escolhe-se antes de rolar. */}
+            {magiaBase && magia && (
+              <div className="acao-campo-largo">
+                <span className="acao-campo-rot">{isEn ? 'Level' : 'Nível'}</span>
+                <NivelMagiaBarra niveis={magiaBase.niveis && magiaBase.niveis.length ? magiaBase.niveis : [magia.nivel]}
+                  valor={magia.nivel}
+                  disabled={temRolagemPendente || resolvendoEvocacao}
+                  onChange={(n) => { setNivelMagiaSel(n); setD20(null); }}
+                  isEn={isEn} />
+              </div>
+            )}
+            {magia && escolheKarmaColuna && (
+              <div className="acao-campo-largo">
+                <KarmaColunaCampo
+                  valor={karmaDaColuna}
+                  max={resolvendoEvocacao ? karmaDaColuna : karmaLivreColuna}
+                  custoNivel={resolvendoEvocacao ? 0 : (magia.custo_karma || 0)}
+                  karmaAtual={ator.karma || 0}
+                  travado={temRolagemPendente || resolvendoEvocacao}
+                  pago={resolvendoEvocacao}
+                  onChange={(v) => { setKarmaColunaSel(v); setD20(null); }}
+                  isEn={isEn} />
+              </div>
+            )}
             {acaoNaLinha}
           </div>
-          {/* NÍVEL — escolha do jogador, e é ele que define o karma
-              (12/09/2026). Em barra desde 14/09/2026 (NivelMagiaBarra). */}
-          {magiaBase && magia && (
-            <NivelMagiaBarra niveis={magiaBase.niveis && magiaBase.niveis.length ? magiaBase.niveis : [magia.nivel]}
-              valor={magia.nivel}
-              disabled={temRolagemPendente || resolvendoEvocacao}
-              onChange={(n) => { setNivelMagiaSel(n); setD20(null); }}
-              isEn={isEn} />
-          )}
-          {magia && escolheKarmaColuna && (
-            <KarmaColunaCampo
-              valor={karmaDaColuna}
-              max={resolvendoEvocacao ? karmaDaColuna : karmaLivreColuna}
-              custoNivel={resolvendoEvocacao ? 0 : (magia.custo_karma || 0)}
-              karmaAtual={ator.karma || 0}
-              travado={temRolagemPendente || resolvendoEvocacao}
-              pago={resolvendoEvocacao}
-              onChange={(v) => { setKarmaColunaSel(v); setD20(null); }}
-              isEn={isEn} />
-          )}
 
           {magia && magia.descricao && (
             <p className="acao-efeito-texto">{magia.descricao}</p>
@@ -11514,18 +11636,21 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
                   label: q.nome + (mesmoParticipante(q, ator) ? tb.voce : ''),
                 }))}
               />
+              {/* Mesma barra de nível da aba Magia — e o mesmo motivo: o nível é
+                  escolha do jogador, e é ele que define o karma. Canalizando, o
+                  nível é o da largada. Dentro dos campos desde 08/11/2026. */}
+              {apoioBase && apoioSel && (
+                <div className="acao-campo-largo">
+                  <span className="acao-campo-rot">{isEn ? 'Level' : 'Nível'}</span>
+                  <NivelMagiaBarra niveis={apoioBase.niveis && apoioBase.niveis.length ? apoioBase.niveis : [apoioSel.nivel]}
+                    valor={apoioSel.nivel}
+                    disabled={temRolagemPendente || !!evocandoAgora}
+                    onChange={(n) => { setNivelApoioSel(n); setD20(null); }}
+                    isEn={isEn} />
+                </div>
+              )}
               {acaoNaLinha}
             </div>
-            {/* Mesma barra de nível da aba Magia — e o mesmo motivo: o nível é
-                escolha do jogador, e é ele que define o karma. Canalizando, o
-                nível é o da largada. */}
-            {apoioBase && apoioSel && (
-              <NivelMagiaBarra niveis={apoioBase.niveis && apoioBase.niveis.length ? apoioBase.niveis : [apoioSel.nivel]}
-                valor={apoioSel.nivel}
-                disabled={temRolagemPendente || !!evocandoAgora}
-                onChange={(n) => { setNivelApoioSel(n); setD20(null); }}
-                isEn={isEn} />
-            )}
             {apoioSel && (
               <div className="acao-item-efeito">
                 <strong>{tb.efeito}:</strong>{' '}
@@ -11888,13 +12013,24 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
    abre a Ação fecha o menu antes (ver o `fechar()` nos dois call sites).
 
    Cobertura: acao-modal.test.jsx. */
+/* O nome de cada ação, para o título do modal de uma ação só e para os
+   botões do card (BotoesDoTurno). */
+function rotuloDaAcao(aba, isEn) {
+  return ({
+    // Apoio é magia (08/11/2026): o modal das duas se chama Magia.
+    arma: isEn ? 'Attack' : 'Atacar', magia: isEn ? 'Spell' : 'Magia', apoio: isEn ? 'Spell' : 'Magia',
+    // "Habilidade", não "Teste" (08/11/2026, usuário): é o teste de uma habilidade.
+    tecnica_teste: isEn ? 'Technique' : 'Técnica', habilidade: isEn ? 'Skill' : 'Habilidade', item: 'Item',
+  })[aba] || null;
+}
 function AcaoModal({ travado, onClose, ...props }) {
   const lang = props.lang || 'pt';
   const tb = tBat(lang);
   const ator = props.ator;
+  const rotulo = props.abaUnica ? rotuloDaAcao(props.abaUnica, lang === 'en') : null;
   return (
     <ModalShell
-      title={`${tb.acao}: ${(ator && ator.nome) || ''}`}
+      title={rotulo ? `${rotulo} · ${(ator && ator.nome) || ''}` : `${tb.acao}: ${(ator && ator.nome) || ''}`}
       lang={lang}
       size="lg"
       extraClass="acao-modal"
@@ -12090,6 +12226,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // do dado) e duas RPCs em voo podem chegar ao banco fora de ordem.
   const filaGravacao = React.useRef(Promise.resolve());
   const [saqueDe, setSaqueDe] = useState(null);   // inst_id da criatura sendo saqueada (25/09/2026)
+  /* A mesa do jogador (08/11/2026): o nó do painel fixo e quem está escolhido
+     nele — por chave, como no Mestre, porque a virada reordena a lista. */
+  const [painelEl, setPainelEl] = useState(null);
+  const [escolhidoChave, setEscolhidoChave] = useState(null);
   const persistJogador = async (campos, opcoes) => {
     if (!batalha) return false;
     const manterAberto = !!(opcoes && opcoes.manterAberto);
@@ -12900,206 +13040,205 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     return map[st] || st;
   };
 
+  /* ── A MESA DO JOGADOR (08/11/2026) ──────────────────────────────────────
+     Usuário: "Eu quero que a visão do jogador na batalha seja mais parecida
+     com a do mestre. Mas não precisa mostrar a ordem de ação (iniciativa).
+     Melhore o card de ações […] Reformule completamente usando impeccable e
+     nosso design novo e elegante."
+
+     A mesma mesa do Mestre (.batalha-mesa), sem a coluna da iniciativa:
+     tabuleiro no meio e o combatente escolhido no painel fixo da direita
+     (painelEl — o tabuleiro desenha o card lá, por portal). Sem escolha, o
+     painel mostra o próprio personagem. O topo é o trilho da condução, só
+     de leitura: rodada, a luz da cena e de quem é a vez — a faixa "É a sua
+     vez" saiu, o trilho diz.
+
+     Do adversário o jogador vê retrato, nome, estado e efeitos; os números
+     dele seguem fora (14/09/2026). Os botões do turno são os do Mestre
+     (BotoesDoTurno): cada um abre o modal de uma ação só. */
+  const chaveDe = (q) => (q ? (q.inst_id || (q.tipo + ':' + q.ref_id)) : null);
+  const visiveis = participantes.map((p, i) => ({ p, i })).filter((e) => !ehReforco(e.p));
+  const idxEscolhido = (() => {
+    const k = escolhidoChave != null ? participantes.findIndex((q) => chaveDe(q) === escolhidoChave) : -1;
+    if (k >= 0) return k;
+    const meu = meuParticipante ? participantes.findIndex((q) => mesmoParticipante(q, meuParticipante)) : -1;
+    return meu >= 0 ? meu : (participantes.length ? 0 : null);
+  })();
+  const NOME_LUZ = isEn
+    ? { clara: 'Lit', parcial: 'Partial darkness', total: 'Total darkness', magica: 'Magical darkness' }
+    : { clara: 'Claro', parcial: 'Escuridão parcial', total: 'Escuridão total', magica: 'Escuridão mágica' };
+  const abrirAcao = (aba, alvoId) => { setAtaqueContra({ id: alvoId, aba, unica: true }); setAcaoOpen(true); };
+  const retratoDe = (p) => {
+    const inimigo = p.tipo === 'criatura' && p.dono_pj == null;
+    return p.foto_url
+      ? <img className="batalha-painel-ret" src={p.foto_url} alt="" />
+      : <span className={'batalha-painel-ret batalha-painel-mono' + (inimigo ? ' is-inimigo' : '')} aria-hidden="true">{String(p.nome || '?').charAt(0)}</span>;
+  };
+
   return (
     <div className="menestrel-ui fp-page batalha-jog-root">
-      <div className="fp-card batalha-jog-card">
-        <div className="fp-card-top">
-          <header className="ms-header ficha-page-header">
-        <button type="button" className="btn-icon btn-sm" onClick={onVoltar}
-          aria-label={tb.voltarAFicha}>
-          <i className="ti ti-arrow-left" />
-        </button>
-        <div className="fp-flex-fill">
-          <div className="ficha-page-eyebrow">
-            <i className={'ti ' + (batalha.treinamento ? 'ti-school' : 'ti-swords')} aria-hidden="true" />
-            {batalha.treinamento
-              ? (isEn ? 'Training · nothing goes to your sheet' : 'Treino · nada vai para a sua ficha')
-              : tb.batalha} · {tb.rodada} {rodada}
+      <div className="fp-card batalha-mng-page batalha-jog-card">
+        <div className="cartoes-barra batalha-trilho">
+          <div className="best-header-acoes" role="toolbar" aria-label={isEn ? 'Battle' : 'Batalha'}>
+            <button type="button" className="mc-acao" onClick={onVoltar} disabled={rolagemPendente}
+              onMouseEnter={(e) => rolagemPendente && abrirTip(e, tb.concluaARolagemPendente)} onMouseLeave={fecharTip}>
+              <i className="ti ti-arrow-left" aria-hidden="true" />
+              <span className="mc-acao-rotulo">{isEn ? 'Sheet' : 'Ficha'}</span>
+            </button>
+            {batalha.treinamento && (
+              <span className="batalha-treino-selo">
+                <i className="ti ti-school" aria-hidden="true" />
+                {isEn ? 'Training · nothing goes to your sheet' : 'Treino · nada vai para a sua ficha'}
+              </span>
+            )}
+            <span className="batalha-trilho-rodada">{isEn ? 'Round' : 'Rodada'} <b>{rodada || 1}</b></span>
+            {/* A luz é do Mestre: aqui só se lê (o nome e, no balão, a penalidade). */}
+            <span className={'mc-acao is-leitura visib-' + visibilidade}
+              onMouseEnter={(e) => abrirTip(e, textoVisibilidade(visibilidade, tb))} onMouseLeave={fecharTip}>
+              <i className={'ti ' + VISIBILIDADE_ICONE[visibilidade]} aria-hidden="true" />
+              <span className="mc-acao-rotulo">{NOME_LUZ[visibilidade] || visibilidade}</span>
+            </span>
+            {current && (
+              <span className={'batalha-trilho-vez' + (ehMinhaVez && souAtivo ? ' is-minha' : '')} role="status">
+                <i className={'ti ' + (ehMinhaVez && souAtivo ? 'ti-player-play' : 'ti-hourglass')} aria-hidden="true" />
+                {ehMinhaVez && souAtivo ? tb.eASuaVez : interpolate(tb.eAVezDe, { nome: current.nome })}
+              </span>
+            )}
           </div>
-          <h2 className="ms-title" style={{ margin: 0 }}>
-            {meuParticipante ? meuParticipante.nome : (tb.batalha)}
-          </h2>
-        </div>
-        {/* Ação/Passar/Desistir saíram do header (30/08/2026): as três agem
-            sobre o próprio PJ, então vivem no menu do avatar dele — mesmo
-            princípio da tela do Mestre. */}
-          </header>
         </div>
 
-      <div className="batalha-jog-body">
         {!catalogos ? (
-          <div className="batalha-loading-msg">
-            {tb.carregandoBatalha}
-          </div>
+          <div className="batalha-loading-msg">{tb.carregandoBatalha}</div>
         ) : (
-          <>
-            {/* DE QUEM É A VEZ, num lugar só, no topo (14/09/2026). "Seu status:
-                Desistiu" e "É a sua vez" embaixo do tabuleiro saíram: o card
-                do próprio PJ já mostra o estado dele. Na vez de quem não está
-                ativo (desistiu, desmaiou), a vez passa sozinha — o topo diz de
-                quem é, como para qualquer outro combatente. */}
-            {ehMinhaVez && souAtivo ? (
-              <div className="batalha-vez-msg minha-vez">
-                <i className="ti ti-player-play btn-ic-mr" aria-hidden="true" style={{ color: 'var(--vivo)' }} />
-                {tb.eASuaVez}
-              </div>
-            ) : current ? (
-              <div className="batalha-vez-msg">
-                <i className="ti ti-clock btn-ic-mr" aria-hidden="true" style={{ color: 'var(--vivo)' }} />
-                {interpolate(tb.eAVezDe, { nome: current.nome })}
-              </div>
-            ) : null}
-            {/* Tabuleiro: o jogador enxerga todos os tokens, mas só o dele
-                é selecionável, e só quando for a vez. */}
-            <TabuleiroBatalha
-              // Reforço chegando fica de fora: surpresa até a virada (29/09/2026).
-              entradas={participantes.map((p, i) => ({ p, i })).filter((e) => !ehReforco(e.p))}
-              meta={{}}
-              visibilidade={visibilidade}
-        ambiente={ambiente}
-              /* O próprio token, e — Conduzir Oponente (14/09/2026) — o do
-                 adversário que eu conduzo. */
-              podeSelecionar={(p) => !salvando && podeAgir && ehMinhaVez && !!meuParticipante
-                && (mesmoParticipante(p, meuParticipante)
-                  ? movimentoDisponivel(p) > 0
-                  : conducaoDisponivel(p, meuParticipante) > 0)}
-              alcanceDe={(p) => (!meuParticipante ? null
-                : mesmoParticipante(p, meuParticipante) ? movimentoDisponivel(p)
-                : (conducaoDisponivel(p, meuParticipante) > 0 ? conducaoDisponivel(p, meuParticipante) : null))}
-              onMover={moverNoTabuleiroJogador}
-              salvando={salvando}
-              isEn={isEn}
-              tb={tb}
-              abrirTip={abrirTip}
-              fecharTip={fecharTip}
-              aviso={erro}
-              menuTravado={rolagemPendente}
-              /* `menuVoltar`/`abrirMenu` saíram em 17/09/2026 pelas mesmas
-                 razões da tela do Mestre: o painel de Ação é um ModalShell
-                 próprio agora (o AcaoModal no fim desta view) e tem o X dele. */
-              menuDe={(p, i, fechar, mover) => {
-                const ehEu = meuParticipante && mesmoParticipante(p, meuParticipante);
-                return (
-                  <div className={'batalha-fighter em-menu status-' + (p.status || 'ativo') + (p.atual ? ' atual' : '')}>
-                    <div className="batalha-fighter-main">
-                      <div className="batalha-fighter-head">
-                        <div className="batalha-fighter-id no-pointer">
-                          {/* Sem o ícone de status ao lado do nome (13/09/2026). */}
-                          {/* O próprio card diz só "Você" (14/09/2026), não
-                              "Lirael Vel'Thalas (você)". */}
-                          <span className={'batalha-fighter-nome' + (ehEu ? ' eu' : '')}>
-                            {ehEu ? (isEn ? 'You' : 'Você') : (p.nome || '')}
-                          </span>
-                          {/* Pools ao lado do nome (13/09/2026), só do próprio PJ e
-                              só de leitura: o jogador não vê os números dos outros. */}
-                          <span className="batalha-card-pools-nome">
-                            {ehEu && POOLS_DO_CARD.filter((d) => (d.pool !== 'res' || (p.res_max || 0) > 0) && (d.pool !== 'ka' || (p.karma_max || 0) > 0)).map((d) => (
-                              <PoolBotao key={d.pool} def={d} valor={p[d.campo]} max={p[d.campo + '_max']}
-                                isEn={isEn} abrirTip={abrirTip} fecharTip={fecharTip} />
-                            ))}
-                            {/* Efeitos temporários de QUALQUER combatente, só
-                                leitura (13/09/2026) — botões com as rodadas na
-                                borda azul desde 14/09/2026. */}
-                            <StatusTempChips p={p} tb={tb} somenteLeitura
-                              abrirTip={abrirTip} fecharTip={fecharTip} />
-                            {/* Estado dos OUTROS combatentes, por último na linha
-                                do nome (14/09/2026) — o mesmo lugar do botão de
-                                estado do Mestre. Só leitura: o jogador não muda o
-                                estado de ninguém (o dele sai pelo Desistir), por
-                                isso é um <span>. O nome do estado vai no tooltip. */}
-                            {!ehEu && (
-                              <span className="batalha-stat batalha-stat-estado dim"
-                                onMouseEnter={(e) => abrirTip(e, nomeStatus(p.status))}
-                                onMouseLeave={fecharTip}
-                                aria-label={nomeStatus(p.status)}>
-                                <i className={'ti ' + iconeStatus(p.status || 'ativo')} aria-hidden="true" />
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        {/* ATACAR ESTE COMBATENTE, na vez do jogador (12/09/2026).
-                            Desde 14/09/2026 é UM botão, "Atacar", na linha do X:
-                            o painel abre na aba Arma (ou Magia, sem arma) e as
-                            abas trocam dali. Conduzir Oponente vem junto. */}
-                        {!ehEu && ehMinhaVez && souAtivo && meuParticipante && catalogos
-                          && podeSerAtacado(p) && (() => {
-                          // Provocado só ataca quem provocou (14/09/2026).
-                          const podeAtacar = podeAtacarSobProvocacao(meuParticipante, p, participantes);
-                          const temArma = podeAtacar && ataquesDoAtor(meuParticipante, catalogos).length > 0;
-                          const temMagia = podeAtacar && magiasOfensivasDoAtor(meuParticipante, catalogos).length > 0;
-                          // Conduzir Oponente (14/09/2026), igual ao Mestre.
-                          const podeConduzir = !!mover && conducaoDisponivel(p, meuParticipante) > 0;
-                          if (!temArma && !temMagia && !podeConduzir) return null;
-                          const bloqueado = salvando || rolagemPendente;
-                          // `fechar()`: o painel é ModalShell desde 17/09/2026
-                          // e o popover ficaria atrás do backdrop.
-                          const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); fechar(); };
-                          return (
-                            <div className="batalha-card-botoes batalha-menu-atacar batalha-head-acoes">
-                              {podeConduzir && (
-                                <BotaoAcaoMenu icone="ti-arrows-move"
-                                  rotulo={tb.conduzir || (isEn ? 'Lead' : 'Conduzir')}
-                                  disabled={bloqueado} onClick={mover}
+          <div className="batalha-conduzir">
+            <div className="batalha-mesa batalha-mesa--jogador">
+              <div className="batalha-mesa-centro">
+                <TabuleiroBatalha
+                  // Reforço chegando fica de fora: surpresa até a virada (29/09/2026).
+                  entradas={visiveis}
+                  meta={{}}
+                  visibilidade={visibilidade}
+                  ambiente={ambiente}
+                  semBancada
+                  painelEl={painelEl}
+                  selecionado={idxEscolhido}
+                  onSelecionar={(i) => setEscolhidoChave(chaveDe(participantes[i]))}
+                  /* O próprio token, e — Conduzir Oponente (14/09/2026) — o do
+                     adversário que eu conduzo. */
+                  podeSelecionar={(p) => !salvando && podeAgir && ehMinhaVez && !!meuParticipante
+                    && (mesmoParticipante(p, meuParticipante)
+                      ? movimentoDisponivel(p) > 0
+                      : conducaoDisponivel(p, meuParticipante) > 0)}
+                  alcanceDe={(p) => (!meuParticipante ? null
+                    : mesmoParticipante(p, meuParticipante) ? movimentoDisponivel(p)
+                    : (conducaoDisponivel(p, meuParticipante) > 0 ? conducaoDisponivel(p, meuParticipante) : null))}
+                  onMover={moverNoTabuleiroJogador}
+                  salvando={salvando}
+                  isEn={isEn}
+                  tb={tb}
+                  abrirTip={abrirTip}
+                  fecharTip={fecharTip}
+                  aviso={erro}
+                  menuTravado={rolagemPendente}
+                  menuDe={(p, i, fechar, mover) => {
+                    const ehEu = meuParticipante && mesmoParticipante(p, meuParticipante);
+                    const naVez = ehMinhaVez && souAtivo && !!meuParticipante;
+                    return (
+                      <div className={'batalha-fighter em-menu status-' + (p.status || 'ativo') + (p.atual ? ' atual' : '')}>
+                        <div className="batalha-fighter-main">
+                          <div className="batalha-fighter-head">
+                            <div className="batalha-fighter-id no-pointer">
+                              {retratoDe(p)}
+                              <span className={'batalha-fighter-nome' + (ehEu ? ' eu' : '')}>{p.nome || ''}</span>
+                              <span className="batalha-card-pools-nome">
+                                {/* As energias só do próprio personagem (14/09/2026). */}
+                                {ehEu && POOLS_DO_CARD.filter((d) => (d.pool !== 'res' || (p.res_max || 0) > 0) && (d.pool !== 'ka' || (p.karma_max || 0) > 0)).map((d) => (
+                                  <PoolBotao key={d.pool} def={d} valor={p[d.campo]} max={p[d.campo + '_max']}
+                                    isEn={isEn} linha abrirTip={abrirTip} fecharTip={fecharTip} />
+                                ))}
+                                <StatusTempChips p={p} tb={tb} somenteLeitura
                                   abrirTip={abrirTip} fecharTip={fecharTip} />
-                              )}
-                              {(temArma || temMagia) && (
-                                <BotaoAcaoMenu icone="ti-sword" variante="primary"
-                                  rotulo={isEn ? 'Attack' : 'Atacar'}
-                                  disabled={bloqueado} onClick={() => abrir(temArma ? 'arma' : 'magia')}
+                                {!ehEu && (
+                                  <span className="batalha-stat batalha-stat-estado dim"
+                                    onMouseEnter={(e) => abrirTip(e, nomeStatus(p.status))}
+                                    onMouseLeave={fecharTip}
+                                    aria-label={nomeStatus(p.status)}>
+                                    <i className={'ti ' + iconeStatus(p.status || 'ativo')} aria-hidden="true" />
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                          {ehEu && (
+                            <div className="batalha-menu-acoes batalha-card-barra">
+                              <div className="batalha-fighter-stats">
+                                <NumerosDoCombatente p={p} tb={tb} isEn={isEn} abrirTip={abrirTip} fecharTip={fecharTip} celulas />
+                              </div>
+                              {naVez && (
+                                <BotoesDoTurno ator={p} catalogos={catalogos} isEn={isEn} tb={tb}
+                                  travado={salvando || rolagemPendente || !temAcaoRestante(p)}
+                                  motivoTravado={rolagemPendente ? tb.concluaARolagemPendente : null}
+                                  onAcao={(aba) => abrirAcao(aba, undefined)} mover={mover}
+                                  onEncerrar={() => { fechar(); handlePassar(); }}
+                                  encerrarDesativado={salvando || rolagemPendente}
                                   abrirTip={abrirTip} fecharTip={fecharTip} />
                               )}
                             </div>
-                          );
-                        })()}
-                      </div>
-                      {/* FILEIRA DO PRÓPRIO PJ (13/09/2026): números à esquerda,
-                          ações do turno à direita — a mesma do card do Mestre
-                          (NumerosDoCombatente). Velocidade, ações e armadura dos
-                          OUTROS não aparecem para o jogador (14/09/2026): do
-                          adversário ele vê só o estado, na linha do nome. */}
-                      {/* SAQUEAR (25/09/2026): na minha vez, meu PJ de pé encostado
-                          numa criatura morta ou desmaiada. Não gasta PA. */}
-                      {!ehEu && meuParticipante && catalogos && podeSaquear(meuParticipante, p) && (
-                        <div className="batalha-menu-acoes batalha-card-barra batalha-menu-saque">
-                          <div className="batalha-card-botoes">
-                            <BotaoAcaoMenu icone="ti-backpack" rotulo={isEn ? 'Loot' : 'Saquear'}
-                              disabled={salvando} onClick={() => { setSaqueDe(p.inst_id); fechar(); }}
-                              abrirTip={abrirTip} fecharTip={fecharTip} />
-                          </div>
+                          )}
+                          {/* CONTRA ESTE COMBATENTE, na minha vez: Atacar e Magia
+                              abrem o modal de uma ação só, já com ele de alvo;
+                              Conduzir Oponente (14/09/2026) e Saquear seguem. */}
+                          {!ehEu && naVez && podeSerAtacado(p) && (() => {
+                            const podeAtacar = podeAtacarSobProvocacao(meuParticipante, p, participantes);
+                            const temArma = podeAtacar && ataquesDoAtor(meuParticipante, catalogos).length > 0;
+                            const temMagia = podeAtacar && magiasOfensivasDoAtor(meuParticipante, catalogos).length > 0;
+                            const podeConduzir = !!mover && conducaoDisponivel(p, meuParticipante) > 0;
+                            if (!temArma && !temMagia && !podeConduzir) return null;
+                            const bloqueado = salvando || rolagemPendente || !temAcaoRestante(meuParticipante);
+                            return (
+                              <div className="batalha-menu-acoes batalha-card-barra">
+                                <div className="batalha-card-botoes batalha-acoes-nomeadas batalha-turno">
+                                  {temArma && (
+                                    <BotaoAcaoMenu icone="ti-sword" comRotulo rotulo={rotuloDaAcao('arma', isEn)}
+                                      disabled={bloqueado} onClick={() => abrirAcao('arma', p.inst_id)}
+                                      abrirTip={abrirTip} fecharTip={fecharTip} />
+                                  )}
+                                  {temMagia && (
+                                    <BotaoAcaoMenu icone="ti-sparkles" comRotulo rotulo={rotuloDaAcao('magia', isEn)}
+                                      disabled={bloqueado} onClick={() => abrirAcao('magia', p.inst_id)}
+                                      abrirTip={abrirTip} fecharTip={fecharTip} />
+                                  )}
+                                  {podeConduzir && (
+                                    <BotaoAcaoMenu icone="ti-arrows-move" comRotulo
+                                      rotulo={tb.conduzir || (isEn ? 'Lead' : 'Conduzir')}
+                                      disabled={salvando || rolagemPendente} onClick={mover}
+                                      abrirTip={abrirTip} fecharTip={fecharTip} />
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          {/* SAQUEAR (25/09/2026): meu PJ de pé encostado numa
+                              criatura caída. Não gasta PA. */}
+                          {!ehEu && meuParticipante && podeSaquear(meuParticipante, p) && (
+                            <div className="batalha-menu-acoes batalha-card-barra">
+                              <div className="batalha-card-botoes batalha-acoes-nomeadas batalha-turno">
+                                <BotaoAcaoMenu icone="ti-backpack" comRotulo rotulo={isEn ? 'Loot' : 'Saquear'}
+                                  disabled={salvando} onClick={() => setSaqueDe(p.inst_id)}
+                                  abrirTip={abrirTip} fecharTip={fecharTip} />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {ehEu && (
-                      <div className="batalha-menu-acoes batalha-card-barra">
-                        <div className="batalha-fighter-stats">
-                          <NumerosDoCombatente p={p} tb={tb} isEn={isEn} abrirTip={abrirTip} fecharTip={fecharTip} />
-                        </div>
-                        {ehMinhaVez && souAtivo && (
-                          <div className="batalha-card-botoes">
-                            {mover && (
-                              <BotaoAcaoMenu icone="ti-footsteps" onClick={mover}
-                                rotulo={tb.tabMover || (isEn ? 'Move' : 'Mover')}
-                                abrirTip={abrirTip} fecharTip={fecharTip} />
-                            )}
-                            <BotaoAcaoMenu icone="ti-sword" variante="primary" rotulo={tb.acao}
-                              disabled={salvando} onClick={() => setAcaoOpen(true)}
-                              abrirTip={abrirTip} fecharTip={fecharTip} />
-                            <BotaoAcaoMenu icone="ti-player-skip-forward" rotulo={tb.passar}
-                              disabled={salvando} onClick={() => { fechar(); handlePassar(); }}
-                              abrirTip={abrirTip} fecharTip={fecharTip} />
-                            {/* O "Encerrar" (desistir) saiu do card do jogador em
-                                14/09/2026, a pedido do usuário. */}
-                          </div>
-                        )}
                       </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              }}
-            />
-          </>
+                    );
+                  }}
+                />
+              </div>
+              <aside className="batalha-mesa-painel" ref={setPainelEl} aria-label={isEn ? 'Combatant' : 'Combatente'} />
+            </div>
+          </div>
         )}
-      </div>
       </div>
       {/* Painel de Ação — ModalShell desde 17/09/2026, igual ao do Mestre.
           O ator é SEMPRE `meuParticipante`: o Jogador só age pelo próprio PJ,
@@ -13107,9 +13246,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           `ataqueContra` só escolhe alvo e aba iniciais). */}
       {acaoOpen && ehMinhaVez && souAtivo && catalogos && meuParticipante && (
         <AcaoModal
-          key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba : 'proprio'}
+          key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba + (ataqueContra.unica ? '-unica' : '') : 'proprio'}
           alvoInicialId={ataqueContra ? ataqueContra.id : undefined}
           abaInicial={ataqueContra ? ataqueContra.aba : undefined}
+          abaUnica={ataqueContra && ataqueContra.unica ? ataqueContra.aba : undefined}
           ator={meuParticipante}
           participantes={participantes}
           catalogos={catalogos}

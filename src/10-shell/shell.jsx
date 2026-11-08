@@ -3232,9 +3232,23 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
          coluna daqui apagava a compra feita entre a leitura e a escrita. */
       const treina = tipoAtividade && !morto && Array.isArray(pj.treinos) && pj.treinos.length > 0;
       const fabrica = tipoAtividade === 'fabricando' && !morto;
+      /* O AVISO DA CONDIÇÃO RUIM (08/11/2026): a barra que cruzou para o
+         primeiro degrau que cobra vira UM aviso na notificação da mesa —
+         ver avisosDeCondicao (01-core/game-data.jsx). Morto não recebe. */
+      const _avisos = window.avisosDeCondicao;
+      const _prot = window.protecoesVestidas;
+      const avisos = (!morto && typeof _avisos === 'function')
+        ? _avisos(est.condicoes, novo.condicoes,
+            (catCarga && typeof _prot === 'function') ? _prot((pj.inventario && pj.inventario.itens) || [], catCarga) : {},
+            [pj.nome, pj.sobrenome].filter(Boolean).join(' '))
+        : [];
       return Promise.all([
         supabaseClient.from('personagens').update({ estado_atual: novo }).eq('id', pj.id)
           .then(({ error: e }) => { if (e) console.error('[desgaste] PJ', pj.id, e); }),
+        ...avisos.map((a) => Promise.resolve(supabaseClient.rpc('registrar_evento_mesa', {
+          p_historia_id: historiaId, p_tipo: 'aviso', p_texto: a.texto,
+          p_meta: { pj_id: pj.id, condicao: a.condicao },
+        })).then(({ error: e }) => { if (e) console.error('[aviso] PJ', pj.id, e); })),
         treina && Promise.resolve(supabaseClient.rpc('avancar_treinos', { p_pj_id: pj.id, p_atividade: tipoAtividade, p_horas: horas }))
           .then(({ error: e }) => { if (e) console.error('[treino] PJ', pj.id, e); }),
         // Os bichos do PJ e a bancada, pela porta do compare-and-swap (ver
@@ -4196,45 +4210,16 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      selecionada, não precisa mostrar o menu cena, batalha, personagens, loja,
      jogadores." Fica a Ambientação (o catálogo do mundo abre sem mesa). */
   const SECOES_SO_COM_MESA = ['cena', 'batalha', 'personagens_m', 'loja_mesa', 'jogadores'];
-  /* ── PERSONAGENS › ECO › FICHA (26/10/2026, pedido do usuário) ────────────
-     "Como mestre, os menus Ficha, Identificação, Conhecimento, etc viram um
-      submenu em Personagens > Eco, etc."
-
-     O galho é MONTADO AQUI, e não em NAV_MESA, porque ele depende dos dados:
-     um personagem da mesa por filho, e as seis partes da ficha em cada um.
-     Sem personagens (ou antes de a lista chegar), "Personagens" continua sendo
-     o item simples de sempre — uma gaveta vazia seria pior que nenhuma. */
-  /* Os companheiros como filhos de "Companheiros" — o submenu só nasce para o
-     personagem que está aberto, porque é dele que a ficha relata a lista. */
-  const personagensComFilhos = React.useMemo(() => {
-    return {
-      id: 'personagens_m', secao: 'personagens_m', navega: true,
-      filhos: (pjsDaMesa || []).map((pj) => ({
-        id: 'pj:' + pj.id,
-        rotulo: { pt: pj.nome, en: pj.nome },
-        /* SÓ EDITAR E EXCLUIR (02/11/2026, usuário: "Mantém apenas editar e
-           excluir"). As páginas do personagem — Identificação, Conhecimento,
-           Companheiros, Amigos — moram no trilho da ficha; o submenu guarda
-           só as ações SOBRE ele. O nome continua abrindo a ficha. */
-        filhos: [
-          /* EDITAR E EXCLUIR (26/10/2026, pedido do usuário: "os botões
-             'editar, excluir' também" devem ficar só na barra lateral). Vêm
-             depois das partes e separados por uma régua: são ações SOBRE o
-             personagem, não páginas dele. Excluir fica em brasa — é o único
-             item do menu inteiro que não se desfaz. */
-          { id: 'pj:' + pj.id + ':editar', secao: 'personagens_m', pj: pj.id, acao: 'editar',
-            rotulo: { pt: 'Editar', en: 'Edit' } },
-          { id: 'pj:' + pj.id + ':excluir', secao: 'personagens_m', pj: pj.id, acao: 'excluir',
-            perigo: true, rotulo: { pt: 'Excluir', en: 'Delete' } },
-        ],
-      })),
-    };
-  }, [pjsDaMesa]);
-  const navComPjs = (profile === 'master' && (pjsDaMesa || []).length)
-    ? { ...navBase, mesa: navBase.mesa.map((n) => (n.secao === 'personagens_m' ? personagensComFilhos : n)) }
-    /* O Jogador não pendura mais os companheiros no menu (04/11/2026): o
-       item Companheiros saiu — ver NAV_MESA.player, 01-core/constants.jsx. */
-    : navBase;
+  /* O MENU SEM OS PERSONAGENS (08/11/2026, usuário: "No menu lateral
+     esquerdo, remova os botões editar e excluir do personagem, assim como a
+     página de cada personagem. Ao clicar em personagem, vai aparecer a página
+     com os cards. Para editar ou excluir uma ficha, será necessário clicar no
+     card em 'jogadores'"). "Personagens" volta a ser o item simples que abre
+     a lista de cards; Editar e Excluir moram no leque do card em Jogadores
+     (05-convites/convites.jsx). */
+  /* O Jogador não pendura mais os companheiros no menu (04/11/2026): o
+     item Companheiros saiu — ver NAV_MESA.player, 01-core/constants.jsx. */
+  const navComPjs = navBase;
   const nav = profile === 'master' && !mesaAtivaId
     /* Grupo de trilho (Mesa do Mestre, 04/11/2026) não tem `secao` própria:
        sai quando TODAS as folhas dele precisam de mesa. */

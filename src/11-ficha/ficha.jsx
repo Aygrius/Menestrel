@@ -4516,12 +4516,22 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // efeito_positivo/negativo de UM item (catálogo `cat`, multiplicado por
   // `quantidade`) sobre o estado_atual atual do PJ. Usada por usarItemFicha
   // (consumir) e desequiparFicha (reverter efeito de vestimenta retirada).
+  /* O aviso da condição ruim (08/11/2026): a barra que CRUZA para o degrau
+     que cobra vira UM aviso na mesa — avisosDeCondicao, 01-core/game-data.jsx.
+     Vale para a barra mexida à mão, o item usado e o tempo (no shell). */
+  const avisarCondicaoRuim = (antes, depois) => {
+    if (typeof window.avisosDeCondicao !== 'function' || !pj) return;
+    window.avisosDeCondicao(antes, depois, ficha.protecoes || {}, [pj.nome, pj.sobrenome].filter(Boolean).join(' '))
+      .forEach((av) => registrarEventoMesa('aviso', av.texto, { pj_id: pj.id, condicao: av.condicao }));
+  };
   const aplicarEstadoEfeito = (cat, quantidade) => {
     if (!pj) return;
     /* A data da mesa decide a porta: item com prazo vira linha em
        efeitos_temporarios em vez de prender valor na barra (06/10/2026). */
     const novo = aplicarEfeitosItem(pj.estado_atual, cat, quantidade, maximosVitalidade, dataJogoDaMesa);
     if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
+    // Item que piora uma barra ("causa 5 de sono") também avisa (08/11/2026).
+    if (novo !== pj.estado_atual) avisarCondicaoRuim(pj.estado_atual && pj.estado_atual.condicoes, novo && novo.condicoes);
   };
 
   const atributosFinais = ficha.atributos;
@@ -4537,6 +4547,13 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // funções de salvar abaixo (equipar/usar/destruir/foto/estado) voltaram a
   // não checar pausado: checar de novo aqui bloquearia o próprio Mestre.
   const podeEditarFoto = !!currentUserId && pj.user_id === currentUserId;
+  /* O MESTRE TAMBÉM TROCA A FOTO (08/11/2026, usuário: "Permita que o mestre
+     também consiga alterar a foto do personagem como os jogadores fazem").
+     Só o retrato: podeEditarFoto segue sendo "é o dono" para o resto da
+     ficha (rituais, karma, magia em si mesmo). A policy
+     personagens_update_own_or_vinculado já deixa o Mestre da mesa gravar
+     foto_url; o arquivo vai para a pasta DELE no bucket avatares. */
+  const podeTrocarFoto = podeEditarFoto || !!isMestre;
   const handleFotoChange = async (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
@@ -4546,7 +4563,11 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     if (file.size > 1 * 1024 * 1024) { setFotoErro(en ? 'Image too large (max 1 MB).' : 'Imagem muito grande (máx. 1 MB).'); return; }
     setFotoUploading(true);
     try {
-      const path = `${currentUserId}/${pj.id}`;
+      /* A pasta é a de quem está logado (o bucket só aceita a própria pasta):
+         o dono, ou o Mestre trocando a foto pelo jogador. */
+      const { data: quem } = await supabaseClient.auth.getUser();
+      const dono = (quem && quem.user && quem.user.id) || currentUserId;
+      const path = `${dono}/${pj.id}`;
       const up = await supabaseClient.storage.from('avatares').upload(path, file, { upsert: true, contentType: file.type, cacheControl: '3600' });
       if (up.error) throw up.error;
       const { data: pub } = supabaseClient.storage.from('avatares').getPublicUrl(path);
@@ -5202,6 +5223,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     else if (key === 'eh' && ehDaMontaria > 0) novo.vitalidade.eh = Math.max(0, val - ehDaMontaria);
     else novo.vitalidade[key] = val;
     salvarEstadoAtual(novo);
+    /* O AVISO DA CONDIÇÃO RUIM TAMBÉM NA MÃO (08/11/2026, usuário: "O mestre
+       alterou a fome do Lirael para 95 e não apareceu a mensagem"). O aviso
+       só nascia ao avançar o tempo; a barra mexida à mão grava por aqui. A
+       mesma regra (avisosDeCondicao): só a barra que CRUZA para o degrau
+       que cobra, uma vez. */
+    if (scope === 'cond') avisarCondicaoRuim(base.condicoes, novo.condicoes);
   };
   /* STATUS PERSISTENTE (17/09/2026) — a metade "fora da batalha". Grava em
      estado_atual.status, que é o mesmo lugar de onde montarSnapshots puxa os
@@ -6204,15 +6231,15 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         {/* retrato no centro — a foto do personagem preenche o vão */}
         <div className="fp2-stage fp3-retrato">
           <div
-            className={'fp2-portrait' + (podeEditarFoto ? ' is-editable' : '') + (!fotoUrl ? ' is-empty' : '')}
-            onClick={podeEditarFoto && !fotoUploading ? () => { if (fileFotoRef.current) fileFotoRef.current.click(); } : undefined}
-            onMouseEnter={podeEditarFoto ? (e) => abrirTip(e, en ? 'Change photo' : 'Trocar foto') : undefined}
-            onMouseLeave={podeEditarFoto ? fecharTip : undefined}
+            className={'fp2-portrait' + (podeTrocarFoto ? ' is-editable' : '') + (!fotoUrl ? ' is-empty' : '')}
+            onClick={podeTrocarFoto && !fotoUploading ? () => { if (fileFotoRef.current) fileFotoRef.current.click(); } : undefined}
+            onMouseEnter={podeTrocarFoto ? (e) => abrirTip(e, en ? 'Change photo' : 'Trocar foto') : undefined}
+            onMouseLeave={podeTrocarFoto ? fecharTip : undefined}
           >
             {fotoUrl
               ? <img src={fotoUrl} alt={nomeCompleto} className="fp2-portrait-img" />
               : <span className="fp2-mono">{inicial}</span>}
-            {podeEditarFoto && <input ref={fileFotoRef} type="file" accept="image/*" hidden onChange={handleFotoChange} />}
+            {podeTrocarFoto && <input ref={fileFotoRef} type="file" accept="image/*" hidden onChange={handleFotoChange} />}
             <div className="fp2-name-block">
               <h2 className="fp2-name">{pj.nome || nomeCompleto}</h2>
             </div>

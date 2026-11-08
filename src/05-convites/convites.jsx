@@ -82,6 +82,34 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
   const [busca, setBusca] = useState('');
   const [lixeira, setLixeira] = useState(null);
   const [fotos, setFotos] = useState({});
+  /* EDITAR E EXCLUIR A FICHA PELO CARD (08/11/2026, usuário: "Para editar ou
+     excluir uma ficha, será necessário clicar no card em 'jogadores'"). Saiu
+     do menu lateral. O card de quem já entrou com um personagem abre o leque
+     (o mesmo do inventário) com as duas ações; elas abrem os mesmos modais da
+     lista de personagens — o assistente em modo Mestre e a confirmação. */
+  const [lequePj, setLequePj] = useState(null);   // { id, nome, ancora }
+  const [editando, setEditando] = useState(null);  // a linha inteira do personagem
+  const [excluindo, setExcluindo] = useState(null);
+  const carregarPj = async (id) => {
+    const { data, error: err } = await supabaseClient.from('personagens').select('*').eq('id', id).maybeSingle();
+    if (err || !data) { setError((err && err.message) || (lang === 'en' ? 'Character not found.' : 'Personagem não encontrado.')); return null; }
+    return data;
+  };
+  const acaoNoPj = async (chave, id) => {
+    const pj = await carregarPj(id);
+    if (!pj) return;
+    if (chave === 'editar') setEditando(pj);
+    else if (chave === 'excluir') setExcluindo(pj);
+  };
+  const excluirPj = async () => {
+    const pj = excluindo;
+    setExcluindo(null);
+    if (!pj) return;
+    const { error: err } = await supabaseClient.from('personagens').delete().eq('id', pj.id);
+    if (err) { setError((lang === 'en' ? 'Failed to delete: ' : 'Falha ao excluir: ') + err.message); return; }
+    await carregar();
+    onChanged?.();
+  };
 
   const carregar = async () => {
     setError(null);
@@ -245,14 +273,23 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
             const foto = c.personagem_id != null ? fotos[c.personagem_id] : null;
             const nome = c.usado_por ? (c.usado_por_nome || c.usado_por.slice(0, 8)) : c.codigo;
             const armada = lixeira === c.id;
-            const copiar = () => { if (ativo) copiarCodigo(c.id, c.codigo); };
+            /* Com personagem, o card abre o leque da ficha; convite ativo
+               (ainda sem ninguém) segue copiando o código. */
+            const temPj = c.personagem_id != null;
+            const clicavel = ativo || temPj;
+            const acionar = (ev) => {
+              if (temPj) { fecharTip(); setLequePj({ id: c.personagem_id, nome: c.personagem_nome || nome, ancora: ev.currentTarget }); return; }
+              if (ativo) copiarCodigo(c.id, c.codigo);
+            };
             return (
               <div key={c.id} className="pj-card-wrap">
-                <article className={'pj-card convite-cartao' + (ativo ? ' is-clickable' : '')}
-                  role={ativo ? 'button' : undefined} tabIndex={ativo ? 0 : undefined}
-                  onClick={copiar}
-                  onKeyDown={(ev) => { if (ativo && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); copiar(); } }}
-                  onMouseEnter={(ev) => { if (ativo) abrirTip(ev, tc.mng.copiar); }}
+                <article className={'pj-card convite-cartao' + (clicavel ? ' is-clickable' : '')}
+                  data-pj={temPj ? c.personagem_id : undefined}
+                  role={clicavel ? 'button' : undefined} tabIndex={clicavel ? 0 : undefined}
+                  aria-haspopup={temPj ? 'menu' : undefined}
+                  onClick={acionar}
+                  onKeyDown={(ev) => { if (clicavel && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); acionar(ev); } }}
+                  onMouseEnter={(ev) => { if (ativo && !temPj) abrirTip(ev, tc.mng.copiar); }}
                   onMouseLeave={fecharTip}>
                   <div className="pj-card-body">
                     <div className={'pj-card-portrait' + (foto ? '' : ' is-empty')}>
@@ -313,6 +350,33 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
       {window.PortalTooltip
         ? <window.PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
         : null}
+      {lequePj && window.LequeDoItem && (
+        <window.LequeDoItem
+          key={'leque-pj-' + lequePj.id}
+          ancora={lequePj.ancora}
+          rotulo={lequePj.nome}
+          acoes={[
+            { chave: 'editar', icone: 'ti-pencil', rotulo: en ? 'Edit sheet' : 'Editar ficha' },
+            { chave: 'excluir', icone: 'ti-trash', rotulo: en ? 'Delete sheet' : 'Excluir ficha', perigo: true },
+          ]}
+          onEscolher={(a) => { const id = lequePj.id; setLequePj(null); acaoNoPj(a.chave, id); }}
+          onClose={() => setLequePj(null)} />
+      )}
+      {editando && window.NovoPersonagemModal && (
+        <window.NovoPersonagemModal
+          lang={lang}
+          personagemExistente={editando}
+          isMaster
+          onClose={() => setEditando(null)}
+          onSaved={() => { setEditando(null); carregar(); onChanged?.(); }} />
+      )}
+      {excluindo && window.ConfirmarExclusaoModal && (
+        <window.ConfirmarExclusaoModal
+          personagem={excluindo}
+          lang={lang}
+          onCancel={() => setExcluindo(null)}
+          onConfirm={excluirPj} />
+      )}
     </div>
   );
 }

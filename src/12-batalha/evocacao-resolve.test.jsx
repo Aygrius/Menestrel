@@ -123,7 +123,7 @@ describe('painel na vez em que a magia fica pronta', () => {
     expect(document.querySelector('.magia-largada-instrucao').textContent).toMatch(/o alvo não é mais válido/);
     expect(document.querySelector('.dado-ov-trigger button')).toBeNull();
     const confirmar = document.querySelector('.atacar-confirmar');
-    expect(confirmar.getAttribute('aria-label')).toBe('Concluir evocação (1 PA)');
+    expect(confirmar.getAttribute('aria-label')).toBe('Concluir evocação 1 Ponto de Ação');
     fireEvent.click(confirmar);
     expect(aplicados).toHaveLength(1);
     expect(aplicados[0]).toMatchObject({ tipo: 'magia', evocacao_perdida: true, alvo: null });

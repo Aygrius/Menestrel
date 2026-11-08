@@ -124,13 +124,17 @@ describe('a fiação nos dois menus do tabuleiro', () => {
   // 13/09/2026: sem o texto "Fulano ataca com"; os botões entram na fileira
   // única do card, no fundo dos outros círculos (sem variante primary).
   // 14/09/2026: no Jogador, UM botão "Atacar" na linha do X (batalha-head-acoes).
+  /* 08/11/2026: no Jogador, o ataque contra o inimigo é a mesma barra de
+     botões com nome dos botões do turno, uma ação por modal, com o inimigo
+     já de alvo — Atacar e Magia separados. No Mestre segue a fileira
+     batalha-menu-atacar. */
   it('Mestre e Jogador oferecem o ataque no avatar do inimigo, inline', () => {
     expect(fonte.match(/className="batalha-card-botoes batalha-menu-atacar"/g)).toHaveLength(1);
-    expect(fonte.match(/className="batalha-card-botoes batalha-menu-atacar batalha-head-acoes"/g)).toHaveLength(1);
     expect(fonte).not.toMatch(/batalha-menu-atacar-lbl/);
-    // 23/10/2026: no painel fixo os botões têm nome (comRotulo).
-    expect(fonte.match(/<BotaoAcaoMenu icone="ti-sword"( comRotulo)?\r?\n/g)).toHaveLength(1);
-    expect(fonte).toContain("rotulo={isEn ? 'Attack' : 'Atacar'}");
+    expect(fonte).toContain("onClick={() => abrirAcao('arma', p.inst_id)}");
+    expect(fonte).toContain("onClick={() => abrirAcao('magia', p.inst_id)}");
+    // O nome mora em rotuloDaAcao (08/11/2026), o mesmo dos botões do turno.
+    expect(fonte).toContain("arma: isEn ? 'Attack' : 'Atacar'");
   });
 
   /* 17/09/2026: o painel virou ModalShell (AcaoModal) e saiu de dentro de

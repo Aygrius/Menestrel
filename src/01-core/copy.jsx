@@ -371,7 +371,7 @@ const COPY = {
       karma: 'de karma',
       porRodadas: 'por {n} rodadas',
       semMagiasDeApoio: 'Este combatente não conhece magias de apoio.',
-      usar1Pa: 'Usar (1 PA)',
+      usar1Pa: 'Usar 1 Ponto de Ação',
       velocidade: 'de velocidade',
       /* ── Fase 1 das MAGIAS (11/09/2026) ────────────────────────
          A aba Apoio deixou de ser só velocidade, então a prévia do efeito
@@ -386,7 +386,7 @@ const COPY = {
       reduzDano: 'de redução de dano',
       defesaLbl: 'de defesa',
       magiaEvocacaoAviso: 'Evocação de {n} rodada(s). Atacar, andar, usar item ou levar dano na Energia Física derruba a magia — e o karma não volta.',
-      magiaLargadaInstrucao: 'Sem dado agora: clique em Começar a evocar (1 PA). O dado é rolado quando a magia sair.',
+      magiaLargadaInstrucao: 'Sem dado agora: clique em Começar a evocar. O dado é rolado quando a magia sair.',
       verboEvocar: 'Começar a evocar',
       magiaEvocando: 'Evocando {nome} — {n} rodada(s)',
       magiaPronta: '{nome} está pronta: role o dado para soltar a magia.',
@@ -931,7 +931,7 @@ const COPY = {
       karma: 'karma',
       porRodadas: 'for {n} rounds',
       semMagiasDeApoio: 'This combatant knows no support spells.',
-      usar1Pa: 'Use (1 AP)',
+      usar1Pa: 'Use 1 Action Point',
       velocidade: 'speed',
       // Phase 1 of SPELLS (2026-09-11) — see the pt block for the rationale.
       colunaAtaque: 'attack column',
@@ -943,7 +943,7 @@ const COPY = {
       reduzDano: 'damage reduction',
       defesaLbl: 'defense',
       magiaEvocacaoAviso: 'Casting takes {n} round(s). Attacking, moving, using an item or taking Physical Energy damage drops the spell — and the karma is not refunded.',
-      magiaLargadaInstrucao: 'No roll now: click Start casting (1 AP). The die is rolled when the spell goes off.',
+      magiaLargadaInstrucao: 'No roll now: click Start casting. The die is rolled when the spell goes off.',
       verboEvocar: 'Start casting',
       magiaEvocando: 'Casting {nome} — {n} round(s)',
       magiaPronta: '{nome} is ready: roll the die to release the spell.',

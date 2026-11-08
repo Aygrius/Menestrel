@@ -1498,6 +1498,53 @@ function deltasPocosPorCondicoes(condicoes, protecoes) {
   return out;
 }
 
+/* ── O AVISO DA CONDIÇÃO RUIM (08/11/2026) ──────────────────────────────
+   Usuário: "Mostre uma mensagem de aviso única na notificação da mesa quando
+   a condição do personagem ficar ruim. Por exemplo 'Você está com muito
+   sono! Se não descansar, sua energia heroica será afetada.'"
+
+   "Ruim" é o primeiro degrau que cobra (degrauCondicao ≥ 1, 25 de 100) — o
+   ponto em que CONDICOES_MALEFICIO começa a tirar do poço. "Única": o aviso
+   sai quando a barra CRUZA para o degrau 1 ou além, vinda de 0; enquanto
+   segue ruim, não repete, e só volta se ela melhorar e piorar de novo.
+
+   O texto diz o efeito REAL de cada barra, lido de CONDICOES_MALEFICIO — o
+   Sono tira Velocidade, não Energia Heroica (a do exemplo do usuário era
+   ilustrativa). As barras são as do jogador: com a proteção das vestes já
+   descontada, para o frio não avisar quem está agasalhado. */
+const AVISO_DA_CONDICAO = {
+  animo:      ['está com muito sono', 'Se não descansar'],
+  nutricao:   ['está com muita fome', 'Se não comer'],
+  hidratacao: ['está com muita sede', 'Se não beber'],
+  vitalidade: ['está doente', 'Se não se tratar'],
+  sanidade:   ['está perdendo a sanidade', 'Se não orar'],
+  euforia:    ['está com o vício em alta', 'Se não se controlar'],
+  frio:       ['está com muito frio', 'Se não se aquecer'],
+  calor:      ['está com muito calor', 'Se não se refrescar'],
+  reputacao:  ['está com a fama em baixa', 'Se não se redimir'],
+};
+const AVISO_DO_POCO = {
+  /* Em minúsculas (08/11/2026, usuário: 'Os atributos não precisam ser
+     escritos com a primeira letra maiúscula'). */
+  ef: 'sua energia física será afetada', eh: 'sua energia heroica será afetada',
+  ka: 'seu karma será afetado', vb: 'sua velocidade será afetada',
+  rf: 'sua resistência física será afetada', rm: 'sua resistência mágica será afetada',
+};
+function avisosDeCondicao(condAntes, condDepois, protecoes, nome) {
+  const antes = barrasDeCondicao(condAntes, protecoes);
+  const depois = barrasDeCondicao(condDepois, protecoes);
+  const quem = String(nome || '').trim() || 'O personagem';
+  const out = [];
+  Object.entries(CONDICOES_MALEFICIO).forEach(([k, r]) => {
+    const frase = AVISO_DA_CONDICAO[k];
+    if (!frase) return;
+    if (degrauCondicao(antes[k]) > 0 || degrauCondicao(depois[k]) < 1) return;
+    const efeito = r.poco ? AVISO_DO_POCO[r.poco] : `suas habilidades de ${String(r.grupo).toLowerCase()} serão afetadas`;
+    out.push({ condicao: k, texto: `${quem} ${frase[0]}! ${frase[1]}, ${efeito}.` });
+  });
+  return out;
+}
+
 // Multiplicador no total da habilidade pelo GRUPO: Desonra → Influência.
 function modificadorGrupoPorCondicoes(grupo, condicoes, protecoes) {
   if (!condicoes || !grupo) return 1;
@@ -1777,7 +1824,7 @@ Object.assign(window, {
   CLASSES_MAGIA, atorMilagreDePj, atorMilagreDeCriatura, bloqueioMilagre, alvoDeMilagreBloqueado, motivoMilagreLabel,
   NIVEIS_MAGIA, passosDisponiveisMagia,
   TECNICAS_BASE_POR_PROFISSAO, pontosTecnicasPorEstagio, pontosTecnicasTotal, gastoTecnicas, qtdTecnicas,
-  explicacaoDosPontos,
+  explicacaoDosPontos, avisosDeCondicao,
   ATIVIDADE_DA_CLASSE, HORAS_TREINO, nivelNaFila, comFila, bloqueioAprenderTecnica,
   bloqueioSubirNivel, custoSubirNivel, subirNivelEhAprendizado, motivoSubirNivelLabel,
   totalTecnica,

@@ -425,20 +425,21 @@ describe('ROTEIRO 9 — C1: seletor de alvo próprio para técnicas de alvo úni
 describe('ROTEIRO 10 — REGRA NOVA: modo total custa 0 PA, 1 ativação livre por rodada', () => {
   const aplicarBtn = () => document.querySelector('.atacar-confirmar');
 
-  it('o rótulo de Aplicar mostra 0 PA para Fúria (modo total)', () => {
+  it('o rótulo de Aplicar diz sem Ponto de Ação para Fúria (modo total)', () => {
     montar();
     abrirAbaTecnica();
     escolherTecnica('Fúria');
-    expect(aplicarBtn().getAttribute('aria-label')).toMatch(/0 PA/);
+    // Por extenso desde 08/11/2026: 'sem Ponto de Ação'.
+    expect(aplicarBtn().getAttribute('aria-label')).toMatch(/sem Ponto de Ação/);
   });
 
   // Com dado na linha (14/09/2026), rolar já é a ação: o custo vai no dado.
-  it('o rótulo do dado mostra 1 PA para Sangramento (modo teste)', () => {
+  it('o rótulo do dado diz 1 Ponto de Ação para Sangramento (modo teste)', () => {
     montar({}, { inventario: { itens: [{ slug: 'espada_longa', slot: 'mao_d', equipado: true }] } });
     abrirAbaTecnica();
     escolherTecnica('Sangramento');
     expect(aplicarBtn()).toBeNull();
-    expect(btnRolar().getAttribute('aria-label')).toMatch(/1 PA/);
+    expect(btnRolar().getAttribute('aria-label')).toMatch(/1 Ponto de Ação/);
   });
 
   it('quem já ativou a técnica livre nesta rodada vê Fúria bloqueada, mesmo com PA sobrando', () => {

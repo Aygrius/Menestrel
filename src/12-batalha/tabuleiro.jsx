@@ -1021,6 +1021,24 @@ function TabuleiroBatalha({
     onMovendoChange(typeof v === 'function' ? v(movendoControlado) : v);
   };
   const scrollRef = useRef(null);
+  /* O CAMPO OCUPA A ÁREA DELE (08/11/2026, usuário: "o quadriculado pode
+     ocupar toda a tela destinada a ele"). A casa tinha 20px fixos (TAB_CELULA
+     × zoom 0,5): 50×35 casas davam 1000×700, e numa área maior sobrava faixa
+     fora do campo; numa menor, o campo rolava. Agora a casa é a MAIOR que
+     faz o campo inteiro caber na moldura — as 50×35 posições (regra de
+     17/09/2026) continuam as mesmas, só o tamanho de cada uma acompanha a
+     tela. Sem medida (antes da montagem, ou num ambiente sem layout), vale o
+     tamanho de antes. */
+  const [caixa, setCaixa] = useState(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const medir = () => setCaixa({ w: el.clientWidth, h: el.clientHeight });
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // Um ref por token (chave = índice do participante), para o menu se ancorar
   // no avatar. Guardado em Map porque a lista muda de tamanho entre rodadas.
   const tokenRefs = useRef(new Map());
@@ -1052,7 +1070,11 @@ function TabuleiroBatalha({
     if (!externo) setMenuChave(null);
   };
 
-  const cel = TAB_CELULA * TAB_ZOOMS[TAB_ZOOM_PADRAO];
+  const celPadrao = TAB_CELULA * TAB_ZOOMS[TAB_ZOOM_PADRAO];
+  const encaixado = !!(caixa && caixa.w > 0 && caixa.h > 0);
+  const cel = encaixado
+    ? Math.max(8, Math.min(caixa.w / TAB_COLS, caixa.h / TAB_ROWS))
+    : celPadrao;
   const largura = TAB_COLS * cel;
   const altura  = TAB_ROWS * cel;
   // Réguas acompanham o arraste (13/09/2026): a posição de rolagem move os
@@ -1230,8 +1252,8 @@ function TabuleiroBatalha({
     React.createElement('div', {
       ref: scrollRef, className: 'batalha-tabuleiro-scroll',
       style: {
-        overflow: 'hidden', borderRadius: 12, border: '1px solid rgba(201,164,78,.25)',
-        background: 'rgba(23,18,9,.55)', touchAction: 'none',
+        overflow: 'hidden', borderRadius: 12, border: '1px solid rgba(170,150,240,.18)',
+        background: 'radial-gradient(ellipse at 50% 45%, #1b1730, #0b0912 75%)', touchAction: 'none',
         // Flex só para o `margin:auto` do grid ter efeito nos dois eixos.
         display: 'flex',
       },
@@ -1262,26 +1284,41 @@ function TabuleiroBatalha({
              centrar, e mantê-lo deslocaria o xadrez do canto. O limite do
              campo jogável passa a ser dito por uma borda própria, logo
              abaixo — antes quem o dizia era o fim do desenho. */
-          minWidth: '100%', minHeight: '100%',
+          /* Encaixado (08/11/2026): o campo tem o tamanho exato e fica no
+             centro; a sobra da proporção (50×35 numa área de outro formato)
+             se divide dos dois lados. Sem medida, o comportamento de antes. */
+          ...(encaixado ? { margin: 'auto' } : { minWidth: '100%', minHeight: '100%' }),
           // `flex:none` para o grid não ser esticado nem encolhido pelo flex
           // do container.
           flex: 'none',
           cursor: alvoMover ? 'crosshair' : 'default',
-          // grade dupla: linha forte a cada 5 células, fraca a cada 1
+          /* O GRIMÓRIO ARCANO (08/11/2026, escolhido pelo usuário entre quatro
+             estilos na prévia, preview/tabuleiro-estilos.html): noite
+             azul-tinta, a grade em linhas de luz violeta, um ponto de ouro em
+             cada cruzamento de 5 em 5 e dois círculos rúnicos sob o campo. O
+             ambiente pintado (24/10/2026) segue por baixo de tudo, no lugar
+             da noite. */
           backgroundImage: [
-            'linear-gradient(to right, rgba(201,164,78,.28) 1px, transparent 1px)',
-            'linear-gradient(to bottom, rgba(201,164,78,.28) 1px, transparent 1px)',
-            'linear-gradient(to right, rgba(201,164,78,.10) 1px, transparent 1px)',
-            'linear-gradient(to bottom, rgba(201,164,78,.10) 1px, transparent 1px)',
-            // o ambiente pintado (24/10/2026), por baixo de tudo
-            ...(ambiente ? ['url(/batalha/fundo-' + ambiente + '.webp)'] : []),
+            // pontos de ouro nos cruzamentos de 5 em 5
+            'radial-gradient(circle, rgba(230,201,122,.78) ' + Math.max(1.2, cel * 0.1) + 'px, transparent ' + Math.max(1.8, cel * 0.15) + 'px)',
+            // a grade fina, uma casa
+            'linear-gradient(to right, rgba(170,150,240,.17) 1px, transparent 1px)',
+            'linear-gradient(to bottom, rgba(170,150,240,.17) 1px, transparent 1px)',
+            // os círculos rúnicos, do tamanho do campo
+            'radial-gradient(circle closest-side at 50% 50%, transparent 80%, rgba(170,150,240,.11) 80.4%, rgba(170,150,240,.11) 81%, transparent 81.4%)',
+            'radial-gradient(circle closest-side at 50% 50%, transparent 98%, rgba(170,150,240,.08) 98.3%, rgba(170,150,240,.08) 98.8%, transparent 99.1%)',
+            ambiente ? 'url(/batalha/fundo-' + ambiente + '.webp)'
+              : 'radial-gradient(ellipse at 50% 50%, #1b1733, #100d1d 80%)',
           ].join(', '),
           backgroundSize: [
-            cel * 5 + 'px ' + cel * 5 + 'px', cel * 5 + 'px ' + cel * 5 + 'px',
+            cel * 5 + 'px ' + cel * 5 + 'px',
             cel + 'px ' + cel + 'px', cel + 'px ' + cel + 'px',
-            ...(ambiente ? ['100% 100%'] : []),
+            '100% 100%', '100% 100%', '100% 100%',
           ].join(', '),
-          backgroundRepeat: ambiente ? 'repeat, repeat, repeat, repeat, no-repeat' : undefined,
+          backgroundPosition: [
+            (-cel * 2.5) + 'px ' + (-cel * 2.5) + 'px', '0 0', '0 0', 'center', 'center', 'center',
+          ].join(', '),
+          backgroundRepeat: 'repeat, repeat, repeat, no-repeat, no-repeat, no-repeat',
         },
       },
         /* ESCURIDÃO (13/09/2026): "Adicione um efeito para escurecer o
@@ -1313,8 +1350,8 @@ function TabuleiroBatalha({
           'aria-hidden': 'true', className: 'batalha-tabuleiro-limite',
           style: {
             position: 'absolute', left: 0, top: 0, width: largura, height: altura,
-            boxSizing: 'border-box', border: '1px solid rgba(201,164,78,.5)',
-            boxShadow: '0 0 0 9999px rgba(8,5,2,.42)',
+            boxSizing: 'border-box', border: '1px solid rgba(170,150,240,.45)', borderRadius: 10,
+            boxShadow: '0 0 0 9999px rgba(6,5,12,.55)',
             pointerEvents: 'none', zIndex: 0,
           },
         }),

@@ -194,3 +194,32 @@ describe('as abas do painel continuam de pé dentro do modal', () => {
     expect(screen.getByText(/Machado Pesado/)).toBeTruthy();
   });
 });
+
+/* UMA AÇÃO POR MODAL (08/11/2026, usuário: "ao clicar deve abrir um modal
+   apenas com a ação escolhida"). Com `abaUnica`, sem a barra de abas e com o
+   nome da ação no título; sem ela, o painel de sempre. */
+describe('AcaoModal com abaUnica', () => {
+  it('sem a barra de abas, e o título diz a ação e quem age', () => {
+    montar({ abaUnica: 'arma', abaInicial: 'arma' });
+    expect(document.querySelector('.acao-modal .acao-tabs')).toBeNull();
+    expect(document.querySelector('.acao-modal .ms-title').textContent).toBe('Atacar · Yuldrous');
+  });
+
+  it('Habilidade sozinha: o painel fica no teste de habilidade', () => {
+    montar({ abaUnica: 'habilidade', abaInicial: 'habilidade' });
+    expect(document.querySelector('.acao-modal .acao-tabs')).toBeNull();
+    expect(document.querySelector('.acao-modal .ms-title').textContent).toBe('Habilidade · Yuldrous');
+  });
+
+  it('sem abaUnica, as abas continuam', () => {
+    montar();
+    expect(document.querySelector('.acao-modal .acao-tabs')).toBeTruthy();
+  });
+
+  it('a rolagem salva manda: o painel reabre na aba dela, mesmo pedindo outra', () => {
+    montar({ abaUnica: 'habilidade', rolagemSalva: ROLAGEM_SALVA, travado: true });
+    expect(document.querySelector('.acao-modal .acao-tabs')).toBeNull();
+    // A aba da rolagem (Arma) segue de pé — escondê-la perderia o dado.
+    expect(document.querySelector('.acao-modal').textContent).toMatch(/Machado Pesado/);
+  });
+});

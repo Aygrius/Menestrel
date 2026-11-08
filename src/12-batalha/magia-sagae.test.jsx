@@ -104,13 +104,13 @@ describe('Espada Sagae — Relâmpago do item: a largada diz o que apertar', () 
     expect(document.querySelector('.dado-ov-trigger button')).toBeNull();
   });
 
-  it('a instrução diz qual botão apertar, e o botão se chama Começar a evocar (1 PA)', () => {
+  it('a instrução diz qual botão apertar, e o botão se chama Começar a evocar 1 Ponto de Ação', () => {
     montar();
     abrirMagia();
     expect(document.querySelector('.magia-largada-instrucao').textContent)
-      .toMatch(/clique em Começar a evocar \(1 PA\)/);
+      .toMatch(/clique em Começar a evocar\./);
     const confirmar = document.querySelector('.atacar-confirmar');
-    expect(confirmar.getAttribute('aria-label')).toBe('Começar a evocar (1 PA)');
+    expect(confirmar.getAttribute('aria-label')).toBe('Começar a evocar 1 Ponto de Ação');
     expect(confirmar.disabled).toBe(false);
   });
 

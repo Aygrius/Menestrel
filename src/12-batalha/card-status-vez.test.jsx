@@ -49,12 +49,16 @@ function montar(parts) {
 const pronto = (container) => waitFor(() => expect(container.querySelector('.batalha-token')).toBeTruthy());
 
 describe('de quem é a vez: um lugar só, no topo', () => {
-  it('na minha vez, uma mensagem só, antes do tabuleiro', async () => {
+  /* A mesa do jogador (08/11/2026): a vez mora no trilho do topo, em ouro
+     quando é a sua — a faixa "É a sua vez" antes do tabuleiro saiu. */
+  it('na minha vez, o trilho diz, em ouro, antes do tabuleiro', async () => {
     const { container } = montar([lutador(), outro()]);
     await pronto(container);
-    const msgs = container.querySelectorAll('.batalha-vez-msg');
+    const msgs = container.querySelectorAll('.batalha-trilho-vez');
     expect(msgs).toHaveLength(1);
     expect(msgs[0].textContent).toMatch(/É a sua vez/);
+    expect(msgs[0].classList.contains('is-minha')).toBe(true);
+    expect(container.querySelector('.batalha-vez-msg')).toBeNull();
     expect(msgs[0].compareDocumentPosition(container.querySelector('.batalha-tabuleiro, .batalha-token'))
       & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -64,9 +68,10 @@ describe('de quem é a vez: um lugar só, no topo', () => {
     await pronto(container);
     expect(container.textContent).not.toMatch(/Seu status/);
     expect(container.querySelector('.batalha-status-inativo')).toBeNull();
-    const msgs = container.querySelectorAll('.batalha-vez-msg');
+    const msgs = container.querySelectorAll('.batalha-trilho-vez');
     expect(msgs).toHaveLength(1);
     expect(msgs[0].textContent).toMatch(/Aliado/);
+    expect(msgs[0].classList.contains('is-minha')).toBe(false);
   });
 });
 
@@ -78,7 +83,7 @@ describe('contador de rodadas do efeito', () => {
     const { container } = montar([lutador({ status_temp: [depois] })]);
     await pronto(container);
     container.querySelector('.batalha-token').click();
-    await waitFor(() => expect(document.querySelector('.batalha-token-menu')).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter')).toBeTruthy());
     // "o botão de status tenha a borda azul, sem um badge extra" (14/09/2026)
     const botao = document.querySelector('.batalha-card-pools-nome .batalha-efeito-botao');
     expect(botao.querySelector('svg .batalha-efeito-anel-nivel')).toBeTruthy();
@@ -103,7 +108,7 @@ describe('contador de rodadas do efeito', () => {
     const { container } = montar([lutador(), outro({ status_temp: [{ id: 'sangramento:1', nome: 'Sangrando', rodadas_rest: 2 }] })]);
     await pronto(container);
     [...container.querySelectorAll('.batalha-token')].find((t) => t.textContent.includes('Aliado')).click();
-    await waitFor(() => expect(document.querySelector('.batalha-token-menu')).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter')).toBeTruthy());
     const linha = document.querySelector('.batalha-card-pools-nome');
     expect(linha.querySelector('.batalha-efeito-botao')).toBeTruthy();
     expect(linha.lastElementChild.classList.contains('batalha-stat-estado')).toBe(true);
@@ -111,23 +116,24 @@ describe('contador de rodadas do efeito', () => {
 });
 
 describe('card', () => {
-  it('o botão Ação usa ti-sword', async () => {
+  it('o botão Atacar usa ti-sword', async () => {
     const { container } = montar([lutador()]);
     await pronto(container);
     container.querySelector('.batalha-token').click();
-    await waitFor(() => expect(document.querySelector('.batalha-token-menu')).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter')).toBeTruthy());
     const acao = [...document.querySelectorAll('.batalha-card-botoes button')]
-      .find((b) => b.getAttribute('aria-label') === 'Ação');
+      .find((b) => b.getAttribute('aria-label') === 'Atacar');
     expect(acao.querySelector('i').className).toContain('ti-sword');
     expect(acao.querySelector('i').className).not.toContain('ti-swords');
   });
 
-  it('o próprio card diz só "Você"', async () => {
+  /* No painel fixo o card leva o nome inteiro, como no Mestre (08/11/2026);
+     o "Você" era do card flutuante, que dividia espaço com o token. */
+  it('o próprio card leva o nome do personagem e abre sozinho no painel', async () => {
     const { container } = montar([lutador({ nome: "Lirael Vel'Thalas" })]);
     await pronto(container);
-    container.querySelector('.batalha-token').click();
-    await waitFor(() => expect(document.querySelector('.batalha-token-menu')).toBeTruthy());
-    expect(document.querySelector('.batalha-token-menu .batalha-fighter-nome').textContent).toBe('Você');
+    await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter')).toBeTruthy());
+    expect(document.querySelector('.batalha-mesa-painel .batalha-fighter-nome').textContent).toBe("Lirael Vel'Thalas");
   });
 
   it('no inimigo, na minha vez: um botão "Atacar" na linha do nome, sem números dele', async () => {
@@ -150,12 +156,13 @@ describe('card', () => {
     }));
     await pronto(container);
     [...container.querySelectorAll('.batalha-token')].find((t) => t.textContent.includes('Lobo')).click();
-    await waitFor(() => expect(document.querySelector('.batalha-token-menu')).toBeTruthy());
-    const menu = document.querySelector('.batalha-token-menu');
-    await waitFor(() => expect(menu.querySelector('.batalha-fighter-head .batalha-head-acoes')).toBeTruthy());
-    const botoes = [...menu.querySelectorAll('.batalha-head-acoes button')].map((b) => b.getAttribute('aria-label'));
+    await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter')).toBeTruthy());
+    const menu = document.querySelector('.batalha-mesa-painel .batalha-fighter');
+    // Na barra do card, com nome, como os botões do turno (08/11/2026).
+    await waitFor(() => expect(menu.querySelector('.batalha-card-barra .batalha-turno')).toBeTruthy());
+    const botoes = [...menu.querySelectorAll('.batalha-turno button')].map((b) => b.getAttribute('aria-label'));
     expect(botoes).toEqual(['Atacar']);
-    expect(menu.querySelectorAll('.batalha-stat-num')).toHaveLength(0);
+    expect(menu.querySelectorAll('.batalha-cel, .batalha-stat-num')).toHaveLength(0);
   });
 
   const fonte = readFileSync(resolve(__dirname, 'batalha.jsx'), 'utf8');

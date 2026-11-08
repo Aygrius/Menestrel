@@ -46,12 +46,13 @@ describe('os companheiros pelo trilho, não pelo menu', () => {
     expect([...m[1].matchAll(/chave: '(\w+)'/g)].map((x) => x[1])).toEqual(['ficha', 'info', 'conhecimento', 'inventario']);
   });
 
-  /* 02/11/2026 ("Mantém apenas editar e excluir"): o galho do personagem no
-     Mestre não tem páginas — os bichos dele abrem pelo trilho da ficha. */
-  it('o galho do Mestre guarda só Editar e Excluir', () => {
-    expect(shell).toMatch(/':editar', secao: 'personagens_m', pj: pj\.id, acao: 'editar'/);
-    expect(shell).toMatch(/':excluir', secao: 'personagens_m', pj: pj\.id, acao: 'excluir'/);
-    expect(shell).not.toMatch(/':amigos', secao: 'personagens_m'/);
+  /* 08/11/2026: o galho do personagem saiu do menu do Mestre — nem páginas,
+     nem Editar/Excluir. "Personagens" abre os cards; editar e excluir uma
+     ficha é pelo card em Jogadores. */
+  it('o menu do Mestre não pendura os personagens', () => {
+    expect(shell).not.toMatch(/personagensComFilhos/);
+    expect(shell).not.toMatch(/':editar', secao: 'personagens_m'/);
+    expect(shell).not.toMatch(/':excluir', secao: 'personagens_m'/);
   });
 
   /* A ficha segue escolhendo a página do bicho, com o boneco como recuo. */

@@ -8,8 +8,8 @@
    o DOM.
 
    O que se exige aqui:
-     • as ações do turno são círculos SÓ COM ÍCONE — o rótulo vive no
-       aria-label/tooltip, não escrito no botão;
+     • as ações do turno são os botões do Mestre, com nome escrito
+       (BotoesDoTurno, desde 08/11/2026 — eram círculos só com ícone);
      • o estado dos OUTROS combatentes é um círculo com ícone no fim da linha
        de stats, na mesma posição que o seletor ocupa no card do Mestre. Era
        um pill com o nome escrito ("Desmaiado"), que destoava.
@@ -74,31 +74,35 @@ const abrirCardDe = async (container, nome) => {
   alvo.click();
   // O menu nasce por PORTAL e só depois do React processar o clique — daí o
   // segundo waitFor. Consultar o DOM logo após .click() devolve null.
-  await waitFor(() => expect(document.querySelector('.batalha-token-menu')).toBeTruthy());
-  return document.querySelector('.batalha-token-menu');
+  await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter')).toBeTruthy());
+  return document.querySelector('.batalha-mesa-painel .batalha-fighter');
 };
 
-describe('ações do turno — círculos só com ícone', () => {
-  it('os botões não têm texto escrito, só aria-label', async () => {
+/* A MESA DO JOGADOR (08/11/2026): os botões do turno são os do Mestre, com
+   nome escrito (BotoesDoTurno) — os círculos só com ícone eram do card
+   flutuante. O Desistir segue fora do card do jogador (14/09/2026). */
+describe('ações do turno — os botões do Mestre, com nome', () => {
+  // Apoio entra em Magia (08/11/2026): as magias de apoio são magias.
+  it('Atacar, Magia, Técnica, Habilidade, Item, Mover e Encerrar a vez', async () => {
     const { container } = montar([lutador()]);
     const menu = await abrirCardDe(container, 'Yuldrous');
-    expect(menu, 'o menu do token precisa abrir').toBeTruthy();
-    const botoes = [...menu.querySelectorAll('.batalha-menu-acoes .batalha-menu-acao-ic')];
-    expect(botoes.length).toBeGreaterThanOrEqual(3);
-    for (const b of botoes) {
-      expect(b.textContent.trim(), 'botão de ação não pode ter texto').toBe('');
-      expect(b.getAttribute('aria-label'), 'sem aria-label o ícone fica mudo').toBeTruthy();
-    }
+    const botoes = [...menu.querySelectorAll('.batalha-turno button')];
+    expect(botoes.map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Atacar', 'Magia', 'Técnica', 'Habilidade', 'Item', 'Mover', 'Encerrar a vez']);
+    // O nome à vista, e só um dourado: Encerrar a vez.
+    botoes.forEach((b) => expect(b.textContent.trim()).toBe(b.getAttribute('aria-label')));
+    expect(menu.querySelectorAll('.batalha-turno .batalha-acao-encerrar')).toHaveLength(1);
+    expect(menu.querySelector('.btn-desistir')).toBeNull();
   });
 
-  // "Remova o botão 'Encerrar' do jogador" (14/09/2026).
-  it('Mover, Ação e Passar — sem o Encerrar (desistir)', async () => {
+  it('sem arma, sem magia: o botão nasce apagado e diz por quê', async () => {
     const { container } = montar([lutador()]);
     const menu = await abrirCardDe(container, 'Yuldrous');
-    const rotulos = [...menu.querySelectorAll('.batalha-menu-acoes .batalha-menu-acao-ic')]
-      .map((b) => b.getAttribute('aria-label'));
-    expect(rotulos.length).toBe(3);   // Mover, Ação, Passar
-    expect(menu.querySelector('.btn-desistir')).toBeNull();
+    const atacar = [...menu.querySelectorAll('.batalha-turno button')].find((b) => b.getAttribute('aria-label') === 'Atacar');
+    expect(atacar.disabled).toBe(true);
+    // A Habilidade não depende de nada: segue acesa.
+    const teste = [...menu.querySelectorAll('.batalha-turno button')].find((b) => b.getAttribute('aria-label') === 'Habilidade');
+    expect(teste.disabled).toBe(false);
   });
 });
 
