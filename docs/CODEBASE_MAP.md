@@ -128,6 +128,7 @@ arquivo daqui conhece tela.
 |---|---|
 | `copy.jsx` | i18n PT/EN (`COPY`) de seis domínios de tela. |
 | `constants.jsx` | Calendário fantasy (361 dias), copy do admin e as **árvores de navegação** (`ADMIN_MENU`, `NAV_MESA`, `ADMIN_SECTIONS`, `PARTES_DA_FICHA`). |
+| `entidades.jsx` | `ENTIDADES`: deuses, titãs e príncipes (catálogo do mundo, no código). É a **fonte dos feriados** deles: `FERIADOS_FANTASY` (10-shell) junta `feriadosDasEntidades()`. Carrega logo depois de `constants.jsx`. |
 | `helpers.jsx` | Hooks React globais, conversão de data fantasy ↔ dia absoluto, tooltip, pilha de modais, `QuantidadeStepper`. |
 | `inventario-helpers.jsx` | O hub de domínio (~1 430 linhas): moedas, slots, containers, armadura, `gerarAtaques`, o parser de efeitos de item, munição/veneno, ritual. |
 | `inventario-concorrencia.jsx` | Compare-and-swap de `personagens.inventario` (ver §6). |
@@ -296,6 +297,12 @@ editar um global dispara fork automático. A visibilidade por PJ mora em
 
 `jornal-aventuras.jsx` é o mural da cidade; o campo `fim` (a solução da
 aventura) é `soMestre`.
+
+`entidades.jsx` (08/11/2026) é a página **Entidades** da Ambientação/Diário:
+lê `ENTIDADES` (01-core), só leitura, igual para Mestre e Jogador, sem mesa
+nem PJ. A ficha abre no `BestDetalheModal`, uma aba por tópico (Prefácio,
+Descrição, Relações, Locais, Feriados, Itens). O texto é escrito com a skill
+de projeto `cronista-de-tagmar` (`.claude/skills/`), a partir de `tagmar/*.pdf`.
 
 ---
 

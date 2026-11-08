@@ -83,7 +83,9 @@ describe('números e ações na MESMA fileira', () => {
   it('card de outro combatente: sem números, só o estado', async () => {
     const outro = lutador({ ref_id: 99, inst_id: 'outro', nome: 'Aliado', ordem: 2, atual: false, ar: 0 });
     const menu = await cardDe([lutador(), outro], 'Aliado');
-    expect(menu.querySelector('.batalha-card-barra')).toBeNull();
+    // A distância até o meu personagem é a única célula (08/11/2026): os
+    // números DELE continuam escondidos.
+    expect([...menu.querySelectorAll('.batalha-cel-rot')].map((c) => c.textContent).filter((t) => t !== 'Distância')).toEqual([]);
     expect(menu.querySelectorAll('.batalha-stat-num')).toHaveLength(0);
     expect(menu.querySelector('.batalha-card-pools-nome .batalha-stat-estado')).toBeTruthy();
   });

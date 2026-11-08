@@ -25,6 +25,7 @@ import '../01-core/game-data.jsx';
 // assim que alguma fixture tiver técnica selecionada — sem este import a
 // primeira que tivesse derrubava o teste com ReferenceError.
 import '../01-core/tecnicas-efeito.jsx';
+import '../10-shell/shell.jsx';   // ModalShell da janela de consulta (08/11/2026)
 import './batalha.jsx';
 import './tabuleiro.jsx';
 import { fakeSupabase } from '../test/fake-supabase.js';
@@ -140,5 +141,62 @@ describe('estado dos outros — círculo com ícone, não texto', () => {
     const { container } = montar([lutador()]);
     const menu = await abrirCardDe(container, 'Yuldrous');
     expect(menu.querySelector('.batalha-stat-estado')).toBeNull();
+  });
+});
+
+/* 08/11/2026: "Eu quero que o menu lateral direito do personagem, apareça para
+   ele mesmo fora de sua vez, sem as ações" — e ele aparecia vazio. */
+describe('fora da vez: o painel mostra o próprio personagem, sem ações', () => {
+  it('a vez é do Orc: o painel é o meu card, sem botões do turno', async () => {
+    const orc = lutador({ ref_id: 99, inst_id: 'orc', nome: 'Orc', tipo: 'criatura', ordem: 0, atual: true, pos: { x: 20, y: 10 } });
+    // O reforço chegando vem PRIMEIRO na lista e não está no tabuleiro.
+    const chegando = lutador({ ref_id: 98, inst_id: 'chega', nome: 'Goblin', tipo: 'criatura', atual: false, status: 'chegando' });
+    const { container } = montar([chegando, lutador({ atual: false }), orc]);
+    await waitFor(() => expect(container.querySelector('.batalha-token')).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter-nome')).toBeTruthy());
+    expect(document.querySelector('.batalha-mesa-painel .batalha-fighter-nome').textContent).toBe('Yuldrous');
+    expect(document.querySelector('.batalha-mesa-painel .batalha-turno')).toBeNull();
+  });
+  it('o id do personagem como texto também acha o personagem', async () => {
+    globalThis.supabaseClient = fakeSupabase({ personagens: [], itens: [], magias: [], tecnicas: [], habilidades: [], criaturas: [] });
+    const orc = lutador({ ref_id: 99, inst_id: 'orc', nome: 'Orc', tipo: 'criatura', ordem: 0, atual: true, pos: { x: 20, y: 10 } });
+    render(<BatalhaJogadorView batalha={batalha([orc, lutador({ atual: false })])} pjAtivoId={String(EU)} lang="pt" onVoltar={() => {}} />);
+    await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter-nome')).toBeTruthy());
+    expect(document.querySelector('.batalha-mesa-painel .batalha-fighter-nome').textContent).toBe('Yuldrous');
+  });
+});
+
+/* 08/11/2026: fora da vez, o jogador CONSULTA suas magias, técnicas e
+   habilidades — só ver. */
+describe('fora da vez: consultar', () => {
+  it('o card do próprio personagem oferece Habilidades e abre a leitura', async () => {
+    globalThis.supabaseClient = fakeSupabase({
+      personagens: [{ id: EU, nome: 'Yuldrous', raca: 'Anão', profissao: 'Guerreiro', experiencia: 0,
+        habilidades: { correr: 2 }, magias: {}, tecnicas: {}, inventario: { itens: [] } }],
+      itens: [], magias: [], tecnicas: [], criaturas: [],
+      habilidades: [{ key: 'correr', nome: 'Correr', grupo: 'Manobra', nivel_inicial: 0, custo: 1, descricao: 'Corre mais rápido.' }],
+    });
+    const orc = lutador({ ref_id: 99, inst_id: 'orc', nome: 'Orc', tipo: 'criatura', ordem: 0, atual: true, pos: { x: 20, y: 10 } });
+    render(<BatalhaJogadorView batalha={batalha([orc, lutador({ atual: false })])} pjAtivoId={EU} lang="pt" onVoltar={() => {}} />);
+    await waitFor(() => expect(document.querySelector('.batalha-consulta-habilidade')).toBeTruthy());
+    expect(document.querySelector('.batalha-mesa-painel .batalha-turno')).toBeNull();
+    fireEvent.click(document.querySelector('.batalha-consulta-habilidade'));
+    await waitFor(() => expect(document.querySelector('.consulta-modal')).toBeTruthy());
+    expect(document.querySelector('.consulta-nome').textContent).toBe('Correr');
+    expect(document.querySelector('.consulta-texto').textContent).toBe('Corre mais rápido.');
+  });
+});
+
+/* 08/11/2026: "Quando for a vez do jogador, sinalize para ele." */
+describe('a vez chegou: o aviso', () => {
+  it('na minha vez, aparece "É a sua vez"; fora dela, não', async () => {
+    montar([lutador({ atual: true })]);
+    await waitFor(() => expect(document.querySelector('.batalha-aviso-vez')).toBeTruthy());
+    expect(document.querySelector('.batalha-aviso-vez').textContent).toMatch(/É a sua vez/);
+    cleanup();
+    const orc = lutador({ ref_id: 99, inst_id: 'orc', nome: 'Orc', tipo: 'criatura', ordem: 0, atual: true, pos: { x: 20, y: 10 } });
+    montar([orc, lutador({ atual: false })]);
+    await waitFor(() => expect(document.querySelector('.batalha-token')).toBeTruthy());
+    expect(document.querySelector('.batalha-aviso-vez')).toBeNull();
   });
 });

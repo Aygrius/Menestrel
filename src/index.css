@@ -3395,6 +3395,12 @@
   content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%;
   background: var(--vivo); vertical-align: middle;
 }
+/* A descrição do escolhido (08/11/2026): texto corrido, na largura da janela,
+   colada à escolha que descreve. */
+#root .menestrel-ui .modal-estudar .estudar-descricao {
+  margin: -10px 2px 22px; font-family: var(--font-body); font-size: var(--fs-sm); line-height: 1.55;
+  color: var(--tinta-2); white-space: pre-line; overflow-wrap: anywhere;
+}
 #root .menestrel-ui .modal-estudar .estudar-motivo {
   font-family: var(--font-body); font-size: var(--fs-sm); color: var(--alerta); text-align: center; text-wrap: balance;
 }
@@ -6109,9 +6115,12 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
    lateral, --cm-sidebar), não pega clique e sai sozinho. A cor da categoria
    (--log-cor) pinta o filete, o ícone e o rótulo. */
 .menestrel-ui.cm-root .cm-cards {
-  position: absolute; top: 50%; left: calc(var(--cm-sidebar, 0px) + (100vw - var(--cm-sidebar, 0px)) / 2);
+  /* No PÉ da tela, centrado, em todas as telas (08/11/2026, usuário:
+     "centralizada, mas abaixo na tela. Para não ficar na frente do que os
+     personagens estejam fazendo"). Antes ficava no meio (27/09/2026). */
+  position: absolute; bottom: 32px; left: calc(var(--cm-sidebar, 0px) + (100vw - var(--cm-sidebar, 0px)) / 2);
   width: min(460px, calc(100vw - var(--cm-sidebar, 0px) - 32px));
-  transform: translate(-50%, -50%); pointer-events: none; display: grid;
+  transform: translate(-50%, 0); pointer-events: none; display: grid;
 }
 /* Os dois cards (o que sai e o que entra) ocupam a MESMA célula: um some
    enquanto o outro aparece, sem empurrar. */
@@ -12155,6 +12164,8 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   }
   #root .menestrel-ui .mc-main { margin-top: calc(62px + var(--cdj-h, 78px) + 16px); padding-bottom: 76px; }
   #root .menestrel-ui .mc-main:has(.pjs) { margin-top: calc(62px + var(--cdj-h, 78px) - 14px); }
+  /* O card do log no pé (08/11/2026) sobe acima da barra inferior (~64px). */
+  .menestrel-ui.cm-root .cm-cards { bottom: calc(80px + env(safe-area-inset-bottom)); }
   #root .menestrel-ui .mc-barra-inferior {
     display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
     padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
@@ -18803,3 +18814,250 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 /* A regra antiga dá height:100% ao .batalha-conduzir e ele passava do fundo
    da janela; na tela cheia a altura vem do inset. */
 #root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-conduzir { height: auto; }
+
+/* ══ O MENU LATERAL SÓLIDO (08/11/2026) ═════════════════════════════════════
+   Usuário: "O menu lateral esquerdo está com fundo transparente." Era o véu
+   de 52% com desfoque (--mc-veu-sidebar, de 20/09/2026), do tempo em que o
+   clima pintado aparecia atrás de tudo. Desde o padrão da Ficha (07/11/2026)
+   os cartões são sólidos; o menu passa a ter o MESMO fundo do cartão da
+   página, e o desfoque, que só servia ao véu, sai. Vale também para o menu
+   recolhido e para a gaveta do celular, que já eram opacos. */
+#root .menestrel-ui .mc-sidebar,
+#root .menestrel-ui .mc-sidebar.is-menu-aberto {
+  background: var(--pg-fundo);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+
+/* ══ OS REFORÇOS NA COLUNA DA INICIATIVA (08/11/2026) ════════════════════════
+   "Na batalha, ao selecionar novos reforço, tem cards abaixo de outros."
+   A seção "Chegam na rodada N" mora agora dentro de .batalha-ini-col, embaixo
+   da ordem (batalha.jsx, IniciativaLista `abaixo`). Na tela cheia ela é mais
+   uma peça flutuante: fundo sólido de couro como a lista, e a lista da
+   iniciativa cede altura (rola) para as duas caberem na coluna. */
+#root .menestrel-ui .batalha-ini-col > .batalha-chegada { flex: none; }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-ini-col { gap: 10px; }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-ini-col > .batalha-ini-lista { min-height: 0; overflow-y: auto; }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-ini-col > .batalha-chegada {
+  margin: 0; background: rgba(20,15,10,.92); border: 1px solid var(--regua-forte); border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.45); max-height: 45%; overflow-y: auto;
+}
+
+/* ══ OS BOTÕES CONTRA O ALVO (08/11/2026) ═══════════════════════════════════
+   "Os botões 'atacar com arma' e 'atacar com magia' estão desconfigurados."
+   A grade do painel era 1fr 1fr — e 1fr não encolhe abaixo do conteúdo: o
+   rótulo longo (nowrap) alargava a coluna e o botão saía do card. Contra o
+   alvo os rótulos são longos ("Atacar com técnica"), então é um botão por
+   linha, na largura do card. As colunas da grade passam a poder encolher, e o
+   rótulo que ainda não couber termina em reticências em vez de vazar. */
+#root .menestrel-ui .batalha-mesa-painel .batalha-card-botoes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#root .menestrel-ui .batalha-mesa-painel .batalha-card-botoes.batalha-menu-atacar { grid-template-columns: minmax(0, 1fr); }
+#root .menestrel-ui .batalha-mesa-painel .batalha-acao-nomeada { min-width: 0; }
+#root .menestrel-ui .batalha-mesa-painel .batalha-acao-nomeada .batalha-acao-rotulo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ══ A ORDEM MAIS JUNTA (08/11/2026) ════════════════════════════════════════
+   "Diminua o espaçamento entre os cards dos combatentes em 'iniciativa' no
+   campo de batalha." Eram 4px entre as linhas e 6px de respiro em cada uma
+   (54px por combatente); agora 2px e 4px — os cards seguem separados, a
+   ordem cabe mais gente sem rolar. */
+#root .menestrel-ui .batalha-ini-lista { gap: 2px; }
+#root .menestrel-ui .batalha-ini-linha { padding-top: 4px; padding-bottom: 4px; }
+
+/* ══ MODO AUTOMÁTICO (08/11/2026) ═══════════════════════════════════════════
+   O botão de ligar no card do combatente ocupa a linha toda; ligado, ganha o
+   ouro do que está valendo (--vivo). Na ordem, um robô pequeno ao lado do
+   nome diz quem a mesa está jogando sozinha. */
+/* O vão até os botões de cima é o da grade deles (6px), não o da fileira
+   (10px): o botão é mais um da lista, não um bloco à parte. */
+#root .menestrel-ui .batalha-mesa-painel .batalha-card-botoes.batalha-auto-linha { grid-template-columns: minmax(0, 1fr); margin-top: -4px; }
+#root .menestrel-ui .batalha-acao-nomeada.batalha-auto.is-ligado.btn-ghost {
+  border-color: var(--vivo-aro, var(--vivo)); background: var(--vivo-fundo, rgba(var(--ouro-rgb),.12)); color: var(--vivo);
+}
+#root .menestrel-ui .batalha-ini-auto { margin-left: 6px; font-size: 13px; color: var(--vivo); vertical-align: -1px; }
+
+/* ══ O AVATAR DE QUEM EVOCA (08/11/2026) ════════════════════════════════════
+   "Quando o combatente estiver evocando magia, técnica ou habilidade, aplique
+   um efeito sobre o avatar." Dois arcos de luz no azul do selo Evocando
+   (#9fb8ff) giram em volta do avatar — um anel recortado por máscara, para o
+   brilho não cobrir o rosto. Sem movimento para quem pede menos animação. */
+#root .menestrel-ui .batalha-token-evocando {
+  position: absolute; z-index: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0 12%, rgba(159,184,255,.95) 25%, transparent 40%,
+    transparent 62%, rgba(186,160,255,.9) 75%, transparent 90%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  filter: drop-shadow(0 0 6px rgba(159,184,255,.75));
+  animation: batalha-evocando-gira 2.2s linear infinite;
+}
+@keyframes batalha-evocando-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .batalha-token-evocando { animation: none; }
+}
+
+/* ══ O ANEL DA EF NO VERMELHO DA BARRA (08/11/2026) ════════════════════════
+   "Altere a cor da barra rosa ao redor do avatar, quero um vermelho igual na
+   barra de energia física." Era #d9685a (salmão); agora é o #A3291A da barra
+   de EF do card e da ordem (FICHA_VIT_COLORS.ef). O lampejo do golpe na EF
+   clareia a partir dele e volta para ele. */
+#root .menestrel-ui .batalha-token-ef-nivel { stroke: #A3291A; }
+@keyframes batalha-dano-ef-anel-v2 {
+  0% { stroke: #A3291A; } 25% { stroke: #e0675a; stroke-width: 9; } 100% { stroke: #A3291A; stroke-width: 6; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  #root .menestrel-ui .batalha-token-ef.is-dano-ef .batalha-token-ef-nivel { animation-name: batalha-dano-ef-anel-v2; }
+}
+
+/* ══ O ZOOM DO CAMPO (08/11/2026) ═══════════════════════════════════════════
+   "Permita que o jogador/mestre consiga dar zoom no campo de batalha." Uma
+   pílula no canto de baixo do campo: −, o fator (clicar ajusta à tela) e +.
+   A roda do mouse faz o mesmo, mirando o cursor. Fundo sólido de couro, como
+   as outras peças que flutuam sobre a noite. */
+#root .menestrel-ui .batalha-tabuleiro-quadro { position: relative; }
+#root .menestrel-ui .batalha-zoom {
+  position: absolute; right: 12px; bottom: 12px; z-index: 4;
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+  background: rgba(20,15,10,.92); border: 1px solid var(--regua-forte); border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.4);
+}
+#root .menestrel-ui .batalha-zoom-btn {
+  height: 30px; min-width: 30px; padding: 0 8px; border: 0; border-radius: 999px;
+  display: inline-grid; place-items: center; background: none; color: var(--tinta-2); cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 700; font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .batalha-zoom-btn .ti { font-size: 16px; }
+#root .menestrel-ui .batalha-zoom-btn:not(:disabled):hover { background: rgba(var(--bronze-rgb),.16); color: var(--tinta); }
+#root .menestrel-ui .batalha-zoom-btn:disabled { opacity: .4; cursor: default; }
+#root .menestrel-ui .batalha-zoom-btn:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
+#root .menestrel-ui .batalha-zoom-ajustar { min-width: 52px; }
+
+/* ══ O ANEL DA EH (08/11/2026) ══════════════════════════════════════════════
+   "Adicione a barra verde de heroica." Por fora do anel da EF, mais fino, no
+   verde da barra de EH (FICHA_VIT_COLORS.eh, #4E9A3E). Recolhe a partir do
+   topo como o da EF; o golpe que chega na EH acende o traço. */
+#root .menestrel-ui .batalha-token-eh circle { fill: none; stroke-width: 4.5; }
+#root .menestrel-ui .batalha-token-eh-trilho { stroke: rgba(0,0,0,.45); }
+#root .menestrel-ui .batalha-token-eh-nivel {
+  stroke: #4E9A3E; stroke-linecap: round;
+  filter: drop-shadow(0 0 1.5px rgba(0,0,0,.8));
+  transition: stroke-dasharray .45s cubic-bezier(.4,0,.2,1);
+}
+#root .menestrel-ui .batalha-token-eh.vazia .batalha-token-eh-nivel { stroke: transparent; }
+@keyframes batalha-dano-eh-anel {
+  0% { stroke: #4E9A3E; } 25% { stroke: #9be08a; stroke-width: 7; } 100% { stroke: #4E9A3E; stroke-width: 4.5; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  #root .menestrel-ui .batalha-token-eh.is-dano-eh .batalha-token-eh-nivel { animation: batalha-dano-eh-anel .8s ease-out both; }
+}
+
+/* ══ O AUTOMÁTICO NÃO MOSTRA A JANELA NEM O DADO (08/11/2026) ═══════════════
+   Enquanto a mesa joga sozinha (html[data-mesa-auto], ligado em batalha.jsx),
+   a janela de ação e o dado continuam aplicando as regras, mas invisíveis e
+   sem receber clique. */
+html[data-mesa-auto] .ms-backdrop:has(.acao-modal),
+html[data-mesa-auto] .dado-overlay-backdrop {
+  visibility: hidden !important; pointer-events: none !important;
+}
+
+/* Os efeitos acumulados numa faixa (08/11/2026): lado a lado, quebram linha
+   só quando a largura do card acaba. */
+#root .menestrel-ui .batalha-efeitos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+/* "Modo automático" colado à lista de cima só quando há botões em cima: logo
+   abaixo dos números, o vão da fileira (10px) continua. */
+#root .menestrel-ui .batalha-mesa-painel .batalha-card-botoes.batalha-auto-linha { margin-top: 0; }
+#root .menestrel-ui .batalha-mesa-painel .batalha-card-botoes + .batalha-card-botoes.batalha-auto-linha { margin-top: -4px; }
+
+/* O lado no automático (08/11/2026): a pílula segmentada das outras telas
+   (.nb-paginas), logo abaixo do botão, na largura do card. */
+#root .menestrel-ui .batalha-mesa-painel .batalha-auto-lado { width: 100%; }
+#root .menestrel-ui .batalha-auto-lado .nb-pagina-op { height: 32px; }
+
+/* O zoom no centro do rodapé (08/11/2026, usuário: "Centralize o botão de
+   zoom na tela, no rodapé"). Na batalha em tela cheia, no meio da janela;
+   fora dela (a montagem), no meio do pé do campo. */
+#root .menestrel-ui .batalha-zoom { right: auto; left: 50%; transform: translateX(-50%); }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .batalha-zoom { position: fixed; bottom: 14px; z-index: 7; }
+
+/* ══ CONSULTAR FORA DA VEZ (08/11/2026) ═════════════════════════════════════
+   A janela de leitura das magias, técnicas e habilidades do personagem: um
+   quadro de linhas — nome, de onde vem, nível — e o texto embaixo, na largura
+   da janela. Nada para clicar além de fechar. */
+#root .menestrel-ui .batalha-mesa-painel .batalha-card-botoes.batalha-consulta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#root .menestrel-ui .consulta-lista { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
+#root .menestrel-ui .consulta-linha { padding: 12px 4px; border-top: 1px solid var(--regua-forte); }
+#root .menestrel-ui .consulta-linha:first-child { border-top: 0; }
+#root .menestrel-ui .consulta-cab { display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; }
+#root .menestrel-ui .consulta-nome { font-size: var(--fs-md); font-weight: 700; color: var(--tinta); }
+#root .menestrel-ui .consulta-sub { font-size: var(--fs-xs); color: var(--tinta-3); }
+#root .menestrel-ui .consulta-nivel { margin-left: auto; font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2); font-variant-numeric: lining-nums tabular-nums; }
+#root .menestrel-ui .consulta-efeito { margin: 6px 0 0; font-size: var(--fs-sm); color: var(--vivo); line-height: 1.5; }
+#root .menestrel-ui .consulta-texto { margin: 6px 0 0; font-size: var(--fs-sm); color: var(--tinta-2); line-height: 1.55; white-space: pre-line; }
+#root .menestrel-ui .consulta-vazio { margin: 0; color: var(--tinta-3); }
+
+/* O morto e o desmaiado à vista (08/11/2026): em cinza, com um contorno
+   claro em volta do rosto — o preto do avatar sumia na noite do campo. */
+#root .menestrel-ui .batalha-token-avatar.is-fora .batalha-token-rosto,
+#root .menestrel-ui .batalha-token-avatar.is-desmaiado .batalha-token-rosto {
+  filter: grayscale(1); box-shadow: 0 0 0 2px rgba(232,221,198,.55), 0 1px 4px rgba(0,0,0,.5) !important;
+}
+
+/* ══ "É A SUA VEZ" (08/11/2026) ═════════════════════════════════════════════
+   O aviso grande quando a vez chega ao jogador — no PÉ da tela, centrado,
+   acima da pílula do zoom (08/11/2026: "para não ficar na frente do que os
+   personagens estejam fazendo"; antes ficava a 32% da altura). Cinzel (título
+   acima de 18px), no ouro do que está vivo, sobre couro sólido; entra e sai
+   sozinho em 2,6 s e não recebe clique. */
+#root .menestrel-ui .batalha-aviso-vez {
+  position: fixed; left: 50%; bottom: 64px; z-index: 60; pointer-events: none;
+  display: inline-flex; align-items: center; gap: 14px; padding: 18px 30px;
+  background: rgba(20,15,10,.95); border: 1px solid var(--vivo-aro, var(--vivo)); border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 40px rgba(var(--ouro-rgb),.25);
+  font-family: var(--font-title); font-size: 30px; letter-spacing: .04em; color: var(--vivo);
+  transform: translate(-50%, 0); animation: batalha-aviso-vez 2.6s ease both;
+}
+#root .menestrel-ui .batalha-aviso-vez .ti { font-size: 30px; }
+@keyframes batalha-aviso-vez {
+  0% { opacity: 0; transform: translate(-50%, 10px) scale(.96); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -6px) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .batalha-aviso-vez { animation: none; }
+}
+
+/* ══ A BATALHA E A MESA (08/11/2026) ════════════════════════════════════════
+   Em tela cheia o menu lateral some: os cards de mensagem passam a se centrar
+   na janela inteira (eles descontavam a largura do menu) e a Loja sai do
+   trilho de páginas — "Durante a batalha, não quero o botão de 'loja'". */
+html:has(.fp-card.batalha-mng-page .batalha-mesa) .menestrel-ui.cm-root { --cm-sidebar: 0px !important; }
+#root .menestrel-ui .fp-card.batalha-mng-page:has(.batalha-mesa) .trilho-paginas [data-secao="loja_mesa"] { display: none; }
+
+/* O card da mensagem no pé da tela, na batalha (08/11/2026, usuário: "Coloque a
+   notificação centralizado na parte de baixo da tela, para não atrapalhar a
+   visualização"). Fora da batalha também fica no pé, mais baixo (ver
+   .cm-cards); aqui sobe para ficar acima da pílula do zoom, que mora no mesmo
+   pé. Enquanto o "É a sua vez" aparece (também no pé), o card sobe por cima
+   dele em vez de se sobrepor. */
+html:has(.fp-card.batalha-mng-page .batalha-mesa) .menestrel-ui.cm-root .cm-cards { bottom: 64px; }
+html:has(.fp-card.batalha-mng-page .batalha-mesa):has(.batalha-aviso-vez) .menestrel-ui.cm-root .cm-cards { bottom: 156px; }
+
+/* ══ ENTIDADES (08/11/2026) ═════════════════════════════════════════════════
+   A ficha de um deus, titã ou príncipe (13-diario/entidades.jsx). Relações,
+   Locais, Feriados e Itens são listas de entradas com nome: o nome forte, a
+   linha de contexto (onde fica, que dia é) fraca, e o texto do cronista. Uma
+   régua entre elas, como nos quadros. A assinatura do prefácio vai em itálico,
+   à direita, como nos livros de Tagmar. */
+#root .menestrel-ui .ent-lista { list-style: none; margin: 0; padding: 0; }
+#root .menestrel-ui .ent-item { padding: 12px 0; border-top: 1px solid var(--regua-forte); }
+#root .menestrel-ui .ent-item:first-child { border-top: 0; padding-top: 0; }
+#root .menestrel-ui .ent-item:last-child { padding-bottom: 0; }
+#root .menestrel-ui .ent-item-cab { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; margin-bottom: 4px; }
+#root .menestrel-ui .ent-item-nome { font-family: var(--font-body); font-size: var(--fs-md); font-weight: 700; color: var(--tinta); }
+#root .menestrel-ui .ent-item-meta { font-family: var(--font-body); font-size: var(--fs-sm); color: var(--tinta-3); font-variant-numeric: lining-nums tabular-nums; }
+#root .menestrel-ui .ent-prefacio .diario-det-desc { font-style: italic; }
+#root .menestrel-ui .ent-prefacio .diario-det-desc + .diario-det-desc { margin-top: 10px; }
+#root .menestrel-ui .best-secao--descricao .diario-det-desc + .diario-det-desc { margin-top: 10px; }
+#root .menestrel-ui .ent-fonte {
+  margin: 14px 0 0; text-align: right; font-family: var(--font-body); font-size: var(--fs-sm);
+  font-style: italic; color: var(--tinta-3);
+}

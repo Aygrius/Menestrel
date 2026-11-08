@@ -256,6 +256,8 @@ const ADMIN_COPY = {
       cidades:       { label: 'Cidades',      desc: 'As cidades do mundo e de quem elas são' },
       // Locais (22/10/2026): como Cidades, sem governante, religião e economia.
       locais:        { label: 'Locais',       desc: 'Os lugares do mundo que não são cidades' },
+      // Entidades (08/11/2026): deuses, titãs e príncipes (01-core/entidades.jsx).
+      entidades:     { label: 'Entidades',    desc: 'Os deuses, titãs e príncipes de Tagmar' },
       memorias:      { label: 'Memórias',     desc: 'O que seu personagem escreveu sobre o que viveu' },
     }
   },
@@ -416,6 +418,7 @@ const ADMIN_COPY = {
       npcs:          { label: 'People',      desc: 'The people your character has met' },
       cidades:       { label: 'Cities',      desc: 'The cities of the world and who holds them' },
       locais:        { label: 'Places',      desc: 'The places of the world that are not cities' },
+      entidades:     { label: 'Entities',    desc: 'The gods, titans and princes of Tagmar' },
       memorias:      { label: 'Memories',    desc: 'What your character wrote about what they lived' },
     }
   }
@@ -462,6 +465,8 @@ const ADMIN_SECTIONS = {
     // Locais (22/10/2026): florestas, ruínas, masmorras — o que não é cidade.
     { id: 'locais',        icon: 'Local' },
     { id: 'npcs',          icon: 'Users' },
+    // Entidades (08/11/2026): deuses, titãs e príncipes.
+    { id: 'entidades',     icon: 'Entidade' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'itens',         icon: 'Sheet' },
     { id: 'itens_campanha', icon: 'Chest' },
@@ -481,6 +486,7 @@ const ADMIN_SECTIONS = {
     { id: 'cidades',       icon: 'Cidade' },
     { id: 'locais',        icon: 'Local' },
     { id: 'npcs',          icon: 'Users' },
+    { id: 'entidades',     icon: 'Entidade' },
     { id: 'memorias',      icon: 'Feather' },
     // Catálogos filtrados pelo que o jogador conhece/possui (spec
     // docs/superpowers/specs/2026-09-11-catalogos-visao-jogador-design.md §4).
@@ -631,6 +637,8 @@ const diario = (comMemorias) => ({
     { secao: 'cidades', rotulo: R('Cidades', 'Cities') },
     { secao: 'locais', rotulo: R('Locais', 'Places') },
     { secao: 'npcs', rotulo: R('Pessoas', 'People') },
+    // Entidades (08/11/2026): deuses, titãs e príncipes — catálogo do mundo.
+    { secao: 'entidades', rotulo: R('Entidades', 'Entities') },
     // Memórias é do personagem, não da mesa — só o Jogador tem.
     ...(comMemorias ? [{ secao: 'memorias', rotulo: R('Memórias', 'Memories') }] : []),
   ],

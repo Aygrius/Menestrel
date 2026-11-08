@@ -92,6 +92,13 @@ describe('FichaInfoView — Identificação sem páginas internas', () => {
     expect(txt).toContain('Nenhuma arma equipada.');
   });
 
+  // 08/11/2026: "Adicione absorção total da armadura em 'derivadas'."
+  it('Derivadas mostra a absorção total da armadura', () => {
+    montar({ derivadas: { armadura: 14 } });
+    const linha = [...secao('Derivadas').querySelectorAll('.fp-row')].find((r) => /Absorção/.test(r.textContent));
+    expect(linha.querySelector('.fp-row-value').textContent).toBe('14');
+  });
+
   it('Habilidades Aperfeiçoadas junta idiomas, religião, arte e sabedoria', () => {
     montar({ pj: { ...props().pj, reino: 'Portis', aprimoramentos: { religiao: ['Blator'], arte: ['Música'] } } });
     const txt = secao('Habilidades Aperfeiçoadas').textContent;

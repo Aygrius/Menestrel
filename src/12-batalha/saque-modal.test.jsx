@@ -70,3 +70,16 @@ describe('SaqueModal', () => {
     expect(screen.getByText('Nada para saquear.')).toBeTruthy();
   });
 });
+
+/* 08/11/2026: arma natural (grupo Livre) não se saqueia. */
+describe('SaqueModal — sem armas naturais', () => {
+  it('a Garra da criatura não aparece para pegar', () => {
+    render(<div className="menestrel-ui"><window.SaqueModal
+      alvo={{ inst_id: 'x', nome: 'Haalin', saqueado: {} }}
+      criatura={{ equipamento: [{ slug: 'garra', slot: 'arma' }, { slug: 'corda', slot: 'mochila', qtd: 1 }] }}
+      catalogoBySlug={{ garra: { slug: 'garra', nome: 'Garra', grupo_armas: 'Livre' }, corda: { slug: 'corda', nome: 'Corda' } }}
+      saqueadores={[]} isEn={false} lang="pt" onPegar={async () => ({})} onClose={() => {}} /></div>);
+    expect(document.querySelector('[data-slug="garra"]')).toBeNull();
+    expect(document.querySelector('[data-slug="corda"]')).toBeTruthy();
+  });
+});

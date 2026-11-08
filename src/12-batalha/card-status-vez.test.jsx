@@ -162,7 +162,9 @@ describe('card', () => {
     await waitFor(() => expect(menu.querySelector('.batalha-card-barra .batalha-turno')).toBeTruthy());
     const botoes = [...menu.querySelectorAll('.batalha-turno button')].map((b) => b.getAttribute('aria-label'));
     expect(botoes).toEqual(['Atacar']);
-    expect(menu.querySelectorAll('.batalha-cel, .batalha-stat-num')).toHaveLength(0);
+    // Só a distância até mim (08/11/2026); nenhum número do inimigo.
+    expect([...menu.querySelectorAll('.batalha-cel-rot')].map((c) => c.textContent)).toEqual(['Distância']);
+    expect(menu.querySelectorAll('.batalha-stat-num')).toHaveLength(0);
   });
 
   const fonte = readFileSync(resolve(__dirname, 'batalha.jsx'), 'utf8');

@@ -281,3 +281,22 @@ describe('explicacaoDosPontos refaz a conta com os números do personagem', () =
     expect(t).toContain('Aura negativa zera a base da profissão.');
   });
 });
+
+/* 08/11/2026: "A ordem que as habilidades aparecem nas casas, deve ser por
+   linha e por tipo, por exemplo, habilidades de profissão primeira linha." */
+describe('Habilidades: um grupo por linha, na ordem do jogo', () => {
+  it('Profissional na primeira linha; cada grupo começa numa linha nova', () => {
+    const H = (key, grupo) => ({ key, nome: key, grupo, total: 1 });
+    render(<window.PaginaHabilidades lang="pt" habilidades={[
+      H('correr', 'Manobra'), H('artesanato', 'Profissional'), H('arrombar', 'Subterfúgio'),
+      H('escalar', 'Manobra'), H('agricultura', 'Profissional'),
+    ]} onRolar={() => {}} />);
+    const grade = document.querySelector('.inv-bag-grid--slots');
+    const cols = grade.style.gridTemplateColumns.match(/repeat\((\d+)/)[1] * 1;
+    const pos = (k) => [...grade.children].findIndex((el) => el.dataset && el.dataset.casa === k);
+    expect(casas()).toEqual(['agricultura', 'artesanato', 'arrombar', 'correr', 'escalar']);
+    expect(pos('agricultura')).toBe(0);
+    expect(pos('arrombar')).toBe(cols);       // Subterfúgio: linha 2
+    expect(pos('correr')).toBe(cols * 2);     // Manobra: linha 3
+  });
+});

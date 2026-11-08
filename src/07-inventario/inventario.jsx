@@ -685,7 +685,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const [vinculosHab, setVinculosHab] = useState({});
   useEffect(() => {
     let vivo = true;
-    Promise.resolve(supabaseClient.from('habilidades').select('key,nome,custo,grupo,nivel_inicial'))
+    Promise.resolve(supabaseClient.from('habilidades').select('key,nome,custo,grupo,nivel_inicial,descricao'))
       .then((res) => { if (vivo && res && !res.error && Array.isArray(res.data)) setHabilidadesDb(res.data); })
       .catch(() => {});
     if (typeof fetchTabelaPaginada === 'function') {
@@ -1369,6 +1369,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       if (motivos[r.motivo]) avisar(motivos[r.motivo], 'recusa');
       return;
     }
+    /* A QUANTIDADE AO ARMAZENAR (08/11/2026, usuário: "Na hora de armazenar,
+       dê a opção de colocar a quantidade"). Arrastar uma PILHA para a bolsa
+       guardava tudo o que coubesse; agora pergunta quanto, na janela padrão
+       (solicitarMover limita ao que cabe). As recusas acima continuam valendo
+       antes da pergunta. Uma unidade segue direto. */
+    if (it && (Number(it.quantidade) || 1) > 1) { solicitarMover(instanceId, containerId); return; }
     setInv((cur) => (cur ? { ...cur, itens: r.itens } : cur));
     avisar(r.qtd === r.total
       ? (en ? `Stored in ${nomeCont}: ${nome}${r.total > 1 ? ` ×${r.total}` : ''}.` : `Guardado em ${nomeCont}: ${nome}${r.total > 1 ? ` ×${r.total}` : ''}.`)
@@ -5197,6 +5203,14 @@ function DetalhesItemModal({
       ? [{ chave: 'retirar-da-loja', icone: 'ti-tag', rotulo: en ? 'Withdraw from shop' : 'Retirar da loja',
         onEscolher: () => onRetirarDaLoja(instance) }]
       : [];
+    /* RETIRAR DA BOLSA (08/11/2026, usuário: "Dentro de uma bolsa, coloca uma
+       opção no leque do item para retirar da bolsa"). O mesmo caminho do
+       Armazenar com destino nenhum (solicitarMover): uma unidade sai direto;
+       uma pilha pede a quantidade na janela padrão ("Retirar …"). */
+    const retirarDaBolsaNoLeque = onMoverParaContainer && instance.containerId && !aVenda
+      ? [{ chave: 'retirar-da-bolsa', icone: 'ti-upload', rotulo: en ? 'Take out' : 'Retirar',
+        onEscolher: () => onMoverParaContainer(instance.instanceId, null) }]
+      : [];
     /* "Detalhes" só sem painel (31/10/2026, usuário: "não precisa mostrar o
        botão 'detalhes' no leque, pois a descrição abre ao selecionar o item").
        Na tela larga o clique já põe o item no painel; na estreita não há painel,
@@ -5204,6 +5218,7 @@ function DetalhesItemModal({
     const lista = [
       ...(leque.comPainel ? [] : [{ chave: 'detalhes', icone: 'ti-article', rotulo: en ? 'Details' : 'Detalhes' }]),
       ...retirarNoLeque,
+      ...retirarDaBolsaNoLeque,
       ...lequeExtras,
       ...kitNoLeque,
       ...(podeUsar && onUsar ? [{
@@ -5540,6 +5555,8 @@ function motivoTransferenciaLabel(motivo, en) {
     item_a_venda:       en ? 'This item is for sale in the shop. Withdraw it first.'    : 'Este item está à venda na loja. Retire o anúncio antes.',
     // O banco recusa o 81º item de quem RECEBE (30/10/2026).
     inventario_cheio:   en ? 'The recipient’s inventory is full (80 slots).'           : 'O inventário de quem recebe está cheio (80 casas).',
+    // Peso (08/11/2026): o banco recusa quem passaria de 100% da carga.
+    carga_maxima:       en ? 'The recipient cannot carry any more weight.'              : 'Quem recebe não aguenta mais peso.',
     instancia_nao_encontrada: en ? 'Item not found in the inventory.'                  : 'Item não encontrado no inventário.',
   };
   return M[motivo] || motivo;
@@ -5911,6 +5928,12 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, habilidades, pj, magiasDb
             </div>
           )}
         </div>
+        )}
+        {/* A DESCRIÇÃO DO QUE SE ESCOLHEU (08/11/2026, usuário: "Adicionar a
+            descrição da magia, técnica, habilidade na hora de aprender no
+            livro"). O texto do catálogo, logo abaixo da escolha. */}
+        {sel && sel.m.descricao && (
+          <p key={sel.id} className="estudar-descricao mn-troca">{sel.m.descricao}</p>
         )}
         {erro && <p className="estudar-motivo" role="alert">{erro}</p>}
         <div className="mn-quadro estudar-quadro" role="radiogroup" aria-label={NOME_ABA[aba]}>

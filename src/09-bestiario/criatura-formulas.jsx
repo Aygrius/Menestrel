@@ -322,7 +322,11 @@ function ataquesDaCriatura(c, catalogoBySlug) {
       const bonus = (aj ? num(at[aj]) * COLUNAS_POR_PONTO_CRIATURA : 0) + num(at.estagio);   // + estágio, como em derivadosDoEquipamento
       const d100 = num(cat.dano) + num(at.forca);
       const t = tiersDeDano(d100);
+      // alcance e grupo (08/11/2026): o tabuleiro decide o corpo a corpo de
+      // 2 casas pelo grupo da arma (alcanceDaAcao) — sem eles, toda arma de
+      // criatura caía em 1 casa.
       return { slug, nome: cat.nome || slug,
+        alcance: cat.alcance != null ? cat.alcance : 0, grupo_armas: cat.grupo_armas || null,
         dano_l: num(cat.dano_l) + bonus, dano_m: num(cat.dano_m) + bonus, dano_p: num(cat.dano_p) + bonus,
         dano_100: d100, dano_75: t.d75, dano_50: t.d50, dano_25: t.d25 };
     });

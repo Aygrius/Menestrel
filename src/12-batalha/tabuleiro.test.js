@@ -526,3 +526,24 @@ describe('parseAlcance — Pessoal não é Toque', () => {
     expect(T.dentroDoAlcance({ x: 3, y: 3 }, { x: 5, y: 3 }, 1)).toBe(true);
   });
 });
+
+/* 08/11/2026: "As armas tipo espada, machado, etc, vão ter o alcance
+   dobrado" — corpo a corpo de 1 → 2 casas nos grupos de corte e esmagamento. */
+describe('corpo a corpo de 2 casas — corte e esmagamento', () => {
+  it.each(['CL', 'CM', 'CP', 'EL', 'EM', 'EP'])('%s sem alcance próprio: 2 casas', (g) => {
+    expect(T.alcanceDaAcao({ arma: { alcance: 0, grupo_sigla: g } })).toBe(2);
+    expect(T.alcanceDaAcao({ arma: { alcance: 0, grupo_armas: g } })).toBe(2);   // ataque de criatura
+  });
+  it('quem já tem alcance segue com o dele (Machado 5, Adaga 10)', () => {
+    expect(T.alcanceDaAcao({ arma: { alcance: 5, grupo_sigla: 'CM' } })).toBe(5);
+    expect(T.alcanceDaAcao({ arma: { alcance: 10, grupo_sigla: 'CL' } })).toBe(10);
+  });
+  it('perfuração, desarmado e ataque natural continuam em 1', () => {
+    for (const g of ['PL', 'CD', 'CI', 'Livre', null]) {
+      expect(T.alcanceDaAcao({ arma: { alcance: 0, grupo_sigla: g } })).toBe(1);
+    }
+  });
+  it('técnica com alcance próprio continua mandando', () => {
+    expect(T.alcanceDaAcao({ arma: { alcance: 0, grupo_sigla: 'CP' }, tecnica: { alcance: '6m' } })).toBe(6);
+  });
+});

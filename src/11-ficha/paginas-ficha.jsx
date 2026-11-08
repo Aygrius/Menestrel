@@ -56,6 +56,12 @@ function PaginaCasas({
      (06/11/2026: os pontos saíram do trilho para cá). Na tela estreita, sem
      painel, vai para cima da grade. */
   noPainel = null,
+  /* `grupoDe(casa)` (08/11/2026, usuário: "A ordem que as habilidades
+     aparecem nas casas, deve ser por linha e por tipo, por exemplo,
+     habilidades de profissão primeira linha"). Com ele, cada grupo começa
+     numa LINHA NOVA da grade: o resto da linha do grupo anterior fica em
+     casas vazias. As casas já chegam na ordem dos grupos. */
+  grupoDe = null,
 }) {
   const en = lang === 'en';
   const [busca, setBusca] = useState('');
@@ -89,7 +95,17 @@ function PaginaCasas({
   const Shell = (typeof ModalShell !== 'undefined' && ModalShell) || window.ModalShell || null;
 
   const COLS = grade.cols || 10;
-  const total = Math.max(grade.totalSlots || COLS * (window.LINHAS_BAU || 8), Math.ceil((visiveis.length + 1) / COLS) * COLS);
+  const slots = [];
+  if (grupoDe) {
+    let anterior;
+    visiveis.forEach((c) => {
+      const g = grupoDe(c);
+      if (slots.length && g !== anterior) while (slots.length % COLS) slots.push(null);
+      anterior = g;
+      slots.push(c);
+    });
+  } else slots.push(...visiveis);
+  const total = Math.max(grade.totalSlots || COLS * (window.LINHAS_BAU || 8), Math.ceil((slots.length + 1) / COLS) * COLS);
 
   const trilho = (
     <div className="cartoes-barra inv-trilho pc-barra">
@@ -158,7 +174,7 @@ function PaginaCasas({
         <div className="inv-grid-wrap">
           <div ref={setGridEl} className="inv-bag-grid inv-bag-grid--slots" style={{ gridTemplateColumns: `repeat(${COLS}, var(--inv-casa))` }}>
             {Array.from({ length: total }, (_, i) => {
-              const c = visiveis[i];
+              const c = slots[i];
               if (!c) return <span key={'g' + i} className="inv-slot-ghost" aria-hidden="true" />;
               return (
                 <button key={c.id} type="button" data-casa={c.id}
@@ -233,9 +249,17 @@ function PaginaHabilidades({ lang, habilidades, onRolar, onSubir = null, pontos 
     icone: <NomeNaCasa nome={h.nome} />,
     marca: h.total != null ? String(h.total) : null,
     apagada: !!h.bloqueio,
-  })).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
+  }));
+  /* Por grupo, na ordem do jogo (Profissional na primeira linha), e por nome
+     dentro dele — cada grupo na sua linha (grupoDe, 08/11/2026). Grupo fora
+     da lista vai para o fim. */
+  const ORDEM = window.GRUPOS_HABILIDADES_ORDEM || [];
+  const posGrupo = (g) => { const i = ORDEM.indexOf(g); return i < 0 ? ORDEM.length : i; };
+  casas.sort((a, b) => (posGrupo(a.h.grupo) - posGrupo(b.h.grupo))
+    || String(a.h.grupo || '').localeCompare(String(b.h.grupo || ''), 'pt')
+    || String(a.nome).localeCompare(String(b.nome), 'pt'));
   return (
-    <PaginaCasas lang={lang} casas={casas} classe="pc-habilidades"
+    <PaginaCasas lang={lang} casas={casas} classe="pc-habilidades" grupoDe={(c) => c.h.grupo}
       noPainel={<SeloPontos pontos={pontos} rotulo={en ? 'Skill points' : 'Pontos de habilidade'} />}
       buscaRotulo={en ? 'Search skill' : 'Buscar habilidade'}
       painelRotulo={en ? 'Skill' : 'Habilidade'}

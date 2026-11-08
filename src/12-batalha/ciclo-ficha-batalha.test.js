@@ -29,6 +29,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';
+import '../01-core/status-efeito.jsx';
 import './batalha.jsx';
 import './tabuleiro.jsx';
 import { fakeSupabase } from '../test/fake-supabase.js';
@@ -242,5 +243,37 @@ describe('criatura NÃO persiste — só PJ', () => {
     expect(snap.eh).toBe(147);
     expect(snap.ef_max).toBe(23);
     expect(snap.status).toBe('ativo');
+  });
+});
+
+describe('efeito de técnica NÃO atravessa a batalha (08/11/2026)', () => {
+  /* Usuário: "Eu não quero que os efeitos de técnica de combate permaneçam
+     no personagem depois que a batalha acaba. Por exemplo 'Voz de Comando'.
+     O que vai continuar é EF, EH, etc." */
+  const voz = { id: 'tec_voz_de_comando', nome: 'Voz de Comando', rodadas_rest: 8,
+                efeito: { tipo: 'mod_iniciativa', valor: 4 } };
+  const veneno = { id: 'veneno:abc', nome: 'Envenenado', rodadas_rest: 3,
+                   efeito: { tipo: 'dano_por_rodada', valor: 1 } };
+
+  it('Voz de Comando sai; o veneno continua', () => {
+    const novo = M.estadoAoEncerrar(fichaPrevia(), snap({ status_temp: [voz, veneno] }), null);
+    const ids = novo.status.map((s) => s.id);
+    expect(ids).not.toContain('tec_voz_de_comando');
+    expect(ids).toContain('veneno:abc');
+  });
+
+  it('EF e EH do fim da luta continuam indo para a ficha', () => {
+    const novo = M.estadoAoEncerrar(fichaPrevia(), snap({ status_temp: [voz] }), null);
+    expect(novo.vitalidade).toMatchObject({ ef: 7, eh: 3, ar: 1, ka: 2 });
+  });
+
+  it('a EH emprestada por técnica (Heroísmo) volta antes de gravar', () => {
+    const heroismo = { id: 'tec_heroismo', nome: 'Heroísmo', rodadas_rest: 5,
+                       efeito: { tipo: 'mod_eh_temp', valor: 6 } };
+    // eh_max 14 + 6 emprestados = 20; terminou a luta com 18.
+    const novo = M.estadoAoEncerrar(fichaPrevia(),
+      snap({ eh: 18, eh_max: 20, status_temp: [heroismo] }), null);
+    expect(novo.vitalidade.eh).toBe(14);
+    expect(novo.status).toEqual([]);
   });
 });

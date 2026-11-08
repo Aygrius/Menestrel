@@ -121,16 +121,23 @@ describe('casas livres no inventário', () => {
     }, ESPERA_GRAVAR);
   });
 
-  it('soltar flechas na aljava guarda o que cabe; o resto fica na casa de origem', async () => {
+  /* 08/11/2026: arrastar uma PILHA pergunta a quantidade ("Na hora de
+     armazenar, dê a opção de colocar a quantidade"); o máximo é o que cabe. */
+  it('soltar flechas na aljava pergunta quanto (até o que cabe); o resto fica na casa de origem', async () => {
     const { container, tabelas } = montar([it_('alj-1', 'aljava', { casa: 0 }), it_('fle-1', 'flecha', { quantidade: 20, casa: 2 })]);
     await waitFor(() => expect(casa(container, 2).classList.contains('inv-card')).toBe(true));
     arrastar(container, 2, 0);
+    // A janela de quantidade, no máximo do que cabe (10), e confirmar guarda.
+    await waitFor(() => expect(document.querySelector('.ms-modal')).toBeTruthy());
+    expect(document.querySelector('.ms-modal').textContent).toMatch(/Armazenar/);
+    const mais = document.querySelector('.ms-modal [aria-label="+"]');
+    for (let k = 0; k < 15 && mais && !mais.disabled; k++) fireEvent.click(mais);
+    fireEvent.click(document.querySelector('.ms-modal .ms-footer .btn-primary'));
     await waitFor(() => {
       const itens = tabelas.personagens[0].inventario.itens;
       expect(itens.find((x) => x.slug === 'flecha' && x.containerId === 'alj-1')?.quantidade).toBe(10);
       expect(gravado(tabelas, 'fle-1')).toMatchObject({ quantidade: 10, containerId: null, casa: 2 });
     }, ESPERA_GRAVAR);
-    expect(screen.getByRole('status').textContent).toMatch(/10 de 20/);
   });
 
   it('item que a mochila não aceita: avisa o motivo e nada muda', async () => {

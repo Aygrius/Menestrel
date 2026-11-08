@@ -105,8 +105,15 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
     const pj = excluindo;
     setExcluindo(null);
     if (!pj) return;
-    const { error: err } = await supabaseClient.from('personagens').delete().eq('id', pj.id);
+    /* `.select('id')` (08/11/2026): o RLS que não deixa apagar não dá erro —
+       devolve zero linhas. Sem conferir, a tela recarregava como se tivesse
+       excluído e o personagem continuava lá. */
+    const { data: apagados, error: err } = await supabaseClient.from('personagens').delete().eq('id', pj.id).select('id');
     if (err) { setError((lang === 'en' ? 'Failed to delete: ' : 'Falha ao excluir: ') + err.message); return; }
+    if (!apagados || apagados.length === 0) {
+      setError(lang === 'en' ? 'The database did not allow deleting this character.' : 'O banco não permitiu excluir este personagem.');
+      return;
+    }
     await carregar();
     onChanged?.();
   };
@@ -310,11 +317,22 @@ function ConvitesHistoriaView({ historia, t, lang, onClose, onChanged }) {
                                 <i className="ti ti-refresh" aria-hidden="true" />
                               </button>
                             )}
-                            {/* Excluir em dois cliques, como no Diário e em Batalhas. */}
+                            {/* Excluir em dois cliques, como no Diário e em Batalhas.
+                                COM PERSONAGEM, A LIXEIRA EXCLUI A FICHA (08/11/2026,
+                                usuário: "Essa mensagem está aparecendo em Jogadores:
+                                'Convite usado não se exclui — ele some junto com o
+                                personagem.' eu quero excluir o personagem"). O convite
+                                usado o banco recusa apagar; o personagem leva o convite
+                                junto (FK com ON DELETE CASCADE). Abre a mesma
+                                confirmação do "Excluir ficha" do leque. */}
                             <button type="button" className={'convite-cartao-botao is-perigo' + (armada ? ' is-armada' : '')}
                               disabled={loading}
-                              aria-label={armada ? (en ? 'Click again to delete' : 'Clique de novo para excluir') : tc.mng.remover}
-                              onClick={() => { if (armada) { setLixeira(null); excluirConvite(c.id); } else setLixeira(c.id); }}
+                              aria-label={temPj ? (en ? 'Delete sheet' : 'Excluir ficha')
+                                : armada ? (en ? 'Click again to delete' : 'Clique de novo para excluir') : tc.mng.remover}
+                              onClick={() => {
+                                if (temPj) { setLixeira(null); acaoNoPj('excluir', c.personagem_id); return; }
+                                if (armada) { setLixeira(null); excluirConvite(c.id); } else setLixeira(c.id);
+                              }}
                               onMouseLeave={() => { if (armada) setLixeira(null); }}>
                               <i className={'ti ' + (armada ? 'ti-trash-x' : 'ti-trash')} aria-hidden="true" />
                             </button>

@@ -137,6 +137,15 @@ describe('a fiação nos dois menus do tabuleiro', () => {
     expect(fonte).toContain("arma: isEn ? 'Attack' : 'Atacar'");
   });
 
+  /* 08/11/2026: "Ao selecionar um inimigo, não está aparecendo a atacar usando
+     técnica, apenas atacar e magia" — e o mesmo no Jogador. A técnica abre a
+     aba Técnica já com o inimigo de alvo (tecAlvoIdx nasce do alvoInicialId). */
+  it('as duas visões oferecem atacar com técnica, com o inimigo de alvo', () => {
+    expect(fonte).toContain("setAtaqueContra({ id: p.inst_id, aba: 'tecnica_teste', unica: true })");
+    expect(fonte).toContain("onClick={() => abrirAcao('tecnica_teste', p.inst_id)}");
+    expect(fonte).toContain('const k = alvoInicialId ? alvos.findIndex((q) => q.inst_id === alvoInicialId) : -1;');
+  });
+
   /* 17/09/2026: o painel virou ModalShell (AcaoModal) e saiu de dentro de
      `menuDe`. Com isso `painelNoInimigo` deixou de existir: ele respondia
      "este card é o do inimigo que recebeu o clique?", pergunta que só fazia
@@ -156,5 +165,39 @@ describe('a fiação nos dois menus do tabuleiro', () => {
 
   it('fechar o painel limpa o alvo escolhido, nas duas visões', () => {
     expect(fonte.match(/useEffect\(\(\) => \{ if \(!acaoOpen\) setAtaqueContra\(null\); \}, \[acaoOpen\]\);/g)).toHaveLength(2);
+  });
+});
+
+/* 08/11/2026: "Agora aparece 'atacar com técnica' mas o alvo selecionado
+   previamente, muda, e eu tenho que selecionar o alvo da técnica novamente."
+   O efeito de "default de seleção" zerava tecAlvoIdx na montagem. */
+describe('AcaoPanel — a aba Técnica nasce no inimigo clicado', () => {
+  it('Atacar com técnica no Ogro: o alvo da técnica é o Ogro', () => {
+    const TEC = { key: 'expectativa', nome: 'Expectativa', uso: null };
+    const cat = { ...CATALOGOS, tecnicasByKey: { expectativa: TEC },
+      pjById: { 64: { ...PJ, tecnicas: { expectativa: 1 } } } };
+    const c = montar({ catalogos: cat, alvoInicialId: OGRO.inst_id, abaInicial: 'tecnica_teste' });
+    expect(alvoMarcado(c)).toBe('Ogro');
+  });
+});
+
+/* 08/11/2026: modo automático — com `auto`, o painel nasce na escolha e abre
+   o dado sozinho (o dado do painel rola ao abrir e aplica pelo caminho de
+   sempre). */
+describe('AcaoPanel — modo automático', () => {
+  it('com auto de arma no Ogro, o dado abre sozinho com o Ogro de alvo', async () => {
+    const { waitFor } = await import('@testing-library/react');
+    const c = montar({ alvoInicialId: OGRO.inst_id, abaInicial: 'arma', abaUnica: 'arma',
+      auto: { armaSlug: 'machado_pesado', armaNome: 'Machado Pesado' } });
+    expect(alvoMarcado(c)).toBe('Ogro');
+    await waitFor(() => expect(document.querySelector('.dado-overlay-backdrop')).toBeTruthy(), { timeout: 2000 });
+  });
+  it('alvo fora de alcance: avisa a mesa (onAutoFalhou) em vez de ficar parado', async () => {
+    const { waitFor } = await import('@testing-library/react');
+    let falhou = false;
+    const eu = { ...ATOR, pos: { x: 0, y: 0 } }; const longe = { ...OGRO, pos: { x: 30, y: 0 } };
+    montar({ ator: eu, participantes: [eu, GOBLIN, longe], alvoInicialId: OGRO.inst_id, abaInicial: 'arma', abaUnica: 'arma',
+      auto: { armaSlug: 'machado_pesado' }, onAutoFalhou: () => { falhou = true; } });
+    await waitFor(() => expect(falhou).toBe(true), { timeout: 2000 });
   });
 });

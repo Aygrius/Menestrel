@@ -26,10 +26,10 @@ const nav = (() => {
 describe('a Ambientação do Mestre', () => {
   const amb = nav.NAV_MESA.master.mesa.find((n) => n.rotulo && n.rotulo.pt === 'Ambientação');
 
-  it('é um grupo de trilho, com as quatro folhas na ordem', () => {
+  it('é um grupo de trilho, com as cinco folhas na ordem (Entidades em 08/11/2026)', () => {
     expect(amb).toBeTruthy();
     expect(amb.trilho).toBe(true);
-    expect(amb.filhos.map((f) => f.secao)).toEqual(['lugares', 'cidades', 'locais', 'npcs']);
+    expect(amb.filhos.map((f) => f.secao)).toEqual(['lugares', 'cidades', 'locais', 'npcs', 'entidades']);
   });
 
   it('as folhas seguem contando como páginas do menu (título e acesso)', () => {

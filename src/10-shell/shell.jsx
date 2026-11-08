@@ -483,6 +483,7 @@ const Icon = {
   Diario:   TI_cls('ti-notebook'),      // Diário (Reinos, Cidades, Conhecidos, Memórias)
   Cidade:   TI_cls('ti-building-castle'), // Cidades (26/09/2026)
   Local:    TI_cls('ti-mountain'),      // Locais (22/10/2026)
+  Entidade: TI_cls('ti-sun'),           // Entidades: deuses, titãs, príncipes (08/11/2026)
 
   // ── Logo / cabeçalho ─────────────────────────────────────────────────────────
   Skull:   TI_cls('ti-id'),           // Logo ornamental
@@ -1628,6 +1629,14 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
   };
 
   const abrirHistorico = () => { setAberto(true); setNaoLidas(0); };
+  /* A BATALHA PEDE O HISTÓRICO (08/11/2026, usuário: "Eu quero uma opção de
+     ver as notificações na batalha"). Em tela cheia o menu lateral some, e o
+     sino junto; a batalha tem o próprio sino no trilho e dispara este evento. */
+  useEffect(() => {
+    const abrir = () => { setAberto(true); setNaoLidas(0); };
+    window.addEventListener('menestrel:abrir-notificacoes', abrir);
+    return () => window.removeEventListener('menestrel:abrir-notificacoes', abrir);
+  }, []);
   const fecharHistorico = () => setAberto(false);
 
   /* Chegou um evento: o card anterior começa a sumir (fade-out) e o novo
@@ -1776,50 +1785,52 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
    Formato: { dia, mes, nome }. Meses 1–12 são os meses normais; mês 13 é o
    mês especial "Cruine" (1 dia). Espelha FANTASY_MONTHS de 01-core.
 */
+/* 08/11/2026: os feriados de Maira, Palier e Plandis saíram desta lista e
+   vêm das ENTIDADES (01-core/entidades.jsx) — uma fonte só por feriado. O
+   Festival de Renascimento de Maira estava em 3 do mês do Sangue; o livro diz
+   "3º dia do mês da Rosa" (deuses.pdf, Maira), e passou para 3/10. */
 const FERIADOS_FANTASY = [
   { dia:  2, mes:  1, nome: 'Festival da Benção Militar' },
   { dia: 12, mes:  1, nome: 'Amor da Deusa' },
-  { dia: 17, mes:  1, nome: 'Adoração a Maira Mon' },
   { dia:  1, mes:  2, nome: 'Dia do Mar' },
   { dia:  5, mes:  2, nome: 'Jejum da Piedade' },
   { dia:  5, mes:  2, nome: 'Solstício de Verão' },
   { dia: 11, mes:  2, nome: 'Festa da Carne' },
-  { dia: 19, mes:  2, nome: 'Culto à Elevação' },
   { dia:  5, mes:  3, nome: 'Condecoração Póstuma' },
   { dia:  9, mes:  3, nome: 'Vitória da Justiça' },
   { dia: 15, mes:  3, nome: 'Festa da Prosperidade' },
   { dia: 20, mes:  3, nome: 'Dia do Amor e Paz' },
-  { dia:  2, mes:  4, nome: 'Adoração a Maira Vet' },
   { dia:  7, mes:  4, nome: 'Festa da Fertilidade' },
   { dia: 13, mes:  4, nome: 'Festa da Purificação de Parom' },
   { dia: 30, mes:  4, nome: 'Festa da Fartura' },
   { dia:  1, mes:  5, nome: 'Festa da Fartura' },
   { dia:  5, mes:  5, nome: 'Equinócio de Outono' },
-  { dia:  9, mes:  5, nome: 'Dia das Ilusões' },
   { dia: 21, mes:  5, nome: 'Dia da Multiplicação' },
   { dia: 20, mes:  6, nome: 'Jornada da Paz' },
   { dia: 24, mes:  6, nome: 'Festa dos Artífices' },
   { dia: 30, mes:  6, nome: 'Festa da Colheita' },
   { dia:  1, mes:  7, nome: 'Noite dos Prazeres' },
   { dia: 13, mes:  7, nome: 'Batismo de Fogo' },
-  { dia: 19, mes:  7, nome: 'Representação de Plandis' },
-  { dia:  3, mes:  8, nome: 'Festival de Renascimento de Maira' },
   { dia:  5, mes:  8, nome: 'Solstício de Inverno' },
-  { dia:  9, mes:  8, nome: 'Festa da Iluminação' },
   { dia: 23, mes:  8, nome: 'Oferenda de Sangue' },
   { dia:  4, mes:  9, nome: 'Memorial dos Ancestrais' },
-  { dia:  6, mes:  9, nome: 'Dia da Magia' },
-  { dia: 20, mes:  9, nome: 'Adoração a Maira Nil e Prisão Dourada' },
+  { dia: 20, mes:  9, nome: 'Prisão Dourada' },   // de Morrigalti; a Adoração a Maira Nil vem da entidade dela
   { dia:  1, mes: 10, nome: 'Festa do Plantio' },
   { dia: 12, mes: 10, nome: 'Festa dos Amantes' },
   { dia: 27, mes: 10, nome: 'Festa da Vitória' },
   { dia:  6, mes: 11, nome: 'Equinócio de Primavera' },
-  { dia: 13, mes: 11, nome: 'Culto à Tríade' },
   { dia: 26, mes: 11, nome: 'Dia da Sobra' },
   { dia: 16, mes: 12, nome: 'Festa dos Povos' },
   { dia: 27, mes: 12, nome: 'Noite do Entendimento entre os Povos' },
   { dia: 29, mes: 12, nome: 'Noite dos Justos' },
-  { dia:  1, mes: 13, nome: 'Dia de Cruine e Retorno da Escuridão' },
+  /* O último dia do ano juntava duas festas num nome só ("Dia de Cruine e
+     Retorno da Escuridão"). Separadas em 08/11/2026: o Retorno à Escuridão é
+     de Morrigalti (principes.pdf) e fica aqui; a de Cruine, a Festa do Ciclo
+     Natural da Vida, vem da ENTIDADE dele (01-core/entidades.jsx), junto com
+     os feriados de toda entidade — uma fonte só por feriado. */
+  { dia:  1, mes: 13, nome: 'Retorno à Escuridão' },
+  ...((typeof feriadosDasEntidades === 'function' ? feriadosDasEntidades
+    : (typeof window !== 'undefined' && window.feriadosDasEntidades) || (() => []))()),
 ];
 
 // Converte (dia, mes) em número sequencial dentro do ano fantasy.
@@ -4182,7 +4193,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
      tabela saía mais estreita que a das outras ("a largura da tabela em
      lugares, npcs está menor que em itens, magias" — usuário). */
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'locais', 'npcs', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'cena', 'batalha', 'loja_mesa', 'jogadores', 'ficha', 'inventario', 'loja'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'locais', 'npcs', 'entidades', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'cena', 'batalha', 'loja_mesa', 'jogadores', 'ficha', 'inventario', 'loja'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
@@ -4502,7 +4513,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     bestiario: 'ti-skull', comercio: 'ti-backpack', historias: 'ti-books',
     /* As folhas da Ambientação no trilho do topo (04/11/2026): todas com
        versão filled (src/tabler-filled.css). */
-    lugares: 'ti-crown', cidades: 'ti-building', locais: 'ti-map-pin', npcs: 'ti-user', memorias: 'ti-feather',
+    lugares: 'ti-crown', cidades: 'ti-building', locais: 'ti-map-pin', npcs: 'ti-user', entidades: 'ti-sun', memorias: 'ti-feather',
     // A Mesa do Mestre (Cena, Batalha, Loja): o glifo da Mesa do Jogador.
     mesa_mestre: 'ti-map-2',
   };
@@ -4564,7 +4575,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
       {grupoDoTrilho.filhos.map((f) => {
         const ativo = f.secao === secaoMarcada;
         return (
-          <button key={f.secao} type="button" className={'mc-acao' + (ativo ? ' is-ativo' : '')}
+          <button key={f.secao} type="button" data-secao={f.secao} className={'mc-acao' + (ativo ? ' is-ativo' : '')}
             aria-current={ativo ? 'page' : undefined} onClick={() => irPara(f)}>
             <i className={'ti ' + iconeDe(f)} aria-hidden="true" />
             <span className="mc-acao-rotulo">{rotuloDe(f)}</span>
@@ -5206,6 +5217,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               /* "Todas as mesas" (seletor do topo): a lista inteira; entrar
                  numa leva à Cena dela. */
               <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={null} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} onEntrarMesa={(id) => { setMesaAtivaId(id); ir('cena'); }} />
+            ) : current.id === 'entidades' ? (
+              /* ENTIDADES (08/11/2026): deuses, titãs e príncipes. Catálogo do
+                 mundo, igual para Mestre e Jogador e sem mesa nem PJ — o que
+                 um deus é não muda de uma aventura para outra. */
+              <EntidadesView lang={lang} trilhoPaginas={trilhoPaginas} />
             ) : (current.id === 'lugares' || current.id === 'cidades' || current.id === 'locais' || current.id === 'npcs' || current.id === 'memorias') ? (
               /* AS TRÊS QUE VIERAM DO DIÁRIO. Para o JOGADOR são o mesmo
                  DiarioView travado num tipo (ver `tipoFixo`), e sem personagem

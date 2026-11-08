@@ -55,6 +55,16 @@ const TAB_CELULA = 40;      // px por célula no zoom 1×
 const TAB_ZOOMS  = [0.15, 0.25, 0.35, 0.5, 0.75, 1, 1.5];
 const TAB_ZOOM_PADRAO = 3;  // índice em TAB_ZOOMS → 0.5
 const TAB_TOKEN_ESCALA = 2; // token renderiza com 2 células de diâmetro
+// Zoom do campo (08/11/2026): sobre a casa encaixada na moldura.
+const TAB_ZOOM_MIN = 1;
+const TAB_ZOOM_MAX = 4;     // piso do teto: o teto real é zoomMax (TabuleiroBatalha)
+/* O VÃO DE 150px (08/11/2026, usuário: "quero que o espaço entre os avatares
+   aumente mais do que apenas 52px, quero que vá para 150px"). O teto do zoom
+   é o fator em que dois avatares VIZINHOS (centros a 2 casas) ficam com este
+   vão entre eles — numa tela pequena a casa encaixada é menor, e o teto fixo
+   de 4× parava em ~70px. Nunca abaixo de TAB_ZOOM_MAX. */
+const TAB_ZOOM_VAO_PX = 150;
+const TAB_ZOOM_PASSO = 1.2;
 
 /* Movimento da rodada: VB convertido em células, com piso.
    mov = max(5, floor(VB × 5/20)). Um VB 20 anda 5 células; VB 35 anda 8. */
@@ -137,11 +147,30 @@ function dentroDoAlcance(posA, posB, alcance) {
 
 /* Alcance efetivo de uma ação. Magia usa o alcance dela; arma usa o da
    TÉCNICA quando há uma (a técnica pode estender), senão o da arma. */
+/* CORPO A CORPO DE 2 CASAS (08/11/2026). Usuário: "As armas tipo espada,
+   machado, etc, vão ter o alcance dobrado" — e, perguntado, escolheu
+   "Corpo a corpo: 1 → 2 casas" para os grupos de CORTE e ESMAGAMENTO. A arma
+   desses grupos sem alcance próprio (o 0 do catálogo: espada, montante,
+   mangual, maça…) atinge até 2 casas; a que já tem alcance (Machado 5,
+   Adaga 10) segue com o dela. Perfuração, combate desarmado/imobilização e
+   os ataques naturais (Livre) continuam em 1. */
+const GRUPOS_CORPO_A_CORPO_DOBRADO = ['CL', 'CM', 'CP', 'EL', 'EM', 'EP'];
+const ALCANCE_CORPO_A_CORPO_DOBRADO = 2;
+function armaDeCorpoACorpoDobrado(arma) {
+  const g = String((arma && (arma.grupo_sigla || arma.grupo_armas)) || '');
+  return g.split(',').map((x) => x.trim()).some((x) => GRUPOS_CORPO_A_CORPO_DOBRADO.includes(x));
+}
+
 function alcanceDaAcao({ arma, magia, tecnica } = {}) {
   // `!= null` e não `||`: alcance 0 (Pessoal) é válido e não pode virar 1.
   if (magia) { const a = parseAlcance(magia.alcance); return a != null ? a : 1; }
   if (!arma) return 1;
-  return ((tecnica ? parseAlcance(tecnica.alcance) : null) || parseAlcance(arma.alcance)) || 1;
+  const daTecnica = tecnica ? parseAlcance(tecnica.alcance) : null;
+  if (daTecnica) return daTecnica;
+  const daArma = parseAlcance(arma.alcance);
+  // 0/vazio/"corpo a corpo" → 1 casa; nos grupos de corte e esmagamento, 2.
+  if ((daArma == null || daArma <= 1) && armaDeCorpoACorpoDobrado(arma)) return ALCANCE_CORPO_A_CORPO_DOBRADO;
+  return daArma || 1;
 }
 
 /* ── Sobreposição de tokens (14/09/2026) ────────────────────────────
@@ -597,6 +626,14 @@ function fracaoEfDoToken(p) {
   if (max <= 0) return null;
   return Math.max(0, Math.min(1, (Number(p.ef) || 0) / max));
 }
+/* A EH no anel de fora (08/11/2026, usuário: "Adicione a barra verde de
+   heroica"). Mesma conta da EF; null quando não há EH (a maioria dos bichos
+   pequenos), e aí o anel nem aparece. */
+function fracaoEhDoToken(p) {
+  const max = Number(p && p.eh_max) || 0;
+  if (max <= 0) return null;
+  return Math.max(0, Math.min(1, (Number(p.eh) || 0) / max));
+}
 
 /* `atravessavel` (14/09/2026): com o Mover armado, o token deixa o clique passar
    para a grade — ver o comentário no mapa de tokens do TabuleiroBatalha. */
@@ -630,6 +667,8 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
      vida. As outras pools seguem no card que o clique abre. */
   const fracaoEf = fracaoEfDoToken(p);
   const pctEf = fracaoEf == null ? 0 : Math.round(fracaoEf * 100);
+  const fracaoEh = fracaoEhDoToken(p);
+  const pctEh = fracaoEh == null ? 0 : Math.round(fracaoEh * 100);
 
   return React.createElement('div', {
     role: podeSel ? 'button' : undefined,
@@ -650,6 +689,16 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
       pointerEvents: atravessavel ? 'none' : 'auto',
     },
   },
+    /* EVOCANDO (08/11/2026, usuário: "Quando o combatente estiver evocando
+       magia, técnica ou habilidade, aplique um efeito sobre o avatar"). Uma
+       aura que gira em volta do avatar, no azul do selo "Evocando", enquanto a
+       magia está sendo evocada — a canalização de várias rodadas (evocando) e
+       a que sai no fim da rodada (magia_pendente). Fica ATRÁS do anel da vez:
+       quem evoca na própria vez mostra os dois. */
+    (p.evocando || p.magia_pendente) && React.createElement('span', {
+      'aria-hidden': 'true', className: 'batalha-token-evocando',
+      style: { width: size + 22, height: size + 22, top: -11, left: '50%', marginLeft: -(size + 22) / 2 },
+    }),
     // anel pulsante de "é a vez dele"
     atual && React.createElement('span', {
       'aria-hidden': 'true', className: 'batalha-token-vez-ring',
@@ -668,10 +717,14 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
     React.createElement('div', {
       ref: refAvatar,
       key: flash ? 'avatar-dano-' + flash.n : 'avatar',
-      className: 'batalha-token-avatar' + (flash ? ' is-dano' : ''),
+      /* O MORTO NÃO SOME (08/11/2026, usuário: "Depois de morto, o avatar some
+         da batalha"). O rosto é preto e, a 35% sobre a noite do campo, ele
+         desaparecia. Agora fica a 70%, em cinza e com um contorno claro (CSS
+         .is-fora): está ali, e se vê que saiu da luta. Desmaiado a 75%. */
+      className: 'batalha-token-avatar' + (flash ? ' is-dano' : '') + (fora ? ' is-fora' : '') + (status === 'desmaiado' ? ' is-desmaiado' : ''),
       style: {
         position: 'relative', width: size, height: size, flex: 'none',
-        opacity: fora ? 0.35 : (status === 'desmaiado' ? 0.55 : 1),
+        opacity: fora ? 0.7 : (status === 'desmaiado' ? 0.75 : 1),
         transform: selecionado ? 'scale(1.12)' : 'none',
         transition: 'transform .15s ease, opacity .2s ease',
       },
@@ -730,6 +783,18 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
         React.createElement('circle', {
           className: 'batalha-token-ef-nivel', cx: 50, cy: 50, r: 47, pathLength: 100,
           strokeDasharray: pctEf + ' 100', transform: 'rotate(-90 50 50)',
+        })),
+      /* O anel da EH, por fora do da EF, no verde da barra de EH. */
+      fracaoEh != null && React.createElement('svg', {
+        key: flash && flash.eh ? 'eh-dano-' + flash.n : 'eh',
+        className: 'batalha-token-eh' + (flash && flash.eh ? ' is-dano-eh' : '') + (pctEh === 0 ? ' vazia' : ''),
+        viewBox: '0 0 100 100', 'aria-hidden': 'true', focusable: 'false', 'data-pct': pctEh,
+        style: { position: 'absolute', inset: -9, width: size + 18, height: size + 18, pointerEvents: 'none', overflow: 'visible' },
+      },
+        React.createElement('circle', { className: 'batalha-token-eh-trilho', cx: 50, cy: 50, r: 47, pathLength: 100 }),
+        React.createElement('circle', {
+          className: 'batalha-token-eh-nivel', cx: 50, cy: 50, r: 47, pathLength: 100,
+          strokeDasharray: pctEh + ' 100', transform: 'rotate(-90 50 50)',
         }))),
     // selo de status (caveira / zzz / bandeira) — com nome, para leitor de
     // tela e para quem pergunta "o que é isso" (13/09/2026).
@@ -1088,9 +1153,98 @@ function TabuleiroBatalha({
      calculada sobre a área menos uma margem: dos lados, o anel; embaixo, o
      nome. */
   const FOLGA_X = 16, FOLGA_Y = 28;
-  const cel = encaixado
+  const celEncaixada = encaixado
     ? Math.max(8, Math.min((caixa.w - FOLGA_X) / TAB_COLS, (caixa.h - FOLGA_Y) / TAB_ROWS))
     : celPadrao;
+  /* ZOOM (08/11/2026, usuário: "Permita que o jogador/mestre consiga dar
+     zoom no campo de batalha"). O fator multiplica a casa encaixada: 1 é o
+     campo inteiro na moldura; acima disso ele passa da moldura e o arraste
+     (pan, abaixo) passeia por ele. A roda do mouse aproxima mantendo parado
+     o ponto sob o cursor; os botões no canto aproximam pelo centro, e o
+     "ajustar" volta ao campo inteiro. */
+  const [zoom, setZoom] = useState(1);
+  const cel = celEncaixada * zoom;
+  /* O AVATAR NÃO CRESCE COM O ZOOM (08/11/2026, usuário: "O espaço que o
+     avatar tem ao dar zoom precisa mudar, ou seja, eu quero ver o espaço
+     entre os combatentes"). O tamanho sai da casa ENCAIXADA (zoom 1); as
+     posições seguem a casa com zoom. Aproximar afasta os avatares e mostra
+     o chão entre eles, em vez de só ampliar a mesma cena. */
+  const tamanhoToken = Math.max(14, Math.round(TAB_TOKEN_ESCALA * celEncaixada * 0.95));
+  // Vão entre vizinhos = TAB_TOKEN × casa × zoom − avatar ⇒ zoom = (vão + avatar) / (TAB_TOKEN × casa).
+  const zoomMax = Math.max(TAB_ZOOM_MAX,
+    Math.ceil(((TAB_ZOOM_VAO_PX + tamanhoToken) / (TAB_TOKEN * Math.max(1, celEncaixada))) * 10) / 10);
+  /* O avatar NÃO encolhe com o zoom (08/11/2026, usuário: "Eu não quero que o
+     avatar diminua no zoom, apenas se distancie") — durou um deploy. O
+     tamanho é sempre o da casa encaixada; só as distâncias crescem. */
+  const tamanhoNoZoom = tamanhoToken;
+  const focoZoom = useRef(null);   // { fx, fy, cx, cy }: o ponto (em casas) que fica sob (cx, cy)
+  const zoomPara = (novo, cx, cy) => {
+    const el = scrollRef.current;
+    const z = Math.max(TAB_ZOOM_MIN, Math.min(zoomMax, Math.round(novo * 100) / 100));
+    if (z === zoom) return;
+    if (el) {
+      const px = cx != null ? cx : el.clientWidth / 2;
+      const py = cy != null ? cy : el.clientHeight / 2;
+      const grid = el.firstElementChild;
+      const gx = grid ? grid.offsetLeft : 0, gy = grid ? grid.offsetTop : 0;
+      focoZoom.current = { fx: (el.scrollLeft + px - gx) / cel, fy: (el.scrollTop + py - gy) / cel, cx: px, cy: py };
+    }
+    setZoom(z);
+  };
+  React.useLayoutEffect(() => {
+    const el = scrollRef.current, f = focoZoom.current;
+    focoZoom.current = null;
+    if (!el || !f) return;
+    const grid = el.firstElementChild;
+    const gx = grid ? grid.offsetLeft : 0, gy = grid ? grid.offsetTop : 0;
+    el.scrollLeft = Math.max(0, f.fx * cel + gx - f.cx);
+    el.scrollTop = Math.max(0, f.fy * cel + gy - f.cy);
+  }, [cel]);
+  // Roda do mouse: listener nativo, não passivo, para a página não rolar junto.
+  const zoomRef = useRef(zoomPara);
+  zoomRef.current = zoomPara;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    const aoRodar = (ev) => {
+      ev.preventDefault();
+      const r = el.getBoundingClientRect();
+      const passo = ev.deltaY < 0 ? TAB_ZOOM_PASSO : 1 / TAB_ZOOM_PASSO;
+      zoomRef.current(zoomAtual.current * passo, ev.clientX - r.left, ev.clientY - r.top);
+    };
+    el.addEventListener('wheel', aoRodar, { passive: false });
+    return () => el.removeEventListener('wheel', aoRodar);
+  }, []);
+  const zoomAtual = useRef(zoom);
+  zoomAtual.current = zoom;
+  /* OS ATALHOS DO NAVEGADOR VIRAM O ZOOM DO CAMPO (08/11/2026). O usuário
+     aproximava com Ctrl + / Ctrl − / Ctrl + roda — o zoom do NAVEGADOR, que
+     amplia a página inteira com os avatares juntos, e por isso eles nunca se
+     afastavam. Com o campo na tela, esses atalhos (e Cmd no Mac) são do campo:
+     Ctrl 0 volta ao campo inteiro. A roda com Ctrl em cima do campo já é do
+     listener acima; aqui fica a de fora dele. */
+  useEffect(() => {
+    const el = scrollRef.current;
+    const aoTeclar = (ev) => {
+      if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+      const k = ev.key;
+      if (k === '+' || k === '=' || k === 'Add') { ev.preventDefault(); zoomRef.current(zoomAtual.current * TAB_ZOOM_PASSO); }
+      else if (k === '-' || k === '_' || k === 'Subtract') { ev.preventDefault(); zoomRef.current(zoomAtual.current / TAB_ZOOM_PASSO); }
+      else if (k === '0') { ev.preventDefault(); setZoom(TAB_ZOOM_MIN); }
+    };
+    const aoRodarFora = (ev) => {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      if (el && el.contains(ev.target)) return;   // em cima do campo: o outro listener cuida
+      ev.preventDefault();
+      zoomRef.current(zoomAtual.current * (ev.deltaY < 0 ? TAB_ZOOM_PASSO : 1 / TAB_ZOOM_PASSO));
+    };
+    window.addEventListener('keydown', aoTeclar, true);
+    window.addEventListener('wheel', aoRodarFora, { passive: false, capture: true });
+    return () => {
+      window.removeEventListener('keydown', aoTeclar, true);
+      window.removeEventListener('wheel', aoRodarFora, { capture: true });
+    };
+  }, []);
   const largura = TAB_COLS * cel;
   const altura  = TAB_ROWS * cel;
   // Réguas acompanham o arraste (13/09/2026): a posição de rolagem move os
@@ -1229,7 +1383,19 @@ function TabuleiroBatalha({
     if (el) el.classList.remove('is-panning');
     pan.current.ativo = false;
   };
+  /* PINÇA (08/11/2026, usuário: "Ao dar zoom, eu quero que o espaço entre os
+     avatares aumente"). No tablet o gesto de dois dedos não fazia nada — o
+     campo tem touch-action:none, então nem o navegador ampliava. Agora a pinça
+     é o zoom do campo: a mesma conta da roda (zoomPara), mirando o ponto entre
+     os dedos; os avatares ficam do mesmo tamanho e o chão entre eles cresce. */
+  const pinca = useRef(null);   // { d0, z0 }
+  const distDedos = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
   const toqueInicio = (ev) => {
+    if (ev.touches && ev.touches.length === 2) {
+      pinca.current = { d0: distDedos(ev.touches[0], ev.touches[1]) || 1, z0: zoomAtual.current };
+      pan.current = { ...pan.current, ativo: false, arrastou: true };
+      return;
+    }
     const t = ev.touches && ev.touches[0];
     if (!t || (t.target && t.target.closest && t.target.closest('.batalha-token'))) return;
     const el = scrollRef.current;
@@ -1237,6 +1403,15 @@ function TabuleiroBatalha({
     pan.current = { ativo: true, arrastou: false, x0: t.clientX, y0: t.clientY, sl0: el.scrollLeft, st0: el.scrollTop };
   };
   const toqueMove = (ev) => {
+    if (pinca.current && ev.touches && ev.touches.length === 2) {
+      const el = scrollRef.current;
+      if (!el) return;
+      const [a, b] = ev.touches;
+      const r = el.getBoundingClientRect();
+      zoomRef.current(pinca.current.z0 * (distDedos(a, b) / pinca.current.d0),
+        (a.clientX + b.clientX) / 2 - r.left, (a.clientY + b.clientY) / 2 - r.top);
+      return;
+    }
     const st = pan.current;
     if (!st.ativo) return;
     const t = ev.touches && ev.touches[0];
@@ -1274,7 +1449,9 @@ function TabuleiroBatalha({
         display: 'flex',
       },
       onMouseDown: panInicio, onMouseMove: panMove, onMouseUp: panFim, onMouseLeave: panFim,
-      onTouchStart: toqueInicio, onTouchMove: toqueMove, onTouchEnd: panFim, onTouchCancel: panFim,
+      onTouchStart: toqueInicio, onTouchMove: toqueMove,
+      onTouchEnd: (ev) => { if (!ev.touches || ev.touches.length < 2) pinca.current = null; panFim(); },
+      onTouchCancel: () => { pinca.current = null; panFim(); },
     },
       React.createElement('div', {
         onClick: aoClicarGrid,
@@ -1406,7 +1583,7 @@ function TabuleiroBatalha({
           },
         }, React.createElement(TabuleiroToken, {
           p: e.p, meta: metaDe(e.p), refAvatar: refDoToken(e.i),
-          size: Math.max(14, Math.round(TAB_TOKEN_ESCALA * cel * 0.95)),
+          size: tamanhoNoZoom,
           selecionado: e.i === menuAberto || e.i === movendo, atual: !!e.p.atual,
           // Com menu, todo token abre — inclusive o de quem não pode ser
           // movido. Quem move continua sendo decidido por alvoMover.
@@ -1436,11 +1613,25 @@ function TabuleiroBatalha({
           },
         }, React.createElement(TabuleiroToken, {
           p: e.p, meta: metaDe(e.p),
-          size: Math.max(14, Math.round(TAB_TOKEN_ESCALA * cel * 0.95)),
+          size: tamanhoNoZoom,
           selecionado: e.i === movendo, atual: false, podeSel: false,
           onSelect: () => {},
         })))
-      )
+      ),
+      /* Os controles do zoom (08/11/2026), no canto do campo. */
+      React.createElement('div', { className: 'batalha-zoom', role: 'group', 'aria-label': isEn ? 'Zoom' : 'Zoom' },
+        React.createElement('button', {
+          type: 'button', className: 'batalha-zoom-btn', disabled: zoom <= TAB_ZOOM_MIN,
+          'aria-label': isEn ? 'Zoom out' : 'Afastar', onClick: () => zoomPara(zoom / TAB_ZOOM_PASSO),
+        }, React.createElement('i', { className: 'ti ti-minus', 'aria-hidden': 'true' })),
+        React.createElement('button', {
+          type: 'button', className: 'batalha-zoom-btn batalha-zoom-ajustar', disabled: zoom <= TAB_ZOOM_MIN,
+          'aria-label': isEn ? 'Fit the board' : 'Ajustar à tela', onClick: () => setZoom(TAB_ZOOM_MIN),
+        }, React.createElement('span', { className: 'batalha-zoom-valor' }, Math.round(zoom * 100) + '%')),
+        React.createElement('button', {
+          type: 'button', className: 'batalha-zoom-btn', disabled: zoom >= zoomMax,
+          'aria-label': isEn ? 'Zoom in' : 'Aproximar', onClick: () => zoomPara(zoom * TAB_ZOOM_PASSO),
+        }, React.createElement('i', { className: 'ti ti-plus', 'aria-hidden': 'true' })))
     )),
 
     // bancada: quem ainda não foi posicionado. Sem o rótulo "Ainda fora do
@@ -1532,12 +1723,14 @@ Object.assign(window, {
   // Camada pura do tabuleiro — testada em tabuleiro.test.js.
   MotorTabuleiro: {
     TAB_COLS, TAB_ROWS, TAB_TOKEN, TAB_CELULA, TAB_ZOOMS, TAB_TOKEN_ESCALA,
+    TAB_ZOOM_MIN, TAB_ZOOM_MAX, TAB_ZOOM_PASSO, TAB_ZOOM_VAO_PX,
     MOV_MIN, MOV_FATOR, MOV_MOTIVOS,
     movimentoBase, posValida, distanciaCelulas, distanciaMovimento, custoMovimento, distanciaBordas, posicionarMenu,
     parseAlcance, dentroDoAlcance, alcanceDaAcao, celulaOcupada,
+    GRUPOS_CORPO_A_CORPO_DOBRADO, ALCANCE_CORPO_A_CORPO_DOBRADO,
     validarMovimento, moverParticipante, preservarPosicoes, destinoAlcancavel, movimentoDisponivel,
     distanciaEntre, alvoNoAlcance, motivoMovimento, selosDoToken,
-    danoNasPools, FLASH_DANO_MS, ESCURIDAO_NIVEIS, fracaoEfDoToken,
+    danoNasPools, FLASH_DANO_MS, ESCURIDAO_NIVEIS, fracaoEfDoToken, fracaoEhDoToken,
     casasAoRedor, bandoSegueLider, minionPresoAoLider,
     MAX_CELULAS_COMPARTILHADAS, celulasEmComum,
     CONDUCAO_CASAS_PADRAO, conducaoDisponivel, conduzirParticipante,

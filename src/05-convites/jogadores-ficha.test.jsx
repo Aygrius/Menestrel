@@ -58,3 +58,22 @@ describe('Jogadores: a ficha pelo card', () => {
     expect(document.querySelector('[data-acao-leque]')).toBeNull();
   });
 });
+
+/* 08/11/2026: "Essa mensagem está aparecendo em Jogadores: 'Convite usado não
+   se exclui — ele some junto com o personagem.' eu quero excluir o
+   personagem." A lixeira do card com personagem exclui a FICHA. */
+describe('Jogadores: a lixeira do card com personagem', () => {
+  it('abre a confirmação de excluir a ficha, sem tentar apagar o convite', async () => {
+    const original = window.ConfirmarExclusaoModal;
+    window.ConfirmarExclusaoModal = ({ personagem }) => <div data-confirma={personagem.id}>confirmar {personagem.nome}</div>;
+    try {
+      const { container } = montar();
+      await waitFor(() => expect(container.querySelector('[data-pj="7"]')).toBeTruthy());
+      const lixeira = container.querySelector('[data-pj="7"] .convite-cartao-botao.is-perigo');
+      expect(lixeira.getAttribute('aria-label')).toBe('Excluir ficha');
+      fireEvent.click(lixeira);
+      await waitFor(() => expect(document.querySelector('[data-confirma="7"]')).toBeTruthy());
+      expect(document.body.textContent).not.toMatch(/Convite usado não se exclui/);
+    } finally { window.ConfirmarExclusaoModal = original; }
+  });
+});

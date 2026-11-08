@@ -3078,6 +3078,10 @@ function FichaInfoView({
   const secDerivadas = (
     <SecaoInfo titulo={en ? 'Stats' : 'Derivadas'}>
       <Row label={en ? 'Defense'             : 'Defesa'}              value={_d.defesa             ?? _d.de ?? '—'} />
+      {/* Absorção total da armadura (08/11/2026, pedido do usuário): peças no
+          corpo + bônus de conjunto + bônus com prazo — o mesmo número da
+          barra AR (calcularFicha, derivadas.armadura). */}
+      <Row label={en ? 'Absorption'          : 'Absorção'}            value={_d.armadura ?? _d.absorcao ?? '—'} />
       <Row label={en ? 'Speed'               : 'Velocidade'}          value={velocidade             ?? '—'} />
       <Row label={en ? 'Physical Resistance' : 'Resistência Física'}  value={_d.rf ?? _d.resistenciaFisica  ?? '—'} />
       <Row label={en ? 'Magic Resistance'    : 'Resistência Mágica'}  value={_d.rm ?? _d.resistenciaMagica  ?? '—'} />

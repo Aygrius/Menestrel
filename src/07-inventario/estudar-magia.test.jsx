@@ -129,6 +129,22 @@ describe('EstudarMagiaModal', () => {
     expect(document.querySelector('.estudar-aprendizado').textContent).toBe('24 h em Estudar');
   });
 
+  /* A descrição do escolhido (08/11/2026): "Adicionar a descrição da magia,
+     técnica, habilidade na hora de aprender no livro". */
+  it('escolher mostra a descrição do catálogo, em cada aba', () => {
+    const ESQ = { key: 'esquiva', nome: 'Esquiva', custo: 1, descricao: 'Desvia de um golpe.' };
+    const MED = { key: 'medicina', nome: 'Medicina', custo: 1, grupo: 'Conhecimento', nivel_inicial: 0, descricao: 'Trata ferimentos.' };
+    abrir({ magias: [{ ...BOLA, descricao: 'Uma esfera de fogo.' }, LUZ], tecnicas: [ESQ], tecnicasDb: [ESQ], habilidades: [MED], habilidadesDb: [MED] });
+    expect(document.querySelector('.estudar-descricao')).toBeNull();   // sem escolha, sem texto
+    fireEvent.click(linhas()[0]);
+    expect(document.querySelector('.estudar-descricao').textContent).toBe('Uma esfera de fogo.');
+    const abas = [...document.querySelectorAll('.estudar-abas [role="tab"]')];
+    fireEvent.click(abas[1]); fireEvent.click(linhas()[0]);
+    expect(document.querySelector('.estudar-descricao').textContent).toBe('Desvia de um golpe.');
+    fireEvent.click(abas[2]); fireEvent.click(linhas()[0]);
+    expect(document.querySelector('.estudar-descricao').textContent).toBe('Trata ferimentos.');
+  });
+
   /* Uma aba por tipo (07/11/2026), cada uma com o seu quadro e o seu saldo. */
   it('magias, técnicas e habilidades em abas, cada uma com o seu saldo', () => {
     const ESQ = { key: 'esquiva', nome: 'Esquiva', custo: 1 };

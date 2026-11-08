@@ -360,8 +360,17 @@ function EstoqueMestreView({ historia, lang, onChanged, trilhoPaginas = null }) 
   }, [lugares]);
 
   const comercios = (est && est.comercios) || [];
-  const loja = comercios.find((c) => c.id === lojaId) || comercios[0] || null;
-  useEffect(() => { if (!lojaId && comercios[0]) setLojaId(comercios[0].id); }, [comercios.length]);
+  /* A LOJA DE ONDE A AVENTURA ESTÁ PRIMEIRO (08/11/2026, usuário: "Ao clicar na
+     loja (mestre), deve mostrar sempre primeiro a loja de onde a aventura está
+     como padrão"). O local da mesa (data_jogo_atual.local) casa com o lugar da
+     loja sem acento; sem loja ali, a primeira, como antes. */
+  const localDaMesa = estSemAcento((historia && historia.data_jogo_atual && historia.data_jogo_atual.local) || '');
+  const lojaDaMesa = localDaMesa ? comercios.find((c) => estSemAcento(c.lugar || c.nome) === localDaMesa) || null : null;
+  const loja = comercios.find((c) => c.id === lojaId) || lojaDaMesa || comercios[0] || null;
+  useEffect(() => {
+    if (!lojaId && (lojaDaMesa || comercios[0])) setLojaId((lojaDaMesa || comercios[0]).id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comercios.length, lojaDaMesa && lojaDaMesa.id]);
 
   // propostas
   const carregarPropostas = React.useCallback(async () => {
@@ -893,6 +902,12 @@ function EstoqueMestreView({ historia, lang, onChanged, trilhoPaginas = null }) 
             <p className="loja-painel-sub">{d.quem}{p.lugar ? (en ? ' · in ' : ' · em ') + p.lugar : ''}</p>
           </div>
         </div>
+        {/* O QUE É O ITEM À VENDA (08/11/2026, usuário: "No item à venda, deve
+            mostrar a descrição e as informações do item"): as células do item
+            (as mesmas da janela de compra da loja, passeDoItem) e a descrição
+            do catálogo. */}
+        {d.cat && window.passeDoItem && window.passeDoItem(d.cat, lang).topo}
+        {d.cat && d.cat.descricao && <p className="loja-painel-desc mn-rolagem estoque-prop-desc">{d.cat.descricao}</p>}
         <div className="mn-passe estoque-prop-passe">
           {celula(en ? 'Quantity' : 'Quantidade', '×' + d.q)}
           {celula(d.esperandoJogador ? (en ? 'You offered' : 'Você ofereceu') : (en ? 'Offer' : 'Oferta'),
