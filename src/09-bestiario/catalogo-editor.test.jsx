@@ -413,7 +413,7 @@ describe('equipamento (criaturas)', () => {
     digitar('nome', 'Orc'); digitar('forca', '4');
     await equipar('Espada Longa');
     expect(await payloadDaCriatura()).toMatchObject({
-      ataque: 'Espada Longa', dano_l: 0, dano_m: 4, dano_p: 8, dano_100: 32,   // FOR 4 · 28 + 4
+      ataque: 'Espada Longa', dano_l: 4, dano_m: 8, dano_p: 12, dano_100: 32,   // FOR 4 × 2 nas colunas · 28 + 4
     });
   });
 

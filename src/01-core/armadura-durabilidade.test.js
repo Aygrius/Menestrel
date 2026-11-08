@@ -80,7 +80,7 @@ describe('reforma das armaduras', () => {
 
   it('conjunto completo e inteiro dá o bônus da classe; faltando ou quebrada, não', () => {
     const completo = [eq('galea', 'cabeca'), eq('ombreira', 'ombro')];
-    expect(window.bonusDeConjunto(completo, CAT2)).toEqual({ conjunto: 'leve-calco', tipo: 'L', abs: 2, def: 4 });
+    expect(window.bonusDeConjunto(completo, CAT2)).toEqual({ conjunto: 'leve-calco', tipo: 'L', abs: 2, def: 2 });
     expect(window.calcArmadura(pj(completo), CAT2)).toBe(1 + 2);
     expect(window.bonusDeConjunto([eq('galea', 'cabeca')], CAT2)).toBeNull();
     expect(window.bonusDeConjunto([eq('galea', 'cabeca'), { ...eq('ombreira', 'ombro'), quebrada: true }], CAT2)).toBeNull();

@@ -525,9 +525,13 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca,
     || (typeof window !== 'undefined' && window.protecoesVestidas) || null;
   let pesadoPct = 0;
   if (catalogoBySlug && _itens && _cargaFn) {
-    try { pesadoPct = Math.max(0, Math.min(100, Number(_cargaFn(_itens, catalogoBySlug, atributosBase.forca, atributosBase.fisico).pct) || 0)); }
+    try { pesadoPct = Math.max(0, Number(_cargaFn(_itens, catalogoBySlug, atributosBase.forca, atributosBase.fisico).pct) || 0); }
     catch (_) { pesadoPct = 0; }
   }
+  /* A FAIXA DE CARGA (07/11/2026) decide o que o peso tira — ver
+     FAIXAS_DE_CARGA. A barra Pesado continua 0..100 (barrasDeCondicao trava);
+     a faixa lê o percentual cru, que pode passar de 100 em dado antigo. */
+  const faixaCarga = faixaDeCarga(pesadoPct);
   const protecoes = (catalogoBySlug && _itens && _protFn) ? _protFn(_itens, catalogoBySlug) : {};
   /* Os bônus com prazo que ainda valem na data da mesa. Sem a fase carregada
      (ou sem estado), é tudo zero e nada muda. */
@@ -639,7 +643,7 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca,
       }
     });
     /* Conjunto completo, todas as peças idênticas e inteiras (30/10/2026):
-       leve Abs 2 / Def 4, média 3/3, pesada 4/2. Ver bonusDeConjunto. */
+       leve Abs 2 / Def 2, média 3/1, pesada 4/0 (defesa desde 07/11/2026). Ver bonusDeConjunto. */
     const _bonusConj = (typeof bonusDeConjunto === 'function' ? bonusDeConjunto : window.bonusDeConjunto);
     const conj = _bonusConj ? _bonusConj(p.inventario.itens, catalogoBySlug) : null;
     if (conj) { absorcaoTotal += conj.abs; defesaTotal += conj.def; }
@@ -663,7 +667,8 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca,
   // Ex: agilidade 2, sem armadura → "L2".
   //     agilidade 2, peitoral couro (L, defesa 3) + calça couro (defesa 2) → "L7".
   const siglaDefesa = tipoPeitoral || 'L';
-  const valorDefesa = defesaTotal + agilC;
+  // A carga tira defesa a partir de 51% (FAIXAS_DE_CARGA, 07/11/2026).
+  const valorDefesa = Math.max(0, defesaTotal + agilC - faixaCarga.defesa);
   const defesaStr   = `${siglaDefesa}${valorDefesa}`;
 
   return {
@@ -699,9 +704,14 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca,
       armadura: catalogoBySlug ? absorcaoTotal + _temp.ar : '—',
       karma: karmaComPrazo,
       karmamax: karmaComPrazo,
-      velocidade: velocFinal + _temp.vb,
+      /* A carga corta a Velocidade em PORCENTAGEM (07/11/2026): −25% / −50% /
+         −75% conforme a faixa. Arredonda para baixo — o peso não dá de volta. */
+      velocidade: velocidadeComCarga(velocFinal + _temp.vb, faixaCarga),
       // Regra nova (26/10/2026): VEL 30 dobra os pontos de ação da rodada.
-      pontosAcaoDobrados: (velocFinal + _temp.vb) >= 30,
+      // No limite da carga (91%+), sem ação extra (07/11/2026).
+      pontosAcaoDobrados: velocidadeComCarga(velocFinal + _temp.vb, faixaCarga) >= 30 && !faixaCarga.semAcaoExtra,
+      // A carga e a faixa dela, para quem mostra e para a batalha.
+      carga: { pct: pesadoPct, faixa: faixaCarga.id, semAcaoExtra: !!faixaCarga.semAcaoExtra },
     },
   };
 }
@@ -1469,7 +1479,8 @@ const CONDICOES_MALEFICIO = {
   sanidade:   { poco: 'eh' },
   frio:       { poco: 'vb' },
   calor:      { poco: 'eh' },
-  pesado:     { poco: 'vb' },
+  // pesado: saiu do degrau de pontos em 07/11/2026 — a carga tem faixas
+  // próprias (FAIXAS_DE_CARGA), com a Velocidade em porcentagem.
   reputacao:  { grupo: 'Influência' },
 };
 
@@ -1504,7 +1515,83 @@ function totalHabilidadeComCondicoes(habKey, habilidadesObj, atributos, bonusObj
   const base = totalHabilidade(habKey, habilidadesObj, atributos, bonusObj, habilidadesByKey);
   const h = habilidadesByKey?.[habKey];
   const mult = modificadorGrupoPorCondicoes(h?.grupo, condicoes, protecoes);
-  return mult === 1 ? base : Math.round(base * mult);
+  const comGrupo = mult === 1 ? base : Math.round(base * mult);
+  /* A carga pesa nas habilidades de AGILIDADE (07/11/2026): −2 de coluna a
+     partir de 76%. Quem chama manda o percentual em condicoes.pesado. */
+  const pen = h && h.ajuste === 'agilidade' && condicoes ? faixaDeCarga(condicoes.pesado).agilidade : 0;
+  return comGrupo - pen;
+}
+
+/* ── O PESO (07/11/2026) ───────────────────────────────────────────
+   "Se um personagem tem 10/31, quer dizer que ele não pode passar de 31. A
+   porcentagem ocupada que vai aplicar os efeitos de peso" (usuário). As
+   faixas aprovadas no mesmo dia:
+
+     0–50%    Leve       nada
+     51–75%   Carregado  Velocidade −25%, Defesa −1
+     76–90%   Pesado     Velocidade −50%, Defesa −2, −2 nas habilidades de
+                         Agilidade, fome, sede e sono +25% mais rápido
+     91–100%  No limite  Velocidade −75%, Defesa −4, −2 em Agilidade, sem
+                         ação extra em combate, fome, sede e sono +50%
+     > 100%   bloqueado: nada entra no inventário (cargaEstourouCom).
+
+   A Agilidade segue em −2 no limite: as faixas acumulam, e nenhuma alivia o
+   que a anterior já cobrava. */
+const FAIXAS_DE_CARGA = [
+  { id: 'leve',      ate: 50,       vbPct: 0,  defesa: 0, agilidade: 0, consumoPct: 0,  semAcaoExtra: false },
+  { id: 'carregado', ate: 75,       vbPct: 25, defesa: 1, agilidade: 0, consumoPct: 0,  semAcaoExtra: false },
+  { id: 'pesado',    ate: 90,       vbPct: 50, defesa: 2, agilidade: 2, consumoPct: 25, semAcaoExtra: false },
+  { id: 'no_limite', ate: Infinity, vbPct: 75, defesa: 4, agilidade: 2, consumoPct: 50, semAcaoExtra: true },
+];
+function faixaDeCarga(pct) {
+  const p = Number(pct);
+  const v = Number.isFinite(p) ? p : 0;
+  return FAIXAS_DE_CARGA.find((f) => v <= f.ate) || FAIXAS_DE_CARGA[FAIXAS_DE_CARGA.length - 1];
+}
+function velocidadeComCarga(velocidade, faixa) {
+  const v = Number(velocidade) || 0;
+  const pct = (faixa && faixa.vbPct) || 0;
+  return pct ? Math.max(0, Math.floor(v * (100 - pct) / 100)) : v;
+}
+/* O nome e o efeito da faixa, para a barra de peso dizer o que custa. */
+function textoFaixaDeCarga(faixa, en) {
+  if (!faixa || faixa.id === 'leve') return null;
+  const nome = { carregado: en ? 'Burdened' : 'Carregado', pesado: en ? 'Heavy' : 'Pesado',
+    no_limite: en ? 'At the limit' : 'No limite' }[faixa.id];
+  const partes = [
+    (en ? 'Speed −' : 'Velocidade −') + faixa.vbPct + '%',
+    (en ? 'Defense −' : 'Defesa −') + faixa.defesa,
+    faixa.agilidade ? (en ? 'Agility skills −' : 'Habilidades de Agilidade −') + faixa.agilidade : null,
+    faixa.consumoPct ? (en ? 'hunger, thirst and sleep +' : 'fome, sede e sono +') + faixa.consumoPct + '%' : null,
+    faixa.semAcaoExtra ? (en ? 'no extra action in combat' : 'sem ação extra em combate') : null,
+  ].filter(Boolean);
+  return { nome, efeito: partes.join(' · ') };
+}
+/* A mudança de `antes` para `depois` FAZ ENTRAR algo (mais unidades de
+   algum item)? Mexer no que já se tem (desequipar, tirar da bolsa) e largar
+   nunca é barrado — só ganhar. */
+function entrouItem(antes, depois) {
+  const conta = (itens) => {
+    const m = {};
+    (Array.isArray(itens) ? itens : []).forEach((it) => {
+      if (it && it.slug) m[it.slug] = (m[it.slug] || 0) + (Number(it.quantidade) || 1);
+    });
+    return m;
+  };
+  const a = conta(antes); const d = conta(depois);
+  return Object.keys(d).some((k) => d[k] > (a[k] || 0));
+}
+/* Entrou item E a carga passou de 100% E pesa mais que antes. */
+function cargaEstourouCom(antes, depois, catalogoBySlug, forca, fisico) {
+  const calc = (typeof window !== 'undefined' && window.calcCarga) || null;
+  if (!calc || !catalogoBySlug || !entrouItem(antes, depois)) return false;
+  const cd = calc(depois, catalogoBySlug, forca, fisico);
+  if (!(cd.pct > 100)) return false;
+  const ca = calc(antes, catalogoBySlug, forca, fisico);
+  return cd.peso > ca.peso;
+}
+function textoCargaMaxima(en) {
+  return en ? 'Maximum load: drop something first.' : 'Carga máxima: largue algo antes.';
 }
 
 /* ============================== [15] Helpers de CARACTERIZAÇÃO ============================== */
@@ -1682,6 +1769,7 @@ Object.assign(window, {
   calcularFicha, tituloDoPersonagem, pontosHabilidadesTotal, gastoHabilidades,
   qtdHabilidades, limiteQtdHabilidades, nivelHabilidade, totalHabilidade,
   calcBonusHabilidadesRacaReino,
+  FAIXAS_DE_CARGA, faixaDeCarga, velocidadeComCarga, textoFaixaDeCarga, entrouItem, cargaEstourouCom, textoCargaMaxima,
   faixaCondicao, proporcaoCondicao, deltasPocosPorCondicoes, degrauCondicao, barrasDeCondicao, CONDICOES_MALEFICIO,
   modificadorGrupoPorCondicoes, totalHabilidadeComCondicoes,
   MAGIAS_BASE_POR_PROFISSAO, pontosMagiasPorEstagio, pontosMagiasTotal, gastoMagias,

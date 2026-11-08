@@ -63,8 +63,10 @@ describe('o modal do item do inventário', () => {
     expect(document.querySelector('.item-passe')).toBeNull();
     /* 27/10/2026: o grupo deixou de ser sigla — 'CM' virou 'Corte Médio'
        (pedido do usuário: 'Grupo "PM" vira "Perfuração Média"'). */
-    // Dano e grupo são ditos na frase das Características desde 30/10/2026.
-    expect(document.querySelector('.best-frase-item').textContent).toMatch(/Seu dano é 12 base/);
+    /* O dano é número desde 07/11/2026 ("vamos mostrar os números do item
+       selecionado"): célula própria; o grupo segue na frase. */
+    expect(document.querySelector('[data-numero="dano"] .item-numero-valor').textContent).toBe('12');
+    expect(document.querySelector('.best-frase-item').textContent).not.toMatch(/Seu dano/);
     // Em minúsculas, abrindo a frase da arma (30/10/2026).
     expect(document.querySelector('.best-frase-item').textContent).toMatch(/Pertence ao grupo de armas corte médio/);
     // Descrição e Características na mesma página, sem trocar de aba.

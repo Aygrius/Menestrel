@@ -174,7 +174,12 @@ describe('a frase do item sem teto de largura', () => {
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
-    for (const sel of ['.best-frase-item {', '.loja-compra-desc {']) {
+    /* 07/11/2026, mesmo pedido de novo ("Você sempre faz isso. Na página nova
+       'testes de combate' o texto está quebrando antes de ocupar o modal
+       todo"): os textos dos modais Testes de combate, Imagens e da Cena. */
+    for (const sel of ['.best-frase-item {', '.loja-compra-desc {',
+      '.tc-intro {', '.tc-nota {', '.tc-metodo {', '.gi-intro {', '.gi-sec-nota {',
+      '.cena-modal-texto .cena-cap-texto {']) {
       const i = css.indexOf(sel);
       expect(i, sel).toBeGreaterThan(-1);
       expect(css.slice(i, css.indexOf('}', i)), sel).not.toMatch(/max-width:\s*\d+ch/);

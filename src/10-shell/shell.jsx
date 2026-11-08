@@ -1380,8 +1380,45 @@ function FilaAprovacaoMagia({ lang, historiaId, pedidos, onRespondido }) {
   const en = lang === 'en';
   const [ocupado, setOcupado] = useState(null);   // id do pedido em trânsito
   const [erro, setErro] = useState(null);
+  /* RITUAL DE SANGUE (07/11/2026): "Aplicar" num pedido dele abre a janela
+     em que o Mestre escolhe o conhecimento e o estágio (RitualDeSangueModal).
+     O alvo do pedido é o próprio evocador — é nele que o roubo pousa. */
+  const [ritualPedido, setRitualPedido] = useState(null);
 
   if (!pedidos || pedidos.length === 0) return null;
+
+  const responderRitual = async (pedido, roubo) => {
+    setOcupado(pedido.id);
+    setErro(null);
+    try {
+      const { data: alvoPj, error: e1 } = await supabaseClient
+        .from('personagens').select('id, estado_atual').eq('id', pedido.alvo_id).maybeSingle();
+      if (e1 || !alvoPj) throw (e1 || new Error('evocador não encontrado'));
+      const { data: hist } = await supabaseClient
+        .from('historias').select('data_jogo_atual').eq('id', historiaId).maybeSingle();
+      const novo = window.comConhecimentoRoubado(alvoPj.estado_atual, roubo, hist && hist.data_jogo_atual);
+      const { error: e2 } = await supabaseClient
+        .from('personagens').update({ estado_atual: novo }).eq('id', pedido.alvo_id);
+      if (e2) throw e2;
+      const quem = pedido.conjurador || pedido.alvo_nome;
+      const tipoTxt = { habilidade: en ? 'skill' : 'a habilidade', magia: en ? 'spell' : 'a magia', tecnica: en ? 'technique' : 'a técnica' }[roubo.tipo];
+      const texto = en
+        ? `The GM gave ${quem} the ${tipoTxt} ${roubo.nome} at level ${roubo.nivel}${roubo.alvo ? `, stolen from ${roubo.alvo}` : ''}, by the Blood Ritual, for ten days.`
+        : `O Mestre deu a ${quem} ${tipoTxt} ${roubo.nome} no estágio ${roubo.nivel}${roubo.alvo ? `, roubada de ${roubo.alvo}` : ''}, pelo Ritual de Sangue, por dez dias.`;
+      const { error: e3 } = await supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId,
+        p_tipo: 'magia',
+        p_texto: texto,
+        p_meta: { responde_pedido: pedido.id, aplicado: true,
+                  magia_key: pedido.magia_key, alvo_id: pedido.alvo_id, conhecimento_roubado: novo.conhecimento_roubado },
+      });
+      if (e3) throw e3;
+      setRitualPedido(null);
+      if (onRespondido) onRespondido();
+    } finally {
+      setOcupado(null);
+    }
+  };
 
   const responder = async (pedido, aplicar) => {
     setOcupado(pedido.id);
@@ -1467,7 +1504,9 @@ function FilaAprovacaoMagia({ lang, historiaId, pedidos, onRespondido }) {
           </span>
           <span className="cm-fila-acoes">
             <button type="button" className="btn-primary btn-sm"
-              disabled={ocupado === p.id} onClick={() => responder(p, true)}>
+              disabled={ocupado === p.id}
+              onClick={() => (window.ehRitualDeSangue && window.ehRitualDeSangue(p.magia_key)
+                ? setRitualPedido(p) : responder(p, true))}>
               {en ? 'Apply' : 'Aplicar'}
             </button>
             <button type="button" className="btn-ghost btn-sm"
@@ -1478,6 +1517,13 @@ function FilaAprovacaoMagia({ lang, historiaId, pedidos, onRespondido }) {
         </div>
       ))}
       {erro && <div className="err-msg">{erro}</div>}
+      {ritualPedido && window.RitualDeSangueModal && (
+        <window.RitualDeSangueModal lang={lang}
+          conjurador={ritualPedido.conjurador || ritualPedido.alvo_nome}
+          nivelEvocado={ritualPedido.nivel}
+          onConfirmar={(roubo) => responderRitual(ritualPedido, roubo)}
+          onClose={() => setRitualPedido(null)} />
+      )}
     </div>
   );
 }
@@ -2786,6 +2832,17 @@ function periodoDoJogo(data) {
    inteiro, e não mudam durante a sessão — então é lido uma vez por aba e
    guardado aqui, fora do componente, para o relógio da mesa não puxar o
    catálogo completo a cada hora que o Mestre avança. */
+/* O catálogo dos itens que estes PJs carregam (07/11/2026), para a carga.
+   Uma leitura por virada de hora, só com os slugs que existem nos inventários. */
+async function catalogoDosItensDe(pjs) {
+  const slugs = new Set();
+  (pjs || []).forEach((pj) => ((pj.inventario && pj.inventario.itens) || []).forEach((it) => { if (it && it.slug) slugs.add(it.slug); }));
+  if (slugs.size === 0) return {};
+  const { data, error } = await supabaseClient.from('itens').select('*').in('slug', [...slugs]);
+  if (error || !data) { console.error('[desgaste] catálogo da carga:', error); return null; }
+  return Object.fromEntries(data.map((r) => [r.slug, r]));
+}
+
 let _animaisDoCatalogo = null;
 async function catalogoDosAnimais() {
   if (_animaisDoCatalogo) return _animaisDoCatalogo;
@@ -3135,13 +3192,22 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
       .from('personagens').select('*').in('id', ids);
     if (erroPjs || !pjs) { console.error('[desgaste] não consegui ler os PJs:', erroPjs); return; }
     const semKarma = window.SEM_KARMA || new Set();   // vazio desde 23/10/2026: todos podem ter Karma
+    /* A CARGA ACELERA FOME, SEDE E SONO (07/11/2026): o catálogo só dos itens
+       que eles carregam, para a faixa de cada um (faixaDeCarga). */
+    const catCarga = await catalogoDosItensDe(pjs);
+    const consumoDe = (pj) => {
+      if (!catCarga || typeof window.calcCarga !== 'function' || typeof window.faixaDeCarga !== 'function') return 0;
+      const atr = typeof window.atributosEfetivosPJ === 'function' ? window.atributosEfetivosPJ(pj) : {};
+      const c = window.calcCarga(pj.inventario && pj.inventario.itens, catCarga, atr.forca, atr.fisico);
+      return window.faixaDeCarga(c.pct).consumoPct;
+    };
     await Promise.all(pjs.map((pj) => {
       /* A Licantropia que venceu nesta virada sai do estado (22/10/2026): é o
          que devolve o lobisomem à forma normal em telas que leem o PJ sem a
          data da mesa (card do Mestre, por exemplo). */
       const est = limparTransformacoesVencidas(pj.estado_atual || {}, instanteNovo);
       const tipoAtividade = est.atividade && est.atividade.tipo;
-      const desgastado = { ...est, condicoes: decaimentoPorHoras(est.condicoes, horaInicial, horas, tempo, tipoAtividade) };
+      const desgastado = { ...est, condicoes: decaimentoPorHoras(est.condicoes, horaInicial, horas, tempo, tipoAtividade, consumoDe(pj)) };
       /* O descanso vem DEPOIS do desgaste: o máximo de EF/EH/KA depende das
          condições (fome tira karma, por exemplo), e vale o das condições que
          a hora deixou. */
@@ -5333,6 +5399,85 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   );
 }
 
+/* ── O AVISO DE ATUALIZAÇÃO (07/11/2026) ─────────────────────────────────
+   Usuário: "Quando um usuário logar no sistema, mostre um modal de aviso que
+   o sistema foi atualizado, como boas vindas." Uma vez por VERSÃO e por
+   usuário: quem já viu esta versão não vê de novo; a próxima atualização
+   troca VERSAO_NOVIDADES e as linhas, e o aviso volta para todos.
+
+   A marca de "já vi" mora no navegador (localStorage, por usuário). É
+   conveniência de quem olha: se o navegador esquecer, o aviso aparece outra
+   vez, e nada se perde. Sem localStorage (janela privada), mostra e segue. */
+const VERSAO_NOVIDADES = '2026-11-07';
+const NOVIDADES = [
+  {
+    pt: ['Livro inicial', 'Todo personagem novo começa com o livro da sua profissão — o Sacerdote, com o do seu deus — com 10 magias, 10 técnicas e 10 habilidades para aprender.'],
+    en: ['Starting book', 'Every new character starts with the book of their profession — a Priest, with their god\'s — holding 10 spells, 10 techniques and 10 skills to learn.'],
+  },
+  {
+    pt: ['Estudar em abas', 'Magias, técnicas e habilidades ficam separadas, cada uma com o seu saldo e com quanto tempo leva para aprender.'],
+    en: ['Study in tabs', 'Spells, techniques and skills are now apart, each with its own points and how long it takes to learn.'],
+  },
+  {
+    pt: ['Fabricar', 'Os materiais da receita aparecem como itens da bolsa, com o que você tem e o que falta.'],
+    en: ['Crafting', 'Recipe materials show up as bag items, with what you have and what is missing.'],
+  },
+  {
+    pt: ['Bolsas e mochilas', 'Clique num item guardado para vê-lo no painel, sem tirá-lo de lá.'],
+    en: ['Bags and backpacks', 'Click a stored item to see it in the panel, without taking it out.'],
+  },
+  {
+    pt: ['Preparar carne', 'Veja o prato, a descrição e os benefícios antes de preparar.'],
+    en: ['Cooking meat', 'See the dish, its description and benefits before you cook.'],
+  },
+  {
+    pt: ['Criar personagem', 'O assistente ficou mais curto: a etapa de revisão saiu.'],
+    en: ['Character creation', 'The wizard is shorter: the review step is gone.'],
+  },
+];
+const chaveNovidades = (userId) => 'menestrel.novidades.' + (userId || 'anon');
+function novidadesJaVistas(userId) {
+  try { return localStorage.getItem(chaveNovidades(userId)) === VERSAO_NOVIDADES; } catch (e) { return false; }
+}
+function AvisoDeAtualizacao({ userId, nome, lang }) {
+  const en = lang === 'en';
+  const [aberto, setAberto] = useState(() => !novidadesJaVistas(userId));
+  if (!aberto) return null;
+  const fechar = () => {
+    try { localStorage.setItem(chaveNovidades(userId), VERSAO_NOVIDADES); } catch (e) {}
+    setAberto(false);
+  };
+  return (
+    <ModalShell
+      title={en ? 'Menestrel has been updated' : 'O Menestrel foi atualizado'}
+      lang={lang}
+      size="md"
+      extraClass="modal-novidades"
+      onClose={fechar}
+      onConfirm={fechar}
+      confirmLabel={en ? 'Start' : 'Começar'}
+    >
+      <p className="mn-janela-frase novidades-saudacao">
+        {nome
+          ? (en ? `Welcome back, ${nome}! Here is what changed:` : `Que bom ter você de volta, ${nome}! Veja o que mudou:`)
+          : (en ? 'Welcome back! Here is what changed:' : 'Que bom ter você de volta! Veja o que mudou:')}
+      </p>
+      <ul className="mn-quadro novidades-lista">
+        {NOVIDADES.map((n) => {
+          const [titulo, texto] = en ? n.en : n.pt;
+          return (
+            <li key={titulo} className="mn-quadro-linha novidades-linha">
+              <span className="novidades-titulo">{titulo}</span>
+              <span className="novidades-texto">{texto}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </ModalShell>
+  );
+}
+Object.assign(window, { AvisoDeAtualizacao, VERSAO_NOVIDADES, novidadesJaVistas });
+
 /* ============================== [25] App — Raiz da aplicação ============================== */
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAKS_DEFAULTS);
@@ -5486,15 +5631,21 @@ function App() {
         />
       );
     }
+    const metaAviso = user.user_metadata || {};
+    const nomeAviso = String(metaAviso.full_name || metaAviso.name || '').trim().split(/\s+/)[0] || null;
     return (
-      <AdminConsole
-        user={user}
-        userProfile={profile}
-        onLogout={logout}
-        t={t}
-        lang={lang}
-        setLang={setLang}
-      />
+      <>
+        <AdminConsole
+          user={user}
+          userProfile={profile}
+          onLogout={logout}
+          t={t}
+          lang={lang}
+          setLang={setLang}
+        />
+        {/* Boas-vindas com as novidades (07/11/2026): uma vez por versão. */}
+        <AvisoDeAtualizacao userId={user.id} nome={nomeAviso} lang={lang} />
+      </>
     );
   }
 

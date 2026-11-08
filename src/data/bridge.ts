@@ -53,7 +53,7 @@ function useHistoriasData(currentUserId: string | null | undefined) {
           .order('created_at', { ascending: false }),
         supabaseClient
           .from('personagens')
-          .select('id,nome,sobrenome,raca,profissao,user_id'),
+          .select('id,nome,sobrenome,raca,profissao,user_id,experiencia'), // experiencia: o estágio na janela de criar batalha (07/11/2026)
         supabaseClient
           .from('criaturas')
           .select('id,nome,tipo,estagio')

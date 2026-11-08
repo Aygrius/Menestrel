@@ -556,7 +556,7 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
 // foto_url (27/09/2026): o card do alvo na aba Usar mostrava só a inicial.
 // intelecto_base + aura_base (22/10/2026): orçamento de magia (pontosMagiasTotal).
 // deus (22/10/2026): regra dos milagres na janela Estudar (sem religião, sem milagre).
-const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,subraca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,agilidade_base,inventario,estado_atual,magias,tecnicas,treinos,experiencia,especializacao,inventario_versao,receitas_aprendidas';
+const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,subraca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,agilidade_base,inventario,estado_atual,magias,tecnicas,habilidades,treinos,experiencia,especializacao,inventario_versao,receitas_aprendidas';
 
 // Inventário com os campos que a tela espera, sem mexer no objeto de origem.
 const INV_VAZIO = () => ({ moedas: { ouro: 0, prata: 0, cobre: 0, latao: 0 }, itens: [] });
@@ -676,6 +676,23 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     Promise.resolve(fetchTabelaPaginada('livro_pergaminhos', { colunas: 'livro_slug,pergaminho_slug', ordem: ['livro_slug', 'pergaminho_slug'] }))
       .then((res) => { if (vivo && res && !res.error) setVinculos(vinculosDeLivros(res.data)); })
       .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+  /* Livro → habilidades (livro_habilidades, 07/11/2026): o Livro Inicial da
+     profissão ensina também 10 habilidades. Mesmo molde dos pergaminhos —
+     falhar aqui só tira as habilidades da janela Estudar. */
+  const [habilidadesDb, setHabilidadesDb] = useState(null);
+  const [vinculosHab, setVinculosHab] = useState({});
+  useEffect(() => {
+    let vivo = true;
+    Promise.resolve(supabaseClient.from('habilidades').select('key,nome,custo,grupo,nivel_inicial'))
+      .then((res) => { if (vivo && res && !res.error && Array.isArray(res.data)) setHabilidadesDb(res.data); })
+      .catch(() => {});
+    if (typeof fetchTabelaPaginada === 'function') {
+      Promise.resolve(fetchTabelaPaginada('livro_habilidades', { colunas: 'livro_slug,habilidade_key', ordem: ['livro_slug', 'habilidade_key'] }))
+        .then((res) => { if (vivo && res && !res.error) setVinculosHab(vinculosHabilidadesDeLivros(res.data)); })
+        .catch(() => {});
+    }
     return () => { vivo = false; };
   }, []);
   // Nome da mesa (história) do PJ selecionado — mesma info exibida na Loja.
@@ -920,6 +937,17 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
 
   // Containers disponíveis para o item em detalhes
   const instanceDetalhes = inv?.itens.find((it) => it.instanceId === detalhesId);
+  /* O ITEM DE DENTRO DA BOLSA NO PAINEL (07/11/2026, usuário: "Quando eu
+     clico em um item que está dentro de uma bolsa, aparece o leque, mas o
+     conteúdo deve ser mostrado acima na visualização de item, apenas quando
+     não tiver item interno selecionado é que mostra a descrição da bolsa").
+     { pai, id }: o clique na grade de Conteúdo escolhe a peça; trocar de
+     item no painel desfaz a escolha. */
+  const [filhoSel, setFilhoSel] = useState(null);
+  useEffect(() => { setFilhoSel((f) => (f && f.pai === detalhesId ? f : null)); }, [detalhesId]);
+  const filhoEmFocoDe = (inst) => (filhoSel && inst && filhoSel.pai === inst.instanceId
+    ? (inv?.itens || []).find((it) => it.instanceId === filhoSel.id && it.containerId === inst.instanceId) || null
+    : null);
   const containersDisponiveis = useMemo(() => {
     if (!inv || !instanceDetalhes) return [];
     const itemCat = catalogoBySlug[instanceDetalhes.slug];
@@ -1364,10 +1392,23 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         if (!cont || !catCont || !catItem) return cur;
         // Recipiente líquido só guarda um tipo por vez.
         if (!recipienteAceitaSlug(cont, it.slug, itens, catalogoBySlug)) return cur;
-        const { livre } = capacidadeContainer(cont, itens, catalogoBySlug);
+        const { livre, casasLivres, filhos } = capacidadeContainer(cont, itens, catalogoBySlug);
         const ocupaNecessaria = Number(catItem.ocupa || 0) * qtdMover;
         // Tolerância numérica pra floats (0.0001)
         if (ocupaNecessaria > livre + 0.0001) return cur;
+        // Casas (07/11/2026): a pilha igual que já está lá dentro recebe a
+        // quantidade, sem abrir casa nova; sem pilha e sem casa, não entra.
+        const pilha = (filhos || []).find((f) => f.slug === it.slug && f.instanceId !== it.instanceId
+          && !f.veneno && !it.veneno && (f.observacao || null) === (it.observacao || null) && !it.fabricado && !f.fabricado
+          && !it.bonus && !f.bonus && !it.anuncio_id && !f.anuncio_id && !it.quebrada && !f.quebrada && it.resistencia == null && f.resistencia == null);
+        if (!pilha && casasLivres <= 0) return cur;
+        if (pilha) {
+          const pIdx = itens.indexOf(pilha);
+          itens[pIdx] = { ...pilha, quantidade: (Number(pilha.quantidade) || 0) + qtdMover };
+          if (qtdMover === it.quantidade) itens.splice(idx, 1);
+          else itens[idx] = { ...it, quantidade: it.quantidade - qtdMover };
+          return { ...cur, itens };
+        }
       }
 
       // Mover tudo: atualiza in-place
@@ -1428,7 +1469,18 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       // Recipiente líquido só guarda um tipo por vez — bloqueia silenciosamente.
       if (cont && !recipienteAceitaSlug(cont, it.slug, inv.itens, catalogoBySlug)) return;
       if (cont && catItem) {
-        const { livre } = capacidadeContainer(cont, inv.itens, catalogoBySlug);
+        const { livre, casasLivres, filhos } = capacidadeContainer(cont, inv.itens, catalogoBySlug);
+        /* AS CASAS TAMBÉM AQUI (07/11/2026). "Algumas bolsas dos personagens
+           atuais estão com 10/9 casas ocupadas. Como isso foi possível?"
+           (usuário). O limite de casas entrou em 29/10/2026 só no ARRASTAR
+           (guardarNoRecipiente); o Armazenar da janela e do leque passava por
+           aqui conferindo só o peso. Mesma regra do arrastar: sem casa livre,
+           só entra o que vai somar numa pilha igual que já está lá dentro. */
+        if (casasLivres <= 0 && !(filhos || []).some((f) => f.slug === it.slug)) {
+          const nomeCont = (catalogoBySlug[cont.slug] && catalogoBySlug[cont.slug].nome) || cont.slug;
+          avisar(lang === 'en' ? `${nomeCont} has no free slot.` : `${nomeCont} está com todas as casas ocupadas.`, 'recusa');
+          return;
+        }
         const ocupaUnit = Number(catItem.ocupa || 0);
         const cabe = ocupaUnit > 0 ? Math.floor(livre / ocupaUnit) : it.quantidade;
         maxPossivel = Math.min(it.quantidade, cabe);
@@ -1499,6 +1551,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     setTransferError(null);
     const instance = inv?.itens.find((it) => it.instanceId === instanceId);
     if (!instance) return { ok: false };
+    // Carga máxima de quem recebe (07/11/2026): recusa antes da RPC.
+    if (window.recebimentoEstouraCarga
+      && await window.recebimentoEstouraCarga(pjDestinoId, instance.slug, quantidade ?? instance.quantidade)) {
+      setTransferError('Quem recebe está na carga máxima: precisa largar algo antes.');
+      return { ok: false };
+    }
     const { data, error } = await supabaseClient.rpc('transfer_item', {
       p_from_pj_id: selectedId,
       p_to_pj_id: pjDestinoId,
@@ -1608,11 +1666,14 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   // por vez, sem consumir (RPC aprender_magia — confere estágio, texto do
   // nível e pontos). Recarrega o PJ porque as magias vivem fora do inventário.
   /* Técnica ou magia (22/10/2026): as duas entram na fila de treino. */
+  /* Habilidade (07/11/2026): o Livro Inicial também ensina — RPC
+     aprender_habilidade (scripts/sql/livros-iniciais-2026-11-07.sql). */
   const aprenderComItem = async (instanceId, alvo) => {
-    const ehTec = alvo && alvo.tipo === 'tecnica';
-    const { data, error } = await supabaseClient.rpc(ehTec ? 'aprender_tecnica' : 'aprender_magia', ehTec
-      ? { p_pj_id: selectedId, p_instance_id: instanceId, p_tecnica_key: alvo.key }
-      : { p_pj_id: selectedId, p_instance_id: instanceId, p_magia_key: alvo && alvo.key });
+    const tipo = (alvo && alvo.tipo) || 'magia';
+    const rpc = { tecnica: 'aprender_tecnica', habilidade: 'aprender_habilidade' }[tipo] || 'aprender_magia';
+    const chave = { tecnica: 'p_tecnica_key', habilidade: 'p_habilidade_key' }[tipo] || 'p_magia_key';
+    const { data, error } = await supabaseClient.rpc(rpc,
+      { p_pj_id: selectedId, p_instance_id: instanceId, [chave]: alvo && alvo.key });
     if (error || !data?.ok) {
       return { ok: false, motivo: error?.message || data?.motivo || 'erro_desconhecido' };
     }
@@ -1718,6 +1779,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       magiasDb={magiasDb}
       tecnicasDb={tecnicasDb}
       vinculos={vinculos}
+      habilidadesDb={habilidadesDb}
+      vinculosHab={vinculosHab}
       podeVender={{ ehDono: authUserIsOwner, historiaId }}
       onVender={publicarNaLoja}
       lugarAtual={lugarAtual}
@@ -1745,6 +1808,20 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       onMoverParaContainer={solicitarMover}
       onRemoverDoContainer={(id) => solicitarMover(id, null)}
       onAbrirDetalhesFilho={(id) => { setVoltarPara({ tipo: 'item', id: detalhesId }); setDetalhesId(id); }}
+      /* O LEQUE NO CONTEÚDO DO RECIPIENTE (07/11/2026, usuário: "Ainda não
+         estou vendo o leque dos itens dentro das bolsas"): a grade de
+         Conteúdo da janela/painel do recipiente abre o leque da peça. */
+      onAbrirLequeFilho={(id, ancora) => {
+        /* Primeiro a peça sobe para o painel; o leque abre no quadro
+           seguinte, medindo a casa onde ela foi parar (o painel mudou de
+           altura acima da grade). */
+        setFilhoSel({ pai: inst.instanceId, id });
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const aqui = (typeof document !== 'undefined' && document.querySelector('[data-filho="' + id + '"]')) || ancora;
+          setLeque({ id, ancora: aqui, deItem: inst.instanceId });
+        }));
+      }}
+      filhoEmFoco={filhoEmFocoDe(inst)}
       {...extra}
     />
   );
@@ -1838,7 +1915,17 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
           comPainel: bauLargo,
           // A etapa abre na janela de sempre — no painel, no inventário largo.
           onJanela: (chave) => {
-            setLeque(null); setVoltarPara(null);
+            setLeque(null);
+            // Leque aberto de dentro de uma bolsa (07/11/2026): a janela do
+            // item toma o lugar da bolsa e o "voltar" devolve a ela, como o
+            // clique nos detalhes já fazia.
+            if (containerAberto) {
+              setVoltarPara({ tipo: 'container', id: containerAberto });
+              setContainerAberto(null);
+            } else if (leque.deItem) {
+              // Veio do Conteúdo de um recipiente: o Voltar devolve a ele.
+              setVoltarPara({ tipo: 'item', id: leque.deItem });
+            } else setVoltarPara(null);
             setAcaoInicial(chave ? { chave, n: Date.now(), id: lequeInst.instanceId } : null);
             setDetalhesId(lequeInst.instanceId);
           },
@@ -1858,6 +1945,11 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
             setContainerAberto(null);
             setDetalhesId(id);
           }}
+          /* O LEQUE TAMBÉM DENTRO DA BOLSA (07/11/2026, usuário: "Está faltando
+             o leque dos itens quando estão dentro de alguma bolsa, mochila,
+             etc."). O mesmo leque do baú, sobre a janela do recipiente. */
+          onAbrirLeque={(id, ancora) => setLeque({ id, ancora })}
+          lequeId={leque ? leque.id : null}
           onMoverCasa={moverCasa}
         />
       )}
@@ -2031,7 +2123,7 @@ function MoedaPills({ moedas, latao, lang, mostrarGratis, mostrarZeros, mudo, ta
 function BauCargaRodape({ carga, lang }) {
   const en = lang === 'en';
   const pct = Math.max(0, Math.min(100, carga.pct || 0));
-  const nivel = carga.over ? 'over' : (carga.pct > 75 ? 'pesado' : 'ok');
+  const nivel = nivelDaCarga(carga);
   return (
     <div className="bau-carga-rodape">
       <span className="bau-carga-rot">{en ? 'Load' : 'Carga'}</span>
@@ -2045,6 +2137,38 @@ function BauCargaRodape({ carga, lang }) {
   );
 }
 
+/* A COR DA BARRA DE PESO É A FAIXA (07/11/2026, usuário: "Remova a palavra
+   'no limite', só mude a cor da barra"): leve no ouro de sempre, carregado em
+   âmbar, pesado em laranja, no limite e acima em brasa. O que a faixa custa
+   segue no balão da barra (aria-valuetext), não escrito ao lado. */
+function nivelDaCarga(carga) {
+  if (!carga) return 'leve';
+  if (carga.over) return 'over';
+  return typeof window.faixaDeCarga === 'function' ? window.faixaDeCarga(carga.pct).id : (carga.pct > 75 ? 'pesado' : 'leve');
+}
+
+/* A FAIXA DA CARGA (07/11/2026): o nome dela ao lado da barra — Carregado,
+   Pesado, No limite — e o que custa no balão (textoFaixaDeCarga, 01-core).
+   Leve não diz nada: não há o que custar. */
+function FaixaDaCarga({ carga, en }) {
+  if (!carga || typeof window.faixaDeCarga !== 'function' || typeof window.textoFaixaDeCarga !== 'function') return null;
+  const t = window.textoFaixaDeCarga(window.faixaDeCarga(carga.pct), en);
+  if (!t) return null;
+  /* O custo no balão do sistema (PortalTooltip), não no title do navegador. */
+  return <FaixaDaCargaComBalao t={t} />;
+}
+function FaixaDaCargaComBalao({ t }) {
+  const [tip, abrirTip, fecharTip] = usePortalTooltip(80);
+  return (
+    <>
+      <span className="carga-faixa" tabIndex={0} aria-label={t.nome + ': ' + t.efeito}
+        onMouseEnter={(e) => abrirTip(e, { title: t.nome, desc: t.efeito })} onMouseLeave={fecharTip}
+        onFocus={(e) => abrirTip(e, { title: t.nome, desc: t.efeito })} onBlur={fecharTip}>{t.nome}</span>
+      <PortalTooltip tip={tip} onEnter={() => {}} onLeave={fecharTip} />
+    </>
+  );
+}
+
 /* O PESO NO TRILHO DE BAIXO DA FICHA (31/10/2026, usuário: "O trilho
    inferior em loja/inventário deve ser peso e não experiência"). O mesmo
    desenho da Experiência — rótulo com ícone de ouro, a barra fina e o número —
@@ -2052,7 +2176,7 @@ function BauCargaRodape({ carga, lang }) {
 function PesoNoRodape({ carga, lang }) {
   const en = lang === 'en';
   const pct = Math.max(0, Math.min(100, carga.pct || 0));
-  const nivel = carga.over ? 'over' : (carga.pct > 75 ? 'pesado' : 'ok');
+  const nivel = nivelDaCarga(carga);
   return (
     <>
       <span className="fp3-rodape-rot">
@@ -3707,6 +3831,52 @@ function bloqueioTecnicaNoInventario(tecnica, pj, opcoes) {
   return _regra ? _regra(tecnica, pj, op.tecnicasDb || []) : null;
 }
 
+/* ── HABILIDADES PELO LIVRO (07/11/2026) ──────────────────────────────
+   "O livro inicial vai ensinar 10 habilidades mais características da
+   profissão" (usuário). O vínculo é livro_habilidades (livro → key, sem
+   pergaminho no meio). A regra é a da ficha (bloqueioSubirNivel): sem nível
+   vai para a fila de 12 h; com nível sobe na hora — igual à RPC
+   aprender_habilidade. */
+function vinculosHabilidadesDeLivros(linhas) {
+  const out = {};
+  (Array.isArray(linhas) ? linhas : []).forEach((l) => {
+    if (!l || !l.livro_slug || !l.habilidade_key) return;
+    const lista = out[l.livro_slug] || (out[l.livro_slug] = []);
+    if (!lista.includes(l.habilidade_key)) lista.push(l.habilidade_key);
+  });
+  return out;
+}
+function habilidadesQueOItemEnsina(cat, vinculosHab, habilidadesDb) {
+  if (!cat || !Array.isArray(habilidadesDb)) return [];
+  const keys = (vinculosHab && vinculosHab[cat.slug]) || [];
+  return keys.map((k) => habilidadesDb.find((h) => h.key === k)).filter(Boolean)
+    .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'));
+}
+function habilidadesPorKey(habilidadesDb) {
+  const out = {};
+  (Array.isArray(habilidadesDb) ? habilidadesDb : []).forEach((h) => { if (h && h.key) out[h.key] = h; });
+  return out;
+}
+function bloqueioHabilidadeNoInventario(hab, pj, opcoes) {
+  const op = opcoes || {};
+  if (op.noInventario === false) return { motivo: 'aprender_no_inventario' };
+  if (op.podeAprender === false) return { motivo: 'nao_e_dono' };
+  if (op.aVenda) return { motivo: 'item_a_venda' };
+  if (!hab) return { motivo: 'habilidade_nao_encontrada' };
+  if (!pj) return null;
+  const _regra = (typeof window !== 'undefined' && window.bloqueioSubirNivel) || null;
+  const b = _regra ? _regra('habilidade', hab, pj, habilidadesPorKey(op.habilidadesDb)) : null;
+  if (b && b.motivo === 'pontos_insuficientes') {
+    // Os números do saldo, como nas técnicas: o jogador lê quanto falta.
+    const porKey = habilidadesPorKey(op.habilidadesDb);
+    const estagio = calcEstagio((pj && pj.experiencia) || 0);
+    const total = pontosHabilidadesTotal(pj && pj.profissao, estagio);
+    const gasto = gastoHabilidades(comFila(pj && pj.habilidades, pj && pj.treinos, 'habilidade'), porKey);
+    return { ...b, gasto, total };
+  }
+  return b;
+}
+
 function motivoAprenderLabel(motivo, en, dados) {
   // Milagre (22/10/2026): os textos moram com a regra, em game-data.jsx.
   const _mil = (typeof window !== 'undefined' && window.motivoMilagreLabel) || null;
@@ -3715,12 +3885,23 @@ function motivoAprenderLabel(motivo, en, dados) {
   /* Técnica (22/10/2026): a janela Estudar também ensina técnica — os
      textos que falam de magia trocam de palavra (dados.tipo). */
   const tec = !!(dados && dados.tipo === 'tecnica');
+  const hab = !!(dados && dados.tipo === 'habilidade');
   // Pontos com os números: é o motivo que o jogador mais precisa entender.
-  if (motivo === 'pontos_insuficientes' && dados && dados.faltam != null) {
-    const qual = en ? (tec ? 'technique' : 'magic') : (tec ? 'técnica' : 'magia');
+  if (motivo === 'pontos_insuficientes' && dados && dados.faltam != null && dados.total != null) {
+    const qual = en ? (hab ? 'skill' : tec ? 'technique' : 'magic') : (hab ? 'habilidade' : tec ? 'técnica' : 'magia');
     return en
       ? `Not enough ${qual} points: ${dados.faltam} short (using ${dados.gasto} of ${dados.total}).`
       : `Pontos de ${qual} insuficientes: faltam ${dados.faltam} (usa ${dados.gasto} de ${dados.total}).`;
+  }
+  /* Habilidade (07/11/2026): textos próprios onde "magia" estaria errado. */
+  if (hab) {
+    const mapHab = {
+      item_nao_ensina:           en ? 'This item does not teach this skill.'          : 'Este item não ensina essa habilidade.',
+      pontos_insuficientes:      en ? 'Not enough skill points.'                      : 'Pontos de habilidade insuficientes.',
+      em_treino:                 en ? 'Still being learned — wait for training to end.' : 'Em aprendizado — espere o treino terminar.',
+      habilidade_nao_encontrada: en ? 'Skill not found in the catalog.'               : 'Habilidade não encontrada no catálogo.',
+    };
+    if (mapHab[motivo]) return mapHab[motivo];
   }
   if (tec) {
     const mapTec = {
@@ -3744,7 +3925,9 @@ function motivoAprenderLabel(motivo, en, dados) {
     pj_nao_encontrado:      en ? 'Character not found.'                               : 'Personagem não encontrado.',
     nao_autenticado:        en ? 'You are not signed in.'                             : 'Você não está autenticado.',
   };
-  return map[motivo] || (tec
+  return map[motivo] || (hab
+    ? (en ? 'Could not learn the skill.' : 'Não foi possível aprender a habilidade.')
+    : tec
     ? (en ? 'Could not learn the technique.' : 'Não foi possível aprender a técnica.')
     : (en ? 'Could not learn the spell.' : 'Não foi possível aprender a magia.'));
 }
@@ -3812,7 +3995,7 @@ function useColunasDaGrade(ref, padrao = 5) {
    O que continua saindo do modal são as COLUNAS: cabem tantas casas de 78px
    quantas a largura permitir, e as casas do porte se distribuem nelas. Assim
    o número é o que o Mestre definiu e o desenho é o que cabe na tela. */
-function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fecharTip, casas = null }) {
+function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, onLeque = null, abrirTip, fecharTip, casas = null, selecionadoId = null }) {
   const en = lang === 'en';
   const gradeRef = useRef(null);
   const COLS = useColunasDaGrade(gradeRef);
@@ -3829,8 +4012,14 @@ function GradeDoRecipiente({ filhos, catalogoBySlug, lang, onAbrir, abrirTip, fe
         const resPct = resMax > 0 ? Math.round((resAtual / resMax) * 100) : 0;
         return (
           <button key={it.instanceId} type="button" data-filho={it.instanceId}
-            className={'inv-card' + (itemEhMagico(cat, it) ? ' inv-card--magico' : '')}
-            onClick={() => onAbrir && onAbrir(it.instanceId)}
+            className={'inv-card' + (itemEhMagico(cat, it) ? ' inv-card--magico' : '')
+              + (selecionadoId && selecionadoId === it.instanceId ? ' inv-card--escolhido' : '')}
+            aria-pressed={selecionadoId ? selecionadoId === it.instanceId : undefined}
+            /* Com leque, o clique abre o leque da peça, como no baú (07/11/2026). */
+            onClick={(ev) => {
+              if (onLeque) { if (fecharTip) fecharTip(); onLeque(it.instanceId, ev.currentTarget); return; }
+              if (onAbrir) onAbrir(it.instanceId);
+            }}
             aria-label={nome + (it.quantidade > 1 ? ' ×' + it.quantidade : '')}
             {...propsTip(abrirTip, fecharTip, { title: nome })}>
             {it.quantidade > 1 && <QtdDoCard n={it.quantidade} />}
@@ -4028,11 +4217,11 @@ function LequeDoItem({ acoes, ancora, rotulo, onEscolher, onClose }) {
 function DetalhesItemModal({
   instance, catalogoBySlug, raca, slotsState, todosItens,
   containersDisponiveis, pjsHistoria, lang,
-  onClose, onVoltar, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, onAprenderReceita, pjAprendiz, magiasDb, tecnicasDb, vinculos, onDestruir,
+  onClose, onVoltar, onEquipar, onDesequipar, onUsar, onPreparar, onPrepararCarne, onAprenderMagia, onAprenderReceita, pjAprendiz, magiasDb, tecnicasDb, vinculos, habilidadesDb, vinculosHab, onDestruir,
   onMoverParaContainer,
   onVestir, onDespir,
   criaturaMontaria, onMontar, onDesmontar,
-  onRemoverDoContainer, onAbrirDetalhesFilho, contexto,
+  onRemoverDoContainer, onAbrirDetalhesFilho, onAbrirLequeFilho = null, filhoEmFoco = null, contexto,
   onVender, podeVender,
   // Veneno na arma ou na flecha (28/09/2026): (venenoId, alvoId, qtd) → { ok, motivo? }.
   onEnvenenar,
@@ -4066,6 +4255,8 @@ function DetalhesItemModal({
   const [abaterErro, setAbaterErro] = useState(null);
   const [abatendo, setAbatendo] = useState(false);
   const [preparandoCarne, setPreparandoCarne] = useState(false);
+  // O prato escolhido na etapa Preparar (07/11/2026): o card marca, o rodapé prepara.
+  const [pratoSel, setPratoSel] = useState(null);
   // Janela Estudar (22/10/2026): livro ou pergaminho que ensina magia.
   const [estudando, setEstudando] = useState(false);
   const [mostrarArmazenar, setMostrarArmazenar] = useState(false);
@@ -4267,6 +4458,7 @@ function DetalhesItemModal({
   // O que este item ensina (pergaminho: a sua magia; livro: as vinculadas).
   const ensina = magiasQueOItemEnsina(cat, vinculos, catalogoBySlug, magiasDb);
   const ensinaTec = tecnicasQueOItemEnsina(cat, vinculos, catalogoBySlug, tecnicasDb);
+  const ensinaHab = habilidadesQueOItemEnsina(cat, vinculosHab, habilidadesDb);
   const ehPergaminhoQueEnsina = ehPergaminhoMagia || ehPergaminhoDeTecnica(cat);
   /* A "Receita de …" (31/10/2026): aprender gasta o item e guarda a receita
      no personagem (aprenderReceita, na tela do inventário). Já sabida, o
@@ -4364,7 +4556,7 @@ function DetalhesItemModal({
     acoesPesadas && onPrepararCarne && receitasCarne.length > 0 && {
       chave: 'preparar-carne', icone: 'ti-meat', ativo: preparandoCarne,
       rotulo: en ? 'Prepare' : 'Preparar',
-      onClick: () => abrirEtapa(setPreparandoCarne),
+      onClick: () => { setPratoSel(null); abrirEtapa(setPreparandoCarne); },
     },
     acoesPesadas && ehAnimal && onPreparar && !instance.montado && {
       chave: 'preparar', icone: 'ti-meat', ativo: confirmandoPreparar,
@@ -4393,7 +4585,7 @@ function DetalhesItemModal({
         else setErroReceita(en ? 'Could not learn the recipe.' : 'Não foi possível aprender a receita.');
       },
     },
-    (ensina.length + ensinaTec.length) > 0 && {
+    (ensina.length + ensinaTec.length + ensinaHab.length) > 0 && {
       chave: ehPergaminhoQueEnsina ? 'aprender' : 'estudar',
       icone: 'ti-school',
       rotulo: ehPergaminhoQueEnsina ? (en ? 'Learn' : 'Aprender') : (en ? 'Study' : 'Estudar'),
@@ -4516,6 +4708,8 @@ function DetalhesItemModal({
     };
   })();
   void _passeDoItem;
+  // A peça escolhida no Conteúdo, quando há (ver filhoSel no InventarioList).
+  const catDoFilho = filhoEmFoco ? catalogoBySlug[filhoEmFoco.slug] || null : null;
 
   // ── Seções da instância depois da magia: Conteúdo e Nota ──
   /* A PROPOSTA DE VENDA (23/10/2026): onde, quanto se pediu e, na
@@ -4592,7 +4786,8 @@ function DetalhesItemModal({
               /* O quadriculado do inventário (26/09/2026), no lugar da lista. */
               <GradeDoRecipiente filhos={containerData.filhos} catalogoBySlug={catalogoBySlug} lang={lang}
                 casas={containerData.casas}
-                onAbrir={onAbrirDetalhesFilho} abrirTip={abrirTip} fecharTip={fecharTip} />
+                onAbrir={onAbrirDetalhesFilho} onLeque={onAbrirLequeFilho} abrirTip={abrirTip} fecharTip={fecharTip}
+                selecionadoId={filhoEmFoco ? filhoEmFoco.instanceId : null} />
             ) : null /* Vazio sem aviso nenhum (31/10/2026, pedidos do usuário):
                         nem "Vazio…", nem "Guarda líquidos." — as barras em 0 dizem. */}
           </div>
@@ -4632,26 +4827,68 @@ function DetalhesItemModal({
     corpoEtapa = etapa(en ? 'Use this item?' : 'Usar este item?', null,
       <button type="button" className="btn-primary btn-md" onClick={() => { onUsar(instance.instanceId); onClose(); }}>{en ? 'Use' : 'Usar'}</button>);
   } else if (preparandoCarne) {
-    /* Preparar carne (24/09/2026): as três receitas daquela carne. A que
-       pede mais carne do que o personagem tem fica desativada e diz por quê.
-       As receitas são a escolha (ficam no corpo); o rodapé só tem Cancelar. */
-    corpoEtapa = etapa(en ? `You have ${carneTotal}× ${cat.nome}.` : `Você tem ${carneTotal}× ${cat.nome}.`,
-      <div className="det-act-confirm-btns det-receitas">
-        {receitasCarne.map((r) => {
-          const prato = catalogoBySlug[r.resultado];
-          const falta = carneTotal < r.custo;
-          return (
-            <button key={r.resultado} className="btn-primary" data-receita={r.resultado}
-              disabled={falta || !prato}
-              onClick={() => { onPrepararCarne(instance.instanceId, r.resultado); onClose(); }}
-              {...propsTip(abrirTip, fecharTip, falta
-                ? (en ? `Needs ${r.custo}× ${cat.nome}.` : `Precisa de ${r.custo}× ${cat.nome}.`)
-                : ((prato && prato.efeito_positivo) || ''))}>
-              {r.custo}× → {prato ? prato.nome : r.resultado}
-            </button>
-          );
-        })}
-      </div>);
+    /* PREPARAR NO PADRÃO DAS ETAPAS (07/11/2026, usuário: "os botões e texto
+       que aparecem em preparar não estão bons. Estão fora do padrão, e
+       poderia informar a descrição do item que ele se tornará e os
+       benefícios"). Eram três botões dourados soltos ("2× → Refeição") sob
+       uma frase avulsa. Agora é como Envenenar e Armazenar: um card por
+       prato marca a escolha, embaixo vem o que o prato É (descrição e
+       efeitos, a mesma frase da ficha do item) e quanto de carne gasta, e o
+       rodapé prepara. O prato que pede mais carne do que há fica apagado,
+       com o porquê no balão. */
+    const recSel = receitasCarne.find((r) => r.resultado === pratoSel) || null;
+    const pratoEscolhido = recSel ? catalogoBySlug[recSel.resultado] : null;
+    const _frase = window.fraseDoItem || null;
+    const fraseDoPrato = pratoEscolhido && _frase ? _frase(pratoEscolhido, lang, { semNumeros: true }) : null;
+    corpoEtapa = (
+      <div className="det-etapa det-uso">
+        <div className="det-uso-alvos det-uso-alvos--grade" role="radiogroup" aria-label={en ? 'Dish' : 'Prato'}>
+          {receitasCarne.map((r) => {
+            const prato = catalogoBySlug[r.resultado];
+            const falta = carneTotal < r.custo;
+            const nome = prato ? prato.nome : r.resultado;
+            const selecionado = pratoSel === r.resultado;
+            return (
+              <button type="button" key={r.resultado} role="radio" aria-checked={selecionado}
+                data-receita={r.resultado}
+                className={'det-opt-card det-opt-card--pilula' + (selecionado ? ' det-opt-card--sel' : '')}
+                disabled={falta || !prato}
+                onClick={() => setPratoSel(r.resultado)}
+                {...propsTip(abrirTip, fecharTip, {
+                  title: nome,
+                  desc: falta
+                    ? (en ? `Needs ${r.custo}× ${cat.nome}; you have ${carneTotal}.` : `Precisa de ${r.custo}× ${cat.nome}; você tem ${carneTotal}.`)
+                    : (en ? `Uses ${r.custo}× ${cat.nome}.` : `Gasta ${r.custo}× ${cat.nome}.`),
+                })}>
+                <span className="det-opt-foto det-opt-foto--vazia"><i className={'ti ' + invItemIcon(prato)} aria-hidden="true" /></span>
+                <span className="det-opt-nome">{nome}</span>
+              </button>
+            );
+          })}
+        </div>
+        {pratoEscolhido && (
+          <div className="det-prato" data-prato={recSel.resultado}>
+            <h4 className="best-secao-titulo">{pratoEscolhido.nome}</h4>
+            {pratoEscolhido.descricao && <p className="det-prato-desc">{pratoEscolhido.descricao}</p>}
+            {fraseDoPrato && <p className="det-prato-efeito">{fraseDoPrato}</p>}
+            <p className="det-prato-custo">
+              {en ? `Uses ${recSel.custo}× ${cat.nome} — you have ${carneTotal}.` : `Gasta ${recSel.custo}× ${cat.nome} — você tem ${carneTotal}.`}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+    rodapeEtapa = {
+      esquerda: null,
+      centro: null,
+      direita: (
+        <button type="button" className="btn-primary btn-md" data-confirmar="preparar"
+          disabled={!pratoEscolhido || carneTotal < (recSel ? recSel.custo : Infinity)}
+          onClick={() => { onPrepararCarne(instance.instanceId, recSel.resultado); onClose(); }}>
+          {pratoEscolhido ? (en ? `Prepare ${pratoEscolhido.nome}` : `Preparar ${pratoEscolhido.nome}`) : (en ? 'Prepare' : 'Preparar')}
+        </button>
+      ),
+    };
   } else if (confirmandoPreparar) {
     /* ABATER (28/09/2026): a carne do tipo da criatura, metade do peso.
        Desde 31/10/2026 vai para o INVENTÁRIO de quem abateu (usuário: "vai para
@@ -5000,7 +5237,12 @@ function DetalhesItemModal({
       {/* Só o nome no título (31/10/2026, usuário: "remova o ícone ao lado do
           nome"). Vale também para as janelas de item da loja. */}
       <Janela
-        title={<>{instance.apelido ? `${instance.apelido} (${cat.nome})` : nomeComVeneno(nomeDaPecaFabricada(instance, cat), instance)}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
+        /* A PEÇA DE DENTRO NO TOPO (07/11/2026, usuário: "o nome dele que
+           deve aparecer no topo, e sem 'x20' como quantidade"): com uma peça
+           do Conteúdo escolhida, o título é o dela — a bolsa segue embaixo. */
+        title={catDoFilho
+          ? <>{filhoEmFoco.apelido ? `${filhoEmFoco.apelido} (${catDoFilho.nome})` : nomeComVeneno(nomeDaPecaFabricada(filhoEmFoco, catDoFilho), filhoEmFoco)}{bonusDoItem(filhoEmFoco) > 0 ? ` +${bonusDoItem(filhoEmFoco)}` : ''}</>
+          : <>{instance.apelido ? `${instance.apelido} (${cat.nome})` : nomeComVeneno(nomeDaPecaFabricada(instance, cat), instance)}{bonusItem > 0 ? ` +${bonusItem}` : ''}</>}
         lang={lang}
         onClose={onClose}
         alvoPainel={alvoPainel}
@@ -5027,23 +5269,32 @@ function DetalhesItemModal({
            continua com ele. */
         rodape={etapaAberta ? rodapeEtapa : (alvoPainel ? null : rodapeUsar)}>
         {etapaAberta ? corpoEtapa : (
-          <Ficha it={catDaPeca} lang={lang} magias={magiasDb} omitir={passe.omitir}
-            linhasDaInstancia={linhasDaInstancia}
-            resistenciaTexto={mostraResistencia
-              ? (durItem.quebrada ? (en ? 'Broken' : 'Quebrada') : `${resAtualItem}/${resMaxItem}`)
-              : null}
-            depois={secoesDepois} />
+          /* A peça de dentro em cima; o Conteúdo da bolsa continua embaixo.
+             A MESMA árvore nos dois casos (só as props mudam): trocar de
+             árvore recriaria a grade do Conteúdo, e o leque, que mede a
+             casa clicada, ficaria apontando para um nó que saiu da tela. */
+          <>
+            <Ficha it={catDoFilho || catDaPeca} lang={lang} magias={magiasDb}
+              omitir={catDoFilho ? [] : passe.omitir}
+              linhasDaInstancia={catDoFilho ? null : linhasDaInstancia}
+              resistenciaTexto={!catDoFilho && mostraResistencia
+                ? (durItem.quebrada ? (en ? 'Broken' : 'Quebrada') : `${resAtualItem}/${resMaxItem}`)
+                : null}
+              depois={secoesDepois} />
+          </>
         )}
       </Janela>
       {lendo && cat.doc_url && (
         <LeituraDocModal titulo={cat.nome} docUrl={cat.doc_url} lang={lang} onClose={() => setLendo(false)} />
       )}
-      {estudando && (ensina.length + ensinaTec.length) > 0 && (
+      {estudando && (ensina.length + ensinaTec.length + ensinaHab.length) > 0 && (
         <EstudarMagiaModal
           titulo={cat.nome}
           magias={ensina}
           tecnicas={ensinaTec}
           tecnicasDb={tecnicasDb}
+          habilidades={ensinaHab}
+          habilidadesDb={habilidadesDb}
           pj={pjAprendiz}
           magiasDb={magiasDb}
           opcoes={{ noInventario: acoesPesadas, podeAprender: !!onAprenderMagia, aVenda: estaAVenda(instance) }}
@@ -5221,7 +5472,7 @@ function DarItemModal({ catalogo, lang, onDar, onClose }) {
 }
 
 // ── ContainerModal (Fase 3) ──────────────────────────────────────────────────
-function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClose, onRemoverDoContainer, onAbrirDetalhes, onMoverCasa }) {
+function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClose, onRemoverDoContainer, onAbrirDetalhes, onMoverCasa, onAbrirLeque = null, lequeId = null }) {
   const [tip, abrirTip, fecharTip, manterTip] = usePortalTooltip(60);
   const en = lang === 'en';
   const cat = catalogoBySlug[containerInst?.slug];
@@ -5261,6 +5512,8 @@ function ContainerModal({ containerInst, catalogoBySlug, todosItens, lang, onClo
             catalogoBySlug={catalogoBySlug}
             lang={lang}
             onAbrirDetalhes={onAbrirDetalhes || (() => {})}
+            onAbrirLeque={onAbrirLeque}
+            lequeId={lequeId}
             onMoverCasa={onMoverCasa}
           />
         </div>
@@ -5343,14 +5596,20 @@ function LeituraDocModal({ titulo, docUrl, lang, onClose }) {
    continua escolhível: é escolhendo que o jogador lê o porquê no rodapé.
    Portal em #root pelo mesmo motivo do LeituraDocModal: abre de dentro da
    janela do item. */
-function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb, opcoes, lang, onAprender, onClose }) {
+function EstudarMagiaModal({ titulo, magias, tecnicas, habilidades, pj, magiasDb, tecnicasDb, habilidadesDb, opcoes, lang, onAprender, onClose }) {
   const en = lang === 'en';
   const listaMag = Array.isArray(magias) ? magias : [];
   const listaTec = Array.isArray(tecnicas) ? tecnicas : [];
+  const listaHab = Array.isArray(habilidades) ? habilidades : [];
   const treinos = (pj && Array.isArray(pj.treinos)) ? pj.treinos : [];
-  const unico = listaMag.length + listaTec.length === 1;
+  const unico = listaMag.length + listaTec.length + listaHab.length === 1;
   const [escolhida, setEscolhida] = useState(unico
-    ? (listaMag[0] ? 'magia:' + listaMag[0].key : 'tecnica:' + listaTec[0].key) : null);
+    ? (listaMag[0] ? 'magia:' + listaMag[0].key : listaTec[0] ? 'tecnica:' + listaTec[0].key : 'habilidade:' + listaHab[0].key) : null);
+  /* UMA ABA POR TIPO (07/11/2026, usuário: "Magias, Habilidades e Técnicas
+     ficam separadas por aba, assim como o saldo"). O livro inicial ensina os
+     três; cada aba tem o seu quadro e o seu saldo. Com um tipo só, sem abas. */
+  const tiposPresentes = [listaMag.length > 0 && 'magia', listaTec.length > 0 && 'tecnica', listaHab.length > 0 && 'habilidade'].filter(Boolean);
+  const [aba, setAba] = useState(tiposPresentes[0] || 'magia');
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState(null);
 
@@ -5376,6 +5635,36 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
   const gastoMag = pj ? gastoMagias(magPj, magiasDb || []) : 0;
   const totalTec = pj ? pontosTecnicasTotal(pj.profissao, estagio, pj.intelecto_base) : 0;
   const gastoTec = pj ? gastoTecnicas(tecPj, tecnicasDb || []) : 0;
+  /* Habilidade (07/11/2026): o nível mostrado soma o nível inicial, como na
+     ficha (nivelHabilidade). */
+  const habPj = comFila(pj && pj.habilidades, treinos, 'habilidade');
+  const habPorKey = habilidadesPorKey(habilidadesDb);
+  const totalHab = pj ? pontosHabilidadesTotal(pj.profissao, estagio) : 0;
+  const gastoHab = pj ? gastoHabilidades(habPj, habPorKey) : 0;
+
+  /* COMO SE APRENDE E QUANTO TEMPO (07/11/2026, usuário: "Explique no modal
+     a forma de aprendizado, estudo, oração? Quanto tempo?"). A mesma regra
+     das RPCs aprender_*: o que é novo entra na fila de treino pelas horas
+     de HORAS_TREINO, na atividade da classe (magia) ou em Treinar (técnica,
+     habilidade); o que já se sabe sobe na hora. */
+  const nomeAtividade = (id) => {
+    const a = (window.ATIVIDADES || []).find((x) => x.id === id);
+    if (a) return en ? a.en : a.pt;
+    // Sem o 01-core/clima-desgaste carregado, o nome nunca vira o id cru.
+    const RESERVA = { estudando: ['Estudar', 'Study'], orando: ['Orar', 'Pray'], meditando: ['Meditar', 'Meditate'],
+      praticando: ['Praticar', 'Practice'], treinando: ['Treinar', 'Train'] }[id];
+    return RESERVA ? RESERVA[en ? 1 : 0] : id;
+  };
+  const HORAS = window.HORAS_TREINO || { magia: 24, tecnica: 36, habilidade: 12 };
+  const DA_CLASSE = window.ATIVIDADE_DA_CLASSE || {};
+  const aprendizado = (tipo, jaSabe, classe) => ({
+    imediato: jaSabe,
+    horas: HORAS[tipo],
+    atividade: tipo === 'magia' ? (DA_CLASSE[classe] || 'praticando') : 'treinando',
+  });
+  const aprendizadoTexto = (a) => (a.imediato
+    ? (en ? 'Right away' : 'Na hora')
+    : (en ? `${a.horas} h of ${nomeAtividade(a.atividade)}` : `${a.horas} h em ${nomeAtividade(a.atividade)}`));
 
   const linhas = [
     ...listaMag.map((m) => {
@@ -5389,6 +5678,7 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
         custoPasso: proximo != null ? (m.custo || 0) * (proximo - base) : null,
         rotuloTipo: [m.tipo, m.classe].filter(Boolean).join(' · '),
         treino: emTreinoTexto('magia', m.key),
+        aprendizado: aprendizado('magia', sabido > 0 && !filaDe('magia', m.key).length, m.classe),
         bloqueio: bloqueioAprenderNoInventario(m, pj, { ...(opcoes || {}), magiasDb }),
       };
     }),
@@ -5400,13 +5690,27 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
         atual: sabido > 0 ? sabido : null, proximo: nivel + 1, custoPasso: t.custo || 0,
         rotuloTipo: en ? 'Technique' : 'Técnica',
         treino: emTreinoTexto('tecnica', t.key),
+        aprendizado: aprendizado('tecnica', sabido > 0 && !filaDe('tecnica', t.key).length),
         bloqueio: bloqueioTecnicaNoInventario(t, pj, { ...(opcoes || {}), tecnicasDb }),
       };
     }),
+    ...listaHab.map((h) => {
+      const inicial = Number(h.nivel_inicial) || 0;
+      const sabido = Number(((pj && pj.habilidades) || {})[h.key]) || 0;
+      const nivel = Number(habPj[h.key]) || 0;
+      return {
+        id: 'habilidade:' + h.key, tipo: 'habilidade', m: h,
+        atual: (inicial + sabido) > 0 ? inicial + sabido : null, proximo: inicial + nivel + 1, custoPasso: h.custo || 0,
+        rotuloTipo: [en ? 'Skill' : 'Habilidade', h.grupo].filter(Boolean).join(' · '),
+        treino: emTreinoTexto('habilidade', h.key),
+        aprendizado: aprendizado('habilidade', (inicial + sabido) > 0),
+        bloqueio: bloqueioHabilidadeNoInventario(h, pj, { ...(opcoes || {}), habilidadesDb }),
+      };
+    }),
   ];
-  const sel = linhas.find((l) => l.id === escolhida) || null;
-  const motivo = erro || (sel && sel.bloqueio
-    ? motivoAprenderLabel(sel.bloqueio.motivo, en, { ...sel.bloqueio, tipo: sel.tipo }) : null);
+  const linhasDaAba = linhas.filter((l) => l.tipo === aba);
+  const sel = linhasDaAba.find((l) => l.id === escolhida) || null;
+  const trocarAba = (t) => { setAba(t); setEscolhida(null); setErro(null); };
 
   const escolher = (id) => { setEscolhida(id); setErro(null); };
   const confirmar = async () => {
@@ -5426,12 +5730,38 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
      números (nível, custo e o SALDO que sobra — ninguém precisa subtrair);
      o quadro separa o que dá para aprender agora do que está bloqueado, com o
      porquê na própria linha. */
+  /* O SALDO É "Magias 36/99" (07/11/2026, usuário: "No texto 'Saldo de
+     magia 36 de 99' vai ficar 'Magias 36/99', sendo 36/99 com a mesma
+     fonte"): o rótulo é o nome da aba; as duas partes do número têm o mesmo
+     corpo e peso, só o tom muda. */
+  const NOME_ABA = {
+    magia: en ? 'Spells' : 'Magias',
+    tecnica: en ? 'Techniques' : 'Técnicas',
+    habilidade: en ? 'Skills' : 'Habilidades',
+  };
+  const ICONE_ABA = { magia: 'ti-comet', tecnica: 'ti-sword', habilidade: 'ti-brain' };
   const pontosDo = (tipo) => (tipo === 'tecnica'
-    ? { gasto: gastoTec, total: totalTec, rotulo: en ? 'Technique points left' : 'Saldo de técnica' }
-    : { gasto: gastoMag, total: totalMag, rotulo: en ? 'Magic points left' : 'Saldo de magia' });
-  const tiposPresentes = [listaMag.length > 0 && 'magia', listaTec.length > 0 && 'tecnica'].filter(Boolean);
-  const livres = linhas.filter((l) => !l.bloqueio);
-  const bloqueadas = linhas.filter((l) => l.bloqueio);
+    ? { gasto: gastoTec, total: totalTec }
+    : tipo === 'habilidade'
+    ? { gasto: gastoHab, total: totalHab }
+    : { gasto: gastoMag, total: totalMag });
+  /* A regra da aba numa frase: como e em quanto tempo se aprende. */
+  const fraseDaAba = (() => {
+    const jaSabe = en ? ' Raising one you already know is immediate.' : ' Subir o nível do que você já sabe é na hora.';
+    /* O texto da magia é o do usuário (07/11/2026): "Aprender uma magia nova
+       requer 24 horas de teoria e prática. […]". As horas saem de
+       HORAS_TREINO, para a frase acompanhar a regra. */
+    if (aba === 'magia') {
+      return en
+        ? `Learning a new spell takes ${HORAS.magia} hours of theory and practice. To learn a new feitiço, you must study. For a miracle, prayer. With meditation you can learn a transmutation, and for enchantments, just practice.`
+        : `Aprender uma magia nova requer ${HORAS.magia} horas de teoria e prática. Para aprender um feitiço novo, é necessário estudar. Se for um milagre, oração. Com meditação você poderá aprender uma transmutação, e no caso de encantos, basta praticar.`;
+    }
+    return (en
+      ? `A new ${aba === 'tecnica' ? 'technique' : 'skill'} takes ${HORAS[aba]} hours of ${nomeAtividade('treinando')}.`
+      : `${aba === 'tecnica' ? 'Técnica nova' : 'Habilidade nova'} leva ${HORAS[aba]} horas em ${nomeAtividade('treinando')}.`) + jaSabe;
+  })();
+  const livres = linhasDaAba.filter((l) => !l.bloqueio);
+  const bloqueadas = linhasDaAba.filter((l) => l.bloqueio);
   const motivoDaLinha = (l) => motivoAprenderLabel(l.bloqueio.motivo, en, { ...l.bloqueio, tipo: l.tipo });
   /* Nível que não existe no catálogo: não se oferece nível nem custo — a
      linha diria "→ 1, custa 6" ao lado de "esse nível não existe". */
@@ -5446,14 +5776,11 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
     const depois = sel && sel.tipo === tipo && !semNivel(sel) && sel.custoPasso != null ? saldo - sel.custoPasso : null;
     const falta = (depois != null ? depois : saldo) < 0;
     return (
-      <div className="mn-celula" key={tipo}>
-        <span className="mn-rotulo">
-          <span className="rotulo-longo">{p.rotulo}</span>
-          <span className="rotulo-curto">{en ? "Left" : "Saldo"}</span>
-        </span>
+      <div className="mn-celula estudar-celula-pontos" key={tipo}>
+        <span className="mn-rotulo">{NOME_ABA[tipo]}</span>
         <span key={sel ? sel.id : '-'}
           className={'mn-celula-valor mn-troca estudar-pontos' + (falta ? ' mn-celula-valor--alerta estudar-pontos--excedido' : '')}>
-          {depois != null ? <>{saldo} → {depois}</> : saldo} <small>{en ? 'of' : 'de'} {p.total}</small>
+          {depois != null ? <>{saldo} → {depois}</> : saldo}<span className="estudar-pontos-total">/{p.total}</span>
         </span>
       </div>
     );
@@ -5517,25 +5844,54 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
         size="md"
         extraClass="modal-estudar"
         onClose={onClose}
-        onCancel={onClose}
-        cancelLabel={en ? 'Close' : 'Fechar'}
+        /* RODAPÉ SÓ COM O APRENDER, NO CENTRO (07/11/2026, usuário: "O botão
+           'aprender adestramento 3' fica centralizado no rodapé, remova botão
+           'fechar' e texto 'Pontos de magia insuficientes: …' do rodapé").
+           Fecha-se pelo X. O motivo do bloqueio já está na própria linha. */
         onConfirm={confirmar}
         confirmLabel={enviando ? (en ? 'Learning…' : 'Aprendendo…') : rotuloConfirmar}
         confirmDisabled={!sel || !!sel.bloqueio || enviando}
-        footerCenter={motivo ? <span className="estudar-motivo" role="status">{motivo}</span> : null}
       >
-        {/* Sem escolha, o passe mostra só o saldo; nível e custo entram quando
-            há o que dizer — célula com "—" é ruído. Os valores trocam com um
-            deslize curto (.mn-troca): o único momento animado desta janela. */}
-        <div className={"mn-passe estudar-passe" + (sel ? " estudar-passe--escolha" : "")} aria-live="polite">
-          <div className="mn-celula estudar-passe-ident">
-            <span className={'mn-rotulo' + (sel && sel.tipo === 'magia' ? ' estudar-rotulo-magia' : '')}>
-              {sel ? (sel.tipo === 'tecnica' ? (en ? 'Technique' : 'Técnica') : (en ? 'Spell' : 'Magia')) : (en ? 'Choice' : 'Escolha')}
-            </span>
-            <span key={sel ? sel.id : '-'} className={'mn-celula-valor mn-troca' + (sel ? '' : ' mn-celula-valor--vazio')}>
-              {sel ? sel.m.nome : (en ? 'Pick one below' : 'Escolha no quadro')}
-            </span>
+        {/* AS ABAS SÃO BOTÕES DIVIDIDOS POR IGUAL (07/11/2026, usuário: "como
+            em 'nova batalha'"): a mesma pílula segmentada (.nb-paginas), uma
+            coluna por tipo, com os ícones da barra da ficha. */}
+        {tiposPresentes.length > 1 && (
+          <div className="nb-paginas estudar-abas" role="tablist" aria-label={en ? 'What this item teaches' : 'O que este item ensina'}
+            style={{ gridTemplateColumns: `repeat(${tiposPresentes.length}, minmax(0, 1fr))` }}>
+            {tiposPresentes.map((t) => {
+              const n = linhas.filter((l) => l.tipo === t).length;
+              return (
+                <button key={t} type="button" role="tab" aria-selected={aba === t} data-aba={t}
+                  className={'nb-pagina-op' + (aba === t ? ' is-on' : '')}
+                  onClick={() => trocarAba(t)}>
+                  <i className={'ti ' + ICONE_ABA[t]} aria-hidden="true" />
+                  <span className="nb-pagina-nome">{NOME_ABA[t]}</span>
+                  <span className={'nb-pagina-n' + (n ? ' is-vivo' : '')}>{n}</span>
+                </button>
+              );
+            })}
           </div>
+        )}
+        {/* O SALDO À ESQUERDA, A REGRA À DIREITA (07/11/2026, usuário: "O card
+            magias 36/99 fica à esquerda e o texto 'Aprender uma magia nova
+            requer 24 hor...' à direita"). */}
+        <div className="estudar-topo">
+          <div className="mn-passe estudar-saldo" aria-live="polite">{celulaPontos(aba)}</div>
+          <p className="mn-janela-frase estudar-como">{fraseDaAba}</p>
+        </div>
+        {/* A escolha embaixo: nome, nível, custo e o tempo de aprender ("Escolha
+            no quadro" saiu em 07/11/2026). Os valores trocam com um deslize
+            curto (.mn-troca): o único momento animado desta janela. */}
+        {sel && (
+        <div className="mn-passe estudar-passe estudar-passe--escolha" aria-live="polite">
+          {sel && (
+            <div className="mn-celula estudar-passe-ident">
+              <span className={'mn-rotulo' + (sel.tipo === 'magia' ? ' estudar-rotulo-magia' : '')}>
+                {{ tecnica: en ? 'Technique' : 'Técnica', habilidade: en ? 'Skill' : 'Habilidade' }[sel.tipo] || (en ? 'Spell' : 'Magia')}
+              </span>
+              <span key={sel.id} className="mn-celula-valor mn-troca">{sel.m.nome}</span>
+            </div>
+          )}
           {sel && (
             <div className="mn-celula">
               <span className="mn-rotulo">{en ? 'Level' : 'Nível'}</span>
@@ -5548,9 +5904,16 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, pj, magiasDb, tecnicasDb,
               <span key={sel.id} className={'mn-celula-valor mn-troca' + (custoTexto(sel) !== '—' ? ' mn-celula-valor--vivo' : '')}>{custoTexto(sel)}</span>
             </div>
           )}
-          {(sel ? [sel.tipo] : tiposPresentes).map(celulaPontos)}
+          {sel && (
+            <div className="mn-celula">
+              <span className="mn-rotulo">{en ? 'Learning' : 'Aprendizado'}</span>
+              <span key={sel.id} className="mn-celula-valor mn-troca estudar-aprendizado">{aprendizadoTexto(sel.aprendizado)}</span>
+            </div>
+          )}
         </div>
-        <div className="mn-quadro estudar-quadro" role="radiogroup" aria-label={en ? 'What this item teaches' : 'O que este item ensina'}>
+        )}
+        {erro && <p className="estudar-motivo" role="alert">{erro}</p>}
+        <div className="mn-quadro estudar-quadro" role="radiogroup" aria-label={NOME_ABA[aba]}>
           {grupo(en ? 'Learn now' : 'Aprender agora', livres, 'estudar-grupo--livres')}
           {grupo(en ? 'Blocked' : 'Bloqueadas', bloqueadas, 'estudar-grupo--bloqueadas')}
         </div>
@@ -5782,6 +6145,7 @@ function CampoPreco({ valor, onChange, lang, name, disabled, id }) {
   );
 }
 Object.assign(window, {
+  FaixaDaCarga,
   BauTopo, BauCargaRodape, PesoNoRodape,
   InventarioList, EquipadoBoard, VestesBoard, MoedaPills, CampoPreco, MOEDA_COR,
   CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, LequeDoItem, lequeAngulos, ContainerModal, QuantidadeModal, DarItemModal,
@@ -5797,6 +6161,8 @@ Object.assign(window, {
   VESTE_SLOTS, vesteSlotState, ehVestimenta,
   // O que o item ensina (livro/pergaminho) e por que não dá (22/10/2026).
   vinculosDeLivros, magiasQueOItemEnsina, bloqueioAprenderNoInventario,
+  // Habilidades pelo Livro Inicial (07/11/2026).
+  vinculosHabilidadesDeLivros, habilidadesQueOItemEnsina, bloqueioHabilidadeNoInventario,
   ehPergaminhoDeTecnica, tecnicasQueOItemEnsina, bloqueioTecnicaNoInventario, chaveDaMagiaPorNome, motivoAprenderLabel, ehPergaminhoDeMagia, ehItemDeMagiaEmBatalha,
   // A magia que o item carrega — o bestiário mostra nome e descrição.
   magiaDoItem,

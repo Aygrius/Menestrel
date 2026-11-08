@@ -63,24 +63,36 @@ const montarCriaturas = (qtdMap) => render(
   />
 );
 
-describe('um só desenho de caixa de seleção', () => {
-  it('o modo PJ usa a caixa desenhada, não o checkbox nativo', () => {
+/* O DESENHO MUDOU EM 07/11/2026 (impeccable, "Melhore os cards de seleção de
+   personagem, seleção de quantidade de inimigos"): o personagem leva a marca
+   no canto do retrato; a criatura não tem caixa — "+" põe, o seletor tira.
+   Segue valendo o pedido de 17/09/2026: nenhum checkbox nativo. */
+describe('a marca de escolhido, sem checkbox nativo', () => {
+  it('o personagem leva a marca à direita, sem retrato nem inicial', () => {
     const { container } = montarPj();
-    expect(container.querySelectorAll('.part-check-visual')).toHaveLength(3);
+    expect(container.querySelectorAll('.part-pessoa .part-marca')).toHaveLength(3);
+    expect(container.querySelector('.part-retrato')).toBeNull();
+    expect(container.querySelector('.part-pessoa-meta')).toBeNull();
+    expect(container.querySelector('input[type="search"]')).toBeNull();
     expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
   });
 
-  it('o modo criatura usa a mesma caixa', () => {
+  /* 07/11/2026 (usuário: "Melhore o seletor de quantidade e o +, para ficar
+     igual da página de inventário / loja"): o seletor do sistema em toda
+     linha, a partir de 0 — o + dele põe a primeira. */
+  it('a criatura fora da luta mostra o seletor em 0, sem caixa', () => {
     const { container } = montarCriaturas(new Map(itens(3, 'cri').map((i) => [i.key, 0])));
-    expect(container.querySelectorAll('.part-check-visual')).toHaveLength(3);
+    expect(container.querySelectorAll('.part-qty-stepper')).toHaveLength(3);
+    expect(container.querySelectorAll('.part-cri-add')).toHaveLength(0);
+    expect(container.querySelectorAll('.part-check-visual')).toHaveLength(0);
     expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
   });
 
-  it('marcado desenha o check; desmarcado não', () => {
+  it('marcado desenha o check no retrato; desmarcado não', () => {
     const { container } = montarPj(new Set(['pj:0']));
-    const caixas = [...container.querySelectorAll('.part-check-visual')];
-    expect(caixas[0].querySelector('i')).toBeTruthy();
-    expect(caixas[1].querySelector('i')).toBeNull();
+    const marcas = [...container.querySelectorAll('.part-marca')];
+    expect(marcas[0].querySelector('i')).toBeTruthy();
+    expect(marcas[1].querySelector('i')).toBeNull();
   });
 
   it('a classe `on` marca a linha nos dois modos', () => {
@@ -92,15 +104,18 @@ describe('um só desenho de caixa de seleção', () => {
   });
 });
 
-describe('criatura desmarcada não mostra o stepper', () => {
-  it('qtd 0 esconde o seletor de quantidade', () => {
+describe('a quantidade é o seletor da linha', () => {
+  it('0 é fora da luta: o número aparece e o − fica desligado', () => {
     const { container } = montarCriaturas(new Map(itens(3, 'cri').map((i) => [i.key, 0])));
-    expect(container.querySelectorAll('.part-qty-stepper')).toHaveLength(0);
+    const passo = container.querySelector('.part-qty-stepper');
+    expect(passo.textContent).toContain('0');
+    expect(passo.querySelector('button[aria-label="-"]').disabled).toBe(true);
+    expect(container.querySelectorAll('.hist-protag-item.on')).toHaveLength(0);
   });
 
-  it('e qtd ≥ 1 o mostra', () => {
+  it('qtd ≥ 1 acende a linha', () => {
     const { container } = montarCriaturas(new Map([['cri:0', 3], ['cri:1', 0], ['cri:2', 0]]));
-    expect(container.querySelectorAll('.part-qty-stepper')).toHaveLength(1);
+    expect(container.querySelectorAll('.part-cri.on')).toHaveLength(1);
   });
 });
 
@@ -109,8 +124,9 @@ describe('o bulk de criaturas continua acessível', () => {
     montarCriaturas(new Map(itens(3, 'cri').map((i) => [i.key, 0])));
     // O único bulk que depende de haver seleção — os outros dois (uma de cada,
     // mais uma de cada) valem sempre.
+    // Com nome desde 07/11/2026 (eram ícones que só se explicavam no balão).
     const zerar = [...document.querySelectorAll('.part-section-bulk button')]
-      .find((b) => b.querySelector('.ti-ban'));
+      .find((b) => b.textContent === 'Zerar todas');
     expect(zerar).toBeTruthy();
     expect(zerar.disabled).toBe(true);
   });
@@ -146,9 +162,9 @@ describe('NovaBatalhaView: criaturas nascem desmarcadas', () => {
     );
   };
 
-  it('nenhuma criatura marcada, nenhum stepper na tela', () => {
+  it('nenhuma criatura marcada: os seletores em 0', () => {
     const { container } = montar();
-    expect(container.querySelectorAll('.part-qty-stepper')).toHaveLength(0);
+    expect([...container.querySelectorAll('.part-qty-stepper .fp-pop-stepper-label')].map((e) => e.textContent)).toEqual(['0', '0']);
     // Os PJs continuam pré-marcados: o pedido era só sobre criaturas.
     const marcadas = [...container.querySelectorAll('.hist-protag-item.on')];
     expect(marcadas).toHaveLength(pjs.length);

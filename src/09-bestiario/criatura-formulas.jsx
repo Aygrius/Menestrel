@@ -21,7 +21,7 @@
      • Defesa   = soma da defesa das peças + Agilidade;
      • Tipo     = o do peitoral (slot 'peito' ou 'dorso'); sem peitoral, Leve;
      • Ataque   = a primeira arma equipada (sem limite de armas desde 15/09/2026);
-     • L/M/P    = dano_l/m/p da arma + o atributo de ajuste dela + o ESTÁGIO
+     • L/M/P    = dano_l/m/p da arma + o atributo de ajuste dela × 2 + o ESTÁGIO
                   (o "nível no grupo de armas" da criatura — ver abaixo);
      • Dano 100% = dano da arma + Força.
    Sem arma não há ataque: as armas NATURAIS (Presas, Garras…) entram no
@@ -41,6 +41,10 @@
    (Agilidade+Estágio)×Percepção e o dano por faixa de peso.
    ============================================================ */
 
+/* Cada ponto do atributo de ajuste vale DUAS colunas, como no personagem
+   (COLUNAS_POR_PONTO_DE_AJUSTE, 01-core). 07/11/2026, usuário: "Faça o
+   atributo x2 para a criatura também". */
+const COLUNAS_POR_PONTO_CRIATURA = 2;
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const teto = (v) => Math.ceil(v - 1e-9) || 0;   // margem contra ruído de ponto flutuante; `|| 0` normaliza -0
 
@@ -228,7 +232,7 @@ function derivadosDoEquipamento({ equipamento, catalogoBySlug, atributos } = {})
     const c = arma.cat;
     const aj = AJUSTE_ATRIBUTO[String(c.ajuste_atributo || '').toUpperCase()];
     // + estágio: o nível no grupo de armas da criatura (ver o cabeçalho).
-    const bonus = (aj ? num(at[aj]) : 0) + num(at.estagio);
+    const bonus = (aj ? num(at[aj]) * COLUNAS_POR_PONTO_CRIATURA : 0) + num(at.estagio);
     ataque = c.nome || arma.slug;
     dano_l = num(c.dano_l) + bonus;
     dano_m = num(c.dano_m) + bonus;
@@ -260,7 +264,7 @@ function ataquesDaCriatura(c, catalogoBySlug) {
   if (armas.length) {
     return armas.map(({ slug, cat }) => {
       const aj = AJUSTE_ATRIBUTO[String(cat.ajuste_atributo || '').toUpperCase()];
-      const bonus = (aj ? num(at[aj]) : 0) + num(at.estagio);   // + estágio, como em derivadosDoEquipamento
+      const bonus = (aj ? num(at[aj]) * COLUNAS_POR_PONTO_CRIATURA : 0) + num(at.estagio);   // + estágio, como em derivadosDoEquipamento
       const d100 = num(cat.dano) + num(at.forca);
       const t = tiersDeDano(d100);
       return { slug, nome: cat.nome || slug,

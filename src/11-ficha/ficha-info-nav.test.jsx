@@ -122,10 +122,21 @@ describe('a seção Armas', () => {
       { instanceId: 'a', slug: 'adaga', equipado: false, slot: null },
     ]));
     const texto = secao('Armas').textContent;
-    // Força 2: 30 + 2 + 5.
-    expect(texto).toMatch(/Marreta \+5\s*37/);
+    // Força 2: 30 + 2 + 5. Sem ajuste nem grupo, L/M/P = o do catálogo (0).
+    expect(texto).toMatch(/Marreta \+5\s*L0M0P0Dano37/);
     expect(texto).not.toMatch(/Escudo/);    // sem dano, não é arma
     expect(texto).not.toMatch(/Adaga/);     // na mochila, não conta
+  });
+
+  /* L/M/P junto do dano (07/11/2026): a coluna da batalha — catálogo + ajuste
+     × 2 + o nível no grupo da arma (o bonus_ga de colunaAtaque). */
+  it('mostra o L/M/P da arma: catálogo + ajuste × 2 + grupo de armas', () => {
+    const cat = { ...CAT, espada: { slug: 'espada', nome: 'Espada', grupo: 'Armas', dano: 20,
+      dano_l: 5, dano_m: 3, dano_p: 1, ajuste_atributo: 'FOR', grupo_armas: 'CmM' } };
+    montar({ catalogoBySlug: cat, pj: { ...props().pj, grupos_armas: { CmM: 3 },
+      inventario: { itens: [{ instanceId: 's', slug: 'espada', equipado: true, slot: 'mao_d' }] } } });
+    // Força 2 → +4 de ajuste; grupo +3: L 5+4+3, M 3+4+3, P 1+4+3; dano 20 + 2.
+    expect(secao('Armas').textContent).toMatch(/EspadaL12M10P8Dano22/);
   });
 
   it('sem arma nas mãos, diz que não há', () => {

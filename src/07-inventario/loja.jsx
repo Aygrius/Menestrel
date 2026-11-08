@@ -94,6 +94,7 @@ function motivoCompraLabel(motivo, info, lang) {
       quantidade_invalida: 'Invalid quantity',
       // O banco recusa o 81º item (30/10/2026, trigger personagens_inventario_80).
       inventario_cheio: 'Inventory full — it has 80 slots',
+      carga_maxima: 'Maximum load: drop something first',
     };
     return m[motivo] || motivo;
   }
@@ -111,6 +112,7 @@ function motivoCompraLabel(motivo, info, lang) {
     pj_nao_encontrado: 'Personagem não encontrado',
     quantidade_invalida: 'Quantidade inválida',
     inventario_cheio: 'Inventário cheio — ele tem 80 casas',
+    carga_maxima: 'Carga máxima: largue algo antes',
   };
   return m[motivo] || motivo;
 }
@@ -799,6 +801,17 @@ function LojaJogador({ ac, lang, currentUserId, pjIdFixo, isMestre, slotBusca })
     setErroCompra(null);
     setFeedback(null);
     const qtd = Math.max(1, qtdParam || 1);
+    /* CARGA MÁXIMA (07/11/2026): a compra que passaria de 100% nem vai ao
+       banco. A mesma conta da trava central (cargaEstourouCom). */
+    if (typeof window.cargaEstourouCom === 'function') {
+      const atr = pjSelecionado ? atributosEfetivosPJ(pjSelecionado) : {};
+      const antes = (inventario && inventario.itens) || [];
+      const depois = [...antes, { instanceId: '__compra', slug, quantidade: qtd, containerId: containerId || null }];
+      if (window.cargaEstourouCom(antes, depois, catalogoBySlug, atr.forca, atr.fisico)) {
+        setErroCompra({ entryId, motivo: 'carga_maxima' });
+        return;
+      }
+    }
     setComprando(entryId);
     const { data, error } = await supabaseClient.rpc('comprar_item', {
       p_pj_id: selectedId,

@@ -17,7 +17,6 @@
    - StepAtributos          — distribuição de pontos
    - StepHabilidades        — escolha de habilidades + qtd
    - AprimoramentoInline    — vagas de idioma/religião/arte/sabedoria, dentro da habilidade-mãe
-   - StepRevisao            — revisão final antes de salvar
 
    ── Helpers locais ─────────────────────────────────────────
    - temLevelUpPendente(p)  — detecta se PJ subiu de estágio e
@@ -1419,7 +1418,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     habilidades:  lang === 'en' ? 'Skills'        : 'Habilidades',
     magias:       lang === 'en' ? 'Spells'        : 'Magias',
     tecnicas:     lang === 'en' ? 'Techniques'    : 'Técnicas de Combate',
-    revisao:      lang === 'en' ? 'Review'        : 'Revisão',
   };
   const steps = [
     { id: 'identidade',   sub: 'principal', label: lang === 'en' ? 'Identity'         : 'Identidade'               },
@@ -1437,7 +1435,8 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
       sub: g,
       label: lang === 'en' ? `${g} Group Skill` : `Habilidade do Grupo ${g}`,
     }))),
-    { id: 'revisao',  sub: null, label: SEC.revisao  },
+    /* A REVISÃO SAIU (07/11/2026, usuário: "No modal de editar/criar
+       personagem, remova a aba revisão"). O último passo salva. */
   ];
 
   // Sincroniza maxStep quando steps muda (ex: troca de profissão que usa magia)
@@ -1473,7 +1472,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     'habilidades':          'Invista pontos nas habilidades que combinam com seu estilo de jogo.',
     'magias':               'Escolha as magias que o personagem conhece.',
     'tecnicas':             'Escolha as técnicas de combate que o personagem domina.',
-    'revisao':              '',
   };
   const descricaoTela = DESCRICOES_TELA[stepKey] || DESCRICOES_TELA[currentId] || '';  
 
@@ -1526,7 +1524,7 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
   // seguintes. O modificador racial NÃO é somado aqui: ele já está dentro de
   // `X_base` desde a escolha da raça (handleRacaChange semeia). Somar de novo
   // era a contagem dupla que fazia o wizard divergir da ficha — o
-  // StepRevisao, que chama calcularFicha, sempre mostrou o valor certo.
+  // calcularFicha (a antiga Revisão usava) sempre mostrou o valor certo.
   const atributosFinais = ATRIBUTOS_KEYS.reduce((acc, k) => {
     acc[k] = form[`${k}_base`] ?? 0;
     return acc;
@@ -1646,7 +1644,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     atributos: lang === 'en' ? 'Attributes' : 'Atributos',
     grupos_armas: lang === 'en' ? 'Weapons' : 'Armas',
     habilidades: lang === 'en' ? 'Skills' : 'Habilidades',
-    revisao: lang === 'en' ? 'Review' : 'Revisão',
   };
   const fases = [];
   steps.forEach((s, i) => {
@@ -1655,7 +1652,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     else fases.push({ id: s.id, rotulo: FASE_DO_PASSO[s.id] || s.label, passos: [i + 1] });
   });
   const faseAtual = fases.find((f) => f.passos.includes(step)) || fases[0];
-  const posNaFase = faseAtual ? faseAtual.passos.indexOf(step) + 1 : 1;
   const irPara = (n) => {
     if (n === step) return;
     if (n > step && !podeAvancar) return;
@@ -1683,13 +1679,9 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
           );
         })}
       </div>
-      <div className="wiz-passo">
-        {/* Fase de um passo só com o mesmo nome (Revisão): não repete. */}
-        {currentStep?.label !== faseAtual?.rotulo && <span className="wiz-passo-nome">{currentStep?.label}</span>}
-        {faseAtual && faseAtual.passos.length > 1 && (
-          <span className="wiz-passo-n">{lang === 'en' ? `${posNaFase} of ${faseAtual.passos.length}` : `${posNaFase} de ${faseAtual.passos.length}`}</span>
-        )}
-      </div>
+      {/* O passo dentro da fase ("Atributos Básicos", "1 de 5") SAIU
+          (07/11/2026, usuário: "Remova '1 de 5' e 'Atributos Básicos', etc,
+          dos modais"): o trilho das fases já diz onde se está. */}
     </div>
   );
 
@@ -1750,13 +1742,6 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
               isEdit={isEdit}
               personagemExistente={personagemExistente}
             />
-          )}
-          {currentId === 'revisao' && (
-            <StepRevisao
-              form={form} lang={lang}
-              atributosFinais={atributosFinais}
-              habilidadesByKey={habilidadesByKey}
-              bonusHabilidades={bonusHabilidades} />
           )}
           {saveError && <div className="err-msg" style={{ marginTop: 14 }}>{saveError}</div>}
           <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
@@ -2592,150 +2577,6 @@ function AprimoramentoInline({ habKey, form, update, lang, slots }) {
   );
 }
 
-// ---- Step 5: Revisão ----
-/* Sem Magias e Técnicas de Combate desde 22/10/2026 ("No modal de revisão de
-   editar personagem, remova magias e técnicas de combate") — elas se
-   aprendem pelo item e moram na ficha. */
-function StepRevisao({ form, lang, atributosFinais, habilidadesByKey, bonusHabilidades }) {
-  const ficha = calcularFicha({
-    raca: form.raca,
-    genero: form.genero,
-    profissao: form.profissao,
-    experiencia: form.experiencia,
-    intelecto_base: form.intelecto_base,
-    aura_base: form.aura_base,
-    carisma_base: form.carisma_base,
-    forca_base: form.forca_base,
-    fisico_base: form.fisico_base,
-    agilidade_base: form.agilidade_base,
-    percepcao_base: form.percepcao_base,
-  });
-
-  // Resumo das habilidades compradas
-  const hab = form.habilidades || {};
-  const habCompradas = Object.entries(hab)
-    .filter(([_, n]) => (n || 0) > 0)
-    .map(([key, n]) => {
-      const h = habilidadesByKey?.[key];
-      const nivel = (h?.nivel_inicial || 0) + n;
-      const total = totalHabilidade(key, hab, atributosFinais, bonusHabilidades, habilidadesByKey);
-      return { key, nome: h?.nome || key, nivel, total };
-    })
-    .sort((a, b) => a.nome.localeCompare(b.nome));
-
-  // Resumo dos grupos de armas comprados (catálogo fixo em GRUPOS_ARMAS_BY_SIGLA)
-  const grp = form.grupos_armas || {};
-  const grpCompradas = Object.entries(grp)
-    .filter(([_, n]) => (n || 0) > 0)
-    .map(([sigla, nivel]) => {
-      const g = GRUPOS_ARMAS_BY_SIGLA[sigla];
-      return {
-        sigla,
-        nome: lang === 'en' ? (g?.nomeEn || g?.nome || sigla) : (g?.nome || sigla),
-        nivel,
-      };
-    })
-    .sort((a, b) => a.sigla.localeCompare(b.sigla));
-
-return (
-    <div className="wiz-review">
-      <div className="wiz-review-head">
-        <div className="wiz-review-name">
-          {form.nome} {form.sobrenome}
-        </div>
-      </div>
-
-      <div className="wiz-review-grid">
-        <section>
-          <div className="wiz-review-eyebrow">{lang === 'en' ? 'Identity' : 'Identidade'}</div>
-          <dl>
-            <div><dt>{lang === 'en' ? 'Race' : 'Raça'}</dt><dd>{form.raca}</dd></div>
-            <div><dt>{lang === 'en' ? 'Gender' : 'Gênero'}</dt><dd>{form.genero || '—'}</dd></div>
-            {form.data_nasc?.ano != null && (() => {
-              const dn = form.data_nasc;
-              const meses = typeof FANTASY_MONTHS !== 'undefined' ? FANTASY_MONTHS : null;
-              const nomeMes = meses ? (meses[dn.mes - 1]?.nome || '').replace(/^Mês /, '') : `Mês ${dn.mes}`;
-              const anoAtual = form._anoJogo ?? null;
-              const idadeCalc = (anoAtual != null && dn.ano != null) ? anoAtual - Number(dn.ano) : null;
-              return (
-                <div>
-                  <dt>{lang === 'en' ? 'Date of Birth' : 'Data de Nascimento'}</dt>
-                  <dd>
-                    {dn.dia} {nomeMes} de {dn.ano}
-                    {idadeCalc != null && (
-                      <span style={{ opacity: 0.6, marginLeft: 6, fontSize: '0.88em' }}>
-                        ({idadeCalc} {lang === 'en' ? 'years' : 'anos'})
-                      </span>
-                    )}
-                  </dd>
-                </div>
-              );
-            })()}
-            {(() => { const h = GAME_DATA?.racas?.[form.raca]?.altura; return h != null ? <div><dt>{lang === 'en' ? 'Height' : 'Altura'}</dt><dd>{h.toFixed(2).replace('.', ',')} m</dd></div> : null; })()}
-            <div><dt>{lang === 'en' ? 'Profession' : 'Profissão'}</dt><dd>{form.profissao}</dd></div>
-            <div><dt>{lang === 'en' ? 'Kingdom' : 'Reino'}</dt><dd>{form.reino}</dd></div>
-            <div><dt>{lang === 'en' ? 'Stage' : 'Estágio'}</dt><dd>{ficha.estagio}</dd></div>
-            {form.deus && <div><dt>{lang === 'en' ? 'Devoted to' : 'Devoto de'}</dt><dd>{form.deus}</dd></div>}
-          </dl>
-        </section>
-        <section>
-          <div className="wiz-review-eyebrow">{lang === 'en' ? 'Resources' : 'Recursos'}</div>
-          <dl>
-            <div><dt>{lang === 'en' ? 'Physical Energy' : 'Energia Física'}</dt><dd>{ficha.derivadas.energiaFisica}</dd></div>
-            <div><dt>{lang === 'en' ? 'Heroic Energy' : 'Energia Heroica'}</dt><dd>{ficha.derivadas.energiaHeroica}</dd></div>
-            <div><dt>{lang === 'en' ? 'Karma' : 'Karma'}</dt><dd>{ficha.derivadas.karma}</dd></div>
-            <div><dt>{lang === 'en' ? 'Defense' : 'Defesa'}</dt><dd>{ficha.derivadas.defesa}</dd></div>
-            <div><dt>{lang === 'en' ? 'Phys. Resistance' : 'Resistência Física'}</dt><dd>{ficha.derivadas.resistenciaFisica}</dd></div>
-            <div><dt>{lang === 'en' ? 'Magic Resistance' : 'Resistência Mágica'}</dt><dd>{ficha.derivadas.resistenciaMagica}</dd></div>
-            <div><dt>{lang === 'en' ? 'Speed' : 'Velocidade'}</dt><dd>{ficha.derivadas.velocidade}</dd></div>            
-          </dl>
-        </section>
-        <section>
-          <div className="wiz-review-eyebrow">{lang === 'en' ? 'Attributes' : 'Atributos'}</div>
-          <dl>
-            {ATRIBUTOS_KEYS.map((k) => (
-              <div key={k}><dt>{ATRIBUTOS_LABEL[k]}</dt><dd>{ficha.atributos[k]}</dd></div>
-            ))}
-          </dl>
-        </section>
-      {grpCompradas.length > 0 && (
-        <section>
-          <div className="wiz-review-eyebrow">
-            {lang === 'en' ? 'Weapon Groups' : 'Grupo de Armas'}
-          </div>
-          <dl>
-            {grpCompradas.map((g) => (
-              <div key={g.sigla}>
-                <dt>{g.nome}</dt>
-                <dd>{g.nivel}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      )}        
-        <section>
-          <div className="wiz-review-eyebrow">
-            {lang === 'en' ? 'Skills' : 'Habilidades'}
-          </div>
-          {habCompradas.length === 0 ? (
-            <p className="wiz-review-empty">
-              {lang === 'en' ? 'No skills acquired.' : 'Nenhuma habilidade adquirida.'}
-            </p>
-          ) : (
-            <dl>
-              {habCompradas.map((h) => (
-                <div key={h.key}>
-                  <dt>{h.nome} {h.nivel}</dt>
-                  <dd>{h.total}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </section>
-      </div>
-    </div>
-  );
-}
 
 
 Object.assign(window, {
@@ -2744,5 +2585,4 @@ Object.assign(window, {
   PersonagensList, PersonagemCard, ConfirmarExclusaoModal,
   NovoPersonagemModal,
   StepIdentidade, StepAtributos, StepGruposArmas, StepHabilidades, AprimoramentoInline,
-  StepRevisao,
 });

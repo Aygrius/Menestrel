@@ -70,6 +70,14 @@ function montar(itens) {
   return { ...r, tabelas };
 }
 
+/* O QUE O BANCO RECEBE CHEGA DEPOIS DO DEBOUNCE (07/11/2026). O autosave do
+   inventário grava 450 ms depois da última mudança; somado à carga e à
+   normalização das casas, o teste levava ~730 ms sozinho e 1000 ms com a
+   suíte inteira rodando — o limite padrão do waitFor. Passava ou falhava
+   conforme a máquina. Quem espera a GRAVAÇÃO usa a folga dos outros testes
+   de autosave (dar-item, flush-inventario: 2000–2500 ms). */
+const ESPERA_GRAVAR = { timeout: 2500 };
+
 const casa = (container, i) => container.querySelector(`.inv-bag-grid [data-slot-idx="${i}"]`);
 const gravado = (tabelas, id) => tabelas.personagens[0].inventario.itens.find((x) => x.instanceId === id);
 
@@ -90,14 +98,14 @@ describe('casas livres no inventário', () => {
     await waitFor(() => {
       expect(gravado(tabelas, 'cor-1').casa).toBe(0);
       expect(gravado(tabelas, 'alj-1').casa).toBe(1);
-    });
+    }, ESPERA_GRAVAR);
   });
 
   it('soltar numa casa vazia leva o item para lá, deixando o vão', async () => {
     const { container, tabelas } = montar([it_('cor-1', 'corda', { casa: 0 }), it_('alj-1', 'aljava', { casa: 1 })]);
     await waitFor(() => expect(casa(container, 0).classList.contains('inv-card')).toBe(true));
     arrastar(container, 0, 4);
-    await waitFor(() => expect(gravado(tabelas, 'cor-1').casa).toBe(4));
+    await waitFor(() => expect(gravado(tabelas, 'cor-1').casa).toBe(4), ESPERA_GRAVAR);
     expect(casa(container, 4).classList.contains('inv-card')).toBe(true);
     expect(casa(container, 0).classList.contains('inv-slot-ghost')).toBe(true);
   });
@@ -110,7 +118,7 @@ describe('casas livres no inventário', () => {
     await waitFor(() => {
       expect(gravado(tabelas, 'alj-1').casa).toBe(0);
       expect(gravado(tabelas, 'cor-1').casa).toBe(3);
-    });
+    }, ESPERA_GRAVAR);
   });
 
   it('soltar flechas na aljava guarda o que cabe; o resto fica na casa de origem', async () => {
@@ -121,7 +129,7 @@ describe('casas livres no inventário', () => {
       const itens = tabelas.personagens[0].inventario.itens;
       expect(itens.find((x) => x.slug === 'flecha' && x.containerId === 'alj-1')?.quantidade).toBe(10);
       expect(gravado(tabelas, 'fle-1')).toMatchObject({ quantidade: 10, containerId: null, casa: 2 });
-    });
+    }, ESPERA_GRAVAR);
     expect(screen.getByRole('status').textContent).toMatch(/10 de 20/);
   });
 
@@ -182,6 +190,20 @@ describe('casas livres dentro da mochila', () => {
     fireEvent.pointerUp(window, { clientX: 400, clientY: 40 });
     expect(chamadas).toEqual([['cor-1', 4]]);
   });
+
+  /* 07/11/2026, usuário: "Está faltando o leque dos itens quando estão dentro
+     de alguma bolsa, mochila, etc." O clique no item da bolsa abre o leque,
+     como no baú; sem leque, segue abrindo os detalhes. */
+  it('o clique no item da bolsa abre o leque', () => {
+    const leques = []; const detalhes = [];
+    const Modal = ContainerModal();
+    const { container } = render(<div className="menestrel-ui"><Modal containerInst={itens[0]} catalogoBySlug={CAT}
+      todosItens={itens} lang="pt" onClose={() => {}} onAbrirDetalhes={(id) => detalhes.push(id)}
+      onAbrirLeque={(id, ancora) => leques.push([id, !!ancora])} onMoverCasa={() => {}} /></div>);
+    fireEvent.click(container.querySelector('.cont-grade [data-slot-idx="0"]'));
+    expect(leques).toEqual([['cor-1', true]]);
+    expect(detalhes).toEqual([]);
+  });
 });
 
 /* Item à venda (02/10/2026): continua na grade, com o selo de etiqueta, e
@@ -197,7 +219,7 @@ describe('item à venda na grade', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/à venda/));
     expect(gravado(tabelas, 'fle-1')).toMatchObject({ containerId: null, anuncio_id: 9 });
     arrastar(container, 2, 5);
-    await waitFor(() => expect(gravado(tabelas, 'fle-1').casa).toBe(5));
+    await waitFor(() => expect(gravado(tabelas, 'fle-1').casa).toBe(5), ESPERA_GRAVAR);
     expect(gravado(tabelas, 'fle-1').anuncio_id).toBe(9);
   });
 });

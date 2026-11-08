@@ -91,7 +91,10 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
 
   // Estado das ações do header quando view === 'nova' ("Criar batalha (N)")
   const novaBatalhaRef = useRef(null);           // ref para acionar criar() do filho
-  const [novaState, setNovaState] = useState({ saving: false, canConfirm: false, total: 0 });
+  const [novaState, setNovaState] = useState({ saving: false, canConfirm: false, total: 0, aliados: 0, inimigos: 0, folhas: 1 });
+  /* As duas páginas da janela de criar (07/11/2026): 'aliados' e 'inimigos'. */
+  const [novaPagina, setNovaPagina] = useState('aliados');
+  const [novaFolha, setNovaFolha] = useState(1);
   // Ações de condução (Ação/Passar/Nova Rodada/Encerrar) recebidas via
   // onHeaderActionsChange do filho — sobem pro slot direito do HEADER
   // (ao lado do título), não mais um footer fixo na base da página. Voltar
@@ -107,6 +110,15 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
   // Busca e lixeira armada da lista em cartões (23/10/2026).
   const [buscaBat, setBuscaBat] = useState('');
   const [lixeiraBat, setLixeiraBat] = useState(null);
+  // 15 cartões por página (07/11/2026), o padrão pedido para a lista.
+  const [paginaBat, setPaginaBat] = useState(1);
+  /* CRIAR BATALHA EM JANELA (07/11/2026, usuário: "A página de criar batalha,
+     pode ser um modal dentro de batalha"). O + da lista abre a janela; a lista
+     fica atrás, e criar fecha a janela e recarrega. */
+  const [novaAberta, setNovaAberta] = useState(false);
+  // MODO TREINAMENTO (07/11/2026): a batalha nova nasce como treino — luta
+  // de verdade, com os jogadores, mas nada vai para a ficha. Ver ehTreino.
+  const [treino, setTreino] = useState(false);
 
   // Participantes vinculados à história (PJs + criaturas)
   const pjsVinc = (historia.protagonista_ids || [])
@@ -147,16 +159,25 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
   if (view === 'lista' && !abrindo) {
     const semAcentoB = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const termoB = semAcentoB(buscaBat.trim());
-    const tituloDe = (b) => (b.estado === 'setup'
-      ? tb.batalhaEmMontagem
-      : b.estado === 'ativa'
-        ? (isEn ? 'Battle in progress' : 'Batalha em andamento')
-        : tb.batalha);
+    const tituloDe = (b) => (b.treinamento
+      ? (b.estado === 'setup'
+        ? (isEn ? 'Training being set up' : 'Treino em montagem')
+        : (isEn ? 'Training in progress' : 'Treino em andamento'))
+      : b.estado === 'setup'
+        ? tb.batalhaEmMontagem
+        : b.estado === 'ativa'
+          ? (isEn ? 'Battle in progress' : 'Batalha em andamento')
+          : tb.batalha);
     const nomesDe = (b) => (Array.isArray(b.participantes) ? b.participantes : [])
       .map((x) => x && (x.nome || (x.snapshot && x.snapshot.nome))).filter(Boolean);
     const lista = (batalhas || []).filter((b) => !termoB
       || semAcentoB([tituloDe(b), ...nomesDe(b)].join(' ')).includes(termoB));
     const BuscaENovo = window.BestBuscaENovo;
+    const Paginacao = window.BestPagination;
+    const POR_PAGINA_BATALHAS = 15;
+    const totalPaginasBat = Math.max(1, Math.ceil(lista.length / POR_PAGINA_BATALHAS));
+    const paginaBatOk = Math.min(paginaBat, totalPaginasBat);
+    const listaPagina = lista.slice((paginaBatOk - 1) * POR_PAGINA_BATALHAS, paginaBatOk * POR_PAGINA_BATALHAS);
     return (
       <div className="pjs batalha-cartoes-pagina">
         {/* As páginas da Mesa (Cena, Batalha, Loja) no mesmo trilho da busca
@@ -168,9 +189,9 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
               ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
               placeholder={isEn ? 'Search' : 'Buscar'}
               query={buscaBat}
-              setQuery={setBuscaBat}
+              setQuery={(v) => { setBuscaBat(v); setPaginaBat(1); }}
               podeCriar
-              onNovo={() => setView('nova')}
+              onNovo={() => { setNovaPagina('aliados'); setNovaFolha(1); setNovaAberta(true); }}
               dicaNovo={tb.novaBatalha} />
           </div>
         )}
@@ -184,8 +205,9 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
               : tb.nenhumaBatalhaNestaHistoria}
           </div>
         ) : (
-          <div className="pjs-grid">
-            {lista.map((b) => {
+          <>
+          <div className="pjs-grid batalha-grade">
+            {listaPagina.map((b) => {
               const qtd = Array.isArray(b.participantes) ? b.participantes.length : 0;
               const data = b.created_at
                 ? new Date(b.created_at).toLocaleDateString(tb.ptBr, { day: '2-digit', month: 'short', year: 'numeric' })
@@ -199,8 +221,8 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
                     onClick={abrir}
                     onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); } }}>
                     <div className="pj-card-body">
-                      <div className={'pj-card-portrait is-empty batalha-cartao-retrato is-' + b.estado}>
-                        <i className="ti ti-swords" aria-hidden="true" />
+                      <div className={'pj-card-portrait is-empty batalha-cartao-retrato is-' + b.estado + (b.treinamento ? ' is-treino' : '')}>
+                        <i className={'ti ' + (b.treinamento ? 'ti-school' : 'ti-swords')} aria-hidden="true" />
                       </div>
                       <div className="pj-card-info">
                         <header className="pj-card-head">
@@ -250,11 +272,63 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
               );
             })}
           </div>
+          {Paginacao && totalPaginasBat > 1 && (
+            <Paginacao page={paginaBat} safePage={paginaBatOk} totalPages={totalPaginasBat} setPage={setPaginaBat} lang={lang} />
+          )}
+          </>
         )}
         {/* O RODAPÉ DA MESA (04/11/2026): a data, o lugar, a hora e o clima da
             Cena também aqui — Cena, Batalha e Loja são uma página só. O
             CardDataJogoAtual (10-shell) entra por portal. */}
         {trilhoPaginas && <div id="pg-rodape-slot" className="pg-rodape" />}
+        {/* A JANELA DE CRIAR (07/11/2026): duas páginas — Aliados e Inimigos.
+            Batalha | Treino e Aliados | Inimigos ficam no topo do corpo, acima
+            da lista; o rodapé tem só a paginação da lista (sem barra de
+            rolagem) e o botão que cria com quantos vão lutar. Sem Cancelar
+            (usuário: "Não precisamos de botão 'cancelar'"); o X do cabeçalho
+            e o Esc fecham. */}
+        {novaAberta && (
+          <ModalShell
+            title={<><i className={'ti ' + (treino ? 'ti-school' : 'ti-swords')} aria-hidden="true" /> {treino ? (isEn ? 'New training' : 'Novo treino') : tb.novaBatalha}</>}
+            lang={lang} size="lg" extraClass="nova-batalha-modal"
+            onClose={() => { if (!novaState.saving) { setNovaAberta(false); setTreino(false); } }}
+            footerCenter={window.BestPagination && novaState.folhas > 1
+              ? <window.BestPagination page={novaFolha} safePage={Math.min(novaFolha, novaState.folhas)}
+                  totalPages={novaState.folhas} setPage={setNovaFolha} lang={lang} />
+              : null}
+            onConfirm={() => { if (novaBatalhaRef.current) novaBatalhaRef.current(); }}
+            confirmLabel={novaState.saving ? tb.criando
+              : (treino ? (isEn ? 'Create training' : 'Criar treino') : tb.criarBatalha)
+                + (novaState.total > 0 ? ' · ' + novaState.total : '')}
+            confirmDisabled={!novaState.canConfirm}>
+              <NovaBatalhaView
+                isEn={isEn}
+                pjsVinc={pjsVinc}
+                criaturasVinc={criaturasVinc}
+                treino={treino}
+                onTreino={setTreino}
+                pagina={novaPagina}
+                onPagina={(p) => { setNovaPagina(p); setNovaFolha(1); }}
+                folha={novaFolha}
+                criarRef={novaBatalhaRef}
+                onStateChange={setNovaState}
+                onCriar={async (participantes) => {
+                  const { error: err } = await supabaseClient.from('batalhas').insert({
+                    historia_id: historia.id,
+                    mestre_id: currentUserId,
+                    estado: 'setup',
+                    participantes,
+                    // Só vai a chave quando é treino: batalha comum segue igual.
+                    ...(treino ? { treinamento: true } : {}),
+                  });
+                  if (err) { setError(err.message); return; }
+                  setTreino(false);
+                  setNovaAberta(false);
+                  carregar();
+                }}
+              />
+          </ModalShell>
+        )}
         <PortalTooltip tip={tip} onEnter={() => {}} onLeave={fecharTip} />
       </div>
     );
@@ -262,31 +336,22 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
 
   return (
     <div className="fp-page">
+      {/* O TRILHO DENTRO DO CARTÃO (07/11/2026, usuário: "o trilho superior fica
+          dentro da página de fundo sólido"), como na Ficha. */}
+      <div className="fp-card batalha-mng-page">
       {/* O TRILHO DA CONDUÇÃO (23/10/2026, aprovado na prévia): sem o título
           "Batalhas" (o menu lateral diz a mesa e a seção) e as ações com nome,
           centralizadas, como nas outras páginas. A seta volta à lista. */}
-      {/* Na CRIAÇÃO também (23/10/2026): ← Batalhas e Criar batalha no trilho. */}
-      {view === 'nova' && !abrindo && (
-        <div className="cartoes-barra batalha-trilho">
-          <div className="best-header-acoes" role="toolbar" aria-label={tb.novaBatalha}>
-            {trilhoPaginas}
-            <button type="button" className="mc-acao" onClick={() => setView('lista')}>
-              <i className="ti ti-arrow-left" aria-hidden="true" />
-              <span className="mc-acao-rotulo">{isEn ? 'Battles' : 'Batalhas'}</span>
-            </button>
-            <button type="button" className="mc-acao mc-acao--primaria"
-              disabled={!novaState.canConfirm}
-              onClick={() => { if (novaBatalhaRef.current) novaBatalhaRef.current(); }}>
-              <i className="ti ti-swords" aria-hidden="true" />
-              <span className="mc-acao-rotulo">{novaState.saving ? tb.criando : tb.criarBatalha}</span>
-            </button>
-          </div>
-        </div>
-      )}
       {abrindo && (
         <div className="cartoes-barra batalha-trilho">
           <div className="best-header-acoes" role="toolbar" aria-label={isEn ? 'Battle' : 'Batalha'}>
             {trilhoPaginas}
+            {abrindo.treinamento && (
+              <span className="batalha-treino-selo">
+                <i className="ti ti-school" aria-hidden="true" />
+                {isEn ? 'Training · nothing goes to the sheets' : 'Treino · nada vai para a ficha'}
+              </span>
+            )}
             <button type="button" className="mc-acao"
               disabled={rolagemPendenteConducao}
               onClick={() => { fecharTip(); setAbrindo(null); setHeaderActions(null); carregar(); }}
@@ -299,7 +364,6 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
           </div>
         </div>
       )}
-      <div className="fp-card batalha-mng-page">
         {!abrindo && view !== 'nova' && (
         <div className="fp-card-top">
           <header className="ms-header ficha-page-header">
@@ -322,19 +386,8 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
           <h2 className="ms-title" style={{ margin: 0 }}>{tb.batalhas}</h2>
         </div>
         {view === 'lista' && !abrindo && (
-          <button type="button" className="btn-primary btn-sm" onClick={() => setView('nova')}>
+          <button type="button" className="btn-primary btn-sm" onClick={() => { setNovaPagina('aliados'); setNovaFolha(1); setNovaAberta(true); }}>
             {tb.novaBatalha}
-          </button>
-        )}
-        {view === 'nova' && (
-          <button
-            type="button"
-            className="btn-primary btn-sm"
-            disabled={!novaState.canConfirm}
-            onClick={() => { if (novaBatalhaRef.current) novaBatalhaRef.current(); }}>
-            {novaState.saving
-              ? (tb.criando)
-              : (tb.criarBatalha)}
           </button>
         )}
           </header>
@@ -343,26 +396,7 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
         <div className="batalha-mng-page-body">
         {error && <div className="err-msg">{error}</div>}
 
-        {view === 'nova' ? (
-          <NovaBatalhaView
-            isEn={isEn}
-            pjsVinc={pjsVinc}
-            criaturasVinc={criaturasVinc}
-            criarRef={novaBatalhaRef}
-            onStateChange={setNovaState}
-            onCriar={async (participantes) => {
-              const { error: err } = await supabaseClient.from('batalhas').insert({
-                historia_id: historia.id,
-                mestre_id: currentUserId,
-                estado: 'setup',
-                participantes,
-              });
-              if (err) { setError(err.message); return; }
-              setView('lista');
-              carregar();
-            }}
-          />
-        ) : abrindo ? (
+        {abrindo ? (
           <ConduzirBatalhaView
             batalha={abrindo}
             historia={historia}
@@ -440,15 +474,14 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
 // ── ParticipantSection — seção reutilizável com eyebrow, filtro, bulk-select e grid 5 colunas
 // keys: array de strings "tipo:id" que pertencem a esta seção
 // items: array de { key, nome, meta, icone } já montado pelo pai
-function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDeselectAll, isEn, qtdMap, onQtd }) {
+function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDeselectAll, isEn, qtdMap, onQtd, semMassa = false, visiveis = null }) {
   const tb = tBat(isEn ? 'en' : 'pt'); // i18n-sync (Fase 3.3): este componente recebe o boolean
-  const { Input } = (typeof UI !== 'undefined' ? UI : {});
-  const [q, setQ] = useState('');
   const modoQtd = !!qtdMap; // true pra criaturas (stepper), false pra PJs (checkbox)
-  const filtered = q.trim()
-    ? items.filter((it) => it.nome.toLowerCase().includes(q.trim().toLowerCase()) ||
-                           it.meta.toLowerCase().includes(q.trim().toLowerCase()))
-    : items;
+  // Sem busca desde 07/11/2026 (usuário: "remova a barra de busca").
+  /* A folha (07/11/2026): na janela de criar a lista é paginada e a seção
+     desenha só a fatia da folha (`visiveis`); a contagem do título segue
+     sendo a da lista toda. */
+  const filtered = visiveis || items;
 
   const selCount = modoQtd
     ? Array.from(qtdMap.values()).filter((v) => v > 0).length
@@ -459,7 +492,6 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
   // estilos migrados para index.css (.part-section-eyebrow, .part-section-label,
   // .part-section-count, .part-section-bulk, .part-section-grid)
 
-  const [tip, abrirTip, fecharTip] = usePortalTooltip(300);
 
   if (items.length === 0) {
     return (
@@ -474,79 +506,68 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
 
   /* O NOME DA SEÇÃO (23/10/2026): só a dos animais tinha título; agora as
      três, no rótulo do sistema, com quantos estão marcados. */
+  /* Criaturas também dizem quantas entram (07/11/2026): a soma das
+     quantidades, que é quantos inimigos vão estar na mesa. */
+  const naLuta = modoQtd ? Array.from(qtdMap.values()).reduce((t, v) => t + (v > 0 ? v : 0), 0) : 0;
   const titulo = label ? (
     <p className="part-section-titulo">
       {label}
-      {!modoQtd && <span className="part-section-titulo-n">{isEn ? `${selCount} of ${items.length}` : `${selCount} de ${items.length}`}</span>}
+      <span className="part-section-titulo-n">{modoQtd
+        ? (isEn ? `${naLuta} in the fight` : `${naLuta} na luta`)
+        : (isEn ? `${selCount} of ${items.length}` : `${selCount} de ${items.length}`)}</span>
     </p>
   ) : null;
 
   return (
     <div className="part-section">
+      {/* A CABEÇA DA SEÇÃO (07/11/2026): o nome, quantos e as ações em
+          massa numa linha só, com a régua embaixo separando dos cartões. */}
+      <div className="part-section-cabeca">
       {titulo}
-      {/* Filtro inline com bulk actions — mesma linha */}
-      <div className="part-section-filter-row">
-        <div className="best-search">
-          <i className="ti ti-eye busca-ic" aria-hidden="true" />
-          <Input
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={isEn ? 'Search' : 'Buscar'}
-          />
-        </div>
+      {/* Sem ações em massa na página de criar batalha (07/11/2026, usuário:
+          "remova 'selecionar todos', 'desmarcar todos', 'uma de cada', etc.").
+          A janela de reforços segue com elas. */}
+      {!semMassa && (
+      <div className="part-section-filter-row sem-busca">
+        {/* AÇÕES EM MASSA COM NOME (07/11/2026): eram três ícones soltos
+            (copiar, proibido, mais) que só se explicavam no balão. */}
         <div className="part-section-bulk">
           {modoQtd ? (
             /* Criaturas: bulk actions — ícones representativos da ação */
             <>
-              <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, tb.umaDeCada)}
-                onMouseLeave={fecharTip}
+              <button type="button" className="part-bulk"
                 onClick={() => items.forEach((it) => onQtd(it.key, 1))}>
-                <i className="ti ti-copy" aria-hidden="true" />
+                {tb.umaDeCada}
               </button>
-              <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, tb.zerarTodas)}
-                onMouseLeave={fecharTip}
+              <button type="button" className="part-bulk"
+                onClick={() => items.forEach((it) => onQtd(it.key, (qtdMap.get(it.key) ?? 0) + 1))}>
+                {tb.maisUmaDeCada}
+              </button>
+              <button type="button" className="part-bulk"
                 disabled={selCount === 0}
                 onClick={() => items.forEach((it) => onQtd(it.key, 0))}>
-                <i className="ti ti-ban" aria-hidden="true" />
-              </button>
-              <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, tb.maisUmaDeCada)}
-                onMouseLeave={fecharTip}
-                onClick={() => items.forEach((it) => onQtd(it.key, (qtdMap.get(it.key) ?? 0) + 1))}>
-                <i className="ti ti-plus" aria-hidden="true" />
+                {tb.zerarTodas}
               </button>
             </>
           ) : (
             /* PJs: bulk actions originais */
             <>
-              <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, tb.selecionarTodos)}
-                onMouseLeave={fecharTip}
+              <button type="button" className="part-bulk"
                 disabled={allOn}
                 onClick={onSelectAll}>
-                <i className="ti ti-checkbox" aria-hidden="true" />
+                {tb.selecionarTodos}
               </button>
-              <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, tb.desmarcarTodos)}
-                onMouseLeave={fecharTip}
+              <button type="button" className="part-bulk"
                 disabled={noneOn}
                 onClick={onDeselectAll}>
-                <i className="ti ti-square" aria-hidden="true" />
-              </button>
-              <button type="button" className="btn-icon btn-sm"
-                onMouseEnter={(e) => abrirTip(e, tb.inverterSelecao)}
-                onMouseLeave={fecharTip}
-                onClick={() => items.forEach((it) => onToggle(it.key))}>
-                <i className="ti ti-switch-horizontal" aria-hidden="true" />
+                {tb.desmarcarTodos}
               </button>
             </>
           )}
         </div>
       </div>
-      <PortalTooltip tip={tip} onEnter={() => {}} onLeave={fecharTip} />
+      )}
+      </div>
 
       {/* Grid 5 colunas (13/09/2026) */}
       {filtered.length === 0 ? (
@@ -554,68 +575,50 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
           {tb.semResultados}
         </div>
       ) : (
-        <div className="part-section-grid">
+        <div className="part-section-grid part-section-grid--cartoes">
           {filtered.map((it) => {
             if (modoQtd) {
-              // Modo criatura: checkbox + nome inline; stepper aparece só quando selecionada (qtd > 0)
-              const qtd = qtdMap.get(it.key) ?? 1;
+              /* A QUANTIDADE É A ESCOLHA (07/11/2026, impeccable — usuário:
+                 "Melhore os cards de seleção de personagem, seleção de
+                 quantidade de inimigos"). Sem a caixinha: o cartão vazio diz
+                 "+" e um clique põe uma; marcado, o seletor fica à direita e o
+                 − até zero tira a criatura da luta. Só o nome no cartão, como
+                 pedido em 13/09/2026. */
+              const qtd = qtdMap.get(it.key) ?? 0;
               const ativa = qtd > 0;
               return (
                 <div
                   key={it.key}
-                  className={'hist-protag-item modo-qtd' + (ativa ? ' on' : '')}
-                  role="checkbox"
-                  aria-checked={ativa}
-                  tabIndex={0}
-                  onClick={() => onQtd(it.key, ativa ? 0 : 1)}
-                  onKeyDown={(e) => {
-                    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onQtd(it.key, ativa ? 0 : 1); }
-                  }}
+                  className={'hist-protag-item modo-qtd part-cri' + (ativa ? ' on' : '')}
+                  role="group"
+                  aria-label={it.nome}
                 >
-                  {/* Checkbox visual (não nativo) */}
-                  <div className="part-check-visual">
-                    {ativa && <i className="ti ti-check" aria-hidden="true" />}
+                  {/* O SELETOR DO INVENTÁRIO E DA LOJA (07/11/2026, usuário:
+                      "Melhore o seletor de quantidade e o +, para ficar igual
+                      da página de inventário / loja"). O mesmo
+                      QuantidadeStepper, no tamanho de lá, em toda linha — o 0
+                      é "fora da luta", e o + dele é o que põe a primeira. */}
+                  <EstagioDoCombatente estagio={it.estagio} isEn={isEn} />
+                  <span className="hist-protag-name">{it.nome}</span>
+                  <div className="part-qty-stepper">
+                    <QuantidadeStepper
+                      value={qtd} min={0}
+                      onChange={(v) => onQtd(it.key, v)}
+                      label={it.nome}
+                    />
                   </div>
-                  {/* Linha 1: nome + stepper inline (só quando ativa) */}
-                  <div className="part-item-row1">
-                    <span className="hist-protag-name">{it.nome}</span>
-                    {/* Era o SEXTO desenho de seletor de quantidade do sistema,
-                        e o mais escondido: só aparece na montagem da batalha, ao
-                        marcar uma criatura. Virou o do sistema como os outros
-                        (17/09/2026). O .part-qty-stepper em volta ficou só como
-                        caixa de posicionamento na linha do nome. */}
-                    {ativa && (
-                      <div className="part-qty-stepper" onClick={(e) => e.stopPropagation()}>
-                        <QuantidadeStepper
-                          value={qtd} min={1}
-                          onChange={(v) => onQtd(it.key, v)}
-                          label={it.nome}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  {/* Sem a linha de meta (tipo · estágio) desde 13/09/2026, a
-                      pedido do usuário: o card fica só com o nome. A meta
-                      continua servindo ao filtro de busca. */}
                 </div>
               );
             }
-            /* Modo PJ. Usava <input type="checkbox"> nativo dentro de um
-               <label>, enquanto a criatura ao lado desenhava a própria caixa
-               (.part-check-visual) — dois desenhos pro mesmo gesto, na mesma
-               tela, um do sistema operacional e outro da paleta. Padronizado
-               no desenhado em 17/09/2026 ("O botão de seleção de criaturas e
-               de personagens está diferente, padronize").
-
-               Deixou de ser <label> junto com o input: sem controle nativo o
-               label não tem o que rotular, e o clique é do <div> inteiro,
-               como já era no modo criatura. `role`/`aria-checked` devolvem ao
-               leitor de tela o que o checkbox nativo dava de graça. */
+            /* O PERSONAGEM SÓ COM O NOME (07/11/2026, usuário: "Remova as
+               informações abaixo do nome dos personagens nos cards e o
+               círculo com a inicial"). O cartão tem a altura do da criatura;
+               a marca de escolhido fica à direita, onde a criatura tem o "+". */
             const on = sel.has(it.key);
             return (
               <div
                 key={it.key}
-                className={'hist-protag-item' + (on ? ' on' : '')}
+                className={'hist-protag-item part-pessoa' + (on ? ' on' : '')}
                 role="checkbox"
                 aria-checked={on}
                 tabIndex={0}
@@ -624,16 +627,28 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
                   if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onToggle(it.key); }
                 }}
               >
-                <div className="part-check-visual">
-                  {on && <i className="ti ti-check" aria-hidden="true" />}
-                </div>
-                <div className="hist-protag-name">{it.nome}</div>
+                <EstagioDoCombatente estagio={it.estagio} isEn={isEn} />
+                <span className="hist-protag-name">{it.nome}</span>
+                <span className="part-marca" aria-hidden="true">{on && <i className="ti ti-check" />}</span>
               </div>
             );
           })}
         </div>
       )}
     </div>
+  );
+}
+
+/* O ESTÁGIO À FRENTE DO NOME (07/11/2026, usuário: "Adicione o estágio da
+   criatura e do aventureiro à frente do nome"). Uma casa de largura fixa, para
+   os nomes alinharem; sem estágio conhecido (companheiro), não aparece. */
+function EstagioDoCombatente({ estagio, isEn }) {
+  if (estagio == null || estagio === '') return null;
+  return (
+    <span className="part-estagio" aria-label={(isEn ? 'Stage ' : 'Estágio ') + estagio}>
+      <span className="part-estagio-rot" aria-hidden="true">{isEn ? 'St.' : 'Est.'}</span>
+      <span className="part-estagio-n" aria-hidden="true">{estagio}</span>
+    </span>
   );
 }
 
@@ -645,7 +660,8 @@ function ParticipantSection({ label, items, sel, onToggle, onSelectAll, onDesele
    nascem desmarcados (`pjsMarcados`), o texto de cima é outro (`intro`) e os
    bandos continuam a numeração dos que já lutam (`bandosExistentes`). */
 function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onStateChange,
-  pjsMarcados = true, intro = null, bandosExistentes = [] }) {
+  pjsMarcados = true, intro = null, bandosExistentes = [], treino = false, onTreino = null, pagina = 'aliados',
+  onPagina = null, folha = 1 }) {
   const tb = tBat(isEn ? 'en' : 'pt'); // i18n-sync (Fase 3.3): este componente recebe o boolean
   const nomePj = (p) => `${p.nome}${p.sobrenome ? ' ' + p.sobrenome : ''}`;
 
@@ -745,16 +761,35 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
     setSaving(false);
   };
 
+  /* AS FOLHAS DA JANELA DE CRIAR (07/11/2026, usuário: "No rodapé, teremos
+     apenas o menu de navegação das páginas, para não usar barra de rolagem
+     vertical"). Cada lado cabe em folhas de POR_FOLHA linhas; os aliados são
+     personagens e, depois, companheiros, numa sequência só. */
+  const POR_FOLHA = 8;
+  const _nAniLista = pjsVinc.filter((p) => selPj.has('pj:' + p.id)).reduce((t, p) => t + (animaisPorPj[p.id] || []).length, 0);
+  const _nLado = pagina === 'inimigos' ? criaturasVinc.length : pjsVinc.length + _nAniLista;
+  const _folhas = onTreino ? Math.max(1, Math.ceil(_nLado / POR_FOLHA)) : 1;
+
   // Expõe criar() ao pai via ref
   useEffect(() => { if (criarRef) criarRef.current = criar; });
 
   // Notifica o pai sobre mudanças de estado que afetam o footer do ModalShell
   useEffect(() => {
-    if (onStateChange) onStateChange({ saving, canConfirm: !saving && total > 0 && !semVinculados, total });
-  }, [saving, total, semVinculados]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (onStateChange) onStateChange({ saving, canConfirm: !saving && total > 0 && !semVinculados, total,
+      aliados: selPj.size + animaisEscolhidos.length, inimigos: totalCri, folhas: _folhas });
+  }, [saving, total, semVinculados, totalCri, _folhas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Monta arrays de itens para cada seção
-  const pjItems    = pjsVinc.map((p) => ({ key: 'pj:' + p.id, nome: nomePj(p), meta: [p.raca, p.profissao].filter(Boolean).join(' · ') }));
+  // Retrato e estágio no cartão do personagem (07/11/2026).
+  const _estagio = (typeof calcEstagio === 'function' ? calcEstagio : window.calcEstagio);
+  const pjItems    = pjsVinc.map((p) => ({
+    key: 'pj:' + p.id, nome: nomePj(p),
+    foto: p.foto_url || p.foto || p.avatar_url || null,
+    estagio: typeof _estagio === 'function' ? _estagio(p.experiencia || 0) : null,
+    meta: [p.raca, p.profissao,
+      typeof _estagio === 'function' ? `${isEn ? 'Stage' : 'Estágio'} ${_estagio(p.experiencia || 0)}` : null,
+    ].filter(Boolean).join(' · '),
+  }));
   // Animais só dos PJs marcados; o dono e "montado" vão na linha de baixo.
   const aniItems = pjsVinc.filter((p) => selPj.has('pj:' + p.id)).flatMap((p) =>
     (animaisPorPj[p.id] || []).map((a) => ({
@@ -762,51 +797,139 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
       nome: a.nome,
       meta: [nomePj(p), a.montado ? (isEn ? 'mounted' : 'montado') : null].filter(Boolean).join(' · '),
     })));
-  const criatItems = criaturasVinc.map((c) => ({ key: 'cri:' + c.id, nome: c.nome, meta: [c.tipo || null, c.estagio != null ? `${tb.estagio} ${c.estagio}` : null].filter(Boolean).join(' · ') }));
+  const criatItems = criaturasVinc.map((c) => ({ key: 'cri:' + c.id, nome: c.nome, estagio: c.estagio != null ? c.estagio : null, meta: [c.tipo || null, c.estagio != null ? `${tb.estagio} ${c.estagio}` : null].filter(Boolean).join(' · ') }));
 
   const selectAll   = (keys) => setSelPj((prev) => { const next = new Set(prev); keys.forEach((k) => next.add(k)); return next; });
   const deselectAll = (keys) => setSelPj((prev) => { const next = new Set(prev); keys.forEach((k) => next.delete(k)); return next; });
 
+  /* A MESA DE GUERRA (07/11/2026, impeccable, segunda rodada — usuário: "ainda
+     não ficou bom. Capriche nessa página"). Os dois lados da luta, lado a
+     lado, como num quadro de iniciativa: ALIADOS à esquerda, INIMIGOS à
+     direita, cada um num quadro de linhas com régua (.mn-quadro do sistema),
+     todas da mesma altura. Quem entra acende em ouro na própria linha — não
+     há um segundo lugar repetindo a escolha. No topo, o tipo de luta e o
+     placar (aliados × inimigos) em algarismos grandes.
+     A criatura escolhe a QUANTIDADE na linha: "+" põe uma, o seletor ajusta,
+     o − até zero tira. Na janela de reforços (sem onTreino) as seções seguem
+     empilhadas, sem placar. */
+  const _folha = Math.min(Math.max(1, folha), _folhas);
+  const _ini = (_folha - 1) * POR_FOLHA, _fim = _folha * POR_FOLHA;
+  const _paginar = !!onTreino;
+  const pjVis = _paginar ? pjItems.slice(_ini, _fim) : null;
+  const aniVis = _paginar ? aniItems.slice(Math.max(0, _ini - pjItems.length), Math.max(0, _fim - pjItems.length)) : null;
+  const criVis = _paginar ? criatItems.slice(_ini, _fim) : null;
+  const secPersonagens = _paginar && pjVis.length === 0 && pjItems.length > 0 ? null : (
+    <ParticipantSection
+      label={isEn ? 'Characters' : 'Personagens'}
+      visiveis={pjVis}
+      items={pjItems}
+      sel={selPj}
+      onToggle={togglePj}
+      onSelectAll={()  => selectAll(pjItems.map((i) => i.key))}
+      onDeselectAll={() => deselectAll(pjItems.map((i) => i.key))}
+      isEn={isEn}
+      semMassa={!!onTreino}
+    />
+  );
+  const secCompanheiros = aniItems.length > 0 && !(_paginar && aniVis.length === 0) ? (
+    <ParticipantSection
+      label={isEn ? 'Companions' : 'Companheiros'}
+      visiveis={aniVis}
+      items={aniItems}
+      sel={selAni}
+      onToggle={toggleAni}
+      onSelectAll={() => setSelAni((prev) => new Set([...prev, ...aniItems.map((i) => i.key)]))}
+      onDeselectAll={() => setSelAni((prev) => { const n = new Set(prev); aniItems.forEach((i) => n.delete(i.key)); return n; })}
+      isEn={isEn}
+      semMassa={!!onTreino}
+    />
+  ) : null;
+  const secCriaturas = (
+    <ParticipantSection
+      label={tb.criaturas}
+      visiveis={criVis}
+      items={criatItems}
+      sel={selPj}
+      onToggle={togglePj}
+      onSelectAll={null}
+      onDeselectAll={null}
+      isEn={isEn}
+      qtdMap={qtdCri}
+      onQtd={setQtd}
+      semMassa={!!onTreino}
+    />
+  );
+
+  // Janela de reforços: as seções empilhadas, como sempre foram.
+  if (!onTreino) {
+    return (
+      <>
+        <p className="subhead nova-batalha-intro">{intro || tb.essaEAHora}</p>
+        {secPersonagens}
+        {secCompanheiros}
+        {secCriaturas}
+      </>
+    );
+  }
+
+  /* UMA PÁGINA POR LADO (07/11/2026, usuário: "teremos uma página do modal
+     para selecionar os jogadores e uma página do modal para selecionar as
+     criaturas"). Quem troca a página e o tipo de luta é o rodapé
+     (NovaBatalhaRodape); aqui fica só a lista do lado escolhido, na largura
+     toda da janela. */
+  const inimigos = pagina === 'inimigos';
   return (
-    <>
-      <p className="subhead nova-batalha-intro">
-        {intro || tb.essaEAHora}
-      </p>
-      <ParticipantSection
-        label={isEn ? 'Characters' : 'Personagens'}
-        items={pjItems}
-        sel={selPj}
-        onToggle={togglePj}
-        onSelectAll={()  => selectAll(pjItems.map((i) => i.key))}
-        onDeselectAll={() => deselectAll(pjItems.map((i) => i.key))}
-        isEn={isEn}
-      />
-      {aniItems.length > 0 && (
-        <>
-          <ParticipantSection
-            label={isEn ? 'Companions' : 'Companheiros'}
-            items={aniItems}
-            sel={selAni}
-            onToggle={toggleAni}
-            onSelectAll={() => setSelAni((prev) => new Set([...prev, ...aniItems.map((i) => i.key)]))}
-            onDeselectAll={() => setSelAni((prev) => { const n = new Set(prev); aniItems.forEach((i) => n.delete(i.key)); return n; })}
-            isEn={isEn}
-          />
-        </>
-      )}
-      <ParticipantSection
-        label={tb.criaturas}
-        items={criatItems}
-        sel={selPj}
-        onToggle={togglePj}
-        onSelectAll={null}
-        onDeselectAll={null}
-        isEn={isEn}
-        qtdMap={qtdCri}
-        onQtd={setQtd}
-      />
-      {/* Footer renderizado pelo ModalShell do pai via onCancel/onConfirm — não há wiz-actions aqui */}
-    </>
+    <div className="nb-mesa">
+      <NovaBatalhaRodape isEn={isEn} treino={treino} onTreino={onTreino}
+        pagina={pagina} onPagina={onPagina || (() => {})}
+        aliados={selPj.size + animaisEscolhidos.length} inimigos={totalCri} />
+      <section className={'nb-lado ' + (inimigos ? 'nb-lado--inimigos' : 'nb-lado--aliados')}
+        id="nb-pagina" role="tabpanel"
+        aria-label={inimigos ? (isEn ? 'Enemies' : 'Inimigos') : (isEn ? 'Allies' : 'Aliados')}>
+        {inimigos ? secCriaturas : <>{secPersonagens}{secCompanheiros}</>}
+      </section>
+    </div>
+  );
+}
+
+/* OS SELETORES DA JANELA DE CRIAR (07/11/2026). Duas linhas do mesmo
+   tamanho, no topo do corpo, acima da lista: o tipo de luta (rádio Batalha |
+   Treino) e, embaixo, as páginas (Aliados | Inimigos, com quantos entram de
+   cada lado). Ficavam no rodapé; o usuário os quis acima de "Personagens". */
+function NovaBatalhaRodape({ isEn, treino, onTreino, pagina, onPagina, aliados = 0, inimigos = 0 }) {
+  const MODOS = [
+    [false, 'ti-swords', isEn ? 'Battle' : 'Batalha', isEn ? 'What happens stays on the sheets' : 'O que acontecer fica na ficha'],
+    [true, 'ti-school', isEn ? 'Training' : 'Treino', isEn ? 'Nothing goes to the sheets' : 'Nada vai para a ficha'],
+  ];
+  const PAGINAS = [
+    ['aliados', 'ti-shield', isEn ? 'Allies' : 'Aliados', aliados],
+    ['inimigos', 'ti-skull', isEn ? 'Enemies' : 'Inimigos', inimigos],
+  ];
+  return (
+    <div className="nb-rodape">
+      <div className="nova-batalha-modo" role="radiogroup" aria-label={isEn ? 'Kind of fight' : 'Tipo de luta'}>
+        {MODOS.map(([v, ic, nome, efeito]) => (
+          <button key={nome} type="button" role="radio" aria-checked={treino === v}
+            aria-description={efeito}
+            className={'nova-batalha-modo-op' + (treino === v ? ' is-on' : '')}
+            onClick={() => onTreino(v)}>
+            <i className={'ti ' + ic} aria-hidden="true" />
+            <span className="nova-batalha-modo-nome">{nome}</span>
+          </button>
+        ))}
+      </div>
+      <div className="nb-paginas" role="tablist" aria-label={isEn ? 'Sides' : 'Lados'}>
+        {PAGINAS.map(([id, ic, nome, n]) => (
+          <button key={id} type="button" role="tab" aria-selected={pagina === id} aria-controls="nb-pagina"
+            className={'nb-pagina-op' + (pagina === id ? ' is-on' : '')}
+            onClick={() => onPagina(id)}>
+            <i className={'ti ' + ic} aria-hidden="true" />
+            <span className="nb-pagina-nome">{nome}</span>
+            <span className={'nb-pagina-n' + (n ? ' is-vivo' : '')}>{n}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1595,8 +1718,10 @@ function pontosAcaoTecnicaPJ(pj) {
    Existir num lugar só é o ponto: o bônus vivia SÓ na virada de rodada, então
    na primeira rodada ninguém o recebia. Um combatente veloz agia uma vez na
    rodada 1 e duas da 2 em diante, sem nada explicando a diferença. */
-function paDaRodada(paBase, vbEfetivoDoP) {
+function paDaRodada(paBase, vbEfetivoDoP, semAcaoExtra) {
   const base = Math.max(0, Number(paBase) || 0);
+  // No limite da carga (91%+) não há ação extra (07/11/2026, FAIXAS_DE_CARGA).
+  if (semAcaoExtra) return base;
   return base + ((Number(vbEfetivoDoP) || 0) > 30 ? 1 : 0);
 }
 
@@ -1839,6 +1964,15 @@ function bonusIniciativaDe(p) {
   return Math.max(0, Math.min(BONUS_INICIATIVA_MAX, n));
 }
 
+/* O CONHECIMENTO ROUBADO NA LUTA (07/11/2026, Ritual de Sangue): o PJ entra
+   nos catálogos da batalha com o roubado somado (pjComConhecimentoRoubado,
+   01-core) — habilidade, magia ou técnica usável enquanto vale. Só leitura:
+   a batalha não grava habilidades, magias nem técnicas da ficha. */
+function comRouboNaBatalha(pj, dataJogo) {
+  const fn = typeof window !== 'undefined' && window.pjComConhecimentoRoubado;
+  return typeof fn === 'function' ? fn(pj, dataJogo) : pj;
+}
+
 async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
   const pools = personagensPools || {};
   // O vento da mesa na largada (ver useVentoDaBatalha): as viradas seguintes
@@ -1861,7 +1995,7 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
   ]);
   const catalogoBySlug = {};
   (itRes.data || []).forEach((it) => { catalogoBySlug[it.slug] = it; });
-  const pjById = {};  (pjRes.data  || []).forEach((p) => { pjById[p.id] = p; });
+  const pjById = {};  (pjRes.data  || []).forEach((p) => { pjById[p.id] = comRouboNaBatalha(p, dataJogo); });
   const criById = {}; (criRes.data || []).forEach((c) => { criById[c.id] = c; });
 
   // Animal marcado como montado sobe no cavalo já na largada (14/09/2026).
@@ -1998,7 +2132,11 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         // viu o outro antes. Soma na velocidade, entao mexe tambem no passo
         // do tabuleiro e na acao extra acima de 30, que e coerente: quem
         // reagiu mais rapido esta mais rapido.
-        vb: (d.velocidade || 0) + bonusIni, pa_max: pa, pa_rest: paDaRodada(pa, (d.velocidade || 0) + bonusIni - ventoVbLargada),
+        vb: (d.velocidade || 0) + bonusIni, pa_max: pa, pa_rest: paDaRodada(pa, (d.velocidade || 0) + bonusIni - ventoVbLargada, !!(d.carga && d.carga.semAcaoExtra)),
+        // A carga da ficha na largada (07/11/2026): a faixa tira a ação extra
+        // e entra nos testes de Agilidade (condicoes.pesado).
+        carga_pct: d.carga ? d.carga.pct : 0,
+        sem_acao_extra: !!(d.carga && d.carga.semAcaoExtra),
         vento_vb: ventoVbLargada,   // vento da mesa na largada — ver useVentoDaBatalha
         pa_tecnica_max: paTec, pa_tecnica_rest: paTec,
         eh: ehCur, eh_max: ehMax,
@@ -2034,7 +2172,7 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
          virada somava o mod_vb — uma Velocidade lançada antes da luta não dava
          a ação extra nem o passo maior na primeira rodada. */
       if (semeado === snapPj || somaEfeitosStatus(semeado, 'mod_vb') === 0) return semeado;
-      return { ...semeado, pa_rest: paDaRodada(pa, vbEfetivo(semeado)), mov_rest: movimentoBase(vbParaMovimento(semeado)) };
+      return { ...semeado, pa_rest: paDaRodada(pa, vbEfetivo(semeado), semeado.sem_acao_extra), mov_rest: movimentoBase(vbParaMovimento(semeado)) };
     }
     const c = criById[p.ref_id];
     if (!c) return { ...p, vb: 0, pa_max: 1, pa_rest: 1, eh: 0, eh_max: 0, ar: 0, ar_max: 0, ef: 0, ef_max: 0, karma: 0, karma_max: 0, defesa_sigla: 'L', defesa_valor: 0, rf: 0, rm: 0, status: 'ativo', ausente: true };
@@ -2239,8 +2377,27 @@ function consumirDoInventario(itens, slug, qtd) {
    Grava com a trava de versão (alterarInventario, 02/10/2026): escrita
    simultânea é reaplicada, não perdida.
    Cobertura: 12-batalha/consumo-item.test.js. */
-async function consumirItemDoPJ(pjId, slug, qtd) {
-  const r = await alterarInventario(pjId, (inv) => ({ ...inv, itens: consumirDoInventario(inv.itens || [], slug, qtd) }));
+/* ── MODO TREINAMENTO (07/11/2026) ─────────────────────────────────
+   "Esse modo não vai salvar os efeitos do combate na ficha." (usuário)
+   A batalha de treino (batalhas.treinamento) viaja em `catalogos.treinamento`.
+   Toda escrita no inventário DURANTE a luta passa por aqui: no treino, a
+   mudança vale só no cache da batalha (a lista do item, a flecha, o veneno)
+   e nada vai ao banco. O encerramento pula a ficha inteira (ver
+   finalizarEncerramento) e o RPC encerrar_batalha só apaga a linha. */
+function ehTreino(catalogos) {
+  return !!(catalogos && catalogos.treinamento);
+}
+async function alterarInventarioDaBatalha(pjId, fn, catalogos) {
+  if (ehTreino(catalogos)) {
+    const cache = catalogos.pjById && catalogos.pjById[pjId];
+    const inv = (cache && cache.inventario) || { itens: [] };
+    return { ok: true, inventario: fn(inv), treino: true };
+  }
+  return alterarInventario(pjId, fn);
+}
+
+async function consumirItemDoPJ(pjId, slug, qtd, catalogos) {
+  const r = await alterarInventarioDaBatalha(pjId, (inv) => ({ ...inv, itens: consumirDoInventario(inv.itens || [], slug, qtd) }), catalogos);
   return r.ok ? { ok: true, inventario: r.inventario } : { ok: false, error: r.error };
 }
 
@@ -2257,7 +2414,7 @@ async function consumirItemDoPJ(pjId, slug, qtd) {
 function consumirItemDaMagia(ator, magia, catalogos) {
   const item = magia && magia.item;
   if (!item || !item.consumivel || !ator || ator.tipo !== 'pj') return;
-  consumirItemDoPJ(ator.ref_id, item.slug, 1).then((r) => {
+  consumirItemDoPJ(ator.ref_id, item.slug, 1, catalogos).then((r) => {
     if (!r.ok) { console.error('[batalha] consumo de pergaminho falhou:', r.error); return; }
     const cache = catalogos && catalogos.pjById && catalogos.pjById[ator.ref_id];
     if (cache) catalogos.pjById[ator.ref_id] = { ...cache, inventario: r.inventario };
@@ -2300,13 +2457,13 @@ async function gastarMunicaoEVeneno(ator, arma, catalogos) {
     if (cache) catalogos.pjById[ator.ref_id] = { ...cache, inventario };
   };
   if (arma.flecha && arma.flecha.slug) {
-    const r = await consumirItemDoPJ(ator.ref_id, arma.flecha.slug, 1);
+    const r = await consumirItemDoPJ(ator.ref_id, arma.flecha.slug, 1, catalogos);
     if (!r.ok) { console.error('[batalha] gasto de flecha falhou:', r.error); return; }
     atualizarCache(r.inventario);
     return;
   }
   if (arma.veneno && arma.instanceId && typeof gastarAcaoDoVeneno === 'function') {
-    const r = await alterarInventario(ator.ref_id, (inv) => ({ ...inv, itens: gastarAcaoDoVeneno(inv.itens || [], arma.instanceId) }));
+    const r = await alterarInventarioDaBatalha(ator.ref_id, (inv) => ({ ...inv, itens: gastarAcaoDoVeneno(inv.itens || [], arma.instanceId) }), catalogos);
     if (!r.ok) { console.error('[batalha] gasto do veneno falhou:', r.error); return; }
     atualizarCache(r.inventario);
   }
@@ -4557,7 +4714,7 @@ function processarViradaDeRodada(p) {
   // montarNovaRodada — os três andam sempre juntos.
   const vbEf = vbEfetivo(p);
   let next = (p.status === 'ativo')
-    ? { ...p, pa_rest: paDaRodada(p.pa_max, vbEf),
+    ? { ...p, pa_rest: paDaRodada(p.pa_max, vbEf, p.sem_acao_extra),
               // O ponto exclusivo de técnica volta cheio, como o pa_rest.
               // Não acumula entre rodadas: quem não usou, perdeu.
               pa_tecnica_rest: p.pa_tecnica_max || 0,
@@ -5400,7 +5557,8 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
   const extraAtaque = novos
     .filter((s) => s.efeito && s.efeito.tipo === 'ataque_extra')
     .reduce((soma, s) => soma + (s.efeito.valor || 0), 0);
-  if (extraAtaque) {
+  // No limite da carga, a técnica não dá o ataque extra (07/11/2026).
+  if (extraAtaque && !participante.sem_acao_extra) {
     resultado = { ...resultado, pa_ataque_extra: (participante.pa_ataque_extra || 0) + extraAtaque };
   }
 
@@ -6445,7 +6603,7 @@ function quebrarConcentracao(participantes, atorInstId, motivo) {
 
    Os alvos são escolhidos na largada e REVALIDADOS na resolução — quem morreu
    ou saiu do alcance no meio é descartado lá (spec §4.3). */
-function iniciarEvocacao(p, magia, nivel, alvosIds, custoKarma) {
+function iniciarEvocacao(p, magia, nivel, alvosIds, custoKarma, karmaColuna) {
   if (!p || !magia) return p;
   const ev = evocacaoEmRodadas(magia);
   if (ev.bloqueada) return p;          // Ritual: nem cobra, nem cria estado
@@ -6461,6 +6619,10 @@ function iniciarEvocacao(p, magia, nivel, alvosIds, custoKarma) {
       alvos: Array.isArray(alvosIds) ? [...alvosIds] : [],
       rodadas_rest: ev.rodadas,
       karma_pago: Number(custoKarma) || 0,
+      /* O karma posto na COLUNA (07/11/2026) vai junto: a magia rola só na
+         resolução, e a coluna dela é o que o evocador escolheu na largada. */
+      ...(Number.isFinite(Number(karmaColuna)) && karmaColuna != null
+        ? { karma_coluna: Math.max(0, Number(karmaColuna)) } : {}),
     },
   };
 }
@@ -6814,8 +6976,8 @@ function SaqueModal({ alvo, criatura, catalogoBySlug, saqueadores, isEn, lang, o
 
 /* Grava o saque no inventário do PJ: soma no inventário do banco e grava com
    a trava de versão — ver adicionarAoInventario. Devolve { error }. */
-async function gravarSaqueNoPj(pjId, slug, qtd) {
-  const r = await alterarInventario(pjId, (inv) => adicionarAoInventario(inv, slug, qtd));
+async function gravarSaqueNoPj(pjId, slug, qtd, catalogos) {
+  const r = await alterarInventarioDaBatalha(pjId, (inv) => adicionarAoInventario(inv, slug, qtd), catalogos);
   return { error: r.ok ? null : r.error };
 }
 
@@ -7090,12 +7252,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         magiasByKey: {}, tecnicasByKey: {},
         habilidadesByKey: {}, habilidadesDb: habRes.data || [],
       };
-      (pjRes.data  || []).forEach((p) => { cat.pjById[p.id] = p; });
+      (pjRes.data  || []).forEach((p) => { cat.pjById[p.id] = comRouboNaBatalha(p, historia && historia.data_jogo_atual); });
       (itRes.data  || []).forEach((it) => { cat.catalogoBySlug[it.slug] = it; });
       (magRes.data || []).forEach((m) => { cat.magiasByKey[m.key] = m; });
       (tecRes.data || []).forEach((t) => { cat.tecnicasByKey[t.key] = t; });
       (habRes.data || []).forEach((h) => { cat.habilidadesByKey[h.key] = h; });
       (criRes.data || []).forEach((c) => { cat.criById[c.id] = c; });
+      // Treino (07/11/2026): nada da luta vai à ficha — ver ehTreino.
+      cat.treinamento = !!batalha.treinamento;
       setCatalogos(cat);
     })();
     return () => { cancelled = true; };
@@ -7722,7 +7886,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
     const cat = magia.catalogo || magia;
     next[atorIdx] = iniciarEvocacao(next[atorIdx], { ...cat, key: magia.key },
-      magia.nivel, [alvo && alvo.inst_id].filter(Boolean), k);
+      magia.nivel, [alvo && alvo.inst_id].filter(Boolean), k, magia.karma_coluna);
 
     const nRodadas = evocacaoEmRodadas(cat).rodadas;
     const entry = {
@@ -8069,7 +8233,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // status. Adiar isso exigiria carregar o consumo no snapshot até o fim e
     // ainda deixaria a bolsa mentindo durante toda a batalha.
     if (ator.tipo === 'pj') {
-      consumirItemDoPJ(ator.ref_id, slug, qtd).then((r) => {
+      consumirItemDoPJ(ator.ref_id, slug, qtd, catalogos).then((r) => {
         if (!r.ok) { console.error('[batalha] consumo de item falhou:', r.error); return; }
         // Reflete no cache local pra lista do AcaoPanel não esperar refetch.
         const cache = catalogos && catalogos.pjById && catalogos.pjById[ator.ref_id];
@@ -8393,9 +8557,13 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Desmonta todos antes: a EH emprestada volta ao animal (desmontarTodos).
     const participantesFinais = desmontarTodos(participantes);
     const pjsDaBatalha = participantesFinais.filter((p) => p.tipo === 'pj');
+    // TREINO (07/11/2026): nenhum dos passos 0 a 3 roda — a ficha, o
+    // inventário e as pools ficam como estavam antes da luta. Só o RPC, que
+    // apaga a linha sem arquivar nem mandar carne para a loja.
+    const treino = !!batalha.treinamento;
 
     // Data do jogo AGORA — o vencimento do status persistido sai dela.
-    const { data: histAtual } = historia && historia.id
+    const { data: histAtual } = !treino && historia && historia.id
       ? await supabaseClient.from('historias').select('data_jogo_atual').eq('id', historia.id).maybeSingle()
       : { data: null };
     const dataJogoFim = (histAtual && histAtual.data_jogo_atual) || null;
@@ -8403,7 +8571,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // 0) Condições + Vitalidade. Persiste TANTO condicoes (Saúde/Sono/etc.)
     // QUANTO vitalidade (EF/EH/AR/Karma) em estado_atual, que é o que a ficha
     // lê. Reads+writes em paralelo: cada PJ é linha independente.
-    if (pjsDaBatalha.length > 0) {
+    if (!treino && pjsDaBatalha.length > 0) {
       const resultados = await Promise.all(pjsDaBatalha.map(async (p) => {
         const { data: pjRow, error: pjErr } = await supabaseClient
           .from('personagens').select('estado_atual').eq('id', p.ref_id).maybeSingle();
@@ -8431,7 +8599,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       (mortosPorDono[p.dono_pj] = mortosPorDono[p.dono_pj] || []).push(p.item_instance_id);
     });
     const donos = Object.keys(mortosPorDono);
-    if (donos.length > 0) {
+    if (!treino && donos.length > 0) {
       const resultadosAni = await Promise.all(donos.map(async (donoId) => {
         const r = await alterarInventario(donoId, (inv) => inventarioSemAnimaisMortos(inv, mortosPorDono[donoId]));
         return r.ok ? { ok: true } : { ok: false, error: r.error };
@@ -8444,7 +8612,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // continua valendo "até consertar"). Pelo compare-and-swap do inventário;
     // inventarioComDesgaste devolve o mesmo objeto quando nada mudou.
     const comDesgaste = pjsDaBatalha.filter((p) => Array.isArray(p.armadura_pecas) && p.armadura_pecas.length);
-    if (comDesgaste.length > 0) {
+    if (!treino && comDesgaste.length > 0) {
       const resultadosArm = await Promise.all(comDesgaste.map(async (p) => {
         const r = await alterarInventario(p.ref_id, (inv) => inventarioComDesgaste(inv, p.armadura_pecas));
         return r.ok ? { ok: true } : { ok: false, error: r.error };
@@ -8454,7 +8622,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     }
 
     // 1) Lê personagens_pools atual da história (fresh).
-    if (historia && historia.id) {
+    if (!treino && historia && historia.id) {
       const { data: histRow, error: histErr } = await supabaseClient
         .from('historias').select('personagens_pools').eq('id', historia.id).maybeSingle();
       if (histErr) { setSalvando(false); setError(histErr.message); return; }
@@ -8656,9 +8824,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
             </div>
             <div className="ms-body batalha-encerrar-corpo">
             <div className="batalha-encerrar-aviso">
-              {tb.encerrarArquivaOLog}
+              {batalha.treinamento
+                ? (isEn ? 'Training: ending removes this battle and nothing goes to the sheets. Every character stays as before the fight.'
+                  : 'Treino: encerrar remove esta batalha e nada vai para as fichas. Cada personagem fica como estava antes da luta.')
+                : tb.encerrarArquivaOLog}
             </div>
-            <div className="batalha-encerrar-resumo">
+            {!batalha.treinamento && <div className="batalha-encerrar-resumo">
               {feridos.length > 0 && (
                 <span>
                   {feridos.length}{' '}{tb.feridoS}
@@ -8673,7 +8844,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
               {feridos.length === 0 && mortos.length === 0 && (
                 <span>{tb.todosOsPjsNo}</span>
               )}
-            </div>
+            </div>}
             </div>
             {/* Um caminho só: encerrar leva o estado do combate pra ficha.
                 O "Restaurar e encerrar" saiu em 01/09/2026 — ver o comentário
@@ -8686,7 +8857,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
               </div>
               <div className="ms-footer-right">
                 <button className="btn-primary" onClick={() => { fecharTip(); finalizarEncerramento(); }} disabled={salvando}
-                  onMouseEnter={(e) => abrirTip(e, tb.pjsFeridosMantemAs)}
+                  onMouseEnter={(e) => !batalha.treinamento && abrirTip(e, tb.pjsFeridosMantemAs)}
                   onMouseLeave={fecharTip}>
                   {tb.encerrar}
                 </button>
@@ -8911,7 +9082,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       disabled={travado} onClick={() => abrirAba('arma')} abrirTip={dicaTravado} fecharTip={fecharTip} />
                     <BotaoAcaoMenu icone="ti-sparkles" rotulo={isEn ? 'Spell' : 'Magia'} comRotulo
                       disabled={travado} onClick={() => abrirAba('magia')} abrirTip={dicaTravado} fecharTip={fecharTip} />
-                    <BotaoAcaoMenu icone="ti-target-arrow" rotulo={isEn ? 'Technique' : 'Técnica'} comRotulo
+                    <BotaoAcaoMenu icone="ti-school" rotulo={isEn ? 'Technique' : 'Técnica'} comRotulo
                       disabled={travado} onClick={() => abrirAba('tecnica_teste')} abrirTip={dicaTravado} fecharTip={fecharTip} />
                     <BotaoAcaoMenu icone="ti-flask" rotulo="Item" comRotulo
                       disabled={travado} onClick={() => abrirAba('item')} abrirTip={dicaTravado} fecharTip={fecharTip} />
@@ -9086,7 +9257,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           catalogoBySlug={catalogos.catalogoBySlug} saqueadores={saqueadores}
           isEn={isEn} lang={lang} onClose={() => setSaqueDe(null)}
           onPegar={async (pj, slug, qtd) => {
-            const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd);
+            const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd, catalogos);
             if (r.error) return r;
             const next = anotarSaque(participantes, alvo.inst_id, slug, qtd);
             await persistir({ participantes: next }, () => setParticipantes(next));
@@ -9594,6 +9765,35 @@ function NivelMagiaBarra({ niveis, valor, onChange, disabled, isEn }) {
   );
 }
 
+/* O KARMA DA COLUNA (07/11/2026): quanto o evocador põe na coluna de ataque
+   da magia de dano. Sem teto de regra — o teto é o karma que ele tem depois
+   de pagar o nível. A linha de baixo diz o total, porque é o total que sai. */
+function KarmaColunaCampo({ valor, max, custoNivel, karmaAtual, travado, pago, onChange, isEn }) {
+  const _Step = (typeof QuantidadeStepper === 'function') ? QuantidadeStepper : window.QuantidadeStepper;
+  const total = (Number(custoNivel) || 0) + (Number(valor) || 0);
+  return (
+    <div className="karma-coluna">
+      <span className="karma-coluna-rotulo">{isEn ? 'Karma on the column' : 'Karma na coluna'}</span>
+      {_Step && (
+        <_Step value={valor} min={0} max={Math.max(0, max)} disabled={travado}
+          onChange={onChange} label={isEn ? 'Karma on the column' : 'Karma na coluna'} />
+      )}
+      {!travado && max > 0 && valor < max && (
+        <button type="button" className="karma-coluna-max" onClick={() => onChange(max)}>
+          {isEn ? 'All' : 'Tudo'}
+        </button>
+      )}
+      <span className="karma-coluna-conta">
+        {pago
+          ? (isEn ? `Column ${valor}, paid when casting began.` : `Coluna ${valor}, paga na largada.`)
+          : (isEn
+            ? `Costs ${total} karma (${custoNivel} level + ${valor} column) · you have ${karmaAtual}`
+            : `Gasta ${total} de karma (${custoNivel} do nível + ${valor} da coluna) · você tem ${karmaAtual}`)}
+      </span>
+    </div>
+  );
+}
+
 /* SelectPill mora em 01-core/select-pill.jsx desde 25/09/2026 — uma peça só
    para o sistema inteiro, com a pele do seletor de data. */
 
@@ -9724,7 +9924,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       // "N" sem compra não se usa: nem entra na lista (30/10/2026).
       if (typeof bloqueioDaHabilidade === 'function' && bloqueioDaHabilidade(h, qtd)) return;
       const total = (typeof totalHabilidadeComCondicoes === 'function')
-        ? totalHabilidadeComCondicoes(key, pj.habilidades, atributosFicha, bonusObj, habsByKey, (ator && ator.condicoes) || pj.estado_atual?.condicoes)
+        ? totalHabilidadeComCondicoes(key, pj.habilidades, atributosFicha, bonusObj, habsByKey,
+          { ...((ator && ator.condicoes) || pj.estado_atual?.condicoes || {}), pesado: (ator && ator.carga_pct) || 0 })
         : (typeof totalHabilidade === 'function' ? totalHabilidade(key, pj.habilidades, atributosFicha, bonusObj, habsByKey) : null);
       // grupo: magia de dificuldade pode mirar o GRUPO inteiro (Conhecimento → Profissional).
       lista.push({ key, nome: h.nome, grupo: h.grupo, qtd: qtd || 0, total, ajuste: h.ajuste, descricao: h.descricao,
@@ -9966,6 +10167,16 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     : (evApoioIdx >= 0 ? evNivel : null));
   const magiaBase = magias[magiaIdx] || null;
   const magia = magiaNoNivel(magiaBase, nivelMagiaSel);
+  /* KARMA NA COLUNA (07/11/2026, usuário): "Ao selecionar uma magia para
+     usar, é necessário perguntar ao evocador qual nível a ser usado e quanto
+     de karma será usado na magia. O karma define a coluna de ataque da
+     magia, sem limite. (apenas para magia que causa dano)". E o custo soma:
+     nível 3 com 5 na coluna gasta 8 e ataca na coluna 5.
+     Só quem TEM karma escolhe: criatura não tem poço e segue na coluna do
+     nível (magiasDaCriaturaCrua). A magia do item não cobra o nível, mas o
+     karma da coluna sai do PJ que a usa. */
+  const [karmaColunaSel, setKarmaColunaSel] = useState(Number.isFinite(selSalva.karmaColunaSel) ? selSalva.karmaColunaSel : 0);
+  const escolheKarmaColuna = ator.tipo === 'pj';
 
   // ── Alvo (compartilhado) ───────────────────────────────────
   /* Resolvendo a canalização, o alvo é o da LARGADA (spec §4.3) — e se ele
@@ -10175,6 +10386,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
      a arma. Quem enxerga — Visão Animal, Luta às Cegas — não paga nada. */
   const modColunaAtor = somaEfeitosStatus(ator, 'mod_coluna')
     + penalidadeDeVisibilidade(ator, visibilidade);
+  /* A coluna da magia de dano é o karma posto nela (karmaColunaSel). Na
+     resolução da canalização vale o da largada, gravado em evocando; evocação
+     de antes desta regra, sem o campo, segue no nível. */
+  const karmaDaColuna = !magia ? 0
+    : resolvendoEvocacao
+      ? (Number.isFinite(Number(ator.evocando && ator.evocando.karma_coluna)) && ator.evocando.karma_coluna != null
+        ? Number(ator.evocando.karma_coluna) : magia.nivel)
+      : (escolheKarmaColuna ? Math.max(0, Number(karmaColunaSel) || 0) : magia.nivel);
   let coluna = null, colunaClamped = null, alvoResist = null;
   if (tab === 'arma' && arma && alvo) {
     const defEsc = defesaComEscolta(alvo, participantes);
@@ -10189,7 +10408,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'magia' && magia) {
     // Magia não tem grupo de arma: só os mod_ataque irrestritos valem.
-    coluna = magia.nivel + modColunaAtor + somaModAtaque(ator, null);
+    coluna = karmaDaColuna + modColunaAtor + somaModAtaque(ator, null);
     colunaClamped = Math.max(-7, Math.min(50, coluna));
   } else if (tab === 'habilidade' && habilidadeSel && habilidadeSel.total != null) {
     // + o bônus que alguma técnica tenha dado A ESTA habilidade (Remover
@@ -10247,7 +10466,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const dano = danoFinal(danoBruto, ator, alvo);
   // Resolvendo a canalização o karma já foi pago na largada — pedir de novo
   // travava a magia em "karma insuficiente" (13/09/2026).
-  const custoKarma = tab === 'magia' && magia && !resolvendoEvocacao ? magia.custo_karma : 0;
+  const custoKarma = tab === 'magia' && magia && !resolvendoEvocacao
+    ? (magia.custo_karma || 0) + (escolheKarmaColuna ? karmaDaColuna : 0) : 0;
+  // O teto do seletor: o karma que sobra depois de pagar o nível.
+  const karmaLivreColuna = Math.max(0, (ator.karma || 0) - ((magia && magia.custo_karma) || 0));
   const semKarma = custoKarma > 0 && (ator.karma || 0) < custoKarma;
   const semPA = (ator.pa_rest || 0) <= 0;
   // O ponto exclusivo de tecnica (Guerreiro/Ladino especializado) nao conta
@@ -10448,7 +10670,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const selecaoAtual = () => ({
     armaIdx, tecIdx, magiaIdx, alvoId: alvo ? alvo.inst_id : null, alvosExtras,
     apoioIdx, alvoApoioIdx, habKey, habDificuldade, tecTesteKey, tecAlvoIdx, tecAliados,
-    resTipo, forcaAtaque, forcaDefesa, nivelMagiaSel, nivelApoioSel,
+    resTipo, forcaAtaque, forcaDefesa, nivelMagiaSel, nivelApoioSel, karmaColunaSel,
   });
 
   // Reporta o estado de "rolagem pendente" pro pai sempre que muda.
@@ -10553,7 +10775,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     } else if (tab === 'magia') {
       onAplicar({
         tipo: 'magia',
-        magia, alvo,
+        magia: escolheKarmaColuna && magia ? { ...magia, karma_coluna: karmaDaColuna } : magia, alvo,
         /* Largada de magia canalizada não rola (res é null): `res.d20` jogava
            TypeError e o clique morria calado — "não consigo clicar para usar
            PA" (usuário, 13/09/2026, Relâmpago da Espada Sagae). aplicarAcao e
@@ -10945,6 +11167,17 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
               valor={magia.nivel}
               disabled={temRolagemPendente || resolvendoEvocacao}
               onChange={(n) => { setNivelMagiaSel(n); setD20(null); }}
+              isEn={isEn} />
+          )}
+          {magia && escolheKarmaColuna && (
+            <KarmaColunaCampo
+              valor={karmaDaColuna}
+              max={resolvendoEvocacao ? karmaDaColuna : karmaLivreColuna}
+              custoNivel={resolvendoEvocacao ? 0 : (magia.custo_karma || 0)}
+              karmaAtual={ator.karma || 0}
+              travado={temRolagemPendente || resolvendoEvocacao}
+              pago={resolvendoEvocacao}
+              onChange={(v) => { setKarmaColunaSel(v); setD20(null); }}
               isEn={isEn} />
           )}
 
@@ -11833,12 +12066,19 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       ]);
       if (cancel) return;
       const cat = { pjById: {}, criById: {}, catalogoBySlug: {}, magiasByKey: {}, tecnicasByKey: {}, habilidadesByKey: {}, habilidadesDb: habRes.data || [] };
-      (pjRes.data  || []).forEach((p) => { cat.pjById[p.id] = p; });
+      // A data do jogo decide se o roubo do Ritual de Sangue ainda vale.
+      const { data: histData } = batalha.historia_id
+        ? await supabaseClient.from('historias').select('data_jogo_atual').eq('id', batalha.historia_id).maybeSingle()
+        : { data: null };
+      if (cancel) return;
+      (pjRes.data  || []).forEach((p) => { cat.pjById[p.id] = comRouboNaBatalha(p, histData && histData.data_jogo_atual); });
       (itRes.data  || []).forEach((it) => { cat.catalogoBySlug[it.slug] = it; });
       (magRes.data || []).forEach((m) => { cat.magiasByKey[m.key] = m; });
       (tecRes.data || []).forEach((t) => { cat.tecnicasByKey[t.key] = t; });
       (habRes.data || []).forEach((h) => { cat.habilidadesByKey[h.key] = h; });
       (criRes.data || []).forEach((c) => { cat.criById[c.id] = c; });
+      // Treino (07/11/2026): nada da luta vai à ficha — ver ehTreino.
+      cat.treinamento = !!batalha.treinamento;
       setCatalogos(cat);
     })();
     return () => { cancel = true; };
@@ -12177,7 +12417,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
     const cat = magia.catalogo || magia;
     next[atorIdx] = iniciarEvocacao(next[atorIdx], { ...cat, key: magia.key },
-      magia.nivel, [alvo && alvo.inst_id].filter(Boolean), k);
+      magia.nivel, [alvo && alvo.inst_id].filter(Boolean), k, magia.karma_coluna);
 
     // Canalizar consome o turno: a vez passa sozinha e segue passando
     // enquanto a evocação prender (ver temAcaoRestante/proximoAtivo).
@@ -12426,7 +12666,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Consumo real no PRÓPRIO inventário (personagens RLS: user_id = auth.uid()).
     // Só o inventário — espelha aplicarItem do Mestre. Condição e vitalidade
     // do combate esperam o encerramento (decisão de 01/09/2026).
-    consumirItemDoPJ(meuParticipante.ref_id, slug, qtd).then((r) => {
+    consumirItemDoPJ(meuParticipante.ref_id, slug, qtd, catalogos).then((r) => {
       if (!r.ok) { console.error('[batalha-jogador] consumo de item falhou:', r.error); return; }
       const cache = catalogos && catalogos.pjById && catalogos.pjById[meuParticipante.ref_id];
       if (cache) catalogos.pjById[meuParticipante.ref_id] = { ...cache, inventario: r.inventario };
@@ -12671,8 +12911,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         </button>
         <div className="fp-flex-fill">
           <div className="ficha-page-eyebrow">
-            <i className="ti ti-swords" aria-hidden="true" />
-            {tb.batalha} · {tb.rodada} {rodada}
+            <i className={'ti ' + (batalha.treinamento ? 'ti-school' : 'ti-swords')} aria-hidden="true" />
+            {batalha.treinamento
+              ? (isEn ? 'Training · nothing goes to your sheet' : 'Treino · nada vai para a sua ficha')
+              : tb.batalha} · {tb.rodada} {rodada}
           </div>
           <h2 className="ms-title" style={{ margin: 0 }}>
             {meuParticipante ? meuParticipante.nome : (tb.batalha)}
@@ -12895,7 +13137,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
             catalogoBySlug={catalogos.catalogoBySlug} saqueadores={[meuParticipante]}
             isEn={isEn} lang={lang} onClose={() => setSaqueDe(null)}
             onPegar={async (pj, slug, qtd) => {
-              const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd);
+              const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd, catalogos);
               if (r.error) return r;
               await persistJogador({ participantes: anotarSaque(participantes, alvo.inst_id, slug, qtd) }, { manterAberto: true });
               if (batalha.historia_id) {
@@ -13123,7 +13365,7 @@ Object.assign(window, {
     // MESMO resultado que aplicarEfeitosItem (01-core) pro mesmo item — as
     // duas compartilham efeitosDoItem/aplicarDeltaCondicao justamente por
     // isso, e efeito-item-escala.test.js trava o acordo entre elas.
-    aplicarEfeitoItemSnapshot, consumirDoInventario, consumirItemDoPJ, magiasDeItensDoAtor,
+    aplicarEfeitoItemSnapshot, consumirDoInventario, consumirItemDoPJ, ehTreino, alterarInventarioDaBatalha, gravarSaqueNoPj, magiasDeItensDoAtor,
     venenoDoGolpe, aplicarVenenoSeChegouEf, gastarMunicaoEVeneno, textoVenenoDoGolpe,
     ehEvocacaoDeFimDaRodada, guardarMagiaPendente, pendenteParaResolver,
     // Edição manual das pools pelo card (clique na barra) — mesma regra de

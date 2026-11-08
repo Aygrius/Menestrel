@@ -251,7 +251,7 @@ function FichaVitBars({ bars, showValue, scope, onEdit, en, onHover, onHoverEnd,
                   saiu em 14/09/2026: a absorção fica no tooltip da barra. */}
             </span>
             )}
-            <div className="fp-bar-pill" aria-label={semNome ? b.label : undefined} {...(semNome ? hoverTip : {})}>
+            <div className="fp-bar-pill" data-nivel={b.nivel || undefined} aria-label={semNome ? b.label : undefined} {...(semNome ? hoverTip : {})}>
               {b.icon && (
                 <span className="fp-bar-icon" aria-hidden="true"
                   style={{ color: iconColor }}>
@@ -721,7 +721,7 @@ function FichaMedalhoes({ bars, scope = 'cond', onEdit, en, onHover, onHoverEnd 
         const rad = (v * 3.6 - 90) * Math.PI / 180;
         const vidro = `${uid}v${k}`, ferro = `${uid}f${k}`;
         return (
-          <div key={b.key} className={'fp-medalhao' + (v ? '' : ' is-zero') + m.className} {...m.props}>
+          <div key={b.key} className={'fp-medalhao' + (v ? '' : ' is-zero') + (v >= 75 ? ' is-critico' : '') + m.className} {...m.props}>
             <svg viewBox="0 0 86 86" aria-hidden="true">
               <defs><radialGradient id={vidro} cx="43" cy="43" r="40.5" gradientUnits="userSpaceOnUse">
                 <stop offset=".827" stopColor="#0E120C" stopOpacity=".95" /><stop offset=".88" stopColor="#262C20" stopOpacity=".6" />
@@ -2459,7 +2459,7 @@ function ritualDaMagia(m) {
   return texto && String(texto).trim() ? String(texto).trim() : null;
 }
 
-function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, animais, elosAtuais, lang, onClose, onEvocar, abrirTip, fecharTip, ritual, dataJogo }) {
+function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, animais, elosAtuais, lang, onClose, onEvocar, abrirTip, fecharTip, ritual, dataJogo, karmaAtual = null }) {
   const en = lang === 'en';
   const m = magia;
   const possui = passos != null;
@@ -2478,6 +2478,14 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
   const [nivelSel, setNivelSel] = useState(possui ? nivelAtual : null);
   // Alvo escolhido: 'self' (o próprio PJ) ou o id (string) de um colega.
   const [alvoSel, setAlvoSel] = useState(null);
+  /* Karma na coluna (07/11/2026): só na magia que causa dano no nível
+     escolhido. O teto é o karma que sobra depois de pagar o nível; sem o
+     karma de agora (o Mestre na ficha do jogador), não há teto a mostrar. */
+  const [karmaColuna, setKarmaColuna] = useState(0);
+  const deDano = nivelSel != null && typeof window.magiaCausaDanoNoNivel === 'function'
+    && window.magiaCausaDanoNoNivel(magia, nivelSel);
+  const karmaLivre = karmaAtual == null ? Infinity : Math.max(0, karmaAtual - (nivelSel || 0));
+  const kColuna = deDano ? Math.min(karmaColuna, karmaLivre) : 0;
 
   // Esc e o scroll do fundo: o BestDetalheModal cuida (26/09/2026).
 
@@ -2553,7 +2561,7 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
   const evocar = () => {
     if (!podeEvocar) return;
     const alvo = ALVOS.find((a) => a.id === alvoSel) || null;
-    if (onEvocar) onEvocar({ nivel: nivelSel, alvo });
+    if (onEvocar) onEvocar({ nivel: nivelSel, alvo, karmaColuna: deDano ? kColuna : 0 });
     onClose();
   };
 
@@ -2608,6 +2616,23 @@ function MagiaDetalhesModal({ magia, passos, nivelMagiaEfetivoFn, eu, colegas, a
           </button>
         );
       })}
+      {deDano && (
+        <div className="karma-coluna">
+          <span className="karma-coluna-rotulo">{en ? 'Karma on the column' : 'Karma na coluna'}</span>
+          <QuantidadeStepper value={kColuna} min={0} max={karmaLivre}
+            onChange={setKarmaColuna} label={en ? 'Karma on the column' : 'Karma na coluna'} />
+          {Number.isFinite(karmaLivre) && karmaLivre > 0 && kColuna < karmaLivre && (
+            <button type="button" className="karma-coluna-max" onClick={() => setKarmaColuna(karmaLivre)}>
+              {en ? 'All' : 'Tudo'}
+            </button>
+          )}
+          <span className="karma-coluna-conta">
+            {en
+              ? `Costs ${nivelSel + kColuna} karma (${nivelSel} level + ${kColuna} column)${karmaAtual != null ? ` · you have ${karmaAtual}` : ''}`
+              : `Gasta ${nivelSel + kColuna} de karma (${nivelSel} do nível + ${kColuna} da coluna)${karmaAtual != null ? ` · você tem ${karmaAtual}` : ''}`}
+          </span>
+        </div>
+      )}
       <div className="det-opt-grid det-alvos">
         {criaElo && ALVOS.length === 0 && (
           <p className="best-desc">{en ? 'The character has no animals to bond with.' : 'O personagem não tem animais para criar o elo.'}</p>
@@ -2937,6 +2962,16 @@ function FichaInfoView({
     const forca = Number(atributosFinais?.forca) || 0;
     const _bonus = (typeof bonusDoItem === 'function' ? bonusDoItem : window.bonusDoItem) || (() => 0);
     const _veneno = (typeof nomeComVeneno === 'function' ? nomeComVeneno : window.nomeComVeneno) || ((n) => n);
+    const _gerar = (typeof gerarAtaques === 'function' ? gerarAtaques : window.gerarAtaques);
+    const _ga = (typeof bonusGrupoArma === 'function' ? bonusGrupoArma : window.bonusGrupoArma) || (() => 0);
+    const lmpPorInstancia = {};
+    if (typeof _gerar === 'function') {
+      try {
+        for (const a of (_gerar(pj, catalogoBySlug, {}, atributosFinais) || [])) {
+          if (a && a.origem === 'arma' && a.instanceId != null && !lmpPorInstancia[a.instanceId]) lmpPorInstancia[a.instanceId] = a;
+        }
+      } catch (e) { /* sem L/M/P, a linha segue só com o dano */ }
+    }
     return itens
       .filter((it) => it && it.equipado && (it.slot === 'mao_d' || it.slot === 'mao_e'))
       .map((it) => ({ it, cat: catalogoBySlug && catalogoBySlug[it.slug] }))
@@ -2944,10 +2979,18 @@ function FichaInfoView({
       .sort((a, b) => (a.it.slot === 'mao_d' ? -1 : 1) - (b.it.slot === 'mao_d' ? -1 : 1))
       .map(({ it, cat }) => {
         const bonus = _bonus(it);
+        /* L/M/P (07/11/2026, usuário: "mostre junto com o dano da arma, o
+           L/M/P dela"): as colunas que a BATALHA usa — as de gerarAtaques
+           (catálogo + ajuste × 2 + fabricação) + o nível no grupo da arma,
+           o mesmo bonus_ga que colunaAtaque soma. */
+        const atq = lmpPorInstancia[it.instanceId];
+        const ga = _ga(cat.grupo_armas, pj.grupos_armas || {}) || 0;
+        const col = (k) => (atq && atq[k] != null ? Number(atq[k]) + ga : null);
         return {
           id: it.instanceId,
           nome: _veneno(cat.nome || it.slug, it) + (bonus > 0 ? ` +${bonus}` : ''),
           dano: (Number(cat.dano) || 0) + forca + bonus,
+          l: col('dano_l'), m: col('dano_m'), p: col('dano_p'),
         };
       });
   })();
@@ -2969,7 +3012,16 @@ function FichaInfoView({
       {armasEquipadas.length === 0 ? (
         <div className="fp-col-empty">{en ? 'No weapon equipped.' : 'Nenhuma arma equipada.'}</div>
       ) : armasEquipadas.map((a) => (
-        <Row key={a.id} label={a.nome} value={a.dano} />
+        <Row key={a.id} label={a.nome} value={
+          <span className="fp-arma-vals">
+            {a.l != null && (<>
+              <span><i>L</i>{a.l}</span>
+              <span><i>M</i>{a.m}</span>
+              <span><i>P</i>{a.p}</span>
+            </>)}
+            <span><i>{en ? 'Dmg' : 'Dano'}</i>{a.dano}</span>
+          </span>
+        } />
       ))}
     </SecaoInfo>
   );
@@ -3839,6 +3891,19 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       .catch(() => {});
     return () => { vivo = false; };
   }, []);
+  /* Livro → habilidades (07/11/2026): o Livro Inicial ensina também
+     habilidades; a janela Estudar da ficha as lista como as magias. */
+  const [vinculosHabLivros, setVinculosHabLivros] = useState({});
+  useEffect(() => {
+    let vivo = true;
+    const _paginada = (typeof fetchTabelaPaginada !== 'undefined' ? fetchTabelaPaginada : null) || window.fetchTabelaPaginada;
+    const _vinc = window.vinculosHabilidadesDeLivros;
+    if (!_paginada || !_vinc) return undefined;
+    Promise.resolve(_paginada('livro_habilidades', { colunas: 'livro_slug,habilidade_key', ordem: ['livro_slug', 'habilidade_key'] }))
+      .then((res) => { if (vivo && res && !res.error) setVinculosHabLivros(_vinc(res.data)); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
   const [tecnicas, setTecnicas] = useState(null);
   const [habilidades, setHabilidades] = useState(null);
   const [historiaPj, setHistoriaPj] = useState(null);       // { id, protagonista_ids } — história em que o PJ ativo está
@@ -3852,6 +3917,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const [error, setError] = useState(null);
   const [eqErro, setEqErro] = useState(null);
   const [seletorOpen, setSeletorOpen] = useState(false);
+  /* RITUAL DE SANGUE evocado pelo Mestre na ficha (07/11/2026): a janela de
+     escolha abre aqui mesmo. { nivel, alvo } ou null. */
+  const [ritualSangueAberto, setRitualSangueAberto] = useState(null);
   const [fpFull, setFpFull] = useState(false);
   const [fpTab, setFpTab] = useState(abaPedida || 'ficha');
   /* A BARRA LATERAL ESCOLHE A ABA (22/10/2026, "Mesa em Sessão"): Ficha,
@@ -4260,17 +4328,28 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     return _porNome(a, b);
   };
 
+  /* O PERSONAGEM EM USO (07/11/2026, Ritual de Sangue): o pj com o
+     conhecimento roubado somado (pjComConhecimentoRoubado, 01-core), enquanto
+     vale. É o que a ficha MOSTRA e USA — listas, testes, evocar, detalhes —,
+     nunca o que ela grava nem o que conta na compra (subir nível, pontos):
+     esses seguem lendo `pj`. Sem roubo vigente, pjUso é o próprio pj. */
+  const pjUso = (pj && typeof window.pjComConhecimentoRoubado === 'function')
+    ? window.pjComConhecimentoRoubado(pj, historiaPj && historiaPj.data_jogo_atual) : pj;
+  const rouboPj = pjUso && pjUso._roubado && !pjUso._roubado.superado ? pjUso._roubado : null;
+  const _ehRoubado = (tipo, key) => !!(rouboPj && rouboPj.tipo === tipo && rouboPj.key === key);
+  const _textoRoubo = rouboPj && window.textoDoConhecimentoRoubado ? window.textoDoConhecimentoRoubado(rouboPj, lang === 'en') : null;
+
   const habKeysPossuidas = useMemo(
-    () => new Set(Object.keys(pj?.habilidades || {})),
-    [pj?.habilidades]
+    () => new Set(Object.keys(pjUso?.habilidades || {})),
+    [pjUso?.habilidades]
   );
   const magKeysPossuidas = useMemo(
-    () => new Set(Object.keys(pj?.magias || {})),
-    [pj?.magias]
+    () => new Set(Object.keys(pjUso?.magias || {})),
+    [pjUso?.magias]
   );
   const tecKeysPossuidas = useMemo(
-    () => new Set(Object.keys(pj?.tecnicas || {})),
-    [pj?.tecnicas]
+    () => new Set(Object.keys(pjUso?.tecnicas || {})),
+    [pjUso?.tecnicas]
   );
 
   const catalogoHab = useMemo(
@@ -4616,6 +4695,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const itens = pj.inventario?.itens || [];
     const it = itens.find((x) => x.instanceId === instanceId);
     if (!it || !pjDestinoId) return { ok: false };
+    // Carga máxima de quem recebe (07/11/2026): recusa antes da RPC.
+    if (window.recebimentoEstouraCarga
+      && await window.recebimentoEstouraCarga(pjDestinoId, it.slug, qtd ?? it.quantidade)) {
+      setTransferErroFicha('Quem recebe está na carga máxima: precisa largar algo antes.');
+      return { ok: false };
+    }
     const { data, error } = await supabaseClient.rpc('transfer_item', {
       p_from_pj_id: pj.id,
       p_to_pj_id: pjDestinoId,
@@ -4718,7 +4803,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   /* `key` entra em 28/10/2026: a janela do atalho evoca direto, sem passar
      pelo estado `magiaDetalheKey` da janela antiga — que continua existindo
      para a consulta pelo Conhecimento. Sem a chave, vale a de antes. */
-  const aoEvocarMagia = ({ nivel, alvo, key }) => {
+  const aoEvocarMagia = ({ nivel, alvo, key, karmaColuna }) => {
     const chave = key || magiaDetalheKey;
     if (!chave) return;
     const mag = magiasByKey[chave];
@@ -4740,10 +4825,15 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     /* 'self' ainda é aceito aqui por segurança: foi o id que a janela usou
        até 15/09/2026, e uma aba aberta desde antes continua mandando ele. */
     const emMim = !alvo || String(alvo.id) === String(pj.id) || String(alvo.id) === 'self';
+    /* RITUAL DE SANGUE (07/11/2026): o conhecimento roubado pousa no próprio
+       evocador, e quem escolhe qual é o Mestre. Evocado pelo Mestre, a janela
+       abre aqui; pelo jogador, vira pedido na fila do Mestre (alvo = o
+       evocador), como a magia em terceiro. Não aplica nada na hora. */
+    const ritualSangue = podeEditarFoto && typeof window.ehRitualDeSangue === 'function' && window.ehRitualDeSangue(mag);
 
     const motivo = (typeof motivoNaoAplicaNaFicha === 'function')
       ? motivoNaoAplicaNaFicha(mag, nivel) : 'narrativa';
-    const aplicou = emMim && !motivo && podeEditarFoto;
+    const aplicou = !ritualSangue && emMim && !motivo && podeEditarFoto;
     /* A magia SAIU do conjurador? Saiu quando ela tem o que fazer fora de
        combate — não importa em quem o efeito vai pousar. É isso que decide o
        karma (degrau 2, 12/09/2026).
@@ -4760,8 +4850,16 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     /* Magia emprestada por item (06/11/2026, magiasDeItemPj): sem karma — a
        magia está no item, não em quem o usa. Mesma regra da batalha. */
     const doItem = !!magiasDeItemPj[chave];
-    const karma = !doItem && podeEditarFoto && typeof karmaDaEvocacaoForaDeCombate === 'function'
-      ? karmaDaEvocacaoForaDeCombate(motivo, nivel) : 0;
+    /* KARMA NA COLUNA (07/11/2026): a magia de dano pergunta quanto karma vai
+       na coluna de ataque, e o custo é o nível + a coluna — também fora da
+       batalha ("Em todos os lugares", usuário). Aqui ela não rola: a mesa
+       resolve o ataque, e o log diz em que coluna. */
+    const deDano = typeof magiaCausaDanoNoNivel === 'function' && magiaCausaDanoNoNivel(mag, nivel);
+    const kColuna = deDano ? Math.max(0, Number(karmaColuna) || 0) : null;
+    const karma = !podeEditarFoto ? 0
+      : deDano ? karmaTotalDaEvocacao(doItem ? 0 : nivel, kColuna)
+      : (!doItem && typeof karmaDaEvocacaoForaDeCombate === 'function'
+        ? karmaDaEvocacaoForaDeCombate(motivo, nivel) : 0);
 
     /* Karma quando o efeito NÃO pousa aqui (em terceiro, narrativa,
        duradoura): sai do conjurador agora, na linha dele — que é a única que
@@ -4787,7 +4885,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
          teste"). Duas versões divergiam — a do Mestre esquecia a ativa. */
       const novo = aplicarMagiaNoEstado(pj.estado_atual, mag, nivel, maximosVitalidade,
         historiaPj && historiaPj.data_jogo_atual,
-        doItem ? [] : [{ scope: 'vitalidade', key: 'ka', delta: -nivel }]);
+        karma > 0 ? [{ scope: 'vitalidade', key: 'ka', delta: -karma }] : []);
 
       if (novo !== pj.estado_atual) salvarEstadoAtual(novo);
     }
@@ -4806,7 +4904,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
        quando a magia REALMENTE saiu. Uma magia de rodada lançada num colega
        não está esperando ninguém — ela é de combate, e o texto tem que dizer
        isso em vez de prometer uma aprovação que nunca virá. */
-    const sufixo = aplicou ? ''
+    const sufixo = ritualSangue
+      ? (isMestre
+          ? (en ? ' — the GM picks the stolen knowledge.' : ' — o Mestre escolhe o conhecimento roubado.')
+          : (en ? ' — waiting for the GM to pick the stolen knowledge.' : ' — aguardando o Mestre escolher o conhecimento roubado.'))
+      : deDano
+      ? (en ? ` with ${kColuna} karma on the attack column — resolve the attack at the table.`
+            : ` com ${kColuna} de karma na coluna de ataque — resolva o ataque na mesa.`)
+      : aplicou ? ''
       : (pendente
           ? (en ? ' — awaiting the GM to apply it on the target.'
                 : ' — aguardando o Mestre aplicar no alvo.')
@@ -4843,12 +4948,16 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     /* A forma do `meta` mora em metaDeEvocacao (01-core), e não aqui: quem
        PRODUZ o pedido é esta tela, quem o CONSOME é o painel do Mestre, e a
        forma não pode ser descrita em dois lugares. */
+    const _alvoRitual = ritualSangue ? { id: pj.id, nome: nomePj } : alvo;
     registrarEventoMesa('magia', texto, metaDeEvocacao({
-      magia: mag, nivel, alvo, aplicou,
-      motivo: aplicou ? null : (pendente ? 'aprovacao_mestre' : motivo),
+      magia: mag, nivel, alvo: _alvoRitual, aplicou,
+      motivo: ritualSangue ? (isMestre ? 'ritual_de_sangue' : 'aprovacao_mestre')
+        : aplicou ? null : (pendente ? 'aprovacao_mestre' : motivo),
       karma,
       conjurador: nomePj,
+      karmaColuna: kColuna,
     }));
+    if (ritualSangue && isMestre) setRitualSangueAberto({ nivel, alvo: nomeAlvo });
   };
 
   // Resultado de um teste de habilidade (RolagemD20Overlay -> onResultado).
@@ -4870,8 +4979,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const key = testes[idx];
     const hab = habsByKey[key];
     const total = (_totHabCond || _totHab)(
-      key, pj.habilidades || {}, atributosFinais,
-      bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes,
+      key, pjUso.habilidades || {}, atributosFinais,
+      bonusHabilidades, habsByKey, _condComCarga, ficha.protecoes,
     );
     const nome = hab ? hab.nome : key;
     return {
@@ -4904,7 +5013,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const sucesso = comGrau ? grau !== 'FC' : !!(b.ultimo && b.ultimo.sucesso);
     const cat = catalogoBySlug[b.receita.resultado_slug];
     const r = window.fabricar(
-      itensPj, b.receita, pj.habilidades || {}, sucesso,
+      itensPj, b.receita, pjUso.habilidades || {}, sucesso,
       (window.horasDeFabricacao || (() => 0))(cat), undefined, pj.receitas_aprendidas || [],
       comGrau && sucesso ? { por: nomePj, grau } : undefined,
     );
@@ -5187,6 +5296,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     edit: { val: xpTotal, min: 0, max: xpMaximo },
     // "133/ o valor para completar o próximo estágio" (23/10/2026).
     teto: faixaEstagio.max,
+    /* A cor diz o quanto falta (07/11/2026, "só mude a cor da barra com o
+       peso e experiência"): verde a partir de 90% do estágio. */
+    nivel: estagioXpAtual / estagioSpan >= 0.9 ? 'quase' : undefined,
     tip: (en ? `Stage ${estagioNum} — ${estagioFaltaPct}% left` : `Estágio ${estagioNum} — ${estagioFaltaPct}% para o estágio ${estagioNum+1}`),
     color: corNivelBarra(estagioPct),
     icon: 'ti-star',
@@ -5198,6 +5310,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const _est   = pj.estado_atual || {};
   const _vitAt = _est.vitalidade || {};
   const _condAt = _est.condicoes || {};
+  // As condições com a carga, para o −2 de Agilidade da faixa (07/11/2026).
+  const _condComCarga = { ..._condAt, pesado: (ficha.derivadas && ficha.derivadas.carga && ficha.derivadas.carga.pct) || 0 };
   const _clampVal = (v, mx, mn = 0) => {
     const n = Math.round(Number(v));
     return Math.max(mn, Math.min(mx, Number.isFinite(n) ? n : mx));
@@ -5213,6 +5327,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const maxEF = Number(_d.energiaFisica) || 0;
   const maxEH = Number(_d.energiaHeroica) || 0;
   const maxKA = Number(_d.karmamax) || 0;
+  // O karma de agora: o teto do "Karma na coluna" das magias de dano (07/11/2026).
+  const karmaAtualPj = _clampVal(_vitAt.ka ?? maxKA, maxKA);
   // Animais do personagem (aba Animais, 14/09/2026): toda instância do
   // inventário vinculada a uma criatura. Sem nenhum, a aba não aparece.
   const animaisPj = (window.animaisDoPersonagem || (() => []))(pj.inventario?.itens, catalogoBySlug, criaturasDosAnimais);
@@ -5726,8 +5842,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   ) : (
     <>
       {catalogoHab.map((h) => {
-        const possui = Object.prototype.hasOwnProperty.call(pj.habilidades || {}, h.key);
-        const total = _totHab(h.key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey);
+        const possui = Object.prototype.hasOwnProperty.call(pjUso.habilidades || {}, h.key);
+        const total = _totHab(h.key, pjUso.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey);
         return (
           <div key={h.key} className={'fp2-statrow' + (possui ? '' : ' fp2-statrow--locked')}>
             <span
@@ -5750,7 +5866,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   ) : (
     <>
       {catalogoMag.map((m) => {
-        const passos = (pj.magias || {})[m.key];
+        const passos = (pjUso.magias || {})[m.key];
         const possui = passos != null;
         return (
           <div key={m.key} className={'fp2-statrow' + (possui ? '' : ' fp2-statrow--locked')}>
@@ -5774,8 +5890,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   ) : (
     <>
       {catalogoTec.map((t) => {
-        const possui = Object.prototype.hasOwnProperty.call(pj.tecnicas || {}, t.key);
-        const tot = _totTec(t, pj.tecnicas || {}, atributosFinais);
+        const possui = Object.prototype.hasOwnProperty.call(pjUso.tecnicas || {}, t.key);
+        const tot = _totTec(t, pjUso.tecnicas || {}, atributosFinais);
         return (
           <div key={t.key} className={'fp2-statrow' + (possui ? '' : ' fp2-statrow--locked')}>
             <span
@@ -6586,7 +6702,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const out = {};
     fn({ tipo: 'pj', ref_id: pj.id }, { pjById: { [pj.id]: pj }, catalogoBySlug: catalogoBySlug || {}, magiasByKey: magiasByKey || {} })
       .forEach((x) => {
-        if ((Number((pj.magias || {})[x.key]) || 0) > 0) return;
+        if ((Number((pjUso.magias || {})[x.key]) || 0) > 0) return;
         if (!out[x.key] || x.nivel > out[x.key].nivel) out[x.key] = x;
       });
     return out;
@@ -6596,18 +6712,20 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         key: h.key, nome: h.nome, grupo: h.grupo,
         descricao: h.descricao,
         restricao: textoDaRestricao(h, classeArmaduraPj, lang === 'en'),
-        bloqueio: bloqueioDaHabilidade(h, (pj.habilidades || {})[h.key], lang === 'en'),
+        bloqueio: bloqueioDaHabilidade(h, (pjUso.habilidades || {})[h.key], lang === 'en'),
         passosArmadura: passosDaArmaduraNaHabilidade(h, classeArmaduraPj),
         ajuste: (window.atributoPorExtenso ? window.atributoPorExtenso(h.ajuste, lang === 'en') : h.ajuste),
-        total: (_totHabCond || _totHab)(h.key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes),
-        nivel: Number((pj.habilidades || {})[h.key]) || 0,
-        subir: subirDe('habilidade', h),
+        total: (_totHabCond || _totHab)(h.key, pjUso.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _condComCarga, ficha.protecoes),
+        nivel: Number((pjUso.habilidades || {})[h.key]) || 0,
+        // Roubada (Ritual de Sangue): não se compra, e a casa diz de onde veio.
+        subir: _ehRoubado('habilidade', h.key) ? null : subirDe('habilidade', h),
+        roubado: _ehRoubado('habilidade', h.key) ? _textoRoubo : null,
       }))
     : [];
   const atalhoMagias = mostrarAtalhos
-    ? [...new Set([...Object.keys(pj.magias || {}), ...Object.keys(magiasDeItemPj)])].map((k) => magiasByKey[k]).filter(Boolean).map((m) => {
+    ? [...new Set([...Object.keys(pjUso.magias || {}), ...Object.keys(magiasDeItemPj)])].map((k) => magiasByKey[k]).filter(Boolean).map((m) => {
         const doItem = magiasDeItemPj[m.key] || null;
-        const nivelPj = doItem ? doItem.nivel : _nivelMag((pj.magias || {})[m.key]);
+        const nivelPj = doItem ? doItem.nivel : _nivelMag((pjUso.magias || {})[m.key]);
         return {
           key: m.key, nome: m.nome, nivel: nivelPj,
           // O item que empresta a magia (06/11/2026): a casa e o painel dizem
@@ -6625,7 +6743,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           niveis: [1, 3, 5, 7, 9]
             .map((n) => ({ n, titulo: m['nivel_' + n], valor: m['valor_' + n] }))
             .filter((nv) => (nv.titulo || nv.valor) && nv.n <= nivelPj),
-          subir: doItem ? null : subirDe('magia', m),
+          subir: doItem || _ehRoubado('magia', m.key) ? null : subirDe('magia', m),
+          roubado: _ehRoubado('magia', m.key) ? _textoRoubo : null,
         };
       })
     : [];
@@ -6633,13 +6752,14 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      conta da ficha (_totTec) e o que o catálogo conta dela. Só leitura —
      técnica se usa na batalha, não daqui. */
   const paginaTecnicas = fpTab === 'tecnicas'
-    ? Object.keys(pj.tecnicas || {}).map((k) => tecnicasByKey[k]).filter(Boolean).map((t) => ({
+    ? Object.keys(pjUso.tecnicas || {}).map((k) => tecnicasByKey[k]).filter(Boolean).map((t) => ({
         key: t.key, nome: t.nome, tipo: t.tipo,
-        nivel: (pj.tecnicas || {})[t.key] || 0,
-        total: _totTec ? _totTec(t, pj.tecnicas || {}, atributosFinais) : null,
+        nivel: (pjUso.tecnicas || {})[t.key] || 0,
+        total: _totTec ? _totTec(t, pjUso.tecnicas || {}, atributosFinais) : null,
         descricao: t.descricao, efeito: t.efeito, uso: t.uso,
         grupo_armas: t.grupo_armas, custo: t.custo,
-        subir: subirDe('tecnica', t),
+        subir: _ehRoubado('tecnica', t.key) ? null : subirDe('tecnica', t),
+        roubado: _ehRoubado('tecnica', t.key) ? _textoRoubo : null,
       }))
     : [];
   /* SUBIR NÍVEL PELA FICHA (05/11/2026, usuário: "Pode concluir o 'subir de
@@ -6700,29 +6820,26 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     if (fpTab !== 'tecnicas' && fpTab !== 'magias' && fpTab !== 'habilidades') return null;
     const fn = (nome) => window[nome] || null;
     const filaFn = fn('comFila');
-    /* A conta em palavras vai junto (06/11/2026): os pontos saíram do trilho
-       para o painel lateral, com o texto de como se chegou ao número. */
-    const explicar = fn('explicacaoDosPontos');
-    const comExplicacao = (tipo, r) => (explicar
-      ? { ...r, explicacao: explicar(tipo, pj, estagioNum, r.gasto, lang === 'en') } : r);
+    /* A conta em palavras (06/11/2026) saiu em 07/11/2026: o painel mostra
+       só o saldo (ver SeloPontos, paginas-ficha.jsx). */
     /* Habilidades ganham o selo em 05/11/2026: o "Subir nível" gasta deles,
        e quem compra precisa ver quanto sobra. */
     if (fpTab === 'habilidades') {
       const totalFn = fn('pontosHabilidadesTotal'); const gastoFn = fn('gastoHabilidades');
       if (!totalFn || !gastoFn) return null;
       const pagas = filaFn ? filaFn(pj.habilidades || {}, pj.treinos, 'habilidade') : (pj.habilidades || {});
-      return comExplicacao('habilidade', { total: totalFn(pj.profissao, estagioNum), gasto: gastoFn(pagas, habsByKey) });
+      return { total: totalFn(pj.profissao, estagioNum), gasto: gastoFn(pagas, habsByKey) };
     }
     if (fpTab === 'tecnicas') {
       const totalFn = fn('pontosTecnicasTotal'); const gastoFn = fn('gastoTecnicas');
       if (!totalFn || !gastoFn) return null;
       const pagas = filaFn ? filaFn(pj.tecnicas || {}, pj.treinos, 'tecnica') : (pj.tecnicas || {});
-      return comExplicacao('tecnica', { total: totalFn(pj.profissao, estagioNum, pj.intelecto_base), gasto: gastoFn(pagas, catalogoTec || []) });
+      return { total: totalFn(pj.profissao, estagioNum, pj.intelecto_base), gasto: gastoFn(pagas, catalogoTec || []) };
     }
     const totalFn = fn('pontosMagiasTotal'); const gastoFn = fn('gastoMagias');
     if (!totalFn || !gastoFn) return null;
     const pagas = filaFn ? filaFn(pj.magias || {}, pj.treinos, 'magia') : (pj.magias || {});
-    return comExplicacao('magia', { total: totalFn(pj.profissao, estagioNum, pj.intelecto_base, pj.aura_base), gasto: gastoFn(pagas, catalogoMag || []) });
+    return { total: totalFn(pj.profissao, estagioNum, pj.intelecto_base, pj.aura_base), gasto: gastoFn(pagas, catalogoMag || []) };
   })();
   /* ── O PASSO DA MAGIA, REGRA POR REGRA (28/10/2026) ─────────────────────
      A regra fica AQUI, onde os dados moram — eu com deus e sub-raça, os
@@ -6811,7 +6928,11 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const dono = !!podeEditarFoto;
     // Magia emprestada por item não gasta karma (06/11/2026): está no item.
     const doItem = magiasDeItemPj[key] || null;
+    /* Magia de dano (07/11/2026): o nível sempre custa — ela sai, e a mesa
+       resolve o ataque na coluna escolhida. A janela soma a coluna. */
+    const deDano = typeof magiaCausaDanoNoNivel === 'function' && magiaCausaDanoNoNivel(m, nivel);
     const karma = (!dono || doItem) ? 0
+      : deDano ? (Number(nivel) || 0)
       : (typeof karmaDaEvocacaoForaDeCombate === 'function'
         ? karmaDaEvocacaoForaDeCombate(motivo, nivel) : (Number(nivel) || 0));
     const NOTA = {
@@ -6825,7 +6946,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                       : 'Efeito narrativo, resolva na mesa.',
     };
     return {
-      karma, nota: (motivo && NOTA[motivo]) || null, alvos, ritual, bloqueio, dono,
+      karma, nota: deDano ? null : ((motivo && NOTA[motivo]) || null), alvos, ritual, bloqueio, dono,
+      deDano, karmaAtual: karmaAtualPj,
       item: doItem ? doItem.item.nome : null,
       euId: String(pj.id),
       /* Sem alvo a escolher: alcance pessoal, onde o único alvo é ele. */
@@ -6854,8 +6976,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const rolarHabilidade = (key, extra) => {
     const hab = habsByKey[key];
     if (!hab || !extra || !extra.dificuldade) return;
-    if (bloqueioDaHabilidade(hab, (pj.habilidades || {})[key])) return;
-    const total = (_totHabCond || _totHab)(key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes);
+    if (bloqueioDaHabilidade(hab, (pjUso.habilidades || {})[key])) return;
+    const total = (_totHabCond || _totHab)(key, pjUso.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes);
     const alvoHab = { nome: hab.nome, grupo: hab.grupo };
     // Magias de dificuldade ativas + o grau da armadura da restrição.
     const passos = ((typeof passosDasMagiasAtivas === 'function')
@@ -6918,6 +7040,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       magiasDb={magias}
       tecnicasDb={tecnicas}
       vinculos={vinculosLivros}
+      habilidadesDb={habilidades}
+      vinculosHab={vinculosHabLivros}
       pjAprendiz={pj}
       onMoverParaContainer={() => {}}
       /* `pjOrigemId` é o que faz a ação aparecer (ver acoesTopo); a
@@ -6935,6 +7059,11 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       onAbrirDetalhesFilho={(id) => {
         setVoltarPara({ tipo: 'item', peca: detalheCintoId });
         setDetalheCintoId(id);
+      }}
+      // O leque no Conteúdo do recipiente (07/11/2026) — ver lequeFicha.filhoDe.
+      onAbrirLequeFilho={(id, ancora) => {
+        const peca = itensPj.find((x) => x.instanceId === id);
+        if (peca && window.LequeDoItem) setLequeFicha({ inst: peca, filhoDe: detInst.instanceId, ancora });
       }}
       {...extra}
     />
@@ -7080,7 +7209,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             /* A bancada mora na atividade Fabricar (02/11/2026): a ficha rola,
                paga os materiais e, dando certo, liga a atividade. */
             receitas={receitas} receitasAprendidas={pj.receitas_aprendidas || []}
-            catalogoBySlug={catalogoBySlug} itens={itensPj} pjHabilidades={pj.habilidades || {}}
+            catalogoBySlug={catalogoBySlug} itens={itensPj} pjHabilidades={pjUso.habilidades || {}}
             habsByKey={habsByKey}
             onFabricar={podeEditarInv && podeEscolherAtividade ? pedirFabricacao : undefined}
             resultado={fabResultado} />
@@ -7232,7 +7361,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         /* EVOCA DIRETO (28/10/2026): nível, alvo e karma já foram escolhidos
            no segundo passo da própria janela, e o rodapé confirmou. */
         magiaPasso={magiaPassoDoAtalho}
-        onMagia={(key, extra) => aoEvocarMagia({ key, nivel: (extra && extra.nivel) || null, alvo: (extra && extra.alvo) || null })}
+        onMagia={(key, extra) => aoEvocarMagia({ key, nivel: (extra && extra.nivel) || null, alvo: (extra && extra.alvo) || null,
+          karmaColuna: (extra && extra.karmaColuna) || 0 })}
         /* USA DIRETO (28/10/2026): a janela nova mostra quantidade e efeito e
            confirma no rodapé, então não há mais por que abrir a janela cheia
            do item só para achar o botão Usar. `solicitarUsarFicha` é o mesmo
@@ -7280,6 +7410,33 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       const ehCont = !!cat && _ehContainer(cat);
       const { regiao, ancora } = lequeFicha;
       const sairDaRegiao = () => { setRegiaoAberta(null); setPecaNoModal(null); };
+      /* O LEQUE DENTRO DA MOCHILA VESTIDA (07/11/2026, usuário: "Ainda não
+         estou vendo o leque dos itens dentro das bolsas, etc."). A peça veio
+         do recipiente, não de uma região do boneco: a etapa fecha o
+         recipiente e o Voltar da janela reabre ele. Despir não se aplica. */
+      const doRecipiente = lequeFicha.container || null;
+      const filhoDe = lequeFicha.filhoDe || null;   // do Conteúdo da janela do recipiente
+      if (doRecipiente || filhoDe) {
+        return detalheFichaDe(it, {
+          onClose: () => setLequeFicha(null),
+          leque: {
+            ancora,
+            onJanela: (chave) => {
+              setLequeFicha(null);
+              if (doRecipiente) {
+                setVoltarPara({ tipo: 'container', container: doRecipiente });
+                setContFichaId(null);
+              } else setVoltarPara({ tipo: 'item', peca: filhoDe });
+              setAcaoFicha(chave ? { chave, n: Date.now(), id: it.instanceId } : null);
+              setDetalheCintoId(it.instanceId);
+            },
+          },
+          lequeExtras: [
+            ehCont && { chave: 'abrir', icone: 'ti-moneybag', rotulo: en ? 'Open' : 'Abrir',
+              onEscolher: () => { setLequeFicha(null); setContFichaId(it.instanceId); } },
+          ].filter(Boolean),
+        });
+      }
       /* Abrir e Despir são da ficha (a janela, em contexto "ficha", não
          equipa nem despe); Descartar, Transferir, Usar e Estudar vêm dela.
          Toda etapa abre a janela de detalhes, e o Voltar dela traz de volta
@@ -7451,6 +7608,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
               setContFichaId(null);
               setDetalheCintoId(id);
             }}
+            // O leque também aqui (07/11/2026) — ver lequeFicha.container.
+            onAbrirLeque={(id, ancora) => {
+              const peca = itensPj.find((x) => x.instanceId === id);
+              if (peca && window.LequeDoItem) setLequeFicha({ inst: peca, container: contFichaId, ancora });
+            }}
+            lequeId={lequeFicha ? lequeFicha.inst.instanceId : null}
           />
         );
       })()}
@@ -7488,6 +7651,27 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           protagonista da mesma história). "Evocar" fecha o modal e notifica
           a Central de Mensagens da Mesa (aoEvocarMagia); ainda NÃO aplica
           o efeito mecânico no alvo (curar/dano/buff é trabalho futuro). */}
+      {/* RITUAL DE SANGUE pelo Mestre (07/11/2026): escolhe o conhecimento e
+          o estágio; grava no estado do evocador e conta na mesa. */}
+      {ritualSangueAberto && window.RitualDeSangueModal && (
+        <window.RitualDeSangueModal lang={lang}
+          conjurador={primeiroNome(pj?.nome)}
+          nivelEvocado={ritualSangueAberto.nivel}
+          alvoInicial={ritualSangueAberto.alvo || ''}
+          onClose={() => setRitualSangueAberto(null)}
+          onConfirmar={async (roubo) => {
+            const novo = window.comConhecimentoRoubado(pj.estado_atual, roubo, historiaPj && historiaPj.data_jogo_atual);
+            salvarEstadoAtual(novo);
+            const _en = lang === 'en';
+            const tipoTxt = { habilidade: _en ? 'skill' : 'a habilidade', magia: _en ? 'spell' : 'a magia', tecnica: _en ? 'technique' : 'a técnica' }[roubo.tipo];
+            const quem = primeiroNome(pj?.nome);
+            registrarEventoMesa('magia', _en
+              ? `${quem} took the ${tipoTxt} ${roubo.nome} at level ${roubo.nivel}${roubo.alvo ? ` from ${roubo.alvo}` : ''}, by the Blood Ritual, for ten days.`
+              : `${quem} roubou ${tipoTxt} ${roubo.nome} no estágio ${roubo.nivel}${roubo.alvo ? ` de ${roubo.alvo}` : ''}, pelo Ritual de Sangue, por dez dias.`,
+              { conhecimento_roubado: novo.conhecimento_roubado });
+            setRitualSangueAberto(null);
+          }} />
+      )}
       {magiaDetalheKey && (() => {
         const mag = magiasByKey[magiaDetalheKey];
         if (!mag) return null;
@@ -7501,7 +7685,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           <MagiaDetalhesModal
             ritual={ritual}
             magia={mag}
-            passos={(pj.magias || {})[magiaDetalheKey] ?? null}
+            passos={(pjUso.magias || {})[magiaDetalheKey] ?? null}
             nivelMagiaEfetivoFn={_nivelMag}
             /* profissão, deus, sub-raça e estado (22/10/2026): a regra dos
                milagres precisa deles — sem o deus, todo milagre ficava
@@ -7515,6 +7699,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
             lang={lang}
             onClose={() => setMagiaDetalheKey(null)}
             onEvocar={aoEvocarMagia}
+            karmaAtual={podeEditarFoto ? karmaAtualPj : null}
             abrirTip={abrirTip}
             fecharTip={fecharTip}
           />
@@ -7535,8 +7720,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           const hab = habsByKey[consulta.key];
           const Corpo = window.BestHabilidadeFicha;
           if (!hab || !Corpo) return null;
-          const nivel = (pj.habilidades || {})[consulta.key] || 0;
-          const total = (_totHabCond || _totHab)(consulta.key, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes);
+          const nivel = (pjUso.habilidades || {})[consulta.key] || 0;
+          const total = (_totHabCond || _totHab)(consulta.key, pjUso.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes);
           return (
             <Janela title={hab.nome} lang={lang} onClose={fechar}>
               <Corpo h={hab} lang={lang} linhasExtras={linhas([
@@ -7548,8 +7733,8 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
           const tec = tecnicasByKey[consulta.key];
           const Corpo = window.BestTecnicaFicha;
           if (!tec || !Corpo) return null;
-          const nivel = (pj.tecnicas || {})[consulta.key] || 0;
-          const total = _totTec ? _totTec(tec, pj.tecnicas || {}, atributosFinais) : null;
+          const nivel = (pjUso.tecnicas || {})[consulta.key] || 0;
+          const total = _totTec ? _totTec(tec, pjUso.tecnicas || {}, atributosFinais) : null;
           return (
             <Janela title={tec.nome} lang={lang} onClose={fechar}>
               <Corpo t={tec} lang={lang} linhasExtras={linhas([
@@ -7561,7 +7746,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         const mag = magiasByKey[consulta.key];
         const Corpo = window.BestMagiaFicha;
         if (!mag || !Corpo) return null;
-        const passos = (pj.magias || {})[consulta.key];
+        const passos = (pjUso.magias || {})[consulta.key];
         const nivel = passos ? _nivelMag(passos) : 0;
         return (
           <Janela title={mag.nome} lang={lang} onClose={fechar}>
@@ -7580,12 +7765,12 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       {habilidadeDetalheKey && (() => {
         const hab = habsByKey[habilidadeDetalheKey];
         if (!hab) return null;
-        const total = (_totHabCond || _totHab)(habilidadeDetalheKey, pj.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes);
+        const total = (_totHabCond || _totHab)(habilidadeDetalheKey, pjUso.habilidades || {}, atributosFinais, bonusHabilidades, habsByKey, _est.condicoes, ficha.protecoes);
         return (
           <HabilidadeDetalhesModal
             habilidade={hab}
             total={total}
-            nivel={(pj.habilidades || {})[habilidadeDetalheKey] || 0}
+            nivel={(pjUso.habilidades || {})[habilidadeDetalheKey] || 0}
             lang={lang}
             onClose={() => setHabilidadeDetalheKey(null)}
             /* A dificuldade que VALE: a escolhida, deslocada pelas magias de
@@ -7593,7 +7778,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                (passosDeDificuldade). A escolhida vai junto para o log dizer
                "Médio → Fácil" em vez de trocar em silêncio. */
             restricaoTexto={textoDaRestricao(hab, classeArmaduraPj, lang === 'en')}
-            bloqueio={bloqueioDaHabilidade(hab, (pj.habilidades || {})[habilidadeDetalheKey], lang === 'en')}
+            bloqueio={bloqueioDaHabilidade(hab, (pjUso.habilidades || {})[habilidadeDetalheKey], lang === 'en')}
             onUsar={(p) => {
               setHabilidadeDetalheKey(null);
               const alvoHab = { nome: hab.nome, grupo: hab.grupo };

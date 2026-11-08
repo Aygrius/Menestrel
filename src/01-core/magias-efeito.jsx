@@ -475,6 +475,30 @@ function karmaDaEvocacaoForaDeCombate(motivo, nivel) {
   return Math.max(0, Number(nivel) || 0);
 }
 
+/* ── KARMA NA COLUNA (07/11/2026) ──────────────────────────────────
+   "Ao selecionar uma magia para usar, é necessário perguntar ao evocador
+   qual nível a ser usado e quanto de karma será usado na magia. O karma
+   define a coluna de ataque da magia, sem limite. (apenas para magia que
+   causa dano)". E, nas respostas do mesmo dia: o karma da coluna SOMA ao do
+   nível (nível 3 + 5 na coluna = 8), a coluna é só o karma posto nela, e
+   vale em todo lugar onde se evoca — batalha, janela da magia e atalho.
+
+   Magia que causa dano: o texto do nível diz o dano, ou a coluna `dano` do
+   catálogo, quando o nível não fala de redução. É o critério da aba Magia da
+   batalha (danoMagiaNoNivel, 12-batalha), aqui para a ficha usar também. */
+function magiaCausaDanoNoNivel(magia, nivel) {
+  if (!magia) return false;
+  const ef = efeitosNoNivel(magia, nivel) || {};
+  if (ef.dano != null) return ef.dano > 0;
+  if (ef.reducao_dano != null) return false;
+  return (Number(magia.dano) || 0) > 0;
+}
+
+/* O que sai do karma: o nível (zero na magia do item) mais o da coluna. */
+function karmaTotalDaEvocacao(custoNivel, karmaColuna) {
+  return Math.max(0, Number(custoNivel) || 0) + Math.max(0, Number(karmaColuna) || 0);
+}
+
 /* ── A magia POUSA na ficha: uma porta só ──────────────────────────
    Quem evoca em si mesmo (a ficha) e quem aprova a evocação no colega (o
    Mestre, na Central de Mensagens) escreviam cada um a sua versão — e a do
@@ -533,7 +557,7 @@ function pedidoDeMagiaPendente(meta) {
 /* O `meta` que a ficha grava ao evocar. Um lugar só para a forma do pedido:
    o painel do Mestre lê exatamente estes campos, e pedidoDeMagiaPendente
    acima é o leitor. */
-function metaDeEvocacao({ magia, nivel, alvo, aplicou, motivo, karma, conjurador }) {
+function metaDeEvocacao({ magia, nivel, alvo, aplicou, motivo, karma, conjurador, karmaColuna }) {
   return {
     magia: magia ? magia.nome : null,
     magia_key: magia ? magia.key : null,
@@ -546,6 +570,8 @@ function metaDeEvocacao({ magia, nivel, alvo, aplicou, motivo, karma, conjurador
     pendente: !aplicou && !!(alvo && motivo === 'aprovacao_mestre'),
     motivo: aplicou ? null : (motivo || null),
     karma_gasto: karma || 0,
+    // A coluna do ataque, quando a magia causa dano (07/11/2026).
+    ...(karmaColuna != null ? { karma_coluna: Math.max(0, Number(karmaColuna) || 0) } : {}),
   };
 }
 
@@ -1598,6 +1624,7 @@ Object.assign(window, {
   efeitosNoNivel, elementoDoNivel, escaladaNoNivel, curaEmDiasNoNivel,
   testeHabilidadeNoNivel, visaoEscuridaoNoNivel, DIFICULDADE_POR_NOME, MAGIA_ELEMENTOS_VALIDOS,
   classeDeDuracao, valeForaDeCombate, efeitosDeMagiaNaFicha, motivoNaoAplicaNaFicha, karmaDaEvocacaoForaDeCombate,
+  magiaCausaDanoNoNivel, karmaTotalDaEvocacao,
   pedidoDeMagiaPendente, metaDeEvocacao, pedidosDeMagiaAbertos,
   duracaoEmDiasDeJogo, magiaAtivaDaEvocacao, magiasAtivasVigentes,
   MAGIA_EFEITO_MAP, magiaEfeitoDe, subracaDaMagia, tetoEstagioNoNivel,

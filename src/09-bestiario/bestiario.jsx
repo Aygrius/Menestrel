@@ -3097,10 +3097,13 @@ function StatusNoTexto({ status, tom, children }) {
    Cada frase só nasce se o item tem o dado; o que o passe do topo já mostra
    (`fora`) não se repete aqui — a mesma regra das linhas. Toda pilha ocupa
    UMA casa da grade, por isso "1 casa livre" é fixo; o peso é o `ocupa`. */
-function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId } = {}) {
+function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId, semNumeros = false } = {}) {
   if (!it) return null;
   const en = lang === 'en';
-  const sai = (k) => fora && fora.has(k);
+  /* semNumeros (07/11/2026): o que é número — carga, armazena, defesa,
+     absorção, resistência, força, preço, dano, eficácia e alcance — vai para
+     as células de numerosDoItem, e a frase fica só com o que é palavra. */
+  const sai = (k) => (fora && fora.has(k)) || (semNumeros && NUMEROS_DO_ITEM.includes(k));
   const num = (v) => (en ? String(Number(v)) : String(Number(v)).replace('.', ','));
   const tem = (v) => v != null && v !== '' && Number(v) !== 0 && Number.isFinite(Number(v));
   const frases = [];
@@ -3146,7 +3149,7 @@ function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId } = {}) 
   }
 
   // 3. "Para equipá-lo, é necessário -2 força."
-  if (tem(it.forca_req)) {
+  if (!sai('forca') && tem(it.forca_req)) {
     frases.push(<React.Fragment key="forca">{en ? 'To equip it, you need ' : 'Para equipá-lo, é necessário '}
       <StatusNoTexto status="forca">{en ? `${num(it.forca_req)} strength` : `${num(it.forca_req)} força`}</StatusNoTexto>.</React.Fragment>);
   }
@@ -3171,7 +3174,7 @@ function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId } = {}) 
   /* 5. "Seu dano é 21 base, possui -2 armaduras pesadas, 0 armaduras médias e
      +2 armaduras leves." — de pesada para leve, com sinal. Quando o passe
      do topo já mostra o Dano, a frase diz só a eficácia. */
-  if (it.dano != null && it.dano !== '') {
+  if (!sai('eficacia') && it.dano != null && it.dano !== '') {
     const sinal = (v) => (Number(v) > 0 ? '+' + num(v) : num(v));
     const contra = [['dano_p', en ? 'heavy' : 'pesadas'], ['dano_m', en ? 'medium' : 'médias'], ['dano_l', en ? 'light' : 'leves']]
       .filter(([k]) => it[k] != null && it[k] !== '' && Number.isFinite(Number(it[k])))
@@ -3204,7 +3207,7 @@ function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId } = {}) 
       <StatusNoTexto status={atributo}>{en ? atributo : atributo.toLocaleLowerCase('pt-BR')}</StatusNoTexto></React.Fragment>);
   }
   const metros = Number(it.alcance);
-  if (Number.isFinite(metros) && metros > 0) {
+  if (!sai('alcance') && Number.isFinite(metros) && metros > 0) {
     oracoes.push(<React.Fragment key="alcance">{en ? 'its range is ' : 'seu alcance é de '}
       <StatusNoTexto>{en ? `${num(metros)} ${metros === 1 ? 'meter' : 'meters'}` : `${num(metros)} ${metros === 1 ? 'metro' : 'metros'}`}</StatusNoTexto></React.Fragment>);
   }
@@ -3262,6 +3265,69 @@ function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId } = {}) 
    de Frio/Calor). "Desonra" é a Má Fama com o nome antigo: a frase diz o
    nome de hoje. Sem os helpers carregados (teste que monta só o bestiário),
    não há frase — e as linhas antigas voltam (ver BestItemFicha). */
+/* OS NÚMEROS DO ITEM (07/11/2026, usuário: "ao invés de mostrar esse texto
+   'Para carregar este item é necessário 1,5 carga livre por unidade. Possui 1
+   defesa, 2 absorção e 2 resistência. Para equipá-lo, é necessário -1 força.
+   Seu preço original de comércio é 5 moedas de prata.', vamos mostrar os
+   números do item selecionado"). Cada dado é uma célula — rótulo pequeno
+   sobre o número, na cor do status (a mesma de StatusNoTexto). O que o passe
+   do topo já mostra (`fora`) não se repete. */
+const NUMEROS_DO_ITEM = ['ocupa', 'armazena', 'defesa', 'absorcao', 'resistencia', 'forca', 'valor', 'dano', 'eficacia', 'alcance'];
+function numerosDoItem(it, lang, { fora, resistenciaTexto } = {}) {
+  if (!it) return [];
+  const en = lang === 'en';
+  const sai = (k) => fora && fora.has(k);
+  const num = (v) => (en ? String(Number(v)) : String(Number(v)).replace('.', ','));
+  const tem = (v) => v != null && v !== '' && Number(v) !== 0 && Number.isFinite(Number(v));
+  const sinal = (v) => (Number(v) > 0 ? '+' + num(v) : num(v));
+  const c = [];
+  if (!sai('ocupa') && tem(it.ocupa)) c.push({ chave: 'ocupa', rotulo: en ? 'Load' : 'Carga', valor: num(it.ocupa), tom: 'forte' });
+  if (!sai('armazena') && Number(it.armazena) > 0) c.push({ chave: 'armazena', rotulo: en ? 'Stores' : 'Armazena', valor: num(it.armazena), tom: 'forte' });
+  if (!sai('defesa') && tem(it.defesa)) c.push({ chave: 'defesa', rotulo: en ? 'Defense' : 'Defesa', valor: num(it.defesa), tom: 'ciano' });
+  if (!sai('absorcao') && tem(it.absorcao)) c.push({ chave: 'absorcao', rotulo: en ? 'Absorption' : 'Absorção', valor: num(it.absorcao), tom: 'ciano' });
+  if (!sai('resistencia') && tem(it.resistencia)) {
+    const [agora, max] = String(resistenciaTexto != null ? resistenciaTexto : it.resistencia).split('/');
+    const gasta = max != null && Number(agora) < Number(max);
+    c.push({ chave: 'resistencia', rotulo: en ? 'Durability' : 'Resistência', tom: 'ciano',
+      valor: gasta ? <>{num(agora)}<small>/{num(max)}</small></> : num(agora) });
+  }
+  if (!sai('forca') && tem(it.forca_req)) c.push({ chave: 'forca', rotulo: en ? 'Strength' : 'Força', valor: num(it.forca_req) });
+  if (!sai('dano') && it.dano != null && it.dano !== '') c.push({ chave: 'dano', rotulo: en ? 'Damage' : 'Dano', valor: num(it.dano) });
+  /* DESTREZA (07/11/2026, usuário: "Pesadas, Médias, Leves vira 'Destreza' e
+     o valor aparece 7/4/6"): a eficácia contra armadura pesada, média e leve
+     numa linha só, nessa ordem, sem sinal. */
+  if (!sai('eficacia') && it.dano != null && it.dano !== '') {
+    const ef = ['dano_p', 'dano_m', 'dano_l'].map((k) => (it[k] != null && it[k] !== '' && Number.isFinite(Number(it[k])) ? num(it[k]) : null));
+    if (ef.some((v) => v != null)) {
+      c.push({ chave: 'eficacia', rotulo: en ? 'Dexterity' : 'Destreza', valor: ef.map((v) => (v == null ? '—' : v)).join('/') });
+    }
+  }
+  const metros = Number(it.alcance);
+  if (!sai('alcance') && Number.isFinite(metros) && metros > 0) {
+    c.push({ chave: 'alcance', rotulo: en ? 'Range' : 'Alcance', valor: <>{num(metros)}<small> m</small></> });
+  }
+  /* Sem o preço na visualização (07/11/2026, usuário: "Ainda na visualização
+     do item, remova o preço"). */
+  return c;
+}
+/* EM LISTA (07/11/2026, usuário: "As características do item na visualização
+   não fica melhor como lista?"): rótulo à esquerda, número à direita, uma
+   régua entre as linhas — o mesmo quadro de Alcance e Duração no painel da
+   magia (.mn-janela-quadro). */
+function ItemNumeros({ celulas }) {
+  if (!celulas || !celulas.length) return null;
+  return (
+    <dl className="mn-janela-quadro item-numeros">
+      {celulas.map((c) => (
+        <div key={c.chave} className="mn-janela-linha item-numero" data-numero={c.chave}>
+          <dt>{c.rotulo}</dt>
+          <dd className={'item-numero-valor' + (c.tom ? ' st-tom st-tom--' + c.tom : '')}>{c.valor}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function fraseDosEfeitos(it, en, num) {
   const emNumeros = window.efeitosEmNumeros;
   if (!emNumeros) return null;
@@ -3303,7 +3369,8 @@ function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, re
   const fora = new Set(omitir || []);
   const se = (chave, linha) => (fora.has(chave) ? null : linha);
   // O que a frase das Características diz sai das linhas (30/10/2026).
-  const frase = fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId });
+  const frase = fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId, semNumeros: true });
+  const numeros = numerosDoItem(it, lang, { fora, resistenciaTexto });
   return (
     <>
       <BestDescricao texto={it.descricao} lang={lang} />
@@ -3331,6 +3398,7 @@ function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, re
       <BestFichaLista titulo={lang === 'en' ? 'Traits' : 'Características'} colunas={2}>
         {/* A frase vem primeiro, na largura inteira; "Onde está" e o resto
             seguem como linhas, embaixo dela (30/10/2026). */}
+        {numeros.length > 0 && <li className="best-frase best-numeros"><ItemNumeros celulas={numeros} /></li>}
         {frase && <li className="best-frase">{frase}</li>}
         {/* Linhas da INSTÂNCIA (inventário): quantidade, onde está, bônus. */}
         {linhasDaInstancia}
@@ -3917,5 +3985,7 @@ Object.assign(window, {
   abreviarAlcance, eficaciaContraArmadura, ehArma,
   // A cor de cada status no texto e a frase do item (30/10/2026).
   tomDoStatus, StatusNoTexto, fraseDoItem,
+  // Os números do item em células (07/11/2026).
+  NUMEROS_DO_ITEM, numerosDoItem, ItemNumeros,
   IconeDoNome, ICONE_TIPO_MAGIA,
 });

@@ -217,12 +217,18 @@ describe('a ficha liga as magias dos itens (fonte)', () => {
   const ficha = readFileSync(resolve(__dirname, 'ficha.jsx'), 'utf8');
   it('usa a mesma porta da batalha', () => {
     expect(ficha).toMatch(/window\.MotorBatalha && window\.MotorBatalha\.magiasDeItensDoAtor/);
-    expect(ficha).toMatch(/new Set\(\[\.\.\.Object\.keys\(pj\.magias \|\| \{\}\), \.\.\.Object\.keys\(magiasDeItemPj\)\]\)/);
+    // pjUso desde 07/11/2026: o pj com o conhecimento do Ritual de Sangue somado.
+    expect(ficha).toMatch(/new Set\(\[\.\.\.Object\.keys\(pjUso\.magias \|\| \{\}\), \.\.\.Object\.keys\(magiasDeItemPj\)\]\)/);
   });
   it('evocar a magia do item não cobra karma, nem sobe nível', () => {
     expect(ficha).toMatch(/const doItem = !!magiasDeItemPj\[chave\];/);
-    expect(ficha).toMatch(/doItem \? \[\] : \[\{ scope: 'vitalidade', key: 'ka', delta: -nivel \}\]/);
-    expect(ficha).toMatch(/subir: doItem \? null : subirDe\('magia', m\)/);
+    // Desde 07/11/2026 o karma é um número só (nível + coluna da magia de dano),
+    // e o item zera o nível na origem.
+    expect(ficha).toContain('deDano ? karmaTotalDaEvocacao(doItem ? 0 : nivel, kColuna)');
+    expect(ficha).toContain(": (!doItem && typeof karmaDaEvocacaoForaDeCombate === 'function'");
+    expect(ficha).toContain("karma > 0 ? [{ scope: 'vitalidade', key: 'ka', delta: -karma }] : []");
+    // A roubada pelo Ritual de Sangue também não sobe (07/11/2026).
+    expect(ficha).toMatch(/subir: doItem \|\| _ehRoubado\('magia', m\.key\) \? null : subirDe\('magia', m\)/);
   });
 });
 
@@ -237,17 +243,19 @@ describe('os pontos moram no painel, com a conta', () => {
     try { fn(); } finally { window.matchMedia = antes; }
   };
   const pontos = { gasto: 0, total: 30, explicacao: 'Ladino ganha 10 pontos de habilidade por estágio.' };
+  /* Só o saldo, sem a conta, nas três (07/11/2026, usuário: "Na visualização,
+     remova 'Por estágio: …'") — mesmo se a explicação vier. */
   it.each([
     ['Habilidades', () => <window.PaginaHabilidades lang="pt" habilidades={HABS} onRolar={() => {}} pontos={pontos} />],
     ['Técnicas', () => <window.PaginaTecnicas lang="pt" tecnicas={[]} pontos={pontos} />],
     ['Magias', () => <window.PaginaMagias lang="pt" magias={[]} onEvocar={() => {}} pontos={pontos} />],
-  ])('%s: no topo do painel lateral, com a explicação', (_, el) => {
+  ])('%s: no topo do painel lateral, sem a explicação', (_, el) => {
     comTelaLarga(() => {
       render(el());
       const selo = document.querySelector('.pc-pontos');
       expect(selo.closest('aside.pc-painel')).toBeTruthy();
       expect(selo.querySelector('.pc-pontos-num').textContent).toBe('30/30');
-      expect(selo.querySelector('.pc-pontos-conta').textContent).toBe(pontos.explicacao);
+      expect(selo.querySelector('.pc-pontos-conta')).toBeNull();
     });
   });
 });

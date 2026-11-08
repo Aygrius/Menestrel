@@ -95,7 +95,10 @@ function noiteDeSono(hora) {
 
    As barras que o relógio não conhece (sanidade, euforia, reputação)
    atravessam intactas, e a saúde só muda no frio — o objeto é espalhado, não remontado. */
-function decaimentoPorHoras(condicoes, horaInicial, horas, tempo, atividade) {
+/* `consumoPct` (07/11/2026): a carga acelera fome, sede e sono — +25% de 76%
+   a 90% da capacidade, +50% acima (faixaDeCarga, game-data). Só a parte do
+   tempo; o calor continua o mesmo. A conta acumula fração e arredonda no fim. */
+function decaimentoPorHoras(condicoes, horaInicial, horas, tempo, atividade, consumoPct) {
   const n = Math.max(0, Math.trunc(Number(horas) || 0));
   const base = { ...(condicoes || {}) };
   if (n === 0) return base;
@@ -109,24 +112,27 @@ function decaimentoPorHoras(condicoes, horaInicial, horas, tempo, atividade) {
   let termo = _num(base.termorregulacao);
   let animo = _num(base.animo);
   let vitalidade = _num(base.vitalidade);
+  const mult = 1 + Math.max(0, Number(consumoPct) || 0) / 100;
 
   for (let i = 0; i < n; i++) {
     const hora = (inicio + i) % 24;
-    nutricao += FOME_POR_HORA;
-    hidratacao += SEDE_POR_HORA + temperatura.hidratacao;
+    nutricao += FOME_POR_HORA * mult;
+    hidratacao += SEDE_POR_HORA * mult + temperatura.hidratacao;
     termo += temperatura.termorregulacao;
     vitalidade += temperatura.vitalidade;
     // Quem dorme não se cansa: o +5 de sono do descanso SUBSTITUI o −2 da
     // noite (decisão de 24/09/2026). Quem soma o +5 é recuperacaoPorAtividade.
-    if (noiteDeSono(hora) && atividade !== 'dormindo') animo += SONO_POR_HORA;
+    if (noiteDeSono(hora) && atividade !== 'dormindo') animo += SONO_POR_HORA * mult;
   }
 
+  // Inteiros na barra: a fração da carga arredonda no fim, não a cada hora.
+  const r = mult === 1 ? (v) => v : Math.round;
   return {
     ...base,
-    nutricao: _trava(nutricao),
-    hidratacao: _trava(hidratacao),
+    nutricao: _trava(r(nutricao)),
+    hidratacao: _trava(r(hidratacao)),
     termorregulacao: _travaTemp(termo),
-    animo: _trava(animo),
+    animo: _trava(r(animo)),
     ...(temperatura.vitalidade ? { vitalidade: _trava(vitalidade) } : {}),
   };
 }

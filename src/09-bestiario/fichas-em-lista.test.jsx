@@ -215,7 +215,8 @@ describe('janelas do catálogo', () => {
     /* Desde 30/10/2026 o "Ocupa" é dito na frase das Características ("1 de
        peso livre por unidade"), com a mesma vírgula decimal. */
     expect(Object.fromEntries(linhas(det))['Ocupa']).toBeUndefined();
-    expect(document.querySelector('.best-frase-item').textContent).toMatch(/0,1 carga livre por unidade/);
+    // Célula "Carga" desde 07/11/2026, com a vírgula decimal.
+    expect(document.querySelector('[data-numero="ocupa"] .item-numero-valor').textContent).toBe('0,1');
   });
 });
 
@@ -341,12 +342,12 @@ describe('arma: eficácia contra cada armadura', () => {
   /* Desde 30/10/2026 é dito na frase das Características ("O dano máximo
      base é 20, possui +2 contra armaduras pesadas, 0 contra armaduras médias
      e -2 contra armaduras leves.", usuário), de pesada para leve. */
-  it('a janela da arma diz as três, na frase', async () => {
+  it('a janela da arma diz as três, numa linha "Destreza"', async () => {
     TABELAS.itens = [...TABELAS.itens, { slug: 'lanca', nome: 'Lança', grupo: 'Armas', categoria_equip: 'arma', dano: 20, dano_l: -4, dano_m: 0, dano_p: 4 }];
     const det = await abrir(window.ItensList, 'Lança');
-    // Aqui o Dano já está no passe do topo: a frase diz só a eficácia.
-    expect(det.querySelector('.best-frase-item').textContent)
-      .toMatch(/\+4 armaduras pesadas, 0 armaduras médias e -4 armaduras leves\./);
+    // Pesada/Média/Leve numa linha só, sem sinal (07/11/2026, usuário: "vira 'Destreza' e o valor aparece 7/4/6").
+    expect(det.querySelector('[data-numero="eficacia"] dt').textContent).toBe('Destreza');
+    expect(det.querySelector('[data-numero="eficacia"] .item-numero-valor').textContent).toBe('4/0/-4');
   });
 
   it('item que não é arma não mostra', async () => {

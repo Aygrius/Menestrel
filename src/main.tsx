@@ -45,6 +45,7 @@ import './01-core/clima-desgaste.jsx'   // o relógio da mesa desgasta o PJ (20/
 import './01-core/game-data.jsx'
 import './01-core/tecnicas-efeito.jsx'
 import './01-core/magias-efeito.jsx'
+import './01-core/ritual-de-sangue.jsx'  // o conhecimento roubado por dez dias (07/11/2026)
 import './01-core/status-efeito.jsx'   // status que sobrevive à batalha (17/09/2026)
 import './09-bestiario/ataques-criatura.jsx'
 import './09-bestiario/criatura-formulas.jsx'
@@ -70,6 +71,7 @@ import './09-bestiario/bestiario.jsx'
 import './09-bestiario/sugestoes-magias.jsx'
 import './09-bestiario/itens-campanha.jsx'
 import './10-shell/shell.jsx'
+import './10-shell/ritual-de-sangue-modal.jsx'   // a janela do Mestre no Ritual de Sangue (07/11/2026)
 // A galeria das pinturas ("Imagens", menu do usuário) — usa o ModalShell do shell.
 import './10-shell/galeria-imagens.jsx'
 import './10-shell/testes-combate.jsx'        // a simulação de batalha, para o Mestre (06/11/2026)

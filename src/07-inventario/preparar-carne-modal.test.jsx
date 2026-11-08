@@ -60,8 +60,24 @@ describe('Preparar na carne', () => {
     expect(receita('racao').disabled).toBe(false);
     expect(receita('refeicao').disabled).toBe(false);   // 1 + 1 de outra pilha
     expect(receita('banquete').disabled).toBe(true);
+    // O card escolhe; o rodapé prepara (07/11/2026). Escolher não prepara.
     fireEvent.click(receita('refeicao'));
+    expect(escolhas).toEqual([]);
+    expect(document.querySelector('[data-prato="refeicao"]')).toBeTruthy();
+    const preparar = document.querySelector('button[data-confirmar="preparar"]');
+    expect(preparar.textContent).toBe('Preparar Refeição');
+    fireEvent.click(preparar);
     expect(escolhas).toEqual([['i1', 'refeicao']]);
+  });
+
+  it('o prato escolhido mostra a descrição e os efeitos', () => {
+    const carne = inst('carne', 1);
+    abrir(carne, [carne], { onPrepararCarne: noop });
+    fireEvent.click(botaoPreparar());
+    fireEvent.click(document.querySelector('button[data-receita="racao"]'));
+    const prato = document.querySelector('[data-prato="racao"]');
+    expect(prato.textContent).toMatch(/Ração/);
+    expect(prato.querySelector('.det-prato-custo').textContent).toMatch(/Gasta 1× Carne — você tem 1./);
   });
 
   it('o que não é carne não tem Preparar', () => {

@@ -668,10 +668,13 @@ function pecaQuebrada(it) {
    exemplo". As peças de um conjunto dividem `itens.conjunto`; o KIT (o item
    que se compra e se desmonta nas peças) tem o mesmo `conjunto` e nenhuma
    região. Peça quebrada conta como peça faltando (decisão do mesmo dia). */
+/* Defesa do bônus reduzida em 07/11/2026 (usuário: "25 pontos de defesa leve
+   são muito"), junto com a defesa de cada peça: a Leve defende, a Média dura,
+   a Pesada absorve. A absorção do bônus não mudou. */
 const BONUS_CONJUNTO = {
-  L: { abs: 2, def: 4 },
-  M: { abs: 3, def: 3 },
-  P: { abs: 4, def: 2 },
+  L: { abs: 2, def: 2 },
+  M: { abs: 3, def: 1 },
+  P: { abs: 4, def: 0 },
 };
 
 function ehKitDeArmadura(cat) {

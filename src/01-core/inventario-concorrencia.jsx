@@ -125,6 +125,49 @@ function erroCheio() {
 const estoura = (antes, depois) => !!(window.bauEstourou
   && window.bauEstourou(antes && antes.itens, depois && depois.itens));
 
+/* A CARGA MÁXIMA (07/11/2026, usuário: "se um personagem tem 10/31, quer dizer
+   que ele não pode passar de 31"). Pegar, saquear, fabricar, usar a batalha —
+   tudo que grava o inventário passa por aqui. Só o que FAZ ENTRAR item é
+   barrado (entrouItem): largar, desequipar e reorganizar seguem livres.
+   A conta pede a Força/Físico do PJ e o catálogo dos itens dele, lidos só
+   quando entrou algo. Falha de leitura não trava: melhor deixar passar que
+   prender o inventário por uma rede ruim. */
+function erroCarga() {
+  const err = new Error(window.textoCargaMaxima ? window.textoCargaMaxima(false) : 'Carga máxima: largue algo antes.');
+  err.motivo = 'carga_maxima';
+  return err;
+}
+async function cargaEstoura(pjId, antes, depois) {
+  const itensA = (antes && antes.itens) || [];
+  const itensD = (depois && depois.itens) || [];
+  if (!window.cargaEstourouCom || !window.entrouItem || !window.entrouItem(itensA, itensD)) return false;
+  try {
+    const slugs = [...new Set(itensD.map((it) => it && it.slug).filter(Boolean))];
+    const [pjR, catR] = await Promise.all([
+      supabaseClient.from('personagens').select('*').eq('id', pjId).maybeSingle(),
+      supabaseClient.from('itens').select('*').in('slug', slugs),
+    ]);
+    if (pjR.error || !pjR.data || catR.error || !Array.isArray(catR.data)) return false;
+    const cat = Object.fromEntries(catR.data.map((r) => [r.slug, r]));
+    const atr = window.atributosEfetivosPJ ? window.atributosEfetivosPJ(pjR.data) : {};
+    return window.cargaEstourouCom(itensA, itensD, cat, atr.forca, atr.fisico);
+  } catch (_) { return false; }
+}
+
+/* RECEBER de outro PJ (07/11/2026): a transferência é RPC (transfer_item) e
+   não passa por alterarInventario, então quem dá confere a carga de quem
+   recebe antes. O item chega solto no baú, que é onde a RPC o põe. */
+async function recebimentoEstouraCarga(pjDestinoId, slug, quantidade) {
+  if (!pjDestinoId || !slug) return false;
+  try {
+    const r = await supabaseClient.from('personagens').select(COLS_INVENTARIO).eq('id', pjDestinoId).maybeSingle();
+    if (r.error || !r.data) return false;
+    const antes = { itens: (r.data.inventario && r.data.inventario.itens) || [] };
+    const depois = { itens: [...antes.itens, { instanceId: '__recebido', slug, quantidade: Math.max(1, Number(quantidade) || 1) }] };
+    return await cargaEstoura(pjDestinoId, antes, depois);
+  } catch (_) { return false; }
+}
+
 /* Para quem segura cópia (Inventário, Ficha). `local` foi derivado de `base`,
    que o banco tinha na `versao`. Sem diferença, não grava. */
 async function gravarInventario(pjId, { base, local, versao } = {}) {
@@ -132,6 +175,7 @@ async function gravarInventario(pjId, { base, local, versao } = {}) {
   if (mesmoValor(base, local)) return { ok: true, inventario: local, versao: Number(versao) || 0, gravou: false };
   // 80 casas (30/10/2026): recusa na tela, antes da ida ao banco.
   if (estoura(base, local)) return { ok: false, error: erroCheio() };
+  if (await cargaEstoura(pjId, base, local)) return { ok: false, error: erroCarga() };
   try {
     let alvo = local;
     let v = versao;
@@ -174,6 +218,7 @@ async function alterarInventario(pjId, fn) {
         return { ok: true, inventario: atual.inventario, versao: atual.versao, gravou: false };
       }
       if (estoura(atual.inventario, novo)) return { ok: false, error: erroCheio() };
+      if (await cargaEstoura(pjId, atual.inventario, novo)) return { ok: false, error: erroCarga() };
       const r = await gravarSeVersao(pjId, novo, atual.versao);
       if (r.error) return { ok: false, error: erroDe(r.error) };
       if (r.ok) return { ...r, gravou: true };
@@ -242,4 +287,5 @@ function criarGravadorInventario() {
   };
 }
 
-Object.assign(window, { mesmoValor, mesclarInventario, gravarInventario, alterarInventario, criarGravadorInventario });
+Object.assign(window, {
+  cargaEstoura, recebimentoEstouraCarga, mesmoValor, mesclarInventario, gravarInventario, alterarInventario, criarGravadorInventario });

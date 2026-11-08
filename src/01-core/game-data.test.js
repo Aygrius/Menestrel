@@ -313,15 +313,16 @@ describe('deltasPocosPorCondicoes — só malefício, em degraus', () => {
     expect(G.deltasPocosPorCondicoes({ sanidade: 100 })).toEqual({ ...zero, eh: -6 });
     expect(G.deltasPocosPorCondicoes({ termorregulacao: -100 })).toEqual({ ...zero, vb: -6 });   // Frio
     expect(G.deltasPocosPorCondicoes({ termorregulacao: 100 })).toEqual({ ...zero, eh: -6 });    // Calor
-    expect(G.deltasPocosPorCondicoes({ pesado: 75 })).toEqual({ ...zero, vb: -5 });
+    // O peso saiu dos degraus em 07/11/2026: tem faixas próprias (FAIXAS_DE_CARGA).
+    expect(G.deltasPocosPorCondicoes({ pesado: 75 })).toEqual(zero);
   });
 
   it('RF e RM têm teto de 4: 25 → 1, 50 → 2, 75 → 3, 100 → 4', () => {
     expect([25, 50, 75, 100].map((v) => G.deltasPocosPorCondicoes({ hidratacao: v }).rm)).toEqual([-1, -2, -3, -4]);
   });
 
-  it('Sono, Frio e Pesado se somam na Velocidade', () => {
-    expect(G.deltasPocosPorCondicoes({ animo: 100, termorregulacao: -50, pesado: 25 }).vb).toBe(-6 - 3 - 2);
+  it('Sono e Frio se somam na Velocidade; o Pesado não (faixas de carga, 07/11/2026)', () => {
+    expect(G.deltasPocosPorCondicoes({ animo: 100, termorregulacao: -50, pesado: 25 }).vb).toBe(-6 - 3);
   });
 
   it('Desonra não mexe em poço (é Influência) e a proteção entra', () => {

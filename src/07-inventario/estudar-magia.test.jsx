@@ -52,9 +52,11 @@ describe('EstudarMagiaModal', () => {
      são 9 livres — e, com uma escolha, quanto sobra depois dela. */
   it('mostra o saldo de pontos e o saldo depois da escolha', () => {
     abrir();
-    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/^9\s*de\s*10$/);
+    // "Magias 9/10" (07/11/2026): rótulo é a aba; o número, uma peça só.
+    expect(document.querySelector('.estudar-celula-pontos .mn-rotulo').textContent).toBe('Magias');
+    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/^9\/10$/);
     fireEvent.click(linhas()[0]);   // Bola de Fogo — custa 2
-    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/9\s*→\s*7\s*de\s*10/);
+    expect(document.querySelector('.estudar-pontos').textContent).toMatch(/9\s*→\s*7\/10/);
   });
 
   it('uma linha por magia com nível atual → próximo e custo do passo', () => {
@@ -75,7 +77,9 @@ describe('EstudarMagiaModal', () => {
   it('linha bloqueada mostra o motivo e não deixa confirmar', () => {
     abrir();
     fireEvent.click(linhas()[1]); // Luz: nível 3 passa do estágio 1
-    expect(document.querySelector('.estudar-motivo').textContent).toMatch(/estágio/);
+    // O motivo mora na linha; o rodapé é só o Aprender (07/11/2026).
+    expect(linhas()[1].querySelector('.estudar-bloqueio').textContent).toMatch(/estágio/);
+    expect(document.querySelector('.ms-footer').textContent).not.toMatch(/estágio|Fechar/);
     expect(confirmar().disabled).toBe(true);
   });
 
@@ -105,9 +109,45 @@ describe('EstudarMagiaModal', () => {
     expect(confirmar().disabled).toBe(false);
   });
 
+  /* Sem escolha, nada de "Escolha no quadro" (07/11/2026): o passe é só o saldo. */
+  it('sem escolha, o passe mostra só o saldo', () => {
+    abrir();
+    // O saldo mora no card ao lado da regra; sem escolha, o passe nem aparece.
+    expect(document.querySelector('.estudar-passe')).toBeNull();
+    expect(document.querySelector('.estudar-topo .estudar-saldo .estudar-pontos')).toBeTruthy();
+    expect(document.querySelector('.estudar-topo .estudar-como')).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Escolha no quadro/);
+  });
+
+  /* Como e quanto tempo (07/11/2026): a frase da aba e a célula da escolha. */
+  it('explica o aprendizado: magia nova leva 24 h na atividade da classe', () => {
+    abrir();
+    // O texto é o do usuário (07/11/2026), com as horas de HORAS_TREINO.
+    expect(document.querySelector('.estudar-como').textContent).toMatch(/^Aprender uma magia nova requer 24 horas de teoria e prática./);
+    expect(document.querySelector('.estudar-como').textContent).toMatch(/feitiço novo, é necessário estudar. Se for um milagre, oração./);
+    fireEvent.click(linhas()[0]);   // Bola de Fogo, Feitiço, ainda não sabida
+    expect(document.querySelector('.estudar-aprendizado').textContent).toBe('24 h em Estudar');
+  });
+
+  /* Uma aba por tipo (07/11/2026), cada uma com o seu quadro e o seu saldo. */
+  it('magias, técnicas e habilidades em abas, cada uma com o seu saldo', () => {
+    const ESQ = { key: 'esquiva', nome: 'Esquiva', custo: 1 };
+    const MED = { key: 'medicina', nome: 'Medicina', custo: 1, grupo: 'Conhecimento', nivel_inicial: 0 };
+    abrir({ tecnicas: [ESQ], tecnicasDb: [ESQ], habilidades: [MED], habilidadesDb: [MED] });
+    const abas = [...document.querySelectorAll('.estudar-abas [role="tab"]')];
+    expect(abas.map((a) => a.dataset.aba)).toEqual(['magia', 'tecnica', 'habilidade']);
+    expect(linhas()).toHaveLength(2);
+    fireEvent.click(abas[2]);
+    expect(linhas().map((l) => l.querySelector('.estudar-nome').textContent)).toEqual(['Medicina']);
+    expect(document.querySelector('.estudar-celula-pontos .mn-rotulo').textContent).toBe('Habilidades');
+    expect(document.querySelector('.estudar-como').textContent).toMatch(/Habilidade nova leva 12 horas em Treinar/);
+    fireEvent.click(abas[1]);
+    expect(document.querySelector('.estudar-como').textContent).toMatch(/Técnica nova leva 36 horas em Treinar/);
+  });
+
   it('item à venda: tudo bloqueado com o motivo', () => {
     abrir({ magias: [BOLA], opcoes: { ...OP, aVenda: true } });
-    expect(document.querySelector('.estudar-motivo').textContent).toMatch(/À venda/);
+    expect(linhas()[0].querySelector('.estudar-bloqueio').textContent).toMatch(/À venda/);
     expect(confirmar().disabled).toBe(true);
   });
 });

@@ -72,7 +72,8 @@ describe('criador sem magias', () => {
 describe('payload da edição', () => {
   it('não manda magias (a RPC aprender_magia grava por fora)', async () => {
     await montar({ personagemExistente: PJ, isMaster: true });
-    // Edição: todos os passos liberados — vai direto à Revisão e salva.
+    // Edição: todos os passos liberados — vai direto ao último passo e salva
+    // (a Revisão saiu em 07/11/2026; o último passo é quem salva).
     const segs = [...document.querySelectorAll('.wiz-fase')];
     await act(async () => { fireEvent.click(segs[segs.length - 1]); });
     const salvar = document.querySelector('.ms-footer .btn-primary');

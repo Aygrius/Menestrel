@@ -100,6 +100,6 @@ describe('motivo da técnica', () => {
     const CARA = { key: 'golpe', nome: 'Golpe Duplo', custo: 11 };
     render(<W.EstudarMagiaModal titulo="M" magias={[]} tecnicas={[CARA]} pj={pj}
       magiasDb={[]} tecnicasDb={[CARA]} opcoes={OP} lang="pt" onAprender={async () => ({ ok: true })} onClose={() => {}} />);
-    expect(document.querySelector('.estudar-motivo').textContent).toMatch(/Pontos de técnica insuficientes/);
+    expect(document.querySelector('.estudar-bloqueio').textContent).toMatch(/Pontos de técnica insuficientes/);
   });
 });

@@ -48,6 +48,11 @@ function ReceitaCorpo({
   const rende = (window.rendeDaReceita || (() => 1))(receita);
   const Icone = window.ItemIcone || null;
   const icone = (c) => (window.invItemIcon || (() => 'ti-box'))(c);
+  /* O nome do material no balão do sistema, como no conteúdo da bolsa. */
+  const useTip = window.usePortalTooltip || (() => [null, () => {}, () => {}, () => {}]);
+  const Balao = window.PortalTooltip || null;
+  const [tip, abrirTip, fecharTip, manterTip] = useTip(60);
+  const _propsTip = window.propsTip || (() => ({}));
   return (
     <>
       {!emPainel && cat.descricao && <div className="det-desc">{cat.descricao}</div>}
@@ -58,40 +63,50 @@ function ReceitaCorpo({
           {rende > 1 && <div><dt>{en ? 'Makes' : 'Rende'}</dt><dd>{rende}</dd></div>}
         </dl>
 
-        <ul className="fab-mats">
-          {mats.map((m) => {
-            const tem = disp(itens, m);
-            const falta = tem < m.qtd;
-            const cm = catalogoBySlug[m.slug];
-            return (
-              <li key={m.slug} className={'fab-mat' + (falta ? ' is-falta' : '')}>
-                <span className="fab-mat-ic">
-                  {Icone && cm ? <Icone cat={cm} icon={icone(cm)} /> : <i className={'ti ' + icone(cm)} aria-hidden="true" />}
-                </span>
-                <span className="fab-mat-nome">
-                  {m.nome || nomeDoMaterial(m.slug)}
-                  {m.ferramenta && <span className="fab-mat-ferramenta">{en ? ' · tool, 1 use' : ' · ferramenta, gasta 1 uso'}</span>}
-                </span>
-                <span className="fab-mat-conta">
-                  <strong>{tem}</strong>
-                  <span className="fab-mat-barra">/</span>
-                  {m.qtd}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        {/* OS MATERIAIS NAS CASAS DA BOLSA (07/11/2026, usuário: "os itens
+            para fabricação devem aparecer menores, como se estivessem dentro
+            de uma bolsa"). Era uma lista em que cada pintura enchia a largura
+            do painel e o nome colava na conta ("Lenha0/4"). Agora é a casa
+            do inventário: a pintura, o "tem/precisa" no canto, o nome no
+            balão; faltando, a casa e a conta vão para a brasa. */}
+        <section className="fab-mats-secao">
+          <h4 className="mn-rotulo">{en ? 'Materials' : 'Materiais'}</h4>
+          <ul className="inv-bag-grid inv-bag-grid--slots fab-mats">
+            {mats.map((m) => {
+              const tem = disp(itens, m);
+              const falta = tem < m.qtd;
+              const cm = catalogoBySlug[m.slug];
+              const nome = m.nome || nomeDoMaterial(m.slug);
+              const desc = (en ? `You have ${tem} of ${m.qtd}.` : `Você tem ${tem} de ${m.qtd}.`)
+                + (m.ferramenta ? (en ? ' Tool: spends 1 use.' : ' Ferramenta: gasta 1 uso.') : '');
+              return (
+                <li key={m.slug} className={'inv-card fab-mat' + (falta ? ' is-falta' : '')}
+                  tabIndex={0} aria-label={`${nome}: ${desc}`}
+                  {..._propsTip(abrirTip, fecharTip, { title: nome, desc })}>
+                  <span className="inv-card-head">
+                    <span className="inv-card-ic">
+                      {Icone && cm ? <Icone cat={cm} icon={icone(cm)} /> : <i className={'ti ' + icone(cm)} aria-hidden="true" />}
+                    </span>
+                  </span>
+                  {m.ferramenta && <i className="ti ti-hammer fab-mat-ferramenta" aria-hidden="true" />}
+                  <span className="fab-mat-conta" aria-hidden="true">{tem}<i>/{m.qtd}</i></span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
 
         {/* A regra do custo, à vista e sempre — é a que surpreende. */}
-        <p className="fab-receita-nota">
+        <p className="mn-janela-frase mn-janela-nota fab-receita-nota">
           {en
             ? 'The materials are spent on the attempt: if the roll fails, they are lost anyway.'
             : 'O material é gasto na tentativa: se o teste falhar, ele se perde do mesmo jeito.'}
         </p>
 
         {!estado.ok && (
-          <div className="err-msg" role="alert">{motivoLabel(estado, cat)}</div>
+          <p className="fab-receita-motivo" role="alert">{motivoLabel(estado, cat)}</p>
         )}
+        {Balao && <Balao tip={tip} onEnter={manterTip} onLeave={fecharTip} />}
       </div>
     </>
   );

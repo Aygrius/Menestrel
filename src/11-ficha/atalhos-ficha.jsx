@@ -98,6 +98,7 @@ const ATALHOS_TIPOS = [
    avisa quem abriu. */
 function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabilidade, onMagia, onItem, magiaPasso, naBarra = false, semBotoes = false, direto = null, onFecharDireto }) {
   const _ModalShell = (typeof window !== 'undefined' && window.ModalShell) || null;
+  const _QtdStep = (typeof window !== 'undefined' && window.QuantidadeStepper) || null;
   const en = lang === 'en';
   const [aberto, setAberto] = React.useState(null);   // 'habilidade' | 'magia' | 'item' | null
   /* O SEGUNDO PASSO DA MESMA JANELA (28/10/2026, pedido do usuário: "refazer
@@ -118,6 +119,10 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
      pedido para a fila do Mestre. */
   const [nivel, setNivel] = React.useState(null);
   const [alvo, setAlvo] = React.useState(null);
+  /* Karma na coluna da magia de dano (07/11/2026): soma ao do nível, e a
+     coluna do ataque é ele. Volta a zero quando o nível ou a magia mudam. */
+  const [karmaColuna, setKarmaColuna] = React.useState(0);
+  React.useEffect(() => { setKarmaColuna(0); }, [nivel, foco]);
   const [tipDif, abrirTipDif, fecharTipDif, manterTipDif] = useTooltip(60);
   const [busca, setBusca] = React.useState('');
   const rootRef = React.useRef(null);
@@ -213,6 +218,12 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
   /* UM MOTIVO SÓ, na ordem em que o jogador tropeça neles. A trava é a mesma
      do `podeEvocar` da janela antiga — milagre bloqueado, ritual sem itens,
      nível e alvo —, agora com o porquê escrito na linha. */
+  /* O que a coluna pode levar: o karma que sobra depois do nível. Sem o
+     karma de agora (quem não é o dono), não há teto. */
+  const karmaLivreMag = passoMag && passoMag.deDano && passoMag.dono !== false && Number.isFinite(passoMag.karmaAtual)
+    ? Math.max(0, passoMag.karmaAtual - (passoMag.karma || 0)) : Infinity;
+  const kColunaMag = passoMag && passoMag.deDano ? Math.min(karmaColuna, karmaLivreMag) : 0;
+  const karmaTotalMag = passoMag ? (passoMag.karma || 0) + (passoMag.dono === false ? 0 : kColunaMag) : 0;
   const faltaMagia = !passoMag ? null
     : passoMag.bloqueio ? passoMag.bloqueio
     : (passoMag.ritual && !passoMag.ritual.ok)
@@ -301,7 +312,8 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
               tipoAberto.id === 'magia'
                 /* Alcance pessoal não pergunta o alvo: o único é ele mesmo, e
                    é ele que segue para a evocação. */
-                ? { nivel, alvo: alvo || (passoMag && passoMag.semAlvo ? passoMag.alvos[0] : null) }
+                ? { nivel, alvo: alvo || (passoMag && passoMag.semAlvo ? passoMag.alvos[0] : null),
+                    ...(passoMag && passoMag.deDano ? { karmaColuna: kColunaMag } : {}) }
                 : { dificuldade }),
             confirmLabel: en ? tipoAberto.verboEn : tipoAberto.verbo,
             confirmDisabled: faltaEscolher || !!faltaMagia || !!faltaHabilidade,
@@ -320,7 +332,7 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
                 {/* O quadro diz o que a magia CUSTA e por quanto tempo vale.
                     Karma é número (20px); alcance e duração são palavra. */}
                 <dl className="mn-janela-quadro">
-                  <div className="mn-janela-linha"><dt>{en ? 'Karma' : 'Karma'}</dt><dd>{passoMag.karma}</dd></div>
+                  <div className="mn-janela-linha"><dt>{en ? 'Karma' : 'Karma'}</dt><dd>{karmaTotalMag}</dd></div>
                   {foco.alcance && (
                     <div className="mn-janela-linha is-texto">
                       <dt>{en ? 'Range' : 'Alcance'}</dt><dd>{foco.alcance}</dd>
@@ -361,6 +373,23 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
                     );
                   })()}
                 </section>
+                )}
+
+                {/* KARMA NA COLUNA (07/11/2026): só na magia que causa dano.
+                    "O karma define a coluna de ataque da magia, sem limite." */}
+                {passoMag.deDano && !!nivel && (
+                  <section className="mn-janela-escolha">
+                    <h4 className="mn-rotulo">{en ? 'Karma on the column' : 'Karma na coluna'}</h4>
+                    <div className="karma-coluna">
+                      {_QtdStep && <_QtdStep value={kColunaMag} min={0} max={karmaLivreMag}
+                        onChange={setKarmaColuna} label={en ? 'Karma on the column' : 'Karma na coluna'} />}
+                      {Number.isFinite(karmaLivreMag) && karmaLivreMag > 0 && kColunaMag < karmaLivreMag && (
+                        <button type="button" className="karma-coluna-max" onClick={() => setKarmaColuna(karmaLivreMag)}>
+                          {en ? 'All' : 'Tudo'}
+                        </button>
+                      )}
+                    </div>
+                  </section>
                 )}
 
                 {/* ALVO: fora quando o alcance é pessoal (28/10/2026, usuário:
@@ -420,6 +449,12 @@ function AtalhosFicha({ lang, habilidades = [], magias = [], itens = [], onHabil
                       : 'Só o dono da ficha gasta karma e recebe o efeito; daqui a evocação fica apenas registrada na mesa.')
                     : passoMag.nota
                     ? passoMag.nota
+                    /* Magia de dano: o ataque sai na coluna do karma, e a mesa
+                       resolve o dano (07/11/2026). */
+                    : passoMag.deDano
+                    ? (en
+                      ? <>Casting spends <strong>{karmaTotalMag}</strong> karma ({passoMag.karma} level + {kColunaMag} column) and attacks on column <strong>{kColunaMag}</strong>; resolve the damage at the table.</>
+                      : <>Evocar gasta <strong>{karmaTotalMag}</strong> de karma ({passoMag.karma} do nível + {kColunaMag} da coluna) e ataca na coluna <strong>{kColunaMag}</strong>; o dano se resolve na mesa.</>)
                     /* Magia emprestada por item (06/11/2026): não gasta karma. */
                     : passoMag.item
                     ? (en

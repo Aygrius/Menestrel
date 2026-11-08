@@ -254,6 +254,8 @@ function PaginaHabilidades({ lang, habilidades, onRolar, onSubir = null, pontos 
       }}
       painelDe={(c) => (
         <div className="mn-janela-corpo pc-corpo">
+          {/* Roubado pelo Ritual de Sangue (07/11/2026): de quem e até quando. */}
+          {c.h.roubado && <p className="mn-janela-frase mn-janela-nota pc-roubado"><i className="ti ti-droplet" aria-hidden="true" /> {c.h.roubado}</p>}
           {c.h.descricao && <p className="mn-janela-frase">{c.h.descricao}</p>}
           {c.h.restricao && <p className="mn-janela-frase mn-janela-nota">{c.h.restricao}</p>}
           {c.h.subir && c.h.subir.fila && <p className="mn-janela-frase mn-janela-nota">{c.h.subir.fila}</p>}
@@ -283,6 +285,9 @@ function PaginaHabilidades({ lang, habilidades, onRolar, onSubir = null, pontos 
    Saiu do trilho: é a célula do passe — rótulo sobre o número — no topo do
    painel, e embaixo a frase de explicacaoDosPontos (01-core), que a ficha
    manda pronta em `pontos.explicacao`. */
+/* SÓ O SALDO (07/11/2026, usuário: "Na visualização, remova 'Por estágio:
+   1 de Mago + 4 de Intelecto = 5. […]'" e a frase das habilidades). A conta
+   em palavras saiu das três páginas; o selo é rótulo sobre o número. */
 function SeloPontos({ rotulo, pontos }) {
   if (!pontos || pontos.total == null) return null;
   const saldo = (Number(pontos.total) || 0) - (Number(pontos.gasto) || 0);
@@ -292,7 +297,6 @@ function SeloPontos({ rotulo, pontos }) {
       aria-label={`${rotulo}: ${saldo} / ${pontos.total}`}>
       <span className="mn-rotulo">{rotulo}</span>
       <span className="pc-pontos-num" aria-hidden="true">{saldo}<i>/{pontos.total}</i></span>
-      {pontos.explicacao && <p className="pc-pontos-conta">{pontos.explicacao}</p>}
     </section>
   );
 }
@@ -331,6 +335,8 @@ function PaginaTecnicas({ lang, tecnicas, pontos = null, onSubir = null }) {
       onAcao={(c, chave) => { if (chave === '__subir' && onSubir) onSubir(c.t.key); }}
       painelDe={(c) => (
         <div className="mn-janela-corpo pc-corpo">
+          {/* Roubado pelo Ritual de Sangue (07/11/2026): de quem e até quando. */}
+          {c.t.roubado && <p className="mn-janela-frase mn-janela-nota pc-roubado"><i className="ti ti-droplet" aria-hidden="true" /> {c.t.roubado}</p>}
           {c.t.descricao && <p className="mn-janela-frase">{c.t.descricao}</p>}
           {c.t.efeito && <p className="mn-janela-frase">{c.t.efeito}</p>}
           <dl className="mn-janela-quadro">
@@ -353,13 +359,15 @@ function PaginaTecnicas({ lang, tecnicas, pontos = null, onSubir = null }) {
 function PaginaMagias({ lang, magias, onEvocar, pontos = null, onSubir = null }) {
   const en = lang === 'en';
   const casas = (magias || []).map((m) => ({
+    // Sem o 'Nível N' embaixo do nome no painel (07/11/2026, usuário): a casa já diz.
     id: m.key, nome: m.nome, m,
-    sub: (en ? 'Level ' : 'Nível ') + m.nivel,
     icone: <NomeNaCasa nome={m.nome} />,
     marca: m.nivel != null ? String(m.nivel) : null,
   })).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
   return (
     <PaginaCasas lang={lang} casas={casas} classe="pc-magias"
+      /* Só o saldo, sem a conta por extenso (07/11/2026, usuário: 'Remova o texto
+         "Por estágio: 8 de Mago + 4 de Intelecto = 12..."'). */
       noPainel={<SeloPontos pontos={pontos} rotulo={en ? 'Magic points' : 'Pontos de magia'} />}
       buscaRotulo={en ? 'Search spell' : 'Buscar magia'}
       painelRotulo={en ? 'Spell' : 'Magia'}
@@ -375,6 +383,8 @@ function PaginaMagias({ lang, magias, onEvocar, pontos = null, onSubir = null })
       }}
       painelDe={(c) => (
         <div className="mn-janela-corpo pc-corpo">
+          {/* Roubado pelo Ritual de Sangue (07/11/2026): de quem e até quando. */}
+          {c.m.roubado && <p className="mn-janela-frase mn-janela-nota pc-roubado"><i className="ti ti-droplet" aria-hidden="true" /> {c.m.roubado}</p>}
           {c.m.descricao && <p className="mn-janela-frase">{c.m.descricao}</p>}
           {/* Magia emprestada por item (06/11/2026): sem karma e sem subir. */}
           {c.m.item && (

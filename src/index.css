@@ -3067,6 +3067,13 @@
 #root .menestrel-ui .nivel-barra-ponto.alcancado { border-color: var(--nivel-cor); color: var(--tinta); }
 #root .menestrel-ui .nivel-barra-ponto.on { background: var(--nivel-cor); border-color: var(--nivel-cor); color: var(--sobre-vivo); }
 #root .menestrel-ui .nivel-barra-ponto:disabled { cursor: default; }
+/* Karma na coluna da magia de dano (07/11/2026): rótulo, seletor, "Tudo" e a
+   conta do que sai. A conta quebra para a linha de baixo quando falta espaço. */
+#root .menestrel-ui .karma-coluna { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 4px; }
+#root .menestrel-ui .karma-coluna-rotulo { font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: var(--rotulo-espaco); color: var(--tinta-2); }
+#root .menestrel-ui .karma-coluna-max { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--regua-forte); background: transparent; color: var(--tinta); font-size: var(--fs-xs); font-weight: 600; cursor: pointer; }
+#root .menestrel-ui .karma-coluna-max:hover { border-color: var(--vivo); color: var(--vivo); }
+#root .menestrel-ui .karma-coluna-conta { flex: 1 1 100%; font-size: var(--fs-sm); color: var(--tinta-2); font-variant-numeric: tabular-nums; }
 #root .menestrel-ui .nivel-barra-ponto:not(:disabled):not(.on):hover { border-color: var(--nivel-cor); color: var(--tinta); }
 #root .menestrel-ui .acao-tab-wrap { display: inline-flex; flex: 0 0 auto; cursor: help; }
 #root .menestrel-ui .acao-tab-wrap > .acao-tab:disabled { pointer-events: none; }
@@ -13855,8 +13862,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .cena-cartao .pj-name { flex: 0 1 auto; min-width: 0; }
 #root .menestrel-ui .cena-cartao-selo { cursor: inherit; pointer-events: none; }
 #root .menestrel-ui .cena-modal-meta { margin: 0 0 14px; font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase; color: var(--tinta-3); }
-#root .menestrel-ui .cena-modal-texto { max-width: 68ch; }
-#root .menestrel-ui .cena-modal-texto .cena-cap-texto { margin: 0 0 12px; font-size: var(--fs-base); line-height: 1.65; color: var(--tinta-2); }
+#root .menestrel-ui .cena-modal-texto .cena-cap-texto { margin: 0 0 12px; max-width: none; font-size: var(--fs-base); line-height: 1.65; color: var(--tinta-2); }
 
 /* A lista que a busca monta só para abrir a janela da entrada fica fora da
    vista: a janela vem por portal; a tabela não aparece (23/10/2026). */
@@ -14679,7 +14685,8 @@ body { background-color: var(--p-pagina); }
    faixa vazava 17px para fora do cartão de cada lado e descia 10px. E a
    pílula do trilho tinha o vão de 10px do Estoque contra 2px das outras.
    Só quando a Loja é página da Mesa (tem o rodapé). */
-#root .menestrel-ui .estoque-card:has(> .estoque-rodape) { background: var(--mc-veu-card, rgba(var(--couro-rgb), 0.50)); }
+/* Sólido desde 07/11/2026, como toda página (ver "TODA PÁGINA COM FUNDO SÓLIDO"). */
+#root .menestrel-ui .estoque-card:has(> .estoque-rodape) { background: var(--mc-card-solido, rgb(var(--chao-rgb))); }
 #root .menestrel-ui .estoque-card > .pg-rodape.estoque-rodape {
   margin: auto 0 0;
   padding: calc(var(--pg-vao) * var(--fp-z)) calc(16px * var(--fp-z));
@@ -14770,9 +14777,6 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .wiz-fase.is-ativa { background: var(--vivo-fundo); border-color: var(--vivo-aro); color: var(--tinta); cursor: default; }
 #root .menestrel-ui .wiz-fase:disabled { cursor: not-allowed; opacity: .55; }
 #root .menestrel-ui .wiz-fase:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
-#root .menestrel-ui .wiz-passo { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-#root .menestrel-ui .wiz-passo-nome { font: 700 15px var(--font-body); color: var(--tinta); }
-#root .menestrel-ui .wiz-passo-n { font: 700 13px var(--font-body); color: var(--tinta-3); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
 #root .menestrel-ui .wiz-screen-desc { font-size: 15px; color: var(--tinta-2); }
 /* rótulos: os do sistema, não itálico */
 #root .menestrel-ui .wiz-field > span,
@@ -14790,7 +14794,6 @@ body { background-color: var(--p-pagina); }
 /* os nomes dos contadores (Atributos, Armas, Habilidades) no mesmo rótulo — continuam clicáveis */
 #root .menestrel-ui .ms-wizard .wiz-item .wiz-attrs-name { font-style: normal; font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase; color: var(--tinta-3); }
 #root .menestrel-ui .ms-wizard .wiz-item .wiz-attrs-name:hover { color: var(--tinta); }
-#root .menestrel-ui .wiz-passo:empty { display: none; }
 
 /* O "+ Nova criatura" da busca (23/10/2026): no cabeçalho do tipo, à direita. */
 #root .menestrel-ui .busca-livro-novo { margin-left: auto; height: 28px; padding: 0 12px 0 10px; display: inline-flex; align-items: center; gap: 6px;
@@ -15728,7 +15731,7 @@ body { background-color: var(--p-pagina); }
 }
 #root .menestrel-ui .tc { display: flex; flex-direction: column; gap: 28px; }
 #root .menestrel-ui .tc-intro {
-  margin: -12px 0 0; max-width: 82ch;
+  margin: -12px 0 0;
   font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2);
 }
 #root .menestrel-ui .tc-intro b, #root .menestrel-ui .tc-nota b { color: var(--tinta); font-weight: 600; }
@@ -15758,7 +15761,7 @@ body { background-color: var(--p-pagina); }
   line-height: 1.2; color: var(--tinta); margin: 0;
 }
 #root .menestrel-ui .tc-chip { height: 32px; padding: 0 14px; font-size: var(--fs-sm); }
-#root .menestrel-ui .tc-nota { max-width: 82ch; font-size: var(--fs-sm); line-height: 1.55; color: var(--tinta-2); }
+#root .menestrel-ui .tc-nota { font-size: var(--fs-sm); line-height: 1.55; color: var(--tinta-2); }
 #root .menestrel-ui .tc-rolagem { overflow-x: auto; }
 #root .menestrel-ui .tc-tabela { display: flex; flex-direction: column; min-width: 640px; }
 #root .menestrel-ui .tc-linha { grid-template-columns: minmax(150px, 1.6fr) repeat(6, minmax(72px, 1fr)); }
@@ -15769,7 +15772,7 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .tc-arma { margin-left: 6px; font-size: var(--fs-sm); color: var(--tinta-3); }
 #root .menestrel-ui .tc-brasa { color: var(--alerta); font-weight: 700; }
 #root .menestrel-ui .tc-metodo {
-  display: flex; flex-direction: column; gap: 6px; max-width: 82ch;
+  display: flex; flex-direction: column; gap: 6px;
   font-size: var(--fs-sm); line-height: 1.55; color: var(--tinta-2);
 }
 #root .menestrel-ui .tc-metodo li { padding-left: 14px; position: relative; }
@@ -15786,7 +15789,7 @@ body { background-color: var(--p-pagina); }
 }
 #root .menestrel-ui .gi { display: flex; flex-direction: column; gap: 26px; }
 #root .menestrel-ui .gi-intro {
-  margin: -12px 0 0; max-width: 78ch;
+  margin: -12px 0 0;
   font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2);
 }
 #root .menestrel-ui .gi-intro b { color: var(--tinta); font-weight: 600; }
@@ -15808,7 +15811,7 @@ body { background-color: var(--p-pagina); }
 }
 #root .menestrel-ui .gi-conta { font-size: var(--fs-sm); color: var(--tinta-3); white-space: nowrap; }
 #root .menestrel-ui .gi-sec-nota {
-  margin: -4px 0 0; max-width: 80ch; font-size: var(--fs-sm); line-height: 1.55; color: var(--tinta-2);
+  margin: -4px 0 0; font-size: var(--fs-sm); line-height: 1.55; color: var(--tinta-2);
 }
 #root .menestrel-ui .gi-sec-nota b { color: var(--tinta); font-weight: 600; }
 
@@ -17862,3 +17865,666 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 }
 /* O seletor é o do sistema, intacto: só ocupa a largura da janela. */
 #root .menestrel-ui .barra-ajuste-stepper.fp-pop-stepper { width: 100%; max-width: none; margin: 0; }
+
+/* Armas na Identificação (07/11/2026): L/M/P e Dano da arma na mesma linha.
+   Números do mesmo tamanho e peso; só a letra muda de tom. */
+#root .menestrel-ui .fp-arma-vals { display: inline-flex; gap: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#root .menestrel-ui .fp-arma-vals i { font-style: normal; font-weight: 400; color: var(--muted-foreground); margin-right: 3px; }
+
+/* MODO TREINAMENTO (07/11/2026): o selo na condução e o retrato do cartão.
+   O selo é só leitura, sem cara de botão. */
+#root .menestrel-ui .batalha-treino-selo {
+  display: inline-flex; align-items: center; gap: 6px; padding: 0 12px;
+  font: 600 var(--fs-sm) var(--font-body); color: var(--tinta-2); white-space: nowrap;
+}
+#root .menestrel-ui .batalha-treino-selo i { color: var(--vivo); }
+#root .menestrel-ui .batalha-cartao-retrato.is-treino .ti { color: var(--vivo); }
+
+/* A MONTAGEM DA LUTA, polida com o impeccable (07/11/2026).
+   1) Batalha ou Treino: um rádio de duas células no topo do painel, cada uma
+      com o nome e a consequência. Escolhida = aro e fundo de ouro (o que está
+      vivo); a outra fica em tinta apagada, mas legível.
+   2) As ações em massa com nome, em texto pequeno de tinta — eram ícones que
+      só se explicavam no balão. Sem busca, elas ficam à direita do título. */
+#root .menestrel-ui .nova-batalha-modo {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+  margin: 20px 20px 4px;
+}
+#root .menestrel-ui .nova-batalha-modo-op {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto;
+  column-gap: 12px; row-gap: 2px; align-items: center; text-align: left;
+  padding: 12px 16px; border-radius: 10px; cursor: pointer;
+  background: var(--chao-celula, rgba(138,110,64,0.07)); border: 1px solid var(--regua-forte);
+  color: var(--tinta-2); font-family: var(--font-body);
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+#root .menestrel-ui .nova-batalha-modo-op .ti { grid-row: 1 / span 2; font-size: 22px; color: var(--tinta-3); }
+#root .menestrel-ui .nova-batalha-modo-nome { font-size: var(--fs-md, 16px); font-weight: 700; color: var(--tinta); line-height: 1.25; }
+#root .menestrel-ui .nova-batalha-modo-efeito { font-size: var(--fs-sm); line-height: 1.35; color: var(--tinta-3); }
+#root .menestrel-ui .nova-batalha-modo-op:hover:not(.is-on) { background: rgba(var(--bronze-rgb),0.14); }
+#root .menestrel-ui .nova-batalha-modo-op:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .nova-batalha-modo-op.is-on {
+  background: var(--ouro-vivo-fundo, rgba(201,164,78,0.12)); border-color: var(--ouro-vivo-aro, rgba(230,201,122,0.55));
+}
+#root .menestrel-ui .nova-batalha-modo-op.is-on .ti { color: var(--vivo); }
+#root .menestrel-ui .nova-batalha-modo-op.is-on .nova-batalha-modo-efeito { color: var(--tinta-2); }
+@media (max-width: 560px) {
+  #root .menestrel-ui .nova-batalha-modo { grid-template-columns: 1fr; }
+}
+
+#root .menestrel-ui .part-section-filter-row.sem-busca { justify-content: flex-start; margin: -4px 0 12px -10px; }
+#root .menestrel-ui .part-section-bulk { gap: 2px; flex-wrap: wrap; }
+#root .menestrel-ui .part-bulk {
+  height: 28px; padding: 0 10px; border: 0; border-radius: 999px; background: none; cursor: pointer;
+  font: 600 var(--fs-sm) var(--font-body); color: var(--tinta-2); white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease;
+}
+#root .menestrel-ui .part-bulk:hover:not(:disabled) { color: var(--tinta); background: rgba(var(--bronze-rgb),0.14); }
+#root .menestrel-ui .part-bulk:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
+#root .menestrel-ui .part-bulk:disabled { color: var(--tinta-3); opacity: .55; cursor: default; }
+/* Nome longo de criatura encolhe com reticências em vez de invadir a célula
+   ao lado (o .part-item-row1 é flex dentro da grade e precisava de min-width). */
+#root .menestrel-ui .part-section-grid .part-item-row1 { min-width: 0; }
+@media (max-width: 560px) {
+  /* No celular, a busca ocupa a linha e as ações descem para a de baixo. */
+  #root .menestrel-ui .part-section-filter-row { flex-wrap: wrap; row-gap: 6px; }
+  #root .menestrel-ui .part-section-filter-row .best-search { flex: 1 1 100%; }
+  #root .menestrel-ui .part-section-filter-row:not(.sem-busca) .part-section-bulk { margin-left: -10px; }
+  #root .menestrel-ui .part-section-bulk { flex: 1 1 100%; }
+  /* A criatura marcada põe a quantidade embaixo do nome: lado a lado, numa
+     coluna de celular, o seletor engolia o nome inteiro. */
+  #root .menestrel-ui .part-section-grid .part-item-row1 { flex-wrap: wrap; row-gap: 6px; }
+  #root .menestrel-ui .part-section-grid .part-item-row1 .hist-protag-name { flex: 1 1 100%; }
+}
+
+/* OS CARTÕES DA MONTAGEM, com o impeccable (07/11/2026, usuário: "Melhore os
+   cards de seleção de personagem, seleção de quantidade de inimigos [...]
+   Foque em melhorar essa experiência ao máximo").
+   Pessoas: retrato à esquerda com a marca no canto, nome e a linha de quem é.
+   Criaturas: o nome e o gesto — "+" para pôr, o seletor para ajustar e tirar.
+   Escolhido = fundo e aro de ouro (o que está vivo); o resto em couro. */
+/* UM CARTÃO SÓ PARA OS DOIS (07/11/2026, usuário: "Cards de personagens e
+   criaturas de tamanhos diferentes"). A mesma grade, a mesma altura (48px) e a
+   mesma anatomia: o nome à esquerda e o gesto à direita — a marca no
+   personagem, o "+" ou o seletor na criatura. Sem retrato, sem inicial e sem
+   a linha de quem é: "Remova as informações abaixo do nome". */
+#root .menestrel-ui .part-section-grid--cartoes { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+#root .menestrel-ui .part-section-grid .part-pessoa,
+#root .menestrel-ui .part-section-grid .part-cri {
+  box-sizing: border-box; display: flex; align-items: center; gap: 10px;
+  height: 48px; min-height: 48px; padding: 0 6px 0 14px;
+  border-radius: 10px; border: 1px solid var(--regua-forte); background: var(--chao-celula, rgba(138,110,64,0.07));
+  transition: background-color .15s ease, border-color .15s ease;
+}
+#root .menestrel-ui .part-section-grid .part-pessoa { padding-right: 14px; cursor: pointer; }
+#root .menestrel-ui .part-section-grid .part-cri { cursor: default; }
+#root .menestrel-ui .part-section-grid .part-pessoa .hist-protag-name,
+#root .menestrel-ui .part-section-grid .part-cri .hist-protag-name {
+  flex: 1; min-width: 0; font-size: var(--fs-base, 15px); font-weight: 500; color: var(--tinta-2);
+}
+#root .menestrel-ui .part-section-grid .part-pessoa:hover,
+#root .menestrel-ui .part-section-grid .part-cri:has(.part-cri-add:hover) { background: rgba(var(--bronze-rgb),0.14); }
+#root .menestrel-ui .part-section-grid .part-pessoa:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .part-section-grid .part-pessoa.on,
+#root .menestrel-ui .part-section-grid .part-cri.on { background: var(--ouro-vivo-fundo, rgba(201,164,78,0.12)); border-color: var(--ouro-vivo-aro, rgba(230,201,122,0.55)); }
+#root .menestrel-ui .part-section-grid .part-pessoa.on .hist-protag-name,
+#root .menestrel-ui .part-section-grid .part-cri.on .hist-protag-name { color: var(--tinta); font-weight: 600; }
+/* A marca do personagem: a caixa do sistema, do tamanho do "+" da criatura. */
+#root .menestrel-ui .part-marca {
+  flex: 0 0 18px; width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center;
+  border: 1px solid var(--regua-forte); background: var(--couro-painel, #120D06);
+  transition: background-color .15s ease, border-color .15s ease;
+}
+#root .menestrel-ui .part-pessoa:hover .part-marca { border-color: var(--vivo); }
+#root .menestrel-ui .part-pessoa.on .part-marca { background: var(--vivo); border-color: var(--vivo); }
+#root .menestrel-ui .part-marca .ti { font-size: 13px; color: var(--sobre-vivo, #1C1407); }
+#root .menestrel-ui .part-cri-add {
+  display: flex; align-items: center; gap: 10px; width: calc(100% + 20px); height: 46px; margin: 0 -6px 0 -14px; padding: 0 14px;
+  border: 0; border-radius: 10px; background: none; cursor: pointer; text-align: left; font-family: var(--font-body);
+}
+#root .menestrel-ui .part-cri-add .ti { flex: 0 0 18px; font-size: 16px; text-align: center; color: var(--tinta-3); transition: color .15s ease; }
+#root .menestrel-ui .part-cri-add:hover .ti { color: var(--vivo); }
+#root .menestrel-ui .part-cri-add:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
+#root .menestrel-ui .part-section-grid .part-cri .part-qty-stepper { width: auto; }
+#root .menestrel-ui .batalha-criar-n { font-variant-numeric: lining-nums tabular-nums; padding-left: 8px; margin-left: 2px; border-left: 1px solid rgba(28,20,7,0.35); }
+
+/* A estrutura da página: cada seção abre com uma cabeça — nome e quantos à
+   esquerda, ações em massa à direita — e a régua forte embaixo. */
+#root .menestrel-ui .part-section-cabeca {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px;
+  padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .part-section-cabeca .part-section-titulo { margin: 0; }
+#root .menestrel-ui .part-section-cabeca .part-section-filter-row.sem-busca { margin: 0 -10px 0 0; }
+#root .menestrel-ui .part-section + .part-section { margin-top: 28px; }
+@media (max-width: 560px) {
+  #root .menestrel-ui .part-section-grid--cartoes { grid-template-columns: 1fr; }
+  #root .menestrel-ui .part-section-cabeca .part-section-filter-row.sem-busca { margin: 0 0 0 -10px; }
+}
+
+/* ══ OS CARTÕES DAS BATALHAS NO PADRÃO (07/11/2026) ══════════════════════════
+   "Na tela de batalha, os cards das batalhas em andamento não está seguindo o
+   padrão de 15 cards por página." (usuário) O padrão é o da Cena e do Diário
+   ("OS CARTÕES DOS CAPÍTULOS NO PADRÃO"), com 15 = 5 fileiras × 3 colunas: a
+   grade enche a página, as fileiras têm a mesma altura e o cartão sozinho tem
+   a largura de uma coluna — não a da página. A paginação (BestPagination) entra
+   a partir do 16º. */
+#root .menestrel-ui .pjs-grid.batalha-grade { gap: 14px; grid-auto-rows: 1fr; }
+#root .menestrel-ui .batalha-grade .pj-name-linha { flex-wrap: nowrap; min-width: 0; }
+#root .menestrel-ui .batalha-grade .pj-name,
+#root .menestrel-ui .batalha-grade .pj-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .batalha-grade .pj-meta { display: block; }
+#root .menestrel-ui .batalha-grade .pj-meta .sep { margin: 0 6px; }
+#root .menestrel-ui .pjs-grid.batalha-grade > .pj-card-wrap:only-child { grid-column: auto; justify-self: stretch; width: auto; }
+@media (min-width: 1600px) {
+  #root .menestrel-ui .pjs-grid.batalha-grade { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #root .menestrel-ui .mc-content .pjs.batalha-cartoes-pagina { min-height: var(--pg-altura, calc(100dvh - 34px)); }
+  #root .menestrel-ui .mc-content .pjs.batalha-cartoes-pagina > .pjs-grid.batalha-grade {
+    flex: 1 1 0; min-height: 0;
+    grid-template-rows: repeat(5, minmax(72px, 1fr)); grid-auto-rows: minmax(72px, 1fr);
+  }
+  #root .menestrel-ui .batalha-grade .pj-card { min-height: 0; }
+  #root .menestrel-ui .batalha-grade .pj-card-body { flex: 1 1 auto; min-height: 0; }
+  #root .menestrel-ui .batalha-grade .pj-card-portrait { height: 100%; max-height: 98px; width: auto; aspect-ratio: 76 / 98; flex: none; }
+}
+@media (max-width: 900px) {
+  #root .menestrel-ui .pjs-grid.batalha-grade { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* A faixa da carga ao lado da barra (07/11/2026): nome em brasa, o custo no
+   balão. Brasa porque é o que bloqueia/pesa (--alerta), não ouro. */
+#root .menestrel-ui .carga-faixa {
+  flex: none; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase;
+  letter-spacing: var(--rotulo-espaco); color: var(--alerta); cursor: help; white-space: nowrap;
+}
+
+/* ══ TODA PÁGINA COM FUNDO SÓLIDO E O TRILHO DENTRO (07/11/2026) ════════════
+   "O fundo da página agora não é mais transparente, deve ter a cor sólida como
+   na ficha, além disso, o trilho superior fica dentro da página de fundo
+   sólido." (usuário) O cartão das listas (Cena, Batalha, Loja, Personagens,
+   Diário…) vestia o véu translúcido (--mc-veu-card) e deixava o céu passar;
+   agora usa a mesma tinta opaca da Ficha (--mc-card-solido). Na Batalha
+   (montar e conduzir), o trilho saiu de cima do cartão e mora dentro dele,
+   com o respiro da moldura da Ficha. */
+#root .menestrel-ui .mc-content > .pjs,
+#root .menestrel-ui .mc-content > .hist > .pjs,
+#root .menestrel-ui .mc-content > .fp-page > .fp-card,
+#root .menestrel-ui .mc-content > .hist > .fp-page > .fp-card { background: var(--mc-card-solido, rgb(var(--chao-rgb))); }
+
+/* ══ O TRILHO DA BATALHA COM A RÉGUA (07/11/2026) ════════════════════════════
+   "O trilho superior está solto, sem a linha que separa ele, está fora do
+   padrão." (usuário) O mesmo trato das listas (Cena, Loja, Personagens): o
+   cartão com o respiro da página (--pg-vao) e o trilho de ponta a ponta, com a
+   régua da página (--pg-regua) embaixo. Vale para montar e para conduzir. */
+#root .menestrel-ui .fp-card.batalha-mng-page { padding: calc(var(--pg-vao, 14px) * var(--fp-z, 1)) calc(16px * var(--fp-z, 1)); }
+#root .menestrel-ui .fp-card.batalha-mng-page > .batalha-trilho {
+  margin: 0 calc(-16px * var(--fp-z, 1)) calc(var(--pg-vao, 14px) * var(--fp-z, 1)) !important;
+  padding: 0 calc(16px * var(--fp-z, 1)) calc(var(--pg-vao, 14px) * var(--fp-z, 1));
+  border-bottom: var(--pg-regua, 1px solid var(--regua-forte));
+}
+
+/* ══ A MESA DE GUERRA (07/11/2026, impeccable, segunda rodada) ══════════════
+   "Capriche nessa página." Os dois lados da luta lado a lado, no desenho do
+   Quadro de Iniciativa: cada lado é um quadro de linhas com régua, todas de
+   46px, nome à esquerda e o gesto à direita. Escolhido = a linha acende em
+   ouro, com o filete vivo à esquerda (o que está vivo). No topo, o tipo de
+   luta à esquerda e o placar à direita, em algarismos Cinzel. */
+#root .menestrel-ui .nb-mesa { display: flex; flex-direction: column; gap: 24px; }
+#root .menestrel-ui .nb-mesa-topo {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px;
+}
+#root .menestrel-ui .nb-mesa .nova-batalha-modo { margin: 0; max-width: 560px; }
+#root .menestrel-ui .nb-mesa .nova-batalha-modo-op { padding: 10px 14px; }
+
+#root .menestrel-ui .nb-placar { display: flex; align-items: center; gap: 18px; padding: 0 8px; }
+#root .menestrel-ui .nb-placar-lado { display: flex; flex-direction: column; align-items: center; min-width: 72px; }
+#root .menestrel-ui .nb-placar-n {
+  font-family: var(--font-display, Cinzel, serif); font-size: 40px; line-height: 1; font-weight: 700;
+  color: var(--tinta-3); font-variant-numeric: lining-nums tabular-nums; transition: color .2s ease;
+}
+#root .menestrel-ui .nb-placar-lado.is-vivo .nb-placar-n { color: var(--tinta); }
+#root .menestrel-ui .nb-placar-rot {
+  margin-top: 6px; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase;
+  letter-spacing: var(--rotulo-espaco); color: var(--tinta-3);
+}
+#root .menestrel-ui .nb-placar-contra { font-size: 22px; color: var(--vivo); }
+
+#root .menestrel-ui .nb-lados {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start;
+}
+#root .menestrel-ui .nb-lado { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+#root .menestrel-ui .nb-lado .part-section { margin: 0; }
+#root .menestrel-ui .nb-lado .part-section + .part-section { margin-top: 0; }
+#root .menestrel-ui .nb-lado .part-section-cabeca { border-bottom: 0; padding-bottom: 0; margin-bottom: 10px; }
+#root .menestrel-ui .nb-lado .part-section-titulo { font-size: var(--fs-xs); }
+
+/* O QUADRO DE LINHAS: vale também na janela de reforços. */
+#root .menestrel-ui .part-section-grid.part-section-grid--cartoes {
+  display: flex; flex-direction: column; gap: 0;
+  border: 1px solid var(--regua-forte); border-radius: 10px; overflow: hidden;
+  background: var(--chao-celula, rgba(138,110,64,0.07));
+}
+#root .menestrel-ui .part-section-grid--cartoes .part-pessoa.hist-protag-item,
+#root .menestrel-ui .part-section-grid--cartoes .part-cri.hist-protag-item.modo-qtd {
+  position: relative; height: 46px; min-height: 46px; padding: 0 10px 0 18px;
+  border: 0; border-radius: 0; border-bottom: 1px solid rgba(var(--tinta-rgb), 0.09);
+  background: transparent;
+}
+#root .menestrel-ui .part-section-grid--cartoes .part-pessoa.hist-protag-item { padding-right: 18px; }
+#root .menestrel-ui .part-section-grid--cartoes > :last-child { border-bottom: 0; }
+#root .menestrel-ui .part-section-grid--cartoes .part-pessoa::before,
+#root .menestrel-ui .part-section-grid--cartoes .part-cri::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 2px 2px 0;
+  background: var(--vivo); opacity: 0; transition: opacity .15s ease;
+}
+#root .menestrel-ui .part-section-grid--cartoes .part-pessoa.on::before,
+#root .menestrel-ui .part-section-grid--cartoes .part-cri.on::before { opacity: 1; }
+#root .menestrel-ui .part-section-grid--cartoes .part-pessoa.on,
+#root .menestrel-ui .part-section-grid--cartoes .part-cri.on { background: var(--ouro-vivo-fundo, rgba(201,164,78,0.10)); border-color: rgba(var(--tinta-rgb), 0.09); }
+#root .menestrel-ui .part-section-grid--cartoes .part-pessoa:hover,
+#root .menestrel-ui .part-section-grid--cartoes .part-cri:has(.part-cri-add:hover) { background: rgba(var(--bronze-rgb), 0.12); }
+#root .menestrel-ui .part-section-grid--cartoes .part-pessoa.on:hover { background: var(--ouro-vivo-fundo, rgba(201,164,78,0.14)); }
+#root .menestrel-ui .part-section-grid--cartoes .part-pessoa:focus-visible { outline: 2px solid var(--vivo); outline-offset: -2px; }
+#root .menestrel-ui .part-section-grid--cartoes .hist-protag-name { font-size: var(--fs-base, 16px); font-weight: 500; color: var(--tinta-2); }
+#root .menestrel-ui .part-section-grid--cartoes .on .hist-protag-name { color: var(--tinta); font-weight: 600; }
+#root .menestrel-ui .part-section-grid--cartoes .part-cri-add {
+  height: 46px; width: calc(100% + 28px); margin: 0 -10px 0 -18px; padding: 0 16px 0 18px; border-radius: 0;
+}
+#root .menestrel-ui .part-section-grid--cartoes .part-cri-add:focus-visible { outline: 2px solid var(--vivo); outline-offset: -2px; }
+#root .menestrel-ui .part-section-grid--cartoes .part-cri-add .ti {
+  width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%;
+  border: 1px solid var(--regua-forte); font-size: 14px;
+}
+#root .menestrel-ui .part-section-grid--cartoes .part-cri-add:hover .ti { border-color: var(--vivo); }
+#root .menestrel-ui .part-section-grid--cartoes .part-marca { flex-basis: 20px; width: 20px; height: 20px; }
+
+@media (max-width: 900px) {
+  #root .menestrel-ui .nb-mesa-topo { grid-template-columns: minmax(0, 1fr); }
+  #root .menestrel-ui .nb-mesa .nova-batalha-modo { max-width: none; }
+  #root .menestrel-ui .nb-placar { justify-content: center; }
+  #root .menestrel-ui .nb-lados { grid-template-columns: minmax(0, 1fr); }
+}
+/* Sem a margem negativa das ações em massa no quadro: ela vazava 10px e
+   abria uma rolagem lateral no pé do cartão. O último botão encosta na borda. */
+#root .menestrel-ui .nb-lado .part-section-cabeca .part-section-filter-row.sem-busca { margin: 0; }
+#root .menestrel-ui .nb-lado .part-section-bulk .part-bulk:last-child { padding-right: 0; }
+@media (max-width: 900px) {
+  /* No celular as ações descem para a linha de baixo: o primeiro texto alinha com o rótulo. */
+  #root .menestrel-ui .nb-lado .part-section-bulk .part-bulk:first-child { padding-left: 0; }
+}
+
+/* O SELETOR DA CRIATURA = O DO INVENTÁRIO E DA LOJA (07/11/2026). A pílula de
+   40px do .fp-pop-stepper com os círculos − e + do tamanho de lá — a versão
+   achatada (.part-qty-stepper, 30px/26px) saiu do quadro. A linha cresce para
+   56px para caber a pílula com folga, e a do personagem acompanha. */
+#root .menestrel-ui .part-section-grid--cartoes .part-pessoa.hist-protag-item,
+#root .menestrel-ui .part-section-grid--cartoes .part-cri.hist-protag-item.modo-qtd { height: 56px; min-height: 56px; }
+#root .menestrel-ui .part-section-grid--cartoes .part-cri.hist-protag-item.modo-qtd { padding-right: 8px; }
+#root .menestrel-ui .part-section-grid--cartoes .part-qty-stepper { width: 140px; }
+#root .menestrel-ui .part-section-grid--cartoes .part-qty-stepper .fp-pop-stepper { height: 40px; }
+#root .menestrel-ui .part-section-grid--cartoes .part-qty-stepper .fp-step-btn { width: 30px; height: 30px; }
+#root .menestrel-ui .part-section-grid--cartoes .part-cri:not(.on) .fp-pop-stepper-label { color: var(--tinta-3); }
+
+/* ══ O PADRÃO DA FICHA EM TODA PÁGINA (07/11/2026) ═══════════════════════════
+   "Na página Ficha, nós temos um padrão de design: um card principal com
+   cabeçalho, rodapé e corpo, separados por uma linha divisora que deve ir de
+   um extremo ao outro. [...] Vamos padronizar a cor de fundo desses elementos,
+   trilho, cards, etc. E replicar este padrão para todas as páginas. Os cards
+   que possuem título, como 'condições', o título também deve seguir o padrão."
+   (usuário)
+
+   Medido na Ficha, os quatro fundos de toda página:
+     --pg-fundo         o cartão principal: a tinta opaca (--mc-card-solido)
+     --pg-trilho-fundo  as pílulas dos trilhos de cima e de baixo
+     --pg-cartao-fundo  os cartões do corpo: o chão de célula (Energias, Condições)
+     --pg-cartao-raio   o canto deles, 10px
+   E o título de cartão é o .fp-col-tit: Spectral SC 19px, peso 400, .06em,
+   --tinta-2, centrado entre dois filetes que se apagam.
+   Fora do padrão até aqui: os cartões das listas (Cena, Batalha, Personagens,
+   Ambientação, Jogadores), opacos e com 12px; o painel lateral das páginas da
+   Ficha, do Inventário, da Loja e do Estoque, na cor do trilho e com 12px; e os
+   títulos dos lados da batalha, em rótulo miúdo. */
+#root .menestrel-ui {
+  --pg-fundo: var(--mc-card-solido, rgb(var(--chao-rgb)));
+  --pg-trilho-fundo: rgb(23, 17, 10);
+  --pg-cartao-fundo: var(--chao-celula);
+  --pg-cartao-raio: 10px;
+}
+#root .menestrel-ui .bau-painel,
+#root .menestrel-ui .pj-card { background: var(--pg-cartao-fundo); border-radius: var(--pg-cartao-raio); }
+#root .menestrel-ui .part-section-grid.part-section-grid--cartoes { background: var(--pg-cartao-fundo); border-radius: var(--pg-cartao-raio); }
+/* O nome no topo do painel lateral: a letra do título de cartão, à esquerda do
+   ícone como sempre (é o nome do item, não uma seção). */
+#root .menestrel-ui .loja-painel-nome { font-family: var(--font-title); font-weight: 400; font-size: 19px; letter-spacing: .06em; line-height: 1.15; color: var(--tinta-2); }
+/* Os lados da batalha: o título de cartão da Ficha, com o número ao lado. */
+#root .menestrel-ui .nb-lado .part-section-titulo {
+  justify-content: center; gap: 9px; margin: 2px 0 14px;
+  font-family: var(--font-title); font-weight: 400; font-size: 19px; letter-spacing: .06em;
+  line-height: 1; text-transform: none; color: var(--tinta-2);
+}
+#root .menestrel-ui .nb-lado .part-section-titulo::before,
+#root .menestrel-ui .nb-lado .part-section-titulo::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--regua-forte)); }
+#root .menestrel-ui .nb-lado .part-section-titulo::after { background: linear-gradient(90deg, var(--regua-forte), transparent); }
+#root .menestrel-ui .nb-lado .part-section-titulo-n { font-family: var(--font-body); font-size: var(--fs-sm); letter-spacing: 0; color: var(--tinta-3); }
+#root .menestrel-ui .nb-lado .part-section-cabeca { justify-content: center; margin-bottom: 0; }
+#root .menestrel-ui .nb-lado .part-section-cabeca .part-section-titulo { flex: 1; }
+
+/* ══ AS BARRAS DO RODAPÉ FALAM PELA COR (07/11/2026) ═════════════════════════
+   Peso: a faixa de carga (nivelDaCarga) — leve no ouro, carregado em âmbar,
+   pesado em laranja, no limite em brasa, e acima da capacidade brasa com o
+   número em brasa. Experiência: verde (o do Evoluir) a partir de 90% do
+   estágio. Sem palavra ao lado: a cor basta. */
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-pill[data-nivel="carregado"] .fp-bar-fill { background: linear-gradient(90deg, #6B5223, #D9A43A); }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-pill[data-nivel="pesado"] .fp-bar-fill { background: linear-gradient(90deg, #6E3A17, #E07B2E); }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-pill[data-nivel="no_limite"] .fp-bar-fill { background: linear-gradient(90deg, #7A2A1C, var(--alerta)); }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-pill[data-nivel="no_limite"] .fp-bar-num { color: var(--alerta); }
+#root .menestrel-ui .fp3-rodape-trilho .fp-bar-pill[data-nivel="quase"] .fp-bar-fill { background: linear-gradient(90deg, #1F6B30, #3E9A4E); }
+#root .menestrel-ui .bau-carga-barra[data-nivel="carregado"] > span { background: #D9A43A; }
+#root .menestrel-ui .bau-carga-barra[data-nivel="pesado"] > span { background: #E07B2E; }
+#root .menestrel-ui .bau-carga-barra[data-nivel="no_limite"] > span { background: var(--alerta); }
+
+/* ══ A CONDIÇÃO PERTO DE ENCHER (07/11/2026) ═════════════════════════════════
+   "Mude a cor e o efeito quando a barra de condições estiver próxima de
+   encher." A partir de 75% o líquido do anel troca o roxo pela brasa, e o
+   medalhão pulsa devagar com um halo da mesma cor — o aviso de que a
+   condição está para cobrar. Sem movimento para quem pediu menos movimento. */
+#root .menestrel-ui .fp-medalhao.is-critico .fp-medalhao-liq {
+  background: radial-gradient(circle closest-side, #3A0F08 77.9%, #A8321E 82.8%, #F08A5D 86%, #A8321E 89.3%, #3A0F08 94.2%), #A8321E;
+  animation-duration: 4s;
+}
+#root .menestrel-ui .fp-medalhao.is-critico { animation: fp-critico 2.4s ease-in-out infinite; }
+@keyframes fp-critico {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 85, 59, 0); }
+  50% { box-shadow: 0 0 16px 2px rgba(201, 85, 59, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .fp-medalhao.is-critico { animation: none; box-shadow: 0 0 12px 1px rgba(201, 85, 59, 0.45); }
+}
+
+/* ══ O TRILHO NA COR DO CARTÃO (07/11/2026) ═════════════════════════════════
+   "O fundo dos trilhos ainda não está igual o fundo dos cards." O cartão é o
+   chão de célula (bronze a 7%) sobre a tinta da página; o trilho, que gruda no
+   topo e não pode ser translúcido, usa a MESMA cor já composta, opaca. Como
+   --chao-celula-opaco é o chão de todas as pílulas e painéis opacos, ele passa
+   a ser essa mistura, e --pg-trilho-fundo também. */
+#root .menestrel-ui {
+  --pg-trilho-fundo: color-mix(in srgb, rgb(var(--bronze-rgb)) 7%, var(--pg-fundo));
+  --chao-celula-opaco: var(--pg-trilho-fundo);
+}
+
+/* ══ A JANELA DE CRIAR EM DUAS PÁGINAS (07/11/2026) ══════════════════════════
+   O corpo mostra um lado só (Aliados ou Inimigos) na largura toda. O rodapé é
+   o menu: duas linhas segmentadas do mesmo tamanho — Batalha | Treino em
+   cima, Aliados | Inimigos embaixo — e o botão de criar à direita. */
+#root .menestrel-ui .nova-batalha-modal .nb-mesa { gap: 0; }
+#root .menestrel-ui .nova-batalha-modal .ms-footer { align-items: flex-end; }
+#root .menestrel-ui .nova-batalha-modal .ms-footer-left { display: none; }
+#root .menestrel-ui .nova-batalha-modal .ms-footer-center { justify-content: flex-start; }
+#root .menestrel-ui .nb-rodape { display: flex; flex-direction: column; gap: 8px; width: min(100%, 360px); }
+#root .menestrel-ui .nb-rodape .nova-batalha-modo,
+#root .menestrel-ui .nb-paginas {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin: 0;
+  padding: 4px; border-radius: 999px; border: 1px solid var(--regua-forte); background: var(--chao-celula-opaco);
+}
+#root .menestrel-ui .nb-rodape .nova-batalha-modo-op,
+#root .menestrel-ui .nb-pagina-op {
+  display: flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 14px;
+  border: 1px solid transparent; border-radius: 999px; background: transparent; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2);
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+#root .menestrel-ui .nb-rodape .nova-batalha-modo-op .ti,
+#root .menestrel-ui .nb-pagina-op .ti { grid-row: auto; font-size: 18px; color: var(--tinta-3); }
+#root .menestrel-ui .nb-rodape .nova-batalha-modo-nome { font-size: var(--fs-sm); color: inherit; }
+#root .menestrel-ui .nb-rodape .nova-batalha-modo-op:hover:not(.is-on),
+#root .menestrel-ui .nb-pagina-op:hover:not(.is-on) { background: rgba(var(--bronze-rgb), 0.14); }
+#root .menestrel-ui .nb-pagina-op:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .nb-rodape .nova-batalha-modo-op.is-on,
+#root .menestrel-ui .nb-pagina-op.is-on {
+  background: var(--ouro-vivo-fundo, rgba(201,164,78,0.12)); border-color: var(--ouro-vivo-aro, rgba(230,201,122,0.55)); color: var(--tinta);
+}
+#root .menestrel-ui .nb-rodape .nova-batalha-modo-op.is-on .ti,
+#root .menestrel-ui .nb-pagina-op.is-on .ti { color: var(--vivo); }
+#root .menestrel-ui .nb-pagina-n { font-variant-numeric: lining-nums tabular-nums; color: var(--tinta-3); }
+#root .menestrel-ui .nb-pagina-n.is-vivo { color: var(--tinta); }
+@media (max-width: 640px) {
+  #root .menestrel-ui .nb-rodape { width: 100%; }
+  #root .menestrel-ui .nova-batalha-modal .ms-footer { align-items: stretch; }
+}
+/* A janela tem altura fixa: trocar de página não move o menu do rodapé. */
+#root .menestrel-ui .ms-modal.nova-batalha-modal { height: min(680px, calc(100dvh - 48px)); }
+#root .menestrel-ui .ms-modal.nova-batalha-modal .ms-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* ══ JANELA DE CRIAR: SELETORES NO TOPO, PAGINAÇÃO NO RODAPÉ (07/11/2026) ════
+   Batalha | Treino e Aliados | Inimigos centrados acima da lista; o rodapé
+   leva a paginação ao centro e o Criar à direita. A lista mostra até 8 linhas
+   por folha, então a janela não rola. */
+#root .menestrel-ui .ms-modal.nova-batalha-modal { height: auto; }
+#root .menestrel-ui .ms-modal.nova-batalha-modal .ms-body { overflow: visible; }
+#root .menestrel-ui .nova-batalha-modal .nb-mesa { gap: 20px; }
+#root .menestrel-ui .nova-batalha-modal .nb-rodape { align-self: center; }
+#root .menestrel-ui .nova-batalha-modal .ms-footer { align-items: center; }
+#root .menestrel-ui .nova-batalha-modal .ms-footer-left { display: block; flex: 1 1 0; }
+#root .menestrel-ui .nova-batalha-modal .ms-footer-center { justify-content: center; flex: 0 0 auto; }
+#root .menestrel-ui .nova-batalha-modal .ms-footer-right { flex: 1 1 0; justify-content: flex-end; }
+#root .menestrel-ui .nova-batalha-modal .best-pag { margin: 0; }
+#root .menestrel-ui .nova-batalha-modal .nb-lado { min-height: 485px; } /* título + 8 linhas: as duas páginas com a mesma altura */
+
+/* O estágio à frente do nome: casa de largura fixa, rótulo pequeno e o número
+   no tamanho do nome (números do mesmo tamanho, só o tom muda). */
+#root .menestrel-ui .part-estagio {
+  flex: 0 0 auto; display: inline-flex; align-items: baseline; gap: 4px; min-width: 52px;
+  font-family: var(--font-body); font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .part-estagio-rot { font-size: var(--fs-xs); font-weight: 700; letter-spacing: var(--rotulo-espaco); text-transform: uppercase; color: var(--tinta-3); }
+#root .menestrel-ui .part-estagio-n { font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2); }
+#root .menestrel-ui .hist-protag-item.on .part-estagio-n { color: var(--tinta); }
+
+/* ══ OS NÚMEROS DO ITEM, EM LISTA (07/11/2026) ══════════════════════════════
+   "vamos mostrar os números do item selecionado" e, depois, "não fica melhor
+   como lista?". O quadro de linhas do painel (.mn-janela-quadro): rótulo à
+   esquerda, número à direita, na cor do status. */
+#root .menestrel-ui .best-frase.best-numeros { list-style: none; }
+#root .menestrel-ui .item-numeros .item-numero-valor { font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
+#root .menestrel-ui .item-numeros .item-numero-valor.st-tom--forte { font-weight: 700; }
+#root .menestrel-ui .item-numero-valor small { font-size: var(--fs-sm); font-weight: 500; color: var(--tinta-2); }
+
+/* ══ O TEXTO DO PAINEL ROLA, A PÁGINA NÃO (07/11/2026) ══════════════════════
+   "Do lado direito, ao selecionar uma magia e o texto for muito grande, eu não
+   quero uma barra de rolagem vertical na página, a barra de rolagem vertical
+   é no texto." O painel lateral não dita mais a altura da linha da grade
+   (contain: size — a altura é a da grade de casas, ao lado); ele estica até
+   ela, e quem rola é o corpo do painel. Vale para toda página de casas
+   (Habilidades, Técnicas, Magias, Inventário, Loja). */
+@media (min-width: 901px) {
+  #root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel > .bau-painel { contain: size; align-self: stretch; }
+  #root .menestrel-ui .fp-page.is-inventario .bau-corpo--painel > .bau-painel .loja-painel-corpo {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  }
+}
+
+/* ══ RITUAL DE SANGUE — a janela do Mestre (07/11/2026) ═════════════════════
+   Tipo (Habilidade | Magia | Técnica) na pílula segmentada das janelas de
+   batalha; busca e "roubado de" lado a lado; a lista em linhas de quadro,
+   oito por folha (paginação no rodapé, sem rolagem); o estágio no seletor do
+   sistema. */
+#root .menestrel-ui .rs-corpo { display: flex; flex-direction: column; gap: 16px; }
+#root .menestrel-ui .rs-intro { margin: 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--tinta-2); }
+#root .menestrel-ui .rs-intro strong { color: var(--tinta); }
+#root .menestrel-ui .rs-seg {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px;
+  border-radius: 999px; border: 1px solid var(--regua-forte); background: var(--chao-celula-opaco);
+}
+#root .menestrel-ui .rs-seg-op {
+  display: flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 12px;
+  border: 1px solid transparent; border-radius: 999px; background: transparent; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700; color: var(--tinta-2);
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+#root .menestrel-ui .rs-seg-op .ti { font-size: 18px; color: var(--tinta-3); }
+#root .menestrel-ui .rs-seg-op:hover:not(.is-on) { background: rgba(var(--bronze-rgb), 0.14); }
+#root .menestrel-ui .rs-seg-op:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .rs-seg-op.is-on {
+  background: var(--ouro-vivo-fundo, rgba(201,164,78,0.12)); border-color: var(--ouro-vivo-aro, rgba(230,201,122,0.55)); color: var(--tinta);
+}
+#root .menestrel-ui .rs-seg-op.is-on .ti { color: var(--vivo); }
+#root .menestrel-ui .rs-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#root .menestrel-ui .rs-campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+#root .menestrel-ui .rs-lista {
+  display: flex; flex-direction: column; border: 1px solid var(--regua-forte); border-radius: 10px;
+  background: var(--chao-celula); overflow: hidden; min-height: calc(8 * 44px);
+}
+#root .menestrel-ui .rs-linha {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 44px; padding: 0 14px;
+  border: 0; border-bottom: 1px solid var(--regua-forte); background: transparent; cursor: pointer; text-align: left;
+  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 600; color: var(--tinta-2);
+}
+#root .menestrel-ui .rs-linha:last-child { border-bottom: 0; }
+#root .menestrel-ui .rs-linha:hover:not(.on) { background: rgba(var(--bronze-rgb), 0.10); }
+#root .menestrel-ui .rs-linha:focus-visible { outline: 2px solid var(--vivo); outline-offset: -2px; }
+#root .menestrel-ui .rs-linha.on { background: var(--ouro-vivo-fundo, rgba(201,164,78,0.12)); color: var(--tinta); box-shadow: inset 3px 0 0 var(--vivo); }
+#root .menestrel-ui .rs-vazio { padding: 24px; text-align: center; color: var(--tinta-3); font-size: var(--fs-sm); min-height: calc(8 * 44px); }
+#root .menestrel-ui .rs-nivel { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+#root .menestrel-ui .rs-nivel .fp-pop-stepper { width: 160px; margin: 0; }
+#root .menestrel-ui .rs-modal .ms-footer-center .fp-pop-stepper { width: auto; }
+@media (max-width: 560px) {
+  #root .menestrel-ui .rs-campos { grid-template-columns: minmax(0, 1fr); }
+}
+#root .menestrel-ui .rs-linha .part-marca { flex: 0 0 20px; width: 20px; height: 20px; }
+#root .menestrel-ui .rs-linha:hover .part-marca { border-color: var(--vivo); }
+#root .menestrel-ui .rs-linha.on .part-marca { background: var(--vivo); border-color: var(--vivo); }
+/* O conhecimento roubado no painel: a gota e o texto em brasa (o que mudou). */
+#root .menestrel-ui .pc-roubado { color: var(--alerta); }
+#root .menestrel-ui .pc-roubado .ti { margin-right: 4px; }
+/* A cor do status vence a tinta da linha (o dd do quadro é mais específico). */
+#root .menestrel-ui .item-numeros dd.st-tom--ciano { color: var(--st-ciano); }
+
+/* ── OS MATERIAIS DA RECEITA NAS CASAS DA BOLSA (07/11/2026) ─────────────
+   Usuário: "os itens para fabricação devem aparecer menores, como se
+   estivessem dentro de uma bolsa. Melhore a formatação do texto." A lista
+   não tinha estilo nenhum: a pintura enchia o painel e o nome colava na
+   conta. Agora é a grade do inventário (.inv-bag-grid--slots, casa
+   --inv-casa), sem as casas vazias; o "tem/precisa" mora no canto da casa,
+   e o que falta vai para a brasa — a única cor que diz "bloqueia". */
+#root .menestrel-ui .fab-receita { display: flex; flex-direction: column; gap: 16px; margin-top: 4px; }
+#root .menestrel-ui .fab-mats-secao { display: flex; flex-direction: column; gap: 8px; }
+#root .menestrel-ui .fab-mats-secao > .mn-rotulo { margin: 0; }
+#root .menestrel-ui .inv-bag-grid--slots.fab-mats {
+  grid-template-columns: repeat(auto-fill, var(--inv-casa));
+  list-style: none; margin: 0; padding: var(--inv-casa-vao);
+}
+#root .menestrel-ui .inv-bag-grid--slots .inv-card.fab-mat { position: relative; cursor: default; }
+#root .menestrel-ui .inv-bag-grid--slots .inv-card.fab-mat:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .fab-mat-conta {
+  position: absolute; right: 4px; bottom: 3px;
+  font-size: var(--fs-xs); font-weight: 800; line-height: 1; color: var(--tinta);
+  font-variant-numeric: lining-nums tabular-nums;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.7);
+}
+/* "3/3": as duas partes do mesmo tamanho e peso — só o tom muda. */
+#root .menestrel-ui .fab-mat-conta i { font-style: normal; color: var(--tinta-3); }
+#root .menestrel-ui .fab-mat-ferramenta {
+  position: absolute; left: 4px; top: 4px; font-size: var(--fs-xs); color: var(--tinta-2);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+#root .menestrel-ui .inv-bag-grid--slots .inv-card.fab-mat.is-falta { border-color: var(--alerta) !important; }
+#root .menestrel-ui .fab-mat.is-falta .fab-mat-conta { color: var(--alerta); }
+#root .menestrel-ui .fab-receita .fab-receita-nota { margin: 0; }
+#root .menestrel-ui .fab-receita-motivo { margin: 0; color: var(--alerta); font-weight: 700; font-size: var(--fs-sm); }
+/* A regra geral de .is-falta apaga a casa inteira (opacidade 0,38) e levava
+   a conta junto. Aqui só a pintura recua; o número segue legível em brasa. */
+#root .menestrel-ui .inv-bag-grid--slots .inv-card.fab-mat.is-falta { opacity: 1; filter: none; }
+#root .menestrel-ui .inv-card.fab-mat.is-falta .inv-card-ic { opacity: 0.5; filter: saturate(0.6); }
+#root .menestrel-ui .inv-bag-grid--slots.fab-mats { justify-content: start; }
+
+
+/* ── ESTUDAR EM ABAS (07/11/2026) ────────────────────────────────────────
+   Uma aba por tipo (Magias, Técnicas, Habilidades), cada uma com o seu
+   saldo — "Magias 36/99": as duas partes do número no mesmo corpo e peso,
+   só o tom muda (o total recua para a tinta-3). A frase de cima diz como e
+   em quanto tempo se aprende. */
+#root .menestrel-ui .modal-estudar .estudar-pontos-total { color: var(--tinta-3); font: inherit; }
+#root .menestrel-ui .modal-estudar .estudar-pontos--excedido .estudar-pontos-total { color: inherit; }
+#root .menestrel-ui .modal-estudar .estudar-como { margin: 0 0 16px; color: var(--tinta-2); }
+#root .menestrel-ui .modal-estudar .estudar-aprendizado { white-space: nowrap; }
+/* Com a escolha, o passe tem cinco células (nome, nível, custo, aprendizado,
+   saldo) e o nome quebrava no meio da palavra ("Codific/ar"). Em qualquer
+   largura, a escolha ocupa a primeira faixa e os números dividem a segunda —
+   o arranjo que o celular já usava. */
+#root .menestrel-ui .modal-estudar .estudar-passe--escolha { display: flex; flex-wrap: wrap; }
+#root .menestrel-ui .modal-estudar .estudar-passe--escolha .mn-celula { flex: 1 1 auto; border-left: none; border-top: 1px solid var(--regua-forte); }
+#root .menestrel-ui .modal-estudar .estudar-passe--escolha .mn-celula:first-child { flex-basis: 100%; border-top: none; }
+#root .menestrel-ui .modal-estudar .estudar-passe--escolha .mn-celula:nth-child(n+3) { border-left: 1px solid var(--regua-forte); }
+#root .menestrel-ui .modal-estudar .estudar-passe-ident .mn-celula-valor { overflow-wrap: normal; }
+/* As abas da Estudar como a pílula da Nova batalha (07/11/2026): no topo do
+   corpo, na largura toda. */
+#root .menestrel-ui .modal-estudar .nb-paginas.estudar-abas { margin: 0 0 16px; }
+/* OS DOIS GRUPOS NA MESMA LINHA (07/11/2026, usuário: "No modal de nova
+   batalha, os botões podem ficar inline"): Batalha | Treino ao lado de
+   Aliados | Inimigos, cada pílula com a sua largura. No celular voltam a
+   empilhar (a regra de 640px acima). */
+#root .menestrel-ui .nb-rodape { flex-direction: row; align-items: center; width: auto; }
+#root .menestrel-ui .nb-rodape .nova-batalha-modo,
+#root .menestrel-ui .nb-rodape .nb-paginas { width: 300px; }
+@media (max-width: 640px) {
+  #root .menestrel-ui .nb-rodape { flex-direction: column; align-items: stretch; width: 100%; }
+  #root .menestrel-ui .nb-rodape .nova-batalha-modo,
+  #root .menestrel-ui .nb-rodape .nb-paginas { width: auto; }
+}
+
+/* UMA BARRA DE ROLAGEM SÓ (07/11/2026, usuário: "Eu não quero duas barras de
+   rolagem vertical no livro de aprender"). O corpo da janela rolava e o
+   quadro também (max-height próprio). Agora o corpo não rola: abas, saldo,
+   regra e escolha ficam fixos em cima, e só o quadro rola, ocupando o resto
+   da altura da janela. */
+#root .menestrel-ui .ms-modal.modal-estudar .ms-body {
+  display: flex; flex-direction: column; overflow: hidden; min-height: 0;
+}
+#root .menestrel-ui .ms-modal.modal-estudar .ms-body > * { flex-shrink: 0; }
+#root .menestrel-ui .ms-modal.modal-estudar .ms-body > .estudar-quadro {
+  flex: 1 1 auto; min-height: 120px; max-height: none; overflow-y: auto;
+}
+/* O saldo à esquerda, a regra à direita. */
+#root .menestrel-ui .modal-estudar .estudar-topo {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; margin-bottom: 16px;
+}
+#root .menestrel-ui .modal-estudar .estudar-topo .estudar-como { margin: 0; }
+#root .menestrel-ui .modal-estudar .estudar-saldo { margin: 0; }
+#root .menestrel-ui .modal-estudar .estudar-saldo .mn-celula { min-width: 120px; }
+#root .menestrel-ui .modal-estudar .estudar-passe--escolha { margin-bottom: 16px; }
+@media (max-width: 560px) {
+  #root .menestrel-ui .modal-estudar .estudar-topo { grid-template-columns: minmax(0, 1fr); }
+}
+/* O rodapé da Estudar é só o Aprender, no centro (07/11/2026). */
+#root .menestrel-ui .modal-estudar .ms-footer { justify-content: center; }
+#root .menestrel-ui .modal-estudar .ms-footer-left { display: none; }
+#root .menestrel-ui .modal-estudar .estudar-quadro + * { margin-top: 0; }
+#root .menestrel-ui .modal-estudar p.estudar-motivo { margin: 0 0 12px; }
+
+/* O PRATO NA ETAPA PREPARAR (07/11/2026): o que a carne vira — nome,
+   descrição, os efeitos na frase da ficha do item e quanto de carne gasta. */
+#root .menestrel-ui .det-prato { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--regua-forte); }
+#root .menestrel-ui .det-prato .best-secao-titulo { margin: 0; }
+#root .menestrel-ui .det-prato-desc { margin: 0; color: var(--tinta-2); font-size: var(--fs-sm); line-height: 1.5; }
+#root .menestrel-ui .det-prato-efeito { margin: 0; color: var(--tinta); font-size: var(--fs-sm); line-height: 1.5; }
+#root .menestrel-ui .det-prato-custo { margin: 0; color: var(--tinta-3); font-size: var(--fs-xs); font-variant-numeric: lining-nums tabular-nums; }
+/* Os pratos no painel estreito (07/11/2026): "Banquete" cortava em três
+   colunas fixas. Aqui a grade cabe quantos couberem sem cortar o nome. */
+#root .menestrel-ui .det-uso-alvos--grade:has(> [data-receita]) {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
+/* ── O AVISO DE ATUALIZAÇÃO (07/11/2026) ─────────────────────────────────
+   Boas-vindas com as novidades: a saudação, um quadro com uma linha por
+   novidade (nome em tinta cheia, a frase embaixo) e o Começar no centro. */
+#root .menestrel-ui .modal-novidades .novidades-saudacao { margin: 0 0 14px; }
+#root .menestrel-ui .modal-novidades .novidades-lista { list-style: none; margin: 0; padding: 0; }
+#root .menestrel-ui .modal-novidades .novidades-linha {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; cursor: default;
+}
+#root .menestrel-ui .modal-novidades .novidades-titulo { font-size: var(--fs-md); font-weight: 700; color: var(--tinta); }
+#root .menestrel-ui .modal-novidades .novidades-texto { font-size: var(--fs-sm); color: var(--tinta-2); line-height: 1.45; }
+#root .menestrel-ui .modal-novidades .ms-footer { justify-content: center; }
+#root .menestrel-ui .modal-novidades .ms-footer-left { display: none; }
+/* O quadro centraliza as linhas; aqui é texto corrido: à esquerda. */
+#root .menestrel-ui .modal-novidades .novidades-linha { align-items: flex-start; text-align: left; }
