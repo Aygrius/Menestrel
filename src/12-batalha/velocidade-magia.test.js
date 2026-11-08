@@ -428,8 +428,13 @@ describe('virada de rodada — iniciativa, movimento e ação extra andam juntos
     expect(participantes[0].pa_rest).toBe(3);   // pa_max 2 + 1
   });
 
-  it('exatamente 30 NÃO dá ação extra (a regra é "ultrapassar")', () => {
+  it('exatamente 30 JÁ dá ação extra (08/11/2026: "30 de velocidade ou mais")', () => {
     const { participantes } = M.montarNovaRodada([base('A', 20, { status_temp: acelerar(10) })]);
+    expect(participantes[0].pa_rest).toBe(3);
+  });
+
+  it('29 ainda não dá', () => {
+    const { participantes } = M.montarNovaRodada([base('A', 20, { status_temp: acelerar(9) })]);
     expect(participantes[0].pa_rest).toBe(2);
   });
 

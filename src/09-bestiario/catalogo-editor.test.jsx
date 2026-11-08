@@ -386,7 +386,7 @@ describe('campos calculados (criaturas)', () => {
     digitar('peso', '6000'); digitar('fisico', '4'); digitar('aura', '3');
     digitar('agilidade', '6'); digitar('estagio', '15');
     const p = await payloadDaCriatura();
-    expect(p).toMatchObject({ energia_fisica: 159, energia_heroica: 225, velocidade: 150 });   // (12+3)×15 · (4+6)×15
+    expect(p).toMatchObject({ energia_fisica: 159, energia_heroica: 225, velocidade: 42 });   // (12+3)×15 · 15 + 3×6 + 4 + ⌊15/3⌋
     expect('resistencia_fisica' in p).toBe(false);
     expect('resistencia_magica' in p).toBe(false);
   });

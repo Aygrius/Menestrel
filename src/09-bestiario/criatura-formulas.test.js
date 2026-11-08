@@ -70,9 +70,14 @@ describe('RF, RM e VB', () => {
     expect(F.resistenciaFisica({ estagio: 10, fisico: 3 })).toBe(13);
     expect(F.resistenciaMagica({ estagio: 10, aura: -1 })).toBe(9);
   });
-  it('VB = (Físico + Agilidade) × Estágio', () => {
-    expect(F.velocidade({ fisico: 2, agilidade: 3, estagio: 4 })).toBe(20);
-    expect(F.velocidade({ fisico: 5, agilidade: 6, estagio: 15 })).toBe(165);
+  // 08/11/2026: o estágio deixou de multiplicar (ver criatura-formulas.jsx).
+  it('VB = 15 + 3·Agilidade + Físico + ⌊Estágio/3⌋', () => {
+    expect(F.velocidade({ fisico: 2, agilidade: 3, estagio: 4 })).toBe(27);    // 15+9+2+1
+    expect(F.velocidade({ fisico: 5, agilidade: 6, estagio: 15 })).toBe(43);   // 15+18+5+5
+    expect(F.velocidade({ fisico: 0, agilidade: 0, estagio: 1 })).toBe(15);    // o Goblin
+  });
+  it('VB nunca fica negativa', () => {
+    expect(F.velocidade({ fisico: -3, agilidade: -5, estagio: 1 })).toBe(0);
   });
 });
 
@@ -193,7 +198,7 @@ describe('derivadosDaCriatura — tudo junto', () => {
       equipamento: [{ slug: 'espada_longa', slot: 'mao_d' }, { slug: 'peitoral_de_aco', slot: 'peito' }],
     };
     expect(F.derivadosDaCriatura(c, CAT)).toEqual({
-      energia_fisica: 22, energia_heroica: 65, resistencia_fisica: 7, resistencia_magica: 6, velocidade: 25,
+      energia_fisica: 22, energia_heroica: 65, resistencia_fisica: 7, resistencia_magica: 6, velocidade: 27,
       ataque: 'Espada Longa', armadura: 'P', absorcao: 8, defesa: 6,
       // L/M/P: −4/0/4 da arma + Força 4 × 2 (07/11/2026) + estágio 5 (06/11/2026).
       dano_l: 9, dano_m: 13, dano_p: 17, dano_100: 32, dano_25: 8, dano_50: 16, dano_75: 24,

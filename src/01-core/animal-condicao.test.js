@@ -42,7 +42,7 @@ beforeAll(() => {
 const CAVALO = {
   id: 157, nome: 'Cavalo Quarter', estagio: 4, peso: 400,
   forca: 3, agilidade: 2, fisico: 3, aura: 1, intelecto: 0, carisma: 0, percepcao: 1,
-  energia_fisica: 43, energia_heroica: 52, velocidade: 20,
+  energia_fisica: 43, energia_heroica: 52, velocidade: 25,   // 15 + 3·2 + 3 + ⌊4/3⌋ (08/11/2026)
 };
 const CATALOGO = {
   cavalo_quarter: { slug: 'cavalo_quarter', nome: 'Cavalo Quarter', criatura_id: 157 },
@@ -130,7 +130,7 @@ describe('a criatura abalada', () => {
     const c = criaturaAbalada(CAVALO, { vitalidade: 100 });
     expect(c.fisico).toBe(3 - 2);
     expect(c.energia_fisica).toBeLessThan(CAVALO.energia_fisica);
-    expect(c.velocidade).toBe((c.fisico + c.agilidade) * 4);
+    expect(c.velocidade).toBe(15 + 3 * c.agilidade + c.fisico + 1);   // estágio 4 → +1
     expect(c.velocidade).toBeLessThan(CAVALO.velocidade);
   });
 

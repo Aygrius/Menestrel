@@ -434,8 +434,11 @@ describe('PA por rodada — a mesma regra para PJ e criatura', () => {
     expect(M.paDaRodada(1, 31)).toBe(2);
   });
 
-  it('"ultrapassar" é ESTRITO: 30 exatos não ganham', () => {
-    expect(M.paDaRodada(1, 30)).toBe(1);
+  /* 08/11/2026, usuário: "com 30 de velocidade ou mais, ganha 1 ponto de
+     ação extra". Até aqui era estrito (> 30). */
+  it('30 exatos já ganham; 29 não', () => {
+    expect(M.paDaRodada(1, 30)).toBe(2);
+    expect(M.paDaRodada(1, 29)).toBe(1);
   });
 
   it('a base do PJ especializado também recebe o bônus', () => {

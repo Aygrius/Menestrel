@@ -78,12 +78,12 @@ describe('o vento muda no meio da batalha', () => {
     expect(r2.participantes.find((p) => p.tipo === 'pj').ordem).toBe(1);
   });
 
-  it('o vento tira a ação extra de quem passava de 30', () => {
+  it('o vento tira a ação extra de quem tinha 30 ou mais', () => {
     M.definirVentoDaBatalha('sem_vento');
-    const rapido = M.montarNovaRodada([pj({ vb: 32 })]).participantes[0];
+    const rapido = M.montarNovaRodada([pj({ vb: 31 })]).participantes[0];
     expect(rapido.pa_rest).toBe(3);
     M.definirVentoDaBatalha('ventania');
-    const freado = M.montarNovaRodada([pj({ vb: 32 })]).participantes[0];
+    const freado = M.montarNovaRodada([pj({ vb: 31 })]).participantes[0];
     expect(freado.pa_rest).toBe(2);
   });
 });

@@ -1675,7 +1675,7 @@ function motivoArmaTecnica(tecnica, arma, catalogos, isEn) {
 // Antes, Guerreiro/Ladino já nasciam com 2 e subiam para 4 especializados —
 // saíam na frente das demais profissões desde o estágio 1. Agora todo mundo
 // começa com 1.
-// O +1 por velocidade > 30 (processarViradaDeRodada) continua por cima disto:
+// O +1 por velocidade >= 30 (processarViradaDeRodada) continua por cima disto:
 // um especializado veloz age 3 vezes, não 2.
 /* ── Os DOIS pontos de ação, e por que são separados ───────────────
    Regra do usuário, 12/09/2026: Guerreiro e Ladino especializados seguem
@@ -1708,7 +1708,9 @@ function pontosAcaoTecnicaPJ(pj) {
    QUALQUER combatente acima de 30, PJ ou criatura, venha o bônus de magia ou
    de velocidade natural — confirmado pelo usuário em 12/09/2026.
 
-   "Ultrapassar" é ESTRITO: 30 exatos não ganham.
+   30 EXATOS GANHAM desde 08/11/2026 (usuário: "com 30 de velocidade ou
+   mais, ganha 1 ponto de ação extra"). Antes era estrito (> 30), e a ficha
+   (pontosAcaoDobrados, >= 30) e a batalha discordavam no 30 exato.
 
    `pa_max` é a BASE (profissão no PJ, 1 na criatura) e não muda; o bônus
    entra no `pa_rest` de cada rodada. Por isso esta função existe e é chamada
@@ -1722,7 +1724,7 @@ function paDaRodada(paBase, vbEfetivoDoP, semAcaoExtra) {
   const base = Math.max(0, Number(paBase) || 0);
   // No limite da carga (91%+) não há ação extra (07/11/2026, FAIXAS_DE_CARGA).
   if (semAcaoExtra) return base;
-  return base + ((Number(vbEfetivoDoP) || 0) > 30 ? 1 : 0);
+  return base + ((Number(vbEfetivoDoP) || 0) >= 30 ? 1 : 0);
 }
 
 /* ── Dano em cascata EH → AR → EF (com transbordo) ────────────── */
@@ -4790,9 +4792,9 @@ function processarViradaDeRodada(p) {
   //     atrasava a iniciativa e agora encurta o passo. Intencional.
   //   • ação extra — regra do sistema, lida da descrição da magia Velocidade:
   //     "Se sua velocidade ultrapassar 30, você terá uma segunda ação na mesma
-  //     rodada". Vale pra QUALQUER combatente acima de 30, venha o bônus de
-  //     magia ou de vb nenhum (quem já nasce rápido também ganha).
-  //     "Ultrapassar" é estrito: 30 exatos não ganham.
+  //     rodada". Vale pra QUALQUER combatente com 30 ou mais, venha o bônus
+  //     de magia ou de vb nenhum (quem já nasce rápido também ganha).
+  //     30 exatos ganham (08/11/2026, ver paDaRodada).
   //
   // Os dois recalculam AQUI, na virada, junto da reordenação de iniciativa em
   // montarNovaRodada — os três andam sempre juntos.

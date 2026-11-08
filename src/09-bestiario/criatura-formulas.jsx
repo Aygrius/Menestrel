@@ -14,7 +14,7 @@
      EH = (12 + Aura) × Estágio
      RF = Estágio + Físico
      RM = Estágio + Aura
-     VB = (Físico + Agilidade) × Estágio
+     VB = 15 + 3·Agilidade + Físico + ⌊Estágio/3⌋   (08/11/2026; ver velocidade)
 
    E o que vem do EQUIPAMENTO segue a conta do PERSONAGEM (decisão do usuário):
      • Absorção = soma da absorção das peças equipadas;
@@ -65,9 +65,20 @@ function energiaHeroica({ aura, estagio } = {}) {
 function resistenciaFisica({ estagio, fisico } = {}) { return num(estagio) + num(fisico); }
 function resistenciaMagica({ estagio, aura } = {}) { return num(estagio) + num(aura); }
 
-// VB = (Físico + Agilidade) × Estágio
+/* VB = 15 + 3 × Agilidade + Físico + ⌊Estágio / 3⌋, com piso 0.
+   Reforma de 08/11/2026 (usuário: "a velocidade dos personagens e das
+   criaturas está com uma diferença muito grande"). A conta antiga,
+   (Físico + Agilidade) × Estágio, MULTIPLICAVA pelo estágio, enquanto a do
+   personagem (⌊11 × altura⌋ + Agilidade) não muda com ele e fica em 14–27.
+   Resultado: no estágio 1 a mediana era 1 (Goblin 0, Zumbi −4) e do estágio
+   22 em diante 220–480 — o Dragão Ancião andava 120 casas num campo de 60×44,
+   e 41% do catálogo tinha ação extra. Agora a mediana fica em ~24, a
+   Agilidade pesa mais que o Físico (lobo e cavalo rápidos, zumbi lento) e o
+   estágio só soma 1 a cada 3. A altura NÃO entra, ao contrário do
+   personagem: bicho pequeno não é lento (o lobo de 0,55 m teria 10). */
+const VB_BASE_CRIATURA = 15;
 function velocidade({ fisico, agilidade, estagio } = {}) {
-  return (num(fisico) + num(agilidade)) * num(estagio);
+  return Math.max(0, VB_BASE_CRIATURA + 3 * num(agilidade) + num(fisico) + Math.floor(num(estagio) / 3));
 }
 
 // Tiers 25/50/75% — mesma regra de arredondamento pra cima do Arsenal da Ficha.
