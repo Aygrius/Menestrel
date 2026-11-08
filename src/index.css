@@ -13886,7 +13886,6 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .cena-cartao.is-atual .cena-cartao-num .pj-card-portrait-mono { color: var(--vivo); }
 #root .menestrel-ui .cena-cartao .pj-name-linha { display: flex; align-items: center; gap: 8px; }
 #root .menestrel-ui .cena-cartao .pj-name { flex: 0 1 auto; min-width: 0; }
-#root .menestrel-ui .cena-cartao-selo { cursor: inherit; pointer-events: none; }
 #root .menestrel-ui .cena-modal-meta { margin: 0 0 14px; font-size: var(--fs-rotulo, 11px); font-weight: 800; letter-spacing: var(--rotulo-espaco, .12em); text-transform: uppercase; color: var(--tinta-3); }
 #root .menestrel-ui .cena-modal-texto .cena-cap-texto { margin: 0 0 12px; max-width: none; font-size: var(--fs-base); line-height: 1.65; color: var(--tinta-2); }
 
@@ -16218,7 +16217,6 @@ body { background-color: var(--p-pagina); }
 }
 #root .menestrel-ui .cena-grade .pj-meta { display: block; }
 #root .menestrel-ui .cena-grade .pj-meta .sep { margin: 0 6px; }
-#root .menestrel-ui .cena-grade .cena-cartao-selo { flex: none; }
 #root .menestrel-ui .pjs-grid.cena-grade > .pj-card-wrap:only-child { width: calc((100% - 14px) / 2); }
 @media (max-width: 900px) {
   #root .menestrel-ui .pjs-grid.cena-grade > .pj-card-wrap:only-child { width: 100%; }
@@ -17801,7 +17799,7 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
    Uma pílula de luz por trilho, o ::before dele, que DESLIZA de um botão a
    outro (10-shell, instalarLaminaDosTrilhos, põe a posição em --lamina-*).
    Dois modos:
-     passagem  sob o ponteiro: só o véu de bronze, sem brilho;
+     passagem  sob o ponteiro: desde 08/11/2026, a mesma brasa do ativo;
      ativo     pousada na página aberta: o véu de ouro e a BRASA — um brilho
                que nasce da base do botão, como luz de vela por baixo de um
                pergaminho. Sem aro: era o aro amarelo que o usuário tirou.
@@ -17837,6 +17835,11 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
     opacity .18s ease,
     background-color .2s ease, box-shadow .2s ease;
 }
+/* A brasa também na passagem (08/11/2026, usuário: "O efeito no botão 'cena'
+   deve existir em todos os botões do trilho superior do sistema todo" —
+   perguntado, "o brilho de brasa"): o botão sob o ponteiro acende igual ao
+   da página aberta, em todo trilho que tem a lâmina. */
+#root .menestrel-ui [data-lamina][data-lamina-modo="passagem"]::before,
 #root .menestrel-ui [data-lamina][data-lamina-modo="ativo"]::before {
   background:
     radial-gradient(70% 120% at 50% 135%, rgba(var(--ouro-rgb), 0.55), transparent 70%),

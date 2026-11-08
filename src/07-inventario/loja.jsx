@@ -420,7 +420,7 @@ function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compra
   const _passeDoItem = (typeof passeDoItem !== 'undefined' && passeDoItem) || window.passeDoItem;
   const passe = _passeDoItem ? _passeDoItem(item, lang, { quantidade: qtd, extras: [
     { chave: 'vendedor', texto: true, rotulo: en ? 'Seller' : 'Vendedor', valor: anuncio.vendedor_nome || (en ? 'An adventurer' : 'Um aventureiro') },
-    { chave: 'preco', rotulo: qtd > 1 ? (en ? 'Price (each)' : 'Preço (cada)') : (en ? 'Price' : 'Preço'), valor: <MoedaPills latao={preco} lang={lang} tamanho="sm" /> },
+    { chave: 'preco', rotulo: qtd > 1 ? (en ? 'Price (each)' : 'Preço (cada)') : (en ? 'Price' : 'Preço'), valor: <MoedaPills latao={preco} lang={lang} mostrarGratis tamanho="sm" /> },
   ] }) : { topo: null, omitir: [] };
   return (
     <Janela
@@ -455,10 +455,10 @@ function AnuncioLojaModal({ anuncio, cat, lang, podeComprar, podeRetirar, compra
               </LinhaDaCompra>
             )}
             <LinhaDaCompra rotulo={qtd > 1 ? (en ? 'Price (each)' : 'Preço (cada)') : (en ? 'Price' : 'Preço')}>
-              <MoedaPills latao={preco} lang={lang} tamanho="sm" />
+              <MoedaPills latao={preco} lang={lang} mostrarGratis tamanho="sm" />
             </LinhaDaCompra>
             <LinhaDaCompra rotulo={`Total (${qtdCompra})`}>
-              <MoedaPills latao={custo} lang={lang} tamanho="sm" />
+              <MoedaPills latao={custo} lang={lang} mostrarGratis tamanho="sm" />
             </LinhaDaCompra>
             {!compraDoMestre && (
               <LinhaDaCompra tem rotulo={en ? 'You have' : 'Você tem'}>

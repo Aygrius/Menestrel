@@ -439,7 +439,6 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
                         <header className="pj-card-head">
                           <div className="pj-name-linha">
                             <div className="pj-name">{c.titulo || (en ? 'Untitled' : 'Sem título')}</div>
-                            {atual && <span className="pj-evoluiu cena-cartao-selo">{en ? 'In progress' : 'Em andamento'}</span>}
                           </div>
                         </header>
                         <div className="pj-meta-linhas">

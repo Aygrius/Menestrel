@@ -1790,38 +1790,29 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
    Festival de Renascimento de Maira estava em 3 do mês do Sangue; o livro diz
    "3º dia do mês da Rosa" (deuses.pdf, Maira), e passou para 3/10. */
 const FERIADOS_FANTASY = [
-  { dia:  2, mes:  1, nome: 'Festival da Benção Militar' },
-  { dia: 12, mes:  1, nome: 'Amor da Deusa' },
+  /* Os feriados de Blator, Cambu e Crezir saíram daqui em 08/11/2026: vêm
+     das ENTIDADES deles (01-core/entidades.jsx), com os nomes do livro. */
   { dia:  1, mes:  2, nome: 'Dia do Mar' },
-  { dia:  5, mes:  2, nome: 'Jejum da Piedade' },
   { dia:  5, mes:  2, nome: 'Solstício de Verão' },
   { dia: 11, mes:  2, nome: 'Festa da Carne' },
-  { dia:  5, mes:  3, nome: 'Condecoração Póstuma' },
   { dia:  9, mes:  3, nome: 'Vitória da Justiça' },
   { dia: 15, mes:  3, nome: 'Festa da Prosperidade' },
   { dia: 20, mes:  3, nome: 'Dia do Amor e Paz' },
   { dia:  7, mes:  4, nome: 'Festa da Fertilidade' },
   { dia: 13, mes:  4, nome: 'Festa da Purificação de Parom' },
-  { dia: 30, mes:  4, nome: 'Festa da Fartura' },
-  { dia:  1, mes:  5, nome: 'Festa da Fartura' },
   { dia:  5, mes:  5, nome: 'Equinócio de Outono' },
-  { dia: 21, mes:  5, nome: 'Dia da Multiplicação' },
   { dia: 20, mes:  6, nome: 'Jornada da Paz' },
   { dia: 24, mes:  6, nome: 'Festa dos Artífices' },
   { dia: 30, mes:  6, nome: 'Festa da Colheita' },
   { dia:  1, mes:  7, nome: 'Noite dos Prazeres' },
-  { dia: 13, mes:  7, nome: 'Batismo de Fogo' },
   { dia:  5, mes:  8, nome: 'Solstício de Inverno' },
-  { dia: 23, mes:  8, nome: 'Oferenda de Sangue' },
   { dia:  4, mes:  9, nome: 'Memorial dos Ancestrais' },
   { dia: 20, mes:  9, nome: 'Prisão Dourada' },   // de Morrigalti; a Adoração a Maira Nil vem da entidade dela
   { dia:  1, mes: 10, nome: 'Festa do Plantio' },
   { dia: 12, mes: 10, nome: 'Festa dos Amantes' },
-  { dia: 27, mes: 10, nome: 'Festa da Vitória' },
   { dia:  6, mes: 11, nome: 'Equinócio de Primavera' },
   { dia: 26, mes: 11, nome: 'Dia da Sobra' },
   { dia: 16, mes: 12, nome: 'Festa dos Povos' },
-  { dia: 27, mes: 12, nome: 'Noite do Entendimento entre os Povos' },
   { dia: 29, mes: 12, nome: 'Noite dos Justos' },
   /* O último dia do ano juntava duas festas num nome só ("Dia de Cruine e
      Retorno da Escuridão"). Separadas em 08/11/2026: o Retorno à Escuridão é

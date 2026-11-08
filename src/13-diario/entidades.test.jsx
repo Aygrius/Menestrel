@@ -29,9 +29,9 @@ afterEach(cleanup);
 const cruine = () => window.ENTIDADES.find((e) => e.slug === 'cruine');
 
 describe('o catálogo', () => {
-  it('as sete entidades, todas com os tópicos preenchidos', () => {
+  it('as treze entidades, todas com os tópicos preenchidos', () => {
     const slugs = window.ENTIDADES.map((e) => e.slug).sort();
-    expect(slugs).toEqual(['cruine', 'heldrom', 'maira', 'mocna', 'palier', 'plandis', 'ricutatis']);
+    expect(slugs).toEqual(['anasmadis', 'antredom', 'blator', 'branaxis', 'cambu', 'crezir', 'cruine', 'heldrom', 'maira', 'mocna', 'palier', 'plandis', 'ricutatis']);
     for (const e of window.ENTIDADES) {
       expect(window.ENTIDADE_CLASSES[e.classe], e.slug).toBeTruthy();
       expect(e.prefacio.texto.length, e.slug).toBeGreaterThan(200);
@@ -78,6 +78,24 @@ describe('o feriado entra no calendário', () => {
     expect(window.feriadosDoDia(6, 9)).toContain('Dia da Magia');           // Palier
     expect(window.feriadosDoDia(19, 7)).toContain('Representação de Plandis');
   });
+
+  /* Lote de 08/11/2026 (2): Blator, Cambu, Crezir, Anasmadis, Antredom, Branaxis.
+     Os feriados dos três deuses estavam fixos no calendário; agora vêm só da
+     entidade, sem aparecer em dobro. */
+  it('os feriados dos deuses do segundo lote aparecem uma vez, com o nome do livro', () => {
+    expect(window.feriadosDoDia(2, 1)).toEqual(['Festival da Bênção Militar']);
+    expect(window.feriadosDoDia(27, 10)).toEqual(['Festival da Vitória']);
+    expect(window.feriadosDoDia(12, 1)).toEqual(['Amor da Deusa']);
+    expect(window.feriadosDoDia(21, 5)).toEqual(['Dia da Multiplicação']);
+    expect(window.feriadosDoDia(1, 5)).toEqual(['Festa da Fartura']);
+    expect(window.feriadosDoDia(30, 4).filter((n) => n === 'Festa da Fartura')).toHaveLength(1);
+    expect(window.feriadosDoDia(30, 4)).toContain('Banquete dos Famintos');
+  });
+  it('os príncipes do segundo lote trazem os seus feriados', () => {
+    expect(window.feriadosDoDia(11, 10)).toContain('Dia dos Tolos');        // Anasmadis
+    expect(window.feriadosDoDia(30, 6)).toContain('Banquete dos Famintos'); // Antredom
+    expect(window.feriadosDoDia(21, 3)).toContain('Noite do Pesadelo');     // Branaxis
+  });
 });
 
 describe('a página', () => {
@@ -85,8 +103,9 @@ describe('a página', () => {
 
   it('mostra o cartão e abre a ficha com uma aba por tópico', () => {
     const { container, getByText } = montar();
-    const cartao = container.querySelector('.diario-cartao');
-    expect(cartao.textContent).toMatch(/Cruine/);
+    // Os cartões vêm em ordem alfabética: Cruine não é mais o primeiro.
+    const cartao = [...container.querySelectorAll('.diario-cartao')].find((c) => /Cruine/.test(c.textContent));
+    expect(cartao).toBeTruthy();
     expect(cartao.textContent).toMatch(/Deus/);
     fireEvent.click(cartao);
     const abas = [...document.querySelectorAll('[role="tab"]')].map((b) => b.textContent.trim());

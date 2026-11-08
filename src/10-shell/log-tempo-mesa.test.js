@@ -21,6 +21,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
+import '../01-core/entidades.jsx';      // feriados dos deuses vêm das entidades (08/11/2026)
 import '../01-core/helpers.jsx';
 import '../01-core/inventario-helpers.jsx';
 import '../01-core/game-data.jsx';

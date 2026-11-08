@@ -13,6 +13,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, screen } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
+import '../01-core/entidades.jsx';      // feriados dos deuses vêm das entidades (08/11/2026)
 import '../01-core/helpers.jsx';
 import '../01-core/game-data.jsx';
 import './shell.jsx';
