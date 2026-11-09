@@ -224,16 +224,20 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          // Varredura das magias que nenhum personagem conhecia
                          // (12/09/2026): a dificuldade de habilidade vira
                          // primitiva. Vinte e poucas magias a pedem.
-                         'mod_dificuldade'];
+                         'mod_dificuldade',
+                         // Apelo (09/11/2026): a primeira invocação — traz uma
+                         // criatura do bestiário em vez de mexer em alguém.
+                         'invocar'];
 
-  it('tem 110 entradas — 106 da reforma e mais 4 corrigidas pelo usuário (12/09/2026)', () => {
+  it('tem 111 entradas — 106 da reforma, 4 corrigidas pelo usuário (12/09/2026) e o Apelo (09/11/2026)', () => {
     // As 4: Alucinação, Força da Montanha, Vigília e Ataque Impetuoso.
     // A reforma: 16 saíram (as dificuldades fundidas, Ruído Extenuante e
     // Região Inviolável), 4 finais de dificuldade entraram (Amizade, Dom das
     // Línguas, Sombra, Graça Felina) e 23 novas ou religadas (6 ataques de
     // colégio, Apontar Sufocante, Cadência Veloz, 13 curas de ordem, Égide
     // Celestial e Selo Abismal). Degeneração Física mudou de forma e ficou.
-    expect(Object.keys(MAP)).toHaveLength(110);
+    // O Apelo (09/11/2026): a primeira invocação de verdade.
+    expect(Object.keys(MAP)).toHaveLength(111);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -464,6 +468,8 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     forca_da_montanha:    'Aumenta 2 de energia física, e reduz 4 de velocidade.',
     vigilia:              'Reduz 9 colunas da habilidade Sentidos.',
     ataque_impetuoso:     'Causa 4 de dano extra no próximo ataque.',
+    // A primeira invocação (09/11/2026). Cópia literal do banco.
+    apelo:                'Evoca um enviado.',
   };
 
   it('a lista de conferência cobre TODAS as entradas do mapa', () => {

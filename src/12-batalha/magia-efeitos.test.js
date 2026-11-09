@@ -902,6 +902,8 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
     // 22/10/2026: Licantropia Lupina vira Lobisomem — a sub-raça entra em
     // calcularFicha, e montarSnapshots a fixa no snapshot da largada.
     transformacao:   'subracaEfetiva → calcularFicha (montarSnapshots)',
+    // 09/11/2026: o Apelo traz o enviado do bestiário para a batalha.
+    invocar:         'aplicarEfeitoMagia → invocacao_pendente → participanteInvocado',
   };
 
   /* Primitivas DECLARADAS e ainda SEM consumidor. A lista existe para o

@@ -4480,6 +4480,21 @@ function ultimoAtacanteDe(ator, participantes, log) {
   return null;
 }
 
+/* A última ação de ataque do PRÓPRIO ator no log: 'arma', 'magia' ou null.
+   Casa por instância quando a entrada tem; nas antigas, por tipo + ref_id + nome. */
+function ultimaAcaoDeAtaque(ator, log) {
+  if (!ator || !Array.isArray(log)) return null;
+  for (let k = log.length - 1; k >= 0; k--) {
+    const e = log[k];
+    if (!e || (e.acao !== 'arma' && e.acao !== 'magia')) continue;
+    const dele = e.autor_inst_id ? e.autor_inst_id === ator.inst_id
+      : (e.autor_tipo === ator.tipo && String(e.autor_ref_id) === String(ator.ref_id)
+        && (!e.autor_nome || e.autor_nome === ator.nome));
+    if (dele) return e.acao;
+  }
+  return null;
+}
+
 function decidirJogadaAutomatica(ator, participantes, catalogos, tecnicasUsadas = [], log = null) {
   const T = (typeof window !== 'undefined' && window.MotorTabuleiro) || {};
   const _alcance = T.alcanceDaAcao || (typeof alcanceDaAcao === 'function' ? alcanceDaAcao : null);
@@ -4527,12 +4542,19 @@ function decidirJogadaAutomatica(ator, participantes, catalogos, tecnicasUsadas 
   const karma = Number(ator.karma) || 0;
   const magia = magiasOfensivasDoAtor(ator, catalogos).find((m) => !m.evocacao_bloqueada && !m.bloqueio_milagre
     && (Number(m.custo_karma) || 0) <= karma && alcanca({ magia: m }));
-  if (magia) return { tipo: 'acao', aba: 'magia', magiaKey: magia.key, alvoId: alvo.inst_id };
-
   // A arma de mais dano que alcança.
   const arma = armas.filter((a) => alcanca({ arma: a }))
     .sort((a, b) => (Number(b.dano_100 != null ? b.dano_100 : b.dano) || 0) - (Number(a.dano_100 != null ? a.dano_100 : a.dano) || 0))[0];
-  if (arma) return { tipo: 'acao', aba: 'arma', armaSlug: arma.slug || null, armaNome: arma.nome, alvoId: alvo.inst_id };
+  const jogaMagia = magia && { tipo: 'acao', aba: 'magia', magiaKey: magia.key, alvoId: alvo.inst_id };
+  const jogaArma = arma && { tipo: 'acao', aba: 'arma', armaSlug: arma.slug || null, armaNome: arma.nome, alvoId: alvo.inst_id };
+  /* A CRIATURA REVEZA (09/11/2026, usuário: "No modo automático, eu quero
+     que as criaturas revezem entre usar magia e atacar com arma"). Depois de
+     uma magia vem a arma, e depois da arma, a magia — lido da última ação
+     dela no log. Sem a outra opção à mão, repete a que tem. O personagem no
+     automático segue magia primeiro. */
+  const armaAgora = ator.tipo === 'criatura' && ultimaAcaoDeAtaque(ator, log) === 'magia';
+  const escolha = armaAgora ? (jogaArma || jogaMagia) : (jogaMagia || jogaArma);
+  if (escolha) return escolha;
 
   // Nada alcança: anda na direção do alvo.
   const passo = typeof movimentoDisponivel === 'function' ? movimentoDisponivel(ator) : 0;
@@ -5243,6 +5265,28 @@ function prepararReforcos(snaps, rodadaAtual) {
   });
 }
 
+/* Snapshot → combatente INVOCADO (Apelo, 09/11/2026). Diferente do reforço,
+   entra JÁ: a evocação de 1 rodada foi a espera. Fica na célula livre mais
+   perto do conjurador, luta do lado dele, joga no automático (o Mestre
+   desliga no card se quiser conduzir) e entra no fim da fila — a virada o
+   reordena pela iniciativa. `invocado_por` é o que o faz voltar ao seu plano
+   quando cai (partemOsInvocados). */
+function participanteInvocado(snap, conjurador, participantes) {
+  const lista = Array.isArray(participantes) ? participantes : [];
+  const maiorOrdem = lista.reduce((m, p) => Math.max(m, Number(p && p.ordem) || 0), 0);
+  return {
+    ...snap,
+    inst_id: `inv:${snap.ref_id}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 7)}`,
+    status: 'ativo',
+    pos: celulaLivreProxima(conjurador && conjurador.pos, lista, snap),
+    lado: ladoNaBatalha(conjurador),
+    auto: true,
+    invocado_por: conjurador ? conjurador.inst_id : null,
+    ordem: maiorOrdem + 1,
+    atual: false,
+  };
+}
+
 /* Bandos só DENTRO da leva que chega: formarBandos agrupa toda criatura
    solta que recebe, e os goblins que já lutam seriam renomeados e
    amarrados aos novos no meio da luta. Os bandos já formados entram só
@@ -5324,15 +5368,28 @@ function entrarReforcos(participantes) {
   return { participantes: out, entraram };
 }
 
+/* O INVOCADO QUE CAI VAI EMBORA (Apelo, 09/11/2026): "Se a criatura cumprir
+   sua tarefa ou ser derrotada, ela retornará ao Plano Celestial." Na virada,
+   quem foi invocado (`invocado_por`) e está morto ou desmaiado sai da mesa. */
+function partemOsInvocados(participantes) {
+  const lista = Array.isArray(participantes) ? participantes : [];
+  const caidos = lista.filter((p) => p && p.invocado_por && (p.status === 'morto' || p.status === 'desmaiado'));
+  if (!caidos.length) return { participantes, partiram: [] };
+  return { participantes: lista.filter((p) => !caidos.includes(p)), partiram: caidos.map((p) => p.nome) };
+}
+
 function montarNovaRodada(participantes) {
   // Reforços entram PRIMEIRO: assim a virada lhes dá PA, passo e vento pela
   // mesma conta de todo mundo, e a iniciativa já os põe na fila.
-  const { participantes: comReforcos, entraram } = entrarReforcos(participantes);
+  const { participantes: comReforcos0, entraram } = entrarReforcos(participantes);
+  // O invocado caído volta ao seu plano — ver partemOsInvocados.
+  const { participantes: comReforcos, partiram } = partemOsInvocados(comReforcos0);
   // Veneno morde na EF, e dano na EF derruba a magia sustentada. Resolve
   // ANTES de renovar recursos — ver quebrarConcentracaoPorVeneno.
   // O vento corrente entra ANTES da virada: é ela que recalcula PA e passo.
   const base = aplicarVentoNosPjs(quebrarConcentracaoPorVeneno(comReforcos), _ventoDaBatalha);
-  const eventosRodada = entraram.map((nome) => ({ nome, entrou: true }));
+  const eventosRodada = [...entraram.map((nome) => ({ nome, entrou: true })),
+    ...partiram.map((nome) => ({ nome, partiu: true }))];
   const processados = base.map((p) => {
     const r = processarViradaDeRodada(p);
     if (r.eventos.length) eventosRodada.push({ nome: p.nome, eventos: r.eventos, total: r.total });
@@ -5369,6 +5426,7 @@ function entradaLogViradaRodada(eventos, rodadaNova) {
   // Reforço que chegou (entrarReforcos) vem antes do dano por rodada.
   const texto = eventos
     .map((e) => (e.entrou ? `${e.nome} entrou na batalha`
+      : e.partiu ? `${e.nome} voltou ao Plano Celestial`
       : `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`))
     .join('; ');
   return { rodada: rodadaNova, ts: Date.now(), acao: 'sistema', texto };
@@ -5953,6 +6011,22 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
      devolveria concentração perpétua em vez da contagem certa. Quando o nível
      não diz nada, cai na coluna — que é o caso das 25 da Fase 1. */
   const dur = duracaoNoNivel(magia, nivel);
+
+  /* INVOCAÇÃO (Apelo, 09/11/2026): não vira status — deixa o pedido no
+     conjurador, e a tela do Mestre traz a criatura (materializarInvocacao).
+     A criatura é a do maior nível do registro que o nível lançado alcança. */
+  const inv = reg.efeitos.find((ef) => ef.tipo === 'invocar');
+  if (inv) {
+    const nivelN = Number(nivel) || 1;
+    const chave = Object.keys(inv.criaturas || {}).map(Number)
+      .filter((n) => n <= nivelN).sort((a, b) => b - a)[0];
+    const criatura = chave != null ? inv.criaturas[chave] : null;
+    if (!criatura) return participante;
+    return { ...participante, invocacao_pendente: {
+      criatura, magia_key: key, magia_nome: magia.nome || key, nivel: nivelN,
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    } };
+  }
 
   const novos = [];
   reg.efeitos.forEach((ef) => {
@@ -7904,6 +7978,58 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     .filter((pj) => !participantes.some((p) => p.tipo === 'pj' && String(p.ref_id) === String(pj.id)));
   const criaturasDaHistoria = ((historia && historia.criatura_ids) || [])
     .map((id) => criaturas.find((c) => c.id === id)).filter(Boolean);
+
+  /* A INVOCAÇÃO CHEGA (Apelo, 09/11/2026). O milagre deixou
+     `invocacao_pendente` no conjurador (aplicarEfeitoMagia) — venha a magia da
+     tela do Jogador, do Mestre ou do automático. Só a tela do Mestre a
+     materializa: lê a criatura no bestiário, monta o snapshot como num reforço
+     e a põe em campo já, ao lado de quem invocou (participanteInvocado). Uma
+     de cada vez; `invocandoRef` impede a mesma de entrar duas vezes enquanto
+     a gravação volta. */
+  const invocandoRef = useRef(null);
+  useEffect(() => {
+    if (estado !== 'ativa' || salvando) return undefined;
+    const idx = participantes.findIndex((p) => p && p.invocacao_pendente);
+    if (idx < 0) return undefined;
+    const conj = participantes[idx];
+    const pend = conj.invocacao_pendente;
+    if (invocandoRef.current === pend.id) return undefined;
+    invocandoRef.current = pend.id;
+    (async () => {
+      let novo = null;
+      try {
+        const { data } = await supabaseClient.from('criaturas').select('id, nome').eq('nome', pend.criatura).limit(1);
+        const cri = data && data[0];
+        if (cri) {
+          const { pools, magiasByKey, dataJogo } = await carregarBaseDosSnapshots();
+          const [snap] = await montarSnapshots([{ tipo: 'criatura', ref_id: cri.id, nome: cri.nome }], pools, magiasByKey, dataJogo);
+          if (snap) novo = participanteInvocado(snap, conj, participantes);
+        }
+      } catch (e) {
+        console.error('[batalha] invocação falhou:', e);
+      }
+      const limpo = participantes.map((p, i) => {
+        if (i !== idx) return p;
+        const { invocacao_pendente, ...resto } = p;
+        return resto;
+      });
+      const next = novo ? [...limpo, novo] : limpo;
+      persistir({ participantes: next }, () => setParticipantes(next));
+      if (historia && historia.id) {
+        const texto = novo
+          ? `${conj.nome} evocou ${novo.nome}, que chega para ajudar.`
+          : `${conj.nome} lançou ${pend.magia_nome}, mas ${pend.criatura} não está no bestiário.`;
+        supabaseClient.rpc('registrar_evento_mesa', {
+          p_historia_id: historia.id, p_tipo: 'magia', p_texto: texto,
+          p_meta: { batalha_id: batalha.id, magia_key: pend.magia_key, icone: 'ti-feather' },
+        }).then(({ error: rpcErr }) => {
+          if (rpcErr) console.error('[batalha] registrar_evento_mesa (invocação) falhou:', rpcErr);
+        });
+      }
+    })();
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [participantes, estado, salvando]);
 
   const adicionarReforcos = async (crus) => {
     setError(null);
@@ -14104,7 +14230,7 @@ Object.assign(window, {
   SaqueModal,   // janela de saque (25/09/2026) — exposta para o teste de tela
   MotorBatalha: {
     // Reforços que chegam no meio da batalha (29/09/2026) — reforcos.test.js.
-    STATUS_CHEGANDO, ehReforco, prepararReforcos, formarBandosDeReforco,
+    STATUS_CHEGANDO, ehReforco, prepararReforcos, participanteInvocado, partemOsInvocados, formarBandosDeReforco,
     entrarReforcos, celulaLivreProxima,
     EF_MORTE, pontosAcaoPJ, pontosAcaoTecnicaPJ, paDaRodada,
     aplicarDanoCascata, ordenarIniciativa,
@@ -14233,7 +14359,7 @@ Object.assign(window, {
     // segura o fim de turno mesmo com pa_rest 0.
     temAcaoRestante,
     // Modo automático (08/11/2026).
-    decidirJogadaAutomatica, ladoNaBatalha, ultimoAtacanteDe,
+    decidirJogadaAutomatica, ladoNaBatalha, ultimoAtacanteDe, ultimaAcaoDeAtaque,
     desgastarArmadura,
     criticoPermitido,
     efeitoAncoraNoAtacante,

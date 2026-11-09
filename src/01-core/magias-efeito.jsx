@@ -107,7 +107,13 @@ const MAGIA_VERBOS = {
    participante depois do setup, com snapshot próprio, posição no tabuleiro e
    lugar na ordem de iniciativa. É feature de porte próprio, não primitiva.
 
-   Enquanto isso, seguem narrativas: o Mestre invoca na mão, como já faz. */
+   Enquanto isso, seguem narrativas: o Mestre invoca na mão, como já faz.
+
+   ATUALIZAÇÃO (09/11/2026): os reforços (29/09/2026) deram à batalha o
+   "participante depois do setup", e o Apelo virou a primeira invocação de
+   verdade — efeito `invocar`, que traz uma criatura do BESTIÁRIO pelo nome.
+   As quatro acima seguem fora: o invocado delas é cópia do personagem ou
+   carcaça, não uma criatura que exista no bestiário. */
 
 /* Unidade = a frase que vem DEPOIS do número. Cada entrada aponta pro nome do
    campo de saída. `coluna` casa "coluna de ataque" e o plural "colunas". */
@@ -1579,6 +1585,17 @@ const MAGIA_EFEITO_MAP = {
   ataque_impetuoso:     { alvo: 'self', alvos: 1, icone: '💢',
                           efeitos: [{ tipo: 'mod_dano', unidade: 'dano', sinal: 1,
                                       consome_em: 'golpe_dado' }] },
+  /* APELO (09/11/2026, usuário: "A magia 'Apelo' não está aparecendo na
+     batalha"; perguntado, "Evoca o enviado"). A primeira INVOCAÇÃO de
+     verdade: o milagre não mexe em ninguém, ele traz um combatente. O
+     efeito deixa `invocacao_pendente` no conjurador (aplicarEfeitoMagia) e a
+     tela do Mestre monta a criatura do bestiário e a põe ao lado dele — ver
+     materializarInvocacao em 12-batalha. O enviado de cada nível é o do texto
+     ("Evoca um enviado tipo II"); o do nível 1, sem tipo, é o Enviado Menor. */
+  apelo:                { alvo: 'self', alvos: 1, icone: '🕊️',
+                          efeitos: [{ tipo: 'invocar', valor: true,
+                                      criaturas: { 1: 'Enviado Menor', 3: 'Enviado I', 5: 'Enviado II',
+                                                   7: 'Enviado III', 9: 'Enviado IV' } }] },
   egide_celestial:      { alvo: 'aliado', alvos: 1, icone: '🌑',
                           efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano', elemento: 'celestial' }] },
   selo_abismal:         { alvo: 'aliado', alvos: 1, icone: '🔯',
