@@ -1896,8 +1896,9 @@ function aplicarDanoCascata(dano, p, mods) {
   // Espelha podeSerAtacado: se dá pra atacar, tem que dar pra matar, senão o
   // alvo vira saco de pancada imortal.
   if (ef <= EF_MORTE && status !== 'morto') status = 'morto';
-  else if ((ef <= 0 || (eh === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
-  return { ...(desg || p), eh, ef, status, sobra: r, res: desg ? desg.res : res };
+  else if (!p.desmaio_cumprido && (ef <= 0 || (eh === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
+  // O zz de 4 rodadas quando a EF cai a zero ou menos (ver desmaioPorDanoNaEf).
+  return desmaioPorDanoNaEf({ ...(desg || p), eh, ef, status, sobra: r, res: desg ? desg.res : res }, p.ef);
 }
 
 /* ── Chaves das 8 condições (Reputação, Sono, Sanidade, Saúde, Hidratação,
@@ -2325,11 +2326,68 @@ function statusPorPools(p) {
   const efV = Number(p.ef) || 0;
   const ehV = Number(p.eh) || 0;
   const temEH = (Number(p.eh_max) || 0) > 0;
+  let out = p;
+  // Recuperado de vez (EF e EH de volta): as regras de sempre voltam a valer.
+  if (out.desmaio_cumprido && efV > 0 && (ehV > 0 || !temEH)) {
+    const { desmaio_cumprido, ...resto } = out;
+    out = resto;
+  }
+  const causa = !out.desmaio_cumprido && (efV <= 0 || (temEH && ehV === 0));
   let status = st;
   if (efV <= EF_MORTE && (st === 'ativo' || st === 'desmaiado')) status = 'morto';
-  else if (st === 'ativo' && (efV <= 0 || (temEH && ehV === 0))) status = 'desmaiado';
-  else if (st === 'desmaiado' && efV > 0 && (ehV > 0 || !temEH)) status = 'ativo';
-  return status === st ? p : { ...p, status };
+  else if (st === 'ativo' && causa) status = 'desmaiado';
+  // O zz de 4 rodadas segura no chão até acabar — nem a cura o acorda antes.
+  else if (st === 'desmaiado' && !causa && !temDesmaioEf(out)) status = 'ativo';
+  if (status === st) return out;
+  out = { ...out, status };
+  // A EF editada à mão para zero ou menos também conta o zz (PJ).
+  if (status === 'desmaiado' && efV <= 0) out = comDesmaioEf(out);
+  return out;
+}
+
+/* ── O ZZ DE 4 RODADAS (09/11/2026) ─────────────────────────────────
+   Usuário: "O personagem que fica com energia física negativa, fica com
+   'zz' por 4 rodadas." Perguntado o que acontece quando elas acabam e a EF
+   segue negativa: "Acorda".
+
+   Quando um golpe (ou veneno, ou a barra editada) leva a EF do PERSONAGEM
+   a zero ou menos, ele ganha o status `desmaio_ef` de 4 rodadas — o anel no
+   card conta. Enquanto dura, fica desmaiado mesmo curado. Quando acaba, a
+   virada o acorda e marca `desmaio_cumprido`: daí em diante nem a EF
+   negativa nem a EH zerada (o golpe que leva a EF abaixo de zero quase
+   sempre zerou a EH antes, e sem isto ninguém acordaria nunca) o derrubam
+   de novo. Só um NOVO dano na EF o derruba — e conta mais 4 rodadas. A
+   marca sai quando EF e EH voltam a ser positivas.
+
+   Criatura e companheiro animal seguem a regra de antes: o pedido é do
+   personagem. */
+const DESMAIO_EF_RODADAS = 4;
+function temDesmaioEf(p) {
+  return !!(p && Array.isArray(p.status_temp)
+    && p.status_temp.some((s) => s && s.efeito && s.efeito.tipo === 'desmaio_ef'));
+}
+function comDesmaioEf(p) {
+  if (!p || p.tipo !== 'pj' || temDesmaioEf(p)) return p;
+  const { desmaio_cumprido, ...resto } = p;
+  const sufixo = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  return {
+    ...resto,
+    status_temp: [...(Array.isArray(p.status_temp) ? p.status_temp : []), {
+      id: 'desmaio_ef:' + sufixo, nome: 'Desmaiado', icone: '💤',
+      rodadas_rest: DESMAIO_EF_RODADAS, rodadas_total: DESMAIO_EF_RODADAS,
+      efeito: { tipo: 'desmaio_ef' },
+    }],
+  };
+}
+/* Depois de um dano: a EF CAIU e ficou em zero ou menos → desmaia e conta o
+   zz (se já não estiver contando). Morto e quem desistiu ficam como estão. */
+function desmaioPorDanoNaEf(depois, efAntes) {
+  if (!depois || depois.tipo !== 'pj') return depois;
+  if (depois.status === 'morto' || depois.status === 'desistiu') return depois;
+  const ef = Number(depois.ef) || 0;
+  if (!(ef <= 0 && ef < (Number(efAntes) || 0))) return depois;
+  const out = temDesmaioEf(depois) ? depois : comDesmaioEf(depois);
+  return { ...out, status: 'desmaiado' };
 }
 
 /* ── Valor de uma pool depois de editada à mão (puro) ──────────────
@@ -3620,6 +3678,7 @@ function iconeDoEfeito(s) {
   if (id.startsWith('distraido:')) return { ti: iconeStatus('distraido') };
   if (tipo === 'dano_por_rodada') return { ti: iconeStatus('envenenado') };
   if (tipo === 'sem_acoes') return { ti: iconeStatus('caido') };
+  if (tipo === 'desmaio_ef') return { ti: iconeStatus('desmaiado') };   // o zz de 4 rodadas
   if (s.icone) return { emoji: s.icone };
   return { ti: 'ti-bolt' };
 }
@@ -4555,8 +4614,15 @@ function modsDoGolpe(atacante, alvo) {
     && atacante.status_temp.some((s) => s.efeito && s.efeito.tipo === tipo
       && (!s.efeito.alvo_inst_id || s.efeito.alvo_inst_id === alvoId)));
   // Distraído (29/10/2026) é a mesma condição do alvo: qualquer golpe fura a EH.
-  const derrubado = !!(alvo && Array.isArray(alvo.status_temp)
-    && alvo.status_temp.some((s) => s.efeito && (s.efeito.tipo === 'derrubado' || s.efeito.tipo === 'distraido')));
+  /* CAÍDOS TAMBÉM (09/11/2026, usuário: "Combatentes caídos sofrem o dano
+     ignorando a energia heroica"; perguntado, "os dois"): o status Caído
+     (o da Falha Crítica, `fc_caido`, e o do menu do Mestre, `caido:`) e o
+     DESMAIADO — no chão, ninguém se defende com a EH. */
+  const idTxt = (s) => (typeof s.id === 'string' ? s.id : '');
+  const derrubado = !!(alvo && (alvo.status === 'desmaiado'
+    || (Array.isArray(alvo.status_temp) && alvo.status_temp.some((s) => s && (
+      (s.efeito && (s.efeito.tipo === 'derrubado' || s.efeito.tipo === 'distraido'))
+      || idTxt(s) === 'fc_caido' || idTxt(s).startsWith('caido:'))))));
   return {
     ignoraEh: doAtacante('ignora_eh') || derrubado,
     ignoraArmadura: doAtacante('ignora_armadura'),
@@ -4855,8 +4921,11 @@ function removerStatusTempParticipante(p, statusId) {
   const removidos = atual.filter((s) => s.id === statusId);
   if (!removidos.length) return null;
   const novoArr = atual.filter((s) => s.id !== statusId);
+  // O Mestre tirou o zz de 4 rodadas: ele acorda já (ver desmaioPorDanoNaEf).
+  const tirouZz = removidos.some((s) => s.efeito && s.efeito.tipo === 'desmaio_ef');
+  const base = tirouZz ? { ...p, status_temp: novoArr, desmaio_cumprido: true } : { ...p, status_temp: novoArr };
   // Tirar a Licantropia na mão devolve o corpo de antes (ajustarFormaSnapshot).
-  return statusPorPools(ajustarFormaSnapshot(expirarEhTemp({ ...p, status_temp: novoArr }, removidos)));
+  return statusPorPools(ajustarFormaSnapshot(expirarEhTemp(base, removidos)));
 }
 // ordenarIniciativa usando a VB EFETIVA (mod_vb), preservando o vb real.
 function ordenarIniciativaEfetiva(snaps) {
@@ -4880,8 +4949,8 @@ function aplicarDanoDiretoEF(dano, p) {
   }
   let status = p.status;
   if (ef <= EF_MORTE && status !== 'morto') status = 'morto';
-  else if ((ef <= 0 || ((p.eh || 0) === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
-  return { ...p, ef, status, sobra: r };
+  else if (!p.desmaio_cumprido && (ef <= 0 || ((p.eh || 0) === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
+  return desmaioPorDanoNaEf({ ...p, ef, status, sobra: r }, p.ef);
 }
 
 // Aplica TODOS os dano_por_rodada de um participante de uma vez (soma) e
@@ -4933,23 +5002,7 @@ function processarViradaDeRodada(p) {
   //
   // Os dois recalculam AQUI, na virada, junto da reordenação de iniciativa em
   // montarNovaRodada — os três andam sempre juntos.
-  const vbEf = vbEfetivo(p);
-  let next = (p.status === 'ativo')
-    ? { ...p, pa_rest: paDaRodada(p.pa_max, vbEf, p.sem_acao_extra),
-              // O ponto exclusivo de técnica volta cheio, como o pa_rest.
-              // Não acumula entre rodadas: quem não usou, perdeu.
-              pa_tecnica_rest: p.pa_tecnica_max || 0,
-              // O passo sai da montaria quando há uma — ver vbParaMovimento.
-              mov_rest: movimentoBase(vbParaMovimento(p)), moveu_na_rodada: false,
-              // Até dois movimentos por rodada: 1º grátis, 2º custa PA (13/09/2026).
-              movimentos_na_rodada: 0,
-              // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
-              // modo 'total' é POR RODADA — mesmo padrão de moveu_na_rodada.
-              tecnica_livre_usada: false,
-              // Fase 2: o contador de ataque extra (Golpe Duplo/Contra-Ataque/
-              // Flechadas Múltiplas) também é POR RODADA — zera na virada.
-              pa_ataque_extra: 0 }
-    : { ...p };
+  let next = (p.status === 'ativo') ? acoesDaRodadaNova(p) : { ...p };
   let eventos = [], total = 0;
   if (p.status !== 'morto' && p.status !== 'desistiu') {
     const r = processarDanoPorRodada(next);
@@ -4973,8 +5026,14 @@ function processarViradaDeRodada(p) {
     next = { ...next, status_temp: depois };
     // Devolve a EH emprestada por técnica pelos status que saíram agora.
     next = expirarEhTemp(next, removidos);
+    // O zz de 4 rodadas acabou: ele acorda (ver desmaioPorDanoNaEf).
+    if (removidos.some((s) => s.efeito && s.efeito.tipo === 'desmaio_ef') && !temDesmaioEf(next)) {
+      next = { ...next, desmaio_cumprido: true };
+    }
     // Perder EH emprestada pode derrubar: statusPorPools decide.
     next = statusPorPools(next);
+    // Quem acordou agora age já nesta rodada: PA e movimento cheios.
+    if (p.status !== 'ativo' && next.status === 'ativo') next = acoesDaRodadaNova(next);
   }
   // Rodada nova invalida a rolagem feita e não aplicada na anterior (o campo
   // é do lado Jogador — ver o bloco de rolagem em BatalhaJogadorView). Sem
@@ -4986,6 +5045,25 @@ function processarViradaDeRodada(p) {
   // magia de N rodadas nunca resolveria sozinha.
   next = decrementarEvocacao(next);
   return { participante: next, eventos, total };
+}
+
+// PA, movimento e as cotas por rodada, cheios — o que a virada devolve a quem está ativo.
+function acoesDaRodadaNova(p) {
+  const vbEf = vbEfetivo(p);
+  return { ...p, pa_rest: paDaRodada(p.pa_max, vbEf, p.sem_acao_extra),
+              // O ponto exclusivo de técnica volta cheio, como o pa_rest.
+              // Não acumula entre rodadas: quem não usou, perdeu.
+              pa_tecnica_rest: p.pa_tecnica_max || 0,
+              // O passo sai da montaria quando há uma — ver vbParaMovimento.
+              mov_rest: movimentoBase(vbParaMovimento(p)), moveu_na_rodada: false,
+              // Até dois movimentos por rodada: 1º grátis, 2º custa PA (13/09/2026).
+              movimentos_na_rodada: 0,
+              // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
+              // modo 'total' é POR RODADA — mesmo padrão de moveu_na_rodada.
+              tecnica_livre_usada: false,
+              // Fase 2: o contador de ataque extra (Golpe Duplo/Contra-Ataque/
+              // Flechadas Múltiplas) também é POR RODADA — zera na virada.
+              pa_ataque_extra: 0 };
 }
 
 // Virada COMPLETA da rodada — usada pelo Mestre (novaRodada) E pelo Jogador
@@ -8885,8 +8963,22 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
      aqui só passa quem não é ela, para as duas não passarem em dobro. */
   const autoTurno = useRef({ chave: null, passos: 0, tecnicas: [] });
   const autoChave = current && current.auto && estado === 'ativa' ? rodada + ':' + current.inst_id : null;
+  /* A PAUSA ENTRE NOTIFICAÇÕES (09/11/2026, usuário: "Adicione no modo
+     automático, uma pausa entre cada notificação, para o mestre ler e
+     narrar"). O card da mensagem (10-shell, mostrarCard) avisa quando entra e
+     até quando fica na tela; o passo seguinte só sai depois disso. O aviso
+     reagenda o passo, porque o card chega pelo tempo real DEPOIS da gravação
+     que já armou o próximo. */
+  const [cardsVistos, setCardsVistos] = useState(0);
+  useEffect(() => {
+    const viu = () => setCardsVistos((n) => n + 1);
+    window.addEventListener('menestrel:card-mostrado', viu);
+    return () => window.removeEventListener('menestrel:card-mostrado', viu);
+  }, []);
   useEffect(() => {
     if (!autoChave || salvando || acaoOpen || rolagemPendente || !catalogos) return undefined;
+    const cardAte = Number(window.__menestrelCardAte) || 0;
+    const espera = Math.max(2000, cardAte - Date.now() + 300);
     if (autoTurno.current.chave !== autoChave) autoTurno.current = { chave: autoChave, passos: 0, tecnicas: [] };
     const t = setTimeout(() => {
       const at = autoTurno.current;
@@ -8906,14 +8998,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       setAtaqueContra({ id: j.alvoId, aba: j.aba, unica: true,
         auto: { armaSlug: j.armaSlug || null, armaNome: j.armaNome || null, magiaKey: j.magiaKey || null, tecKey: j.tecKey || null } });
       setAcaoOpen(true);
-    /* 2 s entre os passos (08/11/2026, usuário: "Dê 1 segundo entre uma ação e
+    /* No mínimo 2 s entre os passos (08/11/2026, usuário: "Dê 1 segundo entre uma ação e
        outra dos combatentes automáticos, para dar tempo de ler a mensagem"). O
        card da mensagem só chega depois da gravação voltar pelo tempo real; com
-       1 s entre os passos, ele ficava bem menos que isso na tela. */
-    }, 2000);
+       1 s entre os passos, ele ficava bem menos que isso na tela. Desde 09/11/2026
+       a espera vai até o card da última notificação cumprir o tempo (`espera`). */
+    }, espera);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoChave, salvando, acaoOpen, rolagemPendente, !!catalogos, participantes]);
+  }, [autoChave, salvando, acaoOpen, rolagemPendente, !!catalogos, participantes, cardsVistos]);
 
   /* O vigia do automático: a janela que ele abriu e que não fechou em 12 s
      (rolou e o painel recusou aplicar) fecha, solta a rolagem e passa a vez —
@@ -14130,7 +14223,7 @@ Object.assign(window, {
     // Fase 1.1 — Falha Crítica + 1ª leva de efeitos mecânicos de status_temp
     FALHA_CRITICA_TABELA, FC_EFEITOS, aplicarFalhaCritica,
     FC_AUTODANO_FATOR, danoAutoinfligido, interpolarFalhaCritica,
-    somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, consumirEvitaGolpe, consumirModDano, consumirEfeitosDoGolpe, dispararAoAcertarEf, vbEfetivo, aplicarVentoNosPjs, definirVentoDaBatalha,
+    somaEfeitosStatus, statusTemEfeito, somaModAtaque, modsDoGolpe, temDesmaioEf, desmaioPorDanoNaEf, DESMAIO_EF_RODADAS, consumirEvitaGolpe, consumirModDano, consumirEfeitosDoGolpe, dispararAoAcertarEf, vbEfetivo, aplicarVentoNosPjs, definirVentoDaBatalha,
     podeSaquear, saqueadoresDe, anotarSaque, textoSaque,
     decrementarStatusTemp, ordenarIniciativaEfetiva,
     // Task 6a (Fase 2): bloqueios de turno puros — sem_atacar tira só a aba

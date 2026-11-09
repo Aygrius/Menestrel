@@ -6119,13 +6119,18 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
      "centralizada, mas abaixo na tela. Para não ficar na frente do que os
      personagens estejam fazendo"). Antes ficava no meio (27/09/2026). */
   position: absolute; bottom: 32px; left: calc(var(--cm-sidebar, 0px) + (100vw - var(--cm-sidebar, 0px)) / 2);
-  width: min(460px, calc(100vw - var(--cm-sidebar, 0px) - 32px));
-  transform: translate(-50%, 0); pointer-events: none; display: grid;
+  /* Mais larga (09/11/2026, usuário: "Aumente a largura da barra de
+     notificação"): 460 → 640px, uma linha de leitura confortável. */
+  width: min(640px, calc(100vw - var(--cm-sidebar, 0px) - 32px));
+  transform: translate(-50%, 0); pointer-events: none;
+  /* AS 3 ÚLTIMAS EMPILHADAS (09/11/2026, usuário: "mostre no máximo as 3
+     últimas mensagens antes de sumir"). A pilha cresce para CIMA a partir do
+     pé: a mais nova entra embaixo, as anteriores sobem; na 4ª, a mais antiga
+     sai (MAX_CARDS em shell.jsx). Cada uma ainda some sozinha no seu tempo. */
+  display: flex; flex-direction: column; gap: 8px;
 }
-/* Os dois cards (o que sai e o que entra) ocupam a MESMA célula: um some
-   enquanto o outro aparece, sem empurrar. */
 .menestrel-ui.cm-root .cm-card {
-  grid-area: 1 / 1; box-sizing: border-box; padding: 18px 22px 20px;
+  box-sizing: border-box; padding: 18px 22px 20px;
   background: rgba(25,17,12,0.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   border: 1px solid color-mix(in srgb, var(--log-cor) 45%, transparent);
   border-top: 3px solid var(--log-cor); border-radius: 10px;

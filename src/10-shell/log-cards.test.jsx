@@ -88,26 +88,36 @@ describe('a CentralMensagens: card no centro e sino com o modal', () => {
     return render(<div id="root"><W.CentralMensagens lang="pt" historiaId={5} /></div>);
   };
 
-  it('evento novo vira card; o seguinte faz o anterior sair; o sino abre a lista', async () => {
+  /* As 3 últimas empilhadas (09/11/2026, usuário: "mostre no máximo as 3
+     últimas mensagens antes de sumir"): até 3 ficam juntas; a 4ª faz a mais
+     antiga sair; cada uma ainda some sozinha. */
+  it('até 3 cards juntos; o 4º faz o mais antigo sair; o sino abre a lista', async () => {
     vi.useFakeTimers();
     montar();
     await act(async () => { await Promise.resolve(); });
     expect(document.querySelector('.cm-card')).toBeNull();          // o histórico não vira card
-    act(() => handler({ new: { id: 2, created_at: '2026-09-27T10:00:00Z', tipo: 'ataque', texto: 'Golpe!', meta: {} } }));
-    expect(document.querySelectorAll('.cm-card')).toHaveLength(1);
-    act(() => handler({ new: { id: 3, created_at: '2026-09-27T10:01:00Z', tipo: 'magia', texto: 'Cura.', meta: {} } }));
-    const cards = [...document.querySelectorAll('.cm-card')];
-    expect(cards).toHaveLength(2);
-    expect(cards[0].classList.contains('is-saindo')).toBe(true);    // o anterior em fade-out
+    const evento = (id, texto) => act(() => handler({ new: { id, created_at: `2026-09-27T10:0${id}:00Z`, tipo: 'ataque', texto, meta: {} } }));
+    evento(2, 'Golpe!');
+    evento(3, 'Cura.');
+    evento(4, 'Esquiva.');
+    let cards = [...document.querySelectorAll('.cm-card')];
+    expect(cards).toHaveLength(3);
+    expect(cards.some((c) => c.classList.contains('is-saindo'))).toBe(false);   // os 3 à vista
+    evento(5, 'Fuga.');
+    cards = [...document.querySelectorAll('.cm-card')];
+    expect(cards).toHaveLength(4);
+    expect(cards[0].classList.contains('is-saindo')).toBe(true);    // o mais antigo em fade-out
+    expect(cards[0].textContent).toMatch(/Golpe/);
     act(() => { vi.advanceTimersByTime(500); });
-    expect(document.querySelectorAll('.cm-card')).toHaveLength(1);
-    expect(document.querySelector('.cm-card').textContent).toMatch(/Cura/);
+    expect([...document.querySelectorAll('.cm-card')].map((c) => c.textContent.match(/Cura|Esquiva|Fuga/)[0]))
+      .toEqual(['Cura', 'Esquiva', 'Fuga']);                       // a mais nova embaixo
     act(() => { vi.advanceTimersByTime(7000); });
-    expect(document.querySelector('.cm-card')).toBeNull();          // sai sozinho
+    expect(document.querySelector('.cm-card')).toBeNull();          // saem sozinhos
 
     fireEvent.click(document.querySelector('.cm-fab'));
     const lista = document.querySelector('.cm-log-lista');
     expect(lista).toBeTruthy();
-    expect([...lista.querySelectorAll('.cm-msg-texto')].map((t) => t.textContent)).toEqual(['Cura.', 'Golpe!', 'O clima mudou.']);
+    expect([...lista.querySelectorAll('.cm-msg-texto')].map((t) => t.textContent))
+      .toEqual(['Fuga.', 'Esquiva.', 'Cura.', 'Golpe!', 'O clima mudou.']);
   });
 });

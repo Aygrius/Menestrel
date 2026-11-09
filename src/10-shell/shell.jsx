@@ -1639,20 +1639,34 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
   }, []);
   const fecharHistorico = () => setAberto(false);
 
-  /* Chegou um evento: o card anterior começa a sumir (fade-out) e o novo
-     entra. Sai sozinho em CARD_MS; o anterior é removido quando o fade acaba. */
-  const CARD_MS = 6000, FADE_MS = 450;
-  const mostrarCard = (msg) => {
-    setCards((prev) => [...prev.map((c) => ({ ...c, saindo: true })), { msg, saindo: false }]);
+  /* Chegou um evento: o card novo entra embaixo da pilha (09/11/2026,
+     usuário: "mostre no máximo as 3 últimas mensagens antes de sumir"). Com
+     MAX_CARDS à vista, o mais antigo começa a sumir (fade-out). Cada um sai
+     sozinho em CARD_MS e é removido quando o fade acaba. */
+  const CARD_MS = 6000, FADE_MS = 450, MAX_CARDS = 3;
+  const removerDepoisDoFade = (ids) => {
     cardTimersRef.current.push(setTimeout(() => {
-      setCards((prev) => prev.filter((c) => !c.saindo || c.msg.id === msg.id));
+      setCards((prev) => prev.filter((c) => !(c.saindo && ids.has(c.msg.id))));
     }, FADE_MS));
+  };
+  const mostrarCard = (msg) => {
+    setCards((prev) => {
+      const vivos = prev.filter((c) => !c.saindo);
+      const sobra = Math.max(0, vivos.length - (MAX_CARDS - 1));
+      const sair = new Set(vivos.slice(0, sobra).map((c) => c.msg.id));
+      if (sair.size) removerDepoisDoFade(sair);
+      return [...prev.map((c) => (sair.has(c.msg.id) ? { ...c, saindo: true } : c)), { msg, saindo: false }];
+    });
     cardTimersRef.current.push(setTimeout(() => {
       setCards((prev) => prev.map((c) => (c.msg.id === msg.id ? { ...c, saindo: true } : c)));
-      cardTimersRef.current.push(setTimeout(() => {
-        setCards((prev) => prev.filter((c) => c.msg.id !== msg.id));
-      }, FADE_MS));
+      removerDepoisDoFade(new Set([msg.id]));
     }, CARD_MS));
+    /* A PAUSA DO AUTOMÁTICO (09/11/2026, usuário: "Adicione no modo
+       automático, uma pausa entre cada notificação, para o mestre ler e
+       narrar"). A batalha não age de novo enquanto a última notificação não
+       cumpriu o seu tempo na tela — ver o efeito do modo automático. */
+    window.__menestrelCardAte = Date.now() + CARD_MS;
+    window.dispatchEvent(new Event('menestrel:card-mostrado'));
   };
 
   // Carrega histórico (listar_eventos_mesa) e assina Realtime sempre que a
