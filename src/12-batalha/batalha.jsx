@@ -1263,7 +1263,7 @@ function magiasConhecidasDoAtor(ator, catalogos) {
   }
 
   if (ator.tipo === 'criatura') {
-    const cri = catalogos.criById && catalogos.criById[ator.ref_id];
+    const cri = criaturaDoAtor(ator, catalogos);
     return magiasDaCriaturaCrua(cri, catalogos.magiasByKey);
   }
 
@@ -1309,7 +1309,7 @@ function bloqueioMilagreDoAtor(ator, catalogos, magia) {
     return bloqueioMilagre(a);
   }
   if (ator.tipo === 'criatura') {
-    const cri = catalogos.criById && catalogos.criById[ator.ref_id];
+    const cri = criaturaDoAtor(ator, catalogos);
     return cri ? bloqueioMilagre(atorMilagreDeCriatura(cri)) : null;
   }
   return null;
@@ -1542,7 +1542,7 @@ function habilidadesDaCriaturaCrua(cri, habilidadesByKey) {
 }
 
 function habilidadesDeCriatura(ator, catalogos) {
-  const cri = catalogos && catalogos.criById && catalogos.criById[ator && ator.ref_id];
+  const cri = criaturaDoAtor(ator, catalogos);
   return habilidadesDaCriaturaCrua(cri, catalogos && catalogos.habilidadesByKey);
 }
 
@@ -1569,7 +1569,7 @@ function tecnicasDaCriaturaCrua(cri, tecnicasByKey) {
 }
 
 function tecnicasDeCriatura(ator, catalogos) {
-  const cri = catalogos.criById && catalogos.criById[ator.ref_id];
+  const cri = criaturaDoAtor(ator, catalogos);
   return tecnicasDaCriaturaCrua(cri, catalogos.tecnicasByKey);
 }
 
@@ -2281,6 +2281,7 @@ function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
   if (efeitos.length === 0) return participante;
 
   const novo = { ...participante, condicoes: { ...(participante.condicoes || {}) } };
+  let curouPoco = false;
 
   for (const ef of efeitos) {
     const delta = ef.delta;
@@ -2298,6 +2299,8 @@ function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
       const piso = campo === 'ef' ? EF_MORTE : 0;
       const atual = Number(novo[campo]) || 0;
       novo[campo] = Math.max(piso, Math.min(tetoOk, atual + delta));
+      // A poção que cura EF ou EH acorda o desmaiado (10/11/2026, ver acordarPelaCura).
+      if ((campo === 'ef' || campo === 'eh') && novo[campo] > atual) curouPoco = true;
     } else if (ef.scope === 'absorcao') {
       // Sem clamp de máximo — pode passar o ar_max normal (buff temporário
       // de poção/elixir), só não deixa ir negativo. Mesma regra do original.
@@ -2305,7 +2308,7 @@ function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
       novo.ar = Math.max(0, atual + delta);
     }
   }
-  return statusPorPools(novo);
+  return statusPorPools(curouPoco ? acordarPelaCura(novo) : novo);
 }
 
 /* ── Status derivado das POOLS (puro) ──────────────────────────────
@@ -3974,7 +3977,7 @@ function ataquesDoAtor(ator, catalogos) {
         };
       });
   }
-  const c = catalogos.criById[ator.ref_id];
+  const c = criaturaDoAtor(ator, catalogos);
   if (!c) return [];
   /* O ALCANCE DA ARMA DA CRIATURA (08/11/2026): o corpo a corpo de 2 casas
      vale para corte e esmagamento (alcanceDaAcao, tabuleiro.jsx), e o ataque
@@ -3983,14 +3986,30 @@ function ataquesDoAtor(ator, catalogos) {
      `grupo_armas`, NÃO em grupo_sigla: este decide a tabela de crítico e as
      técnicas permitidas, e mudá-los na criatura é outra conversa. */
   const _F = (typeof CriaturaFormulas !== 'undefined' && CriaturaFormulas) || window.CriaturaFormulas || null;
-  const primeira = (_F && _F.ataquesDaCriatura ? _F.ataquesDaCriatura(c, catalogos.catalogoBySlug) : [])[0] || null;
-  return [{
+  const todas = _F && _F.ataquesDaCriatura ? _F.ataquesDaCriatura(c, catalogos.catalogoBySlug) : [];
+  const primeira = todas[0] || null;
+  /* A primeira continua lendo as COLUNAS da criatura (o Ataque do bestiário,
+     que o Mestre pode ter ajustado à mão). */
+  const principal = {
     nome: c.ataque || (ator.nome + ' ataque'),
     dano_l: c.dano_l, dano_m: c.dano_m, dano_p: c.dano_p,
     dano_25: c.dano_25, dano_50: c.dano_50, dano_75: c.dano_75, dano_100: c.dano_100,
     bonus_ga: 0, fonte: 'criatura',
-    ...(primeira && primeira.slug ? { alcance: primeira.alcance, grupo_armas: primeira.grupo_armas } : {}),
-  }];
+    ...(primeira && primeira.slug ? { slug: primeira.slug, alcance: primeira.alcance, grupo_armas: primeira.grupo_armas } : {}),
+  };
+  /* TODAS AS ARMAS DA CRIATURA (10/11/2026, usuário: "Porque ao iniciar uma
+     batalha com Dradenar, só aparece uma arma [...]? No catálogo ele tem mais
+     ataques"). As outras armas equipadas entram com as colunas e o dano que
+     o catálogo calcula para cada uma (ataquesDaCriatura, a mesma conta do
+     editor). Só vale para armas de verdade (com slug); sem equipamento, fica
+     o Ataque único de sempre. */
+  const outras = todas.slice(1).filter((a) => a && a.slug).map((a) => ({
+    nome: a.nome, slug: a.slug,
+    dano_l: a.dano_l, dano_m: a.dano_m, dano_p: a.dano_p,
+    dano_25: a.dano_25, dano_50: a.dano_50, dano_75: a.dano_75, dano_100: a.dano_100,
+    bonus_ga: 0, fonte: 'criatura', alcance: a.alcance, grupo_armas: a.grupo_armas,
+  }));
+  return [principal, ...outras];
 }
 
 /* ── Texto do resultado de um golpe (arma ou magia) para a mesa ─────────
@@ -4742,6 +4761,8 @@ function vbEfetivo(p) {
    três Goblins são três saques. */
 function podeSaquear(saqueador, alvo) {
   if (!saqueador || !alvo || saqueador.tipo !== 'pj' || alvo.tipo !== 'criatura') return false;
+  // O ser criado por magia (cópia, ilusão) não tem o que saquear (09/11/2026).
+  if (alvo.ficha_invocada) return false;
   if ((saqueador.status || 'ativo') !== 'ativo' || saqueador.ausente || saqueador.fugiu) return false;
   if (!saqueador.atual) return false;
   const st = alvo.status || 'ativo';
@@ -5026,9 +5047,13 @@ function processarViradaDeRodada(p) {
   // montarNovaRodada — os três andam sempre juntos.
   let next = (p.status === 'ativo') ? acoesDaRodadaNova(p) : { ...p };
   let eventos = [], total = 0;
+  let curas = [];
   if (p.status !== 'morto' && p.status !== 'desistiu') {
     const r = processarDanoPorRodada(next);
     next = r.participante; eventos = r.eventos; total = r.total;
+    // A cura por rodada vem depois do veneno: quem cai e é curado na mesma virada levanta.
+    const c = processarCuraPorRodada(next);
+    next = c.participante; curas = c.eventos;
   }
   if (Array.isArray(next.status_temp) && next.status_temp.length) {
     /* ESCALADA ANTES DO DECREMENTO, e a ordem é a regra.
@@ -5066,7 +5091,7 @@ function processarViradaDeRodada(p) {
   // contagem só andaria quando alguém chamasse decrementarEvocacao à mão, e a
   // magia de N rodadas nunca resolveria sozinha.
   next = decrementarEvocacao(next);
-  return { participante: next, eventos, total };
+  return { participante: next, eventos, total, curas };
 }
 
 // PA, movimento e as cotas por rodada, cheios — o que a virada devolve a quem está ativo.
@@ -5271,7 +5296,12 @@ function prepararReforcos(snaps, rodadaAtual) {
    desliga no card se quiser conduzir) e entra no fim da fila — a virada o
    reordena pela iniciativa. `invocado_por` é o que o faz voltar ao seu plano
    quando cai (partemOsInvocados). */
-function participanteInvocado(snap, conjurador, participantes) {
+/* `parte` (09/11/2026): para onde o invocado vai quando cai — 'celestial'
+   (o enviado volta ao Plano Celestial), 'desfaz' (cópia e ilusão se
+   desfazem) ou null (o animal convocado é um animal de verdade: fica onde
+   caiu). `participantes` pode já trazer outros invocados da mesma leva, para
+   cada um achar a sua célula. */
+function participanteInvocado(snap, conjurador, participantes, parte = 'celestial') {
   const lista = Array.isArray(participantes) ? participantes : [];
   const maiorOrdem = lista.reduce((m, p) => Math.max(m, Number(p && p.ordem) || 0), 0);
   return {
@@ -5282,8 +5312,138 @@ function participanteInvocado(snap, conjurador, participantes) {
     lado: ladoNaBatalha(conjurador),
     auto: true,
     invocado_por: conjurador ? conjurador.inst_id : null,
+    parte_ao_cair: parte,
     ordem: maiorOrdem + 1,
     atual: false,
+  };
+}
+
+/* AS CRIATURAS QUE CHEGARAM DEPOIS (09/11/2026). O catálogo da tela é
+   carregado quando a batalha começa, só com as criaturas que estavam nela.
+   Quem chega depois — o enviado do Apelo, o animal convocado, o reforço de
+   uma criatura nova — ficava sem ficha, e sem ficha não tem ataque
+   (ataquesDoAtor devolvia nada). Este hook busca no bestiário as que faltam
+   e as soma ao catálogo. O ser sintético (ref_id negativo) não é buscado:
+   ele carrega a própria ficha. Mestre e Jogador usam o mesmo. */
+function idsDeCriaturaQueFaltam(participantes, catalogos) {
+  if (!catalogos || !catalogos.criById) return [];
+  const ids = new Set();
+  (participantes || []).forEach((p) => {
+    if (!p || p.tipo !== 'criatura' || p.ficha_invocada) return;
+    const id = Number(p.ref_id);
+    if (!(id > 0) || catalogos.criById[id] || catalogos.criById[p.ref_id]) return;
+    ids.add(id);
+  });
+  return [...ids].sort((a, b) => a - b);
+}
+function useCriaturasQueFaltam(participantes, catalogos, setCatalogos) {
+  const buscando = useRef('');
+  const faltam = idsDeCriaturaQueFaltam(participantes, catalogos);
+  const chave = faltam.join(',');
+  useEffect(() => {
+    if (!chave || buscando.current === chave) return undefined;
+    buscando.current = chave;
+    let cancel = false;
+    supabaseClient.from('criaturas').select('*').in('id', faltam).then(({ data, error }) => {
+      if (cancel) return;
+      if (error) { console.error('[batalha] criaturas que chegaram:', error); buscando.current = ''; return; }
+      setCatalogos((c) => {
+        if (!c) return c;
+        const criById = { ...c.criById };
+        (data || []).forEach((cri) => { criById[cri.id] = cri; });
+        return { ...c, criById };
+      });
+    });
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chave]);
+}
+
+/* A criatura de um combatente: a do bestiário (catálogo da tela) ou, para o
+   ser que não existe nele (cópia, ilusão), a ficha que ele mesmo carrega. */
+function criaturaDoAtor(ator, catalogos) {
+  const doCat = ator && catalogos && catalogos.criById ? catalogos.criById[ator.ref_id] : null;
+  return doCat || (ator && ator.ficha_invocada) || null;
+}
+
+/* ── A FICHA DO SER QUE NÃO ESTÁ NO BESTIÁRIO (09/11/2026) ─────────
+   Pseudomatéria, Projeção e Guardião Espiritual. Os números saem do texto do
+   nível e da ficha de quem lançou:
+     ilusão    "A ilusão possui 6 de energia física, 30 de energia heroica,
+                defesa M1 e dano máximo 20" — tudo do texto; ataque sem bônus
+                de coluna, dano máximo = dano 100%;
+     projeção  "A projeção possui 20 de energia heroica" — a EH do texto;
+     guardião  "Cada corpo tem 1 de energia heroica" / "metade da sua energia
+                heroica" / "a mesma … que a sua" / "metade da sua energia
+                heroica e energia física" / "a mesma energia física e energia
+                heroica que a sua".
+   Cópia (projeção e guardião) defende e ataca como o conjurador: a defesa
+   dele e a primeira arma dele. EF que o texto não dá é 1 — a cópia some no
+   primeiro golpe que passar da EH. Null quando o texto não se deixa ler. */
+function fichaSintetica(pend, conj, catalogos) {
+  if (!pend || !conj) return null;
+  const t = String(pend.texto || '');
+  const primeiro = typeof primeiroNome === 'function' ? primeiroNome(conj.nome) : conj.nome;
+  const doConj = () => {
+    const a = (ataquesDoAtor(conj, catalogos) || [])[0] || null;
+    const bg = a ? Number(a.bonus_ga) || 0 : 0;
+    return {
+      defesa_sigla: conj.defesa_sigla || 'L', defesa_valor: Number(conj.defesa_valor) || 0,
+      ataque: a ? { nome: a.nome, dano_l: (Number(a.dano_l) || 0) + bg, dano_m: (Number(a.dano_m) || 0) + bg,
+        dano_p: (Number(a.dano_p) || 0) + bg, dano_100: Number(a.dano != null ? a.dano : a.dano_100) || 0 }
+        : { nome: 'Ataque', dano_l: 0, dano_m: 0, dano_p: 0, dano_100: 0 },
+    };
+  };
+  if (pend.sintetico === 'ilusao') {
+    const m = /(\d+)\s+de energia f[íi]sica,\s*(\d+)\s+de energia heroica,\s*defesa\s+([LMP])(\d+)\s+e dano m[áa]ximo\s+(\d+)/i.exec(t);
+    if (!m) return null;
+    return { nome: `Ilusão de ${primeiro}`, raca: 'Místico', ef: Number(m[1]), eh: Number(m[2]),
+      defesa_sigla: m[3].toUpperCase(), defesa_valor: Number(m[4]),
+      ataque: { nome: 'Golpe ilusório', dano_l: 0, dano_m: 0, dano_p: 0, dano_100: Number(m[5]) } };
+  }
+  if (pend.sintetico === 'projecao') {
+    const m = /(\d+)\s+de energia heroica/i.exec(t);
+    if (!m) return null;
+    return { nome: `Projeção de ${primeiro}`, raca: conj.raca || null, ef: 1, eh: Number(m[1]), ...doConj() };
+  }
+  if (pend.sintetico === 'guardiao') {
+    const ehMax = Number(conj.eh_max) || 0, efMax = Number(conj.ef_max) || 0;
+    const fixo = /(\d+)\s+de energia heroica/i.exec(t);
+    const metade = /metade/i.test(t), mesma = /mesma/i.test(t);
+    const comEf = /energia f[íi]sica/i.test(t);
+    let eh = null;
+    if (fixo) eh = Number(fixo[1]);
+    else if (metade) eh = Math.floor(ehMax / 2);
+    else if (mesma) eh = ehMax;
+    if (eh == null) return null;
+    const ef = comEf ? (metade ? Math.max(1, Math.floor(efMax / 2)) : Math.max(1, efMax)) : 1;
+    return { nome: `Guardião de ${primeiro}`, raca: conj.raca || null, ef, eh, ...doConj() };
+  }
+  return null;
+}
+
+/* A ficha sintética vira um combatente com a forma de uma criatura. O
+   `ref_id` é NEGATIVO de propósito: nunca casa com o bestiário, e o
+   encerramento no banco (o saque que vai para a loja converte ref_id em
+   número) passa por ele sem erro e sem achar nada. */
+function snapshotSintetico(ficha, conj) {
+  const refId = -(Math.floor(Math.random() * 1e9) + 1);
+  const vb = Number(conj && conj.vb) || 0;
+  const estagio = conj && conj.estagio != null ? conj.estagio : null;
+  return {
+    tipo: 'criatura', ref_id: refId, nome: ficha.nome, elemento: null,
+    pos: null, mov_rest: movimentoBase(vb), foto_url: null, raca: ficha.raca || null, subtipo: null,
+    estagio, vb, pa_max: 1, pa_rest: paDaRodada(1, vb), pa_tecnica_max: 0, pa_tecnica_rest: 0,
+    eh: ficha.eh, eh_max: ficha.eh, ar: 0, ar_max: 0, res: 0, res_max: 0,
+    ef: ficha.ef, ef_max: ficha.ef, karma: 0, karma_max: 0,
+    defesa_sigla: ficha.defesa_sigla || 'L', defesa_valor: Number(ficha.defesa_valor) || 0,
+    rf: Number(conj && conj.rf) || 0, rm: Number(conj && conj.rm) || 0,
+    status: 'ativo', status_temp: [], tecnicas_usadas: [], tecnica_livre_usada: false, pa_ataque_extra: 0,
+    ficha_invocada: {
+      id: refId, nome: ficha.nome, tipo: ficha.raca || null, estagio,
+      ataque: ficha.ataque.nome, dano_l: ficha.ataque.dano_l, dano_m: ficha.ataque.dano_m,
+      dano_p: ficha.ataque.dano_p, dano_100: ficha.ataque.dano_100,
+    },
   };
 }
 
@@ -5370,12 +5530,22 @@ function entrarReforcos(participantes) {
 
 /* O INVOCADO QUE CAI VAI EMBORA (Apelo, 09/11/2026): "Se a criatura cumprir
    sua tarefa ou ser derrotada, ela retornará ao Plano Celestial." Na virada,
-   quem foi invocado (`invocado_por`) e está morto ou desmaiado sai da mesa. */
+   quem foi invocado (`invocado_por`) e está morto ou desmaiado sai da mesa.
+   `parte_ao_cair` diz para onde (09/11/2026): 'celestial' (o padrão, que é
+   o do Apelo de antes do campo), 'desfaz' (cópia e ilusão) ou null — o animal
+   convocado é de carne e osso, e fica. `partiram`: { nome, parte }. */
+function parteDoInvocado(p) {
+  if (!p || !p.invocado_por) return null;
+  return Object.prototype.hasOwnProperty.call(p, 'parte_ao_cair') ? p.parte_ao_cair : 'celestial';
+}
 function partemOsInvocados(participantes) {
   const lista = Array.isArray(participantes) ? participantes : [];
-  const caidos = lista.filter((p) => p && p.invocado_por && (p.status === 'morto' || p.status === 'desmaiado'));
+  const caidos = lista.filter((p) => parteDoInvocado(p) && (p.status === 'morto' || p.status === 'desmaiado'));
   if (!caidos.length) return { participantes, partiram: [] };
-  return { participantes: lista.filter((p) => !caidos.includes(p)), partiram: caidos.map((p) => p.nome) };
+  return {
+    participantes: lista.filter((p) => !caidos.includes(p)),
+    partiram: caidos.map((p) => ({ nome: p.nome, parte: parteDoInvocado(p) })),
+  };
 }
 
 function montarNovaRodada(participantes) {
@@ -5389,10 +5559,13 @@ function montarNovaRodada(participantes) {
   // O vento corrente entra ANTES da virada: é ela que recalcula PA e passo.
   const base = aplicarVentoNosPjs(quebrarConcentracaoPorVeneno(comReforcos), _ventoDaBatalha);
   const eventosRodada = [...entraram.map((nome) => ({ nome, entrou: true })),
-    ...partiram.map((nome) => ({ nome, partiu: true }))];
+    ...partiram.map(({ nome, parte }) => ({ nome, partiu: parte }))];
   const processados = base.map((p) => {
     const r = processarViradaDeRodada(p);
     if (r.eventos.length) eventosRodada.push({ nome: p.nome, eventos: r.eventos, total: r.total });
+    if (r.curas && r.curas.length) {
+      eventosRodada.push({ nome: p.nome, curou: r.curas.reduce((a, e) => a + e.valor, 0), eventos: r.curas });
+    }
     return r.participante;
   });
   const reordered = ordenarIniciativaEfetiva(processados);
@@ -5426,7 +5599,8 @@ function entradaLogViradaRodada(eventos, rodadaNova) {
   // Reforço que chegou (entrarReforcos) vem antes do dano por rodada.
   const texto = eventos
     .map((e) => (e.entrou ? `${e.nome} entrou na batalha`
-      : e.partiu ? `${e.nome} voltou ao Plano Celestial`
+      : e.partiu ? (e.partiu === 'desfaz' ? `${e.nome} se desfez` : `${e.nome} voltou ao Plano Celestial`)
+      : e.curou ? (e.nome + ' recuperou ' + e.curou + ' (' + e.eventos.map((x) => x.nome + ' ' + x.valor).join(' + ') + ')')
       : `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`))
     .join('; ');
   return { rodada: rodadaNova, ts: Date.now(), acao: 'sistema', texto };
@@ -5734,7 +5908,11 @@ function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento,
            Vale por alvo: uma magia de dreno em vários alvos drena de cada um
            o que efetivamente furou até a EF daquele. */
         const naEf = Math.max(0, (Number(alvoAntes.ef) || 0) - (Number(next[alvoIdx].ef) || 0));
-        if (drena && naEf > 0) next[atorIdx] = aplicarDrenoEh(next[atorIdx], naEf);
+        if (drena && naEf > 0) {
+          next[atorIdx] = drena === 'ef'
+            ? aplicarCuraPool(next[atorIdx], 'ef', naEf)     // Elo Vital: a mesma quantia, até o teto
+            : aplicarDrenoEh(next[atorIdx], naEf);
+        }
         // Os Botes: "se acertar a energia física do alvo" — mesma conta do dreno.
         if (naEf > 0) next[alvoIdx] = dispararAoAcertarEf(next[atorIdx], next[alvoIdx]);
       }
@@ -5742,6 +5920,32 @@ function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento,
   // derrubou/matou. Dano contido em EH ou AR não quebra — mas zerar a EH
   // desmaia, e desmaiar quebra (ver quebrarConcentracaoPorDano).
   return [...quebrarConcentracaoPorDano(next, alvoAntes, next[alvoIdx])];
+}
+
+/* ── O EFEITO QUE ACOMPANHA O GOLPE DA MAGIA (10/11/2026) ───────────
+   Usuário: "Aeroataque, Piroataque, etc são magias de ataque, não? Veja isso e
+   arrume." Ao arrumar, apareceu a falha: a aba Magia só aplicava o DANO. O que
+   o texto promete junto — o derrubar do Aeroataque, o veneno por rodada do
+   Nicto/Hidro/Piroataque, a coluna que a Carne em Vermes tira — nunca chegava
+   ao alvo.
+
+   Agora, quando o golpe da magia ACERTA (o alvo perdeu EH, armadura ou EF),
+   aplicarEfeitoMagia grava no alvo o que vira status — a mesma função da aba
+   Apoio, que já pula o dano e a cura instantânea. Errou ou foi esquivado, nada
+   vai junto. Puro. */
+function efeitoDaMagiaNoGolpe(arr, atorIdx, alvoIdx, alvoAntes, magia) {
+  if (!magia || !Array.isArray(arr) || !arr[alvoIdx] || !alvoAntes) return arr;
+  const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(magia.key) : null;
+  if (!reg || !reg.efeitos.some((ef) => ef.tipo !== 'dano' && ef.tipo !== 'dreno_eh' && ef.tipo !== 'dreno_ef')) return arr;
+  const depois = arr[alvoIdx];
+  const caiu = (k) => (Number(alvoAntes[k]) || 0) > (Number(depois[k]) || 0);
+  if (!caiu('ef') && !caiu('eh') && !caiu('res')) return arr;
+  if (depois.status === 'morto') return arr;
+  const cat = magia.catalogo || magia;
+  const completa = { ...cat, key: magia.key, nome: magia.nome || cat.nome };
+  const out = [...arr];
+  out[alvoIdx] = aplicarEfeitoMagia(depois, completa, magia.nivel, { fonteInstId: arr[atorIdx] && arr[atorIdx].inst_id });
+  return out;
 }
 
 /* O efeito desta técnica mora no ATACANTE, apontando pro alvo declarado?
@@ -5992,6 +6196,44 @@ function aplicarEfeitoTecnica(participante, tecnica, valorTotal, opcoes) {
    Efeito INSTANTÂNEO (dano, cura_pool, dreno_eh) não vira status_temp: ele
    acontece na resolução e acabou. Quem o aplica é a cascata de dano e
    aplicarCuraPool, não esta função. */
+/* O PEDIDO DE INVOCAÇÃO (09/11/2026) — o que o efeito `invocar` deixa no
+   conjurador para a tela do Mestre resolver (materializarInvocacao):
+     { criatura }            o ser do bestiário, pelo nome, do maior nível do
+                             registro que o nível lançado alcança;
+     { escolha, total, max } o Mestre escolhe; os limites vêm do texto
+                             ("totalizando 6 estágios, mas o estágio máximo de
+                             cada animal é 2");
+     { sintetico, texto }    a ficha sai do texto do nível (fichaSintetica).
+   Null quando o texto não dá o que a forma precisa. */
+function pedidoDeInvocacao(inv, magia, nivel) {
+  const key = magia && magia.key;
+  const nivelN = Number(nivel) || 1;
+  const base = {
+    magia_key: key, magia_nome: (magia && magia.nome) || key, nivel: nivelN,
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+  };
+  if (inv.criaturas) {
+    const chave = Object.keys(inv.criaturas).map(Number)
+      .filter((n) => n <= nivelN).sort((a, b) => b - a)[0];
+    return chave != null ? { ...base, criatura: inv.criaturas[chave] } : null;
+  }
+  const texto = textoDoNivelDaMagia(magia, nivelN);
+  if (inv.escolha) {
+    const m = /totalizando\s+(\d+)\s+est[áa]gios?.*?m[áa]ximo\s+de\s+cada\s+\S+\s+[ée]\s+(\d+)/i.exec(texto || '');
+    return m ? { ...base, escolha: inv.escolha, total: Number(m[1]), max: Number(m[2]) } : null;
+  }
+  if (inv.sintetico) return texto ? { ...base, sintetico: inv.sintetico, texto } : null;
+  return null;
+}
+// O texto do nível lançado; sem ele, o do maior nível escrito abaixo.
+function textoDoNivelDaMagia(magia, nivel) {
+  if (!magia) return '';
+  for (let n = Number(nivel) || 1; n >= 1; n--) {
+    if (magia['nivel_' + n]) return magia['nivel_' + n];
+  }
+  return '';
+}
+
 function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
   const key = magia && magia.key;
   const reg = (typeof magiaEfeitoDe === 'function') ? magiaEfeitoDe(key) : null;
@@ -6017,23 +6259,19 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
      A criatura é a do maior nível do registro que o nível lançado alcança. */
   const inv = reg.efeitos.find((ef) => ef.tipo === 'invocar');
   if (inv) {
-    const nivelN = Number(nivel) || 1;
-    const chave = Object.keys(inv.criaturas || {}).map(Number)
-      .filter((n) => n <= nivelN).sort((a, b) => b - a)[0];
-    const criatura = chave != null ? inv.criaturas[chave] : null;
-    if (!criatura) return participante;
-    return { ...participante, invocacao_pendente: {
-      criatura, magia_key: key, magia_nome: magia.nome || key, nivel: nivelN,
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-    } };
+    const pend = pedidoDeInvocacao(inv, magia, nivel);
+    return pend ? { ...participante, invocacao_pendente: pend } : participante;
   }
+  // PURIFICAÇÃO (10/11/2026): tira, não põe — ver purificarParticipante.
+  const pur = reg.efeitos.find((ef) => ef.tipo === 'purificar');
+  if (pur) return purificarParticipante(participante, lido[pur.unidade]);
 
   const novos = [];
   reg.efeitos.forEach((ef) => {
     // Instantâneos: acontecem e acabam, não viram status. Quem os aplica são
     // aplicarCurasDaMagia / aplicarCondicoesDaMagia / o golpe.
     if (ef.tipo === 'dano' || ef.tipo === 'cura_pool' || ef.tipo === 'dreno_eh'
-        || ef.tipo === 'mod_condicao') return;
+        || ef.tipo === 'dreno_ef' || ef.tipo === 'mod_condicao') return;
     /* Efeito de BANDEIRA (Fase 2): `sem_acoes` não tem número — ou o alvo
        está impedido, ou não está. O registro declara `valor: true` e não
        declara `unidade`, exatamente como as técnicas já fazem com
@@ -6092,6 +6330,8 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
     }
     if (ef.elemento !== undefined) efeito.elemento = ef.elemento;
     if (ef.base) efeito.base = true;
+    // Cura por rodada: QUAL poço ela enche (10/11/2026).
+    if (ef.tipo === 'cura_por_rodada') efeito.pool = ef.pool === 'ef' ? 'ef' : 'eh';
     /* ESCALADA: o valor CRESCE a cada virada de rodada, em vez de ficar parado
        até expirar. Doenças nível 9: "Reduz 7 colunas de ataque [...] a cada
        rodada a penalidade aumenta 2 pontos (menos 9, menos 11, menos 13..)".
@@ -6351,7 +6591,42 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhou
     return { participantes: next, fase: alvoSumiu ? 'perdeu' : 'resolveu' };
   }
   next[alvoIdx] = aplicarEfeitoApoio(alvoP, magia, next[atorIdx].inst_id);
+  /* ATÉ N ALVOS (10/11/2026: Restauração Coletiva, Súplica à Ganis, Espírito
+     Felino, Peso de Selimon). O alvo escolhido e mais N−1 do mesmo lado dele,
+     dentro do alcance — ver extrasDoApoio. */
+  const extras = (reg && reg.alvos_auto) ? extrasDoApoio(next, atorIdx, alvoIdx, magia, cat) : [];
+  extras.forEach((i) => { next[i] = aplicarEfeitoApoio(next[i], magia, next[atorIdx].inst_id); });
+  if (extras.length) {
+    return { participantes: next, fase: 'resolveu', extras: extras.map((i) => next[i].inst_id),
+      atingidos: [alvoP.nome, ...extras.map((i) => next[i].nome)] };
+  }
   return { participantes: next, fase: 'resolveu' };
+}
+
+/* Os outros alvos de uma magia de "até N alvos" (puro). Do mesmo lado do alvo
+   escolhido, dentro do alcance do conjurador, e válidos para a magia. A cura
+   vai primeiro em quem perdeu mais (EF conta o dobro: é a que mata); o resto,
+   em quem está mais perto. Sem posição no tabuleiro, só o alvo escolhido. */
+function extrasDoApoio(arr, atorIdx, alvoIdx, magia, cat) {
+  const reg = magiaEfeitoDe(magia.key);
+  const teto = Math.max(0, (Number(reg && reg.alvos) || 1) - 1);
+  const ator = arr[atorIdx]; const alvo = arr[alvoIdx];
+  if (!teto || !ator || !alvo || !posValida(ator.pos)) return [];
+  const raio = parseAlcance(cat && cat.alcance);
+  if (raio == null || raio <= 0) return [];
+  const lado = ladoNaBatalha(alvo);
+  const cura = reg.efeitos.some((e) => e.tipo === 'cura_pool' || e.tipo === 'cura_por_rodada');
+  const perdido = (p) => 2 * Math.max(0, (Number(p.ef_max) || 0) - (Number(p.ef) || 0))
+    + Math.max(0, (Number(p.eh_max) || 0) - (Number(p.eh) || 0));
+  // Em casas, como o tabuleiro conta (o maior dos dois eixos).
+  const perto = (p) => Math.max(Math.abs(p.pos.x - ator.pos.x), Math.abs(p.pos.y - ator.pos.y));
+  const dentro = alvosNoRaio({ ...cat, key: magia.key }, ator.pos, raio, arr, magia.nivel) || [];
+  return dentro
+    .filter((p) => !mesmoParticipante(p, alvo) && ladoNaBatalha(p) === lado && !ehReforco(p))
+    .sort((a, b) => (cura ? perdido(b) - perdido(a) : 0) || perto(a) - perto(b))
+    .slice(0, teto)
+    .map((p) => arr.findIndex((q) => mesmoParticipante(q, p)))
+    .filter((i) => i >= 0);
 }
 
 /* ── Curas de uma magia, aplicadas de uma vez (puro) ───────────────
@@ -6470,7 +6745,74 @@ function aplicarCuraPool(p, pool, valor, opcoes) {
   const novo = inverter
     ? Math.max(0, atual - v)
     : Math.min(teto, atual + v);
-  return statusPorPools({ ...p, [pool]: novo });
+  const curado = { ...p, [pool]: novo };
+  return statusPorPools(!inverter && novo > atual ? acordarPelaCura(curado) : curado);
+}
+
+/* ── A CURA ACORDA (10/11/2026) ─────────────────────────────────────
+   Usuário: "adicione a função de acordar aliado com cura, seja de EF ou EH."
+   Quem está desmaiado e recebe cura de verdade (o poço subiu) — de magia, de
+   cura por rodada, de item — acorda na hora: o zz de 4 rodadas sai, e a marca
+   desmaio_cumprido o mantém de pé mesmo que a EF ainda esteja em zero ou
+   menos (a mesma regra de quando o zz acaba sozinho, ver desmaioPorDanoNaEf).
+   Acorda com as ações da rodada, como quem acorda na virada. Morto não
+   acorda: a morte é do Mestre. Puro. */
+function acordarPelaCura(p) {
+  if (!p || p.status !== 'desmaiado') return p;
+  const lista = Array.isArray(p.status_temp) ? p.status_temp : [];
+  const semZz = lista.filter((s) => !(s && s.efeito && s.efeito.tipo === 'desmaio_ef'));
+  return acoesDaRodadaNova({ ...p, status_temp: semZz, desmaio_cumprido: true, status: 'ativo' });
+}
+
+/* ── PURIFICAÇÃO (10/11/2026): os efeitos negativos que ela tira (puro) ──
+   "Remove N efeitos negativos do alvo": veneno e sangramento, a queda, a
+   distração, o ferimento, o impedimento de agir, e toda penalidade de magia
+   ou técnica (valor abaixo de zero). O zz do desmaio NÃO é efeito: quem
+   acorda o caído é a cura. Tira os mais antigos primeiro. */
+const PURIFICA_TIPOS = ['dano_por_rodada', 'sem_acoes', 'sem_cura_ef', 'derrubado', 'distraido', 'provocado'];
+const PURIFICA_IDS = ['fc_', 'caido:', 'sangramento:', 'ferido:', 'distraido:', 'derrubado:'];
+function efeitoNegativo(s) {
+  if (!s || !s.efeito) return false;
+  const tipo = s.efeito.tipo;
+  if (tipo === 'desmaio_ef') return false;
+  if (PURIFICA_TIPOS.includes(tipo)) return true;
+  const id = typeof s.id === 'string' ? s.id : '';
+  if (PURIFICA_IDS.some((pre) => id.startsWith(pre))) return true;
+  return typeof s.efeito.valor === 'number' && s.efeito.valor < 0;
+}
+function purificarParticipante(p, quantos) {
+  const n = Math.max(0, Math.floor(Number(quantos) || 0));
+  const lista = Array.isArray(p && p.status_temp) ? p.status_temp : [];
+  if (!n || !lista.length) return p;
+  /* Um mesmo efeito pode morar em vários status com o MESMO id (Fúria grava
+     quatro): tira por id, e cada id conta um. */
+  const ids = [];
+  lista.forEach((s) => { if (efeitoNegativo(s) && !ids.includes(s.id) && ids.length < n) ids.push(s.id); });
+  if (!ids.length) return p;
+  const removidos = lista.filter((s) => ids.includes(s.id));
+  let out = { ...p, status_temp: lista.filter((s) => !ids.includes(s.id)) };
+  out = expirarEhTemp(out, removidos);
+  return statusPorPools(out);
+}
+
+/* ── CURA POR RODADA (10/11/2026): Bênção de Plandis e Esplendor da Vida ──
+   O espelho de processarDanoPorRodada: cada status cura_por_rodada enche o
+   seu poço na virada, antes do decremento (o último efeito vale). Acorda o
+   desmaiado, como toda cura. Puro. */
+function processarCuraPorRodada(p) {
+  const lista = (Array.isArray(p.status_temp) ? p.status_temp : [])
+    .filter((s) => s.efeito && s.efeito.tipo === 'cura_por_rodada' && (s.efeito.valor || 0) > 0);
+  if (!lista.length) return { participante: p, eventos: [], total: 0 };
+  let out = p;
+  const eventos = [];
+  lista.forEach((s) => {
+    const pool = s.efeito.pool === 'ef' ? 'ef' : 'eh';
+    const antes = Number(out[pool]) || 0;
+    out = aplicarCuraPool(out, pool, s.efeito.valor);
+    const ganho = (Number(out[pool]) || 0) - antes;
+    if (ganho > 0) eventos.push({ nome: s.nome, valor: ganho, pool });
+  });
+  return { participante: out, eventos, total: eventos.reduce((a, e) => a + e.valor, 0) };
 }
 
 /* ── Dreno de EH do Toque Gélido (puro) ────────────────────────────
@@ -7546,6 +7888,70 @@ function SaqueModal({ alvo, criatura, catalogoBySlug, saqueadores, isEn, lang, o
   );
 }
 
+/* ── A ESCOLHA DA CONVOCAÇÃO (09/11/2026) ─────────────────────────
+   Convocação Animal: "Convoque animais totalizando 6 estágios, mas o estágio
+   máximo de cada animal é 2". O Mestre escolhe no bestiário, dentro dos dois
+   limites; a soma dos estágios escolhidos não passa do total. Dispensar =
+   nenhum animal atende. Os que vêm entram ao lado de quem convocou. */
+function ConvocacaoModal({ pend, conjNome, lang, onConfirmar, onDispensar }) {
+  const isEn = lang === 'en';
+  const [opcoes, setOpcoes] = useState(null);
+  const [qtds, setQtds] = useState({});
+  useEffect(() => {
+    let cancel = false;
+    supabaseClient.from('criaturas').select('id, nome, estagio')
+      .eq('tipo', pend.escolha).lte('estagio', pend.max).gt('estagio', 0)
+      .order('estagio', { ascending: true }).order('nome', { ascending: true })
+      .then(({ data }) => { if (!cancel) setOpcoes(data || []); });
+    return () => { cancel = true; };
+  }, [pend.escolha, pend.max]);
+  const lista = opcoes || [];
+  const soma = lista.reduce((t, c) => t + (qtds[c.id] || 0) * (Number(c.estagio) || 0), 0);
+  const escolhidos = lista.filter((c) => (qtds[c.id] || 0) > 0)
+    .map((c) => ({ id: c.id, nome: c.nome, qtd: qtds[c.id] }));
+  return (
+    <ModalShell
+      title={<><i className="ti ti-paw" aria-hidden="true" /> {pend.magia_nome}</>}
+      lang={lang} size="sm" onClose={onDispensar} onCancel={onDispensar}
+      cancelLabel={isEn ? 'Nobody comes' : 'Ninguém vem'}
+      onConfirm={() => onConfirmar(escolhidos)}
+      confirmLabel={isEn ? 'Summon' : 'Convocar'}
+      confirmDisabled={!escolhidos.length}>
+      <div className="saque-modal convocacao-modal">
+        <p className="batalha-modal-nota">
+          {isEn
+            ? `${conjNome} calls animals up to ${pend.total} stages in all, each of stage ${pend.max} at most.`
+            : `${conjNome} chama animais até ${pend.total} estágios no total, cada um de estágio ${pend.max} no máximo.`}
+        </p>
+        <p className="convocacao-soma">{isEn ? 'Stages' : 'Estágios'} <b>{soma}/{pend.total}</b></p>
+        {opcoes == null
+          ? <p className="saque-vazio">{isEn ? 'Loading…' : 'Carregando…'}</p>
+          : lista.length === 0
+            ? <p className="saque-vazio">{isEn ? 'No animal in the bestiary fits.' : 'Nenhum animal do bestiário cabe no limite.'}</p>
+            : (
+              <ul className="saque-lista">
+                {lista.map((c) => {
+                  const est = Number(c.estagio) || 0;
+                  const q = qtds[c.id] || 0;
+                  const cabeMais = Math.floor((pend.total - soma) / Math.max(1, est));
+                  return (
+                    <li key={c.id} className="saque-item">
+                      <span className="saque-nome">{c.nome}</span>
+                      <span className="saque-qtd">{isEn ? 'Stage' : 'Estágio'} {est}</span>
+                      <QuantidadeStepper className="saque-passo" value={q} min={0} max={q + cabeMais}
+                        onChange={(nv) => setQtds((t) => ({ ...t, [c.id]: nv }))}
+                        propsMenos={{ 'aria-label': (isEn ? 'One less ' : 'Um a menos: ') + c.nome }}
+                        propsMais={{ 'aria-label': (isEn ? 'One more ' : 'Um a mais: ') + c.nome }} />
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+      </div>
+    </ModalShell>
+  );
+}
+
 /* Grava o saque no inventário do PJ: soma no inventário do banco e grava com
    a trava de versão — ver adicionarAoInventario. Devolve { error }. */
 async function gravarSaqueNoPj(pjId, slug, qtd, catalogos) {
@@ -7702,6 +8108,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const reforcoRef = useRef(null);
   const [marcandoChegada, setMarcandoChegada] = useState(null);
   const [catalogos, setCatalogos] = useState(null);
+  // Quem chegou depois do começo (reforço, invocado) ganha a ficha — ver o hook.
+  useCriaturasQueFaltam(participantes, catalogos, setCatalogos);
   const [acaoOpen, setAcaoOpen] = useState(false);
   /* Ataque a partir do avatar do INIMIGO (12/09/2026): { id, aba } de quem foi
      clicado. O painel abre no menu DELE, com ele já marcado como alvo e o
@@ -7733,6 +8141,30 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rolagemPendente]);
   const [log, setLog] = useState(batalha.log || []);
+  /* A CORTINA (10/11/2026, usuário: "Entre cada rodada da batalha, o mestre
+     deverá aprovar a ação mudar de combatente, somente essa aprovação que vai
+     aparecer o efeito do golpe ou magia"). Ver efeitos-da-vez.jsx. Só o
+     Mestre grava a coluna. Sem a coluna no banco (gravação recusada), a
+     aprovação se desliga e a mesa segue como antes. */
+  const MC = window.MotorCortina;
+  const [cortina, setCortina] = useState(batalha.cortina || null);
+  const [semCortina, setSemCortina] = useState(false);
+  const gravarCortina = async (c) => {
+    setCortina(c);
+    const { error: err } = await supabaseClient.from('batalhas').update({ cortina: c }).eq('id', batalha.id);
+    if (err) { console.warn('[batalha] cortina indisponível, a aprovação fica desligada:', err.message); setSemCortina(true); }
+  };
+  const aguardandoRevelar = !semCortina && estado === 'ativa' && !!MC && MC.cortinaAguardando(cortina, participantes, rodada);
+  const vezAberta = estado === 'ativa' && participantes.some((p) => p && p.atual);
+  useEffect(() => {
+    if (semCortina || !MC || !vezAberta || cortina) return;
+    gravarCortina(MC.abrirCortina(participantes, rodada, log, null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vezAberta, !!cortina, semCortina]);
+  const revelarVez = () => {
+    if (!MC || !aguardandoRevelar) return;
+    gravarCortina(MC.revelarCortina(cortina, participantes, rodada, log));
+  };
 
   const STATUS = {
     ativo:     { pt: 'Ativo',     en: 'Active'   },
@@ -7864,6 +8296,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           if (nova.participantes != null) setParticipantes(nova.participantes);
           if (nova.rodada != null)        setRodada(nova.rodada);
           if (nova.log != null)           setLog(nova.log);
+          if (nova.cortina !== undefined) setCortina(nova.cortina);
         })
       .subscribe();
     return () => { supabaseClient.removeChannel(ch); };
@@ -7939,9 +8372,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const chaveEvocacaoPronta = (estado === 'ativa' && idxProntoParaEvocar >= 0)
     ? `${participantes[idxProntoParaEvocar].inst_id}:${participantes[idxProntoParaEvocar].evocando.magia_key}:${rodada}` : null;
   useEffect(() => {
-    if (chaveEvocacaoPronta && catalogos) { setAtaqueContra(null); setAcaoOpen(true); }
+    if (chaveEvocacaoPronta && catalogos && !aguardandoRevelar) { setAtaqueContra(null); setAcaoOpen(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chaveEvocacaoPronta, !!catalogos]);
+  }, [chaveEvocacaoPronta, !!catalogos, aguardandoRevelar]);
 
   /* ── TABULEIRO ────────────────────────────────────────────────────────
      Dois modos de colocar token no grid, propositalmente diferentes:
@@ -7987,49 +8420,93 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
      de cada vez; `invocandoRef` impede a mesma de entrar duas vezes enquanto
      a gravação volta. */
   const invocandoRef = useRef(null);
+  // A Convocação Animal espera o Mestre escolher: { conjInstId, pend }.
+  const [escolhaInvocacao, setEscolhaInvocacao] = useState(null);
+  /* Fecha um pedido: tira a marca do conjurador, põe os que chegaram e conta
+     à mesa. `novos` vazio = ninguém veio (criatura fora do bestiário, texto
+     ilegível, ou o Mestre dispensou a convocação). */
+  const concluirInvocacao = (conjInstId, pend, novos, motivoVazio) => {
+    const idx = participantes.findIndex((p) => p && p.inst_id === conjInstId);
+    if (idx < 0) return;
+    const conj = participantes[idx];
+    const limpo = participantes.map((p, i) => {
+      if (i !== idx) return p;
+      const { invocacao_pendente, ...resto } = p;
+      return resto;
+    });
+    const next = novos.length ? [...limpo, ...novos] : limpo;
+    persistir({ participantes: next }, () => setParticipantes(next));
+    if (historia && historia.id) {
+      const nomes = novos.map((n) => n.nome);
+      const lista = nomes.length > 1 ? nomes.slice(0, -1).join(', ') + ' e ' + nomes[nomes.length - 1] : nomes[0];
+      const texto = novos.length
+        ? `${conj.nome} lançou ${pend.magia_nome}: ${lista} ${novos.length > 1 ? 'entram' : 'entra'} na batalha.`
+        : `${conj.nome} lançou ${pend.magia_nome}, ${motivoVazio || 'mas ninguém atendeu'}.`;
+      supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historia.id, p_tipo: 'magia', p_texto: texto,
+        p_meta: { batalha_id: batalha.id, magia_key: pend.magia_key, icone: 'ti-feather' },
+      }).then(({ error: rpcErr }) => {
+        if (rpcErr) console.error('[batalha] registrar_evento_mesa (invocação) falhou:', rpcErr);
+      });
+    }
+  };
+  // Monta N combatentes da mesma criatura do bestiário, cada um na sua célula.
+  const invocadosDoBestiario = async (conj, escolhidos, parte) => {
+    const { pools, magiasByKey, dataJogo } = await carregarBaseDosSnapshots();
+    const novos = [];
+    for (const { id, nome, qtd } of escolhidos) {
+      // Um snapshot por criatura, e cópias dele: montar todos juntos faria
+      // formarBandos amarrar os animais num bando de líder e minions.
+      const [snap] = await montarSnapshots([{ tipo: 'criatura', ref_id: id, nome }], pools, magiasByKey, dataJogo);
+      if (!snap || snap.ausente) continue;
+      for (let k = 0; k < (qtd || 1); k++) {
+        novos.push(participanteInvocado(snap, conj, [...participantes, ...novos], parte));
+      }
+    }
+    return novos;
+  };
   useEffect(() => {
-    if (estado !== 'ativa' || salvando) return undefined;
+    if (estado !== 'ativa' || salvando || !catalogos) return undefined;
     const idx = participantes.findIndex((p) => p && p.invocacao_pendente);
     if (idx < 0) return undefined;
     const conj = participantes[idx];
     const pend = conj.invocacao_pendente;
     if (invocandoRef.current === pend.id) return undefined;
     invocandoRef.current = pend.id;
+    if (pend.escolha) { setEscolhaInvocacao({ conjInstId: conj.inst_id, pend }); return undefined; }
     (async () => {
-      let novo = null;
+      let novos = [], motivo = null;
       try {
-        const { data } = await supabaseClient.from('criaturas').select('id, nome').eq('nome', pend.criatura).limit(1);
-        const cri = data && data[0];
-        if (cri) {
-          const { pools, magiasByKey, dataJogo } = await carregarBaseDosSnapshots();
-          const [snap] = await montarSnapshots([{ tipo: 'criatura', ref_id: cri.id, nome: cri.nome }], pools, magiasByKey, dataJogo);
-          if (snap) novo = participanteInvocado(snap, conj, participantes);
+        if (pend.criatura) {
+          const { data } = await supabaseClient.from('criaturas').select('id, nome').eq('nome', pend.criatura).limit(1);
+          const cri = data && data[0];
+          if (cri) novos = await invocadosDoBestiario(conj, [{ id: cri.id, nome: cri.nome, qtd: 1 }], 'celestial');
+          else motivo = `mas ${pend.criatura} não está no bestiário`;
+        } else if (pend.sintetico) {
+          const ficha = fichaSintetica(pend, conj, catalogos);
+          if (ficha) novos = [participanteInvocado(snapshotSintetico(ficha, conj), conj, participantes, 'desfaz')];
+          else motivo = 'mas o texto do nível não diz como é o ser';
         }
       } catch (e) {
         console.error('[batalha] invocação falhou:', e);
+        motivo = 'mas a invocação falhou';
       }
-      const limpo = participantes.map((p, i) => {
-        if (i !== idx) return p;
-        const { invocacao_pendente, ...resto } = p;
-        return resto;
-      });
-      const next = novo ? [...limpo, novo] : limpo;
-      persistir({ participantes: next }, () => setParticipantes(next));
-      if (historia && historia.id) {
-        const texto = novo
-          ? `${conj.nome} evocou ${novo.nome}, que chega para ajudar.`
-          : `${conj.nome} lançou ${pend.magia_nome}, mas ${pend.criatura} não está no bestiário.`;
-        supabaseClient.rpc('registrar_evento_mesa', {
-          p_historia_id: historia.id, p_tipo: 'magia', p_texto: texto,
-          p_meta: { batalha_id: batalha.id, magia_key: pend.magia_key, icone: 'ti-feather' },
-        }).then(({ error: rpcErr }) => {
-          if (rpcErr) console.error('[batalha] registrar_evento_mesa (invocação) falhou:', rpcErr);
-        });
-      }
+      concluirInvocacao(conj.inst_id, pend, novos, motivo);
     })();
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participantes, estado, salvando]);
+  }, [participantes, estado, salvando, !!catalogos]);
+  const confirmarConvocacao = async (escolhidos) => {
+    const e = escolhaInvocacao;
+    setEscolhaInvocacao(null);
+    if (!e) return;
+    const conj = participantes.find((p) => p && p.inst_id === e.conjInstId);
+    if (!conj) return;
+    let novos = [];
+    try { novos = await invocadosDoBestiario(conj, escolhidos, null); }
+    catch (err) { console.error('[batalha] convocação falhou:', err); }
+    concluirInvocacao(e.conjInstId, e.pend, novos, escolhidos.length ? 'mas a convocação falhou' : 'mas nenhum animal atendeu');
+  };
 
   const adicionarReforcos = async (crus) => {
     setError(null);
@@ -8256,8 +8733,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const elementoDoGolpe = (tipo === 'magia' && magia) ? (magia.elemento || null) : null;
     // Toque Gélido é a única da Fase 1 com dreno. Vem do registro, não de um
     // campo por magia: quem sabe que a magia drena é o mapa.
+    // 'ef' = Elo Vital (10/11/2026): a EF que o alvo perde volta para quem lançou.
     const drenaGolpe = tipo === 'magia' && magia
-      && !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_eh');
+      && (((magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_ef')) ? 'ef'
+        : !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_eh'));
     // Garras: "Causa 4 de dano, ignora a energia heroica". Mesma origem do
     // dreno — quem sabe é o registro, não um campo da linha da magia.
     const furaEhGolpe = tipo === 'magia' && magia
@@ -8298,6 +8777,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     if (!resolvendoPendente) next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     const alvoAntesDoGolpe = next[alvoIdx];
     next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+    // O efeito que acompanha o golpe da magia (derrubar, veneno, penalidade) — ver efeitoDaMagiaNoGolpe.
+    if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, alvoIdx, alvoAntesDoGolpe, magia);
     // Onde o dano caiu no alvo principal — o log diz "na energia física" (27/09/2026).
     const ondeDano = {
       eh: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.eh) || 0) - (Number(next[alvoIdx] && next[alvoIdx].eh) || 0)),
@@ -8316,10 +8797,13 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // inimigos era registrado como um golpe em UM deles, e os outros dois
     // perdiam EH e AR sem nenhum registro na mesa.
     const nomesAlvosExtras = [];
+    const instAlvosExtras = [];   // os efeitos da revelação acham o token por aqui (10/11/2026)
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
+      if (next[exIdx].inst_id) instAlvosExtras.push(next[exIdx].inst_id);
       const exAntes = next[exIdx];
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+      if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, exIdx, exAntes, magia);
       next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
     });
     // O arco gasta a flecha; a arma untada, uma ação do veneno.
@@ -8374,6 +8858,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       // ref_id. O modo automático revida o último que o atacou.
       autor_inst_id: ator.inst_id || null, alvo_inst_id: alvo.inst_id || null,
       ...(nomesAlvosExtras.length ? { alvos_extras_nomes: nomesAlvosExtras } : {}),
+      ...(instAlvosExtras.length ? { alvos_extras_inst_ids: instAlvosExtras } : {}),
+      // O que a revelação anima (10/11/2026): o elemento da magia e o tipo do golpe.
+      ...(elementoDoGolpe ? { elemento: elementoDoGolpe } : {}),
+      ...(tipo === 'arma' && arma ? { golpe_tipo: tipoCriticoDoGrupo(arma.grupo_sigla || arma.grupo || '') } : {}),
       arma_nome: nomeAcao,                       // mantém nome do campo p/ retrocompat do render
       ...(venenoPrincipal.aplicado > 0 ? { veneno_ef: venenoPrincipal.aplicado } : {}),
       coluna, d20,
@@ -8932,6 +9420,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       autor_tipo: ator.tipo, autor_ref_id: ator.ref_id, autor_nome: participantes[atorIdx].nome,
       acao: 'apoio',
       fase_evocacao: passo.fase,
+      ...(passo.extras && passo.extras.length ? { alvos_extras_inst_ids: passo.extras, alvos_extras_nomes: passo.atingidos.slice(1) } : {}),
       alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
       magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
       mod_vb: magia.mod_vb, rodadas: magia.rodadas,
@@ -9072,11 +9561,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     && (!temAcaoRestante(current)
     || current.status !== 'ativo' || statusTemEfeito(current, 'sem_acoes'));
   useEffect(() => {
-    if (!semAcaoNaVez || salvando || rolagemPendente || acaoOpen) return undefined;
+    // Esperando a revelação, nada passa: o Mestre revela, e aí a rede age.
+    if (!semAcaoNaVez || salvando || rolagemPendente || acaoOpen || aguardandoRevelar) return undefined;
     const t = setTimeout(() => { passarVez(); }, 1200);
     return () => clearTimeout(t);
     // eslint-disable-next-line
-  }, [semAcaoNaVez, current && current.inst_id, salvando, rolagemPendente, acaoOpen]);
+  }, [semAcaoNaVez, current && current.inst_id, salvando, rolagemPendente, acaoOpen, aguardandoRevelar]);
 
   /* MODO AUTOMÁTICO NA MESA (08/11/2026). Na vez de quem está com `auto`
      (o Mestre liga no card do combatente), a mesa joga por ele: um passo de
@@ -9102,9 +9592,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     return () => window.removeEventListener('menestrel:card-mostrado', viu);
   }, []);
   useEffect(() => {
-    if (!autoChave || salvando || acaoOpen || rolagemPendente || !catalogos) return undefined;
+    if (!autoChave || salvando || acaoOpen || rolagemPendente || !catalogos || aguardandoRevelar) return undefined;
+    /* Com a aprovação do Mestre (10/11/2026, usuário: "Sim, substitui a
+       pausa"), os cards da vez só saem na revelação: entre os passos basta o
+       tempo de a mesa assentar. Sem a cortina, a pausa do card continua. */
     const cardAte = Number(window.__menestrelCardAte) || 0;
-    const espera = Math.max(2000, cardAte - Date.now() + 300);
+    const espera = semCortina ? Math.max(2000, cardAte - Date.now() + 300) : 1500;
     if (autoTurno.current.chave !== autoChave) autoTurno.current = { chave: autoChave, passos: 0, tecnicas: [] };
     const t = setTimeout(() => {
       const at = autoTurno.current;
@@ -9132,7 +9625,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     }, espera);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoChave, salvando, acaoOpen, rolagemPendente, !!catalogos, participantes, cardsVistos]);
+  }, [autoChave, salvando, acaoOpen, rolagemPendente, !!catalogos, participantes, cardsVistos, aguardandoRevelar]);
 
   /* O vigia do automático: a janela que ele abriu e que não fechou em 12 s
      (rolou e o painel recusou aplicar) fecha, solta a rolagem e passa a vez —
@@ -9239,6 +9732,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     onHeaderActionsChange(
       <>
         <span className="batalha-trilho-rodada">{isEn ? 'Round' : 'Rodada'} <b>{rodada || 1}</b></span>
+        {/* REVELAR A VEZ (10/11/2026): a vez terminou e a mesa ainda não viu o
+            resultado. O Mestre narra e revela; só então o próximo age. */}
+        {aguardandoRevelar && window.BotaoRevelarVez && (
+          <window.BotaoRevelarVez cortina={cortina} proximo={lutadorDaVez && lutadorDaVez.nome} isEn={isEn}
+            disabled={salvando} onRevelar={revelarVez} />
+        )}
         {/* VISIBILIDADE DO TABULEIRO. Um botão que cicla claro → parcial →
             total → mágica → claro. Ciclar em vez de abrir menu porque são
             quatro estados numa escada, e o ícone diz em qual você está: o
@@ -9282,7 +9781,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       </>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estado, acaoOpen, salvando, current, catalogos, participantes, iniciando, isEn, rolagemPendente, rodada, visibilidade, ambiente]);
+  }, [estado, acaoOpen, salvando, current, catalogos, participantes, iniciando, isEn, rolagemPendente, rodada, visibilidade, ambiente, aguardandoRevelar, cortina]);
 
   // Encerra a batalha: leva o estado final pra ficha de cada PJ, limpa o
   // personagens_pools da história e arquiva o log pela RPC.
@@ -9883,7 +10382,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                     único dourado. Só para quem está na vez, como antes. */}
                 {/* UMA AÇÃO POR MODAL (08/11/2026): os botões do turno são os mesmos
                     do jogador (BotoesDoTurno); cada um abre só a ação dele. */}
-                {estado === 'ativa' && p.atual && (() => {
+                {estado === 'ativa' && p.atual && !aguardandoRevelar && (() => {
                   const travado = salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente;
                   const abrirAba = (aba) => { setAtaqueContra({ id: undefined, aba, unica: true }); setAcaoOpen(true); fechar(); };
                   return (
@@ -9899,7 +10398,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                     13/09/2026, sem o "Fulano ataca com" e no mesmo fundo dos
                     outros círculos. No avatar de quem NÃO está na vez, o lutador
                     da vez escolhe com o que atacar; o painel abre com este alvo. */}
-                {estado === 'ativa' && current && !p.atual && podeSerAtacado(p) && catalogos
+                {estado === 'ativa' && current && !p.atual && !aguardandoRevelar && podeSerAtacado(p) && catalogos
                   && !mesmoParticipante(p, current) && (() => {
                   // Provocado só ataca quem provocou (14/09/2026).
                   const podeAtacar = podeAtacarSobProvocacao(current, p, participantes);
@@ -10105,6 +10604,19 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     {/* Envenenar — modal próprio desde 01/09/2026. Fica FORA do card de
         propósito: são dois campos, e o menu do token é estreito demais pra
         eles numa faixa inline (o de rodadas passava despercebido). */}
+    {/* Os efeitos da revelação (10/11/2026), por cima de tudo. */}
+    {window.EfeitosDaVez && (
+      <window.EfeitosDaVez batalhaId={batalha.id} cortina={semCortina ? null : cortina} log={log} isEn={isEn}
+        seguraCards={false} />
+    )}
+    {/* Convocação Animal (09/11/2026): o Mestre escolhe quem atende. */}
+    {escolhaInvocacao && (
+      <ConvocacaoModal pend={escolhaInvocacao.pend} lang={lang}
+        conjNome={(participantes.find((p) => p && p.inst_id === escolhaInvocacao.conjInstId) || {}).nome || ''}
+        onConfirmar={confirmarConvocacao}
+        onDispensar={() => confirmarConvocacao([])} />
+    )}
+
     {venenoOpen && (() => {
       // Envenenado, Sangrando ou Caído (13/09/2026). Caído não tem dano.
       const tipoSt = venenoOpen.tipo || 'veneno';
@@ -12905,9 +13417,18 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const [erro, setErro] = useState(null);
 
   const participantes = (batalha && batalha.participantes) || [];
+  // Quem chegou depois do começo (reforço, invocado) ganha a ficha — ver o hook.
+  useCriaturasQueFaltam(participantes, catalogos, setCatalogos);
   const rodada = (batalha && batalha.rodada) || 0;
   const log = (batalha && batalha.log) || [];
   const current = participantes.find((p) => p.atual) || null;
+  /* A CORTINA (10/11/2026) — ver efeitos-da-vez.jsx. O Mestre aprova a troca
+     de vez; até lá ninguém age, e o tabuleiro mostra as pools e o status de
+     quando a vez abriu (o resultado aparece na revelação, com o efeito). */
+  const MC = window.MotorCortina;
+  const cortina = (batalha && batalha.cortina) || null;
+  const aguardandoRevelar = !!MC && (batalha.estado || 'ativa') === 'ativa'
+    && MC.cortinaAguardando(cortina, participantes, rodada);
   /* ANIMAIS DO PERSONAGEM (14/09/2026): "o personagem irá controlar seus
      animais em combate". Na vez de um animal do meu PJ (dono_pj), quem age
      nesta tela é ELE — `meuParticipante` passa a ser o animal, e todo o resto
@@ -12926,7 +13447,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
      da tela por 2,6 s, o título da aba com "▶" (para quem está em outra aba)
      e uma vibração curta no celular. Abrir a batalha já na própria vez também
      avisa. */
-  const minhaVezAgora = ehMinhaVez && souAtivo;
+  // O aviso da vez sai na revelação, quando o jogador de fato pode agir.
+  const minhaVezAgora = ehMinhaVez && souAtivo && !aguardandoRevelar;
   const [avisoVez, setAvisoVez] = useState(false);
   const vezAnterior = useRef(false);
   useEffect(() => {
@@ -12954,9 +13476,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const chaveEvocacaoPronta = (ehMinhaVez && podeAgir && evocacaoPronta(meuParticipante))
     ? `${meuParticipante.inst_id}:${meuParticipante.evocando.magia_key}:${rodada}` : null;
   useEffect(() => {
-    if (chaveEvocacaoPronta && catalogos) { setAtaqueContra(null); setAcaoOpen(true); }
+    if (chaveEvocacaoPronta && catalogos && !aguardandoRevelar) { setAtaqueContra(null); setAcaoOpen(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chaveEvocacaoPronta, !!catalogos]);
+  }, [chaveEvocacaoPronta, !!catalogos, aguardandoRevelar]);
 
   // Rolagem pendente: o eco otimista manda enquanto existe; caso contrário
   // vale o que está persistido no meu participante (ver o bloco de estado).
@@ -12990,7 +13512,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // mas persistJogador só deve rodar depois que o catálogo chegou).
   const autoPassRef = React.useRef(false);
   useEffect(() => {
-    if (!ehMinhaVez || podeAgir || !current || !catalogos) {
+    // Com a vez esperando a revelação, nada passa: quem passa é o Mestre, revelando.
+    if (!ehMinhaVez || podeAgir || !current || !catalogos || aguardandoRevelar) {
       autoPassRef.current = false; // reset quando a condição some
       return;
     }
@@ -13000,7 +13523,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const t = setTimeout(() => { handlePassar(); }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line
-  }, [ehMinhaVez, podeAgir, current?.inst_id, !!catalogos]);
+  }, [ehMinhaVez, podeAgir, current?.inst_id, !!catalogos, aguardandoRevelar]);
 
   // Catálogos p/ o AcaoPanel. RLS: o jogador só lê o PRÓPRIO PJ em `personagens`
   // (por isso .eq('id', pjAtivoId)); itens/magias/tecnicas/habilidades/criaturas
@@ -13193,8 +13716,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const elementoDoGolpe = (tipo === 'magia' && magia) ? (magia.elemento || null) : null;
     // Toque Gélido é a única da Fase 1 com dreno. Vem do registro, não de um
     // campo por magia: quem sabe que a magia drena é o mapa.
+    // 'ef' = Elo Vital (10/11/2026): a EF que o alvo perde volta para quem lançou.
     const drenaGolpe = tipo === 'magia' && magia
-      && !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_eh');
+      && (((magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_ef')) ? 'ef'
+        : !!(magiaEfeitoDe(magia.key) || { efeitos: [] }).efeitos.some((e) => e.tipo === 'dreno_eh'));
     // Garras: "Causa 4 de dano, ignora a energia heroica". Mesma origem do
     // dreno — quem sabe é o registro, não um campo da linha da magia.
     const furaEhGolpe = tipo === 'magia' && magia
@@ -13241,6 +13766,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     const alvoAntesDoGolpe = next[alvoIdx];
     next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+    // O efeito que acompanha o golpe da magia (derrubar, veneno, penalidade) — ver efeitoDaMagiaNoGolpe.
+    if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, alvoIdx, alvoAntesDoGolpe, magia);
     // Onde o dano caiu no alvo principal — o log diz "na energia física" (27/09/2026).
     const ondeDano = {
       eh: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.eh) || 0) - (Number(next[alvoIdx] && next[alvoIdx].eh) || 0)),
@@ -13259,10 +13786,13 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // inimigos era registrado como um golpe em UM deles, e os outros dois
     // perdiam EH e AR sem nenhum registro na mesa.
     const nomesAlvosExtras = [];
+    const instAlvosExtras = [];   // os efeitos da revelação acham o token por aqui (10/11/2026)
     alvosExtrasEfetivos(next, next[atorIdx], alvoIdx, alvos_extras).forEach((exIdx) => {
       nomesAlvosExtras.push(next[exIdx].nome);
+      if (next[exIdx].inst_id) instAlvosExtras.push(next[exIdx].inst_id);
       const exAntes = next[exIdx];
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+      if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, exIdx, exAntes, magia);
       next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
     });
     // O arco gasta a flecha; a arma untada, uma ação do veneno.
@@ -13307,6 +13837,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       acao: tipo, alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
       autor_inst_id: meuParticipante.inst_id || null, alvo_inst_id: alvo.inst_id || null,   // 08/11/2026, ver o Mestre
       ...(nomesAlvosExtras.length ? { alvos_extras_nomes: nomesAlvosExtras } : {}),
+      ...(instAlvosExtras.length ? { alvos_extras_inst_ids: instAlvosExtras } : {}),
+      // O que a revelação anima (10/11/2026): o elemento da magia e o tipo do golpe.
+      ...(elementoDoGolpe ? { elemento: elementoDoGolpe } : {}),
+      ...(tipo === 'arma' && arma ? { golpe_tipo: tipoCriticoDoGrupo(arma.grupo_sigla || arma.grupo || '') } : {}),
       arma_nome: nomeAcao, coluna, d20,
       ...(venenoPrincipal.aplicado > 0 ? { veneno_ef: venenoPrincipal.aplicado } : {}),
       resultado: resultado ? resultado.codigo : null,
@@ -13680,6 +14214,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       autor_nome: meuParticipante.nome,
       acao: 'apoio',
       fase_evocacao: passo.fase,
+      ...(passo.extras && passo.extras.length ? { alvos_extras_inst_ids: passo.extras, alvos_extras_nomes: passo.atingidos.slice(1) } : {}),
       alvo_tipo: alvo.tipo, alvo_ref_id: alvo.ref_id, alvo_nome: alvo.nome,
       magia_key: magia.key, magia_nivel: magia.nivel, arma_nome: magia.nome,
       mod_vb: magia.mod_vb, rodadas: magia.rodadas,
@@ -13876,7 +14411,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
      dele seguem fora (14/09/2026). Os botões do turno são os do Mestre
      (BotoesDoTurno): cada um abre o modal de uma ação só. */
   const chaveDe = (q) => (q ? (q.inst_id || (q.tipo + ':' + q.ref_id)) : null);
-  const visiveis = participantes.map((p, i) => ({ p, i })).filter((e) => !ehReforco(e.p));
+  /* Atrás da cortina (10/11/2026): os outros aparecem como estavam quando a
+     vez abriu, e quem chegou no meio dela só aparece na revelação. */
+  const naCortina = MC ? MC.participantesNaCortina(participantes, cortina, [chaveDe(meuPj), chaveDe(meuParticipante)]) : participantes;
+  const visiveis = naCortina.map((p, i) => ({ p, i })).filter((e) => !ehReforco(e.p) && !e.p.oculto_na_cortina);
   /* O PAINEL NUNCA FICA VAZIO (08/11/2026, usuário: "Eu quero que o menu
      lateral direito do personagem, apareça para ele mesmo fora de sua vez" —
      o painel ficava vazio). O escolhido tem de estar NO TABULEIRO (visiveis):
@@ -13931,9 +14469,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
               <span className="mc-acao-rotulo">{NOME_LUZ[visibilidade] || visibilidade}</span>
             </span>
             {current && (
-              <span className={'batalha-trilho-vez' + (ehMinhaVez && souAtivo ? ' is-minha' : '')} role="status">
-                <i className={'ti ' + (ehMinhaVez && souAtivo ? 'ti-player-play' : 'ti-hourglass')} aria-hidden="true" />
-                {ehMinhaVez && souAtivo ? tb.eASuaVez : interpolate(tb.eAVezDe, { nome: current.nome })}
+              <span className={'batalha-trilho-vez' + (minhaVezAgora ? ' is-minha' : '')} role="status">
+                <i className={'ti ' + (aguardandoRevelar ? 'ti-feather' : minhaVezAgora ? 'ti-player-play' : 'ti-hourglass')} aria-hidden="true" />
+                {aguardandoRevelar ? (isEn ? 'The Master is narrating' : 'O Mestre está narrando')
+                  : minhaVezAgora ? tb.eASuaVez : interpolate(tb.eAVezDe, { nome: current.nome })}
               </span>
             )}
           </div>
@@ -13957,7 +14496,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                   onSelecionar={(i) => setEscolhidoChave(chaveDe(participantes[i]))}
                   /* O próprio token, e — Conduzir Oponente (14/09/2026) — o do
                      adversário que eu conduzo. */
-                  podeSelecionar={(p) => !salvando && podeAgir && ehMinhaVez && !!meuParticipante
+                  podeSelecionar={(p) => !salvando && podeAgir && !aguardandoRevelar && ehMinhaVez && !!meuParticipante
                     && (mesmoParticipante(p, meuParticipante)
                       ? movimentoDisponivel(p) > 0
                       : conducaoDisponivel(p, meuParticipante) > 0)}
@@ -13974,7 +14513,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                   menuTravado={rolagemPendente}
                   menuDe={(p, i, fechar, mover) => {
                     const ehEu = meuParticipante && mesmoParticipante(p, meuParticipante);
-                    const naVez = ehMinhaVez && souAtivo && !!meuParticipante;
+                    const naVez = ehMinhaVez && souAtivo && !!meuParticipante && !aguardandoRevelar;
                     return (
                       <div className={'batalha-fighter em-menu status-' + (p.status || 'ativo') + (p.atual ? ' atual' : '')}>
                         <div className="batalha-fighter-main">
@@ -14120,7 +14659,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           O ator é SEMPRE `meuParticipante`: o Jogador só age pelo próprio PJ,
           mesmo quando abriu o painel pelo avatar de um inimigo (aí
           `ataqueContra` só escolhe alvo e aba iniciais). */}
-      {acaoOpen && ehMinhaVez && souAtivo && catalogos && meuParticipante && (
+      {acaoOpen && ehMinhaVez && souAtivo && !aguardandoRevelar && catalogos && meuParticipante && (
         <AcaoModal
           key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba + (ataqueContra.unica ? '-unica' : '') : 'proprio'}
           alvoInicialId={ataqueContra ? ataqueContra.id : undefined}
@@ -14145,10 +14684,12 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           fecharTip={fecharTip}
         />
       )}
+      {window.EfeitosDaVez && <window.EfeitosDaVez batalhaId={batalha.id} cortina={cortina} log={log} isEn={isEn} />}
       {avisoVez && (
         <div className="batalha-aviso-vez" role="status" aria-live="assertive">
           <i className="ti ti-sword" aria-hidden="true" />
-          <span>{tb.eASuaVez || (isEn ? "It's your turn" : 'É a sua vez')}</span>
+          {/* 10/11/2026, usuário: "uma mensagem na tela apenas para o combatente 'É sua vez de atacar!'". */}
+          <span>{tb.avisoVezAtacar || (isEn ? 'Your turn to strike!' : 'É sua vez de atacar!')}</span>
         </div>
       )}
       {consulta && meuPj && catalogos && (
@@ -14228,9 +14769,10 @@ Object.assign(window, {
   // vive dentro de MotorBatalha, mas o teste chama via window direto.
   tecnicasCompativeisComArma,
   SaqueModal,   // janela de saque (25/09/2026) — exposta para o teste de tela
+  ConvocacaoModal,   // escolha da Convocação Animal (09/11/2026) — idem
   MotorBatalha: {
     // Reforços que chegam no meio da batalha (29/09/2026) — reforcos.test.js.
-    STATUS_CHEGANDO, ehReforco, prepararReforcos, participanteInvocado, partemOsInvocados, formarBandosDeReforco,
+    STATUS_CHEGANDO, ehReforco, prepararReforcos, participanteInvocado, partemOsInvocados, fichaSintetica, snapshotSintetico, criaturaDoAtor, idsDeCriaturaQueFaltam, pedidoDeInvocacao, formarBandosDeReforco,
     entrarReforcos, celulaLivreProxima,
     EF_MORTE, pontosAcaoPJ, pontosAcaoTecnicaPJ, paDaRodada,
     aplicarDanoCascata, ordenarIniciativa,
@@ -14281,6 +14823,9 @@ Object.assign(window, {
        quebrarEvocacao fica ENCADEADA em quebrarConcentracao, então todo
        gatilho que já derrubava concentração derruba canalização. */
     aplicarEfeitoMagia, aplicarCuraPool, aplicarDrenoEh, danoAposReducao,
+    // 10/11/2026: a cura acorda, a cura por rodada, a Purificação e o apoio em até N alvos.
+    acordarPelaCura, efeitoNegativo, purificarParticipante, processarCuraPorRodada, extrasDoApoio,
+    efeitoDaMagiaNoGolpe,
     nivelComOferenda, consumirOferenda,
     alvoPermitidoParaMagia, efeitoInverteNoAlvo, tetoDeAlvosMagia, motivoAlvoMagiaOfensiva,
     alvosDeArea, alvosDeAura, alvosNoRaio,

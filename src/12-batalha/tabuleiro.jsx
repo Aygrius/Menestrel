@@ -699,6 +699,14 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
       'aria-hidden': 'true', className: 'batalha-token-evocando',
       style: { width: size + 22, height: size + 22, top: -11, left: '50%', marginLeft: -(size + 22) / 2 },
     }),
+    /* A VEZ MAIS CHAMATIVA (10/11/2026, usuário: "hoje brilha o avatar, eu
+       quero um brilho mais chamativo"). Um halo de ouro que respira atrás do
+       avatar e uma coroa de raios que gira devagar; o anel pulsante continua
+       por cima. Só no token de quem tem a vez. */
+    atual && React.createElement('span', {
+      'aria-hidden': 'true', className: 'batalha-token-vez-aura',
+      style: { width: size + 44, height: size + 44, top: -22, left: '50%', marginLeft: -(size + 44) / 2 },
+    }),
     // anel pulsante de "é a vez dele"
     atual && React.createElement('span', {
       'aria-hidden': 'true', className: 'batalha-token-vez-ring',
@@ -717,6 +725,8 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
     React.createElement('div', {
       ref: refAvatar,
       key: flash ? 'avatar-dano-' + flash.n : 'avatar',
+      // Onde nascem os efeitos da revelação (efeitos-da-vez.jsx, 10/11/2026).
+      'data-fx-chave': p.inst_id || (p.tipo + ':' + p.ref_id),
       /* O MORTO NÃO SOME (08/11/2026, usuário: "Depois de morto, o avatar some
          da batalha"). O rosto é preto e, a 35% sobre a noite do campo, ele
          desaparecia. Agora fica a 70%, em cinza e com um contorno claro (CSS

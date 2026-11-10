@@ -26,6 +26,24 @@
         "value": "sans",
         "createdAt": "2026-10-30T17:16:57.307Z",
         "reason": "fallback genérico (sans-serif) atrás de Alegreya Sans, fonte do projeto pelo CLAUDE.md"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/12-batalha/efeitos-da-vez.css"
+        ],
+        "createdAt": "2026-11-10T07:36:55.341Z",
+        "reason": "Claude: os arcos de golpe e técnica são desenhados com border-top/bottom num círculo transparente; não é cartão"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "src/12-batalha/efeitos-da-vez.css"
+        ],
+        "createdAt": "2026-11-10T07:36:55.784Z",
+        "reason": "Claude: mesmo caso, arco de golpe animado, sem cartão"
       }
     ]
   }

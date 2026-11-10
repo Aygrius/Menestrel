@@ -189,10 +189,10 @@ describe('fora da vez: consultar', () => {
 
 /* 08/11/2026: "Quando for a vez do jogador, sinalize para ele." */
 describe('a vez chegou: o aviso', () => {
-  it('na minha vez, aparece "É a sua vez"; fora dela, não', async () => {
+  it('na minha vez, aparece "É sua vez de atacar!" (10/11/2026); fora dela, não', async () => {
     montar([lutador({ atual: true })]);
     await waitFor(() => expect(document.querySelector('.batalha-aviso-vez')).toBeTruthy());
-    expect(document.querySelector('.batalha-aviso-vez').textContent).toMatch(/É a sua vez/);
+    expect(document.querySelector('.batalha-aviso-vez').textContent).toMatch(/É sua vez de atacar!/);
     cleanup();
     const orc = lutador({ ref_id: 99, inst_id: 'orc', nome: 'Orc', tipo: 'criatura', ordem: 0, atual: true, pos: { x: 20, y: 10 } });
     montar([orc, lutador({ atual: false })]);

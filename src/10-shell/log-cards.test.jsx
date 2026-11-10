@@ -120,4 +120,24 @@ describe('a CentralMensagens: card no centro e sino com o modal', () => {
     expect([...lista.querySelectorAll('.cm-msg-texto')].map((t) => t.textContent))
       .toEqual(['Fuga.', 'Esquiva.', 'Cura.', 'Golpe!', 'O clima mudou.']);
   });
+
+  /* A cortina da batalha (10/11/2026): na tela do jogador, o evento da batalha
+     com cortina espera a revelação; o pedido ao Mestre e o resto, não. */
+  it('o evento da batalha espera a revelação e sai no compasso dos efeitos', async () => {
+    vi.useFakeTimers();
+    montar();
+    await act(async () => { await Promise.resolve(); });
+    window.__menestrelCortinas = new Set(['9']);
+    const evento = (id, meta) => act(() => handler({ new: { id, created_at: '2026-09-27T10:00:00Z', tipo: 'ataque', texto: 'E' + id, meta } }));
+    evento(2, { batalha_id: 9 });
+    evento(3, { batalha_id: 9 });
+    evento(4, { batalha_id: 9, motivo: 'aprovacao_mestre' });
+    evento(5, { batalha_id: 7 });
+    expect([...document.querySelectorAll('.cm-card')].map((c) => c.textContent.match(/E[0-9]/)[0])).toEqual(['E4', 'E5']);
+    act(() => { window.dispatchEvent(new CustomEvent('menestrel:revelacao', { detail: { batalhaId: '9', intervalo: 1000 } })); });
+    expect(document.querySelectorAll('.cm-card')).toHaveLength(3);
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect([...document.querySelectorAll('.cm-card')].map((c) => c.textContent.match(/E[0-9]/)[0])).toContain('E3');
+    window.__menestrelCortinas = new Set();
+  });
 });

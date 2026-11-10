@@ -54,6 +54,10 @@ const MAGIA_VERBOS = {
      caía no ramo de cura, que passa adiante o que não é poço —, mas depender
      de acaso é o que faz magia parar de funcionar em silêncio. */
   adiciona: 'mais',
+  /* Purificação (10/11/2026): "Remove 1 efeito negativo do alvo". Tirar é
+     o lado de menos; a unidade (efeito negativo) é que diz o que sai. */
+  remove:   'menos',
+  remova:   'menos',
   adicione: 'mais',
   /* `recebe` entrou em 12/09/2026, depois de o usuário confirmar o sentido:
      em Necropotência ("Recebe 10 de energia heroica ADICIONAL") é ganho.
@@ -119,6 +123,8 @@ const MAGIA_VERBOS = {
    campo de saída. `coluna` casa "coluna de ataque" e o plural "colunas". */
 const MAGIA_UNIDADES = [
   { re: /^\s*colunas?/i,                        campo: 'coluna'  },
+  // Purificação (10/11/2026): quantos efeitos negativos ela tira.
+  { re: /^\s*efeitos?\s+negativos?/i,           campo: 'purificar' },
   /* O `de` é OPCIONAL nestas quatro. Véu de Maira escreve "Aumente 15 energia
      heroica e 1 coluna de ataque" — sem a preposição —, e o leitor devolvia
      só a coluna: a magia daria o bônus de ataque e nenhum de EH, em silêncio.
@@ -196,7 +202,7 @@ const MAGIA_UNIDADES = [
    entravam como 'mais'. Em Licantropia o resultado saía certo por acidente —
    o registro é que dá o sinal —, mas um texto com "Aumenta 2 de X e reduz 3
    de X" teria o segundo sobrescrevendo o primeiro sob a ação errada. */
-const RE_VERBO = /\b(aumenta|aumente|reduz|reduza|diminui|diminua|restaura|recupera|recupere|recuperam|recuperando|cure|adiciona|adicione|recebe|recebem|recebendo|causa|cause)\b/gi;
+const RE_VERBO = /\b(remove|remova|aumenta|aumente|reduz|reduza|diminui|diminua|restaura|recupera|recupere|recuperam|recuperando|cure|adiciona|adicione|recebe|recebem|recebendo|causa|cause)\b/gi;
 
 /* ── O leitor, com diagnóstico ─────────────────────────────────────
    `efeitosNoNivel` devolve só os valores; esta devolve também o que o parser
@@ -1168,6 +1174,24 @@ const MAGIA_EFEITO_MAP = {
   nictoataque:        { alvo: 'inimigo', alvos: 1, icone: '😈',
                         efeitos: [{ tipo: 'dano',            unidade: 'dano' },
                                   { tipo: 'dano_por_rodada', unidade: 'dano_max' }] },
+  /* A FAMÍLIA DOS ATAQUES ELEMENTAIS (10/11/2026, usuário: "Aeroataque,
+     Piroataque, etc são magias de ataque, não? Veja isso e arrume" e
+     "Aeroataque pode derrubar um combatente"). Antes: Hidro e Piroataque
+     causavam 1 a 5 por rodada, o Geoataque protegia e o Aeroataque só
+     derrubava por peso. Agora todas golpeiam, no molde de Foto e Nictoataque:
+     Hidro e Piro com a perda por rodada, o Aero derrubando o alvo (no chão,
+     todo golpe fura a EH — modsDoGolpe), e o Geo com o impacto mais pesado. */
+  aeroataque:         { alvo: 'inimigo', alvos: 1, icone: '🌪️',
+                        efeitos: [{ tipo: 'dano',      unidade: 'dano' },
+                                  { tipo: 'derrubado', valor: true }] },
+  hidroataque:        { alvo: 'inimigo', alvos: 1, icone: '🌊',
+                        efeitos: [{ tipo: 'dano',            unidade: 'dano' },
+                                  { tipo: 'dano_por_rodada', unidade: 'dano_max' }] },
+  piroataque:         { alvo: 'inimigo', alvos: 1, icone: '🔥',
+                        efeitos: [{ tipo: 'dano',            unidade: 'dano' },
+                                  { tipo: 'dano_por_rodada', unidade: 'dano_max' }] },
+  geoataque:          { alvo: 'inimigo', alvos: 1, icone: '🪨',
+                        efeitos: [{ tipo: 'dano', unidade: 'dano' }] },
   // "Reduza 1 de energia física por rodada" — só o sangramento.
   campo_de_trevas:    { alvo: 'inimigo', alvos: 1, icone: '🌑',
                         efeitos: [{ tipo: 'dano_por_rodada', unidade: 'ef' }] },
@@ -1555,6 +1579,34 @@ const MAGIA_EFEITO_MAP = {
   pressagio_curativo:   { alvo: 'aliado', alvos: 1, icone: '🔮',
                           efeitos: [{ tipo: 'cura_pool', unidade: 'cura_ef', pool: 'ef' }] },
 
+  /* ══ AS MAGIAS NOVAS DE 10/11/2026 ══════════════════════════════════
+     Pedido do usuário: quatro curas, uma de velocidade e as três sugeridas
+     (Purificação somada à que já existia, Elo Vital, Peso de Selimon).
+
+     alvos_auto: "até N alvos" — o escolhido e mais N−1 do mesmo lado, no
+     alcance (extrasDoApoio, no motor). Sem a marca, `alvos` continua sendo
+     só o teto declarado, como em Coordenação.
+     cura_por_rodada: o espelho de dano_por_rodada (processarCuraPorRodada).
+     dreno_ef: a EF que o alvo perde volta para quem lançou.
+     purificar: tira N efeitos negativos (purificarParticipante). */
+  restauracao_coletiva: { alvo: 'aliado', alvos: 3, alvos_auto: true, icone: '💞',
+                          efeitos: [{ tipo: 'cura_pool', unidade: 'cura_eh', pool: 'eh' }] },
+  bencao_de_plandis:    { alvo: 'aliado', alvos: 1, icone: '🌤️',
+                          efeitos: [{ tipo: 'cura_por_rodada', unidade: 'cura_eh', pool: 'eh' }] },
+  esplendor_da_vida:    { alvo: 'aliado', alvos: 1, icone: '🌺',
+                          efeitos: [{ tipo: 'cura_por_rodada', unidade: 'cura_ef', pool: 'ef' }] },
+  suplica_a_ganis:      { alvo: 'aliado', alvos: 5, alvos_auto: true, icone: '🙏',
+                          efeitos: [{ tipo: 'cura_pool', unidade: 'cura_ef', pool: 'ef' }] },
+  espirito_felino:      { alvo: 'aliado', alvos: 3, alvos_auto: true, icone: '🐆',
+                          efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: 1 }] },
+  purificacao:          { alvo: 'aliado', alvos: 1, icone: '💧',
+                          efeitos: [{ tipo: 'purificar', unidade: 'purificar' }] },
+  elo_vital:            { alvo: 'inimigo', alvos: 1, icone: '🔗',
+                          efeitos: [{ tipo: 'dano', unidade: 'dano', ignora_eh: true },
+                                    { tipo: 'dreno_ef', valor: true }] },
+  peso_de_selimon:      { alvo: 'inimigo', alvos: 3, alvos_auto: true, icone: '⚖️',
+                          efeitos: [{ tipo: 'mod_vb', unidade: 'vb', sinal: -1 }] },
+
   /* ── As proteções que faltavam: celestial e infernal ────────────── */
   /* ══ CORRIGIDAS PELO USUÁRIO — 12/09/2026, fim da noite ═════════════
      Três das pendências de texto da conferência, depois de o usuário reescrever
@@ -1596,6 +1648,32 @@ const MAGIA_EFEITO_MAP = {
                           efeitos: [{ tipo: 'invocar', valor: true,
                                       criaturas: { 1: 'Enviado Menor', 3: 'Enviado I', 5: 'Enviado II',
                                                    7: 'Enviado III', 9: 'Enviado IV' } }] },
+  /* AS OUTRAS INVOCAÇÕES (09/11/2026, usuário: "Há outras magias que evocam
+     outros seres"; escolhidas por ele: Última Oração, Convocação Animal,
+     Pseudomatéria, Projeção e Guardião Espiritual). Os rituais que trazem
+     seres (Chamado Elemental, Conjuração Demoníaca, Criação, Necroanimação)
+     ficam fora do combate, também por decisão dele: o invocado antes da luta
+     entra pela montagem ou pelos reforços.
+
+     Três formas de `invocar`:
+       criaturas — o ser do bestiário, pelo nome, conforme o nível;
+       escolha   — o Mestre escolhe no bestiário dentro do limite do texto
+                   (Convocação Animal: "totalizando N estágios, mas o estágio
+                   máximo de cada animal é M");
+       sintetico — o ser não existe no bestiário: a ficha sai do texto do nível
+                   e da do conjurador (fichaSintetica em 12-batalha). */
+  ultima_oracao:        { alvo: 'self', alvos: 1, icone: '🙏',
+                          efeitos: [{ tipo: 'invocar', valor: true,
+                                      criaturas: { 1: 'Enviado I', 3: 'Enviado II', 5: 'Enviado III',
+                                                   7: 'Enviado IV', 9: 'Enviado V' } }] },
+  convocacao_animal:    { alvo: 'self', alvos: 1, icone: '🐾',
+                          efeitos: [{ tipo: 'invocar', valor: true, escolha: 'Animal' }] },
+  pseudomateria:        { alvo: 'self', alvos: 1, icone: '🎭',
+                          efeitos: [{ tipo: 'invocar', valor: true, sintetico: 'ilusao' }] },
+  projecao:             { alvo: 'self', alvos: 1, icone: '👥',
+                          efeitos: [{ tipo: 'invocar', valor: true, sintetico: 'projecao' }] },
+  guardiao_espiritual:  { alvo: 'self', alvos: 1, icone: '👻',
+                          efeitos: [{ tipo: 'invocar', valor: true, sintetico: 'guardiao' }] },
   egide_celestial:      { alvo: 'aliado', alvos: 1, icone: '🌑',
                           efeitos: [{ tipo: 'reducao_dano', unidade: 'reducao_dano', elemento: 'celestial' }] },
   selo_abismal:         { alvo: 'aliado', alvos: 1, icone: '🔯',
@@ -2074,11 +2152,8 @@ const MAGIA_FORA_DO_REGISTRO = {
     'Troca de corpo entre participantes. Subsistema próprio.' },
 
   /* ── Os números são a ficha de um INVOCADO ──────────────────────── */
-  projecao: { classe: 'invocado', motivo:
-    'Cria uma cópia do personagem. Os números são a ficha dela, não efeito em alguém.' },
-  guardiao_espiritual: { classe: 'invocado', motivo: 'Cria cópias do personagem.' },
-  pseudomateria: { classe: 'invocado', motivo:
-    'Cria um personagem controlado pelo Mestre.' },
+  /* Projeção, Guardião Espiritual e Pseudomatéria saíram daqui em 09/11/2026:
+     viraram invocações (efeito `invocar`, sintético) — ver o registro. */
   criatura_disforme: { classe: 'invocado', motivo: 'Anima uma carcaça.' },
 
   /* ══ VARREDURA DAS MAGIAS QUE NENHUM PERSONAGEM CONHECIA — 12/09/2026 ══
@@ -2101,7 +2176,6 @@ const MAGIA_FORA_DO_REGISTRO = {
     'A trilha falsa dificulta quem PERSEGUE, e o perseguidor não é escolhido na evocação.' },
   terreno_hostil: { classe: 'sistema', motivo:
     'O terreno dificulta forasteiros que usam os recursos do local; e "Sobrevivência" não existe no catálogo de habilidades.' },
-  aeroataque: { classe: 'sistema', motivo: 'Derruba, move ou arrasta por peso (kg) — o combate não tem peso nem empurrão.' },
   aprimoramento_animal: { classe: 'sistema', motivo: 'Mexe no companheiro animal com elo — o combate não tem companheiro.' },
   area_de_paz: { classe: 'sistema', motivo: 'Quem ataca alguém na área precisa resistir antes — o motor não testa o ATACANTE.' },
   bote: { classe: 'sistema', motivo: 'Executa a técnica Bote no nível da magia — magia que dispara técnica.' },
@@ -2133,7 +2207,6 @@ const MAGIA_FORA_DO_REGISTRO = {
   milagre_analogo: { classe: 'sistema', motivo: 'Reproduz uma magia de outro deus.' },
   olhar_de_predador: { classe: 'sistema', motivo: 'Perda de iniciativa, revelação de ficha e visão 180º.' },
   prolongamento: { classe: 'sistema', motivo: 'Estende a duração de outras magias.' },
-  purificacao: { classe: 'sistema', motivo: 'Remove magias e venenos por nível.' },
   recuperacao_fisica: { classe: 'sistema', motivo: 'Cura veneno, vício ou doença por TIPO.' },
   refletir: { classe: 'sistema', motivo: 'Reflete magias de volta ao conjurador.' },
   rugido_intimidador: { classe: 'sistema', motivo: 'Teste de MORAL — o combate não tem moral.' },
@@ -2190,9 +2263,9 @@ const MAGIA_FORA_DO_REGISTRO = {
 
   /* ── Os números são a ficha de um invocado ──────────────────────── */
   conjuracao_demoniaca: { classe: 'invocado', motivo: 'Evoca um demônio.' },
-  convocacao_animal: { classe: 'invocado', motivo: 'Convoca animais por estágio.' },
   criacao: { classe: 'invocado', motivo: 'Cria um morto-vivo.' },
-  ultima_oracao: { classe: 'invocado', motivo: 'Convoca um enviado celestial.' },
+  /* Convocação Animal e Última Oração saíram daqui em 09/11/2026: viraram
+     invocações (efeito `invocar`) — ver o registro. */
 };
 
 /* O predicado mais comum das pendências de texto: o leitor passou a achar a

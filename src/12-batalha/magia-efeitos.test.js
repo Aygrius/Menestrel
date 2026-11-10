@@ -904,6 +904,11 @@ describe('toda primitiva do registro tem CONSUMIDOR no motor', () => {
     transformacao:   'subracaEfetiva → calcularFicha (montarSnapshots)',
     // 09/11/2026: o Apelo traz o enviado do bestiário para a batalha.
     invocar:         'aplicarEfeitoMagia → invocacao_pendente → participanteInvocado',
+    // 10/11/2026: as magias novas.
+    cura_por_rodada: 'processarCuraPorRodada → aplicarCuraPool',
+    purificar:       'aplicarEfeitoMagia → purificarParticipante',
+    dreno_ef:        'aplicarGolpeEmAlvo → aplicarCuraPool',
+    derrubado:       'efeitoDaMagiaNoGolpe → modsDoGolpe',
   };
 
   /* Primitivas DECLARADAS e ainda SEM consumidor. A lista existe para o

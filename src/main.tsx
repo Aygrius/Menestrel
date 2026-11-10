@@ -82,6 +82,9 @@ import './11-ficha/paginas-ficha.jsx'       // Status, Atividades, Habilidades�
 import './11-ficha/amigos-fab.jsx'
 import './11-ficha/ficha.jsx'
 import '../app.jsx'
+// A aprovação do Mestre entre as vezes e os efeitos da revelação (10/11/2026).
+import './12-batalha/efeitos-da-vez.css'
+import './12-batalha/efeitos-da-vez.jsx'
 import './12-batalha/batalha.jsx'
 // Tabuleiro DEPOIS de batalha.jsx: usa mesmoParticipante/statusTemEfeito dele.
 import './12-batalha/tabuleiro.jsx'

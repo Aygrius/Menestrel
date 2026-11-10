@@ -227,17 +227,27 @@ describe('MAGIA_EFEITO_MAP — a forma das 25 entradas', () => {
                          'mod_dificuldade',
                          // Apelo (09/11/2026): a primeira invocação — traz uma
                          // criatura do bestiário em vez de mexer em alguém.
-                         'invocar'];
+                         'invocar',
+                         // As magias novas de 10/11/2026: cura por rodada (Bênção de
+                         // Plandis, Esplendor da Vida), Purificação e Elo Vital.
+                         'cura_por_rodada', 'purificar', 'dreno_ef',
+                         // Aeroataque derruba (10/11/2026): a mesma condição da técnica Desequilibrar.
+                         'derrubado'];
 
-  it('tem 111 entradas — 106 da reforma, 4 corrigidas pelo usuário (12/09/2026) e o Apelo (09/11/2026)', () => {
+  it('tem 128 entradas — 106 da reforma, 4 corrigidas pelo usuário (12/09/2026), 6 invocações (09/11/2026), 8 novas e 4 ataques elementais de 10/11/2026', () => {
     // As 4: Alucinação, Força da Montanha, Vigília e Ataque Impetuoso.
     // A reforma: 16 saíram (as dificuldades fundidas, Ruído Extenuante e
     // Região Inviolável), 4 finais de dificuldade entraram (Amizade, Dom das
     // Línguas, Sombra, Graça Felina) e 23 novas ou religadas (6 ataques de
     // colégio, Apontar Sufocante, Cadência Veloz, 13 curas de ordem, Égide
     // Celestial e Selo Abismal). Degeneração Física mudou de forma e ficou.
-    // O Apelo (09/11/2026): a primeira invocação de verdade.
-    expect(Object.keys(MAP)).toHaveLength(111);
+    // As invocações (09/11/2026): Apelo, Última Oração, Convocação Animal,
+    // Pseudomatéria, Projeção e Guardião Espiritual.
+    // As de 10/11/2026: Restauração Coletiva, Bênção de Plandis, Esplendor da
+    // Vida, Súplica à Ganis, Espírito Felino, Purificação, Elo Vital e Peso
+    // de Selimon.
+    // E os ataques elementais religados: Aero, Hidro, Piro e Geoataque.
+    expect(Object.keys(MAP)).toHaveLength(128);
   });
 
   it.each(Object.entries(window.MAGIA_EFEITO_MAP))(
@@ -470,6 +480,24 @@ describe('o acordo entre o mapa e o texto do banco', () => {
     ataque_impetuoso:     'Causa 4 de dano extra no próximo ataque.',
     // A primeira invocação (09/11/2026). Cópia literal do banco.
     apelo:                'Evoca um enviado.',
+    ultima_oracao:        'Pelo menos um enviado tipo I atenderá ao pedido.',
+    convocacao_animal:    'Convoque animais totalizando 6 estágios, mas o estágio máximo de cada animal é 2.',
+    pseudomateria:        'A ilusão possui 2 de energia física, 10 de energia heroica, defesa L1 e dano máximo 12.',
+    projecao:             'A projeção possui 1 de energia heroica.',
+    guardiao_espiritual:  'Cada corpo tem 1 de energia heroica.',
+    // As magias novas (10/11/2026). Cópias literais do banco.
+    restauracao_coletiva: 'Restaura 4 de energia heroica.',
+    bencao_de_plandis:    'Restaura 3 de energia heroica por rodada.',
+    esplendor_da_vida:    'Restaura 2 de energia física por rodada.',
+    suplica_a_ganis:      'Restaura 1 de energia física.',
+    espirito_felino:      'Aumenta 3 de velocidade.',
+    purificacao:          'Informa se algo é impróprio para consumo ou se a alma de alguém está sendo influenciada. Em batalha, remove 1 efeito negativo do alvo.',
+    elo_vital:            'Causa 2 de dano, ignora a energia heroica. Você recupera a energia física que o alvo perder.',
+    peso_de_selimon:      'Reduz 3 de velocidade.',
+    aeroataque:           'Causa 12 de dano elemental de ar e derruba o alvo.',
+    hidroataque:          'Causa 16 de dano elemental de água e, 1 de dano máximo na energia física por rodada.',
+    piroataque:           'Causa 16 de dano elemental de fogo e, 1 de dano máximo na energia física por rodada.',
+    geoataque:            'Causa 20 de dano elemental de terra.',
   };
 
   it('a lista de conferência cobre TODAS as entradas do mapa', () => {
@@ -837,14 +865,17 @@ describe('verbo `recebe` e os limites do leitor — varredura de 12/09/2026', ()
     expect(efeitosNoNivel(mag('Reduza5 colunas de ataque.'), 1).coluna).toBeUndefined();
   });
 
-  it('magias de INVOCAÇÃO seguem fora do registro', () => {
-    /* Projeção, Guardião Espiritual, Pseudomatéria e Criatura Disforme criam
-       PARTICIPANTES. Os números do nível delas são a ficha do invocado, não
-       efeito em alguém — ler como buff daria energia heroica ao conjurador.
-       Entrar exige acrescentar participante depois do setup, com snapshot,
-       posição e lugar na iniciativa: feature de porte próprio. */
-    ['projecao', 'guardiao_espiritual', 'pseudomateria', 'criatura_disforme']
-      .forEach((k) => expect(window.MAGIA_EFEITO_MAP[k], k).toBeUndefined());
+  it('magias de INVOCAÇÃO só declaram `invocar` — os números são a ficha do invocado', () => {
+    /* Projeção, Guardião Espiritual e Pseudomatéria criam PARTICIPANTES. Os
+       números do nível delas são a ficha do invocado, não efeito em alguém —
+       ler como buff daria energia heroica ao conjurador. Desde 09/11/2026
+       entram no registro, mas SÓ com `invocar`: quem lê os números é
+       fichaSintetica, para o ser. Criatura Disforme (ritual) segue fora. */
+    ['projecao', 'guardiao_espiritual', 'pseudomateria'].forEach((k) => {
+      const tipos = window.MAGIA_EFEITO_MAP[k].efeitos.map((e) => e.tipo);
+      expect(tipos, k).toEqual(['invocar']);
+    });
+    expect(window.MAGIA_EFEITO_MAP.criatura_disforme).toBeUndefined();
   });
 
   it('"possui" e "conceda" NÃO são verbos, e é de propósito', () => {

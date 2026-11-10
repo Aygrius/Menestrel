@@ -1,0 +1,553 @@
+/* ============================================================
+   efeitos-da-vez.css — o que a mesa vê quando o Mestre revela a vez
+   (10/11/2026). Ver efeitos-da-vez.jsx.
+   ============================================================
+   Cada efeito nasce no centro do avatar do alvo e dura ~1,5 s; um por
+   segundo, para o Mestre narrar um de cada vez. Tudo é transform, opacity
+   e filtro em elementos pequenos e isolados; nada fica rodando depois.
+   Movimento reduzido: o mesmo brilho na cor do efeito, parado, e o número.
+   ============================================================ */
+
+.fx-camada {
+  position: fixed; inset: 0; pointer-events: none; z-index: 70;
+  overflow: hidden;
+}
+.fx {
+  --fx-tam: 56px;
+  position: absolute; width: 0; height: 0;
+}
+.fx > span {
+  position: absolute; left: 0; top: 0; display: block;
+  will-change: transform, opacity;
+}
+
+/* O número do efeito: dano em brasa, cura em verde, "Errou" em tinta. */
+.fx-valor {
+  position: absolute; left: 0; top: calc(var(--fx-tam) * -1.05);
+  transform: translate(-50%, 0);
+  font: 700 22px/1 'Alegreya Sans', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: #ffd9c2; white-space: nowrap; letter-spacing: 0.01em;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.9);
+  animation: fx-valor 1400ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both;
+}
+.fx.is-critico .fx-valor { font-size: 30px; color: #ffb38a; }
+.fx.is-erro .fx-valor { color: #d8cfc2; font-size: 18px; font-style: italic; }
+.fx--cura .fx-valor, .fx--item .fx-valor { color: #c8f5b4; }
+.fx--resistiu .fx-valor { color: #dfe8ff; font-size: 18px; }
+.fx--queda .fx-valor { color: #e9b3a8; font-size: 18px; }
+@keyframes fx-valor {
+  0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.8); }
+  18%  { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  30%  { transform: translate(-50%, 0) scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -18px); }
+}
+
+/* Brilho de fundo comum: cada efeito pinta com a sua cor. */
+.fx-brilho {
+  width: calc(var(--fx-tam) * 2.2); height: calc(var(--fx-tam) * 2.2);
+  margin: calc(var(--fx-tam) * -1.1) 0 0 calc(var(--fx-tam) * -1.1);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fx-cor, #fff) 0%, transparent 62%);
+  mix-blend-mode: screen;
+  animation: fx-brilho 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes fx-brilho {
+  0%   { opacity: 0; transform: scale(0.3); }
+  20%  { opacity: 0.95; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
+/* ── FOGO: línguas de chama sobem do alvo, brasas espirram ───────── */
+.fx--fogo { --fx-cor: rgba(255, 150, 40, 0.85); }
+.fx--fogo .fx-chama {
+  width: calc(var(--fx-tam) * 0.5); height: calc(var(--fx-tam) * 1.1);
+  margin: calc(var(--fx-tam) * -0.9) 0 0 calc(var(--fx-tam) * -0.25);
+  border-radius: 50% 50% 45% 45% / 62% 62% 38% 38%;
+  background: radial-gradient(ellipse at 50% 78%, #fff6c8 0%, #ffd25a 22%, #ff8a1f 48%, #c8300e 74%, transparent 78%);
+  transform-origin: 50% 100%;
+  filter: blur(0.6px);
+  mix-blend-mode: screen;
+  animation: fx-chama 1000ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+.fx--fogo .fx-chama:nth-child(2) { --dx: -0.38; animation-delay: 40ms; }
+.fx--fogo .fx-chama:nth-child(3) { --dx: 0.36;  animation-delay: 90ms; }
+.fx--fogo .fx-chama:nth-child(4) { --dx: -0.12; animation-delay: 0ms; height: calc(var(--fx-tam) * 1.15); }
+.fx--fogo .fx-chama:nth-child(5) { --dx: 0.16;  animation-delay: 140ms; }
+.fx--fogo .fx-chama:nth-child(6) { --dx: 0;     animation-delay: 200ms; height: calc(var(--fx-tam) * 1.3); }
+@keyframes fx-chama {
+  0%   { opacity: 0; transform: translateX(calc(var(--dx, 0) * var(--fx-tam))) scale(0.4, 0.1); }
+  25%  { opacity: 1; transform: translateX(calc(var(--dx, 0) * var(--fx-tam))) scale(1, 1.05) skewX(-4deg); }
+  55%  { opacity: 0.95; transform: translateX(calc(var(--dx, 0) * var(--fx-tam))) scale(0.85, 1.2) skewX(5deg); }
+  100% { opacity: 0; transform: translate(calc(var(--dx, 0) * var(--fx-tam)), calc(var(--fx-tam) * -0.5)) scale(0.3, 0.9); }
+}
+.fx-brasa {
+  width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%;
+  background: #ffe39a; box-shadow: 0 0 6px 2px rgba(255, 140, 30, 0.8);
+  animation: fx-brasa 1300ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.fx-brasa:nth-child(7)  { --bx: -0.9; --by: -1.3; animation-delay: 120ms; }
+.fx-brasa:nth-child(8)  { --bx: 0.7;  --by: -1.5; animation-delay: 180ms; }
+.fx-brasa:nth-child(9)  { --bx: -0.4; --by: -1.8; animation-delay: 240ms; }
+.fx-brasa:nth-child(10) { --bx: 1.0;  --by: -1.0; animation-delay: 300ms; }
+.fx-brasa:nth-child(11) { --bx: 0.2;  --by: -2.0; animation-delay: 160ms; }
+.fx-brasa:nth-child(12) { --bx: -1.1; --by: -0.8; animation-delay: 340ms; }
+@keyframes fx-brasa {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  15%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--bx) * var(--fx-tam)), calc(var(--by) * var(--fx-tam))) scale(0.3); }
+}
+
+/* ── ÁGUA: o golpe estoura em anéis, gotas voam e caem ───────────── */
+.fx--agua { --fx-cor: rgba(90, 190, 255, 0.75); }
+.fx-onda {
+  width: calc(var(--fx-tam) * 1.6); height: calc(var(--fx-tam) * 0.7);
+  margin: calc(var(--fx-tam) * -0.35) 0 0 calc(var(--fx-tam) * -0.8);
+  border-radius: 50%;
+  border: 3px solid rgba(170, 225, 255, 0.95);
+  box-shadow: 0 0 10px rgba(80, 180, 255, 0.7), inset 0 0 8px rgba(80, 180, 255, 0.5);
+  animation: fx-onda 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.fx-onda:nth-child(3) { animation-delay: 150ms; }
+.fx-onda:nth-child(4) { animation-delay: 300ms; }
+@keyframes fx-onda {
+  0%   { opacity: 0; transform: translateY(calc(var(--fx-tam) * 0.3)) scale(0.2); }
+  20%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(calc(var(--fx-tam) * 0.3)) scale(1.5); border-width: 1px; }
+}
+.fx--agua .fx-gota, .fx--maldicao .fx-gota {
+  width: 7px; height: 11px; margin: -6px 0 0 -3.5px;
+  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
+  background: linear-gradient(180deg, #e9f8ff, #4aa9e8);
+  box-shadow: 0 0 6px rgba(80, 180, 255, 0.7);
+  animation: fx-gota 1100ms cubic-bezier(0.25, 0.6, 0.4, 1) both;
+  animation-delay: calc(var(--i) * 25ms);
+}
+.fx-gota:nth-child(5)  { --gx: -1.1; --gy: -0.9; }
+.fx-gota:nth-child(6)  { --gx: 1.1;  --gy: -0.8; }
+.fx-gota:nth-child(7)  { --gx: -0.5; --gy: -1.4; }
+.fx-gota:nth-child(8)  { --gx: 0.6;  --gy: -1.3; }
+.fx-gota:nth-child(9)  { --gx: -1.4; --gy: -0.2; }
+.fx-gota:nth-child(10) { --gx: 1.4;  --gy: -0.3; }
+.fx-gota:nth-child(11) { --gx: 0.1;  --gy: -1.6; }
+.fx-gota:nth-child(12) { --gx: -0.2; --gy: -1.1; }
+@keyframes fx-gota {
+  0%   { opacity: 0; transform: translate(0, 0); }
+  15%  { opacity: 1; }
+  55%  { transform: translate(calc(var(--gx) * var(--fx-tam)), calc(var(--gy) * var(--fx-tam))); }
+  100% { opacity: 0; transform: translate(calc(var(--gx) * var(--fx-tam) * 1.2), calc(var(--gy) * var(--fx-tam) * 0.2 + var(--fx-tam) * 0.6)); }
+}
+
+/* ── AR (raio): a tela clareia, o raio desce, o alvo crepita ─────── */
+.fx--ar { --fx-cor: rgba(200, 230, 255, 0.95); }
+.fx--ar .fx-brilho { animation: fx-brilho-raio 900ms ease-out both; }
+@keyframes fx-brilho-raio {
+  0%   { opacity: 0; transform: scale(0.5); }
+  8%   { opacity: 1; transform: scale(1.1); }
+  16%  { opacity: 0.3; }
+  24%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+.fx--ar .fx-faisca {
+  width: calc(var(--fx-tam) * 0.55); height: 2px; margin: -1px 0 0 0;
+  background: linear-gradient(90deg, #ffffff, rgba(150, 205, 255, 0));
+  box-shadow: 0 0 6px #9fd0ff;
+  transform-origin: 0 50%;
+  transform: rotate(calc(var(--i) * 60deg + 15deg));
+  animation: fx-faisca 600ms steps(3, jump-none) 80ms both;
+}
+@keyframes fx-faisca {
+  0%   { opacity: 0; transform: rotate(calc(var(--i) * 60deg + 15deg)) scaleX(0.2); }
+  30%  { opacity: 1; transform: rotate(calc(var(--i) * 60deg + 35deg)) scaleX(1.1); }
+  60%  { opacity: 0.4; transform: rotate(calc(var(--i) * 60deg - 5deg)) scaleX(0.7); }
+  100% { opacity: 0; transform: rotate(calc(var(--i) * 60deg + 25deg)) scaleX(1.3); }
+}
+.fx-raio { position: absolute; inset: 0; overflow: visible; }
+.fx-raio path { fill: none; stroke-linejoin: miter; stroke-linecap: round; }
+.fx-raio-halo { stroke: rgba(140, 200, 255, 0.55); stroke-width: 12; filter: blur(4px); animation: fx-raio 650ms ease-out both; }
+.fx-raio-nucleo { stroke: #ffffff; stroke-width: 3; animation: fx-raio 650ms ease-out both; }
+@keyframes fx-raio {
+  0%   { opacity: 0; }
+  6%   { opacity: 1; }
+  18%  { opacity: 0.2; }
+  28%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* A tela clareia: um véu azul-branco sobre tudo, duas vezes. */
+html[data-fx-tela]::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 69;
+}
+html[data-fx-tela="raio"]::after {
+  background: radial-gradient(circle at 50% 40%, rgba(235, 245, 255, 0.85), rgba(170, 210, 255, 0.45));
+  animation: fx-tela-raio 600ms ease-out both;
+}
+@keyframes fx-tela-raio {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  20%  { opacity: 0.1; }
+  30%  { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+/* O crítico: as bordas da tela escurecem em vermelho por um instante. */
+html[data-fx-tela="critico"]::after {
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(120, 10, 0, 0.55) 100%);
+  animation: fx-tela-critico 650ms ease-out both;
+}
+@keyframes fx-tela-critico {
+  0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; }
+}
+
+/* ── TERRA: o chão abre, lascas de pedra sobem e caem, poeira ────── */
+.fx--terra .fx-poeira {
+  width: calc(var(--fx-tam) * 2); height: calc(var(--fx-tam) * 0.9);
+  margin: calc(var(--fx-tam) * -0.1) 0 0 calc(var(--fx-tam) * -1);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(196, 164, 120, 0.75), rgba(140, 110, 75, 0) 70%);
+  filter: blur(3px);
+  animation: fx-poeira 1300ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+}
+@keyframes fx-poeira {
+  0%   { opacity: 0; transform: scale(0.3, 0.2); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.4, 1.1) translateY(calc(var(--fx-tam) * -0.15)); }
+}
+.fx--terra .fx-pedra {
+  width: calc(var(--fx-tam) * 0.22); height: calc(var(--fx-tam) * 0.2);
+  margin: calc(var(--fx-tam) * -0.1) 0 0 calc(var(--fx-tam) * -0.11);
+  background: linear-gradient(135deg, #b89468, #6b4e30 70%, #3e2c1a);
+  clip-path: polygon(20% 0, 85% 12%, 100% 60%, 62% 100%, 8% 82%, 0 30%);
+  animation: fx-pedra 1100ms cubic-bezier(0.3, 0.6, 0.5, 1) both;
+  animation-delay: calc(var(--i) * 30ms);
+}
+.fx-pedra:nth-child(2) { --px: -0.9; --py: -1.2; --pr: -160deg; }
+.fx-pedra:nth-child(3) { --px: 0.8;  --py: -1.4; --pr: 200deg; }
+.fx-pedra:nth-child(4) { --px: -0.3; --py: -1.7; --pr: 120deg; }
+.fx-pedra:nth-child(5) { --px: 0.3;  --py: -1.1; --pr: -220deg; }
+.fx-pedra:nth-child(6) { --px: -1.2; --py: -0.6; --pr: 90deg; }
+.fx-pedra:nth-child(7) { --px: 1.2;  --py: -0.7; --pr: -100deg; }
+@keyframes fx-pedra {
+  0%   { opacity: 0; transform: translate(0, calc(var(--fx-tam) * 0.3)) rotate(0); }
+  12%  { opacity: 1; }
+  50%  { transform: translate(calc(var(--px) * var(--fx-tam)), calc(var(--py) * var(--fx-tam))) rotate(calc(var(--pr) * 0.5)); }
+  100% { opacity: 0; transform: translate(calc(var(--px) * var(--fx-tam) * 1.3), calc(var(--fx-tam) * 0.5)) rotate(var(--pr)); }
+}
+.fx--terra .fx-fenda {
+  width: calc(var(--fx-tam) * 1.5); height: 4px;
+  margin: calc(var(--fx-tam) * 0.42) 0 0 calc(var(--fx-tam) * -0.75);
+  background: linear-gradient(90deg, transparent, #2a1c10 20%, #120b05 50%, #2a1c10 80%, transparent);
+  clip-path: polygon(0 50%, 15% 0, 30% 80%, 48% 10%, 64% 90%, 80% 20%, 100% 50%, 80% 70%, 64% 100%, 48% 40%, 30% 100%, 15% 40%);
+  animation: fx-fenda 1300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes fx-fenda {
+  0% { opacity: 0; transform: scaleX(0); } 20% { opacity: 1; transform: scaleX(1); } 75% { opacity: 1; } 100% { opacity: 0; }
+}
+/* O alvo da terra (e o do crítico) treme junto: a marca vai no avatar. */
+.fx-tremor { animation: fx-tremor 480ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+@keyframes fx-tremor {
+  10%, 90% { translate: -1px 0; }
+  20%, 80% { translate: 3px 1px; }
+  30%, 50%, 70% { translate: -4px -1px; }
+  40%, 60% { translate: 4px 0; }
+}
+@media (prefers-reduced-motion: reduce) { .fx-tremor { animation: none; } }
+
+/* ── CELESTIAL: uma coluna de luz desce sobre o alvo ─────────────── */
+.fx--celestial { --fx-cor: rgba(255, 230, 150, 0.8); }
+.fx-coluna {
+  width: calc(var(--fx-tam) * 1.1); height: 100vh;
+  margin: -100vh 0 0 calc(var(--fx-tam) * -0.55);
+  top: calc(var(--fx-tam) * 0.4);
+  background: linear-gradient(180deg, rgba(255, 245, 210, 0) 0%, rgba(255, 238, 180, 0.55) 70%, rgba(255, 250, 230, 0.95) 100%);
+  filter: blur(2px);
+  mix-blend-mode: screen;
+  transform-origin: 50% 100%;
+  animation: fx-coluna 1300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes fx-coluna {
+  0%   { opacity: 0; transform: scaleX(0.05); }
+  20%  { opacity: 1; transform: scaleX(1); }
+  70%  { opacity: 0.9; transform: scaleX(0.75); }
+  100% { opacity: 0; transform: scaleX(0.1); }
+}
+.fx-halo {
+  width: calc(var(--fx-tam) * 1.5); height: calc(var(--fx-tam) * 1.5);
+  margin: calc(var(--fx-tam) * -0.75) 0 0 calc(var(--fx-tam) * -0.75);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 228, 140, 0.95);
+  box-shadow: 0 0 14px rgba(255, 210, 100, 0.8), inset 0 0 10px rgba(255, 220, 130, 0.6);
+  animation: fx-halo 1200ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+}
+@keyframes fx-halo {
+  0% { opacity: 0; transform: scale(0.4); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.35); }
+}
+.fx-luz {
+  width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%;
+  background: #fffbe8; box-shadow: 0 0 6px 2px rgba(255, 220, 120, 0.9);
+  animation: fx-luz 1300ms cubic-bezier(0.2, 0.6, 0.3, 1) both;
+  animation-delay: calc(var(--i) * 70ms);
+}
+.fx-luz:nth-child(odd)  { --lx: -0.6; }
+.fx-luz:nth-child(even) { --lx: 0.55; }
+.fx-luz:nth-child(3n)   { --lx: 0.1; }
+.fx-luz:nth-child(4n)   { --lx: -0.3; }
+@keyframes fx-luz {
+  0%   { opacity: 0; transform: translate(calc(var(--lx, 0) * var(--fx-tam)), calc(var(--fx-tam) * 0.4)); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--lx, 0) * var(--fx-tam) * 1.3), calc(var(--fx-tam) * -1.2)); }
+}
+
+/* ── INFERNAL: fumaça escura sobe, labaredas carmim ─────────────── */
+.fx--infernal { --fx-cor: rgba(200, 30, 60, 0.7); }
+.fx--infernal .fx-fumo, .fx--dissipa .fx-fumo {
+  width: calc(var(--fx-tam) * 0.9); height: calc(var(--fx-tam) * 0.9);
+  margin: calc(var(--fx-tam) * -0.45) 0 0 calc(var(--fx-tam) * -0.45);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(40, 12, 34, 0.9) 0%, rgba(30, 8, 26, 0.5) 45%, transparent 70%);
+  filter: blur(4px);
+  animation: fx-fumo 1400ms cubic-bezier(0.25, 0.6, 0.3, 1) both;
+}
+.fx-fumo:nth-child(2) { --fx: -0.4; animation-delay: 60ms; }
+.fx-fumo:nth-child(3) { --fx: 0.4;  animation-delay: 180ms; }
+.fx-fumo:nth-child(4) { --fx: 0;    animation-delay: 300ms; }
+@keyframes fx-fumo {
+  0%   { opacity: 0; transform: translate(0, calc(var(--fx-tam) * 0.3)) scale(0.5); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--fx, 0) * var(--fx-tam)), calc(var(--fx-tam) * -1.1)) scale(1.6); }
+}
+.fx-labareda {
+  width: calc(var(--fx-tam) * 0.3); height: calc(var(--fx-tam) * 0.85);
+  margin: calc(var(--fx-tam) * -0.6) 0 0 calc(var(--fx-tam) * -0.15);
+  border-radius: 50% 50% 45% 45% / 62% 62% 38% 38%;
+  background: radial-gradient(ellipse at 50% 80%, #ffb0a0 0%, #e8233a 30%, #7a0f3a 62%, transparent 76%);
+  transform-origin: 50% 100%;
+  mix-blend-mode: screen;
+  animation: fx-chama 1100ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+.fx-labareda:nth-child(5) { --dx: -0.32; animation-delay: 80ms; }
+.fx-labareda:nth-child(6) { --dx: 0.3;   animation-delay: 140ms; }
+.fx-labareda:nth-child(7) { --dx: 0;     animation-delay: 40ms; height: calc(var(--fx-tam) * 1.1); }
+.fx-labareda:nth-child(8) { --dx: 0.12;  animation-delay: 220ms; }
+.fx--infernal .fx-brasa { background: #ff9aa8; box-shadow: 0 0 6px 2px rgba(200, 20, 70, 0.85); }
+.fx--infernal .fx-brasa:nth-child(9)  { --bx: -0.8; --by: -1.4; animation-delay: 160ms; }
+.fx--infernal .fx-brasa:nth-child(10) { --bx: 0.9;  --by: -1.2; animation-delay: 220ms; }
+.fx--infernal .fx-brasa:nth-child(11) { --bx: -0.2; --by: -1.9; animation-delay: 280ms; }
+.fx--infernal .fx-brasa:nth-child(12) { --bx: 0.4;  --by: -1.6; animation-delay: 120ms; }
+
+/* ── ARCANO (magia sem elemento): o círculo de runas gira e estilhaça ── */
+.fx--arcano { --fx-cor: rgba(170, 120, 255, 0.75); }
+.fx-runa, .fx-runa-dentro, .fx-circulo {
+  width: calc(var(--fx-tam) * 1.7); height: calc(var(--fx-tam) * 1.7);
+  margin: calc(var(--fx-tam) * -0.85) 0 0 calc(var(--fx-tam) * -0.85);
+  border-radius: 50%;
+  border: 2px dashed rgba(200, 170, 255, 0.95);
+  box-shadow: 0 0 12px rgba(150, 100, 255, 0.7);
+  animation: fx-runa 1300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.fx-runa-dentro {
+  width: calc(var(--fx-tam) * 1.15); height: calc(var(--fx-tam) * 1.15);
+  margin: calc(var(--fx-tam) * -0.575) 0 0 calc(var(--fx-tam) * -0.575);
+  border-style: dotted; border-width: 3px;
+  animation-direction: reverse;
+}
+@keyframes fx-runa {
+  0%   { opacity: 0; transform: rotate(-90deg) scale(0.4); }
+  30%  { opacity: 1; transform: rotate(0deg) scale(1); }
+  75%  { opacity: 1; transform: rotate(60deg) scale(0.9); }
+  100% { opacity: 0; transform: rotate(90deg) scale(1.3); }
+}
+.fx-estilhaco {
+  width: 3px; height: calc(var(--fx-tam) * 0.35);
+  margin: calc(var(--fx-tam) * -0.175) 0 0 -1.5px;
+  background: linear-gradient(180deg, #f1e6ff, rgba(160, 110, 255, 0));
+  transform: rotate(calc(var(--i) * 60deg));
+  animation: fx-estilhaco 900ms cubic-bezier(0.16, 1, 0.3, 1) 380ms both;
+}
+@keyframes fx-estilhaco {
+  0%   { opacity: 0; transform: rotate(calc(var(--i) * 60deg)) translateY(0); }
+  20%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(calc(var(--i) * 60deg)) translateY(calc(var(--fx-tam) * -1.1)); }
+}
+
+/* ── GOLPES DE ARMA ─────────────────────────────────────────────── */
+/* O rastro: corte = um arco em diagonal; perfuração = uma estocada reta;
+   esmagamento = sem rastro, o impacto é que cresce. */
+.fx--golpe .fx-rastro {
+  width: calc(var(--fx-tam) * 1.7); height: calc(var(--fx-tam) * 1.7);
+  margin: calc(var(--fx-tam) * -0.85) 0 0 calc(var(--fx-tam) * -0.85);
+  border-radius: 50%;
+  border-top: 5px solid #fff8ea;
+  border-right: 3px solid rgba(255, 240, 220, 0.6);
+  filter: drop-shadow(0 0 8px rgba(255, 220, 180, 0.95));
+  animation: fx-corte 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes fx-corte {
+  0%   { opacity: 0; transform: rotate(-150deg) scale(0.9); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(20deg) scale(1); }
+}
+.fx--golpe-perfuracao .fx-rastro {
+  width: calc(var(--fx-tam) * 1.8); height: 3px; border: 0; border-radius: 2px;
+  margin: -1.5px 0 0 calc(var(--fx-tam) * -1.8);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fffaf0);
+  transform-origin: 100% 50%;
+  animation: fx-estocada 380ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+@keyframes fx-estocada {
+  0%   { opacity: 0; transform: rotate(-20deg) translateX(-40%) scaleX(0.3); }
+  40%  { opacity: 1; transform: rotate(-20deg) translateX(0) scaleX(1); }
+  100% { opacity: 0; transform: rotate(-20deg) translateX(8%) scaleX(0.6); }
+}
+.fx--golpe-esmagamento .fx-rastro { display: none; }
+.fx-impacto {
+  width: calc(var(--fx-tam) * 1.2); height: calc(var(--fx-tam) * 1.2);
+  margin: calc(var(--fx-tam) * -0.6) 0 0 calc(var(--fx-tam) * -0.6);
+  background: radial-gradient(circle, #ffffff 0%, #ffe2b8 18%, rgba(255, 140, 70, 0.55) 40%, transparent 64%);
+  clip-path: polygon(50% 0, 60% 35%, 98% 22%, 68% 52%, 100% 78%, 58% 66%, 50% 100%, 40% 66%, 2% 80%, 32% 52%, 0 20%, 40% 35%);
+  animation: fx-impacto 520ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both;
+}
+.fx--golpe-esmagamento .fx-impacto { animation-delay: 60ms; width: calc(var(--fx-tam) * 1.6); height: calc(var(--fx-tam) * 1.6); margin: calc(var(--fx-tam) * -0.8) 0 0 calc(var(--fx-tam) * -0.8); }
+@keyframes fx-impacto {
+  0%   { opacity: 0; transform: scale(0.2) rotate(0); }
+  30%  { opacity: 1; transform: scale(1) rotate(8deg); }
+  100% { opacity: 0; transform: scale(1.25) rotate(14deg); }
+}
+.fx--golpe .fx-faisca {
+  width: calc(var(--fx-tam) * 0.4); height: 2px; margin-top: -1px;
+  background: linear-gradient(90deg, #fff4dc, rgba(255, 180, 90, 0));
+  transform-origin: 0 50%;
+  animation: fx-faisca-golpe 500ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
+}
+.fx--golpe .fx-faisca:nth-child(3) { --a: -30deg; }
+.fx--golpe .fx-faisca:nth-child(4) { --a: 50deg; }
+.fx--golpe .fx-faisca:nth-child(5) { --a: 150deg; }
+.fx--golpe .fx-faisca:nth-child(6) { --a: 230deg; }
+@keyframes fx-faisca-golpe {
+  0%   { opacity: 0; transform: rotate(var(--a)) translateX(0) scaleX(0.3); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--a)) translateX(calc(var(--fx-tam) * 0.7)) scaleX(1); }
+}
+/* O crítico pesa mais: tudo maior. */
+.fx.is-critico > span { scale: 1.3; }
+/* Errou: o golpe passa ao lado, apagado, e não há impacto. */
+.fx.is-erro > span { opacity: 0.55; }
+.fx.is-erro .fx-impacto, .fx.is-erro .fx-faisca, .fx.is-erro .fx-brasa,
+.fx.is-erro .fx-gota, .fx.is-erro .fx-pedra, .fx.is-erro .fx-estilhaco { display: none; }
+.fx--golpe.is-erro .fx-rastro { translate: calc(var(--fx-tam) * 0.55) calc(var(--fx-tam) * -0.2); }
+
+/* ── APOIO, CURA, EVOCAÇÃO, ITEM, TÉCNICA ───────────────────────── */
+.fx--cura { --fx-cor: rgba(140, 230, 120, 0.6); }
+.fx--cura .fx-luz { background: #f2ffe6; box-shadow: 0 0 6px 2px rgba(110, 210, 90, 0.9); }
+.fx--item { --fx-cor: rgba(140, 230, 160, 0.5); }
+.fx--item .fx-luz { background: #eafff4; box-shadow: 0 0 5px 2px rgba(90, 210, 150, 0.85); }
+.fx--bencao .fx-halo:nth-child(2) { animation-delay: 320ms; }
+.fx--maldicao { --fx-cor: rgba(110, 40, 160, 0.55); }
+.fx--maldicao .fx-halo {
+  border-color: rgba(160, 90, 220, 0.9);
+  box-shadow: 0 0 14px rgba(90, 20, 140, 0.8), inset 0 0 10px rgba(90, 20, 140, 0.6);
+  animation-name: fx-halo-fecha;
+}
+@keyframes fx-halo-fecha {
+  0% { opacity: 0; transform: scale(1.5); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(0.45); }
+}
+.fx--maldicao .fx-gota { background: linear-gradient(180deg, #d6b8ff, #4a1a78); box-shadow: 0 0 6px rgba(120, 40, 200, 0.7); }
+.fx--maldicao .fx-gota:nth-child(3) { --gx: -0.5; --gy: 0.2; }
+.fx--maldicao .fx-gota:nth-child(4) { --gx: 0.5;  --gy: 0.1; }
+.fx--maldicao .fx-gota:nth-child(5) { --gx: -0.2; --gy: 0.3; }
+.fx--maldicao .fx-gota:nth-child(6) { --gx: 0.25; --gy: 0.25; }
+.fx-espiral {
+  width: calc(var(--fx-tam) * 1.5); height: calc(var(--fx-tam) * 1.5);
+  margin: calc(var(--fx-tam) * -0.75) 0 0 calc(var(--fx-tam) * -0.75);
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: rgba(140, 190, 255, 0.95);
+  border-left-color: rgba(140, 190, 255, 0.4);
+  filter: drop-shadow(0 0 6px rgba(100, 160, 255, 0.8));
+  animation: fx-espiral 1300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.fx-espiral:nth-child(2) { animation-delay: 160ms; width: calc(var(--fx-tam) * 1.1); height: calc(var(--fx-tam) * 1.1); margin: calc(var(--fx-tam) * -0.55) 0 0 calc(var(--fx-tam) * -0.55); }
+@keyframes fx-espiral {
+  0%   { opacity: 0; transform: rotate(0) scale(1.3); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(540deg) scale(0.6); }
+}
+.fx--dissipa { --fx-cor: rgba(150, 150, 170, 0.4); }
+.fx--dissipa .fx-fumo { background: radial-gradient(circle, rgba(170, 170, 190, 0.6), transparent 70%); }
+.fx-escudo {
+  width: calc(var(--fx-tam) * 1.5); height: calc(var(--fx-tam) * 1.5);
+  margin: calc(var(--fx-tam) * -0.75) 0 0 calc(var(--fx-tam) * -0.75);
+  border-radius: 50%;
+  background: radial-gradient(circle, transparent 55%, rgba(200, 220, 255, 0.55) 66%, transparent 72%);
+  box-shadow: 0 0 16px rgba(170, 200, 255, 0.5);
+  animation: fx-halo 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.fx--tecnica .fx-rastro {
+  width: calc(var(--fx-tam) * 1.6); height: calc(var(--fx-tam) * 1.6);
+  margin: calc(var(--fx-tam) * -0.8) 0 0 calc(var(--fx-tam) * -0.8);
+  border-radius: 50%;
+  border-bottom: 3px solid rgba(255, 215, 130, 0.95);
+  filter: drop-shadow(0 0 6px rgba(255, 190, 80, 0.8));
+  animation: fx-espiral 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.fx--tecnica .fx-rastro:nth-child(2) { animation-delay: 200ms; }
+
+/* Invocação: o círculo no chão, a luz sobe, o ser aparece. */
+.fx--invocacao .fx-circulo {
+  height: calc(var(--fx-tam) * 0.7);
+  margin: calc(var(--fx-tam) * 0.15) 0 0 calc(var(--fx-tam) * -0.85);
+  border-color: rgba(255, 220, 140, 0.95);
+  box-shadow: 0 0 14px rgba(255, 200, 100, 0.8);
+  animation: fx-circulo 1500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes fx-circulo {
+  0% { opacity: 0; transform: scale(0.2); } 25% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.1); }
+}
+.fx--invocacao .fx-coluna { width: calc(var(--fx-tam) * 0.9); margin-left: calc(var(--fx-tam) * -0.45); height: calc(var(--fx-tam) * 2); margin-top: calc(var(--fx-tam) * -2); animation-delay: 200ms; }
+
+/* Queda: um anel escuro afunda no alvo. */
+.fx-afundar {
+  width: calc(var(--fx-tam) * 1.4); height: calc(var(--fx-tam) * 1.4);
+  margin: calc(var(--fx-tam) * -0.7) 0 0 calc(var(--fx-tam) * -0.7);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(40, 0, 0, 0.55), transparent 65%);
+  border: 2px solid rgba(160, 40, 30, 0.85);
+  animation: fx-halo-fecha 1200ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ── MOVIMENTO REDUZIDO: o brilho na cor do efeito, parado, e o número ── */
+@media (prefers-reduced-motion: reduce) {
+  .fx > span { display: none; }
+  .fx > .fx-brilho, .fx > .fx-halo:first-child, .fx > .fx-escudo, .fx > .fx-afundar {
+    display: block; animation: fx-calmo 1300ms ease-out both;
+  }
+  .fx--golpe::before, .fx--evocacao::before, .fx--tecnica::before, .fx--terra::before, .fx--invocacao::before {
+    content: ''; position: absolute; width: calc(var(--fx-tam) * 1.8); height: calc(var(--fx-tam) * 1.8);
+    margin: calc(var(--fx-tam) * -0.9) 0 0 calc(var(--fx-tam) * -0.9); border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 230, 190, 0.7), transparent 62%);
+    animation: fx-calmo 1300ms ease-out both;
+  }
+  .fx-raio { display: none; }
+  .fx-valor { animation: fx-calmo 1400ms ease-out both; }
+}
+@keyframes fx-calmo {
+  0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; }
+}
+
+/* ── O BOTÃO DO MESTRE NO TRILHO ─────────────────────────────────────
+   A vez terminou e a mesa espera: o texto diz de quem, o botão (a ação
+   primária, em ouro) revela. O aro em brasa marca o que está parado. */
+#root .menestrel-ui .batalha-trilho-revelar {
+  display: inline-flex; align-items: center; gap: 10px;
+  height: 36px; padding: 0 3px 0 14px; border-radius: 999px;
+  background: var(--alerta-fundo); box-shadow: inset 0 0 0 1px rgba(232, 131, 106, 0.55);
+  font-size: var(--fs-sm); color: var(--tinta-2); white-space: nowrap;
+}
+#root .menestrel-ui .batalha-trilho-revelar b { color: var(--tinta); font-weight: 700; }
+#root .menestrel-ui .batalha-trilho-revelar .btn-primary { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; }
+@media (prefers-reduced-motion: no-preference) {
+  #root .menestrel-ui .batalha-trilho-revelar { animation: fx-revelar-chega 320ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+}
+@keyframes fx-revelar-chega {
+  from { opacity: 0.3; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}

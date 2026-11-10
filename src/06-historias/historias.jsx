@@ -231,7 +231,7 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
       ) : (mesaAtivaId && historiasFiltradas.length === 1) ? (
         /* A CENA É A CRÔNICA (23/10/2026): dentro de uma mesa, no lugar do card,
            os capítulos — o em andamento em destaque, os anteriores numa lista. */
-        <CenaCronica h={historiasFiltradas[0]} personagens={personagens} lang={lang} trilhoPaginas={trilhoPaginas}
+        <CenaCronica h={historiasFiltradas[0]} personagens={personagens} lang={lang} trilhoPaginas={trilhoPaginas} onAlterado={refetch}
           onEscrever={() => { setEditarComo({ pagina: 'capitulos' }); setEditando(historiasFiltradas[0]); }}
           onNovoCapitulo={() => { setEditarComo({ pagina: 'capitulos', novo: true }); setEditando(historiasFiltradas[0]); }} />
       ) : historiasFiltradas.length === 0 ? (
@@ -336,9 +336,53 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
    — que saiu: a Mesa e a Cena mostram a mesma grade, e o cartão abre o
    capítulo inteiro para ler. */
 const CENA_POR_PAGINA = 18;
-function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somenteLeitura = false, anotar = false, userId = null, pjId = null, autor = '', trilhoPaginas = null }) {
+
+/* A IMAGEM DO CAPÍTULO (10/11/2026, usuário: "Na página de Cena, eu quero um
+   capítulo por página, um botão para inserir uma imagem que será usada junto
+   com o texto do capítulo"). A imagem mora no próprio capítulo, em
+   `historias.capitulos[].imagem_url` (o jsonb que já guarda título e texto —
+   sem coluna nova), e o arquivo vai para o bucket `avatares`, na pasta de
+   quem envia, como a foto do personagem: `<uid>/capitulos/<historia>/<cap>`.
+   O bucket aceita até 1 MB; a imagem maior é reduzida no navegador antes. */
+const CENA_IMAGEM_MAX = 1024 * 1024;
+
+// Os capítulos com a imagem trocada (url) ou tirada (null) só no de `capId`.
+function capitulosComImagem(caps, capId, url) {
+  const id = String(capId);
+  return (Array.isArray(caps) ? caps : []).map((c) => {
+    if (!c || String(c.id) !== id) return c;
+    const { imagem_url: _antiga, ...resto } = c;
+    return url ? { ...resto, imagem_url: url } : resto;
+  });
+}
+
+// Reduz a imagem para caber no bucket: lado maior até 1600px, em JPEG.
+async function reduzirImagemDoCapitulo(file, lado = 1600, qualidade = 0.85) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, lado / Math.max(bmp.width, bmp.height));
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(bmp.width * k);
+  cv.height = Math.round(bmp.height * k);
+  cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+  return new Promise((ok, falha) => cv.toBlob(
+    (b) => (b ? ok(b) : falha(new Error('toBlob'))), 'image/jpeg', qualidade));
+}
+
+/* UM CAPÍTULO POR PÁGINA NA CENA DO MESTRE (10/11/2026). A Cena deixa a grade
+   de cartões e vira a folha do capítulo: título, a imagem junto do texto, o
+   texto inteiro e as anotações da mesa, com "Anterior" e "Próximo" embaixo.
+   Abre no capítulo em andamento (o último). A Mesa do Jogador (somenteLeitura)
+   continua na grade de 04/11/2026 e mostra a imagem ao abrir o capítulo. */
+function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlterado = null, somenteLeitura = false, anotar = false, userId = null, pjId = null, autor = '', trilhoPaginas = null }) {
   const en = lang === 'en';
   const caps = Array.isArray(h.capitulos) ? h.capitulos : [];
+  const umPorPagina = !somenteLeitura;
+  const [folhaN, setFolhaN] = useState(null); // nº do capítulo na folha; null = o último
+  const [imagens, setImagens] = useState({}); // id → url | null, até o refetch chegar
+  const [imgEnviando, setImgEnviando] = useState(false);
+  const [imgErro, setImgErro] = useState(null);
+  const imgInputRef = useRef(null);
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
   const [aberto, setAberto] = useState(null);
   const [notas, setNotas] = useState(null); // null = carregando
   const [minha, setMinha] = useState('');
@@ -362,8 +406,67 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
   const pagina = lista.slice((safePage - 1) * porPagina, safePage * porPagina);
   const BuscaENovo = window.BestBuscaENovo;
   const Paginacao = window.BestPagination;
-  const capAberto = aberto != null ? todos.find((x) => x.n === aberto) : null;
+  // A folha: os encontrados na ordem do livro (1, 2, 3…); sem escolha, o último.
+  const emOrdem = [...lista].reverse();
+  const folha = umPorPagina && emOrdem.length
+    ? (emOrdem.find((x) => x.n === folhaN) || emOrdem[emOrdem.length - 1]) : null;
+  const folhaI = folha ? emOrdem.indexOf(folha) : -1;
+  const capAberto = umPorPagina ? folha : (aberto != null ? todos.find((x) => x.n === aberto) : null);
   const capId = capAberto && capAberto.c.id ? String(capAberto.c.id) : null;
+  const imagemDe = (c) => {
+    const id = c && c.id != null ? String(c.id) : null;
+    if (id && Object.prototype.hasOwnProperty.call(imagens, id)) return imagens[id];
+    return (c && c.imagem_url) || null;
+  };
+  /* Grava a imagem no capítulo lendo os capítulos DO BANCO, não os da tela:
+     uma edição salva noutra aba não se perde por causa da imagem. */
+  const gravarImagem = async (id, url) => {
+    const { data, error } = await supabaseClient.from('historias').select('capitulos').eq('id', h.id).single();
+    if (error) throw error;
+    const doBanco = Array.isArray(data && data.capitulos) ? data.capitulos : [];
+    if (!doBanco.some((c) => c && String(c.id) === id)) {
+      throw new Error(en ? 'Save the chapter before adding an image.' : 'Salve o capítulo antes de pôr a imagem.');
+    }
+    const upd = await supabaseClient.from('historias')
+      .update({ capitulos: capitulosComImagem(doBanco, id, url) }).eq('id', h.id);
+    if (upd.error) throw upd.error;
+    setImagens((m) => ({ ...m, [id]: url }));
+    if (onAlterado) onAlterado();
+  };
+  const inserirImagem = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || !capId) return;
+    setImgErro(null);
+    if (!file.type.startsWith('image/')) { setImgErro(en ? 'Choose an image file.' : 'Escolha um arquivo de imagem.'); return; }
+    setImgEnviando(true);
+    try {
+      let arq = file;
+      if (arq.size > CENA_IMAGEM_MAX) arq = await reduzirImagemDoCapitulo(file).catch(() => file);
+      if (arq.size > CENA_IMAGEM_MAX) {
+        throw new Error(en ? 'Image too large (max 1 MB).' : 'Imagem muito grande (máx. 1 MB).');
+      }
+      const { data: quem } = await supabaseClient.auth.getUser();
+      const dono = (quem && quem.user && quem.user.id) || userId || h.mestre_id;
+      const path = `${dono}/capitulos/${h.id}/${capId}`;
+      const up = await supabaseClient.storage.from('avatares')
+        .upload(path, arq, { upsert: true, contentType: arq.type || 'image/jpeg', cacheControl: '3600' });
+      if (up.error) throw up.error;
+      const { data: pub } = supabaseClient.storage.from('avatares').getPublicUrl(path);
+      await gravarImagem(capId, `${pub.publicUrl}?v=${Date.now()}`);
+    } catch (err) {
+      setImgErro((en ? 'Could not save the image: ' : 'Não deu para salvar a imagem: ') + (err.message || err));
+    } finally {
+      setImgEnviando(false);
+    }
+  };
+  const tirarImagem = async () => {
+    if (!capId) return;
+    setImgErro(null); setImgEnviando(true);
+    try { await gravarImagem(capId, null); } catch (err) {
+      setImgErro((en ? 'Could not remove the image: ' : 'Não deu para tirar a imagem: ') + (err.message || err));
+    } finally { setImgEnviando(false); }
+  };
   const carregarNotas = async () => {
     if (!capId || !h.id) { setNotas([]); return; }
     const { data, error } = await supabaseClient.from('anotacoes_capitulo')
@@ -397,9 +500,53 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
     carregarNotas();
   };
   const outrasNotas = (notas || []).filter((n) => !anotar || n.user_id !== userId);
+  const tituloDe = (c) => c.titulo || (en ? 'Untitled' : 'Sem título');
+  // O texto do capítulo com a imagem junto, na folha e na janela.
+  const corpoDoCapitulo = (cap, classe) => {
+    const img = imagemDe(cap.c);
+    const pars = paragrafos(cap.c.texto);
+    return (
+      <div className={classe}>
+        {img && (
+          <figure className="cena-cap-figura">
+            <img src={img} alt={en ? `Image for ${tituloDe(cap.c)}` : `Imagem de ${tituloDe(cap.c)}`} loading="lazy" />
+          </figure>
+        )}
+        {pars.length ? pars : <p className="cena-cap-texto">{en ? 'No text yet.' : 'Sem texto ainda.'}</p>}
+      </div>
+    );
+  };
+  const secaoNotas = () => capId && (
+    <section className="cena-notas" aria-label={en ? 'Notes' : 'Anotações'}>
+      <h3 className="cena-notas-tit">{en ? 'Notes' : 'Anotações'}</h3>
+      {notas === null ? (
+        <p className="cena-notas-vazio">{en ? 'Loading notes…' : 'Carregando anotações…'}</p>
+      ) : (
+        <>
+          {outrasNotas.length === 0 && !anotar && (
+            <p className="cena-notas-vazio">{en ? 'No one has written notes on this chapter.' : 'Ninguém anotou nada neste capítulo.'}</p>
+          )}
+          {outrasNotas.map((n) => (
+            <article key={n.id} className="cena-nota">
+              <b className="cena-nota-autor">{n.autor || (n.user_id === h.mestre_id ? (en ? 'Master' : 'Mestre') : '—')}</b>
+              {String(n.texto).split(/\n+/).filter((x) => x.trim()).map((par, i) => <p key={i} className="cena-nota-texto">{par}</p>)}
+            </article>
+          ))}
+          {anotar && (
+            <label className="cena-nota-minha">
+              <span className="cena-nota-autor">{autor || (en ? 'Your note' : 'Sua anotação')}</span>
+              <textarea value={minha} rows={4} onChange={(e) => setMinha(e.target.value)}
+                placeholder={en ? 'What your character remembers, suspects or wants to do…' : 'O que seu personagem lembra, suspeita ou quer fazer…'} />
+            </label>
+          )}
+        </>
+      )}
+      {erroNota && <p className="cena-notas-erro" role="alert">{erroNota}</p>}
+    </section>
+  );
 
   return (
-    <div className="pjs cena-cartoes">
+    <div className={'pjs cena-cartoes' + (umPorPagina ? ' cena-folhas' : '')}>
       {/* O trilho da página com as páginas da Mesa (Cena, Batalha, Loja) antes
           da busca e do +, numa pílula só (04/11/2026). */}
       {BuscaENovo && (
@@ -409,7 +556,7 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
             ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
             placeholder={en ? 'Search' : 'Buscar'}
             query={busca}
-            setQuery={(v) => { setBusca(v); setPage(1); }}
+            setQuery={(v) => { setBusca(v); setPage(1); setFolhaN(null); }}
             podeCriar={!somenteLeitura}
             onNovo={onNovoCapitulo}
             dicaNovo={en ? 'New chapter' : 'Novo capítulo'} />
@@ -421,6 +568,58 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
           : (en ? 'No chapters yet. Start the chronicle of this table with the +.' : 'Nenhum capítulo ainda. Comece a crônica desta mesa pelo +.')}</div>
       ) : pagina.length === 0 ? (
         <div className="best-empty">{en ? `No chapter matches "${busca.trim()}".` : `Nenhum capítulo com "${busca.trim()}".`}</div>
+      ) : folha ? (
+        <>
+          <article className="cena-folha" aria-labelledby="cena-folha-tit">
+            <header className="cena-folha-cab">
+              <div className="cena-folha-id">
+                <h2 id="cena-folha-tit" className="cena-folha-tit">{tituloDe(folha.c)}</h2>
+                {(folha.atual || dataDe(folha.c)) && (
+                  <p className="cena-folha-meta">
+                    {[folha.atual ? (en ? 'In progress' : 'Em andamento') : '', dataDe(folha.c)].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+              <div className="cena-folha-acoes">
+                <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={inserirImagem}
+                  data-testid="cena-imagem-input" />
+                <button type="button" className="btn-ghost btn-sm" disabled={imgEnviando || !capId}
+                  onClick={() => imgInputRef.current && imgInputRef.current.click()}>
+                  <i className="ti ti-photo" aria-hidden="true" />
+                  {imgEnviando ? (en ? 'Saving…' : 'Salvando…')
+                    : imagemDe(folha.c) ? (en ? 'Change image' : 'Trocar imagem') : (en ? 'Insert image' : 'Inserir imagem')}
+                </button>
+                {imagemDe(folha.c) && (
+                  <button type="button" className="btn-ghost btn-icon btn-sm" disabled={imgEnviando}
+                    aria-label={en ? 'Remove image' : 'Tirar imagem'} {...propsTip(abrirTip, fecharTip, en ? 'Remove image' : 'Tirar imagem')}
+                    onClick={tirarImagem}>
+                    <i className="ti ti-trash" aria-hidden="true" />
+                  </button>
+                )}
+                <button type="button" className="btn-ghost btn-sm" onClick={onEscrever}>
+                  <i className="ti ti-pencil" aria-hidden="true" />{en ? 'Write' : 'Escrever'}
+                </button>
+              </div>
+            </header>
+            {imgErro && <p className="cena-notas-erro" role="alert">{imgErro}</p>}
+            {corpoDoCapitulo(folha, 'cena-folha-corpo')}
+            {secaoNotas()}
+            <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+          </article>
+          <nav className="cena-folha-nav" aria-label={en ? 'Chapters' : 'Capítulos'}>
+            <button type="button" className="btn-ghost btn-sm" disabled={folhaI <= 0}
+              onClick={() => setFolhaN(emOrdem[folhaI - 1].n)}>
+              <i className="ti ti-chevron-left" aria-hidden="true" />{en ? 'Previous' : 'Anterior'}
+            </button>
+            <span className="cena-folha-pos" aria-live="polite">
+              {en ? 'Chapter ' : 'Capítulo '}<b>{folha.n}</b>{en ? ' of ' : ' de '}{caps.length}
+            </span>
+            <button type="button" className="btn-ghost btn-sm" disabled={folhaI >= emOrdem.length - 1}
+              onClick={() => setFolhaN(emOrdem[folhaI + 1].n)}>
+              {en ? 'Next' : 'Próximo'}<i className="ti ti-chevron-right" aria-hidden="true" />
+            </button>
+          </nav>
+        </>
       ) : (
         <>
           <div className="pjs-grid cena-grade">
@@ -438,7 +637,7 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
                       <div className="pj-card-info">
                         <header className="pj-card-head">
                           <div className="pj-name-linha">
-                            <div className="pj-name">{c.titulo || (en ? 'Untitled' : 'Sem título')}</div>
+                            <div className="pj-name">{tituloDe(c)}</div>
                           </div>
                         </header>
                         <div className="pj-meta-linhas">
@@ -468,59 +667,26 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, somente
         </>
       )}
 
-      {capAberto && (
+      {!umPorPagina && capAberto && (
         <ModalShell
-          title={capAberto.c.titulo || (en ? 'Untitled' : 'Sem título')}
+          title={tituloDe(capAberto.c)}
           lang={lang}
           size="lg"
           onClose={() => setAberto(null)}
           onCancel={() => setAberto(null)}
           cancelLabel={en ? 'Close' : 'Fechar'}
-          {...(somenteLeitura
-            ? (anotar && capId
-              ? { onConfirm: salvarNota, confirmLabel: salvandoNota ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Save note' : 'Salvar anotação'),
-                  confirmDisabled: salvandoNota || notas === null || minha.trim() === notaGuardada.trim() }
-              : {})
-            : { onConfirm: () => { setAberto(null); onEscrever(); }, confirmLabel: en ? 'Write' : 'Escrever' })}
+          {...(anotar && capId
+            ? { onConfirm: salvarNota, confirmLabel: salvandoNota ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Save note' : 'Salvar anotação'),
+                confirmDisabled: salvandoNota || notas === null || minha.trim() === notaGuardada.trim() }
+            : {})}
         >
           <p className="cena-modal-meta">
             {en ? `Chapter ${capAberto.n}` : `Capítulo ${capAberto.n}`}
             {capAberto.atual ? (en ? ' · in progress' : ' · em andamento') : ''}
             {dataDe(capAberto.c) ? ' · ' + dataDe(capAberto.c) : ''}
           </p>
-          <div className="cena-modal-texto">
-            {paragrafos(capAberto.c.texto).length
-              ? paragrafos(capAberto.c.texto)
-              : <p className="cena-cap-texto">{en ? 'No text yet.' : 'Sem texto ainda.'}</p>}
-          </div>
-          {capId && (
-            <section className="cena-notas" aria-label={en ? 'Notes' : 'Anotações'}>
-              <h3 className="cena-notas-tit">{en ? 'Notes' : 'Anotações'}</h3>
-              {notas === null ? (
-                <p className="cena-notas-vazio">{en ? 'Loading notes…' : 'Carregando anotações…'}</p>
-              ) : (
-                <>
-                  {outrasNotas.length === 0 && !anotar && (
-                    <p className="cena-notas-vazio">{en ? 'No one has written notes on this chapter.' : 'Ninguém anotou nada neste capítulo.'}</p>
-                  )}
-                  {outrasNotas.map((n) => (
-                    <article key={n.id} className="cena-nota">
-                      <b className="cena-nota-autor">{n.autor || (n.user_id === h.mestre_id ? (en ? 'Master' : 'Mestre') : '—')}</b>
-                      {String(n.texto).split(/\n+/).filter((x) => x.trim()).map((par, i) => <p key={i} className="cena-nota-texto">{par}</p>)}
-                    </article>
-                  ))}
-                  {anotar && (
-                    <label className="cena-nota-minha">
-                      <span className="cena-nota-autor">{autor || (en ? 'Your note' : 'Sua anotação')}</span>
-                      <textarea value={minha} rows={4} onChange={(e) => setMinha(e.target.value)}
-                        placeholder={en ? 'What your character remembers, suspects or wants to do…' : 'O que seu personagem lembra, suspeita ou quer fazer…'} />
-                    </label>
-                  )}
-                </>
-              )}
-              {erroNota && <p className="cena-notas-erro" role="alert">{erroNota}</p>}
-            </section>
-          )}
+          {corpoDoCapitulo(capAberto, 'cena-modal-texto')}
+          {secaoNotas()}
         </ModalShell>
       )}
       {/* O TRILHO DE BAIXO DA CENA (02/11/2026): a data, o lugar, a hora e o
@@ -1692,7 +1858,8 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
   // Mestre pode adicionar quantos quiser; cada capítulo tem título e corpo livre.
   const [capitulos, setCapitulos] = useState(() => {
     if (isEdit && Array.isArray(historiaExistente.capitulos) && historiaExistente.capitulos.length > 0) {
-      const lista = historiaExistente.capitulos.map((c, i) => ({ id: c.id ?? `cap-${Date.now()}-${i}`, titulo: c.titulo ?? '', texto: c.texto ?? '', data_capitulo: c.data_capitulo ?? null }));
+      // imagem_url (10/11/2026): a imagem posta na Cena atravessa a edição.
+      const lista = historiaExistente.capitulos.map((c, i) => ({ id: c.id ?? `cap-${Date.now()}-${i}`, titulo: c.titulo ?? '', texto: c.texto ?? '', data_capitulo: c.data_capitulo ?? null, imagem_url: c.imagem_url ?? null }));
       // "Novo capítulo" da Cena (23/10/2026): a janela já abre com um em branco no fim.
       return novoCapitulo ? [...lista, { id: `cap-${Date.now()}-novo`, titulo: '', texto: '', data_capitulo: null }] : lista;
     }
@@ -1769,7 +1936,7 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
     // Capítulos completamente vazios (sem título e sem texto) são descartados — o mestre clicou "+"
     // mas não digitou nada.
     const capitulosPayload = capitulos
-      .map(({ id, titulo: t, texto, data_capitulo }) => ({ id, titulo: t.trim(), texto: texto.trim(), data_capitulo: data_capitulo || null }))
+      .map(({ id, titulo: t, texto, data_capitulo, imagem_url }) => ({ id, titulo: t.trim(), texto: texto.trim(), data_capitulo: data_capitulo || null, ...(imagem_url ? { imagem_url } : {}) }))
       .filter(({ titulo: t, texto }) => t.length > 0 || texto.length > 0);
 
     const payload = {
@@ -1989,5 +2156,5 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
 Object.assign(window, {
   HistoriasList, HistoriaCard,
   ConfirmarExclusaoHistoriaModal, GerenciarLojaView, migrarEstoqueLoja,
-  NovaHistoriaModal, CenaCronica,
+  NovaHistoriaModal, CenaCronica, capitulosComImagem,
 });

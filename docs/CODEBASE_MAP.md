@@ -261,6 +261,17 @@ luta), e a ordem das operações em `danoFinal` muda o número.
 produção** porque o fonte original nunca foi commitado. A geometria e o CSS são
 fiéis valor por valor; os nomes internos de função são invenção do reconstrutor.
 
+`efeitos-da-vez.jsx` (+ `.css`, 10/11/2026) é a **cortina**: o Mestre aprova
+cada troca de vez. A coluna `batalhas.cortina` (`{vez, nome, log_desde, vista,
+revelado}`) é gravada só pelo Mestre; com a vez mudada e a cortina da anterior,
+ninguém age até ele clicar "Revelar". O jogador vê os outros pela `vista` (pools
+e status de quando a vez abriu) e recebe as notificações da batalha só na
+revelação (o 10-shell as segura via `window.__menestrelCortinas`); o Mestre as
+lê na hora. Na revelação, cada tela toca um efeito por ação sobre o avatar do
+alvo (`data-fx-chave` no token): um por elemento (fogo, água, ar/raio, terra,
+celestial, infernal, arcano), golpe por tipo de arma, cura, bênção, maldição,
+invocação, queda. Sem a coluna, a aprovação se desliga sozinha.
+
 ### 10-shell — o console e o relógio
 
 `AdminConsole` monta a barra lateral a partir de `NAV_MESA` (mesa ativa em cima,

@@ -457,6 +457,8 @@ const COPY = {
       desmarcarTodos: 'Desmarcar todos',
       df: 'DF',
       eASuaVez: 'É a sua vez',
+      // O aviso grande na vez, só na tela do combatente (10/11/2026).
+      avisoVezAtacar: 'É sua vez de atacar!',
       eAVezDe: 'É a vez de {nome}',
       empate: 'Empate',
       empateRoleDeNovo: 'Empate — role de novo',
@@ -1008,6 +1010,7 @@ const COPY = {
       desmarcarTodos: 'Deselect all',
       df: 'DF',
       eASuaVez: 'It\'s your turn',
+      avisoVezAtacar: 'Your turn to strike!',
       eAVezDe: 'It\'s {nome}\'s turn',
       empate: 'Tie',
       empateRoleDeNovo: 'Tie — roll again',

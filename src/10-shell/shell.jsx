@@ -1569,6 +1569,12 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
   const cardTimersRef = React.useRef([]);
   const retrairTimeoutRef = React.useRef(null);
   const vistosRef = React.useRef(new Set()); // ids já inseridos — evita duplicar entre carga inicial e Realtime
+  /* A CORTINA DA BATALHA (10/11/2026, usuário: "somente essa aprovação que vai
+     aparecer o efeito do golpe ou magia"). O evento de uma batalha aberta com
+     a aprovação do Mestre (12-batalha/efeitos-da-vez.jsx marca o id em
+     window.__menestrelCortinas) fica guardado aqui e só entra na revelação,
+     um por vez, no compasso dos efeitos. Pedido ao Mestre nunca espera. */
+  const seguradosRef = React.useRef([]);
   // AudioContext reutilizável. Criado (e desbloqueado) na primeira interação
   // do usuário com o FAB — browsers bloqueiam AudioContext sem gesto prévio.
   const audioCtxRef = React.useRef(null);
@@ -1704,17 +1710,47 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
         if (!row || vistosRef.current.has(row.id)) return;
         vistosRef.current.add(row.id);
         const msg = linhaParaMensagem(row, lang);
+        const meta = (row.meta && typeof row.meta === 'object') ? row.meta : {};
+        const bid = meta.batalha_id != null ? String(meta.batalha_id) : null;
+        const cortinas = window.__menestrelCortinas;
+        if (bid && cortinas && cortinas.has(bid) && meta.motivo !== 'aprovacao_mestre') {
+          seguradosRef.current.push({ row, msg, bid });
+          return;
+        }
+        entregar(row, msg);
+      })
+      .subscribe();
+
+    /* A revelação solta o que estava guardado daquela batalha: o primeiro na
+       hora, os outros no intervalo dos efeitos (0 = tudo junto, a tela saiu). */
+    const soltar = (ev) => {
+      const d = (ev && ev.detail) || {};
+      const meus = seguradosRef.current.filter((s) => s.bid === String(d.batalhaId));
+      if (!meus.length) return;
+      seguradosRef.current = seguradosRef.current.filter((s) => s.bid !== String(d.batalhaId));
+      const passo = Number(d.intervalo) || 0;
+      meus.forEach((s, i) => {
+        if (!passo || i === 0) entregar(s.row, s.msg, i > 0);
+        else cardTimersRef.current.push(setTimeout(() => entregar(s.row, s.msg, true), i * passo));
+      });
+    };
+    window.addEventListener('menestrel:revelacao', soltar);
+
+    function entregar(row, msg, semSino) {
         setMensagens((prev) => [msg, ...prev].slice(0, 100));
         // A fila acompanha em tempo real: um pedido novo aparece para o
         // Mestre sem recarregar, e a resposta some da fila do mesmo jeito.
         setLinhasCruas((prev) => [...prev, row]);
         setNaoLidas((n) => n + 1);
-        tocarSino(); // sino suave — AudioContext já desbloqueado pelo FAB
+        if (!semSino) tocarSino(); // sino suave — AudioContext já desbloqueado pelo FAB
         mostrarCard(msg); // o card no centro (27/09/2026), no lugar da gaveta
-      })
-      .subscribe();
+    }
 
-    return () => { cancel = true; supabaseClient.removeChannel(channel); };
+    return () => {
+      cancel = true; supabaseClient.removeChannel(channel);
+      window.removeEventListener('menestrel:revelacao', soltar);
+      seguradosRef.current = [];
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historiaId, lang]);
 
@@ -3578,9 +3614,12 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                     const nomeMesShort = nomeMes.replace(/^Mês /, '');
                     const diaSemanaCap = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1).toLowerCase();
                     return (<>
-                      <span className="cdj-data-longa">{`${diaSemanaCap}, ${dataAtual.dia} ${nomeMesShort} de ${dataAtual.ano}`}</span>
+                      {/* EM NÚMEROS (10/11/2026, usuário: "No calendário do rodapé, vamos
+                          mostrar a data assim: 'Calcato, 3/3/1499'... ao abrir o calendário
+                          poderá ser visto o nome do mês"). O nome do mês fica no calendário. */}
+                      <span className="cdj-data-longa">{`${diaSemanaCap}, ${dataAtual.dia}/${dataAtual.mes}/${dataAtual.ano}`}</span>
                       {/* No celular, a forma curta — a pílula inteira cabe. */}
-                      <span className="cdj-data-curta">{`${dataAtual.dia} ${nomeMesShort}`}</span>
+                      <span className="cdj-data-curta">{`${dataAtual.dia}/${dataAtual.mes}`}</span>
                     </>);
                   })()}
                 </span>
