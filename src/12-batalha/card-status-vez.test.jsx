@@ -116,15 +116,15 @@ describe('contador de rodadas do efeito', () => {
 });
 
 describe('card', () => {
-  it('o botão Atacar usa ti-sword', async () => {
+  // O próprio card é de uso pessoal (10/11/2026): sem Atacar nele.
+  it('o próprio card não tem Atacar', async () => {
     const { container } = montar([lutador()]);
     await pronto(container);
     container.querySelector('.batalha-token').click();
     await waitFor(() => expect(document.querySelector('.batalha-mesa-painel .batalha-fighter')).toBeTruthy());
     const acao = [...document.querySelectorAll('.batalha-card-botoes button')]
       .find((b) => b.getAttribute('aria-label') === 'Atacar');
-    expect(acao.querySelector('i').className).toContain('ti-sword');
-    expect(acao.querySelector('i').className).not.toContain('ti-swords');
+    expect(acao).toBeUndefined();
   });
 
   /* No painel fixo o card leva o nome inteiro, como no Mestre (08/11/2026);

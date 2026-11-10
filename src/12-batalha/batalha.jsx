@@ -7684,12 +7684,34 @@ function ConsultaModal({ tipo, ator, catalogos, isEn, lang, onClose }) {
   );
 }
 
+/* ── ESCOPO DO CARD (10/11/2026) ──────────────────────────────────────────────
+   Usuário: "Quando o combatente clica em seu próprio card, será visto apenas
+   magias, técnicas, etc de uso pessoal." E o card do ALIADO ganha Magia e
+   Técnica de apoio, como o do inimigo tem as de ataque.
+     • 'pessoal' — o próprio card: magia de apoio que pode mirar em si (não
+       'inimigo'), sempre em si; técnica que não mira inimigo; nada de ataque.
+     • 'aliado'  — o card de um aliado: magia de apoio que vai a outro (não
+       'inimigo', não "Pessoal"); técnica de aliados (Voz de Comando).
+     • null      — tudo, como sempre (a mesa do Mestre). */
+function apoioNoEscopo(m, escopo) {
+  if (!escopo || !m) return true;
+  if (m.alvo === 'inimigo') return false;
+  return escopo === 'aliado' ? !m.pessoal : true;
+}
+function tecnicaNoEscopo(t, escopo) {
+  if (!escopo || !t) return true;
+  const reg = (typeof tecnicaEfeitoDe === 'function') ? tecnicaEfeitoDe(t.key) : null;
+  const alvo = reg ? reg.alvo : 'self';
+  return escopo === 'aliado' ? alvo === 'aliados' : alvo !== 'inimigo';
+}
+
 function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAcao, mover, onEncerrar,
-  encerrarDesativado, abrirTip, fecharTip }) {
-  const temArma = !!catalogos && ataquesDoAtor(ator, catalogos).length > 0;
-  const temMagia = !!catalogos && magiasOfensivasDoAtor(ator, catalogos).length > 0;
-  const temApoio = !!catalogos && magiasDeApoioDoAtor(ator, catalogos).length > 0;
-  const temTecnica = !!catalogos && tecnicasDoAtor(ator, catalogos).length > 0;
+  encerrarDesativado, abrirTip, fecharTip, escopo = null }) {
+  const pessoal = escopo === 'pessoal';
+  const temArma = !pessoal && !!catalogos && ataquesDoAtor(ator, catalogos).length > 0;
+  const temMagia = !pessoal && !!catalogos && magiasOfensivasDoAtor(ator, catalogos).length > 0;
+  const temApoio = !!catalogos && magiasDeApoioDoAtor(ator, catalogos).some((m) => apoioNoEscopo(m, escopo));
+  const temTecnica = !!catalogos && tecnicasDoAtor(ator, catalogos).some((t) => tecnicaNoEscopo(t, escopo));
   const temItem = !!catalogos && itensDeCombateDoAtor(ator, catalogos).length > 0;
   const motivoDe = {
     arma: !temArma ? (isEn ? 'No weapon in hand.' : 'Nenhuma arma empunhada.')
@@ -7706,7 +7728,7 @@ function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAc
     habilidade: null,
   };
   const ACOES = [
-    ['arma', 'ti-sword'], ['magia', 'ti-sparkles'],
+    ...(pessoal ? [] : [['arma', 'ti-sword']]), ['magia', 'ti-sparkles'],
     ['tecnica_teste', 'ti-bolt'], ['habilidade', 'ti-dice-5'], ['item', 'ti-flask'],
   ];
   const rotMover = tb.tabMover || (isEn ? 'Move' : 'Mover');
@@ -11155,7 +11177,7 @@ function QuantityStepper({ value, onChange, min = 1, max = Infinity, step = 1, d
    apontado para um inimigo — quem clica no avatar dele no tabuleiro escolhe
    "atacar com arma/magia" ali mesmo, e o painel abre na aba certa com o alvo
    marcado. Ausentes, o painel abre como sempre. */
-function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplicar, onAplicarTeste, onAplicarItem, onAplicarApoio, onCancel, onRolagemPendenteChange, rolagemSalva, onRolagemSalvaChange, abrirTip, fecharTip, alvoInicialId, abaInicial, abaUnica = null, auto = null, onAutoFalhou = null }) {
+function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplicar, onAplicarTeste, onAplicarItem, onAplicarApoio, onCancel, onRolagemPendenteChange, rolagemSalva, onRolagemSalvaChange, abrirTip, fecharTip, alvoInicialId, abaInicial, abaUnica = null, auto = null, onAutoFalhou = null, escopo = null }) {
   // Só vale a rolagem DESTE ator: a linha é da batalha, não do participante.
   const salva = (rolagemSalva && ator
     && rolagemSalva.ator && rolagemSalva.ator.tipo === ator.tipo
@@ -11165,8 +11187,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
 
   // Listas pré-computadas
   const armas    = useMemo(() => ataquesDoAtor(ator, catalogos), [ator, catalogos]);
-  const magias   = useMemo(() => magiasOfensivasDoAtor(ator, catalogos), [ator, catalogos]);
-  const tecnicas = useMemo(() => tecnicasDoAtor(ator, catalogos), [ator, catalogos]);
+  // Pelo card (escopo, ver apoioNoEscopo): o próprio não ataca, o do aliado só apoia.
+  const magias   = useMemo(() => (escopo ? [] : magiasOfensivasDoAtor(ator, catalogos)), [ator, catalogos, escopo]);
+  const tecnicas = useMemo(() => tecnicasDoAtor(ator, catalogos).filter((t) => tecnicaNoEscopo(t, escopo)), [ator, catalogos, escopo]);
   // Todos que podem ser alvo; `alvos` é o que sobra depois da provocação
   // (Provocar, 14/09/2026) e é o que Arma, Magia e Técnica oferecem. A aba
   // Apoio parte de `alvosTodos`: curar ou acelerar não é atacar.
@@ -11180,7 +11203,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const provocador = provocadorDe(ator, participantes);
   // Magias que alteram velocidade (01/09/2026). A aba Apoio só existe quando
   // esta lista não é vazia.
-  const magiasApoio = useMemo(() => magiasDeApoioDoAtor(ator, catalogos), [ator, catalogos]);
+  const magiasApoio = useMemo(() => magiasDeApoioDoAtor(ator, catalogos).filter((m) => apoioNoEscopo(m, escopo)), [ator, catalogos, escopo]);
   const temApoio = magiasApoio.length > 0;
   /* EVOCAÇÃO PRONTA (13/09/2026). "O lamarc usou meteoros, e depois de 5
      rodadas não subiu o log do dano da magia na sua vez." Na vez em que a
@@ -11335,7 +11358,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     const k = alvoInicialId ? alvos.findIndex((q) => q.inst_id === alvoInicialId) : -1;
     return idxSalvo(selSalva.tecAlvoIdx, k >= 0 ? k : 0);
   });
-  const [tecAliados, setTecAliados] = useState(Array.isArray(selSalva.tecAliados) ? selSalva.tecAliados : []);   // inst_id[] dos escolhidos
+  // Do card do aliado, ele já vem marcado (Voz de Comando).
+  const aliadoDoCard = escopo === 'aliado' && alvoInicialId ? [alvoInicialId] : [];
+  const [tecAliados, setTecAliados] = useState(Array.isArray(selSalva.tecAliados) ? selSalva.tecAliados : aliadoDoCard);   // inst_id[] dos escolhidos
   const [resTipo, setResTipo] = useState(selSalva.resTipo === 'rm' ? 'rm' : 'rf');               // 'rf' | 'rm'
   const [forcaAtaque, setForcaAtaque] = useState(Number.isFinite(selSalva.forcaAtaque) ? selSalva.forcaAtaque : 10);
   const [forcaDefesa, setForcaDefesa] = useState(Number.isFinite(selSalva.forcaDefesa) ? selSalva.forcaDefesa : 10);
@@ -11372,7 +11397,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     if (restaurandoSel.current) {
       restaurandoSel.current = false;
     } else {
-      setTecAliados([]);
+      setTecAliados(aliadoDoCard);
       /* Volta ao alvo do tabuleiro, não ao primeiro da lista (08/11/2026): o
          "Atacar com técnica" do menu do inimigo abre a aba com ELE de alvo. */
       const kIni = alvoInicialId ? alvos.findIndex((q) => q.inst_id === alvoInicialId) : -1;
@@ -11543,7 +11568,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     if (!apoioSel) return [];
     // "Pessoal" é IDENTIDADE, não distância: o tabuleiro não distingue Pessoal
     // de Toque com precisão (ver parseAlcance), então a regra mora aqui.
-    if (apoioSel.pessoal) return [ator];
+    if (apoioSel.pessoal || escopo === 'pessoal') return [ator];
     /* Quem vem primeiro na lista é o alvo PADRÃO. O critério era
        `mod_vb < 0` — debuff mira no outro, buff mira em si. Passa a vir do
        registro, que sabe disso sem depender de velocidade ser o efeito:
@@ -11565,7 +11590,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       return [...outros, ...mesmos, ator];
     }
     return [ator, ...permitidos];
-  }, [apoioSel, alvosTodos, ator]);
+  }, [apoioSel, alvosTodos, ator, escopo]);
   const alvoApoio = alvosApoio[alvoApoioIdx] || null;
   /* O ALVO SEGUE A PESSOA, NÃO A POSIÇÃO (08/11/2026, usuário: "Ao
      selecionar 'Distração Anel Coringa', o alvo está mudando sozinho").
@@ -14432,7 +14457,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const NOME_LUZ = isEn
     ? { clara: 'Lit', parcial: 'Partial darkness', total: 'Total darkness', magica: 'Magical darkness' }
     : { clara: 'Claro', parcial: 'Escuridão parcial', total: 'Escuridão total', magica: 'Escuridão mágica' };
-  const abrirAcao = (aba, alvoId) => { setAtaqueContra({ id: alvoId, aba, unica: true }); setAcaoOpen(true); };
+  const abrirAcao = (aba, alvoId, escopo) => { setAtaqueContra({ id: alvoId, aba, unica: true, escopo: escopo || null }); setAcaoOpen(true); };
   const retratoDe = (p) => {
     const inimigo = p.tipo === 'criatura' && p.dono_pj == null;
     return p.foto_url
@@ -14585,7 +14610,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                                 <BotoesDoTurno ator={p} catalogos={catalogos} isEn={isEn} tb={tb}
                                   travado={salvando || rolagemPendente || !temAcaoRestante(p)}
                                   motivoTravado={rolagemPendente ? tb.concluaARolagemPendente : null}
-                                  onAcao={(aba) => abrirAcao(aba, undefined)} mover={mover}
+                                  onAcao={(aba) => abrirAcao(aba, undefined, 'pessoal')} mover={mover} escopo="pessoal"
                                   onEncerrar={() => { fechar(); handlePassar(); }}
                                   encerrarDesativado={salvando || rolagemPendente}
                                   abrirTip={abrirTip} fecharTip={fecharTip} />
@@ -14595,7 +14620,41 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                           {/* CONTRA ESTE COMBATENTE, na minha vez: Atacar e Magia
                               abrem o modal de uma ação só, já com ele de alvo;
                               Conduzir Oponente (14/09/2026) e Saquear seguem. */}
-                          {!ehEu && naVez && podeSerAtacado(p) && (() => {
+                          {/* APOIO NO CARD DO ALIADO (10/11/2026): Magia de apoio e Técnica de
+                              aliados (Voz de Comando), já com ele de alvo — ver apoioNoEscopo.
+                              Arma continua: atacar o amigo segue possível. */}
+                          {!ehEu && naVez && podeSerAtacado(p) && ladoNaBatalha(p) === ladoNaBatalha(meuParticipante) && (() => {
+                            const temArma = podeAtacarSobProvocacao(meuParticipante, p, participantes)
+                              && ataquesDoAtor(meuParticipante, catalogos).length > 0;
+                            const temApoio = magiasDeApoioDoAtor(meuParticipante, catalogos).some((m) => apoioNoEscopo(m, 'aliado'));
+                            const temTecnica = tecnicasDoAtor(meuParticipante, catalogos).some((t) => tecnicaNoEscopo(t, 'aliado'))
+                              && podeUsarTecnicaAgora(meuParticipante);
+                            if (!temArma && !temApoio && !temTecnica) return null;
+                            const bloqueado = salvando || rolagemPendente || !temAcaoRestante(meuParticipante);
+                            return (
+                              <div className="batalha-menu-acoes batalha-card-barra">
+                                <div className="batalha-card-botoes batalha-acoes-nomeadas batalha-turno">
+                                  {temArma && (
+                                    <BotaoAcaoMenu icone="ti-sword" comRotulo rotulo={rotuloDaAcao('arma', isEn)}
+                                      disabled={bloqueado} onClick={() => abrirAcao('arma', p.inst_id)}
+                                      abrirTip={abrirTip} fecharTip={fecharTip} />
+                                  )}
+                                  {temApoio && (
+                                    <BotaoAcaoMenu icone="ti-sparkles" comRotulo rotulo={rotuloDaAcao('magia', isEn)}
+                                      extraClasse="batalha-apoio-aliado"
+                                      disabled={bloqueado} onClick={() => abrirAcao('apoio', p.inst_id, 'aliado')}
+                                      abrirTip={abrirTip} fecharTip={fecharTip} />
+                                  )}
+                                  {temTecnica && (
+                                    <BotaoAcaoMenu icone="ti-bolt" comRotulo rotulo={rotuloDaAcao('tecnica_teste', isEn)}
+                                      disabled={bloqueado} onClick={() => abrirAcao('tecnica_teste', p.inst_id, 'aliado')}
+                                      abrirTip={abrirTip} fecharTip={fecharTip} />
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          {!ehEu && naVez && podeSerAtacado(p) && ladoNaBatalha(p) !== ladoNaBatalha(meuParticipante) && (() => {
                             const podeAtacar = podeAtacarSobProvocacao(meuParticipante, p, participantes);
                             const temArma = podeAtacar && ataquesDoAtor(meuParticipante, catalogos).length > 0;
                             const temMagia = podeAtacar && magiasOfensivasDoAtor(meuParticipante, catalogos).length > 0;
@@ -14661,10 +14720,11 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           `ataqueContra` só escolhe alvo e aba iniciais). */}
       {acaoOpen && ehMinhaVez && souAtivo && !aguardandoRevelar && catalogos && meuParticipante && (
         <AcaoModal
-          key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba + (ataqueContra.unica ? '-unica' : '') : 'proprio'}
+          key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba + (ataqueContra.unica ? '-unica' : '') + (ataqueContra.escopo ? '-' + ataqueContra.escopo : '') : 'proprio'}
           alvoInicialId={ataqueContra ? ataqueContra.id : undefined}
           abaInicial={ataqueContra ? ataqueContra.aba : undefined}
           abaUnica={ataqueContra && ataqueContra.unica ? ataqueContra.aba : undefined}
+          escopo={ataqueContra ? ataqueContra.escopo || null : null}
           ator={meuParticipante}
           participantes={participantes}
           catalogos={catalogos}
@@ -14860,6 +14920,8 @@ Object.assign(window, {
     // também expõe esta última — ver tecnicasCompativeisComArma —
     // regressão do "Livre" em tecnica-efeitos.test.js).
     tecnicaPermitida, tecnicasCompativeisComArma,
+    // Escopo do card (10/11/2026): o próprio = uso pessoal; o do aliado = apoio.
+    apoioNoEscopo, tecnicaNoEscopo,
     // higiene 9 (revisão final): as três leituras de "grupo da arma"
     // (acima e o call site de somaModAtaque em AcaoPanel) unificadas aqui.
     grupoDaArma,

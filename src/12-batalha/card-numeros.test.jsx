@@ -64,7 +64,7 @@ describe('números e ações na MESMA fileira', () => {
     expect([...barra.querySelectorAll('.batalha-cel-rot')].map((c) => c.textContent))
       .toEqual(['Ações', 'Movimento', 'Defesa', 'Velocidade', 'Absorção']);
     expect([...barra.querySelectorAll('.batalha-turno button')].map((b) => b.getAttribute('aria-label')))
-      .toEqual(['Atacar', 'Magia', 'Técnica', 'Habilidade', 'Item', 'Mover', 'Encerrar a vez']);
+      .toEqual(['Magia', 'Técnica', 'Habilidade', 'Item', 'Mover', 'Encerrar a vez']);
     expect(menu.querySelector('.batalha-fighter-head .batalha-cel')).toBeNull();
     expect(menu.querySelector('.batalha-fighter-status-ic')).toBeNull();
   });

@@ -84,27 +84,28 @@ const abrirCardDe = async (container, nome) => {
    flutuante. O Desistir segue fora do card do jogador (14/09/2026). */
 describe('ações do turno — os botões do Mestre, com nome', () => {
   // Apoio entra em Magia (08/11/2026): as magias de apoio são magias.
-  it('Atacar, Magia, Técnica, Habilidade, Item, Mover e Encerrar a vez', async () => {
+  // O próprio card é de uso pessoal (10/11/2026): Atacar mora no card do inimigo.
+  it('Magia, Técnica, Habilidade, Item, Mover e Encerrar a vez — sem Atacar', async () => {
     const { container } = montar([lutador()]);
     const menu = await abrirCardDe(container, 'Yuldrous');
     const botoes = [...menu.querySelectorAll('.batalha-turno button')];
     expect(botoes.map((b) => b.getAttribute('aria-label')))
-      .toEqual(['Atacar', 'Magia', 'Técnica', 'Habilidade', 'Item', 'Mover', 'Encerrar a vez']);
+      .toEqual(['Magia', 'Técnica', 'Habilidade', 'Item', 'Mover', 'Encerrar a vez']);
     // O nome à vista, e só um dourado: Encerrar a vez.
     botoes.forEach((b) => expect(b.textContent.trim()).toBe(b.getAttribute('aria-label')));
     expect(menu.querySelectorAll('.batalha-turno .batalha-acao-encerrar')).toHaveLength(1);
     expect(menu.querySelector('.btn-desistir')).toBeNull();
   });
 
-  it('sem arma, sem magia: o botão nasce apagado e diz por quê', async () => {
+  it('sem magia: o botão nasce apagado e diz por quê', async () => {
     const { container } = montar([lutador()]);
     const menu = await abrirCardDe(container, 'Yuldrous');
-    const atacar = [...menu.querySelectorAll('.batalha-turno button')].find((b) => b.getAttribute('aria-label') === 'Atacar');
+    const atacar = [...menu.querySelectorAll('.batalha-turno button')].find((b) => b.getAttribute('aria-label') === 'Magia');
     expect(atacar.disabled).toBe(true);
     // E diz mesmo (08/11/2026): o BotaoAcaoMenu sobrescrevia o próprio
     // onMouseEnter com undefined e o balão do motivo nunca abria.
     fireEvent.pointerOver(atacar);
-    await waitFor(() => expect(document.querySelector('.mn-tip')?.textContent || '').toMatch(/arma/i));
+    await waitFor(() => expect(document.querySelector('.mn-tip')?.textContent || '').toMatch(/magia/i));
     fireEvent.pointerOut(atacar);
     // A Habilidade não depende de nada: segue acesa.
     const teste = [...menu.querySelectorAll('.batalha-turno button')].find((b) => b.getAttribute('aria-label') === 'Habilidade');
