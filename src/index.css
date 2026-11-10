@@ -13278,6 +13278,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .batalha-cel-rot { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-3); white-space: nowrap; }
 #root .menestrel-ui .batalha-cel-val { font-size: 16px; font-weight: 800; color: var(--tinta); font-variant-numeric: lining-nums tabular-nums; }
 #root .menestrel-ui .batalha-cel-val small { font-size: inherit; font-weight: inherit; color: var(--tinta-3); }
+/* Número mudado por efeito ativo (10/11/2026): bônus em verde, penalidade em brasa. */
+#root .menestrel-ui .batalha-cel.is-bonus .batalha-cel-val { color: var(--st-verde); }
+#root .menestrel-ui .batalha-cel.is-penalidade .batalha-cel-val { color: var(--alerta); }
 
 /* as ações com nome */
 #root .menestrel-ui .batalha-mesa-painel .batalha-card-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }

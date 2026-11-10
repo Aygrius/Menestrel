@@ -312,7 +312,17 @@ function movimentoDisponivel(p) {
   if (n >= MOVIMENTOS_POR_RODADA) return 0;
   // Sem mov_rest gravado (snapshot antigo): o passo cheio, pela mesma conta
   // do 2º movimento — com vento, magia e montaria, não o vb cru.
-  if (n === 0) return Number.isFinite(p.mov_rest) ? p.mov_rest : passoCompleto(p);
+  if (n === 0) {
+    if (!Number.isFinite(p.mov_rest)) return passoCompleto(p);
+    /* O PASSO MUDA NO MEIO DA RODADA (10/11/2026, usuário: "se o personagem
+       usou alguma técnica ou magia que aumenta seu movimento, o movimento novo
+       deve ser mostrado"). mov_rest é fixado na virada; `mov_passo` guarda o
+       passo daquela conta, e a diferença para o passo de agora (com o status
+       novo) entra na hora — para mais ou para menos. Snapshot sem mov_passo
+       segue como antes. */
+    const ajuste = Number.isFinite(p.mov_passo) ? passoCompleto(p) - p.mov_passo : 0;
+    return Math.max(0, p.mov_rest + ajuste);
+  }
   return (p.pa_rest || 0) > 0 ? passoCompleto(p) : 0;
 }
 

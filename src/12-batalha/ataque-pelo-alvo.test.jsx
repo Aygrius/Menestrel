@@ -141,7 +141,9 @@ describe('a fiação nos dois menus do tabuleiro', () => {
      técnica, apenas atacar e magia" — e o mesmo no Jogador. A técnica abre a
      aba Técnica já com o inimigo de alvo (tecAlvoIdx nasce do alvoInicialId). */
   it('as duas visões oferecem atacar com técnica, com o inimigo de alvo', () => {
-    expect(fonte).toContain("setAtaqueContra({ id: p.inst_id, aba: 'tecnica_teste', unica: true })");
+    // Mestre: o abrir() do card alvo já passa unica (10/11/2026, sem abas).
+    expect(fonte).toContain("onClick={() => abrir('tecnica_teste')}");
+    expect(fonte).toContain('const abrir = (aba, escopo) => { setAtaqueContra({ id: p.inst_id, aba, unica: true, escopo: escopo || null });');
     expect(fonte).toContain("onClick={() => abrirAcao('tecnica_teste', p.inst_id)}");
     expect(fonte).toContain('const k = alvoInicialId ? alvos.findIndex((q) => q.inst_id === alvoInicialId) : -1;');
   });

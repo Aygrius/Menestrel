@@ -2129,6 +2129,7 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         // foto/raça pro token. Ver 12-batalha/tabuleiro.jsx.
         pos: (p.pos && posValida(p.pos)) ? { x: p.pos.x, y: p.pos.y } : null,
         mov_rest: movimentoBase(Math.max(0, (d.velocidade || 0) - ventoVbLargada)),
+        mov_passo: movimentoBase(Math.max(0, (d.velocidade || 0) - ventoVbLargada)),
         foto_url: pj.foto_url || null,
         raca: pj.raca || null,
         subraca: subracaPj,                                            // forma atual
@@ -2182,7 +2183,7 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
          virada somava o mod_vb — uma Velocidade lançada antes da luta não dava
          a ação extra nem o passo maior na primeira rodada. */
       if (semeado === snapPj || somaEfeitosStatus(semeado, 'mod_vb') === 0) return semeado;
-      return { ...semeado, pa_rest: paDaRodada(pa, vbEfetivo(semeado), semeado.sem_acao_extra), mov_rest: movimentoBase(vbParaMovimento(semeado)) };
+      return { ...semeado, pa_rest: paDaRodada(pa, vbEfetivo(semeado), semeado.sem_acao_extra), mov_rest: movimentoBase(vbParaMovimento(semeado)), mov_passo: movimentoBase(vbParaMovimento(semeado)) };
     }
     const c = criById[p.ref_id];
     if (!c) return { ...p, vb: 0, pa_max: 1, pa_rest: 1, eh: 0, eh_max: 0, ar: 0, ar_max: 0, ef: 0, ef_max: 0, karma: 0, karma_max: 0, defesa_sigla: 'L', defesa_valor: 0, rf: 0, rm: 0, status: 'ativo', ausente: true };
@@ -2207,6 +2208,7 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
       // o token cai na inicial do nome. `raca` vem do tipo da criatura.
       pos: (p.pos && posValida(p.pos)) ? { x: p.pos.x, y: p.pos.y } : null,
       mov_rest: movimentoBase(c.velocidade || 0),
+      mov_passo: movimentoBase(c.velocidade || 0),
       foto_url: null,
       raca: c.tipo || null,
       // Subtipo (22/10/2026): Vampiro e Lobisomem não recebem milagre.
@@ -3526,20 +3528,38 @@ function NumerosDoCombatente({ p, tb, isEn, abrirTip, fecharTip, celulas }) {
         ? 'Armor left. Damage that gets past Heroic Energy falls here before reaching Physical Energy.'
         : 'O que resta da armadura. O dano que passa da Energia Heroica cai aqui antes de chegar à Energia Física.',
     };
-    const cel = (rot, val, k) => (
-      <span key={k} className="batalha-cel"
-        onMouseEnter={abrirTip ? (e) => abrirTip(e, { title: rot, desc: DICA[k] }) : undefined}
-        onMouseLeave={fecharTip || undefined}>
-        <span className="batalha-cel-rot">{rot}</span>
-        <b className="batalha-cel-val">{val}</b>
-      </span>
-    );
+    /* O NÚMERO DE AGORA (10/11/2026, usuário: "Mostre o status atualizado, se o
+       personagem usou alguma técnica ou magia que aumenta seu movimento, por
+       exemplo, o movimento novo deve ser mostrado com um verde de bônus").
+       Velocidade, Movimento e Defesa já com os status (mod_vb, mod_defesa) —
+       os mesmos que a iniciativa, o tabuleiro e o ataque usam. Bônus em
+       verde, penalidade em brasa; o balão diz de quanto. */
+    const semStatus = { ...p, status_temp: [] };
+    const passoDe = (q) => ((typeof movimentoBase === 'function' && typeof vbParaMovimento === 'function')
+      ? movimentoBase(vbParaMovimento(q)) : 0);
+    const delta = {
+      mov: passoDe(p) - passoDe(semStatus),
+      vb: somaEfeitosStatus(p, 'mod_vb'),
+      def: somaEfeitosStatus(p, 'mod_defesa'),
+    };
+    const cel = (rot, val, k) => {
+      const d = delta[k] || 0;
+      const nota = d ? (isEn ? `${d > 0 ? '+' : ''}${d} from active effects.` : `${d > 0 ? '+' : ''}${d} pelos efeitos ativos.`) : '';
+      return (
+        <span key={k} className={'batalha-cel' + (d > 0 ? ' is-bonus' : d < 0 ? ' is-penalidade' : '')}
+          onMouseEnter={abrirTip ? (e) => abrirTip(e, { title: rot, desc: DICA[k] + (nota ? ' ' + nota : '') }) : undefined}
+          onMouseLeave={fecharTip || undefined}>
+          <span className="batalha-cel-rot">{rot}</span>
+          <b className="batalha-cel-val">{val}</b>
+        </span>
+      );
+    };
     return (
       <span className="batalha-celulas">
         {cel(isEn ? 'Actions' : 'Ações', <>{p.pa_rest || 0}<small>/{p.pa_max || 0}</small></>, 'pa')}
         {movFn && cel(isEn ? 'Movement' : 'Movimento', Math.max(0, Math.floor(Number(movFn(p)) || 0)), 'mov')}
-        {cel(isEn ? 'Defense' : 'Defesa', (p.defesa_sigla || '') + (p.defesa_valor ?? 0), 'def')}
-        {cel(isEn ? 'Speed' : 'Velocidade', (p.vb || 0) - (Number(p.vento_vb) || 0), 'vb')}
+        {cel(isEn ? 'Defense' : 'Defesa', (p.defesa_sigla || '') + ((p.defesa_valor ?? 0) + delta.def), 'def')}
+        {cel(isEn ? 'Speed' : 'Velocidade', (p.vb || 0) - (Number(p.vento_vb) || 0) + delta.vb, 'vb')}
         {ar > 0 && cel(isEn ? 'Absorption' : 'Absorção', ar, 'ar')}
       </span>
     );
@@ -3548,7 +3568,7 @@ function NumerosDoCombatente({ p, tb, isEn, abrirTip, fecharTip, celulas }) {
     <>
       <NumeroStat nome={nome('vb', isEn ? 'Speed' : 'Velocidade')} valor={(p.vb || 0) - (Number(p.vento_vb) || 0)}
         abrirTip={abrirTip} fecharTip={fecharTip} />
-      <NumeroStat nome={nome('pa', (tb && tb.pa) || 'PA')} valor={p.pa_rest}
+      <NumeroStat nome={nome('pa', (tb && tb.pa) || (isEn ? 'Action point' : 'Ponto de ação'))} valor={p.pa_rest}
         detalhe={`${p.pa_rest || 0}/${p.pa_max || 0}`}
         abrirTip={abrirTip} fecharTip={fecharTip} />
       {/* Defesa SÓ com o número desde 13/09/2026 ("Remova o L de L9"): o tipo
@@ -5102,7 +5122,7 @@ function acoesDaRodadaNova(p) {
               // Não acumula entre rodadas: quem não usou, perdeu.
               pa_tecnica_rest: p.pa_tecnica_max || 0,
               // O passo sai da montaria quando há uma — ver vbParaMovimento.
-              mov_rest: movimentoBase(vbParaMovimento(p)), moveu_na_rodada: false,
+              mov_rest: movimentoBase(vbParaMovimento(p)), mov_passo: movimentoBase(vbParaMovimento(p)), moveu_na_rodada: false,
               // Até dois movimentos por rodada: 1º grátis, 2º custa PA (13/09/2026).
               movimentos_na_rodada: 0,
               // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
@@ -5432,7 +5452,7 @@ function snapshotSintetico(ficha, conj) {
   const estagio = conj && conj.estagio != null ? conj.estagio : null;
   return {
     tipo: 'criatura', ref_id: refId, nome: ficha.nome, elemento: null,
-    pos: null, mov_rest: movimentoBase(vb), foto_url: null, raca: ficha.raca || null, subtipo: null,
+    pos: null, mov_rest: movimentoBase(vb), mov_passo: movimentoBase(vb), foto_url: null, raca: ficha.raca || null, subtipo: null,
     estagio, vb, pa_max: 1, pa_rest: paDaRodada(1, vb), pa_tecnica_max: 0, pa_tecnica_rest: 0,
     eh: ficha.eh, eh_max: ficha.eh, ar: 0, ar_max: 0, res: 0, res_max: 0,
     ef: ficha.ef, ef_max: ficha.ef, karma: 0, karma_max: 0,
@@ -8394,7 +8414,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const chaveEvocacaoPronta = (estado === 'ativa' && idxProntoParaEvocar >= 0)
     ? `${participantes[idxProntoParaEvocar].inst_id}:${participantes[idxProntoParaEvocar].evocando.magia_key}:${rodada}` : null;
   useEffect(() => {
-    if (chaveEvocacaoPronta && catalogos && !aguardandoRevelar) { setAtaqueContra(null); setAcaoOpen(true); }
+    if (chaveEvocacaoPronta && catalogos && !aguardandoRevelar) { setAtaqueContra({ id: undefined, aba: 'magia', unica: true }); setAcaoOpen(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveEvocacaoPronta, !!catalogos, aguardandoRevelar]);
 
@@ -10406,11 +10426,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                     do jogador (BotoesDoTurno); cada um abre só a ação dele. */}
                 {estado === 'ativa' && p.atual && !aguardandoRevelar && (() => {
                   const travado = salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente;
-                  const abrirAba = (aba) => { setAtaqueContra({ id: undefined, aba, unica: true }); setAcaoOpen(true); fechar(); };
+                  /* O card de quem age é de USO PESSOAL (10/11/2026, usuário: "Ao
+                     selecionar o avatar do próprio combatente durante sua ação,
+                     aparece o menu de ataque. Mas o menu de ataque só aparece ao
+                     selecionar o alvo primeiro"). Ver apoioNoEscopo. */
+                  const abrirAba = (aba) => { setAtaqueContra({ id: undefined, aba, unica: true, escopo: 'pessoal' }); setAcaoOpen(true); fechar(); };
                   return (
                     <BotoesDoTurno ator={p} catalogos={catalogos} isEn={isEn} tb={tb}
                       travado={travado} motivoTravado={rolagemPendente ? tb.concluaARolagemPendente : null}
-                      onAcao={abrirAba} mover={mover}
+                      onAcao={abrirAba} mover={mover} escopo="pessoal"
                       onEncerrar={() => { fechar(); passarVez(); }}
                       encerrarDesativado={salvando || rolagemPendente}
                       abrirTip={abrirTip} fecharTip={fecharTip} />
@@ -10433,12 +10457,30 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                   // Conduzir Oponente (14/09/2026): quem está na vez leva este
                   // adversário. `mover` só existe quando podeSelecionar deixa.
                   const podeConduzir = !!mover && !!lutadorDaVez && conducaoDisponivel(p, lutadorDaVez) > 0;
-                  if (!temArma && !temMagia && !temTecnica && !podeConduzir) return null;
+                  /* APOIO NO CARD DO ALIADO (10/11/2026): a cura e o reforço do
+                     lutador da vez moram no card de quem os recebe. */
+                  const aliado = ladoNaBatalha(p) === ladoNaBatalha(current);
+                  const temApoio = aliado && magiasDeApoioDoAtor(current, catalogos).some((m) => apoioNoEscopo(m, 'aliado'));
+                  const temTecApoio = aliado && tecnicasDoAtor(current, catalogos).some((t) => tecnicaNoEscopo(t, 'aliado'))
+                    && podeUsarTecnicaAgora(current);
+                  if (!temArma && !temMagia && !temTecnica && !podeConduzir && !temApoio && !temTecApoio) return null;
                   const bloqueado = salvando || !temAcaoRestante(current) || rolagemPendente;
-                  // `fechar()`: ver a nota no botão "Ação" acima.
-                  const abrir = (aba) => { setAtaqueContra({ id: p.inst_id, aba }); setAcaoOpen(true); fechar(); };
+                  // `fechar()`: ver a nota no botão "Ação" acima. Sem abas (10/11/2026).
+                  const abrir = (aba, escopo) => { setAtaqueContra({ id: p.inst_id, aba, unica: true, escopo: escopo || null }); setAcaoOpen(true); fechar(); };
                   return (
                     <div className="batalha-card-botoes batalha-menu-atacar">
+                      {temApoio && (
+                        <BotaoAcaoMenu icone="ti-sparkles" comRotulo extraClasse="batalha-apoio-aliado"
+                          rotulo={isEn ? 'Support spell' : 'Magia de apoio'}
+                          disabled={bloqueado} onClick={() => abrir('apoio', 'aliado')}
+                          abrirTip={abrirTip} fecharTip={fecharTip} />
+                      )}
+                      {temTecApoio && (
+                        <BotaoAcaoMenu icone="ti-speakerphone" comRotulo
+                          rotulo={isEn ? 'Support technique' : 'Técnica de apoio'}
+                          disabled={bloqueado} onClick={() => abrir('tecnica_teste', 'aliado')}
+                          abrirTip={abrirTip} fecharTip={fecharTip} />
+                      )}
                       {podeConduzir && (
                         <BotaoAcaoMenu icone="ti-arrows-move" comRotulo
                           rotulo={tb.conduzir || (isEn ? 'Lead' : 'Conduzir')}
@@ -10462,7 +10504,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                           rotulo={isEn ? 'Attack with technique' : 'Atacar com técnica'}
                           /* Sem abas (08/11/2026, usuário: "Se eu selecionei atacar com
                              técnica, não quero ver aba no modal"): só a técnica. */
-                          disabled={bloqueado} onClick={() => { setAtaqueContra({ id: p.inst_id, aba: 'tecnica_teste', unica: true }); setAcaoOpen(true); fechar(); }}
+                          disabled={bloqueado} onClick={() => abrir('tecnica_teste')}
                           abrirTip={abrirTip} fecharTip={fecharTip} />
                       )}
                     </div>
@@ -10595,10 +10637,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         quem está na vez, nunca o alvo. */}
     {estado === 'ativa' && acaoOpen && catalogos && current && (
       <AcaoModal
-        key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba + (ataqueContra.unica ? '-unica' : '') : 'proprio'}
+        key={ataqueContra ? 'contra-' + ataqueContra.id + '-' + ataqueContra.aba + (ataqueContra.unica ? '-unica' : '') + (ataqueContra.escopo ? '-' + ataqueContra.escopo : '') : 'proprio'}
         alvoInicialId={ataqueContra ? ataqueContra.id : undefined}
         abaInicial={ataqueContra ? ataqueContra.aba : undefined}
         abaUnica={ataqueContra && ataqueContra.unica ? ataqueContra.aba : undefined}
+        escopo={ataqueContra ? ataqueContra.escopo || null : null}
         /* Modo automático (08/11/2026): a jogada escolhida e a saída quando o
            painel não consegue fazê-la — a vez passa, a mesa não para. */
         auto={ataqueContra && ataqueContra.auto ? ataqueContra.auto : null}
@@ -12362,6 +12405,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       {/* Aba desativada DIZ POR QUÊ (13/09/2026): o motivo vive num invólucro
           (data-motivo + tooltip) porque botão desativado não recebe o mouse.
           Rolagem pendente não entra: o aviso "Já rolou" já explica. */}
+      {/* A barra de abas SÓ sem abaUnica — e a mesa não abre mais assim (10/11/2026,
+          usuário: "O card de ações não terá mais abas, pois o menu aparece do lado
+          direito"): todo botão, a evocação pronta e o automático passam abaUnica. */}
       {!abaUnica && (
       <div className="acao-tabs">
         {(() => {
@@ -12449,7 +12495,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             ? ['alcance', isEn ? 'Reach' : 'Alcance', <>{alcanceAcao}<small> m</small></>] : null,
           distanciaAoAlvo != null && (tab === 'arma' || tab === 'magia')
             ? ['dist', isEn ? 'Distance' : 'Distância', <>{distanciaAoAlvo}<small> m</small></>] : null,
-          ['custo', isEn ? 'Cost' : 'Custo', <>{custoPA}<small> PA</small>{custoKA > 0 && <> · {custoKA}<small> KA</small></>}</>],
+          ['custo', isEn ? 'Cost' : 'Custo', <>{custoPA}<small> {isEn ? (custoPA === 1 ? 'action point' : 'action points') : (custoPA === 1 ? 'ponto de ação' : 'pontos de ação')}</small>{custoKA > 0 && <> · {custoKA}<small> KA</small></>}</>],
         ].filter(Boolean);
         return (
           <div className="mn-passe acao-passe" aria-live="polite">
@@ -13501,7 +13547,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const chaveEvocacaoPronta = (ehMinhaVez && podeAgir && evocacaoPronta(meuParticipante))
     ? `${meuParticipante.inst_id}:${meuParticipante.evocando.magia_key}:${rodada}` : null;
   useEffect(() => {
-    if (chaveEvocacaoPronta && catalogos && !aguardandoRevelar) { setAtaqueContra(null); setAcaoOpen(true); }
+    if (chaveEvocacaoPronta && catalogos && !aguardandoRevelar) { setAtaqueContra({ id: undefined, aba: 'magia', unica: true }); setAcaoOpen(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveEvocacaoPronta, !!catalogos, aguardandoRevelar]);
 
@@ -14807,6 +14853,8 @@ Object.assign(window, {
   AcaoPanel,
   // A ordem da mesa (08/11/2026): no window para o teste dos mortos.
   IniciativaLista,
+  // As células do card (10/11/2026): no window para o teste do bônus em verde.
+  NumerosDoCombatente,
   // O invólucro de modal do painel (17/09/2026) — ver acao-modal.test.jsx.
   AcaoModal,
   /* Mesma razão, para a tela de montagem (17/09/2026): o pedido "criaturas
