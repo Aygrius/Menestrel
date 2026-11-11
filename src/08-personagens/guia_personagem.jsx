@@ -1,138 +1,42 @@
 /* ============================================================
-   GUIA DO AVENTUREIRO (AJUDA) — src/08-personagens/guia_personagem.jsx
+   GUIA DE CRIAÇÃO DE PERSONAGEM (AJUDA) — src/08-personagens/guia_personagem.jsx
    ============================================================
-   A página de Ajuda: as regras ATUAIS do jogo, na ordem em que o jogador
-   as encontra. Reescrita em 26/09/2026 ("faça uma readequação da página
-   ajuda, explicando todas as regras do jogo atuais"), com os tópicos que o
-   usuário definiu: Gêneros, Raças, Reinos, Profissões, Especializações,
-   Atributos, Armas, Habilidades, Magias, Arquétipos e Resumo. Técnicas e o
-   combate moram em Armas; elementos, em Profissões (e na magia).
+   AS CARTAS DA REGRA (11/11/2026). Usuário: "A página de ajuda, ou 'guia
+   para criação de personagem' precisa passar por uma atualização de estilo,
+   e atualização de regras. Vamos usar o impeccable para transformar essa
+   página em uma apresentação mais didática. Neste guia não precisamos
+   mostrar o clima." Estrutura escolhida na página de decisão do impeccable:
+   cada regra é uma carta — na frente, a regra numa frase e os números que
+   importam; no verso, o porquê, o exemplo e a tabela. Contrato da direção em
+   .impeccable/surfaces/src-08-personagens-guia-personagem-jsx.md.
 
-   Todos os números vêm do código — ao mudar uma regra lá, conferir aqui:
-     01-core/game-data.jsx     GAME_DATA (raças, profissões, especializações,
-                               custoAtributo), calcularFicha, peso/altura,
-                               bonusPontosRaca, MAGIAS/TECNICAS/GRUPOS_ARMAS
-                               _POR_PROFISSAO, RESULTADOS_ACAO,
-                               ELEMENTO_PROFISSAO, VANTAGEM_ELEMENTAL
-     12-batalha/batalha.jsx    colunaAtaque, danoNoTier, danoFinal,
-                               aplicarDanoCascata (EF_MORTE), paDaRodada,
-                               pontosAcaoTecnicaPJ, ordenarIniciativa,
-                               formarBandos, VISIBILIDADE_PENALIDADE
+   As regras foram conferidas contra o código em 11/11/2026 (pontos de magia
+   e técnica por base + Intelecto, aprender só na primeira compra, condições
+   de 0 a 100 em degraus, armadura que desconta, bandos pela multidão, carga,
+   iniciativa extra no d10, livro inicial…). Sempre que dá, o número vem do
+   código, ao vivo:
+     GAME_DATA.racas / .profissoes / .especializacoes, bonusPontosRaca,
+     pontosMagiasPorEstagio, pontosTecnicasPorEstagio,
+     GRUPOS_ARMAS / GRUPOS_ARMAS_POR_PROFISSAO, bonusElemental (01-core).
+   Ao mudar uma regra lá, conferir aqui o texto do verso.
 
-   Componentes internos (não exportados): GpSelect (casca do SelectPill),
-   SectionHead (placa com ícone + título), Essencial (o resumo da seção),
-   Callout, SimuladorEH, SimuladorElemento, GuiaFooter. O sumário navega por
-   scrollIntoView (sem tocar location.hash — o app não usa router).
+   Sem barra vertical na página: a carta ocupa a altura útil e o verso rola
+   por dentro quando a tabela é longa. Anterior e Próximo atravessam os
+   capítulos; ← e → também. O clima não aparece no guia (10-shell).
 
-   Depende de: nada em runtime além dos globais de 01-core (sem Supabase).
    Exposto via: window.GuiaPersonagem (AdminConsole, seção guia_personagem)
-   Estilo: seção "GUIA DO AVENTUREIRO" do index.css (classes gp-*)
-   i18n: PT-only por enquanto — bilinguar sob pedido explícito.
+   Estilo: seção "AS CARTAS DA REGRA" do index.css (classes gc-*), com as
+   peças do sistema (.mn-passe, .mn-celula, .mn-rotulo, .mn-quadro).
+   i18n: PT-only — bilinguar sob pedido explícito.
    ============================================================ */
 
-/* ============================== [08.5] Helpers visuais ============================== */
+/* ============================== [08.5] Peças ============================== */
 
-// Scroll suave até uma seção, respeitando reduced-motion. Não altera
-// location.hash; scrollIntoView acha o container de scroll do AdminConsole.
-function gpIrPara(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const reduz = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-  el.scrollIntoView({ behavior: reduz ? 'auto' : 'smooth', block: 'start' });
-}
-
-/* Placa de bronze com o ícone do tópico + título. Era numerada (01…11) quando
-   a página espelhava o wizard; com Arquétipos e Resumo no meio dos tópicos a
-   ordem deixou de ser a do wizard, e o número virou enfeite — saiu. */
-function SectionHead({ icon, titulo, children }) {
-  return (
-    <div className="gp-section-head">
-      <span className="gp-section-num" aria-hidden="true"><i className={`ti ${icon}`} /></span>
-      <div className="gp-section-head-txt">
-        <h2 className="gp-h2">{titulo}</h2>
-        {children && <p className="gp-section-sub">{children}</p>}
-      </div>
-    </div>
-  );
-}
-
-/* O ESSENCIAL da seção: as regras que o jogador precisa guardar, antes da
-   explicação. Quem só passa os olhos sai com o que importa; quem lê tudo
-   encontra o porquê logo abaixo. */
-function Essencial({ itens }) {
-  return (
-    <div className="gp-essencial">
-      <div className="gp-essencial-tit"><i className="ti ti-pin" aria-hidden="true" /> O essencial</div>
-      <ul>
-        {itens.map((t, i) => <li key={i}>{t}</li>)}
-      </ul>
-    </div>
-  );
-}
-
-// variant: 'gold' (padrão, dica) | 'warn' (atenção)
-function Callout({ icon = 'ti-bulb', variant, children }) {
-  return (
-    <div className={`gp-callout${variant === 'warn' ? ' gp-callout-warn' : ''}`}>
-      <i className={`ti ${icon} gp-callout-icon`} aria-hidden="true"></i>
-      <p className="gp-callout-text">{children}</p>
-    </div>
-  );
-}
-
-/* Casca do SelectPill (25/09/2026): o único dropdown do sistema. `minWidth`
-   continua valendo como largura mínima do campo. */
+/* Casca do SelectPill (25/09/2026): o único dropdown do sistema. */
 function GpSelect({ value, options, onChange, minWidth = 200 }) {
   return (
     <div style={{ minWidth }}>
       <SelectPill options={options} value={value} onChange={onChange} />
-    </div>
-  );
-}
-
-/* ============================== [08.6] Simuladores ============================== */
-
-// Fórmula real (calcularFicha): EH = Percepção + ehBase × estágio.
-// Masculino: floor(ehBase × 0,9). Feminino: floor(ehBase × 1,1). Neutro: base.
-function SimuladorEH() {
-  const PROFS = { Guerreiro: 14, Sacerdote: 12, Ladino: 10, Rastreador: 10, Bardo: 8, Mago: 6 };
-  const [prof, setProf] = useState('Guerreiro');
-  const [est, setEst]   = useState(5);
-  const [perc, setPerc] = useState(1);
-
-  const base   = PROFS[prof] || 6;
-  const ehNeut = perc + base * est;
-  const ehFem  = perc + Math.floor(base * 1.1) * est;
-  const ehMasc = perc + Math.floor(base * 0.9) * est;
-
-  return (
-    <div className="gp-sim-wrap">
-      <div className="gp-sim-controls">
-        <div className="gp-sim-field">
-          <span className="gp-field-label">Profissão</span>
-          <GpSelect value={prof} onChange={setProf} minWidth={200}
-            options={Object.keys(PROFS).map((p) => ({ value: p, label: p }))} />
-        </div>
-        <div className="gp-sim-field">
-          <span className="gp-field-label">Estágio</span>
-          <GpSelect value={est} onChange={setEst} minWidth={130}
-            options={[1, 3, 5, 10, 20].map((v) => ({ value: v, label: `Estágio ${v}` }))} />
-        </div>
-        <div className="gp-sim-field">
-          <span className="gp-field-label">Percepção</span>
-          <GpSelect value={perc} onChange={setPerc} minWidth={100}
-            options={[0, 1, 2, 3].map((v) => ({ value: v, label: `+${v}` }))} />
-        </div>
-      </div>
-      <div className="gp-sim-out">
-        <div className="gp-sim-row"><span className="gp-sim-label">Feminino</span><span className="gp-sim-val gp-up">{ehFem} EH</span></div>
-        <div className="gp-sim-row"><span className="gp-sim-label">Neutro</span><span className="gp-sim-val">{ehNeut} EH</span></div>
-        <div className="gp-sim-row"><span className="gp-sim-label">Masculino</span><span className="gp-sim-val">{ehMasc} EH</span></div>
-        <div className="gp-sim-row gp-sim-row-last">
-          <span className="gp-sim-label">Feminino sobre Masculino no estágio {est}</span>
-          <span className="gp-sim-val gp-up">+{ehFem - ehMasc} EH</span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -142,768 +46,608 @@ const GP_ELEMENTOS = [
   { v: 'Terra', icon: 'ti-mountain' }, { v: 'Água', icon: 'ti-droplet' },
   { v: 'Luz', icon: 'ti-sun' }, { v: 'Escuridão', icon: 'ti-moon' },
 ];
+const GP_PROFISSOES = ['Guerreiro', 'Ladino', 'Rastreador', 'Bardo', 'Sacerdote', 'Mago'];
+const GP_ELEMENTO_DA = { Guerreiro: 'Fogo', Ladino: 'Ar', Rastreador: 'Terra', Bardo: 'Água', Sacerdote: 'Luz', Mago: 'Escuridão' };
+const GP_ATR_COLS = [
+  ['forca', 'For'], ['fisico', 'Fís'], ['agilidade', 'Agi'], ['percepcao', 'Per'],
+  ['intelecto', 'Int'], ['aura', 'Aur'], ['carisma', 'Car'],
+];
+const GP_RACAS = ['Humano', 'Meio-Elfo', 'Meio-Orc', 'Anão', 'Elfo-Florestal', 'Elfo-Dourado', 'Elfo-Sombrio', 'Pequenino'];
+
+const gd = () => (typeof GAME_DATA !== 'undefined' ? GAME_DATA : {});
+const fmtMod = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0');
+const fmtNum = (n) => String(n).replace('.', ',');
+const ehBaseDe = (p) => ((gd().profissoes || {})[p] || {}).ehBase || 0;
+const habDe = (p) => ((gd().profissoes || {})[p] || {}).habilidadesPontos || 0;
+const armasDe = (p) => ((typeof GRUPOS_ARMAS_POR_PROFISSAO !== 'undefined' ? GRUPOS_ARMAS_POR_PROFISSAO : {})[p] || {}).pontosPorEstagio || 0;
+const magiaBaseDe = (p) => (typeof pontosMagiasPorEstagio === 'function' ? pontosMagiasPorEstagio(p, 0, 0) : 0);
+const tecBaseDe = (p) => (typeof pontosTecnicasPorEstagio === 'function' ? pontosTecnicasPorEstagio(p, 0) : 0);
+
+/* ============================== [08.6] Simuladores ============================== */
+/* O RESULTADO NO LUGAR DO PASSE (11/11/2026, usuário: o quadro "feminino,
+   neutro, masculino" fica abaixo da frase da carta). A carta com simulador
+   (carta.sim) não tem passe próprio: o simulador desenha o resultado logo
+   abaixo da frase, como o passe das outras cartas, e depois a explicação
+   (children) com os campos que o alimentam. */
+function SimCarta({ valores, campos, children }) {
+  return (<>
+    <div className="mn-passe gc-passe gc-sim-passe">
+      {valores.map(([r, v]) => (
+        <div key={r} className="mn-celula"><span className="mn-rotulo">{r}</span><span className="mn-celula-valor">{v}</span></div>
+      ))}
+    </div>
+    <div className="gc-porque">
+      {children}
+      <div className="gc-sim"><div className="gc-sim-campos">{campos}</div></div>
+    </div>
+  </>);
+}
+
+// Fórmula real (calcularFicha): EH = Percepção + ehBase × estágio.
+// Masculino: floor(ehBase × 0,9). Feminino: floor(ehBase × 1,1). Neutro: base.
+function SimuladorEH({ children }) {
+  const [prof, setProf] = useState('Guerreiro');
+  const [est, setEst] = useState(5);
+  const [perc, setPerc] = useState(1);
+  const base = ehBaseDe(prof) || 6;
+  return (
+    <SimCarta valores={[
+      ['Feminino', perc + Math.floor(base * 1.1) * est],
+      ['Neutro', perc + base * est],
+      ['Masculino', perc + Math.floor(base * 0.9) * est],
+    ]} campos={<>
+      <label className="gc-sim-campo"><span className="mn-rotulo">Profissão</span>
+        <GpSelect value={prof} onChange={setProf} minWidth={170}
+          options={GP_PROFISSOES.map((p) => ({ value: p, label: p }))} /></label>
+      <label className="gc-sim-campo"><span className="mn-rotulo">Estágio</span>
+        <GpSelect value={est} onChange={setEst} minWidth={120}
+          options={[1, 3, 5, 10, 20].map((v) => ({ value: v, label: `Estágio ${v}` }))} /></label>
+      <label className="gc-sim-campo"><span className="mn-rotulo">Percepção</span>
+        <GpSelect value={perc} onChange={setPerc} minWidth={90}
+          options={[0, 1, 2, 3].map((v) => ({ value: v, label: `+${v}` }))} /></label>
+    </>}>{children}</SimCarta>
+  );
+}
+
+/* A Energia Física pelas mesmas funções da ficha (altura e peso, 01-core):
+   EF = ⌊peso ÷ 5⌋ + Físico; o peso sai da altura da raça, que o gênero muda
+   em 10% (Feminino × 0,9, Masculino × 1,1). */
+function SimuladorEF({ children }) {
+  const [raca, setRaca] = useState('Humano');
+  const [fis, setFis] = useState(1);
+  const efDe = (g) => {
+    const p = typeof peso === 'function' ? peso(raca, g) : 0;
+    return Math.floor(p / 5) + Math.max(0, fis);
+  };
+  return (
+    <SimCarta valores={[['Feminino', efDe('Feminino')], ['Neutro', efDe('Neutro')], ['Masculino', efDe('Masculino')]]}
+      campos={<>
+        <label className="gc-sim-campo"><span className="mn-rotulo">Raça</span>
+          <GpSelect value={raca} onChange={setRaca} minWidth={170}
+            options={GP_RACAS.map((r) => ({ value: r, label: r }))} /></label>
+        <label className="gc-sim-campo"><span className="mn-rotulo">Físico</span>
+          <GpSelect value={fis} onChange={setFis} minWidth={90}
+            options={[0, 1, 2, 3].map((v) => ({ value: v, label: `+${v}` }))} /></label>
+      </>}>{children}</SimCarta>
+  );
+}
 
 /* Quanto um golpe de um elemento rende contra o outro — a MESMA função que o
    motor de batalha usa (bonusElemental), para a ajuda nunca discordar dele. */
 function SimuladorElemento() {
   const [golpe, setGolpe] = useState('Fogo');
-  const [alvo, setAlvo]   = useState('Ar');
+  const [alvo, setAlvo] = useState('Ar');
   const pct = typeof bonusElemental === 'function' ? bonusElemental(golpe, alvo) : 0;
   const opts = GP_ELEMENTOS.map((e) => ({ value: e.v, label: e.v }));
   return (
-    <div className="gp-sim-wrap">
-      <div className="gp-sim-controls">
-        <div className="gp-sim-field">
-          <span className="gp-field-label">Golpe de</span>
-          <GpSelect value={golpe} onChange={setGolpe} minWidth={150} options={opts} />
-        </div>
-        <div className="gp-sim-field">
-          <span className="gp-field-label">Contra alvo de</span>
-          <GpSelect value={alvo} onChange={setAlvo} minWidth={150} options={opts} />
-        </div>
+    <div className="gc-sim">
+      <div className="gc-sim-campos">
+        <label className="gc-sim-campo"><span className="mn-rotulo">Golpe de</span>
+          <GpSelect value={golpe} onChange={setGolpe} minWidth={140} options={opts} /></label>
+        <label className="gc-sim-campo"><span className="mn-rotulo">Contra</span>
+          <GpSelect value={alvo} onChange={setAlvo} minWidth={140} options={opts} /></label>
       </div>
-      <div className="gp-sim-out">
-        <div className="gp-sim-row gp-sim-row-last">
-          <span className="gp-sim-label">
-            {pct > 0
-              ? `${golpe} tem vantagem sobre ${alvo}: um golpe de 20 vira ${Math.ceil(20 * (1 + pct / 100))}.`
-              : `${golpe} não tem vantagem sobre ${alvo}: o dano fica como está.`}
-          </span>
-          <span className={'gp-sim-val' + (pct > 0 ? ' gp-up' : '')}>{pct > 0 ? `+${pct}%` : '0%'}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ============================== [08.65] Sumário e rodapé ============================== */
-
-const GP_TOC = [
-  { id: 'gp-generos',       icon: 'ti-gender-bigender', label: 'Gêneros' },
-  { id: 'gp-racas',         icon: 'ti-users',           label: 'Raças' },
-  { id: 'gp-reinos',        icon: 'ti-crown',           label: 'Reinos' },
-  { id: 'gp-profissoes',    icon: 'ti-briefcase',       label: 'Profissões' },
-  { id: 'gp-especializacoes', icon: 'ti-award',         label: 'Especializações' },
-  { id: 'gp-atributos',     icon: 'ti-chart-radar',     label: 'Atributos' },
-  { id: 'gp-armas',         icon: 'ti-sword',           label: 'Armas' },
-  { id: 'gp-habilidades',   icon: 'ti-tools',           label: 'Habilidades' },
-  { id: 'gp-magias',        icon: 'ti-wand',            label: 'Magias' },
-  { id: 'gp-arquetipos',    icon: 'ti-chess-knight',    label: 'Arquétipos' },
-  { id: 'gp-resumo',        icon: 'ti-list-check',      label: 'Resumo' },
-];
-
-function GuiaFooter() {
-  return (
-    <footer className="gp-footer">
-      <i className="ti ti-feather gp-footer-icon" aria-hidden="true"></i>
-      <p className="gp-footer-quote">
-        E o conselho final, de menestrel para herói: os números constroem o esqueleto,
-        mas é a história que dá vida. Escolha a combinação que te faz querer jogar a
-        próxima sessão — a matemática deste guia está aqui só para garantir que essa
-        escolha também aguente uma batalha.
+      <p className="gc-sim-texto">
+        {pct > 0
+          ? <>{golpe} tem vantagem sobre {alvo}: <b>+{pct}%</b>, e um golpe de 20 vira {Math.ceil(20 * (1 + pct / 100))}.</>
+          : <>{golpe} não tem vantagem sobre {alvo}: <b>0%</b>, o dano fica como está.</>}
       </p>
-      <button type="button" className="gp-top-link" onClick={() => gpIrPara('gp-topo')}>
-        <i className="ti ti-arrow-up" aria-hidden="true"></i> Voltar ao topo
-      </button>
-    </footer>
-  );
-}
-
-/* ============================== [08.66] Dados das tabelas ============================== */
-
-// Modificadores de GAME_DATA.racas, na ordem das colunas da tabela.
-const GP_ATR_COLS = [
-  ['forca', 'For'], ['fisico', 'Fís'], ['agilidade', 'Agi'], ['percepcao', 'Per'],
-  ['intelecto', 'Int'], ['aura', 'Aur'], ['carisma', 'Car'],
-];
-
-const GP_RACAS = [
-  { nome: 'Humano', idioma: 'Malês', vida: '~80 anos', tradicao: 'Todas as profissões',
-    txt: 'A raça de referência: nenhum modificador, nenhum atributo no negativo — e, por isso, o maior bônus de pontos livres (+4). É a tela em branco para quem ainda não decidiu um estilo.' },
-  { nome: 'Meio-Elfo', idioma: 'Malês + Élfico', vida: '~450 anos', tradicao: 'Todas as profissões',
-    txt: 'Carisma e Agilidade dos elfos, com o custo élfico de sempre no Físico. Vivem entre duas culturas sem pertencer a nenhuma, e muitos viram aventureiros em busca de identidade.' },
-  { nome: 'Meio-Orc', idioma: 'Malês + Kurng', vida: '~80 anos', tradicao: 'Guerreiro, Ladino, Sacerdote',
-    txt: 'Força e Físico +2 fazem dele o maior tanque de dano de nascença. O preço é real: Intelecto e Carisma −2 fecham o caminho da magia arcana e das habilidades sociais.' },
-  { nome: 'Anão', idioma: 'Khuzdul + Malês', vida: '~450 anos', tradicao: 'Guerreiro, Sacerdote',
-    txt: 'Corpos atarracados de força excepcional — Força e Físico +2 —, mas Agilidade −2 e Aura −1. Pesam mais para a altura que têm, e isso rende Energia Física. Artesãos lendários.' },
-  { nome: 'Elfo-Florestal', idioma: 'Élfico + Malês', vida: '~800 anos', tradicao: 'Guerreiro, Rastreador, Ladino',
-    txt: 'Percepção +2 vira Energia Heroica direto, em qualquer profissão; Agilidade +1 ajuda na defesa. Força e Físico −1. Poucos rivalizam com eles como rastreadores das florestas.' },
-  { nome: 'Elfo-Dourado', idioma: 'Élfico + Malês', vida: '~800 anos', tradicao: 'Mago, Bardo, Rastreador',
-    txt: 'A maior aptidão mágica do jogo: Aura +2, Intelecto e Percepção +1. A fragilidade é o preço — Força −2 e Físico −1.' },
-  { nome: 'Elfo-Sombrio', idioma: 'Élfico + Malês', vida: '~800 anos', tradicao: 'Ladino, Rastreador, Mago',
-    txt: 'Agilidade, Percepção e Aura +1 num equilíbrio voltado à furtividade e ao conhecimento oculto. Carisma e Físico −1. Preferem a paciência e o veneno à força bruta.' },
-  { nome: 'Pequenino', idioma: 'Lanta + Malês', vida: '~80 anos', tradicao: 'Bardo, Ladino',
-    txt: 'Agilidade +2, Percepção e Carisma +1: ladinos natos. Força e Aura −2 — sem linha de frente e com pouco karma. Pacíficos, festivos e mais corajosos do que parecem.' },
-];
-
-/* ============================== [08.7] GuiaPersonagem — página ============================== */
-function GuiaPersonagem({ lang = 'pt' }) {
-  const racas = (typeof GAME_DATA !== 'undefined' && GAME_DATA.racas) || {};
-  const bonusRaca = (r) => (typeof bonusPontosRaca === 'function' ? bonusPontosRaca(r) : 0);
-  const fmtMod = (n) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0');
-  const fmtNum = (n) => String(n).replace('.', ',');
-  const especializacoes = (typeof GAME_DATA !== 'undefined' && GAME_DATA.especializacoes) || {};
-
-  return (
-    <div className="gp-page">
-
-      {/* ── Cabeçalho ── */}
-      <header className="gp-hero" id="gp-topo">
-        <h1 className="gp-h1">Guia para criação de personagens: o peso de cada escolha</h1>
-        <p className="gp-lead">
-          Nenhuma escolha na ficha é só estética. Este guia reúne as regras do jogo
-          como elas funcionam hoje — do gênero à magia, da primeira compra de pontos
-          ao golpe que decide a batalha —, mostra a conta por trás de cada número e
-          dá conselhos práticos para você sair da criação com o herói que imaginou.
-        </p>
-        <nav className="gp-toc" aria-label="Sumário do guia">
-          {GP_TOC.map((t) => (
-            <a key={t.id} href={`#${t.id}`} className="gp-toc-link"
-              onClick={(e) => { e.preventDefault(); gpIrPara(t.id); }}>
-              <i className={`ti ${t.icon}`} aria-hidden="true" />{t.label}
-            </a>
-          ))}
-        </nav>
-      </header>
-
-      {/* ══ Gêneros ══ */}
-      <section className="gp-section" id="gp-generos">
-        <SectionHead icon="ti-gender-bigender" titulo="Gêneros">
-          O gênero muda o corpo e a Energia Heroica — são três opções, cada uma com uma troca.
-        </SectionHead>
-        <Essencial itens={[
-          <>Feminino: <b>−10% de altura e peso</b>, <b>+10% na Energia Heroica</b> da profissão.</>,
-          <>Masculino: <b>+10% de altura e peso</b>, <b>−10% na Energia Heroica</b> da profissão.</>,
-          <>Neutro: os valores exatos da raça e da profissão.</>,
-        ]} />
-
-        <div className="gp-trio">
-          <div className="gp-card">
-            <span className="gp-card-tag gp-tag-fem"><i className="ti ti-gender-female" aria-hidden="true"></i> Feminino</span>
-            <div className="gp-stat-row">
-              <span className="gp-stat-key">Corpo</span>
-              <span className="gp-stat-val gp-danger">Altura e peso 10% abaixo da raça: menos Energia Física e um pouco menos de Velocidade, que nasce da altura.</span>
-            </div>
-            <div className="gp-stat-row">
-              <span className="gp-stat-key">Energia Heroica</span>
-              <span className="gp-stat-val gp-accent">+10% na base da profissão (arredondado para baixo), repetido a cada estágio.</span>
-            </div>
-          </div>
-          <div className="gp-card">
-            <span className="gp-card-tag gp-tag-masc"><i className="ti ti-gender-male" aria-hidden="true"></i> Masculino</span>
-            <div className="gp-stat-row">
-              <span className="gp-stat-key">Corpo</span>
-              <span className="gp-stat-val gp-accent">Altura e peso 10% acima da raça: mais Energia Física e Velocidade.</span>
-            </div>
-            <div className="gp-stat-row">
-              <span className="gp-stat-key">Energia Heroica</span>
-              <span className="gp-stat-val gp-danger">−10% na base da profissão (arredondado para baixo), repetido a cada estágio.</span>
-            </div>
-          </div>
-          <div className="gp-card">
-            <span className="gp-card-tag gp-tag-neut"><i className="ti ti-circle-half-2" aria-hidden="true"></i> Neutro</span>
-            <div className="gp-stat-row">
-              <span className="gp-stat-key">Corpo</span>
-              <span className="gp-stat-val gp-accent">Altura e peso padrão da raça.</span>
-            </div>
-            <div className="gp-stat-row">
-              <span className="gp-stat-key">Energia Heroica</span>
-              <span className="gp-stat-val gp-accent">A base exata da profissão.</span>
-            </div>
-          </div>
-        </div>
-
-        <Callout icon="ti-info-circle">
-          <b>A Energia Heroica é a primeira linha de defesa.</b> Em batalha o dano consome
-          primeiro a Energia Heroica, depois esbarra na armadura e só então chega à Energia
-          Física (veja em Armas). A diferença de 10% parece pequena no estágio 1, mas se
-          repete a cada estágio: no estágio 10, uma guerreira carrega 30 pontos de Energia
-          Heroica a mais que um guerreiro.
-        </Callout>
-
-        <div className="gp-sub-section">
-          <h3 className="gp-h3">Simulador · Energia Heroica por estágio</h3>
-          <SimuladorEH />
-        </div>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Raças ══ */}
-      <section className="gp-section" id="gp-racas">
-        <SectionHead icon="ti-users" titulo="Raças">
-          A raça define o ponto de partida dos sete atributos, a altura, um idioma de graça e o bônus de pontos livres.
-        </SectionHead>
-        <Essencial itens={[
-          <>O modificador racial <b>é o nível inicial</b> do atributo, de graça — você compra a partir dali.</>,
-          <>Toda raça começa com o <b>mesmo valor total</b>: quem ganha menos modificadores recebe a diferença em <b>pontos livres</b>.</>,
-          <>Raça e reino <b>não mudam</b> depois de salvar o personagem.</>,
-        ]} />
-
-        <div className="gp-table-wrap">
-          <table className="gp-table gp-table-num">
-            <thead>
-              <tr>
-                <th>Raça</th>
-                {GP_ATR_COLS.map(([k, s]) => <th key={k}>{s}</th>)}
-                <th>Altura</th><th>Pontos livres</th>
-              </tr>
-            </thead>
-            <tbody>
-              {GP_RACAS.map((r) => {
-                const d = racas[r.nome] || { mods: {}, altura: 0 };
-                return (
-                  <tr key={r.nome}>
-                    <td>{r.nome}</td>
-                    {GP_ATR_COLS.map(([k]) => {
-                      const v = d.mods?.[k] || 0;
-                      return <td key={k} className={v > 0 ? 'gp-pos' : v < 0 ? 'gp-neg' : 'gp-zero'}>{fmtMod(v)}</td>;
-                    })}
-                    <td>{fmtNum(d.altura)} m</td>
-                    <td>{bonusRaca(r.nome) > 0 ? `+${fmtNum(bonusRaca(r.nome))}` : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <p className="gp-legenda">
-          For Força · Fís Físico · Agi Agilidade · Per Percepção · Int Intelecto · Aur Aura · Car Carisma
-        </p>
-
-        <div className="gp-raca-grid">
-          {GP_RACAS.map((r) => (
-            <div key={r.nome} className="gp-raca-card">
-              <div className="gp-raca-nome">{r.nome}</div>
-              <div className="gp-raca-meta">
-                <span className="gp-chip gp-chip-ouro"><i className="ti ti-hourglass" aria-hidden="true" />{r.vida}</span>
-                <span className="gp-chip"><i className="ti ti-language" aria-hidden="true" />{r.idioma}</span>
-              </div>
-              <div className="gp-raca-trad">Tradição: {r.tradicao}</div>
-              <div className="gp-raca-mod">{r.txt}</div>
-            </div>
-          ))}
-        </div>
-
-        <Callout icon="ti-scale">
-          <b>Por que existem pontos livres.</b> Somando o custo dos níveis que cada raça dá
-          de graça, o Anão e o Meio-Orc valem 4 pontos e o Humano, 0. Para a raça decidir
-          <i> onde</i> o personagem é forte — e não <i>quanto</i> ele vale —, cada raça recebe
-          em pontos livres o que falta para alcançar a mais valiosa. As profissões de
-          “Tradição” são costume do povo, não proibição: a ficha aceita qualquer combinação.
-        </Callout>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Reinos ══ */}
-      <section className="gp-section" id="gp-reinos">
-        <SectionHead icon="ti-crown" titulo="Reinos">
-          O reino natal é a segunda escolha permanente da ficha, e paga três dividendos.
-        </SectionHead>
-        <Essencial itens={[
-          <>Todo personagem fala <b>Malês</b>, mais o idioma da raça e o do reino — de graça.</>,
-          <>Raça e reino dão <b>+2 ou −2</b> em habilidades específicas; quando os dois favorecem a mesma, soma <b>+4</b>.</>,
-          <>Caracterização: <b>4 pontos</b>; cada vantagem custa 2 e cada desvantagem devolve 2.</>,
-        ]} />
-        <ul className="gp-list">
-          <li><b>Idiomas.</b> O idioma da raça (Élfico, Khuzdul, Kurng, Lanta) e o do reino (Runa em Portis, Abadrim em Abadom, Lunês em Luna…) vêm de nascença. Cada idioma novo depois disso sai da habilidade Idioma: um a cada 10 pontos de total.</li>
-          <li><b>Vantagens em habilidades.</b> Cada habilidade do catálogo lista as raças e reinos que a favorecem (+2) ou a dificultam (−2). O bônus soma no total sem gastar ponto nenhum — confira no passo de Habilidades onde a sua origem brilha.</li>
-          <li><b>Caracterização histórica.</b> Cada reino oferece três passados (Verrogar: Belicoso, Treinado ou Soldado; Portis: Magista, Historiador ou Xenófobo…). Não custa pontos — é tempero de personagem.</li>
-        </ul>
-        <Callout icon="ti-masks-theater">
-          A <b>caracterização de traços</b> (física, social e pessoal) começa com 4 pontos.
-          Cada vantagem (Bonito, Rico, Corajoso…) custa 2; cada desvantagem aceita (Feio,
-          Pobre, Covarde…) <b>devolve</b> 2. Duas fraquezas boas de interpretar bancam duas
-          forças — defeito bom é defeito que rende cena.
-        </Callout>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Profissões ══ */}
-      <section className="gp-section" id="gp-profissoes">
-        <SectionHead icon="ti-briefcase" titulo="Profissões">
-          A cada estágio a profissão despeja pontos em cinco reservatórios — e dá ao personagem o seu elemento.
-        </SectionHead>
-        <Essencial itens={[
-          <>Os pontos da tabela abaixo são <b>por estágio</b>: no estágio 3, o Guerreiro tem 3 × 14 pontos de habilidade.</>,
-          <>Só Sacerdote, Rastreador, Bardo e Mago conjuram magia.</>,
-          <>Cada profissão tem um <b>elemento</b>, que dá vantagem de dano contra outros elementos.</>,
-        ]} />
-
-        <div className="gp-table-wrap">
-          <table className="gp-table gp-table-num">
-            <thead>
-              <tr>
-                <th>Profissão</th><th>EH neutra</th><th>EH masc.</th><th>EH fem.</th>
-                <th>Habilidades</th><th>Armas</th><th>Técnicas</th><th>Magia</th><th>Elemento</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td>Guerreiro</td><td>14</td><td>12</td><td>15</td><td>14</td><td>12</td><td>4</td><td className="gp-muted">—</td><td>Fogo</td></tr>
-              <tr><td>Sacerdote</td><td>12</td><td>10</td><td>13</td><td>10</td><td>8</td><td>3</td><td>10 · Aura</td><td>Luz</td></tr>
-              <tr><td>Ladino</td><td>10</td><td>9</td><td>11</td><td>20</td><td>10</td><td>2</td><td className="gp-muted">—</td><td>Ar</td></tr>
-              <tr><td>Rastreador</td><td>10</td><td>9</td><td>11</td><td>16</td><td>10</td><td>3</td><td>8 · Percepção</td><td>Terra</td></tr>
-              <tr><td>Bardo</td><td>8</td><td>7</td><td>8</td><td>14</td><td>6</td><td>2</td><td>8 · Carisma</td><td>Água</td></tr>
-              <tr><td>Mago</td><td>6</td><td>5</td><td>6</td><td>10</td><td>4</td><td>1</td><td>14 · Intelecto</td><td>Escuridão</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* As seis profissões (26/09/2026): Guerreiro e Ladino lado a lado,
-            Rastreador e Bardo lado a lado, Mago e Sacerdote numa linha cada —
-            a ordem que o usuário pediu. */}
-        <div className="gp-prof-grid">
-          {[
-            { nome: 'Guerreiro', el: 'Fogo', icon: 'ti-flame', cls: 'gp-elem-0',
-              txt: 'O extremo marcial: a maior Energia Heroica (14 por estágio), o maior orçamento de armas (12) e de técnicas (4 pontos-base). Conjura pouco (1 ponto-base de magia por estágio), e compensa com a capacidade de continuar lutando quando qualquer outro já teria caído. Especializado, ganha uma ação extra por rodada só para técnicas.' },
-            { nome: 'Ladino', el: 'Ar', icon: 'ti-wind', cls: 'gp-elem-1',
-              txt: 'O mestre das habilidades: 20 pontos por estágio, o maior orçamento do jogo. Energia Heroica mediana (10) — sobrevive desviando, não aguentando. Armas leves e técnicas afinadas com elas fazem o dano; especializado, também ganha a ação extra de técnica.' },
-            { nome: 'Rastreador', el: 'Terra', icon: 'ti-mountain', cls: 'gp-elem-2',
-              txt: 'O caçador versátil: 16 pontos de habilidade, 10 de armas e 3 pontos-base de técnicas por estágio, e magia mediana (5 pontos-base por estágio, mais Intelecto e Aura). A Percepção rende na Energia Heroica.' },
-            { nome: 'Bardo', el: 'Água', icon: 'ti-droplet', cls: 'gp-elem-3',
-              txt: 'A voz do grupo: magia farta (8 pontos-base por estágio, mais Intelecto e Aura) e 14 pontos de habilidade para influência e conhecimento. Energia Heroica baixa (8) e poucas armas (6) — luta melhor a partir da retaguarda.' },
-            { nome: 'Mago', el: 'Escuridão', icon: 'ti-moon', cls: 'gp-elem-esc', largo: true,
-              txt: 'O extremo arcano: um orçamento alto de magia (8 pontos-base por estágio, mais Intelecto e Aura) e a menor Energia Heroica do jogo (6). Poucas armas (4) e técnicas (1 ponto-base). Vulnerável no confronto direto; protegido pelos aliados, poucos rivalizam com o poder dos seus encantamentos — e a Escuridão rende 5% contra os quatro elementos.' },
-            { nome: 'Sacerdote', el: 'Luz', icon: 'ti-sun', cls: 'gp-elem-luz', largo: true,
-              txt: 'O guardião divino: Energia Heroica alta (12), magia mediana (5 pontos-base por estágio, mais Intelecto e Aura) e um orçamento equilibrado de armas (8) e técnicas (3 pontos-base). A Aura alimenta a magia e o Karma ao mesmo tempo, e a Luz rende 15% contra criaturas da Escuridão.' },
-          ].map((p) => (
-            <div key={p.nome} className={'gp-card gp-prof-card' + (p.largo ? ' gp-prof-card--largo' : '')}>
-              <div className="gp-prof-top">
-                <span className="gp-card-title">{p.nome}</span>
-                <span className={'gp-elem-chip ' + p.cls}><i className={'ti ' + p.icon} aria-hidden="true" />{p.el}</span>
-              </div>
-              <p className="gp-card-text">{p.txt}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="gp-sub-section">
-          <h3 className="gp-h3">Elementos</h3>
-          <p className="gp-p">
-            O elemento do personagem é o da profissão; o da criatura está na ficha dela. Todo
-            golpe carrega um elemento — o da <b>magia</b>, quando ela tem um, ou o de quem bate —
-            e ganha dano extra contra o elemento que ele domina:
-          </p>
-          <div className="gp-elem">
-            <div className="gp-elem-ciclo" aria-label="Fogo vence Ar, Ar vence Terra, Terra vence Água, Água vence Fogo: 10% cada">
-              {['Fogo', 'Ar', 'Terra', 'Água'].map((el, i, arr) => {
-                const e = GP_ELEMENTOS.find((x) => x.v === el);
-                return (
-                  <React.Fragment key={el}>
-                    <span className={`gp-elem-chip gp-elem-${i}`}><i className={`ti ${e.icon}`} aria-hidden="true" />{el}</span>
-                    <span className="gp-elem-seta" aria-hidden="true"><i className="ti ti-arrow-right" />10%</span>
-                    {i === arr.length - 1 && <span className="gp-elem-chip gp-elem-0 gp-elem-volta"><i className="ti ti-flame" aria-hidden="true" />Fogo</span>}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-            <div className="gp-elem-linha">
-              <span className="gp-elem-chip gp-elem-luz"><i className="ti ti-sun" aria-hidden="true" />Luz</span>
-              <span className="gp-elem-seta" aria-hidden="true"><i className="ti ti-arrow-right" />15%</span>
-              <span className="gp-elem-chip gp-elem-esc"><i className="ti ti-moon" aria-hidden="true" />Escuridão</span>
-              <span className="gp-elem-seta" aria-hidden="true"><i className="ti ti-arrow-right" />5%</span>
-              {/* Os quatro alvos da Escuridão em badges (26/09/2026), como o
-                  resto da roda — era uma frase solta. */}
-              {['Fogo', 'Ar', 'Terra', 'Água'].map((el, i) => {
-                const e = GP_ELEMENTOS.find((x) => x.v === el);
-                return <span key={el} className={`gp-elem-chip gp-elem-${i}`}><i className={`ti ${e.icon}`} aria-hidden="true" />{el}</span>;
-              })}
-            </div>
-          </div>
-          <ul className="gp-list">
-            <li><b>Não é recíproco.</b> Fogo rende 10% a mais contra Ar; Ar contra Fogo não rende nada.</li>
-            <li><b>Não soma.</b> Quem tem dois elementos (uma criatura de Fogo e Luz) usa a melhor vantagem entre os pares.</li>
-            <li><b>Entra com os outros percentuais</b> de dano do atacante (magias e efeitos que aumentam dano), e o total arredonda para cima.</li>
-          </ul>
-          <SimuladorElemento />
-        </div>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Especializações ══ */}
-      <section className="gp-section" id="gp-especializacoes">
-        <SectionHead icon="ti-award" titulo="Especializações">
-          A escola que forma o personagem: Academia, Guilda, Trilha, Colégio, Confraria ou Ordem — e o título que ela confere.
-        </SectionHead>
-        <Essencial itens={[
-          <>A especialização é escolhida <b>já na criação</b>, junto com a profissão, e depois de salva <b>não muda</b>.</>,
-          <>Ela abre a prateleira de <b>magias e técnicas avançadas</b> — as que exigem aquela escola, não só a profissão.</>,
-          <>Guerreiro e Ladino especializados ganham <b>1 ponto de ação extra</b> por rodada, só para técnicas.</>,
-        ]} />
-        <div className="gp-esp-grid">
-          {Object.entries(especializacoes).map(([prof, lista]) => (
-            <div key={prof} className={'gp-esp-card' + (lista.length > 6 ? ' gp-esp-card-larga' : '')}>
-              <div className="gp-esp-prof">{prof}</div>
-              <ul>
-                {lista.map((e) => (
-                  <li key={e.esp}><span>{e.esp}</span><b>{e.titulo}</b></li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-        <Callout icon="ti-route">
-          Deixar a especialização em branco é permitido, e ela pode ser escolhida depois —
-          mas só uma vez. Antes de decidir, abra o catálogo de Magias ou Técnicas e veja o
-          que cada escola libera: é ali que mora a diferença entre dois magos do mesmo estágio.
-        </Callout>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Atributos ══ */}
-      <section className="gp-section" id="gp-atributos">
-        <SectionHead icon="ti-chart-radar" titulo="Atributos">
-          Sete atributos alimentam todas as estatísticas da ficha. Entender a ligação antes de gastar é o que separa uma ficha sólida de uma cheia de surpresas.
-        </SectionHead>
-        <Essencial itens={[
-          <>No estágio 1 você tem <b>15 pontos</b> (mais os pontos livres da raça), e ganha <b>+1 a cada 2 estágios</b>.</>,
-          <>O custo cresce em curva: +1 custa 1, +2 custa 3, +3 custa 6, +4 custa 10.</>,
-          <>Atributo negativo <b>devolve</b> pontos, e nas estatísticas conta como zero.</>,
-        ]} />
-
-        <h3 className="gp-h3">Os sete atributos e o que eles alimentam</h3>
-        <div className="gp-attr-grid">
-          {[
-            { icon: 'ti-sword',          nome: 'Força',     feeds: ['Dano das armas'],
-              dica: 'Soma direto no dano de toda arma. Essencial para quem luta; um conjurador pode vendê-la em −2 e recuperar 1 ponto.' },
-            { icon: 'ti-heart',          nome: 'Físico',    feeds: ['Energia Física', 'Resistência Física'],
-              dica: 'Quanto mais alto, mais pancada você aguenta e melhor resiste a venenos e efeitos físicos.' },
-            { icon: 'ti-run',            nome: 'Agilidade', feeds: ['Velocidade', 'Defesa'],
-              dica: 'Defesa mais alta tira colunas do ataque inimigo. Ladinos e Rastreadores vivem aqui.' },
-            { icon: 'ti-eye',            nome: 'Percepção', feeds: ['Energia Heroica', 'Magia do Rastreador'],
-              dica: 'O atributo mais transversal: cada ponto soma Energia Heroica para qualquer profissão.' },
-            { icon: 'ti-brain',          nome: 'Intelecto', feeds: ['Magia do Mago', 'Conhecimento'],
-              dica: 'O atributo que rege a magia do Mago e as habilidades de estudo.' },
-            { icon: 'ti-sparkles',       nome: 'Aura',      feeds: ['Resistência Mágica', 'Karma', 'Magia do Sacerdote'],
-              dica: 'Com Aura abaixo de 1 o Karma é zero — e sem Karma nenhuma magia sai. Conjurador nunca a deixa cair.' },
-            { icon: 'ti-message-circle', nome: 'Carisma',   feeds: ['Magia do Bardo', 'Influência'],
-              dica: 'Rege a magia do Bardo e as habilidades de negociação e liderança.' },
-          ].map((a) => (
-            <div key={a.nome} className="gp-attr-card">
-              <div className="gp-attr-header">
-                <i className={`ti ${a.icon} gp-attr-icon`} aria-hidden="true"></i>
-                <span className="gp-attr-nome">{a.nome}</span>
-              </div>
-              <div className="gp-attr-feeds">
-                {a.feeds.map((f) => <span key={f} className="gp-attr-feed-tag">{f}</span>)}
-              </div>
-              <div className="gp-attr-dica">{a.dica}</div>
-            </div>
-          ))}
-        </div>
-
-        <h3 className="gp-h3 gp-h3-sep">Como os atributos viram estatísticas</h3>
-        <div className="gp-formula-cards">
-          {[
-            { stat: 'Peso',               abbr: 'PS', icon: 'ti-weight',        formula: 'altura² × 28   (Anão: × 40)',          desc: 'A altura vem da raça e do gênero. Anões pesam mais para o tamanho que têm.' },
-            { stat: 'Energia Física',     abbr: 'EF', icon: 'ti-heart',         formula: '⌊peso ÷ 5⌋ + Físico',                  desc: 'O corpo. Chegar a 0 derruba; a −15, o personagem morre.' },
-            { stat: 'Energia Heroica',    abbr: 'EH', icon: 'ti-shield-half',   formula: 'Percepção + base da profissão × estágio', desc: 'Coragem e sorte: a primeira camada que o dano consome. Zerada, o personagem desmaia.' },
-            { stat: 'Resistência Física', abbr: 'RF', icon: 'ti-shield',        formula: 'estágio + Físico',                     desc: 'Contra venenos, doenças e efeitos físicos.' },
-            { stat: 'Resistência Mágica', abbr: 'RM', icon: 'ti-wand',          formula: 'estágio + Aura',                       desc: 'Contra magias que pedem teste de resistência — e entra no Karma.' },
-            { stat: 'Karma',              abbr: 'KA', icon: 'ti-sparkles',      formula: '(RM + 1) × (Aura + 1)',                desc: 'O combustível das magias. Zero se a Aura for menor que 1.' },
-            { stat: 'Velocidade',         abbr: 'VB', icon: 'ti-run',           formula: '⌊altura × 11⌋ + Agilidade',            desc: 'Ordem de iniciativa e alcance de movimento. Vento forte reduz; acima de 30, uma ação a mais por rodada.' },
-            { stat: 'Defesa',             abbr: 'DF', icon: 'ti-shield-check',  formula: 'tipo do peitoral + defesa das peças + Agilidade', desc: 'Escrita como “L2”, “M7”: a letra é o tipo da armadura (Leve, Média, Pesada), o número tira colunas do ataque.' },
-            { stat: 'Absorção',           abbr: 'AR', icon: 'ti-shield-lock',   formula: 'soma das absorções das peças',         desc: 'O limiar da armadura: golpe até esse valor é bloqueado inteiro (veja em Armas).' },
-          ].map((f) => (
-            <div key={f.abbr} className="gp-formula-row">
-              <div className="gp-formula-abbr"><i className={`ti ${f.icon}`} aria-hidden="true" />{f.abbr}</div>
-              <div className="gp-formula-eq">
-                <span className="gp-formula-stat">{f.stat}</span>
-                <span className="gp-formula-expr">= {f.formula}</span>
-              </div>
-              <div className="gp-formula-desc">{f.desc}</div>
-            </div>
-          ))}
-        </div>
-
-        <h3 className="gp-h3 gp-h3-sep">Quanto custa cada nível de atributo</h3>
-        <div className="gp-custo-grid">
-          {[
-            { val: '−2', custo: 'devolve 1 ponto', cls: 'gp-custo-devolver' },
-            { val: '−1', custo: 'devolve 0,5 ponto', cls: 'gp-custo-devolver' },
-            { val: '0',  custo: 'grátis', cls: 'gp-custo-neutro' },
-            { val: '+1', custo: '1 ponto', cls: 'gp-custo-normal' },
-            { val: '+2', custo: '3 pontos', cls: 'gp-custo-medio' },
-            { val: '+3', custo: '6 pontos', cls: 'gp-custo-alto' },
-            { val: '+4', custo: '10 pontos', cls: 'gp-custo-max' },
-            { val: '+5', custo: '15 pontos', cls: 'gp-custo-max' },
-            { val: '+6', custo: '21 pontos', cls: 'gp-custo-max' },
-          ].map((c) => (
-            <div key={c.val} className={`gp-custo-card ${c.cls}`}>
-              <div className="gp-custo-val">{c.val}</div>
-              <div className="gp-custo-custo">{c.custo}</div>
-            </div>
-          ))}
-        </div>
-        <Callout icon="ti-coins">
-          <b>A conta é a partir da raça.</b> O Anão já nasce com Físico +2 sem pagar nada;
-          subir para +3 custa só o degrau (6 − 3 = 3). Vender um ponto racial também vale:
-          devolve o degrau ao pool. <b>Venda o que não usa, compre o que define o personagem.</b>
-        </Callout>
-
-        <div className="gp-sub-section">
-          <h3 className="gp-h3">Condições do corpo e da mente</h3>
-          <p className="gp-p">
-            Oito barras acompanham o personagem fora e dentro da batalha. Elas <b>não mexem
-            nos atributos</b>: cada uma age direto numa estatística ou num par de grupos de
-            habilidade, e o efeito é proporcional ao nível da barra — barra cheia dá o efeito
-            máximo, meio da barra dá metade. O relógio e o clima da mesa gastam as barras
-            (fome, sede, sono, frio e calor), e as atividades da ficha — dormir, meditar, orar,
-            estudar, treinar — recuperam.
-          </p>
-          <div className="gp-table-wrap">
-            <table className="gp-table">
-              <thead><tr><th>Condição</th><th>Afeta</th></tr></thead>
-              <tbody>
-                <tr><td>Saúde</td><td>Energia Física</td></tr>
-                <tr><td>Sono</td><td>Velocidade</td></tr>
-                <tr><td>Hidratação</td><td>Karma</td></tr>
-                <tr><td>Alimentação</td><td>Velocidade e Karma quando baixa; Energia Física (até +3) quando alta</td></tr>
-                <tr><td>Sobriedade</td><td>Energia Heroica quando baixa; Karma quando alta</td></tr>
-                <tr><td>Sanidade</td><td>Conhecimento sobe, Manobra desce — e vice-versa</td></tr>
-                <tr><td>Reputação</td><td>Influência sobe, Subterfúgio desce — e vice-versa</td></tr>
-                <tr><td>Temperatura</td><td>Geral sobe, Profissional desce — e vice-versa</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Armas ══ */}
-      <section className="gp-section" id="gp-armas">
-        <SectionHead icon="ti-sword" titulo="Armas">
-          Grupos de armas, técnicas de combate e o caminho de um golpe, do dado até a Energia Física.
-        </SectionHead>
-        <Essencial itens={[
-          <>Cada nível num grupo de armas soma <b>+1 na coluna de ataque</b> de toda arma do grupo.</>,
-          <>Dano da arma = <b>dano do catálogo + Força + bônus de Sagração</b> do item.</>,
-          <>O dano desce em cascata: <b>Energia Heroica → armadura → Energia Física</b>.</>,
-        ]} />
-
-        <h3 className="gp-h3">Grupos de armas</h3>
-        <p className="gp-p">
-          São 11 grupos. Os leves custam 2 pontos por nível, os médios 3 e os pesados 4 — e
-          o orçamento vem da profissão: Guerreiro 12 por estágio, Ladino e Rastreador 10,
-          Sacerdote 8, Bardo 6, Mago 4.
-        </p>
-        <div className="gp-table-wrap">
-          <table className="gp-table">
-            <thead><tr><th>Grupo</th><th>Custo por nível</th><th>Exemplos</th></tr></thead>
-            <tbody>
-              {(typeof GRUPOS_ARMAS !== 'undefined' ? GRUPOS_ARMAS : []).map((g) => (
-                <tr key={g.sigla}><td>{g.sigla} · {g.nome}</td><td>{g.custo}</td><td>{g.exemplos}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <ul className="gp-list">
-          <li><b>Concentre.</b> Nível 2 num grupo vale mais que nível 1 em dois: colunas altas na tabela de resolução rendem resultados de dano muito melhores.</li>
-          <li><b>Conjuradores</b> escolhem um grupo de emergência — o cajado do Mago (Esmagamento Leve) é o clássico — e aceitam que a arma é o plano B.</li>
-        </ul>
-
-        <div className="gp-sub-section">
-          <h3 className="gp-h3">Técnicas de combate</h3>
-          <p className="gp-p">
-            Toda profissão pode aprender qualquer técnica — pelo item que a ensina: o
-            pergaminho da técnica ou um manual (do Guerreiro, da Academia, da Guilda… e o
-            Livro Geral de Técnicas de Combate). O item não se gasta. O teste é
-            <b> nível comprado + atributo de ajuste</b>, e técnica sem treino rola com −7.
-          </p>
-          <ul className="gp-list">
-            <li><b>Case a técnica com a arma.</b> Cada técnica lista os grupos de armas (e às vezes as armaduras) com que funciona. Uma técnica de Corte Médio não sai com uma adaga na mão.</li>
-            <li><b>Profundidade vence largura.</b> O primeiro nível apaga o −7; depois disso, uma técnica no nível 4 decide mais combates que quatro no nível 1.</li>
-            <li><b>Pontos.</b> Por estágio: pontos-base + Físico + Agilidade (atributo negativo conta 0). Base: Guerreiro 4, Rastreador e Sacerdote 3, Ladino e Bardo 2, Mago 1.</li>
-            <li><b>Treino.</b> O nível comprado entra na fila de treino e leva <b>3 dias de Treinando</b> por nível — só contam as horas do relógio da mesa com a atividade ligada. Enquanto o próximo treina, o nível já sabido continua valendo.</li>
-          </ul>
-        </div>
-
-        <div className="gp-sub-section">
-          <h3 className="gp-h3">O caminho de um golpe</h3>
-          <ol className="gp-passos">
-            <li>
-              <b>A coluna de ataque.</b> Cada arma tem três valores de ataque — contra armadura
-              Leve, Média e Pesada. Usa-se o do tipo de armadura do alvo, soma-se o nível do
-              grupo de armas e subtrai-se o número da Defesa do alvo. Contra um alvo “M7”, uma
-              arma com 12 contra Média e grupo no nível 2 ataca na coluna 12 + 2 − 7 = 7.
-            </li>
-            <li>
-              <b>O d20 na tabela de resolução.</b> O dado cruza com a coluna e dá o resultado:
-              Falha Crítica e Rotineiro erram; Fácil acerta 25% do dano, Médio 50%, Difícil
-              75%, Muito Difícil 100%, Espetacular 125% e Absurdo 150% — com um segundo dado
-              na tabela de críticos. 1 no dado é sempre Falha Crítica; 20, sempre Absurdo.
-            </li>
-            <li>
-              <b>Os percentuais.</b> Vantagem elemental e efeitos que aumentam dano entram
-              somados, e o total arredonda para cima.
-            </li>
-            <li>
-              <b>A cascata.</b> O dano consome primeiro a Energia Heroica. O que sobra esbarra
-              na armadura: golpe até a Absorção é bloqueado inteiro; golpe acima dela também é
-              segurado, mas gasta 1 ponto de Resistência da peça mais inteira. Armadura com
-              Resistência zerada arrebenta e deixa o dano passar. Só então o golpe chega à
-              Energia Física.
-            </li>
-            <li>
-              <b>O resultado.</b> Energia Heroica em 0 desmaia. Energia Física em 0 derruba —
-              entre 0 e −14 o personagem está caído, morrendo; em −15, morto. O crítico e
-              algumas técnicas pulam a Energia Heroica; outras ignoram a armadura.
-            </li>
-          </ol>
-        </div>
-
-        <div className="gp-sub-section">
-          <h3 className="gp-h3">A rodada</h3>
-          <ul className="gp-list">
-            <li><b>Iniciativa.</b> Age primeiro quem tem mais Velocidade; no empate, o personagem antes da criatura.</li>
-            <li><b>Pontos de ação.</b> Todo combatente tem 1 por rodada. Velocidade acima de 30 dá mais 1. Guerreiro e Ladino especializados têm 1 extra só para técnicas.</li>
-            <li><b>Escuridão.</b> Sem luz, os ataques perdem colunas: −2 na penumbra, −4 no escuro total e −6 na escuridão mágica — a não ser para quem enxerga no escuro por magia ou técnica.</li>
-            <li><b>Bandos.</b> Cinco criaturas iguais formam um bando: um líder e quatro minions, cada minion com ¼ da Energia Física, Heroica e Absorção. Os minions agem logo depois do líder — e fogem se ele cair.</li>
-            <li><b>Montarias.</b> Montado, cavaleiro e animal lutam como um só, e a Energia Heroica do animal protege o cavaleiro. Se a montaria cai, o cavaleiro vai junto.</li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Habilidades ══ */}
-      <section className="gp-section" id="gp-habilidades">
-        <SectionHead icon="ti-tools" titulo="Habilidades">
-          Seis grupos — Profissional, Subterfúgio, Manobra, Influência, Conhecimento e Geral —, cada habilidade regida por um atributo.
-        </SectionHead>
-        <Essencial itens={[
-          <>Total = <b>nível comprado + atributo + bônus de origem</b>.</>,
-          <>Habilidade sem treino rola com <b>−7</b>: o primeiro nível é a melhor compra da ficha.</>,
-          <>O Ladino tem o maior orçamento: <b>20 pontos por estágio</b>.</>,
-        ]} />
-        <Callout icon="ti-alert-triangle" variant="warn">
-          Comprar o primeiro nível transforma o −7 em +1 — <b>um salto de 8 colunas pelo preço
-          de um nível</b>. Antes de empilhar níveis na sua especialidade, espalhe nível 1 nas
-          habilidades que a sua mesa realmente rola.
-        </Callout>
-        <ul className="gp-list">
-          <li><b>Orçamento por estágio:</b> Ladino 20, Rastreador 16, Guerreiro e Bardo 14, Sacerdote e Mago 10. Cada habilidade tem o seu custo por nível.</li>
-          <li><b>Aproveite a origem.</b> Os +2 (ou +4) de raça e reino somam de graça. Construir em cima deles rende os maiores totais da mesa.</li>
-          <li><b>Quatro habilidades abrem aprimoramentos</b> conforme o total cresce: Idioma, um idioma novo a cada 10; Religião, um culto a cada 5; Arte e Sabedoria, uma escolha a cada 7.</li>
-          <li><b>As condições pesam.</b> Sanidade, Reputação e Temperatura multiplicam pares de grupos de habilidade (veja em Atributos).</li>
-        </ul>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Magias ══ */}
-      <section className="gp-section" id="gp-magias">
-        <SectionHead icon="ti-wand" titulo="Magias">
-          Toda profissão pode aprender qualquer magia — pelo item que a ensina. Magia se aprende em passos e se paga em Karma.
-        </SectionHead>
-        <Essencial itens={[
-          <>Cada passo abre um nível ímpar: <b>1, 3, 5, 7 e 9</b>.</>,
-          <>Aprender custa <b>nível × custo da magia</b>; conjurar gasta <b>Karma igual ao nível</b>.</>,
-          <>Aprende-se <b>estudando um livro</b> (Livro do Mago, do seu deus, da sua Ordem…) ou <b>um pergaminho</b>. O item não se gasta.</>,
-        ]} />
-        <div className="gp-table-wrap">
-          <table className="gp-table">
-            <thead><tr><th>Profissão</th><th>Pontos-base por estágio</th></tr></thead>
-            <tbody>
-              <tr><td>Mago, Bardo</td><td>8</td></tr>
-              <tr><td>Rastreador, Sacerdote</td><td>5</td></tr>
-              <tr><td>Guerreiro, Ladino</td><td>1</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <ul className="gp-list">
-          <li><b>Pontos.</b> Por estágio: pontos-base + Intelecto + Aura (atributo negativo conta 0). Com Aura negativa, a base é 0.</li>
-          <li><b>Passos.</b> O 1º passo é o nível 1, o 2º é o nível 3, e assim até o 5º, nível 9. Uma magia no nível 5 com custo 2 custa 10 pontos e gasta 5 de Karma por conjuração. Um nível por vez, nunca acima do estágio.</li>
-          <li><b>Custos.</b> Básicas custam 1 ou 2 por nível; Perdidas, 2 ou 3; Ancestrais, 3 ou 4.</li>
-          <li><b>Treino.</b> O passo comprado entra na fila e leva <b>1 dia</b> na atividade da classe da magia: Feitiço estudando, Milagre orando, Transmutação meditando, Encanto praticando. Só contam as horas do relógio da mesa; o nível já sabido segue usável.</li>
-          <li><b>Livros e pergaminhos.</b> As magias Básicas estão nos livros (de profissão, de deus, de Ordem, Colégio, Confraria ou Trilha). Perdidas e Ancestrais têm pergaminho próprio — de tempos em tempos um aparece na loja da história.</li>
-          <li><b>Itens necessários.</b> Rituais pedem componentes: a magia lista os itens e as quantidades, e o Mestre confere se o personagem os tem antes da conjuração.</li>
-          <li><b>Itens mágicos.</b> Anéis, cajados e armas que concedem magia conjuram de graça, sem Karma, no nível do item — desde que estejam em uso (empunhados ou vestidos).</li>
-          <li><b>Elemento.</b> A magia leva o próprio elemento: um Mago (Escuridão) que lança uma magia de Fogo num alvo de Ar ganha os 10% do Fogo.</li>
-          <li><b>Resistência.</b> Algumas magias pedem teste de Resistência Mágica ou Física do alvo: a força da magia contra a resistência dele decide se o efeito pega.</li>
-        </ul>
-        <Callout icon="ti-flame">
-          Abra o leque no nível 1 (cada uma custa 1 de Karma) e leve uma magia-assinatura ao
-          nível 5, o ponto doce entre poder e fôlego. Níveis 7 e 9 são finalizações, não
-          rotina. E <b>Aura ≥ 1 é inegociável</b>: com Aura zero, o Karma é zero para qualquer
-          conjurador — inclusive para o Mago, que rege por Intelecto mas lança com Karma.
-        </Callout>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Arquétipos ══ */}
-      <section className="gp-section" id="gp-arquetipos">
-        <SectionHead icon="ti-chess-knight" titulo="Arquétipos">
-          Nenhuma combinação é proibida, mas estas seis nascem das sinergias que os números confirmam.
-        </SectionHead>
-        <div className="gp-build-grid">
-          {[
-            { label: 'A Muralha', sub: 'Meio-Orc ou Anão · Guerreiro · Fogo', tag: 'Masculino', tagClass: 'gp-tag-masc',
-              text: 'A maior Energia Física e Resistência Física do jogo: o porte da raça engorda a EF e o Físico +2 sobe a RF. A penalidade masculina na Energia Heroica pesa pouco sobre a base 14 do Guerreiro. Complete com Percepção e um grupo de armas pesadas.' },
-            { label: 'A Voz dos Deuses', sub: 'Elfo-Dourado · Sacerdote · Luz', tag: 'Feminino', tagClass: 'gp-tag-fem',
-              text: 'Aura +2 rege a magia divina e enche o Karma ao mesmo tempo. A Energia Heroica feminina segura a sacerdotisa de pé para curar e proteger — e a Luz rende 15% contra criaturas da Escuridão.' },
-            { label: 'A Sombra', sub: 'Elfo-Sombrio ou Pequenino · Ladino · Ar', tag: 'Neutro', tagClass: 'gp-tag-neut',
-              text: 'Agilidade alta empilha Velocidade e Defesa: difícil de acertar e o primeiro a agir. Os 20 pontos de habilidade por estágio cobrem furtividade e o resto. Armas leves e técnicas afinadas com elas fazem o dano.' },
-            { label: 'O Arquivista das Sombras', sub: 'Elfo-Dourado · Mago · Escuridão', tag: 'Feminino', tagClass: 'gp-tag-fem',
-              text: 'Intelecto +1 fortalece as magias e Aura +2 sustenta o Karma para conjurá-las. A Energia Heroica feminina compensa um pouco a fragilidade do Mago; a Escuridão rende 5% contra os quatro elementos da natureza.' },
-            { label: 'O Olho da Floresta', sub: 'Elfo-Florestal · Rastreador · Terra', tag: 'Feminino', tagClass: 'gp-tag-fem',
-              text: 'Percepção +2 é o atributo que mais rende ao Rastreador: aumenta a Energia Heroica e rege a magia dele ao mesmo tempo. Complete com arcos (Perfuração Média) e habilidades de exploração e natureza.' },
-            { label: 'A Língua de Prata', sub: 'Meio-Elfo · Bardo · Água', tag: 'Neutro', tagClass: 'gp-tag-neut',
-              text: 'Carisma +1 fortalece a magia e as habilidades de Influência; Agilidade +1 mantém o Bardo fora de perigo. Guarde pontos para a Aura: sem Karma, as canções não saem.' },
-          ].map((b) => (
-            <div key={b.label} className="gp-build-card">
-              <div className="gp-build-top">
-                <span className="gp-build-label">{b.label}</span>
-                <span className={`gp-card-tag ${b.tagClass}`}>{b.tag}</span>
-              </div>
-              <div className="gp-build-sub">{b.sub}</div>
-              <div className="gp-build-text">{b.text}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="gp-divider"></div>
-
-      {/* ══ Resumo ══ */}
-      <section className="gp-section" id="gp-resumo">
-        <SectionHead icon="ti-list-check" titulo="Resumo">
-          Toda escolha é uma troca — aqui está o mapa.
-        </SectionHead>
-        <div className="gp-table-wrap">
-          <table className="gp-table">
-            <thead><tr><th>Escolha</th><th>Entrega</th><th>Custa</th></tr></thead>
-            <tbody>
-              <tr><td>Feminino</td><td>+10% de Energia Heroica por estágio</td><td>−10% de altura e peso</td></tr>
-              <tr><td>Masculino</td><td>+10% de altura e peso: mais Energia Física e Velocidade</td><td>−10% de Energia Heroica por estágio</td></tr>
-              <tr><td>Raças robustas</td><td>Anão e Meio-Orc: Energia Física alta de nascença</td><td>Aura, Carisma e (no Anão) Agilidade em baixa</td></tr>
-              <tr><td>Raças élficas</td><td>Aura, Intelecto e Percepção aflorados</td><td>Físico −1 em todas</td></tr>
-              <tr><td>Humano</td><td>+4 pontos livres e nenhum atributo negativo</td><td>Nenhum talento de nascença</td></tr>
-              <tr><td>Guerreiro</td><td>Maior Energia Heroica, mais armas e técnicas</td><td>Magia escassa: 1 ponto-base por estágio</td></tr>
-              <tr><td>Mago</td><td>8 pontos-base de magia por estágio, mais Intelecto e Aura</td><td>A menor Energia Heroica do jogo</td></tr>
-              <tr><td>Ladino</td><td>20 pontos de habilidade por estágio</td><td>Energia Heroica mediana: sobrevive desviando</td></tr>
-              <tr><td>Especialização</td><td>Magias e técnicas avançadas; +1 ação de técnica para Guerreiro e Ladino</td><td>Uma escola só, para sempre</td></tr>
-              <tr><td>Atributo em +2</td><td>+2 em tudo que ele alimenta</td><td>3 pontos — o triplo do +1</td></tr>
-              <tr><td>Atributo em −1 ou −2</td><td>Devolve 0,5 ou 1 ponto</td><td>Fraqueza permanente (conta como 0 nas estatísticas)</td></tr>
-              <tr><td>Grupo de armas pesado</td><td>O maior dano bruto</td><td>4 pontos por nível</td></tr>
-              <tr><td>1º nível de habilidade ou técnica</td><td>Apaga o −7: salto de 8 colunas</td><td>O preço de um nível</td></tr>
-              <tr><td>Magia no nível 9</td><td>Efeito devastador</td><td>9 de Karma por conjuração</td></tr>
-              <tr><td>Vantagem elemental</td><td>+5% a +15% de dano contra o elemento certo</td><td>Nada — escolha o alvo com intenção</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <GuiaFooter />
     </div>
   );
 }
 
-Object.assign(window, { GuiaPersonagem });
+/* ============================== [08.7] As cartas ============================== */
+/* Cada carta: { id, titulo, frase (a regra numa frase), numeros: [[rótulo,
+   valor]] (o passe), sim (simulador opcional, que ocupa o lugar do passe),
+   verso: () => JSX (a explicação) }.
+   A VOZ DO GUIA (11/11/2026). O usuário reescreveu a carta do Gênero e pediu
+   "altere todos os cards de acordo com essa mudança": fala-se COM o jogador,
+   em frases corridas, como quem explica na mesa. Regras dessa voz:
+   - o passe diz o efeito em palavras ("Mais forte"), não em número solto
+     ("Força +2", "Corpo +10%");
+   - energia heroica, energia física, velocidade, defesa, karma, atributos,
+     raças e profissões vão em minúscula no meio da frase — maiúscula só no
+     começo da frase, em nome próprio (reino, idioma, magia, Tagmar) e no
+     rótulo de botão da interface (Subir nível);
+   - nunca o nome por extenso como explicação: diz-se o que a coisa É e o que
+     ela FAZ para o personagem;
+   - conta só em palavras, sem notação (⌊⌋, "+ Int").
+   SEM TABELAS (11/11/2026, usuário: "Ao invés de ter tabelas nos cards,
+   porque não criamos um texto didático usando a tabela como fonte?"): o dado
+   vira frase — "o anão é bem mais forte", "o ladino é o mais habilidoso".
+   Onde o texto lê o catálogo (raças, especializações), a frase é montada a
+   partir de GAME_DATA, para nunca discordar dele.
+   O capítulo "Começo" saiu: cada informação dele foi para o tópico a que
+   pertence (o que fica gravado → Gênero, Raça, Reino, Profissão,
+   Especialização; o livro inicial → Profissão; os 15 pontos → Atributos;
+   Subir nível → Habilidades). */
+
+/* "a, b e c" */
+const gpLista = (itens, conj = 'e') => (itens.length <= 1 ? itens.join('')
+  : itens.slice(0, -1).join(', ') + ` ${conj} ` + itens[itens.length - 1]);
+
+/* O que cada atributo acima ou abaixo da média quer dizer, em palavras. */
+const GP_TALENTO = {
+  forca: ['forte', 'fraco'], fisico: ['resistente', 'frágil'], agilidade: ['ágil', 'lento'],
+  percepcao: ['atento', 'distraído'], intelecto: ['inteligente', 'menos inteligente'],
+  aura: ['desperto para a magia', 'distante da magia'], carisma: ['carismático', 'menos carismático'],
+};
+const GP_ORDEM_ATR = ['forca', 'fisico', 'agilidade', 'percepcao', 'intelecto', 'aura', 'carisma'];
+
+/* "O anão é bem mais forte e bem mais resistente, mas bem mais lento…" —
+   a frase de cada raça sai dos modificadores do catálogo. */
+function fraseDaRaca(r, d, livres) {
+  const mods = (d && d.mods) || {};
+  const peca = (k, v) => {
+    const [bom, ruim] = GP_TALENTO[k];
+    const palavra = v > 0 ? bom : ruim;
+    const grau = Math.abs(v) >= 2 ? 'bem ' : 'um pouco ';
+    return palavra.startsWith('menos ') ? grau + palavra : grau + 'mais ' + palavra;
+  };
+  const ordenar = (lista) => lista.sort((a, b) => Math.abs(mods[b]) - Math.abs(mods[a]) || GP_ORDEM_ATR.indexOf(a) - GP_ORDEM_ATR.indexOf(b));
+  const bons = ordenar(GP_ORDEM_ATR.filter((k) => (mods[k] || 0) > 0)).map((k) => peca(k, mods[k]));
+  const ruins = ordenar(GP_ORDEM_ATR.filter((k) => (mods[k] || 0) < 0)).map((k) => peca(k, mods[k]));
+  const nome = r.toLowerCase();
+  let t;
+  if (!bons.length && !ruins.length) t = `é a média em tudo: não nasce com talentos nem fraquezas`;
+  else if (!ruins.length) t = `é ${gpLista(bons)}`;
+  else if (!bons.length) t = `é ${gpLista(ruins)}`;
+  else t = `é ${gpLista(bons)}, mas ${gpLista(ruins)}`;
+  const pts = livres > 0 ? `, e recebe ${fmtNum(livres)} ${livres === 1 ? 'ponto livre' : 'pontos livres'}` : '';
+  return <p key={r}>O <b>{nome}</b> {t}. Mede cerca de {fmtNum(d ? d.altura : 0)} m{pts}.</p>;
+}
+
+function montarCapitulos() {
+  const racas = gd().racas || {};
+  const bonus = (r) => (typeof bonusPontosRaca === 'function' ? bonusPontosRaca(r) : 0);
+  const esp = gd().especializacoes || {};
+  return [
+    /* O texto do Gênero é o do usuário (11/11/2026), palavra por palavra onde
+       a regra permite. */
+    { id: 'genero', icone: 'ti-gender-bigender', titulo: 'Gênero', cartas: [
+      { id: 'escolha', titulo: 'Escolha seu gênero', imagem: '/guia/genero.jpg', frase: 'O gênero do seu personagem muda duas coisas: seu tamanho e sua energia heroica. Nenhuma escolha é necessariamente melhor que a outra; depende do seu objetivo.',
+        numeros: [['Feminino', 'Mais corajosa'], ['Masculino', 'Mais alto'], ['Neutro', 'Equilibrado']],
+        verso: () => (<>
+          <p>A <b>energia heroica (EH)</b> é o fôlego, a sorte e os seus reflexos. Quando o adversário ataca você, a primeira energia atingida é a energia heroica.</p>
+          <p>A <b>energia física (EF)</b> é a vida, o corpo e a sua saúde. Quanto mais alto e pesado, maior é a sua energia física. Além disso, a sua altura também influencia na sua velocidade.</p>
+          <p>A <b>velocidade (VB)</b> é a sua iniciativa em combate, e é ela que diz quantas vezes você pode agir em uma rodada.</p>
+          <p>A <b>mulher</b> tem 10% menos altura e peso que a média da sua raça, mas ganha 10% a mais de energia heroica a cada estágio. O <b>homem</b> é o contrário: tem 10% mais altura e peso, mas ganha 10% a menos de energia heroica. E quem escolhe <b>neutro</b> fica com a altura e o peso médios da raça e com a energia heroica da profissão, sem mudança.</p>
+        </>) },
+      { id: 'eh', titulo: 'Quanto de energia heroica?', frase: 'A diferença parece pequena no começo, mas conforme o estágio aumenta, pode representar uma grande mudança na estratégia de uma luta.',
+        sim: SimuladorEH,
+        verso: () => (<>
+          <p>A ficha calcula assim: a energia heroica da profissão é multiplicada pelo estágio, e a sua percepção é somada ao resultado. Cada profissão ganha uma quantidade fixa por estágio — por exemplo, o guerreiro ganha 14 e o mago ganha 6 —, influenciada pelo gênero.</p>
+        </>) },
+      { id: 'ef', titulo: 'Quanto de energia física?', frase: 'A diferença de tamanho parece pequena, mas decide quanto dano o seu corpo aguenta antes de cair.',
+        sim: SimuladorEF,
+        verso: () => (<>
+          <p>A ficha calcula assim: o seu peso é dividido por 5, e o seu físico é somado ao resultado. O peso vem da altura da sua raça, que o gênero aumenta ou diminui em 10%.</p>
+        </>) },
+    ] },
+    { id: 'raca', icone: 'ti-users', titulo: 'Raça', cartas: [
+      { id: 'mods', titulo: 'Escolha sua raça', frase: 'Cada raça já nasce com os seus talentos e as suas fraquezas. Esse ponto de partida vem de graça: você não gasta nada por ele.',
+        numeros: [['Anão', 'Mais forte'], ['Elfo-dourado', 'Mais desperto para a magia']],
+        verso: () => (<>
+          <p>São sete atributos, e juntos eles dizem quem o seu personagem é. A <b>força</b> é o músculo: aumenta o dano dos seus golpes e o peso que você consegue carregar. O <b>físico</b> é a resistência do corpo, o que faz você aguentar ferimentos, venenos e doenças. A <b>agilidade</b> são os reflexos, que deixam você mais rápido e mais difícil de acertar. A <b>percepção</b> são os sentidos atentos, e é dela que vem parte da sua energia heroica. O <b>intelecto</b> é a inteligência, que ajuda você a aprender magias e técnicas. A <b>aura</b> é a sua ligação com a magia: sem ela, não há karma para lançar feitiços. E o <b>carisma</b> é a presença, o jeito de convencer e inspirar as pessoas.</p>
+          <p>Uma pessoa comum fica na média em todos eles. Veja onde cada raça nasce acima ou abaixo disso:</p>
+          {GP_RACAS.map((r) => fraseDaRaca(r, racas[r], bonus(r)))}
+          <p>A altura define o seu peso, a sua energia física e a sua velocidade. Depois de salvo, a raça não muda mais.</p>
+        </>) },
+      { id: 'livres', titulo: 'Por que algumas raças ganham pontos livres?', frase: 'Para nenhuma raça sair na frente. Quem nasce com menos talentos recebe a diferença em pontos, para gastar onde você quiser.',
+        numeros: [['Humano', 'Ganha mais pontos para gastar'], ['Anão e meio-orc', 'Já nascem com tudo pago']],
+        verso: () => (<p>Os talentos com que o anão e o meio-orc nascem valem 4 pontos de atributo; os do humano, nenhum. Por isso o humano recebe {fmtNum(bonus('Humano'))} pontos livres, e cada raça ganha o que falta para chegar a 4. No fim, a raça decide <i>onde</i> o seu personagem é forte, e não <i>quanto</i> ele vale.</p>) },
+      { id: 'idioma', titulo: 'Quais idiomas você fala?', frase: 'Você já começa falando o Malês, a língua comum de todos, mais a língua da sua raça e a do seu reino — sem pagar nada.',
+        numeros: [['Para começar', 'Até três línguas'], ['Depois', 'Uma nova a cada 10 em idioma']],
+        verso: () => (<p>O Élfico, o Khuzdul, o Kurng e o Lanta vêm da raça; o Runa (Portis), o Abadrim (Abadom), o Lunês (Luna) e outros vêm do reino. Alguns reinos não têm língua própria. Se quiser aprender mais, é pela habilidade idioma: a cada 10 pontos nela, você ganha uma língua nova.</p>) },
+    ] },
+    { id: 'reino', icone: 'ti-crown', titulo: 'Reino', cartas: [
+      { id: 'vantagens', titulo: 'O que o reino muda?', frase: 'O lugar onde você cresceu, assim como a sua raça, deixa algumas habilidades mais fáceis e outras mais difíceis. Os dois não somam entre si.',
+        numeros: [['Habilidade favorecida', 'Fica 2 pontos mais fácil'], ['Habilidade prejudicada', 'Fica 2 pontos mais difícil']],
+        verso: () => (<>
+          <p>As <b>habilidades</b> são tudo o que o seu personagem sabe fazer fora da luta: escalar, negociar, rastrear, curar e muito mais. No catálogo, cada uma diz quais raças e reinos a favorecem ou atrapalham, e esse bônus entra sozinho, sem custar nada.</p>
+          <p>Se a sua raça e o seu reino favorecem a mesma habilidade, ela continua 2 pontos mais fácil — não vira 4.</p>
+          <p>Depois de salvo, o reino não muda mais.</p>
+        </>) },
+      { id: 'caracterizacao', titulo: 'Qualidades e defeitos', frase: 'Você começa com 4 pontos para dar personalidade ao seu personagem. Cada qualidade custa 2, e cada defeito devolve 2.',
+        numeros: [['Para começar', '4 pontos'], ['Qualidade', 'Custa 2'], ['Defeito', 'Devolve 2']],
+        verso: () => (<p>Bonito, rico e corajoso são qualidades; feio, pobre e covarde são defeitos. Com dois defeitos, você paga mais duas qualidades — e um defeito bem escolhido rende ótimas cenas na mesa. O passado histórico do seu reino (cada reino tem três para escolher) vem de graça.</p>) },
+    ] },
+    { id: 'profissao', icone: 'ti-briefcase', titulo: 'Profissão', cartas: [
+      { id: 'reservatorios', titulo: 'Escolha sua profissão', frase: 'A profissão é o ofício do seu personagem, e é ela que decide no que ele melhora a cada estágio.',
+        numeros: [['Guerreiro', 'Mais resistente'], ['Ladino', 'Mais habilidoso'], ['Mago', 'Mais estudioso']],
+        verso: () => (<>
+          <p>A cada estágio, a profissão dá a você energia heroica e pontos para gastar em quatro coisas: habilidades, armas, técnicas (as manobras de combate) e magias. Nas técnicas e nas magias, o seu intelecto ainda soma mais pontos.</p>
+          <p>O <b>guerreiro</b> é o mais resistente e o que mais treina para a luta: a cada estágio, ganha {ehBaseDe('Guerreiro')} de energia heroica, {armasDe('Guerreiro')} pontos de armas e {tecBaseDe('Guerreiro')} + intelecto de técnica. Em troca, quase não estuda magia: {magiaBaseDe('Guerreiro')} + intelecto. O seu elemento é o fogo.</p>
+          <p>O <b>ladino</b> é o mais habilidoso: ganha {habDe('Ladino')} pontos de habilidade por estágio, além de {armasDe('Ladino')} de armas e {tecBaseDe('Ladino')} + intelecto de técnica. A energia heroica é média ({ehBaseDe('Ladino')}) e a magia, quase nenhuma ({magiaBaseDe('Ladino')} + intelecto). O seu elemento é o ar.</p>
+          <p>O <b>rastreador</b> é o meio-termo da natureza: {ehBaseDe('Rastreador')} de energia heroica, {habDe('Rastreador')} pontos de habilidade, {armasDe('Rastreador')} de armas, {tecBaseDe('Rastreador')} + intelecto de técnica e {magiaBaseDe('Rastreador')} + intelecto de magia. O seu elemento é a terra.</p>
+          <p>O <b>bardo</b> estuda tanto quanto o mago — {magiaBaseDe('Bardo')} + intelecto de magia por estágio — e ainda ganha {habDe('Bardo')} pontos de habilidade. Luta pouco: {armasDe('Bardo')} de armas, {tecBaseDe('Bardo')} + intelecto de técnica e {ehBaseDe('Bardo')} de energia heroica. O seu elemento é a água.</p>
+          <p>O <b>sacerdote</b> une fé e coragem: {ehBaseDe('Sacerdote')} de energia heroica, {armasDe('Sacerdote')} de armas e {magiaBaseDe('Sacerdote')} + intelecto de magia, mas só {habDe('Sacerdote')} de habilidade e {tecBaseDe('Sacerdote')} + intelecto de técnica. O seu elemento é a luz.</p>
+          <p>O <b>mago</b> é o mais estudioso: {magiaBaseDe('Mago')} + intelecto de magia por estágio. Em troca, é o mais frágil — só {ehBaseDe('Mago')} de energia heroica —, quase não treina armas ({armasDe('Mago')}) nem técnicas ({tecBaseDe('Mago')} + intelecto) e ganha {habDe('Mago')} de habilidade. O seu elemento é a escuridão.</p>
+          <p>Se o seu intelecto for negativo, ele não tira pontos: conta como zero. Já com a aura negativa, a profissão não dá pontos de magia, e sobram só os do intelecto. Depois de salva, a profissão não muda mais.</p>
+        </>) },
+      { id: 'livro', titulo: 'Seu primeiro livro', frase: 'Todo personagem começa com o livro da sua profissão, que ensina 10 magias, 10 técnicas e 10 habilidades.',
+        numeros: [['Magias', '10'], ['Técnicas', '10'], ['Habilidades', '10']],
+        verso: () => (<>
+          <p>O livro não ensina de graça: ele abre a porta, e aprender continua custando os seus pontos. Ele também não se gasta — fica no seu inventário para os próximos estágios.</p>
+          <p>O sacerdote recebe o livro do seu deus. Sem deus, não há livro.</p>
+        </>) },
+      { id: 'elemento', titulo: 'Seu elemento', frase: 'Cada profissão pertence a um elemento, e um golpe machuca mais quando o elemento dele vence o elemento do alvo.',
+        numeros: [['No ciclo dos quatro', '10% a mais de dano'], ['Luz contra escuridão', '15% a mais'], ['Escuridão contra os quatro', '5% a mais']],
+        verso: () => (<>
+          <p>O fogo, o ar, a terra e a água formam um ciclo: o fogo vence o ar, o ar vence a terra, a terra vence a água e a água vence o fogo. A luz vence a escuridão, e a escuridão leva uma pequena vantagem sobre os outros quatro.</p>
+          <p>Quando você lança uma magia que tem elemento, vale o elemento dela; nos outros golpes, vale o seu. A vantagem só funciona num sentido e não se acumula: conta a maior.</p>
+          <SimuladorElemento />
+        </>) },
+      { id: 'deus', titulo: 'Deus e milagres', frase: 'Milagres são as magias que os deuses concedem a quem tem fé. Sem um deus, ou sendo do elemento escuridão, o seu personagem não aprende nem recebe milagres.',
+        numeros: [['Mago', 'Não usa milagres']],
+        verso: () => (<p>Qualquer profissão pode aprender qualquer magia, desde que tenha o item que a ensina — menos os milagres, que dependem da fé. O deus é escolhido na criação e não muda depois. O mago, que é do elemento escuridão, não usa milagres; vampiros e lobisomens também não.</p>) },
+    ] },
+    { id: 'especializacao', icone: 'ti-award', titulo: 'Especialização', cartas: [
+      { id: 'escola', titulo: 'Escolha sua especialização', frase: 'A especialização é a escola onde o seu personagem se formou, e é dela que vem o título dele.',
+        numeros: [['Quando', 'Na criação ou depois'], ['Quantas vezes', 'Uma só']],
+        verso: () => (<>
+          <p>Você pode deixar em branco na criação e escolher mais tarde — mas só uma vez. Depois de escolhida, ela não muda. Estas são as escolas de cada profissão, com o título que cada uma dá:</p>
+          {Object.entries(esp).map(([prof, lista]) => (
+            <p key={prof}>O <b>{prof.toLowerCase()}</b> pode se formar {gpLista(lista.map((e) => `${/^Col/.test(e.esp) ? 'no' : 'na'} ${e.esp} (${e.titulo.toLowerCase()})`), 'ou')}.</p>
+          ))}
+        </>) },
+      { id: 'acao', titulo: 'O que a especialização dá', frase: 'Além do título, o guerreiro e o ladino especializados ganham uma ação a mais por rodada, só para usar técnicas.',
+        numeros: [['Guerreiro e ladino', 'Uma ação a mais para técnicas']],
+        verso: () => (<>
+          <p>Na batalha, cada combatente tem um número de <b>pontos de ação</b> por rodada — quantas coisas pode fazer na sua vez. O guerreiro e o ladino especializados ganham mais um, que só serve para técnicas.</p>
+          <p>A especialização não limita o que você aprende: “básica” e “especializada”, nas magias e técnicas, só organizam o catálogo.</p>
+        </>) },
+    ] },
+    { id: 'atributos', icone: 'ti-chart-radar', titulo: 'Atributos', cartas: [
+      { id: 'pontos', titulo: 'Quantos pontos você tem', frase: 'No estágio 1, você tem 15 pontos para distribuir nos seus atributos, e a cada dois estágios ganha mais um.',
+        numeros: [['No estágio 1', '15 pontos'], ['Depois', 'Mais 1 a cada 2 estágios']],
+        verso: () => (<p>Cada atributo começa onde a sua raça deixou. A partir dali, você sobe os que quiser com esses pontos — e também pode baixar um atributo para ganhar pontos de volta. Em cada passo da criação, o assistente mostra quanto ainda sobra antes de você clicar.</p>) },
+      { id: 'custo', titulo: 'Quanto custa subir um atributo', frase: 'Quanto mais alto o atributo, mais caro fica subir: o primeiro ponto custa 1, mas chegar a +4 custa 10.',
+        numeros: [['Até +1', '1 ponto'], ['Até +2', '3 pontos'], ['Até +3', '6 pontos'], ['Até +4', '10 pontos']],
+        verso: () => (<>
+          <p>Cada degrau custa um pouco mais que o anterior. Levar um atributo até +1 custa 1 ponto; até +2, 3 pontos; até +3, 6; até +4, 10; até +5, 15; e até +6, 21. Descer também vale: deixando um atributo em −1, você recebe meio ponto de volta, e em −2, um ponto inteiro.</p>
+          <p>A conta começa de onde a sua raça deixou. O anão já nasce com físico +2 sem pagar nada; para chegar a +3, ele paga só a diferença: 6 menos 3, ou seja, 3 pontos. E se você baixar um atributo que a raça deu, recebe essa diferença de volta.</p>
+        </>) },
+      { id: 'negativo', titulo: 'Atributo abaixo de zero', frase: 'Deixar um atributo negativo devolve pontos para você gastar em outro — mas isso tem um preço.',
+        numeros: [['Em −1', 'Devolve meio ponto'], ['Em −2', 'Devolve 1 ponto']],
+        verso: () => (<>
+          <p>A boa notícia: na sua energia física, energia heroica, resistências, karma, velocidade e defesa, o negativo conta como zero e não tira nada.</p>
+          <p>O preço aparece nos testes. As habilidades e técnicas ligadas àquele atributo ficam mais difíceis, e se for o atributo que a sua arma usa, o ataque perde o dobro.</p>
+        </>) },
+      { id: 'alimenta', titulo: 'Para que serve cada atributo', frase: 'Cada atributo cuida de uma parte do seu personagem. Escolha os que combinam com o que você quer que ele faça.',
+        numeros: [['Intelecto', 'Aprender magias e técnicas'], ['Percepção', 'Mais energia heroica']],
+        verso: () => (<>
+          <p>Quer bater mais forte, carregar mais peso e empunhar as armas pesadas? Invista em <b>força</b>. Quer aguentar mais dano e resistir a venenos e doenças? O <b>físico</b> enche a sua energia física e também ajuda a carregar peso.</p>
+          <p>Se a ideia é agir primeiro e ser difícil de acertar, a <b>agilidade</b> aumenta a sua velocidade e a sua defesa. A <b>percepção</b> dá mais energia heroica, seja qual for a sua profissão.</p>
+          <p>Para quem quer aprender muitas magias e técnicas, o <b>intelecto</b> dá mais pontos para isso, em todas as profissões. A <b>aura</b> protege você das magias inimigas e dá o karma para lançar as suas — com a aura abaixo de 1, não há karma nenhum.</p>
+          <p>E o <b>carisma</b> ajuda a convencer e inspirar as pessoas, além de fazer voltar mais energia heroica quando você dorme ou medita.</p>
+        </>) },
+      { id: 'contas', titulo: 'Como a ficha calcula tudo', frase: 'Você não precisa fazer conta nenhuma: a ficha transforma os seus atributos nos números que você usa na mesa.',
+        verso: () => (<>
+          <p>Tudo começa na sua altura, que vem da raça e do gênero. Dela sai o seu <b>peso</b> — o anão é mais pesado para o tamanho que tem. O peso dividido por 5, mais o seu físico, dá a sua <b>energia física</b>, a vida do corpo: em 0 você cai, e em −15 morre.</p>
+          <p>A <b>energia heroica</b>, o fôlego e a sorte que o dano gasta primeiro, é a da sua profissão multiplicada pelo estágio, mais a sua percepção.</p>
+          <p>As duas resistências crescem com o estágio. A <b>resistência física</b>, que segura venenos, doenças e efeitos no corpo, soma o seu físico; a <b>resistência mágica</b>, que segura as magias lançadas contra você, soma a sua aura. O <b>karma</b>, a energia que você gasta para lançar magias, cresce com a resistência mágica e com a aura.</p>
+          <p>Por fim, a <b>velocidade</b> vem da sua altura, mais a sua agilidade. Ela decide quem age primeiro e quanto você anda — e com 30 ou mais, você age duas vezes por rodada.</p>
+        </>) },
+      { id: 'defesa', titulo: 'Como a armadura protege', frase: 'A armadura protege você de dois jeitos: a defesa deixa você mais difícil de acertar, e a absorção segura parte do dano quando o golpe acerta.',
+        numeros: [['Conjunto leve completo', 'Mais defesa e um pouco de absorção'], ['Conjunto médio', 'Um meio-termo'], ['Conjunto pesado', 'A maior absorção']],
+        verso: () => (<>
+          <p>A sua <b>defesa</b> soma o tipo do peitoral (leve, médio ou pesado), a proteção das outras peças e a sua agilidade. A ficha mostra algo como “M7”: armadura média, 7 de defesa. Cada ponto de defesa deixa o ataque do inimigo um pouco mais difícil.</p>
+          <p>A <b>absorção</b> é a soma das peças que você veste, mais a sagração e a qualidade de quem as fabricou.</p>
+          <p>Vestindo o conjunto completo — todas as peças do mesmo tipo, iguais e inteiras —, você ganha um bônus: o leve dá +2 de absorção e +2 de defesa; o médio, +3 e +1; o pesado, +4 de absorção. Peça quebrada não protege. Algumas peças tiram velocidade ou karma, mas o sacerdote e o rastreador não perdem o karma.</p>
+        </>) },
+      { id: 'carga', titulo: 'Quanto você consegue carregar', frase: 'Carregar muito peso deixa você lento: passou da metade do que você aguenta, a velocidade e a defesa começam a cair.',
+        numeros: [['Mais da metade', 'Um pouco mais lento'], ['Mais de três quartos', 'Bem mais lento'], ['Quase no limite', 'Arrastando os pés']],
+        verso: () => (<>
+          <p>O quanto você aguenta depende da sua força e do seu físico, mais o espaço das mochilas, bolsas e outros recipientes. E nem tudo pesa igual: o que você está vestindo ou empunhando pesa a metade; o que está dentro de um recipiente, três quartos; o que está solto, o peso inteiro.</p>
+          <p>Passando da metade da carga (51%), você perde um quarto da velocidade e 1 de defesa. Passando de três quartos (76%), perde metade da velocidade e 2 de defesa, as habilidades de agilidade ficam 2 pontos mais difíceis, e a fome, a sede e o sono chegam 25% mais rápido.</p>
+          <p>Quase no limite (91% ou mais), você perde três quartos da velocidade e 4 de defesa, fica sem a ação extra, e a fome, a sede e o sono chegam 50% mais rápido. Acima de 100%, nada novo cabe no inventário.</p>
+        </>) },
+    ] },
+    { id: 'habilidades', icone: 'ti-tools', titulo: 'Habilidades', cartas: [
+      { id: 'total', titulo: 'Como funciona uma habilidade', frase: 'As habilidades são o que o seu personagem sabe fazer fora da luta. Quanto mais nível você compra, melhor ele fica — e o atributo ligado a ela e o bônus da raça e do reino ajudam.',
+        numeros: [['Ladino', 'O mais habilidoso'], ['Sacerdote e mago', 'Os que menos treinam']],
+        verso: () => (<>
+          <p>A cada estágio, a sua profissão dá pontos de habilidade. O <b>ladino</b> é o mais habilidoso: ganha {habDe('Ladino')} pontos por estágio. Depois vem o <b>rastreador</b>, com {habDe('Rastreador')}, e o <b>guerreiro</b> e o <b>bardo</b>, com {habDe('Guerreiro')}. O <b>sacerdote</b> e o <b>mago</b> são os que menos treinam: {habDe('Mago')} cada.</p>
+          <p>O nível de uma habilidade nunca passa do seu estágio. Depois de criado, o seu personagem continua crescendo pela ficha: o botão <b>Subir nível</b> compra os próximos níveis de habilidades, técnicas e magias.</p>
+        </>) },
+      { id: 'menos7', titulo: 'Compre o primeiro nível', frase: 'Tentar uma habilidade sem nenhum treino é difícil: você perde 7 no teste. O primeiro nível já apaga essa perda, e é a compra que mais rende na ficha.',
+        numeros: [['Sem treino', '−7'], ['Com 1 nível', '+1']],
+        verso: () => (<>
+          <p>Em Tagmar, os testes são resolvidos numa tabela de colunas: quanto mais alta a coluna, mais fácil o sucesso. Sair de −7 para +1 sobe 8 colunas pelo preço de um nível só.</p>
+          <p>Por isso, antes de subir muito a sua habilidade favorita, vale comprar o primeiro nível nas habilidades que a sua mesa costuma pedir.</p>
+        </>) },
+      { id: 'aprimora', titulo: 'Habilidades que abrem escolhas', frase: 'Quatro habilidades dão algo novo conforme você melhora nelas: uma língua, um culto ou uma escolha a mais.',
+        numeros: [['Idioma', 'Uma língua a cada 10'], ['Religião', 'Um culto a cada 5'], ['Arte e sabedoria', 'Uma escolha a cada 7']],
+        verso: () => (<>
+          <p>Na habilidade idioma, cada 10 pontos dão uma língua nova; em religião, cada 5 dão um culto; em arte e em sabedoria, cada 7 dão uma escolha a mais.</p>
+          <p>Depois da criação, uma habilidade nova se aprende pelo livro, com 12 horas na atividade treinar. Os níveis seguintes sobem na hora, pela ficha.</p>
+        </>) },
+      { id: 'restricao', titulo: 'Habilidades que a armadura atrapalha', frase: 'Algumas habilidades ficam mais difíceis com armadura média ou pesada, e outras você só consegue usar se tiver comprado.',
+        numeros: [['Marca M ou P', 'Mais difícil com essa armadura'], ['Marca N', 'Só se tiver comprado']],
+        verso: () => (<>
+          <p>O catálogo mostra uma marca em cada habilidade. Com <b>M</b> ou <b>P</b>, ela fica um nível mais difícil quando você veste armadura desse tipo. Com <b>N</b>, você não consegue usar sem ter comprado pelo menos um nível.</p>
+          <p>Quem vive de furtividade ou acrobacia sente o peso da armadura — e precisa escolher entre proteção e destreza.</p>
+        </>) },
+    ] },
+    { id: 'armas', icone: 'ti-sword', titulo: 'Armas e técnicas', cartas: [
+      { id: 'grupos', titulo: 'Grupos de armas', frase: 'Você não treina uma espada só: treina um grupo de armas parecidas. Cada nível no grupo deixa mais fácil acertar com todas elas.',
+        numeros: [['Armas leves', 'Mais baratas de treinar'], ['Armas pesadas', 'As mais caras']],
+        verso: () => (<>
+          <p>As armas se dividem pelo jeito de ferir. No <b>corte</b> ficam as facas, as machadinhas, as espadas e os grandes machados; na <b>perfuração</b>, as adagas, as lanças, os arcos e as bestas; no <b>esmagamento</b>, os porretes, as maças e os martelos. Cada um desses três tem um grupo leve, um médio e um pesado. Há ainda o combate desarmado (punhos e soqueiras) e o de imobilização (redes e boleadeiras).</p>
+          <p>Os grupos leves, o desarmado e o de imobilização custam 2 pontos por nível; os médios, 3; os pesados, 4. Cada nível sobe uma coluna no seu ataque — e quanto mais alta a coluna, mais fácil acertar. O nível do grupo nunca passa do seu estágio.</p>
+          <p>O <b>guerreiro</b> é quem mais treina armas: {armasDe('Guerreiro')} pontos por estágio. O <b>ladino</b> e o <b>rastreador</b> ganham {armasDe('Ladino')}; o <b>sacerdote</b>, {armasDe('Sacerdote')}; o <b>bardo</b>, {armasDe('Bardo')}; e o <b>mago</b>, só {armasDe('Mago')}.</p>
+        </>) },
+      { id: 'coluna', titulo: 'Como se calcula o ataque', frase: 'A sua chance de acertar depende de três coisas: a sua arma contra a armadura do alvo, o seu treino no grupo e a defesa do alvo.',
+        verso: () => (<>
+          <p>Cada arma tem três valores: um contra armadura leve, um contra média e um contra pesada. Eles já incluem o atributo que a arma usa — a força numa espada, a agilidade num arco — e a qualidade de quem a fabricou. Cada ponto nesse atributo vale 2 colunas, e o negativo também conta.</p>
+          <p>Imagine um alvo com defesa “M7”: armadura média, 7 de defesa. A sua arma vale 12 contra armadura média, e você tem nível 2 no grupo. O seu ataque fica na coluna 12 mais 2 menos 7, ou seja, 7.</p>
+          <p>Se acertar, o dano é o da arma mais a sua força e a sagração. Armas pesadas pedem uma <b>força mínima</b>: abaixo dela, você não consegue usá-las.</p>
+        </>) },
+      { id: 'tecnicas', titulo: 'O que são técnicas', frase: 'Técnicas são manobras de combate que você treina: um golpe especial, uma defesa, um truque. Sem treino, você perde 7 no teste.',
+        numeros: [['Guerreiro', 'O que mais treina técnicas']],
+        verso: () => (<>
+          <p>Qualquer profissão aprende qualquer técnica, com o pergaminho ou o manual que a ensina. O item não se gasta. Cada técnica diz com quais armas (e às vezes com quais armaduras) ela funciona.</p>
+          <p>A cada estágio, a profissão dá pontos para aprender técnicas, e o seu intelecto soma mais. O <b>guerreiro</b> é quem mais aprende: {tecBaseDe('Guerreiro')} pontos por estágio, mais o intelecto. O <b>ladino</b> ganha {tecBaseDe('Ladino')}; o <b>rastreador</b>, {tecBaseDe('Rastreador')}; o <b>sacerdote</b> e o <b>bardo</b>, {tecBaseDe('Bardo')}; e o <b>mago</b>, só {tecBaseDe('Mago')} — sempre mais o intelecto.</p>
+        </>) },
+      { id: 'aprender-tec', titulo: 'Aprender uma técnica', frase: 'Uma técnica nova leva 36 horas de treino. Depois disso, cada nível a mais vale na hora.',
+        numeros: [['Técnica nova', '36 horas de treino'], ['Níveis seguintes', 'Na hora']],
+        verso: () => (<>
+          <p>Só contam as horas do relógio da mesa em que o seu personagem está com a atividade treinar ligada. Depois de aprendida, os próximos níveis se compram em <b>Subir nível</b> e valem na mesma hora.</p>
+          <p>Na batalha, as técnicas que o sistema aplica sozinho podem ser ativadas uma vez por rodada sem gastar ponto de ação.</p>
+        </>) },
+    ] },
+    { id: 'magias', icone: 'ti-wand', titulo: 'Magias', cartas: [
+      { id: 'passos', titulo: 'Como a magia cresce', frase: 'Cada magia sobe de dois em dois níveis — 1, 3, 5, 7 e 9 — e nunca passa do seu estágio.',
+        numeros: [['Para aprender', 'Mais caro a cada nível'], ['Para lançar', 'Gasta karma']],
+        verso: () => (<>
+          <p>O <b>karma</b> é a sua energia mágica: cada vez que você lança uma magia, gasta karma igual ao nível dela.</p>
+          <p>Para aprender, você paga o nível vezes o custo da magia. Uma magia de custo 2 no nível 5, por exemplo, custa 10 pontos para aprender e gasta 5 de karma a cada vez que é lançada. As básicas custam 1 ou 2 por nível; as perdidas, 2 ou 3; as ancestrais, 3 ou 4.</p>
+        </>) },
+      { id: 'pontos-magia', titulo: 'Pontos para aprender magias', frase: 'A cada estágio, a sua profissão dá pontos para aprender magias, e o seu intelecto soma mais.',
+        numeros: [['Mago e bardo', 'Mais estudiosos'], ['Guerreiro e ladino', 'Os que menos estudam']],
+        verso: () => (<>
+          <p>O <b>mago</b> e o <b>bardo</b> são os mais estudiosos: {magiaBaseDe('Mago')} pontos de magia por estágio, mais o intelecto. O <b>rastreador</b> e o <b>sacerdote</b> ganham {magiaBaseDe('Sacerdote')}, e o <b>guerreiro</b> e o <b>ladino</b>, só {magiaBaseDe('Guerreiro')} — sempre mais o intelecto.</p>
+          <p>Se o seu intelecto for negativo, ele conta como zero. Se a sua aura for negativa, a profissão não dá pontos de magia, e sobram só os do intelecto.</p>
+        </>) },
+      { id: 'aprender-mag', titulo: 'Aprender uma magia', frase: 'Uma magia nova leva 24 horas de dedicação. Depois disso, cada nível a mais vale na hora.',
+        numeros: [['Feitiço', 'Estudando'], ['Milagre', 'Orando'], ['Transmutação', 'Meditando'], ['Encanto', 'Praticando']],
+        verso: () => (<>
+          <p>Cada tipo de magia se aprende de um jeito: o feitiço, estudando; o milagre, orando; a transmutação, meditando; o encanto, praticando.</p>
+          <p>Você aprende pelo item que ensina a magia: um livro (da profissão, do deus, da ordem, do colégio, da confraria ou da trilha) ou um pergaminho — as magias perdidas e ancestrais têm pergaminho próprio. O item não se gasta. Os rituais pedem ingredientes, e a própria magia diz quais.</p>
+        </>) },
+      { id: 'itens-magicos', titulo: 'Itens mágicos', frase: 'Um anel, um cajado ou uma arma encantada lança a sua magia de graça, sem gastar karma, desde que você esteja usando o item.',
+        numeros: [['Karma gasto', 'Nenhum']],
+        verso: () => (<p>Usar quer dizer empunhar ou vestir; os itens que se consomem funcionam direto da mochila. A magia sai no nível do item. O pergaminho é diferente: ele não lança a magia, só ensina. E a magia do item tem o próprio elemento — um mago, que é da escuridão, lançando fogo num alvo do ar, ganha os 10% do fogo.</p>) },
+      { id: 'aura', titulo: 'Sem aura, sem magia', frase: 'Com a aura abaixo de 1, você não tem karma — e sem karma, nenhuma magia sai.',
+        numeros: [['Aura 0', 'Nenhum karma']],
+        verso: () => (<p>O intelecto dá os pontos para aprender; a aura dá o karma para lançar. Uma boa estratégia: aprenda várias magias no nível 1 (cada uma gasta só 1 de karma) e leve a sua favorita até o nível 5, que equilibra a força dela com quantas vezes você consegue lançá-la.</p>) },
+    ] },
+    { id: 'combate', icone: 'ti-swords', titulo: 'Combate', cartas: [
+      { id: 'iniciativa', titulo: 'Quem age primeiro', frase: 'Na batalha, age primeiro quem é mais rápido: a sua velocidade, somada a um dado de dez lados rolado no começo.',
+        numeros: [['O dado', 'De 1 a 10'], ['No empate', 'O personagem vai antes']],
+        verso: () => (<p>Quando a batalha começa, cada jogador rola o dado do seu personagem, e o Mestre rola o das criaturas — um para cada tipo. O resultado se soma à velocidade e define a ordem da rodada. No empate, o personagem age antes da criatura.</p>) },
+      { id: 'pa', titulo: 'Quantas ações por rodada', frase: 'Personagens muito velozes podem agir duas vezes por rodada.',
+        numeros: [['Todos', 'Uma ação'], ['Velocidade alta', 'Uma ação a mais'], ['Guerreiro e ladino especializados', 'Mais uma, para técnicas']],
+        verso: () => (<p>Em cada ação você pode atacar, evocar magias ou usar técnicas de combate. Se você estiver carregando muitos itens, ou itens muito pesados, perde a ação extra. O guerreiro e o ladino especializados têm um ponto a mais, usado exclusivamente para técnicas de combate.</p>) },
+      { id: 'd20', titulo: 'O dado e a tabela', frase: 'Para atacar, você rola um dado de vinte lados na coluna do seu ataque. O resultado diz quanto do golpe entra — de nada até um golpe e meio.',
+        numeros: [['Médio', 'Metade do dano'], ['Muito difícil', 'O dano inteiro'], ['Absurdo', 'Um golpe e meio']],
+        verso: () => (<>
+          <p>O resultado vai subindo conforme o dado. No <b>rotineiro</b>, você erra. No <b>fácil</b>, entra um quarto do dano; no <b>médio</b>, metade; no <b>difícil</b>, três quartos; no <b>muito difícil</b>, o dano inteiro; no <b>espetacular</b>, o dano inteiro e mais um quarto. E no <b>absurdo</b>, um golpe e meio — e você ainda rola o dado de crítico.</p>
+          <p>O pior resultado é a <b>falha crítica</b>: você erra e se machuca, levando um terço do golpe direto no corpo, sem passar pela energia heroica.</p>
+          <p>Tirar 1 no dado é sempre falha crítica; tirar 20 é sempre absurdo. Os bônus de dano em porcentagem (do elemento, das magias) se somam, e o total arredonda para cima.</p>
+        </>) },
+      { id: 'cascata', titulo: 'Para onde vai o dano', frase: 'O dano gasta primeiro a sua energia heroica. Quando ela acaba, a armadura segura uma parte, e o resto fere o seu corpo — a energia física.',
+        numeros: [['Primeiro', 'A energia heroica'], ['Depois', 'A armadura'], ['Por fim', 'A energia física']],
+        verso: () => (<>
+          <p>Se o golpe for menor ou igual à absorção da sua armadura, ela segura tudo. Se for maior, só a diferença chega à energia física, e a armadura se desgasta um pouco. A peça que se desgasta toda quebra e para de proteger.</p>
+          <p>Os golpes críticos e algumas técnicas passam direto pela energia heroica. Quem já está caído ou desmaiado também leva o golpe sem ela.</p>
+        </>) },
+      { id: 'queda', titulo: 'Desmaiar, cair e morrer', frase: 'Sem energia heroica, você desmaia. Com a energia física em zero, você cai. Se ela chegar a −15, o seu personagem morre.',
+        numeros: [['Energia física de 0 a −14', 'Caído'], ['Energia física em −15', 'Morto']],
+        verso: () => (<p>Com a energia física em zero ou menos, o seu personagem fica desmaiado por 4 rodadas e depois acorda — mas continua caído e morrendo, mesmo acordado, até alguém cuidar dele.</p>) },
+      { id: 'escuridao', titulo: 'Lutar no escuro', frase: 'Sem luz, fica mais difícil acertar: o seu ataque perde 2 colunas na penumbra, 4 no escuro e 6 numa escuridão mágica.',
+        numeros: [['Penumbra', 'Um pouco mais difícil'], ['Escuro', 'Bem mais difícil'], ['Escuridão mágica', 'Quase às cegas']],
+        verso: () => (<p>Quem enxerga no escuro, por magia (Visão Animal) ou por técnica (Luta às Cegas), não perde nada.</p>) },
+      { id: 'bandos', titulo: 'Bandos de criaturas', frase: 'Quando aparecem muitas criaturas iguais, elas lutam em bandos: um líder e seguidores mais fracos, que fogem se o líder morrer.',
+        numeros: [['Até 6 criaturas', 'Cada uma luta sozinha'], ['7 ou mais', 'Formam bandos']],
+        verso: () => (<>
+          <p>De 7 a 10 criaturas, os bandos são de 3; de 11 a 16, de 4; com 17 ou mais, de 5. Cada seguidor tem só um quarto da energia física, da energia heroica e da absorção da criatura, e age junto do líder.</p>
+          <p>Se o líder só desmaiar, o bando continua lutando: o que espanta o bando é só a morte dele.</p>
+        </>) },
+      { id: 'montaria', titulo: 'Lutar montado', frase: 'Montados, cavaleiro e animal lutam como um só, e a energia heroica do animal protege o cavaleiro.',
+        numeros: [['Velocidade', 'A da montaria']],
+        verso: () => (<p>O cavaleiro usa a velocidade da montaria. Se ela cair, ele desmonta e continua a pé.</p>) },
+    ] },
+    { id: 'condicoes', icone: 'ti-heartbeat', titulo: 'Condições', cartas: [
+      { id: 'barras', titulo: 'Fome, sono, frio e outras condições', frase: 'Cada condição é uma barra que vai de 0 (ideal) a 100 (pior). A cada 25 pontos, ela piora alguma coisa no seu personagem.',
+        numeros: [['Em 0', 'Tudo bem'], ['A cada 25', 'Piora um pouco mais']],
+        verso: () => (<>
+          <p>Cada condição pesa num lugar. A <b>doença</b> tira energia física. O <b>sono</b> e o <b>frio</b> deixam você mais lento. A <b>sede</b> enfraquece a sua resistência mágica, e a <b>fome</b>, a sua resistência física — até 4 pontos cada. O <b>vício</b> consome o seu karma. A <b>loucura</b> e o <b>calor</b> gastam a sua energia heroica. A <b>desonra</b> corta a sua influência sobre as pessoas, até a metade. E carregar peso demais conta como a condição <b>pesado</b> (veja Atributos).</p>
+          <p>O tempo que passa na mesa enche as barras, e as atividades da ficha — dormir, meditar, orar, estudar, treinar, praticar, fabricar — esvaziam. A roupa certa limita o quanto o frio e o calor podem subir. Quando uma barra passa de 25, a mesa avisa você.</p>
+        </>) },
+    ] },
+  ];
+}
+
+/* ============================== [08.8] GuiaPersonagem — a mesa de cartas ============================== */
+function GuiaPersonagem({ lang = 'pt' }) {
+  const caps = React.useMemo(() => montarCapitulos(), []);
+  const [ci, setCi] = useState(0);         // capítulo
+  const [ki, setKi] = useState(0);         // carta no capítulo
+  const [tip, abrirTip, fecharTip, manterTip] = useTooltip(60);
+  const palcoRef = useRef(null);
+  const [altura, setAltura] = useState(null);
+  const cap = caps[ci];
+  const carta = cap.cartas[ki];
+  const totalCartas = caps.reduce((n, c) => n + c.cartas.length, 0);
+  const posGlobal = caps.slice(0, ci).reduce((n, c) => n + c.cartas.length, 0) + ki + 1;
+
+  /* A altura útil: da carta até o pé da janela, menos a fileira e a régua de
+     baixo — a página não ganha barra vertical. */
+  const medir = React.useCallback(() => {
+    const el = palcoRef.current;
+    if (!el) return;
+    const topo = el.getBoundingClientRect().top;
+    // Reserva o pé (.pg-rodape) e o respiro do cartão abaixo do corpo.
+    setAltura(Math.max(360, Math.floor(window.innerHeight - topo - 96)));
+  }, []);
+  React.useLayoutEffect(() => {
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, [medir]);
+
+  const ir = (c, k) => { setCi(c); setKi(k); };
+  /* O capítulo e a carta acesos sempre à vista (revisão final): no celular o
+     trilho e a fileira rolam de lado, e o atual podia ficar fora da tela. */
+  const raizRef = useRef(null);
+  useEffect(() => {
+    const raiz = raizRef.current;
+    if (!raiz) return;
+    // Rola só o trilho e a fileira (nunca a página): o aceso vai para o meio.
+    [['.gc-trilho', '.is-ativo'], ['.gc-baralho', '.is-atual']].forEach(([cx, sel]) => {
+      const caixa = raiz.querySelector(cx);
+      const el = caixa && caixa.querySelector(sel);
+      if (!el || caixa.scrollWidth <= caixa.clientWidth) return;
+      const dx = el.getBoundingClientRect().left - caixa.getBoundingClientRect().left + caixa.scrollLeft
+        - (caixa.clientWidth - el.offsetWidth) / 2;
+      caixa.scrollLeft = Math.max(0, dx);
+    });
+  }, [ci, ki]);
+  /* O texto da carta avisa que tem mais: esmaece a borda de baixo enquanto há rolagem. */
+  const versoRef = useRef(null);
+  const [versoRola, setVersoRola] = useState(false);
+  useEffect(() => {
+    const el = versoRef.current;
+    if (!el) return undefined;
+    const medirVerso = () => setVersoRola(el.scrollHeight - el.clientHeight - el.scrollTop > 4);
+    medirVerso();
+    el.addEventListener('scroll', medirVerso);
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(medirVerso) : null;
+    if (ro) ro.observe(el);
+    return () => { el.removeEventListener('scroll', medirVerso); if (ro) ro.disconnect(); };
+  }, [ci, ki]);
+  const temAnterior = ci > 0 || ki > 0;
+  const temProxima = ci < caps.length - 1 || ki < cap.cartas.length - 1;
+  const voltar = () => {
+    if (ki > 0) ir(ci, ki - 1);
+    else if (ci > 0) ir(ci - 1, caps[ci - 1].cartas.length - 1);
+  };
+  const avancar = () => {
+    if (ki < cap.cartas.length - 1) ir(ci, ki + 1);
+    else if (ci < caps.length - 1) ir(ci + 1, 0);
+  };
+  useEffect(() => {
+    const onKey = (e) => {
+      const alvo = e.target;
+      if (alvo && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName))) return;
+      if (document.querySelector('.ms-backdrop')) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); voltar(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); avancar(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  /* A PÁGINA NO PADRÃO DA FICHA (11/11/2026, usuário: "E o nosso padrão de
+     layout? Trilhos dentro da página, cores sem transparência"). Cartão
+     sólido da página (.pjs dentro do .mc-content), o trilho dos capítulos
+     DENTRO dele com as pílulas do Livro de Regras (.livro-trilho .mc-acao),
+     réguas de borda a borda, e o pé (.pg-rodape) com Anterior · carta ·
+     Próxima. Cada carta: a arte vertical à esquerda (carta.imagem; sem ela,
+     o ícone do capítulo guarda o lugar) e o texto à direita, com o título
+     de cartão da Ficha (.fp-col-tit).
+     SEM VIRAR (11/11/2026, usuário: "Remova o 'ver o porquê' e coloque o
+     texto no card, pois há muito espaço vazio"): a frase, os números e o
+     porquê ficam juntos na carta; o texto rola por dentro quando é longo. */
+  const arteDe = (k) => (k.imagem
+    ? <img src={k.imagem} alt="" className="gc-arte-img" />
+    : <i className={'ti ' + cap.icone + ' gc-arte-ic'} aria-hidden="true" />);
+  return (
+    <div className="pjs gc-page" id="gp-topo" ref={raizRef}>
+      <div className="cartoes-barra livro-trilho gc-trilho-barra">
+        <div className="best-header-acoes gc-trilho mn-rolagem" role="toolbar" aria-label="Capítulos do guia">
+          {caps.map((c, i) => (
+            <button key={c.id} type="button" className={'mc-acao gc-cap' + (i === ci ? ' is-ativo is-atual' : '')}
+              aria-current={i === ci ? 'step' : undefined} data-cap={c.id} aria-label={c.titulo}
+              {...(i === ci ? {} : propsTip(abrirTip, fecharTip, c.titulo))}
+              onClick={() => { fecharTip(); ir(i, 0); }}>
+              <i className={'ti ' + c.icone} aria-hidden="true" />
+              {/* Treze capítulos não cabem no trilho com nome: o atual diz o
+                  nome; os outros, só o ícone — o nome no balão do sistema. */}
+              {i === ci && <span className="mc-acao-rotulo">{c.titulo}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="gc-corpo" ref={palcoRef} style={altura ? { height: altura + 'px' } : undefined}>
+        <article className="gc-carta" aria-labelledby="gc-carta-tit" key={cap.id + ':' + carta.id}>
+          <figure className={'gc-arte' + (carta.imagem ? '' : ' is-vazia')}>{arteDe(carta)}</figure>
+          <div className="gc-texto">
+            <h2 id="gc-carta-tit" className="fp-col-tit gc-titulo">{carta.titulo}</h2>
+            <div ref={versoRef} className={'gc-carta-corpo mn-rolagem' + (versoRola ? ' tem-mais' : '')}>
+              <p className="gc-frase">{carta.frase}</p>
+              {carta.numeros && carta.numeros.length > 0 && (
+                <div className="mn-passe gc-passe">
+                  {carta.numeros.map(([r, v]) => (
+                    <div key={r} className="mn-celula"><span className="mn-rotulo">{r}</span><span className="mn-celula-valor">{v}</span></div>
+                  ))}
+                </div>
+              )}
+              {carta.sim
+                ? <carta.sim>{carta.verso()}</carta.sim>
+                : <div className="gc-porque">{carta.verso()}</div>}
+            </div>
+          </div>
+        </article>
+
+        {cap.cartas.length > 1 && (
+        <div className="gc-baralho mn-rolagem" role="tablist" aria-label={'Cartas de ' + cap.titulo}>
+          {cap.cartas.map((k, i) => (
+            <button key={k.id} type="button" role="tab" aria-selected={i === ki}
+              className={'gc-mini' + (i === ki ? ' is-atual' : '')} onClick={() => ir(ci, i)}>
+              <span className="gc-mini-n">{i + 1}</span>
+              <span className="gc-mini-tit">{k.titulo}</span>
+            </button>
+          ))}
+        </div>
+        )}
+      </div>
+
+      <nav className="pg-rodape gc-nav" aria-label="Cartas">
+        <button type="button" className="btn-ghost btn-sm" disabled={!temAnterior} onClick={voltar}>
+          <i className="ti ti-chevron-left" aria-hidden="true" />Anterior
+        </button>
+        <span className="gc-pos" aria-live="polite">{cap.titulo} · carta <b>{ki + 1}</b> de {cap.cartas.length}<span className="gc-pos-total"> · {posGlobal} de {totalCartas}</span></span>
+        <button type="button" className="btn-ghost btn-sm" disabled={!temProxima} onClick={avancar}>
+          Próxima<i className="ti ti-chevron-right" aria-hidden="true" />
+        </button>
+      </nav>
+      <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} abaixo />
+    </div>
+  );
+}
+
+Object.assign(window, { GuiaPersonagem, montarCapitulosDoGuia: montarCapitulos });
