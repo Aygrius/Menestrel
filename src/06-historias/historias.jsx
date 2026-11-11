@@ -420,6 +420,11 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
      uma página; Anterior e Próximo viram a página e, na última, passam ao
      capítulo seguinte. */
   const CENA_PAG_VAO = 48;
+  /* AS ANOTAÇÕES À PARTE (11/11/2026, usuário: "A página não vai usar barra
+     de rolagem vertical, a área destinada para as anotações será menor"): o
+     lado do texto se divide — em cima, as páginas do capítulo; embaixo, as
+     anotações, com pouco mais de um terço da altura e rolagem só por dentro. */
+  const CENA_NOTAS_FRACAO = 0.36;
   const vistaRef = useRef(null);
   const fluxoRef = useRef(null);
   const navRef = useRef(null);
@@ -431,7 +436,8 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
   const medirVista = React.useCallback(() => {
     const v = vistaRef.current;
     if (!v) return;
-    const topo = v.getBoundingClientRect().top;
+    const lado = v.closest('.cena-lado') || v;
+    const topo = lado.getBoundingClientRect().top;
     const nav = navRef.current ? navRef.current.offsetHeight : 56;
     const rod = document.getElementById('pg-rodape-slot');
     const reserva = nav + (rod ? rod.offsetHeight : 0) + 40;
@@ -443,7 +449,9 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
     if (!umPorPagina || !folha) return undefined;
     medirVista();
     window.addEventListener('resize', medirVista);
-    return () => window.removeEventListener('resize', medirVista);
+    const ro = typeof ResizeObserver === 'function' && vistaRef.current ? new ResizeObserver(medirVista) : null;
+    if (ro) ro.observe(vistaRef.current);
+    return () => { window.removeEventListener('resize', medirVista); if (ro) ro.disconnect(); };
   }, [umPorPagina, folhaChave, medirVista]);
   // Conta as páginas depois de o fluxo assentar (e de novo quando a imagem carrega).
   const contarPaginas = React.useCallback(() => {
@@ -569,8 +577,8 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
   const outrasNotas = (notas || []).filter((n) => !anotar || n.user_id !== userId);
   const tituloDe = (c) => c.titulo || (en ? 'Untitled' : 'Sem título');
   // O texto do capítulo com a imagem junto, na folha e na janela.
-  const corpoDoCapitulo = (cap, classe) => {
-    const img = imagemDe(cap.c);
+  const corpoDoCapitulo = (cap, classe, semImagem = false) => {
+    const img = semImagem ? null : imagemDe(cap.c);
     const pars = paragrafos(cap.c.texto);
     return (
       <div className={classe}>
@@ -670,15 +678,33 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
               </div>
             </header>
             {imgErro && <p className="cena-notas-erro" role="alert">{imgErro}</p>}
-            {/* As páginas: a vista recorta, o fluxo corre em colunas e desliza. */}
-            <div ref={vistaRef} className="cena-paginas"
-              style={{ height: geo.h ? geo.h + 'px' : undefined, '--cena-pag-h': (geo.h || 480) + 'px' }}>
-              <div ref={fluxoRef} className="cena-paginas-fluxo"
-                style={geo.w ? {
-                  columnWidth: geo.w + 'px', columnGap: CENA_PAG_VAO + 'px',
-                  transform: `translateX(${-pag * (geo.w + CENA_PAG_VAO)}px)`,
-                } : undefined}>
-                {corpoDoCapitulo(folha, 'cena-folha-corpo')}
+            {/* METADE E METADE (11/11/2026, usuário: "a imagem deve ocupar metade
+                da página, a descrição do capítulo e as anotações a outra metade.
+                Pode recortar a imagem para ficar vertical"): com imagem, a folha
+                é uma grade de duas colunas — a arte à esquerda, recortada na
+                altura da página (object-fit: cover), e à direita as páginas do
+                texto e das anotações. Sem imagem, o texto ocupa a largura toda. */}
+            <div className={'cena-palco' + (imagemDe(folha.c) ? ' tem-imagem' : '')}>
+              {imagemDe(folha.c) && (
+                <figure className="cena-palco-arte" style={{ height: geo.h ? geo.h + 'px' : undefined }}>
+                  <img src={imagemDe(folha.c)} alt={en ? `Image for ${tituloDe(folha.c)}` : `Imagem de ${tituloDe(folha.c)}`} />
+                </figure>
+              )}
+              <div className="cena-lado" style={{ height: geo.h ? geo.h + 'px' : undefined }}>
+                {/* As páginas: a vista recorta, o fluxo corre em colunas e desliza. */}
+                <div ref={vistaRef} className="cena-paginas"
+                  style={{
+                    height: geo.h ? Math.round(geo.h * (capId ? 1 - CENA_NOTAS_FRACAO : 1)) + 'px' : undefined,
+                    '--cena-pag-h': (geo.h || 480) + 'px',
+                  }}>
+                  <div ref={fluxoRef} className="cena-paginas-fluxo"
+                    style={geo.w ? {
+                      columnWidth: geo.w + 'px', columnGap: CENA_PAG_VAO + 'px',
+                      transform: `translateX(${-pag * (geo.w + CENA_PAG_VAO)}px)`,
+                    } : undefined}>
+                    {corpoDoCapitulo(folha, 'cena-folha-corpo', true)}
+                  </div>
+                </div>
                 {secaoNotas()}
               </div>
             </div>

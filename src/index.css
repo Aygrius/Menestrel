@@ -18640,6 +18640,31 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa):has(.batalha-aviso-vez) .menes
 #root .menestrel-ui .cena-paginas .cena-nota { break-inside: avoid; }
 #root .menestrel-ui .cena-paginas .cena-notas { margin-top: 24px; }
 #root .menestrel-ui .cena-folha-sep { color: var(--tinta-3); }
+/* METADE E METADE (11/11/2026, usuário: "a imagem deve ocupar metade da
+   página, a descrição do capítulo e as anotações a outra metade. Pode recortar
+   a imagem para ficar vertical"): a arte à esquerda, na altura da página e
+   recortada pelo centro; o texto e as anotações paginam na metade da direita. */
+#root .menestrel-ui .cena-palco { display: block; min-width: 0; }
+#root .menestrel-ui .cena-palco.tem-imagem { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+#root .menestrel-ui .cena-palco-arte {
+  margin: 0; min-width: 0; height: var(--cena-pag-h, 480px); overflow: hidden;
+  border: 1px solid var(--regua-forte); border-radius: var(--pg-cartao-raio, 10px);
+  background: var(--pg-cartao-fundo, var(--chao-celula));
+}
+/* O lado do texto: as páginas em cima, as anotações embaixo, menores, com
+   rolagem só por dentro — a página não ganha barra vertical. */
+#root .menestrel-ui .cena-lado { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+#root .menestrel-ui .cena-lado > .cena-paginas { flex: none; }
+#root .menestrel-ui .cena-folha .cena-lado > .cena-notas {
+  flex: 1 1 0; min-height: 0; overflow-y: auto; margin-top: 16px; padding: 14px 4px 0 0; gap: 10px;
+}
+#root .menestrel-ui .cena-lado > .cena-notas .cena-nota-minha textarea { min-height: 72px; }
+#root .menestrel-ui .cena-palco-arte img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+@media (max-width: 720px) {
+  /* No celular as metades empilham: a arte num retrato baixo, o texto embaixo. */
+  #root .menestrel-ui .cena-palco.tem-imagem { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  #root .menestrel-ui .cena-palco-arte { height: 240px !important; }
+}
 @media (prefers-reduced-motion: reduce) {
   #root .menestrel-ui .cena-paginas-fluxo { transition: none; }
 }

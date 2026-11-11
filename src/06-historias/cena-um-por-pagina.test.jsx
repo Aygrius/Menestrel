@@ -70,6 +70,21 @@ describe('a Cena do Mestre: um capítulo por página', () => {
     expect(screen.getByRole('navigation', { name: 'Capítulos' }).textContent).toMatch(/Capítulo\s*3\s*de\s*3/);
     expect(screen.queryByText('A Estrada')).toBeNull();          // um por página
   });
+  /* "A imagem deve ocupar metade da página, a descrição do capítulo e as
+     anotações a outra metade" e "a área destinada para as anotações será
+     menor" (usuário, 11/11/2026). */
+  it('metade e metade: a arte à esquerda; à direita, as páginas do texto e as anotações embaixo', () => {
+    montar();
+    const palco = document.querySelector('.cena-palco.tem-imagem');
+    expect(palco).toBeTruthy();
+    expect(palco.querySelector(':scope > .cena-palco-arte img').getAttribute('src')).toBe('https://x/torre.jpg');
+    const lado = palco.querySelector(':scope > .cena-lado');
+    expect(lado.querySelector(':scope > .cena-paginas')).toBeTruthy();
+    expect(lado.querySelector(':scope > .cena-notas')).toBeTruthy();
+    // A imagem não se repete dentro do texto, e as anotações não correm nas páginas.
+    expect(document.querySelector('.cena-paginas .cena-cap-figura')).toBeNull();
+    expect(document.querySelector('.cena-paginas .cena-notas')).toBeNull();
+  });
 
   it('Anterior e Próximo andam pelo livro, e param nas pontas', () => {
     montar();

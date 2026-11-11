@@ -220,6 +220,28 @@ describe('janelas do catálogo', () => {
   });
 });
 
+/* "Ao clicar em um item, mostrar nas características as restrições de mana
+   que a armadura tem" (usuário, 11/11/2026): o mod_kar entra como a linha
+   Karma, com sinal e no azul do karma; sem restrição, a linha não aparece. */
+describe('a restrição de karma nas características do item', () => {
+  it('cota média: Karma −10, no azul', () => {
+    const { container } = render(<window.BestItemFicha lang="pt"
+      it={{ nome: 'Cota', descricao: 'Cota de malha.', defesa: 2, absorcao: 3, mod_kar: -10 }} />);
+    const linha = container.querySelector('[data-numero="karma"]');
+    expect(linha.querySelector('dt').textContent).toBe('Karma');
+    expect(linha.querySelector('.item-numero-valor').textContent).toBe('-10');
+    expect(linha.querySelector('.item-numero-valor').classList.contains('st-tom--azul')).toBe(true);
+  });
+  it('colete de couro, sem restrição: nenhuma linha de karma', () => {
+    const { container } = render(<window.BestItemFicha lang="pt"
+      it={{ nome: 'Colete', descricao: 'Colete de couro.', defesa: 1, absorcao: 1, mod_kar: 0 }} />);
+    expect(container.querySelector('[data-numero="karma"]')).toBeNull();
+  });
+  it('joia que abre karma: +2', () => {
+    expect(window.numerosDoItem({ mod_kar: 2 }, 'pt').find((c) => c.chave === 'karma').valor).toBe('+2');
+  });
+});
+
 /* "Já que você colocou o texto 'Efeito', coloque acima o texto 'Descrição'.
    Isso vale para habilidades, magias, etc." (usuário, 26/09/2026) */
 describe('a descrição tem título em toda janela', () => {

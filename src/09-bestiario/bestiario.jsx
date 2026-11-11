@@ -3272,7 +3272,7 @@ function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId, semNume
    números do item selecionado"). Cada dado é uma célula — rótulo pequeno
    sobre o número, na cor do status (a mesma de StatusNoTexto). O que o passe
    do topo já mostra (`fora`) não se repete. */
-const NUMEROS_DO_ITEM = ['ocupa', 'armazena', 'defesa', 'absorcao', 'resistencia', 'forca', 'valor', 'dano', 'eficacia', 'alcance'];
+const NUMEROS_DO_ITEM = ['ocupa', 'armazena', 'defesa', 'absorcao', 'resistencia', 'forca', 'karma', 'valor', 'dano', 'eficacia', 'alcance'];
 function numerosDoItem(it, lang, { fora, resistenciaTexto } = {}) {
   if (!it) return [];
   const en = lang === 'en';
@@ -3292,6 +3292,13 @@ function numerosDoItem(it, lang, { fora, resistenciaTexto } = {}) {
       valor: gasta ? <>{num(agora)}<small>/{num(max)}</small></> : num(agora) });
   }
   if (!sai('forca') && tem(it.forca_req)) c.push({ chave: 'forca', rotulo: en ? 'Strength' : 'Força', valor: num(it.forca_req) });
+  /* A RESTRIÇÃO DE KARMA (11/11/2026, usuário: "Ao clicar em um item, mostrar
+     nas características as restrições de mana que a armadura tem"): o
+     mod_kar do catálogo, com sinal, no azul do karma. A joia que abre karma
+     aparece do mesmo jeito, positiva. Sacerdote e Rastreador não sofrem a
+     restrição (SEM_RESTRICAO_KARMA, 01-core) — a peça é a mesma para todos,
+     então o número fica o do catálogo. */
+  if (!sai('karma') && tem(it.mod_kar)) c.push({ chave: 'karma', rotulo: 'Karma', valor: sinal(it.mod_kar), tom: 'azul' });
   if (!sai('dano') && it.dano != null && it.dano !== '') c.push({ chave: 'dano', rotulo: en ? 'Damage' : 'Dano', valor: num(it.dano) });
   /* DESTREZA (07/11/2026, usuário: "Pesadas, Médias, Leves vira 'Destreza' e
      o valor aparece 7/4/6"): a eficácia contra armadura pesada, média e leve
