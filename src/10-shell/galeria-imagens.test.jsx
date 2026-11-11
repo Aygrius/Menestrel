@@ -218,20 +218,19 @@ describe('as faixas', () => {
    fonte — mesmo caminho de armadura-karma-ficha.test.jsx. O que importa aqui
    é o LUGAR ("abaixo de Paleta") e quem vê. */
 describe('a entrada no menu do usuário', () => {
-  it('fica abaixo de Paleta e acima de Convites', () => {
-    const paleta = shellFonte.indexOf("lang === 'en' ? 'Palette' : 'Paleta'");
-    const imagens = shellFonte.indexOf("lang === 'en' ? 'Images' : 'Imagens'");
-    const convites = shellFonte.indexOf("lang === 'en' ? 'Invites' : 'Convites'");
-    expect(paleta).toBeGreaterThan(-1);
-    expect(imagens).toBeGreaterThan(paleta);
-    expect(convites).toBeGreaterThan(imagens);
+  /* Nas Configurações (11/11/2026, usuário: "Os testes de combate, imagens e
+     perfil também vão ficar dentro de configurações"). */
+  it('saiu do menu da conta e mora nas Configurações', () => {
+    const cfg = shellFonte.indexOf('function ConfiguracoesModal(');
+    const menu = shellFonte.slice(shellFonte.indexOf('function UserMenu('), cfg);
+    expect(menu).not.toMatch(/'Imagens'/);
+    expect(shellFonte.indexOf("en ? 'Images' : 'Imagens'", cfg)).toBeGreaterThan(cfg);
   });
   it('é só do Mestre — a galeria é pauta de produção', () => {
-    const i = shellFonte.indexOf("lang === 'en' ? 'Images' : 'Imagens'");
-    expect(shellFonte.slice(i - 400, i)).toMatch(/onImagens && profile === 'master'/);
+    expect(shellFonte).toMatch(/const ferramentasMestre = profile === 'master';/);
   });
   it('o modal é montado quando a entrada é clicada', () => {
-    expect(shellFonte).toMatch(/onImagens=\{\(\) => \{ setUserMenuOpen\(false\); setImagensAberto\(true\); \}\}/);
+    expect(shellFonte).toMatch(/onImagens=\{\(\) => setImagensAberto\(true\)\}/);
     expect(shellFonte).toMatch(/imagensAberto && typeof GaleriaImagensModal !== 'undefined'/);
   });
 });

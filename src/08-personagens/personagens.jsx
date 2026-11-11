@@ -67,10 +67,11 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     let cancel = false;
     (async () => {
       setCarregando(true);
+      // A montagem também (11/11/2026): é nela que o Jogador rola a iniciativa.
       const { data } = await supabaseClient
         .from('batalhas')
         .select('*')
-        .eq('estado', 'ativa')
+        .in('estado', ['setup', 'ativa'])
         .order('created_at', { ascending: false });
       if (cancel) return;
       const batalhaDoJogador = (data || []).find((b) =>
@@ -100,7 +101,7 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         const { data } = await supabaseClient
           .from('batalhas')
           .select('*')
-          .eq('estado', 'ativa')
+          .in('estado', ['setup', 'ativa'])
           .order('created_at', { ascending: false });
         if (cancel) return;
         const b = (data || []).find((b2) =>
@@ -124,6 +125,13 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // onde o AcaoPanel e os helpers de combate vivem. Aqui só detectamos a
   // batalha ativa e repassamos o snapshot fresquinho (vindo do realtime).
   if (viewBatalha && batalhaAtiva) {
+    /* NA MONTAGEM (11/11/2026): o Jogador rola o d10 da iniciativa extra do
+       personagem — BatalhaPreparoJogador. Quando o Mestre inicia, o realtime
+       traz a batalha ativa e esta mesma tela vira a da luta. */
+    const Preparo = window.BatalhaPreparoJogador;
+    if (batalhaAtiva.estado === 'setup' && Preparo) {
+      return <Preparo batalha={batalhaAtiva} pjAtivoId={pjAtivoId} lang={lang} onVoltar={() => setViewBatalha(false)} />;
+    }
     return (
       <BatalhaJogadorView
         batalha={batalhaAtiva}

@@ -7,7 +7,7 @@
    Próximo, e põe a imagem no próprio capítulo (historias.capitulos[]
    .imagem_url). A Mesa do Jogador continua na grade e mostra a imagem.
    ============================================================ */
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
@@ -116,6 +116,49 @@ describe('a Cena do Mestre: um capítulo por página', () => {
       { target: { files: [new File(['x'], 'a.txt', { type: 'text/plain' })] } });
     expect(screen.getByRole('alert').textContent).toMatch(/arquivo de imagem/);
     expect(cliente.feito.uploads).toHaveLength(0);
+  });
+});
+
+/* O TEXTO EM PÁGINAS (11/11/2026, usuário: "Na página 'Cena', não teremos uma
+   barra vertical. O texto poderá ser navegável por páginas."). O jsdom não
+   faz layout: a largura da vista e a do fluxo em colunas são simuladas — um
+   capítulo que ocupa três larguras de página tem três páginas. */
+describe('a Cena do Mestre: o texto em páginas', () => {
+  const props = ['clientWidth', 'scrollWidth'];
+  const originais = {};
+  beforeAll(() => {
+    props.forEach((k) => { originais[k] = Object.getOwnPropertyDescriptor(HTMLElement.prototype, k); });
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true,
+      get() { return this.classList && this.classList.contains('cena-paginas') ? 600 : 0; } });
+    Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true,
+      get() { return this.classList && this.classList.contains('cena-paginas-fluxo') ? 600 * 3 + 48 * 2 : 0; } });
+  });
+  // Os originais moram em Element.prototype: basta tirar a sombra posta aqui.
+  afterAll(() => { props.forEach((k) => { if (originais[k]) Object.defineProperty(HTMLElement.prototype, k, originais[k]); else delete HTMLElement.prototype[k]; }); });
+
+  it('Próximo vira a página; na última página do último capítulo, para', () => {
+    montar();
+    const nav = () => screen.getByRole('navigation', { name: 'Capítulos' });
+    expect(nav().textContent).toMatch(/Capítulo\s*3\s*de\s*3\s*·\s*Página\s*1\s*de\s*3/);
+    fireEvent.click(screen.getByRole('button', { name: /Próximo/ }));
+    expect(nav().textContent).toMatch(/Página\s*2\s*de\s*3/);
+    fireEvent.click(screen.getByRole('button', { name: /Próximo/ }));
+    expect(nav().textContent).toMatch(/Página\s*3\s*de\s*3/);
+    expect(screen.getByRole('button', { name: /Próximo/ }).disabled).toBe(true);
+    // O fluxo desliza uma largura de página (+ o vão) por página.
+    expect(document.querySelector('.cena-paginas-fluxo').style.transform).toBe('translateX(-1296px)');
+  });
+  it('Anterior na primeira página volta à ÚLTIMA página do capítulo anterior', () => {
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: /Anterior/ }));
+    const nav = screen.getByRole('navigation', { name: 'Capítulos' });
+    expect(nav.textContent).toMatch(/Capítulo\s*2\s*de\s*3\s*·\s*Página\s*3\s*de\s*3/);
+  });
+  it('sem barra vertical: a vista recorta e o fluxo corre em colunas', () => {
+    montar();
+    const vista = document.querySelector('.cena-paginas');
+    expect(vista.style.height).toMatch(/px$/);
+    expect(document.querySelector('.cena-paginas-fluxo').style.columnWidth).toBe('600px');
   });
 });
 

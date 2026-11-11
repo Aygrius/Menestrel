@@ -169,12 +169,15 @@ describe('card', () => {
 
   const fonte = readFileSync(resolve(__dirname, 'batalha.jsx'), 'utf8');
 
-  it('Mestre: o EstadoDrop vem por último dentro da linha das pools', () => {
-    const ini = fonte.indexOf('<span className="batalha-card-pools-nome">');
-    const fim = fonte.indexOf('</span>', fonte.indexOf('<EstadoDrop', ini));
-    const trecho = fonte.slice(ini, fim);
-    expect(trecho).toContain('<EstadoDrop');
-    expect(trecho.indexOf('<PoolBotao')).toBeLessThan(trecho.indexOf('<EstadoDrop'));
+  /* 11/11/2026, usuário: "o ícone de mudar estado vai sair, ao clicar no nome
+     do personagem é que o mestre irá selecionar o estado". O EstadoDrop saiu
+     do fim da linha das pools e passou a ser o próprio nome, antes dela. */
+  it('Mestre: o estado se abre pelo nome, antes da linha das pools', () => {
+    const pools = fonte.indexOf('<span className="batalha-card-pools-nome">');
+    const drop = fonte.indexOf('<EstadoDrop comoNome');
+    expect(drop).toBeGreaterThan(-1);
+    expect(drop).toBeLessThan(pools);
+    expect(fonte.slice(pools, fonte.indexOf('</span>', fonte.indexOf('<StatusTempChips', pools)))).not.toContain('<EstadoDrop');
     expect(fonte).not.toContain('icone="ti-swords" variante="primary"');
   });
 

@@ -412,6 +412,73 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
     ? (emOrdem.find((x) => x.n === folhaN) || emOrdem[emOrdem.length - 1]) : null;
   const folhaI = folha ? emOrdem.indexOf(folha) : -1;
   const capAberto = umPorPagina ? folha : (aberto != null ? todos.find((x) => x.n === aberto) : null);
+  /* O TEXTO EM PÁGINAS (11/11/2026, usuário: "Na página 'Cena', não teremos
+     uma barra vertical. O texto poderá ser navegável por páginas."). O corpo
+     do capítulo (texto, imagem e anotações) corre em colunas CSS do tamanho
+     da área visível: a altura é a da janela menos o que está acima e a régua
+     de baixo, e o que não cabe vira a coluna seguinte, ao lado. Cada coluna é
+     uma página; Anterior e Próximo viram a página e, na última, passam ao
+     capítulo seguinte. */
+  const CENA_PAG_VAO = 48;
+  const vistaRef = useRef(null);
+  const fluxoRef = useRef(null);
+  const navRef = useRef(null);
+  const [geo, setGeo] = useState({ w: 0, h: 0 });
+  const [pag, setPag] = useState(0);
+  const [totalPag, setTotalPag] = useState(1);
+  const irUltimaRef = useRef(false);
+  const folhaChave = folha ? folha.n : null;
+  const medirVista = React.useCallback(() => {
+    const v = vistaRef.current;
+    if (!v) return;
+    const topo = v.getBoundingClientRect().top;
+    const nav = navRef.current ? navRef.current.offsetHeight : 56;
+    const rod = document.getElementById('pg-rodape-slot');
+    const reserva = nav + (rod ? rod.offsetHeight : 0) + 40;
+    const h = Math.max(240, Math.floor(window.innerHeight - topo - reserva));
+    const w = Math.floor(v.clientWidth);
+    setGeo((g) => (g.w === w && g.h === h ? g : { w, h }));
+  }, []);
+  React.useLayoutEffect(() => {
+    if (!umPorPagina || !folha) return undefined;
+    medirVista();
+    window.addEventListener('resize', medirVista);
+    return () => window.removeEventListener('resize', medirVista);
+  }, [umPorPagina, folhaChave, medirVista]);
+  // Conta as páginas depois de o fluxo assentar (e de novo quando a imagem carrega).
+  const contarPaginas = React.useCallback(() => {
+    const f = fluxoRef.current;
+    if (!f || !geo.w) return;
+    const n = Math.max(1, Math.round((f.scrollWidth + CENA_PAG_VAO) / (geo.w + CENA_PAG_VAO)));
+    setTotalPag(n);
+    if (irUltimaRef.current) { irUltimaRef.current = false; setPag(n - 1); }
+    else setPag((p) => Math.min(p, n - 1));
+  }, [geo.w]);
+  React.useLayoutEffect(() => { contarPaginas(); });
+  const temAnterior = folha && (pag > 0 || folhaI > 0);
+  const temProxima = folha && (pag < totalPag - 1 || folhaI < emOrdem.length - 1);
+  const voltar = () => {
+    if (pag > 0) { setPag(pag - 1); return; }
+    if (folhaI > 0) { irUltimaRef.current = true; setFolhaN(emOrdem[folhaI - 1].n); }
+  };
+  const avancar = () => {
+    if (pag < totalPag - 1) { setPag(pag + 1); return; }
+    if (folhaI < emOrdem.length - 1) { setFolhaN(emOrdem[folhaI + 1].n); setPag(0); }
+  };
+  // ← e → também viram a página, fora de campo de texto e sem janela aberta.
+  useEffect(() => {
+    if (!umPorPagina || !folha) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const alvo = e.target;
+      if (alvo && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName))) return;
+      if (document.querySelector('.ms-backdrop')) return;
+      e.preventDefault();
+      if (e.key === 'ArrowLeft') voltar(); else avancar();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   const capId = capAberto && capAberto.c.id ? String(capAberto.c.id) : null;
   const imagemDe = (c) => {
     const id = c && c.id != null ? String(c.id) : null;
@@ -509,7 +576,8 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
       <div className={classe}>
         {img && (
           <figure className="cena-cap-figura">
-            <img src={img} alt={en ? `Image for ${tituloDe(cap.c)}` : `Imagem de ${tituloDe(cap.c)}`} loading="lazy" />
+            <img src={img} alt={en ? `Image for ${tituloDe(cap.c)}` : `Imagem de ${tituloDe(cap.c)}`} loading="lazy"
+              onLoad={umPorPagina ? contarPaginas : undefined} />
           </figure>
         )}
         {pars.length ? pars : <p className="cena-cap-texto">{en ? 'No text yet.' : 'Sem texto ainda.'}</p>}
@@ -556,7 +624,7 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
             ac={ADMIN_COPY[lang] || ADMIN_COPY.pt}
             placeholder={en ? 'Search' : 'Buscar'}
             query={busca}
-            setQuery={(v) => { setBusca(v); setPage(1); setFolhaN(null); }}
+            setQuery={(v) => { setBusca(v); setPage(1); setFolhaN(null); setPag(0); }}
             podeCriar={!somenteLeitura}
             onNovo={onNovoCapitulo}
             dicaNovo={en ? 'New chapter' : 'Novo capítulo'} />
@@ -602,20 +670,34 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
               </div>
             </header>
             {imgErro && <p className="cena-notas-erro" role="alert">{imgErro}</p>}
-            {corpoDoCapitulo(folha, 'cena-folha-corpo')}
-            {secaoNotas()}
+            {/* As páginas: a vista recorta, o fluxo corre em colunas e desliza. */}
+            <div ref={vistaRef} className="cena-paginas"
+              style={{ height: geo.h ? geo.h + 'px' : undefined, '--cena-pag-h': (geo.h || 480) + 'px' }}>
+              <div ref={fluxoRef} className="cena-paginas-fluxo"
+                style={geo.w ? {
+                  columnWidth: geo.w + 'px', columnGap: CENA_PAG_VAO + 'px',
+                  transform: `translateX(${-pag * (geo.w + CENA_PAG_VAO)}px)`,
+                } : undefined}>
+                {corpoDoCapitulo(folha, 'cena-folha-corpo')}
+                {secaoNotas()}
+              </div>
+            </div>
             <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
           </article>
-          <nav className="cena-folha-nav" aria-label={en ? 'Chapters' : 'Capítulos'}>
-            <button type="button" className="btn-ghost btn-sm" disabled={folhaI <= 0}
-              onClick={() => setFolhaN(emOrdem[folhaI - 1].n)}>
+          <nav ref={navRef} className="cena-folha-nav" aria-label={en ? 'Chapters' : 'Capítulos'}>
+            <button type="button" className="btn-ghost btn-sm" disabled={!temAnterior} onClick={voltar}>
               <i className="ti ti-chevron-left" aria-hidden="true" />{en ? 'Previous' : 'Anterior'}
             </button>
             <span className="cena-folha-pos" aria-live="polite">
               {en ? 'Chapter ' : 'Capítulo '}<b>{folha.n}</b>{en ? ' of ' : ' de '}{caps.length}
+              {totalPag > 1 && (
+                <>
+                  <span className="cena-folha-sep" aria-hidden="true"> · </span>
+                  {en ? 'Page ' : 'Página '}<b>{pag + 1}</b>{en ? ' of ' : ' de '}{totalPag}
+                </>
+              )}
             </span>
-            <button type="button" className="btn-ghost btn-sm" disabled={folhaI >= emOrdem.length - 1}
-              onClick={() => setFolhaN(emOrdem[folhaI + 1].n)}>
+            <button type="button" className="btn-ghost btn-sm" disabled={!temProxima} onClick={avancar}>
               {en ? 'Next' : 'Próximo'}<i className="ti ti-chevron-right" aria-hidden="true" />
             </button>
           </nav>

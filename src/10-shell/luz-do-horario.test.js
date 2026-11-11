@@ -158,10 +158,12 @@ describe('estiloLuzFundo — o que o fundo do console recebe pronto', () => {
     expect(estiloLuzFundo({ hora: 0 }).opacity).toBeGreaterThan(estiloLuzFundo({ hora: 18 }).opacity);
   });
 
-  it('o dia é ouro e bronze; a noite, luar de aço', () => {
+  /* A luz do dia é da paleta (11/11/2026): ouro e bronze no Couro, que é
+     também o valor de reserva; a noite segue luar de aço em todas. */
+  it('o dia é a luz da paleta (ouro e bronze por padrão); a noite, luar de aço', () => {
     const dia = estiloLuzFundo({ hora: 12 });
-    expect(dia.corA).toBe('rgba(201,164,78,1)');
-    expect(dia.corB).toBe('rgba(184,112,46,1)');
+    expect(dia.corA).toBe('rgba(var(--luz-dia-rgb, 201,164,78),1)');
+    expect(dia.corB).toBe('rgba(var(--luz-dia2-rgb, 184,112,46),1)');
 
     const noite = estiloLuzFundo({ hora: 0 });
     expect(noite.corA).not.toBe(dia.corA);

@@ -543,11 +543,8 @@ function EstoqueMestreView({ historia, lang, onChanged, trilhoPaginas = null }) 
             e separava duas coisas que são a mesma: as abas do que se está
             vendo. Criar loja não é uma aba, é uma AÇÃO, e ação mora na ponta.
             Agora o trilho lê: buscar · lojas · propostas | criar. */}
-        <button type="button" className={'mc-acao' + (aba === 'propostas' ? ' is-ativo' : '')} onClick={() => { setAba('propostas'); setSel(null); }}>
-          <i className="ti ti-scale" aria-hidden="true" />
-          <span className="mc-acao-rotulo">{en ? 'Offers' : 'Propostas'}</span>
-          {pendentes.length > 0 && <span className="estoque-num">{pendentes.length}</span>}
-        </button>
+        {/* Propostas saiu do trilho (11/11/2026): mora no painel da loja, à
+            direita, abaixo de "Aberta" — ver o painel da loja. */}
 
         {/* O "Nova loja" saiu em 30/10/2026: toda cidade e todo reino já têm
             a sua, criada sozinha ao abrir o Estoque (ver lojasQueFaltam). */}
@@ -703,6 +700,16 @@ function EstoqueMestreView({ historia, lang, onChanged, trilhoPaginas = null }) 
               </div>
             </dd></div>
           </dl>
+          {/* PROPOSTAS NO PAINEL (11/11/2026, usuário: "No menu loja do mestre,
+              o botão 'propostas' fica no menu lateral direito, abaixo de
+              'aberta (sim/não)'"). Saiu do trilho de cima; o número diz
+              quantas esperam resposta. */}
+          <button type="button" className="btn-ghost estoque-propostas-btn"
+            onClick={() => { setAba('propostas'); setSel(null); }}>
+            <i className="ti ti-scale" aria-hidden="true" />
+            {en ? 'Offers' : 'Propostas'}
+            {pendentes.length > 0 && <span className="estoque-num">{pendentes.length}</span>}
+          </button>
           <p className="loja-painel-desc">{en ? 'Choose an item to edit it, or search to add one from the catalog.' : 'Escolha um item para editá-lo, ou busque para pôr um do catálogo.'}</p>
           {/* EXCLUIR VALE TAMBÉM PARA A ÚLTIMA LOJA (29/10/2026) — sem o campo
               "Cidade", uma cidade digitada errada no "+" não tem mais conserto

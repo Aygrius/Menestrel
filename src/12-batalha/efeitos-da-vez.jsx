@@ -315,6 +315,23 @@ function EfeitosDaVez({ batalhaId, cortina, log, isEn, seguraCards = true }) {
       window.dispatchEvent(new CustomEvent('menestrel:revelacao', { detail: { batalhaId: id, intervalo: 0 } }));
     };
   }, [batalhaId, ativa]);
+  /* O CARD ESPERA A REVELAÇÃO (11/11/2026, usuário: "O modal de notificação
+     vai ficar ativo até o mestre revelar a ação"). Toda tela com a cortina —
+     a do Mestre também — marca a batalha aqui; o card de um evento dela não
+     some sozinho no tempo de sempre, só quando 'menestrel:revelacao' chega
+     (CentralMensagens, 10-shell/shell.jsx). */
+  const comCortina = !!cortina;
+  useEffect(() => {
+    if (batalhaId == null || !comCortina) return undefined;
+    const id = String(batalhaId);
+    const set = (window.__menestrelRevelacao = window.__menestrelRevelacao || new Set());
+    set.add(id);
+    return () => {
+      set.delete(id);
+      // Saindo da tela da batalha, o card que esperava a revelação sai também.
+      window.dispatchEvent(new CustomEvent('menestrel:revelacao', { detail: { batalhaId: id, intervalo: 0 } }));
+    };
+  }, [batalhaId, comCortina]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   useEffect(() => {

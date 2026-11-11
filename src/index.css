@@ -747,7 +747,7 @@
 
 /* ============================================================
    CONVITES (05) — re-skin "Pedra & Bronze"
-   Migrado do <style>{CONV_CSS}</style> que antes vivia inline em
+   Migrado do \3c style>{CONV_CSS}\3c /style> que antes vivia inline em
    05-convites/convites.jsx. Consolida AQUI também os 7 overrides de
    retint que antes ficavam soltos na seção grad-dragon mais abaixo
    (font-weight dos títulos, Lora em .cv-sub/.cv-mesa-pj/.cv-mesa-data,
@@ -1115,10 +1115,6 @@
 #root .menestrel-ui .loja-it--magico { border-color: rgba(var(--ouro-rgb),0.55); }
 #root .menestrel-ui .loja-it--magico::before { opacity: 1; height: 3px; }
 #root .menestrel-ui .loja-it--magico:hover:not(:disabled) { border-color: rgba(var(--ouro-rgb),0.85); border:1px solid var(--accent-foreground); }
-
-@media (max-width: 880px) {
-  /* loja-grid: auto-fill já adapta ao tamanho disponível — sem override necessário */
-}
 
 /* preço em fichas */
 #root .menestrel-ui .loja-preco { display:inline-flex; align-items:center; gap:8px; font-size: var(--fs-sm); font-weight:600; color: var(--vivo); }
@@ -3297,6 +3293,36 @@
 #root .menestrel-ui .btn-ghost.estado.st-morto[data-on="true"]:hover:not(:disabled) { color: #D18172; }
 #root .menestrel-ui .btn-ghost.estado.st-desistiu[data-on="true"],
 #root .menestrel-ui .btn-ghost.estado.st-desistiu[data-on="true"]:hover:not(:disabled) { color: var(--parchment); }
+/* O NOME É O BOTÃO DO ESTADO (11/11/2026): o nome com o ícone do estado ao
+   lado, na cor dele; o clique abre a mesma tira de estados. */
+#root .menestrel-ui .batalha-nome-estado {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px; margin: -2px -6px;
+  border: none; border-radius: 6px; background: none; cursor: pointer; text-align: left;
+}
+#root .menestrel-ui .batalha-nome-estado:hover { background: rgba(var(--bronze-rgb),0.14); color: var(--tinta); }
+#root .menestrel-ui .batalha-nome-estado[aria-expanded="true"] { background: var(--vivo-fundo); }
+#root .menestrel-ui .batalha-nome-estado:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
+#root .menestrel-ui .batalha-nome-estado-ic { font-size: 16px; flex: none; }
+#root .menestrel-ui .batalha-nome-estado.st-ativo .batalha-nome-estado-ic { color: #a4cf85; }
+#root .menestrel-ui .batalha-nome-estado.st-desmaiado .batalha-nome-estado-ic { color: #7a9bb8; }
+#root .menestrel-ui .batalha-nome-estado.st-morto .batalha-nome-estado-ic { color: #D18172; }
+#root .menestrel-ui .batalha-nome-estado.st-desistiu .batalha-nome-estado-ic { color: var(--tinta-2); }
+/* O RESUMO DA ÚLTIMA RODADA (11/11/2026): abaixo dos botões do card, linhas
+   de quadro — ícone, o quê e em quem, e o resultado à direita. */
+#root .menestrel-ui .batalha-resumo-rodada { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--regua-forte); }
+#root .menestrel-ui .batalha-resumo-cab { margin: 0 0 6px; }
+#root .menestrel-ui .batalha-resumo-lista { list-style: none; margin: 0; padding: 0; }
+#root .menestrel-ui .batalha-resumo-linha {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: baseline; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--regua); font-size: var(--fs-sm); line-height: 1.4;
+}
+#root .menestrel-ui .batalha-resumo-linha:last-child { border-bottom: none; }
+#root .menestrel-ui .batalha-resumo-linha .ti { color: var(--tinta-3); font-size: 15px; }
+#root .menestrel-ui .batalha-resumo-o-que { color: var(--tinta); min-width: 0; }
+#root .menestrel-ui .batalha-resumo-o-que b { font-weight: 700; }
+#root .menestrel-ui .batalha-resumo-alvo { color: var(--tinta-2); }
+#root .menestrel-ui .batalha-resumo-res { color: var(--tinta-2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#root .menestrel-ui .batalha-resumo-res.is-critico { color: var(--vivo); font-weight: 700; }
 /* Dropdown de estado — aparece ao clicar no botão único de estado do card */
 #root .menestrel-ui .batalha-estado-drop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 32; min-width: 140px; display: flex; flex-direction: column; gap: 2px; padding: 5px; background: var(--ink-bg-3); border: 1px solid var(--regua-forte); border-radius: 8px; box-shadow: 0 12px 28px -10px rgba(0,0,0,.75); }
 #root .menestrel-ui .batalha-estado-drop-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: transparent; border: none; border-radius: 5px; color: var(--parchment-muted); font-family: var(--font-body); font-size: var(--fs-sm); cursor: pointer; transition: background .12s, color .12s; text-align: left; }
@@ -5565,10 +5591,6 @@
 
 @keyframes fp-spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 880px) {
-  /* stats ficam abaixo dos campos, abrangendo 2 cols */
-}
-
 /* ============================================================
    SHELL — 10-shell/shell.jsx
    FichasJogador (fj-*), UserMenu (mc-usermenu),
@@ -5634,7 +5656,7 @@
 /* .mc-root é co-classe do wrapper .menestrel-ui — sem espaço no seletor */
 #root .menestrel-ui.mc-root {
   display: flex; height: 100vh; width: 100%; position: relative; overflow: hidden;
-  background: #19110C;
+  background: var(--p-pagina, #19110C);
   color: var(--tinta); font-family: var(--font-body);
 
   /* OS VÉUS DO CONSOLE (20/09/2026). "A tela principal fica acima dos
@@ -6145,13 +6167,64 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
   .menestrel-ui.cm-root .cm-card.is-saindo { animation: cm-card-sai-simples .45s linear forwards; }
   @keyframes cm-card-sai-simples { to { opacity: 0; } }
 }
-.menestrel-ui.cm-root .cm-card-topo {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
-  color: var(--log-cor); font-family: var(--font-title); font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase;
+/* Sem título (11/11/2026): o ícone da categoria abre a linha do texto. */
+.menestrel-ui.cm-root .cm-card-linha { display: flex; align-items: flex-start; gap: 12px; }
+.menestrel-ui.cm-root .cm-card-linha .ti {
+  flex: none; color: var(--log-cor); font-size: 20px; line-height: calc(var(--fs-base) * 1.6);
 }
-.menestrel-ui.cm-root .cm-card-topo .ti { font-size: var(--fs-md); }
 .menestrel-ui.cm-root .cm-card-texto {
   margin: 0; color: var(--tinta); font-family: var(--font-body); font-size: var(--fs-base); line-height: 1.6;
+  text-wrap: pretty;
+}
+/* O DETALHE DO MESTRE (11/11/2026): uma fileira de células, rótulo sobre
+   valor, separadas por régua — o passe, sem caixa (o card já é a caixa). O
+   bônus fica ao lado do valor, mesmo tamanho e peso; muda só o tom. */
+.menestrel-ui .cm-detalhe {
+  display: flex; flex-wrap: wrap; row-gap: 10px; margin: 14px 0 0; padding-top: 12px;
+  border-top: 1px solid var(--regua-forte);
+}
+.menestrel-ui .cm-detalhe-cel { padding: 0 16px; border-left: 1px solid var(--regua-forte); }
+.menestrel-ui .cm-detalhe-cel:first-child { padding-left: 0; border-left: none; }
+.menestrel-ui .cm-detalhe dd {
+  margin: 4px 0 0; color: var(--tinta); font: 700 var(--fs-lg)/1.2 var(--font-body);
+  font-variant-numeric: lining-nums tabular-nums; white-space: nowrap;
+}
+.menestrel-ui .cm-detalhe-extra { margin-left: 6px; }
+.menestrel-ui .cm-detalhe-extra.is-bom { color: var(--st-verde, #86CF8E); }
+.menestrel-ui .cm-detalhe-extra.is-ruim { color: var(--alerta); }
+.menestrel-ui .cm-log-lista .cm-detalhe { margin-top: 10px; padding-top: 8px; }
+.menestrel-ui .cm-log-lista .cm-detalhe dd { font-size: var(--fs-md); }
+
+/* CONFIGURAÇÕES (11/11/2026): janela grande (.ms-full) em grupos, como o
+   quadro — rótulo do grupo sobre régua forte, linhas de 72px separadas por
+   régua fina; nome e frase à esquerda, o controle à direita. */
+#root .menestrel-ui .cfg-modal .ms-body { padding: 24px 32px 32px; }
+#root .menestrel-ui .cfg-grupo + .cfg-grupo { margin-top: 32px; }
+#root .menestrel-ui .cfg-grupo-cab { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--regua-forte); }
+#root .menestrel-ui .cfg-linha {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  min-height: 72px; padding: 14px 0; border-bottom: 1px solid var(--regua);
+}
+#root .menestrel-ui .cfg-linha-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#root .menestrel-ui .cfg-linha-nome { color: var(--tinta); font: 700 var(--fs-md)/1.3 var(--font-body); }
+#root .menestrel-ui .cfg-linha-frase { color: var(--tinta-2); font-size: var(--fs-sm); line-height: 1.5; text-wrap: pretty; }
+#root .menestrel-ui .cfg-linha-ctrl { flex: none; display: flex; justify-content: flex-end; }
+#root .menestrel-ui .cfg-pilula { width: auto; min-width: 280px; height: 40px; }
+#root .menestrel-ui .cfg-pilula .estoque-sim-nao-op {
+  display: inline-flex; align-items: center; justify-content: center; padding: 0 16px; white-space: nowrap;
+}
+#root .menestrel-ui .cfg-pilula .mc-um-paleta-amostra { margin-right: 8px; }
+#root .menestrel-ui .cfg-abrir {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 20px; border-radius: 999px;
+}
+#root .menestrel-ui .cfg-abrir .ti { font-size: 16px; }
+/* A Conferência das magias é link (abre o claude.ai numa aba nova), com a cara do botão. */
+#root .menestrel-ui a.cfg-abrir { text-decoration: none; color: var(--tinta); font-weight: 700; }
+@media (max-width: 640px) {
+  #root .menestrel-ui .cfg-modal .ms-body { padding: 16px 18px 24px; }
+  #root .menestrel-ui .cfg-linha { flex-direction: column; align-items: stretch; gap: 10px; }
+  #root .menestrel-ui .cfg-linha-ctrl { justify-content: stretch; }
+  #root .menestrel-ui .cfg-pilula, #root .menestrel-ui .cfg-abrir { min-width: 0; width: 100%; justify-content: center; }
 }
 
 /* O HISTÓRICO no modal do sino — a lista, com a cor de cada categoria. */
@@ -7233,7 +7306,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 /* ═══════════════════════════════════════════════════════════════════════════
    DIÁRIO (13) — 13-diario/diario.jsx — grid "pokedex" + ficha de criatura
    Migrado do bloco DIARIO_CSS que era injetado em runtime via <DiarioStyleTag>
-   (um <style> dentro do componente). Agora vive aqui: escopado em
+   (um \3c style> dentro do componente). Agora vive aqui: escopado em
    #root .menestrel-ui e no FIM do arquivo (mesmo critério de cascata das demais
    fases). Classes .diario-* (sub-abas, grid/cards da coleção, formulário de
    lore, ficha da entrada) e .cficha-* (layout rico de criatura no
@@ -8560,510 +8633,59 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
    ============================================================ */
 
 /* ── Página raiz ── */
-#root .menestrel-ui .gp-page {
-  display: flex; flex-direction: column;
-  padding: 0 0 100px;
-  font-family: var(--font-body);
-  color: var(--tinta);
-}
 
 /* ── Hero / cabeçalho ─────────────────────────────────────────
    Card glassy no molde da landing: filete gradiente-assinatura
    no topo, glow dourado ambiente, eyebrow → h1 → lead → sumário. */
-#root .menestrel-ui .gp-hero {
-  position: relative; overflow: hidden;
-  padding: clamp(24px, 4vw, 40px) clamp(20px, 3.4vw, 36px) clamp(20px, 3vw, 30px);
-  margin-bottom: 28px;
-  background: radial-gradient(680px 240px at 18% -30%, rgba(var(--ouro-rgb),0.10), transparent 70%),
-    rgba(var(--couro-rgb),0.55);
-  border: 1px solid var(--regua-forte);
-  border-radius: 14px;
-}
-#root .menestrel-ui .gp-hero::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, #B8472F, var(--ouro-2), var(--ouro), var(--ouro), var(--ouro-3));
-}
-
-#root .menestrel-ui .gp-eyebrow {
-  display: flex; align-items: center; gap: 8px;
-  font-family: var(--font-body);
-  font-size: var(--fs-xs); font-weight: 500;
-  letter-spacing: .12em; text-transform: uppercase;
-  color: var(--tinta-2); margin-bottom: 12px;
-}
-#root .menestrel-ui .gp-eyebrow i { font-size: var(--fs-md); color: var(--vivo); }
-
-#root .menestrel-ui .gp-h1 {
-  font-family: var(--font-title);
-  font-size: clamp(22px, 2.6vw, 32px); font-weight: 600; line-height: 1.22;
-  color: var(--tinta); margin-bottom: 14px;
-  max-width: 26ch;
-}
-#root .menestrel-ui .gp-h1-grad {
-  background: linear-gradient(90deg, var(--vivo), var(--ouro) 45%, var(--ouro));
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-}
-#root .menestrel-ui .gp-lead {
-  font-family: var(--font-body);
-  font-size: var(--fs-base); line-height: 1.75; color: var(--tinta-2);
-  text-align: justify; max-width: 76ch;
-}
 
 /* ── Sumário (TOC) — pills de navegação por seção ── */
-#root .menestrel-ui .gp-toc {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  margin-top: 20px; padding-top: 18px;
-  border-top: 1px solid var(--regua-forte);
-}
-#root .menestrel-ui .gp-toc-link {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 13px 6px 9px;
-  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 500;
-  color: var(--tinta-2); text-decoration: none; white-space: nowrap;
-  background: rgba(var(--couro-rgb),0.45);
-  border: 1px solid var(--regua-forte); border-radius: 999px;
-  cursor: pointer;
-  transition: border-color .15s ease, color .15s ease, background .15s ease;
-}
-#root .menestrel-ui .gp-toc-link:hover {
-  color: var(--vivo); border-color: rgba(var(--ouro-rgb),0.55);
-  background: rgba(var(--ouro-rgb),0.07);
-}
-#root .menestrel-ui .gp-toc-num {
-  font-family: var(--font-body); font-size: var(--fs-2xs); font-weight: 700;
-  letter-spacing: .04em; color: var(--vivo); font-weight: 700; font-variant-numeric: lining-nums tabular-nums; /* número: algarismo tabular, não Cinzel (22/10/2026) */
-}
 
 /* ── Seções ── */
-#root .menestrel-ui .gp-section {
-  padding: 0 4px; margin-bottom: 8px;
-  scroll-margin-top: 90px; /* âncoras do sumário não colam no topo/topbar */
-}
 
 /* Cabeçalho de seção: placa de bronze numerada (mesma forja dos
    marcadores da gp-list) + eyebrow + título, com fio de base */
-#root .menestrel-ui .gp-section-head {
-  display: flex; align-items: flex-start; gap: 14px;
-  margin-bottom: 18px; padding-bottom: 14px;
-  border-bottom: 1px solid var(--regua-forte);
-}
-#root .menestrel-ui .gp-section-num {
-  flex-shrink: 0;
-  width: 38px; height: 38px;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-body); font-size: var(--fs-md); font-weight: 700;
-  letter-spacing: .02em; color: var(--sobre-vivo);
-  background: linear-gradient(135deg, var(--ouro) 0%, var(--ouro-2) 100%);
-  border-radius: 6px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,220,120,0.25);
-  line-height: 1; font-weight: 700; font-variant-numeric: lining-nums tabular-nums; /* número: algarismo tabular, não Cinzel (22/10/2026) */
-}
-#root .menestrel-ui .gp-section-head-txt {
-  display: flex; flex-direction: column; gap: 3px; min-width: 0;
-}
-#root .menestrel-ui .gp-section-tag {
-  font-family: var(--font-body);
-  font-size: var(--fs-2xs); font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--tinta-2);
-}
-#root .menestrel-ui .gp-h2 {
-  font-family: var(--font-title);
-  font-size: clamp(16px, 1.9vw, 24px); font-weight: 500; line-height: 1.25; color: var(--tinta);
-}
-#root .menestrel-ui .gp-h3 {
-  font-family: var(--font-body);
-  font-size: var(--fs-md); font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--tinta-2); margin-bottom: 10px;
-}
-#root .menestrel-ui .gp-p {
-  font-family: var(--font-body);
-  font-size: var(--fs-md); line-height: 1.7; color: var(--tinta-2); margin-bottom: 16px; text-align: justify;
-}
-#root .menestrel-ui .gp-sub-section { margin-top: 20px; }
 
 /* ── Divisor entre seções: fio esmaecido + losango de ouro ── */
-#root .menestrel-ui .gp-divider {
-  position: relative; height: 1px; margin: 30px 0;
-  background: linear-gradient(90deg, transparent, rgba(var(--bronze-rgb),0.35) 18%, rgba(var(--bronze-rgb),0.35) 82%, transparent);
-}
-#root .menestrel-ui .gp-divider::before {
-  content: ''; position: absolute; left: 50%; top: 50%;
-  width: 7px; height: 7px;
-  transform: translate(-50%, -50%) rotate(45deg);
-  background: #201C12;
-  border: 1px solid rgba(var(--ouro-rgb),0.55);
-}
 
 /* ── Cards 2 colunas ── */
-#root .menestrel-ui .gp-col2 {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;
-}
-#root .menestrel-ui .gp-card {
-  background: rgba(var(--couro-rgb),0.55); border: 1px solid var(--regua-forte);
-  border-radius: 12px; padding: 16px 18px;
-  transition: border-color .2s ease;
-}
-#root .menestrel-ui .gp-card:hover { border-color: var(--regua-forte); }
-
-#root .menestrel-ui .gp-card-tag {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-family: var(--font-body); font-size: var(--fs-md); font-weight: 600;
-  padding: 3px 10px; border-radius: 999px; margin-bottom: 12px;
-}
-#root .menestrel-ui .gp-tag-fem  { background: rgba(var(--ouro-rgb),0.14); color: var(--vivo); border: 1px solid var(--regua-forte); }
-#root .menestrel-ui .gp-tag-masc { background: rgba(var(--bronze-rgb),0.18);  color: var(--tinta-2); border: 1px solid var(--regua-forte); }
-#root .menestrel-ui .gp-tag-neut { background: rgba(123,175,122,0.12); color: #7BAF7A; border: 1px solid var(--regua-forte); }
-#root .menestrel-ui .gp-stat-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
-#root .menestrel-ui .gp-stat-row:last-child { margin-bottom: 0; }
-#root .menestrel-ui .gp-stat-key {
-  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-2);
-}
-#root .menestrel-ui .gp-stat-val { font-family: var(--font-body); font-size: var(--fs-md); line-height: 1.5; }
-#root .menestrel-ui .gp-accent  { color: var(--vivo); font-weight: 500; }
-#root .menestrel-ui .gp-danger  { color: #D07F71; }
-#root .menestrel-ui .gp-muted   { color: var(--tinta-2); }
-#root .menestrel-ui .gp-dim     { color: var(--tinta-2); }
 
 /* ── Callout ── */
-#root .menestrel-ui .gp-callout {
-  display: flex; align-items: flex-start; gap: 12px;
-  background: rgba(var(--ouro-rgb),0.07); border: 1px solid var(--regua-forte);
-  border-left: 2px solid rgba(var(--ouro-rgb),0.55);
-  border-radius: 12px; padding: 14px 16px; margin: 16px 0;
-}
-#root .menestrel-ui .gp-callout-warn {
-  background: rgba(var(--bronze-rgb),0.08);
-  border-color: var(--regua-forte);
-  border-left-color: rgba(var(--tinta3-rgb),0.65);
-}
-#root .menestrel-ui .gp-callout-icon { flex-shrink: 0; font-size: 16px; color: var(--vivo); margin-top: 1px; }
-#root .menestrel-ui .gp-callout-warn .gp-callout-icon { color: var(--tinta-2); }
-#root .menestrel-ui .gp-callout-text { font-family: var(--font-body); font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2); margin: 0; text-align: justify; }
 
 /* ── Tabela ── */
-#root .menestrel-ui .gp-table-wrap {
-  border: 1px solid var(--regua-forte); border-radius: 12px; overflow: hidden; margin-bottom: 16px;
-}
-#root .menestrel-ui .gp-table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
-#root .menestrel-ui .gp-table th {
-  text-align: left; padding: 9px 12px;
-  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-2);
-  background: rgba(var(--bronze-rgb),0.10); border-bottom: 1px solid var(--regua-forte);
-}
-#root .menestrel-ui .gp-table td {
-  font-family: var(--font-body); padding: 9px 12px;
-  border-bottom: 1px solid var(--regua-forte); color: var(--tinta-2); vertical-align: middle;
-}
-#root .menestrel-ui .gp-table tr:last-child td { border-bottom: none; }
-#root .menestrel-ui .gp-table td:first-child { color: var(--tinta); font-weight: 500; }
-#root .menestrel-ui .gp-table tbody tr:hover td { background: rgba(var(--bronze-rgb),0.06); }
-#root .menestrel-ui .gp-badge {
-  display: inline-flex; align-items: center;
-  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600;
-  padding: 2px 8px; border-radius: 999px;
-}
-#root .menestrel-ui .gp-badge-good { background: rgba(var(--ouro-rgb),0.14); color: var(--vivo); border: 1px solid var(--regua-forte); }
 
 /* ── Cards profissão ── */
-#root .menestrel-ui .gp-card-title {
-  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-2); margin-bottom: 6px;
-}
-#root .menestrel-ui .gp-card-text { font-family: var(--font-body); font-size: var(--fs-md); line-height: 1.55; color: var(--tinta-2); margin: 0 0 10px; }
-#root .menestrel-ui .gp-bar-wrap { display: flex; align-items: center; gap: 10px; }
-#root .menestrel-ui .gp-bar { flex: 1; height: 5px; border-radius: 999px; background: rgba(var(--bronze-rgb),0.20); overflow: hidden; }
-#root .menestrel-ui .gp-bar-fill     { height: 100%; border-radius: 999px; background: var(--ouro); }
-#root .menestrel-ui .gp-bar-fill.gp-bar-alt { background: rgba(var(--bronze-rgb),0.60); }
-#root .menestrel-ui .gp-bar-label { font-family: var(--font-body); font-size: var(--fs-xs); color: var(--tinta-2); white-space: nowrap; }
 
 /* ── Seção 05 — Atributos: grid dos sete atributos ── */
-#root .menestrel-ui .gp-attr-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px;
-}
-#root .menestrel-ui .gp-attr-card {
-  background: rgba(var(--couro-rgb),0.60); border: 1px solid var(--regua-forte);
-  border-radius: 10px; padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;
-  transition: border-color 0.2s, background 0.2s;
-}
-#root .menestrel-ui .gp-attr-card:hover {
-  background: rgba(40,27,12,0.75); border-color: rgba(var(--ouro-rgb),0.35);
-}
-#root .menestrel-ui .gp-attr-header {
-  display: flex; align-items: center; gap: 8px;
-}
-#root .menestrel-ui .gp-attr-icon { font-size: 18px; flex-shrink: 0; }
-#root .menestrel-ui .gp-attr-nome {
-  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; /* Cinzel abaixo de 18px vira rótulo (22/10/2026) */
-}
-#root .menestrel-ui .gp-attr-feeds {
-  display: flex; flex-wrap: wrap; gap: 4px;
-}
-#root .menestrel-ui .gp-attr-feed-tag {
-  font-size: var(--fs-2xs); background: rgba(var(--ouro-rgb),0.12); border: 1px solid rgba(var(--ouro-rgb),0.25);
-  color: var(--vivo); border-radius: 4px; padding: 2px 6px;
-  font-family: var(--font-body); white-space: nowrap;
-}
-#root .menestrel-ui .gp-attr-dica {
-  font-family: var(--font-body); font-size: var(--fs-xs); color: #A0947D; line-height: 1.5;
-}
 
 /* ── Fórmulas como linhas visuais ── */
-#root .menestrel-ui .gp-formula-cards {
-  display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px;
-  border: 1px solid var(--regua-forte); border-radius: 10px; overflow: hidden;
-}
-#root .menestrel-ui .gp-formula-row {
-  display: grid; grid-template-columns: 80px 1fr 1fr; align-items: center;
-  gap: 12px; padding: 10px 14px; background: rgba(var(--couro-rgb),0.40);
-  border-bottom: 1px solid var(--regua-forte);
-}
-#root .menestrel-ui .gp-formula-row:last-child { border-bottom: none; }
-#root .menestrel-ui .gp-formula-row:hover { background: rgba(var(--couro-rgb),0.60); }
-#root .menestrel-ui .gp-formula-abbr {
-  display: flex; align-items: center; border: 1px solid; border-radius: 6px;
-  padding: 4px 8px; white-space: nowrap; width: fit-content;
-}
-#root .menestrel-ui .gp-formula-eq { display: flex; flex-direction: column; gap: 1px; }
-#root .menestrel-ui .gp-formula-stat {
-  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 600; color: var(--tinta);
-}
-#root .menestrel-ui .gp-formula-expr {
-  font-family: 'Courier New', Courier, monospace; font-size: var(--fs-xs); color: #A89870;
-}
-#root .menestrel-ui .gp-formula-desc {
-  font-family: var(--font-body); font-size: var(--fs-xs); color: #A2947B; line-height: 1.45;
-}
 
 /* ── Tabela de custo visual (cards horizontais) ── */
-#root .menestrel-ui .gp-custo-grid {
-  display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 14px;
-}
-#root .menestrel-ui .gp-custo-card {
-  border-radius: 10px; padding: 11px 8px; text-align: center;
-  border: 1px solid var(--regua-forte); display: flex; flex-direction: column; gap: 4px;
-  background: rgba(28,20,8,0.50); transition: transform 0.15s;
-}
-#root .menestrel-ui .gp-custo-card:hover { transform: translateY(-2px); }
-#root .menestrel-ui .gp-custo-val {
-  font-family: var(--font-body); font-size: 1.1rem; font-weight: 700; letter-spacing: 0.02em; font-weight: 700; font-variant-numeric: lining-nums tabular-nums; /* número: algarismo tabular, não Cinzel (22/10/2026) */
-}
-#root .menestrel-ui .gp-custo-custo {
-  font-family: 'Courier New', monospace; font-size: var(--fs-xs);
-}
-#root .menestrel-ui .gp-custo-label {
-  font-family: var(--font-body); font-size: var(--fs-2xs); font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75;
-}
-#root .menestrel-ui .gp-custo-tip {
-  font-family: var(--font-body); font-size: var(--fs-2xs); color: #A49479; line-height: 1.4; margin-top: 2px;
-}
 /* variantes de cor por nível */
-#root .menestrel-ui .gp-custo-devolver { border-color: rgba(167,94,70,0.40); background: rgba(120,50,30,0.18); }
-#root .menestrel-ui .gp-custo-devolver .gp-custo-val  { color: #D4856A; }
-#root .menestrel-ui .gp-custo-devolver .gp-custo-custo { color: #C98476; }
-#root .menestrel-ui .gp-custo-neutro { border-color: var(--regua-forte); }
-#root .menestrel-ui .gp-custo-neutro .gp-custo-val    { color: #A0947D; }
-#root .menestrel-ui .gp-custo-neutro .gp-custo-custo  { color: #A1947D; }
-#root .menestrel-ui .gp-custo-normal { border-color: rgba(168,196,160,0.30); background: rgba(100,140,100,0.08); }
-#root .menestrel-ui .gp-custo-normal .gp-custo-val    { color: #A8C4A0; }
-#root .menestrel-ui .gp-custo-normal .gp-custo-custo  { color: #90B088; }
-#root .menestrel-ui .gp-custo-medio { border-color: rgba(var(--ouro-rgb),0.35); background: rgba(140,100,30,0.10); }
-#root .menestrel-ui .gp-custo-medio .gp-custo-val     { color: var(--vivo); }
-#root .menestrel-ui .gp-custo-medio .gp-custo-custo   { color: #B8903C; }
-#root .menestrel-ui .gp-custo-alto { border-color: rgba(201,140,78,0.40); background: rgba(150,90,20,0.12); }
-#root .menestrel-ui .gp-custo-alto .gp-custo-val      { color: #D4A040; }
-#root .menestrel-ui .gp-custo-alto .gp-custo-custo    { color: #C48B31; }
-#root .menestrel-ui .gp-custo-max { border-color: rgba(216,100,80,0.45); background: rgba(140,50,30,0.14); }
-#root .menestrel-ui .gp-custo-max .gp-custo-val       { color: #E07858; }
-#root .menestrel-ui .gp-custo-max .gp-custo-custo     { color: #D18267; }
 
 /* ── Grid de perfis de build (4 cards) ── */
-#root .menestrel-ui .gp-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 14px; }
-#root .menestrel-ui .gp-feat-card { background: rgba(var(--couro-rgb),0.60); border: 1px solid var(--regua-forte); border-radius: 12px; padding: 16px; transition: border-color 0.2s; }
-#root .menestrel-ui .gp-feat-card:hover { border-color: rgba(var(--ouro-rgb),0.35); }
-#root .menestrel-ui .gp-feat-icon { font-size: 22px; display: block; margin-bottom: 8px; }
-#root .menestrel-ui .gp-feat-title { font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.03em; margin-bottom: 7px; text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; /* Cinzel abaixo de 18px vira rótulo (22/10/2026) */ }
-#root .menestrel-ui .gp-feat-text  { font-family: var(--font-body); font-size: var(--fs-sm); color: #A0947D; line-height: 1.55; }
 
 /* ── Lista de insights ── */
-#root .menestrel-ui .gp-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 0 0 16px; counter-reset: gp-item; }
-#root .menestrel-ui .gp-list li { font-family: var(--font-body); font-size: var(--fs-md); line-height: 1.6; color: var(--tinta-2); padding-left: 36px; position: relative; counter-increment: gp-item; }
-#root .menestrel-ui .gp-list li::before {
-  content: counter(gp-item);
-  position: absolute; left: 0; top: 0;
-  width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-body); font-size: var(--fs-2xs); font-weight: 700;
-  color: var(--sobre-vivo);
-  background: linear-gradient(135deg, var(--ouro) 0%, var(--ouro-2) 100%);
-  border-radius: 4px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,220,120,0.25);
-  line-height: 1; text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; /* Cinzel abaixo de 18px vira rótulo (22/10/2026) */
-}
 /* Destaque do título em negrito dentro do <li> */
-#root .menestrel-ui .gp-list li > b:first-child {
-  font-family: var(--font-body); font-size: var(--fs-md); font-weight: 700;
-  color: var(--tinta); letter-spacing: 0.01em;
-  display: inline;
-}
 
 /* ── Grid de raças ── */
-#root .menestrel-ui .gp-raca-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
-#root .menestrel-ui .gp-raca-card {
-  background: rgba(var(--couro-rgb),0.55); border: 1px solid var(--regua-forte);
-  border-radius: 12px; padding: 12px 14px;
-  transition: border-color .2s ease;
-}
-#root .menestrel-ui .gp-raca-card:hover { border-color: rgba(var(--ouro-rgb),0.35); }
-#root .menestrel-ui .gp-raca-nome { font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.02em; color: var(--tinta); margin-bottom: 3px; text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; /* Cinzel abaixo de 18px vira rótulo (22/10/2026) */ }
-#root .menestrel-ui .gp-raca-altura { font-size: var(--fs-xs); color: var(--vivo); font-family: var(--font-body); margin-bottom: 4px; }
-#root .menestrel-ui .gp-raca-mod { font-family: var(--font-body); font-size: var(--fs-md); color: var(--tinta-2); line-height: 1.5; }
 
 /* ── Grid de builds ── */
-#root .menestrel-ui .gp-build-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-#root .menestrel-ui .gp-build-card {
-  position: relative; overflow: hidden;
-  background: rgba(var(--couro-rgb),0.55); border: 1px solid var(--regua-forte);
-  border-radius: 12px; padding: 16px 18px;
-  transition: border-color .2s ease;
-}
-#root .menestrel-ui .gp-build-card:hover { border-color: rgba(var(--ouro-rgb),0.40); }
-#root .menestrel-ui .gp-build-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #B8472F, var(--ouro-2), var(--ouro), var(--ouro), var(--ouro-3)); }
-#root .menestrel-ui .gp-build-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-#root .menestrel-ui .gp-build-label { font-family: var(--font-body); font-size: var(--fs-md); font-weight: 700; letter-spacing: 0.02em; color: var(--tinta); text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; font-size: var(--fs-sm); /* Cinzel abaixo de 18px vira rótulo; em caixa-alta, 15px basta (22/10/2026) */ }
-#root .menestrel-ui .gp-build-sub { font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600; color: var(--vivo); margin-bottom: 8px; letter-spacing: .02em; }
-#root .menestrel-ui .gp-build-text { font-family: var(--font-body); font-size: var(--fs-md); color: var(--tinta-2); line-height: 1.55; }
 
 /* ── Simulador ── */
-#root .menestrel-ui .gp-sim-wrap { margin-top: 4px; }
-#root .menestrel-ui .gp-sim-controls { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; align-items: flex-end; }
-#root .menestrel-ui .gp-sim-field { display: flex; flex-direction: column; gap: 6px; }
-#root .menestrel-ui .gp-field-label { font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-2); }
 
 /* ── GpSelect — trigger estilo pill 999px ── */
-#root .menestrel-ui .gp-sel-trigger {
-  display: inline-flex; align-items: center; justify-content: space-between; gap: 10px;
-  min-width: 200px; padding: 8px 14px;
-  background: rgba(var(--couro-rgb),0.45); color: var(--tinta);
-  border: 1px solid var(--regua-forte); border-radius: 999px;
-  font-family: var(--font-body); font-size: var(--fs-md);
-  cursor: pointer; transition: border-color .15s ease; white-space: nowrap;
-}
-#root .menestrel-ui .gp-sel-trigger:hover { border-color: rgba(var(--ouro-rgb),0.55); }
-#root .menestrel-ui .gp-sel-trigger[aria-expanded="true"] { border-color: rgba(var(--ouro-rgb),0.75); }
-#root .menestrel-ui .gp-sel-chevron { font-size: var(--fs-md); color: var(--vivo); flex-shrink: 0; transition: transform .15s ease; }
-#root .menestrel-ui .gp-sel-chevron.open { transform: rotate(180deg); }
 
 /* ── GpSelect — painel dropdown ── */
-#root .menestrel-ui .gp-sel-panel {
-  position: fixed; z-index: 9999; list-style: none; margin: 0; padding: 6px;
-  background: #2A2116; border: 1px solid var(--regua-forte); border-radius: 10px;
-  box-shadow: 0 20px 50px -12px rgba(4,3,1,0.90);
-  max-height: 260px; overflow-y: auto; min-width: 200px;
-}
-#root .menestrel-ui .gp-sel-opt {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  width: 100%; text-align: left; background: transparent;
-  border: none; border-radius: 12px; padding: 9px 12px;
-  font-family: var(--font-body); font-size: var(--fs-md); color: var(--tinta);
-  cursor: pointer; transition: background .10s ease, color .10s ease;
-}
-#root .menestrel-ui .gp-sel-opt:hover { background: rgba(var(--bronze-rgb),0.22); color: var(--vivo); }
-#root .menestrel-ui .gp-sel-opt.sel { background: rgba(var(--ouro-rgb),0.12); color: var(--vivo); }
-#root .menestrel-ui .gp-sel-opt.sel i { font-size: var(--fs-md); color: var(--vivo); }
 
 /* ── Resultado do simulador ── */
-#root .menestrel-ui .gp-sim-out { background: rgba(var(--couro-rgb),0.40); border: 1px solid var(--regua-forte); border-radius: 12px; overflow: hidden; }
-#root .menestrel-ui .gp-sim-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--regua-forte); font-size: var(--fs-md); }
-#root .menestrel-ui .gp-sim-row-last { border-bottom: none; background: rgba(var(--ouro-rgb),0.05); }
-#root .menestrel-ui .gp-sim-label  { font-family: var(--font-body); color: var(--tinta-2); }
-#root .menestrel-ui .gp-sim-val    { font-family: var(--font-body); font-weight: 600; color: var(--tinta); }
-#root .menestrel-ui .gp-up         { color: #7BAF7A; }
-#root .menestrel-ui .gp-sim-interp { font-family: var(--font-body); font-size: var(--fs-md); color: var(--tinta-2); text-align: right; }
 
 /* ── Rodapé do guia ── */
-#root .menestrel-ui .gp-footer {
-  position: relative; overflow: hidden;
-  display: flex; flex-direction: column; align-items: center; text-align: center;
-  gap: 14px;
-  margin-top: 30px;
-  padding: clamp(24px, 3.4vw, 36px) clamp(20px, 4vw, 48px);
-  background: radial-gradient(560px 200px at 50% 120%, rgba(var(--ouro-rgb),0.09), transparent 70%),
-    rgba(var(--couro-rgb),0.55);
-  border: 1px solid var(--regua-forte);
-  border-radius: 14px;
-}
-#root .menestrel-ui .gp-footer::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, #B8472F, var(--ouro-2), var(--ouro), var(--ouro), var(--ouro-3));
-}
-#root .menestrel-ui .gp-footer-icon { font-size: 22px; color: var(--vivo); }
-#root .menestrel-ui .gp-footer-quote {
-  font-family: var(--font-body); font-style: italic;
-  font-size: var(--fs-base); line-height: 1.75; color: var(--tinta-2);
-  max-width: 64ch; margin: 0;
-}
-#root .menestrel-ui .gp-top-link {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 7px 16px;
-  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600;
-  letter-spacing: .04em; text-transform: uppercase;
-  color: var(--vivo); background: rgba(var(--ouro-rgb),0.08);
-  border: 1px solid var(--regua-forte); border-radius: 999px;
-  cursor: pointer;
-  transition: border-color .15s ease, background .15s ease;
-}
-#root .menestrel-ui .gp-top-link:hover { border-color: rgba(var(--ouro-rgb),0.60); background: rgba(var(--ouro-rgb),0.13); }
-#root .menestrel-ui .gp-top-link i { font-size: var(--fs-sm); }
 
 /* ── Acessibilidade: foco visível nos controles do guia ── */
-#root .menestrel-ui .gp-toc-link:focus-visible,
-#root .menestrel-ui .gp-top-link:focus-visible,
-#root .menestrel-ui .gp-sel-trigger:focus-visible,
-#root .menestrel-ui .gp-sel-opt:focus-visible {
-  outline: 2px solid rgba(var(--ouro-rgb),0.70); outline-offset: 2px;
-}
 
 /* ── Movimento reduzido: sem transições/levitações no guia ── */
-@media (prefers-reduced-motion: reduce) {
-  #root .menestrel-ui .gp-page *,
-  #root .menestrel-ui .gp-page *::before { transition: none !important; }
-  #root .menestrel-ui .gp-custo-card:hover { transform: none; }
-}
 
 /* ── Responsivo ── */
-@media (max-width: 1000px) {
-  #root .menestrel-ui .gp-raca-grid { grid-template-columns: repeat(2, 1fr); }
-  #root .menestrel-ui .gp-attr-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 700px) {
-  #root .menestrel-ui .gp-hero { padding: 20px; }
-  #root .menestrel-ui .gp-toc { gap: 6px; }
-  #root .menestrel-ui .gp-toc-link { font-size: var(--fs-xs); padding: 5px 11px 5px 8px; }
-  #root .menestrel-ui .gp-section-num { width: 32px; height: 32px; font-size: var(--fs-xs); }
-  #root .menestrel-ui .gp-col2 { grid-template-columns: 1fr; }
-  #root .menestrel-ui .gp-build-grid { grid-template-columns: 1fr 1fr; }
-  #root .menestrel-ui .gp-card-grid  { grid-template-columns: 1fr 1fr; }
-  #root .menestrel-ui .gp-table { font-size: var(--fs-md); }
-  #root .menestrel-ui .gp-table th, #root .menestrel-ui .gp-table td { padding: 7px 10px; }
-  #root .menestrel-ui .gp-sim-controls { flex-direction: column; align-items: stretch; }
-  /* atributos */
-  #root .menestrel-ui .gp-custo-grid { grid-template-columns: repeat(4, 1fr); }
-  #root .menestrel-ui .gp-formula-row { grid-template-columns: 72px 1fr; }
-  #root .menestrel-ui .gp-formula-desc { grid-column: 1 / -1; padding-top: 2px; }
-}
-@media (max-width: 480px) {
-  #root .menestrel-ui .gp-card-grid { grid-template-columns: 1fr; }
-  #root .menestrel-ui .gp-raca-grid { grid-template-columns: 1fr; }
-  #root .menestrel-ui .gp-attr-grid { grid-template-columns: 1fr 1fr; }
-  #root .menestrel-ui .gp-custo-grid { grid-template-columns: repeat(4, 1fr); }
-  #root .menestrel-ui .gp-formula-row { grid-template-columns: 68px 1fr; }
-  #root .menestrel-ui .gp-build-grid { grid-template-columns: 1fr; }
-  #root .menestrel-ui .gp-footer-quote { font-size: var(--fs-md); }
-}
 /* ── Diário — abas Itens / Magias / Personagens (estado vazio/coming-soon) ── */
 #root .menestrel-ui .diario-tab-section {
   display: flex; align-items: flex-start; gap: 20px;
@@ -10217,6 +9839,46 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .batalha-ini-bola:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; border-radius: 4px; }
 #root .menestrel-ui .batalha-ini-bola.is-marcado { opacity: 1; color: var(--gold-bright, #E0BF6A); transform: scale(1.12); }
 #root .menestrel-ui .batalha-ini-bola:disabled { opacity: 0.35; cursor: default; }
+/* A INICIATIVA EM DUAS COLUNAS, SÓ O DADO (11/11/2026): Jogadores à esquerda,
+   Criaturas à direita (uma embaixo da outra no celular). Na linha, o número
+   que saiu e o d10; sem número ainda, um traço apagado. */
+#root .menestrel-ui .batalha-ini-colunas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+#root .menestrel-ui .batalha-ini-coluna { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+#root .menestrel-ui .batalha-ini-coluna-cab {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 32px; padding-bottom: 6px; border-bottom: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .batalha-ini-coluna-cab .mn-rotulo { margin: 0; }
+#root .menestrel-ui .batalha-ini-rolar-todas { display: inline-flex; align-items: center; gap: 8px; }
+#root .menestrel-ui .batalha-ini-vazio { margin: 4px 0 0; color: var(--tinta-3); font-size: var(--fs-sm); }
+#root .menestrel-ui .batalha-ini-valor {
+  min-width: 2ch; text-align: right; color: var(--vivo);
+  font: 700 var(--fs-lg)/1 var(--font-body); font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .batalha-ini-valor.is-vazio { color: var(--tinta-3); font-weight: 500; }
+@media (max-width: 760px) {
+  #root .menestrel-ui .batalha-ini-colunas { grid-template-columns: minmax(0, 1fr); }
+}
+#root .menestrel-ui .batalha-ini-dado {
+  width: 32px; height: 32px; padding: 0; border: none; border-radius: 999px; background: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--tinta-2); font-size: 22px;
+}
+#root .menestrel-ui .batalha-ini-dado:hover:not(:disabled) { color: var(--vivo); background: rgba(var(--bronze-rgb),0.14); }
+#root .menestrel-ui .batalha-ini-dado:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
+#root .menestrel-ui .batalha-ini-dado:disabled { opacity: 0.35; cursor: default; }
+/* A MONTAGEM VISTA PELO JOGADOR (11/11/2026): o d10 no centro, o pedido em
+   cima, o número que saiu num passe embaixo. */
+#root .menestrel-ui .batalha-preparo-corpo {
+  display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center;
+  padding: 48px 24px 56px;
+}
+#root .menestrel-ui .batalha-preparo-titulo { margin: 0; font: 600 var(--fs-titulo)/1.2 var(--font-title); color: var(--tinta); }
+#root .menestrel-ui .batalha-preparo-texto { margin: 0; color: var(--tinta-2); font-size: var(--fs-md); line-height: 1.6; text-wrap: pretty; }
+#root .menestrel-ui .batalha-preparo-dado { margin: 8px 0; }
+#root .menestrel-ui .batalha-preparo-passe { grid-template-columns: auto; }
+#root .menestrel-ui .batalha-preparo-passe .mn-celula-valor { font-size: var(--fs-lider); color: var(--vivo); }
+#root .menestrel-ui .batalha-preparo-rolar { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 28px; }
 
 
 /* A marca e o trilho só de ícones (12/09/2026) saíram em 22/10/2026 — o menu
@@ -11014,208 +10676,31 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
    Sem texto em degradê e sem rótulo acima do título — a ênfase vem de peso
    e tamanho. */
 
-#root .menestrel-ui .gp-h1 {
-  max-width: none;
-  text-align: justify; text-align-last: left;
-  font-size: clamp(22px, 2.4vw, 32px);
-  text-wrap: pretty;
-}
-#root .menestrel-ui .gp-lead {
-  max-width: none;
-  text-align: justify; hyphens: auto;
-}
-#root .menestrel-ui .gp-p,
-#root .menestrel-ui .gp-list li { hyphens: auto; }
-#root .menestrel-ui .gp-page ::selection { background: rgba(var(--ouro-rgb),0.35); color: #F8EFDC; }
-
 /* Sumário: ícone do tópico no lugar do número */
-#root .menestrel-ui .gp-toc-link i { font-size: var(--fs-sm); color: var(--vivo); }
 
 /* Placa da seção: ícone forjado no bronze */
-#root .menestrel-ui .gp-section-num i { font-size: 20px; line-height: 1; }
-#root .menestrel-ui .gp-section-head { align-items: center; }
-#root .menestrel-ui .gp-h2 { font-weight: 600; }
-#root .menestrel-ui .gp-section-sub {
-  font-family: var(--font-body); font-size: var(--fs-sm); line-height: 1.55;
-  color: var(--tinta-2); margin: 2px 0 0; text-wrap: pretty;
-}
-#root .menestrel-ui .gp-h3-sep { margin-top: 26px; }
 
 /* O essencial: as regras para guardar, antes da explicação */
-#root .menestrel-ui .gp-essencial {
-  margin: 0 0 20px; padding: 14px 18px 14px 16px;
-  background: linear-gradient(180deg, rgba(var(--ouro-rgb),0.07), rgba(var(--ouro-rgb),0.02));
-  border: 1px solid rgba(var(--ouro-rgb),0.30); border-radius: 12px;
-}
-#root .menestrel-ui .gp-essencial-tit {
-  display: flex; align-items: center; gap: 6px;
-  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700;
-  letter-spacing: .04em; color: var(--vivo); margin-bottom: 8px; text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; /* Cinzel abaixo de 18px vira rótulo (22/10/2026) */
-}
-#root .menestrel-ui .gp-essencial ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-#root .menestrel-ui .gp-essencial li {
-  position: relative; padding-left: 18px;
-  font-family: var(--font-body); font-size: var(--fs-md); line-height: 1.55; color: #E3D7BF;
-}
-#root .menestrel-ui .gp-essencial li::before {
-  content: ''; position: absolute; left: 2px; top: .62em;
-  width: 6px; height: 6px; transform: rotate(45deg);
-  background: var(--ouro);
-}
-#root .menestrel-ui .gp-essencial b { color: var(--tinta); font-weight: 700; }
 
 /* Três cards de gênero lado a lado */
-#root .menestrel-ui .gp-trio {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px; margin-bottom: 16px;
-}
-#root .menestrel-ui .gp-col2 { margin-top: 16px; }
 
 /* Tabelas numéricas: algarismos alinhados, sinal com cor */
-#root .menestrel-ui .gp-table-num td,
-#root .menestrel-ui .gp-table-num th { text-align: center; font-variant-numeric: tabular-nums; }
-#root .menestrel-ui .gp-table-num td:first-child,
-#root .menestrel-ui .gp-table-num th:first-child { text-align: left; white-space: nowrap; }
-#root .menestrel-ui .gp-table td.gp-pos  { color: #8FC48B; font-weight: 600; }
-#root .menestrel-ui .gp-table td.gp-neg  { color: #D8907F; font-weight: 600; }
-#root .menestrel-ui .gp-table td.gp-zero { color: #8F836C; }
-#root .menestrel-ui .gp-table-wrap { margin-bottom: 16px; }
 
 /* Cards de raça */
-#root .menestrel-ui .gp-raca-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
-#root .menestrel-ui .gp-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-family: var(--font-body); font-size: var(--fs-xs); line-height: 1.3;
-  padding: 2px 8px; border-radius: 999px;
-  color: var(--tinta-2); background: rgba(var(--bronze-rgb),0.16); border: 1px solid var(--regua-forte);
-}
-#root .menestrel-ui .gp-chip i { font-size: var(--fs-sm); }
-#root .menestrel-ui .gp-chip-ouro { color: var(--sobre-vivo); background: var(--ouro); border-color: var(--ouro); font-weight: 600; }
-#root .menestrel-ui .gp-raca-trad { font-family: var(--font-body); font-size: var(--fs-xs); font-style: italic; color: var(--tinta-2); margin-bottom: 6px; }
 
 /* Elementos: o ciclo dos quatro e a linha da luz */
-#root .menestrel-ui .gp-elem {
-  display: grid; gap: 10px; margin: 4px 0 18px; padding: 16px;
-  background: rgba(var(--couro-rgb),0.40); border: 1px solid var(--regua-forte); border-radius: 12px;
-}
-#root .menestrel-ui .gp-elem-ciclo,
-#root .menestrel-ui .gp-elem-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-#root .menestrel-ui .gp-elem-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 12px; border-radius: 999px;
-  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700; letter-spacing: .02em;
-  border: 1px solid; text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; /* Cinzel abaixo de 18px vira rótulo (22/10/2026) */
-}
-#root .menestrel-ui .gp-elem-chip i { font-size: 16px; }
-#root .menestrel-ui .gp-elem-0 { color: #F0A070; border-color: rgba(224,120,72,0.50); background: rgba(184,71,47,0.16); }
-#root .menestrel-ui .gp-elem-1 { color: #CFE3E6; border-color: rgba(170,200,210,0.45); background: rgba(140,170,180,0.12); }
-#root .menestrel-ui .gp-elem-2 { color: #C9B27E; border-color: rgba(160,130,80,0.55); background: rgba(122,94,42,0.20); }
-#root .menestrel-ui .gp-elem-3 { color: #8FC0E6; border-color: rgba(100,150,200,0.50); background: rgba(60,110,160,0.16); }
-#root .menestrel-ui .gp-elem-luz { color: #F4DE93; border-color: rgba(var(--vivo-rgb),0.60); background: rgba(var(--ouro-rgb),0.18); }
-#root .menestrel-ui .gp-elem-esc { color: #C3B2DE; border-color: rgba(150,125,190,0.50); background: rgba(80,60,110,0.22); }
-#root .menestrel-ui .gp-elem-volta { opacity: .75; }
-#root .menestrel-ui .gp-elem-seta {
-  display: inline-flex; align-items: center; gap: 3px;
-  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 700;
-  color: var(--vivo); font-variant-numeric: tabular-nums;
-}
-#root .menestrel-ui .gp-elem-seta i { font-size: 15px; color: var(--tinta-2); }
-#root .menestrel-ui .gp-elem-nota { font-family: var(--font-body); font-size: var(--fs-sm); color: var(--tinta-2); }
 
 /* Especializações: uma coluna por profissão */
-#root .menestrel-ui .gp-esp-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 10px; margin-bottom: 16px;
-}
-#root .menestrel-ui .gp-esp-card {
-  background: rgba(var(--couro-rgb),0.55); border: 1px solid var(--regua-forte);
-  border-radius: 12px; padding: 14px 16px;
-}
-#root .menestrel-ui .gp-esp-prof {
-  font-family: var(--font-body); font-size: var(--fs-md); font-weight: 700;
-  color: var(--tinta); margin-bottom: 8px; padding-bottom: 6px;
-  border-bottom: 1px solid var(--regua-forte); text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; font-size: var(--fs-sm); /* Cinzel abaixo de 18px vira rótulo; em caixa-alta, 15px basta (22/10/2026) */
-}
-#root .menestrel-ui .gp-esp-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-#root .menestrel-ui .gp-esp-card li {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
-  font-family: var(--font-body); font-size: var(--fs-sm); color: var(--tinta-2); line-height: 1.45;
-}
-#root .menestrel-ui .gp-esp-card li b { color: var(--vivo); font-weight: 600; text-align: right; white-space: nowrap; }
 
 /* Atributos: ícone em ouro (as sete cores soltas saíram) */
-#root .menestrel-ui .gp-attr-icon { color: var(--vivo); }
-#root .menestrel-ui .gp-attr-nome { color: var(--tinta); }
 
 /* Fórmulas: sigla numa placa só, expressão na fonte de leitura */
-#root .menestrel-ui .gp-formula-abbr {
-  gap: 6px; color: var(--vivo);
-  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .04em;
-  background: rgba(var(--ouro-rgb),0.10); border-color: rgba(var(--ouro-rgb),0.35); text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; /* Cinzel abaixo de 18px vira rótulo (22/10/2026) */
-}
-#root .menestrel-ui .gp-formula-abbr i { font-size: var(--fs-base); }
-#root .menestrel-ui .gp-formula-expr {
-  font-family: var(--font-body); font-size: var(--fs-sm); color: #D9C89F;
-  font-variant-numeric: tabular-nums;
-}
-#root .menestrel-ui .gp-formula-desc { font-size: var(--fs-sm); color: var(--tinta-2); }
 
 /* Custo: nove degraus agora (até +6) */
-#root .menestrel-ui .gp-custo-grid { grid-template-columns: repeat(9, 1fr); }
-#root .menestrel-ui .gp-custo-custo { font-variant-numeric: tabular-nums; }
 
 /* O caminho de um golpe: passos numerados — aqui o número É a ordem */
-#root .menestrel-ui .gp-passos {
-  list-style: none; margin: 0 0 16px; padding: 0;
-  display: grid; gap: 0; counter-reset: gp-passo;
-}
-#root .menestrel-ui .gp-passos li {
-  position: relative; counter-increment: gp-passo;
-  padding: 0 0 16px 46px;
-  font-family: var(--font-body); font-size: var(--fs-md); line-height: 1.65; color: var(--tinta-2);
-  text-align: justify; hyphens: auto;
-}
-#root .menestrel-ui .gp-passos li::before {
-  content: counter(gp-passo);
-  position: absolute; left: 0; top: 0;
-  width: 30px; height: 30px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700; color: var(--sobre-vivo);
-  background: linear-gradient(135deg, var(--ouro) 0%, var(--ouro-2) 100%);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.45); text-transform: uppercase; letter-spacing: var(--rotulo-espaco); font-weight: 700; /* Cinzel abaixo de 18px vira rótulo (22/10/2026) */
-}
-#root .menestrel-ui .gp-passos li::after {
-  content: ''; position: absolute; left: 14.5px; top: 32px; bottom: 2px;
-  width: 1px; background: rgba(var(--ouro-rgb),0.30);
-}
-#root .menestrel-ui .gp-passos li:last-child { padding-bottom: 0; }
-#root .menestrel-ui .gp-passos li:last-child::after { display: none; }
-#root .menestrel-ui .gp-passos b { color: var(--tinta); }
-
-#root .menestrel-ui .gp-build-top .gp-card-tag { margin-bottom: 0; }
-
-@media (max-width: 1000px) {
-  #root .menestrel-ui .gp-custo-grid { grid-template-columns: repeat(5, 1fr); }
-}
-@media (max-width: 700px) {
-  #root .menestrel-ui .gp-section-num i { font-size: 17px; }
-  #root .menestrel-ui .gp-custo-grid { grid-template-columns: repeat(3, 1fr); }
-  #root .menestrel-ui .gp-passos li { padding-left: 40px; }
-}
 /* A ordem do Sacerdote (13 escolas) ocupa a linha toda, em colunas */
-#root .menestrel-ui .gp-esp-card-larga { grid-column: 1 / -1; }
-#root .menestrel-ui .gp-esp-card-larga ul { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); column-gap: 24px; }
-#root .menestrel-ui .gp-esp-card li span { min-width: 0; }
 /* Tabelas largas rolam dentro do quadro em vez de alargar a página (celular) */
-#root .menestrel-ui .gp-section { min-width: 0; }
-#root .menestrel-ui .gp-table-wrap { overflow-x: auto; max-width: 100%; }
-#root .menestrel-ui .gp-table-num { min-width: 560px; }
-@media (max-width: 700px) {
-  /* Em tela estreita, justificar o título abre buracos entre as palavras */
-  #root .menestrel-ui .gp-h1 { text-align: left; }
-}
-#root .menestrel-ui .gp-sim-val { white-space: nowrap; padding-left: 12px; }
-#root .menestrel-ui .gp-legenda { font-family: var(--font-body); font-size: var(--fs-xs); color: var(--tinta-2); margin: -8px 0 16px; }
 /* Lixeira do editor do catálogo ao lado do X (26/09/2026) — o headerExtra
    embrulha o botão num div, então o espaçamento .ms-acao + .ms-close não
    alcança; esta regra o repõe. */
@@ -11299,31 +10784,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 
 /* Ajuda — ajustes de 26/09/2026 (segunda rodada) */
 /* Título: sem justificar, mas ocupando o card — maior e em linhas equilibradas. */
-#root .menestrel-ui .gp-h1 {
-  text-align: left; text-align-last: auto;
-  font-size: clamp(24px, 3.2vw, 42px); line-height: 1.15;
-  text-wrap: balance;
-}
 /* Cards de custo: fora do Courier — Merriweather, como o resto da leitura. */
-#root .menestrel-ui .gp-custo-custo {
-  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 600; line-height: 1.3;
-}
 /* Rodapé: o texto usa a largura do card. */
-#root .menestrel-ui .gp-footer-quote { max-width: none; text-wrap: pretty; }
 /* Profissões: Guerreiro | Ladino, Rastreador | Bardo, Mago, Sacerdote. */
-#root .menestrel-ui .gp-prof-grid {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0;
-}
-#root .menestrel-ui .gp-prof-card--largo { grid-column: 1 / -1; }
-#root .menestrel-ui .gp-prof-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-#root .menestrel-ui .gp-prof-top .gp-card-title { margin: 0; }
-#root .menestrel-ui .gp-prof-top .gp-elem-chip { font-size: var(--fs-xs); padding: 3px 10px; }
-#root .menestrel-ui .gp-prof-card .gp-card-text { margin: 0; text-align: justify; hyphens: auto; }
-@media (max-width: 700px) {
-  #root .menestrel-ui .gp-prof-grid { grid-template-columns: 1fr; }
-}
-
-#root .menestrel-ui .gp-esp-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 
 /* ABAS SEM SALTO (26/09/2026): "quando clico em descrição e características,
    vejo que os textos do modal mudam um pouco de posição."
@@ -14012,8 +13475,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .cv-card,
 #root .menestrel-ui .cv-mesa,
 #root .menestrel-ui .cv-mesa-pj,
-#root .menestrel-ui .cv-table-wrap,
-#root .menestrel-ui .gp-feat-card { border-color: var(--regua-forte); }
+#root .menestrel-ui .cv-table-wrap { border-color: var(--regua-forte); }
 
 /* ── LOJA EM CARTÕES (23/10/2026) ── o ícone do item no retrato (roxo no
    mágico), o preço por extenso na primeira linha, estoque ou vendedor na
@@ -14164,15 +13626,24 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   --pal-alerta: #E8836A; --alerta-rgb: 232,131,106; --pal-magia: #7D9FEA;
   --bronze-rgb: 138,110,64; --ouro-rgb: 201,164,78; --vivo-rgb: 224,190,104;
   --tinta-rgb: 232,221,198; --tinta3-rgb: 156,143,115; --chao-rgb: 18,13,6; --couro-rgb: 37,26,12;
+  /* A luz do dia nos raios do fundo (luzDaHora, shell.jsx): ouro e bronze. */
+  --luz-dia-rgb: 201,164,78; --luz-dia2-rgb: 184,112,46;
 }
-/* 5 · Ferro e Brasa — cinza-ferro neutro e laranja de forja */
+/* 5 · Ferro e Brasa — cinza-ferro neutro e laranja de forja.
+   O FUNDO É GRAFITE (11/11/2026, usuário: "Ao mudar a paleta, a cor de fundo
+   não está sendo alterada"). Era #151515 contra o #19110C do Couro: dois
+   pretos que o olho não separa. O grafite azulado se distingue do couro de
+   relance e segura a tinta discreta acima de 4.5:1 (#8E8B85 sobre #202326). */
 :root[data-paleta="ferro"], :root[data-paleta="ferro"] .menestrel-ui {
-  --p-pagina: #151515; --p-fundo: #121212; --p-chao-2: #262626; --pal-chao: #1A1A1A;
+  --p-pagina: #202326; --p-fundo: #181A1D; --p-chao-2: #2D3034; --pal-chao: #1D2023;
   --pal-tinta: #F0EEEA; --pal-tinta-2: #BEBBB4; --pal-tinta-3: #8E8B85;
   --pal-vivo: #F08A3C; --ouro: #D9772E; --ouro-2: #B85F22; --ouro-3: #6E3C18; --sobre-vivo: #1A0E04;
   --pal-alerta: #FF5A4E; --alerta-rgb: 255,90,78; --pal-magia: #8FB0FF;
   --bronze-rgb: 150,150,150; --ouro-rgb: 217,119,46; --vivo-rgb: 240,138,60;
-  --tinta-rgb: 240,238,234; --tinta3-rgb: 142,139,133; --chao-rgb: 18,18,18; --couro-rgb: 32,32,32;
+  --tinta-rgb: 240,238,234; --tinta3-rgb: 142,139,133; --chao-rgb: 24,26,29; --couro-rgb: 42,45,50;
+  /* A luz do dia é aço claro, não ouro: com ouro e bronze os raios tingiam
+     o grafite de marrom (11/11/2026, "O fundo continua marrom quente"). */
+  --luz-dia-rgb: 196,203,212; --luz-dia2-rgb: 124,133,146;
 }
 /* O chão da página acompanha a paleta (a luz do fundo continua por cima). */
 #root .menestrel-ui.mc-root { background-color: var(--p-pagina); }
@@ -17467,8 +16938,6 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
   box-shadow: 0 10px 26px rgba(0,0,0,.55), 0 0 0 1px var(--vivo);
   transition: box-shadow 560ms cubic-bezier(.16, 1, .3, 1);
 }
-@media (prefers-reduced-motion: reduce) {
-}
 
 /* ══════════════════════════════════════════════════════════════════════════
    A COR DE CADA STATUS NO TEXTO (30/10/2026) — tomDoStatus, 09-bestiario
@@ -19158,3 +18627,150 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa):has(.batalha-aviso-vez) .menes
 }
 #root .menestrel-ui .cena-folha-pos b { font-weight: 600; color: var(--tinta); }
 #root .menestrel-ui .cena-folhas .cena-folha-nav + .pg-rodape { margin-top: 0; }
+/* O TEXTO EM PÁGINAS (11/11/2026, "não teremos uma barra vertical"): a vista
+   tem a altura que sobra na janela e recorta; o fluxo corre em colunas da
+   largura dela (CenaCronica põe column-width e o deslocamento) e desliza de
+   uma página para a outra. A imagem não passa da altura da página. */
+#root .menestrel-ui .cena-paginas { position: relative; overflow: hidden; min-width: 0; }
+#root .menestrel-ui .cena-paginas-fluxo {
+  height: 100%; column-fill: auto; will-change: transform;
+  transition: transform .38s cubic-bezier(.16, 1, .3, 1);
+}
+#root .menestrel-ui .cena-paginas .cena-cap-figura img { max-height: calc(var(--cena-pag-h, 480px) - 32px); }
+#root .menestrel-ui .cena-paginas .cena-nota { break-inside: avoid; }
+#root .menestrel-ui .cena-paginas .cena-notas { margin-top: 24px; }
+#root .menestrel-ui .cena-folha-sep { color: var(--tinta-3); }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .cena-paginas-fluxo { transition: none; }
+}
+/* PROPOSTAS NO PAINEL DA LOJA (11/11/2026): abaixo de "Aberta", de ponta a
+   ponta, com o número das que esperam resposta à direita. */
+#root .menestrel-ui .estoque-propostas-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 40px; margin-top: 12px; padding: 0 16px;
+  border-radius: 999px; font-weight: 700;
+}
+#root .menestrel-ui .estoque-propostas-btn .ti { color: var(--vivo); font-size: 17px; }
+#root .menestrel-ui .estoque-propostas-btn .estoque-num { margin-left: auto; }
+
+/* ══ AS CARTAS DA REGRA — O GUIA NO PADRÃO DA FICHA (11/11/2026) ═════════════
+   O guia de criação (guia_personagem.jsx; contrato em .impeccable/surfaces/
+   src-08-personagens-guia-personagem-jsx.md). Usuário: "E o nosso padrão de
+   layout? Trilhos dentro da página, cores sem transparência" — então: cartão
+   sólido da página (.mc-content > .pjs), o trilho dos capítulos DENTRO dele
+   (.cartoes-barra.livro-trilho, régua de borda a borda embaixo), o corpo com a
+   carta e as miniaturas, e o pé (.pg-rodape) com a régua em cima. Cartões do
+   corpo no chão opaco (--pg-trilho-fundo), canto --pg-cartao-raio, borda
+   --regua-forte; o aceso é ouro misturado ao fundo, opaco. Cada carta: a arte
+   vertical à esquerda e o texto à direita, com o título de cartão da Ficha
+   (.fp-col-tit); a frase, os números e o porquê juntos ("Remova o 'ver o
+   porquê' e coloque o texto no card"), rolando por dentro. Sem barra vertical
+   na página. */
+#root .menestrel-ui {
+  /* UM TAMANHO SÓ (11/11/2026, usuário: "Padronizar o tamanho dos textos, está
+     cada um de um tamanho diferente"): frase, explicação, tabelas, simulador e
+     legenda leem no mesmo corpo; a frase se distingue pelo peso e pela tinta. */
+  --fs-gc: var(--fs-base);
+  --gc-chao: var(--pg-trilho-fundo);
+  --gc-vivo-chao: color-mix(in srgb, var(--vivo) 14%, var(--pg-fundo));
+  --gc-vivo-aro: color-mix(in srgb, var(--vivo) 55%, var(--pg-fundo));
+}
+#root .menestrel-ui .mc-content > .pjs.gc-page { background: var(--pg-fundo); padding-top: calc(var(--pg-vao) * var(--fp-z)); }
+#root .menestrel-ui .gc-page > * { min-width: 0; }
+
+/* O trilho dos capítulos: cabe no cartão porque só o atual leva o nome. */
+#root .menestrel-ui .gc-trilho { flex-wrap: nowrap; max-width: 100%; min-width: 0; justify-content: safe center; }
+#root .menestrel-ui .gc-cap:not(.is-ativo) { padding: 0 9px; }
+#root .menestrel-ui .gc-cap.is-ativo { background: var(--gc-vivo-chao); border-color: var(--gc-vivo-aro); }
+
+#root .menestrel-ui .gc-corpo {
+  display: flex; flex-direction: column; gap: calc(var(--pg-vao) * var(--fp-z));
+  min-height: 360px; margin-bottom: calc(var(--pg-vao) * var(--fp-z));
+}
+
+/* A carta: arte vertical | texto. */
+#root .menestrel-ui .gc-carta {
+  flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(200px, 30%) minmax(0, 1fr);
+  border: 1px solid var(--regua-forte); border-radius: var(--pg-cartao-raio, 10px); background: var(--gc-chao); overflow: hidden;
+}
+#root .menestrel-ui .gc-arte {
+  margin: 0; display: grid; place-items: center; overflow: hidden;
+  border-right: 1px solid var(--regua-forte); background: var(--pg-fundo);
+}
+#root .menestrel-ui .gc-arte-img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
+#root .menestrel-ui .gc-arte-ic { font-size: 72px; color: var(--regua-forte); }
+#root .menestrel-ui .gc-texto { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; padding: 20px 28px 0; }
+#root .menestrel-ui .gc-titulo { margin: 0; }
+#root .menestrel-ui .gc-carta-corpo {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 6px 22px 0;
+  display: flex; flex-direction: column; gap: 18px;
+}
+#root .menestrel-ui .gc-carta-corpo.tem-mais {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+          mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+#root .menestrel-ui .gc-frase { margin: 0; font: 600 var(--fs-gc)/1.6 var(--font-body); color: var(--tinta); text-wrap: pretty; }
+#root .menestrel-ui .gc-passe { align-self: center; background: var(--pg-fundo); }
+#root .menestrel-ui .gc-passe .mn-celula-valor { font-size: var(--fs-lg); line-height: 1.25; text-wrap: balance; font-variant-numeric: lining-nums tabular-nums; }
+/* O porquê: depois da frase e dos números, separado por uma régua. */
+#root .menestrel-ui .gc-porque { padding-top: 16px; border-top: 1px solid var(--regua-forte); color: var(--tinta-2); font-size: var(--fs-gc); line-height: 1.65; }
+#root .menestrel-ui .gc-porque > p { margin: 0 0 12px; text-wrap: pretty; }
+#root .menestrel-ui .gc-porque > :last-child { margin-bottom: 0; }
+#root .menestrel-ui .gc-porque b { color: var(--tinta); }
+
+/* As miniaturas do capítulo. */
+#root .menestrel-ui .gc-baralho { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; flex: none; }
+#root .menestrel-ui .gc-mini {
+  flex: 0 1 220px; min-width: 140px; display: grid; gap: 2px; text-align: left; padding: 8px 12px;
+  border: 1px solid var(--regua-forte); border-radius: var(--pg-cartao-raio, 10px); background: var(--gc-chao); cursor: pointer;
+}
+#root .menestrel-ui .gc-mini:hover { background: color-mix(in srgb, rgb(var(--bronze-rgb)) 14%, var(--pg-fundo)); }
+#root .menestrel-ui .gc-mini.is-atual { background: var(--gc-vivo-chao); border-color: var(--gc-vivo-aro); }
+#root .menestrel-ui .gc-mini:focus-visible { outline: 2px solid var(--vivo); outline-offset: 1px; }
+#root .menestrel-ui .gc-mini-n { font: 700 var(--fs-rotulo) var(--font-body); color: var(--tinta-3); font-variant-numeric: tabular-nums; }
+#root .menestrel-ui .gc-mini-tit {
+  font: 600 var(--fs-sm)/1.3 var(--font-body); color: var(--tinta-2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+#root .menestrel-ui .gc-mini.is-atual .gc-mini-tit { color: var(--tinta); }
+
+/* O pé: Anterior · onde estou · Próxima, na régua de baixo da página. */
+#root .menestrel-ui .pg-rodape.gc-nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+#root .menestrel-ui .gc-nav > .btn-ghost { display: inline-flex; align-items: center; gap: 6px; justify-self: start; }
+#root .menestrel-ui .gc-nav > .btn-ghost:last-child { justify-self: end; }
+#root .menestrel-ui .gc-pos { font-size: var(--fs-base); font-weight: 600; color: var(--tinta-3); font-variant-numeric: tabular-nums; text-align: center; }
+#root .menestrel-ui .gc-pos b { color: var(--tinta); font-weight: 600; }
+#root .menestrel-ui .gc-pos-total { color: var(--tinta-3); font-weight: 500; }
+
+/* Os simuladores. Sem tabelas no guia (11/11/2026): os dados viram texto. */
+#root .menestrel-ui .gc-sim { margin: 4px 0 14px; display: flex; flex-direction: column; gap: 12px; }
+#root .menestrel-ui .gc-sim-campos { display: flex; flex-wrap: wrap; gap: 12px; }
+#root .menestrel-ui .gc-sim-campo { display: grid; gap: 4px; }
+#root .menestrel-ui .gc-sim-passe { align-self: center; background: var(--pg-fundo); }
+/* "Centralize o card ... em todos os outros cards também" (11/11/2026): o
+   passe fica no meio da carta e cada célula centra o rótulo e o valor, em
+   colunas de mesma largura — no guia nenhuma célula é a "identidade". */
+#root .menestrel-ui .gc-passe, #root .menestrel-ui .gc-sim-passe { grid-template-columns: none; grid-auto-columns: minmax(0, 1fr); }
+#root .menestrel-ui .gc-passe .mn-celula, #root .menestrel-ui .gc-sim-passe .mn-celula { align-items: center; text-align: center; }
+#root .menestrel-ui .gc-sim-texto { margin: 0; font-size: var(--fs-gc); color: var(--tinta-2); }
+#root .menestrel-ui .gc-sim-texto b { color: var(--vivo); }
+
+@media (max-width: 720px) {
+  /* No celular o trilho rola de lado a partir da esquerda; a lâmina sai (o
+     atual já é aceso) porque ela não acompanha a rolagem de dentro. */
+  #root .menestrel-ui .gc-trilho-barra { justify-content: flex-start; }
+  #root .menestrel-ui .gc-trilho { overflow-x: auto; }
+  #root .menestrel-ui .gc-trilho::before { display: none; }
+  #root .menestrel-ui .gc-trilho .mc-acao.gc-cap.is-ativo,
+  #root .menestrel-ui .gc-trilho[data-lamina] .mc-acao.gc-cap.is-ativo { background: var(--gc-vivo-chao); border-color: var(--gc-vivo-aro); }
+  #root .menestrel-ui .gc-carta { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(96px, 22%) minmax(0, 1fr); }
+  #root .menestrel-ui .gc-arte { border-right: none; border-bottom: 1px solid var(--regua-forte); }
+  #root .menestrel-ui .gc-arte-ic { font-size: 48px; }
+  #root .menestrel-ui .gc-texto { padding: 14px 16px 0; gap: 12px; }
+  #root .menestrel-ui .gc-passe .mn-celula-valor,
+  #root .menestrel-ui .gc-passe .mn-celula:first-child .mn-celula-valor { font-size: var(--fs-md); }
+  /* No celular o passe quebra em linhas: rótulo longo não invade a célula vizinha. */
+  #root .menestrel-ui .gc-passe { display: flex; flex-wrap: wrap; align-self: stretch; }
+  #root .menestrel-ui .gc-passe .mn-celula { flex: 1 1 auto; min-width: 0; }
+  #root .menestrel-ui .gc-pos-total { display: none; }
+  #root .menestrel-ui .gc-pos { font-size: var(--fs-sm); }
+}

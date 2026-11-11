@@ -784,7 +784,7 @@ function MenuRow({ children, onClick, disabled, danger, extraStyle, title }) {
    (:root[data-paleta="…"]). Sem escolha, vale PALETA_PADRAO. */
 const PALETAS = [
   { id: 'couro', pt: 'Couro e Ouro', en: 'Leather and Gold', amostra: ['#120D06', '#17110A', '#F1E6CF', '#E0BE68'] },
-  { id: 'ferro', pt: 'Ferro e Brasa', en: 'Iron and Ember', amostra: ['#121212', '#1A1A1A', '#F0EEEA', '#F08A3C'] },
+  { id: 'ferro', pt: 'Ferro e Brasa', en: 'Iron and Ember', amostra: ['#181A1D', '#202326', '#F0EEEA', '#F08A3C'] },
 ];
 const PALETA_PADRAO = 'couro';
 function aplicarPaleta(id) {
@@ -794,7 +794,7 @@ function aplicarPaleta(id) {
   return v;
 }
 
-function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, setLang, profile, onSetProfile, podeTrocarPerfil = false, paleta = null, onSetPaleta = null, onHelp, onConvites, onImagens = null, onTestesCombate = null, onLogout, onClose }) {
+function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, profile, onConfiguracoes = null, onHelp, onConvites, onLogout, onClose }) {
   const ref = React.useRef(null);
   const [pos, setPos] = useState(null);
 
@@ -826,15 +826,7 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, setL
     };
   }, [onClose, anchorRef]);
 
-  const [langOpen, setLangOpen] = useState(false);
-  const [roleOpen, setRoleOpen] = useState(false);
-  const [paletaOpen, setPaletaOpen] = useState(false);
-
   const t = {
-    roleLabel: lang === 'en' ? 'Role'     : 'Perfil',
-    master:    lang === 'en' ? 'Master'   : 'Mestre',
-    player:    lang === 'en' ? 'Player'   : 'Jogador',
-    language:  lang === 'en' ? 'Language' : 'Idioma',
     help:      lang === 'en' ? 'Help'     : 'Ajuda',
     logout:    lang === 'en' ? 'Sign out' : 'Sair',
     soon:      lang === 'en' ? 'Coming soon' : 'Em breve',
@@ -876,65 +868,17 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, setL
         </div>
       </div>
 
-      {/* ── Perfil (Mestre / Jogador) — só o administrador troca (23/10/2026) ── */}
-      {podeTrocarPerfil && <div>
-        <MenuRow onClick={() => { setRoleOpen((v) => !v); setLangOpen(false); }}>
-          <Icon.Profile style={{ fontSize: 16, lineHeight: 1 }} />
-          {t.roleLabel}
-          <i className="ti ti-chevron-down" style={{ fontSize: 'var(--fs-md)', opacity: 0.6, transition: 'transform .14s ease', transform: roleOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
-        </MenuRow>
-        {roleOpen && (
-          <div className="mc-um-submenu">
-            <MenuRow onClick={() => { onSetProfile('master'); setRoleOpen(false); }}>
-              {t.master} {profile === 'master' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
-            </MenuRow>
-            <MenuRow onClick={() => { onSetProfile('player'); setRoleOpen(false); }}>
-              {t.player} {profile === 'player' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
-            </MenuRow>
-          </div>
-        )}
-      </div>}
-
-      {/* ── Paleta (23/10/2026): "o usuário logado vai poder escolher qual
-          paleta ele quer, essa opção vai estar entre 'Perfil' e 'Convites'". ── */}
-      {onSetPaleta && <div>
-        <MenuRow onClick={() => { setPaletaOpen((v) => !v); setRoleOpen(false); setLangOpen(false); }}>
-          <i className="ti ti-palette" style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true" />
-          {lang === 'en' ? 'Palette' : 'Paleta'}
-          <i className="ti ti-chevron-down" style={{ fontSize: 'var(--fs-md)', opacity: 0.6, transition: 'transform .14s ease', transform: paletaOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
-        </MenuRow>
-        {paletaOpen && (
-          <div className="mc-um-submenu">
-            {PALETAS.map((p) => (
-              <MenuRow key={p.id} onClick={() => onSetPaleta(p.id)}>
-                <span className="mc-um-paleta-amostra" aria-hidden="true">
-                  {p.amostra.map((c, i) => <i key={i} style={{ background: c }} />)}
-                </span>
-                {lang === 'en' ? p.en : p.pt}
-                {paleta === p.id && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
-              </MenuRow>
-            ))}
-          </div>
-        )}
-      </div>}
-
-      {/* ── Testes de combate (06/11/2026): "Insira entre os menus Paleta e
-          Imagens do mestre no menu principal, a página com os testes de
-          combate." A simulação de batalha — só o Mestre vê. ── */}
-      {onTestesCombate && profile === 'master' && (
-        <MenuRow onClick={() => { onTestesCombate(); onClose(); }}>
-          <i className="ti ti-swords" style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true" />
-          {lang === 'en' ? 'Combat tests' : 'Testes de combate'}
-        </MenuRow>
-      )}
-
-      {/* ── Imagens (26/10/2026): "Adicione a página no nosso sistema para
-          controle do mestre, abaixo de Paleta, chamado Imagens." A galeria
-          das pinturas é pauta de produção — só o Mestre vê. ── */}
-      {onImagens && profile === 'master' && (
-        <MenuRow onClick={() => { onImagens(); onClose(); }}>
-          <i className="ti ti-photo" style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true" />
-          {lang === 'en' ? 'Images' : 'Imagens'}
+      {/* ── Configurações (11/11/2026): "Adicionar um botão entre 'Perfil' e
+          'Paleta' no menu inferior esquerdo chamado 'Configurações', ao
+          clicar, abrir um modal para trocar a paleta, trocar idioma, trocar
+          modo de notificação." (usuário) — ver ConfiguracoesModal. Paleta e
+          Idioma saíram do menu no mesmo dia ("Deixe só no modal."), e depois
+          Perfil, Testes de combate e Imagens ("também vão ficar dentro de
+          configurações"). ── */}
+      {onConfiguracoes && (
+        <MenuRow onClick={() => { onConfiguracoes(); onClose(); }}>
+          <i className="ti ti-settings" style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true" />
+          {lang === 'en' ? 'Settings' : 'Configurações'}
         </MenuRow>
       )}
 
@@ -950,25 +894,6 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, setL
           {lang === 'en' ? 'Invites' : 'Convites'}
         </MenuRow>
       )}
-
-      {/* ── Idioma — mostra valor atual, expande inline (abaixo) pra trocar ── */}
-      <div>
-        <MenuRow onClick={() => { setLangOpen((v) => !v); setRoleOpen(false); }}>
-          <Icon.Language style={{ fontSize: 16, lineHeight: 1 }} />
-          {t.language}
-          <i className="ti ti-chevron-down" style={{ fontSize: 'var(--fs-md)', opacity: 0.6, transition: 'transform .14s ease', transform: langOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
-        </MenuRow>
-        {langOpen && (
-          <div className="mc-um-submenu">
-            <MenuRow onClick={() => { setLang('pt'); setLangOpen(false); onClose(); }}>
-              Português (Brasil) {lang === 'pt' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
-            </MenuRow>
-            <MenuRow onClick={() => { setLang('en'); setLangOpen(false); onClose(); }}>
-              English {lang === 'en' && <Icon.Check style={{ fontSize: 'var(--fs-md)', lineHeight: 1, color: 'var(--vivo)', marginLeft: 'auto' }} />}
-            </MenuRow>
-          </div>
-        )}
-      </div>
 
       <hr />
 
@@ -986,6 +911,135 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, setL
       </MenuRow>
     </div>,
     document.body
+  );
+}
+
+/* ── OS MODOS DE NOTIFICAÇÃO (11/11/2026) ─────────────────────────────────
+   "Os modos de notificação serão 'Visível' ou 'Escondido'. No modo visível,
+    vai continuar como está, no modo escondido, não vai aparecer mensagem na
+    tela, apenas será possível ver as notificações clicando no menu lateral
+    esquerdo 'notificações'." (usuário). Sem escolha, vale o visível. */
+const MODOS_NOTIFICACAO = [
+  { id: 'visivel',   pt: 'Visível',   en: 'Visible' },
+  { id: 'escondido', pt: 'Escondido', en: 'Hidden' },
+];
+const MODO_NOTIFICACAO_PADRAO = 'visivel';
+function modoNotificacaoValido(v) {
+  return MODOS_NOTIFICACAO.some((m) => m.id === v) ? v : MODO_NOTIFICACAO_PADRAO;
+}
+
+/* ── ConfiguracoesModal (11/11/2026) ─────────────────────────────────────
+   Paleta, idioma e notificações numa janela só; no mesmo dia vieram para cá
+   o Perfil (só o administrador troca) e as ferramentas do Mestre — Testes de
+   combate e Imagens —, e a janela passou ao tamanho grande ("pelo menos o
+   triplo desse tamanho", usuário): .ms-full, 960px.
+
+   Grupos de linhas, como o quadro: rótulo do grupo sobre régua forte, e cada
+   linha com o nome e uma frase à esquerda e o controle à direita. A escolha
+   é a pílula do Sim | Não da loja (a mesma pergunta, o mesmo desenho): a
+   valendo acende em ouro, clicar na outra troca na hora — não há o que
+   salvar, e por isso não há rodapé. A ferramenta do Mestre abre por cima
+   desta janela; fechá-la devolve a Configurações. */
+// A Reforma do Grimório (página do claude.ai, privada do dono da conta).
+const URL_CONFERENCIA_MAGIAS = 'https://claude.ai/artifact/Ksg62jNXu9aB3WBQQLy5u4';
+function ConfiguracoesModal({ lang, setLang, paleta, onSetPaleta, modoNotificacao, onSetModoNotificacao,
+  profile = 'player', podeTrocarPerfil = false, onSetProfile = null, onTestesCombate = null, onImagens = null, onClose }) {
+  const en = lang === 'en';
+  const Janela = (typeof ModalShell === 'function' ? ModalShell : window.ModalShell);
+  const pilula = (rotulo, opcoes, valor, escolher) => (
+    <div className="fp-pop-stepper estoque-sim-nao cfg-pilula" role="radiogroup" aria-label={rotulo}>
+      {opcoes.map((o) => {
+        const marcada = o.id === valor;
+        return (
+          <button key={o.id} type="button" role="radio" aria-checked={marcada}
+            className={'estoque-sim-nao-op' + (marcada ? ' is-on' : '')}
+            onClick={() => { if (!marcada) escolher(o.id); }}>
+            {o.amostra && (
+              <span className="mc-um-paleta-amostra" aria-hidden="true">
+                {o.amostra.map((c, i) => <i key={i} style={{ background: c }} />)}
+              </span>
+            )}
+            {en ? o.en : o.pt}
+          </button>
+        );
+      })}
+    </div>
+  );
+  const linha = (nome, frase, controle) => (
+    <div className="cfg-linha">
+      <div className="cfg-linha-txt">
+        <span className="cfg-linha-nome">{nome}</span>
+        <span className="cfg-linha-frase">{frase}</span>
+      </div>
+      <div className="cfg-linha-ctrl">{controle}</div>
+    </div>
+  );
+  const abrir = (icone, rotulo, onClick) => (
+    <button type="button" className="btn-ghost cfg-abrir" onClick={onClick}>
+      <i className={'ti ' + icone} aria-hidden="true" />{rotulo}
+    </button>
+  );
+  const modo = modoNotificacaoValido(modoNotificacao);
+  const ferramentasMestre = profile === 'master';
+  return (
+    <Janela title={en ? 'Settings' : 'Configurações'} lang={lang} size="full" extraClass="cfg-modal" onClose={onClose}>
+      <section className="cfg-grupo" aria-label={en ? 'Preferences' : 'Preferências'}>
+        <h4 className="mn-rotulo cfg-grupo-cab">{en ? 'Preferences' : 'Preferências'}</h4>
+        {onSetPaleta && linha(en ? 'Palette' : 'Paleta',
+          en ? 'The colors of the whole Menestrel.' : 'As cores de todo o Menestrel.',
+          pilula(en ? 'Palette' : 'Paleta', PALETAS, paleta, onSetPaleta))}
+        {linha(en ? 'Language' : 'Idioma',
+          en ? 'The language of menus and messages.' : 'A língua dos menus e das mensagens.',
+          pilula(en ? 'Language' : 'Idioma', [
+            { id: 'pt', pt: 'Português', en: 'Português' },
+            { id: 'en', pt: 'English', en: 'English' },
+          ], lang, setLang))}
+        {linha(en ? 'Notifications' : 'Notificações',
+          modo === 'escondido'
+            ? (en ? 'Nothing pops up on screen. Read them under Notifications, in the side menu.'
+                  : 'Nada aparece na tela. Veja em Notificações, no menu lateral.')
+            : (en ? 'Each notification shows at the bottom of the screen for a few seconds.'
+                  : 'Cada notificação aparece no pé da tela por alguns segundos.'),
+          pilula(en ? 'Notifications' : 'Notificações', MODOS_NOTIFICACAO, modo, onSetModoNotificacao))}
+      </section>
+
+      {/* Perfil (Mestre / Jogador) — só o administrador troca (23/10/2026). */}
+      {podeTrocarPerfil && onSetProfile && (
+        <section className="cfg-grupo" aria-label={en ? 'Account' : 'Conta'}>
+          <h4 className="mn-rotulo cfg-grupo-cab">{en ? 'Account' : 'Conta'}</h4>
+          {linha(en ? 'Role' : 'Perfil',
+            en ? 'See the Menestrel as the Game Master or as a Player.' : 'Ver o Menestrel como Mestre ou como Jogador.',
+            pilula(en ? 'Role' : 'Perfil', [
+              { id: 'master', pt: 'Mestre', en: 'Master' },
+              { id: 'player', pt: 'Jogador', en: 'Player' },
+            ], profile, onSetProfile))}
+        </section>
+      )}
+
+      {/* As ferramentas do Mestre — só ele vê: Testes de combate (06/11/2026)
+          e Imagens (26/10/2026), a galeria das pinturas, pauta de produção. */}
+      {ferramentasMestre && (
+        <section className="cfg-grupo" aria-label={en ? 'Game Master' : 'Mestre'}>
+          <h4 className="mn-rotulo cfg-grupo-cab">{en ? 'Game Master' : 'Mestre'}</h4>
+          {onTestesCombate && linha(en ? 'Combat tests' : 'Testes de combate',
+            en ? 'Simulated battles, to check the balance of the fights.' : 'Batalhas simuladas, para conferir o equilíbrio das lutas.',
+            abrir('ti-swords', en ? 'Open' : 'Abrir', onTestesCombate))}
+          {onImagens && linha(en ? 'Images' : 'Imagens',
+            en ? 'The gallery of the system paintings.' : 'A galeria das pinturas do sistema.',
+            abrir('ti-photo', en ? 'Open' : 'Abrir', onImagens))}
+          {/* A CONFERÊNCIA DAS MAGIAS (11/11/2026, usuário: "incluir abaixo de
+              testes de combate e imagens, a página de conferência das magias
+              que estamos fazendo"). É a Reforma do Grimório, uma página do
+              claude.ai que guarda as decisões lá mesmo — abre numa aba nova. */}
+          {linha(en ? 'Spell review' : 'Conferência das magias',
+            en ? 'The Grimoire Reform: what stays, what merges and what goes, and which profession gets each spell.'
+               : 'A Reforma do Grimório: o que fica, o que entra em outra magia e o que sai, e a profissão de cada uma.',
+            <a className="btn-ghost cfg-abrir" href={URL_CONFERENCIA_MAGIAS} target="_blank" rel="noopener noreferrer">
+              <i className="ti ti-external-link" aria-hidden="true" />{en ? 'Open' : 'Abrir'}
+            </a>)}
+        </section>
+      )}
+    </Janela>
   );
 }
 
@@ -1283,7 +1337,73 @@ function categoriaDoLog(tipo, meta) {
    colorida, o ícone e o rótulo "INFORMATIVO" em todas as linhas, em azul fora
    da paleta. A categoria só aparece quando diz algo (não em "Informativo"),
    em texto discreto; o aviso, em brasa. A data virou o cabeçalho do dia. */
-function MensagemEvento({ msg, lang }) {
+/* ── O DETALHE DO MESTRE (11/11/2026) ────────────────────────────────────
+   "Para o jogador ele vai ser mais sucinto (como é hoje), para o mestre será
+    mais completo, informando bônus do dano por elemento, bônus de coluna,
+    resultado do dado, etc." (usuário). Os números saem do meta do evento,
+   que a batalha grava (metaDetalheDoGolpe, 12-batalha/batalha.jsx). Cada
+   número é uma célula — rótulo em cima, valor embaixo —, e o bônus vai ao
+   lado do valor, do mesmo tamanho e peso, só no tom: verde soma, brasa tira.
+   Evento sem número nenhum (clima, relógio) não ganha célula. */
+const NOME_ELEMENTO = {
+  fogo: ['Fogo', 'Fire'], agua: ['Água', 'Water'], ar: ['Ar', 'Air'], terra: ['Terra', 'Earth'],
+  luz: ['Luz', 'Light'], escuridao: ['Escuridão', 'Darkness'], trevas: ['Trevas', 'Darkness'],
+};
+function nomeDoElemento(el, lang) {
+  const i = lang === 'en' ? 1 : 0;
+  return String(el || '').split(',').map((x) => x.trim()).filter(Boolean).map((x) => {
+    const k = x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return NOME_ELEMENTO[k] ? NOME_ELEMENTO[k][i] : x.charAt(0).toUpperCase() + x.slice(1);
+  }).join(', ');
+}
+function detalheDoEvento(meta, lang) {
+  const m = meta && typeof meta === 'object' ? meta : {};
+  const en = lang === 'en';
+  const num = (v) => v != null && v !== '' && Number.isFinite(Number(v));
+  const sinal = (n) => (n > 0 ? '+' : '−') + Math.abs(n);
+  const cel = [];
+  if (num(m.forca_ataque) && num(m.forca_defesa)) {
+    cel.push({ chave: 'forca', rotulo: en ? 'Attack × defense' : 'Ataque × defesa', valor: m.forca_ataque + ' × ' + m.forca_defesa });
+  }
+  if (num(m.coluna)) {
+    const bonus = num(m.coluna_base) ? Number(m.coluna) - Number(m.coluna_base) : 0;
+    cel.push({ chave: 'coluna', rotulo: en ? 'Column' : 'Coluna', valor: String(m.coluna),
+      extra: bonus ? sinal(bonus) : null, tom: bonus > 0 ? 'bom' : 'ruim' });
+  }
+  if (num(m.d20)) cel.push({ chave: 'd20', rotulo: en ? 'Die' : 'Dado', valor: String(m.d20) });
+  const resultado = m.resultado_nome
+    || (m.resultado === 'resistiu' ? (en ? 'Resisted' : 'Resistiu')
+      : (m.forca_ataque != null && m.resultado ? (en ? 'Did not resist' : 'Não resistiu') : null));
+  if (resultado) cel.push({ chave: 'resultado', rotulo: en ? 'Result' : 'Resultado', valor: resultado });
+  if (num(m.d20_critico)) cel.push({ chave: 'd20_critico', rotulo: en ? 'Critical die' : 'Dado do crítico', valor: String(m.d20_critico) });
+  if (m.critico_resultado_nome) cel.push({ chave: 'critico', rotulo: en ? 'Critical' : 'Crítico', valor: m.critico_resultado_nome });
+  if (num(m.dano) && (m.acao_nome || m.autor_nome)) {
+    const pct = Number(m.bonus_elemental_pct) || 0;
+    cel.push({ chave: 'dano', rotulo: en ? 'Damage' : 'Dano', valor: String(m.dano),
+      extra: pct ? '+' + pct + '% ' + nomeDoElemento(m.elemento, lang) : null, tom: 'bom' });
+  }
+  if (num(m.custo_karma) && Number(m.custo_karma) > 0) cel.push({ chave: 'karma', rotulo: 'Karma', valor: String(m.custo_karma) });
+  return cel;
+}
+function DetalheDoEvento({ meta, lang }) {
+  const cel = detalheDoEvento(meta, lang);
+  if (!cel.length) return null;
+  return (
+    <dl className="cm-detalhe">
+      {cel.map((c) => (
+        <div key={c.chave} className="cm-detalhe-cel">
+          <dt className="mn-rotulo">{c.rotulo}</dt>
+          <dd>
+            {c.valor}
+            {c.extra && <span className={'cm-detalhe-extra is-' + c.tom}>{c.extra}</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function MensagemEvento({ msg, lang, ehMestre = false }) {
   const cat = LOG_CATEGORIAS[msg.categoria] || LOG_CATEGORIAS.informativo;
   const categoria = msg.categoria || 'informativo';
   return (
@@ -1298,6 +1418,7 @@ function MensagemEvento({ msg, lang }) {
           </span>
         )}
         <span className="cm-msg-texto">{msg.texto}</span>
+        {ehMestre && <DetalheDoEvento meta={msg.meta} lang={lang} />}
       </div>
     </div>
   );
@@ -1319,17 +1440,21 @@ function rotuloDoDia(iso, lang) {
    evento que CHEGA (o histórico da carga não vira card). Ele também sai
    sozinho depois de alguns segundos, para não ficar sobre a mesa; e não
    pega clique — a tela embaixo continua usável. */
-function LogCard({ msg, saindo, lang }) {
+/* SEM TÍTULO (11/11/2026, usuário: "quero que ele não tenha título
+   'Informativo' por exemplo"). A categoria segue na cor do filete e do
+   ícone, que abre a linha do texto; o rótulo saiu. O Mestre ganha embaixo o
+   detalhe dos números (DetalheDoEvento); o Jogador fica só com o texto. */
+function LogCard({ msg, saindo, lang, ehMestre = false }) {
   const cat = LOG_CATEGORIAS[msg.categoria] || LOG_CATEGORIAS.informativo;
   const iconClass = msg.icone || cat.icone;
   return (
     <div className={'cm-card' + (saindo ? ' is-saindo' : '')} style={{ '--log-cor': cat.cor }}
       data-categoria={msg.categoria} role="status">
-      <div className="cm-card-topo">
+      <div className="cm-card-linha">
         <i className={'ti ' + iconClass} aria-hidden="true" />
-        <span className="cm-card-cat">{lang === 'en' ? cat.en : cat.pt}</span>
+        <p className="cm-card-texto">{msg.texto}</p>
       </div>
-      <p className="cm-card-texto">{msg.texto}</p>
+      {ehMestre && <DetalheDoEvento meta={msg.meta} lang={lang} />}
     </div>
   );
 }
@@ -1354,6 +1479,8 @@ function linhaParaMensagem(row, lang) {
     destaque: !!meta.destaque,
     categoria: categoriaDoLog(row.tipo, meta),
     icone: typeof meta.icone === 'string' && /^ti-[a-z0-9-]+$/.test(meta.icone) ? meta.icone : null,
+    // Os números do detalhe do Mestre (11/11/2026) — ver detalheDoEvento.
+    meta,
   };
 }
 
@@ -1532,7 +1659,13 @@ function FilaAprovacaoMagia({ lang, historiaId, pedidos, onRespondido }) {
 /* A FILA DE VENDAS (negociação com o Mestre) saiu em 27/09/2026: vender
    agora é publicar na loja da aventura (07-inventario/loja.jsx). */
 
-function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = false }) {
+function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = false, modoNotificacao = 'visivel' }) {
+  /* MODO ESCONDIDO (11/11/2026): nenhum card na tela; o evento entra no
+     histórico e no contador do menu lateral como sempre. A ref é porque quem
+     entrega é a assinatura do Realtime, montada uma vez por mesa. */
+  const escondido = modoNotificacao === 'escondido';
+  const escondidoRef = React.useRef(escondido);
+  escondidoRef.current = escondido;
   /* ONDE MORA O SINO (23/10/2026): "para os jogadores na ficha deles, para o
      mestre, no menu lateral esquerdo". O Jogador o tem na barra de ações da
      ficha; o Mestre, como item do menu lateral. Sem nenhum dos dois na tela,
@@ -1655,18 +1788,29 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
       setCards((prev) => prev.filter((c) => !(c.saindo && ids.has(c.msg.id))));
     }, FADE_MS));
   };
-  const mostrarCard = (msg) => {
+  /* ATÉ O MESTRE REVELAR (11/11/2026, usuário: "O modal de notificação vai
+     ficar ativo até o mestre revelar a ação"). O card de um evento de batalha
+     com revelação (a tela dela marca o id em window.__menestrelRevelacao, ver
+     12-batalha/efeitos-da-vez.jsx) não some no tempo: fica PRESO até chegar
+     'menestrel:revelacao' daquela batalha. O que a própria revelação solta
+     (`liberado`) segue o tempo de sempre. A pilha de 3 continua valendo. */
+  const mostrarCard = (msg, liberado = false) => {
+    const bid = msg.meta && msg.meta.batalha_id != null ? String(msg.meta.batalha_id) : null;
+    const rev = window.__menestrelRevelacao;
+    const preso = !liberado && !!bid && !!rev && rev.has(bid);
     setCards((prev) => {
       const vivos = prev.filter((c) => !c.saindo);
       const sobra = Math.max(0, vivos.length - (MAX_CARDS - 1));
       const sair = new Set(vivos.slice(0, sobra).map((c) => c.msg.id));
       if (sair.size) removerDepoisDoFade(sair);
-      return [...prev.map((c) => (sair.has(c.msg.id) ? { ...c, saindo: true } : c)), { msg, saindo: false }];
+      return [...prev.map((c) => (sair.has(c.msg.id) ? { ...c, saindo: true } : c)), { msg, saindo: false, preso, bid }];
     });
-    cardTimersRef.current.push(setTimeout(() => {
-      setCards((prev) => prev.map((c) => (c.msg.id === msg.id ? { ...c, saindo: true } : c)));
-      removerDepoisDoFade(new Set([msg.id]));
-    }, CARD_MS));
+    if (!preso) {
+      cardTimersRef.current.push(setTimeout(() => {
+        setCards((prev) => prev.map((c) => (c.msg.id === msg.id ? { ...c, saindo: true } : c)));
+        removerDepoisDoFade(new Set([msg.id]));
+      }, CARD_MS));
+    }
     /* A PAUSA DO AUTOMÁTICO (09/11/2026, usuário: "Adicione no modo
        automático, uma pausa entre cada notificação, para o mestre ler e
        narrar"). A batalha não age de novo enquanto a última notificação não
@@ -1725,25 +1869,34 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
        hora, os outros no intervalo dos efeitos (0 = tudo junto, a tela saiu). */
     const soltar = (ev) => {
       const d = (ev && ev.detail) || {};
+      // Os cards presos desta batalha saem: o Mestre revelou (11/11/2026).
+      const idBat = String(d.batalhaId);
+      setCards((prev) => {
+        const sair = new Set(prev.filter((c) => c.preso && !c.saindo && c.bid === idBat).map((c) => c.msg.id));
+        if (!sair.size) return prev;
+        removerDepoisDoFade(sair);
+        return prev.map((c) => (sair.has(c.msg.id) ? { ...c, saindo: true, preso: false } : c));
+      });
       const meus = seguradosRef.current.filter((s) => s.bid === String(d.batalhaId));
       if (!meus.length) return;
       seguradosRef.current = seguradosRef.current.filter((s) => s.bid !== String(d.batalhaId));
       const passo = Number(d.intervalo) || 0;
       meus.forEach((s, i) => {
-        if (!passo || i === 0) entregar(s.row, s.msg, i > 0);
-        else cardTimersRef.current.push(setTimeout(() => entregar(s.row, s.msg, true), i * passo));
+        if (!passo || i === 0) entregar(s.row, s.msg, i > 0, true);
+        else cardTimersRef.current.push(setTimeout(() => entregar(s.row, s.msg, true, true), i * passo));
       });
     };
     window.addEventListener('menestrel:revelacao', soltar);
 
-    function entregar(row, msg, semSino) {
+    function entregar(row, msg, semSino, liberado = false) {
         setMensagens((prev) => [msg, ...prev].slice(0, 100));
         // A fila acompanha em tempo real: um pedido novo aparece para o
         // Mestre sem recarregar, e a resposta some da fila do mesmo jeito.
         setLinhasCruas((prev) => [...prev, row]);
         setNaoLidas((n) => n + 1);
         if (!semSino) tocarSino(); // sino suave — AudioContext já desbloqueado pelo FAB
-        mostrarCard(msg); // o card no centro (27/09/2026), no lugar da gaveta
+        // O card no pé da tela (27/09/2026) — só no modo visível (11/11/2026).
+        if (!escondidoRef.current) mostrarCard(msg, liberado);
     }
 
     return () => {
@@ -1753,6 +1906,9 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historiaId, lang]);
+
+  // Escondeu com cards à vista: saem junto, sem esperar o tempo deles.
+  useEffect(() => { if (escondido) setCards([]); }, [escondido]);
 
   if (!historiaId) return null; // sem mesa resolvida — nada pra acompanhar
 
@@ -1775,7 +1931,7 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
     <div className="menestrel-ui cm-root" style={{ '--cm-sidebar': sidebarLargura + 'px' }}>
       {/* O card do evento que acabou de chegar, no centro da área da página. */}
       <div className="cm-cards" aria-live="polite">
-        {cards.map((c) => <LogCard key={c.msg.id} msg={c.msg} saindo={c.saindo} lang={lang} />)}
+        {cards.map((c) => <LogCard key={c.msg.id} msg={c.msg} saindo={c.saindo} lang={lang} ehMestre={ehMestre} />)}
       </div>
 
       {/* O sino abre o HISTÓRICO num modal (27/09/2026): "Ao clicar o ícone
@@ -1818,7 +1974,7 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
                 return (
                   <React.Fragment key={m.id}>
                     {dia && dia !== anterior && <p className="cm-dia">{dia}</p>}
-                    <MensagemEvento msg={m} lang={lang} />
+                    <MensagemEvento msg={m} lang={lang} ehMestre={ehMestre} />
                   </React.Fragment>
                 );
               })
@@ -2814,9 +2970,13 @@ function luzDaHora(data) {
     origemX: (1 - fase) * 100,
     forca: 0.35 + 0.65 * Math.sin(Math.PI * fase),
     inclinacao: -45 + fase * 90,
-    // Ouro e bronze de dia (os mesmos de sempre); luar de aço à noite.
-    cor: quente ? '201,164,78' : '143,166,196',
-    cor2: quente ? '184,112,46' : '92,115,146',
+    /* Luar de aço à noite. A luz do DIA é da paleta (11/11/2026, usuário: "O
+       fundo continua marrom quente"): os raios de ouro e bronze fixos tingiam
+       a tela toda de marrom mesmo no Ferro e Brasa. Cada paleta dá a sua em
+       --luz-dia-rgb/--luz-dia2-rgb (index.css, PALETAS); sem paleta, o ouro
+       e o bronze de sempre. */
+    cor: quente ? 'var(--luz-dia-rgb, 201,164,78)' : '143,166,196',
+    cor2: quente ? 'var(--luz-dia2-rgb, 184,112,46)' : '92,115,146',
   };
 }
 
@@ -4067,6 +4227,24 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     if (error) console.error('[paleta] não gravou:', error);
   };
 
+  /* O MODO DE NOTIFICAÇÃO (11/11/2026), como a paleta: o do perfil no
+     servidor manda quando existe (profiles.notificacoes); antes dele, e no
+     aparelho, o da última escolha (localStorage). */
+  const [modoNotificacao, setModoNotificacao] = useState(() => {
+    try { return modoNotificacaoValido(localStorage.getItem('menestrel.notificacoes')); } catch (e) { return MODO_NOTIFICACAO_PADRAO; }
+  });
+  useEffect(() => {
+    if (userProfile && MODOS_NOTIFICACAO.some((m) => m.id === userProfile.notificacoes)) setModoNotificacao(userProfile.notificacoes);
+  }, [userProfile && userProfile.notificacoes]);
+  const escolherModoNotificacao = async (id) => {
+    const v = modoNotificacaoValido(id);
+    setModoNotificacao(v);
+    try { localStorage.setItem('menestrel.notificacoes', v); } catch (e) {}
+    const { error } = await supabaseClient.from('profiles').update({ notificacoes: v }).eq('id', user.id);
+    if (error) console.error('[notificacoes] não gravou no perfil (fica no aparelho):', error);
+  };
+  const [configAberto, setConfigAberto] = useState(false);
+
   // O que sabemos estar GRAVADO no servidor. null = ainda não sabemos — e
   // nesse estado não se escreve nada (ver devePersistirPerfil).
   const [perfilNoServidor, setPerfilNoServidor] = useState(null);
@@ -4818,7 +4996,10 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               (e à meia-noite), à esquerda no poente. Ver estiloLuzFundo. */}
           <div style={{
             position: 'absolute', inset: 0, opacity: 1,
-            background: 'radial-gradient(100% 100% at 0% 0%, #000000 0%, #000000 100%)',
+            /* A base segue a paleta (11/11/2026): era #000 fixo, e cobria o
+               fundo da paleta justo onde a luz bate — trocar de paleta não
+               mudava o fundo. */
+            background: 'var(--p-fundo, #000)',
             mask: luzFundo.mask,
             transition: 'mask 1.2s ease, -webkit-mask 1.2s ease',
           }} >
@@ -4855,7 +5036,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               O <i> é a TERCEIRA camada de profundidade: ::before e ::after
               dão duas, e chuva e neve precisam de três pra não parecerem um
               papel de parede rolando. */}
-          {efeitosDoTempo(dataMesa).map((e) => (
+          {/* No guia não há clima (11/11/2026, usuário: "Neste guia não precisamos
+              mostrar o clima"): é página de leitura, sem chuva por cima. */}
+          {(current.id === 'guia_personagem' ? [] : efeitosDoTempo(dataMesa)).map((e) => (
             <div
               key={e.tipo}
               className={'mc-clima mc-clima-' + e.tipo}
@@ -5074,17 +5257,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 fullName={fullName !== user.email ? fullName : null}
                 avatarUrl={avatarUrl}
                 firstName={firstName}
-                podeTrocarPerfil={ehAdmin}
-                paleta={paleta}
-                onSetPaleta={escolherPaleta}
+                onConfiguracoes={() => { setUserMenuOpen(false); setConfigAberto(true); }}
                 profile={profile}
-                onSetProfile={escolherPerfil}
                 lang={lang}
-                setLang={setLang}
                 onHelp={() => { setUserMenuOpen(false); setCurrentId('guia_personagem'); }}
                 onConvites={() => { setUserMenuOpen(false); setConviteModalAberto(true); }}
-                onTestesCombate={() => { setUserMenuOpen(false); setTestesCombateAberto(true); }}
-                onImagens={() => { setUserMenuOpen(false); setImagensAberto(true); }}
                 onLogout={onLogout}
                 onClose={() => setUserMenuOpen(false)}
               />
@@ -5406,7 +5583,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           <CentralMensagens lang={lang}
             historiaId={mesaAtivaId}
             sidebarLargura={SIDEBAR_LARGURA}
-            ehMestre={profile === 'master'} />
+            ehMestre={profile === 'master'}
+            modoNotificacao={modoNotificacao} />
         )}
 
         {/* Botão de rolagem de d20 livre — só aparece quando a FichaPersonagem
@@ -5430,12 +5608,25 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           />
         )}
 
-        {/* A simulação de batalha — "Testes de combate", no menu do usuário (06/11/2026) */}
+        {/* "Configurações", no menu do usuário (11/11/2026): paleta, idioma,
+            notificações, perfil e as ferramentas do Mestre. Monta ANTES delas,
+            que abrem por cima desta janela. */}
+        {configAberto && (
+          <ConfiguracoesModal lang={lang} setLang={setLang}
+            paleta={paleta} onSetPaleta={escolherPaleta}
+            modoNotificacao={modoNotificacao} onSetModoNotificacao={escolherModoNotificacao}
+            profile={profile} podeTrocarPerfil={ehAdmin} onSetProfile={escolherPerfil}
+            onTestesCombate={() => setTestesCombateAberto(true)}
+            onImagens={() => setImagensAberto(true)}
+            onClose={() => setConfigAberto(false)} />
+        )}
+
+        {/* A simulação de batalha — "Testes de combate", nas Configurações (06/11/2026) */}
         {testesCombateAberto && typeof TestesCombateModal !== 'undefined' && (
           <TestesCombateModal lang={lang} onClose={() => setTestesCombateAberto(false)} />
         )}
 
-        {/* A galeria das pinturas — "Imagens", no menu do usuário (26/10/2026) */}
+        {/* A galeria das pinturas — "Imagens", nas Configurações (26/10/2026) */}
         {imagensAberto && typeof GaleriaImagensModal !== 'undefined' && (
           <GaleriaImagensModal lang={lang} onClose={() => setImagensAberto(false)} />
         )}
@@ -5536,7 +5727,7 @@ function App() {
     if (!userId) { setProfile(null); return; }
     const { data, error } = await supabaseClient
       .from('profiles')
-      .select('plano, plano_escolhido_em, pj_ativo_id, perfil_tipo, paleta')
+      .select('plano, plano_escolhido_em, pj_ativo_id, perfil_tipo, paleta, notificacoes')
       .eq('id', userId)
       .maybeSingle();
     if (error) {
@@ -5754,6 +5945,8 @@ Object.assign(window, {
   // A linha do feed e o conversor de evento — expostos para o teste do
   // destaque (log-eventos.test.jsx) montar só eles.
   LOG_CATEGORIAS, categoriaDoLog, LogCard, MensagemEvento, linhaParaMensagem,
+  // O detalhe do Mestre e as Configurações (11/11/2026, log-cards.test.jsx).
+  detalheDoEvento, ConfiguracoesModal, MODOS_NOTIFICACAO, modoNotificacaoValido,
   // Puras, expostas pro teste da luz por horário (10-shell/luz-do-horario.test.js).
   periodoDaHora, faseDoPeriodo, horaDoJogo, luzDaHora, estiloLuzFundo,
   // Pura, exposta pro teste do clima (10-shell/clima-efeitos.test.js).

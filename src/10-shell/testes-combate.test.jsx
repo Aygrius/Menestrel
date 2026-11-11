@@ -4,7 +4,7 @@
    Pedido do usuário em 06/11/2026: "Insira entre os menus Paleta e Imagens
    do mestre no menu principal, a página com os testes de combate."
    ============================================================ */
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -46,21 +46,27 @@ afterEach(cleanup);
 
 const abrir = () => render(<window.TestesCombateModal lang="pt" onClose={() => {}} />);
 
-describe('a entrada no menu do usuário', () => {
-  it('fica entre Paleta e Imagens', () => {
-    const paleta = shellFonte.indexOf("lang === 'en' ? 'Palette' : 'Paleta'");
-    const testes = shellFonte.indexOf("lang === 'en' ? 'Combat tests' : 'Testes de combate'");
-    const imagens = shellFonte.indexOf("lang === 'en' ? 'Images' : 'Imagens'");
-    expect(paleta).toBeGreaterThan(-1);
-    expect(testes).toBeGreaterThan(paleta);
-    expect(imagens).toBeGreaterThan(testes);
+/* Nas Configurações (11/11/2026, usuário: "Os testes de combate, imagens e
+   perfil também vão ficar dentro de configurações"). Só o Mestre vê. */
+describe('a entrada nas Configurações', () => {
+  const montarCfg = (profile, onTestesCombate) => render(<div id="root"><div className="menestrel-ui">
+    <window.ConfiguracoesModal lang="pt" setLang={() => {}} paleta="couro" onSetPaleta={() => {}}
+      modoNotificacao="visivel" onSetModoNotificacao={() => {}} profile={profile}
+      onTestesCombate={onTestesCombate} onImagens={() => {}} onClose={() => {}} /></div></div>);
+  it('o Mestre abre os testes por lá; o Jogador não vê a entrada', () => {
+    const abrirTestes = vi.fn();
+    montarCfg('master', abrirTestes);
+    const linha = [...document.querySelectorAll('.cfg-linha')].find((l) => /Testes de combate/.test(l.textContent));
+    fireEvent.click(linha.querySelector('button'));
+    expect(abrirTestes).toHaveBeenCalled();
+    cleanup();
+    montarCfg('player', vi.fn());
+    expect(document.body.textContent).not.toMatch(/Testes de combate/);
   });
-  it('é só do Mestre', () => {
-    const i = shellFonte.indexOf("lang === 'en' ? 'Combat tests' : 'Testes de combate'");
-    expect(shellFonte.slice(i - 300, i)).toMatch(/onTestesCombate && profile === 'master'/);
-  });
-  it('o modal é montado quando a entrada é clicada, e o main carrega a página', () => {
-    expect(shellFonte).toMatch(/onTestesCombate=\{\(\) => \{ setUserMenuOpen\(false\); setTestesCombateAberto\(true\); \}\}/);
+  it('saiu do menu da conta; o modal é montado pelas Configurações, e o main carrega a página', () => {
+    const menu = shellFonte.slice(shellFonte.indexOf('function UserMenu('), shellFonte.indexOf('function ConfiguracoesModal('));
+    expect(menu).not.toMatch(/'Combat tests'/);
+    expect(shellFonte).toMatch(/onTestesCombate=\{\(\) => setTestesCombateAberto\(true\)\}/);
     expect(shellFonte).toMatch(/testesCombateAberto && typeof TestesCombateModal !== 'undefined'/);
     expect(mainFonte.indexOf('10-shell/testes-combate.jsx')).toBeGreaterThan(mainFonte.indexOf('10-shell/shell.jsx'));
   });
