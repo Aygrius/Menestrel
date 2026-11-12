@@ -98,3 +98,42 @@ describe('o lado escolhido pelo Mestre', () => {
     expect(r.alvoId).toBe('cri:2');
   });
 });
+
+/* 11/11/2026: "No modo automático, adicione a movimentação das criaturas.
+   Atacar e se afastar, ou se afastar para lançar magias de longe ou usar
+   arco e flecha." */
+describe('a criatura se move no automático', () => {
+  const T = () => window.MotorTabuleiro;
+  const autoOrc = (over = {}) => orc({ auto: true, pos: { x: 10, y: 10 }, mov_rest: 5, ...over });
+  const perto = (over = {}) => pj({ pos: { x: 12, y: 10 }, ...over });
+
+  it('o recuo vai para a casa mais longe do inimigo, dentro do passo', () => {
+    const eu = autoOrc();
+    const d = M.destinoDeRecuo(eu, [eu, perto()]);
+    expect(d).toBeTruthy();
+    expect(T().distanciaEntre({ pos: d }, perto())).toBeGreaterThan(T().distanciaEntre(eu, perto()));
+    expect(T().validarMovimento(eu, d, [eu, perto()]).ok).toBe(true);
+  });
+  it('com alvo e alcance, o recuo não tira o alvo do alcance', () => {
+    const eu = autoOrc();
+    const d = M.destinoDeRecuo(eu, [eu, perto()], { alvo: perto(), alcance: 4 });
+    expect(T().distanciaEntre({ pos: d }, perto())).toBeLessThanOrEqual(4);
+  });
+  it('atacou sem se mover e o inimigo está perto: segura a vez e recua', () => {
+    const eu = autoOrc({ pa_rest: 0 });
+    expect(M.querRecuarDepoisDoAtaque(eu, [eu, perto()])).toBe(true);
+    const r = M.decidirJogadaAutomatica(eu, [eu, perto()], CAT);
+    expect(r).toMatchObject({ tipo: 'mover', recuo: true });
+  });
+  it('já se moveu na rodada, inimigo longe, ou fora do automático: não segura a vez', () => {
+    expect(M.querRecuarDepoisDoAtaque(autoOrc({ pa_rest: 0, movimentos_na_rodada: 1 }), [autoOrc(), perto()])).toBe(false);
+    const longe = perto({ pos: { x: 25, y: 10 } });
+    expect(M.querRecuarDepoisDoAtaque(autoOrc({ pa_rest: 0 }), [autoOrc(), longe])).toBe(false);
+    expect(M.querRecuarDepoisDoAtaque(autoOrc({ pa_rest: 0, auto: false }), [autoOrc(), perto()])).toBe(false);
+    expect(M.querRecuarDepoisDoAtaque(pj({ auto: true, pa_rest: 0, pos: { x: 10, y: 10 } }), [perto()])).toBe(false);
+  });
+  it('os fins de vez seguram quem ainda vai recuar', () => {
+    const fonte = require('node:fs').readFileSync(require('node:path').resolve(__dirname, './batalha.jsx'), 'utf8');
+    expect((fonte.match(/!querRecuarDepoisDoAtaque\(/g) || []).length).toBeGreaterThanOrEqual(5);
+  });
+});

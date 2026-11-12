@@ -4678,12 +4678,85 @@ function ultimaAcaoDeAtaque(ator, log) {
   return null;
 }
 
+/* ══ A CRIATURA SE MOVE NO AUTOMÁTICO (11/11/2026) ═══════════════════════════
+   Usuário: "No modo automático, adicione a movimentação das criaturas. Atacar
+   e se afastar, ou se afastar para lançar magias de longe ou usar arco e
+   flecha." Dentro da regra do movimento (o 1º da rodada é grátis, o 2º custa
+   1 PA), duas manobras:
+     - RECUAR PARA ATIRAR: com um inimigo colado e uma ação de longe à mão
+       (magia ou arma de alcance 3 ou mais), a criatura gasta o movimento
+       grátis para se afastar — sem perder o alvo do alcance — e então ataca;
+     - ATACAR E SE AFASTAR: se atacou sem ter se movido e ainda há inimigo
+       perto, a vez NÃO passa no último PA: ela recua com o movimento grátis e
+       aí a vez passa (mover sem PA já passa sozinho).
+   Só criatura no automático; o minion preso ao líder não sai do lugar. */
+const RECUO_AMEACA_CASAS = 3;        // inimigo a até 3 casas = perto demais
+const ALCANCE_DE_LONGE = 3;          // ação de 3 casas ou mais é "de longe"
+function movimentosFeitosAuto(p) {
+  const n = Number(p && p.movimentos_na_rodada);
+  if (Number.isFinite(n) && n > 0) return n;
+  return (p && p.moveu_na_rodada) ? 1 : 0;
+}
+function inimigosNaMesa(ator, lista) {
+  const lado = ladoNaBatalha(ator);
+  return (lista || []).filter((p) => p && !mesmoParticipante(p, ator) && podeSerAtacado(p) && ladoNaBatalha(p) !== lado);
+}
+/* A casa do recuo: dentro do passo, a que fica MAIS LONGE do inimigo mais
+   perto (empate: a de menos caminho). Com `alvo` e `alcance`, só serve casa
+   de onde o alvo continua ao alcance. Null quando nenhuma casa melhora. */
+function destinoDeRecuo(ator, lista, { alvo = null, alcance = null } = {}) {
+  const T = (typeof window !== 'undefined' && window.MotorTabuleiro) || {};
+  const mov = T.movimentoDisponivel || (typeof movimentoDisponivel === 'function' ? movimentoDisponivel : null);
+  if (!ator || !T.validarMovimento || !T.distanciaEntre || !T.posValida || !mov || !T.posValida(ator.pos)) return null;
+  const passo = mov(ator);
+  if (!(passo > 0)) return null;
+  const inimigos = inimigosNaMesa(ator, lista).filter((e) => T.posValida(e.pos));
+  if (!inimigos.length) return null;
+  const perto = (pos) => Math.min(...inimigos.map((e) => T.distanciaEntre({ pos }, e)));
+  const agora = perto(ator.pos);
+  let melhor = null;
+  for (let dx = -passo; dx <= passo; dx++) {
+    for (let dy = -passo; dy <= passo; dy++) {
+      if (!dx && !dy) continue;
+      const c = { x: ator.pos.x + dx, y: ator.pos.y + dy };
+      if (!T.posValida(c)) continue;
+      if (alvo && alcance != null && T.posValida(alvo.pos) && T.distanciaEntre({ pos: c }, alvo) > alcance) continue;
+      const v = T.validarMovimento(ator, c, lista);
+      if (!v || !v.ok) continue;
+      const d = perto(c);
+      const caminho = Math.abs(dx) + Math.abs(dy);
+      if (!melhor || d > melhor.d || (d === melhor.d && caminho < melhor.caminho)) melhor = { c, d, caminho };
+    }
+  }
+  return melhor && melhor.d > agora ? melhor.c : null;
+}
+/* Atacou e ainda pode se afastar? Segura a vez no último PA (ver os pontos
+   de fim de vez) até a criatura recuar. */
+function querRecuarDepoisDoAtaque(p, lista) {
+  if (!p || !p.auto || p.tipo !== 'criatura' || (p.status || 'ativo') !== 'ativo') return false;
+  if (statusTemEfeito(p, 'sem_acoes') || evocacaoPrendeAcao(p)) return false;
+  if (movimentosFeitosAuto(p) > 0) return false;
+  if (typeof minionPresoAoLider === 'function' && minionPresoAoLider(p, lista)) return false;
+  const T = (typeof window !== 'undefined' && window.MotorTabuleiro) || {};
+  if (!T.distanciaEntre) return false;
+  const ameacado = inimigosNaMesa(p, lista).some((e) => {
+    const d = T.distanciaEntre(p, e);
+    return d != null && d <= RECUO_AMEACA_CASAS;
+  });
+  return ameacado && !!destinoDeRecuo(p, lista);
+}
+
 function decidirJogadaAutomatica(ator, participantes, catalogos, tecnicasUsadas = [], log = null) {
   const T = (typeof window !== 'undefined' && window.MotorTabuleiro) || {};
   const _alcance = T.alcanceDaAcao || (typeof alcanceDaAcao === 'function' ? alcanceDaAcao : null);
   const _noAlcance = T.alvoNoAlcance || (typeof alvoNoAlcance === 'function' ? alvoNoAlcance : null);
   const _dist = T.distanciaEntre || (typeof distanciaEntre === 'function' ? distanciaEntre : null);
   if (!ator || !catalogos || !_alcance || !_noAlcance || !_dist) return { tipo: 'passar', motivo: 'sem_motor' };
+  // Atacou e se afasta (11/11/2026): sem PA, o movimento grátis vira recuo.
+  if (!temAcaoRestante(ator) && querRecuarDepoisDoAtaque(ator, participantes)) {
+    const destino = destinoDeRecuo(ator, participantes);
+    if (destino) return { tipo: 'mover', destino, recuo: true };
+  }
   if (!temAcaoRestante(ator) || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) {
     return { tipo: 'passar', motivo: 'sem_acoes' };
   }
@@ -4737,6 +4810,18 @@ function decidirJogadaAutomatica(ator, participantes, catalogos, tecnicasUsadas 
      automático segue magia primeiro. */
   const armaAgora = ator.tipo === 'criatura' && ultimaAcaoDeAtaque(ator, log) === 'magia';
   const escolha = armaAgora ? (jogaArma || jogaMagia) : (jogaMagia || jogaArma);
+  /* Recuar para atirar (11/11/2026): inimigo colado e a ação é de longe —
+     a criatura usa o movimento grátis para abrir distância, sem perder o
+     alvo do alcance, e ataca no passo seguinte. */
+  if (escolha && ator.auto && ator.tipo === 'criatura' && movimentosFeitosAuto(ator) === 0
+    && !(typeof minionPresoAoLider === 'function' && minionPresoAoLider(ator, lista))) {
+    const alcanceEscolha = escolha.aba === 'magia' ? _alcance({ magia }) : _alcance({ arma });
+    const colado = _dist(ator, alvo);
+    if (alcanceEscolha >= ALCANCE_DE_LONGE && colado != null && colado < ALCANCE_DE_LONGE) {
+      const destino = destinoDeRecuo(ator, lista, { alvo, alcance: alcanceEscolha });
+      if (destino) return { tipo: 'mover', destino, alvoId: alvo.inst_id, recuo: true };
+    }
+  }
   if (escolha) return escolha;
 
   // Nada alcança: anda na direção do alvo.
@@ -9151,7 +9236,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // PA zerado, incapaz OU sem ações (FC caído) → auto-passa a vez
     let viraRodada = false;
     const ator = next[atorIdx];
-    if ((!temAcaoRestante(ator) || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual) {
+    if ((!temAcaoRestante(ator) || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual
+      && !querRecuarDepoisDoAtaque(ator, next)) {
       const prox = proximoAtivo(next, ator.ordem);
       if (prox) {
         next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
@@ -9276,7 +9362,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha] registrar_evento_mesa (pendente) falhou:', rpcErr); });
     }
     let viraRodada = false;
-    if ((!temAcaoRestante(ator) || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual) {
+    if ((!temAcaoRestante(ator) || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual
+      && !querRecuarDepoisDoAtaque(ator, next)) {
       const prox = proximoAtivo(next, ator.ordem);
       if (prox) next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
       else viraRodada = true;
@@ -9632,7 +9719,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // das três que não checava, e um FC "caído por N rodadas" que usasse item
     // ficava com a vez presa.
     if (atorSnap.atual && (!temAcaoRestante(atorSnap) || atorSnap.status !== 'ativo'
-                           || statusTemEfeito(atorSnap, 'sem_acoes'))) {
+                           || statusTemEfeito(atorSnap, 'sem_acoes'))
+        && !querRecuarDepoisDoAtaque(atorSnap, next)) {
       const prox = proximoAtivo(next, atorSnap.ordem);
       if (prox) {
         next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
@@ -9771,7 +9859,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Mesma regra de fim de turno das outras ações.
     let viraRodada = false;
     const a = next[atorIdx];
-    if ((!temAcaoRestante(a) || a.status !== 'ativo' || statusTemEfeito(a, 'sem_acoes')) && a.atual) {
+    if ((!temAcaoRestante(a) || a.status !== 'ativo' || statusTemEfeito(a, 'sem_acoes')) && a.atual
+      && !querRecuarDepoisDoAtaque(a, next)) {
       const prox = proximoAtivo(next, a.ordem);
       if (prox) next = next.map((q) => ({ ...q, atual: mesmoParticipante(q, prox) }));
       else viraRodada = true;
@@ -9878,7 +9967,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const semAcaoNaVez = !!current && estado === 'ativa'
     && current.tipo === 'criatura' && current.dono_pj == null
     && (!temAcaoRestante(current)
-    || current.status !== 'ativo' || statusTemEfeito(current, 'sem_acoes'));
+    || current.status !== 'ativo' || statusTemEfeito(current, 'sem_acoes'))
+    // Atacou e ainda vai se afastar (11/11/2026): o automático anda antes.
+    && !querRecuarDepoisDoAtaque(current, participantes);
   useEffect(() => {
     // Esperando a revelação, nada passa: o Mestre revela, e aí a rede age.
     if (!semAcaoNaVez || salvando || rolagemPendente || acaoOpen || aguardandoRevelar) return undefined;
@@ -15346,6 +15437,7 @@ Object.assign(window, {
     temAcaoRestante,
     // Modo automático (08/11/2026).
     decidirJogadaAutomatica, ladoNaBatalha, ultimoAtacanteDe, ultimaAcaoDeAtaque,
+    destinoDeRecuo, querRecuarDepoisDoAtaque,
     desgastarArmadura,
     criticoPermitido,
     efeitoAncoraNoAtacante,

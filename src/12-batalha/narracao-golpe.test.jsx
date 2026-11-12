@@ -30,6 +30,24 @@ describe('as frases', () => {
     }
     expect(new Set(todas).size).toBe(todas.length);
     Object.values(N().desfecho).forEach((lista) => expect(lista.length).toBeGreaterThanOrEqual(3));
+    // Ferido e crítico com a voz de cada golpe e da magia (11/11/2026).
+    for (const g of ['CORTE', 'PERFURACAO', 'ESMAGAMENTO', 'DESARMADO', 'magia']) {
+      for (const fim of ['ferido', 'critico']) expect(N().desfechoDoGolpe[g][fim].length, g + '/' + fim).toBeGreaterThanOrEqual(3);
+    }
+  });
+  /* "deixe a narração mais fluida, mais humanizada e mais emocionante"
+     (usuário, 11/11/2026; voz da skill cronista-de-tagmar): sem exclamação e
+     sem palavra moderna. */
+  it('a voz: sem exclamação nem palavra moderna', () => {
+    const todas = [
+      ...Object.values(N().encontro).flatMap((d) => Object.values(d).flat()),
+      ...Object.values(N().desfecho).flat(),
+      ...Object.values(N().desfechoDoGolpe).flatMap((d) => Object.values(d).flat()),
+    ];
+    todas.forEach((f) => {
+      expect(f).not.toMatch(/!/);
+      expect(f).not.toMatch(/\b(ok|basicamente|focar|impactar|processo|sistema)\b/i);
+    });
   });
   it('o elemento da magia cai na família certa', () => {
     const f = N().familiaDoElemento;
@@ -49,17 +67,17 @@ describe('a narração de um golpe', () => {
       tipo: 'arma', golpeTipo: 'CORTE', defesaSigla: 'P', autorNome: 'Kael Ventoleste', alvoNome: 'Orc Batedor',
       resultado: { codigo: 'M', erra: false }, dano: 12, onde: { eh: 0, ef: 12 }, sortear: primeira,
     });
-    expect(t).toBe('Kael mira as juntas das placas de Orc, onde o aço não cobre. O golpe atravessa e abre uma ferida em Orc.');
+    expect(t).toBe('Kael estuda as placas de Orc por um instante e corta onde o aço não cobre, na dobra do joelho. A lâmina passa, e um talho se abre no corpo de Orc, vermelho e quente.');
   });
   it('bola de fogo contra couro, e o alvo esquiva', () => {
     const t = window.narrarGolpe({
       tipo: 'magia', elemento: 'fogo', defesaSigla: 'L', autorNome: 'Lirael', alvoNome: 'Lobo',
       resultado: { codigo: 'R', erra: true }, dano: 0, sortear: primeira,
     });
-    expect(t).toMatch(/^As chamas de Lirael saltam .* couro de Lobo\. Mas Lobo se esquiva no último instante\.$/);
+    expect(t).toMatch(/^Lirael abre as mãos e o fogo nasce entre os dedos, .* couro de Lobo\. Mas Lobo lê o golpe no último instante, gira o corpo, e o ataque morde só o vento\.$/);
   });
   it('cada desfecho: falha crítica, crítico, só a armadura, só a energia heroica', () => {
-    const d = N().desfechoDoGolpe;
+    const d = N().qualDesfecho;
     expect(d({ resultado: { codigo: 'FC', erra: true } })).toBe('falha');
     expect(d({ resultado: { codigo: 'A' }, dano: 30, critico: true })).toBe('critico');
     expect(d({ resultado: { codigo: 'F' }, dano: 0 })).toBe('armadura');
@@ -70,6 +88,9 @@ describe('a narração de um golpe', () => {
     const t = window.narrarGolpe({ tipo: 'arma', golpeTipo: '??', defesaSigla: null, autorNome: 'A', alvoNome: 'B',
       resultado: { codigo: 'R', erra: true }, sortear: primeira });
     expect(t.startsWith('A avança de mãos nuas')).toBe(true);
+    // A magia ferindo usa a voz da magia, não a da arma.
+    expect(window.narrarGolpe({ tipo: 'magia', elemento: 'luz', defesaSigla: 'M', autorNome: 'Sena', alvoNome: 'Orc',
+      resultado: { codigo: 'M' }, dano: 8, onde: { ef: 8 }, sortear: () => 0 })).toMatch(/A magia atravessa a defesa, e Orc sente o corpo queimar por dentro\.$/);
   });
 });
 
