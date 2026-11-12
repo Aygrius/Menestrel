@@ -298,6 +298,7 @@
   display: flex; flex-direction: column;
   width: 100%;
   max-height: calc(100vh - 88px);
+  max-height: calc(100dvh - 88px);
   background: rgba(var(--chao-rgb), 0.90);
   border: 1px solid var(--regua-forte);
   border-radius: 6px;
@@ -316,7 +317,7 @@
 #root .menestrel-ui.ms-modal.ms-sm, #root .menestrel-ui .ms-modal.ms-sm   { max-width: 400px; }
 #root .menestrel-ui.ms-modal.ms-md, #root .menestrel-ui .ms-modal.ms-md   { max-width: 500px; }
 #root .menestrel-ui.ms-modal.ms-lg, #root .menestrel-ui .ms-modal.ms-lg   { max-width: 800px; }
-#root .menestrel-ui.ms-modal.ms-full, #root .menestrel-ui .ms-modal.ms-full { max-width: 100%; width: min(960px, calc(100vw - 32px)); height: calc(100vh - 88px); }
+#root .menestrel-ui.ms-modal.ms-full, #root .menestrel-ui .ms-modal.ms-full { max-width: 100%; width: min(960px, calc(100vw - 32px)); height: calc(100vh - 88px); height: calc(100dvh - 88px); }
 #root .menestrel-ui.ms-modal .subhead, #root .menestrel-ui .ms-modal .subhead { font-size: var(--fs-sm); font-family: var(--font-body); color: var(--parchment-muted, var(--tinta-2)); line-height: 1.55; }
 .ms-modal.ms-confirm .ms-body {
   font-size: var(--fs-sm);
@@ -596,8 +597,8 @@
   /* Padding superior de 40px é generoso demais em telas pequenas — volta a
      ficar simétrico (16px) pra não desperdiçar espaço vertical escasso. */
   #root .menestrel-ui.ms-backdrop, #root .menestrel-ui .ms-backdrop { padding: 16px; }
-  #root .menestrel-ui.ms-modal, #root .menestrel-ui .ms-modal { max-height: calc(100vh - 40px); }
-  #root .menestrel-ui.ms-modal.ms-full, #root .menestrel-ui .ms-modal.ms-full { height: calc(100vh - 40px); }
+  #root .menestrel-ui.ms-modal, #root .menestrel-ui .ms-modal { max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); }
+  #root .menestrel-ui.ms-modal.ms-full, #root .menestrel-ui .ms-modal.ms-full { height: calc(100vh - 40px); height: calc(100dvh - 40px); }
   #root .menestrel-ui.ms-header, #root .menestrel-ui .ms-header { padding: 15px 15px 15px; }
   #root .menestrel-ui.ms-body, #root .menestrel-ui .ms-body { padding: 16px 18px; }
   #root .menestrel-ui .det-act-row { padding: 14px 18px 0; margin: 0 -18px; }
@@ -5447,7 +5448,7 @@
 #root .menestrel-ui.btn.btn-icon.sm svg, .twk-panel.btn.btn-icon.sm svg, #root .menestrel-ui .btn.btn-icon.sm svg, .twk-panel .btn.btn-icon.sm svg { width: 13px; height: 13px; }
 #root .menestrel-ui.hero h1 .accent, .twk-panel.hero h1 .accent, #root .menestrel-ui .hero h1 .accent, .twk-panel .hero h1 .accent { color: var(--gold-bright); font-style: normal; }
 #root .menestrel-ui.modal-backdrop, .twk-panel.modal-backdrop, #root .menestrel-ui .modal-backdrop, .twk-panel .modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; animation: fade .2s ease; }
-#root .menestrel-ui.modal, .twk-panel.modal, #root .menestrel-ui .modal, .twk-panel .modal { max-width: 480px; width: 100%; max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain; padding: 30px 30px; position: relative; }
+#root .menestrel-ui.modal, .twk-panel.modal, #root .menestrel-ui .modal, .twk-panel .modal { max-width: 480px; width: 100%; max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); overflow-y: auto; overscroll-behavior: contain; padding: 30px 30px; position: relative; }
 #root .menestrel-ui.modal::-webkit-scrollbar, .twk-panel.modal::-webkit-scrollbar, #root .menestrel-ui .modal::-webkit-scrollbar, .twk-panel .modal::-webkit-scrollbar { width: 8px; height: 8px; }
 #root .menestrel-ui.modal::-webkit-scrollbar-track, .twk-panel.modal::-webkit-scrollbar-track, #root .menestrel-ui .modal::-webkit-scrollbar-track, .twk-panel .modal::-webkit-scrollbar-track { background: transparent; }
 #root .menestrel-ui.modal::-webkit-scrollbar-thumb, .twk-panel.modal::-webkit-scrollbar-thumb, #root .menestrel-ui .modal::-webkit-scrollbar-thumb, .twk-panel .modal::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: 6px; }
@@ -5655,7 +5656,8 @@
 /* ---- AdminConsole ---- */
 /* .mc-root é co-classe do wrapper .menestrel-ui — sem espaço no seletor */
 #root .menestrel-ui.mc-root {
-  display: flex; height: 100vh; width: 100%; position: relative; overflow: hidden;
+  /* 100dvh: no celular o 100vh conta a barra do navegador e escondia o pé. */
+  display: flex; height: 100vh; height: 100dvh; width: 100%; position: relative; overflow: hidden;
   background: var(--p-pagina, #19110C);
   color: var(--tinta); font-family: var(--font-body);
 
@@ -9178,6 +9180,20 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .fp-step-btn:not(:disabled):hover {
   background: rgba(var(--ouro-rgb),0.16);
 }
+/* Toque (11/11/2026): no celular os − e + (e os compactos de 18px) ganham
+   44px de área de toque em volta, sem mudar o desenho. O :where() deixa o
+   `position` com especificidade baixa: quem já posiciona o botão (a moeda do
+   CampoPreco, absoluta) continua vencendo, e absoluto também ancora o ::after. */
+@media (pointer: coarse) {
+  :where(#root .menestrel-ui) :is(.fp-step-btn, .fp-step-btn--sm) { position: relative; }
+  /* a moeda do CampoPreco sem ícone é `static` (fica no fluxo): sem isto o
+     ::after ancoraria no campo inteiro. */
+  #root .menestrel-ui .campo-preco:not(.campo-icone) button.campo-preco-moeda { position: relative; }
+  #root .menestrel-ui :is(.fp-step-btn, .fp-step-btn--sm)::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    width: 44px; height: 44px; transform: translate(-50%, -50%);
+  }
+}
 
 /* ── Botões de step compactos (18px) — bônus de arma na tabela fp-atk ── */
 #root .menestrel-ui .fp-step-btn--sm {
@@ -10663,7 +10679,7 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 /* Desde 22/10/2026 é o QuantidadeStepper, no tamanho do chip: a mesma pílula
    com os círculos − e + nas pontas, só mais baixa (como .part-qty-stepper). */
 #root .menestrel-ui .catalogo-lista-chip > .catalogo-lista-qtd { width: 84px; height: 26px; flex: 0 0 auto; padding: 0 2px; margin-left: 4px; }
-#root .menestrel-ui .catalogo-lista-qtd .fp-step-btn { width: 22px; height: 22px; font-size: var(--fs-sm); }
+#root .menestrel-ui .catalogo-lista-qtd .fp-step-btn { width: 24px; height: 24px; font-size: var(--fs-sm); }
 #root .menestrel-ui .catalogo-lista-qtd-n { font-variant-numeric: tabular-nums; }
 /* Itens do ritual nas telas do jogador. */
 #root .menestrel-ui .det-itens-ritual { margin: 10px 0 0; font-family: var(--font-body); font-size: var(--fs-sm); color: var(--tinta-2); }
