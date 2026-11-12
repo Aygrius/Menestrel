@@ -484,7 +484,9 @@ function resistenciasBase(estagio, fisico, aura) {
    bônus com prazo ainda valem. Sem ela, os que existem contam como vigentes —
    a mesma convenção das magias ativas; quem avança o relógio é o Mestre. */
 // Profissões que não sofrem a penalidade de karma (mod_kar < 0) das peças.
-const SEM_RESTRICAO_KARMA = new Set(['Sacerdote', 'Rastreador']);
+// Só o Sacerdote desde 11/11/2026 (usuário: "Remova a exceção de limitação de
+// karma do rastreador, será apenas do sacerdote").
+const SEM_RESTRICAO_KARMA = new Set(['Sacerdote']);
 function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca, dataJogo) {
   const racaData = GAME_DATA.racas[p.raca] || GAME_DATA.racas['Humano'];
   const profData = GAME_DATA.profissoes[p.profissao] || GAME_DATA.profissoes['Guerreiro'];
@@ -632,9 +634,10 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca,
         defesaTotal   += (typeof defesaDaPeca === 'function' ? defesaDaPeca(it, c) : Number(c.defesa || 0));
       }
       modVelTotal   += Number(c.mod_vel  || 0);
-      // Sacerdote e Rastreador usam qualquer armadura e arma sem restrição de
-      // karma (29/10/2026): a penalidade da peça não vale para eles; o bônus
-      // (joia de metal arcano) continua valendo.
+      // O Sacerdote usa qualquer armadura e arma sem restrição de karma
+      // (29/10/2026; o Rastreador saiu da exceção em 11/11/2026): a
+      // penalidade da peça não vale para ele; o bônus (joia de metal arcano)
+      // continua valendo.
       const _kar = Number(c.mod_kar || 0);
       if (!(_kar < 0 && SEM_RESTRICAO_KARMA.has(p.profissao))) modKarTotal += _kar;
       // 'peito' é o slot antigo do peitoral; desde 26/10/2026 a região é 'dorso'.

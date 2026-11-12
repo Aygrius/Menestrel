@@ -164,8 +164,24 @@ describe('calcularFicha — mods passivos das peças (26/10/2026)', () => {
     expect(com.velocidade).toBe(sem.velocidade + 7);
   });
 
-  it('Sacerdote e Rastreador ignoram a penalidade de karma, mas ganham o bônus', () => {
-    for (const profissao of ['Sacerdote', 'Rastreador']) {
+  /* Só o Sacerdote desde 11/11/2026 ("Remova a exceção de limitação de karma
+     do rastreador, será apenas do sacerdote"): o Rastreador perde o karma das
+     peças como qualquer outra profissão. */
+  it('o Rastreador sofre a penalidade de karma como o Guerreiro', () => {
+    const delta = (profissao) => {
+      const pj = (itens) => ({ ...PJ_BASE, profissao, inventario: { itens } });
+      const sem = G.calcularFicha(pj([]), CAT).derivadas;
+      const com = G.calcularFicha(pj([
+        { instanceId: 'p1', slug: 'peitoral', quantidade: 1, equipado: true, slot: 'dorso' },
+        { instanceId: 'm1', slug: 'machado', quantidade: 1, equipado: true, slot: 'mao_d' },
+      ]), CAT).derivadas;
+      return com.karma - sem.karma;
+    };
+    expect(delta('Rastreador')).toBeLessThan(0);
+    expect(delta('Rastreador')).toBe(delta('Guerreiro'));
+  });
+  it('o Sacerdote ignora a penalidade de karma, mas ganha o bônus', () => {
+    for (const profissao of ['Sacerdote']) {
       const pj = (itens) => ({ ...PJ_BASE, profissao, inventario: { itens } });
       const sem = G.calcularFicha(pj([]), CAT).derivadas;
       const com = G.calcularFicha(pj([

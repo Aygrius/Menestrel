@@ -3295,7 +3295,7 @@ function numerosDoItem(it, lang, { fora, resistenciaTexto } = {}) {
   /* A RESTRIÇÃO DE KARMA (11/11/2026, usuário: "Ao clicar em um item, mostrar
      nas características as restrições de mana que a armadura tem"): o
      mod_kar do catálogo, com sinal, no azul do karma. A joia que abre karma
-     aparece do mesmo jeito, positiva. Sacerdote e Rastreador não sofrem a
+     aparece do mesmo jeito, positiva. O Sacerdote não sofre a
      restrição (SEM_RESTRICAO_KARMA, 01-core) — a peça é a mesma para todos,
      então o número fica o do catálogo. */
   if (!sai('karma') && tem(it.mod_kar)) c.push({ chave: 'karma', rotulo: 'Karma', valor: sinal(it.mod_kar), tom: 'azul' });

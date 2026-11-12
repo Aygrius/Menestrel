@@ -354,7 +354,7 @@ function montarCapitulos() {
         verso: () => (<>
           <p>A sua <b>defesa</b> soma o tipo do peitoral (leve, médio ou pesado), a proteção das outras peças e a sua agilidade. A ficha mostra algo como “M7”: armadura média, 7 de defesa. Cada ponto de defesa deixa o ataque do inimigo um pouco mais difícil.</p>
           <p>A <b>absorção</b> é a soma das peças que você veste, mais a sagração e a qualidade de quem as fabricou.</p>
-          <p>Vestindo o conjunto completo — todas as peças do mesmo tipo, iguais e inteiras —, você ganha um bônus: o leve dá +2 de absorção e +2 de defesa; o médio, +3 e +1; o pesado, +4 de absorção. Peça quebrada não protege. Algumas peças tiram velocidade ou karma, mas o sacerdote e o rastreador não perdem o karma.</p>
+          <p>Vestindo o conjunto completo — todas as peças do mesmo tipo, iguais e inteiras —, você ganha um bônus: o leve dá +2 de absorção e +2 de defesa; o médio, +3 e +1; o pesado, +4 de absorção. Peça quebrada não protege. Algumas peças tiram velocidade ou karma, mas o sacerdote não perde o karma.</p>
         </>) },
       { id: 'carga', titulo: 'Quanto você consegue carregar', frase: 'Carregar muito peso deixa você lento: passou da metade do que você aguenta, a velocidade e a defesa começam a cair.',
         numeros: [['Mais da metade', 'Um pouco mais lento'], ['Mais de três quartos', 'Bem mais lento'], ['Quase no limite', 'Arrastando os pés']],
