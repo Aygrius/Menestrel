@@ -10087,7 +10087,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   // Ação e Passar NÃO estão aqui (30/08/2026): agem sobre UM participante — o
   // da vez — e por isso moraram no menu do avatar dele, junto de dano, cura e
   // estado. No header ficavam órfãs de dono, longe do lutador que afetavam.
-  // Nova Rodada e Encerrar continuam no topo: são da batalha inteira.
+  // Encerrar continua no topo: é da batalha inteira.
   useEffect(() => {
     if (!onHeaderActionsChange) return;
     if (estado === 'setup') {
@@ -10142,12 +10142,6 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     onHeaderActionsChange(
       <>
         <span className="batalha-trilho-rodada">{isEn ? 'Round' : 'Rodada'} <b>{rodada || 1}</b></span>
-        {/* REVELAR A VEZ (10/11/2026): a vez terminou e a mesa ainda não viu o
-            resultado. O Mestre narra e revela; só então o próximo age. */}
-        {aguardandoRevelar && window.BotaoRevelarVez && (
-          <window.BotaoRevelarVez cortina={cortina} proximo={lutadorDaVez && lutadorDaVez.nome} isEn={isEn}
-            disabled={salvando} onRevelar={revelarVez} />
-        )}
         {/* VISIBILIDADE DO TABULEIRO. Um botão que cicla claro → parcial →
             total → mágica → claro. Ciclar em vez de abrir menu porque são
             quatro estados numa escada, e o ícone diz em qual você está: o
@@ -10171,10 +10165,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           <i className="ti ti-circle-plus" aria-hidden="true" />
           <span className="mc-acao-rotulo" aria-hidden="true">{isEn ? 'Reinforcements' : 'Reforços'}</span>
         </button>
-        <button type="button" className="mc-acao" disabled={salvando || rolagemPendente} onClick={() => novaRodada()}>
-          <i className="ti ti-refresh" aria-hidden="true" />
-          <span className="mc-acao-rotulo">{isEn ? 'New round' : 'Nova rodada'}</span>
-        </button>
+        {/* Sem "Nova rodada" (11/11/2026, usuário: "Remova o botão 'nova
+            rodada'"): a rodada vira sozinha quando o último da ordem termina. */}
         {/* Só no treino: todos de volta ao máximo de EF, EH, AR e KA (11/11/2026). */}
         {batalha.treinamento && (
           <button type="button" className="mc-acao" data-acao="restaurar"
@@ -10203,6 +10195,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           <i className="ti ti-door-exit" aria-hidden="true" />
           <span className="mc-acao-rotulo" aria-hidden="true">{isEn ? 'End' : 'Encerrar'}</span>
         </button>
+        {/* REVELAR A VEZ (10/11/2026): a vez terminou e a mesa ainda não viu o
+            resultado. O Mestre narra e revela; só então o próximo age. O
+            último do trilho (11/11/2026, usuário: "o botão 'revelar' será o
+            último do trilho"). */}
+        {aguardandoRevelar && window.BotaoRevelarVez && (
+          <window.BotaoRevelarVez cortina={cortina} proximo={lutadorDaVez && lutadorDaVez.nome} isEn={isEn}
+            disabled={salvando} onRevelar={revelarVez} />
+        )}
       </>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps

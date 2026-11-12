@@ -110,3 +110,20 @@ describe('o passe da ação', () => {
     expect(fonte).not.toMatch(/isEn \? 'Cost' : 'Custo'/);
   });
 });
+
+/* 11/11/2026: "Remova o botão 'nova rodada', o botão 'revelar' será o último
+   do trilho. O card de notificações será mais largo, ocupando pelo menos o
+   campo de batalha todo." */
+describe('o trilho da condução', () => {
+  it('sem "Nova rodada", e o Revelar é o último', () => {
+    expect(fonte).not.toMatch(/'New round' : 'Nova rodada'/);
+    const encerrar = fonte.indexOf("{isEn ? 'End' : 'Encerrar'}");
+    const revelar = fonte.indexOf('<window.BotaoRevelarVez');
+    expect(revelar).toBeGreaterThan(encerrar);
+    expect(fonte.slice(revelar, fonte.indexOf('</>', revelar))).not.toMatch(/className="mc-acao/);
+  });
+  it('o card de notificações vai de ponta a ponta do campo', () => {
+    const css = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../index.css'), 'utf8');
+    expect(css).toMatch(/\.cm-cards \{\s*--cm-campo-esq: 10px; --cm-campo-dir: 314px;\s*width: calc\(100vw - var\(--cm-campo-esq\) - var\(--cm-campo-dir\)\);/);
+  });
+});

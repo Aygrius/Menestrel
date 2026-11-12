@@ -18571,6 +18571,22 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa) .menestrel-ui.cm-root { --cm-s
    dele em vez de se sobrepor. */
 html:has(.fp-card.batalha-mng-page .batalha-mesa) .menestrel-ui.cm-root .cm-cards { bottom: 64px; }
 html:has(.fp-card.batalha-mng-page .batalha-mesa):has(.batalha-aviso-vez) .menestrel-ui.cm-root .cm-cards { bottom: 156px; }
+/* DA LARGURA DO CAMPO (11/11/2026, usuário: "O card de notificações será mais
+   largo, ocupando pelo menos o campo de batalha todo"). Na batalha em tela
+   cheia, o card vai de ponta a ponta do campo: começa onde termina a coluna da
+   iniciativa (274px, só o Mestre a tem; o Jogador, 10px) e termina onde
+   começa o painel da direita (314px) — as mesmas medidas de
+   .batalha-mesa-centro. Na tela estreita os cards laterais descem e o campo
+   tem a largura toda. */
+html:has(.fp-card.batalha-mng-page .batalha-mesa) .menestrel-ui.cm-root .cm-cards {
+  --cm-campo-esq: 10px; --cm-campo-dir: 314px;
+  width: calc(100vw - var(--cm-campo-esq) - var(--cm-campo-dir));
+  left: calc(var(--cm-campo-esq) + (100vw - var(--cm-campo-esq) - var(--cm-campo-dir)) / 2);
+}
+html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-ui.cm-root .cm-cards { --cm-campo-esq: 274px; }
+@media (max-width: 1100px) {
+  html:has(.fp-card.batalha-mng-page .batalha-mesa) .menestrel-ui.cm-root .cm-cards { --cm-campo-esq: 16px !important; --cm-campo-dir: 16px; }
+}
 
 /* ══ ENTIDADES (08/11/2026) ═════════════════════════════════════════════════
    A ficha de um deus, titã ou príncipe (13-diario/entidades.jsx). Relações,
