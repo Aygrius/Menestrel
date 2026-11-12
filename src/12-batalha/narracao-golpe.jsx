@@ -94,8 +94,8 @@ const NARRACAO_ENCONTRO = {
       '{a} investe com o corpo inteiro, ombro à frente, para derrubar {b} e sua malha no chão.',
     ],
     P: [
-      '{a} arranha e morde as placas de {b}, furioso, à procura de qualquer brecha no aço.',
-      'Sem arma nenhuma, {a} se atira contra {b}, decidido a derrubar o peso das placas.',
+      '{a} arranha e morde as placas de {b} com fúria, à procura de qualquer brecha no aço.',
+      'Sem arma nenhuma, {a} se atira contra {b} para derrubar de uma vez o peso das placas.',
       '{a} acerta o aço de {b} com tanta raiva que o choque sobe pelo próprio braço.',
     ],
   },
@@ -228,7 +228,7 @@ const NARRACAO_DESFECHO = {
     'Por um fio de cabelo, nada: {b} desvia e já se prepara para responder.',
   ],
   falha: [
-    'Mas o pé de {a} escorrega, o golpe sai torto, e é o próprio {a} quem paga pelo descuido.',
+    'Mas o pé de {a} escorrega, o golpe sai torto, e quem paga pelo descuido é {a}.',
     'O ataque foge ao controle de {a} e se volta contra quem o lançou, num gesto que a mesa inteira vai lembrar.',
     'Tudo dá errado de uma vez: {a} perde o equilíbrio, tropeça e se fere.',
   ],
@@ -239,7 +239,7 @@ const NARRACAO_DESFECHO = {
   ],
   heroica: [
     '{b} gira junto com o golpe e o recebe de raspão, gastando fôlego, mas sem sangrar.',
-    'O ataque cansa {b}, que perde o ar por um instante e ainda assim se mantém inteiro.',
+    'O ataque cansa {b}, que perde o ar por um instante e ainda assim se mantém de pé.',
     'Por reflexo e um pouco de sorte, {b} apara o pior; o golpe custa fôlego, não sangue.',
   ],
   ferido: [
@@ -285,12 +285,12 @@ const NARRACAO_DESFECHO_DO_GOLPE = {
   ESMAGAMENTO: {
     ferido: [
       'Ouve-se o estalo de algo quebrando, e {b} se curva de dor.',
-      'A pancada tira o ar de {b}, que cambaleia, tonto.',
+      'A pancada tira o ar de {b}, que cambaleia com a vista girando.',
       'O impacto atravessa a defesa e sacode {b} até os ossos.',
     ],
     critico: [
       'O golpe acerta em cheio, e o som dos ossos de {b} se partindo silencia o campo.',
-      '{b} voa para trás e bate no chão, atordoado, o mundo girando.',
+      '{b} voa para trás e bate no chão, com o mundo girando.',
       'Uma pancada que derrubaria um touro: {b} perde o chão sob os pés.',
     ],
   },
@@ -309,7 +309,7 @@ const NARRACAO_DESFECHO_DO_GOLPE = {
   magia: {
     ferido: [
       'A magia atravessa a defesa, e {b} sente o corpo queimar por dentro.',
-      '{b} grita quando o poder o alcança e deixa a sua marca na pele.',
+      'O poder alcança {b}, que grita e fica com a marca na pele.',
       'O encanto encontra {b}, que cambaleia, a vista turva.',
     ],
     critico: [
@@ -348,6 +348,45 @@ function primeiroNomeNarr(n) {
   return String(n || '').trim().split(/\s+/)[0] || '';
 }
 
+/* O ARTIGO DA CRIATURA (11/11/2026, usuário: "'O ataque cansa Demônio', o
+   certo seria 'O ataque cansa o Demônio', porque demônio não é nome próprio").
+   Personagem é nome próprio: sem artigo. Criatura é nome comum: leva "o" ou
+   "a", que se junta à preposição (do, ao, no, pelo; da, à, na, pela). O
+   bestiário não guarda o gênero; ele sai da forma do nome — terminado em -a,
+   -ção, -são ou -gem é feminino —, com as exceções do catálogo. Nome próprio
+   de criatura (Vladimir, Sobek…) fica sem artigo. */
+const NARR_FEMININOS = new Set(['esfinge', 'fenix', 'cascavel', 'sucuri', 'serpente', 'hidra', 'lebre', 'ave']);
+const NARR_MASCULINOS = new Set(['gorila', 'fantasma', 'planeta', 'cometa', 'puma', 'panda', 'dia', 'mapa']);
+const NARR_PROPRIOS = new Set(['vladimir', 'sobek', 'shai-hulud', 'cerberus']);
+function artigoDoNome(nome, tipo) {
+  if (tipo === 'pj') return '';
+  const k = String(nome || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split('-')[0];
+  const inteiro = String(nome || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!k || NARR_PROPRIOS.has(inteiro) || NARR_PROPRIOS.has(k)) return '';
+  if (NARR_FEMININOS.has(k)) return 'a';
+  if (NARR_MASCULINOS.has(k)) return 'o';
+  return /(a|cao|sao|gem)$/.test(k) ? 'a' : 'o';
+}
+/* As formas do nome: sozinho ("o Demônio"), e depois de de, a, em e por. */
+function formasDoNome(nome, artigo) {
+  if (!artigo) return { nom: nome, de: 'de ' + nome, a: 'a ' + nome, em: 'em ' + nome, por: 'por ' + nome };
+  return {
+    nom: artigo + ' ' + nome,
+    de: 'd' + artigo + ' ' + nome,
+    a: (artigo === 'o' ? 'ao ' : 'à ') + nome,
+    em: 'n' + artigo + ' ' + nome,
+    por: 'pel' + artigo + ' ' + nome,
+  };
+}
+/* Troca {a}/{b} pelas formas certas e põe maiúscula no começo das frases. */
+function preencherNarracao(frase, fa, fb) {
+  const f = { a: fa, b: fb };
+  const t = frase
+    .replace(/\b(de|a|em|por) \{(a|b)\}/g, (_, prep, q) => f[q][prep])
+    .replace(/\{(a|b)\}/g, (_, q) => f[q].nom);
+  return t.replace(/(^|[.?]\s+)(\p{Ll})/gu, (_, ini, c) => ini + c.toUpperCase());
+}
+
 /* As frases do desfecho para este golpe: as dele, se tiver; senão, as comuns. */
 function desfechosPara(tipo, golpeTipo, fim) {
   const voz = NARRACAO_DESFECHO_DO_GOLPE[tipo === 'magia' ? 'magia' : golpeTipo];
@@ -355,7 +394,7 @@ function desfechosPara(tipo, golpeTipo, fim) {
 }
 
 /* A narração do golpe. `sortear` (0..1) é injetável para os testes. */
-function narrarGolpe({ tipo, golpeTipo, elemento, defesaSigla, autorNome, alvoNome, resultado, dano, onde, critico, sortear } = {}) {
+function narrarGolpe({ tipo, golpeTipo, elemento, defesaSigla, autorNome, alvoNome, autorTipo, alvoTipo, resultado, dano, onde, critico, sortear } = {}) {
   const rnd = typeof sortear === 'function' ? sortear : Math.random;
   const pick = (lista) => lista[Math.min(lista.length - 1, Math.floor(rnd() * lista.length))];
   const golpe = NARRACAO_ENCONTRO[golpeTipo] ? golpeTipo : 'DESARMADO';
@@ -364,7 +403,9 @@ function narrarGolpe({ tipo, golpeTipo, elemento, defesaSigla, autorNome, alvoNo
   const fim = desfechoDoGolpe({ resultado, dano, onde, critico });
   const a = primeiroNomeNarr(autorNome);
   const b = primeiroNomeNarr(alvoNome);
-  const preencher = (s) => s.replace(/\{a\}/g, a).replace(/\{b\}/g, b);
+  const fa = formasDoNome(a, artigoDoNome(a, autorTipo));
+  const fb = formasDoNome(b, artigoDoNome(b, alvoTipo));
+  const preencher = (s) => preencherNarracao(s, fa, fb);
   return preencher(pick(NARRACAO_ENCONTRO[fam][def])) + ' ' + preencher(pick(desfechosPara(tipo, golpe, fim)));
 }
 
@@ -372,6 +413,6 @@ Object.assign(window, {
   narrarGolpe,
   NARRACAO_GOLPE: {
     encontro: NARRACAO_ENCONTRO, desfecho: NARRACAO_DESFECHO, desfechoDoGolpe: NARRACAO_DESFECHO_DO_GOLPE,
-    familiaDoElemento, qualDesfecho: desfechoDoGolpe,
+    familiaDoElemento, qualDesfecho: desfechoDoGolpe, artigoDoNome, formasDoNome, preencherNarracao,
   },
 });

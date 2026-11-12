@@ -5155,6 +5155,9 @@ function metaNarracaoDoGolpe({ tipo, arma, elemento, autor, alvo, resultado, dan
       defesaSigla: alvo && alvo.defesa_sigla,
       autorNome: autor && autor.nome,
       alvoNome: alvo && alvo.nome,
+      // Personagem sem artigo; criatura com "o"/"a" (11/11/2026).
+      autorTipo: autor && autor.tipo,
+      alvoTipo: alvo && alvo.tipo,
       resultado, dano, onde, critico,
     });
     return narracao ? { narracao } : {};

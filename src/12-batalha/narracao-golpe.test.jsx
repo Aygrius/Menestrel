@@ -64,17 +64,17 @@ describe('a narração de um golpe', () => {
   const primeira = () => 0;   // sempre a primeira frase
   it('espada contra placas, ferindo: o encontro e o desfecho, com os primeiros nomes', () => {
     const t = window.narrarGolpe({
-      tipo: 'arma', golpeTipo: 'CORTE', defesaSigla: 'P', autorNome: 'Kael Ventoleste', alvoNome: 'Orc Batedor',
+      tipo: 'arma', golpeTipo: 'CORTE', defesaSigla: 'P', autorNome: 'Kael Ventoleste', alvoNome: 'Orc Batedor', autorTipo: 'pj', alvoTipo: 'criatura',
       resultado: { codigo: 'M', erra: false }, dano: 12, onde: { eh: 0, ef: 12 }, sortear: primeira,
     });
-    expect(t).toBe('Kael estuda as placas de Orc por um instante e corta onde o aço não cobre, na dobra do joelho. A lâmina passa, e um talho se abre no corpo de Orc, vermelho e quente.');
+    expect(t).toBe('Kael estuda as placas do Orc por um instante e corta onde o aço não cobre, na dobra do joelho. A lâmina passa, e um talho se abre no corpo do Orc, vermelho e quente.');
   });
   it('bola de fogo contra couro, e o alvo esquiva', () => {
     const t = window.narrarGolpe({
-      tipo: 'magia', elemento: 'fogo', defesaSigla: 'L', autorNome: 'Lirael', alvoNome: 'Lobo',
+      tipo: 'magia', elemento: 'fogo', defesaSigla: 'L', autorNome: 'Lirael', alvoNome: 'Lobo', autorTipo: 'pj', alvoTipo: 'criatura',
       resultado: { codigo: 'R', erra: true }, dano: 0, sortear: primeira,
     });
-    expect(t).toMatch(/^Lirael abre as mãos e o fogo nasce entre os dedos, .* couro de Lobo\. Mas Lobo lê o golpe no último instante, gira o corpo, e o ataque morde só o vento\.$/);
+    expect(t).toMatch(/^Lirael abre as mãos e o fogo nasce entre os dedos, .* couro do Lobo\. Mas o Lobo lê o golpe no último instante, gira o corpo, e o ataque morde só o vento\.$/);
   });
   it('cada desfecho: falha crítica, crítico, só a armadura, só a energia heroica', () => {
     const d = N().qualDesfecho;
@@ -85,12 +85,51 @@ describe('a narração de um golpe', () => {
     expect(d({ resultado: { codigo: 'F' }, dano: 5, onde: { eh: 0, ef: 0 } })).toBe('armadura');
   });
   it('defesa desconhecida conta como leve; golpe desconhecido como desarmado', () => {
-    const t = window.narrarGolpe({ tipo: 'arma', golpeTipo: '??', defesaSigla: null, autorNome: 'A', alvoNome: 'B',
+    const t = window.narrarGolpe({ tipo: 'arma', golpeTipo: '??', defesaSigla: null, autorNome: 'A', alvoNome: 'B', autorTipo: 'pj', alvoTipo: 'pj',
       resultado: { codigo: 'R', erra: true }, sortear: primeira });
     expect(t.startsWith('A avança de mãos nuas')).toBe(true);
     // A magia ferindo usa a voz da magia, não a da arma.
-    expect(window.narrarGolpe({ tipo: 'magia', elemento: 'luz', defesaSigla: 'M', autorNome: 'Sena', alvoNome: 'Orc',
-      resultado: { codigo: 'M' }, dano: 8, onde: { ef: 8 }, sortear: () => 0 })).toMatch(/A magia atravessa a defesa, e Orc sente o corpo queimar por dentro\.$/);
+    expect(window.narrarGolpe({ tipo: 'magia', elemento: 'luz', defesaSigla: 'M', autorNome: 'Sena', alvoNome: 'Orc', autorTipo: 'pj', alvoTipo: 'criatura',
+      resultado: { codigo: 'M' }, dano: 8, onde: { ef: 8 }, sortear: () => 0 })).toMatch(/A magia atravessa a defesa, e o Orc sente o corpo queimar por dentro\.$/);
+  });
+});
+
+/* "'O ataque cansa Demônio', o certo seria 'O ataque cansa o Demônio', porque
+   demônio não é nome próprio" (usuário, 11/11/2026). */
+describe('o artigo da criatura', () => {
+  const G = () => window.NARRACAO_GOLPE;
+  it('personagem sem artigo; criatura com o/a pela forma do nome', () => {
+    const art = G().artigoDoNome;
+    expect(art('Lirael', 'pj')).toBe('');
+    expect(art('Demônio', 'criatura')).toBe('o');
+    expect(art('Harpia', 'criatura')).toBe('a');
+    expect(art('Aparição', 'criatura')).toBe('a');
+    expect(art('Onça-parda', 'criatura')).toBe('a');
+    expect(art('Gorila', 'criatura')).toBe('o');
+    expect(art('Esfinge', 'criatura')).toBe('a');
+    expect(art('Vladimir', 'criatura')).toBe('');
+  });
+  it('o artigo se junta à preposição, e a frase começa com maiúscula', () => {
+    const { formasDoNome, preencherNarracao } = G();
+    const dem = formasDoNome('Demônio', 'o');
+    const har = formasDoNome('Harpia', 'a');
+    const lir = formasDoNome('Lirael', '');
+    expect(preencherNarracao('O ataque cansa {b}, que perde o ar.', lir, dem)).toBe('O ataque cansa o Demônio, que perde o ar.');
+    expect(preencherNarracao('{b} cambaleia. A lâmina de {a} chega a {b} e se aloja em {b}, conjurada por {a}.', dem, har))
+      .toBe('A Harpia cambaleia. A lâmina do Demônio chega à Harpia e se aloja na Harpia, conjurada pelo Demônio.');
+    expect(preencherNarracao('{b} cambaleia, e {a} avança.', lir, dem)).toBe('O Demônio cambaleia, e Lirael avança.');
+  });
+  it('nenhuma frase tem "o próprio {a}" nem adjetivo de gênero fixo sobre quem luta', () => {
+    const todas = [
+      ...Object.values(G().encontro).flatMap((d) => Object.values(d).flat()),
+      ...Object.values(G().desfecho).flat(),
+      ...Object.values(G().desfechoDoGolpe).flatMap((d) => Object.values(d).flat()),
+    ].join(' ');
+    expect(todas).not.toMatch(/próprio \{a\}|tonto|atordoado|furioso|decidido|se mantém inteiro/);
+  });
+  it('a batalha manda o tipo de quem age e do alvo', () => {
+    const src = readFileSync(resolve(__dirname, './batalha.jsx'), 'utf8');
+    expect(src).toMatch(/autorTipo: autor && autor\.tipo,\s*alvoTipo: alvo && alvo\.tipo,/);
   });
 });
 
