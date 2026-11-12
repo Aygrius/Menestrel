@@ -9584,6 +9584,11 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
    `margin-left: auto` global de .estado-drop-wrap é anulado pra ele ficar
    colado no RF em vez de saltar pra ponta da linha. */
 #root .menestrel-ui .batalha-fighter-stats .estado-drop-wrap { margin-left: 0; }
+/* O NOME À ESQUERDA (11/11/2026, usuário: "o nome do combatente à direita não
+   vai ficar alinhado à direita, e sim à esquerda"): desde que o nome virou o
+   botão do estado, ele mora num .estado-drop-wrap, e o margin-left: auto
+   global o empurrava para a ponta do painel. */
+#root .menestrel-ui .batalha-fighter-id .estado-drop-wrap { margin-left: 0; justify-self: start; }
 #root .menestrel-ui .batalha-fighter-stats .batalha-menu-acao-ic {
   width: 32px; height: 32px; padding: 0; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;

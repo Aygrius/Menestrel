@@ -12801,8 +12801,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
         const custoKA = tab === 'magia' ? custoKarma
           : (tab === 'apoio' && apoioSel && !evocandoAgora) ? (apoioSel.custo_karma || 0) : 0;
         const faltaKA = custoKA > 0 && (ator.karma || 0) < custoKA;
+        /* AÇÕES = QUANTO GASTA / QUANTO TEM (11/11/2026, usuário: "No card de
+           atacar, remova 'pontos de ação' pois já temos o card 'ações', nele
+           teremos sempre 'quanto gasta/quanto tem'"). */
         const celulas = [
-          ['acoes', isEn ? 'Actions' : 'Ações', <>{ator.pa_rest || 0}<small>/{ator.pa_max || 0}</small></>],
+          ['acoes', isEn ? 'Actions' : 'Ações', <>{custoPA}<small>/{ator.pa_rest || 0}</small></>],
           (tab === 'apoio' || tab === 'resistencia') && alvoResist != null
             ? ['resist', isEn ? 'Resistance' : 'Resistência', alvoResist]
             // Na Técnica o número é o total dela, que a lista embaixo já diz.
@@ -12811,10 +12814,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             ? ['alcance', isEn ? 'Reach' : 'Alcance', <>{alcanceAcao}<small> m</small></>] : null,
           distanciaAoAlvo != null && (tab === 'arma' || tab === 'magia')
             ? ['dist', isEn ? 'Distance' : 'Distância', <>{distanciaAoAlvo}<small> m</small></>] : null,
-          /* "A palavra 'Custo' vira 'Pontos de ação', e abaixo fica apenas o
-             número" (usuário, 11/11/2026). O karma, quando a ação pede, ganha
-             a própria célula, também só com o número. */
-          ['custo', isEn ? 'Action points' : 'Pontos de ação', custoPA],
+          // O karma, quando a ação pede, ganha a própria célula, só com o número.
           custoKA > 0 ? ['karma', 'Karma', custoKA] : null,
         ].filter(Boolean);
         return (

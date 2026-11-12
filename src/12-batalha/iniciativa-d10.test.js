@@ -101,8 +101,11 @@ describe('restaurar no treino', () => {
 });
 
 describe('o passe da ação', () => {
-  it('"Custo" virou "Pontos de ação", só com o número; o karma tem a célula dele', () => {
-    expect(fonte).toMatch(/\['custo', isEn \? 'Action points' : 'Pontos de ação', custoPA\]/);
+  /* "remova 'pontos de ação' pois já temos o card 'ações', nele teremos
+     sempre 'quanto gasta/quanto tem'" (usuário, 11/11/2026). */
+  it('Ações é quanto gasta / quanto tem, sem a célula de pontos de ação; o karma tem a célula dele', () => {
+    expect(fonte).not.toMatch(/'Action points' : 'Pontos de ação'/);
+    expect(fonte).toMatch(/\['acoes', isEn \? 'Actions' : 'Ações', <>\{custoPA\}<small>\/\{ator\.pa_rest \|\| 0\}<\/small><\/>\]/);
     expect(fonte).toMatch(/custoKA > 0 \? \['karma', 'Karma', custoKA\] : null/);
     expect(fonte).not.toMatch(/isEn \? 'Cost' : 'Custo'/);
   });
