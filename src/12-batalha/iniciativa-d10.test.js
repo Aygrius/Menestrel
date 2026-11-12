@@ -39,7 +39,11 @@ describe('a montagem: duas colunas, só o dado', () => {
     expect(fonte).toMatch(/aria-label=\{isEn \? 'Creatures' : 'Criaturas'\}/);
     expect(fonte).toMatch(/const doLadoJogador = \(p\) => p\.tipo === 'pj' \|\| p\.dono_pj != null;/);
   });
-  it('"Rolar todas" rola as criaturas do Mestre, aliadas também', () => {
+  it('sem o botão "Rolar todas" na coluna de criaturas (11/11/2026)', () => {
+    expect(fonte).not.toMatch(/'Roll all' : 'Rolar todas'/);
+    expect(fonte).not.toMatch(/batalha-ini-rolar-todas/);
+  });
+  it('rolarIniciativaDosInimigos (no motor) rola as criaturas do Mestre, aliadas também', () => {
     const lista = [orc('o1'), aliado, animalDaLia, pj];
     const saida = W.rolarIniciativaDosInimigos(lista, () => 5, W.criaturaDoMestre);
     expect(saida.map((p) => p.bonus_iniciativa)).toEqual([5, 5, undefined, undefined]);

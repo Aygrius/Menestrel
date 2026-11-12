@@ -1418,6 +1418,10 @@ function MensagemEvento({ msg, lang, ehMestre = false }) {
           </span>
         )}
         <span className="cm-msg-texto">{msg.texto}</span>
+        {/* A narração do golpe (11/11/2026): só o Mestre lê, para contar à mesa. */}
+        {ehMestre && msg.meta && typeof msg.meta.narracao === 'string' && msg.meta.narracao && (
+          <p className="cm-msg-narracao">{msg.meta.narracao}</p>
+        )}
         {ehMestre && <DetalheDoEvento meta={msg.meta} lang={lang} />}
       </div>
     </div>
@@ -1454,6 +1458,10 @@ function LogCard({ msg, saindo, lang, ehMestre = false }) {
         <i className={'ti ' + iconClass} aria-hidden="true" />
         <p className="cm-card-texto">{msg.texto}</p>
       </div>
+      {/* A narração do golpe (11/11/2026): só o Mestre lê, para contar à mesa. */}
+      {ehMestre && msg.meta && typeof msg.meta.narracao === 'string' && msg.meta.narracao && (
+        <p className="cm-msg-narracao">{msg.meta.narracao}</p>
+      )}
       {ehMestre && <DetalheDoEvento meta={msg.meta} lang={lang} />}
     </div>
   );

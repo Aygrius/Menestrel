@@ -85,6 +85,7 @@ import '../app.jsx'
 // A aprovação do Mestre entre as vezes e os efeitos da revelação (10/11/2026).
 import './12-batalha/efeitos-da-vez.css'
 import './12-batalha/efeitos-da-vez.jsx'
+import './12-batalha/narracao-golpe.jsx'   // a narração do golpe para o Mestre (11/11/2026)
 import './12-batalha/batalha.jsx'
 // Tabuleiro DEPOIS de batalha.jsx: usa mesmoParticipante/statusTemEfeito dele.
 import './12-batalha/tabuleiro.jsx'

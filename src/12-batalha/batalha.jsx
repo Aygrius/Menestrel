@@ -5055,6 +5055,29 @@ function metaDetalheDoGolpe(payload, atacante, alvo, elemento) {
   };
 }
 
+/* A NARRAÇÃO DO GOLPE PARA O MESTRE (11/11/2026, usuário: "Adicione para a
+   notificação do mestre, a narração personalizada da ação do combatente").
+   Sorteada aqui, uma vez, e gravada no meta do evento — o card e o histórico
+   do Mestre mostram a mesma frase. Ver 12-batalha/narracao-golpe.jsx. */
+function metaNarracaoDoGolpe({ tipo, arma, elemento, autor, alvo, resultado, dano, onde, critico }) {
+  const narrar = (typeof narrarGolpe === 'function' && narrarGolpe) || (typeof window !== 'undefined' && window.narrarGolpe);
+  if (!narrar) return {};
+  try {
+    const narracao = narrar({
+      tipo,
+      golpeTipo: tipo === 'arma' && arma ? tipoCriticoDoGrupo(arma.grupo_sigla || arma.grupo || '') : null,
+      elemento,
+      defesaSigla: alvo && alvo.defesa_sigla,
+      autorNome: autor && autor.nome,
+      alvoNome: alvo && alvo.nome,
+      resultado, dano, onde, critico,
+    });
+    return narracao ? { narracao } : {};
+  } catch (_) {
+    return {};   // narração é tempero: nunca derruba o registro do golpe
+  }
+}
+
 function danoFinal(danoBase, atacante, alvo, elemento) {
   const base = Math.max(0, Math.floor(danoBase || 0));
   if (base === 0) return 0;
@@ -9198,6 +9221,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           resultado:      resultado ? resultado.codigo : null,
           resultado_q:    resultado ? resultado.q      : null,
           ...metaDetalheDoGolpe(payload, participantes[atorIdx], participantes[alvoIdx], elementoDoGolpe),
+          ...metaNarracaoDoGolpe({ tipo, arma, elemento: elementoDoGolpe, autor: participantes[atorIdx],
+            alvo: participantes[alvoIdx], resultado, dano, onde: ondeDano, critico }),
           dano,
           critico:        critico || undefined,
           ...(tipo_critico ? {
@@ -10329,17 +10354,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
               <section className="batalha-ini-coluna" aria-label={isEn ? 'Creatures' : 'Criaturas'}>
                 <div className="batalha-ini-coluna-cab">
                   <h3 className="mn-rotulo">{isEn ? 'Creatures' : 'Criaturas'}</h3>
-                  {criaturas.length > 0 && (
-                    <button type="button" className="btn-ghost btn-sm batalha-ini-rolar-todas" disabled={salvando}
-                      onClick={() => {
-                        const next = rolarIniciativaDosInimigos(participantes, rolarD10, criaturaDoMestre);
-                        setParticipantes(next);
-                        persistir({ participantes: next });
-                      }}>
-                      <i className="ti ti-dice-5" aria-hidden="true" />
-                      {isEn ? 'Roll all' : 'Rolar todas'}
-                    </button>
-                  )}
+                  {/* Sem "Rolar todas" (11/11/2026, usuário: "remova o botão
+                      'Rolar todas' na coluna de criaturas"): cada tipo rola no
+                      próprio dado. rolarIniciativaDosInimigos fica no motor. */}
                 </div>
                 {criaturas.length
                   ? <ul className="batalha-part-list">{criaturas}</ul>
@@ -14253,6 +14270,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           resultado:      resultado ? resultado.codigo : null,
           resultado_q:    resultado ? resultado.q      : null,
           ...metaDetalheDoGolpe(payload, participantes[atorIdx], participantes[alvoIdx], elementoDoGolpe),
+          ...metaNarracaoDoGolpe({ tipo, arma, elemento: elementoDoGolpe, autor: participantes[atorIdx],
+            alvo: participantes[alvoIdx], resultado, dano, onde: ondeDano, critico }),
           dano,
           critico:        critico || undefined,
           ...(tipo_critico ? {
