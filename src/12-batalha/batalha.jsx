@@ -4803,7 +4803,8 @@ function decidirJogadaAutomatica(ator, participantes, catalogos, tecnicasUsadas 
 
   // Magia de ataque que dê para pagar e que alcance.
   const karma = Number(ator.karma) || 0;
-  const magia = magiasOfensivasDoAtor(ator, catalogos).find((m) => !m.evocacao_bloqueada && !m.bloqueio_milagre
+  // Só com PA de verdade: o ataque extra não paga magia (paParaAtaque).
+  const magia = paParaAtaque(ator, 'magia') && magiasOfensivasDoAtor(ator, catalogos).find((m) => !m.evocacao_bloqueada && !m.bloqueio_milagre
     && (Number(m.custo_karma) || 0) <= karma && alcanca({ magia: m }));
   // A arma de mais dano que alcança.
   const arma = armas.filter((a) => alcanca({ arma: a }))
@@ -6144,6 +6145,16 @@ function alvosExtrasEfetivos(arr, atacante, alvoIdx, ids) {
 
    Também estava embutido nos dois handlers sem teste: apagar o ramo do
    extra tornava o ataque adicional infinito, e nada quebrava. */
+/* Tem com que pagar o ataque? O par de debitarCustoAtaque: o extra só paga
+   arma. Sem esta conta o painel deixava lançar magia com pa_rest 0 quando
+   sobrava um pa_ataque_extra, e o débito caía num pa_rest já zerado — a
+   magia saía de graça (auditoria 13/11/2026, item 7). */
+function paParaAtaque(p, tipo) {
+  if (!p) return false;
+  if ((p.pa_rest || 0) > 0) return true;
+  return tipo === 'arma' && (p.pa_ataque_extra || 0) > 0;
+}
+
 function debitarCustoAtaque(p, tipo, custoKarma) {
   const k = Math.max(0, custoKarma || 0);
   const usaExtra = tipo === 'arma' && (p.pa_ataque_extra || 0) > 0;
@@ -12323,6 +12334,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // enquanto ele existir. Mesmo tratamento de pa_ataque_extra na aba Arma.
   const temPaTecnica = (ator.pa_tecnica_rest || 0) > 0;
   const semPaParaTecnica = semPA && !temPaTecnica;
+  // Arma pode pagar com o ataque extra; magia, não (paParaAtaque).
+  const semPaParaAtaque = (tab === 'arma' || tab === 'magia') && !paParaAtaque(ator, tab);
 
   // Resultado primário que exige segundo dado:
   //   q=0 (FC, verde) → consequência contra SI MESMO (FALHA_CRITICA_TABELA,
@@ -12433,7 +12446,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
          : evocacaoAlvoPerdido ? !semPA
          : magiaEmLargada
            ? (!semKarma && !semPA && alvo && !foraDeAlcance)
-           : (!!res && !semKarma && alvo && !foraDeAlcance && (!precisaCritico || d20Critico != null)))
+           : (!!res && !semKarma && !semPaParaAtaque && alvo && !foraDeAlcance && (!precisaCritico || d20Critico != null)))
     : (tab === 'habilidade')
       ? (!semPA && d20 != null && !!res)
     : (tab === 'tecnica_teste')
@@ -12711,10 +12724,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     /* Fora de alcance não rola (13/09/2026): o Atacar já exigia alcance, o
        dado não — rolar prendia o painel numa ação que nunca poderia ser
        aplicada. */
-    : tab === 'arma' ? !(arma && alvo) || foraDeAlcance || semFlecha
+    // Sem PA para pagar, também não rola: o dado travaria o painel numa ação
+    // que o Atacar nunca deixaria aplicar.
+    : tab === 'arma' ? !(arma && alvo) || foraDeAlcance || semFlecha || semPaParaAtaque
     // Largada de canalização e Ritual não rolam nada: o dado é o golpe, e o
     // golpe só acontece quando a magia sai.
-    : tab === 'magia' ? (!magia || !alvo || magiaEmLargada || magiaBloqueada || foraDeAlcance)
+    : tab === 'magia' ? (!magia || !alvo || magiaEmLargada || magiaBloqueada || foraDeAlcance || semPaParaAtaque)
     : tab === 'habilidade' ? !habilidadeSel
     : tab === 'tecnica_teste' ? (!tecnicaTesteSel || !tecBloqueio.pode
         || (tecPrecisaAlvo && tecAlvosEscolhidos.length === 0))
@@ -15501,7 +15516,7 @@ Object.assign(window, {
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
     alvosExtrasEfetivos,
-    debitarCustoAtaque,
+    debitarCustoAtaque, paParaAtaque,
     aplicarGolpeEmAlvo,
     defesaComEscolta,
     // 14/09/2026: Provocar — o provocado só ataca quem provocou.
