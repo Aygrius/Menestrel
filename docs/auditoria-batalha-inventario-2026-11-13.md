@@ -183,6 +183,21 @@ atual da mesa (o filtro de `get_loja_pj`).
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
 
+## Karma das criaturas (14/11/2026, pedido fora da lista)
+
+"Adicione karma às criaturas, mesma regra dos personagens." `karmaPelaRegra`
+(01-core/game-data.jsx) é a conta única — (RM + 1) × (Aura + 1), sem poço com
+Aura < 1 — usada por `calcularFicha` e pelo snapshot da criatura
+(`montarSnapshots`); sem coluna nova, derivada como as resistências. Decidido
+com o usuário: a criatura PAGA como o PJ (`magiasDaCriaturaCrua` com
+`custo_karma` = nível, e ela escolhe o karma da coluna), e o minion fica com
+1/4. No automático, o painel põe na coluna o menor entre o nível e o karma que
+sobra (a criatura atacava na coluna do nível; sem isso, cairia na coluna 0) —
+vale também para o PJ no automático, que antes ficava na coluna 0.
+Consequência aceita: 19 das 74 criaturas com magia têm Aura < 1 e deixam de
+lançar. O item 18 segue valendo só para a magia de item.
+Teste: `src/12-batalha/karma-criatura.test.js`.
+
 ## Item 18 — como ficou (14/11/2026)
 
 `magiaNoNivel` (12-batalha): quem nasceu de graça na lista — magia de item ou

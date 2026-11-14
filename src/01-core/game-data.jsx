@@ -470,6 +470,17 @@ function resistenciasBase(estagio, fisico, aura) {
   };
 }
 
+/* O KARMA: (RM + 1) × (Aura + 1), e sem poço nenhum com Aura abaixo de 1.
+   Uma conta só para o personagem (calcularFicha) e para a criatura
+   (12-batalha/montarSnapshots) — "Adicione karma às criaturas, mesma regra
+   dos personagens" (usuário, 14/11/2026). Antes a criatura entrava na luta
+   com karma 0 e a magia dela saía de graça. */
+function karmaPelaRegra(rm, aura) {
+  const a = Number(aura) || 0;
+  if (a < 1) return 0;
+  return Math.max(0, ((Number(rm) || 0) + 1) * (a + 1));
+}
+
 // Calcula a ficha completa a partir dos campos editáveis.
 // Para os derivados, atributos negativos contam como 0 (não altera `atributos`).
 // condicoesAtuais (opcional): pj.estado_atual?.condicoes. Quando informado,
@@ -596,7 +607,7 @@ function calcularFicha(p, catalogoBySlug, condicoesAtuais, ventoDegrau, subraca,
   // KA — (RM + 1) × (aura + 1), + Hidratação/Sobriedade. Sem karma se aura < 1:
   // aí o poço não EXISTE, e o bônus de condição não o ressuscita (senão "sem
   // Karma" viraria condicional e o tooltip da ficha, mentira).
-  const karma = atributosBase.aura < 1 ? 0 : Math.max(0, (resMagica + 1) * (auraC + 1) + dPoco.ka);
+  const karma = atributosBase.aura < 1 ? 0 : Math.max(0, karmaPelaRegra(resMagica, atributosBase.aura) + dPoco.ka);
   /* VB — (11 × altura) + agilidade (+ Sono) − VENTO.
      O vento é o único fator aqui que NÃO vem do personagem: ele é do clima da
      mesa (historias.data_jogo_atual.tempo.vento), entra como parâmetro e sai
@@ -1849,7 +1860,7 @@ Object.assign(window, {
   pontosGruposArmasTotal, gastoGruposArmas, qtdGruposArmas, bonusGrupoArma,
   idiomasIniciais, slotsAprimoramento, opcoesAprimoramento,
   RESULTADOS_ACAO, RESOLUCAO_ROWS, ACAO_COL_MIN, ACAO_COL_MAX,
-  resolverAcao, resolverResistencia, resistenciasBase,
+  resolverAcao, resolverResistencia, resistenciasBase, karmaPelaRegra,
   pontosCaracterizacaoTotal, gastoCaracterizacao, MAX_CARACTERIZACOES, qtdCaracterizacoes,
   PONTOS_CARACTERIZACAO_BASE, CUSTO_CARACTERIZACAO, GANHO_CARACTERIZACAO,
   ICONE_PROFISSAO, ICONE_TIPO_CRIATURA, iconeProfissao, iconeTipoCriatura,

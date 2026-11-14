@@ -1147,9 +1147,11 @@ function exigeResistencia(magia) {
    Nome que NÃO casar é ignorado em silêncio — é o mesmo fallback de magia sem
    entrada no registro: some da lista mecânica e continua no texto do card.
 
-   CRIATURA NÃO PAGA KARMA. A tabela `criaturas` não tem coluna de karma e o
-   snapshot as monta com karma 0/0; cobrar bloquearia toda conjuração de
-   monstro. O custo delas é o ponto de ação, como o dos golpes. */
+   A CRIATURA PAGA KARMA desde 14/11/2026 ("Adicione karma às criaturas, mesma
+   regra dos personagens"). Até ali a tabela não tinha karma e o snapshot a
+   montava com 0/0, então a magia dela saía de graça. Agora o poço é derivado
+   de Aura e RM pela mesma conta do PJ (karmaPelaRegra), sem coluna nova, e a
+   magia custa o nível. Sem Aura, sem karma: a criatura não lança — como o PJ. */
 /* ── O bônus de nível da Oferenda ──────────────────────────────────
    "A próxima magia que evocar terá seus níveis ampliados." O bônus soma
    direto na escala 1/3/5/7/9 e cai certo nela: "+2 níveis" leva 1 a 3, "+6"
@@ -1293,7 +1295,10 @@ function magiasDaCriaturaCrua(cri, magiasByKey) {
      `naoAchadas` é descartado aqui de propósito — o motor ignora em
      silêncio, que é o fallback certo em combate. Quem reporta é o painel. */
   const { achadas } = resolverNomesDeMagia(cri.magia, indiceMagiasPorNome(magiasByKey));
-  return achadas.map((m) => ({ key: m.key, magia: m, nivel, passos: null, custo_karma: 0 }));
+  /* Custa o nível, como a do PJ (14/11/2026): a criatura ganhou o poço de
+     karma pela mesma regra (montarSnapshots, karmaPelaRegra). Antes era 0 —
+     ela não tinha karma para pagar. Sem Aura, sem karma: não lança. */
+  return achadas.map((m) => ({ key: m.key, magia: m, nivel, passos: null, custo_karma: nivel }));
 }
 
 /* Milagre (22/10/2026): quem não pode usar continua VENDO a magia, desativada
@@ -1330,7 +1335,7 @@ function magiasOfensivasDoAtor(ator, catalogos) {
       fonte: 'magia',
       key, nome: m.nome,
       passos, nivel,              // nível efetivo (1/3/5/7/9)
-      custo_karma,                // PJ paga o nível; criatura não paga nada
+      custo_karma,                // PJ e criatura pagam o nível; o item, nada
       dano,                       // base; tier final calculado por danoNoTier
       // Elemento do dano: casa com a proteção elemental do alvo em danoFinal.
       // null = "dano base" (Toque Gélido), que proteção elemental não alcança.
@@ -1389,7 +1394,7 @@ function magiasDeApoioDoAtor(ator, catalogos) {
       fonte: 'magia',
       key, nome: m.nome,
       passos, nivel,
-      custo_karma,                // PJ paga o nível; criatura não paga nada
+      custo_karma,                // PJ e criatura pagam o nível; o item, nada
       // mod_vb continua no objeto: a UI ainda o exibe, e Velocidade é a única
       // que o usa. Para as demais é 0, e a prévia simplesmente não o mostra.
       mod_vb: modVelocidadeNoNivel(m, nivel),
@@ -1444,11 +1449,10 @@ function magiasDeApoioDoAtor(ator, catalogos) {
    magia vinda de ITEM, que não custa karma nenhum: a magia está no anel, não
    em quem o usa (decisão anterior, mantida).
 
-   E a da CRIATURA (14/11/2026, auditoria item 18): ela não tem poço de karma
-   e a lista a monta com custo 0 (magiasDaCriaturaCrua). Trocar de nível
-   passava a cobrar o nível, e com karma 0 a magia travava em "karma
-   insuficiente". Quem nasceu de graça — custo 0 na base — segue de graça; o
-   PJ paga sempre ao menos 1 (o nível comprado), então não cai aqui. */
+   Quem nasceu de graça na lista — custo 0 na base — segue de graça em
+   qualquer nível (auditoria item 18). Era o caso da criatura até ela ganhar
+   karma, no mesmo dia (14/11/2026): hoje ela paga como o PJ, e o custo 0 na
+   base só sobra para o item. */
 function magiaNoNivel(base, nivel) {
   if (!base || !base.catalogo || nivel == null || nivel === base.nivel) return base;
   const m = base.catalogo;
@@ -2215,6 +2219,8 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
     const ehCri = minion ? poolDeMinion(c.energia_heroica) : (c.energia_heroica || 0);
     const arCri = minion ? poolDeMinion(c.absorcao) : (c.absorcao || 0);
     const efCri = minion ? poolDeMinion(c.energia_fisica) : (c.energia_fisica || 0);
+    const kaCheio = typeof karmaPelaRegra === 'function' ? karmaPelaRegra(resist.rm, c.aura) : 0;
+    const kaCri = minion ? poolDeMinion(kaCheio) : kaCheio;
     return {
       tipo: 'criatura', ref_id: p.ref_id, nome: p.nome,
       // O elemento da criatura (26/09/2026; pode ser "Fogo, Luz") — ver danoFinal.
@@ -2252,7 +2258,12 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
       // mesma razão que o catálogo de armaduras usa (ver resistenciaDeCriatura).
       res: resistenciaDeCriatura(c), res_max: resistenciaDeCriatura(c),
       ef: efCri, ef_max: efCri,
-      karma: 0, karma_max: 0,
+      /* KARMA, MESMA REGRA DO PERSONAGEM (14/11/2026, usuário: "Adicione karma
+         às criaturas, mesma regra dos personagens"): (RM + 1) × (Aura + 1), sem
+         poço com Aura < 1 — e a magia dela passa a custar o nível, como a do
+         PJ (magiasDaCriaturaCrua). O minion fica com 1/4, como as outras
+         reservas dele (decisão do mesmo dia). */
+      karma: kaCri, karma_max: kaCri,
       // Sigla de defesa: `criaturas.armadura` (L/M/P) — é o campo que o
       // formulário de criatura grava ("Tipo de Armadura", 13-diario) e que a
       // ficha da criatura exibe fundido com a defesa ("M4"). NÃO usar
@@ -12164,7 +12175,8 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
      nível (magiasDaCriaturaCrua). A magia do item não cobra o nível, mas o
      karma da coluna sai do PJ que a usa. */
   const [karmaColunaSel, setKarmaColunaSel] = useState(Number.isFinite(selSalva.karmaColunaSel) ? selSalva.karmaColunaSel : 0);
-  const escolheKarmaColuna = ator.tipo === 'pj';
+  // A criatura também escolhe desde que ganhou karma (14/11/2026) — mesma regra do PJ.
+  const escolheKarmaColuna = ator.tipo === 'pj' || ator.tipo === 'criatura';
 
   // ── Alvo (compartilhado) ───────────────────────────────────
   /* Resolvendo a canalização, o alvo é o da LARGADA (spec §4.3) — e se ele
@@ -12927,7 +12939,19 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     }
     if (auto.magiaKey) {
       const k = magias.findIndex((m) => m.key === auto.magiaKey);
-      if (k >= 0) setMagiaIdx(k);
+      if (k >= 0) {
+        setMagiaIdx(k);
+        /* O KARMA DA COLUNA NO AUTOMÁTICO (14/11/2026). A coluna da magia de
+           dano é o karma posto nela, e ninguém o escolhe no automático — com
+           a criatura pagando como o PJ, ela atacaria na coluna 0. Põe o menor
+           entre o nível (a coluna de antes) e o karma que sobra depois de
+           pagar o nível. */
+        const m = magias[k];
+        if (escolheKarmaColuna && m) {
+          const sobra = Math.max(0, (Number(ator.karma) || 0) - (Number(m.custo_karma) || 0));
+          setKarmaColunaSel(Math.min(Number(m.nivel) || 0, sobra));
+        }
+      }
     }
     if (auto.tecKey) setTecTesteKey(auto.tecKey);
     setAutoFase('rolar');

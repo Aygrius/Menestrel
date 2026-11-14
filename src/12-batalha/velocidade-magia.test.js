@@ -556,14 +556,16 @@ describe('CRIATURA conjura — 12/09/2026', () => {
     expect(n(0)).toBe(1);
   });
 
-  it('criatura NÃO paga karma — a tabela nem tem a coluna', () => {
-    M.magiasConhecidasDoAtor(cri(10), CAT).forEach((x) => expect(x.custo_karma).toBe(0));
+  // 14/11/2026: "Adicione karma às criaturas, mesma regra dos personagens" —
+  // a magia da criatura passou a custar o nível, como a do PJ (era 0).
+  it('criatura paga o nível em karma, como o PJ', () => {
+    M.magiasConhecidasDoAtor(cri(10), CAT).forEach((x) => expect(x.custo_karma).toBe(x.nivel));
   });
 
   it('a magia ofensiva da criatura entra na aba Magia, no nível dela', () => {
     const lista = M.magiasOfensivasDoAtor(cri(11), CAT);
     expect(lista).toHaveLength(1);
-    expect(lista[0]).toMatchObject({ key: 'toque_gelido', nivel: 9, dano: 36, custo_karma: 0 });
+    expect(lista[0]).toMatchObject({ key: 'toque_gelido', nivel: 9, dano: 36, custo_karma: 9 });
   });
 
   it('a magia de proteção da criatura entra na aba Apoio', () => {

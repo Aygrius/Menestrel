@@ -20,7 +20,8 @@ let M;
 beforeAll(() => { M = window.MotorBatalha; });
 
 const base = { status: 'ativo', status_temp: [], pa_max: 1, pa_rest: 1, mov_rest: 5, ef: 20, ef_max: 20, eh: 0, eh_max: 0, karma: 0 };
-const mago = (over = {}) => ({ ...base, tipo: 'criatura', ref_id: 1, inst_id: 'cri:1', nome: 'Xamã', ordem: 1, atual: true, pos: { x: 0, y: 0 }, ...over });
+// Karma 10 (14/11/2026): a criatura passou a pagar o nível da magia, como o PJ.
+const mago = (over = {}) => ({ ...base, tipo: 'criatura', ref_id: 1, inst_id: 'cri:1', nome: 'Xamã', ordem: 1, atual: true, pos: { x: 0, y: 0 }, karma: 10, karma_max: 10, ...over });
 const alvo = { ...base, tipo: 'pj', ref_id: 7, inst_id: 'pj:7', nome: 'Lirael', ordem: 2, pos: { x: 1, y: 0 } };
 const BOLA = { key: 'bola_de_fogo', nome: 'Bola de Fogo', alcance: '20 metros', evocacao: 'Instantânea',
   nivel_1: 'Causa 8 de dano elemental de fogo.' };

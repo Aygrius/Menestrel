@@ -88,19 +88,18 @@ describe('o karma sai do NÍVEL ESCOLHIDO', () => {
     expect(M.magiaNoNivel(doItem, 3).custo_karma).toBe(0);
   });
 
-  /* Auditoria item 18 (14/11/2026): a criatura não tem karma e a lista a
-     monta de graça; escolher um nível menor passava a cobrar o nível, e com
-     karma 0 a magia travava. */
-  it('magia de CRIATURA segue de graça em qualquer nível', () => {
+  /* 14/11/2026: a criatura ganhou karma pela regra do PJ e paga como ele —
+     o nível escolhido, também quando baixa o nível para economizar. */
+  it('magia de CRIATURA cobra o nível escolhido, como a do PJ', () => {
     const daCriatura = M.magiasOfensivasDoAtor(
       { tipo: 'criatura', ref_id: 5, inst_id: 'cri:5' },
       { criById: { 5: { id: 5, nome: 'Salamandra', estagio: 5, magia: 'Piromanipulação' } },
         pjById: {}, magiasByKey: { piromanipulacao: PIRO }, catalogoBySlug: {} }
     )[0];
-    expect(daCriatura.custo_karma).toBe(0);
+    expect(daCriatura.custo_karma).toBe(daCriatura.nivel);
     expect(daCriatura.niveis.length).toBeGreaterThan(1);
     const menor = M.magiaNoNivel(daCriatura, 1);
-    expect(menor).toMatchObject({ nivel: 1, custo_karma: 0 });
+    expect(menor).toMatchObject({ nivel: 1, custo_karma: 1 });
     expect(menor.dano).toBe(4);
   });
 
