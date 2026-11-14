@@ -7018,7 +7018,10 @@ function aplicarEfeitoMagia(participante, magia, nivel, opcoes) {
     resultado = {
       ...resultado,
       ef_max: efMax,
-      ef: Math.max(0, Math.min(efMax, (Number(resultado.ef) || 0) + deltaEf)),
+      /* Piso EF_MORTE, não 0 (14/11/2026, auditoria item 37) — o mesmo da
+         devolução em expirarEhTemp. EF negativa é o caído-vivo: com piso 0,
+         +5 num caído em −8 o levava a 0 em vez de −3, uma cura de graça. */
+      ef: Math.max(EF_MORTE, Math.min(efMax, (Number(resultado.ef) || 0) + deltaEf)),
     };
   }
   return resultado;

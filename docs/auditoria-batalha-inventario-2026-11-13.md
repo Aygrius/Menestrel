@@ -117,7 +117,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 | # | Estado | Achado |
 |---|---|---|
-| 37 | ⬜ | `mod_ef_temp` com piso 0 cura EF negativa (deveria ser `EF_MORTE`). |
+| 37 | ✅ | `mod_ef_temp` com piso 0 cura EF negativa (deveria ser `EF_MORTE`). |
 | 38 | ⬜ | Log da evocação perdida diz "dano na EF" quando foi desmaio por EH. |
 | 39 | ⬜ | Desmontar deixa o cavalo desmaiado (EH 0 / máx > 0). |
 | 40 | ⬜ | Oferenda consumida em magia de item sem dar o bônus. |
@@ -184,6 +184,12 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 37 — como ficou (14/11/2026)
+
+`aplicarEfeitoMagia`, ramo `mod_ef_temp` (Força da Montanha): piso `EF_MORTE`
+ao aplicar, como a devolução em `expirarEhTemp` já tinha — o caído com EF −8
+vai a −6, não a 0. Teste em `src/12-batalha/magias-corrigidas.test.js`.
 
 ## Item 36 — como ficou (14/11/2026)
 

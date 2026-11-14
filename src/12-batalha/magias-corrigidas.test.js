@@ -85,6 +85,12 @@ describe('Força da Montanha — EF emprestada e velocidade', () => {
     expect(duas.ef_max).toBe(22);
   });
 
+  // Auditoria item 37 (14/11/2026): o piso é o da morte, não 0 — não cura o caído.
+  it('num caído com EF negativa, soma sem passar a zero de graça', () => {
+    const p = M.aplicarEfeitoMagia(part({ ef: -8 }), FORCA, 1);   // +2 de EF no nível 1
+    expect(p.ef).toBe(-8 + (p.ef_max - 20));
+  });
+
   it('ao expirar, devolve o teto e apara a EF', () => {
     const p = M.aplicarEfeitoMagia(part(), FORCA, 9);   // ef 30/30
     const removido = efeito(p, 'mod_ef_temp');
