@@ -5852,6 +5852,29 @@ function partemOsInvocados(participantes) {
   };
 }
 
+/* ── Uma ação por vez (14/11/2026, auditoria item 8) ─────────────────────
+   `lerFila()` devolve a promessa da gravação mais recente (a filaGravacao da
+   mesa do Jogador), trocada de forma SÍNCRONA quando uma gravação começa.
+   Envolve um handler: enquanto a gravação que ele disparou não termina, uma
+   segunda chamada é ignorada. Se ele não gravou nada (recusou), solta na hora;
+   se a gravação falhar, solta igual — a promessa da fila resolve nos dois
+   casos. Uma trava por mesa, compartilhada por todos os handlers envolvidos. */
+function criarTravaDeAcao(lerFila) {
+  let emVoo = false;
+  return (fn) => (...args) => {
+    if (emVoo) return undefined;
+    emVoo = true;
+    const filaAntes = lerFila();
+    try {
+      return fn(...args);
+    } finally {
+      const fila = lerFila();
+      if (fila !== filaAntes && fila && typeof fila.then === 'function') fila.then(() => { emVoo = false; }, () => { emVoo = false; });
+      else emVoo = false;
+    }
+  };
+}
+
 /* ── O TEMPO DA BATALHA (14/11/2026) ─────────────────────────────────────
    Usuário: "Considere que cada ação é 30 segundos no jogo para cada
    combatente, e a rodada será calculada com base nesse tempo. Inclusive esse
@@ -14271,6 +14294,19 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Sem update local: o realtime de FichaComBatalha traz o novo snapshot.
   };
 
+  /* UMA AÇÃO POR VEZ (14/11/2026, auditoria item 8). Sem update local, o
+     painel fica aberto com a mesa VELHA até a gravação voltar — e nessa
+     janela um segundo clique, ou o clique somado à aplicação automática
+     depois do dado, rodava o handler de novo: o item saía duas vezes do
+     inventário e a mesa recebia dois avisos. O Mestre não tem a brecha: o
+     persistir dele aplica a mesa e fecha o painel antes de ir ao banco.
+
+     A trava vale do clique até a gravação daquela ação terminar — a mesma
+     filaGravacao que ordena as RPCs. Falhou, ela solta e a rolagem feita
+     continua valendo para tentar de novo. Handler que recusou sem gravar
+     solta na hora. Ver criarTravaDeAcao. */
+  const umaAcaoPorVez = React.useMemo(() => criarTravaDeAcao(() => filaGravacao.current), []);
+
   // Passa a vez automaticamente quando o participante referenciado ficou
   // incapaz (morto / desmaiado / desistiu) ou zerou PA — espelha o Mestre.
   /* Passa a vez quando o ator terminou o turno. Se ele era o ÚLTIMO da ordem,
@@ -15351,10 +15387,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           lang={lang}
           visibilidade={visibilidade}
         ambiente={ambiente}
-          onAplicar={handleAcao}
-          onAplicarTeste={handleTeste}
-          onAplicarItem={handleItem}
-          onAplicarApoio={handleApoio}
+          onAplicar={umaAcaoPorVez(handleAcao)}
+          onAplicarTeste={umaAcaoPorVez(handleTeste)}
+          onAplicarItem={umaAcaoPorVez(handleItem)}
+          onAplicarApoio={umaAcaoPorVez(handleApoio)}
           travado={rolagemPendente}
           onClose={() => { setAcaoOpen(false); setRolagemPendente(false); }}
           onRolagemPendenteChange={setRolagemPendente}
@@ -15608,7 +15644,7 @@ Object.assign(window, {
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
     alvosExtrasEfetivos,
-    debitarCustoAtaque, paParaAtaque,
+    debitarCustoAtaque, paParaAtaque, criarTravaDeAcao,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,
     minutosDaBatalha, prazosDaFichaEmRodadas,
