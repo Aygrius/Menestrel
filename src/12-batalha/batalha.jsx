@@ -11489,10 +11489,23 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           catalogoBySlug={catalogos.catalogoBySlug} saqueadores={saqueadores}
           isEn={isEn} lang={lang} onClose={() => setSaqueDe(null)}
           onPegar={async (pj, slug, qtd, jaTirado) => {
-            const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd, catalogos);
-            if (r.error) return r;
             const next = anotarSaque(participantes, alvo.inst_id, slug, qtd, jaTirado);
-            await persistir({ participantes: next }, () => setParticipantes(next));
+            if (!batalha.treinamento) {
+              /* O SAQUE DO MESTRE PELO SERVIDOR (14/11/2026, auditoria item 41),
+                 como o do Jogador desde o item 3: a RPC grava o item e o
+                 `saqueado` numa transação só, com a linha da batalha travada.
+                 Antes o item entrava e a anotação vinha depois — se ela falhasse,
+                 dava para saquear de novo, e dois saques ao mesmo tempo se
+                 sobrescreviam. A tela só reflete o que o banco já anotou. */
+              const r = await saquearPeloServidor(batalha.id, pj.ref_id, alvo.inst_id, slug, qtd, isEn);
+              if (r.error) return r;
+              setParticipantes(next);
+            } else {
+              // Treino: nada vai ao banco (a RPC recusa); vale o cache, como antes.
+              const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd, catalogos);
+              if (r.error) return r;
+              await persistir({ participantes: next }, () => setParticipantes(next));
+            }
             const hid = (historia && historia.id) || batalha.historia_id;
             if (hid) {
               const item = (catalogos.catalogoBySlug[slug] || {}).nome || slug;

@@ -121,7 +121,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 38 | ✅ | Log da evocação perdida diz "dano na EF" quando foi desmaio por EH. |
 | 39 | ✅ | Desmontar deixa o cavalo desmaiado (EH 0 / máx > 0). |
 | 40 | ✅ | Oferenda consumida em magia de item sem dar o bônus. |
-| 41 | ⬜ (jogador ✅ pela RPC) | Saque gravado antes de anotar; falha → saca de novo. Saque simultâneo de dois jogadores sobrescreve `saqueado`. No jogador, `saquear_criatura` grava item e anotação numa transação; falta o saque do Mestre. |
+| 41 | ✅ (jogador pela RPC; Mestre em 14/11) | Saque gravado antes de anotar; falha → saca de novo. Saque simultâneo de dois jogadores sobrescreve `saqueado`. No jogador, `saquear_criatura` grava item e anotação numa transação; falta o saque do Mestre. |
 | 42 | ⬜ | Realtime não ouve DELETE; nome de canal fixo. |
 | 43 | ⬜ | `handleDesistir` sem botão. |
 | 44 | ⬜ | Parser lê "2,5" como 5. |
@@ -184,6 +184,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 41 — como ficou (14/11/2026)
+
+O saque do Mestre (SaqueModal da tela do Mestre), fora do treino, vai pela RPC
+`saquear_criatura` (que já aceitava o Mestre da história): item e `saqueado`
+numa transação, com a linha da batalha travada. A tela anota localmente o que
+o banco já anotou. No treino (a RPC recusa), segue o cache como antes.
+Teste: `src/12-batalha/saque-mestre-servidor.test.js`.
 
 ## Item 40 — como ficou (14/11/2026)
 
