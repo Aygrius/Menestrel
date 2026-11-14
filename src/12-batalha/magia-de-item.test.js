@@ -200,7 +200,8 @@ describe('o consumo do pergaminho está ligado nos dois lados', () => {
   it('apoio: Mestre e Jogador consomem', () => {
     // A magia de 1 rodada gasta o item ao ser GUARDADA (28/09/2026); a
     // resolução dela, no fim da rodada, não gasta de novo.
-    const n = (fonte.match(/if \(passo\.fase !== 'iniciou'( && !resolvendoPendente)?\) consumirItemDaMagia/g) || []).length;
+    // Desde 14/11/2026 o consumo espera a luta gravar (aposGravar, auditoria item 9).
+    const n = (fonte.match(/if \(passo\.fase !== 'iniciou'( && !resolvendoPendente)?\) aposGravar\(\(\) => consumirItemDaMagia/g) || []).length;
     expect(n, 'Mestre e Jogador').toBe(2);
     /* `?
 `, e nao `
@@ -208,12 +209,12 @@ describe('o consumo do pergaminho está ligado nos dois lados', () => {
        (core.autocrlf=true no Windows), entao o que vem depois do `;` e ``
        e o padrao nunca casava — o teste acusava 0 com o codigo certo na
        frente. A fonte e lida do DISCO, com a quebra de linha do sistema. */
-    expect((fonte.match(/consumirItemDaMagia\((participantes\[atorIdx\]|meuParticipante), magia, catalogos\);\r?\n\s+next = guardarMagiaPendente/g) || []).length,
+    expect((fonte.match(/aposGravar\(\(\) => consumirItemDaMagia\((participantes\[atorIdx\]|meuParticipante), magia, catalogos\)\);\r?\n\s+next = guardarMagiaPendente/g) || []).length,
       'a guarda da 1 rodada, nos dois lados').toBe(2);
   });
 
   it('ataque: Mestre e Jogador consomem', () => {
-    const n = (fonte.match(/if \(tipo === 'magia'( && !resolvendoPendente)?\) consumirItemDaMagia/g) || []).length;
+    const n = (fonte.match(/if \(tipo === 'magia'( && !resolvendoPendente)?\) aposGravar\(\(\) => consumirItemDaMagia/g) || []).length;
     expect(n, 'Mestre e Jogador').toBe(2);
   });
 

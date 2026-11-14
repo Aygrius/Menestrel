@@ -194,9 +194,10 @@ describe('evocação que cai vira linha na mesa', () => {
   });
 
   it('as duas persistências passam pela detecção', () => {
-    expect(fonte.slice(fonte.indexOf('const persistir = async'), fonte.indexOf('const persistir = async') + 900))
+    // Janelas maiores desde 14/11/2026: as duas ganharam a fila aposGravar (auditoria item 9).
+    expect(fonte.slice(fonte.indexOf('const persistir = async'), fonte.indexOf('const persistir = async') + 1600))
       .toMatch(/evocacoesQuebradas\(/);
-    expect(fonte.slice(fonte.indexOf('const persistJogador = async'), fonte.indexOf('const persistJogador = async') + 1200))
+    expect(fonte.slice(fonte.indexOf('const persistJogador = async'), fonte.indexOf('const persistJogador = async') + 1800))
       .toMatch(/evocacoesQuebradas\(/);
   });
 });

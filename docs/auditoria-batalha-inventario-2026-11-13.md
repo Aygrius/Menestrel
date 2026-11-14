@@ -14,11 +14,11 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1, 2, 3, 4, 6, 7 e 8 (todos os críticos do banco + os três
-  primeiros da batalha). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
+- **Feitos:** 1, 2, 3, 4, 6, 7, 8 e 9 (todos os críticos do banco + os
+  quatro primeiros da batalha). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 9** — consumo de item/munição e aviso à mesa saem antes de
-  gravar a batalha. Depois seguir a ordem da tabela (10, 11, 12…).
+- **Próximo: item 10** — posicionamento invertido (`danoFinal` lê
+  `mod_dano_max` do alvo). Depois seguir a ordem da tabela (11, 12, 13…).
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
   `scripts/sql/*-2026-11-14.sql`).
 - **App NÃO publicado:** os commits de 14/11 estão na main, mas não houve
@@ -64,7 +64,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 6 | ✅ | Status posto na ficha entra com `rodadas_rest: 1` (`ficha.jsx` StatusPrazoModal) e cai na 1ª virada (`decrementarStatusTemp`); o encerramento grava a ficha sem ele. |
 | 7 | ✅ | Magia lançada sem PA quando sobra `pa_ataque_extra` (`podeAplicar` sem `!semPA`; `debitarCustoAtaque` só gasta o extra em arma). |
 | 8 | ✅ | Clique duplo aplica a ação duas vezes (item/rolagem): handlers não conferem `salvando`. |
-| 9 | ⬜ | Consumo de item/munição e aviso à mesa saem ANTES de gravar a batalha; se a gravação falha, o item já foi. |
+| 9 | ✅ | Consumo de item/munição e aviso à mesa saem ANTES de gravar a batalha; se a gravação falha, o item já foi. |
 | 10 | ⬜ | Posicionamento invertido (ver decisão acima) — `danoFinal` lê `mod_dano_max` do alvo. |
 | 11 | ⬜ | Purificação tira buffs de valor negativo (Aparar, Desviar, Escudo, Pele de Árvore) antes do veneno. |
 
@@ -179,6 +179,22 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 9 — como ficou (14/11/2026)
+
+"Não podemos nos esquecer das flechas, etc." (usuário). Mestre e Jogador têm
+a fila `aposGravar`: a ação enfileira o que mexe fora da batalha e o
+`persistir`/`persistJogador` que ela dispara toma a fila de forma síncrona e
+só a roda (`rodarEfeitosDaAcao`) depois de conferir o erro; falhou, descarta.
+Entram na fila: a flecha e a ação do veneno da arma (`gastarMunicaoEVeneno`),
+o pergaminho (`consumirItemDaMagia`, no ataque, no apoio e na magia de 1
+rodada), o item da aba Item (`consumirItemDoPJ`) e todos os avisos à mesa da
+ação — golpe, teste, item, apoio, largada e perda da evocação, magia pendente,
+invocação, virada de rodada, passar e desistir — mais a fuga do bando e a
+evocação quebrada que o próprio persistir anunciava antes de gravar.
+Fica igual: na tela do Mestre a mesa é aplicada antes de gravar (otimista);
+se a gravação falhar, o erro aparece e agora nada saiu do inventário.
+Teste: `src/12-batalha/efeitos-apos-gravar.test.js`.
 
 ## Item 8 — como ficou (14/11/2026)
 

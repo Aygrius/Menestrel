@@ -5852,6 +5852,14 @@ function partemOsInvocados(participantes) {
   };
 }
 
+/* Os efeitos que a ação enfileirou (aposGravar), na ordem, depois do OK do
+   banco. Um que estoura não impede os outros. */
+function rodarEfeitosDaAcao(efeitos) {
+  (efeitos || []).forEach((fn) => {
+    try { fn(); } catch (e) { console.error('[batalha] efeito depois da gravação falhou:', e); }
+  });
+}
+
 /* ── Uma ação por vez (14/11/2026, auditoria item 8) ─────────────────────
    `lerFila()` devolve a promessa da gravação mais recente (a filaGravacao da
    mesa do Jogador), trocada de forma SÍNCRONA quando uma gravação começa.
@@ -8721,8 +8729,19 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
      tempo, o update do dado podia chegar DEPOIS e deixar a rolagem já usada
      na coluna. Cada gravação espera a anterior terminar. */
   const filaGravacao = React.useRef(Promise.resolve());
+  /* O QUE SÓ ACONTECE SE A LUTA GRAVAR (14/11/2026, auditoria item 9). A
+     flecha, a ação do veneno da arma, o pergaminho, o item da aba Item e o
+     aviso à mesa saíam ANTES da gravação da batalha: se ela falhasse, o item
+     já tinha ido e a mesa lia um golpe que não aconteceu. Agora a ação ENFILA
+     esses efeitos (aposGravar) e o persistir que ela dispara roda a fila só
+     com o OK do banco; falhou, a fila é descartada. A ação é síncrona até o
+     persistir, então a fila é dela inteira. */
+  const efeitosDaAcao = React.useRef([]);
+  const aposGravar = (fn) => { efeitosDaAcao.current.push(fn); };
   const [saqueDe, setSaqueDe] = useState(null);   // inst_id da criatura sendo saqueada (25/09/2026)
   const persistir = async (campos, locais) => {
+    const efeitos = efeitosDaAcao.current;
+    efeitosDaAcao.current = [];
     const baseParticipantes = participantes;
     const baseLog = log;
     // Líder morto espanta o bando (fugaNaGravacao). ANTES das quebras de
@@ -8730,19 +8749,20 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const fuga = (estado === 'ativa') ? fugaNaGravacao(campos, { log, rodada }) : { campos, texto: null };
     const funilMudou = fuga.campos !== campos; // fuga de bando OU cavaleiro derrubado
     if (funilMudou) campos = fuga.campos;
-    if (fuga.texto) avisarFugaNaMesa(historia && historia.id, batalha.id, rodada, fuga.texto);
+    const textoFuga = fuga.texto;
+    if (textoFuga) efeitos.push(() => avisarFugaNaMesa(historia && historia.id, batalha.id, rodada, textoFuga));
     // Evocação que caiu nesta gravação vira linha na mesa (evocacoesQuebradas).
     if (campos && campos.participantes !== undefined) {
       const quebras = evocacoesQuebradas(baseParticipantes, campos.participantes);
       if (quebras.participantes !== campos.participantes) campos = { ...campos, participantes: quebras.participantes };
-      if (historia && historia.id) quebras.eventos.forEach((ev) => {
+      if (historia && historia.id) quebras.eventos.forEach((ev) => efeitos.push(() => {
         supabaseClient.rpc('registrar_evento_mesa', {
           p_historia_id: historia.id, p_tipo: 'magia', p_texto: textoEvocacaoQuebrada(ev),
           p_meta: { batalha_id: batalha.id, rodada, fase_evocacao: 'quebrou', ...ev },
         }).then(({ error: rpcErr }) => {
           if (rpcErr) console.error('[batalha] registrar_evento_mesa (quebra) falhou:', rpcErr);
         });
-      });
+      }));
     }
     if (locais) locais();
     // `locais` não tem a fuga: sobrepõe, senão os minions ficam de pé até o eco.
@@ -8772,7 +8792,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       liberar();
     }
     setSalvando(false);
-    if (err) { setError(err.message); return false; }
+    if (err) {
+      setError(err.message);
+      if (efeitos.length) console.warn('[batalha] gravação recusada: ' + efeitos.length + ' efeito(s) da ação descartado(s)');
+      return false;
+    }
+    rodarEfeitosDaAcao(efeitos);
     onAtualizado && onAtualizado();
     return true;
   };
@@ -8971,20 +8996,20 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       return resto;
     });
     const next = novos.length ? [...limpo, ...novos] : limpo;
-    persistir({ participantes: next }, () => setParticipantes(next));
     if (historia && historia.id) {
       const nomes = novos.map((n) => n.nome);
       const lista = nomes.length > 1 ? nomes.slice(0, -1).join(', ') + ' e ' + nomes[nomes.length - 1] : nomes[0];
       const texto = novos.length
         ? `${conj.nome} lançou ${pend.magia_nome}: ${lista} ${novos.length > 1 ? 'entram' : 'entra'} na batalha.`
         : `${conj.nome} lançou ${pend.magia_nome}, ${motivoVazio || 'mas ninguém atendeu'}.`;
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id, p_tipo: 'magia', p_texto: texto,
         p_meta: { batalha_id: batalha.id, magia_key: pend.magia_key, icone: 'ti-feather' },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha] registrar_evento_mesa (invocação) falhou:', rpcErr);
-      });
+      }));
     }
+    persistir({ participantes: next }, () => setParticipantes(next));
   };
   // Monta N combatentes da mesma criatura do bestiário, cada um na sua célula.
   const invocadosDoBestiario = async (conj, escolhidos, parte) => {
@@ -9302,7 +9327,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     /* `participantes[atorIdx]`, não `ator`: `ator` é um const declarado mais
        abaixo nesta função, e lê-lo aqui lançava ReferenceError (TDZ) — toda
        magia de ataque do Mestre morria calada no clique (13/09/2026). */
-    if (tipo === 'magia' && !resolvendoPendente) consumirItemDaMagia(participantes[atorIdx], magia, catalogos);
+    // Só com a luta gravada (auditoria item 9): falhou, o pergaminho fica.
+    if (tipo === 'magia' && !resolvendoPendente) aposGravar(() => consumirItemDaMagia(participantes[atorIdx], magia, catalogos));
     let next = [...participantes];
     /* RESOLUÇÃO DA CANALIZAÇÃO (13/09/2026): o karma foi pago na largada e não
        se cobra de novo, e a evocação sai do conjurador ANTES da quebra de
@@ -9344,8 +9370,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, exIdx, exAntes, magia);
       next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
     });
-    // O arco gasta a flecha; a arma untada, uma ação do veneno.
-    if (tipo === 'arma') gastarMunicaoEVeneno(next[atorIdx], arma, catalogos);
+    // O arco gasta a flecha; a arma untada, uma ação do veneno — só com a luta gravada.
+    if (tipo === 'arma') {
+      const atirador = next[atorIdx];
+      aposGravar(() => gastarMunicaoEVeneno(atirador, arma, catalogos));
+    }
     // O bônus de Ataque Impetuoso e o gatilho dos Botes foram usados neste golpe (em todos os alvos).
     next[atorIdx] = consumirEfeitosDoGolpe(next[atorIdx]);
     // Debita PA (sempre 1) e karma (se for magia; a canalização já pagou).
@@ -9431,11 +9460,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         ator: participantes[atorIdx], alvoNome: alvo.nome, acaoNome: nomeAcao, tipo,
         resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico, ondeDano,
       }) + textoVenenoDoGolpe(arma, venenoPrincipal.aplicado, lang === 'en');
-      supabaseClient.rpc('registrar_evento_mesa', {
-        p_historia_id: historia.id,
-        p_tipo: tipo === 'magia' ? 'magia' : 'ataque',
-        p_texto: texto,
-        p_meta: {
+      const meta = {
           batalha_id:     batalha.id,
           rodada,
           autor_nome:     atorNome,
@@ -9458,10 +9483,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
             critico_msg:           msg_critico || undefined,
           } : {}),
           ...(tipo === 'magia' ? { magia_key: magia.key, custo_karma: k } : {}),
-        },
+      };
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historia.id,
+        p_tipo: tipo === 'magia' ? 'magia' : 'ataque',
+        p_texto: texto,
+        p_meta: meta,
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha] registrar_evento_mesa (ataque) falhou:', rpcErr);
-      });
+      }));
     }
 
     // A resolução da pendente acontece na vez de OUTRO: não mexe na rolagem
@@ -9484,7 +9514,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const guardarPendente = (atorIdx, tipoPendente, payload, custoKarma) => {
     const magia = payload.magia;
     let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
-    consumirItemDaMagia(participantes[atorIdx], magia, catalogos);
+    aposGravar(() => consumirItemDaMagia(participantes[atorIdx], magia, catalogos));
     next = guardarMagiaPendente(next, atorIdx, tipoPendente, payload, custoKarma, rodada);
     const ator = next[atorIdx];
     const texto = lang === 'en'
@@ -9495,10 +9525,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       magia_key: magia.key, fase_evocacao: 'pendente' };
     const novoLog = [...log, entry];
     if (historia && historia.id) {
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id, p_tipo: 'magia', p_texto: texto,
         p_meta: { batalha_id: batalha.id, rodada, magia_key: magia.key, fase_evocacao: 'pendente' },
-      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha] registrar_evento_mesa (pendente) falhou:', rpcErr); });
+      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha] registrar_evento_mesa (pendente) falhou:', rpcErr); }));
     }
     let viraRodada = false;
     if ((!temAcaoRestante(ator) || ator.status !== 'ativo' || statusTemEfeito(ator, 'sem_acoes')) && ator.atual
@@ -9572,14 +9602,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const novoLog = [...log, entry];
 
     if (historia && historia.id) {
-      supabaseClient.rpc('registrar_evento_mesa', {
+      const textoLargada = textoPassoDeApoio('iniciou', next[atorIdx].nome, magia, alvo.nome, false);
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
         p_tipo: 'magia',
-        p_texto: textoPassoDeApoio('iniciou', next[atorIdx].nome, magia, alvo.nome, false),
+        p_texto: textoLargada,
         p_meta: { batalha_id: batalha.id, ...entry },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha] registrar_evento_mesa (evocacao) falhou:', rpcErr);
-      });
+      }));
     }
 
     /* Começar a canalizar prende a ação (evocacaoPrendeAcao): a vez passa.
@@ -9617,13 +9648,13 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     };
     const novoLog = [...log, entry];
     if (historia && historia.id) {
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id, p_tipo: 'magia',
         p_texto: textoPassoDeApoio('perdeu', quemEvoca.nome, magia, entry.alvo_nome, false),
         p_meta: { batalha_id: batalha.id, ...entry },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha] registrar_evento_mesa (evocacao perdida) falhou:', rpcErr);
-      });
+      }));
     }
     const quem = next[atorIdx];
     if (quem.atual && !temAcaoRestante(quem)) {
@@ -9788,7 +9819,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           texto += textoEfeitoTecnica(payload.tecnica.key, efeitoTecnicaAplicado, testador.nome);
         }
       }
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
         p_tipo: tipoEvento,
         p_texto: texto,
@@ -9815,7 +9846,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha] registrar_evento_mesa (teste) falhou:', rpcErr);
-      });
+      }));
     }
 
     if (viraRodada) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
@@ -9883,14 +9914,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Notifica a Central de Mensagens da Mesa (fire-and-forget — mesmo padrão das demais ações).
     if (historia && historia.id) {
       const texto = `${primeiroNome(atorSnap.nome)} usou ${nome}`;
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historia.id,
         p_tipo: 'item',
         p_texto: texto,
         p_meta: { batalha_id: batalha.id, rodada, autor_nome: atorSnap.nome, item_nome: nome, quantidade: qtd },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha] registrar_evento_mesa (item) falhou:', rpcErr);
-      });
+      }));
     }
 
     // Consumo real: baixa a quantidade no inventário do PJ (tabela personagens),
@@ -9906,13 +9937,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // O inventário é exceção consciente: o item saiu da mochila de fato, não é
     // status. Adiar isso exigiria carregar o consumo no snapshot até o fim e
     // ainda deixaria a bolsa mentindo durante toda a batalha.
+    // Só com a luta gravada (auditoria item 9): falhou, o item fica na mochila.
     if (ator.tipo === 'pj') {
-      consumirItemDoPJ(ator.ref_id, slug, qtd, catalogos).then((r) => {
+      aposGravar(() => consumirItemDoPJ(ator.ref_id, slug, qtd, catalogos).then((r) => {
         if (!r.ok) { console.error('[batalha] consumo de item falhou:', r.error); return; }
         // Reflete no cache local pra lista do AcaoPanel não esperar refetch.
         const cache = catalogos && catalogos.pjById && catalogos.pjById[ator.ref_id];
         if (cache) catalogos.pjById[ator.ref_id] = { ...cache, inventario: r.inventario };
-      });
+      }));
     }
 
     if (viraRodada) { setRolagemSalva(null); novaRodada(next, novoLog, true); return; }
@@ -9959,7 +9991,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     /* Pergaminho gasta na RESOLUÇÃO, não na largada: quem começa a canalizar
        e é interrompido não perdeu o papel. Falhar no teste ou perder o alvo,
        sim — o pergaminho foi lido. */
-    if (passo.fase !== 'iniciou' && !resolvendoPendente) consumirItemDaMagia(ator, magia, catalogos);
+    if (passo.fase !== 'iniciou' && !resolvendoPendente) aposGravar(() => consumirItemDaMagia(ator, magia, catalogos));
 
     const entry = {
       rodada, ts: Date.now(),
@@ -9978,7 +10010,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
     if (historia && historia.id) {
       const nomeAtor = participantes[atorIdx].nome;
-      textoPassoDeApoioComCura(passo.fase, nomeAtor, magia, alvo.nome, resistiu, historia.id, lang)
+      aposGravar(() => textoPassoDeApoioComCura(passo.fase, nomeAtor, magia, alvo.nome, resistiu, historia.id, lang)
         .then((texto) => supabaseClient.rpc('registrar_evento_mesa', {
           p_historia_id: historia.id,
           p_tipo: 'magia',
@@ -9987,7 +10019,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         }))
         .then(({ error: rpcErr }) => {
           if (rpcErr) console.error('[batalha] registrar_evento_mesa (apoio) falhou:', rpcErr);
-        });
+        }));
     }
 
     // A pendente sai na vez de OUTRO: não passa vez nem mexe no painel dele.
@@ -10050,14 +10082,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     if (entradaVirada) {
       novoLog = [...novoLog, entradaVirada];
       if (historia && historia.id) {
-        supabaseClient.rpc('registrar_evento_mesa', {
+        // A virada só se anuncia se gravar (auditoria item 9).
+        aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
           p_historia_id: historia.id,
           p_tipo: 'sistema',
           p_texto: `Rodada ${novaR}: ${entradaVirada.texto}`,
           p_meta: { batalha_id: batalha.id, rodada: novaR, dano_por_rodada: eventos },
         }).then(({ error: rpcErr }) => {
           if (rpcErr) console.error('[batalha] registrar_evento_mesa (rodada) falhou:', rpcErr);
-        });
+        }));
       }
     }
     persistir({ participantes: next, log: novoLog, rodada: novaR,
@@ -14221,12 +14254,18 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   // Fila das gravações: rolar e aplicar saem colados (ação automática depois
   // do dado) e duas RPCs em voo podem chegar ao banco fora de ordem.
   const filaGravacao = React.useRef(Promise.resolve());
+  // O que só acontece se a luta gravar — ver aposGravar no Mestre (item 9).
+  const efeitosDaAcao = React.useRef([]);
+  const aposGravar = (fn) => { efeitosDaAcao.current.push(fn); };
   const [saqueDe, setSaqueDe] = useState(null);   // inst_id da criatura sendo saqueada (25/09/2026)
   /* A mesa do jogador (08/11/2026): o nó do painel fixo e quem está escolhido
      nele — por chave, como no Mestre, porque a virada reordena a lista. */
   const [painelEl, setPainelEl] = useState(null);
   const [escolhidoChave, setEscolhidoChave] = useState(null);
   const persistJogador = async (campos, opcoes) => {
+    // A fila da ação (aposGravar) — mesmo contrato do persistir do Mestre.
+    const efeitos = efeitosDaAcao.current;
+    efeitosDaAcao.current = [];
     if (!batalha) return false;
     const manterAberto = !!(opcoes && opcoes.manterAberto);
     setSalvando(true); setErro(null);
@@ -14234,7 +14273,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const fuga = fugaNaGravacao(campos, { log, rodada });
     // Também derruba cavaleiro de montaria caída — esse sem aviso na mesa.
     if (fuga.campos !== campos) campos = fuga.campos;
-    if (fuga.texto) avisarFugaNaMesa(batalha.historia_id, batalha.id, rodada, fuga.texto);
+    const textoFuga = fuga.texto;
+    if (textoFuga) efeitos.push(() => avisarFugaNaMesa(batalha.historia_id, batalha.id, rodada, textoFuga));
     /* Gravação que zera a MINHA rolagem (aplicar a ação) zera o eco junto —
        sem isso o eco da rolagem velha sobrevivia e o próximo ataque saía com o
        mesmo d20 (ver ecoAoGravar). Se a gravação falhar, o eco volta. */
@@ -14245,14 +14285,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const quebras = evocacoesQuebradas(participantes, campos.participantes);
     const participantesGravados = quebras.participantes;
     const historiaId = batalha.historia_id;
-    if (historiaId) quebras.eventos.forEach((ev) => {
+    if (historiaId) quebras.eventos.forEach((ev) => efeitos.push(() => {
       supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId, p_tipo: 'magia', p_texto: textoEvocacaoQuebrada(ev),
         p_meta: { batalha_id: batalha.id, rodada, fase_evocacao: 'quebrou', ...ev },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (quebra) falhou:', rpcErr);
       });
-    });
+    }));
     const anterior = filaGravacao.current;
     let liberar;
     filaGravacao.current = new Promise((r) => { liberar = r; });
@@ -14285,10 +14325,13 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         batalha_nao_ativa: isEn ? 'The battle is over.' : 'A batalha já terminou.',
       };
       setErro(MOTIVOS_GRAVACAO[motivo] || motivo);
-      // A ação não foi aplicada: a rolagem feita continua valendo.
+      // A ação não foi aplicada: a rolagem feita continua valendo — e a
+      // flecha, o item e o aviso à mesa também não saem (auditoria item 9).
       if (zeraMinhaRolagem) setRolagemOtimista(ecoAntes);
+      if (efeitos.length) console.warn('[batalha-jogador] gravação recusada: ' + efeitos.length + ' efeito(s) da ação descartado(s)');
       return false;
     }
+    rodarEfeitosDaAcao(efeitos);
     if (!manterAberto) setAcaoOpen(false);
     return true;
     // Sem update local: o realtime de FichaComBatalha traz o novo snapshot.
@@ -14345,14 +14388,15 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     if (!entrada) return logBase;
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      supabaseClient.rpc('registrar_evento_mesa', {
+      // Quem chama grava logo em seguida; a virada só se anuncia se gravar.
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'sistema',
         p_texto: `Rodada ${novaR}: ${entrada.texto}`,
         p_meta: { batalha_id: batalha.id, rodada: novaR, dano_por_rodada: eventos },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (rodada) falhou:', rpcErr);
-      });
+      }));
     }
     return [...logBase, entrada];
   };
@@ -14422,7 +14466,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // mesma regra do apoio, e por isso vem depois do return da largada.
     // `meuParticipante`: esta tela não tem `ator` — lê-lo lançava
     // ReferenceError e a magia de ataque do jogador nunca saía (13/09/2026).
-    if (tipo === 'magia') consumirItemDaMagia(meuParticipante, magia, catalogos);
+    // Só com a luta gravada (auditoria item 9): falhou, o pergaminho fica.
+    if (tipo === 'magia') aposGravar(() => consumirItemDaMagia(meuParticipante, magia, catalogos));
     let next = [...participantes];
     // Resolução da canalização: sem cobrar karma de novo, e a evocação sai
     // antes da quebra de concentração — espelha aplicarAcao.
@@ -14471,8 +14516,11 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, exIdx, exAntes, magia);
       next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
     });
-    // O arco gasta a flecha; a arma untada, uma ação do veneno.
-    if (tipo === 'arma') gastarMunicaoEVeneno(next[atorIdx], arma, catalogos);
+    // O arco gasta a flecha; a arma untada, uma ação do veneno — só com a luta gravada.
+    if (tipo === 'arma') {
+      const atirador = next[atorIdx];
+      aposGravar(() => gastarMunicaoEVeneno(atirador, arma, catalogos));
+    }
     // O bônus de Ataque Impetuoso e o gatilho dos Botes foram usados neste golpe (em todos os alvos).
     next[atorIdx] = consumirEfeitosDoGolpe(next[atorIdx]);
     if (dano > 0) {
@@ -14540,7 +14588,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         ator: meuParticipante, alvoNome: alvo.nome, acaoNome: nomeAcao, tipo,
         resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico, ondeDano,
       }) + textoVenenoDoGolpe(arma, venenoPrincipal.aplicado, lang === 'en');
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: tipo === 'magia' ? 'magia' : 'ataque',
         p_texto: texto,
@@ -14570,7 +14618,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (ataque) falhou:', rpcErr);
-      });
+      }));
     }
 
     // Aplicou → a rolagem sai junto, no MESMO update (comMinhaRolagem(…, null)).
@@ -14609,14 +14657,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
 
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'magia',
         p_texto: textoPassoDeApoio('iniciou', meuParticipante.nome, magia, alvo.nome, false),
         p_meta: { batalha_id: batalha.id, ...entry },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (evocacao) falhou:', rpcErr);
-      });
+      }));
     }
 
     persistJogador({ participantes: comMinhaRolagem(next, null),
@@ -14643,13 +14691,13 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     };
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId, p_tipo: 'magia',
         p_texto: textoPassoDeApoio('perdeu', eu.nome, magia, entry.alvo_nome, false),
         p_meta: { batalha_id: batalha.id, ...entry },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (evocacao perdida) falhou:', rpcErr);
-      });
+      }));
     }
     persistJogador({ participantes: comMinhaRolagem(next, null),
       log: registrarViradaNoLog([...log, entry], rVez.eventos, rVez.rodadaNova),
@@ -14764,7 +14812,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           texto += textoEfeitoTecnica(payload.tecnica.key, efeitoTecnicaAplicado, meuParticipante.nome);
         }
       }
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'teste',
         p_texto: texto,
@@ -14791,7 +14839,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (teste) falhou:', rpcErr);
-      });
+      }));
     }
 
     // Aplicou → a rolagem sai junto, no MESMO update (comMinhaRolagem(…, null)).
@@ -14827,24 +14875,26 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
       const texto = `${primeiroNome(meuParticipante.nome)} usou ${nome}`;
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'item',
         p_texto: texto,
         p_meta: { batalha_id: batalha.id, rodada, autor_nome: meuParticipante.nome, item_nome: nome, quantidade: qtd },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (item) falhou:', rpcErr);
-      });
+      }));
     }
 
     // Consumo real no PRÓPRIO inventário (personagens RLS: user_id = auth.uid()).
     // Só o inventário — espelha aplicarItem do Mestre. Condição e vitalidade
     // do combate esperam o encerramento (decisão de 01/09/2026).
-    consumirItemDoPJ(meuParticipante.ref_id, slug, qtd, catalogos).then((r) => {
+    // Só com a luta gravada (auditoria item 9): falhou, o item fica na mochila.
+    const dono = meuParticipante.ref_id;
+    aposGravar(() => consumirItemDoPJ(dono, slug, qtd, catalogos).then((r) => {
       if (!r.ok) { console.error('[batalha-jogador] consumo de item falhou:', r.error); return; }
-      const cache = catalogos && catalogos.pjById && catalogos.pjById[meuParticipante.ref_id];
-      if (cache) catalogos.pjById[meuParticipante.ref_id] = { ...cache, inventario: r.inventario };
-    });
+      const cache = catalogos && catalogos.pjById && catalogos.pjById[dono];
+      if (cache) catalogos.pjById[dono] = { ...cache, inventario: r.inventario };
+    }));
     // Aplicou → a rolagem sai junto, no MESMO update (comMinhaRolagem(…, null)).
     persistJogador({ participantes: comMinhaRolagem(next, null),
       // Se a ação virou a rodada, o dano por rodada que ela cobrou entra no
@@ -14883,7 +14933,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     /* Pergaminho gasta na RESOLUÇÃO, não na largada: quem começa a canalizar
        e é interrompido não perdeu o papel. Falhar no teste ou perder o alvo,
        sim — o pergaminho foi lido. */
-    if (passo.fase !== 'iniciou') consumirItemDaMagia(ator, magia, catalogos);
+    if (passo.fase !== 'iniciou') aposGravar(() => consumirItemDaMagia(ator, magia, catalogos));
     const rVez = autoPassarSeNecessario(next, next[atorIdx]);
     next = rVez.participantes;
     const rodadaNova = rVez.rodadaNova;
@@ -14906,7 +14956,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
 
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      textoPassoDeApoioComCura(passo.fase, meuParticipante.nome, magia, alvo.nome, resistiu, historiaId, lang)
+      aposGravar(() => textoPassoDeApoioComCura(passo.fase, meuParticipante.nome, magia, alvo.nome, resistiu, historiaId, lang)
         .then((texto) => supabaseClient.rpc('registrar_evento_mesa', {
           p_historia_id: historiaId,
           p_tipo: 'magia',
@@ -14915,7 +14965,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         }))
         .then(({ error: rpcErr }) => {
           if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (apoio) falhou:', rpcErr);
-        });
+        }));
     }
 
     // Aplicou → a rolagem sai junto, no MESMO update (comMinhaRolagem(…, null)).
@@ -14932,7 +14982,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   const guardarPendenteJogador = (atorIdx, tipoPendente, payload, custoKarma) => {
     const magia = payload.magia;
     let next = [...quebrarConcentracao(participantes, participantes[atorIdx].inst_id)];
-    consumirItemDaMagia(meuParticipante, magia, catalogos);
+    aposGravar(() => consumirItemDaMagia(meuParticipante, magia, catalogos));
     next = guardarMagiaPendente(next, atorIdx, tipoPendente, payload, custoKarma, rodada);
     const rVez = autoPassarSeNecessario(next, next[atorIdx]);
     next = rVez.participantes;
@@ -14944,10 +14994,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       magia_key: magia.key, fase_evocacao: 'pendente' };
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId, p_tipo: 'magia', p_texto: texto,
         p_meta: { batalha_id: batalha.id, rodada, magia_key: magia.key, fase_evocacao: 'pendente' },
-      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (pendente) falhou:', rpcErr); });
+      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (pendente) falhou:', rpcErr); }));
     }
     persistJogador({ participantes: comMinhaRolagem(next, null),
       log: registrarViradaNoLog([...log, entry], rVez.eventos, rVez.rodadaNova),
@@ -14995,14 +15045,15 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Notifica a Central de Mensagens da Mesa (fire-and-forget).
     const historiaId = batalha && batalha.historia_id;
     if (historiaId && meuParticipante) {
-      supabaseClient.rpc('registrar_evento_mesa', {
+      // O "passou a vez" só sai se a vez passou mesmo (auditoria item 9).
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'sistema',
         p_texto: `${primeiroNome(meuParticipante.nome)} passou a vez`,
         p_meta: { batalha_id: batalha.id, rodada, autor_nome: meuParticipante.nome },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (passar) falhou:', rpcErr);
-      });
+      }));
     }
 
     // Passar encerra o turno: a rolagem feita e não aplicada morre com ele.
@@ -15050,14 +15101,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Notifica a Central de Mensagens da Mesa (fire-and-forget).
     const historiaId = batalha && batalha.historia_id;
     if (historiaId) {
-      supabaseClient.rpc('registrar_evento_mesa', {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: 'aviso',
         p_texto: `${primeiroNome(meuParticipante.nome)} desistiu da batalha`,
         p_meta: { batalha_id: batalha.id, rodada, autor_nome: meuParticipante.nome },
       }).then(({ error: rpcErr }) => {
         if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (desistir) falhou:', rpcErr);
-      });
+      }));
     }
 
     persistJogador({ participantes: next,
@@ -15644,7 +15695,7 @@ Object.assign(window, {
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
     alvosExtrasEfetivos,
-    debitarCustoAtaque, paParaAtaque, criarTravaDeAcao,
+    debitarCustoAtaque, paParaAtaque, criarTravaDeAcao, rodarEfeitosDaAcao,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,
     minutosDaBatalha, prazosDaFichaEmRodadas,
