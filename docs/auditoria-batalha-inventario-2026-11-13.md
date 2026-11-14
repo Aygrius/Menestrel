@@ -107,7 +107,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 29 | ✅ | Usar consumível: efeito e baixa gravam em pernas separadas; o rollback reverte o PJ inteiro. |
 | 30 | ✅ | Fabricar valida material numa cópia velha e anuncia sucesso sem esperar a gravação. |
 | 31 | ✅ | Conteúdo de recipiente posto no animal pesa no dono (`calcCarga`). |
-| 32 | ⬜ | Item do saque rápido guardado num recipiente continua no saque. |
+| 32 | ✅ | Item do saque rápido guardado num recipiente continua no saque. |
 | 33 | ⬜ (saque do jogador ✅ pela RPC) | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. No jogador, a RPC `saquear_criatura` já pula pilha à venda e no animal; falta o saque do Mestre e o treino. |
 | 34 | ⬜ | Regra de endereço da Casa (`acessoAPropriedade`) nunca aplicada — ninguém passa a localização do PJ. |
 | 35 | ⬜ | Preparar carne e envenenar flechas mexem em pilha à venda. |
@@ -184,6 +184,13 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 32 — como ficou (14/11/2026)
+
+`ehSlotDeSaque` (07-inventario): guardar no recipiente (`guardarNoRecipiente`,
+`moverParaContainer`) e pôr no animal (`equiparNoAnimal`) limpam o `slot` de
+saque rápido — a peça não fica em dois lugares.
+Teste: `src/07-inventario/saque-sai-ao-guardar.test.jsx`.
 
 ## Item 31 — como ficou (14/11/2026)
 

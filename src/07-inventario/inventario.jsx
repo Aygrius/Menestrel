@@ -140,6 +140,14 @@ const GRUPOS_ACUMULAVEIS = new Set(['consumiveis', 'minerais', 'itens', 'moedas'
 // Equipados/vestidos ficam sempre intactos (instância única) e nunca empilham.
 // Devolve o MESMO array quando nada muda (guarda contra re-render/loop no efeito
 // que dispara o autosave).
+/* A casa de SAQUE RÁPIDO (saque_d/saque_e) é um lugar, como o recipiente e o
+   animal: quem vai para um deles sai dela (14/11/2026, auditoria item 32). Sem
+   isto, a poção guardada na bolsa seguia aparecendo no saque — dois lugares ao
+   mesmo tempo. */
+function ehSlotDeSaque(slot) {
+  return slot === 'saque_d' || slot === 'saque_e';
+}
+
 /* O ESTADO DA INSTÂNCIA (14/11/2026, auditoria item 13). Duas pilhas só se
    fundem se forem a MESMA coisa: a peça quebrada, a gasta (`res`), a untada
    (`veneno`), a consagrada (`bonus`), o bicho com `vitalidade`… não se somam
@@ -391,8 +399,9 @@ function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug, loc
   // Tolerância para float (0.1 × 10 dá 0.9999…), a mesma do moverParaContainer.
   const qtd = Math.min(total, ocupa > 0 ? Math.floor((livre + 0.0001) / ocupa) : total);
   if (qtd <= 0) return { ok: false, motivo: 'sem_espaco' };
+  // Sai do saque rápido ao entrar no recipiente (auditoria item 32).
   const out = qtd === total
-    ? lista.map((x) => (x === it ? { ...x, containerId, casa: undefined } : x))
+    ? lista.map((x) => (x === it ? { ...x, containerId, casa: undefined, ...(ehSlotDeSaque(x.slot) ? { slot: null } : {}) } : x))
     : [
       ...lista.map((x) => (x === it ? { ...x, quantidade: total - qtd } : x)),
       { instanceId: novoInstanceId(), slug: it.slug, quantidade: qtd, equipado: false, slot: null, containerId, observacao: it.observacao || null },
@@ -1589,7 +1598,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
 
       // Mover tudo: atualiza in-place
       if (qtdMover === it.quantidade) {
-        itens[idx] = { ...it, containerId: containerId || null };
+        // Entrando num recipiente, sai do saque rápido (item 32).
+        itens[idx] = { ...it, containerId: containerId || null, ...(containerId && ehSlotDeSaque(it.slot) ? { slot: null } : {}) };
       } else {
         // Split: decrementa origem e cria nova entrada no destino
         itens[idx] = { ...it, quantidade: it.quantidade - qtdMover };
@@ -3722,7 +3732,9 @@ function equiparNoAnimal(itens, itemId, animalId, catalogoBySlug, criatura, novo
   }
 
   // containerId: null — a peça sai do recipiente ao subir no bicho.
-  const marcas = { animal_id: animalId, slot_animal: slot, containerId: null, casa: undefined };
+  // Sai do saque rápido ao subir no animal (item 32).
+  const marcas = { animal_id: animalId, slot_animal: slot, containerId: null, casa: undefined,
+    ...(ehSlotDeSaque(it.slot) ? { slot: null } : {}) };
   const total = it.quantidade || 1;
   const out = total <= 1
     ? lista.map((x) => (x === it ? { ...x, ...marcas } : x))
