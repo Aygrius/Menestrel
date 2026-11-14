@@ -1659,7 +1659,15 @@ function aplicarEfeitosItem(estadoAtual, cat, quantidade, maximos, dataJogo) {
   const doItem = (typeof window !== 'undefined' && window.efeitosTemporariosDoItem) || null;
   const juntar = (typeof window !== 'undefined' && window.comEfeitosTemporarios) || null;
   if (dataJogo && comPrazo && doItem && juntar && comPrazo(cat)) {
-    return juntar(estadoAtual, doItem(cat, quantidade, dataJogo), dataJogo);
+    /* O RESTO DO EFEITO TAMBÉM (14/11/2026, auditoria item 20): Fogo Vivo,
+       Karmaquoso e Cinetézio têm "Aumenta 10 de Vício", que não é barra com
+       prazo — e esta porta só gravava a linha temporária, então o Vício nunca
+       entrava. O que é bônus com prazo vai para a lista; o resto, para a ficha. */
+    const chavesTemp = (typeof window !== 'undefined' && window.EFEITO_TEMP_KEYS) || [];
+    const resto = efeitosDoItem(cat, quantidade)
+      .filter((e) => !chavesTemp.includes(e.scope === 'absorcao' ? 'ar' : e.key));
+    const comTemp = juntar(estadoAtual, doItem(cat, quantidade, dataJogo), dataJogo);
+    return resto.length ? aplicarEfeitosNaFicha(comTemp, resto, maximos) : comTemp;
   }
   return aplicarEfeitosNaFicha(estadoAtual, efeitosDoItem(cat, quantidade), maximos);
 }

@@ -2317,11 +2317,40 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
    Acordo travado em 12-batalha/efeito-item-escala.test.js.
 
    Retorna um NOVO objeto de participante (não muta o original). */
-function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
-  const efeitos = efeitosDoItem(cat, quantidade);
-  if (efeitos.length === 0) return participante;
+/* O ITEM COM PRAZO NA LUTA (14/11/2026, auditoria item 20). Fogo Vivo,
+   Karmaquoso, Cinetézio e os Elixires da Euforia caíam na porta comum: EH e
+   karma travavam no teto (cheios, não subiam nada), e Velocidade nem era barra
+   — o item sumia da mochila sem efeito. Aqui o bônus faz o que o item promete
+   ("pode ir além do seu máximo", 06/10/2026): EF/EH/karma sobem o atual E o
+   máximo; a absorção sobe só o atual (o que passa do ar_max é o elixir, ver
+   aplicarDanoCascata); a velocidade soma no vb. As linhas viajam em
+   `efeitos_temporarios_luta` e o encerramento as grava na ficha, vencendo a
+   partir do fim da luta (estadoAoEncerrar). O resto do efeito (o Vício) segue
+   o caminho comum. */
+const _CAMPO_DO_BONUS = { ef: ['ef', 'ef_max'], eh: ['eh', 'eh_max'], ka: ['karma', 'karma_max'], ar: ['ar'], vb: ['vb'] };
+function aplicarBonusComPrazoNoSnapshot(p, cat, quantidade) {
+  const linhas = typeof efeitosTemporariosDoItem === 'function' ? efeitosTemporariosDoItem(cat, quantidade, null) : [];
+  if (!linhas.length) return p;
+  const out = { ...p };
+  linhas.forEach((l) => {
+    (_CAMPO_DO_BONUS[l.key] || []).forEach((campo) => {
+      out[campo] = (Number(out[campo]) || 0) + (Number(l.valor) || 0);
+    });
+  });
+  out.efeitos_temporarios_luta = [...(Array.isArray(p.efeitos_temporarios_luta) ? p.efeitos_temporarios_luta : []), ...linhas];
+  return out;
+}
 
-  const novo = { ...participante, condicoes: { ...(participante.condicoes || {}) } };
+function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
+  const comPrazo = typeof ehEfeitoComPrazo === 'function' && ehEfeitoComPrazo(cat);
+  const chavesTemp = (typeof EFEITO_TEMP_KEYS !== 'undefined' && EFEITO_TEMP_KEYS) || [];
+  const efeitos = efeitosDoItem(cat, quantidade)
+    // Com prazo, o bônus vai por aplicarBonusComPrazoNoSnapshot; aqui fica o resto.
+    .filter((ef) => !comPrazo || !chavesTemp.includes(ef.scope === 'absorcao' ? 'ar' : ef.key));
+  const base = comPrazo ? aplicarBonusComPrazoNoSnapshot(participante, cat, quantidade) : participante;
+  if (efeitos.length === 0) return base;
+
+  const novo = { ...base, condicoes: { ...(base.condicoes || {}) } };
   let curouPoco = false;
 
   for (const ef of efeitos) {
@@ -5526,11 +5555,21 @@ function estadoAoEncerrar(estadoAtual, pFinal, dataJogo, segundosPorRodada) {
     // As rodadas que sobram viram minutos a partir do fim da luta (14/11/2026).
     ? statusAoEncerrarBatalha(p.status_temp, dataJogo, segundosPorRodada)
     : [];
+  /* O item com prazo usado NA luta (14/11/2026, auditoria item 20) entra na
+     lista da ficha com o vencimento contado do fim dela — o bônus segue valendo
+     depois, como se tivesse sido usado fora de combate. */
+  const linhasDaLuta = Array.isArray(p.efeitos_temporarios_luta) ? p.efeitos_temporarios_luta : [];
+  const comTemporarios = linhasDaLuta.length && typeof comEfeitosTemporarios === 'function'
+    ? { efeitos_temporarios: comEfeitosTemporarios(base,
+        linhasDaLuta.map((l) => (typeof comVencimentoDoPrazo === 'function' ? comVencimentoDoPrazo(l, dataJogo) : l)),
+        dataJogo).efeitos_temporarios }
+    : {};
   return {
     ...base,
     condicoes: temCondicoes ? { ...p.condicoes } : (base.condicoes || {}),
     vitalidade,
     status,
+    ...comTemporarios,
     ...transformacaoAoEncerrar(base.magias_ativas, p, dataJogo),
   };
 }

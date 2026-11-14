@@ -140,6 +140,17 @@ function comEfeitosTemporarios(estadoAtual, novas, dataJogo) {
   return { ...base, efeitos_temporarios: lista };
 }
 
+/* O vencimento de uma linha que nasceu SEM data (14/11/2026, auditoria item
+   20): o item usado na batalha vira linha na hora, mas a data de vencimento
+   sai do fim da luta, no encerramento. A linha guarda `dias` ou `horas`. */
+function comVencimentoDoPrazo(linha, dataJogo) {
+  if (!linha || linha.vence_em || !dataJogo) return linha;
+  const horas = Number(linha.horas) || 0;
+  const vence = horas > 0 ? _somarHoras(dataJogo, horas)
+    : (typeof somarDiasFantasy === 'function' ? somarDiasFantasy(dataJogo, Math.max(1, Math.trunc(Number(linha.dias) || 1))) : null);
+  return vence ? { ...linha, vence_em: vence } : linha;
+}
+
 /* Tira uma linha pelo id — o x do painel, quando o Mestre quiser cortar um
    bônus antes do prazo. */
 function semEfeitoTemporario(estadoAtual, id) {
@@ -153,5 +164,5 @@ function semEfeitoTemporario(estadoAtual, id) {
 Object.assign(window, {
   EFEITO_TEMP_KEYS, ehEfeitoComPrazo, efeitosTemporariosDoItem,
   efeitosTemporariosVigentes, bonusTemporarios, comEfeitosTemporarios,
-  semEfeitoTemporario,
+  semEfeitoTemporario, comVencimentoDoPrazo,
 });
