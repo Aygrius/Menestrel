@@ -33,10 +33,12 @@ function mesmoValor(a, b) {
 /* Um item que os dois lados têm: parte de R e recebe só os campos que L
    mudou desde B. Quantidade mexida dos dois lados soma as diferenças; outro
    campo mexido dos dois lados fica com L (a intenção mais recente da tela). */
-function mesclarItem(b, l, r) {
+function mesclarItem(b, l, r, mesmaExplosao) {
   const out = { ...r };
   for (const k of new Set([...Object.keys(b), ...Object.keys(l)])) {
     if (mesmoValor(b[k], l[k])) continue;
+    // A mesma explosão nos dois lados: a baixa da pilha original é UMA só.
+    if (k === 'quantidade' && mesmaExplosao) { out[k] = l[k]; continue; }
     if (k === 'quantidade' && !mesmoValor(b[k], r[k])) {
       out[k] = (Number(r[k]) || 0) + (Number(l[k]) || 0) - (Number(b[k]) || 0);
     } else if (l[k] === undefined) {
@@ -45,6 +47,25 @@ function mesclarItem(b, l, r) {
       out[k] = l[k];
     }
   }
+  return out;
+}
+
+/* A MESMA EXPLOSÃO NOS DOIS LADOS (14/11/2026, auditoria item 15). Quando
+   uma pilha não acumulável se desfaz em unidades (normalizarPilhas), a
+   original fica com quantidade 1 e as outras nascem com ID DERIVADO dela
+   (`<id>~1`, `<id>~2`…). Se as duas telas fizeram isso, os derivados novos
+   aparecem iguais em L e em R — e a baixa da original (3 → 1) é a MESMA
+   mudança, não duas: somar as diferenças daria 3 − 2 − 2 = −1, e a peça
+   sumiria. Devolve os IDs originais que os dois lados explodiram. */
+function explodidosNosDois(B, L, R) {
+  const ids = (x) => new Set((Array.isArray(x && x.itens) ? x.itens : []).filter(Boolean).map((it) => it.instanceId));
+  const iB = ids(B); const iL = ids(L); const iR = ids(R);
+  const out = new Set();
+  iL.forEach((id) => {
+    if (typeof id !== 'string' || iB.has(id) || !iR.has(id)) return;   // novo nos DOIS lados
+    const i = id.lastIndexOf('~');
+    if (i > 0 && /^\d+$/.test(id.slice(i + 1))) out.add(id.slice(0, i));
+  });
   return out;
 }
 
@@ -61,6 +82,7 @@ function mesclarInventario(base, local, remoto) {
   const mB = new Map(lista(B).map((it) => [it.instanceId, it]));
   const mL = new Map(lista(L).map((it) => [it.instanceId, it]));
   const vivo = (it) => !(it.quantidade != null && Number(it.quantidade) <= 0);
+  const explodidos = explodidosNosDois(B, L, R);
   const itens = [];
   const vistos = new Set();
   lista(R).forEach((r) => {
@@ -68,7 +90,7 @@ function mesclarInventario(base, local, remoto) {
     const b = mB.get(r.instanceId);
     const l = mL.get(r.instanceId);
     if (b && !l) return;                       // L removeu
-    const item = b ? mesclarItem(b, l, r) : (l || r);
+    const item = b ? mesclarItem(b, l, r, explodidos.has(r.instanceId)) : (l || r);
     if (vivo(item)) itens.push(item);
   });
   lista(L).forEach((l) => {
@@ -306,4 +328,4 @@ function criarGravadorInventario() {
 
 Object.assign(window, {
   cargaEstoura, recebimentoEstouraCarga, mesmoValor, mesclarInventario, gravarInventario, alterarInventario, criarGravadorInventario,
-  recusaDefinitiva });
+  recusaDefinitiva, explodidosNosDois });

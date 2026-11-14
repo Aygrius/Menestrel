@@ -176,11 +176,31 @@ function assinaturaDeEstado(it) {
   return _estavel(estado);
 }
 
+/* O ID DA UNIDADE QUE SE DESGARRA (14/11/2026, auditoria item 15). Era
+   aleatório: duas telas abertas (Inventário e Ficha, Mestre e Jogador)
+   explodiam a MESMA pilha com IDs diferentes, e a mescla de três vias via
+   três itens novos de cada lado — 3 adagas viravam 6. Derivado do original
+   (`<id>~1`, `<id>~2`…, pulando o que já existe na lista), as duas telas
+   chegam aos mesmos IDs, e a mescla já trata "o mesmo item novo dos dois
+   lados" sem duplicar. Ver também explodidosNosDois (01-core/
+   inventario-concorrencia.jsx), para a peça original que fica. */
+const SEPARADOR_DERIVADO = '~';
+function criarGeradorDeIdDerivado(itens) {
+  const usados = new Set((itens || []).map((x) => x && x.instanceId).filter(Boolean));
+  return (orig) => {
+    for (let k = 1; ; k++) {
+      const id = orig + SEPARADOR_DERIVADO + k;
+      if (!usados.has(id)) { usados.add(id); return id; }
+    }
+  };
+}
+
 function normalizarPilhas(itens, catalogoBySlug) {
   if (!Array.isArray(itens)) return itens;
   // instanceIds que são "pais" de algum item (recipientes com conteúdo).
   const comFilhos = new Set();
   for (const it of itens) if (it.containerId) comFilhos.add(it.containerId);
+  const idDerivado = criarGeradorDeIdDerivado(itens);
 
   const saida = [];
   const idxPorChave = new Map(); // pilhas dentro de container: slug|containerId
@@ -228,7 +248,7 @@ function normalizarPilhas(itens, catalogoBySlug) {
       const qtdEq = it.quantidade || 1;
       saida.push(qtdEq <= 1 ? it : { ...it, quantidade: 1 });
       for (let k = 1; k < qtdEq; k++) {
-        saida.push({ ...it, instanceId: novoInstanceId() + '-eq' + k, quantidade: 1, equipado: false, vestido: false, montado: false, slot: null, vesteSlot: null });
+        saida.push({ ...it, instanceId: idDerivado(it.instanceId), quantidade: 1, equipado: false, vestido: false, montado: false, slot: null, vesteSlot: null });
         mudou = true;
       }
       continue;
@@ -276,7 +296,7 @@ function normalizarPilhas(itens, catalogoBySlug) {
     if (it.slot === 'saque_d' || it.slot === 'saque_e') {
       saida.push({ ...it, quantidade: 1 });
       for (let k = 1; k < qtd; k++) {
-        saida.push({ ...it, instanceId: novoInstanceId() + '-sq' + k, quantidade: 1, slot: null, equipado: false });
+        saida.push({ ...it, instanceId: idDerivado(it.instanceId), quantidade: 1, slot: null, equipado: false });
       }
       mudou = true;
       continue;
@@ -291,15 +311,18 @@ function normalizarPilhas(itens, catalogoBySlug) {
     if (container && comFilhos.has(it.instanceId)) {
       saida.push({ ...it, quantidade: 1 });
       for (let k = 1; k < qtd; k++) {
-        saida.push({ ...it, instanceId: novoInstanceId() + '-' + k, quantidade: 1 });
+        saida.push({ ...it, instanceId: idDerivado(it.instanceId), quantidade: 1 });
       }
       mudou = true;
       continue;
     }
 
-    // Demais soltos (inclui recipiente VAZIO): explode tudo em instâncias novas.
-    for (let k = 0; k < qtd; k++) {
-      saida.push({ ...it, instanceId: novoInstanceId() + '-' + k, quantidade: 1 });
+    // Demais soltos (inclui recipiente VAZIO): explode em instâncias de 1. A
+    // primeira fica com o ID original (14/11/2026): quem aponta para ele (um
+    // atalho da ficha) continua achando a peça; as outras ganham ID derivado.
+    saida.push({ ...it, quantidade: 1 });
+    for (let k = 1; k < qtd; k++) {
+      saida.push({ ...it, instanceId: idDerivado(it.instanceId), quantidade: 1 });
     }
     mudou = true;
   }

@@ -14,12 +14,12 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1 a 4 e 6 a 14 (todos os críticos do banco, todos os de alta
-  prioridade da batalha e os três primeiros do inventário). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
+- **Feitos:** 1 a 4 e 6 a 15 (todos os críticos do banco, todos os de alta
+  prioridade da batalha e os quatro primeiros do inventário). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 15** — duas telas "explodem" a mesma pilha com IDs
-  aleatórios e a mescla de três vias duplica (3 adagas → 6). Depois seguir a
-  ordem da tabela (16, 17…).
+- **Próximo: item 16** — a mescla perde compra: L removeu a pilha, R
+  aumentou, e `if (b && !l) return` descarta o aumento. Depois seguir a ordem
+  da tabela (17, 18…).
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
   `scripts/sql/*-2026-11-14.sql`).
 - **App NÃO publicado:** os commits de 14/11 estão na main, mas não houve
@@ -76,7 +76,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 12 | ✅ | `normalizarPilhas` funde pilha solta acumulável ignorando `animal_id`/`slot` (carga do animal volta ao dono; consumível do saque rápido some do saque). |
 | 13 | ✅ | Dentro de recipiente, a fusão ignora `quebrada`, `res`, `veneno`, `vitalidade`… — o estado de uma instância contamina a pilha. |
 | 14 | ✅ | Mestre dá item que estoura a carga: tela diz "Entregue", nada grava, e toda gravação seguinte é recusada em silêncio (aviso de falha comentado). |
-| 15 | ⬜ | Duas telas "explodem" a mesma pilha com IDs aleatórios e a mescla de três vias duplica (3 adagas → 6). |
+| 15 | ✅ | Duas telas "explodem" a mesma pilha com IDs aleatórios e a mescla de três vias duplica (3 adagas → 6). |
 | 16 | ⬜ | Mescla perde compra: L removeu a pilha, R aumentou — `if (b && !l) return` descarta o aumento. |
 | 17 | ⬜ | Item sem `quantidade` vira NaN em `guardarNoRecipiente`/`podeMoverParaContainer`/`normalizarPilhas` — a pilha guardada some. |
 
@@ -180,6 +180,20 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 15 — como ficou (14/11/2026)
+
+- `normalizarPilhas` (07-inventario): as unidades que se desgarram de uma
+  pilha não acumulável ganham ID DERIVADO do original (`<id>~1`, `<id>~2`…,
+  pulando os que já existem) em vez de aleatório, e a primeira unidade fica
+  sempre com o ID original (inclusive no caso geral, que antes trocava todos).
+  Duas telas com a mesma pilha chegam aos mesmos IDs, e a mescla já tratava
+  "o mesmo item novo dos dois lados" sem duplicar.
+- `mesclarInventario` (01-core): `explodidosNosDois` acha os originais que os
+  dois lados explodiram (derivado novo presente em L e em R); para eles a
+  baixa de quantidade (3 → 1) conta UMA vez — somada, daria −1 e a peça
+  equipada sumiria. A baixa normal dos dois lados (as flechas) segue somando.
+Teste: `src/07-inventario/explosao-duas-telas.test.jsx`.
 
 ## Item 14 — como ficou (14/11/2026)
 
