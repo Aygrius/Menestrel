@@ -5447,7 +5447,13 @@ function processarViradaDeRodada(p) {
     // Perder EH emprestada pode derrubar: statusPorPools decide.
     next = statusPorPools(next);
     // Quem acordou agora age já nesta rodada: PA e movimento cheios.
-    if (p.status !== 'ativo' && next.status === 'ativo') next = acoesDaRodadaNova(next);
+    /* E quem perdeu um bônus de velocidade NESTA virada (14/11/2026, auditoria
+       item 21): o PA e o passo saíam lá em cima, antes do decremento, com a
+       Velocidade que vencia aqui — a ação extra e o passo maior valiam uma
+       rodada a mais. A iniciativa já era reordenada depois (montarNovaRodada);
+       agora PA e passo também. acoesDaRodadaNova é pura: refazer é seguro. */
+    const perdeuVelocidade = removidos.some((s) => s && s.efeito && s.efeito.tipo === 'mod_vb');
+    if (next.status === 'ativo' && (p.status !== 'ativo' || perdeuVelocidade)) next = acoesDaRodadaNova(next);
   }
   // Rodada nova invalida a rolagem feita e não aplicada na anterior (o campo
   // é do lado Jogador — ver o bloco de rolagem em BatalhaJogadorView). Sem

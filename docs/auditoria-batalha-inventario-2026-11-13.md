@@ -14,12 +14,13 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1 a 4 e 6 a 20 (todos os críticos, todos os de alta
-  prioridade e os três primeiros de média), mais o karma das criaturas
+- **Feitos:** 1 a 4 e 6 a 21 (todos os críticos, todos os de alta
+  prioridade e os quatro primeiros de média), mais o karma das criaturas
   (pedido à parte). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 21** — a virada calcula PA e passo com o buff de velocidade
-  que expira nela mesma. Depois seguir a ordem da tabela (22, 23…).
+- **Próximo: item 22** — PJ que entra com EF ≤ 0 fica desmaiado a luta
+  inteira (sem o contador `desmaio_ef`). Depois seguir a ordem da tabela
+  (23, 24…).
 - **Banco:** o usuário autorizou (14/11/2026) mudanças no banco feitas pelo
   Claude.
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
@@ -89,7 +90,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 18 | ✅ | Criatura que escolhe nível de magia menor paga karma (`magiaNoNivel`) e trava (karma 0). |
 | 19 | ✅ | Absorção de elixir/poção (`ar` acima de `ar_max`) não protege quem está sem armadura (`aplicarDanoCascata`). |
 | 20 | ✅ | Item com prazo (Fogo Vivo, Karma Líquido, Energia Cinética, Elixir da Euforia) não faz nada em combate e é consumido (`aplicarEfeitoItemSnapshot`). |
-| 21 | ⬜ | Virada calcula PA e passo com o buff de velocidade que expira nela mesma. |
+| 21 | ✅ | Virada calcula PA e passo com o buff de velocidade que expira nela mesma. |
 | 22 | ⬜ | PJ que entra com EF ≤ 0 fica desmaiado a luta inteira (sem o contador `desmaio_ef`). |
 | 23 | ⬜ | Rodada trava se todo ativo está canalizando/sem ação — ninguém recebe `atual`. |
 | 24 | ⬜ | Falha passageira ao gravar a cortina desliga a cortina para sempre naquela tela. |
@@ -182,6 +183,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 21 — como ficou (14/11/2026)
+
+`processarViradaDeRodada`: depois do decremento dos status, quem continua ativo
+e perdeu um `mod_vb` nesta virada tem PA e passo refeitos
+(`acoesDaRodadaNova`, pura). Vale para o bônus (Velocidade) e para a lentidão
+que vencem. A iniciativa já era reordenada depois do processamento.
+Teste: `src/12-batalha/virada-velocidade.test.js`.
 
 ## Item 20 — como ficou (14/11/2026)
 
