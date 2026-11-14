@@ -987,7 +987,10 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       const texto = !definitiva
         ? (en ? 'Could not save the inventory. The next change will try again.'
           : 'Não deu para salvar o inventário. A próxima mudança tenta de novo.')
-        : err.motivo === 'carga_maxima' ? textoCargaMaxima(en) : textoInventarioCheio(en);
+        : err.motivo === 'carga_maxima' ? textoCargaMaxima(en)
+        : err.motivo === 'moedas_insuficientes'
+          ? (en ? 'Not enough coins: another screen already spent some of them.' : 'Moedas insuficientes: outra tela já gastou parte delas.')
+        : textoInventarioCheio(en);
       if (avisoGravacaoRef.current) avisoGravacaoRef.current(texto, 'recusa');
       return;
     }

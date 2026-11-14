@@ -126,7 +126,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 43 | 📝 sem botão de propósito: saiu do card do jogador a pedido do usuário em 14/09/2026 (commit d1f3ca8); o Mestre tira o PJ pelo estado. Função comentada e mantida. | `handleDesistir` sem botão. |
 | 44 | ✅ | Parser lê "2,5" como 5. |
 | 45 | ✅ | Ritual/fabricação contam a mesma unidade em dois grupos. |
-| 46 | ⬜ | Mescla de moedas por denominação com `Math.max(0)` pode criar dinheiro. |
+| 46 | ✅ | Mescla de moedas por denominação com `Math.max(0)` pode criar dinheiro. |
 | 47 | ⬜ | ~55 funções SECURITY DEFINER executáveis por `anon`; 25 policies sem `(select auth.uid())`. |
 | 48 | ⬜ | Hooks depois de `return null` em `DetalhesItemModal` (`inventario.jsx`) — latente. |
 
@@ -184,6 +184,15 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 46 — como ficou (14/11/2026)
+
+`gravarInventario`: no conflito, antes de mesclar, `moedaFicariaNegativa`
+confere se o gasto desta tela ainda cabe no que o banco tem em cada
+denominação da carteira; se não cabe, recusa com `moedas_insuficientes` (recusa
+definitiva — a tela volta ao banco e avisa), em vez de o `max(0)` perdoar a
+diferença. A mescla em si não mudou. Testes em
+`src/01-core/inventario-concorrencia.test.js`.
 
 ## Item 45 — como ficou (14/11/2026)
 

@@ -120,6 +120,17 @@ function mesclarInventario(base, local, remoto) {
   return out;
 }
 
+// Alguma denominação da carteira ficaria abaixo de zero na mescla? (item 46)
+function moedaFicariaNegativa(base, local, remoto) {
+  const mb = (base && base.moedas) || {};
+  const ml = (local && local.moedas) || {};
+  const mr = (remoto && remoto.moedas) || {};
+  return [...new Set([...Object.keys(mb), ...Object.keys(ml)])].some((k) => {
+    const delta = (Number(ml[k]) || 0) - (Number(mb[k]) || 0);
+    return delta < 0 && (Number(mr[k]) || 0) + delta < 0;
+  });
+}
+
 async function lerInventarioComVersao(pjId) {
   const { data, error } = await supabaseClient
     .from('personagens').select(COLS_INVENTARIO).eq('id', pjId).maybeSingle();
@@ -226,6 +237,16 @@ async function gravarInventario(pjId, { base, local, versao } = {}) {
       if (mesmoValor(atual.inventario, local)) {
         return { ok: true, inventario: atual.inventario, versao: atual.versao, gravou: false };
       }
+      /* O GASTO QUE NÃO CABE (14/11/2026, auditoria item 46). A mescla da
+         carteira faz max(0, R + (L − B)) por denominação: gastar 5 de ouro aqui
+         quando outra tela já deixou 1 dava 0 — os 4 que faltavam saíam sem
+         existir. Agora isso recusa a gravação; a tela relê e o jogador vê o
+         saldo de verdade. */
+      if (moedaFicariaNegativa(base, local, atual.inventario)) {
+        const err = new Error('Moedas insuficientes: outra tela já gastou parte delas.');
+        err.motivo = 'moedas_insuficientes';
+        return { ok: false, error: err };
+      }
       alvo = mesclarInventario(base, local, atual.inventario);
       v = atual.versao;
     }
@@ -260,9 +281,11 @@ async function alterarInventario(pjId, fn) {
   }
 }
 
-// A recusa que não muda tentando de novo: carga máxima e inventário cheio.
+// A recusa que não muda tentando de novo: carga máxima, inventário cheio e o
+// gasto de moeda que não cabe mais (item 46).
 function recusaDefinitiva(err) {
-  return !!err && (err.motivo === 'carga_maxima' || err.motivo === 'inventario_cheio');
+  return !!err && (err.motivo === 'carga_maxima' || err.motivo === 'inventario_cheio'
+    || err.motivo === 'moedas_insuficientes');
 }
 
 /* Gravador por PJ para a tela que segura cópia (InventarioList). O autosave,
@@ -337,4 +360,4 @@ function criarGravadorInventario() {
 
 Object.assign(window, {
   cargaEstoura, recebimentoEstouraCarga, mesmoValor, mesclarInventario, gravarInventario, alterarInventario, criarGravadorInventario,
-  recusaDefinitiva, explodidosNosDois });
+  recusaDefinitiva, explodidosNosDois, moedaFicariaNegativa });

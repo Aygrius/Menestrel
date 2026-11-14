@@ -91,6 +91,22 @@ describe('mesclarInventario — itens', () => {
   });
 });
 
+/* Auditoria item 46 (14/11/2026): o max(0) da mescla perdoava o gasto que não
+   cabia mais — a moeda saía sem existir. gravarInventario recusa antes. */
+describe('moedaFicariaNegativa', () => {
+  const W = () => window.moedaFicariaNegativa;
+  it('gastar 5 quando o banco já está em 1: fica negativa', () => {
+    expect(W()(inv([], { ouro: 5 }), inv([], { ouro: 0 }), inv([], { ouro: 1 }))).toBe(true);
+  });
+  it('gasto que cabe, ou ganho: não', () => {
+    expect(W()(inv([], { ouro: 5 }), inv([], { ouro: 3 }), inv([], { ouro: 4 }))).toBe(false);
+    expect(W()(inv([], { ouro: 1 }), inv([], { ouro: 4 }), inv([], { ouro: 0 }))).toBe(false);
+  });
+  it('é recusa definitiva (a tela volta ao banco)', () => {
+    expect(window.recusaDefinitiva(Object.assign(new Error('x'), { motivo: 'moedas_insuficientes' }))).toBe(true);
+  });
+});
+
 describe('mesclarInventario — moedas', () => {
   it('soma as diferenças por moeda, nunca abaixo de 0', () => {
     const B = inv([], { ouro: 5, prata: 1, cobre: 0, latao: 0 });
