@@ -28,7 +28,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 | # | Estado | Achado |
 |---|---|---|
-| 1 | ⬜ | `comprar_item` (SECURITY DEFINER, executável por `anon`) não confere que `p_pj_id` é de quem chama; aceita `p_negociacao='sucesso'` do cliente; não aplica o filtro de cidade de `get_loja_pj`. |
+| 1 | ✅ `scripts/sql/comprar-item-so-do-dono-2026-11-14.sql` | `comprar_item` (SECURITY DEFINER, executável por `anon`) não confere que `p_pj_id` é de quem chama; aceita `p_negociacao='sucesso'` do cliente; não aplica o filtro de cidade de `get_loja_pj`. |
 | 2 | ✅ `scripts/sql/saque-so-pelo-encerrar-2026-11-14.sql` | `_menestrel_saque_da_batalha` (e `_menestrel_matador_da_criatura`, `_menestrel_lojas_globais`) executáveis por `anon`/`authenticated` sem checar papel — dá para forjar saque a preço 0. |
 | 3 | ⬜ | Policy `personagens_update_own_or_vinculado` libera as 40 colunas ao dono: XP, atributos, receitas, `vendas_a_resgatar`, moedas por PATCH direto. |
 | 4 | ⬜ | `atualizar_batalha_jogador` só confere que o usuário tem PJ na batalha: grava qualquer participante, qualquer campo, fora da vez, com a cortina aguardando; base nula substitui tudo. |

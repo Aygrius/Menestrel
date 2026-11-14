@@ -81,6 +81,7 @@ function motivoCompraLabel(motivo, info, lang) {
   if (lang === 'en') {
     const m = {
       sem_historia: 'No story for this character',
+      sem_permissao: 'This character is not yours',
       item_nao_listado: 'Item not listed in this shop',
       item_nao_existe: 'Item not found',
       estoque_insuficiente: 'Out of stock',
@@ -100,6 +101,7 @@ function motivoCompraLabel(motivo, info, lang) {
   }
   const m = {
     sem_historia: 'Sem história para este personagem',
+    sem_permissao: 'Este personagem não é seu',
     item_nao_listado: 'Item não está mais à venda',
     item_nao_existe: 'Item não encontrado',
     estoque_insuficiente: 'Estoque esgotado',
