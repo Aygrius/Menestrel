@@ -8276,6 +8276,39 @@ async function gravarSaqueNoPj(pjId, slug, qtd, catalogos) {
   return { error: r.ok ? null : r.error };
 }
 
+/* SAQUE DO JOGADOR PELO SERVIDOR (14/11/2026, auditoria item 3). Moeda não
+   entra mais por gravação direta do jogador (gatilho personagens_colunas_do_mestre),
+   e a criatura pode carregar moeda. A RPC saquear_criatura confere as regras
+   de podeSaquear, soma no inventário e anota o `saqueado` numa transação só —
+   sem o saque gravado e a anotação perdida (item 41). A carga máxima segue
+   conferida aqui antes, como em alterarInventario. Devolve { error }. */
+const MOTIVOS_SAQUE = {
+  nao_pode_saquear: ['Só dá para saquear na sua vez, encostado na criatura.', 'You can only loot on your turn, next to the creature.'],
+  saque_esgotado: ['Esse item já foi saqueado.', 'That item was already looted.'],
+  item_nao_saqueavel: ['Esse item não se saqueia.', 'That item can’t be looted.'],
+  batalha_nao_ativa: ['A batalha já terminou.', 'The battle is over.'],
+  sem_permissao: ['Este personagem não é seu.', 'This character is not yours.'],
+};
+async function saquearPeloServidor(batalhaId, pjId, alvoInstId, slug, qtd, en) {
+  if (window.recebimentoEstouraCarga && await window.recebimentoEstouraCarga(pjId, slug, qtd)) {
+    return { error: new Error(window.textoCargaMaxima ? window.textoCargaMaxima(en) : 'Carga máxima: largue algo antes.') };
+  }
+  const { data, error } = await supabaseClient.rpc('saquear_criatura', {
+    p_batalha_id: batalhaId, p_pj_id: pjId, p_alvo_inst_id: alvoInstId, p_slug: slug, p_qtd: qtd,
+  });
+  if (error) {
+    if (window.ehInventarioCheio && window.ehInventarioCheio(error)) {
+      return { error: new Error(window.textoInventarioCheio ? window.textoInventarioCheio(en) : 'Inventário cheio.') };
+    }
+    return { error };
+  }
+  if (!data || !data.ok) {
+    const m = MOTIVOS_SAQUE[data && data.motivo];
+    return { error: new Error(m ? m[en ? 1 : 0] : ((data && data.motivo) || 'erro')) };
+  }
+  return {};
+}
+
 function textoSaque(pjNome, qtd, itemNome, alvoNome, en) {
   return en ? `${pjNome} looted ${qtd}× ${itemNome} from ${alvoNome}.`
     : `${pjNome} saqueou ${qtd}× ${itemNome} de ${alvoNome}.`;
@@ -15229,9 +15262,16 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
             catalogoBySlug={catalogos.catalogoBySlug} saqueadores={[meuParticipante]}
             isEn={isEn} lang={lang} onClose={() => setSaqueDe(null)}
             onPegar={async (pj, slug, qtd, jaTirado) => {
-              const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd, catalogos);
-              if (r.error) return r;
-              await persistJogador({ participantes: anotarSaque(participantes, alvo.inst_id, slug, qtd, jaTirado) }, { manterAberto: true });
+              if (ehTreino(catalogos)) {
+                // Treino: nada vai ao banco — o cache e a anotação, como antes.
+                const r = await gravarSaqueNoPj(pj.ref_id, slug, qtd, catalogos);
+                if (r.error) return r;
+                await persistJogador({ participantes: anotarSaque(participantes, alvo.inst_id, slug, qtd, jaTirado) }, { manterAberto: true });
+              } else {
+                // O servidor grava o item e o `saqueado`; o eco do realtime traz a anotação.
+                const r = await saquearPeloServidor(batalha.id, pj.ref_id, alvo.inst_id, slug, qtd, isEn);
+                if (r.error) return r;
+              }
               if (batalha.historia_id) {
                 const item = (catalogos.catalogoBySlug[slug] || {}).nome || slug;
                 supabaseClient.rpc('registrar_evento_mesa', {

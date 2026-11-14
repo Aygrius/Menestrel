@@ -30,7 +30,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 |---|---|---|
 | 1 | ✅ `scripts/sql/comprar-item-so-do-dono-2026-11-14.sql` | `comprar_item` (SECURITY DEFINER, executável por `anon`) não confere que `p_pj_id` é de quem chama; aceita `p_negociacao='sucesso'` do cliente; não aplica o filtro de cidade de `get_loja_pj`. |
 | 2 | ✅ `scripts/sql/saque-so-pelo-encerrar-2026-11-14.sql` | `_menestrel_saque_da_batalha` (e `_menestrel_matador_da_criatura`, `_menestrel_lojas_globais`) executáveis por `anon`/`authenticated` sem checar papel — dá para forjar saque a preço 0. |
-| 3 | ⬜ | Policy `personagens_update_own_or_vinculado` libera as 40 colunas ao dono: XP, atributos, receitas, `vendas_a_resgatar`, moedas por PATCH direto. |
+| 3 | ✅ `scripts/sql/colunas-do-mestre-e-saque-por-rpc-2026-11-14.sql` | Policy `personagens_update_own_or_vinculado` libera as 40 colunas ao dono: XP, atributos, receitas, `vendas_a_resgatar`, moedas por PATCH direto. |
 | 4 | ⬜ | `atualizar_batalha_jogador` só confere que o usuário tem PJ na batalha: grava qualquer participante, qualquer campo, fora da vez, com a cortina aguardando; base nula substitui tudo. |
 | 5 | 📝 | O jogador lê a linha inteira de `batalhas` (cortina só na tela) e `historias` tem SELECT `true` para todo logado. Adiado: exige uma visão do jogador no servidor e mexe no realtime. |
 
@@ -80,7 +80,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 30 | ⬜ | Fabricar valida material numa cópia velha e anuncia sucesso sem esperar a gravação. |
 | 31 | ⬜ | Conteúdo de recipiente posto no animal pesa no dono (`calcCarga`). |
 | 32 | ⬜ | Item do saque rápido guardado num recipiente continua no saque. |
-| 33 | ⬜ | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. |
+| 33 | ⬜ (saque do jogador ✅ pela RPC) | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. No jogador, a RPC `saquear_criatura` já pula pilha à venda e no animal; falta o saque do Mestre e o treino. |
 | 34 | ⬜ | Regra de endereço da Casa (`acessoAPropriedade`) nunca aplicada — ninguém passa a localização do PJ. |
 | 35 | ⬜ | Preparar carne e envenenar flechas mexem em pilha à venda. |
 | 36 | ⬜ | Pilha dividida (guardar, equipar, vestir, montar, pôr no animal) perde bônus/desgaste/veneno na parte que sai. |
@@ -93,7 +93,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 38 | ⬜ | Log da evocação perdida diz "dano na EF" quando foi desmaio por EH. |
 | 39 | ⬜ | Desmontar deixa o cavalo desmaiado (EH 0 / máx > 0). |
 | 40 | ⬜ | Oferenda consumida em magia de item sem dar o bônus. |
-| 41 | ⬜ | Saque gravado antes de anotar; falha → saca de novo. Saque simultâneo de dois jogadores sobrescreve `saqueado`. |
+| 41 | ⬜ (jogador ✅ pela RPC) | Saque gravado antes de anotar; falha → saca de novo. Saque simultâneo de dois jogadores sobrescreve `saqueado`. No jogador, `saquear_criatura` grava item e anotação numa transação; falta o saque do Mestre. |
 | 42 | ⬜ | Realtime não ouve DELETE; nome de canal fixo. |
 | 43 | ⬜ | `handleDesistir` sem botão. |
 | 44 | ⬜ | Parser lê "2,5" como 5. |
@@ -124,3 +124,21 @@ esquece `PJ_COLS`; nenhum `update` direto em `inventario` fora do CAS.
   `experiencia` pelo próprio jogador, e `ficha.jsx` `salvarExperiencia` grava
   XP. O gatilho não pode travar atributos sem antes mover o evoluir para RPC ou
   aceitar só aumentos coerentes com os pontos do estágio.
+
+## Item 3 — como ficou (14/11/2026)
+
+- Gatilho `personagens_colunas_do_mestre` (BEFORE UPDATE, SECURITY INVOKER):
+  só age na gravação direta (`current_user = authenticated`) de quem não é
+  Mestre de uma história do PJ. RPC SECURITY DEFINER passa.
+  - `experiencia`, `receitas_aprendidas`, `vendas_a_resgatar`: não mudam.
+  - `*_base`: só sobem, de −2 a 6, e Σ custo ≤ 15 + ⌊(estágio−1)/2⌋ + 4
+    (o modificador da raça se cancela na conta do assistente). O teste
+    `src/01-core/colunas-do-mestre.test.js` amarra a tabela e o teto ao game-data.
+  - Moedas: o valor total (itens do grupo Moedas + carteira legada) não sobe.
+- O saque do jogador virou a RPC `saquear_criatura` (a única entrada de moeda
+  por gravação direta do jogador). O treino segue no cache, como antes.
+- Efeito colateral aceito: a mescla de três vias que "ressuscitava" moeda
+  gasta em outra aba agora falha a gravação em vez de duplicar dinheiro.
+- Fica de fora: o INSERT (criação nasce com XP 0 e sem campo de XP), e as
+  colunas `magias`, `tecnicas`, `habilidades`, `grupos_armas`,
+  `aprimoramentos` e `caracterizacao`, que o dono ainda grava direto.
