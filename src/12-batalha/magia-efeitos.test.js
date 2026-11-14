@@ -837,6 +837,22 @@ describe('Oferenda — a magia seguinte sai ampliada', () => {
     expect(M.consumirOferenda(p)).toBe(p);
   });
 
+  // Auditoria item 40 (14/11/2026): a Oferenda não amplia magia de item — e não queima nela.
+  it('magia de ITEM não queima a Oferenda', () => {
+    const p = ator({ status_temp: [
+      { id: 'mag_oferenda', consome_em: 'magia_evocada', efeito: { tipo: 'mod_nivel_magia', valor: 2 } },
+    ] });
+    expect(M.consumirOferenda(p, { key: 'x', item: { slug: 'anel' } })).toBe(p);
+    expect(M.consumirOferenda(p, { key: 'x', item: null }).status_temp).toHaveLength(0);
+  });
+  it('os quatro caminhos passam a magia para a queima', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const fonte = fs.readFileSync(path.resolve(__dirname, 'batalha.jsx'), 'utf8');
+    expect((fonte.match(/consumirOferenda\(next\[atorIdx\], magia\)/g) || []).length).toBe(3);
+    expect(fonte).toMatch(/\}, magia\);\s+\/\/ magia de item não queima a Oferenda \(item 40\)/);
+  });
+
   it('aplicarEfeitoMagia grava consome_em no status, vindo do EFEITO', () => {
     // O defeito original: aplicarEfeitoMagia lia reg.consome_em (nível da
     // entrada) e o campo nunca chegava ao status.

@@ -120,7 +120,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 37 | ✅ | `mod_ef_temp` com piso 0 cura EF negativa (deveria ser `EF_MORTE`). |
 | 38 | ✅ | Log da evocação perdida diz "dano na EF" quando foi desmaio por EH. |
 | 39 | ✅ | Desmontar deixa o cavalo desmaiado (EH 0 / máx > 0). |
-| 40 | ⬜ | Oferenda consumida em magia de item sem dar o bônus. |
+| 40 | ✅ | Oferenda consumida em magia de item sem dar o bônus. |
 | 41 | ⬜ (jogador ✅ pela RPC) | Saque gravado antes de anotar; falha → saca de novo. Saque simultâneo de dois jogadores sobrescreve `saqueado`. No jogador, `saquear_criatura` grava item e anotação numa transação; falta o saque do Mestre. |
 | 42 | ⬜ | Realtime não ouve DELETE; nome de canal fixo. |
 | 43 | ⬜ | `handleDesistir` sem botão. |
@@ -184,6 +184,13 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 40 — como ficou (14/11/2026)
+
+`consumirOferenda(p, magia)`: com `magia.item`, a Oferenda fica — ela não
+amplia magia de item (nível fixo do item) e passa a valer para a próxima magia
+própria. Os quatro caminhos (ataque do Mestre e do Jogador, apoio, magia de
+fim de rodada) passam a magia. Testes em `src/12-batalha/magia-efeitos.test.js`.
 
 ## Item 39 — como ficou (14/11/2026)
 

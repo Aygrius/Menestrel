@@ -1172,8 +1172,14 @@ function nivelComOferenda(ator, nivelBase) {
    deixa três status e só este morre agora — `sem_cura_ef` dura as 10 rodadas
    inteiras. Molde de consumirEvitaGolpe, que faz o mesmo com a Esquiva.
 
-   Devolve o MESMO participante quando não há nada a queimar. */
-function consumirOferenda(p) {
+   Devolve o MESMO participante quando não há nada a queimar.
+
+   MAGIA DE ITEM NÃO QUEIMA (14/11/2026, auditoria item 40): o nível dela é
+   o do item (magiasDeItensDoAtor), a Oferenda não o amplia — e queimava
+   assim mesmo, sem dar o bônus. Com `magia.item`, a Oferenda fica para a
+   próxima magia própria. */
+function consumirOferenda(p, magia) {
+  if (magia && magia.item) return p;
   const st = Array.isArray(p && p.status_temp) ? p.status_temp : null;
   if (!st || !st.some((s) => s.consome_em === 'magia_evocada')) return p;
   return { ...p, status_temp: st.filter((s) => s.consome_em !== 'magia_evocada') };
@@ -7173,7 +7179,7 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhou
   }
   // A magia SAIU: queima a Oferenda, que vale para uma só. Vem depois do
   // débito porque o nível ampliado já foi lido lá atrás, na montagem da lista.
-  if (!jaPago) next[atorIdx] = consumirOferenda(next[atorIdx]);
+  if (!jaPago) next[atorIdx] = consumirOferenda(next[atorIdx], magia);
 
   /* AURA: o efeito não é num alvo escolhido, é em TODOS os válidos dentro do
      raio a partir do conjurador. Aura Divina é a única da Fase 1/2 assim.
@@ -8091,7 +8097,7 @@ function guardarMagiaPendente(arr, atorIdx, tipo, payload, custoKarma, rodadaAtu
       magia_key: magia && magia.key, magia_nome: (magia && magia.nome) || null,
       payload: guardado,
     },
-  });
+  }, magia);   // magia de item não queima a Oferenda (item 40)
   return next;
 }
 /* Qual pendente sai AGORA (puro)? A de uma rodada anterior sai já; a desta
@@ -9645,7 +9651,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     } else next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
     // Magia ofensiva tambem queima a Oferenda: ela vale para UMA magia, seja
     // ela de ataque ou de apoio.
-    if (tipo === 'magia' && !resolvendoPendente) next[atorIdx] = consumirOferenda(next[atorIdx]);
+    if (tipo === 'magia' && !resolvendoPendente) next[atorIdx] = consumirOferenda(next[atorIdx], magia);
 
     // Falha Crítica (q=0): a consequência do segundo dado cai no PRÓPRIO
     // atacante (Fase 1.1) — dano pulando EH + status mecânico da tabela.
@@ -14833,7 +14839,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
     // Magia ofensiva tambem queima a Oferenda: ela vale para UMA magia, seja
     // ela de ataque ou de apoio.
-    if (tipo === 'magia') next[atorIdx] = consumirOferenda(next[atorIdx]);
+    if (tipo === 'magia') next[atorIdx] = consumirOferenda(next[atorIdx], magia);
     // Falha Crítica (q=0): consequência no PRÓPRIO atacante — espelha o Mestre (Fase 1.1).
     let danoSelf = 0;
     if (tipo_critico === 'self' && res_critico) {
