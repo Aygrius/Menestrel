@@ -8189,7 +8189,12 @@ function quebrarConcentracaoPorDano(participantes, antes, depois) {
   const chegouNaEF = (Number(depois.ef) || 0) < (Number(antes.ef) || 0);
   const caiu = antes.status === 'ativo' && depois.status !== 'ativo';
   if (!chegouNaEF && !caiu) return participantes;
-  return quebrarConcentracao(participantes, depois.inst_id, 'dano');
+  /* O MOTIVO É O QUE ACONTECEU (14/11/2026, auditoria item 38). Era sempre
+     'dano' — "sofreu dano na Energia Física" — também para quem desmaiou com a
+     EH zerada, sem a EF ser tocada. Caiu diz como caiu (desmaiou, morreu);
+     senão, foi o dano na EF. */
+  const motivo = caiu && MOTIVO_QUEBRA_EVOCACAO[depois.status] ? depois.status : 'dano';
+  return quebrarConcentracao(participantes, depois.inst_id, motivo);
 }
 
 /* ── Botão de ação do menu do token — só ícone ─────────────────────

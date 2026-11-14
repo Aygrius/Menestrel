@@ -118,7 +118,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | # | Estado | Achado |
 |---|---|---|
 | 37 | ✅ | `mod_ef_temp` com piso 0 cura EF negativa (deveria ser `EF_MORTE`). |
-| 38 | ⬜ | Log da evocação perdida diz "dano na EF" quando foi desmaio por EH. |
+| 38 | ✅ | Log da evocação perdida diz "dano na EF" quando foi desmaio por EH. |
 | 39 | ⬜ | Desmontar deixa o cavalo desmaiado (EH 0 / máx > 0). |
 | 40 | ⬜ | Oferenda consumida em magia de item sem dar o bônus. |
 | 41 | ⬜ (jogador ✅ pela RPC) | Saque gravado antes de anotar; falha → saca de novo. Saque simultâneo de dois jogadores sobrescreve `saqueado`. No jogador, `saquear_criatura` grava item e anotação numa transação; falta o saque do Mestre. |
@@ -184,6 +184,12 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 38 — como ficou (14/11/2026)
+
+`quebrarConcentracaoPorDano`: o motivo passa a ser o que aconteceu — quem
+caiu leva o estado (`desmaiado`, `morto`); só quem segue de pé com dano na EF
+leva `dano`. Teste: `src/12-batalha/motivo-evocacao-perdida.test.js`.
 
 ## Item 37 — como ficou (14/11/2026)
 
