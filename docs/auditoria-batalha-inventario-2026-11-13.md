@@ -109,7 +109,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 31 | ✅ | Conteúdo de recipiente posto no animal pesa no dono (`calcCarga`). |
 | 32 | ✅ | Item do saque rápido guardado num recipiente continua no saque. |
 | 33 | ✅ (jogador pela RPC; Mestre e treino em 14/11) | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. No jogador, a RPC `saquear_criatura` já pula pilha à venda e no animal; falta o saque do Mestre e o treino. |
-| 34 | ⬜ | Regra de endereço da Casa (`acessoAPropriedade`) nunca aplicada — ninguém passa a localização do PJ. |
+| 34 | ✅ | Regra de endereço da Casa (`acessoAPropriedade`) nunca aplicada — ninguém passa a localização do PJ. |
 | 35 | ⬜ | Preparar carne e envenenar flechas mexem em pilha à venda. |
 | 36 | ⬜ | Pilha dividida (guardar, equipar, vestir, montar, pôr no animal) perde bônus/desgaste/veneno na parte que sai. |
 
@@ -184,6 +184,16 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 34 — como ficou (14/11/2026)
+
+InventarioList lê `personagens.localizacao` (`PJ_COLS`) e passa `localDoPj` a
+`podeMoverParaContainer` (a lista de recipientes de destino) e a
+`guardarNoRecipiente` (arrastar), que já sabiam a regra. A recusa diz onde a
+Casa fica, ou que falta a cidade dela ou a localização do PJ. Hoje (consulta de
+14/11) nenhuma propriedade tem cidade: a regra passa a valer quando o Mestre
+der endereço a uma. Fica de fora: esconder o CONTEÚDO da Casa longe dela.
+Teste: `src/07-inventario/casa-endereco.test.jsx`.
 
 ## Item 33 — como ficou (14/11/2026)
 

@@ -676,7 +676,8 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
 // foto_url (27/09/2026): o card do alvo na aba Usar mostrava só a inicial.
 // intelecto_base + aura_base (22/10/2026): orçamento de magia (pontosMagiasTotal).
 // deus (22/10/2026): regra dos milagres na janela Estudar (sem religião, sem milagre).
-const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,subraca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,agilidade_base,inventario,estado_atual,magias,tecnicas,habilidades,treinos,experiencia,especializacao,inventario_versao,receitas_aprendidas';
+// localizacao (14/11/2026, auditoria item 34): a Casa só abre na cidade dela.
+const PJ_COLS = 'id,nome,sobrenome,foto_url,raca,subraca,profissao,deus,forca_base,fisico_base,intelecto_base,aura_base,agilidade_base,inventario,estado_atual,magias,tecnicas,habilidades,treinos,experiencia,especializacao,inventario_versao,receitas_aprendidas,localizacao';
 
 // Inventário com os campos que a tela espera, sem mexer no objeto de origem.
 const INV_VAZIO = () => ({ moedas: { ouro: 0, prata: 0, cobre: 0, latao: 0 }, itens: [] });
@@ -1090,6 +1091,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const racaPj = pjSelecionado?.raca;
   // O que o setInv precisa para conferir a carga (ver cargaCtxRef).
   cargaCtxRef.current = { cat: catalogoBySlug || null, pj: pjSelecionado || null };
+  /* ONDE O PERSONAGEM ESTÁ (14/11/2026, auditoria item 34). A regra de
+     endereço da Casa (acessoAPropriedade) existia, mas ninguém passava a
+     localização: a casa em Tronum abria para quem estava em Farzelo. Vazio
+     ('') é "não sei onde estou", e a Casa fica fechada; sem PJ carregado,
+     undefined desliga a checagem, como antes. */
+  const localDoPj = pjSelecionado ? String(pjSelecionado.localizacao || '') : undefined;
 
   const slotsState = useMemo(
     () => inv ? getSlotsState(inv.itens, catalogoBySlug, racaPj) : null,
@@ -1118,9 +1125,10 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       const c = catalogoBySlug[it.slug];
       if (!ehContainer(c)) return false;
       if (!recipienteAceitaSlug(it, instanceDetalhes.slug, inv.itens, catalogoBySlug)) return false;
-      return podeMoverParaContainer(itemCat, c, it, inv.itens, catalogoBySlug).ok;
+      // A Casa só abre na cidade dela (auditoria item 34) — ver localDoPj.
+      return podeMoverParaContainer(itemCat, c, it, inv.itens, catalogoBySlug, localDoPj).ok;
     });
-  }, [inv, instanceDetalhes, catalogoBySlug]);
+  }, [inv, instanceDetalhes, catalogoBySlug, localDoPj]);
 
   // Fechar modal se instância sumiu
   useEffect(() => {
@@ -1522,7 +1530,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const guardarArrastando = (instanceId, containerId) => {
     if (!inv) return;
     const en = lang === 'en';
-    const r = guardarNoRecipiente(inv.itens, instanceId, containerId, catalogoBySlug);
+    const r = guardarNoRecipiente(inv.itens, instanceId, containerId, catalogoBySlug, localDoPj);
     const it = inv.itens.find((x) => x.instanceId === instanceId);
     const cont = inv.itens.find((x) => x.instanceId === containerId);
     const nome = (it && catalogoBySlug[it.slug]?.nome) || (it && it.slug) || '';
@@ -1539,6 +1547,12 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
            espaço" nas duas deixa a pessoa procurando o que não é. */
         sem_casa: en ? `${nomeCont} has no free slot.` : `${nomeCont} está com todas as casas ocupadas.`,
         regra: `${nomeCont}: ${r.texto || ''}`,
+        // A Casa tem endereço (auditoria item 34): diz onde ela está, ou o que falta.
+        propriedade_longe: r.porque === 'sem_cidade'
+          ? (en ? `${nomeCont} has no city yet. The Game Master sets it.` : `${nomeCont} ainda não tem cidade. Quem define é o Mestre.`)
+          : r.porque === 'sem_local'
+            ? (en ? `Your character has no location, so ${nomeCont} stays closed.` : `Seu personagem está sem localização, e ${nomeCont} fica fechada.`)
+            : (en ? `${nomeCont} is in ${r.cidade}. Go there to use it.` : `${nomeCont} fica em ${r.cidade}. Vá até lá para usá-la.`),
       };
       if (motivos[r.motivo]) avisar(motivos[r.motivo], 'recusa');
       return;
