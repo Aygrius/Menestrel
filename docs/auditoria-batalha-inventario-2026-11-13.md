@@ -14,13 +14,12 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1 a 4 e 6 a 21 (todos os críticos, todos os de alta
-  prioridade e os quatro primeiros de média), mais o karma das criaturas
+- **Feitos:** 1 a 4 e 6 a 22 (todos os críticos, todos os de alta
+  prioridade e os cinco primeiros de média), mais o karma das criaturas
   (pedido à parte). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 22** — PJ que entra com EF ≤ 0 fica desmaiado a luta
-  inteira (sem o contador `desmaio_ef`). Depois seguir a ordem da tabela
-  (23, 24…).
+- **Próximo: item 23** — a rodada trava se todo ativo está canalizando/sem
+  ação: ninguém recebe `atual`. Depois seguir a ordem da tabela (24, 25…).
 - **Banco:** o usuário autorizou (14/11/2026) mudanças no banco feitas pelo
   Claude.
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
@@ -91,7 +90,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 19 | ✅ | Absorção de elixir/poção (`ar` acima de `ar_max`) não protege quem está sem armadura (`aplicarDanoCascata`). |
 | 20 | ✅ | Item com prazo (Fogo Vivo, Karma Líquido, Energia Cinética, Elixir da Euforia) não faz nada em combate e é consumido (`aplicarEfeitoItemSnapshot`). |
 | 21 | ✅ | Virada calcula PA e passo com o buff de velocidade que expira nela mesma. |
-| 22 | ⬜ | PJ que entra com EF ≤ 0 fica desmaiado a luta inteira (sem o contador `desmaio_ef`). |
+| 22 | ✅ | PJ que entra com EF ≤ 0 fica desmaiado a luta inteira (sem o contador `desmaio_ef`). |
 | 23 | ⬜ | Rodada trava se todo ativo está canalizando/sem ação — ninguém recebe `atual`. |
 | 24 | ⬜ | Falha passageira ao gravar a cortina desliga a cortina para sempre naquela tela. |
 | 25 | ⬜ | Encerrar sobrescreve `condicoes` com as da entrada (horas avançadas na luta somem). |
@@ -183,6 +182,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 22 — como ficou (14/11/2026)
+
+`montarSnapshots`: o PJ que entra desmaiado com a EF em zero ou menos (e acima
+do piso da morte) ganha o `desmaio_ef` de 4 rodadas (`comDesmaioEf`), como quem
+cai no meio da luta, e acorda quando ele acaba. Se a ficha já trouxe o zz de
+uma luta anterior, vale o que restava. Morto não ganha.
+Teste: `src/12-batalha/entra-desmaiado.test.js`.
 
 ## Item 21 — como ficou (14/11/2026)
 

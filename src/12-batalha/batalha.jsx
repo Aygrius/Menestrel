@@ -2208,13 +2208,21 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         tecnica_livre_usada: false,   // REGRA NOVA: ativação livre (0 PA) já usada nesta rodada
         pa_ataque_extra: 0,   // Fase 2: contador de ataques extras (Golpe Duplo etc.) da rodada
       };
+      /* QUEM ENTRA CAÍDO CONTA O ZZ (14/11/2026, auditoria item 22). O PJ com a
+         EF em zero ou menos (mas vivo) entrava desmaiado SEM o `desmaio_ef` de
+         4 rodadas — e é o fim dele que o acorda (processarViradaDeRodada).
+         Ficava caído a luta inteira. Agora entra contando, como quem cai no
+         meio da luta; se a ficha já trouxe o zz de uma luta anterior, vale o
+         que restava dele (comDesmaioEf não repõe). */
+      const snapEntrada = (snapPj.status === 'desmaiado' && efCur <= 0 && efCur > EF_MORTE)
+        ? comDesmaioEf(snapPj) : snapPj;
       // Magia de calendário evocada ANTES da luta entra valendo (degrau 3).
-      const semeado = semearMagiasAtivas(snapPj, pj, magiasByKey, dataJogo);
+      const semeado = semearMagiasAtivas(snapEntrada, pj, magiasByKey, dataJogo);
       /* Velocidade que veio de magia ativa vale JÁ na rodada 1 (13/09/2026):
          pa_rest e mov_rest acima foram calculados sobre o vb cru, e só a
          virada somava o mod_vb — uma Velocidade lançada antes da luta não dava
          a ação extra nem o passo maior na primeira rodada. */
-      if (semeado === snapPj || somaEfeitosStatus(semeado, 'mod_vb') === 0) return semeado;
+      if (semeado === snapEntrada || somaEfeitosStatus(semeado, 'mod_vb') === 0) return semeado;
       return { ...semeado, pa_rest: paDaRodada(pa, vbEfetivo(semeado), semeado.sem_acao_extra), mov_rest: movimentoBase(vbParaMovimento(semeado)), mov_passo: movimentoBase(vbParaMovimento(semeado)) };
     }
     const c = criById[p.ref_id];
