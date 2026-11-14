@@ -101,6 +101,37 @@ describe('Purificação', () => {
     const p = M.aplicarEfeitoApoio(pj({ status_temp: [veneno] }), pur(1), 'pj:2');
     expect(p.status_temp).toEqual([]);
   });
+
+  /* Auditoria item 11 (14/11/2026): em três tipos o número a menos PROTEGE —
+     a Purificação tirava Aparar, Desviar, Escudo e Pele de Árvore, às vezes
+     antes do veneno. */
+  const st = (id, nome, tipo, valor) => ({ id, nome, rodadas_rest: 3, efeito: { tipo, valor } });
+  const aparar = st('tec_aparar', 'Aparar', 'dano_recebido_pct', -75);
+  const desviar = st('tec_desviar', 'Desviar', 'dano_recebido_pct', -50);
+  const escudo = st('tec_combate_com_escudo', 'Combate com Escudo', 'dano_recebido_pct', -25);
+  const pele = st('mag_pele_de_arvore', 'Pele de Árvore', 'mod_dano_max', -4);
+  const amizade = st('mag_amizade', 'Amizade', 'mod_dificuldade', -1);
+  it('as proteções ficam, e o veneno sai mesmo vindo depois delas', () => {
+    const alvo = pj({ status_temp: [aparar, desviar, escudo, pele, amizade, veneno] });
+    const p = M.aplicarEfeitoApoio(alvo, pur(1), 'pj:2');
+    expect(p.status_temp.map((s) => s.nome)).toEqual(['Aparar', 'Desviar', 'Combate com Escudo', 'Pele de Árvore', 'Amizade']);
+  });
+  it('sem nada ruim, a Purificação não tira proteção nenhuma', () => {
+    const alvo = pj({ status_temp: [aparar, pele, amizade] });
+    expect(M.aplicarEfeitoApoio(alvo, pur(3), 'pj:2').status_temp).toHaveLength(3);
+  });
+  it('nesses tipos o POSITIVO é que é ruim: Alucinação e dano recebido a mais saem', () => {
+    const alucinacao = st('mag_alucinacao', 'Alucinação', 'mod_dificuldade', 1);
+    const exposto = st('fx_exposto', 'Exposto', 'dano_recebido_pct', 25);
+    expect(M.efeitoNegativo(alucinacao)).toBe(true);
+    expect(M.efeitoNegativo(exposto)).toBe(true);
+    expect(M.efeitoNegativo(aparar)).toBe(false);
+  });
+  it('o resto segue: penalidade negativa sai, Posicionamento no marcado sai', () => {
+    expect(M.efeitoNegativo(ruido)).toBe(true);
+    expect(M.efeitoNegativo(st('tec_posicionamento', 'Posicionamento', 'mod_dano_causado', -6))).toBe(true);
+    expect(M.efeitoNegativo(bencao)).toBe(false);
+  });
 });
 
 describe('Elo Vital — a EF que o alvo perde volta para quem lançou', () => {

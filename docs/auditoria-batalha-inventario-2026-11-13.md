@@ -14,12 +14,12 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1, 2, 3, 4, 6, 7, 8, 9 e 10 (todos os críticos do banco + os
-  cinco primeiros da batalha). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
+- **Feitos:** 1 a 4 e 6 a 11 (todos os críticos do banco + todos os de alta
+  prioridade da batalha). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 11** — Purificação tira buffs de valor negativo (Aparar,
-  Desviar, Escudo, Pele de Árvore) antes do veneno. Depois seguir a ordem da
-  tabela (12, 13, 14…).
+- **Próximo: item 12** — `normalizarPilhas` funde pilha solta acumulável
+  ignorando `animal_id`/`slot` (começa o bloco do inventário). Depois seguir a
+  ordem da tabela (13, 14, 15…).
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
   `scripts/sql/*-2026-11-14.sql`).
 - **App NÃO publicado:** os commits de 14/11 estão na main, mas não houve
@@ -67,7 +67,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 8 | ✅ | Clique duplo aplica a ação duas vezes (item/rolagem): handlers não conferem `salvando`. |
 | 9 | ✅ | Consumo de item/munição e aviso à mesa saem ANTES de gravar a batalha; se a gravação falha, o item já foi. |
 | 10 | ✅ | Posicionamento invertido (ver decisão acima) — `danoFinal` lê `mod_dano_max` do alvo. |
-| 11 | ⬜ | Purificação tira buffs de valor negativo (Aparar, Desviar, Escudo, Pele de Árvore) antes do veneno. |
+| 11 | ✅ | Purificação tira buffs de valor negativo (Aparar, Desviar, Escudo, Pele de Árvore) antes do veneno. |
 
 ## 🟠 Alta — inventário
 
@@ -180,6 +180,16 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 11 — como ficou (14/11/2026)
+
+`efeitoNegativo` (12-batalha) ganhou `TIPOS_MENOS_E_MELHOR`:
+`dano_recebido_pct` (Aparar, Desviar, Combate com Escudo), `mod_dano_max`
+(Pele de Árvore) e `mod_dificuldade` (Amizade, Conhecimento, Sombra…). Neles o
+ruim é o valor POSITIVO — a Alucinação, que dificulta o teste do enganado,
+passa a sair. Os demais tipos seguem "negativo é penalidade". As Proteções
+(`reducao_dano`) já eram positivas e nunca saíam. Testes em
+`src/12-batalha/magias-novas-cura.test.js` (bloco Purificação).
 
 ## Item 10 — como ficou (14/11/2026)
 

@@ -7177,6 +7177,17 @@ function acordarPelaCura(p) {
    acorda o caído é a cura. Tira os mais antigos primeiro. */
 const PURIFICA_TIPOS = ['dano_por_rodada', 'sem_acoes', 'sem_cura_ef', 'derrubado', 'distraido', 'provocado'];
 const PURIFICA_IDS = ['fc_', 'caido:', 'sangramento:', 'ferido:', 'distraido:', 'derrubado:'];
+/* ONDE MENOS É MELHOR (14/11/2026, auditoria item 11). "Penalidade = valor
+   abaixo de zero" vale para ataque, defesa, velocidade, EH, resistências e
+   dano causado — mas nestes três o número a menos PROTEGE quem o carrega:
+     • dano_recebido_pct −75/−50/−25 → Aparar, Desviar, Combate com Escudo;
+     • mod_dano_max −N               → Pele de Árvore (o teto de quem bate nela);
+     • mod_dificuldade −N            → Amizade, Conhecimento, Sombra… (teste
+                                       mais fácil). Positivo é a Alucinação, que
+                                       deixa o teste do enganado mais difícil.
+   Neles o efeito ruim é o POSITIVO. Antes a Purificação tirava a defesa de
+   quem a recebia, às vezes antes do próprio veneno. */
+const TIPOS_MENOS_E_MELHOR = ['dano_recebido_pct', 'mod_dano_max', 'mod_dificuldade'];
 function efeitoNegativo(s) {
   if (!s || !s.efeito) return false;
   const tipo = s.efeito.tipo;
@@ -7184,7 +7195,8 @@ function efeitoNegativo(s) {
   if (PURIFICA_TIPOS.includes(tipo)) return true;
   const id = typeof s.id === 'string' ? s.id : '';
   if (PURIFICA_IDS.some((pre) => id.startsWith(pre))) return true;
-  return typeof s.efeito.valor === 'number' && s.efeito.valor < 0;
+  if (typeof s.efeito.valor !== 'number') return false;
+  return TIPOS_MENOS_E_MELHOR.includes(tipo) ? s.efeito.valor > 0 : s.efeito.valor < 0;
 }
 function purificarParticipante(p, quantos) {
   const n = Math.max(0, Math.floor(Number(quantos) || 0));
