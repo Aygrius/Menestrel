@@ -14139,7 +14139,15 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     setSalvando(false);
     if (error || (data && data.ok === false)) {
       const motivo = (data && data.motivo) || (error && error.message) || (tb.falhaAoSalvar);
-      setErro(motivo);
+      /* Travas do servidor (14/11/2026, auditoria item 4): a tela já só deixa
+         agir na vez e com a vez revelada — chegar aqui é a mesa ter mudado
+         no meio (o Mestre passou a vez, ou ainda não revelou). */
+      const MOTIVOS_GRAVACAO = {
+        nao_e_sua_vez: isEn ? 'It is no longer your turn.' : 'Não é mais a sua vez.',
+        cortina_aguardando: isEn ? 'Waiting for the Master to reveal the turn.' : 'Aguardando o Mestre revelar a vez.',
+        batalha_nao_ativa: isEn ? 'The battle is over.' : 'A batalha já terminou.',
+      };
+      setErro(MOTIVOS_GRAVACAO[motivo] || motivo);
       // A ação não foi aplicada: a rolagem feita continua valendo.
       if (zeraMinhaRolagem) setRolagemOtimista(ecoAntes);
       return false;

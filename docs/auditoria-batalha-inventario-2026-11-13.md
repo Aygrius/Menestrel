@@ -31,7 +31,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 1 | ✅ `scripts/sql/comprar-item-so-do-dono-2026-11-14.sql` | `comprar_item` (SECURITY DEFINER, executável por `anon`) não confere que `p_pj_id` é de quem chama; aceita `p_negociacao='sucesso'` do cliente; não aplica o filtro de cidade de `get_loja_pj`. |
 | 2 | ✅ `scripts/sql/saque-so-pelo-encerrar-2026-11-14.sql` | `_menestrel_saque_da_batalha` (e `_menestrel_matador_da_criatura`, `_menestrel_lojas_globais`) executáveis por `anon`/`authenticated` sem checar papel — dá para forjar saque a preço 0. |
 | 3 | ✅ `scripts/sql/colunas-do-mestre-e-saque-por-rpc-2026-11-14.sql` | Policy `personagens_update_own_or_vinculado` libera as 40 colunas ao dono: XP, atributos, receitas, `vendas_a_resgatar`, moedas por PATCH direto. |
-| 4 | ⬜ | `atualizar_batalha_jogador` só confere que o usuário tem PJ na batalha: grava qualquer participante, qualquer campo, fora da vez, com a cortina aguardando; base nula substitui tudo. |
+| 4 | ✅ `scripts/sql/batalha-jogador-so-na-vez-2026-11-14.sql` | `atualizar_batalha_jogador` só confere que o usuário tem PJ na batalha: grava qualquer participante, qualquer campo, fora da vez, com a cortina aguardando; base nula substitui tudo. |
 | 5 | 📝 | O jogador lê a linha inteira de `batalhas` (cortina só na tela) e `historias` tem SELECT `true` para todo logado. Adiado: exige uma visão do jogador no servidor e mexe no realtime. |
 
 ## 🟠 Alta — batalha (`src/12-batalha/batalha.jsx`)
@@ -142,3 +142,12 @@ esquece `PJ_COLS`; nenhum `update` direto em `inventario` fora do CAS.
 - Fica de fora: o INSERT (criação nasce com XP 0 e sem campo de XP), e as
   colunas `magias`, `tecnicas`, `habilidades`, `grupos_armas`,
   `aprimoramentos` e `caracterizacao`, que o dono ainda grava direto.
+
+## Item 4 — como ficou (14/11/2026)
+
+`atualizar_batalha_jogador` agora recusa: fora da vez (`nao_e_sua_vez` — o
+`atual` do banco não é PJ do usuário nem animal de um PJ dele), cortina não
+revelada (`cortina_aguardando`), participantes ou log sem base (`sem_base`) e
+rodada que não fica nem vira uma (`rodada_invalida`). `anon` perdeu o EXECUTE.
+Em QUEM o jogador escreve segue livre — o motor do combate roda na tela dele
+e grava o dano no alvo e a vez de todos; travar isso pede o combate no servidor.
