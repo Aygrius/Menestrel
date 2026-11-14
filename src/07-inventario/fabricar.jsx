@@ -59,7 +59,7 @@ function ReceitaCorpo({
       <div className="fab-receita">
         <dl className="loja-painel-dados fab-dados">
           <div><dt>{en ? 'Test' : 'Teste'}</dt><dd>{nomeDaHab(receita.habilidade_key)} · {difLabel(receita.dificuldade)}</dd></div>
-          <div><dt>{en ? 'Time' : 'Tempo'}</dt><dd>{(window.horasDeFabricacao || (() => 0))(cat)} {en ? 'hours' : 'horas'}</dd></div>
+          <div><dt>{en ? 'Time' : 'Tempo'}</dt><dd>{(window.textoDoPrazo || ((h) => `${h} h`))((window.horasDeFabricacao || (() => 0))(cat, receita), en)}</dd></div>
           {rende > 1 && <div><dt>{en ? 'Makes' : 'Rende'}</dt><dd>{rende}</dd></div>}
         </dl>
 

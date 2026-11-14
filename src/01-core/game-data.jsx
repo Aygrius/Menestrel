@@ -1680,6 +1680,20 @@ function pontosCaracterizacaoTotal(caracterizacao) {
   return PONTOS_CARACTERIZACAO_BASE + extra;
 }
 
+/* TETO DE 10 ESCOLHAS (13/11/2026, usuário: "Os personagens só podem comprar
+   um máximo de 10 caracterização"). Conta toda escolha de física, social e
+   pessoal — vantagem ou desvantagem; a Histórica fica de fora, como no pool.
+   Conta a chave preenchida, não só a que casa com o catálogo: um valor
+   antigo ('grande', 'baixo') ainda ocupa a categoria. */
+const MAX_CARACTERIZACOES = 10;
+function qtdCaracterizacoes(caracterizacao) {
+  const c = caracterizacao || {};
+  return ['fisica', 'social', 'pessoal'].reduce((n, grupo) => {
+    const escolhas = c[grupo] || {};
+    return n + Object.keys(escolhas).filter((k) => !!escolhas[k]).length;
+  }, 0);
+}
+
 /* ============================================================
    ÍCONES DE PROFISSÃO E DE TIPO DE CRIATURA (17/09/2026)
    ============================================================
@@ -1836,7 +1850,7 @@ Object.assign(window, {
   idiomasIniciais, slotsAprimoramento, opcoesAprimoramento,
   RESULTADOS_ACAO, RESOLUCAO_ROWS, ACAO_COL_MIN, ACAO_COL_MAX,
   resolverAcao, resolverResistencia, resistenciasBase,
-  pontosCaracterizacaoTotal, gastoCaracterizacao,
+  pontosCaracterizacaoTotal, gastoCaracterizacao, MAX_CARACTERIZACOES, qtdCaracterizacoes,
   PONTOS_CARACTERIZACAO_BASE, CUSTO_CARACTERIZACAO, GANHO_CARACTERIZACAO,
   ICONE_PROFISSAO, ICONE_TIPO_CRIATURA, iconeProfissao, iconeTipoCriatura,
   ICONE_ESTAGIO_CRIATURA, iconeEstagioCriatura,

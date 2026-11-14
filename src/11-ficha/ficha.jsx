@@ -1042,7 +1042,10 @@ function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
    treinando" — cada atividade lista o que treina nela (técnicas em
    Treinando; magias na atividade da classe), com o tempo de jogo que falta. */
 function tempoDeTreino(horas) {
-  const n = Math.max(0, Math.ceil(Number(horas) || 0));
+  // Fração de hora (receita em minutos, 13/11/2026) mostra os minutos.
+  const bruto = Math.max(0, Number(horas) || 0);
+  if (bruto % 1 && typeof window.textoDoPrazo === 'function') return window.textoDoPrazo(bruto);
+  const n = Math.ceil(bruto);
   const d = Math.floor(n / 24), r = n % 24;
   return [d ? `${d} d` : '', r ? `${r} h` : ''].filter(Boolean).join(' ') || '0 h';
 }
@@ -5039,7 +5042,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const cat = catalogoBySlug[b.receita.resultado_slug];
     const r = window.fabricar(
       itensPj, b.receita, pjUso.habilidades || {}, sucesso,
-      (window.horasDeFabricacao || (() => 0))(cat), undefined, pj.receitas_aprendidas || [],
+      (window.horasDeFabricacao || (() => 0))(cat, b.receita), undefined, pj.receitas_aprendidas || [],
       comGrau && sucesso ? { por: nomePj, grau } : undefined,
     );
     const nomeBase = cat ? cat.nome : b.receita.resultado_slug;

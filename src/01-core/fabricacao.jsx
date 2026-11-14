@@ -136,9 +136,17 @@ function nomeDaReceita(cat, en) {
   const nome = (cat && cat.nome) || '';
   return en ? 'Recipe: ' + nome : 'Receita de ' + nome;
 }
-// `aprendidas` é personagens.receitas_aprendidas: [resultado_slug, …].
-function receitaAprendida(aprendidas, receita) {
-  return !!(receita && Array.isArray(aprendidas) && aprendidas.includes(receita.resultado_slug));
+/* `aprendidas` é personagens.receitas_aprendidas: [resultado_slug, …].
+
+   A HABILIDADE ENSINA A RECEITA (13/11/2026, usuário: "Ao comprar a
+   habilidade 'Carpintaria', o personagem aprende as seguintes receitas").
+   A receita com `aprende_com` (chave de habilidade) vem junto com o primeiro
+   nível dela — sem item, sem RPC: deriva do nível, então quem perder a
+   habilidade perde as receitas dela também. */
+function receitaAprendida(aprendidas, receita, pjHabilidades) {
+  if (!receita) return false;
+  if (Array.isArray(aprendidas) && aprendidas.includes(receita.resultado_slug)) return true;
+  return !!(receita.aprende_com && temAHabilidade(pjHabilidades, receita.aprende_com));
 }
 // Tem o item "Receita de …" à mão, ainda por aprender.
 function temReceitaNaMochila(itens, receita) {
@@ -220,7 +228,7 @@ function temAHabilidade(pjHabilidades, key) {
    falhando o material vai embora do mesmo jeito. */
 function podeFabricar(receita, itens, pjHabilidades, aprendidas) {
   if (!receita) return { ok: false, motivo: 'sem_receita' };
-  if (!receitaAprendida(aprendidas, receita)) {
+  if (!receitaAprendida(aprendidas, receita, pjHabilidades)) {
     return { ok: false, motivo: temReceitaNaMochila(itens, receita) ? 'receita_por_aprender' : 'sem_receita_item' };
   }
   // Peça pesada pede as DUAS habilidades (31/10/2026).
@@ -303,15 +311,30 @@ const HORAS_FABRICACAO_POR_GRUPO = {
 };
 const HORAS_FABRICACAO_PADRAO = 12;
 
-function horasDeFabricacao(cat) {
+/* O PRAZO DA PRÓPRIA RECEITA (13/11/2026): as receitas que a habilidade
+   ensina dizem o tempo ("fica pronto em 10 minutos", "em 24 horas") em
+   receitas.minutos, que vence o do grupo. Pode dar fração de hora: a bancada
+   anda com o relógio, e 10 minutos ficam prontos na primeira hora que passar. */
+function horasDeFabricacao(cat, receita) {
+  const min = Number(receita && receita.minutos);
+  if (Number.isFinite(min) && min > 0) return min / 60;
   const h = cat && HORAS_FABRICACAO_POR_GRUPO[cat.grupo];
   return h || HORAS_FABRICACAO_PADRAO;
 }
 
+/* "10 min", "3 h", "1 d 12 h" — o prazo da receita e o que falta na fila. */
+function textoDoPrazo(horas, en) {
+  const total = Math.max(0, Math.ceil((Number(horas) || 0) * 60 - 1e-6));
+  const d = Math.floor(total / 1440), h = Math.floor((total % 1440) / 60), m = total % 60;
+  return [d ? `${d} d` : '', h ? `${h} h` : '', m ? `${m} min` : ''].filter(Boolean).join(' ')
+    || (en ? '0 h' : '0 h');
+}
+
 /* A instância em construção, pronta para entrar no inventário, com as
-   `horas` de Fabricar que ela pede. Sem horas (0, null) entra pronta. */
+   `horas` de Fabricar que ela pede. Sem horas (0, null) entra pronta.
+   Fração de hora vale (receita em minutos). */
 function itemEmConstrucao(receita, horas, novoId, fabricado) {
-  const h = Math.max(0, Math.trunc(Number(horas) || 0));
+  const h = Math.max(0, Math.round((Number(horas) || 0) * 1000) / 1000);
   const id = (novoId || (typeof novoInstanceId === 'function' ? novoInstanceId : null)
     || (() => `f${Date.now().toString(36)}`))();
   return {
@@ -345,7 +368,7 @@ function emConstrucao(it) {
    alterarInventario não gravar à toa. */
 function avancarFabricacao(itens, horas) {
   const lista = Array.isArray(itens) ? itens : [];
-  let resto = Math.max(0, Math.trunc(Number(horas) || 0));
+  let resto = Math.max(0, Number(horas) || 0);
   const prontos = [];
   if (resto <= 0 || !lista.some((it) => _porHoras(it) && emConstrucao(it))) return { itens: lista, prontos };
   const out = lista.map((it) => {
@@ -353,7 +376,7 @@ function avancarFabricacao(itens, horas) {
     const falta = Number(it.construindo.horas_restantes) || 0;
     const usa = Math.min(falta, resto);
     resto -= usa;
-    if (falta - usa > 0) return { ...it, construindo: { ...it.construindo, horas_restantes: falta - usa } };
+    if (falta - usa > 1e-6) return { ...it, construindo: { ...it.construindo, horas_restantes: falta - usa } };
     const { construindo, ...feito } = it;
     void construindo;
     prontos.push(feito);
@@ -367,7 +390,7 @@ function avancarFabricacao(itens, horas) {
 function progressoDaConstrucao(it, dataJogo) {
   if (!emConstrucao(it)) return 100;
   if (_porHoras(it)) {
-    const total = Math.max(1, Number(it.construindo.horas) || 1);
+    const total = Number(it.construindo.horas) > 0 ? Number(it.construindo.horas) : 1;
     const falta = Math.max(0, Number(it.construindo.horas_restantes) || 0);
     return Math.max(0, Math.min(100, Math.round(((total - falta) / total) * 100)));
   }
@@ -445,6 +468,6 @@ Object.assign(window, {
   testesDaReceita, receitaComGrau, grauDosTestes,
   nivelDaHabilidade, temAHabilidade, podeFabricar,
   consumirMateriais, itemEmConstrucao, emConstrucao,
-  HORAS_FABRICACAO_POR_GRUPO, horasDeFabricacao, avancarFabricacao,
+  HORAS_FABRICACAO_POR_GRUPO, horasDeFabricacao, textoDoPrazo, avancarFabricacao,
   progressoDaConstrucao, diasRestantes, itensComConstrucaoPronta, fabricar,
 });

@@ -1510,9 +1510,13 @@ function NovoPersonagemModal({ lang, onClose, onSaved, personagemExistente = nul
     ? `Você gastou ${grpGasto} pontos em grupos de armas, mas só tem ${grpTotalPontos}`
     : null;
 
+  // Teto de 10 escolhas (13/11/2026) — ver qtdCaracterizacoes.
+  const caractQtd = qtdCaracterizacoes(form.caracterizacao);
   const erroCaracterizacao = caractRestantes < 0
     ? `Você gastou ${caractGasto} pontos em caracterização, mas só tem ${caractTotalPontos}`
-    : null;
+    : caractQtd > MAX_CARACTERIZACOES
+      ? `Você escolheu ${caractQtd} caracterizações; o máximo é ${MAX_CARACTERIZACOES}`
+      : null;
 
   // 'identidade' cobre 5 telas (principal + fisica/social/pessoal +
   // historica) — cada uma valida só a própria preocupação: a tela
@@ -1834,6 +1838,9 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
     // Pontos esgotados → bloqueia novas compras de vantagem (opcaoCusta).
     // Desvantagens (opcaoConcede) e remoções sempre liberadas.
     const semPontos = caractRestantes <= 0;
+    // Teto de 10 escolhas (13/11/2026): no teto, a categoria vazia fecha;
+    // as escolhidas seguem trocando e removendo.
+    const noTeto = qtdCaracterizacoes(form.caracterizacao) >= MAX_CARACTERIZACOES;
     const linhas = [];
     for (let i = 0; i < categorias.length; i += 2) linhas.push(categorias.slice(i, i + 2));
     return (
@@ -1853,7 +1860,7 @@ function StepIdentidade({ form, update, lang, isEdit, dataNascTravada = false, s
               /* Sem saldo, o pill vazio continua aberto: a desvantagem
                  (opcaoConcede) DEVOLVE pontos e é justamente a saída de quem
                  zerou. Só a vantagem (opcaoCusta) apaga, na própria opção. */
-              const pillDesabilitado = bloqueado;
+              const pillDesabilitado = bloqueado || (noTeto && !jaEscolheu);
               // Opção "remover": em qualquer escolha ainda não salva.
               const removeOpt = (jaEscolheu && !bloqueado)
                 ? [{ value: '', label: lang === 'en' ? '— remove —' : '— remover —' }]

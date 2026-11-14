@@ -381,7 +381,10 @@ avança o relógio com o PJ na atividade Fabricar (`fabricando`): o shell chama
 `avancarFabricacao` por `alterarInventario`, como a fila de treino. Só fabrica
 quem APRENDEU a receita (`personagens.receitas_aprendidas`, pela RPC
 aprender_receita, que gasta o item `receita_<resultado_slug>` — "Receita de …", vendido
-na loja — `receitaAprendida`); `receitas.rende` diz quantas unidades
+na loja — `receitaAprendida`) ou quem tem a habilidade de `receitas.aprende_com`
+(13/11/2026: o primeiro nível de Carpintaria, Alquimia etc. ensina as receitas
+dela; `receitas.minutos` dá o prazo, em fração de hora se preciso);
+`receitas.rende` diz quantas unidades
 saem (Porcelana: 5 por Quartzo). Armadura e arma têm `receitas.testes` (leve: Artesanato;
 média: Metalurgia; pesada: os dois, em sequência): a ficha rola um dado por
 teste e decide no "Concluir" (`fecharRolagem`), com o PIOR resultado como

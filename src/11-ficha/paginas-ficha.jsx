@@ -519,7 +519,7 @@ function PaginaAtividades({
   const aprendida = window.receitaAprendida || (() => false);
   const podeFab = window.podeFabricar || (() => ({ ok: false }));
   const minhas = (receitas || [])
-    .filter((r) => aprendida(receitasAprendidas, r))
+    .filter((r) => aprendida(receitasAprendidas, r, pjHabilidades))
     .map((r) => ({ r, cat: catalogoBySlug[r.resultado_slug] }))
     .filter((x) => x.cat && !natural(x.cat))
     .map((x) => ({ ...x, estado: podeFab(x.r, itens, pjHabilidades, receitasAprendidas) }))
