@@ -124,7 +124,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 41 | ✅ (jogador pela RPC; Mestre em 14/11) | Saque gravado antes de anotar; falha → saca de novo. Saque simultâneo de dois jogadores sobrescreve `saqueado`. No jogador, `saquear_criatura` grava item e anotação numa transação; falta o saque do Mestre. |
 | 42 | ✅ | Realtime não ouve DELETE; nome de canal fixo. |
 | 43 | 📝 sem botão de propósito: saiu do card do jogador a pedido do usuário em 14/09/2026 (commit d1f3ca8); o Mestre tira o PJ pelo estado. Função comentada e mantida. | `handleDesistir` sem botão. |
-| 44 | ⬜ | Parser lê "2,5" como 5. |
+| 44 | ✅ | Parser lê "2,5" como 5. |
 | 45 | ⬜ | Ritual/fabricação contam a mesma unidade em dois grupos. |
 | 46 | ⬜ | Mescla de moedas por denominação com `Math.max(0)` pode criar dinheiro. |
 | 47 | ⬜ | ~55 funções SECURITY DEFINER executáveis por `anon`; 25 policies sem `(select auth.uid())`. |
@@ -184,6 +184,12 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 44 — como ficou (14/11/2026)
+
+`parseEfeito` (01-core/inventario-helpers.jsx): a vírgula só separa partes
+quando não está entre dois dígitos (`/(?<!\d),|,(?!\d)|;|\se\s/`) — "Reduz 2,5
+de Sede" vale 2,5, não 5. Testes em `src/01-core/efeitos-item.test.js`.
 
 ## Item 42 — como ficou (14/11/2026)
 

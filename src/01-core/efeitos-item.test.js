@@ -52,6 +52,13 @@ describe('parseEfeito — prosa, com o verbo dando o sinal', () => {
       .toEqual([['ef', 3], ['eh', 40], ['ka', 40], ['vitalidade', 10]]);
   });
 
+  // Auditoria item 44 (14/11/2026): a vírgula decimal não separa partes.
+  it('"2,5" é dois e meio, não 5', () => {
+    expect(chave('Reduz 2,5 de Sede.')).toEqual([['hidratacao', 2.5]]);
+    expect(chave('Aumenta 1,5 de Vício, 2 de Sono e 0,5 de Desonra.'))
+      .toEqual([['euforia', 1.5], ['animo', 2], ['reputacao', 0.5]]);
+  });
+
   it('aguenta os erros de digitação do banco', () => {
     expect(chave('Dimiuni 20 de Energia Heroica e 25 de Desonra.')).toEqual([['eh', 20], ['reputacao', 25]]);
   });

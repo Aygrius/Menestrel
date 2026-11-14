@@ -1479,7 +1479,11 @@ function parseEfeito(str) {
   let verboAtual = null;   // o sinal do último verbo visto (vale para as partes seguintes)
   // " e " separa pares como a vírgula; nenhum rótulo do mapa contém " e "
   // solto ("Energia Heroica" tem a palavra colada, não isolada).
-  for (const parteRaw of str.split(/,|;|\se\s/i)) {
+  /* A VÍRGULA DECIMAL NÃO SEPARA (14/11/2026, auditoria item 44): "Aumenta 2,5
+     de Hidratação" virava "Aumenta 2" + "5 de Hidratação", e valia 5. A
+     vírgula só separa partes quando NÃO está entre dois dígitos — o número
+     abaixo já aceitava "2,5" (`[.,]\d+`), mas nunca chegava inteiro. */
+  for (const parteRaw of str.split(/(?<!\d),|,(?!\d)|;|\se\s/i)) {
     let parte = parteRaw.replace(/[.!]+\s*$/, '').trim();
     if (!parte) continue;
     const mv = parte.match(RE_VERBO);
