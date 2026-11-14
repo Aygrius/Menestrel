@@ -5048,27 +5048,41 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      o grau vai para a peça (fabricado.grau) e o nome do personagem para o
      nome dela ("Avambraço de Aldren"). Receita sem grau: sucesso/falha do
      teste, como sempre. */
-  const concluirFabricacao = (b) => {
+  const concluirFabricacao = async (b) => {
     if (typeof window.fabricar !== 'function') return;
     const nomePj = primeiroNome(pj?.nome);
     const comGrau = (window.receitaComGrau || (() => false))(b.receita);
     const grau = comGrau ? (window.grauDosTestes || (() => null))(b.qs) : null;
     const sucesso = comGrau ? grau !== 'FC' : !!(b.ultimo && b.ultimo.sucesso);
     const cat = catalogoBySlug[b.receita.resultado_slug];
-    const r = window.fabricar(
-      itensPj, b.receita, pjUso.habilidades || {}, sucesso,
-      (window.horasDeFabricacao || (() => 0))(cat, b.receita), undefined, pj.receitas_aprendidas || [],
-      comGrau && sucesso ? { por: nomePj, grau } : undefined,
-    );
     const nomeBase = cat ? cat.nome : b.receita.resultado_slug;
     const nome = comGrau && sucesso ? `${nomeBase} de ${nomePj}` : nomeBase;
     const grauRot = grau ? (window.RESULTADOS_ACAO || []).find((x) => x.codigo === grau) : null;
     const grauTxt = grauRot && sucesso ? ` (${en ? grauRot.en : grauRot.pt})` : '';
-    if (!r.ok) {
-      setFabResultado({ ok: false, nome, motivo: r.motivo });
+    /* O MATERIAL DE AGORA, E SÓ DEPOIS O ANÚNCIO (14/11/2026, auditoria item
+       30). Conferia e gastava o material em `itensPj` — a cópia da Ficha, que
+       podia estar velha (o material já usado noutra tela) — e dizia "começou
+       a fabricar" antes de a gravação voltar. Agora fabrica sobre o
+       inventário RELIDO, pelo compare-and-swap (alterarInventario: em
+       conflito, refaz sobre o novo), e o resultado só aparece com ela gravada. */
+    let r = null;
+    const g = await window.alterarInventario(pj.id, (inv) => {
+      r = window.fabricar(
+        (inv && inv.itens) || [], b.receita, pjUso.habilidades || {}, sucesso,
+        (window.horasDeFabricacao || (() => 0))(cat, b.receita), undefined, pj.receitas_aprendidas || [],
+        comGrau && sucesso ? { por: nomePj, grau } : undefined,
+      );
+      return r.ok ? { ...inv, itens: r.itens } : null;
+    });
+    if (!g || !g.ok) {
+      setFabResultado({ ok: false, nome, motivo: (g && g.error && g.error.message) || 'erro' });
       return;
     }
-    salvarItensFicha(r.itens);
+    if (!r || !r.ok) {
+      setFabResultado({ ok: false, nome, motivo: r ? r.motivo : 'erro' });
+      return;
+    }
+    setPj((prev) => ({ ...prev, inventario: g.inventario, inventario_versao: g.versao }));
     setFabResultado({ ok: true, sucesso: r.sucesso, nome: nome + grauTxt });
     /* A ATIVIDADE NASCE DA RECEITA (02/11/2026): fabricar é escolher a receita
        e começar. Com a peça na bancada, o personagem passa a estar

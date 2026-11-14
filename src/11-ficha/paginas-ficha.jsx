@@ -562,7 +562,13 @@ function PaginaAtividades({
         <div className={'loja-feedback' + (resultado.sucesso ? '' : ' loja-feedback--erro')} role="status">
           {resultado.sucesso
             ? (en ? `${resultado.nome} is on the workbench.` : `${resultado.nome} está na bancada.`)
-            : (en ? `${resultado.nome} failed: the materials are gone.` : `${resultado.nome} falhou: o material foi perdido.`)}
+            /* Recusada (ok: false) não gastou nada — o material de agora não dava,
+               ou a gravação não foi (14/11/2026, auditoria item 30). Só o teste que
+               falhou é que perde o material. */
+            : resultado.ok === false
+              ? `${resultado.nome}: ${['sem_material', 'sem_habilidade'].includes(resultado.motivo)
+                ? motivoLabel(resultado) : (resultado.motivo || (en ? 'not saved.' : 'não gravou.'))}`
+              : (en ? `${resultado.nome} failed: the materials are gone.` : `${resultado.nome} falhou: o material foi perdido.`)}
         </div>
       )}
       <section className="mn-janela-escolha pc-receitas">

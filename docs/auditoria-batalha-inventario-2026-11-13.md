@@ -105,7 +105,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | # | Estado | Achado |
 |---|---|---|
 | 29 | ✅ | Usar consumível: efeito e baixa gravam em pernas separadas; o rollback reverte o PJ inteiro. |
-| 30 | ⬜ | Fabricar valida material numa cópia velha e anuncia sucesso sem esperar a gravação. |
+| 30 | ✅ | Fabricar valida material numa cópia velha e anuncia sucesso sem esperar a gravação. |
 | 31 | ⬜ | Conteúdo de recipiente posto no animal pesa no dono (`calcCarga`). |
 | 32 | ⬜ | Item do saque rápido guardado num recipiente continua no saque. |
 | 33 | ⬜ (saque do jogador ✅ pela RPC) | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. No jogador, a RPC `saquear_criatura` já pula pilha à venda e no animal; falta o saque do Mestre e o treino. |
@@ -184,6 +184,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 30 — como ficou (14/11/2026)
+
+Ficha (`concluirFabricacao`): fabrica sobre o inventário RELIDO, pelo
+compare-and-swap (`alterarInventario` + `fabricar` dentro da fn), e só então
+mostra o resultado, liga a atividade e avisa a mesa. A bancada
+(paginas-ficha.jsx) deixou de dizer "o material foi perdido" na recusa
+(`ok: false`), que não gasta nada. Teste: `src/11-ficha/fabricar-material-atual.test.js`.
 
 ## Item 29 — como ficou (14/11/2026)
 
