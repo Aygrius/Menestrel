@@ -91,7 +91,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 20 | ✅ | Item com prazo (Fogo Vivo, Karma Líquido, Energia Cinética, Elixir da Euforia) não faz nada em combate e é consumido (`aplicarEfeitoItemSnapshot`). |
 | 21 | ✅ | Virada calcula PA e passo com o buff de velocidade que expira nela mesma. |
 | 22 | ✅ | PJ que entra com EF ≤ 0 fica desmaiado a luta inteira (sem o contador `desmaio_ef`). |
-| 23 | ⬜ | Rodada trava se todo ativo está canalizando/sem ação — ninguém recebe `atual`. |
+| 23 | ✅ | Rodada trava se todo ativo está canalizando/sem ação — ninguém recebe `atual`. |
 | 24 | ⬜ | Falha passageira ao gravar a cortina desliga a cortina para sempre naquela tela. |
 | 25 | ⬜ | Encerrar sobrescreve `condicoes` com as da entrada (horas avançadas na luta somem). |
 | 26 | ⬜ | Alvo guardado por índice: quando alguém sai da lista, a mira pula para o vizinho. |
@@ -182,6 +182,15 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 23 — como ficou (14/11/2026)
+
+`montarNovaRodada`: se nenhum ativo pode agir (todos canalizando ou "sem
+ações"), a vez vai ao primeiro ativo da ordem mesmo preso — antes ninguém
+recebia `atual` e a batalha parava. As redes de sempre passam a vez dele (a
+do Mestre para a criatura, a do Jogador pelo `podeAgir` para o PJ), a rodada
+vira de novo e os prazos descontam até alguém poder agir.
+Teste: `src/12-batalha/rodada-sem-livre.test.js`.
 
 ## Item 22 — como ficou (14/11/2026)
 

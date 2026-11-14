@@ -6049,12 +6049,22 @@ function montarNovaRodada(participantes) {
   const reordered = ordenarIniciativaEfetiva(processados);
   // Quem abre a rodada pula sem_acoes E quem está canalizando: Meteoros
   // prende 5 rodadas, e abrir a rodada nele travaria o turno.
-  const primeiro = [...reordered].sort((a, b) => a.ordem - b.ordem)
+  const emOrdem = [...reordered].sort((a, b) => a.ordem - b.ordem);
+  const primeiroLivre = emOrdem
     .find((p) => p.status === 'ativo' && !statusTemEfeito(p, 'sem_acoes')
       && !evocacaoPrendeAcao(p)
       // A montaria em uso anda dentro do cavaleiro e não tem vez própria —
       // iniciar() e proximoAtivo já a pulavam; a virada esquecia (08/11/2026).
       && !ehMontariaEmUso(p, reordered));
+  /* NINGUÉM PODE AGIR (14/11/2026, auditoria item 23): todo ativo preso
+     canalizando ou "sem ações". Sem `atual` a batalha parava — nenhuma rede de
+     passar a vez dispara sem alguém na vez. A vez vai então ao primeiro ativo
+     da ordem, mesmo preso: as redes de sempre a passam (a do Mestre para a
+     criatura, a do Jogador para o PJ, ambas por temAcaoRestante), a rodada
+     vira de novo, e a canalização e o "sem ações" vão descontando até alguém
+     poder agir. */
+  const primeiro = primeiroLivre
+    || emOrdem.find((p) => p.status === 'ativo' && !ehMontariaEmUso(p, reordered));
   return {
     participantes: reordered.map((p) => ({ ...p, atual: !!(primeiro && mesmoParticipante(p, primeiro)) })),
     eventos: eventosRodada,
