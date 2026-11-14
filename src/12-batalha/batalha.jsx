@@ -2985,7 +2985,17 @@ function desmontar(participantes, cavaleiroInstId) {
     }
     if (p.inst_id === montariaId) {
       const { montado_por, ...resto } = p;
-      return comEmprestimo ? statusPorPools({ ...resto, eh: devolve, eh_max: maxEmprestada }) : resto;
+      if (!comEmprestimo) return resto;
+      const devolvido = statusPorPools({ ...resto, eh: devolve, eh_max: maxEmprestada });
+      /* O CAVALO NÃO DESMAIA AO DESMONTAR (14/11/2026, auditoria item 39). A EH
+         que volta é o que sobrou do empréstimo: se o cavaleiro a gastou toda
+         apanhando, o animal voltava com 0 de um máximo > 0, e statusPorPools o
+         derrubava — sem ele ter levado golpe nenhum. Quem estava de pé segue de
+         pé; o próximo golpe, com a EH zerada, segue as regras de sempre. */
+      if (devolvido.status === 'desmaiado' && resto.status === 'ativo' && (Number(resto.ef) || 0) > 0) {
+        return { ...devolvido, status: 'ativo' };
+      }
+      return devolvido;
     }
     return p;
   });

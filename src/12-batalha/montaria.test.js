@@ -379,6 +379,8 @@ describe('EH emprestada da montaria', () => {
     const r = M.desmontar(arr, 'pj:1');
     expect(r[1].eh).toBe(0);
     expect(r[0].eh).toBe(10);
+    // Auditoria item 39 (14/11/2026): o cavalo não levou golpe — não desmaia ao descer.
+    expect(r[1].status).toBe('ativo');
   });
 
   it('remontar o mesmo cavalo não perde a EH dele', () => {
