@@ -15,7 +15,8 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 ## ▶ Onde paramos (14/11/2026)
 
 - **Feitos:** 1 a 4 e 6 a 48, mais o karma das criaturas e o tempo da
-  batalha (pedidos à parte). Item 5 adiado; item 43 fica 📝 (sem botão por
+  batalha (pedidos à parte). Item 5: a parte de `historias` feita; a da batalha
+  fica 📝 (ver "Item 5 — como ficou"). Item 43 fica 📝 (sem botão por
   decisão do usuário, 14/09).
 - **Revisão de todas as correções (14/11/2026):** feita sobre o diff inteiro
   (f4cccca^..main). Dois acertos, ambos no saque:
@@ -30,7 +31,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
   O resto conferido sem achado: todo `aposGravar` termina num persistir (nenhum
   efeito vaza para a ação seguinte), as RPCs e gatilhos batem com o cliente, o
   `inventario_versao` sobe também na gravação da RPC (gatilho).
-- **Próximo:** publicar (o usuário decide quando) e o item 5.
+- **Próximo:** nada da lista. A parte 2 do item 5 só com o combate no servidor.
 - **Banco:** o usuário autorizou (14/11/2026) mudanças no banco feitas pelo
   Claude.
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
@@ -69,7 +70,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 2 | ✅ `scripts/sql/saque-so-pelo-encerrar-2026-11-14.sql` | `_menestrel_saque_da_batalha` (e `_menestrel_matador_da_criatura`, `_menestrel_lojas_globais`) executáveis por `anon`/`authenticated` sem checar papel — dá para forjar saque a preço 0. |
 | 3 | ✅ `scripts/sql/colunas-do-mestre-e-saque-por-rpc-2026-11-14.sql` | Policy `personagens_update_own_or_vinculado` libera as 40 colunas ao dono: XP, atributos, receitas, `vendas_a_resgatar`, moedas por PATCH direto. |
 | 4 | ✅ `scripts/sql/batalha-jogador-so-na-vez-2026-11-14.sql` | `atualizar_batalha_jogador` só confere que o usuário tem PJ na batalha: grava qualquer participante, qualquer campo, fora da vez, com a cortina aguardando; base nula substitui tudo. |
-| 5 | 📝 | O jogador lê a linha inteira de `batalhas` (cortina só na tela) e `historias` tem SELECT `true` para todo logado. Adiado: exige uma visão do jogador no servidor e mexe no realtime. |
+| 5 | ✅ parte 1 `scripts/sql/historias-so-da-mesa-2026-11-14.sql` · 📝 parte 2 | O jogador lê a linha inteira de `batalhas` (cortina só na tela) e `historias` tem SELECT `true` para todo logado. Adiado: exige uma visão do jogador no servidor e mexe no realtime. |
 
 ## 🟠 Alta — batalha (`src/12-batalha/batalha.jsx`)
 
@@ -147,6 +148,24 @@ ocupada); trava da rolagem do d20; retry do compare-and-swap (sem dupla
 contagem, limite de 3); grade do baú; compra da última unidade
 (`FOR UPDATE`); encerramento repetível sem efeito em dobro; nenhum `select`
 esquece `PJ_COLS`; nenhum `update` direto em `inventario` fora do CAS.
+
+## Item 5 — como ficou (14/11/2026)
+
+- **Parte 1, `historias` (✅):** o SELECT `true` virou "Mestre da mesa ou dono
+  de um protagonista" (`historias_select_da_mesa`). A lista dos PJs de quem
+  chama sai de `_menestrel_meus_pjs()` (SECURITY DEFINER, sem anon) para não
+  dar recursão com a policy de `personagens`. Conferido no banco: o Mestre lê
+  as 2 mesas, o Jogador só a dele, uma conta de fora nenhuma; `mesa_log` e
+  `personagens` seguem iguais para os dois.
+- **Parte 2, a cortina da batalha no servidor (📝):** não dá para entregar ao
+  Jogador a mesa com a cortina aplicada sem mudar quem calcula o combate. O
+  motor roda na tela do Jogador e grava o dano no alvo a partir das pools
+  REAIS (`atualizar_batalha_jogador` mescla em três vias sobre o que ele
+  leu): com a vista da cortina, o segundo golpe da vez sairia da EF velha do
+  alvo e a mescla gravaria a diferença errada. Fechar isso pede o combate
+  resolvido no servidor — projeto à parte, não correção. A escrita já está
+  travada (item 4); o que sobra é o Jogador que abre o DevTools ver a EF do
+  alvo antes da revelação.
 
 ## Item 1 — como ficou (14/11/2026)
 
