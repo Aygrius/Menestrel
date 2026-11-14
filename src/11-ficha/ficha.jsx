@@ -4614,10 +4614,19 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     // Só a peça mexida vai ao banco, mesclada com o que mudou por fora — a
     // cópia da Ficha pode estar velha (02/10/2026).
     const r = await gravarInventario(pj.id, { base, local: novoInv, versao: pj.inventario_versao });
-    if (!r.ok) { setPj(anterior); setEqErro(r.error.message); return; }
+    /* Desfaz SÓ o inventário (14/11/2026, auditoria item 29): `setPj(anterior)`
+       voltava o personagem inteiro — inclusive o efeito do item que já tinha
+       sido gravado no banco por salvarEstadoAtual —, e a tela passava a
+       mentir sobre a ficha. Devolve se gravou, para quem precisa esperar. */
+    if (!r.ok) {
+      setPj((prev) => (prev.inventario === novoInv ? { ...prev, inventario: anterior.inventario } : prev));
+      setEqErro(r.error.message);
+      return false;
+    }
     setPj((prev) => (prev.inventario === novoInv
       ? { ...prev, inventario: r.inventario, inventario_versao: r.versao }
       : { ...prev, inventario_versao: r.versao }));
+    return true;
   };
   const desequiparFicha = (instanceId) => {
     if (!podeEditarInv) return;
@@ -4646,14 +4655,19 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   // ── Ações locais sobre itens dentro do cinto (mesma lógica do InventarioList,
   //    porém persistindo via salvarItensFicha). Ações pesadas (transferir,
   //    pergaminho, equipar) ficam na aba Inventário — ver contexto="ficha".
-  const usarItemFicha = (instanceId, quantidade = 1) => {
+  const usarItemFicha = async (instanceId, quantidade = 1) => {
     if (!podeEditarInv) return;
     const it = (pj.inventario?.itens || []).find((x) => x.instanceId === instanceId);
     if (estaAVenda(it)) return;   // à venda na loja: travado (02/10/2026)
     const cat = it ? catalogoBySlug[it.slug] : null;
-    salvarItensFicha((pj.inventario?.itens || [])
+    /* A BAIXA PRIMEIRO, O EFEITO DEPOIS (14/11/2026, auditoria item 29). As
+       duas gravações saíam juntas: com a baixa recusada, o efeito ficava no
+       banco sem o item ter saído. Agora o efeito (e o aviso à mesa) só vem
+       com a baixa gravada. */
+    const baixou = await salvarItensFicha((pj.inventario?.itens || [])
       .map((it) => it.instanceId === instanceId ? { ...it, quantidade: it.quantidade - quantidade } : it)
       .filter((it) => it.quantidade > 0));
+    if (!baixou) return;
     if (cat && (cat.efeito_positivo || cat.efeito_negativo)) {
       aplicarEstadoEfeito(cat, quantidade);
     }

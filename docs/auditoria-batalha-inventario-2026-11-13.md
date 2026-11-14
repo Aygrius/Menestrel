@@ -104,7 +104,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 | # | Estado | Achado |
 |---|---|---|
-| 29 | ⬜ | Usar consumível: efeito e baixa gravam em pernas separadas; o rollback reverte o PJ inteiro. |
+| 29 | ✅ | Usar consumível: efeito e baixa gravam em pernas separadas; o rollback reverte o PJ inteiro. |
 | 30 | ⬜ | Fabricar valida material numa cópia velha e anuncia sucesso sem esperar a gravação. |
 | 31 | ⬜ | Conteúdo de recipiente posto no animal pesa no dono (`calcCarga`). |
 | 32 | ⬜ | Item do saque rápido guardado num recipiente continua no saque. |
@@ -184,6 +184,22 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 29 — como ficou (14/11/2026)
+
+Ficha (`usarItemFicha`): a baixa grava primeiro (`salvarItensFicha` agora
+devolve se gravou) e o efeito e o aviso à mesa só saem com ela gravada. O
+desfazer de `salvarItensFicha` volta só o inventário — `setPj(anterior)`
+voltava o PJ inteiro, inclusive o efeito já gravado no banco.
+Teste: `src/11-ficha/usar-item-ficha.test.js`.
+
+## Item 28 — como ficou (14/11/2026)
+
+O snapshot do PJ guarda `armadura_entrada` (peças, `ar_max`, defesa e bônus
+de conjunto); `restaurarArmaduraDoTreino` devolve as peças com a resistência
+cheia (a que já entrou quebrada segue quebrada), a absorção, a defesa e o
+conjunto da entrada. A criatura (sem peças) volta `ar` ao máximo.
+Teste: `src/12-batalha/restaurar-treino-armadura.test.js`.
 
 ## Item 27 — como ficou (14/11/2026)
 
