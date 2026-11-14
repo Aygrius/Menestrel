@@ -14,12 +14,11 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1 a 4 e 6 a 11 (todos os críticos do banco + todos os de alta
-  prioridade da batalha). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
+- **Feitos:** 1 a 4 e 6 a 12 (todos os críticos do banco, todos os de alta
+  prioridade da batalha e o primeiro do inventário). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 12** — `normalizarPilhas` funde pilha solta acumulável
-  ignorando `animal_id`/`slot` (começa o bloco do inventário). Depois seguir a
-  ordem da tabela (13, 14, 15…).
+- **Próximo: item 13** — dentro de recipiente, a fusão ignora `quebrada`,
+  `res`, `veneno`, `vitalidade`… Depois seguir a ordem da tabela (14, 15…).
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
   `scripts/sql/*-2026-11-14.sql`).
 - **App NÃO publicado:** os commits de 14/11 estão na main, mas não houve
@@ -73,7 +72,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 | # | Estado | Achado |
 |---|---|---|
-| 12 | ⬜ | `normalizarPilhas` funde pilha solta acumulável ignorando `animal_id`/`slot` (carga do animal volta ao dono; consumível do saque rápido some do saque). |
+| 12 | ✅ | `normalizarPilhas` funde pilha solta acumulável ignorando `animal_id`/`slot` (carga do animal volta ao dono; consumível do saque rápido some do saque). |
 | 13 | ⬜ | Dentro de recipiente, a fusão ignora `quebrada`, `res`, `veneno`, `vitalidade`… — o estado de uma instância contamina a pilha. |
 | 14 | ⬜ | Mestre dá item que estoura a carga: tela diz "Entregue", nada grava, e toda gravação seguinte é recusada em silêncio (aviso de falha comentado). |
 | 15 | ⬜ | Duas telas "explodem" a mesma pilha com IDs aleatórios e a mescla de três vias duplica (3 adagas → 6). |
@@ -180,6 +179,16 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 12 — como ficou (14/11/2026)
+
+A chave da pilha solta acumulável em `normalizarPilhas` (07-inventario) passou
+de `slug` para `slug | animal_id | slot_animal | slot`: só funde quem está no
+mesmo lugar — mochila do dono, lombo de um animal específico ou casa de saque
+rápido. E a pilha não acumulável no saque (`slot` saque_d/saque_e) com
+quantidade > 1 deixa UMA na casa e devolve o resto solto, como o equipado já
+fazia; antes explodia com o `slot` copiado e duas peças ocupavam o mesmo saque.
+Teste: `src/07-inventario/pilhas-no-lugar.test.jsx`.
 
 ## Item 11 — como ficou (14/11/2026)
 

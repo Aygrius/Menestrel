@@ -206,7 +206,14 @@ function normalizarPilhas(itens, catalogoBySlug) {
     // filhos. Na 1ª carga após a regra, as instâncias antigas separadas se
     // fundem e o autosave persiste o formato novo.
     if (!container && GRUPOS_ACUMULAVEIS.has(grupo)) {
-      const chave = 'solto|' + it.slug;
+      /* ONDE A PILHA ESTÁ É PARTE DA CHAVE (14/11/2026, auditoria item 12).
+         Era só o slug: a pilha no lombo do animal (animal_id/slot_animal) se
+         fundia com a da mochila do dono — e quem ficava com as marcas era a
+         que viesse primeiro na lista, então a carga do bicho voltava para o
+         dono, ou a do dono subia no bicho. A poção na casa de saque rápido
+         (slot saque_d/saque_e) sumia do saque do mesmo jeito. Só funde quem
+         está no MESMO lugar. */
+      const chave = 'solto|' + it.slug + '|' + (it.animal_id || '') + '|' + (it.slot_animal || '') + '|' + (it.slot || '');
       if (idxLoose.has(chave)) {
         const alvo = saida[idxLoose.get(chave)];
         alvo.quantidade += (it.quantidade || 1);
@@ -223,6 +230,19 @@ function normalizarPilhas(itens, catalogoBySlug) {
     // unidade é uma instância separada. Uma pilha quantidade>1 é explodida.
     const qtd = it.quantidade || 1;
     if (qtd <= 1) { saida.push(it); continue; }
+
+    /* A casa de SAQUE RÁPIDO guarda UMA peça (14/11/2026, auditoria item 12):
+       explodir a pilha copiava o `slot` para todas as unidades, e duas espadas
+       ocupavam o mesmo saque. Mesma regra do equipado: uma fica na casa, o
+       resto volta solto para a mochila. */
+    if (it.slot === 'saque_d' || it.slot === 'saque_e') {
+      saida.push({ ...it, quantidade: 1 });
+      for (let k = 1; k < qtd; k++) {
+        saida.push({ ...it, instanceId: novoInstanceId() + '-sq' + k, quantidade: 1, slot: null, equipado: false });
+      }
+      mudou = true;
+      continue;
+    }
 
     // Recipiente empilhado COM conteúdo dentro (ex.: comprou 2 cantis → pilha
     // quantidade:2 com 1 instanceId, e depois pôs água "no cantil" → a água
