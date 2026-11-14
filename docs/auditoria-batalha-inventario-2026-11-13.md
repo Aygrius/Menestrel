@@ -14,12 +14,14 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1 a 4 e 6 a 16 (todos os críticos do banco, todos os de alta
-  prioridade da batalha e os cinco primeiros do inventário). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
+- **Feitos:** 1 a 4 e 6 a 17 (todos os críticos e todos os de alta
+  prioridade). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 17** — item sem `quantidade` vira NaN em
-  `guardarNoRecipiente`/`podeMoverParaContainer`/`normalizarPilhas` e a pilha
-  guardada some. Depois seguir a ordem da tabela (18, 19…).
+- **Próximo: item 18** — criatura que escolhe nível de magia menor paga karma
+  (`magiaNoNivel`) e trava com karma 0 (começa o bloco de prioridade média).
+  Depois seguir a ordem da tabela (19, 20…).
+- **Banco:** o usuário autorizou (14/11/2026) mudanças no banco feitas pelo
+  Claude.
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
   `scripts/sql/*-2026-11-14.sql`).
 - **App NÃO publicado:** os commits de 14/11 estão na main, mas não houve
@@ -78,7 +80,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 14 | ✅ | Mestre dá item que estoura a carga: tela diz "Entregue", nada grava, e toda gravação seguinte é recusada em silêncio (aviso de falha comentado). |
 | 15 | ✅ | Duas telas "explodem" a mesma pilha com IDs aleatórios e a mescla de três vias duplica (3 adagas → 6). |
 | 16 | ✅ | Mescla perde compra: L removeu a pilha, R aumentou — `if (b && !l) return` descarta o aumento. |
-| 17 | ⬜ | Item sem `quantidade` vira NaN em `guardarNoRecipiente`/`podeMoverParaContainer`/`normalizarPilhas` — a pilha guardada some. |
+| 17 | ✅ | Item sem `quantidade` vira NaN em `guardarNoRecipiente`/`podeMoverParaContainer`/`normalizarPilhas` — a pilha guardada some. |
 
 ## 🟡 Média — batalha
 
@@ -180,6 +182,19 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 17 — como ficou (14/11/2026)
+
+`quantidadeDe` (01-core/inventario-helpers.jsx): ausente, vazio ou lixo vale
+1; zero e negativo voltam como estão. Usada em `capacidadeContainer`, no card
+do recipiente, em `guardarNoRecipiente` e em `moverParaContainer`; e
+`normalizarPilhas` devolve a instância já consertada, que o autosave grava.
+No banco não havia nenhum item sem quantidade (consulta de 14/11/2026), e
+nenhuma RPC cria item sem ela — a correção é defensiva, no cliente.
+Junto, no `moverParaContainer`: a "mesma pilha" escrita à mão conferia
+`resistencia` (o desgaste mora em `res`) e deixava a peça gasta se somar às
+inteiras — passou a usar a regra do item 13 (bônus + `assinaturaDeEstado`).
+Teste: `src/07-inventario/itens-sem-quantidade.test.jsx`.
 
 ## Item 16 — como ficou (14/11/2026)
 

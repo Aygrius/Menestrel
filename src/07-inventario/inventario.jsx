@@ -206,7 +206,12 @@ function normalizarPilhas(itens, catalogoBySlug) {
   const idxPorChave = new Map(); // pilhas dentro de container: slug|containerId
   const idxLoose = new Map();    // pilhas soltas acumuláveis: por slug
   let mudou = false;
-  for (const it of itens) {
+  for (const it0 of itens) {
+    /* Sem `quantidade` (ou com lixo) vale 1 — e a instância sai daqui já
+       consertada, que o autosave grava (14/11/2026, auditoria item 17). Antes
+       a soma da pilha dentro do recipiente dava NaN e ela sumia. */
+    let it = it0;
+    if (it0 && it0.quantidade !== quantidadeDe(it0)) { it = { ...it0, quantidade: quantidadeDe(it0) }; mudou = true; }
     // À venda (02/10/2026): instância intacta — não funde, não explode. O
     // anúncio aponta para ela pelo anuncio_id.
     if (estaAVenda(it)) { saida.push(it); continue; }
@@ -374,7 +379,7 @@ function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug, loc
     }
     return /sem espaço/.test(pode.motivo || '') ? { ok: false, motivo: 'sem_espaco' } : { ok: false, motivo: 'regra', texto: pode.motivo };
   }
-  const total = it.quantidade || 1;
+  const total = quantidadeDe(it);   // item 17: sem quantidade (ou com lixo) vale 1
   const ocupa = Number(catI.ocupa || 0);
   const { livre, casasLivres, filhos } = capacidadeContainer(cont, lista, catalogoBySlug);
   /* SEM CASA LIVRE não entra (29/10/2026) — a não ser que a peça vá se somar
@@ -1524,7 +1529,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       const itens = [...cur.itens];
       const idx = itens.findIndex((x) => x.instanceId === instanceId);
       if (idx < 0) return cur;
-      const it = itens[idx];
+      // Sem `quantidade` vale 1 (item 17): Math.min(undefined, …) dava NaN e a pilha sumia.
+      const it = { ...itens[idx], quantidade: quantidadeDe(itens[idx]) };
       const qtdMover = Math.max(1, Math.min(it.quantidade, quantidade ?? it.quantidade));
 
       // Se estamos ENTRANDO num container, valida capacidade
@@ -1541,9 +1547,13 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         if (ocupaNecessaria > livre + 0.0001) return cur;
         // Casas (07/11/2026): a pilha igual que já está lá dentro recebe a
         // quantidade, sem abrir casa nova; sem pilha e sem casa, não entra.
+        /* A mesma regra de "mesma pilha" do normalizarPilhas (14/11/2026,
+           auditoria item 13): a lista à mão daqui conferia `resistencia`, mas
+           o desgaste mora em `res` — a peça gasta se somava às inteiras. */
         const pilha = (filhos || []).find((f) => f.slug === it.slug && f.instanceId !== it.instanceId
-          && !f.veneno && !it.veneno && (f.observacao || null) === (it.observacao || null) && !it.fabricado && !f.fabricado
-          && !it.bonus && !f.bonus && !it.anuncio_id && !f.anuncio_id && !it.quebrada && !f.quebrada && it.resistencia == null && f.resistencia == null);
+          && (f.observacao || null) === (it.observacao || null) && !it.fabricado && !f.fabricado
+          && !it.anuncio_id && !f.anuncio_id
+          && bonusDoItem(f) === bonusDoItem(it) && assinaturaDeEstado(f) === assinaturaDeEstado(it));
         if (!pilha && casasLivres <= 0) return cur;
         if (pilha) {
           const pIdx = itens.indexOf(pilha);
@@ -2974,7 +2984,7 @@ function InvItemsTable({ itens, catalogoBySlug, mudarQtd, onAbrirDetalhes, onAbr
     let usado = 0;
     for (const f of filhos) {
       const fc = catalogoBySlug[f.slug];
-      if (fc?.ocupa != null) usado += Number(fc.ocupa) * f.quantidade;
+      if (fc?.ocupa != null) usado += Number(fc.ocupa) * quantidadeDe(f);   // item 17: sem quantidade vale 1
     }
     const cap = Number(cat.armazena || 0);
     const pct = cap > 0 ? Math.min(100, (usado / cap) * 100) : 0;

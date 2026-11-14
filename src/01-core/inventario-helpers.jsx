@@ -427,6 +427,19 @@ function casasDoRecipiente(cat) {
    `livre` (29/10/2026): quem decide se algo cabe precisa dos dois limites de
    uma vez. Uma CASA é uma pilha — dez flechas numa pilha ocupam uma casa, que
    é como a grade já as desenha. */
+/* QUANTAS UNIDADES (14/11/2026, auditoria item 17). Item sem `quantidade`
+   (ou com lixo: texto, NaN) vale UMA — é o que a carga (calcCarga) e o "guardar"
+   já assumiam com `|| 1`. A capacidade do recipiente multiplicava cru: o
+   `livre` virava NaN, o "quanto cabe" também, e a pilha guardada saía com
+   quantidade NaN e sumia. Zero e negativo voltam como estão: quem decide
+   tirar a pilha vazia é quem gastou. */
+function quantidadeDe(it) {
+  const q = it ? it.quantidade : null;
+  if (q == null || q === '') return 1;
+  const n = Number(q);
+  return Number.isFinite(n) ? n : 1;
+}
+
 function capacidadeContainer(containerInst, todosItens, catalogoBySlug) {
   const cat = catalogoBySlug[containerInst?.slug];
   const armazena = Number(cat?.armazena || 0);
@@ -435,7 +448,7 @@ function capacidadeContainer(containerInst, todosItens, catalogoBySlug) {
   let usado = 0;
   for (const f of filhos) {
     const fc = catalogoBySlug[f.slug];
-    if (fc?.ocupa != null) usado += Number(fc.ocupa) * f.quantidade;
+    if (fc?.ocupa != null) usado += Number(fc.ocupa) * quantidadeDe(f);
   }
   const casas = casasDoRecipiente(cat);
   const usadas = filhos.length;
@@ -2019,7 +2032,7 @@ Object.assign(window, {
   itensDoRitual, conferirItensDoRitual, consumirItensDoRitual,
   MOEDA_FATOR, MOEDA_ORDEM, moedasToLatao, latoesToMoedas, precoPorExtenso, ajudaDoPreco,
   fetchTabelaPaginada, fetchCatalogoCompleto, SLOT_LABELS, normalizaRaca, getMaosRequeridas,
-  REGIOES_EQUIP, SLOT_CANONICO, slotCanonico, moverParaSaque, trocarSaqueRapido,
+  REGIOES_EQUIP, SLOT_CANONICO, slotCanonico, moverParaSaque, trocarSaqueRapido, quantidadeDe,
   getSlotsState, novoInstanceId, ehContainer, capacidadeContainer,
   GRUPO_PROPRIEDADE, ehPropriedade, cidadeDaPropriedade, mesmaCidade, acessoAPropriedade,
   podeMoverParaContainer, pecaNoCorpo, calcArmadura, AJUSTE_KEY, gerarAtaques,
