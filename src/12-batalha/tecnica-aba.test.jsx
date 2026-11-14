@@ -619,8 +619,10 @@ describe('ROTEIRO 8 — o motor por trás bate com o que a tela promete', () => 
     expect(p.eh_max).toBe(26);         // 20 + 6
   });
 
-  it('Posicionamento corta o dano que o alvo recebe', () => {
-    const alvo = M.aplicarEfeitoTecnica(INIMIGO, { key: 'posicionamento', nome: 'Posicionamento', grupo_armas: 'Livre' }, 7);
-    expect(M.danoComModMax(20, alvo)).toBe(13);
+  // Auditoria item 10 (14/11/2026): o inimigo marcado bate mais fraco — não apanha menos.
+  it('Posicionamento corta o dano que o inimigo marcado causa', () => {
+    const marcado = M.aplicarEfeitoTecnica(INIMIGO, { key: 'posicionamento', nome: 'Posicionamento', grupo_armas: 'Livre' }, 7);
+    expect(M.danoFinal(20, marcado, ator())).toBe(13);
+    expect(M.danoFinal(20, ator(), marcado)).toBe(20);
   });
 });

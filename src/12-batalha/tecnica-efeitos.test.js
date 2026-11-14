@@ -237,15 +237,34 @@ describe('resistências efetivas', () => {
   });
 });
 
-describe('danoComModMax', () => {
-  it('Posicionamento subtrai o total do dano sofrido pelo alvo', () => {
-    const alvo = M.aplicarEfeitoTecnica(lutador(), { key: 'posicionamento', nome: 'Posicionamento' }, 6);
-    expect(M.danoComModMax(20, alvo)).toBe(14);
+/* POSICIONAMENTO (auditoria item 10, 14/11/2026). "Seu total de
+   Posicionamento é subtraído do dano máximo do adversário": o inimigo
+   MARCADO passa a causar menos dano. Até esta data ele é que recebia menos —
+   o teste antigo travava justamente isso. */
+describe('Posicionamento: o marcado bate mais fraco', () => {
+  const marcar = (valor) => M.aplicarEfeitoTecnica(lutador(), { key: 'posicionamento', nome: 'Posicionamento' }, valor);
+  it('o dano que o marcado CAUSA cai o total da técnica', () => {
+    expect(M.danoFinal(20, marcar(6), lutador())).toBe(14);
+  });
+  it('o dano que o marcado RECEBE fica cheio', () => {
+    expect(M.danoFinal(20, lutador(), marcar(6))).toBe(20);
+    expect(M.danoComModMax(20, marcar(6))).toBe(20);
+  });
+  it('nunca vira cura: piso 0', () => {
+    expect(M.danoFinal(5, marcar(30), lutador())).toBe(0);
+  });
+});
+
+describe('danoComModMax (o teto do alvo: Pele de Árvore)', () => {
+  const comPele = (v) => lutador({ status_temp: [
+    { id: 'mag_pele', nome: 'Pele de Árvore', icone: '🌳', rodadas_rest: 3, efeito: { tipo: 'mod_dano_max', valor: v } },
+  ] });
+  it('quem tem a Pele apanha menos', () => {
+    expect(M.danoComModMax(20, comPele(-6))).toBe(14);
   });
 
   it('nunca vira cura: piso 0', () => {
-    const alvo = M.aplicarEfeitoTecnica(lutador(), { key: 'posicionamento', nome: 'Posicionamento' }, 30);
-    expect(M.danoComModMax(5, alvo)).toBe(0);
+    expect(M.danoComModMax(5, comPele(-30))).toBe(0);
   });
 
   it('alvo sem o status recebe o dano cheio', () => {

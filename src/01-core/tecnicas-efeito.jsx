@@ -99,9 +99,16 @@ const TECNICA_EFEITO_MAP = {
   resistencia_extrema: { modo: 'total', alvo: 'self',  rodadas: 5,  icone: '🔮',
                        efeitos: [{ tipo: 'mod_rm', sinal: 1 }] },
 
-  /* ── Dano ───────────────────────────────────────────────────── */
+  /* ── Dano ─────────────────────────────────────────────────────
+     "Seu total de Posicionamento é subtraído do dano máximo DO ADVERSÁRIO":
+     o inimigo marcado passa a CAUSAR menos dano (decisão do usuário,
+     13/11/2026, auditoria item 10). Até 14/11/2026 era `mod_dano_max`, que o
+     motor lê no ALVO do golpe — o marcado apanhava menos, o contrário do
+     texto. `mod_dano_causado` fica no marcado e é lido quando ELE bate
+     (danoFinal). O `mod_dano_max` segue sendo o da Pele de Árvore, que
+     protege quem a lança. */
   posicionamento:    { modo: 'total', alvo: 'inimigo', rodadas: 3,  icone: '📍',
-                       efeitos: [{ tipo: 'mod_dano_max', sinal: -1 }] },
+                       efeitos: [{ tipo: 'mod_dano_causado', sinal: -1 }] },
 
   /* ── Combinadas ─────────────────────────────────────────────── */
   centaurizar:       { modo: 'total', alvo: 'self',    rodadas: 2,  icone: '🐎',

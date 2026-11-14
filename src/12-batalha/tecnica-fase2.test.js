@@ -740,15 +740,33 @@ describe('F2 — cada alvo aplica a própria redução de dano', () => {
     expect(r[2].ef, 'o mesmo giro, o mesmo +50%').toBe(70);
   });
 
+  // mod_dano_max é o teto do ALVO — hoje, a Pele de Árvore. Até 14/11/2026
+  // este teste usava Posicionamento, que passou a mod_dano_causado (item 10).
   it('mod_dano_max do alvo também entra por alvo', () => {
     const arr = [lutador('atacante'), lutador('A'), lutador('B', { status_temp: [{
-      id: 'tec_posicionamento', nome: 'Posicionamento', icone: '🎯', rodadas_rest: 1,
+      id: 'mag_pele_de_arvore', nome: 'Pele de Árvore', icone: '🌳', rodadas_rest: 1,
       efeito: { tipo: 'mod_dano_max', valor: -8 },
     }] })];
     let r = M.aplicarGolpeEmAlvo(arr, 0, 1, 20, false);
     r = M.aplicarGolpeEmAlvo(r, 0, 2, 20, false);
     expect(r[1].ef).toBe(80);
     expect(r[2].ef, 'B tirou 8 do dano máximo').toBe(88);
+  });
+
+  // Auditoria item 10: Posicionamento marca o INIMIGO, e é o golpe dele que sai mais fraco.
+  it('Posicionamento no atacante tira do golpe dele em todos os alvos', () => {
+    const marcado = lutador('atacante', { status_temp: [{
+      id: 'tec_posicionamento', nome: 'Posicionamento', icone: '📍', rodadas_rest: 3,
+      efeito: { tipo: 'mod_dano_causado', valor: -8 },
+    }] });
+    const arr = [marcado, lutador('A'), lutador('B')];
+    let r = M.aplicarGolpeEmAlvo(arr, 0, 1, 20, false);
+    r = M.aplicarGolpeEmAlvo(r, 0, 2, 20, false);
+    expect(r[1].ef).toBe(88);
+    expect(r[2].ef).toBe(88);
+    // E quem bate no marcado bate cheio.
+    const r2 = M.aplicarGolpeEmAlvo([lutador('X'), marcado], 0, 1, 20, false);
+    expect(r2[1].ef).toBe(80);
   });
 
   it('a redução não vira cura nem dano negativo', () => {

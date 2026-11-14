@@ -14,11 +14,12 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1, 2, 3, 4, 6, 7, 8 e 9 (todos os críticos do banco + os
-  quatro primeiros da batalha). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
+- **Feitos:** 1, 2, 3, 4, 6, 7, 8, 9 e 10 (todos os críticos do banco + os
+  cinco primeiros da batalha). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 10** — posicionamento invertido (`danoFinal` lê
-  `mod_dano_max` do alvo). Depois seguir a ordem da tabela (11, 12, 13…).
+- **Próximo: item 11** — Purificação tira buffs de valor negativo (Aparar,
+  Desviar, Escudo, Pele de Árvore) antes do veneno. Depois seguir a ordem da
+  tabela (12, 13, 14…).
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
   `scripts/sql/*-2026-11-14.sql`).
 - **App NÃO publicado:** os commits de 14/11 estão na main, mas não houve
@@ -65,7 +66,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 7 | ✅ | Magia lançada sem PA quando sobra `pa_ataque_extra` (`podeAplicar` sem `!semPA`; `debitarCustoAtaque` só gasta o extra em arma). |
 | 8 | ✅ | Clique duplo aplica a ação duas vezes (item/rolagem): handlers não conferem `salvando`. |
 | 9 | ✅ | Consumo de item/munição e aviso à mesa saem ANTES de gravar a batalha; se a gravação falha, o item já foi. |
-| 10 | ⬜ | Posicionamento invertido (ver decisão acima) — `danoFinal` lê `mod_dano_max` do alvo. |
+| 10 | ✅ | Posicionamento invertido (ver decisão acima) — `danoFinal` lê `mod_dano_max` do alvo. |
 | 11 | ⬜ | Purificação tira buffs de valor negativo (Aparar, Desviar, Escudo, Pele de Árvore) antes do veneno. |
 
 ## 🟠 Alta — inventário
@@ -179,6 +180,17 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 10 — como ficou (14/11/2026)
+
+Posicionamento ganhou o tipo próprio `mod_dano_causado` (01-core/
+tecnicas-efeito.jsx): fica no inimigo marcado e `danoFinal` o soma quando ELE
+bate, no mesmo degrau plano do `mod_dano_max`. O `mod_dano_max` continua sendo
+o teto do ALVO, que é a Pele de Árvore (protege quem a lança) — não foi
+invertido, porque essa magia está certa. Os testes que travavam o
+comportamento antigo (o marcado apanhando menos) foram reescritos.
+Status de Posicionamento já gravado numa batalha em curso, com o tipo velho,
+segue o efeito antigo até vencer (3 rodadas).
 
 ## Item 9 — como ficou (14/11/2026)
 

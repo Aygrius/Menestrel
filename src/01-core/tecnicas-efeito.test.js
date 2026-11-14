@@ -51,6 +51,8 @@ const TIPOS_VALIDOS = [
   // Fase 1
   'mod_ataque', 'mod_defesa', 'mod_vb', 'mod_eh_temp',
   'mod_rf', 'mod_rm', 'mod_dano_max', 'dano_por_rodada',
+  // 14/11/2026 (auditoria item 10): Posicionamento — o marcado CAUSA menos dano.
+  'mod_dano_causado',
   // Fase 2 — reescrevem a resolução do golpe
   'ignora_eh', 'ignora_armadura', 'dano_pct', 'dano_recebido_pct',
   'ataque_extra', 'alvos_extras', 'sem_atacar', 'sem_tecnicas',
@@ -69,7 +71,7 @@ const TIPOS_VALIDOS = [
 // valor fixo (dano_pct 25) ou flag liga/desliga (ignora_eh true).
 const TIPOS_ESCALAM_COM_TOTAL = [
   'mod_ataque', 'mod_defesa', 'mod_vb', 'mod_eh_temp',
-  'mod_rf', 'mod_rm', 'mod_dano_max',
+  'mod_rf', 'mod_rm', 'mod_dano_max', 'mod_dano_causado',
   // Fase 3: Remover Debilitacao soma o PROPRIO TOTAL a uma habilidade
   // nomeada, entao escala como os de cima — so que o destino nao e um stat
   // de combate, e sim a habilidade Escapar.

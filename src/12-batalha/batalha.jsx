@@ -5106,7 +5106,8 @@ function rmEfetivo(p) {
   return Math.max(1, (Number(p && p.rm) || 0) + somaEfeitosStatus(p, 'mod_rm'));
 }
 
-/* Dano final depois do mod_dano_max do ALVO (Posicionamento).
+/* Dano final depois do mod_dano_max do ALVO (Pele de Árvore; até 14/11/2026
+   também Posicionamento, que passou a mod_dano_causado — ver danoFinal).
    Entra DEPOIS de danoNoTier de propósito: a função de tier é espelho do
    Arsenal da Ficha e não deve saber de status de combate. Piso 0 — reduzir
    dano nunca pode virar cura. */
@@ -5189,7 +5190,12 @@ function danoFinal(danoBase, atacante, alvo, elemento) {
   const pctElemental = typeof bonusElemental === 'function'
     ? bonusElemental(elemento || (atacante && atacante.elemento), alvo && alvo.elemento) : 0;
   const comBonus = (base + somaEfeitosStatus(atacante, 'mod_dano')) * (1 + (somaDanoPct(atacante) + pctElemental) / 100);
-  const aposMaximo = comBonus + somaEfeitosStatus(alvo, 'mod_dano_max');
+  /* Os dois tetos PLANOS, no mesmo degrau da conta: o do ALVO (mod_dano_max,
+     Pele de Árvore — quem a lançou apanha menos) e o do ATACANTE
+     (mod_dano_causado, Posicionamento — o inimigo marcado bate mais fraco;
+     auditoria item 10, 14/11/2026). Antes Posicionamento vivia no primeiro, e
+     o marcado é que apanhava menos. */
+  const aposMaximo = comBonus + somaEfeitosStatus(alvo, 'mod_dano_max') + somaEfeitosStatus(atacante, 'mod_dano_causado');
   /* Proteção elemental (Piroproteção, Aeroproteção, Armadura Elemental) entra
      AQUI, junto do outro modificador PLANO e antes dos percentuais — a mesma
      ordem que mod_dano_max já seguia. A alternativa (depois do percentual)
