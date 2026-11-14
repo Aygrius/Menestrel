@@ -50,6 +50,7 @@ Itens, casados por `instanceId` (todos os 257 itens em produção têm um):
 |---|---|
 | Item em L e não em B (novo local) | entra |
 | Item em B e não em L (removido local) | sai |
+| Removido local, e R AUMENTOU a quantidade (compra, saque) | fica, com só o que R acrescentou (`R − B`) — 14/11/2026, auditoria item 16 |
 | Item fora de R, L não mexeu | continua fora |
 | Item fora de R, L mexeu | continua fora — remoção remota vence |
 | Campo mudado só em L | vale L |

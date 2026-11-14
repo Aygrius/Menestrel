@@ -89,7 +89,16 @@ function mesclarInventario(base, local, remoto) {
     vistos.add(r.instanceId);
     const b = mB.get(r.instanceId);
     const l = mL.get(r.instanceId);
-    if (b && !l) return;                       // L removeu
+    /* L removeu. Mas se R AUMENTOU a pilha nesse meio-tempo (14/11/2026,
+       auditoria item 16) — a compra pela RPC comprar_item, o saque —, essas
+       unidades chegaram depois do que L viu e não são dele para remover. Fica
+       só o acréscimo (R − B); o que L removeu, sai. Gastar da pilha removida
+       (R diminuiu) segue o limite conhecido acima. */
+    if (b && !l) {
+      const acrescimo = (Number(r.quantidade) || 0) - (Number(b.quantidade) || 0);
+      if (b.quantidade != null && r.quantidade != null && acrescimo > 0) itens.push({ ...r, quantidade: acrescimo });
+      return;
+    }
     const item = b ? mesclarItem(b, l, r, explodidos.has(r.instanceId)) : (l || r);
     if (vivo(item)) itens.push(item);
   });

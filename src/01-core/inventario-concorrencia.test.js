@@ -18,6 +18,25 @@ describe('mesclarInventario — itens', () => {
   it('item removido em L sai', () => {
     expect(M(inv([it_('a'), it_('b')]), inv([it_('a')]), inv([it_('a'), it_('b')])).itens.map((x) => x.instanceId)).toEqual(['a']);
   });
+  /* Auditoria item 16 (14/11/2026): L removeu a pilha e R AUMENTOU — a compra
+     pela RPC caía no "L removeu" e sumia. */
+  it('L removeu e R aumentou (compra): fica só o acréscimo', () => {
+    const B = inv([it_('p', { quantidade: 2 }), it_('c')]);
+    const L = inv([it_('c')]);                       // usou/largou as 2 poções
+    const R = inv([it_('p', { quantidade: 5 }), it_('c')]);   // comprou 3 no meio
+    expect(M(B, L, R).itens).toEqual([it_('p', { quantidade: 3 }), it_('c')]);
+  });
+  it('L juntou a pilha noutra e R comprou nela: nada se perde', () => {
+    const B = inv([it_('a', { quantidade: 3 }), it_('b', { quantidade: 2 })]);
+    const L = inv([it_('a', { quantidade: 5 })]);
+    const R = inv([it_('a', { quantidade: 3 }), it_('b', { quantidade: 4 })]);
+    const out = M(B, L, R).itens;
+    expect(out.reduce((s, x) => s + x.quantidade, 0)).toBe(7);
+  });
+  it('L removeu e R não mexeu na quantidade: sai, como antes', () => {
+    const B = inv([it_('p', { quantidade: 2 })]);
+    expect(M(B, inv([]), inv([it_('p', { quantidade: 2, observacao: 'R' })])).itens).toEqual([]);
+  });
   it('removido em R e L não mexeu: continua fora', () => {
     expect(M(inv([it_('a')]), inv([it_('a')]), inv([])).itens).toEqual([]);
   });
