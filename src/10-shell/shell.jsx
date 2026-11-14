@@ -2133,6 +2133,80 @@ function textoEventoHora(horaAnterior, horaNova, en) {
   return `${nova === 1 ? 'Agora é' : 'Agora são'} ${nova}h ${periodoDoDia(nova, false)}.`;
 }
 
+/* ── O RELÓGIO ANDA COM A BATALHA (14/11/2026) ─────────────────────────────
+   "Esse cálculo pode ser usado para passar o tempo de forma automática depois
+   da batalha" (usuário). Ao encerrar, o Mestre confirma "Avançar 25 min" e a
+   duração da luta (30 s × combatentes por rodada, 12-batalha) entra aqui.
+
+   MINUTOS POR DENTRO: `data_jogo_atual.minuto` guarda o que a hora cheia não
+   mostra — o pill segue só com a hora (decisão de 20/09/2026). Duas lutas de
+   30 min somam uma hora. A fome e a sede seguem cobrando HORA CHEIA
+   (horasEntre conta as horas cruzadas), então 13h40 → 14h10 cobra uma.
+
+   Quem cobra é o CardDataJogoAtual, que tem a máquina do desgaste. Montado
+   (tela da mesa), ele se registra em `window.__menestrelCobrarHoras` e a
+   cobrança sai na hora, com a âncora andando junto. Desmontado, o relógio
+   anda e a âncora fica: as horas ficam DEVENDO e o próximo movimento do
+   relógio as cobra — é o contrato da âncora (ver ancoraDe). */
+function instanteDoRelogio(data) {
+  if (!data || data.dia == null || data.mes == null || data.ano == null) return null;
+  const m = Number(data.minuto);
+  return { ano: data.ano, mes: data.mes, dia: data.dia, hora: horaDoJogo(data),
+    minuto: Number.isInteger(m) && m >= 0 && m <= 59 ? m : 0 };
+}
+
+// O jsonb do relógio depois de `minutos` (puro). Sem data, não anda.
+function relogioDepoisDe(data, minutos) {
+  const inst = instanteDoRelogio(data);
+  const n = Math.trunc(Number(minutos) || 0);
+  if (!inst || n <= 0 || typeof somarMinutosAoInstante !== 'function') return null;
+  const novo = somarMinutosAoInstante(inst, n);
+  return novo ? { ...data, ...novo, periodo: periodoDaHora(novo.hora) } : null;
+}
+
+function textoEventoBatalhaDurou(minutos, en) {
+  const n = Math.trunc(Number(minutos) || 0);
+  if (n <= 0) return '';
+  const h = Math.floor(n / 60), m = n % 60;
+  const dur = h > 0 ? `${h}h${m ? String(m).padStart(2, '0') : ''}` : `${m} min`;
+  return en ? `The battle lasted ${dur}.` : `A batalha durou ${dur}.`;
+}
+
+async function avancarRelogioDaMesa(historiaId, minutos, en) {
+  if (!historiaId) return { ok: false, motivo: 'sem_historia' };
+  const { data: hist, error } = await supabaseClient
+    .from('historias').select('data_jogo_atual').eq('id', historiaId).maybeSingle();
+  if (error || !hist) return { ok: false, error };
+  const anterior = hist.data_jogo_atual || null;
+  const payload = relogioDepoisDe(anterior, minutos);
+  if (!payload) return { ok: false, motivo: 'sem_data' };
+  const reg = window.__menestrelCobrarHoras;
+  const cobrador = reg && String(reg.historiaId) === String(historiaId) && typeof reg.cobrar === 'function' ? reg : null;
+  /* A âncora (decaimento_em) só anda junto quando há quem cobre agora; sem
+     cobrador, ela fica onde estava e as horas ficam devendo. Mesa sem âncora
+     ancora no relógio de antes — senão o próximo movimento não veria a dívida. */
+  const ancora = (anterior && anterior.decaimento_em) || instanteDoRelogio(anterior);
+  const novoInst = instanteDoRelogio(payload);
+  const gravar = { ...payload, decaimento_em: cobrador ? novoInst : ancora };
+  const { error: erroUp } = await supabaseClient
+    .from('historias').update({ data_jogo_atual: gravar }).eq('id', historiaId);
+  if (erroUp) return { ok: false, error: erroUp };
+  const evento = (texto, meta) => texto && supabaseClient.rpc('registrar_evento_mesa', {
+    p_historia_id: historiaId, p_tipo: 'sistema', p_texto: texto, p_meta: meta || {},
+  }).then(({ error: e }) => { if (e) console.error('[relogio] registrar_evento_mesa falhou:', e); });
+  evento(textoEventoBatalhaDurou(minutos, en), { batalha_minutos: Math.trunc(Number(minutos) || 0) });
+  const horaAntes = horaDoJogo(anterior);
+  if (payload.hora !== horaAntes) evento(textoEventoHora(horaAntes, payload.hora, en), { de: horaAntes, para: payload.hora });
+  if (payload.dia !== anterior.dia) {
+    evento(textoEventoData(payload, en), { data: { dia: payload.dia, mes: payload.mes, ano: payload.ano } });
+  }
+  if (cobrador) {
+    try { await cobrador.cobrar(ancora, novoInst, anterior.tempo); }
+    catch (e) { console.error('[relogio] cobrança das horas da batalha falhou:', e); }
+  }
+  return { ok: true, data: gravar };
+}
+
 function textoEventoLocal(local, en) {
   const l = (local || '').trim();
   if (!l) return '';
@@ -3647,6 +3721,12 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
     const payload = {
       ...(anterior || {}),
       ...instanteNovo,
+      /* Os minutos que a batalha deixou (14/11/2026) zeram ao escolher outra
+         hora: "14h" é 14h00. A mesma hora não mexe em nada. */
+      // Mesa sem data não ganha minuto: ela nem tem instante.
+      ...(instanteNovo.dia != null
+        ? { minuto: (anterior && horaAntes === hora && Number.isInteger(anterior.minuto)) ? anterior.minuto : 0 }
+        : {}),
       periodo: periodoDaHora(hora),
       decaimento_em: instanteDe(instanteNovo) || undefined,
     };
@@ -3670,6 +3750,17 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
         { data: { dia: payload.dia, mes: payload.mes, ano: payload.ano } });
     }
   };
+
+  /* O COBRADOR DA BATALHA (14/11/2026): enquanto este card está montado para
+     o Mestre, o encerramento da batalha cobra as horas da luta por aqui — ver
+     avancarRelogioDaMesa. Re-registra a cada render para a função nunca ser a
+     de um historiaId velho; ao desmontar, sai. */
+  useEffect(() => {
+    if (!podeEditar || !historiaId) return undefined;
+    const reg = { historiaId, cobrar: cobrarHoras };
+    window.__menestrelCobrarHoras = reg;
+    return () => { if (window.__menestrelCobrarHoras === reg) window.__menestrelCobrarHoras = null; };
+  });
 
   // Carregando ainda bloqueia tudo (evita flash). Sem historiaId mas com
   // onNovoPersonagem disponível, segue renderizando — é exatamente o caso de
@@ -5946,6 +6037,8 @@ Object.assign(window, {
   proximaMesaAtiva,
   // Puras, expostas pro teste do log de tempo (10-shell/log-tempo-mesa.test.js).
   feriadosDoDia, rotuloDataJogo, textoEventoData, textoEventoHora, textoEventoLocal, textoEventoTempo,
+  // O relógio anda com a batalha (14/11/2026) — 12-batalha chama no encerramento.
+  instanteDoRelogio, relogioDepoisDe, textoEventoBatalhaDurou, avancarRelogioDaMesa,
   // Pura, exposta pro teste da corrida de perfil_tipo
   // (10-shell/perfil-persistencia.test.js).
   devePersistirPerfil,

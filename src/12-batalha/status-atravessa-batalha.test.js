@@ -116,8 +116,10 @@ describe('a ida: o que a ficha entrega ao combate', () => {
 
   it('a data usada no encerramento é buscada na hora, não a da largada', () => {
     const i = fonte.indexOf('const finalizarEncerramento');
-    const trecho = fonte.slice(i, i + 2200);
+    const trecho = fonte.slice(i, i + 4000);
+    expect(trecho).toMatch(/const dataJogoAgora = \(histAtual && histAtual\.data_jogo_atual\)/);
     expect(trecho).toMatch(/const dataJogoFim/);
-    expect(trecho).toMatch(/estadoAoEncerrar\(estadoAtual, p, dataJogoFim\)/);
+    // 14/11/2026: as rodadas que sobram viram minutos pela rodada do fim da luta.
+    expect(trecho).toMatch(/estadoAoEncerrar\(estadoAtual, p, dataJogoFim, segRodadaFim\)/);
   });
 });

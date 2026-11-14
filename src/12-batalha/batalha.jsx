@@ -5455,7 +5455,7 @@ function ehStatusDeTecnica(st) {
   return !!(st && typeof st.id === 'string' && st.id.indexOf('tec_') === 0);
 }
 
-function estadoAoEncerrar(estadoAtual, pFinal, dataJogo) {
+function estadoAoEncerrar(estadoAtual, pFinal, dataJogo, segundosPorRodada) {
   if (!pFinal || pFinal.ausente) return null;
   const temp = Array.isArray(pFinal.status_temp) ? pFinal.status_temp : [];
   const deTecnica = temp.filter(ehStatusDeTecnica);
@@ -5488,7 +5488,8 @@ function estadoAoEncerrar(estadoAtual, pFinal, dataJogo) {
      Morto NÃO precisa vir por aqui: ele já sobrevive pela EF no piso, e
      montarSnapshots o remonta daí. */
   const status = (typeof statusAoEncerrarBatalha === 'function')
-    ? statusAoEncerrarBatalha(p.status_temp, dataJogo)
+    // As rodadas que sobram viram minutos a partir do fim da luta (14/11/2026).
+    ? statusAoEncerrarBatalha(p.status_temp, dataJogo, segundosPorRodada)
     : [];
   return {
     ...base,
@@ -5851,7 +5852,62 @@ function partemOsInvocados(participantes) {
   };
 }
 
+/* ── O TEMPO DA BATALHA (14/11/2026) ─────────────────────────────────────
+   Usuário: "Considere que cada ação é 30 segundos no jogo para cada
+   combatente, e a rodada será calculada com base nesse tempo. Inclusive esse
+   cálculo pode ser usado para passar o tempo de forma automática depois da
+   batalha." Decidido com ele: rodada = 30 s × os combatentes que agem nela.
+
+   Agir = estar de pé e com vez própria: desmaiado, morto, reforço que ainda
+   não chegou e a montaria em uso (a vez é do cavaleiro) não contam. Quem está
+   preso canalizando ou sem ações conta — está na luta, só não faz nada.
+
+   Cada virada soma 1 em `rodadas_de_pe` de quem agiu na rodada que acabou
+   (montarNovaRodada); a duração é essa soma × 30 s, mais a rodada em curso.
+   Mora no participante, e não numa coluna nova, porque a virada também sai
+   da tela do Jogador pelo mesmo montarNovaRodada. */
+const SEGUNDOS_POR_ACAO = 30;
+
+function agemNaRodada(p, participantes) {
+  return !!p && !p.ausente && p.status === 'ativo' && !ehMontariaEmUso(p, participantes);
+}
+
+function combatentesQueAgem(participantes) {
+  const lista = Array.isArray(participantes) ? participantes : [];
+  return lista.filter((p) => agemNaRodada(p, lista)).length;
+}
+
+// Ninguém de pé ainda conta uma ação: a rodada nunca dura zero.
+function segundosDaRodada(participantes) {
+  return SEGUNDOS_POR_ACAO * Math.max(1, combatentesQueAgem(participantes));
+}
+
+// Rodadas já viradas + a que está em curso.
+function duracaoDaBatalhaSegundos(participantes) {
+  const lista = Array.isArray(participantes) ? participantes : [];
+  const viradas = lista.reduce((s, p) => s + (Number(p && p.rodadas_de_pe) || 0), 0);
+  return (viradas + combatentesQueAgem(lista)) * SEGUNDOS_POR_ACAO;
+}
+
+// Em minutos de relógio, arredondado para cima: 2,5 min de luta andam 3.
+function minutosDaBatalha(participantes) {
+  return Math.ceil(duracaoDaBatalhaSegundos(participantes) / 60);
+}
+
+// A conversão da largada: o prazo que falta de cada status vira rodadas.
+function prazosDaFichaEmRodadas(lista, dataJogo, segundosPorRodada) {
+  const conv = typeof prazoEmRodadas === 'function' ? prazoEmRodadas : null;
+  if (!conv || !Array.isArray(lista)) return lista;
+  return lista.map((p) => (p && Array.isArray(p.status_temp) && p.status_temp.some((st) => st && st.vence_em)
+    ? { ...p, status_temp: p.status_temp.map((st) => conv(st, dataJogo, segundosPorRodada)) }
+    : p));
+}
+
 function montarNovaRodada(participantes) {
+  // Quem agiu na rodada que está acabando ganha uma no relógio da luta.
+  const antes = participantes || [];
+  participantes = antes.map((p) => (agemNaRodada(p, antes)
+    ? { ...p, rodadas_de_pe: (Number(p.rodadas_de_pe) || 0) + 1 } : p));
   // Reforços entram PRIMEIRO: assim a virada lhes dá PA, passo e vento pela
   // mesma conta de todo mundo, e a iniciativa já os põe na fila.
   const { participantes: comReforcos0, entraram } = entrarReforcos(participantes);
@@ -8554,6 +8610,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const [venenoVal,     setVenenoVal]     = useState('');
   const [venenoRodadas, setVenenoRodadas] = useState(3);
   const [encerrarOpen,  setEncerrarOpen]  = useState(false); // painel inline com toggle de restaurar
+  // "Avançar 25 min" no encerrar: o Mestre confirma, marcado por padrão (14/11/2026).
+  const [avancarRelogio, setAvancarRelogio] = useState(true);
   // Reforços (29/09/2026): o modal de quem chega e o ponto sendo marcado
   // (índice do reforço em `participantes`; null = ninguém).
   const [reforcoOpen, setReforcoOpen] = useState(false);
@@ -8795,7 +8853,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       // setup — posicionarNoSetup escreve `pos` nele. Ler a prop aqui
       // ressuscitava a lista sem posição nenhuma, e todo mundo voltava para a
       // bancada assim que a batalha começava.
-      const snaps = await montarSnapshots(participantes || [], pools, magiasByKey, dataJogo);
+      const snaps0 = await montarSnapshots(participantes || [], pools, magiasByKey, dataJogo);
+      // O prazo que falta de cada status da ficha vira rodadas (14/11/2026).
+      const snaps = prazosDaFichaEmRodadas(snaps0, dataJogo, segundosDaRodada(snaps0));
       // EFETIVA: magia de velocidade ativa desde antes da luta já conta na ordem.
       let ordenados = ordenarIniciativaEfetiva(snaps);
       // Montaria em uso não abre a rodada: a vez é do cavaleiro.
@@ -8965,7 +9025,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     setError(null);
     try {
       const { pools, magiasByKey, dataJogo } = await carregarBaseDosSnapshots();
-      const snaps = await montarSnapshots(crus, pools, magiasByKey, dataJogo);
+      const snaps0 = await montarSnapshots(crus, pools, magiasByKey, dataJogo);
+      // O reforço converte o prazo pela rodada que vai encontrar: a mesa + ele.
+      const snaps = prazosDaFichaEmRodadas(snaps0, dataJogo, segundosDaRodada([...participantes, ...snaps0]));
       const next = [...participantes, ...prepararReforcos(snaps, rodada)];
       await persistir({ participantes: next }, () => setParticipantes(next));
       setReforcoOpen(false);
@@ -10300,7 +10362,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     const { data: histAtual } = !treino && historia && historia.id
       ? await supabaseClient.from('historias').select('data_jogo_atual').eq('id', historia.id).maybeSingle()
       : { data: null };
-    const dataJogoFim = (histAtual && histAtual.data_jogo_atual) || null;
+    const dataJogoAgora = (histAtual && histAtual.data_jogo_atual) || null;
+    /* O TEMPO DA LUTA (14/11/2026): 30 s × combatentes por rodada. Se o Mestre
+       deixou "Avançar" marcado, o fim da luta é o relógio de agora + a duração,
+       e é dele que o status que sobrou conta o prazo novo. */
+    const minutosDaLuta = minutosDaBatalha(participantesFinais);
+    const avanca = !treino && avancarRelogio && minutosDaLuta > 0
+      && typeof window.relogioDepoisDe === 'function';
+    const dataJogoFim = (avanca && window.relogioDepoisDe(dataJogoAgora, minutosDaLuta)) || dataJogoAgora;
+    const segRodadaFim = segundosDaRodada(participantesFinais);
 
     // 0) Condições + Vitalidade. Persiste TANTO condicoes (Saúde/Sono/etc.)
     // QUANTO vitalidade (EF/EH/AR/Karma) em estado_atual, que é o que a ficha
@@ -10314,7 +10384,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
         // Volta do combate pra ficha — ver estadoAoEncerrar. null = este
         // participante não deve escrever nada (PJ ausente/não carregado).
-        const novoEstado = estadoAoEncerrar(estadoAtual, p, dataJogoFim);
+        const novoEstado = estadoAoEncerrar(estadoAtual, p, dataJogoFim, segRodadaFim);
         if (!novoEstado) return { ok: true };
         const { error: condErr } = await supabaseClient
           .from('personagens').update({ estado_atual: novoEstado }).eq('id', p.ref_id);
@@ -10388,6 +10458,13 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       const motivo = data.motivo || 'erro_desconhecido';
       setError(interpolate(tb.falhaMotivo, { motivo }));
       return;
+    }
+    /* 5) O relógio anda a duração da luta — DEPOIS das fichas: a cobrança de
+       fome e sede relê o PJ inteiro e grava o estado_atual, e não pode correr
+       com o passo 0. Falhar aqui não desfaz a batalha encerrada. */
+    if (avanca && historia && historia.id && typeof window.avancarRelogioDaMesa === 'function') {
+      const r = await window.avancarRelogioDaMesa(historia.id, minutosDaLuta, isEn);
+      if (!r || !r.ok) console.error('[batalha] avançar o relógio falhou:', r);
     }
     onAtualizado && onAtualizado();
     onVoltar && onVoltar();
@@ -10592,6 +10669,21 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                 <span>{tb.todosOsPjsNo}</span>
               )}
             </div>}
+            {/* O RELÓGIO ANDA COM A LUTA (14/11/2026): 30 s × combatentes por
+                rodada. O Mestre confirma — ligado por padrão, desliga num clique. */}
+            {!batalha.treinamento && (() => {
+              const min = minutosDaBatalha(participantes);
+              if (min <= 0) return null;
+              const dur = min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, '0') : ''}` : `${min} min`;
+              return (
+                <button type="button" className="btn-ghost btn-sm batalha-encerrar-relogio"
+                  data-on={avancarRelogio ? 'true' : 'false'} aria-pressed={avancarRelogio}
+                  disabled={salvando} onClick={() => setAvancarRelogio((v) => !v)}>
+                  <i className={'ti ' + (avancarRelogio ? 'ti-clock' : 'ti-clock-off')} aria-hidden="true" />
+                  {isEn ? `Advance the clock ${dur}` : `Avançar o relógio ${dur}`}
+                </button>
+              );
+            })()}
             </div>
             {/* Um caminho só: encerrar leva o estado do combate pra ficha.
                 O "Restaurar e encerrar" saiu em 01/09/2026 — ver o comentário
@@ -15517,6 +15609,9 @@ Object.assign(window, {
     tetoDeAlvos,
     alvosExtrasEfetivos,
     debitarCustoAtaque, paParaAtaque,
+    // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
+    SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,
+    minutosDaBatalha, prazosDaFichaEmRodadas,
     aplicarGolpeEmAlvo,
     defesaComEscolta,
     // 14/09/2026: Provocar — o provocado só ataca quem provocou.

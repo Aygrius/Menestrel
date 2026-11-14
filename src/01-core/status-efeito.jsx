@@ -33,6 +33,14 @@
    Fora do combate o Mestre aplica em DIAS, que é a unidade do calendário, ou
    sem prazo nenhum — e aí só sai quando ele tirar.
 
+   ATUALIZAÇÃO de 14/11/2026: a conversão passou a existir. "Cada ação é 30
+   segundos no jogo para cada combatente" (usuário): a rodada dura 30 s × os
+   combatentes que agem, o relógio guarda minutos e o `vence_em` pode ter hora
+   e minuto. O prazo que falta vira rodadas na entrada da luta e as rodadas
+   que sobram viram minutos na saída — ver prazoEmRodadas e
+   statusAoEncerrarBatalha abaixo. O "vence no dia seguinte" ficou só como
+   recuo de quem chama sem a duração da rodada.
+
    VENCIMENTO PREGUIÇOSO, igual a magiasAtivasVigentes: o status expira por
    comparação NA LEITURA, nunca por rotina de fundo. Nada avança a data do jogo
    sozinho; se o vencimento dependesse de um processo, nada venceria nunca. E a
@@ -114,24 +122,58 @@ function statusComVencimento(status, dataJogo, dias) {
 function ehStatusDeCalendario(st) {
   return !!st && st.vence_em !== undefined;
 }
-function statusAoEncerrarBatalha(statusTemp, dataJogo) {
+
+/* O TEMPO DA BATALHA (14/11/2026, decisão do usuário no item 6): "cada ação
+   é 30 segundos no jogo para cada combatente, e a rodada será calculada com
+   base nesse tempo". Uma rodada dura 30 s × os combatentes que agem nela
+   (segundosDaRodada, 12-batalha). É essa conta que liga rodadas ao relógio:
+
+   • na ENTRADA, o prazo que falta (vence_em − agora) vira rodadas, arredondado
+     para cima — prazoEmRodadas. Sem prazo (vence_em null) segue sem rodadas e
+     volta intacto;
+   • na SAÍDA, as rodadas que sobram viram minutos a partir do fim da luta —
+     statusAoEncerrarBatalha com `segundosPorRodada`.
+
+   Sem `segundosPorRodada` (chamada antiga) a saída cai no que era antes: vence
+   no dia seguinte. */
+function prazoEmRodadas(st, dataJogo, segundosPorRodada) {
+  if (!st || !st.vence_em) return st;
+  const seg = Number(segundosPorRodada);
+  const agora = typeof instanteEmMinutos === 'function' ? instanteEmMinutos(dataJogo) : null;
+  const fim = typeof instanteEmMinutos === 'function' ? instanteEmMinutos(st.vence_em) : null;
+  if (!(seg > 0) || agora == null || fim == null) return st;
+  const { vence_em, ...resto } = st;
+  return { ...resto, rodadas_rest: Math.max(1, Math.ceil(((fim - agora) * 60) / seg)) };
+}
+
+function statusAoEncerrarBatalha(statusTemp, dataJogo, segundosPorRodada) {
   const lista = Array.isArray(statusTemp) ? statusTemp : [];
+  const seg = Number(segundosPorRodada);
+  const comPrazo = (st) => {
+    const r = Number(st.rodadas_rest);
+    const fim = seg > 0 && typeof somarMinutosAoInstante === 'function'
+      ? somarMinutosAoInstante(dataJogo, Math.ceil((r * seg) / 60)) : null;
+    return fim ? { ...st, vence_em: fim } : statusComVencimento(st, dataJogo, 1);
+  };
   return lista
     .filter((st) => st && (ehStatusDeCalendario(st) || (st.rodadas_rest != null && Number(st.rodadas_rest) > 0)))
-    .map((st) => (ehStatusDeCalendario(st) ? { ...st } : statusComVencimento(st, dataJogo, 1)))
+    .map((st) => (st.rodadas_rest != null && Number(st.rodadas_rest) > 0 ? comPrazo(st) : { ...st }))
     .filter(Boolean);
 }
 
 /* VENCIMENTO PREGUIÇOSO — gêmeo de magiasAtivasVigentes (magias-efeito.jsx).
-   Vence NO DIA: um status que vence em 14 ainda vale no 13 e já não vale no 14. */
+   Conta em MINUTOS desde 14/11/2026 (instanteEmMinutos). O `vence_em` só com
+   o dia vence à meia-noite dele — um status que vence em 14 ainda vale no 13 e
+   já não vale no 14, como antes; o que saiu da batalha às 14h25 vence na hora
+   e no minuto. */
 function statusVigentes(lista, dataJogo) {
   const arr = Array.isArray(lista) ? lista : [];
-  if (typeof dataFantasyParaAbsoluto !== 'function') return arr;
-  const hoje = dataFantasyParaAbsoluto(dataJogo);
-  if (hoje == null) return arr;   // sem data, não há como vencer nada
+  if (typeof instanteEmMinutos !== 'function') return arr;
+  const agora = instanteEmMinutos(dataJogo);
+  if (agora == null) return arr;   // sem data, não há como vencer nada
   return arr.filter((st) => {
-    const fim = st && st.vence_em ? dataFantasyParaAbsoluto(st.vence_em) : null;
-    return fim == null ? true : hoje < fim;
+    const fim = st && st.vence_em ? instanteEmMinutos(st.vence_em) : null;
+    return fim == null ? true : agora < fim;
   });
 }
 
@@ -168,5 +210,5 @@ function semStatusPersistente(lista, id) {
 Object.assign(window, {
   STATUS_MESTRE_TIPOS, statusComVencimento,
   statusAoEncerrarBatalha, statusVigentes, comStatusPersistente, semStatusPersistente,
-  tipoDoStatus, ehStatusDeCalendario,
+  tipoDoStatus, ehStatusDeCalendario, prazoEmRodadas,
 });

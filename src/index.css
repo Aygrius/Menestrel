@@ -3695,6 +3695,8 @@
 #root .menestrel-ui .batalha-encerrar-aviso { font-family: var(--font-body); font-size: var(--fs-sm); color: var(--parchment); line-height: 1.5; }
 #root .menestrel-ui .batalha-encerrar-resumo { font-family: var(--font-body); font-size: var(--fs-sm); letter-spacing: .03em; color: var(--parchment-muted); text-transform: uppercase; }
 #root .menestrel-ui .batalha-encerrar-resumo .mortos { color: var(--ember); }
+/* "Avançar o relógio 25 min" (14/11/2026): toggle data-on do sistema, sem largura cheia. */
+#root .menestrel-ui .batalha-encerrar-relogio { align-self: flex-start; gap: 8px; }
 
 /* atacar-row3 (Arma/Alvo/Técnica) precisa de mais espaço por coluna que
    atacar-row2 — quebra pra 2 colunas um pouco antes do breakpoint geral de

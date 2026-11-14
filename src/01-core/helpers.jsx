@@ -72,6 +72,36 @@ function somarDiasFantasy(data, dias) {
   return absolutoParaDataFantasy(abs + Math.trunc(n));
 }
 
+/* ── O instante em minutos (14/11/2026) ────────────────────────────
+   "Considere que cada ação é 30 segundos no jogo para cada combatente"
+   (usuário): a batalha passa a medir minutos, e o relógio da mesa os guarda
+   em `minuto`, por dentro — o pill continua mostrando só a hora.
+
+   Hora ou minuto ausente vale 0. É o que mantém o `vence_em` antigo (só o
+   dia) com o mesmo sentido de sempre: vence à meia-noite daquele dia. */
+function instanteEmMinutos(inst) {
+  const abs = dataFantasyParaAbsoluto(inst);
+  if (abs == null) return null;
+  const h = Number(inst.hora), m = Number(inst.minuto);
+  return abs * 1440 + (Number.isFinite(h) ? Math.trunc(h) : 0) * 60 + (Number.isFinite(m) ? Math.trunc(m) : 0);
+}
+
+function minutosParaInstante(total) {
+  if (!Number.isFinite(total)) return null;
+  const abs = Math.floor(total / 1440);
+  const resto = total - abs * 1440;
+  const d = absolutoParaDataFantasy(abs);
+  return d ? { ...d, hora: Math.floor(resto / 60), minuto: resto % 60 } : null;
+}
+
+// Soma minutos a um instante; devolve { ano, mes, dia, hora, minuto } ou null sem data.
+function somarMinutosAoInstante(inst, minutos) {
+  const base = instanteEmMinutos(inst);
+  const n = Number(minutos);
+  if (base == null || !Number.isFinite(n)) return null;
+  return minutosParaInstante(base + Math.trunc(n));
+}
+
 function formatarDataFantasy(d, lang) {
   if (!d) return '';
   const mes = FANTASY_MONTHS[d.mes - 1];
@@ -437,6 +467,7 @@ function propsTip(abrirTip, fecharTip, content) {
 
 Object.assign(window, { aplicarAlturaDaFicha, guardarAlturaDaFicha, calcDiaSemanaFantasy, useTweaks, useTooltip, Tooltip, DicaNoAlvo, empilharJanela, ehJanelaDaFrente, propsTip, Carregando, SeloMenestrel, useAlvoPortal,
   somarDiasFantasy, dataFantasyParaAbsoluto, absolutoParaDataFantasy, formatarDataFantasy,
+  instanteEmMinutos, minutosParaInstante, somarMinutosAoInstante,
   FANTASY_DIAS_ANO });
 
 // ── interpolate ──────────────────────────────────────────────────────────────

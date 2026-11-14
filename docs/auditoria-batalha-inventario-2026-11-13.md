@@ -25,10 +25,15 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
   `npx vercel deploy --prod`. O site no ar ainda tem a tela de saque antiga
   (grava o saque direto) e não traduz as recusas novas da batalha. Sem criatura
   com moeda no banco hoje, nada quebra — mas publicar antes de seguir.
-- **Pergunta em aberto (item 6):** status que sobrou de uma luta (tem data,
-  vence no dia seguinte) agora vale a luta INTEIRA se houver outra batalha no
-  mesmo dia, em vez das rodadas que restavam. Confirmar com o usuário se fica
-  assim ou se esse caso deve continuar contando rodadas.
+- **Item 6, decisão de 14/11/2026 (tempo da batalha):** "Considere que cada
+  ação é 30 segundos no jogo para cada combatente, e a rodada será calculada
+  com base nesse tempo. Inclusive esse cálculo pode ser usado para passar o
+  tempo de forma automática depois da batalha." Respostas dele:
+  - rodada = 30 s × combatentes que agem nela;
+  - o relógio guarda minutos por dentro (o pill segue mostrando só a hora);
+  - no encerramento, o Mestre confirma o avanço ("Avançar 25 min?", marcado);
+  - status com prazo: o prazo ganha hora e minuto; na entrada, o tempo que
+    falta vira rodadas; na saída, as rodadas que sobram viram tempo.
 
 ## Decisões do usuário (13/11/2026)
 
@@ -153,6 +158,27 @@ atual da mesa (o filtro de `get_loja_pj`).
 - Fica de fora: o INSERT (criação nasce com XP 0 e sem campo de XP), e as
   colunas `magias`, `tecnicas`, `habilidades`, `grupos_armas`,
   `aprimoramentos` e `caracterizacao`, que o dono ainda grava direto.
+
+## Item 6, parte 2 — o tempo da batalha (14/11/2026)
+
+- **Rodada:** `segundosDaRodada` = 30 s × `combatentesQueAgem` (de pé, com vez
+  própria: sem desmaiado, morto, reforço por chegar nem montaria em uso). A
+  virada (`montarNovaRodada`) soma 1 em `rodadas_de_pe` de quem agiu; a
+  duração é essa soma + a rodada em curso (`duracaoDaBatalhaSegundos`).
+  Sem coluna nova: a virada também sai da tela do Jogador.
+- **Status:** na largada e nos reforços, `prazosDaFichaEmRodadas` converte o
+  prazo que falta em rodadas (para cima). No encerramento,
+  `statusAoEncerrarBatalha(…, segundosPorRodada)` põe `vence_em` com hora e
+  minuto. `statusVigentes` compara em minutos; o `vence_em` só com o dia
+  segue vencendo à meia-noite.
+- **Relógio:** `data_jogo_atual.minuto` por dentro; escolher outra hora zera
+  os minutos. O modal de encerrar tem o toggle "Avançar o relógio 25 min"
+  (ligado). Depois do `encerrar_batalha`, `avancarRelogioDaMesa` (10-shell)
+  grava o relógio e anuncia no log. Com o relógio montado, ele cobra fome e
+  sede na hora (`window.__menestrelCobrarHoras`); sem ele, a âncora fica e as
+  horas ficam devendo para o próximo movimento.
+- Testes: `src/12-batalha/tempo-da-batalha.test.js`,
+  `src/10-shell/relogio-batalha.test.js`.
 
 ## Item 7 — como ficou (14/11/2026)
 
