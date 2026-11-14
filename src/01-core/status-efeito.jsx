@@ -104,11 +104,21 @@ function statusComVencimento(status, dataJogo, dias) {
    jogo e cai quando o Mestre avança a data — ver a nota de conversão no topo.
    Quem sai SEM rodadas (rodadas_rest null = "até o fim da batalha") não
    atravessa: o fim da batalha chegou. */
+/* O STATUS DE CALENDÁRIO VOLTA COMO ENTROU (14/11/2026, auditoria item 6).
+   O que veio da ficha traz `vence_em` (a chave existe, mesmo null = sem
+   prazo) e não conta rodadas na luta — ver o status_temp de montarSnapshots
+   (12-batalha). Ele volta à ficha intacto, com o vencimento de antes; antes
+   desta data entrava com rodadas_rest 1, caía na primeira virada e a ficha
+   perdia os dias que faltavam. Se a luta o tirou (cura, purificação), ele
+   nem chega aqui. */
+function ehStatusDeCalendario(st) {
+  return !!st && st.vence_em !== undefined;
+}
 function statusAoEncerrarBatalha(statusTemp, dataJogo) {
   const lista = Array.isArray(statusTemp) ? statusTemp : [];
   return lista
-    .filter((st) => st && st.rodadas_rest != null && Number(st.rodadas_rest) > 0)
-    .map((st) => statusComVencimento(st, dataJogo, 1))
+    .filter((st) => st && (ehStatusDeCalendario(st) || (st.rodadas_rest != null && Number(st.rodadas_rest) > 0)))
+    .map((st) => (ehStatusDeCalendario(st) ? { ...st } : statusComVencimento(st, dataJogo, 1)))
     .filter(Boolean);
 }
 
@@ -158,5 +168,5 @@ function semStatusPersistente(lista, id) {
 Object.assign(window, {
   STATUS_MESTRE_TIPOS, statusComVencimento,
   statusAoEncerrarBatalha, statusVigentes, comStatusPersistente, semStatusPersistente,
-  tipoDoStatus,
+  tipoDoStatus, ehStatusDeCalendario,
 });

@@ -38,7 +38,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 | # | Estado | Achado |
 |---|---|---|
-| 6 | ⬜ | Status posto na ficha entra com `rodadas_rest: 1` (`ficha.jsx` StatusPrazoModal) e cai na 1ª virada (`decrementarStatusTemp`); o encerramento grava a ficha sem ele. |
+| 6 | ✅ | Status posto na ficha entra com `rodadas_rest: 1` (`ficha.jsx` StatusPrazoModal) e cai na 1ª virada (`decrementarStatusTemp`); o encerramento grava a ficha sem ele. |
 | 7 | ⬜ | Magia lançada sem PA quando sobra `pa_ataque_extra` (`podeAplicar` sem `!semPA`; `debitarCustoAtaque` só gasta o extra em arma). |
 | 8 | ⬜ | Clique duplo aplica a ação duas vezes (item/rolagem): handlers não conferem `salvando`. |
 | 9 | ⬜ | Consumo de item/munição e aviso à mesa saem ANTES de gravar a batalha; se a gravação falha, o item já foi. |

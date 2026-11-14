@@ -113,6 +113,22 @@ describe('o que atravessa o fim da batalha', () => {
   it('sem status nenhum, lista vazia', () => {
     expect(statusAoEncerrarBatalha(null, HOJE)).toEqual([]);
   });
+
+  /* Auditoria de 13/11/2026, item 6: o status posto na ficha por 5 dias
+     entrava na luta com rodadas_rest 1, caía na 1ª virada, e o encerramento
+     gravava a ficha sem ele. O de calendário volta como entrou. */
+  it('o status de calendário (veio da ficha) volta com o vencimento de antes', () => {
+    const daFicha = veneno({ rodadas_rest: null, vence_em: { dia: 16, mes: 11, ano: 1500 } });
+    const fora = statusAoEncerrarBatalha([daFicha], HOJE);
+    expect(fora).toHaveLength(1);
+    expect(fora[0].vence_em).toEqual({ dia: 16, mes: 11, ano: 1500 });
+  });
+
+  it('e o sem prazo (vence_em null) também volta, sem ganhar data', () => {
+    const fora = statusAoEncerrarBatalha([veneno({ rodadas_rest: null, vence_em: null })], HOJE);
+    expect(fora).toHaveLength(1);
+    expect(fora[0].vence_em).toBeNull();
+  });
 });
 
 /* "Um mesmo personagem pode acumular mais de um status ao mesmo tempo, sem

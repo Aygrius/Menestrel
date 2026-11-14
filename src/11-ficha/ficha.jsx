@@ -1017,8 +1017,9 @@ function FichaStatusSeletor({ lista, dataJogo, lang, onAdicionar }) {
             setEscolhido(null);
             if (!fabrica) return;
             /* Em combate o 3º argumento são rodadas; fora dele o prazo é o
-               dias do modal, e a contagem de rodadas fica valendo 1 — é o que
-               a próxima batalha encontra para descontar por virada. */
+               dias do modal (vence_em). O 1 de rodadas só preenche a forma:
+               na batalha, status com vence_em entra sem contar rodadas e volta
+               intacto (auditoria item 6, 14/11/2026 — ver montarSnapshots). */
             onAdicionar(fabrica(escolhido.tipo, valor, 1, tb), dias);
           }}
         />

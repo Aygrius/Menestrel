@@ -107,6 +107,13 @@ describe('a ida: o que a ficha entrega ao combate', () => {
     expect(fonte.slice(i, i + 220)).toMatch(/statusVigentes\([\s\S]*?dataJogo\)/);
   });
 
+  /* Auditoria item 6 (14/11/2026): o status da ficha tem prazo em DATA; com o
+     rodadas_rest 1 da ficha ele caía na 1ª virada. Entra sem contar rodadas. */
+  it('o status de calendário entra sem contar rodadas (rodadas_rest null)', () => {
+    const i = fonte.indexOf('status_temp: (typeof statusVigentes');
+    expect(fonte.slice(i, i + 900)).toMatch(/vence_em !== undefined[\s\S]*?rodadas_rest: null/);
+  });
+
   it('a data usada no encerramento é buscada na hora, não a da largada', () => {
     const i = fonte.indexOf('const finalizarEncerramento');
     const trecho = fonte.slice(i, i + 2200);

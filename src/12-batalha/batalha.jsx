@@ -2174,7 +2174,14 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
            o mesmo vencimento preguiçoso das magias de calendário. */
         status_temp: (typeof statusVigentes === 'function'
           ? statusVigentes(pj.estado_atual && pj.estado_atual.status, dataJogo)
-          : []).map((st) => ({ ...st })),
+          : []).map((st) => (st && st.vence_em !== undefined
+            /* Status de CALENDÁRIO (14/11/2026, auditoria item 6): o prazo é a
+               data (`vence_em`), não rodadas. Entra valendo a luta inteira
+               (rodadas_rest null — a virada não desconta) e volta à ficha
+               intacto (statusAoEncerrarBatalha, 01-core/status-efeito.jsx).
+               Antes entrava com o rodadas_rest 1 da ficha e caía na 1ª virada. */
+            ? { ...st, rodadas_rest: null }
+            : { ...st })),
         tecnicas_usadas: [],   // Task 8: keys de técnicas Único já gastas nesta batalha
         tecnica_livre_usada: false,   // REGRA NOVA: ativação livre (0 PA) já usada nesta rodada
         pa_ataque_extra: 0,   // Fase 2: contador de ataques extras (Golpe Duplo etc.) da rodada
