@@ -140,6 +140,42 @@ const GRUPOS_ACUMULAVEIS = new Set(['consumiveis', 'minerais', 'itens', 'moedas'
 // Equipados/vestidos ficam sempre intactos (instância única) e nunca empilham.
 // Devolve o MESMO array quando nada muda (guarda contra re-render/loop no efeito
 // que dispara o autosave).
+/* O ESTADO DA INSTÂNCIA (14/11/2026, auditoria item 13). Duas pilhas só se
+   fundem se forem a MESMA coisa: a peça quebrada, a gasta (`res`), a untada
+   (`veneno`), a consagrada (`bonus`), o bicho com `vitalidade`… não se somam
+   com a comum. Antes a fusão olhava só slug, recipiente e bônus, e o estado
+   da primeira instância passava para a pilha inteira (cinco espadas inteiras
+   viravam cinco quebradas, ou a quebrada virava inteira).
+
+   Em vez de listar os campos de estado — e esquecer o próximo que alguém
+   criar —, compara TUDO, menos o que é identidade, anotação ou lugar (o lugar
+   já está na chave de quem chama). Valor vazio (null, undefined, false) não
+   conta: `quebrada: false` e nenhum `quebrada` são o mesmo estado. */
+const CAMPOS_FORA_DO_ESTADO = new Set([
+  'instanceId', 'quantidade', 'observacao', 'casa', 'origem_loja',
+  'containerId', 'slot', 'equipado', 'vestido', 'vesteSlot', 'montado',
+  'animal_id', 'slot_animal',
+]);
+function _estavel(v) {
+  if (Array.isArray(v)) return '[' + v.map(_estavel).join(',') + ']';
+  if (v && typeof v === 'object') {
+    return '{' + Object.keys(v).sort().filter((k) => v[k] != null && v[k] !== false)
+      .map((k) => JSON.stringify(k) + ':' + _estavel(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v);
+}
+function assinaturaDeEstado(it) {
+  if (!it) return '';
+  const estado = {};
+  Object.keys(it).forEach((k) => {
+    if (CAMPOS_FORA_DO_ESTADO.has(k)) return;
+    const v = it[k];
+    if (v == null || v === false) return;
+    estado[k] = v;
+  });
+  return _estavel(estado);
+}
+
 function normalizarPilhas(itens, catalogoBySlug) {
   if (!Array.isArray(itens)) return itens;
   // instanceIds que são "pais" de algum item (recipientes com conteúdo).
@@ -167,8 +203,9 @@ function normalizarPilhas(itens, catalogoBySlug) {
     // recipiente é uma instância distinta e não se funde com outro.
     if (it.containerId) {
       if (container) { saida.push(it); continue; }
-      // Item consagrado não funde com o comum do mesmo slug (15/09/2026).
-      const chave = it.slug + '|' + it.containerId + '|' + bonusDoItem(it);
+      // Item consagrado não funde com o comum do mesmo slug (15/09/2026), e
+      // nenhum estado diferente funde (assinaturaDeEstado, auditoria item 13).
+      const chave = it.slug + '|' + it.containerId + '|' + bonusDoItem(it) + '|' + assinaturaDeEstado(it);
       if (idxPorChave.has(chave)) {
         const alvo = saida[idxPorChave.get(chave)];
         alvo.quantidade += it.quantidade;
@@ -213,7 +250,8 @@ function normalizarPilhas(itens, catalogoBySlug) {
          dono, ou a do dono subia no bicho. A poção na casa de saque rápido
          (slot saque_d/saque_e) sumia do saque do mesmo jeito. Só funde quem
          está no MESMO lugar. */
-      const chave = 'solto|' + it.slug + '|' + (it.animal_id || '') + '|' + (it.slot_animal || '') + '|' + (it.slot || '');
+      const chave = 'solto|' + it.slug + '|' + (it.animal_id || '') + '|' + (it.slot_animal || '') + '|' + (it.slot || '')
+        + '|' + assinaturaDeEstado(it);   // e o mesmo estado (item 13)
       if (idxLoose.has(chave)) {
         const alvo = saida[idxLoose.get(chave)];
         alvo.quantidade += (it.quantidade || 1);
@@ -318,7 +356,9 @@ function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug, loc
   const { livre, casasLivres, filhos } = capacidadeContainer(cont, lista, catalogoBySlug);
   /* SEM CASA LIVRE não entra (29/10/2026) — a não ser que a peça vá se somar
      a uma pilha que já está lá dentro, que não gasta casa nova. */
-  const empilha = (filhos || []).some((f) => f.slug === it.slug);
+  // Somar é o que normalizarPilhas faz: mesmo slug, mesmo bônus, mesmo estado (item 13).
+  const empilha = (filhos || []).some((f) => f.slug === it.slug && bonusDoItem(f) === bonusDoItem(it)
+    && assinaturaDeEstado(f) === assinaturaDeEstado(it));
   if (casasLivres <= 0 && !empilha) return { ok: false, motivo: 'sem_casa' };
   // Tolerância para float (0.1 × 10 dá 0.9999…), a mesma do moverParaContainer.
   const qtd = Math.min(total, ocupa > 0 ? Math.floor((livre + 0.0001) / ocupa) : total);
@@ -6192,7 +6232,7 @@ Object.assign(window, {
   BauTopo, BauCargaRodape, PesoNoRodape,
   InventarioList, EquipadoBoard, VestesBoard, MoedaPills, CampoPreco, MOEDA_COR,
   CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, LequeDoItem, lequeAngulos, ContainerModal, QuantidadeModal, DarItemModal,
-  guardarNoRecipiente, normalizarPilhas,
+  guardarNoRecipiente, normalizarPilhas, assinaturaDeEstado,
   // Leitura de livro (itens.doc_url) — o bestiário também abre por aqui.
   LeituraDocModal, urlLeituraDoc,
   // Janela Estudar: aprender magia de livro/pergaminho (22/10/2026).
