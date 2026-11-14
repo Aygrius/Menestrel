@@ -229,6 +229,11 @@ async function alterarInventario(pjId, fn) {
   }
 }
 
+// A recusa que não muda tentando de novo: carga máxima e inventário cheio.
+function recusaDefinitiva(err) {
+  return !!err && (err.motivo === 'carga_maxima' || err.motivo === 'inventario_cheio');
+}
+
 /* Gravador por PJ para a tela que segura cópia (InventarioList). O autosave,
    o flush ao sair e o flush ao trocar de PJ podem se sobrepor na mesma aba;
    cada um calculando a diferença a partir de uma base velha contaria a mesma
@@ -244,6 +249,17 @@ function criarGravadorInventario() {
     alterar(pjId, local) { if (regs[pjId]) regs[pjId].local = local; },
     atual(pjId) { return regs[pjId] ? regs[pjId].local : null; },
     sujo(pjId) { const r = regs[pjId]; return !!r && !mesmoValor(r.base, r.local); },
+    /* RECUSA DEFINITIVA (14/11/2026, auditoria item 14): carga máxima ou baú
+       cheio não passam numa segunda tentativa — o `local` recusado ficaria
+       sujo para sempre e toda gravação seguinte o levaria junto, recusada em
+       silêncio. Volta à última base que o banco confirmou e devolve-a. */
+    descartar(pjId) {
+      const r = regs[pjId];
+      if (!r) return null;
+      r.local = r.base;
+      r.talvezGravado = null;
+      return r.base;
+    },
     salvar(pjId) {
       const tarefa = fila.then(async () => {
         const r = regs[pjId];
@@ -275,7 +291,8 @@ function criarGravadorInventario() {
         }
         const enviado = r.local;
         const res = await gravarInventario(pjId, { base: r.base, local: enviado, versao: r.versao });
-        if (!res.ok) { r.talvezGravado = enviado; return res; }
+        // Recusada na tela (carga/baú cheio), não foi ao banco: nada "talvez gravado".
+        if (!res.ok) { if (!recusaDefinitiva(res.error)) r.talvezGravado = enviado; return res; }
         r.base = res.inventario;
         r.versao = res.versao;
         r.local = r.local === enviado ? res.inventario : mesclarInventario(enviado, r.local, res.inventario);
@@ -288,4 +305,5 @@ function criarGravadorInventario() {
 }
 
 Object.assign(window, {
-  cargaEstoura, recebimentoEstouraCarga, mesmoValor, mesclarInventario, gravarInventario, alterarInventario, criarGravadorInventario });
+  cargaEstoura, recebimentoEstouraCarga, mesmoValor, mesclarInventario, gravarInventario, alterarInventario, criarGravadorInventario,
+  recusaDefinitiva });

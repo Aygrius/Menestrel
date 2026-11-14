@@ -14,12 +14,12 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1 a 4 e 6 a 13 (todos os críticos do banco, todos os de alta
-  prioridade da batalha e os dois primeiros do inventário). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
+- **Feitos:** 1 a 4 e 6 a 14 (todos os críticos do banco, todos os de alta
+  prioridade da batalha e os três primeiros do inventário). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 14** — Mestre dá item que estoura a carga: a tela diz
-  "Entregue", nada grava, e as gravações seguintes são recusadas em silêncio.
-  Depois seguir a ordem da tabela (15, 16…).
+- **Próximo: item 15** — duas telas "explodem" a mesma pilha com IDs
+  aleatórios e a mescla de três vias duplica (3 adagas → 6). Depois seguir a
+  ordem da tabela (16, 17…).
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
   `scripts/sql/*-2026-11-14.sql`).
 - **App NÃO publicado:** os commits de 14/11 estão na main, mas não houve
@@ -75,7 +75,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 |---|---|---|
 | 12 | ✅ | `normalizarPilhas` funde pilha solta acumulável ignorando `animal_id`/`slot` (carga do animal volta ao dono; consumível do saque rápido some do saque). |
 | 13 | ✅ | Dentro de recipiente, a fusão ignora `quebrada`, `res`, `veneno`, `vitalidade`… — o estado de uma instância contamina a pilha. |
-| 14 | ⬜ | Mestre dá item que estoura a carga: tela diz "Entregue", nada grava, e toda gravação seguinte é recusada em silêncio (aviso de falha comentado). |
+| 14 | ✅ | Mestre dá item que estoura a carga: tela diz "Entregue", nada grava, e toda gravação seguinte é recusada em silêncio (aviso de falha comentado). |
 | 15 | ⬜ | Duas telas "explodem" a mesma pilha com IDs aleatórios e a mescla de três vias duplica (3 adagas → 6). |
 | 16 | ⬜ | Mescla perde compra: L removeu a pilha, R aumentou — `if (b && !l) return` descarta o aumento. |
 | 17 | ⬜ | Item sem `quantidade` vira NaN em `guardarNoRecipiente`/`podeMoverParaContainer`/`normalizarPilhas` — a pilha guardada some. |
@@ -180,6 +180,21 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 14 — como ficou (14/11/2026)
+
+Três peças, no InventarioList (07-inventario) e no gravador (01-core/
+inventario-concorrencia.jsx):
+- `setInv` barra a carga estourada antes de aplicar, com a mesma conta da
+  trava central (`entrouItem` + `cargaEstourouCom`), como já barrava o baú
+  cheio — vale para toda entrada de item feita na tela, não só o "dar".
+- `darItem` confere a carga ANTES de dizer "Entregue" e de contar à mesa.
+- Recusa definitiva (`recusaDefinitiva`: carga máxima, baú cheio) no
+  `aplicarGravacao`: `gravador.descartar` volta a cópia ao que o banco
+  confirmou, a tela também volta, e o aviso aparece. Falha de rede mantém a
+  cópia (a próxima mudança tenta de novo) e também avisa. O indicador
+  "Falha ao salvar" do rodapé segue comentado; o aviso usa a faixa da tela.
+Teste: `src/01-core/gravador-recusa.test.js`.
 
 ## Item 13 — como ficou (14/11/2026)
 

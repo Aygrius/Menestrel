@@ -662,12 +662,29 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
      chega do BANCO (carga, troca de PJ, mescla do gravador) entra por
      setInvBruto — não é o jogador mexendo, e o banco já tem a mesma trava. */
   const avisoCheioRef = useRef(null);
+  /* A CARGA MÁXIMA TAMBÉM (14/11/2026, auditoria item 14). O gravador já
+     recusava o que entrasse passando de 100% (cargaEstoura) — mas a tela
+     aplicava antes e dizia "Entregue": o item ficava só na cópia local, e toda
+     gravação seguinte o levava junto e era recusada em silêncio. A mesma conta
+     da trava central (cargaEstourouCom) barra aqui, antes de aplicar; o
+     catálogo e o PJ chegam por ref, preenchida a cada render. */
+  const cargaCtxRef = useRef({ cat: null, pj: null });
+  const avisoCargaRef = useRef(null);
   const setInv = React.useCallback((v) => {
     setInvBruto((cur) => {
       const novo = typeof v === 'function' ? v(cur) : v;
       if (cur && novo && novo !== cur && bauEstourou(cur.itens, novo.itens)) {
         queueMicrotask(() => avisoCheioRef.current && avisoCheioRef.current());
         return cur;
+      }
+      const { cat, pj } = cargaCtxRef.current;
+      if (cur && novo && novo !== cur && cat && typeof window.cargaEstourouCom === 'function'
+          && typeof window.entrouItem === 'function' && window.entrouItem(cur.itens, novo.itens)) {
+        const atr = pj && typeof atributosEfetivosPJ === 'function' ? atributosEfetivosPJ(pj) : {};
+        if (window.cargaEstourouCom(cur.itens, novo.itens, cat, atr.forca, atr.fisico)) {
+          queueMicrotask(() => avisoCargaRef.current && avisoCargaRef.current());
+          return cur;
+        }
       }
       return novo;
     });
@@ -875,8 +892,30 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
   const autosavePjRef = useRef(null);
   const selRef = useRef(selectedId);
   useEffect(() => { selRef.current = selectedId; }, [selectedId]);
+  const avisoGravacaoRef = useRef(null);
   const aplicarGravacao = (pjId, r) => {
-    if (!r.ok) { setSaving('error'); return; }
+    if (!r.ok) {
+      setSaving('error');
+      /* A FALHA APARECE (14/11/2026, auditoria item 14) — o indicador
+         "Falha ao salvar" está comentado no rodapé, e a recusa passava calada.
+         Recusa DEFINITIVA (carga máxima, baú cheio): a tela volta ao que o
+         banco tem — senão o mesmo inventário recusado seguiria em toda
+         gravação seguinte. Falha de rede: a cópia fica, e a próxima mudança
+         tenta de novo. */
+      const err = r.error;
+      const definitiva = typeof window.recusaDefinitiva === 'function' && window.recusaDefinitiva(err);
+      if (definitiva) {
+        const base = gravadorRef.current.descartar(pjId);
+        if (base && selRef.current === pjId) setInvBruto(base);
+      }
+      const en = lang === 'en';
+      const texto = !definitiva
+        ? (en ? 'Could not save the inventory. The next change will try again.'
+          : 'Não deu para salvar o inventário. A próxima mudança tenta de novo.')
+        : err.motivo === 'carga_maxima' ? textoCargaMaxima(en) : textoInventarioCheio(en);
+      if (avisoGravacaoRef.current) avisoGravacaoRef.current(texto, 'recusa');
+      return;
+    }
     setPjs((arr) => (arr || []).map((p) => (p.id === pjId ? { ...p, inventario: r.inventario, inventario_versao: r.versao } : p)));
     if (r.gravou) { setSaving('saved'); setTimeout(() => setSaving('idle'), 1500); }
     if (selRef.current === pjId && r.enviado && !mesmoValor(r.inventario, r.enviado)) {
@@ -989,6 +1028,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
 
   const pjSelecionado = pjs?.find((p) => p.id === selectedId);
   const racaPj = pjSelecionado?.raca;
+  // O que o setInv precisa para conferir a carga (ver cargaCtxRef).
+  cargaCtxRef.current = { cat: catalogoBySlug || null, pj: pjSelecionado || null };
 
   const slotsState = useMemo(
     () => inv ? getSlotsState(inv.itens, catalogoBySlug, racaPj) : null,
@@ -1373,6 +1414,17 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
       avisar(textoInventarioCheio(lang === 'en'), 'recusa');
       return;
     }
+    /* Carga máxima ANTES de dizer "Entregue" e de contar à mesa (auditoria
+       item 14): o setInv também barraria, mas aí o aviso e o "recebeu do
+       Mestre" já teriam saído. */
+    if (inv && typeof window.cargaEstourouCom === 'function') {
+      const atr = pjSelecionado ? atributosEfetivosPJ(pjSelecionado) : {};
+      if (window.cargaEstourouCom(inv.itens, adicionarAoInventario(inv, slug, n).itens, catalogoBySlug, atr.forca, atr.fisico)) {
+        setDarAberto(false);
+        avisar(textoCargaMaxima(lang === 'en'), 'recusa');
+        return;
+      }
+    }
     setInv((cur) => (cur ? adicionarAoInventario(cur, slug, n) : cur));
     setDarAberto(false);
     avisar((lang === 'en' ? 'Given: ' : 'Entregue: ') + cat.nome + (n > 1 ? ' ×' + n : ''), 'ok');
@@ -1398,6 +1450,8 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     avisoTimerRef.current = setTimeout(() => setAvisoInv(null), 3200);
   };
   avisoCheioRef.current = () => avisar(textoInventarioCheio(lang === 'en'), 'recusa');
+  avisoCargaRef.current = () => avisar(textoCargaMaxima(lang === 'en'), 'recusa');
+  avisoGravacaoRef.current = avisar;
   const moverCasa = (instanceId, casa) => {
     setInv((cur) => {
       if (!cur) return cur;
