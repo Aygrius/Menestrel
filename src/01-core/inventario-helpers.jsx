@@ -1858,16 +1858,38 @@ function contarPorNome(itens, nome, catalogoBySlug) {
 /* Confere o ritual contra o inventário. Para cada grupo, escolhe a primeira
    alternativa que o PJ tem na quantidade pedida. Devolve
    { ok, faltam: [{ nome, precisa, tem }], gastos: [{ nome, qtd, slugs }] }. */
+/* Baixa `qtd` das pilhas usáveis de `slugs` (pura) — a mesma regra de
+   consumirItensDoRitual. Pilha zerada sai. */
+function _baixarDoRitual(lista, slugs, qtd) {
+  let resta = qtd;
+  return lista.map((it) => {
+    if (resta <= 0 || !it || !slugs.includes(it.slug) || it.equipado || it.vestido || estaAVenda(it)) return it;
+    const q = Number(it.quantidade) || 0;
+    const baixa = Math.min(q, resta);
+    resta -= baixa;
+    return { ...it, quantidade: q - baixa };
+  }).filter((it) => !it || !slugs.includes(it.slug) || (Number(it.quantidade) || 0) > 0);
+}
+/* CADA UNIDADE CONTA UMA VEZ (14/11/2026, auditoria item 45). Cada grupo era
+   conferido contra o estoque INTEIRO: "Erva (2)" e "Erva ou Raiz (1)" com duas
+   ervas passavam os dois, e na baixa o segundo não achava nada — o ritual saía
+   pagando menos. Agora a conferência simula a baixa numa cópia, grupo a grupo,
+   na mesma ordem em que consumirItensDoRitual vai gastar. */
 function conferirItensDoRitual(texto, itens, catalogoBySlug) {
   const faltam = [];
   const gastos = [];
+  let restante = Array.isArray(itens) ? itens : [];
   itensDoRitual(texto).forEach((g) => {
-    const achada = g.opcoes.map((op) => ({ op, c: contarPorNome(itens, op.nome, catalogoBySlug) }))
+    const achada = g.opcoes.map((op) => ({ op, c: contarPorNome(restante, op.nome, catalogoBySlug) }))
       .find(({ op, c }) => c.total >= op.qtd);
-    if (achada) { gastos.push({ nome: achada.op.nome, qtd: achada.op.qtd, slugs: achada.c.slugs }); return; }
+    if (achada) {
+      gastos.push({ nome: achada.op.nome, qtd: achada.op.qtd, slugs: achada.c.slugs });
+      restante = _baixarDoRitual(restante, achada.c.slugs, achada.op.qtd);
+      return;
+    }
     const op = g.opcoes[0];
     faltam.push({ nome: g.opcoes.map((o) => o.nome).join(' ou '), precisa: op.qtd,
-      tem: contarPorNome(itens, op.nome, catalogoBySlug).total });
+      tem: contarPorNome(restante, op.nome, catalogoBySlug).total });
   });
   return { ok: faltam.length === 0, faltam, gastos };
 }
@@ -1877,16 +1899,7 @@ function consumirItensDoRitual(itens, texto, catalogoBySlug) {
   const conf = conferirItensDoRitual(texto, itens, catalogoBySlug);
   if (!conf.ok) return { ok: false, itens, faltam: conf.faltam };
   let out = Array.isArray(itens) ? [...itens] : [];
-  conf.gastos.forEach(({ qtd, slugs }) => {
-    let resta = qtd;
-    out = out.map((it) => {
-      if (resta <= 0 || !it || !slugs.includes(it.slug) || it.equipado || it.vestido || estaAVenda(it)) return it;
-      const q = Number(it.quantidade) || 0;
-      const baixa = Math.min(q, resta);
-      resta -= baixa;
-      return { ...it, quantidade: q - baixa };
-    }).filter((it) => !it || !slugs.includes(it.slug) || (Number(it.quantidade) || 0) > 0);
-  });
+  conf.gastos.forEach(({ qtd, slugs }) => { out = _baixarDoRitual(out, slugs, qtd); });
   return { ok: true, itens: out, faltam: [] };
 }
 

@@ -200,11 +200,32 @@ function grauDosTestes(resultados) {
    em inventario-helpers, que os ataques e a janela do item também leem. */
 
 /* O que falta para a receita → { ok, faltando: [{ slug, precisa, tem }] }. */
+/* CADA UNIDADE CONTA UMA VEZ (14/11/2026, auditoria item 45). Cada material
+   era conferido contra o estoque inteiro: dois materiais que aceitam o mesmo
+   item passavam os dois com uma unidade só, e consumirMateriais gastava menos
+   do que a receita pede. Agora a conferência desconta numa cópia o que cada
+   material leva, na ordem da receita (a de consumirMateriais). A ferramenta
+   só perde um uso e não reserva unidade. */
+function _tirarMaterial(lista, slugs, qtd) {
+  const aVenda = (typeof estaAVenda === 'function') ? estaAVenda : (() => false);
+  let falta = qtd;
+  return lista.map((it) => {
+    if (falta <= 0 || !it || !slugs.includes(it.slug) || aVenda(it) || it.animal_id || it.construindo
+      || it.equipado || it.vestido) return it;
+    const tem = Number(it.quantidade) || 0;
+    const tira = Math.min(falta, tem);
+    falta -= tira;
+    return { ...it, quantidade: tem - tira };
+  });
+}
 function conferirMateriais(receita, itens) {
-  const faltando = materiaisDaReceita(receita)
-    .map((m) => ({ ...m, tem: disponivelDoMaterial(itens, m) }))
-    .filter((m) => m.tem < m.qtd)
-    .map((m) => ({ slug: m.slug, precisa: m.qtd, tem: m.tem }));
+  let restante = Array.isArray(itens) ? itens : [];
+  const faltando = [];
+  materiaisDaReceita(receita).forEach((m) => {
+    const tem = disponivelDoMaterial(restante, m);
+    if (tem < m.qtd) { faltando.push({ slug: m.slug, precisa: m.qtd, tem }); return; }
+    if (!m.ferramenta) restante = _tirarMaterial(restante, _slugsDo(m), m.qtd);
+  });
   return { ok: faltando.length === 0, faltando };
 }
 
