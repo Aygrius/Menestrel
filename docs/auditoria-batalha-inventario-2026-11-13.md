@@ -110,7 +110,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 32 | ✅ | Item do saque rápido guardado num recipiente continua no saque. |
 | 33 | ✅ (jogador pela RPC; Mestre e treino em 14/11) | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. No jogador, a RPC `saquear_criatura` já pula pilha à venda e no animal; falta o saque do Mestre e o treino. |
 | 34 | ✅ | Regra de endereço da Casa (`acessoAPropriedade`) nunca aplicada — ninguém passa a localização do PJ. |
-| 35 | ⬜ | Preparar carne e envenenar flechas mexem em pilha à venda. |
+| 35 | ✅ | Preparar carne e envenenar flechas mexem em pilha à venda. |
 | 36 | ⬜ | Pilha dividida (guardar, equipar, vestir, montar, pôr no animal) perde bônus/desgaste/veneno na parte que sai. |
 
 ## 🟢 Baixa
@@ -184,6 +184,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 35 — como ficou (14/11/2026)
+
+01-core/inventario-helpers.jsx: `prepararCarne` recusa a carne anunciada, não
+completa o custo com pilha anunciada e não soma o prato em pilha anunciada nem
+do animal; `envenenarNoInventario` recusa (`a_venda`) veneno ou alvo
+anunciado e soma as flechas envenenadas só na pilha livre do mesmo lugar.
+Teste: `src/01-core/a-venda-intocavel.test.js`.
 
 ## Item 34 — como ficou (14/11/2026)
 

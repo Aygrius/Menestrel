@@ -1769,6 +1769,9 @@ function envenenarNoInventario(itens, venenoId, alvoId, qtd, catalogoBySlug, nov
   const catA = alvo && catalogoBySlug[alvo.slug];
   if (!veneno || !ehVenenoDeArma(catV)) return { ok: false, motivo: 'nao_e_veneno' };
   if (!alvo || !catA) return { ok: false, motivo: 'alvo_invalido' };
+  /* À venda é intocável (14/11/2026, auditoria item 35): nem o veneno
+     anunciado se gasta, nem a flecha ou a arma anunciada se unta. */
+  if (estaAVenda(veneno) || estaAVenda(alvo)) return { ok: false, motivo: 'a_venda' };
   const doses = Number(veneno.quantidade) || 0;
   const baixarVeneno = (arr, n) => arr
     .map((x) => (x === veneno ? { ...x, quantidade: doses - n } : x))
@@ -1787,7 +1790,9 @@ function envenenarNoInventario(itens, venenoId, alvoId, qtd, catalogoBySlug, nov
       .map((x) => (x === alvo ? { ...x, quantidade: (Number(alvo.quantidade) || 0) - n } : x))
       .filter((x) => !(x.instanceId === alvoId && x.quantidade <= 0));
     const lugar = alvo.containerId || null;
-    const pilha = out.find((x) => x.slug === slugNova && (x.containerId || null) === lugar && !x.equipado && !x.vestido);
+    // Soma só na pilha livre do mesmo lugar — nunca na anunciada nem na do animal (item 35).
+    const pilha = out.find((x) => x.slug === slugNova && (x.containerId || null) === lugar && !x.equipado && !x.vestido
+      && !estaAVenda(x) && (x.animal_id || null) === (alvo.animal_id || null));
     if (pilha) out = out.map((x) => (x === pilha ? { ...x, quantidade: (Number(x.quantidade) || 0) + n } : x));
     else out = [...out, { instanceId: (novoId || novoInstanceId)(), slug: slugNova, quantidade: n,
       equipado: false, slot: null, containerId: lugar, observacao: null }];
@@ -1966,12 +1971,14 @@ function carneDisponivel(itens, slug) {
 function prepararCarne(itens, instanceId, resultado, novoId) {
   const lista = itens || [];
   const clicado = lista.find((x) => x.instanceId === instanceId);
-  if (!clicado) return null;
+  /* À venda é intocável (14/11/2026, auditoria item 35): a carne anunciada
+     não se prepara, nem completa o custo, nem recebe o prato. */
+  if (!clicado || estaAVenda(clicado)) return null;
   const receita = receitasDaCarne(clicado.slug).find((r) => r.resultado === resultado);
   if (!receita || carneDisponivel(lista, clicado.slug) < receita.custo) return null;
 
   let falta = receita.custo;
-  const ordem = [clicado, ...lista.filter((x) => x !== clicado && x.slug === clicado.slug)];
+  const ordem = [clicado, ...lista.filter((x) => x !== clicado && x.slug === clicado.slug && !estaAVenda(x))];
   const gasto = new Map();
   ordem.forEach((x) => {
     if (falta <= 0) return;
@@ -1983,7 +1990,8 @@ function prepararCarne(itens, instanceId, resultado, novoId) {
     .map((x) => (gasto.has(x.instanceId) ? { ...x, quantidade: x.quantidade - gasto.get(x.instanceId) } : x))
     .filter((x) => x.quantidade > 0);
 
-  const pilha = restantes.find((x) => x.slug === resultado && !x.containerId && !x.slot && !x.equipado && !x.vestido);
+  const pilha = restantes.find((x) => x.slug === resultado && !x.containerId && !x.slot && !x.equipado && !x.vestido
+    && !estaAVenda(x) && !x.animal_id);
   if (pilha) {
     return restantes.map((x) => (x === pilha ? { ...x, quantidade: x.quantidade + 1 } : x));
   }
