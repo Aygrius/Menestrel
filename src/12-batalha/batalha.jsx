@@ -2216,8 +2216,14 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
          Ficava caído a luta inteira. Agora entra contando, como quem cai no
          meio da luta; se a ficha já trouxe o zz de uma luta anterior, vale o
          que restava dele (comDesmaioEf não repõe). */
-      const snapEntrada = (snapPj.status === 'desmaiado' && efCur <= 0 && efCur > EF_MORTE)
+      const snapEntrada0 = (snapPj.status === 'desmaiado' && efCur <= 0 && efCur > EF_MORTE)
         ? comDesmaioEf(snapPj) : snapPj;
+      // A armadura da ENTRADA (auditoria item 28): é a ela que o Restaurar do treino volta.
+      const snapEntrada = { ...snapEntrada0, armadura_entrada: {
+        ar_max: snapPj.ar_max, defesa_valor: snapPj.defesa_valor,
+        conjunto_bonus: snapPj.conjunto_bonus || null,
+        armadura_pecas: Array.isArray(snapPj.armadura_pecas) ? snapPj.armadura_pecas : null,
+      } };
       // Magia de calendário evocada ANTES da luta entra valendo (degrau 3).
       const semeado = semearMagiasAtivas(snapEntrada, pj, magiasByKey, dataJogo);
       /* Velocidade que veio de magia ativa vale JÁ na rodada 1 (13/09/2026):
@@ -3736,15 +3742,43 @@ function NumerosDoCombatente({ p, tb, isEn, abrirTip, fecharTip, celulas }) {
    das quatro pools — EF, EH, a resistência da armadura (res) e o karma. Só
    as pools: estado, efeitos e posição ficam como estão. Pool sem máximo
    conhecido não é tocada. */
+/* A ARMADURA TAMBÉM VOLTA (14/11/2026, auditoria item 28). Só a `res`
+   agregada enchia: a peça quebrada seguia quebrada, e a absorção, a defesa e
+   o bônus de conjunto que ela levou ao quebrar (desgastarAtor) não voltavam.
+   Agora o PJ volta à armadura da ENTRADA (`armadura_entrada`, montarSnapshots):
+   cada peça com a resistência cheia — a que já entrou quebrada segue quebrada,
+   porque o treino não conserta o que a ficha não consertou —, a absorção, a
+   defesa e o conjunto daquela hora. A criatura (sem peças) volta a `ar` ao
+   máximo. */
+function restaurarArmaduraDoTreino(p) {
+  const ent = p && p.armadura_entrada;
+  if (!ent) return Number.isFinite(Number(p && p.ar_max)) && p.ar_max != null ? { ...p, ar: Number(p.ar_max) } : p;
+  const pecas = Array.isArray(ent.armadura_pecas)
+    ? ent.armadura_pecas.map((pc) => (pc && !pc.quebrada && Number.isFinite(Number(pc.res_max))
+      ? { ...pc, res: Number(pc.res_max) } : pc))
+    : null;
+  return {
+    ...p,
+    ...(pecas ? { armadura_pecas: pecas, res: somaRes(pecas) } : {}),
+    ar_max: ent.ar_max, ar: ent.ar_max,
+    defesa_valor: ent.defesa_valor,
+    conjunto_bonus: ent.conjunto_bonus || null,
+  };
+}
+
 function restaurarPoolsDoTreino(participantes) {
   const cheio = (v, m) => (Number.isFinite(Number(m)) && m != null ? Number(m) : v);
-  return (participantes || []).map((p) => (p ? {
-    ...p,
-    ef: cheio(p.ef, p.ef_max),
-    eh: cheio(p.eh, p.eh_max),
-    res: cheio(p.res, p.res_max),
-    karma: cheio(p.karma, p.karma_max),
-  } : p));
+  return (participantes || []).map((p) => {
+    if (!p) return p;
+    const comArmadura = restaurarArmaduraDoTreino(p);
+    return {
+      ...comArmadura,
+      ef: cheio(p.ef, p.ef_max),
+      eh: cheio(p.eh, p.eh_max),
+      res: comArmadura.armadura_pecas ? comArmadura.res : cheio(p.res, p.res_max),
+      karma: cheio(p.karma, p.karma_max),
+    };
+  });
 }
 
 const POOLS_DO_CARD = [

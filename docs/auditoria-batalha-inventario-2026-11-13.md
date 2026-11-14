@@ -18,8 +18,10 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
   prioridade e os cinco primeiros de média), mais o karma das criaturas
   (pedido à parte). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 23** — a rodada trava se todo ativo está canalizando/sem
-  ação: ninguém recebe `atual`. Depois seguir a ordem da tabela (24, 25…).
+- **Feitos também (14/11/2026):** 23 a 28.
+- **Próximo: item 29** — usar consumível: efeito e baixa gravam em pernas
+  separadas. O usuário pediu (14/11) para seguir direto até o 48 e depois
+  REVISAR todas as correções.
 - **Banco:** o usuário autorizou (14/11/2026) mudanças no banco feitas pelo
   Claude.
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
@@ -96,7 +98,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 25 | ✅ | Encerrar sobrescreve `condicoes` com as da entrada (horas avançadas na luta somem). |
 | 26 | ✅ | Alvo guardado por índice: quando alguém sai da lista, a mira pula para o vizinho. |
 | 27 | ✅ | Item usado pelo Mestre a partir do cache velho: efeito sem baixa (`consumirDoInventario` devolve ok sem achar o item). |
-| 28 | ⬜ | Restaurar do treino não conserta peças quebradas nem `ar`/`ar_max`. |
+| 28 | ✅ | Restaurar do treino não conserta peças quebradas nem `ar`/`ar_max`. |
 
 ## 🟡 Média — inventário
 
