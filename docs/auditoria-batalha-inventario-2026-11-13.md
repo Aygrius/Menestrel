@@ -127,7 +127,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 44 | ✅ | Parser lê "2,5" como 5. |
 | 45 | ✅ | Ritual/fabricação contam a mesma unidade em dois grupos. |
 | 46 | ✅ | Mescla de moedas por denominação com `Math.max(0)` pode criar dinheiro. |
-| 47 | ⬜ | ~55 funções SECURITY DEFINER executáveis por `anon`; 25 policies sem `(select auth.uid())`. |
+| 47 | ✅ `scripts/sql/anon-sem-rpc-e-policies-initplan-2026-11-14.sql` | ~55 funções SECURITY DEFINER executáveis por `anon`; 25 policies sem `(select auth.uid())`. |
 | 48 | ⬜ | Hooks depois de `return null` em `DetalhesItemModal` (`inventario.jsx`) — latente. |
 
 ## Verificado e correto
@@ -184,6 +184,19 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 47 — como ficou (14/11/2026)
+
+Aplicado no Supabase (autorizado pelo usuário em 14/11):
+- As 48 funções SECURITY DEFINER do schema public que `anon` executava perderam
+  o EXECUTE de PUBLIC e anon e ficaram com authenticated e service_role.
+  Conferido antes: nenhuma tela antes do login chama RPC, e os ajudantes de
+  policy só entram em policies de escrita. Depois: 0 executáveis por anon.
+  As 15 já fechadas para authenticated (núcleos `_menestrel_*`,
+  `mestre_ajustar_moedas`, `pacto_*`…) não foram tocadas, e o cliente não as chama.
+- As 25 policies com `auth.uid()` cru passaram a `(select auth.uid())`
+  (InitPlan: uma avaliação por consulta). Depois: 0 policies cruas. A definição
+  antiga de cada uma está no cabeçalho do script.
 
 ## Item 46 — como ficou (14/11/2026)
 
