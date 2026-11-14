@@ -95,7 +95,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 24 | ✅ | Falha passageira ao gravar a cortina desliga a cortina para sempre naquela tela. |
 | 25 | ✅ | Encerrar sobrescreve `condicoes` com as da entrada (horas avançadas na luta somem). |
 | 26 | ✅ | Alvo guardado por índice: quando alguém sai da lista, a mira pula para o vizinho. |
-| 27 | ⬜ | Item usado pelo Mestre a partir do cache velho: efeito sem baixa (`consumirDoInventario` devolve ok sem achar o item). |
+| 27 | ✅ | Item usado pelo Mestre a partir do cache velho: efeito sem baixa (`consumirDoInventario` devolve ok sem achar o item). |
 | 28 | ⬜ | Restaurar do treino não conserta peças quebradas nem `ar`/`ar_max`. |
 
 ## 🟡 Média — inventário
@@ -182,6 +182,16 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 27 — como ficou (14/11/2026)
+
+`itemAindaNaMochila` (12-batalha) relê o inventário do PJ no banco (no treino,
+o cache), conta as unidades livres e refresca `catalogos.pjById`. Mestre
+(`aplicarItemConferido`) e Jogador (`handleItemConferido`) conferem antes de
+aplicar e avisam quando o item já não está lá; depois rodam o handler da
+render mais nova (ref). `criarTravaDeAcao` passou a segurar o clique duplo
+durante handler assíncrono. Falha de leitura não trava a mesa.
+Teste: `src/12-batalha/item-cache-velho.test.js`.
 
 ## Item 26 — como ficou (14/11/2026)
 

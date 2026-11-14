@@ -2546,6 +2546,31 @@ async function alterarInventarioDaBatalha(pjId, fn, catalogos) {
   return alterarInventario(pjId, fn);
 }
 
+/* O ITEM AINDA ESTÁ NA MOCHILA? (14/11/2026, auditoria item 27). A lista da
+   aba Item sai de `catalogos.pjById`, lido uma vez na largada: o Mestre usava
+   a poção que o jogador já tinha bebido — o efeito saía e a baixa, sem achar
+   o item, dizia ok. E desde o item 9 a baixa vem DEPOIS de gravar, então a
+   conferência tem de vir antes de aplicar. Relê do banco (no treino, o cache
+   é a verdade), conta as unidades livres (à venda não conta) e refresca o
+   cache para a lista do painel. Falha de leitura não trava a mesa: devolve
+   true e a baixa de depois avisa. */
+async function itemAindaNaMochila(pjId, slug, qtd, catalogos) {
+  const conta = (inv) => ((inv && inv.itens) || [])
+    .filter((it) => it && it.slug === slug && !estaAVenda(it))
+    .reduce((s, it) => s + (Number(it.quantidade) || 0), 0);
+  if (ehTreino(catalogos)) {
+    const cache = catalogos.pjById && catalogos.pjById[pjId];
+    return conta(cache && cache.inventario) >= qtd;
+  }
+  try {
+    const { data, error } = await supabaseClient.from('personagens').select('inventario').eq('id', pjId).maybeSingle();
+    if (error || !data) return true;
+    const cache = catalogos && catalogos.pjById && catalogos.pjById[pjId];
+    if (cache) catalogos.pjById[pjId] = { ...cache, inventario: data.inventario };
+    return conta(data.inventario) >= qtd;
+  } catch (_) { return true; }
+}
+
 async function consumirItemDoPJ(pjId, slug, qtd, catalogos) {
   const r = await alterarInventarioDaBatalha(pjId, (inv) => ({ ...inv, itens: consumirDoInventario(inv.itens || [], slug, qtd) }), catalogos);
   return r.ok ? { ok: true, inventario: r.inventario } : { ok: false, error: r.error };
@@ -5990,17 +6015,33 @@ function rodarEfeitosDaAcao(efeitos) {
    casos. Uma trava por mesa, compartilhada por todos os handlers envolvidos. */
 function criarTravaDeAcao(lerFila) {
   let emVoo = false;
+  const soltar = () => { emVoo = false; };
+  // Solta quando a gravação disparada termina — ou já, se nada foi gravado.
+  const soltarDepoisDa = (filaAntes) => {
+    const fila = lerFila();
+    if (fila !== filaAntes && fila && typeof fila.then === 'function') fila.then(soltar, soltar);
+    else soltar();
+  };
   return (fn) => (...args) => {
     if (emVoo) return undefined;
     emVoo = true;
     const filaAntes = lerFila();
+    let r;
     try {
-      return fn(...args);
-    } finally {
-      const fila = lerFila();
-      if (fila !== filaAntes && fila && typeof fila.then === 'function') fila.then(() => { emVoo = false; }, () => { emVoo = false; });
-      else emVoo = false;
+      r = fn(...args);
+    } catch (e) {
+      soltarDepoisDa(filaAntes);
+      throw e;
     }
+    /* Handler ASSÍNCRONO (14/11/2026, item 27: a conferência do item relê o
+       banco antes de aplicar): a trava segura até a promessa terminar E a
+       gravação que ela disparou voltar. */
+    if (r && typeof r.then === 'function') {
+      r.then(() => soltarDepoisDa(filaAntes), () => soltarDepoisDa(filaAntes));
+      return r;
+    }
+    soltarDepoisDa(filaAntes);
+    return r;
   };
 }
 
@@ -10116,6 +10157,24 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     });
   };
 
+  /* Confere a mochila ANTES de aplicar (auditoria item 27) — ver
+     itemAindaNaMochila. Depois da leitura, roda o aplicarItem da render mais
+     nova (ref): a mesa pode ter mudado enquanto o banco respondia. */
+  const aplicarItemRef = useRef(null);
+  aplicarItemRef.current = aplicarItem;
+  const aplicarItemConferido = async (payload) => {
+    const { ator, slug, quantidade } = payload || {};
+    if (ator && ator.tipo === 'pj') {
+      const ok = await itemAindaNaMochila(ator.ref_id, slug, Math.max(1, Number(quantidade) || 1), catalogos);
+      if (!ok) {
+        setError(isEn ? 'That item is no longer in the backpack — the list was refreshed.'
+          : 'Esse item não está mais na mochila — a lista foi atualizada.');
+        return;
+      }
+    }
+    aplicarItemRef.current(payload);
+  };
+
   // Fase 5e (01/09/2026) — aplica uma magia de APOIO (buff/debuff de
   // velocidade). Debita 1 PA e o karma do conjurador, aplica o efeito no alvo
   // (se ele não resistiu) e loga. Diferente de aplicarAcao: não há dano nem
@@ -11418,7 +11477,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         ambiente={ambiente}
         onAplicar={aplicarAcao}
         onAplicarTeste={aplicarTeste}
-        onAplicarItem={aplicarItem}
+        onAplicarItem={aplicarItemConferido}
         onAplicarApoio={aplicarApoio}
         travado={rolagemPendente}
         onClose={() => setAcaoOpen(false)}
@@ -15085,6 +15144,24 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
   };
 
+  /* Confere a mochila antes de aplicar (auditoria item 27) — o espelho de
+     aplicarItemConferido do Mestre. A trava de clique duplo espera a leitura
+     (criarTravaDeAcao sabe de promessa). */
+  const handleItemRef = React.useRef(null);
+  handleItemRef.current = handleItem;
+  const handleItemConferido = async (payload) => {
+    if (meuParticipante) {
+      const ok = await itemAindaNaMochila(meuParticipante.ref_id, payload && payload.slug,
+        Math.max(1, Number(payload && payload.quantidade) || 1), catalogos);
+      if (!ok) {
+        setErro(isEn ? 'That item is no longer in your backpack — the list was refreshed.'
+          : 'Esse item não está mais na sua mochila — a lista foi atualizada.');
+        return;
+      }
+    }
+    handleItemRef.current(payload);
+  };
+
   // ── Passar a vez — espelha passarVez/novaRodada ──
   /* TABULEIRO (lado Jogador): o jogador só mexe no PRÓPRIO token, e só na
      vez dele — as duas guardas ficam no podeSelecionar/onMover, e a regra
@@ -15622,7 +15699,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         ambiente={ambiente}
           onAplicar={umaAcaoPorVez(handleAcao)}
           onAplicarTeste={umaAcaoPorVez(handleTeste)}
-          onAplicarItem={umaAcaoPorVez(handleItem)}
+          onAplicarItem={umaAcaoPorVez(handleItemConferido)}
           onAplicarApoio={umaAcaoPorVez(handleApoio)}
           travado={rolagemPendente}
           onClose={() => { setAcaoOpen(false); setRolagemPendente(false); }}
@@ -15878,6 +15955,7 @@ Object.assign(window, {
     tetoDeAlvos,
     alvosExtrasEfetivos,
     debitarCustoAtaque, paParaAtaque, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
+    itemAindaNaMochila,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,
     minutosDaBatalha, prazosDaFichaEmRodadas,

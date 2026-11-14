@@ -86,7 +86,8 @@ describe('a mesa do Jogador entrega os handlers travados (fonte)', () => {
     expect(fonte).toMatch(/const umaAcaoPorVez = React\.useMemo\(\(\) => criarTravaDeAcao\(\(\) => filaGravacao\.current\), \[\]\);/);
   });
   it.each(['onAplicar={umaAcaoPorVez(handleAcao)}', 'onAplicarTeste={umaAcaoPorVez(handleTeste)}',
-    'onAplicarItem={umaAcaoPorVez(handleItem)}', 'onAplicarApoio={umaAcaoPorVez(handleApoio)}'])('%s', (trecho) => {
+    // 14/11/2026 (item 27): o item passa antes pela conferência da mochila.
+    'onAplicarItem={umaAcaoPorVez(handleItemConferido)}', 'onAplicarApoio={umaAcaoPorVez(handleApoio)}'])('%s', (trecho) => {
     expect(fonte).toContain(trecho);
   });
 });
