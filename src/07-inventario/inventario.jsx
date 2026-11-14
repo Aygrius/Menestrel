@@ -4550,6 +4550,27 @@ function DetalhesItemModal({
     setLendo(false);
   }, [instance?.instanceId]);
 
+  /* OS HOOKS ANTES DO RETURN (14/11/2026, auditoria item 48). Estes quatro
+     moravam depois do `if (!instance) return null`: a janela que perdia o item
+     (ou o catálogo) renderizava com menos hooks que antes, e o React acusa a
+     troca de ordem — o eslint (rules-of-hooks) marcava os quatro. O efeito da
+     etapa inicial precisa da lista de ações, montada mais abaixo: ela chega
+     por ref, preenchida a cada render e lida depois dele.
+
+     A ETAPA QUE O LEQUE PEDIU (30/10/2026): a janela nasce com ela aberta,
+     como se o ícone tivesse sido clicado aqui — uma vez só, ao montar. */
+  // O leque trocado pelo dos degraus do Bônus (30/10/2026) — ver o modo leque.
+  const [lequeBonus, setLequeBonus] = useState(false);
+  const [lequeRes, setLequeRes] = useState(false);
+  const acaoInicialFeita = React.useRef(null);
+  const acoesDaJanelaRef = React.useRef([]);
+  useEffect(() => {
+    if (!instance || !acaoInicial || acaoInicialFeita.current === acaoInicial) return;
+    acaoInicialFeita.current = acaoInicial;
+    const a = (acoesDaJanelaRef.current || []).find((x) => x.chave === acaoInicial.chave);
+    if (a && !a.desativado && a.onClick) a.onClick();
+  });
+
   if (!instance) return null;
   const cat = catalogoBySlug[instance.slug];
   if (!cat) return null;
@@ -4846,18 +4867,8 @@ function DetalhesItemModal({
     }))
     : acoesOrdenadas;
 
-  /* A ETAPA QUE O LEQUE PEDIU (30/10/2026): a janela nasce com ela aberta,
-     como se o ícone tivesse sido clicado aqui — uma vez só, ao montar. */
-  // O leque trocado pelo dos degraus do Bônus (30/10/2026) — ver o modo leque.
-  const [lequeBonus, setLequeBonus] = useState(false);
-  const [lequeRes, setLequeRes] = useState(false);
-  const acaoInicialFeita = React.useRef(null);
-  useEffect(() => {
-    if (!acaoInicial || acaoInicialFeita.current === acaoInicial) return;
-    acaoInicialFeita.current = acaoInicial;
-    const a = acoesDaJanela.find((x) => x.chave === acaoInicial.chave);
-    if (a && !a.desativado && a.onClick) a.onClick();
-  });
+  // A lista que o efeito da etapa inicial lê (ver acoesDaJanelaRef, antes do return).
+  acoesDaJanelaRef.current = acoesDaJanela;
 
   // ── Linhas da INSTÂNCIA dentro de Características ──
   const ondeEsta = aVenda ? (proposta && proposta.status === 'proposta' ? (en ? 'Offer sent' : 'Proposta enviada')

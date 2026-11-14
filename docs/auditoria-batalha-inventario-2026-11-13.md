@@ -128,7 +128,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 45 | ✅ | Ritual/fabricação contam a mesma unidade em dois grupos. |
 | 46 | ✅ | Mescla de moedas por denominação com `Math.max(0)` pode criar dinheiro. |
 | 47 | ✅ `scripts/sql/anon-sem-rpc-e-policies-initplan-2026-11-14.sql` | ~55 funções SECURITY DEFINER executáveis por `anon`; 25 policies sem `(select auth.uid())`. |
-| 48 | ⬜ | Hooks depois de `return null` em `DetalhesItemModal` (`inventario.jsx`) — latente. |
+| 48 | ✅ | Hooks depois de `return null` em `DetalhesItemModal` (`inventario.jsx`) — latente. |
 
 ## Verificado e correto
 
@@ -184,6 +184,13 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 48 — como ficou (14/11/2026)
+
+`DetalhesItemModal`: os quatro hooks (`lequeBonus`, `lequeRes`,
+`acaoInicialFeita` e o efeito da etapa inicial) subiram para antes do
+`if (!instance) return null`. O efeito lê a lista de ações por
+`acoesDaJanelaRef`, preenchida a cada render. eslint do inventário limpo.
 
 ## Item 47 — como ficou (14/11/2026)
 
