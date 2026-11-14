@@ -1442,15 +1442,22 @@ function magiasDeApoioDoAtor(ator, catalogos) {
 
    `custo_karma` vira o próprio nível, como o usuário definiu. A exceção é
    magia vinda de ITEM, que não custa karma nenhum: a magia está no anel, não
-   em quem o usa (decisão anterior, mantida). */
+   em quem o usa (decisão anterior, mantida).
+
+   E a da CRIATURA (14/11/2026, auditoria item 18): ela não tem poço de karma
+   e a lista a monta com custo 0 (magiasDaCriaturaCrua). Trocar de nível
+   passava a cobrar o nível, e com karma 0 a magia travava em "karma
+   insuficiente". Quem nasceu de graça — custo 0 na base — segue de graça; o
+   PJ paga sempre ao menos 1 (o nível comprado), então não cai aqui. */
 function magiaNoNivel(base, nivel) {
   if (!base || !base.catalogo || nivel == null || nivel === base.nivel) return base;
   const m = base.catalogo;
   const dur = duracaoNoNivel(m, nivel);
+  const deGraca = !!base.item || Number(base.custo_karma) === 0;
   return {
     ...base,
     nivel,
-    custo_karma: base.item ? 0 : nivel,
+    custo_karma: deGraca ? 0 : nivel,
     descricao: m['nivel_' + nivel] || null,
     // Ofensiva: dano e elemento saem do texto daquele nível.
     ...(base.dano !== undefined
