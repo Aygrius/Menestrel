@@ -106,7 +106,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 |---|---|---|
 | 29 | ✅ | Usar consumível: efeito e baixa gravam em pernas separadas; o rollback reverte o PJ inteiro. |
 | 30 | ✅ | Fabricar valida material numa cópia velha e anuncia sucesso sem esperar a gravação. |
-| 31 | ⬜ | Conteúdo de recipiente posto no animal pesa no dono (`calcCarga`). |
+| 31 | ✅ | Conteúdo de recipiente posto no animal pesa no dono (`calcCarga`). |
 | 32 | ⬜ | Item do saque rápido guardado num recipiente continua no saque. |
 | 33 | ⬜ (saque do jogador ✅ pela RPC) | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. No jogador, a RPC `saquear_criatura` já pula pilha à venda e no animal; falta o saque do Mestre e o treino. |
 | 34 | ⬜ | Regra de endereço da Casa (`acessoAPropriedade`) nunca aplicada — ninguém passa a localização do PJ. |
@@ -184,6 +184,13 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 31 — como ficou (14/11/2026)
+
+`animalDeCadaItem` (07-inventario) segue a cadeia de recipientes a partir de
+quem tem `animal_id`: o conteúdo (e o conteúdo do conteúdo) mora no mesmo
+animal. `calcCarga` pula esses itens; `cargaDoAnimal` passa a contá-los — as
+duas contas seguem espelho. Teste: `src/07-inventario/carga-recipiente-no-animal.test.jsx`.
 
 ## Item 30 — como ficou (14/11/2026)
 

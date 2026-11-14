@@ -571,6 +571,26 @@ const PESO_FATOR_EQUIPADO = 0.5;      // equipado (arma/escudo/armadura) OU vest
 const PESO_FATOR_EM_CONTAINER = 0.75; // dentro de armazenamento pesa 75% do ocupa
 
 // calcCarga — peso atual e capacidade do PJ → { peso, capacidade, pct, over }.
+/* EM QUE ANIMAL CADA ITEM ESTÁ (14/11/2026, auditoria item 31). Só a peça no
+   lombo leva `animal_id`; o que vai DENTRO de um recipiente no animal (o
+   alforje com as provisões) só tem `containerId` — e calcCarga o somava nas
+   costas do dono. Segue a cadeia de recipientes: o conteúdo (e o conteúdo do
+   conteúdo) mora no mesmo animal. Map instanceId → instanceId do animal. */
+function animalDeCadaItem(itens) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const out = new Map();
+  lista.forEach((it) => { if (it && it.animal_id && it.instanceId) out.set(it.instanceId, it.animal_id); });
+  let cresceu = out.size > 0;
+  while (cresceu) {
+    cresceu = false;
+    lista.forEach((it) => {
+      if (!it || !it.instanceId || out.has(it.instanceId) || !it.containerId) return;
+      if (out.has(it.containerId)) { out.set(it.instanceId, out.get(it.containerId)); cresceu = true; }
+    });
+  }
+  return out;
+}
+
 function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
   const capBase = PESO_CAP_BASE * (1 + PESO_GANHO_POR_PONTO * ((forcaBase || 0) + (fisicoBase || 0)));
   if (!Array.isArray(itens) || !catalogoBySlug) {
@@ -589,10 +609,13 @@ function calcCarga(itens, catalogoBySlug, forcaBase, fisicoBase) {
   const propriedades = new Set(itens
     .filter((x) => x && ehPropriedade(catalogoBySlug[x.slug]))
     .map((x) => x.instanceId));
+  const noAnimal = animalDeCadaItem(itens);
 
   for (const it of itens) {
     const cat = catalogoBySlug[it.slug];
     if (!cat) continue;
+    // O conteúdo do recipiente que está no animal também é do animal (item 31).
+    if (it.instanceId && noAnimal.has(it.instanceId)) continue;
     if (ehPropriedade(cat)) continue;                      // nem peso nem capacidade
     if (it.containerId && propriedades.has(it.containerId)) continue;  // guardado na casa
     /* O QUE ESTÁ NO BICHO NÃO PESA NO DONO (05/10/2026): uma Barda ocupa 12 e
@@ -3518,7 +3541,11 @@ function cargaDoAnimal(instancia, criatura, itens, catalogoBySlug, pesoDoCavalei
   const capacidade = corpo * CARGA_ANIMAL_FRACAO;
   const mapa = catalogoBySlug || {};
   let peso = 0;
-  for (const it of itensDoAnimal(itens, inst.instanceId)) {
+  // O espelho de calcCarga (item 31): a peça no lombo E o que vai dentro dela.
+  const noAnimal = animalDeCadaItem(itens);
+  const doAnimal = (Array.isArray(itens) ? itens : [])
+    .filter((it) => it && it.instanceId && noAnimal.get(it.instanceId) === inst.instanceId);
+  for (const it of doAnimal) {
     const cat = mapa[it.slug];
     if (!cat) continue;
     peso += (cat.ocupa != null ? Number(cat.ocupa) || 0 : 0) * (it.quantidade || 1);
@@ -6344,7 +6371,7 @@ Object.assign(window, {
      arreamento por subtipo e a ação Alimentar. */
   NOME_ANIMAL_MAX, racaDoAnimal, nomeDoAnimal, comNomeDoAnimal,
   CONDICOES_ANIMAL, COND_ANIMAL_MAX, vitalidadeDoAnimal, comVitalidadeDoAnimal,
-  cargaDoAnimal, CARGA_ANIMAL_FRACAO,
+  cargaDoAnimal, CARGA_ANIMAL_FRACAO, animalDeCadaItem,
   subtiposDaPeca, animalAceitaAPeca, ehPecaDeMontaria, animalEhMontaria, motivoDaRecusaNoAnimal,
   slotNoAnimal, itensDoAnimal,
   equiparNoAnimal, desequiparDoAnimal, motivoAnimalLabel,
