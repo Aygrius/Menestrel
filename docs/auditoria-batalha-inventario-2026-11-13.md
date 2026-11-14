@@ -111,7 +111,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 33 | ✅ (jogador pela RPC; Mestre e treino em 14/11) | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. No jogador, a RPC `saquear_criatura` já pula pilha à venda e no animal; falta o saque do Mestre e o treino. |
 | 34 | ✅ | Regra de endereço da Casa (`acessoAPropriedade`) nunca aplicada — ninguém passa a localização do PJ. |
 | 35 | ✅ | Preparar carne e envenenar flechas mexem em pilha à venda. |
-| 36 | ⬜ | Pilha dividida (guardar, equipar, vestir, montar, pôr no animal) perde bônus/desgaste/veneno na parte que sai. |
+| 36 | ✅ | Pilha dividida (guardar, equipar, vestir, montar, pôr no animal) perde bônus/desgaste/veneno na parte que sai. |
 
 ## 🟢 Baixa
 
@@ -184,6 +184,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 36 — como ficou (14/11/2026)
+
+`estadoDaPilha` (07-inventario) copia tudo o que é estado da instância (a
+fronteira de `assinaturaDeEstado`, sem o anúncio da loja). As seis divisões de
+pilha — guardar parcial, mover para recipiente, equipar, vestir, montar e pôr
+no animal — passam a criar a parte que sai com esse estado.
+Teste: `src/07-inventario/pilha-dividida-estado.test.jsx`.
 
 ## Item 35 — como ficou (14/11/2026)
 

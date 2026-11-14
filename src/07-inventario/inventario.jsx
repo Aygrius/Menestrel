@@ -172,6 +172,20 @@ function _estavel(v) {
   }
   return JSON.stringify(v);
 }
+/* O ESTADO QUE A PARTE DESGARRADA LEVA (14/11/2026, auditoria item 36).
+   Dividir a pilha (guardar parte, equipar, vestir, montar, pôr no animal)
+   criava a unidade nova à mão, só com slug/quantidade/observação: a espada
+   consagrada, gasta ou untada saía comum. Copia tudo o que é ESTADO — a mesma
+   fronteira de assinaturaDeEstado —, e o anúncio da loja fica na original. */
+function estadoDaPilha(it) {
+  const out = {};
+  Object.keys(it || {}).forEach((k) => {
+    if (CAMPOS_FORA_DO_ESTADO.has(k) || k === 'anuncio_id' || k === 'slug') return;
+    out[k] = it[k];
+  });
+  return out;
+}
+
 function assinaturaDeEstado(it) {
   if (!it) return '';
   const estado = {};
@@ -404,7 +418,7 @@ function guardarNoRecipiente(itens, instanceId, containerId, catalogoBySlug, loc
     ? lista.map((x) => (x === it ? { ...x, containerId, casa: undefined, ...(ehSlotDeSaque(x.slot) ? { slot: null } : {}) } : x))
     : [
       ...lista.map((x) => (x === it ? { ...x, quantidade: total - qtd } : x)),
-      { instanceId: novoInstanceId(), slug: it.slug, quantidade: qtd, equipado: false, slot: null, containerId, observacao: it.observacao || null },
+      { ...estadoDaPilha(it), instanceId: novoInstanceId(), slug: it.slug, quantidade: qtd, equipado: false, slot: null, containerId, observacao: it.observacao || null },
     ];
   return { ok: true, itens: posicionarCasas(out), qtd, total };
 }
@@ -1192,7 +1206,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (it.quantidade > 1) {
       itens[idx] = { ...it, quantidade: it.quantidade - 1 };
       resultId = novoInstanceId();
-      itens.push({ instanceId: resultId, slug: it.slug, quantidade: 1, equipado: true, slot: targetSlot, containerId: null, observacao: it.observacao || null });
+      itens.push({ ...estadoDaPilha(it), instanceId: resultId, slug: it.slug, quantidade: 1, equipado: true, slot: targetSlot, containerId: null, observacao: it.observacao || null });
     } else {
       itens[idx] = { ...it, equipado: true, slot: targetSlot, containerId: null };
     }
@@ -1235,7 +1249,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (it.quantidade > 1) {
       itens[idx] = { ...it, quantidade: it.quantidade - 1 };
       resultId = novoInstanceId();
-      itens.push({ instanceId: resultId, slug: it.slug, quantidade: 1, vestido: true, vesteSlot: slotEquip, equipado: false, slot: null, containerId: null, observacao: it.observacao || null });
+      itens.push({ ...estadoDaPilha(it), instanceId: resultId, slug: it.slug, quantidade: 1, vestido: true, vesteSlot: slotEquip, equipado: false, slot: null, containerId: null, observacao: it.observacao || null });
     } else {
       itens[idx] = { ...it, vestido: true, vesteSlot: slotEquip, equipado: false, slot: null, containerId: null };
     }
@@ -1277,7 +1291,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
     if (it.quantidade > 1) {
       itens[idx] = { ...itens[idx], quantidade: it.quantidade - 1 };
       resultId = novoInstanceId();
-      itens.push({ instanceId: resultId, slug: it.slug, quantidade: 1, montado: true, equipado: false, slot: null, containerId: null, observacao: it.observacao || null });
+      itens.push({ ...estadoDaPilha(it), instanceId: resultId, slug: it.slug, quantidade: 1, montado: true, equipado: false, slot: null, containerId: null, observacao: it.observacao || null });
     } else {
       itens[idx] = { ...itens[idx], montado: true, containerId: null };
     }
@@ -1618,6 +1632,7 @@ function InventarioList({ ac, lang, currentUserId, pjIdFixo, onInventarioChange,
         // Split: decrementa origem e cria nova entrada no destino
         itens[idx] = { ...it, quantidade: it.quantidade - qtdMover };
         itens.push({
+          ...estadoDaPilha(it),   // a parte que sai leva o estado (item 36)
           instanceId: novoInstanceId(),
           slug: it.slug,
           quantidade: qtdMover,
@@ -3755,6 +3770,7 @@ function equiparNoAnimal(itens, itemId, animalId, catalogoBySlug, criatura, novo
     : [
       ...lista.map((x) => (x === it ? { ...x, quantidade: total - 1 } : x)),
       {
+        ...estadoDaPilha(it),   // a parte que sobe no animal leva o estado (item 36)
         instanceId: (novoId || novoInstanceId)(), slug: it.slug, quantidade: 1,
         equipado: false, slot: null, observacao: it.observacao || null, ...marcas,
       },
@@ -6372,7 +6388,7 @@ Object.assign(window, {
   BauTopo, BauCargaRodape, PesoNoRodape,
   InventarioList, EquipadoBoard, VestesBoard, MoedaPills, CampoPreco, MOEDA_COR,
   CabecalhoInvLoja, InvItemsTable, DetStat, DetalhesItemModal, LequeDoItem, lequeAngulos, ContainerModal, QuantidadeModal, DarItemModal,
-  guardarNoRecipiente, normalizarPilhas, assinaturaDeEstado,
+  guardarNoRecipiente, normalizarPilhas, assinaturaDeEstado, estadoDaPilha,
   // Leitura de livro (itens.doc_url) — o bestiário também abre por aqui.
   LeituraDocModal, urlLeituraDoc,
   // Janela Estudar: aprender magia de livro/pergaminho (22/10/2026).
