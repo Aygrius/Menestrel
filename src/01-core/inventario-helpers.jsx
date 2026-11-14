@@ -1903,7 +1903,14 @@ function adicionarAoInventario(inventario, slug, qtd, novoId) {
   const inv = inventario || {};
   const itens = Array.isArray(inv.itens) ? inv.itens : [];
   const n = Math.max(1, Math.trunc(Number(qtd) || 1));
-  const pilha = itens.find((x) => x && x.slug === slug && !x.containerId && !x.slot && !x.equipado && !x.vestido);
+  /* A PILHA LIVRE E COMUM (14/11/2026, auditoria item 33). Somava em qualquer
+     pilha solta do slug — inclusive a À VENDA (o saque entrava no anúncio da
+     loja) e a que está no LOMBO do animal (o item novo ia para o bicho). É a
+     regra da RPC saquear_criatura e dos itens 12/13: só soma na pilha da
+     mochila do dono, sem estado próprio (gasta, untada, consagrada, com nome). */
+  const pilha = itens.find((x) => x && x.slug === slug && !x.containerId && !x.slot && !x.equipado && !x.vestido
+    && !estaAVenda(x) && !x.animal_id && !x.montado
+    && !x.apelido && !x.fabricado && x.usos == null && !x.quebrada && x.res == null && !x.veneno && !x.bonus);
   if (pilha) {
     return { ...inv, itens: itens.map((x) => (x === pilha ? { ...x, quantidade: (Number(x.quantidade) || 0) + n } : x)) };
   }

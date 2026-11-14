@@ -108,7 +108,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 30 | ✅ | Fabricar valida material numa cópia velha e anuncia sucesso sem esperar a gravação. |
 | 31 | ✅ | Conteúdo de recipiente posto no animal pesa no dono (`calcCarga`). |
 | 32 | ✅ | Item do saque rápido guardado num recipiente continua no saque. |
-| 33 | ⬜ (saque do jogador ✅ pela RPC) | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. No jogador, a RPC `saquear_criatura` já pula pilha à venda e no animal; falta o saque do Mestre e o treino. |
+| 33 | ✅ (jogador pela RPC; Mestre e treino em 14/11) | `adicionarAoInventario` (saque) soma em pilha à venda ou no animal. No jogador, a RPC `saquear_criatura` já pula pilha à venda e no animal; falta o saque do Mestre e o treino. |
 | 34 | ⬜ | Regra de endereço da Casa (`acessoAPropriedade`) nunca aplicada — ninguém passa a localização do PJ. |
 | 35 | ⬜ | Preparar carne e envenenar flechas mexem em pilha à venda. |
 | 36 | ⬜ | Pilha dividida (guardar, equipar, vestir, montar, pôr no animal) perde bônus/desgaste/veneno na parte que sai. |
@@ -184,6 +184,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 33 — como ficou (14/11/2026)
+
+`adicionarAoInventario` (01-core, usado pelo saque do Mestre e do treino via
+`gravarSaqueNoPj`) só soma na pilha solta da mochila do dono que esteja LIVRE
+(não à venda, não no animal, não montada) e COMUM (sem nome, fabricação, usos,
+quebra, `res`, veneno ou bônus); senão cria uma pilha nova. O saque do jogador
+já seguia essa regra pela RPC `saquear_criatura`. Testes em `src/12-batalha/saque.test.js`.
 
 ## Item 32 — como ficou (14/11/2026)
 

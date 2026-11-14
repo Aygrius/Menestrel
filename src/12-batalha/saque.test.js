@@ -93,6 +93,22 @@ describe('adicionarAoInventario', () => {
     const inv = { itens: [], moedas: { ouro: 3 } };
     expect(window.adicionarAoInventario(inv, 'espada', 1, id).moedas).toEqual({ ouro: 3 });
   });
+
+  /* Auditoria item 33 (14/11/2026): o saque do Mestre e o do treino somavam
+     na pilha à venda e na do lombo do animal. */
+  it.each([
+    ['à venda', { anuncio_id: 7 }],
+    ['no animal', { animal_id: 'cav', slot_animal: 'mochila' }],
+    ['gasta', { res: 2 }],
+    ['untada', { veneno: { ef: 5, acoes: 15 } }],
+    ['consagrada', { bonus: 3 }],
+  ])('não soma na pilha %s: cria uma nova na mochila', (_n, extra) => {
+    const inv = { itens: [{ instanceId: 'a', slug: 'corda', quantidade: 1, containerId: null, slot: null, ...extra }] };
+    const r = window.adicionarAoInventario(inv, 'corda', 2, id);
+    expect(r.itens).toHaveLength(2);
+    expect(r.itens[0].quantidade).toBe(1);
+    expect(r.itens[1]).toMatchObject({ instanceId: 'novo', quantidade: 2, containerId: null });
+  });
 });
 
 /* Revisão de 08/11/2026: a tela do Jogador anota sobre a lista velha (sem
