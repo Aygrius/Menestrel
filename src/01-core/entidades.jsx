@@ -1464,6 +1464,221 @@ const ENTIDADES = [
         texto: 'A urna divina em que Plandis selou a mente do príncipe, escondida noutro reino ou noutro plano. O culto a procura sem descanso para romper a maldição.' },
     ],
   },
+{
+    slug: 'diatrimis',
+    nome: 'Diatrimis',
+    classe: 'princesa',
+    // O epíteto, sem repetir a classe: o cartão já diz "Princesa" na linha de cima.
+    titulo: 'Senhora da Guerra',
+    imagem: null,
+    // Fonte: principes.pdf, págs. 43–47 (3.4 Diatrimis, com Briareu, O Guardião); Heldrom (3.7) e Mocna (3.8);
+    // deuses.pdf, Blator (prefácio).
+
+    prefacio: {
+      texto:
+        'Em tempo de guerra, os ferreiros mandam nas forjas, e nenhum mandava como Albir, o Ferreiro das Mil Maravilhas. Diziam que forjava melhor que os elfos: suas espadas não envelheciam nem perdiam o fio, e ele se tornara o forjador real de um reino antigo. Ensinou o ofício ao filho, Halam, mas as espadas do rapaz nunca chegaram às do pai, e Halam ficou ajudante, à sombra do nome dele.\n' +
+        'A guerra contra os invasores se arrastou até quase arruinar o reino, e o rei desafiou o rei inimigo para um duelo de morte: quem vencesse levaria as riquezas do outro por uma geração. Pediu a Albir a espada perfeita. Por dez dias e dez noites o ferreiro dosou os minerais e vigiou o calor da forja, e a lâmina saiu tão bela que o rei mal podia esperar o dia.\n' +
+        'Na arena, entre centenas de soldados em círculo, o rei mostrou a grande espada; o adversário, um punhal de bronze, pequeno e simples. Quando as armas se tocaram para abrir o combate, a espada se desfez em pó, e o punhal achou o coração do rei antes que ele chegasse ao chão.\n' +
+        'O reino inteiro chorou o seu rei. Menos Halam, que contava as moedas de prata recebidas na véspera de um sacerdote Bankdi da casa de Diatrimis, pelo trabalho de desfazer a obra do pai.',
+      fonte: 'Extraído de O Livro de Maudi, do capítulo «A Espada» — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Diatrimis é a antiga consorte de Blator, uma princesa infernal anã de grande poder, que se deixou tomar pela inveja da criação do companheiro e foi buscar a vingança. Nasceu pouco depois da rebelião dos deuses contra os Titãs. Blator queria uma esposa, e o seu desejo tirou de Ânimus, então mergulhado nas energias que formariam o mundo, o que lhe faltava: delas fez surgir o fim da sua solidão. Assim se ergueu Diatrimis, nem deusa nem titã, apenas a consorte de Blator.\n' +
+      'Ela quis mais. Não lhe bastava ser a madrasta de Crezir e Crizagom: queria ser a mãe deles e a senhora da guerra. Achava Blator condescendente demais; para ela, guerra começada se vence a qualquer custo, e traição, extorsão, ameaça e o sangue de inocentes, adultos ou crianças, não pesam nada. O seu prazer era a guerra, e o seu orgulho, a vitória. Revoltou-se contra o consorte, e Blator, vendo que a fome dela por guerra arrasaria tudo, abriu-lhe o crânio com um golpe do machado, tão forte que lascas de metal divino se cravaram na sua fronte.\n' +
+      'Diatrimis fugiu com a vergonha da derrota e o medo da destruição total, e foi se esconder no último lugar onde alguém procuraria uma ex-consorte divina: a morada de devastação e pesadelo reservada aos derrotados. O Inferno ganhou mais uma prisioneira, e os seus condenados, mais uma governante.\n' +
+      'É agressiva e vulgar, sem educação nem sutileza nenhuma, e diz o que quer e o que manda sem rodeio. Quem a desagrada tem sempre o mesmo fim: a destruição.\n' +
+      'Mostra-se como uma anã de músculos poderosos, de barba enorme trançada com estiletes, cacos de vidro e lascas de crânio, caída sobre um tórax de bíceps fortes no lugar dos seios. Presas de javali não lhe saem da boca: furam-lhe os lados do rosto. Os olhos são de ouro, com um ponto negro na órbita. O que mais assombra é a grande rachadura que lhe corta a cabeça em diagonal, do nariz até o meio do crânio, a ferida que Blator abriu e que nunca fecha, salpicada de farpas de aço que brilham como vidro moído.\n' +
+      'Seu símbolo é uma caveira com um fragmento de lâmina de machado cravado, a mesma cicatriz que Blator lhe deixou; o pedaço de lâmina lembra o machado que se despedaçou na batalha com o deus. Sua cor é o dourado, escolhido para afrontar Blator, mas num tom mais escuro.\n' +
+      'O culto é o da guerra, da matança, da destruição e da morte de inocentes, e de tudo o que leva a elas: traição, extorsão, ameaça. Suas energias despertam nas pessoas uma inveja sem medida, que se mostra em traição e sabotagem miúda: o artesão que estraga a obra do outro, o comandante que desobedece ao general, o ajudante que deixa o mestre sem ajuda. Tudo o que leve ao conflito, e até à guerra sem causa nenhuma.\n' +
+      'Na guerra contra a Seita, os seguidores de Diatrimis eram a maior parte do exército Bankdi e estavam também entre os espiões e os mensageiros. Com a derrota, o seu número caiu até quase sumirem. Mas as últimas campanhas de Verrogar fizeram crescer a suspeita de que voltaram, e ali o culto tem crescido bastante.\n' +
+      'O templo é retangular, de paredes cobertas de crânios de vítimas das traições dos demonistas da casa. A base do altar é feita de crânios também, sobretudo de anões, que a princesa aprecia acima de todos. Os fiéis vestem mantos simples de algodão cru, parecidos com os panos de guardar grão; os Bankdis mais importantes podem usar tecido mais trabalhado, com detalhes em dourado, e só o sumo sacerdote veste pano fino bordado com fios de ouro.\n' +
+      'As doutrinas são quatro: trair os mais fracos, ser cruel com os incapazes, pôr medo no coração dos inimigos e atiçar e alimentar a guerra.\n' +
+      'Seu reino é o quarto do Inferno, morada dos condenados pela traição, fechado por uma grande muralha de pedra e madeira. Um portão de bronze dá para a cidade de Calganazo, que mais parece um enorme acampamento militar: tendas por toda parte, soldados marchando sem parar de um lado para o outro. Do portão já se veem muitos castelos, e o maior é o da princesa, com uma arena por dentro onde se dão grandes combates; o sangue e a ira alimentam os demônios e os condenados que ganharam o privilégio da arquibancada. A cidade é rústica, de grandes áreas planas e arenas sem conta. Os moradores vivem em luta e em fúria, sempre em pequenos confrontos, quase todos só para humilhar o mais fraco, sem destruí-lo.\n' +
+      'Guarda a cidade Briareu, um gigante de músculos com um grande martelo, que esmaga quem encontra no caminho, seguido por sete pequenos demônios que o chicoteiam sem descanso. O rosto é todo deformado pelo fogo e pelas feridas de luta, e o corpo, coberto de cicatrizes. Em vida foi um homem do sul que tropas conquistadoras levaram como escravo e fizeram gladiador. Liberto, comprou escravos para treiná-los na arena e pegou gosto pela violência, mutilando muitos deles. Falido, virou guarda-costas de um rico contrabandista, para quem tramava traições contra os inimigos e depois matava, sempre com crueldade, até que o mestre o entregou à guarda real para salvar a própria pele. Morreu preso nas torres, e o seu espírito vagou pelas casas de jogo e pelas ruas violentas, bebendo cada ato de violência e empurrando os fortes à covardia e à traição. Quando foi esconjurado, desceu direto aos reinos de baixo, para servir a uma nova senhora.',
+
+    relacoes: [
+      { nome: 'Blator',
+        texto: 'O antigo consorte, que a fez surgir das energias de Ânimus para pôr fim à própria solidão e depois lhe abriu o crânio com o machado quando ela se revoltou. Dentre os deuses, é dele que ela quer se vingar.' },
+      { nome: 'Crezir e Crizagom',
+        texto: 'Os filhos de Blator. Diatrimis não quis ser só a madrasta deles: quis ser a mãe.' },
+      { nome: 'Os deuses',
+        texto: 'Como todo príncipe demoníaco, é inimiga de todos.' },
+      { nome: 'Os Príncipes Demoníacos',
+        texto: 'Veem nela uma grande ameaça, porque a sua origem a liga a Blator, um dos deuses mais temidos. A fome sem fim de guerra e matança também a leva a bater-se com eles, até que o mais forte vença.' },
+      { nome: 'Mocna',
+        texto: 'Viu no Horror Noturno um companheiro de batalha, mas a fúria dele impede que os dois ajam juntos. Conta o canto da Batalha de Blator que foi ela quem surgiu num portal e o salvou da morte certa nos campos eternos.' },
+      { nome: 'Heldrom',
+        texto: 'Por ser de origem não demoníaca, como Vouxiz e Seinoniz, está entre os poucos Príncipes com quem Heldrom negocia planos em comum, com o apoio de Branaxis.' },
+      { nome: 'Descendentes',
+        texto: 'Não tem descendentes.' },
+    ],
+
+    locais: [
+      { nome: 'Calganazo', onde: 'Inferno, quarto reino',
+        texto: 'A cidade de Diatrimis, atrás de um portão de bronze guardado por Briareu: um acampamento militar sem fim, de tendas, castelos e arenas, com o castelo da princesa e a sua grande arena no centro.' },
+      { nome: 'A cidade fantasma', onde: 'Verrogar, em lugar incerto',
+        texto: 'Dizem que, na guerra contra a Seita, os Bankdis mataram ali toda a gente de uma pequena cidade, adultos, jovens, crianças e velhos. Ficou com fama de cidade fantasma, e todos a evitam; na verdade, é onde os devotos de Diatrimis se reúnem.' },
+    ],
+
+    feriados: [
+      { dia: 22, mes: 1, nome: 'Festival da Destruição e da Guerra',
+        texto: 'Os adoradores comemoram e relembram os horrores das guerras: genocídios, infanticídios, estupros e massacres. Celebram também o que as fez começar, as traições, as cobiças e as fronteiras invadidas.' },
+    ],
+
+    itens: [
+      { nome: 'Pulseira da Traição',
+        texto: 'Com ela, o demonista amaldiçoa quem conseguir tocar, e a vítima acaba traindo a pessoa que mais ama ou a que mais confia nela. Cumprida a traição, a maldição se desfaz e a vítima volta ao normal.' },
+      { nome: 'Medalhão do Medo',
+        texto: 'Um medalhão de ferro com o símbolo da casa de um lado e a expressão do medo do outro. Ativado, brilha forte e lança luz para onde está virada a face do medo; quem olhar essa luz de frente é tomado por um medo que enlouquece e foge desesperado.' },
+    ],
+  },
+  {
+    slug: 'ekisis',
+    nome: 'Ekisis',
+    classe: 'princesa',
+    titulo: 'A Mentirosa Coroada',   // o outro epíteto (A Dama da Discórdia) está na descrição
+    imagem: null,
+    // Fonte: principes.pdf, págs. 49–52 (3.5 Ekisis, com O Guardião Anteu); Fulvina (3.6), Morrigalti (3.9),
+    // Ricutatis (3.10) e Seinoniz (3.11).
+
+    prefacio: {
+      texto:
+        'Há muito tempo, no sul de Tagmar, ergueu-se o pequeno reino de Malzaria, destinado à grandeza entre tantos reinos de pouca dura. O seu rei, velho e sábio, governou trinta e oito anos sem que inimigo vencesse as suas tropas nem desastre assustasse o seu povo. Mas a vida dele chegou ao fim, e os três filhos, educados por anos para o trono, eram tão aptos que nem os conselheiros mais próximos sabiam apontar o melhor.\n' +
+        'Nos dias depois do funeral, uma senhora muito bela procurou cada um dos irmãos com as condolências e uma palavra amiga. A Ilunis disse: «Jovem Ilunis, és belo e inteligente, e nenhum dos teus irmãos é tão hábil com o arco. Por que não és o sucessor de teu pai?» A Lucanis: «Senhor Lucanis, és o mais forte dos irmãos e o de coração mais justo. Por que não és o sucessor de teu pai?» E a Marcinos: «Nobre Marcinos, herdeiro por direito, governarás com sabedoria e justiça. Por que teus irmãos ameaçam o teu trono?»\n' +
+        'O veneno daquelas palavras desfez a paz de tantos anos. A guerra civil destroçou Malzaria, e os inimigos, encontrando-a fraca, repartiram-na entre si até que nada restasse dela.',
+      fonte: 'Extraído de O Livro de Maudi, do capítulo «Mentiras Infernais» — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Ekisis, a Dama da Discórdia, é a princesa infernal que leva o desentendimento a todos os que escutam a sua voz. Entorta qualquer argumento com o encanto das palavras e dos gestos tímidos, e traz o veneno na língua. A beleza dela e dos seus enviados é conhecida, e nem os deuses a negam; é essa beleza que prende os olhos e os ouvidos de quem a cerca e os deixa prontos para as palavras amaldiçoadas.\n' +
+      'É observadora e comedida, e nunca mostra todo o seu poder. Fala com calma e clareza, e usa o elogio para chegar ao coração da vítima; os gestos, delicados e afetuosos, servem para aproximá-la e deixá-la aberta às mentiras que ela mistura às observações e aos agrados. Nunca entra num confronto direto. Prefere que os adversários lutem entre si.\n' +
+      'Pode tomar a forma de belos animais ou de uma bela mulher para se chegar às vítimas, sobretudo à gente simples. Veste sempre roupa comum e não ostenta riqueza nenhuma além da própria beleza. Seu símbolo é a face oculta, o mal escondido atrás das aparências. Sua cor é o verde-azulado.\n' +
+      'O culto é o da mentira e da discórdia. Os seguidores são bajuladores hábeis e semeadores de intriga, e também grandes covardes, que preferem a fuga ao combate. Agem mais nas camadas altas do poder, levando a discórdia entre cidades e nações e acendendo disputas de poder e de herança. Na vida religiosa de Tagmar, dão muito trabalho aos sacerdotes de Selimom, porque a divisão que plantam leva, com frequência, à guerra.\n' +
+      'A influência da princesa se sente nos reinos em guerra, como Verrogar e Dantsem, e nos que vivem em agitação por dentro, como Filanti, Azanti, Marana e Eredra. Onde a sua energia alcança, a paz não reina: há sempre perseguição e luta, entre o povo e dentro das famílias. O culto, porém, está espalhado por toda Tagmar, e não é fácil dizer onde é mais forte.\n' +
+      'Os templos não têm feição própria, e não há dois iguais: todos copiam os templos dos deuses, para se fazer passar por eles. Sempre há neles uma câmara secreta onde se fazem os rituais da casa, e pequenos símbolos de Ekisis marcam a origem profana e o desprezo pelos outros cultos. Os demonistas vestem, quase sempre, a mesma roupa do templo que imitam; a diferença está no símbolo secreto costurado por dentro e num medalhão ou pulseira com o símbolo da princesa.\n' +
+      'As doutrinas são três: semear a discórdia, esconder a verdade e promover o conflito.\n' +
+      'Seu reino é o quinto do Inferno, morada dos condenados pela discórdia e pela mentira, conhecido como a terra dos tolos: um deserto imenso, com a cidade de Barciano, a cidade das mentiras, no centro. O guardião conduz as almas por um caminho que atravessa as areias, e no trajeto elas são tentadas a fugir para o deserto. É a primeira mentira. As que fogem têm a alma consumida pela solidão, e são as primeiras que Ekisis saboreia. As que chegam encontram uma cidadela feita de um labirinto imenso, com um castelo imponente no meio, e ouvem do guardião que, para se salvar, precisam chegar até a princesa e suplicar o seu perdão. Lá dentro descobrem a mentira mais sinistra: o labirinto nunca leva até Ekisis. A senhora do reino se diverte e se alimenta do sofrimento das almas perdidas ali.\n' +
+      'O guardião é Anteu. Em vida foi um menino esperto e brincalhão que inventava demais, e o costume virou mentira compulsiva. Gostava de desesperar a vila gritando que vinham bandidos, e depois de horas de pânico o achavam gargalhando na praça. Um dia, do alto da colina, viu uma tropa de orcos marchando para a vila; gritou e acenou aos vigias, que não lhe deram ouvidos, e quando chegou correndo para fechar ele mesmo os portões já era tarde. Foi o único sobrevivente. Aonde quer que fosse, era conhecido como «o mentiroso» e expulso, e vagou sozinho, seguido pelos espíritos dos moradores da vila, até morrer sobre as ruínas da terra natal. Nesse dia a sua alma foi direto para o reino de Ekisis.',
+
+    relacoes: [
+      { nome: 'Selimom',
+        texto: 'O deus que ela mais odeia, porque vive desfazendo as suas tramas e semeando a concórdia e a paz.' },
+      { nome: 'Os deuses',
+        texto: 'Como todo príncipe demoníaco, é inimiga de todos.' },
+      { nome: 'Morrigalti',
+        texto: 'É o seu pai, e ela o odeia acima de todos os príncipes. Ele nunca lhe dá ouvidos e prefere destroçá-la sem piedade nenhuma. Ekisis é uma dos seis príncipes nascidos dele, com Anasmadis, Antredom, Fulvina, Mocna e Ricutatis.' },
+      { nome: 'Morrigaltrina',
+        texto: 'Vive em tensão com os seis filhos de Morrigalti, Ekisis entre eles, por crer que todos querem tomar o seu lugar.' },
+      { nome: 'Os Príncipes Demoníacos',
+        texto: 'Com eles, coopera sempre que pode. Evita o confronto direto: prefere lançá-los uns contra os outros e, no fim, ficar com o que sobrar.' },
+      { nome: 'Fulvina',
+        texto: 'A Dama das Ilusões odeia todos os príncipes, e Ekisis em especial, por ser tão esperta quanto ela.' },
+      { nome: 'Ricutatis',
+        texto: 'Gosta da companhia da princesa pelos elogios que ela lhe faz, e não dá importância aos planos dela.' },
+      { nome: 'Seinoniz',
+        texto: 'Ekisis teme a imprevisibilidade dos seus poderes e trabalha para lançar os outros príncipes contra ele, lembrando-lhes o seu passado mortal e o seu costume de negociar almas de mortais. É a maior ameaça ao plano dele de tomar o reino de Morrigalti.' },
+      { nome: 'Descendentes',
+        texto: 'Não tem descendentes.' },
+    ],
+
+    locais: [
+      { nome: 'Barciano', onde: 'Inferno, quinto reino',
+        texto: 'A cidade das mentiras, no meio do deserto da terra dos tolos: uma cidadela-labirinto em volta do castelo da princesa, aonde as almas nunca chegam. Anteu conduz os condenados até ela.' },
+      { nome: 'Templos roubados ou abandonados', onde: 'Por toda Tagmar',
+        texto: 'Todo templo dos deuses que tenha sido saqueado ou deixado ao abandono é local profano de Ekisis.' },
+    ],
+
+    feriados: [
+      { dia: 10, mes: 3, nome: 'Noite das Máscaras',
+        texto: 'Os demonistas da casa põem máscaras e dançam sem parar ao som de músicas profanas, em volta de uma grande fogueira. Cada um lança nela uma oferenda à princesa e, nesse instante, diz uma mentira, quase sempre o nome de outra coisa: atira-se uma galinha ao fogo e grita-se «vaca».' },
+    ],
+
+    itens: [
+      { nome: 'Anel de Ekisis',
+        texto: 'Com ele, o demonista enfeitiça todos os que ouvem as suas palavras, e eles as tomam por verdade acima de qualquer dúvida.' },
+      { nome: 'A Mordaça',
+        texto: 'Sob o seu efeito, o demonista vê a aura de todos os que não são demonistas ou que se fazem passar por um. Diz-se no culto que só um mentiroso reconhece outro.' },
+    ],
+  },
+{
+    slug: 'fulvina',
+    nome: 'Fulvina',
+    classe: 'princesa',
+    titulo: 'A Dama das Ilusões',   // os outros epítetos (A Princesa dos Cegos, O Olhar Profano) estão na descrição
+    imagem: null,
+    // Fonte: principes.pdf, págs. 54–58 (3.6 Fulvina, com O Guardião Alsifame); Branaxis (3.3), Heldrom (3.7),
+    // Mocna (3.8) e Morrigalti (3.9); deuses.pdf, Lena (Noite dos Prazeres).
+
+    prefacio: {
+      texto:
+        'A princesa Martina cresceu entre luxos e criados, e nunca um desejo seu ficou sem resposta. Quando chegou a idade de casar, nenhum pretendente veio: a família dela era a menos poderosa entre as casas reais. Enquanto isso, Imidora, sua dama de companhia, uma plebeia bonita, casou-se aos dezessete anos com o filho de um rico padeiro. Martina soube duas semanas depois, e a raiva não foi pelo silêncio. Foi por uma plebeia ter conseguido o que ela tanto queria.\n' +
+        'Desde então passou a se achar a menos bela das mulheres e chamou herbários, bruxos e alquimistas para lhe guardar a juventude. Entre eles chegou de Levânia Guildor, sacerdote de uma seita que ninguém conhecia. Já rainha, Martina exigiu dele um remédio definitivo, e Guildor lhe fez um espelho místico que a manteria jovem ao preço de vidas. Ela recusou de pronto; depois olhou no espelho, viu a moça que fora, e o mal tomou conta dela. Imidora e toda a família foram as primeiras vítimas.\n' +
+        'Guildor morreu velho e deu lugar a Alexei, jovem demonista da casa de Fulvina, encarregado de manter o reino aliado dos Bankdis por mais uma geração. Aos cento e cinquenta e oito anos, Martina governava pelo medo, ressecada como uma múmia. No espelho, continuava a ver uma jovem.',
+      fonte: 'Extraído de O Livro de Maudi, do capítulo «A Princesa Esqueleto» — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Fulvina é a princesa infernal da vaidade e da soberba, chamada A Princesa dos Cegos, A Dama das Ilusões e O Olhar Profano. Nasceu de um dos olhos de Morrigalti e do desprezo que ela tem pelo poder de criar dos deuses. Sua influência não para na vaidade: traz também a inveja, o individualismo e a preguiça. Faz dos mais talentosos tolos presunçosos, que amam a si mesmos e ao que sabem acima de tudo e largam o próprio ofício; e, nos que não têm talento, desperta o desejo de destruir quem o tem. Cego pelo próprio ego, o tocado por ela vive numa doce ilusão enquanto cava a própria cova.\n' +
+      'É vaidosa e arrogante, e quer sempre mais almas para o seu reino. Passa horas diante dos espelhos místicos, vigiando e dobrando os condenados que estão sob o seu feitiço. Exige que os súditos a cubram de elogios e não tolera desrespeito.\n' +
+      'Aparece como uma mulher magra e muito alta, de cabelos brancos que puxam para a prata e olhos inteiramente brancos. Os dedos, mais longos que os de qualquer mortal, vestem dedeiras de prata. O vestido é de pele, coberto de pequenos cristais que cintilam. Quando ela estica o dedo e toca um condenado, ele vira cristal de gelo e se parte ao menor toque; os cacos são recolhidos com cuidado e costurados no vestido, para enfeitar a princesa.\n' +
+      'Seu símbolo é o Olho Aprisionado: a vítima dela só vê o que quer ver, a própria vaidade, o próprio eu. Sua cor é o violeta.\n' +
+      'Procura os poderosos, governantes e grandes comerciantes inchados de poder. Gente simples e contente com o que tem lhe dá asco, mas diverte-a corromper os trabalhadores com preguiça e presunção. Os tocados por ela gostam de ostentação e de bajulação, exageram as próprias qualidades e tomam para si méritos alheios. Nas terras onde o culto cresce, aumentam a soberba e o desprezo pelos outros, e vêm com eles os crimes contra os estrangeiros e os de outra raça.\n' +
+      'O culto a Fulvina é o culto ao próprio eu. Nos templos, cada devoto proclama em voz alta as suas virtudes, e inventa algumas quando faltam. As brigas entre devotos são frequentes, pois cada um quer ser mais que o outro, e nenhum aceita crítica. Pregam aos ricos e aos influentes, reis, príncipes e burgueses, prometendo vida longa e beleza eterna; e aos mestres de ofício, magos, bardos e artífices, enchendo-os de soberba até que se tornem negligentes. Os seguidores de Parom são os mais cobiçados.\n' +
+      'Os templos são belos e amplos, cheios de espelhos e de estátuas dela. Quem encara os espelhos por muito tempo vê demônios tomando parte nas cerimônias ou o reflexo dos próprios desejos. As portas ficam escondidas: entra-se por um espelho de acesso, pronunciando as palavras mágicas que abrem a passagem, e os poucos lugares que guardam esses espelhos são vigiados por simpatizantes do culto. Oferecem-se a ela estátuas de vidro em miniatura, de pessoas e de objetos, com oferendas profanas.\n' +
+      'Só os Bankdis mais importantes usam o manto da casa, coberto de um pó cristalino que brilha em violeta à luz das tochas. Os demais vão ao templo com as suas melhores e mais elegantes roupas. As doutrinas são sete: a vaidade do corpo e da mente; o individualismo; a manipulação do ego; o obscurecimento da mente; o desejo e a destruição da virtude alheia; a soberba; e a preguiça.\n' +
+      'Seu reino é o duodécimo do Inferno, morada dos condenados pela vaidade, de florestas sombrias e sangrentas em torno da cidade de Escarmegelo. A vegetação é viva: alimenta os vícios e as vaidades de cada condenado para depois arrancá-los, e se nutre da dor que causa. O guardião é Alsifame, que em vida foi um herbário famoso, de memória prodigiosa, consultado pelos nobres. A fama o tornou descuidado. Uma menina camponesa morreu de uma planta venenosa que ele receitou, e a culpa foi posta no «Desejo de Cruine»; quando o descuido matou um príncipe, ele foi à forca. Hoje prepara, com os condenados, os cremes da sua princesa.',
+
+    relacoes: [
+      { nome: 'Morrigalti',
+        texto: 'O pai: foi criada de um dos olhos dele, e é um dos seis príncipes nascidos dele, com Anasmadis, Antredom, Ekisis, Mocna e Ricutatis. Suas ilusões não o alcançam, e ela o tem por inimigo poderoso demais para enfrentar às claras.' },
+      { nome: 'Os Príncipes Demoníacos',
+        texto: 'Odeia a todos.' },
+      { nome: 'Ekisis',
+        texto: 'A que ela mais odeia entre os príncipes, por ser tão esperta quanto ela.' },
+      { nome: 'Mocna',
+        texto: 'Como o pai, está fora do alcance da sua influência, e ela o evita como inimigo poderoso demais.' },
+      { nome: 'Morrigaltrina',
+        texto: 'A titã-segunda que governa o reino de Morrigalti teme que os seis filhos dele, Fulvina entre eles, queiram tomar o seu lugar.' },
+      { nome: 'Heldrom',
+        texto: 'Fez com ele algumas alianças no passado; de uma delas nasceu Branaxis.' },
+      { nome: 'Branaxis',
+        texto: 'O filho que teve com Heldrom, e que ela rejeitou pela aparência medonha. É quem ele mais odeia e, no íntimo, quem mais deseja que o aceite.' },
+      { nome: 'Os deuses',
+        texto: 'Odeia a todos, como todo príncipe demoníaco.' },
+      { nome: 'Parom',
+        texto: 'O deus que ela mais odeia, pela perfeição técnica, pelo trabalho árduo e pelo poder de criar. Há quem veja nesse ódio uma velha paixão: tentou seduzi-lo e foi recusada, porque ele amava Lena. Ferida no orgulho, odeia desde então a ele e a todos os que o seguem.' },
+      { nome: 'Lena',
+        texto: 'Fulvina marcou o Dia dos Espelhos no mesmo dia da Noite dos Prazeres, em afronta clara à deusa que Parom preferiu.' },
+      { nome: 'Descendentes',
+        texto: 'O livro dela diz que não tem descendentes conhecidos, embora a ela e a Heldrom se atribua Branaxis. Alguns afirmam que os transmorfos têm alguma ligação com a princesa.' },
+    ],
+
+    locais: [
+      { nome: 'Escarmegelo', onde: 'Inferno, duodécimo reino',
+        texto: 'A cidade de Fulvina, cercada de florestas vivas que se alimentam das emoções dos condenados e guardada por Alsifame. No grande castelo, perto da entrada, ficam as estátuas de cristal dos antigos desafetos e os troféus que a princesa juntou ao longo da existência.' },
+      { nome: 'Casa das Vaidades', onde: 'Eredra, longe dos povoados e das cidades',
+        texto: 'O lugar sagrado da seita: um castelo de grande beleza e riqueza. Ali os membros mais promissores recebem os frascos de cristal que os mantêm belos e jovens à custa das almas das vítimas, e os desejos se cumprem por algum tempo, para que os beneficiados se entreguem a Fulvina.' },
+      { nome: 'Templos atrás dos espelhos', onde: 'Por toda Tagmar',
+        texto: 'Só se chega a eles por um espelho de acesso e por palavras mágicas, e cada espelho é guardado por simpatizantes do culto.' },
+      { nome: 'Levânia, Verrogar e Marana', onde: 'Levânia; Verrogar; Marana',
+        texto: 'Dizem que Levânia guarda bom número de seguidores, e de lá veio Guildor. Em Verrogar o culto cresce depressa, alimentado pelo senso de superioridade dos verrogaris. A situação atual de Marana também atraiu o olhar da princesa.' },
+    ],
+
+    feriados: [
+      { dia: 1, mes: 7, nome: 'Dia dos Espelhos',
+        texto: 'Cai de propósito no dia da Noite dos Prazeres, de Lena, para afrontar a deusa. Os seguidores sacrificam objetos de valor ou vítimas para ganhar alguns anos a mais de vida. Há cerimônias o dia inteiro, mas os sacrifícios mais importantes se fazem no auge da noite, diante de espelhos que se partem sozinhos ao fim do rito. Quem sacrifica alguém a quem inveja ou despreza recebe graças maiores.' },
+    ],
+
+    itens: [
+      { nome: 'Espelho de Fulvina',
+        texto: 'Espelho amaldiçoado que mostra a quem o usa só aquilo que ele crê ser a verdade. Com o tempo vicia o portador, tira-lhe todo juízo e o deixa dependente das próprias ilusões; o culto o põe nas mãos de quem quer manipular.' },
+      { nome: 'O Elixir',
+        texto: 'Perfume feito pelos demonistas à base de virgens. Quem o usa encanta, e até apaixona, todos os que sentem o seu cheiro, mas só enquanto o sentem: passado o odor, a pessoa volta a si.' },
+      { nome: 'Colar da Beleza Eterna',
+        texto: 'Precisa ser dado de presente e recebido de bom grado. Posto no pescoço, brilha em verde e já não sai por meio nenhum; parte por parte, transforma o corpo da vítima num vidro muito resistente, até fazer dela uma estátua de vidro de beleza congelada para sempre.' },
+    ],
+  },
   {
     slug: 'ricutatis',
     nome: 'Ricutatis',
@@ -1683,6 +1898,304 @@ const ENTIDADES = [
         texto: 'Dá a quem a usa o domínio sobre a mente dos semelhantes, ao preço de enlouquecer aos poucos.' },
       { nome: 'Capa da Corrupção',
         texto: 'Uma capa laranja e esfarrapada que molda a imagem do dono e de si mesma, dando-lhe ar nobre e imponente, e torna irresistível o suborno que ele oferece. Enquanto dura a ilusão, o corpo verdadeiro vai se deformando.' },
+    ],
+  },
+  {
+    slug: 'morrigalti',
+    nome: 'Morrigalti',
+    classe: 'principe',
+    titulo: 'O Genocida, o Destruidor da Criação',
+    imagem: null,
+    // Fonte: principes.pdf, págs. 74–79 (3.9 Morrigalti, com Catemeca, o Guardião); Prólogo (Ponte de Morrigalti, os treze
+    // domínios); Ekisis (3.5), Heldrom (3.7), Udoviom (3.12) e Vouxiz (3.13); deuses.pdf, Maira (Adoração a Maira Nil).
+
+    prefacio: {
+      texto:
+        'A comitiva de Lar seguia pela trilha real levando aos elfos de Âmiem uma mensagem e presentes que renovavam laços antigos. Corsam, o líder, guardava um colar de prata e diamantes, sinal de afeição eterna entre as nações. Já tinha cavalgado em muitos campos de batalha, e nenhum o deixara tão inquieto quanto aquela floresta. Os elfos diziam que ela fora maculada pelo mal décadas antes e que, mesmo recuperada, jamais voltara a ser a mesma.\n' +
+        'As flechas vieram primeiro, depois orcos e mercenários humanos. Os cavaleiros cerraram os escudos e caíram vencidos pelo número. Então saiu da mata um homem de manto, seguido de nove soldados, e os sobreviventes se ajoelharam. Na mão marcada de queimaduras trazia um anel de ouro com uma pedra de enxofre, talhada com o símbolo de Morrigalti. Era Alzer, um dos Comus Bankdis mais temidos da casa do Genocida.\n' +
+        '«Tragam os Majiras», ordenou. As criaturas comeram os mortos, tomaram-lhes a forma e o lugar na comitiva. Alzer tocou de leve o colar: a pedra central escureceu e logo voltou ao normal. «Corsam» seguiu viagem para Âmiem. A guarda de Alzer matou os orcos e os mercenários antes que o último suspiro se apagasse, e o Comus partiu com um só pensamento: logo o mestre estará livre, e o mundo sentirá outra vez o seu poder.',
+      fonte: 'Extraído de O Livro de Maudi, do capítulo «O Retorno da Seita» — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Quando ainda não havia tempo nem luz, das trevas nasceram os titãs, e das trevas nasceu também Morrigalti. Foi o primeiro e o mais poderoso dos demônios, e todos vieram dele; entre os Príncipes Infernais, sua liderança não se discute. Antes mesmo dos deuses já tramava destruir a criação dos titãs. Os deuses guardam a lenda de outras gerações divinas antes deles, desfeitas uma a uma por esse demônio, até que surgiram Palier e os seus irmãos, e a astúcia do deus dos elfos quebrou o ciclo.\n' +
+      'Enquanto os outros Príncipes disputam migalhas e querem corromper ou tomar a criação, ele quer desfazê-la: devolver tudo ao seu estado de origem, as trevas absolutas. Toda força que um demônio conquista paga a ele uma parte, e é o único Príncipe que se alimenta do medo dos outros demônios. Trata os Príncipes com desdém, mesmo sendo pai de vários deles, como peças do seu jogo pelo controle da existência. Vê toda criatura como um erro feito por crianças tolas que estragaram a perfeição que havia antes. Esse orgulho o cegou para a traição dentro das próprias fileiras.\n' +
+      'Pois foi traído. Durante a expansão da seita Bankdi, atravessou o portal para o mundo material com a filha, Morrigaltrina, uma das suas maiores generais. Ela conhecia os planos do pai e não queria o fim de tudo, muito menos o seu. Em sonho, Palier, o outro pai, mostrou-lhe o que viria se Morrigalti vencesse; no dia seguinte ela revelou aos elfos onde e como seria o próximo ataque, e a Rainha Enora fez o resto com o seu cajado divino. O avatar do Genocida está preso num bloco de cristal, escondido no interior de Âmiem. Os elfos sabem que não podem prendê-lo para sempre e que matá-lo é impossível; enquanto isso, as juras de vingança correm pelo reino élfico, e a existência profana dele corrompe a terra.\n' +
+      'Em seu domínio nunca teve forma definida: parece uma tempestade gigantesca de tentáculos, com milhares de bocas e olhos. Da última vez que se mostrou no mundo material, foi uma criatura negra e descomunal, de cabeça com treze olhos e boca de centenas de dentes venenosos, corpo escamoso de serpente, um par de braços com garras, imensas asas de escamas e cauda partida em dois ferrões. Dizem as lendas que as asas abertas medem três vezes o corpo, da cabeça à cauda. É esse corpo que hoje jaz no cristal.\n' +
+      'Seu símbolo tem três formas. A simples é o número um sobre o número três, ou um M inclinado para a direita: o primeiro dos treze. A complexa é uma estrela de treze pontas com um olho no centro, o contraponto aos treze titãs. A rebuscada põe no centro da estrela um olho de serpente, de onde saem tentáculos para cada vértice. Sua cor é o vermelho.\n' +
+      'A religião prega a união de tudo ao seu senhor: todos devem voltar à origem e se tornar um só com o universo. Nos cultos se fazem sacrifícios de sangue para reforçar a servidão; escravos são mortos, e cada cultista dá ao altar uma porção do próprio sangue. É o culto que atrai os fanáticos mais violentos da Seita, autores de massacres e genocídios rituais, e os líderes manipulam os simples, ou ameaçam os parentes das vítimas, para provocar suicídios coletivos nas cerimônias. Entre os adoradores estão povos inimigos dos elfos, como anões e orcos, mas qualquer genocida se sente em casa nos seus templos.\n' +
+      'Os templos são esféricos, de cúpula central pintada com afrescos de Morrigalti e do seu reino, e de pilares envoltos em tecidos finos vermelho-sangue. Treze altares correm junto à parede. No centro há um trono vazio, com uma espada cravada no chão à direita e uma mesa de sacrifício à esquerda. As vestes são grandes mantos vermelhos de cinto negro, com uma adaga dourada embainhada do lado direito; os Comus Bankdis e o Dux Bankdi usam nas cerimônias o medalhão com o olho.\n' +
+      'As doutrinas mandam: o retorno ao Mestre, pois tudo o que vive deve morrer e ser absorvido por ele; a queda dos falsos deuses; genocídios e massacres em sua honra; provocar suicídios coletivos; buscar no suicídio o perdão de uma falha; odiar os elfos e os adoradores de Palier; e peregrinar uma vez na vida à prisão de cristal em Âmiem, buscando libertá-lo. Quem conseguir terá vida eterna de glória na corte divina. O culto age sobretudo em Verrogar, perto da fronteira com Âmiem, e generais verrogaris convertidos buscam a guerra com as outras nações.\n' +
+      'Seu reino, morada dos condenados por genocídio e massacre, é o maior dos infernos, cercado de montanhas e vulcões de onde descem rios de lava. Ali os demônios torturam os condenados fazendo-os crer que os seus entes queridos estão em poder deles, e se alimentam da dor. O guardião é Catemeca, «Feito de Mil Partes», o mais terrível dos guardiões infernais, que o próprio Morrigalti moldou do sacrifício de mil demônios. É de rocha e carne profana, com um coração alimentado pelas trevas da cidade, e no lugar da cabeça tem uma névoa negra que forma um rosto disforme. Milhares de condenados e adversários foram tragados para dentro dele ao longo dos séculos, e cada um o tornou mais forte. Nunca foi vencido, ao menos até a vinda de Maudi.',
+
+    relacoes: [
+      { nome: 'Palier',
+        texto: 'O deus que ele mais odeia. Convenceu-o de que era preciso guerrear os titãs antes que eles destruíssem tudo para refazer, e selou com ele um pacto de sangue para gerar um ser poderoso para essa guerra; queria, no fundo, os titãs fora do caminho para trazer ele mesmo o fim de tudo. Palier só fingiu entrar no jogo: vencida a guerra, criou o limbo e nele isolou os Príncipes e suas hostes. Talvez o ódio venha de serem contrapesos um do outro, Palier o mais poderoso dos que criam e Morrigalti o mais poderoso dos que destroem.' },
+      { nome: 'Os deuses',
+        texto: 'Odeia a todos. Os deuses contam que gerações divinas anteriores a eles caíram por obra dele.' },
+      { nome: 'Morrigaltrina',
+        texto: 'A filha de dois pais, titã-segunda nascida do pacto de sangue com Palier, que levou o nome do ser mais antigo. Na guerra ajudou Palier a vencer Étere, e do poder arrancado à titã ganhou o dom de se dividir em três: uma harpia demoníaca, uma meio-elfa divina e um ser espectral. Depois do limbo tomou o partido do pai infernal, mas o traiu em Âmiem. Hoje governa o reino dele do Palácio dos Mil Tormentos e vive com medo de que os outros Príncipes queiram tomar o seu lugar.' },
+      { nome: 'Os Príncipes Demoníacos',
+        texto: 'Menospreza-os como inferiores, bons para escravos ou joguetes. Nunca se alia a eles como igual: em todo pacto fica com o controle e o maior ganho.' },
+      { nome: 'Seus filhos',
+        texto: 'Seis dos Príncipes atuais nasceram dele: Anasmadis, Antredom, Ekisis, Fulvina, Mocna e Ricutatis. Fulvina foi criada de um dos seus olhos. Morrigaltrina teme os seis mais que a todos.' },
+      { nome: 'Ekisis',
+        texto: 'É sua filha, e o odeia acima de todos os Príncipes. Ele nunca lhe dá ouvidos e prefere esmagá-la sem piedade.' },
+      { nome: 'Heldrom',
+        texto: 'O deus caído é dos poucos Príncipes que rivalizam com ele em poder.' },
+      { nome: 'Udoviom',
+        texto: 'O Senhor da Pestilência o odeia, como a Mocna: a devastação dos dois mata cedo demais para o gosto de quem prefere as mortes lentas.' },
+      { nome: 'Vouxiz',
+        texto: 'Vê na prisão dele em Âmiem uma chance de alargar os seus domínios, e prepara um exército de criaturas para invadir o reino de Morrigalti.' },
+      { nome: 'Os elfos de Âmiem',
+        texto: 'Guardam o seu avatar preso em cristal desde que a Rainha Enora o deteve com o cajado divino. O culto jurou ódio aos elfos, e o destino deles, dizem os cultistas, já está selado.' },
+      { nome: 'Maira',
+        texto: 'Os cultistas escolheram o dia em que se adora Maira Nil, no mês de Palier, para a Prisão Dourada.' },
+      { nome: 'Descendentes',
+        texto: 'Falar dos descendentes de Morrigalti é falar do próprio Inferno: todo demônio que lá existe, existiu ou existirá é parte dele e do seu poder. Entre as últimas crias estão as Gárgulas Demoníacas, nascidas do sangue que ele derramou no solo profano, generais de campo de força e ferocidade imensas e leais só a ele; e as harpias demoníacas, feitas das suas escamas.' },
+    ],
+
+    locais: [
+      { nome: 'Simaricane', onde: 'Inferno, décimo terceiro reino',
+        texto: 'A maior das cidades infernais, cortada por rios de lava que separam os bairros, unidos só por pontes, e cercada por uma muralha com treze fortalezas, uma em cada entrada. Há mercados e casas de magia sob a vigia de bruxos demonistas e emissários demônios, e os mais importantes moram em grandes torres. Para chegar ao portal de saída é preciso cruzar uma das entradas com uma chave especial; crê-se que cada um dos treze generais do reino guarda uma. Catemeca a vigia.' },
+      { nome: 'Palácio dos Mil Tormentos', onde: 'Centro de Simaricane',
+        texto: 'A morada de Morrigalti, em estilo gótico, de tijolos e pedras escurecidos que brilham à luz das labaredas dos rios de fogo. É dali que Morrigaltrina governa.' },
+      { nome: 'A prisão de cristal', onde: 'Interior de Âmiem',
+        texto: 'O lugar mais procurado pelos cultistas e destino da peregrinação que cada um deve fazer uma vez na vida. Há rumores de que a presença do Príncipe perturba as plantas e os animais em volta.' },
+      { nome: 'Abadom', onde: 'Abadom',
+        texto: 'Um dos lugares que os sacerdotes mais buscam para os cultos: afirma-se que foi pelo poder de Morrigalti que ali se cometeram grandes massacres e destruição.' },
+      { nome: 'Ponte de Morrigalti', onde: 'No ponto místico oposto à Ponte de Palier',
+        texto: 'O caminho que demônios e demonistas abrem para trazer os demônios ao mundo material. A magia é mais forte no ponto oposto à Ponte de Palier, pois tudo se completa no seu contrário.' },
+    ],
+
+    feriados: [
+      { dia: 1, mes: 13, nome: 'Retorno à Escuridão',
+        texto: 'Cai no Dia de Cruine e prega a união de toda a existência com Morrigalti. Centenas de escravos e animais são sacrificados para lhe aumentar a força, e o sangue é a oferta que mais agrada à sua fome de destruição. Se os cultistas não apresentarem um verdadeiro genocídio, devem se matar em suicídio coletivo para satisfazê-lo.' },
+      { dia: 20, mes: 9, nome: 'Prisão Dourada',
+        texto: 'No dia em que se adora Maira, no mês de Palier, os cultistas atacam povoados élficos em vingança por Morrigalti e enterram vivos os prisioneiros em buracos e poços. Com cada um vai só um cesto com o símbolo do Príncipe, que o cultista diz conter água e comida e que só se abre quando o preso diz «Eu me entrego a Morrigalti». Dentro há uma serpente venenosa possuída por um demônio. Mesmo quem a mata morre de fome e sede no buraco, e a alma de quem se entregou vai alimentar o Príncipe na prisão.' },
+    ],
+
+    itens: [
+      { nome: 'O Olho Profano',
+        texto: 'Medalhão com um olho dentro de uma estrela de treze pontas. Ativado pelo demonista, suga a magia lançada contra o portador ou parte do dano das magias em volta, e a magia guardada pode ser relançada depois, até contra quem a lançou.' },
+      { nome: 'Adaga da Vingança',
+        texto: 'Adaga mística que, segundo se crê, enfraquece os poderes mágicos de quem fere.' },
+      { nome: 'Anel do Fogo',
+        texto: 'Invoca o fogo infernal ao redor do demonista, numa muralha de chamas que o protege e ataca quem tenta se aproximar.' },
+      { nome: 'Asas de Demônio',
+        texto: 'Um manto carmesim. Ao som de um cântico profano, dá lugar a asas demoníacas que levam o cultista pelo ar por até sete horas seguidas.' },
+    ],
+  },
+{
+    slug: 'seinoniz',
+    nome: 'Seinoniz',
+    classe: 'principe',
+    titulo: 'O Senhor das Correntes',   // o outro epíteto (Aquele que Arrasta), que ele proíbe aos servos, está na descrição
+    imagem: null,
+    // Fonte: principes.pdf, págs. 87–91 (3.11 Seinoniz, com O Guardião Encélado); Heldrom (3.7) e Morrigalti (3.9);
+    // deuses.pdf, Cambu e Parom (a flecha de luz e as correntes místicas).
+
+    prefacio: {
+      texto:
+        'A fogueira brilhava forte na noite sem lua. Eram quatro jovens guerreiros, na primeira noite longe da vila onde tinham vivido a vida inteira, e tinham prometido a todos que seriam reconhecidos e temidos. Na floresta desconhecida, o medo chegou antes do sono. Leonir, o mais destemido, o que convencera os amigos de infância a partir, falou-lhes de amizade, glória e riqueza, e depois de um poder antigo que podia dar-lhes tudo isso. Com palavras bonitas, fez os três jurarem lealdade ao seu mestre.\n' +
+        'Então mostrou no braço uma marca, um S cortado, e a estendeu sobre o fogo. «Aceite minha oferenda, ó senhor dos pactos», disse numa língua que ninguém conhecia, e pediu a cada um uma gota de sangue para selar o acordo. Ronero, o precavido, hesitou e começou a falar do sacerdote; Leonir o cortou: o sacerdote seria só mais um, sem importância nenhuma no mundo. Os três obedeceram. Conheciam Leonir desde pequenos.\n' +
+        'Um vento baixou as chamas, e o fogo explodiu. Dele saiu uma criatura rastejante. «Verme, são estas as tuas oferendas?» «Sim, como prometido. Estas almas se oferecem de bom grado ao mestre.» «Terás o que desejas, mas fica certo de que nos encontraremos de novo.» Mais rápido do que os olhos acompanham, o demônio agarrou o pé de cada um, algemou-os e se arrastou de volta para o fogo, levando-os aos gritos.\n' +
+        'Leonir correu o mundo oferecendo almas em troca de poder e riqueza. No fim da vida, deitado sozinho na bela cama da sua casa grande, viu a lareira tremer, e do fogo saíram todos os que ele havia entregado. «Chegou a tua hora», disse Ronero. Das mãos das vítimas saltaram correntes que lhe prenderam braços e pernas e o puxaram para as chamas, cortando-lhe a carne, até que o fogo o engoliu.',
+      fonte: 'Extraído de O Livro de Maudi, do capítulo «A Queda do Homem» — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Seinoniz é o único dos Príncipes Infernais que já foi mortal, e é a tirania e a servidão. Em vida chamava-se Sarnodis e pertencia ao alto escalão da Sociedade Secreta de Magos Arcondi. Quando os nove reis feiticeiros se ergueram e massacraram a sociedade, percebeu a tempo a intenção dos antigos mestres e foi dos poucos que fugiram, levando muitas das pesquisas da ordem. Seguiu para o leste e se fixou em Kerniz, um reino escravista, onde o saber místico o fez poderoso e conhecido pela impaciência e pelo mando.\n' +
+      'Passou anos tentando refazer o ritual da ascensão a partir de textos em pedaços, sem sucesso, até descobrir o Karma Infernal. Os Arcondi tinham por impuro todo poder que não fosse arcano, mas Sarnodis, vendo crescer o poder dos reis feiticeiros, seguiu os conselhos de uma voz na própria mente e passou a invocar e dominar demônios. A energia infernal lhe alongava a vida e, ao mesmo tempo, lhe gastava o corpo e a alma. A mesma voz lhe revelou de onde vinha a força dos reis feiticeiros: das almas. Numa só noite sacrificou mais de quinhentos escravos e saiu do ritual revigorado, capaz de mandar em demônios menores só com o pensamento. Com eles tomou Kerniz.\n' +
+      'Sabendo que as almas devotas e voluntárias rendem mais a quem as consome, declarou-se divindade e passou a oferecer pactos: riqueza e vida longa a quem lhe jurasse fidelidade e servidão. Décadas viraram séculos. Achava tolos os reis feiticeiros, que guardavam a alma em recipientes; ele faria da própria alma o seu recipiente. O povo de Kerniz, rico e próspero, não passava de rebanho seu, e trabalhou por meses no plano do mestre sem desconfiar. Numa noite sem lua, a cidade inteira foi tragada pelo seu poder. O corpo mortal não resistiu, mas a alma ficou e se fez carne infernal, e diante dela até os demônios mais poderosos se curvaram.\n' +
+      'Mal tinha se erguido príncipe, uma grande flecha de pura luz o atingiu na coxa. Era Cambu, que pairava no ar de arco em punho e trazia ao mundo a fúria dos deuses contra a maior abominação em que um filho dos deuses poderia se tornar. Para não travar um combate que arrasaria muito mais do que já estava perdido, o mensageiro só quis prendê-lo, e o fez com as correntes místicas forjadas por Parom. Sarnodis foi arrastado para os infernos gritando juras de vingança, e lá está trancado até hoje.\n' +
+      'É agressivo e autoritário, e busca nos pactos o domínio das almas. Para ele os mortais são um rebanho a criar e engordar: os fracos para servi-lo, os fortes para serem devorados. Não mostra essa face aos vivos. Alguns seguidores o pintam como mártir, um mortal que buscou poder e liberdade e foi amaldiçoado injustamente pelos deuses, e chamam os seus pactos de graças concedidas a um preço justo.\n' +
+      'É representado como um mago em vestes reais, enrolado em incontáveis correntes. São as mesmas com que Cambu o prendeu, e ele lhes virou o sentido: hoje são o sinal do seu poder sobre os pactos. A flecha deixou-o coxo da perna esquerda, obrigado a arrastar as correntes, e daí vem a alcunha de Aquele que Arrasta. Ele a odeia e a proíbe aos servos; quem a usa são os seus inimigos. Para quem preza a liberdade, poucas criaturas são tão temidas.\n' +
+      'Seu símbolo é a Marca de Posse, um S cortado na vertical, que em vida ele mandava gravar nos escravos. Hoje é o sinal do pacto: aparece por magia em alguma parte do corpo de quem o firma, e diz que aquela alma será levada ao plano infernal, para servi-lo ou para alimentá-lo. Também se usa uma serpente em forma de S, presa pela cabeça e pela cauda. Sua cor é o cinza azulado.\n' +
+      'O culto é simples: pede-se um favor e paga-se com a própria alma. O prazo da cobrança é incerto, e os membros mais poderosos espalham a fé para alongar os seus contratos. Arrependidos não são raros, e os servos mais leais tratam de apagá-los depressa e em segredo. Uns poucos buscam refúgio nos deuses, mas a alma marcada dificilmente se redime; só um arrependimento muito sincero talvez os livre. Quem se rebela perde tudo o que ganhou, passa a ser caçado por demônios e cultistas e não dorme sem pesadelos horríveis.\n' +
+      'O templo é o mais amplo de todos os príncipes. As colunas de pedra trazem rostos em agonia, as vítimas colhidas pelos pactos, e no altar, onde fica o demonista que preside, guarda-se a chama que acende as lanternas do culto. Os devotos vestem cinza azulado, com correntes por cinto e presas às pulseiras, sinal do laço de fidelidade; as sandálias, de cordas negras trançadas até o joelho, são feitas do cabelo dos que pereceram por pactos antigos.\n' +
+      'A fé está espalhada por toda Tagmar, entre nobres, burgueses e escravos que sonham com a liberdade, porque o pacto parece o caminho mais curto para a fama e a fortuna. Dizem que em Abadom estão muitos dos seus seguidores; nas Cidades-Estado e em Verrogar, escravos fazem pacto na esperança de se libertar, e só trocam o senhor mortal por um muito pior. Onde tiranos e autoridades sentem prazer em extorquir e ferir os mais fracos, a mão dele se faz sentir. As doutrinas são três: a escravidão dos mais fracos, o domínio da vontade e o comércio de almas.\n' +
+      'Seu reino é o sétimo do Inferno, morada dos condenados pela preguiça. A cidade, Draganazo, fica numa cratera, e o palácio do príncipe está enterrado no ponto mais fundo dela. As casas são simples e parecem sempre inacabadas ou à espera de reforma; as ruas calçadas se enchem de lixo e entulho. Os condenados vivem acorrentados a rochas pesadas, que arrastam ou levam às costas, sempre curvados, e o ruído das correntes enferrujadas no chão e nas pedras não para nunca. O guardião é Encélado, nobre de família de cavaleiros que nunca lutou por nada: mandava outros à guerra sob o seu estandarte, pagava campeões para defender a sua honra e menestréis para cantar vitórias que jamais teve, e andava de liteira nas costas de escravos, até morrer jovem envenenado por uma escrava que havia violado. Hoje espera, paciente, preso a uma estaca, e vê passar todos os condenados; contra quem o mestre não quer deixar passar, correntes brotam do chão como cobras e o prendem junto a Encélado, que o devora devagar.',
+
+    relacoes: [
+      { nome: 'Cambu',
+        texto: 'Foi ele quem o atingiu na coxa com uma flecha de pura luz, no dia em que Sarnodis tragou Kerniz, e quem o prendeu com as correntes de Parom. Seinoniz lhe guarda ódio mortal. A Noite dos Esquecidos cai no mesmo dia em que os devotos do mensageiro pedem prosperidade.' },
+      { nome: 'Parom',
+        texto: 'Forjou as correntes místicas que o levaram ao Inferno, e por isso divide com Cambu o seu ódio mortal.' },
+      { nome: 'Morrigaltrina',
+        texto: 'Odeia a filha de Morrigalti e o controle que ela exerce sobre os outros demônios, e trama tomar para si o reino do pai dela.' },
+      { nome: 'Ekisis',
+        texto: 'A maior ameaça ao seu plano de tomar o reino de Morrigalti. A Mentirosa Coroada teme a imprevisibilidade dos poderes dele e tenta lançar os outros príncipes contra ele, lembrando o seu passado mortal e o seu hábito de negociar almas de mortais.' },
+      { nome: 'Heldrom',
+        texto: 'O único príncipe com quem se dá bem, pois toma parte em muitos dos seus planos e artimanhas. Há demonologistas que creem que a ascensão de Seinoniz, ou a sua queda, foi mais uma obra de Heldrom.' },
+      { nome: 'Os Príncipes Infernais',
+        texto: 'Não se importa com nenhum deles, nem com o Plano Infernal. Se pudesse, faria todos beijarem os seus pés.' },
+      { nome: 'Descendentes',
+        texto: 'Não tem descendentes conhecidos. Corre o boato de que uma linhagem antiga, dos tempos em que ele era mortal, segue viva e espalhando o culto.' },
+    ],
+
+    locais: [
+      { nome: 'Draganazo', onde: 'Inferno, sétimo reino',
+        texto: 'A cidade dos condenados pela preguiça, numa cratera, de casas sempre inacabadas e ruas cheias de entulho, com o palácio do príncipe enterrado no fundo. Os condenados arrastam rochas presas a correntes. Guarda-a Encélado, preso a uma estaca, que devora quem o mestre não deixa passar.' },
+      { nome: 'Kerniz', onde: 'Lugar desconhecido; talvez além das Estepes Vítrias, no Império',
+        texto: 'O antigo reino escravista onde, dizem os seguidores, Seinoniz ascendeu, e o lugar mais procurado pelos seus servos. Uns dizem que os deuses a destruíram; outros, que fica além das Estepes Vítrias. Ali estariam guardados itens e magias poderosíssimos do Segundo Ciclo, e os que querem recuperar a alma esperam achar nela a sua salvação.' },
+      { nome: 'Abadom, Cidades-Estado e Verrogar', onde: 'Tagmar',
+        texto: 'Onde o culto mais pesa. Em Abadom, dizem, estão muitos dos seus seguidores; nas Cidades-Estado e em Verrogar, escravos firmam pactos em busca da liberdade e trocam o senhor mortal por um pior.' },
+    ],
+
+    feriados: [
+      { dia: 21, mes: 5, nome: 'Noite dos Esquecidos',
+        texto: 'Enquanto os devotos de Cambu pedem prosperidade, os esquecidos, os que se creem longe da graça dos deuses, buscam poder e glória em pactos com o Senhor das Correntes. Muitos firmam contrato nessa noite ou prorrogam o seu, e trazem outros para firmar os deles. Seinoniz não se agrada de sacrifícios, pois a alma de quem não é devoto vale menos que a de um contratante; o que o agrada é o pacto voluntário.' },
+    ],
+
+    itens: [
+      { nome: 'Correntes da Maldição',
+        texto: 'Uma algema de mão ou de pé com uma corrente curta de poucas argolas, que dá ao demonista o domínio da vítima. Quando desperta, as argolas ganham um brilho fantasmagórico, e uma corrente fantasma se estende até se perder no horizonte, ligando o escravo a quem o escravizou.' },
+      { nome: 'Chama Infernal',
+        texto: 'O fogo das lanternas do culto, guardado no altar dos templos. Deixa o demonista ver os espíritos dos homens e mulheres que um dia fizeram pacto com Seinoniz e conjurá-los como servos por seis dias, quantas vezes quiser.' },
+    ],
+  },
+  {
+    slug: 'udoviom',
+    nome: 'Udoviom',
+    classe: 'principe',
+    titulo: 'Senhor da Pestilência',   // os outros epítetos (Mestre das Pragas, Degradador da Vida) estão na descrição
+    imagem: null,
+    // Fonte: principes.pdf, págs. 93–97 (3.12 Udoviom, com O Guardião Alcrinontes); Antredom (3.2) e Vouxiz (3.13).
+
+    prefacio: {
+      texto:
+        'Sentado na sua sala, com os filhos aos pés, Virnus pensava em como era bela a cidade de Franges no seu tempo de menino, com o orgulho que o povo tinha dos antepassados, ainda cantado nas músicas e nos discursos. A peste chegou sem aviso e levou centenas num só dia. Outras centenas fugiram de noite e encontraram a morte nas estradas, até que a guarda real veio cercar a cidade, e quem tentava sair morria sob as flechas dos sitiadores.\n' +
+        'No primeiro mês do cerco, Virnus perdeu a irmã pequena. Em dois meses os armazéns estavam vazios; no seguinte, os sobreviventes comeram os animais, e nem ratos se viam mais. Esquelético, ele revirava as ruínas atrás do que levar para casa; o couro velho de um dia parecia saboroso depois da terra que comera na véspera. Muitos passaram a comer carne podre e as larvas das próprias feridas, e os vermes que vomitavam. Viraram cacófagos, e eram violentos. O menino aprendeu a se esconder ao menor som de passos, e isso o salvou mais de uma vez.\n' +
+        'Uma noite, pouco depois de um bando deles passar, um grito ecoou. Arrastando-se entre as pedras, Virnus viu diante do grupo uma sombra viva, feita de centenas de insetos e bichos peçonhentos, que gesticulava e ria. Os cacófagos se contorciam no chão; abriam-se feridas, saíam larvas, até que os corpos explodiam e soltavam outras centenas de criaturas, que se juntavam à sombra. Virnus fugiu e nunca mais voltou ali. Quando o cerco se abriu, foi com os sobreviventes viver na nova cidade de Ambernita.',
+      fonte: 'Extraído de O Livro de Maudi, do capítulo «A Epidemia da Cidade de Franges» — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Senhor da Pestilência, Mestre das Pragas, Degradador da Vida: para o povo de Tagmar, Udoviom é um dos príncipes mais terríveis, não pelo número de adoradores, mas pela frequência com que age. Nos campos fartos traz as pragas e a podridão. Nas cidades, nem os sacerdotes bastam, e do plebeu ao duque, e até ao rei no conforto do castelo, ninguém está a salvo quando ele vem visitar.\n' +
+      'Não é só a doença: é também a poluição e a ruína da natureza, o oposto dos sacerdotes de Maira, que ensinam aos homens a pureza das coisas. A menor presença dele deixa a vegetação comida, a terra e os rios envenenados, bichos e gente tomados pelas piores doenças, os corpos transbordando de vermes, para matar qualquer esperança de que os devotos de Maira curem a humanidade da sua ambição de crescer sempre.\n' +
+      'Nasceu no estômago de Antredom. Ao longo das eras, as miríades de demônios e almas que o Príncipe da Fome devorou ganharam ali uma consciência; o pai percebeu e nunca a libertou, mas ela tomou nome próprio, esperou a hora e escapou.\n' +
+      'É paciente e cuidadoso, e busca a destruição lenta dos filhos dos deuses por meio das pestes. Mede as palavras e nunca revela o que pretende antes que seja tarde demais para desfazer.\n' +
+      'Antes dele chega um fedor tão forte que derruba desmaiados os de faro mais fino. Depois surge uma turba de insetos e bichos fedorentos amontoados, que fala, entre zumbidos e outros ruídos, palavras que todos entendem com perfeição. Dizem que a sua fraqueza é a água pura e virgem. Seu símbolo são seis linhas entrelaçadas, cada par quase fechando um círculo: a praga, a podridão e a destruição da criação dos deuses. Sua cor é o verde-oliva, um verde escurecido, como o de algo que está perdendo a vida.\n' +
+      'Toda doença mortal que vira epidemia é festa para os seus seguidores, que tratam de levá-la a terras novas, nem que eles mesmos tenham de carregá-la. Onde ele se manifesta, estouram surtos que adoecem gente, bichos e plantas, e muitos dos tocados têm acessos de loucura e fúria. O culto cresce nas estradas desertas de Luna e nas cidades abandonadas, onde o seu nome é sussurrado longe das patrulhas. As doutrinas são três: a destruição da carne, a disseminação das pragas e a dor aos hereges.\n' +
+      'Os templos são retangulares, com a entrada num dos lados menores e o grande altar no outro, e colunas cravejadas de crânios. Ali vivem multidões de insetos, ratazanas e outros bichos pestilentos, venerados como a presença do Senhor. Entre o portão e o altar ficam os demonistas, os chacais e pilhas de cadáveres apodrecendo; nas paredes, afrescos do símbolo e as palavras «Peste de Franges». No centro do altar arde uma pira de chamas profanas, alimentada com as sobras dos sacrificados. Em volta dela, crianças e mulheres de gravidez adiantada pendem de ganchos e correntes, untadas de um creme que os demonistas preparam para atrair as pragas, e as moscas as devoram ainda vivas. A preferência por gestantes e crianças é a aversão de Udoviom pela vida.\n' +
+      'Os devotos vestem túnicas verde-oliva de capuz e mangas longas, com o símbolo bordado em linha branca nas costas, e levam nos ombros insetos, ratos e outros bichos pestilentos.\n' +
+      'Seu reino é o nono do Inferno, morada dos condenados pela contaminação da carne e do espírito e destino dos Chacais e de quem espalha doença de propósito. É um vale de pedra sem saída, coberto de lodo, onde chove sem parar. Um portão de madeira podre leva a Crinato, que lembra as vilas do campo, com casebres, moinhos e estábulos, cercada de lavouras comidas por insetos e de gente febril, coberta de escaras, agonizando pelas ruas. O palácio é o tronco colossal de uma árvore morta, com crianças, mulheres e fetos expostos nas paredes como troféus. A cidade é a afronta perfeita a Maira, e ali a única coisa proibida de morrer é o juízo dos condenados, que devem provar todo o terror dos seus pecados.\n' +
+      'O guardião é Alcrinontes, o Contaminador: alto, magro e nu, exibe com orgulho as bolhas inflamadas, tem um lado do rosto roído por bicheira do queixo ao pescoço, mãos de garras longas e dois pares de asas de mosca rompendo as costas, e leva no ventre aberto um feto que carrega todas as pestes. Em vida foi médico e devoto de Maira, e curava de vila em vila sem cobrar um cobre. Quando a esposa grávida morreu de uma febre que ele não soube vencer, e a deusa não respondeu às suas preces, abriu o corpo dela, tirou o filho ainda pulsando e cortou o próprio ventre para guardá-lo ali. Morria quando uma voz como zumbido de enxame mandou que se levantasse. Viveu mais algum tempo, deixando a peste por onde passava, e no fim Udoviom o chamou e fez da sua obra-prima o seu braço direito.',
+
+    relacoes: [
+      { nome: 'Maira',
+        texto: 'Tem ódio profundo por ela e por tudo o que ela criou, e ao mesmo tempo se deleita em trazer-lhes o pavor das suas pestes. Crinato é uma afronta à deusa, e o seu guardião foi um devoto dela.' },
+      { nome: 'Antredom',
+        texto: 'O pai, em cujo estômago nasceu da consciência das almas e demônios devorados. Antredom nunca o quis livre, e Udoviom evita a sua presença maldita.' },
+      { nome: 'Vouxiz',
+        texto: 'A meia-irmã, também nascida do estômago de Antredom, tem com ele uma relação doentia: vê-o como rival e atiça sempre a rixa entre ele e o pai.' },
+      { nome: 'Mocna e Morrigalti',
+        texto: 'Odeia os dois pela devastação que causam, que mata depressa demais. Ele prefere a morte lenta.' },
+      { nome: 'Ricutatis',
+        texto: 'Prefere, como ele, os métodos lentos e sofridos, mas sem tantas frescuras: tem-no por um pomposo que não merece a fama que tem.' },
+      { nome: 'Descendentes',
+        texto: 'Os Chacais de Franges, humanos que a peste transformou no corpo e na mente, e que sobreviveram ao cerco vomitando os vermes do estômago para comê-los, com as larvas das próprias chagas. São crias suas e arautos da Peste de Franges: com uma mordida ou um arranhão passam-na adiante, e a vítima vira Chacal ou morre em menos de três dias.' },
+    ],
+
+    locais: [
+      { nome: 'Crinato', onde: 'Inferno, nono reino',
+        texto: 'A cidade da contaminação, num vale de pedra sem saída, coberto de lodo e de chuva, atrás de um portão de madeira podre. Parece uma vila do campo de lavouras comidas, com o palácio no tronco de uma árvore morta. Guarda-a Alcrinontes, o Contaminador.' },
+      { nome: 'Galerias do castelo real de Franges', onde: 'Franges',
+        texto: 'O principal templo de Udoviom, sob o castelo de uma cidade hoje quase abandonada. Só um em cada dez dos antigos moradores ainda vive dentro dos seus limites, e a maioria enlouqueceu com a peste.' },
+      { nome: 'Estradas desertas de Luna', onde: 'Reino de Luna',
+        texto: 'A região onde o culto mais age. Nas estradas vazias e nas cidades abandonadas, longe das patrulhas, o nome dele é sussurrado e a fé cresce.' },
+    ],
+
+    feriados: [
+      { dia: 15, mes: 11, nome: 'Dia da Contaminação',
+        texto: 'O dia em que começou a peste de Franges. Os sobreviventes que ainda vivem na cidade, quase todos enlouquecidos pela doença, reúnem-se para saudar o demônio, certos de serem os escolhidos que não perecerão na terra da peste. Pelo resto de Tagmar, os fiéis marcam encontro em lugares abandonados para ritos macabros.' },
+    ],
+
+    itens: [
+      { nome: 'Manto de Udoviom',
+        texto: 'Manto profano que deixa o demonista mandar nos insetos, que se juntam sobre ele numa armadura espessa contra golpes de qualquer arma, mas frágil diante do fogo. A mesma massa de insetos pode atacar o adversário e lhe atrapalhar a defesa.' },
+      { nome: 'Amuleto dos Sentidos Profanos',
+        texto: 'O amuleto da casa de Udoviom liga a mente do demonista a insetos e outros bichos pestilentos da região, e ele vê e ouve tudo o que se diz ali. Não os comanda nem os manda a lugar algum, mas ganha centenas de olhos e ouvidos.' },
+    ],
+  },
+{
+    slug: 'vouxiz',
+    nome: 'Vouxiz',
+    classe: 'princesa',
+    titulo: 'A Névoa Gananciosa',
+    imagem: null,
+    // Fonte: principes.pdf, págs. 99–104 (3.13 Vouxiz, com O Guardião Berzeu); Antredom (3.2) e Heldrom (3.7).
+
+    prefacio: {
+      texto:
+        'Uma ave noturna levanta voo, assustada, quando os irmãos Belis, Jagal e Frismar passam correndo pelo mangue. Sete noites antes, Frismar, gatuno de cidade, roubara de um grupo de pretensos heróis um mapa e uma pedra encantada que apontavam o Colar de Vou. Bastava entregá-los a quem o contratara. A cobiça falou mais alto, e ele convenceu os irmãos a buscar o colar.\n' +
+        'Agora Jagal corre e jura para si mesmo que tesouro nenhum vale aquilo. Uma névoa viva os persegue. Escaparam uma vez porque ela não pôde cruzar o alagado e teve de dar uma volta enorme, mas já se ouvem de novo os gritos que saem de dentro dela. Frismar, o mais velho, leva nos braços o baú com o colar. Entre as árvores surgem os muros de Uno, e atrás deles a névoa avança contra o vento.\n' +
+        'Jagal e Belis alcançam os portões, e um sacerdote de Ganis lança um pequeno frasco na soleira. Belis estende a mão ao irmão; atrás dele, a névoa ganha forma de mãos espectrais. Frismar salta. A névoa o agarra antes do portal e o arrasta para longe, e o grito dele enche a noite até sumir. Os dois que ficaram choram sentados na entrada.',
+      fonte: 'Extraído de O Livro de Maudi, do capítulo «A Névoa» — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Vouxiz é uma titã-segunda, mas não nasceu como as outras, da união de deuses e demônios. É a filha que Antredom gerou no próprio estômago, com uma parte da essência do titã Ar e um pouco do sangue de Ganis, roubado quando a deusa sangrou em luta contra os titãs. Do titã herdou o domínio dos ventos e o gênio impetuoso; da deusa, o poder de criar e moldar névoas e brumas; do pai, a fome e o dom de transformar em poder tudo o que come. A fome virou ganância, e a ganância se voltou para os reinos dos deuses: ela quis ficar mais forte que eles absorvendo-os.\n' +
+      'Mirou primeiro em Ganis. Se de uns respingos de sangue tirara o poder das brumas, pensou, de mais que isso despertaria muitos outros. Passou a devorar as ninfas e as enviadas da deusa, e a cada uma ficava mais bela e mais forte, a ponto de levantar tempestades. Ganis deu pela falta das filhas e, com a ajuda de outros deuses, amaldiçoou Vouxiz e a baniu para o Inferno. Entre os demônios do seu reino se sussurra que a nova ambição dela é ser rainha dos treze reinos infernais.\n' +
+      'Muda como o vento: ora esquiva e melindrosa, ora colérica e impetuosa. Persegue sem trégua quem a ofendeu ou a enfrentou. Quando quer algo, às vezes age por compulsão, agressiva e descuidada; outras vezes arquiteta tramas com frieza e manipula os outros com provocações e melindres. Numa disputa, com demônios ou com deuses, gosta de virar as palavras do adversário contra ele, torcendo o que ele quis dizer.\n' +
+      'Sua forma também é inconstante. A mais conhecida é a de uma névoa densa e gelada que toma um contorno vagamente humano, cheio de dentes, garras e olhos de escuridão, paródia malfeita de um paraelemental da névoa. Furiosa, revolve-se num furacão demoníaco. Dizem que, antes da prisão, parecia uma ninfa alada, bela e pálida, de pele de escamas azuis e asas de plumas brancas, e que ainda assume essa forma quando quer seduzir alguém.\n' +
+      'Tem três símbolos: um olho sobre um V; três espirais dentro de um triângulo, a sua luta contra a prisão; e um olho dentro de uma espiral de três voltas, a cobiça, a ambição e a ganância. Sua cor é o azul-escuro.\n' +
+      'Age em descampados e ermos, de preferência em florestas distantes e sombrias, e só à noite. É cultuada também em picos de montanha, e povos primitivos a tomam por uma deusa dos ventos. Seus devotos crescem nas regiões costeiras, dizendo que é a graça dela que traz de volta para casa, a salvo, quem viaja além-mar. Ela se alegra com a destruição: vórtices de vento na costa de Porto Livre, tempestades de areia na Levânia, gelo arrancado pelas tormentas no pico de Prussel. Onde passa, os ventos e as névoas deixam desastres, desaparecimentos e mortes.\n' +
+      'O templo é sempre amplo, às vezes a céu aberto e em lugar isolado: um grande altar de pedra cercado de dezoito estrelas, cada uma mais alta que um homem e dividida em três partes entalhadas de símbolos profanos. Ali se fazem os sacrifícios, e alguns dos «filhos» da princesa aparecem em forma de humanoides de vento. Os cultistas vestem mantos azuis de camurça com capuz e levam incensários onde queimam ervas profanas para atrair e dar corpo a esses filhos. Podem exibir adornos de ouro, prova da prosperidade que a ganância lhes trouxe.\n' +
+      'As doutrinas são cinco: cobiçar o próximo, ambicionar o impossível e agir com ganância, pois assim vem a prosperidade; lembrar que quem não cobiça é cobiçado, quem não ambiciona não anda e quem não é ganancioso não vence; guardar todo ano a Noite da Cobiça e os Ritos das Brumas; matar sufocados os traidores do culto; corromper pela ganância os servos de Ganis e afogá-los.\n' +
+      'Seu reino é o oitavo do Inferno, morada dos condenados pela ganância, onde as almas são sufocadas de todos os modos e os ventos sopram ora muito quentes, ora muito frios. O portal fica no alto do céu, sobre um lago imenso e fundo. A queda livre, que dura de horas a dias conforme o pecado, é o primeiro tormento; no lago, as almas se afogam, puxadas umas pelas outras e pelos demônios. Quem escapa chega a uma floresta que a bruma toma de repente, e ali os demônios caçam os perdidos e os enforcam em cipós, pendurados como isca para os companheiros.\n' +
+      'Depois vem Garfiniane, uma torre de topo invisível cercada de ruínas e de um muro baixo. Nas vielas, os demônios obrigam as almas a erguer casas de pedra e madeira tão às pressas que desabam sobre quem está dentro, e outras se erguem por cima dos soterrados. A última provação é a escada em espiral da torre, que parece não ter fim e sufoca de cansaço e de altura; por janelões entram criaturas que derrubam os que ainda têm forças, para que recomecem. Vouxiz e os seus demônios se alimentam desse sofrimento. Quando nada mais resta a tirar, a alma chega ao Salão das Brumas, no topo, onde a princesa a devora num banquete e com o que sobra gera demônios, elementais e paraelementais para o seu exército.\n' +
+      'Há ermos onde os fugitivos se perdem em nevoeiros cheios de armadilhas, sob o riso dos demônios, e ilhas voadoras com os covis dos servos: as dos mais importantes giram em volta da torre, e quanto mais fraco o servo, mais baixa a ilha. Habitam o reino demônios como sereias de grandes barbatanas nas costas à guisa de asas, demônios alados, elementais do ar, crias do vento, paraelementais da névoa e cruzamentos bizarros de harpias e feratus. O guardião da cidade é Berzeu, um cavaleiro esquelético num cavalo horrendo, de calça de malha de aço sob uma saia longa e negra, dorso nu tatuado, colar de ossos, espada prateada imensa e buracos no lugar dos olhos. Em vida foi líder militar das Tribos do Sul; saqueava as vilas vencidas e sacrificava crianças a deuses desconhecidos em troca da vitória seguinte, e diziam que via o futuro. Matou-o a guerreira Ismiria, devota da deusa das águas, que acabara de dar à luz: quase vencida, arrancou-lhe os olhos com os dedos e o acabou com uma adaga de prata.',
+
+    relacoes: [
+      { nome: 'Ganis',
+        texto: 'A mãe involuntária, de cujo sangue Vouxiz tirou o poder das brumas. Foi Ganis quem a amaldiçoou e a baniu, depois que ela devorou as suas ninfas e enviadas. A rixa pesa mais que a nova ambição: Vouxiz se alia a qualquer príncipe contra os deuses, desde que a ajude a derrotar a deusa. Seus sacrifícios são por afogamento, em escárnio a ela.' },
+      { nome: 'Os deuses',
+        texto: 'Quis absorver os reinos deles para se tornar mais poderosa que todos. Com a ajuda de vários, Ganis a baniu para o Inferno.' },
+      { nome: 'Ar',
+        texto: 'O titã de cuja essência ela nasceu em parte. Dele herdou o domínio dos ventos e a personalidade impetuosa.' },
+      { nome: 'Antredom',
+        texto: 'O pai, que a gerou no próprio estômago. A relação é fria. Às vezes ela o convida para banquetes no seu reino, coisa que ele, avaro, nunca ofereceria no dele; talvez para manter o vínculo e reforçar o direito de herança, de olho em somar um dia o reino do pai aos seus.' },
+      { nome: 'Udoviom',
+        texto: 'O meio-irmão, nascido também no estômago de Antredom. A relação é doentia: ela o vê como rival e atiça sempre a rixa entre ele e o pai.' },
+      { nome: 'Os Príncipes Infernais',
+        texto: 'Já não quer o mundo dos Filhos dos deuses, mas o próprio Inferno. Só faz alianças por conveniência e por pouco tempo, e só para derrubar outro príncipe e crescer com a queda dele.' },
+      { nome: 'Morrigalti',
+        texto: 'Vê na prisão dele em Âmiem a chance de alargar os seus domínios, e prepara um exército de criaturas para invadir o reino dele. Para formá-lo sem gastar a própria energia, consome as almas dos condenados que já não rendem tormento.' },
+      { nome: 'Heldrom',
+        texto: 'Com ele, Seinoniz e Diatrimis, Príncipes de origem não demoníaca, Vouxiz negocia planos em comum.' },
+      { nome: 'Descendentes',
+        texto: 'As Crias dos Ventos, névoas amaldiçoadas que vagam por pântanos e bosques e tomam o corpo de quem morreu afogado, de preferência crianças e mulheres, por escárnio a Ganis. Perto da água, gritam por socorro, afogam quem vem ajudar, consomem a alma e trocam de corpo. Das almas dos condenados ela gera ainda demônios alados, elementais do ar e paraelementais da névoa; aos demônios de posto mais alto deu, como prêmio, o poder de virar névoa ou ciclone.' },
+    ],
+
+    locais: [
+      { nome: 'Garfiniane', onde: 'Inferno, oitavo reino',
+        texto: 'A cidade-torre de Vouxiz, de topo que não se vê, cercada de ruínas e de barracos que desabam sobre os condenados. No alto fica o Salão das Brumas, onde a princesa devora as almas; à volta flutuam as ilhas dos seus servos. Guarda-a Berzeu.' },
+      { nome: 'Templo das Dezoito Estrelas', onde: 'Região dos Mangues, Terras Selvagens',
+        texto: 'Tido por muitos como o lugar mais sagrado do culto. Entre ruínas, dezoito estrelas de pedra, mais altas que três homens, cercam uma mesa de pedra com uma pequena caixa no centro.' },
+      { nome: 'Costa e rios do Denégrio', onde: 'Lago Denégrio, interior de Calco',
+        texto: 'Onde o culto é mais ativo. Os cultistas levantam nevoeiros densos para que os seguidores de Ganis se percam.' },
+      { nome: 'Porto Livre', onde: 'Porto Livre',
+        texto: 'Na costa, Vouxiz levanta vórtices de vento. Corre o rumor de que alguns navios piratas da cidade são tripulados por seguidores dela.' },
+    ],
+
+    feriados: [
+      { dia: 3, mes: 2, nome: 'Ritos das Brumas',
+        texto: 'Uma festa de prosperidade que é, no fundo, louvor à ganância. Cada um faz em segredo um desejo de ambição e conta quais das do ano anterior alcançou; depois escrevem as novas e as lançam num caldeirão, e dele evocam brumas que cobrem a caça às vítimas. No fim da noite, elas são afogadas em escárnio a Ganis. Só os que trazem mais sacrifícios ganham a bênção da prosperidade por um ano, e são revelados ao amanhecer, quando as brumas se recolhem em volta deles.' },
+      { dia: 8, mes: 5, nome: 'Noite da Cobiça',
+        texto: 'Os seguidores dizem o nome dos seus rivais e o que cobiçam deles, e fazem pactos com servos de Vouxiz para prosperar à custa dos marcados. Os servos cobram algo em troca, conforme o tamanho do pedido.' },
+    ],
+
+    itens: [
+      { nome: 'Colar de Vou',
+        texto: 'Um colar de pérolas negras com um dos símbolos de Vouxiz gravado no centro, achado nas guerras contra a Seita. Contam que os servos da princesa que o usavam levantavam ventos fortíssimos, muitas vezes ciclones.' },
+      { nome: 'Laço do Enforcado',
+        texto: 'Usado há gerações pelos maiores cultistas para sacrificar as vítimas dos ritos. A uma ordem, dá um bote como cobra e se enrola no pescoço de alguém. Dizem que com os séculos ganhou vontade própria, ou que um servo da princesa o possui.' },
+      { nome: 'Incenso da Névoa',
+        texto: 'Um incensário que, com ervas profanas e balançado ao som de cânticos, solta um nevoeiro que vai para onde quer quem o balança. As lendas dizem que piratas devotos de Vouxiz o usaram para chegar perto das presas sem ser vistos e para despistar perseguidores.' },
+      { nome: 'Caldeirão das Brumas',
+        texto: 'Um caldeirão de prata que a própria Vouxiz abençoou para um grande cultista Bankdi. Evoca brumas em qualquer noite do ano, e não só no rito anual; com o sacrifício adequado, chama um paraelemental da névoa ou um elemental do ar que serve ao cultista por um dia inteiro.' },
     ],
   },
 ];

@@ -31,9 +31,11 @@ const cruine = () => window.ENTIDADES.find((e) => e.slug === 'cruine');
 describe('o catálogo', () => {
   /* 13/11/2026: os oito deuses que faltavam do deuses.pdf (Crizagom, Ganis,
      Lena, Liris, Parom, Quiris, Selimom e Sevides) — o livro inteiro. */
-  it('as vinte e uma entidades, todas com os tópicos preenchidos', () => {
+  /* 13/11/2026, mais tarde: os sete príncipes que faltavam do principes.pdf
+     (Diatrimis, Ekisis, Fulvina, Morrigalti, Seinoniz, Udoviom e Vouxiz). */
+  it('as vinte e oito entidades, todas com os tópicos preenchidos', () => {
     const slugs = window.ENTIDADES.map((e) => e.slug).sort();
-    expect(slugs).toEqual(['anasmadis', 'antredom', 'blator', 'branaxis', 'cambu', 'crezir', 'crizagom', 'cruine', 'ganis', 'heldrom', 'lena', 'liris', 'maira', 'mocna', 'palier', 'parom', 'plandis', 'quiris', 'ricutatis', 'selimom', 'sevides']);
+    expect(slugs).toEqual(['anasmadis', 'antredom', 'blator', 'branaxis', 'cambu', 'crezir', 'crizagom', 'cruine', 'diatrimis', 'ekisis', 'fulvina', 'ganis', 'heldrom', 'lena', 'liris', 'maira', 'mocna', 'morrigalti', 'palier', 'parom', 'plandis', 'quiris', 'ricutatis', 'seinoniz', 'selimom', 'sevides', 'udoviom', 'vouxiz']);
     for (const e of window.ENTIDADES) {
       expect(window.ENTIDADE_CLASSES[e.classe], e.slug).toBeTruthy();
       expect(e.prefacio.texto.length, e.slug).toBeGreaterThan(200);
@@ -55,7 +57,7 @@ describe('o feriado entra no calendário', () => {
   /* A lista EXATA do dia: o nome antigo, que juntava as duas festas ("Dia de
      Cruine e Retorno da Escuridão"), não pode voltar. */
   it('a Festa do Ciclo Natural da Vida cai no último dia do ano, junto do Retorno à Escuridão', () => {
-    expect(window.feriadosDoDia(1, 13)).toEqual(['Retorno à Escuridão', 'Festa do Ciclo Natural da Vida']);
+    expect(window.feriadosDoDia(1, 13).sort()).toEqual(['Festa do Ciclo Natural da Vida', 'Retorno à Escuridão']);
   });
 
   /* Lote de 08/11/2026: Maira, Palier, Plandis, Ricutatis, Mocna, Heldrom. */
@@ -89,6 +91,17 @@ describe('o feriado entra no calendário', () => {
     }
     expect(window.feriadosDoDia(13, 4)).not.toContain('Festa da Purificação de Parom');
   });
+  it('os feriados dos príncipes novos entram no calendário uma vez', () => {
+    const casos = [
+      [20, 9, 'Prisão Dourada'], [1, 13, 'Retorno à Escuridão'], [1, 7, 'Dia dos Espelhos'],
+      [22, 1, 'Festival da Destruição e da Guerra'], [10, 3, 'Noite das Máscaras'],
+      [21, 5, 'Noite dos Esquecidos'], [15, 11, 'Dia da Contaminação'],
+      [3, 2, 'Ritos das Brumas'], [8, 5, 'Noite da Cobiça'],
+    ];
+    for (const [d, m, nome] of casos) {
+      expect(window.feriadosDoDia(d, m).filter((n) => n === nome), nome).toHaveLength(1);
+    }
+  });
   it('as entidades novas trazem os seus feriados', () => {
     expect(window.feriadosDoDia(2, 8)).toContain('Festa do Ódio');          // Mocna
     expect(window.feriadosDoDia(29, 12)).toContain('Grande Queda');         // Heldrom
@@ -104,7 +117,9 @@ describe('o feriado entra no calendário', () => {
     expect(window.feriadosDoDia(2, 1)).toEqual(['Festival da Bênção Militar']);
     expect(window.feriadosDoDia(27, 10)).toEqual(['Festival da Vitória']);
     expect(window.feriadosDoDia(12, 1)).toEqual(['Amor da Deusa']);
-    expect(window.feriadosDoDia(21, 5)).toEqual(['Dia da Multiplicação']);
+    // A Noite dos Esquecidos, de Seinoniz, cai de propósito no mesmo dia
+    // (13/11/2026): o livro a põe contra o pedido de prosperidade a Cambu.
+    expect(window.feriadosDoDia(21, 5).sort()).toEqual(['Dia da Multiplicação', 'Noite dos Esquecidos']);
     expect(window.feriadosDoDia(1, 5)).toEqual(['Festa da Fartura']);
     expect(window.feriadosDoDia(30, 4).filter((n) => n === 'Festa da Fartura')).toHaveLength(1);
     expect(window.feriadosDoDia(30, 4)).toContain('Banquete dos Famintos');

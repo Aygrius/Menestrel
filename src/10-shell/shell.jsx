@@ -2004,21 +2004,15 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
    Festival de Renascimento de Maira estava em 3 do mês do Sangue; o livro diz
    "3º dia do mês da Rosa" (deuses.pdf, Maira), e passou para 3/10. */
 const FERIADOS_FANTASY = [
-  /* Os feriados dos deuses saíram daqui (Blator, Cambu e Crezir em
-     08/11/2026; os outros doze em 13/11/2026): vêm das ENTIDADES deles
-     (01-core/entidades.jsx), com os nomes do livro. Ficam só as estações
-     e as festas dos príncipes que ainda não viraram entidade. */
+  /* Aqui ficam só as estações. Toda festa de deus ou de príncipe vem da
+     ENTIDADE dela (01-core/entidades.jsx), com o nome do livro — uma fonte
+     só por feriado: os deuses saíram daqui em 08 e 13/11/2026, e as duas
+     festas de Morrigalti (Prisão Dourada e Retorno à Escuridão) em
+     13/11/2026, quando ele virou entidade. */
   { dia:  5, mes:  2, nome: 'Solstício de Verão' },
   { dia:  5, mes:  5, nome: 'Equinócio de Outono' },
   { dia:  5, mes:  8, nome: 'Solstício de Inverno' },
-  { dia: 20, mes:  9, nome: 'Prisão Dourada' },   // de Morrigalti; a Adoração a Maira Nil vem da entidade dela
   { dia:  6, mes: 11, nome: 'Equinócio de Primavera' },
-  /* O último dia do ano juntava duas festas num nome só ("Dia de Cruine e
-     Retorno da Escuridão"). Separadas em 08/11/2026: o Retorno à Escuridão é
-     de Morrigalti (principes.pdf) e fica aqui; a de Cruine, a Festa do Ciclo
-     Natural da Vida, vem da ENTIDADE dele (01-core/entidades.jsx), junto com
-     os feriados de toda entidade — uma fonte só por feriado. */
-  { dia:  1, mes: 13, nome: 'Retorno à Escuridão' },
   ...((typeof feriadosDasEntidades === 'function' ? feriadosDasEntidades
     : (typeof window !== 'undefined' && window.feriadosDasEntidades) || (() => []))()),
 ];
