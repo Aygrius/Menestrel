@@ -167,7 +167,9 @@ describe('Estilhaçar e Retalhar — dano no equipamento', () => {
     // que a pega em 0: Retalhar (3) leva a peça de 1 a 0 e depois a quebra.
     const alvo = M.aplicarDanoEquipamento(comPecas(1), window.TECNICA_EFEITO_MAP.retalhar);
     expect(alvo.armadura_pecas[0].quebrada).toBe(true);
-    const r = M.aplicarDanoCascata(10, { ...alvo, ar: 20, eh: 0, eh_max: 0 }, false);
+    // ar_max 20 junto (14/11/2026, item 19): o que passa do ar_max é elixir, e
+    // o elixir protege mesmo sem armadura. Aqui os 20 são DA armadura quebrada.
+    const r = M.aplicarDanoCascata(10, { ...alvo, ar: 20, ar_max: 20, eh: 0, eh_max: 0 }, false);
     expect(r.ef).toBe(10);   // passou inteiro: a armadura arrebentou
   });
 });

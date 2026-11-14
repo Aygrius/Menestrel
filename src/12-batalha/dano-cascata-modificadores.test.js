@@ -71,6 +71,33 @@ describe('objeto de modificadores', () => {
   });
 });
 
+/* Auditoria item 19 (14/11/2026): o elixir de absorção soma em `ar` sem subir
+   `ar_max` — e só a armadura de pé descontava, então quem lutava sem armadura
+   bebia e não ganhava nada. */
+describe('a absorção do elixir protege quem está sem armadura', () => {
+  const semArmadura = (over = {}) => alvo({ eh: 0, eh_max: 0, ar: 0, ar_max: 0, res: 0, res_max: 0, ...over });
+
+  it('elixir de +6, golpe de 10: 4 chegam à EF', () => {
+    const r = M.aplicarDanoCascata(10, semArmadura({ ar: 6 }));
+    expect(r.ef).toBe(16);
+    expect(r.ar).toBe(6);   // não é gasto pelo golpe, como a absorção da armadura
+  });
+  it('golpe até a absorção do elixir: segurado inteiro', () => {
+    expect(M.aplicarDanoCascata(5, semArmadura({ ar: 6 })).ef).toBe(20);
+  });
+  it('armadura toda arrebentada: só o que passa do ar_max protege', () => {
+    // ar_max 5 é da armadura (quebrada, não segura); o elixir pôs +3 → ar 8.
+    const r = M.aplicarDanoCascata(10, alvo({ eh: 0, eh_max: 0, ar: 8, ar_max: 5, res: 0 }));
+    expect(r.ef).toBe(13);
+  });
+  it('sem elixir e sem armadura, o golpe passa inteiro (como antes)', () => {
+    expect(M.aplicarDanoCascata(10, semArmadura()).ef).toBe(10);
+  });
+  it('ignoraArmadura também fura o elixir', () => {
+    expect(M.aplicarDanoCascata(10, semArmadura({ ar: 6 }), { ignoraArmadura: true }).ef).toBe(10);
+  });
+});
+
 describe('as garantias antigas não mudam', () => {
   it('a EF para no piso de morte e o excedente vira sobra', () => {
     const r = M.aplicarDanoCascata(100, alvo(), { ignoraEh: true, ignoraArmadura: true });

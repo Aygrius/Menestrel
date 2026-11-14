@@ -14,12 +14,13 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1 a 4 e 6 a 18 (todos os críticos, todos os de alta
-  prioridade e o primeiro de média). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
+- **Feitos:** 1 a 4 e 6 a 19 (todos os críticos, todos os de alta
+  prioridade e os dois primeiros de média), mais o karma das criaturas
+  (pedido à parte). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
   (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Próximo: item 19** — absorção de elixir/poção (`ar` acima de `ar_max`)
-  não protege quem está sem armadura (`aplicarDanoCascata`). Depois seguir a
-  ordem da tabela (20, 21…).
+- **Próximo: item 20** — item com prazo (Fogo Vivo, Karma Líquido, Energia
+  Cinética, Elixir da Euforia) não faz nada em combate e é consumido
+  (`aplicarEfeitoItemSnapshot`). Depois seguir a ordem da tabela (21, 22…).
 - **Banco:** o usuário autorizou (14/11/2026) mudanças no banco feitas pelo
   Claude.
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
@@ -87,7 +88,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | # | Estado | Achado |
 |---|---|---|
 | 18 | ✅ | Criatura que escolhe nível de magia menor paga karma (`magiaNoNivel`) e trava (karma 0). |
-| 19 | ⬜ | Absorção de elixir/poção (`ar` acima de `ar_max`) não protege quem está sem armadura (`aplicarDanoCascata`). |
+| 19 | ✅ | Absorção de elixir/poção (`ar` acima de `ar_max`) não protege quem está sem armadura (`aplicarDanoCascata`). |
 | 20 | ⬜ | Item com prazo (Fogo Vivo, Karma Líquido, Energia Cinética, Elixir da Euforia) não faz nada em combate e é consumido (`aplicarEfeitoItemSnapshot`). |
 | 21 | ⬜ | Virada calcula PA e passo com o buff de velocidade que expira nela mesma. |
 | 22 | ⬜ | PJ que entra com EF ≤ 0 fica desmaiado a luta inteira (sem o contador `desmaio_ef`). |
@@ -182,6 +183,17 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 19 — como ficou (14/11/2026)
+
+`aplicarDanoCascata`: sem armadura de pé (ou com ela toda quebrada), o que
+passa do `ar_max` — a absorção do elixir/poção, que soma em `ar` sem subir o
+máximo — segura o golpe como a absorção da armadura, sem desgaste (não há peça).
+Peça quebrando tira o mesmo de `ar` e de `ar_max` (desgastarAtor), então a
+diferença é sempre só o elixir. Sem `ar_max` conhecido, não supõe nada.
+`ignoraArmadura` fura o elixir também. Testes em
+`src/12-batalha/dano-cascata-modificadores.test.js`; o fixture de
+`tecnica-fase3.test.js` ganhou `ar_max` (os 20 eram da armadura quebrada).
 
 ## Karma das criaturas (14/11/2026, pedido fora da lista)
 

@@ -1903,6 +1903,17 @@ function aplicarDanoCascata(dano, p, mods) {
     const abs = Math.max(0, Number(p.ar) || 0);
     if (r > abs) desg = desgastarAtor(p);   // passou da absorção: desgasta
     r = Math.max(0, r - abs);
+  } else if (r > 0 && !m.ignoraArmadura) {
+    /* A ABSORÇÃO DO ELIXIR SEM ARMADURA (14/11/2026, auditoria item 19). A
+       poção ou o elixir de absorção soma em `ar` SEM subir `ar_max` (buff
+       temporário, ver aplicarEfeitoItemSnapshot) — e o ramo acima só descontava
+       com armadura de pé, então quem lutava sem armadura (ou com ela toda
+       quebrada) bebia e não ganhava nada. O que passa do `ar_max` segura o
+       golpe do mesmo jeito; sem peça, não há desgaste. */
+    // Sem `ar_max` não dá para separar o elixir da armadura: não supõe nada.
+    const temMax = p.ar_max != null && Number.isFinite(Number(p.ar_max));
+    const extra = temMax ? Math.max(0, (Number(p.ar) || 0) - Number(p.ar_max)) : 0;
+    if (extra > 0) r = Math.max(0, r - extra);
   }
   if (r > 0 && ef > EF_MORTE) { const c = Math.min(ef - EF_MORTE, r); ef -= c; r -= c; }
   let status = p.status;
