@@ -122,7 +122,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 39 | ✅ | Desmontar deixa o cavalo desmaiado (EH 0 / máx > 0). |
 | 40 | ✅ | Oferenda consumida em magia de item sem dar o bônus. |
 | 41 | ✅ (jogador pela RPC; Mestre em 14/11) | Saque gravado antes de anotar; falha → saca de novo. Saque simultâneo de dois jogadores sobrescreve `saqueado`. No jogador, `saquear_criatura` grava item e anotação numa transação; falta o saque do Mestre. |
-| 42 | ⬜ | Realtime não ouve DELETE; nome de canal fixo. |
+| 42 | ✅ | Realtime não ouve DELETE; nome de canal fixo. |
 | 43 | ⬜ | `handleDesistir` sem botão. |
 | 44 | ⬜ | Parser lê "2,5" como 5. |
 | 45 | ⬜ | Ritual/fabricação contam a mesma unidade em dois grupos. |
@@ -184,6 +184,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 42 — como ficou (14/11/2026)
+
+Realtime do Mestre (12-batalha): canal com sufixo aleatório por aba e um
+segundo ouvinte de DELETE (o filtro do realtime não vale para DELETE; confere
+`payload.old.id`) que tira a tela da batalha encerrada em outra aba. O canal do
+Jogador (08-personagens) também ganhou o sufixo. Teste:
+`src/12-batalha/realtime-batalha.test.js`.
 
 ## Item 41 — como ficou (14/11/2026)
 

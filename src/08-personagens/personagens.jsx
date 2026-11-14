@@ -83,7 +83,8 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
     // Realtime: atualiza quando a batalha muda
     const channel = supabaseClient
-      .channel('batalha_jogador_' + pjAtivoId)
+      // Nome único por aba (14/11/2026, auditoria item 42): duas abas do mesmo PJ disputavam o canal.
+      .channel('batalha_jogador_' + pjAtivoId + '_' + Math.random().toString(36).slice(2))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'batalhas' }, async (payload) => {
         // Filtra ANTES de consultar. Sem isto, QUALQUER ação em QUALQUER
         // batalha do sistema disparava um refetch em TODO jogador logado —

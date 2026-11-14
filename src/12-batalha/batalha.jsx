@@ -9105,8 +9105,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   // (mesmos valores → mesmo estado). Filtrado por id pra ignorar outras batalhas.
   useEffect(() => {
     if (!batalha || !batalha.id) return;
+    /* NOME ÚNICO E O DELETE (14/11/2026, auditoria item 42). O canal se chamava
+       `batalha_mestre_<id>`: duas abas do Mestre na mesma batalha disputavam o
+       mesmo nome e uma perdia a assinatura. E só UPDATE era ouvido: encerrada
+       em outra aba (encerrar_batalha apaga a linha), esta tela seguia mostrando
+       uma batalha que não existe mais. O filtro do realtime não vale para
+       DELETE, então ele é conferido pelo id da linha antiga. */
     const ch = supabaseClient
-      .channel('batalha_mestre_' + batalha.id)
+      .channel('batalha_mestre_' + batalha.id + '_' + Math.random().toString(36).slice(2))
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'batalhas', filter: 'id=eq.' + batalha.id },
         (payload) => {
@@ -9117,6 +9123,14 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           if (nova.rodada != null)        setRodada(nova.rodada);
           if (nova.log != null)           setLog(nova.log);
           if (nova.cortina !== undefined) setCortina(nova.cortina);
+        })
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'batalhas' },
+        (payload) => {
+          const velha = payload && payload.old;
+          if (!velha || String(velha.id) !== String(batalha.id)) return;
+          onAtualizado && onAtualizado();
+          onVoltar && onVoltar();
         })
       .subscribe();
     return () => { supabaseClient.removeChannel(ch); };
