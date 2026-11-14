@@ -671,7 +671,7 @@ function EstagioDoCombatente({ estagio, isEn }) {
    bandos continuam a numeração dos que já lutam (`bandosExistentes`). */
 function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onStateChange,
   pjsMarcados = true, intro = null, bandosExistentes = [], treino = false, onTreino = null, pagina = 'aliados',
-  onPagina = null, folha = 1 }) {
+  onPagina = null, folha = 1, emCampo = [] }) {
   const tb = tBat(isEn ? 'en' : 'pt'); // i18n-sync (Fase 3.3): este componente recebe o boolean
   const nomePj = (p) => `${p.nome}${p.sobrenome ? ' ' + p.sobrenome : ''}`;
 
@@ -759,13 +759,19 @@ function NovaBatalhaView({ isEn, pjsVinc, criaturasVinc, onCriar, criarRef, onSt
       ...animaisEscolhidos,
       // Criaturas: expande qtd>1 em múltiplos participantes, cada uma com inst_id único
       // para que duas criaturas da mesma raça (mesmo ref_id) sejam distinguíveis em combate.
-      ...criaturasVinc.flatMap((c) => {
-        const q = qtdCri.get('cri:' + c.id) || 0;
-        return Array.from({ length: q }, (_, i) => ({
-          tipo: 'criatura', ref_id: c.id, nome: c.nome,
-          inst_id: `cri:${c.id}:${Date.now()}:${i}:${Math.random().toString(36).slice(2,7)}`,
-        }));
-      }),
+      /* Cada uma com o nome próprio da raça (14/11/2026: "Um orc não se chama
+         orc, ele se chama Mudush") — batizarCriaturas, 01-core/nomes-criatura. */
+      ...((typeof batizarCriaturas === 'function' ? batizarCriaturas : (window.batizarCriaturas || ((x) => x)))(
+        criaturasVinc.flatMap((c) => {
+          const q = qtdCri.get('cri:' + c.id) || 0;
+          return Array.from({ length: q }, (_, i) => ({
+            tipo: 'criatura', ref_id: c.id, nome: c.nome,
+            inst_id: `cri:${c.id}:${Date.now()}:${i}:${Math.random().toString(36).slice(2,7)}`,
+          }));
+        }),
+        (p) => criaturasVinc.find((c) => c.id === p.ref_id),
+        emCampo,
+      )),
     ]);
     await onCriar(participantes);
     setSaving(false);
@@ -2256,6 +2262,9 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
     const kaCri = minion ? poolDeMinion(kaCheio) : kaCheio;
     return {
       tipo: 'criatura', ref_id: p.ref_id, nome: p.nome,
+      // A espécie do bestiário (14/11/2026): o nome é próprio ("Mudush"), a
+      // espécie é a do catálogo ("Orc") — o card mostra os dois.
+      especie: c.nome || null,
       // O elemento da criatura (26/09/2026; pode ser "Fogo, Luz") — ver danoFinal.
       elemento: c.elemento || null,
       inst_id: p.inst_id,   // garantido por partsComInstId acima
@@ -9295,8 +9304,15 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       // formarBandos amarrar os animais num bando de líder e minions.
       const [snap] = await montarSnapshots([{ tipo: 'criatura', ref_id: id, nome }], pools, magiasByKey, dataJogo);
       if (!snap || snap.ausente) continue;
+      // O invocado também tem nome próprio (14/11/2026): o Enviado do Apelo
+      // chega como Gabriel, não como "Enviado II". `raca` é o tipo da criatura.
+      const _batizar = typeof batizarCriaturas === 'function' ? batizarCriaturas : window.batizarCriaturas;
       for (let k = 0; k < (qtd || 1); k++) {
-        novos.push(participanteInvocado(snap, conj, [...participantes, ...novos], parte));
+        let inv = participanteInvocado(snap, conj, [...participantes, ...novos], parte);
+        if (typeof _batizar === 'function') {
+          [inv] = _batizar([inv], () => ({ nome, tipo: snap.raca, estagio: snap.estagio }), [...participantes, ...novos]);
+        }
+        novos.push(inv);
       }
     }
     return novos;
@@ -11242,6 +11258,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       }}
                       />
                   ) : <span className="batalha-fighter-nome">{p.nome}</span>}
+                  {/* A espécie sob o nome próprio (14/11/2026): "Mudush", e embaixo "Orc". */}
+                  {p.especie && p.especie !== p.nome && !String(p.nome || '').startsWith(p.especie) && (
+                    <span className="batalha-fighter-especie">{p.especie}</span>
+                  )}
                   {/* POOLS AO LADO DO NOME desde 13/09/2026 ("Os 4 itens de eh,
                       ef, etc devem ficar inline com o nome"). Anel que diminui
                       (PoolBotao); a resistência só com peça de armadura, e não
@@ -11487,6 +11507,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           criaturasVinc={criaturasDaHistoria}
           pjsMarcados={false}
           intro={tb.reforcosIntro}
+          emCampo={participantes}
           bandosExistentes={participantes.filter((p) => p.bando)}
           criarRef={reforcoRef}
           onStateChange={setReforcoState}

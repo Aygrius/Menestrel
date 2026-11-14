@@ -644,6 +644,15 @@ function fracaoEhDoToken(p) {
   if (max <= 0) return null;
   return Math.max(0, Math.min(1, (Number(p.eh) || 0) / max));
 }
+/* O Karma no terceiro anel (14/11/2026, usuário: "No campo de batalha,
+   adicione a barra azul de karma no avatar"). Por fora do da EH, no azul da
+   barra de Karma do card (COR_POOL.ka). null sem Karma — quem não tem não
+   ganha anel vazio. */
+function fracaoKarmaDoToken(p) {
+  const max = Number(p && p.karma_max) || 0;
+  if (max <= 0) return null;
+  return Math.max(0, Math.min(1, (Number(p.karma) || 0) / max));
+}
 
 /* `atravessavel` (14/09/2026): com o Mover armado, o token deixa o clique passar
    para a grade — ver o comentário no mapa de tokens do TabuleiroBatalha. */
@@ -679,6 +688,8 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
   const pctEf = fracaoEf == null ? 0 : Math.round(fracaoEf * 100);
   const fracaoEh = fracaoEhDoToken(p);
   const pctEh = fracaoEh == null ? 0 : Math.round(fracaoEh * 100);
+  const fracaoKa = fracaoKarmaDoToken(p);
+  const pctKa = fracaoKa == null ? 0 : Math.round(fracaoKa * 100);
 
   return React.createElement('div', {
     role: podeSel ? 'button' : undefined,
@@ -815,6 +826,18 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
         React.createElement('circle', {
           className: 'batalha-token-eh-nivel', cx: 50, cy: 50, r: 47, pathLength: 100,
           strokeDasharray: pctEh + ' 100', transform: 'rotate(-90 50 50)',
+        })),
+      /* O anel do Karma, por fora do da EH, no azul da barra de Karma. */
+      fracaoKa != null && React.createElement('svg', {
+        key: 'ka',
+        className: 'batalha-token-ka' + (pctKa === 0 ? ' vazia' : ''),
+        viewBox: '0 0 100 100', 'aria-hidden': 'true', focusable: 'false', 'data-pct': pctKa,
+        style: { position: 'absolute', inset: -14, width: size + 28, height: size + 28, pointerEvents: 'none', overflow: 'visible' },
+      },
+        React.createElement('circle', { className: 'batalha-token-ka-trilho', cx: 50, cy: 50, r: 47, pathLength: 100 }),
+        React.createElement('circle', {
+          className: 'batalha-token-ka-nivel', cx: 50, cy: 50, r: 47, pathLength: 100,
+          strokeDasharray: pctKa + ' 100', transform: 'rotate(-90 50 50)',
         }))),
     // selo de status (caveira / zzz / bandeira) — com nome, para leitor de
     // tela e para quem pergunta "o que é isso" (13/09/2026).

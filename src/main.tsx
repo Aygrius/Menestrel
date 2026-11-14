@@ -41,6 +41,7 @@ import './01-core/grupo-afetado.jsx'
 import './01-core/animal-condicao.jsx'
 import './01-core/animal-experiencia.jsx'
 import './01-core/forma-raca.jsx'
+import './01-core/nomes-criatura.jsx'    // o nome próprio da criatura na batalha (14/11/2026)
 import './01-core/select-pill.jsx'       // o dropdown único do sistema (25/09/2026)
 import './01-core/supabase.jsx'
 import './01-core/clima-desgaste.jsx'   // o relógio da mesa desgasta o PJ (20/09/2026)

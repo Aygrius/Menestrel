@@ -12734,6 +12734,11 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .batalha-mesa-painel .batalha-painel-mono { display: grid; place-items: center; background: #2A1E12; color: var(--tinta-2); font-family: var(--font-title); font-size: 22px; }
 #root .menestrel-ui .batalha-mesa-painel .batalha-painel-mono.is-inimigo { background: #2A1410; color: #E59A86; box-shadow: inset 0 0 0 1px rgba(201,85,59,.6); }
 #root .menestrel-ui .batalha-mesa-painel .batalha-fighter-nome { grid-row: 1; font-family: var(--font-title); font-weight: 600; font-size: 18px; line-height: 1.2; color: var(--tinta); white-space: normal; }
+/* A espécie sob o nome próprio (14/11/2026): "Mudush", e embaixo "Orc". */
+#root .menestrel-ui .batalha-fighter-especie { font-family: var(--font-body); font-size: var(--fs-sm); color: var(--tinta-2); margin-left: 6px; }
+#root .menestrel-ui .batalha-mesa-painel .batalha-fighter-id:has(.batalha-fighter-especie) .batalha-painel-ret { grid-row: 1 / span 2; }
+#root .menestrel-ui .batalha-mesa-painel .batalha-fighter-id:has(.batalha-fighter-especie) > :nth-child(2) { align-self: end; }
+#root .menestrel-ui .batalha-mesa-painel .batalha-fighter-especie { grid-column: 2; grid-row: 2; align-self: start; margin: 2px 0 0; }
 /* as pools, os efeitos e o estado: uma coluna abaixo do cabeçalho */
 #root .menestrel-ui .batalha-mesa-painel .batalha-card-pools-nome {
   grid-column: 1 / -1; display: flex; flex-direction: column; align-items: stretch; gap: 8px;
@@ -18496,6 +18501,20 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 @media (prefers-reduced-motion: no-preference) {
   #root .menestrel-ui .batalha-token-eh.is-dano-eh .batalha-token-eh-nivel { animation: batalha-dano-eh-anel .8s ease-out both; }
 }
+
+/* ══ O ANEL DO KARMA (14/11/2026) ═══════════════════════════════════════════
+   "Adicione a barra azul de karma no avatar." Terceiro anel, por fora do da
+   EH, no azul da barra de Karma do card (COR_POOL.ka, #3558B0). O traço é um
+   pouco mais fino porque o círculo é maior: na tela, os três têm a mesma
+   espessura. */
+#root .menestrel-ui .batalha-token-ka circle { fill: none; stroke-width: 3.8; }
+#root .menestrel-ui .batalha-token-ka-trilho { stroke: rgba(0,0,0,.45); }
+#root .menestrel-ui .batalha-token-ka-nivel {
+  stroke: #3558B0; stroke-linecap: round;
+  filter: drop-shadow(0 0 1.5px rgba(0,0,0,.8));
+  transition: stroke-dasharray .45s cubic-bezier(.4,0,.2,1);
+}
+#root .menestrel-ui .batalha-token-ka.vazia .batalha-token-ka-nivel { stroke: transparent; }
 
 /* ══ O AUTOMÁTICO NÃO MOSTRA A JANELA NEM O DADO (08/11/2026) ═══════════════
    Enquanto a mesa joga sozinha (html[data-mesa-auto], ligado em batalha.jsx),

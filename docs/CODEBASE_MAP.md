@@ -143,6 +143,7 @@ arquivo daqui conhece tela.
 | `efeito-temporario.jsx` | Bônus de item com prazo, que pode passar do teto e vence sozinho. |
 | `fabricacao.jsx` | A bancada: receita (item de loja), teste, consumo de material, horas de construção, rendimento. |
 | `forma-raca.jsx` | Vampiro e Lobisomem como **camada de leitura** sobre a raça. |
+| `nomes-criatura.jsx` | O nome próprio da criatura na batalha (`batizarCriaturas`): listas por raça; a espécie segue em `especie`. Raça sem lista e animal ficam com o nome do bestiário. |
 | `animal-experiencia.jsx` | O quinto de XP do dono e a evolução do bicho. |
 | `animal-condicao.jsx` | O clima desgasta o animal; as barras dele abatem **atributo**. |
 | `forca-minima.jsx` | Quem limita a arma é a Força, não a linhagem. |
@@ -304,7 +305,10 @@ relógio anterior. Se uma escrita falhar, as horas ficam devendo em vez de sumir
 O Mestre disponibiliza criaturas e lore (Reinos, Cidades, Locais, Pessoas) para
 a história; o Jogador importa para o diário do PJ e comenta. Memórias são texto
 livre. Reinos/cidades/pessoas são catálogo **global** com cópia por história —
-editar um global dispara fork automático. A visibilidade por PJ mora em
+editar um global dispara fork automático. Desde 14/11/2026 o admin cria e edita
+**só no mundo**, mesmo de dentro de uma mesa (uma versão para todas as
+histórias); cópia por mesa ficou para Mestre não-admin e para entrada criada
+por personagem (`scripts/sql/lore-uma-versao-so-2026-11-14.sql`). A visibilidade por PJ mora em
 `historias.lore_acesso_pj`: chave ausente ou lista vazia = todos veem.
 
 `jornal-aventuras.jsx` é o mural da cidade; o campo `fim` (a solução da
