@@ -5940,6 +5940,17 @@ function partemOsInvocados(participantes) {
   };
 }
 
+/* O erro de gravar a cortina é a coluna que não existe (banco antigo)? Só
+   esse desliga a aprovação (auditoria item 24): 42703 é a coluna ausente no
+   Postgres, PGRST204 a mesma coisa vista pelo PostgREST. Rede, tempo esgotado
+   e afins são passageiros. */
+function cortinaIndisponivel(err) {
+  if (!err) return false;
+  const code = String(err.code || '');
+  if (code === '42703' || code === 'PGRST204') return true;
+  return /column[^]*cortina|cortina[^]*column/i.test(String(err.message || ''));
+}
+
 /* Os efeitos que a ação enfileirou (aposGravar), na ordem, depois do OK do
    banco. Um que estoura não impede os outros. */
 function rodarEfeitosDaAcao(efeitos) {
@@ -8801,10 +8812,29 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   const MC = window.MotorCortina;
   const [cortina, setCortina] = useState(batalha.cortina || null);
   const [semCortina, setSemCortina] = useState(false);
-  const gravarCortina = async (c) => {
+  /* SÓ A COLUNA AUSENTE DESLIGA (14/11/2026, auditoria item 24). Qualquer erro
+     ligava `semCortina` — uma queda de rede no meio da sessão desligava a
+     aprovação para sempre naquela tela, e a mesa via os golpes antes do Mestre
+     revelar. Desligar é para o banco sem a coluna (cortinaIndisponivel); erro
+     passageiro mantém a cortina na tela e tenta gravar de novo, uma vez. */
+  const ultimaCortinaRef = useRef(null);
+  const gravarCortina = async (c, tentativa = 0) => {
     setCortina(c);
+    ultimaCortinaRef.current = c;
     const { error: err } = await supabaseClient.from('batalhas').update({ cortina: c }).eq('id', batalha.id);
-    if (err) { console.warn('[batalha] cortina indisponível, a aprovação fica desligada:', err.message); setSemCortina(true); }
+    if (!err) return;
+    if (cortinaIndisponivel(err)) {
+      console.warn('[batalha] cortina indisponível, a aprovação fica desligada:', err.message);
+      setSemCortina(true);
+      return;
+    }
+    console.warn('[batalha] cortina não gravou, tentando de novo:', err.message);
+    if (tentativa < 1) {
+      setTimeout(() => {
+        // Só regrava se nada mais novo já foi para a cortina nesse meio-tempo.
+        if (ultimaCortinaRef.current === c) gravarCortina(c, tentativa + 1);
+      }, 1500);
+    }
   };
   const aguardandoRevelar = !semCortina && estado === 'ativa' && !!MC && MC.cortinaAguardando(cortina, participantes, rodada);
   const vezAberta = estado === 'ativa' && participantes.some((p) => p && p.atual);
@@ -15818,7 +15848,7 @@ Object.assign(window, {
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
     alvosExtrasEfetivos,
-    debitarCustoAtaque, paParaAtaque, criarTravaDeAcao, rodarEfeitosDaAcao,
+    debitarCustoAtaque, paParaAtaque, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,
     minutosDaBatalha, prazosDaFichaEmRodadas,

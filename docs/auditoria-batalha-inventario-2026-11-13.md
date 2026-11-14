@@ -92,7 +92,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 21 | ✅ | Virada calcula PA e passo com o buff de velocidade que expira nela mesma. |
 | 22 | ✅ | PJ que entra com EF ≤ 0 fica desmaiado a luta inteira (sem o contador `desmaio_ef`). |
 | 23 | ✅ | Rodada trava se todo ativo está canalizando/sem ação — ninguém recebe `atual`. |
-| 24 | ⬜ | Falha passageira ao gravar a cortina desliga a cortina para sempre naquela tela. |
+| 24 | ✅ | Falha passageira ao gravar a cortina desliga a cortina para sempre naquela tela. |
 | 25 | ⬜ | Encerrar sobrescreve `condicoes` com as da entrada (horas avançadas na luta somem). |
 | 26 | ⬜ | Alvo guardado por índice: quando alguém sai da lista, a mira pula para o vizinho. |
 | 27 | ⬜ | Item usado pelo Mestre a partir do cache velho: efeito sem baixa (`consumirDoInventario` devolve ok sem achar o item). |
@@ -182,6 +182,13 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 24 — como ficou (14/11/2026)
+
+`gravarCortina`: só a coluna ausente (`cortinaIndisponivel`: 42703, PGRST204 ou
+a mensagem de coluna) liga `semCortina`. Erro passageiro mantém a cortina na
+tela e regrava uma vez depois de 1,5 s, se nada mais novo foi para a cortina
+nesse meio-tempo. Teste: `src/12-batalha/cortina-falha.test.js`.
 
 ## Item 23 — como ficou (14/11/2026)
 
