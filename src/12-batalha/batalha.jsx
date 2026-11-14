@@ -12125,13 +12125,20 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // rolagem salva antiga com técnica não a ressuscita escondida.
   const [tecIdx,  setTecIdx]    = useState(-1);
   const [magiaIdx, setMagiaIdx] = useState(idxSalvo(selSalva.magiaIdx, evMagiaIdx >= 0 ? evMagiaIdx : 0));
-  // Alvo vindo do clique no avatar do inimigo (ou da rolagem salva): o índice dele em `alvos`.
-  const [alvoIdx, setAlvoIdx]  = useState(() => {
+  /* O ALVO É QUEM, NÃO A POSIÇÃO (14/11/2026, auditoria item 26). Guardava o
+     índice em `alvos`: quando alguém antes dele na lista caía ou saía, o mesmo
+     índice passava a apontar para o vizinho, e o golpe ia para outra pessoa.
+     Agora guarda o inst_id e a posição sai dele a cada render. Sem escolha
+     (null), vale o primeiro da lista, como antes; o escolhido que sumiu deixa
+     a mira vazia (-1) em vez de pular para outro. `setAlvoIdx` continua
+     recebendo um índice, para os seletores não mudarem. */
+  const [alvoSelId, setAlvoSelId] = useState(() => {
     const id = selSalva.alvoId || alvoInicialId
       || (evMagiaIdx >= 0 ? (ator.evocando.alvos || [])[0] : null);
-    const k = id ? alvos.findIndex((p) => p.inst_id === id) : -1;
-    return k >= 0 ? k : 0;
+    return id && alvos.some((p) => p.inst_id === id) ? id : null;
   });
+  const alvoIdx = alvoSelId ? alvos.findIndex((p) => p.inst_id === alvoSelId) : 0;
+  const setAlvoIdx = (k) => setAlvoSelId(alvos[k] ? alvos[k].inst_id : null);
   const [apoioIdx, setApoioIdx] = useState(idxSalvo(selSalva.apoioIdx, evApoioIdx >= 0 ? evApoioIdx : 0));
   const [alvoApoioIdx, setAlvoApoioIdx] = useState(idxSalvo(selSalva.alvoApoioIdx, 0));
   // Golpe Giratório: inst_ids dos alvos ALÉM do principal. Fica na aba Arma

@@ -94,7 +94,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 23 | ✅ | Rodada trava se todo ativo está canalizando/sem ação — ninguém recebe `atual`. |
 | 24 | ✅ | Falha passageira ao gravar a cortina desliga a cortina para sempre naquela tela. |
 | 25 | ✅ | Encerrar sobrescreve `condicoes` com as da entrada (horas avançadas na luta somem). |
-| 26 | ⬜ | Alvo guardado por índice: quando alguém sai da lista, a mira pula para o vizinho. |
+| 26 | ✅ | Alvo guardado por índice: quando alguém sai da lista, a mira pula para o vizinho. |
 | 27 | ⬜ | Item usado pelo Mestre a partir do cache velho: efeito sem baixa (`consumirDoInventario` devolve ok sem achar o item). |
 | 28 | ⬜ | Restaurar do treino não conserta peças quebradas nem `ar`/`ar_max`. |
 
@@ -182,6 +182,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 26 — como ficou (14/11/2026)
+
+AcaoPanel: o alvo da aba Arma/Magia é guardado pelo `inst_id`
+(`alvoSelId`); `alvoIdx` é derivado a cada render e `setAlvoIdx` converte o
+índice dos seletores em inst_id. Sem escolha, o primeiro da lista; o escolhido
+que saiu deixa a mira vazia em vez de pular para o vizinho.
+Teste: `src/12-batalha/alvo-por-id.test.js`.
 
 ## Item 25 — como ficou (14/11/2026)
 
