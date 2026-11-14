@@ -15421,6 +15421,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   };
 
   // ── Encerrar (desistir) — status do próprio PJ vira 'desistiu' ──
+  /* SEM BOTÃO DE PROPÓSITO (auditoria item 43, 14/11/2026). O "Encerrar"
+     (desistir) saiu do card do jogador em 14/09/2026, a pedido do usuário; quem
+     tira o PJ da luta é o Mestre, pelo estado no card dele (mudarStatus, a
+     mesma saidaDeCombate). A função fica pronta caso o botão volte. */
   const handleDesistir = () => {
     if (!meuParticipante) return;
     // MESMA regra do Mestre (mudarStatus): muda o status, derruba a magia
